@@ -139,7 +139,7 @@ export const estUnOrdinateur = (station: Pick<StationVue, "machine">) => /^(macO
 
 // La principale que l'app recommande : une station serveur, en ligne d'abord.
 export function principaleRecommandee(stations: readonly StationVue[]): string | undefined {
-  const serveurs = stations.filter((station) => station.etat !== "illisible" && !estUnOrdinateur(station));
+  const serveurs = stations.filter((station) => station.etat !== "illisible" && station.cuisine !== false && !estUnOrdinateur(station));
   return (serveurs.find((station) => station.etat === "en-ligne") ?? serveurs[0])?.id;
 }
 
@@ -207,7 +207,8 @@ export function refusDeSaisie(saisie: SaisieDuProjet, stations: readonly Station
   );
   signaler("base", saisie.base === "" ? "The integration branch is missing: the branch the kitchen delivers to." : BRANCHE.test(saisie.base) ? undefined : `“${saisie.base.slice(0, 60)}” is not a branch name.`);
   const connues = new Set(stations.map(({ id }) => id));
-  signaler("stations", saisie.stations.length === 0 ? "Choose at least one station to serve this project." : saisie.stations.some((id) => !connues.has(id)) ? "A chosen station is no longer paired with this app." : undefined);
+  const sansCuisine = stations.filter(({ id, cuisine }) => cuisine === false && saisie.stations.includes(id)).map(({ nom }) => nom);
+  signaler("stations", saisie.stations.length === 0 ? "Choose at least one station to serve this project." : saisie.stations.some((id) => !connues.has(id)) ? "A chosen station is no longer paired with this app." : sansCuisine.length > 0 ? `${sansCuisine.join(", ")} does not cook: choose a station that does.` : undefined);
   signaler("principale", saisie.principale === "" ? "Choose its main station: the one that runs its manager and its pass." : saisie.stations.includes(saisie.principale) ? undefined : "The main station must be one of the chosen stations.");
   return { ...signales, ...refusDesDecisions(saisie) };
 }
@@ -253,6 +254,7 @@ export function refusDeConfiance(saisie: SaisieDeConfiance, stations: readonly S
   );
   signaler("base", saisie.base === "" ? "The integration branch is missing: the branch the kitchen delivers to." : BRANCHE.test(saisie.base) ? undefined : `“${saisie.base.slice(0, 60)}” is not a branch name.`);
   const connues = new Map(stations.map((station) => [station.id, station.nom]));
+  const sansCuisine = stations.filter(({ id, cuisine }) => cuisine === false && saisie.stations.includes(id)).map(({ nom }) => nom);
   const deja = saisie.stations.filter((id) => tenu.portee.includes(id)).map((id) => connues.get(id) ?? id);
   signaler(
     "stations",
@@ -260,7 +262,9 @@ export function refusDeConfiance(saisie: SaisieDeConfiance, stations: readonly S
       ? `Choose at least one station to cook ${saisie.nom || "this project"}.`
       : saisie.stations.some((id) => !connues.has(id))
         ? "A chosen station is no longer paired with this app."
-        : deja.length > 0
+        : sansCuisine.length > 0
+          ? `${sansCuisine.join(", ")} does not cook: choose a station that does.`
+          : deja.length > 0
           ? `${deja.join(", ")} already cook${deja.length > 1 ? "" : "s"} it: choose another station.`
           : undefined,
   );
@@ -543,6 +547,7 @@ export function tenirProjets(options: OptionsProjets): Projets {
       const stations = appairees();
       const visee = stations.find(({ id }) => id === vers);
       if (visee === undefined) return { refus: "that station is no longer paired with this app: nothing was changed" };
+      if (visee.cuisine === false) return { refus: `${visee.nom} does not cook: nothing was changed` };
       if (options.demenager === undefined) return { refus: "this app has no runtime beside it to move a kitchen: nothing was changed" };
       const rendu = await options.demenager(nom, visee.id, stations.map(({ id }) => id));
       await relire();

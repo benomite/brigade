@@ -90,6 +90,15 @@ test("les cœurs que la station publie se lisent ; absents ou mal formés, l'app
   for (const mal of [undefined, 0, -2, 2.5, "8", null]) assert.equal(lu(mal), undefined, String(mal));
 });
 
+test("un téléphone publie `cuisine: false` ; une station qui n'en dit rien, ou dit autre chose, cuisine", () => {
+  const lu = (cuisine: unknown) => {
+    const document = lireDocument(JSON.stringify({ ...publie(), cuisine }));
+    return "illisible" in document ? assert.fail(document.illisible) : document.cuisine;
+  };
+  assert.equal(lu(false), false);
+  for (const autre of [undefined, true, null, "non", 0]) assert.equal(lu(autre), undefined, String(autre));
+});
+
 test("les durées se disent à la minute", () => {
   assert.equal(duree(59_000), "less than a minute");
   assert.equal(duree(4 * 60_000 + 59_000), "4 min");

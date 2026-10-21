@@ -74,6 +74,18 @@ test("la principale recommandée est une station serveur, en ligne d'abord ; un 
   assert.equal(avertissement(MAC), "macbook is a computer's app: this project's kitchen stops whenever you close the app there. A server station, always on, is recommended.");
 });
 
+const TELEPHONE: StationVue = { id: "g4", nom: "pixel", machine: "Android 15", cuisine: false, etat: "en-ligne", ligne: "online · version 1.4.0 · no project", pannes: [], dit: "online", version: "1.4.0", projets: [], max: null };
+
+test("un téléphone ne cuit rien : jamais recommandé, et refusé de toute saisie qui le choisit", () => {
+  assert.equal(principaleRecommandee([TELEPHONE]), undefined);
+  assert.equal(principaleRecommandee([TELEPHONE, BOX]), "g1");
+  const stations = [BOX, MAC, TELEPHONE];
+  assert.equal(refusDeSaisie({ ...SAISIE, stations: ["g1", "g4"] }, stations, []).stations, "pixel does not cook: choose a station that does.");
+  assert.equal(refusDeSaisie(SAISIE, stations, []).stations, undefined);
+  const confiance = { ...SAISIE, nom: "parade", stations: ["g4"] };
+  assert.equal(refusDeConfiance(confiance, stations, { portee: [], principale: false }).stations, "pixel does not cook: choose a station that does.");
+});
+
 test("les cooks proposés sont ceux que les cœurs de la machine permettent — le plafond même que la station en dérive", () => {
   for (let coeurs = 1; coeurs <= 64; coeurs++) assert.equal(cooksDesCoeurs(coeurs), plafondDesCoeurs(coeurs), `${coeurs} cœurs`);
   assert.deepEqual(machineProposee({ ...BOX, coeurs: 8 }), { toujoursAllumee: true, implique: "always on: it keeps cooking while your computer sleeps", cooks: 3, cooksDit: "from box's 8 cores: two are kept for the kitchen itself, then about two per cook" });

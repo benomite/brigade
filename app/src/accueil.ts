@@ -157,12 +157,31 @@ function cuisinesAilleurs(ailleurs: readonly CuisineAilleurs[]): string {
   return `your ${ailleurs.length === 1 ? "project cooks" : `${ailleurs.length} projects cook`} on ${stations.join(", ")}`;
 }
 
+export const NE_CUISINE_PAS = "does not cook";
+
+// La ligne d'une station qui ne cuisine pas : son état, et la mention. Jamais de cooks, ni de saturation.
+function ligneDeTelephone(station: StationVue, survol: string): LigneDeStation {
+  const { id, nom } = station;
+  const enLigne = station.etat === "en-ligne";
+  return {
+    id,
+    nom,
+    ton: enLigne ? "vert" : "gris",
+    dit: [station.dit, NE_CUISINE_PAS].join(" · "),
+    phrase: `${station.dit} · ${NE_CUISINE_PAS}`,
+    survol,
+    ...(enLigne ? { note: "A phone: it runs no cook, and is never offered to run a project's cooks." } : {}),
+  };
+}
+
 // `cooks` : ceux que les projets disent en cours sur elle ; `saturee` : un `status` lu la dit saturée ;
 // `ailleurs` : si c'est l'ordinateur de l'app, ses projets ouverts dont la cuisine tourne sur une autre station.
 export function ligneDeStation(station: StationVue, cooks: number, saturee: boolean, ailleurs: readonly CuisineAilleurs[] = []): LigneDeStation {
   const { id, nom } = station;
   const survol = [station.machine, station.version === "" ? "" : `version ${station.version}`].filter((partie) => partie !== "").join(" · ");
   const sansCuisine = station.projets.length === 0;
+  // Un téléphone (#1158) ne fait tourner aucun cook : sa ligne le dit, et il n'a aucun projet à attendre.
+  if (station.cuisine === false) return ligneDeTelephone(station, survol);
   const projets = sansCuisine ? "no project" : station.projets.join(", ");
   if (station.etat !== "en-ligne") return { id, nom, ton: "gris", dit: [station.dit, ...(station.etat === "illisible" ? [] : [projets])].join(" · "), phrase: station.dit, survol: survol === "" ? "its state on GitHub cannot be read — open it to see why" : survol };
   const max = station.pannes.some(({ sujet }) => sujet === "connexion-max");

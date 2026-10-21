@@ -16,6 +16,8 @@ export type DocumentStation = {
   // Les cœurs de sa machine : l'app en tire le nombre de cooks qu'elle propose (projets/projets.ts).
   // Absents d'une station qui ne les publie pas encore.
   coeurs?: number;
+  // Faux : elle ne fait tourner aucun cook — un téléphone (#1158). Une station qui ne le publie pas cuisine.
+  cuisine?: false;
   version: string;
   projets: string[];
   // Le dernier signe de vie, et la cadence à laquelle la station en donne.
@@ -60,7 +62,7 @@ export function lireDocument(brut: string): DocumentStation | { illisible: strin
     return { illisible: "its state on GitHub is not JSON" };
   }
   if (lu === null || typeof lu !== "object" || lu.brigade !== "station") return { illisible: "its state on GitHub is not a brigade station's" };
-  const { nom, machine, coeurs, version, projets, signeDeVie, cadenceMs, arreteeLe, appairage, echus } = lu;
+  const { nom, machine, coeurs, cuisine, version, projets, signeDeVie, cadenceMs, arreteeLe, appairage, echus } = lu;
   if (!texte(nom) || !texte(machine) || !texte(version) || !date(signeDeVie)) return { illisible: "its state on GitHub lacks its name, version or last sign of life" };
   if (!Array.isArray(projets) || !projets.every(texte)) return { illisible: "its state on GitHub does not list its projects" };
   const code = appairage as { empreinte?: unknown; expireLe?: unknown } | null | undefined;
@@ -68,6 +70,7 @@ export function lireDocument(brut: string): DocumentStation | { illisible: strin
     nom,
     machine,
     ...(typeof coeurs === "number" && Number.isSafeInteger(coeurs) && coeurs > 0 ? { coeurs } : {}),
+    ...(cuisine === false ? { cuisine: false as const } : {}),
     version,
     projets,
     signeDeVie,

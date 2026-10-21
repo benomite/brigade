@@ -147,6 +147,17 @@ describe("la ligne d'une station : son état, ce qu'elle fait, ses projets — s
     assert.doesNotMatch(ligneDeStation(station(), 0, false, ailleurs).survol, /cook on/);
   });
 
+  test("un téléphone : « does not cook », sans cooks ni projets, et sa page dit qu'il n'est jamais proposé pour cuire ; hors ligne, la mention reste", () => {
+    const ligne = ligneDeStation(station({ projets: [], cuisine: false }), 0, false, [{ projet: "a", station: "parade-box" }]);
+    assert.equal(ligne.dit, "online · does not cook");
+    assert.equal(ligne.phrase, "online · does not cook");
+    assert.equal(ligne.ton, "vert");
+    assert.doesNotMatch(ligne.survol, /cook on/);
+    assert.match(ligne.note ?? "", /^A phone: it runs no cook/);
+    assert.equal(ligneDeStation(station({ projets: [], cuisine: false, etat: "hors-ligne", dit: "offline for 12 min" }), 0, false).dit, "offline for 12 min · does not cook");
+    assert.equal(ligneDeStation(station({ projets: [] }), 0, false).dit, "online · idle · runs no kitchen");
+  });
+
   test("hors ligne : depuis quand, en gris ; saturée ou une mise à jour ratée, jaune ; sa connexion Max perdue, rouge", () => {
     assert.deepEqual(
       [ligneDeStation(station({ etat: "hors-ligne", dit: "offline for 12 min", projets: [], max: null }), 0, false)].map(({ ton, dit }) => ({ ton, dit })),
