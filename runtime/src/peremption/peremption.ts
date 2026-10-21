@@ -13,7 +13,9 @@
 //
 // Les règles :
 // - une leçon provisoire est promue quand `seuils.promotion` rétros de tickets
-//   distincts la citent (égalité exacte de l'id ; deux rétros d'un même ticket
+//   distincts la citent — `seuils.ecartRenvoi` de moins, jamais moins d'un, si
+//   elle est née d'un renvoi de la passe ou d'une correction du chef
+//   (égalité exacte de l'id ; deux rétros d'un même ticket
 //   comptent pour une). Proposer la leçon est une citation ;
 // - une leçon promue qu'aucune citation ne reconfirme pendant
 //   `seuils.expirationPromue` tickets servis redevient provisoire. Ses
@@ -107,7 +109,14 @@ function ticketsDistincts(citations: Citation[]): number {
 // Rejoue les citations d'une leçon, triées, sous les seuils. Une suppression
 // n'est pas définitive dans le rejeu : une citation d'après fait naître une
 // nouvelle vie, provisoire.
-function rejouer(citations: Citation[], seuils: Seuils, servis: number): Vie | null {
+// Le nombre de tickets distincts qui promeuvent une leçon : `seuils.promotion`
+// pour une leçon née d'une rétro ; pour une née d'un renvoi ou d'une correction,
+// `seuils.ecartRenvoi` de moins, jamais moins d'un.
+export function seuilDePromotion(seuils: Seuils, origin: LessonOrigin): number {
+  return origin.kind === "retro" ? seuils.promotion : Math.max(1, seuils.promotion - seuils.ecartRenvoi);
+}
+
+function rejouer(citations: Citation[], seuils: Seuils, servis: number, origin: LessonOrigin): Vie | null {
   let vie: Vie | null = null;
   // Fait passer le temps jusqu'au rang `jusqua` : rétrogradation, puis
   // suppression, si leur heure est venue. `inclus` : l'heure `jusqua` compte
@@ -129,7 +138,7 @@ function rejouer(citations: Citation[], seuils: Seuils, servis: number): Vie | n
     vie.comptees.push(c);
     vie.depuis = c.servi;
     vie.derniere = c;
-    if (vie.etat === "provisoire" && ticketsDistincts(vie.comptees) >= seuils.promotion) {
+    if (vie.etat === "provisoire" && ticketsDistincts(vie.comptees) >= seuilDePromotion(seuils, origin)) {
       vie.etat = "promue";
       vie.entree = c.date;
     }
@@ -143,7 +152,9 @@ function verifier(entree: Entree): void {
   if (!Number.isSafeInteger(servis) || servis < 0) throw new Error(`péremption : le compte des tickets servis est un entier positif (reçu ${servis})`);
   if (!DATE.test(aujourdhui)) throw new Error(`péremption : le jour de la décision s'écrit AAAA-MM-JJ (reçu « ${aujourdhui} »)`);
   for (const [nom, valeur] of Object.entries(seuils)) {
-    if (!Number.isSafeInteger(valeur) || valeur <= 0) throw new Error(`péremption : le seuil ${nom} est un entier supérieur à zéro (reçu ${valeur})`);
+    if (nom === "ecartRenvoi") {
+      if (!Number.isSafeInteger(valeur) || valeur < 0) throw new Error(`péremption : le seuil ${nom} est un entier positif ou nul (reçu ${valeur})`);
+    } else if (!Number.isSafeInteger(valeur) || valeur <= 0) throw new Error(`péremption : le seuil ${nom} est un entier supérieur à zéro (reçu ${valeur})`);
   }
   const vus = new Set<string>();
   for (const lecon of histoire) {
@@ -206,13 +217,13 @@ export function decider(entree: Entree): Resultat {
     if (ecrite?.exit) {
       // Sortie (retirée ou expirée) : seules comptent les citations d'après.
       const apres = l.citations.filter((c) => c.date > ecrite.exit!.date);
-      const vie = rejouer(apres, seuils, servis);
+      const vie = rejouer(apres, seuils, servis, ecrite.origin);
       if (vie?.etat === "promue") promouvoir(id, l, vie);
       continue;
     }
 
     // Provisoire : toute son histoire se rejoue.
-    const vie = rejouer(l.citations, seuils, servis);
+    const vie = rejouer(l.citations, seuils, servis, l.origin);
     if (vie?.etat === "promue") promouvoir(id, l, vie);
     else if (vie?.etat === "supprimee") supprimer(id, l.texte, vie.entree, vie.derniere, l);
   }

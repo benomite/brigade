@@ -94,7 +94,7 @@ origine de provisoire à promue, et à sa sortie. `faits` la montre pour chaque 
 son id, sa date et sa raison de sortie. Le format est dans `runtime/src/carnet/carnet.ts` ; un
 fichier qu'il ne comprend pas n'est pas réécrit (voir plus bas).
 
-### Les trois seuils
+### Les quatre seuils
 
 Le temps se compte en **tickets servis**, pas en jours : chaque ticket servi écrit une rétro, vide
 ou non.
@@ -102,6 +102,7 @@ ou non.
 | Seuil | Défaut | Variable |
 |---|---|---|
 | **Promotion** : une leçon provisoire entre au carnet quand autant de rétros, de **tickets différents**, la citent — la proposer compte. Deux rétros d'un même ticket comptent pour une | **3** rétros | `BRIGADE_PROMOTION_RETROS` |
+| **Écart des renvois** : une leçon née d'un renvoi de la passe ou d'une correction du chef (origine autre que `retro`) est promue avec autant de rétros de moins, jamais moins d'une. À **0**, elle suit la règle de la promotion ; la règle des leçons nées d'une rétro ne change pas. Zéro est permis ici | **1** rétro de moins | `BRIGADE_SENDBACK_PROMOTION_GAP` |
 | **Rétrogradation** : une leçon promue qu'aucune rétro ne reconfirme pendant autant de tickets servis redevient provisoire. Ses citations d'avant ne comptent plus pour la repromouvoir | **20** tickets servis | `BRIGADE_PROMOTED_EXPIRY_TICKETS` |
 | **Disparition** : une leçon provisoire qu'aucune rétro ne reconfirme pendant autant de tickets servis — depuis sa dernière citation, ou depuis sa rétrogradation — disparaît. Si elle avait été promue, sa sortie entre au carnet, `état: expired` | **20** tickets servis | `BRIGADE_PROVISIONAL_EXPIRY_TICKETS` |
 
@@ -115,7 +116,7 @@ Environment=BRIGADE_PROMOTION_RETROS=4
 ```
 
 puis `sudo systemctl daemon-reload && sudo systemctl restart brigade@<projet>`. Lus au démarrage :
-un entier mal écrit, ou zéro, fait refuser le démarrage en nommant la variable, jamais un repli sur
+un entier mal écrit, ou zéro (sauf pour l'écart des renvois, où zéro est permis), fait refuser le démarrage en nommant la variable, jamais un repli sur
 le défaut. Pour lire ceux qui sont en vigueur, avec l'environnement de l'unité :
 `node runtime/src/seuils/seuils-cli.ts`.
 

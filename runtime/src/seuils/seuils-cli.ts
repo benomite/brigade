@@ -15,6 +15,7 @@ export function principal({ env, dire, redire }: Appel): void {
     ligne("promotion (retros)", seuils.promotion, VARIABLES.promotion);
     ligne("promoted expiry (tickets)", seuils.expirationPromue, VARIABLES.expirationPromue);
     ligne("provisional expiry (tickets)", seuils.expirationProvisoire, VARIABLES.expirationProvisoire);
+    ligne("send-back promotion gap", seuils.ecartRenvoi, VARIABLES.ecartRenvoi);
     ligne("lessons per cook", plafond, VARIABLE_LECONS_INJECTEES);
   } catch (erreur) {
     if (!(erreur instanceof ConfigInvalide)) throw erreur;
