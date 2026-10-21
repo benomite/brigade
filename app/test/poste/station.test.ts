@@ -16,40 +16,36 @@ import { tenirStationLocale, TENUE_PAR, type OptionsStationLocale, type StationL
 import { FICHIER_STATION } from "../../src/stations/document.ts";
 import { githubDesStations } from "../../src/stations/github.ts";
 import { tenirStations, type Appairage, type Stations } from "../../src/stations/stations.ts";
+import { ghDuRepertoire } from "../aides/gh-du-repertoire.ts";
 import { SANS_POSIX } from "../aides/posix.ts";
+import { repondre } from "../stations/faux-gh-gists.ts";
 
-const FAUX_GH_GISTS = join(import.meta.dirname, "../stations/faux-gh-gists.ts");
 const ENVELOPPE = join(import.meta.dirname, "../../src/poste/enveloppe.ts");
 const RUNTIME = join(import.meta.dirname, "../../../runtime");
 const role = roleDe({ plateforme: "darwin", runtime: RUNTIME, env: {} });
 const PRINCIPAL = role.role === "station" ? role.principal : assert.fail("la station n'est pas à côté de l'app");
 
 // GitHub, hors de la machine : les gists du compte du chef, que l'app et la station lisent et
-// écrivent chacune par son `gh`.
+// écrivent chacune par son `gh` — la même doublure (aides/gh-du-repertoire.ts).
 function unGitHub(t: TestContext) {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-app-gists-"));
   writeFileSync(join(repertoire, "appels"), "");
-  const avant = process.env.FAUX_GISTS;
-  process.env.FAUX_GISTS = repertoire;
-  t.after(() => {
-    if (avant === undefined) delete process.env.FAUX_GISTS;
-    else process.env.FAUX_GISTS = avant;
-    rmSync(repertoire, { recursive: true, force: true });
-  });
+  const gh = ghDuRepertoire(repertoire, repondre);
+  t.after(() => rmSync(repertoire, { recursive: true, force: true }));
   const gists = () => readdirSync(repertoire).filter((nom) => nom.endsWith(".gist.json"));
   const etat = (gist: string) => JSON.parse(JSON.parse(readFileSync(join(repertoire, gist), "utf8")).files[FICHIER_STATION].content) as { nom: string; arreteeLe: string | null };
-  return { repertoire, gists, etat };
+  return { repertoire, gh, gists, etat };
 }
 
 // La home de l'app : ses stations, lues sur GitHub.
-function laHome(t: TestContext): Stations {
-  const stations = tenirStations({ github: githubDesStations({ gh: FAUX_GH_GISTS, delaiMs: 30_000 }), surLecture: () => {}, cadenceMs: 3_600_000 });
+function laHome(t: TestContext, github: { gh: string }): Stations {
+  const stations = tenirStations({ github: githubDesStations({ gh: github.gh, delaiMs: 30_000 }), surLecture: () => {}, cadenceMs: 3_600_000 });
   t.after(() => stations.fermer());
   return stations;
 }
 
 // Ce que l'app passe à sa station : son environnement — ici, celui d'une machine d'essai.
-function unOrdinateur(t: TestContext, gists: string) {
+function unOrdinateur(t: TestContext, github: { gh: string }) {
   const machine = repertoireTemporaire(t);
   const racine = join(machine, "station");
   const compte = join(machine, "compte");
@@ -57,8 +53,7 @@ function unOrdinateur(t: TestContext, gists: string) {
   const env = {
     ...ENV_GIT,
     HOME: compte,
-    BRIGADE_GH_BIN: FAUX_GH_GISTS,
-    FAUX_GISTS: gists,
+    BRIGADE_GH_BIN: github.gh,
     BRIGADE_CLAUDE_BIN: FAUX_CLAUDE,
     BRIGADE_STATION_NOM: "ordi",
     BRIGADE_MAX_LOAD_PER_CORE: "1000000",
@@ -80,8 +75,8 @@ const enLigne = (home: Stations) => home.vu()?.stations.find((station) => statio
 
 test("installer l'app sur un ordinateur : sa station démarre, s'appaire seule, et apparaît sur la home « en ligne · version X » ; l'app fermée, elle passe hors ligne", { skip: SANS_POSIX }, async (t) => {
   const github = unGitHub(t);
-  const home = laHome(t);
-  const { racine, env } = unOrdinateur(t, github.repertoire);
+  const home = laHome(t, github);
+  const { racine, env } = unOrdinateur(t, github);
   const { station, dit } = tenir(t, { node: process.execPath, principal: PRINCIPAL, racine, env, appairer: (code) => home.appairer(code), reessaiMs: 200 });
 
   await jusqua(() => /paired with the app, as “ordi”/.test(dit()));
@@ -115,7 +110,7 @@ test("installer l'app sur un ordinateur : sa station démarre, s'appaire seule, 
 
 test("l'app tuée net : l'entrée de sa station se ferme, et la station s'arrête comme sur un SIGTERM — l'heure de son arrêt est sur GitHub", { skip: SANS_POSIX }, async (t) => {
   const github = unGitHub(t);
-  const { racine, env } = unOrdinateur(t, github.repertoire);
+  const { racine, env } = unOrdinateur(t, github);
   const enfant = spawn(process.execPath, [ENVELOPPE, PRINCIPAL], { env: { ...env, BRIGADE_STATION_DIR: racine }, stdio: ["pipe", "pipe", "pipe"] });
   t.after(() => void enfant.kill("SIGKILL"));
   let sortie = "";
@@ -134,7 +129,7 @@ test("l'app tuée net : l'entrée de sa station se ferme, et la station s'arrêt
 
 test("ajouter un projet dont cette station est la principale : un ticket du projet y cuit, jusqu'à sa PR et son commentaire", { skip: SANS_POSIX }, async (t) => {
   const github = unGitHub(t);
-  const { racine, env } = unOrdinateur(t, github.repertoire);
+  const { racine, env } = unOrdinateur(t, github);
   // Le projet, tel que l'ajout le pose sur la station : ses décisions au journal, sa ligne.
   const { origine, clone } = depotGit(t);
   const gh = fauxGh(t);
