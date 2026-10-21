@@ -223,3 +223,15 @@ test("sans `--root` ni `--commit`, la racine est celle du dépôt git où la com
   assert.equal(await appel.fin, 0, appel.sortie());
   assert.deepEqual(historique.base.lire("SELECT commit_sha, test FROM runs JOIN results USING (run)"), [{ commit_sha: head, test: "runtime/test/a.test.ts > un" }]);
 });
+
+test("deux tests de même nom dans un fichier n'en font qu'un : en échec si l'un échoue, sa durée la somme des deux", (t) => {
+  const racine = repertoireTemporaire(t);
+  const fichier = join(racine, "test", "a.test.ts");
+  const xml = [
+    "<testsuites>",
+    `<testcase name="deux fois" time="0.001000" classname="test" file="${fichier}"/>`,
+    `<testcase name="deux fois" time="0.002000" classname="test" file="${fichier}" failure="x"><failure type="testCodeFailure" message="x">x</failure></testcase>`,
+    "</testsuites>",
+  ].join("\n");
+  assert.deepEqual(lireRapportJUnit(xml, racine), [{ fichier: "test/a.test.ts", nom: "deux fois", issue: "fail", dureeMs: 3 }]);
+});
