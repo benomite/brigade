@@ -7,7 +7,8 @@
 // Le gist porte deux fichiers :
 //   - `brigade-station.json`, écrit par la station seule, à chaque signe de vie :
 //       { "brigade": "station", "format": 1, "nom": "box", "machine": "Linux 6.1.0",
-//         "coeurs": 8, "version": "…", "projets": ["brigade"], "signeDeVie": "<ISO>",
+//         "coeurs": 8, "sorte": "ordinateur" | "telephone", "cuisine": true | false,
+//         "version": "…", "projets": ["brigade"], "signeDeVie": "<ISO>",
 //         "cadenceMs": 60000, "arreteeLe": null | "<ISO>",
 //         "appairage": null | { "empreinte": "<sha256>", "expireLe": "<ISO>" },
 //         "echus": ["<sha256>", …],
@@ -20,6 +21,11 @@
 //     `coeurs`, ceux de la machine : l'app en tire le nombre de cooks qu'elle
 //     propose quand le chef confie un projet à cette station (#1107) — le
 //     plafond même que la station en dérive (`plafondDesCoeurs`, #1079).
+//     `sorte` et `cuisine` (#1158, `stations-globales/sorte.ts`) : ce qu'est la
+//     station, et si elle fait tourner des cooks. Un téléphone publie
+//     `cuisine: false` : l'app le montre dans ses stations, avec la mention
+//     qu'il ne cuisine pas, et ne le propose jamais pour cuire un projet. Une
+//     station plus ancienne ne publie ni l'un ni l'autre : c'est un ordinateur.
 //   - `brigade-appairage.json`, écrit par l'app seule, quand le chef a tapé le
 //     bon code : { "appaireeLe": "<ISO>", "empreinte": "<sha256>" }.
 //
@@ -27,6 +33,7 @@
 // code à taper. Les empreintes des derniers codes échus restent publiées, pour
 // qu'un code expiré se dise expiré, et non inconnu.
 import { createHash, randomInt } from "node:crypto";
+import type { Sorte } from "../stations-globales/sorte.ts";
 
 export const FICHIER_STATION = "brigade-station.json";
 export const FICHIER_APPAIRAGE = "brigade-appairage.json";
@@ -57,6 +64,8 @@ export type DocumentStation = {
   nom: string;
   machine: string;
   coeurs?: number;
+  sorte: Sorte;
+  cuisine: boolean;
   version: string;
   projets: string[];
   signeDeVie: string;

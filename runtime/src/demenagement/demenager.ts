@@ -14,6 +14,11 @@
 // joue d'abord la vérification du bac à sable (`bac-a-sable/verifier.ts`) :
 // indisponible, le déménagement est refusé avec sa raison, et rien n'est écrit.
 //
+// Vers une station qui ne cuisine pas — un téléphone (`stations-globales/sorte.ts`) —,
+// il est refusé de même : elle ne fait tourner aucun cook. Et une station qui
+// ne cuisine pas n'est jamais celle où le projet cuit : elle compte parmi les
+// stations lues, elle ne change rien à celle que la cuisine quitte.
+//
 // Elle rend une ligne JSON : `{"moved":true,"project","from","to","askedAt"}`
 // (code 0), ou `{"moved":false,"said":"<une phrase>"}` (code 1) — rien n'a
 // changé. 2 : elle est mal appelée ; 3 : GitHub n'a pu être lu ni écrit.
@@ -28,12 +33,13 @@ import { sondesDeLaMachine } from "../bac-a-sable/detection.ts";
 import { lireCaches, verifier, type Verification } from "../bac-a-sable/local.ts";
 import { documentDeDemande, FICHIER_PROJETS, FICHIER_SUIVI, lireDemande, suiviDe, type ProjetDemande } from "../projets/demande.ts";
 import { NOM_DE_PROJET } from "../runtime.ts";
+import { sorteLue } from "../stations-globales/sorte.ts";
 import { worktreesDeLaStation } from "../station/configuration.ts";
 
 const USAGE = "usage : node runtime/src/demenagement/demenager.ts <projet> <gist de la station visée> <gist>…";
 
-// Ce que la commande lit d'une station : son nom, sa demande, son suivi.
-export type StationLue = { gist: string; nom: string; demande: ProjetDemande[] | null; suivi: string | undefined };
+// Ce que la commande lit d'une station : son nom, si elle cuisine, sa demande, son suivi.
+export type StationLue = { gist: string; nom: string; cuisine: boolean; demande: ProjetDemande[] | null; suivi: string | undefined };
 
 export type Demenagement = { ecrire: Array<{ gist: string; projets: ProjetDemande[] }>; de: string; vers: string; demandeLe: string };
 
@@ -46,8 +52,9 @@ export function demenager(stations: StationLue[], projet: string, vers: string, 
   if (illisible !== undefined) return { refus: `what the app asked of ${illisible.nom} is unreadable on its gist: nothing is changed` };
   const cible = stations.find(({ gist }) => gist === vers);
   if (cible === undefined) return { refus: `the station whose gist is ${vers} is not one of yours` };
+  if (!cible.cuisine) return { refus: `${cible.nom} does not cook: no project's cooks run there` };
   const entree = (station: StationLue) => (station.demande ?? []).find(({ nom }) => nom === projet);
-  const principales = stations.filter((station) => entree(station)?.principale === true);
+  const principales = stations.filter((station) => station.cuisine && entree(station)?.principale === true);
   const source = principales[0];
   if (source === undefined) return { refus: `${projet} cooks on none of your stations: add it rather than move it` };
   if (principales.length > 1) return { refus: `${projet} has several main stations (${principales.map(({ nom }) => nom).join(", ")}): nothing is changed until it has only one` };
@@ -151,14 +158,16 @@ export async function principal({ args, env, dire, redire }: Appel, dependances:
         const fichiers = await canal.lire(gist);
         if (fichiers === null) throw new Error(`the gist ${gist} no longer exists`);
         let nom = gist;
+        let cuisine = true;
         try {
-          const lu = JSON.parse(fichiers[FICHIER_STATION] ?? "") as { nom?: unknown };
+          const lu = JSON.parse(fichiers[FICHIER_STATION] ?? "") as { nom?: unknown; sorte?: unknown; cuisine?: unknown };
           if (typeof lu.nom === "string" && lu.nom !== "") nom = lu.nom;
+          cuisine = sorteLue(lu).cuisine;
         } catch {
           // Une station qui ne s'est pas encore publiée garde son gist pour nom.
         }
         const brut = fichiers[FICHIER_PROJETS];
-        return { gist, nom, demande: brut === undefined ? [] : (lireDemande(brut)?.projets ?? null), suivi: fichiers[FICHIER_SUIVI] };
+        return { gist, nom, cuisine, demande: brut === undefined ? [] : (lireDemande(brut)?.projets ?? null), suivi: fichiers[FICHIER_SUIVI] };
       }),
     );
   } catch (erreur) {

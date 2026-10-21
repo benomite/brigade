@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
+import { Base } from "../../src/base.ts";
 import { cheminRegistre, ouvrirRegistre, PresentationInvalide, StationInconnue, type Presentation } from "../../src/stations-globales/registre.ts";
 import { repertoireTemporaire } from "../outils.ts";
 
@@ -33,6 +34,8 @@ test("une machine qui se présente entre « en attente », sans capacité reconn
     declarees: ["obs", "windows"],
     capacites: [],
     cloisonnee: false,
+    sorte: "ordinateur",
+    cuisine: true,
     joignable: true,
     statut: "en-attente",
     presenteeLe: "2026-10-15T09:00:00.000Z",
@@ -60,6 +63,8 @@ test("acceptée, la station est renvoyée avec son nom, sa machine, ses capacit�
     declarees: ["obs", "windows"],
     capacites: ["obs", "windows"],
     cloisonnee: false,
+    sorte: "ordinateur",
+    cuisine: true,
     joignable: true,
     statut: "acceptee",
     presenteeLe: "2026-10-15T09:00:00.000Z",
@@ -244,6 +249,134 @@ test("le chef n'accepte, ni ne règle, une station que le registre ne connaît p
   registre.presenter(WINDOWS);
   assert.throws(() => registre.accepter("windows-de-test", { capacites: ["o b s"] }), PresentationInvalide);
   assert.equal(registre.lire("windows-de-test")?.statut, "en-attente");
+});
+
+const TELEPHONE: Presentation = { nom: "pixel", machine: "Android 16", capacites: [], cloisonnee: false, sorte: "telephone" };
+
+test("un téléphone est une station : la liste le rend, acceptée ou non, avec sa sorte et le champ qui dit qu'il ne cuisine pas (#1158)", (t) => {
+  const registre = ouvrir(t);
+  const presente = registre.presenter(TELEPHONE);
+  assert.deepEqual(presente, {
+    nom: "pixel",
+    machine: "Android 16",
+    declarees: [],
+    capacites: [],
+    cloisonnee: false,
+    sorte: "telephone",
+    cuisine: false,
+    joignable: true,
+    statut: "en-attente",
+    presenteeLe: "2026-10-15T09:00:00.000Z",
+    accepteeLe: null,
+  });
+  assert.deepEqual(registre.liste(), [presente]);
+  const accepte = registre.accepter("pixel");
+  assert.deepEqual([accepte.statut, accepte.sorte, accepte.cuisine], ["acceptee", "telephone", false]);
+  assert.deepEqual(registre.liste(), [accepte]);
+  assert.deepEqual(registre.lire("pixel"), accepte);
+  // Une machine qui ne dit pas sa sorte est un ordinateur, et cuisine.
+  assert.deepEqual([registre.presenter(BOX).sorte, registre.lire("box")?.cuisine], ["ordinateur", true]);
+});
+
+test("un téléphone n'est jamais candidat pour faire tourner les cooks d'un projet, même accepté, même seul au registre, quoi qu'on lui reconnaisse", (t) => {
+  const registre = ouvrir(t);
+  registre.presenter(TELEPHONE);
+  registre.accepter("pixel");
+  assert.equal(registre.liste().length, 1);
+  assert.deepEqual(registre.utilisables(), []);
+  // Le chef lui reconnaît des capacités : il ne cuisine pas davantage.
+  registre.accepter("pixel", { capacites: ["code", "raisonnement"] });
+  assert.deepEqual(registre.utilisables(), []);
+  assert.deepEqual(registre.utilisables(["code"]), []);
+  assert.deepEqual(registre.utilisables(["code", "raisonnement"]), []);
+  // Revenu, présenté de nouveau tel quel, il reste accepté — et toujours hors de la sélection.
+  assert.equal(registre.presenter(TELEPHONE).statut, "acceptee");
+  assert.deepEqual(registre.utilisables(), []);
+});
+
+test("présenter, accepter ou retirer un téléphone ne change rien aux stations candidates pour cuire les projets", (t) => {
+  const registre = ouvrir(t);
+  registre.presenter(BOX);
+  registre.presenter(WINDOWS);
+  registre.accepter("box");
+  registre.accepter("windows-de-test");
+  const candidates = () => ({ toutes: registre.utilisables(), code: registre.utilisables(["code"]), obs: registre.utilisables(["obs"]) });
+  const avant = candidates();
+  assert.deepEqual(avant.toutes.map(({ nom }) => nom), ["box", "windows-de-test"]);
+
+  registre.presenter(TELEPHONE);
+  assert.deepEqual(candidates(), avant);
+  registre.accepter("pixel", { capacites: ["code", "obs"] });
+  assert.deepEqual(candidates(), avant);
+  assert.deepEqual(registre.liste().map(({ nom }) => nom), ["box", "pixel", "windows-de-test"]);
+
+  assert.deepEqual(registre.retirer("pixel").sorte, "telephone");
+  assert.deepEqual(candidates(), avant);
+  assert.deepEqual(registre.liste().map(({ nom }) => nom), ["box", "windows-de-test"]);
+});
+
+test("une station retirée quitte le registre ; revenue, elle se présente de nouveau en attente — et le registre ne retire pas ce qu'il ne connaît pas", (t) => {
+  const registre = ouvrir(t);
+  registre.presenter(BOX);
+  const acceptee = registre.accepter("box");
+  assert.deepEqual(registre.retirer("box"), acceptee);
+  assert.equal(registre.lire("box"), null);
+  assert.deepEqual(registre.liste(), []);
+  assert.deepEqual(registre.utilisables(), []);
+  assert.equal(registre.presenter(BOX).statut, "en-attente");
+  assert.throws(() => registre.retirer("fantome"), StationInconnue);
+});
+
+test("un ordinateur accepté qui revient téléphone retourne « en attente », et ne cuisine plus : l'acceptation ne se transmet pas d'une sorte à l'autre", (t) => {
+  const registre = ouvrir(t);
+  registre.presenter({ ...TELEPHONE, sorte: "ordinateur" });
+  registre.accepter("pixel");
+  assert.deepEqual(registre.utilisables().map(({ nom }) => nom), ["pixel"]);
+
+  const revenu = registre.presenter(TELEPHONE);
+  assert.deepEqual([revenu.statut, revenu.sorte, revenu.cuisine, revenu.accepteeLe], ["en-attente", "telephone", false, null]);
+  assert.deepEqual(registre.utilisables(), []);
+});
+
+test("une sorte inconnue est refusée en la nommant, et rien n'est écrit", (t) => {
+  const registre = ouvrir(t);
+  assert.throws(
+    () => registre.presenter({ ...TELEPHONE, sorte: "montre" as unknown as "telephone" }),
+    (erreur: unknown) => erreur instanceof PresentationInvalide && /sorte/.test(erreur.message) && /ordinateur ou telephone/.test(erreur.message),
+  );
+  assert.deepEqual(registre.liste(), []);
+});
+
+test("un registre de la version 1, écrit avant les sortes, s'ouvre avec ses stations intactes : ce sont des ordinateurs, qui cuisinent", (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const ancienne = new Base(cheminRegistre(repertoire));
+  ancienne.script(`
+    CREATE TABLE stations (
+      nom          TEXT PRIMARY KEY,
+      machine      TEXT NOT NULL,
+      declarees    TEXT NOT NULL,
+      capacites    TEXT NOT NULL,
+      cloisonnee   INTEGER NOT NULL CHECK (cloisonnee IN (0, 1)),
+      joignable    INTEGER NOT NULL CHECK (joignable IN (0, 1)),
+      statut       TEXT NOT NULL CHECK (statut IN ('en-attente', 'acceptee')),
+      presentee_le TEXT NOT NULL,
+      acceptee_le  TEXT
+    ) STRICT;
+    INSERT INTO stations VALUES ('box', 'Debian 13', '["code"]', '["code"]', 1, 1, 'acceptee', '2026-10-15T09:00:00.000Z', '2026-10-15T09:05:00.000Z');
+    PRAGMA user_version = 1;
+  `);
+  ancienne.fermer();
+
+  const registre = ouvrir(t, repertoire);
+  assert.deepEqual(
+    registre.liste().map(({ nom, sorte, cuisine, statut, capacites }) => ({ nom, sorte, cuisine, statut, capacites })),
+    [{ nom: "box", sorte: "ordinateur", cuisine: true, statut: "acceptee", capacites: ["code"] }],
+  );
+  assert.deepEqual(registre.utilisables(["code"]).map(({ nom }) => nom), ["box"]);
+  // Et il prend des téléphones.
+  registre.presenter(TELEPHONE);
+  registre.accepter("pixel");
+  assert.deepEqual(registre.utilisables().map(({ nom }) => nom), ["box"]);
 });
 
 test("le registre est un fichier du répertoire qu'on lui donne, créé au besoin — il n'appartient à aucun projet", (t) => {

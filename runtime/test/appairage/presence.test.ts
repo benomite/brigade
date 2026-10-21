@@ -11,6 +11,7 @@ import { empreinte, FICHIER_APPAIRAGE, FICHIER_STATION, normaliser, tirerCode, t
 import { etatsPublies } from "../../src/appairage/etats.ts";
 import { BATTEMENT_MS, CADENCE_MS, codeAffiche, ECART_MINIMAL_MS, FICHIER_LOCAL, identiteDeLaStation, REGARD_MS, tenirPresence } from "../../src/appairage/presence.ts";
 import type { ConnexionMax } from "../../src/connexion-max/connexion.ts";
+import { sorteLue } from "../../src/stations-globales/sorte.ts";
 import type { EtatMiseAJour } from "../../src/mise-a-jour/etat.ts";
 import { aArreter, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
 
@@ -125,7 +126,7 @@ test("une station neuve crée son gist, y publie son état et l'empreinte de son
   assert.ok(code);
   assert.deepEqual(
     { ...doc, signeDeVie: "", appairage: { ...doc.appairage, expireLe: "" } },
-    { brigade: "station", format: 1, nom: "box", machine: "Linux 6.1.0", version: "1.4.0", projets: [], signeDeVie: "", cadenceMs: CADENCE_MS, arreteeLe: null, appairage: { empreinte: empreinte(code), expireLe: "" }, echus: [], miseAJour: null, connexionMax: null },
+    { brigade: "station", format: 1, nom: "box", machine: "Linux 6.1.0", sorte: "ordinateur", cuisine: true, version: "1.4.0", projets: [], signeDeVie: "", cadenceMs: CADENCE_MS, arreteeLe: null, appairage: { empreinte: empreinte(code), expireLe: "" }, echus: [], miseAJour: null, connexionMax: null },
   );
   assert.equal(doc.appairage?.expireLe, "2026-10-15T12:15:00.000Z");
   // Le code ne se publie que par son empreinte.
@@ -150,6 +151,31 @@ test("la station dit les cœurs de sa machine : l'app en tire le nombre de cooks
   await presence.publier();
   const [id] = [...github.gists.keys()];
   assert.equal(github.document(id ?? "").coeurs, 8);
+});
+
+test("un téléphone publie sa sorte et qu'il ne cuisine pas : l'app le montre dans ses stations, sans cuisine (#1158)", async (t) => {
+  const github = fauxGists();
+  const horloge = faussesHorloges(Date.parse("2026-10-15T12:00:00Z"));
+  const identite = { nom: "pixel", machine: "Android 16", version: "1.4.0", sorte: "telephone" as const };
+  const presence = tenirPresence({ racine: repertoireTemporaire(t), canal: github.canal, identite, projets: () => [], dire: () => {}, apres: horloge.apres, maintenant: horloge.maintenant });
+  aArreter(t, () => presence.arreter());
+  await presence.publier();
+  const [id] = [...github.gists.keys()];
+  const { sorte, cuisine } = github.document(id ?? "");
+  assert.deepEqual({ sorte, cuisine }, { sorte: "telephone", cuisine: false });
+  // Et lue par qui choisit où cuire : elle ne cuisine pas.
+  assert.deepEqual(sorteLue(github.document(id ?? "")), { sorte: "telephone", cuisine: false });
+});
+
+test("un document de station se lit avec sa sorte : sans elle, un ordinateur qui cuisine ; un téléphone ne cuisine jamais ; une sorte inconnue ne cuisine que si elle le dit", () => {
+  assert.deepEqual(sorteLue({}), { sorte: "ordinateur", cuisine: true });
+  assert.deepEqual(sorteLue({ sorte: "ordinateur", cuisine: true }), { sorte: "ordinateur", cuisine: true });
+  assert.deepEqual(sorteLue({ sorte: "ordinateur", cuisine: false }), { sorte: "ordinateur", cuisine: false });
+  assert.deepEqual(sorteLue({ sorte: "telephone" }), { sorte: "telephone", cuisine: false });
+  assert.deepEqual(sorteLue({ sorte: "telephone", cuisine: true }), { sorte: "telephone", cuisine: false });
+  assert.deepEqual(sorteLue({ cuisine: false }), { sorte: "ordinateur", cuisine: false });
+  assert.deepEqual(sorteLue({ sorte: "montre" }), { sorte: null, cuisine: false });
+  assert.deepEqual(sorteLue({ sorte: "montre", cuisine: true }), { sorte: null, cuisine: true });
 });
 
 test("l'état publié dit les projets servis et rafraîchit le signe de vie à chaque publication", async (t) => {

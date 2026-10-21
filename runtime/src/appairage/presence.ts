@@ -23,6 +23,7 @@ import { availableParallelism, hostname, release, type } from "node:os";
 import { join } from "node:path";
 import { empreinteDuCode } from "../code.ts";
 import { LimiteGitHubAtteinte } from "../limite-github.ts";
+import { cuisine, ORDINATEUR, type Sorte } from "../stations-globales/sorte.ts";
 import type { Canal } from "./canal.ts";
 import { description, DUREE_DU_CODE_MS, ECHUS_GARDES, empreinte, FICHIER_APPAIRAGE, FICHIER_STATION, FORMAT, tirerCode, type DocumentStation, type EtatsPublies } from "./document.ts";
 
@@ -40,7 +41,9 @@ export const CADENCE_MS = 285_000;
 
 // `coeurs` : ceux de la machine, d'où l'app tire le nombre de cooks qu'elle
 // propose quand le chef lui confie un projet — absent, elle n'en dit rien.
-export type Identite = { nom: string; machine: string; version: string; coeurs?: number };
+// `sorte` : ce qu'elle est — un ordinateur, à défaut ; un téléphone ne cuisine
+// pas, et le publie (`stations-globales/sorte.ts`).
+export type Identite = { nom: string; machine: string; version: string; coeurs?: number; sorte?: Sorte };
 
 export type OptionsPresence = {
   // Le répertoire de la station (`BRIGADE_STATION_DIR`).
@@ -165,6 +168,8 @@ export function tenirPresence(options: OptionsPresence): Presence {
     brigade: "station",
     format: FORMAT,
     ...identite,
+    sorte: identite.sorte ?? ORDINATEUR,
+    cuisine: cuisine(identite.sorte ?? ORDINATEUR),
     projets: options.projets(),
     signeDeVie: new Date(instant).toISOString(),
     cadenceMs: CADENCE_MS,
