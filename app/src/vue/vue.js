@@ -780,6 +780,12 @@ let demandeFaits = 0;
 const cuissonsEnCours = new Map();
 /** @type {Map<string, import("./stations-de-cuisson.js").Dit>} */
 const cuissonsDites = new Map();
+// Le plafond d'une station du projet (ticket 1292), même clé : « en cours » tant que le réglage attend sa réponse,
+// puis ce qu'il a rendu ; et ce que le chef a tapé dans le champ, que la relecture ne perd pas.
+/** @type {Map<string, import("./stations-de-cuisson.js").DitDuPlafond | "en cours">} */
+const plafondsDeCuisson = new Map();
+/** @type {Map<string, string>} */
+const plafondsSaisis = new Map();
 const cleDeCuisson = (/** @type {string} */ projet, /** @type {string} */ station) => `${projet}\u0000${station}`;
 // Le plafond de calibrage de chaque projet (ticket 1284) : ce que le chef a choisi dans ses listes sans l'envoyer,
 // le clic qui attend sa réponse, et ce que le dernier a rendu.
@@ -4050,6 +4056,10 @@ function poserCuisson(projet, posees = new Map()) {
             return bon;
           },
         }),
+    plafonds: accueilVu?.plafonds?.[projet.nom],
+    plafondsDits: siens(plafondsDeCuisson),
+    saisies: { lire: (station) => plafondsSaisis.get(cleDeCuisson(projet.nom, station)) ?? "", ecrire: (station, valeur) => void plafondsSaisis.set(cleDeCuisson(projet.nom, station), valeur) },
+    regler: (station, valeur) => void reglerLePlafondDuProjet(projet.nom, station, valeur),
   });
   cuissonDuProjet.replaceChildren(...(pose === null ? [] : [pose]));
   const vu = projetsVus?.projets.find(({ nom }) => nom === projet.nom);
@@ -4130,6 +4140,26 @@ async function cuire(projet, station, geste) {
   cuissonsEnCours.delete(cle);
   cuissonsDites.set(cle, { dit: "fait" in rendu ? rendu.fait : rendu.refus, refus: !("fait" in rendu), detail: rendu.detail ?? "", etat });
   if ("fait" in rendu) brigade.relireBox(demandeFaits);
+  if (courant?.nom === projet) poserCuisson(courant);
+}
+
+// Le plafond de cooks du projet sur une station, réglé depuis sa ligne (ticket 1292) : la commande part sur la box de ce
+// projet seul ; le plafond neuf arrive par l'accueil, quand sa box a été relue.
+/** @param {string} projet @param {string} station @param {string} valeur */
+async function reglerLePlafondDuProjet(projet, station, valeur) {
+  const cle = cleDeCuisson(projet, station);
+  if (plafondsDeCuisson.get(cle) === "en cours") return;
+  plafondsDeCuisson.set(cle, "en cours");
+  if (courant?.nom === projet) poserCuisson(courant);
+  /** @type {{ fait: string, detail?: string } | { refus: string, detail?: string }} */
+  let rendu;
+  try {
+    rendu = (await brigade.reglerLePlafond(station, valeur, projet)) ?? { refus: "the cap was not changed", detail: SANS_PONT };
+  } catch (erreur) {
+    rendu = { refus: "the cap was not changed", detail: erreur instanceof Error ? erreur.message : String(erreur) };
+  }
+  plafondsDeCuisson.set(cle, { dit: "fait" in rendu ? rendu.fait : rendu.refus, refus: !("fait" in rendu), detail: rendu.detail ?? "" });
+  if ("fait" in rendu) plafondsSaisis.delete(cle);
   if (courant?.nom === projet) poserCuisson(courant);
 }
 
@@ -6687,6 +6717,7 @@ brigade.surStations((vu) => {
 // L'accueil redit : ses lignes remplacent celles d'avant, s'il est affiché — et l'en-tête de la page d'une station.
 brigade.surAccueil((vu) => {
   accueilVu = vu;
+  if (courant !== undefined) poserCuisson(courant);
   if (courant !== undefined || ajoute) return;
   if (stationOuverte === undefined) poserAccueil();
   else poserPageDeStation();

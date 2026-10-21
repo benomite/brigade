@@ -5022,3 +5022,20 @@ button.recommande {
   border-style: dashed;
   cursor: default;
 }
+
+/* Le plafond du projet sous une ligne de station de Cooks (ticket 1292). */
+.station-de-cuisson .plafond-de-station,
+.station-de-cuisson .retenue-de-station,
+.station-de-cuisson .regle-le-plafond-de-station {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.station-de-cuisson .regle-le-plafond-de-station {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.station-de-cuisson .regle-le-plafond-de-station input {
+  width: 8em;
+}
