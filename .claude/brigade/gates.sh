@@ -365,7 +365,7 @@ cat "$APP_OUT"
 while IFS= read -r LIGNE_APP; do
   case "$LIGNE_APP" in "FAIL  "*) fail "${LIGNE_APP#FAIL  }" ;; *) printf '%s\n' "$LIGNE_APP" >&2 ;; esac
 done <"$APP_ERR"
-{ read -r APP_RC; read -r APP_NB; read -r APP_MS; read -r APP_ROUGE; } <"$APP_ETAT"
+{ read -r _; read -r APP_NB; read -r APP_MS; read -r APP_ROUGE; } <"$APP_ETAT"
 rm -f "$APP_OUT" "$APP_ERR" "$APP_ETAT"
 # Un sous-shell mort avant d'avoir écrit son état est une app injouée : rouge.
 if [ -z "${APP_ROUGE:-}" ]; then fail "tests de l'app : la suite s'est arrêtée sans rendre de verdict"; APP_ROUGE=1; fi
