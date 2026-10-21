@@ -1,6 +1,6 @@
 // L'app installée sous Windows se remplace par la version téléchargée (etat.ts), comme celle du Mac
 // (installation.ts) : un `.exe` qui tourne ne s'écrase pas, donc un installeur part à côté d'elle,
-// détaché, et attend qu'elle soit fermée. Il écarte alors le dossier de l'app installée (un
+// lui survit, et attend qu'elle soit fermée. Il écarte alors le dossier de l'app installée (un
 // renommage : l'app en place n'est pas touchée), lance le setup téléchargé sans rien demander
 // (`/S`) dans ce même dossier (`/D=`), vérifie que la version posée est bien celle qui était
 // attendue, retire l'ancienne et rouvre l'app. Quoi qu'il échoue, il remet l'ancienne à sa place,
@@ -10,9 +10,9 @@
 // sans droits d'administrateur ni invite, et ne lance pas l'app en silence. L'installeur est un
 // script PowerShell, qui est sur tout Windows : rien qui dépende de l'app qu'il remplace — le
 // `node.exe` qu'elle porte est dans le dossier remplacé.
-import { spawn } from "node:child_process";
-import { accessSync, constants, existsSync } from "node:fs";
-import { win32 } from "node:path";
+import { spawnSync } from "node:child_process";
+import { accessSync, constants, existsSync, readFileSync, rmSync } from "node:fs";
+import { join, win32 } from "node:path";
 import { ECHEC } from "./etat.ts";
 
 // Ce que l'installeur pose à la racine du dossier de l'app (app/packaging/windows.ts, `EXE` et
@@ -66,6 +66,7 @@ const litteral = (texte: string) => `'${texte.replace(/['\u2018\u2019\u201a\u201
 export function scriptWindows(options: OptionsInstallationWindows): string {
   return `$ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
+Remove-Item -LiteralPath Env:${SCRIPT_EN_ATTENTE} -ErrorAction SilentlyContinue
 $idApp = ${Math.trunc(options.pid)}
 $installeur = ${litteral(options.installeur)}
 $version = ${litteral(options.version)}
@@ -92,11 +93,14 @@ function Echouer([string] $raison) {
 }
 try {
   # L'app se ferme : deux minutes au plus. Toujours ouverte, rien n'est remplacé ni rouvert.
-  $enCours = Get-Process -Id $idApp -ErrorAction SilentlyContinue
-  if ($null -ne $enCours -and -not $enCours.WaitForExit(120000)) {
-    try { [System.IO.File]::WriteAllText((Join-Path $dossier ${litteral(ECHEC)}), "the app did not quit within two minutes\`n") } catch {}
-    Remove-Item -LiteralPath $installeur -Force -ErrorAction SilentlyContinue
-    exit 1
+  # Sondée toutes les 100 ms, comme le \`kill -0\` du Mac.
+  for ($n = 0; $null -ne (Get-Process -Id $idApp -ErrorAction SilentlyContinue); $n++) {
+    if ($n -ge 1200) {
+      try { [System.IO.File]::WriteAllText((Join-Path $dossier ${litteral(ECHEC)}), "the app did not quit within two minutes\`n") } catch {}
+      Remove-Item -LiteralPath $installeur -Force -ErrorAction SilentlyContinue
+      exit 1
+    }
+    Start-Sleep -Milliseconds 100
   }
   # L'app installée est écartée d'un renommage : tant qu'un de ses fichiers est ouvert, Windows le
   # refuse, et rien n'a bougé.
@@ -138,24 +142,53 @@ export function powershellDe(env: Record<string, string | undefined>): string {
   return win32.join(env.SystemRoot || env.windir || "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
 }
 
-// Ce qui lance l'installeur : le process, ses arguments et son environnement. Le script passe
-// encodé (UTF-16, base64) : ni guillemets à citer, ni fichier à écrire, et un chemin qui n'est pas
-// en ASCII arrive tel quel.
+const ARGUMENTS = ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand"];
+const encoder = (script: string) => Buffer.from(script, "utf16le").toString("base64");
+
+// Ce qui joue l'installeur, au premier plan : le process, ses arguments et son environnement. Le
+// script passe encodé (UTF-16, base64) : ni guillemets à citer, ni fichier à écrire, et un chemin
+// qui n'est pas en ASCII arrive tel quel.
 export function commandeDInstallationWindows(options: OptionsInstallationWindows): { commande: string; args: string[]; env: Record<string, string | undefined> } {
   const env = options.env ?? process.env;
-  const encode = Buffer.from(scriptWindows(options), "utf16le").toString("base64");
-  return { commande: powershellDe(env), args: ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encode], env };
+  return { commande: powershellDe(env), args: [...ARGUMENTS, encoder(scriptWindows(options))], env };
 }
 
-// Lance l'installeur, détaché et sans fenêtre : il survit à l'app, qui doit se fermer ensuite. Rend
-// son pid ; lève s'il ne part pas.
+// Le script de l'installeur, encodé, attend dans cette variable que le lanceur le reprenne : il ne
+// tiendrait pas deux fois encodé sur une ligne de commande de Windows (32 767 caractères).
+export const SCRIPT_EN_ATTENTE = "BRIGADE_MAJ_SCRIPT";
+// Où le lanceur écrit le pid de l'installeur, dans le dossier de la mise à jour.
+export const PID_DE_L_INSTALLEUR = "installeur.pid";
+
+// Le lanceur : un PowerShell court qui démarre l'installeur par `Start-Process`, dans une console
+// cachée, écrit son pid et sort. Sous Windows, un process lancé par l'app est dans le job de libuv,
+// qui le tue quand l'app se ferme ; ce qu'il lance à son tour en sort (le job le permet en silence) et
+// lui survit. Lancé détaché (`DETACHED_PROCESS`, sans console), l'installeur n'a jamais rouvert
+// l'app sur le Windows de la CI : il ne l'est plus.
+const LANCEUR = `$ErrorActionPreference = 'Stop'
+$arguments = @(${ARGUMENTS.map((argument) => `'${argument}'`).join(", ")}, $env:${SCRIPT_EN_ATTENTE})
+$powershell = (Get-Process -Id $PID).Path
+if ($IsLinux -or $IsMacOS) { $installeur = Start-Process -FilePath $powershell -ArgumentList $arguments -PassThru }
+else { $installeur = Start-Process -FilePath $powershell -ArgumentList $arguments -WindowStyle Hidden -PassThru }
+[System.IO.File]::WriteAllText((Join-Path (Get-Location) '${PID_DE_L_INSTALLEUR}'), [string] $installeur.Id)
+`;
+
+// Lance l'installeur, qui survit à l'app, sans fenêtre : l'app doit se fermer ensuite. Rend son
+// pid ; lève s'il ne part pas.
 export function lancerInstallationWindows(options: OptionsInstallationWindows): number {
   if (win32.basename(options.app) === "" || options.app.trim() === "") throw new Error(`not an installed app folder: ${options.app}`);
-  const { commande, args, env } = commandeDInstallationWindows(options);
+  const env = { ...(options.env ?? process.env), [SCRIPT_EN_ATTENTE]: encoder(scriptWindows(options)) };
+  const pidEcrit = join(options.dossier, PID_DE_L_INSTALLEUR);
+  rmSync(pidEcrit, { force: true });
   // Son dossier de travail est celui de la mise à jour : jamais celui de l'app, qu'il doit écarter.
-  const enfant = spawn(commande, args, { detached: true, stdio: "ignore", windowsHide: true, env, cwd: options.dossier });
-  enfant.on("error", () => {});
-  if (enfant.pid === undefined) throw new Error("the installer could not be launched");
-  enfant.unref();
-  return enfant.pid;
+  // Aucun tube : le lanceur rend la main dès qu'il sort, quoi que l'installeur garde ouvert.
+  const lanceur = spawnSync(powershellDe(env), [...ARGUMENTS, encoder(LANCEUR)], { stdio: "ignore", windowsHide: true, env, cwd: options.dossier, timeout: 60_000 });
+  let pid = Number.NaN;
+  try {
+    pid = Number(readFileSync(pidEcrit, "utf8").trim());
+  } catch {
+    // Rien d'écrit : le lanceur n'a rien lancé.
+  }
+  rmSync(pidEcrit, { force: true });
+  if (lanceur.error !== undefined || lanceur.status !== 0 || !Number.isSafeInteger(pid) || pid <= 0) throw new Error(`the installer could not be launched${lanceur.error === undefined ? ` (PowerShell exited with ${lanceur.status ?? lanceur.signal})` : `: ${lanceur.error.message}`}`);
+  return pid;
 }

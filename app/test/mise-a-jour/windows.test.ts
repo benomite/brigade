@@ -145,6 +145,15 @@ exit /b ${sortie}`,
 // Un pid qui ne tourne plus : celui d'un process fini.
 const unPidMort = () => spawnSync(process.execPath, ["-e", ""]).pid ?? assert.fail("no pid");
 
+// L'app rouverte par l'installeur — ou, s'il ne le fait pas, ce qu'il a fait : ses appels et sa raison.
+async function rouverte(pc: ReturnType<typeof unPC>) {
+  try {
+    await jusqua(() => pc.appels().at(-1) === `ouvrir ${join(pc.app, EXE)}`);
+  } catch {
+    assert.fail(`the installer did not reopen the app — calls: ${JSON.stringify(pc.appels())}, ${ECHEC}: ${pc.echec() ?? "none"}, version: ${pc.version()}`);
+  }
+}
+
 function installer(pc: ReturnType<typeof unPC>, essais?: number) {
   const { commande, args, env } = commandeDInstallationWindows(pc.options(unPidMort(), essais));
   return spawnSync(commande, args, { env, encoding: "utf8", cwd: pc.dossier });
@@ -213,7 +222,7 @@ test("l'installeur, détaché, attend que l'app soit fermée avant de rien touch
   assert.equal(pc.version(), "1.0.0");
   app.stdin?.end();
   await fermee;
-  await jusqua(() => pc.appels().at(-1) === `ouvrir ${join(pc.app, EXE)}`);
+  await rouverte(pc);
   assert.equal(pc.version(), "1.1.0");
   // Fini : son dossier de travail, sous le dossier temporaire du test, n'est plus tenu (Windows ne
   // retire pas le dossier courant d'un process).
@@ -256,7 +265,7 @@ test("de bout en bout : l'app 1.0.0 installée voit la 1.1.0 publiée pour Windo
   assert.equal(await avant.installerMaintenant(), undefined);
   assert.deepEqual([...new Set(etats.map(({ etat }) => etat))], ["verification", "disponible", "telechargement", "prete", "installation"]);
   await fermee;
-  await jusqua(() => pc.appels().at(-1) === `ouvrir ${join(pc.app, EXE)}`);
+  await rouverte(pc);
   await jusqua(() => !vivant(installeur ?? assert.fail("the installer was not launched")));
   assert.equal(pc.echec(), undefined);
   // Rouverte : sa version est la 1.1.0, rien ne reste à installer, et elle est à jour.

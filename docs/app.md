@@ -2692,7 +2692,7 @@ GitHub, `BRIGADE_APP_MISE_A_JOUR_SOURCE=<address>` makes it read a server that a
 `app-v<version>` releases, the same checks, the same states, the same actions and the same words. Only
 two things differ. It reads the release's `latest.yml` and downloads the setup `.exe` it names. A
 release that carries only the Mac's files is not a new version for Windows, and the reverse holds
-too. And its installer is a PowerShell script started detached next to the app
+too. And its installer is a PowerShell script started next to the app, in a hidden console, that outlives it
 (`app/src/mise-a-jour/windows.ts`). Once the app has quit, the script moves the installed folder aside
 (Windows refuses while one of its files is still open, and then nothing has moved). It runs the setup
 silently (`/S`) into that same folder (`/D=`) and checks that `resources\app\package.json` now holds
