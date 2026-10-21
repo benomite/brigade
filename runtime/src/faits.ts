@@ -12,6 +12,8 @@ import { ouvrirJournal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { apprentissageDuProjet } from "./apprentissage/projet.ts";
 import { cartesDeProfil } from "./profils/cartes.ts";
+import { decisionsPosees } from "./decisions.ts";
+import { configPlafond } from "./reagir.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run facts";
 
@@ -53,7 +55,11 @@ export function principal({ args, env, dire, redire }: Appel): void {
       apprentissage = undefined;
     }
     const appris = apprentissage !== undefined && (apprentissage.lecons.length > 0 || apprentissage.profils.length > 0);
-    dire(JSON.stringify({ ...forme, ...(corrections.length === 0 ? {} : { corrections }), ...(reculs.length === 0 ? {} : { reculs }), ...(profils.length === 0 ? {} : { profils }), ...(appris ? { apprentissage } : {}) }));
+    // Le plafond de calibrage du manager, tel que le runtime le lit : posé par
+    // le chef, ou son défaut.
+    const plafond = configPlafond(decisionsPosees(journal.base));
+    const plafondDeCalibrage = { modele: plafond.model, effort: plafond.effort, parLeChef: { modele: plafond.pose.model, effort: plafond.pose.effort } };
+    dire(JSON.stringify({ ...forme, plafondDeCalibrage, ...(corrections.length === 0 ? {} : { corrections }), ...(reculs.length === 0 ? {} : { reculs }), ...(profils.length === 0 ? {} : { profils }), ...(appris ? { apprentissage } : {}) }));
   } catch (erreur) {
     // En lecture seule, rien ne crée les tables d'un journal écrit par un
     // runtime d'avant ces projections, ni ne leur donne leur forme du jour.

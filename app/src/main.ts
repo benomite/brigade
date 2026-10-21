@@ -22,6 +22,7 @@ import { commenter, demanderAuSecond, lireDiscussion } from "./discussion.ts";
 import { cheminConfiguration, EXEMPLE, type Projet } from "./config.ts";
 import { confirmationDe } from "./confirmation.ts";
 import { cuireSurLaStation } from "./cuisson.ts";
+import { reglerLePlafond as reglerLePlafondDeCalibrage } from "./plafond-de-calibrage.ts";
 import { choix, entieres, PALETTE } from "./couleurs.ts";
 import { blocDesOrdinaires } from "./ordinaires.ts";
 import { ecrireAttente, GESTES_D_ATTENTE } from "./attente.ts";
@@ -924,17 +925,26 @@ ipcMain.handle("panne", (_, id: unknown, cle: unknown) => jouerPanne(gestesDesPa
 // Le bouton d'une station sur l'onglet Cooks (#1185) : `station stop|start <station>` part là où la cuisine du projet
 // tourne — sa box, ou cet ordinateur —, par le passage du projet comme les veilles. La station doit être l'une de celles
 // que ses derniers `facts` donnent (cuisson.ts). La vue relit la box quand il est fait : la ligne dit son état neuf.
+// Une commande du runtime, lancée là où la cuisine d'un projet tourne, par son passage comme les veilles.
+const lancerSurLaCuisine = (lu: Lu, commande: string) => {
+  // Jamais posée hors des essais, comme pour la veille.
+  const rendu = (passage.get(lu.nom) ?? Promise.resolve()).then(() => lancerLa({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 30_000, connexionS: 10 }, lu, commande));
+  passage.set(lu.nom, rendu);
+  return rendu;
+};
 ipcMain.handle("cuireSurLaStation", (_, nom: unknown, station: unknown, geste: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return parti(nom);
   const cuisine = cuisines.cuisineDe(vise);
-  const lancer = (lu: Lu, commande: string) => {
-    // Jamais posée hors des essais, comme pour la veille.
-    const rendu = (passage.get(lu.nom) ?? Promise.resolve()).then(() => lancerLa({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 30_000, connexionS: 10 }, lu, commande));
-    passage.set(lu.nom, rendu);
-    return rendu;
-  };
-  return cuireSurLaStation(vise.nom, cuisine === undefined ? undefined : { nom: vise.nom, cuisine }, faits.stations(vise.nom), station, geste, lancer);
+  return cuireSurLaStation(vise.nom, cuisine === undefined ? undefined : { nom: vise.nom, cuisine }, faits.stations(vise.nom), station, geste, lancerSurLaCuisine);
+});
+// Le plafond de calibrage du projet, réglé depuis son onglet Cooks (ticket 1284) : `station ceiling-modele|ceiling-effort`,
+// ou leur retrait, part là où sa cuisine tourne (plafond-de-calibrage.ts). La vue relit la box quand il est fait.
+ipcMain.handle("reglerLePlafondDeCalibrage", (_, nom: unknown, choix: unknown) => {
+  const vise = connu(nom);
+  if (vise === undefined) return parti(nom);
+  const cuisine = cuisines.cuisineDe(vise);
+  return reglerLePlafondDeCalibrage(vise.nom, cuisine === undefined ? undefined : { nom: vise.nom, cuisine }, faits.plafondDeCalibrage(vise.nom), choix, lancerSurLaCuisine);
 });
 // Le code de l'app, en retard ou à relancer : le clic la met à jour et la relance — rien n'est
 // rendu, elle se ferme — ou dit pourquoi elle reste sur son code (rattrapage.ts).

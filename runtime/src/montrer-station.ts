@@ -15,13 +15,15 @@
 //                                                    pose une décision du chef (`decisions.ts`) — un geste par
 //                                                    décision, listés par `station -- help` : les stations, les deux
 //                                                    seuils de coût de la dérive, le calibrage du manager, du reviewer
-//                                                    et du closer, avec ses trois plafonds
+//                                                    et du closer, avec ses trois plafonds, et le plafond de calibrage
+//                                                    jusqu'où le manager monte un ticket rouge
 // Le réglage s'écrit dans le journal ; le runtime qui tourne le lit à sa
 // prochaine prise, dans la seconde. Baisser le plafond n'arrête aucun cook.
 // Une décision s'écrit au journal, au nom du chef, avec ce qu'elle remplace ;
 // le runtime la lit à sa lecture suivante, sans redémarrage, et n'arrête rien
 // de ce qui tourne. Une valeur qu'il ne lirait pas est refusée, et rien n'est
-// écrit. Aucune n'a de défaut, ni ne s'en voit proposer un.
+// écrit. Aucune n'a de défaut, ni ne s'en voit proposer un — sauf le plafond
+// de calibrage, `opus` / `high` tant que le chef ne l'a pas posé.
 // Les anciens mots (`retirer`, `aide`) répondent encore, en disant le nouveau
 // (`commandes.ts`).
 import { existsSync } from "node:fs";
@@ -37,6 +39,7 @@ import { direConsommationEn, NOTE_CONSOMMATION_EN } from "./etat.ts";
 import { direSaturationsEn } from "./machine.ts";
 import { consommation, etatDesGardeFous } from "./projections/guardrails.ts";
 import { direCommentLeVoirEn, direEtatDeServeurEn, direPageEn, direServiceIndisponible, serveursEnCours, servicesIndisponibles, worktreesTenus } from "./projections/service.ts";
+import { configPlafond, direPlafondDeCalibrageEn, PLAFOND_PAR_DEFAUT } from "./reagir.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { FORME, GESTE_DE_STATION_A_CHAUD_EN } from "./stations-declarees.ts";
 import { direOrdinairesEn } from "./bac-a-sable/ordinaires.ts";
@@ -75,7 +78,11 @@ export const GESTES: Record<string, { decision: Decision; quoi: string; valeur: 
   "closer-cooks": { decision: "BRIGADE_CLOSING_COOKS", quoi: "the pass starts when fewer cooks than this are in flight", valeur: "<cooks>", attendu: "an integer greater than zero" },
   "closer-tokens": { decision: "BRIGADE_CLOSING_MAX_TOKENS", quoi: "token cap of a closing pass", valeur: "<tokens>", attendu: "an integer greater than zero" },
   "closer-retraits": { decision: "BRIGADE_CLOSING_MAX_REMOVED_LINES", quoi: "cap on the lines a closing pass may remove", valeur: "<lines>", attendu: "an integer greater than zero" },
+  "ceiling-modele": { decision: "BRIGADE_CEILING_MODEL", quoi: `calibration ceiling: the highest model the manager raises a red ticket to (${PLAFOND_PAR_DEFAUT.model} if unset)`, valeur: "<model>", attendu: ou(MODELES) },
+  "ceiling-effort": { decision: "BRIGADE_CEILING_EFFORT", quoi: `calibration ceiling: the highest effort the manager raises a red ticket to (${PLAFOND_PAR_DEFAUT.effort} if unset)`, valeur: "<effort>", attendu: ou(EFFORTS) },
 };
+// Les décisions qui ont un défaut : non posées, c'est lui qui vaut.
+const DEFAUTS: Partial<Record<Decision, string>> = { BRIGADE_CEILING_MODEL: PLAFOND_PAR_DEFAUT.model, BRIGADE_CEILING_EFFORT: PLAFOND_PAR_DEFAUT.effort };
 const AIDE = ["help", "--help"];
 const LU = "read by the runtime at its next read, without a restart; no running cook is stopped";
 
@@ -216,6 +223,8 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
     const { decision } = GESTES[nom] as (typeof GESTES)[string];
     const fait = retirerDecision(journal, { projet: projetDuJournal(journal), nom: decision, auteur: AUTEUR });
     if (fait?.type !== "decision.withdrawn") return `${nom}: not set, nothing is written`;
+    const defaut = DEFAUTS[decision];
+    if (defaut !== undefined) return `${nom}: withdrawn (was: ${fait.payload.previous}) — back to the default, ${defaut}: ${LU}${sansRuntime(journal)}`;
     return `${nom}: withdrawn (was: ${fait.payload.previous}) — it is no longer decided: the runtime keeps to what it read, no running cook is stopped; ${decision} is only read from the log${sansRuntime(journal)}`;
   }
 
@@ -225,8 +234,12 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
     ligne("chef's decisions", "`station -- <geste> <valeur>` to set one, `station -- help` for the settings");
     for (const [nom, { decision }] of Object.entries(GESTES)) {
       const posee = posees[decision];
-      dire(`  ${nom.padEnd(20)}${posee ?? `not set — ${decision} is only read from the log`}`);
+      const defaut = DEFAUTS[decision];
+      dire(`  ${nom.padEnd(20)}${posee ?? (defaut === undefined ? `not set — ${decision} is only read from the log` : `not set — the default, ${defaut}`)}`);
     }
+    // Jusqu'où le manager monte un ticket rouge : chaque dimension, posée ou
+    // par défaut.
+    ligne("calibration ceiling", `${direPlafondDeCalibrageEn(configPlafond(posees))} — \`station -- ceiling-modele <model>\`, \`station -- ceiling-effort <effort>\` to change it`);
     // Ce que la passe de fermeture vaut en ce moment, plafonds compris : tel
     // que le runtime les a notés, défauts et environnement compris.
     const closer = reglagesEnVigueur(journal);

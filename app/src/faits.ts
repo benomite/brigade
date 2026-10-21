@@ -25,6 +25,7 @@ import { carteDeProfil, profilInforme, profilsLus, type CarteDeProfil, type Prof
 import { attenduDe, decisionLue, livraisonLue, teteDe, type Decision, type Livraison as LivraisonAttendue } from "./decision.ts";
 import { entete, type Entete } from "./fiche.ts";
 import { cuissonDe, type CuissonDuProjet } from "./cuisson.ts";
+import { plafondVu, type PlafondLu, type PlafondVu } from "./plafond-de-calibrage.ts";
 import { LABEL_RETENUE } from "./question.ts";
 import type { Repondue } from "./repondues.ts";
 
@@ -118,6 +119,9 @@ export type Faits = {
   urgence?: Urgence | null;
   // Les stations que le projet déclare et ce qu'elles font des tickets ordinaires (ordinaires.ts) ; absent d'un runtime d'avant ce champ.
   stations?: StationDesFaits[];
+  // Le plafond de calibrage du manager, et si le chef l'a posé (plafond-de-calibrage.ts) ; absent d'un runtime
+  // d'avant ce champ.
+  plafondDeCalibrage?: PlafondLu;
   // Les corrections proposées des consignes du projet, que le chef tranche (correction.ts) : absent
   // quand il n'y en a aucune, et d'un runtime d'avant ce champ.
   corrections?: CorrectionLue[];
@@ -198,6 +202,9 @@ export type Tableau = {
   // Ce que chaque station du projet en fait, ses cooks et son geste, et la ligne d'alerte de l'onglet Rail
   // (cuisson.ts) — absent d'un runtime qui ne donne pas les stations.
   stations?: CuissonDuProjet;
+  // Le plafond de calibrage du projet, d'où vient sa valeur, et de quoi le régler (plafond-de-calibrage.ts) —
+  // absent d'un runtime qui ne le donne pas.
+  plafondDeCalibrage?: PlafondVu;
   // Ce que chaque correction acceptée des consignes du projet a fait de sa cause, avant et après son
   // merge (recul.ts), la plus ancienne d'abord : la page Reliability la pose. Absent quand il n'y en a aucune.
   reculs?: Recul[];
@@ -225,6 +232,16 @@ const ouRien = <T>(valeur: unknown, champ: string, lire: (valeur: unknown, champ
 const booleen = (valeur: unknown, champ: string): boolean => (typeof valeur === "boolean" ? valeur : refuser(champ, "true or false"));
 
 // Une station que le projet déclare, et ce qu'elle fait des tickets ordinaires (ordinaires.ts).
+function plafondLu(valeur: unknown): PlafondLu {
+  const lu = objet(valeur, "plafondDeCalibrage");
+  const pose = objet(lu.parLeChef, "plafondDeCalibrage.parLeChef");
+  return {
+    modele: texte(lu.modele, "plafondDeCalibrage.modele"),
+    effort: texte(lu.effort, "plafondDeCalibrage.effort"),
+    parLeChef: { modele: booleen(pose.modele, "plafondDeCalibrage.parLeChef.modele"), effort: booleen(pose.effort, "plafondDeCalibrage.parLeChef.effort") },
+  };
+}
+
 function comprendreStation(valeur: unknown, champ: string): StationDesFaits {
   const lu = objet(valeur, champ);
   return {
@@ -448,6 +465,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
       ...(racine.stations === undefined
         ? {}
         : { stations: (Array.isArray(racine.stations) ? racine.stations : refuser("stations", "a list")).map((station: unknown, rang) => comprendreStation(station, `stations[${rang}]`)) }),
+      ...(racine.plafondDeCalibrage === undefined ? {} : { plafondDeCalibrage: plafondLu(racine.plafondDeCalibrage) }),
       ...(racine.corrections === undefined ? {} : { corrections: correctionsLues(racine.corrections) }),
       ...(racine.reculs === undefined ? {} : { reculs: reculsLus(racine.reculs) }),
       ...(racine.profils === undefined ? {} : { profils: profilsLus(racine.profils) }),
@@ -876,6 +894,7 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu, repond
     ...rienNeCuit(status),
     rail: rail(faits, attend, status, repondues),
     ...(faits.stations === undefined ? {} : { stations: cuissonDe(faits.stations, faits.cooks, faits.lu) }),
+    ...(faits.plafondDeCalibrage === undefined ? {} : { plafondDeCalibrage: plafondVu(faits.plafondDeCalibrage) }),
     ...(faits.reculs === undefined || faits.reculs.length === 0 ? {} : { reculs: faits.reculs.map(reculDe) }),
     apprentissage: apprentissageDe(faits.apprentissage),
   };
@@ -1000,6 +1019,10 @@ export function tenirFaits(repondues: (projet: string) => ReadonlyMap<number, Re
     // Ce que `facts` dit des stations d'un projet, à la dernière lecture — rien, s'il n'est pas lu.
     stations(projet: unknown): StationDesFaits[] | undefined {
       return typeof projet === "string" ? tenus.get(projet)?.faits.stations : undefined;
+    },
+    // Ce que `facts` dit du plafond de calibrage d'un projet, à la dernière lecture — rien, s'il n'est pas lu.
+    plafondDeCalibrage(projet: unknown): PlafondLu | undefined {
+      return typeof projet === "string" ? tenus.get(projet)?.faits.plafondDeCalibrage : undefined;
     },
     // Ce que le dernier bloc `attend` dit de ce ticket, ligne pour ligne — celles qui le précisent
     // comprises —, et son titre si `faits` le donne. Rien quand le bloc ne le nomme pas : la vue ne

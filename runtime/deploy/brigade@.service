@@ -36,10 +36,9 @@ Environment=BRIGADE_REPO_DIR=/var/lib/brigade/%i/depot
 # démarrer.
 #
 # BRIGADE_ROADMAP_ISSUE, facultative, y désigne l'issue de roadmap que le
-# manager ne doit jamais juger. BRIGADE_CEILING_MODEL et BRIGADE_CEILING_EFFORT,
-# facultatives et sans défaut, y bornent la montée de calibrage d'un ticket qui
-# échoue en pass : sans elles, le manager ne monte rien. Le calibrage du manager
-# et du reviewer, lui, est une décision du chef : il se pose par le geste
+# manager ne doit jamais juger. Le calibrage du manager et du reviewer, et le
+# plafond de la montée de calibrage d'un ticket qui échoue en pass (`opus` /
+# `high` par défaut), sont des décisions du chef : ils se posent par le geste
 # `station`, pas ici.
 #
 # BRIGADE_GITHUB_APPS_DIR, facultative, désigne le répertoire des trois GitHub

@@ -94,6 +94,11 @@ const TENUS: Record<string, string> = {
   BRIGADE_STATION_DIR: "c'est le répertoire de la station, pas d'un projet",
 };
 
+// Les décisions du chef qu'une ligne a pu porter quand elles étaient encore
+// des réglages : la ligne n'est pas refusée pour elles, et le projet est
+// servi — son runtime les dit ignorées, avec le geste qui les remplace.
+const DEVENUES_DECISIONS: readonly string[] = ["BRIGADE_CEILING_MODEL", "BRIGADE_CEILING_EFFORT"];
+
 // Lit le texte de la configuration. Une ligne illisible n'est que la sienne :
 // elle est dite, et les autres projets sont servis.
 export function lireConfiguration(texte: string): Configuration {
@@ -112,7 +117,7 @@ export function lireConfiguration(texte: string): Configuration {
       const [, cle, valeur] = REGLAGE.exec(champ) ?? [];
       if (cle === undefined || valeur === undefined) return refuser(`« ${champ.slice(0, 40)} » n'est pas un réglage — attendu BRIGADE_…=valeur`);
       if (cle in TENUS) return refuser(`${cle} ne se règle pas sur la ligne : ${TENUS[cle]}`);
-      if ((DECISIONS as readonly string[]).includes(cle)) return refuser(`${cle} est une décision du chef : elle vit au journal du projet, pas dans la configuration`);
+      if ((DECISIONS as readonly string[]).includes(cle) && !DEVENUES_DECISIONS.includes(cle)) return refuser(`${cle} est une décision du chef : elle vit au journal du projet, pas dans la configuration`);
       if (cle in reglages) return refuser(`${cle} est réglé deux fois`);
       reglages[cle] = valeur;
     }

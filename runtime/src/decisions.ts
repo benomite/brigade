@@ -8,10 +8,10 @@
 // journal est sous le clone.
 //
 // Le runtime les relit à chaque lecture : une décision posée vaut à la
-// suivante, sans redémarrage, et n'arrête rien de ce qui tourne. Posée, elle
-// l'emporte sur la variable d'environnement de même nom ; retirée ou jamais
-// posée, la variable est lue comme avant. Aucune n'a de défaut : sans décision
-// ni variable, rien n'est supposé.
+// suivante, sans redémarrage, et n'arrête rien de ce qui tourne. La variable
+// d'environnement de même nom n'est plus lue : le runtime la dit ignorée.
+// Aucune n'a de défaut, sauf le plafond de calibrage du manager : sans
+// décision, il vaut `opus` / `high` (`reagir.ts`).
 import { existsSync } from "node:fs";
 import { Base } from "./base.ts";
 import { EFFORTS, MODELES, type Calibrage } from "./calibrage.ts";
@@ -23,6 +23,7 @@ import type { ReglagesDeFermeture } from "./events/closing.ts";
 import { configFermeture } from "./closing/settings.ts";
 import { cheminJournal, type Journal } from "./journal.ts";
 import { configManager } from "./manager.ts";
+import { configPlafond, type PlafondLu } from "./reagir.ts";
 import { configReviewer } from "./reviewer.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { lireStations, type StationDeclaree } from "./stations-declarees.ts";
@@ -43,6 +44,8 @@ export const DECISIONS = [
   "BRIGADE_CLOSING_COOKS",
   "BRIGADE_CLOSING_MAX_TOKENS",
   "BRIGADE_CLOSING_MAX_REMOVED_LINES",
+  "BRIGADE_CEILING_MODEL",
+  "BRIGADE_CEILING_EFFORT",
 ] as const;
 
 export type Decision = (typeof DECISIONS)[number];
@@ -90,6 +93,8 @@ const VERIFIER: Record<Decision, (nom: Decision, valeur: string) => void> = {
   BRIGADE_CLOSING_COOKS: nombre(configFermeture, ENTIER),
   BRIGADE_CLOSING_MAX_TOKENS: nombre(configFermeture, ENTIER),
   BRIGADE_CLOSING_MAX_REMOVED_LINES: nombre(configFermeture, ENTIER),
+  BRIGADE_CEILING_MODEL: parmi(MODELES),
+  BRIGADE_CEILING_EFFORT: parmi(EFFORTS),
 };
 
 export const estUneDecision = (nom: string): nom is Decision => (DECISIONS as readonly string[]).includes(nom);
@@ -156,6 +161,8 @@ const GESTES_DES_DECISIONS: Record<Decision, string> = {
   BRIGADE_CLOSING_COOKS: "closer-cooks",
   BRIGADE_CLOSING_MAX_TOKENS: "closer-tokens",
   BRIGADE_CLOSING_MAX_REMOVED_LINES: "closer-retraits",
+  BRIGADE_CEILING_MODEL: "ceiling-modele",
+  BRIGADE_CEILING_EFFORT: "ceiling-effort",
 };
 
 // Ce que le runtime dit d'une variable de décision laissée dans son
@@ -240,6 +247,8 @@ export type Decisions = {
   stations(): StationDeclaree[];
   seuils(): Seuils;
   manager(): Calibrage;
+  // Jusqu'où le manager monte le calibrage d'un ticket rouge.
+  plafond(): PlafondLu;
   reviewer(): Calibrage;
   fermeture(): ReglagesDeFermeture;
 };
@@ -271,6 +280,7 @@ export function suivreDecisions(base: Base, env: Record<string, string | undefin
     stations: suivre("les stations", lireStations),
     seuils: suivre("les seuils de la dérive", lireSeuils),
     manager: suivre("le calibrage du manager", (lu) => configManager(lu).calibrage),
+    plafond: suivre("le plafond de calibrage", configPlafond),
     reviewer: suivre("le calibrage du reviewer", (lu) => configReviewer(lu).calibrage),
     fermeture: suivre("les réglages du closer", configFermeture),
   };

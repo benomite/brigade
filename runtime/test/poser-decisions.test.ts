@@ -36,6 +36,8 @@ const REPONSES = [
   ["closer-cooks", "1"],
   ["closer-tokens", "500000"],
   ["closer-retraits", "500"],
+  ["ceiling-modele", "opus"],
+  ["ceiling-effort", "high"],
 ] as const;
 const RECLAMEES = REPONSES.slice(0, 4);
 

@@ -110,6 +110,7 @@ import { apresRendu as apresLaCorrection, poserCorrections, REPOS as CORRECTION_
 import { poserProfils } from "./profil/carte.js";
 import { poserDepotRetenu } from "./onboarding/depot-retenu.js";
 import { ligneDAlerte, poserLesStations as stationsDeCuisson } from "./stations-de-cuisson.js";
+import { poserLePlafond as plafondDeCalibrage } from "./plafond-de-calibrage.js";
 import { apresLaDecision, poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
@@ -269,6 +270,10 @@ carte.hidden = true;
 const cuissonDuProjet = document.createElement("div");
 cuissonDuProjet.id = "cuisson-du-projet";
 cuissonDuProjet.ariaLive = "polite";
+// Le plafond de calibrage du projet, sous ses stations, sur Cooks (ticket 1284) : poserPlafond le remplit.
+const plafondDuProjet = document.createElement("div");
+plafondDuProjet.id = "plafond-du-projet";
+plafondDuProjet.ariaLive = "polite";
 const alerteDeCuisine = document.createElement("div");
 alerteDeCuisine.id = "alerte-de-cuisine";
 const lu = element("lu");
@@ -773,6 +778,14 @@ const cuissonsEnCours = new Map();
 /** @type {Map<string, import("./stations-de-cuisson.js").Dit>} */
 const cuissonsDites = new Map();
 const cleDeCuisson = (/** @type {string} */ projet, /** @type {string} */ station) => `${projet}\u0000${station}`;
+// Le plafond de calibrage de chaque projet (ticket 1284) : ce que le chef a choisi dans ses listes sans l'envoyer,
+// le clic qui attend sa réponse, et ce que le dernier a rendu.
+/** @type {Map<string, { modele: string, effort: string }>} */
+const plafondsChoisis = new Map();
+/** @type {Map<string, "regler" | "defaut">} */
+const plafondsEnCours = new Map();
+/** @type {Map<string, import("./plafond-de-calibrage.js").Dit>} */
+const plafondsDits = new Map();
 // La dernière bande d'alertes de chaque projet, telle que le process principal l'a dite (alertes.ts).
 /** @type {Map<string, Alerte[]>} */
 const bandes = new Map();
@@ -4050,6 +4063,51 @@ function poserCuisson(projet) {
   });
   alerteDeCuisine.hidden = alerte === null;
   alerteDeCuisine.replaceChildren(...(alerte === null ? [] : [alerte]));
+  poserPlafondDeCalibrage(projet);
+}
+
+// Le plafond de calibrage du projet sur Cooks (ticket 1284), d'après ses derniers faits — rien tant que sa box ne
+// répond pas, ni d'un runtime qui ne le donne pas.
+/** @param {Projet} projet */
+function poserPlafondDeCalibrage(projet) {
+  const tenu = tenus.get(projet.nom);
+  const vu = tenu !== undefined && "tableau" in tenu && !muets.has(projet.nom) ? tenu.tableau.plafondDeCalibrage : undefined;
+  const pose = plafondDeCalibrage(document, {
+    vu,
+    choisi: plafondsChoisis.get(projet.nom),
+    enCours: plafondsEnCours.get(projet.nom),
+    dit: plafondsDits.get(projet.nom),
+    choisir: (choix) => {
+      plafondsChoisis.set(projet.nom, choix);
+      if (courant?.nom === projet.nom) poserPlafondDeCalibrage(courant);
+    },
+    jouer: (choix) => void reglerPlafondDeCalibrage(projet.nom, choix),
+  });
+  plafondDuProjet.replaceChildren(...(pose === null ? [] : [pose]));
+}
+
+// Le geste du plafond part par le process principal (plafond-de-calibrage.ts). Fait, la box est relue tout de suite :
+// la page dit le plafond neuf, et d'où il vient, sans attendre la lecture suivante.
+/** @param {string} projet @param {import("../plafond-de-calibrage.ts").ChoixDuPlafond} choix */
+async function reglerPlafondDeCalibrage(projet, choix) {
+  if (plafondsEnCours.has(projet)) return;
+  plafondsEnCours.set(projet, choix === "defaut" ? "defaut" : "regler");
+  plafondsDits.delete(projet);
+  if (courant?.nom === projet) poserPlafondDeCalibrage(courant);
+  /** @type {import("../plafond-de-calibrage.ts").RenduDuPlafond} */
+  let rendu;
+  try {
+    rendu = (await brigade.reglerLePlafondDeCalibrage(projet, choix)) ?? { refus: "the ceiling was not changed: nothing was sent", detail: SANS_PONT };
+  } catch (erreur) {
+    rendu = { refus: "the ceiling was not changed: nothing was sent", detail: erreur instanceof Error ? erreur.message : String(erreur) };
+  }
+  plafondsEnCours.delete(projet);
+  plafondsDits.set(projet, { dit: "fait" in rendu ? rendu.fait : rendu.refus, refus: !("fait" in rendu), detail: rendu.detail ?? "" });
+  if ("fait" in rendu) {
+    plafondsChoisis.delete(projet);
+    brigade.relireBox(demandeFaits);
+  }
+  if (courant?.nom === projet) poserPlafondDeCalibrage(courant);
 }
 
 // Le bouton d'une station : le geste part par le process principal (cuisson.ts), et le bouton dit qu'il s'y met.
@@ -4119,7 +4177,7 @@ function poserRail(projet) {
   poserCuisson(projet);
   if (cuisine && etroit()) return poserCuisineEtroite(projet, tenu);
   /** @param {(HTMLElement | string)[]} poses */
-  const poser = (...poses) => rail.replaceChildren(...(cuisine ? [carte, cuissonDuProjet] : alerteDeCuisine.hidden ? [] : [alerteDeCuisine]), ...poses, ...(cuisine ? [pages, lectureDeLaCuisine] : []));
+  const poser = (...poses) => rail.replaceChildren(...(cuisine ? [carte, cuissonDuProjet, plafondDuProjet] : alerteDeCuisine.hidden ? [] : [alerteDeCuisine]), ...poses, ...(cuisine ? [pages, lectureDeLaCuisine] : []));
   // Cuisine d'un projet servi ici, station arrêtée : rien n'est lu, la page dit pourquoi en une ligne — sur l'un et
   // l'autre onglet.
   if (projet.sansStation === true) return rail.replaceChildren(bloc("h3", STATION_ARRETEE));

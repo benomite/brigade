@@ -295,8 +295,8 @@ the pass, no cook restarts until it has decided.
 
 **Raising one notch** is the effort first (`low` → `medium` → `high` → `xhigh` → `max`), then the
 model (`haiku` → `sonnet` → `opus`) keeping the effort reached — **within the project's
-ceiling**, `BRIGADE_CEILING_MODEL` and `BRIGADE_CEILING_EFFORT`, **with no default**: a dimension with no
-ceiling never rises, and with neither it is left with re-splitting or passing up. **It
+ceiling** (#1284), a chef's decision in the project's log, **`opus` / `high` by default**: a project where
+nobody set it raises up to there, with no action. **It
 replaces only its own labels**: a dimension you calibrated is never touched. **A
 ticket that failed twice never goes out identical**: if nothing changes, it is passed up.
 
@@ -316,6 +316,17 @@ log (`manager.reacted`, `manager.raised`); `run manager` shows the last ten.
 **Good to know.** A ticket whose calibration you change while the manager holds it goes back to
 yours. If you set the old label back in place of its own, the ticket waits, "rouge, au manager"
 in `run pass`: replace the label, or turn the manager off — the pass takes back its earlier rule.
+
+#### The calibration ceiling
+
+Each dimension is a decision (`decisions.ts`), set without a restart: `station ceiling-modele <model>`,
+`station ceiling-effort <effort>`; `station remove ceiling-modele` brings the default back. The manager rereads it at
+each reaction. `station` shows it, and where each value comes from (`calibration ceiling: opus / high — default`);
+`facts` gives it (`plafondDeCalibrage`: `modele`, `effort`, `parLeChef`), and the app shows and sets it on the Cooks
+tab. `BRIGADE_CEILING_MODEL` and `BRIGADE_CEILING_EFFORT` are no longer read from the environment: left in a
+drop-in or on a station line, the runtime says them ignored, with the gesture that replaces them, and serves the
+project. Each reaction notes the ceiling it chose within (`manager.reacted`, `ceiling`), and its comment on a raise
+names it.
 
 ### What it leaves on the issue
 

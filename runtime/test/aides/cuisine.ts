@@ -21,7 +21,7 @@ import { ouvrirJournal } from "../../src/journal.ts";
 import { brancherPass, type ConfigPass } from "../../src/pass.ts";
 import type { DefinitionDeProfil } from "../../src/profils/definition.ts";
 import type { LeconRecue } from "../../src/apprentissage/injection.ts";
-import type { Plafond } from "../../src/reagir.ts";
+import { PLAFOND_PAR_DEFAUT, type Plafond } from "../../src/reagir.ts";
 import { demarrer } from "../../src/runtime.ts";
 import { brancherStation } from "../../src/station.ts";
 import { ecrireStation, type StationDeclaree } from "../../src/stations-declarees.ts";
@@ -427,7 +427,8 @@ export type Options = {
   setup?: ScenarioSetup;
   // Brancher le manager : le scénario de ses jugements, ou leur suite, et la
   // roadmap du projet s'il en a une.
-  // `plafond` : jusqu'où une montée de calibrage peut aller — rien, par défaut.
+  // `plafond` : jusqu'où une montée de calibrage peut aller — celui d'un projet
+  // où le chef ne l'a pas posé, par défaut.
   manager?: { jugement?: string; suite?: string[]; roadmap?: number; plafond?: Partial<Plafond> };
   // Les chemins communs du projet.
   communs?: string[];
@@ -629,7 +630,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
         calibrage: CALIBRAGE_DU_MANAGER,
         decisions,
         roadmap: options.manager.roadmap ?? null,
-        plafond: { model: null, effort: null, ...options.manager.plafond },
+        plafond: { ...PLAFOND_PAR_DEFAUT, ...options.manager.plafond },
         github: gh.github,
         depotGitHub: DEPOT,
         repertoireEtat: repertoire,

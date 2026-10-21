@@ -29,6 +29,8 @@ const TOUTES: Record<Decision, string> = {
   BRIGADE_CLOSING_COOKS: "1",
   BRIGADE_CLOSING_MAX_TOKENS: "500000",
   BRIGADE_CLOSING_MAX_REMOVED_LINES: "500",
+  BRIGADE_CEILING_MODEL: "sonnet",
+  BRIGADE_CEILING_EFFORT: "xhigh",
 };
 
 // Ce que le runtime lit des décisions au démarrage.

@@ -50,6 +50,8 @@ const DECIDEES = {
   BRIGADE_CLOSING_COOKS: "2",
   BRIGADE_CLOSING_MAX_TOKENS: "300000",
   BRIGADE_CLOSING_MAX_REMOVED_LINES: "200",
+  BRIGADE_CEILING_MODEL: "sonnet",
+  BRIGADE_CEILING_EFFORT: "xhigh",
 };
 
 // Un journal neuf, dans un répertoire d'état à lui.
@@ -66,7 +68,7 @@ function poserLesPremieres(repertoire: string): void {
 
 const lu = (decisions: ReturnType<typeof suivreDecisions>) => {
   const seuils = decisions.seuils();
-  return { stations: decisions.stations(), ticketTokens: seuils.ticketTokens, lostTokens: seuils.lostTokens, manager: decisions.manager(), reviewer: decisions.reviewer(), fermeture: decisions.fermeture() };
+  return { stations: decisions.stations(), ticketTokens: seuils.ticketTokens, lostTokens: seuils.lostTokens, manager: decisions.manager(), reviewer: decisions.reviewer(), fermeture: decisions.fermeture(), plafond: decisions.plafond() };
 };
 
 describe("les décisions du chef", { concurrency: 8 }, () => {
@@ -81,6 +83,8 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
       manager: { model: "sonnet", effort: "medium" },
       reviewer: { model: "haiku", effort: "medium" },
       fermeture: { calibration: null, cooksBelow: 1, tokens: 500_000, removedLines: 500 },
+      // Le plafond de calibrage, seul, a un défaut.
+      plafond: { model: "opus", effort: "high", pose: { model: false, effort: false } },
     });
 
     // Le chef les pose depuis son propre process : une autre connexion au journal.
@@ -94,6 +98,7 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
       manager: { model: "opus", effort: "high" },
       reviewer: { model: "sonnet", effort: "low" },
       fermeture: { calibration: { model: "sonnet", effort: "high" }, cooksBelow: 2, tokens: 300_000, removedLines: 200 },
+      plafond: { model: "sonnet", effort: "xhigh", pose: { model: true, effort: true } },
     });
     // Toutes les décisions de la famille sont couvertes, et chacune est au
     // journal au nom du chef, avec ce qu'elle remplace.
