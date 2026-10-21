@@ -10,6 +10,7 @@ import { triagesDesDerniersJours } from "./carte-todo.ts";
 import { faits, lireEtat } from "./etat.ts";
 import { pauseDeLaStation } from "./limite-github.ts";
 import { refusDuProjet } from "./mise-a-jour/en-service.ts";
+import { rolesDeLaCuisine } from "./roles-cuisine/roles.ts";
 import { ouvrirJournal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { apprentissageDuProjet } from "./apprentissage/projet.ts";
@@ -67,7 +68,9 @@ export function principal({ args, env, dire, redire }: Appel): void {
     // jour : six nombres, six zéros sans activité. Le projet est celui de l'unité, à défaut celui du journal.
     const projetDuJournal = journal.base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project;
     const activiteCuisine = activiteDeLaCuisine(journal.base, projet || projetDuJournal || "", maintenant);
-    dire(JSON.stringify({ ...forme, plafondDeCalibrage, triage, activiteCuisine, ...(corrections.length === 0 ? {} : { corrections }), ...(reculs.length === 0 ? {} : { reculs }), ...(profils.length === 0 ? {} : { profils }), ...(appris ? { apprentissage } : {}) }));
+    // Les rôles de la cuisine du projet, chacun avec sa ligne et sa dernière action — nulle s'il n'a rien fait.
+    const rolesCuisine = rolesDeLaCuisine(journal.base, projet || projetDuJournal || "");
+    dire(JSON.stringify({ ...forme, plafondDeCalibrage, triage, activiteCuisine, rolesCuisine, ...(corrections.length === 0 ? {} : { corrections }), ...(reculs.length === 0 ? {} : { reculs }), ...(profils.length === 0 ? {} : { profils }), ...(appris ? { apprentissage } : {}) }));
   } catch (erreur) {
     // En lecture seule, rien ne crée les tables d'un journal écrit par un
     // runtime d'avant ces projections, ni ne leur donne leur forme du jour.

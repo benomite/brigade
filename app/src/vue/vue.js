@@ -114,6 +114,7 @@ import { poserDepotRetenu } from "./onboarding/depot-retenu.js";
 import { ligneDAlerte, poserLesStations as stationsDeCuisson } from "./stations-de-cuisson.js";
 import { poserLePlafond as plafondDeCalibrage } from "./plafond-de-calibrage.js";
 import { poserLActivite } from "./activite-cuisine.js";
+import { poserLesRoles } from "./roles-cuisine.js";
 import { apresLaDecision, poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
@@ -281,6 +282,10 @@ cuissonDuProjet.ariaLive = "polite";
 const plafondDuProjet = document.createElement("div");
 plafondDuProjet.id = "plafond-du-projet";
 plafondDuProjet.ariaLive = "polite";
+// Les rôles de sa cuisine — le closer et les autres —, chacun avec ce qu'il fait et sa dernière action, sous son plafond,
+// sur Cooks (ticket 1274). poserCuisson les remplit ; poserRail les pose.
+const rolesDuProjet = document.createElement("div");
+rolesDuProjet.id = "roles-du-projet";
 // Ce que les cooks ont appris au projet — ses leçons et ses profils —, sous son plafond, sur Cooks (ticket 1273) :
 // ils étaient sur Reliability. poserCuisson les remplit ; poserRail les pose.
 const apprisDuProjet = document.createElement("div");
@@ -4100,6 +4105,9 @@ function poserCuisson(projet, posees = new Map()) {
   alerteDeCuisine.hidden = alerte === null;
   alerteDeCuisine.replaceChildren(...(alerte === null ? [] : [alerte]));
   poserPlafondDeCalibrage(projet);
+  // Les rôles de sa cuisine, lus dans `facts` : rien tant que sa box ne répond pas, ni d'un runtime qui ne les donne pas.
+  const roles = poserLesRoles(document, tenu !== undefined && "tableau" in tenu && !muets.has(projet.nom) ? tenu.tableau.rolesCuisine : undefined);
+  rolesDuProjet.replaceChildren(...(roles === null ? [] : [roles]));
   // Ses leçons et ses profils (apprentissage.js), lus dans `facts` : une leçon promue ouvre sa ligne du carnet par le
   // process principal, qui en tient l'adresse — rien n'est créé. Rien tant que sa box ne répond pas.
   const appris = tenu !== undefined && "tableau" in tenu && !muets.has(projet.nom) ? tenu.tableau.apprentissage : undefined;
@@ -4206,7 +4214,7 @@ async function reglerLePlafondDuProjet(projet, station, valeur) {
 /** @param {Projet} projet @param {Dessinable | undefined} tenu */
 function poserCuisineEtroite(projet, tenu) {
   if (projet.sansStation === true) return rail.replaceChildren(bloc("h3", STATION_ARRETEE));
-  if (cuissonDuProjet.childElementCount > 0) return rail.replaceChildren(activiteDuProjet, cuissonDuProjet, apprisDuProjet);
+  if (cuissonDuProjet.childElementCount > 0) return rail.replaceChildren(activiteDuProjet, cuissonDuProjet, rolesDuProjet, apprisDuProjet);
   const pourquoi = muets.has(projet.nom)
     ? "its stations: not known while the station is unreachable"
     : tenu === undefined
@@ -4246,7 +4254,7 @@ function poserRail(projet) {
   poserCuisson(projet, posees);
   if (cuisine && etroit()) return poserCuisineEtroite(projet, tenu);
   /** @param {(HTMLElement | string)[]} poses */
-  const poser = (...poses) => rail.replaceChildren(...(cuisine ? [activiteDuProjet, carte, cuissonDuProjet, plafondDuProjet, apprisDuProjet] : alerteDeCuisine.hidden ? [] : [alerteDeCuisine]), ...poses, ...(cuisine ? [pages, lectureDeLaCuisine] : []));
+  const poser = (...poses) => rail.replaceChildren(...(cuisine ? [activiteDuProjet, carte, cuissonDuProjet, plafondDuProjet, rolesDuProjet, apprisDuProjet] : alerteDeCuisine.hidden ? [] : [alerteDeCuisine]), ...poses, ...(cuisine ? [pages, lectureDeLaCuisine] : []));
   // Cuisine d'un projet servi ici, station arrêtée : rien n'est lu, la page dit pourquoi en une ligne — sur l'un et
   // l'autre onglet.
   if (projet.sansStation === true) return rail.replaceChildren(bloc("h3", STATION_ARRETEE));
