@@ -485,3 +485,39 @@ test("une PR mergée dit par qui, telle que GitHub le nomme", async (t) => {
   gh.repondre(`repos/${DEPOT}/pulls/40`, { corps: fiche });
   assert.equal((await github.prDeBranche("cook/15-abc"))?.mergeePar, null);
 });
+
+test("le diff d'une PR se demande à GitHub sous sa forme diff", async (t) => {
+  const { gh, github } = sonde(t);
+  const chemin = `repos/${DEPOT}/pulls/40`;
+  gh.repondre(chemin, { corps: "diff --git a/x b/x" });
+
+  assert.equal(await github.diff(40), JSON.stringify("diff --git a/x b/x"));
+  assert.deepEqual(gh.appels(), [["api", "-i", "-H", "Accept: application/vnd.github.diff", chemin]]);
+  await assert.rejects(github.diff(41), /HTTP 404/);
+});
+
+test("le journal d'un check se lit par son job, quand c'en est un de GitHub Actions ; sinon, aucun", async (t) => {
+  const { gh, github } = sonde(t);
+  const chemin = `repos/${DEPOT}/actions/jobs/456/logs`;
+  gh.repondre(chemin, { corps: "not ok 1 - export" });
+  const check = { name: "tests", outcome: "red" as const, conclusion: "failure" };
+
+  assert.equal(await github.journalDuCheck({ ...check, url: `https://github.com/${DEPOT}/actions/runs/123/job/456` }), JSON.stringify("not ok 1 - export"));
+  assert.deepEqual(gh.appels(), [["api", "-i", chemin]]);
+  assert.equal(await github.journalDuCheck({ ...check, url: "https://ci.exemple/6" }), null);
+  assert.equal(await github.journalDuCheck({ ...check, url: null }), null);
+  assert.equal(gh.appels().length, 1);
+  assert.equal(await github.journalDuCheck({ ...check, url: `https://github.com/${DEPOT}/actions/runs/123/job/789` }), null);
+});
+
+test("un commentaire se remplace par son corps : celui qui l'est encore est réécrit, sinon rien", async (t) => {
+  const { gh, github } = sonde(t);
+  gh.repondre(`repos/${DEPOT}/issues/30/comments?per_page=100`, { corps: [{ id: 7, body: "autre" }, { id: 9, body: "<!-- brigade:fiche -->\n- attend : #29" }] });
+  gh.repondre(`repos/${DEPOT}/issues/comments/9`, { corps: { id: 9 } });
+
+  assert.equal(await github.remplacerCommentaire(30, "<!-- brigade:fiche -->\n- attend : #29", "<!-- brigade:fiche -->\n- attend : rien"), true);
+  assert.deepEqual(gh.appels().at(-1), ["api", "-i", "-X", "PATCH", "-f", "body=<!-- brigade:fiche -->\n- attend : rien", `repos/${DEPOT}/issues/comments/9`]);
+  const appels = gh.appels().length;
+  assert.equal(await github.remplacerCommentaire(30, "disparu", "neuf"), false);
+  assert.equal(gh.appels().length, appels + 1);
+});

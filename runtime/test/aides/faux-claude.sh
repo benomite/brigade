@@ -399,6 +399,58 @@ FIN
 {"nature":"incomplete","motif":"Rien ne dit comment vérifier que c'est fait.","manque":"Un critère d'acceptation."}
 FIN
       ;;
+    # L'agent de triage : il laisse la carte entrer dans TODO, ou tranche.
+    triage-laisse)
+      assistant
+      resultat <<'FIN'
+{"action":"todo","motif":"Un choix de produit, que seul le chef tranche."}
+FIN
+      ;;
+    triage-relance)
+      assistant
+      resultat <<'FIN'
+{"action":"relancer","phrase":"Sent #30 back to the cook: the test `export.test.ts:12` fails because the CSV header is missing.","diagnostic":"Le test export.test.ts:12 échoue : l'en-tête CSV manque dans src/export.ts:40.","motif":"Une cause lue dans la CI."}
+FIN
+      ;;
+    triage-redecoupe)
+      assistant
+      resultat <<'FIN'
+{"action":"redecouper","phrase":"Re-split #30 into smaller tickets, since it is too big for one PR.","motif":"Trois livrables dans un seul ticket."}
+FIN
+      ;;
+    triage-dependance)
+      assistant
+      resultat <<'FIN'
+{"action":"dependance","phrase":"Removed the dependency on #29, which was served by the split of #28.","dependance":29,"motif":"La dépendance est livrée."}
+FIN
+      ;;
+    triage-attend)
+      assistant
+      resultat <<'FIN'
+{"action":"attendre","phrase":"Waiting for the CI of #30, which is still running.","motif":"La CI tourne encore."}
+FIN
+      ;;
+    triage-retire)
+      assistant
+      resultat <<'FIN'
+{"action":"retirer","phrase":"Removed #30 from the rail: it was done in #27.","motif":"Doublon."}
+FIN
+      ;;
+    triage-merge)
+      assistant
+      resultat <<'FIN'
+{"action":"merger","phrase":"Merged the PR of #30.","motif":"La livraison me semble bonne."}
+FIN
+      ;;
+    # Ne répond qu'une fois FAUX_CLAUDE_FEU posé : le test regarde la carte
+    # pendant que l'agent décide.
+    triage-au-feu)
+      assistant
+      while [ ! -e "$FAUX_CLAUDE_FEU" ]; do sleep 0.02; done
+      resultat <<'FIN'
+{"action":"todo","motif":"Un choix de produit."}
+FIN
+      ;;
     requalifie-carte)
       assistant
       resultat <<'FIN'

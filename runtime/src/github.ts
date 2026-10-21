@@ -98,6 +98,14 @@ export type GitHub = {
   prDeBranche(branche: string): Promise<PR | null>;
   // Les checks du commit : ses *check runs* et ses statuts.
   ci(sha: string): Promise<Check[]>;
+  // Le diff d'une PR, tel que GitHub le rend.
+  diff(numero: number): Promise<string>;
+  // Le journal du job d'un check de GitHub Actions, ou null si le check n'en
+  // est pas un, ou que GitHub ne le rend plus.
+  journalDuCheck(check: Check): Promise<string | null>;
+  // Remplace, sur l'issue, le commentaire dont le corps est `ancien` par
+  // `nouveau` : rend faux si aucun ne l'est plus.
+  remplacerCommentaire(numero: number, ancien: string, nouveau: string): Promise<boolean>;
   // Merge la PR, à condition que sa tête soit encore `sha`.
   merger(numero: number, sha: string): Promise<Merge>;
   fermerIssue(numero: number): Promise<void>;
@@ -144,7 +152,7 @@ type IssueBrute = {
   user?: { login?: string } | null;
 };
 
-type CommentaireBrut = { body?: string | null; author_association?: string; user?: { login?: string } | null; created_at?: string };
+type CommentaireBrut = { id?: number; body?: string | null; author_association?: string; user?: { login?: string } | null; created_at?: string };
 
 type EvenementBrut = { event?: string; created_at?: string; label?: { name?: string } | null };
 
@@ -369,6 +377,25 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
           return { name: statut.context, outcome, conclusion: statut.state, url: statut.target_url ?? null };
         }),
       ];
+    },
+    async diff(numero) {
+      const chemin = `repos/${depot}/pulls/${numero}`;
+      return exiger(await appeler(["-H", "Accept: application/vnd.github.diff", chemin]), chemin).corps;
+    },
+    async journalDuCheck(check) {
+      const job = /\/actions\/runs\/\d+\/job\/(\d+)/.exec(check.url ?? "")?.[1];
+      if (job === undefined) return null;
+      const reponse = await appeler([`repos/${depot}/actions/jobs/${job}/logs`]);
+      return reponse.statut === 200 ? reponse.corps : null;
+    },
+    async remplacerCommentaire(numero, ancien, nouveau) {
+      const chemin = `repos/${depot}/issues/${numero}/comments?per_page=100`;
+      const pages = await feuilleter(await appeler([chemin]), chemin);
+      const trouve = pages.flatMap((page) => JSON.parse(page.corps) as CommentaireBrut[]).find((brut) => (brut.body ?? "") === ancien);
+      if (trouve?.id === undefined) return false;
+      const edition = `repos/${depot}/issues/comments/${trouve.id}`;
+      exiger(await appeler(["-X", "PATCH", "-f", `body=${nouveau}`, edition]), edition);
+      return true;
     },
     async merger(numero, sha) {
       const chemin = `repos/${depot}/pulls/${numero}/merge`;

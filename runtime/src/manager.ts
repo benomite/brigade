@@ -39,6 +39,8 @@ import { compteRetenu, cookDeRun, refusDAffilee, stationsAnnoncees } from "./pro
 import { ouvrirReaction } from "./reaction.ts";
 import { ouvrirRequalification } from "./requalifier.ts";
 import { ouvrirSansCapacite } from "./sans-capacite.ts";
+import { brancherLeTriage } from "./carte-todo.ts";
+import { ouvrirTriage } from "./triage/triage.ts";
 import { configPlafond, type Plafond } from "./reagir.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import type { Fin } from "./superviseur.ts";
@@ -104,6 +106,8 @@ export type OptionsManager = ConfigManager & {
   bin: string;
   // L'environnement dont part celui des jugements. Par défaut, celui du runtime.
   env?: NodeJS.ProcessEnv;
+  // Celui dont part l'agent de triage. Par défaut, celui des jugements.
+  envDuTriage?: NodeJS.ProcessEnv;
   // La cloison dans laquelle partent les jugements.
   cloison?: Cloison | null;
   // Le bac à sable d'une cuisine locale, sur le Mac du chef : les jugements y
@@ -158,7 +162,6 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
   const { github } = options;
   const maintenant = options.maintenant ?? (() => new Date());
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
-  const envJuge = environnementCook(options.env ?? process.env);
   const noter = (ticket: number | null, fait: FaitManager | FaitStation | FaitPass) => journal.ajouter({ project: projet, ticket, author: AUTEUR, ...fait });
 
   let arrete = false;
@@ -399,6 +402,7 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
     sujet: { numero: number; prefixe: string; nom: string },
     consigne: string,
     lire: (message: string | null) => { valeur: T } | { illisible: string },
+    envDuRole: NodeJS.ProcessEnv = options.env ?? process.env,
   ): Promise<Reponse<T> | null> => {
     const run = `${sujet.prefixe}-${sujet.numero}-${randomUUID().slice(0, 8)}`;
     let lecture: Lecture | null = null;
@@ -432,7 +436,7 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
         // Hors de tout dépôt : un jugement ne lit que sa consigne.
         ...envelopper(options.cloison, { commande: options.bin, args: dansLeBacASableLocal(options.bacASable, argumentsJuge(consigne, calibrage), tmpdir()) }, { cwd: tmpdir(), depot: null }),
         cwd: tmpdir(),
-        env: environnementClaude(envJuge, options.env ?? process.env),
+        env: environnementClaude(environnementCook(envDuRole), envDuRole),
         juger: conclure,
       });
     } catch (erreur) {
@@ -544,6 +548,23 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
     signature,
   });
 
+  // Devant TODO : chaque carte y passe par l'agent de triage, tant que le
+  // manager est allumé.
+  const triage = ouvrirTriage({
+    journal,
+    projet,
+    rail,
+    github,
+    depotGitHub: options.depotGitHub,
+    demander: (sujet, consigne, lire) => demander(sujet, consigne, lire, options.envDuTriage ?? options.env ?? process.env),
+    peutJuger,
+    redecouper: (ticket, commentaires, echec) => decoupage.redecouper(ticket, commentaires, echec),
+    maintenant,
+    arrete: () => arrete,
+    avertir,
+  });
+  const debrancherLeTriage = brancherLeTriage(base, () => !arrete && managerAllume(base));
+
   const sansCapacite = ouvrirSansCapacite({
     journal,
     projet,
@@ -609,7 +630,15 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // Un tour : chaque issue ouverte est triée par le code, et seules celles
   // qu'il ne sait pas trancher, dans un état jamais jugé, vont au LLM.
   const tour = async () => {
-    if (!managerAllume(base)) return;
+    if (!managerAllume(base)) {
+      // Éteint, il ne trie plus : ce qu'il retenait entre dans TODO.
+      triage.relacher("the manager is off: the triage holds no card");
+      return;
+    }
+    // Les cartes d'abord : celles qui attendent leur triage ne sont devant
+    // personne.
+    await triage.traiter();
+    if (arrete || !managerAllume(base)) return;
     // Avant le sondage : une pass rouge ne modifie aucune issue.
     await reaction.traiter();
     if (arrete || !managerAllume(base)) return;
@@ -736,6 +765,7 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
     arreter(signal) {
       arrete = true;
       desabonner();
+      debrancherLeTriage();
       runtime.arreter(signal);
     },
   };
