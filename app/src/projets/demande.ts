@@ -48,6 +48,8 @@ export type Bascule = { de: string; vers: string; demandeLe: string; etape: Etap
 // (#1117, runtime/src/projets/acces.ts) ; `worktree` : sa cuisine ne parvient pas à préparer un
 // worktree, avec la raison et l'heure du prochain essai (#1118, runtime/src/echec-du-worktree.ts).
 // Absents quand la station n'en dit rien.
+// `depot`, `base`, `cooks` : ce que la station sert du projet — son dépôt, sa branche d'intégration et son
+// plafond de cooks —, d'où l'app reprend ce qu'une station de plus doit servir ; nuls quand elle n'en dit rien.
 export type AccesBloque = { bloque: "fetch" | "push"; raison: string; geste: string };
 export type EchecDuWorktree = { ticket: number; raison: string; prochainEssai: string | null; acces: AccesBloque | null };
 // `refus` : pourquoi la station ne sert pas le projet, pour le chef (#1177, runtime/src/projets/refus.ts) —
@@ -57,7 +59,7 @@ export type EchecDuWorktree = { ticket: number; raison: string; prochainEssai: s
 // (`noRemedy`). Une station d'avant #1203 n'en dit rien : ni l'un ni l'autre.
 export type DescripteurDeRemede = { id: string; description: string; destructive: boolean };
 export type Refus = { code: string; message: string; action: string; remedy?: DescripteurDeRemede; noRemedy?: string };
-export type SuiviDuProjet = { nom: string; etat: EtatDuProjet; dit: string; autoriser: string[]; serviLe: string | null; cuitSur: string | null; ici: boolean; bascule: Bascule | null; acces: AccesBloque | null; refus: Refus | null; worktree: EchecDuWorktree | null };
+export type SuiviDuProjet = { nom: string; etat: EtatDuProjet; dit: string; autoriser: string[]; serviLe: string | null; cuitSur: string | null; ici: boolean; bascule: Bascule | null; acces: AccesBloque | null; refus: Refus | null; worktree: EchecDuWorktree | null; depot: string | null; base: string | null; cooks: number | null };
 
 const ETATS: readonly string[] = ["servi", "a-autoriser", "en-preparation", "refuse", "secondaire"];
 const ETAPES: readonly string[] = ["demandee", "acceptee", "refusee", "remise", "recue"];
@@ -136,7 +138,7 @@ export function lireSuivi(brut: string | undefined): SuiviDuProjet[] {
     const lu = JSON.parse(brut) as { brigade?: unknown; projets?: unknown };
     if (lu?.brigade !== "projets-suivi" || !Array.isArray(lu.projets)) return [];
     return (lu.projets as unknown[]).flatMap((brut) => {
-      const { nom, etat, dit, autoriser, serviLe, cuitSur, ici, bascule, acces, refus, worktree } = (brut ?? {}) as Record<string, unknown>;
+      const { nom, etat, dit, autoriser, serviLe, cuitSur, ici, bascule, acces, refus, worktree, depot, base, cooks } = (brut ?? {}) as Record<string, unknown>;
       if (!texte(nom) || !texte(etat) || !ETATS.includes(etat)) return [];
       return [
         {
@@ -151,6 +153,9 @@ export function lireSuivi(brut: string | undefined): SuiviDuProjet[] {
           acces: lireAcces(acces),
           refus: lireRefus(refus),
           worktree: lireEchec(worktree),
+          depot: texte(depot) && depot.trim() !== "" ? depot.trim() : null,
+          base: texte(base) && base.trim() !== "" ? base.trim() : null,
+          cooks: typeof cooks === "number" && Number.isSafeInteger(cooks) && cooks >= 1 ? cooks : null,
         },
       ];
     });

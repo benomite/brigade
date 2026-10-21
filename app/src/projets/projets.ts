@@ -96,7 +96,10 @@ export type VuDesProjets = {
   calibrage: CalibrageRecommande;
   sans?: string;
 };
-export type Ajout = { ajoute: string } | { signales: Signales } | { refus: string };
+// `manque` : parmi le dépôt, la branche d'intégration et le plafond de cooks, ceux que la première station
+// ne dit pas et que le chef n'a pas donnés — chacun est aussi dans `signales`, sous son nom.
+export type Manquant = "depot" | "base" | "cooks";
+export type Ajout = { ajoute: string } | { signales: Signales; manque?: Manquant[] } | { refus: string };
 export type Retrait = { retire: string } | { refus: string };
 export type { Demenagement } from "./demenagement.ts";
 
@@ -498,16 +501,27 @@ export function tenirProjets(options: OptionsProjets): Projets {
         principale: servie.length > 0 || demandes.some(({ projet }) => projet.principale),
         ...(demandes[0] === undefined ? {} : { demande: demandes.find(({ projet }) => projet.principale)?.projet ?? demandes[0].projet }),
       };
-      const signales = refusDeConfiance(saisie, stations, tenu);
-      if (Object.keys(signales).length > 0) return { signales };
-      const instant = new Date(maintenant()).toISOString();
+      // Une station de plus sert ce que la première sert déjà : son dépôt, sa branche et son plafond, tels
+      // qu'elle les publie, puis tels que l'app les lui a demandés ; le chef ne les redit pas.
+      const dits = lus.flatMap(({ station, suivi }) => suivi.filter(({ nom }) => nom === saisie.nom).map((un) => ({ station, un }))).sort((a, b) => Number(b.un.etat === "servi") - Number(a.un.etat === "servi"));
+      const premiere = <C extends "depot" | "base" | "cooks">(champ: C): SuiviDuProjet[C] | undefined => dits.find(({ un }) => un[champ] !== null)?.un[champ];
       const repris = tenu.demande;
+      const reprise = tenu.principale
+        ? { depot: premiere("depot") ?? repris?.depot ?? saisie.depot, base: premiere("base") ?? repris?.base ?? saisie.base, cooks: premiere("cooks") ?? repris?.cooks ?? (saisie.cooks === "" ? undefined : Number(saisie.cooks)) }
+        : { depot: saisie.depot, base: saisie.base, cooks: Number(saisie.cooks) };
+      const effective: SaisieDeConfiance = { ...saisie, depot: reprise.depot, base: reprise.base, cooks: reprise.cooks === undefined ? "" : String(reprise.cooks) };
+      const signales = refusDeConfiance(effective, stations, tenu);
+      const premiereStation = (dits[0]?.station ?? stations.find(({ id }) => tenu.portee.includes(id)))?.nom ?? "the first station";
+      const manque: Manquant[] = tenu.principale ? (["depot", "base", "cooks"] as const).filter((champ) => effective[champ] === "") : [];
+      for (const champ of manque) signales[champ] = `${premiereStation} does not say ${{ depot: "which GitHub repository it serves", base: "which integration branch it delivers to", cooks: "how many cooks it may run at once" }[champ]} for ${saisie.nom}: give the ${{ depot: "repository", base: "integration branch", cooks: "cook cap" }[champ]}.`;
+      if (Object.keys(signales).length > 0) return manque.length > 0 ? { signales, manque } : { signales };
+      const instant = new Date(maintenant()).toISOString();
       const projet = (principale: boolean): ProjetDemande => ({
         nom: saisie.nom,
-        depot: saisie.depot,
-        base: saisie.base,
+        depot: effective.depot,
+        base: effective.base,
         principale,
-        cooks: repris?.cooks ?? Number(saisie.cooks),
+        cooks: Number(effective.cooks),
         manager: repris?.manager ?? saisie.manager,
         reviewer: repris?.reviewer ?? saisie.reviewer,
         ouvertLe: Number.isNaN(Date.parse(saisie.ouvertLe)) ? null : new Date(saisie.ouvertLe).toISOString(),

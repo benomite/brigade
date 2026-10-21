@@ -295,11 +295,46 @@ describe("l'ajout, la lecture et le retrait d'un projet, contre un GitHub de tes
     const SERT: StationVue = { ...BOX, projets: ["parade"] };
     const { projets, demande } = unGitHub(t, [SERT, MAC]);
     const ajout = { ...CONFIANCE, stations: ["g2"], principale: "" };
-    assert.deepEqual(await projets.confier({ ...ajout, cooks: "" }), { signales: { cooks: "How many cooks may the main station run at once for this project?" } });
+    assert.deepEqual(await projets.confier({ ...ajout, cooks: "" }), { signales: { cooks: "box does not say how many cooks it may run at once for parade: give the cook cap." }, manque: ["cooks"] });
     assert.deepEqual(await projets.confier({ ...ajout, stations: ["g1"] }), { signales: { stations: "box already cooks it: choose another station." } });
     assert.deepEqual(await projets.confier(ajout), { ajoute: "parade" });
     assert.deepEqual(demande("g2"), [{ ...ATTENDU, principale: false }]);
     assert.equal(demande("g1"), undefined);
+  });
+
+  const SANS_RIEN = { nom: "parade", depot: "", base: "", stations: ["g2"], principale: "", cooks: "", manager: { modele: "sonnet", effort: "medium" }, reviewer: { modele: "opus", effort: "high" }, ouvertLe: OUVERT };
+  const SERVI = { nom: "parade", etat: "servi", dit: "", autoriser: [], serviLe: "2026-10-15T11:30:00Z" };
+
+  test("une station de plus d'un projet que la première sert sans l'app reprend son dépôt, sa branche et son plafond : le chef n'en dit aucun", { skip: SANS_POSIX }, async (t) => {
+    const { projets, demande, suivre } = unGitHub(t, [{ ...BOX, projets: ["parade"] }, MAC]);
+    suivre("g1", [{ ...SERVI, depot: "benomite/parade", base: "v2", cooks: 3 }]);
+    assert.deepEqual(await projets.confier(SANS_RIEN), { ajoute: "parade" });
+    const ecrit = demande("g2")?.[0];
+    assert.deepEqual([ecrit?.depot, ecrit?.base, ecrit?.cooks, ecrit?.principale], ["benomite/parade", "v2", 3, false]);
+    assert.equal(demande("g1"), undefined);
+  });
+
+  test("ce que la première station sert l'emporte sur ce que la saisie dit", { skip: SANS_POSIX }, async (t) => {
+    const { projets, demande, suivre } = unGitHub(t, [{ ...BOX, projets: ["parade"] }, MAC]);
+    suivre("g1", [{ ...SERVI, depot: "benomite/parade", base: "v2", cooks: 3 }]);
+    assert.deepEqual(await projets.confier({ ...SANS_RIEN, depot: "autre/depot", base: "main", cooks: "9" }), { ajoute: "parade" });
+    const ecrit = demande("g2")?.[0];
+    assert.deepEqual([ecrit?.depot, ecrit?.base, ecrit?.cooks], ["benomite/parade", "v2", 3]);
+  });
+
+  test("une valeur que la première station ne dit pas est nommée, champ par champ, au lieu du refus générique", { skip: SANS_POSIX }, async (t) => {
+    const { projets, demande, suivre } = unGitHub(t, [{ ...BOX, projets: ["parade"] }, MAC]);
+    suivre("g1", [{ ...SERVI, base: "v2", cooks: 3 }]);
+    const sans = await projets.confier(SANS_RIEN);
+    assert.deepEqual(sans, { signales: { depot: "box does not say which GitHub repository it serves for parade: give the repository." }, manque: ["depot"] });
+    suivre("g1", [{ ...SERVI, depot: "benomite/parade", cooks: 3 }]);
+    assert.deepEqual(await projets.confier(SANS_RIEN), { signales: { base: "box does not say which integration branch it delivers to for parade: give the integration branch." }, manque: ["base"] });
+    suivre("g1", [{ ...SERVI, depot: "benomite/parade", base: "v2" }]);
+    assert.deepEqual(await projets.confier(SANS_RIEN), { signales: { cooks: "box does not say how many cooks it may run at once for parade: give the cook cap." }, manque: ["cooks"] });
+    assert.equal(demande("g2"), undefined);
+    // Donnée par le chef, la valeur manquante suffit.
+    assert.deepEqual(await projets.confier({ ...SANS_RIEN, cooks: "2" }), { ajoute: "parade" });
+    assert.equal(demande("g2")?.[0]?.cooks, 2);
   });
 
   test("rien de choisi, rien d'écrit ; GitHub muet, le refus le dit en une ligne", { skip: SANS_POSIX }, async (t) => {
