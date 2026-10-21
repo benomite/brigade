@@ -6,11 +6,13 @@
 // il écrit la raison dans `echec.txt`, que l'app rouverte dit, et rouvre l'ancienne.
 //
 // L'installeur est un script `sh` et les outils du système (`hdiutil`, `codesign`, `ditto`, `open`) :
-// rien qui dépende de l'app qu'il remplace.
+// rien qui dépende de l'app qu'il remplace. Celui de Windows est dans windows.ts ;
+// `installeurDuPoste`, en bas, choisit celui du poste.
 import { spawn } from "node:child_process";
 import { accessSync, constants } from "node:fs";
-import { basename, dirname, resolve } from "node:path";
-import { ECHEC } from "./etat.ts";
+import { basename, dirname, resolve, win32 } from "node:path";
+import { ECHEC, type Prete } from "./etat.ts";
+import { installabiliteWindows, lancerInstallationWindows } from "./windows.ts";
 
 // Ce que le .dmg porte, sous la racine de son volume : la forme qu'écrit app/packaging/.
 export const APP_DU_DMG = "Brigade.app";
@@ -117,4 +119,35 @@ export function lancerInstallation(options: OptionsInstallation): void {
   enfant.on("error", () => {});
   if (enfant.pid === undefined) throw new Error("the installer could not be launched");
   enfant.unref();
+}
+
+// Ce que la mise à jour (etat.ts) demande au poste : pourquoi l'app ne pourrait pas se remplacer,
+// et lancer l'installeur d'une version prête.
+export type InstallationDuPoste = { installable(): string | undefined; installer(prete: Prete): void };
+
+export type OptionsDuPoste = {
+  plateforme: string;
+  // `process.resourcesPath` et `process.execPath` de l'app qui tourne, et son pid.
+  ressources: string;
+  executable: string;
+  pid: number;
+  // Le dossier de la mise à jour.
+  dossier: string;
+};
+
+// L'installeur du poste : le setup .exe sous Windows (windows.ts), le .dmg ailleurs — seul le Mac en
+// a un ; ailleurs, l'app n'est pas installée et ne se met pas à jour par là.
+export function installeurDuPoste({ plateforme, ressources, executable, pid, dossier }: OptionsDuPoste): InstallationDuPoste {
+  if (plateforme === "win32") {
+    const app = win32.dirname(executable);
+    return {
+      installable: () => installabiliteWindows(executable),
+      installer: (prete) => lancerInstallationWindows({ pid, installeur: prete.installeur, version: prete.version, app, dossier }),
+    };
+  }
+  const paquet = paquetDe(ressources);
+  return {
+    installable: () => installabilite(paquet),
+    installer: (prete) => lancerInstallation({ pid, dmg: prete.installeur, paquet, dossier }),
+  };
 }

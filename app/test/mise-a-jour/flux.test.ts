@@ -1,9 +1,9 @@
 // Le flux des versions de l'app (mise-a-jour/flux.ts) : les étiquettes `app-v*` de GitHub, et le
-// `latest-mac.yml` de chaque release — contre un faux GitHub local.
+// `latest-mac.yml` de chaque release, ou son `latest.yml` sous Windows (#1156) — contre un faux GitHub local.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { comparerVersions, fluxDe, fluxGitHub, lireMetadonnees } from "../../src/mise-a-jour/flux.ts";
-import { unFauxFlux, uneAdresseMuette, ymlDe } from "./faux-flux.ts";
+import { comparerVersions, fluxDe, fluxGitHub, formatDe, lireMetadonnees, MAC, WINDOWS } from "../../src/mise-a-jour/flux.ts";
+import { nomDuSetup, unFauxFlux, uneAdresseMuette, ymlDe } from "./faux-flux.ts";
 
 const flux = (adresse: string) => fluxGitHub({ api: adresse, telechargements: adresse, delaiMs: 60_000 });
 
@@ -58,4 +58,31 @@ test("un GitHub qui refuse, ou qu'on ne joint pas, se dit en une erreur", async 
 test("une source d'essai mal écrite n'empêche rien : chaque lecture dit l'erreur", async () => {
   await assert.rejects(fluxDe("ftp://ailleurs").nouvelle("1.0.0"), /expected an http\(s\) address/);
   assert.equal(fluxDe(undefined).nom, "the releases of benomite/brigade");
+});
+
+test("chaque poste lit les métadonnées de son installeur : latest-mac.yml et le .dmg sur un Mac, latest.yml et le setup .exe sous Windows", () => {
+  assert.equal(formatDe("darwin"), MAC);
+  assert.equal(formatDe("win32"), WINDOWS);
+  assert.deepEqual(WINDOWS, { metadonnees: "latest.yml", extension: ".exe" });
+  const exe = Buffer.from("un setup");
+  assert.deepEqual(lireMetadonnees(ymlDe("1.2.0+gabc1234", exe, nomDuSetup("1.2.0+gabc1234")), WINDOWS), { version: "1.2.0+gabc1234", nom: "Brigade-1.2.0+gabc1234-x64-setup.exe", sha512: lireMetadonnees(ymlDe("1.2.0", exe), MAC).sha512, taille: exe.length });
+  assert.throws(() => lireMetadonnees(ymlDe("1.2.0", exe), WINDOWS), /^Error: latest\.yml names no \.exe$/);
+  assert.throws(() => lireMetadonnees(ymlDe("1.2.0", exe, "..\\ailleurs.exe"), WINDOWS), /names no \.exe/);
+  assert.throws(() => lireMetadonnees(ymlDe("1.2.0", exe, nomDuSetup("1.2.0")), MAC), /^Error: latest-mac\.yml names no \.dmg$/);
+});
+
+test("sous Windows, la nouvelle version est la plus haute dont latest.yml est publié, avec l'adresse de son setup", async (t) => {
+  const exe = Buffer.from("le setup de 1.2.0");
+  const faux = await unFauxFlux(t, { "1.1.0": { dmg: Buffer.from("a"), exe: Buffer.from("b") }, "1.2.0": { dmg: Buffer.from("c"), exe }, "1.3.0": { dmg: Buffer.from("d"), exe: Buffer.from("e"), ymlExe: null } });
+  const nouvelle = await fluxDe(faux.adresse, WINDOWS).nouvelle("1.0.0");
+  assert.deepEqual(nouvelle, {
+    version: "1.2.0",
+    nom: "Brigade-1.2.0-x64-setup.exe",
+    url: `${faux.adresse}/benomite/brigade/releases/download/app-v1.2.0/Brigade-1.2.0-x64-setup.exe`,
+    sha512: lireMetadonnees(ymlDe("1.2.0", exe), MAC).sha512,
+    taille: exe.length,
+  });
+  assert.equal(faux.demandes.some((chemin) => chemin.endsWith("latest-mac.yml")), false);
+  // Le Mac, sur la même source, lit toujours les siennes.
+  assert.equal((await fluxDe(faux.adresse).nouvelle("1.0.0"))?.nom, "Brigade-1.3.0-arm64.dmg");
 });
