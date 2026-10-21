@@ -1,5 +1,5 @@
-// La page d'un projet en deux onglets (#1184) : Rail — ce qui t'attend, le rail et son ordre, TODO et WAITING — et
-// Cooks — ce qui tourne : la carte du projet et ses cooks, Taken, Pass, les serveurs de livraison, les stations, la
+// La page d'un projet en deux onglets (#1184) : Rail — ce qui t'attend, le kanban entier, Taken et Pass compris — et
+// Cooks — ce qui tourne : la carte du projet et ses cooks, les serveurs de livraison, les stations, la
 // lecture de `station` (plafond, saturation, consommation). Un seul est montré au centre ; le second reste à droite,
 // le même, quel que soit l'onglet. L'app rouvre un projet sur le dernier onglet que le chef y a ouvert.
 // La vue est jouée telle qu'elle est, devant un faux document (aides/fausse-vue.ts).
@@ -169,16 +169,16 @@ describe("deux onglets, Rail et Cooks, à côté du nom du projet", () => {
 });
 
 describe("ce que chaque onglet montre", () => {
-  test("Rail : ce qui t'attend et son geste, le rail dans son ordre, TODO et WAITING — ni gates, ni worktrees, ni plafond, ni consommation", async () => {
+  test("Rail : ce qui t'attend et son geste, le kanban entier, Taken et Pass compris, dans son ordre — ni gates, ni worktrees, ni plafond, ni consommation", async () => {
     const vue = await ouvrir();
 
-    assert.deepEqual(colonnes(vue), ["On the rail", "TODO", "WAITING", "Served"]);
+    assert.deepEqual(colonnes(vue), ["On the rail", "Taken", "Pass", "TODO", "WAITING", "Served"]);
     // Le rail dans son ordre ; #12, qui t'attend, avec son geste ; #31, servi, avec celui qui ouvre son écran.
-    assert.deepEqual(cartes(vue), ["#21", "#22", "#12", "#31"]);
+    assert.deepEqual(cartes(vue), ["#21", "#22", "#14", "#30", "#12", "#31"]);
     assert.ok(carteDe(vue, 12).dessous("button").length > 0, "ce qui t'attend n'a pas de geste");
     assert.ok(carteDe(vue, 31).dessous("button").some((bouton) => bouton.textContent === "see it in my browser"));
-    // Rien d'exécution : ni ce qui tourne (Taken, Pass), ni worktree ni port, ni la carte du projet, ni `station`.
-    assert.doesNotMatch(centre(vue).textContent, /31-5be0c1d2|20031|30-9a8b7c6d|Taken|Pass\b|cap of cooks|saturée|consommé/);
+    // Rien d'exécution : ni worktree ni port, ni la carte du projet, ni `station`.
+    assert.doesNotMatch(centre(vue).textContent, /31-5be0c1d2|20031|30-9a8b7c6d|cap of cooks|saturée|consommé/);
     for (const id of ["carte", "pages", "lu-cuisine", "lecture-cuisine", "gestes-cuisine"]) assert.equal(pose(vue, id), false, id);
     // Les stations du projet, quand il cuit quelque part, sont sur Cooks.
     assert.equal(vue.element("stations-du-projet").hidden, true);
@@ -186,18 +186,19 @@ describe("ce que chaque onglet montre", () => {
     assert.notDeepEqual(vue.appels.findLast(({ geste }) => geste === "onglet")?.args.slice(0, 2), [PARADE, "cooks"]);
   });
 
-  test("Cooks : le projet et ses cooks en cours, Taken et Pass, les serveurs de livraison, les stations, le plafond, la saturation, la consommation", async () => {
+  test("Cooks : le projet et ses cooks en cours, aucune colonne du kanban, les serveurs de livraison, les stations, le plafond, la saturation, la consommation", async () => {
     const vue = await ouvrir();
     await ouvrirOnglet(vue, "Cooks");
     lireStation(vue);
 
-    assert.deepEqual(colonnes(vue), ["Taken", "Pass"]);
+    // Aucune colonne du kanban : Taken et Pass sont sur Rail.
+    assert.deepEqual(colonnes(vue), []);
     // La carte du projet en tête : son état, ses compteurs, son cook en cours et sa station.
     assert.equal(pose(vue, "carte"), true);
     assert.match(vue.element("carte").textContent, /box\/claude/);
-    // Le cook au travail, les gates de la pass, le worktree et le port de chaque serveur.
-    assert.deepEqual(cartes(vue), ["#14", "#30"]);
-    assert.match(carteDe(vue, 30).textContent, /30-9a8b7c6d · port 20030 · sert/);
+    // Le worktree et le port de chaque serveur, sans carte de colonne.
+    assert.deepEqual(cartes(vue), []);
+    assert.match(centre(vue).textContent, /30-9a8b7c6d · port 20030 · sert/);
     assert.equal(pose(vue, "pages"), true);
     // Le serveur de #31, dont la carte est sur Rail, est ici aussi — son worktree et son port compris.
     assert.match(centre(vue).textContent, /31-5be0c1d2 · port 20031 · sert/);
@@ -208,8 +209,7 @@ describe("ce que chaque onglet montre", () => {
     assert.deepEqual(vue.element("gestes-cuisine").dessous("button").filter(({ className }) => className !== "aide").map(({ textContent }) => textContent), ["Set the cooks of a station…"]);
     // Les stations du projet.
     assert.equal(vue.element("stations-du-projet").hidden, false);
-    // Ce qui t'attend n'y est pas : TODO, WAITING, On the rail, Served sont sur Rail.
-    assert.doesNotMatch(colonnes(vue).join(" "), /TODO|WAITING|On the rail|Served/);
+    assert.doesNotMatch(centre(vue).textContent, /\bTaken\b|\bPass\b|TODO|WAITING|On the rail|Served/);
   });
 
   test("la lecture de `station` ne court que tant que Cooks est montré : Rail l'arrête", async () => {

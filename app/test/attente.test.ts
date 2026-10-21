@@ -277,8 +277,8 @@ describe("sur l'écran, les cartes de WAITING et leurs gestes", () => {
       .element("rail")
       .dessous("section")
       .map((pose) => pose.children[0]?.children[0]?.textContent);
-    // Sur l'onglet Rail (#1184) : Taken et Pass sont sur Cooks.
-    assert.deepEqual(noms, ["On the rail", "TODO", "WAITING", "Served"]);
+    // Le kanban est entier sur Rail, Taken et Pass compris.
+    assert.deepEqual(noms, ["On the rail", "Taken", "Pass", "TODO", "WAITING", "Served"]);
     const bon = bonDe(vue, 8);
     assert.ok(colonne(vue, "WAITING").contains(bon));
     assert.ok(!colonne(vue, "TODO").contains(bon));

@@ -470,7 +470,7 @@ describe("la fenêtre se réduit sans que rien ne se casse", () => {
 
 describe("le monospace est une information, pas un style", () => {
   // Tout ce qui est posé dans la fenêtre, une fois l'espace ouvert, ses faits et ses pages lus — sur l'un et l'autre
-  // onglet du projet (#1184) : la carte du projet, Taken, Pass et les pages servies sont sur Cooks.
+  // onglet du projet (#1184) : la carte du projet et les pages servies sont sur Cooks, le kanban entier sur Rail.
   async function toutPose(onglet: string, manager?: VuDuManager, grants?: VuDesGrants): Promise<Faux[]> {
     const vue = await ouvrirUnEspace();
     vue.dire("surFaits", { ...FAITS, demande: vue.dernier("faits")[0] as number });

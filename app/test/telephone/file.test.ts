@@ -121,6 +121,8 @@ describe("la file d'un projet sur le téléphone", () => {
       colonnes(vue).map(({ nom, compte }) => [nom, compte]),
       [
         ["On the rail", "2"],
+        ["Taken", "2"],
+        ["Pass", "0"],
         ["TODO", "1"],
         ["WAITING", "0"],
         ["Served", "1"],

@@ -442,7 +442,7 @@ export async function ouvrirOnglet(vue: Jouee, titre: "Rail" | "Cooks"): Promise
   return onglet;
 }
 
-// La carte d'un ticket sur l'onglet qui la porte (#1184) — Taken et Pass sur Cooks, les autres colonnes sur Rail :
+// La carte d'un ticket, sur l'onglet montré (toutes les colonnes sont sur Rail) :
 // cherchée sur l'onglet montré, puis sur l'autre, montré d'un clic comme le chef le ferait.
 export function carteDuTicket(vue: Jouee, numero: number): Faux | undefined {
   const trouve = () => vue.element("rail").dessous("li").find((li) => li.className === "bon" && li.children[0]?.children[0]?.textContent === `#${numero}`);

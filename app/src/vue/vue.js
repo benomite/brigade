@@ -158,9 +158,6 @@ const ecranEtroit = window.matchMedia?.(ECRAN_ETROIT);
 const etroit = () => ecranEtroit?.matches === true;
 // La fenêtre passe d'une largeur à l'autre — un téléphone qu'on tourne, une fenêtre qu'on rétrécit : la page se repose.
 ecranEtroit?.addEventListener?.("change", () => montrer());
-// Les colonnes du rail qui disent ce qui tourne : les cooks au travail, et les gates de la pass. Elles sont sur Cooks ;
-// les autres — On the rail, TODO, WAITING, Served — sont sur Rail.
-const COLONNES_DE_LA_CUISINE = ["Taken", "Pass"];
 // La colonne de ce qui attend le chef : sur un écran étroit, les colonnes de Rail s'empilent, et elle passe en tête (ticket 1163).
 const COLONNE_QUI_T_ATTEND = "TODO";
 /** @typedef {import("../allumage.ts").Compte} Compte */
@@ -4100,8 +4097,8 @@ function poserCuisineEtroite(projet, tenu) {
 // Le rail en six colonnes — Sur le rail, Au travail, Pass, TODO, WAITING, Livré —,
 // tel que le process principal l'a rangé (faits.ts) : la vue pose, colonne par
 // colonne, au centre de l'espace, partagé entre ses deux onglets (ticket 1184). Rail : ce qui t'attend
-// — la file, ce qui est en amont —, puis On the rail, TODO, WAITING et Served, sans rien
-// d'exécution sur leurs cartes. Cooks : la carte du projet et ses cooks en cours, Taken et Pass, les
+// — la file, ce qui est en amont —, puis toutes les colonnes, Taken et Pass compris, sans rien
+// d'exécution sur leurs cartes. Cooks : la carte du projet et ses cooks en cours, les
 // pages servies — leur worktree, leur port —, et la lecture de `station`. Un projet sans box n'en a
 // pas : rien n'est lu de lui. Sans faits, il dit pourquoi il n'est pas dessiné : la carte du panneau
 // dit ce qui a été obtenu.
@@ -4139,7 +4136,8 @@ function poserRail(projet) {
   const { colonnes: lues, hors, attendLu, railLu } = tenu.tableau.rail;
   // La box ne répond pas : ce que ses colonnes contenaient n'est plus lu. Elles le disent, au lieu de montrer des « 0 ».
   const toutes = muet === undefined ? lues : lues.map((colonne) => ({ ...colonne, compte: "?", cartes: [], vide: "not known while the station is unreachable" }));
-  const colonnes = toutes.filter(({ nom }) => COLONNES_DE_LA_CUISINE.includes(nom) === cuisine);
+  // Le kanban est entier sur Rail, Taken et Pass compris ; Cooks n'en porte aucune colonne.
+  const colonnes = cuisine ? [] : toutes;
   // Toutes les cartes lues, quel que soit l'onglet : la fiche ouverte et ce qui est en amont les suivent.
   const lesCartes = [...toutes.flatMap(({ cartes: siennes }) => siennes), ...hors];
   const heure = heureDe(tenu.a);
