@@ -19,6 +19,7 @@ import { confirmationDe } from "../src/confirmation.ts";
 import { ecrireGeste, GESTES, SANS_OUI } from "../src/gestes.ts";
 import { GESTES_DU_MANAGER } from "../src/manager.ts";
 import { ouvrirTerminaux } from "../src/terminaux.ts";
+import { SANS_POSIX } from "./aides/posix.ts";
 
 const RACINE = join(import.meta.dirname, "../..");
 const doc = docRuntime(RACINE);
@@ -108,7 +109,7 @@ describe("l'avertissement de l'allumage", () => {
 });
 
 describe("les deux nombres : `manager backlog`, lancée une fois sur la box du projet", () => {
-  test("sur un backlog connu, ce sont les siens : sept issues ouvertes, dont trois `blocked-on-human` — la PR n'en est pas une", async (t) => {
+  test("sur un backlog connu, ce sont les siens : sept issues ouvertes, dont trois `blocked-on-human` — la PR n'en est pas une", { skip: SANS_POSIX }, async (t) => {
     const sortie = await runtime(t, CONNU);
     const { reglages } = box(t, dit(sortie));
 
@@ -119,7 +120,7 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
     assert.ok(!Number.isNaN(Date.parse(compte.a)));
   });
 
-  test("une seule issue, aucune : les nombres sont lus quand même, et la phrase dit qu'il ne jugera rien", async (t) => {
+  test("une seule issue, aucune : les nombres sont lus quand même, et la phrase dit qu'il ne jugera rien", { skip: SANS_POSIX }, async (t) => {
     const une = await runtime(t, [issue(11, ["blocked-on-human"])]);
     const aucune = await runtime(t, []);
 
@@ -131,7 +132,7 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
     assert.equal("dit" in vide && vide.dit, "it will judge no issue: none is open");
   });
 
-  test("ce qui part est le geste de la box, comme la veille le lance — une commande que la doc cite, et rien de plus", async (t) => {
+  test("ce qui part est le geste de la box, comme la veille le lance — une commande que la doc cite, et rien de plus", { skip: SANS_POSIX }, async (t) => {
     const { reglages, appels } = box(t, dit(await runtime(t, CONNU)));
 
     await compter(reglages, { nom: "parade", box: { hote: "chef@box" } });
@@ -160,7 +161,7 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
     assert.ok("informe" in backlogDe("  backlog               2 issues ouvertes, dont 1 porte `blocked-on-human`\n"));
   });
 
-  test("la box répond autre chose que la ligne : les nombres ne sont pas lus, et ce qu'elle a rendu est gardé tel quel", async (t) => {
+  test("la box répond autre chose que la ligne : les nombres ne sont pas lus, et ce qu'elle a rendu est gardé tel quel", { skip: SANS_POSIX }, async (t) => {
     const { reglages } = box(t, dit("Bienvenue sur la box.\n"));
 
     const compte = await compter(reglages, SERVI);
@@ -170,7 +171,7 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
     assert.equal(compte.obtenu, `$ ${reglages.ssh} ${OPTIONS} -- box brigade parade manager backlog\nBienvenue sur la box.\n`);
   });
 
-  test("un runtime d'avant cette lecture la refuse (code 2) : l'app le dit, et dit quoi faire", async (t) => {
+  test("un runtime d'avant cette lecture la refuse (code 2) : l'app le dit, et dit quoi faire", { skip: SANS_POSIX }, async (t) => {
     const { reglages } = box(t, `echo "brigade : usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run manager -- [allumer | eteindre | rendre <n° d'issue>]" >&2\nexit 2`);
 
     const compte = await compter(reglages, SERVI);
@@ -180,7 +181,7 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
     assert.match(compte.obtenu, /brigade : usage : .*\n→ exit code 2$/s);
   });
 
-  test("la box n'a pas lu GitHub (code 1) : aucun nombre, et ce que le runtime en dit est gardé", async (t) => {
+  test("la box n'a pas lu GitHub (code 1) : aucun nombre, et ce que le runtime en dit est gardé", { skip: SANS_POSIX }, async (t) => {
     const { reglages } = box(t, `echo "brigade : le backlog de ${DEPOT} n'a pas été lu : gh api repos/${DEPOT}/issues : gh: connexion impossible — ce n'est pas « aucune issue »" >&2\nexit 1`);
 
     const compte = await compter(reglages, SERVI);
@@ -196,7 +197,7 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
     [68, "REACHED, BUT WITHOUT THE RIGHT TO THE ACTION"],
     [3, "REACHED, BUT `manager backlog` DID NOT ANSWER"],
   ] as const) {
-    test(`le geste, ou \`ssh\`, sort en ${code} : « ${titre} », et aucun nombre`, async (t) => {
+    test(`le geste, ou \`ssh\`, sort en ${code} : « ${titre} », et aucun nombre`, { skip: SANS_POSIX }, async (t) => {
       const { reglages } = box(t, `echo "refus ${code}" >&2\nexit ${code}`);
 
       const compte = await compter(reglages, SERVI);

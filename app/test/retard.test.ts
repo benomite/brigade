@@ -12,6 +12,7 @@ import { describe, test, type TestContext } from "node:test";
 import type { Projet } from "../src/config.ts";
 import { identite, lireRetard, sansJeton, tenirRetards, type Reglages, type Vu } from "../src/retard.ts";
 import type { Terminal } from "../src/terminaux.ts";
+import { SANS_POSIX } from "./aides/posix.ts";
 
 const git = (dossier: string, ...args: string[]) => execFileSync("git", ["-C", dossier, "-c", "user.name=essai", "-c", "user.email=essai@example.invalid", "-c", "commit.gpgsign=false", ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
 
@@ -77,7 +78,7 @@ function tenir(reglages: Reglages, app: string | undefined, projets: () => reado
 }
 
 describe("le retard d'un clone sur son origine", () => {
-  test("à jour : zéro commit, lu depuis un dossier du clone — et c'est la branche que le clone suit qui est comparée", async (t) => {
+  test("à jour : zéro commit, lu depuis un dossier du clone — et c'est la branche que le clone suit qui est comparée", { skip: SANS_POSIX }, async (t) => {
     const { reglages, cloner } = essai(t);
     const clone = cloner("clone");
 
@@ -335,7 +336,7 @@ describe("le clone d'un projet, quand c'est celui de brigade", () => {
     assert.equal(derniere().clones[0]?.tete, "THIS APP'S CODE IS 3 COMMITS BEHIND origin/v2");
   });
 
-  test("son clone a des commits à lui : il ne peut pas simplement avancer — pas de bouton, la commande s'écrit dans un shell de l'espace du projet dont c'est le dossier, sans être envoyée", async (t) => {
+  test("son clone a des commits à lui : il ne peut pas simplement avancer — pas de bouton, la commande s'écrit dans un shell de l'espace du projet dont c'est le dossier, sans être envoyée", { skip: SANS_POSIX }, async (t) => {
     const { origine, reglages, cloner } = essai(t);
     const clone = cloner("clone");
     livrer(origine, 3);
@@ -357,7 +358,7 @@ describe("le clone d'un projet, quand c'est celui de brigade", () => {
     assert.match(rendu.note, /sans Entrée/);
   });
 
-  test("un autre clone de brigade parmi les projets a sa ligne — pas le projet d'un autre dépôt, ni celui dont le dossier n'est pas là", async (t) => {
+  test("un autre clone de brigade parmi les projets a sa ligne — pas le projet d'un autre dépôt, ni celui dont le dossier n'est pas là", { skip: SANS_POSIX }, async (t) => {
     const { racine, origine, reglages, cloner } = essai(t);
     const clone = cloner("clone");
     const second = cloner("second");
@@ -387,7 +388,7 @@ describe("le clone d'un projet, quand c'est celui de brigade", () => {
     assert.deepEqual(ouverts, [{ projet: "brigade", dossier: join(second, "app"), ecrit: `git -C ${second} pull` }]);
   });
 
-  test("un chemin que le shell couperait est écrit entre apostrophes ; sans projet qui s'ouvre, rien n'est écrit et la commande se recopie", async (t) => {
+  test("un chemin que le shell couperait est écrit entre apostrophes ; sans projet qui s'ouvre, rien n'est écrit et la commande se recopie", { skip: SANS_POSIX }, async (t) => {
     const { origine, reglages, cloner } = essai(t);
     const clone = cloner("le clone du chef");
     livrer(origine, 1);
@@ -431,7 +432,7 @@ describe("une lecture à la fois", () => {
     assert.equal(dites.length, 2);
   });
 
-  test("les projets changent pendant une lecture : une autre la suit, une seule — et elle les voit", async (t) => {
+  test("les projets changent pendant une lecture : une autre la suit, une seule — et elle les voit", { skip: SANS_POSIX }, async (t) => {
     const { origine, reglages, cloner } = essai(t);
     const clone = cloner("clone");
     const second = cloner("second");

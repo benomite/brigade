@@ -7,8 +7,10 @@ import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
+import { pathToFileURL } from "node:url";
 import { ouvrirPty, ptyDisponible } from "../src/pty.ts";
 import { ouvrirTerminaux, type Terminal } from "../src/terminaux.ts";
+import { SANS_POSIX } from "./aides/posix.ts";
 
 const FAUX_CLAUDE = join(import.meta.dirname, "aides/faux-claude.sh");
 
@@ -43,7 +45,7 @@ async function jusqua(condition: () => boolean, quoi: () => string): Promise<voi
 // tests ci-dessous y sont sautés — encore faut-il que ce fichier s'y charge.
 test("là où node-pty n'est pas livré compilé, le module du pty se charge quand même, et dit le pty indisponible", () => {
   const charge = `Object.defineProperty(process, "platform", { value: "linux" });
-    const { ptyDisponible } = await import(${JSON.stringify(join(import.meta.dirname, "../src/pty.ts"))});
+    const { ptyDisponible } = await import(${JSON.stringify(pathToFileURL(join(import.meta.dirname, "../src/pty.ts")).href)});
     console.log("disponible :", ptyDisponible);`;
 
   assert.equal(execFileSync(process.execPath, ["--input-type=module", "-e", charge], { encoding: "utf8" }), "disponible : false\n");
@@ -53,7 +55,7 @@ const SAUTE = ptyDisponible ? false : `node-pty n'est pas livré compilé pour $
 
 // Chaque test a son dossier : ils se jouent de front.
 describe("le second sur un vrai pty", { skip: SAUTE, concurrency: 8 }, () => {
-  test("sans fil à reprendre, une session neuve s'ouvre dans le dossier du projet, sur un terminal — et la note le dit", async (t) => {
+  test("sans fil à reprendre, une session neuve s'ouvre dans le dossier du projet, sur un terminal — et la note le dit", { skip: SANS_POSIX }, async (t) => {
     const { projet, terminaux, etats, sortie } = cuisine(t);
 
     const [second] = terminaux.espace(projet);
@@ -67,7 +69,7 @@ describe("le second sur un vrai pty", { skip: SAUTE, concurrency: 8 }, () => {
     assert.deepEqual(sortie(second.id).match(/reçu : [^\r\n]*/g), ["reçu : /brigade:po"]);
   });
 
-  test("avec un fil dans le dossier, il est repris : aucune session neuve, et la note reste « fil repris »", async (t) => {
+  test("avec un fil dans le dossier, il est repris : aucune session neuve, et la note reste « fil repris »", { skip: SANS_POSIX }, async (t) => {
     const { projet, terminaux, etats, sortie } = cuisine(t);
     writeFileSync(join(projet.dossier, ".fil"), "");
 
@@ -80,7 +82,7 @@ describe("le second sur un vrai pty", { skip: SAUTE, concurrency: 8 }, () => {
     assert.match(second.note, /^thread resumed: /);
   });
 
-  test("ce qui est tapé arrive au second, sa taille suit la vue, et un shell ouvert à côté ne le dérange pas", async (t) => {
+  test("ce qui est tapé arrive au second, sa taille suit la vue, et un shell ouvert à côté ne le dérange pas", { skip: SANS_POSIX }, async (t) => {
     const { projet, terminaux, sortie } = cuisine(t);
     writeFileSync(join(projet.dossier, ".fil"), "");
     const [second] = terminaux.espace(projet);
@@ -97,7 +99,7 @@ describe("le second sur un vrai pty", { skip: SAUTE, concurrency: 8 }, () => {
     await jusqua(() => sortie(second.id).includes("taille : 43 132"), () => sortie(second.id));
   });
 
-  test("une commande inscrite n'est pas envoyée : le second ne la reçoit qu'à l'Entrée du chef, avec ce qu'il a tapé à la suite", async (t) => {
+  test("une commande inscrite n'est pas envoyée : le second ne la reçoit qu'à l'Entrée du chef, avec ce qu'il a tapé à la suite", { skip: SANS_POSIX }, async (t) => {
     const { projet, terminaux, sortie } = cuisine(t);
     writeFileSync(join(projet.dossier, ".fil"), "");
     const [second] = terminaux.espace(projet);
@@ -113,7 +115,7 @@ describe("le second sur un vrai pty", { skip: SAUTE, concurrency: 8 }, () => {
     assert.deepEqual(sortie(second.id).match(/reçu : [^\r\n]*/g), ["reçu : /brigade:po", "reçu : !ssh box brigade essai garde-fous stop # relu"]);
   });
 
-  test("le second quitté est dit arrêté ; une touche le relance, et il reprend le fil qu'il avait laissé", async (t) => {
+  test("le second quitté est dit arrêté ; une touche le relance, et il reprend le fil qu'il avait laissé", { skip: SANS_POSIX }, async (t) => {
     const { projet, terminaux, etats, sortie } = cuisine(t);
     const [second] = terminaux.espace(projet);
     assert.ok(second);

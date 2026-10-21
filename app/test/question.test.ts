@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { choixDe, type Commentaire, lever, lireQuestion, MARQUEUR_MANAGER, MARQUEUR_QUESTION, questionDe, repondre, resumeDe, titreDe } from "../src/question.ts";
+import { SANS_POSIX } from "./aides/posix.ts";
 
 const ISSUE = "https://github.com/benomite/brigade/issues/676";
 const A = "2026-10-15T08:00:00Z";
@@ -131,7 +132,7 @@ const vueDe = (...commentaires: Commentaire[]) => JSON.stringify({ comments: com
 const maintenant = () => new Date("2026-10-15T10:00:00Z");
 
 describe("l'issue lue par le `gh` du poste", () => {
-  test("`gh issue view <adresse> --json comments` : la question, ses choix, l'heure de la lecture", async (t) => {
+  test("`gh issue view <adresse> --json comments` : la question, ses choix, l'heure de la lecture", { skip: SANS_POSIX }, async (t) => {
     const { reglages, appels } = essai(t, { vue: vueDe(commentaire(QUESTION)) });
     const lue = await lireQuestion(reglages, ISSUE, maintenant);
     assert.deepEqual(appels(), [`issue view ${ISSUE} --json comments`]);
@@ -141,12 +142,12 @@ describe("l'issue lue par le `gh` du poste", () => {
     assert.deepEqual(lue.question.choix.map(({ lettre }) => lettre), ["a", "b", "c"]);
   });
 
-  test("une issue sans question du manager : lue, et rien à poser — l'entrée garde son geste", async (t) => {
+  test("une issue sans question du manager : lue, et rien à poser — l'entrée garde son geste", { skip: SANS_POSIX }, async (t) => {
     const { reglages } = essai(t, { vue: vueDe(commentaire("rien à voir")) });
     assert.deepEqual(await lireQuestion(reglages, ISSUE, maintenant), { a: "2026-10-15T10:00:00.000Z", aucune: true });
   });
 
-  test("un `gh` en échec, absent, ou une sortie sans la forme : l'issue n'est pas lue, et l'app dit pourquoi — ce n'est pas « aucune question »", async (t) => {
+  test("un `gh` en échec, absent, ou une sortie sans la forme : l'issue n'est pas lue, et l'app dit pourquoi — ce n'est pas « aucune question »", { skip: SANS_POSIX }, async (t) => {
     const enEchec = essai(t, { vue: "", corps: 'echo "gh: not logged in" >&2; exit 4' });
     const echoue = await lireQuestion(enEchec.reglages, ISSUE, maintenant);
     assert.ok("sans" in echoue);
@@ -165,7 +166,7 @@ describe("l'issue lue par le `gh` du poste", () => {
 describe("la réponse du chef, postée sur l'issue", () => {
   const URL_QUESTION = `${ISSUE}#issuecomment-1`;
 
-  test("un choix : la lettre et le texte que la question écrit partent par `gh issue comment … --body-file -` — le texte vient de l'issue, pas de la vue", async (t) => {
+  test("un choix : la lettre et le texte que la question écrit partent par `gh issue comment … --body-file -` — le texte vient de l'issue, pas de la vue", { skip: SANS_POSIX }, async (t) => {
     const { reglages, appels, lu } = essai(t, { vue: vueDe(commentaire(QUESTION)) });
     const rendue = await repondre(reglages, ISSUE, { question: URL_QUESTION, choix: "b" });
     assert.deepEqual(rendue, { poste: true, corps: "b) il s'ouvre par-dessus", adresse: `${ISSUE}#issuecomment-9` });
@@ -174,7 +175,7 @@ describe("la réponse du chef, postée sur l'issue", () => {
     assert.equal(lu("poste"), "b) il s'ouvre par-dessus");
   });
 
-  test("une phrase : telle que le chef l'a écrite, ses blancs de bord retirés", async (t) => {
+  test("une phrase : telle que le chef l'a écrite, ses blancs de bord retirés", { skip: SANS_POSIX }, async (t) => {
     const { reglages, lu } = essai(t, { vue: vueDe(commentaire(QUESTION)) });
     const rendue = await repondre(reglages, ISSUE, { question: URL_QUESTION, texte: "  Par-dessus, et la fiche reste dessous.\nMerci.  " });
     assert.equal(rendue.poste, true);
@@ -192,7 +193,7 @@ describe("la réponse du chef, postée sur l'issue", () => {
     assert.equal(lu("poste"), undefined);
   });
 
-  test("une question qui n'est plus celle que le chef a lue — le manager en a posé une autre — : rien ne part, et la nouvelle revient", async (t) => {
+  test("une question qui n'est plus celle que le chef a lue — le manager en a posé une autre — : rien ne part, et la nouvelle revient", { skip: SANS_POSIX }, async (t) => {
     const nouvelle = commentaire(QUESTION.replace("(c) les deux", "(c) aucun des deux"), { url: `${ISSUE}#issuecomment-5` });
     const { reglages, appels } = essai(t, { vue: vueDe(commentaire(QUESTION), nouvelle) });
     const rendue = await repondre(reglages, ISSUE, { question: URL_QUESTION, choix: "a" });
@@ -202,7 +203,7 @@ describe("la réponse du chef, postée sur l'issue", () => {
     assert.ok(!appels().some((appel) => appel.startsWith("issue comment")));
   });
 
-  test("répondue ailleurs pendant que le chef lisait — sur GitHub, par le second — : rien ne part, la fiche le dit et montre la réponse (#503)", async (t) => {
+  test("répondue ailleurs pendant que le chef lisait — sur GitHub, par le second — : rien ne part, la fiche le dit et montre la réponse (#503)", { skip: SANS_POSIX }, async (t) => {
     const ailleurs = commentaire("a, sans hésiter", { auteur: "second", url: `${ISSUE}#issuecomment-3` });
     const { reglages, appels } = essai(t, { vue: vueDe(commentaire(QUESTION), ailleurs) });
     const rendue = await repondre(reglages, ISSUE, { question: URL_QUESTION, choix: "b" });
@@ -216,7 +217,7 @@ describe("la réponse du chef, postée sur l'issue", () => {
     assert.equal(vu.poste, true);
   });
 
-  test("écrit dessous sans y répondre — un mot d'un passant — depuis la lecture : rien ne part non plus, il le lit d'abord", async (t) => {
+  test("écrit dessous sans y répondre — un mot d'un passant — depuis la lecture : rien ne part non plus, il le lit d'abord", { skip: SANS_POSIX }, async (t) => {
     const passant = commentaire("je passais", { auteur: "passant", association: "NONE", url: `${ISSUE}#issuecomment-3` });
     const { reglages, appels } = essai(t, { vue: vueDe(commentaire(QUESTION), passant) });
     const rendue = await repondre(reglages, ISSUE, { question: URL_QUESTION, texte: "b" });
@@ -224,7 +225,7 @@ describe("la réponse du chef, postée sur l'issue", () => {
     assert.ok(!appels().some((appel) => appel.startsWith("issue comment")));
   });
 
-  test("un `gh` qui échoue à écrire : rien n'est dit posté, et ce qu'il a dit est rendu", async (t) => {
+  test("un `gh` qui échoue à écrire : rien n'est dit posté, et ce qu'il a dit est rendu", { skip: SANS_POSIX }, async (t) => {
     const { reglages } = essai(t, { vue: vueDe(commentaire(QUESTION)), corps: '[ "$2" = comment ] && { echo "GraphQL: Could not resolve" >&2; exit 1; }' });
     const rendue = await repondre(reglages, ISSUE, { question: URL_QUESTION, choix: "a" });
     assert.equal(rendue.poste, false);
@@ -245,7 +246,7 @@ describe("ce que la carte dit de la question", () => {
 });
 
 describe("le titre et la retenue, par le `gh` du poste", () => {
-  test("`gh issue view <adresse> --json title` rend le titre ; une issue sans titre n'en invente pas", async (t) => {
+  test("`gh issue view <adresse> --json title` rend le titre ; une issue sans titre n'en invente pas", { skip: SANS_POSIX }, async (t) => {
     const { reglages, appels } = essai(t, { vue: JSON.stringify({ title: " Un ticket " }) });
     assert.deepEqual(await titreDe(reglages, ISSUE), { titre: "Un ticket" });
     assert.deepEqual(appels(), [`issue view ${ISSUE} --json title`]);
@@ -253,7 +254,7 @@ describe("le titre et la retenue, par le `gh` du poste", () => {
     assert.ok("sans" in (await titreDe(vide.reglages, ISSUE)));
   });
 
-  test("retirer le label ou fermer : un seul `gh`, et rien d'autre qu'un de ces deux gestes", async (t) => {
+  test("retirer le label ou fermer : un seul `gh`, et rien d'autre qu'un de ces deux gestes", { skip: SANS_POSIX }, async (t) => {
     const { reglages, appels } = essai(t, { vue: "" });
     assert.deepEqual(await lever(reglages, ISSUE, "label"), { fait: true, dit: "`blocked-on-human` removed: the manager judges the issue again at its next tick" });
     assert.deepEqual(await lever(reglages, ISSUE, "fermer"), { fait: true, dit: "issue closed" });

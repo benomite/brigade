@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { describe, test } from "node:test";
 import { ouvrirVeille, type Lecture } from "../src/box.ts";
 import { COMMANDE_DES_COUTS, COUTS, commandeDe, EVENEMENTS_DU_LOG, ONGLETS, projetsLus, RUBRIQUES } from "../src/onglets.ts";
+import { SANS_POSIX } from "./aides/posix.ts";
 
 describe("les onglets de contenu d'un espace", () => {
   test("ils sont sept, dans cet ordre : Rail, Cooks, Manager, Grants, Reliability, Closer, Log", () => {
@@ -42,7 +43,7 @@ describe("les onglets de contenu d'un espace", () => {
     assert.ok(!RUBRIQUES.some(({ titre, lectures }) => titre === "Cost" || lectures.includes(COUTS)));
   });
 
-  test("seul l'onglet affiché est lu : un `ssh`, pour sa commande — pas un par onglet", async (t) => {
+  test("seul l'onglet affiché est lu : un `ssh`, pour sa commande — pas un par onglet", { skip: SANS_POSIX }, async (t) => {
     const racine = mkdtempSync(join(tmpdir(), "brigade-app-onglets-"));
     const ssh = join(racine, "ssh");
     writeFileSync(ssh, `#!/bin/sh\necho "$*" >>'${racine}/appels'\necho "sortie de $*"\n`);

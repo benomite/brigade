@@ -11,6 +11,7 @@ import { test, type TestContext } from "node:test";
 import vm from "node:vm";
 import { ANDROID, dependancesDeLaVue, demarrageDuPont, majeureDuJdk, NATIF, plateformeVisee, poserLaVue, scriptDuPont, verifierPrerequis, type Machine } from "../../packaging/android.ts";
 import { APP, Arret, IDENTIFIANT, NOM, type Executer } from "../../packaging/construire.ts";
+import { PAQUETS } from "../aides/posix.ts";
 
 const COMMANDE = join(APP, "packaging", "android.ts");
 
@@ -61,7 +62,7 @@ test("une option inconnue est refusée avec l'usage", () => {
   assert.match(fait.stderr, /usage: android\.ts \[--version <v>\] \[--sortie <folder>\]/);
 });
 
-test("les prérequis : chacun nommé quand il manque, avec de quoi le poser", () => {
+test("les prérequis : chacun nommé quand il manque, avec de quoi le poser", { skip: PAQUETS }, () => {
   const plateforme = plateformeVisee();
   const sdk = "/opt/android-sdk";
   const avecPlateforme = [sdk, join(sdk, "platforms", `android-${plateforme}`)];

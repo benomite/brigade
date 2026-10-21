@@ -37,6 +37,7 @@ import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { commandeDeDemarrage, COMMANDES, INIT, JUGEMENT, jugementDe, lireCourante, lireEtapes, lireJugement, lireProtection, lireStations, manquesDe, tenirServices, VERIFICATION, verdictDe, type Guide } from "../src/service.ts";
 import { ouvrirTerminaux, type Lancement, type Terminal } from "../src/terminaux.ts";
 import { jouerLaVue, repos, type Faux } from "./aides/fausse-vue.ts";
+import { SANS_POSIX } from "./aides/posix.ts";
 
 const RACINE = join(import.meta.dirname, "../..");
 const CALCULUS: Projet = { nom: "calculus", dossier: "/projets/calculus", box: { hote: "box" } };
@@ -148,7 +149,7 @@ const verifier = async (reglages: Reglages, servi: Servi) => verdictDe(await lan
 const juger = async (reglages: Reglages, servi: Servi) => jugementDe(await lancerGeste(reglages, servi, JUGEMENT), reglages.delaiMs);
 
 describe("le contrôle d'un projet installé : `installation`, en texte, lancée une fois sur la box du projet", () => {
-  test("ce qui part est le geste de la box, comme la veille le lance — `brigade <nom> installation`, sans terminal ni rien de plus", async (t) => {
+  test("ce qui part est le geste de la box, comme la veille le lance — `brigade <nom> installation`, sans terminal ni rien de plus", { skip: SANS_POSIX }, async (t) => {
     const { reglages, lu } = essai(t, `${NOTE}\n${dit(PRET)}`);
 
     await verifier(reglages, { nom: "calculus", box: { hote: "chef@box" } });
@@ -156,7 +157,7 @@ describe("le contrôle d'un projet installé : `installation`, en texte, lancée
     assert.equal(lu("appels"), `${OPTIONS} -- chef@box brigade calculus installation\n`);
   });
 
-  test("sortie en 0 avec sa ligne de verdict : prêt — et ce qu'elle a écrit est rendu en entier, `à savoir` compris", async (t) => {
+  test("sortie en 0 avec sa ligne de verdict : prêt — et ce qu'elle a écrit est rendu en entier, `à savoir` compris", { skip: SANS_POSIX }, async (t) => {
     const { reglages } = essai(t, dit(PRET));
 
     const rendu = await verifier(reglages, { nom: "calculus", box: { hote: "box" } });
@@ -166,7 +167,7 @@ describe("le contrôle d'un projet installé : `installation`, en texte, lancée
     assert.ok(!Number.isNaN(Date.parse(rendu.a)));
   });
 
-  test("sortie en 1 : incomplète — chaque point qui manque est rendu avec la flèche de ce qui reste à faire, mot pour mot", async (t) => {
+  test("sortie en 1 : incomplète — chaque point qui manque est rendu avec la flèche de ce qui reste à faire, mot pour mot", { skip: SANS_POSIX }, async (t) => {
     const { reglages } = essai(t, `${dit(INCOMPLET)}\nexit 1`);
 
     const rendu = await verifier(reglages, { nom: "calculus", box: { hote: "box" } });
@@ -180,7 +181,7 @@ describe("le contrôle d'un projet installé : `installation`, en texte, lancée
     assert.equal(lignes.filter((ligne) => ligne.includes("MISSING")).length, 2);
   });
 
-  test("sortie en 2 : la commande a été lancée et a refusé son environnement — pas prêt, et ce qu'elle a dit sur sa sortie d'erreur est rendu", async (t) => {
+  test("sortie en 2 : la commande a été lancée et a refusé son environnement — pas prêt, et ce qu'elle a dit sur sa sortie d'erreur est rendu", { skip: SANS_POSIX }, async (t) => {
     const { reglages } = essai(t, `echo 'brigade : BRIGADE_MAX_TURNS : « beaucoup » n'"'"'est pas un entier' >&2\nexit 2`);
 
     const rendu = await verifier(reglages, { nom: "calculus", box: { hote: "box" } });
@@ -189,7 +190,7 @@ describe("le contrôle d'un projet installé : `installation`, en texte, lancée
     assert.match("obtenu" in rendu ? rendu.obtenu : "", /BRIGADE_MAX_TURNS : « beaucoup » n'est pas un entier\n\n→ exit code 2$/);
   });
 
-  test("un 0 sans la ligne de verdict n'est pas un « prêt » : une commande forcée qui remplace celle de l'app, un autre projet", async (t) => {
+  test("un 0 sans la ligne de verdict n'est pas un « prêt » : une commande forcée qui remplace celle de l'app, un autre projet", { skip: SANS_POSIX }, async (t) => {
     for (const sortie of ["Bienvenue sur la box.", PRET.replace("“calculus”", "“parade”"), INCOMPLET, ""]) {
       const { reglages } = essai(t, dit(sortie));
 
@@ -216,7 +217,7 @@ describe("le contrôle d'un projet installé : `installation`, en texte, lancée
     [127, "commande-manque", true],
   ];
   for (const [code, cas, atteinte] of ECHECS) {
-    test(`sortie en ${code} : aucun verdict — le cas que ce code prouve (${cas}), et ce que la box a rendu`, async (t) => {
+    test(`sortie en ${code} : aucun verdict — le cas que ce code prouve (${cas}), et ce que la box a rendu`, { skip: SANS_POSIX }, async (t) => {
       const { reglages } = essai(t, `echo 'ce que la box en dit' >&2\nexit ${code}`);
 
       const rendu = await verifier(reglages, { nom: "calculus", box: { hote: "box" } });
@@ -227,7 +228,7 @@ describe("le contrôle d'un projet installé : `installation`, en texte, lancée
     });
   }
 
-  test("un code qui ne dit aucun cas, sur une box jointe : aucun verdict, et rien n'en est déduit", async (t) => {
+  test("un code qui ne dit aucun cas, sur une box jointe : aucun verdict, et rien n'en est déduit", { skip: SANS_POSIX }, async (t) => {
     const { reglages } = essai(t, "echo 'brigade : « installation » n'\"'\"'est pas une commande du runtime' >&2\nexit 66");
 
     const rendu = await verifier(reglages, { nom: "calculus", box: { hote: "box" } });
@@ -253,7 +254,7 @@ const juge = (verification: Constat[] | Error) => {
 };
 
 describe("« Vérifier » : `installation --json`, et le verdict que l'écran en lit", () => {
-  test("ce qui part est le geste de la box — `brigade <nom> installation --json`, sans terminal ni rien de plus", async (t) => {
+  test("ce qui part est le geste de la box — `brigade <nom> installation --json`, sans terminal ni rien de plus", { skip: SANS_POSIX }, async (t) => {
     const { reglages, lu } = essai(t, `${NOTE}\n${juge(PRETS)}`);
 
     await juger(reglages, { nom: "calculus", box: { hote: "chef@box" } });
@@ -261,7 +262,7 @@ describe("« Vérifier » : `installation --json`, et le verdict que l'écran en
     assert.equal(lu("appels"), `${OPTIONS} -- chef@box brigade calculus installation --json\n`);
   });
 
-  test("prêt : le verdict en une phrase, aucun manque, la ligne `à savoir` à part — et ce que l'app a obtenu porte la sortie brute, intacte, à la place de son objet", async (t) => {
+  test("prêt : le verdict en une phrase, aucun manque, la ligne `à savoir` à part — et ce que l'app a obtenu porte la sortie brute, intacte, à la place de son objet", { skip: SANS_POSIX }, async (t) => {
     const { reglages } = essai(t, juge(PRETS));
 
     const rendu = await juger(reglages, { nom: "calculus", box: { hote: "box" } });
@@ -273,7 +274,7 @@ describe("« Vérifier » : `installation --json`, et le verdict que l'écran en
     assert.equal(rendu.obtenu, `$ ${reglages.ssh} ${OPTIONS} -- box brigade calculus installation --json\n${PRET}\n→ exit code 0`);
   });
 
-  test("pas prêt : autant de manques que la vérification en constate, chacun en mots simples avec qui le lève — les lignes `à savoir` n'en sont pas", async (t) => {
+  test("pas prêt : autant de manques que la vérification en constate, chacun en mots simples avec qui le lève — les lignes `à savoir` n'en sont pas", { skip: SANS_POSIX }, async (t) => {
     const { reglages } = essai(t, juge(QUATRE));
 
     const rendu = await juger(reglages, { nom: "calculus", box: { hote: "box" } });
@@ -293,7 +294,7 @@ describe("« Vérifier » : `installation --json`, et le verdict que l'écran en
     assert.equal(rendu.jugement.brut, ecrite(QUATRE));
   });
 
-  test("plantée sur /etc/sudoers.d : la vérification n'est pas allée au bout — la panne connue #654, rien n'est constaté du projet, et sa ligne d'erreur est la sortie brute", async (t) => {
+  test("plantée sur /etc/sudoers.d : la vérification n'est pas allée au bout — la panne connue #654, rien n'est constaté du projet, et sa ligne d'erreur est la sortie brute", { skip: SANS_POSIX }, async (t) => {
     const { reglages } = essai(t, juge(EACCES));
 
     const rendu = await juger(reglages, { nom: "calculus", box: { hote: "box" } });
@@ -305,7 +306,7 @@ describe("« Vérifier » : `installation --json`, et le verdict que l'écran en
     assert.match(rendu.obtenu, /lstat '\/etc\/sudoers\.d\/brigade-installer'\n\n→ exit code 1$/);
   });
 
-  test("un runtime d'avant le verdict, une commande forcée, un verdict que son code dément : rien n'est lu, et ce que la box a rendu est gardé", async (t) => {
+  test("un runtime d'avant le verdict, une commande forcée, un verdict que son code dément : rien n'est lu, et ce que la box a rendu est gardé", { skip: SANS_POSIX }, async (t) => {
     const cas = [
       "echo 'brigade : usage : … installation -- [labels | setup [<cooks>] | uninstall [--confirm]]' >&2\nexit 2",
       dit("Bienvenue sur la box."),
@@ -323,7 +324,7 @@ describe("« Vérifier » : `installation --json`, et le verdict que l'écran en
     }
   });
 
-  test("rien n'est venu d'elle : aucun verdict — le cas de la veille", async (t) => {
+  test("rien n'est venu d'elle : aucun verdict — le cas de la veille", { skip: SANS_POSIX }, async (t) => {
     const { reglages } = essai(t, "echo 'ssh: connect to host box port 22: Connection refused' >&2\nexit 255");
 
     const rendu = await juger(reglages, { nom: "calculus", box: { hote: "box" } });

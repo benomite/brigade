@@ -16,6 +16,7 @@ import { tenirStationLocale, TENUE_PAR, type OptionsStationLocale, type StationL
 import { FICHIER_STATION } from "../../src/stations/document.ts";
 import { githubDesStations } from "../../src/stations/github.ts";
 import { tenirStations, type Appairage, type Stations } from "../../src/stations/stations.ts";
+import { SANS_POSIX } from "../aides/posix.ts";
 
 const FAUX_GH_GISTS = join(import.meta.dirname, "../stations/faux-gh-gists.ts");
 const ENVELOPPE = join(import.meta.dirname, "../../src/poste/enveloppe.ts");
@@ -77,7 +78,7 @@ function tenir(t: TestContext, options: Omit<OptionsStationLocale, "dire"> & { d
 
 const enLigne = (home: Stations) => home.vu()?.stations.find((station) => station.nom === "ordi");
 
-test("installer l'app sur un ordinateur : sa station démarre, s'appaire seule, et apparaît sur la home « en ligne · version X » ; l'app fermée, elle passe hors ligne", async (t) => {
+test("installer l'app sur un ordinateur : sa station démarre, s'appaire seule, et apparaît sur la home « en ligne · version X » ; l'app fermée, elle passe hors ligne", { skip: SANS_POSIX }, async (t) => {
   const github = unGitHub(t);
   const home = laHome(t);
   const { racine, env } = unOrdinateur(t, github.repertoire);
@@ -112,7 +113,7 @@ test("installer l'app sur un ordinateur : sa station démarre, s'appaire seule, 
   await rouverte.station.arreter();
 });
 
-test("l'app tuée net : l'entrée de sa station se ferme, et la station s'arrête comme sur un SIGTERM — l'heure de son arrêt est sur GitHub", async (t) => {
+test("l'app tuée net : l'entrée de sa station se ferme, et la station s'arrête comme sur un SIGTERM — l'heure de son arrêt est sur GitHub", { skip: SANS_POSIX }, async (t) => {
   const github = unGitHub(t);
   const { racine, env } = unOrdinateur(t, github.repertoire);
   const enfant = spawn(process.execPath, [ENVELOPPE, PRINCIPAL], { env: { ...env, BRIGADE_STATION_DIR: racine }, stdio: ["pipe", "pipe", "pipe"] });
@@ -131,7 +132,7 @@ test("l'app tuée net : l'entrée de sa station se ferme, et la station s'arrêt
   assert.notEqual(github.etat(gist ?? "").arreteeLe, null);
 });
 
-test("ajouter un projet dont cette station est la principale : un ticket du projet y cuit, jusqu'à sa PR et son commentaire", async (t) => {
+test("ajouter un projet dont cette station est la principale : un ticket du projet y cuit, jusqu'à sa PR et son commentaire", { skip: SANS_POSIX }, async (t) => {
   const github = unGitHub(t);
   const { racine, env } = unOrdinateur(t, github.repertoire);
   // Le projet, tel que l'ajout le pose sur la station : ses décisions au journal, sa ligne.
@@ -270,6 +271,6 @@ test("un répertoire de station qu'on ne peut pas écrire : l'app s'ouvre quand 
   writeFileSync(fichier, "");
   const { station, dit } = tenir(t, { node: process.execPath, principal: unPrincipal(t, ATTENDRE_SIGTERM), racine: join(fichier, "station"), env: {}, appairer: () => assert.fail() });
   assert.equal(station.etat(), "refusee");
-  assert.match(dit(), /this computer's station is not launched — its directory .*un-fichier\/station cannot be written: /);
+  assert.match(dit(), /this computer's station is not launched — its directory .*un-fichier[\\/]station cannot be written: /);
   await station.arreter();
 });

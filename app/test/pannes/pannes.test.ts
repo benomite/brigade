@@ -11,6 +11,7 @@ import { INJOIGNABLE_APRES_MS, pannesDe, type Panne } from "../../src/pannes/pan
 import { FICHIER_APPAIRAGE, FICHIER_STATION, lireDocument, type DocumentStation } from "../../src/stations/document.ts";
 import { githubDesStations } from "../../src/stations/github.ts";
 import { tenirStations } from "../../src/stations/stations.ts";
+import { SANS_POSIX } from "../aides/posix.ts";
 
 const MAINTENANT = Date.parse("2026-10-15T12:00:00Z");
 const il_y_a = (ms: number) => new Date(MAINTENANT - ms).toISOString();
@@ -113,7 +114,7 @@ function unGitHub(t: TestContext, doc: DocumentStation) {
   return stations;
 }
 
-test("lue sur GitHub, chaque panne est sur la ligne de sa station ; écartée, elle n'y revient pas", async (t) => {
+test("lue sur GitHub, chaque panne est sur la ligne de sa station ; écartée, elle n'y revient pas", { skip: SANS_POSIX }, async (t) => {
   const stations = unGitHub(t, { ...REVENUE, connexionMax: PERDUE.connexionMax });
   const [box] = (await stations.relire()).stations;
   assert.deepEqual(box?.pannes.map(({ sujet }) => sujet), ["mise-a-jour", "connexion-max"]);

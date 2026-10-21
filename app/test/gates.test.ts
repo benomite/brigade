@@ -7,6 +7,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
+import { SANS_POSIX } from "./aides/posix.ts";
 
 const GATES = join(import.meta.dirname, "../../.claude/brigade/gates.sh");
 
@@ -57,7 +58,7 @@ describe("les gates et la zone app", { concurrency: 8 }, () => {
     assert.deepEqual(await lignesDeLApp(racine), ["ok    app sans script typecheck : aucun contrôle de types à jouer", "FAIL  tests de l'app en échec — rejoue : npm --prefix app test"]);
   });
 
-  test("les mesures additionnent les deux zones — et une suite rouge les retire toutes : jamais la somme des seules vertes", async (t) => {
+  test("les mesures additionnent les deux zones — et une suite rouge les retire toutes : jamais la somme des seules vertes", { skip: SANS_POSIX }, async (t) => {
     const vertes = projet(t, { manifeste: SUITE_DE(30), installe: true }, SUITE_DE(1400));
     const appRouge = projet(t, { manifeste: { scripts: { test: "false" } }, installe: true }, SUITE_DE(1400));
 

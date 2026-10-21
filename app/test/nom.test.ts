@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { lireDemande, Refus } from "../../runtime/src/installateur.ts";
 import { refusDeForme } from "../src/nom.ts";
+import { CODE_DE_LA_BOX } from "./aides/posix.ts";
 
 // Ce que le geste de la box dit d'un nom, tout le reste de l'appel étant bon.
 function refusDeLaBox(nom: string): string | undefined {
@@ -35,7 +36,7 @@ describe("la forme du nom", () => {
     assert.equal(refusDeForme("a".repeat(63)), undefined);
   });
 
-  test("la règle est celle de la box : ce que son geste d'installation refuse, l'écran le refuse — et rien de plus", () => {
+  test("la règle est celle de la box : ce que son geste d'installation refuse, l'écran le refuse — et rien de plus", { skip: CODE_DE_LA_BOX }, () => {
     const noms = ["boutique", "ma-cuisine-2", "42", "a", "a-", "a--b", "Calculus", "ma cuisine", "a_b", "a.b", "-a", "--exec", "é", "a/b", "a;b", "$(id)", "a".repeat(63), "a".repeat(64), "boutique\n"];
     for (const nom of noms) {
       // L'écran envoie le nom rogné de ses blancs : c'est lui que la box reçoit.

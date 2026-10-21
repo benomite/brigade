@@ -12,6 +12,7 @@ import { githubDesStations } from "../../src/stations/github.ts";
 import { versionsDansFichier } from "../../src/stations/versions.ts";
 import { ghDuRepertoire } from "../aides/gh-du-repertoire.ts";
 import { duree, ligneDe, ligneDeVersion, tenirStations, type VuDesStations } from "../../src/stations/stations.ts";
+import { SANS_POSIX } from "../aides/posix.ts";
 
 const FAUX_GH = join(import.meta.dirname, "faux-gh-gists.ts");
 const SOURCES = join(import.meta.dirname, "../../src/stations");
@@ -97,7 +98,7 @@ test("les durées se disent à la minute", () => {
 });
 
 describe("les stations lues sur un GitHub de test", { concurrency: 7 }, () => {
-  test("le code tapé appaire la station : elle apparaît sur la home, « online · version X · no project »", async (t) => {
+  test("le code tapé appaire la station : elle apparaît sur la home, « online · version X · no project »", { skip: SANS_POSIX }, async (t) => {
     const github = unGitHub(t);
     github.station("box1", publie());
     // Un autre gist du compte, qui n'est pas une station : ignoré.
@@ -115,7 +116,7 @@ describe("les stations lues sur un GitHub de test", { concurrency: 7 }, () => {
     assert.deepEqual(lectures.at(-1), stations.vu());
   });
 
-  test("un code erroné, mal formé ou expiré est refusé en une ligne, et rien n'est écrit sur GitHub", async (t) => {
+  test("un code erroné, mal formé ou expiré est refusé en une ligne, et rien n'est écrit sur GitHub", { skip: SANS_POSIX }, async (t) => {
     const github = unGitHub(t);
     github.station("box1", publie({ appairage: { empreinte: empreinte(CODE), expireLe: new Date(MAINTENANT - 1).toISOString() }, echus: [empreinte("AAAA-BBBB")] }));
     const { stations } = desStations(t, github);
@@ -134,7 +135,7 @@ describe("les stations lues sur un GitHub de test", { concurrency: 7 }, () => {
     assert.deepEqual((await stations.relire()).stations, []);
   });
 
-  test("la station éteinte passe hors ligne sans quitter la liste ; GitHub muet, la liste reste et le dit", async (t) => {
+  test("la station éteinte passe hors ligne sans quitter la liste ; GitHub muet, la liste reste et le dit", { skip: SANS_POSIX }, async (t) => {
     const github = unGitHub(t);
     let instant = MAINTENANT;
     github.station("box1", publie());
@@ -160,7 +161,7 @@ describe("les stations lues sur un GitHub de test", { concurrency: 7 }, () => {
     assert.equal((await stations.relire()).sans, undefined);
   });
 
-  test("GitHub qui limite les appels du compte : la lecture le dit, avec l'heure où il les rend, lue sans en dépenser un", async (t) => {
+  test("GitHub qui limite les appels du compte : la lecture le dit, avec l'heure où il les rend, lue sans en dépenser un", { skip: SANS_POSIX }, async (t) => {
     const github = unGitHub(t);
     github.station("box1", publie({ connexionMax: { etat: "connectee", depuis: null } }));
     const { stations } = desStations(t, github);
@@ -183,7 +184,7 @@ describe("les stations lues sur un GitHub de test", { concurrency: 7 }, () => {
     assert.equal(rendue.limite, undefined);
   });
 
-  test("l'app ne joint jamais une station : tout passe par `gh api` sur les gists du compte", async (t) => {
+  test("l'app ne joint jamais une station : tout passe par `gh api` sur les gists du compte", { skip: SANS_POSIX }, async (t) => {
     const github = unGitHub(t);
     github.station("box1", publie());
     const { stations } = desStations(t, github);
@@ -212,7 +213,7 @@ test("la ligne de mise à jour : « up to date · on this version for 3 days » 
 });
 
 describe("les stations retirées, et leur version lue d'un lancement à l'autre", { concurrency: 7 }, () => {
-  test("retirer la station : son appairage quitte son gist, elle n'est plus listée ni lue — et se laisse appairer de nouveau", async (t) => {
+  test("retirer la station : son appairage quitte son gist, elle n'est plus listée ni lue — et se laisse appairer de nouveau", { skip: SANS_POSIX }, async (t) => {
     const github = unGitHub(t);
     github.station("box1", publie());
     github.station("box2", publie({ nom: "mac", appairage: { empreinte: empreinte("ABCD-EFGH"), expireLe: new Date(MAINTENANT + 10 * 60_000).toISOString() } }));
@@ -229,7 +230,7 @@ describe("les stations retirées, et leur version lue d'un lancement à l'autre"
     assert.deepEqual((await stations.relire()).stations.map(({ nom }) => nom), ["mac"], "relue, elle n'est toujours pas là");
   });
 
-  test("retirer la station, GitHub injoignable : rien n'est retiré, le refus tient en une ligne et son détail à part", async (t) => {
+  test("retirer la station, GitHub injoignable : rien n'est retiré, le refus tient en une ligne et son détail à part", { skip: SANS_POSIX }, async (t) => {
     const github = unGitHub(t);
     github.station("box1", publie());
     const { stations } = desStations(t, github);
@@ -243,7 +244,7 @@ describe("les stations retirées, et leur version lue d'un lancement à l'autre"
     assert.deepEqual((await stations.relire()).stations.map(({ nom }) => nom), ["box"]);
   });
 
-  test("depuis quand la station est sur sa version : l'app le déduit du changement qu'elle voit, et le garde d'un lancement à l'autre", async (t) => {
+  test("depuis quand la station est sur sa version : l'app le déduit du changement qu'elle voit, et le garde d'un lancement à l'autre", { skip: SANS_POSIX }, async (t) => {
     const github = unGitHub(t);
     github.station("box1", publie());
     const dossier = mkdtempSync(join(tmpdir(), "brigade-app-versions-"));

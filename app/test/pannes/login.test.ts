@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { gistLocal, LANCE, tenirLogin } from "../../src/pannes/login.ts";
+import { SANS_POSIX } from "../aides/posix.ts";
 
 const repertoire = (t: TestContext) => {
   const cree = mkdtempSync(join(tmpdir(), "brigade-app-login-"));
@@ -30,7 +31,7 @@ function unFauxClaude(t: TestContext, code = 0) {
   return { claude, appels: () => (existsSync(join(dossier, "appels")) ? readFileSync(join(dossier, "appels"), "utf8").trim().split("\n") : []), finir: () => writeFileSync(join(dossier, "fin"), "") };
 }
 
-test("le bouton lance `claude auth login` une fois ; un second clic pendant qu'il attend ne lance rien de plus ; fini, la station est relue", async (t) => {
+test("le bouton lance `claude auth login` une fois ; un second clic pendant qu'il attend ne lance rien de plus ; fini, la station est relue", { skip: SANS_POSIX }, async (t) => {
   const faux = unFauxClaude(t);
   const dit: string[] = [];
   let relues = 0;
@@ -48,7 +49,7 @@ test("le bouton lance `claude auth login` une fois ; un second clic pendant qu'i
   await jusqua(() => relues === 2);
 });
 
-test("un login qui échoue se dit au terminal de l'app ; un `claude` absent est refusé en une ligne", async (t) => {
+test("un login qui échoue se dit au terminal de l'app ; un `claude` absent est refusé en une ligne", { skip: SANS_POSIX }, async (t) => {
   const faux = unFauxClaude(t, 1);
   faux.finir();
   const dit: string[] = [];

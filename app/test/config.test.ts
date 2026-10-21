@@ -22,7 +22,7 @@ function configuration(t: TestContext, contenu: unknown): { racine: string; chem
 
 describe("la configuration de l'app", () => {
   test("elle vit hors du dépôt, sous le dossier personnel — ou là où BRIGADE_APP_CONFIG le dit", () => {
-    assert.equal(cheminConfiguration({}, "/Users/chef"), "/Users/chef/.config/brigade/app.json");
+    assert.equal(cheminConfiguration({}, "/Users/chef"), join("/Users/chef", ".config", "brigade", "app.json"));
     assert.equal(cheminConfiguration({ BRIGADE_APP_CONFIG: "/ailleurs/app.json" }, "/Users/chef"), "/ailleurs/app.json");
   });
 

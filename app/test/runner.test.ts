@@ -21,6 +21,7 @@ import { chef, cuisine, fauxGitHub, issue, PLAFONDS, type Lieux, type Options } 
 import { aArreter, BASE, depotGit, ecrireSuite, ENV_GIT, FAUX_CLAUDE, git, jusqua, lancementsDuFauxClaude, repertoireTemporaire, vivant } from "../../runtime/test/outils.ts";
 import { lireConfiguration } from "../src/config.ts";
 import { commandeTirer, environnementCook, missionLue, ouvrirLecture, ouvrirRunner, tirer, type EtatDeStation, type Mission, type Reponse } from "../src/runner.ts";
+import { CODE_DE_LA_BOX, SANS_POSIX } from "./aides/posix.ts";
 
 const [STATION, MAC] = ["box/claude", "mac/claude"];
 const DECLAREES = lireStations({ BRIGADE_STATIONS: `${STATION}:1:code,${MAC}:1:chrome-connecté:distante` });
@@ -172,7 +173,7 @@ const DEMANDE = new RegExp(
 );
 
 describe("le runner du poste, contre une box de test", { concurrency: 7 }, () => {
-  test("un ticket qui demande ce que seul le poste fournit part, est cuisiné par le runner, et sa livraison passe la pass — mêmes gates, même reviewer, même chemin au journal que celle d'un cook de la box", async (t) => {
+  test("un ticket qui demande ce que seul le poste fournit part, est cuisiné par le runner, et sa livraison passe la pass — mêmes gates, même reviewer, même chemin au journal que celle d'un cook de la box", { skip: CODE_DE_LA_BOX }, async (t) => {
     const lieu = service(t);
     const { gh, repertoire, origine, journal, dossier, worktrees, etat, servi, gates, relectures, cooks, dernier, types } = lieu;
     const avant = git(dossier, "for-each-ref");
@@ -259,7 +260,7 @@ describe("le runner du poste, contre une box de test", { concurrency: 7 }, () =>
     assert.ok(echanges.includes("remote.answered:claim") && echanges.includes("remote.answered:deliver"), echanges.join(" "));
   });
 
-  test("app arrêtée, le ticket attend, 86 « station absente », et `status` le dit ; les autres partent sur la box ; relancer l'app le fait partir sans autre geste", async (t) => {
+  test("app arrêtée, le ticket attend, 86 « station absente », et `status` le dit ; les autres partent sur la box ; relancer l'app le fait partir sans autre geste", { skip: CODE_DE_LA_BOX }, async (t) => {
     const lieu = service(t, { presenceMs: 500 });
     const { gh, repertoire, journal, etat, servi, raison, status, cooks } = lieu;
     chef(repertoire, "grant.activated");
@@ -298,7 +299,7 @@ describe("le runner du poste, contre une box de test", { concurrency: 7 }, () =>
     assert.deepEqual(lieu.cooksDuPoste().map((lance) => /ticket #(\d+)/.exec(lance.args[1] ?? "")?.[1]), ["16", "18"]);
   });
 
-  test("le bail d'un cook d'ici ne se renouvelle que sur une preuve de travail : son worktree a bougé — sur la même empreinte, la box refuse, et il livre quand même s'il conclut à temps", async (t) => {
+  test("le bail d'un cook d'ici ne se renouvelle que sur une preuve de travail : son worktree a bougé — sur la même empreinte, la box refuse, et il livre quand même s'il conclut à temps", { skip: CODE_DE_LA_BOX }, async (t) => {
     const lieu = service(t, { claude: "commite-puis-attend" });
     const { gh, journal, etat, dernier } = lieu;
     poser(gh, 16, "- requiert : chrome-connecté");
@@ -324,7 +325,7 @@ describe("le runner du poste, contre une box de test", { concurrency: 7 }, () =>
     assert.equal(etat(16), "pass");
   });
 
-  test("un cook d'ici qui ne produit rien perd son bail : aucun renouvellement n'est accordé, la box l'arrête comme un des siens, et le runner tue le sien — rien n'est livré", async (t) => {
+  test("un cook d'ici qui ne produit rien perd son bail : aucun renouvellement n'est accordé, la box l'arrête comme un des siens, et le runner tue le sien — rien n'est livré", { skip: CODE_DE_LA_BOX }, async (t) => {
     // Un échec ouvre le disjoncteur : le ticket n'est pas repris pendant que le test regarde.
     const lieu = service(t, { claude: "muet", bailMs: 1500, seuilDisjoncteur: 1 });
     const { gh, origine, journal, worktrees, dernier } = lieu;
@@ -351,7 +352,7 @@ describe("le runner du poste, contre une box de test", { concurrency: 7 }, () =>
     assert.equal(git(origine, "for-each-ref", `refs/heads/${branch}`), "");
   });
 
-  test("une livraison que la pass renvoie est reprise par le runner sur la même branche, telle que l'origine la porte — et ce que son cook y laisse non commité part avec elle, commité à sa place", async (t) => {
+  test("une livraison que la pass renvoie est reprise par le runner sur la même branche, telle que l'origine la porte — et ce que son cook y laisse non commité part avec elle, commité à sa place", { skip: CODE_DE_LA_BOX }, async (t) => {
     // Le reviewer refuse la première livraison, et laisse passer la seconde.
     const lieu = service(t, { suiteDuPoste: ["livre", "ecrit-sans-commiter"], reviewer: { suite: ["relit-rouge", "relit-vert"] } });
     const { gh, repertoire, origine, journal, dossier, worktrees, servi } = lieu;
@@ -376,7 +377,7 @@ describe("le runner du poste, contre une box de test", { concurrency: 7 }, () =>
     assert.equal(git(dossier, "for-each-ref", "refs/heads/cook", "refs/brigade/origine/cook"), "");
   });
 
-  test("un cook d'ici qui conclut sans commit : intact, ce qu'il a délimité est son livrable ; des fichiers écrits et jamais commités, il n'a rien livré — et ils restent sur sa branche, dans le clone du poste", async (t) => {
+  test("un cook d'ici qui conclut sans commit : intact, ce qu'il a délimité est son livrable ; des fichiers écrits et jamais commités, il n'a rien livré — et ils restent sur sa branche, dans le clone du poste", { skip: CODE_DE_LA_BOX }, async (t) => {
     const lieu = service(t, { suiteDuPoste: ["rapporte-sans-commit", "ecrit-sans-commiter"], seuilDisjoncteur: 1 });
     const { gh, origine, journal, dossier, etat } = lieu;
     poser(gh, 16, "- requiert : chrome-connecté");
@@ -398,7 +399,7 @@ describe("le runner du poste, contre une box de test", { concurrency: 7 }, () =>
     assert.equal(git(dossier, "worktree", "list", "--porcelain").split("\n").filter((ligne) => ligne.startsWith("worktree ")).length, 1);
   });
 
-  test("une box que le poste ne joint plus : le runner n'y laisse pas un cook tourner sans garde — passé son bail sans renouvellement, il l'arrête de lui-même", async (t) => {
+  test("une box que le poste ne joint plus : le runner n'y laisse pas un cook tourner sans garde — passé son bail sans renouvellement, il l'arrête de lui-même", { skip: CODE_DE_LA_BOX }, async (t) => {
     const lieu = service(t, { claude: "muet", bailMs: 1500, seuilDisjoncteur: 1 });
     const { gh, journal } = lieu;
     poser(gh, 16, "- requiert : chrome-connecté");
@@ -414,7 +415,7 @@ describe("le runner du poste, contre une box de test", { concurrency: 7 }, () =>
 });
 
 describe("le runner du poste, pièce par pièce", () => {
-  test("le flux d'un cook se lit comme la box lit celui des siens : ce qu'il a consommé, son dernier message, et s'il a conclu", async (t) => {
+  test("le flux d'un cook se lit comme la box lit celui des siens : ce qu'il a consommé, son dernier message, et s'il a conclu", { skip: SANS_POSIX }, async (t) => {
     // Le compte des tours et des jetons, contre le superviseur de la box, sur les mêmes flux.
     for (const scenario of ["livre", "morcele", "cache", "plaintif", "fini-sans-commit", "quota", "refuse", "non-connecte"]) {
       const repertoire = repertoireTemporaire(t);
@@ -447,7 +448,7 @@ describe("le runner du poste, pièce par pièce", () => {
     assert.deepEqual(environnementCook(poste), { PATH: "/usr/bin", HOME: "/Users/chef", GH_TOKEN: "le-sien", CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1" });
   });
 
-  test("ce qui part vers la box est le geste `pull`, mot pour mot — et ce que le shell de la box redécoupe lui revient entier", async (t) => {
+  test("ce qui part vers la box est le geste `pull`, mot pour mot — et ce que le shell de la box redécoupe lui revient entier", { skip: SANS_POSIX }, async (t) => {
     assert.equal(commandeTirer(MAC, ["claim"]), "pull mac/claude claim");
     assert.equal(commandeTirer(MAC, ["renew", "16-ab12", "--proof", "e1", "--turns", "3", "--tokens", "40"]), "pull mac/claude renew 16-ab12 --proof e1 --turns 3 --tokens 40");
     assert.equal(commandeTirer("poste-é/claude", ["return", "r", "--reason", "push-failed: c'est `non` ; $(rm)"]), `pull 'poste-é/claude' return r --reason 'push-failed: c'\\''est \`non\` ; $(rm)'`);
@@ -465,7 +466,7 @@ describe("le runner du poste, pièce par pièce", () => {
     assert.equal(readFileSync(join(racine, "entree"), "utf8"), "son compte-rendu\n<livrable>fait</livrable>");
   });
 
-  test("une demande a sa réponse, servie ou refusée — ou rien n'est à supposer : box pas jointe, runtime à l'arrêt, sortie qui n'est pas celle du geste", async (t) => {
+  test("une demande a sa réponse, servie ou refusée — ou rien n'est à supposer : box pas jointe, runtime à l'arrêt, sortie qui n'est pas celle du geste", { skip: SANS_POSIX }, async (t) => {
     const racine = repertoireTemporaire(t);
     const reglages = (corps: string) => {
       const ssh = join(racine, `ssh-${readdirSync(racine).length}`);
@@ -545,7 +546,7 @@ describe("le runner du poste, pièce par pièce", () => {
     assert.match(lire({ hote: "box", stations: [MAC, MAC] }).refus ?? "", /is written twice/);
   });
 
-  test("le runner ne joue que ce qui se joue : un projet sans box, sans station, désinstallé ou qui ne s'ouvre pas ne lance rien — et une station retirée du fichier est quittée", async (t) => {
+  test("le runner ne joue que ce qui se joue : un projet sans box, sans station, désinstallé ou qui ne s'ouvre pas ne lance rien — et une station retirée du fichier est quittée", { skip: SANS_POSIX }, async (t) => {
     const racine = repertoireTemporaire(t);
     const appels = join(racine, "appels");
     const ssh = join(racine, "ssh");

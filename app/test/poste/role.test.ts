@@ -33,7 +33,8 @@ test("sans runtime à côté d'elle, ou avec BRIGADE_APP_STATION=0, l'app d'un o
 test("la station d'un ordinateur est celle d'un serveur : le même point d'entrée que le service du paquet Debian", () => {
   const unite = readFileSync(join(RUNTIME, "paquet/systemd/brigade-station.service"), "utf8");
   const [, lance] = /^ExecStart=\S+ (\S+)$/m.exec(unite) ?? [];
-  assert.equal(lance, PRINCIPAL);
+  // L'unité écrit le chemin à la façon de la box ; `join` le dit à celle de ce poste.
+  assert.equal(join(lance ?? ""), PRINCIPAL);
 });
 
 test("hors du choix station ou poste, rien dans app/src/poste ne dépend de la plateforme", () => {

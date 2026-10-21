@@ -21,6 +21,7 @@ import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { GESTES_DU_MANAGER } from "../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { type Faux, type Jouee, jouerLaVue, ouvrirOnglet, type Reponses, repos } from "./aides/fausse-vue.ts";
+import { SANS_POSIX } from "./aides/posix.ts";
 
 const A = "2026-10-16T10:04:12.000Z";
 const PARADE = "parade";
@@ -132,13 +133,13 @@ function essai(t: TestContext, sortie: string, code = 0) {
 }
 
 describe("l'image d'une capture, lue par le `gh` du poste", () => {
-  test("le contenu du fichier au commit livré, par l'API de GitHub, rendu en `data:`", async (t) => {
+  test("le contenu du fichier au commit livré, par l'API de GitHub, rendu en `data:`", { skip: SANS_POSIX }, async (t) => {
     const { reglages, appels } = essai(t, "iVBORw0KGgo\nAAAANSUhEUg==\n");
     assert.deepEqual(await lireCapture(reglages, adresse("fiche-avant.png")), { image: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==" });
     assert.deepEqual(appels(), [`api repos/benomite/brigade/contents/docs/captures/30/fiche-avant.png?ref=${SHA} --jq .content`]);
   });
 
-  test("un `gh` en échec, une sortie qui n'est pas un contenu, une adresse étrangère : rien n'est montré, et pourquoi est dit", async (t) => {
+  test("un `gh` en échec, une sortie qui n'est pas un contenu, une adresse étrangère : rien n'est montré, et pourquoi est dit", { skip: SANS_POSIX }, async (t) => {
     const enEchec = await lireCapture(essai(t, "HTTP 404: Not Found", 1).reglages, adresse("fiche-avant.png"));
     assert.ok("sans" in enEchec && /HTTP 404/.test(enEchec.sans) && /exit code 1/.test(enEchec.sans));
     const vide = await lireCapture(essai(t, "").reglages, adresse("fiche-avant.png"));

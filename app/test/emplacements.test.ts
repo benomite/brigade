@@ -9,6 +9,7 @@ import { test, type TestContext } from "node:test";
 import { cheminConfiguration } from "../src/config.ts";
 import { CHEMINS_CONNUS, cheminDe, emplacementsDe, estInstallee, lireCheminDuShell } from "../src/emplacements.ts";
 import { PRINCIPAL, roleDe } from "../src/poste/role.ts";
+import { SANS_POSIX } from "./aides/posix.ts";
 
 const SRC = join(import.meta.dirname, "..", "src");
 const APP = join(SRC, "..");
@@ -95,7 +96,7 @@ function fauxShell(t: TestContext, corps: string): string {
   return shell;
 }
 
-test("le PATH du shell de connexion se lit au milieu de ce que ses fichiers de démarrage écrivent", (t) => {
+test("le PATH du shell de connexion se lit au milieu de ce que ses fichiers de démarrage écrivent", { skip: SANS_POSIX }, (t) => {
   // Ce que l'app lui demande, `-ilc <commande>`, joué par `sh` avec un PATH à lui ; et du bruit avant et après.
   const shell = fauxShell(t, 'echo "bienvenue"; [ "$1" = "-ilc" ] || exit 9; PATH="/opt/homebrew/bin:/usr/bin:/bin"; eval "$2"; echo; echo "au revoir"');
   assert.equal(lireCheminDuShell(shell, 60_000, { PATH: "/usr/bin:/bin" }), "/opt/homebrew/bin:/usr/bin:/bin");
@@ -111,7 +112,7 @@ test("un shell qui échoue, qui n'existe pas ou qui ne rend rien dans le délai 
 
 test("le fichier des projets et le répertoire de la station ne dépendent pas de la façon dont l'app est lancée", () => {
   // Installée ou non, l'app lit `~/.config/brigade/` tel quel (config.ts) : rien ici n'en décide.
-  assert.equal(cheminConfiguration({}, "/Users/chef"), "/Users/chef/.config/brigade/app.json");
+  assert.equal(cheminConfiguration({}, "/Users/chef"), join("/Users/chef", ".config", "brigade", "app.json"));
   const source = readFileSync(join(SRC, "emplacements.ts"), "utf8").split("\n").filter((ligne) => !ligne.trimStart().startsWith("//")).join("\n");
   assert.doesNotMatch(source, /\.config|cheminConfiguration|BRIGADE_STATION_DIR|homedir/);
 });
