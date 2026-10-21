@@ -148,12 +148,12 @@ test("ajouté depuis l'app, le projet est dans la liste de la station en moins d
   // Retiré depuis l'app : sa ligne quitte la configuration, la station ne le sert plus. Le temps
   // est mesuré plus haut : un signal la fait relire sans attendre sa cadence.
   demande([]);
-  station.process.kill("SIGHUP");
+  station.signaler("SIGHUP");
   await jusqua(tenue(() => projetsPublies()?.includes("parade") === false), DIX_MINUTES);
   assert.doesNotMatch(readFileSync(join(racine, "projets"), "utf8"), /parade/);
   await station.attendre("parade retiré depuis l'app");
 
-  station.process.kill("SIGTERM");
+  station.signaler("SIGTERM");
   assert.equal(await station.fin, 0);
 });
 

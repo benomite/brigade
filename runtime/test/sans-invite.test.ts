@@ -4,7 +4,7 @@ import { createServer } from "node:http";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { promisify } from "node:util";
-import { execFile, envSansInvite } from "../src/sans-invite.ts";
+import { execFile, envSansInvite, pourWindows, shellsDeGit } from "../src/sans-invite.ts";
 
 const SRC = join(import.meta.dirname, "..", "src");
 
@@ -56,6 +56,27 @@ test("`runtime/src` : aucun lancement de process ne contourne l'environnement sa
     assert.doesNotMatch(code, /require\(\s*["'](node:)?child_process["']\s*\)|import\(\s*["'](node:)?child_process["']\s*\)/, nom);
     assert.doesNotMatch(code, /process\.binding\(/, nom);
   }
+});
+
+test("sous Windows, `bash`, `sh` et un script à shebang passent par le bash de Git — un `#!/usr/bin/env node` par le node du runtime, un exécutable tel quel", () => {
+  const shells = { bash: "C:\\Program Files\\Git\\bin\\bash.exe", sh: "C:\\Program Files\\Git\\bin\\sh.exe" };
+  const premieres: Record<string, string> = { "C:\\t\\faux-claude.sh": "#!/usr/bin/env bash", "C:\\t\\outil": "#!/usr/bin/env node", "C:\\t\\vieux": "#!/bin/sh -e", "C:\\t\\binaire": "MZ\u0090" };
+  const lire = (chemin: string) => premieres[chemin] ?? null;
+  assert.deepEqual(pourWindows("bash", ["-c", "exit 0"], shells, lire), { commande: shells.bash, args: ["-c", "exit 0"] });
+  assert.deepEqual(pourWindows("sh", ["-c", "exit 0"], shells, lire), { commande: shells.sh, args: ["-c", "exit 0"] });
+  assert.deepEqual(pourWindows("C:\\t\\faux-claude.sh", ["-p", "x"], shells, lire), { commande: shells.bash, args: ["C:/t/faux-claude.sh", "-p", "x"] });
+  assert.deepEqual(pourWindows("C:\\t\\outil", ["a"], shells, lire), { commande: process.execPath, args: ["C:\\t\\outil", "a"] });
+  assert.deepEqual(pourWindows("C:\\t\\vieux", [], shells, lire), { commande: shells.sh, args: ["C:/t/vieux"] });
+  assert.deepEqual(pourWindows("C:\\t\\binaire", ["x"], shells, lire), { commande: "C:\\t\\binaire", args: ["x"] });
+  assert.deepEqual(pourWindows("C:\\t\\claude.exe", ["x"], shells, lire), { commande: "C:\\t\\claude.exe", args: ["x"] });
+  assert.deepEqual(pourWindows("git", ["status"], shells, lire), { commande: "git", args: ["status"] });
+});
+
+test("sous Windows, le bash de Git est celui qui est à côté de `git`, ou celui que nomme BRIGADE_BASH_BIN", () => {
+  assert.deepEqual(shellsDeGit({ BRIGADE_BASH_BIN: "D:\\bash.exe" }), { bash: "D:\\bash.exe", sh: "D:\\bash.exe" });
+  // Sur cette machine, `git` est là : ce qu'on trouve à côté de lui, ou les noms nus.
+  const trouves = shellsDeGit({ PATH: process.env.PATH }, () => false);
+  assert.deepEqual(trouves, { bash: "bash", sh: "bash" });
 });
 
 test("`promisify(execFile)` sur la version du module rend `{ stdout, stderr }`, comme celle de Node — et lance sans invite", async () => {

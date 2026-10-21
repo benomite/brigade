@@ -57,7 +57,10 @@ const scenarios: Record<string, () => void> = {
 
 // Filet : une suite de tests tuée en plein vol ne laisse pas de faux cook
 // derrière elle. SIGKILL, parce que certains scénarios n'entendent pas SIGTERM.
-setTimeout(() => process.kill(process.pid, "SIGKILL"), 30_000).unref();
+// Pas avant les deux minutes qu'un test a pour finir (`--test-timeout`) : sous
+// Windows, où une station met des secondes à démarrer, un cook qu'un test garde
+// vivant à travers deux stations dépasse trente secondes.
+setTimeout(() => process.kill(process.pid, "SIGKILL"), 120_000).unref();
 
 const nom = process.env.FAUX_CLAUDE ?? "";
 const scenario = scenarios[nom];

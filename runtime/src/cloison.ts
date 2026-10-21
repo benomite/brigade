@@ -7,7 +7,7 @@
 // worktree du lancement. Seul module qui sait comment `bwrap` se pilote.
 import { execFileSync } from "./sans-invite.ts";
 import { constants, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { basename, delimiter, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import type { Fait } from "./evenements.ts";
 import type { EtatDeCloison } from "./events/partition.ts";
 import { FICHIER_DU_JETON } from "./jeton-claude.ts";
@@ -102,7 +102,9 @@ export function configCloison(env: Record<string, string | undefined>, lieux: { 
   if (!isAbsolute(bin) || !existsSync(bin)) throw new ConfigInvalide(`invalid BRIGADE_SANDBOX_BIN: “${bin}” — expected the absolute path of \`bwrap\` (/usr/bin/bwrap), and it must exist`);
   const home = env.HOME;
   if (!home) throw new ConfigInvalide("BRIGADE_SANDBOX_BIN is set, but HOME is not: the partition does not know where the account keeps its credentials");
-  const masques = [...new Set(brut.split(":").filter(Boolean))];
+  // Séparés comme ceux de PATH : par « : », et sous Windows — où un chemin
+  // porte sa lettre de lecteur — par « ; ».
+  const masques = [...new Set(brut.split(delimiter).filter(Boolean))];
   if (masques.length === 0) {
     throw new ConfigInvalide("BRIGADE_SANDBOX_BIN is set without BRIGADE_SANDBOX_HIDDEN: the partition would hide nothing — set the directories that hold the state and the secrets of all projects, separated by “:” (/var/lib/brigade:/etc/brigade)");
   }

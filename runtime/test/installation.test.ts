@@ -113,7 +113,7 @@ function projet(t: TestContext, porte: Porte = {}) {
   cpSync(gabarit(porte), racine, { recursive: true });
   const [origine, clone] = [join(racine, "origine.git"), join(racine, "clone")];
   const config = join(clone, ".git/config");
-  writeFileSync(config, readFileSync(config, "utf8").replaceAll(ORIGINE, origine));
+  writeFileSync(config, readFileSync(config, "utf8").replaceAll(ORIGINE, origine.replaceAll("\\", "/")));
 
   const etat = join(racine, "etat");
   mkdirSync(etat);
@@ -893,7 +893,7 @@ describe("« Vérifier » vert, « installation terminée »", { concurrency: 8 
     };
     await jusqua(() => lancements().length > 0);
     assert.deepEqual(lancements(), [15]);
-    runtime.process.kill("SIGTERM");
+    runtime.signaler("SIGTERM");
     assert.equal(await runtime.fin, 0, runtime.sortie());
   });
 });
@@ -1093,7 +1093,7 @@ describe("les labels", { concurrency: 8 }, () => {
   });
 });
 
-test("un fichier de secrets que le runtime refuserait est un manque de la machine", async (t) => {
+test("un fichier de secrets que le runtime refuserait est un manque de la machine", { skip: process.platform === "win32" && "sous Windows, les bits de mode ne disent rien des droits (`droits.ts`)" }, async (t) => {
   const { env, racine } = projet(t);
   writeFileSync(join(racine, "secrets.env"), "CLE_API=une-valeur-de-dev\n", { mode: 0o644 });
 

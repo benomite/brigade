@@ -21,6 +21,7 @@
 import { spawn } from "./sans-invite.ts";
 import { existsSync } from "node:fs";
 import { connect } from "node:net";
+import { signalerLArbre } from "./arbre.ts";
 import { envelopper, type Cloison } from "./cloison.ts";
 import { commentLeVoir, ecranDeLaLivraison } from "./ecran.ts";
 import type { FaitService, FinDeService } from "./events/service.ts";
@@ -126,12 +127,7 @@ export function ouvrirServeurs(options: OptionsServeurs): Serveurs {
   let ferme = false;
 
   const signaler = (tenu: Tenu, signal: NodeJS.Signals) => {
-    if (tenu.pid === null) return;
-    try {
-      process.kill(-tenu.pid, signal);
-    } catch {
-      // Déjà mort.
-    }
+    if (tenu.pid !== null) signalerLArbre(tenu.pid, signal);
   };
 
   // Ce qui empêche de servir se dit une fois : quand le motif change, pas à

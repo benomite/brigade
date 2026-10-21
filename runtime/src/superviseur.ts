@@ -3,10 +3,11 @@
 // pure : aucun journal ici, et rien qui soit propre à `claude` au-delà de la
 // forme de son flux.
 import { spawn } from "./sans-invite.ts";
-import { closeSync, createWriteStream, openSync, readFileSync, readSync, type WriteStream } from "node:fs";
+import { closeSync, createWriteStream, openSync, readFileSync, readSync, writeFileSync, type WriteStream } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { lecteurDActivite, type Activite } from "./activite.ts";
+import { signalerLArbre } from "./arbre.ts";
 import type { Readable } from "node:stream";
 import type { MotifArret, Plafonds } from "./events/guardrails.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
@@ -88,7 +89,8 @@ export function superviser(options: OptionsSupervision): Supervise {
   const ecoule = () => Math.round(performance.now() - debut);
 
   // `detached` : le cook est chef de son propre groupe de process, et un
-  // signal envoyé au groupe atteint aussi ce qu'il a lancé.
+  // signal envoyé au groupe atteint aussi ce qu'il a lancé (`arbre.ts`).
+  const lance = Date.now();
   const enfant = spawn(options.commande, options.args, {
     cwd: options.cwd,
     env: options.env,
@@ -134,13 +136,9 @@ export function superviser(options: OptionsSupervision): Supervise {
   const finir = [garder(enfant.stdout, fichiers[0]), garder(enfant.stderr, fichiers[1])];
 
   let mort = false;
+  // Un arbre qui n'existe plus n'a plus personne à arrêter.
   const signaler = (signal: NodeJS.Signals) => {
-    if (enfant.pid === undefined) return;
-    try {
-      process.kill(-enfant.pid, signal);
-    } catch {
-      // Le groupe n'existe plus : il n'y a plus personne à arrêter.
-    }
+    if (enfant.pid !== undefined) signalerLArbre(enfant.pid, signal, { depuis: lance });
   };
 
   let arret: Arret | null = null;
@@ -291,12 +289,34 @@ export type FichiersDuRelais = {
   pid: string;
   // La fin du cook, écrite par le relais.
   fin: string;
+  // La demande d'arrêt, posée par le runtime là où il n'a pas de signal à
+  // envoyer au relais (Windows) : le relais la guette, et arrête son cook.
+  arret: string;
 };
 
 export const fichiersDuRelais = (flux: string): FichiersDuRelais => {
   const racine = flux.replace(/\.jsonl$/, "");
-  return { flux, relais: `${racine}.relais.json`, pid: `${racine}.cook.pid`, fin: `${racine}.fin.json` };
+  return { flux, relais: `${racine}.relais.json`, pid: `${racine}.cook.pid`, fin: `${racine}.fin.json`, arret: `${racine}.arret` };
 };
+
+// Demande au relais d'arrêter son cook. Sous macOS et Linux, c'est SIGTERM au
+// relais. Sous Windows, un signal le tuerait sur-le-champ sans qu'il arrête son
+// cook — qui survivrait, orphelin : la demande y est un fichier qu'il guette.
+export function demanderLArret(pid: number, fichiers: FichiersDuRelais, plateforme: NodeJS.Platform = process.platform): void {
+  if (plateforme === "win32") {
+    try {
+      writeFileSync(fichiers.arret, "");
+    } catch {
+      // Le répertoire d'état a disparu : plus personne à arrêter.
+    }
+    return;
+  }
+  try {
+    process.kill(pid, "SIGTERM");
+  } catch {
+    // Le relais n'est plus là : sa fin dira la suite.
+  }
+}
 
 // Ce que le runtime qui lance le relais écrit de lui.
 export type TraceDuRelais = { pid: number; debut: number; run: string };
@@ -369,6 +389,7 @@ export function superviserParRelais(options: OptionsRelais): Supervise & { lache
     flux: options.flux,
     pid: fichiers.pid,
     fin: fichiers.fin,
+    arret: fichiers.arret,
     secrets: options.secrets,
     graceMs: options.graceMs,
     ...(options.attenteMax === undefined ? {} : { attenteMax: options.attenteMax }),
@@ -401,13 +422,10 @@ export function relaisASuivre(flux: string): boolean {
 // Demande au relais d'un cook d'arrêter celui-ci, sans le suivre : il
 // transmet, et tue passé la grâce.
 export function arreterParLeRelais(flux: string): void {
-  const trace = lireTrace(fichiersDuRelais(flux));
+  const fichiers = fichiersDuRelais(flux);
+  const trace = lireTrace(fichiers);
   if (trace === null || !relaisVivant(trace)) return;
-  try {
-    process.kill(trace.pid, "SIGTERM");
-  } catch {
-    // Parti entre-temps.
-  }
+  demanderLArret(trace.pid, fichiers);
 }
 
 // Reprend le suivi d'un cook qu'un runtime précédent a lancé par un relais.
@@ -436,11 +454,7 @@ function suivre(
   let arret: Arret | null = null;
   const signalerAuRelais = () => {
     if (mort || relais.pid === null) return;
-    try {
-      process.kill(relais.pid, "SIGTERM");
-    } catch {
-      // Le relais n'est plus là : sa fin dira la suite.
-    }
+    demanderLArret(relais.pid, fichiers);
   };
   const arreter = (motif: Arret) => {
     if (arret || mort || lache) return;
@@ -556,10 +570,9 @@ function suivre(
     // resterait du groupe du cook part avec lui.
     if (lireFinDuRelais(fichiers)) return regarder();
     try {
-      const pid = Number(readFileSync(fichiers.pid, "utf8"));
-      if (Number.isSafeInteger(pid) && pid > 0) process.kill(-pid, "SIGKILL");
+      signalerLArbre(Number(readFileSync(fichiers.pid, "utf8")), "SIGKILL", { depuis: relais.debut });
     } catch {
-      // Pas de cook connu, ou plus de groupe.
+      // Pas de cook connu.
     }
     conclure({ code: null, signal: "SIGKILL", erreur: null });
   };

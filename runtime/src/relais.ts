@@ -8,8 +8,9 @@
 //
 // Le relais ne juge rien et n'écrit aucun journal. Il sait trois choses :
 // écrire ce que le cook dit, masqué ligne à ligne comme le faisait le
-// superviseur ; arrêter le cook quand on le lui demande (SIGTERM au relais :
-// SIGTERM au groupe du cook, puis SIGKILL passé la grâce) ; et, le cook mort,
+// superviseur ; arrêter le cook quand on le lui demande (SIGTERM au relais, ou
+// sous Windows le fichier d'arrêt posé : SIGTERM à l'arbre du cook, puis
+// SIGKILL passé la grâce — `arbre.ts`) ; et, le cook mort,
 // tuer ce qui reste de son groupe avant d'écrire sa fin. C'est le seul à
 // signaler le groupe du cook : il sait, lui, quand ce groupe a cessé d'être le
 // sien.
@@ -17,8 +18,9 @@
 // `node relais.ts <run>` : le nom du run est sur la ligne de commande, pour
 // qu'un runtime qui le retrouve sache que ce pid est bien ce relais-là.
 import { spawn, type ChildProcess } from "./sans-invite.ts";
-import { createWriteStream, renameSync, writeFileSync, type WriteStream } from "node:fs";
+import { createWriteStream, existsSync, renameSync, writeFileSync, type WriteStream } from "node:fs";
 import type { Readable } from "node:stream";
+import { signalerLArbre } from "./arbre.ts";
 import { masquerIdentifiants, retenirJeton } from "./identifiants.ts";
 import { lignesMasquees } from "./lignes-masquees.ts";
 import { masqueDesSecrets } from "./secrets.ts";
@@ -35,11 +37,17 @@ export type ConsigneDuRelais = {
   // Où le relais écrit le pid du cook, puis sa fin.
   pid: string;
   fin: string;
+  // La demande d'arrêt, quand le runtime ne peut pas la signaler (Windows) :
+  // posé, ce fichier vaut un SIGTERM au relais.
+  arret?: string;
   // Les valeurs à masquer dans ce que dit le cook, par nom.
   secrets: Record<string, string>;
   graceMs: number;
   attenteMax?: number;
 };
+
+// La cadence à laquelle le relais regarde si la demande d'arrêt est posée.
+const GUET_MS = 100;
 
 // Ce que le relais écrit quand le cook est mort.
 export type FinDuRelais = { code: number | null; signal: string | null; erreur: string | null; masques: number };
@@ -66,19 +74,18 @@ function relayer(consigne: ConsigneDuRelais): void {
   let enfant: ChildProcess | null = null;
   let mort = false;
   let grace: NodeJS.Timeout | undefined;
-  // Le groupe du cook, et lui seul : jamais après sa mort.
+  let lanceA = Date.now();
+  // L'arbre du cook (`arbre.ts`), et lui seul : jamais après sa mort.
   const signaler = (signal: NodeJS.Signals) => {
     if (mort || enfant?.pid === undefined) return;
-    try {
-      process.kill(-enfant.pid, signal);
-    } catch {
-      // Le groupe n'existe plus.
-    }
+    signalerLArbre(enfant.pid, signal, { depuis: lanceA });
   };
   let arretDemande = false;
+  let guet: NodeJS.Timeout | undefined;
   const arreter = () => {
     if (arretDemande) return;
     arretDemande = true;
+    clearInterval(guet);
     signaler("SIGTERM");
     grace = setTimeout(() => signaler("SIGKILL"), consigne.graceMs);
   };
@@ -87,6 +94,15 @@ function relayer(consigne: ConsigneDuRelais): void {
   process.on("SIGTERM", arreter);
   process.on("SIGINT", () => {});
   process.on("SIGHUP", () => {});
+  // La même demande, posée en fichier par un runtime qui n'a pas de signal à
+  // envoyer (Windows).
+  const fichierDArret = consigne.arret;
+  if (fichierDArret !== undefined) {
+    guet = setInterval(() => {
+      if (existsSync(fichierDArret)) arreter();
+    }, GUET_MS);
+    guet.unref();
+  }
 
   const finir = (fin: Omit<FinDuRelais, "masques">) => {
     try {
@@ -98,6 +114,7 @@ function relayer(consigne: ConsigneDuRelais): void {
   };
 
   try {
+    lanceA = Date.now();
     enfant = spawn(consigne.commande, consigne.args, {
       cwd: consigne.cwd,
       env: consigne.env,

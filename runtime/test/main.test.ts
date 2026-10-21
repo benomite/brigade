@@ -81,7 +81,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     // Ce qu'une autre commande lira pour dire s'il tourne sur le code installé.
     assert.equal(lireCodeEnService(repertoire), empreinteDuCode());
 
-    runtime.process.kill("SIGTERM");
+    runtime.signaler("SIGTERM");
 
     assert.equal(await runtime.fin, 0);
     assert.match(runtime.sortie(), /arrêté/);
@@ -270,7 +270,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
       ],
     );
     assert.match(runtime.sortie(), /brigade : stations — box\/claude \(3 cooks at most; provides: code, raisonnement\) ; box\/playwright \(1 cook at most; provides: navigateur-headless\)/);
-    runtime.process.kill("SIGTERM");
+    runtime.signaler("SIGTERM");
     assert.equal(await runtime.fin, 0);
   });
 
@@ -317,7 +317,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     // Rien n'a été lancé sur la box : ni `claude`, ni worktree.
     assert.deepEqual(lancementsDuFauxClaude(temoin), []);
     assert.equal(existsSync(join(repertoire, "worktrees")), false);
-    runtime.process.kill("SIGTERM");
+    runtime.signaler("SIGTERM");
     assert.equal(await runtime.fin, 0);
   });
 
@@ -339,7 +339,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     assert.deepEqual(types.filter((type) => type.startsWith("station.") || type === "cook.launched" || type === "ticket.taken"), []);
     assert.deepEqual(lireLeRail(repertoire).map((ticket) => [ticket.ticket, ticket.state]), [[15, "waiting"]]);
     assert.deepEqual(lancementsDuFauxClaude(temoin), []);
-    runtime.process.kill("SIGTERM");
+    runtime.signaler("SIGTERM");
     assert.equal(await runtime.fin, 0);
   });
 
@@ -365,7 +365,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     assert.deepEqual(lireLeRail(repertoire), avant);
     assert.deepEqual(avant.map((ticket) => [ticket.ticket, ticket.priority, ticket.state]), [[14, 1, "waiting"], [15, null, "waiting"]]);
     assert.deepEqual(avant.map((ticket) => ticket.card), [null, { waitsFor: [14], zone: ["runtime/src/rail.ts"], problems: [] }]);
-    second.process.kill("SIGTERM");
+    second.signaler("SIGTERM");
     assert.equal(await second.fin, 0);
   });
 
@@ -387,7 +387,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     await jusqua(() => relire(repertoire).some((e) => e.type === "manager.set-aside"));
     assert.deepEqual(relire(repertoire).find((e) => e.type === "manager.set-aside")?.payload, { reason: "roadmap", fired: false });
     assert.ok(sondees() > 0);
-    runtime.process.kill("SIGTERM");
+    runtime.signaler("SIGTERM");
     assert.equal(await runtime.fin, 0);
   });
 
@@ -412,7 +412,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
       const pr = gh.appels().find((appel) => appel.at(-1) === `repos/${DEPOT}/pulls`) ?? [];
       assert.equal(pr.includes(`head=cook/${lancement.run}`) && pr.includes(`base=${BASE}`), true);
       assert.equal(git(clone, "status", "--porcelain"), "");
-      runtime.process.kill("SIGTERM");
+      runtime.signaler("SIGTERM");
       assert.equal(await runtime.fin, 0);
     });
 
@@ -446,7 +446,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
       assert.equal(cook?.env.CLAUDE_CODE_OAUTH_TOKEN, "sk-ant-oat01-jeton-de-la-machine");
       assert.equal(cook?.env.BRIGADE_CLAUDE_TOKEN_FILE, undefined);
       assert.equal(relire(repertoire).some((e) => e.type === "station.disconnected"), false);
-      runtime.process.kill("SIGTERM");
+      runtime.signaler("SIGTERM");
       assert.equal(await runtime.fin, 0);
     });
 
@@ -499,7 +499,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
       const relecture = journal.filter((e) => e.type === "cook.launched").at(-1);
       assert.deepEqual([relecture?.ticket, relecture?.payload.station, relecture?.payload.model, relecture?.payload.effort], [null, "reviewer", "sonnet", "medium"]);
       assert.deepEqual(lireLeRail(repertoire).map((ticket) => [ticket.ticket, ticket.state]), [[15, "served"]]);
-      runtime.process.kill("SIGTERM");
+      runtime.signaler("SIGTERM");
       assert.equal(await runtime.fin, 0);
     });
   });
@@ -544,7 +544,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     await jusqua(() => existsSync(join(worktree, "travail.txt")));
 
     // Le remplacement : le runtime s'arrête, le cook continue.
-    premier.process.kill("SIGTERM");
+    premier.signaler("SIGTERM");
     assert.equal(await premier.fin, 0);
     assert.equal(vivant(pid), true);
     assert.equal(existsSync(worktree), true);
@@ -568,7 +568,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     assert.deepEqual(gh.appels().find((appel) => appel.includes("PUT")), ["api", "-i", "-X", "PUT", "-f", `sha=${juge}`, "-f", "merge_method=merge", `repos/${DEPOT}/pulls/40/merge`]);
     assert.equal(faits("merge.done").length, 1);
     assert.deepEqual(lireLeRail(repertoire).map((ticket) => [ticket.ticket, ticket.state]), [[15, "served"]]);
-    second.process.kill("SIGTERM");
+    second.signaler("SIGTERM");
     assert.equal(await second.fin, 0);
   });
 
@@ -604,7 +604,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
 
     assert.match(runtime.sortie(), /connection of `claude` — the account's own \(BRIGADE_CLAUDE_TOKEN_FILE is not set\); CLAUDE_CODE_OAUTH_TOKEN is in the runtime's environment: it is passed to no `claude`/);
     assert.equal(runtime.sortie().includes("sk-ant-oat01-pose-dans-l-environnement"), false);
-    runtime.process.kill("SIGTERM");
+    runtime.signaler("SIGTERM");
     assert.equal(await runtime.fin, 0);
   });
 
@@ -613,7 +613,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     await runtime.attendre("démarré");
 
     assert.match(runtime.sortie(), /connection of `claude` — the account's own \(BRIGADE_CLAUDE_TOKEN_FILE is not set\)$/m);
-    runtime.process.kill("SIGTERM");
+    runtime.signaler("SIGTERM");
     assert.equal(await runtime.fin, 0);
   });
 
@@ -735,7 +735,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     const merge = journal.find((e) => e.type === "merge.done")?.payload;
     assert.deepEqual([merge?.by, merge?.actor], ["pass", "brigade-pass[bot]"]);
 
-    runtime.process.kill("SIGTERM");
+    runtime.signaler("SIGTERM");
     assert.equal(await runtime.fin, 0);
     // Ni jeton ni JWT : pas au journal, pas dans un flux, pas dans la sortie du runtime, pas dans le clone.
     const secrets = [...ROLES.flatMap((role) => apps.jetons(role)), ...apps.jwts(), "ghp_du_compte"];
@@ -816,7 +816,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     await jusqua(() => ouvert.etat().projets.some((projet) => projet.projet === "brigade" && projet.presence === "entendu"));
 
     // Le runtime s'arrête proprement : le projet rend sa part.
-    runtime.process.kill("SIGTERM");
+    runtime.signaler("SIGTERM");
     assert.equal(await runtime.fin, 0);
     await jusqua(() => ouvert.etat().projets[0]?.presence === "absent");
     assert.equal(relire(repertoire).some((e) => e.type === "station.unarbitrated"), false);
@@ -828,7 +828,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     const sansLui = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_ARBITER_PORT: String(serveur.port), NODE_OPTIONS: `--import=${SANS_RESEAU}` });
     await sansLui.attendre("mode dégradé");
     assert.deepEqual(relire(repertoire).findLast((e) => e.type === "station.unarbitrated")?.payload, { station: "box/claude", reason: "connexion refusée" });
-    sansLui.process.kill("SIGTERM");
+    sansLui.signaler("SIGTERM");
     assert.equal(await sansLui.fin, 0);
 
     // Sans arbitre désigné : une ligne au démarrage, et le mode dégradé d'avant est levé.

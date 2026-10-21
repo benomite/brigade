@@ -98,7 +98,7 @@ test("tant que le ticket qui prépare le dépôt n'est pas servi, la cuisine ne 
     faits("ticket.arrived").map((evenement) => evenement.ticket).sort(),
     [DU_CHEF, PREPARATION],
   );
-  station.process.kill("SIGTERM");
+  station.signaler("SIGTERM");
   assert.equal(await station.fin, 0);
 });
 
@@ -109,7 +109,7 @@ test("le ticket qui prépare le dépôt servi, la cuisine prend les autres", asy
     faits("ticket.taken").map((evenement) => evenement.ticket),
     [PREPARATION, DU_CHEF],
   );
-  station.process.kill("SIGTERM");
+  station.signaler("SIGTERM");
   assert.equal(await station.fin, 0);
 });
 

@@ -160,9 +160,9 @@ describe("les portes de la station", { concurrency: 4 }, () => {
     assert.match(tenues.sortie(), new RegExp(`portes de la station ouvertes — pid ${tenues.process.pid}, ports écrits dans ${fichier} ; 1 projet : calcul`));
     assert.deepEqual(Object.keys(lirePortes(fichier).projets), ["calcul"]);
     configurer(["calcul", "espace"]);
-    tenues.process.kill("SIGHUP");
+    tenues.signaler("SIGHUP");
     await jusqua(() => "espace" in lirePortes(fichier).projets);
-    tenues.process.kill("SIGTERM");
+    tenues.signaler("SIGTERM");
     assert.equal(await tenues.fin, 0);
     assert.match(tenues.sortie(), /portes de la station fermées \(SIGTERM\)/);
     // Les ports restent écrits : relancées, les portes les reprennent.

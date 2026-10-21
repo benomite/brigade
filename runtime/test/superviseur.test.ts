@@ -107,7 +107,8 @@ describe("superviser", { concurrency: true }, () => {
     assert.ok(!JSON.stringify(activite).includes("CODE_DU_COOK"));
   });
 
-  test("un process échappé du groupe garde les tubes ouverts : ce qui attendait son saut de ligne est écrit quand même, masqué et compté", async (t) => {
+  // Sous Windows, rien n'échappe à l'arbre du cook : ce petit-enfant y est tué avec lui (`arbre.test.ts`).
+  test("un process échappé du groupe garde les tubes ouverts : ce qui attendait son saut de ligne est écrit quand même, masqué et compté", { skip: process.platform === "win32" && "sous Windows, aucun process n'échappe à l'arbre du cook" }, async (t) => {
     const repertoire = repertoireTemporaire(t);
     const flux = join(repertoire, "run.jsonl");
     const echappe = join(repertoire, "echappe.pid");

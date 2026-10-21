@@ -304,7 +304,7 @@ test("de bout en bout : toutes les décisions posées pendant l'installation, le
   } finally {
     journal.fermer();
   }
-  runtime.process.kill("SIGTERM");
+  runtime.signaler("SIGTERM");
   assert.equal(await runtime.fin, 0);
 });
 

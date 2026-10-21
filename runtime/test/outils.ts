@@ -1,14 +1,16 @@
 // Outils communs aux tests. Aucun test ne lit BRIGADE_STATE_DIR : chacun crée
 // son répertoire d'état temporaire, détruit à la fin du test.
 import assert from "node:assert/strict";
-import { execFileSync, spawn, type ChildProcess } from "node:child_process";
+import { execFileSync, spawn, type ChildProcess, type ChildProcessByStdio } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { createServer, type AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
+import type { Readable, Writable } from "node:stream";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
 import { pathToFileURL } from "node:url";
 import { Sortie, type Commande } from "../src/appel.ts";
+import { signalerLArbre } from "../src/arbre.ts";
 import type { Fait } from "../src/evenements.ts";
 import { DECISIONS } from "../src/decisions.ts";
 import { ouvrirJournal, type Journal } from "../src/journal.ts";
@@ -22,6 +24,9 @@ export const FAUX_CLAUDE = join(import.meta.dirname, "aides/faux-claude.sh");
 export const SANS_RESEAU = pathToFileURL(join(import.meta.dirname, "aides/sans-reseau.ts")).href;
 
 // La doublure de `bwrap` : ne cloisonne rien, note ce qu'on lui a demandé.
+const SOUS_WINDOWS = process.platform === "win32";
+const SIGNAUX = pathToFileURL(join(import.meta.dirname, "aides/signaux.ts")).href;
+
 export const FAUX_BWRAP = join(import.meta.dirname, "aides/faux-bwrap.sh");
 
 // Les arguments de chaque lancement que la doublure de `bwrap` a noté dans le
@@ -115,7 +120,7 @@ export function tuerLesRelais(repertoire: string): void {
       tuer(relais);
       // Sa fin écrite juste avant sa mort, le groupe du cook est déjà tué.
       if (existsSync(`${racine}.fin.json`)) continue;
-      if (existsSync(`${racine}.cook.pid`)) tuer(-Number(readFileSync(`${racine}.cook.pid`, "utf8")));
+      if (existsSync(`${racine}.cook.pid`)) signalerLArbre(Number(readFileSync(`${racine}.cook.pid`, "utf8")), "SIGKILL");
     } catch {
       // Un fichier illisible : rien à tuer.
     }
@@ -209,6 +214,8 @@ export function photographier(journal: Journal, projections: Projection[]): Reco
 
 export type Enfant = {
   process: ChildProcess;
+  // Donne un signal au process : sous Windows, par son entrée (aides/signaux.ts).
+  signaler: (signal: "SIGTERM" | "SIGINT" | "SIGHUP") => void;
   sortie: () => string;
   // Résout dès que la sortie (stdout + stderr) contient `texte`.
   attendre: (texte: string) => Promise<void>;
@@ -256,11 +263,13 @@ export function rienEcritParLeRuntime(repertoire: string): boolean {
 // Lance un fichier TypeScript dans un vrai process Node, tué à la fin du test
 // s'il vit encore. L'environnement est celui qu'on lui donne, plus ENV_ENFANT :
 // un BRIGADE_STATE_DIR posé dans le shell du dev ne lui parvient jamais.
+// Sous Windows, où aucun signal ne se donne, il reçoit les siens par son entrée.
 export function lancer(t: TestContext, fichier: string, args: string[] = [], env: Record<string, string> = {}): Enfant {
-  const enfant = spawn(process.execPath, [fichier, ...args], {
+  const enfant = spawn(process.execPath, [...(SOUS_WINDOWS ? [`--import=${SIGNAUX}`] : []), fichier, ...args], {
     env: { ...ENV_ENFANT, ...decisionsAuJournal(fichier, env) },
-    stdio: ["ignore", "pipe", "pipe"],
-  });
+    stdio: [SOUS_WINDOWS ? "pipe" : "ignore", "pipe", "pipe"],
+  }) as ChildProcessByStdio<Writable | null, Readable, Readable>;
+  enfant.stdin?.on("error", () => {});
   let sortie = "";
   const attentes: Array<() => void> = [];
   const noter = (morceau: Buffer) => {
@@ -276,6 +285,10 @@ export function lancer(t: TestContext, fichier: string, args: string[] = [], env
   });
   return {
     process: enfant,
+    signaler: (signal) => {
+      if (SOUS_WINDOWS) enfant.stdin?.write(`${signal}\n`);
+      else enfant.kill(signal);
+    },
     sortie: () => sortie,
     fin,
     attendre: (texte) =>
@@ -461,6 +474,10 @@ export function fauxGh(t: TestContext): FauxGh {
   };
 }
 
+// Un texte à chercher tel quel dans une expression régulière : un chemin de
+// Windows y porte des contre-obliques, qui y seraient des échappements.
+export const litteral = (texte: string) => texte.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 // Attend qu'une condition devienne vraie, sans dormir plus que nécessaire.
 // Le délai n'est pas une attente : il ne sert qu'à ce qu'un test cassé finisse
 // par le dire. Il est donc large — sur une machine où d'autres suites tournent
@@ -546,9 +563,11 @@ export function depotGit(t: TestContext): { origine: string; clone: string } {
   const racine = repertoireTemporaire(t);
   cpSync(modele, racine, { recursive: true });
   const [origine, clone] = [join(racine, "origine.git"), join(racine, "clone")];
-  // Le gabarit ne connaît pas l'adresse de l'origine de ce test.
+  // Le gabarit ne connaît pas l'adresse de l'origine de ce test. Écrite en
+  // barres obliques : dans la configuration de git, la contre-oblique d'un
+  // chemin de Windows serait un échappement, et le fichier illisible.
   const config = join(clone, ".git/config");
-  writeFileSync(config, readFileSync(config, "utf8").replaceAll(ORIGINE_DU_GABARIT, origine));
+  writeFileSync(config, readFileSync(config, "utf8").replaceAll(ORIGINE_DU_GABARIT, origine.replaceAll("\\", "/")));
   return { origine, clone };
 }
 

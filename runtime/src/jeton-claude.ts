@@ -34,6 +34,7 @@
 import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { isAbsolute, relative, resolve } from "node:path";
 import { format } from "node:util";
+import { lisibleParDAutres } from "./droits.ts";
 import { PREAVIS_DU_JETON_JOURS, VIE_DU_JETON_JOURS, type ObservationDuJeton } from "./events/token.ts";
 import { masquerIdentifiants, retenirJeton } from "./identifiants.ts";
 import { jetonObserve } from "./projections/token.ts";
@@ -84,7 +85,7 @@ export function configJeton(env: Record<string, string | undefined>, lieux: { re
   } catch {
     return refuser("est illisible ou absent");
   }
-  if ((mode & 0o077) !== 0) refuser("est lisible par d'autres que le compte du service — c'est le jeton de la connexion Max : chmod 600");
+  if (lisibleParDAutres(mode)) refuser("est lisible par d'autres que le compte du service — c'est le jeton de la connexion Max : chmod 600");
   // Ni dans ce que `sauvegarder` emporte, ni dans un worktree, ni dans ce qui
   // se commite.
   if (dans(lieux.repertoireEtat, reel(fichier)) || dans(lieux.clone, reel(fichier))) {

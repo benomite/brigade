@@ -229,6 +229,6 @@ test("de bout en bout : sur un runtime qui tourne sans station, l'action déclar
   const lance = evenements(etat).find((e) => e.type === "cook.launched");
   assert.equal(lance?.ticket, 15);
   assert.ok(evenements(etat).some((e) => e.type === "station.announced" && e.payload.station === "box/claude"));
-  runtime.process.kill("SIGTERM");
+  runtime.signaler("SIGTERM");
   assert.equal(await runtime.fin, 0);
 });

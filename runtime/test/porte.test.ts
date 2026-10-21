@@ -347,7 +347,7 @@ describe("la porte", { concurrency: 8 }, () => {
     assert.equal(refus()[0]?.author, "porte");
     assert.match(tenue.sortie(), /outgoing connection refused — pirate\.exemple\.test:443/);
 
-    tenue.process.kill("SIGTERM");
+    tenue.signaler("SIGTERM");
     assert.equal(await tenue.fin, 0);
   });
 

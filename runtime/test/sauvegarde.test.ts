@@ -394,7 +394,7 @@ describe("sauvegarder et restaurer, en commandes", { concurrency: 8 }, () => {
     assert.match(await lire("montrer-pass.ts", "17"), /GREEN — gates green/);
     assert.equal(readFileSync(join(neuf, "runs", `${run}.jsonl`), "utf8"), readFileSync(join(ancienne.repertoire, "runs", `${run}.jsonl`), "utf8"));
 
-    runtime.process.kill("SIGTERM");
+    runtime.signaler("SIGTERM");
     assert.equal(await runtime.fin, 0);
   });
 });
