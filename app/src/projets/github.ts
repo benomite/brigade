@@ -19,7 +19,7 @@ function echec(reglages: Reglages, erreur: ExecFileException, erreurs: string): 
 export function depotsDuChef(reglages: Reglages): () => Promise<DepotDuChef[]> {
   const appeler = (chemin: string): Promise<string> =>
     new Promise((resoudre, rejeter) => {
-      execFile(reglages.gh, ["api", chemin], { timeout: reglages.delaiMs, maxBuffer: 32 * 1024 * 1024, env: { ...process.env, GH_PROMPT_DISABLED: "1", NO_COLOR: "1" } }, (erreur, sortie, erreurs) =>
+      execFile(reglages.gh, ["api", chemin], { windowsHide: true, timeout: reglages.delaiMs, maxBuffer: 32 * 1024 * 1024, env: { ...process.env, GH_PROMPT_DISABLED: "1", NO_COLOR: "1" } }, (erreur, sortie, erreurs) =>
         erreur === null ? resoudre(sortie) : rejeter(new Error(echec(reglages, erreur, erreurs))),
       );
     });

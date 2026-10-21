@@ -37,7 +37,7 @@ export function ticketsDe(sortie: string): TicketDeFeu[] | string {
 
 export function lireFeu(reglages: Reglages, dossier: string, maintenant = () => new Date()): Promise<Feu> {
   return new Promise((resoudre) => {
-    execFile(reglages.gh, ARGS, { cwd: dossier, timeout: reglages.delaiMs, maxBuffer: 16 * 1024 * 1024, env: { ...process.env, GH_PROMPT_DISABLED: "1", NO_COLOR: "1" } }, (erreur, sortie, erreurs) => {
+    execFile(reglages.gh, ARGS, { windowsHide: true, cwd: dossier, timeout: reglages.delaiMs, maxBuffer: 16 * 1024 * 1024, env: { ...process.env, GH_PROMPT_DISABLED: "1", NO_COLOR: "1" } }, (erreur, sortie, erreurs) => {
       const a = maintenant().toISOString();
       const lance = `$ ${reglages.gh} ${ARGS.join(" ")}`;
       if (erreur !== null) {

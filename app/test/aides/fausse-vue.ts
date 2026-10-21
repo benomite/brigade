@@ -233,6 +233,14 @@ export class FauxXterm {
     this.filtre = filtre;
   }
   onResize(): void {}
+  // Ce que le chef y a sélectionné : un test le pose, comme le chef à la souris.
+  selection = "";
+  hasSelection(): boolean {
+    return this.selection !== "";
+  }
+  getSelection(): string {
+    return this.selection;
+  }
   // Combien de fois il a pris le clavier.
   focalise = 0;
   focus(): void {

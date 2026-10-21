@@ -510,15 +510,18 @@ describe("le runner du poste, pièce par pièce", () => {
   test("le runner n'écoute rien : il n'importe aucun module qui ouvre un serveur, et ne lance que `ssh`, `git` et `claude`", () => {
     const source = readFileSync(join(import.meta.dirname, "../src/runner.ts"), "utf8");
     const importes = [...source.matchAll(/^import .* from "([^"]+)";$/gm)].map(([, module]) => module);
-    assert.deepEqual(importes, ["node:child_process", "node:crypto", "node:fs", "node:path", "node:readline", "node:timers/promises", "./box.ts", "./config.ts"]);
+    assert.deepEqual(importes, ["node:child_process", "node:crypto", "node:fs", "node:path", "node:readline", "node:timers/promises", "./box.ts", "./config.ts", "./plateforme.ts"]);
     assert.equal(/createServer|\.listen\(|node:(net|http|https|http2|tls|dgram)/.test(source), false);
-    // Ce que ses deux modules de l'app importent à leur tour n'en ouvre pas davantage.
-    for (const module of ["box.ts", "config.ts"]) {
+    // Ce que ses trois modules de l'app importent à leur tour n'en ouvre pas davantage.
+    for (const module of ["box.ts", "config.ts", "plateforme.ts"]) {
       assert.equal(/createServer|\.listen\(|node:(net|http|https|http2|tls|dgram)/.test(readFileSync(join(import.meta.dirname, "../src", module), "utf8")), false, module);
     }
     // Trois programmes, chacun par le réglage qui le nomme : rien d'autre n'est lancé d'ici.
     const lances = [...source.matchAll(/\b(?:execFile|spawn)\(([^,]+),/g)].map(([, programme]) => programme);
     assert.deepEqual(lances.sort(), ["options.claude", "options.git", "reglages.ssh"]);
+    // Sous Windows, l'arbre d'un cook qu'on arrête l'est par `taskkill` (plateforme.ts) : seul programme qu'il y lance.
+    const arret = readFileSync(join(import.meta.dirname, "../src/plateforme.ts"), "utf8");
+    assert.deepEqual([...arret.matchAll(/\b(?:execFile|spawn)\(([^,]+),/g)].map(([, programme]) => programme), ['"taskkill"']);
     // Et rien de ce poste ne part vers la box : il ne lit ni son nom ni ses adresses — les
     // arguments de chaque `ssh` sont comparés un à un dans le test de bout en bout.
     assert.equal(/hostname|networkInterfaces|node:os/.test(source), false);

@@ -94,7 +94,7 @@ const vivant = (pid: number) => {
 // Un essai : un faux `ssh` — il lance `aides/faux-transfert.ts` dans le mode dit —, la
 // commande d'ouverture du poste remplacée par une liste, et les pages branchées dessus
 // comme dans le process principal (main.ts).
-function essai(t: TestContext, mode: "relaie" | "ouvre" | "refuse" | "muet" = "relaie", reglages: Partial<Reglages> = {}, ouvrir?: (url: string) => Promise<void>) {
+function essai(t: TestContext, mode: "relaie" | "ouvre" | "refuse" | "muet" = "relaie", reglages: Partial<Reglages> = {}, ouvrir?: (url: string) => Promise<void>, plateforme?: string) {
   const racine = mkdtempSync(join(tmpdir(), "brigade-app-page-"));
   const ssh = join(racine, "ssh");
   writeFileSync(ssh, `#!/bin/sh\nexec '${process.execPath}' '${AIDE}' '${racine}' ${mode} "$@"\n`);
@@ -102,7 +102,7 @@ function essai(t: TestContext, mode: "relaie" | "ouvre" | "refuse" | "muet" = "r
 
   const ouvertes: string[] = [];
   const pages = tenirPages({
-    transferer: (servi, port, signal) => ouvrirTransfert({ ssh, delaiMs: 60_000, connexionS: 10, ...reglages }, servi, port, signal),
+    transferer: (servi, port, signal) => ouvrirTransfert({ ssh, delaiMs: 60_000, connexionS: 10, ...reglages }, servi, port, signal, plateforme),
     ouvrir: ouvrir ?? (async (url) => void ouvertes.push(url)),
   });
   t.after(() => {
@@ -331,6 +331,21 @@ describe("le geste : la page du worktree, dans le navigateur du poste", () => {
     assert.equal(page.dit?.ouverte, true);
     assert.ok(page.dit?.texte.startsWith(`opened in your browser: http://127.0.0.1:${local}/rail — `));
     assert.ok(page.dit?.texte.includes(`to port ${local} on this workstation (port ${port} is taken there)`));
+  });
+
+  test("sous Windows, dont le `ssh` n'ouvre pas de prise Unix, `ssh` écoute sur un port de ce poste, sur 127.0.0.1 seulement — la page arrive pareil", async (t) => {
+    const port = await servir(t, "la page du worktree 412");
+    const { pages, ouvertes, appels } = essai(t, "relaie", {}, undefined, "win32");
+    pages.recevoir(lue(status(SERVEURS(1), serveur(412, port), "")));
+
+    const page = seule(await pages.ouvrir(CALCULUS, WORKTREE));
+
+    assert.equal(page.dit?.ouverte, true);
+    assert.equal(await lire(ouvertes[0] as string), "la page du worktree 412");
+    const [, prise] = TRANSFERT.exec(appels()[0] as string) ?? [];
+    assert.match(prise ?? "", /^127\.0\.0\.1:\d+$/);
+    // Ni le port du worktree, ni celui où la page s'ouvre : celui de `ssh`, que l'app relaie.
+    assert.notEqual(prise, `127.0.0.1:${portDe(ouvertes[0])}`);
   });
 
   test("le port de ce poste est celui du worktree quand il y est libre : l'adresse est celle que `station` écrit", async (t) => {

@@ -1,0 +1,36 @@
+# Joue les tests de l'app et son contrôle de types sous Windows (#1154) : l'app tourne sur un PC avec
+# les mêmes écrans et les mêmes gestes que sur le Mac. Sur une PR qui touche app/ (ou ce fichier), et
+# à la demande. Les dépendances sont posées sans leurs scripts, comme par le setup de worktree : pas
+# de binaire d'Electron, qu'aucun test ne lance. Les tests dont les doublures sont des scripts POSIX
+# (`#!/bin/sh`, un `.ts` à shebang) sont sautés là, en le disant (app/test/aides/posix.ts).
+# Rien n'y est construit ni publié : le paquet Windows et sa mise à jour sont d'autres tickets.
+name: app-windows
+
+on:
+  pull_request:
+    paths:
+      - "app/**"
+      - ".github/workflows/app-windows.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: app-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+      - name: Installer les dépendances de l'app
+        run: npm ci --ignore-scripts --prefix app
+      - name: Tests de l'app
+        run: npm --prefix app test
+      - name: Contrôle de types de l'app
+        run: npm --prefix app run typecheck

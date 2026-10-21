@@ -15,14 +15,16 @@
 // service qui fait tourner la cuisine.
 //
 // La session est réglée pour se comporter comme un terminal ordinaire : rien n'y
-// capture la souris (la sélection, Cmd+C et Cmd+V restent ceux de la vue), aucun
+// capture la souris (la sélection, la copie et le collage restent ceux de la vue), aucun
 // mode de copie n'est à apprendre, et aucune touche n'est prise par le multiplexeur.
 // Le second ne passe jamais par ici.
 import { execFile, type ExecFileException } from "node:child_process";
 import { createHash } from "node:crypto";
 
-// `poste` : ce Mac. `box`, `station` : une machine que `ssh` joint par `hote`. `nom` est
-// celui sous lequel le chef la connaît.
+// `poste` : cet ordinateur — un Mac ou un Linux : Windows n'a ni `sh`, ni `tmux`, ni `screen`, et
+// aucun shell de ce poste n'y passe par ici (terminaux.ts, `persistantIci`). `box`, `station` : une
+// machine que `ssh` joint par `hote` — depuis Windows aussi, par son `ssh`. `nom` est celui sous
+// lequel le chef la connaît.
 export type Cible = { lieu: "poste" } | { lieu: "box" | "station"; nom: string; hote: string };
 export type Session = { nom: string; cible: Cible };
 export type Commande = { commande: string; args: string[] };
@@ -120,7 +122,7 @@ export const sonde = (cible: Cible, ssh = "ssh", connexionS = 10): Commande =>
 export function joindre(cible: Cible, reglages: { ssh?: string; delaiMs?: number; connexionS?: number; env?: NodeJS.ProcessEnv } = {}): Promise<{ joint: true } | { erreur: string }> {
   const { commande, args } = sonde(cible, reglages.ssh, reglages.connexionS);
   return new Promise((rendre) => {
-    execFile(commande, args, { timeout: reglages.delaiMs ?? 30_000, env: reglages.env ?? process.env }, (erreur: ExecFileException | null, _, erreurs) => {
+    execFile(commande, args, { windowsHide: true, timeout: reglages.delaiMs ?? 30_000, env: reglages.env ?? process.env }, (erreur: ExecFileException | null, _, erreurs) => {
       if (erreur === null) return rendre({ joint: true });
       const dit = String(erreurs).trim().split("\n").at(-1)?.trim();
       const suite = erreur.killed === true ? "no answer in time" : typeof erreur.code === "number" ? `exit code ${erreur.code}` : erreur.message;
@@ -139,7 +141,7 @@ export const destruction = ({ nom, cible }: Session, ssh = "ssh", connexionS = 1
 export function detruire(session: Session, reglages: { ssh?: string; delaiMs?: number; connexionS?: number; env?: NodeJS.ProcessEnv } = {}): Promise<{ detruite: true } | { erreur: string }> {
   const { commande, args } = destruction(session, reglages.ssh, reglages.connexionS);
   return new Promise((rendre) => {
-    execFile(commande, args, { timeout: reglages.delaiMs ?? 30_000, env: reglages.env ?? process.env }, (erreur: ExecFileException | null, sortie, erreurs) => {
+    execFile(commande, args, { windowsHide: true, timeout: reglages.delaiMs ?? 30_000, env: reglages.env ?? process.env }, (erreur: ExecFileException | null, sortie, erreurs) => {
       if (erreur === null) return rendre({ detruite: true });
       const suite = erreur.killed === true ? "stopped: no answer in time" : typeof erreur.code === "number" ? `exit code ${erreur.code}` : erreur.message;
       rendre({ erreur: `$ ${commande} ${args.join(" ")}\n${erreurs}${sortie}\n→ ${suite}` });

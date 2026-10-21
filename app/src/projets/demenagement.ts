@@ -51,7 +51,7 @@ export function demenageurDuRuntime(reglages: ReglagesDuDemenagement): Demenageu
   return (projet, vers, gists) =>
     new Promise((resoudre) => {
       const args = [join(reglages.runtime, DEMENAGER), projet, vers, ...gists.filter((gist) => gist !== vers)];
-      execFile(reglages.node, args, { cwd: reglages.runtime, env: { ...reglages.env, BRIGADE_STATION_DIR: reglages.racine }, timeout: reglages.delaiMs, maxBuffer: 4 * 1024 * 1024 }, (erreur, sortie, erreurs) => {
+      execFile(reglages.node, args, { windowsHide: true, cwd: reglages.runtime, env: { ...reglages.env, BRIGADE_STATION_DIR: reglages.racine }, timeout: reglages.delaiMs, maxBuffer: 4 * 1024 * 1024 }, (erreur, sortie, erreurs) => {
         if (erreur !== null && typeof erreur.code !== "number") {
           const pourquoi = erreur.killed === true ? `no answer within ${Math.round(reglages.delaiMs / 1000)} s` : erreur.message;
           return resoudre({ refus: "the runtime could not be launched on this computer: nothing was changed", detail: `${reglages.node} ${args.join(" ")}\n${pourquoi}` });

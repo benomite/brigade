@@ -154,7 +154,7 @@ type Rendu = { erreur: ExecFileException | null; sortie: string; erreurs: string
 // `gh` lancé une fois. Sans terminal, il ne demande rien : `GH_PROMPT_DISABLED`.
 export function lancer(reglages: Reglages, args: string[], entree?: string): Promise<Rendu> {
   return new Promise((resoudre) => {
-    const enfant = execFile(reglages.gh, args, { timeout: reglages.delaiMs, maxBuffer: 16 * 1024 * 1024, env: { ...process.env, GH_PROMPT_DISABLED: "1", NO_COLOR: "1" } }, (erreur, sortie, erreurs) =>
+    const enfant = execFile(reglages.gh, args, { windowsHide: true, timeout: reglages.delaiMs, maxBuffer: 16 * 1024 * 1024, env: { ...process.env, GH_PROMPT_DISABLED: "1", NO_COLOR: "1" } }, (erreur, sortie, erreurs) =>
       resoudre({ erreur, sortie, erreurs }),
     );
     // Un `gh` absent ferme son entrée avant qu'on y écrive : l'erreur est celle de son lancement.

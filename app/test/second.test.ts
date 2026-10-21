@@ -30,9 +30,10 @@ const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "sec
 const AUTRE: Terminal = { id: 7, projet: "fanfare", genre: "second", titre: "second · claude", note: "session neuve", arrete: false };
 const SHELL: Terminal = { id: 2, projet: "parade", genre: "shell", titre: "shell 1", note: "", arrete: false };
 
-async function ouvrir(reponses: Reponses = {}, projets: Projet[] = [PARADE, FANFARE]): Promise<Jouee> {
+async function ouvrir(reponses: Reponses = {}, projets: Projet[] = [PARADE, FANFARE], poste?: { nom: string; mac: boolean }): Promise<Jouee> {
   const vue = await jouerLaVue({
     demarrage: () => ({
+      ...(poste === undefined ? {} : { poste }),
       configuration: pourLaBarre({ chemin: "/tmp/app.json", projets, hotes: ["box"] }),
       palette: PALETTE,
       exemple: EXEMPLE,
@@ -196,6 +197,38 @@ describe("le second est une colonne à droite, pas une page", () => {
     assert.deepEqual(ecrits().at(-1), [SECOND.id, "\x1bb"]);
     // Sans modificateur, les flèches et ⌫ restent à xterm.
     for (const key of ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Backspace"]) assert.equal(second?.filtre?.(t(key, {})), true);
+  });
+
+  test("hors d'un Mac, Ctrl copie et colle comme dans le Terminal de Windows ; sur un Mac, Ctrl reste au shell", async (t) => {
+    const copies: string[] = [];
+    Object.defineProperty(globalThis.navigator, "clipboard", { value: { writeText: async (texte: string) => void copies.push(texte) }, configurable: true });
+    t.after(() => Reflect.deleteProperty(globalThis.navigator, "clipboard"));
+    const ctrl = (key: string, shiftKey = false, type = "keydown") => ({ key, shiftKey, ctrlKey: true, type });
+    const ecrits = (vue: Jouee) => vue.appels.filter(({ geste }) => geste === "ecrire").map(({ args }) => args);
+
+    const pc = await ouvrir({}, [PARADE, FANFARE], { nom: "this PC", mac: false });
+    const [second] = pc.xterms;
+    // Sans sélection, Ctrl+C reste au shell — il interrompt ; Ctrl+Shift+C ne copie rien.
+    assert.equal(second?.filtre?.(ctrl("c")), true);
+    assert.equal(second?.filtre?.(ctrl("C", true)), false);
+    assert.deepEqual(copies, []);
+    // Avec une sélection, Ctrl+C et Ctrl+Shift+C la copient, et rien n'est écrit dans le terminal.
+    if (second !== undefined) second.selection = "brigade parade status";
+    assert.equal(second?.filtre?.(ctrl("c")), false);
+    assert.equal(second?.filtre?.(ctrl("c", false, "keyup")), false);
+    assert.equal(second?.filtre?.(ctrl("C", true)), false);
+    assert.deepEqual(copies, ["brigade parade status", "brigade parade status"]);
+    // Ctrl+V et Ctrl+Shift+V sont laissés au navigateur, qui colle.
+    assert.equal(second?.filtre?.(ctrl("v")), false);
+    assert.equal(second?.filtre?.(ctrl("V", true)), false);
+    assert.deepEqual(ecrits(pc), []);
+
+    const mac = await ouvrir();
+    const [sienne] = mac.xterms;
+    if (sienne !== undefined) sienne.selection = "brigade parade status";
+    assert.equal(sienne?.filtre?.(ctrl("c")), true);
+    assert.equal(sienne?.filtre?.(ctrl("v")), true);
+    assert.equal(copies.length, 2);
   });
 
   test("chaque projet montre son second ; revenir sur un projet rend le sien, tel qu'il était", async () => {

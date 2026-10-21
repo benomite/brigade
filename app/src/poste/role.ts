@@ -6,9 +6,10 @@
 // peut y cuire. Sur un téléphone, elle est un poste : elle pilote, elle ne cuit
 // pas — la station n'y est pas démarrée, et rien n'y lance de cook.
 //
-// C'est le seul endroit où la plateforme compte : tout ce qui suit — lancer la
+// C'est le seul endroit de ce dossier où la plateforme compte : tout ce qui suit — lancer la
 // station, l'appairer, lui ajouter des projets, y cuire — est le même code,
-// quelle que soit la machine (poste/station.ts).
+// quelle que soit la machine (poste/station.ts). Ce qui change d'un ordinateur à l'autre — le nom
+// de ce poste à l'écran, son shell, l'arrêt d'un process — est dans ../plateforme.ts.
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 

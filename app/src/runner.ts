@@ -28,6 +28,7 @@ import { createInterface } from "node:readline";
 import { setTimeout as attendre } from "node:timers/promises";
 import { cite, echecDe, type Servi } from "./box.ts";
 import { MOTEUR, type Projet } from "./config.ts";
+import { arreterLArbre, enGroupe } from "./plateforme.ts";
 
 // --- Ce que la box répond. La forme est la sienne (`runtime/src/events/remote.ts`) :
 // le runner n'en lit que ce qu'il lui faut.
@@ -176,7 +177,7 @@ export function tirer(reglages: Reglages, { nom, box }: Servi, station: string, 
   const lance = `$ ${reglages.ssh} ${args.join(" ")}`;
   return new Promise((resoudre) => {
     if (signal?.aborted) return resoudre({ muette: "request abandoned before it left" });
-    const enfant = execFile(reglages.ssh, args, { signal, timeout: reglages.delaiMs, maxBuffer: 16 * 1024 * 1024 }, (erreur, sortie, erreurs) => {
+    const enfant = execFile(reglages.ssh, args, { windowsHide: true, signal, timeout: reglages.delaiMs, maxBuffer: 16 * 1024 * 1024 }, (erreur, sortie, erreurs) => {
       const code = erreur === null ? 0 : erreur.code;
       if ((code === 0 || code === 1) && erreur?.killed !== true) {
         try {
@@ -291,7 +292,7 @@ export function ouvrirRunner(options: OptionsDuRunner) {
 
   const git = (dossier: string, ...args: string[]): Promise<string> =>
     new Promise((resoudre, rejeter) => {
-      execFile(options.git, ["-C", dossier, ...args], { env: envGit, timeout: options.gitMs, maxBuffer: 64 * 1024 * 1024 }, (erreur, sortie, erreurs) => {
+      execFile(options.git, ["-C", dossier, ...args], { windowsHide: true, env: envGit, timeout: options.gitMs, maxBuffer: 64 * 1024 * 1024 }, (erreur, sortie, erreurs) => {
         if (erreur === null) return resoudre(sortie);
         // Le geste, nommé par sa sous-commande : le premier mot qui n'est ni une option ni un réglage.
         rejeter(new Error(`git ${args.find((arg) => !arg.startsWith("-") && !arg.includes("=")) ?? ""} : ${String(erreurs).trim() || erreur.message}`));
@@ -468,16 +469,12 @@ export function ouvrirRunner(options: OptionsDuRunner) {
       if (station.arret.signal.aborted) return;
 
       // `detached` : le cook est chef de son groupe, et un signal envoyé au
-      // groupe atteint aussi ce qu'il a lancé.
-      const enfant = spawn(options.claude, mission.args, { cwd: worktree, env: environnementCook(options.env), detached: true, stdio: ["ignore", "pipe", "pipe"] });
+      // groupe atteint aussi ce qu'il a lancé. Sous Windows, c'est son arbre qui est arrêté (plateforme.ts).
+      const enfant = spawn(options.claude, mission.args, { cwd: worktree, env: environnementCook(options.env), detached: enGroupe(process.platform), windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
       let mort = false;
       const signaler = (signal: NodeJS.Signals) => {
         if (mort || enfant.pid === undefined) return;
-        try {
-          process.kill(-enfant.pid, signal);
-        } catch {
-          // Le groupe n'existe plus : il n'y a plus personne à arrêter.
-        }
+        arreterLArbre(enfant.pid, signal, process.platform);
       };
       let grace: NodeJS.Timeout | undefined;
       cook.arreter = (motif) => {
@@ -523,11 +520,7 @@ export function ouvrirRunner(options: OptionsDuRunner) {
       mort = true;
       clearTimeout(grace);
       // Rien ne survit à son cook : ce qui reste de son groupe est tué maintenant.
-      try {
-        if (enfant.pid !== undefined) process.kill(-enfant.pid, "SIGKILL");
-      } catch {
-        // Plus personne.
-      }
+      if (enfant.pid !== undefined) arreterLArbre(enfant.pid, "SIGKILL", process.platform);
       // Un process échappé du groupe peut tenir le tube ouvert : il n'est pas attendu sans fin.
       await Promise.race([lu, attendre(options.graceMs ?? GRACE_MS, undefined, { ref: false })]);
       lignes.close();

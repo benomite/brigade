@@ -8,7 +8,7 @@
 // que le chef choisit.
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, isAbsolute, join } from "node:path";
+import { dirname, isAbsolute, join, sep } from "node:path";
 import { ordinairesLus } from "./ordinaires.ts";
 import { couleursLues, entieres, estCouleur, ROLES, tirer, type Couleurs, type Role } from "./couleurs.ts";
 
@@ -97,7 +97,8 @@ function comprendre(chemin: string, texte: string, maison: string): Configuratio
     const lequel = `project #${rang + 1} (${nom})`;
     if (typeof dossier !== "string" || dossier === "") return refuse(`${lequel}: “dossier” is missing`);
     if (projets.some((projet) => projet.nom === nom)) return refuse(`two projects are named “${nom}”`);
-    const absolu = dossier === "~" || dossier.startsWith("~/") ? join(maison, dossier.slice(1)) : dossier;
+    // `~\` aussi, comme on l'écrit sous Windows.
+    const absolu = dossier === "~" || dossier.startsWith("~/") || (sep === "\\" && dossier.startsWith("~\\")) ? join(maison, dossier.slice(1)) : dossier;
     if (!isAbsolute(absolu)) return refuse(`${lequel}: “dossier” must be an absolute path, or start with ~/`);
     // Le fichier d'avant dictait une ligne de commande : il le dit, plutôt que d'être lu à moitié.
     if (commande !== undefined) return refuse(`${lequel}: “commande” is no longer read — remove it: the app runs the station's action (\`ssh <hote> brigade ${nom} <commande>\`), “hote” is all it needs`);

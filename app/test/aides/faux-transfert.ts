@@ -21,13 +21,17 @@ if (mode === "refuse") {
 } else if (mode === "muet") {
   setInterval(() => {}, 3_600_000);
 } else {
-  // `-L <prise>:127.0.0.1:<port>`
-  const [prise = "", , port] = (args[args.indexOf("-L") + 1] ?? "").split(":");
-  createServer((venue) => {
+  // `-L <prise>:127.0.0.1:<port>`, ou — sous Windows — `-L 127.0.0.1:<port local>:127.0.0.1:<port>`.
+  const morceaux = (args[args.indexOf("-L") + 1] ?? "").split(":");
+  const enTcp = morceaux.length === 4;
+  const port = morceaux.at(-1);
+  const serveur = createServer((venue) => {
     if (mode === "ouvre") return venue.destroy();
     const vers = connect({ host: "127.0.0.1", port: Number(port) });
     venue.on("error", () => vers.destroy());
     vers.on("error", () => venue.destroy());
     venue.pipe(vers).pipe(venue);
-  }).listen(prise);
+  });
+  if (enTcp) serveur.listen(Number(morceaux[1]), morceaux[0]);
+  else serveur.listen(morceaux[0]);
 }

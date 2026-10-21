@@ -69,7 +69,7 @@ export function lancerGeste(reglages: Reglages, { nom, box }: Servi, commande: s
   // Sans terminal, `ssh` ne peut rien demander : il échoue plutôt que d'attendre un mot de passe.
   const args = ["-o", "BatchMode=yes", "-o", `ConnectTimeout=${reglages.connexionS}`, "--", box.hote, `brigade ${cite(nom)} ${commande}`];
   return new Promise((resoudre) => {
-    execFile(reglages.ssh, args, { signal, timeout: reglages.delaiMs, maxBuffer: 16 * 1024 * 1024 }, (erreur, sortie, erreurs) => resoudre({ lance: `$ ${reglages.ssh} ${args.join(" ")}`, erreur, sortie, erreurs }));
+    execFile(reglages.ssh, args, { windowsHide: true, signal, timeout: reglages.delaiMs, maxBuffer: 16 * 1024 * 1024 }, (erreur, sortie, erreurs) => resoudre({ lance: `$ ${reglages.ssh} ${args.join(" ")}`, erreur, sortie, erreurs }));
   });
 }
 
@@ -106,7 +106,7 @@ export function mots(commande: string): string[] {
 export function lancerIci(locale: Locale, nom: string, commande: string, delaiMs: number, signal?: AbortSignal): Promise<Rendu> {
   const args = [join(locale.runtime, GESTE), nom, ...mots(commande)];
   return new Promise((resoudre) => {
-    execFile(locale.node, args, { cwd: locale.runtime, env: { ...locale.env, BRIGADE_STATION_DIR: locale.racine }, signal, timeout: delaiMs, maxBuffer: 16 * 1024 * 1024 }, (erreur, sortie, erreurs) =>
+    execFile(locale.node, args, { windowsHide: true, cwd: locale.runtime, env: { ...locale.env, BRIGADE_STATION_DIR: locale.racine }, signal, timeout: delaiMs, maxBuffer: 16 * 1024 * 1024 }, (erreur, sortie, erreurs) =>
       resoudre({ lance: `$ ${locale.node} ${args.join(" ")}`, erreur, sortie, erreurs }),
     );
   });

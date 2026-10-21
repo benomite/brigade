@@ -52,7 +52,12 @@ if (import.meta.main) {
   process.exitCode = preparer({
     app,
     node: process.execPath,
-    executer: (commande, args) => spawnSync(commande, args, { cwd: app, stdio: "inherit" }).status ?? 1,
+    // `npm` est rejoué par le `node` qui joue `npm start`, sur le script que npm lui donne : sous
+    // Windows, `npm` est un `npm.cmd`, qu'aucun process ne lance sans passer par `cmd.exe`.
+    executer: (commande, args) => {
+      const npm = commande === "npm" ? process.env.npm_execpath : undefined;
+      return (npm === undefined ? spawnSync(commande, args, { cwd: app, stdio: "inherit" }) : spawnSync(process.execPath, [npm, ...args], { cwd: app, stdio: "inherit" })).status ?? 1;
+    },
     dire: (ligne) => console.error(ligne),
   });
 }
