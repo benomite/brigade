@@ -259,7 +259,7 @@ sandbox's proxy, no `200` code); `registry.npmjs.org`, on the list, answers `200
 #### Moving a project's kitchen, whenever you want
 
 A project's main station — the one that runs its kitchen, its manager and its pass — is chosen when
-the project is added ("Adding a project to a station from the app", in
+the project is added ("Adding a project to a station from the app, without a terminal", in
 [`station-machine.md`](station-machine.md)); **that choice commits to nothing**: the kitchen can be
 moved afterwards to this computer, to its box or to another station, without removing or re-adding
 the project, and a project added tomorrow moves the same way. The app launches the operation on the
@@ -311,7 +311,7 @@ station that has handed over a project does not reopen it on its own, even if it
 the main one again: it refuses it (`it was handed over to mac … move it back to bring it here`) — it
 only comes back through a move in the opposite direction.
 
-**To this computer, not without a sandbox** ("A local kitchen", above). The command first plays the
+**To this computer, not without a sandbox** ("A local kitchen: all its cooks in the sandbox", above). The command first plays the
 check of `bac-a-sable/verifier.ts`: unavailable, it refuses with its reason, in one sentence, and
 writes nothing. The computer's station replays it before saying it is ready: a request that reached
 it otherwise is refused the same way (`refusee`), and the station it was to leave still serves it.

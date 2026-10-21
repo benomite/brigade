@@ -176,8 +176,8 @@ brigade <project> station start mac/claude    # it resumes
   not take it up again: another station that can cook it takes it, otherwise it waits for the
   station to be started again.
 - **A stopped station of the box has no room**: when all the box's stations are stopped or
-  saturated, a remote station that takes the ordinary tickets receives them (see "The ordinary
-  tickets on the chef's workstation").
+  saturated, a remote station that takes the ordinary tickets receives them (see "Ordinary tickets on the
+  chef's workstation" in [`station-distante.md`](station-distante.md)).
 - **The stop holds** after a restart, and even if the station is removed then declared again, until
   `start`. In the log: `station.stopped` and `station.started`, in the name of the `chef`.
 - The gesture says what it did and how many cooks are finishing; repeated, it rewrites nothing
