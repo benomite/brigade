@@ -936,7 +936,18 @@ longer stated. With neither, nothing changes. **The station's refusal** (#1178):
 project with no refused access to state, its tracking carries `refus` (#1177: a stable code, a sentence, the
 chef's action); the same block puts down the sentence (`This project's settings choose a network port that the station reserves
 for itself.`, the code on hover) then the action below — never the raw text of the `en-service` file, nor a
-path. The action is followed by a recommended button: "remove the project" (in two clicks) for `configuration-invalid` and `clone-missing`, "move the kitchen back" for `handed-over-elsewhere`, otherwise "check the installation", which runs the check on the station (its verdict is read in Settings) — the gesture itself is made on the station's machine. The refused access, being more precise, takes precedence over it. Screenshots: `docs/captures/1178/`. The station clears it when the gesture is done: the page re-read
+path. **The button comes from the refusal alone** (#1205): the station publishes with it the remedy that lifts it
+(#1203: `remedy`, what it will do in one sentence, whether it removes or erases something, its id), and that sentence
+is the label of a recommended button, readable before any click — the screen knows no refusal code, so a refusal
+type added later on the station shows its button with no change to the app. A remedy that removes or erases opens a
+confirmation first, with the same sentence, `yes, do it` and `cancel`; the others go on click. The click asks the
+project's principal station to run it, through its gist, the same way for this Mac and for a remote station (the
+runtime's `demanderLeRemede`, from `app/src/projets/remede.ts`): while it waits, the button is disabled and a line
+says `asking <station> to do it — it reads the app's requests every 30 s…`. Lifted, the refusal leaves the page; still
+held, one sentence under the action says why, and the button stays to try again; nothing sent, one line says so, what
+GitHub answered on hover. Without a remedy, the action stays written, followed by the station's sentence saying why
+there is no button (`noRemedy`). The refused access, being more precise, takes precedence over it. Screenshots:
+`docs/captures/1178/`, `docs/captures/1205/`. The station clears it when the gesture is done: the page re-read
 (each read of the stations) goes back to its message, without reloading the app. The module is
 `app/src/vue/onboarding/depot-retenu.js`.
 
