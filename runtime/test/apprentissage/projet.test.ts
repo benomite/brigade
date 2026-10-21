@@ -43,7 +43,7 @@ describe("l'apprentissage d'un projet", () => {
     assert.equal("url" in (provisoire ?? {}), false);
     // Le carnet : titre, blanc, « ## L-001 », état, texte → la ligne du texte est la 6e.
     assert.deepEqual(promue, { id: "L-001", texte: "lire le CLAUDE.md d'abord", statut: "promue", date: "2026-10-01", tickets: [12, 15], origine: { kind: "pass-send-back", ticket: 12 }, cooks: 1, progres: { avant: null, apres: null }, url: `https://github.com/benomite/brigade/blob/v2/${CARNET_PATH}#L5` });
-    assert.deepEqual(profils, [{ nom: "app-src-vue", domaine: "app/src/vue", carnet: [{ id: "L-001", texte: "peau mince", etat: "promoted", origine: { kind: "chef-correction", ticket: 3 } }], tickets: [3, 4], progres: { avant: null, apres: null } }]);
+    assert.deepEqual(profils, [{ nom: "app-src-vue", domaine: "app/src/vue", skills: [], perimetre: ["app/src/vue"], carnet: [{ id: "L-001", texte: "peau mince", etat: "promoted", origine: { kind: "chef-correction", ticket: 3 } }], tickets: [3, 4], progres: { avant: null, apres: null } }]);
   });
 
   test("la livraison des tickets mergés se lit du journal, avant et après la date d'entrée de la promue", (t) => {

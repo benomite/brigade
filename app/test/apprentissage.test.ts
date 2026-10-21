@@ -42,6 +42,8 @@ const GARNI: ApprentissageDuRuntime = {
     {
       nom: "app-src-vue",
       domaine: "app/src/vue",
+      skills: ["agents/cook-design.md"],
+      perimetre: ["app/src/vue"],
       carnet: [
         { id: "L-001", texte: "keep the view thin", etat: "promoted", origine: { kind: "retro" } },
         { id: "L-002", texte: "every gesture is a button", etat: "retired", origine: { kind: "chef-correction", ticket: 29 } },
@@ -49,7 +51,7 @@ const GARNI: ApprentissageDuRuntime = {
       tickets: [29, 36],
       progres: PROGRES,
     },
-    { nom: "runtime-src-correctif", domaine: "runtime/src/correctif", carnet: [], tickets: [], progres: { avant: null, apres: null } },
+    { nom: "runtime-src-correctif", domaine: "runtime/src/correctif", skills: [], perimetre: ["runtime/src/correctif"], carnet: [], tickets: [], progres: { avant: null, apres: null } },
   ],
 };
 // Ce que l'app en lit : la même chose, moins l'origine de chaque leçon, qu'elle ne lit pas encore (#1089).
@@ -178,6 +180,9 @@ describe("la section, telle que la vue la pose", () => {
     assert.match(vue.textContent, /notebook, 2 lessonsL-001keep the view thinL-002every gesture is a buttonretired/);
     assert.equal(vue.dessous("li").find(({ textContent }) => textContent.startsWith("L-002"))?.className, "sortie");
     assert.match(vue.textContent, /cooked#29#36/);
+    // Skills et périmètre se disent comme sur la carte d'un profil proposé.
+    assert.match(vue.textContent, /skillsagents\/cook-design\.mdperimeterapp\/src\/vuenotebook/);
+    assert.match(correctif.textContent, /skillsnoneperimeterruntime\/src\/correctifnotebook/);
     assert.match(correctif.textContent, /notebookempty/);
     assert.match(correctif.textContent, /cookednone yet/);
   });

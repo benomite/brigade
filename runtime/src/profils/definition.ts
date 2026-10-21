@@ -38,6 +38,10 @@ export type DefinitionDeProfil = {
   // Les tickets qui l'ont justifié.
   tickets: number[];
   notebook: Carnet;
+  // Le fichier qui définit le profil, relatif au dépôt, quand ce n'est pas
+  // `fichierDuProfil(name)` : un profil bâti d'un fichier du dépôt (le cook
+  // design, `design.ts`) plutôt que lu d'un fichier de profil.
+  fichier?: string;
 };
 
 // L'erreur d'une définition illisible, qui dit pourquoi.

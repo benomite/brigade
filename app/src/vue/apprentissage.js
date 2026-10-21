@@ -9,6 +9,7 @@
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
 import { survol } from "./briques.js";
+import { enMono, ligneDuContenu } from "./profil/carte.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../apprentissage.ts").Apprentissage} Apprentissage */
@@ -184,6 +185,13 @@ function unProfil(doc, profil, ouvrir) {
   domaine.append("for ", zone);
   tete.append(nom, domaine);
 
+  // Ce que le profil contient, dit comme sur la carte d'un profil proposé (profil/carte.js).
+  const contenu = cree(doc, "div");
+  contenu.className = "contenu";
+  const sansSkills = cree(doc, "span", "none");
+  sansSkills.className = "aucune";
+  contenu.append(ligneDuContenu(doc, "skills", profil.skills.length === 0 ? [sansSkills] : enMono(doc, profil.skills)), ligneDuContenu(doc, "perimeter", enMono(doc, profil.perimetre)));
+
   const carnet = cree(doc, "div");
   carnet.className = "carnet";
   const titre = cree(doc, "span", "notebook");
@@ -212,7 +220,7 @@ function unProfil(doc, profil, ouvrir) {
   const details = cree(doc, "p");
   details.className = "details";
   details.append(lesTickets(doc, "cooked", profil.tickets, AUCUN_TICKET, ouvrir));
-  item.append(tete, carnet, details, leProgres(doc, profil.progres));
+  item.append(tete, contenu, carnet, details, leProgres(doc, profil.progres));
   return item;
 }
 

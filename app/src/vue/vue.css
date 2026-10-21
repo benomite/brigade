@@ -4089,6 +4089,31 @@ button.recommande {
   border: 1px solid var(--trait-doux);
   border-radius: var(--rayon-carte);
 }
+.apprentissage-fiabilite .profil-appris .contenu {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+  font-size: 12px;
+}
+.apprentissage-fiabilite .profil-appris .ligne-contenu {
+  display: flex;
+  margin: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  color: var(--texte-doux);
+}
+.apprentissage-fiabilite .profil-appris .libelle {
+  min-width: 72px;
+  color: var(--discret);
+}
+.apprentissage-fiabilite .profil-appris .contenu .mono {
+  color: var(--texte);
+}
+.apprentissage-fiabilite .profil-appris .aucune {
+  color: var(--discret);
+}
 .apprentissage-fiabilite .tete-lecon {
   display: flex;
   align-items: baseline;
