@@ -317,6 +317,53 @@ describe("l'onglet Cooks : un bloc par station, et les cartes de ses tickets en 
   });
 });
 
+describe("deux stations du projet : chacune cuit et s'arrête sans toucher l'autre (#1289)", () => {
+  const DEUX = (box: Partial<DuRuntime>, mac: Partial<DuRuntime>): DuRuntime[] => [station("box/claude", { cooks: [COOK_14], ...box }), station("mac/claude", { distante: true, cooks: [COOK_15], ...mac })];
+  const instantane = (vue: Jouee) => lignes(vue).map((li) => [li.dataset.station, etatDe(li), boutonDe(li)?.textContent, boutonDe(li)?.disabled, cooksDe(li)]);
+
+  test("deux stations, deux lignes, chacune à son nom ; arrêter l'une laisse la ligne et l'état de l'autre tels quels", async () => {
+    const { vue, reponses } = await ouvrir(DEUX({}, {}));
+    await ouvrirOnglet(vue, "Cooks");
+    assert.deepEqual(lignes(vue).map((li) => li.dataset.station), ["box/claude", "mac/claude"]);
+    assert.match(ligne(vue, "box/claude").dessous("strong")[0]?.textContent ?? "", /^box\/claude$/);
+    assert.match(ligne(vue, "mac/claude").dessous("strong")[0]?.textContent ?? "", /^mac\/claude$/);
+    const avant = instantane(vue)[1];
+    const texteAvant = ligne(vue, "mac/claude").textContent;
+    boutonDe(ligne(vue, "box/claude"))?.click();
+    await repos();
+    // Seule la box est appelée, et seul son bouton attend ; la ligne du Mac n'a pas bougé.
+    assert.deepEqual(reponses.map(({ station: nom, geste }) => [nom, geste]), [["box/claude", "stop"]]);
+    assert.deepEqual(instantane(vue)[1], avant);
+    reponses[0]?.rendre({ fait: "box/claude stops cooking parade: it takes no more tickets, its running cooks finish" });
+    await repos();
+    recevoir(vue, FAITS, DEUX({ cuisson: "stopped", arreteeDepuis: "2026-10-20T10:04:05.000Z" }, {}));
+    await repos();
+    assert.equal(etatDe(ligne(vue, "box/claude")), "stopped");
+    assert.deepEqual(instantane(vue)[1], avant);
+    assert.equal(ligne(vue, "mac/claude").textContent, texteAvant);
+    assert.equal(reponses.length, 1);
+  });
+
+  test("relancer l'une des deux ne lance pas l'autre : un seul geste part, et l'autre station reste arrêtée", async () => {
+    const arretee: Partial<DuRuntime> = { cuisson: "stopped", arreteeDepuis: ARRETEE, cooks: [] };
+    const { vue, reponses } = await ouvrir(DEUX(arretee, arretee));
+    await ouvrirOnglet(vue, "Cooks");
+    assert.deepEqual(lignes(vue).map(etatDe), ["stopped", "stopped"]);
+    const avant = instantane(vue)[0];
+    boutonDe(ligne(vue, "mac/claude"))?.click();
+    await repos();
+    assert.deepEqual(reponses.map(({ station: nom, geste }) => [nom, geste]), [["mac/claude", "start"]]);
+    reponses[0]?.rendre({ fait: "mac/claude cooks parade again: it takes its tickets at the runtime's next read" });
+    await repos();
+    recevoir(vue, FAITS, DEUX(arretee, { cuisson: "cooking", arreteeDepuis: null, cooks: [] }));
+    await repos();
+    assert.deepEqual(lignes(vue).map(etatDe), ["stopped", "cooking"]);
+    assert.deepEqual(instantane(vue)[0], avant);
+    assert.equal(boutonDe(ligne(vue, "box/claude"))?.textContent, "start cooking");
+    assert.equal(reponses.length, 1);
+  });
+});
+
 describe("l'onglet Rail : une ligne quand les cooks demandent un geste", () => {
   // Ce que le process principal rend des projets que les stations publient, l'accès au dépôt de parade bloqué.
   const ACCES = { bloque: "fetch" as const, raison: "parade-box cannot fetch from benomite/parade: github.com asks for a username (git: fatal: could not read Username).", geste: "Run `gh auth setup-git` on parade-box." };
