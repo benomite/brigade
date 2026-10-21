@@ -752,6 +752,22 @@ and nothing on it scrolls sideways at phone width. Screens: `telephone-file`, `t
 project yet**: the phone desk serves `/pairing` and `/stations` only, so a paired phone has no project to open until
 the station serves a project's readings to it.
 
+**The queue's gestures on the phone** (#1164) are the desktop's: a TODO card opens its sheet, and its buttons —
+`merge the PR`, `remove from the rail`, `back to the kitchen`, the recommended one first and in the accent color —
+call the same bridge action, `gesteDeFiche` (the project, the gesture, the ticket — never a command), confirmed
+first when they cost; on Cooks, each station's `stop cooking` or `start cooking` calls `cuireSurLaStation`. A phone
+has no second to write a command into: there, `gesteDeFiche` answers like `cuireSurLaStation`, `{ fait }` — what
+the station did — or `{ refus }`, each with the station's answer in `detail` (`app/src/vue/pont.d.ts`). The sheet
+says it in one line under its buttons, the station's answer on hover, and the box is read again at once: the card
+leaves TODO with that reading (a merged ticket moves to Served, a removed one leaves the rail). While the answer has
+not come, the line says `merge the PR: sent, waiting for the answer…` and the sheet's buttons are inactive —
+nothing goes twice. A refusal, or a bridge that fails or carries nothing (`nothing was sent — nothing was changed`, the reason on
+hover), does not read the box again: the queue stays as it was, and the gesture can be played again. On a
+narrow desktop window, where a gesture still goes into the second, the sheet says `sent to the second: its answer
+is in the Second tab`. Screens: `telephone-gestes-*` of `scripts/capture-ecran` (`docs/captures/1164/`). **The
+Android bridge does not carry these actions yet**, for the same reason as the readings above: until the station's
+phone desk takes them, a gesture on the phone sends nothing, and says so in that one line.
+
 ### Your stations: paired with a code, read on GitHub
 
 **On the home screen**, the "Stations" list shows the ones you have paired, one line each —

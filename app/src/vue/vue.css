@@ -3232,6 +3232,26 @@ main > header,
   margin: 0;
   color: var(--rouge-clair);
 }
+/* Ce qui est parti (ticket 1164) : en route, ou ce que la station en a fait, en une ligne — sa réponse au survol. */
+#fiche .gestes-fiche .dit {
+  margin: 0;
+  color: var(--texte-doux);
+}
+/* Le geste recommandé et le « oui » de sa confirmation se distinguent sur la fiche comme ailleurs — `#fiche button`
+   l'emportait sur `button.recommande` —, et un geste qui ne part pas — la réponse du précédent attendue, une priorité
+   pas choisie — se voit inactif (ticket 1164). */
+#fiche button.recommande {
+  color: var(--fond);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+#fiche .gestes-fiche button:disabled {
+  color: var(--discret);
+  background: none;
+  border-color: var(--trait);
+  border-style: dashed;
+  cursor: default;
+}
 /* La question qu'une issue pose, sur la fiche d'un ticket qui t'attend : le commentaire du manager
    tel qu'il est écrit — ses blancs et ses lignes gardés —, ce qui a été écrit dessous depuis, puis
    la réponse : un bouton par choix, un champ pour une phrase. Bordée d'accent : c'est à toi. */

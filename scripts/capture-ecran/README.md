@@ -108,6 +108,9 @@ compare que deux captures du même navigateur.
 | `telephone-lancement` | Le premier écran de l'app Android installée neuve (#1161), en 412 × 915 : « Link this phone to your projects », l'adresse de la station et son code, « pair » et « scan the QR » |
 | `telephone-attente`, `telephone-code-faux`, `telephone-code-expire`, `telephone-injoignable`, `telephone-appaire` | Le même, « scan the QR » cliqué — le QR remplit les deux champs et part au guichet : la station qui n'a pas encore répondu, un code faux, un code expiré, la station injoignable, puis l'appairage réussi — « Tous les projets », la station nommée en tête |
 | `telephone-file`, `telephone-file-cooks`, `telephone-file-merge` | La file de `parade` sur le téléphone appairé (#1163), en 412 × 915 : Rail — TODO en tête, puis On the rail, WAITING et Served, empilées —, Cooks — #14 cuit sur la box, #15 sur le Mac —, puis Rail, l'interrupteur `merge` touché, sa confirmation de toute la largeur |
+| `telephone-gestes-merger`, `telephone-gestes-en-route`, `telephone-gestes-merge-fait`, `telephone-gestes-refus` | Les gestes de la file sur le téléphone (#1164), en 412 × 915 : la fiche de #12 — verte, sans le grant — ouverte depuis TODO, « merge the PR » touché et sa confirmation, puis le merge parti et la station pas encore revenue, gestes inactifs ; fait ; refusé par GitHub, la réponse au survol |
+| `telephone-gestes-retire` | La fiche de #31, sa PR fermée sans merge, tranchée : « remove from the rail » confirmé, fait (#1164) |
+| `telephone-gestes-arreter`, `telephone-gestes-arretee` | Cooks sur le téléphone (#1164) : « stop cooking » touché sur la box, ce que la station en dit ; puis la box arrêtée, « start cooking » |
 | `telephone-relance` | L'app Android relancée, le téléphone déjà appairé : « Tous les projets », sans écran d'appairage |
 
 Tous en 1440 × 900, sauf ceux du téléphone. `--liste` donne la liste à jour.
