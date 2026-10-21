@@ -6,13 +6,15 @@
 // son numéro) et la télécharge aussitôt, vérifiée contre la taille et le sha512 publiés
 // (`telechargement`, puis `prete`). Ensuite, deux chemins : le chef dit « installer maintenant » —
 // elle se ferme, l'installeur la remplace et la rouvre (installation.ts) —, ou il ne dit rien, et la
-// version téléchargée s'installe à son lancement suivant, avant que rien n'y démarre.
+// version téléchargée s'installe à son lancement suivant, avant que rien n'y démarre. Tout cela est
+// le même sur un Mac et sous Windows : seuls l'installeur téléchargé (le .dmg, ou le setup .exe) et
+// ce qui le joue (installation.ts, windows.ts) sont du poste.
 //
 // Lancée depuis le dépôt (`npm --prefix app start`), elle ne regarde rien : elle se met à jour par
 // son clone (rattrapage.ts). Un flux qui ne répond pas ne retient jamais l'app : rien ici n'est
 // attendu pour s'ouvrir, et l'échec se dit (`erreur`) jusqu'à la vérification suivante.
 //
-// Ce qui est téléchargé vit dans `dossier` : le .dmg, puis `prete.json` quand il est vérifié. Ce
+// Ce qui est téléchargé vit dans `dossier` : l'installeur, puis `prete.json` quand il est vérifié. Ce
 // que l'installeur n'a pas pu faire, il l'écrit dans `echec.txt`, que l'app rouverte dit.
 import { createHash } from "node:crypto";
 import { createReadStream, createWriteStream, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -40,13 +42,14 @@ export type EtatDeMiseAJour =
   | { etat: "installation"; version: string; nouvelle: string }
   | { etat: "erreur"; version: string; raison: string; nouvelle?: string };
 
-// Une version téléchargée et vérifiée, telle que `prete.json` la garde : ce que l'installeur reçoit.
-export type Prete = { version: string; dmg: string };
+// Une version téléchargée et vérifiée, telle que `prete.json` la garde : son numéro, et le chemin de
+// son installeur — le .dmg sur un Mac, le setup .exe sous Windows.
+export type Prete = { version: string; installeur: string };
 
 export const PRETE = "prete.json";
 export const ECHEC = "echec.txt";
 
-// Pose le .dmg d'une version dans `fichier` : appelle `progres` à chaque morceau reçu, et rejette si
+// Pose l'installeur d'une version dans `fichier` : appelle `progres` à chaque morceau reçu, et rejette si
 // rien ne se télécharge. La vérification de taille et d'empreinte se fait après, sur le fichier.
 export type Telecharger = (publiee: Publiee, fichier: string, progres: (recus: number) => void, signal: AbortSignal) => Promise<void>;
 
@@ -162,9 +165,9 @@ export function tenirMiseAJour(options: OptionsMiseAJour): MiseAJour {
   const lirePrete = (): Prete | undefined => {
     try {
       const lue = JSON.parse(readFileSync(prete, "utf8")) as Partial<Prete>;
-      if (typeof lue.version !== "string" || !estUneVersion(lue.version) || typeof lue.dmg !== "string" || basename(lue.dmg) !== lue.dmg) return undefined;
-      const dmg = join(dossier, lue.dmg);
-      return existsSync(dmg) ? { version: lue.version, dmg } : undefined;
+      if (typeof lue.version !== "string" || !estUneVersion(lue.version) || typeof lue.installeur !== "string" || basename(lue.installeur) !== lue.installeur) return undefined;
+      const installeur = join(dossier, lue.installeur);
+      return existsSync(installeur) ? { version: lue.version, installeur } : undefined;
     } catch {
       return undefined;
     }
@@ -184,7 +187,7 @@ export function tenirMiseAJour(options: OptionsMiseAJour): MiseAJour {
       return undefined;
     } catch (erreur) {
       const raison = `the update ${lue.version} could not be installed: ${message(erreur)}`;
-      rmSync(lue.dmg, { force: true });
+      rmSync(lue.installeur, { force: true });
       poser({ etat: "erreur", version, nouvelle: lue.version, raison });
       return raison;
     }
@@ -217,7 +220,7 @@ export function tenirMiseAJour(options: OptionsMiseAJour): MiseAJour {
         if (taille !== publiee.taille) throw new Error(`${taille} bytes received, ${publiee.taille} published`);
         if ((await empreinte(partiel)) !== publiee.sha512) throw new Error("its sha512 is not the published one");
         renameSync(partiel, fichier);
-        writeFileSync(prete, `${JSON.stringify({ version: publiee.version, dmg: publiee.nom })}\n`);
+        writeFileSync(prete, `${JSON.stringify({ version: publiee.version, installeur: publiee.nom })}\n`);
         poser({ etat: "prete", version, nouvelle: publiee.version });
       } catch (erreur) {
         rmSync(partiel, { force: true });

@@ -2687,6 +2687,20 @@ it. The state and the actions go through the view's bridge (`miseAJour`, `verifi
 `installerMiseAJour`, `surMiseAJour`); the code is in `app/src/mise-a-jour/`. To try it without
 GitHub, `BRIGADE_APP_MISE_A_JOUR_SOURCE=<address>` makes it read a server that answers like GitHub.
 
+**On Windows** (#1156), the installed app (the `Brigade-<version>-x64-setup.exe` installer,
+[`app/packaging/WINDOWS.md`](../app/packaging/WINDOWS.md)) updates itself the same way: the same
+`app-v<version>` releases, the same checks, the same states, the same actions and the same words. Only
+two things differ. It reads the release's `latest.yml` and downloads the setup `.exe` it names. A
+release that carries only the Mac's files is not a new version for Windows, and the reverse holds
+too. And its installer is a PowerShell script started detached next to the app
+(`app/src/mise-a-jour/windows.ts`). Once the app has quit, the script moves the installed folder aside
+(Windows refuses while one of its files is still open, and then nothing has moved). It runs the setup
+silently (`/S`) into that same folder (`/D=`) and checks that `resources\app\package.json` now holds
+the expected version. Then it removes the old folder and reopens `Brigade.exe`. If any step fails, it
+puts the old folder back as it was, writes the reason (which the reopened app shows) and reopens it.
+The app refuses to update when it does not run from the folder the installer laid out
+(`Uninstall Brigade.exe` next to `Brigade.exe`), or when that folder cannot be written to, and says so.
+
 **What the chef sees of it** (#1014). On "All projects", an **App** section gives the running
 version (`Brigade 1.4.0`) — in every state, including up to date, in error or launched from the
 repo; the reason for an error is in the hover of the version. When a higher version is published, a

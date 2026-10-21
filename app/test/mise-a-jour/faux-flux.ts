@@ -1,13 +1,17 @@
 // Un faux flux de versions publiées : un serveur local, sur le port 0, qui répond comme GitHub —
-// les étiquettes `app-v*` par son API, puis `latest-mac.yml` et le .dmg de chaque release. Ni
-// réseau, ni GitHub.
+// les étiquettes `app-v*` par son API, puis, pour chaque release, `latest-mac.yml` et le .dmg du
+// Mac, `latest.yml` et le setup .exe de Windows. Ni réseau, ni GitHub.
 import { createHash } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import type { TestContext } from "node:test";
 
-// Une version publiée : son .dmg, et son `latest-mac.yml` — `null` : étiquetée, pas encore publiée.
-export type Publication = { dmg: Buffer; yml?: string | null };
+// Une version publiée : son .dmg et son `latest-mac.yml` — `null` : étiquetée, pas encore publiée —,
+// et, quand elle en porte un, le setup .exe de Windows et son `latest.yml`. Sans `dmg`, la release ne
+// porte rien pour le Mac.
+export type Publication = { dmg?: Buffer; yml?: string | null; exe?: Buffer; ymlExe?: string | null };
+
+export const nomDuSetup = (version: string) => `Brigade-${version}-x64-setup.exe`;
 
 export type FauxFlux = {
   adresse: string;
@@ -38,9 +42,17 @@ export async function unFauxFlux(t: TestContext, publications: Record<string, Pu
     const publiee = telechargement === null ? undefined : flux.publications.get(telechargement[1] ?? "");
     if (telechargement !== null && publiee !== undefined) {
       const [, version = "", fichier = ""] = telechargement;
-      const yml = publiee.yml === undefined ? ymlDe(version, publiee.dmg) : publiee.yml;
-      if (fichier === "latest-mac.yml" && yml !== null) return reponse.writeHead(200).end(yml);
-      if (fichier === `Brigade-${version}-arm64.dmg` && yml !== null) return reponse.writeHead(200, { "content-length": publiee.dmg.length }).end(publiee.dmg);
+      const { dmg, exe } = publiee;
+      if (dmg !== undefined) {
+        const yml = publiee.yml === undefined ? ymlDe(version, dmg) : publiee.yml;
+        if (fichier === "latest-mac.yml" && yml !== null) return reponse.writeHead(200).end(yml);
+        if (fichier === `Brigade-${version}-arm64.dmg` && yml !== null) return reponse.writeHead(200, { "content-length": dmg.length }).end(dmg);
+      }
+      if (exe !== undefined) {
+        const yml = publiee.ymlExe === undefined ? ymlDe(version, exe, nomDuSetup(version)) : publiee.ymlExe;
+        if (fichier === "latest.yml" && yml !== null) return reponse.writeHead(200).end(yml);
+        if (fichier === nomDuSetup(version) && yml !== null) return reponse.writeHead(200, { "content-length": exe.length }).end(exe);
+      }
     }
     reponse.writeHead(404).end("Not Found");
   });

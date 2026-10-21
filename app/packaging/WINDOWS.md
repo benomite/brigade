@@ -7,8 +7,9 @@ carries the runtime of its station and the `node.exe` that runs it. The Mac `.dm
 [`README.md`](README.md). This page covers what the installer carries, how it is built and how to
 try it.
 
-The installer is **not signed** (#1157) and the installed app **does not update itself** (#1156).
-The build is laid out so that both can be added later, see [What later tickets plug in](#what-later-tickets-plug-in).
+The installer is **not signed** (#1157). The installed app **updates itself** from the `app-v<version>`
+releases that carry this installer and its `latest.yml` (#1156, [`docs/app.md`](../../docs/app.md),
+"Updating it"). Publishing them from CI is #1157, see [What later tickets plug in](#what-later-tickets-plug-in).
 
 ## Build
 
@@ -149,10 +150,12 @@ writes the script, then `makensis` compiles it.
   the assembled folder, before `makensis` packs them. Sign the uninstaller from the script with
   NSIS's `!uninstfinalize`, and the installer once it is written. The installer's name and location
   do not change.
-- **Updates (#1156).** `latest.yml` is written next to the installer, in the format an
-  electron-updater style updater reads: version, name, sha512 and size. The installer runs silently
-  with `/S` over a previous version, in the same folder (`InstallDirRegKey`), and leaves none of the
-  old files.
+- **Updates (#1156, done).** `latest.yml` is written next to the installer, in the format an
+  electron-updater style updater reads: version, name, sha512 and size. The installed app reads it
+  on the `app-v<version>` release, downloads the installer and runs it silently with
+  `/S /D=<its folder>` once it has quit (`app/src/mise-a-jour/windows.ts`). For that to reach a PC,
+  CI must attach `Brigade-<version>-x64-setup.exe` and `latest.yml` to the same `app-v<version>`
+  release as the `.dmg` (#1157). The installer's name and location do not change.
 
 The installed `Brigade.exe` keeps Electron's icon and version resource: nothing in the build
 rewrites a Windows resource.

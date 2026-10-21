@@ -35,8 +35,8 @@ import { GESTES_DES_GRANTS, voir as voirGrants } from "./grants.ts";
 import { ajouterALApp, lireClone } from "./ajout.ts";
 import { cheminDe, emplacementsDe, lireCheminDuShell } from "./emplacements.ts";
 import { tenirMiseAJour } from "./mise-a-jour/etat.ts";
-import { fluxDe } from "./mise-a-jour/flux.ts";
-import { installabilite, lancerInstallation, paquetDe } from "./mise-a-jour/installation.ts";
+import { fluxDe, formatDe } from "./mise-a-jour/flux.ts";
+import { installeurDuPoste } from "./mise-a-jour/installation.ts";
 import { COMMANDE as COMMANDE_MANAGER, GESTES_DU_MANAGER, voir as voirManager } from "./manager.ts";
 import { machineChoisie, machinesDe } from "./machines.ts";
 import { COMMANDE_DES_COUTS, COUTS, commandeDe, ONGLETS, projetsLus, RUBRIQUES } from "./onglets.ts";
@@ -107,16 +107,17 @@ const dire = (canal: string, ...faits: unknown[]) => {
 // L'app installée se tient à jour sur les versions publiées (mise-a-jour/) : elle regarde au
 // lancement puis toutes les six heures, télécharge la nouvelle, et l'installe au geste du chef ou
 // à son lancement suivant. Lancée depuis le dépôt, elle ne regarde rien : son clone la met à jour.
-// Ce qu'elle télécharge vit à côté du fichier des projets, sous `mise-a-jour/`.
+// Ce qu'elle télécharge vit à côté du fichier des projets, sous `mise-a-jour/`. Le même chemin sur
+// un Mac et sous Windows : seuls l'installeur publié qu'elle lit et ce qui le joue sont du poste.
 const dossierDeMiseAJour = join(dirname(cheminConfiguration()), "mise-a-jour");
-const paquet = paquetDe(process.resourcesPath);
+const installeur = installeurDuPoste({ plateforme, ressources: process.resourcesPath, executable: process.execPath, pid: process.pid, dossier: dossierDeMiseAJour });
 const miseAJour = tenirMiseAJour({
   version: app.getVersion(),
   inactive: emplacements.facon === "installee" ? undefined : "launched from the repository, it updates through its clone",
-  flux: fluxDe(process.env.BRIGADE_APP_MISE_A_JOUR_SOURCE),
+  flux: fluxDe(process.env.BRIGADE_APP_MISE_A_JOUR_SOURCE, formatDe(plateforme)),
   dossier: dossierDeMiseAJour,
-  installable: () => installabilite(paquet),
-  installer: (prete) => lancerInstallation({ pid: process.pid, dmg: prete.dmg, paquet, dossier: dossierDeMiseAJour }),
+  installable: installeur.installable,
+  installer: installeur.installer,
   quitter: () => app.quit(),
   surEtat: (etat) => dire("miseAJour", etat),
 });
