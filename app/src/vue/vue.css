@@ -2682,6 +2682,33 @@ main > header,
 #rail .station-de-cuisson .dit.refus {
   color: var(--jaune);
 }
+/* Sur un écran large, chaque station est un bloc (ticket 1270) : en tête son nom, son état et son geste ; dessous,
+   les cartes de ses tickets en cours — celles du kanban de Rail, en ligne. */
+#rail .stations-de-cuisson[data-cartes] > ol {
+  gap: 8px;
+}
+#rail .stations-de-cuisson[data-cartes] .station-de-cuisson {
+  grid-template-columns: minmax(150px, 1fr) minmax(200px, 3fr) 180px;
+  padding: 10px 12px;
+  background: var(--carte);
+  border: 1px solid var(--trait-doux);
+  border-radius: var(--rayon-carte);
+}
+#rail .station-de-cuisson > :is(.cartes, .aucun-cook) {
+  grid-column: 1 / -1;
+}
+#rail .station-de-cuisson .cartes {
+  flex-flow: row wrap;
+  padding-top: 4px;
+}
+#rail .station-de-cuisson .cartes .bon {
+  flex: 0 1 260px;
+}
+#rail .station-de-cuisson .aucun-cook {
+  margin: 0;
+  font-size: 12px;
+  color: var(--discret);
+}
 /* Sous les stations, sur Cooks, le plafond de calibrage du projet (ticket 1284) : sa valeur, d'où elle vient, et son
    réglage — deux listes et un bouton, sur une ligne. */
 #plafond-du-projet:empty {

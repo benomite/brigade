@@ -106,13 +106,20 @@ const colonnes = (vue: Jouee) =>
     compte: colonne.children[0]?.children[1]?.textContent,
     cartes: colonne.dessous("li").filter((li) => li.className.split(" ").includes("bon")).map((li) => li.textContent),
   }));
+// Les cooks en cours d'une station, leur numéro et leur titre : une ligne chacun sur le téléphone, la carte de son
+// ticket au desktop (#1270).
+const cooksDe = (li: Faux) => {
+  const cartes = li.dessous("li").filter((bon) => bon.className === "bon");
+  if (cartes.length > 0) return cartes.map((bon) => `${bon.children[0]?.children[0]?.textContent}${bon.children[1]?.textContent}`);
+  return (li.dessous("ul")[0]?.children ?? []).map((cook) => cook.textContent);
+};
 // Chaque station du projet telle qu'elle se lit : son nom, son état et ses cooks en cours.
 const stations = (vue: Jouee) =>
   vue
     .element("rail")
     .dessous("li")
     .filter((li) => li.className === "station-de-cuisson")
-    .map((li: Faux) => ({ station: li.dataset.station, etat: li.dessous("span").find((span) => span.className === "pilule")?.textContent, cooks: (li.dessous("ul")[0]?.children ?? []).map((cook) => cook.textContent) }));
+    .map((li: Faux) => ({ station: li.dataset.station, etat: li.dessous("span").find((span) => span.className === "pilule")?.textContent, cooks: cooksDe(li) }));
 
 describe("la file d'un projet sur le téléphone", () => {
   test("Rail : ce qui attend le chef, le rail, ce qui attend un tiers et ce qui est servi — TODO marquée, la seule", async () => {
