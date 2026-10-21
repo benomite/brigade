@@ -189,3 +189,36 @@ test("l'histoire se tire des rétros du journal : rang de service, jour, ticket 
     { id: "L2", texte: "Commiter avant de s'arrêter.", origin: { kind: "retro" }, citations: [{ genre: "propose", retro: "retro-20", ticket: 103, servi: 3, date: "2026-10-03" }] },
   ]);
 });
+
+// Une leçon née d'un renvoi de la passe ou d'une correction du chef.
+const nee = (kind: "pass-send-back" | "chef-correction", id: string, ...citations: Citation[]): LeconHistoire => ({ ...lecon(id, ...citations), origin: { kind, ticket: 7 } });
+const promues = (r: ReturnType<typeof juger>) => r.decisions.filter((d) => d.kind === "promote").map((d) => d.lesson);
+const trois = [cite(1, 101, "propose"), cite(2, 102), cite(3, 103)];
+
+test("écart 0 : les leçons nées d'un renvoi ou d'une correction suivent la règle des rétros", () => {
+  const seuils = lireSeuils({ [VARIABLES.ecartRenvoi]: "0" });
+  for (const kind of ["pass-send-back", "chef-correction"] as const) {
+    assert.deepEqual(promues(juger([nee(kind, "L1", ...trois.slice(0, 2))], 2, VIDE, seuils)), []);
+    assert.deepEqual(promues(juger([nee(kind, "L1", ...trois)], 3, VIDE, seuils)), ["L1"]);
+  }
+});
+
+test("écart N : une leçon née d'un renvoi ou d'une correction est promue N confirmations plus tôt, la rétro au même moment", () => {
+  const seuils = lireSeuils({ [VARIABLES.ecartRenvoi]: "1" });
+  for (const kind of ["pass-send-back", "chef-correction"] as const) {
+    assert.deepEqual(promues(juger([nee(kind, "L1", cite(1, 101, "propose"))], 1, VIDE, seuils)), [], "une seule citation : pas encore");
+    const deux = juger([nee(kind, "L1", ...trois.slice(0, 2))], 2, VIDE, seuils);
+    assert.deepEqual(promues(deux), ["L1"], "deux suffisent au lieu de trois");
+    assert.deepEqual(deux.carnet.lessons[0]?.origin, { kind, ticket: 7 });
+  }
+  const retro = juger([lecon("L1", ...trois.slice(0, 2))], 2, VIDE, seuils);
+  assert.deepEqual(promues(retro), [], "une leçon de rétro attend toujours trois");
+  assert.deepEqual(promues(juger([lecon("L1", ...trois)], 3, VIDE, seuils)), ["L1"]);
+});
+
+test("l'écart ne descend jamais sous une citation", () => {
+  const seuils = lireSeuils({ [VARIABLES.ecartRenvoi]: "10" });
+  assert.deepEqual(promues(juger([nee("pass-send-back", "L1", cite(1, 101, "propose"))], 1, VIDE, seuils)), ["L1"]);
+  assert.deepEqual(promues(juger([nee("chef-correction", "L2", cite(1, 101, "propose"))], 1, VIDE, seuils)), ["L2"]);
+  assert.deepEqual(promues(juger([lecon("L3", cite(1, 101, "propose"))], 1, VIDE, seuils)), [], "la rétro garde son seuil");
+});
