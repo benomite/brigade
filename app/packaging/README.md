@@ -8,6 +8,8 @@ parcours du chef est dans [`docs/app.md`](../../docs/app.md), « Lancer l'app »
 L'APK Android se construit d'ici aussi, par sa propre commande : [« L'APK Android »](#lapk-android),
 plus bas.
 
+L'installeur Windows aussi, par `node app/packaging/windows.ts` : [`WINDOWS.md`](WINDOWS.md).
+
 ## Construire
 
 Sur un Mac (Apple Silicon ou Intel), depuis un clone, avec Node 26 et les dépendances de l'app posées

@@ -3,7 +3,8 @@
 # à la demande. Les dépendances sont posées sans leurs scripts, comme par le setup de worktree : pas
 # de binaire d'Electron, qu'aucun test ne lance. Les tests dont les doublures sont des scripts POSIX
 # (`#!/bin/sh`, un `.ts` à shebang) sont sautés là, en le disant (app/test/aides/posix.ts).
-# Rien n'y est construit ni publié : le paquet Windows et sa mise à jour sont d'autres tickets.
+# Le job `installeur` construit l'installeur Windows et l'éprouve (plus bas) ; rien n'y est signé ni publié :
+# ce sont d'autres tickets (#1156, #1157).
 name: app-windows
 
 on:
@@ -38,3 +39,33 @@ jobs:
         run: npm --prefix app test
       - name: Contrôle de types de l'app
         run: npm --prefix app run typecheck
+
+  # L'installeur Windows (#1155), de bout en bout sur un Windows : construit depuis le clone tel quel
+  # (la commande pose elle-même les dépendances de l'app), installé sans rien demander, l'app ouverte
+  # par son raccourci sans aucun `node` dans le PATH jusqu'à son écran principal, puis désinstallée
+  # (app/packaging/essai-windows.ts). La capture de la fenêtre et l'installeur restent une semaine
+  # dans les artefacts du run : de quoi l'essayer sur un vrai PC.
+  installeur:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - name: Garder les fins de ligne du dépôt
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+      - name: Construire l'installeur
+        run: node app/packaging/windows.ts --version 0.0.1
+      - name: Installer, ouvrir et désinstaller l'app
+        run: node app/packaging/essai-windows.ts app/packaging/construit/Brigade-0.0.1-x64-setup.exe --capture essai-windows.png
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: installeur-windows
+          path: |
+            essai-windows.png
+            app/packaging/construit/Brigade-0.0.1-x64-setup.exe
+            app/packaging/construit/latest.yml
+          if-no-files-found: ignore
+          retention-days: 7
