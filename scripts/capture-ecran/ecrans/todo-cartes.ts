@@ -66,7 +66,7 @@ const STATUS = [
 export const ecran: Ecran = {
   dit: "La file de « parade » avec deux cartes dans TODO : une validation de design et ses captures, un choix de produit sans écran — chacune sa question, un bouton par choix, un champ de texte libre",
   largeur: 1440,
-  hauteur: 900,
+  hauteur: 1400,
   etapes: [{ cliquer: '#projets > button[title^="parade — "]' }],
   donnees: () => ({
     maintenant: MAINTENANT,
