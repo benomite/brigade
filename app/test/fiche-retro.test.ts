@@ -125,7 +125,7 @@ describe("la rétro sur la fiche d'un ticket", () => {
 
   test("un ticket sans rétro : une phrase le dit, ni liste vide ni ligne en échec", async () => {
     const section = (await retroSurLaFiche(null)) ?? assert.fail("pas de section retro sur la fiche");
-    assert.deepEqual(section.children.map(({ balise, textContent }) => `${balise}: ${textContent}`), ["h4: retro", "p: no retro yet: a ticket gets one when it is served"]);
+    assert.deepEqual(section.children.map(({ balise, textContent }) => `${balise}: ${textContent}`), ["h4: retro", "p: no retro for this ticket yet"]);
     assert.equal(section.children[1]?.className, "sans");
   });
 

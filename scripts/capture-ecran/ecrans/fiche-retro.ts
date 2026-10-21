@@ -11,7 +11,7 @@ import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
 const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "second · claude", note: "session neuve", arrete: false };
 
-const PASS: HistoireDuTicket = {
+export const PASS: HistoireDuTicket = {
   ticket: 9,
   steps: [
     { kind: "arrived", at: "2026-10-13T08:10:02.000Z" },

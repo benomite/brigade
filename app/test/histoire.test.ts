@@ -91,7 +91,7 @@ describe("la rétro d'un ticket, sur sa fiche", () => {
   test("un ticket sans rétro : la fiche le dit en une phrase, jamais une section vide", () => {
     const pas = avec(null);
     assert.ok("retro" in pas);
-    assert.deepEqual(pas.retro, { aucune: "no retro yet: a ticket gets one when it is served" });
+    assert.deepEqual(pas.retro, { aucune: "no retro for this ticket yet" });
     // Servi sans que son cook écrive de rétro : la rétro existe, sans texte ni leçon.
     const vide = avec({ at: "2026-10-14T10:30:00Z", text: null, lessons: [] });
     assert.ok("retro" in vide);

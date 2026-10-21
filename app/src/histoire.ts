@@ -64,7 +64,7 @@ function etape(brut: unknown): EtapeDite | undefined {
 
 // Une rétro en laisse au plus trois (runtime/src/apprentissage/retro.ts, `LECONS_MAX`).
 export const LECONS_MAX = 3;
-export const SANS_RETRO = "no retro yet: a ticket gets one when it is served";
+export const SANS_RETRO = "no retro for this ticket yet";
 const RETRO_PAS_DONNEE = "retro not communicated: this station does not give it yet";
 const RETRO_ILLISIBLE = "retro not read: the station did not return it in the expected shape";
 
