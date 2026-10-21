@@ -1425,7 +1425,7 @@ served tickets**, and **what the project cost** (#1022). It is not a tab at the 
   from `facts` (`reculs`, `docs/runtime/etat-et-mesures.md`, "Une correction mergée recule-t-elle sa cause ?"),
   read alongside (`app/src/recul.ts`): the app judges nothing, "recedes" is the runtime's verdict; a box not
   reached keeps the last reading.
-- **Then what the cooks taught the project** (#1058, epic #1034), under "what the cooks learned". **Its
+- **What the cooks taught the project** (#1058, epic #1034), under "what the cooks learned" — **now on the Cooks tab of the project, under the calibration ceiling (#1273), no longer on Reliability**; same content, same actions, laid from `facts` once the box answers. **Its
   lessons**, provisional then promoted in `facts` order, one line each: the status as a dot
   (`provisional`, `promoted` in the accent's tone; its meaning on hovering the dot), the identifier in
   monospace and the text, then the day of its entry (`since 10/1/2026`), **where it comes from** (#1089: `origin: retro`, `origin: pass send-back on #12` or `origin: chef correction on #15`, read from the `origine` of the lesson in `facts`; a lesson with none recorded reads as `retro`), **the tickets that proposed it** —
@@ -1962,7 +1962,7 @@ For a ticket in pass or served, `cooked by` is added: who cooked it is not who h
   by the queue: …" in place of a piece of information: a missing thing has no line. Nor "nobody",
   nor "0", nor a dash either. (The model keeps `sans`, which the view no longer sets.)
 - **A ticket's retro is on its sheet** (#1038), under its history and cost: the lessons its retro left the
-  project, three at most, each with the `provisional` badge of the Reliability page (its meaning on hover), its id and
+  project, three at most, each with the `provisional` badge of the Cooks tab (its meaning on hover), its id and
   its text — `reconfirmed` when the retro reconfirms a lesson the project already had —, then what its cook wrote
   between `<retro>` and `</retro>`, as is. It comes from `retro` in `pass <n> --json` (see "Voir la pass" in
   `docs/runtime/pass-merge.md`). A ticket with no retro says `no retro for this ticket yet`; one served whose cook

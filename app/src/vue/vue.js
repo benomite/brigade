@@ -281,6 +281,10 @@ cuissonDuProjet.ariaLive = "polite";
 const plafondDuProjet = document.createElement("div");
 plafondDuProjet.id = "plafond-du-projet";
 plafondDuProjet.ariaLive = "polite";
+// Ce que les cooks ont appris au projet — ses leçons et ses profils —, sous son plafond, sur Cooks (ticket 1273) :
+// ils étaient sur Reliability. poserCuisson les remplit ; poserRail les pose.
+const apprisDuProjet = document.createElement("div");
+apprisDuProjet.id = "appris-du-projet";
 const alerteDeCuisine = document.createElement("div");
 alerteDeCuisine.id = "alerte-de-cuisine";
 const lu = element("lu");
@@ -4096,6 +4100,15 @@ function poserCuisson(projet, posees = new Map()) {
   alerteDeCuisine.hidden = alerte === null;
   alerteDeCuisine.replaceChildren(...(alerte === null ? [] : [alerte]));
   poserPlafondDeCalibrage(projet);
+  // Ses leçons et ses profils (apprentissage.js), lus dans `facts` : une leçon promue ouvre sa ligne du carnet par le
+  // process principal, qui en tient l'adresse — rien n'est créé. Rien tant que sa box ne répond pas.
+  const appris = tenu !== undefined && "tableau" in tenu && !muets.has(projet.nom) ? tenu.tableau.apprentissage : undefined;
+  apprisDuProjet.replaceChildren(
+    ...poserApprentissage(document, appris, {
+      ouvrir: (ticket, retour) => ouvrirFicheDeCout(projet.nom, ticket, retour),
+      ouvrirLaLigne: (id) => void brigade.ouvrirLecon(projet.nom, id),
+    }),
+  );
 }
 
 // Le plafond de calibrage du projet sur Cooks (ticket 1284), d'après ses derniers faits — rien tant que sa box ne
@@ -4193,7 +4206,7 @@ async function reglerLePlafondDuProjet(projet, station, valeur) {
 /** @param {Projet} projet @param {Dessinable | undefined} tenu */
 function poserCuisineEtroite(projet, tenu) {
   if (projet.sansStation === true) return rail.replaceChildren(bloc("h3", STATION_ARRETEE));
-  if (cuissonDuProjet.childElementCount > 0) return rail.replaceChildren(activiteDuProjet, cuissonDuProjet);
+  if (cuissonDuProjet.childElementCount > 0) return rail.replaceChildren(activiteDuProjet, cuissonDuProjet, apprisDuProjet);
   const pourquoi = muets.has(projet.nom)
     ? "its stations: not known while the station is unreachable"
     : tenu === undefined
@@ -4233,7 +4246,7 @@ function poserRail(projet) {
   poserCuisson(projet, posees);
   if (cuisine && etroit()) return poserCuisineEtroite(projet, tenu);
   /** @param {(HTMLElement | string)[]} poses */
-  const poser = (...poses) => rail.replaceChildren(...(cuisine ? [activiteDuProjet, carte, cuissonDuProjet, plafondDuProjet] : alerteDeCuisine.hidden ? [] : [alerteDeCuisine]), ...poses, ...(cuisine ? [pages, lectureDeLaCuisine] : []));
+  const poser = (...poses) => rail.replaceChildren(...(cuisine ? [activiteDuProjet, carte, cuissonDuProjet, plafondDuProjet, apprisDuProjet] : alerteDeCuisine.hidden ? [] : [alerteDeCuisine]), ...poses, ...(cuisine ? [pages, lectureDeLaCuisine] : []));
   // Cuisine d'un projet servi ici, station arrêtée : rien n'est lu, la page dit pourquoi en une ligne — sur l'un et
   // l'autre onglet.
   if (projet.sansStation === true) return rail.replaceChildren(bloc("h3", STATION_ARRETEE));
@@ -4688,7 +4701,7 @@ function ouvrirFicheDeCout(nom, ticket, retour) {
 // La fiabilité des cooks du projet affiché, en tête de l'onglet Reliability (fiabilite.js) : trois chiffres
 // face à leurs seuils, puis les causes d'échec qui reviennent le plus. Un ticket d'une cause ouvre sa fiche.
 // Dessous, chaque cause qu'une correction acceptée des consignes visait, avant et après son merge (ticket 1001),
-// puis ce que les cooks ont appris au projet : ses leçons et ses profils (ticket 1058).
+// (ce que les cooks ont appris au projet — leçons et profils, ticket 1058 — est sur l'onglet Cooks depuis le ticket 1273).
 // À côté, ce que ce projet a coûté, et lui seul (ticket 1022) : ses tokens perdus et ses tickets les plus chers,
 // lus dans le `station` de sa propre box — celui que cette lecture lance — et jugés face à ses propres
 // seuils (cost/seuils.js). Un ticket ouvre sa fiche.
@@ -4718,11 +4731,7 @@ function poserLaFiabilite() {
   // dans `facts`, pas dans cette lecture — une box pas jointe garde la dernière.
   const tenu = tenus.get(projet.nom);
   const reculs = tenu !== undefined && "tableau" in tenu ? tenu.tableau.reculs : undefined;
-  // Ses leçons et ses profils (apprentissage.js), lus dans `facts` de même : une leçon promue ouvre sa ligne
-  // du carnet par le process principal, qui en tient l'adresse — rien n'est créé.
-  const appris = tenu !== undefined && "tableau" in tenu ? tenu.tableau.apprentissage : undefined;
-  const ouvrirLaLigne = (/** @type {string} */ id) => void brigade.ouvrirLecon(projet.nom, id);
-  fiabilite.replaceChildren(...poserFiabilite(document, vu, ouvrir), ...poserReculs(document, reculs, ouvrir), ...poserApprentissage(document, appris, { ouvrir, ouvrirLaLigne }), coute);
+  fiabilite.replaceChildren(...poserFiabilite(document, vu, ouvrir), ...poserReculs(document, reculs, ouvrir), coute);
 }
 
 // La partie « closer » du projet affiché, sous Settings → Closer (closer/section.js) : les quatre chiffres

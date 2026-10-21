@@ -1,5 +1,5 @@
 // @ts-check
-// Sous les causes corrigées, sur la page Reliability (ticket 1058, épique 1034) : ce que les cooks ont appris
+// Sous les causes corrigées, sur l'onglet Cooks (ticket 1058, épique 1034 ; déplacée de Reliability par le ticket 1273) : ce que les cooks ont appris
 // au projet. Ses leçons — provisoires et promues —, chacune avec sa date, les tickets qui l'ont proposée et le
 // nombre de cooks qui l'ont reçue ; une promue a son lien, qui ouvre sa ligne dans le carnet du projet sur
 // GitHub, et ne crée rien. Puis ses profils, chacun avec son domaine, son carnet et les tickets qu'il a

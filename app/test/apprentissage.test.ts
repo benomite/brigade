@@ -1,4 +1,4 @@
-// Ce que les cooks ont appris au projet, sur la page Reliability (#1058, épique 1034) : la lecture du champ
+// Ce que les cooks ont appris au projet, sur l'onglet Cooks (#1058, épique 1034) : la lecture du champ
 // `apprentissage` de `facts`, la section telle que la vue la pose — les leçons avec leur statut, leur date,
 // leurs tickets et leurs cooks, le lien d'une promue vers sa ligne du carnet ; les profils avec leur
 // domaine, leur carnet et leurs tickets ; une phrase, et aucune liste, quand il n'y a rien —, et la page
@@ -21,7 +21,7 @@ import { GESTES_DU_MANAGER } from "../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { AUCUN_PROFIL, DIT_PROMUE, PAS_ASSEZ, DIT_PROVISOIRE, LIEN, poserApprentissage, PROMUE, PROVISOIRE, RIEN_APPRIS, TITRE } from "../src/vue/apprentissage.js";
-import { Faux, jouerLaVue, ouvrirLecture, repos } from "./aides/fausse-vue.ts";
+import { Faux, jouerLaVue, ouvrirLecture, ouvrirOnglet, repos } from "./aides/fausse-vue.ts";
 
 const A = "2026-10-19T10:00:00.000Z";
 const doc = { createElement: (balise: string) => new Faux(balise) };
@@ -261,7 +261,7 @@ describe("la section, telle que la vue la pose", () => {
   });
 });
 
-describe("la page Reliability, dans l'espace du projet", () => {
+describe("l'onglet Cooks, dans l'espace du projet", () => {
   async function ouvrir() {
     const vue = await jouerLaVue({
       demarrage: () => ({
@@ -281,7 +281,7 @@ describe("la page Reliability, dans l'espace du projet", () => {
     });
     (vue.element("projets").children.at(1) ?? assert.fail("pas de case parade")).click();
     await repos();
-    await ouvrirLecture(vue, "Reliability");
+    await ouvrirOnglet(vue, "Cooks");
     return vue;
   }
   const faitsLus = (vue: Awaited<ReturnType<typeof ouvrir>>, apprentissage?: ApprentissageDuRuntime): Dessinable => {
@@ -289,9 +289,9 @@ describe("la page Reliability, dans l'espace du projet", () => {
     return { projet: "parade", demande: vue.dernier("faits")[0] as number, a: A, tableau: tableau(faits) };
   };
 
-  test("les faits lus portent des leçons et des profils : la page les pose sous les causes, et le lien d'une promue ouvre sa ligne sans rien créer", async () => {
+  test("les faits lus portent des leçons et des profils : l'onglet les pose sous le plafond, et le lien d'une promue ouvre sa ligne sans rien créer", async () => {
     const vue = await ouvrir();
-    const page = vue.element("fiabilite");
+    const page = vue.element("rail");
     assert.equal(page.hidden, false);
     // Les faits pas encore lus : la page ne dit rien de ce qu'elle ne sait pas.
     assert.doesNotMatch(page.textContent, new RegExp(TITRE));
@@ -314,11 +314,23 @@ describe("la page Reliability, dans l'espace du projet", () => {
     assert.equal(vue.element("fiche").hidden, false);
   });
 
+  test("ils ne sont plus sur Reliability, ni sur Rail : une seule place, Cooks", async () => {
+    const vue = await ouvrir();
+    vue.dire("surFaits", faitsLus(vue, GARNI));
+    await repos();
+    assert.match(vue.element("rail").textContent, new RegExp(TITRE));
+    await ouvrirOnglet(vue, "Rail");
+    assert.doesNotMatch(vue.element("rail").textContent, new RegExp(TITRE));
+    await ouvrirLecture(vue, "Reliability");
+    assert.doesNotMatch(vue.element("fiabilite").textContent, new RegExp(TITRE));
+    assert.deepEqual(vue.element("fiabilite").dessous("div").filter(({ className }) => className === "apprentissage-fiabilite"), []);
+  });
+
   test("un projet sans leçon ni profil : la section dit une phrase, à la place d'une liste vide", async () => {
     const vue = await ouvrir();
     vue.dire("surFaits", faitsLus(vue));
     await repos();
-    const page = vue.element("fiabilite");
+    const page = vue.element("rail");
     const bloc = page.dessous("div").find(({ className }) => className === "apprentissage-fiabilite");
     assert.ok(bloc !== undefined);
     assert.equal(bloc.textContent, `${TITRE}${RIEN_APPRIS}`);
