@@ -25,6 +25,9 @@
   <body>
     <!-- L'invite de mise à jour de l'app Android (ticket 1170) : vide, et cachée, tant qu'aucune version plus haute n'est offerte. -->
     <section id="offre-apk" aria-label="App update" aria-live="polite" hidden></section>
+    <!-- L'appairage du téléphone (l'app Android, ticket 1161) : sur une installation neuve, le premier écran — l'app
+         derrière reste cachée. Appairé, il ne garde qu'une ligne, en tête des projets, qui dit à quelle station. -->
+    <section id="appairage" aria-label="Link this phone" hidden></section>
     <div id="cadre">
     <nav id="projets" aria-label="Projects"></nav>
     <section id="tous" aria-label="All projects" hidden></section>

@@ -104,6 +104,10 @@ const pont = {
   // `surMiseAJour` et n'en reçoit jamais — l'abonnement n'y reçoit rien, le geste n'y fait rien.
   surOffreApk: () => undefined,
   installerApk: async () => undefined,
+  // L'appairage du téléphone (ticket 1161) : le desktop n'a rien à appairer ainsi — son démarrage ne rend aucun
+  // `telephone`, la vue ne pose pas l'écran, et ces gestes n'y font rien.
+  appairerLeTelephone: async () => ({ paired: false, reason: "invalide", said: "only the Android app pairs as a phone" }),
+  scannerLeQr: async () => ({ annule: true }),
   surMiseAJour: (recevoir) => void ipcRenderer.on("miseAJour", (_, etat) => recevoir(etat)),
   surStations: (recevoir) => void ipcRenderer.on("stations", (_, vu) => recevoir(vu)),
   surProjetsDesStations: (recevoir) => void ipcRenderer.on("projetsDesStations", (_, vu) => recevoir(vu)),

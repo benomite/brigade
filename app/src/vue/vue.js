@@ -92,6 +92,7 @@ import { Terminal as Xterm } from "@xterm/xterm";
 // Les briques communes (briques.js) : une même chose se dit partout de la même façon — le prix
 // d'un geste dans son survol, une lecture qui manque en une ligne, une confirmation qui dit son prix.
 import { tenirInvite } from "./mise-a-jour/invite.js";
+import { poserAppaire, tenirAppairage } from "./telephone/appairage.js";
 import { boutonAction, confirmationDeGeste, lectureIndisponible, prixDit, survol } from "./briques.js";
 import { poserChers } from "./cost/chers.js";
 import { poserCourbe } from "./cost/courbe.js";
@@ -6714,7 +6715,8 @@ function afficher() {
   if (meme !== undefined) void ouvrir(meme);
   else if (stationOuverte !== undefined && !ajoute) ouvrirStation(stationOuverte);
   else if (coutsOuverts && !ajoute) ouvrirCouts();
-  else if (ajoute || configuration.projets.length === 0) ouvrirAjout();
+  // Sur le téléphone, aucun projet ne s'ajoute d'un dossier : sans projet, l'app reste sur « Tous les projets ».
+  else if (ajoute || (configuration.projets.length === 0 && telephone === undefined)) ouvrirAjout();
   // L'app s'ouvre sur « Tous les projets », en tête de la barre.
   else ouvrirTous();
   montrer();
@@ -6744,6 +6746,27 @@ accueilVu ??= demarrage.accueil;
 miseAJourVue ??= demarrage.miseAJour;
 CALIBRAGE_DU_PROJET = demarrage.calibrage;
 let configuration = demarrage.configuration;
+// Le téléphone (l'app Android, ticket 1161) : son appairage, que le pont garde — rien sur le desktop. Pas encore
+// appairé, l'app s'ouvre sur l'écran qui le relie aux projets, et le reste de l'app est caché derrière. Appairé,
+// elle passe à « Tous les projets », où une ligne dit à quelle station (telephone/appairage.js).
+const telephone = demarrage.telephone;
+const appairageDuTelephone = element("appairage");
+const cadreDeLApp = element("cadre");
+if (telephone !== undefined && !telephone.appaire) {
+  cadreDeLApp.hidden = true;
+  appairageDuTelephone.hidden = false;
+  tenirAppairage(appairageDuTelephone, document, {
+    pont: brigade,
+    userAgent: navigator.userAgent,
+    apres: (station) => {
+      appairageDuTelephone.className = "fait";
+      appairageDuTelephone.replaceChildren(poserAppaire(document, station));
+      cadreDeLApp.hidden = false;
+      ouvrirTous();
+      montrer();
+    },
+  });
+}
 // Le terminal mesure ses cases à l'ouverture : sa police, embarquée, est chargée avant qu'aucun
 // ne s'ouvre. Si elle ne se charge pas, l'app s'ouvre quand même, sur la police de repli.
 await Promise.all(["13px", "bold 13px"].map((corps) => document.fonts.load(`${corps} ${jeton("--police-mono")}`))).catch(() => undefined);
