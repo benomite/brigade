@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { brancherAlerteUrgence } from "../alerte-urgence.ts";
 import { avecRail, configRail } from "../alimenter.ts";
 import { configArbitrage, joindreArbitre } from "../arbitrage.ts";
+import { leconsDeLEtageCommun } from "../commun/installation.ts";
 import { sessionClaude } from "../claude.ts";
 import { brancherJeton, configJeton, direJeton, environnementClaude } from "../jeton-claude.ts";
 import { brancherConnexionMax } from "../connexion-max/cuisine.ts";
@@ -173,6 +174,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
       gardeTranscriptsMs: station.gardeTranscriptsMs,
       apresCook: pass.reveillerPass,
       arbitre: arbitre === null ? null : joindreArbitre(arbitre),
+      // L'étage commun de la station : ce que le chef a accepté pour tous ses projets.
+      commun: () => leconsDeLEtageCommun(envProjet.BRIGADE_STATION_DIR),
     });
     brancherDerive(socle, decisions.seuils, dire);
     const dirige = brancherManager(servie, { ...manager, decisions, repertoireEtat, github: githubs.manager, env, cloison, bacASable, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers });

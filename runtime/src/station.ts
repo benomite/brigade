@@ -48,7 +48,7 @@ import type { RuntimeAvecRail } from "./alimenter.ts";
 import type { Mot } from "./arbitre.ts";
 import { ArbitreInjoignable, type Arbitrage, type Reponse } from "./arbitrage.ts";
 import { complet, manquant, type Calibrage } from "./calibrage.ts";
-import { LECONS_INJECTEES_PAR_DEFAUT, leconsAInjecter } from "./apprentissage/injection.ts";
+import { LECONS_INJECTEES_PAR_DEFAUT, leconsAInjecter, type LeconRecue } from "./apprentissage/injection.ts";
 import type { DefinitionDeProfil } from "./profils/definition.ts";
 import { carnetDonne, carnetDuProfil, profilPrefere, profilsOccupes, type CarnetRecu } from "./profils/preference.ts";
 import { extraireRetro } from "./apprentissage/retro.ts";
@@ -302,6 +302,9 @@ export type OptionsStation = {
   // (`profils/preference.ts`). Absent : le projet n'en a aucun, et chaque
   // ticket part avec un généraliste.
   profils?: () => DefinitionDeProfil[];
+  // Les leçons de l'étage commun de l'installation, relues à chaque lancement
+  // (`commun/installation.ts`). Absent : le projet est seul, sans étage commun.
+  commun?: () => LeconRecue[];
 };
 
 // Ouvre le dépôt de la station là où le runtime le range : les worktrees des
@@ -453,7 +456,18 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       return null;
     }
   };
-  const leconsDuCook = () => leconsAInjecter(base, projet, { plafond: plafondDesLecons, carnet: plafondDesLecons > 0 ? carnetALaBase() : null });
+  // Puis celles de l'étage commun de l'installation, que le chef a acceptées :
+  // hors du plafond, qui compte les provisoires. Illisible, aucune.
+  const leconsCommunes = (): LeconRecue[] => {
+    if (options.commun === undefined) return [];
+    try {
+      return options.commun();
+    } catch (erreur) {
+      avertir(`brigade : étage commun illisible, le cook part sans ses leçons — ${message(erreur)}`);
+      return [];
+    }
+  };
+  const leconsDuCook = () => [...leconsAInjecter(base, projet, { plafond: plafondDesLecons, carnet: plafondDesLecons > 0 ? carnetALaBase() : null }), ...leconsCommunes()];
   // Le profil sous lequel part le cook d'un ticket de zone `zone`, d'ici ou
   // d'une station distante, et le carnet qu'il en reçoit : le plus précis des
   // profils dont le domaine touche la zone et dont le cook est libre. Null :

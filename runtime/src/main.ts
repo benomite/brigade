@@ -21,6 +21,7 @@ import { brancherCarnet } from "./promotion/livrer.ts";
 import { brancherRenommage } from "./pause/renommage.ts";
 import { lireSeuils as lireSeuilsDesLecons } from "./seuils/seuils.ts";
 import { lirePlafondDesLecons } from "./apprentissage/injection.ts";
+import { leconsDeLEtageCommun } from "./commun/installation.ts";
 import { brancherSession, configSession, type ConfigSession } from "./renouvellement.ts";
 import { brancherReseau, configReseau, DECLARATION_RESEAU, passerParLaPorte, sonderLeFiltre } from "./reseau.ts";
 import { configReviewer } from "./reviewer.ts";
@@ -171,6 +172,8 @@ try {
     leconsInjectees,
     // Là où le « oui » du chef les écrit : le clone du projet.
     profils: () => lireLesProfils(station.clone, (texte) => console.error(texte)),
+    // L'étage commun, si ce projet est servi par une station : aucun sinon.
+    commun: () => leconsDeLEtageCommun(process.env.BRIGADE_STATION_DIR),
   });
   // Le manager en dernier : il ne lance que des jugements et des découpages,
   // et rien ne dépend de lui pour servir ce qui est déjà sur le rail.
