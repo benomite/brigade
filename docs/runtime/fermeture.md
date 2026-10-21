@@ -1,329 +1,344 @@
-## La fermeture qui observe
+## The observing closing
 
-Le relevé dit ce que le projet **pèse** ; la fermeture qui observe dit ce qu'il **n'a pas retiré**.
-`npm --prefix runtime run closing` (`brigade <projet> closing` sur la box) lit la branche
-d'intégration du clone du projet — `origin/<BRIGADE_BASE_BRANCH>` dans `BRIGADE_REPO_DIR`, telle
-que le dernier rapatriement l'a laissée — et imprime trois choses :
+The measures say what the project **weighs**; the observing closing says what it **has not removed**.
+`npm --prefix runtime run closing` (`brigade <projet> closing` on the box) reads the integration
+branch of the project's clone — `origin/<BRIGADE_BASE_BRANCH>` in `BRIGADE_REPO_DIR`, as the last
+fetch left it — and prints three things:
 
-| Bloc | Ce qu'il dit | Comment c'est compté |
+| Block | What it says | How it is counted |
 |---|---|---|
-| `ratio` | Les lignes ajoutées et retirées (`+ajouté / −retiré`) et leur rapport, sur les 20, 50 et 100 derniers merges | Les commits de merge de la branche, chacun contre son **premier parent** : ce que le merge lui a apporté. Un commit posé droit sur la branche n'est pas un merge ; ce qu'une branche a écrit puis retiré avant son merge ne compte pas |
-| `doublons` | Chaque suite d'au moins 8 lignes de code identiques à deux endroits, avec ses deux passages (`chemin:début-fin`), les plus longues d'abord | Du texte comparé à du texte, dans les fichiers de code : ni l'indentation, ni les lignes vides, ni les commentaires, ni les lignes de pure ponctuation ne comptent. Une troisième copie est donnée une fois, contre la première |
-| `code mort` | Chaque export nommé d'un fichier TypeScript ou JavaScript que rien d'autre ne nomme (`chemin:ligne`) — ou que seuls des tests nomment, et lesquels | Un nom cherché dans tous les fichiers de la branche, doc exceptée. Un export que son propre fichier réemploie, ou qu'un autre fichier écrit, vit |
+| `ratio` | The lines added and removed (`+added / −removed`) and their ratio, over the latest 20, 50 and 100 merges | The merge commits of the branch, each against its **first parent**: what the merge brought to it. A commit put straight on the branch is not a merge; what a branch wrote and then removed before its merge does not count |
+| `duplicates` | Each run of at least 8 identical lines of code in two places, with its two passages (`path:start-end`), the longest first | Text compared with text, in the code files: neither indentation, nor blank lines, nor comments, nor lines of pure punctuation count. A third copy is given once, against the first |
+| `dead code` | Each named export of a TypeScript or JavaScript file that nothing else names (`path:line`) — or that only tests name, and which ones | A name searched in every file of the branch, docs excepted. An export that its own file reuses, or that another file writes, is alive |
 
-- **Elle ne modifie rien.** Ni fichier, ni branche, ni PR, ni fait au journal, et elle ne rapatrie
-  pas : elle ne joue que des commandes de `git` qui lisent, sans prendre de verrou — pas même celui
-  de l'index. Elle répond donc pendant que les cooks travaillent et que la pass merge, et ne retient
-  ni les uns ni l'autre.
-- **Elle repère, elle ne juge pas.** Deux passages identiques ne sont pas toujours à réunir, et un
-  export qu'un framework lit par convention n'est nommé par personne. À l'inverse, deux exports morts
-  qui portent le même nom se font vivre l'un l'autre. Ce sont des candidats, à lire.
-- **Quand il n'y a rien, elle le dit** : `aucun repéré`, et parmi combien de fichiers elle a
-  cherché. Une branche de moins de 20 merges donne son ratio sur ceux qu'elle a, en le disant. Un
-  fichier de plus de 1 Mo n'est pas lu, et la sortie compte ceux qu'elle a écartés.
-- Le bloc `journal` reprend les compteurs du relevé — les merges depuis la dernière fermeture, les
-  seuils franchis — quand `BRIGADE_STATE_DIR` porte un journal ; sans lui, le dépôt est observé
-  quand même. Deux variables sont obligatoires : `BRIGADE_REPO_DIR` et `BRIGADE_BASE_BRANCH`.
-  Sa ligne `passe` dit où en est la dernière passe qui écrit — demandée et ce qui la retient, retirée, refusée, en train de
-  ranger, ou comment elle a fini — dès qu'une a été demandée (voir « La fermeture qui écrit »),
-  et le **bilan** de la dernière qui a fini la suit (voir « Le bilan d'une passe »).
+- **It modifies nothing.** No file, no branch, no PR, no fact in the log, and it does not fetch: it
+  only plays `git` commands that read, without taking a lock — not even the index's. It therefore
+  answers while the cooks work and the pass merges, and holds back neither.
+- **It spots, it does not judge.** Two identical passages are not always to be merged, and an export
+  that a framework reads by convention is named by no one. Conversely, two dead exports that carry
+  the same name keep each other alive. These are candidates, to be read.
+- **When there is nothing, it says so**: `none spotted`, and among how many files it searched. A
+  branch of fewer than 20 merges gives its ratio over the ones it has, and says so. A file of more
+  than 1 MB is not read, and the output counts the ones it set aside.
+- The `log` block takes up the counters of the measures — the merges since the last closing, the
+  thresholds crossed — when `BRIGADE_STATE_DIR` carries a log; without it, the repository is
+  observed all the same. Two variables are required: `BRIGADE_REPO_DIR` and `BRIGADE_BASE_BRANCH`.
+  Its `pass` line says where the last writing pass stands — requested and what holds it, withdrawn,
+  refused, tidying up, or how it ended — as soon as one has been requested (see "The writing
+  closing"), and the **summary** of the last one that finished follows it (see "The summary of a
+  pass").
 
-### La même lecture, pour l'app
+### The same reading, for the app
 
-`npm --prefix runtime run closing -- --json` (`brigade <projet> closing --json`) rend la même
-lecture en **un objet JSON, sur une ligne** : c'est ce que l'app lit du closer d'un projet, sans
-parser de texte. Elle ne lance rien : le journal est ouvert en lecture seule, le dépôt n'est lu
-que par l'observation, et aucune demande n'est jamais écrite. Trois variables : `BRIGADE_STATE_DIR`,
-`BRIGADE_REPO_DIR`, `BRIGADE_BASE_BRANCH` ; sans journal, elle sort en 1 — rien ne dit alors si le
-closer est réglé.
+`npm --prefix runtime run closing -- --json` (`brigade <projet> closing --json`) gives the same
+reading as **one JSON object, on one line**: it is what the app reads of a project's closer, without
+parsing any text. It launches nothing: the log is opened read-only, the repository is only read by
+the observation, and no request is ever written. Three variables: `BRIGADE_STATE_DIR`,
+`BRIGADE_REPO_DIR`, `BRIGADE_BASE_BRANCH`; without a log, it exits with 1 — nothing then says whether
+the closer is set.
 
-| Champ | Ce qu'il porte |
+| Field | What it carries |
 |---|---|
-| `configured` | Le closer est-il réglé (`closing.configured` au journal) ? Faux : l'objet ne porte que `text`, qui le dit — ni observation, ni trouvaille, ni demande |
-| `closer` | Son calibrage et ses plafonds en vigueur |
-| `observation` | `mergesSinceCleanup` (le compteur du relevé), `ratio` (chaque fenêtre : `added`, `removed`, `ratio` — nul si rien n'est retiré —, `reads`), `duplicates`, `deadExports`. `readable` faux : la branche ne se lit pas, `error` dit pourquoi, le reste de l'objet se lit quand même |
-| `findings` | Chaque doublon et chaque export mort, sous le nom que la passe lui donne (`D1`, `M1`…) : `file`, `start`, `end` — un doublon dit aussi sa `copy` |
-| `request` | La dernière demande : `none`, `waiting` (`reason` : ce qui la retient, nul quand plus rien ; `stalledAt` : sans issue), `running`, `refused` (`reason`), `cancelled`, `done` (`outcome`, `removed`, `pr` — nul sans PR —, `kept`) ; chaque `reason` porte son motif (`code`) et sa phrase |
-| `drift` | `crossed` : une mesure du relevé franchit le seuil que le chef lui a déclaré — le même que dit le bloc `journal` ci-dessus. Aucun seuil déclaré : `declared` faux, rien n'est franchi |
+| `configured` | Is the closer set (`closing.configured` in the log)? False: the object carries only `text`, which says so — no observation, no finding, no request |
+| `closer` | Its calibration and its caps in force |
+| `observation` | `mergesSinceCleanup` (the measures' counter), `ratio` (each window: `added`, `removed`, `ratio` — null if nothing is removed —, `reads`), `duplicates`, `deadExports`. `readable` false: the branch cannot be read, `error` says why, the rest of the object can still be read |
+| `findings` | Each duplicate and each dead export, under the name the pass gives it (`D1`, `M1`…): `file`, `start`, `end` — a duplicate also says its `copy` |
+| `request` | The last request: `none`, `waiting` (`reason`: what holds it, null when nothing does any more; `stalledAt`: with no way out), `running`, `refused` (`reason`), `cancelled`, `done` (`outcome`, `removed`, `pr` — null without a PR —, `kept`); each `reason` carries its code (`code`) and its sentence |
+| `drift` | `crossed`: a measure of the record crosses the threshold the chef declared for it — the same one the `log` block above says. No threshold declared: `declared` false, nothing is crossed |
 
-## La fermeture qui écrit
+## The writing closing
 
-La fermeture qui observe ne touche à rien ; celle-ci **retire**. C'est l'agent le plus dangereux du
-système : un cook qui se trompe ajoute du mauvais code, et la pass l'attrape ; un closer qui se
-trompe **efface du bon code**, et les gates diront « ça marche toujours », puisque ce qui a disparu
-n'était testé par rien. Elle ne part donc que sur **ton geste**, sous une condition d'exécution
-mesurée, et sous tous les garde-fous — ceux de tout le monde, pas d'autres.
+The observing closing touches nothing; this one **removes**. It is the most dangerous agent in the
+system: a cook that gets it wrong adds bad code, and the pass catches it; a closer that gets it
+wrong **erases good code**, and the gates will say "it still works", since what disappeared was
+tested by nothing. So it leaves only on **your gesture**, under a measured start condition, and
+under all the guardrails — everyone's, no others.
 
 ```
-brigade <projet> closing write    # npm --prefix runtime run closing -- write
-brigade <projet> closing cancel   # npm --prefix runtime run closing -- cancel
+brigade <project> closing write    # npm --prefix runtime run closing -- write
+brigade <project> closing cancel   # npm --prefix runtime run closing -- cancel
 ```
 
-- **Rien d'autre ne la lance.** Ni un seuil franchi (`run measures` la *propose*, `drift.crossed`
-  ne lance rien), ni une horloge, ni un redémarrage : une demande que le runtime n'a pas fait
-  partir avant de s'arrêter — qu'elle attende ou non — est refusée à son retour (`restarted`, dit
-  dans journald), elle se redemande.
-- **Tu la demandes une fois, elle attend.** Trop de cooks en vol, elle n'est pas refusée : elle
-  attend sa condition d'exécution et part seule, une fois, dès qu'elle est remplie — rien à
-  guetter, rien à relancer (voir « La demande attend »).
-- **Elle est hors du rail** : elle ne prend aucun ticket, n'a pas de priorité, et son closer part
-  sous la station `closer`, sans ticket.
-- **Elle ne merge rien et ne pousse jamais sur la branche d'intégration.** Ce qu'elle retire part
-  sur sa branche (`cook/fermeture-<8 caractères>`) et dans **une PR** vers la branche d'intégration,
-  qu'elle remet à **la pass** : jugée et mergée comme celle d'un ticket, sans chemin à elle (voir
-  « La PR passe par la pass »).
+- **Nothing else launches it.** Not a threshold crossed (`measures` *proposes* it, `drift.crossed`
+  launches nothing), not a clock, not a restart: a request that the runtime had not sent off before
+  it stopped — whether or not it was waiting — is refused when the runtime comes back (`restarted`,
+  said in journald); it has to be requested again.
+- **You request it once, it waits.** With too many cooks in flight it is not refused: it waits for
+  its start condition and leaves on its own, once, as soon as it is met — nothing to watch, nothing
+  to restart (see "The request waits").
+- **It is off the rail**: it takes no ticket, has no priority, and its closer leaves under the
+  `closer` station, with no ticket.
+- **It merges nothing and never pushes onto the integration branch.** What it removes goes onto its
+  branch (`cook/fermeture-<8 characters>`) and into **one PR** to the integration branch, which it
+  hands to **the pass**: judged and merged like a ticket's, with no path of its own (see "The PR goes
+  through the pass").
 
-### Le closer se règle, ou il n'y en a pas
+The branch name `cook/fermeture-<8 characters>` and the run names `fermeture-…` stay French until the runtime is translated.
 
-Par le même geste que les autres décisions du chef — `station -- closer-modele <modèle>`,
-`closer-effort <effort>`, `closer-cooks <N>`, `closer-tokens <N>`, `closer-retraits <N>` —, journalisé,
-sans `sudo` et sans redémarrage ; `retirer <geste>` revient à la variable. Posée, la décision
-l'emporte sur la variable de même nom, et vaut à la passe suivante : celle qui range garde ses
-plafonds. `station` montre les décisions posées et, dessous, les réglages en vigueur. Sans
-calibrage, le projet n'a pas de passe qui écrit et rien d'autre ne change : la commande refuse en
-nommant le geste. L'un sans l'autre, ou une valeur illisible, fait **refuser le démarrage**. Ces
-valeurs restent dans le journal du répertoire d'état, hors de portée d'un cook.
+### The closer is set, or there is none
 
-| Variable | Défaut | Rôle |
+By the same gesture as the chef's other decisions — `station -- closer-modele <model>`,
+`closer-effort <effort>`, `closer-cooks <N>`, `closer-tokens <N>`, `closer-retraits <N>` —,
+logged, without `sudo` and without a restart; `remove <gesture>` goes back to the variable. Once
+set, the decision wins over the variable of the same name, and holds from the next pass on: the one
+that is tidying keeps its caps. `station` shows the decisions set and, below them, the settings in
+force. Without a calibration, the project has no writing pass and nothing else changes: the command
+refuses, naming the gesture. One without the other, or an unreadable value, makes the start be
+**refused**. These values stay in the state directory's log, out of a cook's reach.
+
+The gesture names `closer-modele`, `closer-effort`, `closer-cooks`, `closer-tokens` and `closer-retraits` stay French until the runtime is translated.
+
+| Variable | Default | Role |
 |---|---|---|
-| `BRIGADE_CLOSING_MODEL`, `BRIGADE_CLOSING_EFFORT` | aucun | Le calibrage du closer — c'est ton quota, il n'a pas de défaut |
-| `BRIGADE_CLOSING_COOKS` | 1 | La condition d'exécution : la passe part quand **moins** de cooks que cela sont en vol. `1` : aucun |
-| `BRIGADE_CLOSING_MAX_TOKENS` | 500 000 | Tokens par passe — à la place du plafond d'un cook, pas en plus. Aucun plafond par semaine |
-| `BRIGADE_CLOSING_MAX_REMOVED_LINES` | 500 | Lignes qu'une passe peut retirer |
+| `BRIGADE_CLOSING_MODEL`, `BRIGADE_CLOSING_EFFORT` | none | The closer's calibration — it is your quota, it has no default |
+| `BRIGADE_CLOSING_COOKS` | 1 | The start condition: the pass leaves when **fewer** cooks than this are in flight. `1`: none |
+| `BRIGADE_CLOSING_MAX_TOKENS` | 500,000 | Tokens per pass — in place of a cook's cap, not on top of it. No cap per week |
+| `BRIGADE_CLOSING_MAX_REMOVED_LINES` | 500 | Lines a pass may remove |
 
-Ils s'écrivent au journal quand ils changent (`closing.configured`) : c'est là que la commande les lit.
+They are written to the log when they change (`closing.configured`): that is where the command reads them.
 
-### La condition d'exécution
+### The start condition
 
-Une passe qui écrit déplace la branche d'intégration sous les cooks en vol : « quand ça se calme »
-est une condition, mesurée dans le journal. **Un cook en vol** est un ticket qu'une station tient
-(`pris`), ou dont un cook tourne encore après avoir quitté ses mains ; la relecture d'un ticket en
-pass n'en est pas un. La passe part quand il y en a **moins que le seuil** — un rail vide n'en porte
-aucun. Cette condition est la seule porte : **la passe ne part jamais sous des cooks en vol au-delà
-du seuil**, et rien de ce qui suit ne la desserre.
+A writing pass moves the integration branch under the cooks in flight: "when things calm down" is a
+condition, measured in the log. **A cook in flight** is a ticket that a station holds (`taken`), or
+whose cook is still running after leaving its hands; the re-reading of a ticket in pass is not one.
+The pass leaves when there are **fewer than the threshold** — an empty rail carries none. This
+condition is the only door: **the pass never leaves under more cooks in flight than the threshold**,
+and nothing that follows loosens it.
 
-La commande écrit `closing.requested` ; le runtime la voit dans la seconde, **relit la condition à
-cet instant**, et fait partir la passe (`closing.started`). Ce qui ne passe pas seul refuse
-(`closing.refused`), par la commande — qui sort en 1 et ne lance rien — comme par le runtime :
+The command writes `closing.requested`; the runtime sees it within the second, **rereads the
+condition at that moment**, and starts the pass (`closing.started`). What does not pass on its own is
+refused (`closing.refused`), by the command — which exits with 1 and launches nothing — as by the
+runtime:
 
-| Motif | Ce qui manque |
+| Reason | What is missing |
 |---|---|
-| `unconfigured` | Le closer n'est pas réglé |
-| `busy` | Une passe range déjà — une seule à la fois |
-| `stopped`, `breaker` | Le « stop » du chef, le disjoncteur ouvert : « reprendre » d'abord |
-| `depot` | La branche d'intégration ne se rapatrie pas, ou ne se lit pas |
-| `nothing` | L'observation ne repère rien, ou rien hors de ce que les cooks tiennent |
+| `unconfigured` | The closer is not set |
+| `busy` | A pass is already tidying up — only one at a time |
+| `stopped`, `breaker` | The chef's "stop", the breaker open: "resume" first |
+| `depot` | The integration branch cannot be fetched, or cannot be read |
+| `nothing` | The observation spots nothing, or nothing outside what the cooks hold |
 
-### La demande attend
+The reason codes (`depot`…) are the runtime's and stay as they are.
 
-Ce qui passe seul ne refuse pas : la demande **attend**, et le runtime la relit à chaque réveil —
-chaque fois que le journal bouge, donc dès qu'un cook rend la main, et à chaque tick.
+### The request waits
 
-| Motif | Ce qui la retient |
+What passes on its own is not refused: the request **waits**, and the runtime rereads it at every
+wake-up — every time the log moves, so as soon as a cook hands back, and at every tick.
+
+| Reason | What holds it |
 |---|---|
-| `cooks` | Trop de cooks en vol pour le seuil (`observed`, `limit`) |
-| `zoneless` | Un cook en vol ne déclare aucune zone : la passe ne peut pas savoir ce qu'il tient, **il tient donc tout** |
-| `deploying` | Une mise en service demandée retenait la passe — ne se lit plus que dans les journaux d'avant la station |
+| `cooks` | Too many cooks in flight for the threshold (`observed`, `limit`) |
+| `zoneless` | A cook in flight declares no zone: the pass cannot know what it holds, **so it holds everything** |
+| `deploying` | A deployment requested was holding the pass — only read in the logs from before the station |
 
 ```
-brigade : passe de fermeture demandée — elle attend : condition d'exécution non remplie : 2 cooks en vol pour un seuil de 2 — la passe part quand il y en a moins que le seuil, ou quand le rail est vide (il porte 2 tickets non servis)
+closing pass requested on 2026-10-13T14:00:00.000Z, it waits — start condition not met: 2 cooks in flight for a threshold of 2 — the pass leaves when there are fewer than the threshold, or when the rail is empty (it carries 2 unserved tickets); it leaves on its own, once, as soon as nothing holds it back, without anyone restarting it — to withdraw it: `brigade <projet> closing cancel`
 ```
 
-- **Elle part seule, une fois**, au premier réveil où rien ne la retient — la condition relue dans
-  la transaction qui écrit `closing.started`. Rien ne lui est réservé : entre deux cooks, une
-  station peut prendre le ticket suivant avant elle, et elle attend le creux d'après. Le seuil reste
-  ton réglage (`station -- closer-cooks <N>`).
-- **Elle se lit dans la file** — le bloc `awaiting` de `status`, sous le nom `closing` : depuis
-  quand, et ce qui la retient à la lecture (combien de cooks en vol, pour quel seuil). Et sur la
-  ligne `passe` de `brigade <projet> closing`. Elle en sort en partant, refusée ou retirée.
-- **Une seule à la fois** : redemandée pendant qu'elle attend, rien n'est réécrit — la commande dit
-  « déjà demandée », avec son heure et ce qui la retient, et sort en 0.
-- **Tu la retires par le même geste**, `fermeture annuler` (`closing.cancelled`), tant qu'elle n'est
-  pas partie : rien ne part, même quand la condition se remplit ensuite. Le runtime relit la demande
-  dans la transaction qui fait partir la passe : retirée pendant qu'il rapatriait la base, elle ne
-  part pas. Partie, elle ne se rappelle pas — « stop » l'arrête, et rien n'est livré.
-- **Le « stop » ou le disjoncteur pendant qu'elle attend la refusent** (`stopped`, `breaker`) : elle
-  ne repart pas d'elle-même à la reprise.
-- **Sans issue au bout de deux heures.** Une demande qui attend depuis **2 h** — deux fois le plafond
-  de durée d'un cook par défaut : deux cooks entiers se sont succédé sans laisser de creux — est dite
-  sans issue, une fois : `closing.stalled` au journal, avec ce qui la retenait ; une ligne dans
-  journald ; et sa ligne de la file passe en `PASSE DE FERMETURE SANS ISSUE`, avec les gestes qui
-  la débloquent — relever le seuil, éteindre le manager le temps que le rail se vide, ou y
-  renoncer. Elle attend toujours : la dire sans issue ne la refuse pas, et ne la fait pas partir.
+That is the sentence `closing` and `status` print. The line the runtime writes to journald for the
+same request stays in French until the runtime is translated.
 
-### Depuis l'app : l'aperçu, le « oui », le retrait
+- **It leaves on its own, once**, at the first wake-up where nothing holds it back — the condition
+  being reread in the transaction that writes `closing.started`. Nothing is reserved for it: between
+  two cooks, a station can take the next ticket before it, and it waits for the next gap. The
+  threshold stays your setting (`station -- closer-cooks <N>`).
+- **It reads in the queue** — the `awaiting` block of `status`, under the name `closing`: since when,
+  and what holds it at the time of reading (how many cooks in flight, for which threshold). And on the
+  `pass` line of `brigade <projet> closing`. It leaves the queue by leaving, refused or withdrawn.
+- **Only one at a time**: requested again while it waits, nothing is rewritten — the command says
+  "already requested", with its time and what holds it, and exits with 0.
+- **You withdraw it by the same gesture**, `closing cancel` (`closing.cancelled`), as long as it has
+  not left: nothing leaves, even when the condition is met afterwards. The runtime rereads the request
+  in the transaction that makes the pass leave: withdrawn while it was fetching the base, it does not
+  leave. Once left, it cannot be recalled — "stop" halts it, and nothing is delivered.
+- **The "stop" or the breaker while it waits refuse it** (`stopped`, `breaker`): it does not leave
+  again by itself on resume.
+- **With no way out after two hours.** A request that has waited for **2 h** — twice a cook's default
+  duration cap: two whole cooks have followed one another without leaving a gap — is said to have no
+  way out, once: `closing.stalled` in the log, with what was holding it; a line in journald; and its
+  queue line becomes `CLOSING PASS WITH NO WAY OUT`, with the gestures that unblock it — raise the
+  threshold, turn the manager off while the rail empties, or give up. It still waits: saying it has
+  no way out does not refuse it, and does not make it leave.
 
-L'app demande et retire la passe par les mêmes décisions que tes deux gestes — pas par d'autres :
-ce que `closing write` refuse, elle ne le demande pas. Chaque réponse est un objet JSON sur une
-ligne, avec son `outcome` et son `text` — la phrase que la commande tapée imprime.
+### From the app: the preview, the "yes", the withdrawal
+
+The app requests and withdraws the pass by the same decisions as your two gestures — not by others:
+what `closing write` refuses, it does not request. Each answer is a JSON object on one line, with its
+`outcome` and its `text` — the sentence the typed command prints.
 
 ```
-brigade <projet> closing preview [--json]          # ce que coûte une passe, ce que le closer va faire — n'écrit rien
-brigade <projet> closing write --json --confirm    # la demande, une fois ton « oui » donné
-brigade <projet> closing cancel --json             # retire la demande qui attend
+brigade <project> closing preview [--json]          # what a pass costs, what the closer will do — writes nothing
+brigade <project> closing write --json --confirm    # the request, once your "yes" is given
+brigade <project> closing cancel --json             # withdraws the request that waits
 ```
 
-- **L'aperçu n'écrit rien** : ni demande, ni refus — il ouvre le journal en lecture seule. Il dit
-  le **coût** (`cost` : le calibrage du closer et ses plafonds, `null` sans closer réglé), **ce que
-  le closer va faire** (`does`, phrase par phrase), où en est la demande (`request` : `none`,
-  `waiting` et ce qui la retient, `running` et son run), et **ce que deviendrait une demande faite
-  maintenant** (`ifRequested` : `leaves`, `waits`, `already-requested`, `refused`, `impossible`,
-  avec son motif). Il ne rejoue pas l'observation : il dit ce que la station sait déjà.
-- **Rien ne part sans `--confirm`.** Une commande tapée est ton « oui » ; l'appel d'un programme
-  ne l'est pas. `write --json` sans `--confirm` sort en 1 (`unconfirmed`) sans ouvrir le journal.
-- Les codes de sortie sont ceux des gestes tapés : 0 demandée, déjà demandée, retirée ou rien à
-  retirer ; 1 refusée (`refused`, avec son `reason` — `unconfigured` sans closer réglé), impossible
-  ou retrait d'une passe partie (`refused`, avec son `run`) ; 2 mal écrite.
+- **The preview writes nothing**: no request, no refusal — it opens the log read-only. It says the
+  **cost** (`cost`: the closer's calibration and its caps, `null` with no closer set), **what the
+  closer will do** (`does`, sentence by sentence), where the request stands (`request`: `none`,
+  `waiting` and what holds it, `running` and its run), and **what a request made now would become**
+  (`ifRequested`: `leaves`, `waits`, `already-requested`, `refused`, `impossible`, with its reason).
+  It does not replay the observation: it says what the station already knows.
+- **Nothing leaves without `--confirm`.** A typed command is your "yes"; a program's call is not.
+  `write --json` without `--confirm` exits with 1 (`unconfirmed`) without opening the log.
+- The exit codes are those of the typed gestures: 0 requested, already requested, withdrawn or
+  nothing to withdraw; 1 refused (`refused`, with its `reason` — `unconfigured` with no closer set),
+  impossible, or withdrawal of a pass that has left (`refused`, with its `run`); 2 badly written.
 
-### Ce qu'elle propose, et ce qu'elle tient
+### What it proposes, and what it holds
 
-La passe rapatrie la base et rejoue **l'observation** : ses doublons et ses exports morts sont les
-candidats du closer, chacun sous un nom court (`D1`, `M3`…), quarante au plus. Les fichiers de ces
-candidats — le test ou la doc qui nomme un export mort compris — sont **sa zone**, et les zones de
-fichiers du rail tiennent dans les deux sens :
+The pass fetches the base and replays **the observation**: its duplicates and its dead exports are
+the closer's candidates, each under a short name (`D1`, `M3`…), forty at most. The files of these
+candidates — the test or the doc that names a dead export included — are **its zone**, and the rail's
+file zones hold in both directions:
 
-- **Elle ne touche pas ce qu'un cook tient.** Un candidat dont un seul fichier est dans la zone d'un
-  cook en vol, ou d'un ticket en pass, n'est pas proposé — la PR le dit, avec le ticket qui le tient.
-  Et c'est relu à la livraison : un closer qui a écrit hors de sa zone, ou dans ce qu'un cook tient
-  — un cook sans zone parti entre-temps tient tout —, **ne livre rien** (`zone`).
-- **Aucun cook ne démarre sur ce qu'elle tient.** Tant qu'elle range, le rail compte sa zone comme
-  celle d'un ticket en cuisine : un ticket dont la zone la recouvre attend qu'elle ait fini, les
-  autres partent. C'est le recouvrement de deux tickets (« Les zones de fichiers »), pas un autre.
-  Un ticket **sans zone** n'est retenu par rien, comme entre deux tickets.
+- **It does not touch what a cook holds.** A candidate with a single file in the zone of a cook in
+  flight, or of a ticket in pass, is not proposed — the PR says so, with the ticket that holds it.
+  And it is reread at delivery: a closer that wrote outside its zone, or in what a cook holds — a
+  zoneless cook that left in the meantime holds everything — **delivers nothing** (`zone`).
+- **No cook starts on what it holds.** While it tidies, the rail counts its zone as that of a ticket
+  that is taken: a ticket whose zone overlaps it waits until it has finished, the others leave. This
+  is the overlap of two tickets ("File zones"), not another one. A ticket **with no zone** is held by
+  nothing, as between two tickets.
 
-### Les garde-fous
+### The guardrails
 
-Le closer est lancé par le lancement gardé de tous les cooks : rien n'est récrit pour lui.
+The closer is launched by the guarded launch of all cooks: nothing is rewritten for it.
 
-| Garde-fou | Ce qui l'arrête | Fin de la passe |
+| Guardrail | What stops it | End of the pass |
 |---|---|---|
-| Plafond de tokens par passe | `guard.tripped` `tokens`, à la limite de la passe | `tokens` |
-| Plafond de retraits par passe | Les lignes que son worktree retire, commitées ou non, relevées à chaque tick (`guard.tripped` `removals`) ; et recomptées à sa fin | `removals` |
-| Inactivité, durée, tours | Les plafonds de tout cook (« Régler les plafonds ») | `idle`, `duration`, `turns` |
-| « stop » | `brigade <projet> guardrails stop` l'arrête dans la seconde ; aucune ne part avant « reprendre » | `stop` |
-| Disjoncteur | Ouvert, aucune ne part ; ouvert pendant qu'elle range, elle est arrêtée | `breaker` |
+| Token cap per pass | `guard.tripped` `tokens`, at the pass's limit | `tokens` |
+| Removal cap per pass | The lines its worktree removes, committed or not, read at every tick (`guard.tripped` `removals`); and counted again at its end | `removals` |
+| Idleness, duration, turns | The caps of every cook ("Setting the caps") | `idle`, `duration`, `turns` |
+| "stop" | `brigade <projet> guardrails stop` halts it within the second; none leaves before "resume" | `stop` |
+| Breaker | Open, none leaves; open while it tidies, it is stopped | `breaker` |
 
-**Arrêtée, elle ne livre rien** : ni branche poussée, ni PR. Ce qu'elle avait écrit reste commité
-sur sa branche locale, comme le travail d'un cook arrêté. Un closer arrêté par un plafond, ou qui a
-écrit ce qu'il ne tenait pas, est **un échec que le disjoncteur compte**. Et elle le dit, à trois
-endroits : `closing.ended` au journal, une ligne dans `journalctl -u brigade@<projet>`, et la ligne
-`passe` du bloc `journal` de `brigade <projet> closing` :
-
-```
-passe      fermeture-3f9c1a2e, le 2026-10-13 14:02 — arrêtée : plafond de tokens de la passe atteint (512 340 pour un plafond de 500 000) — rien n'est livré
-```
-
-### La PR, et ce qu'elle a laissé
-
-La PR dit ce qui a été **retiré** et tout ce qui ne l'a pas été, **avec son motif** :
-
-- **Laissé faute d'être sûr** : le closer écrit, pour chaque candidat qu'il ne retire pas, une ligne
-  `LAISSÉ <nom> : <pourquoi>` — recopiée telle quelle. Rien n'est tenu pour retiré sur sa parole :
-  la passe rejoue l'observation sur sa branche, et un candidat qui s'y repère encore sans que le
-  closer l'ait nommé est dit **laissé sans motif**.
-- **Écarté avant la passe** : ce qu'un cook tenait, et ce qui dépassait les quarante candidats.
-
-Une passe qui n'a rien retiré n'ouvre pas de PR : ce qu'elle a laissé est dans `closing.ended`
-(`kept`).
-
-### La PR passe par la pass
-
-Sa PR ouverte, la passe la **remet à la pass** dans le geste qui écrit sa fin (`closing.ended`
-`delivered`, puis `pass.entered`). Tout ce que « La pass » dit d'une livraison vaut pour elle, sans
-un pas de moins : le commit poussé est fusionné avec la base du moment dans un worktree jetable, les
-**gates** du projet s'y jouent, le **reviewer** relit le diff, la **CI** du commit est lue, et verte,
-elle n'est mergée que **sous le grant `merge`** — `grant.used` avant l'appel à GitHub, `merge.done`
-après. Sans grant, elle s'arrête verte (`no-grant`) et attend ton merge ; une passe qui touche à ses
-juges ou aux déclarations du projet n'est jamais mergée par la pass (`review-required`).
-
-Ce qui change tient à ce qu'une passe n'a **pas de ticket** :
-
-- **La pass la suit sous le numéro de sa PR** — que GitHub ne donne à aucune issue — et c'est sur
-  la PR qu'elle parle : la relecture du reviewer, le verdict, l'arrêt. `brigade <projet> pass` la
-  montre comme `PR #<n>  hors du rail (run fermeture-…)`, et `brigade <projet> pass <n>` raconte
-  son jugement. Au journal, ses faits (`pass.*`, `grant.used`, `merge.done`) portent ce numéro.
-- **Le reviewer est son vrai juge**, et sa consigne n'est pas celle d'un ticket : il cherche ce que
-  le diff retire et dont quelque chose de vivant dépend encore, un test affaibli pour faire passer un
-  retrait, et ce que le diff fait d'autre que ce que la PR annonce. Des gates vertes n'y prouvent
-  rien — ce qui a disparu n'était peut-être testé par rien. **Un retrait dont il ne peut pas établir
-  qu'il est sûr est bloquant** : c'est l'inverse d'un ticket, où le doute est une remarque.
-- **Rouge, personne ne la reprend** : aucun cook n'est renvoyé, le closer ne repart pas, le manager
-  n'est pas saisi. Dès le premier rouge elle remonte (`pass.escalated`, `still-red` : `off-rail`),
-  la pass le dit sur la PR avec ce qu'elle a trouvé, et la PR reste ouverte : à toi de la merger à
-  la main — la pass le verra — ou de la fermer, et de relancer une passe.
-- **Mergée, ou fermée sans merge, la pass ne la suit plus** : il n'y a ni ticket à servir, ni issue
-  à fermer. Un merge à la main est constaté (`merge.done`, `by: outside`), et les gates sont
-  rejouées sur la base, comme après tout merge fait hors du runtime.
-
-### Le bilan d'une passe
-
-Une passe se lit **sans rouvrir sa PR** : `brigade <projet> closing` donne, sous sa ligne
-`passe`, le bilan de la dernière passe qui a fini. Il est relu dans le journal seul — rien n'y est
-rejoué — et son verdict tient en tête, sur une ligne :
+**Stopped, it delivers nothing**: no branch pushed, no PR. What it had written stays committed on its
+local branch, like the work of a stopped cook. A closer stopped by a cap, or that wrote what it did
+not hold, is **a failure that the breaker counts**. And it says so in three places: `closing.ended`
+in the log, a line in `journalctl -u brigade@<project>`, and the `pass` line of the `log` block of
+`brigade <projet> closing`:
 
 ```
-passe      fermeture-3f9c1a2e, le 2026-10-13 14:02 — livrée : 1 ligne retirée dans 1 fichier, 2 candidats laissés faute d'être sûr — …
-bilan      ÉCHEC — vérifications des gates : en baisse (12 → 11), même si les gates sont vertes — la passe a pu retirer du vivant · la pente descend (10:1 → 6,7:1 sur 20 merges)
-           PR #101 — jugée verte par la pass, mergée le 2026-10-13 14:20
-retiré     1 sur 3 candidats · 1 ligne retirée, aucune ajoutée, dans `src/libre/outils.ts`
-           M1  export `inutile` de `src/libre/outils.ts:2` — référencé nulle part
-laissé     2, faute d'être sûr
-           D1  8 lignes de code identiques : `src/libre/a.ts:1-8` = `src/libre/b.ts:1-8`  deux modules qui évoluent à part
-           M2  export `oublie` de `src/tenu/outils.ts:2` — référencé nulle part           le closer n'a donné aucun motif — …
-pente      ajouté / retiré sur les mêmes merges : avant la passe → avec ce qu'elle retire
-           20 merges   +20 / −2  10:1  →  +20 / −3  6,7:1  descend — 2 merges seulement sur la branche
+pass       fermeture-3f9c1a2e, on 2026-10-13 14:02 — stopped: the closing's token cap reached (512,340 for a cap of 500,000) — nothing is delivered
+```
+
+The run name `fermeture-3f9c1a2e` stays French until the runtime is translated; the rest of the line is what the command prints.
+
+### The PR, and what it left
+
+The PR says what was **removed** and everything that was not, **with its reason**:
+
+- **Left for lack of certainty**: for each candidate it does not remove, the closer writes a line
+  `LAISSÉ <name> : <why>` — copied as it is. Nothing is held as removed on its word: the pass replays
+  the observation on its branch, and a candidate that is still spotted there without the closer having
+  named it is said to be **left with no reason**.
+- **Set aside before the pass**: what a cook was holding, and what went beyond the forty candidates.
+
+A pass that removed nothing opens no PR: what it left is in `closing.ended` (`kept`).
+
+The `LAISSÉ` keyword is the one the runtime asks of the closer and reads back, and the PR body the closing pass writes is still French; both stay as they are until the runtime is translated.
+
+### The PR goes through the pass
+
+Once its PR is open, the closing pass **hands it to the pass** in the gesture that writes its end
+(`closing.ended` `delivered`, then `pass.entered`). Everything that "The pass" says of a delivery
+holds for it, not one step less: the pushed commit is merged with the current base in a throwaway
+worktree, the project's **gates** are played there, the **reviewer** reads the diff, the commit's
+**CI** is read, and green, it is merged only **under the `merge` grant** — `grant.used` before the
+call to GitHub, `merge.done` after. Without a grant, it stops green (`no-grant`) and waits for your
+merge; a pass that touches its judges or the project's declarations is never merged by the pass
+(`review-required`).
+
+What changes comes from a pass having **no ticket**:
+
+- **The pass follows it under the number of its PR** — which GitHub gives to no issue — and it is on
+  the PR that it speaks: the reviewer's reading, the verdict, the stop. `brigade <projet> pass` shows
+  it as `PR #<n>  off the rail (run fermeture-…)`, and `brigade <projet> pass <n>` tells its
+  judgement. In the log, its facts (`pass.*`, `grant.used`, `merge.done`) carry that number.
+- **The reviewer is its real judge**, and its brief is not a ticket's: it looks for what the diff
+  removes and something alive still depends on, a test weakened to get a removal through, and what the
+  diff does beyond what the PR announces. Green gates prove nothing there — what disappeared may have
+  been tested by nothing. **A removal that it cannot establish is safe is blocking**: the opposite of
+  a ticket, where doubt is a remark.
+- **Red, nobody takes it back**: no cook is sent back, the closer does not leave again, the manager is
+  not consulted. From the first red it is escalated (`pass.escalated`, `still-red`: `off-rail`), the
+  pass says so on the PR with what it found, and the PR stays open: it is for you to merge it by hand
+  — the pass will see it — or to close it, and to start another pass.
+- **Merged, or closed without a merge, the pass no longer follows it**: there is no ticket to serve,
+  no issue to close. A merge by hand is noted (`merge.done`, `by: outside`), and the gates are
+  replayed on the base, as after any merge made outside the runtime.
+
+### The summary of a pass
+
+A pass reads **without reopening its PR**: `brigade <projet> closing` gives, under its `pass` line,
+the summary of the last pass that finished. It is reread from the log alone — nothing is replayed —
+and its verdict comes first, on one line:
+
+```
+pass       fermeture-3f9c1a2e, on 2026-10-13 14:02 — delivered: 1 line removed in 1 file, 2 candidates left for lack of certainty — …
+summary    FAILURE — gate checks : down (12 → 11), even if the gates are green — the pass may have removed live code · the slope falls (10:1 → 6.7:1 over 20 merges)
+           PR #101 — judged green by the pass, merged on 2026-10-13 14:20
+removed    1 of 3 candidates · 1 line removed, none added, in `src/libre/outils.ts`
+           M1  export `inutile` of `src/libre/outils.ts:2` — referenced nowhere
+left       2, for lack of certainty
+           D1  8 identical lines of code: `src/libre/a.ts:1-8` = `src/libre/b.ts:1-8`  two modules that evolve apart
+           M2  export `oublie` of `src/tenu/outils.ts:2` — referenced nowhere           the closer gave no reason — the candidate is still spotted after the pass
+slope      added / removed over the same merges: before the pass → with what it removes
+           20 merges   +20 / −2  10:1  →  +20 / −3  6.7:1  falls — only 2 merges on the branch
            …
-garde-fous avant la passe → après, par les gates que la pass a jouées : sur la base `01913d7`, puis sur la PR fusionnée avec elle
-           couverture de tests      87,5 % → 87,5 %              tenu
-           vérifications des gates  12 → 11                      ÉCHEC — en baisse
-           état du produit          gates vertes → gates vertes  tenu
+guardrails before the pass → after, by the gates the pass ran: on the base `01913d7`, then on the PR merged with it
+           test coverage      87.5 % → 87.5 %              holds
+           gate checks        12 → 11                      FAILURE — down
+           product state      gates green → gates green    holds
 ```
 
-| Bloc | Ce qu'il dit | D'où il vient |
+| Block | What it says | Where it comes from |
 |---|---|---|
-| `retiré` | Chaque candidat retiré, avec son chemin et ce pour quoi l'observation le proposait ; les lignes retirées et ajoutées, les fichiers écrits | `closing.ended` : `removed`, `removedLines`, `addedLines`, `files` |
-| `laissé`, `écarté` | Chaque candidat que le closer a laissé, avec sa raison — ou qu'il a laissé sans la dire ; et ce qui a été écarté avant qu'elle ne parte | `closing.ended` : `kept` |
-| `pente` | Le ratio ajouté / retiré des 20, 50 et 100 derniers merges de la base dont la passe est partie, **avant** et **avec ce qu'elle retire** — sur les mêmes merges : ce qui bouge ne tient qu'à elle | `closing.ended` : `slope`, relevée au départ de la passe |
-| `garde-fous` | Trois, chacun avec sa valeur avant, après, et son verdict | Les gates que la pass a jouées — voir plus bas |
+| `removed` | Each candidate removed, with its path and what the observation proposed it for; the lines removed and added, the files written | `closing.ended`: `removed`, `removedLines`, `addedLines`, `files` |
+| `left`, `set aside` | Each candidate the closer left, with its reason — or that it left without saying it; and what was set aside before it left | `closing.ended`: `kept` |
+| `slope` | The added / removed ratio of the latest 20, 50 and 100 merges of the base the pass left from, **before** and **with what it removes** — over the same merges: what moves is due to it alone | `closing.ended`: `slope`, read at the pass's start |
+| `guardrails` | Three, each with its value before, after, and its verdict | The gates the pass played — see below |
 
-- **Les symptômes déclenchent, les effets font le bilan** — et on ne mesure pas une réduction sans
-  mesurer ce qu'elle ne doit pas casser. Trois garde-fous : la **couverture de tests** n'a pas baissé
-  (`MESURE couverture`), les gates **vérifient toujours autant de choses** (`MESURE verifications`),
-  le **produit marche** (les gates de la PR sont vertes). Les deux premiers sont ce que le projet
-  déclare par ses gates (« Ce que les gates déclarent ») : le runtime ne les invente pas.
-- **Une baisse est un échec, dit en tête — même sous des gates vertes.** Un closer qui efface du
-  code vivant et le test qui le couvrait laisse des gates vertes : c'est le cas que le bilan existe
-  pour dire. Toute baisse de la couverture ou du nombre de vérifications est `ÉCHEC`, si petite
-  soit-elle ; des gates rouges ou arrêtées à leur plafond de durée sont l'échec du produit.
-- **« Avant » et « après » ne diffèrent que de ce que la passe a écrit.** « Après » : les gates du
-  dernier jugement de sa PR (`pass.judged`), fusionnée avec la base du moment. « Avant » : les
-  gates jouées **sur l'arbre même de cette base** — son contrôle seule (`base.checked`), ou le
-  jugement de la livraison dont le merge l'a faite. Une livraison mergée entre le départ de la passe
-  et le jugement de sa PR est donc dans les deux mesures, et ne masque rien.
-- **Un garde-fou que rien n'a mesuré est `non établi`, jamais tenu**, et la tête du bilan le compte :
-  la PR pas encore jugée, des gates qui ne déclarent pas la mesure, une base sur l'arbre de laquelle
-  aucune gate du journal n'a été jouée (un commit posé droit dessus, par exemple). Le bilan dit lequel.
-- **Si la pente n'a pas bougé, il l'écrit : « la passe n'a pas servi ».** C'est le chiffre de la
-  fenêtre de 20 merges, tel qu'il se lit — `24,3:1` avant, `24,3:1` après, n'a pas bougé. De même
-  si elle monte, et pour une passe qui n'a rien retiré ou rien livré. Tant que sa PR n'est pas
-  mergée, la pente de la base n'a pas bougé du tout : le bilan dit où en est la PR.
-- **Aucun plafond par semaine** : c'est ce bilan, passe après passe, qui dira s'il en faut un.
+- **The symptoms trigger, the effects make the summary** — and a reduction is not measured without
+  measuring what it must not break. Three guardrails: the **test coverage** has not gone down
+  (`MESURE couverture`), the gates **still check as many things** (`MESURE verifications`), the
+  **product works** (the PR's gates are green). The first two are what the project declares through its
+  gates ("What the gates declare"): the runtime does not invent them.
+- **A drop is a failure, said first — even under green gates.** A closer that erases live code and
+  the test that covered it leaves green gates: that is the case the summary exists to say. Any drop
+  in coverage or in the number of checks is a `FAILURE`, however small; gates that are red or stopped
+  at their duration cap are the product's failure.
+- **"Before" and "after" differ only by what the pass wrote.** "After": the gates of the last
+  judgement of its PR (`pass.judged`), merged with the current base. "Before": the gates played **on
+  the very tree of that base** — its check alone (`base.checked`), or the judgement of the delivery
+  whose merge made it. A delivery merged between the pass's start and the judgement of its PR is
+  therefore in both measures, and hides nothing.
+- **A guardrail that nothing measured is `not established`, never held**, and the head of the summary
+  counts it: the PR not yet judged, gates that do not declare the measure, a base on whose tree no
+  gate in the log was played (a commit put straight on it, for example). The summary says which.
+- **If the slope has not moved, it writes it: "the pass was of no use".** It is the figure of the
+  20-merge window, as it reads — `24.3:1` before, `24.3:1` after, did not move. The same if it rises,
+  and for a pass that removed nothing or delivered nothing. As long as its PR is not merged, the base's
+  slope has not moved at all: the summary says where the PR stands.
+- **No cap per week**: it is this summary, pass after pass, that will say whether one is needed.
 
-### Ce que ce parcours ne fait pas
+The measure names `MESURE couverture` and `MESURE verifications` are lines the gates print, and the runtime still reads them in French; they stay as they are until the runtime is translated.
 
-- **Le bilan ne retient rien** : il se lit. Une PR de passe dont un garde-fou a cédé sous des gates
-  vertes est jugée verte par la pass, et mergée sous le grant `merge` comme toute livraison verte ;
-  rien ne te prévient hors de `brigade <projet> closing`. Le reviewer reste son juge.
-- **Seule la dernière passe finie a son bilan** dans `brigade <projet> closing` ; les précédentes
-  restent au journal (`closing.ended`, et les `pass.judged` de leur PR).
-- **La zone d'une passe est lâchée dès que sa PR est ouverte**, pas à son merge : tant que la PR est
-  en pass, un cook peut démarrer sur les fichiers qu'elle modifie. La pass juge chaque livraison
-  fusionnée avec la base du moment : la seconde à merger est rejugée, et un conflit se voit là.
-- **Une PR de passe arrêtée ou remontée ne figure pas dans « ce qui attend le chef »** de
-  `brigade <projet> station` : elle se lit dans `brigade <projet> pass`, et sur la PR.
-- **Dans `journalctl`, la pass nomme encore « ticket #<n> »** la PR d'une passe sur la plupart de ses
-  lignes : le numéro est le bon, le mot ne l'est pas.
-- **Le compteur « merges depuis la dernière fermeture »** du relevé ne repart pas encore d'une passe.
-- `brigade <projet> guardrails` nomme `manager` tout cook sans ticket : le closer s'y reconnaît à
-  son run, `fermeture-…`.
+### What this path does not do
 
+- **The summary holds nothing back**: it is read. A pass PR in which a guardrail gave way under green
+  gates is judged green by the pass, and merged under the `merge` grant like any green delivery;
+  nothing warns you outside `brigade <projet> closing`. The reviewer remains its judge.
+- **Only the last finished pass has its summary** in `brigade <projet> closing`; the earlier ones
+  stay in the log (`closing.ended`, and the `pass.judged` of their PR).
+- **A pass's zone is released as soon as its PR is open**, not at its merge: as long as the PR is in
+  pass, a cook can start on the files it modifies. The pass judges each delivery merged with the
+  current base: the second to merge is judged again, and a conflict shows there.
+- **A pass PR that is stopped or escalated does not appear in "what awaits the chef"** of
+  `brigade <projet> station`: it reads in `brigade <projet> pass`, and on the PR.
+- **In `journalctl`, the pass still says "ticket #<n>"** for a pass's PR on most of its lines: the
+  number is the right one, the word is not.
+- **The counter "merges since the last closing"** of the measures does not yet restart from a pass.
+- `brigade <projet> guardrails` calls `manager` any cook with no ticket: the closer is recognised
+  there by its run, `fermeture-…`.
