@@ -51,6 +51,8 @@ export type Terminal = {
   // La note est celle d'une demande écrite dans ce second, que l'Entrée du chef n'a pas encore
   // envoyée : elle disparaît à l'Entrée. Absent, rien n'y est écrit — la note dit pourquoi.
   demandeEcrite?: true;
+  // Rien n'est parti dans le second, et le geste n'a pas eu lieu : la vue le dit au chef, avec de quoi réessayer.
+  nonParti?: true;
 };
 
 export type Terminaux = ReturnType<typeof ouvrirTerminaux>;
@@ -136,7 +138,7 @@ export function ouvrirTerminaux(options: {
       return () => clearTimeout(minuteur);
     });
 
-  const montre = ({ id, projet, genre, titre, note, arrete, bandeau, demandeEcrite }: Tenu): Terminal => ({
+  const montre = ({ id, projet, genre, titre, note, arrete, bandeau, demandeEcrite, nonParti }: Tenu): Terminal => ({
     id,
     projet,
     genre,
@@ -145,6 +147,7 @@ export function ouvrirTerminaux(options: {
     arrete,
     ...(bandeau === undefined ? {} : { bandeau }),
     ...(demandeEcrite === undefined ? {} : { demandeEcrite }),
+    ...(nonParti === undefined ? {} : { nonParti }),
   });
   const de = (projet: string) => [...tenus.values()].filter((tenu) => tenu.projet === projet);
 
@@ -229,13 +232,16 @@ export function ouvrirTerminaux(options: {
   // (demande.ts), selon que le second était devant un dialogue.
   function inscrire(projet: Projet, commande: string, dit?: (devantUnDialogue: boolean) => string): Terminal {
     const second = secondDe(projet);
+    delete second.nonParti;
     if (CONTROLE.test(commande)) {
       second.note = SANS_ECRIRE;
+      second.nonParti = true;
       delete second.demandeEcrite;
       if (second.pty === undefined) second.arrete = true;
     } else if (second.pty === undefined) {
       lancerSecond(second, true);
       delete second.demandeEcrite;
+      second.nonParti = true;
       second.note = `the second was not running: launched (\`claude --continue ${ROLE}\`) — the command is not written into a second that is starting, click again when it is ready`;
     } else {
       // Devant un dialogue : le second attend une réponse, et ces caractères y seraient des touches.
@@ -261,9 +267,11 @@ export function ouvrirTerminaux(options: {
   function envoyer(projet: Projet, commande: string): Promise<Terminal | { refus: string }> {
     if (CONTROLE.test(commande)) return Promise.resolve({ refus: SANS_ECRIRE });
     const second = secondDe(projet);
+    delete second.nonParti;
     const { pty, saisie } = second;
     if (pty === undefined || saisie === undefined) {
       lancerSecond(second, true);
+      second.nonParti = true;
       second.note = `the second was not running: launched (\`claude --continue ${ROLE}\`) — the command did not go: a second that is starting takes nothing, click again when it has finished its first turn`;
       return Promise.resolve(montre(second));
     }
@@ -274,12 +282,16 @@ export function ouvrirTerminaux(options: {
       saisie.ecrit((preuve) => {
         clearTimeout(garde);
         // Le second arrêté entre-temps a sa propre note, et plus de saisie.
-        if (second.pty !== pty) return rendre(montre(second));
+        if (second.pty !== pty) {
+          second.nonParti = true;
+          return rendre(montre(second));
+        }
         if (preuve) {
           pty.ecrire("\r");
           saisie.parti();
           second.note = `sent to the second: \`${commande}\` — \`claude\` went into shell mode, the app pressed Enter. Its output is read in its thread, and the second reads it too`;
         } else {
+          second.nonParti = true;
           second.note = `written into the second, but not sent: \`${commande}\` — \`claude\` did not show itself in shell mode (“${PREUVE}”), so the app did not press Enter. Its input was not empty, or it was showing something other than its prompt: look at the second, and erase what is written there`;
         }
         rendre(montre(second));

@@ -184,6 +184,37 @@ describe("l'interrupteur, en tête de l'espace", () => {
     assert.deepEqual(vue.appels.filter(({ geste }) => geste === "confirmer"), []);
   });
 
+  test("un geste que le second refuse : le centre le dit en une phrase avec « try again », qui rejoue le même geste — jamais un clic sans message", async (t) => {
+    let appels = 0;
+    const vue = await ouvrir({ geste: () => (++appels === 1 ? { refus: "the second is busy — the command did not go, and nothing is written: `manager off`" } : undefined) });
+    vue.dire("surAlertes", bandeLue(sortieDeManager(t, true)));
+    await repos();
+
+    bascule(vue).click();
+    await repos();
+    const note = vue.element("note");
+    assert.equal(note.hidden, false);
+    assert.match(note.textContent, /^nothing was sent to the second: the second is busy/);
+    const encore = note.dessous("button").find(({ textContent }) => textContent === "try again") ?? assert.fail("pas de « try again »");
+    encore.click();
+    await repos();
+    assert.equal(gestesPartis(vue).length, 2);
+    assert.doesNotMatch(vue.element("note").textContent, /nothing was sent/);
+  });
+
+  test("le message d'un geste raté ne suit pas le chef dans un autre espace : ouvrir un projet l'efface", async (t) => {
+    const vue = await ouvrir({ geste: () => ({ refus: "the second is busy — nothing is written" }) });
+    vue.dire("surAlertes", bandeLue(sortieDeManager(t, true)));
+    await repos();
+    bascule(vue).click();
+    await repos();
+    assert.match(vue.element("note").textContent, /nothing was sent/);
+
+    (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
+    await repos();
+    assert.doesNotMatch(vue.element("note").textContent, /nothing was sent/);
+  });
+
   test("éteint, un clic ouvre la confirmation : une phrase dit ce qu'il va juger, avec le nombre réel d'issues ouvertes — rien ne part avant le « oui »", async (t) => {
     const backlog = { ouvertes: 23, retenues: 0 };
     const vue = await ouvrir({
