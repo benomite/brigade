@@ -2583,6 +2583,50 @@ main > header,
 #rail #lecture-cuisine h3 {
   padding: 0;
 }
+/* En tête de Cooks, au-dessus de la carte du projet (ticket 1272) : ses tickets servis, renvoyés et remontés au chef,
+   dans la dernière heure et le dernier jour — un petit tableau, une fenêtre par ligne, pour lire l'une contre l'autre. */
+#activite-du-projet:empty {
+  display: none;
+}
+#rail .activite-cuisine {
+  margin: 12px 16px 0;
+  padding: 8px 16px 10px;
+  background: var(--bandeau);
+  border: 1px solid var(--trait-doux);
+  border-radius: var(--rayon-carte);
+}
+#rail .activite-cuisine h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--discret);
+}
+#rail .activite-cuisine table {
+  border-collapse: collapse;
+  font-size: 12px;
+}
+#rail .activite-cuisine th {
+  padding: 2px 24px 2px 0;
+  font-weight: 400;
+  text-align: left;
+  color: var(--discret);
+}
+#rail .activite-cuisine thead th {
+  min-width: 6em;
+  text-align: right;
+}
+#rail .activite-cuisine .chiffre {
+  padding: 2px 24px 2px 0;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  color: var(--texte);
+  text-align: right;
+}
 /* Les stations du projet, sous sa carte (ticket 1185) : une ligne chacune — son nom, son mot et ce qu'il veut dire,
    ses cooks en cours, son bouton, à droite. Ce que le dernier clic a rendu passe dessous, sur toute la ligne. */
 #cuisson-du-projet:empty {
