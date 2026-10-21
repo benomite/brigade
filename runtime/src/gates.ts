@@ -5,8 +5,10 @@
 // `.claude/brigade/gates.sh <worktree>` a pour verdict son code de sortie. Seul
 // module qui lance les scripts du projet.
 import { envSansInvite, spawn } from "./sans-invite.ts";
-import { existsSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { signalerLArbre } from "./arbre.ts";
 import { envelopper, type Cloison } from "./cloison.ts";
 import type { Depassement, Gates } from "./events/pass.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
@@ -19,13 +21,26 @@ export const SCRIPT_SETUP = ".claude/brigade/worktree-setup.sh";
 const CANAL = 3;
 
 // Le contrat du setup est `eval "$(worktree-setup.sh N WT)"` : ses exports ne
-// se lisent qu'évalués par un shell. Une fois évalués, tout ce que ce shell
-// exporte part sur le canal, une variable par enregistrement.
+// se lisent qu'évalués par un shell. Ce que ce shell exporte part sur le canal,
+// une variable par enregistrement : avant l'évaluation, puis après, derrière
+// `APRES` — seul ce que l'évaluation a changé est un export du setup. Sous
+// Windows, le bash de Git réécrit à sa façon les chemins qu'il hérite (`PATH`
+// devient `/c/...`) : comparer à ce qu'il en disait avant, et non à ce que le
+// runtime lui a donné, ne prend pas cette réécriture pour un export ; un `PATH`
+// que le setup a vraiment changé repart en chemins de Windows (`cygpath`).
+//
+// Sous Windows, où le bash de Git ne reçoit pas de descripteur au-delà des trois
+// premiers, le canal est un fichier, que nomme `$4` ; vide ailleurs.
+const APRES = "--brigade-apres--";
 const SETUP = `
 set -u
+if [ -n "$4" ]; then exec ${CANAL}>"$4"; fi
+dire() { for nom in $(compgen -e); do valeur="\${!nom}"; if [ "$nom" = PATH ] && command -v cygpath >/dev/null 2>&1; then valeur="$(cygpath -w -p "$valeur")"; fi; printf '%s=%s\\0' "$nom" "$valeur"; done >&${CANAL}; }
+dire
 EXPORTS="$("$1" "$2" "$3")" || exit
 eval "$EXPORTS" || exit
-for nom in $(compgen -e); do printf '%s=%s\\0' "$nom" "\${!nom}"; done >&${CANAL}
+printf '%s\\0' '${APRES}' >&${CANAL}
+dire
 `;
 // Un seul canal pour les gates : entre deux tubes, l'ordre où deux lignes sont
 // lues n'est pas celui où elles ont été écrites.
@@ -102,6 +117,7 @@ function jouer(script: string, args: string[], demande: DemandeScript, retenir?:
     // Son propre groupe de process : au plafond, le script meurt avec tout ce
     // qu'il a lancé.
     const lancement = envelopper(demande.cloison, { commande: "bash", args: ["-c", script, "brigade", ...args] }, { cwd: demande.worktree, depot: "ecriture" });
+    const lance = Date.now();
     const enfant = spawn(lancement.commande, lancement.args, {
       cwd: demande.worktree,
       env: demande.env,
@@ -132,11 +148,7 @@ function jouer(script: string, args: string[], demande: DemandeScript, retenir?:
 
     let echu = false;
     const tuer = () => {
-      try {
-        if (enfant.pid !== undefined) process.kill(-enfant.pid, "SIGKILL");
-      } catch {
-        // Déjà mort.
-      }
+      if (enfant.pid !== undefined) signalerLArbre(enfant.pid, "SIGKILL", { depuis: lance });
     };
     const plafond = setTimeout(() => {
       echu = true;
@@ -179,16 +191,40 @@ function jouer(script: string, args: string[], demande: DemandeScript, retenir?:
 export async function jouerSetup(demande: DemandeScript): Promise<Setup> {
   const script = join(demande.worktree, SCRIPT_SETUP);
   if (!existsSync(script)) return { pret: true, joue: false, env: demande.env, sortie: "", masques: 0 };
-  const { code, depasse, sortie, masques, canal } = await jouer(SETUP, [script, String(demande.ticket), demande.worktree], demande);
+  const dossier = process.platform === "win32" ? mkdtempSync(join(tmpdir(), "brigade-setup-")) : null;
+  const fichier = dossier === null ? "" : join(dossier, "exports");
+  let lu: Passage;
+  let canal: string;
+  try {
+    lu = await jouer(SETUP, [script, String(demande.ticket), demande.worktree, fichier], demande);
+    canal = dossier === null ? lu.canal : existsSync(fichier) ? readFileSync(fichier, "utf8") : "";
+  } finally {
+    if (dossier !== null) rmSync(dossier, { recursive: true, force: true });
+  }
+  const { code, depasse, sortie, masques } = lu;
   if (code !== 0 || depasse) return { pret: false, depasse, code, sortie, masques };
   // Ce que le lancement ajoute lui-même (les réglages sans invite) n'est pas un export du setup.
   const lancee = envSansInvite(demande.env);
-  const exports = canal
-    .split("\0")
-    .filter(Boolean)
-    .map((ligne): [string, string] => [ligne.slice(0, ligne.indexOf("=")), ligne.slice(ligne.indexOf("=") + 1)])
-    .filter(([nom, valeur]) => !DU_SHELL.includes(nom) && !demande.interdites?.includes(nom) && lancee[nom] !== valeur);
-  return { pret: true, joue: true, env: { ...demande.env, ...Object.fromEntries(exports) }, sortie, masques };
+  const enregistrements = canal.split("\0").filter(Boolean);
+  const coupure = enregistrements.indexOf(APRES);
+  const variables = (liste: string[]) => liste.map((ligne): [string, string] => [ligne.slice(0, ligne.indexOf("=")), ligne.slice(ligne.indexOf("=") + 1)]);
+  const avant = new Map(variables(coupure < 0 ? [] : enregistrements.slice(0, coupure)));
+  const exports = variables(enregistrements.slice(coupure + 1)).filter(
+    ([nom, valeur]) => !DU_SHELL.includes(nom) && !demande.interdites?.includes(nom) && lancee[nom] !== valeur && avant.get(nom) !== valeur,
+  );
+  return { pret: true, joue: true, env: avecExports(demande.env, exports), sortie, masques };
+}
+
+// L'environnement augmenté des exports du setup. Sous Windows, un nom de
+// variable ne compte pas ses majuscules : l'export `PATH` remplace le `Path`
+// hérité, au lieu de vivre à côté de lui.
+export function avecExports(env: NodeJS.ProcessEnv, exports: Array<[string, string]>, plateforme: NodeJS.Platform = process.platform): NodeJS.ProcessEnv {
+  const base = { ...env };
+  if (plateforme === "win32") {
+    const noms = new Set(exports.map(([nom]) => nom.toUpperCase()));
+    for (const nom of Object.keys(base)) if (noms.has(nom.toUpperCase())) delete base[nom];
+  }
+  return { ...base, ...Object.fromEntries(exports) };
 }
 
 // Un outil du projet, joué dans le worktree comme ses scripts — l'outil du

@@ -152,6 +152,20 @@ test("la station dit les cœurs de sa machine : l'app en tire le nombre de cooks
   assert.equal(github.document(id ?? "").coeurs, 8);
 });
 
+test("une station sous Windows se dit Windows, sous le nom de sa machine en minuscules — comme une station macOS se dit macOS (#1153)", async (t) => {
+  const windows = identiteDeLaStation({ BRIGADE_STATION_VERSION: "1.4.0" }, { hostname: "PC-DU-CHEF", type: "Windows_NT", release: "10.0.26100" });
+  assert.deepEqual({ nom: windows.nom, machine: windows.machine }, { nom: "pc-du-chef", machine: "Windows 10.0.26100" });
+  assert.equal(identiteDeLaStation({}, { hostname: "mac.local", type: "Darwin", release: "25.0.0" }).machine, "macOS 25.0.0");
+  // C'est ce que l'app lit dans le gist de la station, et ce qu'elle montre dans la liste des stations.
+  const github = fauxGists();
+  const horloge = faussesHorloges(Date.parse("2026-10-15T12:00:00Z"));
+  const presence = tenirPresence({ racine: repertoireTemporaire(t), canal: github.canal, identite: windows, projets: () => ["brigade"], dire: () => {}, apres: horloge.apres, maintenant: horloge.maintenant });
+  aArreter(t, () => presence.arreter());
+  await presence.publier();
+  const [id] = [...github.gists.keys()];
+  assert.deepEqual([github.document(id ?? "").nom, github.document(id ?? "").machine], ["pc-du-chef", "Windows 10.0.26100"]);
+});
+
 test("l'état publié dit les projets servis et rafraîchit le signe de vie à chaque publication", async (t) => {
   const { github, presence, avancer } = unePresence(t, { projets: ["brigade", "espace"] });
   await presence.publier();

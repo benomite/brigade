@@ -1,0 +1,4 @@
+# Le runtime s'extrait en fins de ligne Unix sur toutes les plateformes, Windows
+# compris (où `core.autocrlf` les changerait) : un script bash en CRLF ne se joue
+# pas, et les tests comparent des octets.
+* text=auto eol=lf

@@ -86,10 +86,12 @@ const heure = (instant: number) => new Date(instant).toLocaleTimeString("fr-FR",
 
 // Ce que la station dit d'elle : son nom, celui de sa machine — ou celui que
 // sa configuration lui donne —, ce qu'est la machine, ses cœurs, et sa version.
-export function identiteDeLaStation(env: Record<string, string | undefined>): Identite {
-  const nom = env.BRIGADE_STATION_NOM || hostname().split(".")[0]?.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "") || "station";
-  const systeme = type() === "Darwin" ? "macOS" : type() === "Windows_NT" ? "Windows" : type();
-  return { nom, machine: `${systeme} ${release()}`, coeurs: availableParallelism(), version: env.BRIGADE_STATION_VERSION || `code ${empreinteDuCode().slice(0, 12)}` };
+// `machine` : ce que `node:os` dit du système, pour un test qui en simule un
+// autre — un nom d'hôte Windows est en majuscules (`PC-DU-CHEF`).
+export function identiteDeLaStation(env: Record<string, string | undefined>, machine: { hostname: string; type: string; release: string } = { hostname: hostname(), type: type(), release: release() }): Identite {
+  const nom = env.BRIGADE_STATION_NOM || machine.hostname.split(".")[0]?.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "") || "station";
+  const systeme = machine.type === "Darwin" ? "macOS" : machine.type === "Windows_NT" ? "Windows" : machine.type;
+  return { nom, machine: `${systeme} ${machine.release}`, coeurs: availableParallelism(), version: env.BRIGADE_STATION_VERSION || `code ${empreinteDuCode().slice(0, 12)}` };
 }
 
 // Lit l'état gardé. Illisible, la station repart de zéro : un gist neuf, un

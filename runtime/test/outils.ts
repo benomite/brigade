@@ -9,6 +9,7 @@ import { join } from "node:path";
 import type { TestContext } from "node:test";
 import { pathToFileURL } from "node:url";
 import { Sortie, type Commande } from "../src/appel.ts";
+import { signalerLArbre } from "../src/arbre.ts";
 import type { Fait } from "../src/evenements.ts";
 import { DECISIONS } from "../src/decisions.ts";
 import { ouvrirJournal, type Journal } from "../src/journal.ts";
@@ -115,7 +116,7 @@ export function tuerLesRelais(repertoire: string): void {
       tuer(relais);
       // Sa fin écrite juste avant sa mort, le groupe du cook est déjà tué.
       if (existsSync(`${racine}.fin.json`)) continue;
-      if (existsSync(`${racine}.cook.pid`)) tuer(-Number(readFileSync(`${racine}.cook.pid`, "utf8")));
+      if (existsSync(`${racine}.cook.pid`)) signalerLArbre(Number(readFileSync(`${racine}.cook.pid`, "utf8")), "SIGKILL");
     } catch {
       // Un fichier illisible : rien à tuer.
     }

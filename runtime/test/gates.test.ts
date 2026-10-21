@@ -6,7 +6,7 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "n
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import type { Cloison } from "../src/cloison.ts";
-import { aDesGates, jouerGates, jouerSetup } from "../src/gates.ts";
+import { aDesGates, avecExports, jouerGates, jouerSetup } from "../src/gates.ts";
 import { JETON_MASQUE } from "../src/identifiants.ts";
 import { environnementClaude, FICHIER_DU_JETON } from "../src/jeton-claude.ts";
 import { ENV_ENFANT, mort, repertoireTemporaire } from "./outils.ts";
@@ -358,6 +358,23 @@ describe("le setup du worktree", { concurrency: 8 }, () => {
       SUR_DEUX_LIGNES: "un\ndeux",
     });
     assert.match(setup.sortie, new RegExp(`^setup 17 ${racine} dans .*brigade-test-`));
+  });
+
+  test("seul ce que le setup change est un export : ce que le shell hérite et ne touche pas reste celui du runtime — un PATH changé, lui, en est un", async (t) => {
+    const racine = worktree(t, { setup: 'printf "export PATH=%q\\n" "/outils/du/projet:$PATH"' });
+
+    const setup = await preparer(racine);
+
+    assert.equal(setup.pret, true);
+    if (!setup.pret) return;
+    assert.deepEqual(Object.keys(setup.env).sort(), Object.keys({ ...ENV_ENFANT, DEJA_LA: "avant" }).sort());
+    assert.equal(setup.env.DEJA_LA, "avant");
+    assert.match(setup.env.PATH ?? "", /outils.du.projet/);
+  });
+
+  test("sous Windows, un export remplace la variable héritée sous un autre jeu de majuscules — `PATH` remplace `Path` au lieu de vivre à côté", () => {
+    assert.deepEqual(avecExports({ Path: "C:\\Windows", A: "1" }, [["PATH", "C:\\outils;C:\\Windows"]], "win32"), { A: "1", PATH: "C:\\outils;C:\\Windows" });
+    assert.deepEqual(avecExports({ Path: "/usr/bin", A: "1" }, [["PATH", "/outils"]], "linux"), { Path: "/usr/bin", A: "1", PATH: "/outils" });
   });
 
   test("un setup en échec le dit : son code, et ce qu'il a écrit", async (t) => {
