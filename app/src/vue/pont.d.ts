@@ -122,8 +122,10 @@ export type Pont = {
   // ceux qui tranchent ce qu'on attend du chef, puis ceux que la table du chef permet pour son
   // état, et dont l'action est branchée.
   gestesDeFiche(carte: { ticket: number; etat?: string; ouvrable: boolean; attendu: boolean; decision?: import("../decision.ts").Decision; pr?: boolean }): Promise<import("../gestes-fiche.ts").Propose[]>;
-  // Un geste de la fiche que la vue ne joue pas : une action de box, qui part dans le second.
-  gesteDeFiche(projet: string, id: string, ticket: number, valeur?: string): Promise<Terminal | { refus: string }>;
+  // Un geste de la fiche que la vue ne joue pas : une action de box, qui part dans le second. Là où il n'y a pas de
+  // second où l'écrire — le téléphone (ticket 1164) —, le pont joue l'action sur la station et rend ce qu'elle a fait,
+  // comme `cuireSurLaStation` : `fait`, une phrase, et ce que la station a répondu en `detail`.
+  gesteDeFiche(projet: string, id: string, ticket: number, valeur?: string): Promise<Terminal | { refus: string; detail?: string } | { fait: string; detail?: string }>;
   // L'histoire d'un ticket et son coût, lus par `pass <ticket> --json` sur la box (histoire.ts).
   lireHistoire(projet: string, ticket: number): Promise<import("../histoire.ts").Histoire | undefined>;
   // L'issue d'un ticket et sa discussion (discussion.ts), lues sur la box du projet à l'ouverture de

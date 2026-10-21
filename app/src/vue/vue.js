@@ -873,9 +873,19 @@ const situations = new Map();
 // Absents de la table, la lecture est en route ; `{ sans }`, ils n'ont pas pu être lus.
 /** @type {Map<string, import("../gestes-fiche.ts").Propose[] | { sans: string }>} */
 const gestesDeFiches = new Map();
-// Ce qu'il est advenu du dernier geste de la fiche qui n'est pas parti, par `<projet>#<ticket>`.
-/** @type {Map<string, string>} */
+// Ce qu'il est advenu du dernier geste de la fiche qui n'est pas parti, par `<projet>#<ticket>` : en une ligne, et ce
+// que la station ou le pont en a dit, au survol.
+/** @type {Map<string, { dit: string, detail: string }>} */
 const refusDeFiches = new Map();
+// Ce qu'il est advenu du dernier geste de la fiche qui est parti, par `<projet>#<ticket>` (ticket 1164) : en route —
+// ses boutons attendent la réponse, et rien ne part deux fois —, fait par la station, sans terminal où le lire — ce
+// que le pont du téléphone rend —, ou écrit dans le second, que l'écran étroit ne montre pas à côté de la fiche.
+/** @type {Map<string, { envoi: string } | { fait: string, detail: string } | { second: true }>} */
+const issuesDeFiches = new Map();
+// Un geste qui n'est pas parti — le pont a levé, ou ne porte pas l'action (le téléphone, tant que le guichet de sa
+// station ne la prend pas) : une ligne, et pourquoi au survol.
+const SANS_ENVOI = "nothing was sent — nothing was changed";
+const SANS_PONT = "this app does not carry this action to the station yet";
 // Le geste de la fiche qui coûte et que le chef a cliqué, en attente de sa confirmation, par
 // `<projet>#<ticket>` : rien ne part avant son « oui ».
 /** @type {Map<string, import("../gestes-fiche.ts").IdDeFiche>} */
@@ -2891,6 +2901,7 @@ function ouvrirFiche(projet, carte, retour) {
   situations.delete(`${projet.nom}#${carte.ticket}`);
   gestesDeFiches.delete(`${projet.nom}#${carte.ticket}`);
   refusDeFiches.delete(`${projet.nom}#${carte.ticket}`);
+  issuesDeFiches.delete(`${projet.nom}#${carte.ticket}`);
   confirmationsDeFiches.delete(`${projet.nom}#${carte.ticket}`);
   discussions.delete(`${projet.nom}#${carte.ticket}`);
   envoisDeCommentaire.delete(`${projet.nom}#${carte.ticket}`);
@@ -3067,11 +3078,12 @@ function poserGestesDeFiche(projet, carte) {
     section.append(lectureIndisponible(document, "actions unavailable", proposes.sans));
     return section;
   }
+  const issue = issuesDeFiches.get(cle);
   const liste = document.createElement("ul");
   for (const propose of proposes) {
     const ligne = document.createElement("li");
     ligne.dataset.geste = propose.id;
-    ligne.append(...poserGesteDeFiche(projet, ticket, propose));
+    ligne.append(...poserGesteDeFiche(projet, ticket, propose, issue !== undefined && "envoi" in issue));
     liste.append(ligne);
   }
   section.append(liste);
@@ -3089,23 +3101,33 @@ function poserGestesDeFiche(projet, carte) {
   }
   const refus = refusDeFiches.get(cle);
   if (refus !== undefined) {
-    const dit = bloc("p", refus);
+    const dit = bloc("p", refus.dit);
     dit.className = "refus";
+    if (refus.detail !== "") dit.title = refus.detail;
+    section.append(dit);
+  }
+  // Ce qui est parti : en route, fait — ce que la station a répondu au survol —, ou écrit dans le second.
+  if (issue !== undefined) {
+    const dit = bloc("p", "envoi" in issue ? `${issue.envoi}: sent, waiting for the answer…` : "fait" in issue ? issue.fait : "sent to the second: its answer is in the Second tab");
+    dit.className = "dit";
+    dit.ariaLive = "polite";
+    if ("fait" in issue && issue.detail !== "") dit.title = issue.detail;
     section.append(dit);
   }
   return section;
 }
 
 // Ce qu'un geste de la fiche pose : son bouton — recommandé s'il l'est, son prix au survol — et,
-// pour la priorité, de quoi la choisir avant.
-/** @param {Projet} projet @param {number} ticket @param {import("../gestes-fiche.ts").Propose} propose @returns {HTMLElement[]} */
-function poserGesteDeFiche(projet, ticket, propose) {
+// pour la priorité, de quoi la choisir avant. `occupe` : un geste de la fiche attend sa réponse — aucun ne part.
+/** @param {Projet} projet @param {number} ticket @param {import("../gestes-fiche.ts").Propose} propose @param {boolean} occupe @returns {HTMLElement[]} */
+function poserGesteDeFiche(projet, ticket, propose, occupe) {
   const { id, libelle, prix, recommande, valeurs } = propose;
   const cle = `${projet.nom}#${ticket}`;
   /** @param {() => void} geste @param {string} [aide] */
   const action = (geste, aide) => {
     const pose = boutonAction(document, libelle, geste, { recommande: recommande === true, prix });
     if (aide !== undefined) pose.children[0].title = aide;
+    if (occupe) pose.children[0].disabled = true;
     return pose;
   };
   switch (id) {
@@ -3126,6 +3148,7 @@ function poserGesteDeFiche(projet, ticket, propose) {
         if (prix === null) return void jouerGesteDeFiche(projet, ticket, id);
         confirmationsDeFiches.set(cle, id);
         refusDeFiches.delete(cle);
+        issuesDeFiches.delete(cle);
         if (ficheDe(projet, ticket)) poserFiche();
       };
       if (valeurs === undefined) return [action(jouer)];
@@ -3139,11 +3162,11 @@ function poserGesteDeFiche(projet, ticket, propose) {
         if (valeur !== undefined) void jouerGesteDeFiche(projet, ticket, id, valeur);
       });
       const cible = joue.children[0];
-      cible.disabled = choix.value === "";
+      cible.disabled = occupe || choix.value === "";
       choix.addEventListener("change", () => {
         if (choix.value === "") prioritesChoisies.delete(cle);
         else prioritesChoisies.set(cle, choix.value);
-        cible.disabled = choix.value === "";
+        cible.disabled = occupe || choix.value === "";
       });
       return [choix, joue];
     }
@@ -3169,20 +3192,38 @@ async function lireGestes(projet, carte) {
 
 // Un geste de la fiche que la vue ne joue pas : une action de box, qui part dans le second. Le
 // second se montre à droite ; ce qui n'est pas parti se dit sur la fiche, sous ses gestes.
+// Sur le téléphone (ticket 1164), il n'y a pas de second où l'écrire : le pont joue l'action sur la station et rend ce
+// qu'elle a fait, comme le bouton d'une station sur Cooks — dit sur la fiche, et la box relue tout de suite : la carte
+// quitte la file à la lecture qui suit. Tant que la réponse n'est pas là, les gestes de la fiche attendent ; refusé,
+// rien n'a changé, et la file non plus.
 /** @param {Projet} projet @param {number} ticket @param {string} id @param {string} [valeur] */
 async function jouerGesteDeFiche(projet, ticket, id, valeur) {
   const cle = `${projet.nom}#${ticket}`;
+  const avant = issuesDeFiches.get(cle);
+  if (avant !== undefined && "envoi" in avant) return;
   nonEcrit = nonEcritSecond = "";
   refusDeFiches.delete(cle);
+  const proposes = gestesDeFiches.get(cle);
+  issuesDeFiches.set(cle, { envoi: (Array.isArray(proposes) ? proposes.find((propose) => propose.id === id)?.libelle : undefined) ?? id });
+  if (ficheDe(projet, ticket)) poserFiche();
   try {
     const rendu = await brigade.gesteDeFiche(projet.nom, id, ticket, valeur);
-    if (rendu !== undefined && "refus" in rendu) refusDeFiches.set(cle, rendu.refus);
-    else if (rendu !== undefined) {
+    issuesDeFiches.delete(cle);
+    // Un pont qui ne porte pas l'action ne rend rien : rien n'est parti, et la fiche le dit.
+    if (rendu === undefined || rendu === null) refusDeFiches.set(cle, { dit: SANS_ENVOI, detail: SANS_PONT });
+    else if ("refus" in rendu) refusDeFiches.set(cle, { dit: rendu.refus, detail: rendu.detail ?? "" });
+    else if ("fait" in rendu) {
+      issuesDeFiches.set(cle, { fait: rendu.fait, detail: rendu.detail ?? "" });
+      if (id === "priorite") prioritesChoisies.delete(cle);
+      brigade.relireBox(demandeFaits);
+    } else {
       garder(projet.nom, rendu);
+      if (etroit()) issuesDeFiches.set(cle, { second: true });
       if (id === "priorite") prioritesChoisies.delete(cle);
     }
   } catch (erreur) {
-    refusDeFiches.set(cle, `nothing sent: ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+    issuesDeFiches.delete(cle);
+    refusDeFiches.set(cle, { dit: SANS_ENVOI, detail: erreur instanceof Error ? erreur.message : String(erreur) });
   }
   if (ficheDe(projet, ticket)) poserFiche();
   montrer();
@@ -4011,7 +4052,7 @@ async function cuire(projet, station, geste) {
   /** @type {import("../cuisson.ts").RenduDeCuisson} */
   let rendu;
   try {
-    rendu = await brigade.cuireSurLaStation(projet, station, geste);
+    rendu = (await brigade.cuireSurLaStation(projet, station, geste)) ?? { refus: `${station}: nothing was sent — nothing was changed`, detail: SANS_PONT };
   } catch (erreur) {
     rendu = { refus: `${station}: nothing was sent — nothing was changed`, detail: erreur instanceof Error ? erreur.message : String(erreur) };
   }
