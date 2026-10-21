@@ -176,7 +176,7 @@ placed after it, a calibration outside the table, more than twelve tickets — c
 **A ticket born from a split** carries: a body that starts with `Épique : #N`, then the context,
 the criteria and **why this calibration**; `model:`, `effort:`, and the epic's `prio:`; its
 **card** (`attend`, `zone`, and `requiert` if it asks for a capability) in a comment; and `fire`, set **last**. It does not go through
-the judgment again, and waits for those it depends on (see "La fiche d'un ticket", in `station.md`).
+the judgment again, and waits for those it depends on (see "A ticket's card", in `station.md`).
 
 **An interface ticket is designated for the design cook** (`agents/cook-design.md`). The manager
 recognizes it at the split: its zone touches the app's view (`app/src/vue/`, a file below it, or a
@@ -200,7 +200,7 @@ docs/captures/<ticket>/<écran>-apres.png
 
 `<écran>` pairs the two (`fiche`, `rail-vide`); `avant` and `apres` are read regardless of
 case and accents. At the pushed delivery, the station reads them in the files the branch
-changes, and shows them **under the PR's head line** and on the ticket: a "Captures" section,
+changes, and shows them **under the PR's head line** and on the ticket: a "Captures" section (the heading the runtime writes),
 each screen as an `Avant | Après` table, the two images side by side and captioned (`fiche — avant`),
 loaded at the pushed commit (`https://github.com/<repository>/blob/<sha>/<path>?raw=true`, which GitHub
 also shows in a private repository). **An interface delivery without its captures** — none, or a
@@ -213,7 +213,7 @@ body keeps the captures of the first delivery, the send-back's comment and `fact
 new ones.
 
 **The review also judges the captures** (`runtime/src/reviewer.ts`, #843). For an interface ticket,
-the reviewer's instruction adds a "Les captures" section: the delivered captures (which it opens with
+the reviewer's instruction adds a "Les captures" section (French: it is the heading the runtime writes today): the delivered captures (which it opens with
 `Read`) and the three violations of the rules of #830, looked for on each "after" capture — `geste-non-bouton`
 (an expected gesture that is only a command to copy), `mode-d-emploi` (a paragraph of explanation
 in plain words), `erreur-brute` (a technical error displayed as is). **It judges only the part of the screen
@@ -279,7 +279,7 @@ carries in its body (`<!-- brigade:decoupage #N.k -->`), and resumed (`reconcile
 mark — like a card — counts only coming from **someone who has a hand on the repository**.
 
 Limits: the code checks that two concurrent tickets share no zone path (see
-"Les zones de fichiers", in `station-cook.md`), not that the zone is the right one; and closing the served epic is your gesture.
+"File zones", in `station-cook.md`), not that the zone is the right one; and closing the served epic is your gesture.
 
 ### It reacts to a failure
 
@@ -353,7 +353,7 @@ Each judgment is in the log **like a cook** (`cook.launched`, station `manager`,
 open breaker, exhausted quota or expired connection — it is judged on resumption. For the
 breaker, an unreadable or incomplete judgment is **a failure**, a successful judgment counts neither
 for nor against; a judgment **that the model refuses** is retried, and is pinned at the third refusal
-in a row (see "Quand le modèle refuse", in `station-cook.md`). It does not hold the station. Allow up to one
+in a row (see "When the model refuses", in `station-cook.md`). It does not hold the station. Allow up to one
 minute between the decision and the cook's departure.
 
 | Event | Meaning |

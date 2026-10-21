@@ -93,8 +93,8 @@ At start, the runtime states its mode: `GitHub — une identité par rôle (cook
 written in French by the runtime, and stay French here until it is translated. A badly installed
 App does not make the start refuse: it says so in journald from the first tick (`identité « pass » :
 son App (…) n'est pas installée sur <owner>/<repo>` — French as well), and nothing leaves under that
-role until then. What remains unguaranteed: see "Ce que la pass ne garantit pas" (in
-[`pass-merge.md`](pass-merge.md), not translated yet, so its title is still French).
+role until then. What remains unguaranteed: see "What the pass does not guarantee" (in
+[`pass-merge.md`](pass-merge.md)).
 
 ## The project's secrets
 
@@ -110,8 +110,7 @@ not move.
 **A cook receives the intersection**: the variables that its repository declares, with the value
 that the machine holds. The declaration is read in the cook's worktree, on its branch. A delivery
 that touches it is never merged by the pass: it awaits your review (`review-required`, cause
-`declaration-modified: …` — see « Ce que la pass décide » in [`pass.md`](pass.md), not translated
-yet, so its title is still French).
+`declaration-modified: …` — see "What the pass decides" in [`pass.md`](pass.md)).
 
 The values file: an absolute path, **outside `BRIGADE_STATE_DIR` and `BRIGADE_REPO_DIR`**, in
 `chmod 600` — otherwise the runtime refuses to start. A value runs to the end of its line; a leading
@@ -194,8 +193,7 @@ base, once and for all.
 recognition, against accident and against injection by the ticket or the diff. Three things bound
 the damage: the allowlisted network ("The partition"), **GitHub's push protection** — to be turned
 on for the repository by the chef (`installer.md`, "Protect the integration branch") —, and
-revocability (« Révoquer la connexion Max » in [`station-cook.md`](station-cook.md), not translated
-yet, so its title is still French).
+revocability ("Revoking the Max connection" in [`station-cook.md`](station-cook.md)).
 
 ### Not published in what a cook says, either
 
@@ -218,7 +216,7 @@ stays, nothing is refused or held.
   `cook.exited` and in `gates` of `pass.judged` and `base.checked`; on the issue, `Masqué N fois :
   ce qui a la forme d'identifiants de Claude` (the runtime still writes this comment in French). The
   count covers **the whole stream**: a process has read the account's connection. If they are real
-  credentials: « Révoquer la connexion Max » (see above).
+  credentials: "Revoking the Max connection" (see above).
 
 ### What is not guaranteed
 

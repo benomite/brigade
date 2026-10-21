@@ -1,332 +1,350 @@
-### Les zones de fichiers
+### File zones
 
-**Un fichier, un propriétaire** : deux tickets qui peuvent partir en même temps ne possèdent pas le
-même fichier. Un chemin de `zone` possède **le fichier qu'il nomme et tout ce qui est dessous**,
-par segments entiers (`runtime/src` ne possède pas `runtime/src2`). Deux zones **se recouvrent**
-dès qu'un chemin de l'une égale ou contient un chemin de l'autre. Rien n'est lu sur le disque.
+**One file, one owner**: two tickets that can leave at the same time do not own the same file. A
+`zone` path owns **the file it names and everything below it**, by whole segments (`runtime/src`
+does not own `runtime/src2`). Two zones **overlap** as soon as a path of one equals or contains a
+path of the other. Nothing is read from the disk.
 
-**Les chemins communs** — `BRIGADE_COMMON_PATHS`, facultative — **n'appartiennent à personne** : ils
-ne font pas se recouvrir deux zones, et y écrire n'est jamais « hors zone ». Deux livraisons peuvent
-s'y télescoper : un conflit, la pass renvoie le cook se mettre à jour ; une régression sans conflit,
-les gates la voient sur la fusion (voir « Vert veut dire vert une fois fusionné »).
+**The common paths** — `BRIGADE_COMMON_PATHS`, optional — **belong to no one**: they do not make two
+zones overlap, and writing there is never "out of zone". Two deliveries can collide there: on a
+conflict, the pass sends the cook back to update; on a regression without a conflict, the gates see
+it on the merge (see "Green means green once merged").
 
-| Quand | Ce que le runtime fait | Où ça se lit |
+| When | What the runtime does | Where it reads |
 |---|---|---|
-| **Au découpage** | Deux tickets dont les zones se recouvrent et qui ne s'attendent pas : le code **pose la dépendance** | La fiche (`attend`), le commentaire de découpage, `manager.split` (`overlaps`) |
-| **Sur le rail** | Un ticket en attente dont la zone recouvre celle d'un ticket **parti et pas encore servi** est **retenu** | `run rail` : `zone held by #14 (chemin)` ; `status` : `zone held by #14 (chemin)` |
-| **À la récolte** | Un fichier livré hors de la zone du ticket est **signalé**, pas arrêté | `cook.out-of-zone`, et le commentaire de fin de cook |
+| **At the split** | Two tickets whose zones overlap and that do not await each other: the code **sets the dependency** | The card (`awaiting`), the split comment, `manager.split` (`overlaps`) |
+| **On the rail** | A queued ticket whose zone overlaps that of a ticket that **has left and is not yet served** is **held** | `run rail`: `zone held by #14 (<path>)`; `status`: `zone held by #14 (<path>)` |
+| **At the harvest** | A file delivered outside the ticket's zone is **flagged**, not stopped | `cook.out-of-zone`, and the end-of-cook comment |
 
-**La retenue sur le rail** se recalcule à chaque lecture et ne bloque jamais. **Tient sa zone** : un
-ticket pris, en pass ou **86** (même refusé avant tout cook : règle-le ou retire-lui `fire`), un
-ticket **que la pass a rendu** — jusqu'au merge de sa livraison —, et un cook qui tourne encore, son
-ticket fût-il sorti du rail. **Ne tient rien** : un ticket revenu en attente sans avoir rien livré,
-un ticket sorti du rail, une livraison mergée (même par toi), un ticket **redécoupé par le manager**
-(86 `manager:split`), une fiche **illisible**.
+**The hold on the rail** is recomputed at every read and never blocks. **Holds its zone**: a ticket
+that is taken, in pass or **86** (even refused before any cook: settle it or remove its `fire`), a
+ticket **that the pass sent back** — until its delivery is merged —, and a cook that is still
+running, even if its ticket has left the rail. **Holds nothing**: a ticket back to queued without
+having delivered anything, a ticket that has left the rail, a merged delivery (even by you), a
+ticket **re-split by the manager** (86 `manager:split`), an **unreadable** card.
 
-**Le signal « hors zone »** nomme sur l'issue les fichiers livrés hors zone et le ticket du rail qui
-possède chacun ; la pass juge la livraison comme une autre. Si l'écart est légitime, élargis la zone
-dans la fiche. **La zone qui compte est celle de la prise**, au journal : si la fiche a changé
-pendant la cuisson, le commentaire montre les deux zones et le fait porte `cardChanged: true`.
+**The "out of zone" signal** names on the issue the files delivered out of zone and the rail ticket
+that owns each one; the pass judges the delivery like any other. If the gap is legitimate, widen the
+zone in the card. **The zone that counts is the one at the take**, in the log: if the card changed
+during the cook, the comment shows both zones and the fact carries `cardChanged: true`.
 
-Limites : une PR fermée sans merge tient sa zone tant que son ticket n'est pas repris, servi ou
-retiré du rail (voir « Ce qui attend le chef ») ; une PR ouverte hors de tout ticket n'en tient pas.
+Limits: a PR closed without a merge holds its zone until its ticket is taken again, served or
+removed from the rail (see "What awaits the chef"); a PR opened outside any ticket holds none.
 
-### Ce qu'un cook charge
+### What a cook loads
 
-**Rien du compte qui fait tourner le service, et rien que le code ne nomme** : le binaire `claude`,
-ses outils intégrés, la connexion Max, sa consigne. La liste de ce qu'il charge en plus
-(`SOURCES_DE_REGLAGES`, `runtime/src/claude.ts`) est vide.
+**Nothing from the account that runs the service, and nothing the code does not name**: the `claude`
+binary, its built-in tools, the Max connection, its brief. The list of what it loads in addition
+(`SOURCES_DE_REGLAGES`, `runtime/src/claude.ts`) is empty.
 
-| Ce qui existe sur la machine | Un cook le charge ? | Coupé par |
+| What exists on the machine | Does a cook load it? | Cut by |
 |---|---|---|
-| Réglages du compte (`~/.claude/settings.json`) et du dépôt servi (`.claude/settings.json`, `settings.local.json`) : plugins, skills, hooks, agents, variables | non | `--setting-sources ""` |
-| Skills — du compte et du binaire | non | `--disable-slash-commands` |
-| Serveurs MCP — du dépôt, du compte, connecteurs claude.ai | non | `--strict-mcp-config` |
-| Mémoire automatique du compte | non | `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` |
-| `CLAUDE.md` du dépôt servi | **pas d'office** — la consigne envoie le cook le lire | part avec la source `project` |
-| Connexion Max | oui | — |
-| Secrets du projet (`BRIGADE_SECRETS_FILE`) | **ceux que son dépôt déclare**, et aucun autre | voir « Les secrets du projet » |
-| Compte GitHub de la machine (`gh`, `git push`) | **oui** sous l'identité unique ; **non** sous une identité par rôle | aucun jeton dans son environnement, `GH_CONFIG_DIR` vide — voir « Une identité GitHub par rôle » |
+| Account settings (`~/.claude/settings.json`) and served repository settings (`.claude/settings.json`, `settings.local.json`): plugins, skills, hooks, agents, variables | no | `--setting-sources ""` |
+| Skills — the account's and the binary's | no | `--disable-slash-commands` |
+| MCP servers — the repository's, the account's, claude.ai connectors | no | `--strict-mcp-config` |
+| The account's automatic memory | no | `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` |
+| The served repository's `CLAUDE.md` | **not automatically** — the brief sends the cook to read it | goes with the `project` source |
+| Max connection | yes | — |
+| Project secrets (`BRIGADE_SECRETS_FILE`) | **the ones its repository declares**, and no others | see "The project's secrets" |
+| The machine's GitHub account (`gh`, `git push`) | **yes** under the single identity; **no** under one identity per role | no token in its environment, `GH_CONFIG_DIR` empty — see "One GitHub identity per role" |
 
-Donc : **les hooks du dépôt servi ne tournent pas sous un cook**, et un `CLAUDE.md` qui en importe
-d'autres (`@fichier`) n'est suivi que si le cook va les lire. Restent hors de portée : les outils et
-agents intégrés au binaire, et le transcript que `claude` écrit — sous cloison, celui du projet.
+So: **the served repository's hooks do not run under a cook**, and a `CLAUDE.md` that imports others
+(`@file`) is followed only if the cook goes to read them. Still out of reach: the tools and agents
+built into the binary, and the transcript `claude` writes — under the partition, the project's.
 
-### Le cook ne livre pas, la station récolte
+### The cook does not deliver, the station harvests
 
-Le cook commite dans son worktree et dit ce qu'il a fait. `git push`, `git merge` et `gh pr merge`
-lui sont interdits au lancement — un garde-fou de bonne foi, il tourne en `bypassPermissions`. La
-clôture est ailleurs : sous une identité par rôle, le cook ne reçoit **aucun jeton GitHub**, et la
-protection de branche ne laisse merger que l'identité de la pass.
+The cook commits in its worktree and says what it did. `git push`, `git merge` and `gh pr merge` are
+forbidden to it at launch — a good-faith safeguard, since it runs in `bypassPermissions`. The real
+closure is elsewhere: under one identity per role, the cook receives **no GitHub token**, and branch
+protection lets only the pass's identity merge.
 
-| Fin | Reconnue à | Ce que fait la station | Disjoncteur |
+| Ending | Recognised by | What the station does | Breaker |
 |---|---|---|---|
-| **fini** | des commits sur la branche — que le cook ait conclu, soit sorti en erreur, ou ait été arrêté par un garde-fou ou son bail | commite ce qu'il a laissé non commité, pousse, ouvre la PR vers la branche d'intégration, met le ticket **en pass**, commente l'issue | réussite |
-| **fini, sans diff** | aucun commit, un **livrable délimité** dans son dernier message, et un worktree **intact** | ne pousse rien, pas de PR, ticket **en pass** (`cook.reported`, motif `no-diff`) : le reviewer le juge seul | réussite |
-| **échoué** | aucun commit et rien de délimité (`no-deliverable`) ; des fichiers écrits jamais commités (`no-commit`) ; un cook sans commit qui n'a pas conclu ; un worktree qui n'est plus sur sa branche (`off-branch`) ou ne désigne plus son dépôt (gardés, voir « Ce qui reste après un cook ») ; un push impossible | rend le ticket, commente l'issue avec le motif. Ce qu'il avait écrit est commité sur sa branche **locale**, jamais poussée | échec |
-| **86** | le flux dit le quota épuisé | ticket **86** jusqu'au retour du quota, plus aucune prise d'ici là | ne compte pas |
-| connexion expirée | le flux dit que la machine n'a plus de session | rend le ticket, commente, ne prend plus rien avant « reprendre » | ne compte pas |
-| **refusé par le modèle** | `stop_reason: refusal`, sans commit | voir « Quand le modèle refuse » | ne compte pas |
-| « stop » du chef | — | rien n'est récolté : retour en attente | ne compte pas |
-| **ticket sorti du rail** pendant la cuisson | issue fermée ou `fire` retiré | arrête le cook, ne pousse rien, commente l'issue ; ce qu'il avait écrit est sur sa branche locale | ne compte pas |
+| **done** | commits on the branch — whether the cook concluded, exited with an error, or was stopped by a guardrail or its lease | commits what it left uncommitted, pushes, opens the PR to the integration branch, puts the ticket **in pass**, comments on the issue | success |
+| **done, no diff** | no commit, a **delimited deliverable** in its last message, and an **intact** worktree | pushes nothing, no PR, ticket **in pass** (`cook.reported`, reason `no-diff`): the reviewer judges it alone | success |
+| **failed** | no commit and nothing delimited (`no-deliverable`); files written and never committed (`no-commit`); a cook with no commit that did not conclude; a worktree that is no longer on its branch (`off-branch`) or no longer points to its repository (kept, see "What is left after a cook"); a push that is impossible | returns the ticket, comments on the issue with the reason. What it had written is committed on its **local** branch, never pushed | failure |
+| **86** | the stream says the quota is exhausted | ticket **86** until the quota is back, no more takes until then | not counted |
+| expired connection | the stream says the machine no longer has a session | returns the ticket, comments, takes nothing more until "resume" | not counted |
+| **refused by the model** | `stop_reason: refusal`, no commit | see "When the model refuses" | not counted |
+| the chef's "stop" | — | nothing is harvested: back to queued | not counted |
+| **ticket off the rail** during the cook | issue closed or `fire` removed | stops the cook, pushes nothing, comments on the issue; what it had written is on its local branch | not counted |
 
-Un ticket qui échoue est repris aussitôt par un cook neuf, worktree et branche neufs : c'est le
-disjoncteur qui borne la série. **Le worktree part à la fin du cook**, réussi ou non.
+A ticket that fails is taken again at once by a new cook, new worktree and branch: the breaker is
+what bounds the series. **The worktree goes away at the end of the cook**, successful or not.
 
-**Ce qu'un cook laisse non commité dans une livraison part avec elle**, dans un commit à part au nom
-de `brigade` ; le commentaire le dit, et le reviewer est prévenu. Ce que le projet ignore n'y entre
-jamais — mais **un fichier neuf qu'il n'ignore pas part dans la PR** (un `.env`, une sortie
-d'outil) : le reviewer le tient pour bloquant, la garde est le `.gitignore` du projet.
+**What a cook leaves uncommitted in a delivery goes with it**, in a separate commit in the name of
+`brigade`; the comment says so, and the reviewer is warned. What the project ignores never goes in —
+but **a new file that it does not ignore goes into the PR** (a `.env`, a tool's output): the reviewer
+holds it as blocking, the guard is the project's `.gitignore`.
 
-- **Un cook qui finit, son ticket déjà sorti du rail** : sa branche est poussée, **aucune PR n'est
-  ouverte** ; le commentaire donne la commande pour l'ouvrir toi-même.
-- **Un ticket que la pass a renvoyé** repart sur la branche de la livraison refusée, dans un
-  worktree neuf, avec les findings en consigne ; il livre sur la même PR.
-- **Un runtime mort entre l'envoi en pass et le compte-rendu** : au démarrage, la station retrouve
-  la PR, relit le flux brut et écrit `cook.reported` (`reconciled: true`). Aucun cook n'est relancé.
+- **A cook that finishes, its ticket already off the rail**: its branch is pushed, **no PR is
+  opened**; the comment gives the command to open it yourself.
+- **A ticket that the pass sent back** restarts on the branch of the refused delivery, in a new
+  worktree, with the findings as its brief; it delivers on the same PR.
+- **A runtime that died between the send to pass and the report**: at startup, the station finds the
+  PR again, rereads the raw stream and writes `cook.reported` (`reconciled: true`). No cook is
+  relaunched.
 
-**Ce qu'un humain pousse sur la branche d'un cook n'est jamais écrasé** : la station pousse en force
-**gardée** (`--force-with-lease`, contre ce qu'elle sait de l'origine).
+**What a human pushes onto a cook's branch is never overwritten**: the station force-pushes in a
+**guarded** way (`--force-with-lease`, against what it knows of the origin).
 
-| Quand un humain a poussé | Ce que fait la station |
+| When a human has pushed | What the station does |
 |---|---|
-| **entre deux cooks** | le cook de renvoi repart de ce que l'origine porte. Une branche que tu as réécrite est adoptée telle quelle |
-| entre deux cooks, le clone gardant la récolte jamais poussée d'un cook raté | elle fusionne les deux (commit de merge au nom de `brigade`). **En conflit**, aucun cook : 86 (`worktree-failed`, reproposé dix minutes plus tard), l'alerte nomme la branche et les fichiers — à réconcilier à la main, dans le clone |
-| **pendant que le cook travaille** | le push échoue (`push-failed`) ; le travail reste sur la branche locale, et la reprise suivante fusionne |
+| **between two cooks** | the resend cook restarts from what the origin carries. A branch you rewrote is adopted as it is |
+| between two cooks, the clone keeping the never-pushed harvest of a failed cook | it merges the two (merge commit in the name of `brigade`). **On a conflict**, no cook: 86 (`worktree-failed`, offered again ten minutes later), the alert names the branch and the files — to reconcile by hand, in the clone |
+| **while the cook works** | the push fails (`push-failed`); the work stays on the local branch, and the next resumption merges |
 
-Le **commentaire** de fin de cook porte sa fin, son calibrage, ses tours, tokens, durée, branche,
-PR, puis **ce qu'il a délimité** ; le reste de son message est replié. Tout est au journal
-(`cook.reported`), le flux brut dans `runs/<run>.jsonl`.
+The end-of-cook **comment** carries its ending, its calibration, its turns, tokens, duration, branch,
+PR, then **what it delimited**; the rest of its message is folded. Everything is in the log
+(`cook.reported`), the raw stream in `runs/<run>.jsonl`.
 
-#### Le livrable se délimite
+The comment's headings and wording, written by the runtime, stay French until the runtime is
+translated.
 
-Le livrable d'un cook est **ce qu'il délimite dans son dernier message, entre `<livrable>` et
-`</livrable>`**, et rien d'autre. Avec un diff, c'est son compte-rendu : il part dans le corps de la
-PR et le reviewer le lit ; sans diff, c'est le livrable lui-même. Une décision lui manque ? Il le
-dit dans ce passage.
+#### The deliverable is delimited
 
-| Ce que porte le dernier message | Ce qui est retenu |
+A cook's deliverable is **what it delimits in its last message, between `<livrable>` and
+`</livrable>`**, and nothing else. With a diff, it is its report: it goes into the body of the PR and
+the reviewer reads it; with no diff, it is the deliverable itself. Is a decision missing? It says so
+in that passage.
+
+The tags `<livrable>` and `</livrable>` are what the runtime asks of the cook and reads back
+(`runtime/src/livrable.ts`); they stay French until the runtime is translated.
+
+| What the last message carries | What is kept |
 |---|---|
-| une délimitation fermée ; plusieurs | son contenu ; **la dernière** |
-| une ouverture rouverte avant d'être fermée | ce qui suit la **dernière** ouverture |
-| une fermeture sans ouverture, une balise qui n'est pas la sienne, une balise **citée** (backticks, bloc de code) | ignorée |
-| une ouverture **jamais fermée**, une délimitation vide, aucune délimitation | **aucun livrable** |
+| one closed delimitation; several | its content; **the last one** |
+| an opening reopened before being closed | what follows the **last** opening |
+| a closing with no opening, a tag that is not its own, a **quoted** tag (backticks, code block) | ignored |
+| an opening **never closed**, an empty delimitation, no delimitation | **no deliverable** |
 
-Les balises se lisent nues, quelle que soit leur casse. **Sans livrable** : un cook qui a commité
-n'est pas en échec, son message est publié tel quel ; un cook **sans commit** a échoué
-(`no-deliverable`), et le commentaire dit ce qui manque.
+The tags are read bare, whatever their case. **With no deliverable**: a cook that committed is not
+a failure, its message is published as it is; a cook **with no commit** has failed
+(`no-deliverable`), and the comment says what is missing.
 
-### Quand le modèle refuse
+### When the model refuses
 
-`claude` sort en erreur et son flux finit sur `stop_reason: refusal`. Ce n'est ni une panne ni un
-échec : noté à part (`cook.exited`, `outcome: refused`), **le disjoncteur ne le compte pas**. Au
-**troisième refus d'affilée** du même lancement, le runtime s'arrête et te le dit sur l'issue, avec
-la catégorie du refus quand `claude` la donne.
+`claude` exits with an error and its stream ends on `stop_reason: refusal`. This is neither an outage
+nor a failure: noted apart (`cook.exited`, `outcome: refused`), **the breaker does not count it**. At
+the **third refusal in a row** of the same launch, the runtime stops and tells you on the issue, with
+the category of the refusal when `claude` gives it.
 
-| Ce que le modèle refuse | Jusqu'à deux refus d'affilée | Au troisième |
+| What the model refuses | Up to two refusals in a row | At the third |
 |---|---|---|
-| le **cook** d'un ticket | retour en attente, commentaire « refusé par le modèle, essai n/3 » | 86, motif `refused`, « Remonté au chef » |
-| la **relecture** d'une livraison | retentée au réveil suivant | la pass te remonte le ticket (`unjudged`, cause `review-refused`) : 86, sans merge ni renvoi |
-| un **jugement**, un **découpage** ou une **réaction** du manager | retenté au réveil suivant | épinglé comme une réponse illisible (`manager.failed`, `manager.split-failed`, ou une réaction qui remonte) |
+| a ticket's **cook** | back to queued, comment `refusé par le modèle, essai n/3` | 86, reason `refused`, `Remonté au chef` |
+| the **review** of a delivery | retried at the next wake-up | the pass escalates the ticket to you (`unjudged`, cause `review-refused`): 86, no merge and no send back |
+| a manager's **judgment**, **split** or **reaction** | retried at the next wake-up | pinned like an unreadable answer (`manager.failed`, `manager.split-failed`, or a reaction that escalates) |
 
-À toi alors : reformuler le ticket, le recalibrer, ou le relancer — retirer puis reposer `fire`.
+The comment `refusé par le modèle, essai n/3` and the mention `Remonté au chef` are written by the
+runtime (`runtime/src/station.ts`) and stay French until the runtime is translated.
 
-### 86 : le quota est épuisé
+It is then up to you: reword the ticket, recalibrate it, or relaunch it — remove then set `fire`
+again.
 
-Un état normal : le ticket passe 86 jusqu'à l'heure de retour du quota — une heure, si `claude` ne
-la donne pas —, puis la station ressert.
+### 86: the quota is exhausted
 
-### Connexion Max expirée
+A normal state: the ticket goes 86 until the quota's return time — one hour, if `claude` does not
+give it —, then the station serves again.
 
-La station le voit au démarrage (`claude auth status`) et dans le flux d'un cook. Elle l'écrit
-(`station.disconnected`), commente le ticket qui l'a subie, et **ne prend plus aucun ticket** ;
-`run status` le dit en tête (ligne `connection` : `MISSING` au démarrage, `EXPIRED` en route).
-**Pour repartir** : `claude /login` sous le compte du service — rien d'autre. Le runtime relit le
-fichier d'état du renouvellement à chaque tick : dès qu'un passage **réussi**, sans échec derrière lui,
-relève des identifiants **réécrits** après la chute (`renouvele` ou `ecrits` plus récent que
-`station.disconnected` — un `verifie` frais n'y suffit pas : le passage réussit aussi sans
-réécriture), il écrit
-`session.restored`, l'arrêt de connexion se lève, la bande d'alertes et la file ne le disent plus,
-et la sortie du runtime dit « connexion Max rétablie à HH:MM, la cuisine a repris ». Compter une
-minute. `guardrails -- resume` reste pour les autres arrêts (« stop » du chef, disjoncteur), et
-pour dater une reconnexion qu'aucun renouvellement n'a vue.
+### Max connection expired
 
-Le runtime ne lit jamais les identifiants de `claude`, et **refuse de démarrer** si son
-environnement porte `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` ou `CLAUDE_CODE_OAUTH_TOKEN`.
+The station sees it at startup (`claude auth status`) and in a cook's stream. It writes it
+(`station.disconnected`), comments on the ticket that suffered it, and **takes no more tickets**;
+`run status` says so at the top (`connection` line: `MISSING` at startup, `EXPIRED` along the way).
+**To restart**: `claude /login` under the service account — nothing else. The runtime rereads the
+renewal's state file at every tick: as soon as a **successful** pass, with no failure behind it,
+carries credentials **rewritten** after the drop (`renouvele` or `ecrits` more recent than
+`station.disconnected` — a fresh `verifie` is not enough: the pass also succeeds without a rewrite),
+it writes `session.restored`, the connection stop lifts, the alert band and the queue no longer say
+it, and the runtime's output says "connexion Max rétablie à HH:MM, la cuisine a repris". Count one
+minute. `guardrails -- resume` remains for the other stops (the chef's "stop", the breaker), and to
+date a reconnection that no renewal saw.
 
-Avant qu'elle tombe, la session s'annonce : voir « La session Max : renouvellement et alerte ».
+The keys `renouvele`, `ecrits`, `verifie`, `echec` and the kinds `session-refusee`, `non-renouvele`
+are written by `runtime/deploy/brigade-renouvellement` and read by the runtime; the line "connexion
+Max rétablie à HH:MM, la cuisine a repris" is printed by `runtime/src/renouvellement.ts`. All stay
+French until the runtime is translated.
 
-### La session Max : renouvellement et alerte
+The runtime never reads `claude`'s credentials, and **refuses to start** if its environment carries
+`ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` or `CLAUDE_CODE_OAUTH_TOKEN`.
 
-La session Max se renouvelle **hors cloison**, et le runtime **la suit sans la lire**. Deux
-morceaux, qui ne se parlent que par un fichier d'état :
+Before it drops, the session announces itself: see "The Max session: renewal and alert".
 
-- **Le renouvellement** — `runtime/deploy/brigade-renouvellement`, joué chaque minute par
-  `brigade-renouvellement.timer` sous le compte du service, un seul par box. Il lance
-  `claude mcp list` hors de toute cloison : `claude` y rafraîchit son jeton s'il expire dans les
-  cinq minutes, et réécrit son fichier d'identifiants. Cette commande n'appelle aucun modèle : un
-  passage ne coûte rien au quota. Il ne lit jamais le fichier d'identifiants — il en constate la
-  date et l'inode par `stat` — et il écrit un seul fichier : `/var/lib/brigade/.session/renouvellement`
-  (`BRIGADE_SESSION_STATE`), des lignes `clé=valeur` de dates et de la nature d'un échec, jamais un
-  jeton. Sa forme et ses clés sont dans l'en-tête du script.
-- **Le suivi** — le runtime relit ce fichier au démarrage, puis à chaque tick, et n'écrit au journal
-  que ce qui change (`session.observed`). Un redémarrage qui ne voit rien de neuf n'écrit rien.
+### The Max session: renewal and alert
 
-**Avec un jeton longue durée** (`BRIGADE_CLAUDE_TOKEN_FILE`), il n'y a plus de renouvellement à
-suivre : le runtime ne relit pas le fichier d'état, n'écrit pas `session.observed` ni
-`session.restored`, la veille de la station n'en tire aucune perte (`session-refusee`…), et l'alerte
-ci-dessous ne sort pas — c'est l'échéance du jeton qui s'annonce. Sans jeton, rien ne change.
+The Max session is renewed **outside the partition**, and the runtime **follows it without reading
+it**. Two pieces, which talk to each other only through a state file:
 
-**L'alerte.** Quand l'échéance estimée entre dans le préavis, la file du chef la porte, dans
-`awaiting`, avec le geste :
+- **The renewal** — `runtime/deploy/brigade-renouvellement`, run every minute by
+  `brigade-renouvellement.timer` under the service account, one per box. It runs
+  `claude mcp list` outside any partition: `claude` refreshes its token there if it expires within
+  five minutes, and rewrites its credentials file. This command calls no model: a pass costs the
+  quota nothing. It never reads the credentials file — it notes its date and inode with `stat` — and
+  it writes a single file: `/var/lib/brigade/.session/renouvellement` (`BRIGADE_SESSION_STATE`),
+  `key=value` lines of dates and of the kind of a failure, never a token. Its shape and its keys are
+  in the script's header.
+- **The follow-up** — the runtime rereads this file at startup, then at every tick, and writes to the
+  log only what changes (`session.observed`). A restart that sees nothing new writes nothing.
+
+**With a long-lived token** (`BRIGADE_CLAUDE_TOKEN_FILE`), there is no renewal left to follow: the
+runtime does not reread the state file, does not write `session.observed` or `session.restored`, the
+station's watch draws no loss from it (`session-refusee`…), and the alert below does not come out —
+it is the token's expiry that announces itself. Without a token, nothing changes.
+
+**The alert.** When the estimated expiry enters the notice period, the chef's queue carries it, in
+`awaiting`, with the gesture:
 
 ```
 awaiting   …
-  session  for <durée>  Max session close to its expiry — <heure> — to do before then: claude /login under the service account, then run guardrails -- resume
+  session  for <duration>  Max session close to its expiry — <estimated expiry> — to do before then: claude /login under the service account, then run guardrails -- resume
 end awaiting
 ```
 
-ou, si le renouvellement a échoué et que rien ne l'a rattrapé :
+or, if the renewal failed and nothing made up for it:
 
 ```
-  session  for <durée>  Max session renewal failing (<nature>: <détail>) — <heure> — to restore: claude /login …, then run guardrails -- resume
+  session  for <duration>  Max session renewal failing (<kind>: <detail>) — <estimated expiry> — to restore: claude /login …, then run guardrails -- resume
 ```
 
-- **L'échéance est estimée**, jamais lue : la vie d'un jeton (`BRIGADE_SESSION_LIFETIME`, défaut
-  `28800` s, huit heures) compte depuis la plus récente de trois dates — le dernier renouvellement
-  réussi, la dernière écriture des identifiants vue, la dernière reconnexion du chef
-  (« reprendre »). L'annonce part `BRIGADE_SESSION_WARNING` avant (défaut `10800` s, trois heures).
-  Ce réglage ne peut dépasser la vie du jeton, et la vie ne peut valoir `0` : le démarrage le refuse.
-- **Qu'il tourne ou non, l'alerte s'annonce.** Un renouvellement qui a échoué peut revenir, mais
-  l'échéance reste l'échéance : la ligne ne sort qu'au renouvellement réussi suivant, qui fait
-  repartir l'échéance, ou au « reprendre » du chef. Une session déjà tombée ne reçoit pas de
-  seconde annonce : la file dit alors depuis quand, et le geste (« Connexion Max expirée »).
-- **Sous une connexion tombée, rien de plus.** Tant qu'une station est déconnectée, la ligne
-  `session` ne s'ajoute pas : `connexion` la porte.
+The `<kind>` is one of the French codes above (`session-refusee`, `non-renouvele`…), which stay
+French until the runtime is translated.
 
-**Ce que ça ne fait pas, et ses limites.**
+- **The expiry is estimated**, never read: a token's life (`BRIGADE_SESSION_LIFETIME`, default
+  `28800` s, eight hours) counts from the most recent of three dates — the last successful renewal,
+  the last write of the credentials seen, the chef's last reconnection ("resume"). The announcement
+  leaves `BRIGADE_SESSION_WARNING` before (default `10800` s, three hours). This setting cannot
+  exceed the token's life, and the life cannot be `0`: startup refuses it.
+- **Whether it runs or not, the alert announces itself.** A renewal that failed may come back, but
+  the expiry remains the expiry: the line only leaves at the next successful renewal, which restarts
+  the expiry, or at the chef's "resume". A session that has already dropped does not get a second
+  announcement: the queue then says since when, and the gesture ("Max connection expired").
+- **Under a dropped connection, nothing more.** As long as a station is disconnected, the `session`
+  line is not added: `connection` carries it.
 
-- **Sans le fichier d'état, rien ne s'annonce** — ni le timer n'est installé, ni il n'a encore fait
-  de passage, ni le fichier est illisible (`file` : `absent` ou `unreadable` dans `session.observed`).
-  L'échéance ne se devine plus alors que d'une reconnexion du chef. C'est le cas de toute box où le
-  timer n'a pas été posé : le geste 5 de l'installation copie ses deux unités avec le reste, et
-  `sudo systemctl enable --now brigade-renouvellement.timer` le démarre. Le paquet de la station
-  porte le sien, qu'il active seul. « Vérifier » en affiche l'état sur une ligne.
-- **Le renouvellement ne répare que ce que `claude` peut rafraîchir.** Si Anthropic refuse le
-  renouvellement (`session-refusee`) ou si le jeton est mort sans avoir été renouvelé
-  (`non-renouvele`), rien ne le relève : seul `claude /login` sous le compte du service repart.
-- **L'alerte ne vaut que pour cette box et ce compte.** Un seul fichier par box, une seule session
-  Max : la connexion du compte, pas celle d'un projet.
-- **Le renouvellement ne tourne que si l'unité tourne.** Sa vivacité (un passage dans les dix
-  dernières minutes, `live`) s'affiche dans `session.observed` ; le runtime ne s'arrête pas pour
-  autant.
-- **L'annonce n'arrête rien.** La cuisine ne s'arrête que sur le « stop » du chef, le disjoncteur,
-  ou une connexion tombée.
+**What it does not do, and its limits.**
 
-**Les garde-fous, inchangés.** Rien de ceci ne desserre ce qui protège les identifiants :
+- **Without the state file, nothing announces itself** — either the timer is not installed, or it has
+  not made a pass yet, or the file is unreadable (`file`: `absent` or `unreadable` in
+  `session.observed`). The expiry can then only be guessed from a chef's reconnection. This is the
+  case of any box where the timer was not laid down: step 5 of the installation copies its two units
+  with the rest, and `sudo systemctl enable --now brigade-renouvellement.timer` starts it. The
+  station's package carries its own, which it enables by itself. The app's "check the installation"
+  shows its state on one line.
+- **The renewal only repairs what `claude` can refresh.** If Anthropic refuses the renewal
+  (`session-refusee`) or if the token died without having been renewed (`non-renouvele`), nothing
+  lifts it: only `claude /login` under the service account restarts.
+- **The alert is only for this box and this account.** One file per box, one Max session: the
+  account's connection, not a project's.
+- **The renewal only runs if the unit runs.** Its liveness (a pass in the last ten minutes, `live`)
+  shows in `session.observed`; the runtime does not stop for that.
+- **The announcement stops nothing.** The kitchen only stops on the chef's "stop", the breaker, or a
+  dropped connection.
 
-- Le runtime n'ouvre jamais `.credentials.json` (un test le garde sur `runtime/src`) ; il ne lit que
-  le fichier d'état.
-- Le renouvellement n'écrit que son fichier d'état, lance `claude` dans un environnement vidé, et
-  n'expose aucune clé ni jeton au service.
-- Sous cloison, les cooks, reviewers, juges et gates voient toujours les identifiants en lecture
-  seule (« La cloison ») ; le renouvellement est le seul à les réécrire, hors cloison.
-- Le « stop », le disjoncteur et la pass ne changent pas.
-- Le `claude /login` reste **manuel** : il passe par un navigateur et un humain. Ni le renouvellement
-  ni le runtime ne le lancent, et l'alerte ne fait que le demander.
+**The safeguards, unchanged.** Nothing here loosens what protects the credentials:
 
-**Le lire.**
+- The runtime never opens `.credentials.json` (a test guards that on `runtime/src`); it only reads
+  the state file.
+- The renewal writes only its state file, runs `claude` in an emptied environment, and exposes no key
+  or token to the service.
+- Under the partition, cooks, reviewers, judges and gates still see the credentials read-only
+  ("The partition"); the renewal is the only one to rewrite them, outside the partition.
+- The "stop", the breaker and the pass do not change.
+- `claude /login` stays **manual**: it goes through a browser and a human. Neither the renewal nor
+  the runtime launches it, and the alert only asks for it.
 
-```
-cat /var/lib/brigade/.session/renouvellement           # ce que le dernier passage a constaté
-journalctl -u brigade-renouvellement.service            # un passage, un échec : une ligne chacun
-npm --prefix runtime run status                         # le bloc attend : la ligne session, s'il y en a une
-npm --prefix runtime run log                        # session.observed, quand ce qui est lu a changé
-```
-
-Un renouvellement qui échoue en boucle se reconnaît à `echec` plus récent que `verifie` dans le
-fichier : la nature et le détail y sont, sans rien de la valeur.
-
-### L'échéance du jeton longue durée
-
-Le jeton que `claude setup-token` a créé à l'installation (`BRIGADE_CLAUDE_TOKEN_FILE`) **vit un
-an** (365 jours, `VIE_DU_JETON_JOURS` dans `runtime/src/events/token.ts`, le seul endroit qui
-le sait). L'étape de connexion Max range la date de sa création à côté de lui
-(`<fichier>.cree`, par exemple `/etc/brigade/claude-token.cree`) — une date ISO 8601, sans le
-jeton. Le runtime la relit au démarrage puis à chaque tick, et n'écrit au journal que ce qui
-change (`token.observed`) : ni un passage ni un redémarrage qui ne voient rien de neuf n'écrivent
-rien.
-
-**L'alerte.** Trente jours avant l'échéance (`PREAVIS_DU_JETON_JOURS`), la file du chef porte
-une ligne, une seule, qui se compte depuis l'ouverture du préavis :
+**Reading it.**
 
 ```
-  token  for 5 d  Max connection token close to its expiry — it expires on <date>, 365 days after its creation (<date>) — to do before then: remake the token — `claude setup-token` under the service account: delete <fichier>, then run the Max connection step again (docs/installation-station.md, step 5); the station reads the new token and its date
+cat /var/lib/brigade/.session/renouvellement           # what the last pass noted
+journalctl -u brigade-renouvellement.service            # a pass, a failure: one line each
+npm --prefix runtime run status                         # the awaiting block: the session line, if there is one
+npm --prefix runtime run log                        # session.observed, when what is read has changed
 ```
 
-Passé l'échéance, elle dit `Max connection token EXPIRED since <date>`, et se compte depuis
-l'échéance. Si la date ne se lit pas — absente (un jeton rangé à la main), illisible, ou qui n'est
-pas une date —, elle le dit (`Max connection token creation date missing`, `unreadable`, `not readable
-as a date`) : l'échéance est alors inconnue, le geste est le même. Rien de ce que le
-fichier porte d'autre qu'une date n'est gardé, et ni la ligne ni le journal ne citent le jeton :
-ils nomment son fichier. Elle sort quand le jeton refait porte une date neuve. Sans
-`BRIGADE_CLAUDE_TOKEN_FILE`, rien ne s'annonce. L'annonce n'arrête rien.
+A renewal that fails in a loop is recognised by `echec` more recent than `verifie` in the file: the
+kind and the detail are there, with nothing of the value.
 
-### Révoquer la connexion Max
+### The long-lived token's expiry
 
-**Quand** : dès que tu crois que les identifiants du compte ont quitté la machine — un
-`.credentials.json` ou un jeton `sk-ant-…` vu dans une PR, une branche, un commentaire ; une
-consommation inexpliquée. Un refus `credentials-committed` ou un masquage seuls ne sont pas une
-fuite. Dans le doute, révoque — **chez Anthropic, depuis un navigateur** connecté au compte Max :
+The token that `claude setup-token` created at installation (`BRIGADE_CLAUDE_TOKEN_FILE`) **lives one
+year** (365 days, `VIE_DU_JETON_JOURS` in `runtime/src/events/token.ts`, the only place that knows
+it). The Max connection step stores the date of its creation next to it (`<file>.cree`, for example
+`/etc/brigade/claude-token.cree`) — an ISO 8601 date, without the token. The runtime rereads it at
+startup then at every tick, and writes to the log only what changes (`token.observed`): neither a
+pass nor a restart that sees nothing new writes anything.
 
-1. **Arrête de servir** : `guardrails -- stop`.
-2. **<https://claude.ai/settings/claude-code>** : retire **toutes** les autorisations de Claude Code.
-3. **<https://claude.ai/settings/account>** : déconnecte toutes les sessions ; change le mot de passe.
-4. **Vérifie**, sur la box : `sudo -u <compte> claude auth status` ne doit plus répondre
-   `"loggedIn": true`, et `sudo -u <compte> claude -p "ok"` doit échouer en demandant `/login`. S'il
-   répond encore, écris au support d'Anthropic et laisse la station suspendue.
-5. **Reconnecte** : `claude /login` sous le compte du service, puis `guardrails -- resume`.
+**The alert.** Thirty days before the expiry (`PREAVIS_DU_JETON_JOURS`), the chef's queue carries one
+line, a single one, counted from the opening of the notice period:
 
-`claude /logout` sur la box ne suffit pas. Si le jeton a été **poussé sur GitHub**, révoque d'abord,
-puis ferme la PR et supprime la branche.
+```
+  token  for 5 d  Max connection token close to its expiry — it expires on <date>, 365 days after its creation (<date>) — to do before then: remake the token — `claude setup-token` under the service account: delete <file>, then run the Max connection step again (docs/installation-station.md, step 5); the station reads the new token and its date
+```
 
-### Voir la station
+Past the expiry, it says `Max connection token EXPIRED since <date>`, and is counted from the
+expiry. If the date cannot be read — absent (a token stored by hand), unreadable, or not a date —,
+it says so (`Max connection token creation date missing`, `unreadable`, `not readable as a date`):
+the expiry is then unknown, the gesture is the same. Nothing the file carries other than a date is
+kept, and neither the line nor the log quotes the token: they name its file. It leaves when the
+remade token carries a new date. Without `BRIGADE_CLAUDE_TOKEN_FILE`, nothing announces itself. The
+announcement stops nothing.
+
+### Revoking the Max connection
+
+**When**: as soon as you believe the account's credentials have left the machine — a
+`.credentials.json` or a `sk-ant-…` token seen in a PR, a branch, a comment; unexplained
+consumption. A `credentials-committed` refusal or a masking alone are not a leak. When in doubt,
+revoke — **at Anthropic, from a browser** logged in to the Max account:
+
+1. **Stop serving**: `guardrails -- stop`.
+2. **<https://claude.ai/settings/claude-code>**: remove **all** of Claude Code's authorisations.
+3. **<https://claude.ai/settings/account>**: log out all sessions; change the password.
+4. **Check**, on the box: `sudo -u <account> claude auth status` must no longer answer
+   `"loggedIn": true`, and `sudo -u <account> claude -p "ok"` must fail asking for `/login`. If it
+   still answers, write to Anthropic's support and leave the station suspended.
+5. **Reconnect**: `claude /login` under the service account, then `guardrails -- resume`.
+
+`claude /logout` on the box is not enough. If the token was **pushed to GitHub**, revoke first, then
+close the PR and delete the branch.
+
+### Seeing the station
 
 ```bash
-npm --prefix runtime run station                 # la voir
-npm --prefix runtime run station -- cooks 12     # régler son plafond de cooks (0 : aucune limite)
-npm --prefix runtime run station -- cooks auto   # revenir au plafond par défaut, celui des cœurs
+npm --prefix runtime run station                 # see it
+npm --prefix runtime run station -- cooks 12     # set its cap of cooks (0: no limit)
+npm --prefix runtime run station -- cooks auto   # go back to the default cap, the cores'
 ```
 
-Ses sorties, ses refus et ses erreurs sont **en anglais**, avec les mots de `docs/glossary.md`
-(`cooks`, `une décision`, `remove`, `help` compris ; les gestes de décision — `seuil-ticket`,
-`manager-modele`, `closer-retraits`… — gardent leur nom, et les anciens mots `retirer` et `aide`
-répondent encore en disant le nouveau). Elle montre le plafond (`simultaneous cooks`), la machine — ou, pour une station distante, sa **présence** (`presence`) et ce qu'elle fait des **tickets ordinaires** (`ordinary tickets`) —, la connexion Max (`Max connection`), le quota, la retenue (`withholding`), les cooks en cours
-(`cooks running`) avec leur calibrage, les dix derniers finis (`latest cooks`), et **`consumed`** — tout ce que le projet a lancé,
-cooks, relectures et jugements : ce qui tourne, les **5 dernières heures** (la fenêtre du quota
-Max, à comparer à `/usage` en ordre de grandeur) et les **24 dernières heures**.
-Cette consommation est celle de **ce que le projet a lancé**, pas celle du compte : le runtime ne
-voit ni les sessions du chef ni rien d'autre qui puise dans le même abonnement. `/usage`, dans une
-session, reste la mesure de vérité du compte ; le runtime ne la remplace pas.
+Its outputs, its refusals and its errors are **in English**, with the words of `docs/glossary.md`
+(`cooks`, `remove` and `help` included; the decision gestures — `seuil-ticket`, `manager-modele`,
+`closer-retraits`… — keep their name until the runtime is translated, and the old words `retirer` and
+`aide` still answer, saying the new one). It shows the cap (`simultaneous cooks`), the machine — or,
+for a remote station, its **presence** (`presence`) and what it does with **ordinary tickets**
+(`ordinary tickets`) —, the Max connection (`Max connection`), the quota, the hold (`withholding`),
+the cooks running (`cooks running`) with their calibration, the last ten finished (`latest cooks`),
+and **`consumed`** — everything the project launched, cooks, reviews and judgments: what is running,
+the **last 5 hours** (the Max quota's window, to compare with `/usage` as an order of magnitude) and
+the **last 24 hours**. This consumption is that of **what the project launched**, not the account's:
+the runtime sees neither the chef's sessions nor anything else that draws on the same subscription.
+`/usage`, in a session, remains the account's measure of truth; the runtime does not replace it.
 
-| Événement | Sens |
+| Event | Meaning |
 |---|---|
-| `station.announced` | Une station que le projet déclare se présente : moteur, ce qu'elle fournit, plafond de cooks déclaré, `cores` — les cœurs de sa machine, d'une station d'ici seulement —, `remote: true` si elle est distante, et `ordinary: true` si elle prend aussi les tickets ordinaires (hors ticket) |
-| `station.withdrawn` | Le projet ne déclare plus cette station : elle sort de `status` et de `station` (hors ticket) |
-| `stations.undeclared` | Le projet ne déclare aucune station : aucun cook ne part. Écrit une fois, par le runtime ; la première annonce l'efface (hors ticket) |
-| `station.capped` | Le chef a réglé le plafond de cooks : `maxCooks`, `0` pour aucune limite, `null` quand il retire son réglage (`cooks auto`) (hors ticket) |
-| `station.saturated`, `station.relieved` | La machine n'en peut plus (`resource` : `cpu`, `memory`, `disk` ; `observed`, `limit` ; pour la mémoire, `limitFrom` : `{ totalMb }` quand le seuil dérive de la mémoire totale, `env` quand `BRIGADE_MIN_FREE_MEMORY_MB` le règle ; `also` : les autres ressources en cause, de la même forme), puis respire (hors ticket) |
-| `station.held`, `station.released` | Un ticket pourrait partir et n'est pas pris (`reason`, voir « Plusieurs cooks à la fois ») ; plus rien ne retient (hors ticket) |
-| `station.unarbitrated`, `station.arbitrated` | L'arbitre ne répond plus : mode dégradé, un cook à la fois, chaque `cook.launched` porte `unarbitrated: true` ; puis il répond de nouveau (hors ticket) |
-| `station.86` | Le quota est épuisé jusqu'à `until` (hors ticket) |
-| `station.disconnected` | La connexion Max a expiré |
-| `cook.stalled` | La moitié du bail est passée sans progrès (`idleMs`, `leaseMs`). Un signal |
-| `ticket.86` | Motifs de la station : `no-calibration`, `unreadable-card`, `refused` (sans heure de retour) ; `setup-failed`, `ticket-unreadable`, `secrets-unavailable`, `worktree-failed` (retour à `until`). Pour `worktree-failed`, `why` : l'erreur de git ; `access` (`blocked`, `reason`, `gesture`) : l'accès au dépôt refusé, quand il l'est |
-| `worktree.prepared` | Un worktree se prépare de nouveau après un `worktree-failed` : l'échec que le suivi du projet publiait tombe. Une fois par reprise |
-| `setup.failed` | Pourquoi le setup a échoué : `why`, et `hosts`, ce que la porte a refusé. Écrit à chaque échec ; c'est ce qui décide du commentaire sur l'issue |
-| `setup.blocked`, `setup.unblocked` | Le setup a échoué comme le précédent du projet : `why`, `hosts`, et `base`, le commit de la branche d'intégration d'où le worktree était parti — plus aucun setup n'est lancé ; puis la branche a bougé (`base` : là où elle est), les setups reprennent |
-| `aside.failed`, `aside.blocked`, `aside.unblocked` | Une cause de mise de côté (`worktree-failed`, `ticket-unreadable`, `secrets-unavailable`) : `reason` à chaque fois ; deux fois de suite sans cook entre les deux, le projet est bloqué (`base` : la base vue) ; levé par un cook parti, une autre cause, ou la base qui bouge (`why`) |
-| `secrets.unavailable` | `problems` : des noms de variables et de fichiers, **jamais une valeur** |
-| `cook.reported` | Le compte-rendu d'un cook. `ending` : `done`, `failed`, `86`, `disconnected`, `refused` ; `reason` (`no-commit`, `no-diff`, `no-deliverable`, `guard:idle`, `guard:lease`, `harvested:…`, ``secret-committed: `NOM` ``, `credentials-committed: name` ou `shape` — rien n'est poussé…) ; `summary` : son dernier message, secrets et identifiants masqués ; `deliverable` : ce qu'il a délimité, ou `null` ; `pr` ; `reconciled` |
-| `cook.out-of-zone` | La livraison confrontée à la zone de la prise : `zone`, `files` (`path`, `owners`), `cardChanged`. Un signal ; jamais écrit pour un ticket pris sans zone |
-
+| `station.announced` | A station that the project declares introduces itself: engine, what it provides, declared cap of cooks, `cores` — its machine's cores, for a station from here only —, `remote: true` if it is remote, and `ordinary: true` if it also takes ordinary tickets (no ticket) |
+| `station.withdrawn` | The project no longer declares this station: it leaves `status` and `station` (no ticket) |
+| `stations.undeclared` | The project declares no station: no cook leaves. Written once, by the runtime; the first announcement clears it (no ticket) |
+| `station.capped` | The chef set the cap of cooks: `maxCooks`, `0` for no limit, `null` when they remove their setting (`cooks auto`) (no ticket) |
+| `station.saturated`, `station.relieved` | The machine cannot cope (`resource`: `cpu`, `memory`, `disk`; `observed`, `limit`; for memory, `limitFrom`: `{ totalMb }` when the threshold derives from total memory, `env` when `BRIGADE_MIN_FREE_MEMORY_MB` sets it; `also`: the other resources involved, of the same shape), then breathes (no ticket) |
+| `station.held`, `station.released` | A ticket could leave and is not taken (`reason`, see "Several cooks at once"); nothing holds any more (no ticket) |
+| `station.unarbitrated`, `station.arbitrated` | The arbiter no longer answers: degraded mode, one cook at a time, each `cook.launched` carries `unarbitrated: true`; then it answers again (no ticket) |
+| `station.86` | The quota is exhausted until `until` (no ticket) |
+| `station.disconnected` | The Max connection has expired |
+| `cook.stalled` | Half the lease has passed with no progress (`idleMs`, `leaseMs`). A signal |
+| `ticket.86` | The station's reasons: `no-calibration`, `unreadable-card`, `refused` (no return time); `setup-failed`, `ticket-unreadable`, `secrets-unavailable`, `worktree-failed` (back at `until`). For `worktree-failed`, `why`: git's error; `access` (`blocked`, `reason`, `gesture`): the repository access refused, when it is |
+| `worktree.prepared` | A worktree is prepared again after a `worktree-failed`: the failure the project's follow-up published falls. Once per resumption |
+| `setup.failed` | Why the setup failed: `why`, and `hosts`, what the door refused. Written at every failure; it is what decides the comment on the issue |
+| `setup.blocked`, `setup.unblocked` | The setup failed like the project's previous one: `why`, `hosts`, and `base`, the commit of the integration branch the worktree started from — no setup is launched any more; then the branch moved (`base`: where it is), the setups resume |
+| `aside.failed`, `aside.blocked`, `aside.unblocked` | A cause for setting aside (`worktree-failed`, `ticket-unreadable`, `secrets-unavailable`): `reason` each time; twice in a row with no cook between the two, the project is blocked (`base`: the base seen); lifted by a cook that left, another cause, or the base moving (`why`) |
+| `secrets.unavailable` | `problems`: names of variables and files, **never a value** |
+| `cook.reported` | A cook's report. `ending`: `done`, `failed`, `86`, `disconnected`, `refused`; `reason` (`no-commit`, `no-diff`, `no-deliverable`, `guard:idle`, `guard:lease`, `harvested:…`, ``secret-committed: `NAME` ``, `credentials-committed: name` or `shape` — nothing is pushed…); `summary`: its last message, secrets and credentials masked; `deliverable`: what it delimited, or `null`; `pr`; `reconciled` |
+| `cook.out-of-zone` | The delivery set against the take's zone: `zone`, `files` (`path`, `owners`), `cardChanged`. A signal; never written for a ticket taken with no zone |

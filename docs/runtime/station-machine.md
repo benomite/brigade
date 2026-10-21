@@ -1,158 +1,169 @@
-## Une station par machine : sa présence sur GitHub, et son appairage par un code
+## One station per machine: its presence on GitHub, and its pairing by a code
 
-*Spec : [la station refaite de zéro](../superpowers/specs/2026-10-15-station-refonte-design.md) (#794).*
+*Spec: [the station rebuilt from scratch](../superpowers/specs/2026-10-15-station-refonte-design.md) (#794).*
 
-La station d'une machine (`runtime/src/station/main.ts`, un seul process pour tous ses projets)
-n'a **aucune liaison directe** avec l'app du chef : elle n'ouvre aucun port, et l'app ne la joint
-jamais. Tout passe par **GitHub**, où elle écrit son état — dans un **gist secret** du compte du
-`gh` de la machine, qui doit être celui du chef (`runtime/src/appairage/`).
+A machine's station (`runtime/src/station/main.ts`, a single process for all its projects)
+has **no direct link** with the chef's app: it opens no port, and the app never reaches it.
+Everything goes through **GitHub**, where it writes its state — in a **secret gist** of the account
+of the machine's `gh`, which must be the chef's (`runtime/src/appairage/`).
 
-- **Au premier démarrage**, elle crée son gist, y publie l'**empreinte** d'un code neuf — jamais le
-  code lui-même —, et affiche le code dans son journal de service :
+The station's service log lines (the ones it prints itself) are written in French by the runtime;
+each one quoted below stays French until the runtime is translated.
+
+- **On first start**, it creates its gist, publishes in it the **fingerprint** of a fresh code —
+  never the code itself —, and shows the code in its service log:
   `brigade : station à appairer — tape ce code dans l'app : 7KQ2-M9XD (valable jusqu'à 14:32)`.
-  Huit signes de l'alphabet de Crockford (ni I, ni L, ni O, ni U), valables un quart d'heure ; échu,
-  elle en tire un autre et le dit, et l'empreinte de l'ancien reste publiée comme échue — l'app dit
-  alors « expiré », pas « inconnu ».
-- **Le chef tape le code dans l'app** (« Tous les projets », [docs/app.md](../app.md)) : l'app trouve le
-  gist qui publie cette empreinte et y écrit `brigade-appairage.json`. La station l'y lit à son
-  signe de vie suivant, et n'affiche plus de code (`brigade : station appairée à l'app`).
-- **Chaque minute**, elle regarde si son état a changé (sans appel GitHub), et ne réécrit
-  `brigade-station.json` — son nom, sa machine et ses cœurs, sa version, les projets qu'elle sert,
-  son dernier signe de vie — que sur changement, ou en battement toutes les 5 minutes. Deux écritures, y
-  compris celle que la station demande après l'écriture d'un projet, sont distantes d'au moins
-  60 s : une demande trop proche est retenue, puis écrite à l'échéance. **Arrêtée** (SIGTERM), elle
-  y écrit tout de suite l'heure de son arrêt — la seule écriture que l'écart de 60 s ne retient
-  pas : l'état final ne se perd pas. Elle publie `cadenceMs` = 285 s ; l'app la dit hors ligne
-  après 2 × `cadenceMs` + 30 s, soit 10 min au plus (`app/src/stations/stations.ts`).
-- **Ses cœurs** (`coeurs`, ceux que voit `os.availableParallelism()`) : l'app en tire le nombre de
-  cooks qu'elle propose quand le chef confie un projet à cette station (#1107) — la règle même du
-  plafond par défaut, `max(1, ⌊(cœurs − 2) / 2⌋)` (#1079, [« Plusieurs cooks à la fois »](station.md)). Une
-  station plus ancienne ne les publie pas : l'app propose alors 2, et le dit.
-- **Ses pannes y vont aussi** (`appairage/etats.ts`, #798) : `miseAJour`, sa dernière mise à jour
-  quand elle a raté et qu'elle est revenue en arrière (version visée, version restaurée, l'heure,
-  et si le retour a raté lui aussi — lue dans `BRIGADE_MISE_A_JOUR_DIR`), et `connexionMax`,
-  l'état de sa connexion Max et depuis quand. Ni le motif d'un échec, ni la raison d'une perte,
-  ni un geste : l'app en fait chacune une ligne et un bouton ([docs/app.md](../app.md)). Une lecture
-  qui lève ne prive pas la station de son signe de vie : elle publie alors ces deux champs nuls.
-- Ce qu'elle garde d'une fois sur l'autre — son gist, son code, son appairage — est dans
-  `<BRIGADE_STATION_DIR>/appairage.json`. **Un gist supprimé** sur GitHub la remet à zéro : un
-  gist neuf, un code neuf, un appairage à refaire. **GitHub muet** : la panne est dite une fois,
-  son retour aussi, et elle réessaie à chaque minute.
+  Eight characters of the Crockford alphabet (no I, no L, no O, no U), valid for a quarter of an
+  hour; once expired, it draws another and says so, and the fingerprint of the old one stays
+  published as expired — the app then says "expired", not "unknown".
+- **The chef types the code in the app** ("All projects", [docs/app.md](../app.md)): the app finds
+  the gist that publishes this fingerprint and writes `brigade-appairage.json` in it. The station
+  reads it there at its next heartbeat, and no longer shows a code
+  (`brigade : station appairée à l'app` — the runtime appends the time and ` — elle n'affiche plus de code`).
+- **Every minute**, it checks whether its state has changed (with no GitHub call), and rewrites
+  `brigade-station.json` — its name, its machine and cores, its version, the projects it serves,
+  its last heartbeat — only on a change, or as a beat every 5 minutes. Two writes, including the one
+  the station asks for after a project writes, are at least 60 s apart: a request that comes too
+  soon is held back, then written when due. **Stopped** (SIGTERM), it writes the time of its stop
+  there right away — the only write the 60 s gap does not hold back: the final state is not lost.
+  It publishes `cadenceMs` = 285 s; the app says it is offline after 2 × `cadenceMs` + 30 s, that
+  is 10 min at most (`app/src/stations/stations.ts`).
+- **Its cores** (`coeurs`, the ones `os.availableParallelism()` sees): the app derives from them
+  the number of cooks it proposes when the chef entrusts a project to this station (#1107) — the very
+  rule of the default cap, `max(1, ⌊(cores − 2) / 2⌋)` (#1079,
+  [“Several cooks at once”](station.md#several-cooks-at-once)). An older station does not publish
+  them: the app then proposes 2, and says so.
+- **Its failures go there too** (`appairage/etats.ts`, #798): `miseAJour`, its last update when it
+  failed and it rolled back (target version, restored version, the time, and whether the rollback
+  failed too — read from `BRIGADE_MISE_A_JOUR_DIR`), and `connexionMax`, the state of its Max
+  connection and since when. Neither the reason for a failure, nor the reason for a loss, nor an
+  action: the app makes each one a line and a button ([docs/app.md](../app.md)). A read that throws
+  does not deprive the station of its heartbeat: it then publishes these two fields as null.
+- What it keeps from one run to the next — its gist, its code, its pairing — is in
+  `<BRIGADE_STATION_DIR>/appairage.json`. **A deleted gist** on GitHub resets it to zero: a fresh
+  gist, a fresh code, a pairing to redo. **GitHub silent**: the outage is said once, its end too,
+  and it retries every minute.
 
-Trois réglages, tous facultatifs : `BRIGADE_GH_BIN` (le `gh` de la machine, `gh` à défaut),
-`BRIGADE_STATION_NOM` (son nom sur la home — à défaut, celui de la machine), et
-`BRIGADE_STATION_VERSION` (la version qu'elle annonce — posée par son paquet ; à défaut,
-l'empreinte de son code, `code 1a2b3c4d5e6f`).
+Three settings, all optional: `BRIGADE_GH_BIN` (the machine's `gh`, `gh` by default),
+`BRIGADE_STATION_NOM` (its name on the home — by default, the machine's), and
+`BRIGADE_STATION_VERSION` (the version it announces — set by its package; by default, the
+fingerprint of its code, `code 1a2b3c4d5e6f`). These variable names stay French until the runtime is
+translated.
 
-**Le délai de détection** d'un arrêt brutal (la station tuée sans préavis) se lit donc entre 5 et
-10 min : son dernier signe de vie date de 5 min au plus, au battement, et l'app la dit hors ligne
-2 × 285 s + 30 s après ce signe.
+**The detection delay** of a brutal stop (the station killed without warning) is therefore read
+between 5 and 10 min: its last heartbeat is 5 min old at most, at the beat, and the app says it is
+offline 2 × 285 s + 30 s after that heartbeat.
 
-## Le budget d'appels à GitHub, et l'attente de limite
+## The budget of calls to GitHub, and waiting out the limit
 
-*Code : `runtime/src/limite-github.ts` (#873, #874).*
+*Code: `runtime/src/limite-github.ts` (#873, #874).*
 
-Chaque appel de la station et de ses projets à GitHub — le sondage des issues (`github.ts`), le
-canal du gist (`appairage/canal.ts`) — prend un jeton du budget avant que `gh` ne parte.
+Every call by the station and its projects to GitHub — the polling of the issues (`github.ts`), the
+gist channel (`appairage/canal.ts`) — takes a token from the budget before `gh` leaves.
 
-- **Le budget** : **2 500 appels par heure glissante**, soit la moitié de la limite du compte
-  (5 000 par heure). Un appel refusé ne part pas et n'est pas compté ; l'appelant échoue comme sur
-  une panne de GitHub, et son tour suivant le rattrape. Le message dit quand le prochain appel se
-  libère : `budget GitHub épuisé : 2500 appels sur l'heure glissante, appel refusé — le prochain se
-  libère dans N s`.
-- **Partagé, pas découpé.** Le compteur est une base SQLite dans le répertoire de la station,
-  `<BRIGADE_STATION_DIR>/appels-github/compteur.db`. La station et chacun de ses projets la tiennent
-  ensemble, comme un runtime ou une commande lancés avec son environnement : une transaction tranche
-  entre deux process qui prennent le dernier appel au même instant. Un process hors de toute station
-  (le poste de dev, un test) compte seul, en mémoire, sous le même budget.
-- **Plus de trois projets** : rien à régler. Le budget n'est pas réparti entre les projets : un
-  projet qui sonde beaucoup prend ce qu'un autre ne dépense pas, et le plafond tient quel que soit
-  leur nombre. Ce qui grossit avec les projets, c'est la consommation : chacun ajoute ses sondages
-  au même compte.
-- **Le régler** : il n'y a **pas de variable d'environnement**. Le plafond est la constante
-  `BUDGET_PAR_HEURE` de `runtime/src/limite-github.ts` (la fenêtre, `FENETRE_MS`, est d'une heure) ;
-  il se change dans le code, et se vérifie avec les tests de `runtime/test/limite-github.test.ts`.
-- **La ligne horaire** : une fois par heure, depuis le démarrage de la station, son journal de
-  service écrit `brigade : N appels GitHub sur l'heure écoulée`, N étant le compte de la dernière
-  heure, tous process confondus. Si la lecture du compteur échoue, la ligne le dit à la place :
-  `brigade : appels GitHub de l'heure écoulée non comptés — <erreur>`.
-- **La limite de GitHub atteinte** (son 429, ou son 403 « rate limit ») n'est pas un refus comme
-  un autre : un 403 d'un merge interdit, lui, reste un refus. La station cesse alors tout appel
-  et pose une pause sur le compteur, partagée par tous ses process, jusqu'à la fin de la fenêtre.
-  Elle la lit dans `retry-after`, sinon `x-ratelimit-reset`, sinon `gh api rate_limit`, sinon 60 s.
-  Pendant la pause, aucun appel ne part et rien n'est compté. Le journal de service le dit une
-  fois : `brigade : station — GitHub a atteint sa limite d'appels : plus aucun appel ne part avant
-  la fin de la fenêtre, puis ils reprennent seuls`.
-- **Ce que le chef en voit.** Pendant la pause, `status` écrit une ligne de tête
-  `github     GitHub is rate-limiting calls, back around HH:MM` (en français avant #940), et `faits` porte `limiteGithub` (l'instant
-  de reprise, en ISO ; absent hors limite). Les deux lisent la pause sur le compteur, en lecture
-  seule, par `BRIGADE_STATION_DIR` : le ssh ne dépend pas de GitHub, la file reste lisible. Le texte
-  de `gh` n'y paraît jamais, et la ligne tombe d'elle-même à la fin de la pause. L'app la montre en
-  une ligne de la bande d'alertes de chaque projet — à l'heure locale du chef : tirée de `faits`, ou
-  de sa propre erreur de limite quand c'est elle que GitHub refuse.
-- **La reprise** est automatique : à la fin de la pause, les appels reprennent sans geste. Pendant
-  l'attente, la station n'écrit pas son état sur GitHub, et l'app la dit hors ligne au bout de
-  2 × `cadenceMs` + 30 s, le temps que la fenêtre se ferme.
+- **The budget**: **2,500 calls per sliding hour**, half of the account's limit (5,000 per hour). A
+  refused call does not leave and is not counted; the caller fails as on a GitHub outage, and its
+  next turn catches up. The message says when the next call frees up: `budget GitHub épuisé : 2500
+  appels sur l'heure glissante, appel refusé — le prochain se libère dans N s` (French until the
+  runtime is translated).
+- **Shared, not split.** The counter is a SQLite database in the station's directory,
+  `<BRIGADE_STATION_DIR>/appels-github/compteur.db`. The station and each of its projects hold it
+  together, like a runtime or a command launched with its environment: a transaction decides between
+  two processes that take the last call at the same instant. A process outside any station (the dev
+  workstation, a test) counts alone, in memory, under the same budget.
+- **More than three projects**: nothing to tune. The budget is not divided among the projects: a
+  project that polls a lot takes what another does not spend, and the cap holds whatever their
+  number. What grows with the projects is the consumption: each one adds its polls to the same
+  account.
+- **Tuning it**: there is **no environment variable**. The cap is the constant `BUDGET_PAR_HEURE` of
+  `runtime/src/limite-github.ts` (the window, `FENETRE_MS`, is one hour); it is changed in the code,
+  and checked with the tests of `runtime/test/limite-github.test.ts`.
+- **The hourly line**: once an hour, from the station's start, its service log writes
+  `brigade : N appels GitHub sur l'heure écoulée`, N being the count of the last hour, all processes
+  together. If reading the counter fails, the line says so instead:
+  `brigade : appels GitHub de l'heure écoulée non comptés — <erreur>`. Both lines stay French until
+  the runtime is translated.
+- **GitHub's limit reached** (its 429, or its 403 "rate limit") is not a refusal like any other: a
+  403 on a forbidden merge, for its part, stays a refusal. The station then stops every call and
+  sets a pause on the counter, shared by all its processes, until the end of the window. It reads it
+  in `retry-after`, otherwise `x-ratelimit-reset`, otherwise `gh api rate_limit`, otherwise 60 s.
+  During the pause no call leaves and nothing is counted. The service log says it once:
+  `brigade : station — GitHub a atteint sa limite d'appels : plus aucun appel ne part avant la fin de la fenêtre, puis ils reprennent seuls`
+  (French until the runtime is translated).
+- **What the chef sees of it.** During the pause, `status` writes a head line
+  `github     GitHub is rate-limiting calls, back around HH:MM` (in French before #940), and `faits`
+  carries `limiteGithub` (the instant of resumption, in ISO; absent outside a limit). Both read the
+  pause on the counter, read-only, through `BRIGADE_STATION_DIR`: ssh does not depend on GitHub, the
+  queue stays readable. The text of `gh` never appears there, and the line falls away by itself at
+  the end of the pause. The app shows it as one line of each project's alert band — in the chef's
+  local time: taken from `faits`, or from its own limit error when it is the app that GitHub
+  refuses.
+- **The resumption** is automatic: at the end of the pause, calls resume with no action. During the
+  wait, the station does not write its state on GitHub, and the app says it is offline after
+  2 × `cadenceMs` + 30 s, the time for the window to close.
 
-## Ajouter un projet à une station depuis l'app, sans terminal
+## Adding a project to a station from the app, without a terminal
 
-*Spec : [la station refaite de zéro](../superpowers/specs/2026-10-15-station-refonte-design.md) (#795).*
+*Spec: [the station rebuilt from scratch](../superpowers/specs/2026-10-15-station-refonte-design.md) (#795).*
 
-Un projet n'est qu'une ligne de la configuration de la station. Le chef l'ajoute depuis l'app
-([docs/app.md](../app.md), « Ajouter un projet à tes stations ») ; l'app écrit sa demande dans le gist
-de chaque station qu'il a choisie, et la station l'y lit — toujours sans liaison directe
-(`runtime/src/projets/`).
+A project is only a line of the station's configuration. The chef adds it from the app
+([docs/app.md](../app.md), "Add a project to your stations, without a terminal"); the app writes its
+request in the gist of each station he chose, and the station reads it there — still with no direct
+link (`runtime/src/projets/`).
 
-- **Ce que l'app écrit** : `brigade-projets.json` — par projet, son nom (tiré du dépôt), son dépôt,
-  sa branche d'intégration, si cette station en est la **principale** (celle qui fait tourner son
-  manager et sa pass), son plafond de cooks et le calibrage du manager et du reviewer, choisis par
-  le chef dans le parcours.
-- **Toutes les trente secondes** (ou sur `SIGHUP`), une station appairée relit cette demande. Pour
-  chaque projet dont elle est la principale :
-  1. **ses Apps GitHub** (`BRIGADE_GITHUB_APPS_DIR`, s'il est posé) doivent être installées sur le
-     dépôt ; sinon elle publie, pour chaque App, la page où le chef l'installe en un clic
-     (`https://github.com/apps/<app>/installations/new`), et attend. Sans Apps, elle agit sous le
-     compte de son `gh` : rien à autoriser ;
-  2. elle **clone** le dépôt par son `gh` (`gh repo clone`) dans l'atelier de la station :
-     `<BRIGADE_STATION_DIR>/clones/<projet>` sur un serveur, `~/.local/share/brigade/station/clones/<projet>`
-     sur l'ordinateur du chef, dont la station vit sous `~/.config/brigade`, qu'aucun cook ne lit
-     (« Une cuisine locale », [`station-distante.md`](station-distante.md)) ;
-  3. elle **vérifie qu'elle peut récupérer le dépôt et y pousser**, par le git de la machine, sur le
-     remote `origin` de son clone — celui que ses worktrees et ses cooks utiliseront : `git ls-remote`
-     de la branche d'intégration, puis `git push --dry-run`, qui s'authentifie comme un vrai push
-     sans rien envoyer (`runtime/src/projets/acces.ts`, *ticket #1117*). `gh repo clone` peut
-     réussir là où git échouera ensuite : gh prête ses identifiants au clone, pas aux fetch qui
-     suivent. **Refusé**, le projet n'est pas préparé — ni décisions, ni ticket de préparation, ni
-     ligne — et le suivi porte l'accès bloqué : ce qui est refusé, pourquoi en une phrase, et le geste
-     qui le lève (voir « L'accès bloqué » plus bas). **Injoignable** (réseau, aucune réponse en
-     soixante secondes), ce n'est pas un refus : le suivi dit `en-preparation`. Dans les deux cas, la
-     station revérifie à chaque cadence et sert le projet dès que l'accès passe, sans redémarrage ;
-  4. elle **pose au journal du projet** les décisions du parcours, sous le nom du chef —
-     `BRIGADE_STATIONS` (`<station>/claude:<cooks>:code+raisonnement`), le calibrage du manager et
-     du reviewer —, seulement celles qui n'y sont pas déjà : une décision changée depuis n'est pas
-     écrasée ;
-  5. elle **ouvre sur GitHub le premier ticket du projet**, « Préparer le dépôt » — voir plus bas ;
-  6. elle écrit sa **ligne** (`<projet> <dépôt> <branche>`) dans sa configuration, dans un bloc
-     qu'elle tient seule, entre deux commentaires — les lignes écrites à la main, hors du bloc, ne
-     sont jamais touchées ; un projet qui y a déjà une ligne à la main la garde, et le suivi le dit.
-     Elle relit aussitôt sa configuration et publie sa présence : le projet est dans sa liste sur la
-     home (« 1 project »).
-- **Ce qu'elle en dit** : `brigade-projets-suivi.json`, réécrit quand il change — par projet, `servi`
-  (et depuis quand), `a-autoriser` (avec ses pages), `en-preparation`, `refuse` (et pourquoi : clone
-  raté, accès au dépôt refusé, ligne à la main, refus de la station) ou `secondaire` — un projet
-  `servi` dont la cuisine ne prépare plus de worktree porte en plus `worktree` (voir « Le worktree
-  qui ne se prépare pas » plus bas) ; et, à côté de la liste, l'**onboarding**
-  de chaque projet dont elle est la principale — voir plus bas.
-- **Retiré depuis l'app**, le projet quitte la demande : la station retire sa ligne du bloc et ne le
-  sert plus. Son état et son clone restent sur la machine.
-- **Une station qui n'est pas la principale** d'un projet ne lui écrit aucune ligne et le dit
-  `secondaire` : faire cuire une station secondaire viendra avec la station de bureau (#797).
+- **What the app writes**: `brigade-projets.json` — per project, its name (taken from the
+  repository), its repository, its integration base, whether this station is its **main** one (the
+  one that runs its manager and its pass), its cap of cooks and the manager and reviewer
+  calibration, chosen by the chef in the flow.
+- **Every thirty seconds** (or on `SIGHUP`), a paired station rereads this request. For each
+  project of which it is the main station:
+  1. **its GitHub Apps** (`BRIGADE_GITHUB_APPS_DIR`, if set) must be installed on the repository;
+     otherwise it publishes, for each App, the page where the chef installs it in one click
+     (`https://github.com/apps/<app>/installations/new`), and waits. Without Apps, it acts under
+     its `gh` account: nothing to authorize;
+  2. it **clones** the repository through its `gh` (`gh repo clone`) into the station's workshop:
+     `<BRIGADE_STATION_DIR>/clones/<projet>` on a server, `~/.local/share/brigade/station/clones/<projet>`
+     on the chef's computer, whose station lives under `~/.config/brigade`, which no cook reads
+     ("A local kitchen: all its cooks in the sandbox" in [`station-distante.md`](station-distante.md));
+  3. it **checks that it can fetch the repository and push to it**, through the machine's git, on
+     the `origin` remote of its clone — the one its worktrees and its cooks will use: `git ls-remote`
+     of the integration base, then `git push --dry-run`, which authenticates like a real push without
+     sending anything (`runtime/src/projets/acces.ts`, *ticket #1117*). `gh repo clone` can succeed
+     where git will fail afterwards: gh lends its credentials to the clone, not to the fetches that
+     follow. **Refused**, the project is not prepared — no decisions, no preparation ticket, no
+     line — and the tracking carries the blocked access: what is refused, why in one sentence, and
+     the action that lifts it (see "The blocked access" below). **Unreachable** (network, no answer
+     within sixty seconds), it is not a refusal: the tracking says `en-preparation`. In both cases,
+     the station rechecks at every beat and serves the project as soon as access passes, without a
+     restart;
+  4. it **writes to the project's log** the decisions of the flow, under the chef's name —
+     `BRIGADE_STATIONS` (`<station>/claude:<cooks>:code+raisonnement`), the manager and reviewer
+     calibration —, only those that are not already there: a decision changed since is not
+     overwritten;
+  5. it **opens on GitHub the project's first ticket**, "Préparer le dépôt" (title kept French, see
+     below) — see further down;
+  6. it writes its **line** (`<projet> <dépôt> <branche>`) in its configuration, in a block it holds
+     alone, between two comments — the lines written by hand, outside the block, are never
+     touched; a project that already has a hand-written line there keeps it, and the tracking says
+     so. It rereads its configuration at once and publishes its presence: the project is in its list
+     on the home ("1 project").
+- **What it says about it**: `brigade-projets-suivi.json`, rewritten when it changes — per project,
+  `servi` (and since when), `a-autoriser` (with its pages), `en-preparation`, `refuse` (and why:
+  failed clone, refused repository access, hand-written line, station refusal) or `secondaire` — a
+  `servi` project whose kitchen no longer prepares a worktree also carries `worktree` (see "The
+  worktree that does not prepare" below); and, next to the list, the **onboarding** of each project
+  of which it is the main station — see further down. The tracking's keys and status words are
+  written in French by the runtime; they stay French until it is translated.
+- **Removed from the app**, the project leaves the request: the station removes its line from the
+  block and no longer serves it. Its state and its clone stay on the machine.
+- **A station that is not the main one** of a project writes no line for it and says it
+  `secondaire`: making a secondary station cook will come with the desk station (#797).
 
-### L'accès bloqué
+### The blocked access
 
-*Ticket #1117.* Quand la vérification de l'étape 3 est refusée, la ligne du projet dans
-`brigade-projets-suivi.json` dit `refuse` et porte un champ de plus, `acces` — absent tant que rien
-n'est refusé :
+*Ticket #1117.* When the check of step 3 is refused, the project's line in
+`brigade-projets-suivi.json` says `refuse` and carries one more field, `acces` — absent as long as
+nothing is refused:
 
 ```json
 "acces": {
@@ -162,35 +173,39 @@ n'est refusé :
 }
 ```
 
-- `bloque` : `fetch` (la station ne peut pas récupérer le dépôt) ou `push` (elle le récupère, mais
-  ne peut pas y pousser — la raison le dit : « can fetch from … but cannot push to it ») ;
-- `raison` : une phrase, en anglais — c'est l'app qui la montre —, qui finit par la ligne de git ;
-- `geste` : ce que le chef fait pour lever le refus, en une phrase. `dit` porte les deux, la raison
-  puis le geste.
+The keys (`acces`, `bloque`, `raison`, `geste`) stay French until the runtime is translated; the two
+sentences are written in English, and the app shows them as they are.
 
-Le geste dépend de ce que git a dit :
+- `bloque`: `fetch` (the station cannot fetch the repository) or `push` (it fetches it, but cannot
+  push to it — the reason says so: "can fetch from … but cannot push to it");
+- `raison`: one sentence, in English — it is the app that shows it —, ending with git's line;
+- `geste`: what the chef does to lift the refusal, in one sentence. `dit` carries both, the reason
+  then the action.
 
-| git dit | geste |
+The action depends on what git said:
+
+| git says | action |
 |---|---|
-| il n'a pas d'identifiants, sur un remote https sans credential helper | `gh auth setup-git` |
-| il n'a pas d'identifiants, alors qu'un credential helper est réglé | `gh auth login`, puis `gh auth setup-git` |
-| `403`, `Permission to … denied`, clé en lecture seule | donner au compte de la station l'accès en lecture (`fetch`) ou en écriture (`push`), sur `https://github.com/<dépôt>/settings/access` |
-| `Repository not found`, dépôt absent | `gh repo view <dépôt>` sous le compte de la station, et lui donner l'accès |
-| `Permission denied (publickey)` | ajouter la clé ssh du compte à GitHub (`gh ssh-key add <clé>.pub`) |
-| `Host key verification failed` | `ssh -T <hôte>` une fois, et accepter sa clé d'hôte |
-| autre chose | la commande git à relancer sur la station pour voir ce qu'elle dit |
+| it has no credentials, on an https remote with no credential helper | `gh auth setup-git` |
+| it has no credentials, although a credential helper is set | `gh auth login`, then `gh auth setup-git` |
+| `403`, `Permission to … denied`, read-only key | give the station's account read access (`fetch`) or write access (`push`), at `https://github.com/<repository>/settings/access` |
+| `Repository not found`, repository absent | `gh repo view <repository>` under the station's account, and give it access |
+| `Permission denied (publickey)` | add the account's ssh key to GitHub (`gh ssh-key add <key>.pub`) |
+| `Host key verification failed` | `ssh -T <host>` once, and accept its host key |
+| anything else | the git command to rerun on the station to see what it says |
 
-Le journal de service le dit une fois (`brigade : station — <projet> n'est pas servi, son dépôt
-refuse le fetch : … Geste : …`), et l'**onboarding** le montre à l'étape `depot`, courante, avec le
-geste « On <station>, under the account that runs it. ».
+The service log says it once (`brigade : station — <projet> n'est pas servi, son dépôt
+refuse le fetch : … Geste : …`, French until the runtime is translated), and the **onboarding**
+shows it at the `depot` step, current, with the action "On <station>, under the account that runs
+it.".
 
-### Le worktree qui ne se prépare pas
+### The worktree that does not prepare
 
-*Ticket #1118.* L'accès vérifié avant de servir un projet peut tomber ensuite — un credential
-helper retiré, un droit révoqué —, et un worktree peut ne pas se préparer pour une autre raison
-(disque, conflit). Le ticket est alors 86 (`worktree-failed`) et reproposé dix minutes plus tard ;
-la ligne du projet, toujours `servi`, porte le dernier échec, lu dans le journal de sa cuisine
-(`runtime/src/echec-du-worktree.ts`) — absent tant qu'aucun n'échoue :
+*Ticket #1118.* The access checked before serving a project can fail afterwards — a credential
+helper removed, a right revoked —, and a worktree can fail to prepare for another reason (disk,
+conflict). The ticket is then 86 (`worktree-failed`) and proposed again ten minutes later; the
+project's line, still `servi`, carries the last failure, read in its kitchen's log
+(`runtime/src/echec-du-worktree.ts`) — absent as long as none fails:
 
 ```json
 "worktree": {
@@ -201,134 +216,141 @@ la ligne du projet, toujours `servi`, porte le dernier échec, lu dans le journa
 }
 ```
 
-- `raison` : l'erreur de git, telle qu'il l'a dite — ou, quand l'essai a buté sur l'accès revérifié
-  avant de rien rapatrier, la raison du refus ;
-- `prochainEssai` : l'heure du prochain essai (ISO) ;
-- `acces` : présent quand la station ne peut pas récupérer le dépôt ou y pousser — la même forme que
-  l'accès bloqué ci-dessus, avec son geste.
+- `raison`: git's error, as it said it — or, when the attempt stumbled on the access rechecked
+  before fetching anything, the reason for the refusal;
+- `prochainEssai`: the time of the next attempt (ISO);
+- `acces`: present when the station cannot fetch the repository or push to it — the same shape as
+  the blocked access above, with its action.
 
-Il tient jusqu'à l'essai suivant : raté, celui-ci le remplace, avec sa nouvelle heure ; réussi, il
-disparaît. Chaque essai revérifie l'accès d'abord : le geste fait, la station repart seule à son
-prochain essai, sans redémarrage de l'app.
+It holds until the next attempt: failed, that one replaces it, with its new time; succeeded, it
+disappears. Each attempt rechecks access first: once the action is done, the station restarts by
+itself at its next attempt, without restarting the app.
 
-**Le refus, dit au chef** (#1177) : quelle qu'en soit la cause, un projet `refuse` porte aussi `refus` —
-`{ status: "refused", code, message, action }`. `code` est stable (`sandbox-unusable`, `door-not-open`,
-`clone-failed`, `fetch-blocked`, `push-blocked`, `already-served`… ; la liste fait foi dans
-`runtime/src/projets/refus.ts`), `message` une phrase pour le chef, `action` ce qu'il peut faire. Le
-champ disparaît dès que le projet est servi. Le fichier `en-service` garde le texte brut de l'erreur.
+**The refusal, told to the chef** (#1177): whatever the cause, a `refuse` project also carries
+`refus` — `{ status: "refused", code, message, action }`. `code` is stable (`sandbox-unusable`,
+`door-not-open`, `clone-failed`, `fetch-blocked`, `push-blocked`, `already-served`… ; the list is
+authoritative in `runtime/src/projets/refus.ts`), `message` a sentence for the chef, `action` what
+he can do. The field disappears as soon as the project is served. The `en-service` file keeps the
+raw text of the error.
 
-**Le remède du refus** (#1203) : chaque refus porte aussi soit `remedy` — `{ id, description,
-destructive }`, le geste qu'un bouton de l'app fait faire à la station : ce qu'il fera, en une phrase,
-et s'il retire ou efface quelque chose (l'app demande alors confirmation) —, soit `noRemedy`, en une
-phrase, pourquoi il n'y a pas de bouton. Les remèdes s'inscrivent dans un registre
-(`runtime/src/remedes/registre.ts`), avec les codes qu'ils lèvent : un remède inscrit paraît dans le
-refus, sans rien retoucher d'autre. Tant qu'aucun ne lève un code, sa raison sans bouton
-(`SANS_REMEDE`) le remplace.
+**The refusal's remedy** (#1203): each refusal also carries either `remedy` — `{ id, description,
+destructive }`, the action that a button of the app has the station perform: what it will do, in one
+sentence, and whether it removes or erases something (the app then asks for confirmation) —, or
+`noRemedy`, in one sentence, why there is no button. Remedies are entered in a registry
+(`runtime/src/remedes/registre.ts`), with the codes they lift: a registered remedy appears in the
+refusal, with nothing else to touch. As long as none lifts a code, its reason with no button
+(`SANS_REMEDE`) takes its place.
 
-L'app demande un remède par le gist de la station, qu'elle soit l'ordinateur du chef ou une station
-distante (`runtime/src/remedes/distant.ts`). Elle écrit `brigade-remedes.json` —
+The app asks for a remedy through the station's gist, whether it is the chef's computer or a remote
+station (`runtime/src/remedes/distant.ts`). It writes `brigade-remedes.json` —
 `{ "brigade": "remedies", "format": 1, "requests": [{ "id", "askedAt", "project", "refusal", "remedy" }] }`
-—, la station le lit à sa cadence, joue chaque demande une fois par le point d'entrée
-(`runtime/src/remedes/executer.ts`), et répond dans `brigade-remedes-suivi.json` —
+—, the station reads it at its beat, plays each request once through the entry point
+(`runtime/src/remedes/executer.ts`), and answers in `brigade-remedes-suivi.json` —
 `{ "brigade": "remedies-answers", "format": 1, "a", "answers": [{ "id", "answeredAt", "outcome", … }] }`.
-Le point d'entrée vérifie que le refus tient toujours et qu'il offre bien ce remède, le joue, puis
-relit le projet et rend l'issue :
+The entry point checks that the refusal still holds and that it does offer this remedy, plays it,
+then rereads the project and returns the outcome:
 
-- `lifted` : le refus a disparu ;
-- `holds` : il tient — `reason`, en une phrase, dit pourquoi (le geste a échoué, ou la station refuse
-  encore, pour la même cause ou une autre), et `refusal` est le refus tel qu'il est maintenant ;
-- `error` : rien n'a été joué — remède inconnu, refus qui n'offre pas ce remède, refus levé ou changé
-  depuis. `error` dit lequel.
+- `lifted`: the refusal is gone;
+- `holds`: it holds — `reason`, in one sentence, says why (the action failed, or the station still
+  refuses, for the same cause or another), and `refusal` is the refusal as it is now;
+- `error`: nothing was played — unknown remedy, a refusal that does not offer this remedy, a refusal
+  lifted or changed since. `error` says which.
 
-Une demande de plus de dix minutes n'est pas jouée ; une demande déjà répondue ne se rejoue pas, même
-après un redémarrage de la station. L'app retire sa demande une fois la réponse lue, et la réponse
-quitte le gist à la cadence suivante.
+A request more than ten minutes old is not played; a request already answered is not replayed, even
+after a restart of the station. The app removes its request once the answer is read, and the answer
+leaves the gist at the next beat.
 
-**Le catalogue des remèdes** (#1204, `runtime/src/remedes/catalogue/`) : un fichier par geste.
-- `proxy-port-set` → `remove-port-setting` (destructif) : retire `BRIGADE_PROXY_PORT` de la ligne du projet.
-- `hand-written-line` → `remove-hand-written-line` (destructif) : retire la ligne écrite à la main, jamais celle du bloc de l'app.
-- `configuration-invalid` → `rewrite-project-line` (destructif) : efface la ligne que l'app a écrite ; la station la réécrit à neuf.
-- `clone-missing` → `clone-repository-again` : reclone le dépôt par le `gh` de la machine.
-- `sandbox-unusable` → `update-claude` : `claude update` ; si le bac à sable reste inutilisable, le refus tient, avec sa raison.
+**The remedy catalog** (#1204, `runtime/src/remedes/catalogue/`): one file per action.
+- `proxy-port-set` → `remove-port-setting` (destructive): removes `BRIGADE_PROXY_PORT` from the project's line.
+- `hand-written-line` → `remove-hand-written-line` (destructive): removes the hand-written line, never the one of the app's block.
+- `configuration-invalid` → `rewrite-project-line` (destructive): erases the line the app wrote; the station rewrites it afresh.
+- `clone-missing` → `clone-repository-again`: clones the repository again through the machine's `gh`.
+- `sandbox-unusable` → `update-claude`: `claude update`; if the sandbox stays unusable, the refusal holds, with its reason.
 
-Les autres refus (`already-served`, `door-not-open`, `clone-failed`, `fetch-blocked`, `push-blocked`,
-`decisions-not-written`, `handed-over-elsewhere`, `unexpected`) n'ont pas de bouton : chacun porte
-`noRemedy` (`SANS_REMEDE`). `clone-missing` et `sandbox-unusable` sont rejoués par la station à chaque
-relecture, leur remède n'agissant pas sur la configuration.
+The other refusals (`already-served`, `door-not-open`, `clone-failed`, `fetch-blocked`,
+`push-blocked`, `decisions-not-written`, `handed-over-elsewhere`, `unexpected`) have no button: each
+carries `noRemedy` (`SANS_REMEDE`). `clone-missing` and `sandbox-unusable` are replayed by the
+station at every reread, their remedy not acting on the configuration.
 
-### Le premier ticket : préparer le dépôt
+### The first ticket: preparing the repository
 
-*Ticket #796.* Avant d'écrire la ligne d'un projet ajouté depuis l'app, la station ouvre sur son
-dépôt, par son `gh`, l'issue « Préparer le dépôt : gates, setup de worktree, sites autorisés »
-(`runtime/src/preparation-depot/`). Elle porte `fire`, `model:opus` et `effort:high` : elle entre
-sur le rail comme n'importe quel ticket, et un cook la cuit. Son corps dit au cook :
+*Ticket #796.* Before writing the line of a project added from the app, the station opens on its
+repository, through its `gh`, the issue "Préparer le dépôt : gates, setup de worktree, sites autorisés"
+(`runtime/src/preparation-depot/`) — its title stays French until the runtime is translated. It
+carries `fire`, `model:opus` and `effort:high`: it enters the rail like any ticket, and a cook cooks
+it. Its body tells the cook:
 
-- **quoi livrer** : `.claude/brigade/gates.sh`, `.claude/brigade/worktree-setup.sh` et
-  `.claude/brigade/reseau` (les sites que le projet a le droit de joindre), chacun avec son contrat
-  et ce que la branche d'intégration en porte déjà (« absent : à écrire », « déjà sur `main` : à
-  éprouver ») ;
-- **où l'éprouver** : sur la station qui le cuit — celle qui servira le projet —, pas sur un poste de
-  dev : le setup s'exécute dans son worktree, les gates y passent ;
-- **les critères observables** : gates vertes sur la station, setup exécuté dans un worktree neuf,
-  liste de sites présente, et, dans le compte-rendu, ce qui a été lancé et ce qui en est sorti.
+- **what to deliver**: `.claude/brigade/gates.sh`, `.claude/brigade/worktree-setup.sh` and
+  `.claude/brigade/reseau` (the sites the project is allowed to reach), each with its contract and
+  what the integration base already carries of it ("absent : à écrire", "déjà sur `main` : à
+  éprouver" — written in French by the runtime);
+- **where to prove it**: on the station that cooks it — the one that will serve the project —, not
+  on a dev workstation: the setup runs in its worktree, the gates pass there;
+- **the observable criteria**: gates green on the station, setup run in a fresh worktree, site list
+  present, and, in the report, what was run and what came out of it.
 
-Son numéro est gardé dans l'état du projet (`<état>/preparation-depot.json`) : la station ne l'ouvre
-qu'une fois, même si le projet est retiré puis rajouté ; créé sans avoir pu être noté, elle le
-retrouve parmi les issues ouvertes par son marqueur (`<!-- brigade:preparation-depot -->`), s'il a
-été posé par quelqu'un qui a la main sur le dépôt. GitHub muet : la ligne n'est pas écrite, le suivi
-dit `en-preparation`, et la station réessaie à la cadence suivante.
+Its number is kept in the project's state (`<état>/preparation-depot.json`): the station opens it
+only once, even if the project is removed then added again; created without having been noted, it
+finds it again among the open issues by its marker (`<!-- brigade:preparation-depot -->`), if it was
+set by someone who has hand on the repository. GitHub silent: the line is not written, the tracking
+says `en-preparation`, and the station retries at the next beat.
 
-**Tant qu'il n'est pas servi, la cuisine du projet ne prend que lui** — la même restriction que
-celle d'une base rouge, qui ne laisse partir que sa réparation, et que les stations distantes
-subissent comme celles d'ici. Le journal de service le dit une fois : `le rail attend #<n>
-(préparer le dépôt) — aucun autre ticket ne part avant son merge`. **Une fois servi, le rail
-démarre seul** (`#<n> (préparer le dépôt) est servi — le rail démarre`). Fermé par le chef ou
-disparu, il libère aussi le rail ; son label `fire` retiré, il le retient encore. Un projet écrit
-à la main dans la configuration, ou ajouté avant ce ticket, n'a pas de ticket de préparation : son
-rail est celui de toujours.
+**As long as it is not served, the project's kitchen takes only it** — the same restriction as that
+of a red base, which lets only its repair leave, and which remote stations undergo like the local
+ones. The service log says it once: `brigade : le rail attend #<n> (préparer le dépôt) — aucun autre ticket ne part avant son merge`.
+**Once served, the rail starts by itself** (`brigade : #<n> (préparer le dépôt) est servi — le rail démarre`).
+Both lines stay French until the runtime is translated. Closed by the chef or gone, it also frees the
+rail; with its `fire` label removed, it still holds it. A project written by hand in the
+configuration, or added before this ticket, has no preparation ticket: its rail is the usual one.
 
-La recette (`runtime/test/0-en-premier/recette.test.ts`) mesure, sur une vraie station de test, le temps
-entre l'ouverture du parcours et le projet publié dans la liste de la station : la spec le borne à
-dix minutes ; la station y met au plus sa cadence, trente secondes, plus le clone.
+The acceptance test (`runtime/test/0-en-premier/recette.test.ts`) measures, on a real test
+station, the time between the opening of the flow and the project published in the station's list:
+the spec bounds it at ten minutes; the station takes at most its beat, thirty seconds, plus the
+clone.
 
-### L'onboarding : où en est un projet neuf
+### The onboarding: where a new project stands
 
-*Ticket #1110.* Entre « projet ajouté » et « premier ticket servi », la station calcule où en est
-chaque projet dont elle est la principale (`runtime/src/onboarding/`), et le publie dans son suivi,
-sous `onboarding`, par nom de projet — c'est là que l'app le lit. Un projet repris d'une autre
-station (`reprise`) n'en a pas : il n'est pas neuf. L'état se calcule de ce que la station sait
-déjà — son suivi du projet, son clone, le ticket de préparation noté — et du journal du projet, lu
-en lecture seule ; rien n'est écrit pour lui.
+*Ticket #1110.* Between "project added" and "first ticket served", the station computes where each
+project of which it is the main station stands (`runtime/src/onboarding/`), and publishes it in its
+tracking, under `onboarding`, by project name — that is where the app reads it. A project taken over
+from another station (`reprise`) has none: it is not new. The state is computed from what the
+station already knows — its tracking of the project, its clone, the preparation ticket noted — and
+from the project's log, read-only; nothing is written for it.
 
-- **Quatre étapes, dans l'ordre** (`etapes`) : `depot` (les Apps de brigade autorisées sur le
-  dépôt, son clone, et l'accès de la station au dépôt en lecture et en écriture — refusé, son geste
-  est celui de l'accès bloqué), `machine` (la station qui le cuit, sa cuisine ouverte), `preparation` (le
-  ticket « Préparer le dépôt », mergé), `premier-ticket` (un ticket du chef sur le rail). Chacune
-  porte son `titre`, son `etat` — `faite`, `courante` ou `a-venir` —, une phrase en anglais
-  (`dit`), et, si elle est la courante et attend le chef, son `geste` : `quoi`, `ou`, et les
-  `liens` où le faire (les pages d'autorisation des Apps, la PR de préparation, la page d'une
-  nouvelle issue). `courante` nomme la première qui n'est pas faite.
-- **La préparation** (`preparation`) : le numéro du ticket, son lien, et son `etat` — `en-cours`
-  (sur le rail, ou entre les mains d'un cook), `en-echec` (mis de côté : `raison`, en une phrase,
-  et `prochainEssai`, l'heure à laquelle il repart seul, nulle s'il ne repart pas seul), `a-relire`
-  (à la pass, avec sa `pr` ; arrêtée faute de grant ou remontée au chef, le geste est de la relire
-  et la merger), `suspendu` (son label `fire` retiré), `faite`, ou `abandonne` (fermé sans merge :
-  le rail ne l'attend plus). Nulle tant que le ticket n'est pas ouvert.
-- **Sans bac à sable** (`sansBacASable`) : vrai si la cuisine du projet a noté au journal que ses
-  cooks tournent sans bac à sable (`isolation.configured`, `sandbox: null`) ; nul tant qu'elle
-  n'a rien noté.
-- **Décision attendue** (`decisionAttendue`) : vrai tant que la station du projet cuit sans bac à
-  sable et que le chef n'a pas décidé pour elle. Rien ne part pour le projet — pas même le ticket
-  de préparation : le rail est retenu (`onboarding/attente.ts`), et l'étape `machine` est la
-  courante, son geste offre les deux choix : continuer sans bac à sable sur cette machine, ou
-  choisir une autre station. La décision (`decision-sans-bac-a-sable.json`, dans l'état du
-  projet) porte le nom de la station et ne vaut que pour elle : la retenue se lève à la
-  prochaine prise du rail, et un projet changé de station la redemande si la nouvelle n'a pas de
-  bac à sable non plus. Un bac à sable configuré, ou inconnu, ne retient jamais.
-- **Prêt** : les trois premières étapes faites, le premier ticket peut être posé — `etat` vaut
-  `pret`, et `termine` est vrai : l'onboarding est fini. Un projet qui servait déjà des tickets
-  avant que le ticket de préparation existe est prêt d'emblée.
+- **Four steps, in order** (`etapes`): `depot` (the brigade Apps authorized on the repository, its
+  clone, and the station's access to the repository for reading and writing — refused, its action
+  is that of the blocked access), `machine` (the station that cooks it, its kitchen open),
+  `preparation` (the "Préparer le dépôt" ticket, merged), `premier-ticket` (a ticket of the chef's on
+  the rail). Each carries its `titre`, its `etat` — `faite`, `courante` or `a-venir` —, a sentence in
+  English (`dit`), and, if it is the current one and awaits the chef, its `geste`: `quoi`, `ou`, and
+  the `liens` where to do it (the Apps' authorization pages, the preparation PR, the page of a new
+  issue). `courante` names the first one that is not done.
+- **The preparation** (`preparation`): the ticket's number, its link, and its `etat` — `en-cours`
+  (on the rail, or in a cook's hands), `en-echec` (set aside: `raison`, in one sentence, and
+  `prochainEssai`, the time at which it leaves again by itself, null if it does not leave by
+  itself), `a-relire` (at the pass, with its `pr`; stopped for lack of a grant or escalated to the
+  chef, the action is to reread it and merge it), `suspendu` (its `fire` label removed), `faite`,
+  or `abandonne` (closed without a merge: the rail no longer waits for it). Null as long as the
+  ticket is not open.
+- **Without a sandbox** (`sansBacASable`): true if the project's kitchen noted in the log that its
+  cooks run without a sandbox (`isolation.configured`, `sandbox: null`); null as long as it has
+  noted nothing.
+- **Decision awaited** (`decisionAttendue`): true as long as the project's station cooks without a
+  sandbox and the chef has not decided for it. Nothing leaves for the project — not even the
+  preparation ticket: the rail is held back (`onboarding/attente.ts`), and the `machine` step is the
+  current one, its action offering the two choices: continue without a sandbox on this machine, or
+  choose another station. The decision (`decision-sans-bac-a-sable.json`, in the project's state)
+  carries the station's name and holds only for it: the hold lifts at the next time the rail is
+  taken, and a project moved to another station asks for it again if the new one has no sandbox
+  either. A configured sandbox, or an unknown one, never holds.
+- **Ready**: the first three steps done, the first ticket can be placed — `etat` is `pret`, and
+  `termine` is true: the onboarding is over. A project that was already serving tickets before the
+  preparation ticket existed is ready from the start.
 
-Le cas « aucune station choisie » se calcule aussi (l'étape `machine` courante, le geste de choisir
-une station dans l'app) ; mais une station ne publie que les projets qu'on lui demande : ce cas-là,
-seule l'app le voit.
+The "no station chosen" case is also computed (the `machine` step current, the action of choosing a
+station in the app); but a station publishes only the projects it is asked for: that case, only the
+app sees it.
+
+The onboarding's field names and status words (`etapes`, `etat`, `faite`, `courante`, `a-venir`,
+`en-cours`, `en-echec`, `a-relire`, `suspendu`, `abandonne`, `pret`, `termine`…) are written in
+French by the runtime and stay French until it is translated.

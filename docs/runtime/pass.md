@@ -31,8 +31,7 @@ A delivery can reach it **off the rail**: the PR of a closing pass, or that of a
 instructions that you accepted ("Proposed corrections"), or that of the lessons notebook
 ([`carnet-lecons.md`](carnet-lecons.md)), which have no ticket.
 It goes through the same judges and the same grant; what belongs to the ticket — the send-back to a
-cook, the serving, the closing of the issue — does not happen (see « La PR passe par la pass »; that
-page is not translated yet, so its title is still French).
+cook, the serving, the closing of the issue — does not happen (see "The PR goes through the pass" in [`fermeture.md`](fermeture.md)).
 
 ### The gates' duration cap is not judged by the pass
 
@@ -116,8 +115,8 @@ exhausted or the connection expired — the delivery waits, and so does its re-a
 complete, it is **a failure** for the breaker, and retried; unreadable, it is one only if it leaves
 the delivery unjudged — asked again, it counts neither for nor against; **refused by the model**, it
 is retried without counting, then escalated at the third refusal in a row (`unjudged`, cause
-`review-refused`; see "Quand le modèle refuse", a heading of [`station-cook.md`](station-cook.md)
-not translated yet). It does not hold the station back.
+`review-refused`; see "When the model refuses", a heading of [`station-cook.md`](station-cook.md)).
+It does not hold the station back.
 
 ### The second judge
 
@@ -160,8 +159,8 @@ connection expired; if it does not complete, it leaves again at the next wake-up
 ### Tickets with no diff
 
 An audit, an analysis: the cook concludes without committing anything, and **what it delimited in
-its last message is the deliverable** (see "Le livrable se délimite", a heading of
-[`station-cook.md`](station-cook.md) not translated yet). **The reviewer is then the only judge,
+its last message is the deliverable** (see "The deliverable is delimited", a heading of
+[`station-cook.md`](station-cook.md)). **The reviewer is then the only judge,
 and it is mandatory**: it rereads the delimited deliverable — that alone — against the ticket.
 
 | The reviewer says | What happens |
