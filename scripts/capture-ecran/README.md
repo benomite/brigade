@@ -80,6 +80,9 @@ compare que deux captures du même navigateur.
 | `fiche-retro`, `fiche-sans-retro` | La fiche de #9, servi, ouverte par sa carte dans la colonne Served du rail de `parade` (#1038) : sous son histoire et son coût, sa rétro — trois leçons provisoires et ce que son cook a écrit — puis la même fiche quand la box ne lui connaît aucune rétro, et la phrase qui le dit |
 | `reglages-ordinaires` | Les réglages de `parade` (Settings) sur un Mac : le bloc « Ordinary tickets on this Mac », l'option posée et la limite de cooks |
 | `reglages-ordinaires-sans-bac` | Les mêmes, quand la station dit son bac à sable indisponible : le message et sa raison |
+| `reglages-ordinaires-pc` | Les mêmes réglages sur un PC sous Windows (#1154) : le bloc « Ordinary tickets on this PC », sans option ni limite, et la ligne qui dit pourquoi ce poste n'en prend pas |
+| `demenager-sur-ce-pc` | `demenager-sur-ce-mac` sur un PC sous Windows (#1154) : `Cooks on this PC`, et le choix ouvert pour ramener la cuisine sur la box |
+| `shell-ce-mac`, `shell-ce-pc` | L'espace de `parade`, un shell de ce poste montré à droite (#1154) : sur un Mac, persistant dans sa session, sous « this Mac · chef » — puis sur un PC sous Windows, le `bash` de Git, sous « this PC · chef », qui finit avec son terminal |
 | `manager-eteint`, `manager-allume` | L'espace de `parade`, son manager éteint puis allumé (#906) : l'interrupteur en tête de l'espace, et la tête du rail marquée à l'arrêt quand il est éteint |
 | `manager-allumer` | Le même, éteint, l'interrupteur cliqué : la confirmation, et sa phrase — ce qu'il va juger, d'après `manager backlog` (23 issues ouvertes, dont 2 `blocked-on-human`) |
 | `bande-alertes` | L'espace de `parade`, sa bande d'alertes pleine (#907) : la connexion Max tombée, la base rouge, chacune en une ligne et un contrôle ; le grant `merge` éteint seul, en interrupteur à côté de celui du manager |
