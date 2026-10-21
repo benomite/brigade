@@ -21,7 +21,8 @@ import { ouvrirRail } from "../src/rail.ts";
 import { DEFINITION, lireTriage, unePhrase } from "../src/triage/consigne.ts";
 import { ATTENTE_CI_MS, ouvrirTriage, RELANCE_DU_TRIAGE } from "../src/triage/triage.ts";
 import { CALIBRE, chef, cuisine, fauxGitHub, issue, montre } from "./aides/cuisine.ts";
-import { DEPOT, jusqua, repertoireTemporaire } from "./outils.ts";
+import { aArreter, DEPOT, jusqua, repertoireTemporaire } from "./outils.ts";
+import { posixOnly } from "./support/plateforme.ts";
 
 const PROJET = "brigade";
 const STATION = "box/claude";
@@ -50,7 +51,9 @@ function atelier(t: TestContext, reponses: Array<unknown | Promise<unknown>>) {
   const repertoire = repertoireTemporaire(t);
   const heure = montre();
   const journal = ouvrirJournal(repertoire, { maintenant: heure.maintenant });
-  t.after(() => journal.fermer());
+  // Fermé avant que son répertoire disparaisse : sous Windows, une base ouverte
+  // ne se supprime pas.
+  aArreter(t, () => journal.fermer());
   const rail = ouvrirRail(journal, { projet: PROJET, dureeBailMs: 600_000, maintenant: heure.maintenant });
   const gh = fauxGitHub(issue(30), issue(27));
   gh.decrire(30, { body: "Exporter les rapports.\n\n## Critères\n\n- un export" });
@@ -140,7 +143,7 @@ describe("la porte de TODO, devant le triage", () => {
   test("sans triage branché, la carte entre dans TODO comme avant", (t) => {
     const repertoire = repertoireTemporaire(t);
     const journal = ouvrirJournal(repertoire);
-    t.after(() => journal.fermer());
+    aArreter(t, () => journal.fermer());
     assert.equal(entrerDansTodo(journal, PROJET, 30, CARTE, "manager").admise, true);
     assert.deepEqual(cartesEnTodo(journal.base).map(({ ticket }) => ticket), [30]);
     assert.deepEqual(cartesRetenues(journal.base), []);
@@ -331,7 +334,8 @@ describe("ce que l'agent lit et ce qu'il répond", () => {
 });
 
 describe("sur une cuisine complète", { concurrency: 4 }, () => {
-  test("manager allumé : la carte attend l'agent de triage hors de TODO, puis y entre quand il la laisse passer", async (t) => {
+  // L'agent de triage y est le faux `claude`, un script shell.
+  test("manager allumé : la carte attend l'agent de triage hors de TODO, puis y entre quand il la laisse passer", { skip: posixOnly("the fake claude is a POSIX shell script") }, async (t) => {
     const c = cuisine(t, { manager: { triage: "triage-au-feu" }, issues: [issue(30, CALIBRE)] });
     chef(c.repertoire, "manager.enabled");
     await jusqua(() => managerAllume(c.journal.base));
