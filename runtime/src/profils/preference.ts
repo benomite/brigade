@@ -22,6 +22,7 @@ import { join } from "node:path";
 import type { LeconRecue } from "../apprentissage/injection.ts";
 import type { Base } from "../base.ts";
 import { recouvrement } from "../zones.ts";
+import { profilDuCookDesign } from "./design.ts";
 import { fichierDuProfil, parseDefinition, PROFILS_DIR, type DefinitionDeProfil } from "./definition.ts";
 import type { CarnetDonne } from "./evenements.ts";
 
@@ -35,18 +36,23 @@ const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message :
 // définition illisible est écartée, et `avertir` la nomme.
 export function lireLesProfils(repoDir: string, avertir: (texte: string) => void = () => {}): DefinitionDeProfil[] {
   const dossier = join(repoDir, PROFILS_DIR);
-  if (!existsSync(dossier)) return [];
-  return readdirSync(dossier)
-    .filter((fichier) => fichier.endsWith(".md"))
-    .sort()
-    .flatMap((fichier) => {
-      try {
-        return [parseDefinition(readFileSync(join(dossier, fichier), "utf8"))];
-      } catch (erreur) {
-        avertir(`brigade : le profil ${PROFILS_DIR}/${fichier} est illisible, aucun ticket ne part sous lui — ${message(erreur)}`);
-        return [];
-      }
-    });
+  const definis = !existsSync(dossier)
+    ? []
+    : readdirSync(dossier)
+        .filter((fichier) => fichier.endsWith(".md"))
+        .sort()
+        .flatMap((fichier) => {
+          try {
+            return [parseDefinition(readFileSync(join(dossier, fichier), "utf8"))];
+          } catch (erreur) {
+            avertir(`brigade : le profil ${PROFILS_DIR}/${fichier} est illisible, aucun ticket ne part sous lui — ${message(erreur)}`);
+            return [];
+          }
+        });
+  // Le cook design est un profil comme les autres, bâti de son fichier ; une
+  // définition du même nom, écrite à la main dans le dossier, l'emporte.
+  const design = profilDuCookDesign(repoDir);
+  return design === null || definis.some((profil) => profil.name === design.name) ? definis : [...definis, design];
 }
 
 // Les profils dont un cook tourne : lancé sous lui, et sans fin au journal.
@@ -78,7 +84,7 @@ export function carnetDuProfil(profil: DefinitionDeProfil): CarnetRecu {
   return {
     nom: profil.name,
     domaine: profil.zone,
-    fichier: fichierDuProfil(profil.name),
+    fichier: profil.fichier ?? fichierDuProfil(profil.name),
     lecons: profil.notebook.lessons.filter((lecon) => lecon.state === "promoted").map((lecon) => ({ id: lecon.id, texte: lecon.text })),
   };
 }

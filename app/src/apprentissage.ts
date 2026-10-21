@@ -14,7 +14,7 @@ export type Progres = { avant: Livraison | null; apres: Livraison | null };
 // Une leçon, telle que `facts` la dit (runtime/src/apprentissage/projet.ts, `LeconAffichee`).
 export type LeconLue = { id: string; texte: string; statut: "provisoire" | "promue"; date: string; tickets: number[]; cooks: number; url?: string; progres: Progres };
 // Un profil, tel que `facts` le dit (`ProfilAffiche`) : son carnet, ses leçons promues ou sorties.
-export type ProfilApprisLu = { nom: string; domaine: string; carnet: { id: string; texte: string; etat: string }[]; tickets: number[]; progres: Progres };
+export type ProfilApprisLu = { nom: string; domaine: string; skills: string[]; perimetre: string[]; carnet: { id: string; texte: string; etat: string }[]; tickets: number[]; progres: Progres };
 export type ApprentissageLu = { lecons: LeconLue[]; profils: ProfilApprisLu[] };
 
 // Une leçon, telle que la vue la pose. `lien` : promue, sa ligne du carnet s'ouvre (`ouvrable`), ou la
@@ -32,6 +32,7 @@ const objet = (valeur: unknown, champ: string): Record<string, unknown> =>
 const texte = (valeur: unknown, champ: string): string => (typeof valeur === "string" ? valeur : refuser(champ, "a string"));
 const entier = (valeur: unknown, champ: string): number => (typeof valeur === "number" && Number.isSafeInteger(valeur) && valeur >= 0 ? valeur : refuser(champ, "a non-negative integer"));
 const liste = (valeur: unknown, champ: string): unknown[] => (Array.isArray(valeur) ? valeur : refuser(champ, "a list"));
+const textes = (valeur: unknown, champ: string): string[] => liste(valeur, champ).map((un, n) => texte(un, `${champ}[${n}]`));
 const tickets = (valeur: unknown, champ: string): number[] => liste(valeur, champ).map((ticket, n) => entier(ticket, `${champ}[${n}]`));
 // Un nombre fini qui n'est pas négatif : jamais NaN, jamais infini.
 const mesure = (valeur: unknown, champ: string): number => (typeof valeur === "number" && Number.isFinite(valeur) && valeur >= 0 ? valeur : refuser(champ, "a non-negative number"));
@@ -83,6 +84,8 @@ export function apprentissageLu(brut: unknown): ApprentissageLu {
       return {
         nom: texte(profil.nom, `${lequel}.nom`),
         domaine: texte(profil.domaine, `${lequel}.domaine`),
+        skills: textes(profil.skills, `${lequel}.skills`),
+        perimetre: textes(profil.perimetre, `${lequel}.perimetre`),
         carnet: liste(profil.carnet, `${lequel}.carnet`).map((une, n) => {
           const laquelle = `${lequel}.carnet[${n}]`;
           const lecon = objet(une, laquelle);

@@ -30,6 +30,8 @@ export const APPRENTISSAGE = {
     {
       nom: "app-src-vue",
       domaine: "app/src/vue",
+      skills: [],
+      perimetre: ["app/src/vue"],
       carnet: [
         { id: "L-001", texte: "keep the view thin: what it shows is computed in the main process", etat: "promoted" },
         { id: "L-002", texte: "every gesture is a button", etat: "retired" },
@@ -37,7 +39,8 @@ export const APPRENTISSAGE = {
       tickets: [29, 33, 36],
       progres: COMPLET,
     },
-    { nom: "runtime-src-correctif", domaine: "runtime/src/correctif", carnet: [], tickets: [41], progres: RIEN },
+    { nom: "design", domaine: "app/src/vue", skills: ["agents/cook-design.md"], perimetre: ["app/src/vue"], carnet: [], tickets: [], progres: RIEN },
+    { nom: "runtime-src-correctif", domaine: "runtime/src/correctif", skills: [], perimetre: ["runtime/src/correctif"], carnet: [], tickets: [41], progres: RIEN },
   ],
 };
 

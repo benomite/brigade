@@ -68,7 +68,7 @@ function tickets(doc, tickets, ouvrir) {
 
 // Une ligne de ce que le profil contiendrait : son libellé, puis ce qu'elle porte.
 /** @param {Fabrique} doc @param {string} libelle @param {any[]} contenu */
-function ligneDuContenu(doc, libelle, contenu) {
+export function ligneDuContenu(doc, libelle, contenu) {
   const ligne = cree(doc, "p");
   ligne.className = "ligne-contenu";
   const nom = cree(doc, "span", libelle);
@@ -79,7 +79,7 @@ function ligneDuContenu(doc, libelle, contenu) {
 
 // Des chemins ou des noms, chacun en monospace : ce qui se recopie.
 /** @param {Fabrique} doc @param {string[]} noms */
-const enMono = (doc, noms) =>
+export const enMono = (doc, noms) =>
   noms.map((nom) => {
     const pose = cree(doc, "code", nom);
     pose.className = "mono";

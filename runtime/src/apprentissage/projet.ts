@@ -3,13 +3,13 @@
 // son dépôt) et ses profils (leurs définitions, dans le même dépôt). C'est `facts`
 // qui le porte (`faits.ts`) : l'app n'y déduit rien. Lecture seule — la page ne
 // crée ni branche ni PR ; le chef retire une leçon par une PR qu'il ouvre lui-même.
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Base } from "../base.ts";
 import { CARNET_PATH, readCarnet, type Lesson, type LessonOrigin } from "../carnet/carnet.ts";
 import { DEPOT_GITHUB } from "../etat.ts";
 import type { Journal } from "../journal.ts";
-import { parseDefinition, PROFILS_DIR } from "../profils/definition.ts";
+import { lireLesProfils } from "../profils/preference.ts";
 import { parcoursDesTickets } from "../parcours-des-tickets.ts";
 import { avantApres, type AvantApres } from "./progres.ts";
 import { leconsProvisoires, sourcesDuProjet } from "./provisoires.ts";
@@ -36,6 +36,9 @@ export type LeconAffichee = {
 export type ProfilAffiche = {
   nom: string;
   domaine: string;
+  // Ce que le profil contient, comme la proposition qui l'a fait naître.
+  skills: string[];
+  perimetre: string[];
   // Son carnet : ses leçons, promues ou sorties.
   carnet: Array<{ id: string; texte: string; etat: string; origine: LessonOrigin }>;
   tickets: number[];
@@ -122,21 +125,16 @@ export function apprentissageDuProjet({ journal, projet, repoDir, depot, branche
             };
           });
 
-  const dossier = repoDir === undefined ? null : join(repoDir, PROFILS_DIR);
-  const profils: ProfilAffiche[] =
-    dossier === null || !existsSync(dossier)
-      ? []
-      : readdirSync(dossier)
-          .filter((fichier) => fichier.endsWith(".md"))
-          .sort()
-          .map((fichier) => parseDefinition(readFileSync(join(dossier, fichier), "utf8")))
-          .map((profil) => ({
-            nom: profil.name,
-            domaine: profil.zone,
-            carnet: profil.notebook.lessons.map((lecon) => ({ id: lecon.id, texte: lecon.text, etat: lecon.state, origine: lecon.origin })),
-            tickets: profil.tickets,
-            progres: avantApres(parcours, profil.accepted),
-          }));
+  const profils: ProfilAffiche[] = (repoDir === undefined ? [] : lireLesProfils(repoDir)).map((profil) => ({
+    nom: profil.name,
+    domaine: profil.zone,
+    skills: profil.skills,
+    perimetre: profil.perimeter,
+    carnet: profil.notebook.lessons.map((lecon) => ({ id: lecon.id, texte: lecon.text, etat: lecon.state, origine: lecon.origin })),
+    tickets: profil.tickets,
+    // Sans date d'acceptation, rien n'est mesuré de part et d'autre.
+    progres: profil.accepted === "" ? { avant: null, apres: null } : avantApres(parcours, profil.accepted),
+  }));
 
   return { lecons: [...provisoires, ...promues], profils };
 }
