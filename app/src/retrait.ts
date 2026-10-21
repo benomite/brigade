@@ -205,9 +205,9 @@ function montrer({ nom, box: { hote } }: Servi, { a, rendu }: Lue, execution: bo
     return {
       etat: "plan",
       a,
-      titre: `WHAT STATION “${hote}” WOULD REMOVE — nothing is removed`,
+      titre: `STATION “${hote}” HAS DRAWN UP ITS UNINSTALL PLAN — nothing is removed yet`,
       obtenu,
-      suite: ["The station has drawn up its plan: the app decides nothing about it. ", duJournal(rendu.journal, false), `To go ahead: type the project name below, then “${DESINSTALLER}”.`],
+      suite: ["The app does not reproduce the plan: what it reads of it is the state of the project's log, below. Its other contents are on the station.", duJournal(rendu.journal, false), `To go ahead: type the project name below, then “${DESINSTALLER}”.`],
     };
   }
   if (rendu.etat === "desinstalle") {

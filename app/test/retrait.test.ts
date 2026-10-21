@@ -239,7 +239,7 @@ describe("désinstaller de la box", () => {
     const { plan: montre, desinstallerRefuse } = geste(await retraits.planifier(calculus));
 
     assert.equal(montre?.etat, "plan");
-    assert.match(montre?.titre ?? "", /^WHAT STATION “box” WOULD REMOVE — nothing is removed/);
+    assert.match(montre?.titre ?? "", /^STATION “box” HAS DRAWN UP ITS UNINSTALL PLAN — nothing is removed yet/);
     // Chaque phrase du geste, telle qu'il l'a écrite : l'app n'en compose aucune.
     for (const phrase of phrases("plan", false)) assert.ok(texte(montre).includes(phrase), `le plan affiché n'a pas « ${phrase} »`);
     assert.match(texte(montre), /The log is not part of what the station would remove: it keeps it \(\/var\/lib\/brigade\/calculus\)\./);
