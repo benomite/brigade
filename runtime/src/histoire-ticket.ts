@@ -6,6 +6,10 @@
 // eu lieu plusieurs fois (un ticket repris, relu deux fois) y est autant de
 // fois. Rien n'est deviné : le coût dit `null` ce que la box ne sait pas — un
 // cook mort avec le runtime n'a ni tokens ni durée —, jamais 0.
+//
+// S'y ajoute la rétro du ticket servi (apprentissage/provisoires.ts) : ce que
+// son cook a écrit, et les leçons provisoires qu'elle a laissées au projet.
+import { carnetDuProjet, retroDuTicket } from "./apprentissage/provisoires.ts";
 import type { Base } from "./base.ts";
 
 export type Etape =
@@ -32,7 +36,19 @@ export type Etape =
 // ou est mort avec le runtime) — les sommes sont alors un minimum.
 export type Cout = { attempts: number; tokens: number | null; durationMs: number | null; incomplete: boolean };
 
-export type HistoireDuTicket = { ticket: number; steps: Etape[]; cost: Cout };
+// Une leçon que la rétro a laissée : une leçon nouvelle (`propose`) ou une
+// leçon du projet qu'elle reconfirme (`reconfirm`), avec son id et son texte —
+// nuls quand le carnet recalculé du projet ne la retrouve pas.
+export type LeconDeLaRetro = { kind: "propose" | "reconfirm"; id: string | null; text: string | null };
+
+// La dernière rétro du ticket : `text`, ce que son cook a écrit entre
+// `<retro>` et `</retro>`, nul s'il n'en a rien écrit ; `lessons`, ce qu'elle a
+// retenu, au plus trois, dans l'ordre de la rétro.
+export type RetroDuTicket = { at: string; text: string | null; lessons: LeconDeLaRetro[] };
+
+// `retro` : nulle tant que le ticket n'a pas été servi — seul un ticket servi a
+// la sienne.
+export type HistoireDuTicket = { ticket: number; steps: Etape[]; cost: Cout; retro: RetroDuTicket | null };
 
 // Les stations que la pass et le manager lancent : ni une relecture ni un
 // jugement ne cuisine un ticket.
@@ -104,5 +120,22 @@ export function histoireDuTicket(base: Base, ticket: number): HistoireDuTicket {
     durationMs: somme(connus.map((cook) => cook.durationMs)),
     incomplete: connus.some((cook) => cook.tokens === null || cook.durationMs === null),
   };
-  return { ticket, steps, cost };
+  return { ticket, steps, cost, retro: retroDe(base, ticket) };
+}
+
+// La rétro du ticket, lue au projet qui l'a écrite : ses leçons ne se
+// retrouvent que parmi celles de ce projet.
+function retroDe(base: Base, ticket: number): RetroDuTicket | null {
+  const [ecrite] = base.lire<{ project: string }>("SELECT project FROM events WHERE type = 'retro.recorded' AND ticket = ? ORDER BY seq DESC LIMIT 1", ticket);
+  if (ecrite === undefined) return null;
+  const retro = retroDuTicket(base, ecrite.project, ticket);
+  if (retro === null) return null;
+  const { lecons } = carnetDuProjet(base, ecrite.project);
+  const lessons = retro.kept.map((entree): LeconDeLaRetro => {
+    if (entree.kind === "reconfirm") return { kind: "reconfirm", id: entree.id, text: lecons.find((lecon) => lecon.id === entree.id)?.texte ?? null };
+    // Une leçon nouvelle : celle que cette rétro a fait naître, de ce texte.
+    const nee = lecons.find((lecon) => lecon.texte === entree.text.trim() && lecon.entrees.some((e) => e.genre === "propose" && e.retro === retro.ref));
+    return { kind: "propose", id: nee?.id ?? null, text: entree.text };
+  });
+  return { at: retro.at, text: retro.text, lessons };
 }

@@ -66,7 +66,38 @@ test("un ticket sans coût connu : null, jamais 0 — et un ticket inconnu n'a n
   noter({ type: "cook.interrupted", payload: { run: "r1" } });
 
   assert.deepEqual(histoireDuTicket(base, 7).cost, { attempts: 1, tokens: null, durationMs: null, incomplete: true });
-  assert.deepEqual(histoireDuTicket(base, 99), { ticket: 99, steps: [], cost: { attempts: 0, tokens: null, durationMs: null, incomplete: false } });
+  assert.deepEqual(histoireDuTicket(base, 99), { ticket: 99, steps: [], cost: { attempts: 0, tokens: null, durationMs: null, incomplete: false }, retro: null });
+});
+
+const retro = (text: string | null, kept: unknown[], run = "r1"): Fait => ({ type: "retro.recorded", payload: { run, text, kept, dropped: [] } }) as Fait;
+
+test("un ticket servi porte sa rétro : le texte du cook, et chaque leçon retenue avec son id et son texte", (t) => {
+  const { base, noter } = journal(t);
+  // Un ticket servi plus tôt laisse L1 ; le ticket 7 la reconfirme et en propose une nouvelle, L2.
+  noter(retro("propose Lancer les tests avant de commiter.", [{ kind: "propose", text: "Lancer les tests avant de commiter." }], "r0"), 5);
+  noter({ type: "ticket.arrived", payload: { title: "T", priority: null, createdAt: "x", url: "u" } });
+  const texte = "reconfirm L1\npropose Relire la fiche avant d'écrire.";
+  noter(retro(texte, [{ kind: "reconfirm", id: "L1" }, { kind: "propose", text: "Relire la fiche avant d'écrire." }]));
+
+  const { retro: lue } = histoireDuTicket(base, 7);
+  assert.ok(lue !== null);
+  assert.equal(lue.text, texte);
+  assert.equal(typeof lue.at, "string");
+  assert.deepEqual(lue.lessons, [
+    { kind: "reconfirm", id: "L1", text: "Lancer les tests avant de commiter." },
+    { kind: "propose", id: "L2", text: "Relire la fiche avant d'écrire." },
+  ]);
+});
+
+test("un ticket sans rétro : nulle tant qu'il n'est pas servi ; servi sans rien écrire, une rétro vide — et celle d'un autre ticket ne s'y mêle pas", (t) => {
+  const { base, noter } = journal(t);
+  noter({ type: "ticket.arrived", payload: { title: "T", priority: null, createdAt: "x", url: "u" } });
+  assert.equal(histoireDuTicket(base, 7).retro, null);
+
+  noter(retro(null, []));
+  assert.deepEqual(histoireDuTicket(base, 7).retro?.text, null);
+  assert.deepEqual(histoireDuTicket(base, 7).retro?.lessons, []);
+  assert.equal(histoireDuTicket(base, 8).retro, null);
 });
 
 test("`pass -- <ticket> --json` rend l'histoire et le coût, en JSON, sans rien écrire au journal", async (t) => {
@@ -84,6 +115,7 @@ test("`pass -- <ticket> --json` rend l'histoire et le coût, en JSON, sans rien 
   assert.equal(lu.ticket, 7);
   assert.deepEqual(lu.steps.map((etape: { kind: string }) => etape.kind), ["arrived", "delivered"]);
   assert.deepEqual(lu.cost, { attempts: 1, tokens: 1000, durationMs: 60_000, incomplete: false });
+  assert.equal(lu.retro, null);
 
   const inconnu = appeler(montrerPass, ["99", "--json"], { BRIGADE_STATE_DIR: repertoire });
   assert.equal(await inconnu.fin, 0);

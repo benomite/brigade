@@ -98,7 +98,7 @@ import { poserPerdus } from "./cost/perdus.js";
 import { poserTete } from "./cost/tete.js";
 import { poserFiabilite } from "./fiabilite.js";
 import { poserReculs } from "./recul.js";
-import { poserApprentissage } from "./apprentissage.js";
+import { DIT_PROVISOIRE, PROVISOIRE, poserApprentissage } from "./apprentissage.js";
 import { lireFermeture, poserCloser } from "./closer/section.js";
 import { poserBilan } from "./closer/bilan/bilan.js";
 import { apresRendu, lireLancement, poserLancement, REPOS } from "./closer/lancement/lancement.js";
@@ -3203,7 +3203,60 @@ function poserHistoire(projet, ticket, carte) {
     }
   }
   posees.push(section);
+  if (histoire !== undefined && !("sans" in histoire)) posees.push(poserRetro(ticket, histoire.retro));
   return posees;
+}
+
+// La rétro du ticket servi : les leçons qu'elle a laissées au projet — chacune sa pastille
+// « provisional », son sens au survol comme sur la page Reliability, son id et son texte —, puis ce
+// que son cook a écrit, tel que la box l'a rendu. Sans rétro, une phrase le dit, jamais une section vide.
+/** @param {number} ticket @param {import("../histoire.ts").RetroDite} retro */
+function poserRetro(ticket, retro) {
+  const section = document.createElement("section");
+  section.className = "retro";
+  section.ariaLabel = `the retro of #${ticket}`;
+  section.append(bloc("h4", "retro"));
+  /** @param {string} texte */
+  const sans = (texte) => Object.assign(bloc("p", texte), { className: "sans" });
+  if ("aucune" in retro) {
+    section.append(sans(retro.aucune));
+    return section;
+  }
+  // Une lecture qui manque se dit en une ligne ; pourquoi, au survol.
+  if ("sans" in retro) {
+    section.append(lectureIndisponible(document, "retro unavailable", retro.sans));
+    return section;
+  }
+  if (retro.texte === null && retro.lecons.length === 0) {
+    section.append(sans("served, but its cook wrote no retro"));
+    return section;
+  }
+  if (retro.lecons.length === 0) section.append(sans("no lesson kept from it"));
+  else {
+    const liste = document.createElement("ul");
+    for (const { id, texte, reconfirmee } of retro.lecons) {
+      const ligne = document.createElement("li");
+      // La pastille est le déclencheur de son survol, comme sur la page Reliability.
+      const pastille = bloc("span", PROVISOIRE);
+      pastille.className = "statut";
+      pastille.tabIndex = 0;
+      const dit = bloc("span", texte);
+      dit.className = "texte";
+      const nomme = bloc("code", id);
+      nomme.className = "id mono";
+      ligne.append(survol(document, DIT_PROVISOIRE, pastille), nomme, dit);
+      if (reconfirmee) {
+        const reprise = bloc("span", "reconfirmed");
+        reprise.className = "reprise";
+        reprise.title = "the retro reconfirms a lesson the project already had";
+        ligne.append(reprise);
+      }
+      liste.append(ligne);
+    }
+    section.append(liste);
+  }
+  if (retro.texte !== null) section.append(bloc("pre", retro.texte));
+  return section;
 }
 
 // L'histoire de ce ticket, lue sur sa box par le process principal. Une lecture partie avant une autre ne la remplace pas.
