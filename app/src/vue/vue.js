@@ -101,6 +101,7 @@ import { poserPerdus } from "./cost/perdus.js";
 import { poserTete } from "./cost/tete.js";
 import { poserFiabilite } from "./fiabilite.js";
 import { poserReculs } from "./recul.js";
+import { poserTriage } from "./triage.js";
 import { DIT_PROVISOIRE, PROVISOIRE, poserApprentissage } from "./apprentissage.js";
 import { lireFermeture, poserCloser } from "./closer/section.js";
 import { poserBilan } from "./closer/bilan/bilan.js";
@@ -4321,6 +4322,7 @@ function poserRail(projet) {
       ? []
       : [
           ...teteDuRail(projet),
+          ...poserTriage(document, tenu.tableau.triage),
           ...poserAmont(projet, tenu.tableau.rail, lesCartes),
           ...poserLesCorrections(projet, tenu.tableau.rail.corrections),
           ...poserLesProfils(projet, tenu.tableau.rail.profils),

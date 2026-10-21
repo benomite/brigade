@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { brancherLeTriage, cartesEnTodo, cartesRetenues, entrerDansTodo, triagesParJour } from "../src/carte-todo.ts";
+import { brancherLeTriage, cartesEnTodo, cartesRetenues, entrerDansTodo, triagesDesDerniersJours, triagesParJour } from "../src/carte-todo.ts";
 import type { Fait } from "../src/evenements.ts";
 import type { Check } from "../src/events/pass.ts";
 import { REDECOUPE } from "../src/events/rail.ts";
@@ -185,6 +185,11 @@ describe("la porte de TODO, devant le triage", () => {
     const rouvert = ouvrirJournal(c.repertoire);
     aArreter(t, () => rouvert.fermer());
     assert.deepEqual(lire(rouvert.base), attendu);
+
+    // Pour `facts` : sept jours, le dernier est celui de `maintenant`, et un jour sans issue est à zéro, jamais absent.
+    const sept = triagesDesDerniersJours(c.journal.base, new Date("2026-10-10T12:00:00.000Z"), 7);
+    assert.deepEqual(sept.map(({ day }) => day), ["2026-10-04", "2026-10-05", "2026-10-06", "2026-10-07", "2026-10-08", "2026-10-09", "2026-10-10"]);
+    assert.deepEqual(sept.map(({ decidedAlone, sentToTodo }) => [decidedAlone, sentToTodo]), [[0, 0], [0, 0], [0, 0], [0, 0], [1, 1], [0, 0], [1, 0]]);
   });
 
   test("sans triage branché, une carte avec sa question et ses choix entre dans TODO ; sans eux, elle est renvoyée au triage", (t) => {

@@ -2204,6 +2204,10 @@ For a ticket in pass or served, `cooked by` is added: who cooked it is not who h
   A failed reading — box not reached, GitHub not read by the box, a runtime from before `upstream`
   ("update brigade on the box") — never gives a number: the button says `upcoming: not read`,
   the expanded list says why, and it is not "nothing upcoming".
+- **The triage, day by day (#1283)**: at the head of the rail, a compact block — `triage, day by day` — gives, for each of the last
+  seven days (UTC), the most recent first, two counts: `decided alone` (the cards the triage settled itself) and `sent to TODO`
+  (the cards it let into TODO). A day with no activity says `0` and `0`, never a blank. The runtime counts (`facts`, `triage`:
+  `docs/runtime/etat-et-mesures.md`); the app only lays them out, and draws nothing from a runtime from before that field.
 - **The columns fit in the window at its opening size**; narrower, they scroll.
   The rail and what the displayed tab shows below it share the height, half and half; the
   rail scrolls within its own. A project with no `host` and no kitchen on this workstation has no rail — nothing is read from it — and
