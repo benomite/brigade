@@ -3,7 +3,7 @@
 Without it, everything the runtime launches — setup, cook, gates, reviewer, judges — runs under the
 service account: a cook reads the state, the clone, the worktrees and the secrets of the **other**
 projects, the whole secrets file of its own, the GitHub Apps' keys, and talks to the whole Internet.
-The runtime says so at every start (`cloison — aucune …`, `réseau — ouvert …`). It is put in place
+The runtime says so at every start (`cloison — none (BRIGADE_SANDBOX_BIN is not set): …`, `réseau — open (BRIGADE_PROXY_PORT is not set): …`; the `cloison —` and `réseau —` prefixes stay in French until the runtime is translated). It is put in place
 **project by project**, in two independent halves:
 
 - **Files and processes**, at each launch, through `bwrap` (bubblewrap): its own mount namespace and
@@ -58,7 +58,7 @@ and `claude` run outside the partition, under the same account and in the same c
 - **The worktree**, where the runtime runs `git` outside the partition: it reads the worktree's
   `.git` file and its `commondir` itself, and **imposes the repository on `git`**. A file that no
   longer leads to the clone is a **refusal** (``ne désigne plus son dépôt dans le clone (fichier `.git` réécrit)``,
-  or ``(`commondir` réécrit)``): at the tick, a warning; at the cook's end, the delivery fails,
+  or ``(`commondir` réécrit)``; this message stays in French until the runtime is translated): at the tick, a warning; at the cook's end, the delivery fails,
   nothing is pushed, the worktree is kept. It **descends into no submodule**: what a cook changes
   there is neither progress nor harvested — it is up to the cook to commit the pointer.
   `core.fsmonitor` and `core.hooksPath` are neutralized. These protections also hold without
@@ -175,7 +175,7 @@ resuming a send-back: past the keeping period, the send-back's cook starts again
 As soon as a second project runs on the machine, the Max account and the machine are shared. The
 arbiter is the process that adds them up: **one per machine**, with no LLM. It answers only one
 question: *can this project launch one more cook?* It is **optional** — without it, a project runs
-as before (`arbitre — aucun`). A runtime is pointed to it by `BRIGADE_ARBITER_PORT`.
+as before (`arbitre — aucun`, a message that stays in French until the runtime is translated). A runtime is pointed to it by `BRIGADE_ARBITER_PORT`.
 
 ### What it knows, and from where
 

@@ -145,7 +145,7 @@ fact** from it: its last action, and what it targets. Each tick's reading carrie
 - **`since`: since when it has been doing this.** The same action on the same target keeps its
   time; a "no progress" cook thus shows **where** it stopped, and since when.
 - **A cook whose stream the runtime does not read** — one on a remote station — has no `activity`:
-  nothing is invented, `faits` says it is null and the card writes `activité non communiquée`.
+  nothing is invented, `faits` says it is null and the card writes `activity not given`.
 
 What `faits` says (`rail[].activite`) is the activity **of the ticket**, not only of the cook:
 
