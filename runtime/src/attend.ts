@@ -54,7 +54,7 @@ import { epiquesEnAttente } from "./projections/splits.ts";
 import { issuesEnAttente, managerAllume, plusUneEpiqueDepuis } from "./projections/manager.ts";
 import { miseAJourDuJour } from "./mise-a-jour/relais.ts";
 import { etatDeLaBase, gatesDuRouge, lirePass, reparationDeLaBase, type EchecDeReparation, type PassDeTicket, type SansGrant } from "./projections/pass.ts";
-import type { TicketRail } from "./projections/rail.ts";
+import { feuNonVu, type TicketRail } from "./projections/rail.ts";
 import { alerteDeSession, type AlerteDeSession } from "./projections/renewal.ts";
 import { alerteDuJeton, type AlerteDuJeton } from "./projections/token.ts";
 import { direDeconnexion, direDeconnexionEn, etatStation, GESTE_DE_CONNEXION, GESTE_DE_CONNEXION_EN, GESTE_DE_CONNEXION_TOMBEE, GESTE_DE_CONNEXION_TOMBEE_EN, miseDeCoteBloquee, setupBloque, stationsDeconnectees, type MiseDeCoteBloquee, type SetupBloque } from "./projections/stations.ts";
@@ -101,7 +101,7 @@ type AttenteDeTicket = { ticket: number; title: string | null; since: string } &
   // Un ticket que la pass ou le manager a remonté : il est 86, sans retour.
   // `why` : pourquoi sa livraison ne se porte pas sur l'arbre d'un renommage
   // du code mergé, quand c'est ce qui l'a remonté (pause/reprise.ts).
-  | { quoi: "remontee"; reason: string; cause: string | null; pr: string | null; livraison?: Livraison; why?: string }
+  | { quoi: "remontee"; reason: string; cause: string | null; pr: string | null; livraison?: Livraison; why?: string; nonVu?: string }
   // Une livraison dont la PR a été fermée sans merge : son ticket tient encore
   // sa place sur le rail. `reason` : ce qu'elle était — arrêtée, remontée.
   | { quoi: "fermee"; reason: string; cause: string | null; pr: string | null; livraison?: Livraison }
@@ -249,7 +249,8 @@ export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new 
     if (pass.phase === "escalated" && ticket.state === "86" && pass.reason !== REDECOUPE) {
       if (pass.cause === DU_MANAGER && avecCarte.has(pass.ticket)) return [];
       const why = pass.cause === INTRANSPOSABLE ? pourquoiIntransposable(base, pass.ticket) : null;
-      return [{ ...commun, quoi: "remontee", ...(why === null ? {} : { why }) }];
+      const nonVu = feuNonVu(base, pass.ticket);
+      return [{ ...commun, quoi: "remontee", ...(why === null ? {} : { why }), ...(nonVu === null ? {} : { nonVu }) }];
     }
     // De même rendu au rail, il n'attend plus ; et fermer la PR d'un ticket
     // redécoupé n'appelle rien d'autre.
@@ -508,15 +509,16 @@ export function direAttenteEn(attente: Attente): string {
     case "remontee": {
       const voir = `\`${geste(`pass ${attente.ticket}`)}\``;
       const sortir = attente.pr === null ? "remove `fire`, or close the issue" : `merge ${attente.pr} by hand, or remove \`fire\``;
+      const dit = attente.nonVu === undefined ? "" : ` — the removal of \`fire\` on ${attente.nonVu} came before the hold and was not seen: remove it and set it again now`;
       const precise = attente.cause === null ? "" : `: ${attente.cause}`;
-      if (attente.why !== undefined) return `held by the code rename and not resumed on the renamed tree: ${attente.why} — to decide: carry it by hand onto the renamed base and push its branch, then remove and set \`fire\` again; or ${sortir} — ${voir}`;
+      if (attente.why !== undefined) return `held by the code rename and not resumed on the renamed tree: ${attente.why} — to decide: carry it by hand onto the renamed base and push its branch, then remove and set \`fire\` again; or ${sortir} — ${voir}${dit}`;
       switch (attente.reason) {
         case ENCORE_ROUGE:
-          return `${attente.cause === DU_MANAGER ? "escalated by the manager, red" : `escalated by the pass, red (${ENCORE_ROUGE}${precise})`} — to decide: ${sortir} — ${voir}`;
+          return `${attente.cause === DU_MANAGER ? "escalated by the manager, red" : `escalated by the pass, red (${ENCORE_ROUGE}${precise})`} — to decide: ${sortir} — ${voir}${dit}`;
         case NON_JUGEE:
-          return `escalated by the pass, which could not judge it (${NON_JUGEE}${precise}) — to lift: what its issue says, then remove and set \`fire\` again; or ${sortir} — ${voir}`;
+          return `escalated by the pass, which could not judge it (${NON_JUGEE}${precise}) — to lift: what its issue says, then remove and set \`fire\` again; or ${sortir} — ${voir}${dit}`;
         default:
-          return `escalated (${attente.reason}) — no known action for this reason — ${voir}`;
+          return `escalated (${attente.reason}) — no known action for this reason — ${voir}${dit}`;
       }
     }
     case "fermee":
@@ -800,15 +802,16 @@ export function direAttente(attente: Attente): string {
     case "remontee": {
       const voir = `\`${geste(`pass ${attente.ticket}`)}\``;
       const sortir = attente.pr === null ? "retirer `fire`, ou fermer l'issue" : `merger ${attente.pr} à la main, ou retirer \`fire\``;
+      const dit = attente.nonVu === undefined ? "" : ` — le retrait de \`fire\` du ${attente.nonVu} précède la retenue et n'a pas été vu : le retirer et le reposer maintenant`;
       const precise = attente.cause === null ? "" : ` : ${attente.cause}`;
-      if (attente.why !== undefined) return `retenu par le renommage du code, et non repris sur l'arbre renommé : ${attente.why} — à trancher : la porter à la main sur la base et pousser sa branche, puis retirer et reposer \`fire\` ; ou ${sortir} — ${voir}`;
+      if (attente.why !== undefined) return `retenu par le renommage du code, et non repris sur l'arbre renommé : ${attente.why} — à trancher : la porter à la main sur la base et pousser sa branche, puis retirer et reposer \`fire\` ; ou ${sortir} — ${voir}${dit}`;
       switch (attente.reason) {
         case ENCORE_ROUGE:
-          return `${attente.cause === DU_MANAGER ? "remontée par le manager, rouge" : `remontée par la pass, rouge (${ENCORE_ROUGE}${precise})`} — à trancher : ${sortir} — ${voir}`;
+          return `${attente.cause === DU_MANAGER ? "remontée par le manager, rouge" : `remontée par la pass, rouge (${ENCORE_ROUGE}${precise})`} — à trancher : ${sortir} — ${voir}${dit}`;
         case NON_JUGEE:
-          return `remontée par la pass, qui n'a pas pu la juger (${NON_JUGEE}${precise}) — à lever : ce que dit son issue, puis retirer et reposer \`fire\` ; ou ${sortir} — ${voir}`;
+          return `remontée par la pass, qui n'a pas pu la juger (${NON_JUGEE}${precise}) — à lever : ce que dit son issue, puis retirer et reposer \`fire\` ; ou ${sortir} — ${voir}${dit}`;
         default:
-          return `remontée (${attente.reason}) — aucun geste connu pour ce motif — ${voir}`;
+          return `remontée (${attente.reason}) — aucun geste connu pour ce motif — ${voir}${dit}`;
       }
     }
     case "fermee":

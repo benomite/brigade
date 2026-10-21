@@ -76,6 +76,9 @@ export type GitHub = {
   issue(numero: number): Promise<(Issue & { body?: string; author?: string }) | null>;
   // Les commentaires d'une issue, du plus ancien au plus récent.
   commentaires(numero: number): Promise<Commentaire[]>;
+  // Les instants où le label `fire` a été retiré de l'issue, du plus ancien au
+  // plus récent : l'historique des labels, que l'état courant ne garde pas.
+  retraitsDeFire(numero: number): Promise<string[]>;
   // Poste un commentaire sur une issue.
   commenter(numero: number, corps: string): Promise<void>;
   // Ajoute des labels à une issue, sans toucher à ceux qu'elle porte.
@@ -142,6 +145,8 @@ type IssueBrute = {
 };
 
 type CommentaireBrut = { body?: string | null; author_association?: string; user?: { login?: string } | null; created_at?: string };
+
+type EvenementBrut = { event?: string; created_at?: string; label?: { name?: string } | null };
 
 type PRBrute = {
   number: number;
@@ -302,6 +307,14 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
       return pages
         .flatMap((page) => JSON.parse(page.corps) as CommentaireBrut[])
         .map((brut) => ({ body: brut.body ?? "", author: brut.user?.login ?? "", association: brut.author_association ?? "NONE", createdAt: brut.created_at ?? "" }));
+    },
+    async retraitsDeFire(numero) {
+      const chemin = `repos/${depot}/issues/${numero}/events?per_page=100`;
+      const pages = await feuilleter(await appeler([chemin]), chemin);
+      return pages
+        .flatMap((page) => JSON.parse(page.corps) as EvenementBrut[])
+        .filter((brut) => brut.event === "unlabeled" && brut.label?.name === LABEL && typeof brut.created_at === "string")
+        .map((brut) => brut.created_at as string);
     },
     async commenter(numero, corps) {
       await creer(`repos/${depot}/issues/${numero}/comments`, { body: corps });

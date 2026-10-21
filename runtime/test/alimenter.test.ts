@@ -36,6 +36,7 @@ function depot(...issues: Issue[]) {
   let confirme = false;
   let panne: Error | null = null;
   let sansCommentaires = false;
+  const retraits = new Map<number, string[]>();
   const github: GitHub = {
     async tickets() {
       compte.sondages++;
@@ -61,6 +62,7 @@ function depot(...issues: Issue[]) {
     },
     labelliser: async () => {},
     delabelliser: async () => {},
+    retraitsDeFire: async (numero) => retraits.get(numero) ?? [],
     creerIssue: async () => 0,
     issuesDepuis: async () => [],
     ecrireCorps: async () => {},
@@ -92,6 +94,8 @@ function depot(...issues: Issue[]) {
       if (connue) etat.set(numero, { ...connue, updatedAt });
       confirme = false;
     },
+    // Les retraits de `fire` que l'historique de l'issue garde.
+    retirerLeFeu: (numero: number, ...instants: string[]) => void retraits.set(numero, instants),
     tomber: (erreur: Error | null) => void (panne = erreur),
     perdreLesCommentaires: (perdus: boolean) => void (sansCommentaires = perdus),
   };
@@ -833,4 +837,39 @@ test("après un redémarrage, le rail est celui d'avant — sans rien redemander
 
   assert.deepEqual(second.rail.tickets(), avant);
   assert.deepEqual(avant.map((ticket) => [ticket.ticket, ticket.state]), [[14, "taken"], [15, "86"], [16, "waiting"]]);
+});
+
+test("un ticket retenu dont fire est retiré puis reposé entre deux sondages repart : l'historique de l'issue fait foi", async (t) => {
+  const { journal, rail } = cuisine(t);
+  const gh = depot(issue(14));
+  await alimenter(journal, gh.github, CIBLE);
+  rail.prendre("box/claude");
+  rail.quatreVingtSix(14, { motif: "ci-silent", retour: null });
+  assert.equal(lireRail(journal.base)[0]?.state, "86");
+
+  // Posé de nouveau, la liste le porte toujours : rien n'a changé pour elle,
+  // sauf la date de l'issue.
+  gh.retirerLeFeu(14, "2099-01-01T00:00:00Z");
+  gh.poser(issue(14, { updatedAt: "2099-01-01T00:00:02Z" }));
+  await alimenter(journal, gh.github, CIBLE);
+  assert.equal(lireRail(journal.base)[0]?.state, "waiting");
+  assert.deepEqual(journal.tout().slice(-2).map((e) => e.type), ["ticket.left", "ticket.arrived"]);
+
+  // Compté une fois : le sondage suivant n'y revient pas.
+  await alimenter(journal, gh.github, CIBLE);
+  assert.equal(journal.tout().filter((e) => e.type === "ticket.left").length, 1);
+});
+
+test("un retrait de fire antérieur à la retenue ne la lève pas", async (t) => {
+  const { journal, rail } = cuisine(t);
+  const gh = depot(issue(14));
+  await alimenter(journal, gh.github, CIBLE);
+  rail.prendre("box/claude");
+  rail.quatreVingtSix(14, { motif: "ci-silent", retour: null });
+  // Un retrait daté d'avant l'entrée sur le rail est un autre geste : rien.
+  gh.retirerLeFeu(14, "2000-01-01T00:00:00Z");
+  gh.poser(issue(14, { updatedAt: "2099-01-01T00:00:02Z" }));
+  await alimenter(journal, gh.github, CIBLE);
+  assert.equal(lireRail(journal.base)[0]?.state, "86");
+  assert.equal(journal.tout().filter((e) => e.type === "ticket.fire-unseen").length, 0);
 });

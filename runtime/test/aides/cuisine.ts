@@ -148,6 +148,7 @@ export function fauxGitHub(...issues: Issue[]) {
       if (connue) etat.set(numero, { ...connue, labels: [...new Set([...connue.labels, ...labels])] });
       toucher(numero);
     },
+    retraitsDeFire: async () => [],
     async delabelliser(numero, label) {
       if (pannes.label) throw new Error("gh api : HTTP 502");
       delabellisations.push([numero, label]);

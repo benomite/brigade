@@ -56,6 +56,10 @@ export type FaitRail =
   // de commentaires hors brigade que l'issue portait alors — ce qui s'y ajoute
   // ensuite ramène le ticket.
   | { type: "waiting.marked"; payload: { waiting: { what: string; who: string; followUp: string } | null; heard?: number } }
+  // Le chef a retiré `fire` de l'issue puis l'a reposé, et la cuisine ne l'a
+  // pas compté : le retrait précède la retenue du ticket (`removedAt`, l'instant
+  // que GitHub date). Le ticket reste retenu ; sa ligne de file le dit.
+  | { type: "ticket.fire-unseen"; payload: { removedAt: string } }
   // Les chemins communs du projet : ceux qui n'appartiennent à aucun ticket.
   // Écrit au démarrage, quand la configuration change — le rail se relit du
   // journal seul, zones comprises. Ne concerne aucun ticket.
