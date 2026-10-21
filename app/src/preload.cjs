@@ -74,6 +74,7 @@ const pont = {
   panne: (id, cle) => ipcRenderer.invoke("panne", id, cle),
   cuireSurLaStation: (projet, station, geste) => ipcRenderer.invoke("cuireSurLaStation", projet, station, geste),
   reglerLePlafond: (station, valeur) => ipcRenderer.invoke("reglerLePlafond", station, valeur),
+  reglerLePlafondDeCalibrage: (projet, choix) => ipcRenderer.invoke("reglerLePlafondDeCalibrage", projet, choix),
   retirerLaStation: (id) => ipcRenderer.invoke("retirerLaStation", id),
   compter: (projet) => ipcRenderer.invoke("compter", projet),
   closer: (projet, action, oui) => ipcRenderer.invoke("closer", projet, action, oui),

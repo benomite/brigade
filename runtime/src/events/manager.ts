@@ -84,6 +84,9 @@ export type FaitReaction =
         run: string | null;
         from: { model: string; effort: string };
         to: { model: string; effort: string } | null;
+        // The project's calibration ceiling the choice was made within. Absent
+        // from a log written before it.
+        ceiling?: { model: string; effort: string };
         // The TODO card of an escalation: `kind` is `product` or `gesture`, and
         // `statement` says in one line what is expected of the chef. Absent or
         // null: the ticket hides neither, and escalates without a card.

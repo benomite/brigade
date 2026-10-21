@@ -9,36 +9,56 @@ import { ConfigInvalide } from "./runtime.ts";
 
 // Du moins cher au plus cher : c'est dans ce sens qu'un calibrage monte.
 const ECHELLES = { model: [...MODELES].reverse() as string[], effort: [...EFFORTS] as string[] };
-const VARIABLES = { model: "BRIGADE_CEILING_MODEL", effort: "BRIGADE_CEILING_EFFORT" };
+// Les décisions du chef qui règlent le plafond (`decisions.ts`).
+export const VARIABLES_DU_PLAFOND = { model: "BRIGADE_CEILING_MODEL", effort: "BRIGADE_CEILING_EFFORT" } as const;
 
 type Dimension = keyof Calibrage;
 
-// Le plus haut calibrage qu'une montée peut atteindre. Une dimension sans
-// plafond ne monte jamais : il n'y a pas de valeur par défaut.
-export type Plafond = { model: string | null; effort: string | null };
+// Le plus haut calibrage qu'une montée peut atteindre : une décision du chef,
+// dimension par dimension, et ce défaut pour celle qu'il n'a pas posée. Sans
+// défaut, un projet où personne ne l'avait réglé ne montait jamais rien.
+export type Plafond = Calibrage;
+export const PLAFOND_PAR_DEFAUT: Plafond = { model: "opus", effort: "high" };
+
+// Le plafond en vigueur, et pour chaque dimension si le chef l'a posée — sinon
+// c'est le défaut.
+export type PlafondLu = Plafond & { pose: { model: boolean; effort: boolean } };
 
 // Les dimensions dont le label vient du manager : les seules qu'il remplace.
 export type Libre = { model: boolean; effort: boolean };
 
-export function configPlafond(env: Record<string, string | undefined>): Plafond {
+// Lit le plafond dans l'environnement que le runtime a décidé : les décisions
+// posées au journal y sont versées (`environnementDecide`).
+export function configPlafond(env: Record<string, string | undefined>): PlafondLu {
   const lire = (dimension: Dimension): string | null => {
-    const valeur = env[VARIABLES[dimension]];
+    const valeur = env[VARIABLES_DU_PLAFOND[dimension]];
     if (!valeur) return null;
     if (!ECHELLES[dimension].includes(valeur)) {
-      throw new ConfigInvalide(`${VARIABLES[dimension]} invalide : « ${valeur} » — attendu ${ECHELLES[dimension].join(", ")}, ou rien : sans plafond, cette dimension ne monte jamais`);
+      throw new ConfigInvalide(`${VARIABLES_DU_PLAFOND[dimension]} invalide : « ${valeur} » — attendu ${ECHELLES[dimension].join(", ")}, ou rien : le défaut, \`${PLAFOND_PAR_DEFAUT[dimension]}\``);
     }
     return valeur;
   };
-  return { model: lire("model"), effort: lire("effort") };
+  const model = lire("model");
+  const effort = lire("effort");
+  return { model: model ?? PLAFOND_PAR_DEFAUT.model, effort: effort ?? PLAFOND_PAR_DEFAUT.effort, pose: { model: model !== null, effort: effort !== null } };
+}
+
+// Le plafond tel que le chef le lit, d'où vient chaque valeur comprise :
+// « `opus` / `high` (default) », « `sonnet` (set by you) / `high` (default) ».
+export function direPlafondDeCalibrageEn(plafond: PlafondLu): string {
+  const { model, effort } = plafond.pose;
+  if (model && effort) return `${plafond.model} / ${plafond.effort} — set by you, replaces the default ${PLAFOND_PAR_DEFAUT.model} / ${PLAFOND_PAR_DEFAUT.effort}`;
+  if (!model && !effort) return `${plafond.model} / ${plafond.effort} — default`;
+  const dit = (dimension: Dimension) => `${plafond[dimension]} (${plafond.pose[dimension] ? "set by you" : "default"})`;
+  return `${dit("model")} / ${dit("effort")}`;
 }
 
 // Le cran au-dessus dans une dimension, ou null s'il n'y en a pas sous le
 // plafond.
 function cran(dimension: Dimension, pose: Calibrage, plafond: Plafond, libre: Libre): string | null {
   const echelle = ECHELLES[dimension];
-  const sommet = plafond[dimension];
   const rang = echelle.indexOf(pose[dimension]);
-  if (!libre[dimension] || sommet === null || rang === -1 || rang >= echelle.indexOf(sommet)) return null;
+  if (!libre[dimension] || rang === -1 || rang >= echelle.indexOf(plafond[dimension])) return null;
   return echelle[rang + 1] ?? null;
 }
 
@@ -56,21 +76,14 @@ const NOMS = { model: "du modèle", effort: "de l'effort" };
 // Pourquoi rien ne peut monter, tel que le chef le lit.
 export function obstacle(pose: Calibrage, plafond: Plafond, libre: Libre): string {
   const dimensions: Dimension[] = ["model", "effort"];
-  if (dimensions.every((dimension) => plafond[dimension] === null)) {
-    return `aucun plafond de calibrage n'est configuré (\`${VARIABLES.model}\`, \`${VARIABLES.effort}\`) : sans plafond, le manager ne monte rien`;
-  }
   if (dimensions.every((dimension) => !libre[dimension])) {
     return `\`model:${pose.model}\` et \`effort:${pose.effort}\` ont été posés par le chef : le manager ne remplace que ses propres labels`;
   }
-  if (dimensions.every((dimension) => libre[dimension] && plafond[dimension] !== null)) {
+  if (dimensions.every((dimension) => libre[dimension])) {
     return `le calibrage est déjà au plafond (\`${plafond.model}\` / \`${plafond.effort}\`)`;
   }
   return dimensions
-    .map((dimension) => {
-      if (!libre[dimension]) return `\`${dimension}:${pose[dimension]}\` a été posé par le chef`;
-      if (plafond[dimension] === null) return `\`${VARIABLES[dimension]}\` n'est pas configuré`;
-      return `\`${plafond[dimension]}\` est le plafond ${NOMS[dimension]}`;
-    })
+    .map((dimension) => (libre[dimension] ? `\`${plafond[dimension]}\` est le plafond ${NOMS[dimension]}` : `\`${dimension}:${pose[dimension]}\` a été posé par le chef`))
     .join(", et ");
 }
 

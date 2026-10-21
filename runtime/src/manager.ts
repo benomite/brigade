@@ -67,7 +67,8 @@ export type ConfigManager = {
   calibrage: Calibrage;
   // Le numéro de l'issue de roadmap du projet, s'il en a une.
   roadmap: number | null;
-  // Jusqu'où il peut monter le calibrage d'un ticket qui échoue.
+  // Jusqu'où il peut monter le calibrage d'un ticket qui échoue, tel qu'au
+  // démarrage : `opus` / `high` si le chef ne l'a pas posé.
   plafond: Plafond;
   // Les fichiers suivis du dépôt : le plan dont un découpage tire les zones
   // de ses tickets. Sans lui, il découpe à l'aveugle.
@@ -112,8 +113,9 @@ export type OptionsManager = ConfigManager & {
   // Où va ce que le manager a à dire hors du journal (journald).
   avertir?: (message: string) => void;
   // Les décisions du chef : présentes, le calibrage des jugements y est relu
-  // à chaque jugement — le chef a pu le changer sans redémarrer.
-  decisions?: Pick<Decisions, "manager">;
+  // à chaque jugement, et le plafond à chaque réaction — le chef a pu les
+  // changer sans redémarrer.
+  decisions?: Pick<Decisions, "manager" | "plafond">;
 };
 
 const RAISONS: Partial<Record<Ecart, string>> = {
@@ -518,7 +520,7 @@ export function brancherManager<R extends RuntimeAvecRail & GardeFous>(runtime: 
     rail,
     github,
     depotGitHub: options.depotGitHub,
-    plafond: options.plafond,
+    plafond: () => options.decisions?.plafond() ?? options.plafond,
     noter,
     demander,
     peutJuger,

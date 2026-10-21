@@ -5,6 +5,7 @@ import { describe, test, type TestContext } from "node:test";
 import { carnetDuProjet } from "../src/apprentissage/provisoires.ts";
 import { attentesDuChef } from "../src/attend.ts";
 import { cartesEnTodo } from "../src/carte-todo.ts";
+import { poserDecision } from "../src/decisions.ts";
 import { REDECOUPE } from "../src/events/rail.ts";
 import { MARQUEUR } from "../src/fiche.ts";
 import { MARQUEUR_MANAGER } from "../src/juger.ts";
@@ -56,7 +57,7 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     const [reaction] = c.charges("manager.reacted", 30);
     assert.deepEqual(
       { ...reaction, verdict: null, reason: null },
-      { verdict: null, returns: 1, choice: "raise", reason: null, proposal: null, run: null, from: { model: "haiku", effort: "low" }, to: { model: "haiku", effort: "medium" } },
+      { verdict: null, returns: 1, choice: "raise", reason: null, proposal: null, run: null, from: { model: "haiku", effort: "low" }, to: { model: "haiku", effort: "medium" }, ceiling: { model: "sonnet", effort: "medium" } },
     );
     assert.deepEqual(c.charges("manager.raised", 30), [{ added: ["effort:medium"], removed: ["effort:low"] }]);
     // Le premier renvoi est celui de la pass, le second celui du manager.
@@ -88,12 +89,27 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     assert.ok(c.dits(17).some((dit) => /second renvoi au même calibrage.*posés par le chef/s.test(dit)));
   });
 
-  test("sans plafond configuré, rien ne monte, et le manager le dit", async (t) => {
-    const c = echec(t, { issues: [issue(30, [])], manager: { suite: ["juge-ticket"] } });
+  test("sans plafond posé par le chef, le défaut vaut : le ticket monte, et le commentaire nomme le plafond", async (t) => {
+    const c = echec(t, { issues: [issue(30, [])], manager: { suite: ["juge-ticket"] }, decisions: true });
     await c.jusquAu("pass.returned", 30, 2);
 
-    assert.deepEqual(c.labels(30), ["fire", "model:haiku", "effort:low"]);
-    assert.match(String(c.charges("manager.reacted", 30)[0]?.reason), /aucun plafond de calibrage n'est configuré/);
+    assert.deepEqual(c.labels(30), ["fire", "model:haiku", "effort:medium"]);
+    assert.deepEqual(c.charges("manager.reacted", 30)[0]?.ceiling, { model: "opus", effort: "high" });
+    await jusqua(() => c.dits(30).some((dit) => /second renvoi/.test(dit)));
+    assert.match(c.dits(30).find((dit) => /second renvoi/.test(dit)) ?? "", /monté de `haiku` \/ `low` à `haiku` \/ `medium`.*dans la limite du plafond du projet, `opus` \/ `high`/s);
+  });
+
+  test("le plafond posé par le chef est relu à chaque réaction, sans redémarrage, et c'est lui que le commentaire nomme", async (t) => {
+    const c = echec(t, { issues: [issue(30, [])], manager: { suite: ["juge-ticket"] }, decisions: true });
+    poserDecision(c.journal, { projet: "brigade", nom: "BRIGADE_CEILING_EFFORT", valeur: "low", auteur: "chef" });
+    poserDecision(c.journal, { projet: "brigade", nom: "BRIGADE_CEILING_MODEL", valeur: "sonnet", auteur: "chef" });
+    await c.jusquAu("pass.returned", 30, 2);
+
+    // `haiku` / `low` : l'effort est au plafond, c'est le modèle qui monte.
+    assert.deepEqual(c.labels(30), ["fire", "effort:low", "model:sonnet"]);
+    assert.deepEqual(c.charges("manager.reacted", 30)[0]?.ceiling, { model: "sonnet", effort: "low" });
+    await jusqua(() => c.dits(30).some((dit) => /second renvoi/.test(dit)));
+    assert.match(c.dits(30).find((dit) => /second renvoi/.test(dit)) ?? "", /dans la limite du plafond du projet, `sonnet` \/ `low`/);
   });
 
   test("passé les deux renvois, le manager choisit — monter — et un ticket ne repart jamais à l'identique", async (t) => {

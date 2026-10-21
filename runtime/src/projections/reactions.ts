@@ -20,6 +20,9 @@ export type ReactionDeTicket = {
   run: string | null;
   from: Calibration;
   to: Calibration | null;
+  // Le plafond du projet dans la limite duquel le choix a été fait — nul pour
+  // un choix d'un journal d'avant lui.
+  ceiling: Calibration | null;
   // L'échange de labels d'une montée est tranché. `applied` : il a eu lieu —
   // faux quand le chef avait recalibré entre le choix et l'écriture.
   raised: boolean;
@@ -54,6 +57,7 @@ export const reactions = definirProjection<FaitReaction>({
       run         TEXT,
       origin      TEXT NOT NULL,
       target      TEXT,
+      ceiling     TEXT,
       raised      INTEGER NOT NULL DEFAULT 0,
       applied     INTEGER NOT NULL DEFAULT 0,
       commented   INTEGER NOT NULL DEFAULT 0,
@@ -74,8 +78,8 @@ export const reactions = definirProjection<FaitReaction>({
       const from = calibration(payload.from);
       if (ticket === null || !Number.isSafeInteger(payload.verdict) || !CHOIX.includes(payload.choice) || from === null) return;
       base.executer(
-        `INSERT OR REPLACE INTO manager_reactions (ticket, verdict, returns, choice, reason, proposal, card, run, origin, target, decided_seq, at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT OR REPLACE INTO manager_reactions (ticket, verdict, returns, choice, reason, proposal, card, run, origin, target, ceiling, decided_seq, at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ticket,
         payload.verdict,
         Number.isSafeInteger(payload.returns) ? payload.returns : 0,
@@ -86,6 +90,7 @@ export const reactions = definirProjection<FaitReaction>({
         texte(payload.run) ? payload.run : null,
         JSON.stringify(from),
         JSON.stringify(calibration(payload.to)),
+        JSON.stringify(calibration(payload.ceiling)),
         seq,
         at,
       );
@@ -104,16 +109,25 @@ export const reactions = definirProjection<FaitReaction>({
   },
 });
 
-type Ligne = Omit<ReactionDeTicket, "from" | "to" | "card" | "raised" | "applied" | "commented"> & { card: string | null; origin: string; target: string | null; raised: number; applied: number; commented: number };
+type Ligne = Omit<ReactionDeTicket, "from" | "to" | "ceiling" | "card" | "raised" | "applied" | "commented"> & {
+  card: string | null;
+  origin: string;
+  target: string | null;
+  ceiling: string | null;
+  raised: number;
+  applied: number;
+  commented: number;
+};
 
 const lire = (base: Base, suite: string, ...parametres: number[]): ReactionDeTicket[] =>
   base
-    .lire<Ligne>(`SELECT ticket, verdict, returns, choice, reason, proposal, card, run, origin, target, raised, applied, commented, at FROM manager_reactions ${suite}`, ...parametres)
-    .map(({ origin, target, card, raised, applied, commented, ...ligne }) => ({
+    .lire<Ligne>(`SELECT ticket, verdict, returns, choice, reason, proposal, card, run, origin, target, ceiling, raised, applied, commented, at FROM manager_reactions ${suite}`, ...parametres)
+    .map(({ origin, target, ceiling, card, raised, applied, commented, ...ligne }) => ({
       ...ligne,
       card: card === null ? null : (JSON.parse(card) as ReactionDeTicket["card"]),
       from: JSON.parse(origin) as Calibration,
       to: target === null ? null : (JSON.parse(target) as Calibration | null),
+      ceiling: ceiling === null ? null : (JSON.parse(ceiling) as Calibration | null),
       raised: raised === 1,
       applied: applied === 1,
       commented: commented === 1,

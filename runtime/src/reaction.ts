@@ -45,7 +45,8 @@ export type AtelierDeReaction = {
   github: GitHub;
   // `<owner>/<repo>`, pour la consigne.
   depotGitHub: string;
-  plafond: Plafond;
+  // Le plafond du projet, relu à chaque choix : le chef a pu le changer.
+  plafond: () => Plafond;
   noter: (ticket: number | null, fait: FaitManager | FaitPass) => unknown;
   // Fait répondre le LLM à une consigne, sous les garde-fous.
   demander: <T>(sujet: { numero: number; prefixe: string; nom: string }, consigne: string, lire: (message: string | null) => { valeur: T } | { illisible: string }) => Promise<Reponse<T> | null>;
@@ -139,14 +140,17 @@ export function ouvrirReaction(atelier: AtelierDeReaction) {
         ].join("\n");
       case "raise": {
         const second = reaction.returns < RENVOIS_MAX;
+        // Un choix d'un journal d'avant ce champ ne nomme pas son plafond.
+        const limite = reaction.ceiling === null ? "dans la limite du plafond du projet" : `dans la limite du plafond du projet, ${dit(reaction.ceiling)}`;
         return [
           MARQUEUR_MANAGER,
           second
             ? `**Manager — second renvoi : calibrage monté de ${dit(reaction.from)} à ${dit(reaction.to ?? reaction.from)}.**${livraison}`
             : `**Manager — rouge après ${reaction.returns} renvois : il monte le calibrage, de ${dit(reaction.from)} à ${dit(reaction.to ?? reaction.from)}.**${livraison}`,
           "",
-          second ? "Les deux renvois ne sont pas deux tentatives identiques : le second monte d'un cran, dans la limite du plafond du projet." : `**Pourquoi.** ${reaction.reason}`,
+          second ? `Les deux renvois ne sont pas deux tentatives identiques : le second monte d'un cran, ${limite}.` : `**Pourquoi.** ${reaction.reason}`,
           "",
+          ...(second ? [] : [`Il monte ${limite}.`, ""]),
           "Le ticket repart en attente dès que le rail a lu son nouveau calibrage : la station relance un cook dessus, dans le même worktree et sur la même branche. C'est ton quota : remplace le label, le manager ne le touchera plus.",
           ...(reaction.run === null ? [] : ["", atelier.signature(reaction.run, "Réagi")]),
         ].join("\n");
@@ -196,8 +200,10 @@ export function ouvrirReaction(atelier: AtelierDeReaction) {
     if (!sur || !complet(sur)) return false;
     const pose: Calibrage = { model: sur.model, effort: sur.effort };
     const libre = libres(ticket, pose);
-    const cible = monter(pose, atelier.plafond, libre);
-    const empechement = cible === null ? obstacle(pose, atelier.plafond, libre) : null;
+    const { model, effort } = atelier.plafond();
+    const plafond = { model, effort };
+    const cible = monter(pose, plafond, libre);
+    const empechement = cible === null ? obstacle(pose, plafond, libre) : null;
     const retenir = (choice: ChoixDeReaction, suite: { reason: string; proposal?: string | null; card?: CarteDeRemontee | null; run?: string }) =>
       noter(ticket, {
         type: "manager.reacted",
@@ -211,6 +217,7 @@ export function ouvrirReaction(atelier: AtelierDeReaction) {
           run: suite.run ?? null,
           from: pose,
           to: choice === "raise" ? cible : null,
+          ceiling: plafond,
         },
       });
     const ouvert = etatDesGardeFous(base).breakerOpenedAt !== null;

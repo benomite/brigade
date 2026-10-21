@@ -32,6 +32,7 @@ import type { EtatDEtape } from "./events/installation.ts";
 import { COOKS_PAR_DEFAUT, configFermeture, RETRAITS_PAR_DEFAUT, TOKENS_PAR_DEFAUT } from "./closing/settings.ts";
 import { geste } from "./geste.ts";
 import { cheminJournal, ouvrirJournal } from "./journal.ts";
+import { PLAFOND_PAR_DEFAUT } from "./reagir.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { VARIABLE_DES_STATIONS } from "./stations-declarees.ts";
 
@@ -179,6 +180,18 @@ export const POSABLES: readonly DecisionPosable[] = [
     options: [{ valeur: "<lignes>", effet: "la passe est arrêtée quand elle retire plus que ce nombre de lignes : sa PR reste lisible" }],
     recommandee: { valeur: String(RETRAITS_PAR_DEFAUT), pourquoi: "le plafond prudent du runtime : une PR qui se relit" },
     sauter: `Le runtime s'en tient à ${nombre(RETRAITS_PAR_DEFAUT)} lignes par passe.`,
+  }),
+  posable("BRIGADE_CEILING_MODEL", {
+    question: "Jusqu'à quel modèle le manager monte-t-il un ticket resté rouge, avant de te le passer ?",
+    options: modeles(),
+    recommandee: { valeur: PLAFOND_PAR_DEFAUT.model, pourquoi: "un ticket rouge deux fois mérite le cook le plus sûr avant de te coûter ton temps" },
+    sauter: `Le plafond reste au défaut, \`${PLAFOND_PAR_DEFAUT.model}\` : tu le changes quand tu veux, sans redémarrage.`,
+  }),
+  posable("BRIGADE_CEILING_EFFORT", {
+    question: "Jusqu'à quel effort le manager monte-t-il un ticket resté rouge, avant de te le passer ?",
+    options: efforts("le cook relancé"),
+    recommandee: { valeur: PLAFOND_PAR_DEFAUT.effort, pourquoi: "assez pour reprendre ce qui a échoué, sans le prix de `xhigh` ou `max` à chaque ticket rouge" },
+    sauter: `Le plafond reste au défaut, \`${PLAFOND_PAR_DEFAUT.effort}\` : tu le changes quand tu veux, sans redémarrage.`,
   }),
 ];
 

@@ -26,6 +26,15 @@ banner, the action for a refusal in the block under the stations line. **On Rail
 what, on the cooks' side, asks for your action — a saturated station, a station that refuses the project, repository access
 blocked —, all the causes on the same line, with `open Cooks`, which opens the Cooks tab; nothing shows it
 when nothing asks for it. The modules are `app/src/cuisson.ts` and `app/src/vue/stations-de-cuisson.js`.
+**Under the stations, the project's calibration ceiling** (#1284): how far the manager raises the model and the effort of a
+ticket that stays red before passing it up to you. It shows the value in force (`opus / high`) and where it comes from —
+`default`, `set by you`, or one of each —, read from `facts` (`plafondDeCalibrage`): the app does not know the default, it
+reads it. Two lists, a model and an effort, and `set ceiling` change it in one gesture: it plays `station ceiling-modele
+<model>` and `station ceiling-effort <effort>` — only the dimensions that change — where the project's kitchen runs, like a
+station's button, says `setting…` until the runtime has answered, then rereads the box. No `sudo`, no restart, no file:
+the manager reads it at its next reaction. Set by you, `back to the default` withdraws it (`station remove …`). Refused
+by the runtime, a line says so, its output on hover. A runtime that does not give it shows nothing. The modules are
+`app/src/plafond-de-calibrage.ts` and `app/src/vue/plafond-de-calibrage.js`.
 **On a narrow screen — the phone (#1151), or a window under 720 px —, three tabs** (#1186): Rail, Cooks and
 **Second**, the conversation with the second, which takes the place of the middle instead of sitting on the right; one
 tap switches from one to the other, and switching tabs neither cuts nor empties the conversation. The projects bar

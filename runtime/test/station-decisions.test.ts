@@ -31,7 +31,11 @@ const GESTES = [
   ["closer-cooks", "BRIGADE_CLOSING_COOKS", "2", "3"],
   ["closer-tokens", "BRIGADE_CLOSING_MAX_TOKENS", "400000", "300000"],
   ["closer-retraits", "BRIGADE_CLOSING_MAX_REMOVED_LINES", "300", "200"],
+  ["ceiling-modele", "BRIGADE_CEILING_MODEL", "sonnet", "opus"],
+  ["ceiling-effort", "BRIGADE_CEILING_EFFORT", "medium", "xhigh"],
 ] as const;
+// Les décisions qui ont un défaut, et lui.
+const DEFAUTS: Partial<Record<string, string>> = { BRIGADE_CEILING_MODEL: "opus", BRIGADE_CEILING_EFFORT: "high" };
 
 // Un journal où le runtime a déjà tourné : une station s'y est annoncée.
 function journalDuProjet(t: TestContext) {
@@ -54,7 +58,8 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
 
     const avant = (await station()).sortie;
     for (const [geste, decision] of GESTES) {
-      assert.match(avant, new RegExp(String.raw`^  ${geste} +not set — ${decision} is only read from the log$`, "m"));
+      const defaut = DEFAUTS[decision];
+      assert.match(avant, new RegExp(defaut === undefined ? String.raw`^  ${geste} +not set — ${decision} is only read from the log$` : String.raw`^  ${geste} +not set — the default, ${defaut}$`, "m"));
     }
 
     for (const [geste, decision, premiere, seconde] of GESTES) {
@@ -172,6 +177,8 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
       ["closer-cooks <cooks>", "the pass starts when fewer cooks than this are in flight — an integer greater than zero"],
       ["closer-tokens <tokens>", "token cap of a closing pass — an integer greater than zero"],
       ["closer-retraits <lines>", "cap on the lines a closing pass may remove — an integer greater than zero"],
+      ["ceiling-modele <model>", "calibration ceiling: the highest model the manager raises a red ticket to (opus if unset) — opus, sonnet or haiku"],
+      ["ceiling-effort <effort>", "calibration ceiling: the highest effort the manager raises a red ticket to (high if unset) — low, medium, high, xhigh or max"],
     ] as const) {
       assert.ok(sortie.split("\n").some((ligne) => ligne.trim().startsWith(geste) && ligne.endsWith(attendu)), `${geste} : ${sortie}`);
     }

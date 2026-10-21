@@ -57,6 +57,12 @@ test("une ligne illisible n'est que la sienne : elle est dite, numéro et motif,
   assert.match(problemes[6] ?? "", /^ligne 8 .* BRIGADE_PROXY_PORT est réglé deux fois/);
 });
 
+test("une ligne qui porte encore le plafond de calibrage, devenu une décision du chef, n'est pas refusée : le projet est servi, et son runtime le dit ignoré", () => {
+  const { projets, problemes } = lireConfiguration("brigade benomite/brigade v2 BRIGADE_CEILING_MODEL=sonnet BRIGADE_CEILING_EFFORT=medium");
+  assert.deepEqual(problemes, []);
+  assert.deepEqual(projets.map((projet) => projet.nom), ["brigade"]);
+});
+
 test("le dépôt, la branche et le nom ne se règlent que par leurs champs", () => {
   for (const cle of ["BRIGADE_PROJECT", "BRIGADE_GITHUB_REPO", "BRIGADE_BASE_BRANCH", "BRIGADE_STATION_DIR", "BRIGADE_WORKTREES_DIR"]) {
     const { projets, problemes } = lireConfiguration(`brigade benomite/brigade v2 ${cle}=autre`);

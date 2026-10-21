@@ -2,22 +2,31 @@
 // du calibrage et son plafond, la consigne de sa réaction, et ce qu'il en lit.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { configPlafond, consigneDeReaction, lireReaction, monter, obstacle } from "../src/reagir.ts";
+import { configPlafond, consigneDeReaction, direPlafondDeCalibrageEn, lireReaction, monter, obstacle, PLAFOND_PAR_DEFAUT } from "../src/reagir.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
 
 const TOUT = { model: "opus", effort: "max" };
 const LIBRE = { model: true, effort: true };
 
-test("le plafond n'a pas de défaut : sans variable, aucune dimension ne monte", () => {
-  assert.deepEqual(configPlafond({}), { model: null, effort: null });
-  assert.equal(monter({ model: "haiku", effort: "low" }, configPlafond({}), LIBRE), null);
+test("sans décision, le plafond est `opus` / `high` : un ticket rouge monte jusque-là", () => {
+  assert.deepEqual(configPlafond({}), { model: "opus", effort: "high", pose: { model: false, effort: false } });
+  assert.deepEqual(PLAFOND_PAR_DEFAUT, { model: "opus", effort: "high" });
+  assert.deepEqual(monter({ model: "haiku", effort: "low" }, configPlafond({}), LIBRE), { model: "haiku", effort: "medium" });
+  assert.deepEqual(monter({ model: "sonnet", effort: "high" }, configPlafond({}), LIBRE), { model: "opus", effort: "high" });
+  assert.equal(monter({ model: "opus", effort: "high" }, configPlafond({}), LIBRE), null);
 });
 
-test("le plafond se lit dimension par dimension, et une valeur inconnue refuse de démarrer", () => {
-  assert.deepEqual(configPlafond({ BRIGADE_CEILING_MODEL: "sonnet", BRIGADE_CEILING_EFFORT: "xhigh" }), { model: "sonnet", effort: "xhigh" });
-  assert.deepEqual(configPlafond({ BRIGADE_CEILING_EFFORT: "high" }), { model: null, effort: "high" });
+test("le plafond se lit dimension par dimension, l'autre garde son défaut, et une valeur inconnue est refusée", () => {
+  assert.deepEqual(configPlafond({ BRIGADE_CEILING_MODEL: "sonnet", BRIGADE_CEILING_EFFORT: "xhigh" }), { model: "sonnet", effort: "xhigh", pose: { model: true, effort: true } });
+  assert.deepEqual(configPlafond({ BRIGADE_CEILING_EFFORT: "medium" }), { model: "opus", effort: "medium", pose: { model: false, effort: true } });
   assert.throws(() => configPlafond({ BRIGADE_CEILING_MODEL: "gpt" }), ConfigInvalide);
-  assert.throws(() => configPlafond({ BRIGADE_CEILING_EFFORT: "extreme" }), /BRIGADE_CEILING_EFFORT invalide/);
+  assert.throws(() => configPlafond({ BRIGADE_CEILING_EFFORT: "extreme" }), /BRIGADE_CEILING_EFFORT invalide.*le défaut, `high`/);
+});
+
+test("le plafond se dit avec la source de chaque valeur : le défaut, ou le chef", () => {
+  assert.equal(direPlafondDeCalibrageEn(configPlafond({})), "opus / high — default");
+  assert.equal(direPlafondDeCalibrageEn(configPlafond({ BRIGADE_CEILING_MODEL: "sonnet", BRIGADE_CEILING_EFFORT: "max" })), "sonnet / max — set by you, replaces the default opus / high");
+  assert.equal(direPlafondDeCalibrageEn(configPlafond({ BRIGADE_CEILING_MODEL: "sonnet" })), "sonnet (set by you) / high (default)");
 });
 
 test("monter d'un cran : l'effort d'abord", () => {
@@ -42,13 +51,12 @@ test("une dimension posée par le chef ne monte jamais : c'est l'autre qui monte
   assert.equal(monter({ model: "haiku", effort: "low" }, TOUT, { model: false, effort: false }), null);
 });
 
-test("ce qui empêche de monter se dit : pas de plafond, le label du chef, le plafond atteint", () => {
+test("ce qui empêche de monter se dit : le label du chef, le plafond atteint", () => {
   const pose = { model: "sonnet", effort: "medium" };
-  assert.match(obstacle(pose, { model: null, effort: null }, LIBRE), /aucun plafond de calibrage n'est configuré.*BRIGADE_CEILING_MODEL.*BRIGADE_CEILING_EFFORT/);
   assert.match(obstacle(pose, TOUT, { model: false, effort: false }), /`model:sonnet` et `effort:medium` ont été posés par le chef/);
   assert.match(obstacle(pose, pose, LIBRE), /déjà au plafond \(`sonnet` \/ `medium`\)/);
   // Chaque dimension a sa raison.
-  assert.match(obstacle(pose, { model: "sonnet", effort: null }, { model: true, effort: false }), /`sonnet` est le plafond du modèle.*`effort:medium` a été posé par le chef/);
+  assert.match(obstacle(pose, { model: "sonnet", effort: "high" }, { model: true, effort: false }), /`sonnet` est le plafond du modèle.*`effort:medium` a été posé par le chef/);
 });
 
 const mission = {

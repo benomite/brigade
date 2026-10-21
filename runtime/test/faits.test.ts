@@ -496,13 +496,50 @@ test("la commande rend la forme sur une seule ligne de JSON, sans rien écrire a
   assert.equal(lignes.length, 2);
   assert.equal(lignes[1], "");
   const forme = JSON.parse(lignes[0] ?? "");
-  assert.deepEqual(Object.keys(forme), ["etat", "lu", "dernierTick", "compteurs", "dernierEvenement", "rail", "cooks", "attend", "livres", "urgence", "stations"]);
+  assert.deepEqual(Object.keys(forme), ["etat", "lu", "dernierTick", "compteurs", "dernierEvenement", "rail", "cooks", "attend", "livres", "urgence", "stations", "plafondDeCalibrage"]);
+  // Personne ne l'a posé : c'est le défaut.
+  assert.deepEqual(forme.plafondDeCalibrage, { modele: "opus", effort: "high", parLeChef: { modele: false, effort: false } });
   // La commande lit à l'heure de la machine : le service de cette cuisine,
   // daté du jour de l'horloge des tests, a plus de 24 h.
   assert.deepEqual(forme.compteurs, { rail: 2, auTravail: 1, aLaPass: 1, attend: 1, livres24h: 0 });
   assert.deepEqual(forme.livres, []);
   assert.ok(Math.abs(Date.parse(forme.lu) - Date.now()) < 3_600_000);
   assert.deepEqual([journal.tout(), photographier(journal, PROJECTIONS)], avant);
+});
+
+test("le plafond de calibrage se règle d'un geste de `station`, sans redémarrage : `facts` et `station` disent sa valeur et d'où elle vient", async (t) => {
+  const { repertoire } = garnie(t);
+  const lire = async () => {
+    const lancee = appeler(commande, [], { BRIGADE_STATE_DIR: repertoire });
+    assert.equal(await lancee.fin, 0);
+    return JSON.parse(lancee.sortie().split("\n")[0] ?? "").plafondDeCalibrage;
+  };
+  const station = async (...args: string[]) => {
+    const lancee = appeler(montrerStation, args, { BRIGADE_STATE_DIR: repertoire });
+    assert.equal(await lancee.fin, 0, lancee.sortie());
+    return lancee.sortie();
+  };
+
+  assert.match(await station(), /^calibration ceiling +opus \/ high — default — `station -- ceiling-modele <model>`/m);
+  assert.match(await station(), /^  ceiling-modele +not set — the default, opus$/m);
+
+  assert.match(await station("ceiling-modele", "sonnet"), /^brigade : ceiling-modele: sonnet \(was: not set\) — read by the runtime at its next read, without a restart/);
+  assert.deepEqual(await lire(), { modele: "sonnet", effort: "high", parLeChef: { modele: true, effort: false } });
+  assert.match(await station(), /^calibration ceiling +sonnet \(set by you\) \/ high \(default\)/m);
+
+  await station("ceiling-effort", "max");
+  assert.deepEqual(await lire(), { modele: "sonnet", effort: "max", parLeChef: { modele: true, effort: true } });
+  assert.match(await station(), /^calibration ceiling +sonnet \/ max — set by you, replaces the default opus \/ high/m);
+
+  // Retiré, c'est le défaut qui revient.
+  assert.match(await station("remove", "ceiling-modele"), /^brigade : ceiling-modele: withdrawn \(was: sonnet\) — back to the default, opus/);
+  assert.deepEqual(await lire(), { modele: "opus", effort: "max", parLeChef: { modele: false, effort: true } });
+
+  // Une valeur que le runtime ne lirait pas est refusée, et rien n'est écrit.
+  const refusee = appeler(montrerStation, ["ceiling-effort", "extreme"], { BRIGADE_STATE_DIR: repertoire });
+  assert.equal(await refusee.fin, 2);
+  assert.match(refusee.sortie(), /ceiling-effort refused, nothing is written — BRIGADE_CEILING_EFFORT invalid/);
+  assert.deepEqual(await lire(), { modele: "opus", effort: "max", parLeChef: { modele: false, effort: true } });
 });
 
 test("la commande refuse un argument, un répertoire d'état absent ou sans journal, en le disant", async (t) => {
