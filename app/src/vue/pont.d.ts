@@ -255,8 +255,8 @@ export type Pont = {
   // cette station (cuisson.ts). Rend ce qui est fait, ou pourquoi rien — ce que le runtime a dit, en `detail`.
   cuireSurLaStation(projet: string, station: string, geste: import("../cuisson.ts").GesteDeCuisson): Promise<import("../cuisson.ts").RenduDeCuisson>;
   // Le plafond de cooks d'une station, réglé depuis sa page : un nombre (0 : sans limite) ou « auto » (le plafond de
-  // ses cœurs revient). Part sur la box de chaque projet qui nomme la station (plafond.ts) ; le plafond neuf arrive par `surAccueil`.
-  reglerLePlafond(station: string, valeur: string): Promise<{ fait: string } | { refus: string; detail?: string }>;
+  // ses cœurs revient). Part sur la box de chaque projet qui nomme la station — ou du seul `projet`, depuis sa ligne de station (ticket 1292) (plafond.ts) ; le plafond neuf arrive par `surAccueil`.
+  reglerLePlafond(station: string, valeur: string, projet?: string): Promise<{ fait: string } | { refus: string; detail?: string }>;
   // Le plafond de calibrage du projet, réglé depuis son onglet Cooks (ticket 1284) : un modèle et un effort, ou « defaut »
   // — le retour au défaut. Part là où sa cuisine tourne (plafond-de-calibrage.ts) ; le plafond neuf arrive par la relecture.
   reglerLePlafondDeCalibrage(projet: string, choix: import("../plafond-de-calibrage.ts").ChoixDuPlafond): Promise<import("../plafond-de-calibrage.ts").RenduDuPlafond>;

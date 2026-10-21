@@ -37,7 +37,10 @@ export type LigneDeProjet = { nom: string; ton: Ton; dit: string; survol: string
 export type LigneDeStation = { id: string; nom: string; ton: Ton; dit: string; phrase: string; survol: string; note?: string; plafond?: PlafondVu; retenue?: RetenueVue; reglable?: true };
 export type Sante = { ton: Ton; dit: string; survol: string };
 // `stations` : absentes, la première lecture sur GitHub est en route.
-export type Accueil = { projets: LigneDeProjet[]; stations?: LigneDeStation[]; sante: Sante };
+// `plafonds` : par projet dont le `status` est lu, et par station qu'il nomme, le plafond de cooks de ce projet sur elle
+// et ce qui la retient (ticket 1292) — la ligne de station de l'onglet Cooks les dit et les règle.
+export type PlafondsDeStation = { plafond: PlafondVu; retenue?: RetenueVue };
+export type Accueil = { projets: LigneDeProjet[]; stations?: LigneDeStation[]; sante: Sante; plafonds?: Record<string, Record<string, PlafondsDeStation>> };
 
 // Un projet du fichier, tel que l'accueil le nomme : sans box, ou désinstallé de la sienne, rien n'en est lu.
 export type ProjetDeLAccueil = { nom: string; box: boolean; desinstalle: boolean };
@@ -301,8 +304,15 @@ export function tenirAccueil({ projets, locale = () => null, maintenant = Date.n
       const retenue = premier(retenues, station.nom);
       return { ...(plafond === undefined ? {} : { plafond, reglable: true as const }), ...(retenue === undefined ? {} : { retenue }) };
     };
+    const plafondsDesProjets = Object.fromEntries(
+      [...statuts].map(([nom, { texte }]) => {
+        const retenuesDuProjet = retenuesDe(texte);
+        return [nom, Object.fromEntries([...plafondsDe(texte)].map(([station, plafond]) => [station, { plafond, ...(retenuesDuProjet.has(station) ? { retenue: retenuesDuProjet.get(station) } : {}) }]))];
+      }),
+    );
     return {
       projets: liste.map((projet) => ligneDeProjet(projet, faits.get(projet.nom), statuts.get(projet.nom))),
+      ...(Object.keys(plafondsDesProjets).length === 0 ? {} : { plafonds: plafondsDesProjets }),
       ...(stations === undefined ? {} : { stations: stations.stations.map((station) => ({ ...ligneDeStation(station, cooks(station.nom), pleines.has(station.nom), station.id === ici ? ailleursDe(station.id) : []), ...detail(station) })) }),
       sante: sante(
         stations,

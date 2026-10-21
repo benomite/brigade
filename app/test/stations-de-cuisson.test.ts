@@ -23,7 +23,7 @@ import { GESTES_DU_MANAGER } from "../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { calibrageRecommande, EFFORTS, MODELES, type VuDesProjets } from "../src/projets/projets.ts";
 import type { Terminal } from "../src/terminaux.ts";
-import { AUCUN_COOK, BOUTONS as BOUTONS_DE_CUISSON, OUVRIR_COOKS } from "../src/vue/stations-de-cuisson.js";
+import { AUCUN_COOK, BAISSER_LE_PLAFOND, BOUTONS as BOUTONS_DE_CUISSON, OUVRIR_COOKS, PLAFOND_PAR_DEFAUT, POSER_LE_PLAFOND } from "../src/vue/stations-de-cuisson.js";
 import { type Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "./aides/fausse-vue.ts";
 
 const A = "2026-10-20T10:04:12.000Z";
@@ -376,5 +376,50 @@ describe("l'onglet Rail : une ligne quand les cooks demandent un geste", () => {
     recevoir(vue, FAITS, [station("box/claude")]);
     await repos();
     assert.deepEqual(alertes(vue), []);
+  });
+});
+
+describe("la ligne de station dit le plafond du projet et le règle (ticket 1292)", () => {
+  const accueil = (plafond: { dit: string; nombre: number | null; parLeChef: boolean }, retenue?: { depuis: string; ressources: string; detail: string }) => ({
+    projets: [],
+    sante: { ton: "vert", dit: "", survol: "" },
+    plafonds: { [PARADE]: { "box/claude": { plafond, ...(retenue === undefined ? {} : { retenue }) } } },
+  });
+  const boutons = (pose: Faux) => pose.dessous("button").map((bouton) => bouton.textContent);
+
+  test("le plafond, ce qui sature, le geste d'un coup, puis le retour au défaut", async () => {
+    const appels: unknown[][] = [];
+    const vue = await jouerLaVue({
+      demarrage,
+      espace: () => [SECOND],
+      machines: () => [{ id: "poste", titre: "this Mac" }],
+      reglerLePlafond: (...args: unknown[]) => (appels.push(args), { fait: "the cap is 1" }),
+    });
+    (vue.element("projets").children.at(1) ?? assert.fail("pas de case pour parade")).click();
+    await repos();
+    recevoir(vue, FAITS, [station("box/claude", { cuisson: "saturated", cooks: [COOK_14] })]);
+    vue.dire("surAccueil", accueil({ dit: "3 at most — 8 cores", nombre: 3, parLeChef: false }, { depuis: "3 min", ressources: "CPU", detail: "load of 19.4 for at most 12" }));
+    await repos();
+    await ouvrirOnglet(vue, "Cooks");
+    const pose = ligne(vue, "box/claude");
+    assert.match(pose.textContent, /Cooks at once: 3 at most — 8 cores/);
+    assert.match(pose.textContent, /Saturated on CPU — load of 19\.4 for at most 12\. /);
+    assert.ok(pose.textContent.includes(BAISSER_LE_PLAFOND));
+    assert.equal(boutons(pose).includes(PLAFOND_PAR_DEFAUT), false);
+    // Un geste : le nombre tapé, et le réglage part pour ce projet seul.
+    const champ = pose.dessous("input")[0] ?? assert.fail("pas de champ");
+    champ.value = "1";
+    champ.declencher("input");
+    pose.dessous("button").find((bouton) => bouton.textContent === POSER_LE_PLAFOND)?.click();
+    await repos();
+    assert.deepEqual(appels, [["box/claude", "1", PARADE]]);
+    // Le plafond neuf arrive par l'accueil, et offre le retour au défaut.
+    vue.dire("surAccueil", accueil({ dit: "1 at most — set by you, replaces 3 (8 cores)", nombre: 1, parLeChef: true }));
+    await repos();
+    assert.match(ligne(vue, "box/claude").textContent, /1 at most — set by you, replaces 3/);
+    assert.doesNotMatch(ligne(vue, "box/claude").textContent, /Saturated on/);
+    ligne(vue, "box/claude").dessous("button").find((bouton) => bouton.textContent === PLAFOND_PAR_DEFAUT)?.click();
+    await repos();
+    assert.deepEqual(appels.at(-1), ["box/claude", "auto", PARADE]);
   });
 });

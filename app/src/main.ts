@@ -909,8 +909,9 @@ ipcMain.handle("retirerLaStation", (_, id: unknown) => stations.retirer(id));
 // Le plafond de cooks d'une station, réglé depuis sa page : la vue nomme la station et la valeur — un nombre,
 // 0 ou `auto` —, la commande `station cooks <valeur>` part sur la box de chaque projet dont le `status` lu
 // nomme cette station (plafond.ts). Réglé, ce `status` est relu aussitôt : la page dit le plafond neuf, et ce qu'il remplace.
-ipcMain.handle("reglerLePlafond", async (_, station: unknown, valeur: unknown) => {
-  const cibles = typeof station === "string" ? accueil.projetsDe(station).flatMap((nom) => { const vise = connu(nom); return vise?.box === undefined ? [] : [{ nom: vise.nom, box: vise.box }]; }) : [];
+// Depuis la ligne de station d'un projet (ticket 1292), `projet` borne le réglage à la box de ce projet.
+ipcMain.handle("reglerLePlafond", async (_, station: unknown, valeur: unknown, projet?: unknown) => {
+  const cibles = typeof station === "string" ? accueil.projetsDe(station).filter((nom) => projet === undefined || nom === projet).flatMap((nom) => { const vise = connu(nom); return vise?.box === undefined ? [] : [{ nom: vise.nom, box: vise.box }]; }) : [];
   const rendu = await reglerLePlafond(cibles, valeur, lancerSurLaBox);
   if ("fait" in rendu) {
     for (const servi of cibles) {
