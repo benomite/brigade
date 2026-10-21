@@ -59,8 +59,9 @@ export type EtatStation = {
   ordinary: boolean;
   // True: remote and ordinary, it takes them alongside the stations of this
   // machine, without waiting for them to be saturated — one more station of
-  // the project, not a backup.
-  alongside: boolean;
+  // the project, not a backup. Optional in the type only: `etatStation`
+  // always sets it, and a reader built before it (the app's tests) omits it.
+  alongside?: boolean;
   // What it said about this sandbox, the last time it changed, and when.
   // Null: it never said anything about it.
   sandbox: { available: boolean; reason: string | null; version: string | null; at: string } | null;

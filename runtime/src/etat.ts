@@ -798,7 +798,8 @@ export type Faits = {
     distante: boolean;
     plafond: number | null;
     ordinaires: boolean;
-    ensemble: boolean;
+    // Toujours posé par `faits` ; facultatif pour qui lit un runtime d'avant ce champ.
+    ensemble?: boolean;
     bacASable: { disponible: boolean; raison: string | null; version: string | null; depuis: string } | null;
     prendOrdinaires: boolean;
     cuisson: Cuisson;
@@ -947,7 +948,7 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limit
       distante: station.remote,
       plafond: plafondDeCooks(station),
       ordinaires: station.remote && station.ordinary,
-      ensemble: station.remote && station.alongside,
+      ensemble: station.remote && station.alongside === true,
       bacASable: station.sandbox && { disponible: station.sandbox.available, raison: station.sandbox.reason, version: station.sandbox.version, depuis: station.sandbox.at },
       prendOrdinaires: prendLesOrdinaires({ distante: station.remote, ordinaires: station.ordinary }, station.sandbox),
       cuisson: cuisson(station),
