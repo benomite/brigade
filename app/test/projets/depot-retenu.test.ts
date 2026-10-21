@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { EchecDuWorktree as DuRuntime } from "../../../runtime/src/echec-du-worktree.ts";
 import type { AccesBloque as AccesDuRuntime } from "../../../runtime/src/projets/acces.ts";
+import { refus as refusDuRuntime } from "../../../runtime/src/projets/refus.ts";
 import type { Accueil } from "../../src/accueil.ts";
 import { ALLUMAGE } from "../../src/allumage.ts";
 import { pourLaBarre } from "../../src/barre.ts";
@@ -24,7 +25,7 @@ import type { Panne } from "../../src/pannes/pannes.ts";
 import { lireSuivi } from "../../src/projets/demande.ts";
 import { calibrageRecommande, EFFORTS, machineProposee, MODELES, type ProjetVu, type VuDesProjets } from "../../src/projets/projets.ts";
 import type { VuDesStations } from "../../src/stations/stations.ts";
-import { CONFIRMER_RETRAIT, COPIEE, COPIER, poserDepotRetenu, RAMENER, RETIRER, VERIFIER } from "../../src/vue/onboarding/depot-retenu.js";
+import { COPIEE, COPIER, poserDepotRetenu } from "../../src/vue/onboarding/depot-retenu.js";
 import { Faux as Fabrique, type Faux, jouerLaVue, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-10-19T12:00:00.000Z";
@@ -172,13 +173,9 @@ test("lireSuivi ne croit que ce qui a la forme : un accès sans geste, un échec
   assert.deepEqual(bon?.worktree, { ...ECHEC, acces: ACCES });
 });
 
-// Ce que le runtime publie (runtime/src/projets/refus.ts), mot pour mot.
-const REFUS = {
-  status: "refused",
-  code: "proxy-port-set",
-  message: "This project's settings choose a network port that the station reserves for itself.",
-  action: "Remove the port setting from the project's line in the station's configuration.",
-};
+// Ce que le runtime publie (runtime/src/projets/refus.ts), tel quel : le refus et le remède qui le lève.
+const REFUS = refusDuRuntime("proxy-port-set");
+const REMEDE = "remedy" in REFUS ? REFUS.remedy : assert.fail("le refus du port n'a plus de remède");
 
 test("un projet refusé par la station : la page dit pourquoi et ce que le chef fait, sans le texte brut ni chemin", async () => {
   const brut = "BRIGADE_PROXY_PORT is set in /etc/brigade/en-service: refused";
@@ -188,36 +185,10 @@ test("un projet refusé par la station : la page dit pourquoi et ce que le chef 
   assert.ok(lignes.includes(REFUS.action), lignes.join(" | "));
   assert.doesNotMatch(bloc.textContent, /en-service|\/etc\//);
   assert.doesNotMatch(bloc.textContent, /within a minute/);
-  // Le geste attendu est un bouton : celui-ci lance la vérification de l'installation.
-  const boutons = bloc.dessous("button").filter((b) => b.textContent === VERIFIER);
-  assert.equal(boutons.length, 1, "un bouton « check the installation »");
+  // Le geste attendu est un bouton : celui du remède que la station publie, sa phrase pour libellé (ticket 1205).
+  const boutons = bloc.dessous("button").filter((b) => b.textContent === REMEDE.description);
+  assert.equal(boutons.length, 1, "le bouton du remède");
   assert.equal(boutons[0]?.className, "recommande");
-});
-
-test("le geste d'un refus est un bouton : retirer le projet (en deux clics), le ramener ici, ou vérifier l'installation", async () => {
-  const doc = { createElement: (balise: string) => new Fabrique(balise) };
-  const pose = (code: string, plus: object = {}) => poserDepotRetenu(doc, { refus: { ...REFUS, code }, maintenant: 0, copier: () => {}, ...plus }) as unknown as Faux;
-  const retires: string[] = [];
-  const retirer = pose("clone-missing", { retirer: async () => (retires.push("x"), "parade is removed") });
-  const bouton = retirer.dessous("button")[0] ?? assert.fail("pas de bouton");
-  assert.equal(bouton.textContent, RETIRER);
-  bouton.click();
-  assert.equal(bouton.textContent, CONFIRMER_RETRAIT);
-  assert.deepEqual(retires, [], "le premier clic ne retire rien");
-  bouton.click();
-  await repos();
-  assert.deepEqual(retires, ["x"]);
-  assert.match(retirer.textContent, /parade is removed/);
-  let ramene = 0;
-  const ramener = pose("handed-over-elsewhere", { ramener: () => ramene++ }).dessous("button")[0] ?? assert.fail("pas de bouton");
-  assert.equal(ramener.textContent, RAMENER);
-  ramener.click();
-  assert.equal(ramene, 1);
-  let verifiees = 0;
-  const verifie = pose("proxy-port-set", { verifier: () => verifiees++ }).dessous("button")[0] ?? assert.fail("pas de bouton");
-  assert.equal(verifie.textContent, VERIFIER);
-  verifie.click();
-  assert.equal(verifiees, 1);
 });
 
 test("sans refus, la page est inchangée ; un refus sans phrase ou sans action ne dit rien", async () => {

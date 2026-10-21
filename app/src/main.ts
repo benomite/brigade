@@ -468,6 +468,13 @@ const projetsDesStations = tenirProjets({
         },
       }
     : {}),
+  // Lever le refus d'un projet : la demande part par le gist de sa principale, quelle qu'elle soit — c'est
+  // l'opération du runtime qui l'écrit et attend la réponse (projets/remede.ts). Le runtime est à côté de
+  // l'app, du dépôt comme du paquet (emplacements.ts).
+  demanderLeRemede: async (demande) => {
+    const { demanderLeRemede } = (await import(pathToFileURL(join(emplacements.runtime, "src", "remedes", "distant.ts")).href)) as typeof import("../../runtime/src/remedes/distant.ts");
+    return demanderLeRemede(demande);
+  },
   ...(role.role === "station" ? { demenager: demenageurDuRuntime({ node: emplacements.node, runtime: emplacements.runtime, racine: racineDeLaStation, env: process.env, delaiMs: 60_000 }) } : {}),
   surLecture: (vu) => {
     dire("projetsDesStations", vu);
@@ -876,6 +883,9 @@ ipcMain.handle("retirerDUneStation", (_, nom: unknown) => projetsDesStations.ret
 // « Continue without sandbox » (#1113) : la décision du chef se note par la fonction du runtime, dans l'état
 // du projet sur la station de cet ordinateur.
 ipcMain.handle("continuerSansBacASable", (_, nom: unknown) => projetsDesStations.continuerSansBac(nom));
+// Le bouton du refus d'un projet (#1205) : sa principale joue le remède que le refus offre, puis dit s'il
+// tient (projets/projets.ts, `remedier`).
+ipcMain.handle("leverLeRefus", (_, nom: unknown, refus: unknown, remede: unknown) => projetsDesStations.remedier(nom, refus, remede));
 ipcMain.handle("demenagerLaCuisine", (_, nom: unknown, vers: unknown) => projetsDesStations.demenager(nom, vers));
 // La page GitHub où autoriser brigade sur un dépôt : seulement une de celles qu'une station a publiées.
 ipcMain.handle("autoriserSurGitHub", (_, url: unknown) => {

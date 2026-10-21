@@ -2,12 +2,13 @@
 // Ce qui retient la cuisine d'un projet que sa principale devrait déjà servir (ticket 1119, épique
 // 1115), sous la ligne de ses stations : l'accès au dépôt refusé (ticket 1117) — une phrase, la raison puis
 // le geste du chef —, ou un worktree que sa cuisine ne parvient pas à préparer (ticket 1118) — la raison et
-// l'heure du prochain essai — ou, sans accès refusé, le refus de la station (ticket 1178) : pourquoi, et ce que le chef fait. Chacun remplace la phrase rassurante « prepares it within a minute » : le
+// l'heure du prochain essai — ou, sans accès refusé, le refus de la station (ticket 1178) : pourquoi, ce que le
+// chef fait, et le bouton de son remède (ticket 1205). Chacun remplace la phrase rassurante « prepares it within a minute » : le
 // terminal de lancement n'est plus le seul endroit où le lire. Tout est lu par le process principal
 // (projets/demande.ts) ; le runtime efface l'état dès que le geste est fait, et la page, relue, revient
 // à son message. Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js).
 
-import { boutonAction } from "../briques.js";
+import { boutonAction, confirmationDeGeste } from "../briques.js";
 import { phrase, prochainEssaiDit } from "./parcours.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
@@ -52,56 +53,66 @@ function accesDit(doc, acces, copier) {
 
 // Le refus de la station (ticket 1178), tel qu'elle le publie : la phrase qui dit pourquoi, puis ce que
 // le chef fait. Jamais le texte brut du fichier `en-service`, ni un chemin : le code n'est qu'au survol.
-// Le geste attendu est un bouton (règle 830) : là où l'app sait le faire — retirer le projet, le ramener sur
-// cette station —, il le fait ; sinon le geste est de la machine de la station, que l'app ne pilote pas, et le
-// bouton lance la vérification de l'installation sur la station : son verdict, lu dans Settings, dit où en est
-// la cause. Le runtime ne publie que du texte : le geste se choisit ici, d'après le code.
-export const RETIRER = "remove the project";
-export const CONFIRMER_RETRAIT = "confirm: remove it from its stations";
-export const RAMENER = "move the kitchen back";
-export const VERIFIER = "check the installation";
-const RETIRABLES = ["configuration-invalid", "clone-missing"];
+// Le geste se lit dans le refus seul (ticket 1205) : la station publie le remède qui le lève — ce qu'il fera,
+// en une phrase, écrit sur le bouton avant tout clic, et s'il retire ou efface quelque chose —, ou pourquoi il
+// n'y a pas de bouton. Ce module ne connaît aucun code de refus : un refus que la station ajoute demain montre
+// son bouton sans rien changer ici. Un remède qui retire ou efface demande d'abord confirmation, avec la même
+// phrase ; les autres partent au clic. Pendant que la station le joue, le bouton attend ; ensuite, levé, le
+// refus quitte la page — ou elle dit en une phrase pourquoi il tient.
+export const OUI = "yes, do it";
+export const NON = "cancel";
 
-/** @param {Fabrique} doc @param {Refus} refus @param {{ retirer: () => Promise<string>, ramener: () => void, verifier: () => void }} gestes */
-function refusDit(doc, refus, { retirer, ramener, verifier }) {
+// Où en est le remède du refus affiché, tel que la vue le tient d'une relecture à l'autre :
+// - `confirmer` : son bouton est cliqué, la confirmation est ouverte ;
+// - `en-cours` : la demande est partie vers `station`, qui le joue ;
+// - `dit` : la station a répondu que le refus tient — ou rien n'est parti : la phrase, et son détail au survol.
+/** @typedef {{ etape: "confirmer" } | { etape: "en-cours", station: string } | { etape: "dit", dit: string, detail?: string }} EtatDuRemede */
+/** @typedef {{ etat?: EtatDuRemede, ouvrir: () => void, lancer: () => void, renoncer: () => void }} GestesDuRemede */
+
+/** @param {Fabrique} doc @param {Refus} refus @param {GestesDuRemede} gestes */
+function refusDit(doc, refus, { etat, ouvrir, lancer, renoncer }) {
   const pose = cree(doc, "div");
   const pourquoi = cree(doc, "p", refus.message);
   pourquoi.title = refus.code;
   const action = cree(doc, "p", refus.action);
   action.className = "refus-action";
-  const dit = cree(doc, "p");
-  dit.hidden = true;
-  /** @type {any} */
-  let geste;
-  if (RETIRABLES.includes(refus.code)) {
-    let demande = false;
-    geste = boutonAction(doc, RETIRER, async () => {
-      const bouton = geste.children[0];
-      if (!demande) {
-        demande = true;
-        if (bouton !== undefined) bouton.textContent = CONFIRMER_RETRAIT;
-        return;
-      }
-      demande = false;
-      if (bouton !== undefined) bouton.textContent = RETIRER;
-      dit.textContent = await retirer();
-      dit.hidden = false;
-    }, { recommande: true });
-  } else if (refus.code === "handed-over-elsewhere") {
-    geste = boutonAction(doc, RAMENER, ramener, { recommande: true });
-  } else {
-    geste = boutonAction(doc, VERIFIER, verifier, { recommande: true });
-    geste.children[0].title = "runs the verification on the station — its verdict is read in Settings, in one sentence";
+  pose.append(pourquoi, action);
+  const remede = refus.remedy;
+  if (remede === undefined) {
+    // Sans remède, la consigne écrite reste, et la raison de l'absence de bouton la suit.
+    if (refus.noRemedy !== undefined) {
+      const sans = cree(doc, "p", refus.noRemedy);
+      sans.className = "sans-remede";
+      pose.append(sans);
+    }
+    return pose;
   }
-  pose.append(pourquoi, action, geste, dit);
+  if (etat?.etape === "confirmer") {
+    pose.append(confirmationDeGeste(doc, { titre: remede.description, oui: OUI, non: NON }, { oui: lancer, non: renoncer }));
+    return pose;
+  }
+  const geste = boutonAction(doc, remede.description, remede.destructive ? ouvrir : lancer, { recommande: true });
+  pose.append(geste);
+  if (etat?.etape === "en-cours") {
+    const bouton = geste.children[0];
+    if (bouton !== undefined) bouton.disabled = true;
+    const attente = cree(doc, "p", `asking ${etat.station} to do it — it reads the app's requests every 30 s…`);
+    attente.className = "remede-en-cours";
+    pose.append(attente);
+  } else if (etat?.etape === "dit") {
+    const dit = cree(doc, "p", etat.dit);
+    dit.className = "remede-dit";
+    if (etat.detail !== undefined && etat.detail !== "") dit.title = etat.detail;
+    pose.append(dit);
+  }
   return pose;
 }
 
 // Le bloc à poser sous la ligne des stations, ou null : rien ne retient la cuisine. L'accès refusé
 // prime sur l'échec du worktree — c'est lui que le geste lève — mais l'heure du prochain essai se dit
 // avec, quand le worktree en a une.
-/** @param {Fabrique} doc @param {{ acces?: Acces | null, refus?: Refus | null, worktree?: Echec | null, maintenant: number, copier: (commande: string) => void, retirer?: () => Promise<string>, ramener?: () => void, verifier?: () => void }} retenu */
-export function poserDepotRetenu(doc, { acces, refus, worktree, maintenant, copier, retirer = async () => "", ramener = () => {}, verifier = () => {} }) {
+/** @param {Fabrique} doc @param {{ acces?: Acces | null, refus?: Refus | null, worktree?: Echec | null, maintenant: number, copier: (commande: string) => void, remede?: GestesDuRemede }} retenu */
+export function poserDepotRetenu(doc, { acces, refus, worktree, maintenant, copier, remede = { ouvrir: () => {}, lancer: () => {}, renoncer: () => {} } }) {
   const bloque = acces ?? worktree?.acces ?? null;
   const refuse = bloque === null && refus !== null && refus !== undefined ? refus : null;
   if (bloque === null && refuse === null && (worktree === null || worktree === undefined)) return null;
@@ -112,7 +123,7 @@ export function poserDepotRetenu(doc, { acces, refus, worktree, maintenant, copi
     pose.append(accesDit(doc, bloque, copier));
     if (worktree !== null && worktree !== undefined) pose.append(cree(doc, "p", prochainEssaiDit(worktree.prochainEssai, maintenant)));
   } else if (refuse !== null) {
-    pose.append(refusDit(doc, refuse, { retirer, ramener, verifier }));
+    pose.append(refusDit(doc, refuse, remede));
   } else if (worktree !== null && worktree !== undefined) {
     const raison = cree(doc, "p", `The worktree of #${worktree.ticket} could not be prepared: ${worktree.raison}`);
     raison.title = worktree.raison;

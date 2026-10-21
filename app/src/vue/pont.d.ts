@@ -29,6 +29,7 @@ import type { Avis, Retrait } from "../retrait.ts";
 import type { Guide } from "../service.ts";
 import type { DepotDuChef } from "../projets/github.ts";
 import type { Ajout, Demenagement, EFFORTS, MODELES, Retrait as RetraitDUneStation, VuDesProjets } from "../projets/projets.ts";
+import type { IssueDuRemede } from "../projets/remede.ts";
 import type { Appairage, RetraitDeStation, VuDesStations } from "../stations/stations.ts";
 import type { Terminal } from "../terminaux.ts";
 
@@ -211,6 +212,9 @@ export type Pont = {
   // « Continue without sandbox », devant une station sans bac à sable (ticket 1113) : le chef décide pour la
   // station du projet, et la retenue du rail se lève (runtime/src/onboarding/attente.ts). Rend ce qui est fait, ou pourquoi rien.
   continuerSansBacASable(nom: string): Promise<{ fait: string } | { refus: string; detail?: string }>;
+  // Le bouton du refus de la station (ticket 1205) : la principale du projet joue le remède que ce refus offre
+  // — son code, l'identifiant du remède —, puis dit s'il est levé, s'il tient et pourquoi, ou que rien n'est fait.
+  leverLeRefus(nom: string, refus: string, remede: string): Promise<IssueDuRemede>;
   // Ouvre dans le navigateur une page où autoriser brigade sur GitHub — une de celles qu'une station a publiées —,
   // ou une page que le parcours d'un projet neuf montre (ticket 1111) : son geste, son ticket de préparation, sa PR.
   autoriserSurGitHub(url: string): Promise<boolean>;

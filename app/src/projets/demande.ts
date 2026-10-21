@@ -51,8 +51,12 @@ export type Bascule = { de: string; vers: string; demandeLe: string; etape: Etap
 export type AccesBloque = { bloque: "fetch" | "push"; raison: string; geste: string };
 export type EchecDuWorktree = { ticket: number; raison: string; prochainEssai: string | null; acces: AccesBloque | null };
 // `refus` : pourquoi la station ne sert pas le projet, pour le chef (#1177, runtime/src/projets/refus.ts) —
-// un code stable, une phrase, et ce que le chef fait. Absent quand rien n'est refusé.
-export type Refus = { code: string; message: string; action: string };
+// un code stable, une phrase, et ce que le chef fait. Absent quand rien n'est refusé. Et, du remède qui le
+// lève (#1203, runtime/src/remedes/registre.ts), son descripteur (`remedy`) : ce que le bouton fera, en une
+// phrase, s'il retire ou efface quelque chose, son identifiant — ou pourquoi il n'y a pas de bouton
+// (`noRemedy`). Une station d'avant #1203 n'en dit rien : ni l'un ni l'autre.
+export type DescripteurDeRemede = { id: string; description: string; destructive: boolean };
+export type Refus = { code: string; message: string; action: string; remedy?: DescripteurDeRemede; noRemedy?: string };
 export type SuiviDuProjet = { nom: string; etat: EtatDuProjet; dit: string; autoriser: string[]; serviLe: string | null; cuitSur: string | null; ici: boolean; bascule: Bascule | null; acces: AccesBloque | null; refus: Refus | null; worktree: EchecDuWorktree | null };
 
 const ETATS: readonly string[] = ["servi", "a-autoriser", "en-preparation", "refuse", "secondaire"];
@@ -65,9 +69,16 @@ const lireAcces = (lu: unknown): AccesBloque | null => {
   const { bloque, raison, geste } = (lu ?? {}) as Record<string, unknown>;
   return (bloque === "fetch" || bloque === "push") && texte(raison) && raison.trim() !== "" && texte(geste) && geste.trim() !== "" ? { bloque, raison, geste } : null;
 };
+const lireRemede = (lu: unknown): DescripteurDeRemede | null => {
+  const { id, description, destructive } = (lu ?? {}) as Record<string, unknown>;
+  return texte(id) && /^[a-z][a-z0-9-]*$/.test(id) && texte(description) && description.trim() !== "" && typeof destructive === "boolean" ? { id, description, destructive } : null;
+};
 const lireRefus = (lu: unknown): Refus | null => {
-  const { code, message, action } = (lu ?? {}) as Record<string, unknown>;
-  return texte(code) && texte(message) && message.trim() !== "" && texte(action) && action.trim() !== "" ? { code, message, action } : null;
+  const { code, message, action, remedy, noRemedy } = (lu ?? {}) as Record<string, unknown>;
+  if (!texte(code) || !texte(message) || message.trim() === "" || !texte(action) || action.trim() === "") return null;
+  const remede = lireRemede(remedy);
+  if (remede !== null) return { code, message, action, remedy: remede };
+  return texte(noRemedy) && noRemedy.trim() !== "" ? { code, message, action, noRemedy } : { code, message, action };
 };
 const lireEchec = (lu: unknown): EchecDuWorktree | null => {
   const { ticket, raison, prochainEssai, acces } = (lu ?? {}) as Record<string, unknown>;

@@ -26,6 +26,7 @@ import type { StationVue } from "../stations/stations.ts";
 import { documentDeDemande, FICHIER_PROJETS, FICHIER_SUIVI, lireDemande, lireOnboarding, lireSuivi, type AccesBloque, type Bascule, type Calibre, type EchecDuWorktree, type EtatDuProjet, type Onboarding, type ProjetDemande, type Refus, type SuiviDuProjet } from "./demande.ts";
 import type { Demenagement, Demenageur } from "./demenagement.ts";
 import type { DepotDuChef } from "./github.ts";
+import { canalDesGists, pourLaPage, type DemanderLeRemede, type IssueDuRemede } from "./remede.ts";
 
 // Le calibrage que la station accepte : ses deux listes fermées (runtime/src/calibrage.ts).
 export const MODELES = ["opus", "sonnet", "haiku"] as const;
@@ -322,6 +323,9 @@ export type OptionsProjets = {
   // Note la décision du chef de cuire sans bac à sable pour `station`, dans l'état de `projet` sur cet
   // ordinateur (runtime/src/onboarding/attente.ts, `accepterSansBacASable`). Absente, l'app n'a pas de runtime à côté d'elle.
   accepterSansBac?: (projet: string, station: string) => Promise<void>;
+  // L'opération du runtime qui demande un remède à une station par son gist (remede.ts). Absente, l'app
+  // n'a pas de runtime à côté d'elle : aucun refus ne se lève d'ici.
+  demanderLeRemede?: DemanderLeRemede;
 };
 export type DecisionSansBac = { fait: string } | { refus: string; detail?: string };
 
@@ -337,6 +341,9 @@ export type Projets = {
   demenager(nom: unknown, vers: unknown): Promise<Demenagement>;
   // Le chef continue sans bac à sable sur la station du projet : sa décision est notée, la retenue du rail se lève.
   continuerSansBac(nom: unknown): Promise<DecisionSansBac>;
+  // Lève le refus que la principale du projet publie, par le remède qu'il offre (#1205) : la station le
+  // joue, puis dit si le refus tient. Les projets sont relus avant que la réponse ne parte.
+  remedier(nom: unknown, refus: unknown, remede: unknown): Promise<IssueDuRemede>;
   // Les pages GitHub où autoriser brigade, telles que les stations les ont publiées.
   pages(): string[];
 };
@@ -542,6 +549,39 @@ export function tenirProjets(options: OptionsProjets): Projets {
       return rendu;
     });
 
+  // Lever un refus : la demande part vers la principale du projet, par son gist — l'ordinateur du chef ou une
+  // station distante, de la même façon. Deux demandes vers le même gist se suivent : chacune y réécrit le
+  // fichier des remèdes. Le refus doit être celui que la page montre, et offrir ce remède : sinon rien ne part.
+  const remedesEnCours = new Map<string, Promise<IssueDuRemede>>();
+  const remedier = async (recuNom: unknown, recuRefus: unknown, recuRemede: unknown): Promise<IssueDuRemede> => {
+    const nom = texte(recuNom);
+    const code = texte(recuRefus);
+    const remede = texte(recuRemede);
+    if (nom === "") return { outcome: "error", error: "which project? none was named: nothing was done" };
+    const projet = vu?.projets.find((un) => un.nom === nom);
+    const principale = projet?.stations.find(({ principale: oui }) => oui);
+    if (projet === undefined || principale === undefined) return { outcome: "error", error: `${nom} cooks on none of your stations: nothing was done` };
+    const refus = projet.refus ?? null;
+    if (refus === null) return { outcome: "error", error: `${principale.nom} no longer refuses ${nom}: nothing was done` };
+    if (refus.code !== code || refus.remedy?.id !== remede) return { outcome: "error", error: `${principale.nom} no longer offers this action for ${nom}: nothing was done` };
+    const demander = options.demanderLeRemede;
+    if (demander === undefined) return { outcome: "error", error: "this app has no runtime beside it to ask for this action: nothing was done" };
+    const jouer = async (): Promise<IssueDuRemede> => {
+      try {
+        return pourLaPage(await demander({ canal: canalDesGists(github), gist: principale.id, demande: { project: nom, refusal: code, remedy: remede } }));
+      } catch (erreur) {
+        return { outcome: "error", error: `GitHub could not be read or written, so nothing is known to have been done — ${message(erreur)}` };
+      }
+    };
+    const chaine = (remedesEnCours.get(principale.id) ?? Promise.resolve()).then(jouer);
+    remedesEnCours.set(principale.id, chaine);
+    const issue = await chaine;
+    if (remedesEnCours.get(principale.id) === chaine) remedesEnCours.delete(principale.id);
+    // La station a réécrit son suivi avant de répondre : relu, le refus levé n'y est plus.
+    await relire();
+    return issue;
+  };
+
   // Continuer sans bac à sable : la décision s'écrit dans l'état du projet, sur la station de cet
   // ordinateur — la seule que l'app atteigne ; une principale ailleurs dit qui peut la prendre.
   const continuerSansBac = async (recuNom: unknown): Promise<DecisionSansBac> => {
@@ -564,6 +604,7 @@ export function tenirProjets(options: OptionsProjets): Projets {
     relire,
     demenager,
     continuerSansBac,
+    remedier,
     async depots() {
       try {
         return { depots: await options.depots() };
