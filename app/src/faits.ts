@@ -57,6 +57,31 @@ export function activiteCuisineLue(brut: unknown): ActiviteCuisine | undefined {
   return lastHour === undefined || lastDay === undefined ? undefined : { lastHour, lastDay };
 }
 
+// Un rôle de la cuisine du projet (runtime/src/roles-cuisine/roles.ts, ticket 1274) : son nom, la ligne qui dit ce qu'il
+// fait, et sa dernière action sur le projet — une courte phrase, son ticket et son heure —, nulle s'il n'a rien fait.
+export type ActionDeRole = { what: string; ticket: number | null; at: string };
+export type RoleDeCuisine = { role: string; does: string; latest: ActionDeRole | null };
+
+// Le champ `rolesCuisine` d'un `facts` : une liste de rôles. Un rôle qui n'a pas cette forme n'est pas lu, ni une liste
+// qui n'en est pas une — l'onglet Cooks se dessine sans, comme pour un runtime d'avant ce champ.
+export function rolesCuisineLus(brut: unknown): RoleDeCuisine[] | undefined {
+  const texte = (valeur: unknown): valeur is string => typeof valeur === "string" && valeur.length > 0;
+  const action = (valeur: unknown): ActionDeRole | null | undefined => {
+    if (valeur === null) return null;
+    if (typeof valeur !== "object") return undefined;
+    const { what, ticket, at } = valeur as Record<string, unknown>;
+    const numero = ticket === null || (typeof ticket === "number" && Number.isSafeInteger(ticket) && ticket > 0);
+    return texte(what) && numero && texte(at) && !Number.isNaN(Date.parse(at)) ? { what, ticket: ticket as number | null, at } : undefined;
+  };
+  if (!Array.isArray(brut)) return undefined;
+  return brut.flatMap((un: unknown) => {
+    if (typeof un !== "object" || un === null) return [];
+    const { role, does, latest } = un as Record<string, unknown>;
+    const lue = action(latest);
+    return texte(role) && texte(does) && lue !== undefined ? [{ role, does, latest: lue }] : [];
+  });
+}
+
 // Un ticket que le bloc `attend` nomme, et ce que `faits` en donne : son titre —
 // vide s'il n'est pas sur le rail, le journal ne le connaît pas — et l'adresse de
 // son issue, que la box donne : nulle quand elle n'en a pas. L'app n'en compose aucune.
@@ -151,6 +176,9 @@ export type Faits = {
   // Ce que la cuisine du projet a servi, renvoyé et remonté au chef dans la dernière heure et le dernier jour (ticket
   // 1272) : six nombres, à zéro sans activité ; absent d'un runtime d'avant ce champ.
   activiteCuisine?: ActiviteCuisine;
+  // Les rôles de la cuisine du projet, chacun avec sa ligne et sa dernière action (ticket 1274) ; absent d'un runtime
+  // d'avant ce champ.
+  rolesCuisine?: RoleDeCuisine[];
   // Les corrections proposées des consignes du projet, que le chef tranche (correction.ts) : absent
   // quand il n'y en a aucune, et d'un runtime d'avant ce champ.
   corrections?: CorrectionLue[];
@@ -240,6 +268,8 @@ export type Tableau = {
   triage?: JourDeTriage[];
   // Les six nombres de la cuisine du projet, en tête de l'onglet Cooks — absent d'un runtime qui ne les donne pas.
   activiteCuisine?: ActiviteCuisine;
+  // Les rôles de la cuisine du projet, sur l'onglet Cooks — absent d'un runtime qui ne les donne pas.
+  rolesCuisine?: RoleDeCuisine[];
   // Ce que chaque correction acceptée des consignes du projet a fait de sa cause, avant et après son
   // merge (recul.ts), la plus ancienne d'abord : la page Reliability la pose. Absent quand il n'y en a aucune.
   reculs?: Recul[];
@@ -504,6 +534,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
       ...(racine.plafondDeCalibrage === undefined ? {} : { plafondDeCalibrage: plafondLu(racine.plafondDeCalibrage) }),
       ...(triageLu(racine.triage) === undefined ? {} : { triage: triageLu(racine.triage) }),
       ...(activiteCuisineLue(racine.activiteCuisine) === undefined ? {} : { activiteCuisine: activiteCuisineLue(racine.activiteCuisine) }),
+      ...(rolesCuisineLus(racine.rolesCuisine) === undefined ? {} : { rolesCuisine: rolesCuisineLus(racine.rolesCuisine) }),
       ...(racine.corrections === undefined ? {} : { corrections: correctionsLues(racine.corrections) }),
       ...(racine.reculs === undefined ? {} : { reculs: reculsLus(racine.reculs) }),
       ...(racine.profils === undefined ? {} : { profils: profilsLus(racine.profils) }),
@@ -936,6 +967,7 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu, repond
     ...(faits.plafondDeCalibrage === undefined ? {} : { plafondDeCalibrage: plafondVu(faits.plafondDeCalibrage) }),
     ...(triageDe(faits.triage, faits.lu) === undefined ? {} : { triage: triageDe(faits.triage, faits.lu) }),
     ...(faits.activiteCuisine === undefined ? {} : { activiteCuisine: faits.activiteCuisine }),
+    ...(faits.rolesCuisine === undefined ? {} : { rolesCuisine: faits.rolesCuisine }),
     ...(faits.reculs === undefined || faits.reculs.length === 0 ? {} : { reculs: faits.reculs.map(reculDe) }),
     apprentissage: apprentissageDe(faits.apprentissage),
   };

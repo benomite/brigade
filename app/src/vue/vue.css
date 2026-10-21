@@ -2627,6 +2627,63 @@ main > header,
   color: var(--texte);
   text-align: right;
 }
+/* Les rôles de la cuisine du projet, sous son plafond (ticket 1274) : un par ligne — son nom, ce qu'il fait, et dessous
+   sa dernière action et son heure, ou `no action yet` en retrait. */
+#roles-du-projet:empty {
+  display: none;
+}
+#rail .roles-cuisine {
+  margin: 12px 16px 0;
+  padding: 8px 16px 10px;
+  background: var(--bandeau);
+  border: 1px solid var(--trait-doux);
+  border-radius: var(--rayon-carte);
+}
+#rail .roles-cuisine h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--discret);
+}
+#rail .roles-cuisine ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+#rail .roles-cuisine li {
+  display: grid;
+  grid-template-columns: 8em 1fr;
+  column-gap: 12px;
+  padding: 6px 0;
+  font-size: 13px;
+  line-height: 1.4;
+  border-top: 1px solid var(--trait-doux);
+}
+#rail .roles-cuisine li:first-child {
+  border-top: none;
+}
+#rail .roles-cuisine .nom-du-role {
+  grid-row: span 2;
+  font-weight: 600;
+  color: var(--texte);
+}
+#rail .roles-cuisine .ce-qu-il-fait {
+  color: var(--texte-doux);
+}
+#rail .roles-cuisine .derniere-action {
+  font-size: 12px;
+  color: var(--texte);
+}
+#rail .roles-cuisine .derniere-action time {
+  color: var(--discret);
+}
+#rail .roles-cuisine .sans-action {
+  font-style: italic;
+  color: var(--discret);
+}
 /* Les stations du projet, sous sa carte (ticket 1185) : une ligne chacune — son nom, son mot et ce qu'il veut dire,
    ses cooks en cours, son bouton, à droite. Ce que le dernier clic a rendu passe dessous, sur toute la ligne. */
 #cuisson-du-projet:empty {

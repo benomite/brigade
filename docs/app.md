@@ -43,6 +43,13 @@ station's button, says `setting…` until the runtime has answered, then rereads
 the manager reads it at its next reaction. Set by you, `back to the default` withdraws it (`station remove …`). Refused
 by the runtime, a line says so, its output on hover. A runtime that does not give it shows nothing. The modules are
 `app/src/plafond-de-calibrage.ts` and `app/src/vue/plafond-de-calibrage.js`.
+**Under the ceiling, the kitchen roles** (#1274), in a block titled `kitchen roles`: the `manager`, the `pass`, the `reviewer`, the
+`second judge`, the `triage` and the `closer`, one per row — its name, one line on what it does, and under it its latest action
+on this project, a short sentence and its time (`merged #12 · Oct 13, 2026, 9:41 AM`). A role that has never acted on the
+project says `no action yet`. The roles, their line and the sentence are read in `facts` (`rolesCuisine`,
+docs/runtime/etat-et-mesures.md): the app composes none, and nothing there is command output. A runtime that does not give
+them shows nothing there, nor a box that does not answer; on a narrow screen, they sit under the stations' lines. The
+module is `app/src/vue/roles-cuisine.js`.
 **On a narrow screen — the phone (#1151), or a window under 720 px —, three tabs** (#1186): Rail, Cooks and
 **Second**, the conversation with the second, which takes the place of the middle instead of sitting on the right; one
 tap switches from one to the other, and switching tabs neither cuts nor empties the conversation. The projects bar
