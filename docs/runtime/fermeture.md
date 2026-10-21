@@ -1,7 +1,7 @@
 ## The observing closing
 
 The measures say what the project **weighs**; the observing closing says what it **has not removed**.
-`npm --prefix runtime run closing` (`brigade <project> closing` on the box) reads the integration
+`npm --prefix runtime run closing` (`brigade <projet> closing` on the box) reads the integration
 branch of the project's clone — `origin/<BRIGADE_BASE_BRANCH>` in `BRIGADE_REPO_DIR`, as the last
 fetch left it — and prints three things:
 
@@ -30,7 +30,7 @@ fetch left it — and prints three things:
 
 ### The same reading, for the app
 
-`npm --prefix runtime run closing -- --json` (`brigade <project> closing --json`) gives the same
+`npm --prefix runtime run closing -- --json` (`brigade <projet> closing --json`) gives the same
 reading as **one JSON object, on one line**: it is what the app reads of a project's closer, without
 parsing any text. It launches nothing: the log is opened read-only, the repository is only read by
 the observation, and no request is ever written. Three variables: `BRIGADE_STATE_DIR`,
@@ -133,7 +133,7 @@ wake-up — every time the log moves, so as soon as a cook hands back, and at ev
 | `deploying` | A deployment requested was holding the pass — only read in the logs from before the station |
 
 ```
-closing pass requested on 2026-10-13T14:00:00.000Z, it waits — start condition not met: 2 cooks in flight for a threshold of 2 — the pass leaves when there are fewer than the threshold, or when the rail is empty (it carries 2 unserved tickets); it leaves on its own, once, as soon as nothing holds it back, without anyone restarting it — to withdraw it: `brigade <project> closing cancel`
+closing pass requested on 2026-10-13T14:00:00.000Z, it waits — start condition not met: 2 cooks in flight for a threshold of 2 — the pass leaves when there are fewer than the threshold, or when the rail is empty (it carries 2 unserved tickets); it leaves on its own, once, as soon as nothing holds it back, without anyone restarting it — to withdraw it: `brigade <projet> closing cancel`
 ```
 
 That is the sentence `closing` and `status` print. The line the runtime writes to journald for the
@@ -145,7 +145,7 @@ same request stays in French until the runtime is translated.
   threshold stays your setting (`station -- closer-cooks <N>`).
 - **It reads in the queue** — the `awaiting` block of `status`, under the name `closing`: since when,
   and what holds it at the time of reading (how many cooks in flight, for which threshold). And on the
-  `pass` line of `brigade <project> closing`. It leaves the queue by leaving, refused or withdrawn.
+  `pass` line of `brigade <projet> closing`. It leaves the queue by leaving, refused or withdrawn.
 - **Only one at a time**: requested again while it waits, nothing is rewritten — the command says
   "already requested", with its time and what holds it, and exits with 0.
 - **You withdraw it by the same gesture**, `closing cancel` (`closing.cancelled`), as long as it has
@@ -210,14 +210,14 @@ The closer is launched by the guarded launch of all cooks: nothing is rewritten 
 | Token cap per pass | `guard.tripped` `tokens`, at the pass's limit | `tokens` |
 | Removal cap per pass | The lines its worktree removes, committed or not, read at every tick (`guard.tripped` `removals`); and counted again at its end | `removals` |
 | Idleness, duration, turns | The caps of every cook ("Setting the caps") | `idle`, `duration`, `turns` |
-| "stop" | `brigade <project> guardrails stop` halts it within the second; none leaves before "resume" | `stop` |
+| "stop" | `brigade <projet> guardrails stop` halts it within the second; none leaves before "resume" | `stop` |
 | Breaker | Open, none leaves; open while it tidies, it is stopped | `breaker` |
 
 **Stopped, it delivers nothing**: no branch pushed, no PR. What it had written stays committed on its
 local branch, like the work of a stopped cook. A closer stopped by a cap, or that wrote what it did
 not hold, is **a failure that the breaker counts**. And it says so in three places: `closing.ended`
 in the log, a line in `journalctl -u brigade@<project>`, and the `pass` line of the `log` block of
-`brigade <project> closing`:
+`brigade <projet> closing`:
 
 ```
 pass       fermeture-3f9c1a2e, on 2026-10-13 14:02 — stopped: the closing's token cap reached (512,340 for a cap of 500,000) — nothing is delivered
@@ -253,8 +253,8 @@ merge; a pass that touches its judges or the project's declarations is never mer
 What changes comes from a pass having **no ticket**:
 
 - **The pass follows it under the number of its PR** — which GitHub gives to no issue — and it is on
-  the PR that it speaks: the reviewer's reading, the verdict, the stop. `brigade <project> pass` shows
-  it as `PR #<n>  off the rail (run fermeture-…)`, and `brigade <project> pass <n>` tells its
+  the PR that it speaks: the reviewer's reading, the verdict, the stop. `brigade <projet> pass` shows
+  it as `PR #<n>  off the rail (run fermeture-…)`, and `brigade <projet> pass <n>` tells its
   judgement. In the log, its facts (`pass.*`, `grant.used`, `merge.done`) carry that number.
 - **The reviewer is its real judge**, and its brief is not a ticket's: it looks for what the diff
   removes and something alive still depends on, a test weakened to get a removal through, and what the
@@ -271,7 +271,7 @@ What changes comes from a pass having **no ticket**:
 
 ### The summary of a pass
 
-A pass reads **without reopening its PR**: `brigade <project> closing` gives, under its `pass` line,
+A pass reads **without reopening its PR**: `brigade <projet> closing` gives, under its `pass` line,
 the summary of the last pass that finished. It is reread from the log alone — nothing is replayed —
 and its verdict comes first, on one line:
 
@@ -329,16 +329,16 @@ The measure names `MESURE couverture` and `MESURE verifications` are lines the g
 
 - **The summary holds nothing back**: it is read. A pass PR in which a guardrail gave way under green
   gates is judged green by the pass, and merged under the `merge` grant like any green delivery;
-  nothing warns you outside `brigade <project> closing`. The reviewer remains its judge.
-- **Only the last finished pass has its summary** in `brigade <project> closing`; the earlier ones
+  nothing warns you outside `brigade <projet> closing`. The reviewer remains its judge.
+- **Only the last finished pass has its summary** in `brigade <projet> closing`; the earlier ones
   stay in the log (`closing.ended`, and the `pass.judged` of their PR).
 - **A pass's zone is released as soon as its PR is open**, not at its merge: as long as the PR is in
   pass, a cook can start on the files it modifies. The pass judges each delivery merged with the
   current base: the second to merge is judged again, and a conflict shows there.
 - **A pass PR that is stopped or escalated does not appear in "what awaits the chef"** of
-  `brigade <project> station`: it reads in `brigade <project> pass`, and on the PR.
+  `brigade <projet> station`: it reads in `brigade <projet> pass`, and on the PR.
 - **In `journalctl`, the pass still says "ticket #<n>"** for a pass's PR on most of its lines: the
   number is the right one, the word is not.
 - **The counter "merges since the last closing"** of the measures does not yet restart from a pass.
-- `brigade <project> guardrails` calls `manager` any cook with no ticket: the closer is recognised
+- `brigade <projet> guardrails` calls `manager` any cook with no ticket: the closer is recognised
   there by its run, `fermeture-…`.
