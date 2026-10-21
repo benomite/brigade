@@ -4625,7 +4625,19 @@ button.recommande {
     flex: none;
   }
   main > header {
+    position: relative;
     flex-wrap: wrap;
+  }
+  /* La confirmation d'un interrupteur (manager, merge) ne tient pas sous lui, à 440 px : elle s'ouvre sous la tête, de
+     toute sa largeur, et rien ne défile de côté (ticket 1163). */
+  .interrupteur-de-tete {
+    position: static;
+  }
+  .interrupteur-de-tete > .confirmation {
+    left: 12px;
+    right: 12px;
+    top: calc(100% + 6px);
+    width: auto;
   }
   #espace {
     max-width: none;
@@ -4639,14 +4651,14 @@ button.recommande {
   #second > header {
     border-top: 0;
   }
-  /* Les quatre colonnes de Rail ne tiennent pas côte à côte : chacune prend presque la largeur, et elles défilent. */
+  /* Les quatre colonnes de Rail ne tiennent pas côte à côte : elles s'empilent, de toute la largeur, et la page défile
+     de haut en bas seulement — jamais de côté (ticket 1163). Ce qui attend le chef, TODO, passe en tête ; les autres
+     gardent leur ordre. */
   #rail[data-onglet="rail"] .colonnes {
-    grid-template-columns: repeat(4, minmax(240px, 85%));
-    scroll-snap-type: x mandatory;
-    scroll-padding-inline: 16px;
+    grid-template-columns: minmax(0, 1fr);
   }
-  #rail[data-onglet="rail"] .colonne {
-    scroll-snap-align: start;
+  #rail[data-onglet="rail"] .colonne[data-attend] {
+    order: -1;
   }
   #rail .station-de-cuisson {
     grid-template-columns: minmax(0, 1fr) auto;

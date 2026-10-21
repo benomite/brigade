@@ -160,6 +160,8 @@ ecranEtroit?.addEventListener?.("change", () => montrer());
 // Les colonnes du rail qui disent ce qui tourne : les cooks au travail, et les gates de la pass. Elles sont sur Cooks ;
 // les autres — On the rail, TODO, WAITING, Served — sont sur Rail.
 const COLONNES_DE_LA_CUISINE = ["Taken", "Pass"];
+// La colonne de ce qui attend le chef : sur un écran étroit, les colonnes de Rail s'empilent, et elle passe en tête (ticket 1163).
+const COLONNE_QUI_T_ATTEND = "TODO";
 /** @typedef {import("../allumage.ts").Compte} Compte */
 /** @typedef {import("../confirmation.ts").Confirmation} Confirmation */
 /** @typedef {import("../service.ts").Guide} Guide */
@@ -4107,6 +4109,7 @@ function poserRail(projet) {
       colonne.dataset.ton = ton;
       // Livré s'allonge tout le jour : ses cartes défilent dans leur hauteur, les autres colonnes restent en vue.
       if (defile) colonne.dataset.defile = "";
+      if (nom === COLONNE_QUI_T_ATTEND) colonne.dataset.attend = "";
       const forme = formeDe(ton);
       if (forme !== undefined) colonne.dataset.forme = forme;
       const tete = document.createElement("h4");
