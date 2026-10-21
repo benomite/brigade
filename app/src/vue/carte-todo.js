@@ -1,5 +1,5 @@
 // @ts-check
-// La carte de TODO (#1281, épique #1277), sur le bon d'un ticket qui t'attend : la question que le
+// La carte de TODO (ticket 1281, épique 1277), sur le bon d'un ticket qui t'attend : la question que le
 // runtime y a laissée entrer — un choix de produit, ou un écran à valider —, ses captures avant et
 // après quand il y en a, un bouton par choix, et un champ pour répondre dans tes mots, avec son
 // bouton « send ». Un clic sur un choix est la réponse : rien d'autre n'est demandé, ni confirmation
