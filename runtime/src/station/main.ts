@@ -117,8 +117,6 @@ const presence = tenirPresence({
   projets: () => station.projets(),
   etats: () => etatsPublies(dossierMiseAJour === null ? null : lireEtatMiseAJour(dossierMiseAJour), connexion.connexion()),
   dire,
-  // Pour la recette de bout en bout seule (test/0-en-premier) : en service, l'écart reste celui de `ECART_MINIMAL_MS`.
-  ...(process.env.BRIGADE_STATION_ECART_MINIMAL_MS ? { ecartMinimalMs: Number(process.env.BRIGADE_STATION_ECART_MINIMAL_MS) } : {}),
 });
 // Les projets que le chef lui ajoute depuis l'app, par le même gist : la
 // station les prépare et leur écrit leur ligne (projets/tenir.ts) — et les

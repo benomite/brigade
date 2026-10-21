@@ -8,16 +8,13 @@
 // demande moins de dix minutes, parcours compris ; la station en met moins
 // d'une — sa cadence est de trente secondes.
 //
-// Ce fichier dure plus d'une minute, et rien ne la raccourcit sans toucher la
-// station : son regard sur son état revient chaque minute (`REGARD_MS`,
-// appairage/presence.ts), et la recette lit trois de ses écritures — la liste
-// vide, le projet ajouté, le projet retiré. Seul l'écart minimal entre deux
-// écritures (`ECART_MINIMAL_MS`, 60 s) est ramené à cinq secondes pour cette
-// station-ci : son plancher se prouve sur l'horloge simulée, dans
-// appairage/presence.test.ts, et la cadence réelle du regard reste entière. C'est
-// pour cela que le fichier vit dans `0-en-premier/` : `node --test` prend les
-// fichiers dans l'ordre de leurs chemins, et celui-ci, lancé le premier, court
-// pendant le reste de la suite au lieu de la prolonger.
+// Ce fichier dure deux minutes, et rien ne les raccourcit sans toucher la
+// station : elle n'écrit pas son gist plus d'une fois par minute
+// (`ECART_MINIMAL_MS`, appairage/presence.ts), et la recette lit trois de ses
+// écritures — la liste vide, le projet ajouté, le projet retiré. C'est pour
+// cela qu'il vit dans `0-en-premier/` : `node --test` prend les fichiers dans
+// l'ordre de leurs chemins, et celui-ci, lancé le premier, court pendant le
+// reste de la suite au lieu de la prolonger de deux minutes.
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -81,7 +78,6 @@ test("ajouté depuis l'app, le projet est dans la liste de la station en moins d
     BRIGADE_STATION_DIR: racine,
     BRIGADE_STATION_NOM: "box",
     BRIGADE_GH_BIN: FAUX_GH,
-    BRIGADE_STATION_ECART_MINIMAL_MS: "5000",
     FAUX_GISTS: gists,
     FAUX_ORIGINES: origines,
     BRIGADE_CLAUDE_BIN: FAUX_CLAUDE,
