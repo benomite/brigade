@@ -598,6 +598,7 @@ describe("un geste direct part vraiment dans le second, et dit quand il ne peut 
     assert.deepEqual(lance(0).ecrits, []);
     assert.ok(!("refus" in dit));
     assert.equal(dit.note, "the second was not running: launched (`claude --continue /brigade:po`) — the command did not go: a second that is starting takes nothing, click again when it has finished its first turn");
+    assert.equal(dit.nonParti, true);
     assert.deepEqual(terminaux.espace(BRIGADE), [dit]);
   });
 

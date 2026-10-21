@@ -750,6 +750,10 @@ const reponsesAuxProfils = new Map();
 // ou, quand c'est le second qui n'a rien reçu, à droite, sous les onglets des terminaux.
 let nonEcrit = "";
 let nonEcritSecond = "";
+// Un geste confirmé ou direct qui n'a rien envoyé au second : la phrase qui le dit au centre, et de quoi le rejouer
+// avec le « oui » déjà donné.
+/** @type {{ texte: string, rejouer: () => void } | undefined} */
+let gesteRate;
 // Le terminal qui prend le clavier au prochain affichage : celui qu'un geste du chef vient de
 // montrer ou d'écrire. Sans geste, personne ne le prend — le second ne perd pas sa frappe.
 /** @type {number | undefined} */
@@ -1174,7 +1178,9 @@ function montrer() {
   const surCuisine = cuisineMontree();
   teteDeLaCuisine.replaceChildren(...(surCuisine ? ["the station: its cap of cooks, its machine, its quota", ...(explication === "" ? [] : [survol(document, explication)])] : []));
   note.replaceChildren(
-    ...(nonEcrit !== "" ? [nonEcrit] : suivie !== undefined && courant?.desinstalle !== undefined ? ["nothing is read for this tab: this project is uninstalled from its station"] : explication === "" || surCuisine ? [] : [survol(document, explication)]),
+    ...(gesteRate !== undefined
+      ? poserGesteRate(gesteRate)
+      : nonEcrit !== "" ? [nonEcrit] : suivie !== undefined && courant?.desinstalle !== undefined ? ["nothing is read for this tab: this project is uninstalled from its station"] : explication === "" || surCuisine ? [] : [survol(document, explication)]),
   );
   note.hidden = (note.childElementCount === 0 && note.textContent === "") || conversationMontree();
   const parametres = rubriqueDe(visible)?.id === PARAMETRES;
@@ -1411,6 +1417,7 @@ function poserGeste(projet, { id, libelle, ou, grant }) {
 /** @param {Projet} projet @param {string} cle @param {string} id @param {string} [grant] */
 async function ouvrirConfirmation(projet, cle, id, grant) {
   nonEcrit = nonEcritSecond = "";
+  gesteRate = undefined;
   if (aConfirmer?.projet === projet.nom && aConfirmer.cle === cle) {
     aConfirmer = undefined;
     return montrer();
@@ -1521,16 +1528,38 @@ async function ecrireGeste(id, grant, oui) {
   const projet = courant;
   if (projet === undefined) return;
   nonEcrit = nonEcritSecond = "";
+  gesteRate = undefined;
+  /** @param {string} raison */
+  const rate = (raison) => {
+    nonEcritSecond = raison;
+    gesteRate = { texte: raison, rejouer: () => void ecrireGeste(id, grant, oui) };
+  };
   try {
     const rendu = await brigade.geste(projet.nom, id, grant, oui);
     if (rendu === undefined) return montrer();
     // Le chef a pu changer d'espace entre-temps : le second de ce projet le garde.
-    if ("refus" in rendu) nonEcritSecond = rendu.refus;
-    else garder(projet.nom, rendu);
+    if ("refus" in rendu) rate(rendu.refus);
+    else {
+      garder(projet.nom, rendu);
+      if (rendu.nonParti === true) rate(rendu.note);
+    }
   } catch (erreur) {
-    nonEcritSecond = `nothing sent: ${erreur instanceof Error ? erreur.message : String(erreur)}`;
+    rate(`nothing sent: ${erreur instanceof Error ? erreur.message : String(erreur)}`);
   }
   montrer();
+}
+
+// Un geste confirmé qui n'a rien envoyé ne se perd pas dans la petite note du second : le centre le dit en une
+// phrase, le détail au survol, et un bouton rejoue le même geste.
+/** @param {{ texte: string, rejouer: () => void }} rate */
+function poserGesteRate({ texte, rejouer }) {
+  const tete = (texte.split(/ — |: |\n|`/)[0] ?? texte).trim();
+  const phrase = document.createElement("span");
+  phrase.textContent = `nothing was sent to the second: ${tete}`;
+  phrase.title = texte;
+  const encore = bouton("try again", rejouer);
+  encore.dataset.reessayer = "";
+  return [phrase, encore];
 }
 
 // La page cliquée s'ouvre par-dessus le rail ; recliquée, elle se referme, et le rail revient tel qu'il était.
