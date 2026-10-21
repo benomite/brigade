@@ -3140,6 +3140,45 @@ main > header,
   margin: 0;
   color: var(--discret);
 }
+/* La rétro du ticket servi : ses leçons, chacune sa pastille « provisional » comme sur la page
+   Reliability, son id et son texte ; puis ce que son cook a écrit, tel quel. */
+#fiche .retro {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+#fiche .retro ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+#fiche .retro li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+#fiche .retro li > .survol {
+  flex: none;
+}
+#fiche .retro .id {
+  flex: none;
+  font-size: 12px;
+  color: var(--discret);
+}
+#fiche .retro .texte {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--texte);
+}
+#fiche .retro .reprise {
+  flex: none;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--discret);
+}
 /* Les gestes de la fiche : un par ligne, son bouton puis ce qu'il coûte, en clair ; la priorité se
    choisit avant d'être envoyée. Ce qui n'est pas parti se lit dessous, en rouge. */
 #fiche .gestes-fiche {
@@ -4039,7 +4078,8 @@ button.recommande {
 .apprentissage-fiabilite .tete-lecon > .survol {
   flex: none;
 }
-.apprentissage-fiabilite .statut {
+.apprentissage-fiabilite .statut,
+#fiche .retro .statut {
   padding: 1px 8px;
   cursor: help;
   font-size: 12px;

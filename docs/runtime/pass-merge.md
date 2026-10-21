@@ -77,7 +77,7 @@ refusée — révoque puis réaccorde. Un grant éteint ou révoqué ne se prolo
 ```bash
 npm --prefix runtime run pass              # les livraisons : phase, motif, renvois consommés, PR — l'état de la base en tête quand il compte, le bilan des arrêts sans grant en fin
 npm --prefix runtime run pass -- 17        # l'histoire du ticket 17 : chaque verdict et ce qui l'a produit
-npm --prefix runtime run pass -- 17 --json  # la même histoire pour l'app, avec le coût du ticket : un objet JSON {ticket, steps, cost}
+npm --prefix runtime run pass -- 17 --json  # la même histoire pour l'app, avec le coût du ticket et sa rétro : un objet JSON {ticket, steps, cost, retro}
 ```
 
 ```
@@ -90,6 +90,11 @@ BASE RED since 2026-10-09T09:20:52.000Z (5d2e7b1) — after the merge of #17: no
 green (code 0) · CI no check · reviewer nothing blocking`, puis `judged: 77c01de merged with
 the base 4be1f07`), renvoi, usage du grant, merge et l'identité GitHub qui l'a fait. Les deux
 commandes n'écrivent jamais, et répondent pendant que le runtime tourne.
+
+`retro`, dans `--json`, est la dernière rétro du ticket (#1038) : `{at, text, lessons}`, `text` ce
+que son cook a écrit entre `<retro>` et `</retro>` (nul s'il n'a rien écrit), `lessons` ce qu'elle a
+retenu, au plus trois, chacune `{kind: "propose" | "reconfirm", id, text}` — `id` et `text` nuls si
+le carnet du projet ne la retrouve pas. `retro` est nulle tant que le ticket n'a pas de rétro.
 
 | Événement | Sens |
 |---|---|

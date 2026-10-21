@@ -14,7 +14,15 @@ export type EtapeDite = { libelle: string; at: string; ton?: "vert" | "rouge"; d
 // Le coût, dit : chaque valeur est un texte, ou « not communicated ». `minimum` : au moins un
 // cook n'a rien déclaré, les sommes sont alors un minimum.
 export type CoutDit = { tokens: string; duree: string; essais: string; minimum: boolean };
-export type Histoire = { etapes: EtapeDite[]; cout: CoutDit } | { sans: string };
+// Une leçon de la rétro, dite : son id et son texte — ou ce que la box n'en donne pas —, et
+// `reconfirmee` : la rétro reconfirme une leçon du projet plutôt que d'en proposer une. Toutes
+// sont provisoires : rien ne les a validées.
+export type LeconDite = { id: string; texte: string; reconfirmee: boolean };
+// La rétro du ticket servi, dite : ce que son cook a écrit — `texte` nul, il n'a rien écrit — et
+// ses leçons, au plus trois. `aucune` : le ticket n'en a pas encore, en une phrase. `sans` : la box
+// ne l'a pas donnée, ou pas dans sa forme — pourquoi.
+export type RetroDite = { at: string; texte: string | null; lecons: LeconDite[] } | { aucune: string } | { sans: string };
+export type Histoire = { etapes: EtapeDite[]; cout: CoutDit; retro: RetroDite } | { sans: string };
 
 // Un instant de la box, tel qu'elle l'a donné : son jour et son heure, en UTC.
 export const instant = (iso: string) => `${new Date(iso).toISOString().slice(0, 16).replace("T", " ")} UTC`;
@@ -54,6 +62,28 @@ function etape(brut: unknown): EtapeDite | undefined {
   }
 }
 
+// Une rétro en laisse au plus trois (runtime/src/apprentissage/retro.ts, `LECONS_MAX`).
+export const LECONS_MAX = 3;
+export const SANS_RETRO = "no retro for this ticket yet";
+const RETRO_PAS_DONNEE = "retro not communicated: this station does not give it yet";
+const RETRO_ILLISIBLE = "retro not read: the station did not return it in the expected shape";
+
+// La rétro, telle que `pass -- <ticket> --json` la donne (`retro`) : nulle, le ticket n'a pas
+// été servi ; absente, la box est d'avant la rétro sur la fiche.
+function retroDe(brute: unknown): RetroDite {
+  if (brute === undefined) return { sans: RETRO_PAS_DONNEE };
+  if (brute === null) return { aucune: SANS_RETRO };
+  if (!objet(brute)) return { sans: RETRO_ILLISIBLE };
+  const { at, text, lessons } = brute;
+  if (!heure(at) || !(text === null || texte(text)) || !Array.isArray(lessons)) return { sans: RETRO_ILLISIBLE };
+  const lecons = lessons.slice(0, LECONS_MAX).flatMap((lecon: unknown): LeconDite[] => {
+    if (!objet(lecon) || (lecon.kind !== "propose" && lecon.kind !== "reconfirm")) return [];
+    const { id, text: dite } = lecon;
+    return [{ id: texte(id) && id !== "" ? id : "id not given", texte: texte(dite) && dite !== "" ? dite : "text not given", reconfirmee: lecon.kind === "reconfirm" }];
+  });
+  return { at: instant(at), texte: text === "" ? null : text, lecons };
+}
+
 // Ce que `pass -- <ticket> --json` a rendu, en mots de la fiche — ou pourquoi on n'en lit rien.
 export function histoireDe(sortie: string): Histoire {
   let lu: unknown;
@@ -75,6 +105,7 @@ export function histoireDe(sortie: string): Histoire {
       essais: String(attempts),
       minimum: incomplete === true,
     },
+    retro: retroDe(lu.retro),
   };
 }
 

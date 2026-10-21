@@ -1819,6 +1819,13 @@ For a ticket in pass or served, `cooked by` is added: who cooked it is not who h
 - **What the queue does not say is not displayed** (#747) — neither the card nor the sheet writes "not given
   by the queue: …" in place of a piece of information: a missing thing has no line. Nor "nobody",
   nor "0", nor a dash either. (The model keeps `sans`, which the view no longer sets.)
+- **A ticket's retro is on its sheet** (#1038), under its history and cost: the lessons its retro left the
+  project, three at most, each with the `provisional` badge of the Reliability page (its meaning on hover), its id and
+  its text — `reconfirmed` when the retro reconfirms a lesson the project already had —, then what its cook wrote
+  between `<retro>` and `</retro>`, as is. It comes from `retro` in `pass <n> --json` (see "Voir la pass" in
+  `docs/runtime/pass-merge.md`). A ticket with no retro says `no retro for this ticket yet`; one served whose cook
+  wrote none says `served, but its cook wrote no retro`; a box from before the retro on the sheet says
+  `retro unavailable`, its why on hover — never an empty section.
 - **A served interface ticket shows its screenshots, without a click** (#842): for each screen
   changed, the before screenshot and the after screenshot side by side, each under its caption (`fiche — before`,
   `fiche — after`), on its card in Pass as in Served. They come from `captures`, in `facts`,

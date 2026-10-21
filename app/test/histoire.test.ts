@@ -57,6 +57,59 @@ describe("l'histoire d'un ticket mergé", () => {
   });
 });
 
+describe("la rétro d'un ticket, sur sa fiche", () => {
+  const avec = (retro: unknown) => histoireDe(JSON.stringify({ ...JSON.parse(MERGE), retro }));
+  const RETRO = {
+    at: "2026-10-14T10:30:00Z",
+    text: "reconfirm L4\npropose Relire la fiche avant d'écrire.",
+    lessons: [
+      { kind: "reconfirm", id: "L4", text: "Lancer les tests avant de commiter." },
+      { kind: "propose", id: "L9", text: "Relire la fiche avant d'écrire." },
+    ],
+  };
+
+  test("un ticket servi avec sa rétro : le texte du cook, puis chaque leçon avec son id et son texte", () => {
+    const histoire = avec(RETRO);
+    assert.ok("retro" in histoire);
+    assert.deepEqual(histoire.retro, {
+      at: "2026-10-14 10:30 UTC",
+      texte: RETRO.text,
+      lecons: [
+        { id: "L4", texte: "Lancer les tests avant de commiter.", reconfirmee: true },
+        { id: "L9", texte: "Relire la fiche avant d'écrire.", reconfirmee: false },
+      ],
+    });
+  });
+
+  test("au plus trois leçons ; ce que la box ne donne pas d'une leçon est écrit comme tel", () => {
+    const lessons = [1, 2, 3, 4].map((n) => ({ kind: "propose", id: `L${n}`, text: `leçon ${n}` }));
+    const histoire = avec({ ...RETRO, lessons: [{ kind: "propose", id: null, text: null }, ...lessons] });
+    assert.ok("retro" in histoire && "lecons" in histoire.retro);
+    assert.deepEqual(histoire.retro.lecons.map(({ id, texte }) => `${id} ${texte}`), ["id not given text not given", "L1 leçon 1", "L2 leçon 2"]);
+  });
+
+  test("un ticket sans rétro : la fiche le dit en une phrase, jamais une section vide", () => {
+    const pas = avec(null);
+    assert.ok("retro" in pas);
+    assert.deepEqual(pas.retro, { aucune: "no retro for this ticket yet" });
+    // Servi sans que son cook écrive de rétro : la rétro existe, sans texte ni leçon.
+    const vide = avec({ at: "2026-10-14T10:30:00Z", text: null, lessons: [] });
+    assert.ok("retro" in vide);
+    assert.deepEqual(vide.retro, { at: "2026-10-14 10:30 UTC", texte: null, lecons: [] });
+  });
+
+  test("une box d'avant la rétro, ou une rétro illisible : l'histoire se lit, la rétro dit pourquoi elle manque", () => {
+    const ancienne = histoireDe(MERGE);
+    assert.ok("retro" in ancienne && "sans" in ancienne.retro);
+    assert.match(ancienne.retro.sans, /not communicated/);
+    for (const mauvaise of [7, { at: "x", text: null, lessons: [] }, { at: "2026-10-14T10:30:00Z", text: 3, lessons: [] }, { at: "2026-10-14T10:30:00Z", text: null }]) {
+      const lue = avec(mauvaise);
+      assert.ok("etapes" in lue && "sans" in lue.retro, JSON.stringify(mauvaise));
+      assert.match(lue.retro.sans, /not read/);
+    }
+  });
+});
+
 describe("ce que la fiche dit d'un ticket vivant", () => {
   test("en cours : ce que son cook fait en ce moment, mot pour mot", () => {
     assert.deepEqual(situation({ etat: "pris", attend: [], dit: [{ libelle: "right now", valeur: "editing app/src/fiche.ts, for 3 min" }] }), {
