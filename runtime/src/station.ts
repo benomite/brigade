@@ -60,6 +60,7 @@ import { argumentsClaude, consigne, consigneDeSuite, direRefus, environnementCoo
 import type { Decisions } from "./decisions.ts";
 import { ouvrirDepot, worktreeAuJournal, worktreeDuJournal, type Depot, type OptionsDepot } from "./depot.ts";
 import { configPresence, ouvrirDistantes, PRESENCE_PAR_DEFAUT_MIN, type Conclusion } from "./distantes.ts";
+import { ecrireSecret } from "./droits.ts";
 import { prendLesOrdinaires } from "./bac-a-sable/ordinaires.ts";
 import { STATION_ABSENTE, type AccesRefuse } from "./events/rail.ts";
 import { echecDuWorktree, WORKTREE_IMPOSSIBLE } from "./echec-du-worktree.ts";
@@ -1649,7 +1650,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     if (Object.keys(exporte).length === 0) return;
     try {
       mkdirSync(dirname(fichierDuSetup(run)), { recursive: true });
-      writeFileSync(fichierDuSetup(run), JSON.stringify(exporte), { mode: 0o600 });
+      ecrireSecret(fichierDuSetup(run), JSON.stringify(exporte));
     } catch (erreur) {
       avertir(`brigade : ce que le setup du run ${run} exporte n'est pas retenu — repris par un autre runtime, sa livraison ne serait pas servie — ${message(erreur)}`);
     }

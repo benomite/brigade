@@ -18,10 +18,11 @@
 // Ce qu'elle garde d'une fois sur l'autre — son gist, son code, son appairage —
 // est dans `<BRIGADE_STATION_DIR>/appairage.json`. Un gist supprimé sur GitHub
 // la remet à zéro : un gist neuf, un code neuf, un appairage à refaire.
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { availableParallelism, hostname, release, type } from "node:os";
 import { join } from "node:path";
 import { empreinteDuCode } from "../code.ts";
+import { ecrireSecret } from "../droits.ts";
 import { LimiteGitHubAtteinte } from "../limite-github.ts";
 import { cuisine, ORDINATEUR, type Sorte } from "../stations-globales/sorte.ts";
 import type { Canal } from "./canal.ts";
@@ -158,7 +159,8 @@ export function tenirPresence(options: OptionsPresence): Presence {
     }
   };
 
-  const sauver = () => writeFileSync(fichier, `${JSON.stringify(etat, null, 2)}\n`, { mode: 0o600 });
+  // Il porte le code d'appairage : au seul compte de la station.
+  const sauver = () => ecrireSecret(fichier, `${JSON.stringify(etat, null, 2)}\n`);
 
   const renouvelerCode = (instant: number) => {
     if (etat.appairee || (etat.code !== null && etat.expireLe !== null && Date.parse(etat.expireLe) > instant)) return;

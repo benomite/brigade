@@ -8,6 +8,7 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
+import { ecrireSecret } from "../../src/droits.ts";
 import { ROLES, type Role } from "../../src/identites.ts";
 import { aArreter, repertoireTemporaire } from "../outils.ts";
 
@@ -52,7 +53,7 @@ export async function fauxGitHubApps(t: TestContext): Promise<FauxGitHubApps> {
   mkdirSync(repertoire);
   for (const role of ROLES) {
     writeFileSync(join(repertoire, `${role}.id`), `${ID[role]}\n`);
-    writeFileSync(join(repertoire, `${role}.pem`), paire[role].privee, { mode: 0o600 });
+    ecrireSecret(join(repertoire, `${role}.pem`), paire[role].privee);
   }
 
   let maintenant = () => Date.now();

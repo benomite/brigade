@@ -1,11 +1,13 @@
 // Les secrets d'un projet : ce que son dépôt déclare, ce que la machine
 // détient, ce qui en parvient à un cook — et ce qui s'en cache.
 import assert from "node:assert/strict";
-import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
+import { ecrireSecret } from "../src/droits.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
 import { configSecrets, DECLARATION, lireSecrets, type Secrets } from "../src/secrets.ts";
+import { exposer, REMEDE } from "./aides/droits.ts";
 import { repertoireTemporaire } from "./outils.ts";
 
 // Un worktree qui déclare, et un fichier de valeurs sur la machine.
@@ -15,7 +17,7 @@ function projet(t: TestContext, declaration: string | null, valeurs: string | nu
   mkdirSync(join(worktree, ".claude/brigade"), { recursive: true });
   if (declaration !== null) writeFileSync(join(worktree, DECLARATION), declaration);
   const fichier = join(racine, "secrets.env");
-  if (valeurs !== null) writeFileSync(fichier, valeurs, { mode: 0o600 });
+  if (valeurs !== null) ecrireSecret(fichier, valeurs);
   return { worktree, fichier, racine };
 }
 
@@ -70,8 +72,10 @@ test("un fichier de valeurs absent, lisible par d'autres, ou mal écrit ne donne
   assert.match(problemes(lireSecrets(absent.worktree, absent.fichier)).join("\n"), /illisible ou absent/);
 
   const ouvert = projet(t, "CLE_API\n", "CLE_API=une-valeur-de-dev\n");
-  chmodSync(ouvert.fichier, 0o644);
-  assert.match(problemes(lireSecrets(ouvert.worktree, ouvert.fichier)).join("\n"), /lisible par d'autres.*chmod 600/);
+  exposer(ouvert.fichier);
+  const ditsOuvert = problemes(lireSecrets(ouvert.worktree, ouvert.fichier)).join("\n");
+  assert.match(ditsOuvert, /lisible par d'autres/);
+  assert.match(ditsOuvert, REMEDE);
 
   const malEcrit = projet(t, "CLE_API\n", "CLE_API=une-valeur-de-dev\nune-ligne-sans-egal-tres-secrete\n");
   const dits = problemes(lireSecrets(malEcrit.worktree, malEcrit.fichier)).join("\n");
@@ -146,9 +150,9 @@ test("le fichier de secrets est refusé au démarrage s'il est relatif, absent, 
   refuse(join(racine, "absent.env"), /illisible ou absent/);
   for (const dedans of [lieux.repertoireEtat, lieux.clone]) {
     mkdirSync(dedans, { recursive: true });
-    writeFileSync(join(dedans, "secrets.env"), "CLE_API=une-valeur-de-dev\n", { mode: 0o600 });
+    ecrireSecret(join(dedans, "secrets.env"), "CLE_API=une-valeur-de-dev\n");
     refuse(join(dedans, "secrets.env"), /hors de BRIGADE_STATE_DIR et de BRIGADE_REPO_DIR/);
   }
-  chmodSync(fichier, 0o640);
-  refuse(fichier, /chmod 600/);
+  exposer(fichier);
+  refuse(fichier, REMEDE);
 });
