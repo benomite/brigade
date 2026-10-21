@@ -1334,6 +1334,7 @@ async function inscrire(id, valeurs) {
   const projet = courant;
   if (projet === undefined) return;
   nonEcrit = nonEcritSecond = "";
+  gesteRate = undefined;
   if (projet.refus !== undefined) return montrer();
   try {
     const rendu = await (valeurs === undefined ? brigade.inscrire(projet.nom, id) : brigade.inscrire(projet.nom, id, valeurs));
@@ -1356,6 +1357,7 @@ async function demander(ticket) {
   const projet = courant;
   if (projet === undefined) return;
   nonEcrit = nonEcritSecond = "";
+  gesteRate = undefined;
   if (projet.refus !== undefined) return montrer();
   try {
     const rendu = await brigade.demander(projet.nom, ticket);
@@ -1377,6 +1379,7 @@ async function demanderAlerte({ sujet, dit }) {
   const projet = courant;
   if (projet === undefined) return;
   nonEcrit = nonEcritSecond = "";
+  gesteRate = undefined;
   if (projet.refus !== undefined) return montrer();
   try {
     const rendu = await brigade.demanderAlerte(projet.nom, sujet, dit);
@@ -2191,6 +2194,7 @@ async function agirService(projet, geste) {
   const rendu = await geste();
   if (rendu !== null && typeof rendu === "object" && "refus" in rendu && typeof rendu.refus === "string" && !("id" in rendu)) {
     nonEcrit = nonEcritSecond = "";
+    gesteRate = undefined;
     nonEcritSecond = rendu.refus;
     if (courant?.nom === projet.nom) montrer();
   }
@@ -2203,6 +2207,7 @@ async function agirService(projet, geste) {
 /** @param {Projet} projet @param {Terminal | { refus: string }} rendu */
 function suivreGeste(projet, rendu) {
   nonEcrit = nonEcritSecond = "";
+  gesteRate = undefined;
   if (!("refus" in rendu)) garder(projet.nom, rendu);
   else nonEcritSecond = rendu.refus;
   if (courant?.nom === projet.nom) montrer();
@@ -2837,6 +2842,7 @@ function poserFormulaireDAttente(projet, ticket, cle, ouvert) {
 async function ecrireAttente(projet, id, ticket, saisie) {
   const cle = `${projet.nom}#${ticket}`;
   nonEcrit = nonEcritSecond = "";
+  gesteRate = undefined;
   /** @type {string | undefined} */
   let refus;
   try {
@@ -3260,6 +3266,7 @@ async function jouerGesteDeFiche(projet, ticket, id, valeur) {
   const avant = issuesDeFiches.get(cle);
   if (avant !== undefined && "envoi" in avant) return;
   nonEcrit = nonEcritSecond = "";
+  gesteRate = undefined;
   refusDeFiches.delete(cle);
   const proposes = gestesDeFiches.get(cle);
   issuesDeFiches.set(cle, { envoi: (Array.isArray(proposes) ? proposes.find((propose) => propose.id === id)?.libelle : undefined) ?? id });
@@ -6265,6 +6272,7 @@ function poserControle(projet, alerte, endroit) {
     const demande = bouton(cout === "" ? mot : `${mot}…`, () => {
       if (cout === "") return void demanderAlerte(alerte);
       nonEcrit = nonEcritSecond = "";
+      gesteRate = undefined;
       aConfirmer = ouverte === undefined ? { projet: projet.nom, cle, rendu: confirmationDeDemande(cout) } : undefined;
       montrer();
     });
@@ -6517,6 +6525,7 @@ async function ouvrir(projet) {
   coutsOuverts = false;
   if (urgenceChoisie !== projet.nom) urgenceChoisie = "";
   nonEcrit = nonEcritSecond = "";
+  gesteRate = undefined;
   // Une confirmation ouverte sur un autre projet ne reste pas ouverte : rien n'en part.
   if (aConfirmer?.projet !== projet.nom) aConfirmer = undefined;
   ajoute = false;

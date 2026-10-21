@@ -202,6 +202,19 @@ describe("l'interrupteur, en tête de l'espace", () => {
     assert.doesNotMatch(vue.element("note").textContent, /nothing was sent/);
   });
 
+  test("le message d'un geste raté ne suit pas le chef dans un autre espace : ouvrir un projet l'efface", async (t) => {
+    const vue = await ouvrir({ geste: () => ({ refus: "the second is busy — nothing is written" }) });
+    vue.dire("surAlertes", bandeLue(sortieDeManager(t, true)));
+    await repos();
+    bascule(vue).click();
+    await repos();
+    assert.match(vue.element("note").textContent, /nothing was sent/);
+
+    (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
+    await repos();
+    assert.doesNotMatch(vue.element("note").textContent, /nothing was sent/);
+  });
+
   test("éteint, un clic ouvre la confirmation : une phrase dit ce qu'il va juger, avec le nombre réel d'issues ouvertes — rien ne part avant le « oui »", async (t) => {
     const backlog = { ouvertes: 23, retenues: 0 };
     const vue = await ouvrir({
