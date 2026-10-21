@@ -132,11 +132,11 @@ export function leconsProvisoires(base: Base, projet: string): LeconDuProjet[] {
 // délimitée dans son dernier message, triée face aux leçons du projet. Un cook
 // qui n'en a rien écrit laisse une rétro vide — elle est écrite tout de même :
 // chaque ticket servi a la sienne. À appeler dans la transaction qui le sert.
-export function enregistrerRetro(journal: Journal, mission: { projet: string; ticket: number; run: string | null; auteur: string }): Retro | null {
-  const { projet, ticket, run, auteur } = mission;
+export function enregistrerRetro(journal: Journal, mission: { projet: string; ticket: number; run: string | null; auteur: string; communes?: readonly string[] }): Retro | null {
+  const { projet, ticket, run, auteur, communes } = mission;
   const rapport = run === null ? undefined : journal.duTicket(ticket).findLast((e) => e.project === projet && e.type === "cook.reported" && e.payload.run === run);
   const text = rapport?.type === "cook.reported" ? (rapport.payload.retro ?? null) : null;
-  const tri = trierRetro(text, carnetDuProjet(journal.base, projet));
+  const tri = trierRetro(text, carnetDuProjet(journal.base, projet), communes);
   const ecrit = journal.ajouter({
     project: projet,
     ticket,

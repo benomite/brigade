@@ -215,6 +215,7 @@ shows it with the thresholds.
 node runtime/src/commun/commun-cli.ts                   # the proposed lessons, with their projects, and those of the tier
 node runtime/src/commun/commun-cli.ts yes <proposal>    # "yes": it enters the tier
 node runtime/src/commun/commun-cli.ts no <proposal>     # "no": it stays each project's own
+node runtime/src/commun/commun-cli.ts retire <id>       # retire a lesson of the tier (C1…)
 ```
 
 Each proposal is given by its key (eight characters, drawn from its text), its text, then
@@ -228,5 +229,17 @@ whose notebook cannot be read is named, and counts for no proposal.
 
 A proposal is decided once: a second gesture writes nothing and repeats the first. What you decided
 lives in `<BRIGADE_STATION_DIR>/etage-commun.json`, not in a repository or in a project's log.
+
+**A lesson of the tier ages out, and you can retire it.**
+
+- **Expiry** follows the promoted-lesson rule above (`BRIGADE_PROMOTED_EXPIRY_TICKETS`, read in
+  each project's unit): time is counted in tickets served **across the installation**. A cook that
+  received `C1` reconfirms it like any lesson, with `reconfirm C1` in its retro; a lesson no retro
+  reconfirms for that many served tickets (counted from its acceptance) **expires**: no cook
+  receives it any more, and it stays in the tier file marked `expired`, with its date.
+- **Retiring**: `retire C1`. From then on **no cook of any project** receives it. It stays in the
+  file marked `retired`, keeps its id, and a retired or expired lesson is **never proposed again**,
+  even when more projects promote the same text. Retiring is permanent for the tier; retiring a
+  project lesson (above) is unchanged. A second `retire` writes nothing.
 **A single-project installation has no common tier**: nothing is proposed there, and its cooks'
 brief stays the one from before. The module is `runtime/src/commun/`.
