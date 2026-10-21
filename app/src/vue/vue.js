@@ -5456,6 +5456,45 @@ async function continuerSansBac(nom) {
   }
   poserStationsDuProjet();
 }
+// Le bouton du refus de la station (ticket 1205) : la principale du projet joue le remède que le refus publie. Ce
+// qu'il en est se tient ici, par projet, d'une relecture à l'autre : la confirmation ouverte, la demande en route,
+// ce que la station a répondu. Levé, le refus quitte la page sans attendre : la relecture suivante dit ce qu'il en
+// est vraiment. Tenu, la phrase reste tant que la station publie un refus.
+/** @type {Map<string, import("./onboarding/depot-retenu.js").EtatDuRemede | { etape: "leve" }>} */
+const remedesDesRefus = new Map();
+// Ce que la page dit d'un remède qui n'est pas parti, ou dont on ne sait rien : la phrase, sans ce que GitHub a
+// répondu — qui suit le tiret, au survol.
+/** @param {string} erreur */
+function erreurDuRemede(erreur) {
+  const [tete = "", ...reste] = erreur.split(" — ");
+  return { dit: `${tete.charAt(0).toUpperCase()}${tete.slice(1).replace(/\.?$/, ".")}`, detail: reste.join(" — ") };
+}
+/** @param {string} nom */
+async function leverLeRefus(nom) {
+  const vu = projetsVus?.projets.find((projet) => projet.nom === nom);
+  const refus = vu?.refus ?? null;
+  const etat = remedesDesRefus.get(nom);
+  if (refus === null || refus.remedy === undefined || etat?.etape === "en-cours") return;
+  const station = vu?.stations.find(({ principale }) => principale)?.nom ?? "its station";
+  remedesDesRefus.set(nom, { etape: "en-cours", station });
+  poserStationsDuProjet();
+  /** @type {import("../projets/remede.ts").IssueDuRemede} */
+  let issue;
+  try {
+    issue = await brigade.leverLeRefus(nom, refus.code, refus.remedy.id);
+  } catch (erreur) {
+    issue = { outcome: "error", error: erreur instanceof Error ? erreur.message : String(erreur) };
+  }
+  remedesDesRefus.set(
+    nom,
+    issue.outcome === "lifted"
+      ? { etape: "leve" }
+      : issue.outcome === "holds"
+        ? { etape: "dit", dit: issue.reason }
+        : { etape: "dit", ...erreurDuRemede(issue.error) },
+  );
+  if (courant?.nom === nom) poserStationsDuProjet();
+}
 function fermerDemenagement() {
   demenagement = undefined;
   choixDuDemenagement.hidden = true;
@@ -5527,9 +5566,19 @@ function poserStationsDuProjet() {
   ouvrirLaConfiance.hidden = confiance !== undefined || demenagement !== undefined || !lues;
   const vu = projetsVus?.projets.find(({ nom }) => nom === projet.nom);
   const onboarding = vu?.onboarding ?? null;
-  const retenu = poserDepotRetenu(document, { acces: vu?.acces ?? null, refus: vu?.refus ?? null, worktree: vu?.worktree ?? null, maintenant: Date.now(), copier: (commande) => void navigator.clipboard.writeText(commande), ramener: ouvrirLeChoixDeMachine, verifier: () => void brigade.verifier(projet.nom), retirer: async () => {
-    const rendu = await brigade.retirerDUneStation(projet.nom);
-    return "refus" in rendu ? rendu.refus : `${rendu.retire} is removed: each of its stations takes it out of its configuration within a minute`;
+  const remede = remedesDesRefus.get(projet.nom);
+  const refus = remede?.etape === "leve" ? null : (vu?.refus ?? null);
+  const retenu = poserDepotRetenu(document, { acces: vu?.acces ?? null, refus, worktree: vu?.worktree ?? null, maintenant: Date.now(), copier: (commande) => void navigator.clipboard.writeText(commande), remede: {
+    ...(remede === undefined || remede.etape === "leve" ? {} : { etat: remede }),
+    ouvrir: () => {
+      remedesDesRefus.set(projet.nom, { etape: "confirmer" });
+      poserStationsDuProjet();
+    },
+    lancer: () => void leverLeRefus(projet.nom),
+    renoncer: () => {
+      remedesDesRefus.delete(projet.nom);
+      poserStationsDuProjet();
+    },
   } });
   depotRetenu.hidden = retenu === null;
   depotRetenu.replaceChildren(...(retenu === null ? [] : [retenu]));
@@ -6453,6 +6502,11 @@ brigade.surAccueil((vu) => {
 // Les projets des stations relus : leurs blocs remplacent ceux d'avant ; le parcours ouvert garde ses choix.
 brigade.surProjetsDesStations((vu) => {
   projetsVus = vu;
+  // Le refus levé se relit : s'il est encore publié, il revient. Une phrase sur un refus qui n'est plus publié s'en va.
+  for (const [nom, etat] of remedesDesRefus) {
+    const refus = vu.projets.find((projet) => projet.nom === nom)?.refus ?? null;
+    if (etat.etape === "leve" || (etat.etape === "dit" && refus === null)) remedesDesRefus.delete(nom);
+  }
   poserProjets();
   poserChoixDesStations();
   poserStationsDuProjet();

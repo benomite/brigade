@@ -68,6 +68,7 @@ const pont = {
   confierAUneStation: (saisie) => ipcRenderer.invoke("confierAUneStation", saisie),
   retirerDUneStation: (nom) => ipcRenderer.invoke("retirerDUneStation", nom),
   continuerSansBacASable: (nom) => ipcRenderer.invoke("continuerSansBacASable", nom),
+  leverLeRefus: (nom, refus, remede) => ipcRenderer.invoke("leverLeRefus", nom, refus, remede),
   demenagerLaCuisine: (nom, vers) => ipcRenderer.invoke("demenagerLaCuisine", nom, vers),
   autoriserSurGitHub: (url) => ipcRenderer.invoke("autoriserSurGitHub", url),
   panne: (id, cle) => ipcRenderer.invoke("panne", id, cle),

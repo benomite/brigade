@@ -599,6 +599,23 @@ main > header,
   align-items: flex-start;
   gap: 8px;
 }
+/* Le remède du refus (ticket 1205) : son bouton porte sa phrase entière, qui passe à la ligne plutôt que
+   d'être coupée. Pourquoi il n'y a pas de bouton, la demande en route et ce que la station a répondu se
+   disent en texte doux, sous la consigne. La confirmation reprend la brique commune. */
+#stations-du-projet .depot-retenu button {
+  max-width: 100%;
+  text-align: left;
+  white-space: normal;
+}
+#stations-du-projet .depot-retenu .sans-remede,
+#stations-du-projet .depot-retenu .remede-en-cours,
+#stations-du-projet .depot-retenu .remede-dit {
+  color: var(--texte-doux);
+}
+#stations-du-projet .depot-retenu .confirmation {
+  align-self: stretch;
+  margin: 0;
+}
 /* Le choix de la cuisine (ticket 1107) : une carte, comme dans la maquette. Sa phrase en tête, puis
    chaque partie sous son petit titre — la machine principale, les renforts, les cooks, les réglages
    avancés —, une machine par ligne, entière, cliquable d'un bout à l'autre. Aucun libellé n'est
