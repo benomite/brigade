@@ -16,7 +16,9 @@
 // lancement reçoit `NODE_V8_COVERAGE`, et le relevé qu'un process Node écrit en
 // finissant est au compte du test en cours quand il est lu. Un process tué sans
 // pouvoir finir (SIGKILL) n'écrit rien ; un process qui survit à son test est
-// au compte de celui pendant lequel il finit.
+// au compte de celui pendant lequel il finit. Un test qui compare à la lettre
+// l'environnement d'un process qu'il lance y trouve donc `NODE_V8_COVERAGE` et
+// échoue sous la mesure — sa couverture est relevée tout de même.
 //
 // Le crochet et `lignes.ts` ne sont jamais du code couvert : ils tournent à
 // chaque relevé, au compte de tous les tests.
