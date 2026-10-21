@@ -100,6 +100,10 @@ const pont = {
   surUrgence: (recevoir) => void ipcRenderer.on("urgence", (_, projet) => recevoir(projet)),
   surAmont: (recevoir) => void ipcRenderer.on("amont", (_, vu) => recevoir(vu)),
   surCode: (recevoir) => void ipcRenderer.on("code", (_, vu) => recevoir(vu)),
+  // L'offre d'une version plus haute de l'APK Android (ticket 1170) : le desktop se met à jour par
+  // `surMiseAJour` et n'en reçoit jamais — l'abonnement n'y reçoit rien, le geste n'y fait rien.
+  surOffreApk: () => undefined,
+  installerApk: async () => undefined,
   surMiseAJour: (recevoir) => void ipcRenderer.on("miseAJour", (_, etat) => recevoir(etat)),
   surStations: (recevoir) => void ipcRenderer.on("stations", (_, vu) => recevoir(vu)),
   surProjetsDesStations: (recevoir) => void ipcRenderer.on("projetsDesStations", (_, vu) => recevoir(vu)),
