@@ -833,6 +833,10 @@ Under the header (#1081): the station's cap on cooks and where it comes from (`3
 `status`), what holds tickets back when it is saturated (memory, processor, value and threshold), a field
 and "set the cap" to set it, "back to the default" to remove it. The setting runs `station cooks <N|0|auto>`
 on the box of every project that names the station — it applies to all the stations of those projects.
+#1292: the same cap is on each station's line in the Cooks tab, **for that project alone** — `Cooks at once: 3 at most — 8 cores`,
+a field and "set the cap", and "back to the default" when the chef set it. The setting goes to the box of that project only
+(`reglerLePlafond(station, valeur, projet)`). When the station is saturated, one sentence says what holds it (`Saturated on CPU —
+load of 19.4 for at most 12`) and that lowering the cap makes the project run fewer cooks, the machine's load not dropping right away.
 "‹ All projects" takes you back to the home screen, like the **T** square.
 
 ```

@@ -382,7 +382,7 @@ describe("l'onglet Rail : une ligne quand les cooks demandent un geste", () => {
 describe("la ligne de station dit le plafond du projet et le règle (ticket 1292)", () => {
   const accueil = (plafond: { dit: string; nombre: number | null; parLeChef: boolean }, retenue?: { depuis: string; ressources: string; detail: string }) => ({
     projets: [],
-    sante: { ton: "vert", dit: "", survol: "" },
+    sante: { ton: "vert" as const, dit: "", survol: "" },
     plafonds: { [PARADE]: { "box/claude": { plafond, ...(retenue === undefined ? {} : { retenue }) } } },
   });
   const boutons = (pose: Faux) => pose.dessous("button").map((bouton) => bouton.textContent);
