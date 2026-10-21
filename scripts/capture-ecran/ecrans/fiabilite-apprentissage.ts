@@ -21,10 +21,10 @@ const RIEN = { avant: null, apres: null };
 
 export const APPRENTISSAGE = {
   lecons: [
-    { id: "L4", texte: "run the app tests before touching the view: the skin test reads every class the view sets", statut: "provisoire", date: "2026-10-17", tickets: [29, 33], cooks: 3, progres: COMPLET },
-    { id: "L6", texte: "a capture screen is a file under scripts/capture-ecran/ecrans/, its data written as the box renders it", statut: "provisoire", date: "2026-10-19", tickets: [36], cooks: 0, progres: SANS_APRES },
-    { id: "L-001", texte: "read CLAUDE.md before writing anything: the zones and the gates are there", statut: "promue", date: "2026-10-01", tickets: [12, 15, 22], cooks: 14, url: `${CARNET}#L5`, progres: COMPLET },
-    { id: "L-002", texte: "a test waits for a fact, never for a duration", statut: "promue", date: "2026-10-08", tickets: [18], cooks: 9, url: `${CARNET}#L11`, progres: SANS_APRES },
+    { id: "L4", texte: "run the app tests before touching the view: the skin test reads every class the view sets", statut: "provisoire", date: "2026-10-17", tickets: [29, 33], origine: { kind: "retro" }, cooks: 3, progres: COMPLET },
+    { id: "L6", texte: "a capture screen is a file under scripts/capture-ecran/ecrans/, its data written as the box renders it", statut: "provisoire", date: "2026-10-19", tickets: [36], origine: { kind: "pass-send-back", ticket: 36 }, cooks: 0, progres: SANS_APRES },
+    { id: "L-001", texte: "read CLAUDE.md before writing anything: the zones and the gates are there", statut: "promue", date: "2026-10-01", tickets: [12, 15, 22], origine: { kind: "chef-correction", ticket: 15 }, cooks: 14, url: `${CARNET}#L5`, progres: COMPLET },
+    { id: "L-002", texte: "a test waits for a fact, never for a duration", statut: "promue", date: "2026-10-08", tickets: [18], origine: { kind: "retro" }, cooks: 9, url: `${CARNET}#L11`, progres: SANS_APRES },
   ],
   profils: [
     {
@@ -46,7 +46,7 @@ export const APPRENTISSAGE = {
 
 export const ecran: Ecran = {
   ...fiabilite,
-  dit: "Settings → Reliability de « parade » quand ses cooks ont appris : sous la fiabilité, ses quatre leçons — deux provisoires, deux promues avec le lien vers leur ligne du carnet — et ses deux profils, leur domaine, leur carnet et leurs tickets",
+  dit: "Settings → Reliability de « parade » quand ses cooks ont appris : sous la fiabilité, ses quatre leçons, chacune avec son origine (rétro, renvoi de la pass ou correction du chef sur un ticket) — deux provisoires, deux promues avec le lien vers leur ligne du carnet — et ses deux profils, leur domaine, leur carnet et leurs tickets",
   hauteur: 1700,
   donnees: () => {
     const sans = fiabilite.donnees();

@@ -36,7 +36,7 @@ const GARNI: ApprentissageDuRuntime = {
   lecons: [
     { id: "L4", texte: "run the app tests before touching the view", statut: "provisoire", date: "2026-10-17", tickets: [29, 33], origine: { kind: "retro" }, cooks: 3, progres: PROGRES },
     { id: "L-001", texte: "read CLAUDE.md first", statut: "promue", date: "2026-10-01", tickets: [12, 15], origine: { kind: "pass-send-back", ticket: 12 }, cooks: 14, url: LIGNE, progres: PROGRES },
-    { id: "L-002", texte: "a test waits for a fact", statut: "promue", date: "2026-10-08", tickets: [18], origine: { kind: "retro" }, cooks: 1, progres: PROGRES },
+    { id: "L-002", texte: "a test waits for a fact", statut: "promue", date: "2026-10-08", tickets: [18], origine: { kind: "chef-correction", ticket: 18 }, cooks: 1, progres: PROGRES },
   ],
   profils: [
     {
@@ -54,9 +54,9 @@ const GARNI: ApprentissageDuRuntime = {
     { nom: "runtime-src-correctif", domaine: "runtime/src/correctif", skills: [], perimetre: ["runtime/src/correctif"], carnet: [], tickets: [], progres: { avant: null, apres: null } },
   ],
 };
-// Ce que l'app en lit : la même chose, moins l'origine de chaque leçon, qu'elle ne lit pas encore (#1089).
+// Ce que l'app en lit : la même chose, moins l'origine des leçons d'un carnet de profil, qu'elle ne lit pas.
 const sansOrigine = <T extends { origine: unknown }>({ origine: _origine, ...reste }: T) => reste;
-const LU = { lecons: GARNI.lecons.map(sansOrigine), profils: GARNI.profils.map((profil) => ({ ...profil, carnet: profil.carnet.map(sansOrigine) })) };
+const LU = { lecons: GARNI.lecons, profils: GARNI.profils.map((profil) => ({ ...profil, carnet: profil.carnet.map(sansOrigine) })) };
 
 const FAITS = { etat: "ouverte", lu: A, dernierTick: A, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, dernierEvenement: null, rail: [], cooks: [] };
 const lus = (apprentissage: unknown) => comprendre(JSON.stringify({ ...FAITS, apprentissage }));
@@ -88,7 +88,7 @@ describe("le champ `apprentissage` de `facts`", () => {
   test("la section : l'adresse d'une promue ne passe pas à la vue — seulement si sa ligne s'ouvre ; une provisoire n'a pas de lien", () => {
     const { lecons, profils } = section(GARNI);
     const [provisoire, ouvrable, sansAdresse] = lecons;
-    assert.deepEqual(provisoire, { id: "L4", texte: "run the app tests before touching the view", statut: "provisoire", date: "2026-10-17", tickets: [29, 33], cooks: 3, progres: PROGRES });
+    assert.deepEqual(provisoire, { id: "L4", texte: "run the app tests before touching the view", statut: "provisoire", date: "2026-10-17", tickets: [29, 33], origine: { kind: "retro" }, cooks: 3, progres: PROGRES });
     assert.deepEqual(ouvrable?.lien, { ouvrable: true });
     assert.deepEqual(sansAdresse?.lien, { ouvrable: false });
     assert.equal(JSON.stringify(lecons).includes("https://"), false);
@@ -140,6 +140,25 @@ describe("la section, telle que la vue la pose", () => {
     assert.match(provisoire.textContent, /received by 3 cooks/);
     assert.match(promue.textContent, /since 10\/1\/2026.*proposed by#12#15.*received by 14 cooks/);
     assert.match(autre.textContent, /received by 1 cook$|received by 1 cook[^s]/);
+  });
+
+  test("chaque leçon dit d'où elle vient : la rétro, le renvoi de la pass ou la correction du chef, avec son ticket", () => {
+    const [bloc] = poser(section(GARNI)).poses;
+    assert.ok(bloc !== undefined);
+    const origines = lecons(bloc).map((lecon) => lecon.dessous("span").find(({ className }) => className === "origine")?.textContent);
+    assert.deepEqual(origines, ["origin: retro", "origin: pass send-back on #12", "origin: chef correction on #18"]);
+  });
+
+  test("une leçon sans origine enregistrée se lit et se montre comme une rétro ; une origine inconnue refuse la forme", () => {
+    const { origine: _origine, ...sans } = GARNI.lecons[0]!;
+    const lue = apprentissageLu({ lecons: [sans], profils: [] });
+    assert.deepEqual(lue.lecons[0]?.origine, { kind: "retro" });
+    const [bloc] = poser(apprentissageDe(lue)).poses;
+    assert.ok(bloc !== undefined);
+    assert.equal(lecons(bloc)[0]?.dessous("span").find(({ className }) => className === "origine")?.textContent, "origin: retro");
+    for (const mauvaise of [{ kind: "oracle" }, { kind: "pass-send-back" }, { kind: "chef-correction", ticket: 0 }, "retro"]) {
+      assert.throws(() => apprentissageLu({ lecons: [{ ...sans, origine: mauvaise }], profils: [] }), /origine/);
+    }
   });
 
   test("un ticket d'une leçon ou d'un profil ouvre sa fiche, et se pose en monospace", () => {

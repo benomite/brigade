@@ -11,8 +11,11 @@
 // aucun ticket mergé de ce côté.
 export type Livraison = { retenus: number; premiers: number; premierCoup: number; essaisMoyens: number };
 export type Progres = { avant: Livraison | null; apres: Livraison | null };
+// D'où une leçon est née (runtime/src/carnet/carnet.ts, `LessonOrigin`) : une rétro, ou le renvoi de la pass ou la
+// correction du chef sur un ticket.
+export type Origine = { kind: "retro" } | { kind: "pass-send-back"; ticket: number } | { kind: "chef-correction"; ticket: number };
 // Une leçon, telle que `facts` la dit (runtime/src/apprentissage/projet.ts, `LeconAffichee`).
-export type LeconLue = { id: string; texte: string; statut: "provisoire" | "promue"; date: string; tickets: number[]; cooks: number; url?: string; progres: Progres };
+export type LeconLue = { id: string; texte: string; statut: "provisoire" | "promue"; date: string; tickets: number[]; origine: Origine; cooks: number; url?: string; progres: Progres };
 // Un profil, tel que `facts` le dit (`ProfilAffiche`) : son carnet, ses leçons promues ou sorties.
 export type ProfilApprisLu = { nom: string; domaine: string; skills: string[]; perimetre: string[]; carnet: { id: string; texte: string; etat: string }[]; tickets: number[]; progres: Progres };
 export type ApprentissageLu = { lecons: LeconLue[]; profils: ProfilApprisLu[] };
@@ -57,6 +60,19 @@ const jour = (valeur: unknown, champ: string): string => {
   return /^\d{4}-\d{2}-\d{2}$/.test(lu) && !Number.isNaN(Date.parse(lu)) ? lu : refuser(champ, "a date (YYYY-MM-DD)");
 };
 
+// L'origine d'une leçon. Une leçon sans origine — la box d'avant ce champ — est une rétro, comme le carnet
+// d'avant l'origine se lit (carnet.ts) ; une origine qui n'est pas l'une des trois refuse la forme.
+const origine = (valeur: unknown, champ: string): Origine => {
+  if (valeur === undefined) return { kind: "retro" };
+  const lu = objet(valeur, champ);
+  if (lu.kind === "retro") return { kind: "retro" };
+  if (lu.kind === "pass-send-back" || lu.kind === "chef-correction") {
+    const ticket = lu.ticket;
+    return { kind: lu.kind, ticket: typeof ticket === "number" && Number.isSafeInteger(ticket) && ticket > 0 ? ticket : refuser(`${champ}.ticket`, "a ticket number") };
+  }
+  return refuser(`${champ}.kind`, "retro, pass-send-back or chef-correction");
+};
+
 // Le champ `apprentissage` de `facts`, champ pour champ. Un champ qui manque ou qui n'a pas sa forme refuse
 // la forme entière, comme le reste de `facts` (faits.ts) : l'erreur dit lequel. Un statut que l'app ne
 // connaît pas aussi : elle ne devine pas ce qu'il vaut.
@@ -73,6 +89,7 @@ export function apprentissageLu(brut: unknown): ApprentissageLu {
         statut,
         date: jour(lecon.date, `${lequel}.date`),
         tickets: tickets(lecon.tickets, `${lequel}.tickets`),
+        origine: origine(lecon.origine, `${lequel}.origine`),
         cooks: entier(lecon.cooks, `${lequel}.cooks`),
         ...(lecon.url === undefined ? {} : { url: texte(lecon.url, `${lequel}.url`) }),
         progres: progres(lecon.progres, `${lequel}.progres`),
