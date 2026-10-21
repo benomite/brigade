@@ -91,6 +91,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Terminal as Xterm } from "@xterm/xterm";
 // Les briques communes (briques.js) : une même chose se dit partout de la même façon — le prix
 // d'un geste dans son survol, une lecture qui manque en une ligne, une confirmation qui dit son prix.
+import { tenirInvite } from "./mise-a-jour/invite.js";
 import { boutonAction, confirmationDeGeste, lectureIndisponible, prixDit, survol } from "./briques.js";
 import { poserChers } from "./cost/chers.js";
 import { poserCourbe } from "./cost/courbe.js";
@@ -6513,6 +6514,10 @@ brigade.surMiseAJour((vu) => {
   miseAJourVue = vu;
   poserApp();
 });
+// L'offre d'une version plus haute de l'app Android, au lancement : l'invite se pose sur l'espace ; « Not now » la
+// ferme jusqu'au lancement suivant, « Update » remet l'adresse de l'APK à l'installation.
+const inviteDeMiseAJour = tenirInvite(element("offre-apk"), document, { installer: (apkUrl) => brigade.installerApk(apkUrl) });
+brigade.surOffreApk((offre) => inviteDeMiseAJour.offrir(offre));
 // Les stations relues : ce que la page d'une station en montre suit — leurs lignes de l'accueil viennent par `surAccueil`.
 brigade.surStations((vu) => {
   stationsVues = vu;

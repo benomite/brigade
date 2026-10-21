@@ -23,6 +23,7 @@ import type { Bloc } from "../ordinaires.ts";
 import type { Pages } from "../page.ts";
 import type { RenduDePanne } from "../pannes/gestes.ts";
 import type { EtatDeMiseAJour } from "../mise-a-jour/etat.ts";
+import type { UpdateOffer } from "../mise-a-jour/android.ts";
 import type { Lue as QuestionLue, Rendue as ReponseRendue } from "../question.ts";
 import type { Vu as VuDuCode } from "../retard.ts";
 import type { Avis, Retrait } from "../retrait.ts";
@@ -193,6 +194,12 @@ export type Pont = {
   // « Installer maintenant » : télécharge la nouvelle version si ce n'est pas fait, l'installe et
   // relance l'app sur elle — rien n'est rendu, elle se ferme —, ou dit pourquoi elle reste sur sa version.
   installerMiseAJour(): Promise<{ refus: string } | undefined>;
+  // L'app Android seule (le ticket 1170) : l'offre d'une version plus haute, que la vérification du
+  // lancement (mise-a-jour/android.ts) rend — `surOffreApk` la reçoit, sans jamais rien recevoir quand il n'y en
+  // a pas —, et « Update », qui remet l'`apkUrl` à l'installation. Sur le desktop, qui se met à jour par
+  // `miseAJour`, le pont ne rend aucune offre : `surOffreApk` n'y reçoit jamais rien.
+  installerApk(apkUrl: string): Promise<unknown> | void;
+  surOffreApk(recevoir: (offre: UpdateOffer) => void): void;
   // Le code qu'une station affiche, tapé par le chef : rend le nom de la station appairée, ou le
   // refus en une ligne — code mal formé, inconnu, expiré, ou GitHub muet. Rien n'est écrit alors.
   appairer(code: string): Promise<Appairage>;

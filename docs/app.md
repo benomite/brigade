@@ -705,6 +705,11 @@ THIS APP'S CODE IS 39 COMMITS BEHIND origin/v2 — read at 14:32:07, reread when
   never displayed: it may carry a token.
 - **What the number does not say**: what these commits change. Thirty-nine doc commits and one
   commit that adds a tab read the same — `git log` is what says.
+
+### The update prompt of the Android app (#1170)
+
+At launch, the Android app checks the manifest of the latest release (`app/src/mise-a-jour/android.ts`). When that check returns an offer, the app puts a prompt at the very top of the window, above every screen: **"Version 1.5.0 is available"**, the release notes under it, and two buttons — **Update** (recommended) and **Not now**. *Update* hands the offer's `apkUrl` to the install step (`brigade.installerApk`); *Not now* closes the prompt, and it does not come back until the next launch. With no update — or a failed check — nothing is shown and the launch is unchanged. The desktop app never gets an offer: it updates itself (`miseAJour`). The view is `app/src/vue/mise-a-jour/invite.js`; the capture is `scripts/capture-ecran` screen `offre-apk` (`docs/captures/1170/`). The Android bridge (`app/android/web/pont.js`) does not yet run the check nor the install: until it does, the prompt is built and tested but nothing sends it an offer.
+
 ### Your stations: paired with a code, read on GitHub
 
 **On the home screen**, the "Stations" list shows the ones you have paired, one line each —

@@ -23,6 +23,8 @@
     <script type="module" src="vue.js"></script>
   </head>
   <body>
+    <!-- L'invite de mise à jour de l'app Android (ticket 1170) : vide, et cachée, tant qu'aucune version plus haute n'est offerte. -->
+    <section id="offre-apk" aria-label="App update" aria-live="polite" hidden></section>
     <div id="cadre">
     <nav id="projets" aria-label="Projects"></nav>
     <section id="tous" aria-label="All projects" hidden></section>
