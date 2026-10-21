@@ -48,6 +48,7 @@ test("la commande imprime les seuils courants du projet", () => {
     "provisional expiry (tickets)  20  (BRIGADE_PROVISIONAL_EXPIRY_TICKETS)",
     "send-back promotion gap       1   (BRIGADE_SENDBACK_PROMOTION_GAP)",
     "lessons per cook              20  (BRIGADE_INJECTED_LESSONS)",
+    "common tier (projects)        2   (BRIGADE_COMMON_TIER_PROJECTS)",
   ]);
   sansMotFrancais(defaut.sortie);
   const regle = jouer({ [VARIABLES.promotion]: "4", BRIGADE_INJECTED_LESSONS: "0" });

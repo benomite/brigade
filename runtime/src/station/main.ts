@@ -6,6 +6,7 @@ import { mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { canalGitHub } from "../appairage/canal.ts";
+import { lireSeuilCommun } from "../commun/etage.ts";
 import { sondesDeLaMachine } from "../bac-a-sable/detection.ts";
 import { lireCaches, PLATEFORME_LOCALE, verifier } from "../bac-a-sable/local.ts";
 import { etatsPublies } from "../appairage/etats.ts";
@@ -42,6 +43,9 @@ let fichiersDeLaConnexion: ReturnType<typeof configVeille>;
 let portes: string | null;
 try {
   fichiersDeLaConnexion = configVeille(process.env, racine);
+  // Le seuil de l'étage commun, lu ici pour qu'une valeur mal écrite refuse
+  // le démarrage ; la commande du chef le relit (`commun/commun-cli.ts`).
+  lireSeuilCommun(process.env);
   portes = configPortes(process.env);
   // Sans elles, la porte de la station, si son environnement en nomme une : ce
   // que son process joint lui-même — GitHub, Anthropic — passe par elle.

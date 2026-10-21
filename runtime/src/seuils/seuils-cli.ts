@@ -1,10 +1,12 @@
 // Les seuils des leçons d'un projet, lus par le chef depuis son propre process :
 //   node runtime/src/seuils/seuils-cli.ts
-// avec l'environnement de l'unité du projet (les variables de `seuils.ts`), et
-// le plafond des leçons que reçoit un cook (`apprentissage/injection.ts`).
+// avec l'environnement de l'unité du projet : les variables de `seuils.ts`, le
+// plafond des leçons que reçoit un cook (`apprentissage/injection.ts`), et le
+// seuil de l'étage commun, un réglage de la station (`commun/etage.ts`).
 import { enProcess, Sortie, type Appel } from "../appel.ts";
 import { ConfigInvalide } from "../runtime.ts";
 import { lirePlafondDesLecons, VARIABLE_LECONS_INJECTEES } from "../apprentissage/injection.ts";
+import { lireSeuilCommun, VARIABLE_SEUIL_COMMUN } from "../commun/etage.ts";
 import { lireSeuils, VARIABLES } from "./seuils.ts";
 
 export function principal({ env, dire, redire }: Appel): void {
@@ -17,6 +19,7 @@ export function principal({ env, dire, redire }: Appel): void {
     ligne("provisional expiry (tickets)", seuils.expirationProvisoire, VARIABLES.expirationProvisoire);
     ligne("send-back promotion gap", seuils.ecartRenvoi, VARIABLES.ecartRenvoi);
     ligne("lessons per cook", plafond, VARIABLE_LECONS_INJECTEES);
+    ligne("common tier (projects)", lireSeuilCommun(env), VARIABLE_SEUIL_COMMUN);
   } catch (erreur) {
     if (!(erreur instanceof ConfigInvalide)) throw erreur;
     redire(`brigade : ${erreur.message}`);

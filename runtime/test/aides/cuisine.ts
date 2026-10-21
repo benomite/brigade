@@ -20,6 +20,7 @@ import type { Machine } from "../../src/machine.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { brancherPass, type ConfigPass } from "../../src/pass.ts";
 import type { DefinitionDeProfil } from "../../src/profils/definition.ts";
+import type { LeconRecue } from "../../src/apprentissage/injection.ts";
 import type { Plafond } from "../../src/reagir.ts";
 import { demarrer } from "../../src/runtime.ts";
 import { brancherStation } from "../../src/station.ts";
@@ -471,6 +472,8 @@ export type Options = {
   leconsInjectees?: number;
   // Les profils de cook que le projet définit, relus à chaque lancement.
   profils?: () => DefinitionDeProfil[];
+  // Les leçons de l'étage commun de l'installation, relues à chaque lancement.
+  commun?: () => LeconRecue[];
   // Les décisions du chef sont relues au journal : stations, calibrage du
   // reviewer et du manager — celles du test, tant qu'il n'en pose pas d'autres.
   decisions?: boolean;
@@ -618,6 +621,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
     presenceMs: options.presenceMs,
     leconsInjectees: options.leconsInjectees,
     profils: options.profils,
+    commun: options.commun,
   });
   const runtime = options.manager
     ? brancherManager(servie, {
