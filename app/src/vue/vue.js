@@ -454,6 +454,8 @@ pageDesCouts.append(retourDesCouts, corpsDesCouts);
 const stationsDuProjet = element("stations-du-projet");
 const ligneDesStationsDuProjet = document.createElement("p");
 ligneDesStationsDuProjet.ariaLive = "polite";
+const sensDesStations = bloc("p", "The first station keeps the manager and the pass; all the stations cook.");
+sensDesStations.className = "aide";
 const ouvrirLaConfiance = /** @type {HTMLButtonElement} */ (bloc("button", ""));
 ouvrirLaConfiance.type = "button";
 ouvrirLaConfiance.className = "ajout-de-station";
@@ -566,7 +568,7 @@ parcoursDuProjet.ariaLive = "polite";
 // impossible à préparer, avec sa raison et l'heure du prochain essai — à la place de « prepares it within a minute ».
 const depotRetenu = document.createElement("div");
 depotRetenu.hidden = true;
-stationsDuProjet.append(ligneDesStationsDuProjet, ouvrirLeDemenagement, ouvrirLaConfiance, choixDuDemenagement, formulaireDeConfiance, demenagementDit, depotRetenu, confianceDite, parcoursDuProjet);
+stationsDuProjet.append(ligneDesStationsDuProjet, sensDesStations, ouvrirLeDemenagement, ouvrirLaConfiance, choixDuDemenagement, formulaireDeConfiance, demenagementDit, depotRetenu, confianceDite, parcoursDuProjet);
 
 // La lecture de `station` sur l'onglet Cooks (ticket 1184), sous ses colonnes : le plafond de cooks, la machine — saturée
 // ou non —, le quota, et le bouton qui écrit le réglage du plafond dans le second. Elle était sous Settings → Cooks ;
@@ -963,7 +965,7 @@ let parcours;
 // même que le parcours, pour ce projet-là — une relecture des stations ne perd pas ce qui est coché.
 // `renforts` : les stations cochées en plus de la principale ; `cooksTouches`, `calibrageTouche` : le
 // chef a changé la valeur proposée — elle ne suit plus la principale ni les projets relus.
-/** @type {{ projet: string, ouvertLe: string, depots: import("../projets/github.ts").DepotDuChef[], renforts: Set<string>, principale: string, touchee: boolean, cooksTouches: boolean, calibrageTouche: boolean } | undefined} */
+/** @type {{ projet: string, ouvertLe: string, depots: import("../projets/github.ts").DepotDuChef[], renforts: Set<string>, principale: string, touchee: boolean, cooksTouches: boolean, calibrageTouche: boolean, manque: Set<"depot" | "base" | "cooks"> } | undefined} */
 let confiance;
 // Ce que le dernier geste de confiance a rendu, et pour quel projet : dit sous la ligne de ses stations.
 // `a` : quand (`Date.now()`). Ce qu'il annonce « within a minute » ne se dit plus passé la minute, ni
@@ -5474,8 +5476,8 @@ function nomDit(nom) {
 
 // Une station du projet, sur sa ligne : sa pastille et son nom — « this Mac » pour cet ordinateur —,
 // ce qu'elle en dit au survol ; un clic ouvre sa page. `renfort` : nommée après celle où il cuit.
-/** @param {ReturnType<typeof cuisineDe>["stations"][number]} station @param {boolean} ici @param {boolean} [renfort] */
-function stationNommee(station, ici, renfort = false) {
+/** @param {ReturnType<typeof cuisineDe>["stations"][number]} station @param {boolean} ici @param {string} [rang] */
+function stationNommee(station, ici, rang = "") {
   const nomme = document.createElement("button");
   nomme.type = "button";
   nomme.className = "station-du-projet";
@@ -5483,7 +5485,7 @@ function stationNommee(station, ici, renfort = false) {
   const appele = bloc("strong", ici ? POSTE.nom : station.nom);
   appele.className = ici ? "" : "mono";
   nomme.ariaLabel = `${ici ? POSTE.nom : station.nom} — ${station.principale ? "main" : "secondary"} — ${station.dit}`;
-  nomme.append(pastille(station.dit, station.ton), appele, ...(renfort && !station.principale ? [bloc("span", " (backup)")] : []));
+  nomme.append(pastille(station.dit, station.ton), appele, ...(rang !== "" && !station.principale ? [bloc("span", ` (${rang})`)] : []));
   if (station.id !== "") nomme.addEventListener("click", () => ouvrirStation(station.id));
   else nomme.disabled = true;
   const autoriser = station.autoriser.map((url) => {
@@ -5687,6 +5689,7 @@ function poserStationsDuProjet() {
   const lues = stationsVues !== undefined && projetsVus !== undefined;
   const ou = ouCuit(projet, stations);
   const enCours = projetsVus?.projets.find(({ nom }) => nom === projet.nom)?.demenagement ?? null;
+  sensDesStations.hidden = false;
   if (stations.length > 0 || ou !== undefined) {
     // Où il cuit, d'abord — « this Mac » pour la station de cet ordinateur —, puis ses renforts.
     const sienne = stations.find(({ id }) => id === ou?.id);
@@ -5697,7 +5700,7 @@ function poserStationsDuProjet() {
       ...tete,
       ...(ou?.ici === true ? [sArrete()] : []),
       ...(enCours !== null && enCours.etape !== "refusee" ? [enMouvement(enCours)] : []),
-      ...autres.flatMap((station, rang) => [...(rang === 0 && tete.length === 0 ? [] : [bloc("span", " · ")]), stationNommee(station, false, ou !== undefined)]),
+      ...autres.flatMap((station, rang) => [...(rang === 0 && tete.length === 0 ? [] : [bloc("span", " · ")]), stationNommee(station, false, ou === undefined ? "" : `${["second", "third", "fourth", "fifth"][rang] ?? "another"} station`)]),
     );
   } else if (projet.box !== undefined) {
     // Écrit à la main avec « hote » : l'app le lit là, sans qu'aucune station appairée ne le publie.
@@ -5706,6 +5709,7 @@ function poserStationsDuProjet() {
     appele.title = `named by “hote” in ${configuration.chemin}: the app reads it there, and no paired station publishes it`;
     ligneDesStationsDuProjet.replaceChildren(bloc("span", "Cooks on "), appele);
   } else {
+    sensDesStations.hidden = stations.length === 0;
     ligneDesStationsDuProjet.textContent = lues ? `No station cooks ${projet.nom} yet.` : "reading your stations on GitHub…";
   }
   poserLeDemenagement(projet, ou, enCours, lues);
@@ -5798,13 +5802,16 @@ function poserLaConfiance(vise, projet, { exclues, demande, principale: aSaPrinc
   vise.renforts.delete(vise.principale);
   const nomDe = (/** @type {string} */ id) => appairees.find((station) => station.id === id)?.nom ?? "";
 
-  titreDeConfiance.textContent = avecPrincipale ? `Choose the machine that runs ${projet.nom}'s kitchen.` : `Add a backup machine to ${projet.nom}'s kitchen.`;
+  titreDeConfiance.textContent = avecPrincipale ? `Choose the machine that runs ${projet.nom}'s kitchen.` : `Add a station to ${projet.nom}'s kitchen.`;
   sensDeConfiance.textContent = avecPrincipale
     ? "Its main machine runs the manager, which judges and splits the tickets, and the pass, which reviews and merges what is delivered — and it cooks. Everything below is set to what is recommended: change what you like, or start as it is."
-    : "Its main machine keeps its manager and its pass; a backup only cooks.";
+    : "The first station keeps the manager and the pass; all the stations cook.";
   // Un projet ajouté depuis l'app connaît son dépôt et sa branche ; un projet écrit à la main les choisit ici.
   const connu = projet.depot !== undefined && projet.base !== undefined;
-  champDuDepot.hidden = champDeLaBase.hidden = connu || !avecPrincipale;
+  // Une station de plus reprend le dépôt, la branche et le plafond de la première : un champ ne se montre
+  // que si l'app ne peut pas les savoir — la première station ne les dit pas —, et seul un champ visible se demande.
+  champDuDepot.hidden = avecPrincipale ? connu : !vise.manque.has("depot");
+  champDeLaBase.hidden = avecPrincipale ? connu : !vise.manque.has("base");
 
   principaleDeConfiance.hidden = !avecPrincipale;
   choixDeLaPrincipale.replaceChildren(
@@ -5820,8 +5827,8 @@ function poserLaConfiance(vise, projet, { exclues, demande, principale: aSaPrinc
   );
 
   const renforcables = appairees.filter(({ id }) => id !== vise.principale);
-  legendeDesRenforts.textContent = avecPrincipale ? "Backup machines · optional" : "Backup machines";
-  sensDesRenforts.textContent = avecPrincipale ? "A backup cooks the tickets the main machine has no room for; it runs neither the manager nor the pass." : "";
+  legendeDesRenforts.textContent = avecPrincipale ? "Other stations · optional" : "Stations";
+  sensDesRenforts.textContent = avecPrincipale ? "All the stations cook the tickets; only the main machine runs the manager and the pass." : "";
   sensDesRenforts.hidden = !avecPrincipale;
   choixDesRenforts.replaceChildren(
     ...(renforcables.length === 0
@@ -5838,8 +5845,9 @@ function poserLaConfiance(vise, projet, { exclues, demande, principale: aSaPrinc
 
   // Les cooks à la fois et le calibrage : seulement pour la première station du projet.
   const decide = avecPrincipale && !demande;
-  champDesCooks.hidden = reglagesAvances.hidden = !decide;
-  const proposee = machines[vise.principale];
+  reglagesAvances.hidden = !decide;
+  champDesCooks.hidden = avecPrincipale ? !decide : !vise.manque.has("cooks");
+  const proposee = machines[avecPrincipale ? vise.principale : (cuisineDe(projet).stations[0]?.id ?? "")];
   if (!vise.cooksTouches) cooksDeConfiance.value = proposee === undefined ? "" : String(proposee.cooks);
   cooksDits.textContent = vise.cooksTouches || proposee === undefined ? "" : `recommended — ${proposee.cooksDit}`;
   const calibrage = projetsVus?.calibrage;
@@ -5874,7 +5882,7 @@ function uneMachine(station, type, choisie, recommandee, changer) {
   choix.type = type;
   if (type === "radio") choix.name = "principale-du-projet";
   choix.checked = choisie;
-  choix.ariaLabel = type === "radio" ? `${station.nom} is its main machine` : `${station.nom} backs it up`;
+  choix.ariaLabel = type === "radio" ? `${station.nom} is its main machine` : `${station.nom} is a station of it`;
   choix.addEventListener("change", () => changer(choix.checked));
   const nomme = document.createElement("span");
   nomme.className = "nom-de-machine";
@@ -5911,7 +5919,7 @@ async function ouvrirConfiance() {
   const projet = courant;
   if (projet === undefined) return;
   /** @type {NonNullable<typeof confiance>} */
-  const vise = { projet: projet.nom, ouvertLe: new Date().toISOString(), depots: [], renforts: new Set(), principale: "", touchee: false, cooksTouches: false, calibrageTouche: false };
+  const vise = { projet: projet.nom, ouvertLe: new Date().toISOString(), depots: [], renforts: new Set(), principale: "", touchee: false, cooksTouches: false, calibrageTouche: false, manque: new Set() };
   confiance = vise;
   formulaireDeConfiance.hidden = false;
   reglagesAvances.open = false;
@@ -5921,17 +5929,26 @@ async function ouvrirConfiance() {
   for (const [champ, liste] of Object.entries(calibrageDeConfiance)) proposer(liste, champ.endsWith("modele") ? CALIBRAGE_DU_PROJET.modeles : CALIBRAGE_DU_PROJET.efforts, champ.endsWith("modele") ? "— model —" : "— effort —");
   poserStationsDuProjet();
   if (projet.depot !== undefined && projet.base !== undefined) return;
+  await lireLesDepots(vise, projet);
+}
+// Le dépôt à choisir : ceux du chef, lus sur GitHub, avec celui que le projet connaît déjà d'avance.
+/** @param {NonNullable<typeof confiance>} vise @param {Projet} projet */
+async function lireLesDepots(vise, projet) {
   depotDeConfiance.replaceChildren(new Option("reading your repositories on GitHub…", ""));
   const lus = await brigade.depotsDuChef();
   if (confiance !== vise) return;
   if ("refus" in lus) {
-    depotDeConfiance.replaceChildren(new Option("— repository —", ""));
+    depotDeConfiance.replaceChildren(new Option("— repository —", ""), ...(projet.depot === undefined ? [] : [new Option(projet.depot, projet.depot)]));
+    if (projet.depot !== undefined) depotDeConfiance.value = projet.depot;
     confianceRefusee.replaceChildren(bloc("p", lus.refus));
     return;
   }
   vise.depots = lus.depots;
   proposer(depotDeConfiance, lus.depots.map(({ depot }) => depot), "— repository —");
-  if (projet.depot !== undefined) depotDeConfiance.value = projet.depot;
+  if (projet.depot !== undefined) {
+    if (!lus.depots.some(({ depot }) => depot === projet.depot)) depotDeConfiance.append(new Option(projet.depot, projet.depot));
+    depotDeConfiance.value = projet.depot;
+  }
 }
 // Le dépôt choisi propose sa branche par défaut comme branche d'intégration.
 depotDeConfiance.addEventListener("change", () => {
@@ -5979,16 +5996,26 @@ async function confier() {
   try {
     const rendu = await brigade.confierAUneStation({
       nom: projet.nom,
-      depot: connu ? (projet.depot ?? "") : depotDeConfiance.value,
-      base: connu ? (projet.base ?? "") : baseDeConfiance.value,
+      depot: !champDuDepot.hidden ? depotDeConfiance.value : (projet.depot ?? ""),
+      base: !champDeLaBase.hidden ? baseDeConfiance.value : (projet.base ?? ""),
       stations: choisies,
       principale: vise.principale,
-      cooks: cooksDeConfiance.value,
+      cooks: champDesCooks.hidden && cuisineDe(projet).principale ? "" : cooksDeConfiance.value,
       manager: { modele: calibrageDeConfiance["manager-modele"].value, effort: calibrageDeConfiance["manager-effort"].value },
       reviewer: { modele: calibrageDeConfiance["reviewer-modele"].value, effort: calibrageDeConfiance["reviewer-effort"].value },
       ouvertLe: vise.ouvertLe,
     });
-    if ("signales" in rendu) confianceRefusee.replaceChildren(...Object.values(rendu.signales).map((raison) => bloc("p", raison ?? "")));
+    if ("signales" in rendu) {
+      confianceRefusee.replaceChildren(...Object.values(rendu.signales).map((raison) => bloc("p", raison ?? "")));
+      // Ce que la première station ne dit pas se montre, posé de ce que l'app devine : le chef le lit et le corrige.
+      const manque = rendu.manque ?? [];
+      if (confiance === vise && manque.length > 0) {
+        for (const champ of manque) vise.manque.add(champ);
+        if (manque.includes("base") && baseDeConfiance.value === "") baseDeConfiance.value = projet.base ?? "";
+        poserStationsDuProjet();
+        if (manque.includes("depot") && vise.depots.length === 0) await lireLesDepots(vise, projet);
+      }
+    }
     else if ("refus" in rendu) confianceRefusee.replaceChildren(bloc("p", rendu.refus));
     else {
       if (confiance === vise) fermerConfiance();
