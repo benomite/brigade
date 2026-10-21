@@ -1,20 +1,20 @@
-## L'état de la cuisine
+## The state of the kitchen
 
-**La cuisine est un état, par projet, sur la box** — pas un écran, et pas l'étape d'un ticket :
+**The kitchen is a state, per project, on the box** — not a screen, and not the step of a ticket:
 
-| Le mot | Ce qu'il désigne |
+| The word | What it names |
 |---|---|
-| **la cuisine** d'un projet | son état : `ouverte`, `retenue`, `arrêtée`, `éteinte` (plus bas, « L'état du projet »). C'est elle que `guardrails -- stop` arrête et que `resume` rouvre — au journal, `kitchen.stopped` et `kitchen.resumed` |
-| **`en cuisine`** | l'étape d'un ticket qu'un cook tient (`pris` sur le rail) : dans la liste des tickets d'une épique et dans `pass` |
-| **Tous les projets** | l'écran d'ensemble de l'app (`docs/app.md`). L'app est une fenêtre sur le Mac : la fermer n'arrête aucune cuisine, et arrêter une cuisine ne la ferme pas |
+| a project's **kitchen** | its state: `ouverte`, `retenue`, `arrêtée`, `éteinte` (open, held, stopped, off — below, "The state of the project"). It is what `guardrails -- stop` stops and `resume` reopens — in the log, `kitchen.stopped` and `kitchen.resumed` |
+| **`en cuisine`** | the step of a ticket that a cook holds (`pris` on the rail, `taken`): in an epic's ticket list and in `pass` |
+| **All projects** | the app's overview screen (`docs/app.md`). The app is a window on the Mac: closing it stops no kitchen, and stopping a kitchen does not close it |
 
-Une seule commande pour savoir où en est le projet, sans ouvrir la base :
-`npm --prefix runtime run status` — suivie de `-- --follow [<ticket>]`, elle reste ouverte et
-ajoute une ligne par événement.
+One command to know where the project stands, without opening the database:
+`npm --prefix runtime run status` — followed by `-- --follow [<ticket>]`, it stays open and
+adds one line per event.
 
-La dernière ligne avant le suivi, `todo`, compte les cartes entrées dans TODO sur une période, par
-type (`product`, `design`, `gesture`) : `-- --days <N>` la règle, 7 jours par défaut. Une carte
-refusée à la porte (`todo.refused`) ne compte nulle part ; sans entrée, chaque type dit 0.
+The last line before the follow, `todo`, counts the cards that entered TODO over a period, by
+type (`product`, `design`, `gesture`): `-- --days <N>` sets it, 7 days by default. A card
+refused at the door (`todo.refused`) counts nowhere; with no entry, each type says 0.
 
 ```
 awaiting   2 decisions await the chef — the oldest for 2 d
@@ -24,383 +24,383 @@ awaiting   2 decisions await the chef — the oldest for 2 d
 end awaiting
 ```
 
-| Bloc | Ce qu'il dit |
+| Block | What it says |
 |---|---|
-| `nothing cooks` | **Toute première ligne, absente sinon.** La base est rouge et son ticket de réparation la travaille : `nothing cooks: base red since <durée> ago, repair #N in progress` (`rien ne cuit : base rouge depuis <durée>, réparation #N en cours` avant #928 — l'app lit les deux). Une seule ligne, **hors du bloc `awaiting`** — rien n'y attend le chef pendant la réparation —, et la liste des tickets retenus reste où elle est. Elle disparaît au retour au vert ; une réparation échouée ne la porte plus : c'est la ligne `base` du bloc `awaiting` qui la remplace. L'app la pose telle quelle sur la carte du projet |
-| `project` | (`projet` avant #940.) Le projet du journal, ou `unknown — empty log` sur un journal vide |
-| `github` | **Absent tant que GitHub ne limite pas les appels du compte.** Sinon : `GitHub is rate-limiting calls, back around HH:MM` (`GitHub limite les appels, reprise vers HH:MM` avant #940), à l'heure de la box. Voir « Le budget d'appels à GitHub, et l'attente de limite » (`station-machine.md`) |
-| `runtime` | `running according to the log`, `stopped <durée> ago`, ou `never started` — **d'après le journal**. Un runtime tué sans préavis y paraît encore en marche : c'est l'**âge du dernier tick** qui le trahit. Au-delà de quelques cadences : `systemctl status brigade@<projet>` |
-| `kitchen` | (`cuisine` avant #928.) Le « stop » du chef et le disjoncteur, comme `run guardrails` : `open` ou `STOPPED by the chef <durée> ago`, puis `breaker closed (… failures in a row, opens at N)` ou `breaker OPEN for <durée>` |
-| `connection` | (`connexion` avant #928.) **Absent tant que la connexion Max tient.** Sinon, par station : `Max MISSING` ou `EXPIRED`, depuis quand, la raison, et le geste — `claude /login` sous le compte du service ; la cuisine reprend seule dans la minute. Plus aucun ticket n'est pris d'ici là. Voir « Connexion Max expirée » |
-| `grant` | **Absent tant qu'aucun grant ne vaut ni ne s'est éteint seul.** Actif : son échéance, ce qu'il en reste, ses usages. `ACTIVE` ; `EXPIRING SOON` : moins d'une heure, ou un seul usage. `LAPSED` (éteint seul) : la pass s'arrête à la PR ouverte jusqu'à ce que tu le réaccordes. Voir « Le grant `merge` » |
-| `setup` | **Absent tant que le setup du projet n'est pas bloqué.** Bloqué : `BLOCKED for <durée> on <commit>` — aucun setup n'est lancé d'ici, pour aucun ticket, tant que la branche d'intégration ne bouge pas. La cause et le geste sont dans le bloc `awaiting` (entrée `setup`). Voir « Le setup du worktree passe avant le cook » |
-| `base` | **Absent tant que la base n'est pas rouge** — sauf si son contrôle est retenu parce qu'elle ne se rapatrie pas. Rouge, elle retient toute la cuisine : depuis quand, sur quel commit, le contrôle qui n'a pas pu se jouer, le rejeu demandé. Sans demande en cours, la dernière ligne est le geste : `npm --prefix runtime run base -- replay`. Voir « La base est jugée seule » |
-| `backup` | (`sauvegarde` avant #928.) La dernière sauvegarde réussie (`backup.completed`) : son âge, son nom, son dernier événement. `TOO OLD` : l'âge dépasse `BRIGADE_BACKUP_MAX_AGE_HOURS`. `NEVER DONE` : le journal n'en porte aucune. Dans les deux cas : `systemctl status brigade-sauvegarde@<projet>` |
-| `awaiting` | **Toujours là**, de sa ligne `awaiting` à sa ligne `end awaiting`, **en anglais** — son bord, son décompte et chacune de ses lignes (mots de `docs/glossary.md`) ; comme tout le reste de `status` depuis #940, de `project` à `latest events`. Quand rien ne t'attend, il le dit : `nothing awaits the chef`. Voir « Ce qui attend le chef », ci-dessous |
-| `rail` | Le décompte par état (`3 taken · 2 in pass · 6 queued · 2 BLOCKED · 4 86 · 1 WAITING · 1 served`, `empty` sans ticket), puis chaque ticket dans l'ordre de service. Un ticket pris porte deux durées : depuis la prise, et **sans progrès** (`by box/claude since 5 min, no progress since 5 min, lease 5 min left` — depuis que sa station a vu son worktree bouger). `STUCK: ` : la moitié de son bail est passée sans progrès, ou son bail est échu (`lease expired since 4 min`) et il est encore pris. Un ticket `queued` qui ne part pas dit ce qu'il attend, puis depuis quand (`… — since 2 min`) — un autre ticket (`awaiting #18`), une zone tenue (`zone held by #31 (…)`), ce qui retient sa station (`withheld by box/claude (…)`) ; `BLOCKED` : ce qu'il attendait a été abandonné (`#21 dropped (…)`), ou gelé (`blocked by #36 (86 with no return time, not judged by the pass)`, voir « Le rail »). En pass ou servi : `since 3 d, cooked by box/claude`. Un 86 : `since 5 min (quota), back in 4 h 56` — ou `no return time`, `back at the next tick`. Un ticket en pass dont les gates ont été coupées sur une machine saturée finit par `— gates replayed later: machine saturated, no test failing` |
-| `cooks` | Combien tournent (`3 running`, `none running`), et le plafond de chaque station avec ce qui le donne (`box/claude: 3 at most — 8 cores`, `box/playwright: 2 at most — declared`, `5 at most — set by you, replaces 3 (8 cores)`, `no limit — set by you, …` ; voir « Plusieurs cooks à la fois »). **Si un cook coince, la ligne le nomme** (`— 2 STUCK: #14, #22`). Dessous, `MACHINE SATURATED for … on <ressources> — …` avec chaque ressource qui manque — la mémoire, le processeur, les deux —, ce qu'elle a, son seuil, et d'où vient celui de la mémoire (`default: 10% of the machine's 32,050 MB`, `set by BRIGADE_MIN_FREE_MEMORY_MB` ; voir « La garde de la mémoire »), `<station> WITHHOLDING for …` avec la raison, et `ARBITER UNREACHABLE for …`. Puis une ligne par cook, **le pire en tête** (`STUCK` après son ticket) ; jugements et relectures à la fin, sans branche. Tours et tokens sont ceux du dernier relevé, dont l'âge est affiché (`12 turns of 100 · 184,000 tokens of 2,000,000 (reading 2 min ago)`, ou `turns and tokens: no reading yet`) ; la ligne finit par ce que le cook fait (`right now: reading runtime/src/etat.ts, since 2 min`) quand son relevé le dit. Runtime arrêté, la ligne dit `… with no end in the log — runtime stopped: …` : un cook encore listé est mort avec lui |
-| `consumed` | (`consommé` avant #940.) Ce que l'ensemble des lancements a consommé — cooks, relectures, jugements : `in flight`, `5 h` (la fenêtre du quota Max), `24 h` — `8 launches, of which 1 review and 2 judgments · 64 turns · 825,000 tokens`, ou `nothing` |
-| `servers`, `to launch`, `service` | (`serveurs`, `à lancer` avant #940.) **Absents quand rien n'est servi** : chaque serveur d'une livraison d'interface (`starting` / `listening since …`, sa page ou `no page to open: …`), chaque worktree tenu d'une app à lancer (`held since …`, `no page in a browser: launch the app …`), et dessous l'écran (`screen: … (declared by the cook)`) et sa phrase (`to look at: …`). Voir « La livraison d'un ticket d'interface » (`station-navigateur.md`) |
-| `worktrees`, `drift`, `claude` | (`dérive` avant #940.) **Absents quand il n'y a rien à dire** : les worktrees que le runtime n'a pas pu ranger (`PR still open`, `work not pushed`, `cleanup failed`, « Ce qui reste après un cook ») ; les mesures qui ont franchi un seuil déclaré (`tests 622 for a threshold of 500`, « Le relevé des mesures ») ; sous cloison, le dernier rangement des transcripts (`project transcripts: 1,027 kept (112 MB), 12 removed (48 MB) …`, « Les transcripts du projet sont rangés ») |
-| `latest events` | (`derniers événements` avant #940.) Les quinze derniers, au format de `run log`, sans battements ni relevés ; `none` sur un journal vide |
+| `nothing cooks` | **Very first line, absent otherwise.** The base is red and its repair ticket is working on it: `nothing cooks: base red since <duration> ago, repair #N in progress` (`rien ne cuit : base rouge depuis <durée>, réparation #N en cours` before #928 — the app reads both). A single line, **outside the `awaiting` block** — nothing waits for the chef there during the repair —, and the list of held tickets stays where it is. It disappears on return to green; a failed repair no longer carries it: it is the `base` line of the `awaiting` block that replaces it. The app sets it as is on the project's tile |
+| `project` | (`projet` before #940.) The log's project, or `unknown — empty log` on an empty log |
+| `github` | **Absent as long as GitHub does not limit the account's calls.** Otherwise: `GitHub is rate-limiting calls, back around HH:MM` (`GitHub limite les appels, reprise vers HH:MM` before #940), by the box's clock. See "Le budget d'appels à GitHub, et l'attente de limite" (`station-machine.md`) |
+| `runtime` | `running according to the log`, `stopped <duration> ago`, or `never started` — **according to the log**. A runtime killed without notice still appears to be running there: it is the **age of the last tick** that betrays it. Beyond a few cadences: `systemctl status brigade@<project>` |
+| `kitchen` | (`cuisine` before #928.) The chef's "stop" and the breaker, like `run guardrails`: `open` or `STOPPED by the chef <duration> ago`, then `breaker closed (… failures in a row, opens at N)` or `breaker OPEN for <duration>` |
+| `connection` | (`connexion` before #928.) **Absent as long as the Max connection holds.** Otherwise, per station: `Max MISSING` or `EXPIRED`, since when, the reason, and the gesture — `claude /login` under the service account; the kitchen resumes on its own within the minute. No ticket is taken until then. See "Connexion Max expirée" |
+| `grant` | **Absent as long as no grant is in force or has lapsed on its own.** Active: its expiry, what is left of it, its uses. `ACTIVE`; `EXPIRING SOON`: less than an hour, or a single use. `LAPSED` (turned off on its own): the pass stops at the open PR until you grant it again. See "Le grant `merge`" |
+| `setup` | **Absent as long as the project's setup is not blocked.** Blocked: `BLOCKED for <duration> on <commit>` — no setup is launched from here, for any ticket, as long as the integration branch does not move. The cause and the gesture are in the `awaiting` block (`setup` entry). See "Le setup du worktree passe avant le cook" |
+| `base` | **Absent as long as the base is not red** — unless its check is held because it cannot be fetched. Red, it holds the whole kitchen: since when, on which commit, the check that could not be played, the replay requested. With no request in progress, the last line is the gesture: `npm --prefix runtime run base -- replay`. See "La base est jugée seule" |
+| `backup` | (`sauvegarde` before #928.) The last successful backup (`backup.completed`): its age, its name, its last event. `TOO OLD`: the age exceeds `BRIGADE_BACKUP_MAX_AGE_HOURS`. `NEVER DONE`: the log carries none. In both cases: `systemctl status brigade-sauvegarde@<project>` |
+| `awaiting` | **Always there**, from its `awaiting` line to its `end awaiting` line, **in English** — its edge, its count and each of its lines (words from `docs/glossary.md`); like everything else in `status` since #940, from `project` to `latest events`. When nothing awaits you, it says so: `nothing awaits the chef`. See "What awaits the chef", below |
+| `rail` | The count by state (`3 taken · 2 in pass · 6 queued · 2 BLOCKED · 4 86 · 1 WAITING · 1 served`, `empty` with no ticket), then each ticket in service order. A taken ticket carries two durations: since the taking, and **no progress** (`by box/claude since 5 min, no progress since 5 min, lease 5 min left` — since its station saw its worktree move). `STUCK: `: half of its lease has passed with no progress, or its lease has expired (`lease expired since 4 min`) and it is still taken. A `queued` ticket that does not leave says what it waits for, then since when (`… — since 2 min`) — another ticket (`awaiting #18`), a held zone (`zone held by #31 (…)`), what holds its station (`withheld by box/claude (…)`); `BLOCKED`: what it waited for was dropped (`#21 dropped (…)`), or frozen (`blocked by #36 (86 with no return time, not judged by the pass)`, see "Le rail"). In pass or served: `since 3 d, cooked by box/claude`. An 86: `since 5 min (quota), back in 4 h 56` — or `no return time`, `back at the next tick`. A ticket in pass whose gates were cut on a saturated machine ends with `— gates replayed later: machine saturated, no test failing` |
+| `cooks` | How many are running (`3 running`, `none running`), and the cap of each station with what gives it (`box/claude: 3 at most — 8 cores`, `box/playwright: 2 at most — declared`, `5 at most — set by you, replaces 3 (8 cores)`, `no limit — set by you, …`; see "Plusieurs cooks à la fois"). **If a cook is stuck, the line names it** (`— 2 STUCK: #14, #22`). Below, `MACHINE SATURATED for … on <resources> — …` with each resource that is lacking — memory, processor, both —, what it has, its threshold, and where the memory's comes from (`default: 10% of the machine's 32,050 MB`, `set by BRIGADE_MIN_FREE_MEMORY_MB`; see "La garde de la mémoire"), `<station> WITHHOLDING for …` with the reason, and `ARBITER UNREACHABLE for …`. Then one line per cook, **the worst first** (`STUCK` after its ticket); judgments and reviews at the end, with no branch. Turns and tokens are those of the last reading, whose age is shown (`12 turns of 100 · 184,000 tokens of 2,000,000 (reading 2 min ago)`, or `turns and tokens: no reading yet`); the line ends with what the cook is doing (`right now: reading runtime/src/etat.ts, since 2 min`) when its reading says so. Runtime stopped, the line says `… with no end in the log — runtime stopped: …`: a cook still listed died with it |
+| `consumed` | (`consommé` before #940.) What all the launches together consumed — cooks, reviews, judgments: `in flight`, `5 h` (the Max quota window), `24 h` — `8 launches, of which 1 review and 2 judgments · 64 turns · 825,000 tokens`, or `nothing` |
+| `servers`, `to launch`, `service` | (`serveurs`, `à lancer` before #940.) **Absent when nothing is served**: each server of an interface delivery (`starting` / `listening since …`, its page or `no page to open: …`), each held worktree of an app to launch (`held since …`, `no page in a browser: launch the app …`), and below them the screen (`screen: … (declared by the cook)`) and its sentence (`to look at: …`). See "La livraison d'un ticket d'interface" (`station-navigateur.md`) |
+| `worktrees`, `drift`, `claude` | (`dérive` before #940.) **Absent when there is nothing to say**: the worktrees the runtime could not tidy up (`PR still open`, `work not pushed`, `cleanup failed`, "Ce qui reste après un cook"); the measures that crossed a declared threshold (`tests 622 for a threshold of 500`, "The measures reading"); under partition, the last tidying of the transcripts (`project transcripts: 1,027 kept (112 MB), 12 removed (48 MB) …`, "Les transcripts du projet sont rangés") |
+| `latest events` | (`derniers événements` before #940.) The last fifteen, in the format of `run log`, without heartbeats or readings; `none` on an empty log |
 
-### Ce qui attend le chef
+### What awaits the chef
 
-La cuisine ne bloque jamais sur toi : ce qui t'attend s'empile, le plus ancien d'abord, et le reste
-avance. Chaque entrée **nomme le geste qui la débloque** — ou dit qu'aucun n'est connu pour son
-motif — et sort **d'elle-même** dès que le journal porte la décision prise, y compris sur GitHub.
-Fermer une PR sans la merger n'est qu'une demi-décision : l'entrée ne sort pas, elle change.
+The kitchen never blocks on you: what awaits you piles up, the oldest first, and the rest
+moves on. Each entry **names the gesture that unblocks it** — or says that none is known for its
+reason — and leaves **on its own** as soon as the log carries the decision taken, including on GitHub.
+Closing a PR without merging it is only half a decision: the entry does not leave, it changes.
 
-| Entrée | Le geste | Ce qui la retire |
+| Entry | The gesture | What removes it |
 |---|---|---|
-| ``green delivery, not merged for lack of a `merge` grant`` · ``… the `merge` grant lapsed on its own on …`` (`no-grant`) | merger sa PR à la main ; ou accorder le grant pour les suivantes : `npm --prefix runtime run grant -- enable merge` | le merge à la main, que la pass constate (`merge.done`) ; le ticket sorti du rail (`ticket.left`) ; un cook reparti sur le ticket. Sa PR fermée sans merge la remplace par `PR closed without merge` |
-| `green delivery that touches its judges` · `… what the project opens up (<fichiers>)` (`review-required`) | la relire, puis la merger à la main | de même |
-| `green delivery, merge refused by GitHub (…)` (`merge-refused`) | lever ce que GitHub refuse, puis merger à la main | de même |
-| `escalated by the pass, red (still-red: returns-exhausted)` · `escalated by the manager, red` | à trancher : merger sa PR à la main, ou retirer `fire` ; sans PR, retirer `fire` ou fermer l'issue. Détail : `run pass -- <ticket>` | le merge à la main ; le ticket sorti du rail, ou rendu au rail (`ticket.released`). Sa PR fermée sans merge la remplace de même |
-| `escalated by the pass, which could not judge it (unjudged: <cause>)` | à lever : ce que dit son issue, puis retirer et reposer `fire` ; ou merger à la main, ou retirer `fire` | de même |
-| `PR closed without merge` | le ticket tient encore sa place sur le rail : retirer `fire`, ou fermer l'issue | le ticket sorti du rail, ou rendu au rail s'il était 86 ; la PR rouverte puis mergée à la main. Un ticket redécoupé n'y entre pas |
-| `no calibration` · `unreadable card` · `refused three times by the model` | un 86 de la station **sans heure de retour** : poser `model:` et `effort:`, corriger la fiche, ou — refusé — reformuler ou recalibrer puis retirer et reposer `fire` | calibré ou corrigé, la station le rend seule au rail ; le ticket sorti du rail |
-| ``no station provides `<capacité>` `` · ``… `<a>` and `<b>` together`` (86 `no-station: …`) | déclarer une station qui la fournit par `station stations …` (lue sans redémarrage) ; ou la retirer de la ligne `requiert` de la fiche | au redémarrage, une station déclarée la fournit ; la fiche corrigée ; la station le rend seule au rail (`capabilities-reread`) ; le ticket sorti du rail |
-| `BLOCKED: #N dropped (…)` | remettre #N sur le rail, ou le retirer de la ligne `attend` de la fiche | #N revenu (`ticket.arrived`) ; la fiche corrigée (`ticket.changed`) ; le ticket sorti du rail |
-| `back from WAITING, picked up again by the chef (it was waiting for <qui>: “<quoi>”)` | un ticket qui n'était pas mis de côté avant d'attendre un tiers, repris (`attente -- reprendre`) : `attente -- arrive <N>` le renvoie en cuisine ; `attente -- poser <N> …` le remet en attente ; ou retirer `fire`. **Un ticket en WAITING n'est jamais dans ce bloc**, quoi qu'il attendait avant : il attend un tiers, pas toi | « c'est arrivé » (`ticket.resumed`, `kitchen`) ; remis en WAITING ; le ticket sorti du rail |
-| ``set aside by the manager, it carries `question` `` · `` `decision` `` · ``held back, it carries `blocked-on-human` `` | répondre, décider ou lever la retenue, puis retirer le label ; ou fermer l'issue | le label retiré, le manager la juge ; l'issue fermée (`manager.closed`) ou lancée à la main |
-| `manager's judgment unreadable` · `manager's split unreadable` · `manager's question before splitting the epic` | modifier l'issue pour qu'elle soit reprise, ou répondre à la question sur l'issue ; pour un ticket, poser `fire`, `model:` et `effort:` à la main ; ou fermer l'issue | l'issue modifiée, ta réponse, l'issue fermée ou lancée à la main ; toute décision suivante du manager qui n'y voit plus une épique à découper |
-| `Max connection missing` · `expired` | la ligne porte la station, pas un ticket : `claude /login` sous le compte du service — la cuisine reprend seule | le passage réussi du renouvellement (`session.restored`) ; le « reprendre » (`kitchen.resumed`) |
-| `Max session close to its expiry` · `Max session renewal failing (<nature>)` | la ligne porte la session, pas un ticket : `claude /login` sous le compte du service, puis `run guardrails -- resume`. Voir « La session Max : renouvellement et alerte » | le renouvellement réussi suivant ; le « reprendre » (`session.reconnected`) |
-| `Max connection token close to its expiry` · `… EXPIRED` · `Max connection token creation date missing` / `unreadable` | la ligne porte `token`, pas un ticket — une seule, annoncée trente jours avant l'échéance du jeton longue durée : refaire le jeton (`claude setup-token` sous le compte du service, par l'étape de connexion Max). Voir « L'échéance du jeton longue durée » | le jeton refait, qui porte une date de création neuve (`token.observed`) |
-| ``BASE RED on <commit>, failing: <ce qui échoue> — its repair #N <ce qu'elle est devenue>`` | la ligne porte `base`, pas un ticket, et se compte **depuis le passage au rouge**. **Elle n'apparaît que si la réparation a échoué** — partie du rail sans service, remontée, ou mergée sans remettre la base au vert — : un rejeu, une réparation qui s'ouvre ou qui travaille ne sont pas à ta charge. Ce qui échoue est ce que les gates nomment (`FAIL …`) au dernier contrôle rouge. Le geste : corriger la base à la main — la pass la rejoue dès qu'elle bouge ; ou relancer la réparation non servie (lui reposer `fire`, ou le retirer et le reposer) ; un rouge qui ne tient pas au code se rejoue : `run base -- replay` | la base revenue au vert (`base.checked`, `green`) : la cuisine repart seule, sans commande ; la réparation relancée, qui travaille de nouveau |
-| ``setup impossible: the door refuses `<hôte>` (…)`` · ``setup impossible: `.claude/brigade/worktree-setup.sh` fails twice identically (<motif>)`` | la ligne porte `setup`, pas un ticket — **une seule pour le projet**, quel que soit le nombre de tickets retenus —, et se compte depuis le blocage (`setup.blocked`). Un hôte refusé se déclare dans `.claude/brigade/reseau` du projet, une ligne par hôte, mergée sur la branche d'intégration ; sans hôte refusé, le setup est à corriger, puis merger — l'entrée nomme l'issue où lire ce qu'il a dit | la branche d'intégration qui bouge (`setup.unblocked`) : les setups reprennent seuls, sans commande. Le même échec sur la nouvelle base la fait revenir |
-| ``tickets put aside: <cause> (<motif>, twice identically) — only one is taken again at a time…`` | la ligne porte `aside`, pas un ticket — **une seule pour le projet**. Elle dit la cause, le ticket qui l'a vue et le geste ; elle tombe seule quand un cook part, qu'une autre cause se présente ou que la branche d'intégration bouge |
+| ``green delivery, not merged for lack of a `merge` grant`` · ``… the `merge` grant lapsed on its own on …`` (`no-grant`) | merge its PR by hand; or enable the grant for the next ones: `npm --prefix runtime run grant -- enable merge` | the merge by hand, which the pass notes (`merge.done`); the ticket leaving the rail (`ticket.left`); a cook restarted on the ticket. Its PR closed without merge replaces it with `PR closed without merge` |
+| `green delivery that touches its judges` · `… what the project opens up (<files>)` (`review-required`) | read it, then merge it by hand | likewise |
+| `green delivery, merge refused by GitHub (…)` (`merge-refused`) | lift what GitHub refuses, then merge by hand | likewise |
+| `escalated by the pass, red (still-red: returns-exhausted)` · `escalated by the manager, red` | to decide: merge its PR by hand, or remove `fire`; without a PR, remove `fire` or close the issue. Detail: `run pass -- <ticket>` | the merge by hand; the ticket leaving the rail, or returned to the rail (`ticket.released`). Its PR closed without merge replaces it likewise |
+| `escalated by the pass, which could not judge it (unjudged: <cause>)` | to lift: what its issue says, then remove and set `fire` again; or merge by hand, or remove `fire` | likewise |
+| `PR closed without merge` | the ticket still holds its place on the rail: remove `fire`, or close the issue | the ticket leaving the rail, or returned to the rail if it was 86; the PR reopened then merged by hand. A re-split ticket does not enter there |
+| `no calibration` · `unreadable card` · `refused three times by the model` | an 86 from the station **with no return time**: set `model:` and `effort:`, fix the card, or — refused — rephrase or recalibrate then remove and set `fire` again | calibrated or fixed, the station returns it to the rail on its own; the ticket leaving the rail |
+| ``no station provides `<capability>` `` · ``… `<a>` and `<b>` together`` (86 `no-station: …`) | declare a station that provides it with `station stations …` (read without restart); or remove it from the `requiert` line of the card | at restart, a declared station provides it; the card fixed; the station returns it to the rail on its own (`capabilities-reread`); the ticket leaving the rail |
+| `BLOCKED: #N dropped (…)` | put #N back on the rail, or remove it from the card's `attend` line | #N back (`ticket.arrived`); the card fixed (`ticket.changed`); the ticket leaving the rail |
+| `back from WAITING, picked up again by the chef (it was waiting for <who>: “<what>”)` | a ticket that was not set aside before waiting for a third party, picked up again (`waiting resume`): `waiting arrived <N>` sends it back to the kitchen; `waiting set <N> --what … --from …` puts it back to waiting; or remove `fire`. **A ticket in WAITING is never in this block**, whatever it waited for before: it waits for a third party, not for you | "it has arrived" (`ticket.resumed`, `kitchen`); put back in WAITING; the ticket leaving the rail |
+| ``set aside by the manager, it carries `question` `` · `` `decision` `` · ``held back, it carries `blocked-on-human` `` | answer, decide or lift the hold, then remove the label; or close the issue | the label removed, the manager judges it; the issue closed (`manager.closed`) or launched by hand |
+| `manager's judgment unreadable` · `manager's split unreadable` · `manager's question before splitting the epic` | edit the issue so that it is picked up again, or answer the question on the issue; for a ticket, set `fire`, `model:` and `effort:` by hand; or close the issue | the issue edited, your answer, the issue closed or launched by hand; any later decision of the manager that no longer sees an epic to split there |
+| `Max connection missing` · `expired` | the line carries the station, not a ticket: `claude /login` under the service account — the kitchen resumes on its own | the successful pass of the renewal (`session.restored`); the "resume" (`kitchen.resumed`) |
+| `Max session close to its expiry` · `Max session renewal failing (<nature>)` | the line carries the session, not a ticket: `claude /login` under the service account, then `run guardrails -- resume`. See "La session Max : renouvellement et alerte" | the next successful renewal; the "resume" (`session.reconnected`) |
+| `Max connection token close to its expiry` · `… EXPIRED` · `Max connection token creation date missing` / `unreadable` | the line carries `token`, not a ticket — a single one, announced thirty days before the long-lived token's expiry: remake the token (`claude setup-token` under the service account, through the Max connection step). See "L'échéance du jeton longue durée" | the token remade, which carries a new creation date (`token.observed`) |
+| ``BASE RED on <commit>, failing: <what fails> — its repair #N <what it became>`` | the line carries `base`, not a ticket, and is counted **since the turn to red**. **It appears only if the repair failed** — left the rail without service, passed up, or merged without putting the base back to green —: a replay, a repair that opens or that works are not your burden. What fails is what the gates name (`FAIL …`) at the last red check. The gesture: fix the base by hand — the pass replays it as soon as it moves; or relaunch the unserved repair (set `fire` on it again, or remove and set it); a red that is not down to the code is replayed: `run base -- replay` | the base back to green (`base.checked`, `green`): the kitchen restarts on its own, with no command; the repair relaunched, working again |
+| ``setup impossible: the door refuses `<host>` (…)`` · ``setup impossible: `.claude/brigade/worktree-setup.sh` fails twice identically (<reason>)`` | the line carries `setup`, not a ticket — **a single one for the project**, whatever the number of held tickets —, and is counted since the blocking (`setup.blocked`). A refused host is declared in the project's `.claude/brigade/reseau`, one line per host, merged on the integration branch; with no refused host, the setup is to be fixed, then merged — the entry names the issue where to read what it said | the integration branch moving (`setup.unblocked`): the setups resume on their own, with no command. The same failure on the new base brings it back |
+| ``tickets put aside: <cause> (<reason>, twice identically) — only one is taken again at a time…`` | the line carries `aside`, not a ticket — **a single one for the project**. It says the cause, the ticket that saw it and the gesture; it falls on its own when a cook leaves, when another cause appears or when the integration branch moves |
 
-Dès qu'une livraison a été arrêtée faute de grant, le bloc se termine par **le chiffre sur lequel
-accorder** : `without a grant, N green deliveries stopped: X merged by hand, Y closed without merge — Y
-disagreements —, Z still open`. Une PR fermée sans merge est un désaccord : tu as refusé ce que
-la pass aurait mergé. La file vide, le bloc ne porte pas ce chiffre : la même ligne se lit dans
-`run pass` (#931) et `run grant`, tous en anglais.
+As soon as a delivery has been stopped for lack of a grant, the block ends with **the figure on which to
+grant**: `without a grant, N green deliveries stopped: X merged by hand, Y closed without merge — Y
+disagreements —, Z still open`. A PR closed without merge is a disagreement: you refused what
+the pass would have merged. With the queue empty, the block does not carry this figure: the same line is read in
+`run pass` (#931) and `run grant`, all in English.
 
-**Le bloc est toujours là, et il a un bord.** Quand rien ne t'attend, il le dit au lieu de se
-taire — un silence ne se distinguerait pas d'une lecture ratée :
+**The block is always there, and it has an edge.** When nothing awaits you, it says so instead of
+keeping silent — a silence could not be told from a failed read:
 
 ```
 awaiting   nothing awaits the chef
 end awaiting
 ```
 
-Il commence à la **seule ligne de la sortie qui commence par `awaiting`** et finit à la **seule
-ligne qui vaut exactement `end awaiting`**, bornes comprises ; tout ce qu'il porte entre les deux est
-en retrait — une entrée de deux espaces. Qui veut le présenter à part — l'app, le second (le rôle PO, `/brigade:po` : un seul
-rôle sous deux noms) — le prend par ces deux lignes, sans rien lire de ce qu'il dit : ni compter ses entrées, ni chercher la ligne vide qui le suit, ni
-reconnaître une tournure. **Une seule chose s'y lit en plus, et l'app la lit** pour ranger son rail : le
-numéro de ticket **en tête** d'une entrée — deux espaces, `#`, des chiffres, deux espaces (`  #12  for 2 d  …`). Cette
-tête ne change pas sans que l'app change (`docs/app.md`, « Le numéro qu'elle y lit ») ; une entrée
-qui porte une station, `session`, `token`, `closing`, `base`, `setup`, `aside` ou `breaker`, et le bilan des arrêts faute de grant, n'en ont pas. Le bord vaut pour l'état lui-même : sous `--follow`, les événements
-ajoutés ensuite n'en font pas partie.
+It starts at the **only line of the output that starts with `awaiting`** and ends at the **only
+line that is exactly `end awaiting`**, bounds included; everything it carries between the two is
+indented — an entry is two spaces in. Whoever wants to present it separately — the app, the second (the PO role, `/brigade:po`: a single
+role under two names) — takes it by these two lines, without reading anything of what it says: not counting its entries, not looking for the empty line that follows it, not
+recognizing a turn of phrase. **One single thing is read in it besides, and the app reads it** to sort its rail: the
+ticket number **at the head** of an entry — two spaces, `#`, digits, two spaces (`  #12  for 2 d  …`). This
+head does not change without the app changing (`docs/app.md`, "The rail"); an entry
+that carries a station, `session`, `token`, `closing`, `base`, `setup`, `aside` or `breaker`, and the tally of stops for lack of a grant, have none. The edge holds for the state itself: under `--follow`, the events
+appended afterwards are not part of it.
 
-**Le bloc est en anglais** (#927), son bord, son décompte et chacune de ses lignes, dans les mots
-de `docs/glossary.md` (§2 et §4) ; ce qui est entre backticks — une commande, un label, une clé de
-fiche comme `attend` — garde son nom. Une box d'avant écrit encore `attend` … `fin attend`, et ses
-lignes en français : l'app et le second lisent les deux bords (#926), et l'app les deux langues là où
-elle lit plus que le numéro — la durée de la tête, les entrées `jeton`/`token` et `session`,
-l'entrée `setup`.
+**The block is in English** (#927), its edge, its count and each of its lines, in the words
+of `docs/glossary.md` (§2 and §4); what is between backticks — a command, a label, a card key
+like `attend` — keeps its name. A box from before still writes `attend` … `fin attend`, and its
+lines in French: the app and the second read both edges (#926), and the app both languages where
+it reads more than the number — the duration of the head, the `jeton`/`token` and `session` entries,
+the `setup` entry.
 
-- **Activer le grant ne vide pas la file** : il vaut pour les livraisons suivantes, pas pour celles
-  déjà arrêtées, qui restent à merger à la main.
-- **Ce que le bloc ne compte pas** : un ticket redécoupé par le manager (`manager-split`) ; un 86
-  qui a une heure de retour ; ce qui attend sans toi (`STUCK`, `WITHHOLDING`, `MACHINE SATURATED`, le
-  bloc `base`) ; les autres écarts du manager, qui se lisent dans `run manager`.
-- **Ce que le manager attend de toi : fermer l'issue suffit** (`manager.closed`, constaté au
-  sondage suivant). Ces lignes n'ont pas de titre. Manager éteint, rien n'est sondé : la file garde
-  ce qu'il attendait jusqu'à ce que tu le rallumes.
+- **Enabling the grant does not empty the queue**: it holds for the next deliveries, not for those
+  already stopped, which remain to be merged by hand.
+- **What the block does not count**: a ticket re-split by the manager (`manager-split`); an 86
+  that has a return time; what waits without you (`STUCK`, `WITHHOLDING`, `MACHINE SATURATED`, the
+  `base` block); the manager's other deviations, which are read in `run manager`.
+- **What the manager awaits from you: closing the issue is enough** (`manager.closed`, noted at the next
+  poll). These lines have no title. Manager off, nothing is polled: the queue keeps
+  what it awaited until you turn it back on.
 
-La commande lit `$BRIGADE_STATE_DIR`, n'écrit
-jamais, et répond pendant que le runtime tourne ; sur un journal écrit par un runtime plus ancien,
-elle demande de le redémarrer. `BRIGADE_BACKUP_MAX_AGE_HOURS` : un entier d'heures, 1 au moins,
-`48` par défaut, lu dans l'environnement de **celui qui lance `status`** ; mal écrite, refus
-(code 2). La marque ne change pas le code de sortie, et rien n'alerte hors de `status`.
+The command reads `$BRIGADE_STATE_DIR`, never writes, and answers while the runtime is running; on a log written by an older runtime,
+it asks to restart it. `BRIGADE_BACKUP_MAX_AGE_HOURS`: a whole number of hours, 1 at least,
+`48` by default, read in the environment of **whoever runs `status`**; badly written, refusal
+(code 2). The mark does not change the exit code, and nothing alerts outside `status`.
 
-### Les faits, pour un programme
+### Facts, for a program
 
-`status` et `rail` sont écrits pour être lus par toi. Un programme qui dessine — l'app : une
-pastille par projet, cinq compteurs, le rail — ne doit rien déduire d'une phrase. Il lit
-`brigade <projet> facts` (`npm --prefix runtime run facts` sur le poste de dev) : **la lecture de
-`status`, autrement dite**. Les mêmes projections, lues une fois, par le même geste — ni port, ni
-API, ni seconde vérité.
+`status` and `rail` are written to be read by you. A program that draws — the app: one
+pill per project, five counters, the rail — must deduce nothing from a sentence. It reads
+`brigade <project> facts` (`npm --prefix runtime run facts` on the dev workstation): **the reading of
+`status`, put otherwise**. The same projections, read once, by the same gesture — no port, no
+API, no second truth.
 
-**Cette forme est un contrat.** Un objet JSON, sur une seule ligne ; ses champs, leur ordre, ses
-mots ne changent pas sans que son lecteur change, et `runtime/test/faits.test.ts` la fige au
-caractère près. Tout le reste de ce que le runtime dit — `status`, `rail`, `station`, le journal —
-est du texte, et peut être reformulé.
+**This shape is a contract.** A JSON object, on a single line; its fields, their order, its
+words do not change without its reader changing, and `runtime/test/faits.test.ts` freezes it to the
+character. Everything else the runtime says — `status`, `rail`, `station`, the log —
+is text, and may be rephrased.
 
 ```json
 {"etat":"ouverte","lu":"2026-10-12T10:04:11.000Z","dernierTick":"2026-10-12T10:04:02.000Z","compteurs":{"rail":2,"auTravail":1,"aLaPass":1,"attend":1,"livres24h":3},"dernierEvenement":{"seq":812,"at":"2026-10-12T10:03:58.000Z","type":"merge.done","ticket":216},"rail":[{"ticket":14,"etat":"pris","titre":"Le journal en ajout seul","url":"https://github.com/benomite/brigade/issues/14","activite":{"fait":"lit","cible":"runtime/src/etat.ts","depuis":"2026-10-12T10:01:11.000Z"},"attente":null},{"ticket":21,"etat":"BLOQUÉ","titre":"L'export du journal","url":"https://github.com/benomite/brigade/issues/21","activite":null,"attente":null}],"cooks":[{"ticket":14,"titre":"Le journal en ajout seul","station":"box/claude"}],"attend":[{"ticket":21,"titre":"L'export du journal","url":"https://github.com/benomite/brigade/issues/21"}],"livres":[{"ticket":216,"titre":"Le relevé des mesures","url":"https://github.com/benomite/brigade/issues/216","livre":"2026-10-12T10:03:58.000Z","station":"box/claude","pr":"https://github.com/benomite/brigade/pull/219","relecture":{"resume":"Le relevé des mesures se lit par station, et un seuil franchi se dit en tête de `status`. Rien n'est écrit au journal par la lecture.","constats":[{"gravite":"remarque","fichier":"runtime/src/mesures.ts","constat":"Le seuil par défaut est répété dans deux fichiers."},{"gravite":"remarque","fichier":null,"constat":"À supprimer : l'ancien compteur, qui ne sert plus."}]}},{"ticket":201,"titre":"Les grants sous plafond","url":"https://github.com/benomite/brigade/issues/201","livre":"2026-10-12T07:12:40.000Z","station":"box/claude","pr":"https://github.com/benomite/brigade/pull/207","relecture":{"resume":"Un grant porte désormais un plafond d'usages, et s'éteint seul quand il est atteint.","constats":[]}},{"ticket":188,"titre":"Une fiche sans zone","url":"https://github.com/benomite/brigade/issues/188","livre":"2026-10-11T16:30:05.000Z","station":"box/claude","pr":null,"relecture":null}]}
 ```
 
-| Champ | Ce qu'il porte |
+(The field names and their values — `ouverte`, `pris`, `BLOQUÉ`… — are the contract's, and stay in French in the shape.
+The titles, summaries and findings in the example are ticket and reviewer text.)
+
+| Field | What it carries |
 |---|---|
-| `etat` | L'état du projet, en un mot de la liste fermée ci-dessous |
-| `lu` | L'heure de la box à la lecture |
-| `dernierTick` | L'heure du dernier tick du runtime en marche. `null` : runtime arrêté, ou aucun tick depuis son démarrage |
-| `compteurs.rail` | Les tickets en attente, `BLOQUÉ` compris |
-| `compteurs.auTravail` | Les tickets `pris` |
-| `compteurs.aLaPass` | Les tickets `en pass` |
-| `compteurs.attend` | Les décisions qui t'attendent : le chiffre de la ligne de tête du bloc `attend` |
-| `compteurs.livres24h` | Les tickets servis dans les 24 h avant `lu` — mergés par la pass, mergés à la main, ou servis sans merge —, encore sur le rail ou non. Un ticket compte une fois |
-| `dernierEvenement` | `seq`, `at`, `type` et `ticket` (`null` hors ticket) du dernier des « derniers événements » de `status` : ni battement, ni relevé. Sans sa charge utile. `null` sur un journal vide |
-| `rail` | Chaque ticket, dans l'ordre de service : `ticket`, `etat`, `titre`, `url` (son issue), `activite` — ce que la cuisine en fait en ce moment : `fait` (le geste, en mots du chef), `cible` (le fichier ou la commande qu'il vise, `null` s'il n'en vise pas), `depuis` (l'heure où elle s'y est mise). **`null` pour un ticket ni pris ni en pass, et pour celui dont le runtime ne sait pas ce qu'on en fait.** Voir « Ce que fait un cook en ce moment » ; `attente` — pour un ticket mis de côté (86), **ce qu'il attend** : `raison` en clair (`attend : setup du projet impossible`, `attend : quota du compte épuisé`, `attend : worktree impossible à préparer`…), `colonne` (celle où il est, comme `etat`) et `retour` (l'heure de son retour, `null` sans) ; `null` pour tout autre ticket ; `tiers` — pour un ticket en WAITING (`etat` : `WAITING`), **ce qu'il attend d'un tiers** : `quoi` (dans les mots du chef), `qui`, `depuis` (sa mise en attente), `relance` (quand y revenir) et `aLArrivee` (ce que « c'est arrivé » fera de lui, en clair) ; `null` pour tout autre ticket ; `revenu` — pour un ticket revenu de WAITING dans TODO, **pourquoi**, dans les mots du runtime : `relance du 21/10 : pas de réponse` ou `nouveau sur l'issue — de <qui>` ; `null` pour tout autre, et pour un ticket que le chef a repris lui-même ; `captures` — **pour un ticket d'interface en pass ou servi**, l'écran avant et après de sa dernière livraison (voir « La livraison d'un ticket d'interface ») : `complet` (chaque écran a ses deux captures — `false` aussi quand il n'y en a aucune) et `ecrans`, chacun avec `ecran`, `avant` et `apres`, l'adresse de la capture au commit livré, `null` quand le cook ne l'a pas livrée. **Absent pour tout autre ticket**, et quand la box ne connaît pas son dépôt |
-| `cooks` | Les cooks en cours, ceux que `station` montre sous « cooks en cours », dans son ordre — station par station, le plus ancien d'abord : `ticket`, `titre` (celui du ticket), `station`. Une liste vide quand aucun ne tourne. Le titre est celui du rail : vide (`""`) si le ticket l'a quitté pendant la cuisson |
-| `attend` | Les tickets que le bloc `attend` de `status` nomme, un par entrée, dans l'ordre du bloc : `ticket`, `titre`, `url`. **C'est l'adresse qui ouvre l'issue** : celle du rail pour un ticket qui y est, sinon celle que **le dépôt de la box** donne (`BRIGADE_GITHUB_REPO`) — l'app n'en compose aucune. Le titre est celui du rail, **vide (`""`) pour une issue qui n'y est pas** : le journal ne le connaît pas, et rien ne va le chercher. `url` est `null` quand la box ne connaît pas son dépôt. La connexion Max, la version, la passe de fermeture demandée, la base rouge et le setup bloqué, qui ne sont à aucun ticket, n'y sont pas — `compteurs.attend` les compte. Une liste vide quand rien n'attend |
-| `livres` | Les tickets servis dans les 24 h avant `lu` — **ceux que `compteurs.livres24h` compte, un pour un** —, le plus récent d'abord : `ticket`, `titre`, `url` (son issue), `livre` (l'heure de son service), `station` (celle qui l'a cuisiné, `null` quand aucune ne l'a envoyé en pass — mergé à la main sans cook, livraison hors du rail), `pr` (la PR mergée, `null` pour un ticket servi sans merge), `relecture` (ce que le reviewer a dit de **ce qui a été servi**, mot pour mot : `resume`, son résumé ; `constats`, dans son ordre, chacun avec `gravite` — `remarque` ou `bloquant` —, `fichier` — `null` quand il n'en nomme pas — et `constat`, son texte ; une suppression qu'il demande est une `remarque` dont le texte commence par « À supprimer : »). `relecture` est `null` quand aucune relecture lisible ne porte sur la livraison servie : mergée à la main sans passer à la pass, servie sans relecture, relue sur un commit d'avant celui que la pass jugeait en dernier, ou dont la dernière relecture ne se lit pas — **rien n'est mis à sa place**, pas même une relecture d'une livraison d'avant. Une relecture rouge mergée à la main par le chef est la sienne : ses constats bloquants y sont. **Un ticket y reste après la fermeture de son issue** : il a quitté le rail, pas la liste — elle se relit au journal, titre et adresse compris. Le titre est celui du jour, vide (`""`) pour une livraison que le rail n'a jamais portée ; `url` est alors celle que le dépôt de la box donne, ou `null`. **Une issue fermée sans avoir été servie** — abandonnée, écartée — **n'y est pas**. `captures` : comme sur le rail, pour un ticket d'interface — absent pour tout autre. Une liste vide quand rien n'a été servi en 24 h |
-| `stations` | Les stations que le projet déclare, dans l'ordre de leur nom, et ce qu'elles font des **tickets ordinaires** (voir « Les tickets ordinaires sur le poste du chef ») : `station`, `distante`, `plafond` (ses cooks à la fois, au plus — `null` : sans limite), `ordinaires` (le réglage du chef, `false` pour une station de la box), `bacASable` (ce que la station a dit du bac à sable de son poste : `disponible`, `raison` — `null` s'il l'est —, `version` de son `claude` — `null` s'il ne l'est pas —, `depuis` ; `null` tant qu'elle n'en a rien dit), `prendOrdinaires` (elle en prend à cet instant : toujours vrai d'une station de la box ; d'une distante, réglage et bac à sable disponible) ; puis ce qu'elle fait du projet (#1183, voir « Lancer et arrêter la cuisine, station par station » dans [`station.md`](station.md)) : `cuisson`, un mot d'une liste fermée — `refused` (la station de cette machine refuse le projet, lu dans son fichier `en-service` par `BRIGADE_STATION_DIR` et `BRIGADE_PROJECT` ; d'une station de la box seulement), `stopped` (le chef l'a arrêtée par `station stop`, ou a arrêté toute la cuisine), `saturated` (sa machine n'en peut plus ; d'une station de la box seulement), sinon `cooking` —, le premier vrai l'emportant ; `arreteeDepuis` (l'heure de son `station stop`, `null` sans — et sous le seul « stop » de toute la cuisine) ; `refus` (`{ status, code, message, action }`, le refus de [`station-machine.md`](station-machine.md) ; `null` hors `refused`) ; `cooks` (ses cooks en cours, le plus ancien d'abord — arrêtée, ceux qui finissent —, comme ceux du champ `cooks` : `ticket`, `titre`, `station`). Une liste vide quand aucune n'est déclarée |
-| `corrections` | Les corrections proposées des consignes du projet (voir « Les corrections proposées » ci-dessous), la plus ancienne d'abord : `proposition` (le `seq` du fait qui la porte), `cause` et `titre` (la cause des ratages, sa clé et sa phrase), `tickets` (ceux qu'elle a fait rater, chacun avec `ticket` et `url` — l'adresse que le dépôt de la box donne, `null` quand elle ne le connaît pas), `motif` (pourquoi cette correction, dans les mots du modèle ; `null` s'il n'en a rien dit), `diff` (un diff unifié, tel que `git apply` le prend), `fichiers` (ceux qu'il touche), `base` (le commit de la branche d'intégration sur lequel il s'applique), `cout.tokens` (ce que la proposition a coûté, comptés comme ceux d'un cook), `proposee` (l'heure de la proposition). **Absent quand il n'y en a aucune** : la forme d'une cuisine sans correction ne change pas. Une proposition écartée n'y est jamais, une proposition tranchée n'y est plus |
-| `reculs` | Ce que chaque correction acceptée a fait de sa cause (voir « Une correction mergée recule-t-elle sa cause ? » ci-dessous), la plus ancienne d'abord : `proposition` (le `seq` de la proposition acceptée), `cause` et `titre`, `pr` (la PR de la correction, `null` tant qu'elle n'est pas ouverte, ou si elle ne l'a jamais été), `etat` — `en-cours` (pas encore mergée : rien ne se mesure, ni avant ni après), `non-mergee` (elle ne le sera pas : non livrée, ou PR fermée sans merge), `rien-a-comparer` (mergée, sans ticket fini après elle) ou `mesuree`. Mergée, elle porte `mergee` (l'heure du merge) et `avant` ; mesurée, aussi `apres` et `recule` (`true` : la part a baissé ; `false` : elle est restée la même, ou a monté). `avant` et `apres` disent chacun `tickets` (les tickets finis regardés), `atteints` (ceux que la cause a fait rater au moins une fois, dans l'ordre de leur fin), `essais` (les essais qu'elle y a fait rater) et `part` (`atteints` sur `tickets`, entre 0 et 1). `avant` est `null` quand aucun ticket n'était fini avant le merge. **Absent quand aucune correction n'a été acceptée** |
-| `profils` | Les profils de cook proposés qui t'attendent (voir « Les profils proposés » ci-dessous), le plus ancien d'abord : `proposition` (le `seq` du fait qui le porte), `nom` (celui de son fichier), `domaine` (la zone de fiche relevée), `chiffres` — `tickets` (ceux de la fenêtre qui portent le domaine, chacun avec `ticket` et `url`, l'adresse que le dépôt de la box donne, `null` quand elle ne le connaît pas), `fenetre` (les tickets servis regardés), `domaine` et `projet` (leur part livrée du premier coup : `premiers` sur `retenus` mergés, et `part` entre 0 et 1), `ecart` (les points qui les séparent) et `seuils` (`fenetre`, `tickets`, `ecart` : les réglages qui l'ont fait proposer) —, `skills` (vide : c'est toi qui les écris), `perimetre` (la zone), `carnet` (les leçons de départ, chacune avec `id`, `texte` et `retros`), `proposee` (l'heure de la proposition). **Absent quand il n'y en a aucun.** Un profil tranché n'y est plus |
-| `apprentissage` | Ce que les cooks ont appris au projet (`runtime/src/apprentissage/projet.ts`), lu depuis `BRIGADE_PROJECT` et `BRIGADE_REPO_DIR` : `lecons` — chacune avec `id`, `texte`, `statut` (`provisoire`, du journal, ou `promue`, du carnet du dépôt), `date` (AAAA-MM-JJ), `tickets` (ceux dont la rétro l'a proposée ou reconfirmée), `origine` (d'où elle est née : `{ "kind": "retro" }`, `{ "kind": "pass-send-back", "ticket": N }` ou `{ "kind": "chef-correction", "ticket": N }` — voir [`carnet-lecons.md`](carnet-lecons.md), « Le format du carnet »), `cooks` (combien l'ont reçue, d'après `lessons` des `cook.launched` du projet — voir [`carnet-lecons.md`](carnet-lecons.md), « Ce que reçoit un cook »), `progres` (voir plus bas) et, pour une promue seulement, `url` (sa ligne dans le carnet du dépôt, sur sa branche d'intégration ; absente sans `BRIGADE_GITHUB_REPO` ni `BRIGADE_BASE_BRANCH`) — et `profils` — chacun avec `nom`, `domaine`, `carnet` (`id`, `texte`, `etat`, `origine`), `tickets` et `progres`. `progres` (`apprentissage/progres.ts`) dit si apprendre paie : `{ avant, apres }`, la livraison des tickets mergés pris avant, puis à partir du jour d'entrée de la leçon (sa `date`) ou de l'acceptation du profil — chacune `{ retenus, premiers, premierCoup (0 à 1), essaisMoyens }`, mesurée comme `measures` (premier coup = merge sur un seul essai). **Un côté sans ticket mergé vaut `null`**, ni 0 ni NaN. **Absent quand le projet n'a ni leçon ni profil**, ou que son carnet ou une définition est illisible |
+| `etat` | The project's state, as one word of the closed list below |
+| `lu` | The box's time at the reading |
+| `dernierTick` | The time of the last tick of the running runtime. `null`: runtime stopped, or no tick since its start |
+| `compteurs.rail` | The queued tickets, `BLOQUÉ` included |
+| `compteurs.auTravail` | The `pris` (taken) tickets |
+| `compteurs.aLaPass` | The `en pass` (in pass) tickets |
+| `compteurs.attend` | The decisions that await you: the figure on the head line of `status`'s `awaiting` block |
+| `compteurs.livres24h` | The tickets served in the 24 h before `lu` — merged by the pass, merged by hand, or served without merge —, still on the rail or not. A ticket counts once |
+| `dernierEvenement` | `seq`, `at`, `type` and `ticket` (`null` off ticket) of the last of `status`'s "latest events": neither heartbeat nor reading. Without its payload. `null` on an empty log |
+| `rail` | Each ticket, in service order: `ticket`, `etat`, `titre`, `url` (its issue), `activite` — what the kitchen is doing with it right now: `fait` (the gesture, in the chef's words), `cible` (the file or command it aims at, `null` if it aims at none), `depuis` (the time it started on it). **`null` for a ticket neither taken nor in pass, and for one the runtime does not know what is being done with.** See "Ce que fait un cook en ce moment"; `attente` — for a ticket set aside (86), **what it waits for**: `raison` in plain words (`attend : setup du projet impossible`, `attend : quota du compte épuisé`, `attend : worktree impossible à préparer`…), `colonne` (the one it is in, like `etat`) and `retour` (the time of its return, `null` without); `null` for any other ticket; `tiers` — for a ticket in WAITING (`etat`: `WAITING`), **what it awaits from a third party**: `quoi` (in the chef's words), `qui`, `depuis` (its being put on hold), `relance` (when to come back to it) and `aLArrivee` (what "it has arrived" will make of it, in plain words); `null` for any other ticket; `revenu` — for a ticket come back from WAITING into TODO, **why**, in the runtime's words: `relance du 21/10 : pas de réponse` or `nouveau sur l'issue — de <qui>`; `null` for any other, and for a ticket the chef picked up themself; `captures` — **for an interface ticket in pass or served**, the screen before and after of its last delivery (see "La livraison d'un ticket d'interface"): `complet` (each screen has its two captures — `false` also when there is none) and `ecrans`, each with `ecran`, `avant` and `apres`, the address of the capture at the delivered commit, `null` when the cook did not deliver it. **Absent for any other ticket**, and when the box does not know its repository |
+| `cooks` | The cooks in progress, those `station` shows under "cooks en cours", in its order — station by station, the oldest first: `ticket`, `titre` (the ticket's), `station`. An empty list when none is running. The title is the rail's: empty (`""`) if the ticket left it during the cooking |
+| `attend` | The tickets that `status`'s `awaiting` block names, one per entry, in the block's order: `ticket`, `titre`, `url`. **It is the address that opens the issue**: the rail's for a ticket that is on it, otherwise the one **the box's repository** gives (`BRIGADE_GITHUB_REPO`) — the app composes none. The title is the rail's, **empty (`""`) for an issue that is not on it**: the log does not know it, and nothing goes to fetch it. `url` is `null` when the box does not know its repository. The Max connection, the version, the requested closing pass, the red base and the blocked setup, which belong to no ticket, are not in it — `compteurs.attend` counts them. An empty list when nothing awaits |
+| `livres` | The tickets served in the 24 h before `lu` — **those `compteurs.livres24h` counts, one for one** —, the most recent first: `ticket`, `titre`, `url` (its issue), `livre` (the time of its service), `station` (the one that cooked it, `null` when none sent it to the pass — merged by hand with no cook, delivery off the rail), `pr` (the merged PR, `null` for a ticket served without merge), `relecture` (what the reviewer said of **what was served**, word for word: `resume`, its summary; `constats`, in its order, each with `gravite` — `remarque` or `bloquant` —, `fichier` — `null` when it names none — and `constat`, its text; a deletion it asks for is a `remarque` whose text starts with "À supprimer : "). `relecture` is `null` when no readable review concerns the served delivery: merged by hand without going through the pass, served without review, reviewed on a commit from before the one the pass last judged, or whose last review cannot be read — **nothing is put in its place**, not even a review of an earlier delivery. A red review merged by hand by the chef is theirs: its blocking findings are in it. **A ticket stays in it after its issue is closed**: it left the rail, not the list — it is reread in the log, title and address included. The title is the day's, empty (`""`) for a delivery the rail never carried; `url` is then the one the box's repository gives, or `null`. **An issue closed without having been served** — dropped, set aside — **is not in it**. `captures`: as on the rail, for an interface ticket — absent for any other. An empty list when nothing was served in 24 h |
+| `stations` | The stations the project declares, in the order of their name, and what they do with **ordinary tickets** (see "Les tickets ordinaires sur le poste du chef"): `station`, `distante` (remote), `plafond` (its cooks at a time, at most — `null`: no limit), `ordinaires` (the chef's setting, `false` for a box station), `bacASable` (what the station said of its workstation's sandbox: `disponible`, `raison` — `null` if it is —, `version` of its `claude` — `null` if it is not —, `depuis`; `null` as long as it has said nothing), `prendOrdinaires` (it takes some at this moment: always true for a box station; for a remote one, the setting and an available sandbox); then what it does with the project (#1183, see "Lancer et arrêter la cuisine, station par station" in [`station.md`](station.md)): `cuisson`, one word of a closed list — `refused` (this machine's station refuses the project, read in its `en-service` file through `BRIGADE_STATION_DIR` and `BRIGADE_PROJECT`; for a box station only), `stopped` (the chef stopped it with `station stop`, or stopped the whole kitchen), `saturated` (its machine can take no more; for a box station only), otherwise `cooking` —, the first true one winning; `arreteeDepuis` (the time of its `station stop`, `null` without — and under the mere "stop" of the whole kitchen); `refus` (`{ status, code, message, action }`, the refusal of [`station-machine.md`](station-machine.md); `null` outside `refused`); `cooks` (its cooks in progress, the oldest first — stopped, those finishing —, like those of the `cooks` field: `ticket`, `titre`, `station`). An empty list when none is declared |
+| `corrections` | The proposed corrections of the project's guidance (see "Proposed corrections" below), the oldest first: `proposition` (the `seq` of the fact that carries it), `cause` and `titre` (the cause of the failures, its key and its sentence), `tickets` (those it made fail, each with `ticket` and `url` — the address the box's repository gives, `null` when it does not know it), `motif` (why this correction, in the model's words; `null` if it said nothing), `diff` (a unified diff, as `git apply` takes it), `fichiers` (those it touches), `base` (the commit of the integration branch it applies to), `cout.tokens` (what the proposal cost, counted like a cook's), `proposee` (the time of the proposal). **Absent when there is none**: the shape of a kitchen with no correction does not change. A discarded proposal is never in it, a decided proposal is no longer in it |
+| `reculs` | What each accepted correction did to its cause (see "Does a merged correction push back its cause?" below), the oldest first: `proposition` (the `seq` of the accepted proposal), `cause` and `titre`, `pr` (the correction's PR, `null` as long as it is not open, or if it never was), `etat` — `en-cours` (not merged yet: nothing is measured, neither before nor after), `non-mergee` (it will not be: not delivered, or PR closed without merge), `rien-a-comparer` (merged, with no finished ticket after it) or `mesuree`. Merged, it carries `mergee` (the merge time) and `avant`; measured, also `apres` and `recule` (`true`: the share went down; `false`: it stayed the same, or went up). `avant` and `apres` each say `tickets` (the finished tickets looked at), `atteints` (those the cause made fail at least once, in the order they finished), `essais` (the attempts it made fail there) and `part` (`atteints` over `tickets`, between 0 and 1). `avant` is `null` when no ticket was finished before the merge. **Absent when no correction was accepted** |
+| `profils` | The proposed cook profiles that await you (see "Proposed profiles" below), the oldest first: `proposition` (the `seq` of the fact that carries it), `nom` (that of its file), `domaine` (the card zone found), `chiffres` — `tickets` (those of the window that carry the domain, each with `ticket` and `url`, the address the box's repository gives, `null` when it does not know it), `fenetre` (the served tickets looked at), `domaine` and `projet` (their share delivered on the first try: `premiers` over `retenus` merged, and `part` between 0 and 1), `ecart` (the points that separate them) and `seuils` (`fenetre`, `tickets`, `ecart`: the settings that had it proposed) —, `skills` (empty: you write them), `perimetre` (the zone), `carnet` (the starting lessons, each with `id`, `texte` and `retros`), `proposee` (the time of the proposal). **Absent when there is none.** A decided profile is no longer in it |
+| `apprentissage` | What the cooks have taught the project (`runtime/src/apprentissage/projet.ts`), read from `BRIGADE_PROJECT` and `BRIGADE_REPO_DIR`: `lecons` — each with `id`, `texte`, `statut` (`provisoire`, from the log, or `promue`, from the repository's notebook), `date` (YYYY-MM-DD), `tickets` (those whose retro proposed or reconfirmed it), `origine` (where it was born: `{ "kind": "retro" }`, `{ "kind": "pass-send-back", "ticket": N }` or `{ "kind": "chef-correction", "ticket": N }` — see [`carnet-lecons.md`](carnet-lecons.md), "Le format du carnet"), `cooks` (how many received it, according to the project's `lessons` of `cook.launched` — see [`carnet-lecons.md`](carnet-lecons.md), "Ce que reçoit un cook"), `progres` (see below) and, for a promoted one only, `url` (its line in the repository's notebook, on its integration branch; absent without `BRIGADE_GITHUB_REPO` or `BRIGADE_BASE_BRANCH`) — and `profils` — each with `nom`, `domaine`, `carnet` (`id`, `texte`, `etat`, `origine`), `tickets` and `progres`. `progres` (`apprentissage/progres.ts`) says whether learning pays: `{ avant, apres }`, the delivery of the merged tickets taken before, then from the day the lesson entered (its `date`) or the profile was accepted — each `{ retenus, premiers, premierCoup (0 to 1), essaisMoyens }`, measured like `measures` (first try = merge on a single attempt). **A side with no merged ticket is `null`**, neither 0 nor NaN. **Absent when the project has neither lesson nor profile**, or its notebook or a definition is unreadable |
 
-Les heures sont en ISO 8601, UTC.
+Times are ISO 8601, UTC.
 
-**L'état du projet** — le premier vrai l'emporte :
+**The state of the project** — the first true one wins:
 
-| Mot | Quand | Ce que `status` en dit |
+| Word | When | What `status` says of it |
 |---|---|---|
-| `éteinte` | le runtime est arrêté, ou n'a jamais démarré, d'après le journal | `runtime    stopped … ago`, `never started` |
-| `arrêtée` | ton « stop » | `kitchen    STOPPED by the chef …` |
-| `retenue` | elle tourne, mais plus rien ne part : disjoncteur ouvert, connexion Max absente ou expirée, aucune station déclarée, base rouge, setup du projet bloqué sans station distante | `breaker OPEN`, la ligne `connection`, `stations   NONE DECLARED`, `base       RED since …`, `setup      BLOCKED` |
-| `ouverte` | rien de cela | |
+| `éteinte` | (off) the runtime is stopped, or never started, according to the log | `runtime    stopped … ago`, `never started` |
+| `arrêtée` | (stopped) your "stop" | `kitchen    STOPPED by the chef …` |
+| `retenue` | (held) it is running, but nothing leaves any more: breaker open, Max connection missing or expired, no station declared, red base, project setup blocked with no remote station | `breaker OPEN`, the `connection` line, `stations   NONE DECLARED`, `base       RED since …`, `setup      BLOCKED` |
+| `ouverte` | (open) none of the above | |
 
-**L'état d'un ticket** : le mot que `rail` et la forme écrivent — `en attente`, `BLOQUÉ`, `pris`,
+**The state of a ticket**: the word that `rail` and the shape write — `en attente`, `BLOQUÉ`, `pris`,
 `en pass`, `servi`, `86`.
-`status` écrit le même en anglais depuis #940 : `queued`, `BLOCKED`, `taken`, `in pass`, `served`, `86`.
+`status` has written the same in English since #940: `queued`, `BLOCKED`, `taken`, `in pass`, `served`, `86`.
 
-Ces deux listes sont **fermées** : c'est sur elles qu'un lecteur pose une couleur. Elles peuvent
-gagner un mot ; un lecteur montre donc un mot qu'il ne connaît pas tel quel, sans couleur. Le `type`
-du dernier événement, lui, s'affiche et ne s'interprète pas : sa liste n'est pas fermée.
+These two lists are **closed**: a reader sets a color on them. They may
+gain a word; a reader therefore shows a word it does not know as is, without color. The `type`
+of the last event, for its part, is displayed and not interpreted: its list is not closed.
 
-Ce que la forme ne dit pas, et pourquoi :
+What the shape does not say, and why:
 
-- **`ouverte` dit ce que dit le journal.** Un runtime tué sans préavis y paraît encore en marche,
-  comme dans `status`. La forme ne conclut pas : elle porte `lu` et `dernierTick`, dont le lecteur
-  affiche l'écart. Au-delà de quelques cadences, `systemctl status brigade@<projet>`.
-- **Aucune jauge, aucun pourcentage** — ni quota, ni machine. Le runtime ne connaît pas la
-  consommation du compte (`/usage` la donne) et ne chiffre la machine que lorsqu'elle sature : ce
-  qu'il en dit d'un mot reste dans `status` et dans `station`, et aucun nombre ne s'en dérive.
-  Un cook non plus n'a pas de jauge : ses tours, sa durée, ses tokens sont dans `status`.
-- **Les relectures du reviewer et les jugements du manager** ne sont pas dans `cooks` : ce ne sont
-  pas les cooks d'une station, et `station` ne les montre pas non plus.
-- **Un `86` qui a une heure de retour** — le quota — n'est dans aucun des cinq compteurs : il
-  n'attend ni une station, ni toi. Il est dans `rail`, avec son état.
-- **Pourquoi** la cuisine est retenue, ce qu'un ticket attend, qui le tient, depuis quand : c'est
-  `status`. Le journal, les grants, la cloison, l'arbitre n'ont pas de forme ; de la station, seuls
-  ses cooks en cours en ont une.
+- **`ouverte` says what the log says.** A runtime killed without notice still appears to be running there,
+  as in `status`. The shape does not conclude: it carries `lu` and `dernierTick`, whose gap the reader
+  displays. Beyond a few cadences, `systemctl status brigade@<project>`.
+- **No gauge, no percentage** — neither quota nor machine. The runtime does not know the account's
+  consumption (`/usage` gives it) and quantifies the machine only when it saturates: what
+  it says of it in a word stays in `status` and in `station`, and no number is derived from it.
+  A cook has no gauge either: its turns, its duration, its tokens are in `status`.
+- **The reviewer's reviews and the manager's judgments** are not in `cooks`: they are not
+  a station's cooks, and `station` does not show them either.
+- **An `86` that has a return time** — the quota — is in none of the five counters: it
+  awaits neither a station nor you. It is in `rail`, with its state.
+- **Why** the kitchen is held, what a ticket awaits, who holds it, since when: that is
+  `status`. The log, the grants, the partition, the arbiter have no shape; of the station, only
+  its cooks in progress have one.
 
-La commande lit `$BRIGADE_STATE_DIR`, ne prend aucun argument, n'écrit jamais, et répond pendant
-que le runtime tourne ; sur un journal écrit par un runtime plus ancien, elle demande de le
-redémarrer (code 1).
+The command reads `$BRIGADE_STATE_DIR`, takes no argument, never writes, and answers while
+the runtime is running; on a log written by an older runtime, it asks to
+restart it (code 1).
 
-### Les corrections proposées
+### Proposed corrections
 
-Quand une même cause d'échec revient sur plusieurs tickets récents, le runtime la relève comme
-**candidate à une correction** (`correction.candidate`, `runtime/src/correctif/detecter.ts`). Pour
-une candidate, le modèle lit la cause, ce que les tickets ratés en disent et les consignes du projet
-telles que la base les porte, et répond par un diff (`runtime/src/correctif/proposer.ts`). Il est
-lancé comme un jugement du manager — sans outil, hors de tout dépôt, sous les garde-fous — et son
-coût est celui de ce lancement, en tokens comptés comme ceux d'un cook.
+When the same cause of failure comes back on several recent tickets, the runtime picks it out as a
+**candidate for a correction** (`correction.candidate`, `runtime/src/correctif/detecter.ts`). For
+a candidate, the model reads the cause, what the failed tickets say of it and the project's guidance
+as the base carries it, and answers with a diff (`runtime/src/correctif/proposer.ts`). It is
+launched like a manager judgment — no tool, outside any repository, under the guardrails — and its
+cost is that of this launch, in tokens counted like a cook's.
 
-**Une correction ne touche que les consignes du projet** : son `CLAUDE.md` à la racine, sa doc
-d'équipe sous `docs/`, ses gates (`.claude/brigade/gates.sh`). Ni son code, ni ses tests, ni le
-fonctionnement de brigade. La garde (`runtime/src/correctif/portee.ts`) lit le diff elle-même — elle
-refuse un fichier supprimé, renommé, un mode changé, du binaire, un chemin hors du dépôt —, puis
-demande à `git` quels fichiers il toucherait et s'il s'applique tel quel à `origin/<base>`
-(`git apply --check`, sur un index jetable : ni le clone ni son index ne bougent). Un seul fichier
-hors des consignes, ou un diff qui ne s'applique pas, et la proposition est **écartée**
-(`correction.discarded`, qui dit pourquoi et ne garde pas le diff) : `facts` ne la montre jamais.
-Sinon elle est **proposée** (`correction.proposed`), et `corrections` la porte. Une candidate n'a
-qu'une conclusion. Rien n'est appliqué : c'est ton « oui » qui le fera.
+**A correction touches only the project's guidance**: its `CLAUDE.md` at the root, its team docs under `docs/`, its gates (`.claude/brigade/gates.sh`). Neither its code, nor its tests, nor
+how brigade works. The guard (`runtime/src/correctif/portee.ts`) reads the diff itself — it
+refuses a deleted file, a renamed one, a changed mode, binary, a path outside the repository —, then
+asks `git` which files it would touch and whether it applies as is to `origin/<base>`
+(`git apply --check`, on a throwaway index: neither the clone nor its index moves). A single file
+outside the guidance, or a diff that does not apply, and the proposal is **discarded**
+(`correction.discarded`, which says why and does not keep the diff): `facts` never shows it.
+Otherwise it is **proposed** (`correction.proposed`), and `corrections` carries it. A candidate has
+only one conclusion. Nothing is applied: it is your "yes" that will do it.
 
-**Rien ne part sans ton « oui »** (`runtime/src/correctif/decision.ts`). Une proposition que
-personne ne tranche reste dans `corrections`, et rien n'en naît — ni branche, ni PR. Tranchée, elle
-en sort ; elle ne se tranche qu'une fois, et un second geste, le même ou l'autre, n'écrit rien.
+**Nothing goes without your "yes"** (`runtime/src/correctif/decision.ts`). A proposal that
+no one decides stays in `corrections`, and nothing is born of it — neither branch nor PR. Decided, it
+leaves; it is decided only once, and a second gesture, the same or the other, writes nothing.
 
-Le geste est `profile` — sur la box, `brigade <projet> profile yes|no <proposition>`, et c'est lui que
-lancent les deux boutons de la carte, dans l'app :
+The gesture is `profile` — on the box, `brigade <project> profile yes|no <proposal>`, and it is what the two
+buttons of the card launch, in the app:
 
 ```sh
-npm --prefix runtime run profile                       # les profils proposés qui t'attendent, par numéro
-npm --prefix runtime run profile -- yes <proposition>  # « oui » : la définition s'écrit dans BRIGADE_REPO_DIR
-npm --prefix runtime run profile -- no <proposition>   # « non » : la proposition quitte la file
+npm --prefix runtime run profile                       # the proposed profiles that await you, by number
+npm --prefix runtime run profile -- yes <proposition>  # "yes": the definition is written into BRIGADE_REPO_DIR
+npm --prefix runtime run profile -- no <proposition>   # "no": the proposal leaves the queue
 ```
 
-`<proposition>` est le `proposition` de `profils`. Il sort en `0` quand la réponse est écrite, ou que
-la proposition l'était déjà (il le dit, `already answered`) ; en `1` quand rien ne l'est — aucune
-proposition sous ce numéro, ou une définition déjà là —, la raison sur sa dernière ligne ; en `2` sur
-un appel qui ne se lit pas.
+`<proposition>` is the `proposition` of `profils`. It exits with `0` when the answer is written, or
+the proposal already was (it says so, `already answered`); with `1` when nothing is — no
+proposal under that number, or a definition already there —, the reason on its last line; with `2` on
+a call that cannot be read.
 
-| Ton geste | Ce qui se passe |
+| Your gesture | What happens |
 |---|---|
-| « oui » (`correction.accepted`) | le runtime prépare une branche comme celle d'un cook, y commite **le diff proposé et lui seul**, posé sur le commit où la garde l'a vérifié (`base`), la pousse et ouvre une PR vers la branche d'intégration (`correction.started`, puis `correction.delivered`, `runtime/src/correctif/livrer.ts`). La PR entre **en pass hors du rail**, comme celle d'une passe de fermeture : fusion avec la base, gates, reviewer, CI, grant `merge` (voir « La pass »). Le reviewer la lit comme une correction des consignes ; rouge, aucun cook ne la reprend, elle te remonte (`still-red`, cause `off-rail`). Une correction qui touche les gates n'est jamais mergée par la pass (`review-required`, cause `judge-modified`). Une PR au plus : une livraison morte avec le runtime reprend au démarrage la PR que GitHub porte pour sa branche, ou en ouvre une si elle n'en avait pas. Un diff qui ne se commite plus, une branche qui ne se pousse pas, une PR que GitHub refuse : `correction.undelivered`, qui dit pourquoi, et rien n'est retenté |
-| « non » (`correction.refused`) | elle quitte la file. Le « non » nomme, par leur run, les essais que la cause a fait rater jusque-là : **la même cause ne redevient candidate qu'avec un essai raté de plus** — et si elle atteint encore le seuil. Les mêmes échecs, relevés à nouveau, n'en refont pas une |
+| "yes" (`correction.accepted`) | the runtime prepares a branch like a cook's, commits **the proposed diff and only it** there, laid on the commit where the guard verified it (`base`), pushes it and opens a PR to the integration branch (`correction.started`, then `correction.delivered`, `runtime/src/correctif/livrer.ts`). The PR enters **in pass off the rail**, like that of a closing pass: merge with the base, gates, reviewer, CI, `merge` grant (see "La pass"). The reviewer reads it as a correction of the guidance; red, no cook takes it up, it is passed up to you (`still-red`, cause `off-rail`). A correction that touches the gates is never merged by the pass (`review-required`, cause `judge-modified`). At most one PR: a delivery that died with the runtime picks up at start the PR GitHub carries for its branch, or opens one if it had none. A diff that no longer commits, a branch that does not push, a PR GitHub refuses: `correction.undelivered`, which says why, and nothing is retried |
+| "no" (`correction.refused`) | it leaves the queue. The "no" names, by their run, the attempts the cause made fail so far: **the same cause becomes a candidate again only with one more failed attempt** — and if it still reaches the threshold. The same failures, picked up again, do not make one again |
 
-#### Une correction mergée recule-t-elle sa cause ?
+#### Does a merged correction push back its cause?
 
-Une fois la PR d'une correction mergée (`merge.done` de la PR hors du rail que `correction.delivered`
-nomme), `facts` met côte à côte, sous `reculs`, **la part des tickets que la cause a fait rater
-avant le merge, et après** (`runtime/src/correctif/recul.ts`). Seuls comptent les tickets **finis** —
-mergés, ou servis sans diff :
+Once a correction's PR is merged (`merge.done` of the off-the-rail PR that `correction.delivered`
+names), `facts` sets side by side, under `reculs`, **the share of tickets the cause made fail
+before the merge, and after** (`runtime/src/correctif/recul.ts`). Only **finished** tickets
+count — merged, or served without a diff:
 
-- **avant** : les 20 derniers finis avant le merge ;
-- **après** : les 20 premiers **pris** après le merge, une fois finis. Un ticket pris avant le merge
-  et fini après a été cuisiné sous les consignes d'avant : il n'est d'aucun côté. Un ticket encore
-  en cours ne compte pas.
+- **before**: the last 20 finished before the merge;
+- **after**: the first 20 **taken** after the merge, once finished. A ticket taken before the merge
+  and finished after was cooked under the earlier guidance: it is on neither side. A ticket still
+  in progress does not count.
 
-Vingt, c'est la fenêtre par défaut du détecteur ; `facts` ne lit pas `BRIGADE_CORRECTION_WINDOW`.
-Une fois les vingt « après » finis, la mesure ne bouge plus. La cause **recule** quand sa part après
-est plus basse qu'avant ; à part égale, ou plus haute, elle ne recule pas. Tant que la PR n'est pas
-mergée, rien ne se mesure (`en-cours`) ; mergée sans ticket fini après elle, il n'y a **rien à
-comparer** (`rien-a-comparer`) — et pas une part nulle.
+Twenty is the detector's default window; `facts` does not read `BRIGADE_CORRECTION_WINDOW`.
+Once the twenty "after" are finished, the measure no longer moves. The cause **recedes** when its share after
+is lower than before; at an equal share, or higher, it does not recede. As long as the PR is not
+merged, nothing is measured (`en-cours`); merged with no finished ticket after it, there is **nothing to
+compare** (`rien-a-comparer`) — and not a zero share.
 
-### Les profils proposés
+### Proposed profiles
 
-Quand une zone de fiche revient souvent sur les derniers tickets servis et y est livrée du premier
-coup nettement moins que le reste du projet (`runtime/src/profils/domaines.ts` : au moins
-`BRIGADE_PROFILE_MIN_TICKETS` tickets, 5 par défaut, sur les `BRIGADE_PROFILE_WINDOW` derniers, 20,
-et au moins `BRIGADE_PROFILE_GAP_POINTS` points sous la moyenne, 20), le runtime en fait un **profil
-de cook proposé** (`profile.proposed`, `runtime/src/profils/proposer.ts`) : un nom tiré de la zone
-(`app/src/vue` donne `app-src-vue`), les chiffres qui le justifient avec ses tickets, et ce que le
-profil contiendrait — des skills (aucune : rien de ce que le journal porte ne dit lesquelles, c'est
-toi qui les écris), son périmètre (la zone) et un carnet de départ : les leçons **promues** du carnet
-du projet dont une rétro nomme un ticket servi dans cette zone (`#12`). `profils` le porte. Une zone
-n'a qu'une proposition à la fois, et n'en a plus quand son profil existe — accepté, ou déjà défini
-dans le dépôt.
+When a card zone comes back often on the last served tickets and is delivered on the first
+try markedly less there than the rest of the project (`runtime/src/profils/domaines.ts`: at least
+`BRIGADE_PROFILE_MIN_TICKETS` tickets, 5 by default, among the last `BRIGADE_PROFILE_WINDOW`, 20,
+and at least `BRIGADE_PROFILE_GAP_POINTS` points below the average, 20), the runtime makes of it a **proposed cook
+profile** (`profile.proposed`, `runtime/src/profils/proposer.ts`): a name drawn from the zone
+(`app/src/vue` gives `app-src-vue`), the figures that justify it with its tickets, and what the
+profile would contain — skills (none: nothing the log carries says which, you
+write them), its perimeter (the zone) and a starting notebook: the **promoted** lessons of the project's
+notebook of which a retro names a ticket served in that zone (`#12`). `profils` carries it. A zone
+has only one proposal at a time, and has none once its profile exists — accepted, or already defined
+in the repository.
 
-**Un profil n'existe que si tu dis « oui »** (`runtime/src/profils/decision.ts`). Une proposition
-que personne ne tranche reste dans `profils`, et rien n'en naît. Tranchée, elle en sort ; elle ne se
-tranche qu'une fois, et un second geste, le même ou l'autre, n'écrit rien.
+**A profile exists only if you say "yes"** (`runtime/src/profils/decision.ts`). A proposal
+that no one decides stays in `profils`, and nothing is born of it. Decided, it leaves; it is decided
+only once, and a second gesture, the same or the other, writes nothing.
 
-| Ton geste | Ce qui se passe |
+| Your gesture | What happens |
 |---|---|
-| « oui » (`profile.accepted`) | la définition du profil est écrite dans le dépôt du projet, un fichier par profil : `.claude/brigade/profils/<nom>.md` — son domaine, son périmètre, ses skills, la date du « oui », les tickets qui l'ont justifié, puis son carnet au format du carnet du projet. Une définition déjà là n'est jamais remplacée : le « oui » n'écrit rien, et la proposition attend toujours |
-| « non » (`profile.refused`) | elle quitte la file. Le « non » nomme les tickets du domaine que le journal avait servis jusque-là : **le domaine n'est proposé de nouveau que s'il franchit encore les seuils sur d'autres tickets** — la mesure est refaite comme si ceux-là ne portaient pas la zone. Les mêmes tickets, relevés à nouveau, ne le ramènent pas |
+| "yes" (`profile.accepted`) | the profile's definition is written into the project's repository, one file per profile: `.claude/brigade/profils/<name>.md` — its domain, its perimeter, its skills, the date of the "yes", the tickets that justified it, then its notebook in the project notebook's format. A definition already there is never replaced: the "yes" writes nothing, and the proposal still waits |
+| "no" (`profile.refused`) | it leaves the queue. The "no" names the tickets of the domain that the log had served so far: **the domain is proposed again only if it crosses the thresholds again on other tickets** — the measure is redone as if those did not carry the zone. The same tickets, picked up again, do not bring it back |
 
-### Un profil au dispatch
+### A profile at dispatch
 
-Un profil est une **préférence, jamais une contrainte** (`runtime/src/profils/preference.ts`). Au
-lancement du cook d'un ticket — d'ici ou d'une station distante, premier cook, reprise ou renvoi —,
-le runtime relit les définitions de `.claude/brigade/profils/` dans le dépôt du projet et cherche
-celles dont le domaine touche la zone de la fiche (l'un possède l'autre, comme pour les zones) : la
-plus précise d'abord (le plus de segments), puis par nom. La première **dont le cook est libre**
-l'emporte : le cook part sous ce profil et reçoit, après les leçons du projet, le carnet du profil —
-son nom, son fichier, et ses leçons **promues**, chacune avec son id ; une leçon sortie n'est pas
-donnée.
+A profile is a **preference, never a constraint** (`runtime/src/profils/preference.ts`). When
+launching a ticket's cook — from here or from a remote station, first cook, resumption or send-back —,
+the runtime rereads the definitions in `.claude/brigade/profils/` in the project's repository and looks for
+those whose domain touches the card's zone (one owns the other, as for zones): the
+most precise first (most segments), then by name. The first **whose cook is free**
+wins: the cook starts under that profile and receives, after the project's lessons, the profile's notebook —
+its name, its file, and its **promoted** lessons, each with its id; a lesson that left is not
+given.
 
-Le cook d'un profil est **un seul à la fois** : il est occupé tant qu'un cook lancé sous lui tourne
-pour ce projet. Occupé, ou si aucun profil ne touche la zone, **le ticket ne l'attend pas** : il part
-aussitôt avec un généraliste, sans carnet, et sa consigne est celle d'avant. Le profil ne choisit
-ni ne retient aucune station : seule la capacité le fait. Une définition illisible est écartée, et
-le runtime la nomme sur sa sortie d'erreur.
+A profile's cook is **one at a time**: it is busy as long as a cook launched under it runs
+for this project. Busy, or if no profile touches the zone, **the ticket does not wait for it**: it goes
+at once with a generalist, without a notebook, and its instruction is the earlier one. The profile chooses
+and holds no station: only the capability does. An unreadable definition is discarded, and
+the runtime names it on its error output.
 
-Le journal le dit au lancement : `profile.notebook-given`, au nom de la station, avec `run` (le
-cook), `name` et `zone` (le profil et son domaine), `file` (sa définition, relative au dépôt) et
-`lessons` (les ids des leçons du carnet données — `[]` pour un carnet encore vide). Un généraliste
-n'en a pas.
+The log says it at launch: `profile.notebook-given`, in the station's name, with `run` (the
+cook), `name` and `zone` (the profile and its domain), `file` (its definition, relative to the repository) and
+`lessons` (the ids of the notebook lessons given — `[]` for a still-empty notebook). A generalist
+has none.
 
-## Le relevé des mesures
+## The measures reading
 
-Les gates disent « ça marche », jamais « ça devient lourd ». Le relevé met côte à côte, **dans le
-temps**, ce que le journal sait de la lourdeur du projet : c'est la pente qui révèle une dérive.
+The gates say "it works", never "it is getting heavy". The reading sets side by side, **over
+time**, what the log knows of the project's heaviness: it is the slope that reveals a drift.
 
-`npm --prefix runtime run measures` les montre par tranches de 10 merges ; `-- --by 25`, de 25.
+`npm --prefix runtime run measures` shows them in slices of 10 merges; `-- --by 25`, of 25.
 
-Quand un ticket des dix derniers merges dépasse le seuil de coût de la dérive (`BRIGADE_DRIFT_TICKET_TOKENS`,
-déclaré une seule fois), `measures` ajoute sous la ligne `FRANCHI` une ligne `motif de dérive` par ticket :
-le nombre de passages, la part de tokens perdue au renvoi, et les renvois repartis de zéro faute de reprise
-(ou « renvois repris »). Un ticket passé une fois dit sa taille d'une traite. Sous le seuil, aucun motif.
+When a ticket among the last ten merges exceeds the drift's cost threshold (`BRIGADE_DRIFT_TICKET_TOKENS`,
+declared only once), `measures` adds under the `FRANCHI` line a `motif de dérive` line per ticket:
+the number of passes, the share of tokens lost to the send-back, and the send-backs restarted from zero for lack of resumption
+(or "renvois repris"). A ticket passed once says its size in one go. Under the threshold, no motif.
 
-| Colonne | Ce qu'elle dit | D'où elle vient |
+| Column | What it says | Where it comes from |
 |---|---|---|
-| `merges`, `jusqu'au` | La tranche : le rang de ses merges, le jour du dernier. L'axe est le **merge**, pas l'horloge | `merge.done` |
-| `tests`, `suite` | Le nombre de tests et la durée de leur suite, à la dernière livraison de la tranche | `MESURE tests`, `tests_s` |
-| `gates` | La durée des gates d'une livraison — médiane de la tranche | `MESURE gates_s` |
-| `part gates` | Ce que les gates pèsent dans le temps d'une livraison, renvois et rejugements compris, rapporté à cette durée plus celle de ses cooks | `gates_s`, `durationMs` de `cook.exited` |
-| `dépôt`, `doc` | Le poids de ce qui est commité, et de son markdown | `MESURE depot_octets`, `doc_octets` |
-| `contexte` | Ce que **chaque** cook charge à coup sûr : le `CLAUDE.md` et ses imports `@chemin` | `MESURE contexte_octets` |
-| `seuils`, `plafond` | Sous les tableaux : chaque seuil déclaré, `FRANCHI` ou non ; et le plafond de durée des gates, s'il a été franchi | `drift.configured`, `gates.overCeiling` |
-| `fermeture` | Sous les seuils, quand l'un est franchi : la fermeture est proposée, avec le compteur franchi et son seuil. Rien n'est lancé — la passe qui écrit reste le geste du chef ; le franchissement est inscrit au journal une seule fois (`drift.crossed`) | `drift.crossed` |
-| `pente` | De combien la mesure a été multipliée, de la première tranche montrée à la dernière | — |
-| `tours` (second tableau) | Les tours d'un ticket, tous ses cooks comptés, par calibrage : médiane, et sur combien de tickets | `cook.launched`, `cook.exited` |
-| `tokens` (troisième tableau) | Les tokens d'un ticket, la somme de tous ses lancements, par calibrage : médiane, sur combien de tickets, et le plus cher de la tranche avec son numéro. Aucun seuil | `cook.launched`, `cook.exited` |
-| `lancements` (quatrième tableau) | Un ticket par ligne, pour ceux qui ont été lancés plus d'une fois ou dont un lancement n'a rien livré : combien de lancements — dont combien de renvois **repris** de la session du cook précédent —, leurs tokens, et ce qu'ils ont produit — `utiles`, `perdus` avec leur part. Aucun seuil | `outcome` et `tokens` de `cook.exited`, `resumes` de `cook.launched` |
+| `merges`, `jusqu'au` | The slice: the rank of its merges, the day of the last. The axis is the **merge**, not the clock | `merge.done` |
+| `tests`, `suite` | The number of tests and the duration of their suite, at the slice's last delivery | `MESURE tests`, `tests_s` |
+| `gates` | The duration of a delivery's gates — median of the slice | `MESURE gates_s` |
+| `part gates` | What the gates weigh in a delivery's time, send-backs and rejudgments included, relative to that duration plus that of its cooks | `gates_s`, `durationMs` of `cook.exited` |
+| `dépôt`, `doc` | The weight of what is committed, and of its markdown | `MESURE depot_octets`, `doc_octets` |
+| `contexte` | What **each** cook loads for sure: the `CLAUDE.md` and its `@path` imports | `MESURE contexte_octets` |
+| `seuils`, `plafond` | Under the tables: each declared threshold, `FRANCHI` or not; and the gates' duration ceiling, if it was crossed | `drift.configured`, `gates.overCeiling` |
+| `fermeture` | Under the thresholds, when one is crossed: the closing is proposed, with the crossed counter and its threshold. Nothing is launched — the pass that writes remains the chef's gesture; the crossing is entered in the log only once (`drift.crossed`) | `drift.crossed` |
+| `pente` | By how much the measure was multiplied, from the first slice shown to the last | — |
+| `tours` (second table) | A ticket's turns, all its cooks counted, by calibration: median, and over how many tickets | `cook.launched`, `cook.exited` |
+| `tokens` (third table) | A ticket's tokens, the sum of all its launches, by calibration: median, over how many tickets, and the most expensive of the slice with its number. No threshold | `cook.launched`, `cook.exited` |
+| `lancements` (fourth table) | One ticket per line, for those launched more than once or one of whose launches delivered nothing: how many launches — of which how many send-backs that **resumed** the previous cook's session —, their tokens, and what they produced — `utiles`, `perdus` with their share. No threshold | `outcome` and `tokens` of `cook.exited`, `resumes` of `cook.launched` |
 
-- **`—` veut dire « le journal ne le sait pas »**, jamais zéro. Au-delà de douze tranches, seules
-  les dernières sont montrées ; `--by` élargit la fenêtre.
-- **Cher ou perdu : c'est la fin du cook qui le dit.** Un lancement a livré quand son `cook.exited`
-  dit `ok` — la fin que la station donne au cook dont elle envoie le travail en pass. Ses tokens
-  sont `utiles` : le prix de la livraison, renvois de la pass compris. Toute autre fin (`failed`,
-  `guard`, `stop`, `refused`, `neutral`), ou pas de fin du tout — mort avec le runtime —, et ses
-  tokens sont `perdus`. Un ticket à 650 k dont tout est utile est cher ; le même avec 450 k perdus
-  est un défaut. Un lancement dont le journal ne sait pas les tokens est compté et signalé (`2, dont
-  1 sans tokens connus`), dans aucune des deux sommes. Un ticket jamais mergé n'est pas au relevé,
-  quoi que ses lancements aient coûté.
-- **Repris ou reparti de zéro : la colonne `lancements` le dit.** Un ticket dont un renvoi a repris
-  la session du cook précédent porte `3, dont 1 repris` (et la légende du tableau dit alors ce
-  qu'est `repris`) ; un ticket dont les renvois sont repartis de zéro n'y porte que son nombre. La
-  reprise ne change rien au calcul : un lancement repris qui livre est `utile`, perdu sinon, comme
-  un autre.
-- **Seules comptent les livraisons que la pass a jugées, puis mergées** ; la consommation est celle
-  des cooks, pas du compte Max. Une livraison jugée puis mergée à la main derrière une autre ne dit
-  pas l'état du projet, et aucun seuil n'est levé sur sa foi.
-- La ligne `plafond` compte tout le journal : les livraisons mergées dont les dernières gates ont
-  franchi leur plafond de durée. La pass ne le juge pas : il se suit ici.
+- **`—` means "the log does not know"**, never zero. Beyond twelve slices, only
+  the last are shown; `--by` widens the window.
+- **Expensive or lost: it is the cook's end that says so.** A launch delivered when its `cook.exited`
+  says `ok` — the end the station gives the cook whose work it sends to the pass. Its tokens
+  are `utiles`: the price of the delivery, the pass's send-backs included. Any other end (`failed`,
+  `guard`, `stop`, `refused`, `neutral`), or no end at all — died with the runtime — and its
+  tokens are `perdus`. A ticket at 650 k all of which is useful is expensive; the same with 450 k lost
+  is a defect. A launch whose tokens the log does not know is counted and flagged (`2, dont
+  1 sans tokens connus`), in neither of the two sums. A ticket never merged is not in the reading,
+  whatever its launches cost.
+- **Resumed or restarted from zero: the `lancements` column says so.** A ticket one of whose send-backs resumed
+  the previous cook's session carries `3, dont 1 repris` (and the table's legend then says what
+  `repris` is); a ticket whose send-backs restarted from zero carries only its number there. The
+  resumption changes nothing in the calculation: a resumed launch that delivers is `utile`, lost otherwise, like
+  any other.
+- **Only the deliveries the pass judged, then merged, count**; the consumption is that
+  of the cooks, not of the Max account. A delivery judged then merged by hand behind another says
+  nothing of the project's state, and no threshold is lifted on its word.
+- The `plafond` line counts the whole log: the merged deliveries whose last gates
+  crossed their duration ceiling. The pass does not judge it: it is followed here.
 
-### Ce que les gates déclarent
+### What the gates declare
 
-Les gates **peuvent** imprimer des lignes `MESURE  <nom>=<nombre>` — un nom en minuscules, chiffres
-et tirets bas, un nombre à point ou à virgule, seuls sur la ligne. La pass les relève avec le
-verdict (`gates.measures` de `pass.judged`, `base.checked`) : vingt au plus, la dernière valeur
-d'un nom l'emporte. Elles ne jugent rien. Le relevé connaît `tests`, `tests_s` (secondes),
-`gates_s` (secondes d'horloge), `depot_octets`, `contexte_octets` et `doc_octets` ; tout autre nom
-est gardé au journal et ignoré. Le `.claude/brigade/gates.sh` de ce dépôt déclare les six.
+The gates **may** print `MESURE  <name>=<number>` lines — a name in lowercase letters, digits
+and underscores, a number with a point or a comma, alone on the line. The pass picks them up with the
+verdict (`gates.measures` of `pass.judged`, `base.checked`): twenty at most, the last value
+of a name wins. They judge nothing. The reading knows `tests`, `tests_s` (seconds),
+`gates_s` (clock seconds), `depot_octets`, `contexte_octets` and `doc_octets`; any other name
+is kept in the log and ignored. This repository's `.claude/brigade/gates.sh` declares all six.
 
-Deux autres noms sont lus par **le bilan d'une passe de fermeture**, et par lui seul : `couverture`
-(la couverture de tests, en pourcentage) et `verifications` (le nombre de vérifications que les
-gates exécutent). Ce sont ses garde-fous — voir « Le bilan d'une passe ». Des gates qui ne les
-déclarent pas laissent ces garde-fous **non établis**, jamais tenus ; celles de ce dépôt ne les
-déclarent pas encore.
+Two other names are read by **a closing pass's tally**, and by it alone: `couverture`
+(test coverage, as a percentage) and `verifications` (the number of checks the
+gates run). They are its guardrails — see "Le bilan d'une passe". Gates that do not
+declare them leave these guardrails **unestablished**, never held; this repository's
+do not declare them yet.
 
-**Une exception au code de sortie, et une seule : le plafond de durée.** Des gates qui se donnent
-un plafond et le franchissent l'écrivent sur deux lignes — `durée des gates : <x> s de processeur …
-pour un plafond de <n> s — … de trop`, puis `FAIL  plafond des gates franchi : plus de <n> s de
-processeur`. La pass garde le dépassement (`gates.overCeiling`) et **ne le juge pas** : seul rouge,
-il laisse les gates vertes. Voir « Le plafond de durée des gates n'est pas jugé par la pass ».
+**One exception to the exit code, and only one: the duration ceiling.** Gates that give themselves
+a ceiling and cross it write it on two lines — `durée des gates : <x> s de processeur …
+pour un plafond de <n> s — … de trop`, then `FAIL  plafond des gates franchi : plus de <n> s de
+processeur`. The pass keeps the overrun (`gates.overCeiling`) and **does not judge it**: alone red,
+it leaves the gates green. See "Le plafond de durée des gates n'est pas jugé par la pass".
 
-### Les seuils, et ce qui te prévient
+### Thresholds, and what warns you
 
-Un seuil se déclare dans l'environnement du runtime. **Un seul a un défaut : la durée des gates**,
-à `SEUIL_DUREE_GATES_PAR_DEFAUT` (`runtime/src/derive.ts`), 100 s — juste au-dessus des 90 s que les
-gates tiennent sur une box au calme ; `BRIGADE_DRIFT_GATES_SECONDS` le remplace. Elle compte
-l'exécution des gates, pas l'attente de leur tour. Les autres, non déclarés, ne signalent rien ;
-mal écrit, le runtime refuse de démarrer.
-`BRIGADE_DRIFT_TESTS` (nombre de tests), `BRIGADE_DRIFT_TESTS_SECONDS` (durée de la suite),
-`BRIGADE_DRIFT_GATES_SECONDS` (durée des gates de la dernière livraison), `BRIGADE_DRIFT_CONTEXT_KB`
-(contexte, en ko) et `BRIGADE_DRIFT_REPO_MB` (dépôt, en Mo) sont franchis quand la mesure les
-dépasse ; `BRIGADE_DRIFT_MERGES`, quand le nombre de merges depuis la dernière fermeture
-l'atteint ; `BRIGADE_DRIFT_GROWTH_PERCENT` — **la pente** —, quand `tests`, `suite`, `dépôt`,
-`contexte` ou `doc` a grossi de plus que ce pourcentage en dix merges.
+A threshold is declared in the runtime's environment. **Only one has a default: the gates' duration**,
+at `SEUIL_DUREE_GATES_PAR_DEFAUT` (`runtime/src/derive.ts`), 100 s — just above the 90 s that the
+gates hold on a calm box; `BRIGADE_DRIFT_GATES_SECONDS` replaces it. It counts the gates'
+execution, not the wait for their turn. The others, if not declared, signal nothing;
+badly written, the runtime refuses to start.
+`BRIGADE_DRIFT_TESTS` (number of tests), `BRIGADE_DRIFT_TESTS_SECONDS` (suite duration),
+`BRIGADE_DRIFT_GATES_SECONDS` (duration of the last delivery's gates), `BRIGADE_DRIFT_CONTEXT_KB`
+(context, in KB) and `BRIGADE_DRIFT_REPO_MB` (repository, in MB) are crossed when the measure
+exceeds them; `BRIGADE_DRIFT_MERGES`, when the number of merges since the last closing
+reaches it; `BRIGADE_DRIFT_GROWTH_PERCENT` — **the slope** —, when `tests`, `suite`, `dépôt`,
+`contexte` or `doc` has grown by more than this percentage in ten merges.
 
-Deux seuils portent sur **le coût**, en tokens, sur les dix derniers merges, et se posent **par le
-geste**, pas par une variable (`station seuil-ticket <entier>` et `station seuil-perdus <entier>`) :
-le seuil du ticket — les tokens du ticket le plus cher, tous ses lancements comptés — et celui des
-perdus — la somme des tokens des lancements qui n'ont rien livré. Franchis quand ils sont dépassés, nommés dans le bloc `drift` avec leur valeur et
-leur seuil. **Aucune valeur par défaut** : c'est le quota du chef. Un seuil de coût franchi se lit
-seulement — il ne rend rien rouge, n'arrête aucun cook et ne bloque aucune livraison.
+Two thresholds concern **cost**, in tokens, over the last ten merges, and are set
+**by gesture**, not by a variable (`station seuil-ticket <integer>` and `station seuil-perdus <integer>`):
+the ticket threshold — the tokens of the most expensive ticket, all its launches counted — and the lost one —
+the sum of the tokens of the launches that delivered nothing. Crossed when exceeded, named in the `drift` block with their value and
+their threshold. **No default value**: it is the chef's quota. A crossed cost threshold is only read
+— it turns nothing red, stops no cook and blocks no delivery.
 
-Un dernier signal porte sur **les renvois** : la part de tickets livrés du premier coup (la mesure de
-`measures`, voir « renvois ») sur les derniers tickets servis. Sous le seuil, le bloc `drift` de `status`
-ajoute une ligne — « 4/10 tickets delivered on the first try (threshold 50%) ». Au seuil ou au-dessus,
-ou tant que la fenêtre n'est pas pleine, rien. Il se règle comme les seuils de coût, par le geste :
-`station seuil-renvois <pourcentage>` (50 faute de réglage) et `station fenetre-renvois <tickets>`
-(10 faute de réglage). Il se lit seulement, et n'écrit ni `drift.crossed` ni ligne de journal.
+One last signal concerns **send-backs**: the share of tickets delivered on the first try (the measure of
+`measures`, see "renvois") over the last served tickets. Under the threshold, `status`'s `drift` block
+adds a line — "4/10 tickets delivered on the first try (threshold 50%)". At or above the threshold,
+or as long as the window is not full, nothing. It is set like the cost thresholds, by gesture:
+`station seuil-renvois <percentage>` (50 by default) and `station fenetre-renvois <tickets>`
+(10 by default). It is only read, and writes neither `drift.crossed` nor a log line.
 
-Les seuils entrent au journal quand ils changent (`drift.configured`). Quand un merge en fait
-franchir un, le runtime écrit `drift.crossed` et une ligne dans `journalctl -u brigade@<projet>`,
-**une fois** ; repassée sous son seuil, ou le seuil retiré, `drift.cleared`. Entre les deux, le bloc
-`drift` de `status` le rappelle. Rien n'est arrêté, aucune issue n'est ouverte.
-
+Thresholds enter the log when they change (`drift.configured`). When a merge makes one
+cross, the runtime writes `drift.crossed` and a line in `journalctl -u brigade@<project>`,
+**once**; back under its threshold, or the threshold removed, `drift.cleared`. In between, the `drift` block
+of `status` reminds you. Nothing is stopped, no issue is opened.
