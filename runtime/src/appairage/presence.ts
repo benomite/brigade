@@ -87,12 +87,15 @@ const VIERGE: EtatLocal = { gist: null, appairee: false, code: null, expireLe: n
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 const heure = (instant: number) => new Date(instant).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
 
+// Le nom du système tel que la liste des stations l'affiche, d'après `os.type()` :
+// `Darwin` se dit macOS, `Windows_NT` se dit Windows ; Linux et le reste, tels quels.
+export const nomDuSysteme = (typeOs: string): string => (typeOs === "Darwin" ? "macOS" : typeOs === "Windows_NT" ? "Windows" : typeOs);
+
 // Ce que la station dit d'elle : son nom, celui de sa machine — ou celui que
 // sa configuration lui donne —, ce qu'est la machine, ses cœurs, et sa version.
 export function identiteDeLaStation(env: Record<string, string | undefined>): Identite {
   const nom = env.BRIGADE_STATION_NOM || hostname().split(".")[0]?.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "") || "station";
-  const systeme = type() === "Darwin" ? "macOS" : type() === "Windows_NT" ? "Windows" : type();
-  return { nom, machine: `${systeme} ${release()}`, coeurs: availableParallelism(), version: env.BRIGADE_STATION_VERSION || `code ${empreinteDuCode().slice(0, 12)}` };
+  return { nom, machine: `${nomDuSysteme(type())} ${release()}`, coeurs: availableParallelism(), version: env.BRIGADE_STATION_VERSION || `code ${empreinteDuCode().slice(0, 12)}` };
 }
 
 // Lit l'état gardé. Illisible, la station repart de zéro : un gist neuf, un
