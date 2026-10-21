@@ -1297,7 +1297,7 @@ served tickets**, and **what the project cost** (#1022). It is not a tab at the 
 - **Then what the cooks taught the project** (#1058, epic #1034), under "what the cooks learned". **Its
   lessons**, provisional then promoted in `facts` order, one line each: the status as a dot
   (`provisional`, `promoted` in the accent's tone; its meaning on hovering the dot), the identifier in
-  monospace and the text, then the day of its entry (`since 10/1/2026`), **the tickets that proposed it** —
+  monospace and the text, then the day of its entry (`since 10/1/2026`), **where it comes from** (#1089: `origin: retro`, `origin: pass send-back on #12` or `origin: chef correction on #15`, read from the `origine` of the lesson in `facts`; a lesson with none recorded reads as `retro`), **the tickets that proposed it** —
   a click opens the card — and **the number of cooks that received it** (`received by 14 cooks`, or `received by
   no cook yet`). **A promoted one carries "open in the notebook"**: the button opens, in the browser, its line
   of the project's notebook on GitHub — the address `facts` gave for this lesson, and no other (the view

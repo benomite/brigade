@@ -43,6 +43,11 @@ const OUVRE = "opens its line in the project's notebook on GitHub — no branch,
 /** @type {Record<string, string>} */
 const ETATS = { promoted: PROMUE, retired: "retired", expired: "expired" };
 
+// D'où une leçon est née, dans les mots de la page : la rétro d'un cook, ou le renvoi de la pass ou la correction
+// du chef sur un ticket.
+export const direOrigine = (/** @type {import("../apprentissage.ts").Origine} */ origine) =>
+  origine.kind === "retro" ? "retro" : `${origine.kind === "pass-send-back" ? "pass send-back" : "chef correction"} on #${origine.ticket}`;
+
 const s = (/** @type {number} */ combien) => (combien > 1 ? "s" : "");
 // Une date du runtime (AAAA-MM-JJ), comme la vue les dit ailleurs : le jour lui-même, quel que soit le fuseau.
 const jour = (/** @type {string} */ date) => {
@@ -153,7 +158,9 @@ function uneLecon(doc, lecon, ouvrir, ouvrirLaLigne) {
   const depuis = cree(doc, "span", `since ${jour(lecon.date)}`);
   const cooks = cree(doc, "span", lecon.cooks === 0 ? "received by no cook yet" : `received by ${lecon.cooks} cook${s(lecon.cooks)}`);
   cooks.className = "cooks";
-  details.append(depuis, lesTickets(doc, "proposed by", lecon.tickets, "no ticket", ouvrir), cooks);
+  const origine = cree(doc, "span", `origin: ${direOrigine(lecon.origine)}`);
+  origine.className = "origine";
+  details.append(depuis, origine, lesTickets(doc, "proposed by", lecon.tickets, "no ticket", ouvrir), cooks);
   if (lecon.lien !== undefined) {
     const lien = cree(doc, "button", LIEN);
     lien.type = "button";
