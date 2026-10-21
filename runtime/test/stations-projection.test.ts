@@ -58,6 +58,7 @@ test("une station annoncée se lit avec son moteur, ce qu'elle fournit et son pl
     seenAt: null,
     presentSince: null,
     ordinary: false,
+    alongside: false,
     sandbox: null,
   });
 });
@@ -75,6 +76,15 @@ test("une station distante réglée pour les tickets ordinaires se lit avec ce q
   // Réannoncée sans le réglage, elle ne les prend plus — ce qu'elle a dit de son poste reste.
   noter({ type: "station.announced", payload: { station: "mac/claude", engine: "claude", provides: ["chrome-connecté"], maxCooks: 1, remote: true } });
   assert.deepEqual([etatStation(base, "mac/claude")?.ordinary, etatStation(base, "mac/claude")?.sandbox?.available], [false, true]);
+});
+
+test("une station de plus du projet — distante, déclarée `ensemble` — se lit comme telle, et ne l'est plus une fois réannoncée sans", (t) => {
+  const { base, noter } = cuisine(t);
+  const annonce = { station: "mac/claude", engine: "claude", provides: ["code"], maxCooks: 2, remote: true as const, ordinary: true as const };
+  noter({ type: "station.announced", payload: { ...annonce, alongside: true } });
+  assert.deepEqual([etatStation(base, "mac/claude")?.ordinary, etatStation(base, "mac/claude")?.alongside], [true, true]);
+  noter({ type: "station.announced", payload: annonce });
+  assert.deepEqual([etatStation(base, "mac/claude")?.ordinary, etatStation(base, "mac/claude")?.alongside], [true, false]);
 });
 
 test("un arbitre injoignable se lit sur la station, avec ce que l'échange a donné, jusqu'à son retour", (t) => {

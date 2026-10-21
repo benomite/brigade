@@ -14,7 +14,9 @@
 //   ticket ordinaire ne lui revient que si le chef la déclare `ordinaires`,
 //   que son poste a le bac à sable de Claude Code, où son cook est lancé
 //   (`bac-a-sable/ordinaires.ts`), et que la box sature — tant qu'elle a de
-//   la place, elle garde ses tickets ordinaires ;
+//   la place, elle garde ses tickets ordinaires. Déclarée `ensemble`, c'est
+//   une station de plus du projet : elle les prend à côté de la box, dès
+//   qu'elle a de la place, sans attendre qu'elle sature ;
 // - les bornes d'une prise sont les mêmes : le « stop », le disjoncteur, la
 //   base rouge, le quota, son plafond de cooks, les zones tenues ;
 // - son cook se lance par les garde-fous (`lancerDistant`) : mêmes refus, mêmes
@@ -352,8 +354,9 @@ export function ouvrirDistantes(cuisine: Cuisine): Distantes {
     // que son poste a le bac à sable — ce qu'elle vient d'en dire.
     const poste = declaree.ordinaires ? (postes.get(nom) ?? null) : null;
     // Et seulement quand la box sature : tant qu'elle a de la place, elle
-    // garde ses tickets ordinaires.
-    const ordinaires = poste !== null && cuisine.boxSaturee();
+    // garde ses tickets ordinaires — sauf pour une station de plus du projet
+    // (`ensemble`), qui cuit à côté d'elle et non derrière.
+    const ordinaires = poste !== null && (declaree.ensemble === true || cuisine.boxSaturee());
     const rien = (retenue: Retenue | null): Extract<Reponse, { verb: "claim" }> => {
       cuisine.direCeQuiRetient(nom, retenue);
       return { ok: true, verb: "claim", mission: null, held: retenue };

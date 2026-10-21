@@ -421,7 +421,7 @@ describe("la vérification", { concurrency: 8 }, () => {
     const constats = await verifier(env);
 
     assert.deepEqual(manques(constats), [
-      "chef's decision unreadable in the log — BRIGADE_STATIONS invalid: station no. 1 (“box/claude:beaucoup:code”) — cap: “beaucoup” is not an integer greater than zero. Expected `<machine>/<engine>:<cooks cap>:<capability>+<capability>[:distante[+ordinaires]]`, one station per entry, separated by commas (box/claude:30:code+raisonnement,box/playwright:2:navigateur-headless)",
+      "chef's decision unreadable in the log — BRIGADE_STATIONS invalid: station no. 1 (“box/claude:beaucoup:code”) — cap: “beaucoup” is not an integer greater than zero. Expected `<machine>/<engine>:<cooks cap>:<capability>+<capability>[:distante[+ordinaires|+ensemble]]`, one station per entry, separated by commas (box/claude:30:code+raisonnement,box/playwright:2:navigateur-headless)",
     ]);
   });
 

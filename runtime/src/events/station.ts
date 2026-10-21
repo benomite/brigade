@@ -52,10 +52,12 @@ export type FaitStation =
   // combien de cooks elle fait tourner à la fois tant qu'il n'a rien réglé.
   // `remote` : elle ne tourne pas sur cette machine, elle tire son travail.
   // `ordinary` : distante, elle prend aussi les tickets ordinaires, dans le bac
-  // à sable de son poste. `cores` : les cœurs de la machine qui la porte —
+  // à sable de son poste. `alongside` : distante et `ordinary`, elle les prend
+  // à côté des stations d'ici, sans attendre qu'elles saturent — une station
+  // de plus du projet. `cores` : les cœurs de la machine qui la porte —
   // seulement d'une station d'ici, la box ne voit pas le poste d'une distante ;
   // c'est d'eux que dérive son plafond par défaut (`plafondDesCoeurs`).
-  | { type: "station.announced"; payload: { station: string; engine: string; provides: string[]; maxCooks: number; cores?: number; remote?: true; ordinary?: true } }
+  | { type: "station.announced"; payload: { station: string; engine: string; provides: string[]; maxCooks: number; cores?: number; remote?: true; ordinary?: true; alongside?: true } }
   // Une station distante s'est manifestée — elle s'annonce, réclame, renouvelle
   // ou rend — alors qu'elle était absente : elle sert de nouveau. Écrit quand
   // ça change, pas à chaque manifestation.

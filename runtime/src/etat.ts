@@ -779,12 +779,14 @@ export type Faits = {
   // qu'elles font des tickets ordinaires — ceux qui ne demandent rien.
   // `distante` : elle tire son travail depuis le poste du chef. `plafond` : ses
   // cooks à la fois, au plus — nul, sans limite. `ordinaires` : le réglage du
-  // chef, qui ne se dit que d'une distante. `bacASable` : ce que la station a
+  // chef, qui ne se dit que d'une distante. `ensemble` : distante, c'est une
+  // station de plus du projet — elle prend les tickets ordinaires à côté de la
+  // box, sans attendre qu'elle sature. `bacASable` : ce que la station a
   // dit du bac à sable de son poste — `disponible`, `raison` (nulle s'il l'est),
   // `version` de son `claude` (nulle s'il ne l'est pas), `depuis` ; nul tant
   // qu'elle n'en a rien dit. `prendOrdinaires` : elle en prend, à cet instant —
   // toujours vrai d'une station d'ici ; d'une distante, réglage et bac à sable,
-  // et elle n'en reçoit que quand la box sature.
+  // et elle n'en reçoit que quand la box sature, sauf `ensemble`.
   // `cuisson` : ce que la station fait du projet, un mot de `CUISSONS` —
   // `refused` (la station de la machine refuse le projet : `refus` dit
   // pourquoi), `stopped` (le chef l'a arrêtée — `arreteeDepuis` —, ou il a
@@ -796,6 +798,7 @@ export type Faits = {
     distante: boolean;
     plafond: number | null;
     ordinaires: boolean;
+    ensemble: boolean;
     bacASable: { disponible: boolean; raison: string | null; version: string | null; depuis: string } | null;
     prendOrdinaires: boolean;
     cuisson: Cuisson;
@@ -944,6 +947,7 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limit
       distante: station.remote,
       plafond: plafondDeCooks(station),
       ordinaires: station.remote && station.ordinary,
+      ensemble: station.remote && station.alongside,
       bacASable: station.sandbox && { disponible: station.sandbox.available, raison: station.sandbox.reason, version: station.sandbox.version, depuis: station.sandbox.at },
       prendOrdinaires: prendLesOrdinaires({ distante: station.remote, ordinaires: station.ordinary }, station.sandbox),
       cuisson: cuisson(station),

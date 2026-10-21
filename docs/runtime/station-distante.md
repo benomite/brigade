@@ -165,6 +165,49 @@ when the box is saturated, each cook inside the Claude Code sandbox…`.
 The state can also be read in `facts`, field `stations` (see "Facts, for a program" in
 [`etat-et-mesures.md`](etat-et-mesures.md)): it is what the app displays.
 
+#### A second station of the project, which cooks alongside the first
+
+*Ticket #1287.* A station declared `distante+ordinaires` is a **backup**: it takes ordinary tickets
+only once the box can take no more. A station added to the project as **one more station** is not a
+backup: it cooks **at the same time** as the first. The chef declares it `distante+ensemble` (the
+setting word stays French until the runtime is translated):
+
+```bash
+brigade <project> station stations box/claude:3:code+raisonnement,mac/claude:2:code+raisonnement:distante+ensemble
+```
+
+- **It takes the project's tickets as soon as it has room**, each station up to its own cap on
+  cooks: the box takes the tickets it can when it wakes, the second station receives at its `claim`
+  the first one, in service order, that it can cook — ordinary tickets included, **whether the box is
+  saturated or not**. A box that ramps up in steps, prepares worktrees or is held by its own
+  connection or quota does not hold it back.
+- **A ticket is never taken twice.** Every taking is written to the project's log by the runtime that
+  serves it, one request at a time: a ticket the second station holds is not taken by the box, and two
+  stations that claim at the same moment receive two different tickets — or nothing, at their cap.
+- **Stopping or losing one does not stop the other.** The chef stops the cooking on one station
+  (`station -- stop <station>`): the other keeps taking. The box's Max connection drops, or its quota
+  runs out: the second station, which has its own, keeps taking — a backup would wait. The second
+  station goes quiet: its lease falls, its ticket goes back to the rail, the box takes it up, and keeps
+  taking the new ones. The runtime itself is not shared: if the first station's machine stops, its
+  kitchen — rail, manager, pass — stops with it, and no station takes anything until it is back.
+- **The first station keeps the manager and the pass.** They run where the kitchen runs; every
+  station cooks, none other runs them. The second station receives only cooks — `announce`,
+  `claim`, `renew`, `return` —, and its deliveries go through the first station's pass, judged by
+  its reviewer, like any other.
+- **The same guards as `ordinaires`.** An ordinary ticket only leaves for another machine inside the
+  Claude Code sandbox of its workstation: with no sandbox said, or an unavailable one, it takes no
+  ordinary ticket, only those that ask for one of its capabilities.
+
+`station` says it on the `ordinary tickets` line (`taken alongside the box's stations, as one more
+station of the project — not only when the box is saturated — …`), and `facts` in the `ensemble`
+field of `stations`.
+
+**What is not done yet.** The second station still has to reach the kitchen: today, only through the
+`pull` gesture (`ssh <host> brigade <project> pull …`), which the app's runner plays for a project
+it reaches by `ssh`. A station the app pairs through its gist and adds to a project as not its main
+one (`secondaire`, in [`station-machine.md`](station-machine.md)) is not declared in the project's
+log and pulls nothing yet.
+
 #### A local kitchen: all its cooks in the sandbox
 
 The tickets lent by the box are not the only ones that go through macOS's sandbox. **A project whose
