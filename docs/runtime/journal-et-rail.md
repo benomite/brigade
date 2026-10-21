@@ -169,6 +169,18 @@ its merge — and you say why; without a reason, it is refused. Neither talks to
 each makes it a project **candidate lesson**, with origin `chef-correction #<ticket>` (see
 [`carnet-lecons.md`](carnet-lecons.md), "A lesson born from a send-back").
 
+### Answering a TODO card
+
+```bash
+npm --prefix runtime run rail -- choose <ticket> <choice number>
+npm --prefix runtime run rail -- answer <ticket> <answer…>
+```
+
+`choose` answers the ticket's TODO card by one of its choices, numbered from 1 as `status` shows
+them; `answer`, in your own words, typed without quotes. In the same call, the answer is written on
+the issue, the card leaves TODO and the ticket moves on — see "What enters TODO, and how you
+answer" in [`manager.md`](manager.md).
+
 The rail's facts: `ticket.arrived`, `ticket.changed`, `ticket.left` (in the name of `github`; also
 for an awaited issue, closed without having come onto the rail), `ticket.taken`, `ticket.renewed`,
 `ticket.released`, `ticket.passing`, `ticket.served`, `ticket.86`, `ticket.blocked`,

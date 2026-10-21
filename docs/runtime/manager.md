@@ -94,7 +94,7 @@ its own ETag — and sorts it without spending anything:
 | is the roadmap (`BRIGADE_ROADMAP_ISSUE`) | Nothing | `manager.set-aside` (`roadmap`) |
 | is an epic it already split, or a ticket born from one of its splits | Nothing: it is done, and what they have carried since is yours | — |
 | carries `hors-cuisine` — even with `fire`, a complete calibration or the `merge` grant | Nothing: the ticket is not served on this box. It does not enter the rail, is not in `attend`, and the manager says so once if it carries `fire` | `manager.set-aside` (`hors-cuisine`) |
-| carries `blocked-on-human` | **Reread** by the LLM, once per state, for the decision it awaits. Written in the issue: nothing, it stays held. Absent, but a real question derives from it: a `product`, `design` or `gesture` card enters TODO (the statement is the question), the issue stays held and the card leaves when the label goes. Absent, with no question: the kitchen takes the ticket back, the label is removed and the issue judged in the same turn. The comment says which of the two | `manager.requalified` (`stated`, `card`, `taken-back` or `unreadable`), then `manager.set-aside` unless taken back |
+| carries `blocked-on-human` | **Reread** by the LLM, once per state, for the decision it awaits. Written in the issue: nothing, it stays held. Absent, but a real question derives from it: a `product`, `design` or `gesture` card is proposed (the statement is the question) and goes to the triage like any card (see "Before TODO: the triage"), the issue stays held and the card leaves when the label goes. Absent, with no question: the kitchen takes the ticket back, the label is removed and the issue judged in the same turn. The comment says which of the two | `manager.requalified` (`stated`, `card`, `taken-back` or `unreadable`), then `manager.set-aside` unless taken back |
 | carries `question` or `decision` | Nothing | `manager.set-aside` (the label) |
 | already carries, in its body, the list of an epic's tickets, without it having split it | Nothing: it was split by hand | `manager.set-aside` (`already-split`) |
 | carries `epic` | **Split** by the LLM, once | `manager.split`, or a question |
@@ -306,7 +306,7 @@ ticket that failed twice never goes out identical**: if nothing changes, it is p
 | **re-split** | the ticket becomes **the epic of its sub-tickets**: they are born calibrated, ordered and launched, and start again from the base. It goes **86** (`manager:split`, pass `manager-split`); its PR stays open, as a reference, and **it no longer holds its zone**. A ticket born from such a re-split is not re-split |
 | **pass up** | the ticket goes **86** (`manager:escalated`, pass `still-red`, cause `manager-escalated`), and you receive what you need to decide: each attempt with its calibration and what the pass found in it, why it is passed up, and **what it proposes** |
 
-A card enters TODO only if the cause of the red is a **product choice** (`product`) or a **gesture** that only you can make (`gesture`): the manager sets it with the passing up, in one line (`todo.entered`), and it replaces the bare passing up in `attend`. A red that hides neither is passed up **without a card** — the issue says so —, and no card is ever set for it. The card leaves TODO as soon as the ticket is no longer 86 `manager:escalated`.
+A card is proposed only if the cause of the red is a **product choice** (`product`) or a **gesture** that only you can make (`gesture`): the manager proposes it with the passing up, in one line; like any card it goes to the triage, and what enters TODO (`todo.entered`) is a question with its choices, which replaces the bare passing up in `attend`. A red that hides neither is passed up **without a card** — the issue says so —, and no card is ever set for it. The card leaves TODO as soon as the ticket is no longer 86 `manager:escalated`.
 
 An unreadable answer, a choice that was not offered (raising at the ceiling, re-splitting a
 sub-ticket) or an impossible re-split counts as **passing up**. **The breaker has the last
@@ -344,13 +344,47 @@ While it decides, the card is not in TODO.
 | **dependency** | the number is removed from the `attend` line of the card (fiche) on the issue |
 | **wait** | only if a check is still running: the card stays held for 15 minutes, then is triaged again |
 | **remove** | `fire` is removed, the ticket leaves the rail |
-| **todo** | the card enters TODO as it was set, in the name of whoever set it |
+| **todo** | the card it writes — its kind, one question, its choices — goes to the TODO gate (below), in the name of whoever set it; without one, the card as it was set |
 
 Each action done writes **exactly one sentence** on the issue (the agent's, refused if it is not a
 single sentence on one line), and `todo.triaged` in the log. An unreadable answer, an action that
-cannot be done, an agent that cannot run (stop, breaker, held account): the card enters TODO, as
-before. **The triage never merges**: no action merges, an agent asking for it is not read, and
-merging stays with the grant on a green pass. Manager off, every held card enters TODO.
+cannot be done, an agent that cannot run (stop, breaker, held account): the card as it was set goes
+to the gate. **The triage never merges**: no action merges, an agent asking for it is not read, and
+merging stays with the grant on a green pass. Manager off, every held card goes to the gate; the one
+it refuses stays held until the manager is back.
+
+#### What enters TODO, and how you answer
+
+The TODO gate (`runtime/src/carte-todo.ts`) admits **two kinds of cards, and no other**: a choice
+that changes the product (`product`) and a design validation (`design`). Each asks **exactly one
+question** (one line, ending with its only "?") and offers **at least one choice**, each one line,
+each with what follows it: `resume` (the kitchen takes the ticket up again with your answer) or
+`merge` (the green delivery waiting for you is merged). A `design` card shows **the captures its
+ticket delivered**, each screen before and after (`docs/captures/<ticket>/<screen>-avant.png` and
+`-apres.png`, taken with `scripts/capture-ecran/` and read from its last delivery,
+`runtime/src/captures.ts`); without them it does not enter. A `product` card shows them when its ticket delivered some, and none otherwise. Anything
+else — a `gesture`, a card with no question or no choice — is refused (`todo.refused`, with the
+reason) and **sent back to the triage**: it stays held, and the agent reads the reason at its next
+turn. A card the gate sends back three times after an answer of the agent is no longer taken up:
+the ticket shows in `attend` as it is, without a card. A card entered before this gate (a `gesture`,
+a card without choices) is no longer read as a card.
+
+`facts` gives each card in `attend[].carte`: `type`, `question`, `choix` (`texte`, `suite`) and
+`captures` (`complet`, `ecrans` with `avant` and `apres`, by address), `null` on a `product` card
+without a screen. **One call settles it**, by a choice or in your own words:
+
+```
+npm --prefix runtime run rail -- choose 8 2              # choice 2 of the card, from 1
+npm --prefix runtime run rail -- answer 8 <your words…>  # free text
+```
+
+Your answer is written on the issue, the card leaves TODO (`todo.answered`, `todo.left`), and the
+ticket moves on: a delivery waiting for you — green, or passed up — goes back to a cook, who reads
+your answer in place of the findings (`chef-answered`); a `merge` choice merges the green delivery,
+the pass serves the ticket; a ticket 86 with no delivery goes back to the rail; an issue held by
+`blocked-on-human` loses its label and the manager judges it again. What cannot be done (no card,
+a choice out of range, a `merge` with no green delivery waiting, a cook at work) is refused before
+anything is written; GitHub refusing the comment changes nothing.
 
 ### What it leaves on the issue
 

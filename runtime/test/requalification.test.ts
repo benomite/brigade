@@ -26,12 +26,14 @@ describe("un ticket blocked-on-human", { concurrency: 8 }, () => {
     await jusqua(() => cartesEnTodo(c.journal.base).length === 1);
 
     const [carte] = cartesEnTodo(c.journal.base);
-    assert.deepEqual([carte?.ticket, carte?.type, carte?.enonce], [40, "product", "Choisir entre l'export CSV et l'export JSON."]);
+    // Proposée par la requalification, écrite en question par le triage.
+    assert.equal(c.journal.duTicket(40).find((e) => e.type === "todo.held")?.payload.statement, "Choisir entre l'export CSV et l'export JSON.");
+    assert.deepEqual([carte?.ticket, carte?.type, carte?.question], [40, "product", "Export CSV ou export JSON ?"]);
     const [fait] = c.requalifie();
     assert.equal((fait?.payload as { outcome: string }).outcome, "card");
     assert.deepEqual(c.gh.lire(40)?.labels, ["blocked-on-human"]);
     await jusqua(() => c.dits().length === 1);
-    assert.match(c.dits()[0] ?? "", /une carte est posée devant le chef/);
+    assert.match(c.dits()[0] ?? "", /une carte est proposée au chef/);
     // Une fois lue, la même issue ne se relit pas, et la carte ne se repose pas.
     await c.laisserTourner();
     assert.equal(c.requalifie().length, 1);

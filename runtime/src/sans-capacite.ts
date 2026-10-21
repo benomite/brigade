@@ -5,7 +5,8 @@
 // ticket. Les sous-tickets naissent ensuite comme ceux d'une épique, et le
 // ticket sort du rail (86 `manager:split`). Ce n'est que si la réécriture est
 // impossible que le chef est sollicité, par une carte `gesture` qui nomme
-// l'accès à donner et pourquoi.
+// l'accès à donner et pourquoi — une proposition, que le triage lit d'abord :
+// seule une question et ses choix entrent dans TODO (carte-todo.ts).
 //
 // Rien n'est gardé en mémoire : l'issue de chaque ticket est au journal
 // (`manager.capability-resplit`, `manager.capability-gestured`), et ce qui
@@ -76,14 +77,12 @@ export function ouvrirSansCapacite(atelier: AtelierSansCapacite) {
 
   const poserLaCarte = async (ticket: number, manque: Manque, pourquoi: string, run: string | null) => {
     const enonce = enonceDeGeste(manque, pourquoi);
-    const retenue = base.transaction(() => {
-      const jugement = entrerDansTodo(journal, projet, ticket, { type: "gesture", enonce }, AUTEUR_DE_CARTE);
+    base.transaction(() => {
+      entrerDansTodo(journal, projet, ticket, { type: "gesture", enonce }, AUTEUR_DE_CARTE);
       noter(ticket, { type: "manager.capability-gestured", payload: { missing: manque.capacites, reason: pourquoi } });
-      return jugement.admise;
     });
-    if (!retenue) return;
     await commenter(ticket, [
-      `**Manager — ${direManqueEn(manque)} : une carte est posée devant le chef.**`,
+      `**Manager — ${direManqueEn(manque)} : une carte est proposée au chef, que le triage lit d'abord.**`,
       "",
       `Ce ticket ne peut pas se passer de ${noms(manque)} : ${pourquoi}`,
       "",
@@ -146,7 +145,7 @@ export function ouvrirSansCapacite(atelier: AtelierSansCapacite) {
     // et sort de TODO la carte d'un ticket qui n'est plus dans ce cas.
     async traiter(): Promise<void> {
       for (const carte of cartesEnTodo(base)) {
-        if (carte.type !== "gesture" || !journal.duTicket(carte.ticket).some((evenement) => evenement.type === "manager.capability-gestured")) continue;
+        if (!journal.duTicket(carte.ticket).some((evenement) => evenement.type === "manager.capability-gestured")) continue;
         const sur = rail.tickets().find((ticket) => ticket.ticket === carte.ticket);
         if (sur && sur.state === "86" && manqueDuMotif(sur.reason) !== null) continue;
         sortirDeTodo(journal, projet, carte.ticket, "the capability is provided, or the ticket left the rail", AUTEUR_DE_CARTE);

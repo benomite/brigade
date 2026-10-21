@@ -155,7 +155,7 @@ const DECLARATIONS: Record<string, string> = {
 };
 const WORKFLOWS = ".github/workflows";
 // Ce que l'arrêt d'une livraison qui touche à ses juges dit de son second juge.
-const SECOND_JUGE_APPELE = "Un second juge, distinct du reviewer et plus fort que lui, va dire si elle affaiblit le contrôle : son verdict s'écrira sur la PR. Ne l'établit-il pas non affaiblie, une carte `gesture` est posée devant le chef.";
+const SECOND_JUGE_APPELE = "Un second juge, distinct du reviewer et plus fort que lui, va dire si elle affaiblit le contrôle : son verdict s'écrira sur la PR. Ne l'établit-il pas non affaiblie, une carte est proposée au chef, que le triage lit d'abord.";
 // Et ce qu'elle devient s'il l'établit, quand rien d'autre ne la retient.
 const SECOND_JUGE_PUIS = "S'il établit qu'elle ne l'affaiblit pas, elle suit le chemin d'une livraison ordinaire : mergée par la pass sous le grant `merge`, arrêtée sans lui.";
 // Un quota épuisé qui ne dit pas quand il revient est retenté une heure après.
@@ -480,7 +480,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   // merge. Les gates de sa fusion avec la base disent si elle la répare.
   const estLaReparation = (ticket: number) => reparationEnCours(base) === ticket;
 
-  // La carte `gesture` qu'un second juge a posée sort de TODO : le chef a
+  // La carte qu'un second juge a proposée sort de TODO : le chef a
   // tranché, en mergeant ou en fermant la PR. Seulement la sienne — la carte
   // en TODO est la dernière entrée, et c'est la pass qui l'a posée.
   const oterLaCarte = (ticket: number, pourquoi: string) => {
@@ -875,7 +875,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   // à qui l'on ne demande qu'une chose : le contrôle est-il affaibli ? Son
   // verdict et sa raison s'écrivent au journal et sur la PR. `not weakened` :
   // elle reprend le chemin d'une livraison ordinaire (`aReprendre`). Sinon,
-  // elle reste arrêtée, et une carte `gesture` dit au chef ce qui est
+  // elle reste arrêtée, et une carte `gesture`, proposée au triage, dit ce qui est
   // affaibli, et où.
   const jugerUneSecondeFois = async (connu: PassDeTicket): Promise<void> => {
     const { ticket, run, sha, number, pr, judgedBase } = connu;
@@ -895,7 +895,10 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       const carte = verdict === "not-weakened" ? null : carteDuSecondJuge({ verdict, raison: reason, juges, pr });
       const posee = base.transaction(() => {
         noter(ticket, { type: "pass.second-judged", payload: { run, sha, judge: lance?.judge ?? null, model: lance?.model ?? null, effort: lance?.effort ?? null, reviewer, review, verdict, reason } });
-        return carte !== null && entrerDansTodo(journal, projet, ticket, { type: "gesture", enonce: carte.enonce }, AUTEUR).admise;
+        // Une proposition `gesture` : elle va au triage, qui la tranche ou
+        // l'écrit en question pour le chef (carte-todo.ts).
+        if (carte !== null) entrerDansTodo(journal, projet, ticket, { type: "gesture", enonce: carte.enonce }, AUTEUR);
+        return carte !== null;
       });
       avertir(`brigade : second juge sur ${connu.horsRail ? `la PR #${ticket}, hors du rail,` : `le ticket #${ticket}`}, qui touche à ses juges — ${DIRE_VERDICT[verdict]}${lance ? ` (\`${lance.model}\` / \`${lance.effort}\`)` : ", sans avoir été lancé"}`);
       const qui = lance
@@ -916,7 +919,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
         await commenter(
           ticket,
           [
-            `**Pass — verte, non mergée : le second juge dit \`${DIRE_VERDICT[verdict]}\`. Une carte \`gesture\` est posée devant le chef.**${pr ? ` ${pr}` : ""}`,
+            `**Pass — verte, non mergée : le second juge dit \`${DIRE_VERDICT[verdict]}\`. Une carte est proposée au chef, que le triage lit d'abord.**${pr ? ` ${pr}` : ""}`,
             "",
             ...carte.lignes.map((ligne) => `- ${ligne}`),
           ].join("\n"),

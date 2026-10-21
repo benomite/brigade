@@ -40,17 +40,19 @@ describe("un ticket qui demande ce qu'aucune station ne fournit", { concurrency:
     assert.ok(c.gh.commentaires.some(([n, corps]) => n === 14 && corps.includes(MARQUEUR_MANAGER) && /redécoupé/.test(corps)));
   });
 
-  test("la réécriture est impossible : une carte `gesture` nomme l'accès à donner et la raison, et le ticket reste 86", async (t) => {
+  test("la réécriture est impossible : une carte `gesture` nomme l'accès à donner et la raison, le triage la lit, et le ticket reste 86", async (t) => {
     const c = brigade(t, "chrome-connecté", "decoupe-question");
     await jusqua(() => cartesEnTodo(c.journal.base).length === 1);
 
+    // La proposition : un geste, que le triage lit d'abord — c'est sa question qui entre dans TODO.
+    const proposee = c.journal.duTicket(14).find((e) => e.type === "todo.held")?.payload as { kind: string; statement: string } | undefined;
+    assert.equal(proposee?.kind, "gesture");
+    assert.match(proposee?.statement ?? "", /no station provides `chrome-connecté`/);
+    assert.match(proposee?.statement ?? "", /station stations <machine>\/<engine>:<cook cap>:chrome-connecté/);
+    assert.match(proposee?.statement ?? "", /Plus rapide/);
+    assert.doesNotMatch(proposee?.statement ?? "", /\n/);
     const [carte] = cartesEnTodo(c.journal.base);
-    assert.equal(carte?.ticket, 14);
-    assert.equal(carte?.type, "gesture");
-    assert.match(carte?.enonce ?? "", /no station provides `chrome-connecté`/);
-    assert.match(carte?.enonce ?? "", /station stations <machine>\/<engine>:<cook cap>:chrome-connecté/);
-    assert.match(carte?.enonce ?? "", /Plus rapide/);
-    assert.doesNotMatch(carte?.enonce ?? "", /\n/);
+    assert.deepEqual([carte?.ticket, carte?.type], [14, "product"]);
     assert.equal(c.faits("manager.capability-gestured").length, 1);
     assert.equal(c.faits("manager.capability-resplit").length, 0);
     assert.deepEqual([c.gh.creations, c.etat(14), c.dernier("ticket.86", 14)?.reason], [[], "86", "no-station: chrome-connecté"]);

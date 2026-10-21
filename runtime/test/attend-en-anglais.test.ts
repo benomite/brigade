@@ -132,9 +132,21 @@ const EXEMPLES = {
     { ...ticket(29), quoi: "repris", attendait: null },
   ],
   carte: [
-    { ...ticket(46), quoi: "carte", carte: { type: "product", enonce: "one list per project, or one for all projects?", capture: null } },
-    { ...ticket(47), quoi: "carte", carte: { type: "design", enonce: "validate the empty rail screen", capture: "docs/captures/47/rail-vide-apres.png" } },
-    { ...ticket(48), quoi: "carte", carte: { type: "gesture", enonce: "give the service account read access to the repository", capture: null } },
+    {
+      ...ticket(46),
+      quoi: "carte",
+      carte: { type: "product", question: "One list per project, or one for all projects?", choix: [{ texte: "One list per project.", suite: "resume" }, { texte: "One for all.", suite: "resume" }], captures: null },
+    },
+    {
+      ...ticket(47),
+      quoi: "carte",
+      carte: {
+        type: "design",
+        question: "Is the empty rail screen right?",
+        choix: [{ texte: "Yes, merge it.", suite: "merge" }],
+        captures: { sha: "c0ffee", screens: [{ screen: "rail-vide", before: "docs/captures/47/rail-vide-avant.png", after: "docs/captures/47/rail-vide-apres.png" }] },
+      },
+    },
   ],
   connexion: [
     { ...horsTicket, quoi: "connexion", station: "box/claude", reason: "not-logged-in" },

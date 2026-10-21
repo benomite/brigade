@@ -19,14 +19,20 @@ import { passDuTicket } from "../src/projections/pass.ts";
 import { ticketDuRail } from "../src/projections/rail.ts";
 import { ouvrirRail } from "../src/rail.ts";
 import { DEFINITION, lireTriage, unePhrase } from "../src/triage/consigne.ts";
-import { ATTENTE_CI_MS, ouvrirTriage, RELANCE_DU_TRIAGE } from "../src/triage/triage.ts";
+import { ATTENTE_CI_MS, ouvrirTriage, RELANCE_DU_TRIAGE, RENVOIS_MAX } from "../src/triage/triage.ts";
 import { CALIBRE, chef, cuisine, fauxGitHub, issue, montre } from "./aides/cuisine.ts";
 import { aArreter, DEPOT, jusqua, repertoireTemporaire } from "./outils.ts";
 import { posixOnly } from "./support/plateforme.ts";
 
 const PROJET = "brigade";
 const STATION = "box/claude";
+// Ce que la pass ou le manager proposent : une ligne, sans question ni choix —
+// la porte de TODO la renvoie au triage.
 const CARTE = { type: "product", enonce: "Choisir entre l'export CSV et l'export JSON." };
+// Une carte qui passe la porte : une question, ses choix.
+const COMPLETE = { type: "product", enonce: "Export CSV ou export JSON ?", choix: [{ texte: "L'export CSV." }, { texte: "L'export JSON." }] };
+// La carte que l'agent écrit, quand il l'envoie en TODO.
+const ECRITE = { type: "produit", question: "Export CSV ou export JSON ?", choix: [{ texte: "L'export CSV.", suite: "reprendre" }, "L'export JSON."] };
 const FICHE = "<!-- brigade:fiche -->\n- attend : #29, #27\n- zone : src";
 
 // Ce que l'agent répond, pour chaque action.
@@ -36,7 +42,7 @@ const REPONSES = {
   dependance: { action: "dependance", phrase: "Removed the dependency on #29, which was served by the split of #28.", dependance: 29, motif: "Livrée." },
   attendre: { action: "attendre", phrase: "Waiting for the CI of #30, which is still running.", motif: "La CI tourne." },
   retirer: { action: "retirer", phrase: "Removed #30 from the rail: it was done in #27.", motif: "Doublon." },
-  todo: { action: "todo", motif: "Un choix de produit." },
+  todo: { action: "todo", carte: ECRITE, motif: "Un choix de produit." },
 };
 
 // Une réponse que le test lâche quand il veut : l'agent décide tant qu'elle
@@ -94,7 +100,7 @@ function atelier(t: TestContext, reponses: Array<unknown | Promise<unknown>>) {
     rail.envoyerEnPass(30, STATION);
     noter(30, { type: "pass.started", payload: { run: "cook-30", pr: `https://github.com/${DEPOT}/pull/101`, number: 101, sha: "abc123" } }, "pass");
   };
-  const poser = (auteur = "pass") => entrerDansTodo(journal, PROJET, 30, CARTE, auteur);
+  const poser = (auteur = "pass", proposition: Parameters<typeof entrerDansTodo>[3] = CARTE) => entrerDansTodo(journal, PROJET, 30, proposition, auteur);
   const dits = () => gh.commentaires.filter(([numero]) => numero === 30).map(([, corps]) => corps);
   return { journal, rail, gh, heure, triage, consignes, decoupes, retenus, avertissements, noter, arriver, livrer, poser, dits };
 }
@@ -121,7 +127,7 @@ describe("la porte de TODO, devant le triage", () => {
     c.gh.ci.checks = [rouge];
     c.gh.journauxDeCI.set("tests", "not ok 12 - export.test.ts: header missing");
 
-    assert.equal(c.poser().admise, true);
+    assert.deepEqual(c.poser(), { porte: "triage", raison: null });
     assert.deepEqual(cartesEnTodo(c.journal.base), []);
     assert.deepEqual(cartesRetenues(c.journal.base).map(({ ticket, auteur }) => [ticket, auteur]), [[30, "pass"]]);
 
@@ -137,22 +143,64 @@ describe("la porte de TODO, devant le triage", () => {
 
     suspens.lacher(REPONSES.todo);
     await traite;
-    assert.deepEqual(cartesEnTodo(c.journal.base).map(({ ticket, enonce }) => [ticket, enonce]), [[30, CARTE.enonce]]);
+    // Elle entre telle que l'agent l'a écrite : une question, ses choix.
+    assert.deepEqual(
+      cartesEnTodo(c.journal.base).map(({ ticket, type, question, choix }) => ({ ticket, type, question, choix })),
+      [{ ticket: 30, type: "product", question: "Export CSV ou export JSON ?", choix: [{ texte: "L'export CSV.", suite: "resume" }, { texte: "L'export JSON.", suite: "resume" }] }],
+    );
+    assert.equal(c.journal.duTicket(30).findLast((e) => e.type === "todo.entered")?.author, "pass");
   });
 
-  test("sans triage branché, la carte entre dans TODO comme avant", (t) => {
+  test("sans triage branché, une carte avec sa question et ses choix entre dans TODO ; sans eux, elle est renvoyée au triage", (t) => {
     const repertoire = repertoireTemporaire(t);
     const journal = ouvrirJournal(repertoire);
     aArreter(t, () => journal.fermer());
-    assert.equal(entrerDansTodo(journal, PROJET, 30, CARTE, "manager").admise, true);
+    assert.equal(entrerDansTodo(journal, PROJET, 30, COMPLETE, "manager").porte, "todo");
     assert.deepEqual(cartesEnTodo(journal.base).map(({ ticket }) => ticket), [30]);
     assert.deepEqual(cartesRetenues(journal.base), []);
+
+    assert.deepEqual(entrerDansTodo(journal, PROJET, 31, CARTE, "manager"), { porte: "triage", raison: "not exactly one question: a TODO card asks one question, ending with its only “?”" });
+    assert.deepEqual(cartesEnTodo(journal.base).map(({ ticket }) => ticket), [30]);
+    assert.deepEqual(cartesRetenues(journal.base).map(({ ticket, refus }) => [ticket, refus]), [[31, "not exactly one question: a TODO card asks one question, ending with its only “?”"]]);
   });
 
-  test("une carte refusée à la porte n'est pas retenue : elle n'entre nulle part", (t) => {
-    const c = atelier(t, []);
-    assert.equal(entrerDansTodo(c.journal, PROJET, 30, { type: "chore", enonce: "x" }, "pass").admise, false);
+  test("une carte d'une autre sorte que l'agent envoie en TODO est refusée et lui revient, avec la raison, jusqu'à ce qu'il en écrive une qui passe", async (t) => {
+    const c = atelier(t, [
+      { action: "todo", carte: { type: "gesture", question: "Donner l'accès sudo ?", choix: ["Oui."] }, motif: "Un geste." },
+      { action: "todo", carte: { type: "produit", question: "Donner l'accès sudo ?", choix: [] }, motif: "Sans choix." },
+      REPONSES.todo,
+    ]);
+    c.arriver();
+    c.poser("manager", { type: "gesture", enonce: "Give the station sudo." });
+
+    await c.triage.traiter();
+    assert.deepEqual(cartesEnTodo(c.journal.base), []);
+    const [retenue] = cartesRetenues(c.journal.base);
+    assert.deepEqual([retenue?.refus, retenue?.renvois], ["“gesture” is not a TODO card: only a product choice (product) or a design validation (design) reaches the chef", 1]);
+    assert.equal(c.journal.duTicket(30).findLast((e) => e.type === "todo.triaged")?.payload.action, "back");
+
+    // Au tour suivant, l'agent lit pourquoi la porte la lui a renvoyée.
+    await c.triage.traiter();
+    assert.match(c.consignes[1] ?? "", /La porte de TODO l'a refusée \(1 fois après ta réponse\) : “gesture” is not a TODO card/);
+    assert.deepEqual(cartesEnTodo(c.journal.base), []);
+    assert.equal(cartesRetenues(c.journal.base)[0]?.refus, "no choice: a TODO card offers at least one choice to click");
+
+    await c.triage.traiter();
+    assert.deepEqual(cartesEnTodo(c.journal.base).map(({ ticket, question }) => [ticket, question]), [[30, "Export CSV ou export JSON ?"]]);
     assert.deepEqual(cartesRetenues(c.journal.base), []);
+    assert.deepEqual(c.dits(), []);
+  });
+
+  test(`une carte que la porte renvoie ${RENVOIS_MAX} fois après une réponse de l'agent n'est plus reprise, et reste hors de TODO`, async (t) => {
+    const mauvaise = { action: "todo", carte: { type: "gesture", question: "Donner l'accès ?", choix: ["Oui."] }, motif: "Un geste." };
+    const c = atelier(t, Array.from({ length: RENVOIS_MAX + 1 }, () => mauvaise));
+    c.arriver();
+    c.poser("manager");
+    for (let tour = 0; tour < RENVOIS_MAX + 2; tour++) await c.triage.traiter();
+    assert.equal(c.consignes.length, RENVOIS_MAX);
+    assert.deepEqual(cartesEnTodo(c.journal.base), []);
+    assert.deepEqual(cartesRetenues(c.journal.base).map(({ ticket, renvois }) => [ticket, renvois]), [[30, RENVOIS_MAX]]);
+    assert.ok(c.avertissements.some((texte) => texte.includes("le triage ne la reprendra plus")));
   });
 });
 
@@ -235,7 +283,7 @@ describe("l'agent tranche : l'action est faite, et une seule phrase le dit sur l
   test("une carte que le ticket avait déjà dans TODO en sort, quand le triage tranche la suivante", async (t) => {
     const c = atelier(t, [REPONSES.retirer]);
     c.arriver();
-    c.noter(30, { type: "todo.entered", payload: { kind: "gesture", statement: "Retirer `fire`.", capture: null } }, "manager");
+    c.noter(30, { type: "todo.entered", payload: { kind: "product", statement: "Garder `fire` ?", choices: [{ text: "Oui.", then: "resume" }], captures: null } }, "manager");
     assert.equal(cartesEnTodo(c.journal.base).length, 1);
     c.poser("pass");
     await c.triage.traiter();
@@ -244,7 +292,7 @@ describe("l'agent tranche : l'action est faite, et une seule phrase le dit sur l
 });
 
 describe("le triage ne merge jamais", () => {
-  test("un agent qui demande le merge d'une livraison rouge n'est pas suivi : rien n'est mergé, la carte entre dans TODO", async (t) => {
+  test("un agent qui demande le merge d'une livraison rouge n'est pas suivi : rien n'est mergé, la carte telle que posée va à la porte", async (t) => {
     const c = atelier(t, [{ action: "merger", phrase: "Merged the PR of #30.", motif: "Elle me semble bonne." }]);
     c.livrer();
     c.gh.ci.checks = [{ name: "tests", outcome: "red", conclusion: "failure", url: null }];
@@ -253,7 +301,9 @@ describe("le triage ne merge jamais", () => {
 
     assert.deepEqual(c.gh.merges, []);
     assert.deepEqual(c.dits(), []);
-    assert.deepEqual(cartesEnTodo(c.journal.base).map(({ ticket }) => ticket), [30]);
+    // Sans question ni choix, la porte la renvoie au triage.
+    assert.deepEqual(cartesEnTodo(c.journal.base), []);
+    assert.deepEqual(cartesRetenues(c.journal.base).map(({ ticket }) => ticket), [30]);
     assert.match(String(c.journal.duTicket(30).findLast((e) => e.type === "todo.triaged")?.payload.reason), /unreadable answer: action inconnue : "merger"/);
   });
 
@@ -265,27 +315,41 @@ describe("le triage ne merge jamais", () => {
   });
 });
 
-describe("l'agent ne tranche pas : la carte entre dans TODO comme avant", () => {
-  test("il répond `todo` : la carte entre telle qu'elle a été posée, au nom de celui qui l'a posée", async (t) => {
-    const c = atelier(t, [REPONSES.todo]);
+describe("l'agent ne tranche pas : la carte va à la porte de TODO", () => {
+  test("il répond `todo` sans carte : la carte entre telle qu'elle a été posée, au nom de celui qui l'a posée", async (t) => {
+    const c = atelier(t, [{ action: "todo", motif: "Un choix de produit." }]);
     c.arriver();
-    entrerDansTodo(c.journal, PROJET, 30, { type: "design", enonce: "Valider l'écran d'export.", capture: "docs/captures/export.png" }, "manager");
+    c.poser("manager", COMPLETE);
     await c.triage.traiter();
 
     assert.deepEqual(
-      cartesEnTodo(c.journal.base).map(({ ticket, type, enonce, capture }) => ({ ticket, type, enonce, capture })),
-      [{ ticket: 30, type: "design", enonce: "Valider l'écran d'export.", capture: "docs/captures/export.png" }],
+      cartesEnTodo(c.journal.base).map(({ ticket, type, question, captures }) => ({ ticket, type, question, captures })),
+      [{ ticket: 30, type: "product", question: COMPLETE.enonce, captures: null }],
     );
     assert.equal(c.journal.duTicket(30).findLast((e) => e.type === "todo.entered")?.author, "manager");
     assert.deepEqual(c.dits(), []);
   });
 
-  test("une réponse illisible, ou une action qui ne peut pas se faire, laisse la carte entrer dans TODO", async (t) => {
+  test("une validation de design que l'agent envoie en TODO montre les captures que le ticket a livrées", async (t) => {
+    const c = atelier(t, [{ action: "todo", carte: { type: "design", question: "L'écran d'export est-il juste ?", choix: [{ texte: "Oui, merger.", suite: "merger" }, "Non."] }, motif: "Un écran." }]);
+    c.livrer();
+    const captures = { sha: "abc123", screens: [{ screen: "export", before: "docs/captures/30/export-avant.png", after: "docs/captures/30/export-apres.png" }] };
+    c.noter(30, { type: "cook.reported", payload: { run: "cook-30", ending: "done", reason: null, summary: null, branch: "cook/30-x", pr: null, captures } }, `station:${STATION}`);
+    c.poser("pass", { type: "design", enonce: "Valider l'écran d'export.", capture: "docs/captures/30/export-apres.png" });
+    await c.triage.traiter();
+
+    const [carte] = cartesEnTodo(c.journal.base);
+    assert.deepEqual([carte?.type, carte?.captures, carte?.choix.map(({ suite }) => suite)], ["design", captures, ["merge", "resume"]]);
+    // L'agent a lu l'écran que la pass montrait.
+    assert.match(c.consignes[0] ?? "", /\(capture : docs\/captures\/30\/export-apres\.png\)/);
+  });
+
+  test("une réponse illisible, ou une action qui ne peut pas se faire, laisse la carte telle que posée entrer dans TODO", async (t) => {
     const c = atelier(t, ["pas du JSON", { ...REPONSES.dependance, dependance: 99 }, { ...REPONSES.relancer, phrase: "Sent it back. Then waited." }]);
     c.arriver({ waitsFor: [29], zone: [], problems: [] });
     c.gh.repondre(30, "<!-- brigade:fiche -->\n- attend : #29");
     for (let essai = 0; essai < 3; essai++) {
-      c.poser();
+      c.poser("pass", COMPLETE);
       await c.triage.traiter();
       assert.deepEqual(cartesEnTodo(c.journal.base).map(({ ticket }) => ticket), [30], `essai ${essai + 1}`);
     }
@@ -296,9 +360,16 @@ describe("l'agent ne tranche pas : la carte entre dans TODO comme avant", () => 
     );
   });
 
-  test("l'agent qui ne répond pas — quota, panne — laisse la carte entrer dans TODO", async (t) => {
+  test("l'agent qui ne répond pas — quota, panne — laisse la carte telle que posée aller à la porte : elle entre si elle passe, reste retenue sinon", async (t) => {
     const c = atelier(t, []);
     c.poser();
+    for (let tour = 0; tour < 3; tour++) await c.triage.traiter();
+    assert.deepEqual(cartesEnTodo(c.journal.base), []);
+    assert.deepEqual(cartesRetenues(c.journal.base).map(({ ticket }) => ticket), [30]);
+    // Le refus ne s'écrit qu'une fois, tant que rien ne change.
+    assert.equal(c.journal.duTicket(30).filter((e) => e.type === "todo.refused").length, 1);
+
+    c.poser("pass", COMPLETE);
     await c.triage.traiter();
     assert.deepEqual(cartesEnTodo(c.journal.base).map(({ ticket }) => ticket), [30]);
   });
@@ -310,7 +381,19 @@ describe("ce que l'agent lit et ce qu'il répond", () => {
   });
 
   test("la réponse : une des cinq actions, ou `todo` — rien d'autre ne se lit", () => {
-    assert.deepEqual(lireTriage(JSON.stringify(REPONSES.todo)), { valeur: { action: "through", motif: "Un choix de produit." } });
+    assert.deepEqual(lireTriage(JSON.stringify({ action: "todo", motif: "Un choix de produit." })), { valeur: { action: "through", motif: "Un choix de produit.", carte: null } });
+    // La carte écrite par l'agent, dans ses mots : rien n'y est jugé avant la porte.
+    assert.deepEqual(lireTriage(JSON.stringify(REPONSES.todo)), {
+      valeur: {
+        action: "through",
+        motif: "Un choix de produit.",
+        carte: { type: "product", enonce: "Export CSV ou export JSON ?", choix: [{ texte: "L'export CSV.", suite: "resume" }, { texte: "L'export JSON.", suite: null }] },
+      },
+    });
+    assert.deepEqual(lireTriage(JSON.stringify({ action: "todo", carte: { type: "gesture", question: 3, choix: "oui", suite: "x" } })), {
+      valeur: { action: "through", motif: null, carte: { type: "gesture", enonce: null, choix: null } },
+    });
+    assert.ok("illisible" in lireTriage(JSON.stringify({ action: "todo", carte: "Export CSV ?" })));
     assert.deepEqual(lireTriage(JSON.stringify(REPONSES.retirer)), { valeur: { action: "remove", phrase: REPONSES.retirer.phrase, motif: "Doublon." } });
     for (const illisible of [null, "", "rien", JSON.stringify({ action: "merger" }), JSON.stringify({ action: "retirer" }), JSON.stringify({ ...REPONSES.relancer, diagnostic: null }), JSON.stringify({ ...REPONSES.dependance, dependance: "x" })]) {
       assert.ok("illisible" in lireTriage(illisible), String(illisible));
@@ -346,13 +429,15 @@ describe("sur une cuisine complète", { concurrency: 4 }, () => {
     assert.deepEqual(cartesEnTodo(c.journal.base), []);
     c.conclure();
     await jusqua(() => cartesEnTodo(c.journal.base).length === 1);
-    assert.equal(cartesEnTodo(c.journal.base)[0]?.enonce, CARTE.enonce);
+    assert.equal(cartesEnTodo(c.journal.base)[0]?.question, "Export CSV ou export JSON ?");
   });
 
-  test("manager éteint : la carte entre dans TODO sans triage, comme avant", async (t) => {
-    const c = cuisine(t, { manager: { triage: "triage-au-feu" }, issues: [issue(30, CALIBRE)] });
-    entrerDansTodo(c.journal, PROJET, 30, CARTE, "pass");
+  test("manager éteint : une carte avec sa question et ses choix entre dans TODO sans triage ; sans eux, elle attend le triage", async (t) => {
+    const c = cuisine(t, { manager: { triage: "triage-au-feu" }, issues: [issue(30, CALIBRE), issue(31, CALIBRE)] });
+    entrerDansTodo(c.journal, PROJET, 30, COMPLETE, "pass");
+    entrerDansTodo(c.journal, PROJET, 31, CARTE, "pass");
     assert.deepEqual(cartesEnTodo(c.journal.base).map(({ ticket }) => ticket), [30]);
+    assert.deepEqual(cartesRetenues(c.journal.base).map(({ ticket }) => ticket), [31]);
     assert.ok(!c.lancements().some((lance) => lance.env.FAUX_CLAUDE === "triage-au-feu"));
   });
 });

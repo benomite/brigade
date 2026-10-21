@@ -9,7 +9,7 @@ import type { CarteDeTodo } from "./carte-todo.ts";
 import { attentesDuChef, decisionDe, type Livraison, decrireAttentes, direAttente, direAttenteEn, nommerAttente, nommerEn, passageEnService, pauseDeLaCuisine, type Attente, type Decision, type Passage, type PauseEnVigueur } from "./attend.ts";
 import { geste } from "./geste.ts";
 import { fournitTout } from "./capacites.ts";
-import { capturesVues, lireCaptures, type Captures, type CapturesVues } from "./captures.ts";
+import { capturesManquantes, capturesVues, lireCaptures, type Captures, type CapturesVues } from "./captures.ts";
 import type { Evenement } from "./evenements.ts";
 import { RELEVE } from "./events/guardrails.ts";
 import { PART_SANS_PROGRES } from "./events/station.ts";
@@ -747,10 +747,13 @@ export type Faits = {
   // `livraison` : pour une livraison qui attend, ce que la pass en a consigné — le
   // résumé de sa relecture, son premier constat bloquant, les fichiers de ses juges
   // qu'elle change ; absente quand la pass n'a rien consigné. `carte` : pour une
-  // carte typée entrée par la porte de TODO (carte-todo.ts), son `type`
-  // (`product`, `design`, `gesture`), son `enonce` en une ligne et sa `capture`,
-  // nulle sans elle ; absente pour toute autre entrée.
-  attend: Array<{ ticket: number; titre: string; url: string | null; decision: Decision; livraison?: Livraison; carte?: CarteDeTodo }>;
+  // carte entrée par la porte de TODO (carte-todo.ts), sa sorte (`type` :
+  // `product` ou `design`), sa `question`, ses `choix` — chacun son `texte` et
+  // sa `suite` (`resume`, `merge`), dans l'ordre que `rail choose` numérote à
+  // partir de 1 — et ses `captures`, chaque écran avant et après, par leur
+  // adresse — par leur chemin dans le dépôt quand la box ne le connaît pas —,
+  // nulles sur une carte `product` sans écran ; absente pour toute autre entrée.
+  attend: Array<{ ticket: number; titre: string; url: string | null; decision: Decision; livraison?: Livraison; carte?: CarteVue }>;
   // Les tickets servis dans les 24 h avant `lu`, le plus récent d'abord — ceux
   // que `compteurs.livres24h` compte, un pour un, encore sur le rail ou non.
   // `livre` : l'heure de son service. `station` : celle qui l'a cuisiné, nulle
@@ -870,6 +873,9 @@ function faitsDUrgence(urgence: Urgence | null, alerte: AlerteEnCours | null, ad
 
 export const DEPOT_GITHUB = /^[\w.-]+\/[\w.-]+$/;
 
+// Une carte de TODO, pour un programme : ses captures par leur adresse.
+export type CarteVue = Omit<CarteDeTodo, "captures"> & { captures: CapturesVues | null };
+
 // `maintenant` : l'heure à laquelle `etat` a été lu. `depot` : `<owner>/<repo>`,
 // le dépôt GitHub que la box sert — de quoi donner l'adresse d'une issue qui
 // n'est pas sur le rail. `refusDeLaMachine` : pourquoi la station de cette
@@ -884,6 +890,11 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limit
   const captures = (ticket: number) => {
     const siennes = depot !== undefined && DEPOT_GITHUB.test(depot) ? etat.captures?.get(ticket) : undefined;
     return siennes === undefined ? {} : { captures: capturesVues(depot as string, siennes) };
+  };
+  const carteVue = ({ captures: siennes, ...carte }: CarteDeTodo): CarteVue => {
+    if (siennes === null) return { ...carte, captures: null };
+    if (depot !== undefined && DEPOT_GITHUB.test(depot)) return { ...carte, captures: capturesVues(depot, siennes) };
+    return { ...carte, captures: { complet: capturesManquantes(siennes.screens) === null, ecrans: siennes.screens.map(({ screen, before, after }) => ({ ecran: screen, avant: before, apres: after })) } };
   };
   const titreDe = (ticket: number) => etat.rail.find((surLeRail) => surLeRail.ticket === ticket)?.title ?? "";
   const cuisson = (station: EtatStation): Cuisson => {
@@ -924,7 +935,7 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limit
       if (attente.ticket === null || attendus.has(attente.ticket)) return [];
       const { ticket, title } = attente;
       attendus.add(ticket);
-      return [{ ticket, titre: title ?? "", url: adresse(ticket), decision: decisionDe(attente), ...("livraison" in attente && attente.livraison !== undefined ? { livraison: attente.livraison } : {}), ...(attente.quoi === "carte" ? { carte: attente.carte } : {}) }];
+      return [{ ticket, titre: title ?? "", url: adresse(ticket), decision: decisionDe(attente), ...("livraison" in attente && attente.livraison !== undefined ? { livraison: attente.livraison } : {}), ...(attente.quoi === "carte" ? { carte: carteVue(attente.carte) } : {}) }];
     }),
     livres: etat.livres.map(({ ticket, title, url, servedAt, station, pr, review }) => ({ ticket, titre: title, url: url ?? adresse(ticket), livre: servedAt, station, pr, relecture: relectureLivree(review), ...captures(ticket) })),
     urgence: faitsDUrgence(etat.urgence, etat.alerteUrgence, adresse),

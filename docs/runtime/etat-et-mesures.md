@@ -13,8 +13,9 @@ One command to know where the project stands, without opening the database:
 adds one line per event.
 
 The last line before the follow, `todo`, counts the cards that entered TODO over a period, by
-type (`product`, `design`, `gesture`): `-- --days <N>` sets it, 7 days by default. A card
-refused at the door (`todo.refused`) counts nowhere; with no entry, each type says 0.
+kind (`product`, `design`): `-- --days <N>` sets it, 7 days by default. A card
+refused at the door (`todo.refused`), or entered before the two kinds and their choices, counts
+nowhere; with no entry, each kind says 0.
 
 ```
 awaiting   2 decisions await the chef — the oldest for 2 d
