@@ -37,7 +37,8 @@ export type TestCouvert = {
   unique: string[];
 };
 
-export type Suite = { zone: string; code: number | null };
+// Une suite tuée au bout de son délai a `timedOut`, et pas de code.
+export type Suite = { zone: string; code: number | null; timedOut: boolean };
 
 export type RapportDeCouverture = {
   format: typeof FORMAT;
@@ -57,7 +58,8 @@ export function cheminCouverture(repertoireEtat: string): string {
   return join(repertoireEtat, "test-coverage.json");
 }
 
-// Les mesures que le crochet a écrites dans le répertoire.
+// Les mesures que le crochet a écrites dans le répertoire. Une ligne qui ne se
+// lit pas est celle d'un process tué en l'écrivant : elle ne compte pas.
 export function lireMesures(dossier: string): Mesure[] {
   return readdirSync(dossier)
     .filter((nom) => /^mesures-.*\.jsonl$/.test(nom))
@@ -66,7 +68,13 @@ export function lireMesures(dossier: string): Mesure[] {
       readFileSync(join(dossier, nom), "utf8")
         .split("\n")
         .filter((ligne) => ligne !== "")
-        .map((ligne) => JSON.parse(ligne) as Mesure),
+        .flatMap((ligne) => {
+          try {
+            return [JSON.parse(ligne) as Mesure];
+          } catch {
+            return [];
+          }
+        }),
     );
 }
 
