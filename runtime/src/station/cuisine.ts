@@ -23,6 +23,7 @@ import { noterCodeEnService } from "../code.ts";
 import { decisionsAuDemarrage, decisionsDansLEnvironnement, direDecisionIgnoree, environnementDecide, suivreDecisions, supportDesDecisions } from "../decisions.ts";
 import { lireALaBase, ouvrirDepot, worktreesDuProjet } from "../depot.ts";
 import { brancherDerive, lireSeuils } from "../derive.ts";
+import { lireSeuils as lireSeuilsDesLecons } from "../seuils/seuils.ts";
 import { brancherFermeture } from "../closing/run.ts";
 import { configFermeture } from "../closing/settings.ts";
 import { brancherGardeFous, lireReglages } from "../garde-fous.ts";
@@ -149,7 +150,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     // Sur une station sans bac à sable, rien ne part avant que le chef ait
     // choisi — pas même ce ticket : la retenue est la plus extérieure.
     const garde = retenirSansDecision(attendreLaPreparation(brancherGardeFous(reglages, avecRail(socle, { ...rail, github: githubs.rail })), { repertoireEtat, dire }), { repertoireEtat, station: identiteDeLaStation(envProjet).nom, dire });
-    const pass = brancherPass(garde, { ...delais, repertoireEtat, depot, github: githubs.pass, env, secrets, cloison, bacASable, sansIdentite: identites !== null, base: station.base, reviewer, decisions, depotGitHub: rail.depot, bin: station.bin, seuils: station.seuils });
+    const pass = brancherPass(garde, { ...delais, repertoireEtat, depot, github: githubs.pass, env, secrets, cloison, bacASable, sansIdentite: identites !== null, base: station.base, reviewer, decisions, depotGitHub: rail.depot, bin: station.bin, seuils: station.seuils, ...(envProjet.BRIGADE_STATION_DIR ? { etageCommun: { racine: envProjet.BRIGADE_STATION_DIR, expiration: lireSeuilsDesLecons(envProjet).expirationPromue } } : {}) });
     const fermee = brancherFermeture(pass, { reglages: decisions.fermeture, repertoireEtat, depot, clone: station.clone, base: station.base, github: githubs.station, depotGitHub: rail.depot, bin: station.bin, env, cloison, bacASable });
     const servie = brancherStation(fermee, {
       stations,

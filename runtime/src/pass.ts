@@ -90,6 +90,7 @@ import { blocDesLecons, type LeconRecue } from "./apprentissage/injection.ts";
 import { blocDuCarnet, type CarnetRecu } from "./profils/preference.ts";
 import { CONSIGNE_DE_RETRO } from "./apprentissage/retro.ts";
 import { enregistrerRetro } from "./apprentissage/provisoires.ts";
+import { idsDeLEtageCommun, noterUnTicketServi } from "./commun/installation.ts";
 import { noterLeRenvoi } from "./apprentissage/renvoi.ts";
 import { CONSIGNE_DE_FIN_DE_TOUR, CONSIGNE_DU_LIVRABLE, FERMETURE, OUVERTURE } from "./livrable.ts";
 import { LancementRefuse, type CookLance, type GardeFous, type Verdict as VerdictGarde } from "./garde-fous.ts";
@@ -229,6 +230,10 @@ export type OptionsPass = ConfigPass & {
   // livraison à rejuger, la base —, et de quoi la lire : les seuils et la
   // machine de la station. Par défaut : les seuils par défaut, la vraie machine.
   seuils?: Seuils;
+  // L'étage commun des leçons (`commun/`), si le projet est servi par une
+  // station : son dossier, et les tickets servis sans reconfirmation après
+  // lesquels une de ses leçons expire. Chaque ticket servi y est compté.
+  etageCommun?: { racine: string; expiration: number };
   machine?: () => Machine;
   // L'environnement dont part celui des gates et du reviewer. Par défaut,
   // celui du runtime.
@@ -496,10 +501,19 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       return;
     }
     try {
-      base.transaction(() => {
+      const etage = options.etageCommun;
+      const retro = base.transaction(() => {
         rail.servir(ticket);
-        enregistrerRetro(journal, { projet, ticket, run: passDuTicket(base, ticket)?.run ?? null, auteur: AUTEUR });
+        return enregistrerRetro(journal, { projet, ticket, run: passDuTicket(base, ticket)?.run ?? null, auteur: AUTEUR, communes: etage ? idsDeLEtageCommun(etage.racine) : [] });
       });
+      // Servi, le ticket vieillit l'étage commun : un étage illisible n'arrête pas la pass.
+      if (etage !== undefined && retro !== null) {
+        try {
+          noterUnTicketServi(etage.racine, retro.kept, etage.expiration, maintenant().toISOString().slice(0, 10));
+        } catch (erreur) {
+          avertir(`brigade : étage commun illisible, ce ticket servi n'y est pas compté — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+        }
+      }
     } catch (erreur) {
       // Déjà servi, ou remonté au chef (86) avant qu'il ne merge lui-même.
       if (!(erreur instanceof GesteRefuse)) throw erreur;

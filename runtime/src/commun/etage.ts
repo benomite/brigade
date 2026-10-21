@@ -8,6 +8,14 @@
 // chaque projet. Refusée, elle reste propre au carnet de chaque projet qui la
 // tient, et n'est plus jamais proposée.
 //
+// Une leçon acceptée vieillit comme une leçon promue d'un projet
+// (`peremption/peremption.ts`) : le temps se compte en tickets servis, ceux de
+// toute l'installation ; une rétro qui la reconfirme (`reconfirm C1`) remet le
+// compte à zéro ; sans reconfirmation pendant `expirationPromue` tickets servis,
+// elle expire — elle n'est plus servie, et reste à l'étage, marquée expirée.
+// Le chef la retire aussi (`retire C1`) : elle n'est plus servie à aucun projet.
+// Expirée ou retirée, elle garde sa clé : elle n'est jamais reproposée.
+//
 // Une leçon est la même d'un projet à l'autre quand elle dit mot pour mot la
 // même chose — comme une leçon candidate en reconfirme une du projet
 // (`apprentissage/provisoires.ts`) : ses ids, propres à chaque projet, n'y
@@ -49,19 +57,25 @@ export type Proposition = {
 export type Tranchee = {
   cle: string;
   texte: string;
-  etat: "accepted" | "refused";
+  etat: "accepted" | "refused" | "retired" | "expired";
   // D'où elle venait quand le chef l'a tranchée.
   projets: Provenance[];
   // AAAA-MM-JJ.
   date: string;
-  // Une acceptée seulement : son id de l'étage.
+  // Une acceptée (puis retirée ou expirée) seulement : son id de l'étage.
   id?: string;
+  // Le compte des tickets servis de l'installation à son acceptation, puis à
+  // sa dernière reconfirmation : d'où court l'expiration.
+  depuis?: number;
+  // Une retirée ou expirée : le jour, et pourquoi (`manual` : le chef, `expiry`).
+  sortie?: { date: string; reason: "manual" | "expiry" };
 };
 
 // `suivant` ne redescend jamais : un id de l'étage ne sert pas deux fois.
-export type EtageCommun = { suivant: number; lecons: Tranchee[] };
+// `servis` : les tickets servis de l'installation depuis que l'étage existe.
+export type EtageCommun = { suivant: number; servis: number; lecons: Tranchee[] };
 
-export const etageVide = (): EtageCommun => ({ suivant: 1, lecons: [] });
+export const etageVide = (): EtageCommun => ({ suivant: 1, servis: 0, lecons: [] });
 
 export const normaliser = (texte: string) => texte.trim().replace(/\s+/g, " ");
 
@@ -104,8 +118,43 @@ export function trancher(etage: EtageCommun, proposition: Proposition, reponse: 
     date,
     ...(acceptee ? { id: `C${etage.suivant}` } : {}),
   };
-  return { etage: { suivant: etage.suivant + (acceptee ? 1 : 0), lecons: [...etage.lecons, tranchee] }, tranchee };
+  if (acceptee) tranchee.depuis = etage.servis;
+  return { etage: { ...etage, suivant: etage.suivant + (acceptee ? 1 : 0), lecons: [...etage.lecons, tranchee] }, tranchee };
 }
+
+export class LeconCommuneInconnue extends Error {}
+
+// Le chef retire une leçon de l'étage : elle n'est plus servie à aucun projet,
+// et n'est plus proposée. Définitif — son id et sa clé restent. Retirer une
+// leçon déjà sortie (retirée ou expirée) ne change rien.
+export function retirer(etage: EtageCommun, id: string, date: string): { etage: EtageCommun; lecon: Tranchee; deja: boolean } {
+  const lecon = etage.lecons.find((l) => l.id === id);
+  if (lecon === undefined) throw new LeconCommuneInconnue(`${id} is the id of no lesson of the common tier`);
+  if (lecon.etat !== "accepted") return { etage, lecon, deja: true };
+  const sortie: Tranchee = { ...lecon, etat: "retired", sortie: { date, reason: "manual" } };
+  return { etage: { ...etage, lecons: etage.lecons.map((l) => (l === lecon ? sortie : l)) }, lecon: sortie, deja: false };
+}
+
+// Un ticket de l'installation est servi : le compte avance, les leçons que sa
+// rétro reconfirme repartent de ce rang, et celles qu'aucune reconfirmation
+// n'a touchées depuis `expiration` tickets expirent. Rend l'étage, et les
+// leçons qui viennent d'expirer.
+export function servirUnTicket(etage: EtageCommun, servi: { reconfirmees: readonly string[]; expiration: number; date: string }): { etage: EtageCommun; expirees: Tranchee[] } {
+  const servis = etage.servis + 1;
+  const expirees: Tranchee[] = [];
+  const lecons = etage.lecons.map((lecon) => {
+    if (lecon.etat !== "accepted") return lecon;
+    const depuis = lecon.id !== undefined && servi.reconfirmees.includes(lecon.id) ? servis : (lecon.depuis ?? etage.servis);
+    if (servis - depuis < servi.expiration) return { ...lecon, depuis };
+    const sortie: Tranchee = { ...lecon, depuis, etat: "expired", sortie: { date: servi.date, reason: "expiry" } };
+    expirees.push(sortie);
+    return sortie;
+  });
+  return { etage: { ...etage, servis, lecons }, expirees };
+}
+
+// Les ids des leçons que l'étage sert à présent : celles qu'une rétro peut reconfirmer.
+export const idsServis = (etage: EtageCommun): string[] => etage.lecons.flatMap((l) => (l.etat === "accepted" && l.id !== undefined ? [l.id] : []));
 
 export const fichierDeLEtage = (racine: string) => join(racine, FICHIER_ETAGE_COMMUN);
 
@@ -114,7 +163,8 @@ export function lireEtage(racine: string): EtageCommun {
   if (!existsSync(fichier)) return etageVide();
   const brut = JSON.parse(readFileSync(fichier, "utf8")) as EtageCommun;
   if (!Number.isInteger(brut.suivant) || !Array.isArray(brut.lecons)) throw new Error(`étage commun illisible : ${fichier}`);
-  return brut;
+  // Écrit avant l'expiration : pas de compte des tickets servis.
+  return { ...brut, servis: Number.isInteger(brut.servis) ? brut.servis : 0 };
 }
 
 export function ecrireEtage(racine: string, etage: EtageCommun): void {

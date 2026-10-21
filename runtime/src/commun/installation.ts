@@ -7,7 +7,7 @@ import type { LeconRecue } from "../apprentissage/injection.ts";
 import { CARNET_PATH, parseCarnet, type Carnet } from "../carnet/carnet.ts";
 import { lireALaBase } from "../depot.ts";
 import { CONFIGURATION, environnementDuProjet, lireFichierDeConfiguration, type ProjetConfigure } from "../station/configuration.ts";
-import { leconsCommunes, lireEtage } from "./etage.ts";
+import { ecrireEtage, idsServis, leconsCommunes, lireEtage, servirUnTicket } from "./etage.ts";
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
@@ -44,4 +44,25 @@ export function carnetsDeLInstallation(racine: string, env: Record<string, strin
 export function leconsDeLEtageCommun(racine: string | undefined): LeconRecue[] {
   if (!racine) return [];
   return leconsCommunes(lireEtage(racine), projetsDeLInstallation(racine).length);
+}
+
+// Ce que la pass demande à l'étage quand un ticket est servi : les ids qu'une
+// rétro peut reconfirmer (aucun hors d'une station, ou si l'étage est illisible).
+export function idsDeLEtageCommun(racine: string | undefined): string[] {
+  if (!racine) return [];
+  try {
+    return idsServis(lireEtage(racine));
+  } catch {
+    return [];
+  }
+}
+
+// Un ticket est servi, sa rétro a retenu `kept` : l'étage compte ce ticket, les
+// leçons reconfirmées repartent, les autres vieillissent et expirent au besoin.
+// Rend les ids qui viennent d'expirer. Un étage illisible n'est pas réécrit.
+export function noterUnTicketServi(racine: string, kept: ReadonlyArray<{ kind: string; id?: string }>, expiration: number, date: string): string[] {
+  const reconfirmees = kept.flatMap((e) => (e.kind === "reconfirm" && e.id !== undefined ? [e.id] : []));
+  const { etage, expirees } = servirUnTicket(lireEtage(racine), { reconfirmees, expiration, date });
+  ecrireEtage(racine, etage);
+  return expirees.flatMap((l) => (l.id === undefined ? [] : [l.id]));
 }

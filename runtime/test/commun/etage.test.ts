@@ -12,7 +12,9 @@ import { parseCarnet, writeCarnet, type Lesson } from "../../src/carnet/carnet.t
 import { consigne } from "../../src/claude.ts";
 import { principal } from "../../src/commun/commun-cli.ts";
 import { cleDe, etageVide, fichierDeLEtage, leconsCommunes, lireEtage, lireSeuilCommun, propositions, trancher, VARIABLE_SEUIL_COMMUN } from "../../src/commun/etage.ts";
-import { leconsDeLEtageCommun } from "../../src/commun/installation.ts";
+import { idsDeLEtageCommun, leconsDeLEtageCommun, noterUnTicketServi } from "../../src/commun/installation.ts";
+import { trierRetro } from "../../src/apprentissage/retro.ts";
+import { carnetVide } from "../../src/apprentissage/lecons.ts";
 import { Sortie } from "../../src/appel.ts";
 import { ConfigInvalide } from "../../src/runtime.ts";
 import { CLONES, CONFIGURATION } from "../../src/station/configuration.ts";
@@ -224,5 +226,92 @@ describe("la consigne", () => {
     assert.deepEqual(blocDesLecons(provisoires), blocDesLecons([...provisoires]));
     assert.doesNotMatch(blocDesLecons(provisoires).join("\n"), /étage commun/);
     assert.doesNotMatch(blocDesLecons(communes).join("\n"), /leçons provisoires/);
+  });
+});
+
+describe("le retrait d'une leçon de l'étage par le chef", () => {
+  test("`retire C1` : aucun cook d'aucun projet ne la reçoit plus, elle n'est jamais reproposée, un second geste n'écrit rien", async (t) => {
+    const racine = station(t, { alpha: [promue("L4", COMMUNE)], beta: [promue("L7", COMMUNE)], gamma: [] });
+    const cle = cleDe(COMMUNE);
+    assert.equal(jouer(racine, ["yes", cle]).code, 0);
+    assert.deepEqual((await cookDe(t, racine, "gamma")).recues, ["C1"]);
+
+    const retrait = jouer(racine, ["retire", "C1"]);
+    assert.equal(retrait.code, 0, retrait.erreurs.join("\n"));
+    assert.deepEqual(retrait.sortie, ["C1 retired: no cook of any project receives it, and it is not proposed again"]);
+    for (const projet of ["alpha", "beta", "gamma"]) {
+      const { texte, recues } = await cookDe(t, racine, projet);
+      assert.equal(texte.includes(COMMUNE), false, projet);
+      assert.deepEqual(recues, []);
+    }
+    assert.deepEqual(leconsDeLEtageCommun(racine), []);
+    assert.ok(jouer(racine).sortie.includes("no lesson is proposed"));
+    assert.ok(jouer(racine).sortie.some((ligne) => ligne.startsWith(`C1  ${COMMUNE}  (retired `)));
+    // Même quand un troisième projet la promeut à son tour.
+    assert.deepEqual(propositions([{ projet: "alpha", carnet: { lessons: [promue("L4", COMMUNE)] } }, { projet: "gamma", carnet: { lessons: [promue("L1", COMMUNE)] } }], 2, lireEtage(racine)), []);
+    const avant = lireEtage(racine);
+    assert.match(jouer(racine, ["retire", "C1"]).sortie[0]!, /^already out — C1 is retired/);
+    assert.deepEqual(lireEtage(racine), avant);
+    // Les carnets des projets ne bougent pas.
+    const carnet = parseCarnet(git(join(racine, CLONES, "alpha"), "show", `origin/${BASE}:.claude/brigade/carnet.md`) + "\n");
+    assert.deepEqual(carnet.lessons.map((l) => l.state), ["promoted"]);
+  });
+
+  test("un id inconnu ou mal écrit est refusé, rien n'est écrit", (t) => {
+    const racine = station(t, { alpha: [], beta: [] });
+    assert.equal(jouer(racine, ["retire", "C9"]).code, 1);
+    assert.equal(jouer(racine, ["retire", "nope"]).code, 2);
+    assert.equal(jouer(racine, ["retire"]).code, 2);
+    assert.equal(existsSync(fichierDeLEtage(racine)), false);
+  });
+});
+
+describe("l'expiration d'une leçon de l'étage", () => {
+  const EXPIRATION = 3;
+  const accepter = (t: TestContext) => {
+    const racine = station(t, { alpha: [promue("L4", COMMUNE)], beta: [promue("L7", COMMUNE)] });
+    assert.equal(jouer(racine, ["yes", cleDe(COMMUNE)]).code, 0);
+    return racine;
+  };
+
+  test("sans reconfirmation pendant `expiration` tickets servis, elle expire : plus servie, marquée expirée, jamais reproposée", async (t) => {
+    const racine = accepter(t);
+    assert.deepEqual(noterUnTicketServi(racine, [], EXPIRATION, "2026-10-21"), []);
+    assert.deepEqual(noterUnTicketServi(racine, [], EXPIRATION, "2026-10-21"), []);
+    assert.deepEqual(leconsDeLEtageCommun(racine).map((l) => l.id), ["C1"]);
+    assert.deepEqual(noterUnTicketServi(racine, [], EXPIRATION, "2026-10-22"), ["C1"]);
+
+    const lecon = lireEtage(racine).lecons[0]!;
+    assert.equal(lecon.etat, "expired");
+    assert.deepEqual(lecon.sortie, { date: "2026-10-22", reason: "expiry" });
+    assert.deepEqual(leconsDeLEtageCommun(racine), []);
+    assert.deepEqual(idsDeLEtageCommun(racine), []);
+    assert.equal((await cookDe(t, racine, "alpha")).texte.includes(COMMUNE), false);
+    assert.ok(jouer(racine).sortie.includes("no lesson is proposed"));
+    assert.ok(jouer(racine).sortie.some((ligne) => ligne.startsWith(`C1  ${COMMUNE}  (expired 2026-10-22)`)));
+    // Plus rien à expirer ensuite.
+    assert.deepEqual(noterUnTicketServi(racine, [], EXPIRATION, "2026-10-23"), []);
+    assert.equal(lireEtage(racine).lecons[0]!.sortie?.date, "2026-10-22");
+  });
+
+  test("une rétro qui la reconfirme remet le compte à zéro ; une retirée n'expire pas", (t) => {
+    const racine = accepter(t);
+    noterUnTicketServi(racine, [], EXPIRATION, "2026-10-21");
+    noterUnTicketServi(racine, [{ kind: "reconfirm", id: "C1" }], EXPIRATION, "2026-10-21");
+    noterUnTicketServi(racine, [], EXPIRATION, "2026-10-21");
+    assert.deepEqual(noterUnTicketServi(racine, [], EXPIRATION, "2026-10-21"), []);
+    assert.deepEqual(noterUnTicketServi(racine, [], EXPIRATION, "2026-10-21"), ["C1"]);
+
+    const autre = accepter(t);
+    assert.equal(jouer(autre, ["retire", "C1"]).code, 0);
+    for (let i = 0; i < 5; i++) assert.deepEqual(noterUnTicketServi(autre, [], EXPIRATION, "2026-10-21"), []);
+    assert.equal(lireEtage(autre).lecons[0]!.etat, "retired");
+  });
+
+  test("la rétro d'un cook peut citer l'id d'une leçon de l'étage, pas un id inconnu", () => {
+    const tri = trierRetro("reconfirm C1\nreconfirm C2", carnetVide(), ["C1"]);
+    assert.deepEqual(tri.kept, [{ kind: "reconfirm", id: "C1" }]);
+    assert.deepEqual(tri.dropped.map((d) => d.reason), ["unknown-id"]);
+    assert.deepEqual(trierRetro("reconfirm C1", carnetVide()).kept, []);
   });
 });
