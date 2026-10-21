@@ -6,6 +6,9 @@
 // process. Le rapport est écrit quand toutes les zones ont été jouées, même si
 // une suite a échoué : un test en échec a tout de même sa couverture.
 //
+// Sous Windows, `npm` est `npm.cmd`, que Node ne lance pas sans shell : la
+// mesure se fait sur la box du projet, sous Linux ou macOS.
+//
 // La mesure coûte plus que la suite : chaque test y est relevé deux fois.
 //
 // Options :
