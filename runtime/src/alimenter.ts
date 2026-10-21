@@ -10,7 +10,7 @@ import { HORS_CUISINE, LABEL, ouvrirGitHub, type GitHub, type Issue } from "./gi
 import { LimiteGitHubAtteinte } from "./limite-github.ts";
 import type { FaitRail } from "./events/rail.ts";
 import type { Journal } from "./journal.ts";
-import { communsDuRail, lireRail, sortDuTicket, ticketDuRail } from "./projections/rail.ts";
+import { communsDuRail, feuNonVu, lireRail, sortDuTicket, ticketDuRail } from "./projections/rail.ts";
 import { ouvrirRail, type Rail } from "./rail.ts";
 import { ConfigInvalide, type Runtime } from "./runtime.ts";
 import { refusEn } from "./zones.ts";
@@ -97,6 +97,12 @@ async function lireFiche(
   return { fiche: lue, stable, fermees };
 }
 
+// Les retraits de `fire` lus pour chaque issue retenue, tels que GitHub les
+// date, à sa dernière modification. Cache, pas état.
+export type RetraitsLus = Map<number, { updatedAt: string; retraits: string[] }>;
+
+const apres = (instant: string, borne: string) => new Date(instant).getTime() > new Date(borne).getTime();
+
 type Depart = { ticket: number; reason: "closed" | "unfired" | "gone" | "hors-cuisine"; updatedAt: string | null };
 
 // Reporte sur le rail ce que GitHub dit. Rend le nombre de faits écrits.
@@ -105,6 +111,7 @@ export async function alimenter(
   github: GitHub,
   cible: { projet: string; depot: string },
   fiches: FichesLues = new Map(),
+  retraitsLus: RetraitsLus = new Map(),
 ): Promise<number> {
   const sondage = await github.tickets();
   if (sondage.inchange) return 0;
@@ -151,6 +158,38 @@ export async function alimenter(
     else complet = false;
   }
 
+  // Un ticket retenu dont `fire` a été retiré puis reposé entre deux sondages :
+  // la liste ne l'a jamais vu partir, l'historique de l'issue le dit. Compte
+  // comme le geste si le retrait suit la retenue ; avant elle, il ne la lève
+  // pas, et la file le dit.
+  const reposes = new Map<number, string>();
+  const nonVus = new Map<number, string>();
+  for (const issue of servables) {
+    if (!lisible(issue)) continue;
+    const retenu = ticketDuRail(journal.base, issue.number);
+    if (retenu?.state !== "86") continue;
+    let lu = retraitsLus.get(issue.number);
+    if (lu?.updatedAt !== issue.updatedAt) {
+      try {
+        lu = { updatedAt: issue.updatedAt, retraits: await github.retraitsDeFire(issue.number) };
+      } catch (erreur) {
+        if (erreur instanceof LimiteGitHubAtteinte) throw erreur;
+        // Illisible : le sondage suivant le redemande.
+        complet = false;
+        continue;
+      }
+      retraitsLus.set(issue.number, lu);
+    }
+    const entree = journal.duTicket(issue.number).findLast((fait) => fait.type === "ticket.arrived")?.at;
+    // Le dernier retrait depuis que le ticket est entré sur le rail : un retrait
+    // que le rail avait vu l'a fait sortir, et l'entrée est celle d'après.
+    const retrait = lu.retraits.filter((instant) => entree === undefined || apres(instant, entree)).at(-1);
+    if (retrait === undefined) continue;
+    if (apres(retrait, retenu.since)) reposes.set(issue.number, retrait);
+    else if (feuNonVu(journal.base, issue.number) !== retrait) nonVus.set(issue.number, retrait);
+  }
+  for (const numero of [...retraitsLus.keys()]) if (!presentes.has(numero)) retraitsLus.delete(numero);
+
   // Clé unique : deux sondages du même changement — ou, plus tard, le sondage
   // et le webhook — n'écrivent qu'une ligne. Un changement porte en plus
   // l'empreinte de ce qu'il dit : ce que le rail lit d'une issue peut changer
@@ -174,6 +213,9 @@ export async function alimenter(
     // Après un renommage du code mergé, une zone se lit sur les nouveaux
     // chemins : la fiche de l'issue garde ceux que le chef a écrits.
     const renommages = renommagesMerges(journal.base);
+    // Le retrait vu après coup : le ticket quitte le rail, puis y rentre ci-dessous.
+    for (const [ticket, retrait] of reposes) nombre += noter(ticket, { type: "ticket.left", payload: { reason: "unfired" } }, `${retrait}:repose`);
+    for (const [ticket, retrait] of nonVus) nombre += noter(ticket, { type: "ticket.fire-unseen", payload: { removedAt: retrait } }, `${retrait}:non-vu`);
     for (const issue of servables) {
       if (!lisible(issue)) {
         console.error(`brigade : issue GitHub illisible, écartée du rail — ${JSON.stringify(issue)}`);
@@ -295,13 +337,14 @@ export function avecRail(runtime: Runtime, options: OptionsRail): RuntimeAvecRai
     console.error(`brigade : ${quoi} — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
   };
   const fiches: FichesLues = new Map();
+  const retraitsLus: RetraitsLus = new Map();
   const ecouteurs = new Set<() => void>();
   const sonder = async () => {
     // Un sondage plus lent que le tick n'en lance pas un second.
     if (enCours || arrete) return;
     enCours = true;
     try {
-      const ecrits = await alimenter(journal, github, { projet, depot: options.depot }, fiches);
+      const ecrits = await alimenter(journal, github, { projet, depot: options.depot }, fiches, retraitsLus);
       if (ecrits > 0 && !arrete) for (const ecouter of [...ecouteurs]) ecouter();
       // Un abandon n'arrive que par un sondage : c'est le moment d'en avertir.
       if (!arrete) await signalerBlocages(journal, github, projet);

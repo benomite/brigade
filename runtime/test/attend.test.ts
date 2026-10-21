@@ -292,6 +292,19 @@ test("un ticket remonté dont la pass a ouvert la PR elle-même : le geste nomme
   ]);
 });
 
+test("un retrait de fire que la cuisine n'a pas compté se dit sur la ligne de la remontée, avec le geste", (t) => {
+  const { arriver, remonter, noter, bloc } = cuisine(t);
+  arriver(17);
+  noter({ type: "cook.launched", payload: { run: "17-aa", limits: LIMITES, stream: "runs/17-aa.jsonl", branch: "cook/17-aa", worktree: "worktrees/17-aa" } }, 17);
+  noter({ type: "cook.reported", payload: { run: "17-aa", ending: "done", reason: null, summary: null, branch: "cook/17-aa", pr: null } }, 17, `station:${STATION}`);
+  noter({ type: "pass.pr-opened", payload: { pr: pr(17), number: 17, reconciled: false } }, 17, "pass");
+  remonter(17, "no-gates");
+  noter({ type: "ticket.fire-unseen", payload: { removedAt: "2026-10-21T09:00:00Z" } }, 17, "github");
+
+  const ligne = bloc(`${JOUR_HORLOGE}T10:00:00.000Z`)[1] ?? "";
+  assert.match(ligne, /the removal of `fire` on 2026-10-21T09:00:00Z came before the hold and was not seen: remove it and set it again now/);
+});
+
 test("une remontée quitte la file quand le chef merge, sort le ticket du rail, ou le rend au rail", (t) => {
   const { livrer, remonter, noter, bloc } = cuisine(t);
   const attendus = () => bloc(`${JOUR_HORLOGE}T10:05:00.000Z`).slice(1).map((ligne) => ligne.trim().split("  ")[0]).filter((tete) => tete?.startsWith("#"));

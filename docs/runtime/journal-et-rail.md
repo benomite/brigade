@@ -48,6 +48,12 @@ label**. Setting the label brings the issue in at the next poll (a minute at mos
 removing the label takes it off, **whatever its state** — removing `fire` is the action to take a
 ticket back. PRs are never tickets.
 
+Removing `fire` and setting it again on a held ticket (86) lifts it, however fast you do it: the
+list never shows the removal, so the runtime reads the issue's label history instead and, for a
+removal that came after the hold, writes `ticket.left` then `ticket.arrived`. A removal that came
+before the hold does not lift it: `ticket.fire-unseen` is written, and the ticket's queue line
+says so and what to do (remove `fire`, set it again now).
+
 | State | Meaning |
 |---|---|
 | **queued** | on the rail, to be taken — or held back: its line says by what |
@@ -166,7 +172,7 @@ each makes it a project **candidate lesson**, with origin `chef-correction #<tic
 The rail's facts: `ticket.arrived`, `ticket.changed`, `ticket.left` (in the name of `github`; also
 for an awaited issue, closed without having come onto the rail), `ticket.taken`, `ticket.renewed`,
 `ticket.released`, `ticket.passing`, `ticket.served`, `ticket.86`, `ticket.blocked`,
-`ticket.waiting`, `ticket.resumed` (in the name of `chef`), `waiting.marked`, `rail.commons`.
+`ticket.waiting`, `ticket.resumed` (in the name of `chef`), `ticket.fire-unseen` (a removal of `fire` not counted as the gesture), `waiting.marked`, `rail.commons`.
 
 ### A ticket waits for a third party: WAITING
 

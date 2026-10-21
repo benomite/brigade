@@ -128,6 +128,7 @@ const FORMES: { [T in FaitRail["type"]]: { [C in keyof Payload<T>]: (valeur: unk
   "ticket.passing": { station: texte },
   "ticket.served": {},
   "ticket.86": { reason: texte, until: texteOuRien, why: (valeur) => valeur === undefined || typeof valeur === "string", access: (valeur) => valeur === undefined || (typeof valeur === "object" && valeur !== null) },
+  "ticket.fire-unseen": { removedAt: texte },
   "ticket.blocked": { by: Number.isSafeInteger, reason: texte },
   "ticket.waiting": { what: texte, who: texte, followUp: texte },
   "ticket.resumed": { to: (valeur) => valeur === "todo" || valeur === "kitchen", why: texte },
@@ -266,6 +267,12 @@ export const rail = definirProjection<
       ticket INTEGER PRIMARY KEY,
       heard  INTEGER NOT NULL
     ) STRICT;
+    -- A removal of fire that the kitchen did not count as the gesture, for a
+    -- held ticket: when GitHub dates it.
+    CREATE TABLE IF NOT EXISTS rail_fire_unseen (
+      ticket     INTEGER PRIMARY KEY,
+      removed_at TEXT NOT NULL
+    ) STRICT;
     -- Why a ticket came back from WAITING to TODO.
     CREATE TABLE IF NOT EXISTS rail_resumed (
       ticket INTEGER PRIMARY KEY,
@@ -290,6 +297,10 @@ export const rail = definirProjection<
       // Back on the rail, it is no longer dropped — and no longer awaits anyone.
       base.executer("DELETE FROM rail_outcomes WHERE ticket = ? AND outcome = 'left'", ticket);
       base.executer("DELETE FROM rail_waiting WHERE ticket = ?", ticket);
+      base.executer("DELETE FROM rail_fire_unseen WHERE ticket = ?", ticket);
+    }),
+    "ticket.fire-unseen": lisible("ticket.fire-unseen", (base, ticket, { payload }) => {
+      base.executer("INSERT OR REPLACE INTO rail_fire_unseen (ticket, removed_at) VALUES (?, ?)", ticket, payload.removedAt);
     }),
     "ticket.changed": lisible("ticket.changed", (base, ticket, { payload }) => {
       base.executer(
@@ -304,6 +315,7 @@ export const rail = definirProjection<
     }),
     "ticket.left": lisible("ticket.left", (base, ticket, { seq, payload }) => {
       base.executer("DELETE FROM rail WHERE ticket = ?", ticket);
+      base.executer("DELETE FROM rail_fire_unseen WHERE ticket = ?", ticket);
       base.executer("DELETE FROM rail_waiting WHERE ticket = ?", ticket);
       base.executer(
         `INSERT INTO rail_outcomes (ticket, outcome, reason, seq) VALUES (?, 'left', ?, ?)
@@ -423,6 +435,11 @@ export type Sort = { outcome: "served" | "left"; reason: string | null; seq: num
 // seen leaving — on the rail, or never entered.
 export function sortDuTicket(base: Base, ticket: number): Sort | null {
   return base.lire<Sort>("SELECT outcome, reason, seq FROM rail_outcomes WHERE ticket = ?", ticket)[0] ?? null;
+}
+
+// The removal of `fire` that the kitchen did not count for this ticket, or null.
+export function feuNonVu(base: Base, ticket: number): string | null {
+  return base.lire<{ removed_at: string }>("SELECT removed_at FROM rail_fire_unseen WHERE ticket = ?", ticket)[0]?.removed_at ?? null;
 }
 
 // A served ticket, as shown after the fact: its title and its issue's
