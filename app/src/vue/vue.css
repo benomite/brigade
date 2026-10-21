@@ -4508,3 +4508,68 @@ button.recommande {
   color: var(--discret);
   font-style: italic;
 }
+/* Un écran étroit — le téléphone (ticket 1186) : trois colonnes n'y tiennent pas. La barre passe en haut, en une rangée
+   qui défile ; la page du projet prend toute la largeur, et le second, quand son onglet est ouvert, prend la place du
+   centre (vue.js montre l'un ou l'autre). La tête du projet passe à la ligne plutôt que de déborder, et une ligne de
+   station pose son bouton à côté de son nom, son état et ses cooks dessous. Le même seuil que `ECRAN_ETROIT` (vue.js). */
+@media (max-width: 720px) {
+  #cadre {
+    flex-direction: column;
+  }
+  #projets {
+    flex: none;
+    flex-direction: row;
+    padding: 8px 12px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-right: 0;
+    border-bottom: 1px solid var(--trait-doux);
+  }
+  #projets button {
+    height: 44px;
+  }
+  #projets #entree-ajout {
+    margin-top: 0;
+    margin-left: auto;
+  }
+  main {
+    min-height: 0;
+  }
+  main[data-conversation] {
+    flex: none;
+  }
+  main > header {
+    flex-wrap: wrap;
+  }
+  #espace {
+    max-width: none;
+  }
+  #second {
+    flex: 1 1 0;
+    min-height: 0;
+    border-left: 0;
+  }
+  /* Le trait d'accent est déjà en tête de la page, juste au-dessus. */
+  #second > header {
+    border-top: 0;
+  }
+  /* Les quatre colonnes de Rail ne tiennent pas côte à côte : chacune prend presque la largeur, et elles défilent. */
+  #rail[data-onglet="rail"] .colonnes {
+    grid-template-columns: repeat(4, minmax(240px, 85%));
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: 16px;
+  }
+  #rail[data-onglet="rail"] .colonne {
+    scroll-snap-align: start;
+  }
+  #rail .station-de-cuisson {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  #rail .station-de-cuisson :is(.etat, .cooks) {
+    grid-column: 1 / -1;
+  }
+  #rail .station-de-cuisson .geste-de-cuisson {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}
