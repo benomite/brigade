@@ -8,6 +8,12 @@
 // capacités que le chef lui reconnaît, celles qu'elle déclare par défaut.
 // Aucune sélection ne rend une station en attente.
 //
+// Un téléphone est une station comme une autre (`sorte.ts`) : il se présente,
+// le chef l'accepte, la liste le montre — avec `cuisine: false`. Mais il ne
+// fait tourner aucun cook : aucune sélection ne le rend, accepté ou non, même
+// seul au registre, et sa venue ou son départ ne change rien à celles qu'elle
+// rend.
+//
 // Le registre est un fichier SQLite du répertoire qu'on lui donne : l'app et
 // les runtimes des projets peuvent l'ouvrir ensemble, chaque écriture est une
 // transaction qui attend son tour.
@@ -15,6 +21,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { Base } from "../base.ts";
 import { capacite as nomDeCapacite, CAPACITE, FORME_DE_CAPACITE, fournitTout } from "../capacites.ts";
+import { cuisine, estUneSorte, ORDINATEUR, SORTES, type Sorte } from "./sorte.ts";
 
 export type Statut = "en-attente" | "acceptee";
 
@@ -30,6 +37,9 @@ export type Presentation = {
   // Vrai : ses cooks tournent dans une cloison, comme sur la box. Faux : ils
   // voient tout ce que le compte de la machine voit.
   cloisonnee: boolean;
+  // Ce qu'elle est : un ordinateur, si elle n'en dit rien, ou un téléphone,
+  // qui ne cuisine pas.
+  sorte?: Sorte;
 };
 
 export type StationGlobale = {
@@ -41,6 +51,10 @@ export type StationGlobale = {
   // est en attente.
   capacites: string[];
   cloisonnee: boolean;
+  sorte: Sorte;
+  // Faux : elle ne fait tourner aucun cook — un téléphone. Aucune sélection ne
+  // la rend.
+  cuisine: boolean;
   joignable: boolean;
   statut: Statut;
   // Sa première présentation. Une acceptation perdue — revenue sous une
@@ -61,11 +75,17 @@ export type Registre = {
   // changent.
   joignable(nom: string, joignable: boolean): StationGlobale;
   lire(nom: string): StationGlobale | null;
-  // Toutes, en attente comprises, dans l'ordre de leur nom.
+  // Le chef la retire : elle quitte le registre, et la rend telle qu'elle y
+  // était. Revenue, elle se présente de nouveau, en attente.
+  retirer(nom: string): StationGlobale;
+  // Toutes, en attente comprises, celles qui ne cuisinent pas aussi, dans
+  // l'ordre de leur nom.
   liste(): StationGlobale[];
-  // Les stations acceptées qui fournissent tout ce qui est `demande`, dans
-  // l'ordre de leur nom. Joignables ou non : dire d'une station éteinte
-  // qu'elle est absente, plutôt que manquante, est l'affaire de qui choisit.
+  // Les stations acceptées qui cuisinent et fournissent tout ce qui est
+  // `demande`, dans l'ordre de leur nom : les candidates pour faire tourner
+  // les cooks d'un projet. Jamais une station qui ne cuisine pas. Joignables
+  // ou non : dire d'une station éteinte qu'elle est absente, plutôt que
+  // manquante, est l'affaire de qui choisit.
   utilisables(demande?: readonly string[]): StationGlobale[];
   fermer(): void;
 };
@@ -91,7 +111,9 @@ export const cheminRegistre = (repertoire: string) => join(repertoire, "stations
 // station du registre la remplacera, sous le même nom.
 const NOM = /^[\p{Ll}\p{N}][\p{Ll}\p{N}-]*$/u;
 
-const VERSION = 1;
+// 2 : la sorte de chaque station (#1158). Un registre de la version 1 la
+// prend à son ouverture : ses stations sont des ordinateurs.
+const VERSION = 2;
 
 type Rangee = {
   nom: string;
@@ -99,6 +121,7 @@ type Rangee = {
   declarees: string;
   capacites: string;
   cloisonnee: number;
+  sorte: Sorte;
   joignable: number;
   statut: Statut;
   presentee_le: string;
@@ -111,6 +134,8 @@ const versStation = (rangee: Rangee): StationGlobale => ({
   declarees: JSON.parse(rangee.declarees) as string[],
   capacites: JSON.parse(rangee.capacites) as string[],
   cloisonnee: rangee.cloisonnee === 1,
+  sorte: rangee.sorte,
+  cuisine: cuisine(rangee.sorte),
   joignable: rangee.joignable === 1,
   statut: rangee.statut,
   presenteeLe: rangee.presentee_le,
@@ -129,12 +154,13 @@ function lireCapacites(ecrites: readonly string[]): string[] {
   return [...new Set(lues)];
 }
 
-function lirePresentation(presentation: Presentation): Presentation & { capacites: string[] } {
-  const { nom, machine, capacites, cloisonnee } = presentation;
+function lirePresentation(presentation: Presentation): Required<Presentation> & { capacites: string[] } {
+  const { nom, machine, capacites, cloisonnee, sorte = ORDINATEUR } = presentation;
   if (typeof nom !== "string" || !NOM.test(nom)) throw new PresentationInvalide(`nom : « ${String(nom)} » n'est pas un nom de station — des minuscules, des chiffres et des tirets (mac, windows-de-test)`);
   if (typeof machine !== "string" || machine.trim() === "") throw new PresentationInvalide(`machine : elle manque — ce qu'est la machine de \`${nom}\` (macOS 26, Windows 11)`);
   if (typeof cloisonnee !== "boolean") throw new PresentationInvalide(`cloisonnée : \`${nom}\` doit dire si ses cooks tournent dans une cloison (vrai ou faux)`);
-  return { nom, machine: machine.trim(), capacites: lireCapacites(capacites), cloisonnee };
+  if (!estUneSorte(sorte)) throw new PresentationInvalide(`sorte : « ${String(sorte)} » n'est pas une sorte de station — ${SORTES.join(" ou ")}`);
+  return { nom, machine: machine.trim(), capacites: lireCapacites(capacites), cloisonnee, sorte };
 }
 
 export type OptionsRegistre = { maintenant?: () => Date };
@@ -151,6 +177,7 @@ export function ouvrirRegistre(repertoire: string, options: OptionsRegistre = {}
         declarees    TEXT NOT NULL,
         capacites    TEXT NOT NULL,
         cloisonnee   INTEGER NOT NULL CHECK (cloisonnee IN (0, 1)),
+        sorte        TEXT NOT NULL DEFAULT '${ORDINATEUR}' CHECK (sorte IN (${SORTES.map((sorte) => `'${sorte}'`).join(", ")})),
         joignable    INTEGER NOT NULL CHECK (joignable IN (0, 1)),
         statut       TEXT NOT NULL CHECK (statut IN ('en-attente', 'acceptee')),
         presentee_le TEXT NOT NULL,
@@ -160,7 +187,13 @@ export function ouvrirRegistre(repertoire: string, options: OptionsRegistre = {}
     // Un registre écrit par un runtime plus récent ne se lit pas à l'aveugle.
     const version = Number(base.lire<{ user_version: number }>("PRAGMA user_version")[0]?.user_version);
     if (version > VERSION) throw new Error(`registre des stations en version ${version}, ce runtime n'en lit que la ${VERSION} : ${cheminRegistre(repertoire)}`);
-    if (version < VERSION) base.script(`PRAGMA user_version = ${VERSION}`);
+    if (version < VERSION) {
+      const colonnes = base.lire<{ name: string }>("PRAGMA table_info(stations)").map(({ name }) => name);
+      if (!colonnes.includes("sorte")) {
+        base.script(`ALTER TABLE stations ADD COLUMN sorte TEXT NOT NULL DEFAULT '${ORDINATEUR}' CHECK (sorte IN (${SORTES.map((sorte) => `'${sorte}'`).join(", ")}))`);
+      }
+      base.script(`PRAGMA user_version = ${VERSION}`);
+    }
   });
 
   const rangee = (nom: string) => base.lire<Rangee>("SELECT * FROM stations WHERE nom = ?", nom)[0];
@@ -172,29 +205,30 @@ export function ouvrirRegistre(repertoire: string, options: OptionsRegistre = {}
 
   return {
     presenter(presentation) {
-      const { nom, machine, capacites, cloisonnee } = lirePresentation(presentation);
+      const { nom, machine, capacites, cloisonnee, sorte } = lirePresentation(presentation);
       const instant = maintenant().toISOString();
       return base.transaction(() => {
         const connue = rangee(nom);
-        // L'acceptation vaut pour une machine et sa cloison : sous une autre
-        // machine, ou une autre cloison, elle ne se transmet pas. Elle ne vaut
-        // pas pour ce que la station déclare de plus — seul le chef reconnaît
-        // une capacité.
-        const memeMachine = connue !== undefined && connue.machine === machine && connue.cloisonnee === Number(cloisonnee);
+        // L'acceptation vaut pour une machine, sa cloison et sa sorte : sous
+        // une autre machine, une autre cloison, ou revenue téléphone, elle ne
+        // se transmet pas. Elle ne vaut pas pour ce que la station déclare de
+        // plus — seul le chef reconnaît une capacité.
+        const memeMachine = connue !== undefined && connue.machine === machine && connue.cloisonnee === Number(cloisonnee) && connue.sorte === sorte;
         if (connue && memeMachine) {
           base.executer("UPDATE stations SET declarees = ?, joignable = 1 WHERE nom = ?", JSON.stringify(capacites), nom);
         } else if (connue && connue.statut === "en-attente") {
-          base.executer("UPDATE stations SET machine = ?, declarees = ?, cloisonnee = ?, joignable = 1 WHERE nom = ?", machine, JSON.stringify(capacites), Number(cloisonnee), nom);
+          base.executer("UPDATE stations SET machine = ?, declarees = ?, cloisonnee = ?, sorte = ?, joignable = 1 WHERE nom = ?", machine, JSON.stringify(capacites), Number(cloisonnee), sorte, nom);
         } else {
           base.executer(
-            `INSERT INTO stations (nom, machine, declarees, capacites, cloisonnee, joignable, statut, presentee_le, acceptee_le)
-             VALUES (?, ?, ?, '[]', ?, 1, 'en-attente', ?, NULL)
+            `INSERT INTO stations (nom, machine, declarees, capacites, cloisonnee, sorte, joignable, statut, presentee_le, acceptee_le)
+             VALUES (?, ?, ?, '[]', ?, ?, 1, 'en-attente', ?, NULL)
              ON CONFLICT (nom) DO UPDATE SET machine = excluded.machine, declarees = excluded.declarees, capacites = '[]',
-               cloisonnee = excluded.cloisonnee, joignable = 1, statut = 'en-attente', presentee_le = excluded.presentee_le, acceptee_le = NULL`,
+               cloisonnee = excluded.cloisonnee, sorte = excluded.sorte, joignable = 1, statut = 'en-attente', presentee_le = excluded.presentee_le, acceptee_le = NULL`,
             nom,
             machine,
             JSON.stringify(capacites),
             Number(cloisonnee),
+            sorte,
             instant,
           );
         }
@@ -222,6 +256,13 @@ export function ouvrirRegistre(repertoire: string, options: OptionsRegistre = {}
         return station(nom);
       });
     },
+    retirer(nom) {
+      return base.transaction(() => {
+        const retiree = station(nom);
+        base.executer("DELETE FROM stations WHERE nom = ?", nom);
+        return retiree;
+      });
+    },
     lire: (nom) => {
       const lue = rangee(nom);
       return lue ? versStation(lue) : null;
@@ -232,7 +273,7 @@ export function ouvrirRegistre(repertoire: string, options: OptionsRegistre = {}
       return base
         .lire<Rangee>("SELECT * FROM stations WHERE statut = 'acceptee' ORDER BY nom")
         .map(versStation)
-        .filter((acceptee) => fournitTout(acceptee.capacites, voulues));
+        .filter((acceptee) => acceptee.cuisine && fournitTout(acceptee.capacites, voulues));
     },
     fermer: () => base.fermer(),
   };
