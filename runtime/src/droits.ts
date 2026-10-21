@@ -12,9 +12,9 @@
 // héritée de son dossier. Un propriétaire étranger l'ouvre aussi : il peut s'en
 // donner la lecture — sauf SYSTEM et Administrators, qui le peuvent de toute
 // façon, comme root.
-import { spawnSync } from "node:child_process";
 import { existsSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { spawnSync } from "./sans-invite.ts";
 
 // Une entrée de l'ACL, telle que .NET la rend : le compte par son SID, jamais
 // par un nom, qui dépend de la langue du système.
