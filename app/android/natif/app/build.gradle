@@ -9,7 +9,9 @@ android {
         applicationId "com.github.benomite.brigade"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
+        // Elle croît à chaque release (jamais deux fois la même) : sans quoi Android refuse de mettre
+        // l'app à jour sur place. app/packaging/android-stable.ts le vérifie.
+        versionCode 2
         // La version construite, que donne app/packaging/android.ts (-PbrigadeVersion=…).
         versionName project.findProperty('brigadeVersion') ?: '0.0.0'
         aaptOptions {
@@ -18,8 +20,23 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // La clé de release est la même à chaque release, et elle n'est jamais dans le dépôt : elle vient
+    // de l'environnement (ou des secrets de la CI). Même identifiant et même clé, c'est ce qui laisse
+    // Android installer la nouvelle version par-dessus l'ancienne, appairage et projets conservés.
+    signingConfigs {
+        release {
+            def keystore = System.getenv('BRIGADE_KEYSTORE_FILE')
+            if (keystore) {
+                storeFile file(keystore)
+                storePassword System.getenv('BRIGADE_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('BRIGADE_KEY_ALIAS')
+                keyPassword System.getenv('BRIGADE_KEY_PASSWORD')
+            }
+        }
+    }
     buildTypes {
         release {
+            signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
@@ -45,3 +62,11 @@ dependencies {
 
 // Écrit par `cap sync` (app/packaging/android.ts) : il n'est pas dans le dépôt.
 apply from: 'capacitor.build.gradle'
+
+// Une release sans clé ne se construit pas : elle sortirait non signée, ou signée d'une autre clé,
+// et ne s'installerait pas par-dessus l'ancienne.
+gradle.taskGraph.whenReady { graph ->
+    if (graph.allTasks.any { it.name.endsWith('Release') && it.project == project } && !System.getenv('BRIGADE_KEYSTORE_FILE')) {
+        throw new GradleException('A release is signed with the release key: set BRIGADE_KEYSTORE_FILE, BRIGADE_KEYSTORE_PASSWORD, BRIGADE_KEY_ALIAS and BRIGADE_KEY_PASSWORD')
+    }
+}
