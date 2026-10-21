@@ -466,7 +466,12 @@ export function ouvrirTerminaux(options: {
 
     // Un shell persistant, sur la machine choisie : une session neuve, que l'app retient.
     ouvrir(projet: Projet, cible: Cible): Terminal {
-      if (cible.lieu === "poste" && !persistantIci) return montre(shellIci(projet, `shell on ${ICI}, in ${projet.dossier} — ${SANS_SESSION}`));
+      // Sans session sur ce poste (Windows) : un shell qui finit avec son terminal, sous le même bandeau qu'ailleurs.
+      if (cible.lieu === "poste" && !persistantIci) {
+        const tenu = shellIci(projet, `shell on ${ICI}, in ${projet.dossier} — ${SANS_SESSION}`);
+        tenu.bandeau = texteBandeau(cible, (options.compte ?? ((machine) => compteDe(machine, options.ssh)))(cible));
+        return montre(tenu);
+      }
       const rang = rangNeuf(projet.nom);
       const session = { nom: nomDeSession(projet.nom, rang), cible };
       retenir(projet.nom, { rang, session: session.nom, cible });

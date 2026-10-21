@@ -2290,10 +2290,10 @@ async function colorer(projet, role, nom) {
   if (courant?.nom === projet.nom) poserCouleurs(courant);
 }
 
-// Les tickets ordinaires du Mac, sous Paramètres : l'option, la limite de cooks, une ligne qui dit
-// ce que ça implique — et, quand la station dit son bac à sable indisponible, pourquoi le Mac ne
-// prend aucun ticket ordinaire. Le process principal décide si le bloc existe (ordinaires.ts) :
-// sur un autre poste qu'un Mac, rien ne se pose.
+// Les tickets ordinaires de cet ordinateur, sous Paramètres : l'option, la limite de cooks, une ligne
+// qui dit ce que ça implique — et, quand la station dit son bac à sable indisponible, pourquoi ce poste
+// ne prend aucun ticket ordinaire. Le process principal décide du bloc (ordinaires.ts) : hors d'un Mac,
+// il n'est pas réglable, et seule sa ligne se pose — pourquoi ce poste n'en prend pas.
 let ordinairesRefuses = { projet: "", refus: "" };
 // Ce qui est posé : une lecture qui n'a rien changé ne le repose pas — le chef peut être en train d'écrire la limite.
 let ordinairesPose = "";
@@ -2310,6 +2310,10 @@ async function poserOrdinaires(projet) {
   const pose = JSON.stringify([projet.nom, recu, ordinairesRefuses.refus]);
   if (pose === ordinairesPose) return;
   ordinairesPose = pose;
+  const titre = `Ordinary tickets on ${POSTE.nom}`;
+  ordinaires.ariaLabel = titre;
+  ordinaires.hidden = false;
+  if (recu.reglable === false) return ordinaires.replaceChildren(bloc("h3", titre), bloc("p", recu.explication));
   const option = document.createElement("input");
   option.type = "checkbox";
   option.checked = recu.actif;
@@ -2318,7 +2322,7 @@ async function poserOrdinaires(projet) {
   limite.min = "1";
   limite.step = "1";
   limite.value = recu.limite === null ? "" : String(recu.limite);
-  limite.ariaLabel = "Cooks the Mac runs at once";
+  limite.ariaLabel = `Cooks ${POSTE.nom} runs at once`;
   /** @param {string} libelle @param {HTMLElement} champ */
   const etiquette = (libelle, champ) => {
     const cree = document.createElement("label");
@@ -2338,9 +2342,8 @@ async function poserOrdinaires(projet) {
   refus.className = "refus";
   const indisponible = recu.indisponible === undefined ? [] : [bloc("p", recu.indisponible)];
   for (const dit of indisponible) dit.className = "indisponible";
-  ordinaires.hidden = false;
   ordinaires.replaceChildren(
-    bloc("h3", "Ordinary tickets on this Mac"),
+    bloc("h3", titre),
     etiquette("Take the ordinary tickets too", option),
     etiquette("Cooks at once", limite),
     bloc("p", recu.explication),

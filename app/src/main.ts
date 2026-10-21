@@ -567,8 +567,8 @@ ipcMain.handle("colorer", (_, nom: unknown, role: unknown, couleur: unknown) => 
   const voulue = choix(role, couleur);
   return "refus" in voulue ? voulue.refus : suivi.changerCouleur(vise.nom, voulue.role, voulue.valeur);
 });
-// Les tickets ordinaires du Mac (ordinaires.ts) : le bloc que la vue pose pour un projet — rien,
-// quand l'option n'existe pas ici —, et le réglage, que la vue nomme et que le fichier écrit.
+// Les tickets ordinaires de cet ordinateur (ordinaires.ts) : le bloc que la vue pose pour un projet —
+// rien, quand ce poste ne joue aucune station du projet ; hors d'un Mac, pourquoi il n'en prend pas —, et le réglage, que la vue nomme et que le fichier écrit.
 // Écrit, il arrive par `surConfiguration`. Le réglage rend la raison, s'il ne l'a pas été.
 ipcMain.handle("ordinaires", (_, nom: unknown) => {
   const vise = declare(nom);

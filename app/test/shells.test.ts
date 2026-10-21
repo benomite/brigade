@@ -151,6 +151,8 @@ describe("un shell persistant, ouvert sur la machine choisie", () => {
       ],
     );
     assert.equal(ici.note, `shell on ${ICI}, in /projets/brigade — not persistent: neither tmux nor screen runs on Windows, this shell ends with its terminal`);
+    // Le même bandeau que celui d'un shell persistant de ce poste : où l'on est, avec quel compte.
+    assert.equal(ici.bandeau, `${ICI} · benoit`);
     assert.match(labas.note, /^persistent shell on main station parade-box/);
     assert.deepEqual(souvenirs.tel().brigade?.shells.map(({ cible }) => cible), [POSTE, STATION]);
     assert.deepEqual(await terminaux.fermerShell(ici.id), { ferme: true });

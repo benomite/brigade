@@ -283,12 +283,12 @@ export function changerCouleur(chemin: string, nom: string, role: Role, couleur:
   return reecrire(chemin, ecrit(ouvert.contenu));
 }
 
-// Règle, pour un projet, si le Mac prend aussi les tickets ordinaires et combien de cooks il
+// Règle, pour un projet, si la station de cet ordinateur prend aussi les tickets ordinaires et combien de cooks il
 // fait tourner (`null` : aucune limite écrite) — rien d'autre du fichier. Rend la raison, si
 // rien n'a été écrit.
 export function changerOrdinaires(chemin: string, nom: string, actif: unknown, limite: unknown, maison = homedir()): string | undefined {
-  if (typeof actif !== "boolean") return "nothing was written: whether the Mac takes the ordinary tickets is true or false";
-  if (limite !== null && (!Number.isInteger(limite) || (limite as number) < 1)) return "nothing was written: the Mac's cook limit is a whole number, one or more — or empty, for none";
+  if (typeof actif !== "boolean") return "nothing was written: whether this computer's station takes the ordinary tickets is true or false";
+  if (limite !== null && (!Number.isInteger(limite) || (limite as number) < 1)) return "nothing was written: this computer's cook limit is a whole number, one or more — or empty, for none";
   const ouvert = relu(chemin, maison);
   if ("refus" in ouvert) return ouvert.refus;
   const declare = ouvert.contenu.projets.find((candidat) => (candidat as { nom?: unknown } | null)?.nom === nom) as { ordinaires?: boolean; limiteCooks?: number } | undefined;

@@ -52,11 +52,11 @@ describe("ce poste, d'une plateforme à l'autre", () => {
     );
   });
 
-  test("aucun chemin de l'app n'est réservé au Mac hors d'ici, sauf les tickets ordinaires : le bac à sable des cooks n'existe que sous macOS", () => {
+  test("aucun chemin de l'app n'est réservé au Mac hors d'ici : chaque module reçoit d'ici ce qui dépend de la plateforme", () => {
     const src = join(import.meta.dirname, "../src");
     const surMac = readdirSync(src, { recursive: true, encoding: "utf8" })
       .filter((fichier) => /\.(ts|js|cjs)$/.test(fichier))
       .filter((fichier) => /["'`]darwin["'`]/.test(readFileSync(join(src, fichier), "utf8")));
-    assert.deepEqual(surMac.sort(), ["ordinaires.ts", "plateforme.ts"]);
+    assert.deepEqual(surMac.sort(), ["plateforme.ts"]);
   });
 });
