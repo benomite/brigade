@@ -1022,7 +1022,7 @@ describe("l'écran, tel que la vue le pose", () => {
   const MODE_D_EMPLOI = /Each `MANQUE` line|the arrow \(`→`\)|Where the arrow says|holds nothing back —|NOT READY/;
   const RANG_DES_STATIONS = ETAPES.findIndex(({ id }) => id === "stations") + 1;
 
-  test("prêt : la première ligne est la phrase « prêt », sans manque ni mode d'emploi ; la ligne `à savoir` à part ; la sortie brute repliée sous « detail », intacte", async (t) => {
+  test("prêt : la première ligne est la phrase « prêt », sans manque ni mode d'emploi ; la ligne `à savoir` à part ; aucune sortie brute", async (t) => {
     const box = boxSimulee(t, { verification: () => PRETS });
     const { services } = app(box);
     services.suivre(CALCULUS);
@@ -1041,11 +1041,9 @@ describe("l'écran, tel que la vue le pose", () => {
     const aSavoir = partie(verification, "a-savoir");
     assert.deepEqual(aSavoir?.dessous("p").map(({ textContent }) => textContent), [`${PRETS[2]?.texte}?`]);
     assert.deepEqual(survols(aSavoir ?? verification), [PRETS[2]?.geste]);
-    // Repliée au chargement ; dépliée, la sortie brute telle que la vérification l'a écrite.
-    const detail = partie(verification, "detail") as (Faux & { open?: unknown }) | undefined;
-    assert.equal(detail?.open, false);
-    assert.match(detail?.dessous("summary")[0]?.textContent ?? "", /^detail — verified at /);
-    assert.equal(detail?.dessous("pre")[0]?.textContent, lu.verification.detail);
+    // La sortie brute n'est montrée nulle part : ni « detail », ni bloc.
+    assert.equal(partie(verification, "detail"), undefined);
+    assert.equal(verification.dessous("pre").length, 0);
     assert.ok(lu.verification.detail.includes(PRET));
   });
 
@@ -1080,7 +1078,7 @@ describe("l'écran, tel que la vue le pose", () => {
     assert.equal(partie(verification, "a-savoir")?.dessous("p").length, 1);
     assert.ok(!lignes.some(({ textContent }) => textContent.includes("push protection")));
     assert.doesNotMatch(vue.element("service-tete").textContent, MODE_D_EMPLOI);
-    assert.equal((partie(verification, "detail") as (Faux & { open?: unknown }) | undefined)?.open, false);
+    assert.equal(partie(verification, "detail"), undefined);
   });
 
   test("plantée sur /etc/sudoers.d : « problème de brigade, pas de ton projet », #654, rien à faire — nulle part « NOT READY », et rien n'est noté de la box", async (t) => {

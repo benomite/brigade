@@ -183,11 +183,11 @@ function duJournal(journal: Journal | null, fait: boolean): string {
 // Ce que l'app dit d'un refus du geste, selon son code (runtime/deploy/brigade-installer).
 // La phrase de la box est au-dessus, mot pour mot : elle n'est pas redite.
 function suiteDuRefus(code: number | null): string[] {
-  if (code === 64) return ["What the station refuses is named above: it removed nothing."];
+  if (code === 64) return ["The station refused the action: it removed nothing."];
   if (code === 65) return [`The station does not know this project: there is nothing to uninstall there. If it should no longer appear in the app, that is the other action: “${RETIRER}”.`];
   if (code === 75) return ["Another installation action is running on this station: retry once it has finished."];
   if (code === 76 || code === 77) return [`The station is not ready for this action, and the app does not prepare it: what it lacks is set up on the station itself, by someone with \`sudo\` there — ${DOC}, section 3, « Préparer ».`];
-  if (code === 81) return ["The station is held back by what the uninstall would take away: it names it above. Sort it out on the station, then retry."];
+  if (code === 81) return ["The station is held back by what the uninstall would take away. Sort it out on the station, then retry."];
   return [];
 }
 
@@ -207,7 +207,7 @@ function montrer({ nom, box: { hote } }: Servi, { a, rendu }: Lue, execution: bo
       a,
       titre: `WHAT STATION “${hote}” WOULD REMOVE — nothing is removed`,
       obtenu,
-      suite: ["This is the station's plan, as it returned it: the app adds nothing to it and decides nothing about it.", duJournal(rendu.journal, false), `To go ahead: type the project name below, then “${DESINSTALLER}”.`],
+      suite: ["The station has drawn up its plan: the app decides nothing about it. ", duJournal(rendu.journal, false), `To go ahead: type the project name below, then “${DESINSTALLER}”.`],
     };
   }
   if (rendu.etat === "desinstalle") {
@@ -217,7 +217,7 @@ function montrer({ nom, box: { hote } }: Servi, { a, rendu }: Lue, execution: bo
       titre: `UNINSTALLED FROM STATION “${hote}”`,
       obtenu,
       suite: [
-        "What the station removed, and what it keeps, is above, as it said it.",
+        "The station has carried out the uninstall.",
         duJournal(rendu.journal, true),
         `“${nom}” can no longer be driven from the app: it no longer reads its station, and writes nothing to it.`,
         `It is still in the app: “${RETIRER}” removes it — that is the other action.`,
@@ -232,7 +232,7 @@ function montrer({ nom, box: { hote } }: Servi, { a, rendu }: Lue, execution: bo
         a,
         titre: `THE UNINSTALL STOPPED HALFWAY ON STATION “${hote}”`,
         obtenu,
-        suite: ["The station says above what is done, and what remains.", "The uninstall can be replayed — ask the station for its plan again: it will say what is left to remove.", pasDit],
+        suite: ["The station did not finish: some of the uninstall is done, some remains.", "The uninstall can be replayed — ask the station for its plan again: it will say what is left to remove.", pasDit],
       };
     }
     return { etat: "refuse", a, titre: `STATION “${hote}” REFUSED (${rendu.motif}) — nothing is removed`, obtenu, suite: suiteDuRefus(rendu.code) };
@@ -240,7 +240,7 @@ function montrer({ nom, box: { hote } }: Servi, { a, rendu }: Lue, execution: bo
   if (rendu.etat === "injoignable") {
     // Un plan ne retire rien, joint ou pas. Une désinstallation, elle, a pu commencer avant que `ssh` ne perde sa session.
     if (!execution) {
-      return { etat: "injoignable", a, titre: `STATION “${hote}” COULD NOT BE REACHED — nothing is removed`, obtenu, suite: ["`ssh` did not return the station's plan, and it said why: its message is above, the app does not read it.", ...ssh] };
+      return { etat: "injoignable", a, titre: `STATION “${hote}” COULD NOT BE REACHED — nothing is removed`, obtenu, suite: ["`ssh` did not return the station's plan: the app does not read its message, so the station's state is unknown.", ...ssh] };
     }
     return {
       etat: "injoignable",
@@ -248,7 +248,7 @@ function montrer({ nom, box: { hote } }: Servi, { a, rendu }: Lue, execution: bo
       titre: `\`ssh\` FAILED WITHOUT AN ANSWER FROM STATION “${hote}”`,
       obtenu,
       suite: [
-        "`ssh` exited with an error, and its message is above: the app does not read it. If it never opened a session, nothing reached the station; if it lost it on the way, the uninstall may have started.",
+        "`ssh` exited with an error, and the app does not read its message. If it never opened a session, nothing reached the station; if it lost it on the way, the uninstall may have started.",
         `So the app does not know what the station did. ${pasDit}`,
         redemander,
         ...ssh,
@@ -262,7 +262,7 @@ function montrer({ nom, box: { hote } }: Servi, { a, rendu }: Lue, execution: bo
       titre: `STATION “${hote}” WAS REACHED, AND ITS ACTION DID NOT RETURN ${execution ? "ITS ANSWER" : "ITS PLAN"}`,
       obtenu,
       suite: [
-        "What the station returned is above, as is. The expected case: `brigade-installer` is not installed there — or not in a version that uninstalls — or its sudoers rule does not grant it to your account.",
+        "The station's action returned nothing the app can use. The expected case: `brigade-installer` is not installed there — or not in a version that uninstalls — or its sudoers rule does not grant it to your account.",
         `The app does not prepare a station. This action is set up on it, once, by someone with \`sudo\` there: ${DOC}, section 3, « Préparer » — « Le geste d'installation ».`,
         ...(execution ? [`The app does not know what the station did. ${pasDit}`, redemander] : []),
       ],

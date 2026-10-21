@@ -827,10 +827,6 @@ const pagesServies = new Map();
 // redessine à chaque lecture, et ce qu'il lit ne se replie pas sous ses yeux.
 /** @type {Set<string>} */
 const remarquesDepliees = new Set();
-// Les vérifications dont le chef a déplié le détail — un projet et l'heure de la vérification :
-// l'écran reposé ne le replie pas sous ses yeux. Une vérification neuve s'ouvre repliée.
-/** @type {Set<string>} */
-const verificationsDepliees = new Set();
 // Ce qui n'est pas encore sur le rail, par projet, tel que le process principal l'a rangé (amont.ts) :
 // la dernière lecture de `manager upstream` du projet affiché.
 /** @type {Map<string, import("../amont.ts").Vu>} */
@@ -1873,8 +1869,7 @@ function rendre(recue, tete, corps) {
 
 // Ce qu'une vérification a donné. En tête, son verdict en une phrase ; dessous, une ligne par
 // manque — qui agit, et pour le chef le bouton qui fait le geste ou la commande exacte, à copier ;
-// les lignes « à savoir » à part, plus discrètes ; et ce que l'app a obtenu — la sortie brute,
-// intacte —, replié sous « detail ». Sans verdict, le même cas et le même renvoi que sous `status`.
+// les lignes « à savoir » à part, plus discrètes. Sans verdict, le même cas et le même renvoi que sous `status`.
 /**
  * @param {Projet} projet @param {Guide["verification"]} verification
  * @param {(texte: string, geste: () => Promise<unknown>) => HTMLButtonElement} action
@@ -1894,14 +1889,8 @@ function poserVerdict(projet, verification, action, avecTitre = true) {
   const posee = document.createElement("div");
   posee.className = "verification";
   if (avecTitre) posee.append(tete);
-  const detail = document.createElement("details");
-  detail.className = "detail";
-  const cle = `${projet.nom} ${verification.a}`;
-  detail.open = verificationsDepliees.has(cle);
-  detail.addEventListener("toggle", () => void (detail.open ? verificationsDepliees.add(cle) : verificationsDepliees.delete(cle)));
-  detail.append(bloc("summary", `detail — verified at ${heureDe(verification.a)}`), exact("pre", verification.detail));
   if (verification.etat === "illisible") {
-    posee.append(...verification.suite.map((ligne) => bloc("p", ligne)), detail);
+    posee.append(...verification.suite.map((ligne) => bloc("p", ligne)));
     return [posee];
   }
   if (verification.manques.length > 0) {
@@ -1918,7 +1907,6 @@ function poserVerdict(projet, verification, action, avecTitre = true) {
     for (const ligne of verification.aSavoir) aSavoir.append(ligne.geste === null ? bloc("p", ligne.texte) : ditEtAide("p", ligne.texte, ligne.geste));
     posee.append(aSavoir);
   }
-  posee.append(detail);
   return [posee];
 }
 
@@ -2192,7 +2180,7 @@ function poserMontre(montre) {
   const tete = bloc("p", "a" in montre ? `${montre.titre} — at ${heureDe(montre.a)}` : montre.titre);
   tete.className = "verdict";
   tete.dataset.verdict = montre.etat;
-  return [tete, ...("obtenu" in montre ? [bloc("pre", montre.obtenu)] : []), ...("suite" in montre ? montre.suite.map((ligne) => bloc("p", ligne)) : [])];
+  return [tete, ...("suite" in montre ? montre.suite.map((ligne) => bloc("p", ligne)) : [])];
 }
 
 // Retirer le projet affiché, sous la mise en service : deux gestes, chacun dans son bloc
