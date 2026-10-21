@@ -844,7 +844,7 @@ test("un ticket retenu dont fire est retiré puis reposé entre deux sondages re
   const gh = depot(issue(14));
   await alimenter(journal, gh.github, CIBLE);
   rail.prendre("box/claude");
-  rail.quatreVingtSix(14, { motif: "ci-silent", retour: null });
+  rail.quatreVingtSix(14, { motif: "ci-silent" });
   assert.equal(lireRail(journal.base)[0]?.state, "86");
 
   // Posé de nouveau, la liste le porte toujours : rien n'a changé pour elle,
@@ -865,7 +865,7 @@ test("un retrait de fire antérieur à la retenue ne la lève pas", async (t) =>
   const gh = depot(issue(14));
   await alimenter(journal, gh.github, CIBLE);
   rail.prendre("box/claude");
-  rail.quatreVingtSix(14, { motif: "ci-silent", retour: null });
+  rail.quatreVingtSix(14, { motif: "ci-silent" });
   // Un retrait daté d'avant l'entrée sur le rail est un autre geste : rien.
   gh.retirerLeFeu(14, "2000-01-01T00:00:00Z");
   gh.poser(issue(14, { updatedAt: "2099-01-01T00:00:02Z" }));
