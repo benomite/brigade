@@ -170,8 +170,8 @@ An answer the code cannot read — a ticket with no criterion, no zone, one that
 placed after it, a calibration outside the table, more than twelve tickets — creates **no** ticket
 (`manager.split-failed`).
 
-**The question holds nothing back**: the rail moves on. It is read in `run manager` ("QUESTION
-POSÉE"). Answer in a comment or edit the epic: it is read again, **with the question**.
+**The question holds nothing back**: the rail moves on. It is read in `run manager`
+(`QUESTION ASKED`). Answer in a comment or edit the epic: it is read again, **with the question**.
 
 **A ticket born from a split** carries: a body that starts with `Épique : #N`, then the context,
 the criteria and **why this calibration**; `model:`, `effort:`, and the epic's `prio:`; its
