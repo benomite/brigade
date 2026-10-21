@@ -63,6 +63,8 @@ for (const [cas, valeur, attendu] of [
   ["`ordinaires` devant `distante`", "mac/claude:1:chrome-connecté:ordinaires+distante", /“ordinaires\+distante” is one too many/],
   ["une marque inconnue après `distante`", "mac/claude:1:chrome-connecté:distante+vite", /“distante\+vite” is one too many: .* or `distante\+ordinaires`: it also takes the ordinary tickets/],
   ["`ordinaires` deux fois", "mac/claude:1:chrome-connecté:distante+ordinaires+ordinaires", /“distante\+ordinaires\+ordinaires” is one too many/],
+  ["`ensemble` sans `distante`", "box/claude:2:code:ensemble", /`ensemble` only goes with a `distante` station \(`distante\+ensemble`\): a station of the box already takes the ordinary tickets/],
+  ["`ensemble` et `ordinaires` ensemble", "mac/claude:1:code:distante+ordinaires+ensemble", /“distante\+ordinaires\+ensemble” is one too many: .* or `distante\+ensemble`: it takes them alongside the box, as one more station of the project/],
   ["une virgule de trop", "box/claude:2:code,", /station no\. 2 \(“”\) — it is empty: one comma too many/],
 ] as const) {
   test(`refus qui nomme la station et le champ fautif : ${cas} — BRIGADE_STATIONS=${valeur}`, () => {
@@ -108,4 +110,17 @@ test("une station distante prend aussi les tickets ordinaires quand le chef la d
   assert.equal(stations.map(ecrireStation).join(","), ecrite);
   assert.match(direStations(stations), /mac\/claude \(2 cooks at most; provides: chrome-connecté; remote: it pulls its work, the box never reaches it; also takes ordinary tickets, in the sandbox of its workstation\)/);
   assert.doesNotMatch(direStations(stations).split(" ; win/")[1] ?? "", /ordinaires/);
+});
+
+test("une station de plus du projet se déclare `distante+ensemble` : elle prend les tickets ordinaires, à côté de la box — le démarrage le dit, et la déclaration se réécrit à l'identique", () => {
+  const ecrite = "box/claude:2:code,mac/claude:2:code:distante+ensemble,win/claude:1:obs:distante+ordinaires";
+  const stations = lireStations({ BRIGADE_STATIONS: ecrite.replace("distante+ensemble", " distante + ensemble ") });
+  assert.deepEqual(stations, [
+    { nom: "box/claude", moteur: "claude", fournit: ["code"], cooks: 2 },
+    { nom: "mac/claude", moteur: "claude", fournit: ["code"], cooks: 2, distante: true, ordinaires: true, ensemble: true },
+    { nom: "win/claude", moteur: "claude", fournit: ["obs"], cooks: 1, distante: true, ordinaires: true },
+  ]);
+  assert.equal(stations.map(ecrireStation).join(","), ecrite);
+  assert.match(direStations(stations), /mac\/claude \(2 cooks at most; provides: code; remote: it pulls its work, the box never reaches it; one more station of the project: it takes ordinary tickets alongside the box, in the sandbox of its workstation\)/);
+  assert.doesNotMatch(direStations(stations).split(" ; win/")[1] ?? "", /alongside/);
 });

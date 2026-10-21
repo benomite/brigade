@@ -86,9 +86,9 @@ test("les stations : une d'ici prend les tickets ordinaires ; une distante, selo
 
   assert.equal(
     JSON.stringify(lire(`${JOUR_HORLOGE}T10:04:11.000Z`).forme.stations),
-    `[{"station":"box/claude","distante":false,"plafond":2,"ordinaires":false,"bacASable":null,"prendOrdinaires":true,"cuisson":"cooking","arreteeDepuis":null,"refus":null,"cooks":[]},` +
-      `{"station":"mac/claude","distante":true,"plafond":1,"ordinaires":true,"bacASable":{"disponible":false,"raison":"Seatbelt est introuvable","version":null,"depuis":"${JOUR_HORLOGE}T10:00:04.000Z"},"prendOrdinaires":false,"cuisson":"cooking","arreteeDepuis":null,"refus":null,"cooks":[]},` +
-      `{"station":"win/claude","distante":true,"plafond":1,"ordinaires":false,"bacASable":null,"prendOrdinaires":false,"cuisson":"cooking","arreteeDepuis":null,"refus":null,"cooks":[]}]`,
+    `[{"station":"box/claude","distante":false,"plafond":2,"ordinaires":false,"ensemble":false,"bacASable":null,"prendOrdinaires":true,"cuisson":"cooking","arreteeDepuis":null,"refus":null,"cooks":[]},` +
+      `{"station":"mac/claude","distante":true,"plafond":1,"ordinaires":true,"ensemble":false,"bacASable":{"disponible":false,"raison":"Seatbelt est introuvable","version":null,"depuis":"${JOUR_HORLOGE}T10:00:04.000Z"},"prendOrdinaires":false,"cuisson":"cooking","arreteeDepuis":null,"refus":null,"cooks":[]},` +
+      `{"station":"win/claude","distante":true,"plafond":1,"ordinaires":false,"ensemble":false,"bacASable":null,"prendOrdinaires":false,"cuisson":"cooking","arreteeDepuis":null,"refus":null,"cooks":[]}]`,
   );
   noter({ type: "station.sandbox", payload: { station: "mac/claude", available: true, reason: null, version: "2.1.250" } });
   assert.deepEqual(lire(`${JOUR_HORLOGE}T10:04:11.000Z`).forme.stations[1]?.prendOrdinaires, true);

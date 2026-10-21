@@ -421,14 +421,15 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // l'ordre de la déclaration, chacune avec ce qu'elle fournit.
   // Une distante ne prend les tickets ordinaires que si le chef le lui fait
   // faire, que son poste a le bac à sable (`bac-a-sable/ordinaires.ts`), et
-  // que la box sature (`boxSaturee`).
+  // que la box sature (`boxSaturee`) — sauf une station de plus du projet
+  // (`ensemble`), qui les prend à côté de la box, dès qu'elle a de la place.
   const preneuses = (celles: readonly string[]): Preneuse[] =>
     toutes
       .filter((declaree) => celles.includes(declaree.nom))
       .map((declaree) => ({
         station: declaree.nom,
         fournit: declaree.fournit,
-        ordinaires: prendLesOrdinaires(declaree, etatStation(base, declaree.nom)?.sandbox ?? null) && (declaree.distante !== true || boxSaturee()),
+        ordinaires: prendLesOrdinaires(declaree, etatStation(base, declaree.nom)?.sandbox ?? null) && (declaree.distante !== true || declaree.ensemble === true || boxSaturee()),
       }));
   // Ce qu'un ticket peut demander : ce que fournit une station déclarée,
   // qu'elle tourne ici ou ailleurs.
@@ -553,6 +554,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         ...desCoeurs,
         ...(declaree.distante ? { remote: true as const } : {}),
         ...(declaree.ordinaires ? { ordinary: true as const } : {}),
+        ...(declaree.ensemble ? { alongside: true as const } : {}),
       };
       const connue = etatStation(base, declaree.nom);
       const annoncee = connue && {
@@ -563,6 +565,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         ...(connue.cores === null ? {} : { cores: connue.cores }),
         ...(connue.remote ? { remote: true as const } : {}),
         ...(connue.ordinary ? { ordinary: true as const } : {}),
+        ...(connue.alongside ? { alongside: true as const } : {}),
       };
       if (JSON.stringify(annoncee) !== JSON.stringify(annonce)) noter(declaree.nom, null, { type: "station.announced", payload: annonce });
     }
@@ -824,7 +827,9 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   // retient aussi la distante, ou se lève sans qu'un ticket change de
   // machine. Sans station d'ici, personne d'autre ne cuirait un ticket
   // ordinaire. Une station d'ici que le chef a arrêtée n'a pas de place : la
-  // cuisine du projet n'y prend plus rien, elle va où il la laisse.
+  // cuisine du projet n'y prend plus rien, elle va où il la laisse. Une
+  // station de plus du projet (`ensemble`) n'attend pas cet instant : elle
+  // cuit à côté de la box, et ce qui retient la box ne la retient pas.
   const boxSaturee = (): boolean => {
     const retenues = ceQuiRetient();
     return declarees.every((declaree) => {

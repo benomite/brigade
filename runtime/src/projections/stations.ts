@@ -57,6 +57,11 @@ export type EtatStation = {
   // True: remote, the chef has it take ordinary tickets too, in its
   // workstation's sandbox.
   ordinary: boolean;
+  // True: remote and ordinary, it takes them alongside the stations of this
+  // machine, without waiting for them to be saturated — one more station of
+  // the project, not a backup. Optional in the type only: `etatStation`
+  // always sets it, and a reader built before it (the app's tests) omits it.
+  alongside?: boolean;
   // What it said about this sandbox, the last time it changed, and when.
   // Null: it never said anything about it.
   sandbox: { available: boolean; reason: string | null; version: string | null; at: string } | null;
@@ -207,6 +212,7 @@ export const stations = definirProjection<Ecoutes>({
       seen_at             TEXT,
       present_since       TEXT,
       ordinary            INTEGER NOT NULL DEFAULT 0,
+      alongside           INTEGER NOT NULL DEFAULT 0,
       sandbox_available   INTEGER,
       sandbox_reason      TEXT,
       sandbox_version     TEXT,
@@ -264,7 +270,7 @@ export const stations = definirProjection<Ecoutes>({
         base,
         payload.station,
         at,
-        "engine = ?, provides = ?, max_cooks = ?, cores = ?, announced_at = ?, remote = ?, ordinary = ?",
+        "engine = ?, provides = ?, max_cooks = ?, cores = ?, announced_at = ?, remote = ?, ordinary = ?, alongside = ?",
         String(payload.engine),
         JSON.stringify(Array.isArray(payload.provides) ? payload.provides : []),
         Number.isSafeInteger(payload.maxCooks) ? payload.maxCooks : 0,
@@ -272,6 +278,7 @@ export const stations = definirProjection<Ecoutes>({
         at,
         payload.remote === true ? 1 : 0,
         payload.ordinary === true ? 1 : 0,
+        payload.alongside === true ? 1 : 0,
       );
       if (texte(payload.station)) base.executer("DELETE FROM stations_undeclared");
     },
@@ -503,11 +510,12 @@ export function setupBloque(base: Base): SetupBloque | null {
   return ligne?.since ? { ...ligne, since: ligne.since, hosts: JSON.parse(ligne.hosts) } : null;
 }
 
-type LigneDeStation = Omit<EtatStation, "provides" | "remote" | "ordinary" | "sandbox" | "saturatedCauses"> & {
+type LigneDeStation = Omit<EtatStation, "provides" | "remote" | "ordinary" | "alongside" | "sandbox" | "saturatedCauses"> & {
   provides: string;
   saturatedCauses: string | null;
   remote: number;
   ordinary: number;
+  alongside: number;
   sandboxAvailable: number | null;
   sandboxReason: string | null;
   sandboxVersion: string | null;
@@ -523,7 +531,7 @@ export function etatStation(base: Base, station: string): EtatStation | null {
             saturated_observed AS saturatedObserved, saturated_limit AS saturatedLimit, saturated_causes AS saturatedCauses,
             held_at AS heldAt, held_reason AS heldReason,
             unarbitrated_at AS unarbitratedAt, unarbitrated_reason AS unarbitratedReason,
-            remote, seen_at AS seenAt, present_since AS presentSince, ordinary,
+            remote, seen_at AS seenAt, present_since AS presentSince, ordinary, alongside,
             sandbox_available AS sandboxAvailable, sandbox_reason AS sandboxReason, sandbox_version AS sandboxVersion, sandbox_at AS sandboxAt
      FROM stations WHERE station = ?`,
     station,
@@ -536,6 +544,7 @@ export function etatStation(base: Base, station: string): EtatStation | null {
     provides: JSON.parse(ligne.provides),
     remote: ligne.remote === 1,
     ordinary: ligne.ordinary === 1,
+    alongside: ligne.alongside === 1,
     sandbox: sandboxAvailable === null || sandboxAt === null ? null : { available: sandboxAvailable === 1, reason: sandboxReason, version: sandboxVersion, at: sandboxAt },
   };
 }

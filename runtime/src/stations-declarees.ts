@@ -12,7 +12,15 @@
 // prend que les tickets qui demandent une de ses capacités. Déclarée aussi
 // `ordinaires`, elle prend en plus les tickets qui ne demandent rien — et leurs
 // cooks y tournent dans le bac à sable de Claude Code (`bac-a-sable/`), quand
-// son poste l'a ; sans lui, elle n'en prend aucun.
+// son poste l'a ; sans lui, elle n'en prend aucun. Elle n'en reçoit alors que
+// quand les stations d'ici saturent : elle est le renfort de la box.
+//
+// Déclarée `ensemble` (`distante+ensemble`), c'est une station de plus du
+// projet, qui cuit à côté de la première et non derrière elle : elle prend
+// les tickets ordinaires comme une station d'ici, dès qu'elle a de la place,
+// que la box sature ou non — sous la même condition de bac à sable. La
+// première garde le manager et la pass : toute station cuit, aucune autre ne
+// les fait tourner.
 //
 // Ce qu'une station fournit est une capacité : ce que la machine peut faire.
 // Ce n'est pas une permission — ce qui est permis reste l'affaire des grants
@@ -42,6 +50,10 @@ export type StationDeclaree = {
   // demandent rien —, dans le bac à sable de son poste. Son plafond de cooks
   // est la limite qui vaut pour elle, tickets ordinaires compris.
   ordinaires?: true;
+  // Vrai : distante et `ordinaires`, elle cuit à côté des stations d'ici —
+  // elle prend les tickets ordinaires dès qu'elle a de la place, sans attendre
+  // que la box sature. Une station de plus du projet, pas un renfort.
+  ensemble?: true;
 };
 
 // Un nom de station : une machine et un moteur, chacun en minuscules, chiffres
@@ -54,14 +66,17 @@ const PLAFOND = /^[1-9][0-9]*$/;
 // au besoin, de ce qu'elle prend en plus de ce qui exige ses capacités.
 export const DISTANTE = "distante";
 export const ORDINAIRES = "ordinaires";
+export const ENSEMBLE = "ensemble";
 
-export const FORME = `<machine>/<engine>:<cooks cap>:<capability>+<capability>[:${DISTANTE}[+${ORDINAIRES}]]`;
+export const FORME = `<machine>/<engine>:<cooks cap>:<capability>+<capability>[:${DISTANTE}[+${ORDINAIRES}|+${ENSEMBLE}]]`;
 export const EXEMPLE = "box/claude:30:code+raisonnement,box/playwright:2:navigateur-headless";
 
 // Lit `BRIGADE_STATIONS` : une station par entrée, séparées par des virgules,
 // chacune `<machine>/<moteur>:<plafond>:<capacité>+<capacité>`, suivie de
 // `:distante` quand elle ne tourne pas sur cette machine, et de
-// `:distante+ordinaires` quand elle prend aussi les tickets ordinaires. Absente ou
+// `:distante+ordinaires` quand elle prend aussi les tickets ordinaires — quand la
+// box sature —, `:distante+ensemble` quand elle les prend à côté de la box, en
+// station de plus du projet (elle prend alors les ordinaires). Absente ou
 // vide : le projet ne déclare aucune station, et c'est accepté. Mal écrite,
 // c'est un refus de démarrer qui nomme la station et le champ en cause — un
 // plafond ne se devine pas, et une station ne disparaît pas sur une faute de
@@ -87,12 +102,16 @@ export function lireStations(env: Record<string, string | undefined>): StationDe
     if (!PLAFOND.test(plafond ?? "") || !Number.isSafeInteger(cooks)) refuser(`cap: “${plafond}” is not an integer greater than zero`);
     if (capacites === undefined || capacites === "") refuser("provides: it is missing — at least one capability, what this station provides");
     const marques = lieu === undefined ? [] : lieu.split("+").map((marque) => marque.trim());
-    const lisible = marques.length === 0 || (marques[0] === DISTANTE && (marques.length === 1 || (marques.length === 2 && marques[1] === ORDINAIRES)));
+    const lisible = marques.length === 0 || (marques[0] === DISTANTE && (marques.length === 1 || (marques.length === 2 && (marques[1] === ORDINAIRES || marques[1] === ENSEMBLE))));
     if (champs.length > 4 || !lisible) {
-      if (champs.length <= 4 && marques.includes(ORDINAIRES) && !marques.includes(DISTANTE)) {
-        refuser(`\`${ORDINAIRES}\` only goes with a \`${DISTANTE}\` station (\`${DISTANTE}+${ORDINAIRES}\`): a station of the box already takes the ordinary tickets`);
+      for (const marque of [ORDINAIRES, ENSEMBLE]) {
+        if (champs.length <= 4 && marques.includes(marque) && !marques.includes(DISTANTE)) {
+          refuser(`\`${marque}\` only goes with a \`${DISTANTE}\` station (\`${DISTANTE}+${marque}\`): a station of the box already takes the ordinary tickets`);
+        }
       }
-      refuser(`“${champs.slice(lisible ? 4 : 3).join(":")}” is one too many: a station has three fields — an optional fourth says only \`${DISTANTE}\`: it does not run on this machine, it comes to pull its work; or \`${DISTANTE}+${ORDINAIRES}\`: it also takes the ordinary tickets, inside the sandbox of its workstation`);
+      refuser(
+        `“${champs.slice(lisible ? 4 : 3).join(":")}” is one too many: a station has three fields — an optional fourth says only \`${DISTANTE}\`: it does not run on this machine, it comes to pull its work; or \`${DISTANTE}+${ORDINAIRES}\`: it also takes the ordinary tickets, inside the sandbox of its workstation, when the box is saturated; or \`${DISTANTE}+${ENSEMBLE}\`: it takes them alongside the box, as one more station of the project`,
+      );
     }
     // Le nom tel que la fiche d'un ticket le demandera.
     const fournit = (capacites ?? "").split("+").map((capacite) => nomDeCapacite(capacite.trim()));
@@ -106,7 +125,8 @@ export function lireStations(env: Record<string, string | undefined>): StationDe
       fournit,
       cooks,
       ...(marques.includes(DISTANTE) ? { distante: true as const } : {}),
-      ...(marques.includes(ORDINAIRES) ? { ordinaires: true as const } : {}),
+      ...(marques.includes(ORDINAIRES) || marques.includes(ENSEMBLE) ? { ordinaires: true as const } : {}),
+      ...(marques.includes(ENSEMBLE) ? { ensemble: true as const } : {}),
     });
   });
   return stations;
@@ -115,7 +135,7 @@ export function lireStations(env: Record<string, string | undefined>): StationDe
 // Une station telle que `BRIGADE_STATIONS` l'écrit : ce que `lireStations`
 // relit à l'identique.
 export function ecrireStation(station: StationDeclaree): string {
-  const marques = [...(station.distante ? [DISTANTE] : []), ...(station.ordinaires ? [ORDINAIRES] : [])];
+  const marques = [...(station.distante ? [DISTANTE] : []), ...(station.ensemble ? [ENSEMBLE] : station.ordinaires ? [ORDINAIRES] : [])];
   return [station.nom, station.cooks, station.fournit.join("+"), ...(marques.length > 0 ? [marques.join("+")] : [])].join(":");
 }
 
@@ -137,6 +157,6 @@ export function direStations(stations: StationDeclaree[]): string {
     return `none (${VARIABLE_DES_STATIONS} is set neither in the environment nor in the log): no cook will leave, the tickets stay queued on the rail — ${GESTE_DE_STATION_A_CHAUD_EN}`;
   }
   return stations
-    .map((station) => `${station.nom} (${station.cooks} cook${station.cooks > 1 ? "s" : ""} at most; provides: ${station.fournit.join(", ")}${station.distante ? "; remote: it pulls its work, the box never reaches it" : ""}${station.ordinaires ? "; also takes ordinary tickets, in the sandbox of its workstation" : ""})`)
+    .map((station) => `${station.nom} (${station.cooks} cook${station.cooks > 1 ? "s" : ""} at most; provides: ${station.fournit.join(", ")}${station.distante ? "; remote: it pulls its work, the box never reaches it" : ""}${station.ensemble ? "; one more station of the project: it takes ordinary tickets alongside the box, in the sandbox of its workstation" : station.ordinaires ? "; also takes ordinary tickets, in the sandbox of its workstation" : ""})`)
     .join(" ; ");
 }

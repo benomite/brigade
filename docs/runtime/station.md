@@ -15,14 +15,14 @@ lying there is **ignored** (the runtime says so at its start, with the gesture).
 station, separated by commas; three fields per station, separated by `:`:
 
 ```
-<machine>/<engine>:<cooks cap>:<capability>+<capability>[:distante[+ordinaires]],…
+<machine>/<engine>:<cooks cap>:<capability>+<capability>[:distante[+ordinaires|+ensemble]],…
 ```
 
 ```bash
 brigade <project> station stations box/claude:30:code+raisonnement,box/playwright:2:navigateur-headless
 ```
 
-The words `distante` and `ordinaires` are what the runtime reads, so they stay French in the
+The words `distante`, `ordinaires` and `ensemble` are what the runtime reads, so they stay French in the
 declaration, as do the capability names you choose (`raisonnement`, `navigateur-headless`…): the
 runtime recognizes none, it compares them as they are written.
 
@@ -33,6 +33,7 @@ runtime recognizes none, it compares them as they are written.
 | **provides** | its **capabilities**: what this machine knows how to do (`code`, `navigateur-headless`, `chrome-connecté`…) | at least one; letters, digits and hyphens, separated by `+` |
 | **distante** | optional: the station **does not run on the runtime's machine** — it is the chef's workstation. The runtime launches nothing there and never reaches it: it comes to pull its work itself (see "A remote station pulls its work") | the word `distante`, and nothing else: **no host, no port, no address** — the box does not know where it is |
 | **ordinaires** | optional, after `distante` (`distante+ordinaires`): the remote station takes **the ordinary tickets too** — those that ask for no capability —, each one in the Claude Code sandbox of its workstation (see "Ordinary tickets on the chef's workstation" in [`station-distante.md`](station-distante.md)) | the word `ordinaires`, and only on a `distante` station: a station of the box already takes them |
+| **ensemble** | optional, after `distante`, instead of `ordinaires` (`distante+ensemble`): the remote station is **one more station of the project**, which cooks **alongside** the first one rather than behind it — it takes the ordinary tickets like `ordinaires`, in the same sandbox, but as soon as it has room, without waiting for the box to be saturated (see "A second station of the project" in [`station-distante.md`](station-distante.md)) | the word `ensemble`, and only on a `distante` station; not with `ordinaires` |
 
 - **Several stations on the same machine** are declared side by side (`box/claude`,
   `box/playwright`): each has its cap and its cooks, and a ticket goes to the first one, in the order

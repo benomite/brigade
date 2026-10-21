@@ -157,7 +157,10 @@ link (`runtime/src/projets/`).
 - **Removed from the app**, the project leaves the request: the station removes its line from the
   block and no longer serves it. Its state and its clone stay on the machine.
 - **A station that is not the main one** of a project writes no line for it and says it
-  `secondaire`: making a secondary station cook will come with the desk station (#797).
+  `secondaire`. The project's kitchen lets a second station cook alongside the first once it is
+  declared `distante+ensemble` and pulls its work ("A second station of the project, which cooks
+  alongside the first" in [`station-distante.md`](station-distante.md)); a `secondaire` station,
+  paired only through its gist, is not declared that way and pulls nothing yet.
 
 ### The blocked access
 

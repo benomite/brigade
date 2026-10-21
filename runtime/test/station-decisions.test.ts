@@ -102,7 +102,7 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
 
   test("une valeur invalide est refusée avec ce qui était attendu : rien n'est écrit ni journalisé", async (t) => {
     const { journal, station } = journalDuProjet(t);
-    const STATIONS_ATTENDUES = /usage: `station -- stations <declaration>` — `<machine>\/<engine>:<cooks cap>:<capability>\+<capability>\[:distante\[\+ordinaires\]\]`, separated by commas/;
+    const STATIONS_ATTENDUES = /usage: `station -- stations <declaration>` — `<machine>\/<engine>:<cooks cap>:<capability>\+<capability>\[:distante\[\+ordinaires\|\+ensemble\]\]`, separated by commas/;
     const SEUIL = /expected an integer greater than zero/;
     const MODELE = /expected opus, sonnet or haiku/;
     const EFFORT = /expected low, medium, high, xhigh or max/;
@@ -165,7 +165,7 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
 
     assert.equal(code, 0);
     for (const [geste, attendu] of [
-      ["stations <declaration>", "the project's stations — `<machine>/<engine>:<cooks cap>:<capability>+<capability>[:distante[+ordinaires]]`, separated by commas"],
+      ["stations <declaration>", "the project's stations — `<machine>/<engine>:<cooks cap>:<capability>+<capability>[:distante[+ordinaires|+ensemble]]`, separated by commas"],
       ["seuil-ticket <tokens>", "drift cost threshold: tokens of the most expensive ticket — an integer greater than zero"],
       ["seuil-perdus <tokens>", "drift cost threshold: lost tokens, launches that delivered nothing — an integer greater than zero"],
       ["manager-modele <model>", "the model of the manager's judgments — opus, sonnet or haiku"],

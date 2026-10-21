@@ -75,7 +75,7 @@ export function dansLeBacASable(args: readonly string[], config: ConfigDeBacASab
 // La station prend-elle les tickets ordinaires, d'après sa déclaration et ce
 // que la box sait de son bac à sable ? Une station d'ici, toujours. Une
 // distante qui les prend n'en reçoit que quand la box sature (`station.ts`,
-// `boxSaturee`).
+// `boxSaturee`) — sauf déclarée `ensemble`, qui les prend à côté d'elle.
 export function prendLesOrdinaires(station: { distante?: boolean; ordinaires?: boolean }, bacASable: { available: boolean } | null): boolean {
   return station.distante !== true || (station.ordinaires === true && bacASable?.available === true);
 }
@@ -88,18 +88,20 @@ export function pourLaBox(detection: Detection, lieux: { home: string; worktrees
 }
 
 // Ce que la station fait des tickets ordinaires, tel que le chef le lit — en
-// anglais : ce que dit `station`.
-export function direOrdinairesEn(etat: { ordinary: boolean; sandbox: { available: boolean; reason: string | null; version: string | null; at: string } | null }): string {
+// anglais : ce que dit `station`. `alongside` : une station de plus du projet,
+// qui les prend à côté de la box et non quand elle sature.
+type EtatDesOrdinaires = { ordinary: boolean; alongside?: boolean; sandbox: { available: boolean; reason: string | null; version: string | null; at: string } | null };
+export function direOrdinairesEn(etat: EtatDesOrdinaires): string {
   if (!etat.ordinary) return "not taken — it only takes the tickets that ask for one of its capabilities";
   if (etat.sandbox === null) return "taken as soon as the station says its workstation has the Claude Code sandbox — it has not said anything yet";
   if (!etat.sandbox.available) return `NONE TAKEN — sandbox unavailable since ${etat.sandbox.at}: ${etat.sandbox.reason ?? "no reason given"}`;
-  return `taken when the box is saturated, each cook inside the Claude Code sandbox (claude ${etat.sandbox.version ?? "?"}) — it writes only in its worktree and the project's caches, reaches only the project's hosts`;
+  return `${etat.alongside === true ? "taken alongside the box's stations, as one more station of the project — not only when the box is saturated —" : "taken when the box is saturated,"} each cook inside the Claude Code sandbox (claude ${etat.sandbox.version ?? "?"}) — it writes only in its worktree and the project's caches, reaches only the project's hosts`;
 }
 
 // Ce que la station fait des tickets ordinaires, tel que le chef le lit.
-export function direOrdinaires(etat: { ordinary: boolean; sandbox: { available: boolean; reason: string | null; version: string | null; at: string } | null }): string {
+export function direOrdinaires(etat: EtatDesOrdinaires): string {
   if (!etat.ordinary) return "non pris — elle ne prend que les tickets qui demandent une de ses capacités";
   if (etat.sandbox === null) return "pris dès que la station dit que son poste a le bac à sable de Claude Code — elle n'en a encore rien dit";
   if (!etat.sandbox.available) return `AUCUN PRIS — bac à sable indisponible depuis le ${etat.sandbox.at} : ${etat.sandbox.reason ?? "sans raison dite"}`;
-  return `pris quand la box sature, chaque cook dans le bac à sable de Claude Code (claude ${etat.sandbox.version ?? "?"}) — il n'écrit que dans son worktree et les caches du projet, ne joint que les hôtes du projet`;
+  return `${etat.alongside === true ? "pris à côté des stations de la box, en station de plus du projet — pas seulement quand elle sature —," : "pris quand la box sature,"} chaque cook dans le bac à sable de Claude Code (claude ${etat.sandbox.version ?? "?"}) — il n'écrit que dans son worktree et les caches du projet, ne joint que les hôtes du projet`;
 }

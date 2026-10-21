@@ -76,6 +76,8 @@ test("ce que le chef lit des tickets ordinaires d'une station distante : non ré
   assert.match(direOrdinaires({ ordinary: true, sandbox: null }), /n'en a encore rien dit/);
   assert.equal(direOrdinaires({ ordinary: true, sandbox: { available: false, reason: "Seatbelt est introuvable", version: null, at: "2026-10-16T10:00:00.000Z" } }), "AUCUN PRIS — bac à sable indisponible depuis le 2026-10-16T10:00:00.000Z : Seatbelt est introuvable");
   assert.match(direOrdinaires({ ordinary: true, sandbox: { available: true, reason: null, version: "2.1.250", at: "2026-10-16T10:00:00.000Z" } }), /^pris quand la box sature, chaque cook dans le bac à sable de Claude Code \(claude 2\.1\.250\)/);
+  // Une station de plus du projet (`ensemble`) les prend à côté de la box, pas quand elle sature.
+  assert.match(direOrdinaires({ ordinary: true, alongside: true, sandbox: { available: true, reason: null, version: "2.1.250", at: "2026-10-16T10:00:00.000Z" } }), /^pris à côté des stations de la box, en station de plus du projet — pas seulement quand elle sature —, chaque cook dans le bac à sable de Claude Code \(claude 2\.1\.250\)/);
 });
 
 test("les mêmes, en anglais : ce que `station` dit des tickets ordinaires", () => {
@@ -84,6 +86,9 @@ test("les mêmes, en anglais : ce que `station` dit des tickets ordinaires", () 
   assert.equal(direOrdinairesEn({ ordinary: true, sandbox: { available: false, reason: "Seatbelt is missing", version: null, at: "2026-10-16T10:00:00.000Z" } }), "NONE TAKEN — sandbox unavailable since 2026-10-16T10:00:00.000Z: Seatbelt is missing");
   assert.equal(direOrdinairesEn({ ordinary: true, sandbox: { available: false, reason: null, version: null, at: "2026-10-16T10:00:00.000Z" } }), "NONE TAKEN — sandbox unavailable since 2026-10-16T10:00:00.000Z: no reason given");
   assert.match(direOrdinairesEn({ ordinary: true, sandbox: { available: true, reason: null, version: "2.1.250", at: "2026-10-16T10:00:00.000Z" } }), /^taken when the box is saturated, each cook inside the Claude Code sandbox \(claude 2\.1\.250\)/);
+  assert.match(direOrdinairesEn({ ordinary: true, alongside: true, sandbox: { available: true, reason: null, version: "2.1.250", at: "2026-10-16T10:00:00.000Z" } }), /^taken alongside the box's stations, as one more station of the project — not only when the box is saturated — each cook inside the Claude Code sandbox \(claude 2\.1\.250\)/);
+  // Sans bac à sable, elle n'en prend pas plus qu'une autre.
+  assert.match(direOrdinairesEn({ ordinary: true, alongside: true, sandbox: { available: false, reason: "Seatbelt is missing", version: null, at: "2026-10-16T10:00:00.000Z" } }), /^NONE TAKEN/);
 });
 
 const MAC: Sondes = { plateforme: "darwin", existe: (chemin) => chemin === SEATBELT, versionDeClaude: () => "2.1.300 (Claude Code)\n" };

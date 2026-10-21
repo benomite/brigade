@@ -182,6 +182,7 @@
       "distante": false,
       "plafond": 2,
       "ordinaires": false,
+      "ensemble": false,
       "bacASable": null,
       "prendOrdinaires": true,
       "cuisson": "cooking",
