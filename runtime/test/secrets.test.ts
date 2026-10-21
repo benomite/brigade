@@ -71,7 +71,8 @@ test("un fichier de valeurs absent, lisible par d'autres, ou mal écrit ne donne
 
   const ouvert = projet(t, "CLE_API\n", "CLE_API=une-valeur-de-dev\n");
   chmodSync(ouvert.fichier, 0o644);
-  assert.match(problemes(lireSecrets(ouvert.worktree, ouvert.fichier)).join("\n"), /lisible par d'autres.*chmod 600/);
+  // Sous Windows, les bits de mode ne disent rien des droits (`droits.ts`).
+  if (process.platform !== "win32") assert.match(problemes(lireSecrets(ouvert.worktree, ouvert.fichier)).join("\n"), /lisible par d'autres.*chmod 600/);
 
   const malEcrit = projet(t, "CLE_API\n", "CLE_API=une-valeur-de-dev\nune-ligne-sans-egal-tres-secrete\n");
   const dits = problemes(lireSecrets(malEcrit.worktree, malEcrit.fichier)).join("\n");
@@ -150,5 +151,6 @@ test("le fichier de secrets est refusé au démarrage s'il est relatif, absent, 
     refuse(join(dedans, "secrets.env"), /hors de BRIGADE_STATE_DIR et de BRIGADE_REPO_DIR/);
   }
   chmodSync(fichier, 0o640);
-  refuse(fichier, /chmod 600/);
+  // Sous Windows, les bits de mode ne disent rien des droits (`droits.ts`).
+  if (process.platform !== "win32") refuse(fichier, /chmod 600/);
 });

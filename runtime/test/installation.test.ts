@@ -1093,7 +1093,7 @@ describe("les labels", { concurrency: 8 }, () => {
   });
 });
 
-test("un fichier de secrets que le runtime refuserait est un manque de la machine", async (t) => {
+test("un fichier de secrets que le runtime refuserait est un manque de la machine", { skip: process.platform === "win32" && "sous Windows, les bits de mode ne disent rien des droits (`droits.ts`)" }, async (t) => {
   const { env, racine } = projet(t);
   writeFileSync(join(racine, "secrets.env"), "CLE_API=une-valeur-de-dev\n", { mode: 0o644 });
 

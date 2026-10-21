@@ -50,7 +50,8 @@ test("un fichier de jeton qu'on ne pourrait pas lire, ou que d'autres liraient, 
   for (const [valeur, motif] of [
     ["jeton-claude", /n'est pas un chemin absolu/],
     [join(racine, "absent"), /est illisible ou absent/],
-    [ouvert, /lisible par d'autres que le compte du service.*chmod 600/],
+    // Sous Windows, les bits de mode ne disent rien des droits (`droits.ts`).
+    ...(process.platform === "win32" ? [] : [[ouvert, /lisible par d'autres que le compte du service.*chmod 600/] as const]),
     [dansLEtat, /hors de BRIGADE_STATE_DIR et de BRIGADE_REPO_DIR/],
     [dansLeClone, /hors de BRIGADE_STATE_DIR et de BRIGADE_REPO_DIR/],
     [vide, /ne porte aucun jeton.*claude setup-token/],

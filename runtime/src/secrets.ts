@@ -6,6 +6,7 @@
 // d'un process lancé, jamais dans un problème, un événement ou un message.
 import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
+import { lisibleParDAutres } from "./droits.ts";
 import { SCRIPT_SETUP } from "./gates.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
@@ -57,7 +58,7 @@ function defautDuFichier(fichier: string): string | null {
   } catch {
     return "est illisible ou absent";
   }
-  return (mode & 0o077) === 0 ? null : "est lisible par d'autres que le compte du service — ce sont les secrets du projet : chmod 600";
+  return !lisibleParDAutres(mode) ? null : "est lisible par d'autres que le compte du service — ce sont les secrets du projet : chmod 600";
 }
 
 // Lit `BRIGADE_SECRETS_FILE` : le fichier de la machine qui porte les valeurs

@@ -474,6 +474,10 @@ export function fauxGh(t: TestContext): FauxGh {
   };
 }
 
+// Un texte à chercher tel quel dans une expression régulière : un chemin de
+// Windows y porte des contre-obliques, qui y seraient des échappements.
+export const litteral = (texte: string) => texte.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 // Attend qu'une condition devienne vraie, sans dormir plus que nécessaire.
 // Le délai n'est pas une attente : il ne sert qu'à ce qu'un test cassé finisse
 // par le dire. Il est donc large — sur une machine où d'autres suites tournent

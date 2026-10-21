@@ -6,6 +6,7 @@
 import { createPrivateKey, sign, type KeyObject } from "node:crypto";
 import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { lisibleParDAutres } from "./droits.ts";
 import { ouvrirGitHub, type GitHub } from "./github.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
@@ -53,7 +54,7 @@ export function configIdentites(env: Record<string, string | undefined>): Config
     const id = lire(`${role}.id`).trim();
     if (!/^[A-Za-z0-9.]+$/.test(id)) refuser(`${role}.id`, "ne porte pas un identifiant d'App — attendu son « App ID » (un nombre) ou son « Client ID »");
     const pem = lire(`${role}.pem`);
-    if ((statSync(join(repertoire, `${role}.pem`)).mode & 0o077) !== 0) {
+    if (lisibleParDAutres(statSync(join(repertoire, `${role}.pem`)).mode)) {
       refuser(`${role}.pem`, "est lisible par d'autres que le compte du service — c'est la clé d'une App : chmod 600");
     }
     let cle: KeyObject;

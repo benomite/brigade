@@ -12,7 +12,7 @@ import { REPERTOIRE_COMPTEUR } from "../../src/limite-github.ts";
 import { accepterSansBacASable } from "../../src/onboarding/attente.ts";
 import { lirePortes } from "../../src/station/portes.ts";
 import { fauxGitHubApps } from "../aides/faux-github-apps.ts";
-import { aArreter, BASE, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancementsDuFauxClaude, lancer, mort, repertoireTemporaire, temporaireDuFichier, tuerLesRelais, vivant } from "../outils.ts";
+import { aArreter, BASE, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancementsDuFauxClaude, lancer, litteral, mort, repertoireTemporaire, temporaireDuFichier, tuerLesRelais, vivant } from "../outils.ts";
 
 const rienNeReste = temporaireDuFichier();
 
@@ -139,12 +139,12 @@ describe("la station, son process", { concurrency: 8 }, () => {
     await station.attendre("station démarrée");
     const pid = station.process.pid;
 
-    assert.match(station.sortie(), new RegExp(`station démarrée — pid ${pid}, configuration ${join(racine, "projets")} ; 2 projets servis : brigade, espace`));
+    assert.match(station.sortie(), new RegExp(`station démarrée — pid ${pid}, configuration ${litteral(join(racine, "projets"))} ; 2 projets servis : brigade, espace`));
     // Chaque projet a démarré dans ce process-là, chacun dans son journal.
     for (const projet of ["brigade", "espace"]) {
       const demarrage = relire(projet).find((e) => e.type === "runtime.started");
       assert.deepEqual([demarrage?.project, (demarrage?.payload as { pid: number }).pid], [projet, pid]);
-      assert.match(station.sortie(), new RegExp(`brigade \\[${projet}\\] : servi par la station — benomite/${projet}, branche ${projet === "brigade" ? BASE : "main"}, état dans ${join(racine, "etat", projet)}`));
+      assert.match(station.sortie(), new RegExp(`brigade \\[${projet}\\] : servi par la station — benomite/${projet}, branche ${projet === "brigade" ? BASE : "main"}, état dans ${litteral(join(racine, "etat", projet))}`));
     }
     // Chacun sa cloison et sa porte, dites à son nom dans la même sortie.
     assert.deepEqual(relire("brigade").find((e) => e.type === "isolation.configured")?.payload, { sandbox: null, proxy: null });
@@ -154,7 +154,7 @@ describe("la station, son process", { concurrency: 8 }, () => {
     assert.equal(espaceCloison.proxy.port, 3128);
     await station.attendre("brigade [espace] : réseau — ");
     assert.match(station.sortie(), /brigade \[brigade\] : cloison — none/);
-    assert.match(station.sortie(), new RegExp(`brigade \\[espace\\] : cloison — every launch .* runs in \`${FAUX_BWRAP}\``));
+    assert.match(station.sortie(), new RegExp(`brigade \\[espace\\] : cloison — every launch .* runs in \`${litteral(FAUX_BWRAP)}\``));
     // Chacun sonde son dépôt par son `gh`.
     await jusqua(() => brigade.appels().length > 0 && espace.appels().length > 0);
     assert.ok(brigade.appels().every((appel) => !appel.join(" ").includes("benomite/espace")));

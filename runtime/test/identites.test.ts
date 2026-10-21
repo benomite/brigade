@@ -170,7 +170,7 @@ test("un fichier manquant fait refuser le démarrage, et il est nommé", async (
   );
 });
 
-test("une clé lisible par d'autres que le compte du service fait refuser le démarrage", async (t) => {
+test("une clé lisible par d'autres que le compte du service fait refuser le démarrage", { skip: process.platform === "win32" && "sous Windows, les bits de mode ne disent rien des droits (`droits.ts`)" }, async (t) => {
   const repertoire = repertoireDApps(t, await fauxGitHubApps(t));
   chmodSync(join(repertoire, "cook.pem"), 0o644);
 
