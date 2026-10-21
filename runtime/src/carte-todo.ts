@@ -323,6 +323,18 @@ export function triagesParJour(base: Base, depuis: Date, jusqua: Date): TriagesD
   return [...jours.values()].sort((a, b) => (a.day < b.day ? -1 : 1));
 }
 
+// Les `jours` derniers jours (UTC), `maintenant` compris, du plus ancien au plus récent : chacun
+// avec ses comptes, zéro pour un jour sans issue — c'est ce que `facts` donne à l'app, qui n'a
+// rien à compléter.
+export function triagesDesDerniersJours(base: Base, maintenant: Date, jours: number): TriagesDuJour[] {
+  const fin = Date.UTC(maintenant.getUTCFullYear(), maintenant.getUTCMonth(), maintenant.getUTCDate()) + 86_400_000;
+  const connus = new Map(triagesParJour(base, new Date(fin - jours * 86_400_000), new Date(fin)).map((jour) => [jour.day, jour]));
+  return Array.from({ length: jours }, (_, rang) => {
+    const day = new Date(fin - (jours - rang) * 86_400_000).toISOString().slice(0, 10);
+    return connus.get(day) ?? { day, decidedAlone: 0, sentToTodo: 0 };
+  });
+}
+
 // La ligne de `status` : les entrées de la période, par sorte.
 export function direEntreesEn(comptes: Record<TypeDeCarte, number>, jours: number): string {
   const total = TYPES_DE_CARTE.reduce((somme, type) => somme + comptes[type], 0);

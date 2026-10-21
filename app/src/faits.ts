@@ -19,6 +19,7 @@ import type { StationDesFaits } from "./ordinaires.ts";
 import type { Echec, Lecture } from "./box.ts";
 import { capturesDeCarte, type CapturesDeCarte, type CapturesLues, type Moment } from "./captures.ts";
 import { carteDeCorrection, correctionsLues, estInforme, type CarteDeCorrection, type CorrectionLue } from "./correction.ts";
+import { triageDe, triageLu, type JourDeTriage, type JourLu } from "./triage.ts";
 import { reculDe, reculInforme, reculsLus, type Recul, type ReculLu } from "./recul.ts";
 import { apprentissageDe, apprentissageInforme, apprentissageLu, ligneOuvrable, type Apprentissage, type ApprentissageLu } from "./apprentissage.ts";
 import { carteDeProfil, profilInforme, profilsLus, type CarteDeProfil, type ProfilLu } from "./profil.ts";
@@ -125,6 +126,8 @@ export type Faits = {
   // Le plafond de calibrage du manager, et si le chef l'a posé (plafond-de-calibrage.ts) ; absent d'un runtime
   // d'avant ce champ.
   plafondDeCalibrage?: PlafondLu;
+  // Ce que le triage a fait chacun des sept derniers jours (UTC), le plus ancien d'abord (triage.ts) ; absent d'un runtime d'avant ce champ.
+  triage?: JourLu[];
   // Les corrections proposées des consignes du projet, que le chef tranche (correction.ts) : absent
   // quand il n'y en a aucune, et d'un runtime d'avant ce champ.
   corrections?: CorrectionLue[];
@@ -210,6 +213,8 @@ export type Tableau = {
   // Le plafond de calibrage du projet, d'où vient sa valeur, et de quoi le régler (plafond-de-calibrage.ts) —
   // absent d'un runtime qui ne le donne pas.
   plafondDeCalibrage?: PlafondVu;
+  // Ce que le triage a fait chaque jour, le plus récent d'abord : la file le pose en tête (triage.ts) — absent d'un runtime qui ne le donne pas.
+  triage?: JourDeTriage[];
   // Ce que chaque correction acceptée des consignes du projet a fait de sa cause, avant et après son
   // merge (recul.ts), la plus ancienne d'abord : la page Reliability la pose. Absent quand il n'y en a aucune.
   reculs?: Recul[];
@@ -472,6 +477,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
         ? {}
         : { stations: (Array.isArray(racine.stations) ? racine.stations : refuser("stations", "a list")).map((station: unknown, rang) => comprendreStation(station, `stations[${rang}]`)) }),
       ...(racine.plafondDeCalibrage === undefined ? {} : { plafondDeCalibrage: plafondLu(racine.plafondDeCalibrage) }),
+      ...(triageLu(racine.triage) === undefined ? {} : { triage: triageLu(racine.triage) }),
       ...(racine.corrections === undefined ? {} : { corrections: correctionsLues(racine.corrections) }),
       ...(racine.reculs === undefined ? {} : { reculs: reculsLus(racine.reculs) }),
       ...(racine.profils === undefined ? {} : { profils: profilsLus(racine.profils) }),
@@ -902,6 +908,7 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu, repond
     rail: rail(faits, attend, status, repondues),
     ...(faits.stations === undefined ? {} : { stations: cuissonDe(faits.stations, faits.cooks, faits.lu) }),
     ...(faits.plafondDeCalibrage === undefined ? {} : { plafondDeCalibrage: plafondVu(faits.plafondDeCalibrage) }),
+    ...(triageDe(faits.triage, faits.lu) === undefined ? {} : { triage: triageDe(faits.triage, faits.lu) }),
     ...(faits.reculs === undefined || faits.reculs.length === 0 ? {} : { reculs: faits.reculs.map(reculDe) }),
     apprentissage: apprentissageDe(faits.apprentissage),
   };

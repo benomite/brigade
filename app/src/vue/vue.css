@@ -5125,3 +5125,52 @@ button.recommande {
 .station-de-cuisson .regle-le-plafond-de-station input {
   width: 8em;
 }
+
+/* Le triage, jour par jour (ticket 1283), en tête de la file : une ligne par jour, le plus récent d'abord, les deux
+   comptes côte à côte pour qu'un jour se lise contre le suivant. Compact : il ne prend que sa hauteur de lignes. */
+#rail .triage {
+  margin: 8px 16px 0;
+  padding: 8px 12px;
+  background: var(--case);
+  border: 1px solid var(--trait-doux);
+  border-radius: var(--rayon-carte);
+}
+#rail .triage h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--discret);
+}
+#rail .triage ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+#rail .triage li {
+  display: grid;
+  grid-template-columns: 6em repeat(2, 12em);
+  align-items: baseline;
+  gap: 8px;
+  padding: 2px 0;
+  font-size: 12px;
+  color: var(--texte-doux);
+}
+#rail .triage .jour-triage {
+  color: var(--discret);
+}
+#rail .triage .compte-triage {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+#rail .triage .chiffre {
+  min-width: 2ch;
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--texte);
+  text-align: right;
+}

@@ -5,6 +5,7 @@
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { cartesDeCorrection } from "./correctif/cartes.ts";
 import { reculDesCorrections } from "./correctif/recul.ts";
+import { triagesDesDerniersJours } from "./carte-todo.ts";
 import { faits, lireEtat } from "./etat.ts";
 import { pauseDeLaStation } from "./limite-github.ts";
 import { refusDuProjet } from "./mise-a-jour/en-service.ts";
@@ -59,7 +60,9 @@ export function principal({ args, env, dire, redire }: Appel): void {
     // le chef, ou son défaut.
     const plafond = configPlafond(decisionsPosees(journal.base));
     const plafondDeCalibrage = { modele: plafond.model, effort: plafond.effort, parLeChef: { modele: plafond.pose.model, effort: plafond.pose.effort } };
-    dire(JSON.stringify({ ...forme, plafondDeCalibrage, ...(corrections.length === 0 ? {} : { corrections }), ...(reculs.length === 0 ? {} : { reculs }), ...(profils.length === 0 ? {} : { profils }), ...(appris ? { apprentissage } : {}) }));
+    // Ce que le triage a fait chacun des sept derniers jours (UTC) : les cartes qu'il a tranchées seul, celles qu'il a laissées entrer dans TODO.
+    const triage = triagesDesDerniersJours(journal.base, maintenant, 7);
+    dire(JSON.stringify({ ...forme, plafondDeCalibrage, triage, ...(corrections.length === 0 ? {} : { corrections }), ...(reculs.length === 0 ? {} : { reculs }), ...(profils.length === 0 ? {} : { profils }), ...(appris ? { apprentissage } : {}) }));
   } catch (erreur) {
     // En lecture seule, rien ne crée les tables d'un journal écrit par un
     // runtime d'avant ces projections, ni ne leur donne leur forme du jour.
