@@ -1,32 +1,32 @@
-# Le runtime de la V2
+# The V2 runtime
 
-Le runtime est le process qui tient le **journal** d'un projet : une suite d'événements en ajout
-seul, dont tout le reste dérive — à commencer par le **rail**, la file des tickets à servir. Il vit
-dans `runtime/`, s'exécute avec Node 26 sans build, et ne dépend d'aucun paquet à l'exécution.
+The runtime is the process that keeps a project's **log**: an append-only series of events from
+which everything else derives — starting with the **rail**, the queue of tickets to serve. It lives
+in `runtime/`, runs on Node 26 with no build, and depends on no package at run time.
 
-Cette doc dit ce qu'il fait, comment le piloter et le recetter. **Installer brigade** — sur un
-serveur, pour un projet — est un parcours à part, et un seul document : [`installer.md`](../installer.md). Les décisions et leurs raisons
-sont dans les specs, [`superpowers/specs/`](../superpowers/specs/) — ici, seulement la consigne.
+This doc says what it does, how to drive it and how to accept it. **Installing brigade** — on a
+server, for a project — is a separate walkthrough, and a single document: [`installer.md`](../installer.md). The decisions and their reasons
+are in the specs, [`superpowers/specs/`](../superpowers/specs/) — here, only the instruction.
 
-**Ouvre cet index d'abord, puis seulement les pages de ta partie du runtime.** Chaque page fait 500 lignes au plus.
+**Open this index first, then only the pages of your part of the runtime.** Each page is 500 lines at most.
 
-## Où trouver quoi
+## Where to find what
 
-| Page | Ce qu'elle contient |
+| Page | What it holds |
 |---|---|
-| [`journal-et-rail.md`](journal-et-rail.md) | Ce que le runtime fait aujourd'hui, le journal, le rail des tickets |
-| [`garde-fous.md`](garde-fous.md) | Les garde-fous : plafonds, arrêt et reprise |
-| [`station.md`](station.md) | La station : stations déclarées, plusieurs cooks, setup du worktree, calibrage, fiche du ticket, capacités |
-| [`station-distante.md`](station-distante.md) | Une station distante tire son travail, les tickets ordinaires sur le poste du chef |
-| [`station-cook.md`](station-cook.md) | Zones de fichiers, ce qu'un cook charge, la récolte, refus du modèle, quota, connexion Max, voir la station |
-| [`station-machine.md`](station-machine.md) | Une station par machine (présence GitHub, appairage), budget d'appels GitHub, ajouter un projet depuis l'app |
-| [`station-navigateur.md`](station-navigateur.md) | Regarder une livraison d'interface dans le navigateur |
-| [`manager.md`](manager.md) | Le manager et les tickets de l'épique |
-| [`pass.md`](pass.md) | La pass : relecture, reviewer, décision, vert une fois fusionné |
-| [`pass-merge.md`](pass-merge.md) | Le grant `merge`, voir la pass, ce qui reste après un cook, ce que la pass ne garantit pas |
-| [`etat-et-mesures.md`](etat-et-mesures.md) | L'état de la cuisine, le relevé des mesures |
-| [`carnet-lecons.md`](carnet-lecons.md) | Le carnet des leçons : ses seuils, la promotion et la péremption livrées par une PR, retirer une leçon, l'étage commun à plusieurs projets |
-| [`fermeture.md`](fermeture.md) | La fermeture qui observe, la fermeture qui écrit |
-| [`identites-et-secrets.md`](identites-et-secrets.md) | Une identité GitHub par rôle, les secrets du projet |
-| [`cloison-et-arbitre.md`](cloison-et-arbitre.md) | La cloison, l'arbitre entre projets |
-| [`exploitation.md`](exploitation.md) | Les variables, sauvegarder et restaurer, « Piloter », le poste de dev, la box |
+| [`journal-et-rail.md`](journal-et-rail.md) | What the runtime does today, the log, the ticket rail |
+| [`garde-fous.md`](garde-fous.md) | The guardrails: caps, stop and resume |
+| [`station.md`](station.md) | The station: declared stations, several cooks, the worktree setup, calibration, a ticket's card, capabilities |
+| [`station-distante.md`](station-distante.md) | A remote station pulls its work, ordinary tickets on the chef's workstation |
+| [`station-cook.md`](station-cook.md) | File zones, what a cook loads, the harvest, the model's refusals, quota, the Max connection, seeing the station |
+| [`station-machine.md`](station-machine.md) | One station per machine (GitHub presence, pairing), the GitHub call budget, adding a project from the app |
+| [`station-navigateur.md`](station-navigateur.md) | Looking at an interface delivery in the browser |
+| [`manager.md`](manager.md) | The manager and the tickets of the epic |
+| [`pass.md`](pass.md) | The pass: review, reviewer, decision, green once merged |
+| [`pass-merge.md`](pass-merge.md) | The `merge` grant, seeing the pass, what is left after a cook, what the pass does not guarantee |
+| [`etat-et-mesures.md`](etat-et-mesures.md) | The state of the kitchen, the measures reading |
+| [`carnet-lecons.md`](carnet-lecons.md) | The lessons notebook: its thresholds, promotion and expiry delivered by a PR, removing a lesson, the common tier shared by several projects |
+| [`fermeture.md`](fermeture.md) | The closing that observes, the closing that writes |
+| [`identites-et-secrets.md`](identites-et-secrets.md) | One GitHub identity per role, the project's secrets |
+| [`cloison-et-arbitre.md`](cloison-et-arbitre.md) | The partition, the arbiter between projects |
+| [`exploitation.md`](exploitation.md) | The variables, backing up and restoring, "Driving it", the dev workstation, the box |

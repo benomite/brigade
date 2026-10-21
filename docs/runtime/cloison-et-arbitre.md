@@ -143,7 +143,7 @@ once. **Without the partition, nothing is tidied**: the transcripts go under the
 transcript that a send-back resumes, in the project directory of its worktree. A removed transcript
 is not lost for diagnosis: the raw stream stays under `runs/`, and is backed up. It is lost for
 resuming a send-back: past the keeping period, the send-back's cook starts again from zero
-(« Le cook d'un renvoi reprend la session du précédent »).
+(the runtime's comments say so in French: « reprend la session du précédent »).
 
 ### What is not guaranteed
 
@@ -244,4 +244,4 @@ arbiter unreachable, the command says so and exits with code 1.
 - **A cook reaches the loopback**, hence the arbiter: it could speak there in a project's name, and
   skew a count that the runtime tells again at the next exchange. It cannot set the weights, which
   the partition masks from it.
-- **The arbiter does not know the account's quota**: see « 86 : le quota est épuisé ».
+- **The arbiter does not know the account's quota**: see "86: the quota is exhausted" in [`station-cook.md`](station-cook.md).

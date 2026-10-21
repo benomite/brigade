@@ -32,7 +32,7 @@ runtime recognizes none, it compares them as they are written.
 | **cap** | how many cooks it runs at once, **at most**: a station of this machine runs only what the machine's cores allow, if they allow fewer (see "Several cooks at once") | an integer greater than zero |
 | **provides** | its **capabilities**: what this machine knows how to do (`code`, `navigateur-headless`, `chrome-connecté`…) | at least one; letters, digits and hyphens, separated by `+` |
 | **distante** | optional: the station **does not run on the runtime's machine** — it is the chef's workstation. The runtime launches nothing there and never reaches it: it comes to pull its work itself (see "A remote station pulls its work") | the word `distante`, and nothing else: **no host, no port, no address** — the box does not know where it is |
-| **ordinaires** | optional, after `distante` (`distante+ordinaires`): the remote station takes **the ordinary tickets too** — those that ask for no capability —, each one in the Claude Code sandbox of its workstation (see "The ordinary tickets on the chef's workstation") | the word `ordinaires`, and only on a `distante` station: a station of the box already takes them |
+| **ordinaires** | optional, after `distante` (`distante+ordinaires`): the remote station takes **the ordinary tickets too** — those that ask for no capability —, each one in the Claude Code sandbox of its workstation (see "Ordinary tickets on the chef's workstation" in [`station-distante.md`](station-distante.md)) | the word `ordinaires`, and only on a `distante` station: a station of the box already takes them |
 
 - **Several stations on the same machine** are declared side by side (`box/claude`,
   `box/playwright`): each has its cap and its cooks, and a ticket goes to the first one, in the order
@@ -144,7 +144,7 @@ the ticket's line (`withheld by <station> (…)`).
 | `stopped`, `breaker` | your "stop", the breaker open |
 | `station-stopped` | you stopped the project's kitchen on this station alone (see "Starting and stopping the kitchen, station by station") |
 | `deploy` | a requested rollout — now read only in logs from before the station, which no longer asks for a rollout |
-| `base` | the integration branch is red (see « La base est jugée seule » in [`pass.md`](pass.md), not translated yet, so its title is still French) |
+| `base` | the integration branch is red (see "The base is judged alone" in [`pass.md`](pass.md)) |
 | `setup` | the project's setup is blocked: it failed twice in a row identically (see "The worktree setup comes before the cook") |
 | `quota`, `disconnected` | the quota exhausted, the Max connection expired |
 | `arbiter`, `unarbitrated` | the arbiter keeps the place for another project; it is unreachable: one cook at a time (see "The arbiter between projects") |
@@ -176,17 +176,16 @@ brigade <project> station start mac/claude    # it resumes
   not take it up again: another station that can cook it takes it, otherwise it waits for the
   station to be started again.
 - **A stopped station of the box has no room**: when all the box's stations are stopped or
-  saturated, a remote station that takes the ordinary tickets receives them (see "The ordinary
-  tickets on the chef's workstation").
+  saturated, a remote station that takes the ordinary tickets receives them (see "Ordinary tickets on the
+  chef's workstation" in [`station-distante.md`](station-distante.md)).
 - **The stop holds** after a restart, and even if the station is removed then declared again, until
   `start`. In the log: `station.stopped` and `station.started`, in the name of the `chef`.
 - The gesture says what it did and how many cooks are finishing; repeated, it rewrites nothing
   (`already stopped`, `already cooking`); a station the project does not declare is refused (code 1)
   naming its own. `run station` shows it on the `cooking` line of each station.
 
-**What each station does with the project** reads in `facts`, field `stations` (see « Les faits,
-pour un programme » in [`etat-et-mesures.md`](etat-et-mesures.md), not translated yet, so its title
-is still French): `cuisson` is `refused` (the machine's station refuses the project, `refus` says
+**What each station does with the project** reads in `facts`, field `stations` (see "Facts, for a
+program" in [`etat-et-mesures.md`](etat-et-mesures.md)): `cuisson` is `refused` (the machine's station refuses the project, `refus` says
 why — of a station of this machine only), `stopped` (your stop of this station, `arreteeDepuis`; or
 your "stop" of the whole kitchen, `arreteeDepuis` null), `saturated` (its machine can take no more —
 of a station of this machine only) or `cooking`, in that order; `cooks` carries its running cooks —
@@ -264,8 +263,8 @@ project's `.claude/brigade/reseau`, one line per host, then merge into the integ
 without a refused host, the setup itself is to be fixed, and the entry names the issue where to read
 what it said. The `setup` line at the top of `status` says it again, and the kitchen is `held` for
 the app — unless a remote station, which prepares its setup on its workstation, can still cook. At
-`setup.unblocked`, the entry and the line disappear by themselves. See « Ce qui attend le chef » in
-[`etat-et-mesures.md`](etat-et-mesures.md) (not translated yet, so its title is still French).
+`setup.unblocked`, the entry and the line disappear by themselves. See "What awaits the chef" in
+[`etat-et-mesures.md`](etat-et-mesures.md).
 
 When writing the script: **the runtime's `BRIGADE_*` variables do not reach it**, nor the cook;
 what it exports does — except `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` and

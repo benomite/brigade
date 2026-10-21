@@ -66,8 +66,7 @@ accepted (`C1`, `C2`…, see below) — outside the cap, which counts only the p
 ids are in `lessons` of its `cook.launched`, after the project's.
 
 A cook launched under a **cook profile** also receives, after them, the notebook of that profile —
-its promoted lessons only: see [`etat-et-mesures.md`](etat-et-mesures.md), « Un profil au dispatch »
-(that page is not translated yet, so its title is still French).
+its promoted lessons only: see [`etat-et-mesures.md`](etat-et-mesures.md), "A profile at dispatch".
 
 ### The notebook format
 

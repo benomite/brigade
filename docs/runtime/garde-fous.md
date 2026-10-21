@@ -118,7 +118,7 @@ Every stop is in the ticket's log: `npm --prefix runtime run log -- <ticket>`.
 | `cook.launched` | A cook leaves, with its calibration (`model`, `effort`), its station, its branch, its caps and its raw stream (`runs/<run>.jsonl` in the state directory; its error output in `.stderr`) |
 | `cook.progressed` | The cook's reading at each tick: `turns` and `tokens`, and `activity` — what it is doing right now (see "What a cook is doing right now") |
 | `guard.tripped` | A guardrail stops it. `reason`: `turns`, `duration`, `tokens`, `idle`, `lease` or `stop`; `limit` and `observed` |
-| `cook.exited` | The process is dead. `outcome`: `ok`, `failed`, `guard`, `stop`, `neutral` or `refused`; exit code, turns, tokens; `credentialsMasked`: how many times the shape of Claude's credentials was masked in its stream and its error output (see « Ni publiés dans ce qu'un cook dit ») |
+| `cook.exited` | The process is dead. `outcome`: `ok`, `failed`, `guard`, `stop`, `neutral` or `refused`; exit code, turns, tokens; `credentialsMasked`: how many times the shape of Claude's credentials was masked in its stream and its error output (see "Not published in what a cook says, either", in [`identites-et-secrets.md`](identites-et-secrets.md)) |
 | `cook.interrupted` | The runtime stopped while the cook was running: it died with it |
 | `breaker.opened`, `kitchen.stopped`, `kitchen.resumed` | The breaker opens; "stop", "resume" (off any ticket) |
 
