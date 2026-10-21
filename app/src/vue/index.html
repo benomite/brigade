@@ -131,7 +131,7 @@
     <!-- Les terminaux : à droite, en permanence — le second, et à côté de lui les shells, au même niveau.
          Un shell montré ne remplace pas le second : son onglet le rend, avec sa conversation. -->
     <aside id="second" aria-label="The second and the shells" hidden>
-      <header>
+      <header id="tete-du-second">
         <div id="terminaux" role="tablist" aria-label="Terminals"></div>
         <button id="fermer-shell" type="button" title="Closes this shell for good: its session is destroyed on its machine, and it will not come back" hidden></button>
       </header>
@@ -140,6 +140,9 @@
       <p id="note-second" aria-live="polite"></p>
       <p id="bandeau" hidden></p>
       <div id="fil"></div>
+      <!-- Sur le téléphone, ni terminal ni shell (ticket 1165) : la conversation avec le second, en messages, et le
+           champ du message (telephone/conversation.js). -->
+      <section id="conversation" aria-label="The conversation with the second" hidden></section>
     </aside>
     </div>
     <p id="relecture" aria-live="polite" hidden></p>

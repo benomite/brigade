@@ -96,9 +96,14 @@ async function rendre(ecran: Ecran, taille: { largeur: number; hauteur: number }
   await poser("au démarrage de la vue");
   if (!((await evaluer("window.__capture.demandes.includes('demarrage')")) as boolean)) throw new Error("la vue n'a pas démarré : elle n'a jamais demandé `demarrage` au pont");
   for (const etape of ecran.etapes) {
-    const trouves = (await evaluer(`(() => { const trouves = document.querySelectorAll(${JSON.stringify(etape.cliquer)}); if (trouves.length === 1) trouves[0].click(); return trouves.length; })()`)) as number;
-    if (trouves !== 1) throw new Error(`étape « cliquer ${etape.cliquer} » : ${trouves} élément(s) trouvé(s), il en faut un`);
-    await poser(`après « cliquer ${etape.cliquer} »`);
+    // Un clic, ou un texte tapé dans un champ — sa valeur posée, et l'`input` que la frappe déclencherait.
+    const [geste, selecteur, faire] =
+      "cliquer" in etape
+        ? ["cliquer", etape.cliquer, "trouves[0].click();"]
+        : ["saisir", etape.saisir, `trouves[0].value = ${JSON.stringify(etape.texte)}; trouves[0].dispatchEvent(new Event("input"));`];
+    const trouves = (await evaluer(`(() => { const trouves = document.querySelectorAll(${JSON.stringify(selecteur)}); if (trouves.length === 1) { ${faire} } return trouves.length; })()`)) as number;
+    if (trouves !== 1) throw new Error(`étape « ${geste} ${selecteur} » : ${trouves} élément(s) trouvé(s), il en faut un`);
+    await poser(`après « ${geste} ${selecteur} »`);
   }
   const { data } = (await dire("Page.captureScreenshot", { format: "png" })) as { data: string };
   verifier(accrocs, "à la capture");

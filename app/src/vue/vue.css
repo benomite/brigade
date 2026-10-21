@@ -3366,58 +3366,58 @@ main > header,
 #fiche .discussion > ol > li > header strong {
   color: var(--texte);
 }
-#fiche .rendu {
+:is(#fiche, #conversation) .rendu {
   display: flex;
   flex-direction: column;
   gap: 6px;
   margin-top: 4px;
   line-height: 1.45;
 }
-#fiche .rendu :is(h1, h2, h3, h4, h5, h6) {
+:is(#fiche, #conversation) .rendu :is(h1, h2, h3, h4, h5, h6) {
   margin: 4px 0 0;
   font-weight: 600;
   line-height: 1.3;
 }
-#fiche .rendu h1 {
+:is(#fiche, #conversation) .rendu h1 {
   font-size: 17px;
 }
-#fiche .rendu h2 {
+:is(#fiche, #conversation) .rendu h2 {
   font-size: 15px;
 }
-#fiche .rendu :is(h3, h4, h5, h6) {
+:is(#fiche, #conversation) .rendu :is(h3, h4, h5, h6) {
   font-size: 14px;
 }
-#fiche .rendu :is(p, ul, ol, blockquote, table, details) {
+:is(#fiche, #conversation) .rendu :is(p, ul, ol, blockquote, table, details) {
   margin: 0;
 }
-#fiche .rendu :is(ul, ol) {
+:is(#fiche, #conversation) .rendu :is(ul, ol) {
   padding-left: 20px;
 }
-#fiche .rendu li > p + :is(ul, ol, p) {
+:is(#fiche, #conversation) .rendu li > p + :is(ul, ol, p) {
   margin-top: 2px;
 }
-#fiche .rendu blockquote {
+:is(#fiche, #conversation) .rendu blockquote {
   padding-left: 10px;
   color: var(--texte-doux);
   border-left: 3px solid var(--trait-fort);
 }
-#fiche .rendu table {
+:is(#fiche, #conversation) .rendu table {
   border-collapse: collapse;
 }
-#fiche .rendu :is(th, td) {
+:is(#fiche, #conversation) .rendu :is(th, td) {
   padding: 2px 8px;
   text-align: left;
   border: 1px solid var(--trait);
 }
-#fiche .rendu hr {
+:is(#fiche, #conversation) .rendu hr {
   align-self: stretch;
   border: none;
   border-top: 1px solid var(--trait);
 }
-#fiche .rendu summary {
+:is(#fiche, #conversation) .rendu summary {
   cursor: pointer;
 }
-#fiche .rendu a {
+:is(#fiche, #conversation) .rendu a {
   color: var(--bleu);
   text-decoration: underline;
   cursor: pointer;
@@ -4815,4 +4815,134 @@ button.recommande {
 #appairage .appaire .survol {
   margin-left: 6px;
   vertical-align: middle;
+}
+/* La conversation avec le second, sur le téléphone (ticket 1165) : à la place du terminal, dans l'onglet Second. En
+   tête, ce qu'on attend du chef ; puis les messages, qui défilent seuls — les siens à droite, ceux du second à gauche,
+   leur markdown rendu comme une discussion d'issue —, et en bas, toujours en vue, le champ du message et « send », le
+   geste recommandé. Rien ne défile de côté : un mot trop long passe à la ligne. */
+#conversation {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+#conversation .attendu {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 10px 16px;
+  color: var(--texte-doux);
+  border-bottom: 1px solid var(--trait-doux);
+}
+#conversation .messages {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 12px 16px;
+  overflow-y: auto;
+  list-style: none;
+}
+#conversation .messages > li {
+  max-width: 88%;
+  min-width: 0;
+  padding: 8px 12px;
+  overflow-wrap: anywhere;
+  background: var(--carte);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-carte);
+  user-select: text;
+}
+#conversation .messages > li.second {
+  align-self: flex-start;
+}
+#conversation .messages > li.chef {
+  align-self: flex-end;
+  background: var(--bouton);
+  border-color: var(--trait-fort);
+}
+/* Ce que l'écran dit lui-même — la lecture en route, une conversation vide, le second qui répond : sans bulle. */
+#conversation .messages > li:is(.sans, .repond, .illisible) {
+  max-width: none;
+  padding: 0;
+  color: var(--discret);
+  background: none;
+  border: 0;
+}
+#conversation .messages > li.illisible {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+#conversation .messages > li.illisible .indisponible {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+#conversation .messages > li > header {
+  display: flex;
+  gap: 6px;
+  color: var(--discret);
+  font-size: 12px;
+}
+#conversation .messages > li > header strong {
+  color: var(--texte);
+}
+#conversation .issue-conversation > p {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 6px 16px 0;
+  color: var(--texte-doux);
+}
+#conversation .issue-conversation > p.refus {
+  color: var(--rouge-clair);
+}
+#conversation .message-au-second {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 10px 16px 14px;
+}
+#conversation textarea {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 15px;
+  color: var(--texte);
+  background: var(--fond);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+  resize: none;
+}
+#conversation textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+#conversation button:not(.aide) {
+  padding: 8px 16px;
+  font-weight: 600;
+  color: var(--texte);
+  background: var(--bouton);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+}
+#conversation button.recommande {
+  color: var(--fond);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+#conversation button:not(.aide):disabled,
+#conversation textarea:disabled {
+  color: var(--discret);
+  background: none;
+  border-style: dashed;
+  cursor: default;
 }
