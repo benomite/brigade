@@ -15,13 +15,14 @@ import { direRetenue, ouvrirRail, type Rail } from "../src/rail.ts";
 import { REMONTE } from "../src/reaction.ts";
 import { BAIL_MS, cuisine as cuisineComplete, issue } from "./aides/cuisine.ts";
 import { posixOnly } from "./support/plateforme.ts";
-import { jusqua, repertoireTemporaire } from "./outils.ts";
+import { aArreter, jusqua, repertoireTemporaire } from "./outils.ts";
 
 const MAINTENANT = "2026-10-21T22:00:00.000Z";
 
 function cuisine(t: TestContext) {
   const journal = ouvrirJournal(repertoireTemporaire(t));
-  t.after(() => journal.fermer());
+  // Fermé avant que son répertoire ne soit retiré : Windows refuse sinon de le supprimer.
+  aArreter(t, () => journal.fermer());
   let instant = Date.parse(MAINTENANT);
   const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: BAIL_MS, maintenant: () => new Date(instant) });
   return { journal, rail, avancer: (ms: number) => void (instant += ms), maintenant: () => new Date(instant) };
@@ -199,7 +200,7 @@ describe("dans une cuisine complète", { skip: posixOnly("the kitchen runs the f
 
     // La pass remonte #14 au chef, depuis sa propre connexion au journal.
     const dehors = ouvrirJournal(repertoire);
-    t.after(() => dehors.fermer());
+    aArreter(t, () => dehors.fermer());
     const railDehors = ouvrirRail(dehors, { projet: "brigade", dureeBailMs: BAIL_MS });
     dehors.ajouter({ project: "brigade", ticket: 14, author: "pass", type: "pass.escalated", payload: { reason: ENCORE_ROUGE, cause: "returns-exhausted" } });
     railDehors.quatreVingtSix(14, { motif: `pass:${ENCORE_ROUGE}` });
