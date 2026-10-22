@@ -58,6 +58,8 @@ import { absentesDuMotif, CLE_DES_CAPACITES, direManque, direStationAbsente, fou
 import { environnementClaude } from "./jeton-claude.ts";
 import { argumentsClaude, consigne, consigneDeSuite, direRefus, environnementCook, lireFlux, REFUS_MAX, ticketRemis, verdict, VARIABLES_DE_CLE, VARIABLES_DE_JETON, type Lecture, type Session, type SetupEnEchec } from "./claude.ts";
 import { preparationEnAttente } from "./preparation-depot/attendre.ts";
+import { blocageDuSetup, ID_DU_BLOCAGE_DU_SETUP } from "./installation/preparation/blocage-du-setup.ts";
+import { leverBlocage, poserBlocage } from "./installation/blocages/blocages.ts";
 import { corpsAvecLeSetup, passageDuSetup, phraseDuSetup } from "./preparation-depot/setup-en-echec.ts";
 import type { Decisions } from "./decisions.ts";
 import { ouvrirDepot, worktreeAuJournal, worktreeDuJournal, type Depot, type OptionsDepot } from "./depot.ts";
@@ -1846,6 +1848,8 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     if (!setup.pret) {
       const pourquoi = setup.depasse ? `plafond de ${duree(delaiSetupMs)} dépassé` : setup.code === null ? "interrompu" : `code de sortie ${setup.code}`;
       const sortie = setup.sortie.trim().slice(-FIN_DE_SETUP_MAX);
+      const phrases = phraseDuSetup({ code: setup.code, depasse: setup.depasse, sortie }, station);
+      poserBlocage(journal, { projet, auteur: auteurDe(station) }, blocageDuSetup({ station, phraseEn: phrases.en, sortie, preparation }));
       if (!preparation) {
         avertir([`brigade : setup du worktree en échec pour le ticket #${numero} (\`${SCRIPT_SETUP}\`, ${pourquoi}) — aucun cook n'est lancé`, sortie].filter(Boolean).join("\n"));
         retirerLeNeuf();
@@ -1854,16 +1858,19 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
           .flatMap((evenement) => (evenement.type === "network.refused" && evenement.payload.host !== AUTRES_HOTES ? [`${evenement.payload.host}:${evenement.payload.port}`] : []));
         return refuserSansSetup(station, numero, { pourquoi, sortie, masques: setup.masques, hotes: [...new Set(hotes)].sort(), vue });
       }
-      const phrases = phraseDuSetup({ code: setup.code, depasse: setup.depasse, sortie }, station);
       avertir([`brigade : setup du worktree en échec pour le ticket #${numero}, qui prépare le dépôt (\`${SCRIPT_SETUP}\`, ${pourquoi}) — ${phrases.fr} ; son cook part quand même, pour le réparer`, sortie].filter(Boolean).join("\n"));
       noter(station, numero, { type: "preparation.setup-failed", payload: { station, run, why: pourquoi, sentence: phrases.en } });
       setupEnEchec = { phrase: phrases.fr, sortie };
       await direLeSetupSurLeTicket(numero, passageDuSetup(phrases.fr));
       if (arrete) return;
-    } else if (setup.joue && preparation) {
-      // Le setup passe de nouveau : le ticket ne dit plus qu'il échoue.
-      await direLeSetupSurLeTicket(numero, null);
-      if (arrete) return;
+    } else if (setup.joue) {
+      // Le setup passe de nouveau : le projet n'est plus bloqué par lui, et le
+      // ticket de préparation ne dit plus qu'il échoue.
+      leverBlocage(journal, { projet, auteur: auteurDe(station) }, ID_DU_BLOCAGE_DU_SETUP);
+      if (preparation) {
+        await direLeSetupSurLeTicket(numero, null);
+        if (arrete) return;
+      }
     }
     // Le setup a pris sur le bail : le cook part avec un bail entier. Refusé,
     // le ticket a quitté la station pendant le setup.
