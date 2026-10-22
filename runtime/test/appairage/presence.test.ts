@@ -9,6 +9,7 @@ import { test, type TestContext } from "node:test";
 import type { Canal, Fichiers } from "../../src/appairage/canal.ts";
 import { empreinte, FICHIER_APPAIRAGE, FICHIER_STATION, normaliser, tirerCode, type DocumentStation, type EtatsPublies } from "../../src/appairage/document.ts";
 import { etatsPublies } from "../../src/appairage/etats.ts";
+import { FICHIER_RAIL, type RailsPublies } from "../../src/appairage/rail-publie.ts";
 import { BATTEMENT_MS, CADENCE_MS, codeAffiche, ECART_MINIMAL_MS, FICHIER_LOCAL, identiteDeLaStation, REGARD_MS, tenirPresence } from "../../src/appairage/presence.ts";
 import type { ConnexionMax } from "../../src/connexion-max/connexion.ts";
 import { sorteLue } from "../../src/stations-globales/sorte.ts";
@@ -162,6 +163,44 @@ test("la station publie le dépôt de chacun de ses projets : l'app d'un ordinat
   await presence.publier();
   const [id] = [...github.gists.keys()];
   assert.deepEqual(github.document(id ?? "").depots, { parade: "benomite/parade" });
+});
+
+test("la station publie le rail de chacun de ses projets, et le republie au regard qui suit un changement du rail seul (#1432)", async (t) => {
+  const github = fauxGists();
+  const horloge = faussesHorloges(Date.parse("2026-10-15T12:00:00Z"));
+  const identite = { nom: "box", machine: "Linux 6.1.0", version: "1.4.0" };
+  let rails: RailsPublies = { parade: [{ ticket: 14, etat: "en attente", titre: "Ticket 14", url: "https://github.com/benomite/parade/issues/14" }] };
+  let illisible = false;
+  const presence = tenirPresence({
+    racine: repertoireTemporaire(t),
+    canal: github.canal,
+    identite,
+    projets: () => ["parade"],
+    rails: () => {
+      if (illisible) throw new Error("journal fermé");
+      return rails;
+    },
+    dire: () => {},
+    apres: horloge.apres,
+    maintenant: horloge.maintenant,
+  });
+  aArreter(t, () => presence.arreter());
+  await presence.publier();
+  const [id = ""] = [...github.gists.keys()];
+  const publie = () => JSON.parse(github.gists.get(id)?.fichiers[FICHIER_RAIL] ?? "null") as unknown;
+  assert.deepEqual(publie(), { brigade: "rail", format: 1, projets: rails });
+
+  // Le ticket est pris : rien d'autre ne change, le regard suivant l'écrit.
+  rails = { parade: [{ ticket: 14, etat: "pris", titre: "Ticket 14", url: "https://github.com/benomite/parade/issues/14" }] };
+  await horloge.avancer(REGARD_MS);
+  assert.deepEqual(publie(), { brigade: "rail", format: 1, projets: rails });
+
+  // Un rail qui ne se lit pas ne prive pas la station de son signe de vie, ni le gist du rail d'avant.
+  illisible = true;
+  const avant = github.document(id).signeDeVie;
+  await horloge.avancer(BATTEMENT_MS);
+  assert.notEqual(github.document(id).signeDeVie, avant);
+  assert.deepEqual(publie(), { brigade: "rail", format: 1, projets: rails });
 });
 
 test("un téléphone publie sa sorte et qu'il ne cuisine pas : l'app le montre dans ses stations, sans cuisine (#1158)", async (t) => {

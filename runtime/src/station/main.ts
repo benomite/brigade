@@ -116,6 +116,7 @@ const presence = tenirPresence({
   identite,
   projets: () => station.projets(),
   depots: () => station.depots(),
+  rails: () => station.rails(),
   etats: () => etatsPublies(dossierMiseAJour === null ? null : lireEtatMiseAJour(dossierMiseAJour), connexion.connexion()),
   dire,
 });

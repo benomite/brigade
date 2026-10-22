@@ -94,7 +94,13 @@ export function relancerLeJugement(journal: Journal, ticket: number): Relance {
   return base.transaction((): Relance => {
     const livraison = passDuTicket(base, ticket);
     const rail = ticketDuRail(base, ticket);
-    if (livraison === null) return refus(rail === null ? `#${ticket} has never been through the pass: there is no delivery to judge` : `#${ticket} is ${nomEtatEn(rail.state)} and has never been delivered: there is no delivery to judge`);
+    if (livraison === null) {
+      if (rail !== null) return refus(`#${ticket} is ${nomEtatEn(rail.state)} and has never been delivered: there is no delivery to judge`);
+      // Merged, then gone from the rail: its pass went with it, but the log still says how it ended.
+      const fin = base.lire<{ type: string }>("SELECT type FROM events WHERE ticket = ? AND type IN ('merge.done', 'ticket.served') ORDER BY seq DESC LIMIT 1", ticket)[0]?.type;
+      if (fin !== undefined) return refus(`#${ticket} is ${fin === "merge.done" ? JUGEE.merged : JUGEE.served}: there is no judgement to relaunch`);
+      return refus(`#${ticket} has never been through the pass: there is no delivery to judge`);
+    }
     const jugee = JUGEE[livraison.phase];
     if (jugee !== undefined) return refus(`#${ticket} is ${jugee}: there is no judgement to relaunch`);
     if (!suivie(base, livraison)) return refus(rail === null ? `#${ticket} left the rail: the pass no longer follows its delivery` : `#${ticket} is ${nomEtatEn(rail.state)}, not in pass: there is no delivery to judge`);

@@ -4,7 +4,7 @@
 // du chef —, et l'app le lit là (`app/src/stations/`). Le gist reste quand la
 // station s'éteint : la home la montre hors ligne, elle ne la perd pas.
 //
-// Le gist porte deux fichiers :
+// Le gist porte ces fichiers — et la demande de l'app (`projets/demande.ts`) :
 //   - `brigade-station.json`, écrit par la station seule, à chaque signe de vie :
 //       { "brigade": "station", "format": 1, "nom": "box", "machine": "Linux 6.1.0",
 //         "coeurs": 8, "sorte": "ordinateur" | "telephone", "cuisine": true | false,
@@ -32,6 +32,10 @@
 //     station plus ancienne ne le publie pas.
 //   - `brigade-appairage.json`, écrit par l'app seule, quand le chef a tapé le
 //     bon code : { "appaireeLe": "<ISO>", "empreinte": "<sha256>" }.
+//   - `brigade-rail.json`, écrit par la station seule, avec son état : le rail
+//     de chaque projet servi (#1432, `rail-publie.ts`), ce qu'une app sur un
+//     ordinateur neuf lit pour montrer les tickets du projet
+//     (`rail-du-projet.ts`). Une station plus ancienne ne l'écrit pas.
 //
 // Le code ne se publie que par son empreinte : qui lit le gist n'en tire aucun
 // code à taper. Les empreintes des derniers codes échus restent publiées, pour

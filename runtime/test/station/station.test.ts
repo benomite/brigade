@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
+import type { TicketPublie } from "../../src/appairage/rail-publie.ts";
 import { DEBUT, FIN } from "../../src/projets/bloc.ts";
 import { ConfigInvalide, DejaEnCours } from "../../src/runtime.ts";
 import type { Cuisine, OptionsCuisine } from "../../src/station/cuisine.ts";
@@ -26,6 +27,8 @@ function station(t: TestContext, configuration: string, options: { portes?: bool
   const ouvertures: Ouverture[] = [];
   const lignes: string[] = [];
   const refus = new Map<string, Error>();
+  // Le rail que la cuisine d'un projet lit dans son journal, s'il en lit un.
+  const rails = new Map<string, () => TicketPublie[]>();
   const ouvrir = (env: Record<string, string | undefined>, options: OptionsCuisine): Cuisine => {
     const projet = env.BRIGADE_PROJECT ?? "";
     const leve = refus.get(projet);
@@ -33,13 +36,14 @@ function station(t: TestContext, configuration: string, options: { portes?: bool
     const ouverture: Ouverture = { projet, env, arrets: [] };
     ouvertures.push(ouverture);
     options.dire("brigade : ouvert");
-    return { projet, repertoireEtat: env.BRIGADE_STATE_DIR ?? "", arreter: (motif) => void ouverture.arrets.push(motif) };
+    const rail = rails.get(projet);
+    return { projet, repertoireEtat: env.BRIGADE_STATE_DIR ?? "", ...(rail === undefined ? {} : { rail }), arreter: (motif) => void ouverture.arrets.push(motif) };
   };
   // Aucune relecture ne vient d'une minuterie : le test relit quand il veut.
   const portes = options.portes ? join(racine, "portes.json") : null;
   const servie = ouvrirStation({ racine, env: { BRIGADE_CLAUDE_BIN: "claude" }, dire: (ligne) => void lignes.push(ligne), ouvrir, relectureMs: 3_600_000, portes });
   aArreter(t, () => servie.arreter("fin du test"));
-  return { racine, ecrire, ouvertures, lignes, refus, servie, portes };
+  return { racine, ecrire, ouvertures, lignes, refus, rails, servie, portes };
 }
 
 test("chaque projet de la configuration est ouvert avec son environnement, et chaque ligne qu'il dit porte son nom", (t) => {
@@ -53,6 +57,31 @@ test("chaque projet de la configuration est ouvert avec son environnement, et ch
     ],
   );
   assert.deepEqual(lignes.slice(0, 2), ["brigade [brigade] : ouvert", `brigade [brigade] : servi par la station — benomite/brigade, branche v2, état dans ${join(racine, "etat/brigade")}`]);
+});
+
+test("la station donne à publier le rail de chaque projet servi, lu par sa cuisine — sauf celui qui ne se lit pas à cet instant (#1432)", (t) => {
+  const { ecrire, rails, servie } = station(t, "");
+  const ticket = { ticket: 14, etat: "pris", titre: "Ticket 14", url: "https://github.com/benomite/brigade/issues/14" };
+  let lisible = true;
+  rails.set("brigade", () => {
+    if (!lisible) throw new Error("journal occupé");
+    return [ticket];
+  });
+  rails.set("espace", () => {
+    throw new Error("journal fermé");
+  });
+  // `parade` : une cuisine qui ne lit aucun rail.
+  ecrire("brigade benomite/brigade v2\nespace benomite/espace main\nparade benomite/parade main\n");
+  servie.relire();
+  assert.deepEqual(servie.projets(), ["brigade", "espace", "parade"]);
+  assert.deepEqual(servie.rails(), { brigade: [ticket] });
+  // Son journal ne se lit pas un instant : son dernier rail lu reste à publier.
+  lisible = false;
+  assert.deepEqual(servie.rails(), { brigade: [ticket] });
+  // Un projet retiré n'en publie plus.
+  ecrire("espace benomite/espace main\n");
+  servie.relire();
+  assert.deepEqual(servie.rails(), {});
 });
 
 test("un projet ajouté s'ouvre, un projet retiré s'arrête, une ligne changée rouvre son projet — et les autres ne sont pas touchés", (t) => {

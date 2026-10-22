@@ -4,11 +4,13 @@
 import assert from "node:assert/strict";
 import { describe, test, type TestContext } from "node:test";
 import type { Check } from "../src/events/pass.ts";
+import { relancerLeJugement } from "../src/file-de-la-pass.ts";
 import { renvoyerLaLivraison } from "../src/geste-ticket.ts";
+import { ouvrirJournal } from "../src/journal.ts";
 import { principal as montrerPass } from "../src/montrer-pass.ts";
 import { passDuTicket } from "../src/projections/pass.ts";
 import { CALIBRE, chef, cuisine, issue } from "./aides/cuisine.ts";
-import { appeler, jusqua } from "./outils.ts";
+import { aArreter, appeler, jusqua, repertoireTemporaire } from "./outils.ts";
 
 const EN_COURS: Check[] = [{ name: "tests", outcome: "pending", conclusion: "in_progress", url: null }];
 
@@ -89,4 +91,14 @@ describe("relancer une pass coincée", { concurrency: 2 }, () => {
     assert.equal(compter("pass.relaunched"), 0);
     assert.equal(evenements(17, "pass.started").length, 1);
   });
+});
+
+test("une carte mergée puis partie du rail — sa pass partie avec elle — se dit mergée, pas jamais passée en pass ; une carte inconnue, jamais passée", (t) => {
+  const journal = ouvrirJournal(repertoireTemporaire(t));
+  aArreter(t, () => journal.fermer());
+  journal.ajouter({ project: "brigade", ticket: 17, author: "pass", type: "merge.done", payload: { pr: "https://github.com/benomite/brigade/pull/1", sha: null, by: "pass", reconciled: false } });
+  journal.ajouter({ project: "brigade", ticket: 17, author: "github", type: "ticket.left", payload: { reason: "closed" } });
+  assert.equal(passDuTicket(journal.base, 17), null);
+  assert.deepEqual(relancerLeJugement(journal, 17), { fait: false, raison: "#17 is already merged: there is no judgement to relaunch" });
+  assert.deepEqual(relancerLeJugement(journal, 18), { fait: false, raison: "#18 has never been through the pass: there is no delivery to judge" });
 });
