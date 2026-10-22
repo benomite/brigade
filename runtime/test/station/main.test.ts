@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { appendFileSync, chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
-import { describe, test, type TestContext } from "node:test";
+import { describe, test, type TestContext } from "../support/posix.ts";
 import { ROLES } from "../../src/identites.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { REPERTOIRE_COMPTEUR } from "../../src/limite-github.ts";

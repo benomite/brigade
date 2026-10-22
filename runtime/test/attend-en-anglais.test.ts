@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { test } from "node:test";
+import { test } from "./support/posix.ts";
 import { decrireAttentes, REFUSER_LA_PAUSE, type Attente } from "../src/attend.ts";
 import { decrireEtat, lireEtat } from "../src/etat.ts";
 import { ouvrirJournal } from "../src/journal.ts";

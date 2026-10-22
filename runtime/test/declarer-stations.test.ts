@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { test, type TestContext } from "node:test";
+import { test, type TestContext } from "./support/posix.ts";
 import { decisionsPosees } from "../src/decisions.ts";
 import { principal } from "../src/declarer-stations.ts";
 import { installationDe, noterEtape } from "../src/etapes.ts";

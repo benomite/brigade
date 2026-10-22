@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { test, type TestContext } from "node:test";
+import { test, type TestContext } from "../support/posix.ts";
 import { principal } from "../../src/closing/command.ts";
 import type { Evenement, Fait } from "../../src/evenements.ts";
 import type { ReglagesDeFermeture } from "../../src/events/closing.ts";

@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, realpathSync, rmSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
-import { describe, test, type TestContext } from "node:test";
+import { describe, test, type TestContext } from "./support/posix.ts";
 import { carnetDuProjet } from "../src/apprentissage/provisoires.ts";
 import { attentesDuChef } from "../src/attend.ts";
 import { Base } from "../src/base.ts";

@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { test, type TestContext } from "node:test";
+import { test, type TestContext } from "./support/posix.ts";
 import type { Fait } from "../src/evenements.ts";
 import type { Seuils } from "../src/events/drift.ts";
 import { ouvrirJournal } from "../src/journal.ts";

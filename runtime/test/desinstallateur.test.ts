@@ -7,7 +7,7 @@
 import assert from "node:assert/strict";
 import { existsSync, lstatSync, mkdirSync, readFileSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, test, type TestContext } from "node:test";
+import { describe, test, type TestContext } from "./support/posix.ts";
 import { Sortie } from "../src/appel.ts";
 import { lireRetrait, type Plan } from "../src/desinstallateur.ts";
 import { principal as sousLeCompte } from "../src/desinstaller-sous-le-compte.ts";

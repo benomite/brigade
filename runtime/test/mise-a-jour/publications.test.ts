@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { test } from "node:test";
+import { test } from "../support/posix.ts";
 import { lirePublicationsGitHub, publications } from "../../src/mise-a-jour/publications.ts";
 import { repertoireTemporaire } from "../outils.ts";
 

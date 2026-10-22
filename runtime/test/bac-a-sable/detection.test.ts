@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { test } from "node:test";
+import { test } from "../support/posix.ts";
 import { auMoins, detecter, SEATBELT, sondesDeLaMachine, VERSION_MINIMALE, type Sondes } from "../../src/bac-a-sable/detection.ts";
 
 const MAC: Sondes = { plateforme: "darwin", existe: (chemin) => chemin === SEATBELT, versionDeClaude: () => "2.1.300 (Claude Code)\n" };

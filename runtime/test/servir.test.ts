@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, test, type TestContext } from "node:test";
+import { describe, test, type TestContext } from "./support/posix.ts";
 import { configCloison } from "../src/cloison.ts";
 import type { Fait } from "../src/evenements.ts";
 import { SCRIPT_GATES, SCRIPT_SETUP } from "../src/gates.ts";

@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, test, type TestContext } from "node:test";
+import { describe, test, type TestContext } from "./support/posix.ts";
 import { attentesDuChef } from "../src/attend.ts";
 import { decrireEtat, faits, lireEtat } from "../src/etat.ts";
 import { VARIABLES_DE_JETON } from "../src/claude.ts";

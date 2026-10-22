@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { chmodSync, cpSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, test, type TestContext } from "node:test";
+import { describe, test, type TestContext } from "./support/posix.ts";
 import { ouvrirDepot } from "../src/depot.ts";
 import { jouerSetup, SCRIPT_SETUP } from "../src/gates.ts";
 import { DECLARATION_SERVICE, lireDeclaration, serviceDuWorktree, toucheInterface, VARIABLE_DU_PORT } from "../src/service.ts";

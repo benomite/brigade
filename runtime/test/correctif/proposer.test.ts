@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { test, type TestContext } from "node:test";
+import { test, type TestContext } from "../support/posix.ts";
 import type { Plafonds } from "../../src/events/guardrails.ts";
 import { principal as facts } from "../../src/faits.ts";
 import { brancherGardeFous, type Reglages } from "../../src/garde-fous.ts";

@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { userInfo } from "node:os";
 import { join } from "node:path";
-import { test, type TestContext } from "node:test";
+import { test, type TestContext } from "../support/posix.ts";
 import { principal, type Machine } from "../../src/connexion-max/connecter-cli.ts";
 import { connecterMax, ConnexionNonFaite, extraireLeJeton, MasqueDuJeton, type Lancement } from "../../src/connexion-max/connecter.ts";
 import { configJeton } from "../../src/jeton-claude.ts";

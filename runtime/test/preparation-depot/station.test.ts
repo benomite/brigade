@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { test, type TestContext } from "node:test";
+import { test, type TestContext } from "../support/posix.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { accepterSansBacASable } from "../../src/onboarding/attente.ts";
 import { FICHIER } from "../../src/preparation-depot/ouvrir.ts";

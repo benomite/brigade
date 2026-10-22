@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, renameSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, test, type TestContext } from "node:test";
+import { describe, test, type TestContext } from "./support/posix.ts";
 import { ouvrirDepot, type Depot } from "../src/depot.ts";
 import type { Machine } from "../src/machine.ts";
 import { decrireEtat, lireEtat } from "../src/etat.ts";

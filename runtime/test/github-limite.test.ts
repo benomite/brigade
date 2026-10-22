@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { chmodSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { test, type TestContext } from "node:test";
+import { test, type TestContext } from "./support/posix.ts";
 import { ouvrirGitHub } from "../src/github.ts";
 import { ATTENTE_PAR_DEFAUT_MS, LimiteGitHubAtteinte, ouvrirLimite } from "../src/limite-github.ts";
 import { DEPOT, repertoireTemporaire, temporaireDuFichier } from "./outils.ts";

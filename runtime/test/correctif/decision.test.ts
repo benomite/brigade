@@ -7,7 +7,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
-import { test, type TestContext } from "node:test";
+import { test, type TestContext } from "../support/posix.ts";
 import { avecRail } from "../../src/alimenter.ts";
 import { cartesDeCorrection } from "../../src/correctif/cartes.ts";
 import { decider, decisionDe, NON, OUI } from "../../src/correctif/decision.ts";

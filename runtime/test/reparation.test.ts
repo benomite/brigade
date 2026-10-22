@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, test, type TestContext } from "node:test";
+import { describe, test, type TestContext } from "./support/posix.ts";
 import { decrireEtat, lireEtat } from "../src/etat.ts";
 import type { Fait } from "../src/evenements.ts";
 import type { Issue } from "../src/github.ts";

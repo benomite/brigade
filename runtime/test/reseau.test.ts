@@ -1,7 +1,7 @@
 // Le réseau d'un projet : sa liste blanche, ce que son dépôt y déclare, et ce
 // qui fait passer un process par la porte. Aucune connexion ne sort d'ici.
 import assert from "node:assert/strict";
-import { describe, test } from "node:test";
+import { describe, test } from "./support/posix.ts";
 import { lireALaBase } from "../src/depot.ts";
 import { autorise, brancherReseau, configReseau, lireDeclaration, REGLES_DE_BASE, reglesDuProjet, sonderLeFiltre, variablesDeRelais, type Envoyer } from "../src/reseau.ts";
 import { ConfigInvalide, demarrer } from "../src/runtime.ts";
