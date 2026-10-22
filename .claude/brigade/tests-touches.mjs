@@ -10,6 +10,10 @@
 // pas suivi. Ce qui casse de loin se voit sur la base, où tout se joue. Un fichier
 // modifié qui n'est ni du code ni un test (une page de doc, un script, un
 // manifest) touche les fichiers qui citent son nom.
+// `--proches` (les gates d'une station) : seuls les tests que le changement
+// modifie, et ceux qui portent le nom d'un fichier modifié (`src/rail.ts` →
+// `test/rail.test.ts`) — quelques secondes, sur la machine qui cuisine. La CI
+// joue la fermeture entière sur la PR, et tout sur la base.
 // Tout jouer quand le doute est permis : aucun fichier modifié (la base
 // elle-même), un fichier qui règle toute une suite (package.json, tsconfig, le
 // setup), ou une erreur ici — les gates jouent alors la suite entière.
@@ -25,6 +29,14 @@ const GLOBAUX = [/^(runtime|app)\/package(-lock)?\.json$/, /^(runtime|app)\/tsco
 const modifies = readFileSync(0, "utf8").split("\n").map((l) => l.trim()).filter(Boolean);
 if (modifies.length === 0 || modifies.some((f) => GLOBAUX.some((g) => g.test(f)))) {
   for (const zone of ZONES) console.log(`${zone} tout`);
+  process.exit(0);
+}
+if (process.argv.includes("--proches")) {
+  for (const zone of ZONES) {
+    const noms = new Set(modifies.filter((m) => m.startsWith(`${zone}/`) && CODE.test(m)).map((m) => basename(m).replace(/(\.test)?\.[^.]+$/, "")));
+    const proches = lister(join(zone, "test")).filter((t) => t.endsWith(".test.ts") && (modifies.includes(t) || noms.has(basename(t, ".test.ts"))));
+    console.log(proches.length === 0 ? `${zone} rien` : `${zone} fichiers ${proches.map((t) => relative(zone, t)).join(" ")}`);
+  }
   process.exit(0);
 }
 
