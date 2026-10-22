@@ -690,13 +690,14 @@ test("un ticket dont la zone recouvre celle d'un ticket parti en cuisine est ret
   assert.equal(rail.prendre("c")?.ticket, 2);
 });
 
-test("la retenue de zone tombe quand le premier revient en attente ou quitte le rail, et un 86 tient sa zone", (t) => {
+test("la retenue de zone tombe quand le premier est 86, revient en attente ou quitte le rail", (t) => {
   const { journal, rail } = cuisine(t);
   poserAvecZone(journal, 1, ["runtime/src/rail.ts"]);
   poserAvecZone(journal, 2, ["runtime/src/rail.ts"]);
   rail.prendre("a");
+  assert.equal(tenu(journal, 2)?.length, 1);
   rail.quatreVingtSix(1, { motif: "quota", station: "a" });
-  assert.deepEqual(tenu(journal, 2), [{ ticket: 1, path: "runtime/src/rail.ts" }]);
+  assert.deepEqual(tenu(journal, 2), []);
   rail.rendre(1, "86-over");
   assert.deepEqual(tenu(journal, 2), []);
 
@@ -776,19 +777,22 @@ test("un ticket servi, rouvert et relancé tient de nouveau sa zone", (t) => {
   assert.equal(tenu(journal, 2)?.length, 1);
 });
 
-test("un ticket remonté au chef puis mergé par lui reste 86, mais ne tient plus sa zone : sa livraison est sur la base", (t) => {
+test("un ticket remonté au chef puis mergé par lui reste 86 ; relancé, il ne tient plus sa zone : sa livraison est sur la base", (t) => {
   const { journal, rail } = cuisine(t);
   poserAvecZone(journal, 1, ["runtime/src/rail.ts"]);
   poserAvecZone(journal, 2, ["runtime/src/rail.ts"]);
   rail.prendre("a");
   rail.envoyerEnPass(1, "a");
   rail.quatreVingtSix(1, { motif: "review-red" });
-  assert.equal(tenu(journal, 2)?.length, 1);
 
   journal.ajouter({ project: "brigade", ticket: 1, author: "chef", type: "merge.done", payload: { pr: "https://exemple.test/pull/1", sha: "abc", by: "outside", reconciled: false } });
   assert.equal(ticketDuRail(journal.base, 1)?.state, "86");
   assert.deepEqual(tenu(journal, 2), []);
-  assert.equal(rail.prendre("b")?.ticket, 2);
+  // Rendu au rail, il n'a plus de livraison ouverte : il ne retient pas #2.
+  rail.rendre(1, "le chef le relance");
+  assert.deepEqual(tenu(journal, 2), []);
+  assert.equal(rail.prendre("b")?.ticket, 1);
+  assert.equal(rail.prendre("c"), null);
 });
 
 test("la zone ne retient pas ce qu'une dépendance retient déjà, ni derrière une fiche illisible, ni un ticket sans zone", (t) => {
@@ -849,16 +853,9 @@ test("un ticket que le manager a redécoupé ne tient plus de zone : ses sous-ti
   poserAvecZone(journal, 1, ["runtime/src"]);
   assert.equal(rail.prendre("a")?.ticket, 1);
   rail.envoyerEnPass(1, "a");
-  // Remonté au chef, il tient sa zone : sa livraison n'est pas mergée.
+  // Sa PR reste ouverte, mais ce sont ses sous-tickets qui portent le travail.
   poserAvecZone(journal, 2, ["runtime/src/rail.ts"]);
-  rail.quatreVingtSix(1, { motif: "pass:returns-exhausted" });
-  assert.deepEqual(tenu(journal, 2), [{ ticket: 1, path: "runtime/src/rail.ts" }]);
-  assert.equal(rail.prendre("b"), null);
-
-  // Redécoupé, non : sa PR reste ouverte, mais ce sont ses sous-tickets qui portent le travail.
-  rail.rendre(1, "test");
-  assert.equal(rail.prendre("a")?.ticket, 1);
-  rail.envoyerEnPass(1, "a");
+  assert.equal(tenu(journal, 2)?.length, 1);
   rail.quatreVingtSix(1, { motif: REDECOUPE });
   poserAvecZone(journal, 3, ["runtime/src/pass.ts"]);
 
@@ -1012,7 +1009,7 @@ test("un simple nom de station ne dit pas ce qu'elle fournit : le rail ne regard
   assert.equal(rail.prendre("box/claude")?.ticket, 1);
 });
 
-test("un ticket 86 faute de station qui fournisse ce qu'il demande ne tient pas sa zone ; avec une livraison ouverte, il la tient encore", (t) => {
+test("un ticket 86 faute de station qui fournisse ce qu'il demande ne tient pas sa zone, même avec une livraison ouverte", (t) => {
   const { journal, rail } = cuisine(t);
   const arriver = (ticket: number, zone: string[]) =>
     journal.ajouter({
@@ -1035,7 +1032,7 @@ test("un ticket 86 faute de station qui fournisse ce qu'il demande ne tient pas 
   rail.rendre(1, "pass:returned");
   rail.quatreVingtSix(1, { motif: "no-station: chrome-connecté" });
 
-  assert.deepEqual(ticketDuRail(journal.base, 2)?.held, [{ ticket: 1, path: "runtime/src/rail.ts" }]);
+  assert.deepEqual(ticketDuRail(journal.base, 2)?.held, []);
 });
 
 test("une fiche d'avant les capacités se relit telle quelle ; un fait dont les capacités ne se lisent pas reste sans effet", (t) => {

@@ -17,19 +17,23 @@ it on the merge (see "Green means green once merged").
 | **At the harvest** | A file delivered outside the ticket's zone is **flagged**, not stopped | `cook.out-of-zone`, and the end-of-cook comment |
 
 **The hold on the rail** is recomputed at every read and never blocks. **Holds its zone**: a ticket
-that is taken, in pass or **86** (even refused before any cook: settle it or remove its `fire`), a
-ticket **that the pass sent back** — until its delivery is merged —, and a cook that is still
-running, even if its ticket has left the rail. **Holds nothing**: a ticket back to queued without
-having delivered anything, a ticket that has left the rail, a merged delivery (even by you), a
-ticket **re-split by the manager** (86 `manager:split`), an **unreadable** card.
+that is taken or in pass, a ticket **that the pass sent back** — until its delivery is merged —, and
+a cook that is still running, even if its ticket has left the rail. **Holds nothing**: a ticket
+**86**, whatever the reason and even with an open delivery — escalated to you, frozen, set aside
+for a quota, WAITING, refused, re-split by the manager (`manager:split`), lacking a station —: it
+waits for a gesture or a time, not for a cook (#1368). Nor a ticket back to queued without having
+delivered anything, a ticket that has left the rail, a merged delivery (even by you), an
+**unreadable** card. **Back from 86**, a ticket claims its zone again under the same rule: queued
+with an open delivery, it holds it again; and if a ticket took that zone meanwhile, it waits for
+it to be served — it never cooks beside it.
 
 **The "out of zone" signal** names on the issue the files delivered out of zone and the rail ticket
 that owns each one; the pass judges the delivery like any other. If the gap is legitimate, widen the
 zone in the card. **The zone that counts is the one at the take**, in the log: if the card changed
 during the cook, the comment shows both zones and the fact carries `cardChanged: true`.
 
-Limits: a PR closed without a merge holds its zone until its ticket is taken again, served or
-removed from the rail (see "What awaits the chef"); a PR opened outside any ticket holds none.
+Limits: a PR closed without a merge holds its zone, while its ticket is queued, until that ticket is
+taken again, served or removed from the rail (see "What awaits the chef"); a PR opened outside any ticket holds none.
 
 ### What a cook loads
 

@@ -1,6 +1,7 @@
 // Un ticket que la pass n'a pas pu juger (86 sans heure de retour) gèle ce qui
-// l'attend, par `attend` ou par sa zone : l'état le dit « bloqué par », en
-// nommant le ticket gelé. La décision d'ordonnancement, elle, ne change pas.
+// l'attend par `attend` : l'état le dit « bloqué par », en nommant le ticket
+// gelé. La décision d'ordonnancement, elle, ne change pas. Sa zone, il ne la
+// tient pas : 86, il ne retient personne par elle (#1368).
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { decrireEtat, lireEtat } from "../src/etat.ts";
@@ -63,15 +64,16 @@ test("un ticket qui attend un ticket gelé se lit bloqué par lui, dans l'état"
   assert.equal(rail.prendre("box/claude"), null);
 });
 
-test("un ticket qui n'attend que la zone d'un ticket gelé se lit bloqué par lui", (t) => {
+test("un ticket qui ne partageait que la zone d'un ticket gelé n'est pas bloqué par lui : il part", (t) => {
   const { journal, rail } = cuisine(t);
   poser(journal, 10, [], ["runtime/src"]);
   poser(journal, 12, [], ["runtime/src/rail.ts"]);
   geler(rail, 10);
 
-  assert.equal(lu(journal, 12), "BLOQUÉ");
-  assert.match(ligne(journal, 12), /blocked by #10 \(86 with no return time, not judged by the pass — zone held: runtime\/src/);
-  assert.equal(rail.prendre("box/claude"), null);
+  assert.equal(lu(journal, 12), "en attente");
+  assert.deepEqual(ticketDuRail(journal.base, 12)?.frozenBy, []);
+  assert.doesNotMatch(ligne(journal, 12), /blocked by|zone held/);
+  assert.equal(rail.prendre("box/claude")?.ticket, 12);
 });
 
 test("un ticket qui attend un ticket en cours, ou gelé avec une heure de retour, garde la lecture « en attente »", (t) => {
@@ -98,7 +100,7 @@ test("un ticket qui attend un ticket en cours, ou gelé avec une heure de retour
   assert.equal(rail.prendre("box/claude")?.ticket, 30);
   rail.quatreVingtSix(30, { motif: "pass:encore-rouge", station: "box/claude" });
   assert.equal(lu(journal, 31), "en attente");
-  assert.match(ligne(journal, 31), /zone held by #30/);
+  assert.doesNotMatch(ligne(journal, 31), /zone held by #30/);
 });
 
 test("le ticket gelé tranché, ceux qui l'attendaient reviennent à la lecture normale", (t) => {
@@ -108,7 +110,7 @@ test("le ticket gelé tranché, ceux qui l'attendaient reviennent à la lecture 
     poser(journal, 11, [10], ["docs"]);
     poser(journal, 12, [], ["runtime/src/rail.ts"]);
     geler(rail, 10);
-    assert.deepEqual([lu(journal, 11), lu(journal, 12)], ["BLOQUÉ", "BLOQUÉ"]);
+    assert.deepEqual([lu(journal, 11), lu(journal, 12)], ["BLOQUÉ", "en attente"]);
 
     if (sort === "rendu") rail.rendre(10, "chef-a-tranche");
     if (sort === "retire") journal.ajouter({ project: "brigade", ticket: 10, author: "github", type: "ticket.left", payload: { reason: "unfired" } });
@@ -121,7 +123,7 @@ test("le ticket gelé tranché, ceux qui l'attendaient reviennent à la lecture 
   }
 });
 
-test("le cas de l'épique : un ticket gelé, quatre tickets qui l'attendent, un par zone — les cinq se lisent bloqués par lui", (t) => {
+test("le cas de l'épique : un ticket gelé, trois tickets qui l'attendent, un qui partage sa zone — les trois se lisent bloqués par lui, le quatrième part", (t) => {
   const { journal, rail } = cuisine(t);
   poser(journal, 405, [], ["runtime/src", "runtime/test"]);
   poser(journal, 406, [405], ["docs"]);
@@ -130,12 +132,14 @@ test("le cas de l'épique : un ticket gelé, quatre tickets qui l'attendent, un 
   poser(journal, 400, [], ["runtime/src/etat.ts"]);
   geler(rail, 405);
 
-  const lignes = [406, 407, 408, 400].map((ticket) => ligne(journal, ticket));
+  const lignes = [406, 407, 408].map((ticket) => ligne(journal, ticket));
   for (const texte of lignes) assert.match(texte, /BLOCKED.*blocked by #405 /);
   assert.deepEqual(
     [406, 407, 408, 400].map((ticket) => ticketDuRail(journal.base, ticket)?.frozenBy),
-    [[405], [405], [405], [405]],
+    [[405], [405], [405], []],
   );
+  assert.doesNotMatch(ligne(journal, 400), /blocked by|zone held/);
+  assert.equal(rail.prendre("box/claude")?.ticket, 400);
   // Le ticket gelé lui-même est 86, sans heure de retour, dans l'état.
   assert.match(ligne(journal, 405), /86/);
 });

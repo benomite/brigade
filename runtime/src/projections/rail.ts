@@ -13,7 +13,7 @@ import type { Base } from "../base.ts";
 import type { Evenement } from "../evenements.ts";
 import type { FaitGardeFous } from "../events/guardrails.ts";
 import { NON_JUGEE, type FaitPass, type Finding } from "../events/pass.ts";
-import { ATTEND_UN_TIERS, REDECOUPE, REVENU_D_ATTENTE, SANS_STATION, type FaitRail } from "../events/rail.ts";
+import { ATTEND_UN_TIERS, REVENU_D_ATTENTE, type FaitRail } from "../events/rail.ts";
 import type { Fiche } from "../fiche.ts";
 import { bilanDEpique } from "../bilan-epique.ts";
 import { definirProjection } from "../projection.ts";
@@ -78,10 +78,11 @@ export type TicketRail = {
   // Queued: those that hold a path of its zone. Empty: its zone is
   // free.
   held: Tenu[];
-  // Queued: those, among `awaits` and `held`, that are frozen — 86 that the
-  // pass could not judge, with no return time: nothing will make them leave
-  // without the chef. This ticket will not leave before them. Does not change
-  // what holds it back, only what is said about it.
+  // Queued: those, among `awaits`, that are frozen — 86 that the pass could
+  // not judge, with no return time: nothing will make them leave without the
+  // chef. This ticket will not leave before them. Does not change what holds
+  // it back, only what is said about it. Never among `held`: a ticket 86
+  // holds no zone.
   frozenBy: number[];
   // Reason and return time of an 86.
   reason: string | null;
@@ -541,20 +542,20 @@ export function communsDuRail(base: Base): string[] {
 
 const lireFiche = (card: string | null) => (card === null ? null : (JSON.parse(card) as Fiche));
 
-// Those who hold the zone of a queued ticket: the tickets gone to the
-// kitchen — taken, in pass, 86 — and those the pass gave back, queued with
-// a delivery still open (its branch, its worktree, its PR). All of them release
-// their zone when their delivery is on the base: a ticket escalated to the
-// chef then merged by him stays 86, holding nothing any more. Nor does a
-// ticket the manager has re-split, PR open or not: its sub-tickets overlap its
-// zone, and it would hold them back forever. Nor a ticket 86 for lack of a
-// station that provides what it asks for: it never left, and will not leave
-// before a gesture from the chef — unless it carries an open delivery. Nor,
-// likewise, a ticket in WAITING or back from WAITING in front of the chef. A
-// ticket it already awaits does not appear: the dependency says so. An
-// unreadable card holds nothing, its zone is not authoritative. And a ticket
-// that itself has an open delivery is not held back by another queued ticket:
-// two returns on the same zone would await each other forever.
+// Those who hold the zone of a queued ticket: the tickets in the kitchen —
+// taken, in pass — and those the pass gave back, queued with a delivery still
+// open (its branch, its worktree, its PR). All of them release their zone when
+// their delivery is on the base. A ticket 86 holds nothing, whatever the
+// reason and even with an open delivery: escalated to the chef, frozen, set
+// aside for a quota, WAITING for a third party, re-split by the manager or
+// lacking a station, it waits for a gesture or a time, not for a cook, and
+// would hold back every ticket on its zone for as long (#1368). Put back on
+// the rail, it claims its zone again under the same rule: queued with an open
+// delivery, it holds it — and is itself held by a ticket that took that zone
+// in the meantime. A ticket it already awaits does not appear: the dependency
+// says so. An unreadable card holds nothing, its zone is not authoritative.
+// And a ticket that itself has an open delivery is not held back by another
+// queued ticket: two returns on the same zone would await each other forever.
 function tenants(base: Base): (ticket: number, card: Fiche | null, delivery: string | null) => Tenu[] {
   let tenant: { ticket: number; zone: string[]; parti: boolean }[] | undefined;
   let communs: string[] = [];
@@ -566,16 +567,8 @@ function tenants(base: Base): (ticket: number, card: Fiche | null, delivery: str
         .lire<{ ticket: number; card: string; state: Etat }>(
           `SELECT ticket, card, state FROM rail
            WHERE card IS NOT NULL
-             AND ((state IN ('taken', 'pass', '86') AND delivery IS NOT 'merged') OR (state = 'waiting' AND delivery = 'open'))
-             AND NOT (state = '86' AND reason IS ?)
-             AND NOT (state = '86' AND delivery IS NULL AND substr(coalesce(reason, ''), 1, ?) = ?)
-             AND NOT (state = '86' AND delivery IS NULL AND reason IN (?, ?))
+             AND ((state IN ('taken', 'pass') AND delivery IS NOT 'merged') OR (state = 'waiting' AND delivery = 'open'))
            ORDER BY ticket`,
-          REDECOUPE,
-          SANS_STATION.length + 1,
-          `${SANS_STATION}:`,
-          ATTEND_UN_TIERS,
-          REVENU_D_ATTENTE,
         )
         .flatMap((ligne) => {
           const parsed = lireFiche(ligne.card);
@@ -624,7 +617,7 @@ function lire(base: Base, suite: string, ...parametres: number[]): TicketRail[] 
     const card = lireFiche(ligne.card);
     const awaits = attendus(base, card);
     const held = ligne.state === "waiting" ? tenu(ligne.ticket, card, delivery) : [];
-    const frozenBy = ligne.state === "waiting" ? [...new Set([...awaits.map((a) => a.ticket), ...held.map((t) => t.ticket)])].filter((numero) => geles.has(numero)) : [];
+    const frozenBy = ligne.state === "waiting" ? awaits.map((a) => a.ticket).filter((numero) => geles.has(numero)) : [];
     return { ...ligne, card, awaits, held, frozenBy, waitingFor: tiers.get(ligne.ticket) ?? null, resumedBecause: revenus.get(ligne.ticket) ?? null };
   });
 }
