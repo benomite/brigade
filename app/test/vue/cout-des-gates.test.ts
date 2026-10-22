@@ -83,6 +83,8 @@ function recevoir(vue: Jouee, cout: unknown) {
 }
 const section = (vue: Jouee, classe: string) => vue.element("rail").dessous("section").find((pose) => pose.className === classe);
 const file = (vue: Jouee) => section(vue, "gates-de-la-file");
+// Le bloc entier de la file, posé seul : sur Rail il n'est plus (#1458) ; sur Cooks il se réduit à une ligne sous le budget.
+const poseDeLaFile = (cout: unknown) => (poserLesGatesDeLaFile({ createElement: (balise: string) => new Faux(balise) } as never, cout as never, () => {})[0] as Faux | undefined) ?? assert.fail("pas de gates");
 const jour = (vue: Jouee) => section(vue, "jour-des-gates");
 // Une mesure de la file telle qu'elle se lit : « time 62 s / 100 s (default) ».
 const mesures = (pose: Faux) => pose.dessous("span").filter(({ className }) => className === "mesure-des-gates").map((mesure) => mesure.children.map(({ textContent }) => textContent).join(" "));
@@ -91,29 +93,21 @@ const lu = (pose: Faux) => pose.dessous("tr").map((ligne) => ligne.children.map(
 
 describe("les gates face à leur budget, en tête de la file", () => {
   test("le run complet sur la base se montre à part, face à son budget à lui — celui d'un ticket ne le juge pas", async () => {
-    const vue = await ouvrir();
     const base = {
       budget: { durationSeconds: 400, cpuSeconds: 1600, parLeChef: { durationSeconds: false, cpuSeconds: false } },
       latest: { project: PARADE, ticket: null, runner: "pass", outcome: "green", durationSeconds: 250, cpuSeconds: 700, at: "2026-10-21T09:58:40.000Z" },
       overBudget: false,
     };
-    recevoir(vue, { ...SOUS_LE_BUDGET, base });
-    await repos();
-    const pose = file(vue) ?? assert.fail("pas de gates sur la file");
+    const pose = poseDeLaFile({ ...SOUS_LE_BUDGET, base });
     assert.equal(pose.dessous("h4")[1]?.textContent?.startsWith(TITRE_BASE), true);
     assert.deepEqual(mesures(pose), ["time 62 s / 100 s (default)", "CPU 181 s / 400 s (default)", "time 250 s / 400 s (default)", "CPU 700 s / 1600 s (default)"]);
     assert.equal(pose.dessous("span").some(({ className }) => className === "hors-budget"), false);
 
-    recevoir(vue, { ...SOUS_LE_BUDGET, base: { ...base, latest: { ...base.latest, durationSeconds: 450 }, overBudget: true } });
-    await repos();
-    assert.equal((file(vue) ?? assert.fail("pas de gates")).dessous("span").filter(({ className }) => className === "hors-budget").length, 1);
+    assert.equal(poseDeLaFile({ ...SOUS_LE_BUDGET, base: { ...base, latest: { ...base.latest, durationSeconds: 450 }, overBudget: true } }).dessous("span").filter(({ className }) => className === "hors-budget").length, 1);
   });
 
   test("sous le budget : le dernier passage face au budget, en durée et en processeur — le défaut se dit défaut, sans marque ni ticket", async () => {
-    const vue = await ouvrir();
-    recevoir(vue, SOUS_LE_BUDGET);
-    await repos();
-    const pose = file(vue) ?? assert.fail("pas de gates sur la file");
+    const pose = poseDeLaFile(SOUS_LE_BUDGET);
     assert.equal(pose.dessous("h4")[0]?.textContent?.startsWith(TITRE_FILE), true);
     assert.deepEqual(mesures(pose), ["time 62 s / 100 s (default)", "CPU 181 s / 400 s (default)"]);
     assert.equal("horsBudget" in pose.dataset, false);
@@ -125,7 +119,8 @@ describe("les gates face à leur budget, en tête de la file", () => {
     const vue = await ouvrir();
     recevoir(vue, HORS_DU_BUDGET);
     await repos();
-    const pose = file(vue) ?? assert.fail("pas de gates sur la file");
+    await ouvrirOnglet(vue, "Cooks");
+    const pose = file(vue) ?? assert.fail("pas de gates sur Cooks");
     // Un budget posé par le chef ne se dit pas défaut.
     assert.deepEqual(mesures(pose), ["time 215 s / 120 s", "CPU 990 s / 480 s"]);
     assert.equal("horsBudget" in pose.dataset, true);
@@ -139,26 +134,20 @@ describe("les gates face à leur budget, en tête de la file", () => {
   });
 
   test("sans passage encore : pas de chiffre inventé, le budget est dit", async () => {
-    const vue = await ouvrir();
-    recevoir(vue, SANS_PASSAGE);
-    await repos();
-    const pose = file(vue) ?? assert.fail("pas de gates sur la file");
+    const pose = poseDeLaFile(SANS_PASSAGE);
     assert.deepEqual(mesures(pose), ["time – / 100 s (default)", "CPU – / 400 s (default)"]);
     assert.match(pose.textContent, /no run yet/);
   });
 
   test("un processeur que le runtime n'a pas dit — gates coupées — se dit « not measured »", async () => {
-    const vue = await ouvrir();
-    recevoir(vue, { ...HORS_DU_BUDGET, latest: { ...HORS_DU_BUDGET.latest, cpuSeconds: null } });
-    await repos();
-    assert.deepEqual(mesures(file(vue) ?? assert.fail("pas de gates sur la file")), ["time 215 s / 120 s", "CPU not measured / 480 s"]);
+    assert.deepEqual(mesures(poseDeLaFile({ ...HORS_DU_BUDGET, latest: { ...HORS_DU_BUDGET.latest, cpuSeconds: null } })), ["time 215 s / 120 s", "CPU not measured / 480 s"]);
   });
 
-  test("elles sont sur la file et sur Cooks (#1457, la file les garde jusqu'au ticket suivant) ; les 24 h, sur Cooks seulement", async () => {
+  test("elles ne sont plus sur Rail (#1458) : seules Cooks les portent, les 24 h comprises", async () => {
     const vue = await ouvrir();
     recevoir(vue, HORS_DU_BUDGET);
     await repos();
-    assert.notEqual(file(vue), undefined);
+    assert.equal(file(vue), undefined);
     assert.equal(jour(vue), undefined);
     await ouvrirOnglet(vue, "Cooks");
     assert.notEqual(file(vue), undefined);

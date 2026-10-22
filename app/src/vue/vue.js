@@ -101,7 +101,7 @@ import { poserPerdus } from "./cost/perdus.js";
 import { poserTete } from "./cost/tete.js";
 import { poserFiabilite } from "./fiabilite.js";
 import { poserReculs } from "./recul.js";
-import { poserTriage, poserTriageDeCooks } from "./triage.js";
+import { poserTriageDeCooks } from "./triage.js";
 import { DIT_PROVISOIRE, PROVISOIRE, poserApprentissage, resumeDeLApprentissage, TITRE as TITRE_APPRIS } from "./apprentissage.js";
 import { lireFermeture, poserCloser } from "./closer/section.js";
 import { poserBilan } from "./closer/bilan/bilan.js";
@@ -118,7 +118,7 @@ import { ligneDAlerte, poserLesStations as stationsDeCuisson } from "./stations-
 import { poserLesAppels } from "./appels-de-la-station.js";
 import { EXPLIQUE as AIDE_DU_PLAFOND, poserLePlafond as plafondDeCalibrage, resumeDuPlafond, TITRE as TITRE_DU_PLAFOND } from "./plafond-de-calibrage.js";
 import { poserLActivite } from "./activite-cuisine.js";
-import { poserLeJourDesGates, poserLesGatesDeCooks, poserLesGatesDeLaFile } from "./cout-des-gates.js";
+import { GATES_HORS_BUDGET, poserLeJourDesGates, poserLesGatesDeCooks } from "./cout-des-gates.js";
 import { AIDE as AIDE_DES_ROLES, poserLesRoles, resumeDesRoles, TITRE as TITRE_DES_ROLES } from "./roles-cuisine.js";
 import { apresLaDecision, poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
 import { poserPremierLancement } from "./premier-lancement.js";
@@ -4156,13 +4156,21 @@ function poserCuisson(projet, posees = new Map()) {
   gatesDuProjet.replaceChildren(...poserLesGatesDeCooks(document, tableauLu?.coutDesGates, (ticket, retour) => ouvrirFicheDeCout(projet.nom, ticket, retour)), ...(gates === null ? [] : [gates]));
   triageDuProjet.replaceChildren(...(tableauLu === undefined ? [] : poserTriageDeCooks(document, tableauLu.triage, (ligne, contenu) => replieDe(projet, "triage", ligne, contenu))));
   const vu = projetsVus?.projets.find(({ nom }) => nom === projet.nom);
+  const cout = tableauLu?.coutDesGates;
+  const gatesHorsBudget = cout !== undefined && (cout.overBudget || cout.base?.overBudget === true) ? GATES_HORS_BUDGET + (cout.ticket === null ? "" : ` — #${cout.ticket.number}`) : null;
   const alerte = ligneDAlerte(document, {
     alerte: stations?.alerte ?? null,
     refusee: stations?.lignes.some(({ etat }) => etat === "refused") ?? false,
     acces: vu?.acces ?? vu?.worktree?.acces ?? null,
     clone: vu?.clone ?? null,
     refus: vu?.refus ?? null,
-    ouvrir: () => choisirOnglet(CUISINE),
+    // Les gates hors budget retiennent les tickets (ticket 1458) : la ligne dit le ticket que la cuisine a ouvert, et son
+    // clic pose le bloc des gates de Cooks en vue.
+    gates: gatesHorsBudget,
+    ouvrir: () => {
+      choisirOnglet(CUISINE);
+      if (gatesHorsBudget !== null) gatesDuProjet.scrollIntoView?.({ block: "start" });
+    },
   });
   alerteDeCuisine.hidden = alerte === null;
   alerteDeCuisine.replaceChildren(...(alerte === null ? [] : [alerte]));
@@ -4445,9 +4453,6 @@ function poserRail(projet) {
       ? []
       : [
           ...teteDuRail(projet),
-          // Ce que coûtent ses gates face à leur budget, et le ticket que la cuisine a ouvert seule (ticket 1318).
-          ...poserLesGatesDeLaFile(document, tenu.tableau.coutDesGates, (ticket, retour) => ouvrirFicheDeCout(projet.nom, ticket, retour)),
-          ...poserTriage(document, tenu.tableau.triage),
           ...poserAmont(projet, tenu.tableau.rail, lesCartes),
           ...poserLesCorrections(projet, tenu.tableau.rail.corrections),
           ...poserLesProfils(projet, tenu.tableau.rail.profils),

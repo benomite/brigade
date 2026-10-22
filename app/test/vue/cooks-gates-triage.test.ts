@@ -126,3 +126,40 @@ describe("le budget des gates et le triage, sur l'onglet Cooks", () => {
     }
   });
 });
+
+describe("la ligne d'alerte de Rail, quand les gates retiennent les tickets (#1458)", () => {
+  async function rail(faits: Record<string, unknown>) {
+    const vue = await cooks(faits);
+    await ouvrirOnglet(vue, "Rail");
+    return vue;
+  }
+  const blocs = (vue: Jouee) => vue.element("rail").dessous("section").map(({ className }) => className);
+
+  test("rien ne retient les tickets : ni ligne d'alerte, ni bloc des gates, ni triage — le kanban seul", async () => {
+    const vue = await rail({ coutDesGates: SOUS_LE_BUDGET, triage: JOURS });
+    assert.equal(vue.element("rail").dessous("p").some(({ className }) => className === "alerte-de-cuisine"), false);
+    assert.equal(blocs(vue).includes("gates-de-la-file"), false);
+    assert.equal(blocs(vue).includes("triage"), false);
+    assert.ok(blocs(vue).includes("colonne"));
+  });
+
+  test("gates hors budget : une seule ligne en tête, avec le ticket, et aucun bloc de gates ni de triage", async () => {
+    const vue = await rail({ coutDesGates: HORS_DU_BUDGET, triage: JOURS });
+    const lignes = vue.element("rail").dessous("p").filter(({ className }) => className === "alerte-de-cuisine");
+    assert.equal(lignes.length, 1);
+    assert.match(lignes[0]?.textContent ?? "", /gates over budget — #31/);
+    assert.equal(vue.element("rail").children[0]?.id, "alerte-de-cuisine");
+    assert.equal(blocs(vue).includes("gates-de-la-file"), false);
+    assert.equal(blocs(vue).includes("triage"), false);
+  });
+
+  test("le clic ouvre Cooks, sur le bloc des gates entier", async () => {
+    const vue = await rail({ coutDesGates: HORS_DU_BUDGET });
+    const lien = vue.element("rail").dessous("button").find(({ className }) => className === "lien") ?? assert.fail("pas de lien");
+    lien.click();
+    await repos();
+    assert.equal(vue.element("rail").dataset.onglet, "cooks");
+    assert.ok(ancre(vue, "gates-du-projet").dessous("section").some(({ className }) => className === "gates-de-la-file"));
+    assert.match(ancre(vue, "gates-du-projet").textContent, new RegExp(HORS_BUDGET));
+  });
+});
