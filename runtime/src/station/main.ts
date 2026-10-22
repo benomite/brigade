@@ -115,6 +115,7 @@ const presence = tenirPresence({
   canal,
   identite,
   projets: () => station.projets(),
+  depots: () => station.depots(),
   etats: () => etatsPublies(dossierMiseAJour === null ? null : lireEtatMiseAJour(dossierMiseAJour), connexion.connexion()),
   dire,
 });

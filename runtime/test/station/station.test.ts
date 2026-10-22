@@ -143,6 +143,8 @@ test("arrêtée, la station arrête chacun de ses projets par le signal reçu, e
 test("les projets servis sont tous ceux de la configuration : ceux que l'app a ajoutés, et ceux écrits à la main hors de son bloc", (t) => {
   const { servie } = station(t, ["cantine benomite/cantine main", DEBUT, "parade benomite/parade main", FIN, "brigade benomite/brigade v2", ""].join("\n"));
   assert.deepEqual([...servie.projets()].sort(), ["brigade", "cantine", "parade"]);
+  // Et le dépôt de chacun : l'app d'un ordinateur neuf en tire de quoi le cloner (#1428).
+  assert.deepEqual(servie.depots(), { cantine: "benomite/cantine", parade: "benomite/parade", brigade: "benomite/brigade" });
 });
 
 test("station.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);

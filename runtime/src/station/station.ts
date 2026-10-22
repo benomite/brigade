@@ -37,6 +37,8 @@ export type Station = {
   relire(): void;
   // Les projets servis, dans l'ordre où ils ont été ouverts.
   projets(): string[];
+  // Le dépôt GitHub de chaque projet servi (`<owner>/<repo>`), par son nom.
+  depots(): Record<string, string>;
   // Les projets de la configuration que la station n'a pas pu ouvrir, et
   // pourquoi.
   refuses(): Record<string, string>;
@@ -80,7 +82,7 @@ export function ouvrirStation(options: OptionsStation): Station {
   const fichier = join(racine, CONFIGURATION);
   const portes = options.portes ?? null;
   // Ce qui, changé, rouvre un projet : sa ligne, et le port de sa porte.
-  const ouvertes = new Map<string, { cle: string; cuisine: Cuisine }>();
+  const ouvertes = new Map<string, { cle: string; depot: string; cuisine: Cuisine }>();
   // Un projet refusé ne se réessaie que si sa ligne ou sa porte change — sauf
   // celui qu'un autre runtime tient encore : il est repris dès qu'il est libre.
   const refuses = new Map<string, { cle: string; motif: string; cause: CodeDeRefus; reessayer: boolean }>();
@@ -126,7 +128,7 @@ export function ouvrirStation(options: OptionsStation): Station {
         for (const ligne of demenagement.restes) dit(`pas déménagé dans l'atelier de la station — ${ligne}`);
       }
       const cuisine = enCours.run(projet.nom, () => ouvrir(sien, { dire: dit, connexion: options.connexion }));
-      ouvertes.set(projet.nom, { cle, cuisine });
+      ouvertes.set(projet.nom, { cle, depot: projet.depot, cuisine });
       refuses.delete(projet.nom);
       dit(`servi par la station — ${projet.depot}, branche ${projet.base ?? "déclarée par son dépôt"}, état dans ${cuisine.repertoireEtat}`);
     } catch (erreur) {
@@ -169,6 +171,7 @@ export function ouvrirStation(options: OptionsStation): Station {
   return {
     relire,
     projets: () => [...ouvertes.keys()],
+    depots: () => Object.fromEntries([...ouvertes].map(([nom, { depot }]) => [nom, depot])),
     refuses: () => Object.fromEntries([...refuses].map(([nom, { motif }]) => [nom, motif])),
     refus: (nom) => refuses.get(nom)?.motif ?? null,
     cause: (nom) => refuses.get(nom)?.cause ?? null,

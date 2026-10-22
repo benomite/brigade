@@ -4,7 +4,9 @@
 // que la station et l'app demandent — créer, réécrire des fichiers, lire,
 // lister par page —, et chaque appel est noté dans `appels`, une ligne chacun.
 // Un fichier `panne` dans le répertoire la fait échouer comme un `gh` sans
-// réseau.
+// réseau ; `deconnecte`, comme un `gh` connecté à aucun compte (son message et
+// son code 4) ; `jeton-refuse`, comme un `gh` dont GitHub refuse le jeton ;
+// `limite`, comme un compte dont GitHub limite les appels.
 import { appendFileSync, existsSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -19,6 +21,9 @@ const sortir = (code: number, erreur: string): never => {
   process.exit(code);
 };
 if (existsSync(join(repertoire, "panne"))) sortir(1, "error connecting to api.github.com");
+if (existsSync(join(repertoire, "deconnecte"))) sortir(4, "To get started with GitHub CLI, please run:  gh auth login\nAlternatively, populate the GH_TOKEN environment variable with a GitHub API authentication token.");
+if (existsSync(join(repertoire, "jeton-refuse"))) sortir(1, "gh: Bad credentials (HTTP 401)");
+if (existsSync(join(repertoire, "limite"))) sortir(1, "gh: API rate limit exceeded for user ID 1. (HTTP 403)");
 if (args[0] !== "api") sortir(1, `faux gh : seul \`gh api\` est doublé (${args.join(" ")})`);
 
 const option = (nom: string) => {

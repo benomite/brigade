@@ -53,6 +53,9 @@ export type OptionsPresence = {
   identite: Identite;
   // Les projets que la station sert, à cet instant.
   projets: () => string[];
+  // Le dépôt de chacun, par son nom : l'app d'un ordinateur neuf en tire de
+  // quoi le cloner (#1428). Absent, elle n'en publie rien.
+  depots?: () => Record<string, string>;
   // Sa mise à jour et sa connexion Max, à cet instant : ce que l'app dit en
   // panne. Absent, elle n'en publie rien.
   etats?: () => EtatsPublies;
@@ -176,6 +179,7 @@ export function tenirPresence(options: OptionsPresence): Presence {
     sorte: identite.sorte ?? ORDINATEUR,
     cuisine: cuisine(identite.sorte ?? ORDINATEUR),
     projets: options.projets(),
+    ...(options.depots === undefined ? {} : { depots: options.depots() }),
     signeDeVie: new Date(instant).toISOString(),
     cadenceMs: CADENCE_MS,
     arreteeLe: arret ? new Date(instant).toISOString() : null,

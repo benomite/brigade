@@ -153,6 +153,17 @@ test("la station dit les cœurs de sa machine : l'app en tire le nombre de cooks
   assert.equal(github.document(id ?? "").coeurs, 8);
 });
 
+test("la station publie le dépôt de chacun de ses projets : l'app d'un ordinateur neuf en tire de quoi le cloner (#1428)", async (t) => {
+  const github = fauxGists();
+  const horloge = faussesHorloges(Date.parse("2026-10-15T12:00:00Z"));
+  const identite = { nom: "box", machine: "Linux 6.1.0", version: "1.4.0" };
+  const presence = tenirPresence({ racine: repertoireTemporaire(t), canal: github.canal, identite, projets: () => ["parade"], depots: () => ({ parade: "benomite/parade" }), dire: () => {}, apres: horloge.apres, maintenant: horloge.maintenant });
+  aArreter(t, () => presence.arreter());
+  await presence.publier();
+  const [id] = [...github.gists.keys()];
+  assert.deepEqual(github.document(id ?? "").depots, { parade: "benomite/parade" });
+});
+
 test("un téléphone publie sa sorte et qu'il ne cuisine pas : l'app le montre dans ses stations, sans cuisine (#1158)", async (t) => {
   const github = fauxGists();
   const horloge = faussesHorloges(Date.parse("2026-10-15T12:00:00Z"));

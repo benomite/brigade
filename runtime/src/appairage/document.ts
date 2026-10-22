@@ -8,7 +8,8 @@
 //   - `brigade-station.json`, écrit par la station seule, à chaque signe de vie :
 //       { "brigade": "station", "format": 1, "nom": "box", "machine": "Linux 6.1.0",
 //         "coeurs": 8, "sorte": "ordinateur" | "telephone", "cuisine": true | false,
-//         "version": "…", "projets": ["brigade"], "signeDeVie": "<ISO>",
+//         "version": "…", "projets": ["brigade"],
+//         "depots": { "brigade": "benomite/brigade" }, "signeDeVie": "<ISO>",
 //         "cadenceMs": 60000, "arreteeLe": null | "<ISO>",
 //         "appairage": null | { "empreinte": "<sha256>", "expireLe": "<ISO>" },
 //         "echus": ["<sha256>", …],
@@ -26,6 +27,9 @@
 //     `cuisine: false` : l'app le montre dans ses stations, avec la mention
 //     qu'il ne cuisine pas, et ne le propose jamais pour cuire un projet. Une
 //     station plus ancienne ne publie ni l'un ni l'autre : c'est un ordinateur.
+//     `depots`, le dépôt GitHub de chaque projet servi (#1428) : ce qu'une app
+//     sur un ordinateur neuf lit pour le cloner (`stations-du-chef.ts`). Une
+//     station plus ancienne ne le publie pas.
 //   - `brigade-appairage.json`, écrit par l'app seule, quand le chef a tapé le
 //     bon code : { "appaireeLe": "<ISO>", "empreinte": "<sha256>" }.
 //
@@ -68,6 +72,7 @@ export type DocumentStation = {
   cuisine: boolean;
   version: string;
   projets: string[];
+  depots?: Record<string, string>;
   signeDeVie: string;
   cadenceMs: number;
   arreteeLe: string | null;
