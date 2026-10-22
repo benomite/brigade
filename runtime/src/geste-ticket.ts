@@ -1,5 +1,6 @@
 // Les gestes du chef sur un ticket du rail, depuis la fiche de l'app : le
-// retirer du rail, changer sa priorité, merger la livraison que la file lui
+// retirer du rail, changer sa priorité, le déplacer avant ou après un autre
+// ticket (l'ordre manuel, qui prime sur l'âge dans une priorité), merger la livraison que la file lui
 // demande de merger à la main, la renvoyer à un cook, ou dire pourquoi il a
 // corrigé une livraison — ces deux-là font de sa raison une leçon candidate
 // (`apprentissage/renvoi.ts`). Les deux premiers ne s'écrivent pas d'abord
@@ -88,6 +89,101 @@ export async function changerPriorite(journal: Journal, github: GitHub, projet: 
     });
   }
   return { done: true, price: "none: only the order of service changes; no cook is launched or interrupted, and nothing is spent" };
+}
+
+// Où le chef place un ticket : juste avant un autre, ou juste après.
+export type Place = { before: number } | { after: number };
+
+// Le chemin par lequel `de` attend `vers` — `de`, les tickets intermédiaires,
+// `vers` —, de proche en proche parmi ce que les tickets du rail attendent
+// encore ; null s'il ne l'attend pas.
+function cheminDAttente(attentes: Map<number, number[]>, de: number, vers: number): number[] | null {
+  const chemins: number[][] = [[de]];
+  const vus = new Set<number>([de]);
+  for (const chemin of chemins) {
+    for (const suivant of attentes.get(chemin.at(-1) ?? de) ?? []) {
+      if (suivant === vers) return [...chemin, vers];
+      if (vus.has(suivant)) continue;
+      vus.add(suivant);
+      chemins.push([...chemin, suivant]);
+    }
+  }
+  return null;
+}
+
+// Ce qui refuse un déplacement : il ferait passer un ticket devant un ticket
+// qu'il attend, directement ou par une chaîne. Une phrase, qui nomme
+// l'attendu ; null si rien ne s'y oppose. Seul ce que le déplacement inverse
+// compte : un ticket déjà servi avant ce qu'il attend — par sa priorité — le
+// reste sans refus, le rail ne le prête de toute façon qu'après.
+function attenteContrariee(attentes: Map<number, number[]>, avant: number[], apres: number[], ticket: number): string | null {
+  const devant = (ordre: number[], a: number, b: number) => ordre.indexOf(a) < ordre.indexOf(b);
+  const par = (chemin: number[]) => (chemin.length > 2 ? ` through ${chemin.slice(1, -1).map((n) => `#${n}`).join(", ")}` : "");
+  for (const autre of avant) {
+    if (autre === ticket) continue;
+    const attendu = cheminDAttente(attentes, ticket, autre);
+    if (attendu && devant(avant, autre, ticket) && devant(apres, ticket, autre)) {
+      return `#${ticket} awaits #${autre}${par(attendu)}, so it cannot be placed before it`;
+    }
+    const attendant = cheminDAttente(attentes, autre, ticket);
+    if (attendant && devant(avant, ticket, autre) && devant(apres, autre, ticket)) {
+      return `#${autre} awaits #${ticket}${par(attendant)}, so #${ticket} cannot be placed after it`;
+    }
+  }
+  return null;
+}
+
+// L'ordre `ordre` où `ticket` est retiré puis remis juste avant ou juste
+// après `place`.
+function placer(ordre: number[], ticket: number, place: Place): number[] {
+  const sans = ordre.filter((numero) => numero !== ticket);
+  const repere = "before" in place ? place.before : place.after;
+  const indice = sans.indexOf(repere) + ("before" in place ? 0 : 1);
+  return [...sans.slice(0, indice), ticket, ...sans.slice(indice)];
+}
+
+// Déplace un ticket en attente juste avant ou juste après un autre ticket en
+// attente : dans leur priorité, l'ordre du chef prime sur l'âge. Si l'autre a
+// une autre priorité, le ticket prend la sienne — le label `prio:<n>` de son
+// issue est remplacé, comme par `changerPriorite` — et se place à côté de
+// lui. Un déplacement qui le ferait passer devant un ticket qu'il attend, ou
+// derrière un ticket qui l'attend, est refusé, et rien n'est touché.
+// L'ordre s'écrit au journal (`ticket.moved`) : il survit au redémarrage.
+export async function deplacerSurLeRail(journal: Journal, github: GitHub, projet: string, ticket: number, place: Place): Promise<Resultat> {
+  const repere = "before" in place ? place.before : place.after;
+  if (repere === ticket) return refuse(`#${ticket} cannot be placed next to itself`);
+  const rail = lireRail(journal.base);
+  const courant = rail.find((t) => t.ticket === ticket);
+  const voisin = rail.find((t) => t.ticket === repere);
+  for (const [numero, present] of [[ticket, courant], [repere, voisin]] as const) {
+    if (!present) return refuse(`#${numero} is not on the rail`);
+    if (present.state !== "waiting") return refuse(`#${numero} is ${nomEtatEn(present.state)}: only a queued ticket is moved, or placed against`);
+  }
+  if (!courant || !voisin) return refuse(`#${ticket} is not on the rail`);
+  const attentes = new Map(rail.map((t) => [t.ticket, t.awaits.map((a) => a.ticket)]));
+  const avant = rail.map((t) => t.ticket);
+  const contrariee = attenteContrariee(attentes, avant, placer(avant, ticket, place), ticket);
+  if (contrariee !== null) return refuse(contrariee);
+
+  const priorite = voisin.priority;
+  const changee = courant.priority !== priorite;
+  if (changee) {
+    const resultat = await changerPriorite(journal, github, projet, ticket, priorite);
+    if (!resultat.done) return resultat;
+  }
+  return journal.base.transaction((): Resultat => {
+    const dansLaPriorite = lireRail(journal.base)
+      .filter((t) => t.priority === priorite)
+      .map((t) => t.ticket);
+    if (!dansLaPriorite.includes(repere) || !dansLaPriorite.includes(ticket)) return refuse(`#${repere} left the rail or changed priority meanwhile: place #${ticket} again`);
+    journal.ajouter({ project: projet, ticket, author: AUTEUR, type: "ticket.moved", payload: { priority: priorite, order: placer(dansLaPriorite, ticket, place) } });
+    return {
+      done: true,
+      price: changee
+        ? `its issue's label becomes ${priorite === null ? "no priority" : `prio:${priorite}`}, that of #${repere}; only the order of service changes otherwise: no cook is launched or interrupted, and nothing is spent`
+        : "none: only the order of service changes; no cook is launched or interrupted, and nothing is spent",
+    };
+  });
 }
 
 // Merge la livraison d'un ticket que la file demande de merger à la main — une

@@ -8,6 +8,7 @@
 // premiers sont ceux que la fiche de l'app joue :
 //   npm --prefix runtime run rail -- remove 8              le retirer du rail (en attente, BLOQUÉ, 86, ou qui attend le chef)
 //   npm --prefix runtime run rail -- priority 8 <1-9|none>  changer sa priorité, quel que soit son état
+//   npm --prefix runtime run rail -- move 8 --before 5     le placer juste avant (ou `--after` : juste après) un autre ticket en attente — il prend sa priorité
 //   npm --prefix runtime run rail -- merge 8               merger sa livraison, quand la file demande de la merger à la main
 //   npm --prefix runtime run rail -- send-back 8 [raison…] renvoyer à un cook sa livraison, quand elle attend le chef
 //   npm --prefix runtime run rail -- correct 8 <raison…>   dire pourquoi il a corrigé sa livraison
@@ -24,12 +25,12 @@ import { configRail } from "./alimenter.ts";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { direAttenteDeTiersEn } from "./attente.ts";
 import { CLE_DES_CAPACITES } from "./capacites.ts";
-import { changerPriorite, corrigerLaLivraison, mergerLaLivraison, renvoyerLaLivraison, retirerDuRail } from "./geste-ticket.ts";
+import { changerPriorite, corrigerLaLivraison, deplacerSurLeRail, mergerLaLivraison, renvoyerLaLivraison, retirerDuRail, type Place } from "./geste-ticket.ts";
 import { ouvrirGitHub } from "./github.ts";
 import { repondreALaCarte } from "./reponse-carte.ts";
 import { ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
-import { communsDuRail, lireRail, type TicketRail } from "./projections/rail.ts";
+import { communsDuRail, lireRail, ticketDuRail, type TicketRail } from "./projections/rail.ts";
 import { direRetenueEn, etatLuEn } from "./rail.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
@@ -37,6 +38,7 @@ const USAGE = [
   "usage: BRIGADE_STATE_DIR=<state directory> npm --prefix runtime run rail [-- <geste> <ticket> …]",
   "  remove <ticket>",
   "  priority <ticket> <1-9 | none>",
+  "  move <ticket> --before <other> | --after <other>",
   "  merge <ticket>",
   "  send-back <ticket> [reason…]",
   "  correct <ticket> <reason…>",
@@ -44,11 +46,14 @@ const USAGE = [
   "  answer <ticket> <answer…>",
 ].join("\n");
 
-const GESTES = ["remove", "priority", "merge", "send-back", "correct", "choose", "answer"];
+const GESTES = ["remove", "priority", "move", "merge", "send-back", "correct", "choose", "answer"];
 // Les gestes qui prennent une raison — ou une réponse —, en un ou plusieurs mots.
 const AVEC_RAISON = ["send-back", "correct", "answer"];
 // Ceux qui prennent une valeur, en un mot.
 const AVEC_VALEUR = ["priority", "choose"];
+
+const direPlace = (place: Place) => ("before" in place ? `before #${place.before}` : `after #${place.after}`);
+const direPriorite = (priorite: number | null) => (priorite === null ? "no priority" : `prio:${priorite}`);
 
 export function principal({ args, env, dire, redire }: Appel): void | Promise<void> {
   function echouer(code: number, message: string): never {
@@ -63,9 +68,18 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
     if (!GESTES.includes(geste)) echouer(2, `unknown gesture: “${geste}”\n${USAGE}`);
     if (numero === undefined || !/^[1-9][0-9]*$/.test(numero)) echouer(2, `the ticket number is needed\n${USAGE}`);
     const raison = AVEC_RAISON.includes(geste) ? args.slice(2).join(" ") : null;
-    if (raison === null && (deTrop.length > 0 || !AVEC_VALEUR.includes(geste) !== (valeur === undefined))) echouer(2, USAGE);
+    if (raison === null && geste !== "move" && (deTrop.length > 0 || !AVEC_VALEUR.includes(geste) !== (valeur === undefined))) echouer(2, USAGE);
     if (geste === "choose" && (valeur === undefined || !/^[1-9][0-9]*$/.test(valeur))) echouer(2, `the choice number is needed, from 1\n${USAGE}`);
     const ticket = Number(numero);
+    // `move` : `--before <autre>` ou `--after <autre>`, et rien d'autre.
+    let place: Place | null = null;
+    if (geste === "move") {
+      const [, , cote, autre, ...reste] = args;
+      if ((cote !== "--before" && cote !== "--after") || autre === undefined || !/^[1-9][0-9]*$/.test(autre) || reste.length > 0) {
+        echouer(2, `move needs --before <other> or --after <other>\n${USAGE}`);
+      }
+      place = cote === "--before" ? { before: Number(autre) } : { after: Number(autre) };
+    }
     // `none` retire la priorité ; tout autre mot va tel quel au geste, qui dit pourquoi il le refuse.
     const priorite = valeur === "none" ? null : valeur !== undefined && /^-?[0-9]+$/.test(valeur) ? Number(valeur) : valeur;
 
@@ -94,20 +108,22 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
             ? await retirerDuRail(journal, github, projet, ticket)
             : geste === "merge"
               ? await mergerLaLivraison(journal, github, ticket)
-              : geste === "send-back"
-                ? renvoyerLaLivraison(journal, projet, ticket, raison)
-                : geste === "correct"
-                  ? corrigerLaLivraison(journal, projet, ticket, raison)
-                  : geste === "choose"
-                    ? await repondreALaCarte(journal, github, projet, ticket, { choix: Number(valeur) })
-                    : geste === "answer"
-                      ? await repondreALaCarte(journal, github, projet, ticket, { texte: raison ?? "" })
-                      : await changerPriorite(journal, github, projet, ticket, priorite);
+              : place !== null
+                ? await deplacerSurLeRail(journal, github, projet, ticket, place)
+                : geste === "send-back"
+                  ? renvoyerLaLivraison(journal, projet, ticket, raison)
+                  : geste === "correct"
+                    ? corrigerLaLivraison(journal, projet, ticket, raison)
+                    : geste === "choose"
+                      ? await repondreALaCarte(journal, github, projet, ticket, { choix: Number(valeur) })
+                      : geste === "answer"
+                        ? await repondreALaCarte(journal, github, projet, ticket, { texte: raison ?? "" })
+                        : await changerPriorite(journal, github, projet, ticket, priorite);
       } catch (erreur) {
         if (journalPasRejoue(erreur)) echouer(1, "this log does not have the rail state yet: restart the runtime, which recomputes it");
         echouer(1, `the gesture on #${ticket} did not go through on GitHub: ${erreur instanceof Error ? erreur.message : String(erreur)}`);
       }
-      const fait: string = {
+      const fait: string = place !== null ? `#${ticket}: placed ${direPlace(place)}, ${direPriorite(ticketDuRail(journal.base, ticket)?.priority ?? null)}` : {
         remove: `#${ticket} removed from the rail`,
         merge: `#${ticket}: delivery merged`,
         "send-back": `#${ticket}: delivery sent back to a cook`,
