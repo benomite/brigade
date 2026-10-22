@@ -16,3 +16,29 @@ export type FaitGates = {
   type: "gates.ran";
   payload: { runner: CoureurDesGates; durationMs: number; cpuMs: number | null; outcome: "green" | "red" | "timeout" };
 };
+
+// The ticket the kitchen opens on its own when a project's gates go over their
+// budget (`budget-des-gates.ts`). Its creation is announced before the call to
+// GitHub (`gates.budget-ticket-opening`, no ticket): if the answer is lost, or
+// the runtime killed in between, the issue is found again by its mark instead
+// of being opened twice. `gates.budget-ticket-opened` carries the ticket in its
+// envelope, the run that went over — its wall-clock and CPU, in seconds, CPU
+// null when it was not said —, the budget it was read against, the exceeded
+// dimensions, and `reconciled` when the issue was found again rather than
+// created. `gates.budget-ticket-closed`: the next run over budget found that
+// ticket closed on GitHub, or gone — another one may then be opened.
+export type DimensionDuBudget = "duration" | "cpu";
+
+export type FaitBudgetDesGates =
+  | { type: "gates.budget-ticket-opening"; payload: { exceeded: DimensionDuBudget[] } }
+  | {
+      type: "gates.budget-ticket-opened";
+      payload: {
+        durationSeconds: number;
+        cpuSeconds: number | null;
+        budget: { durationSeconds: number; cpuSeconds: number };
+        exceeded: DimensionDuBudget[];
+        reconciled: boolean;
+      };
+    }
+  | { type: "gates.budget-ticket-closed"; payload: { state: "closed" | "gone" } };

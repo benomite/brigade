@@ -426,5 +426,24 @@ Unset, the default applies: **100 s** of duration — the drift threshold of the
 `SEUIL_DUREE_GATES_PAR_DEFAUT` — and **400 s** of CPU — four full cores over that duration, half of
 an 8-core box, so that three suites at once do not saturate it. `station remove budget-gates` brings
 the default back. The last run is **over budget** when its duration or its CPU exceeds the budget.
-`facts` gives all this in `coutDesGates`. Nothing is stopped or judged on it: the over-budget
-flag is only read.
+`facts` gives all this in `coutDesGates`. Nothing is stopped or judged on it: no gates are seen red
+for being over budget.
+
+**Over budget, the kitchen opens a ticket on the project, on its own** (`runtime/src/budget-des-gates.ts`).
+Right after it writes a run's `gates.ran`, the pass reads the latest run against the budget: over it —
+duration, CPU, or both — and with no budget ticket of the project still open, it creates one on GitHub,
+titled "Bring the gates of <project> back under their budget: …". Its body gives the measured
+wall-clock and CPU, the budget of each (set by the chef or default), which dimension is exceeded and
+by how much, the run that did it, and the criteria: back under budget, no test removed, skipped or
+weakened. It carries `fire` and `model:opus` / `effort:high`: the kitchen serves it like any other
+ticket. **One at a time**: while the last one is open on GitHub, a run over budget opens nothing
+more; once it is closed — or gone —, the next run over budget writes `gates.budget-ticket-closed`
+and opens a new one. A run within budget never calls GitHub. The creation is announced in the log
+before the call (`gates.budget-ticket-opening`), and the issue carries the mark
+`<!-- brigade:budget-gates <project> <seq of the announcement> -->`: a lost answer, or a runtime killed
+in between, finds the issue again by its mark — from a trusted author only — instead of opening it
+twice. `gates.budget-ticket-opened` holds the ticket, the measures, the budget and the exceeded
+dimensions (`runtime/src/events/gates.ts`). GitHub down: the pass says it once, and the next run over
+budget tries again. `facts` gives the ticket in `coutDesGates.ticket` — `{ number, openedAt, exceeded }`,
+null when there is none, or when the last one was seen closed —, for the queue to say the kitchen
+opened it.

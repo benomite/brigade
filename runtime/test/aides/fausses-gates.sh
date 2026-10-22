@@ -77,6 +77,12 @@ case "$scenario" in
   lent)
     sleep 30
     ;;
+  # Vertes, mais d'un poids qui se mesure : au-dessus d'un budget de 0,1 s.
+  pesant)
+    sleep 0.5
+    echo "ok    tests du projet"
+    echo "gates : VERT"
+    ;;
   *)
     echo "fausses gates : scénario inconnu" >&2
     exit 64
