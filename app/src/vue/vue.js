@@ -115,6 +115,7 @@ import { poserBlocages } from "./projet/blocages.js";
 import { poserDelai } from "./projet/delai.js";
 import { poserChoix, sansLesChoix } from "./projet/choix.js";
 import { ligneDAlerte, poserLesStations as stationsDeCuisson } from "./stations-de-cuisson.js";
+import { poserLesAppels } from "./appels-de-la-station.js";
 import { poserLePlafond as plafondDeCalibrage } from "./plafond-de-calibrage.js";
 import { poserLActivite } from "./activite-cuisine.js";
 import { poserLeJourDesGates, poserLesGatesDeLaFile } from "./cout-des-gates.js";
@@ -5202,7 +5203,7 @@ function poserPageDeStation() {
     const details = station.etat === "illisible" ? station.ligne : (ligne?.survol ?? station.machine);
     // Hors ligne, la panne dessous le dit déjà, avec son bouton : l'en-tête ne le redit pas.
     const dejaDit = station.pannes.some(({ sujet }) => sujet === "injoignable");
-    enTeteDeStation.replaceChildren(titre, pastille(phrase, ligne?.ton), ...(dejaDit ? [] : [etatDit]), ...(details === "" ? [] : [survol(document, details)]), ...(ligne?.note === undefined ? [] : [bloc("p", ligne.note)]));
+    enTeteDeStation.replaceChildren(titre, pastille(phrase, ligne?.ton), ...(dejaDit ? [] : [etatDit]), ...(details === "" ? [] : [survol(document, details)]), ...(ligne?.note === undefined ? [] : [bloc("p", ligne.note)]), poserLesAppels(document, ligne?.appels));
     poserPlafond(station.nom, ligne);
     versionDeStation.replaceChildren(...(station.versionDit ? [bloc("span", station.versionDit)] : []));
     pannesDeStation.replaceChildren(...station.pannes.map((panne) => poserPanne(station.id, panne)));

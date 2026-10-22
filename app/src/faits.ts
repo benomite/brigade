@@ -226,6 +226,9 @@ export type Urgence = DecisionUrgente & { depuis: string; retenus: number[]; aut
 // première émission, la dernière, rappel compris, et le nombre de rappels.
 export type AlerteUrgence = { libelle: string; emiseLe: string; derniereLe: string; rappels: number };
 
+// Les appels de la box à GitHub sur la dernière heure : le total, et ce qui en a fait le plus (nul quand rien n'a été appelé).
+export type AppelsGithub = { total: number; topProject: { name: string; calls: number } | null; topKind: { name: string; calls: number } | null };
+
 // La forme, telle que le runtime la fige (runtime/src/etat.ts, `Faits`).
 // `cooks`, `attend`, `livres`, `urgence` : absents, c'est un runtime d'avant ce
 // champ — les seuls que la forme laisse manquer. `urgence` nulle : la
@@ -237,6 +240,8 @@ export type Faits = {
   dernierTick: string | null;
   // Quand GitHub limite les appels du compte : l'instant où il les rend (runtime, `limiteGithub`) ; absent sinon, et d'un runtime d'avant ce champ.
   limiteGithub?: string;
+  // Les appels de la box à GitHub sur l'heure glissante (runtime, `appelsGithub`) : leur total, le projet et la lecture qui en ont fait le plus ; absent d'un runtime d'avant ce champ.
+  appelsGithub?: AppelsGithub;
   compteurs: { rail: number; auTravail: number; aLaPass: number; attend: number; livres24h: number };
   dernierEvenement: { seq: number; at: string; type: string; ticket: number | null } | null;
   // `activite` : nulle, la box ne sait pas ce qu'on en fait ; absente, c'est un
@@ -390,6 +395,15 @@ const entier = (valeur: unknown, champ: string): number => (typeof valeur === "n
 const heure = (valeur: unknown, champ: string): string => (typeof valeur === "string" && !Number.isNaN(Date.parse(valeur)) ? valeur : refuser(champ, "a time"));
 const ouRien = <T>(valeur: unknown, champ: string, lire: (valeur: unknown, champ: string) => T): T | null => (valeur === null ? null : lire(valeur, champ));
 const booleen = (valeur: unknown, champ: string): boolean => (typeof valeur === "boolean" ? valeur : refuser(champ, "true or false"));
+
+const nomme = (valeur: unknown, champ: string): { name: string; calls: number } => {
+  const lu = objet(valeur, champ);
+  return { name: texte(lu.name, `${champ}.name`), calls: entier(lu.calls, `${champ}.calls`) };
+};
+const appelsLus = (valeur: unknown): AppelsGithub => {
+  const lu = objet(valeur, "appelsGithub");
+  return { total: entier(lu.total, "appelsGithub.total"), topProject: ouRien(lu.topProject, "appelsGithub.topProject", nomme), topKind: ouRien(lu.topKind, "appelsGithub.topKind", nomme) };
+};
 
 // Une station que le projet déclare, et ce qu'elle fait des tickets ordinaires (ordinaires.ts).
 function plafondLu(valeur: unknown): PlafondLu {
@@ -552,6 +566,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
       lu: heure(racine.lu, "lu"),
       dernierTick: ouRien(racine.dernierTick, "dernierTick", heure),
       ...(racine.limiteGithub === undefined ? {} : { limiteGithub: heure(racine.limiteGithub, "limiteGithub") }),
+      ...(racine.appelsGithub === undefined ? {} : { appelsGithub: appelsLus(racine.appelsGithub) }),
       compteurs: {
         rail: entier(compteurs.rail, "compteurs.rail"),
         auTravail: entier(compteurs.auTravail, "compteurs.auTravail"),

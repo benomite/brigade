@@ -18,7 +18,7 @@
 import { CONNEXION, CUISINE, tetesDe } from "./alertes.ts";
 import type { Montree } from "./attend.ts";
 import type { Lecture } from "./box.ts";
-import { COMMANDE as FAITS, comprendre, type Faits } from "./faits.ts";
+import { COMMANDE as FAITS, comprendre, type AppelsGithub, type Faits } from "./faits.ts";
 import { deriveDe } from "./fiabilite.ts";
 import { heure, heureCourte } from "./format.ts";
 import type { VuDesProjets } from "./projets/projets.ts";
@@ -34,7 +34,7 @@ export type LigneDeProjet = { nom: string; ton: Ton; dit: string; survol: string
 // `note` : sous la phrase, une station en ligne qui ne fait la cuisine d'aucun projet dit en une phrase si c'est normal.
 // `plafond` et `retenue` : ce que le `status` d'un projet dit de son plafond de cooks et de ce qui la retient (plafond.ts) ;
 // `reglable` : un projet que l'app lit nomme son plafond, la page peut donc le régler.
-export type LigneDeStation = { id: string; nom: string; ton: Ton; dit: string; phrase: string; survol: string; note?: string; plafond?: PlafondVu; retenue?: RetenueVue; reglable?: true };
+export type LigneDeStation = { id: string; nom: string; ton: Ton; dit: string; phrase: string; survol: string; note?: string; plafond?: PlafondVu; retenue?: RetenueVue; reglable?: true; appels?: AppelsGithub };
 export type Sante = { ton: Ton; dit: string; survol: string };
 // `stations` : absentes, la première lecture sur GitHub est en route.
 // `plafonds` : par projet dont le `status` est lu, et par station qu'il nomme, le plafond de cooks de ce projet sur elle
@@ -299,10 +299,19 @@ export function tenirAccueil({ projets, locale = () => null, maintenant = Date.n
     const retenues = [...statuts.values()].map(({ texte }) => retenuesDe(texte));
     // Ce que dit le premier projet lu qui nomme la station : un plafond se règle pour tous, et ils disent le même.
     const premier = <T>(dits: readonly Map<string, T>[], station: string) => dits.find((lus) => lus.has(station))?.get(station);
+    // Les appels de la box à GitHub : ceux que publie le premier projet lu qui nomme la station et dont le runtime les donne.
+    const appelsDe = (station: string): AppelsGithub | undefined => {
+      for (const [nom, { texte }] of statuts) {
+        const lu = faits.get(nom);
+        if (lu !== undefined && "faits" in lu && lu.faits.appelsGithub !== undefined && plafondsDe(texte).has(station)) return lu.faits.appelsGithub;
+      }
+      return undefined;
+    };
     const detail = (station: StationVue): Partial<LigneDeStation> => {
       const plafond = premier(plafonds, station.nom);
       const retenue = premier(retenues, station.nom);
-      return { ...(plafond === undefined ? {} : { plafond, reglable: true as const }), ...(retenue === undefined ? {} : { retenue }) };
+      const appels = appelsDe(station.nom);
+      return { ...(plafond === undefined ? {} : { plafond, reglable: true as const }), ...(retenue === undefined ? {} : { retenue }), ...(appels === undefined ? {} : { appels }) };
     };
     const plafondsDesProjets = Object.fromEntries(
       [...statuts].map(([nom, { texte }]) => {

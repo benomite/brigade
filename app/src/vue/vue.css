@@ -1547,6 +1547,14 @@ main > header,
 #station .version-de-station:empty {
   display: none;
 }
+/* Les appels de la box à GitHub (ticket 1418) : une ligne douce, comme la mise à jour ; le tiret, sans chiffre, plus discret encore. */
+#station .appels-de-la-station {
+  margin: 4px 0;
+  color: var(--texte-doux);
+}
+#station .appels-de-la-station[data-appels="absents"] {
+  color: var(--discret);
+}
 #station .retrait-de-station {
   margin-top: 16px;
   padding-top: 8px;
