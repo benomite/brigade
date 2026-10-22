@@ -990,6 +990,8 @@ workstation, and says so at launch, when the runtime is not next to it, or with
 
 ### Add a project to your stations, without a terminal
 
+**On a station's page, under its update line,** one line says how many GitHub calls the box made over the last hour and which project and which kind of reading made most of them: `GitHub calls, last hour: 42 — most from parade (30), mostly issues (25)`. The figures come from `appelsGithub` in the `facts` of a project the station carries (#1417). A runtime that does not publish them yet gives a neutral dash, never an error. The module is `app/src/vue/appels-de-la-station.js`.
+
 **On a station's page**, "Projects" lists **all** the projects it carries, one line
 each: those its configuration serves — added from the app or written by hand in `projets`,
 it publishes them all in its gist —, then those the app asks of it and that it does not serve yet.

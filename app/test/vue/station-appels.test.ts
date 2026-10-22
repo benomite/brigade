@@ -85,7 +85,7 @@ describe("la ligne posée par le module", () => {
 });
 
 describe("sur la page de la station", () => {
-  const BOX = { id: "g1", nom: "box", machine: "Linux 6.1.0", coeurs: 8, etat: "en-ligne", ligne: "online", pannes: [], dit: "online", version: "1.4.0", projets: [], max: null } as const;
+  const BOX: StationVue = { id: "g1", nom: "box", machine: "Linux 6.1.0", coeurs: 8, etat: "en-ligne", ligne: "online", pannes: [], dit: "online", version: "1.4.0", projets: [], max: null };
   const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", depot: "benomite/parade", base: "main" };
 
   async function laPage(appels: LigneDeStation["appels"]) {
