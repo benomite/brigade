@@ -57,6 +57,15 @@ export function lancementsDuFauxClaude(temoin: string): LancementDuFauxClaude[] 
 // coûte avec.
 export const CACHE_DE_COMPILATION: Record<string, string> = process.env.NODE_COMPILE_CACHE ? { NODE_COMPILE_CACHE: process.env.NODE_COMPILE_CACHE } : {};
 
+// Le proxy de l'environnement, que la porte d'un projet pose à ses cooks — et
+// donc à leurs gates (`reseau.ts`) : chaque process Node qui hérite de
+// `NODE_USE_ENV_PROXY` charge tout le client HTTP de Node avant sa première
+// ligne, cinquante millisecondes de processeur pour rien. Aucun test ne sort
+// sur le réseau : les process que le runtime lance depuis le test (relais,
+// gates, commandes) n'en héritent pas. Un test qui éprouve le proxy le pose
+// lui-même.
+delete process.env.NODE_USE_ENV_PROXY;
+
 // Sous Windows, ce sans quoi un process ne démarre pas toujours — `SystemRoot`,
 // où vivent les bibliothèques du système — ni n'a de répertoire temporaire.
 // Rien du compte : ni son répertoire, ni sa configuration.
@@ -250,6 +259,12 @@ function journalVide(): Buffer {
   return octetsDuJournalVide;
 }
 
+// Pose ce journal vide dans un répertoire d'état qui n'en a pas encore : ce
+// qu'un runtime qui démarre y trouve alors, c'est le schéma qu'il aurait posé.
+export function poserJournalVide(repertoire: string): void {
+  if (!existsSync(cheminJournal(repertoire))) writeFileSync(cheminJournal(repertoire), journalVide());
+}
+
 // Les décisions du chef n'ont plus que le journal pour support : ce qu'un test
 // donne par variable à un runtime, le chef l'a posé au journal avant son
 // démarrage — tel quel, valeur illisible comprise, que le runtime refusera.
@@ -261,7 +276,7 @@ function decisionsAuJournal(fichier: string, env: Record<string, string>): Recor
   const decisions = DECISIONS.filter((nom) => (reste[nom] ?? "") !== "");
   const etat = reste.BRIGADE_STATE_DIR;
   if (sans === "1" || !fichier.endsWith("main.ts") || decisions.length === 0 || !etat || !existsSync(etat)) return reste;
-  if (!existsSync(cheminJournal(etat))) writeFileSync(cheminJournal(etat), journalVide());
+  poserJournalVide(etat);
   const journal = ouvrirJournal(etat);
   try {
     const posees = new Set(journal.tout().filter((e) => e.type === "decision.set").map((e) => String(e.payload.name)));
