@@ -9,7 +9,7 @@ import { spawn, spawnSync, type SpawnOptions } from "node:child_process";
 import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { repertoireTemporaire } from "./outils.ts";
+import { repertoireDuFichier, repertoireTemporaire } from "./outils.ts";
 
 const SOURCE = join(import.meta.dirname, "../deploy/brigade");
 const USAGE = 64;
@@ -28,6 +28,12 @@ const SANS_TERMINAL = { detached: true };
 const cite = (mot: string) => `'${mot.replaceAll("'", `'\\''`)}'`;
 const auTerminal = (commande: string[]) => (process.platform === "linux" ? ["-qec", commande.map(cite).join(" "), "/dev/null"] : ["-q", "/dev/null", ...commande]);
 const terminalPossible = () => spawnSync("/usr/bin/script", auTerminal(["/bin/sh", "-c", ": </dev/tty"]), { stdio: "ignore", ...SANS_TERMINAL }).status === 0;
+
+// Le cache de compilation de Node, que l'unité d'essai déclare en tête de son
+// environnement : sans lui, chaque `node` que le geste lance — sous `env -i`,
+// rien de celui qui lance n'y passe — repaie la lecture du TypeScript de la
+// station. Celui de la suite quand elle en a un, sinon un du fichier.
+const CACHE_DE_COMPILATION = process.env.NODE_COMPILE_CACHE || repertoireDuFichier("brigade-test-geste-cache-");
 
 // Une commande du runtime d'essai : elle note ses arguments, son
 // environnement et son répertoire, puis sort avec le code qu'on lui dicte.
@@ -136,7 +142,8 @@ function machine(t: TestContext, options: { environnement?: (station: string, ch
 
   const chemin = [binUnite, "/usr/bin", "/bin"].join(":");
   writeFileSync(join(unites, "User"), "brigade\n");
-  writeFileSync(join(unites, "Environment"), `${options.environnement?.(station, chemin, temoin) ?? [`BRIGADE_STATION_DIR=${station}`, "BRIGADE_SANDBOX_BIN=/usr/bin/bwrap", `PATH=${chemin}`, `TEMOIN_DU_TEST=${temoin}`].join(" ")}\n`);
+  const declare = options.environnement?.(station, chemin, temoin) ?? [`BRIGADE_STATION_DIR=${station}`, "BRIGADE_SANDBOX_BIN=/usr/bin/bwrap", `PATH=${chemin}`, `TEMOIN_DU_TEST=${temoin}`].join(" ");
+  writeFileSync(join(unites, "Environment"), `NODE_COMPILE_CACHE=${CACHE_DE_COMPILATION} ${declare}\n`);
 
   const lire = (nom: string) => (existsSync(join(temoin, nom)) ? readFileSync(join(temoin, nom), "utf8").replace(/\n$/, "") : null);
   // Sans `sudo`, le `PATH` s'arrête aux doublures et à ce qu'elles lancent :

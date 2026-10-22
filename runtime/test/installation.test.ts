@@ -9,7 +9,7 @@ import { empreinteDuCode, lireCodeEnService, noterCodeEnService } from "../src/c
 import { desinstaller, etapesAReprendre, InstallationRefusee, jugerReseau, jugerTemporaire, jugerUnites, LABELS, mesurerSetup, poserLabels, tenir, VARIABLES, verifier, jugerRenouvellement, type Constat } from "../src/installation.ts";
 import type { EtatDuRenouvellement } from "../src/sonde-renouvellement.ts";
 import type { Verdict } from "../src/verdict.ts";
-import { retirerDecision } from "../src/decisions.ts";
+import { poserDecision, retirerDecision } from "../src/decisions.ts";
 import { configRail } from "../src/alimenter.ts";
 import { lireSeuils } from "../src/derive.ts";
 import { lireReglages } from "../src/garde-fous.ts";
@@ -25,7 +25,6 @@ import { principal as poserDecisions } from "../src/poser-decisions.ts";
 import { principal as etapes } from "../src/etapes-cli.ts";
 import { ETAPES, installationDe } from "../src/etapes.ts";
 import { prendreVerrou } from "../src/verrou.ts";
-import { decider } from "./aides/cuisine.ts";
 import { appeler, BASE, DEPOT, ENV_GIT, FAUX_CLAUDE, fauxGh, git, issueGitHub, jusqua, lancer, repertoireDuFichier, repertoireTemporaire, rienEcritParLeRuntime, type FauxGh } from "./outils.ts";
 
 const CLI = join(import.meta.dirname, "../src/installation-cli.ts");
@@ -147,8 +146,14 @@ function projet(t: TestContext, porte: Porte = {}) {
     // Le répertoire temporaire de `claude` : celui du test, pas celui de la machine.
     CLAUDE_CODE_TMPDIR: racine,
   };
-  // Ce que le chef a décidé : au journal du projet, leur seul support.
-  for (const [nom, valeur] of Object.entries(DECIDEES)) decider(etat, nom, valeur);
+  // Ce que le chef a décidé : au journal du projet, leur seul support — ouvert
+  // une fois pour toutes.
+  const journal = ouvrirJournal(etat);
+  try {
+    for (const [nom, valeur] of Object.entries(DECIDEES)) poserDecision(journal, { projet: "brigade", nom, valeur, auteur: "chef" });
+  } finally {
+    journal.fermer();
+  }
   return { origine, clone, etat, unites, racine, gh, env };
 }
 
