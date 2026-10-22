@@ -12,8 +12,12 @@
 # depuis le dernier tag, et non depuis le seul push, fait qu'un run annulé ou échoué ne perd pas
 # son changement : le suivant le publie. `workflow_dispatch` rejoue la décision à la main.
 #
-# La signature n'est pas encore là (#1441) : le .dmg est signé ad hoc, l'installeur pas du tout.
-# Chaque construction a son étape « Signature », avant que ses fichiers ne partent vers la release.
+# Rien ne part sans signature (#1441) : une app installée se mettrait à jour vers une app non
+# signée. Le .dmg est signé Developer ID, notarisé et agrafé ; l'installeur Windows est signé. Les
+# certificats et identifiants sont des secrets du dépôt, listés dans docs/app-signing-secrets.md.
+# Le job `verifier-secrets` les vérifie avant toute construction : s'il en manque un, rien n'est
+# construit ni publié, la PR mergée reçoit un commentaire d'une phrase qui le nomme et dit où
+# l'ajouter, et le run finit rouge. Un merge qui ne change pas l'app ne les lit pas.
 name: publier-app
 
 on:
@@ -37,6 +41,9 @@ jobs:
     outputs:
       changed: ${{ steps.decision.outputs.changed }}
       tag: ${{ steps.decision.outputs.tag }}
+      # Ce push-ci change-t-il l'app, ou ne fait-il que porter un changement d'avant, pas encore
+      # publié ? Seul le premier vaut un commentaire de secret manquant à sa PR.
+      ce_merge: ${{ steps.decision.outputs.ce_merge }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -49,6 +56,7 @@ jobs:
         id: decision
         env:
           AVANT: ${{ github.event.before }}
+          EVENEMENT: ${{ github.event_name }}
         run: |
           set -euo pipefail
           tags=$(git tag --list 'app-v*' --sort=-version:refname)
@@ -67,14 +75,103 @@ jobs:
           for tag in $tags; do arguments+=(--tag "$tag"); done
           node scripts/app-release/decider.ts "${arguments[@]}" < "$RUNNER_TEMP/changes" > "$RUNNER_TEMP/decision"
           tee -a "$GITHUB_OUTPUT" < "$RUNNER_TEMP/decision"
+          if [ "$EVENEMENT" != push ]; then
+            # Lancé à la main : aucun merge à qui le dire.
+            ce_merge=false
+          elif [ -n "$AVANT" ] && ! [[ "$AVANT" =~ ^0+$ ]] && git cat-file -e "$AVANT^{commit}" 2>/dev/null; then
+            git diff --name-only "$AVANT" HEAD | node scripts/app-release/decider.ts | grep -qx 'changed=true' && ce_merge=true || ce_merge=false
+          else
+            # Sans commit d'avant à comparer, ce push compte comme changeant l'app.
+            ce_merge=true
+          fi
+          echo "ce_merge=$ce_merge" | tee -a "$GITHUB_OUTPUT"
           if grep -qx 'changed=true' "$RUNNER_TEMP/decision"; then
             echo "The app changed: this run publishes $(sed -n 's/^tag=//p' "$RUNNER_TEMP/decision")." >> "$GITHUB_STEP_SUMMARY"
           else
             echo "The app did not change: nothing to publish." >> "$GITHUB_STEP_SUMMARY"
           fi
 
-  mac:
+  verifier-secrets:
+    # Avant toute construction : chaque secret de signature est là, ou rien ne part.
     needs: decider
+    if: needs.decider.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Vérifier les secrets de signature
+        env:
+          # Leur seule présence : aucune valeur n'entre dans cette étape.
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE != '' }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD != '' }}
+          APPLE_ID: ${{ secrets.APPLE_ID != '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD != '' }}
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE != '' }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD != '' }}
+          TAG: ${{ needs.decider.outputs.tag }}
+          CE_MERGE: ${{ needs.decider.outputs.ce_merge }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SERVEUR: ${{ github.server_url }}
+        run: |
+          set -euo pipefail
+          # Chaque secret, et ce qu'il est, dit au chef en clair (docs/app-signing-secrets.md).
+          declare -A ce_qu_il_est=(
+            [MACOS_CERTIFICATE]="the Mac Developer ID certificate"
+            [MACOS_CERTIFICATE_PASSWORD]="the password of the Mac certificate"
+            [APPLE_ID]="the Apple Account that notarizes the Mac app"
+            [APPLE_APP_SPECIFIC_PASSWORD]="the app-specific password of that Apple Account"
+            [WINDOWS_CERTIFICATE]="the Windows code signing certificate"
+            [WINDOWS_CERTIFICATE_PASSWORD]="the password of the Windows certificate"
+          )
+          ordre=(MACOS_CERTIFICATE MACOS_CERTIFICATE_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD WINDOWS_CERTIFICATE WINDOWS_CERTIFICATE_PASSWORD)
+          manquants=()
+          for nom in "${ordre[@]}"; do
+            [ "${!nom}" = true ] || manquants+=("$nom")
+          done
+          if [ "${#manquants[@]}" -eq 0 ]; then
+            echo "Every signing secret is set: ${ordre[*]}."
+            exit 0
+          fi
+
+          # Une seule phrase, qui nomme chaque secret manquant et dit où l'ajouter.
+          doc="$SERVEUR/$GH_REPO/blob/v2/docs/app-signing-secrets.md"
+          reglages="$SERVEUR/$GH_REPO/settings/secrets/actions"
+          noms=""
+          for i in "${!manquants[@]}"; do
+            nom="${manquants[$i]}"
+            morceau="[\`$nom\`]($doc#${nom,,}) (${ce_qu_il_est[$nom]})"
+            if [ "$i" -eq 0 ]; then noms="$morceau"
+            elif [ "$i" -eq $(( ${#manquants[@]} - 1 )) ]; then noms="$noms and $morceau"
+            else noms="$noms, $morceau"
+            fi
+          done
+          if [ "${#manquants[@]}" -eq 1 ]; then
+            phrase="Brigade ${TAG#app-v} was not published because the repository secret $noms is missing: add it under the repository's [Settings > Secrets and variables > Actions]($reglages)."
+          else
+            phrase="Brigade ${TAG#app-v} was not published because the repository secrets $noms are missing: add them under the repository's [Settings > Secrets and variables > Actions]($reglages)."
+          fi
+          echo "$phrase" >> "$GITHUB_STEP_SUMMARY"
+          echo "::error::Missing signing secrets, nothing is built or published: ${manquants[*]}."
+
+          if [ "$CE_MERGE" != true ]; then
+            # Ce merge ne change pas l'app : il ne fait que porter un changement d'avant, dont la PR
+            # a déjà reçu ce commentaire (ou le run est lancé à la main). Rien n'est commenté.
+            echo "This run's merge does not change the app: no comment is posted."
+            exit 1
+          fi
+          pr=$(gh api "repos/$GH_REPO/commits/$GITHUB_SHA/pulls" --jq '[.[] | select(.merged_at != null)][0].number // empty' || true)
+          if [ -z "$pr" ]; then
+            echo "::error::No merged pull request for $GITHUB_SHA: the missing secrets are reported here only."
+            exit 1
+          fi
+          gh pr comment "$pr" --body "$phrase"
+          echo "Reported on #$pr: $phrase"
+          exit 1
+
+  mac:
+    needs: [decider, verifier-secrets]
     if: needs.decider.outputs.changed == 'true'
     runs-on: macos-14
     timeout-minutes: 90
@@ -87,17 +184,74 @@ jobs:
           node-version: 26
       - name: Installer les dépendances de l'app
         run: npm ci --ignore-scripts --prefix app
-      - name: Construire le .dmg
+      # --- Signature (Mac) -------------------------------------------------------------------------
+      # Le certificat Developer ID entre dans un trousseau propre au run, et les identifiants de
+      # notarisation dans un profil `notarytool` de ce trousseau. construire.ts signe alors l'app
+      # binaire par binaire, la notarise, l'agrafe, puis signe, notarise et agrafe le .dmg ; il écrit
+      # `latest-mac.yml` pour le .dmg signé (app/packaging/README.md, « Signer, notariser »).
+      - name: Signature (Mac) — poser le certificat et la notarisation
+        id: signature
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
         run: |
           set -euo pipefail
-          npm --prefix app run dist -- --version "${TAG#app-v}" --sortie "$RUNNER_TEMP/dist"
-      # --- Signature (Mac) -------------------------------------------------------------------------
-      # Ici se signe et se notarise le .dmg (#1441), avant qu'il ne parte vers la release :
-      # construire.ts le fait de lui-même avec `--identite` et `--notariser` (app/packaging/README.md).
-      # Signer réécrit le .dmg : `latest-mac.yml` doit alors être celui du .dmg signé.
-      - name: Signature (Mac) — pas encore, le .dmg est signé ad hoc
+          trousseau="$RUNNER_TEMP/signature.keychain-db"
+          mot_de_passe=$(openssl rand -base64 24)
+          echo "::add-mask::$mot_de_passe"
+          printf '%s' "$MACOS_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/certificat.p12"
+          security create-keychain -p "$mot_de_passe" "$trousseau"
+          security set-keychain-settings -lut 21600 "$trousseau"
+          security unlock-keychain -p "$mot_de_passe" "$trousseau"
+          # L'autorité intermédiaire d'Apple, sans laquelle l'identité Developer ID n'est pas valide.
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/DeveloperIDG2CA.cer" https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer
+          security import "$RUNNER_TEMP/DeveloperIDG2CA.cer" -k "$trousseau"
+          security import "$RUNNER_TEMP/certificat.p12" -k "$trousseau" -f pkcs12 -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security \
+            || { rm -f "$RUNNER_TEMP/certificat.p12"; echo "::error::MACOS_CERTIFICATE could not be imported with MACOS_CERTIFICATE_PASSWORD (docs/app-signing-secrets.md)."; exit 1; }
+          rm -f "$RUNNER_TEMP/certificat.p12"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$mot_de_passe" "$trousseau" > /dev/null
+          # Le trousseau du run passe devant : codesign y trouve l'identité, notarytool le profil.
+          read -r -a trousseaux <<< "$(security list-keychains -d user | tr -d '"' | tr '\n' ' ')"
+          security list-keychains -d user -s "$trousseau" "${trousseaux[@]}"
+          security default-keychain -d user -s "$trousseau"
+          identite=$(security find-identity -v -p codesigning "$trousseau" | sed -n 's/^ *[0-9]*) [0-9A-F]* "\(Developer ID Application: .*\)"$/\1/p' | head -n 1)
+          [ -n "$identite" ] || { echo "::error::MACOS_CERTIFICATE holds no valid Developer ID Application identity (docs/app-signing-secrets.md)."; exit 1; }
+          # L'équipe est entre les parenthèses de l'identité : « Developer ID Application: Nom (ABCDE12345) ».
+          equipe=$(echo "$identite" | sed -n 's/.*(\([A-Z0-9]*\))$/\1/p')
+          xcrun notarytool store-credentials brigade-notarisation --apple-id "$APPLE_ID" --team-id "$equipe" --password "$APPLE_APP_SPECIFIC_PASSWORD" --keychain "$trousseau" \
+            || { echo "::error::Apple refused APPLE_ID and APPLE_APP_SPECIFIC_PASSWORD for the team $equipe (docs/app-signing-secrets.md)."; exit 1; }
+          echo "Signing as $identite, notarizing for the team $equipe."
+          {
+            echo "identite=$identite"
+            echo "trousseau=$trousseau"
+          } >> "$GITHUB_OUTPUT"
+      - name: Construire, signer et notariser le .dmg
+        env:
+          IDENTITE: ${{ steps.signature.outputs.identite }}
         run: |
-          echo "::notice::The Mac app is not signed with Developer ID yet (#1441): the .dmg is ad hoc signed."
+          set -euo pipefail
+          npm --prefix app run dist -- --version "${TAG#app-v}" --sortie "$RUNNER_TEMP/dist" --identite "$IDENTITE" --notariser brigade-notarisation
+      - name: Signature (Mac) — vérifier ce que Gatekeeper dira
+        run: |
+          set -euo pipefail
+          dmg="$RUNNER_TEMP/dist/Brigade-${TAG#app-v}-arm64.dmg"
+          xcrun stapler validate "$dmg"
+          spctl --assess --type open --context context:primary-signature --verbose=2 "$dmg"
+          point=$(mktemp -d "$RUNNER_TEMP/dmg.XXXXXX")
+          hdiutil attach -nobrowse -readonly -noautoopen -mountpoint "$point" "$dmg" > /dev/null
+          trap 'hdiutil detach "$point" -force > /dev/null || true' EXIT
+          # Ce que vérifie l'app installée avant de se remplacer (app/src/mise-a-jour/installation.ts).
+          codesign --verify --deep --strict --verbose=2 "$point/Brigade.app"
+          xcrun stapler validate "$point/Brigade.app"
+          spctl --assess --type execute --verbose=2 "$point/Brigade.app"
+      - name: Signature (Mac) — retirer le trousseau
+        if: always() && steps.signature.outputs.trousseau != ''
+        env:
+          TROUSSEAU: ${{ steps.signature.outputs.trousseau }}
+        run: |
+          security delete-keychain "$TROUSSEAU" || true
       - name: Vérifier ce qui part vers la release
         run: |
           set -euo pipefail
@@ -114,7 +268,7 @@ jobs:
           retention-days: 7
 
   windows:
-    needs: decider
+    needs: [decider, verifier-secrets]
     if: needs.decider.outputs.changed == 'true'
     runs-on: windows-latest
     timeout-minutes: 90
@@ -133,14 +287,52 @@ jobs:
           set -euo pipefail
           node app/packaging/windows.ts --version "${TAG#app-v}" --sortie "$RUNNER_TEMP/dist"
       # --- Signature (Windows) ---------------------------------------------------------------------
-      # Ici se signe l'installeur (#1441), avant qu'il ne parte vers la release (app/packaging/WINDOWS.md,
-      # « What later tickets plug in »). Signer change ses octets : `latest.yml`, écrit par la
-      # construction, doit être réécrit pour l'installeur signé (`metadonneesDeMiseAJour` de
-      # app/packaging/construire.ts).
-      - name: Signature (Windows) — pas encore, l'installeur n'est pas signé
+      # L'installeur est signé (SHA-256, horodaté), avant qu'il ne parte vers la release. Signer
+      # change ses octets : `latest.yml`, écrit par la construction, est réécrit pour l'installeur
+      # signé (`metadonneesDeMiseAJour` de app/packaging/construire.ts).
+      - name: Signature (Windows) — signer l'installeur
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = $env:TAG -replace '^app-v', ''
+          $installeur = Join-Path $env:RUNNER_TEMP "dist\Brigade-$version-x64-setup.exe"
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
+            Where-Object { $_.FullName -like '*\x64\*' } | Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $signtool) { throw 'signtool.exe was not found in the Windows SDK of the runner' }
+          $pfx = Join-Path $env:RUNNER_TEMP 'certificat.pfx'
+          try {
+            [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+            & $signtool.FullName sign /f $pfx /p $env:WINDOWS_CERTIFICATE_PASSWORD /fd sha256 /tr http://timestamp.digicert.com /td sha256 /d Brigade $installeur
+            $signe = $LASTEXITCODE -eq 0
+          } finally {
+            Remove-Item $pfx -Force -ErrorAction SilentlyContinue
+          }
+          if (-not $signe) {
+            Write-Output '::error::The installer could not be signed with WINDOWS_CERTIFICATE and WINDOWS_CERTIFICATE_PASSWORD (docs/app-signing-secrets.md).'
+            exit 1
+          }
+          # Ce que montrent les propriétés du fichier : une signature valide.
+          & $signtool.FullName verify /pa /v $installeur
+          if ($LASTEXITCODE -ne 0) { Write-Output '::error::The signed installer does not verify.'; exit 1 }
+          $signature = Get-AuthenticodeSignature $installeur
+          if ($signature.Status -ne 'Valid') { Write-Output "::error::The installer signature is $($signature.Status): $($signature.StatusMessage)"; exit 1 }
+          Write-Output "Signed by $($signature.SignerCertificate.Subject)."
+      - name: Signature (Windows) — réécrire latest.yml pour l'installeur signé
         shell: bash
         run: |
-          echo "::notice::The Windows installer is not signed yet (#1441)."
+          set -euo pipefail
+          INSTALLEUR="$RUNNER_TEMP/dist/Brigade-${TAG#app-v}-x64-setup.exe" node --input-type=module -e '
+          const { writeFileSync } = await import("node:fs");
+          const { dirname, join } = await import("node:path");
+          const { pathToFileURL } = await import("node:url");
+          const { metadonneesDeMiseAJour } = await import(pathToFileURL(join(process.cwd(), "app/packaging/construire.ts")).href);
+          const installeur = process.env.INSTALLEUR;
+          writeFileSync(join(dirname(installeur), "latest.yml"), metadonneesDeMiseAJour(process.env.TAG.replace(/^app-v/, ""), installeur, new Date().toISOString()));
+          '
+          cat "$RUNNER_TEMP/dist/latest.yml"
       - name: Vérifier ce qui part vers la release
         shell: bash
         run: |
@@ -158,7 +350,7 @@ jobs:
           retention-days: 7
 
   publier:
-    needs: [decider, mac, windows]
+    needs: [decider, verifier-secrets, mac, windows]
     if: needs.decider.outputs.changed == 'true'
     runs-on: ubuntu-latest
     env:
