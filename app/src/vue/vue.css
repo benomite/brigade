@@ -2787,7 +2787,7 @@ main > header,
 /* Un bloc replié derrière une ligne, fermé par défaut : son titre, puis ce qu'il contient en quelques mots — l'ouvrir
    montre le reste. Un bloc qui n'a rien à dire tient sur une ligne de la même forme, sans rien à ouvrir. */
 #rail .replie,
-#rail > .rien-appris {
+#rail .rien-appris {
   margin: 12px 16px 0;
   padding: 8px 16px;
   background: var(--bandeau);
@@ -2811,12 +2811,14 @@ main > header,
 }
 /* La flèche dit qu'il s'ouvre, et s'il l'est. */
 #rail .replie > summary::before {
-  content: "▸";
-  width: 10px;
-  color: var(--discret);
+  content: "";
+  flex: none;
+  border-left: 6px solid var(--discret);
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
 }
 #rail .replie[open] > summary::before {
-  content: "▾";
+  transform: rotate(90deg);
 }
 #rail .replie > summary strong,
 #rail .une-ligne strong {
@@ -2827,6 +2829,10 @@ main > header,
 #rail .une-ligne .resume {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+/* Ce que les cooks ont appris, sans leçon ni profil : sa ligne dans le même cadre que les blocs repliés. */
+#rail .une-ligne.rien-appris {
+  margin: 12px 16px 0;
 }
 #rail .replie[open] > summary {
   margin-bottom: 8px;
@@ -2840,10 +2846,6 @@ main > header,
 }
 #rail .replie > :is(section, div) > :is(h2, h3, h4):first-child {
   display: none;
-}
-#rail > .rien-appris {
-  font-size: 12px;
-  color: var(--discret);
 }
 #rail .lecture-de-la-cuisine #lu-cuisine {
   position: static;

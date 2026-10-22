@@ -2654,6 +2654,14 @@ function poserCarte(ou, projet) {
   ou.replaceChildren(tete, ...rienNeCuit, compteurs, tableau.cooks.enCours.length === 0 ? ligneCourte(surMesure(projet, tableau.cooks.vide)) : cooks, bloc("p", `latest event — ${tableau.evenement}`));
 }
 
+// Le signe d'un cook coincé — sans progrès depuis la moitié de son bail —, tel que `status` l'écrit en tête du bail de
+// son ticket (bon.ts) : « STUCK: no progress since 31 min ». Le reste du bail est dans la fiche.
+/** @param {import("../faits.ts").Carte} carte */
+function coinceDit({ dit }) {
+  const bail = dit.find(({ libelle }) => libelle === "lease")?.valeur;
+  return bail !== undefined && /^(?:STUCK: |COINC[EÉ] : )/.test(bail) ? bail.replace(/, (?:lease|bail) .*$/, "") : undefined;
+}
+
 // Une carte du rail : son numéro, son état, son titre, puis une phrase en mots simples qui dit ce
 // qui se passe et, au plus, une ligne de signal (ligne-carte.ts) ; un petit repère quand la file ne
 // dit pas tout. Ce que la file dit du ticket en plus est dans sa fiche (`poserDetailsDeFiche`). Dans
@@ -2736,8 +2744,11 @@ function poserBon(projet, carte, tonAttend, execution = true) {
     phrase.className = "ligne-carte";
     bon.append(phrase);
   }
-  if (carte.signal !== undefined) {
-    const signal = bloc("p", carte.signal);
+  // Un cook coincé le dit sur sa carte, faute d'un autre signal (ticket 1456) : sur Cooks, ce qui est coincé et depuis
+  // quand se lit en tête, sans ouvrir la fiche.
+  const signale = carte.signal ?? coinceDit(carte);
+  if (signale !== undefined) {
+    const signal = bloc("p", signale);
     signal.className = "signal";
     bon.append(signal);
   }

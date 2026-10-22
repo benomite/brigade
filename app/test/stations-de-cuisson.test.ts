@@ -16,7 +16,7 @@ import { EXEMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import type { RenduDeCuisson } from "../src/cuisson.ts";
-import { BANNIERE, tenirFaits, type Dessinable, type Faits } from "../src/faits.ts";
+import { BANNIERE, tenirFaits, type Carte, type Dessinable, type Faits } from "../src/faits.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
@@ -157,6 +157,21 @@ describe("l'onglet Cooks : une ligne par station du projet", () => {
     assert.deepEqual(ids.slice(0, ids.indexOf("cuisson-du-projet")).filter((id) => id !== "fraicheur"), []);
     // La lecture brute de `station`, en bas, est fermée.
     assert.equal(Reflect.get(vue.element("rail").children.at(-1) ?? assert.fail("rien en bas"), "open"), false);
+  });
+
+  test("un cook coincé le dit sur sa carte, dans sa station : STUCK, et depuis quand (#1456)", async () => {
+    const { vue } = await ouvrir();
+    await ouvrirOnglet(vue, "Cooks");
+    // Le bail de #14, tel que `status` l'écrit pour un cook coincé, et rien de tel pour #15.
+    const lu = dessinable(FAITS, STATIONS);
+    assert.ok("tableau" in lu);
+    const bail = (carte: Carte): Carte => (carte.ticket === 14 ? { ...carte, dit: [...carte.dit, { libelle: "lease", valeur: "STUCK: no progress since 31 min, lease 3 min left" }] } : carte);
+    const { rail: lus } = lu.tableau;
+    const coince = { ...lu, tableau: { ...lu.tableau, rail: { ...lus, colonnes: lus.colonnes.map((colonne) => ({ ...colonne, cartes: colonne.cartes.map(bail) })), hors: lus.hors.map(bail) } } };
+    vue.dire("surFaits", { ...coince, demande: vue.dernier("faits")[0] as number });
+    const signaux = (nom: string) => ligne(vue, nom).dessous("p").filter((p) => p.className === "signal").map((p) => p.textContent);
+    assert.deepEqual(signaux("box/claude"), ["STUCK: no progress since 31 min"]);
+    assert.deepEqual(signaux("mac/claude"), []);
   });
 
   test("sur Rail, les stations ne se montrent pas", async () => {

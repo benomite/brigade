@@ -16,7 +16,7 @@ import { boutonAction } from "./briques.js";
 // Ce que le dernier clic a rendu : la phrase, refusée ou non, et le détail au survol.
 /** @typedef {{ dit: string, refus: boolean, detail: string }} Dit */
 
-export const TITRE = "Calibration ceiling";
+export const TITRE = "calibration ceiling";
 export const EXPLIQUE = "How far the manager raises the model and the effort of a ticket that stays red, before passing it up to you.";
 export const BOUTONS = {
   regler: { libelle: "set ceiling", enCours: "setting…", fait: "the manager reads it at its next reaction — no restart" },
