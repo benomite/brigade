@@ -111,6 +111,7 @@ import { apresRendu as apresLaCorrection, poserCorrections, REPOS as CORRECTION_
 import { poserProfils } from "./profil/carte.js";
 import { apresRendu as apresLaCarte, poserCarteDeTodo, REPOS as CARTE_AU_REPOS } from "./carte-todo.js";
 import { poserDepotRetenu } from "./onboarding/depot-retenu.js";
+import { poserBlocages } from "./projet/blocages.js";
 import { ligneDAlerte, poserLesStations as stationsDeCuisson } from "./stations-de-cuisson.js";
 import { poserLePlafond as plafondDeCalibrage } from "./plafond-de-calibrage.js";
 import { poserLActivite } from "./activite-cuisine.js";
@@ -473,6 +474,11 @@ pageDesCouts.append(retourDesCouts, corpsDesCouts);
 // une. Tant qu'aucune ne la fait, une phrase le dit, et « choose its machine » ouvre le choix
 // parmi les stations appairées : c'est le seul geste qui installe un projet sur une station.
 const stationsDuProjet = element("stations-du-projet");
+// Ce qui bloque le projet affiché (ticket 1399), sous ses stations, tel que sa principale le publie : une ligne par
+// blocage (projet/blocages.js). Les détails que le chef a dépliés, par projet et blocage : une relecture ne les replie pas.
+const blocagesDuProjet = element("blocages-du-projet");
+/** @type {Map<string, Set<string>>} */
+const blocagesDeplies = new Map();
 const ligneDesStationsDuProjet = document.createElement("p");
 ligneDesStationsDuProjet.ariaLive = "polite";
 const sensDesStations = bloc("p", "The first station keeps the manager and the pass; all the stations cook.");
@@ -5849,7 +5855,10 @@ function poserStationsDuProjet() {
     pretMontre = undefined;
   }
   stationsDuProjet.hidden = projet === undefined;
-  if (projet === undefined) return;
+  if (projet === undefined) {
+    poserLesBlocages(undefined);
+    return;
+  }
   if (confiance !== undefined && confiance.projet !== projet.nom) fermerConfiance();
   const { stations, demande, principale } = cuisineDe(projet);
   const lues = stationsVues !== undefined && projetsVus !== undefined;
@@ -5879,6 +5888,7 @@ function poserStationsDuProjet() {
     ligneDesStationsDuProjet.textContent = lues ? `No station cooks ${projet.nom} yet.` : "reading your stations on GitHub…";
   }
   poserLeDemenagement(projet, ou, enCours, lues);
+  poserLesBlocages(projet);
   ouvrirLaConfiance.textContent = stations.length === 0 && !seLit(projet) && projet.sansStation !== true ? "choose its machine" : "+ station";
   ouvrirLaConfiance.hidden = confiance !== undefined || demenagement !== undefined || !lues;
   const vu = projetsVus?.projets.find(({ nom }) => nom === projet.nom);
@@ -5916,6 +5926,34 @@ function poserStationsDuProjet() {
     (ongletDe(projet) !== CUISINE && seLit(projet) && parcoursDuProjet.hidden && (depotRetenu.hidden || ditParLAlerte) && confiance === undefined && demenagement?.projet !== projet.nom);
   if (confiance === undefined) return;
   poserLaConfiance(confiance, projet, { exclues: stations.map(({ id }) => id), demande, principale });
+}
+
+// Les blocages du projet affiché (ticket 1399). Les gestes que l'app sait faire pour en lever un, par l'identifiant
+// d'action que la station publie : « choose-station » ouvre le choix de la machine, comme le parcours (ticket 1113) —
+// quand le déménagement est offert, qu'une autre station peut le reprendre ; sinon, la ligne dit pourquoi il n'y a pas
+// de bouton. Posés après le déménagement, qui le décide. Un lien ne s'ouvre que par le process principal, qui ne
+// connaît que les pages que les stations publient.
+/** @param {Projet | undefined} projet */
+function poserLesBlocages(projet) {
+  const deplacable = projet !== undefined && (!ouvrirLeDemenagement.hidden || demenagement?.projet === projet.nom);
+  const blocages = projet === undefined ? [] : (projetsVus?.projets.find(({ nom }) => nom === projet.nom)?.blocages ?? []);
+  const nom = projet?.nom ?? "";
+  const deplies = blocagesDeplies.get(nom) ?? new Set();
+  for (const id of deplies) if (!blocages.some((blocage) => blocage.id === id)) deplies.delete(id);
+  const pose = poserBlocages(document, {
+    projet: nom,
+    blocages,
+    gestes: { "choose-station": deplacable ? { libelle: "choose another station", faire: ouvrirLeChoixDeMachine } : { sans: "no other station can take it right now" } },
+    ouvrir: (url) => void brigade.autoriserSurGitHub(url),
+    deplies,
+    deplier: (id, ouvert) => {
+      if (ouvert) deplies.add(id);
+      else deplies.delete(id);
+      blocagesDeplies.set(nom, deplies);
+    },
+  });
+  blocagesDuProjet.hidden = pose === null;
+  blocagesDuProjet.replaceChildren(...(pose === null ? [] : [pose]));
 }
 
 // Le parcours du projet affiché, sous la ligne de ses stations (ticket 1111) : ses quatre étapes tant

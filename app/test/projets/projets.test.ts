@@ -191,6 +191,19 @@ describe("l'ajout, la lecture et le retrait d'un projet, contre un GitHub de tes
     const sansCopie = await projets.relire();
     assert.deepEqual(sansCopie.projets[0]?.clone?.liens, [jetons]);
     assert.deepEqual(projets.pages(), [jetons]);
+
+    // Ses blocages (#1394, #1399) : chacun sous le projet, et la page de GitHub où le lever s'ouvre ; une autre, jamais.
+    const reglages = "https://github.com/benomite/parade/settings/access";
+    const blocages = [
+      { id: "access", message: "box cannot push to benomite/parade.", cause: "Its account only reads this repository.", link: reglages },
+      { id: "piege", message: "Something else blocks parade.", cause: "A page outside GitHub.", link: "https://ailleurs.example/piege" },
+    ];
+    suivre("g1", [{ nom: "parade", etat: "en-preparation", dit: "", autoriser: [], serviLe: null, blocages }]);
+    const bloque = await projets.relire();
+    assert.deepEqual(bloque.projets[0]?.blocages?.map(({ id, link }) => [id, link]), [["access", reglages], ["piege", undefined]]);
+    assert.deepEqual(projets.pages(), [reglages]);
+    suivre("g1", [{ nom: "parade", etat: "servi", dit: "served by box", autoriser: [], serviLe: "2026-10-15T12:03:05.000Z" }]);
+    assert.equal((await projets.relire()).projets[0]?.blocages, undefined, "levés, ils quittent le projet");
   });
 
   test("l'onboarding que la principale publie se lit sous le projet (#1111), et ses pages de GitHub s'ouvrent ; celui d'une secondaire, jamais", { skip: SANS_POSIX }, async (t) => {
