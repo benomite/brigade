@@ -18,6 +18,7 @@ import { direControleRetenuEn, suiteDeBaseRougeEn } from "./dire-base.ts";
 import { requises } from "./fiche.ts";
 import { ACTIONS, bientotEteint, direExtinctionEn, direResteEn } from "./grant.ts";
 import type { Journal } from "./journal.ts";
+import { livraisonsCoincees } from "./file-de-la-pass.ts";
 import { formaterEvenement } from "./ligne-evenement.ts";
 import { direSaturationsEn } from "./machine.ts";
 import { direLaLimite, direLesAppels, type Repartition } from "./limite-github.ts";
@@ -164,6 +165,9 @@ export type EtatCuisine = {
   derivePremierCoup: DerivePremierCoup | null;
   // Les tickets servis dans les 24 h avant la lecture, le plus récent d'abord.
   livres: Livre[];
+  // Les livraisons en pass, à juger, sans pass depuis plus de 15 min
+  // (`file-de-la-pass.ts`) : le chef relance leur jugement.
+  coincees: Array<{ ticket: number; since: string }>;
   evenements: Evenement[];
 };
 
@@ -226,6 +230,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
     derive: franchis(mergedDeliveries(base), seuilsEnVigueur(base) ?? SANS_SEUIL),
     derivePremierCoup: derivePremierCoup(parcoursDesTickets(base), seuilsEnVigueur(base) ?? SANS_SEUIL),
     livres,
+    coincees: livraisonsCoincees(base, maintenant),
     evenements: journal.derniers(EVENEMENTS_MONTRES, RESUMES),
   };
 }
@@ -431,6 +436,13 @@ function detail(ticket: TicketRail, maintenant: Date, depuis: Depuis, retenues: 
       return `since ${depuis(ticket.since)} (${ticket.reason}), ${retour}`;
     }
   }
+}
+
+// Une ligne par livraison coincée en pass : depuis quand, et le geste qui la relance.
+function decrireCoincees({ coincees }: EtatCuisine, depuis: Depuis): string[] {
+  return coincees.map(({ ticket, since }, rang) =>
+    ligne(rang === 0 ? "stuck" : "", `#${ticket} in pass for ${depuis(since)} with no active pass — delivered, never judged: \`${geste(`pass ${ticket} --relaunch`)}\``),
+  );
 }
 
 // Des gates coupées sur une machine saturée : la file le dit, à la suite du
@@ -674,6 +686,7 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     "",
     // Avant le rail : « est-ce qu'on m'attend ? » se lit sans le parcourir.
     ...decrireAttentes(etat.attend, depuisEn, etat.sansGrant, etat.passage, etat.pause),
+    ...decrireCoincees(etat, depuisEn),
     ligne("rail", decompte.length === 0 ? "empty" : decompte.join(" · ")),
     ...etat.rail.map((ticket) =>
       [

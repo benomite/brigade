@@ -1,10 +1,11 @@
-// Montre la pass, en lecture seule :
+// Montre la pass, en lecture seule — sauf `--relaunch`, le geste du chef sur une livraison coincée :
 //   npm --prefix runtime run pass               les livraisons : où en est leur jugement, leurs renvois, leur PR
 //   npm --prefix runtime run pass -- <ticket>   l'histoire d'un ticket : chaque verdict, et ce qui l'a produit
 //   npm --prefix runtime run pass -- <ticket> --json   la même lecture pour l'app : les étapes du ticket et ce qu'il a coûté, un objet JSON sur une ligne (`histoire-ticket.ts`)
+//   npm --prefix runtime run pass -- <ticket> --relaunch   relancer le jugement d'une livraison coincée — livrée, jamais jugée, rien dans sa pass —, par la file de la pass ; refusé, rien n'est écrit et la commande sort en 1 (`file-de-la-pass.ts`)
 // Et l'issue GitHub de la carte, pour sa fiche dans l'app (`issue-ticket.ts`) :
 //   npm --prefix runtime run pass -- <ticket> issue             la lire : son corps, puis ses commentaires du plus ancien au plus récent, chacun avec son auteur et sa date — un objet JSON sur une ligne
-//   npm --prefix runtime run pass -- <ticket> comment <texte>   y poster `<texte>`, un seul argument, tel quel — la seule écriture de cette commande, et le résultat en JSON sur une ligne
+//   npm --prefix runtime run pass -- <ticket> comment <texte>   y poster `<texte>`, un seul argument, tel quel — sa seule écriture sur GitHub, et le résultat en JSON sur une ligne
 //   npm --prefix runtime run pass -- <ticket> ask [<texte>]     la demande à écrire dans le second : elle nomme l'issue (numéro, titre) et `<texte>`, le contexte saisi — vide, l'issue seule ; rien n'est posté ni écrit, l'app l'inscrit
 // Ces trois-là lisent GitHub, pas le journal : elles réclament BRIGADE_GITHUB_REPO,
 // pas BRIGADE_STATE_DIR. Elles passent par le `gh` du compte du service
@@ -13,17 +14,18 @@
 // pass. Une carte sans issue, ou un texte vide, sort en 1 avec `found: false`
 // ou `done: false` et sa raison, et rien n'est posté ; une panne de GitHub sort
 // en 1, dite sur la sortie d'erreur.
+import { existsSync } from "node:fs";
 import { configRail } from "./alimenter.ts";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { direBaseRougeEn, direControleRetenuEn, direPanneEn } from "./dire-base.ts";
 import { direSansGrantEn } from "./attend.ts";
 import type { Base } from "./base.ts";
 import type { Evenement } from "./evenements.ts";
-import { tourAttendu } from "./file-de-la-pass.ts";
+import { relancerLeJugement, tourAttendu } from "./file-de-la-pass.ts";
 import type { Resultat } from "./geste-ticket.ts";
 import type { ChoixDeReaction } from "./events/manager.ts";
 import { DIRE_GATES_COUPEES_EN, GATES_COUPEES, motifDArret, motifDeRemontee, type CI, type Finding, type Gates, type Review } from "./events/pass.ts";
-import { ouvrirJournal, type Journal } from "./journal.ts";
+import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
 import { ouvrirGitHub } from "./github.ts";
 import { histoireDuTicket } from "./histoire-ticket.ts";
 import { commenterIssue, demanderAuSecond, lireIssue, type Demande, type Lecture } from "./issue-ticket.ts";
@@ -34,7 +36,7 @@ import { ConfigInvalide } from "./runtime.ts";
 import { DIRE_VERDICT } from "./second-juge.ts";
 
 const USAGE = [
-  "usage: BRIGADE_STATE_DIR=<state directory> npm --prefix runtime run pass -- [<ticket> [--json]]",
+  "usage: BRIGADE_STATE_DIR=<state directory> npm --prefix runtime run pass -- [<ticket> [--json | --relaunch]]",
   "        BRIGADE_GITHUB_REPO=<owner>/<repo> npm --prefix runtime run pass -- <ticket> (issue | comment <text> | ask [<text>])",
 ].join("\n");
 
@@ -119,6 +121,8 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
     switch (evenement.type) {
       case "pass.entered":
         return [`${tete}entered the pass off the rail: ${evenement.payload.pr}, branch ${evenement.payload.branch} (run ${evenement.payload.run})`];
+      case "pass.relaunched":
+        return [`${tete}judgement relaunched by the chef: the delivery of run ${evenement.payload.run} is queued in the pass`];
       case "pass.started":
         return [`${tete}judging ${evenement.payload.pr ?? "the delivery with no diff"} on ${evenement.payload.sha.slice(0, 7)} (run ${evenement.payload.run})`];
       case "pass.pr-opened":
@@ -298,17 +302,25 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
   const repertoireEtat = env.BRIGADE_STATE_DIR;
   if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR is not set\n${USAGE}`);
   const json = args.length === 2 && args[1] === "--json";
-  if (args.length > 2 || (args.length === 2 && !json) || (args[0] !== undefined && !/^[1-9][0-9]*$/.test(args[0]))) echouer(2, USAGE);
+  const relancer = args.length === 2 && args[1] === "--relaunch";
+  if (args.length > 2 || (args.length === 2 && !json && !relancer) || (args[0] !== undefined && !/^[1-9][0-9]*$/.test(args[0]))) echouer(2, USAGE);
+  // La seule écriture au journal de cette commande. Ouvert en écriture, il
+  // serait créé là où il n'y en a pas : sans journal, rien n'est relancé.
+  if (relancer && !existsSync(cheminJournal(repertoireEtat))) echouer(1, `no log in ${repertoireEtat}`);
 
   let journal;
   try {
-    journal = ouvrirJournal(repertoireEtat, { lectureSeule: true });
+    journal = ouvrirJournal(repertoireEtat, { lectureSeule: !relancer });
   } catch (erreur) {
     echouer(1, erreur instanceof Error ? erreur.message : String(erreur));
   }
   try {
     if (args[0] === undefined) montrer(journal);
-    else if (json) dire(JSON.stringify(histoireDuTicket(journal.base, Number(args[0]))));
+    else if (relancer) {
+      const relance = relancerLeJugement(journal, Number(args[0]));
+      if (!relance.fait) echouer(1, relance.raison);
+      dire(`brigade : ${relance.message}`);
+    } else if (json) dire(JSON.stringify(histoireDuTicket(journal.base, Number(args[0]))));
     else montrerTicket(journal, Number(args[0]));
   } catch (erreur) {
     // En lecture seule, rien ne crée les tables d'un journal écrit par un

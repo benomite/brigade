@@ -184,6 +184,11 @@ export type FaitPass =
   // aucune issue : c'est sur elle que la pass parle. Jugée et mergée comme
   // toute livraison ; rouge, elle remonte au chef sans renvoi.
   | { type: "pass.entered"; payload: { run: string; branch: string; pr: string; number: number } }
+  // Le chef relance le jugement d'une livraison coincée — livrée, jamais jugée,
+  // et rien dans sa pass (`file-de-la-pass.ts`) : la pass du runtime qui tourne
+  // se réveille sur ce fait et la prend à son tour, par sa file. `run` : la
+  // livraison relancée. Ne change aucune phase.
+  | { type: "pass.relaunched"; payload: { run: string } }
   // La pass prend une livraison : le run, sa PR, le commit qu'elle va juger.
   // Sans PR : le ticket n'a produit aucun diff.
   | { type: "pass.started"; payload: { run: string; pr: string | null; number: number | null; sha: string } }

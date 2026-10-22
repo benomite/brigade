@@ -82,6 +82,7 @@ refused — revoke, then enable again. A lapsed or revoked grant is not extended
 npm --prefix runtime run pass              # the deliveries: phase, reason, returns used, PR — the base state first when it matters, the tally of stops without a grant at the end
 npm --prefix runtime run pass -- 17        # the history of ticket 17: each verdict and what produced it
 npm --prefix runtime run pass -- 17 --json  # the same history for the app, with the ticket's cost and its retro: a JSON object {ticket, steps, cost, retro}
+npm --prefix runtime run pass -- 17 --relaunch  # relaunch the judgement of 17, stuck in pass — see "Relaunching a stuck delivery", below
 ```
 
 ```
@@ -95,6 +96,40 @@ green (code 0) · CI no check · reviewer nothing blocking`, then `judged: 77c01
 the base 4be1f07`), return, grant use, merge and the GitHub identity that made it. Both
 commands never write, and answer while the runtime is running.
 
+#### Relaunching a stuck delivery
+
+The pass judges one delivery at a time, in the order they were delivered: a delivery that arrives
+while another is in its pass reads `delivered, waiting for its turn — #17 is in its pass, next in
+line`. A delivery is **stuck** when it is in pass, delivered and never judged since, and **no pass
+is active** — nothing is being judged or merged ahead of it. The running pass takes such a delivery
+within the second; one that stays there has been forgotten. `status` flags it after **15 minutes**
+from its delivery (`COINCEE_APRES_MS`, in `file-de-la-pass.ts`): see the `stuck` block in
+[`etat-et-mesures.md`](etat-et-mesures.md).
+
+`brigade <project> pass <n> --relaunch` (`run pass -- <n> --relaunch` on the dev workstation) is the
+way out. It writes `pass.relaunched` to the log (author `chef`, `run`: the delivery), which wakes the
+running pass at once: it takes the delivery **through its queue**, like any other, and its history
+then shows `judging … (run …)` (`pass.started`). The command prints
+`brigade : #644: a judgement is queued — the pass takes it at its turn, and its log shows \`pass.started\``,
+followed by `— no runtime is running: it is judged at its next start` when no runtime is running.
+The gesture changes no phase: the delivery stays `delivered, to be judged` until the pass takes it.
+
+It refuses, exits with 1, says why, and writes nothing, for a delivery that is not stuck:
+
+| The card | The refusal |
+|---|---|
+| being judged, or its merge in flight | `#17 already has an active pass: it is being judged since … — nothing to relaunch` |
+| waiting for its turn behind another | `#18 is waiting for its turn — #17 is in its pass, next in line: it is not stuck, the pass judges it after` |
+| queued for a reason (`base-red`, `machine-saturated`, …) | `#18 is queued (base-red): it is not stuck, the pass takes it up on its own once that is lifted` |
+| judged, merged or served | `#17 is already judged green: there is no judgement to relaunch` — or `already merged`, `already served`, `already judged red, and returned to a cook`, … |
+| being cooked, never delivered, off the rail | `#17 is being cooked: there is no delivery to judge yet`, `#17 has never been through the pass: …`, `#17 left the rail: …` |
+
+`rail send-back` keeps its contract: it only sends back a delivery that awaits the chef — green and
+not merged, or escalated —, and refuses a stuck one with the same message as before
+(`#644 has no delivery waiting for you: only a delivery the pass holds for you — green and not
+merged, or escalated — is sent back`). Relaunching does not return the delivery to a cook: it has it
+judged.
+
 `retro`, in `--json`, is the ticket's latest retro (#1038): `{at, text, lessons}`, `text` what
 its cook wrote between `<retro>` and `</retro>` (null if it wrote nothing), `lessons` what it
 retained, at most three, each `{kind: "propose" | "reconfirm", id, text}` — `id` and `text` null if
@@ -106,6 +141,7 @@ the project's notebook cannot find it. `retro` is null as long as the ticket has
 | `grant.refused` | The chef asked for what no grant authorizes: `action`, and `line`, the line that forbids it. Nothing is granted |
 | `grant.extended`, `grant.expired` | The chef extends (`until`, `uses` that are **added**; null, the limit is lifted); the grant lapsed on its own (`cause`: `until` or `uses`; `since`: the deadline) |
 | `pass.entered` | A delivery **off the rail** enters the pass — the PR of a closing pass (`run`, `branch`, `pr`, `number`). Its `ticket`, and that of every fact of its pass, is the number of that PR |
+| `pass.relaunched` | The chef relaunched the judgement of a stuck delivery (`run pass -- <n> --relaunch`, author `chef`): `run`, the delivery. It changes no phase; the running pass wakes on it and takes the delivery through its queue |
 | `pass.started`, `pass.pr-opened` | The pass takes a delivery (run, PR, judged commit); it opened the PR the station could not open (`reconciled`: found again afterwards) |
 | `pass.reviewed` | The reviewer reread the delivery of the `run`, on this `sha`: `review`, `outcome` (`green`, `red`, `unreadable` + `reason`), `summary`, `findings`, `truncated`. Unreadable, it is followed by another on the same `sha`, twice at most |
 | `pass.judged` | The verdict, with `sha`, `base`, `merged` (null: the merge does not go through), `gates`, `ci`, `review`, `findings`, `judgeModified`, `declarations`, `noDiff` |
