@@ -4,6 +4,8 @@
 // toi —, et de quoi la changer d'un geste : un modèle, un effort, « set ceiling ». Posé par toi, « back to the
 // default » le retire. Le clic part par le process principal (plafond-de-calibrage.ts) ; tant qu'il n'a pas
 // répondu, le bouton dit qu'il s'y met. Ce qu'il a fait se dit en une ligne, ce que le runtime a répondu au survol.
+// Sur Cooks, le bloc est replié derrière une ligne (ticket 1456) : `resumeDuPlafond` la dit — la valeur en vigueur, et
+// d'où elle vient ; l'ouvrir montre de quoi la changer.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js).
 
 import { boutonAction } from "./briques.js";
@@ -14,12 +16,16 @@ import { boutonAction } from "./briques.js";
 // Ce que le dernier clic a rendu : la phrase, refusée ou non, et le détail au survol.
 /** @typedef {{ dit: string, refus: boolean, detail: string }} Dit */
 
-export const TITRE = "Calibration ceiling";
+export const TITRE = "calibration ceiling";
 export const EXPLIQUE = "How far the manager raises the model and the effort of a ticket that stays red, before passing it up to you.";
 export const BOUTONS = {
   regler: { libelle: "set ceiling", enCours: "setting…", fait: "the manager reads it at its next reaction — no restart" },
   defaut: { libelle: "back to the default", enCours: "going back…", fait: "your setting is withdrawn: the default holds again" },
 };
+
+// La ligne du bloc replié : « opus / high · default ».
+/** @param {Vu} vu */
+export const resumeDuPlafond = (vu) => `${vu.dit} · ${vu.source}`;
 
 /** @param {Fabrique} doc @param {string} balise @param {string} [texte] */
 function cree(doc, balise, texte) {

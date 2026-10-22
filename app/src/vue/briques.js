@@ -117,3 +117,40 @@ export function confirmationDeGeste(doc, { titre, prix, oui, non }, gestes) {
   racine.append(accepter, renoncer);
   return racine;
 }
+
+// Un bloc replié derrière une ligne (ticket 1456) : ce qui sert rarement — une lecture brute, un historique, un
+// réglage — se montre fermé, sa ligne disant son titre et, en quelques mots, ce qu'il contient ; l'ouvrir montre le
+// reste. `ouvert` : ce que le chef en a laissé — la vue le retient d'une lecture à l'autre, que le bloc reposé ne se
+// referme pas sous ses yeux ; `basculer` le lui dit. `aide` : ce qu'il est, au survol de sa ligne.
+/** @param {Fabrique} doc @param {{ titre: string, resume: string, aide?: string, ouvert?: boolean, basculer?: (ouvert: boolean) => void }} ligne @param {any[]} contenu */
+export function replie(doc, { titre, resume, aide, ouvert = false, basculer }, contenu) {
+  const racine = doc.createElement("details");
+  racine.className = "replie";
+  racine.open = ouvert;
+  const tete = doc.createElement("summary");
+  if (aide !== undefined) tete.title = aide;
+  tete.append(...titreEtResume(doc, titre, resume));
+  racine.append(tete, ...contenu);
+  racine.addEventListener("toggle", () => basculer?.(racine.open === true));
+  return racine;
+}
+
+// Un bloc qui n'a rien à dire — tout à zéro, rien en cours — tient en une ligne, pas un tableau (ticket 1456) : son
+// titre, et ce qu'il dirait, en mots.
+/** @param {Fabrique} doc @param {string} titre @param {string} dit */
+export function uneLigne(doc, titre, dit) {
+  const racine = doc.createElement("p");
+  racine.className = "une-ligne";
+  racine.append(...titreEtResume(doc, titre, dit));
+  return racine;
+}
+
+/** @param {Fabrique} doc @param {string} titre @param {string} resume */
+function titreEtResume(doc, titre, resume) {
+  const nom = doc.createElement("strong");
+  nom.textContent = titre;
+  const dit = doc.createElement("span");
+  dit.className = "resume";
+  dit.textContent = resume;
+  return [nom, dit];
+}

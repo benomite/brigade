@@ -6,13 +6,14 @@
 //   pour les y ramener, son numéro ouvrant sa fiche ;
 // - sur l'onglet Cooks : les passages de la dernière heure et des dernières 24 h — leur nombre, ce que coûte un passage
 //   en moyenne, en durée et en processeur, face au budget d'un passage, et leur temps et leur processeur au total —, et
-//   la tendance de l'heure face au jour (ticket 1318, ajout du chef du 21/10). Sans passage, « 0 » et « 0 s », jamais
-//   un blanc ; une moyenne sans passage, « – ».
+//   la tendance de l'heure face au jour (ticket 1318, ajout du chef du 21/10). Une moyenne sans passage, « – ». Sans
+//   aucun passage de l'heure ni des 24 h, une seule ligne le dit, avec le budget d'un passage — pas un tableau de zéros
+//   (ticket 1456).
 // Un budget que le chef n'a pas posé est celui par défaut, et le dit. Tout vient de `facts` (faits.ts) : la vue
 // écrit des secondes en mots, elle ne juge rien — le dépassement est celui que le runtime donne.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
-import { survol } from "./briques.js";
+import { survol, uneLigne } from "./briques.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../faits.ts").CoutDesGates} CoutDesGates */
@@ -20,6 +21,7 @@ import { survol } from "./briques.js";
 export const TITRE_FILE = "gates, latest run against budget";
 export const TITRE_BASE = "full run on the base, against its own budget";
 export const TITRE_JOUR = "gates, last hour and last 24 h";
+export const AUCUN_PASSAGE = "no run in the last 24 h";
 export const HORS_BUDGET = "over budget";
 export const DEFAUT = "(default)";
 const AIDE_FILE =
@@ -151,6 +153,13 @@ export function poserLeJourDesGates(doc, cout) {
   const section = cree(doc, "section");
   section.className = "jour-des-gates";
   section.ariaLabel = TITRE_JOUR;
+  if (lastDay.runs === 0 && (lastHour?.runs ?? 0) === 0) {
+    const dit = (/** @type {number} */ valeur, /** @type {boolean} */ parLeChef) => (parLeChef ? secondes(valeur) : `${secondes(valeur)} ${DEFAUT}`);
+    const ligne = uneLigne(doc, TITRE_JOUR, `${AUCUN_PASSAGE} · budget of one run: time ${dit(lu.durationSeconds, lu.parLeChef.durationSeconds)}, CPU ${dit(lu.cpuSeconds, lu.parLeChef.cpuSeconds)}`);
+    ligne.append(survol(doc, AIDE_JOUR));
+    section.append(ligne);
+    return section;
+  }
   const tete = cree(doc, "h4", TITRE_JOUR);
   tete.append(survol(doc, AIDE_JOUR));
   const tableau = cree(doc, "table");

@@ -19,7 +19,7 @@ import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
-import { AUCUN_PROFIL, DIT_PROMUE, PAS_ASSEZ, DIT_PROVISOIRE, LIEN, poserApprentissage, PROMUE, PROVISOIRE, RIEN_APPRIS, TITRE } from "../src/vue/apprentissage.js";
+import { AUCUN_PROFIL, DIT_PROMUE, PAS_ASSEZ, DIT_PROVISOIRE, LIEN, poserApprentissage, PROMUE, PROVISOIRE, resumeDeLApprentissage, RIEN_APPRIS, TITRE } from "../src/vue/apprentissage.js";
 import { Faux, jouerLaVue, ouvrirLecture, ouvrirOnglet, repos } from "./aides/fausse-vue.ts";
 
 const A = "2026-10-19T10:00:00.000Z";
@@ -249,14 +249,19 @@ describe("la section, telle que la vue la pose", () => {
     assert.deepEqual(lus({ ...GARNI, lecons: [mauvais] }), { informe: "apprentissage.lecons[0].progres.avant.premierCoup: expected a non-negative number" });
   });
 
-  test("ni leçon ni profil : une phrase, et aucune liste", () => {
+  test("ni leçon ni profil : une ligne seule — son titre et la phrase, ni liste ni rien à ouvrir (#1456)", () => {
     const [bloc, ...reste] = poser(section({ lecons: [], profils: [] })).poses;
     assert.deepEqual(reste, []);
     assert.ok(bloc !== undefined);
-    assert.equal(bloc.dessous("p").length, 1);
-    assert.equal(bloc.dessous("p")[0]?.textContent, RIEN_APPRIS);
-    assert.deepEqual([...bloc.dessous("ol"), ...bloc.dessous("ul"), ...bloc.dessous("li")], []);
-    assert.deepEqual(bloc.dessous("div"), []);
+    assert.equal(bloc.balise, "p");
+    assert.equal(bloc.className, "une-ligne rien-appris");
+    assert.deepEqual(bloc.children.map(({ textContent }) => textContent), [TITRE, RIEN_APPRIS]);
+    assert.deepEqual([...bloc.dessous("li"), ...bloc.dessous("details")], []);
+  });
+
+  test("la ligne du bloc replié : combien de leçons, combien de profils (#1456)", () => {
+    assert.equal(resumeDeLApprentissage(section(GARNI)), "3 lessons, 2 profiles");
+    assert.equal(resumeDeLApprentissage(section({ lecons: [GARNI.lecons[0]!], profils: [] })), "1 lesson, 0 profiles");
   });
 });
 
@@ -297,6 +302,10 @@ describe("l'onglet Cooks, dans l'espace du projet", () => {
     vue.dire("surFaits", faitsLus(vue, GARNI));
     await repos();
     assert.match(page.textContent, new RegExp(TITRE));
+    // Replié derrière une ligne, fermé (#1456) : son titre et ses nombres ; la liste est dessous.
+    const replie = page.dessous("details").find(({ textContent }) => textContent.startsWith(TITRE)) ?? assert.fail("pas de bloc replié");
+    assert.equal((replie as Faux & { open?: boolean }).open, false);
+    assert.equal(replie.dessous("summary")[0]?.textContent, `${TITRE}3 lessons, 2 profiles`);
     assert.match(page.textContent, /provisionalL4run the app tests/);
     assert.match(page.textContent, /app-src-vuefor app\/src\/vue/);
     const avant = vue.appels.length;
@@ -330,9 +339,11 @@ describe("l'onglet Cooks, dans l'espace du projet", () => {
     vue.dire("surFaits", faitsLus(vue));
     await repos();
     const page = vue.element("rail");
-    const bloc = page.dessous("div").find(({ className }) => className === "apprentissage-fiabilite");
+    // Une phrase seule, rien à ouvrir (#1456).
+    const bloc = page.dessous("p").find(({ className }) => className === "une-ligne rien-appris");
     assert.ok(bloc !== undefined);
     assert.equal(bloc.textContent, `${TITRE}${RIEN_APPRIS}`);
-    assert.deepEqual(bloc.dessous("li"), []);
+    assert.equal(vue.element("appris-du-projet").dessous("details").length, 0);
+    assert.deepEqual(vue.element("appris-du-projet").dessous("li"), []);
   });
 });

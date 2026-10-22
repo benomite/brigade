@@ -1,6 +1,6 @@
 // En tête de l'onglet Cooks (#1272) : les tickets du projet servis, renvoyés et remontés au chef, dans la dernière
 // heure et le dernier jour. La vue jouée telle qu'elle est, devant un faux document (aides/fausse-vue.ts), sur ce que
-// le process principal range des faits de la box (faits.ts). Six nombres ; sans activité, six « 0 », jamais un blanc.
+// le process principal range des faits de la box (faits.ts). Six nombres ; sans activité, une ligne qui le dit (#1456), jamais un blanc.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../../src/allumage.ts";
@@ -14,7 +14,7 @@ import { CONFIRMES, DIRECTS, GRANTS } from "../../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../../src/grants.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
-import { COMPTES, FENETRES, poserLActivite, TITRE } from "../../src/vue/activite-cuisine.js";
+import { COMPTES, FENETRES, poserLActivite, RIEN, TITRE } from "../../src/vue/activite-cuisine.js";
 import { Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-10-21T10:04:12.000Z";
@@ -74,20 +74,34 @@ describe("l'activité de la cuisine, en tête de l'onglet Cooks", () => {
       ["last day", "3", "4", "1"],
     ]);
     assert.equal(pose.dessous("h4")[0]?.textContent?.startsWith(TITRE), true);
-    // En tête de l'onglet : au-dessus de la carte du projet et de ses stations — entre les deux, ses gates (#1318).
+    // Sous la carte du projet et ses stations — ce qui cuit d'abord —, au-dessus de ses gates (#1456).
     const rail = vue.element("rail");
-    assert.equal(rail.children[0]?.id, "activite-du-projet");
-    assert.ok(rail.children.findIndex((pose) => pose.className === "carte") > 0);
+    const place = (id: string) => rail.children.findIndex((pose) => pose.id === id);
+    assert.ok(rail.children.findIndex((pose) => pose.className === "carte") < place("activite-du-projet"));
+    assert.ok(place("cuisson-du-projet") < place("activite-du-projet"));
+    assert.ok(place("activite-du-projet") < place("gates-du-projet"));
   });
 
-  test("sans activité, les six nombres disent 0, jamais un blanc", async () => {
+  test("sans activité — six « 0 » —, une seule ligne le dit en mots, pas un tableau (#1456)", async () => {
     const vue = await ouvrir();
     recevoir(vue, { ...FAITS, activiteCuisine: { lastHour: ZERO, lastDay: ZERO } });
     await ouvrirOnglet(vue, "Cooks");
     const pose = activite(vue) ?? assert.fail("pas d'activité sur Cooks");
+    assert.deepEqual(pose.dessous("table"), []);
+    const [ligne, ...reste] = pose.children;
+    assert.deepEqual(reste, []);
+    assert.equal(ligne?.className, "une-ligne");
+    assert.equal(ligne?.textContent?.startsWith(`${TITRE}${RIEN}`), true);
+  });
+
+  test("un seul nombre non nul suffit : le tableau revient", async () => {
+    const vue = await ouvrir();
+    recevoir(vue, { ...FAITS, activiteCuisine: { lastHour: ZERO, lastDay: { ...ZERO, escalated: 1 } } });
+    await ouvrirOnglet(vue, "Cooks");
+    const pose = activite(vue) ?? assert.fail("pas d'activité sur Cooks");
     assert.deepEqual(lu(pose).slice(1), [
       ["last hour", "0", "0", "0"],
-      ["last day", "0", "0", "0"],
+      ["last day", "0", "0", "1"],
     ]);
   });
 
@@ -122,9 +136,13 @@ describe("l'activité de la cuisine, en tête de l'onglet Cooks", () => {
 
   test("le module se lit seul, sur un faux document : un titre, une tête de trois colonnes, deux lignes", () => {
     const doc = { createElement: (balise: string) => new Faux(balise) };
-    const pose = poserLActivite(doc as never, { lastHour: ZERO, lastDay: ZERO }) as Faux | null;
+    const pose = poserLActivite(doc as never, ACTIVITE) as Faux | null;
     assert.equal(pose?.dessous("th").length, COMPTES.length + FENETRES.length);
     assert.deepEqual(pose?.dessous("tr").map((ligne) => ligne.dataset.fenetre), [undefined, "lastHour", "lastDay"]);
+    // Tout à zéro : une ligne, aucun tableau (#1456).
+    const vide = poserLActivite(doc as never, { lastHour: ZERO, lastDay: ZERO }) as Faux | null;
+    assert.deepEqual(vide?.dessous("table"), []);
+    assert.equal(vide?.dessous("p")[0]?.className, "une-ligne");
     assert.equal(poserLActivite(doc as never, undefined), null);
   });
 });

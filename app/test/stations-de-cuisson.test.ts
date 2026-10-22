@@ -16,7 +16,7 @@ import { EXEMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import type { RenduDeCuisson } from "../src/cuisson.ts";
-import { BANNIERE, tenirFaits, type Dessinable, type Faits } from "../src/faits.ts";
+import { BANNIERE, tenirFaits, type Carte, type Dessinable, type Faits } from "../src/faits.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
@@ -125,10 +125,11 @@ describe("l'onglet Cooks : une ligne par station du projet", () => {
   test("chaque cook est nommé avec sa station, et chaque station a sa ligne : son état, ses cooks, son bouton", async () => {
     const { vue } = await ouvrir();
     await ouvrirOnglet(vue, "Cooks");
-    // La carte du projet : chaque cook, et sa station.
-    const carte = vue.element("carte");
-    const cooks = carte.dessous("ul").find((ul) => ul.className === "cooks") ?? assert.fail("pas de cooks sur la carte");
-    assert.deepEqual(cooks.children.map((li) => li.textContent), ["#14Le journal en ajout seulbox/claude", "#15La carte des dessertsmac/claude"]);
+    // La carte du projet est fondue dans le bloc des stations (#1456) : sa ligne, en tête, dit l'état de la cuisine ; ses
+    // cooks sont ceux des stations, et la carte n'est plus posée.
+    assert.throws(() => vue.element("carte"), /aucun élément « carte »/);
+    const cuisine = vue.element("rail").dessous("p").find(({ className }) => className === "etat-de-la-cuisine") ?? assert.fail("pas de ligne de la cuisine");
+    assert.match(cuisine.textContent, /^kitchenouverte/);
     // Les stations, dans l'ordre de `facts`.
     assert.deepEqual(lignes(vue).map((li) => li.dataset.station), ["box/claude", "mac/claude", "atelier/claude"]);
     assert.deepEqual(lignes(vue).map(etatDe), ["cooking", "stopped", "cooking"]);
@@ -144,6 +145,33 @@ describe("l'onglet Cooks : une ligne par station du projet", () => {
     assert.match(boutonDe(ligne(vue, "box/claude"))?.title ?? "", /running cooks finish/);
     assert.equal(ligne(vue, "box/claude").dessous("button").some((bouton) => bouton.className === "aide"), false);
     assert.equal(ligne(vue, "mac/claude").dessous("button").find((bouton) => bouton.className === "aide")?.ariaLabel, BOUTONS_DE_CUISSON.start.prix);
+  });
+
+  test("Cooks dans l'ordre de sa revue (#1456) : les stations d'abord, puis les tickets, les gates, et les blocs repliés en bas", async () => {
+    const { vue } = await ouvrir();
+    await ouvrirOnglet(vue, "Cooks");
+    const ids = vue.element("rail").children.map(({ id, className }) => id || className);
+    const ordre = ["cuisson-du-projet", "activite-du-projet", "gates-du-projet", "plafond-du-projet", "roles-du-projet", "appris-du-projet", "replie lecture-de-la-cuisine"];
+    assert.deepEqual(ids.filter((id) => ordre.includes(id)), ordre);
+    // Rien de ce qui précède les stations n'est un bloc : au plus la ligne qui dit l'âge de la lecture.
+    assert.deepEqual(ids.slice(0, ids.indexOf("cuisson-du-projet")).filter((id) => id !== "fraicheur"), []);
+    // La lecture brute de `station`, en bas, est fermée.
+    assert.equal(Reflect.get(vue.element("rail").children.at(-1) ?? assert.fail("rien en bas"), "open"), false);
+  });
+
+  test("un cook coincé le dit sur sa carte, dans sa station : STUCK, et depuis quand (#1456)", async () => {
+    const { vue } = await ouvrir();
+    await ouvrirOnglet(vue, "Cooks");
+    // Le bail de #14, tel que `status` l'écrit pour un cook coincé, et rien de tel pour #15.
+    const lu = dessinable(FAITS, STATIONS);
+    assert.ok("tableau" in lu);
+    const bail = (carte: Carte): Carte => (carte.ticket === 14 ? { ...carte, dit: [...carte.dit, { libelle: "lease", valeur: "STUCK: no progress since 31 min, lease 3 min left" }] } : carte);
+    const { rail: lus } = lu.tableau;
+    const coince = { ...lu, tableau: { ...lu.tableau, rail: { ...lus, colonnes: lus.colonnes.map((colonne) => ({ ...colonne, cartes: colonne.cartes.map(bail) })), hors: lus.hors.map(bail) } } };
+    vue.dire("surFaits", { ...coince, demande: vue.dernier("faits")[0] as number });
+    const signaux = (nom: string) => ligne(vue, nom).dessous("p").filter((p) => p.className === "signal").map((p) => p.textContent);
+    assert.deepEqual(signaux("box/claude"), ["STUCK: no progress since 31 min"]);
+    assert.deepEqual(signaux("mac/claude"), []);
   });
 
   test("sur Rail, les stations ne se montrent pas", async () => {

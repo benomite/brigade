@@ -58,15 +58,16 @@ describe("l'onglet Cooks (#1184) : la lecture de `station`, des gestes en bouton
     vue.dire("surContenu", { projet: "parade", demande: numero, a: A, sorties: [{ commande: "station", texte: "cooks 2" }] }, undefined, undefined);
     await repos();
 
-    // L'explication n'est pas dans la ligne du haut : elle est au survol de la tête de la lecture, sous les colonnes.
+    // L'explication n'est pas dans la ligne du haut : elle est au survol de la ligne de la lecture, repliée en bas de
+    // Cooks (#1456).
     assert.equal(vue.element("note").textContent, "");
-    const tete = vue.element("rail").dessous("h3").find(({ textContent }) => textContent.startsWith("the station:")) ?? assert.fail("pas de tête de la lecture");
-    assert.equal(tete.textContent, "the station: its cap of cooks, its machine, its quota?");
-    assert.match(survols(tete)[0] ?? "", /^the output of `ssh box brigade parade station`/);
-    const gestes = vue.element("gestes-cuisine");
-    assert.equal(gestes.hidden, false);
-    assert.deepEqual(gestes.dessous("button").filter(({ className }) => className !== "aide").map(({ textContent }) => textContent), ["Set the cooks of a station…"]);
-    assert.doesNotMatch(aPlat(gestes), TECHNIQUE);
+    const tete = vue.element("rail").dessous("summary").find(({ textContent }) => textContent.startsWith("the station, raw reading")) ?? assert.fail("pas de ligne de la lecture");
+    assert.equal(tete.textContent, "the station, raw readingits machine, its quota, as the station returns them");
+    assert.match(tete.title, /^the output of `ssh box brigade parade station`/);
+    assert.doesNotMatch(aPlat(tete), TECHNIQUE);
+    // Le plafond de cooks se règle sur la ligne de sa station : la lecture n'a plus de bouton qui en écrit la commande.
+    assert.throws(() => vue.element("gestes-cuisine"));
+    assert.doesNotMatch(aPlat(vue.element("rail")), /Set the cooks of a station/);
     assert.doesNotMatch(aPlat(vue.element("lu-cuisine")), /ssh|usage|exit/);
   });
 

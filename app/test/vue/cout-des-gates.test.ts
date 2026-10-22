@@ -15,7 +15,7 @@ import { CONFIRMES, DIRECTS, GRANTS } from "../../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../../src/grants.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
-import { COLONNES, duree, HORS_BUDGET, poserLeJourDesGates, poserLesGatesDeLaFile, TITRE_BASE, TITRE_FILE, TITRE_JOUR } from "../../src/vue/cout-des-gates.js";
+import { AUCUN_PASSAGE, COLONNES, duree, HORS_BUDGET, poserLeJourDesGates, poserLesGatesDeLaFile, TITRE_BASE, TITRE_FILE, TITRE_JOUR } from "../../src/vue/cout-des-gates.js";
 import { Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-10-21T10:04:12.000Z";
@@ -186,19 +186,32 @@ describe("les gates de la dernière heure et des dernières 24 h, sur l'onglet C
       pose.dessous("tr").find(({ dataset }) => dataset.ligne === "lastDay")?.dessous("td").map(({ title }) => title),
       ["", "200.3 s", "915.8 s", "1402.3 s", "6410.8 s"],
     );
-    // Sous les tickets de la dernière heure et du dernier jour, au-dessus de la carte du projet.
+    // Juste sous les tickets de la dernière heure et du dernier jour, eux-mêmes sous la carte du projet (#1456).
     const rail = vue.element("rail");
-    assert.equal(rail.children[1]?.id, "gates-du-projet");
-    assert.equal(rail.children[2]?.className, "carte");
+    const place = (id: string) => rail.children.findIndex((pose) => pose.id === id);
+    assert.equal(place("gates-du-projet"), place("activite-du-projet") + 1);
+    assert.ok(rail.children.findIndex((pose) => pose.className === "carte") < place("gates-du-projet"));
   });
 
-  test("sans passage dans l'heure ni dans les 24 h : 0, « – » pour les moyennes, 0 s et 0 s, jamais un blanc — sans tendance, et le budget par défaut", async () => {
+  test("sans passage dans l'heure ni dans les 24 h : une seule ligne le dit, avec le budget d'un passage — pas un tableau de zéros (#1456)", async () => {
     const vue = await ouvrir();
     recevoir(vue, SANS_PASSAGE);
     await ouvrirOnglet(vue, "Cooks");
+    const pose = jour(vue) ?? assert.fail("pas de gates sur Cooks");
+    assert.deepEqual(pose.dessous("table"), []);
+    const ligne = pose.dessous("p")[0] ?? assert.fail("pas de ligne");
+    assert.equal(ligne.className, "une-ligne");
+    assert.equal(ligne.dessous("strong")[0]?.textContent, TITRE_JOUR);
+    assert.equal(ligne.dessous("span").find(({ className }) => className === "resume")?.textContent, `${AUCUN_PASSAGE} · budget of one run: time 100 s (default), CPU 400 s (default)`);
+  });
+
+  test("un passage dans les 24 h suffit : le tableau revient, ses zéros de l'heure compris", async () => {
+    const vue = await ouvrir();
+    recevoir(vue, { ...SANS_PASSAGE, lastDay: { runs: 1, durationSeconds: 80, cpuSeconds: 300 }, averages: { lastHour: AUCUNE, lastDay: { durationSeconds: 80, cpuSeconds: 300 } } });
+    await ouvrirOnglet(vue, "Cooks");
     assert.deepEqual(lu(jour(vue) ?? assert.fail("pas de gates sur Cooks")).slice(1), [
       ["last hour", "0", "–", "–", "0 s", "0 s"],
-      ["last 24 h", "0", "–", "–", "0 s", "0 s"],
+      ["last 24 h", "1", "80 s", "300 s", "80 s", "300 s"],
       ["budget, one run", "", "100 s (default)", "400 s (default)", "", ""],
     ]);
   });

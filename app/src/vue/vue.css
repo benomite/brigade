@@ -2752,9 +2752,107 @@ main > header,
 #rail[data-onglet="cooks"] .colonnes {
   grid-template-columns: repeat(2, minmax(160px, 1fr));
 }
-/* Sur Cooks : la carte du projet en tête, la lecture de `station` sous les colonnes. */
+/* Sur Cooks : la carte du projet, quand ses faits ne se dessinent pas, en tête. */
 #rail > .carte {
   margin: 12px 16px 0;
+}
+/* Cooks dans l'ordre de sa revue (ticket 1456). En tête du bloc des stations, la ligne de la cuisine du projet — la carte
+   du projet y est fondue : son état en pilule, son dernier événement en discret. */
+#rail .etat-de-la-cuisine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 0 0 4px;
+  font-size: 12px;
+  color: var(--discret);
+}
+#rail .etat-de-la-cuisine small {
+  color: var(--discret);
+}
+#rail .stations-de-cuisson .rien-ne-cuit,
+#rail > .rien-ne-cuit {
+  margin: 0 0 4px;
+  font-weight: 600;
+}
+#rail > .etat-de-la-cuisine {
+  margin: 12px 16px 0;
+}
+#servis-sans-carte:empty {
+  display: none;
+}
+#rail > #pages {
+  margin: 12px 16px 0;
+}
+/* Un bloc replié derrière une ligne, fermé par défaut : son titre, puis ce qu'il contient en quelques mots — l'ouvrir
+   montre le reste. Un bloc qui n'a rien à dire tient sur une ligne de la même forme, sans rien à ouvrir. */
+#rail .replie,
+#rail .rien-appris {
+  margin: 12px 16px 0;
+  padding: 8px 16px;
+  background: var(--bandeau);
+  border: 1px solid var(--trait-doux);
+  border-radius: var(--rayon-carte);
+}
+#rail .replie > summary,
+#rail .une-ligne {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--texte);
+}
+#rail .replie > summary {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+/* La flèche dit qu'il s'ouvre, et s'il l'est. */
+#rail .replie > summary::before {
+  content: "";
+  flex: none;
+  border-left: 6px solid var(--discret);
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+}
+#rail .replie[open] > summary::before {
+  transform: rotate(90deg);
+}
+#rail .replie > summary strong,
+#rail .une-ligne strong {
+  font-weight: 600;
+  color: var(--discret);
+}
+#rail .replie > summary .resume,
+#rail .une-ligne .resume {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* Ce que les cooks ont appris, sans leçon ni profil : sa ligne dans le même cadre que les blocs repliés. */
+#rail .une-ligne.rien-appris {
+  margin: 12px 16px 0;
+}
+#rail .replie[open] > summary {
+  margin-bottom: 8px;
+}
+/* Ouvert, le bloc montre son contenu sans en répéter le cadre ni le titre : la ligne le porte déjà. */
+#rail .replie > :is(section, div) {
+  margin: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+}
+#rail .replie > :is(section, div) > :is(h2, h3, h4):first-child {
+  display: none;
+}
+#rail .lecture-de-la-cuisine #lu-cuisine {
+  position: static;
+  margin: 0;
+}
+#rail .lecture-de-la-cuisine #lecture-cuisine {
+  padding: 8px 0 0;
 }
 #rail #lecture-cuisine h3 {
   padding: 0;

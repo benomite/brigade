@@ -268,14 +268,16 @@ describe("l'onglet Cooks d'un écran étroit, en lecture seule", () => {
 });
 
 describe("sur un écran large, rien ne change", () => {
-  test("deux onglets, et le second à droite quel que soit l'onglet ; Cooks porte la carte et la lecture de `station`", async () => {
+  test("deux onglets, et le second à droite quel que soit l'onglet ; Cooks porte ses stations et la lecture de `station`", async () => {
     const { vue } = await ouvrir({ etroit: false });
     assert.deepEqual(titres(vue), ["Rail", "Cooks"]);
     assert.deepEqual(vu(vue), { centre: true, second: true });
     await taper(vue, "Cooks");
     assert.deepEqual(vu(vue), { centre: true, second: true });
     assert.deepEqual(colonnes(vue), []);
-    assert.equal(dansLeRail(vue, "carte"), true);
+    // La carte du projet est fondue dans le bloc de ses stations (#1456).
+    assert.equal(dansLeRail(vue, "carte"), false);
+    assert.equal(dansLeRail(vue, "cuisson-du-projet"), true);
     assert.equal(dansLeRail(vue, "lecture-cuisine"), true);
     assert.equal(lecture(vue), "cooks");
     assert.equal(vue.element("stations-du-projet").hidden, false);

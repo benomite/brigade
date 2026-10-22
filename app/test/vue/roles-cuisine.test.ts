@@ -15,7 +15,7 @@ import { CONFIRMES, DIRECTS, GRANTS } from "../../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../../src/grants.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
-import { heureDeLAction, poserLesRoles, SANS_ACTION, TITRE } from "../../src/vue/roles-cuisine.js";
+import { heureDeLAction, poserLesRoles, resumeDesRoles, SANS_ACTION, TITRE } from "../../src/vue/roles-cuisine.js";
 import { Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-10-21T10:04:12.000Z";
@@ -88,6 +88,23 @@ describe("les rôles de la cuisine, sur l'onglet Cooks", () => {
     const ids = vue.element("rail").children.map(({ id }) => id);
     assert.ok(ids.indexOf("roles-du-projet") > ids.indexOf("plafond-du-projet"), ids.join(", "));
     assert.ok(ids.indexOf("roles-du-projet") < ids.indexOf("appris-du-projet"), ids.join(", "));
+    // Repliés derrière une ligne, fermés (#1456) : combien de rôles, la plus récente de leurs actions, et ceux qui n'ont
+    // rien fait ; la liste est dessous, ouverte d'un clic, et reste ouverte d'une lecture à l'autre.
+    const replie = () => vue.element("roles-du-projet").children[0] ?? assert.fail("pas de bloc replié");
+    assert.deepEqual([replie().balise, replie().className, Reflect.get(replie(), "open")], ["details", "replie", false]);
+    assert.equal(replie().dessous("summary")[0]?.textContent, `${TITRE}${resumeDesRoles(ROLES)}`);
+    assert.ok(replie().contains(pose));
+    Reflect.set(replie(), "open", true);
+    replie().declencher("toggle");
+    recevoir(vue);
+    await repos();
+    assert.equal(Reflect.get(replie(), "open"), true);
+  });
+
+  test("la ligne du bloc replié : leur nombre, la plus récente de leurs actions, les rôles muets", () => {
+    assert.equal(resumeDesRoles(ROLES), `4 roles · latest: manager — put #16 on the rail, ${heureDeLAction("2026-10-21T10:00:00.000Z")} · ${SANS_ACTION}: second judge`);
+    assert.equal(resumeDesRoles(ROLES.map((role) => ({ ...role, latest: null }))), `4 roles · ${SANS_ACTION}: manager, pass, second judge, closer`);
+    assert.equal(resumeDesRoles([ROLES[1]!]), `1 role · latest: pass — merged #12, ${heureDeLAction(MERGE)}`);
   });
 
   test("un rôle qui n'a rien fait dit « no action yet », jamais un blanc", async () => {
