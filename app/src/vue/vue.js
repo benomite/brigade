@@ -4107,6 +4107,7 @@ function poserCuisson(projet, posees = new Map()) {
     alerte: stations?.alerte ?? null,
     refusee: stations?.lignes.some(({ etat }) => etat === "refused") ?? false,
     acces: vu?.acces ?? vu?.worktree?.acces ?? null,
+    clone: vu?.clone ?? null,
     refus: vu?.refus ?? null,
     ouvrir: () => choisirOnglet(CUISINE),
   });
@@ -5882,7 +5883,7 @@ function poserStationsDuProjet() {
   const onboarding = vu?.onboarding ?? null;
   const remede = remedesDesRefus.get(projet.nom);
   const refus = remede?.etape === "leve" ? null : (vu?.refus ?? null);
-  const retenu = poserDepotRetenu(document, { acces: vu?.acces ?? null, refus, worktree: vu?.worktree ?? null, maintenant: Date.now(), copier: (commande) => void navigator.clipboard.writeText(commande), remede: {
+  const retenu = poserDepotRetenu(document, { acces: vu?.acces ?? null, clone: vu?.clone ?? null, refus, worktree: vu?.worktree ?? null, maintenant: Date.now(), copier: (commande) => void navigator.clipboard.writeText(commande), ouvrir: (url) => void brigade.autoriserSurGitHub(url), remede: {
     ...(remede === undefined || remede.etape === "leve" ? {} : { etat: remede }),
     ouvrir: () => {
       remedesDesRefus.set(projet.nom, { etape: "confirmer" });

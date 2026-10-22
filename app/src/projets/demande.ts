@@ -52,6 +52,11 @@ export type Bascule = { de: string; vers: string; demandeLe: string; etape: Etap
 // plafond de cooks —, d'où l'app reprend ce qu'une station de plus doit servir ; nuls quand elle n'en dit rien.
 export type AccesBloque = { bloque: "fetch" | "push"; raison: string; geste: string };
 export type EchecDuWorktree = { ticket: number; raison: string; prochainEssai: string | null; acces: AccesBloque | null };
+// `clone` : la station ne parvient pas à cloner le dépôt (#1390, runtime/src/projets/echec-du-clone.ts) —
+// la cause en une phrase, le geste, où le faire, ses pages GitHub, le compte GitHub de la station, ce que
+// gh et git ont dit (`detail`, que la page ne montre que derrière « details ») et l'écart entre deux essais,
+// en secondes. Absent quand le clone n'échoue pas, ou d'une station d'avant #1390.
+export type EchecDuClone = { cause: string; raison: string; geste: string; ou: string; liens: string[]; compte: string | null; detail: string; reessaieToutesLes: number };
 // `refus` : pourquoi la station ne sert pas le projet, pour le chef (#1177, runtime/src/projets/refus.ts) —
 // un code stable, une phrase, et ce que le chef fait. Absent quand rien n'est refusé. Et, du remède qui le
 // lève (#1203, runtime/src/remedes/registre.ts), son descripteur (`remedy`) : ce que le bouton fera, en une
@@ -59,7 +64,7 @@ export type EchecDuWorktree = { ticket: number; raison: string; prochainEssai: s
 // (`noRemedy`). Une station d'avant #1203 n'en dit rien : ni l'un ni l'autre.
 export type DescripteurDeRemede = { id: string; description: string; destructive: boolean };
 export type Refus = { code: string; message: string; action: string; remedy?: DescripteurDeRemede; noRemedy?: string };
-export type SuiviDuProjet = { nom: string; etat: EtatDuProjet; dit: string; autoriser: string[]; serviLe: string | null; cuitSur: string | null; ici: boolean; bascule: Bascule | null; acces: AccesBloque | null; refus: Refus | null; worktree: EchecDuWorktree | null; depot: string | null; base: string | null; cooks: number | null };
+export type SuiviDuProjet = { nom: string; etat: EtatDuProjet; dit: string; autoriser: string[]; serviLe: string | null; cuitSur: string | null; ici: boolean; bascule: Bascule | null; acces: AccesBloque | null; refus: Refus | null; worktree: EchecDuWorktree | null; clone?: EchecDuClone; depot: string | null; base: string | null; cooks: number | null };
 
 const ETATS: readonly string[] = ["servi", "a-autoriser", "en-preparation", "refuse", "secondaire"];
 const ETAPES: readonly string[] = ["demandee", "acceptee", "refusee", "remise", "recue"];
@@ -86,6 +91,21 @@ const lireEchec = (lu: unknown): EchecDuWorktree | null => {
   const { ticket, raison, prochainEssai, acces } = (lu ?? {}) as Record<string, unknown>;
   if (typeof ticket !== "number" || !Number.isInteger(ticket) || ticket <= 0 || !texte(raison) || raison.trim() === "") return null;
   return { ticket, raison, prochainEssai: date(prochainEssai), acces: lireAcces(acces) };
+};
+const lireClone = (lu: unknown): EchecDuClone | null => {
+  const { cause, raison, geste, ou, liens, compte, detail, reessaieToutesLes } = (lu ?? {}) as Record<string, unknown>;
+  if (!texte(cause) || !texte(raison) || raison.trim() === "" || !texte(geste) || geste.trim() === "") return null;
+  return {
+    cause,
+    raison,
+    geste,
+    ou: texte(ou) ? ou : "",
+    // Seules des pages de GitHub s'ouvrent d'un geste.
+    liens: Array.isArray(liens) ? liens.filter((url): url is string => texte(url) && /^https:\/\/github\.com\//.test(url)) : [],
+    compte: texte(compte) && compte.trim() !== "" ? compte : null,
+    detail: texte(detail) ? detail : "",
+    reessaieToutesLes: typeof reessaieToutesLes === "number" && Number.isFinite(reessaieToutesLes) && reessaieToutesLes > 0 ? reessaieToutesLes : 30,
+  };
 };
 const calibre = (lu: unknown): Calibre => {
   const { modele, effort } = (lu ?? {}) as Record<string, unknown>;
@@ -138,8 +158,9 @@ export function lireSuivi(brut: string | undefined): SuiviDuProjet[] {
     const lu = JSON.parse(brut) as { brigade?: unknown; projets?: unknown };
     if (lu?.brigade !== "projets-suivi" || !Array.isArray(lu.projets)) return [];
     return (lu.projets as unknown[]).flatMap((brut) => {
-      const { nom, etat, dit, autoriser, serviLe, cuitSur, ici, bascule, acces, refus, worktree, depot, base, cooks } = (brut ?? {}) as Record<string, unknown>;
+      const { nom, etat, dit, autoriser, serviLe, cuitSur, ici, bascule, acces, refus, worktree, clone, depot, base, cooks } = (brut ?? {}) as Record<string, unknown>;
       if (!texte(nom) || !texte(etat) || !ETATS.includes(etat)) return [];
+      const echecDuClone = lireClone(clone);
       return [
         {
           nom,
@@ -153,6 +174,7 @@ export function lireSuivi(brut: string | undefined): SuiviDuProjet[] {
           acces: lireAcces(acces),
           refus: lireRefus(refus),
           worktree: lireEchec(worktree),
+          ...(echecDuClone === null ? {} : { clone: echecDuClone }),
           depot: texte(depot) && depot.trim() !== "" ? depot.trim() : null,
           base: texte(base) && base.trim() !== "" ? base.trim() : null,
           cooks: typeof cooks === "number" && Number.isSafeInteger(cooks) && cooks >= 1 ? cooks : null,

@@ -15,6 +15,7 @@ import { phrase, prochainEssaiDit } from "./parcours.js";
 /** @typedef {import("../../projets/demande.ts").AccesBloque} Acces */
 /** @typedef {import("../../projets/demande.ts").EchecDuWorktree} Echec */
 /** @typedef {import("../../projets/demande.ts").Refus} Refus */
+/** @typedef {import("../../projets/demande.ts").EchecDuClone} Clone */
 
 // Le détail de git, que la raison de l'accès porte entre parenthèses à sa fin : au survol, pas à l'écran.
 const DETAIL_DE_GIT = /\s*\(git: ([^)]*)\)\.?$/;
@@ -108,20 +109,51 @@ function refusDit(doc, refus, { etat, ouvrir, lancer, renoncer }) {
   return pose;
 }
 
+// Le clone du dépôt en échec (ticket 1390), tel que la station le publie : la cause en une phrase — elle
+// nomme le compte GitHub de la station —, le geste, un bouton par page de GitHub où le faire, et quand la
+// station réessaie. Ce que gh et git ont dit n'est jamais le message : il reste derrière « details ».
+export const DETAILS = "details";
+export const OUVRIR_SUR_GITHUB = "open it on GitHub";
+
+// L'écart entre deux essais, en mots : la station réessaie à chaque lecture, l'étape passe au vert seule.
+/** @param {number} secondes */
+export const reessaiDit = (secondes) => (secondes < 120 ? `${Math.max(1, Math.round(secondes))} s` : `${Math.round(secondes / 60)} min`);
+
+/** @param {Fabrique} doc @param {Clone} clone @param {(url: string) => void} ouvrir */
+function cloneDit(doc, clone, ouvrir) {
+  const pose = cree(doc, "div");
+  const geste = phrase(doc, "p", clone.ou === "" ? clone.geste : `${clone.geste} ${clone.ou}`);
+  geste.className = "refus-action";
+  pose.append(phrase(doc, "p", clone.raison), geste);
+  clone.liens.forEach((url, rang) => pose.append(boutonAction(doc, clone.liens.length === 1 ? OUVRIR_SUR_GITHUB : `open ${url.replace(/^https:\/\/github\.com\//, "")}`, () => ouvrir(url), { recommande: rang === 0 })));
+  pose.append(cree(doc, "p", `Next retry within ${reessaiDit(clone.reessaieToutesLes)}: this turns green by itself once it is fixed.`));
+  if (clone.detail !== "") {
+    const details = cree(doc, "details");
+    const resume = cree(doc, "summary", DETAILS);
+    details.append(resume, cree(doc, "pre", clone.detail));
+    pose.append(details);
+  }
+  return pose;
+}
+
 // Le bloc à poser sous la ligne des stations, ou null : rien ne retient la cuisine. L'accès refusé
 // prime sur l'échec du worktree — c'est lui que le geste lève — mais l'heure du prochain essai se dit
-// avec, quand le worktree en a une.
-/** @param {Fabrique} doc @param {{ acces?: Acces | null, refus?: Refus | null, worktree?: Echec | null, maintenant: number, copier: (commande: string) => void, remede?: GestesDuRemede }} retenu */
-export function poserDepotRetenu(doc, { acces, refus, worktree, maintenant, copier, remede = { ouvrir: () => {}, lancer: () => {}, renoncer: () => {} } }) {
+// avec, quand le worktree en a une. Un clone en échec prime sur le refus qui l'accompagne : il dit la
+// cause, le refus ne dit que « pas de copie ».
+/** @param {Fabrique} doc @param {{ acces?: Acces | null, clone?: Clone | null, refus?: Refus | null, worktree?: Echec | null, maintenant: number, copier: (commande: string) => void, ouvrir?: (url: string) => void, remede?: GestesDuRemede }} retenu */
+export function poserDepotRetenu(doc, { acces, clone, refus, worktree, maintenant, copier, ouvrir = () => {}, remede = { ouvrir: () => {}, lancer: () => {}, renoncer: () => {} } }) {
   const bloque = acces ?? worktree?.acces ?? null;
-  const refuse = bloque === null && refus !== null && refus !== undefined ? refus : null;
-  if (bloque === null && refuse === null && (worktree === null || worktree === undefined)) return null;
+  const sansCopie = bloque === null && clone !== null && clone !== undefined ? clone : null;
+  const refuse = bloque === null && sansCopie === null && refus !== null && refus !== undefined ? refus : null;
+  if (bloque === null && sansCopie === null && refuse === null && (worktree === null || worktree === undefined)) return null;
   const pose = cree(doc, "div");
   pose.className = "depot-retenu";
   pose.role = "alert";
   if (bloque !== null) {
     pose.append(accesDit(doc, bloque, copier));
     if (worktree !== null && worktree !== undefined) pose.append(cree(doc, "p", prochainEssaiDit(worktree.prochainEssai, maintenant)));
+  } else if (sansCopie !== null) {
+    pose.append(cloneDit(doc, sansCopie, ouvrir));
   } else if (refuse !== null) {
     pose.append(refusDit(doc, refuse, remede));
   } else if (worktree !== null && worktree !== undefined) {

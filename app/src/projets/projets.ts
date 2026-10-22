@@ -23,7 +23,7 @@
 // demande : une station qui refuse de le reprendre le laisse cuire là où il cuisait.
 import type { GitHubDesStations } from "../stations/github.ts";
 import type { StationVue } from "../stations/stations.ts";
-import { documentDeDemande, FICHIER_PROJETS, FICHIER_SUIVI, lireDemande, lireOnboarding, lireSuivi, type AccesBloque, type Bascule, type Calibre, type EchecDuWorktree, type EtatDuProjet, type Onboarding, type ProjetDemande, type Refus, type SuiviDuProjet } from "./demande.ts";
+import { documentDeDemande, FICHIER_PROJETS, FICHIER_SUIVI, lireDemande, lireOnboarding, lireSuivi, type AccesBloque, type Bascule, type Calibre, type EchecDuClone, type EchecDuWorktree, type EtatDuProjet, type Onboarding, type ProjetDemande, type Refus, type SuiviDuProjet } from "./demande.ts";
 import type { Demenagement, Demenageur } from "./demenagement.ts";
 import type { DepotDuChef } from "./github.ts";
 import { canalDesGists, pourLaPage, type DemanderLeRemede, type IssueDuRemede } from "./remede.ts";
@@ -75,6 +75,9 @@ export type ProjetVu = {
   // Pourquoi la station refuse de le servir, en une phrase, et ce que le chef fait (#1178).
   refus?: Refus | null;
   worktree?: EchecDuWorktree | null;
+  // Le clone du dépôt en échec, en clair : la cause, le compte GitHub de la station, le geste (#1390).
+  // Absent quand le clone n'échoue pas.
+  clone?: EchecDuClone;
 };
 // Ce que l'app propose pour une station choisie comme principale (#1107) : ce que ce choix implique —
 // toujours allumée, ou arrêtée avec l'app de son ordinateur —, et le nombre de cooks à la fois que
@@ -412,6 +415,8 @@ export function tenirProjets(options: OptionsProjets): Projets {
             vu.acces = dit?.acces ?? null;
             vu.refus = dit?.refus ?? null;
             vu.worktree = dit?.worktree ?? null;
+            if (dit?.clone !== undefined) vu.clone = dit.clone;
+            else delete vu.clone;
           }
           vu.stations.push({ id: station.id, nom: station.nom, principale: projet.principale, etat: dit?.etat ?? "attendu", dit: dit?.dit ?? `${station.nom} has not read it yet: it reads what the app asks every 30 s`, autoriser: dit?.autoriser ?? [] });
           if (projet.principale && dit?.etat === "servi" && dit.serviLe !== null) {
@@ -634,10 +639,12 @@ export function tenirProjets(options: OptionsProjets): Projets {
     ajouter,
     confier,
     retirer,
-    // Et celles que son onboarding montre : le geste attendu, le ticket de préparation, sa PR.
+    // Et celles que son onboarding montre : le geste attendu, le ticket de préparation, sa PR ; et celles
+    // du geste d'un clone en échec (#1390).
     pages: () =>
-      [...new Set((vu?.projets ?? []).flatMap(({ stations, onboarding }) => [
+      [...new Set((vu?.projets ?? []).flatMap(({ stations, onboarding, clone }) => [
         ...stations.flatMap(({ autoriser }) => autoriser),
+        ...(clone?.liens ?? []),
         ...(onboarding?.etapes ?? []).flatMap(({ geste }) => geste?.liens ?? []),
         ...(onboarding?.preparation === null || onboarding?.preparation === undefined ? [] : [onboarding.preparation.url, ...(onboarding.preparation.pr === null ? [] : [onboarding.preparation.pr])]),
       ]))],

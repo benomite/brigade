@@ -183,6 +183,14 @@ describe("l'ajout, la lecture et le retrait d'un projet, contre un GitHub de tes
     assert.equal(servi.projets[0]?.stations[0]?.etat, "servi");
     assert.equal(servi.projets[0]?.servi, "served by box 3 min 05 s after “add a project” was opened");
     assert.deepEqual(projets.pages(), []);
+
+    // Un clone en échec (#1390) : la page GitHub de son geste s'ouvre, même sans onboarding publié ; une autre, jamais.
+    const jetons = "https://github.com/settings/personal-access-tokens";
+    const clone = { cause: "token-excludes-repository", raison: "The token used by box does not include benomite/parade.", geste: "Add benomite/parade to the repositories of the token used by box.", ou: "On GitHub.", liens: [jetons, "https://ailleurs.example/piege"], compte: "box", detail: "fatal: repository not found", reessaieToutesLes: 30 };
+    suivre("g1", [{ nom: "parade", etat: "refuse", dit: `${clone.raison} ${clone.geste}`, autoriser: [], serviLe: null, clone }]);
+    const sansCopie = await projets.relire();
+    assert.deepEqual(sansCopie.projets[0]?.clone?.liens, [jetons]);
+    assert.deepEqual(projets.pages(), [jetons]);
   });
 
   test("l'onboarding que la principale publie se lit sous le projet (#1111), et ses pages de GitHub s'ouvrent ; celui d'une secondaire, jamais", { skip: SANS_POSIX }, async (t) => {

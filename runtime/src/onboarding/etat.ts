@@ -93,7 +93,7 @@ export type Entrees = {
   // La station principale du projet — celle qui le cuit —, ou null : aucune n'est choisie.
   station: string | null;
   // Ce que cette station dit du projet dans son suivi ; null : rien encore.
-  suivi: Pick<SuiviDuProjet, "etat" | "dit" | "autoriser" | "acces"> | null;
+  suivi: Pick<SuiviDuProjet, "etat" | "dit" | "autoriser" | "acces" | "clone"> | null;
   // Le dépôt est cloné sur la station.
   clone: boolean;
   sansBacASable: boolean | null;
@@ -149,6 +149,9 @@ const ATTEND_LE_CHEF: readonly Phase[] = ["held", "escalated"];
 
 type Vue = { faite: boolean; dit: string; geste: Geste | null };
 
+// L'écart entre deux essais, dit au chef : « within 30 s », « within 2 min ».
+export const dansLeDelai = (secondes: number): string => (secondes < 120 ? `within ${Math.max(1, Math.round(secondes))} s` : `within ${Math.round(secondes / 60)} min`);
+
 function etapeDepot({ depot, station, suivi, clone }: Entrees): Vue {
   if (station === null) return { faite: true, dit: `${depot} is added.`, geste: null };
   if (suivi?.etat === "a-autoriser") {
@@ -161,6 +164,12 @@ function etapeDepot({ depot, station, suivi, clone }: Entrees): Vue {
   // Le clone ne peut pas récupérer le dépôt, ou y pousser : le geste est sur la station.
   if (suivi?.acces !== undefined) {
     return { faite: false, dit: suivi.acces.raison, geste: { quoi: suivi.acces.geste, ou: `On ${station}, under the account that runs it.`, liens: [] } };
+  }
+  // Le clone échoue : la cause, le compte de la station et le geste — le plus
+  // souvent sur GitHub ; l'étape passe au vert seule, à l'essai qui suit le geste.
+  if (!clone && suivi?.clone !== undefined) {
+    const { raison, geste, ou, liens, reessaieToutesLes } = suivi.clone;
+    return { faite: false, dit: `${raison} ${station} tries again ${dansLeDelai(reessaieToutesLes)}: this step turns green by itself once it is fixed.`, geste: { quoi: geste, ou, liens } };
   }
   if (!clone) {
     const dit = suivi === null || suivi.etat === "servi" || suivi.dit === "" ? `${station} checks that it may act on ${depot}, then clones it.` : phrase(suivi.dit);
@@ -181,6 +190,8 @@ function etapeMachine(entrees: Entrees): Vue {
   const sansBac = sansBacASable === true ? `: its cooks run without a sandbox, they read everything the station's account reads` : "";
   // Un accès refusé est dit par l'étape du dépôt : la cuisine attend qu'il soit levé.
   if (suivi?.acces !== undefined) return { faite: false, dit: `${station} opens the kitchen of ${projet} once it may fetch from and push to its repository.`, geste: null };
+  // De même pour un clone en échec.
+  if (suivi?.clone !== undefined) return { faite: false, dit: `${station} opens the kitchen of ${projet} once it has cloned its repository.`, geste: null };
   if (suivi?.etat === "refuse") return { faite: false, dit: phrase(suivi.dit), geste: null };
   if (decisionAttendue(entrees)) {
     return {
