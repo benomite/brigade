@@ -12,7 +12,7 @@ import { FICHIER as PREPARATION_FICHIER } from "../../src/preparation-depot/ouvr
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ouvrirRail } from "../../src/rail.ts";
-import { repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
+import { aArreter, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
 
 const rienNeReste = temporaireDuFichier();
 
@@ -23,7 +23,7 @@ function uneCuisine(t: TestContext, options: { sandbox: typeof BAC | null | "inc
   const repertoireEtat = repertoireTemporaire(t);
   writeFileSync(join(repertoireEtat, PREPARATION_FICHIER), JSON.stringify({ ticket: 7, ouvertLe: "2026-10-15T12:00:00.000Z" }));
   const journal = ouvrirJournal(repertoireEtat);
-  t.after(() => journal.fermer());
+  aArreter(t, () => journal.fermer());
   const noter = (ticket: number | null, fait: Fait, author = "runtime") => journal.ajouter({ project: "parade", ticket, author, ...fait });
   if (options.sandbox !== "inconnu") noter(null, { type: "isolation.configured", payload: { sandbox: options.sandbox, proxy: null } });
   const arriver = (ticket: number) =>

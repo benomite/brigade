@@ -102,7 +102,6 @@
     "test/montrer-rail.test.ts",
     "test/montrer-station.test.ts",
     "test/nettoyage.test.ts",
-    "test/onboarding/attente.test.ts",
     "test/outils.test.ts",
     "test/pass-projection.test.ts",
     "test/pass.test.ts",
