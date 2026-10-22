@@ -370,6 +370,57 @@ To raise or resolve one: `poserBlocage` / `leverBlocage` on an open log, or `pos
 `leverBlocageDans` on a project's state directory (created if needed). `lireBlocages` reads them,
 read-only.
 
+### What the station lacks for the project
+
+*Ticket #1398, epic #1393.* At each beat, the main station of a project reads what its tests need in
+its clone (`runtime/src/installation/besoins/`): the worktree setup (a command it runs — `psql`,
+`docker` —, a `postgres://` address), the test configuration (the test scripts of its `package.json`
+files, a Playwright or Cypress config, the services its CI starts) and its manifests (dependencies of
+npm, Ruby, Python, Go, Rust, Maven/Gradle, a Prisma datasource, `go.mod`, `Cargo.toml`, a Flutter
+`pubspec.yaml`, an Xcode project…). The catalogue names a database (Postgres, MySQL, Redis), Docker,
+a browser and the SDKs (Go, Rust, Java, .NET, Flutter, Android, Xcode, Swift); a package manager is
+not in it — the kitchen installs it alone. Nothing is run: the repository is read again only when its
+clone moves to another commit.
+
+It compares with what the station provides: a command of its machine's `PATH` (`pg_ctlcluster`,
+`docker`, `chromium`, `go`…), Playwright's downloaded browsers, `ANDROID_HOME`, or a capability the
+project declares for a station of this machine in `BRIGADE_STATIONS` (`postgres`, `docker`,
+`navigateur-headless`…). For each need it lacks, **one choice**, with three options, each with what
+follows from it:
+
+- `cook-elsewhere` — which tickets wait, and for which station (a remote station of the project that
+  declares the capability), or that none is declared and they do not start;
+- `provide-here` — what gets installed on this station;
+- `adapt-tests` — what the test coverage loses.
+
+The choice is written to the project's log (`need.choice-raised`), with a blocker under the same id
+(`need:<need>`, action `choose-need`). The station publishes the choices in the project's line of
+`brigade-projets-suivi.json`, under `choix`, next to `blocages` — absent when there is none:
+
+```json
+"choix": [
+  { "id": "need:postgres", "need": "postgres",
+    "message": "The tests of mirrorscreen need a Postgres database, which box does not have.",
+    "cause": "`.claude/brigade/worktree-setup.sh` runs `psql`; `apps/api/package.json` depends on `pg`.",
+    "options": [
+      { "id": "cook-elsewhere", "label": "Cook it on a station that has it", "consequence": "…" },
+      { "id": "provide-here", "label": "Provide it on box", "consequence": "…" },
+      { "id": "adapt-tests", "label": "Adapt the tests", "consequence": "…" } ],
+    "status": "pending" }
+]
+```
+
+Every text is a sentence built by the runtime: the cause names a file and what it does there, never
+what it contains. **The chef selects an option from the app**, which writes it in the project's
+request (`brigade-projets.json`): `"choix": { "need:postgres": "provide-here" }`. At its next read, the
+station writes it to the log (`need.choice-selected`, by `chef`): the choice becomes `"status":
+"chosen"` with `selected` and `selectedAt`, and its blocker is lifted. When the need stops being
+missing — the station has it now, or the repository no longer asks for it — the choice leaves the
+list (`need.choice-dropped`), with its blocker; a selection still in the request is applied again if
+it comes back. `choisir` / `choisirDans` record a selection on an open log or a state directory,
+refusing a choice that is not raised or an option it does not offer (`ChoixInconnu`); `lireChoix`
+reads them, read-only.
+
 ### The first ticket: preparing the repository
 
 *Ticket #796.* Before writing the line of a project added from the app, the station opens on its
