@@ -136,7 +136,11 @@ function machine(t: TestContext, options: { environnement?: (station: string, ch
 
   const chemin = [binUnite, "/usr/bin", "/bin"].join(":");
   writeFileSync(join(unites, "User"), "brigade\n");
-  writeFileSync(join(unites, "Environment"), `${options.environnement?.(station, chemin, temoin) ?? [`BRIGADE_STATION_DIR=${station}`, "BRIGADE_SANDBOX_BIN=/usr/bin/bwrap", `PATH=${chemin}`, `TEMOIN_DU_TEST=${temoin}`].join(" ")}\n`);
+  // L'unité donne aussi le cache de compilation de la suite, s'il y en a un :
+  // sans lui, chaque `node` lancé par le geste recompile le runtime — près
+  // d'une seconde de processeur à chaque fois. Ce n'est qu'un cache.
+  const cache = process.env.NODE_COMPILE_CACHE ? [`"NODE_COMPILE_CACHE=${process.env.NODE_COMPILE_CACHE.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`] : [];
+  writeFileSync(join(unites, "Environment"), `${[options.environnement?.(station, chemin, temoin) ?? [`BRIGADE_STATION_DIR=${station}`, "BRIGADE_SANDBOX_BIN=/usr/bin/bwrap", `PATH=${chemin}`, `TEMOIN_DU_TEST=${temoin}`].join(" "), ...cache].join(" ")}\n`);
 
   const lire = (nom: string) => (existsSync(join(temoin, nom)) ? readFileSync(join(temoin, nom), "utf8").replace(/\n$/, "") : null);
   // Sans `sudo`, le `PATH` s'arrête aux doublures et à ce qu'elles lancent :

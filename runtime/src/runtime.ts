@@ -4,7 +4,7 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { hostname } from "node:os";
 import type { Fait } from "./evenements.ts";
-import type { CodeDeRefus } from "./projets/refus.ts";
+import { ConfigInvalide } from "./config-invalide.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
 import { sessionEnCours } from "./projections/sessions.ts";
 import { prendreVerrou, VerrouTenu } from "./verrou.ts";
@@ -15,15 +15,10 @@ const AUTEUR = "runtime";
 // systemd et dans le chemin d'état : un identifiant court, sans rien à échapper.
 export const NOM_DE_PROJET = /^[a-z0-9][a-z0-9-]*$/;
 
-export class ConfigInvalide extends Error {
-  // La cause du refus pour le chef (`projets/refus.ts`), quand elle est connue.
-  readonly code: CodeDeRefus | undefined;
-  constructor(message: string, code?: CodeDeRefus) {
-    super(message);
-    this.code = code;
-    this.name = "ConfigInvalide";
-  }
-}
+// Le refus d'une configuration vit dans son propre module, sans dépendance :
+// ce qui ne fait que le lever (`secrets.ts`, chargé par chaque relais) n'a pas
+// à charger le journal et ses projections avec lui.
+export { ConfigInvalide };
 
 export class DejaEnCours extends Error {
   constructor(message: string) {

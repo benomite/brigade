@@ -6,7 +6,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { aArreter, ENV_ENFANT, jusqua, repertoireTemporaire } from "./outils.ts";
+import { aArreter, ENV_ENFANT, jusqua, mort, repertoireTemporaire } from "./outils.ts";
 
 const GATES = join(import.meta.dirname, "../../.claude/brigade/gates.sh");
 
@@ -30,8 +30,9 @@ function jouer(t: TestContext, racine: string, verrou: string): Passage {
   return { process: gates, sortie: () => sortie, fin };
 }
 
-// Une suite qui signale son départ, puis attend qu'on la libère.
-const suiteRetenue = (signal: string, libere: string) => `touch ${signal}; while [ ! -e ${libere} ]; do sleep 0.1; done`;
+// Une suite qui signale son départ, puis attend qu'on la libère. Son pid est
+// posé avant le signal : qui la libère peut attendre qu'elle soit partie.
+const suiteRetenue = (signal: string, libere: string) => `echo $$ >${signal}.pid; touch ${signal}; while [ ! -e ${libere} ]; do sleep 0.1; done`;
 
 describe("le tour des gates sur une box", () => {
   test("le second passage n'exécute ses tests qu'une fois le premier fini, et dit combien il a attendu", async (t) => {
@@ -63,8 +64,13 @@ describe("le tour des gates sur une box", () => {
     const signalA = join(repertoireTemporaire(t), "a");
     const signalB = join(repertoireTemporaire(t), "b");
     const libere = join(repertoireTemporaire(t), "libere");
-    // La suite du passage tué lui survit : on la libère en fin de test.
-    aArreter(t, () => writeFileSync(libere, ""));
+    // La suite du passage tué lui survit : on la libère en fin de test, et on
+    // attend qu'elle s'en aille avant que son répertoire ne disparaisse — sans
+    // quoi elle ne verrait jamais `libere` et tournerait sur la box sans fin.
+    aArreter(t, async () => {
+      writeFileSync(libere, "");
+      if (existsSync(`${signalA}.pid`)) await mort(Number(readFileSync(`${signalA}.pid`, "utf8")));
+    });
     const a = projet(t, suiteRetenue(signalA, libere));
     const b = projet(t, `touch ${signalB}`);
 

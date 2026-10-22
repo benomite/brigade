@@ -7,8 +7,8 @@
 import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { ouvertADAutres } from "./droits.ts";
-import { SCRIPT_SETUP } from "./gates.ts";
-import { ConfigInvalide } from "./runtime.ts";
+import { ConfigInvalide } from "./config-invalide.ts";
+import { SCRIPT_SETUP } from "./scripts-du-projet.ts";
 
 // Ce que le dépôt du projet déclare : un nom de variable par ligne.
 export const DECLARATION = ".claude/brigade/secrets";

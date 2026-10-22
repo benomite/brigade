@@ -29,7 +29,7 @@ const REFUS = 2;
 // Lancé sans rien de l'environnement d'un service : ni état, ni dépôt, ni arbitre.
 function jouer(commande: string[]): Promise<{ code: number | null; sortie: string; erreur: string }> {
   return new Promise((resoudre, rejeter) => {
-    const enfant = spawn(commande[0] ?? "", commande.slice(1), { cwd: RUNTIME, env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "/tmp" } });
+    const enfant = spawn(commande[0] ?? "", commande.slice(1), { cwd: RUNTIME, env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "/tmp", ...(process.env.NODE_COMPILE_CACHE ? { NODE_COMPILE_CACHE: process.env.NODE_COMPILE_CACHE } : {}) } });
     let [sortie, erreur] = ["", ""];
     enfant.stdout.on("data", (morceau) => (sortie += morceau));
     enfant.stderr.on("data", (morceau) => (erreur += morceau));

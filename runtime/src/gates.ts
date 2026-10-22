@@ -10,9 +10,9 @@ import { join } from "node:path";
 import { envelopper, type Cloison } from "./cloison.ts";
 import type { Depassement, Gates } from "./events/pass.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
+import { SCRIPT_GATES, SCRIPT_SETUP } from "./scripts-du-projet.ts";
 
-export const SCRIPT_GATES = ".claude/brigade/gates.sh";
-export const SCRIPT_SETUP = ".claude/brigade/worktree-setup.sh";
+export { SCRIPT_GATES, SCRIPT_SETUP };
 
 // Le canal par lequel le setup rend ce qu'il a exporté : ni sa sortie ni sa
 // sortie d'erreur, qui sont au projet.
