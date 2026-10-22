@@ -10,6 +10,8 @@ import { empreinteDuCode, lireCodeEnService } from "../src/code.ts";
 import { ROLES } from "../src/identites.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { lireRail } from "../src/projections/rail.ts";
+import { proposerAuRuntime } from "../src/reglages-projet/au-runtime.ts";
+import { FICHIER } from "../src/reglages-projet/reglages.ts";
 import { fauxGitHubApps } from "./aides/faux-github-apps.ts";
 import { relecteur } from "./aides/opt-B-journal.ts";
 import { aArreter, BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancementsDuFauxClaude, lancer, mort, repertoireDuFichier, repertoireTemporaire, rienEcritParLeRuntime, SANS_RESEAU, temporaireDuFichier, tuerLesRelais, vivant } from "./outils.ts";
@@ -544,6 +546,35 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
       runtime.process.kill("SIGTERM");
       assert.equal(await runtime.fin, 0);
     });
+  });
+
+  test("un réglage du projet demandé au runtime : le vrai process ouvre la PR, qui ne change que le fichier des réglages, la remet à sa pass, et l'appel en rend l'adresse ; une valeur refusée rend son erreur, sans PR", async (t) => {
+    const repertoire = repertoireTemporaire(t);
+    const { origine, clone } = depotGit(t);
+    const pr = { number: 41, html_url: `https://github.com/${DEPOT}/pull/41`, state: "open", merged: false, mergeable: true, base: { ref: BASE }, head: { sha: "tete" } };
+    const gh = fauxGh(t);
+    gh.issues([]);
+    gh.repondre(`repos/${DEPOT}/pulls`, { statut: 201, corps: pr });
+    gh.repondre(`repos/${DEPOT}/pulls?head=benomite:cook/*`, { corps: [pr] });
+    gh.repondre(`repos/${DEPOT}/pulls/41`, { corps: pr });
+    const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire, gh), BRIGADE_REPO_DIR: clone });
+    await jusqua(() => relire(repertoire).some((e) => e.type === "runtime.started"));
+    const appel = { repertoireEtat: repertoire, projet: "brigade" };
+
+    const refusee = await proposerAuRuntime({ calibrationCeiling: { model: "opus", effort: "high" }, githubToken: "ghp_abcdefghijklmnopqrstuvwxyz0123456789" }, appel);
+    assert.ok(!refusee.ok && refusee.motif === "secret" && refusee.cle === "githubToken", JSON.stringify(refusee));
+
+    const reponse = await proposerAuRuntime({ calibrationCeiling: { model: "opus", effort: "high" } }, appel);
+    assert.ok(reponse.ok, JSON.stringify(reponse));
+    assert.equal(reponse.pr, pr.html_url);
+    assert.deepEqual(git(origine, "diff", "--name-only", `${BASE}...${reponse.branche}`).split("\n"), [FICHIER]);
+    const creations = gh.appels().filter((appel) => appel.at(-1) === `repos/${DEPOT}/pulls`);
+    assert.equal(creations.length, 1, "one PR is opened, none for the refused value");
+    assert.ok(creations[0]?.includes(`head=${reponse.branche}`) && creations[0]?.includes(`base=${BASE}`), JSON.stringify(creations));
+    await jusqua(() => relire(repertoire).some((e) => e.type === "pass.entered" && e.ticket === pr.number));
+    assert.equal(JSON.stringify(relire(repertoire)).includes("ghp_"), false);
+    runtime.process.kill("SIGTERM");
+    assert.equal(await runtime.fin, 0);
   });
 
   test("un runtime remplacé pendant qu'un cook tourne : le cook lui survit, le runtime suivant le reprend sans le relancer, et sa livraison est jugée et mergée", async (t) => {

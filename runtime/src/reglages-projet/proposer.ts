@@ -105,6 +105,18 @@ export function changementsDits(avant: ReglagesProjet, apres: ReglagesProjet): s
 const refus = (erreur: ReglageRefuse): Proposition => ({ ok: false, motif: erreur.motif, cle: erreur.cle === "" ? null : erreur.cle, message: erreur.message });
 const echec = (texte: string): Proposition => ({ ok: false, motif: "echec", cle: null, message: texte });
 
+// Le crible du seul changement, sans rien lire ni préparer : le refus que
+// l'écriture lui opposerait sur une base qui ne porterait que `base`, ou null.
+export function refusDuChangement(changement: unknown, base: string): Extract<Proposition, { ok: false }> | null {
+  try {
+    validerReglagesProjet(appliquerLeChangement({ integrationBranch: base }, changement));
+    return null;
+  } catch (erreur) {
+    if (erreur instanceof ReglageRefuse) return refus(erreur) as Extract<Proposition, { ok: false }>;
+    throw erreur;
+  }
+}
+
 // Propose le changement des réglages du projet par une PR sur son dépôt.
 // `changement` : ce que l'app envoie, rien n'y est cru sur parole — les
 // réglages qu'il nomme, sous les noms du fichier (`calibrationCeiling`,
@@ -116,12 +128,8 @@ export async function proposerUnReglage(changement: unknown, options: OptionsDeP
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
 
   // Le crible d'abord, sur le seul changement : un refus ne prépare rien.
-  try {
-    validerReglagesProjet(appliquerLeChangement({ integrationBranch: base }, changement));
-  } catch (erreur) {
-    if (erreur instanceof ReglageRefuse) return refus(erreur);
-    throw erreur;
-  }
+  const refuse = refusDuChangement(changement, base);
+  if (refuse !== null) return refuse;
 
   const run = `${PREFIXE}${randomUUID().slice(0, 8)}`;
   let worktree: string;

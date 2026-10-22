@@ -122,7 +122,7 @@
     "test/proteger-branche.test.ts",
     "test/rail.test.ts",
     "test/reaction.test.ts",
-    "test/reglages-projet/proposer-en-pass.test.ts",
+    "test/reglages-projet/au-runtime.test.ts",
     "test/reglages-projet/proposer.test.ts",
     "test/relire.test.ts",
     "test/remedes/catalogue/catalogue.test.ts",

@@ -22,6 +22,7 @@ import { lireLeDepot } from "./reglages-projet/en-vigueur.ts";
 import { CARNET_PATH } from "./carnet/carnet.ts";
 import { brancherCarnet } from "./promotion/livrer.ts";
 import { brancherRenommage } from "./pause/renommage.ts";
+import { brancherReglages } from "./reglages-projet/au-runtime.ts";
 import { lireSeuils as lireSeuilsDesLecons } from "./seuils/seuils.ts";
 import { lirePlafondDesLecons } from "./apprentissage/injection.ts";
 import { leconsDeLEtageCommun } from "./commun/installation.ts";
@@ -159,7 +160,10 @@ try {
   // Le renommage du code après la pass, à qui il remet sa PR : il ne part que
   // sur le « oui » du chef à la pause, et la lève lui-même à sa fin.
   const renommee = brancherRenommage(apprise, { depot, github: githubs.station, base: station.base, env, cloison });
-  const servie = brancherStation(renommee, {
+  // Les changements des réglages du projet que le chef demande, après la pass
+  // à qui chacun remet sa PR : elle la retient pour lui (#1308).
+  const reglee = brancherReglages(renommee, { depot, github: githubs.station, base: station.base, env });
+  const servie = brancherStation(reglee, {
     stations,
     decisions,
     repertoireEtat,
