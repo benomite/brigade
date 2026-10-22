@@ -74,14 +74,14 @@ export class CloneEnEchec extends Error {
 // Clone le dépôt à sa place, par le `gh` de la machine — qui s'authentifie
 // seul —, toujours en HTTPS. Un clone interrompu ne laisse rien à sa place :
 // il se fait à côté.
-export function cloner(options: { gh: string; depot: string; clone: string; delaiMs?: number }): Promise<void> {
+export function cloner(options: { gh: string; depot: string; clone: string; delaiMs?: number; env?: NodeJS.ProcessEnv }): Promise<void> {
   const { gh, depot, clone } = options;
   if (existsSync(join(clone, ".git"))) return Promise.resolve();
   const aCote = `${clone}.clonage`;
   rmSync(aCote, { recursive: true, force: true });
   mkdirSync(dirname(clone), { recursive: true });
   return new Promise((resoudre, rejeter) => {
-    execFile(gh, ["repo", "clone", adresseHttps(depot), aCote, "--", "--quiet"], { timeout: options.delaiMs ?? 15 * 60_000, env: { ...process.env, GH_PROMPT_DISABLED: "1", GIT_TERMINAL_PROMPT: "0", NO_COLOR: "1" } }, (erreur, _, erreurs) => {
+    execFile(gh, ["repo", "clone", adresseHttps(depot), aCote, "--", "--quiet"], { timeout: options.delaiMs ?? 15 * 60_000, env: { ...(options.env ?? process.env), GH_PROMPT_DISABLED: "1", GIT_TERMINAL_PROMPT: "0", NO_COLOR: "1" } }, (erreur, _, erreurs) => {
       if (erreur !== null) {
         rmSync(aCote, { recursive: true, force: true });
         return rejeter(new CloneEnEchec(depot, String(erreurs).trim() || erreur.message));
