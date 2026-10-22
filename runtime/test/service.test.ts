@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { chmodSync, cpSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
+import { posixOnly } from "./support/plateforme.ts";
 import { ouvrirDepot } from "../src/depot.ts";
 import { jouerSetup, SCRIPT_SETUP } from "../src/gates.ts";
 import { DECLARATION_SERVICE, lireDeclaration, serviceDuWorktree, toucheInterface, VARIABLE_DU_PORT } from "../src/service.ts";
@@ -37,7 +38,7 @@ function livrer(worktree: string, ...fichiers: string[]): void {
 }
 
 // Chaque test a son dépôt : ils se jouent de front.
-describe("le service du projet", { concurrency: 8 }, () => {
+describe("le service du projet", { skip: posixOnly("builds a real git repository and runs a POSIX shell script"), concurrency: 8 }, () => {
   test("le dépôt déclare sa commande de service et ses chemins d'interface, une ligne « clé : valeur » chacun", () => {
     const declaration = lireDeclaration("# comment ce projet se sert\n\ncommande : npm run dev -- --host 127.0.0.1 --port \"$BRIGADE_PORT\"\ninterface : app/src/vue/\n  interface:site/pages  \ninterface : app/src/vue\n");
 

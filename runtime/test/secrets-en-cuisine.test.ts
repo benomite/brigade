@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
+import { posixOnly } from "./support/plateforme.ts";
 import { JETON_MASQUE } from "../src/identifiants.ts";
 import { etatDesGardeFous } from "../src/projections/guardrails.ts";
 import { chef, controlerBase, cuisine, fauxGitHub, issue, montre } from "./aides/cuisine.ts";
@@ -36,7 +37,7 @@ function traces(lieu: ReturnType<typeof cuisine>): string {
 }
 
 // Chaque test a ses lieux : ils se jouent de front.
-describe("les secrets du projet", { concurrency: 8 }, () => {
+describe("les secrets du projet", { skip: posixOnly("builds a real git repository and runs the fake claude (a POSIX shell script)"), concurrency: 8 }, () => {
   test("le setup puis le cook reçoivent les secrets que le dépôt déclare, et rien d'autre de ce que la machine détient", async (t) => {
     const { lancements, avertissements } = cuisine(t, { scenario: "bavard", setup: "derive", secrets: SECRETS, issues: [issue(15)] });
     await jusqua(() => lancements().length === 1);
@@ -237,7 +238,7 @@ describe("les secrets du projet", { concurrency: 8 }, () => {
 // Les identifiants du compte Max ne sont pas des secrets du projet : le
 // runtime ne les lit pas, donc ne peut pas en chercher la valeur. Il en
 // reconnaît le nom et la forme — que le projet déclare des secrets ou non.
-describe("les identifiants de Claude dans une livraison", { concurrency: 8 }, () => {
+describe("les identifiants de Claude dans une livraison", { skip: posixOnly("builds a real git repository and runs the fake claude (a POSIX shell script)"), concurrency: 8 }, () => {
   // Le jeton fabriqué que le faux cook écrit : assemblé, jamais en clair.
   const JETON = ["sk", "ant", "oat01", "0".repeat(90)].join("-");
 

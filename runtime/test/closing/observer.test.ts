@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
+import { posixOnly } from "../support/plateforme.ts";
 import type { Fait } from "../../src/evenements.ts";
 import { lireDepot } from "../../src/closing/reading.ts";
 import { principal } from "../../src/closing/observer.ts";
@@ -62,7 +63,7 @@ const depot = (t: TestContext, etapes: Etape[]): string => {
   return clone;
 };
 
-test("sur un historique de merges fixe, le ratio ajouté / retiré de chaque fenêtre est le bon, avec ses valeurs absolues", async (t) => {
+test("sur un historique de merges fixe, le ratio ajouté / retiré de chaque fenêtre est le bon, avec ses valeurs absolues", { skip: posixOnly("builds a real git repository") }, async (t) => {
   const clone = depot(t, histoireFixe());
   const tete = git(clone, "rev-parse", `origin/${BASE}`);
 
@@ -82,7 +83,7 @@ test("sur un historique de merges fixe, le ratio ajouté / retiré de chaque fen
   assert.match(sortie, /\n {11}100 merges {2}\+1,000 \/ −640 {2}1.6:1\n/);
 });
 
-test("un merge compte pour ce qu'il apporte à la branche d'intégration : ni un commit posé droit dessus, ni ce que sa branche a écrit puis retiré, ni ce que la base a reçu pendant qu'elle était ouverte", (t) => {
+test("un merge compte pour ce qu'il apporte à la branche d'intégration : ni un commit posé droit dessus, ni ce que sa branche a écrit puis retiré, ni ce que la base a reçu pendant qu'elle était ouverte", { skip: posixOnly("builds a real git repository") }, (t) => {
   const clone = depot(t, [
     { commit: { "socle.txt": lignes(40) } },
     { merge: { "a.txt": lignes(7), "socle.txt": lignes(38) }, brouillon: { "essai.txt": lignes(500) } },
@@ -97,7 +98,7 @@ test("un merge compte pour ce qu'il apporte à la branche d'intégration : ni un
   assert.deepEqual(merges.map(({ ajoute, retire }) => ({ ajoute, retire })), [{ ajoute: 11, retire: 0 }, { ajoute: 3, retire: 900 }, { ajoute: 7, retire: 2 }]);
 });
 
-test("une fenêtre plus large que l'historique dit combien de merges elle a trouvés ; sans rien de retiré, elle ne donne pas de ratio ; sans merge, elle le dit", async (t) => {
+test("une fenêtre plus large que l'historique dit combien de merges elle a trouvés ; sans rien de retiré, elle ne donne pas de ratio ; sans merge, elle le dit", { skip: posixOnly("builds a real git repository") }, async (t) => {
   assert.deepEqual(mesurerRatio([{ ajoute: 5, retire: 0 }, { ajoute: 7, retire: 0 }]), [
     { fenetre: 20, merges: 2, ajoute: 12, retire: 0 },
     { fenetre: 50, merges: 2, ajoute: 12, retire: 0 },
@@ -118,7 +119,7 @@ test("une fenêtre plus large que l'historique dit combien de merges elle a trou
 
 const BLOC = ["const lus = [];", "for (const nom of noms) {", "  const brut = lire(nom);", "  if (brut === null) continue;", "  const net = brut.trim();", "  if (net === '') continue;", "  lus.push(net.toLowerCase());", "}", "return lus.sort();"].join("\n");
 
-test("la même sortie liste les doublons et le code mort repérés, chacun avec son chemin", async (t) => {
+test("la même sortie liste les doublons et le code mort repérés, chacun avec son chemin", { skip: posixOnly("builds a real git repository") }, async (t) => {
   const clone = depot(t, [
     {
       merge: {
@@ -140,7 +141,7 @@ test("la même sortie liste les doublons et le code mort repérés, chacun avec 
   );
 });
 
-test("quand il n'y a ni doublon ni code mort, la sortie le dit explicitement — et dit ce qu'elle n'a pas pu chercher", async (t) => {
+test("quand il n'y a ni doublon ni code mort, la sortie le dit explicitement — et dit ce qu'elle n'a pas pu chercher", { skip: posixOnly("builds a real git repository") }, async (t) => {
   const propre = depot(t, [{ merge: { "src/a.ts": "export const un = 1;\n", "src/b.ts": 'import { un } from "./a.ts";\nconsole.log(un);\n' } }]);
   const { sortie } = await observer(propre);
   assert.match(sortie, /\nduplicates none spotted — at least 8 identical lines of code in a row, among 2 code files\n/);
@@ -153,7 +154,7 @@ test("quand il n'y a ni doublon ni code mort, la sortie le dit explicitement —
   assert.match(rien.sortie, /\ndead code  none spotted — no TypeScript or JavaScript file on the branch\n/);
 });
 
-test("l'observation n'écrit aucun fichier du dépôt cible, n'y crée aucune branche et n'y prend aucun verrou — même quand un autre en tient", async (t) => {
+test("l'observation n'écrit aucun fichier du dépôt cible, n'y crée aucune branche et n'y prend aucun verrou — même quand un autre en tient", { skip: posixOnly("builds a real git repository") }, async (t) => {
   const clone = depot(t, histoireFixe().slice(0, 30));
   const refs = git(clone, "for-each-ref");
   const avant = photographier(clone);
@@ -179,7 +180,7 @@ test("l'observation n'écrit aucun fichier du dépôt cible, n'y crée aucune br
   assert.equal(git(clone, "status", "--porcelain"), "");
 });
 
-test("le journal, s'il est là, dit les compteurs de la dérive : les merges depuis la dernière fermeture et les seuils franchis, lus par le relevé des mesures", async (t) => {
+test("le journal, s'il est là, dit les compteurs de la dérive : les merges depuis la dernière fermeture et les seuils franchis, lus par le relevé des mesures", { skip: posixOnly("builds a real git repository") }, async (t) => {
   const clone = depot(t, [{ merge: { "a.txt": lignes(5) } }]);
   const etat = repertoireTemporaire(t);
   const journal = ouvrirJournal(etat, { maintenant: horloge() });
@@ -197,7 +198,7 @@ test("le journal, s'il est là, dit les compteurs de la dérive : les merges dep
   assert.match(vide.sortie, /\nlog        not read: no log in /);
 });
 
-test("la commande refuse ce qu'elle ne comprend pas, et dit ce qui lui manque du dépôt", async (t) => {
+test("la commande refuse ce qu'elle ne comprend pas, et dit ce qui lui manque du dépôt", { skip: posixOnly("builds a real git repository") }, async (t) => {
   const clone = depot(t, [{ merge: { "a.txt": lignes(5) } }]);
 
   for (const variable of ["BRIGADE_REPO_DIR", "BRIGADE_BASE_BRANCH"]) {
@@ -218,7 +219,7 @@ test("la commande refuse ce qu'elle ne comprend pas, et dit ce qui lui manque du
   assert.match(sansBase.sortie, /^brigade : the branch `origin\/inconnue` is not in the clone /);
 });
 
-test("`run closing` joue l'observation dans son propre process", async (t) => {
+test("`run closing` joue l'observation dans son propre process", { skip: posixOnly("builds a real git repository") }, async (t) => {
   const scripts: Record<string, string> = JSON.parse(readFileSync(join(import.meta.dirname, "../../package.json"), "utf8")).scripts;
   assert.equal(scripts.closing, "node src/fermeture.ts");
   const clone = depot(t, [{ merge: { "a.txt": lignes(5) } }]);

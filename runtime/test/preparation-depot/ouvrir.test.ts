@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
+import { posixOnly } from "../support/plateforme.ts";
 import type { GitHub, IssueOuverte } from "../../src/github.ts";
 import { FICHIER, lirePreparation, ouvrirLaPreparation } from "../../src/preparation-depot/ouvrir.ts";
 import { corps, dejaSurLaBase, LABELS, MARQUEUR, TITRE } from "../../src/preparation-depot/ticket.ts";
@@ -40,7 +41,7 @@ function unGitHub(ouvertes: IssueOuverte[] = []) {
   return { github, creees, lectures: () => lectures };
 }
 
-test("ouvert une fois : créé sur GitHub avec `fire` et son calibrage, son numéro gardé dans l'état du projet — rouvert, rien ne repart vers GitHub", async (t) => {
+test("ouvert une fois : créé sur GitHub avec `fire` et son calibrage, son numéro gardé dans l'état du projet — rouvert, rien ne repart vers GitHub", { skip: posixOnly("builds a real git repository") }, async (t) => {
   const repertoireEtat = join(repertoireTemporaire(t), "etat/parade");
   const { clone } = depotGit(t);
   const { github, creees, lectures } = unGitHub([issue(3, "un autre ticket")]);
@@ -59,7 +60,7 @@ test("ouvert une fois : créé sur GitHub avec `fire` et son calibrage, son num�
   assert.equal(lectures(), 1);
 });
 
-test("créé sans avoir pu être noté : retrouvé par son marqueur parmi les issues ouvertes — seulement s'il vient de quelqu'un qui a la main sur le dépôt", async (t) => {
+test("créé sans avoir pu être noté : retrouvé par son marqueur parmi les issues ouvertes — seulement s'il vient de quelqu'un qui a la main sur le dépôt", { skip: posixOnly("builds a real git repository") }, async (t) => {
   const { clone } = depotGit(t);
   const etranger = unGitHub([issue(5, `${MARQUEUR}\nun inconnu`, "NONE")]);
   const ailleurs = join(repertoireTemporaire(t), "etat/parade");
@@ -72,7 +73,7 @@ test("créé sans avoir pu être noté : retrouvé par son marqueur parmi les is
   assert.equal(lirePreparation(repertoireEtat)?.ticket, 9);
 });
 
-test("GitHub en panne : rien n'est noté, l'erreur remonte — la station réessaiera", async (t) => {
+test("GitHub en panne : rien n'est noté, l'erreur remonte — la station réessaiera", { skip: posixOnly("builds a real git repository") }, async (t) => {
   const repertoireEtat = join(repertoireTemporaire(t), "etat/parade");
   const { clone } = depotGit(t);
   const github: Pick<GitHub, "ouvertes" | "creerIssue"> = {
@@ -93,7 +94,7 @@ test("un fichier d'état illisible n'est pas un ticket", (t) => {
   }
 });
 
-test("le ticket dit, pour chaque fichier, ce que la branche d'intégration en porte déjà", (t) => {
+test("le ticket dit, pour chaque fichier, ce que la branche d'intégration en porte déjà", { skip: posixOnly("builds a real git repository") }, (t) => {
   const { clone } = depotGit(t);
   assert.deepEqual(dejaSurLaBase(clone, BASE), { ".claude/brigade/gates.sh": false, ".claude/brigade/worktree-setup.sh": false, ".claude/brigade/reseau": false });
   mkdirSync(join(clone, ".claude/brigade"), { recursive: true });

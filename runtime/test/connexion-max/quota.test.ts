@@ -4,14 +4,15 @@
 // de connexion — ne lance rien d'autre que `claude` et le renouvellement.
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 import { test } from "node:test";
 
 const RUNTIME = join(import.meta.dirname, "../..");
 const SRC = join(RUNTIME, "src");
 const sources = (repertoire: string): string[] =>
   readdirSync(repertoire, { withFileTypes: true }).flatMap((entree) => (entree.isDirectory() ? sources(join(repertoire, entree.name)) : entree.name.endsWith(".ts") ? [join(repertoire, entree.name)] : []));
-const lues = sources(SRC).map((fichier) => ({ nom: relative(SRC, fichier), texte: readFileSync(fichier, "utf8") }));
+// Les noms s'écrivent avec `/`, comme dans le dépôt, quelle que soit la plateforme.
+const lues = sources(SRC).map((fichier) => ({ nom: relative(SRC, fichier).replaceAll(sep, "/"), texte: readFileSync(fichier, "utf8") }));
 const qui = (motif: RegExp) => lues.filter(({ texte }) => motif.test(texte)).map(({ nom }) => nom).sort();
 
 test("le runtime n'embarque aucune bibliothèque : ni SDK d'Anthropic, ni client d'API", () => {

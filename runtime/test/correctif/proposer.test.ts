@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
+import { posixOnly } from "../support/plateforme.ts";
 import type { Plafonds } from "../../src/events/guardrails.ts";
 import { principal as facts } from "../../src/faits.ts";
 import { brancherGardeFous, type Reglages } from "../../src/garde-fous.ts";
@@ -129,7 +130,7 @@ function cuisine(t: TestContext) {
   return { repertoire, journal, candidat, clone, sha, proposerAvec, consigne: () => readFileSync(consigne, "utf8"), lireFacts, sortie };
 }
 
-test("une candidate donne une proposition : la cause, ses tickets, un diff des consignes et ce qu'il a coûté — et la carte la porte", async (t) => {
+test("une candidate donne une proposition : la cause, ses tickets, un diff des consignes et ce qu'il a coûté — et la carte la porte", { skip: posixOnly("builds a real git repository and runs the fake claude (a POSIX shell script)") }, async (t) => {
   const { journal, candidat, sha, proposerAvec, consigne, lireFacts, sortie } = cuisine(t);
   const reponse = repondre("Les cooks devinaient un ticket incomplet au lieu de le dire.", diff("claude", "equipe"));
 
@@ -177,7 +178,7 @@ test("une candidate donne une proposition : la cause, ses tickets, un diff des c
   assert.deepEqual((await lireFacts()).corrections, [carte]);
 });
 
-test("le diff proposé s'applique tel quel aux fichiers du projet : `git apply --check`, puis appliqué", async (t) => {
+test("le diff proposé s'applique tel quel aux fichiers du projet : `git apply --check`, puis appliqué", { skip: posixOnly("builds a real git repository and runs the fake claude (a POSIX shell script)") }, async (t) => {
   const { clone, proposerAvec } = cuisine(t);
   const pose = await proposerAvec(repondre("", diff("claude", "neuve", "gates")));
   assert.equal(pose?.type, "correction.proposed");
@@ -212,7 +213,7 @@ for (const [cas, noms] of [
   });
 }
 
-test("une réponse sans bloc diff est écartée et dit pourquoi ; son coût est posé quand même", async (t) => {
+test("une réponse sans bloc diff est écartée et dit pourquoi ; son coût est posé quand même", { skip: posixOnly("builds a real git repository and runs the fake claude (a POSIX shell script)") }, async (t) => {
   const { proposerAvec, journal } = cuisine(t);
   const pose = await proposerAvec("Je ne vois rien à corriger dans les consignes.");
   assert.equal(pose?.type, "correction.discarded");
@@ -220,7 +221,7 @@ test("une réponse sans bloc diff est écartée et dit pourquoi ; son coût est 
   assert.deepEqual(cartesDeCorrection(journal), []);
 });
 
-test("une candidate n'est proposée qu'une fois : la seconde demande rend la conclusion posée, sans relancer `claude`", async (t) => {
+test("une candidate n'est proposée qu'une fois : la seconde demande rend la conclusion posée, sans relancer `claude`", { skip: posixOnly("builds a real git repository and runs the fake claude (a POSIX shell script)") }, async (t) => {
   const { journal, proposerAvec } = cuisine(t);
   const premiere = await proposerAvec(repondre("Une ligne.", diff("equipe")));
   const lances = () => journal.tout().filter((e) => e.type === "cook.launched" && String(e.payload.run).startsWith("correctif-")).length;
@@ -231,7 +232,7 @@ test("une candidate n'est proposée qu'une fois : la seconde demande rend la con
   assert.equal(journal.duType("correction.proposed", 10).length, 1);
 });
 
-test("la garde lit le diff elle-même : CLAUDE.md, la doc d'équipe et les gates passent ; tout le reste, et ce qui ne se lit pas, est refusé", (t) => {
+test("la garde lit le diff elle-même : CLAUDE.md, la doc d'équipe et les gates passent ; tout le reste, et ce qui ne se lit pas, est refusé", { skip: posixOnly("builds a real git repository") }, (t) => {
   const { lieu, sha } = projet(t);
   for (const noms of [["claude"], ["equipe"], ["neuve"], ["gates"], ["claude", "equipe", "neuve", "gates"]] as const) {
     const verifie = verifierDiff(diff(...noms), lieu);

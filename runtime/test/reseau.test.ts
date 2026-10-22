@@ -2,6 +2,7 @@
 // qui fait passer un process par la porte. Aucune connexion ne sort d'ici.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
+import { posixOnly } from "./support/plateforme.ts";
 import { lireALaBase } from "../src/depot.ts";
 import { autorise, brancherReseau, configReseau, lireDeclaration, REGLES_DE_BASE, reglesDuProjet, sonderLeFiltre, variablesDeRelais, type Envoyer } from "../src/reseau.ts";
 import { ConfigInvalide, demarrer } from "../src/runtime.ts";
@@ -94,7 +95,7 @@ describe("le réseau du projet", { concurrency: 8 }, () => {
     assert.deepEqual(avertissements, ["brigade : network declaration unreadable on `v2`, the last allowlist read holds — git ls-tree : fatal: Unable to create index.lock"]);
   });
 
-  test("sur la base, un fichier absent se distingue d'un clone qu'on ne sait pas lire", (t) => {
+  test("sur la base, un fichier absent se distingue d'un clone qu'on ne sait pas lire", { skip: posixOnly("builds a real git repository") }, (t) => {
     const { clone } = depotGit(t);
     assert.equal(lireALaBase({ clone, base: BASE }, ".claude/brigade/reseau"), null);
     assert.equal(lireALaBase({ clone, base: BASE }, "LISEZMOI"), "le projet\n");

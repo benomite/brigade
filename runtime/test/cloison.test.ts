@@ -5,6 +5,7 @@ import { execFileSync } from "node:child_process";
 import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
+import { linuxOnly, posixOnly } from "./support/plateforme.ts";
 import { annoncerCloison, configCloison, envelopper } from "../src/cloison.ts";
 import { jouerSetup } from "../src/gates.ts";
 import { ConfigInvalide, demarrer } from "../src/runtime.ts";
@@ -53,7 +54,7 @@ describe("la cloison", { concurrency: 8 }, () => {
     assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_HIDDEN: "etats" }, lieux)), /is not an absolute path/);
   });
 
-  test("une cloison qui masquerait le compte, /tmp ou le système est refusée", (t) => {
+  test("une cloison qui masquerait le compte, /tmp ou le système est refusée", { skip: linuxOnly("the partition is bubblewrap, a Linux tool, and BRIGADE_SANDBOX_HIDDEN a “:”-separated list of POSIX paths") }, (t) => {
     const { lieux, env, racine } = machine(t);
     assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_HIDDEN: racine }, lieux)), /would hide the account's home directory/);
     assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_HIDDEN: "/" }, lieux)), /would hide/);
@@ -63,7 +64,7 @@ describe("la cloison", { concurrency: 8 }, () => {
     assert.match(refus(() => configCloison({ ...env, HOME: "/home/brigade", BRIGADE_SANDBOX_HIDDEN: `${env.BRIGADE_SANDBOX_HIDDEN}:/tmp` }, lieux)), /“\/tmp” would hide \/tmp/);
   });
 
-  test("ce que la cloison doit cacher et qu'elle laisserait dehors est nommé", (t) => {
+  test("ce que la cloison doit cacher et qu'elle laisserait dehors est nommé", { skip: linuxOnly("the partition is bubblewrap, a Linux tool, and BRIGADE_SANDBOX_HIDDEN a “:”-separated list of POSIX paths") }, (t) => {
     const { lieux, env, racine, masques } = machine(t);
     const ailleurs = join(racine, "ailleurs");
     assert.match(refus(() => configCloison(env, { ...lieux, repertoireEtat: ailleurs })), /^BRIGADE_STATE_DIR \(.*ailleurs\) is not under any directory of BRIGADE_SANDBOX_HIDDEN/);
@@ -76,7 +77,7 @@ describe("la cloison", { concurrency: 8 }, () => {
     assert.equal(cloison?.identifiants, join(racine, "compte/.claude/.credentials.json"));
   });
 
-  test("le fichier du jeton, masqué avec son répertoire, est recouvert d'un fichier vide en lecture seule : un lancement ne le lit pas et ne l'écrit pas, comme les identifiants", (t) => {
+  test("le fichier du jeton, masqué avec son répertoire, est recouvert d'un fichier vide en lecture seule : un lancement ne le lit pas et ne l'écrit pas, comme les identifiants", { skip: linuxOnly("the partition is bubblewrap, a Linux tool, and BRIGADE_SANDBOX_HIDDEN a “:”-separated list of POSIX paths") }, (t) => {
     const { lieux, env, racine, masques } = machine(t);
     const jeton = join(racine, "secrets/brigade/jeton-claude");
     mkdirSync(join(racine, "secrets/brigade"), { recursive: true });
@@ -103,7 +104,7 @@ describe("la cloison", { concurrency: 8 }, () => {
     assert.equal(readFileSync(jeton, "utf8"), "le-jeton-de-la-machine\n");
   });
 
-  test("le fichier vide qui recouvre le jeton est remis à vide et à lui avant chaque lancement", (t) => {
+  test("le fichier vide qui recouvre le jeton est remis à vide et à lui avant chaque lancement", { skip: linuxOnly("the partition is bubblewrap, a Linux tool, and BRIGADE_SANDBOX_HIDDEN a “:”-separated list of POSIX paths") }, (t) => {
     const { lieux, env, racine } = machine(t);
     const jeton = join(racine, "secrets/jeton-claude");
     const cloison = configCloison({ ...env, BRIGADE_CLAUDE_TOKEN_FILE: jeton }, lieux);
@@ -124,13 +125,13 @@ describe("la cloison", { concurrency: 8 }, () => {
     assert.equal(demande(envelopper(sans, { commande: "true", args: [] }, { cwd: "/tmp", depot: null }).args).some((arg) => arg.includes("jeton")), false);
   });
 
-  test("un masque qui est un fichier est refusé au démarrage, pas à chaque lancement", (t) => {
+  test("un masque qui est un fichier est refusé au démarrage, pas à chaque lancement", { skip: linuxOnly("the partition is bubblewrap, a Linux tool, and BRIGADE_SANDBOX_HIDDEN a “:”-separated list of POSIX paths") }, (t) => {
     const { lieux, env, racine } = machine(t);
     writeFileSync(join(racine, "netrc"), "machine exemple.test");
     assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_HIDDEN: `${env.BRIGADE_SANDBOX_HIDDEN}:${join(racine, "netrc")}` }, lieux)), /netrc” is not a directory — hide the one that contains it/);
   });
 
-  test("un cook ne retrouve de ce qui est masqué que son worktree, sa vue du `.git` et son ticket", (t) => {
+  test("un cook ne retrouve de ce qui est masqué que son worktree, sa vue du `.git` et son ticket", { skip: linuxOnly("the partition is bubblewrap, a Linux tool, and BRIGADE_SANDBOX_HIDDEN a “:”-separated list of POSIX paths") }, (t) => {
     const { lieux, env, masques } = machine(t);
     const cloison = configCloison(env, lieux);
     const worktree = join(lieux.repertoireEtat, "worktrees/17-abc");
@@ -159,7 +160,7 @@ describe("la cloison", { concurrency: 8 }, () => {
     assert.ok(recu.lastIndexOf("--tmpfs") < recu.lastIndexOf(worktree));
   });
 
-  test("le compte est rendu en lecture seule : ce qu'un cook écrit sous ~ va au projet, jamais dans le ~/.gitconfig que lit le runtime", (t) => {
+  test("le compte est rendu en lecture seule : ce qu'un cook écrit sous ~ va au projet, jamais dans le ~/.gitconfig que lit le runtime", { skip: linuxOnly("the partition is bubblewrap, a Linux tool, and BRIGADE_SANDBOX_HIDDEN a “:”-separated list of POSIX paths") }, (t) => {
     const { lieux, env, racine } = machine(t);
     const home = join(racine, "compte");
     mkdirSync(join(home, ".claude"), { recursive: true });
@@ -192,7 +193,7 @@ describe("la cloison", { concurrency: 8 }, () => {
     assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_PRIVATE: ".config/gh" }, lieux)), /invalid BRIGADE_SANDBOX_PRIVATE/);
   });
 
-  test("un outil écrit ses données et son état sous ~/.local, au projet : retrouvés d'un lancement à l'autre, et ce qu'y garde le compte reste en lecture seule", (t) => {
+  test("un outil écrit ses données et son état sous ~/.local, au projet : retrouvés d'un lancement à l'autre, et ce qu'y garde le compte reste en lecture seule", { skip: posixOnly("runs a POSIX shell script") }, (t) => {
     const { lieux, env, racine } = machine(t);
     const home = join(racine, "compte");
     for (const dossier of [".local/bin", ".local/share/claude", ".local/state/claude", ".local/lib/python3", ".config/gh"]) mkdirSync(join(home, dossier), { recursive: true });
@@ -238,7 +239,7 @@ describe("la cloison", { concurrency: 8 }, () => {
     assert.deepEqual(readdirSync(ailleurs), []);
   });
 
-  test("un lien laissé par un cook à la place d'un fichier du projet ne fait pas écrire le runtime ailleurs", (t) => {
+  test("un lien laissé par un cook à la place d'un fichier du projet ne fait pas écrire le runtime ailleurs", { skip: linuxOnly("the partition is bubblewrap, a Linux tool, and BRIGADE_SANDBOX_HIDDEN a “:”-separated list of POSIX paths") }, (t) => {
     const { lieux, env, racine } = machine(t);
     const home = join(racine, "compte");
     mkdirSync(home, { recursive: true });
@@ -254,7 +255,7 @@ describe("la cloison", { concurrency: 8 }, () => {
     assert.equal(existsSync(ailleurs), false);
   });
 
-  test("`git config` écrit dans la vue du worktree, pas dans la config que lit le `git` du runtime", (t) => {
+  test("`git config` écrit dans la vue du worktree, pas dans la config que lit le `git` du runtime", { skip: linuxOnly("the partition is bubblewrap, a Linux tool, and BRIGADE_SANDBOX_HIDDEN a “:”-separated list of POSIX paths") }, (t) => {
     const { lieux, env } = machine(t);
     const git = join(lieux.clone, ".git");
     mkdirSync(join(git, "objects"));
@@ -304,7 +305,7 @@ describe("la cloison", { concurrency: 8 }, () => {
     assert.deepEqual(readdirSync(join(lieux.repertoireEtat, "vues-git")), [encodeURIComponent(autre)]);
   });
 
-  test("réenveloppé sur un worktree occupé, le lancement vivant garde ses points de montage", (t) => {
+  test("réenveloppé sur un worktree occupé, le lancement vivant garde ses points de montage", { skip: posixOnly("runs a POSIX shell script") }, (t) => {
     const { lieux, env } = machine(t);
     const git = join(lieux.clone, ".git");
     for (const nom of ["objects", "refs", "worktrees"]) mkdirSync(join(git, nom));
@@ -340,7 +341,7 @@ describe("la cloison", { concurrency: 8 }, () => {
     assert.deepEqual(readdirSync(vue).sort(), ["hooks", "packed-refs", "refs", "worktrees"]);
   });
 
-  test("le clone servi ne range jamais ses références seul : ni le `git` du runtime, ni celui du cook ne déplacent la branche d'un cook vivant", (t) => {
+  test("le clone servi ne range jamais ses références seul : ni le `git` du runtime, ni celui du cook ne déplacent la branche d'un cook vivant", { skip: posixOnly("builds a real git repository") }, (t) => {
     const { clone } = depotGit(t);
     const racine = repertoireTemporaire(t);
     const etat = join(racine, "etat");
@@ -364,7 +365,7 @@ describe("la cloison", { concurrency: 8 }, () => {
     assert.ok(existsSync(join(clone, ".git/refs/heads/cook/0")));
   });
 
-  test("le reviewer relit en lecture seule, et un juge ne retrouve rien du dépôt", (t) => {
+  test("le reviewer relit en lecture seule, et un juge ne retrouve rien du dépôt", { skip: linuxOnly("the partition is bubblewrap, a Linux tool, and BRIGADE_SANDBOX_HIDDEN a “:”-separated list of POSIX paths") }, (t) => {
     const { lieux, env } = machine(t);
     const cloison = configCloison(env, lieux);
     const worktree = join(lieux.repertoireEtat, "worktrees/.essais/pass");
@@ -383,7 +384,7 @@ describe("la cloison", { concurrency: 8 }, () => {
     assert.equal(jugement.some((arg) => arg.startsWith(git) || arg.includes("vues-git")), false);
   });
 
-  test("le setup d'un worktree part dans la cloison, et ses exports reviennent par le canal", async (t) => {
+  test("le setup d'un worktree part dans la cloison, et ses exports reviennent par le canal", { skip: posixOnly("runs a POSIX shell script") }, async (t) => {
     const { lieux, env } = machine(t);
     const temoin = repertoireTemporaire(t);
     const worktree = join(lieux.repertoireEtat, "worktrees/17-abc");
@@ -399,7 +400,7 @@ describe("la cloison", { concurrency: 8 }, () => {
     assert.equal(recu[recu.indexOf("--") + 3], "bash");
   });
 
-  test("dans une cuisine, le setup, le cook, les gates et le reviewer partent chacun dans la cloison", async (t) => {
+  test("dans une cuisine, le setup, le cook, les gates et le reviewer partent chacun dans la cloison", { skip: posixOnly("runs the fake claude (a POSIX shell script)") }, async (t) => {
     const { cloisonnes, lancements, relectures, repertoire } = cuisine(t, { cloison: true, setup: "exporte", pass: true, issues: [issue(15)] });
     await jusqua(() => relectures().length === 1);
 
