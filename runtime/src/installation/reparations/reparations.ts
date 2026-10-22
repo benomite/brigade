@@ -1,15 +1,16 @@
 // Ce que la cuisine répare seule avant de déclarer un blocage (#1393) : un
 // `.env` absent alors que son `.env.example` est là, un gestionnaire de
 // paquets que le dépôt exige (il le dit par son fichier de verrou) et que la
-// station n'a pas, les hôtes que le setup joint et que `.claude/brigade/reseau`
-// ne déclare pas.
+// station n'a pas. Les hôtes que le setup joint et que `.claude/brigade/reseau`
+// ne déclare pas ne se réparent pas seule : la porte lit ce fichier à la base,
+// et il ouvre le réseau aux cooks suivants — c'est un blocage qui les nomme.
 //
 // Chaque réparation faite s'écrit au journal du projet (`repair.done`, une
 // phrase) et lève le blocage qu'elle avait pu poser. Une réparation impossible
 // pose un blocage (`installation/blocages`), en une phrase de cause. Rien ici
 // ne demande de droits : tout se fait dans le worktree ou dans le dossier de
 // l'utilisateur.
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { delimiter, dirname, join, relative } from "node:path";
 import { promisify } from "node:util";
@@ -162,35 +163,33 @@ async function reparerLeGestionnaire(demande: Demande, bins: string[]): Promise<
   return etapes;
 }
 
-// Les hôtes que le setup du dépôt joint et que sa déclaration ne nomme pas,
-// ajoutés à `.claude/brigade/reseau`.
+// Les hôtes que le setup du dépôt joint et que sa déclaration ne nomme pas. La
+// porte lit la déclaration à la base, et ce fichier ouvre le réseau aux cooks
+// suivants (`pass.ts` le tient pour sensible) : la cuisine ne l'écrit donc pas
+// seule. Elle pose un blocage qui nomme les hôtes, et le lève quand la base les
+// déclare.
 function reparerLeReseau(demande: Demande): Etape[] {
   const script = join(demande.dossier, SCRIPT_SETUP);
   if (!existsSync(script)) return [];
   const fichier = join(demande.dossier, DECLARATION_RESEAU);
-  const impossible = (erreur: unknown): Etape[] => [{ blocage: { id: "repair:network", message: "The setup reaches hosts the network list does not name, and the station could not complete it.", cause: `Reading or writing \`${DECLARATION_RESEAU}\` failed.`, detail: dit(erreur) } }];
-  let declare: string;
-  let manquants;
   try {
-    declare = existsSync(fichier) ? readFileSync(fichier, "utf8") : "";
-    const deja = lireDeclaration(declare).hotes;
-    manquants = deduireLesHotes(readFileSync(script, "utf8")).hotes.filter(({ hote }) => !deja.includes(hote));
+    const deja = lireDeclaration(existsSync(fichier) ? readFileSync(fichier, "utf8") : "").hotes;
+    const manquants = deduireLesHotes(readFileSync(script, "utf8")).hotes.filter(({ hote }) => !deja.includes(hote));
+    if (manquants.length === 0) return [];
+    const noms = manquants.map(({ hote }) => hote).join(", ");
+    return [
+      {
+        blocage: {
+          id: "repair:network",
+          message: `The setup reaches ${noms}, which the network list does not name.`,
+          cause: `The gate reads \`${DECLARATION_RESEAU}\` on the integration base: the hosts must be declared there and merged.`,
+        },
+      },
+    ];
   } catch (erreur) {
-    return impossible(erreur);
+    return [{ blocage: { id: "repair:network", message: "The setup reaches hosts the station could not compare with the network list.", cause: `Reading \`${DECLARATION_RESEAU}\` or the setup failed.`, detail: dit(erreur) } }];
   }
-  if (manquants.length === 0) return [];
-  const lignes = manquants.flatMap(({ hote, ligne }) => [`# ${hote} ← ${ligne.slice(0, 100)}`, hote]);
-  try {
-    mkdirSync(dirname(fichier), { recursive: true });
-    const base = declare === "" || declare.endsWith("\n") ? declare : `${declare}\n`;
-    writeFileSync(fichier, `${base}${lignes.join("\n")}\n`);
-  } catch (erreur) {
-    return impossible(erreur);
-  }
-  const noms = manquants.map(({ hote }) => hote).join(", ");
-  return [{ reparation: "network", phrase: `Added ${noms} to \`${DECLARATION_RESEAU}\`, which the setup reaches.` }];
 }
-
 
 // Joue les trois réparations, avant que le setup ne soit joué. Consigne au
 // journal chaque réparation faite, pose un blocage pour chaque impossible, et
@@ -198,7 +197,10 @@ function reparerLeReseau(demande: Demande): Etape[] {
 export async function reparer(demande: Demande): Promise<Resultat> {
   const { journal, auteur } = demande;
   const bins: string[] = [];
-  const etapes = [...reparerLesEnv(demande), ...(await reparerLeGestionnaire(demande, bins)), ...reparerLeReseau(demande)];
+  const reseau = reparerLeReseau(demande);
+  // Plus d'hôte à déclarer : le blocage du réseau, s'il était posé, est levé.
+  if (reseau.length === 0) leverBlocage(journal, auteur, "repair:network");
+  const etapes = [...reparerLesEnv(demande), ...(await reparerLeGestionnaire(demande, bins)), ...reseau];
   const resultat: Resultat = { reparations: [], blocages: [], bins };
   for (const etape of etapes) {
     if (etape === null) continue;
@@ -206,7 +208,7 @@ export async function reparer(demande: Demande): Promise<Resultat> {
       journal.ajouter({ project: auteur.projet, ticket: null, author: auteur.auteur, type: "repair.done", payload: { repair: etape.reparation, sentence: etape.phrase } });
       resultat.reparations.push(etape.phrase);
       // Un blocage que cette réparation vient de rendre caduc.
-      const id = etape.reparation.startsWith("package-manager:") ? `need:${etape.reparation.slice("package-manager:".length)}` : etape.reparation === "network" ? "repair:network" : `repair:${etape.reparation}`;
+      const id = etape.reparation.startsWith("package-manager:") ? `need:${etape.reparation.slice("package-manager:".length)}` : `repair:${etape.reparation}`;
       leverBlocage(journal, auteur, id);
     } else {
       poserBlocage(journal, auteur, etape.blocage);

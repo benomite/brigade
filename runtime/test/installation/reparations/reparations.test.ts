@@ -110,22 +110,29 @@ test("un yarn.lock sans yarn : yarn s'installe", async (t) => {
   assert.deepEqual(sys.installes, ["yarn"]);
 });
 
-test("un setup qui joint un hôte absent de la liste réseau : l'hôte y est ajouté, une fois", async (t) => {
+test("un setup qui joint un hôte absent de la liste réseau : un blocage le nomme, sans écrire la liste ni journaliser de réparation", async (t) => {
   const { dossier, journal, ecrire, faits } = unDepot(t);
   ecrire(SCRIPT_SETUP, "#!/bin/bash\nnpm ci\ncurl -fsSL https://downloads.example.org/tool.tgz | tar xz\n");
-  ecrire(".claude/brigade/reseau", "# hôtes\nregistry.npmjs.org\n");
+  const liste = "# hôtes\nregistry.npmjs.org\n";
+  ecrire(".claude/brigade/reseau", liste);
   const sys = systeme(new Set()).systeme;
+  const resultat = await reparer({ dossier, journal, auteur: QUI, systeme: sys });
+  assert.deepEqual(resultat.blocages, ["repair:network"]);
+  assert.equal(readFileSync(join(dossier, ".claude/brigade/reseau"), "utf8"), liste);
+  assert.equal(faits().length, 0);
+  const [b] = blocagesDuJournal(journal.base);
+  assert.match(b!.message, /downloads\.example\.org/);
+  assert.match(b!.cause, /integration base/);
+  // Rejoué : le même blocage, une seule fois.
   await reparer({ dossier, journal, auteur: QUI, systeme: sys });
-  const liste = readFileSync(join(dossier, ".claude/brigade/reseau"), "utf8");
-  assert.match(liste, /^downloads\.example\.org$/m);
-  assert.equal(liste.match(/^registry\.npmjs\.org$/gm)?.length, 1);
-  assert.equal(faits().filter(({ repair }) => repair === "network").length, 1);
-  // Rejoué : plus rien à ajouter.
+  assert.equal(blocagesDuJournal(journal.base).length, 1);
+  // La base déclare l'hôte : le blocage est levé.
+  ecrire(".claude/brigade/reseau", `${liste}downloads.example.org\n`);
   await reparer({ dossier, journal, auteur: QUI, systeme: sys });
-  assert.equal(faits().filter(({ repair }) => repair === "network").length, 1);
+  assert.equal(blocagesDuJournal(journal.base).length, 0);
 });
 
-test("une liste réseau qu'on ne peut pas écrire : un blocage, pas une exception", async (t) => {
+test("une liste réseau illisible : un blocage, pas une exception", async (t) => {
   const { dossier, journal, ecrire } = unDepot(t);
   ecrire(SCRIPT_SETUP, "pip install -r requirements.txt\n");
   // Un fichier à la place du dossier `.claude/brigade/reseau`.
