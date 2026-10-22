@@ -21,6 +21,7 @@
     "./agents/dev-teammate-low.md",
     "./agents/dev-teammate-medium.md",
     "./agents/cook-design.md",
-    "./agents/triage.md"
+    "./agents/triage.md",
+    "./agents/manager.md"
   ]
 }
