@@ -20,6 +20,7 @@ import { boutonAction } from "./briques.js";
 /** @typedef {import("../cuisson.ts").GesteDeCuisson} Geste */
 /** @typedef {import("../projets/demande.ts").AccesBloque} Acces */
 /** @typedef {import("../projets/demande.ts").Refus} Refus */
+/** @typedef {import("../projets/demande.ts").EchecDuClone} Clone */
 /** @typedef {import("../accueil.ts").PlafondsDeStation} Plafonds */
 // Ce que le dernier réglage du plafond a rendu pour une station : la phrase, refusée ou non, et son détail au survol.
 /** @typedef {{ dit: string, refus: boolean, detail: string }} DitDuPlafond */
@@ -212,15 +213,17 @@ const DETAIL_DE_GIT = /\s*\(git: ([^)]*)\)\.?$/;
 // `alerte` : ce que les stations en disent (cuisson.ts) ; `refusee` : l'une d'elles y dit déjà un refus ;
 // `acces`, `refus` : ce que la station du projet publie de l'accès au dépôt et de son refus (projets/demande.ts).
 // Plusieurs causes tiennent sur la même ligne, la plus urgente d'abord : l'accès, que seul le chef lève.
+// `clone` : le clone du dépôt en échec (ticket 1390) — sa cause dit plus que le refus qui l'accompagne, et le remplace.
 /**
  * @param {Fabrique} doc
- * @param {{ alerte: string | null, refusee: boolean, acces: Acces | null, refus: Refus | null, ouvrir: () => void }} options
+ * @param {{ alerte: string | null, refusee: boolean, acces: Acces | null, clone?: Clone | null, refus: Refus | null, ouvrir: () => void }} options
  */
-export function ligneDAlerte(doc, { alerte, refusee, acces, refus, ouvrir }) {
+export function ligneDAlerte(doc, { alerte, refusee, acces, clone = null, refus, ouvrir }) {
   const causes = [
     ...(acces === null ? [] : [acces.raison.replace(DETAIL_DE_GIT, "").replace(/\.$/, "")]),
+    ...(acces !== null || clone === null ? [] : [clone.raison.replace(/\.$/, "")]),
     ...(alerte === null ? [] : [alerte]),
-    ...(refus === null || refusee ? [] : [refus.message.replace(/\.$/, "")]),
+    ...(refus === null || refusee || clone !== null ? [] : [refus.message.replace(/\.$/, "")]),
   ];
   if (causes.length === 0) return null;
   const pose = cree(doc, "p");

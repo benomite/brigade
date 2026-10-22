@@ -25,7 +25,7 @@ import type { Panne } from "../../src/pannes/pannes.ts";
 import { lireSuivi } from "../../src/projets/demande.ts";
 import { calibrageRecommande, EFFORTS, machineProposee, MODELES, type ProjetVu, type VuDesProjets } from "../../src/projets/projets.ts";
 import type { VuDesStations } from "../../src/stations/stations.ts";
-import { COPIEE, COPIER, poserDepotRetenu } from "../../src/vue/onboarding/depot-retenu.js";
+import { COPIEE, COPIER, DETAILS, OUVRIR_SUR_GITHUB, poserDepotRetenu } from "../../src/vue/onboarding/depot-retenu.js";
 import { Faux as Fabrique, type Faux, jouerLaVue, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-10-19T12:00:00.000Z";
@@ -124,6 +124,45 @@ test("« copy the command » copie la commande du geste seule, et le dit", () =>
   // Un échec sans accès refusé n'a pas de commande à copier : pas de bouton.
   const sans = poserDepotRetenu(doc, { worktree: { ...ECHEC, acces: null }, maintenant: 0, copier: () => assert.fail() }) as unknown as Faux;
   assert.equal(sans.dessous("button").length, 0);
+});
+
+// Ce que le runtime écrit d'un clone en échec (runtime/src/projets/echec-du-clone.ts), mot pour mot.
+const CLONE = {
+  cause: "token-excludes-repository",
+  raison: "The token used by parade-box does not include BOBL-tech/mirrorscreen, so GitHub answers that it does not exist and parade-box cannot clone it.",
+  geste: "Add BOBL-tech/mirrorscreen to the repositories of the token used by parade-box (its resource owner must be BOBL-tech): edit the token, and select BOBL-tech/mirrorscreen under “Repository access”.",
+  ou: "On GitHub, in the fine-grained tokens of the account.",
+  liens: ["https://github.com/settings/personal-access-tokens"],
+  compte: "parade-box",
+  detail: "remote: Repository not found.\nfatal: repository 'https://github.com/BOBL-tech/mirrorscreen.git/' not found\nfailed to run git: exit status 128",
+  reessaieToutesLes: 30,
+};
+
+test("un clone en échec : la cause et le compte de la station en clair, le geste et sa page GitHub, le prochain essai ; la sortie de git derrière « details » seulement", () => {
+  const [lu] = lireSuivi(suivi({ etat: "refuse", dit: `${CLONE.raison} ${CLONE.geste}`, clone: CLONE, refus: refusDuRuntime("clone-failed") }));
+  assert.deepEqual(lu?.clone, CLONE);
+  const ouvertes: string[] = [];
+  const doc = { createElement: (balise: string) => new Fabrique(balise) };
+  const pose = poserDepotRetenu(doc, { clone: lu?.clone ?? null, refus: lu?.refus ?? null, maintenant: 0, copier: () => assert.fail(), ouvrir: (url) => ouvertes.push(url) }) as unknown as Faux;
+  const [raison, geste, essai] = pose.dessous("p").filter((p) => p.parentElement?.balise !== "details").map((p) => p.textContent);
+  assert.equal(raison, CLONE.raison);
+  assert.equal(geste, `${CLONE.geste} ${CLONE.ou}`);
+  assert.equal(essai, "Next retry within 30 s: this turns green by itself once it is fixed.");
+  // Le refus qui l'accompagne ne dit rien de plus : il ne s'affiche pas.
+  assert.doesNotMatch(pose.textContent, /could not fetch a copy/);
+  // Rien de brut hors du détail.
+  const horsDetail = (pose.children[0]?.children ?? []).filter((enfant) => enfant.balise !== "details").map((enfant) => enfant.textContent).join(" ");
+  assert.match(horsDetail, /parade-box/);
+  assert.doesNotMatch(horsDetail, /exit status|fatal:|clone de|en échec/);
+  const details = pose.dessous("details")[0] ?? assert.fail("pas de « details »");
+  assert.equal(details.dessous("summary")[0]?.textContent, DETAILS);
+  assert.equal(details.dessous("pre")[0]?.textContent, CLONE.detail);
+  // La page du geste s'ouvre d'un bouton.
+  const bouton = pose.dessous("button").find((candidat) => candidat.textContent === OUVRIR_SUR_GITHUB) ?? assert.fail("pas de bouton vers GitHub");
+  bouton.click();
+  assert.deepEqual(ouvertes, ["https://github.com/settings/personal-access-tokens"]);
+  // Le geste fait, la station n'en dit plus rien : le bloc s'en va.
+  assert.equal(poserDepotRetenu(doc, { clone: null, refus: null, maintenant: 0, copier: () => {} }), null);
 });
 
 test("un worktree impossible à préparer : la raison de l'échec et l'heure du prochain essai", async () => {

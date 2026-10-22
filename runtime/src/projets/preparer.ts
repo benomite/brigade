@@ -8,6 +8,7 @@ import { dirname, join } from "node:path";
 import { decisionsPosees, poserDecision } from "../decisions.ts";
 import { configIdentites, ouvrirIdentites, ROLES } from "../identites.ts";
 import { ouvrirJournal } from "../journal.ts";
+import { ligneDeGit } from "./acces.ts";
 import type { ProjetDemande } from "./demande.ts";
 
 // Ce que la station déclare de son moteur : `claude` code et raisonne
@@ -52,8 +53,27 @@ export async function verifierAutorisation(env: Record<string, string | undefine
   }
 }
 
+// L'adresse HTTPS du dépôt. Nommé par elle, `gh repo clone` clone en HTTPS
+// avec le jeton de la station, quel que soit le protocole git réglé pour son
+// compte : le 22 oct. 2026 (#1390), le `git_protocol ssh` du `gh` de la box
+// envoyait le clone de mirrorscreen sur ssh, qui ne connaissait pas GitHub.
+export const adresseHttps = (depot: string) => `https://github.com/${depot}.git`;
+
+// Un clone en échec : `erreurs`, tout ce que gh et git ont écrit — la ligne
+// `fatal:` de git, qui dit pourquoi, vient avant la dernière de gh (`failed
+// to run git: exit status 128`), qui ne dit rien (`echec-du-clone.ts`).
+export class CloneEnEchec extends Error {
+  readonly erreurs: string;
+  constructor(depot: string, erreurs: string) {
+    super(`clone de ${depot} en échec — ${ligneDeGit(erreurs)}`);
+    this.name = "CloneEnEchec";
+    this.erreurs = erreurs;
+  }
+}
+
 // Clone le dépôt à sa place, par le `gh` de la machine — qui s'authentifie
-// seul. Un clone interrompu ne laisse rien à sa place : il se fait à côté.
+// seul —, toujours en HTTPS. Un clone interrompu ne laisse rien à sa place :
+// il se fait à côté.
 export function cloner(options: { gh: string; depot: string; clone: string; delaiMs?: number }): Promise<void> {
   const { gh, depot, clone } = options;
   if (existsSync(join(clone, ".git"))) return Promise.resolve();
@@ -61,10 +81,10 @@ export function cloner(options: { gh: string; depot: string; clone: string; dela
   rmSync(aCote, { recursive: true, force: true });
   mkdirSync(dirname(clone), { recursive: true });
   return new Promise((resoudre, rejeter) => {
-    execFile(gh, ["repo", "clone", depot, aCote, "--", "--quiet"], { timeout: options.delaiMs ?? 15 * 60_000, env: { ...process.env, GH_PROMPT_DISABLED: "1", GIT_TERMINAL_PROMPT: "0", NO_COLOR: "1" } }, (erreur, _, erreurs) => {
+    execFile(gh, ["repo", "clone", adresseHttps(depot), aCote, "--", "--quiet"], { timeout: options.delaiMs ?? 15 * 60_000, env: { ...process.env, GH_PROMPT_DISABLED: "1", GIT_TERMINAL_PROMPT: "0", NO_COLOR: "1" } }, (erreur, _, erreurs) => {
       if (erreur !== null) {
         rmSync(aCote, { recursive: true, force: true });
-        return rejeter(new Error(`clone de ${depot} en échec — ${erreurs.trim().split("\n").at(-1) || erreur.message}`));
+        return rejeter(new CloneEnEchec(depot, String(erreurs).trim() || erreur.message));
       }
       try {
         renameSync(aCote, clone);

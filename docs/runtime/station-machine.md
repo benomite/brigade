@@ -124,7 +124,11 @@ link (`runtime/src/projets/`).
   2. it **clones** the repository through its `gh` (`gh repo clone`) into the station's workshop:
      `<BRIGADE_STATION_DIR>/clones/<projet>` on a server, `~/.local/share/brigade/station/clones/<projet>`
      on the chef's computer, whose station lives under `~/.config/brigade`, which no cook reads
-     ("A local kitchen: all its cooks in the sandbox" in [`station-distante.md`](station-distante.md));
+     ("A local kitchen: all its cooks in the sandbox" in [`station-distante.md`](station-distante.md)).
+     It always clones **over HTTPS, with its own token**: it names the repository by its address
+     (`https://github.com/<repository>.git`), so the git protocol set for the account in `gh`
+     (`git_protocol ssh`) does not apply (*ticket #1390*). **Failed**, the tracking says why and what
+     to do (see "The failed clone" below), and the station retries at every beat;
   3. it **checks that it can fetch the repository and push to it**, through the machine's git, on
      the `origin` remote of its clone — the one its worktrees and its cooks will use: `git ls-remote`
      of the integration base, then `git push --dry-run`, which authenticates like a real push without
@@ -201,6 +205,56 @@ The service log says it once (`brigade : station — <projet> n'est pas servi, s
 refuse le fetch : … Geste : …`, French until the runtime is translated), and the **onboarding**
 shows it at the `depot` step, current, with the action "On <station>, under the account that runs
 it.".
+
+### The failed clone
+
+*Ticket #1390* (`runtime/src/projets/echec-du-clone.ts`). When the clone of step 2 fails, the
+project's line says `refuse` (`refus.code`: `clone-failed`) and carries `clone` — absent as long as
+the clone does not fail:
+
+```json
+"clone": {
+  "cause": "token-excludes-repository",
+  "raison": "The token used by parade-box does not include BOBL-tech/mirrorscreen, so GitHub answers that it does not exist and box cannot clone it.",
+  "geste": "Add BOBL-tech/mirrorscreen to the repositories of the token used by parade-box (its resource owner must be BOBL-tech): edit the token, and select BOBL-tech/mirrorscreen under “Repository access”.",
+  "ou": "On GitHub, in the fine-grained tokens of the account.",
+  "liens": ["https://github.com/settings/personal-access-tokens"],
+  "compte": "parade-box",
+  "detail": "remote: Repository not found.\nfatal: repository 'https://github.com/BOBL-tech/mirrorscreen.git/' not found\nfailed to run git: exit status 128",
+  "reessaieToutesLes": 30
+}
+```
+
+- `raison` and `geste`: one sentence each, in English, with no git output; `dit` carries both;
+- `ou`: where the action is done; `liens`: the GitHub pages where to do it;
+- `compte`: the GitHub account of the station's `gh` (`gh api user`), null if it could not be read;
+- `detail`: what gh and git said, as is — the app shows it only behind a "details" link;
+- `reessaieToutesLes`: the seconds between two attempts (the beat). A gap, not an instant: the
+  tracking is rewritten only when it changes.
+
+GitHub answers "Repository not found" both for a repository that does not exist and for one the
+account cannot see. After a failed clone, the station therefore asks its `gh` for its account, the
+type of its token (read on its prefix — the token itself is kept nowhere: `github_pat_` is a
+fine-grained token, which covers only the repositories chosen for it) and whether the repository's
+owner exists (`gh api users/<owner>`). The cause follows:
+
+| what gh and git say | `cause` | action |
+|---|---|---|
+| host unresolved, connection refused or timed out, `5xx` | `unreachable` | nothing if GitHub is down; otherwise check the station's network |
+| `Host key verification failed`, `Permission denied (publickey)` | `ssh-rewrite` | remove the `url.<…>.insteadOf` setting that sends GitHub to ssh |
+| SAML SSO | `sso-required` | authorize the token for the organization's single sign-on |
+| no credentials, `401` | `not-logged-in` | `gh auth login` on the station |
+| `403`, `Permission to … denied` | `no-read-access` | give the account read access, at `https://github.com/<repository>/settings/access` |
+| not found, the owner does not exist | `repository-missing` | check the repository's name in the app |
+| not found, a fine-grained token | `token-excludes-repository` | add the repository to the token, at `https://github.com/settings/personal-access-tokens` |
+| not found, otherwise | `account-cannot-see` | invite the account as a collaborator, at `https://github.com/<repository>/settings/access` |
+| anything else | `unknown` | the details say what git answered |
+
+The service log keeps git's `fatal:` line (`brigade : station — <projet> n'est pas cloné, la station
+réessaie : <raison> — clone de <dépôt> en échec — <ligne de git>`, French until the runtime is
+translated). The **onboarding** shows the failure at the `depot` step, current: the reason, when the
+station tries again, and the action with its page. Once the action is done, the next attempt clones,
+the field disappears, and the step goes green by itself.
 
 ### The worktree that does not prepare
 

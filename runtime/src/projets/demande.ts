@@ -41,6 +41,13 @@
 //     une phrase, et `geste`, ce que le chef fait pour le lever (par exemple
 //     `gh auth setup-git`) ; l'état est alors `refuse`, et `dit` les porte
 //     tous deux.
+//     `clone` (absent tant que le clone n'échoue pas) : la station ne parvient
+//     pas à cloner le dépôt (`echec-du-clone.ts`) — `cause` (stable),
+//     `raison` et `geste` en une phrase chacun, `ou` (où le faire), `liens`
+//     (les pages GitHub du geste), `compte` (le compte GitHub de la station,
+//     ou null), `detail` (ce que gh et git ont dit, que l'app ne montre que
+//     derrière « details ») et `reessaieToutesLes` (secondes entre deux
+//     essais) ; l'état est alors `refuse`, et `dit` porte la raison et le geste.
 //     `refus` (absent tant que rien n'est refusé) : pourquoi la station ne sert
 //     pas ce projet, pour le chef (`refus.ts`) — `status` (toujours
 //     « refused »), `code` (stable), `message` (une phrase) et `action` (ce que
@@ -67,6 +74,7 @@ import { EFFORTS, MODELES } from "../calibrage.ts";
 import type { Onboarding } from "../onboarding/etat.ts";
 import type { EchecDuWorktree } from "../echec-du-worktree.ts";
 import type { AccesBloque } from "./acces.ts";
+import type { EchecDuClone } from "./echec-du-clone.ts";
 import type { Refus } from "./refus.ts";
 import { NOM_DE_PROJET } from "../runtime.ts";
 
@@ -136,6 +144,7 @@ export type SuiviDuProjet = {
   ici?: boolean;
   bascule?: Bascule | null;
   acces?: AccesBloque;
+  clone?: EchecDuClone;
   refus?: Refus;
   worktree?: EchecDuWorktree;
 };

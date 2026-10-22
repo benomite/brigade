@@ -54,7 +54,8 @@ import { verifierAcces, type Acces } from "./acces.ts";
 import { refus as refusDe, type CodeDeRefus } from "./refus.ts";
 import { brancheDuProjet } from "../reglages-projet/en-vigueur.ts";
 import { FICHIER } from "../reglages-projet/reglages.ts";
-import { cloner, decisionsDe, poserLesDecisions, verifierAutorisation, type Autorisation } from "./preparer.ts";
+import { cloner, CloneEnEchec, decisionsDe, poserLesDecisions, verifierAutorisation, type Autorisation } from "./preparer.ts";
+import { ENQUETE_MUETTE, enqueter, lireLEchecDuClone, type Enquete } from "./echec-du-clone.ts";
 import { repondeurDeRemedes } from "../remedes/distant.ts";
 import { executerRemede, type StationDesRemedes } from "../remedes/executer.ts";
 import { REMEDES, type Registre } from "../remedes/registre.ts";
@@ -86,6 +87,9 @@ export type OptionsProjets = {
   // Surchargés par les tests.
   autoriser?: (depot: string) => Promise<Autorisation>;
   cloner?: (depot: string, clone: string) => Promise<void>;
+  // Après un clone en échec : ce que le `gh` de la station dit de son compte,
+  // de son jeton et du propriétaire du dépôt (`echec-du-clone.ts`).
+  enqueter?: (depot: string) => Promise<Enquete>;
   // Peut-elle récupérer le dépôt et y pousser, depuis son clone (`acces.ts`) ?
   verifierAcces?: (projet: ProjetResolu, clone: string) => Promise<Acces>;
   // Ouvre le ticket qui prépare le dépôt, une fois (`preparation-depot/`) ;
@@ -147,6 +151,7 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
   const gh = env.BRIGADE_GH_BIN || "gh";
   const autoriser = options.autoriser ?? ((depot: string) => verifierAutorisation(env, depot));
   const clonerLe = options.cloner ?? ((depot: string, clone: string) => cloner({ gh, depot, clone }));
+  const enqueterLe = options.enqueter ?? ((depot: string) => enqueter({ gh, depot, env: { ...process.env, ...env } }));
   const verifierLAcces = options.verifierAcces ?? ((projet: ProjetResolu, clone: string) => verifierAcces({ station, depot: projet.depot, base: projet.base, clone, env: { ...process.env, ...env } }));
   const ouvrirLe =
     options.ouvrirLaPreparation ??
@@ -207,9 +212,14 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
     try {
       await clonerLe(projet.depot, cloneDe(projet.nom));
     } catch (erreur) {
-      const dit = message(erreur);
-      direUneFois(`clone ${projet.nom} ${dit}`, `brigade : station — ${projet.nom} n'est pas cloné, la station réessaie : ${dit}`);
-      return suivi("refuse", `the station could not clone ${projet.depot}; it retries — ${dit}`, [], "clone-failed");
+      // Ce que git a dit reste au journal de la station et dans `detail` ; la
+      // page dit la cause, le compte et le geste (`echec-du-clone.ts`).
+      const erreurs = erreur instanceof CloneEnEchec ? erreur.erreurs : message(erreur);
+      const enquete = await enqueterLe(projet.depot).catch(() => ENQUETE_MUETTE);
+      const reessaieToutesLes = Math.round((options.cadenceMs ?? CADENCE_MS) / 1000);
+      const clone = lireLEchecDuClone({ station, depot: projet.depot, erreurs, enquete, reessaieToutesLes });
+      direUneFois(`clone ${projet.nom} ${clone.cause} ${message(erreur)}`, `brigade : station — ${projet.nom} n'est pas cloné, la station réessaie : ${clone.raison} — ${message(erreur)}`);
+      return { ...suivi("refuse", `${clone.raison} ${clone.geste}`, [], "clone-failed"), clone };
     }
     const resolu = avecSaBranche(projet);
     if (resolu === null) return suivi("refuse", `${projet.depot} does not declare its integration branch (${FICHIER}, or the “Branche d'intégration” line of its CLAUDE.md), and the app names none`, [], "configuration-invalid");

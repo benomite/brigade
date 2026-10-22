@@ -15,7 +15,8 @@ import { ouvrirJournal } from "../../src/journal.ts";
 import { DEBUT, FIN } from "../../src/projets/bloc.ts";
 import { FICHIER_PROJETS, FICHIER_SUIVI, type SuiviDuProjet } from "../../src/projets/demande.ts";
 import type { Onboarding } from "../../src/onboarding/etat.ts";
-import type { Autorisation } from "../../src/projets/preparer.ts";
+import { ENQUETE_MUETTE, PAGE_DES_JETONS_FINS, type Enquete } from "../../src/projets/echec-du-clone.ts";
+import { CloneEnEchec, type Autorisation } from "../../src/projets/preparer.ts";
 import { refus } from "../../src/projets/refus.ts";
 import { tenirProjetsDeLApp } from "../../src/projets/tenir.ts";
 import { depotQuiRefuse } from "../aides/depot-qui-refuse.ts";
@@ -70,6 +71,7 @@ function uneStation(t: TestContext, options: { appairee?: boolean; remote?: (clo
   const autorisations = new Map<string, Autorisation>();
   const clones: string[] = [];
   let clonage: Error | null = null;
+  let enquete: Enquete = ENQUETE_MUETTE;
   const { remote } = options;
   const origine = remote === undefined ? null : depotGit(t).origine;
   // Le ticket qui prépare le dépôt : ce que la station en a demandé, et la panne de GitHub.
@@ -95,6 +97,8 @@ function uneStation(t: TestContext, options: { appairee?: boolean; remote?: (clo
       git(racine, "clone", "-q", origine, clone);
       remote(clone);
     },
+    // Le `gh` de la station, doublé : aucun vrai gh n'est joint.
+    enqueter: async () => enquete,
     // Le clone doublé n'a pas de remote : rien à vérifier.
     ...(remote === undefined ? { verifierAcces: async () => ({ etat: "libre" as const }) } : {}),
     ouvrirLaPreparation: async (projet, repertoireEtat, clone) => {
@@ -110,7 +114,7 @@ function uneStation(t: TestContext, options: { appairee?: boolean; remote?: (clo
   const onboarding = () => (JSON.parse(fichiers[FICHIER_SUIVI] ?? "null") as { onboarding?: Record<string, Onboarding> } | null)?.onboarding;
   const configuration = () => (existsSync(join(racine, "projets")) ? readFileSync(join(racine, "projets"), "utf8") : "");
   const ecrireTelQuel = (texte: string) => void (fichiers[FICHIER_PROJETS] = texte);
-  return { racine, origine, projets, demander, ecrireTelQuel, suivi, onboarding, configuration, lignes, ecritures, autorisations, clones, refuses, relectures: () => relectures, echouerLeClone: (erreur: Error | null) => (clonage = erreur), preparations, echouerLaPreparation: (erreur: Error | null) => (preparation = erreur) };
+  return { racine, origine, projets, demander, ecrireTelQuel, suivi, onboarding, configuration, lignes, ecritures, autorisations, clones, refuses, relectures: () => relectures, echouerLeClone: (erreur: Error | null) => (clonage = erreur), enqueteDuGh: (lue: Enquete) => (enquete = lue), preparations, echouerLaPreparation: (erreur: Error | null) => (preparation = erreur) };
 }
 
 test("un projet dont la station est la principale : cloné, ses décisions posées, sa ligne écrite — il est servi, et le suivi le dit", async (t) => {
@@ -248,12 +252,55 @@ test("GitHub muet sur l'autorisation, ou clone en échec : le projet attend, la 
   station.autorisations.delete("benomite/parade");
   station.echouerLeClone(new Error("clone de benomite/parade en échec — Repository not found"));
   await station.projets.relire();
-  assert.deepEqual(station.suivi()?.[0], { nom: "parade", etat: "refuse", dit: "the station could not clone benomite/parade; it retries — clone de benomite/parade en échec — Repository not found", autoriser: [], serviLe: null, cuitSur: null, ici: false, bascule: null, refus: refus("clone-failed") });
+  const { clone: muet, ...sansClone } = station.suivi()?.[0] ?? assert.fail("pas de suivi");
+  assert.deepEqual(sansClone, { nom: "parade", etat: "refuse", dit: `${muet?.raison} ${muet?.geste}`, autoriser: [], serviLe: null, cuitSur: null, ici: false, bascule: null, refus: refus("clone-failed") });
+  assert.equal(muet?.cause, "account-cannot-see");
   assert.equal(station.configuration(), "");
 
   station.echouerLeClone(null);
   await station.projets.relire();
   assert.equal(station.suivi()?.[0]?.etat, "servi");
+  assert.equal(station.suivi()?.[0]?.clone, undefined);
+});
+
+test("un clone en échec se dit en clair : la cause, le compte GitHub de la station, le geste et sa page — la sortie de git n'est qu'au détail ; le geste fait, l'étape passe au vert seule", async (t) => {
+  const station = uneStation(t);
+  const erreurs = "remote: Repository not found.\nfatal: repository 'https://github.com/BOBL-tech/mirrorscreen.git/' not found\nfailed to run git: exit status 128";
+  station.echouerLeClone(new CloneEnEchec("BOBL-tech/mirrorscreen", erreurs));
+  station.enqueteDuGh({ compte: "parade-box", jeton: "fine-grained", proprietaire: true });
+  station.demander({ ...PARADE, nom: "mirrorscreen", depot: "BOBL-tech/mirrorscreen" });
+  await station.projets.relire();
+
+  const suivi = station.suivi()?.[0];
+  assert.equal(suivi?.etat, "refuse");
+  assert.equal(suivi?.refus?.code, "clone-failed");
+  assert.deepEqual(suivi?.clone, {
+    cause: "token-excludes-repository",
+    raison: "The token used by parade-box does not include BOBL-tech/mirrorscreen, so GitHub answers that it does not exist and box cannot clone it.",
+    geste: "Add BOBL-tech/mirrorscreen to the repositories of the token used by parade-box (its resource owner must be BOBL-tech): edit the token, and select BOBL-tech/mirrorscreen under “Repository access”.",
+    ou: "On GitHub, in the fine-grained tokens of the account.",
+    liens: [PAGE_DES_JETONS_FINS],
+    compte: "parade-box",
+    detail: erreurs,
+    reessaieToutesLes: 3600,
+  });
+  // Ni la sortie de git ni le message du runtime dans ce que le chef lit d'abord.
+  assert.equal(suivi?.dit, `${suivi?.clone?.raison} ${suivi?.clone?.geste}`);
+  assert.doesNotMatch(suivi?.dit ?? "", /exit status|fatal:|clone de|en échec/);
+  // Le journal de la station garde ce que git a dit.
+  assert.ok(station.lignes.some((ligne) => ligne.includes("mirrorscreen n'est pas cloné") && ligne.includes("repository 'https://github.com/BOBL-tech/mirrorscreen.git/' not found")), station.lignes.join("\n"));
+
+  const depot = station.onboarding()?.mirrorscreen?.etapes.find(({ etape }) => etape === "depot");
+  assert.equal(depot?.etat, "courante");
+  assert.equal(depot?.dit, `${suivi?.clone?.raison} box tries again within 60 min: this step turns green by itself once it is fixed.`);
+  assert.deepEqual(depot?.geste, { quoi: suivi?.clone?.geste, ou: "On GitHub, in the fine-grained tokens of the account.", liens: [PAGE_DES_JETONS_FINS] });
+
+  // Le chef ajoute le dépôt au jeton : à l'essai suivant, le clone passe, l'étape est faite.
+  station.echouerLeClone(null);
+  await station.projets.relire();
+  assert.equal(station.suivi()?.[0]?.etat, "servi");
+  assert.equal(station.suivi()?.[0]?.clone, undefined);
+  assert.equal(station.onboarding()?.mirrorscreen?.etapes.find(({ etape }) => etape === "depot")?.etat, "faite");
 });
 
 test("une station qui n'est pas la principale ne lui écrit aucune ligne ; une ligne écrite à la main garde la main", async (t) => {
