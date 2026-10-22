@@ -501,6 +501,7 @@ test("la commande rend la forme sur une seule ligne de JSON, sans rien écrire a
   // Aucune gate jouée, aucun budget posé : le défaut, rien de dépassé, un jour à zéro.
   assert.deepEqual(forme.coutDesGates, {
     budget: { durationSeconds: 100, cpuSeconds: 400, parLeChef: { durationSeconds: false, cpuSeconds: false } },
+    base: { budget: { durationSeconds: 400, cpuSeconds: 1600, parLeChef: { durationSeconds: false, cpuSeconds: false } }, latest: null, overBudget: false },
     latest: null,
     overBudget: false,
     lastDay: { runs: 0, durationSeconds: 0, cpuSeconds: 0 },

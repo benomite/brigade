@@ -42,7 +42,7 @@ import { direCommentLeVoirEn, direEtatDeServeurEn, direPageEn, direServiceIndisp
 import { direPlafondDeCalibrageEn, PLAFOND_PAR_DEFAUT, plafondDuProjet } from "./reagir.ts";
 import { reglagesPourMontrer, variablesDuDepot } from "./reglages-projet/en-vigueur.ts";
 import { FICHIER } from "./reglages-projet/reglages.ts";
-import { BUDGET_DUREE_PAR_DEFAUT, BUDGET_PROCESSEUR_PAR_DEFAUT } from "./cout-des-gates.ts";
+import { BUDGET_BASE_DUREE_PAR_DEFAUT, BUDGET_BASE_PROCESSEUR_PAR_DEFAUT, BUDGET_DUREE_PAR_DEFAUT, BUDGET_PROCESSEUR_PAR_DEFAUT } from "./cout-des-gates.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { FORME, GESTE_DE_STATION_A_CHAUD_EN } from "./stations-declarees.ts";
 import { direOrdinairesEn } from "./bac-a-sable/ordinaires.ts";
@@ -74,6 +74,8 @@ export const GESTES: Record<string, { decision: Decision; quoi: string; valeur: 
   "fenetre-renvois": { decision: "BRIGADE_DRIFT_FIRST_TRY_WINDOW", quoi: "drift window on the first try: how many tickets served (10 if unset)", valeur: "<tickets>", attendu: "an integer greater than zero" },
   "budget-gates": { decision: "BRIGADE_GATES_BUDGET_SECONDS", quoi: `gates budget: wall-clock seconds of one gates run (${BUDGET_DUREE_PAR_DEFAUT} if unset)`, valeur: "<seconds>", attendu: "a number of seconds greater than zero" },
   "budget-gates-cpu": { decision: "BRIGADE_GATES_BUDGET_CPU_SECONDS", quoi: `gates budget: CPU seconds of one gates run, workers included (${BUDGET_PROCESSEUR_PAR_DEFAUT} if unset)`, valeur: "<seconds>", attendu: "a number of seconds greater than zero" },
+  "budget-base": { decision: "BRIGADE_GATES_BASE_BUDGET_SECONDS", quoi: `base gates budget: wall-clock seconds of the full run on the base (${BUDGET_BASE_DUREE_PAR_DEFAUT} if unset)`, valeur: "<seconds>", attendu: "a number of seconds greater than zero" },
+  "budget-base-cpu": { decision: "BRIGADE_GATES_BASE_BUDGET_CPU_SECONDS", quoi: `base gates budget: CPU seconds of the full run on the base, workers included (${BUDGET_BASE_PROCESSEUR_PAR_DEFAUT} if unset)`, valeur: "<seconds>", attendu: "a number of seconds greater than zero" },
   "manager-modele": { decision: "BRIGADE_MANAGER_MODEL", quoi: "the model of the manager's judgments", valeur: "<model>", attendu: ou(MODELES) },
   "manager-effort": { decision: "BRIGADE_MANAGER_EFFORT", quoi: "the effort of the manager's judgments", valeur: "<effort>", attendu: ou(EFFORTS) },
   "reviewer-modele": { decision: "BRIGADE_REVIEWER_MODEL", quoi: "the model of the reviewer's reviews", valeur: "<model>", attendu: ou(MODELES) },
@@ -92,6 +94,8 @@ const DEFAUTS: Partial<Record<Decision, string>> = {
   BRIGADE_CEILING_EFFORT: PLAFOND_PAR_DEFAUT.effort,
   BRIGADE_GATES_BUDGET_SECONDS: String(BUDGET_DUREE_PAR_DEFAUT),
   BRIGADE_GATES_BUDGET_CPU_SECONDS: String(BUDGET_PROCESSEUR_PAR_DEFAUT),
+  BRIGADE_GATES_BASE_BUDGET_SECONDS: String(BUDGET_BASE_DUREE_PAR_DEFAUT),
+  BRIGADE_GATES_BASE_BUDGET_CPU_SECONDS: String(BUDGET_BASE_PROCESSEUR_PAR_DEFAUT),
 };
 const AIDE = ["help", "--help"];
 const LU = "read by the runtime at its next read, without a restart; no running cook is stopped";

@@ -95,7 +95,9 @@ export type RecentDesGates = { lastHour: FenetreDesGates; averages: { lastHour: 
 export type BudgetDesGates = { durationSeconds: number; cpuSeconds: number; parLeChef: { durationSeconds: boolean; cpuSeconds: boolean } };
 export type PassageDesGates = { durationSeconds: number; cpuSeconds: number | null; at: string };
 export type TicketDuBudget = { number: number; openedAt: string };
-export type CoutDesGates = { budget: BudgetDesGates; latest: PassageDesGates | null; overBudget: boolean; lastDay: FenetreDesGates; ticket: TicketDuBudget | null } & Partial<RecentDesGates>;
+// Le run complet sur la base, face à son budget à lui : absent d'un runtime d'avant la séparation des deux budgets.
+export type CoutDeLaBase = { budget: BudgetDesGates; latest: PassageDesGates | null; overBudget: boolean };
+export type CoutDesGates = { budget: BudgetDesGates; latest: PassageDesGates | null; overBudget: boolean; lastDay: FenetreDesGates; ticket: TicketDuBudget | null; base?: CoutDeLaBase } & Partial<RecentDesGates>;
 
 // Le champ `coutDesGates` d'un `facts`. Un champ qui n'a pas cette forme n'est pas lu — la file et l'onglet Cooks se
 // dessinent sans, comme pour un runtime d'avant ce champ. Ce que le runtime y met de plus n'est pas repris.
@@ -110,12 +112,29 @@ export function coutDesGatesLu(brut: unknown): CoutDesGates | undefined {
   if (racine === undefined || budget === undefined || pose === undefined || jour === undefined) return undefined;
   if (!secondes(budget.durationSeconds) || !secondes(budget.cpuSeconds) || typeof pose.durationSeconds !== "boolean" || typeof pose.cpuSeconds !== "boolean") return undefined;
   if (typeof racine.overBudget !== "boolean" || !(typeof jour.runs === "number" && Number.isSafeInteger(jour.runs) && jour.runs >= 0) || !secondes(jour.durationSeconds) || !secondes(jour.cpuSeconds)) return undefined;
-  let latest: PassageDesGates | null = null;
-  if (racine.latest !== null) {
-    const lu = champs(racine.latest);
+  const passage = (valeur: unknown): PassageDesGates | null | undefined => {
+    if (valeur === null) return null;
+    const lu = champs(valeur);
     if (lu === undefined || !secondes(lu.durationSeconds) || !(lu.cpuSeconds === null || secondes(lu.cpuSeconds)) || !instant(lu.at)) return undefined;
-    latest = { durationSeconds: lu.durationSeconds, cpuSeconds: lu.cpuSeconds, at: lu.at };
-  }
+    return { durationSeconds: lu.durationSeconds, cpuSeconds: lu.cpuSeconds, at: lu.at };
+  };
+  const latest = passage(racine.latest);
+  if (latest === undefined) return undefined;
+  const budgetLu = (valeur: unknown): BudgetDesGates | undefined => {
+    const lu = champs(valeur);
+    const posee = champs(lu?.parLeChef);
+    return lu !== undefined && posee !== undefined && secondes(lu.durationSeconds) && secondes(lu.cpuSeconds) && typeof posee.durationSeconds === "boolean" && typeof posee.cpuSeconds === "boolean"
+      ? { durationSeconds: lu.durationSeconds, cpuSeconds: lu.cpuSeconds, parLeChef: { durationSeconds: posee.durationSeconds, cpuSeconds: posee.cpuSeconds } }
+      : undefined;
+  };
+  // Le run complet sur la base : lu en entier, ou pas du tout — un runtime d'avant ne le donne pas.
+  const deLaBase = champs(racine.base);
+  const budgetDeLaBase = budgetLu(deLaBase?.budget);
+  const dernierDeLaBase = passage(deLaBase?.latest);
+  const base: CoutDeLaBase | undefined =
+    deLaBase !== undefined && budgetDeLaBase !== undefined && dernierDeLaBase !== undefined && typeof deLaBase.overBudget === "boolean"
+      ? { budget: budgetDeLaBase, latest: dernierDeLaBase, overBudget: deLaBase.overBudget }
+      : undefined;
   // La dernière heure, les moyennes et la tendance se lisent ensemble, ou pas du tout : un runtime d'avant elles.
   const fenetre = (valeur: unknown): FenetreDesGates | undefined => {
     const lu = champs(valeur);
@@ -147,6 +166,7 @@ export function coutDesGatesLu(brut: unknown): CoutDesGates | undefined {
     overBudget: racine.overBudget,
     lastDay: { runs: jour.runs, durationSeconds: jour.durationSeconds, cpuSeconds: jour.cpuSeconds },
     ...(recent ?? {}),
+    ...(base === undefined ? {} : { base }),
     ticket,
   };
 }

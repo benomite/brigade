@@ -161,13 +161,16 @@ describe("le coût des gates", { concurrency: 8 }, () => {
     avancer(12 * HEURE_MS);
 
     const cout = coutDuProjet(journal.base, PROJET, lireBudget({}), maintenant());
-    assert.deepEqual(cout.lastDay, { runs: 2, durationSeconds: 90.5, cpuSeconds: 120.3 });
-    assert.deepEqual({ ...cout.latest, at: undefined }, { project: PROJET, ticket: null, runner: "pass", outcome: "timeout", durationSeconds: 60, cpuSeconds: null, at: undefined });
+    // Le passage de la base (sans ticket) a son budget : il n'entre ni dans le jour ni dans le dernier passage d'un ticket.
+    assert.deepEqual(cout.lastDay, { runs: 1, durationSeconds: 30.5, cpuSeconds: 120.3 });
+    assert.equal(cout.latest?.ticket, 3);
+    assert.deepEqual({ ...cout.base.latest, at: undefined }, { project: PROJET, ticket: null, runner: "pass", outcome: "timeout", durationSeconds: 60, cpuSeconds: null, at: undefined });
 
     // Lu par `facts`, à l'heure de la machine : le même jour.
     const lus = await lireFaits(repertoire);
-    assert.deepEqual(lus.lastDay, { runs: 2, durationSeconds: 90.5, cpuSeconds: 120.3 });
-    assert.equal(lus.latest.ticket, null);
+    assert.deepEqual(lus.lastDay, { runs: 1, durationSeconds: 30.5, cpuSeconds: 120.3 });
+    assert.equal(lus.latest.ticket, 3);
+    assert.equal(lus.base.latest.ticket, null);
     assert.deepEqual((await lireFaits(repertoire, "autre")).lastDay, { runs: 1, durationSeconds: 99, cpuSeconds: 999 });
   });
 

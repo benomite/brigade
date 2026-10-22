@@ -22,7 +22,7 @@ import type { Evenement } from "./evenements.ts";
 import type { Seuils } from "./events/drift.ts";
 import type { ReglagesDeFermeture } from "./events/closing.ts";
 import { configFermeture } from "./closing/settings.ts";
-import { lireBudget } from "./cout-des-gates.ts";
+import { lireBudget, lireBudgetDeLaBase } from "./cout-des-gates.ts";
 import { cheminJournal, type Journal } from "./journal.ts";
 import { configManager } from "./manager.ts";
 import { plafondDuProjet, type PlafondLu } from "./reagir.ts";
@@ -41,6 +41,8 @@ export const DECISIONS = [
   "BRIGADE_DRIFT_FIRST_TRY_WINDOW",
   "BRIGADE_GATES_BUDGET_SECONDS",
   "BRIGADE_GATES_BUDGET_CPU_SECONDS",
+  "BRIGADE_GATES_BASE_BUDGET_SECONDS",
+  "BRIGADE_GATES_BASE_BUDGET_CPU_SECONDS",
   "BRIGADE_MANAGER_MODEL",
   "BRIGADE_MANAGER_EFFORT",
   "BRIGADE_REVIEWER_MODEL",
@@ -93,6 +95,8 @@ const VERIFIER: Record<Decision, (nom: Decision, valeur: string) => void> = {
   BRIGADE_DRIFT_FIRST_TRY_WINDOW: nombre(lireSeuils, ENTIER),
   BRIGADE_GATES_BUDGET_SECONDS: nombre(lireBudget, SECONDES),
   BRIGADE_GATES_BUDGET_CPU_SECONDS: nombre(lireBudget, SECONDES),
+  BRIGADE_GATES_BASE_BUDGET_SECONDS: nombre(lireBudgetDeLaBase, SECONDES),
+  BRIGADE_GATES_BASE_BUDGET_CPU_SECONDS: nombre(lireBudgetDeLaBase, SECONDES),
   BRIGADE_MANAGER_MODEL: parmi(MODELES),
   BRIGADE_MANAGER_EFFORT: parmi(EFFORTS),
   BRIGADE_REVIEWER_MODEL: parmi(MODELES),
@@ -164,6 +168,8 @@ const GESTES_DES_DECISIONS: Record<Decision, string> = {
   BRIGADE_DRIFT_FIRST_TRY_WINDOW: "fenetre-renvois",
   BRIGADE_GATES_BUDGET_SECONDS: "budget-gates",
   BRIGADE_GATES_BUDGET_CPU_SECONDS: "budget-gates-cpu",
+  BRIGADE_GATES_BASE_BUDGET_SECONDS: "budget-base",
+  BRIGADE_GATES_BASE_BUDGET_CPU_SECONDS: "budget-base-cpu",
   BRIGADE_MANAGER_MODEL: "manager-modele",
   BRIGADE_MANAGER_EFFORT: "manager-effort",
   BRIGADE_REVIEWER_MODEL: "reviewer-modele",

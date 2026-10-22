@@ -18,7 +18,7 @@ import { cartesDeProfil } from "./profils/cartes.ts";
 import { decisionsPosees } from "./decisions.ts";
 import { plafondDuProjet } from "./reagir.ts";
 import { reglagesPourMontrer } from "./reglages-projet/en-vigueur.ts";
-import { coutDuProjet, lireBudget } from "./cout-des-gates.ts";
+import { coutDuProjet, lireBudget, lireBudgetDeLaBase } from "./cout-des-gates.ts";
 import { ticketDuBudget } from "./budget-des-gates.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run facts";
@@ -78,7 +78,8 @@ export function principal({ args, env, dire, redire }: Appel): void {
     // le ticket que la cuisine a ouvert seule pour les y ramener, tant que rien
     // ne l'a vu fermé — null sinon.
     const projetDesGates = projet || projetDuJournal || "";
-    const coutDesGates = { ...coutDuProjet(journal.base, projetDesGates, lireBudget(decisionsPosees(journal.base)), maintenant), ticket: ticketDuBudget(journal.base, projetDesGates) };
+    const posees = decisionsPosees(journal.base);
+    const coutDesGates = { ...coutDuProjet(journal.base, projetDesGates, lireBudget(posees), maintenant, lireBudgetDeLaBase(posees)), ticket: ticketDuBudget(journal.base, projetDesGates) };
     dire(JSON.stringify({ ...forme, plafondDeCalibrage, triage, activiteCuisine, rolesCuisine, coutDesGates, ...(corrections.length === 0 ? {} : { corrections }), ...(reculs.length === 0 ? {} : { reculs }), ...(profils.length === 0 ? {} : { profils }), ...(appris ? { apprentissage } : {}) }));
   } catch (erreur) {
     // En lecture seule, rien ne crée les tables d'un journal écrit par un

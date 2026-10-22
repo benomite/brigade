@@ -1,6 +1,10 @@
 // Le ticket des gates hors budget : ce que la cuisine ouvre seule sur le
 // projet quand le dernier passage de ses gates dépasse son budget
-// (`cout-des-gates.ts`) — en durée, en processeur, ou les deux. Le chef n'a
+// (`cout-des-gates.ts`) — en durée, en processeur, ou les deux. Deux genres de
+// passage, deux budgets : les gates d'un ticket (les tests sélectionnés) se
+// jugent au budget d'un ticket, le run complet sur la base au sien, plus large.
+// Le ticket dit lequel a dépassé, et ne demande jamais de faire tenir la suite
+// entière dans le budget d'un ticket. Le chef n'a
 // pas à remarquer la dérive : le ticket la dit, avec ce qui a été mesuré, le
 // budget, et ce qui le dépasse.
 //
@@ -15,9 +19,9 @@
 // (`reparation.ts`).
 import { DE_CONFIANCE } from "./alimenter.ts";
 import type { Base } from "./base.ts";
-import { coutDuProjet, lireBudget, type BudgetDesGates, type PassageDesGates } from "./cout-des-gates.ts";
+import { budgetDuPassage, dernierPassage, genreDe, lireBudget, lireBudgetDeLaBase, type BudgetDesGates, type PassageDesGates } from "./cout-des-gates.ts";
 import { decisionsPosees } from "./decisions.ts";
-import type { DimensionDuBudget, FaitBudgetDesGates } from "./events/gates.ts";
+import type { DimensionDuBudget, FaitBudgetDesGates, GenreDuBudget } from "./events/gates.ts";
 import { LABEL, type GitHub } from "./github.ts";
 import type { Journal } from "./journal.ts";
 
@@ -52,6 +56,7 @@ export function dimensionsDepassees(passage: PassageDesGates, budget: BudgetDesG
 }
 
 export type HorsBudget = { projet: string; passage: PassageDesGates; budget: BudgetDesGates; depassees: DimensionDuBudget[] };
+const genre = (horsBudget: HorsBudget): GenreDuBudget => genreDe(horsBudget.passage);
 
 const NOMS: Record<DimensionDuBudget, string> = { duration: "wall-clock duration", cpu: "CPU" };
 const secondes = (valeur: number | null) => (valeur === null ? "not measured" : `${valeur} s`);
@@ -61,19 +66,23 @@ export function titreDuBudget({ projet, passage, budget, depassees }: HorsBudget
   const dites = depassees.map((dimension) =>
     dimension === "duration" ? `${passage.durationSeconds} s for a budget of ${budget.durationSeconds} s` : `${passage.cpuSeconds} s of CPU for a budget of ${budget.cpuSeconds} s`,
   );
-  return `Bring the gates of ${projet} back under their budget: ${dites.join(", ")}`;
+  return genreDe(passage) === "base"
+    ? `Bring the full run of the gates of ${projet} on the base back under its budget: ${dites.join(", ")}`
+    : `Bring the gates of a ticket of ${projet} back under their budget: ${dites.join(", ")}`;
 }
 
 export function corpsDuBudget(horsBudget: HorsBudget, annonce: number): string {
   const { projet, passage, budget, depassees } = horsBudget;
   const origine = (posee: boolean) => (posee ? "set by the chef" : "default");
-  const quel = passage.ticket === null ? "the gates of the integration base" : `the gates of #${passage.ticket}`;
+  const base = genre(horsBudget) === "base";
+  const quel = base ? "the full run of the gates on the integration base" : `the gates of #${passage.ticket}, which play only the tests the change touches`;
+  const budgetDit = base ? "base budget" : "ticket budget";
   return [
     marqueDuBudget(projet, annonce),
     "",
     "## Context",
     "",
-    `The gates of ${projet} went over their budget: ${depassees.map((dimension) => NOMS[dimension]).join(" and ")} exceeded. The run that did it — ${quel}, run by the ${passage.runner} at ${passage.at}, ${passage.outcome} — was measured as follows:`,
+    `${base ? "The full run of the gates of" : "The gates of a ticket of"} ${projet} went over ${base ? "its" : "their"} ${budgetDit}: ${depassees.map((dimension) => NOMS[dimension]).join(" and ")} exceeded. The run that did it — ${quel}, run by the ${passage.runner} at ${passage.at}, ${passage.outcome} — was measured as follows:`,
     "",
     "| | Measured | Budget | |",
     "|---|---|---|---|",
@@ -82,14 +91,20 @@ export function corpsDuBudget(horsBudget: HorsBudget, annonce: number): string {
     "",
     "Gates over budget hold the box: several suites at once saturate it, and every servable ticket waits. The lever is lighter gates.",
     "",
+    base
+      ? "The gates of a ticket play only the tests the change touches and have their own, smaller budget; this one judges the full run on the base, which catches what that selection missed."
+      : "The full run on the base is not judged by this budget: it has its own, larger one.",
+    "",
     "## Acceptance criteria",
     "",
-    `- A full run of the gates of ${projet} stays within its budget: at most ${budget.durationSeconds} s of wall-clock time and ${budget.cpuSeconds} s of CPU.`,
+    base
+      ? `- The full run of the gates of ${projet} on the base stays within the base budget: at most ${budget.durationSeconds} s of wall-clock time and ${budget.cpuSeconds} s of CPU.`
+      : `- The gates of a ticket of ${projet} stay within the ticket budget: at most ${budget.durationSeconds} s of wall-clock time and ${budget.cpuSeconds} s of CPU, on the tests the change touches. The full run is not in scope.`,
     "- The cost is cut at its cause — the costliest tests, what they launch, what they wait for: no test is removed, skipped or weakened to get there.",
     "",
     "---",
     "",
-    `_Opened by the kitchen on its own, without the chef: the gates went over their budget. Calibrated \`${CALIBRAGE_BUDGET.model}\` / \`${CALIBRAGE_BUDGET.effort}\`. While it is open, no other one is opened for ${projet}; closed, the next run over budget opens a new one._`,
+    `_Opened by the kitchen on its own, without the chef: the gates went over their ${budgetDit}. Calibrated \`${CALIBRAGE_BUDGET.model}\` / \`${CALIBRAGE_BUDGET.effort}\`. While it is open, no other one is opened for ${projet}; closed, the next run over budget opens a new one._`,
   ].join("\n");
 }
 
@@ -102,13 +117,13 @@ function dernierSuivi(base: Base, projet: string): Suivi | null {
 
 // Le ticket que la cuisine a ouvert pour les gates du projet, tant que rien ne
 // l'a vu fermé : ce que `facts` en dit. Null s'il n'y en a pas.
-export type TicketDuBudget = { number: number; openedAt: string; exceeded: DimensionDuBudget[] };
+export type TicketDuBudget = { number: number; openedAt: string; exceeded: DimensionDuBudget[]; run: GenreDuBudget };
 export function ticketDuBudget(base: Base, projet: string): TicketDuBudget | null {
   const suivi = dernierSuivi(base, projet);
   if (suivi === null || suivi.type !== OUVERT || suivi.ticket === null) return null;
   const [ligne] = base.lire<{ payload: string }>("SELECT payload FROM events WHERE seq = ?", suivi.seq);
-  const { exceeded } = JSON.parse(ligne?.payload ?? "{}") as { exceeded?: DimensionDuBudget[] };
-  return { number: suivi.ticket, openedAt: suivi.at, exceeded: exceeded ?? [] };
+  const { exceeded, run } = JSON.parse(ligne?.payload ?? "{}") as { exceeded?: DimensionDuBudget[]; run?: GenreDuBudget };
+  return { number: suivi.ticket, openedAt: suivi.at, exceeded: exceeded ?? [], run: run ?? "ticket" };
 }
 
 export type OptionsBudget = {
@@ -126,10 +141,12 @@ export type OptionsBudget = {
 export async function tenirLeBudget(options: OptionsBudget): Promise<{ ticket: number; ouvert: boolean } | null> {
   const { journal, github, projet, auteur } = options;
   const { base } = journal;
-  const budget = lireBudget(decisionsPosees(base));
-  const { latest: passage } = coutDuProjet(base, projet, budget, options.maintenant());
-  const depassees = passage === null ? [] : dimensionsDepassees(passage, budget);
-  if (passage === null || depassees.length === 0) return null;
+  const posees = decisionsPosees(base);
+  const passage = dernierPassage(base, projet);
+  if (passage === null) return null;
+  const budget = budgetDuPassage(passage, { ticket: lireBudget(posees), base: lireBudgetDeLaBase(posees) });
+  const depassees = dimensionsDepassees(passage, budget);
+  if (depassees.length === 0) return null;
   const noter = (ticket: number | null, fait: FaitBudgetDesGates) => journal.ajouter({ project: projet, ticket, author: auteur, ...fait });
 
   let suivi = dernierSuivi(base, projet);
@@ -149,7 +166,7 @@ export async function tenirLeBudget(options: OptionsBudget): Promise<{ ticket: n
     // ouvrir une qui la porte.
     numero = recentes.find((issue) => DE_CONFIANCE.includes(issue.association) && annonceDuBudget(issue.body, projet) === seq)?.number;
   } else {
-    const ecrite = noter(null, { type: OUVERTURE, payload: { exceeded: depassees } });
+    const ecrite = noter(null, { type: OUVERTURE, payload: { exceeded: depassees, run: genreDe(passage) } });
     if (ecrite === null) throw new Error("annonce du ticket de budget non écrite");
     annonce = { seq: ecrite.seq, at: ecrite.at, type: OUVERTURE, ticket: null };
   }
@@ -163,6 +180,7 @@ export async function tenirLeBudget(options: OptionsBudget): Promise<{ ticket: n
       cpuSeconds: passage.cpuSeconds,
       budget: { durationSeconds: budget.durationSeconds, cpuSeconds: budget.cpuSeconds },
       exceeded: depassees,
+      run: genreDe(passage),
       reconciled: retrouvee,
     },
   });

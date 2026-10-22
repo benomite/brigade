@@ -33,6 +33,8 @@ const REPONSES = [
   ["fenetre-renvois", "12"],
   ["budget-gates", "120"],
   ["budget-gates-cpu", "500"],
+  ["budget-base", "900"],
+  ["budget-base-cpu", "3000"],
   ["closer-modele", "sonnet"],
   ["closer-effort", "medium"],
   ["closer-cooks", "1"],

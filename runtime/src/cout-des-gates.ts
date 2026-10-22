@@ -23,6 +23,15 @@ export const BUDGET_DUREE = "BRIGADE_GATES_BUDGET_SECONDS";
 export const BUDGET_PROCESSEUR = "BRIGADE_GATES_BUDGET_CPU_SECONDS";
 export const BUDGET_DUREE_PAR_DEFAUT = SEUIL_DUREE_GATES_PAR_DEFAUT;
 export const BUDGET_PROCESSEUR_PAR_DEFAUT = 4 * SEUIL_DUREE_GATES_PAR_DEFAUT;
+// Le run complet sur la base joue toute la suite, pas les tests que touche un ticket : il a son budget, plus large
+// (la suite entière pèse environ 700 s de processeur, bien plus que le budget d'un ticket). Quatre fois celui d'un ticket.
+export const BUDGET_BASE_DUREE = "BRIGADE_GATES_BASE_BUDGET_SECONDS";
+export const BUDGET_BASE_PROCESSEUR = "BRIGADE_GATES_BASE_BUDGET_CPU_SECONDS";
+export const BUDGET_BASE_DUREE_PAR_DEFAUT = 4 * BUDGET_DUREE_PAR_DEFAUT;
+export const BUDGET_BASE_PROCESSEUR_PAR_DEFAUT = 4 * BUDGET_PROCESSEUR_PAR_DEFAUT;
+
+// Ce que juge un budget : les gates d'un ticket (les tests sélectionnés), ou le run complet sur la base.
+export type GenreDePassage = "ticket" | "base";
 
 const TYPE: FaitGates["type"] = "gates.ran";
 const HEURE_MS = 3_600_000;
@@ -41,11 +50,20 @@ const secondes = (env: Record<string, string | undefined>, variable: string, def
 // seules décisions posées. Mal écrit, c'est un refus : la décision ne se pose
 // pas, comme la variable ne se lirait pas.
 export function lireBudget(env: Record<string, string | undefined>): BudgetDesGates {
+  return budgetLu(env, [BUDGET_DUREE, BUDGET_DUREE_PAR_DEFAUT], [BUDGET_PROCESSEUR, BUDGET_PROCESSEUR_PAR_DEFAUT]);
+}
+
+// Le budget du run complet sur la base : le même, avec ses variables et ses défauts.
+export function lireBudgetDeLaBase(env: Record<string, string | undefined>): BudgetDesGates {
+  return budgetLu(env, [BUDGET_BASE_DUREE, BUDGET_BASE_DUREE_PAR_DEFAUT], [BUDGET_BASE_PROCESSEUR, BUDGET_BASE_PROCESSEUR_PAR_DEFAUT]);
+}
+
+function budgetLu(env: Record<string, string | undefined>, [duree, dureeDefaut]: [string, number], [processeur, processeurDefaut]: [string, number]): BudgetDesGates {
   const pose = (variable: string) => (env[variable] ?? "") !== "";
   return {
-    durationSeconds: secondes(env, BUDGET_DUREE, BUDGET_DUREE_PAR_DEFAUT),
-    cpuSeconds: secondes(env, BUDGET_PROCESSEUR, BUDGET_PROCESSEUR_PAR_DEFAUT),
-    parLeChef: { durationSeconds: pose(BUDGET_DUREE), cpuSeconds: pose(BUDGET_PROCESSEUR) },
+    durationSeconds: secondes(env, duree, dureeDefaut),
+    cpuSeconds: secondes(env, processeur, processeurDefaut),
+    parLeChef: { durationSeconds: pose(duree), cpuSeconds: pose(processeur) },
   };
 }
 
@@ -78,9 +96,15 @@ export type PassageDesGates = {
   at: string;
 };
 
+// Le run complet sur la base, face à son budget à lui : jamais jugé par celui d'un ticket.
+export type CoutDeLaBase = { budget: BudgetDesGates; latest: PassageDesGates | null; overBudget: boolean };
+
 export type CoutDuProjet = {
+  // Les gates d'un ticket — les tests sélectionnés — face à leur budget ; tout ce qui suit (dernier passage,
+  // fenêtres, moyennes, tendance) ne compte que ces passages. Le run complet sur la base est dans `base`.
   budget: BudgetDesGates;
-  // Le dernier passage du projet, null s'il n'en a eu aucun.
+  base: CoutDeLaBase;
+  // Le dernier passage de gates de ticket du projet, null s'il n'en a eu aucun.
   latest: PassageDesGates | null;
   // Le dernier passage dépasse le budget : sa durée ou son processeur. Faux
   // sans passage.
@@ -112,10 +136,13 @@ const relu = ({ project, ticket, payload, at }: Ligne): PassageDesGates => {
   return { project, ticket, runner: lu.runner, outcome: lu.outcome, durationSeconds: enSecondes(lu.durationMs), cpuSeconds: lu.cpuMs === null ? null : enSecondes(lu.cpuMs), at };
 };
 
-// Les passages du projet, du plus récent au plus ancien, jusqu'à `depuis`
-// exclu — tous, sans `depuis`.
-export function passagesDesGates(base: Base, projet: string, depuis?: Date): PassageDesGates[] {
-  const lignes = base.lire<Ligne>("SELECT project, ticket, payload, at FROM events WHERE type = ? AND project = ? ORDER BY seq DESC", TYPE, projet);
+// Les passages du projet de ce genre, du plus récent au plus ancien, jusqu'à `depuis`
+// exclu — tous, sans `depuis`. Les gates de la base n'ont pas de ticket.
+const DU_GENRE: Record<GenreDePassage, string> = { ticket: "ticket IS NOT NULL", base: "ticket IS NULL" };
+export const genreDe = (passage: PassageDesGates): GenreDePassage => (passage.ticket === null ? "base" : "ticket");
+
+export function passagesDesGates(base: Base, projet: string, depuis?: Date, genre: GenreDePassage = "ticket"): PassageDesGates[] {
+  const lignes = base.lire<Ligne>(`SELECT project, ticket, payload, at FROM events WHERE type = ? AND project = ? AND ${DU_GENRE[genre]} ORDER BY seq DESC`, TYPE, projet);
   const limite = depuis?.getTime();
   const passages: PassageDesGates[] = [];
   for (const ligne of lignes) {
@@ -127,9 +154,19 @@ export function passagesDesGates(base: Base, projet: string, depuis?: Date): Pas
 
 export const depasse = (passage: PassageDesGates, budget: BudgetDesGates) => passage.durationSeconds > budget.durationSeconds || (passage.cpuSeconds !== null && passage.cpuSeconds > budget.cpuSeconds);
 
-// Ce que les gates du projet coûtent face à son budget : la lecture de `facts`.
-export function coutDuProjet(base: Base, projet: string, budget: BudgetDesGates, maintenant: Date): CoutDuProjet {
-  const latest = base.lire<Ligne>("SELECT project, ticket, payload, at FROM events WHERE type = ? AND project = ? ORDER BY seq DESC LIMIT 1", TYPE, projet).map(relu)[0] ?? null;
+// Le dernier passage du projet, de n'importe quel genre.
+export function dernierPassage(base: Base, projet: string, genre?: GenreDePassage): PassageDesGates | null {
+  const filtre = genre === undefined ? "" : ` AND ${DU_GENRE[genre]}`;
+  return base.lire<Ligne>(`SELECT project, ticket, payload, at FROM events WHERE type = ? AND project = ?${filtre} ORDER BY seq DESC LIMIT 1`, TYPE, projet).map(relu)[0] ?? null;
+}
+
+// Le budget qui juge ce passage : celui de ses gates de ticket, ou celui du run complet sur la base.
+export const budgetDuPassage = (passage: PassageDesGates, budgets: { ticket: BudgetDesGates; base: BudgetDesGates }) => budgets[genreDe(passage)];
+
+// Ce que les gates du projet coûtent face à leurs budgets : la lecture de `facts`.
+export function coutDuProjet(base: Base, projet: string, budget: BudgetDesGates, maintenant: Date, budgetDeLaBase: BudgetDesGates = lireBudgetDeLaBase({})): CoutDuProjet {
+  const latest = dernierPassage(base, projet, "ticket");
+  const dernierDeLaBase = dernierPassage(base, projet, "base");
   const jour = passagesDesGates(base, projet, new Date(maintenant.getTime() - JOUR_MS)).filter((passage) => Date.parse(passage.at) <= maintenant.getTime());
   const heure = jour.filter((passage) => Date.parse(passage.at) > maintenant.getTime() - HEURE_MS);
   const somme = (valeurs: number[]) => Math.round(valeurs.reduce((total, valeur) => total + valeur * 10, 0)) / 10;
@@ -147,6 +184,7 @@ export function coutDuProjet(base: Base, projet: string, budget: BudgetDesGates,
   const averages = { lastHour: moyennes(heure), lastDay: moyennes(jour) };
   return {
     budget,
+    base: { budget: budgetDeLaBase, latest: dernierDeLaBase, overBudget: dernierDeLaBase !== null && depasse(dernierDeLaBase, budgetDeLaBase) },
     latest,
     overBudget: latest !== null && depasse(latest, budget),
     lastDay: fenetre(jour),

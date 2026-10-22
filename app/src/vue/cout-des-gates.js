@@ -1,6 +1,7 @@
 // @ts-check
 // Ce que coûtent les gates du projet face à son budget (ticket 1318, épique 1313). Deux poses :
-// - en tête de la file : le dernier passage face au budget d'un passage, en durée et en processeur — « 215 s / 100 s » —,
+// - en tête de la file : le dernier passage de gates de ticket face au budget d'un ticket, en durée et en processeur
+//   — « 215 s / 100 s » —, puis, à part, le dernier run complet sur la base face à son budget à lui,
 //   marqué « over budget » quand le runtime le juge ainsi, et la ligne qui dit que la cuisine a ouvert un ticket seule
 //   pour les y ramener, son numéro ouvrant sa fiche ;
 // - sur l'onglet Cooks : les passages de la dernière heure et des dernières 24 h — leur nombre, ce que coûte un passage
@@ -17,6 +18,7 @@ import { survol } from "./briques.js";
 /** @typedef {import("../faits.ts").CoutDesGates} CoutDesGates */
 
 export const TITRE_FILE = "gates, latest run against budget";
+export const TITRE_BASE = "full run on the base, against its own budget";
 export const TITRE_JOUR = "gates, last hour and last 24 h";
 export const HORS_BUDGET = "over budget";
 export const DEFAUT = "(default)";
@@ -24,6 +26,8 @@ const AIDE_FILE =
   "What the project's latest gates run cost, in wall-clock time and in CPU, against the budget of one run. A budget you have not set is the default. When a run goes over, the kitchen opens a ticket on its own to bring the gates back under it — one at a time.";
 const AIDE_JOUR =
   "Every gates run of the project in the last hour and in the last 24 hours, by a cook or by the pass: how many, what one run costs on average — to read against the budget of one run —, and their time and CPU added up. The average CPU counts only the runs that said it. The trend sets the last hour's average against the last 24 hours': rising or falling past 10 %, steady within.";
+const AIDE_BASE =
+  "The latest full run of the gates on the integration base, which plays every test, against its own and larger budget. The budget of a ticket's gates never judges it.";
 // La tendance de l'heure face au jour, en mots.
 /** @type {Readonly<Record<import("../faits.ts").TendanceDesGates, string>>} */
 export const TENDANCES = { up: "↑ rising", down: "↓ falling", steady: "steady" };
@@ -71,18 +75,9 @@ function mesure(doc, { libelle, valeur, titre, budget: sien }) {
   return pose;
 }
 
-// En tête de la file : le dernier passage face au budget, et le ticket que la cuisine a ouvert. Rien d'un runtime qui
-// ne le donne pas. `ouvrir` ouvre la fiche du ticket, son bouton en retour.
-/** @param {Fabrique} doc @param {CoutDesGates | undefined} cout @param {(ticket: number, retour: any) => void} ouvrir */
-export function poserLesGatesDeLaFile(doc, cout, ouvrir) {
-  if (cout === undefined) return [];
-  const { budget: lu, latest, overBudget, ticket } = cout;
-  const section = cree(doc, "section");
-  section.className = "gates-de-la-file";
-  section.ariaLabel = TITRE_FILE;
-  if (overBudget) section.dataset.horsBudget = "";
-  const tete = cree(doc, "h4", TITRE_FILE);
-  tete.append(survol(doc, AIDE_FILE));
+// La ligne des deux mesures du dernier passage d'un genre, chacune face au budget de ce genre, et son marquage.
+/** @param {Fabrique} doc @param {import("../faits.ts").BudgetDesGates} lu @param {import("../faits.ts").PassageDesGates | null} latest @param {boolean} horsBudget */
+function ligneDeMesures(doc, lu, latest, horsBudget) {
   const ligne = cree(doc, "p");
   ligne.className = "mesures-des-gates";
   const processeur = latest === null ? "–" : latest.cpuSeconds === null ? "not measured" : secondes(latest.cpuSeconds);
@@ -100,12 +95,35 @@ export function poserLesGatesDeLaFile(doc, cout, ouvrir) {
     aucun.className = "sans-passage";
     ligne.append(aucun);
   }
-  if (overBudget) {
+  if (horsBudget) {
+    ligne.dataset.horsBudget = "";
     const marque = cree(doc, "span", HORS_BUDGET);
     marque.className = "hors-budget";
     ligne.append(marque);
   }
-  section.append(tete, ligne);
+  return ligne;
+}
+
+// En tête de la file : le dernier passage face au budget, et le ticket que la cuisine a ouvert. Rien d'un runtime qui
+// ne le donne pas. `ouvrir` ouvre la fiche du ticket, son bouton en retour.
+/** @param {Fabrique} doc @param {CoutDesGates | undefined} cout @param {(ticket: number, retour: any) => void} ouvrir */
+export function poserLesGatesDeLaFile(doc, cout, ouvrir) {
+  if (cout === undefined) return [];
+  const { budget: lu, latest, overBudget, ticket, base } = cout;
+  const section = cree(doc, "section");
+  section.className = "gates-de-la-file";
+  section.ariaLabel = TITRE_FILE;
+  if (overBudget || base?.overBudget === true) section.dataset.horsBudget = "";
+  const tete = cree(doc, "h4", TITRE_FILE);
+  tete.append(survol(doc, AIDE_FILE));
+  section.append(tete, ligneDeMesures(doc, lu, latest, overBudget));
+  if (base !== undefined) {
+    const teteDeLaBase = cree(doc, "h4", TITRE_BASE);
+    teteDeLaBase.append(survol(doc, AIDE_BASE));
+    const deLaBase = ligneDeMesures(doc, base.budget, base.latest, base.overBudget);
+    deLaBase.dataset.genre = "base";
+    section.append(teteDeLaBase, deLaBase);
+  }
   if (ticket !== null) {
     const dit = cree(doc, "p");
     dit.className = "ticket-du-budget";
