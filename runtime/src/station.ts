@@ -76,7 +76,7 @@ import { direMasquage, FICHIER_DES_IDENTIFIANTS, identifiantsLivres, LONGUEUR_MI
 import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.ts";
 import { envelopper, type Cloison } from "./cloison.ts";
 import { jouerSetup, SCRIPT_SETUP } from "./gates.ts";
-import { reparer } from "./installation/reparations/reparations.ts";
+import { avecLesBins, reparer } from "./installation/reparations/reparations.ts";
 import { noterGatesDuCook, poserLeLanceur } from "./gates-du-cook.ts";
 import { CAUSES_DU_PROJET } from "./mise-de-cote.ts";
 import { direDefaut, lireLivrable, type Defaut } from "./livrable.ts";
@@ -1837,9 +1837,10 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     const delaiSetupMs = options.dureeBailMs * PART_DU_SETUP;
     const interdites = options.sansIdentite ? [...VARIABLES_DE_JETON, ...VARIABLES_GITHUB] : VARIABLES_DE_JETON;
     const avantLeSetup = journal.dernierSeq();
-    const envDuSetup = { ...envCook, ...secrets.env };
-    // Ce que la cuisine répare seule (un `.env`, un gestionnaire de paquets, le réseau) l'est avant le setup ; le reste devient un blocage.
-    await reparer({ dossier: worktree, journal, auteur: { projet, auteur: auteurDe(station) }, env: envDuSetup });
+    const envAvantReparation = { ...envCook, ...secrets.env };
+    // Ce que la cuisine répare seule (un `.env`, un gestionnaire de paquets, le réseau) l'est avant le setup ; le reste devient un blocage. Un gestionnaire installé entre dans le PATH du setup.
+    const reparations = await reparer({ dossier: worktree, journal, auteur: { projet, auteur: auteurDe(station) }, env: envAvantReparation });
+    const envDuSetup = avecLesBins(envAvantReparation, reparations.bins);
     const setup = await jouerSetup({ worktree, ticket: numero, env: envDuSetup, interdites, masquer, cloison: options.cloison, delaiMs: delaiSetupMs, signal: abandon.signal });
     if (arrete) return;
     // Le ticket qui prépare le dépôt est celui qui doit réparer son setup : un

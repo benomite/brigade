@@ -70,7 +70,15 @@ export type Resultat = {
   reparations: string[];
   // Les identifiants des blocages posés.
   blocages: string[];
+  // Les dossiers `bin` où un gestionnaire vient d'être installé : à mettre en
+  // tête du PATH de ce qui suit, le setup d'abord.
+  bins: string[];
 };
+
+// Le PATH d'un environnement, avec ces dossiers en tête.
+export function avecLesBins(env: NodeJS.ProcessEnv, bins: string[]): NodeJS.ProcessEnv {
+  return bins.length === 0 ? env : { ...env, PATH: [...bins, env.PATH ?? ""].filter(Boolean).join(delimiter) };
+}
 
 const dit = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur)).split("\n")[0]!.slice(0, 200);
 
@@ -118,7 +126,7 @@ function reparerLesEnv(demande: Demande): Etape[] {
   });
 }
 
-async function reparerLeGestionnaire(demande: Demande): Promise<Etape[]> {
+async function reparerLeGestionnaire(demande: Demande, bins: string[]): Promise<Etape[]> {
   const systeme = demande.systeme ?? systemeReel;
   const prefixe = demande.prefixe ?? join(homedir(), ".local");
   const requis = VERROUS.filter(({ fichier }) => existsSync(join(demande.dossier, fichier))).map(({ gestionnaire }) => gestionnaire);
@@ -133,6 +141,7 @@ async function reparerLeGestionnaire(demande: Demande): Promise<Etape[]> {
       mkdirSync(prefixe, { recursive: true });
       await systeme.installer(gestionnaire, prefixe, env);
       if (await systeme.disponible(gestionnaire, env)) {
+        if (!bins.includes(bin)) bins.push(bin);
         etapes.push({ reparation: `package-manager:${gestionnaire}`, phrase: `Installed \`${gestionnaire}\` in \`${prefixe}\` without sudo, as the repository's lockfile requires it.` });
         continue;
       }
@@ -188,8 +197,9 @@ function reparerLeReseau(demande: Demande): Etape[] {
 // lève ceux d'une réparation qui désormais passe.
 export async function reparer(demande: Demande): Promise<Resultat> {
   const { journal, auteur } = demande;
-  const etapes = [...reparerLesEnv(demande), ...(await reparerLeGestionnaire(demande)), ...reparerLeReseau(demande)];
-  const resultat: Resultat = { reparations: [], blocages: [] };
+  const bins: string[] = [];
+  const etapes = [...reparerLesEnv(demande), ...(await reparerLeGestionnaire(demande, bins)), ...reparerLeReseau(demande)];
+  const resultat: Resultat = { reparations: [], blocages: [], bins };
   for (const etape of etapes) {
     if (etape === null) continue;
     if ("reparation" in etape) {

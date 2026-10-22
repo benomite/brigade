@@ -3,11 +3,11 @@
 // chacune dite au journal, et un blocage quand elle est impossible.
 import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { ouvrirJournal } from "../../../src/journal.ts";
 import { blocagesDuJournal } from "../../../src/installation/blocages/blocages.ts";
-import { reparer, type Systeme } from "../../../src/installation/reparations/reparations.ts";
+import { avecLesBins, reparer, type Systeme } from "../../../src/installation/reparations/reparations.ts";
 import { SCRIPT_SETUP } from "../../../src/gates.ts";
 import { aArreter, repertoireTemporaire } from "../../outils.ts";
 
@@ -76,13 +76,18 @@ test("un dépôt pnpm sans pnpm : pnpm s'installe sans sudo, au dossier de l'uti
   assert.deepEqual(resultat.blocages, []);
   assert.equal(blocagesDuJournal(journal.base).length, 0);
   assert.match(faits()[0]!.sentence, /Installed `pnpm`.*without sudo/);
+  // Le setup trouve pnpm : le dossier bin entre en tête de son PATH.
+  assert.deepEqual(resultat.bins, [join(racine, "local", "bin")]);
+  assert.equal(avecLesBins({ PATH: "/usr/bin" }, resultat.bins).PATH?.split(delimiter)[0], join(racine, "local", "bin"));
+  assert.equal(avecLesBins({ PATH: "/usr/bin" }, []).PATH, "/usr/bin");
 });
 
 test("pnpm déjà là : rien n'est installé", async (t) => {
   const { dossier, journal, ecrire, faits } = unDepot(t);
   ecrire("pnpm-lock.yaml", "x\n");
   const sys = systeme(new Set(["pnpm"]));
-  await reparer({ dossier, journal, auteur: QUI, systeme: sys.systeme });
+  const resultat = await reparer({ dossier, journal, auteur: QUI, systeme: sys.systeme });
+  assert.deepEqual(resultat.bins, []);
   assert.deepEqual(sys.installes, []);
   assert.equal(faits().length, 0);
 });
