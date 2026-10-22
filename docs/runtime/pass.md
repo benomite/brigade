@@ -57,7 +57,9 @@ measurement, or an output of more than 256 kB, leaves the gates red.
 
 **Every run of the gates the pass plays — a delivery's or the base's — writes what it cost**:
 `gates.ran`, its wall-clock time and its CPU, children included, read against the project's gates
-budget. See "The cost of the gates, and its budget" in [`etat-et-mesures.md`](etat-et-mesures.md).
+budget. A run over budget, with no budget ticket of the project open, makes the pass open one on
+the project, on its own — one at a time. See "The cost of the gates, and its budget" in
+[`etat-et-mesures.md`](etat-et-mesures.md).
 
 ### The judgement worktree
 

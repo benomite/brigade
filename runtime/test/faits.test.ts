@@ -503,6 +503,7 @@ test("la commande rend la forme sur une seule ligne de JSON, sans rien écrire a
     latest: null,
     overBudget: false,
     lastDay: { runs: 0, durationSeconds: 0, cpuSeconds: 0 },
+    ticket: null,
   });
   // Sept jours (UTC), le dernier est aujourd'hui ; aucun triage n'a eu lieu : chaque jour est à zéro, jamais absent.
   assert.equal(forme.triage.length, 7);

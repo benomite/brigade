@@ -99,6 +99,7 @@ import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.t
 import { envelopper, type Cloison } from "./cloison.ts";
 import { aDesGates, jouerGatesMesurees, SCRIPT_GATES, type DemandeScript } from "./gates.ts";
 import { noterCoutDesGates } from "./cout-des-gates.ts";
+import { tenirLeBudget } from "./budget-des-gates.ts";
 import { constaterExtinction, direExtinction } from "./grant.ts";
 import { VARIABLES_GITHUB } from "./identites.ts";
 import type { GitHub, PR } from "./github.ts";
@@ -462,8 +463,26 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   const jouerGates = async (ticket: number | null, demande: DemandeScript) => {
     const { gates, cout } = await jouerGatesMesurees(demande);
     if (!arrete) noterCoutDesGates(journal, { projet, ticket, coureur: "pass", auteur: AUTEUR, gates, cout });
+    if (!arrete) await budgetTenu();
     return gates;
   };
+  // Le passage écrit, hors budget et sans ticket de budget ouvert : la pass en
+  // ouvre un sur le projet, sans geste du chef (`budget-des-gates.ts`). Un
+  // passage à la fois s'y juge. GitHub en panne : c'est dit une fois, et le
+  // passage hors budget suivant y revient. Rien n'y retient le verdict.
+  let budgetButee = false;
+  let budgetEnCours: Promise<void> = Promise.resolve();
+  const budgetTenu = () =>
+    (budgetEnCours = budgetEnCours.then(async () => {
+      try {
+        const tenu = await tenirLeBudget({ journal, github, projet, auteur: AUTEUR, maintenant });
+        budgetButee = false;
+        if (tenu?.ouvert && !arrete) avertir(`brigade : gates de ${projet} hors budget — ticket #${tenu.ticket} ouvert pour les y ramener`);
+      } catch (erreur) {
+        if (!arrete && !budgetButee) avertir(`brigade : gates de ${projet} hors budget, mais leur ticket n'a pas pu être ouvert — ${message(erreur)}. La pass y revient au passage suivant, sans le redire`);
+        budgetButee = true;
+      }
+    }));
   // Cache, pas état : les gates déjà jouées sur la fusion d'un commit avec une
   // base, le temps que sa CI conclue. Le perdre coûte de les rejouer.
   const gatesJouees = new Map<number, { sha: string; base: string; gates: Gates; arbre: string }>();
