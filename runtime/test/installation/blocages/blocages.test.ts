@@ -21,7 +21,7 @@ import {
   type NouveauBlocage,
 } from "../../../src/installation/blocages/blocages.ts";
 import { lireLEchecDuClone, type Enquete } from "../../../src/projets/echec-du-clone.ts";
-import { repertoireTemporaire, temporaireDuFichier } from "../../outils.ts";
+import { aArreter, repertoireTemporaire, temporaireDuFichier } from "../../outils.ts";
 
 const rienNeReste = temporaireDuFichier();
 
@@ -50,7 +50,9 @@ const JETONS: NouveauBlocage = {
 function unProjet(t: TestContext) {
   const repertoireEtat = repertoireTemporaire(t);
   const journal = ouvrirJournal(repertoireEtat);
-  t.after(() => journal.fermer());
+  // Fermé avant que son répertoire soit supprimé : sous Windows, un journal
+  // encore ouvert ne se supprime pas.
+  aArreter(t, () => journal.fermer());
   const faits = () => journal.tout().filter(({ type }) => type.startsWith("blocker."));
   return { repertoireEtat, journal, faits };
 }
