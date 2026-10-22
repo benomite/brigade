@@ -16,7 +16,6 @@ import { BANNIERE, type Carte, type Faits, tenirFaits } from "../../../app/src/f
 import { CONFIRMES, DIRECTS, GRANTS } from "../../../app/src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../../../app/src/grants.ts";
 import { EFFORTS, MODELES } from "../../../app/src/projets/projets.ts";
-import { GESTES_DU_MANAGER } from "../../../app/src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../../../app/src/onglets.ts";
 import type { Vu as VuDuCode } from "../../../app/src/retard.ts";
 import type { VuDesProjets } from "../../../app/src/projets/projets.ts";
@@ -72,7 +71,7 @@ export function demarrage(projets: Configuration, ici: (nom: string) => boolean 
     onglets: ONGLETS,
     rubriques: RUBRIQUES,
     boutons: BOUTONS,
-    gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES, attente: GESTES_D_ATTENTE },
+    gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES, attente: GESTES_D_ATTENTE },
     banniere: BANNIERE,
     calibrage: { modeles: MODELES, efforts: EFFORTS },
     code: CODE,

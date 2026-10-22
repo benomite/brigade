@@ -416,6 +416,21 @@ main > header,
 #stations-du-projet p {
   margin: 0;
 }
+/* Le temps de l'ajout au premier ticket servi (ticket 1401) : une ligne douce ; verte une fois figé. */
+#delai-du-projet {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--trait-doux);
+}
+#delai-du-projet .delai {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--texte-doux);
+}
+#delai-du-projet .delai[data-delai="fige"] {
+  color: var(--texte);
+}
 /* Ce qui bloque le projet (ticket 1399) : une carte, une ligne par blocage. Ce qui est bloqué en tête, en clair ;
    pourquoi dessous, en texte doux ; le bouton du geste, puis le lien qui nomme la page où le faire ; ce qu'une
    commande a dit, replié derrière « details », en second. */

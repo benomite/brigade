@@ -45,6 +45,7 @@ import type { Verification } from "../bac-a-sable/local.ts";
 import { dejaDemenage, lireRemise, recevoir, remettre, remisAilleurs } from "../demenagement/remise.ts";
 import { ouvrirGitHub } from "../github.ts";
 import { lireEchecDuWorktree } from "../echec-du-worktree.ts";
+import { lireDelai, noterLAjout } from "../installation/delai/delai.ts";
 import { leverBlocageDans, lireBlocages, poserBlocageDans } from "../installation/blocages/blocages.ts";
 import { blocageDuClone, clonerEnReparant, ID_BLOCAGE_CLONE } from "../installation/clone/clone.ts";
 import { suivreLesBesoins } from "../installation/besoins/besoins.ts";
@@ -263,6 +264,11 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
       return suivi("refuse", `the chef's choices could not be written to its log — ${message(erreur)}`, "decisions-not-written");
     }
     if (recu) return { ligne: ligneDe(projet) };
+    try {
+      noterLAjout(join(racine, ETATS, projet.nom), projet.nom, `station:${station}`, () => new Date(maintenant()));
+    } catch (erreur) {
+      direUneFois(`ajout ${projet.nom} ${message(erreur)}`, `brigade : station — ${projet.nom} : son ajout n'est pas noté au journal, le délai de son premier ticket n'en dira rien : ${message(erreur)}`);
+    }
     // Le premier ticket de sa cuisine, ouvert avant sa ligne : la cuisine qui
     // s'ouvre ensuite n'en laisse partir aucun autre avant lui.
     try {
@@ -479,7 +485,9 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
       const choix = besoins.tenir(demande.projets[rang]!, { repertoireEtat: etatDe(dit.nom), clone: cloneDe(dit.nom) });
       // Ce qui bloque le projet, lu dans son journal, quel que soit son état.
       const blocages = lireBlocages(etatDe(dit.nom));
-      return { ...dit, ...(blocages.length === 0 ? {} : { blocages }), ...(choix.length === 0 ? {} : { choix }) };
+      // Le temps de son ajout à son premier ticket servi (#1401).
+      const delai = lireDelai(etatDe(dit.nom));
+      return { ...dit, ...(delai === null ? {} : { delai }), ...(blocages.length === 0 ? {} : { blocages }), ...(choix.length === 0 ? {} : { choix }) };
     });
     for (const nom of [...serviLe.keys()]) if (!servisMaintenant.has(nom)) serviLe.delete(nom);
     // Où en est chaque projet dont elle est la principale, de son ajout à son

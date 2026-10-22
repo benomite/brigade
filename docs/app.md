@@ -1114,6 +1114,13 @@ the blocker stays. What a command said (`detail`) is never the message: it stays
 row the chef unfolds stays unfolded from one read to the next. A resolved blocker leaves the card; no blocker, no
 card. Screenshots: `docs/captures/1399/`. The module is `app/src/vue/projet/blocages.js`.
 
+**Time to the first served ticket** (#1401, epic #1393): one line above the blockers, from the `delai` the principal
+station publishes in its tracking. Before any ticket of the chef is served it says how long ago the project was added
+(« Added 2 h 14 min ago, no ticket served yet »), recounted at each read and every 30 s; after the first one it says
+the final duration the station froze (« First ticket served 2 h 34 min after the project was added »), which a second
+served ticket does not change. The preparation ticket of the repository does not count. No `delai`, no line.
+Screenshots: `docs/captures/1401/`. The module is `app/src/vue/projet/delai.js`.
+
 **What the station lacks for the project** (#1400, epic #1393): every choice its principal station publishes as
 pending (`choix` in its tracking, #1398) is one card above the blockers, on Rail as on Cooks, under one sentence —
 `2 choices wait for you on parade`. Two missing needs are two cards. Each card says what is missing (`The tests of

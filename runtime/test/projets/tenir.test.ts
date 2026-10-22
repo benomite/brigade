@@ -118,6 +118,9 @@ function uneStation(t: TestContext, options: { appairee?: boolean; remote?: (clo
   return { racine, origine, projets, demander, ecrireTelQuel, suivi, onboarding, configuration, lignes, ecritures, autorisations, clones, refuses, relectures: () => relectures, echouerLeClone: (erreur: Error | null) => (clonage = erreur), enqueteDuGh: (lue: Enquete) => (enquete = lue), preparations, echouerLaPreparation: (erreur: Error | null) => (preparation = erreur) };
 }
 
+// Le délai que la station publie d'un projet qu'elle vient de préparer : ajouté à l'heure (figée) de la station, aucun ticket servi.
+const AJOUTE = { ajouteLe: "2026-10-15T12:02:00.000Z", serviLe: null, duree: null };
+
 test("un projet dont la station est la principale : cloné, ses décisions posées, sa ligne écrite — il est servi, et le suivi le dit", async (t) => {
   const station = uneStation(t);
   station.demander(PARADE);
@@ -135,11 +138,12 @@ test("un projet dont la station est la principale : cloné, ses décisions posé
       BRIGADE_REVIEWER_MODEL: "opus",
       BRIGADE_REVIEWER_EFFORT: "high",
     });
-    assert.ok(journal.tout().every((evenement) => evenement.author === "chef" && evenement.project === "parade"));
+    assert.ok(journal.tout().every((evenement) => evenement.project === "parade" && evenement.author === (evenement.type === "project.added" ? "station:box" : "chef")));
+    assert.equal(journal.tout().filter((evenement) => evenement.type === "project.added").length, 1);
   } finally {
     journal.fermer();
   }
-  assert.deepEqual(station.suivi(), [{ nom: "parade", etat: "servi", dit: "served by box", autoriser: [], serviLe: "2026-10-15T12:02:00.000Z", cuitSur: "box", ici: false, bascule: null }]);
+  assert.deepEqual(station.suivi(), [{ nom: "parade", etat: "servi", dit: "served by box", autoriser: [], serviLe: "2026-10-15T12:02:00.000Z", cuitSur: "box", ici: false, bascule: null, delai: AJOUTE }]);
   assert.ok(station.lignes.includes("brigade : station — parade ajouté depuis l'app : sa ligne est écrite dans la configuration"));
 
   // Relu sans changement : ni clone, ni ligne, ni suivi réécrit.
@@ -327,7 +331,7 @@ test("refusé par la station, le suivi dit pourquoi", async (t) => {
   station.refuses.set("parade", "le clone du projet n'existe pas");
   station.demander(PARADE);
   await station.projets.relire();
-  assert.deepEqual(station.suivi()?.[0], { nom: "parade", etat: "refuse", dit: "the station refuses to serve it — le clone du projet n'existe pas", autoriser: [], serviLe: null, cuitSur: null, ici: false, bascule: null, refus: refus("unexpected") });
+  assert.deepEqual(station.suivi()?.[0], { nom: "parade", etat: "refuse", dit: "the station refuses to serve it — le clone du projet n'existe pas", autoriser: [], serviLe: null, cuitSur: null, ici: false, bascule: null, delai: AJOUTE, refus: refus("unexpected") });
 });
 
 test("un projet refusé porte un refus structuré — statut, code, phrase, action — que le projet servi ne porte plus", async (t) => {
@@ -432,7 +436,7 @@ test("un dépôt joignable, où la station peut pousser : servi comme avant, san
   station.demander(SUR_BASE);
   await station.projets.relire();
 
-  assert.deepEqual(station.suivi(), [{ nom: "parade", etat: "servi", dit: "served by box", autoriser: [], serviLe: "2026-10-15T12:02:00.000Z", cuitSur: "box", ici: false, bascule: null }]);
+  assert.deepEqual(station.suivi(), [{ nom: "parade", etat: "servi", dit: "served by box", autoriser: [], serviLe: "2026-10-15T12:02:00.000Z", cuitSur: "box", ici: false, bascule: null, delai: AJOUTE }]);
   assert.equal(station.configuration(), `${DEBUT}\nparade benomite/parade ${BASE}\n${FIN}\n`);
   assert.equal(station.preparations.length, 1);
 });
@@ -441,7 +445,7 @@ test("un worktree que la cuisine d'un projet servi n'a pas pu préparer : le sui
   const station = uneStation(t);
   station.demander(PARADE);
   await station.projets.relire();
-  const servi = { nom: "parade", etat: "servi", dit: "served by box", autoriser: [], serviLe: "2026-10-15T12:02:00.000Z", cuitSur: "box", ici: false, bascule: null };
+  const servi = { nom: "parade", etat: "servi", dit: "served by box", autoriser: [], serviLe: "2026-10-15T12:02:00.000Z", cuitSur: "box", ici: false, bascule: null, delai: AJOUTE };
   assert.deepEqual(station.suivi(), [servi]);
   // Ce que la cuisine du projet écrit à son journal (`station.ts`).
   const noter = (fait: Fait) => {
@@ -477,7 +481,7 @@ test("les blocages d'un projet, posés à son journal, sont publiés dans son su
   const station = uneStation(t);
   station.demander(PARADE);
   await station.projets.relire();
-  const servi = { nom: "parade", etat: "servi", dit: "served by box", autoriser: [], serviLe: "2026-10-15T12:02:00.000Z", cuitSur: "box", ici: false, bascule: null };
+  const servi = { nom: "parade", etat: "servi", dit: "served by box", autoriser: [], serviLe: "2026-10-15T12:02:00.000Z", cuitSur: "box", ici: false, bascule: null, delai: AJOUTE };
   assert.deepEqual(station.suivi(), [servi]);
 
   const etat = join(station.racine, "etat/parade");
@@ -522,3 +526,25 @@ test("une demande illisible ne fait rien retirer ; une station pas encore appair
 });
 
 test("tenir.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);
+
+test("le délai de l'ajout au premier ticket servi est publié, exact et figé : un second ticket servi ne le change pas", async (t) => {
+  const station = uneStation(t);
+  station.demander(PARADE);
+  await station.projets.relire();
+  assert.deepEqual(station.suivi()?.[0]?.delai, AJOUTE);
+
+  const servir = async (ticket: number, instant: string) => {
+    const journal = ouvrirJournal(join(station.racine, "etat/parade"), { maintenant: () => new Date(instant) });
+    try {
+      journal.ajouter({ project: "parade", ticket, author: "runtime", type: "ticket.served", payload: {} });
+    } finally {
+      journal.fermer();
+    }
+    await station.projets.relire();
+  };
+  await servir(7, "2026-10-15T14:36:56.789Z");
+  const fige = { ajouteLe: "2026-10-15T12:02:00.000Z", serviLe: "2026-10-15T14:36:56.789Z", duree: 9_296_789 };
+  assert.deepEqual(station.suivi()?.[0]?.delai, fige);
+  await servir(8, "2026-10-16T09:00:00.000Z");
+  assert.deepEqual(station.suivi()?.[0]?.delai, fige);
+});
