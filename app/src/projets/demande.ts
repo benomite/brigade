@@ -35,6 +35,9 @@ export type ProjetDemande = {
   // (`reprise`) : l'autre station, son gist, l'instant de la demande. Écrits par le runtime seul.
   remise?: { vers: string; gist: string; demandeLe: string };
   reprise?: { de: string; gist: string; demandeLe: string };
+  // L'issue que le chef retient pour chaque besoin qui manque à la principale (#1400), par identifiant de choix :
+  // `{ "need:postgres": "provide-here" }`. La station la pose à son journal à sa lecture suivante (#1398).
+  choix?: Selections;
 };
 
 export type EtatDuProjet = "servi" | "a-autoriser" | "en-preparation" | "refuse" | "secondaire";
@@ -69,7 +72,16 @@ export type Refus = { code: string; message: string; action: string; remedy?: De
 // l'app sait faire (`action`, son identifiant), la page de GitHub où le faire hors de l'app (`link`) et ce qu'une
 // commande a dit (`detail`, que la page ne montre que replié). Absent quand rien ne bloque, ou d'une station d'avant #1394.
 export type Blocage = { id: string; message: string; cause: string; action?: string; link?: string; detail?: string };
-export type SuiviDuProjet = { nom: string; etat: EtatDuProjet; dit: string; autoriser: string[]; serviLe: string | null; cuitSur: string | null; ici: boolean; bascule: Bascule | null; acces: AccesBloque | null; refus: Refus | null; worktree: EchecDuWorktree | null; clone?: EchecDuClone; blocages?: Blocage[]; depot: string | null; base: string | null; cooks: number | null };
+// `choix` : ce qui manque à la principale pour les tests du projet, un choix par besoin (#1398,
+// runtime/src/installation/besoins/) — sa clé (`need:<besoin>`, celle du blocage qui l'attend), le besoin, ce qui
+// manque et pourquoi en une phrase chacun, ses issues (chacune son libellé et ce qui en suit), et s'il attend le
+// chef (`pending`) ou s'il est tranché (`chosen`, l'issue retenue). Absent quand rien ne manque, ou d'une station
+// d'avant #1398.
+export type OptionDeChoix = { id: string; label: string; consequence: string };
+export type Choix = { id: string; need: string; message: string; cause: string; options: OptionDeChoix[] } & ({ status: "pending" } | { status: "chosen"; selected: string; selectedAt: string });
+// Ce que le chef retient, par identifiant de choix.
+export type Selections = Record<string, string>;
+export type SuiviDuProjet = { nom: string; etat: EtatDuProjet; dit: string; autoriser: string[]; serviLe: string | null; cuitSur: string | null; ici: boolean; bascule: Bascule | null; acces: AccesBloque | null; refus: Refus | null; worktree: EchecDuWorktree | null; clone?: EchecDuClone; blocages?: Blocage[]; choix?: Choix[]; depot: string | null; base: string | null; cooks: number | null };
 
 const ETATS: readonly string[] = ["servi", "a-autoriser", "en-preparation", "refuse", "secondaire"];
 const ETAPES: readonly string[] = ["demandee", "acceptee", "refusee", "remise", "recue"];
@@ -128,6 +140,22 @@ const lireUnBlocage = (lu: unknown): Blocage[] => {
     },
   ];
 };
+// Un choix illisible — sans clé, sans phrase, sans issue lisible — n'est pas montré ; une issue illisible non plus.
+const phrase = (valeur: unknown): valeur is string => texte(valeur) && valeur.trim() !== "";
+const lireUneOption = (lu: unknown): OptionDeChoix[] => {
+  const { id, label, consequence } = (lu ?? {}) as Record<string, unknown>;
+  return phrase(id) && phrase(label) && phrase(consequence) ? [{ id, label, consequence }] : [];
+};
+const lireUnChoix = (lu: unknown): Choix[] => {
+  const { id, need, message, cause, options, status, selected, selectedAt } = (lu ?? {}) as Record<string, unknown>;
+  const issues = Array.isArray(options) ? options.flatMap(lireUneOption) : [];
+  if (!phrase(id) || !phrase(need) || !phrase(message) || !phrase(cause) || issues.length === 0) return [];
+  if (status === "pending") return [{ id, need, message, cause, options: issues, status }];
+  if (status === "chosen" && phrase(selected)) return [{ id, need, message, cause, options: issues, status, selected, selectedAt: date(selectedAt) ?? "" }];
+  return [];
+};
+// Les sélections que l'app a écrites, relues telles quelles : une clé et une issue, en texte.
+const lireSelections = (lu: unknown): Selections => (lu === null || typeof lu !== "object" || Array.isArray(lu) ? {} : Object.fromEntries(Object.entries(lu as Record<string, unknown>).filter((entree): entree is [string, string] => phrase(entree[0]) && phrase(entree[1]))));
 const calibre = (lu: unknown): Calibre => {
   const { modele, effort } = (lu ?? {}) as Record<string, unknown>;
   return { modele: texte(modele) ? modele : "", effort: texte(effort) ? effort : "" };
@@ -150,10 +178,11 @@ export function lireDemande(brut: string | undefined): ProjetDemande[] | null {
   }
   if (lu === null || typeof lu !== "object" || lu.brigade !== "projets" || !Array.isArray(lu.projets)) return null;
   return (lu.projets as unknown[]).flatMap((brut) => {
-    const { nom, depot, base, principale, cooks, manager, reviewer, ouvertLe, demandeLe, remise, reprise } = (brut ?? {}) as Record<string, unknown>;
+    const { nom, depot, base, principale, cooks, manager, reviewer, ouvertLe, demandeLe, remise, reprise, choix } = (brut ?? {}) as Record<string, unknown>;
     if (!texte(nom) || !texte(depot) || !texte(base)) return [];
     const laRemise = (remise ?? {}) as Record<string, unknown>;
     const laReprise = (reprise ?? {}) as Record<string, unknown>;
+    const selections = lireSelections(choix);
     return [
       {
         nom,
@@ -167,6 +196,8 @@ export function lireDemande(brut: string | undefined): ProjetDemande[] | null {
         demandeLe: date(demandeLe),
         ...(nomDeStation(laRemise.vers) && gist(laRemise.gist) && date(laRemise.demandeLe) !== null ? { remise: { vers: laRemise.vers, gist: laRemise.gist, demandeLe: laRemise.demandeLe as string } } : {}),
         ...(nomDeStation(laReprise.de) && gist(laReprise.gist) && date(laReprise.demandeLe) !== null ? { reprise: { de: laReprise.de, gist: laReprise.gist, demandeLe: laReprise.demandeLe as string } } : {}),
+        // Réécrites telles quelles par tout autre geste : sans elles, la station oublierait ce que le chef a choisi.
+        ...(Object.keys(selections).length === 0 ? {} : { choix: selections }),
       },
     ];
   });
@@ -179,10 +210,11 @@ export function lireSuivi(brut: string | undefined): SuiviDuProjet[] {
     const lu = JSON.parse(brut) as { brigade?: unknown; projets?: unknown };
     if (lu?.brigade !== "projets-suivi" || !Array.isArray(lu.projets)) return [];
     return (lu.projets as unknown[]).flatMap((brut) => {
-      const { nom, etat, dit, autoriser, serviLe, cuitSur, ici, bascule, acces, refus, worktree, clone, blocages, depot, base, cooks } = (brut ?? {}) as Record<string, unknown>;
+      const { nom, etat, dit, autoriser, serviLe, cuitSur, ici, bascule, acces, refus, worktree, clone, blocages, choix, depot, base, cooks } = (brut ?? {}) as Record<string, unknown>;
       if (!texte(nom) || !texte(etat) || !ETATS.includes(etat)) return [];
       const echecDuClone = lireClone(clone);
       const lesBlocages = Array.isArray(blocages) ? blocages.flatMap(lireUnBlocage) : [];
+      const lesChoix = Array.isArray(choix) ? choix.flatMap(lireUnChoix) : [];
       return [
         {
           nom,
@@ -198,6 +230,7 @@ export function lireSuivi(brut: string | undefined): SuiviDuProjet[] {
           worktree: lireEchec(worktree),
           ...(echecDuClone === null ? {} : { clone: echecDuClone }),
           ...(lesBlocages.length === 0 ? {} : { blocages: lesBlocages }),
+          ...(lesChoix.length === 0 ? {} : { choix: lesChoix }),
           depot: texte(depot) && depot.trim() !== "" ? depot.trim() : null,
           base: texte(base) && base.trim() !== "" ? base.trim() : null,
           cooks: typeof cooks === "number" && Number.isSafeInteger(cooks) && cooks >= 1 ? cooks : null,

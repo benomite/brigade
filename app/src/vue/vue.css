@@ -504,6 +504,83 @@ main > header,
 #blocages-du-projet details pre {
   margin-top: 4px;
 }
+/* Ce qui manque à sa station pour ses tests (ticket 1400) : une carte par besoin, au-dessus des blocages. Ce qui
+   manque en tête, pourquoi dessous en texte doux ; puis ses issues côte à côte, chacune son bouton et, sous lui, ce
+   qui en suit. Un choix à faire, pas une panne : le bord est celui de l'attente, pas le rouge. */
+#choix-du-projet {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--trait-doux);
+}
+#choix-du-projet .choix-a-faire {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+#choix-du-projet h3 {
+  font-weight: 600;
+  color: var(--jaune);
+}
+#choix-du-projet .choix {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 14px 12px;
+  background: var(--bandeau);
+  border: 1px solid var(--trait-doux);
+  border-left: 3px solid var(--jaune);
+  border-radius: var(--rayon-carte);
+}
+#choix-du-projet p {
+  margin: 0;
+}
+#choix-du-projet h4 {
+  margin: 0;
+  font-size: inherit;
+}
+#choix-du-projet .message {
+  font-weight: 600;
+  color: var(--texte);
+}
+#choix-du-projet .cause,
+#choix-du-projet .etat-du-choix {
+  color: var(--texte-doux);
+}
+#choix-du-projet .issues {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+#choix-du-projet .issue {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+#choix-du-projet .issue button {
+  padding: 3px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon-bouton);
+}
+#choix-du-projet .issue button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+#choix-du-projet .consequence {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--texte-doux);
+}
+#choix-du-projet .refus-du-choix {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--rouge-clair);
+}
 #stations-du-projet .station-du-projet {
   display: inline-flex;
   align-items: center;

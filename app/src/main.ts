@@ -911,6 +911,9 @@ ipcMain.handle("continuerSansBacASable", (_, nom: unknown) => projetsDesStations
 // Le bouton du refus d'un projet (#1205) : sa principale joue le remède que le refus offre, puis dit s'il
 // tient (projets/projets.ts, `remedier`).
 ipcMain.handle("leverLeRefus", (_, nom: unknown, refus: unknown, remede: unknown) => projetsDesStations.remedier(nom, refus, remede));
+// Une issue d'un choix, sur la carte d'un besoin qui manque (#1400) : elle s'écrit dans la demande de la principale,
+// qui la pose à son journal (projets/projets.ts, `choisir`).
+ipcMain.handle("choisirUneIssue", (_, nom: unknown, choix: unknown, issue: unknown) => projetsDesStations.choisir(nom, choix, issue));
 ipcMain.handle("demenagerLaCuisine", (_, nom: unknown, vers: unknown) => projetsDesStations.demenager(nom, vers));
 // La page GitHub où autoriser brigade sur un dépôt : seulement une de celles qu'une station a publiées.
 ipcMain.handle("autoriserSurGitHub", (_, url: unknown) => {
