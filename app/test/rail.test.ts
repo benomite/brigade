@@ -217,7 +217,10 @@ describe("le rail occupe le centre de l'écran principal", () => {
     const sansBox = await jouerLaVue({ demarrage: () => demarrage([{ nom: PARADE, dossier: "/tmp/parade" }]), espace: () => [SECOND] });
     (sansBox.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
     await repos();
-    assert.equal(sansBox.element("rail").hidden, true);
+    // Rien n'est lu, mais la page ne reste pas vide : elle dit pourquoi (ticket 1405).
+    assert.equal(sansBox.element("rail").hidden, false);
+    assert.match(sansBox.element("rail").textContent, /^the rail is not read: no station is known to serve this project yet/);
+    assert.deepEqual(colonnes(sansBox), []);
   });
 
   test("un projet qui cuit sur cet ordinateur (#1122) a son rail, sans « hote » : lu ici, sans ssh, comme une box", async () => {

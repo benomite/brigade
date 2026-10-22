@@ -294,7 +294,7 @@ export function cuitSurDe(dits: readonly Dit[], locale: string | null): CuitSur 
   return { id: station?.id ?? null, nom: nomme, ici: station !== undefined && station.id === locale };
 }
 
-// L'hôte que `ssh` joint pour lire le rail d'un projet que le fichier des projets ne dit pas hébergé : celui
+// L'hôte par lequel se lit le rail d'un projet que le fichier des projets ne dit pas hébergé : celui
 // que la station qui le sert donne (`<machine>/<moteur>` : la machine). Un projet ajouté depuis l'app n'a pas
 // d'`hote` dans le fichier (ajout.ts) — sans cela, son rail ne serait lu nulle part dès que son parcours
 // disparaît (#1405). Rien, quand aucune station ne le sert, ou que c'est celle de cet ordinateur.
