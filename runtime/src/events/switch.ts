@@ -9,8 +9,9 @@
 // `cause`, when the runtime writes it itself at its start, on a log that has
 // none yet (`interrupteur.ts`, `etablirLInterrupteur`): `default`, the project
 // never had either of the old switches set — on, by default; `carried-over`,
-// it had: on as soon as one of the two was, off when both were. Absent: the
-// chef's command.
+// it had, whatever their position — on all the same: its stations took the
+// fired tickets without reading either, it was cooking and keeps cooking.
+// Absent: the chef's command.
 export type CauseDeLInterrupteur = "default" | "carried-over";
 
 export type FaitInterrupteur =

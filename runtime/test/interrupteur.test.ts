@@ -15,7 +15,7 @@ import { etatDuGrant } from "../src/projections/pass.ts";
 import { etatDeLInterrupteur, projetEteint } from "../src/projections/switch.ts";
 import { sansMotFrancais } from "./aides/glossaire.ts";
 import { chef, cuisine, issue } from "./aides/cuisine.ts";
-import { appeler, JOUR_HORLOGE, jusqua, repertoireTemporaire } from "./outils.ts";
+import { aArreter, appeler, JOUR_HORLOGE, jusqua, repertoireTemporaire } from "./outils.ts";
 
 const A = new Date(`${JOUR_HORLOGE}T10:00:00.000Z`);
 
@@ -23,7 +23,9 @@ const A = new Date(`${JOUR_HORLOGE}T10:00:00.000Z`);
 function journalEcrit(t: TestContext) {
   const repertoire = repertoireTemporaire(t);
   const journal = ouvrirJournal(repertoire, { maintenant: () => A });
-  t.after(() => journal.fermer());
+  // Fermé avant que son répertoire soit supprimé : sous Windows, un journal
+  // encore ouvert ne se supprime pas.
+  aArreter(t, () => journal.fermer());
   const noter = (fait: Fait, author = "chef") => journal.ajouter({ project: "brigade", ticket: null, author, ...fait });
   noter({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } }, "runtime");
   const types = () => journal.tout().map((e) => e.type);
@@ -60,41 +62,43 @@ describe("l'interrupteur posé au démarrage du runtime", () => {
     assert.equal(etatDeLInterrupteur(journal.base)?.on, false);
   });
 
-  // Un projet d'avant garde ce qu'il faisait : allumé dès que l'un des deux l'était, éteint si aucun ne l'était.
-  const AVANT: Array<[string, Fait[], boolean, boolean]> = [
-    ["le manager seul allumé", [{ type: "manager.enabled", payload: {} }], true, true],
-    ["le grant `merge` seul actif", [{ type: "grant.activated", payload: { action: "merge" } }], true, false],
-    ["les deux", [{ type: "manager.enabled", payload: {} }, { type: "grant.activated", payload: { action: "merge" } }], true, false],
-    ["le manager éteint, le grant révoqué", [{ type: "manager.enabled", payload: {} }, { type: "manager.disabled", payload: {} }, { type: "grant.activated", payload: { action: "merge" } }, { type: "grant.revoked", payload: { action: "merge" } }], false, false],
-    ["le manager éteint, jamais de grant", [{ type: "manager.enabled", payload: {} }, { type: "manager.disabled", payload: {} }], false, false],
+  // Un projet d'avant cuisinait quels qu'aient été ses anciens interrupteurs — ses stations prenaient
+  // les tickets lancés sans les lire — : il part allumé, même quand les deux étaient éteints.
+  const AVANT: Array<[string, Fait[], boolean]> = [
+    ["le manager seul allumé", [{ type: "manager.enabled", payload: {} }], true],
+    ["le grant `merge` seul actif", [{ type: "grant.activated", payload: { action: "merge" } }], false],
+    ["les deux", [{ type: "manager.enabled", payload: {} }, { type: "grant.activated", payload: { action: "merge" } }], false],
+    ["le manager éteint, le grant révoqué", [{ type: "manager.enabled", payload: {} }, { type: "manager.disabled", payload: {} }, { type: "grant.activated", payload: { action: "merge" } }, { type: "grant.revoked", payload: { action: "merge" } }], true],
+    ["le manager éteint, jamais de grant", [{ type: "manager.enabled", payload: {} }, { type: "manager.disabled", payload: {} }], true],
   ];
-  for (const [cas, faitsDAvant, allume, grantEcrit] of AVANT) {
-    test(`un projet d'avant — ${cas} — garde ce qu'il faisait : ${allume ? "allumé" : "éteint"}`, (t) => {
+  for (const [cas, faitsDAvant, grantEcrit] of AVANT) {
+    test(`un projet d'avant — ${cas} — continue de cuisiner : allumé`, (t) => {
       const { journal, noter } = journalEcrit(t);
       for (const fait of faitsDAvant) noter(fait);
       const avant = journal.tout().length;
 
       const dit = etablirLInterrupteur(journal, "brigade", A);
 
-      assert.match(dit ?? "", allume ? /allumé — repris de l'ancien réglage/ : /éteint — repris de l'ancien réglage/);
+      assert.match(dit ?? "", /allumé — il remplace l'ancien réglage .* un projet d'avant continue de cuisiner/);
       assert.deepEqual(suite(journal, avant), [
-        [allume ? "project.switched-on" : "project.switched-off", "runtime", { cause: "carried-over" }],
+        ["project.switched-on", "runtime", { cause: "carried-over" }],
         ...(grantEcrit ? [["grant.activated", "runtime", { action: "merge" }]] : []),
       ]);
-      assert.equal(managerAllume(journal.base), allume);
-      assert.equal(etatDuGrant(journal.base, "merge", A)?.active ?? false, allume);
-      assert.equal(projetEteint(journal.base), !allume);
+      assert.equal(managerAllume(journal.base), true);
+      assert.equal(etatDuGrant(journal.base, "merge", A)?.active, true);
+      assert.equal(projetEteint(journal.base), false);
     });
   }
 
-  test("un grant `merge` échu pendant que le runtime dormait est d'abord écrit éteint : il ne compte pas pour allumé", (t) => {
+  test("un grant `merge` échu pendant que le runtime dormait est d'abord écrit éteint, puis rétabli par l'interrupteur allumé", (t) => {
     const { journal, noter } = journalEcrit(t);
     noter({ type: "manager.disabled", payload: {} });
     noter({ type: "grant.activated", payload: { action: "merge", until: `${JOUR_HORLOGE}T09:00:00.000Z` } });
 
     etablirLInterrupteur(journal, "brigade", A);
 
-    assert.deepEqual(journal.tout().slice(-2).map((e) => e.type), ["grant.expired", "project.switched-off"]);
+    assert.deepEqual(journal.tout().slice(-3).map((e) => e.type), ["grant.expired", "project.switched-on", "grant.activated"]);
+    assert.equal(etatDuGrant(journal.base, "merge", A)?.active, true);
   });
 });
 
@@ -130,7 +134,7 @@ describe("les commandes du chef", () => {
 
   test("sur un journal vide, la commande est refusée et n'écrit rien", (t) => {
     const journal = ouvrirJournal(repertoireTemporaire(t));
-    t.after(() => journal.fermer());
+    aArreter(t, () => journal.fermer());
     assert.throws(() => commanderInterrupteur(journal, "on", A), InterrupteurRefuse);
     assert.equal(journal.tout().length, 0);
   });

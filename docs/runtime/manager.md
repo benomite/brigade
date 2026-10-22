@@ -10,8 +10,8 @@ epics"); a ticket that **fails in the pass**, it does something about, rather th
 see "The project switch" in `docs/runtime/exploitation.md`) — one ON/OFF for the whole project, which also
 takes the fired tickets and merges the green deliveries. The switch is **on by default**: the runtime sets it
 at its first start, so a new project's manager judges without anyone flipping anything. On a log from before
-the switch, the runtime carries the old setting over at its start: on as soon as the manager or the `merge`
-grant was on, off when both were off. It turns on and off without a restart (facts in the log). Switched off in
+the switch, the runtime sets it on at its start as well, whatever the manager and the `merge` grant were: the
+stations took the fired tickets without reading either, so the project was cooking and keeps cooking. It turns on and off without a restart (facts in the log). Switched off in
 the middle of a judgment, it lets the judgment finish but sets nothing: the decision is set, without judging
 again, when the project is switched back on. `manager -- on` and `manager -- off` are refused, naming
 `switch on` and `switch off`: nothing is written.

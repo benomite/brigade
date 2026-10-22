@@ -14,8 +14,9 @@
 // Allumé par défaut : le runtime le pose à son démarrage sur un journal qui ne
 // le dit pas encore (`etablirLInterrupteur`). Un projet qui n'avait jamais
 // touché aux anciens interrupteurs — tout projet ajouté depuis l'app — part
-// allumé ; un projet d'avant garde ce qu'il faisait : allumé dès que le manager
-// ou le grant `merge` l'était, éteint si aucun des deux ne l'était.
+// allumé ; un projet d'avant part allumé lui aussi, quels qu'aient été ses
+// anciens interrupteurs : ses stations prenaient les tickets lancés sans
+// regarder ni le manager ni le grant `merge`, il cuisinait, et il continue.
 //
 // Les commandes `grant` restent : le grant `merge` se prolonge, se borne ou se
 // révoque à la main ; l'interrupteur, lui, ne regarde que lui-même.
@@ -37,8 +38,8 @@ export const CE_QUE_FAIT_ETEINT = "nothing new is taken, judged, split or merged
 // La ligne de l'interrupteur, pour `switch` et `status`. L'app la relit
 // (app/src/alertes.ts, `INTERRUPTEUR`) : tout changement de forme se répercute là-bas.
 export function direInterrupteur(etat: EtatInterrupteur | null): string {
-  if (etat === null) return "NOT SET — the runtime sets it at its next start: on, unless both the manager and the `merge` grant were off";
-  const depuis = `since ${etat.since} (by ${etat.by}${etat.cause === "default" ? ", on by default" : etat.cause === "carried-over" ? ", carried over from the manager and the `merge` grant" : ""})`;
+  if (etat === null) return "NOT SET — the runtime sets it at its next start, on";
+  const depuis = `since ${etat.since} (by ${etat.by}${etat.cause === "default" ? ", on by default" : etat.cause === "carried-over" ? ", in place of the manager and the `merge` grant" : ""})`;
   return etat.on ? `ON ${depuis} — ${CE_QUE_FAIT_ALLUME}` : `OFF ${depuis} — ${CE_QUE_FAIT_ETEINT}`;
 }
 
@@ -84,15 +85,14 @@ export function etablirLInterrupteur(journal: Journal, projet: string, maintenan
     constaterExtinction(journal, projet, AUTEUR_DU_DEMARRAGE, "merge", maintenant);
     const manager = etatDuManager(base);
     const grant = etatDuGrant(base, "merge", maintenant);
+    // Toujours allumé : un projet d'avant cuisinait, quels qu'aient été le
+    // manager et le grant — `carried-over` dit seulement d'où il vient.
     const touche = manager !== null || grant !== null;
-    const on = !touche || manager?.active === true || grant?.active === true;
     const cause = touche ? "carried-over" : "default";
     const noter = (fait: Fait) => journal.ajouter({ project: projet, ticket: null, author: AUTEUR_DU_DEMARRAGE, ...fait });
-    noter({ type: on ? "project.switched-on" : "project.switched-off", payload: { cause } });
-    if (on && !grant?.active) noter({ type: "grant.activated", payload: { action: "merge" } });
+    noter({ type: "project.switched-on", payload: { cause } });
+    if (!grant?.active) noter({ type: "grant.activated", payload: { action: "merge" } });
     if (!touche) return `brigade : interrupteur du projet allumé par défaut — ${CE_QUE_FAIT_ALLUME}`;
-    return on
-      ? `brigade : interrupteur du projet allumé — repris de l'ancien réglage (manager ${manager?.active ? "allumé" : "éteint"}, grant \`merge\` ${grant?.active ? "actif" : "inactif"})`
-      : "brigade : interrupteur du projet éteint — repris de l'ancien réglage (manager et grant `merge` éteints tous les deux) : `switch on` le rallume";
+    return `brigade : interrupteur du projet allumé — il remplace l'ancien réglage (manager ${manager?.active ? "allumé" : "éteint"}, grant \`merge\` ${grant?.active ? "actif" : "inactif"}) : un projet d'avant continue de cuisiner, \`switch off\` l'éteint`;
   });
 }
