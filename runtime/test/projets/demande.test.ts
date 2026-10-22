@@ -21,6 +21,22 @@ test("un projet demandé se lit tel que l'app l'écrit", () => {
   assert.deepEqual(lireDemande(JSON.stringify({ brigade: "projets", format: 1, projets: [PARADE] })), { projets: [PARADE], problemes: [] });
 });
 
+test("un projet demandé sans branche ni calibrage se lit : son dépôt les déclare — mais ce que l'app nomme doit être lisible", () => {
+  const { base: _base, manager: _manager, reviewer: _reviewer, ...sans } = PARADE;
+  assert.deepEqual(lireDemande(JSON.stringify({ brigade: "projets", format: 1, projets: [sans, { ...PARADE, nom: "nuls", base: null, manager: null, reviewer: null }] })), {
+    projets: [
+      { ...sans, base: null, manager: null, reviewer: null },
+      { ...sans, nom: "nuls", base: null, manager: null, reviewer: null },
+    ],
+    problemes: [],
+  });
+  const lu = lireDemande(JSON.stringify({ brigade: "projets", format: 1, projets: [{ ...sans, nom: "a", base: "" }, { ...sans, nom: "b", reviewer: { modele: "gpt", effort: "high" } }] }));
+  assert.deepEqual(lu?.problemes, [
+    "projet « a » demandé par l'app : branche d'intégration invalide",
+    "projet « b » demandé par l'app : calibrage du reviewer invalide — attendu un modèle (opus, sonnet, haiku) et un effort (low, medium, high, xhigh, max)",
+  ]);
+});
+
 test("un projet illisible est dit, et les autres sont lus", () => {
   const lu = lireDemande(
     JSON.stringify({

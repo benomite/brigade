@@ -6,6 +6,7 @@ import { join } from "node:path";
 import type { LeconRecue } from "../apprentissage/injection.ts";
 import { CARNET_PATH, parseCarnet, type Carnet } from "../carnet/carnet.ts";
 import { lireALaBase } from "../depot.ts";
+import { avecLaBrancheDuDepot } from "../reglages-projet/en-vigueur.ts";
 import { CONFIGURATION, environnementDuProjet, lireFichierDeConfiguration, type ProjetConfigure } from "../station/configuration.ts";
 import { ecrireEtage, idsServis, leconsCommunes, lireEtage, servirUnTicket } from "./etage.ts";
 
@@ -29,8 +30,9 @@ export function carnetsDeLInstallation(racine: string, env: Record<string, strin
   const lus: CarnetsDeLInstallation = { carnets: [], illisibles: [] };
   for (const projet of projetsDeLInstallation(racine)) {
     try {
-      const clone = environnementDuProjet(racine, projet, env).BRIGADE_REPO_DIR ?? "";
-      const texte = lireALaBase({ clone, base: projet.base }, CARNET_PATH);
+      const { BRIGADE_REPO_DIR: clone = "", BRIGADE_BASE_BRANCH: base } = avecLaBrancheDuDepot(environnementDuProjet(racine, projet, env));
+      if (!base) throw new Error("its integration branch is set neither by its repository nor by its configuration line");
+      const texte = lireALaBase({ clone, base }, CARNET_PATH);
       lus.carnets.push({ projet: projet.nom, carnet: texte === null ? { lessons: [] } : parseCarnet(texte) });
     } catch (erreur) {
       lus.illisibles.push({ projet: projet.nom, raison: message(erreur) });

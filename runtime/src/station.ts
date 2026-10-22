@@ -228,7 +228,7 @@ export function configStation(env: Record<string, string | undefined>): ConfigSt
   const clone = env.BRIGADE_REPO_DIR;
   if (!clone) throw new ConfigInvalide("BRIGADE_REPO_DIR n'est pas défini");
   const base = env.BRIGADE_BASE_BRANCH;
-  if (!base) throw new ConfigInvalide("BRIGADE_BASE_BRANCH n'est pas défini");
+  if (!base) throw new ConfigInvalide("BRIGADE_BASE_BRANCH n'est pas défini — ni la configuration ni le dépôt du projet (`.claude/brigade/projet.json`, ou la ligne « Branche d'intégration » de son `CLAUDE.md`) ne disent sa branche d'intégration");
   if (!/^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(base)) {
     throw new ConfigInvalide(`BRIGADE_BASE_BRANCH invalide : « ${base} » — attendu un nom de branche (v2, main)`);
   }

@@ -12,6 +12,7 @@
 import { spawnSync } from "../sans-invite.ts";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { avecLaBrancheDuDepot } from "../reglages-projet/en-vigueur.ts";
 import { CONFIGURATION, environnementDuProjet, lireFichierDeConfiguration } from "./configuration.ts";
 
 const PROJET_INCONNU = 65;
@@ -39,7 +40,9 @@ if (script === undefined) {
 }
 
 // `npm run` donnait son nom à la commande : `ancien-nom.ts` le lit pour dire le nouveau.
-const env = { ...environnementDuProjet(racine, lu, process.env), npm_lifecycle_event: commande };
+// La branche d'intégration, telle que le dépôt du projet la déclare : celle
+// que sa cuisine lit.
+const env = { ...avecLaBrancheDuDepot(environnementDuProjet(racine, lu, process.env)), npm_lifecycle_event: commande };
 const rendu = spawnSync(process.execPath, [script.slice("node ".length), ...args], { env, stdio: "inherit" });
 if (rendu.error) refuser(1, `la commande ${commande} ne part pas — ${rendu.error.message}`);
 if (rendu.signal !== null) process.kill(process.pid, rendu.signal);

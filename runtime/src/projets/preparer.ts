@@ -81,15 +81,15 @@ export function cloner(options: { gh: string; depot: string; clone: string; dela
 export const machineDe = (station: string) => station.toLowerCase().replace(/[^\p{Ll}\p{N}-]+/gu, "-").replace(/^-+|-+$/g, "") || "station";
 
 // Les décisions que le chef a prises dans le parcours, telles que le runtime
-// les lit : la station déclarée — celle-ci —, le calibrage du manager et du
-// reviewer.
+// les lit : la station déclarée — celle-ci —, et le calibrage du manager et du
+// reviewer quand l'app les nomme. Sinon, c'est le dépôt du projet qui les
+// porte (`reglages-projet/en-vigueur.ts`) : rien n'en est posé sur la box.
 export function decisionsDe(projet: ProjetDemande, station: string): Record<string, string> {
+  const calibrage = (prefixe: string, calibre: ProjetDemande["manager"]) => (calibre === null ? {} : { [`${prefixe}_MODEL`]: calibre.modele, [`${prefixe}_EFFORT`]: calibre.effort });
   return {
     BRIGADE_STATIONS: `${machineDe(station)}/claude:${projet.cooks}:${FOURNIT}`,
-    BRIGADE_MANAGER_MODEL: projet.manager.modele,
-    BRIGADE_MANAGER_EFFORT: projet.manager.effort,
-    BRIGADE_REVIEWER_MODEL: projet.reviewer.modele,
-    BRIGADE_REVIEWER_EFFORT: projet.reviewer.effort,
+    ...calibrage("BRIGADE_MANAGER", projet.manager),
+    ...calibrage("BRIGADE_REVIEWER", projet.reviewer),
   };
 }
 

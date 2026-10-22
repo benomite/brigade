@@ -52,6 +52,8 @@ import { lignesDuBloc, nomsHorsDuBloc, reecrireBloc } from "./bloc.ts";
 import { documentDeSuivi, FICHIER_PROJETS, FICHIER_SUIVI, lireDemande, suiviDe, type Bascule, type ProjetDemande, type SuiviDuProjet } from "./demande.ts";
 import { verifierAcces, type Acces } from "./acces.ts";
 import { refus as refusDe, type CodeDeRefus } from "./refus.ts";
+import { brancheDuProjet } from "../reglages-projet/en-vigueur.ts";
+import { FICHIER } from "../reglages-projet/reglages.ts";
 import { cloner, decisionsDe, poserLesDecisions, verifierAutorisation, type Autorisation } from "./preparer.ts";
 import { repondeurDeRemedes } from "../remedes/distant.ts";
 import { executerRemede, type StationDesRemedes } from "../remedes/executer.ts";
@@ -85,10 +87,10 @@ export type OptionsProjets = {
   autoriser?: (depot: string) => Promise<Autorisation>;
   cloner?: (depot: string, clone: string) => Promise<void>;
   // Peut-elle récupérer le dépôt et y pousser, depuis son clone (`acces.ts`) ?
-  verifierAcces?: (projet: ProjetDemande, clone: string) => Promise<Acces>;
+  verifierAcces?: (projet: ProjetResolu, clone: string) => Promise<Acces>;
   // Ouvre le ticket qui prépare le dépôt, une fois (`preparation-depot/`) ;
   // rend son numéro, et s'il vient d'être ouvert.
-  ouvrirLaPreparation?: (projet: ProjetDemande, repertoireEtat: string, clone: string) => Promise<{ ticket: number; ouvert: boolean }>;
+  ouvrirLaPreparation?: (projet: ProjetResolu, repertoireEtat: string, clone: string) => Promise<{ ticket: number; ouvert: boolean }>;
   // Cette station est celle de l'ordinateur du chef : ses cuisines sont
   // locales (`bac-a-sable/local.ts`). Faux par défaut.
   locale?: boolean;
@@ -111,7 +113,13 @@ export type ProjetsDeLApp = {
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
-const ligneDe = (projet: ProjetDemande) => `${projet.nom} ${projet.depot} ${projet.base}`;
+// Un projet demandé, sa branche d'intégration résolue par son clone : celle
+// que son dépôt déclare, sinon celle que l'app a nommée.
+export type ProjetResolu = ProjetDemande & { base: string };
+
+// Sa ligne ne porte la branche que si l'app l'a nommée : sinon, c'est son
+// dépôt qui la dit, à chaque ouverture de sa cuisine.
+const ligneDe = (projet: ProjetDemande) => (projet.base === null ? `${projet.nom} ${projet.depot}` : `${projet.nom} ${projet.depot} ${projet.base}`);
 const nomDe = (ligne: string) => ligne.split(" ")[0] ?? "";
 
 // Le gist de la station, une fois appairée — l'app n'écrit que dans ceux-là.
@@ -139,10 +147,10 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
   const gh = env.BRIGADE_GH_BIN || "gh";
   const autoriser = options.autoriser ?? ((depot: string) => verifierAutorisation(env, depot));
   const clonerLe = options.cloner ?? ((depot: string, clone: string) => cloner({ gh, depot, clone }));
-  const verifierLAcces = options.verifierAcces ?? ((projet: ProjetDemande, clone: string) => verifierAcces({ station, depot: projet.depot, base: projet.base, clone, env: { ...process.env, ...env } }));
+  const verifierLAcces = options.verifierAcces ?? ((projet: ProjetResolu, clone: string) => verifierAcces({ station, depot: projet.depot, base: projet.base, clone, env: { ...process.env, ...env } }));
   const ouvrirLe =
     options.ouvrirLaPreparation ??
-    (async (projet: ProjetDemande, repertoireEtat: string, clone: string) => {
+    (async (projet: ProjetResolu, repertoireEtat: string, clone: string) => {
       const github = ouvrirGitHub({ depot: projet.depot, bin: gh });
       try {
         return await ouvrirLaPreparation({ repertoireEtat, projet: projet.nom, depot: projet.depot, base: projet.base, clone, github });
@@ -175,6 +183,13 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
   const remedes = options.remedes ?? REMEDES;
   const suiviDu = (projet: ProjetDemande, etat: SuiviDuProjet["etat"], dit: string, autoriser: string[] = [], cause?: CodeDeRefus): SuiviDuProjet => ({ nom: projet.nom, etat, dit, autoriser, serviLe: null, cuitSur: null, ici: false, bascule: null, ...(cause === undefined ? {} : { refus: refusDe(cause, remedes) }) });
 
+  // Le projet, sa branche d'intégration résolue par son clone ; null si ni son
+  // dépôt ni l'app ne la nomment.
+  const avecSaBranche = (projet: ProjetDemande): ProjetResolu | null => {
+    const { branche } = brancheDuProjet(cloneDe(projet.nom), projet.base);
+    return branche === null ? null : { ...projet, base: branche };
+  };
+
   // Ce qu'il faut pour servir un projet avant d'y rien écrire : ses Apps
   // autorisées sur le dépôt, son clone, et l'accès de son clone au dépôt — en
   // lecture et en écriture. Rend null s'il l'est, ou ce qu'il en est.
@@ -196,10 +211,12 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
       direUneFois(`clone ${projet.nom} ${dit}`, `brigade : station — ${projet.nom} n'est pas cloné, la station réessaie : ${dit}`);
       return suivi("refuse", `the station could not clone ${projet.depot}; it retries — ${dit}`, [], "clone-failed");
     }
+    const resolu = avecSaBranche(projet);
+    if (resolu === null) return suivi("refuse", `${projet.depot} does not declare its integration branch (${FICHIER}, or the “Branche d'intégration” line of its CLAUDE.md), and the app names none`, [], "configuration-invalid");
     // Un accès refusé ne se lève que par un geste du chef : rien n'est préparé
     // d'ici là — ni décisions, ni ticket de préparation, ni ligne. La station
     // revérifie à chaque cadence, et le sert dès que le geste est fait.
-    const acces = await verifierLAcces(projet, cloneDe(projet.nom));
+    const acces = await verifierLAcces(resolu, cloneDe(projet.nom));
     if (acces.etat === "injoignable") return suivi("en-preparation", `the station could not check that it may fetch and push on ${projet.depot}; it retries every ${Math.round((options.cadenceMs ?? CADENCE_MS) / 1000)} s — ${acces.dit}`);
     if (acces.etat === "bloque") {
       const { bloque, raison, geste } = acces;
@@ -226,7 +243,9 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
     // Le premier ticket de sa cuisine, ouvert avant sa ligne : la cuisine qui
     // s'ouvre ensuite n'en laisse partir aucun autre avant lui.
     try {
-      const { ticket, ouvert } = await ouvrirLe(projet, join(racine, ETATS, projet.nom), cloneDe(projet.nom));
+      const resolu = avecSaBranche(projet);
+      if (resolu === null) throw new Error(`${projet.depot} no longer declares its integration branch`);
+      const { ticket, ouvert } = await ouvrirLe(resolu, join(racine, ETATS, projet.nom), cloneDe(projet.nom));
       if (ouvert) dire(`brigade : station — ${projet.nom} : ticket #${ticket} ouvert sur ${projet.depot} pour préparer le dépôt (gates, setup de worktree, sites autorisés) — le rail n'en sert aucun autre avant son merge`);
     } catch (erreur) {
       const dit = message(erreur);

@@ -328,6 +328,16 @@ drop-in or on a station line, the runtime says them ignored, with the gesture th
 project. Each reaction notes the ceiling it chose within (`manager.reacted`, `ceiling`), and its comment on a raise
 names it.
 
+**The project's repository comes first** (#1304). When the integration branch carries
+`.claude/brigade/projet.json`, its `calibrationCeiling`, and its `defaultCalibrations` for the manager and the
+reviewer, replace what is set on the box: the decisions stay in the log, ignored while the file sets them. The file is
+read on `origin/<integration branch>` as the last fetch saw it (`runtime/src/reglages-projet/en-vigueur.ts`), never in
+the clone's working tree, which the station never updates: a merged change applies from the next fetch — before each
+cook and each pass —, with no restart. `station` says where each value comes from (`from the project's repository`),
+`facts` adds `depuisLeDepot: true` to `plafondDeCalibrage`, and a `station ceiling-modele …` gesture on such a project
+is written but said ignored. A file that is not the project's settings refuses to open the kitchen; one that becomes
+unreadable while it runs is said once, and the runtime keeps to what it last read. Without the file, nothing changes.
+
 ### Before TODO: the triage
 
 While the manager is on, **no card enters TODO directly**: a card admitted at the door is held

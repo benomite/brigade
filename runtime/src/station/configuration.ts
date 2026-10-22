@@ -2,12 +2,16 @@
 // chacun. C'est le seul fichier qu'ajouter ou retirer un projet touche — ni
 // unité, ni drop-in, ni règle du système.
 //
-// Une ligne : le nom du projet, son dépôt GitHub, sa branche d'intégration,
-// puis, au besoin, des réglages `BRIGADE_…=valeur` propres à ce projet.
+// Une ligne : le nom du projet, son dépôt GitHub, sa branche d'intégration
+// s'il le faut, puis, au besoin, des réglages `BRIGADE_…=valeur` propres à ce
+// projet. La branche que le dépôt du projet déclare passe avant celle de la
+// ligne (`reglages-projet/en-vigueur.ts`) : un projet qui la déclare n'en a
+// pas besoin.
 //
 //   # projet  dépôt              branche  réglages
 //   brigade   benomite/brigade   v2
 //   espace    benomite/espace    main     BRIGADE_SECRETS_FILE=/srv/secrets/espace.env
+//   parade    benomite/parade
 //
 // Tout le reste vient de la station : son environnement, que chaque projet
 // hérite, et ses répertoires, où chaque projet a sa place.
@@ -71,7 +75,8 @@ export function worktreesDeLaStation(racine: string, home: string | undefined): 
 export type ProjetConfigure = {
   nom: string;
   depot: string;
-  base: string;
+  // Null : la ligne ne la dit pas, le dépôt du projet la déclare.
+  base: string | null;
   // Les réglages propres au projet, tels que sa ligne les écrit.
   reglages: Record<string, string>;
   // La ligne, ses blancs ramenés à un : deux lectures qui rendent la même
@@ -88,7 +93,7 @@ const REGLAGE = /^(BRIGADE_[A-Z0-9_]+)=(.*)$/;
 const TENUS: Record<string, string> = {
   BRIGADE_PROJECT: "c'est le premier champ de la ligne",
   BRIGADE_GITHUB_REPO: "c'est le deuxième champ de la ligne",
-  BRIGADE_BASE_BRANCH: "c'est le troisième champ de la ligne",
+  BRIGADE_BASE_BRANCH: "c'est le troisième champ de la ligne, ou le dépôt du projet qui la déclare",
   BRIGADE_STATE_DIR: `la station range l'état de chaque projet sous \`${ETATS}/\``,
   BRIGADE_WORKTREES_DIR: "la station range les worktrees de chaque projet dans son atelier",
   BRIGADE_STATION_DIR: "c'est le répertoire de la station, pas d'un projet",
@@ -108,8 +113,11 @@ export function lireConfiguration(texte: string): Configuration {
     const champs = brute.trim().split(/\s+/).filter(Boolean);
     if (champs.length === 0 || champs[0]?.startsWith("#")) return;
     const refuser = (pourquoi: string) => void problemes.push(`ligne ${rang + 1} de la configuration (« ${brute.trim().slice(0, 80)} ») : ${pourquoi}`);
-    const [nom = "", depot, base, ...suite] = champs;
-    if (depot === undefined || base === undefined) return refuser("attendu le nom du projet, son dépôt GitHub (<owner>/<repo>) et sa branche d'intégration");
+    const [nom = "", depot, ...reste] = champs;
+    if (depot === undefined) return refuser("attendu le nom du projet, son dépôt GitHub (<owner>/<repo>), et sa branche d'intégration si son dépôt ne la déclare pas");
+    // Un réglage n'est pas une branche : la ligne n'en dit alors aucune.
+    const base = reste[0] !== undefined && !REGLAGE.test(reste[0]) ? reste[0] : null;
+    const suite = base === null ? reste : reste.slice(1);
     if (!NOM_DE_PROJET.test(nom)) return refuser(`nom de projet invalide — attendu un identifiant court en minuscules, chiffres et tirets (brigade, thermigo)`);
     if (projets.some((projet) => projet.nom === nom)) return refuser(`le projet « ${nom} » a déjà sa ligne`);
     const reglages: Record<string, string> = {};
@@ -149,7 +157,8 @@ export function environnementDuProjet(racine: string, projet: ProjetConfigure, e
     ...projet.reglages,
     BRIGADE_PROJECT: projet.nom,
     BRIGADE_GITHUB_REPO: projet.depot,
-    BRIGADE_BASE_BRANCH: projet.base,
+    // Sans branche sur la ligne, aucune : la cuisine lit celle du dépôt.
+    BRIGADE_BASE_BRANCH: projet.base ?? undefined,
     BRIGADE_STATE_DIR: join(racine, ETATS, projet.nom),
     BRIGADE_WORKTREES_DIR: worktrees,
   };

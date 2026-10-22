@@ -153,6 +153,7 @@
     "test/station/configuration.test.ts",
     "test/station/cuisine-bac-a-sable.test.ts",
     "test/station/cuisine-jeton.test.ts",
+    "test/station/cuisine-reglages-du-depot.test.ts",
     "test/station/main.test.ts",
     "test/station/portes.test.ts",
     "test/stations-globales/registre.test.ts",

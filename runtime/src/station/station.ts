@@ -128,7 +128,7 @@ export function ouvrirStation(options: OptionsStation): Station {
       const cuisine = enCours.run(projet.nom, () => ouvrir(sien, { dire: dit, connexion: options.connexion }));
       ouvertes.set(projet.nom, { cle, cuisine });
       refuses.delete(projet.nom);
-      dit(`servi par la station — ${projet.depot}, branche ${projet.base}, état dans ${cuisine.repertoireEtat}`);
+      dit(`servi par la station — ${projet.depot}, branche ${projet.base ?? "déclarée par son dépôt"}, état dans ${cuisine.repertoireEtat}`);
     } catch (erreur) {
       const motif = message(erreur);
       const avant = refuses.get(projet.nom);

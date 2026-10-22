@@ -25,7 +25,9 @@ import { configFermeture } from "./closing/settings.ts";
 import { lireBudget } from "./cout-des-gates.ts";
 import { cheminJournal, type Journal } from "./journal.ts";
 import { configManager } from "./manager.ts";
-import { configPlafond, type PlafondLu } from "./reagir.ts";
+import { plafondDuProjet, type PlafondLu } from "./reagir.ts";
+import { variablesDuDepot } from "./reglages-projet/en-vigueur.ts";
+import type { ReglagesProjet } from "./reglages-projet/reglages.ts";
 import { configReviewer } from "./reviewer.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { lireStations, type StationDeclaree } from "./stations-declarees.ts";
@@ -135,12 +137,13 @@ export function decisionsPosees(base: Base): Posees {
 }
 
 // L'environnement tel que le runtime le lit : celui de son process, sans les
-// variables de décision — le drop-in n'en est plus le support —, et avec les
-// décisions posées au journal.
-export function environnementDecide(env: Record<string, string | undefined>, posees: Posees): Record<string, string | undefined> {
+// variables de décision — le drop-in n'en est plus le support —, avec les
+// décisions posées au journal, et par-dessus elles le calibrage du manager et
+// du reviewer que le dépôt du projet porte (`reglages-projet/en-vigueur.ts`).
+export function environnementDecide(env: Record<string, string | undefined>, posees: Posees, depot: ReglagesProjet | null = null): Record<string, string | undefined> {
   const sans = { ...env };
   for (const nom of DECISIONS) delete sans[nom];
-  return { ...sans, ...posees };
+  return { ...sans, ...posees, ...variablesDuDepot(depot) };
 }
 
 // Les variables de décision qu'un environnement porte encore, valeur non
@@ -262,20 +265,47 @@ export type Decisions = {
   fermeture(): ReglagesDeFermeture;
 };
 
+// Les réglages du dépôt du projet, tels que la cuisine les suit : ceux lus à
+// son ouverture, et de quoi les relire — sur la branche d'intégration
+// rapatriée, à chaque usage.
+export type ReglagesSuivis = { auDemarrage: ReglagesProjet | null; relire: () => ReglagesProjet | null };
+
 // Suit les décisions du chef sur le journal de `base`, par-dessus `env`.
 // Chaque lecture relit le journal. Ce qui ne se lit plus — une décision
 // retirée sans variable derrière, un journal momentanément illisible — ne
 // tombe pas sur un défaut : le runtime s'en tient à ce qu'il lisait, et le dit
 // une fois. La première lecture, elle, n'a rien à quoi se tenir : illisible,
 // c'est un refus de démarrer.
-export function suivreDecisions(base: Base, env: Record<string, string | undefined>, avertir: (message: string) => void = (message) => console.error(message)): Decisions {
-  const decide = () => environnementDecide(env, decisionsPosees(base));
-  const suivre = <T>(quoi: string, lire: (env: Record<string, string | undefined>) => T): (() => T) => {
-    let retenue = lire(decide());
+// `depot` : les réglages que le dépôt du projet porte. Le calibrage du manager
+// et du reviewer et le plafond de calibrage y sont relus à chaque lecture, et
+// passent avant les décisions de la box. Illisibles un moment, le runtime s'en
+// tient aux derniers qu'il a lus, et le dit une fois.
+export function suivreDecisions(base: Base, env: Record<string, string | undefined>, avertir: (message: string) => void = (message) => console.error(message), depot?: ReglagesSuivis): Decisions {
+  let derniers = depot?.auDemarrage ?? null;
+  let ditDuDepot: string | null = null;
+  const duDepot = (premiere: boolean): ReglagesProjet | null => {
+    if (depot === undefined || premiere) return derniers;
+    try {
+      derniers = depot.relire();
+      ditDuDepot = null;
+    } catch (erreur) {
+      const motif = erreur instanceof Error ? erreur.message : String(erreur);
+      if (motif !== ditDuDepot) avertir(`brigade : réglages du dépôt non relus — ${motif} ; le runtime s'en tient à ce qu'il lisait`);
+      ditDuDepot = motif;
+    }
+    return derniers;
+  };
+  // `avecDepot` : la lecture prend les réglages du dépôt — relus à chacune.
+  const suivre = <T>(quoi: string, lire: (env: Record<string, string | undefined>, reglages: ReglagesProjet | null) => T, avecDepot = false): (() => T) => {
+    const decide = (premiere: boolean) => {
+      const reglages = avecDepot ? duDepot(premiere) : null;
+      return lire(environnementDecide(env, decisionsPosees(base), reglages), reglages);
+    };
+    let retenue = decide(true);
     let dit: string | null = null;
     return () => {
       try {
-        retenue = lire(decide());
+        retenue = decide(false);
         dit = null;
       } catch (erreur) {
         const motif = erreur instanceof Error ? erreur.message : String(erreur);
@@ -288,9 +318,9 @@ export function suivreDecisions(base: Base, env: Record<string, string | undefin
   return {
     stations: suivre("les stations", lireStations),
     seuils: suivre("les seuils de la dérive", lireSeuils),
-    manager: suivre("le calibrage du manager", (lu) => configManager(lu).calibrage),
-    plafond: suivre("le plafond de calibrage", configPlafond),
-    reviewer: suivre("le calibrage du reviewer", (lu) => configReviewer(lu).calibrage),
+    manager: suivre("le calibrage du manager", (lu) => configManager(lu).calibrage, true),
+    plafond: suivre("le plafond de calibrage", plafondDuProjet, true),
+    reviewer: suivre("le calibrage du reviewer", (lu) => configReviewer(lu).calibrage, true),
     fermeture: suivre("les réglages du closer", configFermeture),
   };
 }

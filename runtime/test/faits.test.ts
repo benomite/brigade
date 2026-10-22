@@ -11,6 +11,7 @@ import { ouvrirJournal } from "../src/journal.ts";
 import { PROJECTIONS } from "../src/projections.ts";
 import { ouvrirRail } from "../src/rail.ts";
 import { appeler, jourDecale, JOUR_HORLOGE, horloge, photographier, repertoireTemporaire } from "./outils.ts";
+import { projetSurGit } from "./aides/projet-sur-git.ts";
 
 function cuisine(t: TestContext) {
   const repertoire = repertoireTemporaire(t);
@@ -555,6 +556,31 @@ test("le plafond de calibrage se règle d'un geste de `station`, sans redémarra
   assert.equal(await refusee.fin, 2);
   assert.match(refusee.sortie(), /ceiling-effort refused, nothing is written — BRIGADE_CEILING_EFFORT invalid/);
   assert.deepEqual(await lire(), { modele: "opus", effort: "max", parLeChef: { modele: false, effort: true } });
+});
+
+test("le plafond et le calibrage que porte le dépôt du projet passent avant ceux de la box : `facts` et `station` le disent, et un geste qui les pose sur la box est dit ignoré", async (t) => {
+  const { repertoire } = garnie(t);
+  const { clone } = projetSurGit(t, { reglages: { integrationBranch: "v2", defaultCalibrations: { manager: { model: "opus", effort: "high" } }, calibrationCeiling: { model: "sonnet", effort: "low" } } });
+  const env = { BRIGADE_STATE_DIR: repertoire, BRIGADE_REPO_DIR: clone, BRIGADE_BASE_BRANCH: "v2" };
+  const lire = async () => {
+    const lancee = appeler(commande, [], env);
+    assert.equal(await lancee.fin, 0);
+    return JSON.parse(lancee.sortie().split("\n")[0] ?? "").plafondDeCalibrage;
+  };
+  const station = async (...args: string[]) => {
+    const lancee = appeler(montrerStation, args, env);
+    assert.equal(await lancee.fin, 0, lancee.sortie());
+    return lancee.sortie();
+  };
+
+  assert.deepEqual(await lire(), { modele: "sonnet", effort: "low", parLeChef: { modele: false, effort: false }, depuisLeDepot: true });
+  assert.match(await station(), /^calibration ceiling +sonnet \/ low — from the project's repository \(\.claude\/brigade\/projet\.json\), replaces what is set on the box — a pull request on \.claude\/brigade\/projet\.json to change it$/m);
+  assert.match(await station(), /^  manager-modele +opus — from the project's repository \(\.claude\/brigade\/projet\.json\)$/m);
+
+  // Posé sur la box, il est écrit — et dit ignoré tant que le dépôt le porte.
+  assert.match(await station("ceiling-modele", "opus"), /^brigade : ceiling-modele: opus \(was: not set\) — read by the runtime.*\nbut the project's repository sets it \(\.claude\/brigade\/projet\.json: sonnet\): this decision is ignored while it does$/m);
+  assert.deepEqual(await lire(), { modele: "sonnet", effort: "low", parLeChef: { modele: false, effort: false }, depuisLeDepot: true });
+  assert.match(await station(), /^  ceiling-modele +sonnet — from the project's repository \(\.claude\/brigade\/projet\.json\); set on the box: opus, ignored$/m);
 });
 
 test("la commande refuse un argument, un répertoire d'état absent ou sans journal, en le disant", async (t) => {

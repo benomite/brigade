@@ -5,6 +5,7 @@
 // devient un motif dit, jamais un choix deviné.
 import { EFFORTS, MODELES, type Calibrage } from "./calibrage.ts";
 import { COMMENTAIRES_MAX, CORPS_MAX, couper, objet, parmi, phrase, type IssueAJuger } from "./juger.ts";
+import { FICHIER, type ReglagesProjet } from "./reglages-projet/reglages.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
 // Du moins cher au plus cher : c'est dans ce sens qu'un calibrage monte.
@@ -21,8 +22,10 @@ export type Plafond = Calibrage;
 export const PLAFOND_PAR_DEFAUT: Plafond = { model: "opus", effort: "high" };
 
 // Le plafond en vigueur, et pour chaque dimension si le chef l'a posée — sinon
-// c'est le défaut.
-export type PlafondLu = Plafond & { pose: { model: boolean; effort: boolean } };
+// c'est le défaut. `depot` : il vient du fichier de réglages du dépôt du
+// projet (`reglages-projet/en-vigueur.ts`), qui passe avant la décision du
+// chef — rien n'y est alors posé par lui.
+export type PlafondLu = Plafond & { pose: { model: boolean; effort: boolean }; depot?: true };
 
 // Les dimensions dont le label vient du manager : les seules qu'il remplace.
 export type Libre = { model: boolean; effort: boolean };
@@ -43,9 +46,18 @@ export function configPlafond(env: Record<string, string | undefined>): PlafondL
   return { model: model ?? PLAFOND_PAR_DEFAUT.model, effort: effort ?? PLAFOND_PAR_DEFAUT.effort, pose: { model: model !== null, effort: effort !== null } };
 }
 
+// Le plafond du projet : celui que son dépôt porte, sinon celui que le chef a
+// décidé sur la box, dimension par dimension, sinon le défaut.
+export function plafondDuProjet(env: Record<string, string | undefined>, reglages: ReglagesProjet | null): PlafondLu {
+  const duDepot = reglages?.calibrationCeiling;
+  if (duDepot !== undefined) return { model: duDepot.model, effort: duDepot.effort, pose: { model: false, effort: false }, depot: true };
+  return configPlafond(env);
+}
+
 // Le plafond tel que le chef le lit, d'où vient chaque valeur comprise :
 // « `opus` / `high` (default) », « `sonnet` (set by you) / `high` (default) ».
 export function direPlafondDeCalibrageEn(plafond: PlafondLu): string {
+  if (plafond.depot) return `${plafond.model} / ${plafond.effort} — from the project's repository (${FICHIER}), replaces what is set on the box`;
   const { model, effort } = plafond.pose;
   if (model && effort) return `${plafond.model} / ${plafond.effort} — set by you, replaces the default ${PLAFOND_PAR_DEFAUT.model} / ${PLAFOND_PAR_DEFAUT.effort}`;
   if (!model && !effort) return `${plafond.model} / ${plafond.effort} — default`;

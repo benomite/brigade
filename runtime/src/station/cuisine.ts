@@ -36,6 +36,8 @@ import { retenirSansDecision } from "../onboarding/attente.ts";
 import { attendreLaPreparation } from "../preparation-depot/attendre.ts";
 import { brancherSession, configSession } from "../renouvellement.ts";
 import { brancherReseau, configReseau, DECLARATION_RESEAU, lireDeclaration, reglesDuProjet, REGLES_DE_BASE, sonderLeFiltre, variablesDeRelais } from "../reseau.ts";
+import { plafondDuProjet } from "../reagir.ts";
+import { lireLeDepot } from "../reglages-projet/en-vigueur.ts";
 import { configReviewer } from "../reviewer.ts";
 import { ConfigInvalide, demarrer, type Runtime } from "../runtime.ts";
 import { configSecrets, DECLARATION } from "../secrets.ts";
@@ -80,18 +82,21 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
   // porte, celui du process de la station n'en change pas — les autres
   // projets ont la leur.
   const porte = configReseau(envDuProjet);
-  const envProjet: NodeJS.ProcessEnv = porte === null ? { ...envDuProjet } : { ...envDuProjet, ...variablesDeRelais(porte) };
+  // Le dépôt du projet dit sa branche d'intégration, son calibrage et son
+  // plafond : ils passent avant ceux de la box, et se relisent à chaque usage.
+  const duDepot = lireLeDepot(envDuProjet);
+  const envProjet: NodeJS.ProcessEnv = porte === null ? { ...duDepot.env } : { ...duDepot.env, ...variablesDeRelais(porte) };
   const rail = configRail(envProjet);
   const reglages = lireReglages(envProjet);
   for (const nom of decisionsDansLEnvironnement(envProjet)) dire(direDecisionIgnoree(nom, projet));
-  const decide = environnementDecide(envProjet, decisionsAuDemarrage(repertoireEtat));
+  const decide = environnementDecide(envProjet, decisionsAuDemarrage(repertoireEtat), duDepot.reglages);
   const station = configStation(decide);
   if (!existsSync(station.clone)) throw new ConfigInvalide(`le clone du projet (${station.clone}) n'existe pas`, "clone-missing");
   supportDesDecisions({ repertoireEtat, clone: station.clone });
   const { stations } = station;
   const delais = configPass(envProjet);
   const reviewer = configReviewer(decide);
-  const manager = configManager(decide);
+  const manager = { ...configManager(decide), plafond: plafondDuProjet(decide, duDepot.reglages) };
   lireSeuils(decide);
   configFermeture(decide);
   const arbitre = configArbitrage(envProjet);
@@ -131,7 +136,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     });
     const githubs = ouvrirGitHubs({ depot: rail.depot, bin: rail.gh, identites });
     socle = demarrer({ repertoireEtat, projet });
-    const decisions = suivreDecisions(socle.journal.base, envProjet, dire);
+    const decisions = suivreDecisions(socle.journal.base, envProjet, dire, duDepot.suivis);
     if (porte !== null) republierReseau = brancherReseau(socle, { base: station.base, declaration: () => lireALaBase(station, DECLARATION_RESEAU), avertir: dire });
     // Sous une identité par rôle, ni les cooks, ni les gates, ni les juges ne
     // partent avec de quoi parler à GitHub : leur `gh` ne trouve aucun compte.
@@ -199,6 +204,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
       ? `GitHub — une identité par rôle (${ROLES.join(", ")}), jetons courts limités au dépôt ; les cooks n'en reçoivent aucun`
       : "GitHub — identité unique, celle du `gh` de la machine : rien ne réserve le merge à la pass (BRIGADE_GITHUB_APPS_DIR n'est pas défini)",
   );
+  for (const ligne of duDepot.dits) dire(ligne);
   dire(`stations — ${direStations(stations)}`);
   dire(
     secrets

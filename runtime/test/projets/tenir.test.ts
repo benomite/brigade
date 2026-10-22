@@ -19,6 +19,7 @@ import type { Autorisation } from "../../src/projets/preparer.ts";
 import { refus } from "../../src/projets/refus.ts";
 import { tenirProjetsDeLApp } from "../../src/projets/tenir.ts";
 import { depotQuiRefuse } from "../aides/depot-qui-refuse.ts";
+import { projetSurGit } from "../aides/projet-sur-git.ts";
 import { aArreter, BASE, depotGit, ENV_GIT, git, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
 
 const rienNeReste = temporaireDuFichier();
@@ -142,6 +143,41 @@ test("un projet dont la station est la principale : cloné, ses décisions posé
   assert.equal(station.clones.length, 1);
   assert.equal(station.relectures(), 1);
   assert.equal(station.ecritures.length, ecritures);
+});
+
+test("une demande sans branche ni calibrage : le dépôt cloné les déclare — la ligne n'écrit pas de branche, seule la station est posée au journal", async (t) => {
+  const station = uneStation(t);
+  // Le clone que la station tire du dépôt : sa branche par défaut n'est pas
+  // sa branche d'intégration, que `.claude/brigade/projet.json` déclare.
+  projetSurGit(t, { reglages: { integrationBranch: "v2", defaultCalibrations: { manager: { model: "opus", effort: "high" } } }, parDefaut: "main", autres: ["v2"], clone: join(station.racine, "clones/parade") });
+  const { base: _base, manager: _manager, reviewer: _reviewer, ...sansReglages } = PARADE;
+  station.demander({ ...sansReglages, base: null });
+  await station.projets.relire();
+
+  assert.equal(station.configuration(), `${DEBUT}\nparade benomite/parade\n${FIN}\n`);
+  // Le ticket qui prépare le dépôt vise la branche que le dépôt déclare.
+  assert.deepEqual(station.preparations, [`benomite/parade v2 → ${join(station.racine, "etat/parade")} ${join(station.racine, "clones/parade")}`]);
+  const journal = ouvrirJournal(join(station.racine, "etat/parade"), { lectureSeule: true });
+  try {
+    assert.deepEqual(decisionsPosees(journal.base), { BRIGADE_STATIONS: "box/claude:2:code+raisonnement" });
+  } finally {
+    journal.fermer();
+  }
+  assert.equal(station.suivi()?.[0]?.etat, "servi");
+});
+
+test("une demande sans branche, sur un dépôt qui n'en déclare aucune : refusée, rien n'est écrit", async (t) => {
+  const station = uneStation(t);
+  const { base: _base, ...sansBranche } = PARADE;
+  station.demander(sansBranche);
+  await station.projets.relire();
+
+  assert.equal(station.configuration(), "");
+  assert.deepEqual(station.preparations, []);
+  const [suivi] = station.suivi() ?? [];
+  assert.equal(suivi?.etat, "refuse");
+  assert.equal(suivi?.refus?.code, "configuration-invalid");
+  assert.match(suivi?.dit ?? "", /benomite\/parade does not declare its integration branch \(\.claude\/brigade\/projet\.json, or the “Branche d'intégration” line of its CLAUDE\.md\), and the app names none/);
 });
 
 test("le ticket qui prépare le dépôt s'ouvre avant la ligne du projet, une fois ; GitHub muet, rien n'est écrit et la station réessaie", async (t) => {
