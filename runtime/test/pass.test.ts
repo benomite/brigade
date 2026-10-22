@@ -965,6 +965,7 @@ describe("la pass", { concurrency: 8 }, () => {
 
   for (const [quoi, declaration, aRelire] of [
     ["du réseau", ".claude/brigade/reseau", /chaque hôte qu'elle ajoute s'ouvre aux cooks suivants du projet/],
+    ["des réglages du projet", ".claude/brigade/projet.json", /elle change un réglage du projet/],
     ["des secrets", ".claude/brigade/secrets", /chaque nom qu'elle ajoute est une valeur de la machine remise aux cooks suivants/],
   ] as const) {
     test(`une livraison qui touche à la déclaration ${quoi} n'est jamais mergée par la pass, même sous grant : le motif nomme le fichier, l'issue dit quoi relire, et le merge à la main est constaté`, async (t) => {
@@ -984,6 +985,13 @@ describe("la pass", { concurrency: 8 }, () => {
       assert.deepEqual([dernier("merge.done", 17)?.by, gh.merges.length], ["outside", 0]);
     });
   }
+
+  test("une livraison qui ne touche pas aux réglages du projet n'est pas retenue pour cela", async (t) => {
+    const { pass, gh, jusquAu } = service(t, { grant: true, depot: (depot) => ({ ...depot, changes: () => ["travail.txt", ".claude/brigade/projet.json.bak"] }) });
+    await jusquAu("merge.done");
+    assert.equal(gh.merges.length, 1);
+    assert.ok(!String(pass()?.cause ?? "").startsWith("declaration-modified"));
+  });
 
   test("une livraison qui touche aux deux déclarations les nomme toutes les deux, et dit les juges touchés avec elles", async (t) => {
     const { pass, jusquAu, gh } = service(t, {
