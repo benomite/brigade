@@ -112,6 +112,7 @@ import { poserProfils } from "./profil/carte.js";
 import { apresRendu as apresLaCarte, poserCarteDeTodo, REPOS as CARTE_AU_REPOS } from "./carte-todo.js";
 import { poserDepotRetenu } from "./onboarding/depot-retenu.js";
 import { poserBlocages } from "./projet/blocages.js";
+import { poserDelai } from "./projet/delai.js";
 import { poserChoix, sansLesChoix } from "./projet/choix.js";
 import { ligneDAlerte, poserLesStations as stationsDeCuisson } from "./stations-de-cuisson.js";
 import { poserLePlafond as plafondDeCalibrage } from "./plafond-de-calibrage.js";
@@ -476,6 +477,7 @@ pageDesCouts.append(retourDesCouts, corpsDesCouts);
 const stationsDuProjet = element("stations-du-projet");
 // Ce qui bloque le projet affiché (ticket 1399), sous ses stations, tel que sa principale le publie : une ligne par
 // blocage (projet/blocages.js). Les détails que le chef a dépliés, par projet et blocage : une relecture ne les replie pas.
+const delaiDuProjet = element("delai-du-projet");
 const blocagesDuProjet = element("blocages-du-projet");
 /** @type {Map<string, Set<string>>} */
 const blocagesDeplies = new Map();
@@ -5825,6 +5827,7 @@ function poserStationsDuProjet() {
   if (projet === undefined) {
     poserLesChoix(undefined);
     poserLesBlocages(undefined);
+    poserLeDelai(undefined);
     return;
   }
   if (confiance !== undefined && confiance.projet !== projet.nom) fermerConfiance();
@@ -5858,6 +5861,7 @@ function poserStationsDuProjet() {
   poserLeDemenagement(projet, ou, enCours, lues);
   poserLesChoix(projet);
   poserLesBlocages(projet);
+  poserLeDelai(projet);
   ouvrirLaConfiance.textContent = stations.length === 0 && !seLit(projet) && projet.sansStation !== true ? "choose its machine" : "+ station";
   ouvrirLaConfiance.hidden = confiance !== undefined || demenagement !== undefined || !lues;
   const vu = projetsVus?.projets.find(({ nom }) => nom === projet.nom);
@@ -5896,6 +5900,19 @@ function poserStationsDuProjet() {
   if (confiance === undefined) return;
   poserLaConfiance(confiance, projet, { exclues: stations.map(({ id }) => id), demande, principale });
 }
+
+// Le temps de l'ajout du projet affiché à son premier ticket servi (ticket 1401) : il court tant qu'aucun n'est servi,
+// se repose de lui-même, et se fige à la lecture qui dit le premier servi.
+/** @param {Projet | undefined} projet */
+function poserLeDelai(projet) {
+  const vu = projet === undefined ? undefined : projetsVus?.projets.find(({ nom }) => nom === projet.nom);
+  const pose = poserDelai(document, { delai: vu?.delai, maintenant: Date.now() });
+  delaiDuProjet.hidden = pose === null;
+  delaiDuProjet.replaceChildren(...(pose === null ? [] : [pose]));
+}
+setInterval(() => {
+  if (courant !== undefined && !delaiDuProjet.hidden) poserLeDelai(courant);
+}, 30_000);
 
 // Les blocages du projet affiché (ticket 1399). Les gestes que l'app sait faire pour en lever un, par l'identifiant
 // d'action que la station publie : « choose-station » ouvre le choix de la machine, comme le parcours (ticket 1113) —

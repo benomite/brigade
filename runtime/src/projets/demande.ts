@@ -69,6 +69,10 @@
 //     l'app sait faire), `link` (la page où le faire hors de l'app) et
 //     `detail` (ce qu'une commande a dit, que l'app ne montre qu'en second).
 //     Un blocage levé en sort.
+//     `delai` (absent pour un projet d'avant #1401) : `ajouteLe` (ISO),
+//     `serviLe` (ISO, l'instant du premier ticket du chef servi, ou null) et
+//     `duree` (millisecondes entre les deux, null tant qu'aucun n'est servi ;
+//     figée ensuite, un second ticket servi n'y change rien).
 //     `choix` (absent tant qu'aucun n'est posé) : ce qui manque à la station
 //     principale pour les tests du projet (`installation/besoins/`), un choix
 //     par besoin — `id` (`need:<besoin>`, celui du blocage qui l'attend),
@@ -89,6 +93,7 @@ import { EFFORTS, MODELES } from "../calibrage.ts";
 import type { Onboarding } from "../onboarding/etat.ts";
 import type { EchecDuWorktree } from "../echec-du-worktree.ts";
 import type { Blocage } from "../installation/blocages/blocages.ts";
+import type { Delai } from "../installation/delai/delai.ts";
 import { selectionsLues, type Choix, type Selections } from "../installation/besoins/besoins.ts";
 import type { AccesBloque } from "./acces.ts";
 import type { EchecDuClone } from "./echec-du-clone.ts";
@@ -167,6 +172,8 @@ export type SuiviDuProjet = {
   refus?: Refus;
   worktree?: EchecDuWorktree;
   blocages?: Blocage[];
+  // Le temps de son ajout à son premier ticket servi (`installation/delai/`).
+  delai?: Delai;
   choix?: Choix[];
 };
 

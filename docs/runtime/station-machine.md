@@ -409,6 +409,12 @@ follows from it:
 - `provide-here` — what gets installed on this station;
 - `adapt-tests` — what the test coverage loses.
 
+A project's tracking line also carries `delai` (#1401, `runtime/src/installation/delai/`): `ajouteLe` (the instant
+the station first prepared the project, written once to its log as `project.added`), `serviLe` (the instant of the
+first served ticket other than the preparation ticket, or null) and `duree` (milliseconds between the two, null until
+then; frozen after, a second served ticket does not change it). A project already served before its addition was
+noted has none.
+
 The choice is written to the project's log (`need.choice-raised`), with a blocker under the same id
 (`need:<need>`, action `choose-need`). The station publishes the choices in the project's line of
 `brigade-projets-suivi.json`, under `choix`, next to `blocages` — absent when there is none:

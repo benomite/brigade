@@ -81,7 +81,10 @@ export type OptionDeChoix = { id: string; label: string; consequence: string };
 export type Choix = { id: string; need: string; message: string; cause: string; options: OptionDeChoix[] } & ({ status: "pending" } | { status: "chosen"; selected: string; selectedAt: string });
 // Ce que le chef retient, par identifiant de choix.
 export type Selections = Record<string, string>;
-export type SuiviDuProjet = { nom: string; etat: EtatDuProjet; dit: string; autoriser: string[]; serviLe: string | null; cuitSur: string | null; ici: boolean; bascule: Bascule | null; acces: AccesBloque | null; refus: Refus | null; worktree: EchecDuWorktree | null; clone?: EchecDuClone; blocages?: Blocage[]; choix?: Choix[]; depot: string | null; base: string | null; cooks: number | null };
+// Le temps de l'ajout du projet à son premier ticket servi (#1401, runtime/src/installation/delai/) : `ajouteLe` (ISO),
+// `serviLe` (ISO, ou null tant qu'aucun ticket n'est servi) et `duree` (millisecondes, figée, ou null).
+export type Delai = { ajouteLe: string; serviLe: string | null; duree: number | null };
+export type SuiviDuProjet = { nom: string; etat: EtatDuProjet; dit: string; autoriser: string[]; serviLe: string | null; cuitSur: string | null; ici: boolean; bascule: Bascule | null; acces: AccesBloque | null; refus: Refus | null; worktree: EchecDuWorktree | null; clone?: EchecDuClone; blocages?: Blocage[]; delai?: Delai; choix?: Choix[]; depot: string | null; base: string | null; cooks: number | null };
 
 const ETATS: readonly string[] = ["servi", "a-autoriser", "en-preparation", "refuse", "secondaire"];
 const ETAPES: readonly string[] = ["demandee", "acceptee", "refusee", "remise", "recue"];
@@ -203,6 +206,15 @@ export function lireDemande(brut: string | undefined): ProjetDemande[] | null {
   });
 }
 
+// Le délai publié d'un projet : l'instant d'ajout, et, servi, l'instant et la durée figée. Illisible : rien.
+function lireDelai(lu: unknown): Delai | null {
+  const { ajouteLe, serviLe, duree } = (lu ?? {}) as Record<string, unknown>;
+  const ajoute = date(ajouteLe);
+  if (ajoute === null) return null;
+  const servi = date(serviLe);
+  return servi !== null && typeof duree === "number" && Number.isFinite(duree) && duree >= 0 ? { ajouteLe: ajoute, serviLe: servi, duree } : { ajouteLe: ajoute, serviLe: null, duree: null };
+}
+
 // Ce que la station a écrit de ses projets demandés. Absent ou illisible : rien encore.
 export function lireSuivi(brut: string | undefined): SuiviDuProjet[] {
   if (brut === undefined) return [];
@@ -210,10 +222,11 @@ export function lireSuivi(brut: string | undefined): SuiviDuProjet[] {
     const lu = JSON.parse(brut) as { brigade?: unknown; projets?: unknown };
     if (lu?.brigade !== "projets-suivi" || !Array.isArray(lu.projets)) return [];
     return (lu.projets as unknown[]).flatMap((brut) => {
-      const { nom, etat, dit, autoriser, serviLe, cuitSur, ici, bascule, acces, refus, worktree, clone, blocages, choix, depot, base, cooks } = (brut ?? {}) as Record<string, unknown>;
+      const { nom, etat, dit, autoriser, serviLe, cuitSur, ici, bascule, acces, refus, worktree, clone, blocages, delai, choix, depot, base, cooks } = (brut ?? {}) as Record<string, unknown>;
       if (!texte(nom) || !texte(etat) || !ETATS.includes(etat)) return [];
       const echecDuClone = lireClone(clone);
       const lesBlocages = Array.isArray(blocages) ? blocages.flatMap(lireUnBlocage) : [];
+      const leDelai = lireDelai(delai);
       const lesChoix = Array.isArray(choix) ? choix.flatMap(lireUnChoix) : [];
       return [
         {
@@ -230,6 +243,7 @@ export function lireSuivi(brut: string | undefined): SuiviDuProjet[] {
           worktree: lireEchec(worktree),
           ...(echecDuClone === null ? {} : { clone: echecDuClone }),
           ...(lesBlocages.length === 0 ? {} : { blocages: lesBlocages }),
+          ...(leDelai === null ? {} : { delai: leDelai }),
           ...(lesChoix.length === 0 ? {} : { choix: lesChoix }),
           depot: texte(depot) && depot.trim() !== "" ? depot.trim() : null,
           base: texte(base) && base.trim() !== "" ? base.trim() : null,
