@@ -17,7 +17,9 @@ import { configRail } from "./alimenter.ts";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { direBaseRougeEn, direControleRetenuEn, direPanneEn } from "./dire-base.ts";
 import { direSansGrantEn } from "./attend.ts";
+import type { Base } from "./base.ts";
 import type { Evenement } from "./evenements.ts";
+import { tourAttendu } from "./file-de-la-pass.ts";
 import type { Resultat } from "./geste-ticket.ts";
 import type { ChoixDeReaction } from "./events/manager.ts";
 import { DIRE_GATES_COUPEES_EN, GATES_COUPEES, motifDArret, motifDeRemontee, type CI, type Finding, type Gates, type Review } from "./events/pass.ts";
@@ -67,8 +69,13 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
     return relances <= 0 ? `returns ${pass.returns}/${RENVOIS_MAX}` : `returns ${RENVOIS_MAX}/${RENVOIS_MAX}, ${relances} restart${relances > 1 ? "s" : ""} by the manager`;
   };
 
-  function decrire(pass: PassDeTicket): string {
-    const phase = `${PHASES[pass.phase] ?? pass.phase}${pass.reason === null ? "" : ` (${pass.reason}${pass.cause === null ? "" : `: ${pass.cause}`})`}${pass.phase === "waiting" && pass.reason === GATES_COUPEES ? ` — ${DIRE_GATES_COUPEES_EN}` : ""}`;
+  // Livrée, elle attend son tour : une autre livraison est dans sa pass.
+  const direTour = (tour: { tenant: number; devant: number }) =>
+    `delivered, waiting for its turn — #${tour.tenant} is in its pass, ${tour.devant === 0 ? "next in line" : `${tour.devant} ahead of it`}`;
+
+  function decrire(base: Base, pass: PassDeTicket): string {
+    const tour = tourAttendu(base, pass.ticket);
+    const phase = `${tour === null ? (PHASES[pass.phase] ?? pass.phase) : direTour(tour)}${pass.reason === null ? "" : ` (${pass.reason}${pass.cause === null ? "" : `: ${pass.cause}`})`}${pass.phase === "waiting" && pass.reason === GATES_COUPEES ? ` — ${DIRE_GATES_COUPEES_EN}` : ""}`;
     // Hors du rail, le numéro est celui de la PR, et personne n'y est renvoyé.
     return [pass.horsRail ? `PR #${pass.ticket}  off the rail (run ${pass.run})` : `#${pass.ticket}`, phase, pass.horsRail ? null : renvois(pass), `since ${pass.since}`, pass.pr ?? (pass.noDiff ? "no diff" : null)]
       .filter((champ) => champ !== null)
@@ -241,7 +248,7 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
     }
     // Hors du rail, la pass cesse de suivre une livraison mergée, ou fermée sans merge.
     const horsRail = histoire.length > 0 && journal.duTicket(ticket).some((evenement) => evenement.type === "pass.entered");
-    dire(pass ? decrire(pass) : horsRail ? `PR #${ticket}  off the rail — the pass no longer follows it` : `#${ticket}  left the rail`);
+    dire(pass ? decrire(journal.base, pass) : horsRail ? `PR #${ticket}  off the rail — the pass no longer follows it` : `#${ticket}  left the rail`);
     for (const ligne of histoire) dire(ligne);
   }
 
@@ -250,7 +257,7 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
     const livraisons = lirePass(journal.base).filter((pass) => pass.phase !== "cooking" || pass.returns > 0);
     for (const ligne of direBase(journal)) dire(ligne);
     if (livraisons.length === 0) dire("no delivery in pass");
-    for (const pass of livraisons) dire(decrire(pass));
+    for (const pass of livraisons) dire(decrire(journal.base, pass));
     const sansGrant = direSansGrantEn(bilanSansGrant(journal.base));
     if (sansGrant !== null) dire(sansGrant);
   }
