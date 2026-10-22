@@ -266,6 +266,8 @@ const demarrage = (projets: Projet[]) => ({
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
 });
+// Une réponse du pont qui ne vient qu'au moment voulu : le faux pont la rend telle quelle, la vue l'attend.
+const enAttente = (attendre: (resoudre: (ouverture: Ouverture) => void) => void) => new Promise<Ouverture>(attendre) as unknown as Ouverture;
 const PARADE: Projet = { nom: "parade", dossier: "C:\\Users\\chef\\.local\\share\\brigade\\projects\\parade", depot: "benomite/parade", base: "main" };
 
 describe("la vue jouée : l'app ouverte pour la première fois sur un PC neuf", () => {
@@ -274,7 +276,7 @@ describe("la vue jouée : l'app ouverte pour la première fois sur un PC neuf", 
     const vue = await jouerLaVue({
       demarrage: () => demarrage([]),
       stationsDuChef: () => LISTEES,
-      ouvrirDUneStation: () => new Promise<Ouverture>((resoudre) => (ouvrir = resoudre)),
+      ouvrirDUneStation: () => enAttente((resoudre) => (ouvrir = resoudre)),
       espace: () => [],
     });
     const tous = vue.element("tous");
@@ -352,7 +354,7 @@ describe("la vue jouée : l'app ouverte pour la première fois sur un PC neuf", 
     const vue = await jouerLaVue({
       demarrage: () => demarrage([]),
       stationsDuChef: () => LISTEES,
-      ouvrirDUneStation: () => (++essais === 1 ? echecDuClone("fatal: Authentication failed for 'https://github.com/benomite/parade.git/'", true) : new Promise<Ouverture>(() => {})),
+      ouvrirDUneStation: () => (++essais === 1 ? echecDuClone("fatal: Authentication failed for 'https://github.com/benomite/parade.git/'", true) : enAttente(() => {})),
       seConnecterAGitHub: () => ({ code: "A1B2-C3D4", page: "https://github.com/login/device" }),
       espace: () => [],
     });
