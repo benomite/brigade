@@ -441,10 +441,7 @@ const versionDeStation = document.createElement("p");
 versionDeStation.className = "version-de-station";
 const retraitDeStation = document.createElement("div");
 retraitDeStation.className = "retrait-de-station";
-// Les appels de la box à GitHub sur la dernière heure (ticket 1418), sous la ligne de mise à jour.
-const appelsDeStation = document.createElement("div");
-appelsDeStation.ariaLive = "polite";
-pageDeStation.append(retourALAccueil, enTeteDeStation, plafondDeStation, versionDeStation, appelsDeStation, pannesDeStation, bloc("h3", "Projects"), listeDesProjets, ouvrirLeParcours, formulaireDAjout, ajoutDit, retraitDeStation);
+pageDeStation.append(retourALAccueil, enTeteDeStation, plafondDeStation, versionDeStation, pannesDeStation, bloc("h3", "Projects"), listeDesProjets, ouvrirLeParcours, formulaireDAjout, ajoutDit, retraitDeStation);
 // Le coût de tous les projets (ticket 1022) : il vaut pour l'ensemble, il vit donc au niveau de l'app, pas dans
 // un projet. Sur l'accueil, une ligne « Cost » l'ouvre — sans ouvrir aucun projet. Sa page : les tokens
 // lancés sur 5 h, 24 h et 7 jours par projet, les tokens perdus, les tickets les plus chers, la courbe, et
@@ -5195,7 +5192,6 @@ function poserPageDeStation() {
     pannesDeStation.replaceChildren();
     plafondDeStation.replaceChildren();
     versionDeStation.replaceChildren();
-    appelsDeStation.replaceChildren();
     retraitDeStation.replaceChildren();
   } else {
     const titre = bloc("h2", station.nom);
@@ -5207,10 +5203,9 @@ function poserPageDeStation() {
     const details = station.etat === "illisible" ? station.ligne : (ligne?.survol ?? station.machine);
     // Hors ligne, la panne dessous le dit déjà, avec son bouton : l'en-tête ne le redit pas.
     const dejaDit = station.pannes.some(({ sujet }) => sujet === "injoignable");
-    enTeteDeStation.replaceChildren(titre, pastille(phrase, ligne?.ton), ...(dejaDit ? [] : [etatDit]), ...(details === "" ? [] : [survol(document, details)]), ...(ligne?.note === undefined ? [] : [bloc("p", ligne.note)]));
+    enTeteDeStation.replaceChildren(titre, pastille(phrase, ligne?.ton), ...(dejaDit ? [] : [etatDit]), ...(details === "" ? [] : [survol(document, details)]), ...(ligne?.note === undefined ? [] : [bloc("p", ligne.note)]), poserLesAppels(document, ligne?.appels));
     poserPlafond(station.nom, ligne);
     versionDeStation.replaceChildren(...(station.versionDit ? [bloc("span", station.versionDit)] : []));
-    appelsDeStation.replaceChildren(poserLesAppels(document, ligne?.appels));
     pannesDeStation.replaceChildren(...station.pannes.map((panne) => poserPanne(station.id, panne)));
     poserRetireLaStation(station);
   }
