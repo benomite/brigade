@@ -19,7 +19,6 @@ import { GESTES_DE_LA_CUISINE } from "../../../src/cuisine.ts";
 import { BANNIERE } from "../../../src/faits.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../../../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../../../src/grants.ts";
-import { GESTES_DU_MANAGER } from "../../../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../../../src/onglets.ts";
 import type { Panne } from "../../../src/pannes/pannes.ts";
 import { type Choix, documentDeDemande, FICHIER_PROJETS, FICHIER_SUIVI, lireDemande, lireSuivi, type ProjetDemande } from "../../../src/projets/demande.ts";
@@ -224,7 +223,7 @@ describe("sur la page du projet", () => {
     onglets: ONGLETS,
     rubriques: RUBRIQUES,
     boutons: BOUTONS,
-    gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+    gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
     banniere: BANNIERE,
     calibrage: { modeles: MODELES, efforts: EFFORTS },
     code: undefined,
