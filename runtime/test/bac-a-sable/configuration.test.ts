@@ -147,3 +147,9 @@ test("les arguments de lancement portent le mode du cook et des réglages qui se
   assert.deepEqual(JSON.parse(args[3] ?? ""), config.reglages);
   assert.equal(args.length, 4);
 });
+
+test("un lancement du bac à sable fait suivre le proxy au `fetch` de Node, pour que pnpm démarre avec le registre dans la liste réseau", () => {
+  const { reglages } = configurer(projet(["registry.npmjs.org"]));
+  assert.deepEqual(reglages.env, { NODE_USE_ENV_PROXY: "1" });
+  assert.deepEqual(reglages.sandbox.network.allowedDomains.includes("registry.npmjs.org"), true);
+});

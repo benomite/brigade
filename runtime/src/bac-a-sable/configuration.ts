@@ -56,6 +56,7 @@ export const LECTURES_INTERDITES = [
 export type Cook = { worktree: string; caches: string[]; hotes: Regle[]; home: string; prod?: string[] };
 
 export type Reglages = {
+  env: { NODE_USE_ENV_PROXY: "1" };
   sandbox: {
     enabled: true;
     failIfUnavailable: true;
@@ -124,6 +125,15 @@ export function configurer(cook: Cook): ConfigDeBacASable {
   return {
     modeDePermission: "dontAsk",
     reglages: {
+      // Le bac à sable ne laisse sortir que par son proxy, dont il donne
+      // l'adresse par `HTTPS_PROXY`. Le binaire natif de pnpm 10 vérifie son
+      // identité auprès de registry.npmjs.org dès son démarrage, par le
+      // `fetch` de Node, qui ignore ces variables : la requête partait droit,
+      // le bac à sable la refusait, et chaque `pnpm <script>` mourait de
+      // ERR_PNPM_ENGINE_IDENTITY_UNVERIFIABLE, hôte listé ou non. Avec
+      // `NODE_USE_ENV_PROXY`, ce `fetch` suit `HTTPS_PROXY`. Posé ici, donc
+      // pour les seuls lancements du bac à sable ; les autres ne changent pas.
+      env: { NODE_USE_ENV_PROXY: "1" },
       sandbox: {
         enabled: true,
         // Sans bac à sable, `claude` refuse de partir plutôt que de lancer
