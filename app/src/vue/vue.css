@@ -5234,6 +5234,127 @@ button.recommande {
   width: 8em;
 }
 
+/* Les gates du projet face à leur budget (ticket 1318), en tête de la file : le dernier passage, sa durée et son
+   processeur, chacun face au budget d'un passage. Hors budget, la carte prend le bord rouge et la marque « over
+   budget » ; dessous, la ligne du ticket que la cuisine a ouvert seule, son numéro ouvrant sa fiche. */
+#rail .gates-de-la-file {
+  margin: 8px 16px 0;
+  padding: 8px 12px;
+  background: var(--case);
+  border: 1px solid var(--trait-doux);
+  border-radius: var(--rayon-carte);
+}
+#rail .gates-de-la-file[data-hors-budget] {
+  border-color: var(--rouge);
+  border-left-width: 3px;
+}
+#rail .gates-de-la-file h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--discret);
+}
+#rail .gates-de-la-file .mesures-des-gates {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 24px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--texte-doux);
+}
+#rail .gates-de-la-file .mesure-des-gates {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+#rail .gates-de-la-file .chiffre {
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--texte);
+}
+#rail .gates-de-la-file[data-hors-budget] .chiffre {
+  color: var(--rouge-clair);
+}
+#rail .gates-de-la-file .budget-des-gates,
+#rail .gates-de-la-file .sans-passage {
+  color: var(--discret);
+}
+#rail .gates-de-la-file .hors-budget {
+  padding: 1px 8px;
+  font-weight: 600;
+  color: var(--rouge-clair);
+  border: 1px solid var(--rouge);
+  border-radius: var(--rayon-bouton);
+}
+#rail .gates-de-la-file .ticket-du-budget {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--texte-doux);
+}
+#rail .gates-de-la-file .lien {
+  padding: 0;
+  font-size: inherit;
+  font-weight: 600;
+  color: var(--texte);
+  background: none;
+  border: none;
+  text-decoration: underline;
+  cursor: pointer;
+}
+/* Sur Cooks, sous les tickets de la dernière heure et du dernier jour (ticket 1318) : les gates des dernières 24 h,
+   le même petit tableau, et sous leurs totaux le budget d'un passage. */
+#gates-du-projet:empty {
+  display: none;
+}
+#rail .jour-des-gates {
+  margin: 12px 16px 0;
+  padding: 8px 16px 10px;
+  background: var(--bandeau);
+  border: 1px solid var(--trait-doux);
+  border-radius: var(--rayon-carte);
+}
+#rail .jour-des-gates h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--discret);
+}
+#rail .jour-des-gates table {
+  border-collapse: collapse;
+  font-size: 12px;
+}
+#rail .jour-des-gates th,
+#rail .jour-des-gates td {
+  padding: 2px 24px 2px 0;
+  font-weight: 400;
+  text-align: left;
+  color: var(--discret);
+}
+#rail .jour-des-gates thead th,
+#rail .jour-des-gates td {
+  min-width: 6em;
+  text-align: right;
+}
+#rail .jour-des-gates .chiffre {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  color: var(--texte);
+}
+
 /* Le triage, jour par jour (ticket 1283), en tête de la file : une ligne par jour, le plus récent d'abord, les deux
    comptes côte à côte pour qu'un jour se lise contre le suivant. Compact : il ne prend que sa hauteur de lignes. */
 #rail .triage {

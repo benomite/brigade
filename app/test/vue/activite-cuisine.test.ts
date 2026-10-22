@@ -75,10 +75,10 @@ describe("l'activité de la cuisine, en tête de l'onglet Cooks", () => {
       ["last day", "3", "4", "1"],
     ]);
     assert.equal(pose.dessous("h4")[0]?.textContent?.startsWith(TITRE), true);
-    // En tête de l'onglet : au-dessus de la carte du projet et de ses stations.
+    // En tête de l'onglet : au-dessus de la carte du projet et de ses stations — entre les deux, ses gates (#1318).
     const rail = vue.element("rail");
     assert.equal(rail.children[0]?.id, "activite-du-projet");
-    assert.equal(rail.children[1]?.className, "carte");
+    assert.ok(rail.children.findIndex((pose) => pose.className === "carte") > 0);
   });
 
   test("sans activité, les six nombres disent 0, jamais un blanc", async () => {
