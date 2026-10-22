@@ -1,4 +1,4 @@
-// Ce qu'engage l'allumage du manager, dit au moment du geste « allumer » :
+// Ce qu'engage l'allumage du projet (#1406) — et de son manager, qui le suit —, dit au moment du geste « allumer » :
 // l'avertissement de docs/runtime/manager.md, « Le manager », mot pour mot, et deux
 // nombres — les issues ouvertes du projet, et celles qui portent
 // `blocked-on-human`. Les nombres viennent de la box, par le geste qui existe
@@ -16,13 +16,13 @@ import { echecDe, lancerGeste, type Reglages, type Servi } from "./box.ts";
 import { titreDEchec } from "./faits.ts";
 
 // Le geste du socle (gestes.ts) qui engage, et la lecture qui le chiffre.
-export const GESTE = "manager-allumer";
+export const GESTE = "projet-allumer";
 export const COMMANDE = "manager backlog";
 
 // docs/runtime/manager.md, « Le manager » : son avertissement, sans sa mise en gras, dit en anglais
 // côté app (la doc, elle, est en français).
 export const AVERTISSEMENT =
-  "Once on, it judges the whole open backlog, and whatever it judges executable goes to the kitchen right away. Before turning it on, put `blocked-on-human` on whatever must not go: an issue carrying it is never judged, an epic carrying it is never split.";
+  "Once on, the manager judges the whole open backlog, whatever it judges executable goes to the kitchen right away, and green deliveries are merged. Before switching the project on, put `blocked-on-human` on whatever must not go: an issue carrying it is never judged, an epic carrying it is never split.";
 
 // Ce que la confirmation pose dès qu'elle s'ouvre, avant que la box ait répondu : la vue
 // les nomme, elle n'en écrit aucun.

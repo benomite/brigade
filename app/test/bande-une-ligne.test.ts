@@ -1,12 +1,12 @@
 // Toute la bande d'alertes suit la même règle (#907) : une alerte tient en une ligne — ce qui ne va
 // pas — et un contrôle — le geste qui le lève. Le prix de ce geste n'est pas posé à côté : la
 // confirmation, au clic, le dit. Ce que la box en écrit, mot pour mot, est derrière « detail ». Et le
-// grant `merge`, qui s'allume et s'éteint, est un interrupteur — le même que celui du manager (#906).
+// grant `merge` n'est plus un interrupteur : l'espace n'en a qu'un, celui du projet (#1406).
 // La bande est celle que le process principal dirait (alertes.ts), d'après des sorties de `status`
 // telles que le runtime les écrit ; la vue est jouée telle qu'elle est, devant un faux document.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { etatDuMerge, tenirBandes, type Bande } from "../src/alertes.ts";
+import { tenirBandes, type Bande } from "../src/alertes.ts";
 import { ALLUMAGE } from "../src/allumage.ts";
 import { mettreAPart } from "../src/attend.ts";
 import { pourLaBarre } from "../src/barre.ts";
@@ -20,7 +20,6 @@ import { BANNIERE, type Faits } from "../src/faits.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
-import { GESTES_DU_MANAGER } from "../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { type Faux, type Jouee, jouerLaVue, type Reponses, repos } from "./aides/fausse-vue.ts";
 
@@ -70,7 +69,7 @@ async function ouvrir(reponses: Reponses = {}): Promise<Jouee> {
       onglets: ONGLETS,
       rubriques: RUBRIQUES,
       boutons: BOUTONS,
-      gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+      gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
       banniere: BANNIERE,
       calibrage: { modeles: MODELES, efforts: EFFORTS },
       code: undefined,
@@ -209,104 +208,35 @@ describe("le prix est dans la confirmation, au clic", () => {
   });
 });
 
-describe("le grant `merge` est un interrupteur", () => {
-  test("la bande porte son état, lu dans `status` : actif, éteint seul, ou sans ligne — pas actif ; `status` pas lu, ce n'est pas « éteint »", () => {
-    assert.deepEqual(etatDuMerge(statusAvec(MERGE_ACTIF)), { actif: true, releve: valeur(MERGE_ACTIF) });
-    assert.deepEqual(etatDuMerge(statusAvec(MERGE_BIENTOT)), { actif: true, releve: valeur(MERGE_BIENTOT) });
-    assert.deepEqual(etatDuMerge(statusAvec(MERGE_SEUL)), { actif: false, seul: true, releve: valeur(MERGE_SEUL) });
-    assert.deepEqual(etatDuMerge(statusAvec()), { actif: false });
-    assert.ok("sans" in etatDuMerge({ sans: "`status` was not read: not reached" }));
-    assert.ok("sans" in etatDuMerge(statusAvec("grant      merge QUELQUE CHOSE")));
-    assert.deepEqual(bandeLue(statusAvec(MERGE_ACTIF), "ouverte").merge, { actif: true, releve: valeur(MERGE_ACTIF) });
-    const pasLu = bandeLue().merge;
-    assert.ok(pasLu !== undefined && "sans" in pasLu, JSON.stringify(pasLu));
-  });
-
-  test("le même rendu que celui du manager : une glissière et son mot, « merge on » ou « merge off », sa ligne de `status` au survol", async () => {
+// Un seul interrupteur pour tout le projet (#1406) : le grant `merge` n'en est plus un. L'interrupteur du
+// projet l'active en s'allumant ; le grant échu de lui-même, ou bientôt échu, reste une ligne de la bande.
+describe("le grant `merge` n'est plus un interrupteur", () => {
+  test("la bande ne porte plus son état, et l'espace n'a qu'un interrupteur : celui du projet", async () => {
+    assert.equal("merge" in bandeLue(statusAvec(MERGE_ACTIF), "ouverte"), false);
     const vue = await ouvrir();
     vue.dire("surAlertes", bandeLue(statusAvec(MERGE_ACTIF), "ouverte"));
     await repos();
 
-    assert.equal(vue.element("interrupteur-merge").hidden, false);
-    assert.equal(vue.element("interrupteur-merge").className, vue.element("interrupteur-manager").className);
-    const merge = bascule(vue, "interrupteur-merge");
-    const manager = bascule(vue, "interrupteur-manager");
-    const forme = (pose: Faux) => [pose.role, pose.className, ...pose.children.map(({ balise, className }) => `${balise}.${className}`)];
-    assert.deepEqual(forme(merge), forme(manager));
-    assert.equal(merge.role, "switch");
-    assert.equal(merge.ariaChecked, "true");
-    assert.equal(merge.dataset.etat, "allume");
-    assert.equal(merge.textContent, "merge on");
-    assert.match(merge.title, /^merge ACTIF, sans échéance, depuis 2 h — une pass verte est mergée sans toi\n/);
-    assert.match(manager.textContent, /^manager on$/);
-
-    vue.dire("surAlertes", bandeLue(statusAvec(), "ouverte"));
-    await repos();
-    const eteint = bascule(vue, "interrupteur-merge");
-    assert.equal(eteint.ariaChecked, "false");
-    assert.equal(eteint.dataset.etat, "eteint");
-    assert.equal(eteint.textContent, "merge off");
-    assert.equal(eteint.dataset.marque, undefined);
-    // Le prix n'est pas posé à côté de l'interrupteur.
-    assert.doesNotMatch(vue.element("interrupteur-merge").textContent, /merged without you/);
+    assert.throws(() => vue.element("interrupteur-merge"), /aucun élément/);
+    assert.throws(() => vue.element("interrupteur-manager"), /aucun élément/);
+    const interrupteurs = vue.poses().filter(({ className }) => className === "interrupteur-de-tete");
+    assert.deepEqual(interrupteurs.map(({ id }) => id), ["interrupteur-projet"]);
+    assert.equal(bascule(vue, "interrupteur-projet").textContent, "project on");
   });
 
-  test("éteint de lui-même, il le marque — et la bande ne pose plus sa ligne : l'interrupteur la dit, et la lève ; « bientôt éteint » reste une ligne, à prolonger", async () => {
+  test("échu de lui-même, il est une ligne de la bande, qui le réaccorde ; bientôt échu, une ligne à prolonger", async () => {
     const vue = await ouvrir();
-    const seul = bandeLue(statusAvec(MERGE_SEUL), "ouverte");
-    // La ligne reste dans les données : c'est elle qui fait le signal de la case, dans la barre.
-    assert.deepEqual(seul.alertes.map(({ sujet }) => sujet), ["grant"]);
-    vue.dire("surAlertes", seul);
+    vue.dire("surAlertes", bandeLue(statusAvec(MERGE_SEUL), "ouverte"));
     await repos();
-
-    const eteint = bascule(vue, "interrupteur-merge");
-    assert.equal(eteint.textContent, "merge off");
-    assert.equal(eteint.dataset.marque, "seul");
-    assert.match(eteint.title, /^merge ÉTEINT SEUL il y a 40 min/);
-    assert.equal(vue.element("alertes").hidden, true);
+    assert.equal(vue.element("alertes").hidden, false);
+    const echu = ligneDe(vue, "grant `merge` lapsed");
+    assert.equal(controleDe(echu).textContent, "enable merge again…");
+    controleDe(echu).click();
+    await repos();
+    assert.deepEqual(vue.dernier("confirmer"), ["parade", "grant-activer", "merge"]);
 
     vue.dire("surAlertes", bandeLue(statusAvec(MERGE_BIENTOT), "ouverte"));
     await repos();
-    assert.equal(bascule(vue, "interrupteur-merge").textContent, "merge on");
     assert.equal(controleDe(ligneDe(vue, "grant `merge` expiring soon")).textContent, "ask the second…");
-  });
-
-  test("pas lu : ni « on » ni « off », et un clic ne bascule rien", async () => {
-    const vue = await ouvrir();
-    vue.dire("surAlertes", bandeLue());
-    await repos();
-    const inconnu = bascule(vue, "interrupteur-merge");
-    assert.equal(inconnu.ariaChecked, "mixed");
-    assert.equal(inconnu.disabled, true);
-    assert.equal(inconnu.textContent, "merge …");
-    inconnu.click();
-    await repos();
-    assert.deepEqual(appelsDe(vue, "confirmer", "geste"), []);
-  });
-
-  test("un clic le bascule : éteint, il ouvre la confirmation d'accorder, qui dit son prix ; allumé, celle de révoquer — rien ne part avant le « oui »", async () => {
-    const vue = await ouvrir();
-    vue.dire("surAlertes", bandeLue(statusAvec(), "ouverte"));
-    await repos();
-
-    bascule(vue, "interrupteur-merge").click();
-    await repos();
-    assert.deepEqual(vue.dernier("confirmer"), ["parade", "grant-activer", "merge"]);
-    const accorder = vue.element("interrupteur-merge").dessous("div").find(({ className }) => className === "confirmation") ?? assert.fail("pas de confirmation sous l'interrupteur");
-    assert.match(accorder.textContent, /enable the `merge` grant/);
-    assert.deepEqual(accorder.dessous("p").filter(({ className }) => className === "prix").map(({ textContent }) => textContent), ["A green pass will be merged without you: the pass merges what it judges green, with no expiry or number of uses — until you revoke it."]);
-    assert.deepEqual(appelsDe(vue, "geste"), []);
-    (accorder.dessous("button").find(({ dataset }) => dataset.oui !== undefined) ?? assert.fail("pas de « oui »")).click();
-    await repos();
-    assert.deepEqual(appelsDe(vue, "geste"), [["geste", "parade", "grant-activer", "merge", true]]);
-
-    vue.dire("surAlertes", bandeLue(statusAvec(MERGE_ACTIF), "ouverte"));
-    await repos();
-    bascule(vue, "interrupteur-merge").click();
-    await repos();
-    assert.deepEqual(vue.dernier("confirmer"), ["parade", "grant-revoquer", "merge"]);
-    const revoquer = vue.element("interrupteur-merge").dessous("div").find(({ className }) => className === "confirmation") ?? assert.fail("pas de confirmation");
-    assert.match(revoquer.textContent, /revoke the `merge` grant/);
-    assert.equal(bascule(vue, "interrupteur-merge").ariaChecked, "true", "la confirmation ouverte ne bascule rien");
   });
 });

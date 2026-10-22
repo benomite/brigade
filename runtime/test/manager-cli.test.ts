@@ -1,7 +1,7 @@
 // La commande par laquelle le chef voit le manager et le tient :
-// `npm run manager -- [on | off | return <n°> | backlog | upstream]`. Elle se joue
-// dans le process du test ; depuis le sien, là où c'est lui qu'on regarde — allumer
-// pendant que le runtime tourne, un refus rendu par son code. `backlog` lit GitHub :
+// `npm run manager -- [return <n°> | backlog | upstream]` — `on` et `off` sont refusées :
+// il suit l'interrupteur du projet (#1406). Elle se joue dans le process du test ;
+// depuis le sien, là où c'est lui qu'on regarde — un refus rendu par son code. `backlog` lit GitHub :
 // un faux `gh` lui dicte un backlog connu.
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
@@ -9,7 +9,6 @@ import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
 import { principal as manager } from "../src/manager-cli.ts";
-import { etatDuManager } from "../src/projections/manager.ts";
 import { demarrer } from "../src/runtime.ts";
 import { sansMotFrancais } from "./aides/glossaire.ts";
 import { appeler, DEPOT, fauxGh, horloge, issueGitHub, lancer, repertoireTemporaire } from "./outils.ts";
@@ -43,31 +42,31 @@ describe("la commande manager", { concurrency: 8 }, () => {
     assert.deepEqual(journal.tout(), avant);
   });
 
-  test("allumer s'écrit au journal, une seule fois, au nom du chef", async (t) => {
+  // Le manager n'a plus d'interrupteur à lui (#1406) : il suit celui du projet (`switch`).
+  test("allumer ou éteindre le manager seul est refusé : la commande nomme l'interrupteur du projet, et n'écrit rien", async (t) => {
     const { lancee, commandes, journal } = cuisine(t);
+    const avant = journal.tout().length;
 
-    const premiere = await lancee("on");
-    const seconde = await lancee("on");
+    const [allumer, eteindre] = [await lancee("on"), await lancee("off")];
 
-    assert.equal(premiere.code, 0);
-    assert.match(premiere.sortie, /manager on: it judges the open issues/);
-    assert.match(seconde.sortie, /already on since/);
-    assert.deepEqual(commandes().map((e) => [e.type, e.author]), [["manager.enabled", "chef"]]);
-    assert.equal(etatDuManager(journal.base)?.active, true);
-    assert.match((await lancee()).sortie, /manager\s+ON since \d{4}-\d{2}-\d{2}T\S+ \(by chef\)/);
+    assert.equal(allumer.code, 1);
+    assert.match(allumer.sortie, /the manager has no switch of its own any more: it follows the project switch, which also takes the tickets and merges the green deliveries — `brigade <projet> switch on`\. Nothing is written/);
+    assert.equal(eteindre.code, 1);
+    assert.match(eteindre.sortie, /`brigade <projet> switch off`\. Nothing is written/);
+    assert.deepEqual(commandes(), []);
+    assert.equal(journal.tout().length, avant);
   });
 
-  test("éteindre arrête les jugements à venir, et ne défait rien de ce qui est posé", async (t) => {
-    const { commande, commandes } = cuisine(t);
-    assert.match((await commande("off")).sortie, /nothing to turn off/);
-    await commande("on");
+  test("la ligne `manager` suit l'interrupteur du projet, dès qu'il est posé — l'ancien interrupteur n'y compte plus", async (t) => {
+    const { commande, noter } = cuisine(t);
+    noter({ type: "manager.enabled", payload: {} }, null, "chef");
+    noter({ type: "project.switched-off", payload: {} }, null, "chef");
 
-    const { code, sortie } = await commande("off");
+    assert.match((await commande()).sortie, /manager\s+OFF since \d{4}-\d{2}-\d{2}T\S+ \(by chef\) — the project switch is off: `brigade <projet> switch on` turns it on — no issue is judged, what it set stays set/);
 
-    assert.equal(code, 0);
-    assert.match(sortie, /manager off: no issue is judged any more — what it set stays set/);
-    assert.deepEqual(commandes().map((e) => e.type), ["manager.enabled", "manager.disabled"]);
-    assert.match((await commande()).sortie, /manager\s+OFF since/);
+    noter({ type: "project.switched-on", payload: { cause: "default" } }, null, "runtime");
+
+    assert.match((await commande()).sortie, /manager\s+ON since \d{4}-\d{2}-\d{2}T\S+ \(by runtime\) — the project switch is on: it judges the open issues/);
   });
 
   test("le chef lit les dernières décisions, chacune avec son motif", async (t) => {
@@ -156,7 +155,7 @@ describe("la commande manager", { concurrency: 8 }, () => {
     const seconde = await commande("return", "30");
 
     assert.equal(premiere.code, 0);
-    assert.match(premiere.sortie, /#30 returned to the manager: it rejudges it from scratch .* A return counts for one judgment \(the manager is off: it will be rejudged when you turn it on\)/);
+    assert.match(premiere.sortie, /#30 returned to the manager: it rejudges it from scratch .* A return counts for one judgment \(the manager is off: it will be rejudged once the project switch is on — `brigade <projet> switch on`\)/);
     assert.equal(seconde.code, 0);
     assert.match(seconde.sortie, /#30 is already returned to the manager/);
     assert.deepEqual(journal.duTicket(30).map((e) => [e.type, e.author]), [["manager.set-aside", "manager"], ["manager.handed-back", "chef"]]);
@@ -213,13 +212,14 @@ describe("la commande manager", { concurrency: 8 }, () => {
 
     const lignes = async (...args: string[]) => (await commande(...args)).sortie.trimEnd().split("\n");
     sansMotFrancais(await lignes());
-    await commande("on");
+    noter({ type: "project.switched-on", payload: {} }, null, "chef");
     sansMotFrancais(await lignes());
     sansMotFrancais(await lignes("on"));
     // Rendre : réussi, déjà rendu, et chaque écart que la commande ne force pas.
     for (const ticket of ["9", "10", "1", "2", "6", "7", "8", "30", "31", "32", "99"]) sansMotFrancais(await lignes("return", ticket));
     sansMotFrancais(await lignes("off"));
-    sansMotFrancais(await lignes("off"));
+    noter({ type: "project.switched-off", payload: {} }, null, "chef");
+    sansMotFrancais(await lignes());
     // Les refus : un mot inconnu, un numéro qui n'en est pas un, un argument de trop.
     for (const args of [["start"], ["return", "ten"], ["return"], ["on", "now"]]) {
       const refus = await commande(...args);
@@ -272,14 +272,14 @@ describe("la commande manager", { concurrency: 8 }, () => {
     const { code, sortie } = await commande("start");
 
     assert.equal(code, 2);
-    assert.match(sortie, /usage: .*\[on \| off \| return <issue number> \| backlog \| upstream\]/);
+    assert.match(sortie, /usage: .*\[return <issue number> \| backlog \| upstream\]/);
     assert.deepEqual(commandes(), []);
   });
 
   test("sans répertoire d'état, ou sans journal, la commande échoue et ne crée rien", async (t) => {
     const vide = repertoireTemporaire(t);
     const sansVariable = lancer(t, CLI, []);
-    const sansJournal = appeler(manager, ["on"], { BRIGADE_STATE_DIR: vide });
+    const sansJournal = appeler(manager, ["return", "30"], { BRIGADE_STATE_DIR: vide });
 
     assert.equal(await sansVariable.fin, 2);
     assert.equal(await sansJournal.fin, 1);

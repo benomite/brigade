@@ -67,10 +67,10 @@
 // Chaque alerte tient en une ligne — ce qui ne va pas — et un contrôle — son geste (ticket 907) :
 // confirmé — reprendre —, ou une demande au second quand il faut lire, juger ou agir sur la box ;
 // une ligne « non vérifié » mène à l'onglet qui lit l'état. Le prix n'est jamais posé à côté : le
-// clic ouvre la confirmation, qui le dit. Ce que la box en écrit est derrière « detail ». Le manager
-// et le grant `merge` n'y font pas de ligne : ce sont des interrupteurs, en tête de l'espace, à
-// droite des onglets — allumé ou éteint, un clic le bascule —, et, le manager éteint, la tête du
-// rail est marquée à l'arrêt (tickets 906, 907).
+// clic ouvre la confirmation, qui le dit. Ce que la box en écrit est derrière « detail ». Le projet
+// éteint n'y fait pas de ligne : c'est un interrupteur, un seul pour tout le projet (ticket 1406), en tête
+// de l'espace, à droite des onglets — allumé ou éteint, un clic le bascule —, et, éteint, la tête du
+// rail est marquée à l'arrêt d'une ligne (ticket 906).
 // Arrêter la cuisine est sur le rail, qu'il arrête ; vérifier l'installation, en tête de l'espace,
 // à côté du nom du projet.
 // En tête de Paramètres, et au survol de « T », le code de l'app lui-même : à jour, ou en retard sur
@@ -223,8 +223,7 @@ const luOnglet = element("lu-onglet");
 const lectureOnglet = element("lecture-onglet");
 const gestesOnglet = element("gestes-onglet");
 const gestesProjet = element("gestes-projet");
-const interrupteurManager = element("interrupteur-manager");
-const interrupteurMerge = element("interrupteur-merge");
+const interrupteurProjet = element("interrupteur-projet");
 const provenance = /** @type {HTMLDetailsElement} */ (element("provenance"));
 const provenanceLignes = element("provenance-lignes");
 const arreterCuisine = element("arreter-cuisine");
@@ -704,10 +703,7 @@ const rubriqueDe = (id) => RUBRIQUES.find(({ lectures }) => lectures.includes(/*
 // Les boutons d'action, dits de même (boutons.ts) : la vue les pose, elle ne sait pas ce qu'ils écrivent.
 /** @type {readonly import("../boutons.ts").Bouton[]} */
 let BOUTONS = [];
-// Les deux gestes du manager, dits de même (manager.ts) : la vue les nomme, elle ne sait pas ce qu'ils écrivent.
-/** @type {readonly { id: string, libelle: string }[]} */
-let GESTES_DU_MANAGER = [];
-// Ce qu'engage l'allumage du manager, dit de même (allumage.ts) : la lecture qui le chiffre, et ce qui se pose avant elle.
+// Ce qu'engage l'allumage du projet, dit de même (allumage.ts) : la lecture qui le chiffre, et ce qui se pose avant elle.
 /** @type {typeof import("../allumage.ts").ALLUMAGE | undefined} */
 let ALLUMAGE;
 // La confirmation ouverte : celle d'un geste, pour un projet, à un endroit — la même ne s'ouvre
@@ -845,14 +841,11 @@ const bandes = new Map();
 // signaux posés : un seul par case.
 /** @type {Map<string, {etat: string, dit: string} | undefined>} */
 const signaux = new Map();
-// L'état du manager de chaque projet, tel que sa dernière bande l'a dit (alertes.ts, `EtatDuManager`) :
-// son interrupteur, en tête de l'espace, et la tête du rail le disent. Sans entrée, il n'est pas encore lu.
+// L'état de l'interrupteur de chaque projet — le manager le suit, et sa ligne le dit —, tel que sa
+// dernière bande l'a dit (alertes.ts, `EtatDuManager`) : l'interrupteur, en tête de l'espace, et la
+// tête du rail le disent. Sans entrée, il n'est pas encore lu.
 /** @type {Map<string, import("../alertes.ts").EtatDuManager | undefined>} */
 const etatsDuManager = new Map();
-// L'état du grant `merge` de chaque projet, tel que sa dernière bande l'a dit (alertes.ts, `EtatDuGrant`) :
-// son interrupteur le dit, à côté de celui du manager (ticket 907). Sans entrée, il n'est pas encore lu.
-/** @type {Map<string, import("../alertes.ts").EtatDuGrant | undefined>} */
-const etatsDuMerge = new Map();
 // Les lignes de la bande dont le « detail » est déplié, par projet et par endroit (`endroitDeLAlerte`) :
 // une relecture de la bande ne le replie pas sous les yeux du chef.
 /** @type {Set<string>} */
@@ -4020,16 +4013,16 @@ function poserAmont(projet, { aucunTicket }, cartes) {
   return [tete, listeAmont(projet, vu, cartes)];
 }
 
-// La tête du rail, le manager éteint (ticket 906) : marquée à l'arrêt, d'une ligne courte — rien de neuf
-// n'entre sur le rail. Ce qui y est déjà continue : seule l'entrée est à l'arrêt. Allumé, pas encore
-// lu ou pas lu, rien : l'interrupteur, en tête de l'espace, dit ce qu'il en est.
+// La tête du rail, le projet éteint (tickets 906, 1406) : marquée à l'arrêt, d'une ligne courte — rien de
+// neuf n'est pris, découpé ni mergé. Les cooks en cours finissent. Allumé, pas encore lu ou pas lu,
+// rien : l'interrupteur, en tête de l'espace, dit ce qu'il en est.
 /** @param {Projet} projet @returns {HTMLElement[]} */
 function teteDuRail(projet) {
   const lu = etatsDuManager.get(projet.nom);
   if (lu === undefined || "sans" in lu || lu.allume) return [];
   const tete = document.createElement("p");
   tete.className = "arret-manager";
-  tete.append(pastille("off", "gris"), bloc("strong", lu.dit ?? "manager off"));
+  tete.append(pastille("off", "gris"), bloc("strong", lu.dit ?? "project off"));
   tete.title = `${lu.releve}\nturn it on with its switch, at the top of the space`;
   return [tete];
 }
@@ -4650,12 +4643,11 @@ function tracesDUsage({ pr, commit, verdict }) {
   return posees;
 }
 
-// L'état du manager du projet affiché, au-dessus du texte de l'onglet Manager : l'interrupteur
-// — allumé ou éteint, depuis quand et par qui —, ses deux gestes, puis ses dernières décisions
-// et ce qu'il a écarté, chaque écart avec son motif. Tout est déjà lu par le process principal
-// (manager.ts), dans la sortie qui se lit dessous : la vue pose. Sans état lu, elle dit pourquoi
-// — jamais « éteint » — et les gestes restent : ils n'attendent rien de la lecture. Éteindre part
-// au clic ; allumer ouvre sa confirmation, qui dit ce qu'il engage.
+// L'état du manager du projet affiché, au-dessus du texte de l'onglet Manager : allumé ou éteint
+// — il suit l'interrupteur du projet (ticket 1406), qui seul l'allume et l'éteint, en tête de l'espace —,
+// depuis quand et par qui, puis ses dernières décisions et ce qu'il a écarté, chaque écart avec son
+// motif. Tout est déjà lu par le process principal (manager.ts), dans la sortie qui se lit dessous :
+// la vue pose. Sans état lu, elle dit pourquoi — jamais « éteint ».
 // La page des coûts de l'app (ticket 1022). En tête (cost/tete.js), les tokens lancés sur 5 h, 24 h et 7 jours,
 // tous projets confondus, et la part de chacun — chaque projet qui a une box, et qu'elle sert encore ;
 // un clic sur son nom l'ouvre. Puis les tokens perdus (cost/perdus.js) — leur liste repliée à
@@ -4849,15 +4841,11 @@ function poserManager() {
   if (projet === undefined || manager.hidden) return manager.replaceChildren();
   const vu = managerVu?.projet === projet.nom ? managerVu : undefined;
 
-  const gestes = document.createElement("div");
-  gestes.className = "gestes";
-  gestes.append(...GESTES_DU_MANAGER.flatMap(({ id, libelle }) => poserGeste(projet, { id, libelle, ou: "manager" })));
-
   // L'heure n'est dite que d'un état lu : celle d'un essai raté se lit dessous, avec ce qu'il a rendu.
   const titre = bloc("h3", `the manager${vu === undefined || "sans" in vu ? "" : ` — read at ${heureDe(vu.a)}`}`);
   titre.append(survol(document, `from \`${geste(projet, "manager")}\``));
-  if (vu === undefined) return manager.replaceChildren(titre, bloc("p", "first read in progress…"), gestes);
-  if ("sans" in vu) return manager.replaceChildren(titre, lectureIndisponible(document, "the manager state could not be read", vu.sans), gestes);
+  if (vu === undefined) return manager.replaceChildren(titre, bloc("p", "first read in progress…"));
+  if ("sans" in vu) return manager.replaceChildren(titre, lectureIndisponible(document, "the manager state could not be read", vu.sans));
 
   const { mot, ton, depuis, par, dit } = vu.interrupteur;
   const interrupteur = document.createElement("p");
@@ -4867,7 +4855,6 @@ function poserManager() {
     titre,
     interrupteur,
     bloc("p", dit),
-    gestes,
     ...listeLue("latest decisions — most recent first", vu.decisions, (decision) => [teteDIssue(decision), bloc("p", decision.dit)]),
     ...listeLue("set aside — each with its reason", vu.ecartees, (ecart) => [teteDIssue(ecart), bloc("p", ecart.motif), ...(ecart.rend === undefined ? [] : [bloc("small", ecart.rend)])]),
   );
@@ -4986,81 +4973,54 @@ function poserProjet() {
   gestesProjet.replaceChildren(verifier);
 }
 
-// Un interrupteur de l'espace, en tête, à droite des onglets (tickets 906, 907) : une glissière et son
-// mot — « manager on », « merge off » —, lisible sans rien lire d'autre, et un clic le bascule. Ce qui
+// L'interrupteur de l'espace, en tête, à droite des onglets (tickets 906, 1406) : une glissière et son
+// mot — « project on », « project off » —, lisible sans rien lire d'autre, et un clic le bascule. Ce qui
 // en a été lu, mot pour mot, est au survol, avec ce que le clic fait. Pas encore lu, ou pas lu : il ne
-// dit ni l'un ni l'autre, et ne bascule rien — ce n'est pas « éteint ». `marque` : éteint de lui-même,
-// pas par le chef. Sa confirmation, quand le clic en ouvre une, se pose dessous.
+// dit ni l'un ni l'autre, et ne bascule rien — ce n'est pas « éteint ». Sa confirmation, quand le clic
+// en ouvre une, se pose dessous.
 /**
  * @param {string} nom @param {boolean | undefined} allume indéfini : pas lu
- * @param {{ pourquoi: string, eteindre: string, allumer: string, marque?: boolean, clic: () => void, confirmation?: HTMLElement }} pose
+ * @param {{ pourquoi: string, eteindre: string, allumer: string, clic: () => void, confirmation?: HTMLElement }} pose
  * @returns {HTMLElement[]}
  */
-function interrupteur(nom, allume, { pourquoi, eteindre, allumer, marque = false, clic, confirmation }) {
+function interrupteur(nom, allume, { pourquoi, eteindre, allumer, clic, confirmation }) {
   const bascule = bouton("", () => (allume === undefined ? undefined : clic()));
   bascule.role = "switch";
   bascule.className = "bascule";
   bascule.dataset.etat = allume === undefined ? "inconnu" : allume ? "allume" : "eteint";
-  if (marque) bascule.dataset.marque = "seul";
   bascule.ariaChecked = allume === undefined ? "mixed" : String(allume);
   bascule.disabled = allume === undefined;
   const glissiere = bloc("span", "");
   glissiere.className = "glissiere";
   bascule.append(glissiere, bloc("span", `${nom} ${allume === undefined ? "…" : allume ? "on" : "off"}`));
   bascule.title = `${pourquoi}${allume === undefined ? "" : `\n${allume ? eteindre : allumer}`}`;
-  bascule.ariaLabel = `${nom === "manager" ? "the manager" : `the ${nom} grant`}: ${allume === undefined ? "not read" : allume ? "on" : "off"}`;
+  bascule.ariaLabel = `the ${nom}: ${allume === undefined ? "not read" : allume ? "on" : "off"}`;
   return [bascule, ...(confirmation === undefined ? [] : [confirmation])];
 }
 
-// Les interrupteurs de l'espace du projet : le manager (ticket 906) et le grant `merge` (ticket 907).
-// Le manager : éteindre part au clic, dans le second ; allumer ouvre sa confirmation, qui dit en une
-// phrase ce qu'il va juger ; sa ligne `manager`, mot pour mot, est au survol, le détail dans l'onglet
-// Manager. Le grant `merge` : accorder comme révoquer ouvrent leur confirmation, qui dit ce qu'il
-// change ; sa ligne de `status`, mot pour mot, est au survol, le détail dans l'onglet Grants. Éteint
-// de lui-même — son échéance passée —, il le marque.
+// L'interrupteur de l'espace du projet, un seul pour tout le projet (ticket 1406) : allumé, les tickets lancés
+// sont pris, le manager juge et découpe, une livraison verte est mergée ; éteint, rien de neuf ne l'est.
+// Éteindre part au clic, dans le second ; allumer ouvre sa confirmation, qui dit en une phrase ce que
+// le manager va juger. Sa ligne `manager` — le manager le suit, et c'est elle qui le dit —, mot pour
+// mot, est au survol, le détail dans l'onglet Manager.
 function poserInterrupteur() {
   const projet = courant;
   const cache = projet === undefined || !seLit(projet) || projet.desinstalle !== undefined;
-  interrupteurManager.hidden = interrupteurMerge.hidden = cache;
-  if (projet === undefined || cache) {
-    interrupteurManager.replaceChildren();
-    interrupteurMerge.replaceChildren();
-    return;
-  }
-  /** @param {string} id @param {string} [grant] */
-  const cleDe = (id, grant) => JSON.stringify([id, grant ?? "", "interrupteur"]);
-  /** @param {string} id @param {string} [grant] */
-  const ouverteSous = (id, grant) => {
-    const ouverte = aConfirmer?.projet === projet.nom && aConfirmer.cle === cleDe(id, grant) ? aConfirmer : undefined;
-    return ouverte === undefined ? undefined : poserConfirmation(projet, ouverte, grant);
-  };
+  interrupteurProjet.hidden = cache;
+  if (projet === undefined || cache) return interrupteurProjet.replaceChildren();
+  const cle = JSON.stringify(["projet-allumer", "", "interrupteur"]);
+  const ouverte = aConfirmer?.projet === projet.nom && aConfirmer.cle === cle ? aConfirmer : undefined;
+  const confirmation = ouverte === undefined ? undefined : poserConfirmation(projet, ouverte);
 
-  const manager = etatsDuManager.get(projet.nom);
-  const lu = manager !== undefined && !("sans" in manager) ? manager : undefined;
-  const confirmationDuManager = ouverteSous("manager-allumer");
-  interrupteurManager.replaceChildren(
-    ...interrupteur("manager", lu?.allume, {
-      pourquoi: manager === undefined ? "the manager state: first read in progress" : "sans" in manager ? `the manager state is not read: ${manager.sans}` : manager.releve,
-      eteindre: "click to turn it off: it goes straight into the second",
-      allumer: "click to turn it on: says first what it will judge — nothing goes before your “yes”",
-      clic: () => (lu?.allume ? void ecrireGeste("manager-eteindre") : void ouvrirConfirmation(projet, cleDe("manager-allumer"), "manager-allumer")),
-      ...(confirmationDuManager === undefined ? {} : { confirmation: confirmationDuManager }),
-    }),
-  );
-
-  const merge = etatsDuMerge.get(projet.nom);
-  const grant = merge !== undefined && !("sans" in merge) ? merge : undefined;
-  const id = grant?.actif ? "grant-revoquer" : "grant-activer";
-  const confirmationDuMerge = ouverteSous(id, "merge");
-  const ligne = grant === undefined ? "" : (grant.releve ?? "no `merge` line in `status`: the grant is not active — never given, or revoked");
-  interrupteurMerge.replaceChildren(
-    ...interrupteur("merge", grant?.actif, {
-      pourquoi: merge === undefined ? "the merge grant state: first read in progress" : "sans" in merge ? `the merge grant state is not read: ${merge.sans}` : `${ligne}\nin full: the Grants tab`,
-      eteindre: "click to revoke it: says first what it changes — nothing goes before your “yes”",
-      allumer: "click to enable it: says first what it changes — nothing goes before your “yes”",
-      marque: grant?.seul === true,
-      clic: () => void ouvrirConfirmation(projet, cleDe(id, "merge"), id, "merge"),
-      ...(confirmationDuMerge === undefined ? {} : { confirmation: confirmationDuMerge }),
+  const etat = etatsDuManager.get(projet.nom);
+  const lu = etat !== undefined && !("sans" in etat) ? etat : undefined;
+  interrupteurProjet.replaceChildren(
+    ...interrupteur("project", lu?.allume, {
+      pourquoi: etat === undefined ? "the project switch: first read in progress" : "sans" in etat ? `the project switch is not read: ${etat.sans}` : etat.releve,
+      eteindre: "click to switch it off — nothing new is taken, split or merged: it goes straight into the second",
+      allumer: "click to switch it on: says first what the manager will judge — nothing goes before your “yes”",
+      clic: () => (lu?.allume ? void ecrireGeste("projet-eteindre") : void ouvrirConfirmation(projet, cle, "projet-allumer")),
+      ...(confirmation === undefined ? {} : { confirmation }),
     }),
   );
 }
@@ -6391,10 +6351,10 @@ async function mettreAJour(clone) {
 // lu, et l'espace le dit.
 /** @param {Projet} projet */
 function poserAlertes(projet) {
-  // Une ligne dont le geste est celui d'un interrupteur de l'espace n'est pas posée : l'interrupteur la
-  // dit, et c'est lui qui la lève — le manager éteint (ticket 906), le grant `merge` éteint seul (ticket
-  // 907). Non vérifiée, elle se pose : l'interrupteur ne sait pas, la ligne dit pourquoi.
-  const alertes = !seLit(projet) ? [] : (bandes.get(projet.nom) ?? []).filter(({ appel }) => !(appel !== undefined && "geste" in appel && (appel.geste === "manager-allumer" || (appel.geste === "grant-activer" && appel.grant === "merge"))));
+  // La ligne dont le geste est celui de l'interrupteur de l'espace n'est pas posée : l'interrupteur la
+  // dit, et c'est lui qui la lève — le projet éteint (tickets 906, 1406). Non vérifiée, elle se pose :
+  // l'interrupteur ne sait pas, la ligne dit pourquoi.
+  const alertes = !seLit(projet) ? [] : (bandes.get(projet.nom) ?? []).filter(({ appel }) => !(appel !== undefined && "geste" in appel && appel.geste === "projet-allumer"));
   gesteDeLUrgence = undefined;
   bande.hidden = alertes.length === 0;
   bande.replaceChildren(...alertes.map((alerte) => poserAlerte(projet, alerte)));
@@ -6816,21 +6776,21 @@ brigade.surLecture((recue, servies) => {
 // Les faits d'un projet : ils remplacent ceux d'avant, partout où ils se dessinent —
 // sa pastille dans la barre, et son espace s'il est affiché — sa ligne de l'accueil vient par `surAccueil`.
 // La bande d'alertes d'un projet : posée tout de suite si c'est celui qui est affiché.
-brigade.surAlertes(({ projet, alertes, signal, manager: etatDuManager, merge: etatDuMerge }) => {
+brigade.surAlertes(({ projet, alertes, signal, manager: etatDuManager }) => {
   bandes.set(projet, alertes);
   signaux.set(projet, signal);
   marquerSignal(projet);
   // La pastille dit la même chose que la bande, en un mot.
   marquerPastille(projet);
   const bascule = JSON.stringify(etatsDuManager.get(projet)) !== JSON.stringify(etatDuManager);
-  const basculeMerge = JSON.stringify(etatsDuMerge.get(projet)) !== JSON.stringify(etatDuMerge);
   etatsDuManager.set(projet, etatDuManager);
-  etatsDuMerge.set(projet, etatDuMerge);
   if (courant?.nom !== projet) return;
   poserAlertes(courant);
-  // Un interrupteur a basculé : il le dit aussitôt — et, le manager, la tête du rail aussi.
-  if (bascule || basculeMerge) poserInterrupteur();
-  if (bascule) poserRail(courant);
+  // L'interrupteur a basculé : il le dit aussitôt, et la tête du rail aussi.
+  if (bascule) {
+    poserInterrupteur();
+    poserRail(courant);
+  }
 });
 // Le chef a cliqué la notification de l'urgence d'un projet : la fenêtre est déjà devant. Le projet
 // s'ouvre — s'il ne l'est pas déjà —, la fiche d'un ticket ouverte par-dessus se referme, et la ligne
@@ -7132,7 +7092,6 @@ PALETTE = demarrage.palette;
 ONGLETS = demarrage.onglets;
 RUBRIQUES = demarrage.rubriques;
 BOUTONS = demarrage.boutons;
-GESTES_DU_MANAGER = demarrage.gestes.manager;
 ALLUMAGE = demarrage.gestes.allumage;
 GESTES_DE_LA_CUISINE = demarrage.gestes.cuisine;
 CONFIRMES = demarrage.gestes.confirmes;

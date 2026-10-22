@@ -273,17 +273,14 @@ main > header,
 #gestes-projet {
   margin-left: auto;
 }
-/* Les interrupteurs de l'espace (#906, #907), à droite des onglets — le manager, le grant `merge` : une
-   glissière et son mot, « manager on » ou « merge off » — lisible sans rien lire d'autre. Allumé, la
-   glissière est à droite, verte ; éteint, à gauche, grise ; pas lu, en pointillés, et il ne bascule rien ;
-   éteint de lui-même (le grant échu), cerné de jaune. Sa confirmation s'ouvre dessous, par-dessus le rail. */
+/* L'interrupteur de l'espace (tickets 906, 1406), à droite des onglets — un seul pour tout le projet : une
+   glissière et son mot, « project on » ou « project off » — lisible sans rien lire d'autre. Allumé, la
+   glissière est à droite, verte ; éteint, à gauche, grise ; pas lu, en pointillés, et il ne bascule rien.
+   Sa confirmation s'ouvre dessous, par-dessus le rail. */
 .interrupteur-de-tete {
   position: relative;
   flex: none;
   margin-left: 16px;
-}
-.interrupteur-de-tete + .interrupteur-de-tete {
-  margin-left: 8px;
 }
 .interrupteur-de-tete .bascule {
   display: inline-flex;
@@ -334,9 +331,6 @@ main > header,
   left: 9px;
   background: transparent;
   border: 1px dashed var(--discret);
-}
-.interrupteur-de-tete .bascule[data-marque="seul"] {
-  border-color: var(--jaune);
 }
 .interrupteur-de-tete > .confirmation {
   position: absolute;

@@ -6,23 +6,27 @@ or says, in a comment, why it is not an executable ticket. An **epic** it **spli
 epics"); a ticket that **fails in the pass**, it does something about, rather than passing it up to you as is
 (see "It reacts to a failure").
 
-**It is off until you turn it on**, and turns on without a restart (facts in the log). Turned off in the
-middle of a judgment, it lets the judgment finish but sets nothing: the decision is set, without judging
-again, when you turn it back on.
+**It has no switch of its own: it follows the project switch** (#1406, `npm --prefix runtime run switch`,
+see "The project switch" in `docs/runtime/exploitation.md`) — one ON/OFF for the whole project, which also
+takes the fired tickets and merges the green deliveries. The switch is **on by default**: the runtime sets it
+at its first start, so a new project's manager judges without anyone flipping anything. On a log from before
+the switch, the runtime carries the old setting over at its start: on as soon as the manager or the `merge`
+grant was on, off when both were off. It turns on and off without a restart (facts in the log). Switched off in
+the middle of a judgment, it lets the judgment finish but sets nothing: the decision is set, without judging
+again, when the project is switched back on. `manager -- on` and `manager -- off` are refused, naming
+`switch on` and `switch off`: nothing is written.
 
 What `manager` writes — outputs, refusals, errors — is **in English** (words from `docs/glossary.md`: `ON` / `OFF`, `latest decisions`, `set aside`, `epics`, `reactions`). The keys of the `upstream` JSON do not change, only the text of `dit` is in English.
 
 ```bash
-npm --prefix runtime run manager                # the switch, its last fifteen decisions, what it set aside, the epics, its reactions to failures
-npm --prefix runtime run manager -- on
-npm --prefix runtime run manager -- off
+npm --prefix runtime run manager                # whether it judges (the project switch), its last fifteen decisions, what it set aside, the epics, its reactions to failures
 npm --prefix runtime run manager -- return 77   # hand back an issue it set aside because you removed one of its labels
 npm --prefix runtime run manager -- backlog     # what turning it on commits it to: how many issues are open, and how many carry blocked-on-human
 npm --prefix runtime run manager -- upstream    # what is not on the rail yet: every open issue it does not carry, and what is happening to it — for the app
 ```
 
 ⚠️ **Once on, it judges the whole open backlog**, and whatever it judges executable goes straight to
-the kitchen. Before turning it on, set `blocked-on-human` on whatever must not go: an issue that carries it
+the kitchen — and, the project switch being the same, its green deliveries are merged. Before switching it on, set `blocked-on-human` on whatever must not go: an issue that carries it
 is never judged, **an epic that carries it is never split**. Between two issues you wrote
 yourself, it sets no dependencies: they go in service order, unless you
 write `attend` in the card of one of them. Between the tickets of an epic it splits, it does set them.

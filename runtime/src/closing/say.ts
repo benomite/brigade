@@ -58,7 +58,7 @@ export function direDemande({ since, sansIssue }: Demande, retenue: Refus | null
   if (!faitAttendre(retenue)) return `${demandee} : ${direRefus(retenue)} — le runtime la refuse à son prochain réveil, rien ne part`;
   const renoncer = `y renoncer : \`${ANNULER}\``;
   if (sansIssue === null) return `${demandee}, elle attend — ${direRefus(retenue)} ; elle part seule, une fois, dès que rien ne la retient, sans que personne la relance — pour ${renoncer}`;
-  return `PASSE DE FERMETURE SANS ISSUE : demandée le ${since}, elle attend depuis plus de ${SANS_ISSUE_MS / 3_600_000} h — ${direRefus(retenue)} ; le rail ne se vide pas seul — à trancher : relever le seuil (\`${geste("station closer-cooks <N>")}\`), éteindre le manager le temps que le rail se vide (\`${geste(`manager off`)}\`), ou ${renoncer}`;
+  return `PASSE DE FERMETURE SANS ISSUE : demandée le ${since}, elle attend depuis plus de ${SANS_ISSUE_MS / 3_600_000} h — ${direRefus(retenue)} ; le rail ne se vide pas seul — à trancher : relever le seuil (\`${geste("station closer-cooks <N>")}\`), éteindre l'interrupteur du projet le temps que le rail se vide (\`${geste(`switch off`)}\`), ou ${renoncer}`;
 }
 
 // Le refus et la demande, en anglais : ce que dit le bloc `awaiting` de
@@ -99,7 +99,7 @@ export function direDemandeEn({ since, sansIssue }: Demande, retenue: Refus | nu
   if (!faitAttendre(retenue)) return `${demandee}: ${direRefusEn(retenue)} — the runtime refuses it at its next wake-up, nothing leaves`;
   const renoncer = `withdraw it: \`${ANNULER}\``;
   if (sansIssue === null) return `${demandee}, it waits — ${direRefusEn(retenue)}; it leaves on its own, once, as soon as nothing holds it back, without anyone restarting it — to ${renoncer}`;
-  return `CLOSING PASS WITH NO WAY OUT: requested on ${since}, it has waited for more than ${SANS_ISSUE_MS / 3_600_000} h — ${direRefusEn(retenue)}; the rail does not empty on its own — to decide: raise the threshold (\`${geste("station closer-cooks <N>")}\`), turn the manager off while the rail empties (\`${geste(`manager off`)}\`), or ${renoncer}`;
+  return `CLOSING PASS WITH NO WAY OUT: requested on ${since}, it has waited for more than ${SANS_ISSUE_MS / 3_600_000} h — ${direRefusEn(retenue)}; the rail does not empty on its own — to decide: raise the threshold (\`${geste("station closer-cooks <N>")}\`), switch the project off while the rail empties (\`${geste(`switch off`)}\`), or ${renoncer}`;
 }
 
 // Les plafonds d'une passe, tels que sa commande les annonce.

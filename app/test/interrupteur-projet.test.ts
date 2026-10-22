@@ -1,11 +1,12 @@
-// Le manager est un interrupteur, en tête de l'espace du projet (#906) : allumé ou éteint, lisible
-// sans rien lire d'autre, et un clic le bascule — éteindre part dans le second, allumer ouvre sa
-// confirmation, qui dit en une phrase ce qu'il va juger, avec le nombre réel d'issues ouvertes.
-// Éteint, la tête du rail est marquée à l'arrêt, d'une ligne courte ; la bande d'alertes n'en fait
-// plus de ligne, et la ligne brute de la box n'est plus qu'au survol de l'interrupteur.
-// L'état vient de la bande (alertes.ts), lu dans ce que `manager` écrit — la commande du runtime,
-// jouée ici sur un vrai journal (runtime/src/manager-cli.ts). La vue est jouée telle qu'elle est,
-// devant un faux document (aides/fausse-vue.ts).
+// Un seul interrupteur pour tout le projet, en tête de son espace (#906, #1406) : allumé ou éteint,
+// lisible sans rien lire d'autre, et un clic le bascule — éteindre part dans le second, allumer ouvre
+// sa confirmation, qui dit en une phrase ce que le manager va juger, avec le nombre réel d'issues
+// ouvertes. Éteint, la tête du rail est marquée à l'arrêt, d'une ligne courte ; la bande d'alertes
+// n'en fait plus de ligne, et la ligne brute de la box n'est plus qu'au survol de l'interrupteur.
+// L'état vient de la bande (alertes.ts), lu dans ce que `manager` écrit — le manager suit
+// l'interrupteur du projet, et sa ligne le dit : la commande du runtime, jouée ici sur un vrai
+// journal (runtime/src/manager-cli.ts). La vue est jouée telle qu'elle est, devant un faux document
+// (aides/fausse-vue.ts).
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -27,7 +28,6 @@ import { BANNIERE, tenirFaits, type Faits } from "../src/faits.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
-import { GESTES_DU_MANAGER } from "../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { type Faux, type Jouee, jouerLaVue, type Reponses, repos } from "./aides/fausse-vue.ts";
 
@@ -35,7 +35,7 @@ const A = "2026-10-13T10:00:01.000Z";
 const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", box: { hote: "box" } };
 const lecture = (commande: string, texte: string): Lecture => ({ projet: "parade", demande: 1, a: A, sorties: [{ commande, texte }] });
 
-// `manager`, jouée sur un journal où le chef a allumé, ou éteint, le manager à 9 h 25 : sa sortie, telle quelle.
+// `manager`, jouée sur un journal où le chef a allumé, ou éteint, le projet à 9 h 25 : sa sortie, telle quelle.
 function sortieDeManager(t: TestContext, allume: boolean): string {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-app-interrupteur-"));
   const journal = ouvrirJournal(repertoire, { maintenant: () => new Date("2026-10-13T09:25:00.000Z") });
@@ -43,7 +43,7 @@ function sortieDeManager(t: TestContext, allume: boolean): string {
     journal.fermer();
     rmSync(repertoire, { recursive: true, force: true });
   });
-  const fait: Fait = { type: allume ? "manager.enabled" : "manager.disabled", payload: {} };
+  const fait: Fait = { type: allume ? "project.switched-on" : "project.switched-off", payload: {} };
   journal.ajouter({ project: "parade", ticket: null, author: "chef", ...fait });
   const lignes: string[] = [];
   void manager({ args: [], env: { BRIGADE_STATE_DIR: repertoire }, dire: (ligne) => void lignes.push(ligne), redire: (ligne) => assert.fail(ligne) });
@@ -81,7 +81,7 @@ async function ouvrir(reponses: Reponses = {}): Promise<Jouee> {
       onglets: ONGLETS,
       rubriques: RUBRIQUES,
       boutons: BOUTONS,
-      gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+      gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
       banniere: BANNIERE,
       calibrage: { modeles: MODELES, efforts: EFFORTS },
       code: undefined,
@@ -97,18 +97,18 @@ async function ouvrir(reponses: Reponses = {}): Promise<Jouee> {
   return vue;
 }
 
-const bascule = (vue: Jouee): Faux => vue.element("interrupteur-manager").dessous("button").find(({ className }) => className === "bascule") ?? assert.fail("pas d'interrupteur");
+const bascule = (vue: Jouee): Faux => vue.element("interrupteur-projet").dessous("button").find(({ className }) => className === "bascule") ?? assert.fail("pas d'interrupteur");
 const teteDuRail = (vue: Jouee): Faux | undefined => vue.element("rail").dessous("p").find(({ className }) => className === "arret-manager");
-const confirmation = (vue: Jouee): Faux | undefined => vue.element("interrupteur-manager").dessous("div").find(({ className }) => className === "confirmation");
+const confirmation = (vue: Jouee): Faux | undefined => vue.element("interrupteur-projet").dessous("div").find(({ className }) => className === "confirmation");
 const gestesPartis = (vue: Jouee) => vue.appels.filter(({ geste }) => geste === "geste").map(({ args }) => args);
 
-describe("la bande porte l'état du manager, pour son interrupteur", () => {
+describe("la bande porte l'état de l'interrupteur du projet", () => {
   test("allumé, éteint, pas encore lu : l'état tel qu'il vient d'être lu, la ligne du runtime mot pour mot — jamais « éteint » faute de lecture", (t) => {
-    assert.deepEqual(bandeLue(sortieDeManager(t, true)).manager, { allume: true, releve: "ON since 2026-10-13T09:25:00.000Z (by chef) — it judges the open issues, sets `fire` and the calibration" });
+    assert.deepEqual(bandeLue(sortieDeManager(t, true)).manager, { allume: true, releve: "ON since 2026-10-13T09:25:00.000Z (by chef) — the project switch is on: it judges the open issues, sets `fire` and the calibration" });
     const eteinte = bandeLue(sortieDeManager(t, false));
-    assert.deepEqual(eteinte.manager, { allume: false, dit: MANAGER_ETEINT, releve: "OFF since 2026-10-13T09:25:00.000Z (by chef) — no issue is judged, what it set stays set" });
+    assert.deepEqual(eteinte.manager, { allume: false, dit: MANAGER_ETEINT, releve: "OFF since 2026-10-13T09:25:00.000Z (by chef) — the project switch is off: `brigade <projet> switch on` turns it on — no issue is judged, what it set stays set" });
     // La ligne de la bande dit la même phrase : c'est elle qui fait le signal de la case, dans la barre.
-    assert.deepEqual(eteinte.alertes.map(({ sujet, dit }) => [sujet, dit]), [["manager", "manager off — nothing new comes in"]]);
+    assert.deepEqual(eteinte.alertes.map(({ sujet, dit }) => [sujet, dit]), [["manager", "project off — nothing new is taken, split or merged"]]);
     assert.equal(eteinte.signal?.dit, MANAGER_ETEINT);
     const pasLue = bandeLue().manager;
     assert.ok(pasLue !== undefined && "sans" in pasLue, JSON.stringify(pasLue));
@@ -116,32 +116,34 @@ describe("la bande porte l'état du manager, pour son interrupteur", () => {
 });
 
 describe("l'interrupteur, en tête de l'espace", () => {
-  test("éteint : « manager off », la ligne de la box au survol, aucune ligne dans la bande, et la tête du rail à l'arrêt d'une ligne courte", async (t) => {
+  test("éteint : « project off », la ligne de la box au survol, aucune ligne dans la bande, et la tête du rail à l'arrêt d'une ligne", async (t) => {
     const vue = await ouvrir();
     vue.dire("surAlertes", bandeLue(sortieDeManager(t, false)));
     await repos();
 
-    assert.equal(vue.element("interrupteur-manager").hidden, false);
+    assert.equal(vue.element("interrupteur-projet").hidden, false);
     const eteint = bascule(vue);
     assert.equal(eteint.role, "switch");
     assert.equal(eteint.ariaChecked, "false");
     assert.equal(eteint.dataset.etat, "eteint");
-    assert.equal(eteint.textContent, "manager off");
+    assert.equal(eteint.textContent, "project off");
+    assert.equal(eteint.ariaLabel, "the project: off");
     // La ligne brute de la box n'est plus à plat : elle est au survol de l'interrupteur.
-    assert.match(eteint.title, /^OFF since 2026-10-13T09:25:00\.000Z \(by chef\) — no issue is judged/);
+    assert.match(eteint.title, /^OFF since 2026-10-13T09:25:00\.000Z \(by chef\) — the project switch is off/);
     assert.equal(vue.element("alertes").hidden, true);
-    assert.doesNotMatch(vue.element("alertes").textContent, /OFF|manager/);
+    assert.doesNotMatch(vue.element("alertes").textContent, /OFF|manager|project/);
     // Le prix n'est pas posé à côté de l'interrupteur.
-    assert.doesNotMatch(vue.element("interrupteur-manager").textContent, /judge|backlog|cost/);
+    assert.doesNotMatch(vue.element("interrupteur-projet").textContent, /judge|backlog|cost/);
 
+    // Éteint, la page le dit en une ligne : la tête du rail.
     const tete = teteDuRail(vue) ?? assert.fail("la tête du rail n'est pas marquée à l'arrêt");
-    assert.equal(tete.textContent, "manager off — nothing new comes in");
+    assert.equal(tete.textContent, "project off — nothing new is taken, split or merged");
     // Elle est en tête du rail : avant ce qui arrive et les colonnes.
     const rail = vue.element("rail").children;
     assert.ok(rail.indexOf(tete) < rail.findIndex(({ className }) => className === "colonnes"));
   });
 
-  test("allumé : « manager on », et la tête du rail n'est plus marquée ; une bascule lue se voit aussitôt, sans attendre les faits", async (t) => {
+  test("allumé : « project on », et la tête du rail n'est plus marquée ; une bascule lue se voit aussitôt, sans attendre les faits", async (t) => {
     const vue = await ouvrir();
     vue.dire("surAlertes", bandeLue(sortieDeManager(t, false)));
     await repos();
@@ -152,7 +154,7 @@ describe("l'interrupteur, en tête de l'espace", () => {
     const allume = bascule(vue);
     assert.equal(allume.ariaChecked, "true");
     assert.equal(allume.dataset.etat, "allume");
-    assert.equal(allume.textContent, "manager on");
+    assert.equal(allume.textContent, "project on");
     assert.match(allume.title, /^ON since/);
     assert.equal(teteDuRail(vue), undefined);
     assert.equal(vue.element("alertes").hidden, true);
@@ -166,7 +168,7 @@ describe("l'interrupteur, en tête de l'espace", () => {
     const inconnu = bascule(vue);
     assert.equal(inconnu.ariaChecked, "mixed");
     assert.equal(inconnu.disabled, true);
-    assert.equal(inconnu.textContent, "manager …");
+    assert.equal(inconnu.textContent, "project …");
     assert.equal(teteDuRail(vue), undefined);
     inconnu.click();
     await repos();
@@ -180,13 +182,13 @@ describe("l'interrupteur, en tête de l'espace", () => {
 
     bascule(vue).click();
     await repos();
-    assert.deepEqual(gestesPartis(vue), [["parade", "manager-eteindre", undefined, undefined]]);
+    assert.deepEqual(gestesPartis(vue), [["parade", "projet-eteindre", undefined, undefined]]);
     assert.deepEqual(vue.appels.filter(({ geste }) => geste === "confirmer"), []);
   });
 
   test("un geste que le second refuse : le centre le dit en une phrase avec « try again », qui rejoue le même geste — jamais un clic sans message", async (t) => {
     let appels = 0;
-    const vue = await ouvrir({ geste: () => (++appels === 1 ? { refus: "the second is busy — the command did not go, and nothing is written: `manager off`" } : undefined) });
+    const vue = await ouvrir({ geste: () => (++appels === 1 ? { refus: "the second is busy — the command did not go, and nothing is written: `switch off`" } : undefined) });
     vue.dire("surAlertes", bandeLue(sortieDeManager(t, true)));
     await repos();
 
@@ -227,7 +229,7 @@ describe("l'interrupteur, en tête de l'espace", () => {
 
     bascule(vue).click();
     await repos();
-    assert.deepEqual(vue.dernier("confirmer"), ["parade", "manager-allumer", undefined]);
+    assert.deepEqual(vue.dernier("confirmer"), ["parade", "projet-allumer", undefined]);
     assert.deepEqual(vue.dernier("compter"), ["parade"]);
     assert.deepEqual(gestesPartis(vue), []);
     const ouverte = confirmation(vue) ?? assert.fail("pas de confirmation sous l'interrupteur");
@@ -244,14 +246,14 @@ describe("l'interrupteur, en tête de l'espace", () => {
     assert.doesNotMatch(ouverte.textContent, /taken up right away|nothing goes/);
     const reponses = ouverte.dessous("button").filter(({ className }) => className !== "aide");
     assert.deepEqual(reponses.map(({ textContent, title }) => [textContent, title]), [
-      ["yes, turn the manager on", "what it judges executable is taken up right away"],
+      ["yes, switch the project on", "what the manager judges executable is taken up right away, and green deliveries are merged"],
       ["no, leave it off", "nothing goes"],
     ]);
 
     // « oui » le fait partir, dans le second, et referme la confirmation.
     (ouverte.dessous("button").find(({ dataset }) => dataset.oui !== undefined) ?? assert.fail("pas de « oui »")).click();
     await repos();
-    assert.deepEqual(gestesPartis(vue), [["parade", "manager-allumer", undefined, true]]);
+    assert.deepEqual(gestesPartis(vue), [["parade", "projet-allumer", undefined, true]]);
     assert.equal(confirmation(vue), undefined);
   });
 

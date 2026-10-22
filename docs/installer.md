@@ -699,21 +699,24 @@ is **off**. Check it, then start.
 
 ```bash
 sudo systemctl enable --now brigade@<projet>                  # starts, and restarts at every reboot
-brigade <project> grant                                        # "ABSENT — never given"
+brigade <project> switch                                       # "ON … on by default": tickets are taken, the manager judges, green deliveries are merged
 sudo systemctl start brigade-sauvegarde@<project>.service      # a first backup, right now
 ```
 
 Put `fire`, `model:haiku` and `effort:low` on a short issue. Follow it with
-`brigade <project> status` and `brigade <project> pass`. Once the PR is open and green, reread it and merge it
-yourself.
+`brigade <project> status` and `brigade <project> pass`.
 
 What the process prints is read with `journalctl -u brigade@<project> -f`; a refusal to start
 (code 2) is not retried, and `systemctl status brigade@<project>` gives the reason. All the
 step's commands, and updating brigade, are in `docs/runtime/exploitation.md`, "Piloter".
 
-**Enable the grant only after rereading at least one delivery from this project** — one command, no
-restart (`brigade <project> grant enable merge`), preferably with an expiry (`--for 4h`,
-`--uses 10`): it then switches off on its own, see "Le grant `merge`" in [`runtime/`](runtime/pass-merge.md).
+**The project switch is on by default** (#1406): the runtime sets it at its first start, so the manager
+judges the open issues and a green delivery is merged without you, with nothing to flip — see "The project
+switch" in [`runtime/exploitation.md`](runtime/exploitation.md). To reread this project's first deliveries
+yourself, switch it off before firing anything (`brigade <project> switch off`: nothing new is taken,
+judged or merged), or bound the `merge` grant it enabled (`brigade <project> grant revoke merge`, then
+`grant enable merge --for 4h` or `--uses 10`): it then switches off on its own, see "Le grant `merge`" in
+[`runtime/`](runtime/pass-merge.md).
 
 **Before granting, read the tally of stops for lack of a grant.** Each green delivery stopped says
 on its issue what the pass would have merged; `pass` and `grant` count what you did with them —

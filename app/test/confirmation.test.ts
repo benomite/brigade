@@ -89,8 +89,8 @@ describe("reprendre, accorder, révoquer, allumer : chacun dit ce qu'il engage",
     assert.match(revoquer.prix[0] ?? "", /^Nothing is merged without you any more/);
   });
 
-  test("allumer le manager : l'avertissement de la doc, et ses deux nombres à demander à la box", () => {
-    const rendu = confirmee(confirmationDe("manager-allumer", PARADE, PAS_LUS));
+  test("allumer le projet : l'avertissement de la doc, et ses deux nombres à demander à la box", () => {
+    const rendu = confirmee(confirmationDe("projet-allumer", PARADE, PAS_LUS));
     assert.deepEqual(rendu.prix, [ALLUMER]);
     assert.equal(rendu.chiffrer, true);
   });

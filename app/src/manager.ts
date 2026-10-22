@@ -1,4 +1,5 @@
-// L'état du manager d'un projet : allumé ou éteint, depuis quand et par qui, ses
+// L'état du manager d'un projet : allumé ou éteint — il suit l'interrupteur du projet (#1406), et sa
+// ligne le dit —, depuis quand et par qui, ses
 // dernières décisions, ce qu'il a écarté et pourquoi. L'app le lit là où le
 // runtime le montre — la sortie de `manager` (runtime/src/manager-cli.ts,
 // `montrer`), relayée par l'onglet Manager comme celle des autres (onglets.ts) —
@@ -9,21 +10,13 @@
 // sortie sans cette ligne n'est pas « éteint », une section absente n'est pas
 // « aucune », et une ligne qui n'a pas la forme reste telle quelle, à part. Ce
 // que le runtime dit se pose mot pour mot ; la sortie entière se lit dessous.
-// À côté de l'état, deux gestes du socle (gestes.ts) : allumer, confirmé — il ne part
-// qu'après le « oui » du chef, devant ce qu'il engage (allumage.ts) —, et éteindre,
-// direct. Tous deux partent dans le second. Ce module ne lance rien — il lit ce que
-// la veille a déjà rendu.
+// Le manager n'a plus de geste à lui : l'interrupteur du projet, en tête de son espace, l'allume
+// et l'éteint avec le reste (gestes.ts, `projet-allumer`, `projet-eteindre`). Ce module ne lance
+// rien — il lit ce que la veille a déjà rendu.
 import type { Lecture } from "./box.ts";
 
 // Sans argument : la commande montre, elle n'allume ni n'éteint rien.
 export const COMMANDE = "manager";
-
-// Les deux gestes posés à côté de l'état, par leur nom dans le socle : la vue
-// les nomme, ce qui part se décide dans gestes.ts — allumer est confirmé, éteindre direct.
-export const GESTES_DU_MANAGER = [
-  { id: "manager-allumer", libelle: "on" },
-  { id: "manager-eteindre", libelle: "off" },
-] as const;
 
 // `mot` : ON ou OFF (ALLUMÉ ou ÉTEINT, d'un runtime d'avant), tel que le runtime l'écrit. `depuis`, `par` : l'instant
 // de la dernière bascule et son auteur — absents d'un manager jamais allumé.

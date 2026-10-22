@@ -16,7 +16,6 @@ import { BANNIERE } from "../../src/faits.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../../src/grants.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
-import { GESTES_DU_MANAGER } from "../../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import type { StationVue } from "../../src/stations/stations.ts";
 import { type Faux, jouerLaVue, repos } from "../aides/fausse-vue.ts";
@@ -40,7 +39,7 @@ const demarrage = () => ({
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
   boutons: BOUTONS,
-  gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,

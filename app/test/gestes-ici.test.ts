@@ -143,9 +143,9 @@ describe("les gestes d'un projet qui cuit sur cet ordinateur partent ici, sans s
     assert.equal(essai.lu("ssh-lance"), "", "aucun `ssh` n'a été lancé");
   });
 
-  test("un geste confirmé s'offre à confirmer pour un projet sans « hote » servi ici : arrêter, reprendre, accorder et révoquer `merge`, allumer le manager", (t) => {
+  test("un geste confirmé s'offre à confirmer pour un projet sans « hote » servi ici : arrêter, reprendre, accorder et révoquer `merge`, allumer le projet", (t) => {
     const essai = poste(t);
-    for (const [id, grant] of [["stop"], ["reprendre"], ["grant-activer", "merge"], ["grant-revoquer", "merge"], ["manager-allumer"]] as const) {
+    for (const [id, grant] of [["stop"], ["reprendre"], ["grant-activer", "merge"], ["grant-revoquer", "merge"], ["projet-allumer"]] as const) {
       const offerte = confirmationDe(id, PARADE, { sans: "pas lus" }, grant, essai.ici);
       assert.ok(offerte !== undefined && !("refus" in offerte), `${id} : ${JSON.stringify(offerte)}`);
       // Son « oui » est celui du geste qu'elle confirme : c'est lui que la vue renvoie.

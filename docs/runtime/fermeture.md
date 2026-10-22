@@ -158,7 +158,7 @@ same request stays in French until the runtime is translated.
   duration cap: two whole cooks have followed one another without leaving a gap — is said to have no
   way out, once: `closing.stalled` in the log, with what was holding it; a line in journald; and its
   queue line becomes `CLOSING PASS WITH NO WAY OUT`, with the gestures that unblock it — raise the
-  threshold, turn the manager off while the rail empties, or give up. It still waits: saying it has
+  threshold, switch the project off while the rail empties (`switch off`), or give up. It still waits: saying it has
   no way out does not refuse it, and does not make it leave.
 
 ### From the app: the preview, the "yes", the withdrawal

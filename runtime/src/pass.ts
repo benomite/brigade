@@ -66,6 +66,7 @@ import {
   DIRE_GATES_COUPEES,
   ENCORE_ROUGE,
   EN_PAUSE,
+  PROJET_ETEINT,
   GATES_COUPEES,
   HORS_RAIL,
   JUGES_MODIFIES,
@@ -110,6 +111,7 @@ import { mergeRetenu, RENOMMAGE_ABANDONNE, renommageEcarte } from "./pause/pause
 import { INTRANSPOSABLE, renommagesMerges, traduireChemin } from "./pause/reprise.ts";
 import { etatDesGardeFous } from "./projections/guardrails.ts";
 import { managerAllume } from "./projections/manager.ts";
+import { projetEteint } from "./projections/switch.ts";
 import {
   controleRetenu,
   etatDeLaBase,
@@ -1276,6 +1278,19 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
           ].join("\n"),
         };
       }
+      // L'interrupteur du projet éteint : rien n'est mergé. La livraison
+      // attend, et repart seule quand il est rallumé.
+      if (projetEteint(base)) {
+        if (connu.phase === "waiting" && connu.reason === PROJET_ETEINT) return null;
+        noter(ticket, { type: "pass.waiting", payload: { reason: PROJET_ETEINT } });
+        return {
+          commentaire: [
+            `**Pass — en attente (\`${PROJET_ETEINT}\`).** ${livraison}`,
+            "",
+            `L'interrupteur du projet est éteint : rien n'est mergé tant qu'il l'est. Rien n'est à refaire sur cette livraison : elle repart seule quand il est rallumé (\`${geste(`switch on`)}\`) — rejugée d'abord si \`${options.base}\` a bougé, puis mergée.`,
+          ].join("\n"),
+        };
+      }
       const grant = etatDuGrant(base, "merge", maintenant());
       if (!grant?.active) {
         // Ce qu'elle aurait fait sous grant, dit avec l'arrêt : rien n'est
@@ -1862,7 +1877,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       // reprend — et ne relit la PR — qu'une fois levé ce qu'il attendait.
       case "waiting":
         if (tick && (await surveiller(connu))) return;
-        if (connu.reason === EN_PAUSE ? mergeRetenu(base, connu.ticket) !== null : connu.reason === BASE_ROUGE ? etatDeLaBase(base)?.outcome === "red" && !estLaReparation(connu.ticket) : sature() !== null) return;
+        if (connu.reason === PROJET_ETEINT ? projetEteint(base) : connu.reason === EN_PAUSE ? mergeRetenu(base, connu.ticket) !== null : connu.reason === BASE_ROUGE ? etatDeLaBase(base)?.outcome === "red" && !estLaReparation(connu.ticket) : sature() !== null) return;
         if (enPass(connu.ticket)) await juger(connu);
         return;
       case "merging":

@@ -18,7 +18,6 @@ import { BANNIERE } from "../src/faits.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
-import { GESTES_DU_MANAGER } from "../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import type { Terminal } from "../src/terminaux.ts";
 import { type Faux, type Jouee, jouerLaVue, type Reponses, ouvrirLecture, repos } from "./aides/fausse-vue.ts";
@@ -39,7 +38,7 @@ async function ouvrir(reponses: Reponses = {}, projets: Projet[] = [PARADE, FANF
       exemple: EXEMPLE,
       onglets: ONGLETS, rubriques: RUBRIQUES,
       boutons: BOUTONS,
-      gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+      gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
       banniere: BANNIERE,
       calibrage: { modeles: MODELES, efforts: EFFORTS },
       code: undefined,
@@ -407,34 +406,33 @@ describe("un clic à gauche écrit dans le second sans que le centre change", ()
   });
 
   test("un geste confirmé ouvre sa confirmation sur place, et ne part qu'à son « oui » — dans le second, sans que le centre change", async () => {
-    const parti = { ...SECOND, note: "parti dans le second : `!ssh box brigade parade manager allumer`" };
+    const parti = { ...SECOND, note: "parti dans le second : `!ssh box brigade parade grant enable merge`" };
     const vue = await ouvrir({ confirmer: (_, id, grant) => confirmationDe(id, PARADE, { sans: "pas lus" }, grant), geste: () => parti });
-    await ouvrirLecture(vue, "Manager");
+    await ouvrirLecture(vue, "Grants");
 
-    await cliquer(vue, vue.element("manager"), "on…");
+    await cliquer(vue, vue.element("grants"), "enable merge…");
 
-    assert.deepEqual(vue.dernier("confirmer"), ["parade", "manager-allumer", undefined]);
+    assert.deepEqual(vue.dernier("confirmer"), ["parade", "grant-activer", "merge"]);
     assert.deepEqual(vue.appels.filter(({ geste }) => geste === "geste"), []);
-    const ouverte = vue.element("manager").dessous("div").find((pose) => pose.className === "confirmation") ?? assert.fail("pas de confirmation");
-    // Ce qu'allumer engage est au survol de sa phrase : à plat, une seule phrase dit le prix.
-    assert.ok(ouverte.dessous("button").some((pose) => /it judges the whole open backlog/.test(pose.ariaLabel)), "ce qu'allumer engage n'est pas au survol");
+    const ouverte = vue.element("grants").dessous("div").find((pose) => pose.className === "confirmation") ?? assert.fail("pas de confirmation");
+    assert.match(ouverte.textContent, /enable the `merge` grant/);
     assert.equal(vue.element("note-second").textContent, "fil repris");
 
     // « non » la referme : rien ne part.
-    await cliquer(vue, ouverte, "no, leave it off");
-    assert.equal(vue.element("manager").dessous("div").find((pose) => pose.className === "confirmation"), undefined);
+    await cliquer(vue, ouverte, "no, keep control");
+    assert.equal(vue.element("grants").dessous("div").find((pose) => pose.className === "confirmation"), undefined);
     assert.deepEqual(vue.appels.filter(({ geste }) => geste === "geste"), []);
 
     // Rouverte, son « oui » le fait partir dans le second ; l'onglet ouvert reste ouvert.
-    await cliquer(vue, vue.element("manager"), "on…");
-    await cliquer(vue, vue.element("manager"), "yes, turn the manager on");
+    await cliquer(vue, vue.element("grants"), "enable merge…");
+    await cliquer(vue, vue.element("grants"), "yes, enable `merge`");
     assert.deepEqual(
       vue.appels.filter(({ geste }) => geste === "geste").map(({ args }) => args),
-      [["parade", "manager-allumer", undefined, true]],
+      [["parade", "grant-activer", "merge", true]],
     );
     assert.equal(vue.element("note-second").textContent, parti.note);
     assert.deepEqual(selectionne(vue), ["Settings"]);
-    assert.equal(vue.element("manager").dessous("div").find((pose) => pose.className === "confirmation"), undefined);
+    assert.equal(vue.element("grants").dessous("div").find((pose) => pose.className === "confirmation"), undefined);
   });
 });
 

@@ -102,7 +102,10 @@ export const DIRE_GATES_COUPEES_EN = "gates replayed later: machine saturated, n
 // La cuisine est en pause pour le renommage du code (pause/pause.ts) : une
 // livraison verte n'est pas mergée avant la fin de la pause, puis repart seule.
 export const EN_PAUSE = "paused";
-export type MotifDAttente = typeof BASE_ROUGE | typeof MACHINE_SATUREE | typeof GATES_COUPEES | typeof EN_PAUSE;
+// L'interrupteur du projet est éteint (interrupteur.ts) : une livraison verte
+// n'est pas mergée tant qu'il l'est, puis repart seule quand il est rallumé.
+export const PROJET_ETEINT = "project-off";
+export type MotifDAttente = typeof BASE_ROUGE | typeof MACHINE_SATUREE | typeof GATES_COUPEES | typeof EN_PAUSE | typeof PROJET_ETEINT;
 
 // Pourquoi la pass remonte au chef sans renvoyer au cook : un motif par geste.
 // `still-red` : la livraison est rouge et personne ne la corrigera plus — les

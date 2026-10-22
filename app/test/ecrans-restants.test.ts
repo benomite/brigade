@@ -3,7 +3,7 @@
 // une ligne — l'explication, la commande et le détail au survol. La vue est jouée telle qu'elle est.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { ALLUMAGE, AVERTISSEMENT } from "../src/allumage.ts";
+import { ALLUMAGE } from "../src/allumage.ts";
 import { pourLaBarre } from "../src/barre.ts";
 import { BOUTONS } from "../src/boutons.ts";
 import { EXEMPLE, type Projet } from "../src/config.ts";
@@ -14,7 +14,6 @@ import { BANNIERE } from "../src/faits.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
-import { GESTES_DU_MANAGER } from "../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import type { Terminal } from "../src/terminaux.ts";
 import { type Faux, type Jouee, jouerLaVue, ouvrirLecture, repos } from "./aides/fausse-vue.ts";
@@ -34,7 +33,7 @@ async function ouvrir(reponses = {}): Promise<Jouee> {
       onglets: ONGLETS,
       rubriques: RUBRIQUES,
       boutons: BOUTONS,
-      gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+      gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
       banniere: BANNIERE,
       calibrage: { modeles: MODELES, efforts: EFFORTS },
       code: undefined,
@@ -87,17 +86,17 @@ describe("l'onglet Cooks (#1184) : la lecture de `station`, des gestes en bouton
   });
 });
 
-describe("Settings : la confirmation d'un geste coûteux dit son prix en une ligne", () => {
-  test("allumer le manager : le prix est une phrase — ce qu'il va juger —, ce qu'il engage et la source sont au survol", async () => {
+describe("Settings : l'onglet Manager n'a plus d'interrupteur à lui", () => {
+  // Un seul interrupteur pour tout le projet (#1406), en tête de l'espace : sa confirmation, qui dit son
+  // prix en une ligne, est éprouvée là (interrupteur-projet.test.ts).
+  test("ni « on… » ni « off » : le manager suit l'interrupteur du projet", async () => {
     const vue = await ouvrir({ confirmer: (_: string, id: string, grant: unknown) => confirmationDe(id, PARADE, { sans: "pas lus" }, grant) });
     await ouvrirLecture(vue, "Manager");
-    (vue.element("manager").dessous("button").find(({ textContent }) => textContent === "on…") ?? assert.fail("pas de « on… »")).click();
-    await repos();
-
-    const ouverte = vue.element("manager").dessous("div").find(({ className }) => className === "confirmation") ?? assert.fail("pas de confirmation");
-    assert.deepEqual(ouverte.dessous("p").filter(({ className }) => className === "prix" || className === "nombres").map(({ className }) => className), ["nombres"]);
-    assert.doesNotMatch(aPlat(ouverte), /ssh|according to|whole open backlog/);
-    assert.ok(survols(ouverte).some((dit) => dit.includes(AVERTISSEMENT)), "ce qu'allumer engage n'est pas au survol");
+    assert.deepEqual(
+      vue.element("manager").dessous("button").filter(({ textContent }) => /^(?:on|off)(?:…)?$/.test(textContent)),
+      [],
+    );
+    assert.deepEqual(vue.element("interrupteur-projet").dessous("button").filter(({ className }) => className === "bascule").length, 1);
   });
 
   test("le titre du manager ne porte pas sa commande, et un état illisible tient en une ligne", async () => {

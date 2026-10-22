@@ -126,6 +126,8 @@ function raconterLeManager(journal: Journal): void {
   noter({ type: "manager.enabled", payload: {} }, null, "chef");
   noter({ type: "manager.disabled", payload: {} }, null, "chef");
   noter({ type: "manager.enabled", payload: {} }, null, "chef");
+  noter({ type: "project.switched-on", payload: { cause: "carried-over" } }, null, "runtime");
+  noter({ type: "project.switched-off", payload: {} }, null, "chef");
   noter({ type: "manager.judged", payload: { run: "juge-30-a", fingerprint: "e1", verdict: "fire", kind: "ticket", reason: "Un livrable.", missing: null, model: "haiku", effort: "low", calibration: "Mécanique." } }, 30);
   noter({ type: "manager.labeled", payload: { labels: ["fire", "model:haiku", "effort:low"] } }, 30);
   noter({ type: "manager.commented", payload: {} }, 30);

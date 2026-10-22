@@ -17,7 +17,7 @@ import { ouvrirJournal } from "../../runtime/src/journal.ts";
 import { principal } from "../../runtime/src/manager-cli.ts";
 import type { Lecture } from "../src/box.ts";
 import { CONFIRMES, DIRECTS, ecrireGeste, GESTES, SANS_OUI } from "../src/gestes.ts";
-import { COMMANDE, GESTES_DU_MANAGER, managerDe, voir, type Manager } from "../src/manager.ts";
+import { COMMANDE, managerDe, voir, type Manager } from "../src/manager.ts";
 import { commandeDe, ONGLETS } from "../src/onglets.ts";
 import { DIT } from "../src/saisie.ts";
 import { ouvrirTerminaux } from "../src/terminaux.ts";
@@ -295,15 +295,18 @@ describe("l'onglet Manager et ses deux gestes", () => {
     assert.equal(ONGLETS.find(({ id }) => id === "manager")?.titre, "Manager");
   });
 
-  test("« allumer » et « éteindre » sont deux gestes du socle : la vue les nomme, elle ne sait pas ce qu'ils écrivent", () => {
-    assert.deepEqual(GESTES_DU_MANAGER, [
-      { id: "manager-allumer", libelle: "on" },
-      { id: "manager-eteindre", libelle: "off" },
-    ]);
-    for (const { id } of GESTES_DU_MANAGER) assert.ok(GESTES.some((geste) => geste.id === id), `« ${id} » n'est pas un geste du socle`);
+  test("le manager n'a plus de geste à lui : l'interrupteur du projet l'allume et l'éteint avec le reste (#1406)", () => {
+    assert.equal(GESTES.some(({ id, commande }) => id.startsWith("manager-") || /^manager (?:on|off)$/.test(commande)), false);
+    assert.deepEqual(
+      GESTES.filter(({ id }) => id.startsWith("projet-")).map(({ id, commande }) => [id, commande]),
+      [
+        ["projet-allumer", "switch on"],
+        ["projet-eteindre", "switch off"],
+      ],
+    );
   });
 
-  test("« éteindre », direct, et « allumer », confirmé, envoient la commande de docs/runtime/, « Le manager », dans le second — sans « oui », allumer ne part pas ; d'un second qui démarre, rien ne part, et aucun shell ne s'ouvre", async () => {
+  test("« éteindre » le projet, direct, et « allumer », confirmé, envoient la commande de docs/runtime/, « The project switch », dans le second — sans « oui », allumer ne part pas ; d'un second qui démarre, rien ne part, et aucun shell ne s'ouvre", async () => {
     const doc = docRuntime(RACINE);
     const ecrits: string[][] = [];
     const terminaux = ouvrirTerminaux({
@@ -319,18 +322,18 @@ describe("l'onglet Manager et ses deux gestes", () => {
     });
     terminaux.espace(PARADE);
 
-    assert.deepEqual(GESTES_DU_MANAGER.map(({ id }) => (CONFIRMES.includes(id) ? "confirmé" : DIRECTS.includes(id) ? "direct" : "?")), ["confirmé", "direct"]);
-    assert.deepEqual(ecrireGeste(terminaux, "manager-allumer", PARADE), { refus: SANS_OUI });
+    assert.deepEqual(["projet-allumer", "projet-eteindre"].map((id) => (CONFIRMES.includes(id) ? "confirmé" : DIRECTS.includes(id) ? "direct" : "?")), ["confirmé", "direct"]);
+    assert.deepEqual(ecrireGeste(terminaux, "projet-allumer", PARADE), { refus: SANS_OUI });
 
-    const [allumer, eteindre] = await Promise.all([ecrireGeste(terminaux, "manager-allumer", PARADE, undefined, true), ecrireGeste(terminaux, "manager-eteindre", PARADE)]);
+    const [allumer, eteindre] = await Promise.all([ecrireGeste(terminaux, "projet-allumer", PARADE, undefined, true), ecrireGeste(terminaux, "projet-eteindre", PARADE)]);
 
     // Le second vient d'être lancé, il n'est pas dit libre : rien n'est écrit, et le refus le dit — avec la commande de la doc.
-    assert.deepEqual(allumer, { refus: `${DIT.demarre} — the command did not go, and nothing is written: \`!ssh box brigade parade manager on\`` });
-    assert.deepEqual(eteindre, { refus: `${DIT.demarre} — the command did not go, and nothing is written: \`!ssh box brigade parade manager off\`` });
+    assert.deepEqual(allumer, { refus: `${DIT.demarre} — the command did not go, and nothing is written: \`!ssh box brigade parade switch on\`` });
+    assert.deepEqual(eteindre, { refus: `${DIT.demarre} — the command did not go, and nothing is written: \`!ssh box brigade parade switch off\`` });
     assert.deepEqual(ecrits, [[]]);
-    // La doc cite la commande deux fois : dans le dépôt (« Le manager »), et sur la box (« Piloter ») — celle-ci, dans sa forme de poste, est ce qui part.
-    assert.ok(doc.includes("`brigade <projet> manager [on \\| off \\| return <n°> \\| backlog \\| upstream]`"), "docs/runtime/, « Piloter », ne cite plus la commande du manager");
-    for (const mot of ["on", "off"]) assert.ok(doc.includes(`npm --prefix runtime run manager -- ${mot}`), `docs/runtime/, « Le manager », ne cite plus \`manager -- ${mot}\``);
+    // La doc cite la commande deux fois : sur la box (« Driving it »), dans sa forme de poste — ce qui part —, et dans le dépôt (« The project switch »).
+    assert.ok(doc.includes("`brigade <projet> switch [on \\| off]`"), "docs/runtime/, « Driving it », ne cite plus la commande de l'interrupteur");
+    for (const mot of ["on", "off"]) assert.ok(doc.includes(`npm --prefix runtime run switch -- ${mot}`), `docs/runtime/, « The project switch », ne cite plus \`switch -- ${mot}\``);
   });
 
   test("le module ne lance rien : il lit une sortie que la veille a déjà rendue", () => {

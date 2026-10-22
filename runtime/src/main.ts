@@ -14,6 +14,7 @@ import { brancherFermeture } from "./closing/run.ts";
 import { configFermeture } from "./closing/settings.ts";
 import { brancherGardeFous, lireReglages } from "./garde-fous.ts";
 import { configIdentites, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentites, ROLES, type Identites } from "./identites.ts";
+import { etablirLInterrupteur } from "./interrupteur.ts";
 import { brancherManager, configManager } from "./manager.ts";
 import { brancherPass, configPass } from "./pass.ts";
 import { plafondDuProjet } from "./reagir.ts";
@@ -123,6 +124,10 @@ try {
   const depot = depotDeStation(repertoireEtat, station, identites?.jeton("cook"), () => republierReseau());
   const githubs = ouvrirGitHubs({ depot: rail.depot, bin: rail.gh, identites });
   socle = demarrer({ repertoireEtat, projet });
+  // L'interrupteur du projet, posé avant que rien ne parte : allumé par défaut,
+  // repris des anciens interrupteurs sur un journal d'avant (interrupteur.ts).
+  const pose = etablirLInterrupteur(socle.journal, projet, new Date());
+  if (pose !== null) console.log(pose);
   // Ce que le chef décide sans redémarrer : chaque lecture relit le journal.
   const decisions = suivreDecisions(socle.journal.base, process.env, undefined, duDepot.suivis);
   // Ce que le dépôt déclare sur sa base, relu à chaque rapatriement et à

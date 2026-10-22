@@ -129,10 +129,10 @@ test("une demande qui attend depuis deux heures est dite sans issue — une fois
   heure.avancer(60_000);
   await jusqua(() => types().includes("closing.stalled"));
   assert.deepEqual(dernier("closing.stalled"), { requestedAt: "2026-10-08T10:00:00.000Z", reason: "cooks", observed: 1, limit: 1, detail: "0" });
-  const dit = /PASSE DE FERMETURE SANS ISSUE : demandée le 2026-10-08T10:00:00\.000Z, elle attend depuis plus de 2 h — condition d'exécution non remplie : 1 cook en vol pour un seuil de 1 .* ; le rail ne se vide pas seul — à trancher : relever le seuil \(`brigade <projet> station closer-cooks <N>`\), éteindre le manager le temps que le rail se vide \(`brigade <projet> manager off`\), ou y renoncer : `brigade <projet> closing cancel`/;
+  const dit = /PASSE DE FERMETURE SANS ISSUE : demandée le 2026-10-08T10:00:00\.000Z, elle attend depuis plus de 2 h — condition d'exécution non remplie : 1 cook en vol pour un seuil de 1 .* ; le rail ne se vide pas seul — à trancher : relever le seuil \(`brigade <projet> station closer-cooks <N>`\), éteindre l'interrupteur du projet le temps que le rail se vide \(`brigade <projet> switch off`\), ou y renoncer : `brigade <projet> closing cancel`/;
   assert.match(avertissements.join("\n"), dit);
   // La file, elle, le dit en anglais.
-  assert.match(attend(cuisine), /CLOSING PASS WITH NO WAY OUT: requested on 2026-10-08T10:00:00\.000Z, it has waited for more than 2 h — start condition not met: 1 cook in flight for a threshold of 1 .*; the rail does not empty on its own — to decide: raise the threshold \(`brigade <projet> station closer-cooks <N>`\), turn the manager off while the rail empties \(`brigade <projet> manager off`\), or withdraw it: `brigade <projet> closing cancel`/);
+  assert.match(attend(cuisine), /CLOSING PASS WITH NO WAY OUT: requested on 2026-10-08T10:00:00\.000Z, it has waited for more than 2 h — start condition not met: 1 cook in flight for a threshold of 1 .*; the rail does not empty on its own — to decide: raise the threshold \(`brigade <projet> station closer-cooks <N>`\), switch the project off while the rail empties \(`brigade <projet> switch off`\), or withdraw it: `brigade <projet> closing cancel`/);
 
   // Dit une fois, et elle attend toujours : rien n'est refusé, rien n'est parti.
   heure.avancer(SANS_ISSUE_MS);
