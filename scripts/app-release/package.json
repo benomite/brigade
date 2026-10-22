@@ -1,0 +1,13 @@
+{
+  "name": "brigade-app-release",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Decides whether a merge changes the app and computes the next app-v<version> tag",
+  "type": "module",
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "test": "node --test --test-force-exit --test-timeout=300000 \"test/**/*.test.ts\""
+  }
+}
