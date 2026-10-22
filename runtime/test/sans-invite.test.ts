@@ -120,11 +120,9 @@ test("la ligne de shebang nomme son interprète, passé `env`, ses options et se
 });
 
 test("le bash et le sh de Git se trouvent à côté de `git`, ou se cherchent dans le PATH", () => {
-  const presents = new Set(["/c/Program Files/Git/bin/bash.exe", "/c/Program Files/Git/usr/bin/sh.exe"]);
-  assert.deepEqual(shellsDeGit("/c/Program Files/Git/mingw64/libexec/git-core", (chemin) => presents.has(chemin)), {
-    bash: "/c/Program Files/Git/bin/bash.exe",
-    sh: "/c/Program Files/Git/usr/bin/sh.exe",
-  });
+  // Les chemins se forment avec le séparateur de la plateforme : `\` sous Windows.
+  const [bash, sh] = [join("/c/Program Files/Git", "bin", "bash.exe"), join("/c/Program Files/Git", "usr", "bin", "sh.exe")];
+  assert.deepEqual(shellsDeGit("/c/Program Files/Git/mingw64/libexec/git-core", (chemin) => chemin === bash || chemin === sh), { bash, sh });
   assert.deepEqual(shellsDeGit("/c/Git/mingw64/libexec/git-core", () => false), { bash: "bash", sh: "bash" });
   assert.deepEqual(shellsDeGit(null), { bash: "bash", sh: "sh" });
 });
