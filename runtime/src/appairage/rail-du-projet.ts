@@ -1,7 +1,8 @@
 // Le rail d'un projet, lu sur un ordinateur où le chef n'a rien que l'app
-// (#1432) : ni `ssh` vers la station qui le sert, ni état local. Les tickets
-// viennent de la source même que le Mac lit sur la station — le journal du
-// projet —, telle que la station la publie dans son gist (`rail-publie.ts`) :
+// (#1432) : aucune liaison directe vers la station qui le sert, aucun état
+// local. Les tickets viennent de la source même que le Mac lit sur la
+// station — le journal du projet —, telle que la station la publie dans son
+// gist (`rail-publie.ts`) :
 // mêmes numéros, même ordre, même mot d'état que le `rail` de `facts`.
 //
 // La lecture est celle des stations du chef (`stations-du-chef.ts`), par le

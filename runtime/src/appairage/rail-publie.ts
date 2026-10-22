@@ -1,6 +1,6 @@
 // Le rail de chaque projet qu'une station sert, tel qu'elle le publie dans son
-// gist (#1432) : l'app d'un ordinateur neuf, qui n'a ni `ssh` vers la station
-// ni état local, y lit les mêmes tickets que le Mac lit sur la station
+// gist (#1432) : l'app d'un ordinateur neuf, qui n'a aucune liaison directe
+// vers la station ni état local, y lit les mêmes tickets que le Mac lit sur la station
 // (`rail-du-projet.ts`). La source est la même : le journal du projet, sur la
 // station qui le sert — ce qui se publie est ce que `facts` en dit, ticket pour
 // ticket, dans le même ordre et avec le même mot d'état (`rail-du-journal.ts`).
