@@ -39,13 +39,41 @@ d'Homebrew est refusé (il lie `libuv`, `icu4c`… qu'un Mac sans Homebrew n'a p
 
 Codes de sortie : 0 construit, 1 la construction a échoué, 2 refus — rien n'est écrit.
 
-## Signer, notariser, publier
+## Publier
 
-Le `.dmg` que construit `npm --prefix app run dist` seul est signé ad hoc. Celui que publie le
-workflow [`publier-app`](../../.github/workflows/publier-app.yml) est signé par un certificat
-**Developer ID Application**, notarisé par Apple et agrafé : il s'ouvre sans l'alerte « développeur
-non identifié ». À la main, sur un Mac qui a le certificat et un profil de `xcrun notarytool
-store-credentials <profil> …` :
+Le workflow [`publier-app`](../../.github/workflows/publier-app.yml) publie l'app tout seul, comme
+[`publier-station`](../../.github/workflows/publier-station.yml) publie la station : **à chaque merge
+sur `v2` qui change l'app**, une release `app-v<version>`. Personne ne pose de tag.
+
+1. Le job `decider` prend les fichiers changés depuis le dernier tag `app-v*` (sans tag encore, ceux
+   du push) et les passe à [`scripts/app-release/decider.ts`](../../scripts/app-release/README.md),
+   avec tous les tags `app-v*`. L'app a changé quand un fichier d'`app/` hors d'`app/test/` a changé ;
+   la version est le correctif du plus haut tag plus un (`1.0.0` pour le premier). Sinon, le run
+   finit vert, sans rien construire ni publier, et son résumé dit « nothing to publish ».
+2. Les jobs `mac` (runner macOS) et `windows` (runner Windows) construisent, chacun avec la commande
+   de son poste et cette version : `npm --prefix app run dist -- --version <v>` et
+   `node app/packaging/windows.ts --version <v>`. Chacun vérifie que ses métadonnées nomment bien son
+   installeur.
+3. Le job `publier`, une fois les deux constructions faites, crée le tag et la release `app-v<v>` sur
+   le commit du merge, avec ses quatre fichiers à la racine, aux noms que lit l'app installée
+   (`app/src/mise-a-jour/flux.ts`) : `Brigade-<v>-arm64.dmg`, `latest-mac.yml`,
+   `Brigade-<v>-x64-setup.exe`, `latest.yml`. Rien n'est publié si une construction échoue. La
+   release n'est pas marquée « latest » : celle-là reste à la station, que
+   `releases/latest/download/installer-station.sh` trouve.
+
+C'est le seul chemin de publication : un tag `app-v*` poussé à la main ne publie rien. Il devient la
+base du merge suivant — pousser `app-v1.1.0` fait publier `app-v1.1.1` au prochain merge qui change
+l'app : c'est ainsi qu'on monte une version mineure ou majeure. Les publications passent une à une
+(`concurrency`) ; un run annulé ou échoué ne perd rien, puisque le suivant compare au dernier tag
+publié. `workflow_dispatch` rejoue la décision à la main, sur `v2` seulement.
+
+### Signer, notariser
+
+La release ne porte pas encore d'app signée (#1441) : le `.dmg` est signé ad hoc, l'installeur
+Windows ne l'est pas. Chaque job de construction a son étape **« Signature (Mac) »** ou
+**« Signature (Windows) »**, avant que ses fichiers ne partent vers la release : c'est là qu'elle
+s'insère. À la main, sur un Mac qui a un certificat **Developer ID Application** et un profil de
+`xcrun notarytool store-credentials <profil> …` :
 
 ```sh
 npm --prefix app run dist -- --identite "Developer ID Application: Nom (ABCDE12345)" --notariser <profil>
@@ -56,32 +84,6 @@ agrafée ; puis le `.dmg` est signé, notarisé et agrafé à son tour. Une nota
 pas fait échouer la construction. Avec `--identite` seul (ou `BRIGADE_SIGN_IDENTITY`), l'app est signée
 mais pas notarisée. À côté du `.dmg` s'écrit **`latest-mac.yml`** — version, nom, taille et sha512 du
 `.dmg`, le format qu'un updater de type electron-updater lit.
-
-### Secrets du dépôt
-
-À poser dans Settings → Secrets and variables → Actions (aucune valeur n'est dans le dépôt ; le
-workflow refuse de partir si l'un manque) :
-
-| Secret | Quoi |
-|---|---|
-| `MACOS_CERTIFICATE_P12` | le certificat « Developer ID Application » et sa clé, exportés en `.p12`, en base64 (`base64 -i certificat.p12`) |
-| `MACOS_CERTIFICATE_PASSWORD` | le mot de passe de ce `.p12` |
-| `MACOS_SIGN_IDENTITY` | le nom du certificat, ex. `Developer ID Application: Nom (ABCDE12345)` |
-| `APPLE_ID` | l'identifiant Apple du compte développeur |
-| `APPLE_APP_SPECIFIC_PASSWORD` | un mot de passe d'app pour ce compte (appleid.apple.com) |
-| `APPLE_TEAM_ID` | l'identifiant d'équipe, 10 caractères |
-
-### Publier une version
-
-1. Choisir la version, `<v>` (ex. `1.0.0`), et le commit de `v2` à publier.
-2. Poser le tag, puis le pousser : `git tag app-v<v> <commit> && git push origin app-v<v>`. Le préfixe
-   `app-v` laisse les tags `v*` au plugin et `station-*` à la station.
-3. Le workflow construit sur un runner macOS, signe, notarise, agrafe, puis **vérifie** : il échoue si
-   `codesign --verify --deep --strict` ou `spctl --assess --type execute` signale quoi que ce soit sur
-   l'app, ou si `xcrun stapler validate` dit que le ticket n'est pas agrafé (l'app comme le `.dmg`).
-4. Il crée la release `app-v<v>` et y attache `Brigade-<v>-arm64.dmg` et `latest-mac.yml`. Rien
-   n'est publié si une étape échoue : corriger, supprimer le tag (`git push --delete origin app-v<v>`),
-   le reposer.
 
 ## Ce qu'il porte
 

@@ -1,28 +1,85 @@
-# Publie l'app du Mac : sur un tag `app-v<version>` (ex. `app-v1.0.0`), construit sur un runner macOS
-# le .dmg arm64, le signe avec un certificat Developer ID, le fait notariser par Apple, l'agrafe,
-# vérifie le résultat, puis l'attache à la release du tag avec `latest-mac.yml` (les métadonnées
-# de l'updater). Le détail et la procédure : app/packaging/README.md.
+# Publie l'app : à chaque merge sur `v2` qui change l'app, une release `app-v<version>` avec ce que
+# les apps installées lisent et téléchargent (app/src/mise-a-jour/flux.ts) — pour le Mac
+# `Brigade-<version>-arm64.dmg` et `latest-mac.yml`, pour Windows `Brigade-<version>-x64-setup.exe`
+# et `latest.yml`, tous à la racine de la release. Personne ne pose de tag : ce workflow crée le
+# tag et la release lui-même, dans le même run que les constructions (un tag créé avec
+# GITHUB_TOKEN ne déclenche aucun autre workflow). C'est le seul chemin de publication de l'app :
+# un tag `app-v*` poussé à la main ne publie rien, il devient seulement la base du merge suivant
+# (une version mineure ou majeure se monte ainsi). Le détail : app/packaging/README.md.
 #
-# Secrets du dépôt requis (aucune valeur n'est dans le dépôt) :
-#   MACOS_CERTIFICATE_P12         le certificat « Developer ID Application » et sa clé, .p12 en base64
-#   MACOS_CERTIFICATE_PASSWORD    le mot de passe de ce .p12
-#   MACOS_SIGN_IDENTITY           le nom du certificat, ex. « Developer ID Application: Nom (ABCDE12345) »
-#   APPLE_ID                      l'identifiant Apple du compte développeur
-#   APPLE_APP_SPECIFIC_PASSWORD   un mot de passe d'app pour ce compte (appleid.apple.com)
-#   APPLE_TEAM_ID                 l'identifiant d'équipe (10 caractères)
+# Le job `decider` joue scripts/app-release/decider.ts sur les fichiers changés depuis le dernier
+# tag `app-v*` : un merge qui ne change pas l'app finit vert, sans rien construire ni publier. Lire
+# depuis le dernier tag, et non depuis le seul push, fait qu'un run annulé ou échoué ne perd pas
+# son changement : le suivant le publie. `workflow_dispatch` rejoue la décision à la main.
+#
+# La signature n'est pas encore là (#1441) : le .dmg est signé ad hoc, l'installeur pas du tout.
+# Chaque construction a son étape « Signature », avant que ses fichiers ne partent vers la release.
 name: publier-app
 
 on:
   push:
-    tags:
-      - "app-v*"
+    branches: [v2]
+  workflow_dispatch:
+
+# Deux publications ne se doublent pas : chacune lit les tags que la précédente a posés.
+concurrency:
+  group: publier-app
+  cancel-in-progress: false
 
 permissions:
   contents: write
 
 jobs:
-  publier:
+  decider:
+    # Seul `v2` se publie, même lancé à la main.
+    if: github.ref == 'refs/heads/v2'
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.decision.outputs.changed }}
+      tag: ${{ steps.decision.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Tout l'historique et tous les tags : le diff part du dernier tag `app-v*`.
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+      - name: Décider si ce merge publie l'app
+        id: decision
+        env:
+          AVANT: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          tags=$(git tag --list 'app-v*' --sort=-version:refname)
+          derniere=$(echo "$tags" | head -n 1)
+          if [ -n "$derniere" ]; then
+            echo "Changes since the last app tag, $derniere."
+            git diff --name-only "$derniere" HEAD > "$RUNNER_TEMP/changes"
+          elif [ -n "$AVANT" ] && ! [[ "$AVANT" =~ ^0+$ ]] && git cat-file -e "$AVANT^{commit}" 2>/dev/null; then
+            echo "No app tag yet: changes of this push, since $AVANT."
+            git diff --name-only "$AVANT" HEAD > "$RUNNER_TEMP/changes"
+          else
+            echo "No app tag yet, and no previous commit to compare with: every file counts."
+            git ls-files > "$RUNNER_TEMP/changes"
+          fi
+          arguments=()
+          for tag in $tags; do arguments+=(--tag "$tag"); done
+          node scripts/app-release/decider.ts "${arguments[@]}" < "$RUNNER_TEMP/changes" > "$RUNNER_TEMP/decision"
+          tee -a "$GITHUB_OUTPUT" < "$RUNNER_TEMP/decision"
+          if grep -qx 'changed=true' "$RUNNER_TEMP/decision"; then
+            echo "The app changed: this run publishes $(sed -n 's/^tag=//p' "$RUNNER_TEMP/decision")." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "The app did not change: nothing to publish." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  mac:
+    needs: decider
+    if: needs.decider.outputs.changed == 'true'
     runs-on: macos-14
+    timeout-minutes: 90
+    env:
+      TAG: ${{ needs.decider.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -30,67 +87,110 @@ jobs:
           node-version: 26
       - name: Installer les dépendances de l'app
         run: npm ci --ignore-scripts --prefix app
-      - name: Poser le certificat et le profil de notarisation
-        env:
-          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
-          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      - name: Construire le .dmg
         run: |
           set -euo pipefail
-          for v in MACOS_CERTIFICATE_P12 MACOS_CERTIFICATE_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
-            [ -n "${!v}" ] || { echo "::error::the repository secret $v is not set"; exit 1; }
-          done
-          trousseau="$RUNNER_TEMP/brigade.keychain-db"
-          mot_de_passe="$(uuidgen)"
-          echo "$MACOS_CERTIFICATE_P12" | base64 --decode > "$RUNNER_TEMP/certificat.p12"
-          security create-keychain -p "$mot_de_passe" "$trousseau"
-          security set-keychain-settings -lut 21600 "$trousseau"
-          security unlock-keychain -p "$mot_de_passe" "$trousseau"
-          security import "$RUNNER_TEMP/certificat.p12" -k "$trousseau" -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$mot_de_passe" "$trousseau"
-          security list-keychains -d user -s "$trousseau" login.keychain-db
-          rm -f "$RUNNER_TEMP/certificat.p12"
-          xcrun notarytool store-credentials brigade-notary --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD" --keychain "$trousseau"
-      - name: Construire, signer et notariser le .dmg
-        env:
-          MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
-          TAG: ${{ github.ref_name }}
+          npm --prefix app run dist -- --version "${TAG#app-v}" --sortie "$RUNNER_TEMP/dist"
+      # --- Signature (Mac) -------------------------------------------------------------------------
+      # Ici se signe et se notarise le .dmg (#1441), avant qu'il ne parte vers la release :
+      # construire.ts le fait de lui-même avec `--identite` et `--notariser` (app/packaging/README.md).
+      # Signer réécrit le .dmg : `latest-mac.yml` doit alors être celui du .dmg signé.
+      - name: Signature (Mac) — pas encore, le .dmg est signé ad hoc
+        run: |
+          echo "::notice::The Mac app is not signed with Developer ID yet (#1441): the .dmg is ad hoc signed."
+      - name: Vérifier ce qui part vers la release
         run: |
           set -euo pipefail
-          [ -n "$MACOS_SIGN_IDENTITY" ] || { echo "::error::the repository secret MACOS_SIGN_IDENTITY is not set"; exit 1; }
-          npm --prefix app run dist -- --version "${TAG#app-v}" --sortie "$RUNNER_TEMP/dist" --identite "$MACOS_SIGN_IDENTITY" --notariser brigade-notary
-      - name: Vérifier la signature, la notarisation et l'agrafe
-        env:
-          TAG: ${{ github.ref_name }}
+          dmg="Brigade-${TAG#app-v}-arm64.dmg"
+          test -f "$RUNNER_TEMP/dist/$dmg"
+          grep -qx "path: $dmg" "$RUNNER_TEMP/dist/latest-mac.yml" || { echo "::error::latest-mac.yml does not name $dmg"; cat "$RUNNER_TEMP/dist/latest-mac.yml"; exit 1; }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-mac
+          path: |
+            ${{ runner.temp }}/dist/Brigade-*-arm64.dmg
+            ${{ runner.temp }}/dist/latest-mac.yml
+          if-no-files-found: error
+          retention-days: 7
+
+  windows:
+    needs: decider
+    if: needs.decider.outputs.changed == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      TAG: ${{ needs.decider.outputs.tag }}
+    steps:
+      - name: Garder les fins de ligne du dépôt
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+      - name: Construire l'installeur
+        shell: bash
         run: |
           set -euo pipefail
-          dmg="$RUNNER_TEMP/dist/Brigade-${TAG#app-v}-arm64.dmg"
-          test -f "$dmg"
-          test -f "$RUNNER_TEMP/dist/latest-mac.yml"
-          # Le .dmg lui-même : signé, accepté par Gatekeeper, agrafé.
-          codesign --verify --strict "$dmg"
-          spctl --assess --type open --context context:primary-signature "$dmg"
-          xcrun stapler validate "$dmg"
-          # L'app qu'il porte, telle qu'un chef la glisse dans Applications.
-          point="$RUNNER_TEMP/volume"
-          mkdir -p "$point"
-          hdiutil attach "$dmg" -mountpoint "$point" -nobrowse -readonly
-          trap 'hdiutil detach "$point" -force' EXIT
-          app="$point/Brigade.app"
-          codesign --verify --deep --strict --verbose=2 "$app"
-          spctl --assess --type execute --verbose=2 "$app"
-          xcrun stapler validate "$app"
-      - name: Joindre le .dmg et les métadonnées à la release
+          node app/packaging/windows.ts --version "${TAG#app-v}" --sortie "$RUNNER_TEMP/dist"
+      # --- Signature (Windows) ---------------------------------------------------------------------
+      # Ici se signe l'installeur (#1441), avant qu'il ne parte vers la release (app/packaging/WINDOWS.md,
+      # « What later tickets plug in »). Signer change ses octets : `latest.yml`, écrit par la
+      # construction, doit être réécrit pour l'installeur signé (`metadonneesDeMiseAJour` de
+      # app/packaging/construire.ts).
+      - name: Signature (Windows) — pas encore, l'installeur n'est pas signé
+        shell: bash
+        run: |
+          echo "::notice::The Windows installer is not signed yet (#1441)."
+      - name: Vérifier ce qui part vers la release
+        shell: bash
+        run: |
+          set -euo pipefail
+          installeur="Brigade-${TAG#app-v}-x64-setup.exe"
+          test -f "$RUNNER_TEMP/dist/$installeur"
+          tr -d '\r' < "$RUNNER_TEMP/dist/latest.yml" | grep -qx "path: $installeur" || { echo "::error::latest.yml does not name $installeur"; cat "$RUNNER_TEMP/dist/latest.yml"; exit 1; }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-windows
+          path: |
+            ${{ runner.temp }}/dist/Brigade-*-x64-setup.exe
+            ${{ runner.temp }}/dist/latest.yml
+          if-no-files-found: error
+          retention-days: 7
+
+  publier:
+    needs: [decider, mac, windows]
+    if: needs.decider.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ needs.decider.outputs.tag }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: ${{ runner.temp }}/release
+          merge-multiple: true
+      - name: Publier la release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
+          GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          dmg="$RUNNER_TEMP/dist/Brigade-${TAG#app-v}-arm64.dmg"
+          version="${TAG#app-v}"
+          cd "$RUNNER_TEMP/release"
+          fichiers=("Brigade-$version-arm64.dmg" latest-mac.yml "Brigade-$version-x64-setup.exe" latest.yml)
+          for fichier in "${fichiers[@]}"; do
+            test -f "$fichier" || { echo "::error::$fichier was not built — nothing is published"; ls -la; exit 1; }
+          done
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" "$dmg" "$RUNNER_TEMP/dist/latest-mac.yml" --clobber
+            # Un run rejoué : la release existe, ses fichiers sont remplacés.
+            gh release upload "$TAG" "${fichiers[@]}" --clobber
           else
-            gh release create "$TAG" "$dmg" "$RUNNER_TEMP/dist/latest-mac.yml" --title "Brigade (Mac) ${TAG#app-v}" --notes "L'app du Mac, signée Developer ID et notarisée par Apple. Ouvrir le .dmg, glisser Brigade dans Applications."
+            # `--latest=false` : la dernière release du dépôt reste celle de la station, que
+            # `releases/latest/download/installer-station.sh` trouve. L'app lit ses versions par
+            # leurs tags `app-v*`.
+            gh release create "$TAG" "${fichiers[@]}" \
+              --target "$GITHUB_SHA" \
+              --title "Brigade $version" \
+              --notes "The Brigade app $version, built from the commit $GITHUB_SHA. Mac: open Brigade-$version-arm64.dmg and drag Brigade into Applications. Windows: run Brigade-$version-x64-setup.exe. The installed apps update themselves to it." \
+              --latest=false
           fi
+          echo "Published $TAG: ${fichiers[*]}." >> "$GITHUB_STEP_SUMMARY"
