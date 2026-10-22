@@ -9,7 +9,7 @@ import { COINCEE_APRES_MS, livraisonsCoincees, relancerLeJugement } from "../src
 import { ouvrirJournal } from "../src/journal.ts";
 import { passDuTicket } from "../src/projections/pass.ts";
 import { ouvrirRail } from "../src/rail.ts";
-import { JOUR_HORLOGE, repertoireTemporaire } from "./outils.ts";
+import { aArreter, JOUR_HORLOGE, repertoireTemporaire } from "./outils.ts";
 
 const STATION = "box/claude";
 const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
@@ -20,7 +20,7 @@ function cuisine(t: TestContext) {
   let instant = a("10:00:00");
   const maintenant = () => new Date(instant);
   const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant });
-  t.after(() => journal.fermer());
+  aArreter(t, () => journal.fermer());
   const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: 3_600_000, maintenant });
   const noter = (fait: Fait, ticket: number) => journal.ajouter({ project: "brigade", ticket, author: "runtime", ...fait });
   // Le ticket arrive, un cook le prend et le livre : il est en pass, à juger.
