@@ -107,7 +107,8 @@ test("le quota se lit dans les en-têtes de l'API REST : un en-tête d'une autre
   const entetes = (paires: Record<string, string>) => new Map(Object.entries(paires));
   assert.deepEqual(quotaDesEntetes(entetes({ "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "3600", "x-ratelimit-reset": "1761134400", "x-ratelimit-resource": "core" })), { restant: 3600, plafond: 5000, reset: 1761134400 * SECONDE });
   assert.deepEqual(quotaDesEntetes(entetes({ "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "0", "x-ratelimit-reset": "1761134400" })), { restant: 0, plafond: 5000, reset: 1761134400 * SECONDE });
-  for (const paires of [{}, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "3600" }, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "beaucoup", "x-ratelimit-reset": "1761134400" }, { "x-ratelimit-limit": "30", "x-ratelimit-remaining": "2", "x-ratelimit-reset": "1761134400", "x-ratelimit-resource": "search" }]) {
+  const incomplets: Array<Record<string, string>> = [{}, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "3600" }, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "beaucoup", "x-ratelimit-reset": "1761134400" }, { "x-ratelimit-limit": "30", "x-ratelimit-remaining": "2", "x-ratelimit-reset": "1761134400", "x-ratelimit-resource": "search" }];
+  for (const paires of incomplets) {
     assert.equal(quotaDesEntetes(entetes(paires)), null, JSON.stringify(paires));
   }
 });
