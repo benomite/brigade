@@ -12,6 +12,7 @@ import { SCRIPT_GATES } from "../src/gates.ts";
 import { LANCEUR, lireLesRecus, noterGatesDuCook, poserLeLanceur, RECUS } from "../src/gates-du-cook.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { aArreter, depotGit, git, repertoireTemporaire } from "./outils.ts";
+import { posixOnly } from "./support/plateforme.ts";
 
 const PROJET = "espace";
 // Des gates qui disent ce qu'elles jugent, et sortent du code qu'on leur donne.
@@ -36,7 +37,7 @@ function cuisson(t: TestContext, avecGates = true) {
   return { clone, worktree, journal, jouer, passages };
 }
 
-describe("les gates du cook", { concurrency: 8 }, () => {
+describe("les gates du cook", { concurrency: 8, skip: posixOnly("the launcher is a bash script, and so are the gates it plays") }, () => {
   test("le lanceur est posé dans le `.git` du clone, exécutable — sauf pour un projet sans gates, ou hors d'un dépôt git", (t) => {
     const { clone, worktree } = cuisson(t);
     const lanceur = poserLeLanceur(worktree);
