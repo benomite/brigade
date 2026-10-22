@@ -6,7 +6,11 @@
 // propriétaire, comme après un clone en échec ; les issues du dépôt sont notées dans
 // `$FAUX_GISTS/issues` ; tout le reste — les gists du compte —
 // va à la doublure des gists (../appairage/faux-gh-gists.ts). Un clone est
-// noté dans `$FAUX_GISTS/clones`, une ligne chacun.
+// noté dans `$FAUX_GISTS/clones`, une ligne chacun ; `$FAUX_CLONE_ERREURS`
+// posé, il échoue en l'écrivant sur sa sortie d'erreur, comme gh et git le
+// diraient — réseau coupé, accès refusé. Demandé avec `--progress`, git écrit
+// sa progression, comme sous le vrai gh — par son transport, qu'un clone
+// local ne prend pas.
 import { execFileSync, spawnSync } from "node:child_process";
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -22,12 +26,16 @@ if (args[0] === "repo" && args[1] === "clone") {
   appendFileSync(join(process.env.FAUX_GISTS ?? "", "clones"), `${depot} ${dossier}\n`);
   // Le dépôt tel que gh l'a reçu.
   appendFileSync(join(process.env.FAUX_GISTS ?? "", "clones-nommes"), `${nomme}\n`);
+  if (process.env.FAUX_CLONE_ERREURS) {
+    process.stderr.write(`${process.env.FAUX_CLONE_ERREURS}\n`);
+    process.exit(1);
+  }
   if (!existsSync(origine)) {
     if (adresse === null) process.stderr.write(`GraphQL: Could not resolve to a Repository with the name '${depot}'. (repository)\n`);
     else process.stderr.write(`remote: Repository not found.\nfatal: repository '${nomme}/' not found\nfailed to run git: exit status 128\n`);
     process.exit(1);
   }
-  execFileSync("git", ["clone", "-q", origine, dossier], { stdio: "inherit" });
+  execFileSync("git", ["clone", ...(args.includes("--progress") ? ["--progress", "--no-local"] : ["-q"]), origine, dossier], { stdio: "inherit" });
 } else if (args[0] === "api" && args[1] === "user") {
   // Le compte de la station : `$FAUX_COMPTE`, ou « brigade-box ».
   process.stdout.write(`${process.env.FAUX_COMPTE ?? "brigade-box"}\n`);
