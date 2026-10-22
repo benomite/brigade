@@ -114,6 +114,7 @@ import { poserDepotRetenu } from "./onboarding/depot-retenu.js";
 import { ligneDAlerte, poserLesStations as stationsDeCuisson } from "./stations-de-cuisson.js";
 import { poserLePlafond as plafondDeCalibrage } from "./plafond-de-calibrage.js";
 import { poserLActivite } from "./activite-cuisine.js";
+import { poserLeJourDesGates, poserLesGatesDeLaFile } from "./cout-des-gates.js";
 import { poserLesRoles } from "./roles-cuisine.js";
 import { apresLaDecision, poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
 
@@ -266,6 +267,10 @@ const avis = element("avis");
 // au chef dans la dernière heure et le dernier jour. poserCuisson le remplit ; poserRail le pose.
 const activiteDuProjet = document.createElement("div");
 activiteDuProjet.id = "activite-du-projet";
+// Dessous, ce que ses gates ont coûté les dernières 24 h, à côté du budget d'un passage (ticket 1318). poserCuisson le
+// remplit ; poserRail le pose.
+const gatesDuProjet = document.createElement("div");
+gatesDuProjet.id = "gates-du-projet";
 // La carte du projet — son état, ses compteurs, ses cooks en cours et leur station, le dernier événement — est
 // sur l'onglet Cooks (ticket 1184) : poserRail l'y pose, en tête.
 const carte = document.createElement("section");
@@ -4094,6 +4099,9 @@ function poserCuisson(projet, posees = new Map()) {
   // Les six nombres de sa cuisine : rien tant que sa box ne répond pas, ni d'un runtime qui ne les donne pas.
   const activite = poserLActivite(document, tenu !== undefined && "tableau" in tenu && !muets.has(projet.nom) ? tenu.tableau.activiteCuisine : undefined);
   activiteDuProjet.replaceChildren(...(activite === null ? [] : [activite]));
+  // Ses gates des dernières 24 h : rien tant que sa box ne répond pas, ni d'un runtime qui ne les donne pas.
+  const gates = poserLeJourDesGates(document, tenu !== undefined && "tableau" in tenu && !muets.has(projet.nom) ? tenu.tableau.coutDesGates : undefined);
+  gatesDuProjet.replaceChildren(...(gates === null ? [] : [gates]));
   const vu = projetsVus?.projets.find(({ nom }) => nom === projet.nom);
   const alerte = ligneDAlerte(document, {
     alerte: stations?.alerte ?? null,
@@ -4214,7 +4222,7 @@ async function reglerLePlafondDuProjet(projet, station, valeur) {
 /** @param {Projet} projet @param {Dessinable | undefined} tenu */
 function poserCuisineEtroite(projet, tenu) {
   if (projet.sansStation === true) return rail.replaceChildren(bloc("h3", STATION_ARRETEE));
-  if (cuissonDuProjet.childElementCount > 0) return rail.replaceChildren(activiteDuProjet, cuissonDuProjet, rolesDuProjet, apprisDuProjet);
+  if (cuissonDuProjet.childElementCount > 0) return rail.replaceChildren(activiteDuProjet, gatesDuProjet, cuissonDuProjet, rolesDuProjet, apprisDuProjet);
   const pourquoi = muets.has(projet.nom)
     ? "its stations: not known while the station is unreachable"
     : tenu === undefined
@@ -4254,7 +4262,7 @@ function poserRail(projet) {
   poserCuisson(projet, posees);
   if (cuisine && etroit()) return poserCuisineEtroite(projet, tenu);
   /** @param {(HTMLElement | string)[]} poses */
-  const poser = (...poses) => rail.replaceChildren(...(cuisine ? [activiteDuProjet, carte, cuissonDuProjet, plafondDuProjet, rolesDuProjet, apprisDuProjet] : alerteDeCuisine.hidden ? [] : [alerteDeCuisine]), ...poses, ...(cuisine ? [pages, lectureDeLaCuisine] : []));
+  const poser = (...poses) => rail.replaceChildren(...(cuisine ? [activiteDuProjet, gatesDuProjet, carte, cuissonDuProjet, plafondDuProjet, rolesDuProjet, apprisDuProjet] : alerteDeCuisine.hidden ? [] : [alerteDeCuisine]), ...poses, ...(cuisine ? [pages, lectureDeLaCuisine] : []));
   // Cuisine d'un projet servi ici, station arrêtée : rien n'est lu, la page dit pourquoi en une ligne — sur l'un et
   // l'autre onglet.
   if (projet.sansStation === true) return rail.replaceChildren(bloc("h3", STATION_ARRETEE));
@@ -4351,6 +4359,8 @@ function poserRail(projet) {
       ? []
       : [
           ...teteDuRail(projet),
+          // Ce que coûtent ses gates face à leur budget, et le ticket que la cuisine a ouvert seule (ticket 1318).
+          ...poserLesGatesDeLaFile(document, tenu.tableau.coutDesGates, (ticket, retour) => ouvrirFicheDeCout(projet.nom, ticket, retour)),
           ...poserTriage(document, tenu.tableau.triage),
           ...poserAmont(projet, tenu.tableau.rail, lesCartes),
           ...poserLesCorrections(projet, tenu.tableau.rail.corrections),
@@ -4694,15 +4704,21 @@ function carteDuCook(nom, { ticket, titre }) {
 const titreSurLeRail = (nom, ticket) => carteSurLeRail(nom, ticket)?.titre;
 
 // Un clic sur un ticket d'une cause d'échec, ou sur un des tickets perdus ou les plus chers du projet,
-// dans Reliability — ou sur la page des coûts de l'app, une fois son projet ouvert — ouvre sa fiche,
-// par-dessus l'onglet. Un ticket que le rail ne porte pas (ou pas encore lu) s'ouvre avec ce que l'on
-// en sait : son numéro.
+// dans Reliability — ou sur la page des coûts de l'app, une fois son projet ouvert —, ou sur celui que la
+// cuisine a ouvert seule pour ramener ses gates sous leur budget, en tête de la file, ouvre sa fiche,
+// par-dessus l'onglet. Un ticket que le rail ne porte pas s'ouvre avec ce qu'en dit la dernière lecture de
+// ce qui est en amont — son titre, son issue —, à défaut avec ce que l'on en sait : son numéro.
 /** @param {string} nom @param {number} ticket @param {HTMLElement} retour */
 function ouvrirFicheDeCout(nom, ticket, retour) {
   const projet = configuration.projets.find((candidat) => candidat.nom === nom);
   if (projet === undefined) return;
   const sans = { sans: "not communicated — the rail of this project is not read" };
-  const carte = carteSurLeRail(nom, ticket) ?? { ticket, ouvrable: false, attendu: false, attend: [], dit: [], fiche: { titre: sans, priorite: sans, issue: sans } };
+  const amont = amonts.get(nom);
+  const enAmont = amont === undefined || !("groupes" in amont) ? undefined : amont.groupes.flatMap(({ issues }) => issues).find((issue) => issue.ticket === ticket);
+  const carte =
+    carteSurLeRail(nom, ticket) ??
+    (enAmont === undefined ? undefined : { ticket, titre: enAmont.titre, ouvrable: enAmont.ouvrable, attendu: false, attend: [], dit: [], fiche: enAmont.fiche }) ??
+    { ticket, ouvrable: false, attendu: false, attend: [], dit: [], fiche: { titre: sans, priorite: sans, issue: sans } };
   ouvrirFiche(projet, carte, retour);
 }
 

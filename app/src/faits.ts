@@ -82,6 +82,75 @@ export function rolesCuisineLus(brut: unknown): RoleDeCuisine[] | undefined {
   });
 }
 
+// Ce que coûtent les gates du projet face à son budget (runtime/src/cout-des-gates.ts, ticket 1315) : le budget d'un
+// passage, en durée et en processeur — `parLeChef` faux, c'est le défaut —, le dernier passage — nul sans passage ; son
+// processeur nul quand il n'a pas été dit —, son dépassement tel que le runtime le juge, les passages des dernières
+// 24 h, et le ticket que la cuisine a ouvert seule pour les ramener sous le budget (ticket 1316) — nul sans ticket ouvert.
+// Et, d'un runtime qui les donne (ticket 1318), les passages de la dernière heure, ce que coûte un passage en moyenne
+// sur l'heure et sur le jour — nul sans passage —, et la tendance de l'heure face au jour — nulle quand l'une manque.
+export type FenetreDesGates = { runs: number; durationSeconds: number; cpuSeconds: number };
+export type MoyennesDesGates = { durationSeconds: number | null; cpuSeconds: number | null };
+export type TendanceDesGates = "up" | "down" | "steady";
+export type RecentDesGates = { lastHour: FenetreDesGates; averages: { lastHour: MoyennesDesGates; lastDay: MoyennesDesGates }; trend: { durationSeconds: TendanceDesGates | null; cpuSeconds: TendanceDesGates | null } };
+export type BudgetDesGates = { durationSeconds: number; cpuSeconds: number; parLeChef: { durationSeconds: boolean; cpuSeconds: boolean } };
+export type PassageDesGates = { durationSeconds: number; cpuSeconds: number | null; at: string };
+export type TicketDuBudget = { number: number; openedAt: string };
+export type CoutDesGates = { budget: BudgetDesGates; latest: PassageDesGates | null; overBudget: boolean; lastDay: FenetreDesGates; ticket: TicketDuBudget | null } & Partial<RecentDesGates>;
+
+// Le champ `coutDesGates` d'un `facts`. Un champ qui n'a pas cette forme n'est pas lu — la file et l'onglet Cooks se
+// dessinent sans, comme pour un runtime d'avant ce champ. Ce que le runtime y met de plus n'est pas repris.
+export function coutDesGatesLu(brut: unknown): CoutDesGates | undefined {
+  const champs = (valeur: unknown): Record<string, unknown> | undefined => (typeof valeur === "object" && valeur !== null && !Array.isArray(valeur) ? (valeur as Record<string, unknown>) : undefined);
+  const secondes = (valeur: unknown): valeur is number => typeof valeur === "number" && Number.isFinite(valeur) && valeur >= 0;
+  const instant = (valeur: unknown): valeur is string => typeof valeur === "string" && !Number.isNaN(Date.parse(valeur));
+  const racine = champs(brut);
+  const budget = champs(racine?.budget);
+  const pose = champs(budget?.parLeChef);
+  const jour = champs(racine?.lastDay);
+  if (racine === undefined || budget === undefined || pose === undefined || jour === undefined) return undefined;
+  if (!secondes(budget.durationSeconds) || !secondes(budget.cpuSeconds) || typeof pose.durationSeconds !== "boolean" || typeof pose.cpuSeconds !== "boolean") return undefined;
+  if (typeof racine.overBudget !== "boolean" || !(typeof jour.runs === "number" && Number.isSafeInteger(jour.runs) && jour.runs >= 0) || !secondes(jour.durationSeconds) || !secondes(jour.cpuSeconds)) return undefined;
+  let latest: PassageDesGates | null = null;
+  if (racine.latest !== null) {
+    const lu = champs(racine.latest);
+    if (lu === undefined || !secondes(lu.durationSeconds) || !(lu.cpuSeconds === null || secondes(lu.cpuSeconds)) || !instant(lu.at)) return undefined;
+    latest = { durationSeconds: lu.durationSeconds, cpuSeconds: lu.cpuSeconds, at: lu.at };
+  }
+  // La dernière heure, les moyennes et la tendance se lisent ensemble, ou pas du tout : un runtime d'avant elles.
+  const fenetre = (valeur: unknown): FenetreDesGates | undefined => {
+    const lu = champs(valeur);
+    return lu !== undefined && typeof lu.runs === "number" && Number.isSafeInteger(lu.runs) && lu.runs >= 0 && secondes(lu.durationSeconds) && secondes(lu.cpuSeconds) ? { runs: lu.runs, durationSeconds: lu.durationSeconds, cpuSeconds: lu.cpuSeconds } : undefined;
+  };
+  const moyennes = (valeur: unknown): MoyennesDesGates | undefined => {
+    const lu = champs(valeur);
+    const ouRien = (une: unknown): une is number | null => une === null || secondes(une);
+    return lu !== undefined && ouRien(lu.durationSeconds) && ouRien(lu.cpuSeconds) ? { durationSeconds: lu.durationSeconds, cpuSeconds: lu.cpuSeconds } : undefined;
+  };
+  const sens = (valeur: unknown): valeur is TendanceDesGates | null => valeur === null || valeur === "up" || valeur === "down" || valeur === "steady";
+  const heure = fenetre(racine.lastHour);
+  const auHeure = moyennes(champs(racine.averages)?.lastHour);
+  const auJour = moyennes(champs(racine.averages)?.lastDay);
+  const vers = champs(racine.trend);
+  const recent: RecentDesGates | undefined =
+    heure !== undefined && auHeure !== undefined && auJour !== undefined && vers !== undefined && sens(vers.durationSeconds) && sens(vers.cpuSeconds)
+      ? { lastHour: heure, averages: { lastHour: auHeure, lastDay: auJour }, trend: { durationSeconds: vers.durationSeconds, cpuSeconds: vers.cpuSeconds } }
+      : undefined;
+  let ticket: TicketDuBudget | null = null;
+  if (racine.ticket !== null && racine.ticket !== undefined) {
+    const lu = champs(racine.ticket);
+    if (lu === undefined || !(typeof lu.number === "number" && Number.isSafeInteger(lu.number) && lu.number > 0) || !instant(lu.openedAt)) return undefined;
+    ticket = { number: lu.number, openedAt: lu.openedAt };
+  }
+  return {
+    budget: { durationSeconds: budget.durationSeconds, cpuSeconds: budget.cpuSeconds, parLeChef: { durationSeconds: pose.durationSeconds, cpuSeconds: pose.cpuSeconds } },
+    latest,
+    overBudget: racine.overBudget,
+    lastDay: { runs: jour.runs, durationSeconds: jour.durationSeconds, cpuSeconds: jour.cpuSeconds },
+    ...(recent ?? {}),
+    ticket,
+  };
+}
+
 // Un ticket que le bloc `attend` nomme, et ce que `faits` en donne : son titre —
 // vide s'il n'est pas sur le rail, le journal ne le connaît pas — et l'adresse de
 // son issue, que la box donne : nulle quand elle n'en a pas. L'app n'en compose aucune.
@@ -179,6 +248,9 @@ export type Faits = {
   // Les rôles de la cuisine du projet, chacun avec sa ligne et sa dernière action (ticket 1274) ; absent d'un runtime
   // d'avant ce champ.
   rolesCuisine?: RoleDeCuisine[];
+  // Ce que coûtent les gates du projet face à son budget, et le ticket que la cuisine a ouvert seule (ticket 1318) ;
+  // absent d'un runtime d'avant ce champ.
+  coutDesGates?: CoutDesGates;
   // Les corrections proposées des consignes du projet, que le chef tranche (correction.ts) : absent
   // quand il n'y en a aucune, et d'un runtime d'avant ce champ.
   corrections?: CorrectionLue[];
@@ -270,6 +342,9 @@ export type Tableau = {
   activiteCuisine?: ActiviteCuisine;
   // Les rôles de la cuisine du projet, sur l'onglet Cooks — absent d'un runtime qui ne les donne pas.
   rolesCuisine?: RoleDeCuisine[];
+  // Ce que coûtent les gates du projet face à son budget : la file le pose en tête, l'onglet Cooks ses 24 h (ticket
+  // 1318) — absent d'un runtime qui ne le donne pas.
+  coutDesGates?: CoutDesGates;
   // Ce que chaque correction acceptée des consignes du projet a fait de sa cause, avant et après son
   // merge (recul.ts), la plus ancienne d'abord : la page Reliability la pose. Absent quand il n'y en a aucune.
   reculs?: Recul[];
@@ -535,6 +610,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
       ...(triageLu(racine.triage) === undefined ? {} : { triage: triageLu(racine.triage) }),
       ...(activiteCuisineLue(racine.activiteCuisine) === undefined ? {} : { activiteCuisine: activiteCuisineLue(racine.activiteCuisine) }),
       ...(rolesCuisineLus(racine.rolesCuisine) === undefined ? {} : { rolesCuisine: rolesCuisineLus(racine.rolesCuisine) }),
+      ...(coutDesGatesLu(racine.coutDesGates) === undefined ? {} : { coutDesGates: coutDesGatesLu(racine.coutDesGates) }),
       ...(racine.corrections === undefined ? {} : { corrections: correctionsLues(racine.corrections) }),
       ...(racine.reculs === undefined ? {} : { reculs: reculsLus(racine.reculs) }),
       ...(racine.profils === undefined ? {} : { profils: profilsLus(racine.profils) }),
@@ -968,6 +1044,7 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu, repond
     ...(triageDe(faits.triage, faits.lu) === undefined ? {} : { triage: triageDe(faits.triage, faits.lu) }),
     ...(faits.activiteCuisine === undefined ? {} : { activiteCuisine: faits.activiteCuisine }),
     ...(faits.rolesCuisine === undefined ? {} : { rolesCuisine: faits.rolesCuisine }),
+    ...(faits.coutDesGates === undefined ? {} : { coutDesGates: faits.coutDesGates }),
     ...(faits.reculs === undefined || faits.reculs.length === 0 ? {} : { reculs: faits.reculs.map(reculDe) }),
     apprentissage: apprentissageDe(faits.apprentissage),
   };

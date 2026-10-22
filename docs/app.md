@@ -17,6 +17,14 @@ in the middle hides them, and switching tabs neither cuts nor empties the conver
 Six numbers read in `facts` (`activiteCuisine`, docs/runtime/etat-et-mesures.md), counted in tickets and for this project only;
 with no activity, six `0`. What each counts is in the help of its heading. A runtime that does not give them shows nothing
 there, nor a box that does not answer; on a narrow screen, they sit above the stations' lines.
+**Under them, the project's gates over the last hour and the last 24 h** (#1318): `gates, last hour and last 24 h`, the
+same small table — one row per window, `last hour` then `last 24 h`, with `runs`, `average time` and `average CPU` (what one
+run costs, read against the budget of one run, on the row below, `(default)` when you have not set it), then `total time` and
+`total CPU`. On the `last hour` row, each average carries its trend against the last 24 h — `↑ rising` (red), `↓ falling`
+(green) past 10 %, `steady` within. Everything is read in `facts` (`coutDesGates`: `lastHour`, `lastDay`, `averages`,
+`trend`): the app computes nothing. Averages read in seconds; totals in seconds up to ten minutes, then in minutes, then in
+hours; the exact figure is on hover. No run: `0`, `–` for the averages, `0 s`, never a blank, and no trend. A runtime that
+gives only the day shows its row alone, its averages `–` (the hover says why); one that gives nothing shows nothing.
 **On Cooks, one block per station of the project** (#1185, #1270), under the project's tile, wherever it runs — the box, the Mac,
 another computer (`remote`): its state, a word of `facts` (`cooking`, `stopped`, `saturated`, `refused`, #1183)
 and what it means (`by you, for 3 min · 1 cook finishing`, `its machine has no room`, the reason for a refusal),
@@ -2220,6 +2228,16 @@ For a ticket in pass or served, `cooked by` is added: who cooked it is not who h
   seven days (UTC), the most recent first, two counts: `decided alone` (the cards the triage settled itself) and `sent to TODO`
   (the cards it let into TODO). A day with no activity says `0` and `0`, never a blank. The runtime counts (`facts`, `triage`:
   `docs/runtime/etat-et-mesures.md`); the app only lays them out, and draws nothing from a runtime from before that field.
+- **The gates against their budget (#1318, epic #1313)**: at the head of the rail, above the triage, a compact block —
+  `gates, latest run against budget` — gives what the project's latest gates run cost against the budget of one run, in
+  wall-clock time and in CPU, both in seconds to read one against the other: `time 215 s / 100 s (default)`,
+  `CPU 990 s / 400 s (default)`. A budget you have not set is the default, and says `(default)`. When the runtime judges
+  the run over budget, the block takes a red edge and the mark `over budget`; when the kitchen opened a ticket on its own
+  to bring the gates back under it, a line says `the kitchen opened #31 on its own to bring the gates back under budget`,
+  and the number opens that ticket's sheet — with its title and its issue when the rail or what is upcoming carries it.
+  No run yet: `–` against the budget, and `no run yet`. A run cut before its end has its CPU `not measured`. Everything is
+  read in `facts` (`coutDesGates`, `docs/runtime/etat-et-mesures.md`): the app judges nothing, and draws nothing from a
+  runtime from before that field.
 - **The columns fit in the window at its opening size**; narrower, they scroll.
   The rail and what the displayed tab shows below it share the height, half and half; the
   rail scrolls within its own. A project with no `host` and no kitchen on this workstation has no rail — nothing is read from it — and
