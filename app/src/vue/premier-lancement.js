@@ -10,6 +10,7 @@
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
 import { boutonAction, survol } from "./briques.js";
+import { phrase } from "./onboarding/parcours.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../premier-lancement.ts").StationsDuChef} StationsDuChef */
@@ -66,11 +67,12 @@ function cree(doc, balise, texte) {
   return pose;
 }
 
-// Une phrase, et son détail — ce que `gh` ou `git` a dit — au survol, jamais à plat.
+// Une phrase — ses mots entre accents graves, `gh`, posés en code, comme partout (onboarding/parcours.js) —, et son
+// détail — ce que `gh` ou `git` a dit — au survol, jamais à plat.
 /** @param {Fabrique} doc @param {string} balise @param {string} texte @param {string | undefined} detail */
 function phraseEtDetail(doc, balise, texte, detail) {
   const pose = cree(doc, balise);
-  pose.append(cree(doc, "span", texte));
+  pose.append(phrase(doc, "span", texte));
   if (detail !== undefined && detail.trim() !== "") pose.append(survol(doc, detail));
   return pose;
 }

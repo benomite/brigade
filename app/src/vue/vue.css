@@ -1383,12 +1383,9 @@ main > header,
   display: flex;
   flex-direction: column;
   gap: 14px;
-  max-width: 760px;
+  max-width: 640px;
 }
 .premier-lancement > h2 {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
   font-size: 18px;
   font-weight: 700;
   color: var(--texte);
@@ -1406,11 +1403,8 @@ main > header,
   color: var(--texte);
 }
 .premier-lancement .gestes {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
   gap: 8px;
-  margin: 0;
+  padding: 0;
 }
 .premier-lancement .projets-de-station button {
   padding: 5px 12px;
@@ -1423,9 +1417,6 @@ main > header,
   color: var(--texte-doux);
 }
 .premier-lancement .refus {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
   margin: 0;
   color: var(--rouge-clair);
 }
@@ -1436,13 +1427,15 @@ main > header,
 .premier-lancement .code-de-connexion strong {
   font-size: 15px;
   color: var(--texte);
-  letter-spacing: 0.08em;
 }
 .premier-lancement > .gestes:last-child {
   margin-top: 6px;
 }
 .premier-lancement > .gestes:last-child button {
   color: var(--discret);
+}
+.premier-lancement :is(h2, .refus) .survol {
+  margin-left: 6px;
 }
 /* « + station », sous la liste : discret, à droite ; le champ du code s'ouvre à sa place. */
 #accueil-stations .ajout-de-station {

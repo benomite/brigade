@@ -219,7 +219,9 @@ describe("les stations ne se lisent pas : la raison en une phrase, jamais un éc
   test("sans `gh` : la phrase du runtime, son détail au survol, le bouton de sa page, et « read again »", () => {
     assert.equal(SANS_GH.state, "unavailable");
     const { tete, bouton, faits } = unEcran({ stations: SANS_GH });
-    assert.equal(tete().dessous("span")[0]?.textContent, "The GitHub CLI (`gh`) is not installed on this computer, and brigade reads your stations on GitHub through it.");
+    // Ses mots entre accents graves posés en code, comme sur toute phrase du runtime.
+    assert.equal(tete().dessous("span")[0]?.textContent, "The GitHub CLI (gh) is not installed on this computer, and brigade reads your stations on GitHub through it.");
+    assert.deepEqual(tete().dessous("code").map((code) => [code.textContent, code.className]), [["gh", "mono"]]);
     assert.equal(tete().dessous("button")[0]?.ariaLabel, "spawn gh ENOENT");
     assert.equal(bouton("get the GitHub CLI").className, "recommande");
     bouton("get the GitHub CLI").click();
