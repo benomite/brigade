@@ -45,6 +45,7 @@ import type { Verification } from "../bac-a-sable/local.ts";
 import { dejaDemenage, lireRemise, recevoir, remettre, remisAilleurs } from "../demenagement/remise.ts";
 import { ouvrirGitHub } from "../github.ts";
 import { lireEchecDuWorktree } from "../echec-du-worktree.ts";
+import { lireBlocages } from "../installation/blocages/blocages.ts";
 import { lireOnboarding } from "../onboarding/lire.ts";
 import { ouvrirLaPreparation } from "../preparation-depot/ouvrir.ts";
 import { CONFIGURATION, ETATS, lieuxDuProjet } from "../station/configuration.ts";
@@ -460,6 +461,10 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
       return refus === null
         ? { ...suiviDu(projet, "en-preparation", "its line is written: the station is opening it"), bascule }
         : { ...suiviDu(projet, "refuse", `the station refuses to serve it — ${refus}`, [], servis.cause?.(projet.nom) ?? "unexpected"), bascule };
+    }).map((dit) => {
+      // Ce qui bloque le projet, lu dans son journal, quel que soit son état.
+      const blocages = lireBlocages(etatDe(dit.nom));
+      return blocages.length === 0 ? dit : { ...dit, blocages };
     });
     for (const nom of [...serviLe.keys()]) if (!servisMaintenant.has(nom)) serviLe.delete(nom);
     // Où en est chaque projet dont elle est la principale, de son ajout à son

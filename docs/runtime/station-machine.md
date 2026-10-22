@@ -155,7 +155,8 @@ link (`runtime/src/projets/`).
   `servi` (and since when), `a-autoriser` (with its pages), `en-preparation`, `refuse` (and why:
   failed clone, refused repository access, hand-written line, station refusal) or `secondaire` — a
   `servi` project whose kitchen no longer prepares a worktree also carries `worktree` (see "The
-  worktree that does not prepare" below); and, next to the list, the **onboarding** of each project
+  worktree that does not prepare" below); a project with blockers carries `blocages` (see "The
+  project's blockers" below); and, next to the list, the **onboarding** of each project
   of which it is the main station — see further down. The tracking's keys and status words are
   written in French by the runtime; they stay French until it is translated.
 - **Removed from the app**, the project leaves the request: the station removes its line from the
@@ -328,6 +329,46 @@ The other refusals (`already-served`, `door-not-open`, `clone-failed`, `fetch-bl
 `push-blocked`, `decisions-not-written`, `handed-over-elsewhere`, `unexpected`) have no button: each
 carries `noRemedy` (`SANS_REMEDE`). `clone-missing` and `sandbox-unusable` are replayed by the
 station at every reread, their remedy not acting on the configuration.
+
+### The project's blockers
+
+*Ticket #1394, epic #1393.* Whatever stops a project between its adding and its service is one
+**blocker**, in a single runtime model (`runtime/src/installation/blocages/`) that every part of the
+installation feeds — the clone, the preparation, what the station lacks — and that the project's page
+shows. A blocker is written to the **project's log** (`blocker.raised`, `blocker.resolved`, no
+ticket), so the station and the project's kitchen both write it from their own process; the station
+reads them at each beat and publishes them in the project's line of `brigade-projets-suivi.json`, in
+any state, under `blocages` — absent when there is none:
+
+```json
+"blocages": [
+  { "id": "need:postgres", "message": "The tests of parade need a Postgres that box does not have.",
+    "cause": "The worktree setup runs psql against a local database.", "action": "choose-station" },
+  { "id": "token", "message": "The token of brigade-cook does not include benomite/parade.",
+    "cause": "A fine-grained token only covers the repositories chosen for it.",
+    "link": "https://github.com/settings/personal-access-tokens", "detail": "Repository not found." }
+]
+```
+
+- `id`: the blocker's stable key, chosen by whoever raises it. The same blocker raised twice is one:
+  raised identical, nothing is written; raised changed, it replaces the old one in its place.
+  Resolved, it leaves the list; raised again later, it comes back last.
+- `message` (what is blocked) and `cause` (why): one sentence each, in English.
+- `action` (optional): the identifier of the gesture the app can perform to lift it.
+- `link` (optional, `https` only): the exact page where the chef lifts it when the gesture is outside
+  the app.
+- `detail` (optional, 2000 characters at most): what a command said, as it said it — shown second.
+
+**Raw output is never the message.** A message or a cause that is only a command's output — more than
+one line, an `exit status`, a `Command failed:`, a `fatal:` or `error:` line, an `ERR_…` or `ENOENT`
+code, a signal, a JavaScript or Python error, a stack trace, a shell prompt, or longer than 400
+characters — is moved into `detail` when the blocker is written, and a fixed sentence takes its place.
+A malformed blocker (unreadable `id`, `action` or `link`, empty message or cause) is a producer's
+bug: it is refused (`BlocageInvalide`).
+
+To raise or resolve one: `poserBlocage` / `leverBlocage` on an open log, or `poserBlocageDans` /
+`leverBlocageDans` on a project's state directory (created if needed). `lireBlocages` reads them,
+read-only.
 
 ### The first ticket: preparing the repository
 
