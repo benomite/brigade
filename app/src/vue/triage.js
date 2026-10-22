@@ -5,7 +5,7 @@
 // Tout est lu par le process principal (triage.ts) : la vue pose.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend un élément.
 
-import { survol } from "./briques.js";
+import { survol, uneLigne } from "./briques.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../triage.ts").JourDeTriage} JourDeTriage */
@@ -56,4 +56,30 @@ export function poserTriage(doc, jours) {
   }
   section.append(tete, liste);
   return [section];
+}
+
+// Le résumé du bloc replié sur Cooks (ticket 1457) : les deux nombres du jour le plus récent.
+/** @param {JourDeTriage[]} jours */
+export function resumeDuTriage(jours) {
+  const [recent] = jours;
+  return recent === undefined ? "" : `${recent.jour}: ${recent.decidedAlone} ${SEUL} · ${recent.sentToTodo} ${VERS_TODO}`;
+}
+
+export const SANS_JOUR = "no day yet";
+export const RIEN = "nothing decided alone or sent to TODO in these days";
+
+// Sur Cooks : un historique à comparer, pas un état. Sans jour, ou tous à zéro, une ligne seule dit pourquoi, rien à
+// ouvrir ; sinon `replier` le plie derrière sa ligne (résumé, aide) et le tableau des jours est son contenu.
+/** @param {Fabrique} doc @param {JourDeTriage[] | undefined} jours @param {(ligne: { titre: string, resume: string, aide: string }, contenu: any[]) => any} replier */
+export function poserTriageDeCooks(doc, jours, replier) {
+  const section = cree(doc, "section");
+  section.className = "triage";
+  section.ariaLabel = TITRE;
+  if (jours === undefined || jours.length === 0 || jours.every(({ decidedAlone, sentToTodo }) => decidedAlone === 0 && sentToTodo === 0)) {
+    const ligne = uneLigne(doc, TITRE, jours === undefined || jours.length === 0 ? SANS_JOUR : RIEN);
+    ligne.append(survol(doc, AIDE));
+    section.append(ligne);
+    return [section];
+  }
+  return [replier({ titre: TITRE, resume: resumeDuTriage(jours), aide: AIDE }, poserTriage(doc, jours))];
 }

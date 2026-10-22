@@ -140,6 +140,27 @@ export function poserLesGatesDeLaFile(doc, cout, ouvrir) {
   return [section];
 }
 
+// Sur l'onglet Cooks (ticket 1457, revue-page-cooks.md) : le même bloc, mais en toutes lettres seulement quand il a
+// quelque chose à décider — un passage ou un run de la base hors budget, ou un ticket que la cuisine a ouvert seule.
+// Sinon une seule ligne : « no run yet », ou les deux mesures du dernier passage, dans le budget.
+/** @param {Fabrique} doc @param {CoutDesGates | undefined} cout @param {(ticket: number, retour: any) => void} ouvrir */
+export function poserLesGatesDeCooks(doc, cout, ouvrir) {
+  if (cout === undefined) return [];
+  const { budget: lu, latest, overBudget, ticket, base } = cout;
+  if (overBudget || base?.overBudget === true || ticket !== null) return poserLesGatesDeLaFile(doc, cout, ouvrir);
+  const section = cree(doc, "section");
+  section.className = "gates-de-la-file";
+  section.ariaLabel = TITRE_FILE;
+  const dit =
+    latest === null
+      ? "no run yet"
+      : `within budget · time ${secondes(latest.durationSeconds)} / ${secondes(lu.durationSeconds)}, CPU ${latest.cpuSeconds === null ? "not measured" : secondes(latest.cpuSeconds)} / ${secondes(lu.cpuSeconds)}`;
+  const ligne = uneLigne(doc, TITRE_FILE, dit);
+  ligne.append(survol(doc, AIDE_FILE));
+  section.append(ligne);
+  return [section];
+}
+
 // Les colonnes de la section, dans l'ordre : le nombre de passages, ce que coûte un passage en moyenne — en face du
 // budget d'un passage —, puis le total.
 export const COLONNES = ["runs", "average time", "average CPU", "total time", "total CPU"];
