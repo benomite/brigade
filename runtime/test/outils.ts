@@ -11,7 +11,7 @@ import { pathToFileURL } from "node:url";
 import { Sortie, type Commande } from "../src/appel.ts";
 import type { Fait } from "../src/evenements.ts";
 import { DECISIONS } from "../src/decisions.ts";
-import { ouvrirJournal, type Journal } from "../src/journal.ts";
+import { cheminJournal, ouvrirJournal, type Journal } from "../src/journal.ts";
 import type { Projection } from "../src/projection.ts";
 
 // La doublure de `claude` : son scénario se choisit par la variable FAUX_CLAUDE.
@@ -222,6 +222,23 @@ export type Enfant = {
   fin: Promise<number | null>;
 };
 
+// Un journal neuf, schéma posé, sans un événement : fabriqué une fois par
+// process, puis copié là où un test en veut un — poser tout le schéma à chaque
+// lancement coûte deux fois plus que d'ouvrir celui-ci.
+let octetsDuJournalVide: Buffer | undefined;
+function journalVide(): Buffer {
+  if (octetsDuJournalVide === undefined) {
+    const repertoire = mkdtempSync(join(tmpdir(), "brigade-journal-vide-"));
+    try {
+      ouvrirJournal(repertoire).fermer();
+      octetsDuJournalVide = readFileSync(cheminJournal(repertoire));
+    } finally {
+      rmSync(repertoire, { recursive: true, force: true });
+    }
+  }
+  return octetsDuJournalVide;
+}
+
 // Les décisions du chef n'ont plus que le journal pour support : ce qu'un test
 // donne par variable à un runtime, le chef l'a posé au journal avant son
 // démarrage — tel quel, valeur illisible comprise, que le runtime refusera.
@@ -233,6 +250,7 @@ function decisionsAuJournal(fichier: string, env: Record<string, string>): Recor
   const decisions = DECISIONS.filter((nom) => (reste[nom] ?? "") !== "");
   const etat = reste.BRIGADE_STATE_DIR;
   if (sans === "1" || !fichier.endsWith("main.ts") || decisions.length === 0 || !etat || !existsSync(etat)) return reste;
+  if (!existsSync(cheminJournal(etat))) writeFileSync(cheminJournal(etat), journalVide());
   const journal = ouvrirJournal(etat);
   try {
     const posees = new Set(journal.tout().filter((e) => e.type === "decision.set").map((e) => String(e.payload.name)));
@@ -471,11 +489,13 @@ export function fauxGh(t: TestContext): FauxGh {
 // Le délai n'est pas une attente : il ne sert qu'à ce qu'un test cassé finisse
 // par le dire. Il est donc large — sur une machine où d'autres suites tournent
 // au même moment, ce qui prend une demi-seconde en prend facilement dix.
+// Sondée toutes les 20 ms : bien des conditions rouvrent et relisent tout un
+// journal, et toutes les 5 ms c'était le gros du processeur de leur fichier.
 export async function jusqua(condition: () => boolean, delaiMs = 60_000): Promise<void> {
   const limite = Date.now() + delaiMs;
   while (!condition()) {
     if (Date.now() > limite) throw new Error("condition jamais remplie");
-    await new Promise((resoudre) => setTimeout(resoudre, 5));
+    await new Promise((resoudre) => setTimeout(resoudre, 20));
   }
 }
 

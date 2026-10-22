@@ -2,10 +2,11 @@
 // un répertoire tel que le runtime l'attend, et un serveur local qui vérifie le
 // JWT de chaque requête avant de rendre un jeton d'installation. Ni réseau, ni
 // vraie App.
-import { createPublicKey, generateKeyPairSync, verify } from "node:crypto";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { createPrivateKey, createPublicKey, generateKeyPairSync, verify } from "node:crypto";
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
 import { ecrireSecret } from "../../src/droits.ts";
@@ -33,15 +34,46 @@ export type FauxGitHubApps = {
   desinstaller(role: Role): void;
 };
 
-// Fabriquer une clé RSA coûte : une paire par rôle, pour tout le fichier.
-let paires: Record<Role, { privee: string; publique: string }> | undefined;
-function cles() {
-  paires ??= Object.fromEntries(
-    ROLES.map((role) => {
-      const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
-      return [role, { privee: privateKey.export({ type: "pkcs1", format: "pem" }).toString(), publique: publicKey.export({ type: "spki", format: "pem" }).toString() }];
-    }),
-  ) as Record<Role, { privee: string; publique: string }>;
+// Fabriquer une clé RSA coûte — une demi-seconde de processeur pour les
+// trois : une paire par rôle, fabriquée une fois pour toute la machine et
+// gardée dans le répertoire temporaire, que chaque fichier de test relit. Des
+// clés de test, qui n'ouvrent rien. Un fichier illisible ou incomplet est
+// refait ; deux fichiers qui le refont en même temps écrivent chacun le leur
+// à côté, puis le mettent en place d'un seul geste.
+type Paires = Record<Role, { privee: string; publique: string }>;
+const FICHIER_DES_CLES = join(tmpdir(), "brigade-runtime-cles-github-apps-v1.json");
+let paires: Paires | undefined;
+function relues(): Paires | undefined {
+  try {
+    const lues = JSON.parse(readFileSync(FICHIER_DES_CLES, "utf8")) as Partial<Paires>;
+    for (const role of ROLES) {
+      const paire = lues[role];
+      if (typeof paire?.privee !== "string" || typeof paire.publique !== "string") return undefined;
+      createPrivateKey(paire.privee);
+      createPublicKey(paire.publique);
+    }
+    return lues as Paires;
+  } catch {
+    return undefined;
+  }
+}
+function cles(): Paires {
+  paires ??= relues();
+  if (paires === undefined) {
+    paires = Object.fromEntries(
+      ROLES.map((role) => {
+        const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+        return [role, { privee: privateKey.export({ type: "pkcs1", format: "pem" }).toString(), publique: publicKey.export({ type: "spki", format: "pem" }).toString() }];
+      }),
+    ) as Paires;
+    try {
+      const neuf = `${FICHIER_DES_CLES}.${process.pid}`;
+      writeFileSync(neuf, JSON.stringify(paires), { mode: 0o600 });
+      renameSync(neuf, FICHIER_DES_CLES);
+    } catch {
+      // Pas gardées : le fichier suivant les refera.
+    }
+  }
   return paires;
 }
 

@@ -17,7 +17,7 @@
 // livraison quoi qu'il en soit. Un cook qui joue le script sans le lanceur ne
 // laisse aucun reçu : la pass joue ses gates, comme avant.
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { empreinteDeConfig } from "./empreinte-des-gates.ts";
 import { aDesGates, processeurDesEnfants, SCRIPT_GATES } from "./gates.ts";
 import type { Journal } from "./journal.ts";
@@ -79,9 +79,25 @@ exit "$CODE"
 
 const git = (worktree: string, ...args: string[]) => execFileSync("git", ["-C", worktree, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
 
+// Sans GIT_DIR, git ne trouve un dépôt qu'en remontant du répertoire vers la
+// racine : un ancêtre qui porte un `.git`, ou qui en est un (HEAD, et refs ou
+// commondir). Là où aucun ne l'est, `rev-parse` échouerait à coup sûr — on ne
+// le lance pas pour l'entendre le dire. Ailleurs, git tranche, comme avant.
+const horsDeToutDepot = (worktree: string): boolean => {
+  if (process.env.GIT_DIR) return false;
+  for (let repertoire = resolve(worktree); ; ) {
+    if (existsSync(join(repertoire, ".git"))) return false;
+    if (existsSync(join(repertoire, "HEAD")) && (existsSync(join(repertoire, "refs")) || existsSync(join(repertoire, "commondir")))) return false;
+    const parent = dirname(repertoire);
+    if (parent === repertoire) return true;
+    repertoire = parent;
+  }
+};
+
 // Le répertoire git du worktree, où vivent ses reçus. Null : ce n'est pas un
 // worktree git.
 const dossierDuWorktree = (worktree: string): string | null => {
+  if (horsDeToutDepot(worktree)) return null;
   try {
     return git(worktree, "rev-parse", "--absolute-git-dir");
   } catch {
@@ -95,8 +111,9 @@ const dossierDuWorktree = (worktree: string): string | null => {
 // alors les gates comme le dépôt le dit, et la pass les rejoue. Ne lève pas.
 export function poserLeLanceur(worktree: string): string | null {
   if (!aDesGates(worktree)) return null;
+  const dossier = dossierDuWorktree(worktree);
+  if (dossier === null) return null;
   try {
-    const dossier = git(worktree, "rev-parse", "--absolute-git-dir");
     rmSync(join(dossier, RECUS), { force: true });
     const lanceur = join(resolve(worktree, git(worktree, "rev-parse", "--git-common-dir")), LANCEUR);
     // Un autre cook le joue peut-être en ce moment : bash lit son script au fil
