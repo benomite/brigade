@@ -7,13 +7,19 @@
 // qui redémarre repart vide. Sur disque, il ne tient que les réglages du chef
 // — les projets connus et leur poids —, relus à chaque décision.
 import { mkdirSync } from "node:fs";
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import { Base } from "./base.ts";
 import { lire } from "./plafonds.ts";
 import { ConfigInvalide, DejaEnCours, NOM_DE_PROJET } from "./runtime.ts";
 import { prendreVerrou, VerrouTenu } from "./verrou.ts";
+
+// `node:http` pris par `process.getBuiltinModule`, pas importé : la façade ESM
+// d'un module de Node lit tous ses accesseurs, et celui de `WebSocket` charge
+// undici entier — 80 ms de processeur pour chaque process qui importe ce
+// module, qu'il serve ou non.
+const { createServer } = process.getBuiltinModule("node:http");
 
 // Ce que les cooks de tickets d'un projet ont consommé, en tokens, sur 24 h et
 // sur 7 jours glissants. Ce n'est pas la consommation du compte.

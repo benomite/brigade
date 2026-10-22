@@ -49,12 +49,18 @@ export function lancementsDuFauxClaude(temoin: string): LancementDuFauxClaude[] 
   });
 }
 
+// Le cache de compilation de Node, quand la suite en a un. Tout process Node
+// qu'un test lance doit le recevoir, même dans un environnement fait de rien :
+// sans lui, chaque process d'essai repaie la lecture de tout son TypeScript —
+// une demi-seconde de processeur par commande du runtime, trois fois ce qu'elle
+// coûte avec.
+export const CACHE_DE_COMPILATION: Record<string, string> = process.env.NODE_COMPILE_CACHE ? { NODE_COMPILE_CACHE: process.env.NODE_COMPILE_CACHE } : {};
+
 // L'environnement minimal d'un process lancé par un test : rien du shell du
-// dev n'y passe, sauf le cache de compilation de Node quand la suite en a un —
-// sans lui, chaque process d'essai repaie la lecture de son TypeScript.
+// dev n'y passe, sauf le cache de compilation de Node.
 export const ENV_ENFANT: Record<string, string> = {
   PATH: process.env.PATH ?? "",
-  ...(process.env.NODE_COMPILE_CACHE ? { NODE_COMPILE_CACHE: process.env.NODE_COMPILE_CACHE } : {}),
+  ...CACHE_DE_COMPILATION,
   // Le tour des gates est celui de la box : un test qui les joue ne doit pas
   // faire la queue derrière les gates réelles d'un autre worktree, ni derrière
   // ses voisins. Les tests du tour posent leur propre verrou.

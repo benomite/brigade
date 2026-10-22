@@ -1,10 +1,15 @@
 // Ce qu'un runtime de projet sait de l'arbitre : où il est, et comment lui
 // parler. L'arbitre est facultatif — un seul projet sur la machine n'en a pas
 // besoin — et il vit sur la boucle locale, que la cloison laisse ouverte.
-import { Agent, request } from "node:http";
 import type { Socket } from "node:net";
 import { estUnPort, type Decision, type EtatArbitre, type Mot } from "./arbitre.ts";
 import { lire } from "./plafonds.ts";
+
+// `node:http` pris par `process.getBuiltinModule`, pas importé : la façade ESM
+// d'un module de Node lit tous ses accesseurs, et celui de `WebSocket` charge
+// undici entier — 80 ms de processeur pour chaque process qui importe ce
+// module, qu'il serve ou non.
+const { Agent, request } = process.getBuiltinModule("node:http");
 
 // L'arbitre n'a pas répondu : connexion refusée, réponse illisible. C'est un
 // fait, pas une attente — le délai n'est qu'une garde contre un arbitre figé.
