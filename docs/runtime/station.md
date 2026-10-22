@@ -207,11 +207,12 @@ differently, the runtime handles:
   one: on Windows, `claude` is named by its executable (`claude.exe`, the native installer's), not
   by an npm `.cmd` launcher. Named by such a launcher, the cook fails at its launch, and the `error`
   of its `cook.exited` says why (`runtime/src/sans-invite.ts`).
-- **Line endings.** Every `git` of the station and of its cooks checks files out in the repository's
-  own line endings (`core.autocrlf=false` and `core.eol=lf`, set through the environment). Git for
-  Windows sets `core.autocrlf=true` by default, which would turn them into `\r\n`, and a project
-  script would no longer run under bash. Only an attribute of the project (`eol=crlf` in its
-  `.gitattributes`) decides otherwise.
+- **Line endings.** The station's `git` checks the worktrees out in the repository's own line
+  endings (`core.autocrlf=false` and `core.eol=lf`, set through its environment). Git for Windows
+  sets `core.autocrlf=true` by default, which would turn them into `\r\n`, and a project script
+  would no longer run under bash. Only an attribute of the project (`eol=crlf` in its
+  `.gitattributes`) decides otherwise. The cook's `git` receives no `GIT_CONFIG_*` — that is how a
+  token would travel —: what it checks out itself follows the machine's configuration.
 - **The log.** The paths it holds (`worktree` and `stream` of `cook.launched`) are written with `/`
   on every station.
 - **Not covered yet**: the worktree setup. Its exports come back on a file descriptor beyond the

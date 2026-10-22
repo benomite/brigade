@@ -21,7 +21,7 @@ const rienNeReste = temporaireDuFichier();
 const FAUX_COOK = join(import.meta.dirname, "aides/faux-cook.ts");
 const SOUS_WINDOWS = process.platform === "win32";
 
-type Lancement = { args: string[]; cwd: string; lisezmoi: string | null; autocrlf: string | null };
+type Lancement = { args: string[]; cwd: string; lisezmoi: string | null };
 
 // Une cuisine sur un vrai dépôt, dont l'état vit sous un répertoire à espaces,
 // et dont le `claude` est la doublure exécutable, copiée sous un chemin à
@@ -83,9 +83,8 @@ describe("un projet servi de bout en bout, sur cette plateforme", () => {
     assert.equal(drapeau, "-p");
     assert.match(consigne, /le ticket #14 du dépôt benomite\/brigade — « Ticket 14 »/);
     assert.deepEqual(lance.args, argumentsClaude(consigne, { model: "sonnet", effort: "low" }));
-    // Les fins de ligne du dépôt, malgré `core.autocrlf` : à l'extraction, et pour son `git`.
+    // Le worktree est extrait dans les fins de ligne du dépôt, malgré `core.autocrlf`.
     assert.equal(lance.lisezmoi, "le projet\n");
-    assert.equal(lance.autocrlf, "false");
 
     // Le relais a écrit sa fin, de la même forme que partout.
     assert.deepEqual(JSON.parse(readFileSync(join(repertoire, "runs", `${run}.fin.json`), "utf8")), { code: 0, signal: null, erreur: null, masques: 0 });

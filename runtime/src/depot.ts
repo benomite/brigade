@@ -207,7 +207,8 @@ function avecConfiguration(env: NodeJS.ProcessEnv, reglages: Array<[string, stri
 // changent en `\r\n` à l'extraction. Un script du projet extrait en `\r\n` ne
 // se joue plus sous bash, et les octets ne seraient pas ceux du dépôt. Seul un
 // attribut du projet (`eol=crlf` dans son `.gitattributes`) en décide
-// autrement. Le `git` de la station l'a, et celui du cook aussi.
+// autrement. C'est le `git` de la station qui extrait les worktrees ; celui du
+// cook ne reçoit aucun `GIT_CONFIG_*` — c'est par là que passerait un jeton.
 export function finsDeLigneDuDepot(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return avecConfiguration(env, [
     ["core.autocrlf", "false"],

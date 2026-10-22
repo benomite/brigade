@@ -58,7 +58,7 @@ import { absentesDuMotif, CLE_DES_CAPACITES, direManque, direStationAbsente, fou
 import { environnementClaude } from "./jeton-claude.ts";
 import { argumentsClaude, consigne, consigneDeSuite, direRefus, environnementCook, lireFlux, REFUS_MAX, ticketRemis, verdict, VARIABLES_DE_CLE, VARIABLES_DE_JETON, type Lecture, type Session } from "./claude.ts";
 import type { Decisions } from "./decisions.ts";
-import { finsDeLigneDuDepot, ouvrirDepot, worktreeAuJournal, worktreeDuJournal, type Depot, type OptionsDepot } from "./depot.ts";
+import { ouvrirDepot, worktreeAuJournal, worktreeDuJournal, type Depot, type OptionsDepot } from "./depot.ts";
 import { configPresence, ouvrirDistantes, PRESENCE_PAR_DEFAUT_MIN, type Conclusion } from "./distantes.ts";
 import { ecrireSecret } from "./droits.ts";
 import { prendLesOrdinaires } from "./bac-a-sable/ordinaires.ts";
@@ -441,8 +441,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     noms.length === 1 ? `la station ${noms[0]} ${une}` : noms.length === 0 ? `la cuisine, sans station, ${une}` : `les stations ${noms.join(", ")} ${plusieurs}`;
   const desStations = () => (noms.length > 1 ? `des stations ${noms.join(", ")}` : `de la station ${noms[0]}`);
   const maintenant = options.maintenant ?? (() => new Date());
-  // Le `git` du cook extrait, lui aussi, dans les fins de ligne du dépôt.
-  const envCook = finsDeLigneDuDepot(environnementCook(options.env ?? process.env));
+  const envCook = environnementCook(options.env ?? process.env);
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
   const pasDeRegard = options.dureeBailMs / REGARDS_PAR_BAIL;
   const entreesMax = options.entreesMax ?? ENTREES_PAR_DEFAUT;

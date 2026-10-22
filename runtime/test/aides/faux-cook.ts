@@ -13,8 +13,8 @@
 //     tuer le cook seul suffirait à tout tuer. Sous macOS et Linux, chacun reste
 //     dans le groupe du cook.
 // FAUX_COOK_TEMOIN : un répertoire, qui existe. Chaque lancement y écrit
-//   `<pid>.json` : ses arguments, son répertoire, le fichier `LISEZMOI` de son
-//   dépôt tel qu'il est extrait, et le `core.autocrlf` que son `git` lit.
+//   `<pid>.json` : ses arguments, son répertoire, et le fichier `LISEZMOI` de
+//   son dépôt tel qu'il est extrait.
 // FAUX_COOK_PIDS : un répertoire, qui existe, où chaque étage de l'arbre
 //   (« attend ») écrit son pid.
 import { spawn, spawnSync } from "node:child_process";
@@ -42,14 +42,12 @@ if (premier === "--etage") {
 } else {
   const temoin = process.env.FAUX_COOK_TEMOIN;
   if (temoin) {
-    const autocrlf = git("config", "--get", "core.autocrlf");
     writeFileSync(
       join(temoin, `${process.pid}.json`),
       JSON.stringify({
         args: process.argv.slice(2),
         cwd: process.cwd(),
         lisezmoi: existsSync("LISEZMOI") ? readFileSync("LISEZMOI", "utf8") : null,
-        autocrlf: autocrlf.status === 0 ? autocrlf.stdout.trim() : null,
       }),
     );
   }
