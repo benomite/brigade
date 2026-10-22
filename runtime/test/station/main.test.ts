@@ -12,6 +12,7 @@ import { REPERTOIRE_COMPTEUR } from "../../src/limite-github.ts";
 import { accepterSansBacASable } from "../../src/onboarding/attente.ts";
 import { lirePortes } from "../../src/station/portes.ts";
 import { fauxGitHubApps } from "../aides/faux-github-apps.ts";
+import { relecteur } from "../aides/opt-B-journal.ts";
 import { aArreter, BASE, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancementsDuFauxClaude, lancer, mort, repertoireTemporaire, temporaireDuFichier, tuerLesRelais, vivant } from "../outils.ts";
 
 const rienNeReste = temporaireDuFichier();
@@ -75,14 +76,13 @@ function uneStation(t: TestContext) {
     }
   };
   const configurer = (texte: string) => writeFileSync(join(racine, "projets"), texte);
+  // Sondé toutes les cinq millisecondes par les attentes : relu seulement
+  // quand la station y a écrit.
+  const lecteur = relecteur();
+  aArreter(t, () => lecteur.fermer());
   const relire = (projet: string) => {
     if (!existsSync(join(etat(projet), "log.db"))) return [];
-    const journal = ouvrirJournal(etat(projet), { lectureSeule: true });
-    try {
-      return journal.tout().filter((e) => e.type !== "decision.set");
-    } finally {
-      journal.fermer();
-    }
+    return lecteur.lire(etat(projet), "tout", (journal) => journal.tout()).filter((e) => e.type !== "decision.set");
   };
   const faits = (projet: string, type: string) => relire(projet).flatMap((e) => (e.type === type ? [{ ticket: e.ticket, payload: e.payload as Record<string, unknown> }] : []));
   return { machine, racine, compte, env, etat, preparer, configurer, relire, faits };
