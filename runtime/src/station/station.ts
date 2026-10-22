@@ -4,7 +4,7 @@
 // sans redémarrer la station ni toucher aux autres projets.
 import { AsyncLocalStorage } from "node:async_hooks";
 import { join } from "node:path";
-import type { RailsPublies } from "../appairage/rail-publie.ts";
+import type { RailsPublies, TicketPublie } from "../appairage/rail-publie.ts";
 import type { VeilleConnexionMax } from "../connexion-max/veille.ts";
 import { ConfigInvalide, DejaEnCours } from "../runtime.ts";
 import { CONFIGURATION, environnementDuProjet, lireFichierDeConfiguration, type ProjetConfigure } from "./configuration.ts";
@@ -41,7 +41,8 @@ export type Station = {
   // Le dépôt GitHub de chaque projet servi (`<owner>/<repo>`), par son nom.
   depots(): Record<string, string>;
   // Le rail de chaque projet servi, par son nom, tel qu'il se publie
-  // (`appairage/rail-publie.ts`) — sauf celui dont la cuisine ne le lit pas.
+  // (`appairage/rail-publie.ts`) — sauf celui dont la cuisine ne lit aucun
+  // rail. Un journal qui ne se lit pas à cet instant donne son dernier rail lu.
   rails(): RailsPublies;
   // Les projets de la configuration que la station n'a pas pu ouvrir, et
   // pourquoi.
@@ -90,6 +91,8 @@ export function ouvrirStation(options: OptionsStation): Station {
   // Un projet refusé ne se réessaie que si sa ligne ou sa porte change — sauf
   // celui qu'un autre runtime tient encore : il est repris dès qu'il est libre.
   const refuses = new Map<string, { cle: string; motif: string; cause: CodeDeRefus; reessayer: boolean }>();
+  // Le dernier rail lu de chaque projet servi.
+  const railsLus = new Map<string, TicketPublie[]>();
   let ditsProblemes = "";
   let arretee = false;
 
@@ -176,17 +179,17 @@ export function ouvrirStation(options: OptionsStation): Station {
     relire,
     projets: () => [...ouvertes.keys()],
     depots: () => Object.fromEntries([...ouvertes].map(([nom, { depot }]) => [nom, depot])),
-    rails: () =>
-      Object.fromEntries(
-        [...ouvertes].flatMap(([nom, { cuisine }]) => {
-          try {
-            return cuisine.rail === undefined ? [] : [[nom, cuisine.rail()] as const];
-          } catch {
-            // Un journal qui ne se lit pas à cet instant : le rail d'avant reste publié.
-            return [];
-          }
-        }),
-      ),
+    rails: () => {
+      for (const nom of [...railsLus.keys()]) if (!ouvertes.has(nom)) railsLus.delete(nom);
+      for (const [nom, { cuisine }] of ouvertes) {
+        try {
+          if (cuisine.rail !== undefined) railsLus.set(nom, cuisine.rail());
+        } catch {
+          // Un journal qui ne se lit pas à cet instant : son dernier rail lu reste publié.
+        }
+      }
+      return Object.fromEntries(railsLus);
+    },
     refuses: () => Object.fromEntries([...refuses].map(([nom, { motif }]) => [nom, motif])),
     refus: (nom) => refuses.get(nom)?.motif ?? null,
     cause: (nom) => refuses.get(nom)?.cause ?? null,

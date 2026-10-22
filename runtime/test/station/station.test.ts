@@ -62,7 +62,11 @@ test("chaque projet de la configuration est ouvert avec son environnement, et ch
 test("la station donne à publier le rail de chaque projet servi, lu par sa cuisine — sauf celui qui ne se lit pas à cet instant (#1432)", (t) => {
   const { ecrire, rails, servie } = station(t, "");
   const ticket = { ticket: 14, etat: "pris", titre: "Ticket 14", url: "https://github.com/benomite/brigade/issues/14" };
-  rails.set("brigade", () => [ticket]);
+  let lisible = true;
+  rails.set("brigade", () => {
+    if (!lisible) throw new Error("journal occupé");
+    return [ticket];
+  });
   rails.set("espace", () => {
     throw new Error("journal fermé");
   });
@@ -70,6 +74,9 @@ test("la station donne à publier le rail de chaque projet servi, lu par sa cuis
   ecrire("brigade benomite/brigade v2\nespace benomite/espace main\nparade benomite/parade main\n");
   servie.relire();
   assert.deepEqual(servie.projets(), ["brigade", "espace", "parade"]);
+  assert.deepEqual(servie.rails(), { brigade: [ticket] });
+  // Son journal ne se lit pas un instant : son dernier rail lu reste à publier.
+  lisible = false;
   assert.deepEqual(servie.rails(), { brigade: [ticket] });
   // Un projet retiré n'en publie plus.
   ecrire("espace benomite/espace main\n");
