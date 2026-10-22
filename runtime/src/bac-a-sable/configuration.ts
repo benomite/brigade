@@ -128,13 +128,12 @@ export function configurer(cook: Cook): ConfigDeBacASable {
       // Un projet qui fixe `packageManager` (`pnpm@10.x`) fait télécharger
       // cette version à pnpm 10 dès son démarrage, puis vérifier sa signature
       // auprès de registry.npmjs.org : chaque `pnpm <script>` meurt de
-      // ERR_PNPM_ENGINE_IDENTITY_UNVERIFIABLE quand la requête n'aboutit pas.
-      // Or pnpm n'a pas le client de Node : il ignore `HTTPS_PROXY` et
-      // `NODE_USE_ENV_PROXY`, et ne lit que `https_proxy` ou sa propre
-      // configuration — d'où une requête qui part droit, et que le bac à sable
-      // refuse. Sans changement de version, ni téléchargement ni vérification :
-      // pnpm tourne avec celui qui est installé. Posé ici, donc pour les seuls
-      // lancements du bac à sable ; les autres gardent leur comportement.
+      // ERR_PNPM_PNPM_ENGINE_IDENTITY_UNVERIFIABLE quand cette requête
+      // n'aboutit pas. Ce n'est pas le `fetch` de Node (pnpm a son client, qui
+      // lit `https_proxy` en minuscules, que le bac à sable pose). Sans
+      // changement de version, ni téléchargement ni vérification : pnpm tourne
+      // avec celui qui est installé, réseau ou non. Posé ici, donc pour les
+      // seuls lancements du bac à sable ; les autres gardent leur comportement.
       env: { npm_config_manage_package_manager_versions: "false" },
       sandbox: {
         enabled: true,
