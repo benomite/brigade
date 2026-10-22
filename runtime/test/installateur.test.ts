@@ -8,7 +8,7 @@ import { createHash } from "node:crypto";
 import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { createServer, type AddressInfo } from "node:net";
 import { dirname, join } from "node:path";
-import { describe, test, type TestContext } from "node:test";
+import { describe, test, type TestContext } from "./support/posix.ts";
 import { EFFORTS, MODELES } from "../src/calibrage.ts";
 import { decisionsPosees } from "../src/decisions.ts";
 import { ouvrirJournal } from "../src/journal.ts";

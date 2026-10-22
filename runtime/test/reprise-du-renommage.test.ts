@@ -9,7 +9,7 @@
 import assert from "node:assert/strict";
 import { mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { describe, test, type TestContext } from "node:test";
+import { describe, test, type TestContext } from "./support/posix.ts";
 import { attentesDuChef } from "../src/attend.ts";
 import { ouvrirDepot, type Depot, type Transposition } from "../src/depot.ts";
 import { decrireEtat, lireEtat } from "../src/etat.ts";

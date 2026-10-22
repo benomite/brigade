@@ -21,7 +21,7 @@
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { test } from "node:test";
+import { test } from "../support/posix.ts";
 import { FICHIER_APPAIRAGE, FICHIER_STATION } from "../../src/appairage/document.ts";
 import { FICHIER_LOCAL } from "../../src/appairage/presence.ts";
 import { ouvrirJournal } from "../../src/journal.ts";

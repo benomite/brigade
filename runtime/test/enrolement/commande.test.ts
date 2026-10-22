@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { chmodSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { test, type TestContext } from "node:test";
+import { test, type TestContext } from "../support/posix.ts";
 import { DUREE_MS, ouvrirEnrolements, RECEPTEUR } from "../../src/enrolement/enrolement.ts";
 import { machineCourante, presenterLaMachine } from "../../src/enrolement/presentation.ts";
 import { ouvrirRegistre } from "../../src/stations-globales/registre.ts";

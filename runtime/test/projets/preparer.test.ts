@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { test } from "node:test";
+import { test } from "../support/posix.ts";
 import { decisionsPosees, poserDecision } from "../../src/decisions.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { ENQUETE_MUETTE, enqueter } from "../../src/projets/echec-du-clone.ts";

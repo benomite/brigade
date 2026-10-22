@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { spawn, spawnSync, type SpawnOptions } from "node:child_process";
 import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { describe, test, type TestContext } from "node:test";
+import { describe, test, type TestContext } from "./support/posix.ts";
 import { repertoireDuFichier, repertoireTemporaire } from "./outils.ts";
 
 const SOURCE = join(import.meta.dirname, "../deploy/brigade");

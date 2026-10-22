@@ -3,7 +3,7 @@
 // (qui laisse tout faire) et un dépôt sur 127.0.0.1 qui refuse tout
 // (`../aides/depot-qui-refuse.ts`). Aucun réseau.
 import assert from "node:assert/strict";
-import { test, type TestContext } from "node:test";
+import { test, type TestContext } from "../support/posix.ts";
 import { lireLeRefus, verifierAcces, type Acces } from "../../src/projets/acces.ts";
 import { depotQuiRefuse } from "../aides/depot-qui-refuse.ts";
 import { BASE, depotGit, ENV_GIT, git, portsFermesALInstant, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";

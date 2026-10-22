@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { test } from "node:test";
+import { test } from "../../support/posix.ts";
 import { DEBUT, FIN } from "../../../src/projets/bloc.ts";
 import { CODES_DE_REFUS, refus, type CodeDeRefus, type Refus } from "../../../src/projets/refus.ts";
 import { executerRemede, type StationDesRemedes } from "../../../src/remedes/executer.ts";

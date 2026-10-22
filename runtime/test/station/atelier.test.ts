@@ -7,7 +7,7 @@
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join, posix } from "node:path";
-import { test, type TestContext } from "node:test";
+import { test, type TestContext } from "../support/posix.ts";
 import { LECTURES_INTERDITES, type Reglages } from "../../src/bac-a-sable/configuration.ts";
 import { SEATBELT, type Sondes } from "../../src/bac-a-sable/detection.ts";
 import { configBacASableLocal, dansLeBacASableLocal } from "../../src/bac-a-sable/local.ts";

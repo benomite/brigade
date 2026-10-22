@@ -1,7 +1,7 @@
 // Ce qu'un cook fait en ce moment, lu dans son flux : la nature du geste et ce
 // qu'il vise — jamais ce qu'il y a dedans.
 import assert from "node:assert/strict";
-import { describe, test } from "node:test";
+import { describe, test } from "./support/posix.ts";
 import { direActivite, lecteurDActivite } from "../src/activite.ts";
 import { horloge } from "./outils.ts";
 

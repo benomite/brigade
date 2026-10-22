@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, test, type TestContext } from "node:test";
+import { describe, test, type TestContext } from "./support/posix.ts";
 import { annoncerCloison, configCloison, envelopper } from "../src/cloison.ts";
 import { jouerSetup } from "../src/gates.ts";
 import { ConfigInvalide, demarrer } from "../src/runtime.ts";

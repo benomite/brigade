@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { test } from "node:test";
+import { test } from "../support/posix.ts";
 import type { GitHub, IssueOuverte } from "../../src/github.ts";
 import { FICHIER, lirePreparation, ouvrirLaPreparation } from "../../src/preparation-depot/ouvrir.ts";
 import { corps, dejaSurLaBase, LABELS, MARQUEUR, TITRE } from "../../src/preparation-depot/ticket.ts";

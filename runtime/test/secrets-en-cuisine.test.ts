@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { mkdirSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, test, type TestContext } from "node:test";
+import { describe, test, type TestContext } from "./support/posix.ts";
 import { JETON_MASQUE } from "../src/identifiants.ts";
 import { etatDesGardeFous } from "../src/projections/guardrails.ts";
 import { chef, controlerBase, cuisine, fauxGitHub, issue, montre } from "./aides/cuisine.ts";

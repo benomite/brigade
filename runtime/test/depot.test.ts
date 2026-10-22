@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { appendFileSync, chmodSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
-import { describe, test, type TestContext } from "node:test";
+import { describe, test, type TestContext } from "./support/posix.ts";
 import { environnementReseau, lireALaBase, ouvrirDepot } from "../src/depot.ts";
 import { identifiantsLivres } from "../src/identifiants.ts";
 import { ConfigInvalide } from "../src/runtime.ts";

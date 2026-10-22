@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
-import { test } from "node:test";
+import { test } from "../support/posix.ts";
 
 const RUNTIME = join(import.meta.dirname, "../..");
 const SRC = join(RUNTIME, "src");

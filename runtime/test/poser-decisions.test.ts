@@ -7,7 +7,7 @@
 import assert from "node:assert/strict";
 import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { test } from "node:test";
+import { test } from "./support/posix.ts";
 import { attentesDuChef } from "../src/attend.ts";
 import { DECISIONS, decisionsPosees, OBLIGATOIRES, verifierDecision } from "../src/decisions.ts";
 import { principal as declarerStations } from "../src/declarer-stations.ts";
