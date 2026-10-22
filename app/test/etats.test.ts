@@ -47,13 +47,14 @@ async function ouvrir() {
   await repos();
   return vue;
 }
-const faits = (etat: string, ton: string | undefined, arretee = false): Dessinable => ({
+const faits = (etat: string, ton: string | undefined, arretee = false, stations: { lignes: []; alerte: null } | null = { lignes: [], alerte: null }): Dessinable => ({
   projet: PARADE,
   demande: 0,
   a: A,
   tableau: {
     etat,
     ...(ton === undefined ? {} : { ton }),
+    ...(stations === null ? {} : { stations }),
     arretee,
     apprentissage: { lecons: [], profils: [] },
     tick: "dernier tick il y a 12 s",
@@ -141,6 +142,17 @@ describe("la cuisine, le grant, le manager : une pastille à forme, et son libel
     const pilule = cuisine(vue).dessous("span").find((s) => s.className === "pilule") ?? assert.fail("pas de pilule");
     assert.equal(pilule.textContent, "un mot inconnu");
     assert.deepEqual([pilule.dessous("span")[0]?.dataset.ton, pilule.dessous("span")[0]?.dataset.forme], [undefined, undefined]);
+  });
+
+  test("sans stations lues, la carte du projet reste en tête de Cooks, et porte la pilule (#1456)", async () => {
+    const vue = await ouvrir();
+    await ouvrirOnglet(vue, "Cooks");
+    vue.dire("surFaits", { ...faits("ouverte", "vert", false, null), demande: vue.dernier("faits")[0] as number });
+    assert.equal(vue.element("rail").dessous("p").find(({ className }) => className === "etat-de-la-cuisine"), undefined);
+    const carte = vue.element("carte");
+    const poses = vue.element("rail").children;
+    assert.ok(poses.includes(carte) && poses.indexOf(carte) < poses.indexOf(vue.element("cuisson-du-projet")), "la carte n'est pas au-dessus des stations");
+    assert.equal(carte.dessous("span").find((s) => s.className === "pilule")?.textContent, "ouverte");
   });
 
   test("grant actif ; grant éteint : deux formes, deux libellés", async () => {

@@ -527,8 +527,8 @@ describe("le monospace est une information, pas un style", () => {
     assert.ok(boutons.length > 0 && boutons.every((pose) => !mono(pose)), "un bouton de geste est en monospace");
     // Un bouton qui écrit une commande à compléter dit son geste en mots : la commande n'est affichée nulle part.
     const complets = poses.filter((pose) => pose.balise === "button" && pose.parentElement?.className === "action");
-    // Celui de Cooks est sur son onglet (#1184), sous ses colonnes ; celui de Grants, sur sa page ouverte.
-    assert.deepEqual(complets.map(({ textContent }) => textContent).sort(), BOUTONS.filter(({ ou }) => ou === "grants" || ou === "cooks").map(({ libelle }) => `${libelle}…`).sort());
+    // Celui de Grants, sur sa page ouverte. Cooks n'en a plus (#1456) : le plafond de cooks se règle sur la ligne de sa station.
+    assert.deepEqual(complets.map(({ textContent }) => textContent).sort(), BOUTONS.filter(({ ou }) => ou === "grants").map(({ libelle }) => `${libelle}…`).sort());
     for (const { commande } of BOUTONS) assert.ok(!poses.some((pose) => pose.textContent.includes(commande.trim())), commande);
   });
 

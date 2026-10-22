@@ -254,7 +254,8 @@ function partie(doc, titre, items, vide) {
 // La ligne du bloc replié : « 4 lessons, 3 profiles ».
 /** @param {Apprentissage} apprentissage */
 export function resumeDeLApprentissage({ lecons, profils }) {
-  return `${lecons.length} lesson${s(lecons.length)}, ${profils.length} profile${s(profils.length)}`;
+  const pluriel = (/** @type {number} */ combien) => (combien === 1 ? "" : "s");
+  return `${lecons.length} lesson${pluriel(lecons.length)}, ${profils.length} profile${pluriel(profils.length)}`;
 }
 
 // La section entière. `apprentissage` absent : les faits du projet ne sont pas lus, rien n'est posé. Lus,
