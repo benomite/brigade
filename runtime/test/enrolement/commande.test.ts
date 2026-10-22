@@ -53,7 +53,7 @@ function chef(t: TestContext, maintenant?: () => Date) {
   return { enrolements, registre, repertoire };
 }
 
-test("la commande lancée sur une machine de test la présente au registre du chef « en attente », avec ses capacités — et rien ne la sélectionne avant l'acceptation", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, async (t) => {
+test("la commande lancée sur une machine de test la présente au registre du chef « en attente », avec ses capacités — et rien ne la sélectionne avant l'acceptation", { skip: posixOnly("runs a POSIX shell script") }, async (t) => {
   const { enrolements, registre } = chef(t);
   const machine = serveur(t);
   const { code, commande } = enrolements.preparer({ vers: "chef@box" });
@@ -82,7 +82,7 @@ test("la commande lancée sur une machine de test la présente au registre du ch
   assert.deepEqual(registre.utilisables(attendue.capacites), [acceptee]);
 });
 
-test("la commande porte le nom choisi dans la home : la machine se présente sous lui", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, async (t) => {
+test("la commande porte le nom choisi dans la home : la machine se présente sous lui", { skip: posixOnly("runs a POSIX shell script") }, async (t) => {
   const { enrolements, registre } = chef(t);
   const { commande } = enrolements.preparer({ vers: "chef@box", nom: "serveur-de-test" });
 
@@ -94,7 +94,7 @@ test("la commande porte le nom choisi dans la home : la machine se présente sou
   );
 });
 
-test("un code faux dans la commande est refusé : la machine n'apparaît pas au registre", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, async (t) => {
+test("un code faux dans la commande est refusé : la machine n'apparaît pas au registre", { skip: posixOnly("runs a POSIX shell script") }, async (t) => {
   const { enrolements, registre } = chef(t);
   const { code, commande } = enrolements.preparer({ vers: "chef@box", nom: "serveur-de-test" });
   const faux = code.startsWith("0") ? `1${code.slice(1)}` : `0${code.slice(1)}`;
@@ -107,7 +107,7 @@ test("un code faux dans la commande est refusé : la machine n'apparaît pas au 
   assert.deepEqual(registre.liste(), []);
 });
 
-test("une commande expirée est refusée : la machine n'apparaît pas au registre", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, async (t) => {
+test("une commande expirée est refusée : la machine n'apparaît pas au registre", { skip: posixOnly("runs a POSIX shell script") }, async (t) => {
   // Préparée il y a plus longtemps que son délai.
   const { enrolements, registre } = chef(t, () => new Date(Date.now() - DUREE_MS - 60_000));
   const { commande } = enrolements.preparer({ vers: "chef@box", nom: "serveur-de-test" });
@@ -119,7 +119,7 @@ test("une commande expirée est refusée : la machine n'apparaît pas au registr
   assert.deepEqual(registre.liste(), []);
 });
 
-test("une commande ne sert qu'une fois : relancée, ici ou sur une autre machine, elle est refusée et rien n'entre de plus au registre", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, async (t) => {
+test("une commande ne sert qu'une fois : relancée, ici ou sur une autre machine, elle est refusée et rien n'entre de plus au registre", { skip: posixOnly("runs a POSIX shell script") }, async (t) => {
   const { enrolements, registre } = chef(t);
   const { commande } = enrolements.preparer({ vers: "chef@box", nom: "serveur-de-test" });
   assert.equal((await serveur(t).lancer(commande)).statut, 0);
@@ -135,7 +135,7 @@ test("une commande ne sert qu'une fois : relancée, ici ou sur une autre machine
   assert.deepEqual(registre.liste(), avant);
 });
 
-test("sans brigade sur la machine, la commande le clone d'abord, puis lance le geste du clone", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, async (t) => {
+test("sans brigade sur la machine, la commande le clone d'abord, puis lance le geste du clone", { skip: posixOnly("builds a real git repository and runs a POSIX shell script") }, async (t) => {
   // Un dépôt de brigade dont le geste ne fait que noter ce qu'il reçoit.
   const depot = repertoireTemporaire(t);
   git(depot, "init", "-q", `--initial-branch=${BASE}`);

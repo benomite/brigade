@@ -36,7 +36,7 @@ test("avec ses Apps : autorisées, rien à faire ; une App pas installée sur le
   assert.ok("panne" in panne, JSON.stringify(panne));
 });
 
-test("le dépôt se clone à sa place par le `gh` de la machine ; déjà cloné, rien ne se refait ; introuvable, rien ne reste", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+test("le dépôt se clone à sa place par le `gh` de la machine ; déjà cloné, rien ne se refait ; introuvable, rien ne reste", { skip: posixOnly("builds a real git repository") }, async (t) => {
   const { origine } = depotGit(t);
   const origines = repertoireTemporaire(t);
   const gists = repertoireTemporaire(t);

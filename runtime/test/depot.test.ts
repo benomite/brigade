@@ -39,7 +39,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     );
   });
 
-  test("ce qu'un push publierait se lit en entier : un fichier binaire, un fichier que le cook a dit de ne pas lire, la résolution d'un merge", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("ce qu'un push publierait se lit en entier : un fichier binaire, un fichier que le cook a dit de ne pas lire, la résolution d'un merge", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { depot } = projet(t);
     const { worktree, branche } = await depot.preparer("15-abc");
     const commit = (message: string) => (git(worktree, "add", "-A"), git(worktree, "commit", "-q", "-m", message));
@@ -66,7 +66,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     }
   });
 
-  test("ce qu'un push publierait ne compte pas ce que l'origine a déjà reçu de la branche, et la branche y revient", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("ce qu'un push publierait ne compte pas ce que l'origine a déjà reçu de la branche, et la branche y revient", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { depot } = projet(t);
     const { worktree, branche } = await depot.preparer("15-abc");
     commiter(worktree, "livre.txt");
@@ -83,7 +83,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(depot.ajouts(branche), "");
   });
 
-  test("ce qu'un push publierait dit le fichier écrit sous les préfixes `a/` et `b/`, quoi que règle la config git de la station", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("ce qu'un push publierait dit le fichier écrit sous les préfixes `a/` et `b/`, quoi que règle la config git de la station", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { clone, depot } = projet(t);
     git(clone, "config", "diff.noprefix", "true");
     git(clone, "config", "diff.mnemonicPrefix", "true");
@@ -98,7 +98,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.deepEqual(identifiantsLivres(depot.ajouts(branche)), ["name"]);
   });
 
-  test("les identifiants de Claude se reconnaissent dans ce que la branche ajoute, pas dans ce que la base portait déjà", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("les identifiants de Claude se reconnaissent dans ce que la branche ajoute, pas dans ce que la base portait déjà", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { origine, depot } = projet(t);
     // Un jeton fabriqué, assemblé ici : sa forme n'est écrite en clair nulle part.
     const jeton = ["sk", "ant", "oat01", "A".repeat(90)].join("-");
@@ -142,7 +142,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.deepEqual(signes(), ["shape"]);
   });
 
-  test("une branche jamais poussée revient à la base", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("une branche jamais poussée revient à la base", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { clone, depot } = projet(t);
     const { worktree, branche } = await depot.preparer("15-abc");
     commiter(worktree, "fautif.txt");
@@ -152,7 +152,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(git(worktree, "rev-parse", "HEAD"), git(clone, "rev-parse", `origin/${BASE}`));
   });
 
-  test("le worktree d'un cook est une branche neuve, partie de la base", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("le worktree d'un cook est une branche neuve, partie de la base", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { clone, worktrees, depot } = projet(t);
 
     const { worktree, branche } = await depot.preparer("15-abc");
@@ -163,7 +163,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(git(worktree, "rev-parse", "HEAD"), git(clone, "rev-parse", `origin/${BASE}`));
   });
 
-  test("les fichiers suivis de la base se lisent sans worktree, tels que le clone les connaît", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("les fichiers suivis de la base se lisent sans worktree, tels que le clone les connaît", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { depot } = projet(t);
     assert.deepEqual(depot.fichiers(), ["LISEZMOI"]);
 
@@ -177,7 +177,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.deepEqual(depot.fichiers(), ["LISEZMOI", "docs/épique.md"]);
   });
 
-  test("un worktree retiré ne laisse ni répertoire ni branche, et son run se prépare à nouveau", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("un worktree retiré ne laisse ni répertoire ni branche, et son run se prépare à nouveau", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { clone, depot } = projet(t);
     const { worktree, branche } = await depot.preparer("15-abc");
     writeFileSync(join(worktree, "reste-du-setup.txt"), "à moitié installé\n");
@@ -189,7 +189,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     await depot.preparer("15-abc");
   });
 
-  test("un répertoire de worktrees relatif se lit depuis le répertoire du process, pas depuis le clone", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("un répertoire de worktrees relatif se lit depuis le répertoire du process, pas depuis le clone", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { clone } = depotGit(t);
     const absolu = join(repertoireTemporaire(t), "etat", "worktrees");
     const depot = ouvrirDepot({ clone, base: BASE, worktrees: relative(process.cwd(), absolu), env: ENV_GIT });
@@ -201,7 +201,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(depot.commits(branche), 0);
   });
 
-  test("le worktree part de la base telle qu'elle est sur l'origine, pas telle que le clone l'a connue", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("le worktree part de la base telle qu'elle est sur l'origine, pas telle que le clone l'a connue", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { origine, depot } = projet(t);
     const ailleurs = join(repertoireTemporaire(t), "ailleurs");
     git(repertoireTemporaire(t), "clone", "-q", origine, ailleurs);
@@ -213,7 +213,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(git(worktree, "rev-parse", "HEAD"), git(ailleurs, "rev-parse", "HEAD"));
   });
 
-  test("l'arbre principal du dépôt n'est jamais touché", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("l'arbre principal du dépôt n'est jamais touché", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { clone, depot } = projet(t);
     const avant = [git(clone, "rev-parse", "HEAD"), git(clone, "rev-parse", "--abbrev-ref", "HEAD"), git(clone, "status", "--porcelain")];
 
@@ -225,7 +225,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(existsSync(join(clone, "travail.txt")), false);
   });
 
-  test("les commits d'un cook se comptent depuis la base", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("les commits d'un cook se comptent depuis la base", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { depot } = projet(t);
     const { worktree, branche } = await depot.preparer("15-abc");
 
@@ -235,7 +235,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(depot.commits(branche), 2);
   });
 
-  test("la branche poussée arrive sur l'origine, et la base n'y bouge pas", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("la branche poussée arrive sur l'origine, et la base n'y bouge pas", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { origine, depot } = projet(t);
     const base = git(origine, "rev-parse", BASE);
     const { worktree, branche } = await depot.preparer("15-abc");
@@ -247,7 +247,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(git(origine, "rev-parse", BASE), base);
   });
 
-  test("un push impossible lève, avec ce que git en dit", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("un push impossible lève, avec ce que git en dit", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { origine, depot } = projet(t);
     const { worktree, branche } = await depot.preparer("15-abc");
     commiter(worktree);
@@ -256,7 +256,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.throws(() => depot.pousser(branche), /git push/);
   });
 
-  test("une origine injoignable fait échouer la préparation, sans laisser de worktree", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("une origine injoignable fait échouer la préparation, sans laisser de worktree", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { origine, worktrees, depot } = projet(t);
     rmSync(origine, { recursive: true });
 
@@ -264,7 +264,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(existsSync(join(worktrees, "15-abc")), false);
   });
 
-  test("un fichier renommé ou supprimé compte parmi les changements, à son ancien chemin", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("un fichier renommé ou supprimé compte parmi les changements, à son ancien chemin", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { origine, clone, depot } = projet(t);
     // La base porte un workflow et des gates.
     for (const fichier of [".github/workflows/ci.yml", ".claude/brigade/gates.sh"]) {
@@ -281,7 +281,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.deepEqual(depot.changes(branche), [".claude/brigade/gates.sh", ".github/workflows/ci.yml", "ci-off.yml"]);
   });
 
-  test("une livraison dit, par fichier, les lignes qu'elle ajoute et celles qu'elle retire — zéro et zéro pour un binaire", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("une livraison dit, par fichier, les lignes qu'elle ajoute et celles qu'elle retire — zéro et zéro pour un binaire", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { depot } = projet(t);
     const { worktree, branche } = await depot.preparer("15-abc");
     writeFileSync(join(worktree, "trois.txt"), "a\nb\nc\n");
@@ -296,7 +296,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     ]);
   });
 
-  test("un fichier au nom non ASCII, ou avec une espace, se lit tel qu'il s'écrit dans ce qu'une livraison change", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("un fichier au nom non ASCII, ou avec une espace, se lit tel qu'il s'écrit dans ce qu'une livraison change", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { depot } = projet(t);
     const { worktree, branche } = await depot.preparer("15-abc");
     mkdirSync(join(worktree, "docs"), { recursive: true });
@@ -306,7 +306,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.deepEqual(depot.changes(branche), ["docs/notes du chef.md", "docs/équipe.md"]);
   });
 
-  test("une branche de cook rebasée par un renvoi se pousse quand même : elle n'appartient qu'à la station", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("une branche de cook rebasée par un renvoi se pousse quand même : elle n'appartient qu'à la station", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { origine, depot } = projet(t);
     const { worktree, branche } = await depot.preparer("15-abc");
     commiter(worktree);
@@ -319,7 +319,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(git(origine, "rev-parse", "cook/15-abc"), depot.tete(branche));
   });
 
-  test("un commit poussé à la main sur la branche entre deux cooks survit au renvoi : le cook repart de ce que l'origine porte, et son push ne l'écrase pas", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("un commit poussé à la main sur la branche entre deux cooks survit au renvoi : le cook repart de ce que l'origine porte, et son push ne l'écrase pas", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { origine, depot } = projet(t);
     const { worktree, branche } = await depot.preparer("15-abc");
     commiter(worktree);
@@ -340,7 +340,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(git(origine, "rev-parse", `${branche}~1`), duChef);
   });
 
-  test("un commit poussé à la main pendant que le cook travaille n'est pas écrasé : le push échoue en le disant, et le cook suivant repart des deux", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("un commit poussé à la main pendant que le cook travaille n'est pas écrasé : le push échoue en le disant, et le cook suivant repart des deux", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { origine, depot } = projet(t);
     const { worktree, branche } = await depot.preparer("15-abc");
     commiter(worktree);
@@ -362,7 +362,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(git(origine, "merge-base", "--is-ancestor", duChef, branche), "");
   });
 
-  test("une branche que l'origine et le clone ont changée au même endroit ne se reprend pas : l'échec le dit, sans worktree ni rien d'écrasé", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("une branche que l'origine et le clone ont changée au même endroit ne se reprend pas : l'échec le dit, sans worktree ni rien d'écrasé", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { origine, worktrees, depot } = projet(t);
     const { worktree, branche } = await depot.preparer("15-abc");
     commiter(worktree);
@@ -380,7 +380,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(git(origine, "rev-parse", branche), duChef);
   });
 
-  test("une branche qu'un humain a réécrite sur l'origine entre deux cooks est adoptée telle quelle : l'ancien historique de la station n'y revient pas", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("une branche qu'un humain a réécrite sur l'origine entre deux cooks est adoptée telle quelle : l'ancien historique de la station n'y revient pas", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { origine, depot } = projet(t);
     const { worktree, branche } = await depot.preparer("15-abc");
     commiter(worktree);
@@ -404,7 +404,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.throws(() => git(origine, "merge-base", "--is-ancestor", ancienne, branche));
   });
 
-  test("une branche rebasée par un renvoi dont le push a échoué se reprend telle que le cook l'a laissée : l'origine ne porte rien d'étranger, rien n'est fusionné", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("une branche rebasée par un renvoi dont le push a échoué se reprend telle que le cook l'a laissée : l'origine ne porte rien d'étranger, rien n'est fusionné", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { origine, depot } = projet(t);
     const { worktree, branche } = await depot.preparer("15-abc");
     commiter(worktree);
@@ -422,7 +422,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(git(origine, "rev-parse", branche), rebasee);
   });
 
-  test("une branche poussée avant que la station ne retienne ses pushs se pousse encore : ce qu'elle en sait se lit alors sur sa branche de suivi", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("une branche poussée avant que la station ne retienne ses pushs se pousse encore : ce qu'elle en sait se lit alors sur sa branche de suivi", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { origine, clone, depot } = projet(t);
     const { worktree, branche } = await depot.preparer("15-abc");
     commiter(worktree);
@@ -435,7 +435,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(git(origine, "rev-parse", branche), depot.tete(branche));
   });
 
-  test("une branche que l'origine n'a plus se reprend telle que le clone la porte, et se pousse à nouveau", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("une branche que l'origine n'a plus se reprend telle que le clone la porte, et se pousse à nouveau", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { origine, depot } = projet(t);
     const { worktree, branche } = await depot.preparer("15-abc");
     commiter(worktree);
@@ -450,7 +450,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(git(origine, "rev-parse", branche), depot.tete(branche));
   });
 
-  test("la pass lit d'une branche son commit, ce qu'elle change depuis la base, et ce qu'elle porte — sans worktree", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("la pass lit d'une branche son commit, ce qu'elle change depuis la base, et ce qu'elle porte — sans worktree", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { clone, depot } = projet(t);
     const { worktree, branche } = await depot.preparer("15-abc");
     commiter(worktree);
@@ -471,7 +471,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(depot.connait("cook/16-def"), false);
   });
 
-  test("un worktree dit s'il est intact : un fichier suivi modifié ou un fichier neuf, non ; ce que le projet ignore, oui", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("un worktree dit s'il est intact : un fichier suivi modifié ou un fichier neuf, non ; ce que le projet ignore, oui", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { depot } = projet(t);
     const { worktree } = await depot.preparer("15-abc");
     writeFileSync(join(worktree, ".gitignore"), "*.log\n");
@@ -483,14 +483,14 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(depot.intact(worktree), false);
   });
 
-  test("l'empreinte d'un worktree ne change pas tant que rien n'y bouge", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("l'empreinte d'un worktree ne change pas tant que rien n'y bouge", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { depot } = projet(t);
     const { worktree } = await depot.preparer("47-abc");
 
     assert.equal(depot.empreinte(worktree), depot.empreinte(worktree));
   });
 
-  test("l'empreinte change à chaque progrès : un commit, un fichier suivi modifié puis réécrit, un fichier neuf, un fichier supprimé", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("l'empreinte change à chaque progrès : un commit, un fichier suivi modifié puis réécrit, un fichier neuf, un fichier supprimé", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { depot } = projet(t);
     const { worktree } = await depot.preparer("47-abc");
     const vues = [depot.empreinte(worktree)];
@@ -509,7 +509,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(new Set(vues).size, vues.length);
   });
 
-  test("ce que le projet ignore ne fait pas bouger l'empreinte : ni dépendances, ni logs", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("ce que le projet ignore ne fait pas bouger l'empreinte : ni dépendances, ni logs", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { depot } = projet(t);
     const { worktree } = await depot.preparer("47-abc");
     writeFileSync(join(worktree, ".gitignore"), "node_modules/\n*.log\n");
@@ -522,7 +522,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(depot.empreinte(worktree), avant);
   });
 
-  test("un worktree chargé de fichiers neufs se lit quand même : plus d'un mégaoctet de statut", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("un worktree chargé de fichiers neufs se lit quand même : plus d'un mégaoctet de statut", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { depot } = projet(t);
     const { worktree } = await depot.preparer("47-abc");
     // Des chemins longs : le statut dépasse le tampon par défaut de Node sans
@@ -538,7 +538,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.notEqual(depot.empreinte(worktree), avant);
   });
 
-  test("lire l'empreinte n'écrit pas l'index : un commit du cook au même instant ne bute pas sur son verrou", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("lire l'empreinte n'écrit pas l'index : un commit du cook au même instant ne bute pas sur son verrou", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { depot } = projet(t);
     const { worktree } = await depot.preparer("47-abc");
     const index = join(git(worktree, "rev-parse", "--absolute-git-dir"), "index");
@@ -551,7 +551,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.deepEqual(readFileSync(index), avant);
   });
 
-  test("chaque rapatriement de la base se signale, une fois la base du clone à jour : à la prise d'un ticket, à sa reprise, à la demande", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("chaque rapatriement de la base se signale, une fois la base du clone à jour : à la prise d'un ticket, à sa reprise, à la demande", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { origine, clone } = depotGit(t);
     const racine = repertoireTemporaire(t);
     // Ce que la base rapatriée porte, lu au moment du signal.
@@ -580,7 +580,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.deepEqual(lus, ["un\n", "deux\n", "trois\n"]);
   });
 
-  test("un signal de rapatriement qui lève ne retient pas le ticket", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("un signal de rapatriement qui lève ne retient pas le ticket", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { clone } = depotGit(t);
     const depot = ouvrirDepot({ clone, base: BASE, worktrees: join(repertoireTemporaire(t), "worktrees"), env: ENV_GIT, apresRapatriement: () => { throw new Error("journal fermé"); } });
 
@@ -589,7 +589,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(existsSync(join(worktree, "LISEZMOI")), true);
   });
 
-  test("la base qui avance se compte depuis un commit, et ce que la livraison change se lit toujours depuis son point de départ", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("la base qui avance se compte depuis un commit, et ce que la livraison change se lit toujours depuis son point de départ", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { clone, depot } = projet(t);
     const [livree, voisine] = [await depot.preparer("15-abc"), await depot.preparer("16-def")];
     commiter(livree.worktree, "a.txt");
@@ -607,7 +607,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.deepEqual(depot.changes(livree.branche), ["a.txt"]);
   });
 
-  test("un worktree jetable porte la fusion d'un commit avec une tête de la base, et dit l'arbre obtenu — sans toucher à aucune branche, et sans rien laisser une fois jeté", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("un worktree jetable porte la fusion d'un commit avec une tête de la base, et dit l'arbre obtenu — sans toucher à aucune branche, et sans rien laisser une fois jeté", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { clone, worktrees, depot } = projet(t);
     const [livree, voisine] = [await depot.preparer("15-abc"), await depot.preparer("16-def")];
     commiter(livree.worktree, "a.txt");
@@ -641,7 +641,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.notEqual(await depot.essayer("base"), null);
   });
 
-  test("un worktree jetable qui ne se crée pas lève, avec ce que git en dit : ce n'est pas un conflit, et rien n'est rendu", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("un worktree jetable qui ne se crée pas lève, avec ce que git en dit : ce n'est pas un conflit, et rien n'est rendu", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { worktrees, depot } = projet(t);
     await depot.rapatrier();
     // Un fichier là où git doit créer le répertoire des essais.
@@ -651,7 +651,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     await assert.rejects(depot.essayer("base"), /^Error: git worktree : \S/);
   });
 
-  test("une fusion qui ne se fait pas ne rend pas de worktree, et n'en laisse pas", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("une fusion qui ne se fait pas ne rend pas de worktree, et n'en laisse pas", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { worktrees, depot } = projet(t);
     const [livree, voisine] = [await depot.preparer("15-abc"), await depot.preparer("16-def")];
     writeFileSync(join(livree.worktree, "LISEZMOI"), "la livraison\n");
@@ -668,7 +668,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(existsSync(join(worktrees, ".essais", "jugement-15")), false);
   });
 
-  test("ce qui traîne dans un worktree est commité sur sa branche, sous le nom de la brigade — jamais ce que le projet ignore", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("ce qui traîne dans un worktree est commité sur sa branche, sous le nom de la brigade — jamais ce que le projet ignore", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { depot } = projet(t);
     const { worktree, branche } = await depot.preparer("15-abc");
     writeFileSync(join(worktree, ".gitignore"), "node_modules/\n.env\n");
@@ -697,7 +697,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(depot.recolter(worktree, branche), null);
   });
 
-  test("un worktree qui n'est plus sur sa branche n'est pas récolté : le commit n'irait nulle part", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("un worktree qui n'est plus sur sa branche n'est pas récolté : le commit n'irait nulle part", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { depot } = projet(t);
     const { worktree, branche } = await depot.preparer("15-abc");
     commiter(worktree);
@@ -709,7 +709,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(readFileSync(join(worktree, "brouillon.txt"), "utf8"), "jamais commité\n");
   });
 
-  test("ce qui est livré d'une branche est ce que l'origine en a reçu : une récolte posée après le push n'en fait pas partie", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("ce qui est livré d'une branche est ce que l'origine en a reçu : une récolte posée après le push n'en fait pas partie", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { depot } = projet(t);
     const { worktree, branche } = await depot.preparer("15-abc");
     commiter(worktree);
@@ -730,7 +730,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.deepEqual([existsSync(join(String(fusion?.worktree), "travail.txt")), existsSync(join(String(fusion?.worktree), "brouillon.txt"))], [true, false]);
   });
 
-  test("un worktree dit s'il est encore sur sa branche : ni sur une autre, ni en tête détachée", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("un worktree dit s'il est encore sur sa branche : ni sur une autre, ni en tête détachée", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { depot } = projet(t);
     const { worktree, branche } = await depot.preparer("15-abc");
     assert.equal(depot.surSaBranche(worktree, branche), true);
@@ -741,7 +741,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(depot.surSaBranche(worktree, branche), false);
   });
 
-  test("un worktree se range : ce qui traîne est commité, le worktree part avec ce que le projet ignore, la branche reste — rien n'est poussé", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("un worktree se range : ce qui traîne est commité, le worktree part avec ce que le projet ignore, la branche reste — rien n'est poussé", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { origine, clone, depot } = projet(t);
     const { worktree, branche } = await depot.preparer("15-abc");
     writeFileSync(join(worktree, ".gitignore"), "node_modules/\n");
@@ -764,7 +764,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(depot.connait(propre.branche), true);
   });
 
-  test("ranger ne touche pas ce qui n'est pas le worktree d'un cook : un répertoire resté là avec des fichiers lève, un chemin hors des worktrees aussi", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("ranger ne touche pas ce qui n'est pas le worktree d'un cook : un répertoire resté là avec des fichiers lève, un chemin hors des worktrees aussi", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { clone, worktrees, depot } = projet(t);
     mkdirSync(join(worktrees, "15-abc"), { recursive: true });
     writeFileSync(join(worktrees, "15-abc", "reste.txt"), "ce qu'un cook a écrit\n");
@@ -779,7 +779,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(existsSync(join(worktrees, "16-def")), false);
   });
 
-  test("une branche rangée se reprend dans un worktree neuf : le renvoi y retrouve le travail, récolte comprise", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("une branche rangée se reprend dans un worktree neuf : le renvoi y retrouve le travail, récolte comprise", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { worktrees, depot } = projet(t);
     const { worktree, branche } = await depot.preparer("15-abc");
     commiter(worktree);
@@ -797,7 +797,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(depot.connait(branche), true);
   });
 
-  test("le worktree jetable d'une fusion est détaché : il ne retient pas la branche livrée, et part une fois jeté", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("le worktree jetable d'une fusion est détaché : il ne retient pas la branche livrée, et part une fois jeté", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { worktrees, depot } = projet(t);
     const { worktree, branche } = await depot.preparer("15-abc");
     commiter(worktree);
@@ -814,7 +814,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(existsSync(essai), false);
   });
 
-  test("une branche locale s'élague une fois tout sur l'origine ; avec des commits qui n'y sont pas, elle reste — la branche distante n'est jamais touchée", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("une branche locale s'élague une fois tout sur l'origine ; avec des commits qui n'y sont pas, elle reste — la branche distante n'est jamais touchée", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { origine, clone, depot } = projet(t);
     const [poussee, gardee] = [await depot.preparer("15-abc"), await depot.preparer("16-def")];
     commiter(poussee.worktree);
@@ -834,7 +834,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     assert.equal(await depot.elaguer(poussee.branche), true);
   });
 
-  test("ranger passe à son tour sur le clone : des rangements et une préparation demandés ensemble aboutissent tous", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+  test("ranger passe à son tour sur le clone : des rangements et une préparation demandés ensemble aboutissent tous", { skip: posixOnly("builds a real git repository") }, async (t) => {
     const { worktrees, depot } = projet(t);
     const anciens = [await depot.preparer("15-abc"), await depot.preparer("16-def")];
 
@@ -849,7 +849,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
 // Le runtime lance `git` dans le worktree d'un cook hors de toute cloison. Or
 // ce worktree désigne lui-même son dépôt, par des fichiers que le cook écrit :
 // rien de ce qu'ils désignent ne doit être lu comme une configuration.
-describe("un worktree que son cook a détourné", { skip: posixOnly("builds a real git repository and runs fake claude, gh or gates written as POSIX shell scripts"), concurrency: 8 }, () => {
+describe("un worktree que son cook a détourné", { skip: posixOnly("builds a real git repository"), concurrency: 8 }, () => {
   // Ce que le cook plante : une commande que `git` lancerait à chaque statut
   // (`core.fsmonitor`) et à chaque fichier relu (un filtre `clean`), et qui
   // laisse un témoin.
@@ -1000,7 +1000,7 @@ describe("un worktree que son cook a détourné", { skip: posixOnly("builds a re
 
 // Sous une identité de rôle, les deux gestes réseau de la station — rapatrier
 // et pousser — partent avec son jeton.
-describe("le dépôt sous une identité", { skip: posixOnly("builds a real git repository and runs fake claude, gh or gates written as POSIX shell scripts"), concurrency: 8 }, () => {
+describe("le dépôt sous une identité", { skip: posixOnly("builds a real git repository"), concurrency: 8 }, () => {
   const ENTETE = `Authorization: Basic ${Buffer.from("x-access-token:ghs_cook_secret").toString("base64")}`;
 
   test("le jeton n'atteint git que par son environnement : un en-tête pour github.com, et rien de la connexion du compte", () => {
@@ -1105,7 +1105,7 @@ describe("le dépôt sous une identité", { skip: posixOnly("builds a real git r
 
 // Le cook d'une station distante a tourné ailleurs, et c'est elle qui a poussé
 // sa branche : le clone ne la connaît que par l'origine.
-describe("la branche d'une station distante", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows"), concurrency: 8 }, () => {
+describe("la branche d'une station distante", { skip: posixOnly("builds a real git repository"), concurrency: 8 }, () => {
   // Ce que fait la station, depuis son propre clone : une branche neuve partie
   // de la base, un commit, un push. Rend son commit.
   function pousserDeLaStation(t: TestContext, origine: string, branche: string, fichier = "travail.txt"): string {

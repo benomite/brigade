@@ -57,7 +57,7 @@ function jouer(racine: string): { code: number | null; sortie: string } {
 }
 
 // Chaque test a son projet : ils se jouent de front.
-describe("la fraîcheur du miroir Codex, sur une longue liste de changements", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script"), concurrency: 8 }, () => {
+describe("la fraîcheur du miroir Codex, sur une longue liste de changements", { skip: posixOnly("builds a real git repository and runs a POSIX shell script"), concurrency: 8 }, () => {
   test("un rôle et son miroir modifiés ensemble ne sont pas jugés périmés", (t) => {
     const racine = projet(t);
     writeFileSync(join(racine, "commands/manager.md"), "une règle de plus\n");

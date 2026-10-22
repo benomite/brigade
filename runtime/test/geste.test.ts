@@ -179,7 +179,7 @@ function machine(t: TestContext, options: { environnement?: (station: string, ch
 }
 
 // Chaque test a sa machine — sa station, ses doublures, son témoin —, et ses process ne bloquent pas : ils se jouent de front.
-describe("le geste brigade", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script"), concurrency: 8 }, () => {
+describe("le geste brigade", { skip: posixOnly("runs a POSIX shell script"), concurrency: 8 }, () => {
   test("le nom du projet et la commande suffisent : le compte et l'environnement viennent de l'unité de la station, le projet de sa configuration", async (t) => {
     const m = machine(t);
 

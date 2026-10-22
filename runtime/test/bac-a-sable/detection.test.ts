@@ -55,7 +55,7 @@ test("les versions se comparent nombre par nombre, pas comme du texte", () => {
   assert.equal(auMoins("pas une version", "2.1.246"), false);
 });
 
-test("les sondes de la machine lisent la version du `claude` qu'on leur nomme, et null s'il échoue ou n'existe pas", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, (t) => {
+test("les sondes de la machine lisent la version du `claude` qu'on leur nomme, et null s'il échoue ou n'existe pas", { skip: posixOnly("runs the fake claude (a POSIX shell script)") }, (t) => {
   const dossier = mkdtempSync(join(tmpdir(), "bac-a-sable-"));
   t.after(() => rmSync(dossier, { recursive: true, force: true }));
   const bon = join(dossier, "claude");

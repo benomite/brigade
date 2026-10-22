@@ -131,7 +131,7 @@ function unFauxClaude(echoue: boolean) {
   return { bin, marque, nettoyer: () => rmSync(dossier, { recursive: true, force: true }) };
 }
 
-test("sandbox-unusable : le remède met `claude` à jour, et le refus est levé", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, async () => {
+test("sandbox-unusable : le remède met `claude` à jour, et le refus est levé", { skip: posixOnly("runs the fake claude (a POSIX shell script)") }, async () => {
   const faux = unFauxClaude(false);
   try {
     const { demander } = uneStation({ registre: creerRegistre(remedesDuCatalogue({ claudeBin: faux.bin })), evaluer: () => (existsSync(faux.marque) ? null : "sandbox-unusable") });
@@ -141,7 +141,7 @@ test("sandbox-unusable : le remède met `claude` à jour, et le refus est levé"
   }
 });
 
-test("sandbox-unusable : si la mise à jour échoue, ou ne suffit pas, le refus tient, avec pourquoi en une phrase", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, async () => {
+test("sandbox-unusable : si la mise à jour échoue, ou ne suffit pas, le refus tient, avec pourquoi en une phrase", { skip: posixOnly("runs the fake claude (a POSIX shell script)") }, async () => {
   const faux = unFauxClaude(true);
   try {
     const { demander } = uneStation({ registre: creerRegistre(remedesDuCatalogue({ claudeBin: faux.bin })), evaluer: () => "sandbox-unusable" });

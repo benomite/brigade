@@ -61,7 +61,7 @@ function avantLaMiseAJour(t: TestContext) {
   return { compte, home, racine, etat, ancienClone, ancienWorktree, lieux: lieuxDuProjet(racine, PROJET, home) };
 }
 
-test("un projet servi avant l'atelier y déménage : son clone et ses worktrees, tels quels — branche, commits et fichiers non commités compris —, et `git` y retrouve ses liens", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, (t) => {
+test("un projet servi avant l'atelier y déménage : son clone et ses worktrees, tels quels — branche, commits et fichiers non commités compris —, et `git` y retrouve ses liens", { skip: posixOnly("builds a real git repository") }, (t) => {
   const { home, racine, etat, ancienClone, ancienWorktree, lieux } = avantLaMiseAJour(t);
   assert.deepEqual(lieux, { clone: join(home, ".local/share/brigade/station/clones", PROJET), worktrees: join(home, ".local/share/brigade/station/worktrees", PROJET) });
 
@@ -91,7 +91,7 @@ test("un projet servi avant l'atelier y déménage : son clone et ses worktrees,
   assert.deepEqual(demenagerVersLAtelier(racine, PROJET, lieux, { cloneDeLaStation: true, env: ENV_GIT }), { deplaces: [], restes: [] });
 });
 
-test("déménagé, le worktree d'un cook d'une vie précédente se range sans geste du chef : ce qui y traînait est commité sur sa branche, puis il est retiré", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
+test("déménagé, le worktree d'un cook d'une vie précédente se range sans geste du chef : ce qui y traînait est commité sur sa branche, puis il est retiré", { skip: posixOnly("builds a real git repository") }, async (t) => {
   const { racine, etat, lieux } = avantLaMiseAJour(t);
   demenagerVersLAtelier(racine, PROJET, lieux, { cloneDeLaStation: true, env: ENV_GIT });
   // Le journal le nomme comme avant la mise à jour : `worktrees/<run>`, relatif à l'état.
@@ -130,7 +130,7 @@ test("déménagé, le worktree d'un cook d'une vie précédente se range sans ge
   assert.equal(git(lieux.clone, "show", `cook/${RUN}:en-cours.txt`), "le travail que le cook n'a pas commité");
 });
 
-test("ce qui ne se déménage pas reste où il est, et se dit : un clone déjà dans l'atelier, un projet qu'un runtime tient encore", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, (t) => {
+test("ce qui ne se déménage pas reste où il est, et se dit : un clone déjà dans l'atelier, un projet qu'un runtime tient encore", { skip: posixOnly("builds a real git repository") }, (t) => {
   const { racine, etat, ancienClone, ancienWorktree, lieux } = avantLaMiseAJour(t);
   // Un runtime tient le projet : rien ne bouge sous lui.
   const verrou = prendreVerrou(etat);
@@ -156,7 +156,7 @@ function reglagesDansLeBacASable(home: string, worktrees: string, ou: string): R
   return JSON.parse(args[args.indexOf("--settings") + 1] ?? "") as Reglages;
 }
 
-test("sur un Mac, la station sous `~/.config/brigade` sert le projet, ses cooks dans le bac à sable : sans réglage, et sans nettoyage à la main de ce qu'elle avait laissé", { skip: posixOnly("builds a real git repository and runs fake claude, gh or gates written as POSIX shell scripts") }, (t) => {
+test("sur un Mac, la station sous `~/.config/brigade` sert le projet, ses cooks dans le bac à sable : sans réglage, et sans nettoyage à la main de ce qu'elle avait laissé", { skip: posixOnly("builds a real git repository, runs the fake claude (a POSIX shell script) and runs the fake gh (a POSIX shell script)") }, (t) => {
   const { compte, home, racine, etat, lieux } = avantLaMiseAJour(t);
   writeFileSync(join(racine, "projets"), `${PROJET} benomite/${PROJET} ${BASE}\n`);
   // Le répertoire temporaire d'un Mac n'est pas au-dessus du compte : c'est là

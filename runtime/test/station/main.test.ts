@@ -118,7 +118,7 @@ function photographier(racine: string, sauf: string[]): Record<string, string> {
 }
 
 // Chaque test a sa station — racine, configuration, doublures — sur le port 0 : ils se jouent de front.
-describe("la station, son process", { skip: posixOnly("builds a real git repository and runs fake claude, gh or gates written as POSIX shell scripts"), concurrency: 8 }, () => {
+describe("la station, son process", { skip: posixOnly("builds a real git repository, runs the fake claude (a POSIX shell script) and runs the fake gh (a POSIX shell script)"), concurrency: 8 }, () => {
   test("deux projets dans la configuration : un seul process les sert, chacun avec son journal, sa cloison et son `gh`, et sa sortie est le seul journal de service", async (t) => {
     const { racine, compte, env, preparer, configurer, relire } = uneStation(t);
     const brigade = fauxGh(t);

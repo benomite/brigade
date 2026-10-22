@@ -68,7 +68,7 @@ function unCanal(t: TestContext) {
   return { gh, limite, canal, avancer: (ms: number) => void (instant += ms), maintenant };
 }
 
-test("un 403 « rate limit » ou un 429 sur le canal met les appels en attente jusqu'à x-ratelimit-reset", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, async (t) => {
+test("un 403 « rate limit » ou un 429 sur le canal met les appels en attente jusqu'à x-ratelimit-reset", { skip: posixOnly("runs the fake gh (a POSIX shell script)") }, async (t) => {
   for (const statut of [403, 429]) {
     const { gh, canal, limite, avancer } = unCanal(t);
     const fin = (DEPART + 10 * MINUTE) / SECONDE;
@@ -92,7 +92,7 @@ test("un 403 « rate limit » ou un 429 sur le canal met les appels en attente j
   }
 });
 
-test("sur le canal, sans en-tête exploitable : `gh api rate_limit`, et à défaut 60 s — même quand gh ne dit que le statut", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, async (t) => {
+test("sur le canal, sans en-tête exploitable : `gh api rate_limit`, et à défaut 60 s — même quand gh ne dit que le statut", { skip: posixOnly("runs the fake gh (a POSIX shell script)") }, async (t) => {
   const avecRateLimit = unCanal(t);
   const fin = (DEPART + 4 * MINUTE) / SECONDE;
   avecRateLimit.gh.limiteAtteinte(403, {});
@@ -112,7 +112,7 @@ test("sur le canal, sans en-tête exploitable : `gh api rate_limit`, et à défa
   await assert.rejects(sansEntetes.canal.lire("abc"), (erreur: unknown) => erreur instanceof LimiteGitHubAtteinte && erreur.libreDansMs === ATTENTE_PAR_DEFAUT_MS);
 });
 
-test("un refus qui n'est pas la limite reste une erreur de gh : le canal n'attend pas", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, async (t) => {
+test("un refus qui n'est pas la limite reste une erreur de gh : le canal n'attend pas", { skip: posixOnly("runs the fake gh (a POSIX shell script)") }, async (t) => {
   const { gh, canal, limite } = unCanal(t);
   gh.poser("reponse", ["HTTP/2.0 403", "", '{"message":"Resource not accessible"}'].join("\r\n"));
   gh.poser("stderr", "gh: Resource not accessible (HTTP 403)\n");

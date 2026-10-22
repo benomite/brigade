@@ -175,7 +175,7 @@ async function enPause(t: TestContext, { outil = ["renomme"], grant = true }: { 
   return { ...lieu, conflit, accepter, faits, premier, levee, numero, statut };
 }
 
-describe("le renommage dans la pause", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script"), concurrency: 4 }, () => {
+describe("le renommage dans la pause", { skip: posixOnly("runs the fake claude (a POSIX shell script)"), concurrency: 4 }, () => {
   test("sur le « oui », l'outil part de la dernière tête de la base ; son arbre passe les gates et la pass avant le merge, mergé dans la même pause, qui est levée ensuite", async (t) => {
     const lieu = await enPause(t);
     const { accepter, faits, premier, levee, numero, gh, gates, relectures } = lieu;
