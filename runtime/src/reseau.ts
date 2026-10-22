@@ -5,6 +5,7 @@
 import { createSocket } from "node:dgram";
 import type { Fait } from "./evenements.ts";
 import { lire } from "./plafonds.ts";
+import type { Journal } from "./journal.ts";
 import type { Runtime } from "./runtime.ts";
 
 // Ce que le dépôt du projet déclare : un hôte par ligne.
@@ -134,6 +135,11 @@ export function sonderLeFiltre(envoyer: Envoyer = envoyerUnDatagramme): Promise<
 
 const AUTEUR = "runtime";
 
+// Les hôtes que la cuisine a ouverts seule (`repair.network`, #1397) parce que
+// le setup les joint : ils s'ajoutent à ce que la base déclare.
+const OUVERTURES_RELUES = 1000;
+export const hotesOuvertsParLaCuisine = (journal: Journal): string[] => [...new Set(journal.duType("repair.network", OUVERTURES_RELUES).flatMap(({ payload }) => payload.hosts))];
+
 // Publie au journal ce que le dépôt déclare sur sa branche d'intégration, au
 // démarrage puis à chaque tick, quand cela change : la porte lit sa liste là,
 // et le chef aussi. Rend de quoi republier sans attendre le tick : la base
@@ -151,7 +157,8 @@ export function brancherReseau(runtime: Runtime, options: { base: string; declar
   const publier = () => {
     try {
       const { hotes, problemes } = lireDeclaration(options.declaration() ?? "");
-      const declare = { base: options.base, hosts: hotes, problems: problemes };
+      const ouverts = hotesOuvertsParLaCuisine(journal).filter((hote) => !hotes.includes(hote));
+      const declare = { base: options.base, hosts: [...hotes, ...ouverts], problems: problemes };
       journal.base.transaction(() => {
         const dernier = journal.duType("network.declared", 1)[0]?.payload ?? { base: options.base, hosts: [], problems: [] };
         if (JSON.stringify(dernier) !== JSON.stringify(declare)) noter({ type: "network.declared", payload: declare });

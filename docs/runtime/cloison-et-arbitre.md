@@ -94,6 +94,10 @@ No IP address, no bare `*`, no `*.com`: a line that is not a host opens nothing,
 secrets. A host is therefore opened by a **merge**, which the pass never does itself
 (`review-required`, cause `declaration-modified: …`). The runtime re-reads it each time it fetches
 the base and at each tick (`network.declared`); the door reads its list there, with no restart.
+**One exception, by the chef's choice (#1397)**: a host the project's setup reaches and the list
+does not name is opened by the kitchen alone, before that setup (`repair.network`, joined to every
+declaration it publishes; a `repair.done` line says so on the project). It writes nothing in the
+file: the host stays open for the following cooks, dev secrets included, until the base declares it.
 **The runtime goes out through the door too**: with `BRIGADE_PROXY_PORT`, it sets `HTTPS_PROXY`,
 `HTTP_PROXY` and `NO_PROXY` for itself and for everything it launches. **`git` over SSH does not
 get through**: the clone's origin must be `https`.
