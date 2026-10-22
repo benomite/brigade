@@ -84,18 +84,33 @@ const faits = (etatDuProjet: string, type: string) => {
 };
 
 // La station tourne, en `version`, sous le pid que systemd lui donne.
+// Le pid rendu est celui que systemd vient de donner : chaque question à
+// systemd est un process de la doublure, il n'est pas reposé.
 async function enService(machine: Machine, version: string): Promise<number> {
+  let pid = 0;
   await jusqua(() => {
     const dite = lireEnService(machine.station);
-    return dite?.version === version && dite.pid === machine.service().pid;
+    if (dite?.version !== version) return false;
+    pid = machine.service().pid;
+    return dite.pid === pid;
   });
-  return machine.service().pid;
+  return pid;
 }
 
 describe("la mise à jour de la station, sur une installation de test", { skip: sansDpkgDeb }, () => {
   let dossier = "";
   // Le paquet construit depuis ce dépôt, et ce qu'on en tire pour chaque version.
   let premier = "";
+  // Le premier paquet porté à `version`, sans autre changement : refait une
+  // fois pour le fichier, chaque test en publie une copie.
+  const telQuel = new Map<string, string>();
+  const porteA = (version: string) => {
+    const connu = telQuel.get(version);
+    if (connu !== undefined) return connu;
+    const refait = deriverPaquet(dossier, premier, version);
+    telQuel.set(version, refait);
+    return refait;
+  };
   before(() => {
     dossier = mkdtempSync(join(tmpdir(), "brigade-mise-a-jour-test-"));
     premier = construirePaquet(dossier, "1.0.0");
@@ -116,7 +131,7 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
     assert.deepEqual(machine.appels().filter((a) => a.startsWith("apt-get")), ["apt-get install brigade-station 1.0.0"]);
 
     // 1.1.0 : la même station, une autre version.
-    machine.publier("1.1.0", deriverPaquet(dossier, premier, "1.1.0"));
+    machine.publier("1.1.0", porteA("1.1.0"));
     assert.equal(machine.declencher(), 0);
     assert.equal(machine.installee(), "1.1.0");
     const pid2 = await enService(machine, "1.1.0");
@@ -148,7 +163,7 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
     );
 
     // 1.3.0 : la troisième.
-    machine.publier("1.3.0", deriverPaquet(dossier, premier, "1.3.0"));
+    machine.publier("1.3.0", porteA("1.3.0"));
     assert.equal(machine.declencher(), 0);
     assert.equal(machine.installee(), "1.3.0");
     await enService(machine, "1.3.0");
@@ -265,7 +280,7 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
     await jusqua(() => existsSync(join(etatDuProjet, "worktrees", run, "travail.txt")));
 
     // La mise à jour passe pendant que le cook travaille.
-    machine.publier("1.1.0", deriverPaquet(dossier, premier, "1.1.0"));
+    machine.publier("1.1.0", porteA("1.1.0"));
     assert.equal(machine.declencher(), 0);
     await enService(machine, "1.1.0");
     assert.equal(vivant(pid), true);
@@ -289,7 +304,7 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
     const pid = await enService(machine, "1.0.0");
     writeFileSync(join(machine.station, "reglages"), "# la box ne bouge pas pendant la refonte\ngel=oui\n");
 
-    machine.publier("1.1.0", deriverPaquet(dossier, premier, "1.1.0"));
+    machine.publier("1.1.0", porteA("1.1.0"));
     assert.equal(machine.declencher(), 0);
     assert.equal(machine.installee(), "1.0.0");
     assert.equal(machine.service().pid, pid);
