@@ -56,7 +56,7 @@ import { join } from "node:path";
 import { capturesLivrees, dossierDesCaptures, estDInterface, zoneALaPrise } from "./captures.ts";
 import { DE_CONFIANCE, type RuntimeAvecRail } from "./alimenter.ts";
 import { environnementClaude } from "./jeton-claude.ts";
-import { direRefus, environnementCook, lectureDuTicket, lireFlux, REFUS_MAX, verdict as finDuFlux, type Lecture } from "./claude.ts";
+import { blocDesGates, direRefus, environnementCook, lectureDuTicket, lireFlux, REFUS_MAX, verdict as finDuFlux, type Lecture } from "./claude.ts";
 import type { Decisions } from "./decisions.ts";
 import type { Depot } from "./depot.ts";
 import {
@@ -99,6 +99,7 @@ import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.t
 import { envelopper, type Cloison } from "./cloison.ts";
 import { aDesGates, jouerGatesMesurees, SCRIPT_GATES, type DemandeScript } from "./gates.ts";
 import { noterCoutDesGates } from "./cout-des-gates.ts";
+import { empreinteDeConfig, gatesReprises, passageVert, type EmpreinteDesGates } from "./empreinte-des-gates.ts";
 import { tenirLeBudget } from "./budget-des-gates.ts";
 import { constaterExtinction, direExtinction } from "./grant.ts";
 import { VARIABLES_GITHUB } from "./identites.ts";
@@ -336,7 +337,7 @@ const nomDuRenvoi = (n: number) => (n <= RENVOIS_MAX ? `le renvoi ${n} sur ${REN
 
 // La consigne d'un cook relancé sur un ticket que la pass a jugé rouge : il
 // retrouve le travail, pas la conversation.
-export function consigneDeRenvoi(mission: { ticket: number; titre: string; depot: string; base: string; branche: string; n: number; findings: string[]; remis?: string; lecons?: LeconRecue[]; carnet?: CarnetRecu | null }): string {
+export function consigneDeRenvoi(mission: { ticket: number; titre: string; depot: string; base: string; branche: string; n: number; findings: string[]; remis?: string; lecons?: LeconRecue[]; carnet?: CarnetRecu | null; gates?: string }): string {
   const { ticket, titre, depot, base, branche, n, findings } = mission;
   return [
     `Tu es un cook de la brigade : tu reprends un seul ticket, le ticket #${ticket} du dépôt ${depot} — « ${titre} ».`,
@@ -348,6 +349,7 @@ export function consigneDeRenvoi(mission: { ticket: number; titre: string; depot
     ...findings.flatMap((finding) => [finding, ""]),
     ...blocDesLecons(mission.lecons),
     ...blocDuCarnet(mission.carnet),
+    ...blocDesGates(mission.gates),
     `1. Relis le ticket : ${lectureDuTicket(mission)}, et ce qui est déjà commité : \`git log origin/${base}..HEAD\`. Les conventions du dépôt ne te sont pas chargées d'office : lis son \`CLAUDE.md\`, s'il en a un à la racine, avant d'écrire quoi que ce soit, et suis-le.`,
     "2. Corrige ce que la pass a trouvé, et rien d'autre. Un finding que tu tiens pour faux : ne le contourne pas, dis-le dans ton compte-rendu.",
     `3. Rejoue toi-même ce qui a échoué (les gates du dépôt), ta branche à jour de la base — \`git fetch origin ${base}\`, puis rebase sur \`origin/${base}\` —, puis commite sur cette branche ce que tu as changé.`,
@@ -363,7 +365,7 @@ export function consigneDeRenvoi(mission: { ticket: number; titre: string; depot
 // code, et ses règles sont dans sa conversation. Il ne reçoit que ce qui a
 // changé — le refus, ce que la pass a trouvé, le worktree où il est désormais.
 // Rien de ce qu'elle exige ne change : mêmes gates, même relecture.
-export function consigneDeReprise(mission: { base: string; branche: string; worktree: string; n: number; findings: string[]; lecons?: LeconRecue[]; carnet?: CarnetRecu | null }): string {
+export function consigneDeReprise(mission: { base: string; branche: string; worktree: string; n: number; findings: string[]; lecons?: LeconRecue[]; carnet?: CarnetRecu | null; gates?: string }): string {
   const { base, branche, worktree, n, findings } = mission;
   return [
     `La pass — les gates du dépôt, sa CI et la relecture du reviewer — a refusé ta livraison : c'est ${nomDuRenvoi(n)}. Ce qu'elle juge n'est pas la branche seule, mais sa fusion avec \`origin/${base}\` telle qu'elle est au moment du jugement : c'est ce résultat qui doit être vert.`,
@@ -375,6 +377,7 @@ export function consigneDeReprise(mission: { base: string; branche: string; work
     ...findings.flatMap((finding) => [finding, ""]),
     ...blocDesLecons(mission.lecons),
     ...blocDuCarnet(mission.carnet),
+    ...blocDesGates(mission.gates),
     "1. Corrige ce que la pass a trouvé, et rien d'autre. Un finding que tu tiens pour faux : ne le contourne pas, dis-le dans ton compte-rendu.",
     `2. Rejoue toi-même ce qui a échoué (les gates du dépôt), ta branche à jour de la base — \`git fetch origin ${base}\`, puis rebase sur \`origin/${base}\` —, puis commite sur cette branche ce que tu as changé.`,
     "3. Tu ne pousses rien, tu n'ouvres pas de PR, tu ne merges jamais et tu ne commentes pas le ticket : la station s'en charge quand tu as fini.",
@@ -459,10 +462,12 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   const abandon = new AbortController();
   // Joue les gates, et écrit au journal ce que leur passage a coûté — sauf si
   // le runtime s'arrête pendant : coupées par lui, elles n'ont rien dit de
-  // leur coût. `ticket` : nul pour les gates de la base.
-  const jouerGates = async (ticket: number | null, demande: DemandeScript) => {
+  // leur coût. `ticket` : nul pour les gates de la base. `empreinte` : ce
+  // qu'elles jugent, écrit avec leur coût pour qu'un passage suivant sur le
+  // même code les reprenne (`empreinte-des-gates.ts`).
+  const jouerGates = async (ticket: number | null, demande: DemandeScript, empreinte?: EmpreinteDesGates) => {
     const { gates, cout } = await jouerGatesMesurees(demande);
-    if (!arrete) noterCoutDesGates(journal, { projet, ticket, coureur: "pass", auteur: AUTEUR, gates, cout });
+    if (!arrete) noterCoutDesGates(journal, { projet, ticket, coureur: "pass", auteur: AUTEUR, gates, cout, ...(empreinte ? { empreinte } : {}) });
     if (!arrete) await budgetTenu();
     return gates;
   };
@@ -1603,8 +1608,14 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
             ].join("\n"),
           );
         }
-        const chargeAuDepart = sature();
-        gates = await jouerGates(ticket, { worktree, ticket, ...secrets, interdites, delaiMs: options.delaiGatesMs, cloison: options.cloison, signal: abandon.signal });
+        const demande: DemandeScript = { worktree, ticket, ...secrets, interdites, delaiMs: options.delaiGatesMs, cloison: options.cloison, signal: abandon.signal };
+        // Le même arbre, sous la même configuration, déjà passé vert : les
+        // gates ne se rejouent pas, le verdict nomme le passage repris, et rien
+        // n'est écrit à leur coût (`empreinte-des-gates.ts`).
+        const empreinte: EmpreinteDesGates = { tree: fusion.arbre, config: empreinteDeConfig(worktree) };
+        const repris = passageVert(base, projet, ticket, empreinte);
+        const chargeAuDepart = repris ? null : sature();
+        gates = repris ? gatesReprises(repris) : await jouerGates(ticket, demande, empreinte);
         // Parti pendant ses gates, le ticket n'a plus de verdict à recevoir.
         if (arrete || !enPass(ticket)) return;
         // Coupées par leur garde d'horloge sans aucun test en échec, sur une

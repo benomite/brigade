@@ -72,6 +72,7 @@ import { direMasquage, FICHIER_DES_IDENTIFIANTS, identifiantsLivres, LONGUEUR_MI
 import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.ts";
 import { envelopper, type Cloison } from "./cloison.ts";
 import { jouerSetup, SCRIPT_SETUP } from "./gates.ts";
+import { noterGatesDuCook, poserLeLanceur } from "./gates-du-cook.ts";
 import { CAUSES_DU_PROJET } from "./mise-de-cote.ts";
 import { direDefaut, lireLivrable, type Defaut } from "./livrable.ts";
 import { LancementRefuse, nomDeRun, type CookLance, type FinDeCook as FinGardee, type GardeFous, type Verdict } from "./garde-fous.ts";
@@ -1864,7 +1865,10 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
 
     // Les leçons provisoires du projet qu'il reçoit, et que son lancement dit.
     const lecons = leconsDuCook();
-    const mission = { ticket: numero, titre: ticket.title, depot: options.depotGitHub, base: options.base, lecons, ...(remis === undefined ? {} : { remis }) };
+    // Le lanceur de ses gates, qui en laisse un reçu à la station : la pass
+    // reprend leur verdict vert s'il porte sur le code qu'elle jugerait.
+    const lanceur = poserLeLanceur(worktree);
+    const mission = { ticket: numero, titre: ticket.title, depot: options.depotGitHub, base: options.base, lecons, ...(remis === undefined ? {} : { remis }), ...(lanceur === null ? {} : { gates: lanceur }) };
     // Un renvoi de la pass reprend la session du cook dont elle a refusé la
     // livraison : il a déjà lu le ticket, le `CLAUDE.md` et le code, et ne
     // reçoit que ce qu'elle a trouvé. Les gates et la relecture qui jugeront
@@ -1911,7 +1915,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
                 options.bacASable,
                 argumentsClaude(
                   reprise !== null && repris !== null
-                    ? consigneDeReprise({ base: options.base, branche, worktree, n: repris.returns, findings: repris.findings, lecons, carnet })
+                    ? consigneDeReprise({ base: options.base, branche, worktree, n: repris.returns, findings: repris.findings, lecons, carnet, ...(lanceur === null ? {} : { gates: lanceur }) })
                     : repris
                       ? consigneDeRenvoi({ ...mission, branche, n: repris.returns, findings: repris.findings, carnet })
                       : suite
@@ -2137,6 +2141,9 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     // Arrêté, le runtime ne range rien, et ne raconte rien : le cook vit
     // encore, et le runtime suivant le reprend.
     if (arrete) return;
+    // Les gates qu'il a jouées par le lanceur entrent au journal avant que sa
+    // livraison n'aille en pass : elle peut en reprendre le verdict.
+    noterGatesDuCook(journal, { projet, ticket: numero, auteur: auteurDe(station), worktree });
     // Vrai : un serveur tient le worktree, ou il est tenu pour qu'on y lance
     // l'app — pour qu'on y regarde la livraison.
     let servi = false;

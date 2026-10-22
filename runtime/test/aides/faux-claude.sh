@@ -50,6 +50,8 @@ fi
 # Le scénario se choisit avant que le lancement soit noté : un test qui voit un
 # lancement sait que sa ligne de la suite est prise.
 nom="${FAUX_CLAUDE:-}"
+# Les arguments du lancement, la consigne comprise : les scénarios les lisent.
+ARGUMENTS=("$@")
 suite="${FAUX_CLAUDE_SUITE:-}"
 if [ -n "$suite" ] && [ -e "$suite" ]; then
   if [ ! -d "$suite.prises" ]; then
@@ -174,6 +176,20 @@ jouer() {
       assistant
       resultat <<'FIN'
 J'ai ajouté `travail.txt` et vérifié qu'il se lit.
+FIN
+      ;;
+    # Joue les gates par le lanceur que sa consigne nomme (`gates-du-cook.ts`) :
+    # après son commit, sur le code qu'il livre ; ou avant d'y toucher encore,
+    # sur un code qu'il ne livre pas. Sans lanceur nommé, il ne joue rien.
+    livre-apres-ses-gates | livre-avant-ses-gates)
+      lanceur="$(printf '%s\n' "${ARGUMENTS[@]}" | grep -o '`[^`]*/brigade/gates-du-cook ' | head -1 | tr -d '`')"
+      lanceur="${lanceur% }"
+      [ "$nom" = livre-avant-ses-gates ] || commiter
+      [ -z "$lanceur" ] || "$lanceur" "$PWD" >/dev/null 2>&1
+      [ "$nom" = livre-apres-ses-gates ] || commiter
+      assistant
+      resultat <<'FIN'
+J'ai ajouté `travail.txt` et joué les gates.
 FIN
       ;;
     # Ouvre une session, commite son travail, puis rend son compte-rendu.

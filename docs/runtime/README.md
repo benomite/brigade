@@ -16,7 +16,7 @@ are in the specs, [`superpowers/specs/`](../superpowers/specs/) — here, only t
 |---|---|
 | [`journal-et-rail.md`](journal-et-rail.md) | What the runtime does today, the log, the ticket rail |
 | [`garde-fous.md`](garde-fous.md) | The guardrails: caps, stop and resume |
-| [`station.md`](station.md) | The station: declared stations, several cooks, the worktree setup, calibration, a ticket's card, capabilities |
+| [`station.md`](station.md) | The station: declared stations, several cooks, the worktree setup, the cook's gates, calibration, a ticket's card, capabilities |
 | [`station-distante.md`](station-distante.md) | A remote station pulls its work, ordinary tickets on the chef's workstation |
 | [`station-cook.md`](station-cook.md) | File zones, what a cook loads, the harvest, the model's refusals, quota, the Max connection, seeing the station |
 | [`station-machine.md`](station-machine.md) | One station per machine (GitHub presence, pairing), the GitHub call budget, adding a project from the app |

@@ -11,6 +11,7 @@
 // saturée (épique #1313).
 import type { Base } from "./base.ts";
 import { SEUIL_DUREE_GATES_PAR_DEFAUT } from "./derive.ts";
+import type { EmpreinteDesGates } from "./empreinte-des-gates.ts";
 import type { CoureurDesGates, FaitGates } from "./events/gates.ts";
 import type { Gates } from "./events/pass.ts";
 import type { CoutDesGates } from "./gates.ts";
@@ -45,16 +46,18 @@ export function lireBudget(env: Record<string, string | undefined>): BudgetDesGa
 
 // Écrit au journal ce qu'un passage des gates a coûté. Rien sans coût : le
 // script n'a pas été lancé. Des gates non jouées n'ont rien coûté non plus.
-// `ticket` : nul pour les gates de la base.
-export function noterCoutDesGates(journal: Journal, passage: { projet: string; ticket: number | null; coureur: CoureurDesGates; auteur: string; gates: Gates; cout: CoutDesGates | null }): void {
-  const { cout, gates } = passage;
-  if (cout === null || gates.outcome === "skipped") return;
+// `ticket` : nul pour les gates de la base. `empreinte` : ce que le passage a
+// jugé (`empreinte-des-gates.ts`), qu'un passage suivant sur le même code
+// reprend au lieu de rejouer — une reprise n'écrit rien ici.
+export function noterCoutDesGates(journal: Journal, passage: { projet: string; ticket: number | null; coureur: CoureurDesGates; auteur: string; gates: Gates; cout: CoutDesGates | null; empreinte?: EmpreinteDesGates }): void {
+  const { cout, gates, empreinte } = passage;
+  if (cout === null || gates.outcome === "skipped" || gates.reused !== undefined) return;
   journal.ajouter({
     project: passage.projet,
     ticket: passage.ticket,
     author: passage.auteur,
     type: TYPE,
-    payload: { runner: passage.coureur, durationMs: cout.durationMs, cpuMs: cout.cpuMs, outcome: gates.outcome },
+    payload: { runner: passage.coureur, durationMs: cout.durationMs, cpuMs: cout.cpuMs, outcome: gates.outcome, ...(empreinte ? { tree: empreinte.tree, config: empreinte.config } : {}) },
   });
 }
 

@@ -1,5 +1,6 @@
 // Les faits de la pass : ce qu'elle juge d'une livraison, ce qu'elle en décide,
 // et le grant sous lequel elle merge.
+import type { CoureurDesGates } from "./gates.ts";
 import type { Ressource } from "./station.ts";
 
 // Ce que le second juge répond d'une livraison qui touche à ses juges : le
@@ -41,6 +42,10 @@ export type Gates = {
   // Combien de fois ce qui a la forme d'identifiants de Claude a été masqué
   // dans leur sortie, setup compris. Absent : jamais.
   credentialsMasked?: number;
+  // Non rejouées : le passage vert du ticket, sur le même arbre et la même
+  // configuration, qu'elles reprennent (`empreinte-des-gates.ts`) — son rang au
+  // journal, qui l'avait joué, son ticket, et quand. Absent : jouées.
+  reused?: { seq: number; runner: CoureurDesGates; ticket: number; at: string };
 };
 
 // Un job de CI, ou un statut de commit.
