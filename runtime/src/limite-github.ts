@@ -25,6 +25,9 @@
 // dernier appel au même instant. Le quota se tient par compte : la machine
 // (`gh`), et chaque identité de rôle, dont l'App a le sien.
 //
+// Un appel sous condition auquel GitHub répond 304 ne lui coûte rien : il sort
+// du compte (`rendre`), et seules restent les lectures qui ont dépensé le quota.
+//
 // Hors de toute station (le poste de dev, un test), le process compte seul,
 // en mémoire, sous les mêmes règles.
 import { execFile } from "./sans-invite.ts";
@@ -128,8 +131,12 @@ export type Limite = {
   // Compte un appel. Un appel de la cuisine (par défaut) lève
   // `LimiteGitHubAtteinte` sans le compter tant que GitHub a dit sa limite
   // atteinte, et `CuisineRalentie` quand le quota réel du compte (par défaut,
-  // celui de la machine) le retient. Un geste n'est jamais retenu.
-  prendre(usage?: Usage, compte?: string, etiquette?: Etiquette): void;
+  // celui de la machine) le retient. Un geste n'est jamais retenu. Rend
+  // l'appel compté, à `rendre` si GitHub ne le compte pas.
+  prendre(usage?: Usage, compte?: string, etiquette?: Etiquette): number;
+  // GitHub a répondu 304 à une requête conditionnelle : il ne compte pas cet
+  // appel dans son quota, et la box le sort du sien.
+  rendre(appel: number): void;
   // GitHub a dit sa limite atteinte : plus d'appel de la cuisine avant cet
   // instant (en millisecondes), pour tous ceux qui tiennent ce compteur.
   suspendre(jusqua: number): void;
@@ -199,7 +206,7 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
 
   return {
     prendre(usage = "cuisine", compte = COMPTE_DE_LA_MACHINE, etiquette) {
-      const refus = base.transaction((): { jusqua: number } | { quota: Quota; jusqua: number } | null => {
+      const refus = base.transaction((): { jusqua: number } | { quota: Quota; jusqua: number } | number => {
         const instant = maintenant();
         // Ce qui est sorti de la fenêtre ne compte plus : rien ne le relira.
         base.executer("DELETE FROM appels WHERE instant <= ?", instant - FENETRE_MS);
@@ -211,13 +218,15 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
           const jusqua = quota === null ? null : retenue(quota, instant);
           if (quota !== null && jusqua !== null) return { quota, jusqua };
         }
-        base.executer("INSERT INTO appels (instant, projet, lecture) VALUES (?, ?, ?)", instant, etiquette?.projet ?? PROJET_DE_LA_STATION, etiquette?.lecture ?? (usage === "geste" ? "gesture" : "other"));
-        return null;
+        return base.executer("INSERT INTO appels (instant, projet, lecture) VALUES (?, ?, ?)", instant, etiquette?.projet ?? PROJET_DE_LA_STATION, etiquette?.lecture ?? (usage === "geste" ? "gesture" : "other")).dernierId;
       });
-      if (refus === null) return;
+      if (typeof refus === "number") return refus;
       const libre = Math.max(0, refus.jusqua - maintenant());
       if ("quota" in refus) throw new CuisineRalentie(refus.quota, refus.jusqua, libre);
       throw new LimiteGitHubAtteinte(refus.jusqua, libre);
+    },
+    rendre(appel) {
+      base.executer("DELETE FROM appels WHERE rowid = ?", appel);
     },
     suspendre(jusqua) {
       base.transaction(() => {
@@ -418,7 +427,7 @@ export async function rafraichirLeQuota(limite: Limite, options: { gh: string; e
 // échoue ne se retente pas avant `RAFRAICHIR_MS`.
 const confirmations = new WeakMap<Limite, Map<string, number>>();
 
-// Prend un appel, comme `limite.prendre` — mais une décision de la cuisine qui
+// Prend un appel, comme `limite.prendre`, et le rend — mais une décision de la cuisine qui
 // se prendrait sur un quota bas lu depuis trop longtemps se confirme d'abord
 // auprès de `gh api rate_limit` : GitHub a pu voir passer depuis les appels du
 // Mac, ou commencer une autre fenêtre. `env` : celui de l'appel, demandé
@@ -426,7 +435,7 @@ const confirmations = new WeakMap<Limite, Map<string, number>>();
 export async function prendreUnAppel(
   limite: Limite,
   options: { usage?: Usage; compte?: string; etiquette?: Etiquette; gh: string; env?: () => Promise<NodeJS.ProcessEnv | undefined>; maintenant?: () => number },
-): Promise<void> {
+): Promise<number> {
   const compte = options.compte ?? COMPTE_DE_LA_MACHINE;
   const usage = options.usage ?? "cuisine";
   if (usage === "cuisine" && limite.aConfirmer(compte)) {
@@ -439,7 +448,7 @@ export async function prendreUnAppel(
       await rafraichirLeQuota(limite, { gh: options.gh, env: await options.env?.(), compte });
     }
   }
-  limite.prendre(usage, compte, options.etiquette);
+  return limite.prendre(usage, compte, options.etiquette);
 }
 
 // GitHub a refusé pour sa limite : pose la pause sur le compteur, jusqu'à la

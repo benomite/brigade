@@ -28,12 +28,18 @@ const ABSENT = /\(HTTP 404\)/;
 
 class Absent extends Error {}
 
+// Le gist tel qu'il a été lu, sous l'ETag que GitHub lui a donné : relu sous
+// condition, il ne coûte rien tant qu'il n'a pas changé — GitHub répond 304, et
+// ne compte pas l'appel. Par `gh` et par gist ; propre au process.
+const lus = new Map<string, { etag: string; corps: string }>();
+
 export function canalGitHub(options: OptionsCanal): Canal {
   const env = { ...process.env, GH_PROMPT_DISABLED: "1", NO_COLOR: "1" };
-  const appeler = async (args: string[], entree?: unknown): Promise<string> => {
+  // Le corps de la réponse, ou `inchange` si GitHub a répondu 304.
+  const appeler = async (args: string[], entree?: unknown): Promise<{ corps: string; etag: string | null } | "inchange"> => {
     // Un appel que le quota réel retient ne part pas.
     const limite = options.limite ?? limiteDuProcess();
-    await prendreUnAppel(limite, { etiquette: { projet: PROJET_DE_LA_STATION, lecture: "gist" }, gh: options.gh, env: async () => env, maintenant: options.maintenant });
+    const appel = await prendreUnAppel(limite, { etiquette: { projet: PROJET_DE_LA_STATION, lecture: "gist" }, gh: options.gh, env: async () => env, maintenant: options.maintenant });
     return new Promise((resoudre, rejeter) => {
       const enfant = execFile(
         options.gh,
@@ -43,7 +49,11 @@ export function canalGitHub(options: OptionsCanal): Canal {
         (erreur, sortie, erreurs) => {
           const reponse = decouper(sortie);
           if (reponse) noterLesEntetes(limite, COMPTE_DE_LA_MACHINE, reponse.entetes);
-          if (erreur === null) return resoudre(reponse?.corps ?? sortie);
+          if (reponse?.statut === 304) {
+            limite.rendre(appel);
+            return resoudre("inchange");
+          }
+          if (erreur === null) return resoudre({ corps: reponse?.corps ?? sortie, etag: reponse?.entetes.get("etag") || null });
           // Sans en-têtes lisibles, le statut de la sortie d'erreur de `gh` suffit à reconnaître la limite.
           const statut = reponse?.statut ?? Number(/\(HTTP (\d{3})\)/.exec(erreurs)?.[1] ?? 0);
           const refus: ReponseHttp = { statut, entetes: reponse?.entetes ?? new Map(), corps: reponse?.corps || erreurs };
@@ -58,17 +68,22 @@ export function canalGitHub(options: OptionsCanal): Canal {
       enfant.stdin?.end(entree === undefined ? "" : JSON.stringify(entree));
     });
   };
+  const corpsDe = async (args: string[], entree?: unknown): Promise<string> => {
+    const lu = await appeler(args, entree);
+    if (lu === "inchange") throw new Error(`gh api ${args.filter((arg) => arg.startsWith("/")).join(" ")} : HTTP 304 sans condition`);
+    return lu.corps;
+  };
   const contenus = (fichiers: Fichiers) => Object.fromEntries(Object.entries(fichiers).map(([nom, content]) => [nom, { content }]));
 
   return {
     async creer(description, fichiers) {
-      const rendu = JSON.parse(await appeler(["-X", "POST", "/gists", "--input", "-"], { description, public: false, files: contenus(fichiers) })) as { id?: unknown };
+      const rendu = JSON.parse(await corpsDe(["-X", "POST", "/gists", "--input", "-"], { description, public: false, files: contenus(fichiers) })) as { id?: unknown };
       if (typeof rendu.id !== "string" || rendu.id === "") throw new Error("gh api /gists : la création n'a pas rendu d'identifiant");
       return rendu.id;
     },
     async ecrire(id, fichiers) {
       try {
-        await appeler(["-X", "PATCH", `/gists/${encodeURIComponent(id)}`, "--input", "-"], { files: contenus(fichiers) });
+        await corpsDe(["-X", "PATCH", `/gists/${encodeURIComponent(id)}`, "--input", "-"], { files: contenus(fichiers) });
         return "ecrit";
       } catch (erreur) {
         if (erreur instanceof Absent) return "absent";
@@ -76,10 +91,21 @@ export function canalGitHub(options: OptionsCanal): Canal {
       }
     },
     async lire(id) {
+      const cle = `${options.gh}\0${id}`;
+      const deja = lus.get(cle);
       let sortie: string;
       try {
-        sortie = await appeler([`/gists/${encodeURIComponent(id)}`]);
+        const lu = await appeler([...(deja ? ["-H", `If-None-Match: ${deja.etag}`] : []), `/gists/${encodeURIComponent(id)}`]);
+        if (lu === "inchange") {
+          if (deja === undefined) throw new Error(`gh api /gists/${id} : HTTP 304 sans condition`);
+          sortie = deja.corps;
+        } else {
+          sortie = lu.corps;
+          if (lu.etag === null) lus.delete(cle);
+          else lus.set(cle, { etag: lu.etag, corps: lu.corps });
+        }
       } catch (erreur) {
+        lus.delete(cle);
         if (erreur instanceof Absent) return null;
         throw erreur;
       }

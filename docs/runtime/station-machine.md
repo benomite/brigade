@@ -115,6 +115,19 @@ gist channel (`appairage/canal.ts`) — goes through the counter before `gh` lea
   `{ total, topProject: {name, calls} | null, topKind: {name, calls} | null, byProject: [{name, calls}], byKind: [{name, calls}] }`
   (the lists are sorted biggest first, ties by name; the whole object is absent without a counter).
   Calls older than one hour are no longer counted.
+- **Repeated reads cost nothing while nothing changes (#1419).** Every read the kitchen repeats — an
+  issue, its comments, its events, a PR (the list by branch and its detail), its CI, a diff, and the
+  station's gist — is asked again with the ETag of its last answer (`If-None-Match`). While nothing
+  changed, GitHub answers 304, which it does not count against its quota: the box takes the call
+  out of its counter, and uses the answer it kept. Every read still goes to GitHub, so a change is
+  seen at the very next read, as fast as before. The issue polls (`fire`, open issues) already
+  worked this way. The last page of a list that is full is read again unconditionally, because one
+  more item would land on a page its ETag says nothing about. Two identical reads at the same
+  moment make one call. `issuesDepuis` (`since=`, a path that changes every time) stays
+  unconditional. The kept answers live in the process's memory, bounded to 32 MB: losing them costs
+  one full read. Measured by `runtime/test/lectures-sous-condition.test.ts` on 4 projects with 9
+  tickets and an unchanged GitHub: 46 counted calls per tick before (2,760 an hour), 0 after the
+  first tick (45 for the whole hour).
 - **What the chef sees of it.** During the pause, `status` writes a head line
   `github     GitHub is rate-limiting calls, back around HH:MM` (in French before #940), and `faits`
   carries `limiteGithub` (the instant of resumption, in ISO; absent outside a limit). Both read the
