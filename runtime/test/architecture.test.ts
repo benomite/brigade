@@ -10,7 +10,7 @@
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import net from "node:net";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 import { test } from "node:test";
 import { MARQUEUR } from "../src/fiche.ts";
 import { ACTIONS, jamaisAccordee } from "../src/grant.ts";
@@ -24,7 +24,8 @@ const SRC = join(import.meta.dirname, "../src");
 const sources = (repertoire = SRC): string[] =>
   readdirSync(repertoire, { withFileTypes: true }).flatMap((entree) => (entree.isDirectory() ? sources(join(repertoire, entree.name)) : entree.name.endsWith(".ts") ? [join(repertoire, entree.name)] : []));
 const lire = (fichier: string) => readFileSync(fichier, "utf8");
-const nom = (fichier: string) => relative(SRC, fichier);
+// Le nom d'un module, écrit avec `/` comme dans le dépôt, sur toutes les plateformes.
+const nom = (fichier: string) => relative(SRC, fichier).replaceAll(sep, "/");
 
 // Ce par quoi un module de Node parle au réseau.
 const RESEAU = /from "node:(net|http|https|http2|tls|dgram|dns)"|\bfetch\(|\bWebSocket\b|\bXMLHttpRequest\b/;

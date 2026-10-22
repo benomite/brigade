@@ -8,7 +8,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join, relative } from "node:path";
+import { dirname, join, relative, sep } from "node:path";
 import { test, type TestContext } from "node:test";
 import { linuxOnly, posixOnly } from "./support/plateforme.ts";
 import { configCloison, envelopper } from "../src/cloison.ts";
@@ -314,7 +314,7 @@ test("le runtime écrit au journal ce qu'il lit au démarrage, puis ce qui chang
 });
 
 test("la configuration : le fichier d'état à côté des répertoires d'état des projets par défaut, des durées en secondes, et jamais un fichier d'identifiants", () => {
-  assert.deepEqual(configSession({}, "/var/lib/brigade/brigade"), { etat: ETAT, vieS: 28_800, preavisS: 10_800 });
+  assert.deepEqual(configSession({}, "/var/lib/brigade/brigade"), { etat: join("/var/lib/brigade", ".session", "renouvellement"), vieS: 28_800, preavisS: 10_800 });
   assert.deepEqual(configSession({ BRIGADE_SESSION_STATE: "/ailleurs/etat", BRIGADE_SESSION_LIFETIME: "3600", BRIGADE_SESSION_WARNING: "600" }, "/x/y"), { etat: "/ailleurs/etat", vieS: 3600, preavisS: 600 });
   const refus = (env: NodeJS.ProcessEnv) => assert.throws(() => configSession(env, "/var/lib/brigade/brigade"), ConfigInvalide);
   refus({ BRIGADE_SESSION_STATE: "relatif" });
@@ -362,7 +362,7 @@ test("aucun code du runtime n'ouvre le fichier d'identifiants : son nom n'y sert
   const SRC = join(import.meta.dirname, "../src");
   const sources = (repertoire: string): string[] =>
     readdirSync(repertoire, { withFileTypes: true }).flatMap((entree) => (entree.isDirectory() ? sources(join(repertoire, entree.name)) : entree.name.endsWith(".ts") ? [join(repertoire, entree.name)] : []));
-  const lues = sources(SRC).map((fichier) => ({ nom: relative(SRC, fichier), texte: readFileSync(fichier, "utf8") }));
+  const lues = sources(SRC).map((fichier) => ({ nom: relative(SRC, fichier).replaceAll(sep, "/"), texte: readFileSync(fichier, "utf8") }));
   const qui = (motif: RegExp) => lues.filter(({ texte }) => motif.test(texte)).map(({ nom }) => nom).sort();
 
   // Son nom en clair : la cloison, qui le monte, le module qui le reconnaît dans une livraison, et le bac à
