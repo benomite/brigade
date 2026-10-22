@@ -118,7 +118,7 @@ test("un projet qu'un autre runtime tient encore est repris dès qu'il est libre
 test("une ligne illisible de la configuration est dite une fois, tant qu'elle ne change pas", (t) => {
   const { ecrire, lignes, servie } = station(t, "brigade benomite/brigade v2\nseul\n");
   servie.relire();
-  assert.deepEqual(lignes.filter((ligne) => ligne.startsWith("brigade : station")), ["brigade : station — ligne 2 de la configuration (« seul ») : attendu le nom du projet, son dépôt GitHub (<owner>/<repo>) et sa branche d'intégration"]);
+  assert.deepEqual(lignes.filter((ligne) => ligne.startsWith("brigade : station")), ["brigade : station — ligne 2 de la configuration (« seul ») : attendu le nom du projet, son dépôt GitHub (<owner>/<repo>), et sa branche d'intégration si son dépôt ne la déclare pas"]);
   assert.deepEqual(servie.projets(), ["brigade"]);
   ecrire("brigade benomite/brigade v2\n");
   servie.relire();

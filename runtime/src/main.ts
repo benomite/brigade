@@ -16,6 +16,8 @@ import { brancherGardeFous, lireReglages } from "./garde-fous.ts";
 import { configIdentites, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentites, ROLES, type Identites } from "./identites.ts";
 import { brancherManager, configManager } from "./manager.ts";
 import { brancherPass, configPass } from "./pass.ts";
+import { plafondDuProjet } from "./reagir.ts";
+import { lireLeDepot } from "./reglages-projet/en-vigueur.ts";
 import { CARNET_PATH } from "./carnet/carnet.ts";
 import { brancherCarnet } from "./promotion/livrer.ts";
 import { brancherRenommage } from "./pause/renommage.ts";
@@ -88,13 +90,17 @@ try {
   // l'environnement est ignorée, et dite — une fois par variable, à chaque
   // démarrage.
   for (const nom of decisionsDansLEnvironnement(process.env)) console.error(`brigade : ${direDecisionIgnoree(nom, projet)}`);
-  const decide = environnementDecide(process.env, decisionsAuDemarrage(repertoireEtat));
+  // Le dépôt du projet dit sa branche d'intégration, son calibrage et son
+  // plafond : ils passent avant ceux de la box, et se relisent à chaque usage.
+  const duDepot = lireLeDepot(process.env);
+  for (const ligne of duDepot.dits) console.error(`brigade : ${ligne}`);
+  const decide = environnementDecide(duDepot.env, decisionsAuDemarrage(repertoireEtat), duDepot.reglages);
   const station = configStation(decide);
   supportDesDecisions({ repertoireEtat, clone: station.clone });
   ({ stations } = station);
   const delais = configPass(process.env);
   const reviewer = configReviewer(decide);
-  const manager = configManager(decide);
+  const manager = { ...configManager(decide), plafond: plafondDuProjet(decide, duDepot.reglages) };
   // Lus ici pour qu'un seuil mal écrit refuse le démarrage ; la dérive les
   // relit ensuite à chaque réveil.
   lireSeuils(decide);
@@ -118,7 +124,7 @@ try {
   const githubs = ouvrirGitHubs({ depot: rail.depot, bin: rail.gh, identites });
   socle = demarrer({ repertoireEtat, projet });
   // Ce que le chef décide sans redémarrer : chaque lecture relit le journal.
-  const decisions = suivreDecisions(socle.journal.base, process.env);
+  const decisions = suivreDecisions(socle.journal.base, process.env, undefined, duDepot.suivis);
   // Ce que le dépôt déclare sur sa base, relu à chaque rapatriement et à
   // chaque tick : un hôte mergé s'ouvre sans rien redémarrer, et avant le
   // setup du premier ticket pris après lui.

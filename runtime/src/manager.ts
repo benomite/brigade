@@ -85,7 +85,7 @@ const liste = (valeurs: readonly string[]) => `${valeurs.slice(0, -1).join(", ")
 export function configManager(env: Record<string, string | undefined>): ConfigManager {
   const exiger = (variable: string, admis: readonly string[]): string => {
     const valeur = env[variable];
-    if (!valeur) throw new ConfigInvalide(`${variable} n'est pas défini — le calibrage des jugements du manager n'a pas de défaut : ${liste(admis)} — à poser par \`brigade <projet> station ${variable === "BRIGADE_MANAGER_MODEL" ? "manager-modele" : "manager-effort"} <valeur>\``);
+    if (!valeur) throw new ConfigInvalide(`${variable} n'est pas défini — le calibrage des jugements du manager n'a pas de défaut : ${liste(admis)} — à poser par \`brigade <projet> station ${variable === "BRIGADE_MANAGER_MODEL" ? "manager-modele" : "manager-effort"} <valeur>\`, ou dans \`.claude/brigade/projet.json\` du dépôt (\`defaultCalibrations.manager\`)`);
     if (!admis.includes(valeur)) throw new ConfigInvalide(`${variable} invalide : « ${valeur} » — attendu ${liste(admis)}`);
     return valeur;
   };

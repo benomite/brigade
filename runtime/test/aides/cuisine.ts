@@ -12,7 +12,7 @@ import type { Plafonds } from "../../src/events/guardrails.ts";
 import type { Check } from "../../src/events/pass.ts";
 import type { BacASableLocal } from "../../src/bac-a-sable/local.ts";
 import { configCloison } from "../../src/cloison.ts";
-import { poserDecision, suivreDecisions } from "../../src/decisions.ts";
+import { poserDecision, suivreDecisions, type ReglagesSuivis } from "../../src/decisions.ts";
 import { brancherGardeFous, type Reglages } from "../../src/garde-fous.ts";
 import { brancherManager } from "../../src/manager.ts";
 import type { Commentaire, GitHub, Issue, PR } from "../../src/github.ts";
@@ -500,6 +500,9 @@ export type Options = {
   // Les décisions du chef sont relues au journal : stations, calibrage du
   // reviewer et du manager — celles du test, tant qu'il n'en pose pas d'autres.
   decisions?: boolean;
+  // Les réglages que le dépôt du projet porte, relus par-dessus ces décisions
+  // (`reglages-projet/en-vigueur.ts`).
+  reglagesDuDepot?: ReglagesSuivis;
 };
 
 export const MACHINE_CALME: Machine = { charge: 0, coeurs: 8, memoireDisponible: 64 * 1024 ** 3, memoireTotale: 64 * 1024 ** 3, disqueLibre: 512 * 1024 ** 3 };
@@ -591,7 +594,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
           BRIGADE_REVIEWER_EFFORT: CALIBRAGE_DU_REVIEWER.effort,
         };
         for (const [nom, valeur] of Object.entries(posees)) if (valeur !== "") poserDecision(socle.journal, { projet: options.projet ?? "brigade", nom, valeur, auteur: "chef" });
-        return suivreDecisions(socle.journal.base, {}, (message) => void avertissements.push(message));
+        return suivreDecisions(socle.journal.base, {}, (message) => void avertissements.push(message), options.reglagesDuDepot);
       })()
     : undefined;
   const garde = brancherGardeFous(

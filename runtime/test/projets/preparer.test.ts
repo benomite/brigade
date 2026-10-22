@@ -70,6 +70,8 @@ test("les décisions du parcours sont posées sous le nom du chef ; celles qu'il
     BRIGADE_REVIEWER_EFFORT: "high",
   });
   assert.equal(machineDe("box"), "box");
+  // Sans calibrage nommé par l'app, seule la station est posée : le dépôt du projet porte le reste.
+  assert.deepEqual(decisionsDe({ ...PARADE, manager: null, reviewer: null }, "box"), { BRIGADE_STATIONS: "box/claude:3:code+raisonnement" });
   const journal = ouvrirJournal(etat);
   poserDecision(journal, { projet: "parade", nom: "BRIGADE_MANAGER_MODEL", valeur: "haiku", auteur: "chef" });
   journal.fermer();

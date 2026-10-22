@@ -39,7 +39,9 @@ import { direConsommationEn, NOTE_CONSOMMATION_EN } from "./etat.ts";
 import { direSaturationsEn } from "./machine.ts";
 import { consommation, etatDesGardeFous } from "./projections/guardrails.ts";
 import { direCommentLeVoirEn, direEtatDeServeurEn, direPageEn, direServiceIndisponible, serveursEnCours, servicesIndisponibles, worktreesTenus } from "./projections/service.ts";
-import { configPlafond, direPlafondDeCalibrageEn, PLAFOND_PAR_DEFAUT } from "./reagir.ts";
+import { direPlafondDeCalibrageEn, PLAFOND_PAR_DEFAUT, plafondDuProjet } from "./reagir.ts";
+import { reglagesPourMontrer, variablesDuDepot } from "./reglages-projet/en-vigueur.ts";
+import { FICHIER } from "./reglages-projet/reglages.ts";
 import { BUDGET_DUREE_PAR_DEFAUT, BUDGET_PROCESSEUR_PAR_DEFAUT } from "./cout-des-gates.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { FORME, GESTE_DE_STATION_A_CHAUD_EN } from "./stations-declarees.ts";
@@ -220,10 +222,22 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
       if (!(erreur instanceof ConfigInvalide)) throw erreur;
       echouer(2, `${nom} refused, nothing is written — ${erreur.message}\nusage: \`station -- ${geste(nom)}\` — ${attendu}`);
     }
-    if (fait?.type !== "decision.set") return `${nom}: already set — ${valeur.trim()}; nothing is written`;
+    if (fait?.type !== "decision.set") return `${nom}: already set — ${valeur.trim()}; nothing is written${remplaceeParLeDepot(decision)}`;
     const { value, previous } = fait.payload;
-    return `${nom}: ${value} (was: ${previous ?? "not set"}) — ${LU}${sansRuntime(journal)}`;
+    return `${nom}: ${value} (was: ${previous ?? "not set"}) — ${LU}${sansRuntime(journal)}${remplaceeParLeDepot(decision)}`;
   }
+
+  // Ce que le dépôt du projet fixe à la place des décisions de la box : le
+  // calibrage du manager et du reviewer, le plafond de calibrage.
+  const duDepot = (): Record<string, string> => {
+    const reglages = reglagesPourMontrer(env);
+    const plafond = reglages?.calibrationCeiling;
+    return { ...variablesDuDepot(reglages), ...(plafond === undefined ? {} : { BRIGADE_CEILING_MODEL: plafond.model, BRIGADE_CEILING_EFFORT: plafond.effort }) };
+  };
+  const remplaceeParLeDepot = (decision: string): string => {
+    const valeur = duDepot()[decision];
+    return valeur === undefined ? "" : `\nbut the project's repository sets it (${FICHIER}: ${valeur}): this decision is ignored while it does`;
+  };
 
   // Retire la décision du chef : le journal n'en porte plus rien, et aucune
   // variable d'environnement n'y supplée.
@@ -239,15 +253,23 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
   // Les décisions du chef, posées ou non : le journal en est le seul support.
   function montrerDecisions(journal: Journal): void {
     const posees = decisionsPosees(journal.base);
+    const reglages = reglagesPourMontrer(env);
+    const depot = duDepot();
     ligne("chef's decisions", "`station -- <geste> <valeur>` to set one, `station -- help` for the settings");
     for (const [nom, { decision }] of Object.entries(GESTES)) {
       const posee = posees[decision];
       const defaut = DEFAUTS[decision];
+      const duDepotPose = depot[decision];
+      if (duDepotPose !== undefined) {
+        dire(`  ${nom.padEnd(20)}${duDepotPose} — from the project's repository (${FICHIER})${posee === undefined ? "" : `; set on the box: ${posee}, ignored`}`);
+        continue;
+      }
       dire(`  ${nom.padEnd(20)}${posee ?? (defaut === undefined ? `not set — ${decision} is only read from the log` : `not set — the default, ${defaut}`)}`);
     }
-    // Jusqu'où le manager monte un ticket rouge : chaque dimension, posée ou
-    // par défaut.
-    ligne("calibration ceiling", `${direPlafondDeCalibrageEn(configPlafond(posees))} — \`station -- ceiling-modele <model>\`, \`station -- ceiling-effort <effort>\` to change it`);
+    // Jusqu'où le manager monte un ticket rouge : porté par le dépôt, ou
+    // chaque dimension, posée ou par défaut.
+    const plafond = plafondDuProjet(posees, reglages);
+    ligne("calibration ceiling", `${direPlafondDeCalibrageEn(plafond)} — ${plafond.depot ? `a pull request on ${FICHIER} to change it` : "`station -- ceiling-modele <model>`, `station -- ceiling-effort <effort>` to change it"}`);
     // Ce que la passe de fermeture vaut en ce moment, plafonds compris : tel
     // que le runtime les a notés, défauts et environnement compris.
     const closer = reglagesEnVigueur(journal);

@@ -12,8 +12,11 @@ import { MARQUEUR_MANAGER } from "../src/juger.ts";
 import { etatDesGardeFous } from "../src/projections/guardrails.ts";
 import { passDuTicket } from "../src/projections/pass.ts";
 import { reactionDe } from "../src/projections/reactions.ts";
+import { lireLeDepot } from "../src/reglages-projet/en-vigueur.ts";
+import { texteDuFichier } from "../src/reglages-projet/reglages.ts";
 import { chef, cuisine, issue, STATION, type Options } from "./aides/cuisine.ts";
 import { partagee } from "./aides/opt-C-partage.ts";
+import { projetSurGit } from "./aides/projet-sur-git.ts";
 import { jusqua } from "./outils.ts";
 
 type Charge = Record<string, unknown>;
@@ -111,6 +114,25 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     await c.jusquAu("pass.returned", 30, 2);
 
     // `haiku` / `low` : l'effort est au plafond, c'est le modèle qui monte.
+    assert.deepEqual(c.labels(30), ["fire", "effort:low", "model:sonnet"]);
+    assert.deepEqual(c.charges("manager.reacted", 30)[0]?.ceiling, { model: "sonnet", effort: "low" });
+    await jusqua(() => c.dits(30).some((dit) => /second renvoi/.test(dit)));
+    assert.match(c.dits(30).find((dit) => /second renvoi/.test(dit)) ?? "", /dans la limite du plafond du projet, `sonnet` \/ `low`/);
+  });
+
+  test("le plafond que porte le dépôt du projet passe avant celui de la box ; baissé par une PR, il vaut dès la réaction suivante, sans redémarrage", async (t) => {
+    const depot = projetSurGit(t, { reglages: { integrationBranch: "v2", calibrationCeiling: { model: "opus", effort: "high" } } });
+    const lu = lireLeDepot({ BRIGADE_REPO_DIR: depot.clone, BRIGADE_BASE_BRANCH: "v2" });
+    const c = echec(t, { issues: [issue(30, [])], manager: { suite: ["juge-ticket"] }, decisions: true, reglagesDuDepot: lu.suivis });
+    // Sur la box, le chef a posé un autre plafond : le dépôt le remplace.
+    poserDecision(c.journal, { projet: "brigade", nom: "BRIGADE_CEILING_EFFORT", valeur: "max", auteur: "chef" });
+    // La cuisine tourne : une PR baisse le plafond, et la station la rapatrie.
+    // Tout est synchrone : rien de la cuisine n'a bougé entre-temps.
+    depot.merger("v2", texteDuFichier({ integrationBranch: "v2", calibrationCeiling: { model: "sonnet", effort: "low" } }));
+    depot.rapatrier();
+    await c.jusquAu("pass.returned", 30, 2);
+
+    // `haiku` / `low` : l'effort est au plafond du dépôt, c'est le modèle qui monte.
     assert.deepEqual(c.labels(30), ["fire", "effort:low", "model:sonnet"]);
     assert.deepEqual(c.charges("manager.reacted", 30)[0]?.ceiling, { model: "sonnet", effort: "low" });
     await jusqua(() => c.dits(30).some((dit) => /second renvoi/.test(dit)));

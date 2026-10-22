@@ -16,7 +16,8 @@ import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { apprentissageDuProjet } from "./apprentissage/projet.ts";
 import { cartesDeProfil } from "./profils/cartes.ts";
 import { decisionsPosees } from "./decisions.ts";
-import { configPlafond } from "./reagir.ts";
+import { plafondDuProjet } from "./reagir.ts";
+import { reglagesPourMontrer } from "./reglages-projet/en-vigueur.ts";
 import { coutDuProjet, lireBudget } from "./cout-des-gates.ts";
 import { ticketDuBudget } from "./budget-des-gates.ts";
 
@@ -60,10 +61,10 @@ export function principal({ args, env, dire, redire }: Appel): void {
       apprentissage = undefined;
     }
     const appris = apprentissage !== undefined && (apprentissage.lecons.length > 0 || apprentissage.profils.length > 0);
-    // Le plafond de calibrage du manager, tel que le runtime le lit : posé par
-    // le chef, ou son défaut.
-    const plafond = configPlafond(decisionsPosees(journal.base));
-    const plafondDeCalibrage = { modele: plafond.model, effort: plafond.effort, parLeChef: { modele: plafond.pose.model, effort: plafond.pose.effort } };
+    // Le plafond de calibrage du manager, tel que le runtime le lit : porté
+    // par le dépôt du projet (`depuisLeDepot`), posé par le chef, ou son défaut.
+    const plafond = plafondDuProjet(decisionsPosees(journal.base), reglagesPourMontrer(env));
+    const plafondDeCalibrage = { modele: plafond.model, effort: plafond.effort, parLeChef: { modele: plafond.pose.model, effort: plafond.pose.effort }, ...(plafond.depot ? { depuisLeDepot: true } : {}) };
     // Ce que le triage a fait chacun des sept derniers jours (UTC) : les cartes qu'il a tranchées seul, celles qu'il a laissées entrer dans TODO.
     const triage = triagesDesDerniersJours(journal.base, maintenant, 7);
     // Ce que la cuisine du projet a servi, renvoyé et remonté au chef dans la dernière heure et le dernier

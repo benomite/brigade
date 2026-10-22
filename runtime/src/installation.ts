@@ -35,6 +35,7 @@ import { configManager } from "./manager.ts";
 import { configPass } from "./pass.ts";
 import { clientGh, constater, lire as lireLaProtection } from "./proteger-branche.ts";
 import { configReviewer } from "./reviewer.ts";
+import { lireLeDepot, type DepotDuProjet } from "./reglages-projet/en-vigueur.ts";
 import { ConfigInvalide, NOM_DE_PROJET } from "./runtime.ts";
 import { configSecrets, lireSecrets } from "./secrets.ts";
 import { configStation } from "./station.ts";
@@ -453,7 +454,17 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
   // les porte, et la variable qui en reste y est ignorée — dite ici.
   const { posees, illisibles } = env.BRIGADE_STATE_DIR ? lireLesDecisions(env.BRIGADE_STATE_DIR) : { posees: {}, illisibles: [] };
   refus.push(...illisibles);
-  const lu = environnementDecide(env, posees);
+  // Le dépôt du projet dit sa branche et son calibrage avant la box, comme
+  // le runtime les lirait.
+  let duDepot: DepotDuProjet | null = null;
+  try {
+    duDepot = lireLeDepot(env);
+  } catch (erreur) {
+    if (!(erreur instanceof ConfigInvalide)) throw erreur;
+    refus.push(erreur.message);
+  }
+  if (duDepot !== null) env = { ...duDepot.env };
+  const lu = environnementDecide(env, posees, duDepot?.reglages ?? null);
   for (const nom of decisionsDansLEnvironnement(env)) {
     noter("machine", "note", `${nom} is still in the unit's environment: the runtime ignores it — a chef's decision is no longer read from there`, `set it with \`brigade ${projet} station ${gesteDe(nom)} <value>\`, then remove \`Environment=${nom}\` from the drop-in — ${DOC_DU_PROJET}`);
   }

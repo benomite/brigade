@@ -206,6 +206,21 @@ export function brancheDuClaudeMd(claudeMd: string): string | null {
   return branche !== undefined && brancheValide(branche) ? branche : null;
 }
 
+// Les réglages que porte le texte du fichier, où qu'on l'ait lu — l'arbre du
+// clone, ou une branche (`en-vigueur.ts`). Un texte qui porte autre chose que
+// des réglages du projet est un refus dit.
+export function reglagesDuTexte(texte: string): ReglagesProjet {
+  let contenu: unknown;
+  try {
+    contenu = JSON.parse(texte);
+  } catch {
+    // Sans le message de `JSON.parse` : il cite le texte, qui porte peut-être
+    // un secret.
+    throw new ReglageRefuse("invalide", "", `\`${FICHIER}\` is not valid JSON`);
+  }
+  return valider(contenu, true);
+}
+
 // Lit les réglages du projet dans son clone. Un fichier illisible ou qui porte
 // autre chose que des réglages du projet est un refus dit, jamais des
 // réglages devinés.
@@ -217,15 +232,7 @@ export async function lireReglagesProjet(clone: string): Promise<ReglagesLus> {
     const branche = existsSync(claudeMd) ? brancheDuClaudeMd(readFileSync(claudeMd, "utf8")) : null;
     return { depot, source: branche === null ? "aucune" : "CLAUDE.md", integrationBranch: branche, defaultCalibrations: {}, calibrationCeiling: null };
   }
-  let contenu: unknown;
-  try {
-    contenu = JSON.parse(readFileSync(fichier, "utf8"));
-  } catch {
-    // Sans le message de `JSON.parse` : il cite le texte, qui porte peut-être
-    // un secret.
-    throw new ReglageRefuse("invalide", "", `\`${FICHIER}\` is not valid JSON`);
-  }
-  const reglages = valider(contenu, true);
+  const reglages = reglagesDuTexte(readFileSync(fichier, "utf8"));
   return {
     depot,
     source: "projet.json",

@@ -63,6 +63,19 @@ test("une ligne qui porte encore le plafond de calibrage, devenu une décision d
   assert.deepEqual(projets.map((projet) => projet.nom), ["brigade"]);
 });
 
+test("une ligne qui ne nomme pas de branche : le dépôt du projet la déclare, et l'environnement n'en hérite aucune de la station", () => {
+  const { projets, problemes } = lireConfiguration(["parade benomite/parade", "espace benomite/espace BRIGADE_SECRETS_FILE=/srv/secrets/espace.env"].join("\n"));
+  assert.deepEqual(problemes, []);
+  assert.deepEqual(projets, [
+    { nom: "parade", depot: "benomite/parade", base: null, reglages: {}, ligne: "parade benomite/parade" },
+    { nom: "espace", depot: "benomite/espace", base: null, reglages: { BRIGADE_SECRETS_FILE: "/srv/secrets/espace.env" }, ligne: "espace benomite/espace BRIGADE_SECRETS_FILE=/srv/secrets/espace.env" },
+  ]);
+  const [parade] = projets;
+  assert.ok(parade);
+  const env = environnementDuProjet("/srv/brigade", parade, { BRIGADE_BASE_BRANCH: "vieille" });
+  assert.equal(env.BRIGADE_BASE_BRANCH, undefined);
+});
+
 test("le dépôt, la branche et le nom ne se règlent que par leurs champs", () => {
   for (const cle of ["BRIGADE_PROJECT", "BRIGADE_GITHUB_REPO", "BRIGADE_BASE_BRANCH", "BRIGADE_STATION_DIR", "BRIGADE_WORKTREES_DIR"]) {
     const { projets, problemes } = lireConfiguration(`brigade benomite/brigade v2 ${cle}=autre`);

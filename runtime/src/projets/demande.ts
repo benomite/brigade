@@ -15,6 +15,9 @@
 //     `principale` : cette station fait tourner son manager et sa pass. Le
 //     calibrage et le plafond de cooks sont les décisions du chef, prises dans
 //     le parcours : la station les pose au journal du projet, sans défaut.
+//     `base`, `manager` et `reviewer` peuvent manquer (ou valoir null) : le
+//     dépôt du projet les déclare (`reglages-projet/en-vigueur.ts`), et passe
+//     de toute façon avant eux.
 //     `ouvertLe` : quand le chef a ouvert le parcours — d'où se mesure le temps
 //     qu'il a fallu pour que le projet soit servi.
 //     Un déménagement de sa cuisine (`demenagement/`) ajoute, sur la station
@@ -87,11 +90,13 @@ export type Reprise = { de: string; gist: string; demandeLe: string };
 export type ProjetDemande = {
   nom: string;
   depot: string;
-  base: string;
+  // Null : l'app ne la nomme pas, le dépôt du projet la déclare
+  // (`reglages-projet/en-vigueur.ts`). De même pour les calibrages.
+  base: string | null;
   principale: boolean;
   cooks: number;
-  manager: Calibre;
-  reviewer: Calibre;
+  manager: Calibre | null;
+  reviewer: Calibre | null;
   ouvertLe: string | null;
   demandeLe: string | null;
   remise?: Remise | null;
@@ -138,6 +143,8 @@ export type SuiviDuProjet = {
 const ETAPES: readonly string[] = ["demandee", "acceptee", "refusee", "remise", "recue"];
 
 const texte = (valeur: unknown): valeur is string => typeof valeur === "string";
+// Ce que l'app ne nomme pas : le dépôt du projet le porte.
+const absent = (valeur: unknown) => valeur === undefined || valeur === null;
 const date = (valeur: unknown): string | null => (texte(valeur) && !Number.isNaN(Date.parse(valeur)) ? valeur : null);
 const nomDeStation = (valeur: unknown): valeur is string => texte(valeur) && valeur.trim() !== "" && valeur.length <= 100;
 const gist = (valeur: unknown): valeur is string => texte(valeur) && /^[A-Za-z0-9]{1,64}$/.test(valeur);
@@ -177,12 +184,12 @@ export function lireDemande(brut: string): Demande | null {
     if (!texte(nom) || !NOM_DE_PROJET.test(nom)) refuser("nom de projet invalide — attendu un identifiant court en minuscules, chiffres et tirets");
     else if (projets.some((projet) => projet.nom === nom)) refuser("demandé deux fois");
     else if (!texte(depot) || !DEPOT.test(depot)) refuser("dépôt invalide — attendu <owner>/<repo>");
-    else if (!texte(base) || !BRANCHE.test(base)) refuser("branche d'intégration invalide");
+    else if (!absent(base) && (!texte(base) || !BRANCHE.test(base))) refuser("branche d'intégration invalide");
     else if (typeof principale !== "boolean") refuser("on ne sait pas si cette station en est la principale");
     else if (typeof cooks !== "number" || !Number.isSafeInteger(cooks) || cooks < 1) refuser("plafond de cooks invalide — attendu un entier, 1 ou plus");
     else {
-      const [pourManager, pourReviewer] = [calibre(manager), calibre(reviewer)];
-      if (pourManager === null || pourReviewer === null) refuser(`calibrage du ${pourManager === null ? "manager" : "reviewer"} invalide — attendu un modèle (${MODELES.join(", ")}) et un effort (${EFFORTS.join(", ")})`);
+      const [pourManager, pourReviewer] = [absent(manager) ? null : calibre(manager), absent(reviewer) ? null : calibre(reviewer)];
+      if ((pourManager === null && !absent(manager)) || (pourReviewer === null && !absent(reviewer))) refuser(`calibrage du ${pourManager === null && !absent(manager) ? "manager" : "reviewer"} invalide — attendu un modèle (${MODELES.join(", ")}) et un effort (${EFFORTS.join(", ")})`);
       else {
         // Un déménagement illisible n'est qu'ignoré, et dit : le projet reste
         // demandé tel que le reste de sa ligne le dit.
@@ -192,7 +199,7 @@ export function lireDemande(brut: string): Demande | null {
         projets.push({
           nom,
           depot,
-          base,
+          base: absent(base) ? null : (base as string),
           principale,
           cooks,
           manager: pourManager,
