@@ -60,12 +60,19 @@ const textes = new Map(fichiers.map((f) => [f, readFileSync(f, "utf8")]));
 // donc au large.
 const CITE = /[\w.@-]+\.(?:ts|mts|js|mjs|cjs)\b/g;
 const IMPORT = /(?:from\s*|import\s*\(\s*|import\s+)["'`](\.{1,2}\/[^"'`]+)["'`]/g;
+// Un import de type ne fait rien tourner : le typecheck le couvre.
+const IMPORT_DE_TYPE = /^\s*import\s+type\b[^;]*;/gm;
+const sousTest = (f) => /^(runtime|app)\/test\//.test(f);
 const aretes = new Map();
 for (const [f, texte] of textes) {
   const vers = new Set();
-  for (const [, cible] of texte.matchAll(IMPORT)) {
+  for (const [, cible] of texte.replace(IMPORT_DE_TYPE, "").matchAll(IMPORT)) {
     const resolu = normalize(join(dirname(f), cible));
-    if (connus.has(resolu)) vers.add(resolu);
+    // Un helper partagé (`aides/cuisine.ts`) importe presque tout le produit, et
+    // ferait toucher chaque test qui l'utilise par presque tout : de lui, seuls
+    // les autres helpers se suivent. Ce qu'un test exerce à travers lui se
+    // rattrape sur la base.
+    if (connus.has(resolu) && (f.endsWith(".test.ts") || !sousTest(f) || sousTest(resolu))) vers.add(resolu);
   }
   // Un nom cité ne compte que dans un test : un helper partagé en cite beaucoup
   // (le `main.ts` qu'il sait lancer), et ferait toucher chaque test par tout.
@@ -96,11 +103,13 @@ function fermeture(depart) {
 const autres = modifies.filter((m) => !connus.has(normalize(m)));
 // Seul ce qui est sous test/ compte : le code cite des pages de doc et des scripts
 // dans ses commentaires, sans les lire.
-const cites = (f) => /^(runtime|app)\/test\//.test(f) && autres.some((m) => {
+// Le dossier cité seul, fin de chaîne comprise : `docs/runtime.md` ne cite pas `docs/runtime`.
+const citeLeDossier = (t, dossier) => new RegExp(`${dossier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/?["'\`]`).test(t);
+const cites = (f) => sousTest(f) && autres.some((m) => {
     const t = textes.get(f);
     // Un helper qui lit tout un dossier (`docs/runtime`) le cite sans nommer ses pages.
     const dossier = dirname(m);
-    return t.includes(m) || t.includes(basename(m)) || (dossier.includes("/") && t.includes(dossier));
+    return t.includes(m) || t.includes(basename(m)) || (dossier.includes("/") && citeLeDossier(t, dossier));
   });
 const codeModifie = new Set(modifies.map(normalize).filter((m) => connus.has(m)));
 
