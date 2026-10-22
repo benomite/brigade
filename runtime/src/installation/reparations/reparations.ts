@@ -9,7 +9,6 @@
 // pose un blocage (`installation/blocages`), en une phrase de cause. Rien ici
 // ne demande de droits : tout se fait dans le worktree ou dans le dossier de
 // l'utilisateur.
-import { execFile } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { delimiter, dirname, join, relative } from "node:path";
@@ -18,6 +17,7 @@ import { SCRIPT_SETUP } from "../../gates.ts";
 import type { Journal } from "../../journal.ts";
 import { DECLARATION_RESEAU, lireDeclaration } from "../../reseau.ts";
 import { deduireLesHotes } from "../../reseau-cli.ts";
+import { execFile } from "../../sans-invite.ts";
 import { leverBlocage, poserBlocage, type Auteur } from "../blocages/blocages.ts";
 
 const execFileAsync = promisify(execFile);
