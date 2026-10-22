@@ -47,7 +47,7 @@ import { jouerPanne } from "./pannes/gestes.ts";
 import { gistLocal, tenirLogin } from "./pannes/login.ts";
 import { demenageurDuRuntime } from "./projets/demenagement.ts";
 import { depotsDuChef } from "./projets/github.ts";
-import { EFFORTS, MODELES, tenirProjets } from "./projets/projets.ts";
+import { EFFORTS, hoteDeLaStation, MODELES, tenirProjets, type VuDesProjets } from "./projets/projets.ts";
 import { memoireDansFichier, tenirNotifications } from "./notification.ts";
 import { tenirCuisinesIci } from "./poste/cuisine-ici.ts";
 import { estUnMac, nomDuPoste, persistantSur, shellDuPoste } from "./plateforme.ts";
@@ -440,8 +440,15 @@ function colorer(): void {
 }
 // Les projets tels que l'app les montre, et les lit : celui qu'elle a désinstallé de sa
 // box n'en a plus (retrait.ts) — ni veille, ni bouton, ni mise en service ne l'y cherchent.
-const projets = () => suivi.configuration().projets.map(retraits.vu);
-const affichee = () => pourLaBarre(suivi.configuration(), retraits.vu, cuisines.ici, () => stationLocale?.tourne() === true);
+// Un projet que le fichier ne dit pas hébergé (ajouté depuis l'app) est lu sur la machine de la station qui le sert.
+let dernierVuDesProjets: VuDesProjets | undefined;
+const avecSaBox = (projet: Projet): Projet => {
+  if (projet.box !== undefined || projet.desinstalle !== undefined) return projet;
+  const hote = hoteDeLaStation(dernierVuDesProjets, projet.nom);
+  return hote === undefined ? projet : { ...projet, box: { hote } };
+};
+const projets = () => suivi.configuration().projets.map(avecSaBox).map(retraits.vu);
+const affichee = () => pourLaBarre(suivi.configuration(), (projet) => retraits.vu(avecSaBox(projet)), cuisines.ici, () => stationLocale?.tourne() === true);
 // Un projet du fichier, qu'il s'ouvre ou non : sa box se lit, et se vérifie, sans son dossier.
 const connu = (nom: unknown) => projets().find((candidat) => candidat.nom === nom);
 // Le même, tel que le fichier le déclare : c'est avec sa box qu'il se retire, et se désinstalle.
@@ -462,6 +469,7 @@ const retards = tenirRetards({
 });
 // Les projets de ses stations, sous elles : ceux qu'il leur a ajoutés depuis l'app, écrits et relus
 // dans le gist de chacune (projets/projets.ts) — relus à chaque lecture des stations.
+let hotesLus = "";
 const projetsDesStations = tenirProjets({
   github: githubDesStations({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 30_000 }),
   stations: () => stations.vu()?.stations,
@@ -487,8 +495,15 @@ const projetsDesStations = tenirProjets({
   },
   ...(role.role === "station" ? { demenager: demenageurDuRuntime({ node: emplacements.node, runtime: emplacements.runtime, racine: racineDeLaStation, env: process.env, delaiMs: 60_000 }) } : {}),
   surLecture: (vu) => {
+    dernierVuDesProjets = vu;
     dire("projetsDesStations", vu);
     direLAccueil(accueil.projetsDesStations(vu));
+    // Une station vient de dire qu'elle sert un projet de l'app : sa box se lit, et la vue le sait aussitôt.
+    const hotes = JSON.stringify(vu.projets.map(({ nom }) => hoteDeLaStation(vu, nom) ?? ""));
+    if (hotes === hotesLus) return;
+    hotesLus = hotes;
+    dire("configuration", affichee(), []);
+    voir();
   },
 });
 // Les stations du chef, sur « Tous les projets » : celles qu'il a appairées, lues sur GitHub par

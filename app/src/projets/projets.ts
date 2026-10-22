@@ -294,6 +294,17 @@ export function cuitSurDe(dits: readonly Dit[], locale: string | null): CuitSur 
   return { id: station?.id ?? null, nom: nomme, ici: station !== undefined && station.id === locale };
 }
 
+// L'hôte par lequel se lit le rail d'un projet que le fichier des projets ne dit pas hébergé : celui
+// que la station qui le sert donne (`<machine>/<moteur>` : la machine). Un projet ajouté depuis l'app n'a pas
+// d'`hote` dans le fichier (ajout.ts) — sans cela, son rail ne serait lu nulle part dès que son parcours
+// disparaît (#1405). Rien, quand aucune station ne le sert, ou que c'est celle de cet ordinateur.
+export function hoteDeLaStation(vu: Pick<VuDesProjets, "projets"> | undefined, nom: string): string | undefined {
+  const cuit = vu?.projets.find((projet) => projet.nom === nom)?.cuitSur;
+  if (cuit === undefined || cuit === null || cuit.ici) return undefined;
+  const machine = cuit.nom.includes("/") ? cuit.nom.slice(0, cuit.nom.indexOf("/")) : cuit.nom;
+  return /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(machine) ? machine : undefined;
+}
+
 // Le déménagement en cours d'un projet, d'après ses stations : le plus récent, à son étape la plus
 // avancée. Reçu par celle qui le reprend, il est fini : rien. Refusé, `dit` dit pourquoi — ce que
 // la station visée en a écrit.
