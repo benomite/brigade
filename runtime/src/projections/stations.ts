@@ -110,6 +110,7 @@ function manque(valeur: unknown): Manque | null {
 // Each hold as the chef reads it.
 const RETENUES: Record<Retenue, string> = {
   stopped: "cuisine arrêtée par le chef",
+  off: "interrupteur du projet éteint par le chef, rien de neuf n'est pris, ses cooks en cours finissent",
   "station-stopped": "cuisine du projet arrêtée par le chef sur cette station, ses cooks en cours finissent",
   breaker: "disjoncteur ouvert",
   paused: "cuisine en pause pour le renommage du code",
@@ -132,6 +133,7 @@ export const direRetenueDeStation = (raison: Retenue) => RETENUES[raison];
 // The same, in English: what `status` says.
 const RETENUES_EN: Record<Retenue, string> = {
   stopped: "kitchen stopped by the chef",
+  off: "project switched off, nothing new is taken, its running cooks finish",
   "station-stopped": "the project's cooking stopped by the chef on this station, its running cooks finish",
   breaker: "breaker open",
   paused: "kitchen paused for the code rename",

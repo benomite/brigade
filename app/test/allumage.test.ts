@@ -17,7 +17,6 @@ import { principal } from "../../runtime/src/manager-cli.ts";
 import { ALLUMAGE, AVERTISSEMENT, backlogDe, COMMANDE, compter, GESTE } from "../src/allumage.ts";
 import { confirmationDe } from "../src/confirmation.ts";
 import { ecrireGeste, GESTES, SANS_OUI } from "../src/gestes.ts";
-import { GESTES_DU_MANAGER } from "../src/manager.ts";
 import { ouvrirTerminaux } from "../src/terminaux.ts";
 import { SANS_POSIX } from "./aides/posix.ts";
 
@@ -88,23 +87,22 @@ describe("l'avertissement de l'allumage", () => {
   test("il est dit en anglais, et reprend celui de docs/runtime/ : ce que l'allumage engage et `blocked-on-human`", () => {
     assert.equal(
       AVERTISSEMENT,
-      "Once on, it judges the whole open backlog, and whatever it judges executable goes to the kitchen right away. Before turning it on, put `blocked-on-human` on whatever must not go: an issue carrying it is never judged, an epic carrying it is never split.",
+      "Once on, the manager judges the whole open backlog, whatever it judges executable goes to the kitchen right away, and green deliveries are merged. Before switching the project on, put `blocked-on-human` on whatever must not go: an issue carrying it is never judged, an epic carrying it is never split.",
     );
   });
 
   test("il se pose au geste « allumer » du socle, et à lui seul : éteindre n'engage rien, et ne se confirme pas", () => {
-    assert.equal(GESTE, "manager-allumer");
+    assert.equal(GESTE, "projet-allumer");
     assert.equal(ALLUMAGE.geste, GESTE);
     assert.deepEqual(confirmationDe(GESTE, PARADE, { sans: "pas lus" }), {
-      titre: "turn the manager on",
+      titre: "switch the project on",
       prix: [AVERTISSEMENT],
       chiffrer: true,
-      choix: [{ id: GESTE, libelle: "yes, turn the manager on", dit: "what it judges executable is taken up right away" }],
+      choix: [{ id: GESTE, libelle: "yes, switch the project on", dit: "what the manager judges executable is taken up right away, and green deliveries are merged" }],
       renoncer: "no, leave it off",
     });
-    assert.equal(confirmationDe("manager-eteindre", PARADE, { sans: "pas lus" }), undefined);
-    assert.equal(GESTES.find(({ id }) => id === GESTE)?.commande, "manager on");
-    assert.deepEqual(GESTES_DU_MANAGER.filter(({ id }) => id === ALLUMAGE.geste).map(({ libelle }) => libelle), ["on"]);
+    assert.equal(confirmationDe("projet-eteindre", PARADE, { sans: "pas lus" }), undefined);
+    assert.equal(GESTES.find(({ id }) => id === GESTE)?.commande, "switch on");
   });
 });
 
@@ -139,7 +137,7 @@ describe("les deux nombres : `manager backlog`, lancée une fois sur la box du p
 
     assert.equal(COMMANDE, "manager backlog");
     assert.equal(appels(), `${OPTIONS} -- chef@box brigade parade manager backlog\n`);
-    assert.ok(doc.includes("`brigade <projet> manager [on \\| off \\| return <n°> \\| backlog \\| upstream]`"), "docs/runtime/ ne cite pas `manager backlog`");
+    assert.ok(doc.includes("`brigade <projet> manager [return <n°> \\| backlog \\| upstream]`"), "docs/runtime/ ne cite pas `manager backlog`");
     assert.ok(doc.includes("npm --prefix runtime run manager -- backlog"), "docs/runtime/ ne cite pas `manager -- backlog`");
   });
 
@@ -242,7 +240,7 @@ describe("le geste « allumer », avec son avertissement", () => {
     // Avec son « oui » : le second vient de démarrer, il n'est pas dit libre — rien n'est écrit, et aucun shell ne s'ouvre.
     const rendu = await ecrireGeste(terminaux, ALLUMAGE.geste, PARADE, undefined, true);
     assert.ok(rendu !== undefined && "refus" in rendu);
-    assert.match(rendu.refus, /the command did not go, and nothing is written: `!ssh box brigade parade manager on`$/);
+    assert.match(rendu.refus, /the command did not go, and nothing is written: `!ssh box brigade parade switch on`$/);
     assert.deepEqual(ecrits, [[]]);
     assert.equal(appels(), "");
   });

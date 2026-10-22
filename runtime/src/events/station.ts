@@ -27,8 +27,9 @@ export type OrigineDuSeuil = { totalMb: number } | "env";
 // lui, la station ne fait tourner qu'un cook à la fois. `paused` : la cuisine
 // est en pause pour le renommage du code, sur le « oui » du chef.
 // `station-stopped` : le chef a arrêté la cuisine du projet sur cette station
-// seule (`station.stopped`) ; ses cooks en cours finissent.
-export type Retenue = "stopped" | "station-stopped" | "breaker" | "paused" | "deploy" | "base" | "disconnected" | "quota" | "cap" | "setups" | "setup" | "aside" | "machine" | "ramp" | "arbiter" | "unarbitrated";
+// seule (`station.stopped`) ; ses cooks en cours finissent. `off` : l'interrupteur
+// du projet est éteint (`interrupteur.ts`) ; ses cooks en cours finissent.
+export type Retenue = "stopped" | "off" | "station-stopped" | "breaker" | "paused" | "deploy" | "base" | "disconnected" | "quota" | "cap" | "setups" | "setup" | "aside" | "machine" | "ramp" | "arbiter" | "unarbitrated";
 
 // Un cook est signalé quand cette part du bail de son ticket est passée sans
 // progrès : assez tôt pour que le chef le voie avant que le bail ne tombe.

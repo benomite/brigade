@@ -26,7 +26,7 @@ import { BANNIERE, tenirFaits, type Faits } from "../src/faits.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
-import { COMMANDE as COMMANDE_MANAGER, GESTES_DU_MANAGER, voir as voirManager } from "../src/manager.ts";
+import { COMMANDE as COMMANDE_MANAGER, voir as voirManager } from "../src/manager.ts";
 import { gestesDeCarte } from "../src/gestes-fiche.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { pourLaBarre } from "../src/barre.ts";
@@ -188,7 +188,7 @@ describe("ce qui n'est pas encore sur le rail, lu dans la sortie de `manager ups
 
     assert.equal(COMMANDE, "manager upstream");
     assert.ok(doc.includes("npm --prefix runtime run manager -- upstream"), "docs/runtime/ ne cite pas `manager -- upstream`");
-    assert.ok(doc.includes("`brigade <projet> manager [on \\| off \\| return <n°> \\| backlog \\| upstream]`"), "docs/runtime/ ne cite pas `manager upstream`");
+    assert.ok(doc.includes("`brigade <projet> manager [return <n°> \\| backlog \\| upstream]`"), "docs/runtime/ ne cite pas `manager upstream`");
   });
 
   test("un champ de plus est laissé de côté, un champ qui manque refuse la forme entière", () => {
@@ -222,7 +222,7 @@ const demarrage = () => ({
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
   boutons: BOUTONS,
-  gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,

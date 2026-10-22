@@ -79,8 +79,8 @@ export function confirmationDe(id: unknown, projet: Projet, lus: Lus, grant?: un
       return { titre: `enable the \`${nomme}\` grant`, prix: [MERGE_SANS_TOI], choix: [{ id, libelle: `yes, enable \`${nomme}\``, dit: "a green pass will be merged without you" }], renoncer: "no, keep control" };
     case "grant-revoquer":
       return { titre: `revoke the \`${nomme}\` grant`, prix: [PLUS_SANS_TOI], choix: [{ id, libelle: `yes, revoke \`${nomme}\``, dit: "nothing is merged without you any more" }], renoncer: "no, leave it active" };
-    case "manager-allumer":
-      return { titre: "turn the manager on", prix: [ALLUMER], chiffrer: true, choix: [{ id, libelle: "yes, turn the manager on", dit: "what it judges executable is taken up right away" }], renoncer: "no, leave it off" };
+    case "projet-allumer":
+      return { titre: "switch the project on", prix: [ALLUMER], chiffrer: true, choix: [{ id, libelle: "yes, switch the project on", dit: "what the manager judges executable is taken up right away, and green deliveries are merged" }], renoncer: "no, leave it off" };
     default:
       return undefined;
   }

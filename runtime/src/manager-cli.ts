@@ -1,7 +1,6 @@
 // Le manager vu et commandé par le chef, depuis son propre process :
-//   npm --prefix runtime run manager                l'interrupteur, les dernières décisions, ce qu'il a écarté, les épiques, et ses réactions aux échecs
-//   npm --prefix runtime run manager -- on          il juge les issues ouvertes, pose `fire` et le calibrage, découpe les épiques
-//   npm --prefix runtime run manager -- off         il ne juge plus rien
+//   npm --prefix runtime run manager                s'il juge, les dernières décisions, ce qu'il a écarté, les épiques, et ses réactions aux échecs
+//   npm --prefix runtime run manager -- on | off    refusées : le manager n'a plus d'interrupteur à lui, il suit celui du projet (`switch`, interrupteur.ts)
 //   npm --prefix runtime run manager -- return <n°> il rejuge à neuf une issue qu'il avait écartée parce que le chef y avait retiré un de ses labels
 //   npm --prefix runtime run manager -- backlog     ce qu'allumer engage : combien d'issues sont ouvertes sur le dépôt, et combien portent `blocked-on-human`
 //   npm --prefix runtime run manager -- upstream    ce qui n'est pas encore sur le rail : chaque issue ouverte qu'il ne porte pas, et ce qui lui arrive — pour un programme
@@ -22,13 +21,15 @@ import { ouvrirGitHub, type IssueOuverte } from "./github.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { decoupagesDuManager, ticketsDEpique, type Decoupage } from "./projections/splits.ts";
-import { decisionsDuManager, ecarteesDuManager, etatDuManager, issueDuManager, remiseDe, remisesEnAttente } from "./projections/manager.ts";
+import { decisionsDuManager, ecarteesDuManager, etatDuManager, issueDuManager, managerAllume, remiseDe, remisesEnAttente } from "./projections/manager.ts";
+import { etatDeLInterrupteur } from "./projections/switch.ts";
+import { geste } from "./geste.ts";
 import { sortDuTicket } from "./projections/rail.ts";
 import { reactionsDuManager, type ReactionDeTicket } from "./projections/reactions.ts";
 import { sessionEnCours } from "./projections/sessions.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
-const USAGE = "usage: BRIGADE_STATE_DIR=<state directory> npm --prefix runtime run manager -- [on | off | return <issue number> | backlog | upstream]";
+const USAGE = "usage: BRIGADE_STATE_DIR=<state directory> npm --prefix runtime run manager -- [return <issue number> | backlog | upstream]";
 const AUTEUR = "chef";
 const DECISIONS_MONTREES = 15;
 const ECARTEES_MONTREES = 10;
@@ -83,14 +84,17 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
 
   function montrer(journal: Journal): void {
     const { base } = journal;
-    const etat = etatDuManager(base);
+    // Le manager suit l'interrupteur du projet ; seul un journal où il n'est pas encore posé lit l'ancien.
+    const projet = etatDeLInterrupteur(base);
+    const etat = projet === null ? etatDuManager(base) : { active: projet.on, since: projet.since, by: projet.by };
+    const suit = projet === null ? "" : "the project switch is on: ";
     ligne(
       "manager",
       etat === null
         ? "OFF — never turned on: no issue is judged, `fire` and the calibration are set by hand"
         : etat.active
-          ? `ON since ${etat.since} (by ${etat.by}) — it judges the open issues, sets \`fire\` and the calibration`
-          : `OFF since ${etat.since} (by ${etat.by}) — no issue is judged, what it set stays set`,
+          ? `ON since ${etat.since} (by ${etat.by}) — ${suit}it judges the open issues, sets \`fire\` and the calibration`
+          : `OFF since ${etat.since} (by ${etat.by}) — ${projet === null ? "" : `the project switch is off: \`${geste("switch on")}\` turns it on — `}no issue is judged, what it set stays set`,
     );
     const decisions = decisionsDuManager(base, DECISIONS_MONTREES);
     ligne("latest decisions", decisions.length === 0 ? "none" : "");
@@ -108,27 +112,6 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
     for (const reaction of reactions) dire(`  ${reaction.at}  #${reaction.ticket}  ${decrireReaction(reaction)}`);
   }
 
-  // Écrit la commande du chef si elle change quelque chose, et dit ce qu'il en
-  // est. Vérifier et écrire tiennent dans une seule transaction.
-  function commander(journal: Journal, commande: "on" | "off"): string {
-    const { base } = journal;
-    return base.transaction(() => {
-      const projet = base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project;
-      if (!projet) echouer(1, "empty log: the runtime has never started on this state directory");
-      const etat = etatDuManager(base);
-      const absent = sessionEnCours(base) ? "" : " (no runtime is running: the command will take effect at its next start)";
-
-      if (commande === "on") {
-        if (etat?.active) return `manager already on since ${etat.since}`;
-        journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "manager.enabled", payload: {} });
-        return `manager on: it judges the open issues, sets \`fire\` and the calibration on the executable ones, splits epics into tickets, and says why on the others — an issue carrying \`blocked-on-human\` or \`hors-cuisine\` is never judged${absent}`;
-      }
-      if (!etat?.active) return "nothing to turn off: the manager is not on";
-      journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "manager.disabled", payload: {} });
-      return `manager off: no issue is judged any more — what it set stays set; a judgment under way runs to its end, but its decision is only applied once it is turned on again${absent}`;
-    });
-  }
-
   // Rend une issue au manager, si c'est par là que son écart se lève ; sinon dit
   // le geste qui le lève. `fait` : la remise est au journal, ou y était déjà.
   function rendre(journal: Journal, numero: number): { fait: boolean; message: string } {
@@ -136,8 +119,8 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
     return base.transaction(() => {
       const projet = base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project;
       if (!projet) echouer(1, "empty log: the runtime has never started on this state directory");
-      const suite = !etatDuManager(base)?.active
-        ? " (the manager is off: it will be rejudged when you turn it on)"
+      const suite = !managerAllume(base)
+        ? ` (the manager is off: it will be rejudged once the project switch is on — \`${geste("switch on")}\`)`
         : sessionEnCours(base)
           ? ""
           : " (no runtime is running: it will be rejudged at its next start)";
@@ -218,7 +201,11 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
   const montre = args.length === 0;
   const numero = commande === "return" && args.length === 2 && /^[1-9][0-9]*$/.test(args[1] ?? "") ? Number(args[1]) : null;
   const amont = commande === "upstream" && args.length === 1;
-  if (!montre && !amont && numero === null && (args.length !== 1 || (commande !== "on" && commande !== "off"))) echouer(2, USAGE);
+  // Le manager n'a plus d'interrupteur à lui (#1406) : il suit celui du projet.
+  if (args.length === 1 && (commande === "on" || commande === "off")) {
+    echouer(1, `the manager has no switch of its own any more: it follows the project switch, which also takes the tickets and merges the green deliveries — \`${geste(`switch ${commande}`)}\`. Nothing is written`);
+  }
+  if (!montre && !amont && numero === null) echouer(2, USAGE);
   // Une commande ouvre le journal en écriture : sans ce contrôle, elle en
   // créerait un là où il n'y en a pas.
   if (!existsSync(cheminJournal(repertoireEtat))) echouer(1, `no log in ${repertoireEtat}`);
@@ -231,7 +218,7 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
       const { fait, message } = rendre(journal, numero);
       dire(`brigade : ${message}`);
       if (!fait) throw new Sortie(1);
-    } else dire(`brigade : ${commander(journal, commande as "on" | "off")}`);
+    }
   } catch (erreur) {
     // En lecture seule, rien ne crée les tables d'un journal écrit par un
     // runtime d'avant le manager.

@@ -63,19 +63,15 @@ export type Alerte = { sujet: Sujet; verifie: boolean; ton: string; dit: string;
 // chose à faire, ou rien de vérifié. Une bande vide n'a pas de signal — c'est que les quatre états
 // ont été lus, et vont bien.
 export type Signal = { etat: "urgence" | "alerte" | "non-verifie" | "injoignable"; dit: string };
-// L'état du manager, pour son interrupteur dans l'espace du projet (#906) : allumé ou éteint, tel
-// qu'il vient d'être lu — sans le délai d'affichage d'une ligne de la bande. `dit` : ce que la tête
-// du rail en dit, éteint — la même phrase que la ligne de la bande. `releve` : la ligne `manager` du
-// runtime, mot pour mot, que l'interrupteur montre au survol. `sans` : pourquoi il n'est pas lu — ce
-// n'est jamais « éteint ».
+// L'état de l'interrupteur du projet, pour l'interrupteur de son espace (#906, #1406) : allumé ou
+// éteint, tel qu'il vient d'être lu — sans le délai d'affichage d'une ligne de la bande. Un seul pour
+// tout le projet : le manager le suit, et c'est sa ligne qui le dit (runtime/src/manager-cli.ts) —
+// allumé, les tickets lancés sont pris, le manager juge et découpe, une livraison verte est mergée.
+// `dit` : ce que la tête du rail en dit, éteint — la même phrase que la ligne de la bande.
+// `releve` : la ligne `manager` du runtime, mot pour mot, que l'interrupteur montre au survol.
+// `sans` : pourquoi il n'est pas lu — ce n'est jamais « éteint ».
 export type EtatDuManager = { allume: boolean; dit?: string; releve: string } | Sans;
-// L'état du grant `merge`, pour son interrupteur, à côté de celui du manager (#907) : actif ou non, tel
-// que les lignes de tête de `status` le disent — une ligne `merge ACTIF…` le dit actif ; `merge ÉTEINT
-// SEUL…`, éteint de lui-même (`seul`) ; sans ligne, il n'est pas actif : le runtime écrit toujours un
-// grant actif. `releve` : sa ligne, mot pour mot, que l'interrupteur montre au survol — absente quand
-// `status` n'en a pas. `sans` : pourquoi il n'est pas lu — ce n'est jamais « éteint ».
-export type EtatDuGrant = { actif: boolean; seul?: true; releve?: string } | Sans;
-export type Bande = { projet: string; alertes: Alerte[]; signal?: Signal; manager?: EtatDuManager; merge?: EtatDuGrant };
+export type Bande = { projet: string; alertes: Alerte[]; signal?: Signal; manager?: EtatDuManager };
 
 // Un état que l'app n'a pas : pourquoi, dans ses mots.
 export type Sans = { sans: string };
@@ -180,21 +176,22 @@ function deLUrgence(faits: Faits | Sans): Alerte[] {
 
 // --- Le manager ---------------------------------------------------------------
 
-// Tant que la file ne porte pas son état (#438), l'app le lit elle-même : avant sa première lecture, il n'est pas dit.
-export const MANAGER_PAS_DIT = "first reading of `manager` in progress: the queue does not say the manager's state (#438). This is not “on”";
+// L'interrupteur du projet (#1406) : le manager le suit, et sa ligne le dit. Tant que la file ne porte
+// pas son état (#438), l'app le lit elle-même : avant sa première lecture, il n'est pas dit.
+export const MANAGER_PAS_DIT = "first reading of `manager` in progress: the queue does not say whether the project is on (#438). This is not “on”";
 // docs/runtime/manager.md, « Le manager » : ce qu'allumer engage (allumage.ts, `AVERTISSEMENT`).
-const PRIX_ALLUMER = "it judges the whole open backlog, and what it judges executable is taken at once — what that commits is counted when you act";
+const PRIX_ALLUMER = "the manager judges the whole open backlog, what it judges executable is taken at once, and green deliveries are merged — what that commits is counted when you act";
 
 // Éteint, ce que la tête du rail en dit, et la ligne de la bande : une seule phrase, la même partout.
-export const MANAGER_ETEINT = "manager off — nothing new comes in";
+export const MANAGER_ETEINT = "project off — nothing new is taken, split or merged";
 // La ligne `manager` telle que le runtime l'écrit.
 const releveDe = ({ mot, depuis, par, dit }: Interrupteur) => `${mot}${depuis === undefined ? "" : ` since ${depuis} (by ${par})`} — ${dit}`;
 
-// Éteint, le manager reste une ligne de la bande : c'est elle qui fait le signal de la case du projet,
+// Éteint, le projet reste une ligne de la bande : c'est elle qui fait le signal de la case du projet,
 // dans la barre. Dans l'espace du projet, la vue ne la pose pas : son interrupteur et la tête du rail
-// le disent (#906) — `manager`, sur la bande.
+// le disent (#906, #1406) — `manager`, sur la bande.
 function duManager(manager: Interrupteur | Sans): Alerte[] {
-  if ("sans" in manager) return [nonVerifie("manager", "manager state not verified", { pourquoi: manager.sans, geste: "wait for it to be read: `manager` is re-read every 30 s — or open it in the Manager tab", prix: LIRE, appel: { onglet: "manager" } })];
+  if ("sans" in manager) return [nonVerifie("manager", "project switch not verified", { pourquoi: manager.sans, geste: "wait for it to be read: `manager` is re-read every 30 s — or open it in the Manager tab", prix: LIRE, appel: { onglet: "manager" } })];
   if (manager.allume) return [];
   return [
     {
@@ -203,8 +200,8 @@ function duManager(manager: Interrupteur | Sans): Alerte[] {
       ton: "rouge",
       dit: MANAGER_ETEINT,
       releve: releveDe(manager),
-      geste: "turn the manager on",
-      appel: { geste: "manager-allumer" },
+      geste: "switch the project on",
+      appel: { geste: "projet-allumer" },
       prix: PRIX_ALLUMER,
     },
   ];
@@ -249,6 +246,10 @@ const REDEMARRAGE = "a runtime restart: what is in flight is interrupted — the
 // ou en anglais (#928).
 const ROUGE = /^(?:ROUGE|RED)(?![\p{L}\p{N}_])/u;
 const DISJONCTEUR = /disjoncteur OUVERT|breaker OPEN/;
+// L'interrupteur du projet éteint (#1406), tel que la ligne `kitchen` le dit : la ligne du projet
+// éteint le dit déjà (`duManager`), une seule fois.
+const ETEINT = /^SWITCHED OFF(?![\p{L}\p{N}_])/u;
+const eteintLeProjet = (status: string) => tetesDe(status).some(({ titre, valeur }) => CUISINE.includes(titre) && ETEINT.test(valeur));
 // Les titres des lignes de tête que #928 a traduits : l'app lit les deux.
 export const CUISINE = ["cuisine", "kitchen"];
 export const CONNEXION = ["connexion", "connection"];
@@ -381,9 +382,9 @@ function deLaCuisine(projet: string, faits: Faits | Sans, status: string | Sans)
     case "retenue": {
       const lu = statusLu(status);
       const causes = typeof lu === "string" ? causesDeRetenue(lu) : [];
-      // Retenue par le seul setup bloqué : sa ligne le dit déjà.
+      // Retenue par le seul setup bloqué, ou par l'interrupteur du projet éteint : leur ligne le dit déjà.
       // Sans `status` lu, rien ne dit qu'une cause est seule à la retenir.
-      if (typeof lu === "string" && (causes.length > 0 || bloqueLeSetup(lu))) return causes;
+      if (typeof lu === "string" && (causes.length > 0 || bloqueLeSetup(lu) || eteintLeProjet(lu))) return causes;
       return [
         {
           sujet: "cuisine",
@@ -412,19 +413,6 @@ const GRANT = /^(\S+) (ACTIF|ACTIVE|ÉTEINT SEUL|LAPSED)(?![\p{L}\p{N}_])/u;
 const ACTIF_OU_ETEINT = { ACTIF: true, ACTIVE: true, "ÉTEINT SEUL": false, LAPSED: false } as const;
 const BIENTOT_ETEINT = /BIENTÔT ÉTEINT|EXPIRING SOON/u;
 const MERGE_SANS_TOI = "a green pass will be merged without you";
-// Le grant que l'espace du projet pose en interrupteur (#907) : les autres restent des lignes de la bande.
-export const MERGE = "merge";
-
-// L'état du grant `merge`, d'après les lignes de tête de `status` : la ligne de la bande, s'il y en a une, dit la même chose.
-export function etatDuMerge(status: string | Sans): EtatDuGrant {
-  const lu = statusLu(status);
-  if (typeof lu !== "string") return lu;
-  const ligne = tetesDe(lu).find(({ titre, valeur }) => titre === "grant" && valeur.startsWith(`${MERGE} `));
-  if (ligne === undefined) return { actif: false };
-  const [, , mot] = GRANT.exec(ligne.valeur) ?? [];
-  if (mot === undefined) return { sans: `the app cannot read this \`grant\` line of \`status\`: “${ligne.valeur}”` };
-  return ACTIF_OU_ETEINT[mot as keyof typeof ACTIF_OU_ETEINT] ? { actif: true, releve: ligne.valeur } : { actif: false, seul: true, releve: ligne.valeur };
-}
 
 function duGrant(status: string | Sans): Alerte[] {
   const lu = statusLu(status);
@@ -603,7 +591,7 @@ function desPertes(controle: Controle | undefined, status: string | Sans): Alert
 // Le mot du bouton d'un geste, d'après ce que l'alerte appelle : le geste du socle par son nom, une
 // demande au second, un onglet. Un geste que l'app ne sait pas nommer garde le début de sa phrase,
 // avant tout ce qui ressemble à une commande ou à une explication.
-const BOUTONS_DE_GESTE: Readonly<Record<string, string>> = { "manager-allumer": "turn the manager on", reprendre: "resume the kitchen" };
+const BOUTONS_DE_GESTE: Readonly<Record<string, string>> = { "projet-allumer": "switch the project on", reprendre: "resume the kitchen" };
 export function boutonDe({ geste, appel }: Pick<Alerte, "geste" | "appel">): string | undefined {
   if (appel === undefined) return undefined;
   if ("demande" in appel) return "ask the second";
@@ -767,10 +755,9 @@ export function tenirBandes({ maintenant = Date.now, etablir = LECTURES_POUR_ETA
     if (silence !== undefined && silence.lectures >= LECTURES_POUR_INJOIGNABLE) {
       const triees = [deLaBoxMuette(silence)];
       const manager = etatDuManager(managers.get(projet) ?? { sans: MANAGER_PAS_DIT });
-      const merge = etatDuMerge(statuts.get(projet) ?? { sans: STATUS_PAS_LU });
       const avant = rendues.get(projet);
-      if (avant !== undefined && JSON.stringify(avant.alertes) === JSON.stringify(triees) && JSON.stringify(avant.manager) === JSON.stringify(manager) && JSON.stringify(avant.merge) === JSON.stringify(merge)) return avant;
-      const rendue: Bande = { projet, alertes: triees, signal: signalDe(triees), manager, merge };
+      if (avant !== undefined && JSON.stringify(avant.alertes) === JSON.stringify(triees) && JSON.stringify(avant.manager) === JSON.stringify(manager)) return avant;
+      const rendue: Bande = { projet, alertes: triees, signal: signalDe(triees), manager };
       rendues.set(projet, rendue);
       return rendue;
     }
@@ -807,10 +794,9 @@ export function tenirBandes({ maintenant = Date.now, etablir = LECTURES_POUR_ETA
     }
     const triees = parGravite(dites);
     const manager = etatDuManager(managers.get(projet) ?? { sans: MANAGER_PAS_DIT });
-    const merge = etatDuMerge(statuts.get(projet) ?? { sans: STATUS_PAS_LU });
     const avant = rendues.get(projet);
-    if (avant !== undefined && JSON.stringify(avant.alertes) === JSON.stringify(triees) && JSON.stringify(avant.manager) === JSON.stringify(manager) && JSON.stringify(avant.merge) === JSON.stringify(merge)) return avant;
-    const rendue: Bande = { projet, alertes: triees, signal: signalDe(triees), manager, merge };
+    if (avant !== undefined && JSON.stringify(avant.alertes) === JSON.stringify(triees) && JSON.stringify(avant.manager) === JSON.stringify(manager)) return avant;
+    const rendue: Bande = { projet, alertes: triees, signal: signalDe(triees), manager };
     rendues.set(projet, rendue);
     return rendue;
   };

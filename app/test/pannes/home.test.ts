@@ -14,7 +14,6 @@ import { BANNIERE } from "../../src/faits.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../../src/grants.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
-import { GESTES_DU_MANAGER } from "../../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import type { RenduDePanne } from "../../src/pannes/gestes.ts";
 import type { Panne } from "../../src/pannes/pannes.ts";
@@ -34,7 +33,7 @@ const demarrage = (stations: VuDesStations) => ({
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
   boutons: BOUTONS,
-  gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,

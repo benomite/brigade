@@ -67,7 +67,7 @@ only button, `stop cooking` or `start cooking` — no project tile, no Taken and
 line to set up (`+ station`, `move the kitchen`, the sandbox), no reading of `station` and its cap: cooks are set up
 where there is a computer. Rail shows the same columns and cards as on a wide screen, `open Cooks` line included, but
 **stacked, full width, with TODO — what waits for you — first** (#1163): the page scrolls down, never sideways. A
-switch's confirmation (`manager`, `merge`) opens under the project's header, full width, not 440 px wide under the
+switch's confirmation (`project`) opens under the project's header, full width, not 440 px wide under the
 switch. The last tab opened is remembered; remembered on a wide screen, the conversation reopens the project on Rail.
 On a wide screen, nothing changes. The threshold is `ECRAN_ETROIT` in `app/src/vue/vue.js`, and the same one in `vue.css`.
 **A TODO card the runtime let in asks its question on the card itself** (#1281): a product choice or a design
@@ -95,21 +95,24 @@ the request`, which writes it without sending it); an action without a price goe
 for word** and the reason **are behind "detail"**, at the end of the line: one click unfolds them below,
 a second folds them back, and a re-read of the band does not fold them. The action itself is never
 written there — no command to copy and no instructions: the only action shown is the button of the line.
-**The `merge` grant is a switch** (#907), next to the manager's and rendered the same way — `merge
-on` or `merge off` —, read from the head lines of `status`: one click opens the confirmation to enable,
-or to revoke, which says what it changes. Off by itself (its expiry passed), it is outlined
-in yellow, its `status` line on hover, and the band no longer makes a line of it; "expiring soon" remains
-a line, to extend. **The manager is not a line of the band:
-it is a switch** (#906), at the head of the space, to the right of the tabs — `manager on`, green slider
-on the right, or `manager off`, grey on the left —, always in view, and one click toggles it: turning off goes
-to the second; turning on opens its confirmation below, which says its price in one sentence with the real number
-of issues (`it will judge the 23 open issues`, or `it will judge 21 of the 23 open issues — 2 carry
-blocked-on-human`), what it commits to on hover. Off, **the head of the rail is marked as stopped** — a
-hatched bar, `manager off — nothing new comes in` —: what is already on the rail continues, nothing
-new enters. The `manager` line of the box (`OFF since … (by chef) — …`) is now only on hover
-of the switch, and in full in the Manager tab. Not yet read, or not read, the switch says
-neither (`manager …`) and toggles nothing; a read that fails makes its "unchecked" line in the
-band. On the bar, the tile of a project with the manager off keeps its signal.
+**One switch for the whole project** (#1406), in place of the manager's switch and the `merge` grant's
+(#906, #907): it is not a line of the band, it is at the head of the space, to the right of the tabs —
+`project on`, green slider on the right, or `project off`, grey on the left —, always in view, and one
+click toggles it. On, fired tickets are taken, the manager judges and splits, green deliveries are merged;
+off, nothing new is (`brigade <projet> switch [on | off]`, `docs/runtime/exploitation.md`, "The project
+switch"). A project added from the app starts **on**: the runtime sets it at its first start, nothing to
+flip. Its state is read in the `manager` line, which the manager writes from the project switch it follows.
+Switching off goes to the second; switching on opens its confirmation below, which says its price in one
+sentence with the real number of issues the manager will judge (`it will judge the 23 open issues`, or
+`it will judge 21 of the 23 open issues — 2 carry blocked-on-human`), what it commits to on hover. Off,
+**the page says so in one line: the head of the rail is marked as stopped** — a hatched bar, `project off
+— nothing new is taken, split or merged` —: running cooks finish, nothing new is taken; the kitchen it
+holds makes no second line. The `manager` line of the box (`OFF since … (by chef) — the project switch is
+off: …`) is now only on hover of the switch, and in full in the Manager tab, which has no switch of its
+own. Not yet read, or not read, the switch says neither (`project …`) and toggles nothing; a read that
+fails makes its "unchecked" line in the band. On the bar, the tile of a project switched off keeps its
+signal. The `merge` grant is no longer a switch: lapsed on its own, it is a line of the band, to enable
+again; "expiring soon" remains a line, to extend; the Grants tab still enables and revokes it.
 **"All projects" is the overview of
 brigade**: one line per project, one per station, each with its pill and what is going on there in
 a few words, and one click opens it — you do not act there, you look, then go where it is decided; a
@@ -1608,7 +1611,7 @@ else:
 | What you read | Where it comes from |
 |---|---|
 | **`ON`** (green pill) or **`OFF`** (grey), then `since <date> · by <who>` | the `manager` line of the output. The date is that of the last switch, in your workstation's time; `by` is whoever made it. A manager **never turned on** has neither: the line says `never turned on`. The app also reads the line from before #951 (`ALLUMÉ` / `ÉTEINT`, `depuis le … (par …)`): a box not yet updated reads without any change |
-| what the runtime says about it next | the end of the same line, word for word (``it judges the open issues, sets `fire` and the calibration``) |
+| what the runtime says about it next | the end of the same line, word for word (``the project switch is on: it judges the open issues, sets `fire` and the calibration``) |
 | **latest decisions**, most recent first | the lines under `latest decisions` (or `dernières décisions`, from before) — fifteen at most, the runtime sets the bound: the issue, the moment, and what it did with it, word for word (`on the rail, haiku / low (set: fire, effort:low) — …`, `refused (an epic) — …`) |
 | **set aside**, each with its reason | the lines under `set aside` (or `écartées`, from before) — ten at most: the issue, the moment, **the reason**, and below it what the runtime says about what returns it to the manager (``to return it to the manager: remove `blocked-on-human`: …``, or `nothing returns it to the manager`) |
 
@@ -1624,21 +1627,10 @@ else:
   manager return 77` (`docs/runtime/exploitation.md`, "Piloter").
 - **Read as long as the tab is shown**, like the others: on opening, then every thirty
   seconds. Coming back to the tab reads it again at once — nothing stays from the previous read.
-- **Two actions, next to the state: `on`, `off`** — each under what its click does.
-  **`on` writes** its command into **a shell of the space**, opened for it, and **sends
-  nothing**: the app takes you to that shell, the command at its prompt, and it is your Enter
-  that sends it. **`off` is direct**: it commits nothing, its command **goes out** into the
-  second, and its output is read there ("A direct action really goes out — or says why it does
-  not").
-
-  | The action | What it writes into the shell, or sends into the second |
-  |---|---|
-  | `on` | writes: `ssh <host> brigade <name> manager on` |
-  | `off` | sends: `!ssh <host> brigade <name> manager off` |
-
-  It is the command of `docs/runtime/exploitation.md`, "Piloter", in its workstation form, word for word: it
-  stays in the shell's history and can be replayed by hand identically. The line under the
-  right-hand tabs says what was written (``written in this shell, without Enter: `ssh box brigade parade manager on` — yours is the one that sends it…``).
+- **No action here: the manager has no switch of its own** (#1406). It follows the project switch,
+  at the head of the space, which turns it on and off with the rest — taking the fired tickets,
+  merging the green deliveries. Its `ON` / `OFF` is that switch's state, and the line says so
+  (``the project switch is on: it judges the open issues…``).
   **Turning on commits**: once on, the manager judges the whole open backlog, and what it judges
   executable goes straight to the kitchen (`docs/runtime/manager.md`, "Le manager") — that is why the command
   is written and read before it goes. Once sent, come back to **Manager**: the state is read again.
@@ -1837,7 +1829,7 @@ sent into the second: `!ssh box brigade parade installation` — `claude` went i
 
 | The direct action | Where | What goes out |
 |---|---|---|
-| `off` | the **Manager** tab | `!ssh <host> brigade <name> manager off` |
+| `project off` | the project switch, at the head of the space | `!ssh <host> brigade <name> switch off` |
 | `check the installation` | under the project tile | `!ssh <host> brigade <name> installation` |
 
 **The other actions stay written** — stopping and resuming the kitchen, enabling and revoking a

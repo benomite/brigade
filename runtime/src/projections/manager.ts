@@ -4,6 +4,7 @@
 import type { Base } from "../base.ts";
 import type { FaitManager, FaitReaction, Nature } from "../events/manager.ts";
 import { definirProjection } from "../projection.ts";
+import { etatDeLInterrupteur } from "./switch.ts";
 
 export type EtatManager = { active: boolean; since: string; by: string };
 
@@ -192,8 +193,11 @@ export function etatDuManager(base: Base): EtatManager | null {
   return ligne ? { ...ligne, active: ligne.active === 1 } : null;
 }
 
+// The manager has no switch of its own any more: it follows the project's
+// (#1406). Only a log the switch is not yet set on still reads the old one.
 export function managerAllume(base: Base): boolean {
-  return etatDuManager(base)?.active === true;
+  const projet = etatDeLInterrupteur(base);
+  return projet === null ? etatDuManager(base)?.active === true : projet.on;
 }
 
 const COLONNES = "ticket, decision, fingerprint, kind, reason, missing, model, effort, calibration, run, fired, lacking, at, labels, commented, posed";

@@ -36,6 +36,8 @@ import {
 import { parcoursDesTickets } from "./parcours-des-tickets.ts";
 import { derivePremierCoup, direDerivePremierCoupEn, type DerivePremierCoup } from "./renvois.ts";
 import { mergedDeliveries, seuilsEnVigueur } from "./projections/measures.ts";
+import { direInterrupteur } from "./interrupteur.ts";
+import { etatDeLInterrupteur, type EtatInterrupteur } from "./projections/switch.ts";
 import { bilanSansGrant, controleRetenu, etatDeLaBase, etatDuGrant, reparationDeLaBase, type ControleRetenu, type EtatDeLaBase, type Grant, type ReparationDeLaBase, type SansGrant } from "./projections/pass.ts";
 import { direMotifDeGardeEn, rangementDesTranscripts, worktreesGardes, type RangementDeTranscripts, type WorktreeGarde } from "./projections/cleanup.ts";
 import { lireRail, livresDepuis, type Etat as EtatTicket, type Livre, type TicketRail } from "./projections/rail.ts";
@@ -110,6 +112,9 @@ export type EtatCuisine = {
   passage: Passage | null;
   // La pause du renommage du code, acceptée par le chef, tant qu'elle tient.
   pause: PauseEnVigueur | null;
+  // L'interrupteur du projet (interrupteur.ts) : nul ou absent tant qu'aucun
+  // runtime ne l'a posé — la ligne `switch` ne s'écrit alors pas.
+  interrupteur?: EtatInterrupteur | null;
   // Le dernier contrôle de la base d'intégration : rouge, elle retient la cuisine.
   base: EtatDeLaBase | null;
   // Le contrôle de la base que son rapatriement retient, rouge ou non.
@@ -198,6 +203,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
     sansGrant: bilanSansGrant(base),
     passage: passageEnService(base, maintenant),
     pause: pauseDeLaCuisine(base, rail),
+    interrupteur: etatDeLInterrupteur(base),
     stations,
     sansStation: sansStationDepuis(base),
     setup: setupBloque(base),
@@ -277,8 +283,15 @@ function decrireRuntime(etat: EtatCuisine, depuis: Depuis): string[] {
   ];
 }
 
-function decrireCuisine({ gardeFous, pause }: EtatCuisine, depuis: Depuis): string {
-  const cuisine = gardeFous.stoppedAt !== null ? `STOPPED by the chef ${depuis(gardeFous.stoppedAt)} ago` : pause !== null ? `PAUSED for the code rename ${depuis(pause.since)} ago` : "open";
+function decrireCuisine({ gardeFous, pause, interrupteur }: EtatCuisine, depuis: Depuis): string {
+  const cuisine =
+    gardeFous.stoppedAt !== null
+      ? `STOPPED by the chef ${depuis(gardeFous.stoppedAt)} ago`
+      : interrupteur?.on === false
+        ? `SWITCHED OFF ${depuis(interrupteur.since)} ago`
+        : pause !== null
+          ? `PAUSED for the code rename ${depuis(pause.since)} ago`
+          : "open";
   const echecs = `${compteEn(gardeFous.failures, "failure")} in a row`;
   const disjoncteur =
     gardeFous.breakerOpenedAt === null
@@ -628,6 +641,7 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     // Quand GitHub limite les appels du compte : une ligne, et l'heure de reprise.
     ...(limiteGithub === null ? [] : [ligne("github", direLaLimite(limiteGithub))]),
     ...decrireRuntime(etat, depuisEn),
+    ...(etat.interrupteur == null ? [] : [ligne("switch", direInterrupteur(etat.interrupteur))]),
     decrireCuisine(etat, depuisEn),
     ...decrireConnexion(etat, depuisEn),
     ...decrireSansStation(etat, depuisEn),
@@ -684,13 +698,13 @@ export type EtatDeProjet = (typeof ETATS_DE_PROJET)[number];
 // le runtime, le « stop » du chef, puis ce qui empêche tout ticket de partir —
 // disjoncteur, pause du renommage, connexion Max, aucune station déclarée, base rouge. « Ouverte » vaut d'après le journal :
 // un runtime mort sans préavis l'est encore.
-function etatDuProjet({ session, gardeFous, stations, sansStation, base, setup, pause }: EtatCuisine): EtatDeProjet {
+function etatDuProjet({ session, gardeFous, stations, sansStation, base, setup, pause, interrupteur }: EtatCuisine): EtatDeProjet {
   if (!session || session.endedAt !== null) return "éteinte";
   if (gardeFous.stoppedAt !== null) return "arrêtée";
   // Un setup bloqué retient les stations d'ici ; une distante prépare le sien
   // sur son poste, et cuisine encore.
   const sansSetup = setup !== null && !stations.some((station) => station.remote);
-  const retenue = gardeFous.breakerOpenedAt !== null || pause !== null || stations.some((station) => station.disconnectedAt !== null) || sansStation !== null || base?.outcome === "red" || sansSetup;
+  const retenue = gardeFous.breakerOpenedAt !== null || interrupteur?.on === false || pause !== null || stations.some((station) => station.disconnectedAt !== null) || sansStation !== null || base?.outcome === "red" || sansSetup;
   return retenue ? "retenue" : "ouverte";
 }
 

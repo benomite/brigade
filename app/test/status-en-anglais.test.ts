@@ -3,7 +3,7 @@
 // runtime n'est pas encore à jour : chaque ligne anglaise dit la même chose que sa française.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { alertes, etatDuMerge, tetesDe } from "../src/alertes.ts";
+import { alertes, tetesDe } from "../src/alertes.ts";
 import type { Faits } from "../src/faits.ts";
 
 const A = "2026-10-16T12:00:00.000Z";
@@ -75,11 +75,5 @@ describe("l'app lit le haut de `status` en français comme en anglais", () => {
 
   test("les titres sont ceux de la box : `kitchen` et `connection`", () => {
     assert.deepEqual(tetesDe(bande("kitchen    open")).map(({ titre }) => titre), ["projet", "kitchen"]);
-  });
-
-  test("le merge, actif ou éteint seul : l'interrupteur se lit dans les deux langues", () => {
-    assert.deepEqual(etatDuMerge(bande("cuisine    ouverte", "grant      merge ACTIF, sans échéance, depuis 2 h — une pass verte est mergée sans toi")), { actif: true, releve: "merge ACTIF, sans échéance, depuis 2 h — une pass verte est mergée sans toi" });
-    assert.deepEqual(etatDuMerge(bande("kitchen    open", "grant      merge ACTIVE, no deadline, since 2 h ago — a green pass is merged without you")), { actif: true, releve: "merge ACTIVE, no deadline, since 2 h ago — a green pass is merged without you" });
-    assert.deepEqual(etatDuMerge(bande("kitchen    open", "grant      merge LAPSED 40 min ago — its deadline has passed")), { actif: false, seul: true, releve: "merge LAPSED 40 min ago — its deadline has passed" });
   });
 });

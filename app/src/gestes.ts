@@ -28,9 +28,11 @@ import { CONTROLE, SANS_ECRIRE, type Terminal } from "./terminaux.ts";
 export type Geste = { id: string; commande: string; parGrant?: true; forme: "direct" | "confirmé" };
 
 export const GESTES: readonly Geste[] = [
-  // Allumer engage : il juge tout le backlog, et ce qu'il juge exécutable part en cuisine (allumage.ts).
-  { id: "manager-allumer", commande: "manager on", forme: "confirmé" },
-  { id: "manager-eteindre", commande: "manager off", forme: "direct" },
+  // L'interrupteur du projet (#1406), un seul pour tout le projet. Allumer engage : le manager juge
+  // tout le backlog, ce qu'il juge exécutable part en cuisine, et une livraison verte est mergée
+  // (allumage.ts). Éteindre ne détruit rien : rien de neuf n'est pris, jugé, découpé ni mergé.
+  { id: "projet-allumer", commande: "switch on", forme: "confirmé" },
+  { id: "projet-eteindre", commande: "switch off", forme: "direct" },
   // Accordé, une pass verte est mergée sans le chef ; révoqué, plus rien ne l'est.
   { id: "grant-activer", commande: "grant enable", parGrant: true, forme: "confirmé" },
   { id: "grant-revoquer", commande: "grant revoke", parGrant: true, forme: "confirmé" },

@@ -21,7 +21,6 @@ import { BANNIERE } from "../src/faits.ts";
 import { commandeDuGeste, CONFIRMES, DIRECTS, ecrireGeste, GESTES, GRANTS, SANS_OUI } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
-import { GESTES_DU_MANAGER } from "../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { ouvrirTerminaux, type Terminal } from "../src/terminaux.ts";
 import { type Faux, jouerLaVue, type Reponses, repos } from "./aides/fausse-vue.ts";
@@ -73,8 +72,8 @@ const CITEES = new Set(
 
 // Chaque geste : le grant qu'il nomme, la commande que la doc cite, et ce qui s'écrit pour « parade » sur « box ».
 const GESTES_DE_LA_DOC: readonly [id: string, grant: string | undefined, citee: string, ecrite: string][] = [
-  ["manager-allumer", undefined, "brigade <projet> manager on", "ssh box brigade parade manager on"],
-  ["manager-eteindre", undefined, "brigade <projet> manager off", "ssh box brigade parade manager off"],
+  ["projet-allumer", undefined, "brigade <projet> switch on", "ssh box brigade parade switch on"],
+  ["projet-eteindre", undefined, "brigade <projet> switch off", "ssh box brigade parade switch off"],
   ["grant-activer", "merge", "brigade <projet> grant enable merge", "ssh box brigade parade grant enable merge"],
   ["grant-revoquer", "merge", "brigade <projet> grant revoke merge", "ssh box brigade parade grant revoke merge"],
   ["reprendre", undefined, "brigade <projet> guardrails resume", "ssh box brigade parade guardrails resume"],
@@ -174,9 +173,9 @@ describe("les gestes du chef", () => {
     });
   }
 
-  test("deux gestes sont directs — éteindre le manager, vérifier l'installation : aucun n'engage ni ne détruit ; les cinq autres sont confirmés", () => {
-    assert.deepEqual(DIRECTS, ["manager-eteindre", "installation"]);
-    assert.deepEqual(CONFIRMES, ["manager-allumer", "grant-activer", "grant-revoquer", "reprendre", "stop"]);
+  test("deux gestes sont directs — éteindre le projet, vérifier l'installation : aucun n'engage ni ne détruit ; les cinq autres sont confirmés", () => {
+    assert.deepEqual(DIRECTS, ["projet-eteindre", "installation"]);
+    assert.deepEqual(CONFIRMES, ["projet-allumer", "grant-activer", "grant-revoquer", "reprendre", "stop"]);
     // Chaque geste a l'une des deux formes, et une seule.
     assert.deepEqual([...DIRECTS, ...CONFIRMES].toSorted(), GESTES.map(({ id }) => id).toSorted());
   });
@@ -274,8 +273,8 @@ describe("les gestes du chef", () => {
   });
 
   test("un nom ou un hôte que le shell du Mac découperait s'écrit cité : il arrive entier, et rien n'en est exécuté", () => {
-    assert.equal(commande("manager-allumer", { nom: "parade", dossier: "/p", box: { hote: "chef@box.exemple:22" } }), "ssh chef@box.exemple:22 brigade parade manager on");
-    assert.equal(commande("manager-allumer", { nom: "parade", dossier: "/p", box: { hote: "box; rm -rf ~" } }), "ssh 'box; rm -rf ~' brigade parade manager on");
+    assert.equal(commande("projet-allumer", { nom: "parade", dossier: "/p", box: { hote: "chef@box.exemple:22" } }), "ssh chef@box.exemple:22 brigade parade switch on");
+    assert.equal(commande("projet-allumer", { nom: "parade", dossier: "/p", box: { hote: "box; rm -rf ~" } }), "ssh 'box; rm -rf ~' brigade parade switch on");
     // Le nom passe deux shells — celui du Mac, puis celui de la box : il est cité pour chacun.
     assert.equal(commande("installation", { nom: "mon projet", dossier: "/p", box: { hote: "box" } }), `ssh box brigade ''\\''mon projet'\\''' installation`);
   });
@@ -346,7 +345,7 @@ async function ouvrir(geste: NonNullable<Reponses["geste"]>, autres: Reponses = 
       exemple: EXEMPLE,
       onglets: ONGLETS, rubriques: RUBRIQUES,
       boutons: BOUTONS,
-      gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+      gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
       banniere: BANNIERE,
       calibrage: { modeles: MODELES, efforts: EFFORTS },
       code: undefined,

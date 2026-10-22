@@ -29,7 +29,6 @@ import { BANNIERE, comprendre, type Faits } from "../src/faits.ts";
 import { CONFIRMES, DIRECTS, GESTES, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
-import { GESTES_DU_MANAGER } from "../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { jouerLaVue, repos, type Reponses } from "./aides/fausse-vue.ts";
 
@@ -134,16 +133,30 @@ describe("le manager : sain, éteint, non dit", () => {
     assert.deepEqual(du(saine(t).bande(), "manager"), []);
   });
 
-  test("éteint : la ligne dit ce que le runtime en écrit, mot pour mot, et propose de l'allumer — en disant ce que ça engage", (t) => {
+  test("éteint : la ligne dit ce que le runtime en écrit, mot pour mot, et propose d'allumer le projet — en disant ce que ça engage", (t) => {
     const { noter, bande } = saine(t);
     noter({ type: "manager.disabled", payload: {} }, "chef");
 
     const ligne = enPanne(bande(), "manager");
     assert.equal(ligne.ton, "rouge");
+    assert.equal(ligne.dit, "project off — nothing new is taken, split or merged");
     assert.equal(ligne.releve, `OFF since ${JOUR}T09:00:00.000Z (by chef) — no issue is judged, what it set stays set`);
-    assert.equal(ligne.geste, "turn the manager on");
-    assert.deepEqual(ligne.appel, { geste: "manager-allumer" });
-    assert.match(ligne.prix, /it judges the whole open backlog/);
+    assert.equal(ligne.geste, "switch the project on");
+    assert.deepEqual(ligne.appel, { geste: "projet-allumer" });
+    assert.equal(ligne.bouton, "switch the project on");
+    assert.match(ligne.prix, /judges the whole open backlog, what it judges executable is taken at once, and green deliveries are merged/);
+  });
+
+  // L'interrupteur du projet (#1406) : le manager le suit, et sa ligne le dit.
+  test("l'interrupteur du projet éteint : la ligne du manager le dit, une seule — la cuisine retenue par lui n'en fait pas une seconde", (t) => {
+    const { noter, bande } = saine(t);
+    noter({ type: "project.switched-off", payload: {} }, "chef");
+
+    const lignes = bande();
+    assert.deepEqual(lignes.map(({ sujet, dit }) => [sujet, dit]), [["manager", "project off — nothing new is taken, split or merged"]]);
+    assert.match(lignes[0]?.releve ?? "", /^OFF since \S+ \(by chef\) — the project switch is off: `brigade \S+ switch on` turns it on — no issue is judged/);
+    noter({ type: "project.switched-on", payload: {} }, "chef");
+    assert.deepEqual(bande(), []);
   });
 
   test("jamais allumé : éteint aussi", (t) => {
@@ -159,8 +172,8 @@ describe("le manager : sain, éteint, non dit", () => {
   test("non dit — la lecture de `manager` a échoué, ou n'a pas la forme : non vérifié, avec ce qui en a été obtenu", () => {
     const bandes = tenirBandes({ etablir: 1, minimum: 0 });
     bandes.ouvrir(["parade"]);
-    assert.match(nonVerifie(bandes.manager({ ...PAS_JOINT, erreur: PAS_JOINT.erreur.replace("faits", "manager") }).alertes, "manager", "manager state").pourquoi ?? "", /^`manager` was not read: not reached/);
-    assert.match(nonVerifie(bandes.manager(lecture("manager", "erreur\n")).alertes, "manager", "manager state").pourquoi ?? "", /does not have the expected shape/);
+    assert.match(nonVerifie(bandes.manager({ ...PAS_JOINT, erreur: PAS_JOINT.erreur.replace("faits", "manager") }).alertes, "manager", "project switch").pourquoi ?? "", /^`manager` was not read: not reached/);
+    assert.match(nonVerifie(bandes.manager(lecture("manager", "erreur\n")).alertes, "manager", "project switch").pourquoi ?? "", /does not have the expected shape/);
   });
 
   test("lu par la veille de l'app, sans onglet : un manager allumé ne dit rien, éteint se dit, et un onglet quitté n'y change rien", (t) => {
@@ -298,7 +311,7 @@ describe("la bande, à l'écran", () => {
         exemple: EXEMPLE,
         onglets: ONGLETS, rubriques: RUBRIQUES,
         boutons: BOUTONS,
-        gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+        gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
         banniere: BANNIERE,
         calibrage: { modeles: MODELES, efforts: EFFORTS },
         code: undefined,
@@ -414,7 +427,7 @@ describe("le signal d'un projet sur sa case de la barre", () => {
         exemple: EXEMPLE,
         onglets: ONGLETS, rubriques: RUBRIQUES,
         boutons: BOUTONS,
-        gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+        gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
         banniere: BANNIERE,
         calibrage: { modeles: MODELES, efforts: EFFORTS },
         code: undefined,
@@ -553,7 +566,7 @@ describe("la bande ne clignote pas (#721)", () => {
 
 describe("le mot du bouton d'une alerte", () => {
   test("un geste du socle, une demande au second, un onglet : un mot court, jamais une commande", () => {
-    assert.equal(boutonDe({ geste: "turn the manager on", appel: { geste: "manager-allumer" } }), "turn the manager on");
+    assert.equal(boutonDe({ geste: "switch the project on", appel: { geste: "projet-allumer" } }), "switch the project on");
     assert.equal(boutonDe({ geste: "resume the kitchen, once you have read why they fail", appel: { geste: "reprendre" } }), "resume the kitchen");
     assert.equal(boutonDe({ geste: "enable `merge` again", appel: { geste: "grant-activer", grant: "merge" } }), "enable merge again");
     assert.equal(boutonDe({ geste: "start it on the station: `systemctl start brigade@parade`", appel: { demande: true } }), "ask the second");

@@ -39,7 +39,7 @@ import { cheminDe, emplacementsDe, lireCheminDuShell } from "./emplacements.ts";
 import { tenirMiseAJour } from "./mise-a-jour/etat.ts";
 import { fluxDe, formatDe } from "./mise-a-jour/flux.ts";
 import { installeurDuPoste } from "./mise-a-jour/installation.ts";
-import { COMMANDE as COMMANDE_MANAGER, GESTES_DU_MANAGER, voir as voirManager } from "./manager.ts";
+import { COMMANDE as COMMANDE_MANAGER, voir as voirManager } from "./manager.ts";
 import { machineChoisie, machinesDe } from "./machines.ts";
 import { COMMANDE_DES_COUTS, COUTS, commandeDe, ONGLETS, projetsLus, RUBRIQUES } from "./onglets.ts";
 import { ouvrirTransfert, tenirPages } from "./page.ts";
@@ -562,7 +562,7 @@ function projet(nom: unknown): Projet {
   return trouve;
 }
 
-ipcMain.handle("demarrage", () => ({ poste: { nom: nomDuPoste(plateforme), mac: estUnMac(plateforme) }, configuration: affichee(), palette: PALETTE, exemple: EXEMPLE, onglets: ONGLETS, rubriques: RUBRIQUES, boutons: BOUTONS, gestes: { manager: GESTES_DU_MANAGER, allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES, attente: GESTES_D_ATTENTE }, banniere: BANNIERE, calibrage: { modeles: MODELES, efforts: EFFORTS }, code: retards.vu(), stations: stations.vu(), projetsDesStations: projetsDesStations.vu(), accueil: accueil.vu(), miseAJour: miseAJour.vu() }));
+ipcMain.handle("demarrage", () => ({ poste: { nom: nomDuPoste(plateforme), mac: estUnMac(plateforme) }, configuration: affichee(), palette: PALETTE, exemple: EXEMPLE, onglets: ONGLETS, rubriques: RUBRIQUES, boutons: BOUTONS, gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES, attente: GESTES_D_ATTENTE }, banniere: BANNIERE, calibrage: { modeles: MODELES, efforts: EFFORTS }, code: retards.vu(), stations: stations.vu(), projetsDesStations: projetsDesStations.vu(), accueil: accueil.vu(), miseAJour: miseAJour.vu() }));
 // Ajouter un projet : son dossier se choisit, il ne se tape pas. Le reste se
 // décide hors de la vue — elle reçoit ce qu'il en est advenu, et pourquoi.
 ipcMain.handle("choisirDossier", async () => {

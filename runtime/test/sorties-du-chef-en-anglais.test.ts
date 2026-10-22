@@ -182,12 +182,18 @@ test("une box d'avant l'épique — journal, drop-in et fichier d'état écrits 
   assert.equal(types().at(-1), "grant.revoked");
   assert.equal((await ancien(gardeFous, "reprendre")).code, 0);
   assert.equal(types().at(-1), "kitchen.resumed");
-  assert.equal((await ancien(manager, "eteindre")).code, 0);
-  assert.equal(types().at(-1), "manager.disabled");
+  // Le manager n'a plus d'interrupteur à lui (#1406) : ses anciens mots disent le nouveau, puis le refus
+  // qui nomme l'interrupteur du projet — rien n'est écrit.
+  for (const [mot, nouveau] of [["eteindre", "off"], ["allumer", "on"]] as const) {
+    const avant = types().length;
+    const lu = await sortie(manager, [mot], env);
+    sansMotFrancais(lu.lignes.filter((ligne) => !/ is now “/.test(ligne)));
+    assert.equal(lu.code, 1, mot);
+    assert.match(lu.lignes.join("\n"), new RegExp(`“${mot}” is now “${nouveau}”[\\s\\S]*switch ${nouveau}\``));
+    assert.equal(types().length, avant, mot);
+  }
   assert.equal((await ancien(manager, "rendre", "10")).code, 0);
   assert.equal(types().at(-1), "manager.handed-back");
-  assert.equal((await ancien(manager, "allumer")).code, 0);
-  assert.equal(types().at(-1), "manager.enabled", types().slice(-4).join());
   assert.equal((await ancien(station, "retirer", "reviewer-modele")).code, 0);
   assert.equal(decisionsPosees(journal.base).BRIGADE_REVIEWER_MODEL, undefined);
 

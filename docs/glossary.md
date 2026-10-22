@@ -102,7 +102,8 @@ Commands are run as `brigade <project> <command>` on the box (`npm --prefix runt
 | `faits` | `facts` | The machine-readable form of `status`, for the app | — |
 | `rail` | `rail` | The ticket rail | `remove <ticket>` and `priority <ticket> <1-9 \| none>` are new, with no old name |
 | `station` | `station` | A station's settings | `cooks <N>` → `cooks <N>`; `retirer <setting>` → `remove <setting>`; `aide` → `help` |
-| `manager` | `manager` | The manager's switch and decisions | `allumer` → `on`; `eteindre` → `off`; `rendre <n°>` → `return <n°>`; `backlog` → `backlog`; `upstream` is new, with no old name |
+| `manager` | `manager` | The manager's decisions — it follows the project switch | `allumer` → `on`; `eteindre` → `off` (both refused since #1406, naming `switch`); `rendre <n°>` → `return <n°>`; `backlog` → `backlog`; `upstream` is new, with no old name |
+| `switch` | `switch` | The project switch, one for the whole project (#1406) | new, with no old name |
 | `grant` | `grant` | The `merge` grant | `activer` → `enable`; `prolonger` → `extend`; `revoquer` → `revoke`; `--jusqu-a` → `--until`; `--pour` → `--for`; `--usages` → `--uses`; `--sans-echeance` → `--no-expiry` |
 | `pass` | `pass` | The pass and its verdicts | — |
 | `mesures` | `measures` | The measures behind drift | — |
@@ -140,7 +141,7 @@ Each line of `status` begins with its label; the French label is on the left.
 | `sans grant, …` | `without a grant, …` | The bilan under `awaiting` |
 | `aucun en cours` | `none running` | No cook |
 | `ouverte` / `retenue` / `arrêtée` / `éteinte` | `open` / `held` / `stopped` / `off` | Kitchen states |
-| `ALLUMÉ` / `ÉTEINT` | `ON` / `OFF` | Manager switch |
+| `ALLUMÉ` / `ÉTEINT` | `ON` / `OFF` | Manager line (the project switch it follows) |
 | `ACTIF` / `BIENTÔT ÉTEINT` / `ÉTEINT SEUL` | `ACTIVE` / `EXPIRING SOON` / `LAPSED` | Grant states |
 | `ROUGE depuis …` | `RED since …` | The base is red |
 | the first line, projet until the runtime writes it in English | `project` | The project the block is about. The French word is left out of backticks on purpose: the runtime's glossary test would otherwise forbid it in a `status` that still writes it |
@@ -181,12 +182,12 @@ The app reads each of these forms in both languages, whole: a line that mixes th
 | `T'attend` | `Awaiting you` | Rail column and pill |
 | `rail` / `au travail` / `à la pass` / `t'attend` / `livrés 24 h` | `rail` / `taken` / `at pass` / `awaiting you` / `served 24 h` | The five counters of a tile |
 | `Ce qui empêche de tourner` | `What stops it running` | The alert band |
-| `manager éteint` | `manager off` | Alert: no issue is judged |
+| `projet éteint` | `project off` | Alert and head of the rail: nothing new is taken, split or merged (#1406) |
 | `renoncer à la demande` | `withdraw the request` | Alert action |
 | `reprendre la cuisine` | `resume the kitchen` | Button |
 | `arrêter la cuisine` | `stop the kitchen` | Button |
 | `vérifier l'installation` | `check the installation` | Button |
-| `allumer` / `éteindre` | `on` / `off` | Manager buttons (same words as the command) |
+| `allumer` / `éteindre` | `on` / `off` | The project switch (same words as the command) |
 | `accorder` / `révoquer` | `enable` / `revoke` | Grants buttons (same words as the command) |
 | `Retirer ce projet de l'app` | `Remove this project from the app` | Remove |
 | `Désinstaller` | `Uninstall` | Remove from the box |
