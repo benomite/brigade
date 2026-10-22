@@ -401,6 +401,9 @@ export const pass = definirProjection<Ecoutes>({
         at,
       );
     },
+    // The chef relaunches the judgement of a stuck delivery: it stays delivered,
+    // and the pass takes it at its turn.
+    "pass.relaunched": () => {},
     "cook.reported": (base, { ticket, at, payload }) => {
       if (payload.ending !== "done") return;
       passer(base, ticket, at, "delivered", "pr = coalesce(?, pr), started_at = NULL, reason = NULL, cause = NULL", texteOuRien(payload.pr));
