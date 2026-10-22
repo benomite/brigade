@@ -13,7 +13,7 @@ import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { enAnglais } from "./commandes.ts";
 import { AGE_MAX_SAUVEGARDE_MS, decrireEtat, lireEtat, suivre } from "./etat.ts";
 import { ouvrirJournal } from "./journal.ts";
-import { pauseDeLaStation } from "./limite-github.ts";
+import { appelsDeLaStation, pauseDeLaStation } from "./limite-github.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run status -- [--days <N>] [--follow [<numéro de ticket>]]";
@@ -69,7 +69,7 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
     }
     throw erreur;
   }
-  for (const ligne of decrireEtat(etat, new Date(), ageMaxSauvegardeMs, pauseDeLaStation(env.BRIGADE_STATION_DIR, Date.now()))) dire(ligne);
+  for (const ligne of decrireEtat(etat, new Date(), ageMaxSauvegardeMs, pauseDeLaStation(env.BRIGADE_STATION_DIR, Date.now()), appelsDeLaStation(env.BRIGADE_STATION_DIR, Date.now()))) dire(ligne);
   const maintenant = new Date();
   dire("");
   dire(direEntreesEn(entreesParType(journal.base, new Date(maintenant.getTime() - jours * 86_400_000), maintenant), jours));

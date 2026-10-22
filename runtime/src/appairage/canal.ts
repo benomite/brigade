@@ -4,7 +4,7 @@
 // machine : ce qu'elle a à dire, elle l'écrit là.
 import { execFile } from "../sans-invite.ts";
 import { decouper } from "../github.ts";
-import { constaterLimite, COMPTE_DE_LA_MACHINE, limiteDuProcess, noterLesEntetes, prendreUnAppel, refusPourLimite, type Limite, type ReponseHttp } from "../limite-github.ts";
+import { constaterLimite, COMPTE_DE_LA_MACHINE, limiteDuProcess, noterLesEntetes, PROJET_DE_LA_STATION, prendreUnAppel, refusPourLimite, type Limite, type ReponseHttp } from "../limite-github.ts";
 
 export type Fichiers = Record<string, string>;
 
@@ -33,7 +33,7 @@ export function canalGitHub(options: OptionsCanal): Canal {
   const appeler = async (args: string[], entree?: unknown): Promise<string> => {
     // Un appel que le quota réel retient ne part pas.
     const limite = options.limite ?? limiteDuProcess();
-    await prendreUnAppel(limite, { gh: options.gh, env: async () => env, maintenant: options.maintenant });
+    await prendreUnAppel(limite, { etiquette: { projet: PROJET_DE_LA_STATION, lecture: "gist" }, gh: options.gh, env: async () => env, maintenant: options.maintenant });
     return new Promise((resoudre, rejeter) => {
       const enfant = execFile(
         options.gh,

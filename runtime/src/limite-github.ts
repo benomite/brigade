@@ -94,12 +94,42 @@ export class CuisineRalentie extends LimiteGitHubAtteinte {
   }
 }
 
+// Ce qu'un appel dit de lui : le projet qui l'émet, et la sorte de lecture qu'il
+// fait (`LECTURES`). Sans lui, l'appel est compté sous le projet « station ».
+export type Etiquette = { projet: string; lecture: Lecture };
+
+// Les sortes de lecture, dans le nom stable que `status` et les faits donnent.
+export const LECTURES = ["issue-comments", "pull-requests", "issues", "gist", "gesture", "other"] as const;
+export type Lecture = (typeof LECTURES)[number];
+export const PROJET_DE_LA_STATION = "station";
+
+// La sorte de lecture d'un appel `gh api` : un geste du chef est un geste, quel que
+// soit son chemin ; sinon le chemin de l'API (le dernier argument qui en est un) la dit.
+export function lectureDe(args: readonly string[], usage: Usage = "cuisine"): Lecture {
+  if (usage === "geste") return "gesture";
+  const chemin = [...args].reverse().find((arg) => /^\/?(repos|gists?)\b/.test(arg)) ?? "";
+  const sansRequete = chemin.replace(/^\//, "").split("?")[0] ?? "";
+  if (/^gists?(\/|$)/.test(sansRequete)) return "gist";
+  if (/^repos\/[^/]+\/[^/]+\/(issues|pulls)\/[0-9]+\/comments$/.test(sansRequete)) return "issue-comments";
+  if (/^repos\/[^/]+\/[^/]+\/(pulls|commits|check-runs)(\/|$)/.test(sansRequete) || /\/(pulls|check-runs|status)(\/|$)/.test(sansRequete)) return "pull-requests";
+  if (/^repos\/[^/]+\/[^/]+\/issues(\/|$)/.test(sansRequete)) return "issues";
+  return "other";
+}
+
+// Les appels comptés sur l'heure écoulée : leur total, et leur répartition par
+// projet et par sorte de lecture, le plus gros d'abord (à égalité, par nom).
+export type Repartition = {
+  total: number;
+  parProjet: Array<{ nom: string; appels: number }>;
+  parLecture: Array<{ nom: string; appels: number }>;
+};
+
 export type Limite = {
   // Compte un appel. Un appel de la cuisine (par défaut) lève
   // `LimiteGitHubAtteinte` sans le compter tant que GitHub a dit sa limite
   // atteinte, et `CuisineRalentie` quand le quota réel du compte (par défaut,
   // celui de la machine) le retient. Un geste n'est jamais retenu.
-  prendre(usage?: Usage, compte?: string): void;
+  prendre(usage?: Usage, compte?: string, etiquette?: Etiquette): void;
   // GitHub a dit sa limite atteinte : plus d'appel de la cuisine avant cet
   // instant (en millisecondes), pour tous ceux qui tiennent ce compteur.
   suspendre(jusqua: number): void;
@@ -113,6 +143,8 @@ export type Limite = {
   aConfirmer(compte?: string): boolean;
   // Les appels comptés sur l'heure écoulée, par tous ceux qui tiennent ce compteur.
   appels(): number;
+  // Les mêmes appels, répartis par projet et par sorte de lecture.
+  repartition(): Repartition;
   fermer(): void;
 };
 
@@ -136,8 +168,12 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
   // aucune écriture n'attend le disque.
   if (options.fichier !== undefined) base.script("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;");
   base.script(
-    "CREATE TABLE IF NOT EXISTS appels (instant INTEGER NOT NULL); CREATE INDEX IF NOT EXISTS appels_par_instant ON appels (instant); CREATE TABLE IF NOT EXISTS pause (jusqua INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS quota (compte TEXT PRIMARY KEY, restant INTEGER NOT NULL, plafond INTEGER NOT NULL, reset INTEGER NOT NULL, vu INTEGER NOT NULL);",
+    "CREATE TABLE IF NOT EXISTS appels (instant INTEGER NOT NULL, projet TEXT, lecture TEXT); CREATE INDEX IF NOT EXISTS appels_par_instant ON appels (instant); CREATE TABLE IF NOT EXISTS pause (jusqua INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS quota (compte TEXT PRIMARY KEY, restant INTEGER NOT NULL, plafond INTEGER NOT NULL, reset INTEGER NOT NULL, vu INTEGER NOT NULL);",
   );
+
+  // Un compteur écrit avant la répartition n'a pas ces deux colonnes.
+  const colonnes = base.lire<{ name: string }>("PRAGMA table_info(appels)").map((c) => c.name);
+  for (const colonne of ["projet", "lecture"]) if (!colonnes.includes(colonne)) base.script(`ALTER TABLE appels ADD COLUMN ${colonne} TEXT;`);
 
   const quotaDe = (compte: string, instant: number): Quota | null => {
     const [lu] = base.lire<QuotaLu>("SELECT restant, plafond, reset, vu FROM quota WHERE compte = ?", compte);
@@ -162,7 +198,7 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
   };
 
   return {
-    prendre(usage = "cuisine", compte = COMPTE_DE_LA_MACHINE) {
+    prendre(usage = "cuisine", compte = COMPTE_DE_LA_MACHINE, etiquette) {
       const refus = base.transaction((): { jusqua: number } | { quota: Quota; jusqua: number } | null => {
         const instant = maintenant();
         // Ce qui est sorti de la fenêtre ne compte plus : rien ne le relira.
@@ -175,7 +211,7 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
           const jusqua = quota === null ? null : retenue(quota, instant);
           if (quota !== null && jusqua !== null) return { quota, jusqua };
         }
-        base.executer("INSERT INTO appels (instant) VALUES (?)", instant);
+        base.executer("INSERT INTO appels (instant, projet, lecture) VALUES (?, ?, ?)", instant, etiquette?.projet ?? PROJET_DE_LA_STATION, etiquette?.lecture ?? (usage === "geste" ? "gesture" : "other"));
         return null;
       });
       if (refus === null) return;
@@ -218,8 +254,47 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
       const [compte] = base.lire<{ n: number }>("SELECT count(*) AS n FROM appels WHERE instant > ?", maintenant() - FENETRE_MS);
       return compte?.n ?? 0;
     },
+    repartition: () => repartitionDe(base, maintenant()),
     fermer: () => base.fermer(),
   };
+}
+
+function repartitionDe(base: Base, instant: number): Repartition {
+  const depuis = instant - FENETRE_MS;
+  const par = (colonne: "projet" | "lecture", defaut: string) =>
+    base
+      .lire<{ nom: string; appels: number }>(`SELECT COALESCE(${colonne}, ?) AS nom, count(*) AS appels FROM appels WHERE instant > ? GROUP BY nom ORDER BY appels DESC, nom ASC`, defaut, depuis)
+      .map(({ nom, appels }) => ({ nom, appels }));
+  const parProjet = par("projet", PROJET_DE_LA_STATION);
+  return { total: parProjet.reduce((somme, { appels }) => somme + appels, 0), parProjet, parLecture: par("lecture", "other") };
+}
+
+// La répartition des appels de la station dont `racine` est le répertoire, lue
+// sans rien écrire ni rien créer : null si elle n'a pas de compteur, ou s'il ne
+// se lit pas — ce que `status` ne doit jamais payer.
+export function appelsDeLaStation(racine: string | undefined, maintenant: number): Repartition | null {
+  if (!racine) return null;
+  const fichier = join(racine, REPERTOIRE_COMPTEUR, FICHIER_COMPTEUR);
+  if (!existsSync(fichier)) return null;
+  let base: Base | undefined;
+  try {
+    base = new Base(fichier, { lectureSeule: true, attenteMs: 2000 });
+    return repartitionDe(base, maintenant);
+  } catch {
+    return null;
+  } finally {
+    base?.fermer();
+  }
+}
+
+// Les lignes de `status` : le total de l'heure, puis le projet et la lecture qui en ont fait le plus.
+export function direLesAppels(r: Repartition): string[] {
+  const [projet] = r.parProjet;
+  const [lecture] = r.parLecture;
+  return [
+    `${r.total} calls in the last hour`,
+    ...(projet === undefined || lecture === undefined ? [] : [`most calls: project ${projet.nom} (${projet.appels}), kind ${lecture.nom} (${lecture.appels})`]),
+  ];
 }
 
 // Le compteur partagé de la station dont `racine` est le répertoire.
@@ -350,7 +425,7 @@ const confirmations = new WeakMap<Limite, Map<string, number>>();
 // seulement s'il faut le confirmer.
 export async function prendreUnAppel(
   limite: Limite,
-  options: { usage?: Usage; compte?: string; gh: string; env?: () => Promise<NodeJS.ProcessEnv | undefined>; maintenant?: () => number },
+  options: { usage?: Usage; compte?: string; etiquette?: Etiquette; gh: string; env?: () => Promise<NodeJS.ProcessEnv | undefined>; maintenant?: () => number },
 ): Promise<void> {
   const compte = options.compte ?? COMPTE_DE_LA_MACHINE;
   const usage = options.usage ?? "cuisine";
@@ -364,7 +439,7 @@ export async function prendreUnAppel(
       await rafraichirLeQuota(limite, { gh: options.gh, env: await options.env?.(), compte });
     }
   }
-  limite.prendre(usage, compte);
+  limite.prendre(usage, compte, options.etiquette);
 }
 
 // GitHub a refusé pour sa limite : pose la pause sur le compteur, jusqu'à la

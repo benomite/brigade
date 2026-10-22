@@ -20,7 +20,7 @@ import { ACTIONS, bientotEteint, direExtinctionEn, direResteEn } from "./grant.t
 import type { Journal } from "./journal.ts";
 import { formaterEvenement } from "./ligne-evenement.ts";
 import { direSaturationsEn } from "./machine.ts";
-import { direLaLimite } from "./limite-github.ts";
+import { direLaLimite, direLesAppels, type Repartition } from "./limite-github.ts";
 import { direJaugeEn, franchis, SANS_SEUIL, type Franchi } from "./mesures.ts";
 import {
   activitesDesCooksEnCours,
@@ -613,12 +613,31 @@ function decrireConsommation({ consommation }: EtatCuisine): string[] {
   ];
 }
 
+// Les appels de la box à GitHub sur l'heure glissante, tels que l'app les lit :
+// `total`, le projet (`topProject`) et la sorte de lecture (`topKind`) qui en ont fait le plus
+// — nuls sans appel — et la répartition entière (`byProject`, `byKind`, le plus gros d'abord).
+export type AppelsGithub = {
+  total: number;
+  topProject: { name: string; calls: number } | null;
+  topKind: { name: string; calls: number } | null;
+  byProject: Array<{ name: string; calls: number }>;
+  byKind: Array<{ name: string; calls: number }>;
+};
+
+const nommes = (l: Array<{ nom: string; appels: number }>) => l.map(({ nom, appels }) => ({ name: nom, calls: appels }));
+
+export function faitsDesAppels(r: Repartition): AppelsGithub {
+  const byProject = nommes(r.parProjet);
+  const byKind = nommes(r.parLecture);
+  return { total: r.total, topProject: byProject[0] ?? null, topKind: byKind[0] ?? null, byProject, byKind };
+}
+
 // Combien de tickets du rail se lisent dans cet état.
 const lus = (rail: TicketRail[], nom: string) => rail.filter((ticket) => etatLu(ticket) === nom).length;
 const lusEn = (rail: TicketRail[], nom: string) => rail.filter((ticket) => etatLuEn(ticket) === nom).length;
 
 // L'état, ligne par ligne. Les durées sont comptées jusqu'à `maintenant`.
-export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegardeMs = AGE_MAX_SAUVEGARDE_MS, limiteGithub: number | null = null): string[] {
+export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegardeMs = AGE_MAX_SAUVEGARDE_MS, limiteGithub: number | null = null, appels: Repartition | null = null): string[] {
   const depuisEn = (instant: string) => dureeEn(maintenant.getTime() - Date.parse(instant));
   const decompte = ORDRE.map((nom) => [nom, lusEn(etat.rail, nom)] as const)
     .filter(([, combien]) => combien > 0)
@@ -640,6 +659,8 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     ligne("project", etat.projet ?? "unknown — empty log"),
     // Quand GitHub limite les appels du compte : une ligne, et l'heure de reprise.
     ...(limiteGithub === null ? [] : [ligne("github", direLaLimite(limiteGithub))]),
+    // Les appels de la box à GitHub sur l'heure écoulée, quand son compteur existe.
+    ...(appels === null ? [] : direLesAppels(appels).map((texte, i) => ligne(i === 0 ? "gh calls" : "", texte))),
     ...decrireRuntime(etat, depuisEn),
     ...(etat.interrupteur == null ? [] : [ligne("switch", direInterrupteur(etat.interrupteur))]),
     decrireCuisine(etat, depuisEn),
@@ -720,6 +741,8 @@ export type Faits = {
   // Quand GitHub limite les appels du compte : l'instant où il les rend. Absent
   // sinon, et d'un runtime d'avant ce champ.
   limiteGithub?: string;
+  // Les appels de la box à GitHub sur l'heure glissante, quand son compteur existe.
+  appelsGithub?: AppelsGithub;
   compteurs: { rail: number; auTravail: number; aLaPass: number; attend: number; livres24h: number };
   dernierEvenement: { seq: number; at: string; type: string; ticket: number | null } | null;
   // `activite` : ce que la cuisine fait du ticket en ce moment — son cook, s'il
@@ -898,7 +921,7 @@ export type CarteVue = Omit<CarteDeTodo, "captures"> & { captures: CapturesVues 
 // le dépôt GitHub que la box sert — de quoi donner l'adresse d'une issue qui
 // n'est pas sur le rail. `refusDeLaMachine` : pourquoi la station de cette
 // machine refuse le projet — ses stations d'ici sont alors `refused` —, ou null.
-export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limiteGithub: number | null = null, refusDeLaMachine: Refus | null = null): Faits {
+export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limiteGithub: number | null = null, refusDeLaMachine: Refus | null = null, appels: Repartition | null = null): Faits {
   const adresse = (ticket: number) =>
     etat.rail.find((surLeRail) => surLeRail.ticket === ticket)?.url ?? (depot !== undefined && DEPOT_GITHUB.test(depot) ? `https://github.com/${depot}/issues/${ticket}` : null);
   const attendus = new Set<number>();
@@ -926,6 +949,7 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limit
     lu: maintenant.toISOString(),
     dernierTick: etat.tick?.at ?? null,
     ...(limiteGithub === null ? {} : { limiteGithub: new Date(limiteGithub).toISOString() }),
+    ...(appels === null ? {} : { appelsGithub: faitsDesAppels(appels) }),
     compteurs: {
       rail: lus(etat.rail, nomEtat("waiting")) + lus(etat.rail, BLOQUE),
       auTravail: lus(etat.rail, nomEtat("taken")),

@@ -7,7 +7,7 @@
 import { execFile } from "./sans-invite.ts";
 import type { Check } from "./events/pass.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
-import { COMPTE_DE_LA_MACHINE, constaterLimite, limiteDuProcess, noterLesEntetes, prendreUnAppel, refusPourLimite, type Limite, type Usage } from "./limite-github.ts";
+import { COMPTE_DE_LA_MACHINE, constaterLimite, limiteDuProcess, noterLesEntetes, lectureDe, prendreUnAppel, refusPourLimite, type Limite, type Usage } from "./limite-github.ts";
 
 // Le label par lequel une issue entre sur le rail.
 export const LABEL = "fire";
@@ -139,6 +139,8 @@ export type OptionsGitHub = {
   // Le compte dont ce GitHub dépense le quota : le rôle dont il porte le jeton,
   // ou, par défaut, celui de la machine.
   compte?: string;
+  // Le projet à qui l'on compte ses appels (`status`) ; à défaut, son dépôt.
+  projet?: string;
   // En millisecondes ; par défaut, l'horloge du système. Les tests y mettent la leur.
   maintenant?: () => number;
 };
@@ -233,7 +235,7 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
     // la liste des process.
     let env: NodeJS.ProcessEnv | undefined;
     const environnement = async () => (env ??= options.jeton ? { ...process.env, GH_TOKEN: await options.jeton() } : undefined);
-    await prendreUnAppel(limite, { usage: options.usage, compte, gh: bin, env: environnement, maintenant: options.maintenant });
+    await prendreUnAppel(limite, { usage: options.usage, compte, etiquette: { projet: options.projet ?? (process.env.BRIGADE_PROJECT || depot), lecture: lectureDe(args, options.usage) }, gh: bin, env: environnement, maintenant: options.maintenant });
     await environnement();
     return new Promise((resoudre, rejeter) => {
       execFile(

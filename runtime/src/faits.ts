@@ -8,7 +8,7 @@ import { cartesDeCorrection } from "./correctif/cartes.ts";
 import { reculDesCorrections } from "./correctif/recul.ts";
 import { triagesDesDerniersJours } from "./carte-todo.ts";
 import { faits, lireEtat } from "./etat.ts";
-import { pauseDeLaStation } from "./limite-github.ts";
+import { appelsDeLaStation, pauseDeLaStation } from "./limite-github.ts";
 import { refusDuProjet } from "./mise-a-jour/en-service.ts";
 import { rolesDeLaCuisine } from "./roles-cuisine/roles.ts";
 import { ouvrirJournal } from "./journal.ts";
@@ -44,7 +44,7 @@ export function principal({ args, env, dire, redire }: Appel): void {
     // Le refus de la station de cette machine, lu dans ce qu'elle dit d'elle-même :
     // les stations d'ici du projet sont alors `refused`.
     const refus = refusDuProjet(env.BRIGADE_STATION_DIR, env.BRIGADE_PROJECT);
-    const forme = faits(lireEtat(journal, maintenant), maintenant, env.BRIGADE_GITHUB_REPO, pauseDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), refus);
+    const forme = faits(lireEtat(journal, maintenant), maintenant, env.BRIGADE_GITHUB_REPO, pauseDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), refus, appelsDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()));
     // Les corrections proposées, ce que les acceptées ont fait de leur
     // cause, et les profils proposés n'y sont que s'il y en a : la forme d'une
     // cuisine qui n'en a aucun ne change pas.
