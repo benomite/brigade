@@ -1052,7 +1052,8 @@ describe("le dépôt sous une identité", { concurrency: 8 }, () => {
 
     assert.equal(git(origine, "rev-parse", branche), git(worktree, "rev-parse", "HEAD"));
     const vu = readFileSync(temoin, "utf8");
-    assert.ok(vu.includes(`GIT_CONFIG_VALUE_1=${ENTETE}`), vu);
+    // L'en-tête est l'un des réglages posés par l'environnement, après ceux des fins de ligne.
+    assert.ok(vu.split("\n").some((ligne) => /^GIT_CONFIG_VALUE_\d+=/.test(ligne) && ligne.slice(ligne.indexOf("=") + 1) === ENTETE), vu);
     assert.ok(!(vu.split("\n").find((ligne) => ligne.startsWith("args:")) ?? "").includes("ghs_"));
     // Rapatrier attend un jeton frais ; pousser, qui ne peut pas attendre, prend le courant.
     assert.deepEqual(demandes, ["frais", "courant"]);

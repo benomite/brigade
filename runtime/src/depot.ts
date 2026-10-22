@@ -4,7 +4,7 @@
 import { execFile, execFileSync } from "./sans-invite.ts";
 import { createHash } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync } from "node:fs";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, dirname, join, posix, resolve } from "node:path";
 import { verifierAcces, type Acces } from "./projets/acces.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
@@ -179,18 +179,40 @@ export type OptionsDepot = {
 // coupée, et un clone fait en SSH repasse en HTTPS : rien d'autre que le jeton
 // n'authentifie ce geste.
 export function environnementReseau(env: NodeJS.ProcessEnv, jeton: string): NodeJS.ProcessEnv {
-  const reglages: Array<[string, string]> = [
-    ["credential.helper", ""],
-    ["http.https://github.com/.extraheader", `Authorization: Basic ${Buffer.from(`x-access-token:${jeton}`).toString("base64")}`],
-    ["url.https://github.com/.insteadOf", "git@github.com:"],
-    ["url.https://github.com/.insteadOf", "ssh://git@github.com/"],
-  ];
+  return {
+    ...avecConfiguration(env, [
+      ["credential.helper", ""],
+      ["http.https://github.com/.extraheader", `Authorization: Basic ${Buffer.from(`x-access-token:${jeton}`).toString("base64")}`],
+      ["url.https://github.com/.insteadOf", "git@github.com:"],
+      ["url.https://github.com/.insteadOf", "ssh://git@github.com/"],
+    ]),
+    GIT_TERMINAL_PROMPT: "0",
+  };
+}
+
+// Des réglages de `git` posés par l'environnement, après ceux qu'il porte déjà :
+// à clé égale, le dernier l'emporte.
+function avecConfiguration(env: NodeJS.ProcessEnv, reglages: Array<[string, string]>): NodeJS.ProcessEnv {
   const deja = Number(env.GIT_CONFIG_COUNT ?? 0) || 0;
   const poses = reglages.flatMap(([cle, valeur], i) => [
     [`GIT_CONFIG_KEY_${deja + i}`, cle],
     [`GIT_CONFIG_VALUE_${deja + i}`, valeur],
   ]);
-  return { ...env, GIT_TERMINAL_PROMPT: "0", GIT_CONFIG_COUNT: String(deja + reglages.length), ...Object.fromEntries(poses) };
+  return { ...env, GIT_CONFIG_COUNT: String(deja + reglages.length), ...Object.fromEntries(poses) };
+}
+
+// Les fins de ligne d'un worktree sont celles que le dépôt porte, sur chaque
+// station : ni `core.autocrlf` (que Git pour Windows pose à `true` dans sa
+// configuration du système), ni la fin de ligne « native » de Windows ne les
+// changent en `\r\n` à l'extraction. Un script du projet extrait en `\r\n` ne
+// se joue plus sous bash, et les octets ne seraient pas ceux du dépôt. Seul un
+// attribut du projet (`eol=crlf` dans son `.gitattributes`) en décide
+// autrement. Le `git` de la station l'a, et celui du cook aussi.
+export function finsDeLigneDuDepot(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  return avecConfiguration(env, [
+    ["core.autocrlf", "false"],
+    ["core.eol", "lf"],
+  ]);
 }
 
 // Le répertoire des worktrees des cooks d'un projet : celui que la station
@@ -205,10 +227,12 @@ export function worktreesDuProjet(env: NodeJS.ProcessEnv, repertoireEtat: string
 // répertoire d'état. Ce nom vaut `<run>` dans le répertoire des worktrees du
 // projet, où qu'il soit : un journal écrit quand ils vivaient sous l'état se
 // relit tel quel une fois qu'ils sont dans l'atelier. Tout autre chemin se lit
-// relatif au répertoire d'état.
-export const worktreeAuJournal = (run: string) => join("worktrees", run);
+// relatif au répertoire d'état. Il s'écrit avec `/` sur toutes les stations,
+// Windows compris : le journal dit la même chose d'une station à l'autre. Un
+// journal qu'une station Windows a écrit avec `\` se relit aussi.
+export const worktreeAuJournal = (run: string) => posix.join("worktrees", run);
 export function worktreeDuJournal(lieux: { repertoireEtat: string; worktrees: string }, auJournal: string): string {
-  const [premier, ...suite] = auJournal.split("/");
+  const [premier, ...suite] = auJournal.split(/[\\/]/);
   if (premier === "worktrees" && suite.length > 0) return join(lieux.worktrees, ...suite);
   return resolve(lieux.repertoireEtat, auJournal);
 }
@@ -290,14 +314,16 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
   // alors que le runtime — qui lance le cook dans ce worktree — le lit depuis
   // son propre répertoire.
   const worktrees = resolve(options.worktrees);
-  const reglages = { cwd: clone, env: options.env, timeout: DELAI_MS, encoding: "utf8" } as const;
+  // Tout `git` de la station extrait les fichiers dans les fins de ligne du dépôt.
+  const envGit = finsDeLigneDuDepot(options.env ?? process.env);
+  const reglages = { cwd: clone, env: envGit, timeout: DELAI_MS, encoding: "utf8" } as const;
   const git = (...args: string[]): string => execFileSync("git", args, { ...reglages, stdio: ["ignore", "pipe", "pipe"] }).trim();
   const gitAvec = (env: NodeJS.ProcessEnv | undefined, ...args: string[]) =>
     new Promise<string>((resoudre, rejeter) => {
       execFile("git", args, { ...reglages, env }, (erreur, stdout, stderr) => (erreur ? rejeter(motif(`git ${args[0]}`, { stderr, message: erreur.message })) : resoudre(stdout)));
     });
-  const gitAsync = (...args: string[]) => gitAvec(options.env, ...args);
-  const sousJeton = (jeton: string) => environnementReseau(options.env ?? process.env, jeton);
+  const gitAsync = (...args: string[]) => gitAvec(envGit, ...args);
+  const sousJeton = (jeton: string) => environnementReseau(envGit, jeton);
 
   // Le `.git` du clone : là que sont sa configuration, ses objets et ses
   // références.
@@ -358,7 +384,7 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
   // qu'elle nommerait n'est lancé.
   const gitDans = (worktree: string, plus: { env?: NodeJS.ProcessEnv; maxBuffer?: number } = {}) => {
     const debut = [...SANS_COMMANDE, `--git-dir=${administration(worktree)}`, `--work-tree=${resolve(worktree)}`];
-    const env = { ...(options.env ?? process.env), ...plus.env, GIT_COMMON_DIR: commun };
+    const env = { ...envGit, ...plus.env, GIT_COMMON_DIR: commun };
     return (...args: string[]): string => execFileSync("git", [...debut, ...args], { ...reglages, env, maxBuffer: plus.maxBuffer, stdio: ["ignore", "pipe", "pipe"] });
   };
   // Sans verrou : un `status` ordinaire rafraîchit l'index, et le cook qui
@@ -382,7 +408,7 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
   // avant que la station ne retienne ses pushs n'a que sa branche de suivi :
   // c'est elle qui le dit alors.
   const connu = (branche: string) => commitDe(connue(branche)) || commitDe(suivie(branche));
-  const reseau = async () => (options.jeton ? sousJeton(await options.jeton.frais()) : options.env);
+  const reseau = async () => (options.jeton ? sousJeton(await options.jeton.frais()) : envGit);
   const rapatrier = async () => {
     await gitAvec(await reseau(), "fetch", "--quiet", "origin", `+refs/heads/${base}:refs/remotes/origin/${base}`);
     try {
@@ -405,7 +431,7 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
   // autre, sans worktree. Rend l'arbre obtenu.
   const arbreTraduit = (revision: string, traduire: (chemin: string) => string, index: string): string => {
     const sous = (fichier: string, args: string[], input?: string) =>
-      execFileSync("git", args, { ...reglages, env: { ...(options.env ?? process.env), GIT_INDEX_FILE: fichier }, input, maxBuffer: Infinity, stdio: [input === undefined ? "ignore" : "pipe", "pipe", "pipe"] });
+      execFileSync("git", args, { ...reglages, env: { ...envGit, GIT_INDEX_FILE: fichier }, input, maxBuffer: Infinity, stdio: [input === undefined ? "ignore" : "pipe", "pipe", "pipe"] });
     const [lu, ecrit] = [`${index}.lu`, `${index}.ecrit`];
     try {
       sous(lu, ["read-tree", revision]);
@@ -532,7 +558,7 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
         // renommage a écrit.
         mkdirSync(essais, { recursive: true });
         const index = join(essais, `${nom}.index`);
-        const commitTree = (arbre: string, ...args: string[]) => execFileSync("git", [...IDENTITE, "commit-tree", arbre, ...args], { ...reglages, env: { ...(options.env ?? process.env), ...ENV_DE_RECOLTE }, stdio: ["ignore", "pipe", "pipe"] }).trim();
+        const commitTree = (arbre: string, ...args: string[]) => execFileSync("git", [...IDENTITE, "commit-tree", arbre, ...args], { ...reglages, env: { ...envGit, ...ENV_DE_RECOLTE }, stdio: ["ignore", "pipe", "pipe"] }).trim();
         const departTraduit = commitTree(arbreTraduit(depart, traduire, index), "-m", "départ traduit");
         const livraisonTraduite = commitTree(arbreTraduit(de, traduire, index), "-p", departTraduit, "-m", "livraison traduite");
         jeter(nom);
@@ -676,7 +702,7 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
         // mais contre ce que la station sait de l'origine seulement (rien, si
         // elle n'y a jamais poussé cette branche) : ce qu'un autre y a poussé
         // depuis n'est pas écrasé. `LC_ALL` : le refus se reconnaît à ses mots.
-        const env = { ...(options.jeton ? sousJeton(options.jeton.courant()) : (options.env ?? process.env)), LC_ALL: "C" };
+        const env = { ...(options.jeton ? sousJeton(options.jeton.courant()) : envGit), LC_ALL: "C" };
         const tete = git("rev-parse", "--verify", `refs/heads/${branche}^{commit}`);
         const attendu = connu(branche);
         execFileSync("git", ["push", "--quiet", `--force-with-lease=refs/heads/${branche}:${attendu}`, "origin", `refs/heads/${branche}:refs/heads/${branche}`], { ...reglages, env, stdio: ["ignore", "pipe", "pipe"] });
