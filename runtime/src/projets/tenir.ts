@@ -163,7 +163,7 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
   const ouvrirLe =
     options.ouvrirLaPreparation ??
     (async (projet: ProjetResolu, repertoireEtat: string, clone: string) => {
-      const github = ouvrirGitHub({ depot: projet.depot, bin: gh });
+      const github = ouvrirGitHub({ depot: projet.depot, bin: gh, projet: projet.nom });
       try {
         return await ouvrirLaPreparation({ repertoireEtat, projet: projet.nom, depot: projet.depot, base: projet.base, clone, github });
       } finally {

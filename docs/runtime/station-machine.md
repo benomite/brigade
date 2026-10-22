@@ -106,6 +106,15 @@ gist channel (`appairage/canal.ts`) — goes through the counter before `gh` lea
   During the pause no kitchen call leaves and nothing is counted. The service log says it once:
   `brigade : station — GitHub a atteint sa limite d'appels : plus aucun appel ne part avant la fin de la fenêtre, puis ils reprennent seuls`
   (French until the runtime is translated).
+- **Where the calls go (#1417).** Every `gh api` call the box emits is recorded on the counter with its
+  project (`BRIGADE_PROJECT`, else the repo; `station` for the gist channel) and a kind of reading:
+  `issue-comments`, `pull-requests`, `issues`, `gist`, `gesture` (any chef gesture, whatever its path)
+  or `other`, over the sliding hour. `status` prints, from the counter, read-only, two lines:
+  `gh calls   N calls in the last hour` and `           most calls: project <p> (n), kind <k> (m)`
+  (absent without a counter). `faits` carries the same figures as `appelsGithub`, with a stable naming:
+  `{ total, topProject: {name, calls} | null, topKind: {name, calls} | null, byProject: [{name, calls}], byKind: [{name, calls}] }`
+  (the lists are sorted biggest first, ties by name; the whole object is absent without a counter).
+  Calls older than one hour are no longer counted.
 - **What the chef sees of it.** During the pause, `status` writes a head line
   `github     GitHub is rate-limiting calls, back around HH:MM` (in French before #940), and `faits`
   carries `limiteGithub` (the instant of resumption, in ISO; absent outside a limit). Both read the
