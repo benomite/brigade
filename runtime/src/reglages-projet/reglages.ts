@@ -141,6 +141,12 @@ function valider(objet: unknown, version: boolean): ReglagesProjet {
   return reglages;
 }
 
+// Les réglages que l'écriture accepterait, ou le refus qu'elle lèverait —
+// sans rien écrire : ce qu'on vérifie avant de préparer quoi que ce soit.
+export function validerReglagesProjet(reglages: unknown): ReglagesProjet {
+  return valider(reglages, false);
+}
+
 // Le texte du fichier : les clés dans un ordre fixe, deux espaces, une fin de
 // ligne. Les mêmes réglages donnent les mêmes octets.
 export function texteDuFichier(reglages: ReglagesProjet): string {
