@@ -16,6 +16,7 @@ import { tenirStationLocale, TENUE_PAR, type OptionsStationLocale, type StationL
 import { FICHIER_STATION } from "../../src/stations/document.ts";
 import { githubDesStations } from "../../src/stations/github.ts";
 import { tenirStations, type Appairage, type Stations } from "../../src/stations/stations.ts";
+import { CACHE_DE_COMPILATION } from "../aides/cache-de-compilation.ts";
 import { ghDuRepertoire } from "../aides/gh-du-repertoire.ts";
 import { SANS_POSIX } from "../aides/posix.ts";
 import { repondre } from "../stations/faux-gh-gists.ts";
@@ -176,7 +177,7 @@ process.on("SIGTERM", () => { console.log("arrêtée"); clearInterval(veille); }
 
 test("la station refusée (code 2) n'est pas relancée, et le refus est dit ; morte d'elle-même, elle est relancée", async (t) => {
   const racine = join(repertoireTemporaire(t), "station");
-  const refusee = tenir(t, { node: process.execPath, principal: unPrincipal(t, `console.error("brigade : refus de démarrer la station — BRIGADE_PROXY_PORT n'est pas un port"); process.exit(2);`), racine, env: {}, appairer: () => assert.fail(), relanceMs: 10 });
+  const refusee = tenir(t, { node: process.execPath, principal: unPrincipal(t, `console.error("brigade : refus de démarrer la station — BRIGADE_PROXY_PORT n'est pas un port"); process.exit(2);`), racine, env: { ...CACHE_DE_COMPILATION }, appairer: () => assert.fail(), relanceMs: 10 });
   await jusqua(() => refusee.station.etat() === "refusee");
   assert.match(refusee.dit(), /this computer's station refused to start — brigade : refus de démarrer la station — BRIGADE_PROXY_PORT n'est pas un port; it is not launched again/);
   // Rendue : une autre app pourra la tenter.
@@ -189,7 +190,7 @@ test("la station refusée (code 2) n'est pas relancée, et le refus est dit ; mo
     node: process.execPath,
     principal: unPrincipal(t, `import { appendFileSync, readFileSync } from "node:fs";\nappendFileSync(${JSON.stringify(compte)}, "x");\nif (readFileSync(${JSON.stringify(compte)}, "utf8").length === 1) process.exit(1);\n${ATTENDRE_SIGTERM}`),
     racine: autre,
-    env: {},
+    env: { ...CACHE_DE_COMPILATION },
     appairer: () => assert.fail(),
     relanceMs: 10,
   });
@@ -207,7 +208,7 @@ test("le code refusé — GitHub ne montre pas encore la station — est retapé
     node: process.execPath,
     principal: unPrincipal(t, `console.log("brigade : station à appairer — tape ce code dans l'app : AAAA-BBBB (valable jusqu'à 14:32)");\n${ATTENDRE_SIGTERM}`),
     racine,
-    env: {},
+    env: { ...CACHE_DE_COMPILATION },
     appairer: async (code) => {
       tapes.push(code);
       return refus-- > 0 ? { refus: "no station shows this code: check it on the station, it is 8 letters and digits" } : { appairee: "ordi" };
@@ -228,7 +229,7 @@ test("la station dit si elle tourne, et le dit à l'app à chaque changement : l
     node: process.execPath,
     principal: unPrincipal(t, `console.log("lancée");\n${ATTENDRE_SIGTERM}`),
     racine,
-    env: {},
+    env: { ...CACHE_DE_COMPILATION },
     appairer: () => assert.fail(),
     surChangement: () => changements.push(station.tourne()),
   });
@@ -248,7 +249,7 @@ test("une deuxième app ouverte ne lance pas une deuxième station : elle le dit
   t.after(() => void premiere.kill("SIGKILL"));
   writeFileSync(join(racine, TENUE_PAR), `${premiere.pid}\n`);
   const principal = unPrincipal(t, `console.log("lancée");\n${ATTENDRE_SIGTERM}`);
-  const seconde = tenir(t, { node: process.execPath, principal, racine, env: {}, appairer: () => assert.fail(), reessaiMs: 10 });
+  const seconde = tenir(t, { node: process.execPath, principal, racine, env: { ...CACHE_DE_COMPILATION }, appairer: () => assert.fail(), reessaiMs: 10 });
 
   assert.equal(seconde.station.etat(), "tenue-ailleurs");
   assert.match(seconde.dit(), new RegExp(`this computer's station is run by another app \\(pid ${premiere.pid}\\)`));
@@ -264,7 +265,7 @@ test("une deuxième app ouverte ne lance pas une deuxième station : elle le dit
 test("un répertoire de station qu'on ne peut pas écrire : l'app s'ouvre quand même, sans station, et le dit", async (t) => {
   const fichier = join(repertoireTemporaire(t), "un-fichier");
   writeFileSync(fichier, "");
-  const { station, dit } = tenir(t, { node: process.execPath, principal: unPrincipal(t, ATTENDRE_SIGTERM), racine: join(fichier, "station"), env: {}, appairer: () => assert.fail() });
+  const { station, dit } = tenir(t, { node: process.execPath, principal: unPrincipal(t, ATTENDRE_SIGTERM), racine: join(fichier, "station"), env: { ...CACHE_DE_COMPILATION }, appairer: () => assert.fail() });
   assert.equal(station.etat(), "refusee");
   assert.match(dit(), /this computer's station is not launched — its directory .*un-fichier[\\/]station cannot be written: /);
   await station.arreter();

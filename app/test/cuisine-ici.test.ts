@@ -13,6 +13,7 @@ import { pourLaBarre } from "../src/barre.ts";
 import { GESTE, mots, ouvrirVeille, type Lecture, type Locale } from "../src/box.ts";
 import { COUTS, projetsLus } from "../src/onglets.ts";
 import { servisPar, tenirCuisinesIci } from "../src/poste/cuisine-ici.ts";
+import { CACHE_DE_COMPILATION } from "./aides/cache-de-compilation.ts";
 import { SANS_POSIX } from "./aides/posix.ts";
 
 const RUNTIME = join(import.meta.dirname, "../../runtime");
@@ -188,7 +189,7 @@ describe("un projet qui cuit ici se lit sans ssh, comme une box", () => {
     const ssh = join(racine, "ssh");
     writeFileSync(ssh, `#!/bin/sh\ntouch '${racine}/ssh-lance'\nexit 255\n`);
     chmodSync(ssh, 0o755);
-    const locale: Locale = { node: process.execPath, runtime: RUNTIME, racine, env: { PATH: process.env.PATH, HOME: racine } };
+    const locale: Locale = { node: process.execPath, runtime: RUNTIME, racine, env: { PATH: process.env.PATH, HOME: racine, ...CACHE_DE_COMPILATION } };
     let recue: ((lecture: Lecture) => void) | undefined;
     const lue = new Promise<Lecture>((resoudre) => (recue = resoudre));
     // Ce que la station sert est lu en vrai : ici, elle croit servir « mirrorlab », sa configuration dit le contraire.

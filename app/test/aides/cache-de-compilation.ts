@@ -9,3 +9,7 @@ import { join } from "node:path";
 
 process.env.NODE_COMPILE_CACHE ||= join(tmpdir(), "brigade-runtime-compile-cache");
 enableCompileCache(process.env.NODE_COMPILE_CACHE);
+
+// Ce cache, à passer à tout process Node qu'un test lance dans un environnement fait de rien
+// (`env: {}`, un `PATH` seul…) : sans lui, chaque enfant relit tout son TypeScript.
+export const CACHE_DE_COMPILATION: Record<string, string> = { NODE_COMPILE_CACHE: process.env.NODE_COMPILE_CACHE };

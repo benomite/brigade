@@ -14,6 +14,7 @@ import { DEMENAGER, demenageurDuRuntime, lireRendu, type Demenageur } from "../.
 import { tenirProjets, type VuDesProjets } from "../../src/projets/projets.ts";
 import type { Fichiers, GitHubDesStations } from "../../src/stations/github.ts";
 import type { StationVue } from "../../src/stations/stations.ts";
+import { CACHE_DE_COMPILATION } from "../aides/cache-de-compilation.ts";
 
 const BOX: StationVue = { id: "gbox", nom: "parade-box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "online", pannes: [], dit: "online", version: "1.4.0", projets: [], max: null };
 const MAC: StationVue = { id: "gmac", nom: "macbook", machine: "macOS 25.0.0", etat: "en-ligne", ligne: "online", pannes: [], dit: "online", version: "1.4.0", projets: [], max: null };
@@ -46,7 +47,7 @@ function unRuntime(t: TestContext, corps: string) {
 
 test("l'opération part du runtime de cet ordinateur, avec le répertoire de sa station et les gists de toutes les stations", async (t) => {
   const { runtime, lance } = unRuntime(t, `process.stdout.write(JSON.stringify({ moved: true, project: "parade", from: "parade-box", to: "macbook", askedAt: "x" }) + "\\n");`);
-  const demenager = demenageurDuRuntime({ node: process.execPath, runtime, racine: "/tmp/station-du-mac", env: {}, delaiMs: 60_000 });
+  const demenager = demenageurDuRuntime({ node: process.execPath, runtime, racine: "/tmp/station-du-mac", env: { ...CACHE_DE_COMPILATION }, delaiMs: 60_000 });
   assert.deepEqual(await demenager("parade", "gmac", ["gbox", "gmac"]), { demenage: { projet: "parade", de: "parade-box", vers: "macbook" } });
   const { args, station } = lance();
   assert.deepEqual(args, ["parade", "gmac", "gbox"]);
@@ -56,7 +57,7 @@ test("l'opération part du runtime de cet ordinateur, avec le répertoire de sa 
 test("refusée par le runtime — pas de bac à sable sur ce Mac —, l'opération rend sa phrase", async (t) => {
   const said = "la configuration du bac à sable ne tient pas sur ce Mac — sandbox-exec is missing";
   const { runtime } = unRuntime(t, `process.stdout.write(JSON.stringify({ moved: false, said: ${JSON.stringify(said)} }) + "\\n"); process.exit(1);`);
-  const demenager = demenageurDuRuntime({ node: process.execPath, runtime, racine: "/tmp/station", env: {}, delaiMs: 60_000 });
+  const demenager = demenageurDuRuntime({ node: process.execPath, runtime, racine: "/tmp/station", env: { ...CACHE_DE_COMPILATION }, delaiMs: 60_000 });
   assert.deepEqual(await demenager("parade", "gmac", ["gbox", "gmac"]), { refus: said });
 });
 
