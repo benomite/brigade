@@ -4245,7 +4245,7 @@ function poserCuisineEtroite(projet, tenu) {
 /** @param {Projet} projet */
 function poserRail(projet) {
   const tenu = tenus.get(projet.nom);
-  rail.hidden = (!seLit(projet) && projet.sansStation !== true) || projet.desinstalle !== undefined;
+  rail.hidden = projet.desinstalle !== undefined;
   const cuisine = ongletDe(projet) === CUISINE;
   rail.dataset.onglet = cuisine ? CUISINE : RAIL;
   rail.ariaLabel = cuisine ? "The cooks" : "The rail";
@@ -4253,6 +4253,8 @@ function poserRail(projet) {
   // Plus de rail, plus de fiche par-dessus.
   if (rail.hidden && ouverte !== undefined) fermerFiche();
   if (rail.hidden) return rail.replaceChildren();
+  // Ni box ni station sur cet ordinateur : rien n'en est lu, et la page ne reste pas vide — elle dit pourquoi (#1405).
+  if (!seLit(projet) && projet.sansStation !== true) return rail.replaceChildren(bloc("h3", "the rail is not read: no station is known to serve this project yet — it appears as soon as one does"));
   // Sur Cooks, la carte du projet en tête ; en bas, ses serveurs de livraison et la lecture de `station`, quoi qu'il y
   // ait entre eux.
   // Sur Cooks, ses stations sous la carte ; sur Rail, en tête, la ligne qui dit ce qui y demande un geste (ticket 1185).
