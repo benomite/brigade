@@ -6,26 +6,39 @@ second runs. You no longer open a terminal, you no longer move into a folder.
 **In the middle of the space, two tabs, Rail and Cooks** (#1184), next to the project name, only one shown at a
 time: **Rail** says where the project stands and what you have to decide — what awaits you and its action, the
 whole kanban in its order — On the rail, Taken, Pass, TODO, WAITING and what is served — with nothing about
-execution; **Cooks** says what is running — the project tile and its cooks in flight, the delivery servers with
-their worktree and their port, the project's stations, and the reading of `station` (the cap on cooks, the machine
-and its saturation, the quota). One click switches from one to the other; **the app reopens each project on the
+execution; **Cooks** says what is running — the project's stations and their cooks in flight, the delivery servers
+with their worktree and their port, its tickets and its gates, and, folded, its calibration ceiling, its roles, what
+its cooks learned and the raw reading of `station` (the machine and its saturation, the quota). One click switches from one to the other; **the app reopens each project on the
 last tab you opened in it**, even after you quit it — a project never opened opens on Rail. **On the right, the
 terminals, permanently**: the second, and beside it, at the same level, the shells you open — nothing you look at
 in the middle hides them, and switching tabs neither cuts nor empties the conversation.
-**At the top of Cooks, the project's tickets in the last hour and the last day** (#1272), above its tile: how many were
+**Cooks reads in the order of its review** (#1456, `docs/revue-page-cooks.md`): **first, what cooks and what is stuck**
+— the stations' block, headed by the kitchen's line (its state in a pill and its latest event; the project tile is
+folded into it, and is shown whole above the stations only when they are not read), each station with its state, its
+reason and its cooks' cards, a stuck cook's card saying `STUCK: no progress since 31 min`; on a 1366×768 laptop
+screen, all of it is visible without scrolling. Then the pages served, the project's tickets, its gates. Then, **folded
+behind a single line each and closed by default**: the calibration ceiling (`opus / high · default`), the kitchen roles
+(`6 roles · latest: … · no action yet: …`), what the cooks learned (`4 lessons, 3 profiles`) and the raw reading of
+`station`. A click on the line opens it; the app keeps it open from one reading to the next. **A block with nothing to
+say is a single line**, never a table of zeros: tickets (`nothing served, sent back or escalated in the last day`),
+gates (`no run in the last 24 h · budget of one run: …`), lessons (`nothing yet on this project: no lesson, no
+profile`); the delivery servers' section is not laid when nothing is served. The cap on cooks is set on each station's
+line; the raw reading no longer carries the button that wrote `station cooks` into the second.
+**Under the stations, the project's tickets in the last hour and the last day** (#1272): how many were
 `served`, `sent back` to a cook and `escalated` to you, in a small table — one row per window, `last hour` then `last day`.
 Six numbers read in `facts` (`activiteCuisine`, docs/runtime/etat-et-mesures.md), counted in tickets and for this project only;
-with no activity, six `0`. What each counts is in the help of its heading. A runtime that does not give them shows nothing
-there, nor a box that does not answer; on a narrow screen, they sit above the stations' lines.
+with no activity, one line says so (#1456). What each counts is in the help of its heading. A runtime that does not give them shows nothing
+there, nor a box that does not answer; on a narrow screen, they sit under the stations' lines.
 **Under them, the project's gates over the last hour and the last 24 h** (#1318): `gates, last hour and last 24 h`, the
 same small table — one row per window, `last hour` then `last 24 h`, with `runs`, `average time` and `average CPU` (what one
 run costs, read against the budget of one run, on the row below, `(default)` when you have not set it), then `total time` and
 `total CPU`. On the `last hour` row, each average carries its trend against the last 24 h — `↑ rising` (red), `↓ falling`
 (green) past 10 %, `steady` within. Everything is read in `facts` (`coutDesGates`: `lastHour`, `lastDay`, `averages`,
 `trend`): the app computes nothing. Averages read in seconds; totals in seconds up to ten minutes, then in minutes, then in
-hours; the exact figure is on hover. No run: `0`, `–` for the averages, `0 s`, never a blank, and no trend. A runtime that
+hours; the exact figure is on hover. No run in the hour nor in the 24 h: one line says so, with the budget of one run
+(#1456), never a blank. A runtime that
 gives only the day shows its row alone, its averages `–` (the hover says why); one that gives nothing shows nothing.
-**On Cooks, one block per station of the project** (#1185, #1270), under the project's tile, wherever it runs — the box, the Mac,
+**On Cooks, one block per station of the project** (#1185, #1270), at the top of the tab, wherever it runs — the box, the Mac,
 another computer (`remote`): its state, a word of `facts` (`cooking`, `stopped`, `saturated`, `refused`, #1183)
 and what it means (`by you, for 3 min · 1 cook finishing`, `its machine has no room`, the reason for a refusal),
 and, at the bottom of the block, **the cards of the tickets in flight on that station, and only those** — the very cards of
@@ -120,7 +133,7 @@ a few words, and one click opens it — you do not act there, you look, then go 
 **Cost, the check of a project and Settings follow the same rules**: no flat instructions
 (the explanation of a tab, what a step of the installation is for and what happens if you skip it live
 on hover of a "?" icon), each action is a button that says its word — an action that writes the start of a
-command into the second is named ("Set the cooks of a station…"), the command is written nowhere —,
+command into the second is named ("Extend a grant…"), the command is written nowhere —,
 a read that fails fits on one line (the `ssh` text, the retry and the exit code on hover), and a
 confirmation of a costly action says its price in one line, the rest and its source on hover.
 **The log is no longer on screen**: it is breakdown tooling, opened by the
@@ -1397,9 +1410,9 @@ of all projects lives at the app level (see "The cost of all projects"), the pro
 the installation, **the backup and its age**, the pages served, the removal, the project's colors, and
 `status` as the box renders it —, with below it a row of readings: Preferences, Rail, Cooks,
 Manager, Grants, Reliability (see "The Reliability reading"), Closer (see "The Closer reading"). **Cooks** is
-no longer there (#1184): it is the space's Cooks tab, which relays `station`, read on the box of the single project shown, under
-its columns — unfolded, with, under the time of its reading, the "Set the cooks of a station…" button; it is read only
-while the tab is shown. An alert-band line whose cause is fixed there leads to it in one click. **The log
+no longer there (#1184): it is the space's Cooks tab, which relays `station`, read on the box of the single project shown, at
+the bottom of the tab — folded behind its line (#1456), with no button: the cap on cooks is set on each station's line; it
+is read only while the tab is shown. An alert-band line whose cause is fixed there leads to it in one click. **The log
 (Log) has no tab**: the "log" button, next to the tabs, opens the end of the log
 over the rail; clicking it again closes it. The seven readings below are those of this tab and of this
 action.
@@ -1443,7 +1456,7 @@ of the grants:
 - **Nothing is drawn there**: only the manager's state and the grants' are laid
   above their text. Rail, Cooks and Log are text you can select and copy, like the
   text of any tab. The only buttons are those that write a command in the second — on
-  **Grants** and **Cooks**, under the reading's time ("Buttons write, they do not send") —,
+  **Grants**, under the reading's time ("Buttons write, they do not send") —,
   the manager's two actions and those of each grant, which write it in a shell
   ("The Manager tab", "The Grants tab"). Above, on the rail, a number opens its issue.
 - The space gives you back the tab where you left it, content tab included.
@@ -1481,7 +1494,7 @@ served tickets**, and **what the project cost** (#1022). It is not a tab at the 
   from `facts` (`reculs`, `docs/runtime/etat-et-mesures.md`, "Une correction mergée recule-t-elle sa cause ?"),
   read alongside (`app/src/recul.ts`): the app judges nothing, "recedes" is the runtime's verdict; a box not
   reached keeps the last reading.
-- **What the cooks taught the project** (#1058, epic #1034), under "what the cooks learned" — **now on the Cooks tab of the project, under the calibration ceiling (#1273), no longer on Reliability**; same content, same actions, laid from `facts` once the box answers. **Its
+- **What the cooks taught the project** (#1058, epic #1034), under "what the cooks learned" — **now on the Cooks tab of the project, under the calibration ceiling (#1273), no longer on Reliability**, folded behind its line (#1456); same content, same actions, laid from `facts` once the box answers. **Its
   lessons**, provisional then promoted in `facts` order, one line each: the status as a dot
   (`provisional`, `promoted` in the accent's tone; its meaning on hovering the dot), the identifier in
   monospace and the text, then the day of its entry (`since 10/1/2026`), **where it comes from** (#1089: `origin: retro`, `origin: pass send-back on #12` or `origin: chef correction on #15`, read from the `origine` of the lesson in `facts`; a lesson with none recorded reads as `retro`), **the tickets that proposed it** —
@@ -1497,8 +1510,8 @@ served tickets**, and **what the project cost** (#1022). It is not a tab at the 
   first time (`60% (6 of 10)`) and the average attempts per ticket (`1.5 on average`), **before then after its
   entry** — the figures of `progres` in `facts`. A side with no merged ticket is said in words, `not enough
   tickets yet`, never by 0 or NaN. An empty part is said in one line (`no profile yet`). **While the project has neither lesson nor profile,
-  the section says a single sentence** — `The cooks have learned nothing on this project yet: no lesson, no
-  profile.` —, **and no list**. It comes from `facts` (`apprentissage`, `docs/runtime/etat-et-mesures.md`),
+  the section is a single line** — `what the cooks learned` and `nothing yet on this project: no lesson, no
+  profile` (#1456) —, **and no list**, nothing to open. It comes from `facts` (`apprentissage`, `docs/runtime/etat-et-mesures.md`),
   read by `app/src/apprentissage.ts`; a runtime from before this field does not return it either, and the page says the
   same sentence. While the project's facts are not read, the section is not laid.
 - **Alongside, what the project cost, and it alone** (#1022), under "cost of this project": **its lost
@@ -1746,7 +1759,6 @@ none.
 | the **Grants** tab | `grant enable merge` | `!ssh <host> brigade <name> grant enable merge` |
 | | `grant extend merge …` | `!ssh <host> brigade <name> grant extend merge ` — the expiry is left to type (`--for 2h`, `--uses 3`…) |
 | | `grant revoke merge` | `!ssh <host> brigade <name> grant revoke merge` |
-| the **Cooks** tab | `station cooks …` | `!ssh <host> brigade <name> station cooks ` — the number is left to type |
 
 - **It is the doc's command, word for word**: the form of `docs/runtime/exploitation.md`, "Piloter",
   from your workstation (`ssh <box> brigade <project> <command>`), with your `host` and your `name`. The `!`
