@@ -1097,6 +1097,20 @@ there is no button (`noRemedy`). The refused access, being more precise, takes p
 (each read of the stations) goes back to its message, without reloading the app. The module is
 `app/src/vue/onboarding/depot-retenu.js`.
 
+**What blocks the project** (#1399, epic #1393): every blocker its principal station publishes (`blocages` in its
+tracking, #1394) is one row in a card under the stations line, on Rail as on Cooks, headed by one sentence —
+`2 things block parade`. Each row says what is blocked in one sentence, then why below it (a producer that gave the
+same sentence for both says it once). When the app can perform the gesture, the station names it (`action`) and the
+row carries a recommended button: `choose-station` → `choose another station`, which opens the choice of machines for
+the move, as the onboarding does (#1113) — offered only when another station can take the project; otherwise one
+line says `no other station can take it right now`. An action this version of the app does not know shows no button,
+but the line `this app cannot do it for you yet`, the action's id on hover. When the gesture is outside the app, the
+row carries a link naming the exact page (`open github.com/settings/personal-access-tokens`), which opens it in the
+browser through the main process; as everywhere in the app, only a GitHub page is a link — another one is dropped,
+the blocker stays. What a command said (`detail`) is never the message: it stays folded behind `details`, and a
+row the chef unfolds stays unfolded from one read to the next. A resolved blocker leaves the card; no blocker, no
+card. Screenshots: `docs/captures/1399/`. The module is `app/src/vue/projet/blocages.js`.
+
 **The decision facing a station with no sandbox** (#1113): when the published state says `decisionAttendue`,
 the *Cooking machine* step puts the runtime's sentence up as a warning — the cooks of this machine
 run without a sandbox, nothing goes out before the chef's choice — and two buttons: "choose another

@@ -422,6 +422,88 @@ main > header,
 #stations-du-projet p {
   margin: 0;
 }
+/* Ce qui bloque le projet (ticket 1399) : une carte, une ligne par blocage. Ce qui est bloqué en tête, en clair ;
+   pourquoi dessous, en texte doux ; le bouton du geste, puis le lien qui nomme la page où le faire ; ce qu'une
+   commande a dit, replié derrière « details », en second. */
+#blocages-du-projet {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--trait-doux);
+}
+#blocages-du-projet .blocages {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px;
+  background: var(--bandeau);
+  border: 1px solid var(--trait-doux);
+  border-left: 3px solid var(--rouge);
+  border-radius: var(--rayon-carte);
+}
+#blocages-du-projet h3 {
+  font-weight: 600;
+  color: var(--rouge-clair);
+}
+#blocages-du-projet ul {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+#blocages-du-projet .blocage {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 8px 0;
+}
+#blocages-du-projet .blocage + .blocage {
+  border-top: 1px solid var(--trait-doux);
+}
+#blocages-du-projet p {
+  margin: 0;
+}
+#blocages-du-projet .message {
+  font-weight: 600;
+  color: var(--texte);
+}
+#blocages-du-projet .cause,
+#blocages-du-projet .sans-geste {
+  color: var(--texte-doux);
+}
+#blocages-du-projet .gestes-du-blocage {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 2px;
+}
+#blocages-du-projet .gestes-du-blocage button {
+  padding: 3px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon-bouton);
+}
+#blocages-du-projet .gestes-du-blocage button.recommande {
+  border-color: var(--accent);
+}
+#blocages-du-projet .lien-du-blocage {
+  color: var(--accent);
+  overflow-wrap: anywhere;
+}
+#blocages-du-projet details {
+  align-self: stretch;
+  color: var(--discret);
+}
+#blocages-du-projet summary {
+  width: fit-content;
+  font-size: 12px;
+  cursor: pointer;
+}
+#blocages-du-projet details pre {
+  margin-top: 4px;
+}
 #stations-du-projet .station-du-projet {
   display: inline-flex;
   align-items: center;

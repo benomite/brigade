@@ -64,7 +64,12 @@ export type EchecDuClone = { cause: string; raison: string; geste: string; ou: s
 // (`noRemedy`). Une station d'avant #1203 n'en dit rien : ni l'un ni l'autre.
 export type DescripteurDeRemede = { id: string; description: string; destructive: boolean };
 export type Refus = { code: string; message: string; action: string; remedy?: DescripteurDeRemede; noRemedy?: string };
-export type SuiviDuProjet = { nom: string; etat: EtatDuProjet; dit: string; autoriser: string[]; serviLe: string | null; cuitSur: string | null; ici: boolean; bascule: Bascule | null; acces: AccesBloque | null; refus: Refus | null; worktree: EchecDuWorktree | null; clone?: EchecDuClone; depot: string | null; base: string | null; cooks: number | null };
+// `blocages` : ce qui bloque le projet, de son ajout à son service (#1394, runtime/src/installation/blocages/) —
+// pour chacun, une clé stable, ce qui est bloqué et pourquoi en une phrase chacun, et, s'il y a lieu, le geste que
+// l'app sait faire (`action`, son identifiant), la page de GitHub où le faire hors de l'app (`link`) et ce qu'une
+// commande a dit (`detail`, que la page ne montre que replié). Absent quand rien ne bloque, ou d'une station d'avant #1394.
+export type Blocage = { id: string; message: string; cause: string; action?: string; link?: string; detail?: string };
+export type SuiviDuProjet = { nom: string; etat: EtatDuProjet; dit: string; autoriser: string[]; serviLe: string | null; cuitSur: string | null; ici: boolean; bascule: Bascule | null; acces: AccesBloque | null; refus: Refus | null; worktree: EchecDuWorktree | null; clone?: EchecDuClone; blocages?: Blocage[]; depot: string | null; base: string | null; cooks: number | null };
 
 const ETATS: readonly string[] = ["servi", "a-autoriser", "en-preparation", "refuse", "secondaire"];
 const ETAPES: readonly string[] = ["demandee", "acceptee", "refusee", "remise", "recue"];
@@ -106,6 +111,22 @@ const lireClone = (lu: unknown): EchecDuClone | null => {
     detail: texte(detail) ? detail : "",
     reessaieToutesLes: typeof reessaieToutesLes === "number" && Number.isFinite(reessaieToutesLes) && reessaieToutesLes > 0 ? reessaieToutesLes : 30,
   };
+};
+// Un blocage illisible — sans clé, sans message ou sans cause — n'est pas montré. Comme partout dans l'app, seule
+// une page de GitHub s'ouvre d'un geste : un autre lien est oublié, le blocage reste.
+const lireUnBlocage = (lu: unknown): Blocage[] => {
+  const { id, message, cause, action, link, detail } = (lu ?? {}) as Record<string, unknown>;
+  if (!texte(id) || id.trim() === "" || !texte(message) || message.trim() === "" || !texte(cause) || cause.trim() === "") return [];
+  return [
+    {
+      id,
+      message,
+      cause,
+      ...(texte(action) && /^[a-z0-9][a-z0-9.:_-]{0,79}$/.test(action) ? { action } : {}),
+      ...(texte(link) && /^https:\/\/github\.com\/\S*$/.test(link) ? { link } : {}),
+      ...(texte(detail) && detail.trim() !== "" ? { detail } : {}),
+    },
+  ];
 };
 const calibre = (lu: unknown): Calibre => {
   const { modele, effort } = (lu ?? {}) as Record<string, unknown>;
@@ -158,9 +179,10 @@ export function lireSuivi(brut: string | undefined): SuiviDuProjet[] {
     const lu = JSON.parse(brut) as { brigade?: unknown; projets?: unknown };
     if (lu?.brigade !== "projets-suivi" || !Array.isArray(lu.projets)) return [];
     return (lu.projets as unknown[]).flatMap((brut) => {
-      const { nom, etat, dit, autoriser, serviLe, cuitSur, ici, bascule, acces, refus, worktree, clone, depot, base, cooks } = (brut ?? {}) as Record<string, unknown>;
+      const { nom, etat, dit, autoriser, serviLe, cuitSur, ici, bascule, acces, refus, worktree, clone, blocages, depot, base, cooks } = (brut ?? {}) as Record<string, unknown>;
       if (!texte(nom) || !texte(etat) || !ETATS.includes(etat)) return [];
       const echecDuClone = lireClone(clone);
+      const lesBlocages = Array.isArray(blocages) ? blocages.flatMap(lireUnBlocage) : [];
       return [
         {
           nom,
@@ -175,6 +197,7 @@ export function lireSuivi(brut: string | undefined): SuiviDuProjet[] {
           refus: lireRefus(refus),
           worktree: lireEchec(worktree),
           ...(echecDuClone === null ? {} : { clone: echecDuClone }),
+          ...(lesBlocages.length === 0 ? {} : { blocages: lesBlocages }),
           depot: texte(depot) && depot.trim() !== "" ? depot.trim() : null,
           base: texte(base) && base.trim() !== "" ? base.trim() : null,
           cooks: typeof cooks === "number" && Number.isSafeInteger(cooks) && cooks >= 1 ? cooks : null,
