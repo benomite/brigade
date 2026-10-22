@@ -193,6 +193,37 @@ of a station of this machine only) or `cooking`, in that order; `cooks` carries 
 stopped, those that are finishing —, each with the name of its station. The names of these fields
 (`cuisson`, `refus`, `arreteeDepuis`) are still French in `facts`.
 
+### A station on Windows
+
+A Windows station serves a project like any other: the cook's worktree in the clone, the cook
+launched in it, its end written by its relay and told in the log in the same words. What Windows does
+differently, the runtime handles:
+
+- **Launching.** Windows launches only its executables. A shebang script — a `BRIGADE_CLAUDE_BIN`
+  that names one, a test double — runs through its interpreter: `node` is the runtime's own, `bash`
+  and `sh` are Git for Windows'. `bash` and `sh` themselves are Git's, never WSL's. A `.cmd` or a
+  `.bat` runs through `cmd.exe`, every argument escaped for it. No window opens. A `.cmd` receives
+  no argument that spans several lines (`cmd.exe` cuts its line there), and the cook's prompt is
+  one: on Windows, `claude` is named by its executable (`claude.exe`, the native installer's), not
+  by an npm `.cmd` launcher. Named by such a launcher, the cook fails at its launch, and the `error`
+  of its `cook.exited` says why (`runtime/src/sans-invite.ts`).
+- **Line endings.** The station's `git` checks the worktrees out in the repository's own line
+  endings (`core.autocrlf=false` and `core.eol=lf`, set through its environment). Git for Windows
+  sets `core.autocrlf=true` by default, which would turn them into `\r\n`, and a project script
+  would no longer run under bash. Only an attribute of the project (`eol=crlf` in its
+  `.gitattributes`) decides otherwise. The cook's `git` receives no `GIT_CONFIG_*` — that is how a
+  token would travel —: what it checks out itself follows the machine's configuration.
+- **The log.** The paths it holds (`worktree` and `stream` of `cook.launched`) are written with `/`
+  on every station.
+- **Not covered yet**: the worktree setup. Its exports come back on a file descriptor beyond the
+  first three, which Git's bash is not known to pass on. A project with a `worktree-setup.sh` is not
+  proven served on Windows.
+
+`runtime/test/cuisson-de-bout-en-bout.test.ts` proves it on every platform, on the Windows CI job
+too: a real clone under a path with spaces, a cook that launches as an executable, its arguments
+received intact, its end received by the relay, the branch pushed, the worktree put away, and a
+stopped cook that leaves no process behind.
+
 ### The worktree setup comes before the cook
 
 If the project has a `.claude/brigade/worktree-setup.sh` on the cook's branch, the station plays it

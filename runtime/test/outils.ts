@@ -9,6 +9,7 @@ import { join } from "node:path";
 import type { TestContext } from "node:test";
 import { pathToFileURL } from "node:url";
 import { Sortie, type Commande } from "../src/appel.ts";
+import { signalerLArbreSync } from "../src/arbre.ts";
 import type { Fait } from "../src/evenements.ts";
 import { DECISIONS } from "../src/decisions.ts";
 import { ouvrirJournal, type Journal } from "../src/journal.ts";
@@ -56,9 +57,18 @@ export function lancementsDuFauxClaude(temoin: string): LancementDuFauxClaude[] 
 // coûte avec.
 export const CACHE_DE_COMPILATION: Record<string, string> = process.env.NODE_COMPILE_CACHE ? { NODE_COMPILE_CACHE: process.env.NODE_COMPILE_CACHE } : {};
 
+// Sous Windows, ce sans quoi un process ne démarre pas toujours — `SystemRoot`,
+// où vivent les bibliothèques du système — ni n'a de répertoire temporaire.
+// Rien du compte : ni son répertoire, ni sa configuration.
+const DE_WINDOWS = ["SystemRoot", "windir", "SystemDrive", "ComSpec", "PATHEXT", "TEMP", "TMP"];
+const ENV_DE_WINDOWS: Record<string, string> =
+  process.platform === "win32" ? Object.fromEntries(DE_WINDOWS.flatMap((nom) => (process.env[nom] === undefined ? [] : [[nom, process.env[nom] as string]]))) : {};
+
 // L'environnement minimal d'un process lancé par un test : rien du shell du
-// dev n'y passe, sauf le cache de compilation de Node.
+// dev n'y passe, sauf le cache de compilation de Node — et, sous Windows, ce
+// sans quoi un process n'y démarre pas.
 export const ENV_ENFANT: Record<string, string> = {
+  ...ENV_DE_WINDOWS,
   PATH: process.env.PATH ?? "",
   ...CACHE_DE_COMPILATION,
   // Le tour des gates est celui de la box : un test qui les joue ne doit pas
@@ -121,7 +131,8 @@ export function tuerLesRelais(repertoire: string): void {
       tuer(relais);
       // Sa fin écrite juste avant sa mort, le groupe du cook est déjà tué.
       if (existsSync(`${racine}.fin.json`)) continue;
-      if (existsSync(`${racine}.cook.pid`)) tuer(-Number(readFileSync(`${racine}.cook.pid`, "utf8")));
+      // Tout l'arbre du cook : son groupe, ou sous Windows ce que la table des process en dit.
+      if (existsSync(`${racine}.cook.pid`)) signalerLArbreSync(Number(readFileSync(`${racine}.cook.pid`, "utf8")), "SIGKILL");
     } catch {
       // Un fichier illisible : rien à tuer.
     }
@@ -552,9 +563,11 @@ export function depotGit(t: TestContext): { origine: string; clone: string } {
   const racine = repertoireTemporaire(t);
   cpSync(modele, racine, { recursive: true });
   const [origine, clone] = [join(racine, "origine.git"), join(racine, "clone")];
-  // Le gabarit ne connaît pas l'adresse de l'origine de ce test.
+  // Le gabarit ne connaît pas l'adresse de l'origine de ce test. Écrite avec
+  // des barres obliques : dans la configuration de git, la contre-oblique d'un
+  // chemin de Windows serait un échappement, et le fichier illisible.
   const config = join(clone, ".git/config");
-  writeFileSync(config, readFileSync(config, "utf8").replaceAll(ORIGINE_DU_GABARIT, origine));
+  writeFileSync(config, readFileSync(config, "utf8").replaceAll(ORIGINE_DU_GABARIT, origine.replaceAll("\\", "/")));
   return { origine, clone };
 }
 

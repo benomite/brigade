@@ -6,7 +6,7 @@
 // le « stop » se lisent dans le journal, donc tiennent après un redémarrage.
 import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, posix } from "node:path";
 import type { ContexteCook, FaitGardeFous, Issue, Plafonds } from "./events/guardrails.ts";
 import type { Reglages } from "./plafonds.ts";
 import { cooksEnCours, etatDesGardeFous } from "./projections/guardrails.ts";
@@ -265,7 +265,9 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
   const partir = <S extends Supervise>(demande: Pick<DemandeCook, "ticket" | "run" | "contexte" | "plafonds" | "juger">, surveiller: (run: string, plafonds: Plafonds, surArret: (arret: Arret) => void) => S): { run: string; cook: S | null; fin: Promise<FinDeCook> } => {
     if (arrete) throw new Error("runtime arrêté : aucun cook ne peut être lancé");
     const run = demande.run ?? nomDeRun(demande.ticket);
-    const stream = join("runs", `${run}.jsonl`);
+    // Relatif au répertoire d'état, et écrit avec `/` sur toutes les stations,
+    // Windows compris : le journal dit la même chose d'une station à l'autre.
+    const stream = posix.join("runs", `${run}.jsonl`);
     const plafonds = { ...reglages.plafonds, ...demande.plafonds };
     // Vérifier et écrire l'intention dans une seule transaction : un
     // « stop » qui arrive entre les deux ne peut pas être manqué.

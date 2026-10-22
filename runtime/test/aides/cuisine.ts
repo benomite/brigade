@@ -418,6 +418,12 @@ export type Lieux = {
 
 export type Options = {
   scenario?: string;
+  // Le binaire que la station lance pour `claude` : la doublure en bash, par
+  // défaut.
+  bin?: string;
+  // Ce que l'environnement des lancements porte en plus — celui de la station,
+  // donc de ses cooks, et de son `git`.
+  env?: Record<string, string>;
   suite?: string[];
   session?: Session;
   // Un vrai dépôt git local plutôt que le faux.
@@ -503,10 +509,11 @@ export const MACHINE_CALME: Machine = { charge: 0, coeurs: 8, memoireDisponible:
 export const MACHINE_VASTE: Machine = { ...MACHINE_CALME, coeurs: 64 };
 
 export function cuisine(t: TestContext, options: Options = {}) {
-  // Enregistré avant tout répertoire temporaire : les crochets de fin se jouent
-  // dans l'ordre, et le runtime doit être arrêté avant qu'on retire son état.
+  // Arrêté avant que ses répertoires ne soient retirés, même ceux que le test a
+  // créés avant la cuisine : sous Windows, un journal encore ouvert empêche de
+  // retirer le sien.
   let aArreter: { arreter(signal: string): void } | undefined;
-  t.after(() => aArreter?.arreter("test"));
+  finDuTest(t, () => aArreter?.arreter("test"));
   const lieux: Lieux = options.lieux ?? {
     repertoire: repertoireTemporaire(t),
     ...(options.git ? depotGit(t) : { origine: "", clone: "" }),
@@ -526,7 +533,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
   if (options.suite) ecrireSuite(suite, options.suite);
   const bailMs = options.bailMs ?? BAIL_MS;
   const worktrees = join(repertoire, "worktrees");
-  const depot = options.git ? ouvrirDepot({ clone, base: BASE, worktrees, env: ENV_GIT }) : fauxDepot(worktrees, !options.sansGates, options.setup !== undefined, options.secrets?.declares);
+  const depot = options.git ? ouvrirDepot({ clone, base: BASE, worktrees, env: { ...ENV_GIT, ...options.env } }) : fauxDepot(worktrees, !options.sansGates, options.setup !== undefined, options.secrets?.declares);
   // Le fichier de la machine vit hors de l'état, comme sur la box.
   const fichierSecrets = join(repertoireTemporaire(t), "secrets.env");
   const poserSecrets = (valeurs: string) => writeFileSync(fichierSecrets, valeurs, { mode: 0o600 });
@@ -563,7 +570,9 @@ export function cuisine(t: TestContext, options: Options = {}) {
     FAUX_CLAUDE_FEU: feu,
     FAUSSES_GATES: fichierGates,
     FAUX_SETUP: fichierSetup,
+    ...options.env,
   };
+  const bin = options.bin ?? FAUX_CLAUDE;
 
   const socle = demarrer({ repertoireEtat: repertoire, projet: options.projet ?? "brigade", intervalleVeilleMs: 5, intervalleTickMs: 20, maintenant: heure.maintenant });
   const stations = options.stations ?? [{ nom: STATION, moteur: "claude", fournit: ["code"], cooks: options.cooks ?? 1 }];
@@ -622,7 +631,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
     github: gh.github,
     depotGitHub: DEPOT,
     base: BASE,
-    bin: FAUX_CLAUDE,
+    bin,
     env,
     sansIdentite: options.sansIdentite,
     secrets: secretsDeLaMachine,
