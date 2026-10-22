@@ -2,7 +2,8 @@
 // Sur l'onglet Cooks, sous le plafond de calibrage (ticket 1274) : les rôles de la cuisine du projet — le manager, la
 // pass, le reviewer, le second juge, le triage et le closer —, un par ligne : son nom, la ligne qui dit ce qu'il fait,
 // et sa dernière action sur le projet avec son heure. Un rôle qui n'a encore rien fait le dit en mots, `no action yet`,
-// jamais par un blanc. Les rôles, leur ligne et la phrase de leur action viennent de `facts` (runtime/src/roles-cuisine/
+// jamais par un blanc. Sur Cooks, le bloc est replié derrière une ligne (ticket 1456) : `resumeDesRoles` la dit — combien
+// de rôles, la plus récente de leurs actions, et ceux qui n'ont encore rien fait. Les rôles, leur ligne et la phrase de leur action viennent de `facts` (runtime/src/roles-cuisine/
 // roles.ts) : la vue les pose, elle n'en compose aucun.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend un élément.
 
@@ -13,11 +14,25 @@ import { survol } from "./briques.js";
 
 export const TITRE = "kitchen roles";
 export const SANS_ACTION = "no action yet";
-const AIDE = "What each role of the kitchen does, and the last thing it did on this project, read from its log. The cooks are on the stations' blocks.";
+export const AIDE = "What each role of the kitchen does, and the last thing it did on this project, read from its log. The cooks are on the stations' blocks.";
 
 // L'heure d'une action, dans la locale de l'app (anglaise) : le jour et l'heure, sans les secondes.
 /** @param {string} instant */
 export const heureDeLAction = (instant) => new Date(instant).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
+
+// La ligne du bloc replié : « 6 roles · latest: pass — merged #12, Oct 13, 2026, 9:41 AM · no action yet: second
+// judge ». Un rôle muet se lit sans ouvrir le bloc.
+/** @param {RoleDeCuisine[]} roles */
+export function resumeDesRoles(roles) {
+  const agis = roles.filter(({ latest }) => latest !== null);
+  const derniere = agis.reduce((/** @type {RoleDeCuisine | undefined} */ plus, role) => (plus === undefined || Date.parse(role.latest?.at ?? "") > Date.parse(plus.latest?.at ?? "") ? role : plus), undefined);
+  const muets = roles.filter(({ latest }) => latest === null).map(({ role }) => role);
+  return [
+    `${roles.length} role${roles.length > 1 ? "s" : ""}`,
+    ...(derniere?.latest == null ? [] : [`latest: ${derniere.role} — ${derniere.latest.what}, ${heureDeLAction(derniere.latest.at)}`]),
+    ...(muets.length === 0 ? [] : [`${SANS_ACTION}: ${muets.join(", ")}`]),
+  ].join(" · ");
+}
 
 // Chaque classe est posée en clair, `className = "…"` : la peau ne vise que des classes que la vue
 // pose, et son test les lit ainsi (peau.test.ts).

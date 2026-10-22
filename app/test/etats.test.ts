@@ -113,19 +113,20 @@ describe("les trois états de pilotage ont chacun leur forme et leur couleur", (
 });
 
 describe("la cuisine, le grant, le manager : une pastille à forme, et son libellé", () => {
-  // La carte du projet est sur l'onglet Cooks (#1184).
+  // La carte du projet est sur l'onglet Cooks (#1184), fondue dans la ligne de sa cuisine, en tête de ses stations (#1456).
+  const cuisine = (vue: Awaited<ReturnType<typeof ouvrir>>) => vue.element("rail").dessous("p").find(({ className }) => className === "etat-de-la-cuisine") ?? assert.fail("pas de ligne de la cuisine");
   test("cuisine ouverte : disque vert ; arrêtée : carré rouge — le mot est dans la pilule", async () => {
     const vue = await ouvrir();
     await ouvrirOnglet(vue, "Cooks");
     const numero = () => vue.dernier("faits")[0] as number;
     vue.dire("surFaits", { ...faits("ouverte", "vert"), demande: numero() });
-    const pilule = (vue.element("carte").dessous("span").find((s) => s.className === "pilule") ?? assert.fail("pas de pilule")) as Faux;
+    const pilule = (cuisine(vue).dessous("span").find((s) => s.className === "pilule") ?? assert.fail("pas de pilule")) as Faux;
     const [point] = pilule.dessous("span");
     assert.equal(pilule.textContent, "ouverte");
     assert.deepEqual([point?.dataset.ton, point?.dataset.forme], ["vert", "disque"]);
 
     vue.dire("surFaits", { ...faits("arrêtée", "rouge", true), demande: numero() });
-    const arretee = (vue.element("carte").dessous("span").find((s) => s.className === "pilule") ?? assert.fail("pas de pilule")) as Faux;
+    const arretee = (cuisine(vue).dessous("span").find((s) => s.className === "pilule") ?? assert.fail("pas de pilule")) as Faux;
     assert.equal(arretee.textContent, "arrêtée");
     assert.deepEqual([arretee.dessous("span")[0]?.dataset.ton, arretee.dessous("span")[0]?.dataset.forme], ["rouge", "carre"]);
     // La pastille de la barre prend la même forme.
@@ -137,7 +138,7 @@ describe("la cuisine, le grant, le manager : une pastille à forme, et son libel
     const vue = await ouvrir();
     await ouvrirOnglet(vue, "Cooks");
     vue.dire("surFaits", { ...faits("un mot inconnu", undefined), demande: vue.dernier("faits")[0] as number });
-    const pilule = vue.element("carte").dessous("span").find((s) => s.className === "pilule") ?? assert.fail("pas de pilule");
+    const pilule = cuisine(vue).dessous("span").find((s) => s.className === "pilule") ?? assert.fail("pas de pilule");
     assert.equal(pilule.textContent, "un mot inconnu");
     assert.deepEqual([pilule.dessous("span")[0]?.dataset.ton, pilule.dessous("span")[0]?.dataset.forme], [undefined, undefined]);
   });

@@ -4,7 +4,9 @@
 // nombre de cooks qui l'ont reçue ; une promue a son lien, qui ouvre sa ligne dans le carnet du projet sur
 // GitHub, et ne crée rien. Puis ses profils, chacun avec son domaine, son carnet et les tickets qu'il a
 // cuisinés. Un ticket ouvre sa fiche, comme ceux des causes. Tant que le projet n'a ni leçon ni profil, une
-// phrase le dit, à la place d'une liste vide.
+// phrase le dit, à la place d'une liste vide. Sur Cooks, le bloc est replié derrière une ligne (ticket 1456) :
+// `resumeDeLApprentissage` la dit — combien de leçons, combien de profils ; sans l'un ni l'autre, la phrase seule, sans
+// titre ni rien à ouvrir.
 // Tout est lu par le process principal (apprentissage.ts) : la vue pose.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
@@ -249,21 +251,26 @@ function partie(doc, titre, items, vide) {
   return bloc;
 }
 
+// La ligne du bloc replié : « 4 lessons, 3 profiles ».
+/** @param {Apprentissage} apprentissage */
+export function resumeDeLApprentissage({ lecons, profils }) {
+  return `${lecons.length} lesson${s(lecons.length)}, ${profils.length} profile${s(profils.length)}`;
+}
+
 // La section entière. `apprentissage` absent : les faits du projet ne sont pas lus, rien n'est posé. Lus,
-// sans leçon ni profil : une phrase, et aucune liste.
+// sans leçon ni profil : une phrase seule, et aucune liste.
 /** @param {Fabrique} doc @param {Apprentissage | undefined} apprentissage @param {{ ouvrir: (ticket: number, bouton: any) => void, ouvrirLaLigne: (id: string) => void }} gestes */
 export function poserApprentissage(doc, apprentissage, gestes) {
   if (apprentissage === undefined) return [];
-  const bloc = cree(doc, "div");
-  bloc.className = "apprentissage-fiabilite";
-  bloc.append(cree(doc, "h2", TITRE));
   const { lecons, profils } = apprentissage;
   if (lecons.length === 0 && profils.length === 0) {
     const rien = cree(doc, "p", RIEN_APPRIS);
     rien.className = "rien-appris";
-    bloc.append(rien);
-    return [bloc];
+    return [rien];
   }
+  const bloc = cree(doc, "div");
+  bloc.className = "apprentissage-fiabilite";
+  bloc.append(cree(doc, "h2", TITRE));
   bloc.append(
     partie(doc, LECONS, lecons.map((lecon) => uneLecon(doc, lecon, gestes.ouvrir, gestes.ouvrirLaLigne)), AUCUNE_LECON),
     partie(doc, PROFILS, profils.map((profil) => unProfil(doc, profil, gestes.ouvrir)), AUCUN_PROFIL),

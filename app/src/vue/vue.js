@@ -94,7 +94,7 @@ import { Terminal as Xterm } from "@xterm/xterm";
 import { tenirInvite } from "./mise-a-jour/invite.js";
 import { poserAppaire, tenirAppairage } from "./telephone/appairage.js";
 import { tenirConversation } from "./telephone/conversation.js";
-import { boutonAction, confirmationDeGeste, lectureIndisponible, prixDit, survol } from "./briques.js";
+import { boutonAction, confirmationDeGeste, lectureIndisponible, prixDit, replie, survol } from "./briques.js";
 import { poserChers } from "./cost/chers.js";
 import { poserCourbe } from "./cost/courbe.js";
 import { poserPerdus } from "./cost/perdus.js";
@@ -102,7 +102,7 @@ import { poserTete } from "./cost/tete.js";
 import { poserFiabilite } from "./fiabilite.js";
 import { poserReculs } from "./recul.js";
 import { poserTriage } from "./triage.js";
-import { DIT_PROVISOIRE, PROVISOIRE, poserApprentissage } from "./apprentissage.js";
+import { DIT_PROVISOIRE, PROVISOIRE, poserApprentissage, resumeDeLApprentissage, TITRE as TITRE_APPRIS } from "./apprentissage.js";
 import { lireFermeture, poserCloser } from "./closer/section.js";
 import { poserBilan } from "./closer/bilan/bilan.js";
 import { apresRendu, lireLancement, poserLancement, REPOS } from "./closer/lancement/lancement.js";
@@ -116,10 +116,10 @@ import { poserDelai } from "./projet/delai.js";
 import { poserChoix, sansLesChoix } from "./projet/choix.js";
 import { ligneDAlerte, poserLesStations as stationsDeCuisson } from "./stations-de-cuisson.js";
 import { poserLesAppels } from "./appels-de-la-station.js";
-import { poserLePlafond as plafondDeCalibrage } from "./plafond-de-calibrage.js";
+import { EXPLIQUE as AIDE_DU_PLAFOND, poserLePlafond as plafondDeCalibrage, resumeDuPlafond, TITRE as TITRE_DU_PLAFOND } from "./plafond-de-calibrage.js";
 import { poserLActivite } from "./activite-cuisine.js";
 import { poserLeJourDesGates, poserLesGatesDeLaFile } from "./cout-des-gates.js";
-import { poserLesRoles } from "./roles-cuisine.js";
+import { AIDE as AIDE_DES_ROLES, poserLesRoles, resumeDesRoles, TITRE as TITRE_DES_ROLES } from "./roles-cuisine.js";
 import { apresLaDecision, poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
@@ -266,36 +266,55 @@ const retraitGestes = element("retrait-gestes");
 const couleurs = element("couleurs");
 const ordinaires = element("ordinaires");
 const avis = element("avis");
-// En tête de l'onglet Cooks, au-dessus de la carte du projet (ticket 1272) : ses tickets servis, renvoyés et remontés
-// au chef dans la dernière heure et le dernier jour. poserCuisson le remplit ; poserRail le pose.
+// L'onglet Cooks se lit dans l'ordre de sa revue (docs/revue-page-cooks.md, ticket 1456) : d'abord ce qui cuit, ce qui
+// est coincé et pourquoi — ses stations et leurs cooks, la ligne de sa cuisine en tête —, puis ses tickets, puis ses
+// gates ; enfin, repliés derrière une ligne chacun, son plafond de calibrage, ses rôles, ce que ses cooks ont appris et
+// la lecture brute de `station`.
+// Sous ses stations (ticket 1272) : ses tickets servis, renvoyés et remontés au chef dans la dernière heure et le
+// dernier jour. poserCuisson le remplit ; poserRail le pose.
 const activiteDuProjet = document.createElement("div");
 activiteDuProjet.id = "activite-du-projet";
 // Dessous, ce que ses gates ont coûté les dernières 24 h, à côté du budget d'un passage (ticket 1318). poserCuisson le
 // remplit ; poserRail le pose.
 const gatesDuProjet = document.createElement("div");
 gatesDuProjet.id = "gates-du-projet";
-// La carte du projet — son état, ses compteurs, ses cooks en cours et leur station, le dernier événement — est
-// sur l'onglet Cooks (ticket 1184) : poserRail l'y pose, en tête.
+// La carte du projet — son état, ses compteurs, ses cooks en cours et leur station, le dernier événement. Sur Cooks,
+// elle est fondue dans le bloc de ses stations (ticket 1456) : son état et son dernier événement en sont la première
+// ligne. poserRail ne la pose plus que quand ses stations ne se lisent pas — elle dit alors pourquoi, ou ses cooks.
 const carte = document.createElement("section");
 carte.id = "carte";
 carte.className = "carte";
 carte.hidden = true;
-// Les stations du projet, sous sa carte (ticket 1185) : une ligne chacune, son état, ses cooks, son bouton qui la
+// Les stations du projet, en tête de Cooks (tickets 1185, 1456) : une ligne chacune, son état, ses cooks, son bouton qui la
 // lance ou l'arrête ; et, en tête de l'onglet Rail, la ligne qui dit ce qui, du côté des cooks, demande un geste —
 // avec de quoi ouvrir Cooks. poserCuisson les remplit ; poserRail les pose.
 const cuissonDuProjet = document.createElement("div");
 cuissonDuProjet.id = "cuisson-du-projet";
 cuissonDuProjet.ariaLive = "polite";
-// Le plafond de calibrage du projet, sous ses stations, sur Cooks (ticket 1284) : poserPlafond le remplit.
+// Les stations sont posées : l'écran étroit n'a qu'elles à montrer, sinon il dit pourquoi.
+let stationsPosees = false;
+// Les pages servies dont le ticket n'a pas de carte ici, sous les stations (ticket 1456). poserRail les pose.
+const servisSansCarte = document.createElement("div");
+servisSansCarte.id = "servis-sans-carte";
+// Les blocs repliés que le chef a ouverts, par projet (`<projet>#<bloc>`) : reposés à chaque lecture, ils restent
+// ouverts ; fermés à la première.
+/** @type {Set<string>} */
+const ouverts = new Set();
+// Un bloc de Cooks replié derrière sa ligne, ouvert si le chef l'a laissé ouvert.
+/** @param {Projet} projet @param {string} cle @param {{ titre: string, resume: string, aide?: string }} ligne @param {HTMLElement[]} contenu */
+const replieDe = (projet, cle, ligne, contenu) =>
+  replie(document, { ...ligne, ouvert: ouverts.has(`${projet.nom}#${cle}`), basculer: (ouvert) => void (ouvert ? ouverts.add(`${projet.nom}#${cle}`) : ouverts.delete(`${projet.nom}#${cle}`)) }, contenu);
+// Le plafond de calibrage du projet, sous ses gates, sur Cooks (ticket 1284), replié (ticket 1456) : poserPlafond le
+// remplit.
 const plafondDuProjet = document.createElement("div");
 plafondDuProjet.id = "plafond-du-projet";
 plafondDuProjet.ariaLive = "polite";
 // Les rôles de sa cuisine — le closer et les autres —, chacun avec ce qu'il fait et sa dernière action, sous son plafond,
-// sur Cooks (ticket 1274). poserCuisson les remplit ; poserRail les pose.
+// sur Cooks (ticket 1274), repliés (ticket 1456). poserCuisson les remplit ; poserRail les pose.
 const rolesDuProjet = document.createElement("div");
 rolesDuProjet.id = "roles-du-projet";
-// Ce que les cooks ont appris au projet — ses leçons et ses profils —, sous son plafond, sur Cooks (ticket 1273) :
-// ils étaient sur Reliability. poserCuisson les remplit ; poserRail les pose.
+// Ce que les cooks ont appris au projet — ses leçons et ses profils —, sous ses rôles, sur Cooks (ticket 1273), repliés
+// (ticket 1456) : ils étaient sur Reliability. poserCuisson les remplit ; poserRail les pose.
 const apprisDuProjet = document.createElement("div");
 apprisDuProjet.id = "appris-du-projet";
 const alerteDeCuisine = document.createElement("div");
@@ -606,23 +625,22 @@ const depotRetenu = document.createElement("div");
 depotRetenu.hidden = true;
 stationsDuProjet.append(ligneDesStationsDuProjet, sensDesStations, ouvrirLeDemenagement, ouvrirLaConfiance, choixDuDemenagement, formulaireDeConfiance, demenagementDit, depotRetenu, confianceDite, parcoursDuProjet);
 
-// La lecture de `station` sur l'onglet Cooks (ticket 1184), sous ses colonnes : le plafond de cooks, la machine — saturée
-// ou non —, le quota, et le bouton qui écrit le réglage du plafond dans le second. Elle était sous Settings → Cooks ;
-// elle se lit de même, seule, toutes les trente secondes tant que l'onglet est montré.
-const lectureDeLaCuisine = document.createElement("section");
-lectureDeLaCuisine.className = "lecture-de-la-cuisine";
+// La lecture brute de `station` sur l'onglet Cooks (ticket 1184), en bas : la machine — saturée ou non —, le quota.
+// Elle était sous Settings → Cooks ; elle se lit de même, seule, toutes les trente secondes tant que l'onglet est montré.
+// Repliée derrière sa ligne (ticket 1456) : ce qui y compte se lit déjà sur les stations. Le plafond de cooks se règle
+// sur la ligne de la station qu'il limite : le bouton qui en écrivait la commande dans le second n'y est plus.
+const lectureDeLaCuisine = /** @type {HTMLDetailsElement} */ (document.createElement("details"));
+lectureDeLaCuisine.className = "replie lecture-de-la-cuisine";
+lectureDeLaCuisine.open = false;
 lectureDeLaCuisine.ariaLabel = "The station";
 const luCuisine = document.createElement("p");
 luCuisine.id = "lu-cuisine";
 luCuisine.ariaLive = "polite";
-const gestesCuisine = document.createElement("p");
-gestesCuisine.id = "gestes-cuisine";
-gestesCuisine.className = "gestes";
 const lectureCuisine = document.createElement("div");
 lectureCuisine.id = "lecture-cuisine";
 // Ce qu'elle est, en une ligne ; la commande lue et sa cadence, au survol.
-const teteDeLaCuisine = document.createElement("h3");
-lectureDeLaCuisine.append(teteDeLaCuisine, luCuisine, gestesCuisine, lectureCuisine);
+const teteDeLaCuisine = document.createElement("summary");
+lectureDeLaCuisine.append(teteDeLaCuisine, luCuisine, lectureCuisine);
 
 /** @type {Map<number, { terminal: Terminal, xterm: Xterm, ajuste: FitAddon, cadre: HTMLDivElement }>} */
 const vues = new Map();
@@ -1214,7 +1232,10 @@ function montrer() {
         : `${suivie.id === "manager" ? "the manager state, then " : suivie.id === "grants" ? "the grants state, then " : ""}the output of \`${geste(courant, suivie.commande)}\`, as the station returns it${suivie.precision === undefined ? "" : ` (${suivie.precision})`} — re-read on its own every thirty seconds, while this tab is shown`;
   // Sur Cooks, elle est en tête de sa lecture, sous les colonnes : la ligne du haut n'a rien à dire.
   const surCuisine = cuisineMontree();
-  teteDeLaCuisine.replaceChildren(...(surCuisine ? ["the station: its cap of cooks, its machine, its quota", ...(explication === "" ? [] : [survol(document, explication)])] : []));
+  const resumeDeLaCuisine = bloc("span", "its machine, its quota, as the station returns them");
+  resumeDeLaCuisine.className = "resume";
+  teteDeLaCuisine.replaceChildren(...(surCuisine ? [bloc("strong", LECTURE_DE_LA_STATION), resumeDeLaCuisine] : []));
+  teteDeLaCuisine.title = surCuisine ? explication : "";
   note.replaceChildren(
     ...(gesteRate !== undefined
       ? poserGesteRate(gesteRate)
@@ -1248,7 +1269,6 @@ function montrer() {
   poserLaFiabilite();
   poserLeCloser();
   poserGestes(gestesOnglet, relaye?.id);
-  poserGestes(gestesCuisine, cuisineMontree() ? CUISINE : undefined);
   dessiner();
   lireOnglet();
   droite?.ajuste.fit();
@@ -4070,6 +4090,8 @@ function listeAmont(projet, vu, cartes) {
   return liste;
 }
 
+// La ligne de la lecture brute de `station`, repliée en bas de Cooks.
+const LECTURE_DE_LA_STATION = "the station, raw reading";
 // Ce que dit la page d'un projet qui cuit sur cet ordinateur quand la station de cet ordinateur ne tourne pas.
 const STATION_ARRETEE = "this computer's station is not running";
 
@@ -4083,6 +4105,7 @@ function poserCuisson(projet, posees = new Map()) {
   const tenu = tenus.get(projet.nom);
   const stations = tenu !== undefined && "tableau" in tenu && !muets.has(projet.nom) ? tenu.tableau.stations : undefined;
   const siens = (/** @type {Map<string, any>} */ ou) => new Map([...ou].flatMap(([cle, valeur]) => (cle.startsWith(cleDeCuisson(projet.nom, "")) ? [[cle.slice(cleDeCuisson(projet.nom, "").length), valeur]] : [])));
+  const laCuisine = tenu !== undefined && "tableau" in tenu ? ligneDeLaCuisine(projet, tenu.tableau, heureDe(tenu.a)) : [];
   const pose = stationsDeCuisson(document, {
     lignes: stations?.lignes,
     enCours: siens(cuissonsEnCours),
@@ -4103,7 +4126,9 @@ function poserCuisson(projet, posees = new Map()) {
     plafondsDits: siens(plafondsDeCuisson),
     saisies: { lire: (station) => plafondsSaisis.get(cleDeCuisson(projet.nom, station)) ?? "", ecrire: (station, valeur) => void plafondsSaisis.set(cleDeCuisson(projet.nom, station), valeur) },
     regler: (station, valeur) => void reglerLePlafondDuProjet(projet.nom, station, valeur),
+    tete: laCuisine,
   });
+  stationsPosees = pose !== null;
   cuissonDuProjet.replaceChildren(...(pose === null ? [] : [pose]));
   // Les six nombres de sa cuisine : rien tant que sa box ne répond pas, ni d'un runtime qui ne les donne pas.
   const activite = poserLActivite(document, tenu !== undefined && "tableau" in tenu && !muets.has(projet.nom) ? tenu.tableau.activiteCuisine : undefined);
@@ -4124,17 +4149,38 @@ function poserCuisson(projet, posees = new Map()) {
   alerteDeCuisine.replaceChildren(...(alerte === null ? [] : [alerte]));
   poserPlafondDeCalibrage(projet);
   // Les rôles de sa cuisine, lus dans `facts` : rien tant que sa box ne répond pas, ni d'un runtime qui ne les donne pas.
-  const roles = poserLesRoles(document, tenu !== undefined && "tableau" in tenu && !muets.has(projet.nom) ? tenu.tableau.rolesCuisine : undefined);
-  rolesDuProjet.replaceChildren(...(roles === null ? [] : [roles]));
+  const rolesLus = tenu !== undefined && "tableau" in tenu && !muets.has(projet.nom) ? tenu.tableau.rolesCuisine : undefined;
+  const roles = poserLesRoles(document, rolesLus);
+  rolesDuProjet.replaceChildren(...(roles === null || rolesLus === undefined ? [] : [replieDe(projet, "roles", { titre: TITRE_DES_ROLES, resume: resumeDesRoles(rolesLus), aide: AIDE_DES_ROLES }, [roles])]));
   // Ses leçons et ses profils (apprentissage.js), lus dans `facts` : une leçon promue ouvre sa ligne du carnet par le
-  // process principal, qui en tient l'adresse — rien n'est créé. Rien tant que sa box ne répond pas.
+  // process principal, qui en tient l'adresse — rien n'est créé. Rien tant que sa box ne répond pas. Repliés derrière
+  // leurs nombres ; sans leçon ni profil, la phrase seule, rien à ouvrir.
   const appris = tenu !== undefined && "tableau" in tenu && !muets.has(projet.nom) ? tenu.tableau.apprentissage : undefined;
-  apprisDuProjet.replaceChildren(
-    ...poserApprentissage(document, appris, {
-      ouvrir: (ticket, retour) => ouvrirFicheDeCout(projet.nom, ticket, retour),
-      ouvrirLaLigne: (id) => void brigade.ouvrirLecon(projet.nom, id),
-    }),
-  );
+  const lecons = poserApprentissage(document, appris, {
+    ouvrir: (ticket, retour) => ouvrirFicheDeCout(projet.nom, ticket, retour),
+    ouvrirLaLigne: (id) => void brigade.ouvrirLecon(projet.nom, id),
+  });
+  const rienAppris = appris === undefined || (appris.lecons.length === 0 && appris.profils.length === 0);
+  apprisDuProjet.replaceChildren(...(appris === undefined || rienAppris ? lecons : [replieDe(projet, "appris", { titre: TITRE_APPRIS, resume: resumeDeLApprentissage(appris) }, lecons)]));
+}
+
+// La ligne de la cuisine du projet, en tête du bloc de ses stations (ticket 1456) : la carte du projet y est fondue — son
+// état en un mot et son dernier événement ; l'heure de la lecture au survol. Ses compteurs et ses cooks n'y sont pas :
+// les stations les disent. Et, quand la base rouge est en réparation, la ligne que `status` écrit en tête, telle quelle :
+// elle dit pourquoi rien ne cuit.
+/** @param {Projet} projet @param {import("../faits.ts").Tableau} tableau @param {string} heure */
+function ligneDeLaCuisine(projet, tableau, heure) {
+  const ligne = document.createElement("p");
+  ligne.className = "etat-de-la-cuisine";
+  ligne.title = `read at ${heure} · ${tableau.tick}`;
+  const pilule = document.createElement("span");
+  pilule.className = "pilule";
+  if (tableau.ton !== undefined) pilule.dataset.ton = tableau.ton;
+  pilule.append(pastille(tableau.etat, tableau.ton), bloc("strong", tableau.etat));
+  ligne.append(bloc("span", "kitchen"), pilule, bloc("small", `latest event — ${tableau.evenement}`));
+  const rienNeCuit = tableau.rienNeCuit === undefined ? [] : [bloc("p", tableau.rienNeCuit)];
+  for (const dite of rienNeCuit) dite.className = "rien-ne-cuit";
+  return [ligne, ...rienNeCuit];
 }
 
 // Le plafond de calibrage du projet sur Cooks (ticket 1284), d'après ses derniers faits — rien tant que sa box ne
@@ -4154,7 +4200,7 @@ function poserPlafondDeCalibrage(projet) {
     },
     jouer: (choix) => void reglerPlafondDeCalibrage(projet.nom, choix),
   });
-  plafondDuProjet.replaceChildren(...(pose === null ? [] : [pose]));
+  plafondDuProjet.replaceChildren(...(pose === null || vu === undefined ? [] : [replieDe(projet, "plafond", { titre: TITRE_DU_PLAFOND, resume: resumeDuPlafond(vu), aide: AIDE_DU_PLAFOND }, [pose])]));
 }
 
 // Le geste du plafond part par le process principal (plafond-de-calibrage.ts). Fait, la box est relue tout de suite :
@@ -4232,7 +4278,8 @@ async function reglerLePlafondDuProjet(projet, station, valeur) {
 /** @param {Projet} projet @param {Dessinable | undefined} tenu */
 function poserCuisineEtroite(projet, tenu) {
   if (projet.sansStation === true) return rail.replaceChildren(bloc("h3", STATION_ARRETEE));
-  if (cuissonDuProjet.childElementCount > 0) return rail.replaceChildren(activiteDuProjet, gatesDuProjet, cuissonDuProjet, rolesDuProjet, apprisDuProjet);
+  // Dans l'ordre de l'écran large (ticket 1456) : ses stations d'abord.
+  if (stationsPosees) return rail.replaceChildren(cuissonDuProjet, activiteDuProjet, gatesDuProjet, rolesDuProjet, apprisDuProjet);
   const pourquoi = muets.has(projet.nom)
     ? "its stations: not known while the station is unreachable"
     : tenu === undefined
@@ -4264,17 +4311,24 @@ function poserRail(projet) {
   if (rail.hidden) return rail.replaceChildren();
   // Ni box ni station sur cet ordinateur : rien n'en est lu, et la page ne reste pas vide — elle dit pourquoi (ticket 1405).
   if (!seLit(projet) && projet.sansStation !== true) return rail.replaceChildren(bloc("h3", "the rail is not read: no station is known to serve this project yet — it appears as soon as one does"));
-  // Sur Cooks, la carte du projet en tête ; en bas, ses serveurs de livraison et la lecture de `station`, quoi qu'il y
-  // ait entre eux.
-  // Sur Cooks, ses stations sous la carte ; sur Rail, en tête, la ligne qui dit ce qui y demande un geste (ticket 1185).
+  // Sur Cooks, dans l'ordre de sa revue (docs/revue-page-cooks.md, ticket 1456) : ses stations et leurs cooks en tête —
+  // la ligne de sa cuisine dedans —, les pages servies sans carte et ses serveurs de livraison sous elles, puis ses
+  // tickets, ses gates, et en bas, repliés, son plafond de calibrage, ses rôles, ce que ses cooks ont appris et la
+  // lecture de `station`. La carte du projet n'y est que quand ses stations ne se lisent pas : elle dit pourquoi, ou
+  // ses cooks en cours.
+  // Sur Rail, en tête, la ligne qui dit ce qui y demande un geste (ticket 1185).
   // Le bon posé pour chaque carte, celles des stations comprises (ticket 1270) : celui de la fiche ouverte y reprend
   // le clavier.
   /** @type {Map<import("../faits.ts").Carte, HTMLElement>} */
   const posees = new Map();
+  servisSansCarte.replaceChildren();
   poserCuisson(projet, posees);
   if (cuisine && etroit()) return poserCuisineEtroite(projet, tenu);
+  // Sans stations lues — un runtime qui ne les donne pas, une box muette —, la carte du projet reste entière, en tête :
+  // elle seule dit alors ses cooks en cours.
+  const deCooks = () => [...(stationsPosees ? [] : [carte]), cuissonDuProjet, servisSansCarte, pages, activiteDuProjet, gatesDuProjet, plafondDuProjet, rolesDuProjet, apprisDuProjet, lectureDeLaCuisine];
   /** @param {(HTMLElement | string)[]} poses */
-  const poser = (...poses) => rail.replaceChildren(...(cuisine ? [activiteDuProjet, gatesDuProjet, carte, cuissonDuProjet, plafondDuProjet, rolesDuProjet, apprisDuProjet] : alerteDeCuisine.hidden ? [] : [alerteDeCuisine]), ...poses, ...(cuisine ? [pages, lectureDeLaCuisine] : []));
+  const poser = (...poses) => rail.replaceChildren(...(cuisine ? [...poses, ...deCooks()] : [...(alerteDeCuisine.hidden ? [] : [alerteDeCuisine]), ...poses]));
   // Cuisine d'un projet servi ici, station arrêtée : rien n'est lu, la page dit pourquoi en une ligne — sur l'un et
   // l'autre onglet.
   if (projet.sansStation === true) return rail.replaceChildren(bloc("h3", STATION_ARRETEE));
@@ -4328,13 +4382,14 @@ function poserRail(projet) {
     }),
   );
   // Rien d'autre n'est lu à neuf : ni ce qui est en amont, ni les corrections, ni les pages servies.
-  if (muet !== undefined) return poser(...marque, grille);
+  if (muet !== undefined) return poser(...marque, ...(cuisine ? [] : [grille]));
   // D'où vient ce qui se lit n'est pas en tête du rail : cela ne change rien à ce que fait le chef.
   // C'est dans Paramètres, pour le jour d'une panne ; en tête, seule une lecture vieille se dit.
   poserProvenance(projet, heure, attendLu, railLu);
   poserArreter(projet, tenu.tableau.arretee);
   // Les serveurs sont sur Cooks : la page dont le ticket n'y a pas de carte — dans le bloc de sa station — se pose
-  // à part, sous les stations, son worktree et son port compris. Sur Rail, sa carte n'en porte que l'écran et le geste.
+  // à part, juste sous les stations, son worktree et son port compris. Sur Rail, sa carte n'en porte que l'écran et le
+  // geste.
   const cartes = new Set([...colonnes.flatMap(({ cartes: siennes }) => siennes), ...posees.keys()].map(({ ticket }) => ticket));
   const sansCarte = !cuisine
     ? []
@@ -4378,10 +4433,10 @@ function poserRail(projet) {
           ...poserLesCorrections(projet, tenu.tableau.rail.corrections),
           ...poserLesProfils(projet, tenu.tableau.rail.profils),
         ]),
-    grille,
+    ...(cuisine ? [] : [grille]),
     ...(cuisine || hors.length === 0 ? [] : [bloc("h3", `outside the columns — their state is none of the six, and nothing says they await you: the Rail read, in Settings, relays what \`${geste(projet, "rail")}\` says`), bons(hors)]),
-    ...(sansCarte.length === 0 ? [] : [bloc("h3", `served, without a card here — \`${geste(projet, "status")}\` shows their server`), servis(sansCarte)]),
   );
+  servisSansCarte.replaceChildren(...(sansCarte.length === 0 ? [] : [bloc("h3", `served, without a card here — \`${geste(projet, "status")}\` shows their server`), servis(sansCarte)]));
   if (reprise !== undefined) {
     const repris = /** @type {HTMLInputElement[]} */ ([...rail.querySelectorAll("input, textarea")]).find(({ dataset }) => dataset.cle === reprise.cle && dataset.champ === reprise.champ);
     repris?.focus();
@@ -4579,11 +4634,12 @@ function poserALancer(projet, { ticket: numero, worktree, commentLeVoir, ecran }
 
 // Les pages servies du projet affiché, sur l'onglet Cooks : ce que `status` montre de ses serveurs — ou
 // ce qui se lit à sa place. Le geste de chaque page n'est pas ici : il est sur la carte de son
-// ticket. Tout est déjà décidé dans le process principal (page.ts) : la vue pose.
+// ticket. Tout est déjà décidé dans le process principal (page.ts) : la vue pose. Rien de servi, et rien qui l'empêche
+// ni de refusé : la section n'est pas posée (ticket 1456) — les stations disent déjà qu'aucun cook ne sert rien.
 /** @param {Projet} projet @param {Pages | undefined} servies */
 function poserPages(projet, servies) {
-  pages.hidden = servies === undefined;
-  if (servies === undefined) return pages.replaceChildren();
+  pages.hidden = servies === undefined || [servies.pages, servies.aLancer, servies.illisibles, servies.empeche].every((liste) => liste.length === 0) && servies.refus === undefined;
+  if (pages.hidden || servies === undefined) return pages.replaceChildren();
   /** @param {string} texte */
   const alerte = (texte) => {
     const dite = bloc("p", surMesure(projet, texte));

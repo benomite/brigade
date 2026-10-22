@@ -139,12 +139,13 @@ function plafondDeLaStation(doc, station, cap, rendu, saisies, regler) {
 
 // La section des stations, ou null : `facts` ne les donne pas. `enCours` : les stations dont un clic attend sa
 // réponse, et lequel ; `dits` : ce que le dernier clic de chacune a rendu. `pastille` : celle de la vue. `carte` :
-// la carte du ticket d'un cook, celle du kanban — sans elle, une ligne par cook.
+// la carte du ticket d'un cook, celle du kanban — sans elle, une ligne par cook. `tete` : ce qui se lit sous son titre,
+// avant les stations — la ligne de la cuisine du projet, où sa carte est fondue (ticket 1456).
 /**
  * @param {Fabrique} doc
- * @param {{ lignes: readonly Ligne[] | undefined, enCours: ReadonlyMap<string, Geste>, dits: ReadonlyMap<string, Dit>, jouer: (station: string, geste: Geste) => void, pastille: (mot: string, ton: string | undefined) => any, carte?: (cook: Cook) => any, plafonds?: Readonly<Record<string, Plafonds>>, plafondsDits?: ReadonlyMap<string, DitDuPlafond | "en cours">, saisies?: { lire: (station: string) => string, ecrire: (station: string, valeur: string) => void }, regler?: (station: string, valeur: string) => void }} options
+ * @param {{ lignes: readonly Ligne[] | undefined, enCours: ReadonlyMap<string, Geste>, dits: ReadonlyMap<string, Dit>, jouer: (station: string, geste: Geste) => void, pastille: (mot: string, ton: string | undefined) => any, carte?: (cook: Cook) => any, plafonds?: Readonly<Record<string, Plafonds>>, plafondsDits?: ReadonlyMap<string, DitDuPlafond | "en cours">, saisies?: { lire: (station: string) => string, ecrire: (station: string, valeur: string) => void }, regler?: (station: string, valeur: string) => void, tete?: readonly any[] }} options
  */
-export function poserLesStations(doc, { lignes, enCours, dits, jouer, pastille, carte, plafonds, plafondsDits, saisies, regler }) {
+export function poserLesStations(doc, { lignes, enCours, dits, jouer, pastille, carte, plafonds, plafondsDits, saisies, regler, tete = [] }) {
   if (lignes === undefined) return null;
   const section = cree(doc, "section");
   section.className = "stations-de-cuisson";
@@ -202,7 +203,7 @@ export function poserLesStations(doc, { lignes, enCours, dits, jouer, pastille, 
       return pose;
     }),
   );
-  section.append(cree(doc, "h3", TITRE), liste);
+  section.append(cree(doc, "h3", TITRE), ...tete, liste);
   return section;
 }
 

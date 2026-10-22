@@ -1,17 +1,19 @@
 // @ts-check
 // En tête de l'onglet Cooks (ticket 1272) : ce que la cuisine du projet a fait de ses tickets — combien elle en a
 // servis, renvoyés à un cook, remontés au chef —, dans la dernière heure et dans le dernier jour. Six nombres, dans
-// un tableau de deux lignes : une fenêtre se lit contre l'autre d'un coup d'œil. Sans activité, six « 0 », jamais un
-// blanc. Les comptes viennent de `facts` (faits.ts) : la vue les pose, elle n'en calcule aucun.
+// un tableau de deux lignes : une fenêtre se lit contre l'autre d'un coup d'œil. Sans activité — six « 0 » —, une seule
+// ligne le dit en mots, jamais un tableau de zéros ni un blanc (ticket 1456). Les comptes viennent de `facts` (faits.ts) : la vue les pose, elle n'en calcule aucun.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend un élément.
 
-import { survol } from "./briques.js";
+import { survol, uneLigne } from "./briques.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../faits.ts").ActiviteCuisine} ActiviteCuisine */
 /** @typedef {import("../faits.ts").ComptesDeCuisine} Comptes */
 
 export const TITRE = "tickets, last hour and last day";
+// Ce que dit la ligne seule, quand les six nombres sont à zéro.
+export const RIEN = "nothing served, sent back or escalated in the last day";
 // Les trois comptes, dans l'ordre des colonnes : leur libellé, et ce qu'il compte — au survol de la tête.
 /** @type {ReadonlyArray<{ cle: keyof Comptes, libelle: string, dit: string }>} */
 export const COMPTES = [
@@ -43,6 +45,12 @@ export function poserLActivite(doc, activite) {
   const section = cree(doc, "section");
   section.className = "activite-cuisine";
   section.ariaLabel = TITRE;
+  if (FENETRES.every(({ cle }) => COMPTES.every((compte) => activite[cle][compte.cle] === 0))) {
+    const ligne = uneLigne(doc, TITRE, RIEN);
+    ligne.append(survol(doc, AIDE));
+    section.append(ligne);
+    return section;
+  }
   const tete = cree(doc, "h4", TITRE);
   tete.append(survol(doc, AIDE));
   const tableau = cree(doc, "table");

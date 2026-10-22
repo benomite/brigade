@@ -362,13 +362,13 @@ describe("à droite, les shells à côté du second : un shell ne remplace jamai
   });
 
   test("un geste qui écrit dans le second le montre, si un shell le cachait — la note est la sienne", async () => {
-    const ecrit = { ...SECOND, note: "écrit dans le second, sans Entrée : `!ssh box brigade parade station cooks `" };
+    const ecrit = { ...SECOND, note: "écrit dans le second, sans Entrée : `!ssh box brigade parade grant extend merge `" };
     const vue = await ouvrir({ inscrire: () => ecrit });
-    await ouvrirLecture(vue, "Cooks");
+    await ouvrirLecture(vue, "Grants");
     await cliquer(vue, vue.element("terminaux"), "+ shell");
     assert.deepEqual(montre(vue), ["shell 1"]);
 
-    await cliquer(vue, vue.element("gestes-cuisine"), "Set the cooks of a station…");
+    await cliquer(vue, vue.element("gestes-onglet"), "Extend a grant…");
 
     assert.deepEqual(montre(vue), ["second · claude"]);
     assert.equal(vue.element("note-second").textContent, ecrit.note);
@@ -386,23 +386,19 @@ describe("à droite, les shells à côté du second : un shell ne remplace jamai
 
 describe("un clic à gauche écrit dans le second sans que le centre change", () => {
   test("un bouton d'onglet écrit sa commande dans le second : l'onglet ouvert reste ouvert, et la note se lit sous le titre du second", async () => {
-    const ecrit = { ...SECOND, note: "écrit dans le second, sans Entrée : `!ssh box brigade parade station cooks `" };
+    // Cooks n'a plus de tel bouton (#1456) : le plafond de cooks se règle sur la ligne de sa station. Celui de Grants.
+    const ecrit = { ...SECOND, note: "écrit dans le second, sans Entrée : `!ssh box brigade parade grant extend merge `" };
     const vue = await ouvrir({ inscrire: () => ecrit });
-    await ouvrirLecture(vue, "Cooks");
+    await ouvrirLecture(vue, "Grants");
+    const avant = { grants: vue.element("grants").hidden, contenu: vue.element("contenu").hidden, rail: vue.element("rail").hidden };
 
-    await cliquer(vue, vue.element("gestes-cuisine"), "Set the cooks of a station…");
+    await cliquer(vue, vue.element("gestes-onglet"), "Extend a grant…");
 
-    assert.deepEqual(vue.dernier("inscrire"), ["parade", "cooks"]);
-    // L'onglet Cooks (#1184) reste montré : aucune page ne s'est ouverte par-dessus.
-    assert.deepEqual(vue.element("onglets-du-projet").children.filter((pose) => pose.ariaSelected === "true").map((pose) => pose.textContent), ["Cooks"]);
-    assert.deepEqual(selectionne(vue), []);
-    assert.equal(vue.element("contenu").hidden, true);
-    assert.equal(vue.element("rail").hidden, false);
+    assert.deepEqual(vue.dernier("inscrire"), ["parade", "grant-prolonger"]);
+    // La lecture de Grants reste montrée : rien ne s'est ouvert ni fermé au centre.
+    assert.deepEqual({ grants: vue.element("grants").hidden, contenu: vue.element("contenu").hidden, rail: vue.element("rail").hidden }, avant);
+    assert.equal(vue.element("grants").hidden, false);
     assert.equal(vue.element("note-second").textContent, ecrit.note);
-    // L'explication de la lecture n'est pas écrite à plat : elle est au survol de sa tête, sur l'onglet.
-    assert.equal(vue.element("note").textContent, "");
-    const tete = vue.element("rail").dessous("h3").find(({ textContent }) => textContent.startsWith("the station:")) ?? assert.fail("pas de tête de la lecture");
-    assert.match(tete.dessous("button")[0]?.ariaLabel ?? "", /^the output of `ssh box brigade parade station`/);
   });
 
   test("un geste confirmé ouvre sa confirmation sur place, et ne part qu'à son « oui » — dans le second, sans que le centre change", async () => {

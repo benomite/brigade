@@ -178,7 +178,7 @@ describe("ce que chaque onglet montre", () => {
     assert.ok(carteDe(vue, 31).dessous("button").some((bouton) => bouton.textContent === "see it in my browser"));
     // Rien d'exécution : ni worktree ni port, ni la carte du projet, ni `station`.
     assert.doesNotMatch(centre(vue).textContent, /31-5be0c1d2|20031|30-9a8b7c6d|cap of cooks|saturée|consommé/);
-    for (const id of ["carte", "pages", "lu-cuisine", "lecture-cuisine", "gestes-cuisine"]) assert.equal(pose(vue, id), false, id);
+    for (const id of ["carte", "pages", "lu-cuisine", "lecture-cuisine"]) assert.equal(pose(vue, id), false, id);
     // Les stations du projet, quand il cuit quelque part, sont sur Cooks.
     assert.equal(vue.element("stations-du-projet").hidden, true);
     // Et rien n'est lu de `station` tant que Rail est montré.
@@ -192,7 +192,8 @@ describe("ce que chaque onglet montre", () => {
 
     // Aucune colonne du kanban : Taken et Pass sont sur Rail.
     assert.deepEqual(colonnes(vue), []);
-    // La carte du projet en tête : son état, ses compteurs, son cook en cours et sa station.
+    // Un runtime qui ne donne pas ses stations : la carte du projet en tête, entière — son état, ses compteurs, son
+    // cook en cours et sa station (#1456 : avec des stations, elle est fondue dans leur bloc).
     assert.equal(pose(vue, "carte"), true);
     assert.match(vue.element("carte").textContent, /box\/claude/);
     // Le worktree et le port de chaque serveur, sans carte de colonne.
@@ -201,11 +202,15 @@ describe("ce que chaque onglet montre", () => {
     assert.equal(pose(vue, "pages"), true);
     // Le serveur de #31, dont la carte est sur Rail, est ici aussi — son worktree et son port compris.
     assert.match(centre(vue).textContent, /31-5be0c1d2 · port 20031 · sert/);
-    // La lecture de `station` : son geste, et aucun bloc de sortie brute.
+    // La lecture de `station`, en bas, repliée derrière sa ligne et fermée (#1456) : aucun bloc de sortie brute, et plus
+    // le bouton qui écrivait le plafond de cooks dans le second — il se règle sur la ligne de sa station.
     assert.equal(pose(vue, "lecture-cuisine"), true);
+    const lecture = centre(vue).children.at(-1) ?? assert.fail("rien en bas de Cooks");
+    assert.deepEqual([lecture.balise, lecture.className, (lecture as Faux & { open?: boolean }).open], ["details", "replie lecture-de-la-cuisine", false]);
+    assert.ok(lecture.contains(vue.element("lecture-cuisine")));
     assert.deepEqual(vue.element("lecture-cuisine").dessous("pre"), []);
     assert.deepEqual(vue.element("lecture-cuisine").dessous("details"), []);
-    assert.deepEqual(vue.element("gestes-cuisine").dessous("button").filter(({ className }) => className !== "aide").map(({ textContent }) => textContent), ["Set the cooks of a station…"]);
+    assert.doesNotMatch(centre(vue).textContent, /Set the cooks of a station/);
     // Les stations du projet.
     assert.equal(vue.element("stations-du-projet").hidden, false);
     assert.doesNotMatch(centre(vue).textContent, /\bTaken\b|\bPass\b|TODO|WAITING|On the rail|Served/);
