@@ -10,7 +10,7 @@ import type { GitHub, Issue } from "../src/github.ts";
 import { ouvrirJournal, type Journal } from "../src/journal.ts";
 import { lireRail, ticketDuRail } from "../src/projections/rail.ts";
 import { ouvrirRail } from "../src/rail.ts";
-import { DEPOT, repertoireTemporaire } from "./outils.ts";
+import { aArreter, DEPOT, repertoireTemporaire } from "./outils.ts";
 
 const PROJET = "brigade";
 
@@ -21,7 +21,9 @@ type Pose = { ticket: number; priority: number | null; waitsFor?: number[] };
 function cuisine(t: TestContext, ...poses: Pose[]) {
   const repertoire = repertoireTemporaire(t);
   let journal = ouvrirJournal(repertoire);
-  t.after(() => journal.fermer());
+  // Fermé avant que son répertoire ne disparaisse : sous Windows, un journal
+  // ouvert empêche de le supprimer.
+  aArreter(t, () => journal.fermer());
   const issues = new Map<number, Issue>();
   const ecrits: string[] = [];
   const github = {
