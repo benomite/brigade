@@ -82,7 +82,8 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
     } catch (erreur) {
       echouer(1, erreur instanceof Error ? erreur.message : String(erreur));
     }
-    const github = ouvrirGitHub({ depot: rail.depot, bin: rail.gh });
+    // Un geste du chef : la box ne retient aucun de ses appels (limite-github.ts).
+    const github = ouvrirGitHub({ depot: rail.depot, bin: rail.gh, usage: "geste" });
     try {
       const projet = journal.base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project;
       if (!projet) echouer(1, "empty log: the runtime has never started on this state directory");

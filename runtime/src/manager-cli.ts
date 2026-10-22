@@ -153,7 +153,8 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void | Pro
       throw erreur;
     }
     const { depot } = rail;
-    const github = ouvrirGitHub({ depot, bin: rail.gh });
+    // Une commande du chef : la box ne retient aucun de ses appels (limite-github.ts).
+    const github = ouvrirGitHub({ depot, bin: rail.gh, usage: "geste" });
     try {
       const sondage = await github.ouvertes();
       // Un GitHub ouvert à l'instant n'a pas d'ETag : la liste est toujours rendue — sans elle, rien n'est compté.

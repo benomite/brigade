@@ -54,40 +54,56 @@ translated.
 between 5 and 10 min: its last heartbeat is 5 min old at most, at the beat, and the app says it is
 offline 2 × 285 s + 30 s after that heartbeat.
 
-## The budget of calls to GitHub, and waiting out the limit
+## The calls to GitHub, on the account's real quota, and waiting out the limit
 
-*Code: `runtime/src/limite-github.ts` (#873, #874).*
+*Code: `runtime/src/limite-github.ts` (#873, #874, #1416).*
 
 Every call by the station and its projects to GitHub — the polling of the issues (`github.ts`), the
-gist channel (`appairage/canal.ts`) — takes a token from the budget before `gh` leaves.
+gist channel (`appairage/canal.ts`) — goes through the counter before `gh` leaves.
 
-- **The budget**: **2,500 calls per sliding hour**, half of the account's limit (5,000 per hour). A
-  refused call does not leave and is not counted; the caller fails as on a GitHub outage, and its
-  next turn catches up. The message says when the next call frees up: `budget GitHub épuisé : 2500
-  appels sur l'heure glissante, appel refusé — le prochain se libère dans N s` (French until the
-  runtime is translated).
+- **The reference is GitHub's real quota**, never a count of the box's own: the account is shared
+  with the chef's Mac. Every response of `gh api -i` says what is left (`x-ratelimit-remaining` of
+  `x-ratelimit-limit`, until `x-ratelimit-reset`, for the REST resource `core`), and the counter keeps
+  it. A decision taken on a low quota read more than a minute ago is confirmed first with
+  `gh api rate_limit`, which GitHub does not count — at most once a minute.
+- **The kitchen slows down as the quota shrinks.** Polls, pass, manager, heartbeat: above half of
+  the quota, nothing holds them back, however many calls the box made in the hour. Below half, what
+  is left above the reserve is spread over the rest of GitHub's window (so many calls per minute, or
+  one call every so many minutes). At the **reserve of the chef's gestures** — a tenth of the quota,
+  500 of 5,000 — the kitchen waits for the end of the window, then resumes by itself. A held call
+  does not leave and is not counted; the caller treats it as GitHub's limit (said once in the
+  service log): `quota GitHub entamé : N appels restants sur 5000 — la cuisine ralentit, son prochain
+  appel part dans N s`, then `quota GitHub bas : N appels restants sur 5000, gardés pour les gestes du
+  chef — la cuisine attend la fin de la fenêtre, dans N s` (French until the runtime is translated).
+- **The chef's gestures are never held by the box.** `rail` (remove, priority, merge, send-back,
+  choose, answer), `pass <ticket> issue|comment|ask` and `manager` call GitHub as gestures: neither
+  the box's count, nor the reserve, nor a pause stops them. They fail only if GitHub itself refuses.
+  They are counted, and they spend the reserve.
 - **Shared, not split.** The counter is a SQLite database in the station's directory,
   `<BRIGADE_STATION_DIR>/appels-github/compteur.db`. The station and each of its projects hold it
-  together, like a runtime or a command launched with its environment: a transaction decides between
-  two processes that take the last call at the same instant. A process outside any station (the dev
-  workstation, a test) counts alone, in memory, under the same budget.
-- **More than three projects**: nothing to tune. The budget is not divided among the projects: a
-  project that polls a lot takes what another does not spend, and the cap holds whatever their
-  number. What grows with the projects is the consumption: each one adds its polls to the same
-  account.
-- **Tuning it**: there is **no environment variable**. The cap is the constant `BUDGET_PAR_HEURE` of
-  `runtime/src/limite-github.ts` (the window, `FENETRE_MS`, is one hour); it is changed in the code,
-  and checked with the tests of `runtime/test/limite-github.test.ts`.
+  together, like a runtime or a command launched with its environment: they read the same quota and
+  keep the same pace, and a transaction decides between two processes that take the last call at the
+  same instant. The quota is kept per account: the machine's `gh`, and each role identity, whose App
+  has its own. A process outside any station (the dev workstation, a test) counts alone, in memory,
+  under the same rules.
+- **More than three projects**: nothing to tune. The pace is not divided among the projects: a
+  project that polls a lot takes what another does not spend. What grows with the projects is the
+  consumption: each one adds its polls to the same account.
+- **Tuning it**: there is **no environment variable**. The reserve (`RESERVE_DES_GESTES`), the
+  threshold of the slowdown (`SEUIL_DE_RALENTI`) and the step of the pace (`PAS_DU_DEBIT_MS`) are
+  constants of `runtime/src/limite-github.ts`; they are changed in the code, and checked with the
+  tests of `runtime/test/limite-github.test.ts`.
 - **The hourly line**: once an hour, from the station's start, its service log writes
   `brigade : N appels GitHub sur l'heure écoulée`, N being the count of the last hour, all processes
-  together. If reading the counter fails, the line says so instead:
+  together, followed by `— GitHub en dit R restants sur 5000` when GitHub has said its quota. If reading the counter fails, the line says so instead:
   `brigade : appels GitHub de l'heure écoulée non comptés — <erreur>`. Both lines stay French until
   the runtime is translated.
 - **GitHub's limit reached** (its 429, or its 403 "rate limit") is not a refusal like any other: a
   403 on a forbidden merge, for its part, stays a refusal. The station then stops every call and
-  sets a pause on the counter, shared by all its processes, until the end of the window. It reads it
+  sets a pause on the counter, shared by all its processes, until the end of the window — for the
+  kitchen: a chef's gesture still tries, and fails on GitHub's own refusal. It reads it
   in `retry-after`, otherwise `x-ratelimit-reset`, otherwise `gh api rate_limit`, otherwise 60 s.
-  During the pause no call leaves and nothing is counted. The service log says it once:
+  During the pause no kitchen call leaves and nothing is counted. The service log says it once:
   `brigade : station — GitHub a atteint sa limite d'appels : plus aucun appel ne part avant la fin de la fenêtre, puis ils reprennent seuls`
   (French until the runtime is translated).
 - **What the chef sees of it.** During the pause, `status` writes a head line

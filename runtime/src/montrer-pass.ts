@@ -266,7 +266,8 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
       if (erreur instanceof ConfigInvalide) echouer(2, `${erreur.message}\n${USAGE}`);
       throw erreur;
     }
-    const github = ouvrirGitHub({ depot: rail.depot, bin: rail.gh });
+    // Un geste du chef : la box ne retient aucun de ses appels (limite-github.ts).
+    const github = ouvrirGitHub({ depot: rail.depot, bin: rail.gh, usage: "geste" });
     let reponse: Lecture | Resultat | Demande;
     try {
       reponse = demander ? await demanderAuSecond(github, ticket, texte) : texte === null ? await lireIssue(github, ticket) : await commenterIssue(github, ticket, texte);
