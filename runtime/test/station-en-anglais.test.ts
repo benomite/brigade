@@ -42,7 +42,7 @@ test("`station` : `cooks`, chaque décision, `remove` et `help` n'écrivent aucu
   assert.equal((await jouer("cooks", "3")).code, 0);
   assert.equal((await jouer("cooks", "3")).code, 0);
   assert.equal((await jouer("cooks", "0")).code, 0);
-  for (const [geste, valeur] of [["stations", `${STATION}:2:code`], ["seuil-ticket", "300000"], ["seuil-perdus", "100000"], ["seuil-renvois", "40"], ["fenetre-renvois", "8"], ["manager-modele", "sonnet"], ["manager-effort", "medium"], ["reviewer-modele", "opus"], ["reviewer-effort", "high"], ["closer-modele", "sonnet"], ["closer-effort", "low"], ["closer-cooks", "2"], ["closer-tokens", "400000"], ["closer-retraits", "300"]] as const) {
+  for (const [geste, valeur] of [["stations", `${STATION}:2:code`], ["seuil-ticket", "300000"], ["seuil-perdus", "100000"], ["seuil-renvois", "40"], ["fenetre-renvois", "8"], ["budget-gates", "120"], ["budget-gates-cpu", "500"], ["manager-modele", "sonnet"], ["manager-effort", "medium"], ["reviewer-modele", "opus"], ["reviewer-effort", "high"], ["closer-modele", "sonnet"], ["closer-effort", "low"], ["closer-cooks", "2"], ["closer-tokens", "400000"], ["closer-retraits", "300"]] as const) {
     assert.equal((await jouer(geste, valeur)).code, 0, geste);
     assert.equal((await jouer(geste, valeur)).code, 0, geste);
   }
@@ -125,7 +125,7 @@ test("`station` : un état posé avant le ticket — décisions écrites, ancien
 test("`station` : les gestes gardent leurs noms", async (t) => {
   const { env } = etat(t);
   const aide = (await sortie(["help"], env)).lignes.join("\n");
-  for (const geste of ["stations", "seuil-ticket", "seuil-perdus", "seuil-renvois", "fenetre-renvois", "manager-modele", "manager-effort", "reviewer-modele", "reviewer-effort", "closer-modele", "closer-effort", "closer-cooks", "closer-tokens", "closer-retraits", "cooks", "remove"]) {
+  for (const geste of ["stations", "seuil-ticket", "seuil-perdus", "seuil-renvois", "fenetre-renvois", "budget-gates", "budget-gates-cpu", "manager-modele", "manager-effort", "reviewer-modele", "reviewer-effort", "closer-modele", "closer-effort", "closer-cooks", "closer-tokens", "closer-retraits", "cooks", "remove"]) {
     assert.match(aide, new RegExp(`^  ${geste} `, "m"), geste);
   }
 });

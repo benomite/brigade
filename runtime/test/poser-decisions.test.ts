@@ -31,6 +31,8 @@ const REPONSES = [
   ["seuil-perdus", "300000"],
   ["seuil-renvois", "40"],
   ["fenetre-renvois", "12"],
+  ["budget-gates", "120"],
+  ["budget-gates-cpu", "500"],
   ["closer-modele", "sonnet"],
   ["closer-effort", "medium"],
   ["closer-cooks", "1"],

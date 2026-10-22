@@ -40,6 +40,7 @@ import { direSaturationsEn } from "./machine.ts";
 import { consommation, etatDesGardeFous } from "./projections/guardrails.ts";
 import { direCommentLeVoirEn, direEtatDeServeurEn, direPageEn, direServiceIndisponible, serveursEnCours, servicesIndisponibles, worktreesTenus } from "./projections/service.ts";
 import { configPlafond, direPlafondDeCalibrageEn, PLAFOND_PAR_DEFAUT } from "./reagir.ts";
+import { BUDGET_DUREE_PAR_DEFAUT, BUDGET_PROCESSEUR_PAR_DEFAUT } from "./cout-des-gates.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { FORME, GESTE_DE_STATION_A_CHAUD_EN } from "./stations-declarees.ts";
 import { direOrdinairesEn } from "./bac-a-sable/ordinaires.ts";
@@ -69,6 +70,8 @@ export const GESTES: Record<string, { decision: Decision; quoi: string; valeur: 
   "seuil-perdus": { decision: "BRIGADE_DRIFT_LOST_TOKENS", quoi: "drift cost threshold: lost tokens, launches that delivered nothing", valeur: "<tokens>", attendu: "an integer greater than zero" },
   "seuil-renvois": { decision: "BRIGADE_DRIFT_FIRST_TRY_PERCENT", quoi: "drift threshold: share of tickets delivered first try, in % (50 if unset)", valeur: "<percent>", attendu: "a number greater than zero" },
   "fenetre-renvois": { decision: "BRIGADE_DRIFT_FIRST_TRY_WINDOW", quoi: "drift window on the first try: how many tickets served (10 if unset)", valeur: "<tickets>", attendu: "an integer greater than zero" },
+  "budget-gates": { decision: "BRIGADE_GATES_BUDGET_SECONDS", quoi: `gates budget: wall-clock seconds of one gates run (${BUDGET_DUREE_PAR_DEFAUT} if unset)`, valeur: "<seconds>", attendu: "a number of seconds greater than zero" },
+  "budget-gates-cpu": { decision: "BRIGADE_GATES_BUDGET_CPU_SECONDS", quoi: `gates budget: CPU seconds of one gates run, workers included (${BUDGET_PROCESSEUR_PAR_DEFAUT} if unset)`, valeur: "<seconds>", attendu: "a number of seconds greater than zero" },
   "manager-modele": { decision: "BRIGADE_MANAGER_MODEL", quoi: "the model of the manager's judgments", valeur: "<model>", attendu: ou(MODELES) },
   "manager-effort": { decision: "BRIGADE_MANAGER_EFFORT", quoi: "the effort of the manager's judgments", valeur: "<effort>", attendu: ou(EFFORTS) },
   "reviewer-modele": { decision: "BRIGADE_REVIEWER_MODEL", quoi: "the model of the reviewer's reviews", valeur: "<model>", attendu: ou(MODELES) },
@@ -82,7 +85,12 @@ export const GESTES: Record<string, { decision: Decision; quoi: string; valeur: 
   "ceiling-effort": { decision: "BRIGADE_CEILING_EFFORT", quoi: `calibration ceiling: the highest effort the manager raises a red ticket to (${PLAFOND_PAR_DEFAUT.effort} if unset)`, valeur: "<effort>", attendu: ou(EFFORTS) },
 };
 // Les décisions qui ont un défaut : non posées, c'est lui qui vaut.
-const DEFAUTS: Partial<Record<Decision, string>> = { BRIGADE_CEILING_MODEL: PLAFOND_PAR_DEFAUT.model, BRIGADE_CEILING_EFFORT: PLAFOND_PAR_DEFAUT.effort };
+const DEFAUTS: Partial<Record<Decision, string>> = {
+  BRIGADE_CEILING_MODEL: PLAFOND_PAR_DEFAUT.model,
+  BRIGADE_CEILING_EFFORT: PLAFOND_PAR_DEFAUT.effort,
+  BRIGADE_GATES_BUDGET_SECONDS: String(BUDGET_DUREE_PAR_DEFAUT),
+  BRIGADE_GATES_BUDGET_CPU_SECONDS: String(BUDGET_PROCESSEUR_PAR_DEFAUT),
+};
 const AIDE = ["help", "--help"];
 const LU = "read by the runtime at its next read, without a restart; no running cook is stopped";
 

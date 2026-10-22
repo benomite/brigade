@@ -258,7 +258,9 @@ describe("les gates", { concurrency: 8 }, () => {
   });
 
   test("des gates sorties d'elles-mêmes sont jugées sur leur code, même si leur plafond tombe avant que leur fin soit traitée", async (t) => {
-    const racine = worktree(t, { gates: 'echo "gates : VERT"; echo $$ > pid' });
+    // Le process que le runtime lance est le shell qui attend les gates pour
+    // dire leur processeur : leur parent.
+    const racine = worktree(t, { gates: 'echo "gates : VERT"; echo $PPID > pid' });
     const plafondMs = 100;
     // Le runtime en retard : sa boucle d'événements est tenue, sans rendre la
     // main, du lancement des gates jusqu'à ce qu'elles aient fini seules ET que

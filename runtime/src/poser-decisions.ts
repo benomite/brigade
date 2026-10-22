@@ -30,6 +30,7 @@ import { decisionsPosees, environnementDecide, gesteDe, OBLIGATOIRES, poserDecis
 import { ETAPES, installationDe, noterEtape } from "./etapes.ts";
 import type { EtatDEtape } from "./events/installation.ts";
 import { COOKS_PAR_DEFAUT, configFermeture, RETRAITS_PAR_DEFAUT, TOKENS_PAR_DEFAUT } from "./closing/settings.ts";
+import { BUDGET_DUREE_PAR_DEFAUT, BUDGET_PROCESSEUR_PAR_DEFAUT } from "./cout-des-gates.ts";
 import { geste } from "./geste.ts";
 import { cheminJournal, ouvrirJournal } from "./journal.ts";
 import { PLAFOND_PAR_DEFAUT } from "./reagir.ts";
@@ -150,6 +151,18 @@ export const POSABLES: readonly DecisionPosable[] = [
     options: [{ valeur: "<tickets>", effet: "la file regarde ce nombre de derniers tickets servis, et ne dit rien tant qu'il y en a moins (10 faute de réglage)" }],
     recommandee: null,
     sauter: "La fenêtre reste à 10 tickets.",
+  }),
+  posable("BRIGADE_GATES_BUDGET_SECONDS", {
+    question: "En combien de secondes d'horloge les gates du projet doivent-elles tenir ?",
+    options: [{ valeur: "<secondes>", effet: "chaque passage des gates plus long que cela dépasse le budget du projet ; la file le dit, rien n'est arrêté" }],
+    recommandee: { valeur: String(BUDGET_DUREE_PAR_DEFAUT), pourquoi: "le seuil de dérive de la durée des gates : des gates qui tiennent cela laissent la box servir" },
+    sauter: `Le budget reste au défaut, ${BUDGET_DUREE_PAR_DEFAUT} s : tu le changes quand tu veux, sans redémarrage.`,
+  }),
+  posable("BRIGADE_GATES_BUDGET_CPU_SECONDS", {
+    question: "Combien de secondes de processeur un passage des gates du projet peut-il consommer, workers compris ?",
+    options: [{ valeur: "<secondes>", effet: "chaque passage des gates qui consomme plus que cela dépasse le budget du projet ; la file le dit, rien n'est arrêté" }],
+    recommandee: { valeur: String(BUDGET_PROCESSEUR_PAR_DEFAUT), pourquoi: "quatre cœurs pleins sur la durée du budget : trois suites de front ne saturent pas une box de huit cœurs" },
+    sauter: `Le budget reste au défaut, ${BUDGET_PROCESSEUR_PAR_DEFAUT} s de processeur : tu le changes quand tu veux, sans redémarrage.`,
   }),
   posable("BRIGADE_CLOSING_MODEL", {
     question: "Quel modèle fait la passe de fermeture — celle qui retire le code mort quand tu la demandes ?",

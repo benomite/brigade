@@ -28,8 +28,17 @@ eval "$EXPORTS" || exit
 for nom in $(compgen -e); do printf '%s=%s\\0' "$nom" "\${!nom}"; done >&${CANAL}
 `;
 // Un seul canal pour les gates : entre deux tubes, l'ordre où deux lignes sont
-// lues n'est pas celui où elles ont été écrites.
-const GATES = 'exec "$1" "$2" 2>&1';
+// lues n'est pas celui où elles ont été écrites. Le shell attend leur fin pour
+// dire sur le canal, par `times`, le processeur de tout ce qu'il a attendu —
+// les gates et ce qu'elles ont lancé et attendu, workers compris. Tuées par un
+// signal, il en meurt de même : leur code reste le leur.
+const GATES = `
+"$1" "$2" 2>&1
+code=$?
+times >&${CANAL}
+if [ "$code" -gt 128 ]; then kill -s "$(kill -l "$code")" "$$" 2>/dev/null; fi
+exit "$code"
+`;
 // Un outil du projet, sa commande et ses arguments : de même, un seul canal.
 const OUTIL = 'exec "$@" 2>&1';
 // Ce que le shell du setup exporte de lui-même.
@@ -219,16 +228,38 @@ function plafondFranchi(lignes: string[]): Depassement | null {
   return null;
 }
 
+// Le processeur que `times` dit des enfants du shell — sa seconde ligne,
+// utilisateur puis système, `0m1.234s` —, en millisecondes. Null s'il ne l'a
+// pas dit : le shell est mort avant, avec les gates.
+export function processeurDit(canal: string): number | null {
+  const enfants = canal.trim().split("\n")[1] ?? "";
+  const temps = [...enfants.matchAll(/(\d+)m(\d+(?:[.,]\d+)?)s/g)].map(([, minutes, secondes]) => Number(minutes) * 60 + lire(secondes));
+  if (temps.length !== 2 || temps.some((valeur) => !Number.isFinite(valeur))) return null;
+  return Math.round((temps[0]! + temps[1]!) * 1000);
+}
+
+// Ce qu'un passage des gates a coûté : l'horloge et le processeur de leur
+// script, le setup à part (`events/gates.ts`). Nul : le script n'a pas été
+// lancé — setup en échec.
+export type CoutDesGates = { durationMs: number; cpuMs: number | null };
+
 // Joue les gates et rend ce qu'elles ont dit. Le setup du worktree passe
 // d'abord, sous le même plafond, et ce qu'il exporte vaut pour elles. Ne lève
 // pas : des gates impossibles à lancer sont des gates rouges, avec leur motif.
 export async function jouerGates(demande: DemandeScript): Promise<Gates> {
+  return (await jouerGatesMesurees(demande)).gates;
+}
+
+// De même, avec ce que leur passage a coûté.
+export async function jouerGatesMesurees(demande: DemandeScript): Promise<{ gates: Gates; cout: CoutDesGates | null }> {
   const { worktree } = demande;
   const debut = Date.now();
   const setup = await jouerSetup(demande);
+  const lancees = Date.now();
   const passage = setup.pret
-    ? await jouer(GATES, [join(worktree, SCRIPT_GATES), worktree], { ...demande, env: setup.env, delaiMs: demande.delaiMs - (Date.now() - debut) })
-    : { ...setup, coupee: false, masques: 0, sortie: `${setup.sortie}\nFAIL  setup du worktree en échec : ${join(worktree, SCRIPT_SETUP)}` };
+    ? await jouer(GATES, [join(worktree, SCRIPT_GATES), worktree], { ...demande, env: setup.env, delaiMs: demande.delaiMs - (lancees - debut) })
+    : { ...setup, coupee: false, masques: 0, canal: "", sortie: `${setup.sortie}\nFAIL  setup du worktree en échec : ${join(worktree, SCRIPT_SETUP)}` };
+  const cout = setup.pret ? { durationMs: Date.now() - lancees, cpuMs: processeurDit(passage.canal) } : null;
   const masques = setup.masques + passage.masques;
   const lignes = [setup.pret ? setup.sortie : "", passage.sortie].join("\n").split("\n").filter((ligne) => ligne.trim() !== "");
   // Déclarée deux fois, une mesure vaut sa dernière valeur.
@@ -245,7 +276,7 @@ export async function jouerGates(demande: DemandeScript): Promise<Gates> {
   // FAIL. Une sortie dont le début manque peut en avoir perdu une.
   const coupees = rouges && passage.code !== null && !passage.coupee ? echecs.filter((ligne) => COUPEE_SANS_ECHEC.test(ligne)) : [];
   const coupee = coupees.length === echecs.length ? coupees[0] : undefined;
-  return {
+  const gates: Gates = {
     // Le plafond de durée n'est pas jugé ici : il a été mesuré sur le poste de
     // ceux qui écrivent la suite, pas sur la machine du runtime. Des gates dont
     // il est le seul rouge sont vertes, et leur dépassement se lit.
@@ -258,4 +289,5 @@ export async function jouerGates(demande: DemandeScript): Promise<Gates> {
     ...(mesures.length === 0 ? {} : { measures: Object.fromEntries(mesures.slice(-MESURES_MAX)) }),
     ...(masques === 0 ? {} : { credentialsMasked: masques }),
   };
+  return { gates, cout };
 }

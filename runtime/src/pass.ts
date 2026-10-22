@@ -97,7 +97,8 @@ import { LancementRefuse, type CookLance, type GardeFous, type Verdict as Verdic
 import { REJOUER_LA_BASE } from "./dire-base.ts";
 import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.ts";
 import { envelopper, type Cloison } from "./cloison.ts";
-import { aDesGates, jouerGates, SCRIPT_GATES, type DemandeScript } from "./gates.ts";
+import { aDesGates, jouerGatesMesurees, SCRIPT_GATES, type DemandeScript } from "./gates.ts";
+import { noterCoutDesGates } from "./cout-des-gates.ts";
 import { constaterExtinction, direExtinction } from "./grant.ts";
 import { VARIABLES_GITHUB } from "./identites.ts";
 import type { GitHub, PR } from "./github.ts";
@@ -455,6 +456,14 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   let arrete = false;
   let aRefaire = false;
   const abandon = new AbortController();
+  // Joue les gates, et écrit au journal ce que leur passage a coûté — sauf si
+  // le runtime s'arrête pendant : coupées par lui, elles n'ont rien dit de
+  // leur coût. `ticket` : nul pour les gates de la base.
+  const jouerGates = async (ticket: number | null, demande: DemandeScript) => {
+    const { gates, cout } = await jouerGatesMesurees(demande);
+    if (!arrete) noterCoutDesGates(journal, { projet, ticket, coureur: "pass", auteur: AUTEUR, gates, cout });
+    return gates;
+  };
   // Cache, pas état : les gates déjà jouées sur la fusion d'un commit avec une
   // base, le temps que sa CI conclue. Le perdre coûte de les rejouer.
   const gatesJouees = new Map<number, { sha: string; base: string; gates: Gates; arbre: string }>();
@@ -1576,7 +1585,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
           );
         }
         const chargeAuDepart = sature();
-        gates = await jouerGates({ worktree, ticket, ...secrets, interdites, delaiMs: options.delaiGatesMs, cloison: options.cloison, signal: abandon.signal });
+        gates = await jouerGates(ticket, { worktree, ticket, ...secrets, interdites, delaiMs: options.delaiGatesMs, cloison: options.cloison, signal: abandon.signal });
         // Parti pendant ses gates, le ticket n'a plus de verdict à recevoir.
         if (arrete || !enPass(ticket)) return;
         // Coupées par leur garde d'horloge sans aucun test en échec, sur une
@@ -1945,7 +1954,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       panne = message(erreur).replace(/\s+/g, " ").trim().slice(0, PANNE_MAX);
     }
     try {
-      if (essai !== null && aDesGates(essai)) gates = await jouerGates({ worktree: essai, ticket: 0, ...pourLesGates(essai), interdites, delaiMs: options.delaiGatesMs, cloison: options.cloison, signal: abandon.signal });
+      if (essai !== null && aDesGates(essai)) gates = await jouerGates(null, { worktree: essai, ticket: 0, ...pourLesGates(essai), interdites, delaiMs: options.delaiGatesMs, cloison: options.cloison, signal: abandon.signal });
     } catch (erreur) {
       // Sans leurs secrets, les gates de la base ne sont pas jouées : un
       // contrôle non joué, avec son motif.

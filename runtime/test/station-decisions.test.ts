@@ -22,6 +22,8 @@ const GESTES = [
   ["seuil-perdus", "BRIGADE_DRIFT_LOST_TOKENS", "200000", "100000"],
   ["seuil-renvois", "BRIGADE_DRIFT_FIRST_TRY_PERCENT", "50", "40"],
   ["fenetre-renvois", "BRIGADE_DRIFT_FIRST_TRY_WINDOW", "10", "12"],
+  ["budget-gates", "BRIGADE_GATES_BUDGET_SECONDS", "120", "90"],
+  ["budget-gates-cpu", "BRIGADE_GATES_BUDGET_CPU_SECONDS", "500", "300.5"],
   ["manager-modele", "BRIGADE_MANAGER_MODEL", "sonnet", "opus"],
   ["manager-effort", "BRIGADE_MANAGER_EFFORT", "medium", "high"],
   ["reviewer-modele", "BRIGADE_REVIEWER_MODEL", "haiku", "sonnet"],
@@ -35,7 +37,7 @@ const GESTES = [
   ["ceiling-effort", "BRIGADE_CEILING_EFFORT", "medium", "xhigh"],
 ] as const;
 // Les décisions qui ont un défaut, et lui.
-const DEFAUTS: Partial<Record<string, string>> = { BRIGADE_CEILING_MODEL: "opus", BRIGADE_CEILING_EFFORT: "high" };
+const DEFAUTS: Partial<Record<string, string>> = { BRIGADE_CEILING_MODEL: "opus", BRIGADE_CEILING_EFFORT: "high", BRIGADE_GATES_BUDGET_SECONDS: "100", BRIGADE_GATES_BUDGET_CPU_SECONDS: "400" };
 
 // Un journal où le runtime a déjà tourné : une station s'y est annoncée.
 function journalDuProjet(t: TestContext) {

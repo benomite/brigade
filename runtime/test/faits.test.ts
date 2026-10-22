@@ -496,7 +496,14 @@ test("la commande rend la forme sur une seule ligne de JSON, sans rien écrire a
   assert.equal(lignes.length, 2);
   assert.equal(lignes[1], "");
   const forme = JSON.parse(lignes[0] ?? "");
-  assert.deepEqual(Object.keys(forme), ["etat", "lu", "dernierTick", "compteurs", "dernierEvenement", "rail", "cooks", "attend", "livres", "urgence", "stations", "plafondDeCalibrage", "triage", "activiteCuisine", "rolesCuisine"]);
+  assert.deepEqual(Object.keys(forme), ["etat", "lu", "dernierTick", "compteurs", "dernierEvenement", "rail", "cooks", "attend", "livres", "urgence", "stations", "plafondDeCalibrage", "triage", "activiteCuisine", "rolesCuisine", "coutDesGates"]);
+  // Aucune gate jouée, aucun budget posé : le défaut, rien de dépassé, un jour à zéro.
+  assert.deepEqual(forme.coutDesGates, {
+    budget: { durationSeconds: 100, cpuSeconds: 400, parLeChef: { durationSeconds: false, cpuSeconds: false } },
+    latest: null,
+    overBudget: false,
+    lastDay: { runs: 0, durationSeconds: 0, cpuSeconds: 0 },
+  });
   // Sept jours (UTC), le dernier est aujourd'hui ; aucun triage n'a eu lieu : chaque jour est à zéro, jamais absent.
   assert.equal(forme.triage.length, 7);
   assert.ok(forme.triage.every((jour: { decidedAlone: number; sentToTodo: number }) => jour.decidedAlone === 0 && jour.sentToTodo === 0));

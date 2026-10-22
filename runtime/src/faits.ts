@@ -17,6 +17,7 @@ import { apprentissageDuProjet } from "./apprentissage/projet.ts";
 import { cartesDeProfil } from "./profils/cartes.ts";
 import { decisionsPosees } from "./decisions.ts";
 import { configPlafond } from "./reagir.ts";
+import { coutDuProjet, lireBudget } from "./cout-des-gates.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run facts";
 
@@ -70,7 +71,10 @@ export function principal({ args, env, dire, redire }: Appel): void {
     const activiteCuisine = activiteDeLaCuisine(journal.base, projet || projetDuJournal || "", maintenant);
     // Les rôles de la cuisine du projet, chacun avec sa ligne et sa dernière action — nulle s'il n'a rien fait.
     const rolesCuisine = rolesDeLaCuisine(journal.base, projet || projetDuJournal || "");
-    dire(JSON.stringify({ ...forme, plafondDeCalibrage, triage, activiteCuisine, rolesCuisine, ...(corrections.length === 0 ? {} : { corrections }), ...(reculs.length === 0 ? {} : { reculs }), ...(profils.length === 0 ? {} : { profils }), ...(appris ? { apprentissage } : {}) }));
+    // Ce que coûtent les gates du projet face à son budget — posé par le chef,
+    // ou son défaut : le dernier passage, son dépassement, le dernier jour.
+    const coutDesGates = coutDuProjet(journal.base, projet || projetDuJournal || "", lireBudget(decisionsPosees(journal.base)), maintenant);
+    dire(JSON.stringify({ ...forme, plafondDeCalibrage, triage, activiteCuisine, rolesCuisine, coutDesGates, ...(corrections.length === 0 ? {} : { corrections }), ...(reculs.length === 0 ? {} : { reculs }), ...(profils.length === 0 ? {} : { profils }), ...(appris ? { apprentissage } : {}) }));
   } catch (erreur) {
     // En lecture seule, rien ne crée les tables d'un journal écrit par un
     // runtime d'avant ces projections, ni ne leur donne leur forme du jour.
