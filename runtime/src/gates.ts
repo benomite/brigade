@@ -232,7 +232,12 @@ function plafondFranchi(lignes: string[]): Depassement | null {
 // utilisateur puis système, `0m1.234s` —, en millisecondes. Null s'il ne l'a
 // pas dit : le shell est mort avant, avec les gates.
 export function processeurDit(canal: string): number | null {
-  const enfants = canal.trim().split("\n")[1] ?? "";
+  return processeurDesEnfants(canal.trim().split("\n")[1] ?? "");
+}
+
+// De même, de la seule ligne des enfants — celle que le reçu d'un cook garde
+// (`gates-du-cook.ts`).
+export function processeurDesEnfants(enfants: string): number | null {
   const temps = [...enfants.matchAll(/(\d+)m(\d+(?:[.,]\d+)?)s/g)].map(([, minutes, secondes]) => Number(minutes) * 60 + lire(secondes));
   if (temps.length !== 2 || temps.some((valeur) => !Number.isFinite(valeur))) return null;
   return Math.round((temps[0]! + temps[1]!) * 1000);

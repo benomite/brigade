@@ -272,6 +272,27 @@ what it exports does — except `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` and
 `CLAUDE_CODE_OAUTH_TOKEN`, which the station removes. **The secrets the repository declares reach
 it**, masked in what it says. **It leaves nothing running** in the background.
 
+### The cook's gates reach the log
+
+The cook plays the gates in its own shell; the runtime does not play them for it. So that what they
+said reaches the log, **the station gives it a launcher** (`runtime/src/gates-du-cook.ts`):
+`<clone>/.git/brigade/gates-du-cook`, written before each local cook of a project that has gates —
+the partition gives the clone's `.git` to the cook, writable — and named in its instructions (first
+cook, continuation, send-back, resumed session): « Les gates du dépôt, joue-les par
+`<launcher> <ton worktree>` plutôt que par leur script… ». The launcher plays
+`.claude/brigade/gates.sh <worktree>` as is — its output and its exit code are the script's — and
+leaves a **receipt** in the worktree's own git directory (`brigade-gates.recus`), which nothing
+commits and which leaves with the worktree: the tree it judged, read in a separate index before the
+gates leave — uncommitted work included, the cook's index untouched —, the exit code, the wall-clock
+time and the CPU of the script and what it waited for (`times`).
+
+**At the end of the cook**, before its delivery goes to the pass, the station writes one `gates.ran`
+per receipt — `runner: cook`, `green` for exit code 0 and `red` otherwise, with its `tree` and the
+`config` read in the worktree as the cook leaves it — and erases the receipts. The pass reuses the
+latest green one if it judged exactly that tree: see "The same gates are not played twice on the
+same code" in [`pass.md`](pass.md). A cook that plays the script without the launcher, a remote
+station's cook, an unreadable receipt: nothing reaches the log, and the pass plays its gates.
+
 ### Calibrating a ticket
 
 **No cook leaves without a calibration**, set on the issue by two labels — by the manager if it is

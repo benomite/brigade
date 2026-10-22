@@ -413,12 +413,17 @@ of `status` reminds you. Nothing is stopped, no issue is opened.
 
 **Each run of a project's gates writes what it cost** to the log, `gates.ran`
 (`runtime/src/events/gates.ts`): the project and the ticket in its envelope — no ticket for the gates
-of the base —, the time of the record, `runner` (who ran them: `pass` today — the runtime runs no
-gates for a cook yet, the value is ready for when it does), `outcome`, `durationMs` — the
+of the base —, the time of the record, `runner` (who ran them: `pass`, or `cook` — the cook's own runs,
+played through the station's launcher and written at the end of the cook, see "The cook's gates
+reach the log" in [`station.md`](station.md)), `outcome`, `durationMs` — the
 wall-clock time of the gates script, the worktree setup not counted — and `cpuMs` — user + system CPU
 of the script **and of every process it waited for**, workers of the test runner included, read by
 `times` from the shell that waits for the script. Gates cut at their cap, or by the runtime stopping,
 take their CPU with them: `cpuMs` is then `null`. A setup that fails launches no gates and writes nothing.
+`tree` and `config` are the fingerprint of what the run judged — the code tree, and a digest of the
+gates configuration —: the pass reuses a green run on the same fingerprint instead of playing its
+gates, and that reuse writes **no** `gates.ran`, so it costs nothing here (see "The same gates are
+not played twice on the same code" in [`pass.md`](pass.md)).
 
 **The budget is per project, a chef's decision**, set by gesture and read without a restart:
 `station budget-gates <seconds>` (wall-clock duration) and `station budget-gates-cpu <seconds>` (CPU).
