@@ -5,7 +5,9 @@
 //
 // Un test est touché quand un fichier modifié est dans sa fermeture : ce qu'il
 // importe, ce qu'il nomme (un `src/main.ts` qu'il lance, un `docs/…` qu'il lit),
-// et de proche en proche ce que ces fichiers-là importent ou nomment. Un fichier
+// et de proche en proche ce que ses helpers importent ou nomment — sans entrer
+// dans le code du produit : ce qu'un module du produit importe à son tour n'est
+// pas suivi. Ce qui casse de loin se voit sur la base, où tout se joue. Un fichier
 // modifié qui n'est ni du code ni un test (une page de doc, un script, un
 // manifest) touche les fichiers qui citent son nom.
 // Tout jouer quand le doute est permis : aucun fichier modifié (la base
@@ -80,7 +82,10 @@ function fermeture(depart) {
     for (const g of aretes.get(pile.pop()) ?? []) {
       if (!vu.has(g)) {
         vu.add(g);
-        pile.push(g);
+        // Seuls les fichiers sous test/ se suivent : le code du produit est une
+        // feuille. Un test est touché par ce que lui ou ses helpers utilisent
+        // directement ; ce qui n'en dépend que de loin se rattrape sur la base.
+        if (/^(runtime|app)\/test\//.test(g)) pile.push(g);
       }
     }
   }

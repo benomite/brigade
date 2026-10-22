@@ -50,6 +50,15 @@ const SANS_EFFET: Record<string, { args?: string[]; dit: RegExp }> = {
 };
 const refusDe = (nom: string) => SANS_EFFET[nom] ?? { dit: new RegExp(`run ${nom}\\b`) };
 
+// Le refus de chaque commande sous son nom anglais, lancé une fois : le test du nom anglais et celui de l'ancien nom
+// (qui le compare au sien) lisent la même fin. Rien n'est écrit, la fin ne dépend que de la commande.
+const refusSousSonNom = new Map<string, ReturnType<typeof jouer>>();
+const sousSonNom = (nom: string) => {
+  const fin = refusSousSonNom.get(nom) ?? npm(nom, refusDe(nom).args);
+  refusSousSonNom.set(nom, fin);
+  return fin;
+};
+
 // Chaque test lance ses commandes sans état ni dépôt, et n'écrit rien : ils se jouent de front.
 describe("les commandes du runtime", { concurrency: 8 }, () => {
   test("chaque commande du runtime est dans la table, sous son nom anglais ; chaque ancien nom y est, et son script ne fait que l'annoncer", () => {
@@ -64,7 +73,7 @@ describe("les commandes du runtime", { concurrency: 8 }, () => {
   });
 
   test("taper le nom anglais lance la commande : son propre refus, son usage, et aucun ancien nom annoncé", async () => {
-    const lancees = COMMANDES.filter(({ nom }) => nom !== "help").map(async ({ nom }) => ({ nom, fin: await npm(nom, refusDe(nom).args) }));
+    const lancees = COMMANDES.filter(({ nom }) => nom !== "help").map(async ({ nom }) => ({ nom, fin: await sousSonNom(nom) }));
     for (const { nom, fin } of await Promise.all(lancees)) {
       assert.equal(fin.code, REFUS, `${nom} : ${fin.erreur}`);
       assert.match(fin.sortie + fin.erreur, refusDe(nom).dit, nom);
@@ -73,7 +82,7 @@ describe("les commandes du runtime", { concurrency: 8 }, () => {
   });
 
   test("un ancien nom de commande lance encore la commande : il dit d'abord le nouveau nom et le jour où il cessera de répondre, puis rend ce qu'elle rend, code compris", async () => {
-    const lancees = RENOMMEES.map(async ({ nom, ancien = "" }) => ({ nom, ancien, avant: await npm(ancien, refusDe(nom).args), apres: await npm(nom, refusDe(nom).args) }));
+    const lancees = RENOMMEES.map(async ({ nom, ancien = "" }) => ({ nom, ancien, avant: await npm(ancien, refusDe(nom).args), apres: await sousSonNom(nom) }));
     for (const { nom, ancien, avant, apres } of await Promise.all(lancees)) {
       const [annonce, ...reste] = avant.erreur.split("\n");
       assert.equal(annonce, `brigade: “${ancien}” is now “${nom}” — the old name still works until ${FIN_DES_ANCIENS_NOMS}, then stops (CHANGELOG.md)`, ancien);

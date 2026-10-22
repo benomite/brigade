@@ -574,7 +574,11 @@ export function cuisine(t: TestContext, options: Options = {}) {
   };
   const bin = options.bin ?? FAUX_CLAUDE;
 
-  const socle = demarrer({ repertoireEtat: repertoire, projet: options.projet ?? "brigade", intervalleVeilleMs: 5, intervalleTickMs: 20, maintenant: heure.maintenant });
+  // Chaque réveil relit le rail, les stations et le journal : toutes les 5 ms
+  // (20 ms pour le tick), c'était l'essentiel du processeur des fichiers de
+  // cuisine. Les tests attendent des faits, pas des durées : 20 ms de veille
+  // et 100 ms de tick ne coûtent que quelques millisecondes par fait attendu.
+  const socle = demarrer({ repertoireEtat: repertoire, projet: options.projet ?? "brigade", intervalleVeilleMs: 20, intervalleTickMs: 100, maintenant: heure.maintenant });
   const stations = options.stations ?? [{ nom: STATION, moteur: "claude", fournit: ["code"], cooks: options.cooks ?? 1 }];
   // Les décisions du chef, posées au journal : leur seul support.
   const decisions = options.decisions

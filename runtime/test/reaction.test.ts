@@ -13,6 +13,7 @@ import { etatDesGardeFous } from "../src/projections/guardrails.ts";
 import { passDuTicket } from "../src/projections/pass.ts";
 import { reactionDe } from "../src/projections/reactions.ts";
 import { chef, cuisine, issue, STATION, type Options } from "./aides/cuisine.ts";
+import { partagee } from "./aides/opt-C-partage.ts";
 import { jusqua } from "./outils.ts";
 
 type Charge = Record<string, unknown>;
@@ -40,6 +41,10 @@ function echec(t: TestContext, options: Options & { eteint?: boolean } = {}) {
 }
 
 describe("le manager réagit à un échec", { concurrency: 8 }, () => {
+  // Le ticket rouge que le manager remonte tel quel : trois tests le lisent
+  // sans rien y changer — il n'est joué qu'une fois pour eux trois.
+  const remonteTelQuel = partagee(3, (t) => echec(t, { issues: [issue(17)] }));
+
   test("éteint, rien ne change : deux renvois au même calibrage, puis la pass remonte au chef", async (t) => {
     const c = echec(t, { eteint: true, issues: [issue(17)], manager: { plafond: { model: "opus", effort: "max" } } });
     await c.jusquAu("pass.escalated", 17);
@@ -133,7 +138,7 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
   });
 
   test("le chef n'est sollicité qu'en dernier recours, et reçoit de quoi trancher : ce qui a été tenté, ce qui a échoué, ce que le manager propose", async (t) => {
-    const c = echec(t, { issues: [issue(17)] });
+    const c = remonteTelQuel(t);
     await c.jusquAu("pass.escalated", 17);
     await jusqua(() => c.dits(17).some((dit) => /remontée au chef/.test(dit)));
 
@@ -172,7 +177,7 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
   });
 
   test("un rouge sans choix de produit ni geste ne produit jamais de carte : il est remonté tel quel, et le manager le dit", async (t) => {
-    const c = echec(t, { issues: [issue(17)] });
+    const c = remonteTelQuel(t);
     await c.jusquAu("pass.escalated", 17);
     await jusqua(() => c.dits(17).some((dit) => /remontée au chef/.test(dit)));
 
@@ -380,7 +385,7 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
   });
 
   test("la réaction en cours se relit dans le journal : le chef y lit le choix et son motif", async (t) => {
-    const c = echec(t, { issues: [issue(17)] });
+    const c = remonteTelQuel(t);
     // Le ticket est 86 d'abord, le commentaire suit : il ne dit rien qui n'ait eu lieu.
     await jusqua(() => reactionDe(c.journal.base, 17)?.choice === "escalate" && reactionDe(c.journal.base, 17)?.commented === true);
 

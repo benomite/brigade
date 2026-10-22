@@ -4,13 +4,14 @@ import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { availableParallelism } from "node:os";
 import { join } from "node:path";
-import { describe, test, type TestContext } from "node:test";
+import { after, describe, test, type TestContext } from "node:test";
 import { ouvrirArbitre, servirArbitre } from "../src/arbitre.ts";
 import { empreinteDuCode, lireCodeEnService } from "../src/code.ts";
 import { ROLES } from "../src/identites.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { lireRail } from "../src/projections/rail.ts";
 import { fauxGitHubApps } from "./aides/faux-github-apps.ts";
+import { relecteur } from "./aides/opt-B-journal.ts";
 import { aArreter, BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancementsDuFauxClaude, lancer, mort, repertoireDuFichier, repertoireTemporaire, rienEcritParLeRuntime, SANS_RESEAU, temporaireDuFichier, tuerLesRelais, vivant } from "./outils.ts";
 
 const rienNeReste = temporaireDuFichier();
@@ -59,34 +60,72 @@ function cloneInerte(): string {
   return inerte;
 }
 
+// Les attentes sondent le journal toutes les cinq millisecondes : il n'est
+// relu que quand le runtime y a écrit. Les connexions gardées se ferment avec
+// le fichier.
+const lecteur = relecteur();
+after(() => lecteur.fermer());
+
 function relire(repertoire: string) {
-  const journal = ouvrirJournal(repertoire, { lectureSeule: true });
-  try {
-    // Les décisions du chef sont posées avant le démarrage : elles ne sont pas
-    // ce que le runtime écrit.
-    return journal.tout().filter((e) => e.type !== "decision.set");
-  } finally {
-    journal.fermer();
-  }
+  // Les décisions du chef sont posées avant le démarrage : elles ne sont pas
+  // ce que le runtime écrit.
+  return lecteur.lire(repertoire, "tout", (journal) => journal.tout()).filter((e) => e.type !== "decision.set");
+}
+
+// Le runtime lancé sur son seul environnement, sans rien de plus : plusieurs
+// tests lisent ce qu'il dit et écrit en démarrant, en tournant et en
+// s'arrêtant. Un seul process le leur montre — lancé par le premier qui le
+// demande, relevé à chaque étape, puis arrêté par SIGTERM — et chacun ne lit
+// que ce relevé : aucun ne dépend de l'ordre où les autres se jouent. Les
+// lieux sont ceux du premier test, qui attend le relevé entier avant de finir.
+type Releve = {
+  // Au démarrage : la sortie, le journal, et l'empreinte du code en service.
+  sortie: string;
+  journal: ReturnType<typeof relire>;
+  codeEnService: ReturnType<typeof lireCodeEnService>;
+  // Une fois GitHub sondé : sous quels jetons, et si le compte sans identité existe.
+  jetons: Array<string | null>;
+  sansCompte: boolean;
+  // Après SIGTERM : le code de sortie, la sortie et le journal entiers.
+  code: number | null;
+  sortieFinale: string;
+  journalFinal: ReturnType<typeof relire>;
+};
+let releve: Promise<Releve> | undefined;
+function runtimeParDefaut(t: TestContext): Promise<Releve> {
+  releve ??= (async () => {
+    const repertoire = repertoireTemporaire(t);
+    const gh = fauxGh(t);
+    gh.issues([]);
+    const runtime = lancer(t, MAIN, [], environnement(t, repertoire, gh));
+    await runtime.attendre("démarré");
+    const sortie = runtime.sortie();
+    const journal = relire(repertoire);
+    const codeEnService = lireCodeEnService(repertoire);
+    await jusqua(() => gh.jetons().length > 0);
+    const jetons = gh.jetons();
+    const sansCompte = existsSync(join(repertoire, "gh-sans-compte"));
+    runtime.process.kill("SIGTERM");
+    const code = await runtime.fin;
+    return { sortie, journal, codeEnService, jetons, sansCompte, code, sortieFinale: runtime.sortie(), journalFinal: relire(repertoire) };
+  })();
+  return releve;
 }
 
 // Chaque test a son état, son dépôt et son GitHub, et écoute sur le port 0 : ils se jouent de front.
 describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
   test("le runtime démarre, tourne, et s'arrête proprement sur SIGTERM", async (t) => {
-    const repertoire = repertoireTemporaire(t);
-    const runtime = lancer(t, MAIN, [], environnement(t, repertoire));
-    await runtime.attendre("démarré");
-    assert.deepEqual(relire(repertoire).map((e) => e.type), ["runtime.started", "guard.configured", "station.announced", "drift.configured", "session.observed", "isolation.configured"]);
+    const runtime = await runtimeParDefaut(t);
+    assert.deepEqual(runtime.journal.map((e) => e.type), ["runtime.started", "guard.configured", "station.announced", "drift.configured", "session.observed", "isolation.configured"]);
 
     // Ce qu'une autre commande lira pour dire s'il tourne sur le code installé.
-    assert.equal(lireCodeEnService(repertoire), empreinteDuCode());
+    assert.equal(runtime.codeEnService, empreinteDuCode());
 
-    runtime.process.kill("SIGTERM");
-
-    assert.equal(await runtime.fin, 0);
-    assert.match(runtime.sortie(), /arrêté/);
+    // Le relevé a envoyé SIGTERM.
+    assert.equal(runtime.code, 0);
+    assert.match(runtime.sortieFinale, /arrêté/);
     assert.deepEqual(
-      relire(repertoire).map((e) => [e.type, e.project, e.author]),
+      runtime.journalFinal.map((e) => [e.type, e.project, e.author]),
       [
         ["runtime.started", "brigade", "runtime"],
         ["guard.configured", "brigade", "runtime"],
@@ -135,13 +174,11 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
   });
 
   test("sans cloison ni porte, le runtime le dit au démarrage et l'écrit : les projets se voient", async (t) => {
-    const repertoire = repertoireTemporaire(t);
-    const runtime = lancer(t, MAIN, [], environnement(t, repertoire));
-    await runtime.attendre("démarré");
+    const runtime = await runtimeParDefaut(t);
 
-    assert.match(runtime.sortie(), /brigade : cloison — none \(BRIGADE_SANDBOX_BIN is not set\): a cook reads everything the service account reads — the state, the clone, the worktrees and the secrets of the other projects included/);
-    assert.match(runtime.sortie(), /brigade : réseau — open \(BRIGADE_PROXY_PORT is not set\): a cook reaches everything the machine reaches/);
-    assert.deepEqual(relire(repertoire).find((e) => e.type === "isolation.configured")?.payload, { sandbox: null, proxy: null });
+    assert.match(runtime.sortie, /brigade : cloison — none \(BRIGADE_SANDBOX_BIN is not set\): a cook reads everything the service account reads — the state, the clone, the worktrees and the secrets of the other projects included/);
+    assert.match(runtime.sortie, /brigade : réseau — open \(BRIGADE_PROXY_PORT is not set\): a cook reaches everything the machine reaches/);
+    assert.deepEqual(runtime.journal.find((e) => e.type === "isolation.configured")?.payload, { sandbox: null, proxy: null });
   });
 
   test("avec une cloison, le runtime dit ce qu'elle masque, et le journal le garde pour le chef", async (t) => {
@@ -248,12 +285,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
   }
 
   function lireLeRail(repertoire: string) {
-    const journal = ouvrirJournal(repertoire, { lectureSeule: true });
-    try {
-      return lireRail(journal.base);
-    } finally {
-      journal.fermer();
-    }
+    return lecteur.lire(repertoire, "rail", (journal) => lireRail(journal.base)).slice();
   }
 
   test("un projet qui déclare deux stations démarre avec les deux : chacune s'annonce, avec son plafond, et le runtime les dit", async (t) => {
@@ -573,22 +605,17 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
   });
 
   test("sans Apps, le runtime dit qu'il tourne sous l'identité unique de la machine", async (t) => {
-    const repertoire = repertoireTemporaire(t);
-    const gh = fauxGh(t);
-    gh.issues([]);
-    const runtime = lancer(t, MAIN, [], environnement(t, repertoire, gh));
-    await runtime.attendre("démarré");
+    const runtime = await runtimeParDefaut(t);
 
-    assert.match(runtime.sortie(), /GitHub — identité unique, celle du `gh` de la machine : rien ne réserve le merge à la pass/);
-    await jusqua(() => gh.jetons().length > 0);
-    assert.deepEqual([...new Set(gh.jetons())], [null]);
-    assert.equal(existsSync(join(repertoire, "gh-sans-compte")), false);
+    assert.match(runtime.sortie, /GitHub — identité unique, celle du `gh` de la machine : rien ne réserve le merge à la pass/);
+    // Relevés une fois GitHub sondé.
+    assert.deepEqual([...new Set(runtime.jetons)], [null]);
+    assert.equal(runtime.sansCompte, false);
   });
 
   test("le runtime dit au démarrage où vivent les secrets du projet, ou qu'il n'en a pas", async (t) => {
-    const sans = lancer(t, MAIN, [], environnement(t, repertoireTemporaire(t)));
-    await sans.attendre("démarré");
-    assert.match(sans.sortie(), /secrets du projet — aucun \(BRIGADE_SECRETS_FILE n'est pas défini\)/);
+    const sans = await runtimeParDefaut(t);
+    assert.match(sans.sortie, /secrets du projet — aucun \(BRIGADE_SECRETS_FILE n'est pas défini\)/);
 
     const fichier = join(repertoireTemporaire(t), "secrets.env");
     writeFileSync(fichier, "CLE_API=une-valeur-de-dev\n", { mode: 0o600 });
@@ -609,12 +636,11 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
   });
 
   test("sans jeton, le runtime démarre sur la connexion du compte et le dit", async (t) => {
-    const runtime = lancer(t, MAIN, [], environnement(t, repertoireTemporaire(t)));
-    await runtime.attendre("démarré");
+    const runtime = await runtimeParDefaut(t);
 
-    assert.match(runtime.sortie(), /connection of `claude` — the account's own \(BRIGADE_CLAUDE_TOKEN_FILE is not set\)$/m);
-    runtime.process.kill("SIGTERM");
-    assert.equal(await runtime.fin, 0);
+    assert.match(runtime.sortie, /connection of `claude` — the account's own \(BRIGADE_CLAUDE_TOKEN_FILE is not set\)$/m);
+    // Le relevé a envoyé SIGTERM.
+    assert.equal(runtime.code, 0);
   });
 
   test("un fichier de jeton rangé dans l'état du runtime fait refuser de démarrer, sans laisser de journal", async (t) => {
