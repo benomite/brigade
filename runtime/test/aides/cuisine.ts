@@ -25,7 +25,7 @@ import { PLAFOND_PAR_DEFAUT, type Plafond } from "../../src/reagir.ts";
 import { demarrer } from "../../src/runtime.ts";
 import { brancherStation } from "../../src/station.ts";
 import { ecrireStation, type StationDeclaree } from "../../src/stations-declarees.ts";
-import { aArreter as finDuTest, BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, lancementsDuFauxBwrap, lancementsDuFauxClaude, repertoireTemporaire, tuerLesRelais } from "../outils.ts";
+import { aArreter as finDuTest, BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, lancementsDuFauxBwrap, lancementsDuFauxClaude, poserJournalVide, repertoireTemporaire, tuerLesRelais } from "../outils.ts";
 
 const FAUSSES_GATES = join(import.meta.dirname, "fausses-gates.sh");
 const FAUX_SETUP = join(import.meta.dirname, "faux-setup.sh");
@@ -577,6 +577,9 @@ export function cuisine(t: TestContext, options: Options = {}) {
   };
   const bin = options.bin ?? FAUX_CLAUDE;
 
+  // Un répertoire neuf reçoit le journal vide que le fichier a fabriqué une
+  // fois : poser tout le schéma coûte plus que l'ouvrir, à chaque cuisine.
+  if (options.lieux === undefined) poserJournalVide(repertoire);
   // Chaque réveil relit le rail, les stations et le journal : toutes les 5 ms
   // (20 ms pour le tick), c'était l'essentiel du processeur des fichiers de
   // cuisine. Les tests attendent des faits, pas des durées : 20 ms de veille

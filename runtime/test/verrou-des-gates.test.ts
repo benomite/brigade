@@ -30,8 +30,9 @@ function jouer(t: TestContext, racine: string, verrou: string): Passage {
   return { process: gates, sortie: () => sortie, fin };
 }
 
-// Une suite qui signale son départ, puis attend qu'on la libère.
-const suiteRetenue = (signal: string, libere: string) => `touch ${signal}; while [ ! -e ${libere} ]; do sleep 0.1; done`;
+// Une suite qui signale son départ, puis attend qu'on la libère — et dit
+// qu'elle l'a vu (`<libere>.vu`) avant de finir.
+const suiteRetenue = (signal: string, libere: string) => `touch ${signal}; while [ ! -e ${libere} ]; do sleep 0.1; done; touch ${libere}.vu`;
 
 describe("le tour des gates sur une box", () => {
   test("le second passage n'exécute ses tests qu'une fois le premier fini, et dit combien il a attendu", async (t) => {
@@ -63,8 +64,13 @@ describe("le tour des gates sur une box", () => {
     const signalA = join(repertoireTemporaire(t), "a");
     const signalB = join(repertoireTemporaire(t), "b");
     const libere = join(repertoireTemporaire(t), "libere");
-    // La suite du passage tué lui survit : on la libère en fin de test.
-    aArreter(t, () => writeFileSync(libere, ""));
+    // La suite du passage tué lui survit : on la libère en fin de test, et on
+    // attend qu'elle l'ait vu. Sans quoi le répertoire de `libere` peut
+    // disparaître avant son prochain coup d'œil, et elle sonde pour toujours.
+    aArreter(t, async () => {
+      writeFileSync(libere, "");
+      if (existsSync(signalA)) await jusqua(() => existsSync(`${libere}.vu`));
+    });
     const a = projet(t, suiteRetenue(signalA, libere));
     const b = projet(t, `touch ${signalB}`);
 
