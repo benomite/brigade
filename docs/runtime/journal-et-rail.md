@@ -77,7 +77,7 @@ read in French by the runtime today, and stays French until the runtime renames 
 |---|---|---|
 | `queued … awaiting #12, #13` | #12 and #13 are not served yet | nothing: once the last is served, it leaves by itself |
 | `BLOCKED … #12 dropped (…)` | #12 left the rail **without having been served** | put #12 back on the rail (open issue, `fire`), or remove its number from the `attend` line |
-| `BLOCKED … blocked by #12 (86 with no return time, not judged by the pass)` | #12 is 86 with no return; this ticket waits for it (`attend`), or for its zone (`— zone held: <path>`) | settle #12: it is judged, given back or withdrawn, and this ticket leaves by itself |
+| `BLOCKED … blocked by #12 (86 with no return time, not judged by the pass)` | #12 is 86 with no return; this ticket waits for it (`attend`) — never for its zone: a ticket 86 holds none | settle #12: it is judged, given back or withdrawn, and this ticket leaves by itself |
 
 - **Served means its delivery is merged** — by the pass or by you, including on a ticket escalated
   to 86. An issue closed by hand, or delivered by a PR the runtime did not open, is not served: it
@@ -221,8 +221,8 @@ The old words (`poser`, `reprendre`, `arrive`, `--quoi`, `--de`) still answer.
   comment set by hand. Auto mode judges it: no narrow rule names free arguments. Eval cases:
   `evals/second-met-en-attente`, `evals/second-met-en-attente-seul`.
 - **The kitchen never takes a WAITING ticket**: it is an 86 with no return time (the base of the
-  frozen ticket), with reason `third-party`. The readout does not give it back; it holds its zone
-  only if it carries an open delivery.
+  frozen ticket), with reason `third-party`. The readout does not give it back; like every 86, it
+  holds no zone, even with an open delivery — put back on the rail, it claims it again.
 - **`resume`** brings it back to TODO: in the state it was in before waiting if it had been set aside
   (its `attend` line comes back as it was), otherwise set aside for you (reason
   `third-party:resumed`), with what it was waiting for and your actions. It does not go to the
