@@ -147,6 +147,52 @@ export type OptionsGitHub = {
 
 type Reponse = { statut: number; entetes: Map<string, string>; corps: string };
 
+// Les lectures déjà faites, sous l'ETag que GitHub leur a donné : la même
+// lecture se redemande sous condition (`If-None-Match`), et tant que rien n'a
+// changé GitHub répond 304 — un appel qu'il ne compte pas dans son quota, ni la
+// box dans le sien. La réponse gardée ne sert que sur ce 304 : rien n'est lu
+// sans que GitHub ait dit, à cet appel, qu'elle est à jour. Cache, pas état :
+// propre au process et borné — les plus anciennement servies sortent d'abord —,
+// le perdre coûte une lecture pleine.
+const OCTETS_GARDES = 32 * 1024 * 1024;
+// Au-delà, une réponse ne se garde pas (un gros diff).
+const TAILLE_GARDEE = 1024 * 1024;
+// `pleine` : la dernière page d'une liste, remplie jusqu'à `per_page`. Une
+// entrée de plus irait sur une page suivante, que l'ETag de celle-ci ne dit
+// pas : elle se relit sans condition.
+type Gardee = { etag: string; reponse: Reponse; pleine: boolean };
+const gardees = new Map<string, Gardee>();
+let octetsGardes = 0;
+
+// Garde `gardee` sous `cle`, en dernière servie ; null l'oublie.
+function garder(cle: string, gardee: Gardee | null): void {
+  const avant = gardees.get(cle);
+  if (avant !== undefined) {
+    gardees.delete(cle);
+    octetsGardes -= avant.reponse.corps.length;
+  }
+  if (gardee === null) return;
+  gardees.set(cle, gardee);
+  octetsGardes += gardee.reponse.corps.length;
+  for (const [ancienne, lue] of gardees) {
+    if (octetsGardes <= OCTETS_GARDES) break;
+    gardees.delete(ancienne);
+    octetsGardes -= lue.reponse.corps.length;
+  }
+}
+
+// Vrai si `reponse` est la dernière page d'une liste remplie jusqu'à son `per_page`.
+function dernierePagePleine(chemin: string, reponse: Reponse): boolean {
+  if (pageSuivante(reponse) !== null) return false;
+  const parPage = Number(/[?&]per_page=(\d+)/.exec(chemin)?.[1] ?? 30);
+  try {
+    const corps = JSON.parse(reponse.corps) as unknown;
+    return Array.isArray(corps) && corps.length >= parPage;
+  } catch {
+    return false;
+  }
+}
+
 type IssueBrute = {
   number: number;
   title: string;
@@ -226,7 +272,7 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
   // (`identifiants.ts`).
   // Chaque page, chaque requête conditionnelle est un appel : un appel de la
   // cuisine que le quota réel retient ne part pas. Chaque réponse dit le quota
-  // qui reste.
+  // qui reste ; un 304, que GitHub ne compte pas, sort du compte de la box.
   const compte = options.compte ?? COMPTE_DE_LA_MACHINE;
   const appeler = async (brut: string[]): Promise<Reponse> => {
     const args = brut.map((arg) => masquerIdentifiants(arg).texte);
@@ -235,7 +281,7 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
     // la liste des process.
     let env: NodeJS.ProcessEnv | undefined;
     const environnement = async () => (env ??= options.jeton ? { ...process.env, GH_TOKEN: await options.jeton() } : undefined);
-    await prendreUnAppel(limite, { usage: options.usage, compte, etiquette: { projet: options.projet ?? (process.env.BRIGADE_PROJECT || depot), lecture: lectureDe(args, options.usage) }, gh: bin, env: environnement, maintenant: options.maintenant });
+    const appel = await prendreUnAppel(limite, { usage: options.usage, compte, etiquette: { projet: options.projet ?? (process.env.BRIGADE_PROJECT || depot), lecture: lectureDe(args, options.usage) }, gh: bin, env: environnement, maintenant: options.maintenant });
     await environnement();
     return new Promise((resoudre, rejeter) => {
       execFile(
@@ -245,6 +291,7 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
         (erreur, stdout, stderr) => {
           const reponse = decouper(stdout);
           if (reponse) noterLesEntetes(limite, compte, reponse.entetes);
+          if (reponse?.statut === 304) limite.rendre(appel);
           // La limite de GitHub atteinte n'est pas une réponse comme les autres :
           // elle suspend les appels, et ne passe jamais pour un refus (de merge).
           if (reponse && refusPourLimite(reponse)) constaterLimite(limite, reponse, { gh: bin, env, maintenant: options.maintenant }).then(rejeter, rejeter);
@@ -253,6 +300,31 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
         },
       );
     });
+  };
+
+  // Une lecture, sous condition si elle a déjà été faite : sur un 304, la
+  // réponse gardée. Deux lectures identiques en même temps n'en font qu'une.
+  // `liste` : une page d'une liste que l'on feuillette.
+  const enVol = new Map<string, Promise<Reponse>>();
+  const lireSousCondition = (args: string[], liste = false): Promise<Reponse> => {
+    const cle = [bin, compte, ...args].join("\0");
+    const deja = enVol.get(cle);
+    if (deja) return deja;
+    const lecture = (async () => {
+      const gardee = gardees.get(cle);
+      const condition = gardee === undefined || gardee.pleine ? [] : ["-H", `If-None-Match: ${gardee.etag}`];
+      const reponse = await appeler([...condition, ...args]);
+      if (reponse.statut === 304 && gardee !== undefined) {
+        garder(cle, gardee);
+        return gardee.reponse;
+      }
+      const etag = reponse.entetes.get("etag");
+      const gardable = reponse.statut === 200 && etag !== undefined && etag !== "" && reponse.corps.length <= TAILLE_GARDEE;
+      garder(cle, gardable ? { etag, reponse, pleine: liste && dernierePagePleine(args.at(-1) ?? "", reponse) } : null);
+      return reponse;
+    })().finally(() => enVol.delete(cle));
+    enVol.set(cle, lecture);
+    return lecture;
   };
 
   const exiger = (reponse: Reponse, chemin: string, attendu = 200): Reponse => {
@@ -266,14 +338,17 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
     return exiger(await appeler(["-X", "POST", ...args, chemin]), chemin, 201);
   };
 
-  // Une liste, page après page, à partir de sa première réponse.
+  // Une liste, page après page, à partir de sa première réponse — chaque page
+  // suivante sous condition, comme toute lecture.
   const feuilleter = async (premiere: Reponse, chemin: string): Promise<Reponse[]> => {
     const pages = [exiger(premiere, chemin)];
     for (let suivante = pageSuivante(premiere); suivante; suivante = pageSuivante(pages.at(-1))) {
-      pages.push(exiger(await appeler([suivante]), suivante));
+      pages.push(exiger(await lireSousCondition([suivante], true), suivante));
     }
     return pages;
   };
+  // Une liste lue de sa première page à sa dernière, sous condition.
+  const lireLaListe = async (chemin: string): Promise<Reponse[]> => feuilleter(await lireSousCondition([chemin], true), chemin);
 
   // Une liste d'issues, sous l'ETag de sa dernière lecture confirmée.
   const sonder = async <I extends Issue>(chemin: string, lireIssue: (brute: IssueBrute) => I): Promise<Sondage<I>> => {
@@ -299,7 +374,7 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
     ouvertes: () => sonder(`repos/${depot}/issues?state=open&per_page=100`, lireOuverte),
     async issue(numero) {
       const chemin = `repos/${depot}/issues/${numero}`;
-      const reponse = await appeler([chemin]);
+      const reponse = await lireSousCondition([chemin]);
       if (reponse.statut === 404 || reponse.statut === 410) return null;
       const brute = JSON.parse(exiger(reponse, chemin).corps) as IssueBrute;
       return { ...lire(brute), body: brute.body ?? "", author: brute.user?.login ?? "" };
@@ -317,6 +392,7 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
       return numero as number;
     },
     async issuesDepuis(instant) {
+      // Sans condition : son chemin change avec `instant`, aucune lecture ne s'y redemande.
       const chemin = `repos/${depot}/issues?state=all&since=${instant}&per_page=100`;
       const pages = await feuilleter(await appeler([chemin]), chemin);
       return pages
@@ -325,15 +401,13 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
         .map(lireOuverte);
     },
     async commentaires(numero) {
-      const chemin = `repos/${depot}/issues/${numero}/comments?per_page=100`;
-      const pages = await feuilleter(await appeler([chemin]), chemin);
+      const pages = await lireLaListe(`repos/${depot}/issues/${numero}/comments?per_page=100`);
       return pages
         .flatMap((page) => JSON.parse(page.corps) as CommentaireBrut[])
         .map((brut) => ({ body: brut.body ?? "", author: brut.user?.login ?? "", association: brut.author_association ?? "NONE", createdAt: brut.created_at ?? "" }));
     },
     async retraitsDeFire(numero) {
-      const chemin = `repos/${depot}/issues/${numero}/events?per_page=100`;
-      const pages = await feuilleter(await appeler([chemin]), chemin);
+      const pages = await lireLaListe(`repos/${depot}/issues/${numero}/events?per_page=100`);
       return pages
         .flatMap((page) => JSON.parse(page.corps) as EvenementBrut[])
         .filter((brut) => brut.event === "unlabeled" && brut.label?.name === LABEL && typeof brut.created_at === "string")
@@ -359,11 +433,11 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
     },
     async prDeBranche(branche) {
       const liste = `repos/${depot}/pulls?head=${depot.split("/")[0]}:${branche}&state=all&per_page=1`;
-      const [trouvee] = JSON.parse(exiger(await appeler([liste]), liste).corps) as PRBrute[];
+      const [trouvee] = JSON.parse(exiger(await lireSousCondition([liste]), liste).corps) as PRBrute[];
       if (!trouvee) return null;
       // La liste ne dit ni si la branche est en retard, ni qui a mergé : sa fiche, si.
       const chemin = `repos/${depot}/pulls/${trouvee.number}`;
-      const brute = JSON.parse(exiger(await appeler([chemin]), chemin).corps) as PRBrute;
+      const brute = JSON.parse(exiger(await lireSousCondition([chemin]), chemin).corps) as PRBrute;
       return {
         number: brute.number,
         url: brute.html_url,
@@ -378,7 +452,7 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
     async ci(sha) {
       const jobs = `repos/${depot}/commits/${sha}/check-runs?per_page=100`;
       const statuts = `repos/${depot}/commits/${sha}/status?per_page=100`;
-      const [runs, combine] = await Promise.all([appeler([jobs]), appeler([statuts])]);
+      const [runs, combine] = await Promise.all([lireSousCondition([jobs]), lireSousCondition([statuts])]);
       const { check_runs = [] } = JSON.parse(exiger(runs, jobs).corps) as { check_runs?: CheckRun[] };
       const { statuses = [] } = JSON.parse(exiger(combine, statuts).corps) as { statuses?: Statut[] };
       return [
@@ -395,7 +469,7 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
     },
     async diff(numero) {
       const chemin = `repos/${depot}/pulls/${numero}`;
-      return exiger(await appeler(["-H", "Accept: application/vnd.github.diff", chemin]), chemin).corps;
+      return exiger(await lireSousCondition(["-H", "Accept: application/vnd.github.diff", chemin]), chemin).corps;
     },
     async journalDuCheck(check) {
       const job = /\/actions\/runs\/\d+\/job\/(\d+)/.exec(check.url ?? "")?.[1];
@@ -404,8 +478,7 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
       return reponse.statut === 200 ? reponse.corps : null;
     },
     async remplacerCommentaire(numero, ancien, nouveau) {
-      const chemin = `repos/${depot}/issues/${numero}/comments?per_page=100`;
-      const pages = await feuilleter(await appeler([chemin]), chemin);
+      const pages = await lireLaListe(`repos/${depot}/issues/${numero}/comments?per_page=100`);
       const trouve = pages.flatMap((page) => JSON.parse(page.corps) as CommentaireBrut[]).find((brut) => (brut.body ?? "") === ancien);
       if (trouve?.id === undefined) return false;
       const edition = `repos/${depot}/issues/comments/${trouve.id}`;
