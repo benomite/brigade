@@ -62,6 +62,13 @@
 //     `acces` (comme ci-dessus : `bloque`, `raison`, `geste`). Il tient
 //     jusqu'à l'essai suivant, qui le remplace s'il échoue à son tour, et
 //     disparaît dès qu'un worktree se prépare.
+//     `blocages` (absent tant qu'aucun n'est posé) : ce qui bloque le projet,
+//     de son ajout à son service, tel que son journal le porte
+//     (`installation/blocages/`) — pour chacun, `id` (stable), `message` et
+//     `cause` en une phrase chacun, et, s'il y a lieu, `action` (le geste que
+//     l'app sait faire), `link` (la page où le faire hors de l'app) et
+//     `detail` (ce qu'une commande a dit, que l'app ne montre qu'en second).
+//     Un blocage levé en sort.
 //     `station.locale` : cette station est celle de l'ordinateur du chef (une
 //     cuisine locale, sous macOS). `cuitSur` : la station où le projet cuit, telle
 //     que celle-ci la connaît — nul si elle n'en sait rien ; `ici` : il cuit sur
@@ -73,6 +80,7 @@
 import { EFFORTS, MODELES } from "../calibrage.ts";
 import type { Onboarding } from "../onboarding/etat.ts";
 import type { EchecDuWorktree } from "../echec-du-worktree.ts";
+import type { Blocage } from "../installation/blocages/blocages.ts";
 import type { AccesBloque } from "./acces.ts";
 import type { EchecDuClone } from "./echec-du-clone.ts";
 import type { Refus } from "./refus.ts";
@@ -147,6 +155,7 @@ export type SuiviDuProjet = {
   clone?: EchecDuClone;
   refus?: Refus;
   worktree?: EchecDuWorktree;
+  blocages?: Blocage[];
 };
 
 const ETAPES: readonly string[] = ["demandee", "acceptee", "refusee", "remise", "recue"];

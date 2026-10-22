@@ -11,6 +11,7 @@ import type { Canal, Fichiers } from "../../src/appairage/canal.ts";
 import { FICHIER_LOCAL } from "../../src/appairage/presence.ts";
 import { decisionsPosees } from "../../src/decisions.ts";
 import type { Fait } from "../../src/evenements.ts";
+import { leverBlocageDans, poserBlocageDans } from "../../src/installation/blocages/blocages.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { DEBUT, FIN } from "../../src/projets/bloc.ts";
 import { FICHIER_PROJETS, FICHIER_SUIVI, type SuiviDuProjet } from "../../src/projets/demande.ts";
@@ -466,6 +467,37 @@ test("un worktree que la cuisine d'un projet servi n'a pas pu préparer : le sui
   await station.projets.relire();
   assert.equal(station.suivi()?.[0]?.worktree?.prochainEssai, "2026-10-15T12:22:00.000Z");
   noter({ type: "worktree.prepared", payload: { station: "box/claude" } });
+  await station.projets.relire();
+  assert.deepEqual(station.suivi(), [servi]);
+});
+
+test("les blocages d'un projet, posés à son journal, sont publiés dans son suivi — aucun, le champ manque ; levés, ils en sortent", async (t) => {
+  const station = uneStation(t);
+  station.demander(PARADE);
+  await station.projets.relire();
+  const servi = { nom: "parade", etat: "servi", dit: "served by box", autoriser: [], serviLe: "2026-10-15T12:02:00.000Z", cuitSur: "box", ici: false, bascule: null };
+  assert.deepEqual(station.suivi(), [servi]);
+
+  const etat = join(station.racine, "etat/parade");
+  const qui = { projet: "parade", auteur: "station:box" };
+  const postgres = { id: "need:postgres", message: "The tests of parade need a Postgres that box does not have.", cause: "The worktree setup runs psql against a local database.", action: "choose-station" };
+  const jeton = { id: "token", message: "The token of brigade-cook does not include benomite/parade.", cause: "failed to run git: exit status 128", link: "https://github.com/settings/personal-access-tokens" };
+  poserBlocageDans(etat, qui, postgres);
+  poserBlocageDans(etat, qui, jeton);
+  await station.projets.relire();
+  assert.deepEqual(station.suivi(), [
+    {
+      ...servi,
+      blocages: [
+        postgres,
+        // La sortie brute de git n'est jamais publiée comme cause : elle passe dans le détail.
+        { id: "token", message: jeton.message, cause: "The station did not recognise what went wrong.", link: jeton.link, detail: "failed to run git: exit status 128" },
+      ],
+    },
+  ]);
+
+  leverBlocageDans(etat, qui, "need:postgres");
+  leverBlocageDans(etat, qui, "token");
   await station.projets.relire();
   assert.deepEqual(station.suivi(), [servi]);
 });
