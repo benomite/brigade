@@ -1,6 +1,6 @@
 // @ts-check
 // Ce qui bloque un projet, sur sa page (ticket 1399, épique 1393) : tous ses blocages, tels que sa principale les
-// publie (#1394, `blocages` du suivi), une ligne chacun. Ce qui est bloqué en une phrase, pourquoi dessous ; le
+// publie (ticket 1394, `blocages` du suivi), une ligne chacun. Ce qui est bloqué en une phrase, pourquoi dessous ; le
 // geste, quand l'app sait le faire, en bouton ; quand il se fait hors de l'app, un lien qui nomme la page exacte
 // et l'ouvre. Ce qu'une commande a dit n'est jamais le message : il reste replié derrière « details ». Aucun
 // blocage, aucune section. Ce module ne connaît aucun blocage : la vue lui donne les gestes qu'elle sait faire,
