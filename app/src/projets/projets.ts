@@ -23,7 +23,7 @@
 // demande : une station qui refuse de le reprendre le laisse cuire là où il cuisait.
 import type { GitHubDesStations } from "../stations/github.ts";
 import type { StationVue } from "../stations/stations.ts";
-import { documentDeDemande, FICHIER_PROJETS, FICHIER_SUIVI, lireDemande, lireOnboarding, lireSuivi, type AccesBloque, type Bascule, type Blocage, type Calibre, type EchecDuClone, type EchecDuWorktree, type EtatDuProjet, type Onboarding, type ProjetDemande, type Refus, type SuiviDuProjet } from "./demande.ts";
+import { documentDeDemande, FICHIER_PROJETS, FICHIER_SUIVI, lireDemande, lireOnboarding, lireSuivi, type AccesBloque, type Bascule, type Blocage, type Calibre, type Choix, type EchecDuClone, type EchecDuWorktree, type EtatDuProjet, type Onboarding, type ProjetDemande, type Refus, type Selections, type SuiviDuProjet } from "./demande.ts";
 import type { Demenagement, Demenageur } from "./demenagement.ts";
 import type { DepotDuChef } from "./github.ts";
 import { canalDesGists, pourLaPage, type DemanderLeRemede, type IssueDuRemede } from "./remede.ts";
@@ -81,6 +81,11 @@ export type ProjetVu = {
   // Ce qui bloque le projet, tel que sa principale le publie (#1394) : une ligne chacun sur sa page (#1399).
   // Absent quand rien ne bloque.
   blocages?: Blocage[];
+  // Ce qui manque à sa principale pour ses tests, un choix par besoin, tel qu'elle le publie (#1398) — et les
+  // issues que l'app a écrites dans sa demande, que la station n'a peut-être pas encore lues (#1400). Absents quand
+  // il n'y en a pas.
+  choix?: Choix[];
+  choisis?: Selections;
 };
 // Ce que l'app propose pour une station choisie comme principale (#1107) : ce que ce choix implique —
 // toujours allumée, ou arrêtée avec l'app de son ordinateur —, et le nombre de cooks à la fois que
@@ -352,6 +357,7 @@ export type OptionsProjets = {
   demanderLeRemede?: DemanderLeRemede;
 };
 export type DecisionSansBac = { fait: string } | { refus: string; detail?: string };
+export type Choisi = { fait: string } | { refus: string; detail?: string };
 
 export type Projets = {
   vu(): VuDesProjets | undefined;
@@ -368,6 +374,9 @@ export type Projets = {
   // Lève le refus que la principale du projet publie, par le remède qu'il offre (#1205) : la station le
   // joue, puis dit si le refus tient. Les projets sont relus avant que la réponse ne parte.
   remedier(nom: unknown, refus: unknown, remede: unknown): Promise<IssueDuRemede>;
+  // Retient une issue d'un choix que la principale du projet attend (#1400) : elle s'écrit dans la demande de la
+  // principale, qui la pose à son journal à sa lecture suivante (runtime/src/installation/besoins/).
+  choisir(nom: unknown, choix: unknown, issue: unknown): Promise<Choisi>;
   // Les pages GitHub où autoriser brigade, telles que les stations les ont publiées.
   pages(): string[];
 };
@@ -433,6 +442,10 @@ export function tenirProjets(options: OptionsProjets): Projets {
             else delete vu.clone;
             if (dit?.blocages !== undefined) vu.blocages = dit.blocages;
             else delete vu.blocages;
+            if (dit?.choix !== undefined) vu.choix = dit.choix;
+            else delete vu.choix;
+            if (projet.choix !== undefined) vu.choisis = projet.choix;
+            else delete vu.choisis;
           }
           vu.stations.push({ id: station.id, nom: station.nom, principale: projet.principale, etat: dit?.etat ?? "attendu", dit: dit?.dit ?? `${station.nom} has not read it yet: it reads what the app asks every 30 s`, autoriser: dit?.autoriser ?? [] });
           if (projet.principale && dit?.etat === "servi" && dit.serviLe !== null) {
@@ -639,12 +652,38 @@ export function tenirProjets(options: OptionsProjets): Projets {
     return { fait: `continuing without a sandbox on ${principale.nom}: ${nom} starts on its next turn` };
   };
 
+  // Choisir une issue : le choix doit être celui que la page montre, en attente, et offrir cette issue — sinon rien
+  // ne s'écrit. Seule la demande de la principale change : c'est elle qui tient le choix. À la suite des autres écritures.
+  const choisir = (recuNom: unknown, recuChoix: unknown, recuIssue: unknown): Promise<Choisi> =>
+    enFile(async () => {
+      const nom = texte(recuNom);
+      const id = texte(recuChoix);
+      const issue = texte(recuIssue);
+      if (nom === "") return { refus: "which project? none was named: nothing was recorded" };
+      const projet = vu?.projets.find((un) => un.nom === nom);
+      const principale = projet?.stations.find(({ principale: oui }) => oui);
+      if (projet === undefined || principale === undefined) return { refus: `${nom} cooks on none of your stations: nothing was recorded` };
+      const choix = projet.choix?.find((un) => un.id === id);
+      if (choix === undefined || choix.status !== "pending") return { refus: `${principale.nom} no longer waits for this choice: nothing was recorded` };
+      const retenue = choix.options.find((option) => option.id === issue);
+      if (retenue === undefined) return { refus: `${principale.nom} no longer offers this option: nothing was recorded` };
+      try {
+        const ecrits = await reecrire((station, avant) => (station.id === principale.id ? avant.map((un) => (un.nom === nom && un.principale ? { ...un, choix: { ...un.choix, [id]: issue } } : un)) : avant));
+        if (ecrits.length === 0) return { refus: `${nom} is no longer asked of ${principale.nom}: nothing was recorded` };
+      } catch (erreur) {
+        return { refus: "the choice could not be recorded: GitHub could not be read or written", detail: message(erreur) };
+      }
+      await relire();
+      return { fait: `“${retenue.label}” is recorded: ${principale.nom} applies it at its next read` };
+    });
+
   return {
     vu: () => vu,
     relire,
     demenager,
     continuerSansBac,
     remedier,
+    choisir,
     async depots() {
       try {
         return { depots: await options.depots() };

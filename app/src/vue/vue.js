@@ -112,6 +112,7 @@ import { poserProfils } from "./profil/carte.js";
 import { apresRendu as apresLaCarte, poserCarteDeTodo, REPOS as CARTE_AU_REPOS } from "./carte-todo.js";
 import { poserDepotRetenu } from "./onboarding/depot-retenu.js";
 import { poserBlocages } from "./projet/blocages.js";
+import { poserChoix, sansLesChoix } from "./projet/choix.js";
 import { ligneDAlerte, poserLesStations as stationsDeCuisson } from "./stations-de-cuisson.js";
 import { poserLePlafond as plafondDeCalibrage } from "./plafond-de-calibrage.js";
 import { poserLActivite } from "./activite-cuisine.js";
@@ -479,6 +480,12 @@ const stationsDuProjet = element("stations-du-projet");
 const blocagesDuProjet = element("blocages-du-projet");
 /** @type {Map<string, Set<string>>} */
 const blocagesDeplies = new Map();
+// Ce qui manque à sa principale pour ses tests (ticket 1400), au-dessus de ses blocages : une carte par besoin
+// (projet/choix.js). Par projet : les choix dont l'issue part (`enCours`), celles qui sont écrites et que la station
+// n'a pas encore relues (`retenus`), et pourquoi une issue n'a pas été retenue (`refus`).
+const choixDuProjet = element("choix-du-projet");
+/** @type {Map<string, { enCours: Set<string>, retenus: Set<string>, refus: Map<string, { refus: string, detail?: string }> }>} */
+const choixRetenus = new Map();
 const ligneDesStationsDuProjet = document.createElement("p");
 ligneDesStationsDuProjet.ariaLive = "polite";
 const sensDesStations = bloc("p", "The first station keeps the manager and the pass; all the stations cook.");
@@ -5856,6 +5863,7 @@ function poserStationsDuProjet() {
   }
   stationsDuProjet.hidden = projet === undefined;
   if (projet === undefined) {
+    poserLesChoix(undefined);
     poserLesBlocages(undefined);
     return;
   }
@@ -5888,6 +5896,7 @@ function poserStationsDuProjet() {
     ligneDesStationsDuProjet.textContent = lues ? `No station cooks ${projet.nom} yet.` : "reading your stations on GitHub…";
   }
   poserLeDemenagement(projet, ou, enCours, lues);
+  poserLesChoix(projet);
   poserLesBlocages(projet);
   ouvrirLaConfiance.textContent = stations.length === 0 && !seLit(projet) && projet.sansStation !== true ? "choose its machine" : "+ station";
   ouvrirLaConfiance.hidden = confiance !== undefined || demenagement !== undefined || !lues;
@@ -5936,7 +5945,9 @@ function poserStationsDuProjet() {
 /** @param {Projet | undefined} projet */
 function poserLesBlocages(projet) {
   const deplacable = projet !== undefined && (!ouvrirLeDemenagement.hidden || demenagement?.projet === projet.nom);
-  const blocages = projet === undefined ? [] : (projetsVus?.projets.find(({ nom }) => nom === projet.nom)?.blocages ?? []);
+  const vu = projet === undefined ? undefined : projetsVus?.projets.find(({ nom }) => nom === projet.nom);
+  // Un besoin qui a sa carte n'a pas, en plus, sa ligne (ticket 1400).
+  const blocages = sansLesChoix(vu?.blocages ?? [], vu?.choix ?? [], vu?.choisis, choixRetenus.get(vu?.nom ?? "")?.retenus);
   const nom = projet?.nom ?? "";
   const deplies = blocagesDeplies.get(nom) ?? new Set();
   for (const id of deplies) if (!blocages.some((blocage) => blocage.id === id)) deplies.delete(id);
@@ -5954,6 +5965,44 @@ function poserLesBlocages(projet) {
   });
   blocagesDuProjet.hidden = pose === null;
   blocagesDuProjet.replaceChildren(...(pose === null ? [] : [pose]));
+}
+
+// Les choix que la principale du projet affiché attend (ticket 1400) : une carte par besoin. Un clic écrit l'issue
+// dans sa demande (projets/projets.ts, `choisir`) ; écrite, la carte part, sans attendre que la station la relise.
+// Ce que la vue retient s'oublie dès que la station ne publie plus le choix en attente.
+/** @param {Projet | undefined} projet */
+function poserLesChoix(projet) {
+  const vu = projet === undefined ? undefined : projetsVus?.projets.find(({ nom }) => nom === projet.nom);
+  const choix = vu?.choix ?? [];
+  const nom = projet?.nom ?? "";
+  const tenus = choixRetenus.get(nom) ?? { enCours: new Set(), retenus: new Set(), refus: new Map() };
+  for (const id of tenus.retenus) if (!choix.some((un) => un.id === id && un.status === "pending")) tenus.retenus.delete(id);
+  for (const id of tenus.refus.keys()) if (!choix.some((un) => un.id === id)) tenus.refus.delete(id);
+  choixRetenus.set(nom, tenus);
+  const pose = poserChoix(document, { projet: nom, choix, choisis: vu?.choisis, retenus: tenus.retenus, enCours: tenus.enCours, refus: tenus.refus, choisir: (id, issue) => void choisirUneIssue(nom, id, issue) });
+  choixDuProjet.hidden = pose === null;
+  choixDuProjet.replaceChildren(...(pose === null ? [] : [pose]));
+}
+
+/** @param {string} nom @param {string} id @param {string} issue */
+async function choisirUneIssue(nom, id, issue) {
+  const tenus = choixRetenus.get(nom) ?? { enCours: new Set(), retenus: new Set(), refus: new Map() };
+  choixRetenus.set(nom, tenus);
+  if (tenus.enCours.has(id)) return;
+  tenus.enCours.add(id);
+  tenus.refus.delete(id);
+  poserStationsDuProjet();
+  /** @type {{ fait: string } | { refus: string, detail?: string }} */
+  let rendu;
+  try {
+    rendu = await brigade.choisirUneIssue(nom, id, issue);
+  } catch (erreur) {
+    rendu = { refus: "the choice could not be recorded", detail: erreur instanceof Error ? erreur.message : String(erreur) };
+  }
+  tenus.enCours.delete(id);
+  if (rendu !== undefined && "fait" in rendu) tenus.retenus.add(id);
+  else tenus.refus.set(id, rendu ?? { refus: "the choice could not be recorded" });
+  poserStationsDuProjet();
 }
 
 // Le parcours du projet affiché, sous la ligne de ses stations (ticket 1111) : ses quatre étapes tant

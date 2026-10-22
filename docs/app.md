@@ -1111,6 +1111,21 @@ the blocker stays. What a command said (`detail`) is never the message: it stays
 row the chef unfolds stays unfolded from one read to the next. A resolved blocker leaves the card; no blocker, no
 card. Screenshots: `docs/captures/1399/`. The module is `app/src/vue/projet/blocages.js`.
 
+**What the station lacks for the project** (#1400, epic #1393): every choice its principal station publishes as
+pending (`choix` in its tracking, #1398) is one card above the blockers, on Rail as on Cooks, under one sentence —
+`2 choices wait for you on parade`. Two missing needs are two cards. Each card says what is missing (`The tests of
+parade need a Postgres database, which box does not have.`), why below it, then its options side by side — cook it
+on a station that has it, provide it on this station, adapt the tests —, each a button with what follows from it
+written under it, the runtime's own sentence. No option is recommended: the station names none. A click writes the
+option into the principal station's request (`brigade-projets.json`, `"choix": { "need:postgres": "provide-here" }`),
+which the station applies at its next read; once written the card leaves — and stays gone, the app reading its own
+request, until the station publishes the choice as chosen. While the write runs, the card's buttons wait and one line
+says `recording your choice…`; a refused write leaves the card with one line saying why, what GitHub said on hover.
+The option is written only if the page still shows the choice as pending and the choice offers it. A need with a card
+has no blocker row as well (the blocker waiting for it shares its id, `need:<need>`). No pending choice, no card.
+Every other gesture rewrites the selections as they are. Screenshots: `docs/captures/1400/`. The module is
+`app/src/vue/projet/choix.js`; the write is `choisir` in `app/src/projets/projets.ts`.
+
 **The decision facing a station with no sandbox** (#1113): when the published state says `decisionAttendue`,
 the *Cooking machine* step puts the runtime's sentence up as a warning — the cooks of this machine
 run without a sandbox, nothing goes out before the chef's choice — and two buttons: "choose another
