@@ -69,6 +69,14 @@
 //     l'app sait faire), `link` (la page où le faire hors de l'app) et
 //     `detail` (ce qu'une commande a dit, que l'app ne montre qu'en second).
 //     Un blocage levé en sort.
+//     `choix` (absent tant qu'aucun n'est posé) : ce qui manque à la station
+//     principale pour les tests du projet (`installation/besoins/`), un choix
+//     par besoin — `id` (`need:<besoin>`, celui du blocage qui l'attend),
+//     `need`, `message` et `cause` en une phrase chacun, `options` (les trois
+//     issues : `id`, `label`, `consequence`), et `status` : `pending`, ou
+//     `chosen` avec `selected` (l'issue retenue) et `selectedAt` (ISO).
+//     Le chef choisit dans l'app, qui l'écrit dans la demande du projet :
+//     `"choix": { "need:postgres": "provide-here" }`.
 //     `station.locale` : cette station est celle de l'ordinateur du chef (une
 //     cuisine locale, sous macOS). `cuitSur` : la station où le projet cuit, telle
 //     que celle-ci la connaît — nul si elle n'en sait rien ; `ici` : il cuit sur
@@ -81,6 +89,7 @@ import { EFFORTS, MODELES } from "../calibrage.ts";
 import type { Onboarding } from "../onboarding/etat.ts";
 import type { EchecDuWorktree } from "../echec-du-worktree.ts";
 import type { Blocage } from "../installation/blocages/blocages.ts";
+import { selectionsLues, type Choix, type Selections } from "../installation/besoins/besoins.ts";
 import type { AccesBloque } from "./acces.ts";
 import type { EchecDuClone } from "./echec-du-clone.ts";
 import type { Refus } from "./refus.ts";
@@ -117,6 +126,8 @@ export type ProjetDemande = {
   demandeLe: string | null;
   remise?: Remise | null;
   reprise?: Reprise | null;
+  // L'issue que le chef retient pour chaque besoin qui manque (`installation/besoins/`).
+  choix?: Selections;
 };
 
 export type Demande = { projets: ProjetDemande[]; problemes: string[] };
@@ -156,6 +167,7 @@ export type SuiviDuProjet = {
   refus?: Refus;
   worktree?: EchecDuWorktree;
   blocages?: Blocage[];
+  choix?: Choix[];
 };
 
 const ETAPES: readonly string[] = ["demandee", "acceptee", "refusee", "remise", "recue"];
@@ -196,7 +208,7 @@ export function lireDemande(brut: string): Demande | null {
   const projets: ProjetDemande[] = [];
   const problemes: string[] = [];
   for (const brut of lu.projets as unknown[]) {
-    const { nom, depot, base, principale, cooks, manager, reviewer, ouvertLe, demandeLe, remise, reprise } = (brut ?? {}) as Record<string, unknown>;
+    const { nom, depot, base, principale, cooks, manager, reviewer, ouvertLe, demandeLe, remise, reprise, choix } = (brut ?? {}) as Record<string, unknown>;
     const dit = texte(nom) ? `« ${nom.slice(0, 40)} »` : "sans nom";
     const refuser = (pourquoi: string) => void problemes.push(`projet ${dit} demandé par l'app : ${pourquoi}`);
     if (!texte(nom) || !NOM_DE_PROJET.test(nom)) refuser("nom de projet invalide — attendu un identifiant court en minuscules, chiffres et tirets");
@@ -228,6 +240,7 @@ export function lireDemande(brut: string): Demande | null {
           // principale ; une reprise, que vers celle qui l'est.
           ...(laRemise !== null && !principale ? { remise: laRemise } : {}),
           ...(laReprise !== null && principale ? { reprise: laReprise } : {}),
+          ...(Object.keys(selectionsLues(choix)).length === 0 ? {} : { choix: selectionsLues(choix) }),
         });
       }
     }
