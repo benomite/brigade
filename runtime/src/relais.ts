@@ -21,7 +21,7 @@ import { createWriteStream, renameSync, writeFileSync, type WriteStream } from "
 import type { Readable } from "node:stream";
 import { masquerIdentifiants, retenirJeton } from "./identifiants.ts";
 import { lignesMasquees } from "./lignes-masquees.ts";
-import { masqueDesSecrets } from "./secrets.ts";
+import { masqueDesSecrets } from "./masque.ts";
 
 // Ce que le runtime remet au relais, sur son entrée, en une ligne JSON. Les
 // secrets n'y passent que par là : ni sur la ligne de commande, ni sur disque.

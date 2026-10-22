@@ -3,10 +3,16 @@
 // qui ne laisse passer que la liste blanche, et dont le refus se lit : une
 // réponse immédiate, qui nomme l'hôte et le geste qui l'ouvre. Mécanique pure :
 // la liste et le journal lui sont donnés.
-import { createServer, request, type IncomingMessage, type ServerResponse } from "node:http";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { connect, type Socket } from "node:net";
 import type { Duplex } from "node:stream";
 import { autorise, DECLARATION_RESEAU, REGLES_DE_BASE, type Regle } from "./reseau.ts";
+
+// `node:http` pris par `process.getBuiltinModule`, pas importé : la façade ESM
+// d'un module de Node lit tous ses accesseurs, et celui de `WebSocket` charge
+// undici entier — 80 ms de processeur pour chaque process qui importe ce
+// module, qu'il serve ou non.
+const { createServer, request } = process.getBuiltinModule("node:http");
 
 export type OptionsPorte = {
   // Zéro : un port libre, que la porte rend.

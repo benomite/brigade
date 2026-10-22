@@ -20,11 +20,17 @@
 // Un code a 2⁴⁰ valeurs pour un quart d'heure. Le guichet en refuse les
 // essais au-delà de `ESSAIS_MAX` ratés en dix minutes, d'où qu'ils viennent :
 // un code à deviner se devine alors moins vite qu'il n'expire.
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { ConfigInvalide } from "../runtime.ts";
 import { PresentationInvalide } from "../stations-globales/registre.ts";
 import { CodeRefuse, type Telephones } from "./appairage.ts";
+
+// `node:http` pris par `process.getBuiltinModule`, pas importé : la façade ESM
+// d'un module de Node lit tous ses accesseurs, et celui de `WebSocket` charge
+// undici entier — 80 ms de processeur pour chaque process qui importe ce
+// module, qu'il serve ou non.
+const { createServer } = process.getBuiltinModule("node:http");
 
 const CORPS_MAX = 16 * 1024;
 export const ESSAIS_MAX = 20;

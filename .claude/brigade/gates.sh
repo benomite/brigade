@@ -335,6 +335,13 @@ suite() {
     rm -f "$TYPES"
   fi
 }
+# Le proxy de Node, que la porte d'une box pose pour tout ce que le runtime
+# lance (`NODE_USE_ENV_PROXY`, runtime/src/reseau.ts) : avec lui, chaque process
+# Node charge au démarrage de quoi passer par la porte — 80 ms de processeur de
+# plus, sur un démarrage qui en coûte 45. Les suites n'ouvrent aucun réseau, et
+# lancent des milliers de process Node : ni elles ni le contrôle de types ne le
+# reçoivent. Un test qui éprouve la porte pose lui-même ce qu'elle exporte.
+unset NODE_USE_ENV_PROXY
 SUITE_ROUGE=0
 DEBUT_ATTENTE=$SECONDS
 prendre_le_tour

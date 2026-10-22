@@ -2,7 +2,6 @@
 // GitHub, et ce que son dépôt déclare —, et de quoi faire passer par la porte
 // tout ce que le runtime lance. La porte elle-même est dans `porte.ts` ; ce
 // qui refuse une connexion qui la contourne est l'unité systemd, pas ce code.
-import { setGlobalProxyFromEnv } from "node:http";
 import { createSocket } from "node:dgram";
 import type { Fait } from "./evenements.ts";
 import { lire } from "./plafonds.ts";
@@ -92,7 +91,11 @@ export function variablesDeRelais(port: number): Record<string, string> {
 // ses enfants héritent de son environnement.
 export function passerParLaPorte(port: number): void {
   Object.assign(process.env, variablesDeRelais(port));
-  setGlobalProxyFromEnv();
+  // `node:http` pris ici, pas importé : la façade ESM d'un module de Node lit
+  // tous ses accesseurs, et celui de `WebSocket` charge undici entier — 80 ms
+  // de processeur pour chaque process qui importe ce module, jusqu'aux
+  // commandes du chef qui ne passent jamais par la porte.
+  process.getBuiltinModule("node:http").setGlobalProxyFromEnv();
 }
 
 // Une adresse que personne ne porte (TEST-NET-1), sur le port où tout se

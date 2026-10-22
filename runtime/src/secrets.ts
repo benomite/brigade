@@ -8,6 +8,7 @@ import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { ouvertADAutres } from "./droits.ts";
 import { SCRIPT_SETUP } from "./gates.ts";
+import { masque } from "./masque.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
 // Ce que le dépôt du projet déclare : un nom de variable par ligne.
@@ -130,22 +131,6 @@ function lireValeurs(fichier: string): { valeurs: Map<string, string> } | { prob
   }
   return { valeurs };
 }
-
-function masque(env: Record<string, string>): Pick<Secrets, "masquer" | "fuites"> {
-  // Chaque valeur, et la forme qu'elle prend dans un flux JSON. La plus longue
-  // d'abord : une valeur qui en contient une autre est masquée entière.
-  const formes = Object.entries(env)
-    .flatMap(([nom, valeur]) => [...new Set([valeur, JSON.stringify(valeur).slice(1, -1)])].map((forme) => ({ nom, forme })))
-    .sort((a, b) => b.forme.length - a.forme.length);
-  return {
-    masquer: (texte) => formes.reduce((reste, { nom, forme }) => reste.replaceAll(forme, `[secret:${nom}]`), texte),
-    fuites: (texte) => Object.keys(env).filter((nom) => formes.some((forme) => forme.nom === nom && texte.includes(forme.forme))),
-  };
-}
-
-// Le masque de ces valeurs, seul : celui que le relais d'un cook applique à ce
-// qu'il dit, sans relire le fichier de la machine.
-export const masqueDesSecrets = (env: Record<string, string>): ((texte: string) => string) => masque(env).masquer;
 
 // Les secrets du worktree : ce que sa branche déclare, avec les valeurs que la
 // machine détient à cet instant. `fichier` : celui de `BRIGADE_SECRETS_FILE`,
