@@ -18,7 +18,7 @@ import { join } from "node:path";
 import { describe, test } from "node:test";
 import { principal as aide } from "../src/aide.ts";
 import { COMMANDES, direAncien, enAnglais, FIN_DES_ANCIENS_NOMS, SCRIPT_D_ANCIEN_NOM } from "../src/commandes.ts";
-import { appeler } from "./outils.ts";
+import { appeler, CACHE_DE_COMPILATION } from "./outils.ts";
 
 const RUNTIME = join(import.meta.dirname, "..");
 const scripts: Record<string, string> = JSON.parse(readFileSync(join(RUNTIME, "package.json"), "utf8")).scripts;
@@ -26,10 +26,11 @@ const DU_DEV = ["test", "typecheck", "start"];
 const RENOMMEES = COMMANDES.filter((commande) => commande.ancien !== undefined);
 const REFUS = 2;
 
-// Lancé sans rien de l'environnement d'un service : ni état, ni dépôt, ni arbitre.
+// Lancé sans rien de l'environnement d'un service : ni état, ni dépôt, ni arbitre
+// — le cache de compilation seul, qui n'en est pas.
 function jouer(commande: string[]): Promise<{ code: number | null; sortie: string; erreur: string }> {
   return new Promise((resoudre, rejeter) => {
-    const enfant = spawn(commande[0] ?? "", commande.slice(1), { cwd: RUNTIME, env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "/tmp" } });
+    const enfant = spawn(commande[0] ?? "", commande.slice(1), { cwd: RUNTIME, env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "/tmp", ...CACHE_DE_COMPILATION } });
     let [sortie, erreur] = ["", ""];
     enfant.stdout.on("data", (morceau) => (sortie += morceau));
     enfant.stderr.on("data", (morceau) => (erreur += morceau));
