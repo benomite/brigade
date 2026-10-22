@@ -2,8 +2,9 @@
 // Ce que l'onglet Second dit quand le second ne part pas, ou part sans tous ses outils (ticket 1435, épique 1427) : le
 // runtime vérifie claude, gh, git et ssh avant de le lancer (ticket 1433), et l'app relaie ce qu'il en dit
 // (terminaux.ts, `empeche` et `manque`). Sa raison, en une phrase, est la note du second ; ici, sous elle, chaque outil
-// qui manque, nommé, avec la phrase qui dit comment l'obtenir — sa commande en code —, pourquoi le second en a besoin
-// au survol, et le bouton de sa page. Un second empêché a son bouton « try again », recommandé : il refait la
+// qui manque, nommé, et le bouton de sa page, qui porte le geste. Pourquoi le second en a besoin et la phrase qui dit
+// comment l'obtenir sont au survol : jamais une commande à recopier à plat (règles du ticket 830). Un second empêché a son
+// bouton « try again », recommandé : il refait la
 // vérification et, les outils installés, part. L'onglet n'est jamais vide : sans outil nommé, la raison suffit.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
@@ -45,14 +46,12 @@ export function poserOutilsDuSecond(doc, dit, { bloque, reessayer, ouvrirLaPage 
         outil.className = "outil-manquant";
         const nom = cree(doc, "strong", tool);
         nom.className = "mono";
-        const tete = cree(doc, "p");
-        tete.append(nom, survol(doc, reason));
-        const comment = phrase(doc, "p", install);
-        comment.className = "comment-l-obtenir";
+        // Au survol, sans accents graves : une bulle ne pose pas de code.
+        const aide = survol(doc, `${reason} ${install}`.replaceAll("`", ""));
         const page = cree(doc, "p");
         page.className = "gestes";
         page.append(boutonAction(doc, PAGE_DE(tool), () => ouvrirLaPage(link), { recommande: !bloque }));
-        outil.append(tete, comment, page);
+        outil.append(nom, aide, page);
         return outil;
       }),
     );

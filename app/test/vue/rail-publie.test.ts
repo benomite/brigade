@@ -1,7 +1,7 @@
 // Les onglets Rail et Second d'un projet ouvert sur un ordinateur neuf ne restent jamais vides (#1435, épique 1427) :
 // Rail montre les tickets que sa station publie sur GitHub (#1432), rangés dans les colonnes du Mac, ou la phrase du
 // runtime qui dit pourquoi ils ne se lisent pas ; Second montre le second qui part, ou, s'il ne part pas, pourquoi et
-// chaque outil qui manque, avec ce qui l'obtient (#1433). Les modules sont joués devant un faux document, puis la vue
+// chaque outil qui manque, et le bouton de la page qui dit comment l'obtenir (#1433). Les modules sont joués devant un faux document, puis la vue
 // entière devant un faux pont (aides/fausse-vue.ts).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
@@ -157,7 +157,7 @@ const EMPECHE: DitDuSecond = {
 const MANQUE: DitDuSecond = { reason: "The second starts, but `gh` is missing on this computer, and what needs it will fail until it is installed.", tools: EMPECHE.tools.slice(1) };
 
 describe("le second qui ne part pas, ou part sans tous ses outils", () => {
-  test("empêché : chaque outil qui manque, nommé, ce qui l'obtient — sa commande en code —, sa page ; « try again », recommandé", () => {
+  test("empêché : chaque outil qui manque, nommé, et le bouton de sa page ; comment l'obtenir au survol, jamais à plat ; « try again », recommandé", () => {
     const faits: string[] = [];
     const pose = poserOutilsDuSecond(doc, EMPECHE, { bloque: true, reessayer: () => void faits.push("reessayer"), ouvrirLaPage: (url) => void faits.push(url) }) as unknown as Faux;
     const outils = sous(pose).filter((enfant) => enfant.className === "outil-manquant");
@@ -165,11 +165,14 @@ describe("le second qui ne part pas, ou part sans tous ses outils", () => {
       outils.map((outil) => sous(outil).find((enfant) => enfant.balise === "strong")?.textContent),
       ["claude", "gh"],
     );
-    const comment = sous(outils[0]).find((enfant) => enfant.className === "comment-l-obtenir");
-    assert.equal(comment?.textContent, "Install Claude Code by running curl -fsSL https://claude.ai/install.sh | bash in a terminal, then restart brigade.");
-    assert.equal(sous(comment).find((enfant) => enfant.balise === "code")?.textContent, "curl -fsSL https://claude.ai/install.sh | bash");
-    // Pourquoi le second en a besoin, au survol seulement.
-    assert.equal(sous(outils[0]).find((enfant) => enfant.className === "aide")?.ariaLabel, EMPECHE.tools[0]?.reason);
+    // Aucune commande à recopier à plat (#830) : le bouton de sa page porte le geste. Pourquoi le second en a besoin,
+    // et comment l'obtenir, sont au survol seulement — sans accents graves.
+    assert.equal(outils[0]?.textContent.includes("curl"), false);
+    assert.equal(sous(outils[0]).some((enfant) => enfant.balise === "code"), false);
+    assert.equal(
+      sous(outils[0]).find((enfant) => enfant.className === "aide")?.ariaLabel,
+      "claude is not on the PATH, and the second is a Claude Code session. Install Claude Code by running curl -fsSL https://claude.ai/install.sh | bash in a terminal, then restart brigade.",
+    );
     // La raison est dans la note du second : elle ne se redit pas ici.
     assert.equal(pose.textContent.includes("The second cannot start"), false);
     assert.deepEqual(boutons([pose]).map((enfant) => [enfant.textContent, enfant.className]), [[PAGE_DE("claude"), ""], [PAGE_DE("gh"), ""], [REESSAYER_LE_SECOND, "recommande"]]);
@@ -258,7 +261,8 @@ describe("dans la vue : l'onglet Rail lit le rail publié, l'onglet Second dit c
     const outils = vue.element("outils-du-second");
     assert.equal(outils.hidden, false);
     assert.equal(vue.element("fil").hidden, true);
-    assert.match(outils.textContent, /^claude.*Install Claude Code by running curl/);
+    assert.match(outils.textContent, /^claude.*how to get claude/);
+    assert.equal(outils.textContent.includes("Install Claude Code"), false);
     bouton([outils], PAGE_DE("claude")).click();
     bouton([outils], REESSAYER_LE_SECOND).click();
     await repos();

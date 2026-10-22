@@ -270,12 +270,13 @@ still show something, always:
 - **Second** starts as the runtime plans it (#1433): the `claude` the PATH gives, and on Windows what
   launches it. When it cannot start, there is no terminal: its note says why in one sentence
   (`The second cannot start: claude and git are missing on this PC.`), and under it each missing
-  tool by name — why the second needs it in the hover, the sentence that says how to get it, its
-  command in code, and `how to get <tool>`, which opens the page that explains it. `try again`
-  checks the tools again and starts the second when they are there. When it starts but a tool is
-  missing (`gh`, `ssh`), the terminal is there, and above it the sentence that says what will fail
-  and how to get the tool. Any other failure — the project's folder missing, a launch refused — is
-  said in the note's one sentence, with `try again`.
+  tool by name, with `how to get <tool>`, which opens the page that explains it: the button carries
+  the gesture, no command is written out to copy. Why the second needs the tool, and the runtime's
+  sentence on how to get it, are in the `?` hover. `try again` checks the tools again and starts the
+  second when they are there. When it starts but a tool is missing (`gh`, `ssh`), the terminal is
+  there, and above it the sentence that says what will fail, then the tool and its button. Any other
+  failure — the project's folder missing, a launch refused — is said in the note's one sentence,
+  with `try again`.
 
 *Code: `app/src/vue/rail-publie.js` and `app/src/vue/outils-du-second.js` (the screens),
 `railDuProjet` in `app/src/main.ts`, `rangerLeRailPublie` in `app/src/faits.ts`, the plan of the

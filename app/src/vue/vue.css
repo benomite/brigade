@@ -5806,35 +5806,20 @@ button.recommande {
   margin: 0 0 10px;
   color: var(--texte-doux);
 }
-.outil-manquant p {
-  margin: 0 0 4px;
+.outil-manquant {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
 }
 .outil-manquant strong {
   font-size: 14px;
   color: var(--texte);
 }
-.outil-manquant .survol {
-  margin-left: 6px;
-}
-.outil-manquant .comment-l-obtenir {
-  color: var(--texte-doux);
-  overflow-wrap: anywhere;
-}
 .outils-du-second .gestes {
   padding: 14px 0 0;
 }
 .outil-manquant .gestes {
-  padding: 2px 0 0;
-}
-.outils-du-second .action > button {
-  padding: 3px 12px;
-  font-size: 12px;
-  font-weight: 600;
-  background: var(--bouton);
-  border: 1px solid var(--trait-fort);
-  border-radius: var(--rayon-bouton);
-}
-.outils-du-second .action > button.recommande {
-  border-color: var(--accent);
-  background: var(--accent);
+  gap: 8px;
+  padding: 0;
 }
