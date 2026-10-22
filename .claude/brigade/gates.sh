@@ -132,6 +132,21 @@ codex/skills/$r/"*) ;; *)
   [ "$perime" -eq 0 ] && ok "miroir Codex à jour pour les rôles modifiés depuis $REF"
 fi
 
+# 6 ter. Les tests que touche ce changement (#1004) : les suites ne jouent que
+# ceux-là — leur fermeture d'imports et de fichiers cités contient un fichier
+# modifié (`tests-touches.mjs`). Sur la base elle-même le diff est vide : tout
+# se joue, et c'est là que se rattrape un test touché sans que rien ne le dise.
+# `BRIGADE_GATES_TOUT=1` joue tout ; une sélection qui n'aboutit pas aussi.
+SELECTION_runtime=tout
+SELECTION_app=tout
+if [ "${BRIGADE_GATES_TOUT:-}" != 1 ] && [ -n "$REF" ] && [ -n "${SOUCHE:-}" ] && command -v node >/dev/null 2>&1; then
+  if SELECTION="$(printf '%s\n' "$CHANGES" | node .claude/brigade/tests-touches.mjs 2>/dev/null)"; then
+    while read -r ZONE_SEL REGLE; do
+      case "$ZONE_SEL" in runtime) SELECTION_runtime="$REGLE" ;; app) SELECTION_app="$REGLE" ;; esac
+    done <<<"$SELECTION"
+  fi
+fi
+
 # 6 bis. Le tour : sur une box, les suites de tests de deux passages ne courent
 # jamais en même temps — c'est ce qui fait que la garde d'horloge ne coupe plus
 # pour cause de charge (#1004). Le verrou est un répertoire (`mkdir` est
@@ -198,10 +213,13 @@ trap 'rendre_le_tour; exit 143' TERM
 NB_TESTS=""
 MS_TESTS=""
 suite() {
-  local ZONE="$1" DE="$2" ABSENTE="$3" JOURNAL_DE="$4"
-  local TYPES PID_TYPES JOURNAUX JOURNAL DELAI ARRETES TESTS PID_TESTS APRES TIREE PID_GARDE NB MS
+  local ZONE="$1" DE="$2" ABSENTE="$3" JOURNAL_DE="$4" REGLE="$5"
+  local TYPES PID_TYPES JOURNAUX JOURNAL DELAI ARRETES TESTS PID_TESTS APRES TIREE PID_GARDE NB MS FICHIERS="" COMMANDE="" MOTIF
   if [ ! -f "$ZONE/package.json" ]; then
     ok "$ABSENTE : aucun test à jouer"
+    return
+  elif [ "$REGLE" = rien ]; then
+    ok "tests $DE non joués : aucun ne touche ce changement — la suite entière tourne sur la base"
     return
   elif ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
     SUITE_ROUGE=1
@@ -214,6 +232,19 @@ suite() {
     fail "dépendances $DE absentes : tests injouables — rejoue worktree-setup.sh"
     return
   fi
+  case "$REGLE" in
+    "fichiers "*)
+      # Le motif du script `test`, remplacé par les fichiers choisis. Un script
+      # sans ce motif joue tout.
+      MOTIF='"test/**/*.test.ts"'
+      COMMANDE="$(node -e 'console.log(require(process.argv[1]).scripts?.test ?? "")' "$PWD/$ZONE/package.json" 2>/dev/null)"
+      case "$COMMANDE" in
+        *"$MOTIF"*)
+          FICHIERS="${REGLE#fichiers }"
+          COMMANDE="${COMMANDE/"$MOTIF"/$FICHIERS}"
+          ok "tests $DE : $(set -- $FICHIERS; echo $#) fichiers touchés par ce changement — la suite entière tourne sur la base" ;;
+      esac ;;
+  esac
   # Le contrôle de types part en même temps que les tests : il ne leur doit
   # rien. Son verdict n'est lu qu'après celui des tests — l'ordre des lignes
   # FAIL ne dépend pas de qui finit le premier.
@@ -251,7 +282,12 @@ suite() {
       # second, qui lui survivrait en tenant un cœur. Hors du groupe du
       # terminal, lire le clavier la suspendrait : elle n'a pas d'entrée.
       set -m
-      env -u BRIGADE_STATE_DIR -u BRIGADE_PORT npm --prefix "$ZONE" test </dev/null >"$JOURNAL" 2>&1 &
+      if [ -n "$FICHIERS" ]; then
+        # Le script `test` de la zone, ses fichiers à la place de son motif.
+        ( cd "$ZONE" && exec env -u BRIGADE_STATE_DIR -u BRIGADE_PORT sh -c "$COMMANDE" ) </dev/null >"$JOURNAL" 2>&1 &
+      else
+        env -u BRIGADE_STATE_DIR -u BRIGADE_PORT npm --prefix "$ZONE" test </dev/null >"$JOURNAL" 2>&1 &
+      fi
       PID_TESTS=$!
       set +m
       # La garde ne tient aucune sortie de ce script : un `sleep` orphelin qui
@@ -340,8 +376,8 @@ DEBUT_ATTENTE=$SECONDS
 prendre_le_tour
 ATTENTE=$((SECONDS - DEBUT_ATTENTE))
 DEBUT_EXECUTION=$SECONDS
-suite runtime "du runtime" "runtime absent" du-runtime
-suite app "de l'app" "app absente" de-l-app
+suite runtime "du runtime" "runtime absent" du-runtime "$SELECTION_runtime"
+suite app "de l'app" "app absente" de-l-app "$SELECTION_app"
 EXECUTION=$((SECONDS - DEBUT_EXECUTION))
 rendre_le_tour
 ok "tour des tests : $ATTENTE s à attendre son tour, $EXECUTION s d'exécution (la garde de ${BRIGADE_GATES_DELAI_TESTS:-300} s ne compte que l'exécution)"
