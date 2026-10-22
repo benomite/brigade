@@ -51,7 +51,7 @@ test("ce que la passe retire passe par la pass et le merge normaux : sa PR est j
 
   // Le chemin de toute livraison, sans un pas de moins : entrée en pass,
   // relue, jugée, puis l'intention de merger sous le grant, et son résultat.
-  assert.deepEqual(histoire(), ["pass.entered", "pass.reviewed", "pass.judged", "grant.used", "merge.done"]);
+  assert.deepEqual(histoire(), ["pass.entered", "gates.ran", "pass.reviewed", "pass.judged", "grant.used", "merge.done"]);
   assert.deepEqual(dernier("pass.entered"), { run: passe.run, branch: branche, pr: URL, number: PR });
   // Ce qui est jugé : le commit que l'origine a reçu, fusionné avec la base.
   const livre = git(origine, "rev-parse", branche);
@@ -103,7 +103,7 @@ test("sans grant, la PR d'une passe n'est pas mergée : la pass s'arrête verte,
   const { histoire, dernier, commentaires } = await livrer(cuisine);
   await jusqua(() => types(PR).includes("pass.held"));
 
-  assert.deepEqual(histoire(), ["pass.entered", "pass.reviewed", "pass.judged", "pass.held"]);
+  assert.deepEqual(histoire(), ["pass.entered", "gates.ran", "pass.reviewed", "pass.judged", "pass.held"]);
   assert.equal(dernier("pass.held")?.reason, "no-grant");
   assert.deepEqual(gh.merges, []);
   assert.equal(teteDeLaBase(), avant);
@@ -148,7 +148,7 @@ test("un constat bloquant du reviewer retient la PR d'une passe, grant ou pas : 
   const { histoire, dernier, commentaires } = await livrer(cuisine);
   await jusqua(() => types(PR).includes("pass.escalated"));
 
-  assert.deepEqual(histoire(), ["pass.entered", "pass.reviewed", "pass.judged", "pass.escalated"]);
+  assert.deepEqual(histoire(), ["pass.entered", "gates.ran", "pass.reviewed", "pass.judged", "pass.escalated"]);
   assert.equal(dernier("pass.judged")?.verdict, "red");
   assert.deepEqual(dernier("pass.judged")?.findings, ["Relecture — constat bloquant (`travail.txt`) : Le cas d'erreur est avalé : rien ne remonte."]);
   assert.deepEqual(dernier("pass.escalated"), { reason: "still-red", cause: "off-rail" });
@@ -184,7 +184,7 @@ test("des gates rouges sur la fusion retiennent la PR d'une passe : le reviewer 
 
   // Rouges une fois fusionnée : la base, rejouée seule, est verte — ce rouge
   // est celui de la passe.
-  assert.deepEqual(histoire(), ["pass.entered", "pass.judged", "pass.escalated"]);
+  assert.deepEqual(histoire(), ["pass.entered", "gates.ran", "pass.judged", "pass.escalated"]);
   const jugement = dernier("pass.judged");
   assert.equal(jugement?.verdict, "red");
   assert.equal((jugement?.gates as { outcome: string }).outcome, "red");

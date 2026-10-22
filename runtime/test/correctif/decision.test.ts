@@ -181,7 +181,7 @@ test("une proposition que personne ne tranche ne fait rien naître ; « oui » s
   // Le chemin de toute livraison, sans un pas de moins : entrée en pass, relue, jugée, mergée sous le grant.
   assert.deepEqual(
     types(pr).filter((type) => type !== "pass.started"),
-    ["pass.entered", "pass.reviewed", "pass.judged", "grant.used", "merge.done"],
+    ["pass.entered", "gates.ran", "pass.reviewed", "pass.judged", "grant.used", "merge.done"],
   );
   assert.deepEqual(journal.duTicket(pr).find((e) => e.type === "pass.entered")?.payload, { run: livree.run, branch: livree.branch, pr: livree.pr, number: pr });
   const jugement = journal.duTicket(pr).find((e) => e.type === "pass.judged")?.payload as { sha: string; base: string; verdict: string };

@@ -452,6 +452,10 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   // Un merge fait par la pass consomme un usage : le dernier éteint le grant
   // dans la transaction qui l'écrit.
   const noter = (ticket: number | null, fait: FaitPass | FaitStation) => (fait.type === "merge.done" ? eteindre(() => ajouter(ticket, fait)) : ajouter(ticket, fait));
+
+  let arrete = false;
+  let aRefaire = false;
+  const abandon = new AbortController();
   // Joue les gates, et écrit au journal ce que leur passage a coûté — sauf si
   // le runtime s'arrête pendant : coupées par lui, elles n'ont rien dit de
   // leur coût. `ticket` : nul pour les gates de la base.
@@ -460,10 +464,6 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     if (!arrete) noterCoutDesGates(journal, { projet, ticket, coureur: "pass", auteur: AUTEUR, gates, cout });
     return gates;
   };
-
-  let arrete = false;
-  let aRefaire = false;
-  const abandon = new AbortController();
   // Cache, pas état : les gates déjà jouées sur la fusion d'un commit avec une
   // base, le temps que sa CI conclue. Le perdre coûte de les rejouer.
   const gatesJouees = new Map<number, { sha: string; base: string; gates: Gates; arbre: string }>();
