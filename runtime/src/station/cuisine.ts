@@ -32,6 +32,8 @@ import { brancherManager, configManager } from "../manager.ts";
 import { brancherMiseAJour } from "../mise-a-jour/relais.ts";
 import { brancherPass, configPass } from "../pass.ts";
 import { identiteDeLaStation } from "../appairage/presence.ts";
+import { railDuJournal } from "../appairage/rail-du-journal.ts";
+import type { TicketPublie } from "../appairage/rail-publie.ts";
 import { retenirSansDecision } from "../onboarding/attente.ts";
 import { attendreLaPreparation } from "../preparation-depot/attendre.ts";
 import { brancherSession, configSession } from "../renouvellement.ts";
@@ -47,6 +49,9 @@ import { direStations } from "../stations-declarees.ts";
 export type Cuisine = {
   projet: string;
   repertoireEtat: string;
+  // Son rail, lu dans son journal, tel que la station le publie
+  // (`appairage/rail-publie.ts`). Lève une fois la cuisine arrêtée.
+  rail?(): TicketPublie[];
   // Arrête la cuisine comme un signal arrêtait le runtime du projet : son
   // journal le dit, son verrou est rendu, ses cooks relayés lui survivent.
   arreter(motif: string): void;
@@ -246,6 +251,10 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
   return {
     projet,
     repertoireEtat,
+    rail() {
+      if (arretee) throw new Error(`la cuisine de ${projet} est arrêtée`);
+      return railDuJournal(annoncee.journal);
+    },
     arreter(motif) {
       if (arretee) return;
       arretee = true;

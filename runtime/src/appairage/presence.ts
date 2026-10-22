@@ -7,7 +7,7 @@
 // code échu en tire un autre, tant qu'elle n'est pas appairée.
 //
 // Ensuite, chaque minute, elle regarde si son état — version, projets servis,
-// pannes, code — a changé depuis sa dernière écriture, sans appeler GitHub ; elle
+// leur rail, pannes, code — a changé depuis sa dernière écriture, sans appeler GitHub ; elle
 // n'écrit que sur changement, ou en battement de vie toutes les cinq minutes.
 // Deux écritures, forcées (`publier()`) ou non, sont toujours distantes d'au
 // moins une minute — sauf l'arrêt : arrêtée proprement, elle écrit tout de suite
@@ -27,6 +27,7 @@ import { LimiteGitHubAtteinte } from "../limite-github.ts";
 import { cuisine, ORDINATEUR, type Sorte } from "../stations-globales/sorte.ts";
 import type { Canal } from "./canal.ts";
 import { description, DUREE_DU_CODE_MS, ECHUS_GARDES, empreinte, FICHIER_APPAIRAGE, FICHIER_STATION, FORMAT, tirerCode, type DocumentStation, type EtatsPublies } from "./document.ts";
+import { documentDuRail, FICHIER_RAIL, type RailsPublies } from "./rail-publie.ts";
 
 export const FICHIER_LOCAL = "appairage.json";
 // Entre deux regards sur son état : aucun appel GitHub, une comparaison.
@@ -56,6 +57,10 @@ export type OptionsPresence = {
   // Le dépôt de chacun, par son nom : l'app d'un ordinateur neuf en tire de
   // quoi le cloner (#1428). Absent, elle n'en publie rien.
   depots?: () => Record<string, string>;
+  // Le rail de chacun, par son nom : l'app d'un ordinateur neuf y lit les
+  // tickets du projet (#1432, `rail-publie.ts`). Absent, elle n'en publie rien ;
+  // une lecture qui lève laisse dans le gist le rail de l'écriture d'avant.
+  rails?: () => RailsPublies;
   // Sa mise à jour et sa connexion Max, à cet instant : ce que l'app dit en
   // panne. Absent, elle n'en publie rien.
   etats?: () => EtatsPublies;
@@ -187,11 +192,25 @@ export function tenirPresence(options: OptionsPresence): Presence {
     echus: etat.appairee ? [] : etat.echus,
     ...etatsPublies(),
   });
+
+  // Un rail qui ne se lit pas non plus : celui d'avant reste dans le gist.
+  const railsPublies = (): RailsPublies | null => {
+    try {
+      return options.rails?.() ?? null;
+    } catch {
+      return null;
+    }
+  };
+
   // Ce qui s'écrit, et ce par quoi on reconnaît qu'il a changé : le document
-  // sans ses heures, qui bougent à chaque écriture.
+  // sans ses heures, qui bougent à chaque écriture, et le rail de ses projets.
   const preparer = (instant: number, arret: boolean) => {
     const doc = document(instant, arret);
-    return { cle: JSON.stringify({ ...doc, signeDeVie: null, arreteeLe: arret }), fichiers: { [FICHIER_STATION]: `${JSON.stringify(doc, null, 2)}\n` } };
+    const rails = railsPublies();
+    return {
+      cle: JSON.stringify({ ...doc, signeDeVie: null, arreteeLe: arret, rails }),
+      fichiers: { [FICHIER_STATION]: `${JSON.stringify(doc, null, 2)}\n`, ...(rails === null ? {} : { [FICHIER_RAIL]: `${JSON.stringify(documentDuRail(rails))}\n` }) },
+    };
   };
 
   const repartirDeZero = (pourquoi: string) => {

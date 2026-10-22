@@ -82,7 +82,7 @@ export type OptionsDeLecture = {
 
 const PAR_PAGE = 100;
 const PAGES_MAX = 30;
-const DELAI_MS = 30_000;
+export const DELAI_MS = 30_000;
 const ABSENT = /\(HTTP 404\)/;
 // Ce que `gh` dit quand il n'a pas de compte, ou un jeton refusé ; et son code
 // de sortie dans ce cas (« authentication required »).
@@ -181,6 +181,19 @@ export function stationDuGist(id: string, fichiers: Record<string, string>, inst
 
 // Lit les stations du chef sur GitHub. Ne lève pas : un échec est un état.
 export async function lireLesStationsDuChef(options: OptionsDeLecture): Promise<StationsDuChef> {
+  return (await lireLesStationsEtLeursGists(options)).etat;
+}
+
+// La même lecture, avec les fichiers du gist de chaque station listée, par son
+// id : ce qu'elle publie d'autre que son état — le rail de ses projets
+// (`rail-du-projet.ts`) — se lit sans rappeler GitHub.
+export async function lireLesStationsEtLeursGists(options: OptionsDeLecture): Promise<{ etat: StationsDuChef; gists: Map<string, Record<string, string>> }> {
+  const gists = new Map<string, Record<string, string>>();
+  const etat = await lireEtRanger(options, gists);
+  return { etat, gists };
+}
+
+async function lireEtRanger(options: OptionsDeLecture, gists: Map<string, Record<string, string>>): Promise<StationsDuChef> {
   const { gh } = options;
   const delaiMs = options.delaiMs ?? DELAI_MS;
   const maintenant = options.maintenant ?? Date.now;
@@ -235,7 +248,10 @@ export async function lireLesStationsDuChef(options: OptionsDeLecture): Promise<
       const fichiers = Object.fromEntries(Object.entries(files).flatMap(([nom, fichier]) => (typeof fichier?.content === "string" ? [[nom, fichier.content]] : [])));
       const station = stationDuGist(id, fichiers, instant);
       if ("illisible" in station) unreadable.push({ id, reason: station.illisible });
-      else stations.push(station);
+      else {
+        stations.push(station);
+        gists.set(id, fichiers);
+      }
     }
     stations.sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
     if (stations.length > 0) return { state: "listed", stations, unreadable };

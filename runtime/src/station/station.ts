@@ -4,6 +4,7 @@
 // sans redémarrer la station ni toucher aux autres projets.
 import { AsyncLocalStorage } from "node:async_hooks";
 import { join } from "node:path";
+import type { RailsPublies } from "../appairage/rail-publie.ts";
 import type { VeilleConnexionMax } from "../connexion-max/veille.ts";
 import { ConfigInvalide, DejaEnCours } from "../runtime.ts";
 import { CONFIGURATION, environnementDuProjet, lireFichierDeConfiguration, type ProjetConfigure } from "./configuration.ts";
@@ -39,6 +40,9 @@ export type Station = {
   projets(): string[];
   // Le dépôt GitHub de chaque projet servi (`<owner>/<repo>`), par son nom.
   depots(): Record<string, string>;
+  // Le rail de chaque projet servi, par son nom, tel qu'il se publie
+  // (`appairage/rail-publie.ts`) — sauf celui dont la cuisine ne le lit pas.
+  rails(): RailsPublies;
   // Les projets de la configuration que la station n'a pas pu ouvrir, et
   // pourquoi.
   refuses(): Record<string, string>;
@@ -172,6 +176,17 @@ export function ouvrirStation(options: OptionsStation): Station {
     relire,
     projets: () => [...ouvertes.keys()],
     depots: () => Object.fromEntries([...ouvertes].map(([nom, { depot }]) => [nom, depot])),
+    rails: () =>
+      Object.fromEntries(
+        [...ouvertes].flatMap(([nom, { cuisine }]) => {
+          try {
+            return cuisine.rail === undefined ? [] : [[nom, cuisine.rail()] as const];
+          } catch {
+            // Un journal qui ne se lit pas à cet instant : le rail d'avant reste publié.
+            return [];
+          }
+        }),
+      ),
     refuses: () => Object.fromEntries([...refuses].map(([nom, { motif }]) => [nom, motif])),
     refus: (nom) => refuses.get(nom)?.motif ?? null,
     cause: (nom) => refuses.get(nom)?.cause ?? null,
