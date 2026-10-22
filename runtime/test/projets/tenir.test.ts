@@ -253,13 +253,15 @@ test("GitHub muet sur l'autorisation, ou clone en échec : le projet attend, la 
   station.autorisations.delete("benomite/parade");
   station.echouerLeClone(new Error("clone de benomite/parade en échec — Repository not found"));
   await station.projets.relire();
-  const { clone: muet, ...sansClone } = station.suivi()?.[0] ?? assert.fail("pas de suivi");
+  const { clone: muet, blocages, ...sansClone } = station.suivi()?.[0] ?? assert.fail("pas de suivi");
   assert.deepEqual(sansClone, { nom: "parade", etat: "refuse", dit: `${muet?.raison} ${muet?.geste}`, autoriser: [], serviLe: null, cuitSur: null, ici: false, bascule: null, refus: refus("clone-failed") });
   assert.equal(muet?.cause, "account-cannot-see");
+  assert.deepEqual(blocages?.map(({ id, message }) => [id, message]), [["clone", muet?.raison]]);
   assert.equal(station.configuration(), "");
 
   station.echouerLeClone(null);
   await station.projets.relire();
+  assert.equal(station.suivi()?.[0]?.blocages, undefined);
   assert.equal(station.suivi()?.[0]?.etat, "servi");
   assert.equal(station.suivi()?.[0]?.clone, undefined);
 });

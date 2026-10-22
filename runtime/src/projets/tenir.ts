@@ -45,7 +45,8 @@ import type { Verification } from "../bac-a-sable/local.ts";
 import { dejaDemenage, lireRemise, recevoir, remettre, remisAilleurs } from "../demenagement/remise.ts";
 import { ouvrirGitHub } from "../github.ts";
 import { lireEchecDuWorktree } from "../echec-du-worktree.ts";
-import { lireBlocages } from "../installation/blocages/blocages.ts";
+import { leverBlocageDans, lireBlocages, poserBlocageDans } from "../installation/blocages/blocages.ts";
+import { blocageDuClone, clonerEnReparant, ID_BLOCAGE_CLONE } from "../installation/clone/clone.ts";
 import { lireOnboarding } from "../onboarding/lire.ts";
 import { ouvrirLaPreparation } from "../preparation-depot/ouvrir.ts";
 import { CONFIGURATION, ETATS, lieuxDuProjet } from "../station/configuration.ts";
@@ -151,7 +152,7 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
   const fichier = join(racine, CONFIGURATION);
   const gh = env.BRIGADE_GH_BIN || "gh";
   const autoriser = options.autoriser ?? ((depot: string) => verifierAutorisation(env, depot));
-  const clonerLe = options.cloner ?? ((depot: string, clone: string) => cloner({ gh, depot, clone }));
+  const clonerLe = options.cloner ?? ((depot: string, clone: string) => clonerEnReparant({ gh, depot, clone }));
   const enqueterLe = options.enqueter ?? ((depot: string) => enqueter({ gh, depot, env: { ...process.env, ...env } }));
   const verifierLAcces = options.verifierAcces ?? ((projet: ProjetResolu, clone: string) => verifierAcces({ station, depot: projet.depot, base: projet.base, clone, env: { ...process.env, ...env } }));
   const ouvrirLe =
@@ -219,9 +220,15 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
       const enquete = await enqueterLe(projet.depot).catch(() => ENQUETE_MUETTE);
       const reessaieToutesLes = Math.round((options.cadenceMs ?? CADENCE_MS) / 1000);
       const clone = lireLEchecDuClone({ station, depot: projet.depot, erreurs, enquete, reessaieToutesLes });
+      try {
+        poserBlocageDans(etatDe(projet.nom), { projet: projet.nom, auteur: "station" }, blocageDuClone(clone));
+      } catch {}
       direUneFois(`clone ${projet.nom} ${clone.cause} ${message(erreur)}`, `brigade : station — ${projet.nom} n'est pas cloné, la station réessaie : ${clone.raison} — ${message(erreur)}`);
       return { ...suivi("refuse", `${clone.raison} ${clone.geste}`, [], "clone-failed"), clone };
     }
+    try {
+      if (lireBlocages(etatDe(projet.nom)).some(({ id }) => id === ID_BLOCAGE_CLONE)) leverBlocageDans(etatDe(projet.nom), { projet: projet.nom, auteur: "station" }, ID_BLOCAGE_CLONE);
+    } catch {}
     const resolu = avecSaBranche(projet);
     if (resolu === null) return suivi("refuse", `${projet.depot} does not declare its integration branch (${FICHIER}, or the “Branche d'intégration” line of its CLAUDE.md), and the app names none`, [], "configuration-invalid");
     // Un accès refusé ne se lève que par un geste du chef : rien n'est préparé
