@@ -215,7 +215,7 @@ the clone does not fail:
 ```json
 "clone": {
   "cause": "token-excludes-repository",
-  "raison": "The token used by parade-box does not include BOBL-tech/mirrorscreen, so GitHub answers that it does not exist and box cannot clone it.",
+  "raison": "The token used by parade-box does not include BOBL-tech/mirrorscreen, so GitHub answers that it does not exist and parade-box cannot clone it.",
   "geste": "Add BOBL-tech/mirrorscreen to the repositories of the token used by parade-box (its resource owner must be BOBL-tech): edit the token, and select BOBL-tech/mirrorscreen under “Repository access”.",
   "ou": "On GitHub, in the fine-grained tokens of the account.",
   "liens": ["https://github.com/settings/personal-access-tokens"],
