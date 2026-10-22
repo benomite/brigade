@@ -105,7 +105,10 @@ for (const zone of ZONES) {
     console.log(`${zone} rien`);
     continue;
   }
-  const touches = tests.filter((t) => {
+  // Les tests lents de bout en bout — une vraie station, de vraies attentes —
+  // portent `// gates: base` dans leur en-tête : ils ne tournent que sur la
+  // base, où tout se joue, jamais pour un changement.
+  const touches = tests.filter((t) => !/^\/\/ gates: base$/m.test(textes.get(t).slice(0, 4000))).filter((t) => {
     let ferme = fermetures.get(t);
     if (!ferme) fermetures.set(t, (ferme = fermeture(t)));
     for (const f of ferme) if (codeModifie.has(f) || (autres.length > 0 && cites(f))) return true;

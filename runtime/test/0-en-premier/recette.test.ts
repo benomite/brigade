@@ -1,3 +1,6 @@
+// gates: base
+// Ne tourne que sur la base, où les gates jouent tout (#1004) : deux minutes
+// d'attente réelle, que rien ne raccourcit sans toucher la station.
 // La recette de l'ajout d'un projet depuis l'app, sur une installation de
 // test : une vraie station — un seul process, `station/main.ts` —, appairée,
 // dont GitHub est une doublure de `gh` (les gists du compte, et le dépôt à
