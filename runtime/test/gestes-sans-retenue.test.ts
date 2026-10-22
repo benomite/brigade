@@ -12,15 +12,16 @@ import { principal as pass } from "../src/montrer-pass.ts";
 import { principal as montrerRail } from "../src/montrer-rail.ts";
 import { lireRail } from "../src/projections/rail.ts";
 import { ouvrirRail } from "../src/rail.ts";
-import { appeler, DEPOT, fauxGh, horloge, issueGitHub, JOUR_HORLOGE, repertoireTemporaire, temporaireDuFichier } from "./outils.ts";
+import { aArreter, appeler, DEPOT, fauxGh, horloge, issueGitHub, JOUR_HORLOGE, repertoireTemporaire, temporaireDuFichier } from "./outils.ts";
 
 const rienNeReste = temporaireDuFichier();
 
 // Le compteur de la station, chargé : 2 600 appels dans l'heure, 40 restants
 // sur 5 000 selon GitHub, et une pause qui court encore.
 function stationChargee(t: TestContext) {
+  // Fermée avant que son répertoire disparaisse : sous Windows, une base ouverte ne s'efface pas.
   const limite = limiteDeLaStation(repertoireTemporaire(t));
-  t.after(() => limite.fermer());
+  aArreter(t, () => limite.fermer());
   for (let i = 0; i < 2600; i++) limite.prendre("geste");
   limite.noter("gh", { restant: 40, plafond: 5000, reset: Date.now() + 30 * 60_000 });
   limite.suspendre(Date.now() + 10 * 60_000);
@@ -32,7 +33,7 @@ test("rail remove et pass comment partent sur un compteur que la cuisine ne pass
   const limite = stationChargee(t);
   const repertoire = repertoireTemporaire(t);
   const journal = ouvrirJournal(repertoire, { maintenant: horloge() });
-  t.after(() => journal.fermer());
+  aArreter(t, () => journal.fermer());
   ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000, maintenant: () => new Date(`${JOUR_HORLOGE}T10:30:00.000Z`) });
   journal.ajouter({ project: "brigade", ticket: 18, author: "github", type: "ticket.arrived", payload: { title: "Ticket 18", priority: 5, createdAt: "2026-10-01T00:00:18Z", url: "https://exemple.test/18" } });
   const gh = fauxGh(t);

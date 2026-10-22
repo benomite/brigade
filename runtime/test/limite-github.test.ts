@@ -26,7 +26,7 @@ import {
   reserveDes,
   type Limite,
 } from "../src/limite-github.ts";
-import { DEPOT, jusqua, lancer, repertoireTemporaire, temporaireDuFichier } from "./outils.ts";
+import { aArreter, DEPOT, jusqua, lancer, repertoireTemporaire, temporaireDuFichier } from "./outils.ts";
 
 const rienNeReste = temporaireDuFichier();
 
@@ -113,12 +113,14 @@ test("le quota se lit dans les en-têtes de l'API REST : un en-tête d'une autre
   }
 });
 
+// Un compteur ouvert dans un répertoire du test se ferme par `aArreter`, avant que
+// le répertoire disparaisse : sous Windows, une base ouverte ne s'efface pas.
 test("sans quota dit par GitHub, ou avec un quota large, aucun compte de la box ne retient la cuisine — même au-delà de 2 500 appels dans l'heure", (t) => {
   const repertoire = repertoireTemporaire(t);
   for (const fichier of [undefined, join(repertoire, "compteur.db")]) {
     const horloge = uneHorloge();
     const limite = ouvrirLimite({ fichier, maintenant: horloge.maintenant });
-    t.after(() => limite.fermer());
+    aArreter(t, () => limite.fermer());
     for (let i = 0; i < 3000; i++) assert.equal(tenter(limite), true, `appel ${i + 1}, sans quota dit`);
     limite.noter("gh", { restant: 3600, plafond: 5000, reset: DEPART + 40 * MINUTE });
     for (let i = 0; i < 500; i++) assert.equal(tenter(limite), true, `appel ${i + 1}, 3 600 restants sur 5 000`);
@@ -362,7 +364,7 @@ test("la station et trois projets, chacun dans son process, lisent le même quot
   const parProcess = await Promise.all(["station", "projet 1", "projet 2", "projet 3"].map(unProcess));
   assert.equal(parProcess.reduce((somme, n) => somme + n, 0), 50, `comptés par process : ${parProcess.join(", ")}`);
   const limite = limiteDeLaStation(racine, { maintenant: () => instant });
-  t.after(() => limite.fermer());
+  aArreter(t, () => limite.fermer());
   assert.equal(limite.appels(), 50);
   assert.equal(tenter(limite), false);
 });
@@ -424,7 +426,7 @@ test("la station réelle compte chacun de ses appels au gist dans le compteur de
 
   assert.ok(existsSync(join(racine, REPERTOIRE_COMPTEUR)));
   const limite = limiteDeLaStation(racine);
-  t.after(() => limite.fermer());
+  aArreter(t, () => limite.fermer());
   const lancesParGh = () => (existsSync(join(gists, "appels")) ? readFileSync(join(gists, "appels"), "utf8").split("\n").filter(Boolean).length : 0);
   assert.ok(limite.appels() >= 2, `${limite.appels()} appels comptés`);
   // Un `gh` encore en route à la sortie de la station finit de noter le sien.
