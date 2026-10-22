@@ -19,6 +19,7 @@ import { ConfigInvalide } from "../src/runtime.ts";
 import { lireRail } from "../src/projections/rail.ts";
 import { sortDuTicket } from "../src/projections/rail.ts";
 import { CALIBRE, chef, cuisine, fauxGitHub, issue, montre, STATION, type Options } from "./aides/cuisine.ts";
+import { partagee } from "./aides/opt-C-partage.ts";
 import { BASE, commiter, DEPOT, depotGit, git, jusqua, repertoireTemporaire } from "./outils.ts";
 
 const PR = `https://github.com/${DEPOT}/pull/101`;
@@ -46,6 +47,10 @@ function service(t: TestContext, options: Options & { grant?: boolean; gates?: "
   const laisserTourner = () => jusquAu("runtime.ticked", compter("runtime.ticked") + 3);
   return { ...lieu, histoire, compter, jusquAu, laisserTourner, pass: () => passDuTicket(journal.base, 17) };
 }
+
+// Une livraison verte mergée sous grant, sans rien d'autre : deux tests la
+// lisent sans y toucher — elle n'est jouée qu'une fois pour eux deux.
+const mergeeSousGrant = partagee(2, (t) => service(t, { grant: true }));
 
 // Ce que les fausses gates disent de leur plafond de durée, quand elles le franchissent.
 const DEPASSEMENT = {
@@ -206,7 +211,7 @@ describe("la pass", { concurrency: 8 }, () => {
   });
 
   test("verte sous grant : le runtime merge lui-même le commit jugé, le ticket est servi, son issue fermée", async (t) => {
-    const { repertoire, gh, gates, etat, histoire, dernier, compter, jusquAu, journal } = service(t, { grant: true });
+    const { repertoire, gh, gates, etat, histoire, dernier, compter, jusquAu, journal } = mergeeSousGrant(t);
     await jusquAu("ticket.served");
     await jusqua(() => gh.fermetures.length === 1);
 
@@ -1767,7 +1772,7 @@ describe("la pass sous son identité", { concurrency: 8 }, () => {
   });
 
   test("sous l'identité unique, un merge de la pass ne porte aucun compte : rien ne l'a lu", async (t) => {
-    const { gh, journal } = service(t, { grant: true });
+    const { gh, journal } = mergeeSousGrant(t);
     await jusqua(() => gh.fermetures.length === 1);
 
     assert.deepEqual(fait(journal), { pr: "https://github.com/benomite/brigade/pull/101", sha: fait(journal)?.sha, by: "pass", reconciled: false, unverified: false });
