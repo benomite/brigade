@@ -34,7 +34,7 @@ function jouer(t: TestContext, racine: string, verrou: string): Passage {
 // Une suite qui signale son départ, puis attend qu'on la libère.
 const suiteRetenue = (signal: string, libere: string) => `touch ${signal}; while [ ! -e ${libere} ]; do sleep 0.1; done`;
 
-describe("le tour des gates sur une box", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, () => {
+describe("le tour des gates sur une box", { skip: posixOnly("runs a POSIX shell script") }, () => {
   test("le second passage n'exécute ses tests qu'une fois le premier fini, et dit combien il a attendu", async (t) => {
     const verrou = join(repertoireTemporaire(t), "verrou");
     const libere = join(repertoireTemporaire(t), "libere");

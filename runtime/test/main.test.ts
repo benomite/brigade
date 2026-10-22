@@ -115,7 +115,7 @@ function runtimeParDefaut(t: TestContext): Promise<Releve> {
 }
 
 // Chaque test a son état, son dépôt et son GitHub, et écoute sur le port 0 : ils se jouent de front.
-describe("le runtime, son process et ses unités", { skip: posixOnly("builds a real git repository and runs fake claude, gh or gates written as POSIX shell scripts"), concurrency: 8 }, () => {
+describe("le runtime, son process et ses unités", { skip: posixOnly("builds a real git repository, runs the fake claude (a POSIX shell script) and runs the fake gh (a POSIX shell script)"), concurrency: 8 }, () => {
   test("le runtime démarre, tourne, et s'arrête proprement sur SIGTERM", async (t) => {
     const runtime = await runtimeParDefaut(t);
     assert.deepEqual(runtime.journal.map((e) => e.type), ["runtime.started", "guard.configured", "station.announced", "drift.configured", "session.observed", "isolation.configured"]);

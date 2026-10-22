@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
+import { existsSync } from "node:fs";
 import { createServer, type AddressInfo } from "node:net";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
@@ -54,6 +55,18 @@ test("fauxGh : des appels simultanés gardent chacun leur jeton, à tout instant
   }
 
   assert.equal(apparies(), enfants.length);
+});
+
+test("repertoireTemporaire : le répertoire part après les crochets de fin que le test pose lui-même — sous Windows, un journal encore ouvert ne s'efface pas", async (t) => {
+  let repertoire = "";
+  let present: boolean | undefined;
+  await t.test("un test qui ferme son journal dans son propre crochet", (sous) => {
+    repertoire = repertoireTemporaire(sous);
+    sous.after(() => void (present = existsSync(repertoire)));
+  });
+
+  assert.equal(present, true);
+  assert.equal(existsSync(repertoire), false);
 });
 
 // Les deux process que le chef pose sur un port, et ce que chacun dit une fois ouvert.

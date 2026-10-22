@@ -90,10 +90,17 @@ function finDe(t: TestContext) {
     fins.set(t, courante);
     t.after(async () => {
       for (const arreter of courante.arrets) await arreter();
-      // Un cook qu'on vient de tuer peut encore finir d'écrire son flux : la
-      // suppression se reprend au lieu d'échouer sur un répertoire redevenu plein —
-      // un crochet de fin qui échoue ferait sauter les suivants.
-      for (const repertoire of courante.repertoires) rmSync(repertoire, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 });
+      // La suppression passe après les crochets de fin que le test a posés
+      // lui-même — un `t.after(() => journal.fermer())` écrit après
+      // `repertoireTemporaire` : sous Windows, un fichier encore ouvert ne
+      // s'efface pas (EPERM). Un crochet posé pendant les crochets de fin
+      // passe après eux.
+      t.after(() => {
+        // Un cook qu'on vient de tuer peut encore finir d'écrire son flux : la
+        // suppression se reprend au lieu d'échouer sur un répertoire redevenu plein —
+        // un crochet de fin qui échoue ferait sauter les suivants.
+        for (const repertoire of courante.repertoires) rmSync(repertoire, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 });
+      });
     });
   }
   return fin;

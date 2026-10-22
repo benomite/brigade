@@ -130,7 +130,7 @@ async function avantEtApresLeRenommage(t: TestContext) {
   return { clone, worktrees, depot, deplacee, intacte, disputee, commit, traduire };
 }
 
-describe("une livraison portée sur l'arbre renommé, sur un vrai dépôt", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows"), concurrency: 4 }, () => {
+describe("une livraison portée sur l'arbre renommé, sur un vrai dépôt", { skip: posixOnly("builds a real git repository"), concurrency: 4 }, () => {
   test("elle touchait des fichiers déplacés : un commit de plus sur sa branche fusionne la base renommée, et y déplace ce qu'elle avait écrit — fichier et dossier", async (t) => {
     const { clone, worktrees, depot, deplacee, commit, traduire } = await avantEtApresLeRenommage(t);
 
@@ -201,7 +201,7 @@ function fauxOutil(t: TestContext, feu: string): string {
 // Le numéro de ticket que porte une branche de cook.
 const ticketDeLaBranche = (branche: string) => Number(/^(?:origin\/)?cook\/(\d+)-/.exec(branche)?.[1]);
 
-describe("la cuisine reprise après le renommage", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, () => {
+describe("la cuisine reprise après le renommage", { skip: posixOnly("runs the fake claude (a POSIX shell script)") }, () => {
   test("le renommage mergé, la pause est levée, et la cuisine reprend seule : les tickets retenus sont repris sur le nouvel arbre — zone et branche sur les nouveaux chemins —, celui qui ne se porte pas est nommé dans la file avec la raison, celui qui ne touchait rien est repris tel quel, et un ticket neuf est pris et mergé", async (t) => {
     // Arrêté avant la cuisine : les crochets de fin se jouent dans l'ordre.
     let renommage: ReturnType<typeof renommeur> | undefined;

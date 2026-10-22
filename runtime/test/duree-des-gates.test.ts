@@ -53,7 +53,7 @@ function releve(ligne: string): { processeur: number; utilisateur: number; syste
 const CALCULE = `node -e "while (process.cpuUsage().user < 2e6) for (let i = 0; i < 1e7; i++);"`;
 
 // Chaque test a son projet : ils se jouent de front.
-describe("la durée des gates", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script"), concurrency: 8 }, () => {
+describe("la durée des gates", { skip: posixOnly("runs a POSIX shell script"), concurrency: 8 }, () => {
   test("les gates disent ce qu'elles ont coûté, et ne jugent pas leur durée — même si le projet déclare un plafond", async (t) => {
     for (const binding of [undefined, "- **Plafond des gates** : `0,01 s` de processeur"]) {
       const { lignes } = await jouer(projet(t, { binding }));

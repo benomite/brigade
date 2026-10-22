@@ -95,7 +95,7 @@ describe("le réseau du projet", { concurrency: 8 }, () => {
     assert.deepEqual(avertissements, ["brigade : network declaration unreadable on `v2`, the last allowlist read holds — git ls-tree : fatal: Unable to create index.lock"]);
   });
 
-  test("sur la base, un fichier absent se distingue d'un clone qu'on ne sait pas lire", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, (t) => {
+  test("sur la base, un fichier absent se distingue d'un clone qu'on ne sait pas lire", { skip: posixOnly("builds a real git repository") }, (t) => {
     const { clone } = depotGit(t);
     assert.equal(lireALaBase({ clone, base: BASE }, ".claude/brigade/reseau"), null);
     assert.equal(lireALaBase({ clone, base: BASE }, "LISEZMOI"), "le projet\n");

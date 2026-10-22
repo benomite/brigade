@@ -4,7 +4,7 @@
 // le runtime qui tourne la lit sans redémarrer.
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { posixOnly } from "./support/plateforme.ts";
 import { decisionsPosees } from "../src/decisions.ts";
@@ -47,7 +47,7 @@ function evenements(etat: string) {
   }
 }
 
-test("la lecture propose la station que la machine fournit, sans plafond, et ne crée aucun journal", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, async (t) => {
+test("la lecture propose la station que la machine fournit, sans plafond, et ne crée aucun journal", async (t) => {
   const etat = repertoireTemporaire(t);
 
   const lue = await lire(etat);
@@ -61,7 +61,7 @@ test("la lecture propose la station que la machine fournit, sans plafond, et ne 
   assert.equal(existsSync(join(etat, "log.db")), false);
 });
 
-test("sur une machine sans `claude`, rien n'est proposé, et la lecture dit pourquoi", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, async (t) => {
+test("sur une machine sans `claude`, rien n'est proposé, et la lecture dit pourquoi", async (t) => {
   const etat = repertoireTemporaire(t);
 
   const lue = await lire(etat, { BRIGADE_CLAUDE_BIN: join(etat, "pas-de-claude") });
@@ -70,7 +70,7 @@ test("sur une machine sans `claude`, rien n'est proposé, et la lecture dit pour
   assert.match(lue.absent ?? "", /introuvable dans le `PATH` du service : cette machine ne fournit aucune station .* `brigade espace installation` dit le geste/);
 });
 
-test("la déclaration choisie est posée au journal comme décision du chef, et l'étape « stations » notée faite", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, async (t) => {
+test("la déclaration choisie est posée au journal comme décision du chef, et l'étape « stations » notée faite", async (t) => {
   const etat = repertoireTemporaire(t);
 
   const { code, sortie } = await declarer(etat, "box/claude:4:code+raisonnement");
@@ -93,7 +93,7 @@ test("la déclaration choisie est posée au journal comme décision du chef, et 
   ]);
 });
 
-test("les étapes qui précèdent faites, l'étape courante passe des stations à la suivante", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, async (t) => {
+test("les étapes qui précèdent faites, l'étape courante passe des stations à la suivante", async (t) => {
   const etat = repertoireTemporaire(t);
   const journal = ouvrirJournal(etat);
   for (const etape of ["ajout", "init", "verification"]) noterEtape(journal, { projet: PROJET, etape, etat: "done", auteur: "chef" });
@@ -105,7 +105,7 @@ test("les étapes qui précèdent faites, l'étape courante passe des stations �
   assert.equal(installationDe(etat).courante, "protection");
 });
 
-test("déclarer à nouveau la même chose ne réécrit rien", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, async (t) => {
+test("déclarer à nouveau la même chose ne réécrit rien", async (t) => {
   const etat = repertoireTemporaire(t);
   await declarer(etat, "box/claude:2:code");
 
@@ -116,7 +116,7 @@ test("déclarer à nouveau la même chose ne réécrit rien", { skip: posixOnly(
   assert.equal(evenements(etat).length, 2);
 });
 
-test("une déclaration que le runtime ne lirait pas est refusée avant d'écrire : ni décision, ni étape, ni journal", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, async (t) => {
+test("une déclaration que le runtime ne lirait pas est refusée avant d'écrire : ni décision, ni étape, ni journal", async (t) => {
   const etat = repertoireTemporaire(t);
 
   for (const [declaration, motif] of [
@@ -132,7 +132,7 @@ test("une déclaration que le runtime ne lirait pas est refusée avant d'écrire
   assert.equal(existsSync(join(etat, "log.db")), false);
 });
 
-test("sans journal ni projet nommé, rien n'est écrit : rien ne dit à quel projet déclarer", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, async (t) => {
+test("sans journal ni projet nommé, rien n'est écrit : rien ne dit à quel projet déclarer", async (t) => {
   const etat = repertoireTemporaire(t);
 
   const appel = appeler(principal, ["box/claude:2:code"], { BRIGADE_STATE_DIR: etat, BRIGADE_CLAUDE_BIN: FAUX_CLAUDE });
@@ -146,7 +146,7 @@ test("sans journal ni projet nommé, rien n'est écrit : rien ne dit à quel pro
 // n'en lance aucun. Sur une box qui n'a ni `sudo`, ni `systemctl`, ni geste de
 // mise en service, elle déclare quand même — et un `sudo` ou un `systemctl`
 // lancé se verrait au témoin.
-test("l'action ne lance aucun geste de box : ni `sudo`, ni `systemctl` — rien ne peut y manquer", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, async (t) => {
+test("l'action ne lance aucun geste de box : ni `sudo`, ni `systemctl` — rien ne peut y manquer", async (t) => {
   const etat = repertoireTemporaire(t);
   const outils = repertoireTemporaire(t);
   const temoin = join(outils, "temoin");
@@ -156,7 +156,7 @@ test("l'action ne lance aucun geste de box : ni `sudo`, ni `systemctl` — rien 
 
   const commande = lancer(t, INSTALLATION, ["stations", "box/claude:3:code"], {
     ...env(etat),
-    PATH: `${outils}:${process.env.PATH ?? ""}`,
+    PATH: `${outils}${delimiter}${process.env.PATH ?? ""}`,
     BRIGADE_SUDO_BIN: join(outils, "sudo"),
     BRIGADE_SYSTEMCTL_BIN: join(outils, "systemctl"),
     BRIGADE_MISE_EN_SERVICE_LIEN: join(outils, "absent"),
@@ -168,7 +168,7 @@ test("l'action ne lance aucun geste de box : ni `sudo`, ni `systemctl` — rien 
   assert.equal(installationDe(etat).etapes.find((etape) => etape.id === "stations")?.etat, "done");
 });
 
-test("la commande du chef, en texte : l'étape, ce qu'elle sert, ce que la machine fournit et le geste qui déclare", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, async (t) => {
+test("la commande du chef, en texte : l'étape, ce qu'elle sert, ce que la machine fournit et le geste qui déclare", async (t) => {
   const etat = repertoireTemporaire(t);
 
   const commande = lancer(t, INSTALLATION, ["stations"], env(etat));
@@ -185,7 +185,7 @@ test("la commande du chef, en texte : l'étape, ce qu'elle sert, ce que la machi
 // Le critère de bout en bout : un runtime démarré sans station ne fait partir
 // aucun cook ; l'action déclare, et sans redémarrage le ticket qui attendait
 // part.
-test("de bout en bout : sur un runtime qui tourne sans station, l'action déclare et un cook part sur le ticket, sans redémarrage", { skip: posixOnly("builds a real git repository and runs fake claude, gh or gates written as POSIX shell scripts") }, async (t) => {
+test("de bout en bout : sur un runtime qui tourne sans station, l'action déclare et un cook part sur le ticket, sans redémarrage", { skip: posixOnly("builds a real git repository, runs the fake claude (a POSIX shell script) and runs the fake gh (a POSIX shell script)") }, async (t) => {
   const etat = repertoireTemporaire(t);
   const { clone } = depotGit(t);
   const gh = fauxGh(t);
