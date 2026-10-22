@@ -145,7 +145,23 @@ reason.
   integration branch declares). The mission carries `sandbox: true`, and its arguments of `claude`
   are those of a box cook whose `--permission-mode bypassPermissions` gives way to
   `--permission-mode dontAsk --settings <the configuration>`: the station launches them as they are.
-  `cook.launched` also carries `sandbox: true`.
+  `cook.launched` also carries `sandbox: true`. The configuration also sets
+  `npm_config_manage_package_manager_versions=false` (its `env`) — #1320. Cause, reproduced with pnpm
+  10.34 against a recording proxy: a project whose `packageManager` differs from the installed pnpm
+  makes pnpm 10 download that version and verify its npm signature at startup; when that request does
+  not get through, every `pnpm <script>` dies of `ERR_PNPM_PNPM_ENGINE_IDENTITY_UNVERIFIABLE` (the
+  exact name: pnpm prefixes `ERR_PNPM_` to its own `PNPM_ENGINE_IDENTITY_UNVERIFIABLE`). The proxy
+  hypothesis (Node's `fetch`) is refuted: pnpm has its own HTTP client, which ignores
+  `NODE_USE_ENV_PROXY` and `HTTPS_PROXY` but reads the lowercase `https_proxy` / `http_proxy`, and
+  `claude`'s sandbox exports both spellings (`HTTP(S)_PROXY` and `http(s)_proxy`, read in claude 2.1.300).
+  So why the request failed on the Mac is **not reproduced** — the setting does not depend on it: with
+  it, pnpm runs the installed version, with no download and no check, network or not. It applies to
+  every sandboxed cook, so a project's pinned pnpm version is not honoured there. `pnpm install` and a
+  script then go through the proxy like any request; `runtime/test/bac-a-sable/configuration.test.ts`
+  plays `pnpm --version`, `pnpm install` and `pnpm run <script>` with a real pnpm 10 (the workstation's,
+  else one installed with npm — skipped, saying so, without network) under the sandbox's proxy variables
+  against a recording proxy and a fake registry, and the same project without the setting dying of
+  the error above. The "worktree prêt" setup of a project on a real Mac sandbox has not been played.
 - **Setting without a sandbox** — or a station that says nothing about it, or a workstation whose
   configuration does not hold (worktrees where a cook must read nothing): **it takes no ordinary
   ticket**. The box writes it (`station.sandbox`, with the reason), says it in the runtime's output

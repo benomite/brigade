@@ -56,6 +56,7 @@ export const LECTURES_INTERDITES = [
 export type Cook = { worktree: string; caches: string[]; hotes: Regle[]; home: string; prod?: string[] };
 
 export type Reglages = {
+  env: { npm_config_manage_package_manager_versions: "false" };
   sandbox: {
     enabled: true;
     failIfUnavailable: true;
@@ -124,6 +125,16 @@ export function configurer(cook: Cook): ConfigDeBacASable {
   return {
     modeDePermission: "dontAsk",
     reglages: {
+      // Un projet qui fixe `packageManager` (`pnpm@10.x`) fait télécharger
+      // cette version à pnpm 10 dès son démarrage, puis vérifier sa signature
+      // auprès de registry.npmjs.org : chaque `pnpm <script>` meurt de
+      // ERR_PNPM_PNPM_ENGINE_IDENTITY_UNVERIFIABLE quand cette requête
+      // n'aboutit pas. Ce n'est pas le `fetch` de Node (pnpm a son client, qui
+      // lit `https_proxy` en minuscules, que le bac à sable pose). Sans
+      // changement de version, ni téléchargement ni vérification : pnpm tourne
+      // avec celui qui est installé, réseau ou non. Posé ici, donc pour les
+      // seuls lancements du bac à sable ; les autres gardent leur comportement.
+      env: { npm_config_manage_package_manager_versions: "false" },
       sandbox: {
         enabled: true,
         // Sans bac à sable, `claude` refuse de partir plutôt que de lancer
