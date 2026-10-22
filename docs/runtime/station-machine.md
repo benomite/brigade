@@ -54,6 +54,31 @@ translated.
 between 5 and 10 min: its last heartbeat is 5 min old at most, at the beat, and the app says it is
 offline 2 × 285 s + 30 s after that heartbeat.
 
+## The chef's stations, read from a fresh computer
+
+*Code: `runtime/src/appairage/stations-du-chef.ts` (#1428).*
+
+On a computer where only the app is installed — no clone, no station, no project — the stations
+the chef has already paired, and the projects each one carries, are read from GitHub alone, by
+that computer's `gh`. The app imports `lireLesStationsDuChef`, or runs
+`node runtime/src/appairage/stations-du-chef.ts` (`BRIGADE_GH_BIN` names the `gh`), which prints
+one JSON line — exit code 0 when stations are listed, 1 otherwise. The answer is always one of
+three states, never an empty list without a reason:
+
+- `listed` — `stations`, each with its gist `id`, `name`, `machine`, `kind`, `cooks` (false for a
+  phone), `version`, `online` (the app's rule: stopped, or two heartbeats missed), `lastSeen`,
+  `stoppedAt`, and `projects`: `{ name, repository }`. The repository is the one the station
+  publishes (`depots` in `brigade-station.json`), else the one of the app's request, else null
+  (an older station, a line written by hand). `unreadable` lists the paired gists whose state
+  cannot be read. With no station, `reason` says why in one sentence.
+- `sign-in-required` — this `gh` is signed in to no account, or GitHub refuses its token:
+  `reason`, one sentence, and `action`, the gesture the app triggers —
+  `{ id: "github-sign-in", label, command }`, `command` being
+  `gh auth login --hostname github.com --web --git-protocol https`.
+- `unavailable` — any other failure: `cause` (`gh-missing`, `network`, `timeout`, `rate-limit`,
+  `github`), `reason` in one sentence, `link` when a page lifts it (`https://cli.github.com` for a
+  missing `gh`), and `detail`, what `gh` said.
+
 ## The calls to GitHub, on the account's real quota, and waiting out the limit
 
 *Code: `runtime/src/limite-github.ts` (#873, #874, #1416).*
