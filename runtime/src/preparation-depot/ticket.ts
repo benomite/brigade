@@ -7,6 +7,7 @@ import { execFileSync } from "../sans-invite.ts";
 import { LABEL } from "../github.ts";
 import { SCRIPT_GATES, SCRIPT_SETUP } from "../gates.ts";
 import { DECLARATION_RESEAU } from "../reseau.ts";
+import { DECLARATION } from "../secrets.ts";
 
 // Ce qui marque l'issue comme le ticket de préparation du dépôt : la station
 // le reconnaît par lui si elle l'a créé sans avoir pu le noter.
@@ -65,7 +66,7 @@ export function corps({ projet, depot, base, presents }: Contenu): string {
     "| Fichier | Contrat | Aujourd'hui |",
     "|---|---|---|",
     `| \`${SCRIPT_GATES}\` | exécutable ; \`gates.sh <worktree>\`. **Son code de sortie est le verdict de la pass** : 0 vert, tout autre rouge. Il joue ce qui dit qu'une livraison est bonne — tests, contrôle de types, lint —, sans écran, sans service qui reste derrière lui, et sans courir contre l'horloge. | ${direPresence(presents[SCRIPT_GATES], base)} |`,
-    `| \`${SCRIPT_SETUP}\` | exécutable ; \`worktree-setup.sh <n> <worktree>\`. **N'imprime que des \`export\`** sur sa sortie (le reste va sur la sortie d'erreur). Il rend un worktree neuf prêt pour le cook et les gates : dépendances, build. Les ports se dérivent de \`<n>\`, jamais en dur — plusieurs cooks tournent en même temps ; il ne laisse rien tourner. | ${direPresence(presents[SCRIPT_SETUP], base)} |`,
+    `| \`${SCRIPT_SETUP}\` | exécutable ; \`worktree-setup.sh <n> <worktree>\`. **N'imprime que des \`export\`** sur sa sortie (le reste va sur la sortie d'erreur). Il rend un worktree neuf prêt pour le cook et les gates : dépendances, build. Les ports se dérivent de \`<n>\`, jamais en dur — plusieurs cooks tournent en même temps ; il ne laisse rien tourner. Il ne lit aucun fichier que le dépôt ne porte pas — un \`.env\` copié à la main sur une machine — et n'exige aucun service que la station n'a pas : une configuration de dev s'écrit dans le dépôt ou s'en dérive, un secret se déclare dans \`${DECLARATION}\` et la station le passe au setup. | ${direPresence(presents[SCRIPT_SETUP], base)} |`,
     `| \`${DECLARATION_RESEAU}\` | **les sites que le projet a le droit de joindre**, en plus d'Anthropic et de GitHub : un hôte par ligne (\`registry.npmjs.org\`), \`*.\` devant pour ses sous-domaines, \`:port\` derrière pour un autre port que 443 et 80, jamais une adresse ; \`#\` commente. Chaque registre de paquets, chaque service que le setup et les gates joignent y est. Rien à ouvrir : le fichier existe quand même, commenté, et le dit. | ${direPresence(presents[DECLARATION_RESEAU], base)} |`,
     "",
     "## Éprouver sur la station, pas en local",
