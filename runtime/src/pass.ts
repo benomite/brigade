@@ -100,6 +100,7 @@ import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.t
 import { envelopper, type Cloison } from "./cloison.ts";
 import { aDesGates, jouerGatesMesurees, SCRIPT_GATES, type DemandeScript } from "./gates.ts";
 import { noterCoutDesGates } from "./cout-des-gates.ts";
+import { fileDeLaPass, tenantDeLaPass } from "./file-de-la-pass.ts";
 import { empreinteDeConfig, gatesReprises, passageVert, type EmpreinteDesGates } from "./empreinte-des-gates.ts";
 import { tenirLeBudget } from "./budget-des-gates.ts";
 import { constaterExtinction, direExtinction } from "./grant.ts";
@@ -116,7 +117,6 @@ import {
   controleRetenu,
   etatDeLaBase,
   etatDuGrant,
-  lirePass,
   mergesAVerifier,
   orphelines,
   passDuTicket,
@@ -515,6 +515,13 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
 
   // Hors du rail, une livraison est en pass tant que la pass la suit.
   const enPass = (ticket: number) => ticketDuRail(base, ticket)?.state === "pass" || passDuTicket(base, ticket)?.horsRail === true;
+  // Une livraison à la fois est dans sa pass : une autre ne commence pas, ni
+  // ne se rejuge, avant qu'elle en soit sortie (`file-de-la-pass.ts`). La
+  // passe parcourt la file dans l'ordre : la première prête prend le tour.
+  const aSonTour = (ticket: number) => {
+    const tenant = tenantDeLaPass(base);
+    return tenant === null || tenant === ticket;
+  };
   // La réparation en cours d'une base rouge : son rouge, la pass le juge et le
   // merge. Les gates de sa fusion avec la base disent si elle la répare.
   const estLaReparation = (ticket: number) => reparationEnCours(base) === ticket;
@@ -1333,7 +1340,8 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     }
     if ("verifier" in suite) {
       const connu = passDuTicket(base, ticket);
-      if (!connu) return;
+      // La base a pu bouger : la vérifier peut la rejuger, ce qui attend son tour.
+      if (!connu || !aSonTour(ticket)) return;
       const controle = etatDeLaBase(base);
       if (controle?.outcome === "red" && !estLaReparation(ticket)) return attendreLaBase(connu, controle.sha);
       const vue = await depot.rapatrier();
@@ -1866,7 +1874,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     switch (connu.phase) {
       case "delivered":
       case "judging":
-        if (enPass(connu.ticket)) await juger(connu);
+        if (enPass(connu.ticket) && aSonTour(connu.ticket)) await juger(connu);
         return;
       // Jugé, mais le runtime est mort avant de décider.
       case "green":
@@ -1878,7 +1886,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       case "waiting":
         if (tick && (await surveiller(connu))) return;
         if (connu.reason === PROJET_ETEINT ? projetEteint(base) : connu.reason === EN_PAUSE ? mergeRetenu(base, connu.ticket) !== null : connu.reason === BASE_ROUGE ? etatDeLaBase(base)?.outcome === "red" && !estLaReparation(connu.ticket) : sature() !== null) return;
-        if (enPass(connu.ticket)) await juger(connu);
+        if (enPass(connu.ticket) && aSonTour(connu.ticket)) await juger(connu);
         return;
       case "merging":
         return reconcilier(connu);
@@ -2151,7 +2159,8 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
           // Avant toute décision : un grant échu, runtime arrêté ou non,
           // s'écrit éteint dès que la pass repasse.
           eteindre(() => {});
-          for (const { ticket } of lirePass(base)) {
+          // Dans l'ordre de la file : celui où les livraisons sont arrivées.
+          for (const { ticket } of fileDeLaPass(base)) {
             if (arrete) return;
             try {
               const connu = passDuTicket(base, ticket);
