@@ -121,6 +121,7 @@ import { poserLActivite } from "./activite-cuisine.js";
 import { poserLeJourDesGates, poserLesGatesDeLaFile } from "./cout-des-gates.js";
 import { AIDE as AIDE_DES_ROLES, poserLesRoles, resumeDesRoles, TITRE as TITRE_DES_ROLES } from "./roles-cuisine.js";
 import { apresLaDecision, poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
+import { poserPremierLancement } from "./premier-lancement.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
 // et ne peut pas importer du TypeScript — la locale est la même, anglaise.
@@ -6666,6 +6667,125 @@ function ouvrirTous() {
   brigade.tous(++demande);
 }
 
+// Le premier lancement, sur un ordinateur neuf (ticket 1434, premier-lancement.js) : tant que le fichier n'a aucun
+// projet, l'app s'ouvre sur les stations du chef et leurs projets, lus par le runtime, à la place de l'accueil —
+// « T » reste l'entrée affichée, et y ramène ; « + » mène à l'ajout par un dossier. Un projet s'ouvre d'un clic :
+// sa copie se fait, chaque étape se dit sous sa station, puis il entre dans le fichier, et son espace s'ouvre. Une
+// connexion à GitHub qui manque se fait d'un bouton ; faite, les stations sont relues — et une ouverture qu'elle
+// retenait repart d'elle-même.
+/** @type {import("./premier-lancement.js").EtatDuPremier} */
+const premier = { poste: POSTE.nom };
+/** @type {any} */
+let ecranDuPremier;
+let lectureDuPremier = 0;
+// Le projet ouvert, que le fichier n'a peut-être pas encore rendu : son espace s'ouvre dès qu'il y est.
+/** @type {string | undefined} */
+let premierAOuvrir;
+/** @type {import("./premier-lancement.js").GestesDuPremier} */
+const gestesDuPremier = {
+  ouvrir: (station, projet, depot) => void ouvrirDUneStation(station, projet, depot),
+  seConnecter: () => void seConnecterAGitHub(),
+  relire: () => void relireLePremier(),
+  ouvrirLaPage: (url) => void brigade.ouvrirLaPage?.(url),
+  ajouterUnDossier: () => ouvrirAjout(),
+};
+// Le desktop porte le premier lancement ; un pont qui ne le porte pas garde l'ajout par un dossier.
+const avecPremier = () => configuration.projets.length === 0 && telephone === undefined && brigade.stationsDuChef !== undefined;
+
+function ouvrirPremier() {
+  courant = undefined;
+  ajoute = false;
+  stationOuverte = undefined;
+  coutsOuverts = false;
+  marquer();
+  ecranDuPremier = poserPremierLancement(document, { ...premier, poste: POSTE.nom }, gestesDuPremier);
+  tous.replaceChildren(ecranDuPremier);
+  if (premier.stations === undefined && lectureDuPremier === 0) void relireLePremier();
+}
+
+// Reposé à chaque changement — tant qu'il est l'écran montré : un autre l'a remplacé, rien n'y est reposé.
+function poserLePremier() {
+  if (ecranDuPremier === undefined || ecranDuPremier.parentElement !== tous || tous.hidden) return;
+  ecranDuPremier = poserPremierLancement(document, { ...premier, poste: POSTE.nom }, gestesDuPremier);
+  tous.replaceChildren(ecranDuPremier);
+}
+
+async function relireLePremier() {
+  const demandee = ++lectureDuPremier;
+  delete premier.stations;
+  poserLePremier();
+  /** @type {import("../premier-lancement.ts").StationsDuChef} */
+  let lu;
+  try {
+    lu = (await brigade.stationsDuChef?.()) ?? { state: "unavailable", cause: "github", reason: "Your stations could not be read: the app gave no answer." };
+  } catch (erreur) {
+    const detail = erreur instanceof Error ? erreur.message : String(erreur);
+    lu = { state: "unavailable", cause: "github", reason: "Your stations could not be read: the app failed while reading them.", detail };
+  }
+  if (demandee !== lectureDuPremier) return;
+  premier.stations = lu;
+  poserLePremier();
+}
+
+/** @param {string} station @param {string} projet @param {string} depot */
+async function ouvrirDUneStation(station, projet, depot) {
+  premier.ouverture = { station, projet, depot };
+  poserLePremier();
+  /** @type {import("../premier-lancement.ts").Ouverture} */
+  let issue;
+  try {
+    issue = (await brigade.ouvrirDUneStation?.(projet, depot)) ?? { state: "failed", project: projet, repository: depot, cause: "unknown", reason: `${projet} could not be opened: the app gave no answer.` };
+  } catch (erreur) {
+    const detail = erreur instanceof Error ? erreur.message : String(erreur);
+    issue = { state: "failed", project: projet, repository: depot, cause: "unknown", reason: `${projet} could not be opened: the app failed while opening it.`, detail };
+  }
+  if (issue.state === "failed") {
+    premier.ouverture = { station, projet, depot, echec: issue };
+    return poserLePremier();
+  }
+  delete premier.ouverture;
+  // Ajouté, il est déjà arrivé par `surConfiguration` — sinon, son espace s'ouvre dès qu'il y arrive.
+  const ouvert = projetDe(issue.project);
+  if (ouvert !== undefined) return void ouvrir(ouvert);
+  premierAOuvrir = issue.project;
+  poserLePremier();
+}
+
+async function seConnecterAGitHub() {
+  premier.connexion = { enRoute: true };
+  poserLePremier();
+  /** @type {import("../connexion-github.ts").DebutDeConnexion} */
+  let debut;
+  try {
+    debut = (await brigade.seConnecterAGitHub?.()) ?? { refus: "GitHub sign-in could not be started: the app gave no answer." };
+  } catch (erreur) {
+    debut = { refus: "GitHub sign-in could not be started: the app failed while starting it.", detail: erreur instanceof Error ? erreur.message : String(erreur) };
+  }
+  if ("connecte" in debut) return connecteAGitHub();
+  premier.connexion = debut;
+  poserLePremier();
+}
+
+// Connecté : les stations sont relues, et une ouverture que la connexion retenait repart.
+function connecteAGitHub() {
+  delete premier.connexion;
+  const retenue = premier.ouverture?.echec?.cause === "sign-in-required" ? premier.ouverture : undefined;
+  void relireLePremier();
+  if (retenue !== undefined) void ouvrirDUneStation(retenue.station, retenue.projet, retenue.depot);
+}
+
+brigade.surOuverture?.((depot, etape) => {
+  const { ouverture } = premier;
+  if (ouverture === undefined || ouverture.depot !== depot || ouverture.echec !== undefined) return;
+  ouverture.etape = etape;
+  poserLePremier();
+});
+brigade.surConnexionGitHub?.((fin) => {
+  if ("connecte" in fin) return connecteAGitHub();
+  premier.connexion = fin;
+  poserLePremier();
+});
+
 // La page des coûts de tous les projets, à la place de l'accueil : « T » reste l'entrée affichée, et un
 // geste y ramène. Seule sa lecture part — `station` sur la box de chaque projet — tant qu'elle est affichée.
 function ouvrirCouts() {
@@ -7160,11 +7280,17 @@ function afficher() {
   poserCode();
 
   const meme = configuration.projets.find((projet) => projet.nom === courant?.nom);
-  if (meme !== undefined) void ouvrir(meme);
+  // Le projet ouvert du premier lancement, arrivé dans le fichier après sa réponse.
+  const attendu = premierAOuvrir === undefined ? undefined : projetDe(premierAOuvrir);
+  if (attendu !== undefined) premierAOuvrir = undefined;
+  if (attendu !== undefined) void ouvrir(attendu);
+  else if (meme !== undefined) void ouvrir(meme);
   else if (stationOuverte !== undefined && !ajoute) ouvrirStation(stationOuverte);
   else if (coutsOuverts && !ajoute) ouvrirCouts();
-  // Sur le téléphone, aucun projet ne s'ajoute d'un dossier : sans projet, l'app reste sur « Tous les projets ».
-  else if (ajoute || (configuration.projets.length === 0 && telephone === undefined)) ouvrirAjout();
+  // Sur un ordinateur neuf, sans projet : ses stations et leurs projets (premier-lancement.js). Sur le téléphone,
+  // aucun projet ne s'ajoute d'un dossier : sans projet, l'app reste sur « Tous les projets ».
+  else if (ajoute || (configuration.projets.length === 0 && telephone === undefined && !avecPremier())) ouvrirAjout();
+  else if (avecPremier()) ouvrirPremier();
   // L'app s'ouvre sur « Tous les projets », en tête de la barre.
   else ouvrirTous();
   montrer();

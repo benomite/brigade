@@ -1376,6 +1376,67 @@ main > header,
   flex: none;
   color: var(--discret);
 }
+/* Le premier lancement, sur un ordinateur neuf (ticket 1434) : en tête la phrase de ce qu'on attend du chef — ou
+   pourquoi rien ne se lit —, puis une carte par station, ses projets en boutons. Ce qui se passe sous une station —
+   la copie en cours, sa raison d'échouer — se lit sous ses projets ; l'ajout par un dossier, discret, ferme l'écran. */
+.premier-lancement {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 640px;
+}
+.premier-lancement > h2 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--texte);
+}
+.premier-lancement .tete-de-station {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  color: var(--texte-doux);
+}
+.premier-lancement .tete-de-station .pastille {
+  align-self: center;
+}
+.premier-lancement .tete-de-station strong {
+  color: var(--texte);
+}
+.premier-lancement .gestes {
+  gap: 8px;
+  padding: 0;
+}
+.premier-lancement .projets-de-station button {
+  padding: 5px 12px;
+  font-size: 13px;
+}
+.premier-lancement .projets-de-station button[aria-pressed="true"] {
+  border-color: var(--accent);
+}
+.premier-lancement .ouverture {
+  color: var(--texte-doux);
+}
+.premier-lancement .refus {
+  margin: 0;
+  color: var(--rouge-clair);
+}
+.premier-lancement .code-de-connexion {
+  margin: 0;
+  color: var(--texte-doux);
+}
+.premier-lancement .code-de-connexion strong {
+  font-size: 15px;
+  color: var(--texte);
+}
+.premier-lancement > .gestes:last-child {
+  margin-top: 6px;
+}
+.premier-lancement > .gestes:last-child button {
+  color: var(--discret);
+}
+.premier-lancement :is(h2, .refus) .survol {
+  margin-left: 6px;
+}
 /* « + station », sous la liste : discret, à droite ; le champ du code s'ouvre à sa place. */
 #accueil-stations .ajout-de-station {
   align-self: flex-end;

@@ -199,10 +199,53 @@ name and a folder per project — with, for a project served by a box, which one
 write it to begin**: the app creates it, and you declare a box and add a project in it from
 the app.
 
+### On a new computer: your stations and their projects (#1434)
+
+On first launch the file does not exist: the app creates it, empty (`{ "projets": [] }`). **As long
+as it has no project, the app opens on the stations you have already paired and the projects each
+carries** — in place of All projects, the round **T** still marked. They are read by the runtime
+(`runtime/src/appairage/stations-du-chef.ts`, #1428), through this computer's `gh`:
+
+```
+Open one of your projects on this PC: one click, no folder to choose.
+● Mac          online
+  [brigade]
+● parade-box   online
+  [brigade] [parade] [cantine]
+[add a project from a folder instead]
+```
+
+- **A project opens in one click, with no folder to choose.** The runtime's operation
+  (`runtime/src/projets/copie-locale.ts`, #1429) reuses a copy that already exists, or clones the
+  repository into the folder the app manages (`~/.local/share/brigade/projects/<name>`, or
+  `BRIGADE_PROJECTS_DIR`). Each of its steps is said under the station, in its sentence —
+  `Cloning benomite/parade into … — 42%.` —, and the other projects wait: one clone at a time.
+  Opened, the project enters the projects file with its repository and the branch its origin points
+  to, and its space opens.
+- **A clone that fails says why in one sentence**, the runtime's — `GitHub denies chef-pc access to
+  benomite/parade, so it cannot be cloned: …` —, under its station; what `gh` and `git` wrote is in
+  the `?` hover. A button opens the page that lifts it when the runtime names one (`get Git`,
+  `open the page on GitHub`), and `try again` replays it.
+- **When this computer is not signed in to GitHub**, the head of the screen says so in one sentence,
+  with `Sign in to GitHub`: the button runs the runtime's sign-in action (`gh auth login --web`),
+  without a terminal. The screen shows the one-time code to type, `Type the code A1B2-C3D4 on the
+  GitHub page that opened in your browser.`, and the page opens — by `gh`, or by the app. Signed in,
+  the stations are read again; a clone that was held for want of an account starts again by itself.
+  The same button appears under a clone refused for that reason.
+- **When the stations cannot be read** — no `gh`, no network, GitHub limiting the account —, the
+  head says why in the runtime's sentence, its detail in the hover, with the button of the page that
+  lifts it (`get the GitHub CLI`) and `read again`. With no station paired yet, the sentence says
+  what to do. The screen is never blank.
+- **A folder you already have** is still one click away: `add a project from a folder instead`,
+  or the **+** at the foot of the bar, open **Add a project**. **T** opens All projects.
+
+*Code: `app/src/premier-lancement.ts` and `app/src/connexion-github.ts` (main process),
+`app/src/vue/premier-lancement.js` (the screen). Captures: `docs/captures/1434/`.*
+
 ### From the app
 
-On first launch the file does not exist: the app creates it, empty (`{ "projets": [] }`), and
-opens on **Add a project**. After that, it is the **+**, at the foot of the bar.
+Once the file has a project, adding another is the **+**, at the foot of the bar, which opens
+**Add a project**.
 
 **Adding a project is installing it on its box** — a single screen, on a box already prepared:
 

@@ -315,11 +315,13 @@ describe("hors d'une installation neuve", () => {
     assert.equal(vue.element("ajout").hidden, true);
   });
 
-  test("le desktop, qui ne rend aucun `telephone` : rien n'est posé, et sans projet l'app s'ouvre sur l'ajout, comme avant", async () => {
+  test("le desktop, qui ne rend aucun `telephone` : rien n'est posé, et sans projet l'app s'ouvre sur les stations du chef (#1434)", async () => {
     const { vue, ecran } = await auLancement({}, null);
     assert.equal(ecran().hidden, true);
     assert.equal(ecran().children.length, 0);
     assert.equal(vue.element("cadre").hidden, false);
-    assert.equal(vue.element("ajout").hidden, false);
+    assert.equal(vue.element("ajout").hidden, true);
+    assert.equal(vue.element("tous").hidden, false);
+    assert.ok(vue.element("tous").children[0]?.classList.contains("premier-lancement"));
   });
 });

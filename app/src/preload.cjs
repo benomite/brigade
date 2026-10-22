@@ -77,6 +77,13 @@ const pont = {
   reglerLePlafond: (station, valeur, projet) => ipcRenderer.invoke("reglerLePlafond", station, valeur, projet),
   reglerLePlafondDeCalibrage: (projet, choix) => ipcRenderer.invoke("reglerLePlafondDeCalibrage", projet, choix),
   retirerLaStation: (id) => ipcRenderer.invoke("retirerLaStation", id),
+  // Le premier lancement, sur un ordinateur neuf (ticket 1434) : les stations du chef et leurs projets, lus par le
+  // runtime ; un projet ouvert d'un clic — chaque étape de sa copie arrive par `surOuverture` — ; la connexion à
+  // GitHub, dont la fin arrive par `surConnexionGitHub` ; une page qu'un échec a nommée.
+  stationsDuChef: () => ipcRenderer.invoke("stationsDuChef"),
+  ouvrirDUneStation: (nom, depot) => ipcRenderer.invoke("ouvrirDUneStation", nom, depot),
+  seConnecterAGitHub: () => ipcRenderer.invoke("seConnecterAGitHub"),
+  ouvrirLaPage: (url) => ipcRenderer.invoke("ouvrirLaPage", url),
   compter: (projet) => ipcRenderer.invoke("compter", projet),
   closer: (projet, action, oui) => ipcRenderer.invoke("closer", projet, action, oui),
   corriger: (projet, proposition, reponse) => ipcRenderer.invoke("corriger", projet, proposition, reponse),
@@ -115,6 +122,8 @@ const pont = {
   surStations: (recevoir) => void ipcRenderer.on("stations", (_, vu) => recevoir(vu)),
   surProjetsDesStations: (recevoir) => void ipcRenderer.on("projetsDesStations", (_, vu) => recevoir(vu)),
   surAccueil: (recevoir) => void ipcRenderer.on("accueil", (_, vu) => recevoir(vu)),
+  surOuverture: (recevoir) => void ipcRenderer.on("ouverture", (_, depot, etape) => recevoir(depot, etape)),
+  surConnexionGitHub: (recevoir) => void ipcRenderer.on("connexionGitHub", (_, fin) => recevoir(fin)),
   surConfiguration: (recevoir) => void ipcRenderer.on("configuration", (_, configuration, fermes) => recevoir(configuration, fermes)),
 };
 contextBridge.exposeInMainWorld("brigade", pont);
