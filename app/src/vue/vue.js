@@ -101,7 +101,7 @@ import { poserPerdus } from "./cost/perdus.js";
 import { poserTete } from "./cost/tete.js";
 import { poserFiabilite } from "./fiabilite.js";
 import { poserReculs } from "./recul.js";
-import { poserTriage } from "./triage.js";
+import { poserTriage, poserTriageDeCooks } from "./triage.js";
 import { DIT_PROVISOIRE, PROVISOIRE, poserApprentissage, resumeDeLApprentissage, TITRE as TITRE_APPRIS } from "./apprentissage.js";
 import { lireFermeture, poserCloser } from "./closer/section.js";
 import { poserBilan } from "./closer/bilan/bilan.js";
@@ -118,7 +118,7 @@ import { ligneDAlerte, poserLesStations as stationsDeCuisson } from "./stations-
 import { poserLesAppels } from "./appels-de-la-station.js";
 import { EXPLIQUE as AIDE_DU_PLAFOND, poserLePlafond as plafondDeCalibrage, resumeDuPlafond, TITRE as TITRE_DU_PLAFOND } from "./plafond-de-calibrage.js";
 import { poserLActivite } from "./activite-cuisine.js";
-import { poserLeJourDesGates, poserLesGatesDeLaFile } from "./cout-des-gates.js";
+import { poserLeJourDesGates, poserLesGatesDeCooks, poserLesGatesDeLaFile } from "./cout-des-gates.js";
 import { AIDE as AIDE_DES_ROLES, poserLesRoles, resumeDesRoles, TITRE as TITRE_DES_ROLES } from "./roles-cuisine.js";
 import { apresLaDecision, poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
 import { poserPremierLancement } from "./premier-lancement.js";
@@ -318,6 +318,10 @@ rolesDuProjet.id = "roles-du-projet";
 // (ticket 1456) : ils étaient sur Reliability. poserCuisson les remplit ; poserRail les pose.
 const apprisDuProjet = document.createElement("div");
 apprisDuProjet.id = "appris-du-projet";
+// L'historique du triage, jour par jour, replié sous les rôles, sur Cooks (ticket 1457) : il était sur Rail. poserCuisson le
+// remplit ; poserRail le pose.
+const triageDuProjet = document.createElement("div");
+triageDuProjet.id = "triage-du-projet";
 const alerteDeCuisine = document.createElement("div");
 alerteDeCuisine.id = "alerte-de-cuisine";
 const lu = element("lu");
@@ -4146,8 +4150,11 @@ function poserCuisson(projet, posees = new Map()) {
   const activite = poserLActivite(document, tenu !== undefined && "tableau" in tenu && !muets.has(projet.nom) ? tenu.tableau.activiteCuisine : undefined);
   activiteDuProjet.replaceChildren(...(activite === null ? [] : [activite]));
   // Ses gates des dernières 24 h : rien tant que sa box ne répond pas, ni d'un runtime qui ne les donne pas.
-  const gates = poserLeJourDesGates(document, tenu !== undefined && "tableau" in tenu && !muets.has(projet.nom) ? tenu.tableau.coutDesGates : undefined);
-  gatesDuProjet.replaceChildren(...(gates === null ? [] : [gates]));
+  // Le dernier passage face au budget, et le ticket que la cuisine a ouvert (ticket 1457), puis, dessous, l'heure et le jour.
+  const tableauLu = tenu !== undefined && "tableau" in tenu && !muets.has(projet.nom) ? tenu.tableau : undefined;
+  const gates = poserLeJourDesGates(document, tableauLu?.coutDesGates);
+  gatesDuProjet.replaceChildren(...poserLesGatesDeCooks(document, tableauLu?.coutDesGates, (ticket, retour) => ouvrirFicheDeCout(projet.nom, ticket, retour)), ...(gates === null ? [] : [gates]));
+  triageDuProjet.replaceChildren(...(tableauLu === undefined ? [] : poserTriageDeCooks(document, tableauLu.triage, (ligne, contenu) => replieDe(projet, "triage", ligne, contenu))));
   const vu = projetsVus?.projets.find(({ nom }) => nom === projet.nom);
   const alerte = ligneDAlerte(document, {
     alerte: stations?.alerte ?? null,
@@ -4291,7 +4298,7 @@ async function reglerLePlafondDuProjet(projet, station, valeur) {
 function poserCuisineEtroite(projet, tenu) {
   if (projet.sansStation === true) return rail.replaceChildren(bloc("h3", STATION_ARRETEE));
   // Dans l'ordre de l'écran large (ticket 1456) : ses stations d'abord.
-  if (stationsPosees) return rail.replaceChildren(cuissonDuProjet, activiteDuProjet, gatesDuProjet, rolesDuProjet, apprisDuProjet);
+  if (stationsPosees) return rail.replaceChildren(cuissonDuProjet, activiteDuProjet, gatesDuProjet, rolesDuProjet, triageDuProjet, apprisDuProjet);
   const pourquoi = muets.has(projet.nom)
     ? "its stations: not known while the station is unreachable"
     : tenu === undefined
@@ -4338,7 +4345,7 @@ function poserRail(projet) {
   if (cuisine && etroit()) return poserCuisineEtroite(projet, tenu);
   // Sans stations lues — un runtime qui ne les donne pas, une box muette —, la carte du projet reste entière, en tête :
   // elle seule dit alors ses cooks en cours.
-  const deCooks = () => [...(stationsPosees ? [] : [carte]), cuissonDuProjet, servisSansCarte, pages, activiteDuProjet, gatesDuProjet, plafondDuProjet, rolesDuProjet, apprisDuProjet, lectureDeLaCuisine];
+  const deCooks = () => [...(stationsPosees ? [] : [carte]), cuissonDuProjet, servisSansCarte, pages, activiteDuProjet, gatesDuProjet, plafondDuProjet, rolesDuProjet, triageDuProjet, apprisDuProjet, lectureDeLaCuisine];
   /** @param {(HTMLElement | string)[]} poses */
   const poser = (...poses) => rail.replaceChildren(...(cuisine ? [...poses, ...deCooks()] : [...(alerteDeCuisine.hidden ? [] : [alerteDeCuisine]), ...poses]));
   // Cuisine d'un projet servi ici, station arrêtée : rien n'est lu, la page dit pourquoi en une ligne — sur l'un et

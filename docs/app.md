@@ -38,6 +38,13 @@ run costs, read against the budget of one run, on the row below, `(default)` whe
 hours; the exact figure is on hover. No run in the hour nor in the 24 h: one line says so, with the budget of one run
 (#1456), never a blank. A runtime that
 gives only the day shows its row alone, its averages `–` (the hover says why); one that gives nothing shows nothing.
+**The gates against their budget, on Cooks too (#1457)**: above that table, in the same block (anchor `#gates-du-projet`), the
+block of the Rail — `gates, latest run against budget`, with the full run on the base and the ticket the kitchen opened on
+its own — shown whole only when the latest run or the base run is over budget, or when the kitchen opened a ticket; otherwise
+one line (`within budget · time 62 s / 100 s, CPU 181 s / 400 s`, or `no run yet`). **The triage, day by day** sits folded
+under the roles (anchor `#triage-du-projet`): one line with the latest day's two numbers (`today: 2 decided alone · 1 sent
+to TODO`), the days when opened; one line, nothing to open, when there is no day (`no day yet`) or every day is 0. The
+Rail still carries both blocks for now; same data sources (`coutDesGates`, `triage`). Captures: `docs/captures/1457/`.
 **On Cooks, one block per station of the project** (#1185, #1270), at the top of the tab, wherever it runs — the box, the Mac,
 another computer (`remote`): its state, a word of `facts` (`cooking`, `stopped`, `saturated`, `refused`, #1183)
 and what it means (`by you, for 3 min · 1 cook finishing`, `its machine has no room`, the reason for a refusal),

@@ -154,14 +154,14 @@ describe("les gates face à leur budget, en tête de la file", () => {
     assert.deepEqual(mesures(file(vue) ?? assert.fail("pas de gates sur la file")), ["time 215 s / 120 s", "CPU not measured / 480 s"]);
   });
 
-  test("elles sont sur la file seulement : l'onglet Cooks n'en pose que les 24 h", async () => {
+  test("elles sont sur la file et sur Cooks (#1457, la file les garde jusqu'au ticket suivant) ; les 24 h, sur Cooks seulement", async () => {
     const vue = await ouvrir();
     recevoir(vue, HORS_DU_BUDGET);
     await repos();
     assert.notEqual(file(vue), undefined);
     assert.equal(jour(vue), undefined);
     await ouvrirOnglet(vue, "Cooks");
-    assert.equal(file(vue), undefined);
+    assert.notEqual(file(vue), undefined);
     assert.notEqual(jour(vue), undefined);
   });
 });
