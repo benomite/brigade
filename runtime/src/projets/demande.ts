@@ -18,6 +18,11 @@
 //     `base`, `manager` et `reviewer` peuvent manquer (ou valoir null) : le
 //     dépôt du projet les déclare (`reglages-projet/en-vigueur.ts`), et passe
 //     de toute façon avant eux.
+//     `fournit` (absent : rien de plus) : ce que la machine de cette station
+//     sait faire en plus de coder (`navigateur-headless`, `android`…), tel que
+//     le chef l'a coché à l'ajout de la station (`ajout-de-station.ts`). Il va
+//     au journal du projet sur la station, avec son plafond de cooks — jamais
+//     dans le dépôt.
 //     `ouvertLe` : quand le chef a ouvert le parcours — d'où se mesure le temps
 //     qu'il a fallu pour que le projet soit servi.
 //     Un déménagement de sa cuisine (`demenagement/`) ajoute, sur la station
@@ -90,6 +95,7 @@
 //     ticket — ses quatre étapes, la courante, le geste attendu du chef, le
 //     ticket de préparation (`onboarding/etat.ts`, `Onboarding`).
 import { EFFORTS, MODELES } from "../calibrage.ts";
+import { capacite, CAPACITE } from "../capacites.ts";
 import type { Onboarding } from "../onboarding/etat.ts";
 import type { EchecDuWorktree } from "../echec-du-worktree.ts";
 import type { Blocage } from "../installation/blocages/blocages.ts";
@@ -107,7 +113,7 @@ export const FORMAT = 1;
 // Un dépôt GitHub : `<owner>/<repo>`.
 export const DEPOT = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?\/[A-Za-z0-9_.-]{1,100}$/;
 // Une branche, telle qu'elle s'écrit sur une ligne de la configuration.
-const BRANCHE = /^[A-Za-z0-9._/-]{1,200}$/;
+export const BRANCHE = /^[A-Za-z0-9._/-]{1,200}$/;
 
 export type Calibre = { modele: string; effort: string };
 
@@ -129,6 +135,8 @@ export type ProjetDemande = {
   reviewer: Calibre | null;
   ouvertLe: string | null;
   demandeLe: string | null;
+  // Les capacités de la machine de la station, en plus de coder.
+  fournit?: string[];
   remise?: Remise | null;
   reprise?: Reprise | null;
   // L'issue que le chef retient pour chaque besoin qui manque (`installation/besoins/`).
@@ -196,6 +204,18 @@ function repriseLue(lue: unknown): Reprise | null {
   return nomDeStation(de) && gist(sien) && date(demandeLe) !== null ? { de, gist: sien, demandeLe: demandeLe as string } : null;
 }
 
+// Les capacités lisibles, chacune une fois, et celles qui ne le sont pas.
+export function capacitesLues(lues: unknown): { capacites: string[]; illisibles: number } {
+  if (!Array.isArray(lues)) return { capacites: [], illisibles: lues === undefined || lues === null ? 0 : 1 };
+  const capacites: string[] = [];
+  let illisibles = 0;
+  for (const lue of lues) {
+    if (!texte(lue) || lue.length > 60 || !CAPACITE.test(capacite(lue.trim()))) illisibles += 1;
+    else if (!capacites.includes(capacite(lue.trim()))) capacites.push(capacite(lue.trim()));
+  }
+  return { capacites, illisibles };
+}
+
 function calibre(lu: unknown): Calibre | null {
   const { modele, effort } = (lu ?? {}) as Record<string, unknown>;
   return texte(modele) && (MODELES as readonly string[]).includes(modele) && texte(effort) && (EFFORTS as readonly string[]).includes(effort) ? { modele, effort } : null;
@@ -215,7 +235,7 @@ export function lireDemande(brut: string): Demande | null {
   const projets: ProjetDemande[] = [];
   const problemes: string[] = [];
   for (const brut of lu.projets as unknown[]) {
-    const { nom, depot, base, principale, cooks, manager, reviewer, ouvertLe, demandeLe, remise, reprise, choix } = (brut ?? {}) as Record<string, unknown>;
+    const { nom, depot, base, principale, cooks, fournit, manager, reviewer, ouvertLe, demandeLe, remise, reprise, choix } = (brut ?? {}) as Record<string, unknown>;
     const dit = texte(nom) ? `« ${nom.slice(0, 40)} »` : "sans nom";
     const refuser = (pourquoi: string) => void problemes.push(`projet ${dit} demandé par l'app : ${pourquoi}`);
     if (!texte(nom) || !NOM_DE_PROJET.test(nom)) refuser("nom de projet invalide — attendu un identifiant court en minuscules, chiffres et tirets");
@@ -233,6 +253,9 @@ export function lireDemande(brut: string): Demande | null {
         const [laRemise, laReprise] = [remise === undefined || remise === null ? null : remiseLue(remise), reprise === undefined || reprise === null ? null : repriseLue(reprise)];
         if (remise !== undefined && remise !== null && laRemise === null) problemes.push(`projet ${dit} demandé par l'app : son déménagement (remise) est illisible — attendu la station qui le reprend, son gist et l'instant de la demande ; il est ignoré`);
         if (reprise !== undefined && reprise !== null && laReprise === null) problemes.push(`projet ${dit} demandé par l'app : son déménagement (reprise) est illisible — attendu la station qu'il quitte, son gist et l'instant de la demande ; il est ignoré`);
+        // Une capacité illisible n'est qu'ignorée, et dite : le projet reste servi.
+        const { capacites, illisibles } = capacitesLues(fournit);
+        if (illisibles > 0) problemes.push(`projet ${dit} demandé par l'app : ${illisibles === 1 ? "une capacité illisible est ignorée" : `${illisibles} capacités illisibles sont ignorées`} — attendu des lettres, des chiffres et des tirets`);
         projets.push({
           nom,
           depot,
@@ -243,6 +266,7 @@ export function lireDemande(brut: string): Demande | null {
           reviewer: pourReviewer,
           ouvertLe: date(ouvertLe),
           demandeLe: date(demandeLe),
+          ...(capacites.length === 0 ? {} : { fournit: capacites }),
           // Une remise ne se fait que depuis une station qui n'en est plus la
           // principale ; une reprise, que vers celle qui l'est.
           ...(laRemise !== null && !principale ? { remise: laRemise } : {}),
