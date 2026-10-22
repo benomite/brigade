@@ -11,6 +11,7 @@ import { test, type TestContext } from "node:test";
 import vm from "node:vm";
 import { ANDROID, dependancesDeLaVue, demarrageDuPont, majeureDuJdk, NATIF, plateformeVisee, poserLaVue, scriptDuPont, verifierPrerequis, type Machine } from "../../packaging/android.ts";
 import { APP, Arret, IDENTIFIANT, NOM, type Executer } from "../../packaging/construire.ts";
+import { CACHE_DE_COMPILATION } from "../aides/cache-de-compilation.ts";
 import { PAQUETS } from "../aides/posix.ts";
 
 const COMMANDE = join(APP, "packaging", "android.ts");
@@ -47,7 +48,7 @@ test("sans SDK Android ni JDK, la commande refuse (code 2) en nommant ce qui man
   const vide = join(ici, "bin");
   mkdirSync(vide);
   const sortie = join(ici, "construit");
-  const fait = spawnSync(process.execPath, [COMMANDE, "--sortie", sortie], { encoding: "utf8", env: { PATH: vide, HOME: ici } });
+  const fait = spawnSync(process.execPath, [COMMANDE, "--sortie", sortie], { encoding: "utf8", env: { PATH: vide, HOME: ici, ...CACHE_DE_COMPILATION } });
   assert.equal(fait.status, 2, fait.stderr);
   assert.match(fait.stderr, /^brigade: APK not built — missing prerequisites:/);
   assert.match(fait.stderr, /the Android SDK: ANDROID_HOME is not set/);
