@@ -5,12 +5,24 @@
 // sans bac à sable. Le journal s'ouvre en lecture seule : la cuisine qui y
 // écrit n'est pas dérangée. Absent, ou d'avant les projections qu'il lit, il
 // ne dit rien — ce n'est pas une panne : la cuisine ne s'est pas encore ouverte.
-import { ouvrirJournal } from "../journal.ts";
+import { ouvrirJournal, type Journal } from "../journal.ts";
 import { lirePreparation } from "../preparation-depot/ouvrir.ts";
 import { passDuTicket } from "../projections/pass.ts";
 import { sortDuTicket, ticketDuRail } from "../projections/rail.ts";
 import { lireDecisionSansBacASable } from "./attente.ts";
 import { etatDOnboarding, type Entrees, type FaitsDePreparation, type Onboarding } from "./etat.ts";
+
+// Ce que le setup a d'échoué au dernier départ du cook de préparation
+// (`preparation.setup-failed`, `station.ts`) : la phrase, tant qu'aucun cook
+// n'est parti après lui d'un autre essai — celui-là a trouvé un setup qui passe.
+function setupEnEchec(journal: Journal, ticket: number): string | null {
+  const evenements = journal.duTicket(ticket);
+  const echec = evenements.findLast((evenement) => evenement.type === "preparation.setup-failed");
+  if (echec?.type !== "preparation.setup-failed") return null;
+  const parti = evenements.findLast((evenement) => evenement.type === "cook.launched");
+  const apres = parti !== undefined && parti.seq > echec.seq && parti.type === "cook.launched" && parti.payload.run !== echec.payload.run;
+  return apres || typeof echec.payload.sentence !== "string" || echec.payload.sentence === "" ? null : echec.payload.sentence;
+}
 
 export type FaitsDuProjet = Pick<Entrees, "preparation" | "premierTicket" | "dejaServi" | "sansBacASable" | "decision">;
 
@@ -40,6 +52,8 @@ export function lireFaitsDuProjet(repertoireEtat: string): FaitsDuProjet {
         sort: sort === null ? null : { issue: sort.outcome, raison: sort.reason },
         pass: pass === null ? null : { phase: pass.phase, pr: pass.pr },
       };
+      const setup = setupEnEchec(journal, ticket);
+      if (setup !== null) preparation.setup = setup;
     }
     // Les tickets du chef : tous ceux du projet, sauf celui de préparation.
     const premier = base.lire<{ ticket: number; url: string | null }>(

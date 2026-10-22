@@ -255,3 +255,23 @@ test("la lecture du flux dit les tokens produits par le message qui porte le com
   assert.equal(lireFlux(flux).jetonsDuMessage, 300);
   assert.equal(lireFlux("").jetonsDuMessage, null);
 });
+
+test("le cook de préparation lancé sur un setup en échec reçoit ce qui a échoué, quelle que soit sa consigne ; les autres n'en lisent rien", async () => {
+  const { consigneDeRenvoi, consigneDeReprise } = await import("../src/pass.ts");
+  const { consigneDeSuite } = await import("../src/claude.ts");
+  const setup = { phrase: "le setup a besoin de `psql`, que la station `box/claude` n'a pas", sortie: "./setup.sh: line 3: psql: command not found\n```\nfin" };
+  const mission = { ticket: 20, titre: "Préparer le dépôt", depot: "benomite/parade", base: "main" };
+  const renvoi = { ...mission, branche: "cook/20-abc", n: 1, findings: ["Gates rouges."] };
+  const consignes = [
+    consigne({ ...mission, setup }),
+    consigneDeSuite({ ...mission, branche: "cook/20-abc", setup }),
+    consigneDeRenvoi({ ...renvoi, setup }),
+    consigneDeReprise({ base: "main", branche: "cook/20-abc", worktree: "/wt", n: 1, findings: ["Gates rouges."], setup }),
+  ];
+  for (const texte of consignes) {
+    assert.match(texte, /Le setup du worktree \(`\.claude\/brigade\/worktree-setup\.sh`\) a échoué sur cette station : le setup a besoin de `psql`, que la station `box\/claude` n'a pas\./);
+    // La sortie est citée, sans qu'une clôture qu'elle porte ne ferme la citation.
+    assert.match(texte, /```\n\.\/setup\.sh: line 3: psql: command not found\n'''\nfin\n```/);
+  }
+  for (const texte of [consigne(mission), consigneDeRenvoi(renvoi)]) assert.doesNotMatch(texte, /a échoué sur cette station/);
+});

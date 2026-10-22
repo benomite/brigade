@@ -425,6 +425,8 @@ export const stations = definirProjection<Ecoutes>({
     "secrets.unavailable": () => {},
     // Likewise: the failure it ends is read from the log (`echec-du-worktree.ts`).
     "worktree.prepared": () => {},
+    // Likewise: the project page reads it from the log (`onboarding/lire.ts`).
+    "preparation.setup-failed": () => {},
     // The issue says it; here only the cause counts, the one the
     // next failure is compared with.
     "setup.failed": (base, { payload }) => {

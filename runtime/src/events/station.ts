@@ -159,6 +159,13 @@ export type FaitStation =
   // La branche d'intégration a bougé depuis le blocage — un hôte déclaré, un
   // setup corrigé, mergés — : les setups reprennent. `base` : là où elle est.
   | { type: "setup.unblocked"; payload: { station: string; base: string } }
+  // Le setup du worktree a échoué pour le ticket qui prépare le dépôt
+  // (`preparation-depot/`) : c'est lui qui doit le réparer, son cook part
+  // quand même, sans les exports du setup. `run` : ce cook. `why` : son code
+  // de sortie, ou son plafond dépassé. `sentence` : ce qui a échoué, en une
+  // phrase anglaise — la page du projet la montre tant que ce cook est le
+  // dernier parti. Ni `setup.failed` ni blocage : aucun ticket n'est écarté.
+  | { type: "preparation.setup-failed"; payload: { station: string; run: string; why: string; sentence: string } }
   // Un ticket vient d'être mis de côté (86) pour une cause qui se répète d'un
   // ticket à l'autre — `reason`, son motif au rail. Écrit à chaque fois ; la
   // même cause deux fois de suite, sans cook parti entre les deux, bloque le

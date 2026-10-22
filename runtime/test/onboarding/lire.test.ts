@@ -116,4 +116,39 @@ test("prêt : la préparation servie, l'onboarding est fini — puis le premier 
   assert.equal(projet.onboarding().courante, null);
 });
 
+test("le setup du projet échoue au départ du cook de préparation : la page du projet dit ce qui a échoué, tant que ce cook est le dernier parti", (t) => {
+  const projet = unProjet(t);
+  const sentence = "the setup needs `apps/api/.env`, `docker` and `psql`, which the station `macbook/claude` does not have";
+  const partir = (run: string) =>
+    projet.noter({
+      type: "cook.launched",
+      payload: { run, limits: { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 }, stream: `runs/${run}.jsonl`, station: "macbook", model: "opus", effort: "high", branch: "cook/433", worktree: "worktrees/433" },
+    });
+  const dit = () => projet.onboarding().etapes.find(({ etape }) => etape === "preparation")?.dit;
+  projet.arriver();
+  projet.noter({ type: "ticket.taken", payload: { station: "macbook", leaseUntil: "2026-10-20T11:30:00.000Z" } });
+  projet.noter({ type: "preparation.setup-failed", payload: { station: "macbook/claude", run: "run-1", why: "code de sortie 1", sentence } });
+  partir("run-1");
+
+  assert.equal(lireFaitsDuProjet(projet.repertoireEtat).preparation?.setup, sentence);
+  assert.equal(dit(), `A cook on macbook prepares ${DEPOT} (#433). The setup needs \`apps/api/.env\`, \`docker\` and \`psql\`, which the station \`macbook/claude\` does not have.`);
+  // Son cook échoue : la phrase reste, c'est toujours ce qui est à réparer.
+  projet.noter({ type: "ticket.86", payload: { reason: "cook-failed", until: "2026-10-20T10:59:00.000Z" } });
+  assert.match(dit() ?? "", /^The cook of #433 failed — .*\. The setup needs `apps\/api\/\.env`/);
+
+  // Un cook reparti sur un setup qui passe : plus rien n'en est dit.
+  projet.noter({ type: "ticket.taken", payload: { station: "macbook", leaseUntil: "2026-10-20T12:30:00.000Z" } });
+  partir("run-2");
+  assert.equal(lireFaitsDuProjet(projet.repertoireEtat).preparation?.setup, undefined);
+  assert.equal(dit(), `A cook on macbook prepares ${DEPOT} (#433).`);
+});
+
+test("la préparation servie, ce que son setup avait d'échoué n'est plus dit", (t) => {
+  const projet = unProjet(t);
+  projet.arriver();
+  projet.noter({ type: "preparation.setup-failed", payload: { station: "macbook/claude", run: "run-1", why: "code de sortie 1", sentence: "the setup exits with code 1 on the station `macbook/claude`" } });
+  projet.noter({ type: "ticket.served", payload: {} });
+  assert.equal(projet.onboarding().etapes.find(({ etape }) => etape === "preparation")?.dit, `#433 is merged: ${DEPOT} is prepared.`);
+});
+
 test("lire.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);

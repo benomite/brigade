@@ -38,6 +38,14 @@ case "$scenario" in
     echo "npm ci a échoué" >&2
     exit 1
     ;;
+  # Bute sur ce que la station n'a pas : un fichier que le dépôt ne porte pas,
+  # des commandes qu'elle n'a pas installées.
+  manque)
+    echo "cp: cannot stat 'apps/api/.env': No such file or directory" >&2
+    echo "./setup.sh: line 9: docker: command not found" >&2
+    echo "./setup.sh: line 12: psql: command not found" >&2
+    exit 1
+    ;;
   # Échoue autrement qu'« echec » : une autre cause.
   autre)
     echo "tsc a échoué" >&2
