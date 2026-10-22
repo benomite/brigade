@@ -2,6 +2,9 @@
 // worktree et les caches du projet, ne lit ni `~/.ssh`, ni les identifiants du
 // chef, ni ses accès de prod, et ne joint que les hôtes de la liste du projet.
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { test } from "node:test";
 import { argumentsDuBacASable, BacASableInvalide, configurer, LECTURES_INTERDITES, type Cook } from "../../src/bac-a-sable/configuration.ts";
 import { reglesDuProjet, type Regle } from "../../src/reseau.ts";
@@ -148,8 +151,43 @@ test("les arguments de lancement portent le mode du cook et des réglages qui se
   assert.equal(args.length, 4);
 });
 
-test("un lancement du bac à sable fait suivre le proxy au `fetch` de Node, pour que pnpm démarre avec le registre dans la liste réseau", () => {
+// Le démarrage de pnpm 10 interroge le registre par le `fetch` de Node. Ce test
+// lance un vrai Node, avec l'environnement que le bac à sable donne (ses
+// variables de proxy) et celui des réglages, et regarde par où part la requête
+// vers l'hôte du registre : un faux proxy local la reçoit, ou rien ne la reçoit.
+// L'hôte est en `.invalid` : sans proxy, la requête échoue au DNS et ne sort pas.
+const HOTE_DU_REGISTRE = "registry.pnpm-test.invalid";
+async function requetesRecues(envReglages: Record<string, string>): Promise<{ hotes: string[]; sortie: string }> {
+  const hotes: string[] = [];
+  const proxy = createServer((req, res) => {
+    hotes.push(String(req.headers.host));
+    res.end("ok");
+  });
+  await new Promise<void>((resoudre) => proxy.listen(0, "127.0.0.1", resoudre));
+  const adresse = `http://127.0.0.1:${(proxy.address() as AddressInfo).port}`;
+  try {
+    const sortie = await new Promise<string>((resoudre) => {
+      const fils = spawn(process.execPath, ["-e", `fetch("http://${HOTE_DU_REGISTRE}/pnpm").then((r) => r.text(), (e) => "erreur").then((t) => process.stdout.write(t))`], {
+        env: { PATH: process.env.PATH ?? "", HTTP_PROXY: adresse, HTTPS_PROXY: adresse, http_proxy: adresse, https_proxy: adresse, ...envReglages },
+        stdio: ["ignore", "pipe", "inherit"],
+      });
+      let texte = "";
+      fils.stdout.on("data", (morceau) => (texte += morceau));
+      fils.on("close", () => resoudre(texte));
+    });
+    return { hotes, sortie };
+  } finally {
+    proxy.close();
+  }
+}
+
+test("avec l'environnement des réglages du bac à sable, la requête de démarrage de pnpm vers le registre passe par le proxy ; sans lui, elle n'y passe pas", async () => {
   const { reglages } = configurer(projet(["registry.npmjs.org"]));
-  assert.deepEqual(reglages.env, { NODE_USE_ENV_PROXY: "1" });
-  assert.deepEqual(reglages.sandbox.network.allowedDomains.includes("registry.npmjs.org"), true);
+  assert.equal(reglages.sandbox.network.allowedDomains.includes("registry.npmjs.org"), true);
+  const avec = await requetesRecues(reglages.env);
+  assert.deepEqual(avec.hotes, [HOTE_DU_REGISTRE]);
+  assert.equal(avec.sortie, "ok");
+  const sans = await requetesRecues({});
+  assert.deepEqual(sans.hotes, []);
+  assert.equal(sans.sortie, "erreur");
 });

@@ -145,7 +145,15 @@ reason.
   integration branch declares). The mission carries `sandbox: true`, and its arguments of `claude`
   are those of a box cook whose `--permission-mode bypassPermissions` gives way to
   `--permission-mode dontAsk --settings <the configuration>`: the station launches them as they are.
-  `cook.launched` also carries `sandbox: true`.
+  `cook.launched` also carries `sandbox: true`. The configuration also sets `NODE_USE_ENV_PROXY=1`
+  (its `env`): the sandbox only lets a command out through its proxy (`HTTPS_PROXY`), and the
+  startup of pnpm 10 checks its own identity against `registry.npmjs.org` with Node's `fetch`,
+  which ignores those variables without it — `pnpm <script>` then died of
+  `ERR_PNPM_PNPM_ENGINE_IDENTITY_UNVERIFIABLE` although the host is in `reseau` (#1320). **Not
+  yet reproduced on a Mac with pnpm 10**: what a test proves (`configuration.test.ts`) is that
+  a real Node launched with this environment sends its request through the proxy, and not
+  without it. To confirm on the Mac: a cook on a project whose `reseau` lists
+  `registry.npmjs.org`, then `pnpm --version`, `pnpm install`, `pnpm format:check`.
 - **Setting without a sandbox** — or a station that says nothing about it, or a workstation whose
   configuration does not hold (worktrees where a cook must read nothing): **it takes no ordinary
   ticket**. The box writes it (`station.sandbox`, with the reason), says it in the runtime's output
