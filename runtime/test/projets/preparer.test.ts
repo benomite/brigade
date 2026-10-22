@@ -4,7 +4,8 @@
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { test } from "../support/posix.ts";
+import { test } from "node:test";
+import { posixOnly } from "../support/plateforme.ts";
 import { decisionsPosees, poserDecision } from "../../src/decisions.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { cloner, decisionsDe, machineDe, poserLesDecisions, verifierAutorisation } from "../../src/projets/preparer.ts";
@@ -34,7 +35,7 @@ test("avec ses Apps : autorisées, rien à faire ; une App pas installée sur le
   assert.ok("panne" in panne, JSON.stringify(panne));
 });
 
-test("le dépôt se clone à sa place par le `gh` de la machine ; déjà cloné, rien ne se refait ; introuvable, rien ne reste", async (t) => {
+test("le dépôt se clone à sa place par le `gh` de la machine ; déjà cloné, rien ne se refait ; introuvable, rien ne reste", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, async (t) => {
   const { origine } = depotGit(t);
   const origines = repertoireTemporaire(t);
   const gists = repertoireTemporaire(t);

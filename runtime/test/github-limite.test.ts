@@ -4,7 +4,8 @@
 import assert from "node:assert/strict";
 import { chmodSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { test, type TestContext } from "./support/posix.ts";
+import { test, type TestContext } from "node:test";
+import { posixOnly } from "./support/plateforme.ts";
 import { ouvrirGitHub } from "../src/github.ts";
 import { ATTENTE_PAR_DEFAUT_MS, LimiteGitHubAtteinte, ouvrirLimite } from "../src/limite-github.ts";
 import { DEPOT, repertoireTemporaire, temporaireDuFichier } from "./outils.ts";
@@ -71,7 +72,7 @@ function sondage(t: TestContext) {
   return { gh, horloge, limite, github };
 }
 
-test("un 403 « rate limit » ou un 429 au sondage met les appels en attente jusqu'à x-ratelimit-reset, et aucun ne part pendant l'attente", async (t) => {
+test("un 403 « rate limit » ou un 429 au sondage met les appels en attente jusqu'à x-ratelimit-reset, et aucun ne part pendant l'attente", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, async (t) => {
   for (const [statut, corps] of [
     [403, LIMITE_PRIMAIRE],
     [429, { message: "Too many requests" }],
@@ -101,7 +102,7 @@ test("un 403 « rate limit » ou un 429 au sondage met les appels en attente jus
   }
 });
 
-test("sans en-tête exploitable, la fin de fenêtre vient de `gh api rate_limit`, et à défaut l'attente est de 60 s", async (t) => {
+test("sans en-tête exploitable, la fin de fenêtre vient de `gh api rate_limit`, et à défaut l'attente est de 60 s", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, async (t) => {
   // Un en-tête déjà échu, ou absent, n'est pas exploitable.
   for (const entetes of [{} as Record<string, string>, { "x-ratelimit-reset": String((DEPART - MINUTE) / SECONDE) }, { "x-ratelimit-reset": "bientôt" }]) {
     const { gh, limite, github } = sondage(t);
@@ -128,13 +129,13 @@ test("sans en-tête exploitable, la fin de fenêtre vient de `gh api rate_limit`
   }
 });
 
-test("la limite secondaire (retry-after) fixe aussi la fin de l'attente", async (t) => {
+test("la limite secondaire (retry-after) fixe aussi la fin de l'attente", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, async (t) => {
   const { gh, github } = sondage(t);
   gh.repondre(403, { "retry-after": "90" }, { message: "You have exceeded a secondary rate limit." });
   await assert.rejects(github.tickets(), (erreur: unknown) => erreur instanceof LimiteGitHubAtteinte && erreur.libreDansMs === 90 * SECONDE);
 });
 
-test("un refus pour limite n'est pas pris pour un refus de merge, et un vrai refus de merge n'est pas pris pour la limite", async (t) => {
+test("un refus pour limite n'est pas pris pour un refus de merge, et un vrai refus de merge n'est pas pris pour la limite", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, async (t) => {
   const { gh, horloge, limite, github } = sondage(t);
   // Le 403 d'un merge interdit : une réponse, rien n'est mergé, la limite n'est pas touchée.
   gh.repondre(403, {}, { message: "Resource not accessible by integration" });

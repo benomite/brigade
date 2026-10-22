@@ -1,7 +1,7 @@
 # Joue la suite de tests du runtime sous Windows (#1242, épique #1241) : le filet de sécurité des
 # tickets de port de la station sur un PC. `npm test` suppose un shell POSIX : le job passe par
 # runtime/test/support/windows.ts, qui joue tous les fichiers. Les tests propres à Linux ou à macOS se
-# sautent eux-mêmes, avec leur raison dans le journal (runtime/test/support/plateforme.ts, posix.ts).
+# sautent eux-mêmes, avec leur raison dans le journal (runtime/test/support/plateforme.ts).
 name: runtime-windows
 
 on:

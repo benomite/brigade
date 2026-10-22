@@ -5,7 +5,8 @@ import assert from "node:assert/strict";
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { test } from "../support/posix.ts";
+import { test } from "node:test";
+import { posixOnly } from "../support/plateforme.ts";
 import { auMoins, detecter, SEATBELT, sondesDeLaMachine, VERSION_MINIMALE, type Sondes } from "../../src/bac-a-sable/detection.ts";
 
 const MAC: Sondes = { plateforme: "darwin", existe: (chemin) => chemin === SEATBELT, versionDeClaude: () => "2.1.300 (Claude Code)\n" };
@@ -54,7 +55,7 @@ test("les versions se comparent nombre par nombre, pas comme du texte", () => {
   assert.equal(auMoins("pas une version", "2.1.246"), false);
 });
 
-test("les sondes de la machine lisent la version du `claude` qu'on leur nomme, et null s'il échoue ou n'existe pas", (t) => {
+test("les sondes de la machine lisent la version du `claude` qu'on leur nomme, et null s'il échoue ou n'existe pas", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, (t) => {
   const dossier = mkdtempSync(join(tmpdir(), "bac-a-sable-"));
   t.after(() => rmSync(dossier, { recursive: true, force: true }));
   const bon = join(dossier, "claude");

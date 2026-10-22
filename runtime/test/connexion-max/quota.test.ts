@@ -5,7 +5,8 @@
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
-import { test } from "../support/posix.ts";
+import { test } from "node:test";
+import { posixOnly } from "../support/plateforme.ts";
 
 const RUNTIME = join(import.meta.dirname, "../..");
 const SRC = join(RUNTIME, "src");
@@ -26,7 +27,7 @@ test("aucun code du runtime ne joint l'API d'Anthropic : son nom n'y sert qu'à 
   assert.deepEqual(qui(/https:\/\/claude\.ai/), ["connexion-max/connecter-cli.ts", "installation.ts"]);
 });
 
-test("la veille de la connexion Max et son branchement sur les cuisines ne lancent rien et ne joignent rien : ils lisent un fichier", () => {
+test("la veille de la connexion Max et son branchement sur les cuisines ne lancent rien et ne joignent rien : ils lisent un fichier", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, () => {
   for (const nom of ["connexion-max/connexion.ts", "connexion-max/veille.ts", "connexion-max/cuisine.ts", "connexion-max/connecter.ts"]) {
     const texte = lues.find((lue) => lue.nom === nom)?.texte ?? "";
     assert.doesNotMatch(texte, /from\s+["']node:(child_process|http|https|net|tls|dgram)["']|\bfetch\s*\(/, nom);

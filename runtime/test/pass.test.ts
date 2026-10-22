@@ -3,7 +3,8 @@
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, realpathSync, rmSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
-import { describe, test, type TestContext } from "./support/posix.ts";
+import { describe, test, type TestContext } from "node:test";
+import { posixOnly } from "./support/plateforme.ts";
 import { carnetDuProjet } from "../src/apprentissage/provisoires.ts";
 import { attentesDuChef } from "../src/attend.ts";
 import { Base } from "../src/base.ts";
@@ -60,7 +61,7 @@ const DEPASSEMENT = {
 };
 
 // Chaque test a ses lieux — répertoire d'état, GitHub, gates : ils se jouent de front.
-describe("la pass", { concurrency: 8 }, () => {
+describe("la pass", { skip: posixOnly("builds a real git repository and runs fake claude, gh or gates written as POSIX shell scripts"), concurrency: 8 }, () => {
   test("un cook qui livre est jugé sans personne : les gates sont jouées dans un worktree jetable, sur la fusion de sa branche avec la base — le sien est déjà parti —, la CI est lue, le verdict dit ce qui l'a produit et sur quoi il porte", async (t) => {
     const { repertoire, gates, dernier, jusquAu, cooks, relectures } = service(t);
     await jusquAu("pass.held");
@@ -1714,7 +1715,7 @@ test("les deux délais de la pass ont un défaut de trente minutes, et se règle
 
 // Quand la pass a une identité GitHub à elle, « qui a mergé » ne se suppose
 // plus : c'est le compte que GitHub nomme.
-describe("la pass sous son identité", { concurrency: 8 }, () => {
+describe("la pass sous son identité", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script"), concurrency: 8 }, () => {
   const PASS = "brigade-pass[bot]";
   const fait = (journal: ReturnType<typeof service>["journal"]) => journal.duTicket(17).findLast((e) => e.type === "merge.done")?.payload as Record<string, unknown> | undefined;
 

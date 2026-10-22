@@ -7,7 +7,8 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
-import { test, type TestContext } from "../support/posix.ts";
+import { test, type TestContext } from "node:test";
+import { posixOnly } from "../support/plateforme.ts";
 import { avecRail } from "../../src/alimenter.ts";
 import { cartesDeCorrection } from "../../src/correctif/cartes.ts";
 import { decider, decisionDe, NON, OUI } from "../../src/correctif/decision.ts";
@@ -142,7 +143,7 @@ function arbreAvec(t: TestContext, clone: string, base: string, diff: string): s
   return gitIci(["write-tree"]);
 }
 
-test("une proposition que personne ne tranche ne fait rien naître ; « oui » sur une autre en fait une PR qui porte exactement son diff, que la pass juge et merge comme une livraison", async (t) => {
+test("une proposition que personne ne tranche ne fait rien naître ; « oui » sur une autre en fait une PR qui porte exactement son diff, que la pass juge et merge comme une livraison", { skip: posixOnly("builds a real git repository and runs fake claude, gh or gates written as POSIX shell scripts") }, async (t) => {
   const { repertoire, origine, clone, gh, journal, candidat, brancher, trancher, types, base, relectures, branchesDeLOrigine, livrees } = cuisine(t);
   chef(repertoire, "grant.activated");
   // La plus ancienne, que personne ne tranche : c'est elle qui partirait la première.
@@ -195,7 +196,7 @@ test("une proposition que personne ne tranche ne fait rien naître ; « oui » s
   assert.equal(git(origine, "rev-parse", `refs/heads/${BASE}`), base);
 });
 
-test("« oui » deux fois, ou « oui » puis « non » : un seul geste compte, et une seule PR part", async (t) => {
+test("« oui » deux fois, ou « oui » puis « non » : un seul geste compte, et une seule PR part", { skip: posixOnly("builds a real git repository and runs fake claude, gh or gates written as POSIX shell scripts") }, async (t) => {
   const { gh, journal, candidat, brancher, trancher, base, types, livrees } = cuisine(t);
   const proposee = proposer(journal, candidat.seq, DIFFS.claude, ["CLAUDE.md"], base);
   const premier = trancher(proposee.seq, OUI);
@@ -216,7 +217,7 @@ test("« oui » deux fois, ou « oui » puis « non » : un seul geste compte, e
   assert.deepEqual(trancher(999_999, OUI), { issue: "inconnue" });
 });
 
-test("une livraison morte avec le runtime après avoir ouvert sa PR n'en ouvre pas une seconde : sa PR est reprise et entre en pass", async (t) => {
+test("une livraison morte avec le runtime après avoir ouvert sa PR n'en ouvre pas une seconde : sa PR est reprise et entre en pass", { skip: posixOnly("builds a real git repository and runs fake claude, gh or gates written as POSIX shell scripts") }, async (t) => {
   const { gh, journal, candidat, brancher, trancher, base, types, livrees } = cuisine(t);
   const proposee = proposer(journal, candidat.seq, DIFFS.claude, ["CLAUDE.md"], base);
   trancher(proposee.seq, OUI);
@@ -231,7 +232,7 @@ test("une livraison morte avec le runtime après avoir ouvert sa PR n'en ouvre p
   assert.equal(gh.prs.length, 1);
 });
 
-test("un diff qui ne se commite plus n'ouvre aucune PR : la correction est dite non livrée, et pourquoi", async (t) => {
+test("un diff qui ne se commite plus n'ouvre aucune PR : la correction est dite non livrée, et pourquoi", { skip: posixOnly("builds a real git repository and runs fake claude, gh or gates written as POSIX shell scripts") }, async (t) => {
   const { gh, journal, candidat, brancher, trancher, avertissements, branchesDeLOrigine } = cuisine(t);
   const proposee = proposer(journal, candidat.seq, DIFFS.claude, ["CLAUDE.md"], "0".repeat(40));
   trancher(proposee.seq, OUI);
@@ -251,7 +252,7 @@ function journalDeTest(t: TestContext): Journal {
   return journal;
 }
 
-test("« non » retire la carte ; les mêmes échecs relevés à nouveau n'en refont pas une, un échec neuf de la même cause si — le seuil valant toujours", (t) => {
+test("« non » retire la carte ; les mêmes échecs relevés à nouveau n'en refont pas une, un échec neuf de la même cause si — le seuil valant toujours", { skip: posixOnly("builds a real git repository and runs fake claude, gh or gates written as POSIX shell scripts") }, (t) => {
   const journal = journalDeTest(t);
   for (const ticket of [11, 12, 13]) rater(journal, ticket);
   const [candidat] = detecter(journal, PROJET, REGLAGES_DU_CORRECTIF);
@@ -293,7 +294,7 @@ test("« non » retire la carte ; les mêmes échecs relevés à nouveau n'en re
   );
 });
 
-test("« oui » retire aussi la carte de la file : la correction part, il n'y a plus rien à trancher", (t) => {
+test("« oui » retire aussi la carte de la file : la correction part, il n'y a plus rien à trancher", { skip: posixOnly("builds a real git repository and runs fake claude, gh or gates written as POSIX shell scripts") }, (t) => {
   const journal = journalDeTest(t);
   for (const ticket of [11, 12, 13]) rater(journal, ticket);
   const [candidat] = detecter(journal, PROJET, REGLAGES_DU_CORRECTIF);

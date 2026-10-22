@@ -2,7 +2,7 @@
 // écrit au journal, et leur place parmi celles des rétros — mêmes ids, même
 // chemin, même horloge de tickets servis.
 import assert from "node:assert/strict";
-import { describe, test, type TestContext } from "../support/posix.ts";
+import { describe, test, type TestContext } from "node:test";
 import type { EntreeRetenue } from "../../src/apprentissage/evenements.ts";
 import { candidatesDuProjet, carnetDuProjet, leconsProvisoires, retrosDuProjet } from "../../src/apprentissage/provisoires.ts";
 import { leconDeLaRaison, leconsDuRenvoi, noterLeRenvoi } from "../../src/apprentissage/renvoi.ts";

@@ -1,7 +1,7 @@
 // La file de ce qui attend le chef : ce que `status` en dit, et ce qui en
 // retire chaque entrée — tout vient du journal.
 import assert from "node:assert/strict";
-import { test, type TestContext } from "./support/posix.ts";
+import { test, type TestContext } from "node:test";
 import { decrireEtat, faits, lireEtat } from "../src/etat.ts";
 import type { Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";

@@ -9,7 +9,8 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
-import { test, type TestContext } from "./support/posix.ts";
+import { test, type TestContext } from "node:test";
+import { posixOnly } from "./support/plateforme.ts";
 import { configCloison, envelopper } from "../src/cloison.ts";
 import { decrireEtat, lireEtat } from "../src/etat.ts";
 import type { Fait } from "../src/evenements.ts";
@@ -207,7 +208,7 @@ test("le fichier d'état se lit clé par clé : un échec derrière un passage r
   assert.deepEqual(lireSession(CONFIG(repertoire), new Date(a("10:00:00"))), observation({ state: repertoire, file: "unreadable" }));
 });
 
-test("le fichier que le vrai `brigade-renouvellement` écrit se lit : son échec, puis son renouvellement — sans que le runtime ouvre les identifiants", (t) => {
+test("le fichier que le vrai `brigade-renouvellement` écrit se lit : son échec, puis son renouvellement — sans que le runtime ouvre les identifiants", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, (t) => {
   const racine = repertoireTemporaire(t);
   const [home, bin, session] = ["home", "bin", "session"].map((nom) => join(racine, nom)) as [string, string, string];
   for (const repertoire of [join(home, ".claude"), bin, session]) mkdirSync(repertoire, { recursive: true });
@@ -325,7 +326,7 @@ test("la configuration : le fichier d'état à côté des répertoires d'état d
 
 // --- Les identifiants : en lecture seule pour tous, ouverts par personne -------
 
-test("la cloison monte les identifiants en lecture seule pour tous les rôles — setup, cook et gates, reviewer, juge — et rien ne les rend inscriptibles", (t) => {
+test("la cloison monte les identifiants en lecture seule pour tous les rôles — setup, cook et gates, reviewer, juge — et rien ne les rend inscriptibles", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, (t) => {
   const racine = repertoireTemporaire(t);
   const lieux = { repertoireEtat: join(racine, "etats/brigade"), clone: join(racine, "etats/brigade/depot") };
   const worktree = join(lieux.repertoireEtat, "worktrees/17-abc");
