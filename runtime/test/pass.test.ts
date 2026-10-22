@@ -987,7 +987,8 @@ describe("la pass", { concurrency: 8 }, () => {
   }
 
   test("une livraison qui ne touche pas aux réglages du projet n'est pas retenue pour cela", async (t) => {
-    const { pass, gh, jusquAu } = service(t, { grant: true, depot: (depot) => ({ ...depot, changes: () => ["travail.txt", ".claude/brigade/projet.json.bak"] }) });
+    const { pass, gh, jusquAu } = service(t, { grant: true, depot: (depot) => ({ ...depot, changes: () => ["travail.txt", "docs/projet.json"] }) });
+    await jusqua(() => gh.merges.length === 1);
     await jusquAu("merge.done");
     assert.equal(gh.merges.length, 1);
     assert.ok(!String(pass()?.cause ?? "").startsWith("declaration-modified"));
