@@ -489,11 +489,13 @@ export function fauxGh(t: TestContext): FauxGh {
 // Le délai n'est pas une attente : il ne sert qu'à ce qu'un test cassé finisse
 // par le dire. Il est donc large — sur une machine où d'autres suites tournent
 // au même moment, ce qui prend une demi-seconde en prend facilement dix.
+// Sondée toutes les 20 ms : bien des conditions rouvrent et relisent tout un
+// journal, et toutes les 5 ms c'était le gros du processeur de leur fichier.
 export async function jusqua(condition: () => boolean, delaiMs = 60_000): Promise<void> {
   const limite = Date.now() + delaiMs;
   while (!condition()) {
     if (Date.now() > limite) throw new Error("condition jamais remplie");
-    await new Promise((resoudre) => setTimeout(resoudre, 5));
+    await new Promise((resoudre) => setTimeout(resoudre, 20));
   }
 }
 
