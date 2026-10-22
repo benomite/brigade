@@ -23,6 +23,8 @@ export const TITRE_BASE = "full run on the base, against its own budget";
 export const TITRE_JOUR = "gates, last hour and last 24 h";
 export const AUCUN_PASSAGE = "no run in the last 24 h";
 export const HORS_BUDGET = "over budget";
+// Ce que dit la ligne d'alerte de Rail quand les gates retiennent les tickets (ticket 1458).
+export const GATES_HORS_BUDGET = "gates over budget";
 export const DEFAUT = "(default)";
 const AIDE_FILE =
   "What the project's latest gates run cost, in wall-clock time and in CPU, against the budget of one run. A budget you have not set is the default. When a run goes over, the kitchen opens a ticket on its own to bring the gates back under it — one at a time.";

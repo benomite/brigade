@@ -217,10 +217,11 @@ const DETAIL_DE_GIT = /\s*\(git: ([^)]*)\)\.?$/;
 // `clone` : le clone du dépôt en échec (ticket 1390) — sa cause dit plus que le refus qui l'accompagne, et le remplace.
 /**
  * @param {Fabrique} doc
- * @param {{ alerte: string | null, refusee: boolean, acces: Acces | null, clone?: Clone | null, refus: Refus | null, ouvrir: () => void }} options
+ * @param {{ alerte: string | null, refusee: boolean, acces: Acces | null, clone?: Clone | null, refus: Refus | null, gates?: string | null, ouvrir: () => void }} options
  */
-export function ligneDAlerte(doc, { alerte, refusee, acces, clone = null, refus, ouvrir }) {
+export function ligneDAlerte(doc, { alerte, refusee, acces, clone = null, refus, gates = null, ouvrir }) {
   const causes = [
+    ...(gates === null ? [] : [gates]),
     ...(acces === null ? [] : [acces.raison.replace(DETAIL_DE_GIT, "").replace(/\.$/, "")]),
     ...(acces !== null || clone === null ? [] : [clone.raison.replace(/\.$/, "")]),
     ...(alerte === null ? [] : [alerte]),

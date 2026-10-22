@@ -15,7 +15,7 @@ import { GESTES_DES_GRANTS } from "../../src/grants.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import { poserTriage, SEUL, TITRE, VERS_TODO } from "../../src/vue/triage.js";
-import { Faux, type Jouee, jouerLaVue, type Reponses, repos } from "../aides/fausse-vue.ts";
+import { Faux, type Jouee, jouerLaVue, ouvrirOnglet, type Reponses, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-10-21T10:04:12.000Z";
 const PARADE = "parade";
@@ -76,10 +76,17 @@ const lignes = (vue: Jouee) =>
     libelles: [ligne.children[1]?.children[1]?.textContent, ligne.children[2]?.children[1]?.textContent],
   }));
 
-describe("le triage, jour par jour, dans la file", () => {
+describe("le triage, jour par jour (sur Cooks depuis #1457, plus sur Rail depuis #1458)", () => {
+  test("Rail ne le porte plus", async () => {
+    const vue = await ouvrir();
+    recevoir(vue);
+    assert.equal(vue.element("rail").dessous("section").some((pose) => pose.className === "triage"), false);
+  });
+
   test("chaque jour montre « decided alone » et « sent to TODO », le plus récent d'abord", async () => {
     const vue = await ouvrir();
     recevoir(vue);
+    await ouvrirOnglet(vue, "Cooks");
     const jours = lignes(vue);
     assert.deepEqual(
       jours.map(({ jour, seul, versTodo }) => [jour, seul, versTodo]),
@@ -91,6 +98,7 @@ describe("le triage, jour par jour, dans la file", () => {
   test("un jour sans activité dit 0 et 0, jamais un blanc", async () => {
     const vue = await ouvrir();
     recevoir(vue);
+    await ouvrirOnglet(vue, "Cooks");
     const sans = lignes(vue).find(({ jour }) => jour === "Oct 19");
     assert.deepEqual([sans?.seul, sans?.versTodo], ["0", "0"]);
     for (const { seul, versTodo } of lignes(vue)) assert.match(`${seul}${versTodo}`, /^\d+$/);
