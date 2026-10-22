@@ -160,7 +160,6 @@
     "test/stations-projection.test.ts",
     "test/stations.test.ts",
     "test/status.test.ts",
-    "test/superviseur.test.ts",
     "test/telephone/appairage.test.ts",
     "test/telephone/guichet.test.ts",
     "test/tirer.test.ts",

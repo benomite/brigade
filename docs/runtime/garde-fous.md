@@ -7,8 +7,12 @@
 | Breaker | After N failures in a row, no more cooks are launched. A failure: a stop by cap, idleness or lapsed lease, or a cook that exited in error — **without having committed anything**; or a relaunch decided by the manager whose delivery is judged red (`relaunch.judged`). Not counted: the "stop", an exhausted quota, an expired Max connection, a model refusal, a runtime restart |
 | "stop" | Every running cook is stopped within the second, and none is launched any more |
 
-Stopping a cook: `SIGTERM` to its process group, then `SIGKILL` ten seconds later. **An open breaker
-and the "stop" both hold**, restarts included, until "resume".
+Stopping a cook: `SIGTERM` to its process group, then `SIGKILL` ten seconds later. On Windows, which
+has neither process groups nor signals, the cook's process tree is read from the process table
+(`Win32_Process`, through PowerShell) and every process in it is killed at once, with no grace
+(`runtime/src/arbre.ts`); a relayed cook is killed by its pid, and its relay writes its end as
+elsewhere. Whatever a cook started and that still lives when it exits is killed too, on every
+platform. **An open breaker and the "stop" both hold**, restarts included, until "resume".
 
 ### In a row, across several cooks
 
