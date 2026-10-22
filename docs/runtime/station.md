@@ -289,7 +289,7 @@ time and the CPU of the script and what it waited for (`times`).
 **At the end of the cook**, before its delivery goes to the pass, the station writes one `gates.ran`
 per receipt — `runner: cook`, `green` for exit code 0 and `red` otherwise, with its `tree` and the
 `config` read in the worktree as the cook leaves it — and erases the receipts. The pass reuses the
-latest green one if it judged exactly that tree: see "The same gates are not played twice on the
+ticket's latest green one if it judges exactly that tree: see "The same gates are not played twice on the
 same code" in [`pass.md`](pass.md). A cook that plays the script without the launcher, a remote
 station's cook, an unreadable receipt: nothing reaches the log, and the pass plays its gates.
 

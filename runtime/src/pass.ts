@@ -1613,7 +1613,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
         // gates ne se rejouent pas, le verdict nomme le passage repris, et rien
         // n'est écrit à leur coût (`empreinte-des-gates.ts`).
         const empreinte: EmpreinteDesGates = { tree: fusion.arbre, config: empreinteDeConfig(worktree) };
-        const repris = passageVert(base, projet, empreinte);
+        const repris = passageVert(base, projet, ticket, empreinte);
         const chargeAuDepart = repris ? null : sature();
         gates = repris ? gatesReprises(repris) : await jouerGates(ticket, demande, empreinte);
         // Parti pendant ses gates, le ticket n'a plus de verdict à recevoir.

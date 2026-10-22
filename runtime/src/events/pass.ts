@@ -42,10 +42,10 @@ export type Gates = {
   // Combien de fois ce qui a la forme d'identifiants de Claude a été masqué
   // dans leur sortie, setup compris. Absent : jamais.
   credentialsMasked?: number;
-  // Non rejouées : le passage vert, sur le même arbre et la même configuration,
-  // qu'elles reprennent (`empreinte-des-gates.ts`) — son rang au journal, qui
-  // l'avait joué, pour quel ticket (nul : la base), et quand. Absent : jouées.
-  reused?: { seq: number; runner: CoureurDesGates; ticket: number | null; at: string };
+  // Non rejouées : le passage vert du ticket, sur le même arbre et la même
+  // configuration, qu'elles reprennent (`empreinte-des-gates.ts`) — son rang au
+  // journal, qui l'avait joué, son ticket, et quand. Absent : jouées.
+  reused?: { seq: number; runner: CoureurDesGates; ticket: number; at: string };
 };
 
 // Un job de CI, ou un statut de commit.

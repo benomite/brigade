@@ -67,18 +67,20 @@ delivery, the tree of its merge with the base; for a cook, its worktree as it wa
 left, uncommitted work included — and `config`, a digest of the gates configuration: the gates
 script, the worktree setup and the secrets declaration (`.claude/brigade/secrets`), each read in the
 worktree where the gates run, a link followed to what it points to. Before playing a delivery's
-gates, the pass looks for the project's latest run with the same fingerprint:
+gates, the pass looks for **the ticket's** latest run with the same fingerprint — another ticket's
+run never counts, even on the same tree: two deliveries that give the same code are two deliveries:
 
 | That run | What the pass does |
 |---|---|
-| **green** — the cook's, typically: it passed them on what it delivers, and the base has not moved since its branch left it | **reuses it**: no gate command is launched, no saturation is measured. The verdict's `gates.reused` names the reused run — its `seq` in the log, its `runner`, its ticket, its time — and `gates.tail` says « gates non rejouées : le cook les a déjà passées vertes sur le même arbre, avec la même configuration — passage <seq> du journal (#<n>, <time>) ». **No `gates.ran` is written**: a reuse adds neither wall-clock nor CPU to the cost |
+| **green** — the cook's, typically: it passed them on what it delivers, and the base has not moved since its branch left it | **reuses it**: no gate command is launched, no saturation is measured. The verdict's `gates.reused` names the reused run — its `seq` in the log, its `runner`, its ticket, its time — and `gates.tail` says « gates non rejouées : le cook les a déjà passées vertes sur le même arbre, avec la même configuration — passage <seq> du journal (#<ticket>, <time>) ». **No `gates.ran` is written**: a reuse adds neither wall-clock nor CPU to the cost |
 | red, or cut at its cap | played in full, as before: the latest run on a fingerprint is what that code does today |
 | none — one file changed, the configuration changed, the base moved, or the cook played the script without the launcher | played in full, as before |
 
 **The cook's gates reach the log through the station's launcher**, see "The cook's gates reach the
 log" in [`station.md`](station.md). A reused run is only as trustworthy as the cook that left its
 receipt; the reviewer and the CI judge the delivery either way. The pass's own runs are
-fingerprinted too: a delivery judged again on the same merged tree, after a restart, reuses them.
+fingerprinted too: the same delivery judged again on the same merged tree, after a restart, reuses
+them.
 
 ### The judgement worktree
 

@@ -6,7 +6,7 @@
 // son reçu (`gates-du-cook.ts`), la pass écrit celles qu'elle joue.
 //
 // Avant de jouer les gates d'une livraison, la pass cherche le dernier passage
-// du projet qui porte la même empreinte. Vert, elle le reprend : rien n'est
+// du ticket qui porte la même empreinte. Vert, elle le reprend : rien n'est
 // lancé, son verdict nomme le passage repris (`Gates.reused`), et aucun
 // `gates.ran` n'est écrit — une reprise ne coûte ni horloge ni processeur.
 // Rouge, coupé, ou aucun : les gates se jouent en entier, comme avant.
@@ -26,9 +26,9 @@ const TYPE: FaitGates["type"] = "gates.ran";
 
 export type EmpreinteDesGates = { tree: string; config: string };
 
-// Le passage repris : son rang au journal, qui l'avait joué, pour quel ticket
-// (nul : la base), et quand il a été écrit.
-export type PassageRepris = { seq: number; runner: CoureurDesGates; ticket: number | null; at: string };
+// Le passage repris : son rang au journal, qui l'avait joué, pour quel ticket,
+// et quand il a été écrit.
+export type PassageRepris = { seq: number; runner: CoureurDesGates; ticket: number; at: string };
 
 const condenser = (contenu: string | Buffer) => createHash("sha256").update(contenu).digest("hex");
 
@@ -59,12 +59,14 @@ export function empreinteDeConfig(worktree: string): string {
 
 type Ligne = { seq: number; ticket: number | null; payload: string; at: string };
 
-// Le dernier passage du projet sur cette empreinte, s'il était vert. Un
-// passage plus récent rouge ou coupé sur la même empreinte l'emporte : ce
-// qu'il a dit est ce que ce code fait aujourd'hui, et les gates se rejouent.
-export function passageVert(base: Base, projet: string, empreinte: EmpreinteDesGates): PassageRepris | null {
-  const lignes = base.lire<Ligne>("SELECT seq, ticket, payload, at FROM events WHERE type = ? AND project = ? ORDER BY seq DESC", TYPE, projet);
-  for (const { seq, ticket, payload, at } of lignes) {
+// Le dernier passage du ticket sur cette empreinte, s'il était vert — celui de
+// son cook, le plus souvent. Un passage plus récent rouge ou coupé sur la même
+// empreinte l'emporte : ce qu'il a dit est ce que ce code fait aujourd'hui, et
+// les gates se rejouent. Ceux d'un autre ticket ne comptent pas, même sur le
+// même arbre : deux livraisons qui donnent le même code sont deux livraisons.
+export function passageVert(base: Base, projet: string, ticket: number, empreinte: EmpreinteDesGates): PassageRepris | null {
+  const lignes = base.lire<Ligne>("SELECT seq, ticket, payload, at FROM events WHERE type = ? AND project = ? AND ticket = ? ORDER BY seq DESC", TYPE, projet, ticket);
+  for (const { seq, payload, at } of lignes) {
     const lu = JSON.parse(payload) as FaitGates["payload"];
     if (lu.tree !== empreinte.tree || lu.config !== empreinte.config) continue;
     return lu.outcome === "green" ? { seq: Number(seq), runner: lu.runner, ticket, at } : null;
@@ -77,12 +79,11 @@ const QUI: Record<CoureurDesGates, string> = { cook: "le cook", pass: "la pass" 
 // Le verdict des gates reprises : vert, sans rien d'autre de ce qu'elles
 // avaient dit — leur sortie n'est pas au journal —, et le passage qu'il reprend.
 export function gatesReprises(repris: PassageRepris): Gates {
-  const de = repris.ticket === null ? "la base" : `#${repris.ticket}`;
   return {
     outcome: "green",
     code: 0,
     failures: [],
-    tail: `gates non rejouées : ${QUI[repris.runner]} les a déjà passées vertes sur le même arbre, avec la même configuration — passage ${repris.seq} du journal (${de}, ${repris.at})`,
+    tail: `gates non rejouées : ${QUI[repris.runner]} les a déjà passées vertes sur le même arbre, avec la même configuration — passage ${repris.seq} du journal (#${repris.ticket}, ${repris.at})`,
     reused: repris,
   };
 }

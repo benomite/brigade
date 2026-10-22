@@ -104,7 +104,7 @@ describe("les gates du cook", { concurrency: 8 }, () => {
     assert.notEqual(rouge?.tree, arbre);
     assert.equal(vert?.tree, arbre);
     assert.equal(typeof vert?.durationMs, "number");
-    assert.equal(passageVert(journal.base, PROJET, { tree: arbre, config })?.runner, "cook");
+    assert.equal(passageVert(journal.base, PROJET, 17, { tree: arbre, config })?.runner, "cook");
 
     // Effacés : un cook repris dans ce worktree ne les compte pas deux fois.
     assert.equal(existsSync(join(git(worktree, "rev-parse", "--absolute-git-dir"), RECUS)), false);

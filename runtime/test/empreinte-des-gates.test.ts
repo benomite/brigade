@@ -75,7 +75,7 @@ describe("l'empreinte des gates", { concurrency: 8 }, () => {
     passage(VERTES, empreinte("arbre-a"), 17, "cook");
     const seq = journal.dernierSeq();
 
-    const repris = passageVert(journal.base, PROJET, empreinte("arbre-a"));
+    const repris = passageVert(journal.base, PROJET, 17, empreinte("arbre-a"));
 
     assert.deepEqual(repris, { seq, runner: "cook", ticket: 17, at: new Date(HEURE).toISOString() });
     const gates = gatesReprises(repris!);
@@ -83,52 +83,55 @@ describe("l'empreinte des gates", { concurrency: 8 }, () => {
     assert.equal(gates.code, 0);
     assert.deepEqual(gates.failures, []);
     assert.deepEqual(gates.reused, repris);
-    assert.match(gates.tail, new RegExp(`gates non rejouées : le cook .* passage ${seq} du journal \\(#17, `));
+    assert.match(gates.tail, new RegExp(`^gates non rejouées : le cook .* passage ${seq} du journal \\(#17, `));
   });
 
   test("un seul fichier changé change l'arbre : rien n'est repris", (t) => {
     const { journal, empreinte, passage } = cas(t);
     passage(VERTES, empreinte("arbre-a"));
 
-    assert.equal(passageVert(journal.base, PROJET, empreinte("arbre-a-un-fichier-de-plus")), null);
+    assert.equal(passageVert(journal.base, PROJET, 17, empreinte("arbre-a-un-fichier-de-plus")), null);
   });
 
   test("une configuration changée n'est pas reprise, sur le même arbre", (t) => {
     const { journal, empreinte, passage } = cas(t);
     passage(VERTES, empreinte("arbre-a"));
 
-    assert.equal(passageVert(journal.base, PROJET, empreinte("arbre-a", "d".repeat(64))), null);
-    assert.notEqual(passageVert(journal.base, PROJET, empreinte("arbre-a")), null);
+    assert.equal(passageVert(journal.base, PROJET, 17, empreinte("arbre-a", "d".repeat(64))), null);
+    assert.notEqual(passageVert(journal.base, PROJET, 17, empreinte("arbre-a")), null);
   });
 
   test("un passage rouge ou coupé n'est pas repris, et il l'emporte sur un vert plus ancien du même arbre", (t) => {
     const { journal, empreinte, passage } = cas(t);
     passage(ROUGES, empreinte("arbre-rouge"));
-    assert.equal(passageVert(journal.base, PROJET, empreinte("arbre-rouge")), null);
+    assert.equal(passageVert(journal.base, PROJET, 17, empreinte("arbre-rouge")), null);
 
     passage(VERTES, empreinte("arbre-a"));
     passage({ ...ROUGES, outcome: "timeout", code: null }, empreinte("arbre-a"));
-    assert.equal(passageVert(journal.base, PROJET, empreinte("arbre-a")), null);
+    assert.equal(passageVert(journal.base, PROJET, 17, empreinte("arbre-a")), null);
 
     // Rejouées vertes ensuite : c'est ce dernier vert qui se reprend.
-    passage(VERTES, empreinte("arbre-a"), 18);
-    assert.equal(passageVert(journal.base, PROJET, empreinte("arbre-a"))?.ticket, 18);
+    passage(VERTES, empreinte("arbre-a"), 17, "cook");
+    assert.equal(passageVert(journal.base, PROJET, 17, empreinte("arbre-a"))?.runner, "cook");
   });
 
-  test("un passage d'avant l'empreinte, ou d'un autre projet, n'est jamais repris", (t) => {
-    const { journal, empreinte } = cas(t);
+  test("un passage d'avant l'empreinte, d'un autre projet, d'un autre ticket ou de la base n'est jamais repris, même sur le même arbre", (t) => {
+    const { journal, empreinte, passage } = cas(t);
+    // Deux livraisons qui donnent le même code sont deux livraisons.
+    passage(VERTES, empreinte("arbre-a"), 18, "cook");
+    passage(VERTES, empreinte("arbre-a"), null);
     const sans: FaitGates["payload"] = { runner: "pass", outcome: "green", durationMs: 60_000, cpuMs: 200_000 };
     journal.ajouter({ project: PROJET, ticket: 17, author: "pass", type: "gates.ran", payload: sans });
     const juge = empreinte("arbre-a");
     journal.ajouter({ project: "autre", ticket: 17, author: "pass", type: "gates.ran", payload: { ...sans, ...juge } });
 
-    assert.equal(passageVert(journal.base, PROJET, juge), null);
+    assert.equal(passageVert(journal.base, PROJET, 17, juge), null);
   });
 
   test("une reprise n'écrit aucun passage : ni horloge ni processeur au coût du projet", (t) => {
     const { journal, empreinte, passage, passages } = cas(t);
     passage(VERTES, empreinte("arbre-a"));
-    const repris = passageVert(journal.base, PROJET, empreinte("arbre-a"));
+    const repris = passageVert(journal.base, PROJET, 17, empreinte("arbre-a"));
     assert.notEqual(repris, null);
 
     passage(gatesReprises(repris!), empreinte("arbre-a"), 18);
