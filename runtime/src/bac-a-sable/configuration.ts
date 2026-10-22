@@ -56,7 +56,7 @@ export const LECTURES_INTERDITES = [
 export type Cook = { worktree: string; caches: string[]; hotes: Regle[]; home: string; prod?: string[] };
 
 export type Reglages = {
-  env: { NODE_USE_ENV_PROXY: "1" };
+  env: { npm_config_manage_package_manager_versions: "false" };
   sandbox: {
     enabled: true;
     failIfUnavailable: true;
@@ -125,15 +125,17 @@ export function configurer(cook: Cook): ConfigDeBacASable {
   return {
     modeDePermission: "dontAsk",
     reglages: {
-      // Le bac à sable ne laisse sortir que par son proxy, dont il donne
-      // l'adresse par `HTTPS_PROXY`. Le binaire natif de pnpm 10 vérifie son
-      // identité auprès de registry.npmjs.org dès son démarrage, par le
-      // `fetch` de Node, qui ignore ces variables : la requête partait droit,
-      // le bac à sable la refusait, et chaque `pnpm <script>` mourait de
-      // ERR_PNPM_ENGINE_IDENTITY_UNVERIFIABLE, hôte listé ou non. Avec
-      // `NODE_USE_ENV_PROXY`, ce `fetch` suit `HTTPS_PROXY`. Posé ici, donc
-      // pour les seuls lancements du bac à sable ; les autres ne changent pas.
-      env: { NODE_USE_ENV_PROXY: "1" },
+      // Un projet qui fixe `packageManager` (`pnpm@10.x`) fait télécharger
+      // cette version à pnpm 10 dès son démarrage, puis vérifier sa signature
+      // auprès de registry.npmjs.org : chaque `pnpm <script>` meurt de
+      // ERR_PNPM_ENGINE_IDENTITY_UNVERIFIABLE quand la requête n'aboutit pas.
+      // Or pnpm n'a pas le client de Node : il ignore `HTTPS_PROXY` et
+      // `NODE_USE_ENV_PROXY`, et ne lit que `https_proxy` ou sa propre
+      // configuration — d'où une requête qui part droit, et que le bac à sable
+      // refuse. Sans changement de version, ni téléchargement ni vérification :
+      // pnpm tourne avec celui qui est installé. Posé ici, donc pour les seuls
+      // lancements du bac à sable ; les autres gardent leur comportement.
+      env: { npm_config_manage_package_manager_versions: "false" },
       sandbox: {
         enabled: true,
         // Sans bac à sable, `claude` refuse de partir plutôt que de lancer

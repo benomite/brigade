@@ -2,9 +2,10 @@
 // worktree et les caches du projet, ne lit ni `~/.ssh`, ni les identifiants du
 // chef, ni ses accès de prod, et ne joint que les hôtes de la liste du projet.
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
-import { createServer } from "node:http";
-import type { AddressInfo } from "node:net";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 import { argumentsDuBacASable, BacASableInvalide, configurer, LECTURES_INTERDITES, type Cook } from "../../src/bac-a-sable/configuration.ts";
 import { reglesDuProjet, type Regle } from "../../src/reseau.ts";
@@ -151,43 +152,38 @@ test("les arguments de lancement portent le mode du cook et des réglages qui se
   assert.equal(args.length, 4);
 });
 
-// Le démarrage de pnpm 10 interroge le registre par le `fetch` de Node. Ce test
-// lance un vrai Node, avec l'environnement que le bac à sable donne (ses
-// variables de proxy) et celui des réglages, et regarde par où part la requête
-// vers l'hôte du registre : un faux proxy local la reçoit, ou rien ne la reçoit.
-// L'hôte est en `.invalid` : sans proxy, la requête échoue au DNS et ne sort pas.
-const HOTE_DU_REGISTRE = "registry.pnpm-test.invalid";
-async function requetesRecues(envReglages: Record<string, string>): Promise<{ hotes: string[]; sortie: string }> {
-  const hotes: string[] = [];
-  const proxy = createServer((req, res) => {
-    hotes.push(String(req.headers.host));
-    res.end("ok");
-  });
-  await new Promise<void>((resoudre) => proxy.listen(0, "127.0.0.1", resoudre));
-  const adresse = `http://127.0.0.1:${(proxy.address() as AddressInfo).port}`;
-  try {
-    const sortie = await new Promise<string>((resoudre) => {
-      const fils = spawn(process.execPath, ["-e", `fetch("http://${HOTE_DU_REGISTRE}/pnpm").then((r) => r.text(), (e) => "erreur").then((t) => process.stdout.write(t))`], {
-        env: { PATH: process.env.PATH ?? "", HTTP_PROXY: adresse, HTTPS_PROXY: adresse, http_proxy: adresse, https_proxy: adresse, ...envReglages },
-        stdio: ["ignore", "pipe", "inherit"],
-      });
-      let texte = "";
-      fils.stdout.on("data", (morceau) => (texte += morceau));
-      fils.on("close", () => resoudre(texte));
-    });
-    return { hotes, sortie };
-  } finally {
-    proxy.close();
-  }
-}
+// pnpm 10 télécharge et vérifie, dès son démarrage, la version que le projet
+// fixe dans `packageManager` quand elle n'est pas celle qui est installée. Ce
+// test lance le vrai `pnpm` du poste, sur un projet qui en fixe une autre, avec
+// un proxy qui ne répond pas et sans accès au registre : avec l'`env` des
+// réglages, il démarre ; sans lui, il échoue en cherchant le registre. Il ne
+// joue que si le `pnpm` du poste est en version 10 ou plus.
+const pnpm = spawnSync("pnpm", ["--version"], { encoding: "utf8", cwd: tmpdir() });
+const pnpm10 = pnpm.status === 0 && Number.parseInt(pnpm.stdout, 10) >= 10;
 
-test("avec l'environnement des réglages du bac à sable, la requête de démarrage de pnpm vers le registre passe par le proxy ; sans lui, elle n'y passe pas", async () => {
+test("avec l'environnement des réglages du bac à sable, pnpm démarre sans joindre le registre ; sans lui, il le cherche", { skip: pnpm10 ? false : "needs a pnpm 10 on the workstation" }, () => {
   const { reglages } = configurer(projet(["registry.npmjs.org"]));
   assert.equal(reglages.sandbox.network.allowedDomains.includes("registry.npmjs.org"), true);
-  const avec = await requetesRecues(reglages.env);
-  assert.deepEqual(avec.hotes, [HOTE_DU_REGISTRE]);
-  assert.equal(avec.sortie, "ok");
-  const sans = await requetesRecues({});
-  assert.deepEqual(sans.hotes, []);
-  assert.equal(sans.sortie, "erreur");
+  const dossier = mkdtempSync(join(tmpdir(), "pnpm-bac-"));
+  try {
+    writeFileSync(join(dossier, "package.json"), JSON.stringify({ name: "x", packageManager: "pnpm@10.0.0" }));
+    const lancer = (env: Record<string, string>) =>
+      spawnSync("pnpm", ["--version"], {
+        cwd: dossier,
+        encoding: "utf8",
+        timeout: 60_000,
+        // Un proxy qui n'écoute nulle part : tout ce qui part vers le registre échoue.
+        env: { PATH: process.env.PATH ?? "", HOME: join(dossier, "home"), https_proxy: "http://127.0.0.1:9", npm_config_fetch_retries: "0", ...env },
+      });
+    const avec = lancer(reglages.env);
+    assert.equal(avec.status, 0, avec.stderr);
+    assert.match(avec.stdout, /^\d+\.\d+\.\d+/);
+    assert.notEqual(lancer({}).status, 0);
+  } finally {
+    rmSync(dossier, { recursive: true, force: true });
+  }
+});
+
+test("les réglages du bac à sable posent la désactivation du changement de version de pnpm", () => {
+  assert.deepEqual(configurer(projet()).reglages.env, { npm_config_manage_package_manager_versions: "false" });
 });
