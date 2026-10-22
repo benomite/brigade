@@ -137,10 +137,16 @@ fi
 # modifié (`tests-touches.mjs`). Sur la base elle-même le diff est vide : tout
 # se joue, et c'est là que se rattrape un test touché sans que rien ne le dise.
 # `BRIGADE_GATES_TOUT=1` joue tout ; une sélection qui n'aboutit pas aussi.
+# Hors CI — la station qui cuisine, le poste du dev —, seuls les tests proches
+# du changement se jouent (`--proches`) : la suite touchée tourne sur GitHub
+# Actions (`.github/workflows/tests.yml`), que la pass attend avant de merger.
+# `BRIGADE_GATES_TESTS=touches` joue la fermeture ici aussi.
 SELECTION_runtime=tout
 SELECTION_app=tout
+PORTEE=--proches
+[ "${CI:-}" = true ] || [ "${BRIGADE_GATES_TESTS:-}" = touches ] && PORTEE=
 if [ "${BRIGADE_GATES_TOUT:-}" != 1 ] && [ -n "$REF" ] && [ -n "${SOUCHE:-}" ] && command -v node >/dev/null 2>&1; then
-  if SELECTION="$(printf '%s\n' "$CHANGES" | node .claude/brigade/tests-touches.mjs 2>/dev/null)"; then
+  if SELECTION="$(printf '%s\n' "$CHANGES" | node .claude/brigade/tests-touches.mjs $PORTEE 2>/dev/null)"; then
     while read -r ZONE_SEL REGLE; do
       case "$ZONE_SEL" in runtime) SELECTION_runtime="$REGLE" ;; app) SELECTION_app="$REGLE" ;; esac
     done <<<"$SELECTION"
@@ -219,7 +225,8 @@ suite() {
     ok "$ABSENTE : aucun test à jouer"
     return
   elif [ "$REGLE" = rien ]; then
-    ok "tests $DE non joués : aucun ne touche ce changement — la suite entière tourne sur la base"
+    if [ -n "$PORTEE" ]; then ok "tests $DE non joués ici : aucun n'est proche de ce changement — ceux qu'il touche tournent sur la CI, la suite entière sur la base"
+    else ok "tests $DE non joués : aucun ne touche ce changement — la suite entière tourne sur la base"; fi
     return
   elif ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
     SUITE_ROUGE=1
@@ -242,7 +249,8 @@ suite() {
         *"$MOTIF"*)
           FICHIERS="${REGLE#fichiers }"
           COMMANDE="${COMMANDE/"$MOTIF"/$FICHIERS}"
-          ok "tests $DE : $(set -- $FICHIERS; echo $#) fichiers touchés par ce changement — la suite entière tourne sur la base" ;;
+          if [ -n "$PORTEE" ]; then ok "tests $DE : $(set -- $FICHIERS; echo $#) fichiers proches de ce changement — ceux qu'il touche tournent sur la CI, la suite entière sur la base"
+          else ok "tests $DE : $(set -- $FICHIERS; echo $#) fichiers touchés par ce changement — la suite entière tourne sur la base"; fi ;;
       esac ;;
   esac
   # Le contrôle de types part en même temps que les tests : il ne leur doit

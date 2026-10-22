@@ -1,0 +1,39 @@
+# Les gates entières, sur GitHub Actions (#1004) : la station qui cuisine ne joue que les tests
+# proches d'un changement (`tests-touches.mjs --proches`) ; ici, sur une PR, se jouent tous ceux
+# qu'il touche, et sur `v2` après un merge, la suite entière (le diff y est vide). La pass attend ce
+# check avant de merger. Le dépôt est public : les runners de GitHub n'y coûtent rien.
+name: tests
+
+on:
+  pull_request:
+    branches: [v2]
+  push:
+    branches: [v2]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      # Tout l'historique : les gates lisent leur diff depuis `origin/v2`.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+      - name: Dépendances
+        run: eval "$(.claude/brigade/worktree-setup.sh 1 "$PWD")"
+      # La garde d'horloge des gates est réglée pour une box de 8 cœurs : un runner en a 4.
+      - name: Gates
+        env:
+          BRIGADE_GATES_DELAI_TESTS: "900"
+        run: .claude/brigade/gates.sh "$PWD"
