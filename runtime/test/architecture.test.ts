@@ -81,7 +81,11 @@ test("`runtime/src` : aucun programme qui joint une autre machine n'est lancé p
   // (`bascule/basculer.ts`) — il ne parle qu'au systemd local.
   assert.deepEqual([...lances].sort(), ["du", "git", "systemctl"]);
   // Ni nommé ailleurs dans le code — un commentaire peut le citer, pas une chaîne.
-  for (const fichier of sources()) {
+  // Sauf par la vérification des outils du second (#1433), qui cherche `ssh`
+  // dans le PATH du chef pour dire s'il manque, et ne lance rien.
+  const OUTILS_DU_SECOND = join(SRC, "second", "outils.ts");
+  assert.doesNotMatch(lire(OUTILS_DU_SECOND), /node:child_process|\bspawn\(|\bexecFile(Sync)?\(/);
+  for (const fichier of sources().filter((fichier) => fichier !== OUTILS_DU_SECOND)) {
     const code = lire(fichier)
       .split("\n")
       .filter((ligne) => !ligne.trimStart().startsWith("//"))
