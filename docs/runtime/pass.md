@@ -55,6 +55,10 @@ cap. It is up to the project to hold that — exit at the first failure (`set -e
 `FAIL` line per failure, crash included — or to remove the binding. A cap line without its
 measurement, or an output of more than 256 kB, leaves the gates red.
 
+**Every run of the gates the pass plays — a delivery's or the base's — writes what it cost**:
+`gates.ran`, its wall-clock time and its CPU, children included, read against the project's gates
+budget. See "The cost of the gates, and its budget" in [`etat-et-mesures.md`](etat-et-mesures.md).
+
 ### The judgement worktree
 
 The pass reads **what the origin received from the branch** (the cook's worktree no longer exists)

@@ -1,17 +1,18 @@
 // Les décisions du chef : ce qu'il décide pour son projet et qui n'est pas un
 // fait de la machine — les stations, les seuils de coût, le calibrage du
-// manager, du reviewer et du closer. Leur support est le journal du projet, dans le
-// répertoire d'état : ni le dépôt, où un cook peut écrire — un plafond qu'un
-// cook peut relever n'est pas un plafond —, ni le drop-in de l'unité, qui ne
-// change que par un `sudo` et un redémarrage. La cloison masque le répertoire
-// d'état à tout ce qu'elle lance, et le runtime refuse de démarrer si son
-// journal est sous le clone.
+// manager, du reviewer et du closer, le budget des gates. Leur support est le
+// journal du projet, dans le répertoire d'état : ni le dépôt, où un cook peut
+// écrire — un plafond qu'un cook peut relever n'est pas un plafond —, ni le
+// drop-in de l'unité, qui ne change que par un `sudo` et un redémarrage. La
+// cloison masque le répertoire d'état à tout ce qu'elle lance, et le runtime
+// refuse de démarrer si son journal est sous le clone.
 //
 // Le runtime les relit à chaque lecture : une décision posée vaut à la
 // suivante, sans redémarrage, et n'arrête rien de ce qui tourne. La variable
 // d'environnement de même nom n'est plus lue : le runtime la dit ignorée.
-// Aucune n'a de défaut, sauf le plafond de calibrage du manager : sans
-// décision, il vaut `opus` / `high` (`reagir.ts`).
+// Aucune n'a de défaut, sauf le plafond de calibrage du manager — sans
+// décision, il vaut `opus` / `high` (`reagir.ts`) — et le budget des gates
+// (`cout-des-gates.ts`).
 import { existsSync } from "node:fs";
 import { Base } from "./base.ts";
 import { EFFORTS, MODELES, type Calibrage } from "./calibrage.ts";
@@ -21,6 +22,7 @@ import type { Evenement } from "./evenements.ts";
 import type { Seuils } from "./events/drift.ts";
 import type { ReglagesDeFermeture } from "./events/closing.ts";
 import { configFermeture } from "./closing/settings.ts";
+import { lireBudget } from "./cout-des-gates.ts";
 import { cheminJournal, type Journal } from "./journal.ts";
 import { configManager } from "./manager.ts";
 import { configPlafond, type PlafondLu } from "./reagir.ts";
@@ -35,6 +37,8 @@ export const DECISIONS = [
   "BRIGADE_DRIFT_LOST_TOKENS",
   "BRIGADE_DRIFT_FIRST_TRY_PERCENT",
   "BRIGADE_DRIFT_FIRST_TRY_WINDOW",
+  "BRIGADE_GATES_BUDGET_SECONDS",
+  "BRIGADE_GATES_BUDGET_CPU_SECONDS",
   "BRIGADE_MANAGER_MODEL",
   "BRIGADE_MANAGER_EFFORT",
   "BRIGADE_REVIEWER_MODEL",
@@ -75,6 +79,7 @@ const nombre = (lecteur: (env: Record<string, string>) => unknown, attendu: stri
 };
 const ENTIER = "an integer greater than zero";
 const NOMBRE = "a number greater than zero";
+const SECONDES = "a number of seconds greater than zero";
 
 // Ce qu'une valeur doit être, lue seule : le lecteur même du runtime, pour
 // qu'une décision ne puisse pas valoir ce que la variable ne vaudrait pas.
@@ -84,6 +89,8 @@ const VERIFIER: Record<Decision, (nom: Decision, valeur: string) => void> = {
   BRIGADE_DRIFT_LOST_TOKENS: nombre(lireSeuils, ENTIER),
   BRIGADE_DRIFT_FIRST_TRY_PERCENT: nombre(lireSeuils, NOMBRE),
   BRIGADE_DRIFT_FIRST_TRY_WINDOW: nombre(lireSeuils, ENTIER),
+  BRIGADE_GATES_BUDGET_SECONDS: nombre(lireBudget, SECONDES),
+  BRIGADE_GATES_BUDGET_CPU_SECONDS: nombre(lireBudget, SECONDES),
   BRIGADE_MANAGER_MODEL: parmi(MODELES),
   BRIGADE_MANAGER_EFFORT: parmi(EFFORTS),
   BRIGADE_REVIEWER_MODEL: parmi(MODELES),
@@ -152,6 +159,8 @@ const GESTES_DES_DECISIONS: Record<Decision, string> = {
   BRIGADE_DRIFT_LOST_TOKENS: "seuil-perdus",
   BRIGADE_DRIFT_FIRST_TRY_PERCENT: "seuil-renvois",
   BRIGADE_DRIFT_FIRST_TRY_WINDOW: "fenetre-renvois",
+  BRIGADE_GATES_BUDGET_SECONDS: "budget-gates",
+  BRIGADE_GATES_BUDGET_CPU_SECONDS: "budget-gates-cpu",
   BRIGADE_MANAGER_MODEL: "manager-modele",
   BRIGADE_MANAGER_EFFORT: "manager-effort",
   BRIGADE_REVIEWER_MODEL: "reviewer-modele",
