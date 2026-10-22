@@ -29,7 +29,6 @@
 //
 // qui rend cet état en une ligne JSON — code 0 quand les stations sont
 // listées, 1 sinon. `BRIGADE_GH_BIN` nomme le `gh` (`gh` par défaut).
-import type { ExecFileException } from "node:child_process";
 import { enProcess, Sortie, type Appel } from "../appel.ts";
 import { lireDemande, FICHIER_PROJETS } from "../projets/demande.ts";
 import { execFile } from "../sans-invite.ts";
@@ -103,6 +102,10 @@ class EchecDeGh extends Error {
 
 class Absent extends Error {}
 
+// Ce qu'un lancement de `gh` en échec dit de lui (l'erreur d'`execFile`) :
+// `code`, son code de sortie, ou celle du système (`ENOENT`) ; `killed`, arrêté au délai.
+export type ErreurDeLancement = { code?: string | number | null; killed?: boolean; message: string };
+
 // Le geste qui connecte ce `gh` : dans le navigateur, sans rien demander au terminal
 // que la connexion ne demande pas, et en HTTPS — le protocole des clones (#1390).
 export const connexionGitHub = (gh: string): Connexion => ({
@@ -114,7 +117,7 @@ export const connexionGitHub = (gh: string): Connexion => ({
 const derniereLigne = (texte: string) => texte.trim().split("\n").at(-1)?.trim() ?? "";
 
 // Ce qu'un `gh` en échec veut dire, en un état et une phrase.
-export function echecDeGh(gh: string, delaiMs: number, erreur: Pick<ExecFileException, "code" | "killed" | "message">, erreurs: string): Exclude<StationsDuChef, { state: "listed" }> {
+export function echecDeGh(gh: string, delaiMs: number, erreur: ErreurDeLancement, erreurs: string): Exclude<StationsDuChef, { state: "listed" }> {
   const detail = erreurs.trim() || erreur.message;
   if (erreur.code === "ENOENT") {
     return { state: "unavailable", cause: "gh-missing", reason: `The GitHub CLI (\`${gh}\`) is not installed on this computer, and brigade reads your stations on GitHub through it.`, link: "https://cli.github.com", detail };
