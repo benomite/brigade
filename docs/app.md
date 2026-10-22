@@ -2845,9 +2845,10 @@ Two ways: **installed**, from a `.dmg` for Apple Silicon, or **from a clone of t
 It carries its station's runtime and the `node` that plays it: no clone, no `node`, no `npm` on the
 machine. It reads `~/.config/brigade/` as it is — your projects and settings are those of the repo's
 app —, takes the `PATH` of your login shell (to find `claude` and `gh`), and does not update through
-`git`: it keeps itself up to date from the published versions (below). The `.dmg` published on the
-`app-v<version>` release is signed with Developer ID and notarized by Apple: it opens without a
-warning. One you build yourself is only ad hoc signed: copied from another Mac, macOS asks for "Open
+`git`: it keeps itself up to date from the published versions (below). Every merge on `v2` that
+changes the app publishes an `app-v<version>` release with the Mac and Windows installers, built by
+the `publier-app` workflow; nobody pushes a tag. Until signing lands (#1441), the published `.dmg` is
+only ad hoc signed, like one you build yourself: copied from another Mac, macOS asks for "Open
 anyway". What it carries, how it is built and tested: [`app/packaging/README.md`](../app/packaging/README.md).
 
 **Updating it** (#1013). The installed app checks at launch, then every six hours, whether a version
