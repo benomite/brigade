@@ -58,12 +58,14 @@ describe("le ticket des gates hors budget", { concurrency: 8 }, () => {
     assert.deepEqual(gh.creations, [501]);
     const ouvert = gh.lire(501)!;
     assert.deepEqual(ouvert.labels, LABELS_BUDGET);
-    assert.equal(ouvert.title, "Bring the gates of espace back under their budget: 215 s for a budget of 100 s");
+    assert.equal(ouvert.title, "Bring the gates of a ticket of espace back under their budget: 215 s for a budget of 100 s");
     const corps = gh.corpsDe(501);
     assert.match(corps, /\| Duration \(wall-clock\) \| 215 s \| 100 s \(default\) \| \*\*exceeded\*\* \(\+115 %\) \|/);
     assert.match(corps, /\| CPU \(user \+ system, children included\) \| 300 s \| 400 s \(default\) \| within \|/);
     assert.match(corps, /wall-clock duration exceeded/);
-    assert.match(corps, /the gates of #17, run by the pass/);
+    assert.match(corps, /the gates of #17, which play only the tests the change touches, run by the pass/);
+    assert.match(corps, /went over their ticket budget/);
+    assert.match(corps, /The full run is not in scope/);
     assert.deepEqual(types(), ["gates.budget-ticket-opening -", "gates.budget-ticket-opened 501"]);
     const [annonce] = journal.tout().filter((evenement) => evenement.type === "gates.budget-ticket-opening");
     assert.equal(annonceDuBudget(corps, PROJET), annonce?.seq);
@@ -79,15 +81,45 @@ describe("le ticket des gates hors budget", { concurrency: 8 }, () => {
   test("le processeur dépassé se dit, avec le budget posé par le chef", async (t) => {
     const { journal, gh, passage, tenir } = cas(t);
     poserDecision(journal, { projet: PROJET, nom: BUDGET_PROCESSEUR, valeur: "500", auteur: "chef" });
-    passage(TROP_LOURD, null);
+    passage(TROP_LOURD);
 
     await tenir();
 
-    assert.equal(gh.lire(501)!.title, "Bring the gates of espace back under their budget: 990 s of CPU for a budget of 500 s");
+    assert.equal(gh.lire(501)!.title, "Bring the gates of a ticket of espace back under their budget: 990 s of CPU for a budget of 500 s");
     const corps = gh.corpsDe(501);
     assert.match(corps, /\| CPU \(user \+ system, children included\) \| 990 s \| 500 s \(set by the chef\) \| \*\*exceeded\*\* \(\+98 %\) \|/);
     assert.match(corps, /\| Duration \(wall-clock\) \| 90 s \| 100 s \(default\) \| within \|/);
-    assert.match(corps, /the gates of the integration base/);
+  });
+
+  test("le run complet sur la base ne se juge pas au budget d'un ticket : il a le sien, plus large", async (t) => {
+    const { gh, passage, tenir, types } = cas(t);
+    // 215 s et 990 s de processeur : très au-dessus du budget d'un ticket, sous celui de la base (400 s, 1600 s).
+    passage({ ...TROP_LOURD, durationMs: 215_000 }, null);
+
+    assert.equal(await tenir(), null);
+    assert.deepEqual(gh.creations, []);
+    assert.deepEqual(types(), []);
+
+    // Le même passage sur un ticket dépasse.
+    passage({ ...TROP_LOURD, durationMs: 215_000 });
+    assert.deepEqual(await tenir(), { ticket: 501, ouvert: true });
+
+  });
+
+  test("le run complet sur la base au-dessus de son budget ouvre un ticket qui le dit, sans demander de tenir le budget d'un ticket", async (t) => {
+    const { repertoire, gh, passage, tenir } = cas(t);
+    passage({ runner: "pass", outcome: "green", durationMs: 450_000, cpuMs: 700_000 }, null);
+
+    assert.deepEqual(await tenir(), { ticket: 501, ouvert: true });
+
+    assert.equal(gh.lire(501)!.title, "Bring the full run of the gates of espace on the base back under its budget: 450 s for a budget of 400 s");
+    const corps = gh.corpsDe(501);
+    assert.match(corps, /The full run of the gates of espace went over its base budget/);
+    assert.match(corps, /the full run of the gates on the integration base/);
+    assert.match(corps, /\| CPU \(user \+ system, children included\) \| 700 s \| 1600 s \(default\) \| within \|/);
+    assert.match(corps, /stays within the base budget: at most 400 s/);
+    assert.doesNotMatch(corps, /ticket budget/);
+    assert.equal((await ticketLu(repertoire)).run, "base");
   });
 
   test("tant que le ticket est ouvert, les passages hors budget suivants n'en ouvrent pas d'autre", async (t) => {

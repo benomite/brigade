@@ -5277,7 +5277,7 @@ button.recommande {
   font-variant-numeric: tabular-nums;
   color: var(--texte);
 }
-#rail .gates-de-la-file[data-hors-budget] .chiffre {
+#rail .gates-de-la-file .mesures-des-gates[data-hors-budget] .chiffre {
   color: var(--rouge-clair);
 }
 #rail .gates-de-la-file .budget-des-gates,

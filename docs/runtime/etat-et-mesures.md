@@ -434,10 +434,25 @@ the default back. The last run is **over budget** when its duration or its CPU e
 `facts` gives all this in `coutDesGates`. Nothing is stopped or judged on it: no gates are seen red
 for being over budget.
 
+**Two kinds of run, two budgets.** The budget above judges **the gates of a ticket**, which play only
+the tests the change touches. **The full run on the base** (a `gates.ran` with no ticket), which plays
+everything to catch what the selection missed, is never judged by it: it always costs more, by far
+(about 700 s of CPU for brigade). It has **its own, larger budget**, per project too:
+`station budget-base <seconds>` and `station budget-base-cpu <seconds>`
+(`BRIGADE_GATES_BASE_BUDGET_SECONDS`, `BRIGADE_GATES_BASE_BUDGET_CPU_SECONDS`). Unset, the default is
+four times the ticket budget: **400 s** of duration and **1600 s** of CPU. In `coutDesGates`, the
+top-level `budget`, `latest`, `overBudget`, `lastDay`, `lastHour`, `averages` and `trend` read the runs
+of tickets only; `base` — `{ budget, latest, overBudget }`, same shapes — reads the runs of the base
+against the base budget.
+
 **Over budget, the kitchen opens a ticket on the project, on its own** (`runtime/src/budget-des-gates.ts`).
-Right after it writes a run's `gates.ran`, the pass reads the latest run against the budget: over it —
+Right after it writes a run's `gates.ran`, the pass reads the latest run against the budget of its kind
+(a ticket's gates against the ticket budget, the full run on the base against the base budget): over it —
 duration, CPU, or both — and with no budget ticket of the project still open, it creates one on GitHub,
-titled "Bring the gates of <project> back under their budget: …". Its body gives the measured
+titled "Bring the gates of a ticket of <project> back under their budget: …" or, for the base, "Bring the
+full run of the gates of <project> on the base back under its budget: …" — the ticket says which kind
+went over, and a base ticket never asks to fit the full run into the ticket budget, nor a ticket
+one to fit the full suite. Its body gives the measured
 wall-clock and CPU, the budget of each (set by the chef or default), which dimension is exceeded and
 by how much, the run that did it, and the criteria: back under budget, no test removed, skipped or
 weakened. It carries `fire` and `model:opus` / `effort:high`: the kitchen serves it like any other
@@ -448,7 +463,7 @@ before the call (`gates.budget-ticket-opening`), and the issue carries the mark
 `<!-- brigade:budget-gates <project> <seq of the announcement> -->`: a lost answer, or a runtime killed
 in between, finds the issue again by its mark — from a trusted author only — instead of opening it
 twice. `gates.budget-ticket-opened` holds the ticket, the measures, the budget and the exceeded
-dimensions (`runtime/src/events/gates.ts`). GitHub down: the pass says it once, and the next run over
-budget tries again. `facts` gives the ticket in `coutDesGates.ticket` — `{ number, openedAt, exceeded }`,
+dimensions and `run` (`ticket` or `base`; absent on older facts, read as `ticket`) (`runtime/src/events/gates.ts`). GitHub down: the pass says it once, and the next run over
+budget tries again. `facts` gives the ticket in `coutDesGates.ticket` — `{ number, openedAt, exceeded, run }`,
 null when there is none, or when the last one was seen closed —, for the queue to say the kitchen
 opened it.

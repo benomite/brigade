@@ -31,9 +31,12 @@ export type FaitGates = {
 // created. `gates.budget-ticket-closed`: the next run over budget found that
 // ticket closed on GitHub, or gone — another one may then be opened.
 export type DimensionDuBudget = "duration" | "cpu";
+// `run`: which kind of run went over — the gates of a ticket (the selected tests), or the full run on the base, each
+// with its own budget. Absent on facts written before the two were told apart: they were the ticket's.
+export type GenreDuBudget = "ticket" | "base";
 
 export type FaitBudgetDesGates =
-  | { type: "gates.budget-ticket-opening"; payload: { exceeded: DimensionDuBudget[] } }
+  | { type: "gates.budget-ticket-opening"; payload: { exceeded: DimensionDuBudget[]; run?: GenreDuBudget } }
   | {
       type: "gates.budget-ticket-opened";
       payload: {
@@ -42,6 +45,7 @@ export type FaitBudgetDesGates =
         budget: { durationSeconds: number; cpuSeconds: number };
         exceeded: DimensionDuBudget[];
         reconciled: boolean;
+        run?: GenreDuBudget;
       };
     }
   | { type: "gates.budget-ticket-closed"; payload: { state: "closed" | "gone" } };

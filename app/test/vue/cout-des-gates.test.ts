@@ -16,7 +16,7 @@ import { GESTES_DES_GRANTS } from "../../src/grants.ts";
 import { GESTES_DU_MANAGER } from "../../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
-import { COLONNES, duree, HORS_BUDGET, poserLeJourDesGates, poserLesGatesDeLaFile, TITRE_FILE, TITRE_JOUR } from "../../src/vue/cout-des-gates.js";
+import { COLONNES, duree, HORS_BUDGET, poserLeJourDesGates, poserLesGatesDeLaFile, TITRE_BASE, TITRE_FILE, TITRE_JOUR } from "../../src/vue/cout-des-gates.js";
 import { Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-10-21T10:04:12.000Z";
@@ -91,6 +91,25 @@ const mesures = (pose: Faux) => pose.dessous("span").filter(({ className }) => c
 const lu = (pose: Faux) => pose.dessous("tr").map((ligne) => ligne.children.map((cellule) => cellule.textContent));
 
 describe("les gates face à leur budget, en tête de la file", () => {
+  test("le run complet sur la base se montre à part, face à son budget à lui — celui d'un ticket ne le juge pas", async () => {
+    const vue = await ouvrir();
+    const base = {
+      budget: { durationSeconds: 400, cpuSeconds: 1600, parLeChef: { durationSeconds: false, cpuSeconds: false } },
+      latest: { project: PARADE, ticket: null, runner: "pass", outcome: "green", durationSeconds: 250, cpuSeconds: 700, at: "2026-10-21T09:58:40.000Z" },
+      overBudget: false,
+    };
+    recevoir(vue, { ...SOUS_LE_BUDGET, base });
+    await repos();
+    const pose = file(vue) ?? assert.fail("pas de gates sur la file");
+    assert.equal(pose.dessous("h4")[1]?.textContent?.startsWith(TITRE_BASE), true);
+    assert.deepEqual(mesures(pose), ["time 62 s / 100 s (default)", "CPU 181 s / 400 s (default)", "time 250 s / 400 s (default)", "CPU 700 s / 1600 s (default)"]);
+    assert.equal(pose.dessous("span").some(({ className }) => className === "hors-budget"), false);
+
+    recevoir(vue, { ...SOUS_LE_BUDGET, base: { ...base, latest: { ...base.latest, durationSeconds: 450 }, overBudget: true } });
+    await repos();
+    assert.equal((file(vue) ?? assert.fail("pas de gates")).dessous("span").filter(({ className }) => className === "hors-budget").length, 1);
+  });
+
   test("sous le budget : le dernier passage face au budget, en durée et en processeur — le défaut se dit défaut, sans marque ni ticket", async () => {
     const vue = await ouvrir();
     recevoir(vue, SOUS_LE_BUDGET);
