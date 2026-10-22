@@ -272,7 +272,11 @@ test("sous l'environnement du bac à sable, pnpm 10 démarre, installe et lance 
     // Sans les réglages : pnpm cherche sa version par le proxy, puis meurt faute de pouvoir la vérifier.
     const sans = await lancer(["--version"], {});
     assert.notEqual(sans.status, 0, sans.stdout);
-    assert.match(sans.stderr, /ERR_PNPM_PNPM_ENGINE_IDENTITY_UNVERIFIABLE/);
+    // pnpm lève ERR_PNPM_PNPM_ENGINE_IDENTITY_UNVERIFIABLE, mais pnpm 10.34 affiche
+    // un échec du changement de version sans son code (` ERROR <message>`) : son
+    // message, avec un registre injoignable (« could not be consulted either »),
+    // est celui de ce code-là, pas celui de ENGINE_IDENTITY_MISMATCH.
+    assert.match(sans.stderr, /ERR_PNPM_PNPM_ENGINE_IDENTITY_UNVERIFIABLE|Refusing to run pnpm@10\.0\.0: its npm registry signature could not be verified \(.*could not be consulted either/);
     assert.equal(vus.includes("GET http://registre.invalid/pnpm"), true, vus.join("\n"));
 
     // Avec l'`env` des réglages : `--version`, `install` puis un script, sans une requête pour pnpm lui-même.
@@ -280,7 +284,7 @@ test("sous l'environnement du bac à sable, pnpm 10 démarre, installe et lance 
     const version = await lancer(["--version"], reglages.env);
     assert.equal(version.status, 0, version.stderr);
     assert.match(version.stdout, /^\d+\.\d+\.\d+/);
-    assert.deepEqual(vus, []);
+    assert.equal(vus.length, 0, vus.join("\n"));
 
     const installation = await lancer(["install"], reglages.env);
     assert.equal(installation.status, 0, installation.stderr + installation.stdout);
