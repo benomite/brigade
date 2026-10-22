@@ -14,9 +14,15 @@
 // signaler le groupe du cook : il sait, lui, quand ce groupe a cessé d'être le
 // sien.
 //
+// Sous Windows, un SIGTERM tue sur-le-champ, sans gestionnaire : le relais ne
+// l'entendrait pas. Le runtime y tue lui-même l'arbre du cook, dont le relais
+// a écrit le pid (`superviseur.ts`, `demanderLArret`) ; le relais voit son cook
+// mourir, tue ce qui reste de son arbre et écrit sa fin, comme ailleurs.
+//
 // `node relais.ts <run>` : le nom du run est sur la ligne de commande, pour
 // qu'un runtime qui le retrouve sache que ce pid est bien ce relais-là.
 import { spawn, type ChildProcess } from "./sans-invite.ts";
+import { signalerLArbre } from "./arbre.ts";
 import { createWriteStream, renameSync, writeFileSync, type WriteStream } from "node:fs";
 import type { Readable } from "node:stream";
 import { masquerIdentifiants, retenirJeton } from "./identifiants.ts";
@@ -66,21 +72,19 @@ function relayer(consigne: ConsigneDuRelais): void {
   let enfant: ChildProcess | null = null;
   let mort = false;
   let grace: NodeJS.Timeout | undefined;
-  // Le groupe du cook, et lui seul : jamais après sa mort.
-  const signaler = (signal: NodeJS.Signals) => {
-    if (mort || enfant?.pid === undefined) return;
-    try {
-      process.kill(-enfant.pid, signal);
-    } catch {
-      // Le groupe n'existe plus.
-    }
+  // L'arbre du cook (`arbre.ts`), et lui seul : jamais après sa mort. Sous
+  // Windows, il se lit à partir de cet instant.
+  let lancement = Date.now();
+  const signaler = (signal: NodeJS.Signals): Promise<void> => {
+    if (mort || enfant?.pid === undefined) return Promise.resolve();
+    return signalerLArbre(enfant.pid, signal, { depuis: lancement });
   };
   let arretDemande = false;
   const arreter = () => {
     if (arretDemande) return;
     arretDemande = true;
-    signaler("SIGTERM");
-    grace = setTimeout(() => signaler("SIGKILL"), consigne.graceMs);
+    void signaler("SIGTERM");
+    grace = setTimeout(() => void signaler("SIGKILL"), consigne.graceMs);
   };
   // Le relais n'entend que la demande d'arrêt, qu'il transmet. Le reste — la
   // fin d'un terminal, un Ctrl-C — ne le concerne pas : il n'en a pas.
@@ -98,6 +102,7 @@ function relayer(consigne: ConsigneDuRelais): void {
   };
 
   try {
+    lancement = Date.now();
     enfant = spawn(consigne.commande, consigne.args, {
       cwd: consigne.cwd,
       env: consigne.env,
@@ -145,12 +150,13 @@ function relayer(consigne: ConsigneDuRelais): void {
 
   const conclure = (code: number | null, signal: string | null, erreur: string | null) => {
     if (mort) return;
-    // Rien ne survit à son cook : ce qui reste du groupe est tué maintenant,
-    // et plus aucun signal ne part ensuite.
-    signaler("SIGKILL");
+    // Rien ne survit à son cook : ce qui reste de son arbre est tué
+    // maintenant, et plus aucun signal ne part ensuite. La fin ne s'écrit
+    // qu'après : qui la lit ne voit plus rien du cook.
+    const nettoye = signaler("SIGKILL");
     mort = true;
     clearTimeout(grace);
-    let attendus = fichiers.length;
+    let attendus = fichiers.length + 1;
     let filet: NodeJS.Timeout | undefined;
     const unDeMoins = () => {
       attendus -= 1;
@@ -165,6 +171,7 @@ function relayer(consigne: ConsigneDuRelais): void {
       lance.stderr?.destroy();
       for (const fichier of clore) fichier();
     }, consigne.graceMs);
+    void nettoye.then(unDeMoins);
     for (const fichier of fichiers) {
       if (fichier.closed) unDeMoins();
       else fichier.once("close", unDeMoins);

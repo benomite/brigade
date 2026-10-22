@@ -7,8 +7,15 @@ import { describe, test, type TestContext } from "node:test";
 import type { Plafonds } from "../src/events/guardrails.ts";
 import { superviser, type Arret } from "../src/superviseur.ts";
 import { aArreter, ENV_ENFANT, FAUX_CLAUDE, jusqua, repertoireTemporaire, temporaireDuFichier, vivant } from "./outils.ts";
+import { posixOnly } from "./support/plateforme.ts";
 
 const rienNeReste = temporaireDuFichier();
+
+// Ce qui ne se joue que sous macOS et Linux, et pourquoi. L'arrêt d'un cook et
+// de tout ce qu'il a lancé se prouve sous Windows dans `arbre.test.ts`.
+const BASH = posixOnly("drives a bash script (the fake claude or bash -c)");
+const CHEMIN_POSIX = posixOnly("compares a path written with /");
+const GROUPE = posixOnly("a process escapes its cook only by leaving the POSIX process group; on Windows the tree catches it (arbre.test.ts)");
 
 const LARGES: Plafonds = { turns: 1000, durationMs: 60_000, tokens: 1_000_000, idleMs: 60_000 };
 
@@ -47,7 +54,7 @@ const souffler = () => new Promise((resoudre) => vraiMinuteur(resoudre, 5));
 // Chaque test attend un vrai process et de vrais délais : ils tournent de
 // front, pour que la suite reste de l'ordre de la seconde.
 describe("superviser", { concurrency: true }, () => {
-  test("le flux brut et la sortie d'erreur sont masqués à l'écriture, même quand une valeur arrive en deux morceaux", async (t) => {
+  test("le flux brut et la sortie d'erreur sont masqués à l'écriture, même quand une valeur arrive en deux morceaux", { skip: BASH }, async (t) => {
     const flux = join(repertoireTemporaire(t), "run.jsonl");
     // La valeur est coupée entre deux écritures, que le tube livre séparément.
     const script = 'printf \'{"type":"result","result":"la clé est sk-de\'; sleep 0.2; printf \'v-12345678"}\\nfin sans saut de ligne sk-dev-12345678\'; printf "erreur : sk-dev-12345678\\n" >&2';
@@ -68,7 +75,7 @@ describe("superviser", { concurrency: true }, () => {
     assert.equal(readFileSync(`${flux}.stderr`, "utf8"), "erreur : [secret:CLE]\n");
   });
 
-  test("sans aucun masque de secrets, ce qui a la forme d'un jeton de Claude est masqué à l'écriture, coupé en deux morceaux ou non, et la fin dit combien de fois", async (t) => {
+  test("sans aucun masque de secrets, ce qui a la forme d'un jeton de Claude est masqué à l'écriture, coupé en deux morceaux ou non, et la fin dit combien de fois", { skip: BASH }, async (t) => {
     const flux = join(repertoireTemporaire(t), "run.jsonl");
     // Fabriqué, et assemblé ici : la forme n'est écrite en clair nulle part.
     const jeton = ["sk", "ant", "oat01", "0".repeat(90)].join("-");
@@ -83,7 +90,7 @@ describe("superviser", { concurrency: true }, () => {
     assert.equal(fin.masques, 3);
   });
 
-  test("ce que le cook fait se lit dans son flux, relatif à son worktree et masqué comme lui — et rien de ce qu'il écrit n'en sort", async (t) => {
+  test("ce que le cook fait se lit dans son flux, relatif à son worktree et masqué comme lui — et rien de ce qu'il écrit n'en sort", { skip: CHEMIN_POSIX }, async (t) => {
     const repertoire = repertoireTemporaire(t);
     const flux = join(repertoire, "run.jsonl");
     const ligne = JSON.stringify({ type: "assistant", message: { id: "m", content: [{ type: "tool_use", id: "t1", name: "Edit", input: { file_path: join(repertoire, "src", "acme-prod.ts"), new_string: "CODE_DU_COOK" } }] } });
@@ -107,7 +114,7 @@ describe("superviser", { concurrency: true }, () => {
     assert.ok(!JSON.stringify(activite).includes("CODE_DU_COOK"));
   });
 
-  test("un process échappé du groupe garde les tubes ouverts : ce qui attendait son saut de ligne est écrit quand même, masqué et compté", async (t) => {
+  test("un process échappé du groupe garde les tubes ouverts : ce qui attendait son saut de ligne est écrit quand même, masqué et compté", { skip: GROUPE }, async (t) => {
     const repertoire = repertoireTemporaire(t);
     const flux = join(repertoire, "run.jsonl");
     const echappe = join(repertoire, "echappe.pid");
@@ -136,7 +143,7 @@ describe("superviser", { concurrency: true }, () => {
     assert.equal(fin.masques, 2);
   });
 
-  test("une sortie sans saut de ligne n'attend pas la fin du cook en mémoire : passé la borne, elle est écrite, masquée", async (t) => {
+  test("une sortie sans saut de ligne n'attend pas la fin du cook en mémoire : passé la borne, elle est écrite, masquée", { skip: BASH }, async (t) => {
     const repertoire = repertoireTemporaire(t);
     const flux = join(repertoire, "run.jsonl");
     const assez = join(repertoire, "assez");
@@ -158,7 +165,7 @@ describe("superviser", { concurrency: true }, () => {
     assert.equal(fin.arret, null);
   });
 
-  test("un cook qui finit rend son code, ses tours et ses tokens, sans qu'aucun garde-fou n'intervienne", async (t) => {
+  test("un cook qui finit rend son code, ses tours et ses tokens, sans qu'aucun garde-fou n'intervienne", { skip: BASH }, async (t) => {
     const { fin, arrets } = cook(t, "fini");
 
     const resultat = await fin;
@@ -168,7 +175,7 @@ describe("superviser", { concurrency: true }, () => {
     assert.deepEqual(arrets, []);
   });
 
-  test("ce qu'un cook a consommé se mesure pendant qu'il tourne", async (t) => {
+  test("ce qu'un cook a consommé se mesure pendant qu'il tourne", { skip: BASH }, async (t) => {
     const { mesure, flux } = cook(t, "muet-apres-un-tour");
     assert.deepEqual(mesure(), { turns: 0, tokens: 0 });
 
@@ -178,7 +185,7 @@ describe("superviser", { concurrency: true }, () => {
     assert.deepEqual(mesure(), { turns: 1, tokens: 10 });
   });
 
-  test("le flux brut du cook est gardé tel quel dans son fichier", async (t) => {
+  test("le flux brut du cook est gardé tel quel dans son fichier", { skip: BASH }, async (t) => {
     const { fin, flux } = cook(t, "fini");
     await fin;
 
@@ -186,32 +193,32 @@ describe("superviser", { concurrency: true }, () => {
     assert.deepEqual(lignes, ["assistant", "assistant", "result"]);
   });
 
-  test("ce que le cook écrit sur sa sortie d'erreur est gardé à côté du flux", async (t) => {
+  test("ce que le cook écrit sur sa sortie d'erreur est gardé à côté du flux", { skip: BASH }, async (t) => {
     const { fin, flux } = cook(t, "plaintif");
     await fin;
 
     assert.equal(readFileSync(`${flux}.stderr`, "utf8"), "attention\n");
   });
 
-  test("un cook qui échoue rend son code de sortie", async (t) => {
+  test("un cook qui échoue rend son code de sortie", { skip: BASH }, async (t) => {
     const resultat = await cook(t, "echec").fin;
 
     assert.deepEqual([resultat.code, resultat.arret], [1, null]);
   });
 
-  test("un message livré en plusieurs lignes compte pour un tour, et son usage une seule fois", async (t) => {
+  test("un message livré en plusieurs lignes compte pour un tour, et son usage une seule fois", { skip: BASH }, async (t) => {
     const resultat = await cook(t, "morcele").fin;
 
     assert.deepEqual([resultat.turns, resultat.tokens], [1, 12]);
   });
 
-  test("les tokens comptent l'entrée, la sortie et l'écriture de cache — pas les lectures de cache", async (t) => {
+  test("les tokens comptent l'entrée, la sortie et l'écriture de cache — pas les lectures de cache", { skip: BASH }, async (t) => {
     const resultat = await cook(t, "cache").fin;
 
     assert.deepEqual([resultat.turns, resultat.tokens], [1, 7]);
   });
 
-  test("un cook qui dépasse son plafond de tours est arrêté, avec le motif", async (t) => {
+  test("un cook qui dépasse son plafond de tours est arrêté, avec le motif", { skip: BASH }, async (t) => {
     const { fin, arrets } = cook(t, "bavard", { turns: 3 });
 
     const resultat = await fin;
@@ -221,13 +228,13 @@ describe("superviser", { concurrency: true }, () => {
     assert.equal(resultat.signal, "SIGTERM");
   });
 
-  test("un cook qui dépasse son plafond de tokens est arrêté, avec le motif", async (t) => {
+  test("un cook qui dépasse son plafond de tokens est arrêté, avec le motif", { skip: BASH }, async (t) => {
     const resultat = await cook(t, "bavard", { tokens: 25 }).fin;
 
     assert.deepEqual(resultat.arret, { reason: "tokens", limit: 25, observed: 30 });
   });
 
-  test("un cook qui dépasse son plafond de durée est arrêté, même s'il produit", async (t) => {
+  test("un cook qui dépasse son plafond de durée est arrêté, même s'il produit", { skip: BASH }, async (t) => {
     const resultat = await cook(t, "bavard", { durationMs: 150 }).fin;
 
     assert.equal(resultat.arret?.reason, "duration");
@@ -237,7 +244,7 @@ describe("superviser", { concurrency: true }, () => {
     assert.equal(typeof resultat.arret?.observed, "number");
   });
 
-  test("un cook muet est détecté comme inactif et arrêté", async (t) => {
+  test("un cook muet est détecté comme inactif et arrêté", { skip: BASH }, async (t) => {
     const resultat = await cook(t, "muet", { idleMs: 150 }).fin;
 
     assert.equal(resultat.arret?.reason, "idle");
@@ -245,7 +252,7 @@ describe("superviser", { concurrency: true }, () => {
     assert.equal(resultat.turns, 0);
   });
 
-  test("la commande d'arrêt arrête le cook, une seule fois", async (t) => {
+  test("la commande d'arrêt arrête le cook, une seule fois", { skip: BASH }, async (t) => {
     const { fin, arreter, arrets } = cook(t, "bavard");
 
     arreter();
@@ -255,7 +262,7 @@ describe("superviser", { concurrency: true }, () => {
     assert.equal(arrets.length, 1);
   });
 
-  test("un cook sourd à SIGTERM est tué après le délai de grâce", async (t) => {
+  test("un cook sourd à SIGTERM est tué après le délai de grâce", { skip: BASH }, async (t) => {
     const { fin, arreter, flux } = cook(t, "sourd", {}, 100);
     await aParle(flux);
 
@@ -264,7 +271,7 @@ describe("superviser", { concurrency: true }, () => {
     assert.equal((await fin).signal, "SIGKILL");
   });
 
-  test("un petit-enfant sourd à SIGTERM meurt avec le groupe de son cook", async (t) => {
+  test("un petit-enfant sourd à SIGTERM meurt avec le groupe de son cook", { skip: BASH }, async (t) => {
     const { fin, flux, pid, arreter } = cook(t, "petit-enfant-sourd");
     await aParle(flux);
     const { petitEnfant } = JSON.parse(readFileSync(flux, "utf8").trim());
@@ -284,7 +291,7 @@ describe("superviser", { concurrency: true }, () => {
     assert.equal(vivant(pid), false);
   });
 
-  test("le motif est remis avant que le signal parte : le cook vit encore quand on le note", async (t) => {
+  test("le motif est remis avant que le signal parte : le cook vit encore quand on le note", { skip: BASH }, async (t) => {
     let vivaitEncore: boolean | null = null;
     const flux = join(repertoireTemporaire(t), "run.jsonl");
     const supervise = superviser({
@@ -305,7 +312,7 @@ describe("superviser", { concurrency: true }, () => {
     assert.equal(vivaitEncore, true);
   });
 
-  test("un motif qui ne peut pas être noté n'empêche pas l'arrêt", async (t) => {
+  test("un motif qui ne peut pas être noté n'empêche pas l'arrêt", { skip: BASH }, async (t) => {
     const flux = join(repertoireTemporaire(t), "run.jsonl");
     const supervise = superviser({
       commande: FAUX_CLAUDE,
@@ -326,7 +333,7 @@ describe("superviser", { concurrency: true }, () => {
     assert.equal(resultat.signal, "SIGTERM");
   });
 
-  test("un flux brut qui ne peut pas s'écrire ne rend pas les plafonds aveugles", async (t) => {
+  test("un flux brut qui ne peut pas s'écrire ne rend pas les plafonds aveugles", { skip: BASH }, async (t) => {
     // Un répertoire là où le fichier du flux devrait s'ouvrir.
     const flux = join(repertoireTemporaire(t), "flux");
     mkdirSync(flux);
@@ -345,7 +352,7 @@ describe("superviser", { concurrency: true }, () => {
     assert.deepEqual(resultat.arret, { reason: "turns", limit: 3, observed: 4 });
   });
 
-  test("une sortie d'erreur qui ne peut pas s'écrire ne bloque pas le cook", async (t) => {
+  test("une sortie d'erreur qui ne peut pas s'écrire ne bloque pas le cook", { skip: BASH }, async (t) => {
     const flux = join(repertoireTemporaire(t), "run.jsonl");
     mkdirSync(`${flux}.stderr`);
     const supervise = superviser({
@@ -378,7 +385,7 @@ describe("superviser", { concurrency: true }, () => {
     assert.match(resultat.erreur ?? "", /ENOENT/);
   });
 
-  test("abandonner tue le cook sur-le-champ, sans noter de motif", async (t) => {
+  test("abandonner tue le cook sur-le-champ, sans noter de motif", { skip: BASH }, async (t) => {
     const { fin, abandonner, arrets } = cook(t, "sourd");
 
     abandonner();
@@ -393,8 +400,8 @@ describe("superviser", { concurrency: true }, () => {
 // L'inactivité se juge à l'horloge du test, pas à celle du mur : le temps que
 // met un cook à démarrer sur une machine chargée ne compte pas pour un silence.
 // Un seul test à la fois — l'horloge tenue est celle de tout le process.
-describe("superviser, à l'horloge du test", () => {
-  test("un cook qui se tait après avoir parlé est détecté comme inactif", async (t) => {
+describe("superviser, à l'horloge du test", { skip: BASH }, () => {
+  test("un cook qui se tait après avoir parlé est détecté comme inactif", { skip: BASH }, async (t) => {
     t.mock.timers.enable({ apis: ["setTimeout"] });
     const { fin, mesure, arrets } = cook(t, "muet-apres-un-tour", { idleMs: 1000 });
     while (mesure().turns === 0) await souffler();
@@ -407,7 +414,7 @@ describe("superviser, à l'horloge du test", () => {
     assert.deepEqual([resultat.arret?.reason, resultat.turns], ["idle", 1]);
   });
 
-  test("un cook qui produit n'est pas pris pour un inactif", async (t) => {
+  test("un cook qui produit n'est pas pris pour un inactif", { skip: BASH }, async (t) => {
     t.mock.timers.enable({ apis: ["setTimeout"] });
     const { fin, mesure, pid } = cook(t, "au-signal", { idleMs: 1000, turns: 3 });
     assert.ok(pid);

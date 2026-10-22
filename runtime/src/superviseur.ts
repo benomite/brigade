@@ -3,6 +3,7 @@
 // pure : aucun journal ici, et rien qui soit propre à `claude` au-delà de la
 // forme de son flux.
 import { spawn } from "./sans-invite.ts";
+import { signalerLArbre, signalerLArbreSync } from "./arbre.ts";
 import { closeSync, createWriteStream, openSync, readFileSync, readSync, type WriteStream } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
@@ -88,7 +89,10 @@ export function superviser(options: OptionsSupervision): Supervise {
   const ecoule = () => Math.round(performance.now() - debut);
 
   // `detached` : le cook est chef de son propre groupe de process, et un
-  // signal envoyé au groupe atteint aussi ce qu'il a lancé.
+  // signal envoyé au groupe atteint aussi ce qu'il a lancé. Sous Windows, son
+  // arbre se lit dans la table des process, à partir de cet instant
+  // (`arbre.ts`).
+  const lancement = Date.now();
   const enfant = spawn(options.commande, options.args, {
     cwd: options.cwd,
     env: options.env,
@@ -134,13 +138,10 @@ export function superviser(options: OptionsSupervision): Supervise {
   const finir = [garder(enfant.stdout, fichiers[0]), garder(enfant.stderr, fichiers[1])];
 
   let mort = false;
-  const signaler = (signal: NodeJS.Signals) => {
-    if (enfant.pid === undefined) return;
-    try {
-      process.kill(-enfant.pid, signal);
-    } catch {
-      // Le groupe n'existe plus : il n'y a plus personne à arrêter.
-    }
+  // Tout l'arbre du cook : la promesse se tient quand il est tué.
+  const signaler = (signal: NodeJS.Signals): Promise<void> => {
+    if (enfant.pid === undefined) return Promise.resolve();
+    return signalerLArbre(enfant.pid, signal, { depuis: lancement });
   };
 
   let arret: Arret | null = null;
@@ -154,8 +155,8 @@ export function superviser(options: OptionsSupervision): Supervise {
       // Le motif n'a pas pu être noté : le cook est arrêté quand même, c'est
       // le garde-fou qui prime.
     } finally {
-      signaler("SIGTERM");
-      grace = setTimeout(() => signaler("SIGKILL"), options.graceMs);
+      void signaler("SIGTERM");
+      grace = setTimeout(() => void signaler("SIGKILL"), options.graceMs);
     }
   };
 
@@ -228,10 +229,11 @@ export function superviser(options: OptionsSupervision): Supervise {
       // sourd à SIGTERM, un serveur laissé en fond) est tué maintenant. Après
       // ce point, plus aucun signal ne part — le numéro du groupe peut être
       // réattribué à un inconnu.
-      signaler("SIGKILL");
+      const nettoye = signaler("SIGKILL");
 
-      // La fin n'est rendue qu'une fois le flux lu jusqu'au bout et écrit.
-      let attendus = 3;
+      // La fin n'est rendue qu'une fois le flux lu jusqu'au bout et écrit, et
+      // ce qui restait de l'arbre tué.
+      let attendus = 4;
       let filet: NodeJS.Timeout | undefined;
       const rendre = () => {
         clearTimeout(filet);
@@ -251,6 +253,7 @@ export function superviser(options: OptionsSupervision): Supervise {
         lignes.close();
         for (const fichier of finir) fichier();
       }, options.graceMs);
+      void nettoye.then(unDeMoins);
       if (fluxLu) unDeMoins();
       else lignes.once("close", unDeMoins);
       for (const fichier of fichiers) {
@@ -268,7 +271,8 @@ export function superviser(options: OptionsSupervision): Supervise {
     activite: () => lecteur.activite(),
     arreter: (motif = { reason: "stop", limit: null, observed: null }) => arreter(motif),
     abandonner() {
-      if (!mort) signaler("SIGKILL");
+      // Le runtime s'en va : l'arbre est tué avant qu'il rende la main.
+      if (!mort && enfant.pid !== undefined) signalerLArbreSync(enfant.pid, "SIGKILL", { depuis: lancement });
     },
     fin,
   };
@@ -398,16 +402,37 @@ export function relaisASuivre(flux: string): boolean {
   return trace !== null && (lireFinDuRelais(fichiers) !== null || relaisVivant(trace));
 }
 
+// Demande au relais `relais`, lancé à `depuis`, d'arrêter son cook. Sous macOS
+// et Linux, SIGTERM au relais : il transmet au groupe du cook, et tue passé la
+// grâce. Sous Windows, un SIGTERM tuerait le relais sans qu'il l'entende, et
+// laisserait le cook : c'est l'arbre du cook qui est tué, depuis le pid que le
+// relais a écrit — le relais le voit mourir, tue ce qui en reste et écrit sa
+// fin. Un pid pas encore écrit : l'arbre du relais, cook compris.
+export function demanderLArret(relais: number, fichiers: FichiersDuRelais, depuis: number): void {
+  if (process.platform !== "win32") {
+    try {
+      process.kill(relais, "SIGTERM");
+    } catch {
+      // Parti entre-temps.
+    }
+    return;
+  }
+  let cook: number | null = null;
+  try {
+    cook = Number(readFileSync(fichiers.pid, "utf8"));
+  } catch {
+    // Le relais n'a pas encore lancé son cook.
+  }
+  void signalerLArbre(cook !== null && Number.isSafeInteger(cook) && cook > 0 ? cook : relais, "SIGKILL", { depuis });
+}
+
 // Demande au relais d'un cook d'arrêter celui-ci, sans le suivre : il
 // transmet, et tue passé la grâce.
 export function arreterParLeRelais(flux: string): void {
-  const trace = lireTrace(fichiersDuRelais(flux));
+  const fichiers = fichiersDuRelais(flux);
+  const trace = lireTrace(fichiers);
   if (trace === null || !relaisVivant(trace)) return;
-  try {
-    process.kill(trace.pid, "SIGTERM");
-  } catch {
-    // Parti entre-temps.
-  }
+  demanderLArret(trace.pid, fichiers, trace.debut);
 }
 
 // Reprend le suivi d'un cook qu'un runtime précédent a lancé par un relais.
@@ -436,11 +461,7 @@ function suivre(
   let arret: Arret | null = null;
   const signalerAuRelais = () => {
     if (mort || relais.pid === null) return;
-    try {
-      process.kill(relais.pid, "SIGTERM");
-    } catch {
-      // Le relais n'est plus là : sa fin dira la suite.
-    }
+    demanderLArret(relais.pid, fichiers, relais.debut);
   };
   const arreter = (motif: Arret) => {
     if (arret || mort || lache) return;
@@ -553,13 +574,12 @@ function suivre(
     if (ecrite) return conclure(ecrite);
     if (!relais.sorti()) return;
     // Le relais est mort sans écrire de fin — tué avec son cook. Ce qui
-    // resterait du groupe du cook part avec lui.
+    // resterait de l'arbre du cook part avec lui.
     if (lireFinDuRelais(fichiers)) return regarder();
     try {
-      const pid = Number(readFileSync(fichiers.pid, "utf8"));
-      if (Number.isSafeInteger(pid) && pid > 0) process.kill(-pid, "SIGKILL");
+      void signalerLArbre(Number(readFileSync(fichiers.pid, "utf8")), "SIGKILL", { depuis: relais.debut });
     } catch {
-      // Pas de cook connu, ou plus de groupe.
+      // Pas de cook connu.
     }
     conclure({ code: null, signal: "SIGKILL", erreur: null });
   };
