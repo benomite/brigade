@@ -5,7 +5,8 @@ import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, test, type TestContext } from "./support/posix.ts";
+import { describe, test, type TestContext } from "node:test";
+import { posixOnly } from "./support/plateforme.ts";
 import { aArreter, ENV_ENFANT, jusqua, repertoireTemporaire } from "./outils.ts";
 
 const GATES = join(import.meta.dirname, "../../.claude/brigade/gates.sh");
@@ -34,7 +35,7 @@ function jouer(t: TestContext, racine: string, verrou: string): Passage {
 // qu'elle l'a vu (`<libere>.vu`) avant de finir.
 const suiteRetenue = (signal: string, libere: string) => `touch ${signal}; while [ ! -e ${libere} ]; do sleep 0.1; done; touch ${libere}.vu`;
 
-describe("le tour des gates sur une box", () => {
+describe("le tour des gates sur une box", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, () => {
   test("le second passage n'exécute ses tests qu'une fois le premier fini, et dit combien il a attendu", async (t) => {
     const verrou = join(repertoireTemporaire(t), "verrou");
     const libere = join(repertoireTemporaire(t), "libere");

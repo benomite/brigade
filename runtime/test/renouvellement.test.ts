@@ -7,7 +7,8 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, test, type TestContext } from "./support/posix.ts";
+import { describe, test, type TestContext } from "node:test";
+import { posixOnly } from "./support/plateforme.ts";
 import { repertoireTemporaire } from "./outils.ts";
 
 const RENOUVELLEMENT = join(import.meta.dirname, "../deploy/brigade-renouvellement");
@@ -109,7 +110,7 @@ function poserIdentifiants(fichier: string, ilYA = 3600): void {
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
 const isoDe = (fichier: string) => new Date(Math.floor(statSync(fichier).mtimeMs / 1000) * 1000).toISOString().replace(".000Z", "Z");
 
-describe("le renouvellement de la session Max", { concurrency: 8 }, () => {
+describe("le renouvellement de la session Max", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script"), concurrency: 8 }, () => {
   test("claude renouvelle : le passage consigne la date où il a réécrit ses identifiants, et la dit", (t) => {
     const b = box(t, { rafraichir: "renouvelle", statut: "ouverte" });
     const fin = b.passer();

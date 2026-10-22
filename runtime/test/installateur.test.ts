@@ -8,7 +8,8 @@ import { createHash } from "node:crypto";
 import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { createServer, type AddressInfo } from "node:net";
 import { dirname, join } from "node:path";
-import { describe, test, type TestContext } from "./support/posix.ts";
+import { describe, test, type TestContext } from "node:test";
+import { posixOnly } from "./support/plateforme.ts";
 import { EFFORTS, MODELES } from "../src/calibrage.ts";
 import { decisionsPosees } from "../src/decisions.ts";
 import { ouvrirJournal } from "../src/journal.ts";
@@ -57,7 +58,7 @@ describe("la règle sudoers", () => {
   });
 });
 
-describe("installer un projet", () => {
+describe("installer un projet", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, () => {
   test("de bout en bout : `installation` le dit prêt, et la sortie JSON rend les deux ports", async (t) => {
     const b = boite(t);
     b.pousser("acme/calculus");
@@ -198,7 +199,7 @@ describe("installer un projet", () => {
   });
 });
 
-describe("ce que le geste refuse, sans rien écrire sur la box", () => {
+describe("ce que le geste refuse, sans rien écrire sur la box", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, () => {
   // Chaque refus : un code non nul, un message, et la box telle qu'elle était.
   async function refuse(t: TestContext, args: (b: Boite) => string[], motif: string, message: RegExp, code: number = CODES.usage): Promise<void> {
     const b = boite(t);
@@ -389,7 +390,7 @@ describe("ce que le geste refuse, sans rien écrire sur la box", () => {
   });
 });
 
-describe("une installation qui n'aboutit pas se défait", () => {
+describe("une installation qui n'aboutit pas se défait", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, () => {
   test("le dépôt ne se clone pas : la box est comme avant, et le projet s'installe ensuite", async (t) => {
     const b = boite(t);
     const avant = b.photo();
@@ -445,7 +446,7 @@ describe("une installation qui n'aboutit pas se défait", () => {
   });
 });
 
-describe("le journal du geste", () => {
+describe("le journal du geste", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, () => {
   test("chaque appel, accepté ou refusé, y ajoute qui, quand, quel projet, quelle action et le résultat", async (t) => {
     const b = boite(t);
     b.pousser("acme/calculus");
@@ -523,7 +524,7 @@ describe("le plafond dur ne bouge pas", () => {
   // Ce qu'aucun grant n'autorise (#259), et ce par quoi une unité y mènerait.
   const INTERDITS = ["acces-prod", "accès-prod", "identifiants-max", "prod", "production", "credentials", "grant", "merge", "secrets", "claude-config-dir", "environnement", "home"];
 
-  test("aucune option n'y mène : ni `accès-prod`, ni les identifiants du compte Max, sous aucune forme", async (t) => {
+  test("aucune option n'y mène : ni `accès-prod`, ni les identifiants du compte Max, sous aucune forme", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, async (t) => {
     const b = boite(t);
     b.pousser("acme/calculus");
     const avant = b.photo();
@@ -550,7 +551,7 @@ describe("le plafond dur ne bouge pas", () => {
     }
   });
 
-  test("après une installation : les unités ne portent que les variables du geste, la cloison livrée, et rien du compte n'a été lu ni écrit", async (t) => {
+  test("après une installation : les unités ne portent que les variables du geste, la cloison livrée, et rien du compte n'a été lu ni écrit", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, async (t) => {
     const b = boite(t);
     b.pousser("acme/calculus");
     // La connexion Max du compte : le geste n'a aucune raison d'y toucher.

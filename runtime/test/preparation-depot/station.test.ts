@@ -5,7 +5,8 @@
 import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { test, type TestContext } from "../support/posix.ts";
+import { test, type TestContext } from "node:test";
+import { posixOnly } from "../support/plateforme.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { accepterSansBacASable } from "../../src/onboarding/attente.ts";
 import { FICHIER } from "../../src/preparation-depot/ouvrir.ts";
@@ -84,7 +85,7 @@ function uneStation(t: TestContext, preparation: "ouverte" | "servie") {
   return { station, faits };
 }
 
-test("tant que le ticket qui prépare le dépôt n'est pas servi, la cuisine ne prend que lui — un ticket plus ancien reste sur le rail", async (t) => {
+test("tant que le ticket qui prépare le dépôt n'est pas servi, la cuisine ne prend que lui — un ticket plus ancien reste sur le rail", { skip: posixOnly("builds a real git repository and runs fake claude, gh or gates written as POSIX shell scripts") }, async (t) => {
   const { station, faits } = uneStation(t, "ouverte");
   await station.attendre("le rail attend #20 (préparer le dépôt) — aucun autre ticket ne part avant son merge");
   await jusqua(() => faits("cook.launched").length === 1);
@@ -102,7 +103,7 @@ test("tant que le ticket qui prépare le dépôt n'est pas servi, la cuisine ne 
   assert.equal(await station.fin, 0);
 });
 
-test("le ticket qui prépare le dépôt servi, la cuisine prend les autres", async (t) => {
+test("le ticket qui prépare le dépôt servi, la cuisine prend les autres", { skip: posixOnly("builds a real git repository and runs fake claude, gh or gates written as POSIX shell scripts") }, async (t) => {
   const { station, faits } = uneStation(t, "servie");
   await jusqua(() => faits("cook.launched").length === 1);
   assert.deepEqual(

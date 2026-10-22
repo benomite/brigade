@@ -1,6 +1,6 @@
 // Joue la suite de tests du runtime là où `npm test` ne passe pas : son script est écrit pour un
 // shell POSIX (`VAR=… node …`), que Windows n'a pas. Tous les fichiers sont joués ; un test propre à
-// un système se saute lui-même, avec sa raison (plateforme.ts, posix.ts).
+// un système se saute lui-même, avec sa raison (plateforme.ts).
 //
 // Usage : node test/support/windows.ts   (depuis runtime/)
 import { spawnSync } from "node:child_process";

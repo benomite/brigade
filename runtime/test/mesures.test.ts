@@ -4,7 +4,8 @@
 import assert from "node:assert/strict";
 import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { test, type TestContext } from "./support/posix.ts";
+import { test, type TestContext } from "node:test";
+import { posixOnly } from "./support/plateforme.ts";
 import type { Fait } from "../src/evenements.ts";
 import type { Seuils } from "../src/events/drift.ts";
 import { ouvrirJournal } from "../src/journal.ts";
@@ -279,7 +280,7 @@ test("un compteur franchi propose la fermeture, avec ce qu'il franchit ; tous so
   assert.doesNotMatch(sansSeuil.join("\n"), /proposed|closing {4}/);
 });
 
-test("`run mesures` au-dessus d'un seuil le dit sans lancer de passe, sans rien écrire, et le relancer ne change rien", async (t) => {
+test("`run mesures` au-dessus d'un seuil le dit sans lancer de passe, sans rien écrire, et le relancer ne change rien", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, async (t) => {
   const { repertoire, journal, noter, livrer } = cuisine(t);
   noter({ type: "drift.configured", payload: { limits: seuils({ tests: 500 }) } });
   livrer(1, { tests: 622 });

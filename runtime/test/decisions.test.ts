@@ -7,7 +7,8 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { isAbsolute, join, relative } from "node:path";
-import { describe, test, type TestContext } from "./support/posix.ts";
+import { describe, test, type TestContext } from "node:test";
+import { posixOnly } from "./support/plateforme.ts";
 import { DECISIONS, decisionsDansLEnvironnement, decisionsPosees, direDecisionIgnoree, environnementDecide, poserDecision, retirerDecision, suivreDecisions, supportDesDecisions } from "../src/decisions.ts";
 import { brancherDerive, lireSeuils } from "../src/derive.ts";
 import { MARQUEUR } from "../src/fiche.ts";
@@ -141,7 +142,7 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
     assert.equal(retirerDecision(journal, { projet: "brigade", nom: "BRIGADE_REVIEWER_MODEL", auteur: "chef" }), null);
   });
 
-  test("le support n'est pas sous le clone du dépôt, et aucune pose de décision ne crée ni ne modifie un fichier du dépôt", (t) => {
+  test("le support n'est pas sous le clone du dépôt, et aucune pose de décision ne crée ni ne modifie un fichier du dépôt", { skip: posixOnly("builds a real git repository, whose .git/config git refuses on Windows") }, (t) => {
     const { clone } = depotGit(t);
     const repertoire = repertoireTemporaire(t);
     const chemin = supportDesDecisions({ repertoireEtat: repertoire, clone });
@@ -233,7 +234,7 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
     ]);
   });
 
-  test("en cuisine : des stations posées par le chef sont annoncées et servies au réveil suivant — un ticket qu'aucune ne pouvait cuisiner part", async (t) => {
+  test("en cuisine : des stations posées par le chef sont annoncées et servies au réveil suivant — un ticket qu'aucune ne pouvait cuisiner part", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, async (t) => {
     const { repertoire, journal, gh, types, etat } = cuisine(t, { decisions: true, scenario: "muet" });
     gh.ficher(16, "2026-10-08T09:00:00Z", [MARQUEUR, "- requiert : navigateur-headless"].join("\n"));
     gh.poser(issue(16));
@@ -247,7 +248,7 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
     assert.equal(journal.duTicket(16).find((e) => e.type === "ticket.taken")?.author, "station:box/playwright");
   });
 
-  test("en cuisine : le calibrage du reviewer posé par le chef vaut dès la relecture suivante", async (t) => {
+  test("en cuisine : le calibrage du reviewer posé par le chef vaut dès la relecture suivante", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, async (t) => {
     const { repertoire, gh, relectures } = cuisine(t, { decisions: true, pass: true, issues: [issue(16)] });
     await jusqua(() => relectures().length === 1);
 
@@ -263,7 +264,7 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
     ]);
   });
 
-  test("en cuisine : le calibrage du manager posé par le chef vaut dès le jugement suivant", async (t) => {
+  test("en cuisine : le calibrage du manager posé par le chef vaut dès le jugement suivant", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, async (t) => {
     const { repertoire, gh, lancements } = cuisine(t, { decisions: true, manager: {}, issues: [issue(30, [])] });
     chef(repertoire, "manager.enabled");
     const jugements = () => lancements().filter((lancement) => lancement.args.includes("--tools"));
@@ -281,7 +282,7 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
     ]);
   });
 
-  test("en cuisine : changer les décisions ne touche à aucun cook en vol — ni arrêt, ni relance, même quand sa station est retirée", async (t) => {
+  test("en cuisine : changer les décisions ne touche à aucun cook en vol — ni arrêt, ni relance, même quand sa station est retirée", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, async (t) => {
     const { repertoire, journal, types, etat, cooks, conclure } = cuisine(t, { decisions: true, scenario: "commite-puis-attend", issues: [issue(16)] });
     await jusqua(() => cooks().length === 1 && types(16).includes("cook.launched"));
 
@@ -304,7 +305,7 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
     assert.deepEqual(stationsAnnoncees(journal.base), ["box/autre"]);
   });
 
-  test("en cuisine : une station distante retirée par le chef laisse son cook en vol renouveler et livrer — elle ne prend plus rien", async (t) => {
+  test("en cuisine : une station distante retirée par le chef laisse son cook en vol renouveler et livrer — elle ne prend plus rien", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script") }, async (t) => {
     const MAC = "mac/claude";
     const { repertoire, journal, gh, heure, types, etat } = cuisine(t, { decisions: true, stations: lireStations({ BRIGADE_STATIONS: `${MAC}:1:chrome-connecté:distante` }) });
     gh.ficher(16, "2026-10-08T09:00:00Z", [MARQUEUR, "- requiert : chrome-connecté"].join("\n"));
@@ -333,7 +334,7 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
 
 // Un runtime complet, dans son propre process : ce que le chef pose pendant
 // qu'il tourne, il le lit sans redémarrer.
-describe("le runtime et les décisions du chef", { concurrency: 4 }, () => {
+describe("le runtime et les décisions du chef", { skip: posixOnly("runs a fake claude, gh or gates written as a POSIX shell script"), concurrency: 4 }, () => {
   const environnement = (t: TestContext, repertoire: string) => {
     const gh = fauxGh(t);
     gh.issues([]);
