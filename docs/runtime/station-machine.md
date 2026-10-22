@@ -287,6 +287,9 @@ it. Its body tells the cook:
   `.claude/brigade/reseau` (the sites the project is allowed to reach), each with its contract and
   what the integration base already carries of it ("absent : à écrire", "déjà sur `main` : à
   éprouver" — written in French by the runtime);
+- **when the current setup fails there**: the ticket leaves anyway — it is the one that repairs it —,
+  and the station says in its body, in one sentence, what failed (see "The worktree setup comes
+  before the cook" in [`station.md`](station.md));
 - **where to prove it**: on the station that cooks it — the one that will serve the project —, not
   on a dev workstation: the setup runs in its worktree, the gates pass there;
 - **the observable criteria**: gates green on the station, setup run in a fresh worktree, site list
@@ -334,7 +337,11 @@ from the project's log, read-only; nothing is written for it.
   itself), `a-relire` (at the pass, with its `pr`; stopped for lack of a grant or escalated to the
   chef, the action is to reread it and merge it), `suspendu` (its `fire` label removed), `faite`,
   or `abandonne` (closed without a merge: the rail no longer waits for it). Null as long as the
-  ticket is not open.
+  ticket is not open. When the project's setup failed at the launch of its last cook — the cook
+  leaves anyway (see "The worktree setup comes before the cook" in [`station.md`](station.md)) —,
+  the step's `dit` adds what failed, in one sentence ("The setup needs `apps/api/.env`, `docker`
+  and `psql`, which the station `box/claude` does not have."), until a cook leaves on a setup that
+  passes, or the ticket is merged.
 - **Without a sandbox** (`sansBacASable`): true if the project's kitchen noted in the log that its
   cooks run without a sandbox (`isolation.configured`, `sandbox: null`); null as long as it has
   noted nothing.

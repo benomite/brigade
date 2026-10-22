@@ -56,7 +56,9 @@ import { CARNET_PATH } from "./carnet/carnet.ts";
 import { capturesLivrees, direCaptures, estDInterface, zoneALaPrise as zonePrise, type Captures } from "./captures.ts";
 import { absentesDuMotif, CLE_DES_CAPACITES, direManque, direStationAbsente, fournitTout, gesteDeCapacite, manque, manqueDuMotif, motifSansStation, motifStationAbsente } from "./capacites.ts";
 import { environnementClaude } from "./jeton-claude.ts";
-import { argumentsClaude, consigne, consigneDeSuite, direRefus, environnementCook, lireFlux, REFUS_MAX, ticketRemis, verdict, VARIABLES_DE_CLE, VARIABLES_DE_JETON, type Lecture, type Session } from "./claude.ts";
+import { argumentsClaude, consigne, consigneDeSuite, direRefus, environnementCook, lireFlux, REFUS_MAX, ticketRemis, verdict, VARIABLES_DE_CLE, VARIABLES_DE_JETON, type Lecture, type Session, type SetupEnEchec } from "./claude.ts";
+import { preparationEnAttente } from "./preparation-depot/attendre.ts";
+import { corpsAvecLeSetup, passageDuSetup, phraseDuSetup } from "./preparation-depot/setup-en-echec.ts";
 import type { Decisions } from "./decisions.ts";
 import { ouvrirDepot, worktreeAuJournal, worktreeDuJournal, type Depot, type OptionsDepot } from "./depot.ts";
 import { configPresence, ouvrirDistantes, PRESENCE_PAR_DEFAUT_MIN, type Conclusion } from "./distantes.ts";
@@ -678,6 +680,21 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     }
   };
 
+  // Le passage du corps du ticket de préparation qui dit l'échec du setup
+  // (`preparation-depot/setup-en-echec.ts`) : posé, remplacé, ou retiré
+  // (`passage` null). Rien n'est écrit si le corps le porte déjà tel quel.
+  const direLeSetupSurLeTicket = async (ticket: number, passage: string | null) => {
+    try {
+      const lue = await github.issue(ticket);
+      if (lue === null) return;
+      const corps = lue.body ?? "";
+      const nouveau = corpsAvecLeSetup(corps, passage);
+      if (nouveau !== corps) await github.ecrireCorps(ticket, nouveau);
+    } catch (erreur) {
+      if (!arrete) avertir(`brigade : corps du ticket #${ticket} non réécrit — ${message(erreur)}`);
+    }
+  };
+
   // La connexion Max est celle de la machine : tombée pour une station, elle
   // l'est pour toutes. `par` : la station du cook qui l'a révélé, s'il y en a
   // un — c'est sur son ticket que le fait s'écrit.
@@ -793,8 +810,10 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     const seule = seuleAPartir();
     const instant = maintenant().toISOString();
     // Un setup bloqué retient les stations d'ici, celles qui le jouent sur
-    // cette machine ; une distante joue le sien sur son poste.
-    const sansSetup = setupBloque(base) !== null;
+    // cette machine ; une distante joue le sien sur son poste. Sauf tant que
+    // le ticket qui prépare le dépôt retient le rail : seul à pouvoir partir,
+    // c'est lui qui répare le setup, et son cook part sans lui.
+    const sansSetup = setupBloque(base) !== null && preparationEnAttente(options.repertoireEtat, base) === null;
     // Une cause de mise de côté répétée n'arrête pas la cuisine, elle l'amène
     // à un ticket à la fois : celui qui sonde si la cause a changé — la valeur
     // d'un secret posée, GitHub revenu n'ont aucun commit à attendre.
@@ -1812,24 +1831,43 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     const delaiSetupMs = options.dureeBailMs * PART_DU_SETUP;
     const interdites = options.sansIdentite ? [...VARIABLES_DE_JETON, ...VARIABLES_GITHUB] : VARIABLES_DE_JETON;
     const avantLeSetup = journal.dernierSeq();
-    const setup = await jouerSetup({ worktree, ticket: numero, env: { ...envCook, ...secrets.env }, interdites, masquer, cloison: options.cloison, delaiMs: delaiSetupMs, signal: abandon.signal });
+    const envDuSetup = { ...envCook, ...secrets.env };
+    const setup = await jouerSetup({ worktree, ticket: numero, env: envDuSetup, interdites, masquer, cloison: options.cloison, delaiMs: delaiSetupMs, signal: abandon.signal });
     if (arrete) return;
+    // Le ticket qui prépare le dépôt est celui qui doit réparer son setup : un
+    // setup en échec ne le retient pas — sinon il ne partirait jamais. Son
+    // cook part sans ce que le setup aurait exporté, avec ce qui a échoué :
+    // une phrase, sur l'issue, au journal — la page du projet la lit là — et
+    // dans sa consigne, avec la fin de la sortie. Ni `setup.failed` ni
+    // blocage : aucun autre ticket ne part avant lui, et une fois mergé, le
+    // setup qu'il a livré se joue pour les suivants comme pour tout ticket.
+    const preparation = preparationEnAttente(options.repertoireEtat, base) === numero;
+    let setupEnEchec: SetupEnEchec | undefined;
     if (!setup.pret) {
       const pourquoi = setup.depasse ? `plafond de ${duree(delaiSetupMs)} dépassé` : setup.code === null ? "interrompu" : `code de sortie ${setup.code}`;
-      avertir(
-        [`brigade : setup du worktree en échec pour le ticket #${numero} (\`${SCRIPT_SETUP}\`, ${pourquoi}) — aucun cook n'est lancé`, setup.sortie.trim().slice(-FIN_DE_SETUP_MAX)]
-          .filter(Boolean)
-          .join("\n"),
-      );
-      retirerLeNeuf();
-      const hotes = journal
-        .depuis(avantLeSetup)
-        .flatMap((evenement) => (evenement.type === "network.refused" && evenement.payload.host !== AUTRES_HOTES ? [`${evenement.payload.host}:${evenement.payload.port}`] : []));
-      return refuserSansSetup(station, numero, { pourquoi, sortie: setup.sortie.trim().slice(-FIN_DE_SETUP_MAX), masques: setup.masques, hotes: [...new Set(hotes)].sort(), vue });
+      const sortie = setup.sortie.trim().slice(-FIN_DE_SETUP_MAX);
+      if (!preparation) {
+        avertir([`brigade : setup du worktree en échec pour le ticket #${numero} (\`${SCRIPT_SETUP}\`, ${pourquoi}) — aucun cook n'est lancé`, sortie].filter(Boolean).join("\n"));
+        retirerLeNeuf();
+        const hotes = journal
+          .depuis(avantLeSetup)
+          .flatMap((evenement) => (evenement.type === "network.refused" && evenement.payload.host !== AUTRES_HOTES ? [`${evenement.payload.host}:${evenement.payload.port}`] : []));
+        return refuserSansSetup(station, numero, { pourquoi, sortie, masques: setup.masques, hotes: [...new Set(hotes)].sort(), vue });
+      }
+      const phrases = phraseDuSetup({ code: setup.code, depasse: setup.depasse, sortie }, station);
+      avertir([`brigade : setup du worktree en échec pour le ticket #${numero}, qui prépare le dépôt (\`${SCRIPT_SETUP}\`, ${pourquoi}) — ${phrases.fr} ; son cook part quand même, pour le réparer`, sortie].filter(Boolean).join("\n"));
+      noter(station, numero, { type: "preparation.setup-failed", payload: { station, run, why: pourquoi, sentence: phrases.en } });
+      setupEnEchec = { phrase: phrases.fr, sortie };
+      await direLeSetupSurLeTicket(numero, passageDuSetup(phrases.fr));
+      if (arrete) return;
+    } else if (setup.joue && preparation) {
+      // Le setup passe de nouveau : le ticket ne dit plus qu'il échoue.
+      await direLeSetupSurLeTicket(numero, null);
+      if (arrete) return;
     }
     // Le setup a pris sur le bail : le cook part avec un bail entier. Refusé,
     // le ticket a quitté la station pendant le setup.
-    if (setup.joue && !geste(() => rail.renouveler(numero, station))) return retirerLeNeuf();
+    if ((!setup.pret || setup.joue) && !geste(() => rail.renouveler(numero, station))) return retirerLeNeuf();
     // Sans setup, rien n'a encore vérifié que la station tient toujours le
     // ticket : rendu pendant la préparation du worktree, il n'a pas de cook.
     const garde = ticketDuRail(base, numero);
@@ -1837,7 +1875,8 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     // Ce que le setup exporte passe au cook, sauf ce qui le détournerait de la
     // connexion Max : un setup qui charge un `.env` entier peut porter une clé.
     // Les secrets du projet y sont déjà : le setup les a reçus.
-    const envDuCook = setup.env;
+    // Un setup en échec n'a rien exporté : le cook part avec ce qu'il a reçu.
+    const envDuCook = setup.pret ? setup.env : envDuSetup;
 
     // Sans identité, le cook ne peut pas lire son ticket sur GitHub : la
     // station le lui remet, hors de son worktree — rien n'en est récolté. Un
@@ -1868,7 +1907,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     // Le lanceur de ses gates, qui en laisse un reçu à la station : la pass
     // reprend leur verdict vert s'il porte sur le code qu'elle jugerait.
     const lanceur = poserLeLanceur(worktree);
-    const mission = { ticket: numero, titre: ticket.title, depot: options.depotGitHub, base: options.base, lecons, ...(remis === undefined ? {} : { remis }), ...(lanceur === null ? {} : { gates: lanceur }) };
+    const mission = { ticket: numero, titre: ticket.title, depot: options.depotGitHub, base: options.base, lecons, ...(remis === undefined ? {} : { remis }), ...(lanceur === null ? {} : { gates: lanceur }), ...(setupEnEchec === undefined ? {} : { setup: setupEnEchec }) };
     // Un renvoi de la pass reprend la session du cook dont elle a refusé la
     // livraison : il a déjà lu le ticket, le `CLAUDE.md` et le code, et ne
     // reçoit que ce qu'elle a trouvé. Les gates et la relecture qui jugeront
@@ -1915,7 +1954,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
                 options.bacASable,
                 argumentsClaude(
                   reprise !== null && repris !== null
-                    ? consigneDeReprise({ base: options.base, branche, worktree, n: repris.returns, findings: repris.findings, lecons, carnet, ...(lanceur === null ? {} : { gates: lanceur }) })
+                    ? consigneDeReprise({ base: options.base, branche, worktree, n: repris.returns, findings: repris.findings, lecons, carnet, ...(lanceur === null ? {} : { gates: lanceur }), ...(setupEnEchec === undefined ? {} : { setup: setupEnEchec }) })
                     : repris
                       ? consigneDeRenvoi({ ...mission, branche, n: repris.returns, findings: repris.findings, carnet })
                       : suite

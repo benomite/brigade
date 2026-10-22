@@ -84,6 +84,10 @@ export type FaitsDePreparation = {
   sort: { issue: "served" | "left"; raison: string | null } | null;
   // Sa livraison à la pass : la phase, et sa PR.
   pass: { phase: Phase; pr: string | null } | null;
+  // Le setup du projet échoue sur la station où son dernier cook est parti :
+  // ce qui a échoué, en une phrase sans majuscule ni point. Absent ou null :
+  // rien n'en est su.
+  setup?: string | null;
 };
 
 export type Entrees = {
@@ -193,7 +197,15 @@ function etapeMachine(entrees: Entrees): Vue {
   return { faite: false, dit: `${station} is opening the kitchen of ${projet}${sansBac}.`, geste: null };
 }
 
+// Tant que la préparation n'est pas faite, ce que son setup a d'échoué se dit
+// à la suite : c'est ce que son cook répare, et ce que le chef doit savoir.
 function etapePreparation(entrees: Entrees): Vue & { vue: PreparationVue | null } {
+  const vue = etapePreparationSeule(entrees);
+  const setup = entrees.preparation?.setup ?? null;
+  return vue.faite || setup === null ? vue : { ...vue, dit: `${vue.dit} ${phrase(setup)}` };
+}
+
+function etapePreparationSeule(entrees: Entrees): Vue & { vue: PreparationVue | null } {
   const { depot, station, preparation, dejaServi } = entrees;
   if (preparation === null) {
     if (dejaServi) return { faite: true, dit: `${depot} was served before any preparation ticket: nothing to prepare.`, geste: null, vue: null };

@@ -30,7 +30,7 @@ import { aArreter as finDuTest, BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAU
 const FAUSSES_GATES = join(import.meta.dirname, "fausses-gates.sh");
 const FAUX_SETUP = join(import.meta.dirname, "faux-setup.sh");
 
-export type ScenarioSetup = "exporte" | "jeton" | "attend" | "echec" | "autre" | "refuse" | "lent" | "derive";
+export type ScenarioSetup = "exporte" | "jeton" | "attend" | "echec" | "autre" | "refuse" | "lent" | "derive" | "manque";
 
 // Le cook « bavard » rend un tour toutes les deux millisecondes, de vraie
 // horloge : un plafond de tours qu'il atteindrait pendant un test ferait

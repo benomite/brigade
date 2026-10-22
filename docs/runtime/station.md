@@ -237,6 +237,7 @@ cook's environment**. The pass does the same before the gates.
 | The setup fails, or exceeds **half the lease** | **no cook**: 86 for ten minutes, reason `setup-failed`, then back to queued. The breaker counts nothing |
 | The setup fails **like the project's previous one** — same reason, no more host refused —, on this ticket or another | **the project is blocked** (`setup.blocked`): no setup is launched any more, for any ticket, as long as the integration branch has not moved |
 | A ticket sent back by the pass | the setup is played in the send-back's new worktree |
+| The setup fails for **the preparation ticket** (`preparation-depot/`), as long as it holds the rail | **the cook leaves anyway**, without the setup's exports: that ticket is the one that repairs the setup (below) |
 | The repository declares a secret that the machine cannot give | **neither setup nor cook**: 86 for ten minutes, reason `secrets-unavailable`; the issue says which, once (see "The project's secrets" in [`identites-et-secrets.md`](identites-et-secrets.md)) |
 | Under one identity per role, the ticket cannot be read on GitHub | **no cook**: 86 for ten minutes, reason `ticket-unreadable` (see "One GitHub identity per role" in [`identites-et-secrets.md`](identites-et-secrets.md)) |
 
@@ -247,6 +248,25 @@ the door refused** during this setup, with the gesture that opens it — a line 
 [`cloison-et-arbitre.md`](cloison-et-arbitre.md)). **Once per cause**: again if the reason changes,
 if a host never named on this ticket is refused, or if a cook has left since. `run partition` shows
 the latest refusals.
+
+**The preparation ticket is not held by the setup it must fix** (*ticket #1392*). A project whose
+`worktree-setup.sh` was written for another machine — a `.env` the station does not have, Docker,
+`psql` — would otherwise never get its preparation cooked: retried every ten minutes, forever. So
+for that ticket, as long as it holds the rail, a failing setup launches the cook all the same, in
+the fresh worktree, with the environment the setup received and none of its exports. Neither
+`ticket.86` nor `setup.failed` is written — no count towards a block —, but
+`preparation.setup-failed`, with the failure **in one sentence** (`runtime/src/preparation-depot/setup-en-echec.ts`):
+what the setup's output names as missing — a file (`No such file or directory`), a command
+(`command not found`), a Docker daemon that does not run — ("the setup needs `apps/api/.env`,
+`docker` and `psql`, which the station `box/claude` does not have"), otherwise its exit code and
+its last line. That sentence goes to three places: **the cook's instructions**, with the end of the
+setup's output; **the ticket's body**, in a passage between `<!-- brigade:setup-en-echec -->`
+markers placed before "À livrer" — replaced when the cause changes, not rewritten when it is the
+same, removed when a later launch finds the setup passing; and **the project page** (the
+`preparation` step of the onboarding, see [`station-machine.md`](station-machine.md)). A setup
+already blocked does not withhold the stations while the preparation ticket holds the rail: only it
+can leave, and its cook does not need the setup. Once it is served, the rule above is everyone's
+again: the setup it delivered is played before every cook, and a failure launches none.
 
 **A failure that repeats blocks the project, not the ticket.** Retrying every ten minutes, ticket by
 ticket, would only say the same thing again: as soon as a setup fails like the project's previous

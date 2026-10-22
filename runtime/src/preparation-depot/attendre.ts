@@ -7,6 +7,7 @@
 // retenu : la même restriction que celle d'une base rouge, qui ne laisse
 // partir que sa réparation (`seul`). Une réparation en cours passe devant.
 import type { RuntimeAvecRail } from "../alimenter.ts";
+import type { Base } from "../base.ts";
 import { sortDuTicket } from "../projections/rail.ts";
 import type { Rail } from "../rail.ts";
 import { lirePreparation } from "./ouvrir.ts";
@@ -16,6 +17,18 @@ import { lirePreparation } from "./ouvrir.ts";
 // disparue. Un label `fire` retiré, lui, ne fait que la suspendre : le rail
 // reste retenu.
 const LIBERENT = ["closed", "gone"];
+
+// Le ticket de préparation que la station a ouvert pour ce projet, tant qu'il
+// retient le rail — ni servi, ni fermé, ni disparu —, ou null.
+export function preparationEnAttente(repertoireEtat: string, base: Base): number | null {
+  const preparation = lirePreparation(repertoireEtat);
+  return preparation === null || libere(base, preparation.ticket) ? null : preparation.ticket;
+}
+
+const libere = (base: Base, ticket: number) => {
+  const sort = sortDuTicket(base, ticket);
+  return sort !== null && (sort.outcome === "served" || LIBERENT.includes(sort.reason ?? ""));
+};
 
 export type OptionsAttente = {
   repertoireEtat: string;

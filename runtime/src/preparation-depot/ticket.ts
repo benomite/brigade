@@ -58,6 +58,8 @@ export function corps({ projet, depot, base, presents }: Contenu): string {
     "",
     `**Tant que ce ticket n'est pas mergé, aucun autre ticket du projet ne part.** Une fois mergé, le rail démarre seul : rien d'autre à faire.`,
     "",
+    `Si le \`${SCRIPT_SETUP}\` de la branche échoue sur la station, ce ticket part quand même — c'est à lui de le réparer : la station dit ici, en une phrase, ce qui a échoué, et remet au cook ce que le setup a dit.`,
+    "",
     "## À livrer",
     "",
     "| Fichier | Contrat | Aujourd'hui |",
