@@ -139,4 +139,17 @@ describe("le réseau du projet", { concurrency: 8 }, () => {
     republier();
     assert.equal(declares().length, 1);
   });
+
+  test("les hôtes que la cuisine a ouverts seule restent dans la déclaration que la base republie", (t) => {
+    const runtime = demarrer({ repertoireEtat: repertoireTemporaire(t), projet: "brigade", maintenant: horloge() });
+    t.after(() => runtime.arreter("test"));
+    const declares = () => runtime.journal.duType("network.declared", 10).map((evenement) => evenement.payload.hosts);
+    const republier = brancherReseau(runtime, { base: "v2", declaration: () => "registry.npmjs.org\n" });
+    runtime.journal.ajouter({ project: "brigade", ticket: null, author: "station", type: "repair.network", payload: { hosts: ["downloads.exemple.test", "registry.npmjs.org"] } });
+    republier();
+    assert.deepEqual(declares().at(-1), ["registry.npmjs.org", "downloads.exemple.test"]);
+    // La base les déclare à son tour : rien ne double.
+    republier();
+    assert.equal(declares().length, 2);
+  });
 });

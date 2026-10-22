@@ -3,4 +3,8 @@
 //
 // `repair`: which repair (`env`, `package-manager`, `network`). `sentence`: what
 // was repaired, in one sentence.
-export type FaitReparation = { type: "repair.done"; payload: { repair: string; sentence: string } };
+//
+// `repair.network`: the hosts the kitchen opened to the door because the setup
+// reaches them; `brancherReseau` adds them to every declaration it reads on the
+// base, so they stay open until the base declares them.
+export type FaitReparation = { type: "repair.done"; payload: { repair: string; sentence: string } } | { type: "repair.network"; payload: { hosts: string[] } };

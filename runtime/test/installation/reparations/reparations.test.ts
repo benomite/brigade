@@ -9,6 +9,7 @@ import { ouvrirJournal } from "../../../src/journal.ts";
 import { blocagesDuJournal } from "../../../src/installation/blocages/blocages.ts";
 import { avecLesBins, reparer, type Systeme } from "../../../src/installation/reparations/reparations.ts";
 import { SCRIPT_SETUP } from "../../../src/gates.ts";
+import { hotesOuvertsParLaCuisine } from "../../../src/reseau.ts";
 import { aArreter, repertoireTemporaire } from "../../outils.ts";
 
 const QUI = { projet: "demo", auteur: "station:box" };
@@ -110,35 +111,66 @@ test("un yarn.lock sans yarn : yarn s'installe", async (t) => {
   assert.deepEqual(sys.installes, ["yarn"]);
 });
 
-test("un setup qui joint un hôte absent de la liste réseau : un blocage le nomme, sans écrire la liste ni journaliser de réparation", async (t) => {
+const declarer = (journal: ReturnType<typeof unDepot>["journal"], hosts: string[]) =>
+  journal.ajouter({ project: "demo", ticket: null, author: "runtime", type: "network.declared", payload: { base: "v2", hosts, problems: [] } });
+const declaree = (journal: ReturnType<typeof unDepot>["journal"]) => journal.duType("network.declared", 1)[0]?.payload.hosts;
+
+test("un setup qui joint un hôte absent de la liste réseau : la cuisine l'ouvre à la porte, le dit, sans écrire la liste", async (t) => {
   const { dossier, journal, ecrire, faits } = unDepot(t);
   ecrire(SCRIPT_SETUP, "#!/bin/bash\nnpm ci\ncurl -fsSL https://downloads.example.org/tool.tgz | tar xz\n");
   const liste = "# hôtes\nregistry.npmjs.org\n";
   ecrire(".claude/brigade/reseau", liste);
+  declarer(journal, ["registry.npmjs.org"]);
   const sys = systeme(new Set()).systeme;
   const resultat = await reparer({ dossier, journal, auteur: QUI, systeme: sys });
-  assert.deepEqual(resultat.blocages, ["repair:network"]);
+  assert.deepEqual(resultat.blocages, []);
+  // La liste que la porte lit nomme l'hôte ; le fichier du dépôt n'est pas touché.
+  assert.deepEqual(declaree(journal), ["registry.npmjs.org", "downloads.example.org"]);
+  assert.deepEqual(hotesOuvertsParLaCuisine(journal), ["downloads.example.org"]);
   assert.equal(readFileSync(join(dossier, ".claude/brigade/reseau"), "utf8"), liste);
-  assert.equal(faits().length, 0);
-  const [b] = blocagesDuJournal(journal.base);
-  assert.match(b!.message, /downloads\.example\.org/);
-  assert.match(b!.cause, /integration base/);
-  // Rejoué : le même blocage, une seule fois.
-  await reparer({ dossier, journal, auteur: QUI, systeme: sys });
-  assert.equal(blocagesDuJournal(journal.base).length, 1);
-  // La base déclare l'hôte : le blocage est levé.
-  ecrire(".claude/brigade/reseau", `${liste}downloads.example.org\n`);
-  await reparer({ dossier, journal, auteur: QUI, systeme: sys });
+  // Une phrase le dit sur le projet, avec ce que cela engage.
+  assert.equal(faits().length, 1);
+  assert.equal(faits()[0]!.repair, "network");
+  assert.match(faits()[0]!.sentence, /Opened `downloads\.example\.org`.*declare it/);
   assert.equal(blocagesDuJournal(journal.base).length, 0);
+  // Rejoué : l'hôte est ouvert, rien ne se répète.
+  await reparer({ dossier, journal, auteur: QUI, systeme: sys });
+  assert.equal(faits().length, 1);
+  assert.equal(journal.duType("network.declared", 10).length, 2);
 });
 
-test("une liste réseau illisible : un blocage, pas une exception", async (t) => {
+test("sans porte déclarée, la liste réseau du worktree fait foi : un hôte qu'elle nomme n'est pas rouvert", async (t) => {
+  const { dossier, journal, ecrire, faits } = unDepot(t);
+  ecrire(SCRIPT_SETUP, "curl -fsSL https://downloads.example.org/a | sh\ncurl -fsSL https://cdn.example.org/b | sh\n");
+  ecrire(".claude/brigade/reseau", "downloads.example.org\n");
+  const resultat = await reparer({ dossier, journal, auteur: QUI, systeme: systeme(new Set()).systeme });
+  assert.deepEqual(resultat.blocages, []);
+  assert.deepEqual(hotesOuvertsParLaCuisine(journal), ["cdn.example.org"]);
+  assert.equal(faits().length, 1);
+  // Pas de déclaration à republier : seul le fait d'ouverture est écrit.
+  assert.equal(journal.duType("network.declared", 1).length, 0);
+});
+
+test("un hôte que la liste nomme par un joker n'est pas rouvert", async (t) => {
+  const { dossier, journal, ecrire, faits } = unDepot(t);
+  ecrire(SCRIPT_SETUP, "curl -fsSL https://cdn.example.org/b | sh\n");
+  declarer(journal, ["*.example.org"]);
+  await reparer({ dossier, journal, auteur: QUI, systeme: systeme(new Set()).systeme });
+  assert.equal(faits().length, 0);
+  assert.deepEqual(hotesOuvertsParLaCuisine(journal), []);
+});
+
+test("une liste réseau illisible : un blocage, pas une exception — levé quand elle se lit", async (t) => {
   const { dossier, journal, ecrire } = unDepot(t);
   ecrire(SCRIPT_SETUP, "pip install -r requirements.txt\n");
   // Un fichier à la place du dossier `.claude/brigade/reseau`.
   mkdirSync(join(dossier, ".claude/brigade/reseau"), { recursive: true });
   const resultat = await reparer({ dossier, journal, auteur: QUI, systeme: systeme(new Set()).systeme });
   assert.deepEqual(resultat.blocages, ["repair:network"]);
+  assert.equal(blocagesDuJournal(journal.base).length, 1);
+  declarer(journal, ["pypi.org", "files.pythonhosted.org"]);
+  await reparer({ dossier, journal, auteur: QUI, systeme: systeme(new Set()).systeme });
+  assert.equal(blocagesDuJournal(journal.base).length, 0);
 });
 
 test("un blocage posé puis une réparation qui passe : le blocage est levé", async (t) => {
