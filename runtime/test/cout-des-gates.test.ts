@@ -171,6 +171,52 @@ describe("le coût des gates", { concurrency: 8 }, () => {
     assert.deepEqual((await lireFaits(repertoire, "autre")).lastDay, { runs: 1, durationSeconds: 99, cpuSeconds: 999 });
   });
 
+  test("la dernière heure et le dernier jour : leurs totaux, ce que coûte un passage en moyenne, et la tendance de l'heure face au jour", async (t) => {
+    // Le départ est réglé pour que la lecture par `facts`, à l'heure de la machine, tombe sur la même heure.
+    const { repertoire, journal, passage, avancer, maintenant } = journalALHeure(t, new Date(Date.now() - 3.5 * HEURE_MS));
+    const lire = () => coutDuProjet(journal.base, PROJET, lireBudget({}), maintenant());
+    // Sans passage : des fenêtres à zéro, aucune moyenne, aucune tendance — jamais NaN.
+    assert.deepEqual(lire().averages, { lastHour: { durationSeconds: null, cpuSeconds: null }, lastDay: { durationSeconds: null, cpuSeconds: null } });
+    assert.deepEqual(lire().trend, { durationSeconds: null, cpuSeconds: null });
+
+    // Deux passages il y a plus d'une heure.
+    passage(1, { runner: "pass", outcome: "green", durationMs: 100_000, cpuMs: 400_000 });
+    passage(2, { runner: "cook", outcome: "green", durationMs: 100_000, cpuMs: 400_000 });
+    avancer(3 * HEURE_MS);
+    // Rien dans la dernière heure : la moyenne du jour, pas celle de l'heure, ni de tendance.
+    assert.deepEqual(lire().lastHour, { runs: 0, durationSeconds: 0, cpuSeconds: 0 });
+    assert.deepEqual(lire().averages.lastDay, { durationSeconds: 100, cpuSeconds: 400 });
+    assert.deepEqual(lire().trend, { durationSeconds: null, cpuSeconds: null });
+
+    // Dans la dernière heure, deux passages plus lents ; l'un coupé, sans processeur.
+    passage(3, { runner: "pass", outcome: "green", durationMs: 250_000, cpuMs: 1_000_000 });
+    passage(4, { runner: "pass", outcome: "timeout", durationMs: 300_000, cpuMs: null });
+    avancer(30 * 60_000);
+    const cout = lire();
+    assert.deepEqual(cout.lastHour, { runs: 2, durationSeconds: 550, cpuSeconds: 1000 });
+    assert.deepEqual(cout.lastDay, { runs: 4, durationSeconds: 750, cpuSeconds: 1800 });
+    // Le processeur se moyenne sur les passages qui l'ont dit.
+    assert.deepEqual(cout.averages, { lastHour: { durationSeconds: 275, cpuSeconds: 1000 }, lastDay: { durationSeconds: 187.5, cpuSeconds: 600 } });
+    assert.deepEqual(cout.trend, { durationSeconds: "up", cpuSeconds: "up" });
+    // Lu par `facts`, à l'heure de la machine : les mêmes fenêtres.
+    const lus = await lireFaits(repertoire);
+    assert.deepEqual([lus.lastHour, lus.averages, lus.trend], [cout.lastHour, cout.averages, cout.trend]);
+
+    // Une heure plus tard, des passages rapides : la moyenne de l'heure descend sous celle du jour.
+    avancer(HEURE_MS);
+    passage(5, { runner: "pass", outcome: "green", durationMs: 50_000, cpuMs: 200_000 });
+    assert.deepEqual(lire().trend, { durationSeconds: "down", cpuSeconds: "down" });
+  });
+
+  test("la tendance tient tant que l'heure reste à moins de 10 % du jour", (t) => {
+    const { journal, passage, avancer, maintenant } = journalALHeure(t, new Date(Date.now() - 5 * HEURE_MS));
+    passage(1, { runner: "pass", outcome: "green", durationMs: 100_000, cpuMs: 400_000 });
+    avancer(2 * HEURE_MS);
+    passage(2, { runner: "pass", outcome: "green", durationMs: 120_000, cpuMs: 380_000 });
+    // Heure 120 s face à un jour de 110 s, 380 s face à 390 s : moins de 10 % d'écart.
+    assert.deepEqual(coutDuProjet(journal.base, PROJET, lireBudget({}), maintenant()).trend, { durationSeconds: "steady", cpuSeconds: "steady" });
+  });
+
   test("la pass écrit le coût des gates qu'elle joue : projet, ticket, `pass`, horloge et processeur se relisent par `facts`", SOUS_BASH, async (t) => {
     const { journal, repertoire } = cuisine(t, { pass: true, issues: [issue(17)] });
 

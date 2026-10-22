@@ -12,6 +12,9 @@ export const COUT_DES_GATES = {
   latest: { project: "parade", ticket: 30, runner: "pass", outcome: "green", durationSeconds: 214.6, cpuSeconds: 990.2, at: "2026-10-13T09:58:40.000Z" },
   overBudget: true,
   lastDay: { runs: 7, durationSeconds: 1402.3, cpuSeconds: 6410.8 },
+  lastHour: { runs: 2, durationSeconds: 421.4, cpuSeconds: 1950.6 },
+  averages: { lastHour: { durationSeconds: 210.7, cpuSeconds: 975.3 }, lastDay: { durationSeconds: 200.3, cpuSeconds: 915.8 } },
+  trend: { durationSeconds: "steady", cpuSeconds: "up" },
   ticket: { number: 31, openedAt: "2026-10-13T09:58:52.000Z", exceeded: ["duration", "cpu"] },
 };
 

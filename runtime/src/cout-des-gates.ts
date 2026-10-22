@@ -1,7 +1,8 @@
 // Ce que coûtent les gates d'un projet : chaque passage écrit au journal (son
 // projet, son ticket, qui l'a joué, son horloge, son processeur, son heure),
 // le budget du projet face auquel il se juge, et ce qu'en lit l'app par
-// `facts` — le dernier passage, son dépassement, le total du dernier jour.
+// `facts` — le dernier passage, son dépassement, les totaux et les moyennes de
+// la dernière heure et du dernier jour, et la tendance de l'une face à l'autre.
 //
 // Le budget est une décision du chef, par projet (`decisions.ts`) : une durée
 // et un processeur, chacun avec son défaut. La durée par défaut est le seuil de
@@ -23,7 +24,11 @@ export const BUDGET_DUREE_PAR_DEFAUT = SEUIL_DUREE_GATES_PAR_DEFAUT;
 export const BUDGET_PROCESSEUR_PAR_DEFAUT = 4 * SEUIL_DUREE_GATES_PAR_DEFAUT;
 
 const TYPE: FaitGates["type"] = "gates.ran";
-const JOUR_MS = 24 * 3_600_000;
+const HEURE_MS = 3_600_000;
+const JOUR_MS = 24 * HEURE_MS;
+// L'écart, en part de la moyenne du dernier jour, au-delà duquel la moyenne de la dernière heure monte ou
+// descend : en deçà, elle tient.
+export const ECART_DE_TENDANCE = 0.1;
 
 // `parLeChef` : posé par le chef — faux, c'est le défaut qui vaut.
 export type BudgetDesGates = { durationSeconds: number; cpuSeconds: number; parLeChef: { durationSeconds: boolean; cpuSeconds: boolean } };
@@ -78,8 +83,23 @@ export type CoutDuProjet = {
   // sans passage.
   overBudget: boolean;
   // Les passages des dernières 24 heures, jusqu'à la lecture comprise.
-  lastDay: { runs: number; durationSeconds: number; cpuSeconds: number };
+  lastDay: FenetreDesGates;
+  // Ceux de la dernière heure, de même.
+  lastHour: FenetreDesGates;
+  // Ce que coûte un passage en moyenne, sur chaque fenêtre : la durée sur tous
+  // ses passages, le processeur sur ceux qui l'ont dit — null sans passage.
+  averages: { lastHour: MoyennesDesGates; lastDay: MoyennesDesGates };
+  // La moyenne de la dernière heure face à celle du dernier jour : `up` ou
+  // `down` au-delà de `ECART_DE_TENDANCE`, `steady` en deçà — null quand l'une
+  // des deux manque.
+  trend: { durationSeconds: TendanceDesGates | null; cpuSeconds: TendanceDesGates | null };
 };
+
+// Les passages d'une fenêtre : combien, et leur horloge et leur processeur au
+// total (un passage sans processeur compte 0).
+export type FenetreDesGates = { runs: number; durationSeconds: number; cpuSeconds: number };
+export type MoyennesDesGates = { durationSeconds: number | null; cpuSeconds: number | null };
+export type TendanceDesGates = "up" | "down" | "steady";
 
 const enSecondes = (ms: number) => Math.round(ms / 100) / 10;
 
@@ -108,11 +128,27 @@ export const depasse = (passage: PassageDesGates, budget: BudgetDesGates) => pas
 export function coutDuProjet(base: Base, projet: string, budget: BudgetDesGates, maintenant: Date): CoutDuProjet {
   const latest = base.lire<Ligne>("SELECT project, ticket, payload, at FROM events WHERE type = ? AND project = ? ORDER BY seq DESC LIMIT 1", TYPE, projet).map(relu)[0] ?? null;
   const jour = passagesDesGates(base, projet, new Date(maintenant.getTime() - JOUR_MS)).filter((passage) => Date.parse(passage.at) <= maintenant.getTime());
+  const heure = jour.filter((passage) => Date.parse(passage.at) > maintenant.getTime() - HEURE_MS);
   const somme = (valeurs: number[]) => Math.round(valeurs.reduce((total, valeur) => total + valeur * 10, 0)) / 10;
+  const moyenne = (valeurs: number[]) => (valeurs.length === 0 ? null : Math.round((valeurs.reduce((total, valeur) => total + valeur, 0) / valeurs.length) * 10) / 10);
+  const fenetre = (passages: PassageDesGates[]): FenetreDesGates => ({ runs: passages.length, durationSeconds: somme(passages.map((passage) => passage.durationSeconds)), cpuSeconds: somme(passages.map((passage) => passage.cpuSeconds ?? 0)) });
+  const moyennes = (passages: PassageDesGates[]): MoyennesDesGates => ({
+    durationSeconds: moyenne(passages.map((passage) => passage.durationSeconds)),
+    cpuSeconds: moyenne(passages.flatMap((passage) => (passage.cpuSeconds === null ? [] : [passage.cpuSeconds]))),
+  });
+  const tendance = (recente: number | null, reference: number | null): TendanceDesGates | null => {
+    if (recente === null || reference === null || reference === 0) return null;
+    if (recente > reference * (1 + ECART_DE_TENDANCE)) return "up";
+    return recente < reference * (1 - ECART_DE_TENDANCE) ? "down" : "steady";
+  };
+  const averages = { lastHour: moyennes(heure), lastDay: moyennes(jour) };
   return {
     budget,
     latest,
     overBudget: latest !== null && depasse(latest, budget),
-    lastDay: { runs: jour.length, durationSeconds: somme(jour.map((passage) => passage.durationSeconds)), cpuSeconds: somme(jour.map((passage) => passage.cpuSeconds ?? 0)) },
+    lastDay: fenetre(jour),
+    lastHour: fenetre(heure),
+    averages,
+    trend: { durationSeconds: tendance(averages.lastHour.durationSeconds, averages.lastDay.durationSeconds), cpuSeconds: tendance(averages.lastHour.cpuSeconds, averages.lastDay.cpuSeconds) },
   };
 }

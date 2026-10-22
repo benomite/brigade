@@ -17,10 +17,14 @@ in the middle hides them, and switching tabs neither cuts nor empties the conver
 Six numbers read in `facts` (`activiteCuisine`, docs/runtime/etat-et-mesures.md), counted in tickets and for this project only;
 with no activity, six `0`. What each counts is in the help of its heading. A runtime that does not give them shows nothing
 there, nor a box that does not answer; on a narrow screen, they sit above the stations' lines.
-**Under them, the project's gates over the last 24 h** (#1318): `gates, last 24 h`, the same small table — `runs`,
-`total time`, `total CPU`, as `facts` gives them (`coutDesGates.lastDay`) —, and under the totals the budget of one run,
-`(default)` when you have not set it. Totals read in seconds up to ten minutes, then in minutes, then in hours; the exact
-figure is on hover. No run in the last 24 h: `0`, `0 s`, `0 s`, never a blank. A runtime that does not give them shows nothing.
+**Under them, the project's gates over the last hour and the last 24 h** (#1318): `gates, last hour and last 24 h`, the
+same small table — one row per window, `last hour` then `last 24 h`, with `runs`, `average time` and `average CPU` (what one
+run costs, read against the budget of one run, on the row below, `(default)` when you have not set it), then `total time` and
+`total CPU`. On the `last hour` row, each average carries its trend against the last 24 h — `↑ rising` (red), `↓ falling`
+(green) past 10 %, `steady` within. Everything is read in `facts` (`coutDesGates`: `lastHour`, `lastDay`, `averages`,
+`trend`): the app computes nothing. Averages read in seconds; totals in seconds up to ten minutes, then in minutes, then in
+hours; the exact figure is on hover. No run: `0`, `–` for the averages, `0 s`, never a blank, and no trend. A runtime that
+gives only the day shows its row alone, its averages `–` (the hover says why); one that gives nothing shows nothing.
 **On Cooks, one block per station of the project** (#1185, #1270), under the project's tile, wherever it runs — the box, the Mac,
 another computer (`remote`): its state, a word of `facts` (`cooking`, `stopped`, `saturated`, `refused`, #1183)
 and what it means (`by you, for 3 min · 1 cook finishing`, `its machine has no room`, the reason for a refusal),

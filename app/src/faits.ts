@@ -86,10 +86,16 @@ export function rolesCuisineLus(brut: unknown): RoleDeCuisine[] | undefined {
 // passage, en durée et en processeur — `parLeChef` faux, c'est le défaut —, le dernier passage — nul sans passage ; son
 // processeur nul quand il n'a pas été dit —, son dépassement tel que le runtime le juge, les passages des dernières
 // 24 h, et le ticket que la cuisine a ouvert seule pour les ramener sous le budget (ticket 1316) — nul sans ticket ouvert.
+// Et, d'un runtime qui les donne (ticket 1318), les passages de la dernière heure, ce que coûte un passage en moyenne
+// sur l'heure et sur le jour — nul sans passage —, et la tendance de l'heure face au jour — nulle quand l'une manque.
+export type FenetreDesGates = { runs: number; durationSeconds: number; cpuSeconds: number };
+export type MoyennesDesGates = { durationSeconds: number | null; cpuSeconds: number | null };
+export type TendanceDesGates = "up" | "down" | "steady";
+export type RecentDesGates = { lastHour: FenetreDesGates; averages: { lastHour: MoyennesDesGates; lastDay: MoyennesDesGates }; trend: { durationSeconds: TendanceDesGates | null; cpuSeconds: TendanceDesGates | null } };
 export type BudgetDesGates = { durationSeconds: number; cpuSeconds: number; parLeChef: { durationSeconds: boolean; cpuSeconds: boolean } };
 export type PassageDesGates = { durationSeconds: number; cpuSeconds: number | null; at: string };
 export type TicketDuBudget = { number: number; openedAt: string };
-export type CoutDesGates = { budget: BudgetDesGates; latest: PassageDesGates | null; overBudget: boolean; lastDay: { runs: number; durationSeconds: number; cpuSeconds: number }; ticket: TicketDuBudget | null };
+export type CoutDesGates = { budget: BudgetDesGates; latest: PassageDesGates | null; overBudget: boolean; lastDay: FenetreDesGates; ticket: TicketDuBudget | null } & Partial<RecentDesGates>;
 
 // Le champ `coutDesGates` d'un `facts`. Un champ qui n'a pas cette forme n'est pas lu — la file et l'onglet Cooks se
 // dessinent sans, comme pour un runtime d'avant ce champ. Ce que le runtime y met de plus n'est pas repris.
@@ -110,6 +116,25 @@ export function coutDesGatesLu(brut: unknown): CoutDesGates | undefined {
     if (lu === undefined || !secondes(lu.durationSeconds) || !(lu.cpuSeconds === null || secondes(lu.cpuSeconds)) || !instant(lu.at)) return undefined;
     latest = { durationSeconds: lu.durationSeconds, cpuSeconds: lu.cpuSeconds, at: lu.at };
   }
+  // La dernière heure, les moyennes et la tendance se lisent ensemble, ou pas du tout : un runtime d'avant elles.
+  const fenetre = (valeur: unknown): FenetreDesGates | undefined => {
+    const lu = champs(valeur);
+    return lu !== undefined && typeof lu.runs === "number" && Number.isSafeInteger(lu.runs) && lu.runs >= 0 && secondes(lu.durationSeconds) && secondes(lu.cpuSeconds) ? { runs: lu.runs, durationSeconds: lu.durationSeconds, cpuSeconds: lu.cpuSeconds } : undefined;
+  };
+  const moyennes = (valeur: unknown): MoyennesDesGates | undefined => {
+    const lu = champs(valeur);
+    const ouRien = (une: unknown): une is number | null => une === null || secondes(une);
+    return lu !== undefined && ouRien(lu.durationSeconds) && ouRien(lu.cpuSeconds) ? { durationSeconds: lu.durationSeconds, cpuSeconds: lu.cpuSeconds } : undefined;
+  };
+  const sens = (valeur: unknown): valeur is TendanceDesGates | null => valeur === null || valeur === "up" || valeur === "down" || valeur === "steady";
+  const heure = fenetre(racine.lastHour);
+  const auHeure = moyennes(champs(racine.averages)?.lastHour);
+  const auJour = moyennes(champs(racine.averages)?.lastDay);
+  const vers = champs(racine.trend);
+  const recent: RecentDesGates | undefined =
+    heure !== undefined && auHeure !== undefined && auJour !== undefined && vers !== undefined && sens(vers.durationSeconds) && sens(vers.cpuSeconds)
+      ? { lastHour: heure, averages: { lastHour: auHeure, lastDay: auJour }, trend: { durationSeconds: vers.durationSeconds, cpuSeconds: vers.cpuSeconds } }
+      : undefined;
   let ticket: TicketDuBudget | null = null;
   if (racine.ticket !== null && racine.ticket !== undefined) {
     const lu = champs(racine.ticket);
@@ -121,6 +146,7 @@ export function coutDesGatesLu(brut: unknown): CoutDesGates | undefined {
     latest,
     overBudget: racine.overBudget,
     lastDay: { runs: jour.runs, durationSeconds: jour.durationSeconds, cpuSeconds: jour.cpuSeconds },
+    ...(recent ?? {}),
     ticket,
   };
 }

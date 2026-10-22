@@ -5310,8 +5310,8 @@ button.recommande {
   text-decoration: underline;
   cursor: pointer;
 }
-/* Sur Cooks, sous les tickets de la dernière heure et du dernier jour (ticket 1318) : les gates des dernières 24 h,
-   le même petit tableau, et sous leurs totaux le budget d'un passage. */
+/* Sur Cooks, sous les tickets de la dernière heure et du dernier jour (ticket 1318) : les gates de la dernière heure et
+   des dernières 24 h, le même petit tableau, et sous leurs moyennes le budget d'un passage. */
 #gates-du-projet:empty {
   display: none;
 }
@@ -5353,6 +5353,20 @@ button.recommande {
   line-height: 1.2;
   font-variant-numeric: tabular-nums;
   color: var(--texte);
+}
+/* La tendance de l'heure face au jour, à côté de sa moyenne : ce qui monte coûte plus, en rouge ; ce qui descend, en
+   vert ; ce qui tient, discret. */
+#rail .jour-des-gates .tendance-des-gates {
+  margin-left: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--discret);
+}
+#rail .jour-des-gates .tendance-des-gates[data-sens="up"] {
+  color: var(--rouge-clair);
+}
+#rail .jour-des-gates .tendance-des-gates[data-sens="down"] {
+  color: var(--vert);
 }
 
 /* Le triage, jour par jour (ticket 1283), en tête de la file : une ligne par jour, le plus récent d'abord, les deux

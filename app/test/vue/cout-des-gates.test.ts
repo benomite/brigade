@@ -22,7 +22,8 @@ import { Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../aides/faus
 const A = "2026-10-21T10:04:12.000Z";
 const PARADE = "parade";
 
-// Tel que `facts` le rend (runtime/src/faits.ts) : sous un budget par défaut, sans ticket.
+// Tel que `facts` le rend (runtime/src/faits.ts) : sous un budget par défaut, sans ticket — d'un runtime d'avant la
+// dernière heure, les moyennes et la tendance.
 const SOUS_LE_BUDGET = {
   budget: { durationSeconds: 100, cpuSeconds: 400, parLeChef: { durationSeconds: false, cpuSeconds: false } },
   latest: { project: PARADE, ticket: 30, runner: "pass", outcome: "green", durationSeconds: 62.4, cpuSeconds: 180.5, at: "2026-10-21T09:58:40.000Z" },
@@ -36,9 +37,14 @@ const HORS_DU_BUDGET = {
   latest: { ...SOUS_LE_BUDGET.latest, durationSeconds: 214.6, cpuSeconds: 990.2 },
   overBudget: true,
   lastDay: { runs: 7, durationSeconds: 1402.3, cpuSeconds: 6410.8 },
+  lastHour: { runs: 2, durationSeconds: 421.4, cpuSeconds: 1950.6 },
+  averages: { lastHour: { durationSeconds: 210.7, cpuSeconds: 975.3 }, lastDay: { durationSeconds: 200.3, cpuSeconds: 915.8 } },
+  trend: { durationSeconds: "steady", cpuSeconds: "up" },
   ticket: { number: 31, openedAt: "2026-10-21T09:58:52.000Z", exceeded: ["duration", "cpu"] },
 };
-const SANS_PASSAGE = { ...SOUS_LE_BUDGET, latest: null, lastDay: { runs: 0, durationSeconds: 0, cpuSeconds: 0 } };
+const ZERO = { runs: 0, durationSeconds: 0, cpuSeconds: 0 };
+const AUCUNE = { durationSeconds: null, cpuSeconds: null };
+const SANS_PASSAGE = { ...SOUS_LE_BUDGET, latest: null, lastDay: ZERO, lastHour: ZERO, averages: { lastHour: AUCUNE, lastDay: AUCUNE }, trend: AUCUNE };
 
 const FAITS: Faits = {
   etat: "ouverte",
@@ -142,8 +148,8 @@ describe("les gates face à leur budget, en tête de la file", () => {
   });
 });
 
-describe("les gates des dernières 24 h, sur l'onglet Cooks", () => {
-  test("le nombre de passages, leur temps et leur processeur au total, tels que le runtime les donne, à côté du budget d'un passage", async () => {
+describe("les gates de la dernière heure et des dernières 24 h, sur l'onglet Cooks", () => {
+  test("le nombre de passages, la moyenne d'un passage face au budget, la tendance de l'heure, et leur temps et leur processeur au total, tels que le runtime les donne", async () => {
     const vue = await ouvrir();
     recevoir(vue, HORS_DU_BUDGET);
     await ouvrirOnglet(vue, "Cooks");
@@ -151,25 +157,44 @@ describe("les gates des dernières 24 h, sur l'onglet Cooks", () => {
     assert.equal(pose.dessous("h4")[0]?.textContent?.startsWith(TITRE_JOUR), true);
     assert.deepEqual(lu(pose), [
       ["", ...COLONNES],
-      ["all runs", "7", "23 min", "1 h 47 min"],
-      ["budget, one run", "", "120 s", "480 s"],
+      ["last hour", "2", "211 ssteady", "975 s↑ rising", "421 s", "33 min"],
+      ["last 24 h", "7", "200 s", "916 s", "23 min", "1 h 47 min"],
+      ["budget, one run", "", "120 s", "480 s", "", ""],
     ]);
-    // Le total exact, au survol.
-    assert.deepEqual(pose.dessous("td").filter(({ className }) => className === "chiffre").map(({ title }) => title), ["", "1402.3 s", "6410.8 s"]);
+    // La tendance porte son sens, que la peau colore.
+    assert.deepEqual(pose.dessous("span").filter(({ className }) => className === "tendance-des-gates").map(({ dataset }) => dataset.sens), ["steady", "up"]);
+    // La valeur exacte, au survol.
+    assert.deepEqual(
+      pose.dessous("tr").find(({ dataset }) => dataset.ligne === "lastDay")?.dessous("td").map(({ title }) => title),
+      ["", "200.3 s", "915.8 s", "1402.3 s", "6410.8 s"],
+    );
     // Sous les tickets de la dernière heure et du dernier jour, au-dessus de la carte du projet.
     const rail = vue.element("rail");
     assert.equal(rail.children[1]?.id, "gates-du-projet");
     assert.equal(rail.children[2]?.className, "carte");
   });
 
-  test("sans passage dans les 24 h : 0, 0 s et 0 s, jamais un blanc — et le budget par défaut", async () => {
+  test("sans passage dans l'heure ni dans les 24 h : 0, « – » pour les moyennes, 0 s et 0 s, jamais un blanc — sans tendance, et le budget par défaut", async () => {
     const vue = await ouvrir();
     recevoir(vue, SANS_PASSAGE);
     await ouvrirOnglet(vue, "Cooks");
     assert.deepEqual(lu(jour(vue) ?? assert.fail("pas de gates sur Cooks")).slice(1), [
-      ["all runs", "0", "0 s", "0 s"],
-      ["budget, one run", "", "100 s (default)", "400 s (default)"],
+      ["last hour", "0", "–", "–", "0 s", "0 s"],
+      ["last 24 h", "0", "–", "–", "0 s", "0 s"],
+      ["budget, one run", "", "100 s (default)", "400 s (default)", "", ""],
     ]);
+  });
+
+  test("d'un runtime qui ne donne que le jour : sa ligne seule, ses moyennes « – », le survol dit pourquoi", async () => {
+    const vue = await ouvrir();
+    recevoir(vue, SOUS_LE_BUDGET);
+    await ouvrirOnglet(vue, "Cooks");
+    const pose = jour(vue) ?? assert.fail("pas de gates sur Cooks");
+    assert.deepEqual(lu(pose).slice(1), [
+      ["last 24 h", "3", "–", "–", "190 s", "561 s"],
+      ["budget, one run", "", "100 s (default)", "400 s (default)", "", ""],
+    ]);
+    assert.equal(pose.dessous("tr").find(({ dataset }) => dataset.ligne === "lastDay")?.dessous("td")[1]?.title, "this station's runtime does not give it yet");
   });
 
   test("un runtime qui ne les donne pas, ou sous une autre forme, n'en fait rien poser — ni la file, ni Cooks", async () => {
@@ -192,12 +217,25 @@ describe("la lecture du champ et ses mots", () => {
       latest: { durationSeconds: 214.6, cpuSeconds: 990.2, at: "2026-10-21T09:58:40.000Z" },
       overBudget: true,
       lastDay: HORS_DU_BUDGET.lastDay,
+      lastHour: HORS_DU_BUDGET.lastHour,
+      averages: HORS_DU_BUDGET.averages,
+      trend: HORS_DU_BUDGET.trend,
       ticket: { number: 31, openedAt: "2026-10-21T09:58:52.000Z" },
     });
     assert.equal(coutDesGatesLu(SANS_PASSAGE)?.latest, null);
     // Un runtime d'avant le ticket auto-ouvert (#1315) ne donne pas `ticket` : il n'y en a pas.
     const { ticket: _, ...sansTicket } = SOUS_LE_BUDGET;
     assert.equal(coutDesGatesLu(sansTicket)?.ticket, null);
+    // La dernière heure, les moyennes et la tendance se lisent ensemble, ou pas du tout — le reste se lit.
+    assert.equal("averages" in (coutDesGatesLu(SOUS_LE_BUDGET) ?? {}), false);
+    for (const partiel of [
+      { ...HORS_DU_BUDGET, trend: { durationSeconds: "sideways", cpuSeconds: null } },
+      { ...HORS_DU_BUDGET, averages: { lastHour: AUCUNE } },
+      { ...HORS_DU_BUDGET, lastHour: { ...ZERO, runs: -1 } },
+    ]) {
+      const lue = coutDesGatesLu(partiel);
+      assert.deepEqual([lue?.lastDay, lue?.lastHour, lue?.averages, lue?.trend], [HORS_DU_BUDGET.lastDay, undefined, undefined, undefined], JSON.stringify(partiel));
+    }
     for (const mauvais of [
       undefined,
       null,
