@@ -639,10 +639,12 @@ export function tenirProjets(options: OptionsProjets): Projets {
     ajouter,
     confier,
     retirer,
-    // Et celles que son onboarding montre : le geste attendu, le ticket de préparation, sa PR.
+    // Et celles que son onboarding montre : le geste attendu, le ticket de préparation, sa PR ; et celles
+    // du geste d'un clone en échec (#1390).
     pages: () =>
-      [...new Set((vu?.projets ?? []).flatMap(({ stations, onboarding }) => [
+      [...new Set((vu?.projets ?? []).flatMap(({ stations, onboarding, clone }) => [
         ...stations.flatMap(({ autoriser }) => autoriser),
+        ...(clone?.liens ?? []),
         ...(onboarding?.etapes ?? []).flatMap(({ geste }) => geste?.liens ?? []),
         ...(onboarding?.preparation === null || onboarding?.preparation === undefined ? [] : [onboarding.preparation.url, ...(onboarding.preparation.pr === null ? [] : [onboarding.preparation.pr])]),
       ]))],
