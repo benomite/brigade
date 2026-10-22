@@ -35,6 +35,7 @@ import { gestesDeCarte, jouerGesteDeFiche } from "./gestes-fiche.ts";
 import { COMMANDES as COMMANDES_DE_FIABILITE, ONGLET as FIABILITE, voir as voirFiabilite } from "./fiabilite.ts";
 import { GESTES_DES_GRANTS, voir as voirGrants } from "./grants.ts";
 import { ajouterALApp, lireClone } from "./ajout.ts";
+import { tenirConnexionGitHub } from "./connexion-github.ts";
 import { cheminDe, emplacementsDe, lireCheminDuShell } from "./emplacements.ts";
 import { tenirMiseAJour } from "./mise-a-jour/etat.ts";
 import { fluxDe, formatDe } from "./mise-a-jour/flux.ts";
@@ -54,6 +55,7 @@ import { estUnMac, nomDuPoste, persistantSur, shellDuPoste } from "./plateforme.
 import { cuisinesIci, roleDe } from "./poste/role.ts";
 import { tenirStationLocale } from "./poste/station.ts";
 import { ouvrirPty } from "./pty.ts";
+import { ouvrirDUneStation, type StationsDuChef } from "./premier-lancement.ts";
 import { LABEL_RETENUE, lever, lireQuestion, repondre as repondreQuestion, titreDe, type Lue as QuestionLue } from "./question.ts";
 import { lireCapture } from "./captures.ts";
 import { relanceDe, tenirPassage } from "./rattrapage.ts";
@@ -925,6 +927,61 @@ ipcMain.handle("autoriserSurGitHub", (_, url: unknown) => {
 });
 // « Retirer la station » : son appairage quitte son gist, elle disparaît de l'accueil.
 ipcMain.handle("retirerLaStation", (_, id: unknown) => stations.retirer(id));
+// Le premier lancement, sur un ordinateur neuf (premier-lancement.ts, #1434) : les stations du chef et leurs
+// projets, lus par l'opération du runtime (#1428) ; un projet ouvert d'un clic, sa copie reprise ou clonée par
+// celle du runtime (#1429) — chaque étape part à la vue —, puis ajouté au fichier des projets ; la connexion à
+// GitHub, par le geste que le runtime nomme (connexion-github.ts). Le runtime est à côté de l'app, du dépôt comme
+// du paquet (emplacements.ts).
+const ghIci = process.env.BRIGADE_GH_BIN || "gh";
+const duRuntime = <M>(...chemin: string[]) => import(pathToFileURL(join(emplacements.runtime, "src", ...chemin)).href) as Promise<M>;
+// Les pages qu'un échec du runtime a nommées — installer `gh`, `git`, demander l'accès à un dépôt : seules
+// celles-là s'ouvrent depuis l'écran.
+const pagesDuPremier = new Set<string>();
+const retenirLaPage = <T extends { link?: string }>(rendu: T): T => {
+  if (rendu.link !== undefined) pagesDuPremier.add(rendu.link);
+  return rendu;
+};
+ipcMain.handle("stationsDuChef", async (): Promise<StationsDuChef> => {
+  const { lireLesStationsDuChef } = await duRuntime<typeof import("../../runtime/src/appairage/stations-du-chef.ts")>("appairage", "stations-du-chef.ts");
+  const lu = await lireLesStationsDuChef({ gh: ghIci, env: process.env });
+  return lu.state === "unavailable" ? retenirLaPage(lu) : lu;
+});
+const ouvrirUnProjetDUneStation = ouvrirDUneStation({
+  ouvrirLaCopie: async (options) => {
+    const { ouvrirLaCopieLocale } = await duRuntime<typeof import("../../runtime/src/projets/copie-locale.ts")>("projets", "copie-locale.ts");
+    return ouvrirLaCopieLocale({ ...options, gh: ghIci, git: process.env.BRIGADE_GIT_BIN || "git", env: process.env });
+  },
+  lireLaBase: async (dossier) => (await lireClone(process.env.BRIGADE_GIT_BIN || "git", dossier)).base,
+  configuration: () => suivi.configuration(),
+  ajouter: (projet) => suivi.ajouter(projet),
+  progres: (depot, etape) => dire("ouverture", depot, etape),
+});
+ipcMain.handle("ouvrirDUneStation", async (_, nom: unknown, depot: unknown) => {
+  const ouverture = await ouvrirUnProjetDUneStation(nom, depot);
+  return ouverture.state === "failed" && "link" in ouverture ? retenirLaPage(ouverture) : ouverture;
+});
+const connexionGitHub = tenirConnexionGitHub({
+  commande: async () => {
+    const { connexionGitHub } = await duRuntime<typeof import("../../runtime/src/appairage/stations-du-chef.ts")>("appairage", "stations-du-chef.ts");
+    return connexionGitHub(ghIci).command;
+  },
+  env: process.env,
+  ouvrir: (adresse) => shell.openExternal(adresse),
+  apres: (fin) => dire("connexionGitHub", fin),
+});
+// La page où taper le code se rouvre depuis l'écran.
+ipcMain.handle("seConnecterAGitHub", async () => {
+  const debut = await connexionGitHub();
+  if ("page" in debut) pagesDuPremier.add(debut.page);
+  return debut;
+});
+ipcMain.handle("ouvrirLaPage", (_, url: unknown) => {
+  if (typeof url !== "string" || !pagesDuPremier.has(url)) return false;
+  return shell.openExternal(url).then(
+    () => true,
+    () => false,
+  );
+});
 // Le plafond de cooks d'une station, réglé depuis sa page : la vue nomme la station et la valeur — un nombre,
 // 0 ou `auto` —, la commande `station cooks <valeur>` part sur la box de chaque projet dont le `status` lu
 // nomme cette station (plafond.ts). Réglé, ce `status` est relu aussitôt : la page dit le plafond neuf, et ce qu'il remplace.

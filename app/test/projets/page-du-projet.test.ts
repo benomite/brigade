@@ -90,7 +90,10 @@ async function laPage(projetsDesStations: VuDesProjets | undefined, projet: Proj
 test("l'écran d'ajout ne demande que le dossier, le dépôt et la branche : ni station, ni machine, ni nom `ssh`", async () => {
   const jouee = await jouerLaVue({ demarrage: () => demarrage([], SANS_PROJET), espace: () => [] });
   const formulaire = jouee.element("formulaire");
-  assert.equal(jouee.element("ajout").hidden, false, "sans projet, l'app s'ouvre sur l'ajout");
+  // Sans projet, l'app s'ouvre sur les stations du chef (#1434) : l'ajout par un dossier est au « + » de la barre.
+  (jouee.poses().find((pose) => pose.id === "entree-ajout") ?? assert.fail("pas de « + »")).click();
+  await repos();
+  assert.equal(jouee.element("ajout").hidden, false);
   for (const parti of ["hote", "box", "declarer", "nom", "sauvegardes", "manager-modele", "reviewer-effort"]) assert.throws(() => jouee.element(parti), new RegExp(`aucun élément « ${parti} »`), parti);
   // Ce qui se saisit dans l'écran, tel que la page le pose.
   const page = readFileSync(join(import.meta.dirname, "../../src/vue/index.html"), "utf8");

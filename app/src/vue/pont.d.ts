@@ -33,6 +33,8 @@ import type { Ajout, Choisi, Demenagement, EFFORTS, MODELES, Retrait as RetraitD
 import type { IssueDuRemede } from "../projets/remede.ts";
 import type { Appairage, RetraitDeStation, VuDesStations } from "../stations/stations.ts";
 import type { Terminal } from "../terminaux.ts";
+import type { DebutDeConnexion, FinDeConnexion } from "../connexion-github.ts";
+import type { Ouverture, Progres, StationsDuChef } from "../premier-lancement.ts";
 
 export type Pont = {
   // `poste` : le nom que l'écran donne à cet ordinateur (« this Mac », « this PC »), et s'il est un Mac — les raccourcis du terminal en dépendent.
@@ -265,6 +267,18 @@ export type Pont = {
   reglerLePlafondDeCalibrage(projet: string, choix: import("../plafond-de-calibrage.ts").ChoixDuPlafond): Promise<import("../plafond-de-calibrage.ts").RenduDuPlafond>;
   // « Retirer la station », confirmé : son appairage est ôté de son gist (stations/stations.ts) ; la station n'est plus lue.
   retirerLaStation(id: string): Promise<RetraitDeStation>;
+  // Le premier lancement, sur un ordinateur neuf (ticket 1434, premier-lancement.ts) : les stations que le chef a
+  // appairées et leurs projets, tels que le runtime les lit sur GitHub — listées, une connexion à GitHub qui manque,
+  // ou pourquoi elles ne se lisent pas. Le téléphone ne les porte pas.
+  stationsDuChef?(): Promise<StationsDuChef>;
+  // Ouvre un projet qu'une station porte, sans dossier à choisir : sa copie reprise ou clonée par le runtime, puis
+  // le projet ajouté au fichier des projets — il arrive par `surConfiguration` —, ou pourquoi il ne l'est pas.
+  ouvrirDUneStation?(nom: string, depot: string): Promise<Ouverture>;
+  // Lance la connexion à GitHub que le runtime nomme : rend le code à taper et sa page, déjà ouverte — ou pourquoi
+  // rien n'est parti. Sa fin arrive par `surConnexionGitHub`.
+  seConnecterAGitHub?(): Promise<DebutDeConnexion>;
+  // Ouvre une page qu'un échec du runtime a nommée (installer `gh`, demander l'accès) ; rend faux pour toute autre.
+  ouvrirLaPage?(url: string): Promise<boolean>;
   // Ce qu'engage l'allumage du manager, chiffré (allumage.ts) : les issues ouvertes du projet, et
   // celles qui portent `blocked-on-human` — `manager backlog`, lancée une fois sur sa box. Demandé
   // quand la confirmation d'« allumer » s'ouvre : son « oui » n'attend pas cette lecture. Rien, pour un projet sans box.
@@ -356,6 +370,10 @@ export type Pont = {
   // Le fichier des projets a changé — ou l'app vient de désinstaller un projet de sa box.
   // `fermes` : les terminaux des projets qui ont quitté la liste.
   surConfiguration(recevoir: (configuration: Affichee, fermes: number[]) => void): void;
+  // Une étape de la copie d'un projet qu'une station porte, pendant son ouverture : la phrase du runtime, et son pourcentage.
+  surOuverture?(recevoir: (depot: string, etape: Progres) => void): void;
+  // La connexion à GitHub finie : connecté, ou pourquoi pas.
+  surConnexionGitHub?(recevoir: (fin: FinDeConnexion) => void): void;
 };
 
 declare global {
