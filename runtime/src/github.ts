@@ -7,7 +7,7 @@
 import { execFile } from "./sans-invite.ts";
 import type { Check } from "./events/pass.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
-import { constaterLimite, limiteDuProcess, refusPourLimite, type Limite } from "./limite-github.ts";
+import { COMPTE_DE_LA_MACHINE, constaterLimite, limiteDuProcess, noterLesEntetes, prendreUnAppel, refusPourLimite, type Limite, type Usage } from "./limite-github.ts";
 
 // Le label par lequel une issue entre sur le rail.
 export const LABEL = "fire";
@@ -129,9 +129,16 @@ export type OptionsGitHub = {
   jeton?: () => Promise<string>;
   // Le compte que ce jeton fait agir.
   identite?: () => Promise<string>;
-  // Le budget d'appels que prend chaque `gh api`. Par défaut, celui du
-  // process (`limite-github.ts`).
+  // Le compteur que prend chaque `gh api`, et où chaque réponse laisse le
+  // quota que GitHub a dit. Par défaut, celui du process (`limite-github.ts`).
   limite?: Limite;
+  // `geste` : ce GitHub sert un geste du chef — la box ne retient aucun de ses
+  // appels, seul un refus de GitHub les arrête. Par défaut, `cuisine` : ses
+  // appels se règlent sur le quota réel du compte.
+  usage?: Usage;
+  // Le compte dont ce GitHub dépense le quota : le rôle dont il porte le jeton,
+  // ou, par défaut, celui de la machine.
+  compte?: string;
   // En millisecondes ; par défaut, l'horloge du système. Les tests y mettent la leur.
   maintenant?: () => number;
 };
@@ -215,14 +222,19 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
   // Ce qui part vers GitHub — corps, titres, commentaires — s'écrit masqué :
   // ni la forme des identifiants de Claude, ni la valeur d'un jeton retenu
   // (`identifiants.ts`).
-  // Chaque page, chaque requête conditionnelle est un appel : au-delà du
-  // budget, il ne part pas.
+  // Chaque page, chaque requête conditionnelle est un appel : un appel de la
+  // cuisine que le quota réel retient ne part pas. Chaque réponse dit le quota
+  // qui reste.
+  const compte = options.compte ?? COMPTE_DE_LA_MACHINE;
   const appeler = async (brut: string[]): Promise<Reponse> => {
     const args = brut.map((arg) => masquerIdentifiants(arg).texte);
-    (options.limite ?? limiteDuProcess()).prendre();
+    const limite = options.limite ?? limiteDuProcess();
     // `GH_TOKEN` l'emporte sur la connexion du compte, et ne se lit pas dans
     // la liste des process.
-    const env = options.jeton ? { ...process.env, GH_TOKEN: await options.jeton() } : undefined;
+    let env: NodeJS.ProcessEnv | undefined;
+    const environnement = async () => (env ??= options.jeton ? { ...process.env, GH_TOKEN: await options.jeton() } : undefined);
+    await prendreUnAppel(limite, { usage: options.usage, compte, gh: bin, env: environnement, maintenant: options.maintenant });
+    await environnement();
     return new Promise((resoudre, rejeter) => {
       execFile(
         bin,
@@ -230,9 +242,10 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
         { maxBuffer: 64 * 1024 * 1024, timeout: options.delaiMs ?? 30_000, signal: abandon.signal, env },
         (erreur, stdout, stderr) => {
           const reponse = decouper(stdout);
+          if (reponse) noterLesEntetes(limite, compte, reponse.entetes);
           // La limite de GitHub atteinte n'est pas une réponse comme les autres :
           // elle suspend les appels, et ne passe jamais pour un refus (de merge).
-          if (reponse && refusPourLimite(reponse)) constaterLimite(options.limite ?? limiteDuProcess(), reponse, { gh: bin, env, maintenant: options.maintenant }).then(rejeter, rejeter);
+          if (reponse && refusPourLimite(reponse)) constaterLimite(limite, reponse, { gh: bin, env, maintenant: options.maintenant }).then(rejeter, rejeter);
           else if (reponse) resoudre(reponse);
           else rejeter(new Error(`gh api ${args.at(-1)} : ${stderr.trim() || erreur?.message || "réponse illisible"}`));
         },

@@ -1,69 +1,116 @@
-// Le budget d'appels à GitHub : au plus 2 500 par heure glissante, la moitié
-// de la limite du compte (5 000/h), pour la station et tous ses projets
-// ensemble. Le sondage des issues (`github.ts`) et le canal du gist
-// (`appairage/canal.ts`) prennent un appel ici avant de lancer `gh` ; au-delà
-// du budget, l'appel est refusé — il ne part pas, et l'appelant échoue comme
-// sur une panne de GitHub, que son prochain tour rattrape.
+// Les appels de la box à GitHub, réglés sur le quota réel du compte : ce que
+// GitHub dit lui rester (`x-ratelimit-remaining`, `x-ratelimit-limit`,
+// `x-ratelimit-reset`, à chaque réponse de `gh api -i`, et `gh api rate_limit`
+// quand il faut le confirmer). C'est la seule référence : le compte est partagé
+// avec le Mac du chef, et ce que la box a compté de son côté n'en dit qu'une
+// part. Le sondage des issues (`github.ts`) et le canal du gist
+// (`appairage/canal.ts`) prennent un appel ici avant de lancer `gh`.
 //
-// Choix : un compteur partagé, pas un budget par process. Il vit dans le
+// Deux sortes d'appels. Ceux de la cuisine — sondages, pass, manager, signe de
+// vie — ralentissent à mesure que le quota réel baisse : au-dessus de la moitié,
+// rien ne les retient ; en dessous, ils se répartissent sur ce qui reste de la
+// fenêtre de GitHub ; à la réserve des gestes (un dixième du quota), ils
+// attendent la fin de la fenêtre, puis reprennent seuls. Ceux d'un geste du
+// chef — merge, retrait du rail, priorité, réponse à une carte, commentaire de
+// la pass — ne sont jamais retenus par la box : ils partent, et n'échouent que
+// si GitHub lui-même refuse.
+//
+// Choix : un compteur partagé, pas un état par process. Il vit dans le
 // répertoire de la station (`<BRIGADE_STATION_DIR>/appels-github/`), une
-// base SQLite où chaque appel émis laisse son instant : tout process qui la
-// tient — la station et les projets qu'elle sert, un runtime ou une commande
-// lancés avec son environnement — compte dans le même budget, et une
+// base SQLite où chaque appel émis laisse son instant et où chaque réponse
+// laisse le quota que GitHub a dit : tout process qui la tient — la station
+// et les projets qu'elle sert, un runtime ou une commande lancés avec son
+// environnement — lit le même quota et se règle sur le même débit, et une
 // transaction (BEGIN IMMEDIATE) tranche entre deux process qui prennent le
-// dernier appel au même instant. Un budget par process aurait demandé de
-// découper 2 500 en parts fixes, perdues pour le projet qui sonde beaucoup
-// quand un autre dort, et faussées dès que le nombre de projets change ; le
-// compteur partagé tient le plafond quel que soit ce nombre.
+// dernier appel au même instant. Le quota se tient par compte : la machine
+// (`gh`), et chaque identité de rôle, dont l'App a le sien.
 //
 // Hors de toute station (le poste de dev, un test), le process compte seul,
-// en mémoire, sous le même budget.
+// en mémoire, sous les mêmes règles.
 import { execFile } from "./sans-invite.ts";
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { Base } from "./base.ts";
 
-// L'ensemble des appels de la station et de ses projets, sur une heure glissante.
-export const BUDGET_PAR_HEURE = 2500;
 export const FENETRE_MS = 60 * 60_000;
 // Le compteur partagé, dans le répertoire de la station : une base et ses
 // fichiers de journal, qui changent à chaque appel.
 export const REPERTOIRE_COMPTEUR = "appels-github";
 const FICHIER_COMPTEUR = "compteur.db";
 
-// Un appel refusé : le budget de l'heure glissante est épuisé. `libreDansMs` :
-// dans combien de temps le plus ancien appel compté sort de la fenêtre.
-export class BudgetGitHubEpuise extends Error {
-  readonly libreDansMs: number;
-  constructor(budget: number, libreDansMs: number) {
-    super(`budget GitHub épuisé : ${budget} appels sur l'heure glissante, appel refusé — le prochain se libère dans ${Math.ceil(libreDansMs / 1000)} s`);
-    this.name = "BudgetGitHubEpuise";
-    this.libreDansMs = libreDansMs;
-  }
-}
+// Le compte de la machine : celui du `gh` qui s'authentifie seul, partagé avec le Mac.
+export const COMPTE_DE_LA_MACHINE = "gh";
+// `cuisine` : un appel du runtime, que la box règle sur le quota réel.
+// `geste` : un appel qu'un geste du chef émet, que la box ne retient jamais.
+export type Usage = "cuisine" | "geste";
+
+// La part du quota gardée pour les gestes du chef : la cuisine n'y touche pas.
+export const RESERVE_DES_GESTES = 0.1;
+// En dessous de cette part du quota, la cuisine ralentit.
+export const SEUIL_DE_RALENTI = 0.5;
+// Le pas sur lequel se mesure le débit de la cuisine, quand elle ralentit.
+export const PAS_DU_DEBIT_MS = 60_000;
+// Une décision prise sur un quota lu il y a plus longtemps se confirme d'abord
+// auprès de `gh api rate_limit` — au plus une fois par pas, par compte.
+export const RAFRAICHIR_MS = 60_000;
+
+// Ce que GitHub a dit du quota d'un compte : `restant` appels sur `plafond`
+// jusqu'à `reset`, lu à l'instant `vu` (en millisecondes).
+export type Quota = { restant: number; plafond: number; reset: number; vu: number };
+
+export const reserveDes = (plafond: number): number => Math.ceil(plafond * RESERVE_DES_GESTES);
 
 // GitHub a dit que sa limite est atteinte (429, ou 403 « rate limit », primaire
-// ou secondaire) : plus aucun appel ne part avant `jusqua`, la fin de la
-// fenêtre. Une erreur propre, jamais prise pour un autre refus (celui d'un merge).
+// ou secondaire) : plus aucun appel de la cuisine ne part avant `jusqua`, la fin
+// de la fenêtre. Une erreur propre, jamais prise pour un autre refus (celui d'un merge).
 export class LimiteGitHubAtteinte extends Error {
   readonly jusqua: number;
   readonly libreDansMs: number;
-  constructor(jusqua: number, libreDansMs: number) {
-    super("GitHub a atteint sa limite d'appels : plus aucun appel ne part avant la fin de la fenêtre, puis ils reprennent seuls");
+  constructor(jusqua: number, libreDansMs: number, message = "GitHub a atteint sa limite d'appels : plus aucun appel ne part avant la fin de la fenêtre, puis ils reprennent seuls") {
+    super(message);
     this.name = "LimiteGitHubAtteinte";
     this.jusqua = jusqua;
     this.libreDansMs = libreDansMs;
   }
 }
 
+// Un appel de la cuisine retenu par la box : le quota réel de GitHub baisse, et
+// la cuisine ralentit — ou attend la fin de la fenêtre, la réserve des gestes
+// atteinte. Il ne part pas, et n'est pas compté ; il est réglé comme la limite
+// de GitHub : rien d'autre ne part avant `jusqua` pour qui l'attend.
+export class CuisineRalentie extends LimiteGitHubAtteinte {
+  readonly quota: Quota;
+  constructor(quota: Quota, jusqua: number, libreDansMs: number) {
+    const secondes = Math.ceil(libreDansMs / 1000);
+    super(
+      jusqua,
+      libreDansMs,
+      quota.restant <= reserveDes(quota.plafond)
+        ? `quota GitHub bas : ${quota.restant} appels restants sur ${quota.plafond}, gardés pour les gestes du chef — la cuisine attend la fin de la fenêtre, dans ${secondes} s`
+        : `quota GitHub entamé : ${quota.restant} appels restants sur ${quota.plafond} — la cuisine ralentit, son prochain appel part dans ${secondes} s`,
+    );
+    this.name = "CuisineRalentie";
+    this.quota = quota;
+  }
+}
+
 export type Limite = {
-  readonly budget: number;
-  // Compte un appel, ou lève `BudgetGitHubEpuise` sans le compter — et
-  // `LimiteGitHubAtteinte` tant que GitHub a dit sa limite atteinte.
-  prendre(): void;
-  // GitHub a dit sa limite atteinte : plus d'appel avant cet instant (en
-  // millisecondes), pour tous ceux qui tiennent ce compteur.
+  // Compte un appel. Un appel de la cuisine (par défaut) lève
+  // `LimiteGitHubAtteinte` sans le compter tant que GitHub a dit sa limite
+  // atteinte, et `CuisineRalentie` quand le quota réel du compte (par défaut,
+  // celui de la machine) le retient. Un geste n'est jamais retenu.
+  prendre(usage?: Usage, compte?: string): void;
+  // GitHub a dit sa limite atteinte : plus d'appel de la cuisine avant cet
+  // instant (en millisecondes), pour tous ceux qui tiennent ce compteur.
   suspendre(jusqua: number): void;
+  // GitHub a dit le quota d'un compte : il est retenu, à l'instant où il est dit.
+  noter(compte: string, quota: Omit<Quota, "vu">): void;
+  // Le quota de la fenêtre en cours, ou null s'il n'a pas été dit — ou que sa
+  // fenêtre est passée.
+  quota(compte?: string): Quota | null;
+  // Vrai si une décision sur ce compte se prendrait sur un quota bas lu il y a
+  // plus de `RAFRAICHIR_MS` : à confirmer d'abord auprès de GitHub.
+  aConfirmer(compte?: string): boolean;
   // Les appels comptés sur l'heure écoulée, par tous ceux qui tiennent ce compteur.
   appels(): number;
   fermer(): void;
@@ -72,7 +119,6 @@ export type Limite = {
 export type OptionsLimite = {
   // La base du compteur ; absente, un compteur en mémoire, propre au process.
   fichier?: string;
-  budget?: number;
   // En millisecondes. Par défaut, l'horloge du système.
   maintenant?: () => number;
 };
@@ -81,33 +127,61 @@ export type OptionsLimite = {
 // quelques millisecondes.
 const ATTENTE_MS = 10_000;
 
+type QuotaLu = { restant: number; plafond: number; reset: number; vu: number };
+
 export function ouvrirLimite(options: OptionsLimite = {}): Limite {
-  const budget = options.budget ?? BUDGET_PAR_HEURE;
   const maintenant = options.maintenant ?? (() => Date.now());
   const base = new Base(options.fichier ?? ":memory:", { attenteMs: ATTENTE_MS });
   // Un compte perdu dans une coupure de courant ne coûte qu'un peu de marge :
   // aucune écriture n'attend le disque.
   if (options.fichier !== undefined) base.script("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;");
-  base.script("CREATE TABLE IF NOT EXISTS appels (instant INTEGER NOT NULL); CREATE INDEX IF NOT EXISTS appels_par_instant ON appels (instant); CREATE TABLE IF NOT EXISTS pause (jusqua INTEGER NOT NULL);");
+  base.script(
+    "CREATE TABLE IF NOT EXISTS appels (instant INTEGER NOT NULL); CREATE INDEX IF NOT EXISTS appels_par_instant ON appels (instant); CREATE TABLE IF NOT EXISTS pause (jusqua INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS quota (compte TEXT PRIMARY KEY, restant INTEGER NOT NULL, plafond INTEGER NOT NULL, reset INTEGER NOT NULL, vu INTEGER NOT NULL);",
+  );
+
+  const quotaDe = (compte: string, instant: number): Quota | null => {
+    const [lu] = base.lire<QuotaLu>("SELECT restant, plafond, reset, vu FROM quota WHERE compte = ?", compte);
+    return lu !== undefined && lu.reset > instant ? { restant: lu.restant, plafond: lu.plafond, reset: lu.reset, vu: lu.vu } : null;
+  };
+
+  // Ce qui retient un appel de la cuisine, d'après le quota réel : l'instant
+  // où il pourra partir, ou null s'il part.
+  const retenue = (quota: Quota, instant: number): number | null => {
+    const reserve = reserveDes(quota.plafond);
+    if (quota.restant <= reserve) return quota.reset;
+    if (quota.restant > quota.plafond * SEUIL_DE_RALENTI) return null;
+    // Ce qui reste au-dessus de la réserve, réparti jusqu'à la fin de la
+    // fenêtre : tant d'appels par pas, ou un appel tous les tant de pas.
+    const aDepenser = quota.restant - reserve;
+    const duree = quota.reset - instant;
+    const pas = Math.max(PAS_DU_DEBIT_MS, Math.ceil(duree / aDepenser));
+    const permis = Math.max(1, Math.floor((aDepenser * pas) / duree));
+    const [recents] = base.lire<{ n: number; premier: number | null }>("SELECT count(*) AS n, min(instant) AS premier FROM appels WHERE instant > ?", instant - pas);
+    if ((recents?.n ?? 0) < permis) return null;
+    return (recents?.premier ?? instant) + pas;
+  };
 
   return {
-    budget,
-    prendre() {
-      const refus = base.transaction((): { jusqua: number } | { budget: number } | null => {
+    prendre(usage = "cuisine", compte = COMPTE_DE_LA_MACHINE) {
+      const refus = base.transaction((): { jusqua: number } | { quota: Quota; jusqua: number } | null => {
         const instant = maintenant();
-        // La limite de GitHub atteinte : rien ne part, et rien n'est compté.
-        const [pause] = base.lire<{ jusqua: number | null }>("SELECT max(jusqua) AS jusqua FROM pause");
-        if (pause?.jusqua != null && pause.jusqua > instant) return { jusqua: pause.jusqua };
         // Ce qui est sorti de la fenêtre ne compte plus : rien ne le relira.
         base.executer("DELETE FROM appels WHERE instant <= ?", instant - FENETRE_MS);
-        const [compte] = base.lire<{ n: number; premier: number | null }>("SELECT count(*) AS n, min(instant) AS premier FROM appels");
-        if ((compte?.n ?? 0) >= budget) return { budget: Math.max(0, (compte?.premier ?? instant) + FENETRE_MS - instant) };
+        if (usage === "cuisine") {
+          // La limite de GitHub atteinte : rien ne part, et rien n'est compté.
+          const [pause] = base.lire<{ jusqua: number | null }>("SELECT max(jusqua) AS jusqua FROM pause");
+          if (pause?.jusqua != null && pause.jusqua > instant) return { jusqua: pause.jusqua };
+          const quota = quotaDe(compte, instant);
+          const jusqua = quota === null ? null : retenue(quota, instant);
+          if (quota !== null && jusqua !== null) return { quota, jusqua };
+        }
         base.executer("INSERT INTO appels (instant) VALUES (?)", instant);
         return null;
       });
       if (refus === null) return;
-      if ("jusqua" in refus) throw new LimiteGitHubAtteinte(refus.jusqua, Math.max(0, refus.jusqua - maintenant()));
-      throw new BudgetGitHubEpuise(budget, refus.budget);
+      const libre = Math.max(0, refus.jusqua - maintenant());
+      if ("quota" in refus) throw new CuisineRalentie(refus.quota, refus.jusqua, libre);
+      throw new LimiteGitHubAtteinte(refus.jusqua, libre);
     },
     suspendre(jusqua) {
       base.transaction(() => {
@@ -116,6 +190,29 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
         base.executer("DELETE FROM pause WHERE jusqua <= ? OR jusqua <= ?", instant, jusqua);
         base.executer("INSERT INTO pause (jusqua) SELECT ? WHERE NOT EXISTS (SELECT 1 FROM pause)", jusqua);
       });
+    },
+    noter(compte, { restant, plafond, reset }) {
+      if (![restant, plafond, reset].every(Number.isFinite) || restant < 0 || plafond <= 0) return;
+      const vu = maintenant();
+      // Deux réponses de la même fenêtre arrivent dans le désordre : la plus
+      // basse dit le vrai. Une fenêtre plus récente, ou la précédente passée,
+      // remplace ce qui était retenu.
+      base.executer(
+        `INSERT INTO quota (compte, restant, plafond, reset, vu) VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT (compte) DO UPDATE SET restant = excluded.restant, plafond = excluded.plafond, reset = excluded.reset, vu = excluded.vu
+         WHERE excluded.reset > quota.reset OR quota.reset <= excluded.vu OR (excluded.reset = quota.reset AND excluded.restant <= quota.restant)`,
+        compte,
+        restant,
+        plafond,
+        reset,
+        vu,
+      );
+    },
+    quota: (compte = COMPTE_DE_LA_MACHINE) => quotaDe(compte, maintenant()),
+    aConfirmer(compte = COMPTE_DE_LA_MACHINE) {
+      const instant = maintenant();
+      const quota = quotaDe(compte, instant);
+      return quota !== null && quota.restant <= quota.plafond * SEUIL_DE_RALENTI && instant - quota.vu > RAFRAICHIR_MS;
     },
     appels() {
       const [compte] = base.lire<{ n: number }>("SELECT count(*) AS n FROM appels WHERE instant > ?", maintenant() - FENETRE_MS);
@@ -153,11 +250,13 @@ export function limiteDuProcess(): Limite {
 }
 
 // Une fois par heure, la ligne qui mesure en conditions réelles : les appels
-// comptés sur l'heure écoulée. Rend de quoi l'arrêter.
+// comptés sur l'heure écoulée, et ce que GitHub dit rester au compte de la
+// machine, s'il l'a dit. Rend de quoi l'arrêter.
 export function journaliserLesAppels(limite: Limite, options: { dire: (ligne: string) => void; intervalleMs?: number }): () => void {
   const minuterie = setInterval(() => {
     try {
-      options.dire(`brigade : ${limite.appels()} appels GitHub sur l'heure écoulée`);
+      const quota = limite.quota();
+      options.dire(`brigade : ${limite.appels()} appels GitHub sur l'heure écoulée${quota === null ? "" : ` — GitHub en dit ${quota.restant} restants sur ${quota.plafond}`}`);
     } catch (erreur) {
       options.dire(`brigade : appels GitHub de l'heure écoulée non comptés — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
     }
@@ -188,21 +287,84 @@ export function refusPourLimite(reponse: ReponseHttp): boolean {
 export const ATTENTE_PAR_DEFAUT_MS = 60_000;
 const DELAI_RATE_LIMIT_MS = 10_000;
 
-// Ce que `gh api rate_limit` dit de la fin de fenêtre : cet appel ne compte pas
-// dans la limite de GitHub. Null s'il ne répond pas, ou ne dit rien d'exploitable.
-function finDeFenetreDite(options: { gh: string; env?: NodeJS.ProcessEnv; maintenant: number }): Promise<number | null> {
+type Ressource = { limit?: unknown; remaining?: unknown; reset?: unknown };
+
+// Les ressources que `gh api rate_limit` décrit : cet appel ne compte pas dans
+// la limite de GitHub. Null s'il ne répond pas, ou ne se lit pas.
+function ressourcesDites(options: { gh: string; env?: NodeJS.ProcessEnv }): Promise<Record<string, Ressource> | null> {
   return new Promise((resoudre) => {
     execFile(options.gh, ["api", "rate_limit"], { timeout: DELAI_RATE_LIMIT_MS, maxBuffer: 1024 * 1024, env: options.env }, (erreur, sortie) => {
       if (erreur) return resoudre(null);
       try {
-        const ressources = Object.values((JSON.parse(sortie) as { resources?: Record<string, { remaining?: unknown; reset?: unknown }> }).resources ?? {});
-        const fins = ressources.flatMap((r) => (r.remaining === 0 && typeof r.reset === "number" && r.reset * 1000 > options.maintenant ? [r.reset * 1000] : []));
-        resoudre(fins.length > 0 ? Math.max(...fins) : null);
+        resoudre((JSON.parse(sortie) as { resources?: Record<string, Ressource> }).resources ?? {});
       } catch {
         resoudre(null);
       }
     });
   });
+}
+
+// Ce que `gh api rate_limit` dit de la fin de fenêtre. Null s'il ne répond pas,
+// ou ne dit rien d'exploitable.
+async function finDeFenetreDite(options: { gh: string; env?: NodeJS.ProcessEnv; maintenant: number }): Promise<number | null> {
+  const ressources = Object.values((await ressourcesDites(options)) ?? {});
+  const fins = ressources.flatMap((r) => (r.remaining === 0 && typeof r.reset === "number" && r.reset * 1000 > options.maintenant ? [r.reset * 1000] : []));
+  return fins.length > 0 ? Math.max(...fins) : null;
+}
+
+// Le quota que disent les en-têtes d'une réponse, ou null s'ils ne le disent
+// pas. Seul celui de l'API REST (`core`) règle les appels : c'est le seul que
+// `gh api` dépense.
+export function quotaDesEntetes(entetes: Map<string, string>): Omit<Quota, "vu"> | null {
+  const ressource = entetes.get("x-ratelimit-resource");
+  if (ressource !== undefined && ressource !== "core") return null;
+  const [restant, plafond, reset] = ["x-ratelimit-remaining", "x-ratelimit-limit", "x-ratelimit-reset"].map((nom) => (entetes.has(nom) ? Number(entetes.get(nom)) : Number.NaN));
+  if (![restant, plafond, reset].every((n) => Number.isSafeInteger(n))) return null;
+  return { restant: restant as number, plafond: plafond as number, reset: (reset as number) * 1000 };
+}
+
+// Retient le quota que disent les en-têtes d'une réponse, s'ils le disent.
+export function noterLesEntetes(limite: Limite, compte: string, entetes: Map<string, string>): void {
+  const quota = quotaDesEntetes(entetes);
+  if (quota !== null) limite.noter(compte, quota);
+}
+
+// Relit le quota du compte auprès de `gh api rate_limit` et le retient : vrai
+// s'il l'a dit.
+export async function rafraichirLeQuota(limite: Limite, options: { gh: string; env?: NodeJS.ProcessEnv; compte?: string }): Promise<boolean> {
+  const core = (await ressourcesDites(options))?.core;
+  const [restant, plafond, reset] = [core?.remaining, core?.limit, core?.reset];
+  if (typeof restant !== "number" || typeof plafond !== "number" || typeof reset !== "number") return false;
+  limite.noter(options.compte ?? COMPTE_DE_LA_MACHINE, { restant, plafond, reset: reset * 1000 });
+  return true;
+}
+
+// Les confirmations tentées, par compteur et par compte : une relecture qui
+// échoue ne se retente pas avant `RAFRAICHIR_MS`.
+const confirmations = new WeakMap<Limite, Map<string, number>>();
+
+// Prend un appel, comme `limite.prendre` — mais une décision de la cuisine qui
+// se prendrait sur un quota bas lu depuis trop longtemps se confirme d'abord
+// auprès de `gh api rate_limit` : GitHub a pu voir passer depuis les appels du
+// Mac, ou commencer une autre fenêtre. `env` : celui de l'appel, demandé
+// seulement s'il faut le confirmer.
+export async function prendreUnAppel(
+  limite: Limite,
+  options: { usage?: Usage; compte?: string; gh: string; env?: () => Promise<NodeJS.ProcessEnv | undefined>; maintenant?: () => number },
+): Promise<void> {
+  const compte = options.compte ?? COMPTE_DE_LA_MACHINE;
+  const usage = options.usage ?? "cuisine";
+  if (usage === "cuisine" && limite.aConfirmer(compte)) {
+    const instant = (options.maintenant ?? Date.now)();
+    const tentees = confirmations.get(limite) ?? new Map<string, number>();
+    confirmations.set(limite, tentees);
+    const derniere = tentees.get(compte);
+    if (derniere === undefined || instant - derniere >= RAFRAICHIR_MS) {
+      tentees.set(compte, instant);
+      await rafraichirLeQuota(limite, { gh: options.gh, env: await options.env?.(), compte });
+    }
+  }
+  limite.prendre(usage, compte);
 }
 
 // GitHub a refusé pour sa limite : pose la pause sur le compteur, jusqu'à la

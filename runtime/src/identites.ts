@@ -248,7 +248,7 @@ export function ouvrirGitHubs(options: { depot: string; bin?: string; identites:
     const unique = ouvrirGitHub({ depot, bin });
     return { rail: unique, station: unique, pass: unique, manager: unique, fermer: unique.fermer };
   }
-  const [cook, pass, manager] = ROLES.map((role) => ouvrirGitHub({ depot, bin, jeton: identites.jeton(role).frais, identite: () => identites.login(role) })) as [GitHub, GitHub, GitHub];
+  const [cook, pass, manager] = ROLES.map((role) => ouvrirGitHub({ depot, bin, jeton: identites.jeton(role).frais, identite: () => identites.login(role), compte: role })) as [GitHub, GitHub, GitHub];
   const fermer = () => {
     for (const github of [cook, pass, manager]) github.fermer();
   };
