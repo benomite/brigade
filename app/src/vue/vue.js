@@ -120,8 +120,10 @@ import { EXPLIQUE as AIDE_DU_PLAFOND, poserLePlafond as plafondDeCalibrage, resu
 import { poserLActivite } from "./activite-cuisine.js";
 import { GATES_HORS_BUDGET, poserLeJourDesGates, poserLesGatesDeCooks } from "./cout-des-gates.js";
 import { AIDE as AIDE_DES_ROLES, poserLesRoles, resumeDesRoles, TITRE as TITRE_DES_ROLES } from "./roles-cuisine.js";
-import { apresLaDecision, poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
+import { apresLaDecision, phrase, poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
 import { poserPremierLancement } from "./premier-lancement.js";
+import { poserRailPublie } from "./rail-publie.js";
+import { poserOutilsDuSecond } from "./outils-du-second.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
 // et ne peut pas importer du TypeScript — la locale est la même, anglaise.
@@ -243,6 +245,7 @@ const fermerShell = element("fermer-shell");
 const listeMachines = element("machines");
 const colonneSecond = element("second");
 const noteSecond = element("note-second");
+const outilsDuSecond = element("outils-du-second");
 const fil = element("fil");
 const bandeau = element("bandeau");
 const teteDuSecond = element("tete-du-second");
@@ -714,6 +717,12 @@ const coutsLus = new Map();
 // posé sous sa fiabilité (ticket 1022). Indéfinie : pas encore lue depuis que la lecture est affichée.
 /** @type {Lecture | undefined} */
 let lectureDeLaFiabilite;
+// Le rail que sa station publie, par projet sans box ni station ici (ticket 1435, `lireLeRailPublie`), et le rang de sa
+// dernière lecture. `sansReponse` : un pont qui ne le lit pas, et l'onglet garde sa phrase d'avant (ticket 1405).
+/** @type {Map<string, import("./rail-publie.js").EtatDuRailPublie & { sansReponse?: true }>} */
+const railsPublies = new Map();
+/** @type {Map<string, number>} */
+const lecturesPubliees = new Map();
 // Les onglets de contenu, dits par le process principal au démarrage (onglets.ts).
 /** @type {readonly import("../onglets.ts").Onglet[]} */
 let ONGLETS = [];
@@ -1300,13 +1309,33 @@ function poserSecond(ouvrable, montre) {
   sectionConversation.hidden = !enMessages;
   noteSecond.hidden = enMessages;
   if (enMessages && !colonneSecond.hidden) conversationDuTelephone?.montrer(/** @type {Projet} */ (courant).nom);
-  noteSecond.textContent =
+  const note =
     courant !== undefined && courant.refus !== undefined
       ? `“${courant.nom}” does not open: ${courant.refus} — it has no second`
       : nonEcritSecond !== ""
         ? nonEcritSecond
         : (montre?.note ?? (ouvrable ? "the second is opening…" : ""));
-  fil.hidden = !ouvrable || conversationDuTelephone !== undefined;
+  // Ce que le runtime dit d'un second qui ne part pas nomme ses outils entre accents graves : posés en code (ticket 1435).
+  if (montre?.empeche !== undefined && note === montre.note) noteSecond.replaceChildren(phrase(document, "span", note));
+  else noteSecond.textContent = note;
+  // Un second qui ne part pas n'a pas de terminal à montrer : à sa place, pourquoi, et ce qui lui manque (ticket 1435).
+  fil.hidden = !ouvrable || conversationDuTelephone !== undefined || montre?.empeche !== undefined;
+  // Le second ne part pas, ou part sans tous ses outils (ticket 1435) : sous sa note, chaque outil qui manque, et ce
+  // qui l'obtient — et, s'il ne part pas, de quoi réessayer. Sur un projet qui ne s'ouvre pas, il n'y a pas de second.
+  const dit = !ouvrable || enMessages ? undefined : (montre?.empeche ?? montre?.manque);
+  outilsDuSecond.hidden = dit === undefined;
+  outilsDuSecond.replaceChildren(
+    ...(dit === undefined || montre === undefined
+      ? []
+      : [
+          poserOutilsDuSecond(document, dit, {
+            bloque: montre.empeche !== undefined,
+            // Comme une touche dans un second arrêté : il est relancé, et ses outils revérifiés (terminaux.ts).
+            reessayer: () => brigade.ecrire(montre.id, ""),
+            ouvrirLaPage: (url) => void brigade.ouvrirLaPage?.(url),
+          }),
+        ]),
+  );
 }
 
 // Une phrase longue tient en une ligne : son début, avant toute commande ou
@@ -4337,7 +4366,12 @@ function poserRail(projet) {
   if (rail.hidden && ouverte !== undefined) fermerFiche();
   if (rail.hidden) return rail.replaceChildren();
   // Ni box ni station sur cet ordinateur : rien n'en est lu, et la page ne reste pas vide — elle dit pourquoi (ticket 1405).
-  if (!seLit(projet) && projet.sansStation !== true) return rail.replaceChildren(bloc("h3", "the rail is not read: no station is known to serve this project yet — it appears as soon as one does"));
+  // Sur Rail, celui que sa station publie sur GitHub, s'il y en a une (ticket 1435) : ses tickets, ou pourquoi il ne se lit pas.
+  if (!seLit(projet) && projet.sansStation !== true) {
+    const publie = railsPublies.get(projet.nom);
+    if (!cuisine && publie !== undefined && !publie.sansReponse) return rail.replaceChildren(...poserRailPublie(document, { ...publie, connexion: premier.connexion }, gestesDuRailPublie(projet)));
+    return rail.replaceChildren(bloc("h3", "the rail is not read: no station is known to serve this project yet — it appears as soon as one does"));
+  }
   // Sur Cooks, dans l'ordre de sa revue (docs/revue-page-cooks.md, ticket 1456) : ses stations et leurs cooks en tête —
   // la ligne de sa cuisine dedans —, les pages servies sans carte et ses serveurs de livraison sous elles, puis ses
   // tickets, ses gates, et en bas, repliés, son plafond de calibrage, ses rôles, ce que ses cooks ont appris et la
@@ -6717,6 +6751,8 @@ function ouvrirPremier() {
 
 // Reposé à chaque changement — tant qu'il est l'écran montré : un autre l'a remplacé, rien n'y est reposé.
 function poserLePremier() {
+  // La connexion lancée depuis le rail publié s'y dit aussi (rail-publie.js, ticket 1435).
+  if (courant !== undefined && railsPublies.has(courant.nom) && !rail.hidden) poserRail(courant);
   if (ecranDuPremier === undefined || ecranDuPremier.parentElement !== tous || tous.hidden) return;
   ecranDuPremier = poserPremierLancement(document, { ...premier, poste: POSTE.nom }, gestesDuPremier);
   tous.replaceChildren(ecranDuPremier);
@@ -6781,6 +6817,7 @@ async function seConnecterAGitHub() {
 // Connecté : les stations sont relues, et une ouverture que la connexion retenait repart.
 function connecteAGitHub() {
   delete premier.connexion;
+  if (courant !== undefined && railsPublies.has(courant.nom)) void lireLeRailPublie(courant);
   const retenue = premier.ouverture?.echec?.cause === "sign-in-required" ? premier.ouverture : undefined;
   void relireLePremier();
   if (retenue !== undefined) void ouvrirDUneStation(retenue.station, retenue.projet, retenue.depot);
@@ -6914,6 +6951,41 @@ function vider() {
   choisi.textContent = "no folder chosen";
 }
 
+// Le rail d'un projet que ni une box ni la station de cet ordinateur ne servent (ticket 1435, rail-publie.js) : celui que
+// sa station publie sur GitHub, lu par le runtime à l'ouverture de l'espace, et relu d'un bouton — ou après une
+// connexion à GitHub. Ce qui en est tenu est en tête du fichier (`railsPublies`).
+
+/** @param {Projet} projet */
+async function lireLeRailPublie(projet) {
+  const demandee = (lecturesPubliees.get(projet.nom) ?? 0) + 1;
+  lecturesPubliees.set(projet.nom, demandee);
+  railsPublies.set(projet.nom, {});
+  if (courant?.nom === projet.nom) poserRail(projet);
+  /** @type {import("./rail-publie.js").EtatDuRailPublie & { sansReponse?: true }} */
+  let lu;
+  try {
+    const rendu = await brigade.railDuProjet?.(projet.nom);
+    lu = rendu === undefined ? { sansReponse: true } : { lu: rendu };
+  } catch (erreur) {
+    const detail = erreur instanceof Error ? erreur.message : String(erreur);
+    lu = { lu: { state: "unavailable", project: projet.nom, cause: "unreadable", reason: `The rail of ${projet.nom} could not be read: the app failed while reading it.`, detail } };
+  }
+  if (lecturesPubliees.get(projet.nom) !== demandee) return;
+  railsPublies.set(projet.nom, lu);
+  if (courant?.nom === projet.nom && !rail.hidden) poserRail(projet);
+}
+
+/** @param {Projet} projet @returns {import("./rail-publie.js").GestesDuRailPublie} */
+function gestesDuRailPublie(projet) {
+  return {
+    relire: () => void lireLeRailPublie(projet),
+    seConnecter: () => void seConnecterAGitHub(),
+    ouvrirLaPage: (url) => void brigade.ouvrirLaPage?.(url),
+    ouvrirIssue: (ticket) => void ouvrirIssue(projet, ticket),
+    forme: formeDe,
+  };
+}
+
 /** @param {Projet} projet */
 async function ouvrir(projet) {
   courant = projet;
@@ -6943,6 +7015,7 @@ async function ouvrir(projet) {
   poserCouleurs(projet);
   void poserOrdinaires(projet);
   brigade.regarder(projet.nom, ++demande);
+  if (!seLit(projet) && projet.sansStation !== true) void lireLeRailPublie(projet);
   // Un projet qui ne s'ouvre pas n'a pas de second : sa colonne dit pourquoi.
   if (projet.refus !== undefined) return montrer();
   // Le pont du téléphone n'ouvre aucun terminal : il ne rend rien (ticket 1165).

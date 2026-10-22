@@ -277,8 +277,12 @@ export type Pont = {
   // Lance la connexion à GitHub que le runtime nomme : rend le code à taper et sa page, déjà ouverte — ou pourquoi
   // rien n'est parti. Sa fin arrive par `surConnexionGitHub`.
   seConnecterAGitHub?(): Promise<DebutDeConnexion>;
-  // Ouvre une page qu'un échec du runtime a nommée (installer `gh`, demander l'accès) ; rend faux pour toute autre.
+  // Ouvre une page qu'un échec du runtime a nommée (installer `gh`, demander l'accès), ou celle qui dit comment obtenir
+  // un outil qui manque au second (ticket 1435) ; rend faux pour toute autre.
   ouvrirLaPage?(url: string): Promise<boolean>;
+  // Le rail d'un projet que ni une box ni la station de cet ordinateur ne servent (ticket 1435) : celui que sa station
+  // publie sur GitHub, rangé dans les colonnes du rail — ou pourquoi il ne se lit pas, en une phrase.
+  railDuProjet?(nom: string): Promise<import("../faits.ts").RailDuProjetLu>;
   // Ce qu'engage l'allumage du manager, chiffré (allumage.ts) : les issues ouvertes du projet, et
   // celles qui portent `blocked-on-human` — `manager backlog`, lancée une fois sur sa box. Demandé
   // quand la confirmation d'« allumer » s'ouvre : son « oui » n'attend pas cette lecture. Rien, pour un projet sans box.

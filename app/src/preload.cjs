@@ -84,6 +84,8 @@ const pont = {
   ouvrirDUneStation: (nom, depot) => ipcRenderer.invoke("ouvrirDUneStation", nom, depot),
   seConnecterAGitHub: () => ipcRenderer.invoke("seConnecterAGitHub"),
   ouvrirLaPage: (url) => ipcRenderer.invoke("ouvrirLaPage", url),
+  // Le rail d'un projet sans box ni station ici, tel que sa station le publie sur GitHub (ticket 1435).
+  railDuProjet: (nom) => ipcRenderer.invoke("railDuProjet", nom),
   compter: (projet) => ipcRenderer.invoke("compter", projet),
   closer: (projet, action, oui) => ipcRenderer.invoke("closer", projet, action, oui),
   corriger: (projet, proposition, reponse) => ipcRenderer.invoke("corriger", projet, proposition, reponse),

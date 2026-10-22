@@ -127,9 +127,10 @@ test("le dossier choisi propose son dépôt et sa branche ; ajouté, le projet n
   await repos();
   await repos();
   assert.deepEqual(jouee.dernier("ajouter"), [{ dossier: "/tmp/parade", depot: "benomite/parade", base: "v2" }]);
-  // Ajouter ne lance rien d'autre : aucun geste vers une station, aucune machine jointe.
+  // Ajouter ne lance rien d'autre : aucun geste vers une station, aucune machine jointe. Sa page lit le rail que
+  // sa station publierait sur GitHub (#1435) : une lecture, pas un geste.
   assert.deepEqual(
-    jouee.appels.slice(appelesAvant).map(({ geste }) => geste).filter((geste) => !["ajouter", "faits", "regarder", "espace", "onglet", "service", "retrait", "ordinaires", "tous"].includes(geste)),
+    jouee.appels.slice(appelesAvant).map(({ geste }) => geste).filter((geste) => !["ajouter", "faits", "regarder", "espace", "onglet", "service", "retrait", "ordinaires", "tous", "railDuProjet"].includes(geste)),
     [],
   );
   assert.equal(jouee.appels.some(({ geste }) => geste === "confierAUneStation" || geste === "ajouterAUneStation"), false);

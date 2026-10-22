@@ -27,12 +27,13 @@ export function ouvrirPty(lancement: Lancement): Pty {
   // pas : il n'est donc chargé qu'ici, à l'usage. Ce module, lui, se charge
   // partout — c'est ce qui laisse `ptyDisponible` répondre sur Linux.
   const { spawn } = requerir("node-pty") as typeof import("node-pty");
-  const pty = spawn(lancement.commande, lancement.args, {
+  // Une ligne déjà écrite pour Windows (le plan du second, #1433) part telle quelle : node-pty la prend en une chaîne.
+  const pty = spawn(lancement.commande, lancement.verbatim === true ? lancement.args.join(" ") : lancement.args, {
     name: "xterm-256color",
     cwd: lancement.dossier,
     cols: lancement.colonnes,
     rows: lancement.lignes,
-    env: environnement(),
+    env: { ...environnement(), ...lancement.env },
   });
   pty.onData(lancement.surSortie);
   // Tué par un signal, un process n'a pas de code : celui du shell (128 + signal).
