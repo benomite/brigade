@@ -130,6 +130,7 @@ import { ticketDuRail } from "./projections/rail.ts";
 import { compteRetenu, cookDeRun, refusDAffilee, stationsAnnoncees } from "./projections/stations.ts";
 import { GesteRefuse, nomAbandon } from "./rail.ts";
 import { corpsDeReparation, echecsDesGates, LABELS_REPARATION, shaDeReparation, titreDeReparation } from "./reparation.ts";
+import { FICHIER as REGLAGES_DU_PROJET } from "./reglages-projet/reglages.ts";
 import { DECLARATION_RESEAU } from "./reseau.ts";
 import { argumentsReviewer, CONSIGNE_MAX, consigneDeRelecture, DE_LA_BRIGADE, debutDeRelecture, diffCoupe, lireRelecture, REVIEWER, type ConfigReviewer } from "./reviewer.ts";
 import { calibrageDuSecondJuge, carteDuSecondJuge, consigneDuSecondJuge, debutDuSecondJugement, DIRE_VERDICT, lireSecondJugement, SECOND_JUGE } from "./second-juge.ts";
@@ -154,6 +155,7 @@ const JUGES = [".claude/brigade/", ".github/workflows/"];
 // la base ne le porte : mergée, la déclaration vaut pour le cook suivant.
 const DECLARATIONS: Record<string, string> = {
   [DECLARATION_RESEAU]: "chaque hôte qu'elle ajoute s'ouvre aux cooks suivants du projet, qui ont ses secrets de dev dans leur environnement",
+  [REGLAGES_DU_PROJET]: "elle change un réglage du projet (branche d'intégration, calibrages, options) que la station lit depuis le dépôt et applique aux cooks suivants",
   [DECLARATION]: "chaque nom qu'elle ajoute est une valeur de la machine remise aux cooks suivants du projet",
 };
 const WORKFLOWS = ".github/workflows";
