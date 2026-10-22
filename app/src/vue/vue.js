@@ -115,6 +115,7 @@ import { poserBlocages } from "./projet/blocages.js";
 import { poserDelai } from "./projet/delai.js";
 import { poserChoix, sansLesChoix } from "./projet/choix.js";
 import { ligneDAlerte, poserLesStations as stationsDeCuisson } from "./stations-de-cuisson.js";
+import { poserLesAppels } from "./appels-de-la-station.js";
 import { poserLePlafond as plafondDeCalibrage } from "./plafond-de-calibrage.js";
 import { poserLActivite } from "./activite-cuisine.js";
 import { poserLeJourDesGates, poserLesGatesDeLaFile } from "./cout-des-gates.js";
@@ -440,7 +441,10 @@ const versionDeStation = document.createElement("p");
 versionDeStation.className = "version-de-station";
 const retraitDeStation = document.createElement("div");
 retraitDeStation.className = "retrait-de-station";
-pageDeStation.append(retourALAccueil, enTeteDeStation, plafondDeStation, versionDeStation, pannesDeStation, bloc("h3", "Projects"), listeDesProjets, ouvrirLeParcours, formulaireDAjout, ajoutDit, retraitDeStation);
+// Les appels de la box à GitHub sur la dernière heure (ticket 1418), sous la ligne de mise à jour.
+const appelsDeStation = document.createElement("div");
+appelsDeStation.ariaLive = "polite";
+pageDeStation.append(retourALAccueil, enTeteDeStation, plafondDeStation, versionDeStation, appelsDeStation, pannesDeStation, bloc("h3", "Projects"), listeDesProjets, ouvrirLeParcours, formulaireDAjout, ajoutDit, retraitDeStation);
 // Le coût de tous les projets (ticket 1022) : il vaut pour l'ensemble, il vit donc au niveau de l'app, pas dans
 // un projet. Sur l'accueil, une ligne « Cost » l'ouvre — sans ouvrir aucun projet. Sa page : les tokens
 // lancés sur 5 h, 24 h et 7 jours par projet, les tokens perdus, les tickets les plus chers, la courbe, et
@@ -5191,6 +5195,7 @@ function poserPageDeStation() {
     pannesDeStation.replaceChildren();
     plafondDeStation.replaceChildren();
     versionDeStation.replaceChildren();
+    appelsDeStation.replaceChildren();
     retraitDeStation.replaceChildren();
   } else {
     const titre = bloc("h2", station.nom);
@@ -5205,6 +5210,7 @@ function poserPageDeStation() {
     enTeteDeStation.replaceChildren(titre, pastille(phrase, ligne?.ton), ...(dejaDit ? [] : [etatDit]), ...(details === "" ? [] : [survol(document, details)]), ...(ligne?.note === undefined ? [] : [bloc("p", ligne.note)]));
     poserPlafond(station.nom, ligne);
     versionDeStation.replaceChildren(...(station.versionDit ? [bloc("span", station.versionDit)] : []));
+    appelsDeStation.replaceChildren(poserLesAppels(document, ligne?.appels));
     pannesDeStation.replaceChildren(...station.pannes.map((panne) => poserPanne(station.id, panne)));
     poserRetireLaStation(station);
   }
