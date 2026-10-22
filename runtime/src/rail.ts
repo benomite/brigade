@@ -166,7 +166,7 @@ export function direRetenue(ticket: TicketRail): string | null {
     ...(abandonnes.length === 0 ? [] : [bloque]),
     ...enCours.filter(gele).map((attendu) => `${GELE} par #${attendu.ticket} (${DIT_GELE})`),
     ...(attendus.length === 0 ? [] : [`attend ${abandonnes.length === 0 ? "" : "aussi "}${numeros(attendus)}`]),
-    ...ticket.held.map((tenant) => (gele(tenant) ? `${GELE} par #${tenant.ticket} (${DIT_GELE} — zone tenue : ${tenant.path})` : `zone tenue par #${tenant.ticket} (${tenant.path})`)),
+    ...ticket.held.map((tenant) => `zone tenue par #${tenant.ticket} (${tenant.path})`),
   ].join(" · ");
 }
 
@@ -182,7 +182,7 @@ export function direRetenueEn(ticket: TicketRail): string | null {
     ...(abandonnes.length === 0 ? [] : [bloque]),
     ...enCours.filter(gele).map((attendu) => `${GELE_EN} by #${attendu.ticket} (${DIT_GELE_EN})`),
     ...(attendus.length === 0 ? [] : [`${abandonnes.length === 0 ? "" : "also "}awaiting ${numeros(attendus)}`]),
-    ...ticket.held.map((tenant) => (gele(tenant) ? `${GELE_EN} by #${tenant.ticket} (${DIT_GELE_EN} — zone held: ${tenant.path})` : `zone held by #${tenant.ticket} (${tenant.path})`)),
+    ...ticket.held.map((tenant) => `zone held by #${tenant.ticket} (${tenant.path})`),
   ].join(" · ");
 }
 
