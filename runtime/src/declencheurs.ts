@@ -73,8 +73,10 @@ const evenements = (lignes: string[]): Map<string, Filtres> | null => {
       filtre = null;
       // `pull_request: { branches: [main] }` ou une valeur en ligne : illisible ici.
       if (reste.trim() !== "" && reste.trim() !== "~" && reste.trim() !== "null") return null;
-    } else if (courant !== null && texte.startsWith("-") && filtre !== null) {
-      (courant[filtre] ??= []).push(sansGuillemets(texte.replace(/^-\s*/, "")));
+    } else if (courant !== null && texte.startsWith("-")) {
+      // Sans filtre en cours, c'est la liste de l'événement lui-même
+      // (`schedule:` et ses `- cron:`) : aucun filtre de PR à y lire.
+      if (filtre !== null) (courant[filtre] ??= []).push(sansGuillemets(texte.replace(/^-\s*/, "")));
     } else if (courant !== null) {
       const [, cle = "", reste = ""] = /^([\w-]+)\s*:(.*)$/.exec(texte) ?? [];
       if (cle === "") return null;

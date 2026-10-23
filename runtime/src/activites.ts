@@ -47,9 +47,24 @@ function auTravail(ticket: TicketRail, cook: DernierCook | undefined): ActiviteD
 // La dernière relecture d'un ticket : quand elle est partie, quand elle a fini.
 type Relecture = { launchedAt: string; endedAt: string | null };
 
+// Les workflows dont la pass attend la CI sur le commit jugé, d'après le
+// dernier fait qu'elle en a noté — nul si elle n'en attend aucun.
+export function workflowsAttendus(base: Base, pass: PassDeTicket): string | null {
+  if (pass.sha === null) return null;
+  const ligne = base.lire<{ workflows: string }>(
+    `SELECT json_extract(payload, '$.workflows') AS workflows FROM events
+     WHERE ticket = ? AND type = 'pass.ci-awaited' AND json_extract(payload, '$.sha') = ? ORDER BY seq DESC LIMIT 1`,
+    pass.ticket,
+    pass.sha,
+  )[0];
+  if (ligne === undefined) return null;
+  const fichiers: unknown = JSON.parse(ligne.workflows);
+  return Array.isArray(fichiers) && fichiers.length > 0 ? fichiers.join(", ") : null;
+}
+
 // Un ticket en pass : la relecture tant que son cook tourne ; après elle, le
 // jugement attend la CI ; avant elle, ce sont les gates.
-function aLaPass(pass: PassDeTicket | undefined, derniere: Relecture | null): ActiviteDeTicket | null {
+function aLaPass(base: Base, pass: PassDeTicket | undefined, derniere: Relecture | null): ActiviteDeTicket | null {
   if (pass === undefined) return null;
   // Des gates coupées sur une machine saturée : la ligne qui le dit.
   if (pass.phase === "waiting" && pass.reason === GATES_COUPEES) return activite(DIRE_GATES_COUPEES, pass.since);
@@ -63,7 +78,8 @@ function aLaPass(pass: PassDeTicket | undefined, derniere: Relecture | null): Ac
   if (relecture === null) return activite("gates en cours", debut);
   if (relecture.endedAt === null) return activite("relecture en cours", relecture.launchedAt);
   // Relue, la livraison attend sa CI — ou une autre relecture, si la sienne était illisible.
-  return activite(pass.review?.sha === pass.sha ? "jugement en cours" : "relecture en cours", relecture.endedAt);
+  if (pass.review?.sha !== pass.sha) return activite("relecture en cours", relecture.endedAt);
+  return activite("jugement en cours", relecture.endedAt, workflowsAttendus(base, pass));
 }
 
 // L'activité de chaque ticket pris ou en pass ; nulle quand le runtime ne la
@@ -74,7 +90,7 @@ export function activitesDuRail(base: Base, rail: TicketRail[]): Map<number, Act
   return new Map(
     rail.flatMap((ticket): [number, ActiviteDeTicket | null][] => {
       if (ticket.state === "taken") return [[ticket.ticket, auTravail(ticket, cooks.get(ticket.ticket))]];
-      if (ticket.state === "pass") return [[ticket.ticket, aLaPass(passes.get(ticket.ticket), dernierRunNomme(base, debutDeRelecture(ticket.ticket)))]];
+      if (ticket.state === "pass") return [[ticket.ticket, aLaPass(base, passes.get(ticket.ticket), dernierRunNomme(base, debutDeRelecture(ticket.ticket)))]];
       return [];
     }),
   );

@@ -1117,12 +1117,14 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   // Ce que la branche d'une livraison porte, sans worktree.
   // Un workflow qui ne se lance pas sur une PR vers la base n'enverra jamais
   // de check : l'attendre ferait perdre le délai entier.
-  const porteDesWorkflows = (branche: string) => {
+  // Lus sur la branche jugée, à chaque jugement : rien n'est gardé d'un tour à l'autre.
+  const workflowsDeLaPr = (branche: string): string[] => {
     const modifies = depot.changes(branche);
     return depot
       .liste(branche, WORKFLOWS)
       .filter((fichier) => /\.ya?ml$/.test(fichier))
-      .some((fichier) => declencheSurPr(depot.lire(branche, `${WORKFLOWS}/${fichier}`) ?? "", options.base, modifies));
+      .filter((fichier) => declencheSurPr(depot.lire(branche, `${WORKFLOWS}/${fichier}`) ?? "", options.base, modifies))
+      .map((fichier) => `${WORKFLOWS}/${fichier}`);
   };
   // Le clone ne connaît plus la branche : une restauration repart d'un clone
   // neuf. La pass n'a plus rien à juger, et ne la recrée pas.
@@ -1767,7 +1769,11 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       const checks = (await github.ci(sha)).map((check): Check => (check.outcome === "red" && relances.has(check.url) ? { ...check, outcome: "pending" } : check));
       if (arrete) return;
       // Des workflows sans aucun check : la CI n'a pas encore démarré.
-      const attendue = checks.length === 0 && porteDesWorkflows(ref);
+      const workflows = checks.length === 0 ? workflowsDeLaPr(ref) : [];
+      const attendue = workflows.length > 0;
+      if (attendue && !journal.duTicket(ticket).some((evenement) => evenement.type === "pass.ci-awaited" && evenement.payload.sha === sha)) {
+        noter(ticket, { type: "pass.ci-awaited", payload: { sha, workflows } });
+      }
       const enCours = attendue || checks.some((check) => check.outcome === "pending");
       // Un constat bloquant n'attend pas la CI : le verdict est déjà rouge,
       // et elle sera lue sur le commit qui le corrige.
@@ -1778,7 +1784,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
         return remonter(
           connu,
           "ci-silent",
-          `La CI du commit \`${court(sha)}\` n'a pas conclu en ${minutes(options.attenteCiMs)}${attendue ? " (aucun check, alors que la branche porte des workflows qui se lancent sur les PR)" : ""}. Les gates, elles, sont vertes.`,
+          `La CI du commit \`${court(sha)}\` n'a pas conclu en ${minutes(options.attenteCiMs)}${attendue ? ` (aucun check, alors que la branche porte ${workflows.length > 1 ? "des workflows qui se lancent" : "un workflow qui se lance"} sur les PR : ${workflows.map((fichier) => `\`${fichier}\``).join(", ")})` : ""}. Les gates, elles, sont vertes.`,
         );
       }
       if (!enCours) {
