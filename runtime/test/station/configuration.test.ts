@@ -64,15 +64,15 @@ test("une ligne qui porte encore le plafond de calibrage, devenu une décision d
 });
 
 test("une ligne qui ne nomme pas de branche : le dépôt du projet la déclare, et l'environnement n'en hérite aucune de la station", () => {
-  const { projets, problemes } = lireConfiguration(["parade acme/parade", "espace acme/espace BRIGADE_SECRETS_FILE=/srv/secrets/espace.env"].join("\n"));
+  const { projets, problemes } = lireConfiguration(["shop acme/shop", "espace acme/espace BRIGADE_SECRETS_FILE=/srv/secrets/espace.env"].join("\n"));
   assert.deepEqual(problemes, []);
   assert.deepEqual(projets, [
-    { nom: "parade", depot: "acme/parade", base: null, reglages: {}, ligne: "parade acme/parade" },
+    { nom: "shop", depot: "acme/shop", base: null, reglages: {}, ligne: "shop acme/shop" },
     { nom: "espace", depot: "acme/espace", base: null, reglages: { BRIGADE_SECRETS_FILE: "/srv/secrets/espace.env" }, ligne: "espace acme/espace BRIGADE_SECRETS_FILE=/srv/secrets/espace.env" },
   ]);
-  const [parade] = projets;
-  assert.ok(parade);
-  const env = environnementDuProjet("/srv/brigade", parade, { BRIGADE_BASE_BRANCH: "vieille" });
+  const [shop] = projets;
+  assert.ok(shop);
+  const env = environnementDuProjet("/srv/brigade", shop, { BRIGADE_BASE_BRANCH: "vieille" });
   assert.equal(env.BRIGADE_BASE_BRANCH, undefined);
 });
 

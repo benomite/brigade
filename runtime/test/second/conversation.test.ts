@@ -52,7 +52,7 @@ test("une conversation est ce que le chef a écrit et ce que le second a répond
 function poser(t: TestContext) {
   const racine = repertoireTemporaire(t);
   const claude = join(racine, "claude");
-  const dossier = join(racine, "parade");
+  const dossier = join(racine, "shop");
   mkdirSync(dossier);
   const projet = join(claude, "projects", realpathSync(dossier).replace(/[^a-zA-Z0-9]/g, "-"));
   return { claude, dossier, projet };

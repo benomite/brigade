@@ -116,10 +116,10 @@ for (const poste of POSTES) {
   test(`${poste} : marquer la station jouée par ce poste l'ajoute aux « stations » du projet dans app.json, le reste du fichier inchangé`, (t) => {
     const chemin = join(repertoireTemporaire(t), "app.json");
     const ecrit = {
-      hotes: ["parade-box"],
+      hotes: ["shop-box"],
       projets: [
-        { nom: "autre", dossier: "~/autre", hote: "parade-box", stations: ["mac/claude"] },
-        { nom: PROJET, dossier: "~/espace", hote: "parade-box", couleurs: { onglet: "#123456" } },
+        { nom: "autre", dossier: "~/autre", hote: "shop-box", stations: ["mac/claude"] },
+        { nom: PROJET, dossier: "~/espace", hote: "shop-box", couleurs: { onglet: "#123456" } },
       ],
     };
     writeFileSync(chemin, `${JSON.stringify(ecrit, null, 2)}\n`);

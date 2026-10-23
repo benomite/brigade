@@ -19,9 +19,9 @@ import { aArreter, jusqua, repertoireTemporaire, temporaireDuFichier } from "../
 
 const rienNeReste = temporaireDuFichier();
 
-// Ce que le setup de gadgets a dit sur parade-box : le Postgres de la
+// Ce que le setup de gadgets a dit sur shop-box : le Postgres de la
 // station est installé, mais il ne connaît pas le compte de la cuisine.
-const MIRRORLAB = 'psql: error: connection to server on socket "/var/run/postgresql/.s.PGSQL.5432" failed: FATAL:  role "claude" does not exist';
+const SORTIE_PSQL = 'psql: error: connection to server on socket "/var/run/postgresql/.s.PGSQL.5432" failed: FATAL:  role "claude" does not exist';
 
 // Un serveur Postgres doublé, tel que le compte de la station le trouve : il
 // refuse sa connexion, ou le sert.
@@ -29,7 +29,7 @@ const unPostgres =
   (sert: boolean): Jouer =>
   (commande, args) => {
     if (commande !== "psql") return { code: null, sortie: "" };
-    return sert ? { code: 0, sortie: "" } : { code: 2, sortie: `${MIRRORLAB}\n` };
+    return sert ? { code: 0, sortie: "" } : { code: 2, sortie: `${SORTIE_PSQL}\n` };
   };
 
 // Une machine où les binaires de Postgres sont installés ; `sert` : leur
@@ -68,7 +68,7 @@ function unClone(t: TestContext): string {
 describe("ce que la sortie du setup nomme", () => {
   test("le Postgres qui refuse le compte de gadgets, une commande introuvable, un démon Docker muet : chacun nomme son besoin, une fois, dans l'ordre", () => {
     const ids = (sortie: string) => besoinsNommesParLeSetup(sortie).map(({ id }) => id);
-    assert.deepEqual(ids(`Scope: all 3 workspace projects\n${MIRRORLAB}\n`), ["postgres"]);
+    assert.deepEqual(ids(`Scope: all 3 workspace projects\n${SORTIE_PSQL}\n`), ["postgres"]);
     assert.deepEqual(ids("./setup.sh: line 12: psql: command not found"), ["postgres"]);
     assert.deepEqual(ids("ERROR:  permission denied to create database"), ["postgres"]);
     assert.deepEqual(ids("Error: connect ECONNREFUSED 127.0.0.1:5432"), ["postgres"]);
@@ -86,7 +86,7 @@ describe("ce que la sortie du setup nomme", () => {
 
 test("les choix des besoins expliquent tout l'échec, ou non : un fichier qui manque aussi n'est pas l'un d'eux", () => {
   const manque = (sortie: string) => manqueAutreChose(sortie, besoinsNommesParLeSetup(sortie));
-  assert.equal(manque(MIRRORLAB), false);
+  assert.equal(manque(SORTIE_PSQL), false);
   assert.equal(manque("./setup.sh: line 12: psql: command not found\nCannot connect to the Docker daemon at unix:///var/run/docker.sock."), false);
   assert.equal(manque("cp: cannot stat 'apps/api/.env': No such file or directory\n./setup.sh: line 12: psql: command not found"), true);
   assert.equal(manque("./setup.sh: line 12: psql: command not found\n./setup.sh: line 13: pnpm: command not found"), true);
@@ -184,7 +184,7 @@ describe("une cuisine dont le setup échoue", { concurrency: 3 }, () => {
     const [blocage, ...autres] = blocagesDuJournal(journal.base);
     assert.deepEqual(autres, []);
     assert.equal(blocage?.id, ID_DU_BLOCAGE_DU_SETUP);
-    assert.ok(blocage?.detail?.includes(MIRRORLAB), blocage?.detail ?? "");
+    assert.ok(blocage?.detail?.includes(SORTIE_PSQL), blocage?.detail ?? "");
   });
 });
 

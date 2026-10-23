@@ -260,7 +260,7 @@ test("le cook de préparation lancé sur un setup en échec reçoit ce qui a éc
   const { consigneDeRenvoi, consigneDeReprise } = await import("../src/pass.ts");
   const { consigneDeSuite } = await import("../src/claude.ts");
   const setup = { phrase: "le setup a besoin de `psql`, que la station `box/claude` n'a pas", sortie: "./setup.sh: line 3: psql: command not found\n```\nfin" };
-  const mission = { ticket: 20, titre: "Préparer le dépôt", depot: "acme/parade", base: "main" };
+  const mission = { ticket: 20, titre: "Préparer le dépôt", depot: "acme/shop", base: "main" };
   const renvoi = { ...mission, branche: "cook/20-abc", n: 1, findings: ["Gates rouges."] };
   const consignes = [
     consigne({ ...mission, setup }),

@@ -49,7 +49,7 @@ function uneStation(t: TestContext) {
     station: "box",
     env: {},
     // La station sert tout ce que sa configuration nomme.
-    servis: { projets: () => ["parade"], refus: () => null },
+    servis: { projets: () => ["shop"], refus: () => null },
     apresEcriture: () => {},
     dire: () => {},
     cadenceMs: 3_600_000,
@@ -73,17 +73,17 @@ function uneStation(t: TestContext) {
 
 test("le suivi porte l'onboarding de chaque projet dont la station est la principale : la préparation ouverte, son lien, l'étape courante", async (t) => {
   const station = uneStation(t);
-  station.demander(projet("parade"), projet("cortege", false));
+  station.demander(projet("shop"), projet("cortege", false));
   await station.projets.relire();
 
   const document = station.document();
   // Les projets du suivi n'en changent pas : l'onboarding est à côté.
   assert.deepEqual(document?.projets.map(({ nom, etat }) => [nom, etat]), [
-    ["parade", "servi"],
+    ["shop", "servi"],
     ["cortege", "secondaire"],
   ]);
-  assert.deepEqual(Object.keys(document?.onboarding ?? {}), ["parade"]);
-  const onboarding = document?.onboarding?.parade;
+  assert.deepEqual(Object.keys(document?.onboarding ?? {}), ["shop"]);
+  const onboarding = document?.onboarding?.shop;
   assert.equal(onboarding?.courante, "preparation");
   assert.deepEqual(
     onboarding?.etapes.map(({ etape, etat }) => [etape, etat]),
@@ -94,20 +94,20 @@ test("le suivi porte l'onboarding de chaque projet dont la station est la princi
       ["premier-ticket", "a-venir"],
     ],
   );
-  assert.deepEqual(onboarding?.preparation, { ticket: 7, url: "https://github.com/acme/parade/issues/7", etat: "en-cours", raison: null, prochainEssai: null, pr: null });
+  assert.deepEqual(onboarding?.preparation, { ticket: 7, url: "https://github.com/acme/shop/issues/7", etat: "en-cours", raison: null, prochainEssai: null, pr: null });
   assert.equal(onboarding?.termine, false);
 });
 
 test("les Apps à autoriser : l'onboarding attend le chef sur le dépôt, avec les pages où les autoriser", async (t) => {
   const station = uneStation(t);
   const pages = ["https://github.com/apps/brigade-cook/installations/new"];
-  station.autorisations.set("acme/parade", { autorisee: false, pages });
-  station.demander(projet("parade"));
+  station.autorisations.set("acme/shop", { autorisee: false, pages });
+  station.demander(projet("shop"));
   await station.projets.relire();
 
-  const onboarding = station.document()?.onboarding?.parade;
+  const onboarding = station.document()?.onboarding?.shop;
   assert.equal(onboarding?.courante, "depot");
-  assert.deepEqual(onboarding?.etapes[0]?.geste, { quoi: "Authorize brigade's GitHub Apps on acme/parade.", ou: "On GitHub, one click per page.", liens: pages });
+  assert.deepEqual(onboarding?.etapes[0]?.geste, { quoi: "Authorize brigade's GitHub Apps on acme/shop.", ou: "On GitHub, one click per page.", liens: pages });
 });
 
 test("suivi.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);

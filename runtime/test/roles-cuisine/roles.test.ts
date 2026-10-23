@@ -9,7 +9,7 @@ import { ouvrirJournal } from "../../src/journal.ts";
 import { ROLES, rolesDeLaCuisine, type RoleDeCuisine } from "../../src/roles-cuisine/roles.ts";
 import { aArreter, appeler, repertoireTemporaire } from "../outils.ts";
 
-const PROJET = "parade";
+const PROJET = "shop";
 const DEBUT = new Date("2026-10-21T12:00:00.000Z");
 const MINUTE_MS = 60_000;
 
@@ -48,7 +48,7 @@ test("la liste porte toujours le closer et chaque autre rôle, dans l'ordre, cha
 
 test("le dernier geste d'un rôle est le plus récent des faits qu'il écrit, avec son ticket et son heure", (t) => {
   const { noter, de } = cuisine(t);
-  noter(12, { type: "merge.done", payload: { pr: "https://github.com/chef/parade/pull/1", sha: "c0ffee", by: "pass", reconciled: false } });
+  noter(12, { type: "merge.done", payload: { pr: "https://github.com/chef/shop/pull/1", sha: "c0ffee", by: "pass", reconciled: false } });
   const juge = noter(14, { type: "pass.judged", payload: { verdict: "red" } }, { author: "pass" });
   assert.deepEqual(de("pass"), { what: "judged #14 red", ticket: 14, at: juge });
 
@@ -60,8 +60,8 @@ test("le dernier geste d'un rôle est le plus récent des faits qu'il écrit, av
 
 test("un fait qu'un autre que le rôle écrit n'est pas son geste : un merge fait hors de la pass, un renvoi du manager ou du chef", (t) => {
   const { noter, de } = cuisine(t);
-  const merge = noter(11, { type: "merge.done", payload: { pr: "https://github.com/chef/parade/pull/1", sha: "c0ffee", by: "pass", reconciled: false } }, { author: "pass" });
-  noter(12, { type: "merge.done", payload: { pr: "https://github.com/chef/parade/pull/2", sha: "beef", by: "outside", reconciled: true } }, { author: "pass" });
+  const merge = noter(11, { type: "merge.done", payload: { pr: "https://github.com/chef/shop/pull/1", sha: "c0ffee", by: "pass", reconciled: false } }, { author: "pass" });
+  noter(12, { type: "merge.done", payload: { pr: "https://github.com/chef/shop/pull/2", sha: "beef", by: "outside", reconciled: true } }, { author: "pass" });
   noter(13, { type: "pass.returned", payload: { n: 2, findings: ["x"] } }, { author: "manager" });
   noter(13, { type: "pass.returned", payload: { n: 3, findings: ["y"] } }, { author: "chef" });
   noter(14, { type: "pass.escalated", payload: { reason: REDECOUPE } }, { author: "manager" });
@@ -147,7 +147,7 @@ test("`facts` donne les rôles du projet dans `rolesCuisine` — chacun nul sans
   assert.equal(vide.length, ROLES.length);
   assert.ok(vide.every(({ latest }) => latest === null));
 
-  ecrire(PROJET, 12, "pass", { type: "merge.done", payload: { pr: "https://github.com/chef/parade/pull/1", sha: "c0ffee", by: "pass", reconciled: false } });
+  ecrire(PROJET, 12, "pass", { type: "merge.done", payload: { pr: "https://github.com/chef/shop/pull/1", sha: "c0ffee", by: "pass", reconciled: false } });
   ecrire("cantine", 13, "pass", { type: "merge.done", payload: { pr: "https://github.com/chef/cantine/pull/1", sha: "beef", by: "pass", reconciled: false } });
   const pass = (await lire({ BRIGADE_PROJECT: PROJET })).find(({ role }) => role === "pass")?.latest;
   assert.equal(pass?.what, "merged #12");
