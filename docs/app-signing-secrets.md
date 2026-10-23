@@ -4,8 +4,13 @@ The [`publier-app`](../.github/workflows/publier-app.yml) workflow publishes an 
 release on every merge on `v2` that changes the app ([`app/packaging/README.md`](../app/packaging/README.md),
 "Publier"). It only ships signed apps: the Mac `.dmg` is signed with a Developer ID certificate,
 notarized by Apple and stapled, so it opens with no Apple warning, and the Windows installer is
-signed with a code signing certificate. Installed apps update themselves to every release, so an
-unsigned one is never published.
+signed with a code signing certificate. Installed apps update themselves to every release, so a
+signed release is the only one that carries `latest-mac.yml` and `latest.yml`.
+
+While **none** of the six secrets is set, the workflow takes its unsigned path instead of failing: it
+builds and publishes `app-v<version>` with the unsigned `.dmg`, Windows `.exe` and Android `.apk`
+only (no update metadata, so installed apps do not update to them), and the run log says that the
+builds are unsigned. With only some of the secrets set, the signed path runs and refuses, as below.
 
 The certificates and credentials are **repository secrets**. Add each one under the repository's
 **Settings > Secrets and variables > Actions > New repository secret**, with the exact name below,

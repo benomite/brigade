@@ -12,10 +12,14 @@
 # depuis le dernier tag, et non depuis le seul push, fait qu'un run annulé ou échoué ne perd pas
 # son changement : le suivant le publie. `workflow_dispatch` rejoue la décision à la main.
 #
-# Rien ne part sans signature (#1441) : une app installée se mettrait à jour vers une app non
-# signée. Le .dmg est signé Developer ID, notarisé et agrafé ; l'installeur Windows est signé. Les
+# Deux chemins, selon les secrets de signature (#1441, #1526). Le job `detecter-secrets` regarde leur seule
+# présence : si aucun des six n'est posé, le chemin NON SIGNÉ construit et publie le .dmg, l'installeur
+# .exe et l'.apk (jobs `*-non-signe`, `android`, `publier-non-signe`), sans `latest-mac.yml` ni
+# `latest.yml` : une app installée ne se met donc pas à jour vers une app non signée. Sinon, le chemin
+# signé (#1441) joue, tel quel : le .dmg est signé Developer ID, notarisé et agrafé ; l'installeur Windows est signé. Les
 # certificats et identifiants sont des secrets du dépôt, listés dans docs/app-signing-secrets.md.
-# Le job `verifier-secrets` les vérifie avant toute construction : s'il en manque un, rien n'est
+# Le job `verifier-secrets` les vérifie avant toute construction : s'il en manque un (mais pas tous),
+# rien n'est
 # construit ni publié, la PR mergée reçoit un commentaire d'une phrase qui le nomme et dit où
 # l'ajouter, et le run finit rouge. Un merge qui ne change pas l'app ne les lit pas.
 name: publier-app
@@ -91,10 +95,39 @@ jobs:
             echo "The app did not change: nothing to publish." >> "$GITHUB_STEP_SUMMARY"
           fi
 
-  verifier-secrets:
-    # Avant toute construction : chaque secret de signature est là, ou rien ne part.
+  detecter-secrets:
+    # Les secrets de signature sont-ils tous absents ? Alors le chemin non signé publie ; sinon le
+    # chemin signé joue (et `verifier-secrets` refuse un jeu incomplet).
     needs: decider
     if: needs.decider.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      non_signe: ${{ steps.presence.outputs.non_signe }}
+    steps:
+      - name: Chercher les secrets de signature
+        id: presence
+        env:
+          # Leur seule présence : aucune valeur n'entre dans cette étape.
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE != '' }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD != '' }}
+          APPLE_ID: ${{ secrets.APPLE_ID != '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD != '' }}
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE != '' }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD != '' }}
+        run: |
+          set -euo pipefail
+          if [ "$MACOS_CERTIFICATE$MACOS_CERTIFICATE_PASSWORD$APPLE_ID$APPLE_APP_SPECIFIC_PASSWORD$WINDOWS_CERTIFICATE$WINDOWS_CERTIFICATE_PASSWORD" != falsefalsefalsefalsefalsefalse ]; then
+            echo "non_signe=false" >> "$GITHUB_OUTPUT"
+            echo "At least one signing secret is set: the signed path runs."
+          else
+            echo "non_signe=true" >> "$GITHUB_OUTPUT"
+            echo "No signing secret is set: the builds are unsigned."
+          fi
+
+  verifier-secrets:
+    # Avant toute construction : chaque secret de signature est là, ou rien ne part.
+    needs: [decider, detecter-secrets]
+    if: needs.decider.outputs.changed == 'true' && needs.detecter-secrets.outputs.non_signe != 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -386,3 +419,125 @@ jobs:
               --latest=false
           fi
           echo "Published $TAG: ${fichiers[*]}." >> "$GITHUB_STEP_SUMMARY"
+
+  # --- Chemin non signé (#1526) ----------------------------------------------------------------
+  # Sans aucun secret de signature : les mêmes constructions, sans signature, et une release qui ne
+  # porte que le .dmg, l'installeur .exe et l'.apk — pas de `latest-mac.yml` ni de `latest.yml`.
+  mac-non-signe:
+    needs: [decider, detecter-secrets]
+    if: needs.decider.outputs.changed == 'true' && needs.detecter-secrets.outputs.non_signe == 'true'
+    runs-on: macos-14
+    timeout-minutes: 90
+    env:
+      TAG: ${{ needs.decider.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+      - name: Installer les dépendances de l'app
+        run: npm ci --ignore-scripts --prefix app
+      - name: Construire le .dmg, non signé
+        run: |
+          set -euo pipefail
+          echo "::warning::The builds are unsigned: no signing secret is set."
+          echo "The builds are unsigned."
+          npm --prefix app run dist -- --version "${TAG#app-v}" --sortie "$RUNNER_TEMP/dist"
+      - name: Vérifier ce qui part vers la release
+        run: test -f "$RUNNER_TEMP/dist/Brigade-${TAG#app-v}-arm64.dmg"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-mac
+          path: ${{ runner.temp }}/dist/Brigade-*-arm64.dmg
+          if-no-files-found: error
+          retention-days: 7
+
+  windows-non-signe:
+    needs: [decider, detecter-secrets]
+    if: needs.decider.outputs.changed == 'true' && needs.detecter-secrets.outputs.non_signe == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      TAG: ${{ needs.decider.outputs.tag }}
+    steps:
+      - name: Garder les fins de ligne du dépôt
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+      - name: Construire l'installeur, non signé
+        shell: bash
+        run: |
+          set -euo pipefail
+          node app/packaging/windows.ts --version "${TAG#app-v}" --sortie "$RUNNER_TEMP/dist"
+          test -f "$RUNNER_TEMP/dist/Brigade-${TAG#app-v}-x64-setup.exe"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-windows
+          path: ${{ runner.temp }}/dist/Brigade-*-x64-setup.exe
+          if-no-files-found: error
+          retention-days: 7
+
+  android:
+    needs: [decider, detecter-secrets]
+    if: needs.decider.outputs.changed == 'true' && needs.detecter-secrets.outputs.non_signe == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      TAG: ${{ needs.decider.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Construire l'APK, non signé (clé de debug)
+        # Le SDK Android est préinstallé sur le runner (ANDROID_HOME) ; setup-java pose JAVA_HOME.
+        run: |
+          set -euo pipefail
+          node app/packaging/android.ts --version "${TAG#app-v}" --sortie "$RUNNER_TEMP/dist"
+          test -f "$RUNNER_TEMP/dist/Brigade-${TAG#app-v}.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-android
+          path: ${{ runner.temp }}/dist/Brigade-*.apk
+          if-no-files-found: error
+          retention-days: 7
+
+  publier-non-signe:
+    needs: [decider, detecter-secrets, mac-non-signe, windows-non-signe, android]
+    if: needs.decider.outputs.changed == 'true' && needs.detecter-secrets.outputs.non_signe == 'true'
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ needs.decider.outputs.tag }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: ${{ runner.temp }}/release
+          merge-multiple: true
+      - name: Publier la release, non signée
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          version="${TAG#app-v}"
+          cd "$RUNNER_TEMP/release"
+          fichiers=("Brigade-$version-arm64.dmg" "Brigade-$version-x64-setup.exe" "Brigade-$version.apk")
+          for fichier in "${fichiers[@]}"; do
+            test -f "$fichier" || { echo "::error::$fichier was not built — nothing is published"; ls -la; exit 1; }
+          done
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${fichiers[@]}" --clobber
+          else
+            gh release create "$TAG" "${fichiers[@]}" \
+              --target "$GITHUB_SHA" \
+              --title "Brigade $version" \
+              --notes "The Brigade app $version, built from the commit $GITHUB_SHA. These builds are unsigned. Mac: open Brigade-$version-arm64.dmg. Windows: run Brigade-$version-x64-setup.exe. Android: install Brigade-$version.apk." \
+              --latest=false
+          fi
+          echo "The builds are unsigned. Published $TAG: ${fichiers[*]}." >> "$GITHUB_STEP_SUMMARY"
