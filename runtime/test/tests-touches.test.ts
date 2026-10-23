@@ -21,9 +21,14 @@ function ecrire(racine: string, chemin: string, texte: string): void {
 // Un dépôt aux deux zones, commité sur la branche `essai` : un test qui lit les
 // scripts du runtime, un qui importe du code, un de l'app qui ne fait que nommer
 // un package.json. Le CLAUDE.md, s'il est écrit, nomme `essai` pour base.
-function depot(t: TestContext, { claude = false } = {}): { racine: string; souche: string } {
+function depot(t: TestContext, { claude = false, lanceur = false } = {}): { racine: string; souche: string } {
   const racine = repertoireTemporaire(t);
   if (claude) ecrire(racine, "CLAUDE.md", "- **Branche d'intégration** : `essai`\n");
+  // Un test qui lance un code du produit, et c'est ce code qui lit les scripts.
+  if (lanceur) {
+    ecrire(racine, "runtime/src/geste.ts", 'const { scripts } = JSON.parse(readFileSync("package.json", "utf8"));\n');
+    ecrire(racine, "runtime/test/lance.test.ts", 'spawnSync(process.execPath, ["src/geste.ts", "status"]);\n');
+  }
   ecrire(racine, "runtime/package.json", JSON.stringify(PAQUET, null, 2));
   ecrire(racine, "runtime/src/a.ts", "export const a = 1;\n");
   ecrire(racine, "runtime/test/lit.test.ts", 'const { scripts } = JSON.parse(readFileSync(join(import.meta.dirname, "../package.json"), "utf8"));\n');
@@ -51,6 +56,12 @@ describe("les tests que touche un changement du package.json", () => {
     const { racine, souche } = depot(t);
     changer(racine, (paquet) => (paquet.scripts = { ...paquet.scripts, report: "node src/rapport-cli.ts" } as typeof paquet.scripts));
     assert.deepEqual(choisir(racine, ["runtime/package.json"], "--souche", souche), ["runtime fichiers test/lit.test.ts", "app rien"]);
+  });
+
+  test("une commande ajoutée touche le test qui lance un code du produit lisant les scripts", (t) => {
+    const { racine, souche } = depot(t, { lanceur: true });
+    changer(racine, (paquet) => (paquet.scripts = { ...paquet.scripts, report: "node src/rapport-cli.ts" } as typeof paquet.scripts));
+    assert.deepEqual(choisir(racine, ["runtime/package.json"], "--souche", souche), ["runtime fichiers test/lance.test.ts test/lit.test.ts", "app rien"]);
   });
 
   test("une commande retirée aussi", (t) => {

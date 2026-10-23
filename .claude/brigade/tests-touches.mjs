@@ -181,8 +181,10 @@ const cites = (f) => sousTest(f) && autres.some((m) => {
 const codeModifie = new Set(modifies.map(normalize).filter((m) => connus.has(m)));
 // Des scripts changés touchent ce qui les lit : une instruction qui lit un
 // `package.json`, dans un fichier qui parle de ses `scripts` — de près ou
-// non, au large. Son nom seul, cité partout, toucherait presque tout.
-const litDesScripts = (f) => sousTest(f) && /\bscripts\b/.test(textes.get(f)) && textes.get(f).split(";").some((s) => s.includes("readFileSync(") && s.includes("package.json"));
+// non, au large. Son nom seul, cité partout, toucherait presque tout. Le code
+// du produit compte aussi : un test qui lance `src/station/geste.ts` dépend des
+// scripts qu'il lit, sans les lire lui-même (#1611).
+const litDesScripts = (f) => /\bscripts\b/.test(textes.get(f)) && textes.get(f).split(";").some((s) => s.includes("readFileSync(") && s.includes("package.json"));
 
 for (const zone of ZONES) {
   const tests = fichiers.filter((f) => f.startsWith(`${zone}/test/`) && f.endsWith(".test.ts"));
