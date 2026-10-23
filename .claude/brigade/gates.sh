@@ -140,13 +140,15 @@ fi
 # Hors CI — la station qui cuisine, le poste du dev —, seuls les tests proches
 # du changement se jouent (`--proches`) : la suite touchée tourne sur GitHub
 # Actions (`.github/workflows/tests.yml`), que la pass attend avant de merger.
-# `BRIGADE_GATES_TESTS=touches` joue la fermeture ici aussi.
+# `BRIGADE_GATES_TESTS=touches` joue la fermeture ici aussi. La souche dit à la
+# sélection ce qu'était un package.json : seuls ses scripts changés, il ne
+# rejoue pas tout (#1611).
 SELECTION_runtime=tout
 SELECTION_app=tout
 PORTEE=--proches
 [ "${CI:-}" = true ] || [ "${BRIGADE_GATES_TESTS:-}" = touches ] && PORTEE=
 if [ "${BRIGADE_GATES_TOUT:-}" != 1 ] && [ -n "$REF" ] && [ -n "${SOUCHE:-}" ] && command -v node >/dev/null 2>&1; then
-  if SELECTION="$(printf '%s\n' "$CHANGES" | node .claude/brigade/tests-touches.mjs $PORTEE 2>/dev/null)"; then
+  if SELECTION="$(printf '%s\n' "$CHANGES" | node .claude/brigade/tests-touches.mjs $PORTEE --souche "$SOUCHE" 2>/dev/null)"; then
     while read -r ZONE_SEL REGLE; do
       case "$ZONE_SEL" in runtime) SELECTION_runtime="$REGLE" ;; app) SELECTION_app="$REGLE" ;; esac
     done <<<"$SELECTION"
