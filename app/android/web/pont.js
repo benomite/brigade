@@ -14,8 +14,12 @@
 //     installation neuve : la vue s'ouvre alors sur l'écran qui le relie aux projets ;
 //   - `appairerLeTelephone` envoie le code au guichet de la station (`POST /pairing`,
 //     runtime/src/telephone/guichet.ts) par le HTTP natif de Capacitor — le guichet parle http, sur le
-//     réseau du chef, que la WebView, servie en https, ne joindrait pas elle-même. Appairé, le jeton,
-//     l'adresse et la station sont gardés dans le stockage de l'app, et la vue n'en reçoit que le nom ;
+//     réseau du chef, que la WebView, servie en https, ne joindrait pas elle-même ; d'un autre réseau,
+//     il le joint en https sur le tailnet du chef (le ticket 1409), où `tailscale serve` le publie.
+//     Appairé, le jeton, l'adresse et la station sont gardés dans le stockage de l'app, et la vue n'en
+//     reçoit que le nom. Ce qui n'est pas le guichet est dit : rien ne répond (`injoignable`), la
+//     machine répond mais pas le guichet derrière elle (`sans-guichet` : le 502 de `tailscale serve`,
+//     la station arrêtée), ou autre chose répond à sa place (`inattendu`) ;
 //   - `scannerLeQr` lit le QR de la station par le lecteur de Google Play (Pont.java, `scanner`).
 // La file et les mises à jour ne sont pas ici : ce pont sera remplacé par celui qui lit une station.
 //
@@ -28,6 +32,9 @@ const configuration = { chemin: `no projects file on this phone — ${AUCUNE_STA
 const CLE = "brigade.telephone";
 // Le temps de joindre le guichet, puis celui qu'il réponde : au-delà, la station ne répond pas.
 const DELAI_MS = 10_000;
+// Ce qu'un relais — `tailscale serve`, un proxy — répond quand rien n'écoute derrière lui. Le guichet,
+// lui, n'en rend aucun à `/pairing`.
+const SANS_RIEN_DERRIERE = new Set([502, 503, 504]);
 /** @returns {{ appaire: false } | { appaire: true, station: string, adresse: string }} */
 function telephone() {
   try {
@@ -69,6 +76,7 @@ async function appairerLeTelephone({ adresse, code, nom, machine }) {
     return { paired: true, station: corps.station.nom };
   }
   if (corps?.paired === false && typeof corps.reason === "string") return { paired: false, reason: corps.reason, said: typeof corps.said === "string" ? corps.said : "" };
+  if (SANS_RIEN_DERRIERE.has(rendu.status)) return { paired: false, reason: "sans-guichet", said: `${adresse} answered ${rendu.status}: nothing answers behind it` };
   return { paired: false, reason: "inattendu", said: `${adresse} answered ${rendu.status}, not as a station's phone desk` };
 }
 async function scannerLeQr() {

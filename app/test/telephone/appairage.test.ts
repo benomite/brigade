@@ -1,6 +1,8 @@
 // L'écran d'appairage de l'app Android (#1161) : sur une installation neuve, le premier écran demande de relier
 // le téléphone aux projets — l'adresse de la station et son code, ou son QR ; un code valable mène aux projets ;
-// un code faux, expiré ou déjà servi se dit, et le chef retape ; la station injoignable se dit aussi. Sur le
+// un code faux, expiré ou déjà servi se dit, et le chef retape ; la station injoignable se dit aussi. D'un autre
+// réseau, le QR d'une box porte son adresse sur le tailnet du chef (#1409) : elle s'appaire de même, et ce qui ne
+// s'y joint pas — l'adresse, ou le guichet derrière elle — se dit en une phrase. Sur le
 // desktop, rien de tout cela n'est posé. La vue est jouée telle qu'elle est (aides/fausse-vue.ts) ; ce que le
 // pont de l'app Android fait du code est éprouvé à part (packaging/android.test.ts).
 import assert from "node:assert/strict";
@@ -17,12 +19,15 @@ import { GESTES_DES_GRANTS } from "../../src/grants.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import type { DemandeDuTelephone, LectureDuQr, ReponseDuGuichet, Telephone } from "../../src/vue/pont.d.ts";
-import { adresseDuGuichet, ATTENDU, issueDe, lireLeQr, presentationDuTelephone, TITRE } from "../../src/vue/telephone/appairage.js";
+import { adresseDuGuichet, ATTENDU, issueDe, lireLeQr, parLeTailnet, presentationDuTelephone, TITRE } from "../../src/vue/telephone/appairage.js";
 import { type Faux, jouerLaVue, repos } from "../aides/fausse-vue.ts";
 
 const PIXEL = "Mozilla/5.0 (Linux; Android 14; Pixel 8 Build/AP2A.240805.005; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/127.0.6533.103 Mobile Safari/537.36";
 const ADRESSE = "http://192.168.1.20:7010";
 const QR = `brigade://pair?code=7KQ2-M9XD&url=${encodeURIComponent(ADRESSE)}`;
+// Le guichet d'une box louée ailleurs, publié par `tailscale serve` sur le tailnet du chef (#1408).
+const TAILNET = "https://box.tail1234.ts.net";
+const QR_TAILNET = `brigade://pair?code=7KQ2-M9XD&url=${encodeURIComponent(TAILNET)}`;
 
 // Ce que les refus du guichet disent, mot pour mot (runtime/src/telephone/appairage.ts).
 const REFUS: Record<string, ReponseDuGuichet> = {
@@ -48,6 +53,22 @@ describe("ce que l'écran lit et dit", () => {
     for (const fausse of ["", "   ", "ftp://192.168.1.20", "http://", "a b"]) assert.equal(adresseDuGuichet(fausse), null, fausse);
   });
 
+  test("un nom du tailnet tapé sans protocole se joint en https, là où `tailscale serve` publie le guichet", () => {
+    assert.equal(adresseDuGuichet("box.tail1234.ts.net"), TAILNET);
+    assert.equal(adresseDuGuichet(" BOX.tail1234.TS.NET/ "), TAILNET);
+    assert.equal(adresseDuGuichet(TAILNET), TAILNET);
+    // Ce que le chef écrit en entier, ou avec un port, reste tel qu'il l'a écrit.
+    assert.equal(adresseDuGuichet("http://box.tail1234.ts.net"), "http://box.tail1234.ts.net");
+    assert.equal(adresseDuGuichet("box.tail1234.ts.net:7010"), "http://box.tail1234.ts.net:7010");
+    assert.equal(adresseDuGuichet("atelier.local"), "http://atelier.local");
+    assert.deepEqual(lireLeQr(QR_TAILNET), { code: "7KQ2-M9XD", adresse: TAILNET });
+  });
+
+  test("une adresse du tailnet : un nom en .ts.net, ou une adresse de Tailscale (100.64.0.0/10)", () => {
+    for (const oui of [TAILNET, "http://box.tail1234.ts.net:7010", "http://100.64.0.1:7010", "http://100.101.102.103", "http://100.127.255.254"]) assert.equal(parLeTailnet(oui), true, oui);
+    for (const non of [ADRESSE, "http://100.63.0.1", "http://100.128.0.1", "http://10.0.0.2:7010", "https://ts.net.example.com", "pas une adresse"]) assert.equal(parLeTailnet(non), false, non);
+  });
+
   test("le téléphone se présente sous le nom de son modèle, et sa machine telle que la liste des stations la montre", () => {
     assert.deepEqual(presentationDuTelephone(PIXEL), { nom: "pixel-8", machine: "Android 14 · Pixel 8" });
     assert.deepEqual(presentationDuTelephone("Mozilla/5.0 (Linux; Android 15; SM-S921B) AppleWebKit/537.36"), { nom: "sm-s921b", machine: "Android 15 · SM-S921B" });
@@ -65,10 +86,26 @@ describe("ce que l'écran lit et dit", () => {
     assert.equal((issueDe({ paired: false, reason: "essais", said: "too many" }, ADRESSE) as { ligne: string }).ligne, "Too many wrong codes: wait a few minutes, then try again.");
     assert.deepEqual(issueDe({ paired: false, reason: "injoignable", said: "failed to connect" }, ADRESSE), {
       etat: "injoignable",
-      ligne: "Your station does not answer at 192.168.1.20:7010.",
-      detail: "failed to connect — check that the station is running, and that this phone is on its network.",
+      ligne: "This phone cannot reach your station at 192.168.1.20:7010.",
+      detail: "failed to connect — on the station's network, check that it is running; from any other network, scan its QR once its phone desk is on your tailnet.",
     });
-    assert.deepEqual(issueDe({ paired: false, reason: "inattendu", said: "answered 404" }, ADRESSE), { etat: "refuse", ligne: "The station refused to pair this phone.", detail: "answered 404" });
+    assert.deepEqual(issueDe({ paired: false, reason: "inattendu", said: "answered 404" }, ADRESSE), { etat: "injoignable", ligne: "What answers at 192.168.1.20:7010 is not a station's phone desk.", detail: "answered 404" });
+    assert.deepEqual(issueDe({ paired: false, reason: "invalide", said: "not a pairing" }, ADRESSE), { etat: "refuse", ligne: "The station refused to pair this phone.", detail: "not a pairing" });
+  });
+
+  test("sur le tailnet, la ligne dit ce qui ne se joint pas : la box elle-même, ou le guichet derrière elle", () => {
+    assert.deepEqual(issueDe({ paired: false, reason: "injoignable", said: 'Unable to resolve host "box.tail1234.ts.net"' }, TAILNET), {
+      etat: "injoignable",
+      ligne: "This phone cannot reach box.tail1234.ts.net on your tailnet.",
+      detail: 'Unable to resolve host "box.tail1234.ts.net" — check that the Tailscale app is on, on this phone, signed in to your account, and that the station\'s machine is on.',
+    });
+    assert.deepEqual(issueDe({ paired: false, reason: "sans-guichet", said: `${TAILNET} answered 502: nothing answers behind it` }, TAILNET), {
+      etat: "injoignable",
+      ligne: "box.tail1234.ts.net answers, but the station's phone desk behind it does not.",
+      detail: `${TAILNET} answered 502: nothing answers behind it — check that the station is running there, with its phone desk on.`,
+    });
+    // Une adresse en https qui ne se relit pas sans son protocole se dit entière.
+    assert.equal((issueDe({ paired: false, reason: "injoignable", said: "x" }, "https://atelier.local:7443") as { ligne: string }).ligne, "This phone cannot reach your station at https://atelier.local:7443.");
   });
 });
 
@@ -131,7 +168,7 @@ describe("sur une installation neuve, le premier écran relie le téléphone aux
     assert.equal(vue.element("cadre").hidden, true);
     assert.equal(ecran().dessous("h2")[0]?.firstChild, TITRE);
     assert.equal(ecran().dessous("p").find((pose) => pose.className === "attendu")?.textContent, ATTENDU);
-    assert.equal(champ("adresse-guichet").placeholder, "like 192.168.1.20:7010");
+    assert.equal(champ("adresse-guichet").placeholder, "like box.tail1234.ts.net");
     assert.equal(champ("code-telephone").placeholder, "like 7KQ2-M9XD");
     assert.deepEqual(
       ecran()
@@ -205,8 +242,8 @@ describe("sur une installation neuve, le premier écran relie le téléphone aux
       const { ligne, detail, bouton, taper, appairer } = await auLancement({ appairerLeTelephone: repondre });
       taper("192.168.1.20:7010", "7KQ2-M9XD");
       await appairer();
-      assert.equal(ligne(), "Your station does not answer at 192.168.1.20:7010.");
-      assert.equal(detail(), "failed to connect to /192.168.1.20 (port 7010) — check that the station is running, and that this phone is on its network.");
+      assert.equal(ligne(), "This phone cannot reach your station at 192.168.1.20:7010.");
+      assert.equal(detail(), "failed to connect to /192.168.1.20 (port 7010) — on the station's network, check that it is running; from any other network, scan its QR once its phone desk is on your tailnet.");
       assert.equal(bouton("pair").disabled, false);
     }
   });
@@ -232,11 +269,11 @@ describe("sur une installation neuve, le premier écran relie le téléphone aux
     const { ecran, champ, taper, appairer, envois } = await auLancement();
     const manque = () => ecran().dessous("p").find((pose) => pose.className === "refus-champ")?.textContent;
     await appairer();
-    assert.equal(manque(), "Type your station's address, like 192.168.1.20:7010.");
+    assert.equal(manque(), "Type your station's address, like box.tail1234.ts.net.");
     assert.equal(champ("adresse-guichet").ariaInvalid, "true");
     taper("ftp://192.168.1.20", "");
     await appairer();
-    assert.equal(manque(), "This is not an address: type it like 192.168.1.20:7010.");
+    assert.equal(manque(), "This is not an address: type it like box.tail1234.ts.net.");
     taper("192.168.1.20:7010", "  ");
     await appairer();
     assert.equal(manque(), "Type the code your station shows.");
@@ -303,6 +340,49 @@ describe("le QR de la station", () => {
     await repos();
     assert.equal(ligne(), "This QR is not a pairing code from a station.");
     assert.deepEqual(envois(), []);
+  });
+});
+
+describe("une box louée ailleurs, par le tailnet du chef (#1409)", () => {
+  test("son QR scanné, du réseau mobile : le champ montre son nom, la demande part en https, et l'app la dit appairée", async () => {
+    const { vue, ecran, champ, bouton, envois } = await auLancement({ scannerLeQr: () => ({ lu: QR_TAILNET }), appairerLeTelephone: () => ({ paired: true, station: "box" }) });
+    const adresse = champ("adresse-guichet");
+    bouton("scan the QR").click();
+    await repos();
+    assert.equal(adresse.value, "box.tail1234.ts.net");
+    assert.deepEqual(envois(), [{ adresse: TAILNET, code: "7KQ2-M9XD", nom: "pixel-8", machine: "Android 14 · Pixel 8" }]);
+    assert.equal(vue.element("cadre").hidden, false);
+    assert.equal(ecran().dessous("p").find((pose) => pose.className === "appaire")?.textContent.replace(/\?$/, ""), "This phone is paired with box.");
+  });
+
+  test("son nom tapé, sans https : le code part au même guichet, et l'attente le nomme", async () => {
+    let repondre: (reponse: ReponseDuGuichet) => void = () => undefined;
+    const { vue, issue, taper, appairer, envois } = await auLancement({ appairerLeTelephone: () => new Promise((rendre) => (repondre = rendre)) });
+    taper("box.tail1234.ts.net", "7KQ2-M9XD");
+    await appairer();
+    assert.equal((envois()[0] as DemandeDuTelephone).adresse, TAILNET);
+    assert.equal(issue().textContent, "Waiting for your station at box.tail1234.ts.net…");
+    repondre({ paired: true, station: "box" });
+    await repos();
+    assert.equal(vue.element("cadre").hidden, false);
+  });
+
+  test("la box injoignable — Tailscale éteint sur le téléphone — ou son guichet muet : une phrase, jamais un écran vide, et le chef réessaie", async () => {
+    for (const [reponse, dit] of [
+      [{ paired: false, reason: "injoignable", said: 'Unable to resolve host "box.tail1234.ts.net": No address associated with hostname' }, "This phone cannot reach box.tail1234.ts.net on your tailnet."],
+      [{ paired: false, reason: "sans-guichet", said: `${TAILNET} answered 502: nothing answers behind it` }, "box.tail1234.ts.net answers, but the station's phone desk behind it does not."],
+    ] as const) {
+      const { vue, ecran, ligne, detail, bouton, champ } = await auLancement({ scannerLeQr: () => ({ lu: QR_TAILNET }), appairerLeTelephone: () => reponse });
+      bouton("scan the QR").click();
+      await repos();
+      assert.equal(ligne(), dit);
+      assert.ok(detail().startsWith(reponse.said), detail());
+      assert.equal(ecran().dessous("div").find((pose) => pose.className === "issue-appairage")?.children.length, 1);
+      assert.equal(champ("adresse-guichet").value, "box.tail1234.ts.net");
+      assert.equal(bouton("pair").disabled, false);
+      assert.equal(bouton("scan the QR").disabled, false);
+      assert.equal(vue.element("cadre").hidden, true);
+    }
   });
 });
 

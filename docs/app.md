@@ -857,10 +857,11 @@ At launch, the Android app checks the manifest of the latest release (`app/src/m
 
 On a fresh install, **the Android app opens on one screen: "Link this phone to your projects"** — the rest of
 the app stays behind it until the phone is paired. Under the title, one sentence: *Type the code your station
-shows, or scan its QR.* Two fields, **your station's address** (`192.168.1.20:7010`, with or without `http://`)
-and the **pairing code** (`7KQ2-M9XD`, lowercase, spaces and dashes make no difference), then two buttons:
-**pair** (recommended) and **scan the QR**. What a code is — fifteen minutes, one phone, once — is on hover over
-the "?" next to the title. A running station issues the code and its QR (`runtime/src/telephone/appairage-cli.ts`),
+shows, or scan its QR.* Two fields, **your station's address** — on your tailnet `box.tail1234.ts.net`, the field's
+example, reached in `https` without typing it (#1409); on the station's own network `192.168.1.20:7010`, with or
+without `http://` — and the **pairing code** (`7KQ2-M9XD`, lowercase, spaces and dashes make no difference), then two buttons:
+**pair** (recommended) and **scan the QR**. What a code is — fifteen minutes, one phone, once — and which address
+reaches the station from where, are on hover over the "?" next to the title. A running station issues the code and its QR (`runtime/src/telephone/appairage-cli.ts`),
 and listens for the phone on its phone desk (`BRIGADE_GUICHET_TELEPHONES`, `runtime/src/telephone/guichet.ts`) —
 on the local network, or from any network through your tailnet (see "Reaching a station from any network" below).
 
@@ -878,12 +879,24 @@ on the local network, or from any network through your tailnet (see "Reaching a 
   *Wrong code: check it on your station, then type it again.* — *This code has expired: ask your station for a new
   one.* — *This code was already used: ask your station for a new one.* — *Too many wrong codes: wait a few
   minutes, then try again.* Nothing is paired, and the chef types again.
-- **Unreachable**: *Your station does not answer at 192.168.1.20:7010.* — what the network said, and to check that
-  the station is running and the phone is on its network, on hover. The screen never stays blank.
+- **Unreachable** — the line names what the phone cannot reach, in one sentence; what the network said, and what to
+  check, on hover. The fields stay as typed, both buttons work again, and the screen never stays blank (#1409):
+  - nothing answers at a tailnet address (`.ts.net`, or `100.64.0.0/10`) — on mobile data, most often the Tailscale
+    app is off on the phone: *This phone cannot reach box.tail1234.ts.net on your tailnet.* — on hover, to check that
+    Tailscale is on and signed in on the phone, and that the station's machine is on;
+  - nothing answers at another address: *This phone cannot reach your station at 192.168.1.20:7010.* — on hover, to
+    check that the station is running when on its network, and that from any other network its QR must carry its
+    tailnet address;
+  - the address answers, but no phone desk behind it — `tailscale serve` answers `502` when the station is stopped or
+    has no desk (the bridge reads `502`, `503` and `504` as `sans-guichet`): *box.tail1234.ts.net answers, but the
+    station's phone desk behind it does not.*;
+  - something else answers there (a `404`, a web page): *What answers at 192.168.1.20:7010 is not a station's phone
+    desk.*
 
 On the desktop, nothing of this is shown. The screen is `app/src/vue/telephone/appairage.js`; the Android bridge
 that reaches the desk and keeps the token is `app/android/web/pont.js` (with `Pont.java` for the scanner); the
-captures are the `telephone-*` screens of `scripts/capture-ecran` (`docs/captures/1161/`). What the paired phone
+captures are the `telephone-*` screens of `scripts/capture-ecran` (`docs/captures/1161/`; the tailnet's,
+`telephone-tailnet-injoignable` and `telephone-tailnet-sans-guichet`, in `docs/captures/1409/`). What the paired phone
 then reads — its place in the stations list, each project's queue — comes with the next tickets of #1151.
 
 **Each project's queue on the phone** (#1163) is the project's page of a narrow screen (see above): Rail — TODO
@@ -996,8 +1009,8 @@ the code). Its token opens nothing any more, from any network, and it leaves the
 paired phone is refused and nothing changes. Paired again, it needs a new code.
 
 **What is not there yet.** Issuing the code still takes the command above: the desktop app does not run it for you
-yet, and the Android app's pairing screen still says to check that *the phone is on its network* when the desk does
-not answer — both come with #1409. The tests stand a relay in for tailscaled (`runtime/test/telephone/tailnet.test.ts`):
+yet. The Android app pairs through the tailnet and says what it cannot reach there (#1409, "Pairing the phone with
+your projects" above). The tests stand a relay in for tailscaled (`runtime/test/telephone/tailnet.test.ts`):
 no test mounts a real tailnet.
 
 ### Your stations: paired with a code, read on GitHub

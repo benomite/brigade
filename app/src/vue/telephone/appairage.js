@@ -7,6 +7,10 @@
 // sous les champs, ce que la station en a dit au survol, et le chef retape ; la station injoignable,
 // la ligne le dit aussi, plutôt qu'un écran qui attend sans fin. Pendant l'envoi, la ligne dit qu'on
 // attend la station, et les deux gestes sont inactifs.
+// D'un autre réseau que celui de la station — le réseau mobile, une box louée ailleurs —, le téléphone
+// la joint par le tailnet du chef (le ticket 1409) : son QR porte alors `https://box.tail1234.ts.net`,
+// où `tailscale serve` publie le guichet. Ce qui ne s'y joint pas se dit en une phrase, qui nomme ce
+// qui manque : l'adresse elle-même (Tailscale éteint sur le téléphone), ou le guichet derrière elle.
 // Le téléphone se présente sous un nom de station tiré de son modèle (`pixel-8`) : si une station qui
 // cuit le porte déjà, il réessaie une fois sous `pixel-8-phone`, le code restant valable.
 // Ce module ne touche pas `document` et ne joint rien : il reçoit de quoi créer un élément
@@ -22,11 +26,14 @@ import { boutonAction, lectureIndisponible, survol } from "../briques.js";
 
 export const TITRE = "Link this phone to your projects";
 export const ATTENDU = "Type the code your station shows, or scan its QR.";
-export const AIDE = "A running station shows a pairing code, and its QR, for fifteen minutes. A code pairs one phone, once. Paired, this phone is one of your stations — one that does not cook.";
+export const AIDE = "A running station shows a pairing code, and its QR, for fifteen minutes. A code pairs one phone, once. This phone reaches a station from any network through your tailnet, with the Tailscale app on: its address is then like box.tail1234.ts.net. On the station's own network, it can also be like 192.168.1.20:7010. Paired, this phone is one of your stations — one that does not cook.";
 export const ADRESSE = "Your station's address";
 export const CODE = "Pairing code";
 export const APPAIRER = "pair";
 export const SCANNER = "scan the QR";
+// L'adresse d'une station, telle qu'on la tape : celle du tailnet du chef, qui se joint de partout. Celle
+// de son réseau (`192.168.1.20:7010`) est dite au survol du titre.
+const EXEMPLE = "like box.tail1234.ts.net";
 // Ce qui suffixe le nom du téléphone quand son modèle est déjà le nom d'une station qui cuit.
 const SUFFIXE = "-phone";
 
@@ -44,8 +51,12 @@ export function lireLeQr(texte) {
   return { code, adresse: ecrite === null ? null : adresseDuGuichet(ecrite) };
 }
 
+// Le nom qu'une machine porte sur le tailnet du chef : `box.tail1234.ts.net` (MagicDNS).
+const TAILNET = /\.ts\.net$/i;
+
 // L'adresse tapée — `192.168.1.20:7010`, avec ou sans `http://` — telle que le pont la joint :
-// `http://192.168.1.20:7010`. Null si ce n'est pas une adresse http(s).
+// `http://192.168.1.20:7010`. Un nom du tailnet sans protocole — `box.tail1234.ts.net` — se joint en
+// https : `tailscale serve` n'y publie le guichet qu'ainsi. Null si ce n'est pas une adresse http(s).
 /** @param {string} tapee @returns {string | null} */
 export function adresseDuGuichet(tapee) {
   const ecrite = tapee.trim();
@@ -53,15 +64,34 @@ export function adresseDuGuichet(tapee) {
   let url;
   try {
     url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(ecrite) ? ecrite : `http://${ecrite}`);
+    if (url.protocol === "http:" && url.port === "" && TAILNET.test(url.hostname) && !/^http:/i.test(ecrite)) url = new URL(`https://${url.host}`);
   } catch {
     return null;
   }
   return (url.protocol === "http:" || url.protocol === "https:") && url.hostname !== "" ? url.origin : null;
 }
 
-// Ce que l'écran dit d'une adresse : son hôte et son port, sans le protocole.
+// Ce que l'écran écrit d'une adresse — dans le champ, dans ses lignes : sans son protocole quand on le
+// retrouve sans lui (`192.168.1.20:7010`, `box.tail1234.ts.net`), entière sinon.
 /** @param {string} adresse */
-const hoteDe = (adresse) => adresse.replace(/^https?:\/\//, "");
+const hoteDe = (adresse) => {
+  const court = adresse.replace(/^https?:\/\//, "");
+  return adresseDuGuichet(court) === adresse ? court : adresse;
+};
+
+// L'adresse est-elle sur le tailnet du chef : un nom en `.ts.net`, ou une adresse de Tailscale
+// (100.64.0.0/10) ?
+/** @param {string} adresse */
+export function parLeTailnet(adresse) {
+  let hote;
+  try {
+    hote = new URL(adresse).hostname;
+  } catch {
+    return false;
+  }
+  const [, second] = /^100\.(\d+)\.\d+\.\d+$/.exec(hote) ?? [];
+  return TAILNET.test(hote) || (second !== undefined && Number(second) >= 64 && Number(second) <= 127);
+}
 
 // Ce que le téléphone dit de lui en s'appairant, lu dans le user agent de sa WebView
 // (`Linux; Android 14; Pixel 8 Build/…; wv`) : son nom de station — des minuscules, des chiffres et des
@@ -85,7 +115,10 @@ export function presentationDuTelephone(userAgent) {
 }
 
 // Ce que l'écran dit de la réponse du guichet : `appaire`, ou une ligne et son détail au survol —
-// `code` quand c'est le code qu'il faut changer, `injoignable` quand la station ne répond pas.
+// `code` quand c'est le code qu'il faut changer, `injoignable` quand le guichet ne se joint pas. Celle-ci
+// nomme ce qui ne se joint pas : l'adresse (`injoignable`), sur le tailnet ou non ; le guichet derrière
+// une adresse qui répond (`sans-guichet` : `tailscale serve`, la station arrêtée) ; ou ce qui répond à
+// sa place (`inattendu`).
 /** @param {Reponse} reponse @param {string} adresse @returns {{ etat: "appaire", station: string } | { etat: "code" | "injoignable" | "refuse", ligne: string, detail: string }} */
 export function issueDe(reponse, adresse) {
   if (reponse.paired) return { etat: "appaire", station: reponse.station };
@@ -94,7 +127,11 @@ export function issueDe(reponse, adresse) {
   if (reason === "expire") return { etat: "code", ligne: "This code has expired: ask your station for a new one.", detail: said };
   if (reason === "utilise") return { etat: "code", ligne: "This code was already used: ask your station for a new one.", detail: said };
   if (reason === "essais") return { etat: "code", ligne: "Too many wrong codes: wait a few minutes, then try again.", detail: said };
-  if (reason === "injoignable") return { etat: "injoignable", ligne: `Your station does not answer at ${hoteDe(adresse)}.`, detail: `${said} — check that the station is running, and that this phone is on its network.` };
+  const hote = hoteDe(adresse);
+  if (reason === "injoignable" && parLeTailnet(adresse)) return { etat: "injoignable", ligne: `This phone cannot reach ${hote} on your tailnet.`, detail: `${said} — check that the Tailscale app is on, on this phone, signed in to your account, and that the station's machine is on.` };
+  if (reason === "injoignable") return { etat: "injoignable", ligne: `This phone cannot reach your station at ${hote}.`, detail: `${said} — on the station's network, check that it is running; from any other network, scan its QR once its phone desk is on your tailnet.` };
+  if (reason === "sans-guichet") return { etat: "injoignable", ligne: `${hote} answers, but the station's phone desk behind it does not.`, detail: `${said} — check that the station is running there, with its phone desk on.` };
+  if (reason === "inattendu") return { etat: "injoignable", ligne: `What answers at ${hote} is not a station's phone desk.`, detail: said };
   return { etat: "refuse", ligne: "The station refused to pair this phone.", detail: said };
 }
 
@@ -126,7 +163,7 @@ export function tenirAppairage(lieu, doc, { pont, userAgent, apres }) {
   const attendu = doc.createElement("p");
   attendu.className = "attendu";
   attendu.textContent = ATTENDU;
-  const adresse = champ(doc, "adresse-guichet", ADRESSE, "like 192.168.1.20:7010");
+  const adresse = champ(doc, "adresse-guichet", ADRESSE, EXEMPLE);
   const code = champ(doc, "code-telephone", CODE, "like 7KQ2-M9XD");
   // Ce qui manque à un champ : une ligne sous lui, et rien ne part.
   const manque = doc.createElement("p");
@@ -168,7 +205,7 @@ export function tenirAppairage(lieu, doc, { pont, userAgent, apres }) {
     const joint = adresseDuGuichet(adresse.saisie.value);
     const tape = code.saisie.value.trim();
     if (joint === null) {
-      signaler("adresse", adresse.saisie.value.trim() === "" ? "Type your station's address, like 192.168.1.20:7010." : "This is not an address: type it like 192.168.1.20:7010.");
+      signaler("adresse", adresse.saisie.value.trim() === "" ? `Type your station's address, ${EXEMPLE}.` : `This is not an address: type it ${EXEMPLE}.`);
       dire();
       return adresse.saisie.focus();
     }
