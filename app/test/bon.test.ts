@@ -48,6 +48,7 @@ const ticket = (numero: number, state: TicketRail["state"], reste: Partial<Ticke
   card: null,
   awaits: [],
   held: [],
+  outOfZone: [],
   frozenBy: [],
   reason: null,
   until: null,
