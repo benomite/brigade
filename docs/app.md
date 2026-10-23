@@ -72,8 +72,20 @@ a remote station this computer plays for the project (it is in the project's `st
 project whose kitchen runs here); and `remote`, a station another workstation plays. What each means is on hover. The rows
 come from `installation stations --json`, which the installation check reads (on opening, then every five minutes): before
 the first read, one line says `not read yet`; a project that declares no station says `no station declared: no cook leaves
-for this project`, never a blank. Read-only: changing a station comes with #1510. On a narrow screen, the block sits under
-the stations' lines. The module is `app/src/vue/stations-declarees.js`.
+for this project`, never a blank. On a narrow screen, the block sits under the stations' lines. The module is
+`app/src/vue/stations-declarees.js`.
+**Each row has `edit`** (#1510): under the row, its form — `Cooks at once`, prefilled; `What it provides`, one checkbox per
+capability (the boxes of "+ station", #1307): the ones it declares, ticked, then what the other stations provide and what
+this computer can declare, unticked; and `this workstation plays it`, ticked when it does (absent when the project's
+kitchen runs here; greyed, with the reason on hover, for a project with no `hote` or a station that does not run
+`claude`). `Save`, recommended, changes that station only, by the runtime's single-station commands run on its box
+(`installation stations set`, and `remote` when it becomes played here): the others stay as the box wrote them. Played
+here, it is also written in the project's `stations` in `app.json` by the runtime's `jouerIci` (`runtime/src/une-station.ts`)
+— the app re-reads the file and its runner plays it, with no hand edit; unticked, it leaves that list. `Remove` asks first,
+its price in one line, then runs `installation stations remove` (and the station leaves `app.json` if this workstation played
+it); the project's only station cannot be removed. Then the stations are read again, and the rows follow; one line under
+the row says what was done, or, in the form, why nothing was (the station's answer on hover). It is the same on a
+Windows workstation (`pc/claude`). The operation is `changerUneStation` in `app/src/service.ts`.
 **Under the stations, the project's calibration ceiling** (#1284): how far the manager raises the model and the effort of a
 ticket that stays red before passing it up to you. It shows the value in force (`opus / high`) and where it comes from —
 `default`, `set by you`, or one of each —, read from `facts` (`plafondDeCalibrage`): the app does not know the default, it

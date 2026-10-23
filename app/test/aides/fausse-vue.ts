@@ -263,8 +263,9 @@ export function jetonsDe(css: string): Map<string, string> {
 
 type Ecoutes = { [G in keyof Pont as G extends `sur${string}` ? G : never]: Pont[G] };
 type Gestes = Omit<Pont, keyof Ecoutes>;
-// Ce que le faux pont répond, geste par geste. Un geste sans réponse rend `undefined`.
-export type Reponses = { [G in keyof Gestes]?: (...args: Parameters<NonNullable<Gestes[G]>>) => Awaited<ReturnType<NonNullable<Gestes[G]>>> };
+// Ce que le faux pont répond, geste par geste — tout de suite, ou quand ce qu'il a lancé a fini. Un geste sans réponse
+// rend `undefined`.
+export type Reponses = { [G in keyof Gestes]?: (...args: Parameters<NonNullable<Gestes[G]>>) => Awaited<ReturnType<NonNullable<Gestes[G]>>> | Promise<Awaited<ReturnType<NonNullable<Gestes[G]>>>> };
 
 export type Jouee = {
   // Un élément de la page, par son `id` — posé par index.html, ou par la vue.

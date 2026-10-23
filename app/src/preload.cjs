@@ -18,6 +18,7 @@ const pont = {
   direMerge: (projet, merge) => ipcRenderer.invoke("direMerge", projet, merge),
   verifier: (projet) => ipcRenderer.invoke("verifier", projet),
   declarerStations: (projet, choix) => ipcRenderer.invoke("declarerStations", projet, choix),
+  changerUneStation: (projet, station, voulu) => ipcRenderer.invoke("changerUneStation", projet, station, voulu),
   proteger: (projet) => ipcRenderer.invoke("proteger", projet),
   repondre: (projet, valeurs) => ipcRenderer.invoke("repondre", projet, valeurs),
   passerDecisions: (projet) => ipcRenderer.invoke("passerDecisions", projet),

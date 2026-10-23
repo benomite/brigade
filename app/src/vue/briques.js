@@ -118,6 +118,30 @@ export function confirmationDeGeste(doc, { titre, prix, oui, non }, gestes) {
   return racine;
 }
 
+// Une case à cocher nommée (ticket 1307, reprise par le ticket 1510) : ce qu'elle coche, et dessous, s'il y a quoi, ce
+// qui le dit en plus. `mono` : son nom est un mot de la machine, écrit tel qu'il se déclare (`navigateur-headless`).
+// `changer` reçoit l'état de la case à chaque clic.
+/** @param {Fabrique} doc @param {{ nom: string, dit: string, cochee: boolean, mono?: boolean }} quoi @param {(cochee: boolean) => void} changer */
+export function caseACocher(doc, { nom, dit, cochee, mono = false }, changer) {
+  const racine = doc.createElement("label");
+  racine.className = "capacite";
+  const coche = doc.createElement("input");
+  coche.type = "checkbox";
+  coche.checked = cochee;
+  coche.ariaLabel = nom;
+  coche.addEventListener("change", () => changer(coche.checked === true));
+  const appele = doc.createElement("span");
+  appele.textContent = nom;
+  if (mono) appele.className = "mono";
+  racine.append(coche, appele);
+  if (dit !== "") {
+    const note = doc.createElement("small");
+    note.textContent = dit;
+    racine.append(note);
+  }
+  return racine;
+}
+
 // Un bloc replié derrière une ligne (ticket 1456) : ce qui sert rarement — une lecture brute, un historique, un
 // réglage — se montre fermé, sa ligne disant son titre et, en quelques mots, ce qu'il contient ; l'ouvrir montre le
 // reste. `ouvert` : ce que le chef en a laissé — la vue le retient d'une lecture à l'autre, que le bloc reposé ne se

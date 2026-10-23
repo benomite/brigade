@@ -94,7 +94,7 @@ import { Terminal as Xterm } from "@xterm/xterm";
 import { tenirInvite } from "./mise-a-jour/invite.js";
 import { poserAppaire, poserLaListe, tenirAppairage } from "./telephone/appairage.js";
 import { tenirConversation } from "./telephone/conversation.js";
-import { boutonAction, confirmationDeGeste, lectureIndisponible, prixDit, replie, survol } from "./briques.js";
+import { boutonAction, caseACocher, confirmationDeGeste, lectureIndisponible, prixDit, replie, survol } from "./briques.js";
 import { poserChers } from "./cost/chers.js";
 import { poserCourbe } from "./cost/courbe.js";
 import { poserPerdus } from "./cost/perdus.js";
@@ -102,7 +102,7 @@ import { poserTete } from "./cost/tete.js";
 import { poserFiabilite } from "./fiabilite.js";
 import { poserReculs } from "./recul.js";
 import { poserTriageDeCooks } from "./triage.js";
-import { poserLesDeclarees } from "./stations-declarees.js";
+import { choixDeCapacites, ouTourne, poserLesDeclarees } from "./stations-declarees.js";
 import { DIT_PROVISOIRE, PROVISOIRE, poserApprentissage, resumeDeLApprentissage, TITRE as TITRE_APPRIS } from "./apprentissage.js";
 import { lireFermeture, poserCloser } from "./closer/section.js";
 import { poserBilan } from "./closer/bilan/bilan.js";
@@ -2306,10 +2306,78 @@ function retenirDeclarees(guide) {
   if (courant?.nom === guide.projet) poserDeclarees(courant);
 }
 
-// Ce que chaque station déclarée du projet fournit, et où elle tourne (stations-declarees.js).
+// Ce que chaque station déclarée du projet fournit, et où elle tourne (stations-declarees.js) — et, ouvert sous l'une,
+// son formulaire (ticket 1510).
 /** @param {Projet} projet */
 function poserDeclarees(projet) {
-  declareesDuProjet.replaceChildren(poserLesDeclarees(document, { stations: declarees.get(projet.nom), jouees: projet.stations ?? [], ici: projet.ici === true, ...(projet.box === undefined ? {} : { hote: projet.box.hote }) }));
+  const editer = {
+    ...(editee?.projet === projet.nom ? { editee: editee.edition } : {}),
+    ...(derniereEditee?.projet === projet.nom ? { dernier: derniereEditee } : {}),
+    ouvrir: (/** @type {string} */ nom) => void ouvrirLEdition(projet, nom),
+    fermer: () => {
+      editee = undefined;
+      poserDeclarees(projet);
+    },
+    sauver: () => void envoyerLEdition(projet, false),
+    confirmer: (/** @type {boolean} */ oui) => {
+      if (editee?.projet !== projet.nom) return;
+      editee.edition.confirmer = oui;
+      poserDeclarees(projet);
+    },
+    retirer: () => void envoyerLEdition(projet, true),
+  };
+  declareesDuProjet.replaceChildren(
+    poserLesDeclarees(document, { stations: declarees.get(projet.nom), jouees: projet.stations ?? [], ici: projet.ici === true, ...(projet.box === undefined ? {} : { hote: projet.box.hote }), projet: projet.nom, editer }),
+  );
+}
+
+// Une station s'édite sous sa ligne (ticket 1510) : une à la fois. Ses cases sont celles qu'elle déclare, celles des
+// autres stations, et ce que cet ordinateur sait déclarer — lu comme pour « + station » (ticket 1307).
+/** @type {{ projet: string, edition: import("./stations-declarees.js").Edition } | undefined} */
+let editee;
+// Ce que le dernier geste a rendu, sous la ligne de sa station, le formulaire refermé.
+/** @type {{ projet: string, nom: string, fait: string } | undefined} */
+let derniereEditee;
+/** @param {Projet} projet @param {string} nom */
+async function ouvrirLEdition(projet, nom) {
+  const lues = declarees.get(projet.nom);
+  const station = lues?.declarees.find((lue) => lue.nom === nom);
+  if (lues === undefined || station === undefined) return;
+  const ouverte = { projet: projet.nom, edition: { nom, cooks: String(station.cooks), fournit: [...station.fournit], jouee: ouTourne(station, { jouees: projet.stations ?? [], ici: projet.ici === true }) === "poste", choix: choixDeCapacites(station, lues, []), confirmer: false, envoi: false } };
+  editee = ouverte;
+  derniereEditee = undefined;
+  poserDeclarees(projet);
+  const defauts = await defautsDeCetOrdinateur(projet.nom);
+  if (editee !== ouverte || "refus" in defauts) return;
+  ouverte.edition.choix = choixDeCapacites(station, lues, defauts.capacites);
+  if (courant?.nom === projet.nom) poserDeclarees(courant);
+}
+// « Save », ou « Remove » confirmé : le geste part, puis le formulaire se referme sur ce qu'il a rendu — ou reste
+// ouvert, le refus dedans. Les stations relues arrivent par `surGuide`.
+/** @param {Projet} projet @param {boolean} retrait */
+async function envoyerLEdition(projet, retrait) {
+  const ouverte = editee;
+  if (ouverte === undefined || ouverte.projet !== projet.nom || ouverte.edition.envoi) return;
+  const { edition } = ouverte;
+  edition.envoi = true;
+  edition.confirmer = false;
+  edition.rendu = undefined;
+  poserDeclarees(projet);
+  /** @type {import("../service.ts").StationVoulue} */
+  const voulu = retrait ? { retiree: true } : { cooks: Number(edition.cooks), fournit: edition.fournit, jouee: edition.jouee };
+  /** @type {import("../service.ts").StationChangee} */
+  let rendu;
+  try {
+    rendu = await brigade.changerUneStation(projet.nom, edition.nom, voulu);
+  } catch (erreur) {
+    rendu = { refus: "Nothing was saved: the app did not answer", detail: erreur instanceof Error ? erreur.message : String(erreur) };
+  }
+  edition.envoi = false;
+  if (editee === ouverte && "fait" in rendu) {
+    editee = undefined;
+    derniereEditee = { projet: projet.nom, nom: edition.nom, fait: rendu.fait };
+  } else edition.rendu = rendu;
+  if (courant?.nom === projet.nom) poserDeclarees(courant);
 }
 
 // Une action de l'installation : ce qu'elle fait arrive par `surGuide`. Refusée, sa raison se
@@ -6695,20 +6763,12 @@ function poserLaMachineAjoutee(vise, id, nom, ici, defauts) {
   choixDesCapacites.replaceChildren(
     ...(catalogue.length === 0
       ? [lectureIndisponible(document, refus.refus, refus.detail ?? "")]
-      : catalogue.map(({ capacite, nom: dite, detectee }) => {
-          const pose = document.createElement("label");
-          pose.className = "capacite";
-          const coche = document.createElement("input");
-          coche.type = "checkbox";
-          coche.checked = tenues.has(capacite);
-          coche.ariaLabel = dite;
-          coche.addEventListener("change", () => {
-            if (coche.checked) tenues.add(capacite);
+      : catalogue.map(({ capacite, nom: dite, detectee }) =>
+          caseACocher(document, { nom: dite, dit: !ici ? "not detectable from this computer" : detectee ? "detected" : "not found on this computer", cochee: tenues.has(capacite) }, (cochee) => {
+            if (cochee) tenues.add(capacite);
             else tenues.delete(capacite);
-          });
-          pose.append(coche, bloc("span", dite), bloc("small", !ici ? "not detectable from this computer" : detectee ? "detected" : "not found on this computer"));
-          return pose;
-        })),
+          }),
+        )),
   );
 }
 

@@ -27,7 +27,7 @@ import type { UpdateOffer } from "../mise-a-jour/android.ts";
 import type { Lue as QuestionLue, Rendue as ReponseRendue } from "../question.ts";
 import type { Vu as VuDuCode } from "../retard.ts";
 import type { Avis, Retrait } from "../retrait.ts";
-import type { Guide } from "../service.ts";
+import type { Guide, StationChangee, StationVoulue } from "../service.ts";
 import type { DepotDuChef } from "../projets/github.ts";
 import type { Ajout, Choisi, DefautsDeLaMachine, Demenagement, EFFORTS, MODELES, Retrait as RetraitDUneStation, VuDesProjets } from "../projets/projets.ts";
 import type { IssueDuRemede } from "../projets/remede.ts";
@@ -74,6 +74,9 @@ export type Pont = {
   verifier(projet: string): Promise<{ refus: string } | undefined>;
   // Déclare les stations choisies parmi celles que la box fournit, chacune à son plafond de cooks.
   declarerStations(projet: string, choix: { nom: string; cooks: number }[]): Promise<{ refus: string } | undefined>;
+  // Change une station déclarée, seule (ticket 1510) : son plafond et ses capacités, ce poste qui la joue — ou la retire.
+  // Ses stations relues arrivent par `surGuide` ; ce qu'il en advient, en une ligne.
+  changerUneStation(projet: string, station: string, voulu: StationVoulue): Promise<StationChangee | { refus: string }>;
   // Protège la branche d'intégration sur GitHub.
   proteger(projet: string): Promise<{ refus: string } | undefined>;
   // Répond à la décision courante — deux valeurs quand elle se répond avec une autre.
