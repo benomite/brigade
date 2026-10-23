@@ -916,7 +916,9 @@ what the desktop's main process does with its readings: the same modules of `app
 `status` through `mettreAPart` and `attendre`, the alert band and the lines of "All projects" — so a queue on the phone
 shows the cards the desktop shows of it at the same moment. That reading is `app/android/web/lecture.ts`; the APK build
 lays it, and what it imports from `app/src/`, next to the view without their types (`www/android/lecture.js`,
-`www/src/*.js`, Node's own modules replaced by inert ones), and the bridge loads it at its first reading. "All projects"
+`www/src/*.js`, Node's own modules replaced by inert ones), and the bridge loads it at its first reading. None of those
+modules may read a Node global when it loads — the WebView has no `process` —, which `app/test/packaging/android.test.ts`
+checks by loading the laid reading in a Node without one. "All projects"
 lists every project of the station in its order, one line each; the last list read is kept, so a relaunched app shows
 it before reading again. Above the lines, the Projects section says in one sentence what the list lacks, and nothing
 when it was just read: *atelier's projects: first read in progress…*; *atelier serves no project yet: a project is
@@ -943,9 +945,24 @@ not come, the line says `merge the PR: sent, waiting for the answer…` and the 
 nothing goes twice. A refusal, or a bridge that fails or carries nothing (`nothing was sent — nothing was changed`, the reason on
 hover), does not read the box again: the queue stays as it was, and the gesture can be played again. On a
 narrow desktop window, where a gesture still goes into the second, the sheet says `sent to the second: its answer
-is in the Second tab`. Screens: `telephone-gestes-*` of `scripts/capture-ecran` (`docs/captures/1164/`). **The
-Android bridge does not carry these actions yet**, for the same reason as the readings above: until the station's
-phone desk takes them, a gesture on the phone sends nothing, and says so in that one line.
+is in the Second tab`. Screens: `telephone-gestes-*` of `scripts/capture-ecran` (`docs/captures/1164/`).
+
+**The paired phone plays them at its station** (#1420). The station's phone desk takes `POST
+/projects/<name>/gestures` (#1412), behind the phone's token — `{"gesture": "merge" | "remove" | "back-to-kitchen",
+"ticket"}`, each the command the desktop runs for the same button (`rail merge`, `rail remove`, `waiting arrived`), so
+the desktop reads the change at its next reading. On the phone, a card's sheet offers the gestures that desk carries,
+and only those — `merge the PR`, `remove from the rail`, `back to the kitchen`, chosen and ordered by the desktop's table
+(`gestes-fiche.ts`); opening the issue or the PR, asking the second and changing the priority are not offered there.
+The Android bridge's reading (`app/android/web/lecture.ts`) sends the gesture with the token, waits up to 130 s for the
+answer (a merge waits for GitHub; the station gives the command 120 s), and answers the view with one sentence: what the
+command said, `{ fait }` — and the view reads the station again, the card moving with that reading — or why it was not
+done, `{ refus }`: the command's own sentence when it refused (`409`); *atelier could not be reached: nothing was
+changed*; *atelier's phone desk does not answer: nothing was changed* (a `502` from `tailscale serve`); *atelier no
+longer knows this phone: pair it again* (`401`); and, when the answer never came, *atelier did not answer: the next
+read shows whether it went through* — the station is read again at once, as it is when the station says its command
+gave no verdict (`502`). What ran and
+what it wrote, or what the network said, is on hover; a refused card stays where it was. Screens:
+`telephone-projets-gestes*` of `scripts/capture-ecran` (`docs/captures/1420/`).
 
 **Talking to a project's second from the phone** (#1165): on a phone, the Second tab has no terminal and no shell —
 no pty runs there —, it holds **the conversation with the second, as messages**: what you wrote to it, from the phone

@@ -28,7 +28,10 @@
 // (app/android/web/lecture.ts, que la construction pose dans www/android/lecture.js, chargé à la première lecture).
 // Les projets de la dernière liste lue sont gardés : relancée, l'app les montre avant de relire. `oublierLeTelephone`
 // efface l'appairage — celui que la station ne connaît plus —, et la vue revient à l'écran qui le relie.
-// Les gestes et les mises à jour ne sont pas ici.
+// Et les gestes de la fiche d'une carte (le ticket 1420) : `gestesDeFiche` rend ceux que le guichet porte — merger la PR,
+// retirer du rail, renvoyer en cuisine —, et `gesteDeFiche` les joue par `POST /projects/<nom>/gestures`, avec le jeton
+// gardé ; la lecture rend ce que la station en a dit, que la vue montre sur la fiche avant de relire la file.
+// Les mises à jour ne sont pas ici.
 //
 // Ce fichier n'est pas joué tel quel : la construction l'enveloppe, avec `DEMARRAGE`, dans
 // www/android/pont.js, que l'activité injecte au début de chaque document de l'app (Pont.java).
@@ -41,6 +44,9 @@ const CLE = "brigade.telephone";
 const CLE_DES_PROJETS = "brigade.telephone.projets";
 // Le temps de joindre le guichet, puis celui qu'il réponde : au-delà, la station ne répond pas.
 const DELAI_MS = 10_000;
+// Le temps qu'un geste a pour répondre, une fois le guichet joint : celui que la station laisse à sa commande — un merge
+// attend GitHub (runtime/src/telephone/gestes.ts, `DELAI_DU_GESTE_MS`, deux minutes) —, et de quoi en rendre le verdict.
+const DELAI_DU_GESTE_MS = 130_000;
 // Ce qu'un relais — `tailscale serve`, un proxy — répond quand rien n'écoute derrière lui. Le guichet,
 // lui, n'en rend aucun à `/pairing`.
 const SANS_RIEN_DERRIERE = new Set([502, 503, 504]);
@@ -137,6 +143,8 @@ function laLecture() {
       dire,
       /** @param {string} chemin */
       requete: (chemin) => natif("CapacitorHttp", "request", { url: `${lu.adresse}${chemin}`, method: "GET", headers: { Authorization: `Bearer ${lu.jeton}` }, connectTimeout: DELAI_MS, readTimeout: DELAI_MS }),
+      /** @param {string} chemin @param {unknown} corps */
+      envoyer: (chemin, corps) => natif("CapacitorHttp", "request", { url: `${lu.adresse}${chemin}`, method: "POST", headers: { Authorization: `Bearer ${lu.jeton}`, "Content-Type": "application/json" }, data: corps, connectTimeout: DELAI_MS, readTimeout: DELAI_DU_GESTE_MS }),
       connus: projetsGardes(),
       /** @param {unknown[]} projets */
       garder: (projets) => window.localStorage.setItem(CLE_DES_PROJETS, JSON.stringify(projets)),
@@ -169,6 +177,9 @@ const connus = {
   tous: (/** @type {number} */ demande) => avecLaLecture((ouverte) => ouverte.tous(demande)),
   regarder: (/** @type {string} */ projet, /** @type {number} */ demande) => avecLaLecture((ouverte) => ouverte.regarder(projet, demande)),
   relireBox: () => avecLaLecture((ouverte) => ouverte.relire()),
+  // Une lecture qui ne s'ouvre pas lève : la fiche dit que ses gestes ne se lisent pas, ou que rien n'est parti.
+  gestesDeFiche: async (/** @type {unknown} */ carte) => (await laLecture())?.gestesDeFiche(carte) ?? [],
+  gesteDeFiche: async (/** @type {string} */ projet, /** @type {string} */ id, /** @type {number} */ ticket) => (await laLecture())?.geste(projet, id, ticket) ?? { refus: `nothing was sent: ${AUCUNE_STATION}` },
   // L'appairage effacé : le jeton, la station et ses projets. La vue revient à l'écran qui relie le téléphone.
   oublierLeTelephone: async () => {
     window.localStorage.removeItem(CLE);
