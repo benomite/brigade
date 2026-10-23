@@ -79,6 +79,8 @@ compare que deux captures du même navigateur.
 | `demenager-refuse` | Le même, sur la box, le déménagement vers ce Mac refusé par le runtime (pas de bac à sable) : la raison en une phrase sous la ligne, qui dit toujours `Cooks on box` |
 | `stations-avec-telephone` | « Tous les projets » avec un téléphone appairé (#1162) : sa ligne dit `does not cook` |
 | `demenager-choix-telephone` | Le choix du déménagement de `parade`, avec ce téléphone appairé (#1162) : il n'y est pas offert |
+| `couleurs` | La palette entière (#1106) : un projet par teinte dans la barre, chacun la portant en onglet et en accent, et les couleurs de `parade` sous Settings — ses deux rangées de pastilles, « other… » pour une couleur libre, et son accent dans l'espace. En 1440 × 1040, pour que la barre tienne entière |
+| `couleurs-libre` | Les mêmes réglages, l'onglet de `parade` choisi libre près du vert d'état et son accent près de l'onglet de `cantine` (#1106) : gardés, pressés au bout de leur rangée, et une ligne sous chacun dit de quoi il est proche |
 | `ajout` | « Add a project », ouvert par le `+` de la barre : le formulaire, la box déclarée choisie, le calibrage proposé |
 | `fiche` | La fiche de #14, ouverte par sa carte dans la colonne Taken du rail de `parade` : ce que son cook fait, son histoire et son coût, ses gestes et leur prix, l'issue et sa discussion |
 | `fiche-retro`, `fiche-sans-retro` | La fiche de #9, servi, ouverte par sa carte dans la colonne Served du rail de `parade` (#1038) : sous son histoire et son coût, sa rétro — trois leçons provisoires et ce que son cook a écrit — puis la même fiche quand la box ne lui connaît aucune rétro, et la phrase qui le dit |
@@ -136,7 +138,7 @@ compare que deux captures du même navigateur.
 | `premier-lancement-connexion`, `premier-lancement-code`, `premier-lancement-indisponible` | Le même écran quand le PC n'est connecté à aucun compte GitHub : la phrase et « Sign in to GitHub » ; puis le bouton cliqué, le code à taper sur la page ouverte ; puis sans `gh` sur le PC, la raison, « get the GitHub CLI » et « read again » |
 | `telephone-relance` | L'app Android relancée, le téléphone déjà appairé : « Tous les projets », sans écran d'appairage |
 
-Tous en 1440 × 900, sauf ceux du téléphone. `--liste` donne la liste à jour.
+Tous en 1440 × 900, sauf ceux du téléphone et `couleurs`. `--liste` donne la liste à jour.
 
 ## Ce qui est figé
 

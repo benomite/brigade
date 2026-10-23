@@ -1652,18 +1652,26 @@ a space ("All projects", the add form), the accent is the skin's.
 
 - **They are drawn for you** when the project enters the projects file — added from the
   app, written by hand, or declared before colors existed (it gets its own at the next
-  launch). Each is drawn from among those that **no other project carries in the same
-  role**: two projects share a tab color, or an accent, only when the palette is
+  launch). A new project gets **one palette color that none of your projects carries, in either
+  role**, as its tab and its accent; two projects share a color only when the palette is
   exhausted. They are **written in `app.json`** (`couleurs`): closing and reopening the app does not
-  change them.
+  change them, and a color already chosen — from an older palette, or written by hand — is kept.
 - **You change them under Settings → Preferences**, "Colors" block: a row for the tab, one
-  for the accent, one dot per palette color, the one the project carries circled. A click
-  writes it to `app.json`, and **the bar and the space take it at once**. A color you wrote
-  by hand outside the palette shows at the end of its row, circled.
-- **The palette**: orange, violet, turquoise, pink, sand, indigo, orchid (`app/src/couleurs.ts`).
-  **None is a state color**: the skin's green, yellow, red, blue and gray —
-  an alert, a "not verified", a healthy project — do not change from one project to another, and no
-  project color replaces them.
+  for the accent, one dot per palette color, the one the project carries circled, then **other…**,
+  the system color picker, for any color you like. A click writes it to `app.json`, and **the bar
+  and the space take it at once**. A color outside the palette shows at the end of its row, circled.
+- **A color of your own that looks too much like another is said, and kept**: when it is at
+  ΔE < 10 (CIEDE2000) of a state color or of a color of another of your projects, a line under its
+  row names the closest — `Tab, in the bar: close to green, a state color — kept anyway`,
+  `Accent, in the space: close to the tab of fanfare — kept anyway`. Pick another, and the line goes.
+- **The palette** (`app/src/couleurs.ts`, #1106): sixteen colors on three lightnesses — orange, rust,
+  peach, raspberry, pink, blush, plum, purple, lavender, cobalt, teal, turquoise, ice, mint, lime,
+  olive. **Any two are at ΔE ≥ 15** (CIEDE2000, measured as displayed on the app's background
+  `--fond`), and **each is at ΔE ≥ 15 of every state color**: the skin's green, yellow, red, blue and
+  gray — an alert, a "not verified", a healthy project — do not change from one project to another,
+  and no project color stands in for them. Each reads on the dark background and under the dark text
+  of a selected tile (contrast ≥ 4.5). `app/test/couleurs.test.ts` measures all of it. Captures:
+  `docs/captures/1106/`.
 
 ### The Settings tab, and the log by its action
 

@@ -253,9 +253,10 @@ export function rangerProjet(chemin: string, nom: string, rang: number, maison =
 }
 
 // Les couleurs qui manquent aux projets du fichier — à un projet qui vient d'y entrer, ou qui y
-// était avant qu'elles existent : chacune tirée parmi celles qu'aucun autre projet ne porte dans
-// ce rôle, et écrite dans « couleurs ». Celles qui y sont ne changent pas, et rien n'est écrit
-// s'il n'en manque aucune. Rend la raison, si elles ne l'ont pas été.
+// était avant qu'elles existent : une teinte de la palette qu'aucun autre projet ne porte, dans
+// aucun rôle, tant qu'il en reste une, posée sur chaque rôle qui en manque et écrite dans
+// « couleurs ». Celles qui y sont ne changent pas, et rien n'est écrit s'il n'en manque aucune.
+// Rend la raison, si elles ne l'ont pas été.
 export function colorerProjets(chemin: string, maison = homedir(), hasard: () => number = Math.random): string | undefined {
   const ouvert = relu(chemin, maison);
   if ("refus" in ouvert) return ouvert.refus;
@@ -264,7 +265,8 @@ export function colorerProjets(chemin: string, maison = homedir(), hasard: () =>
   // Le fichier a été compris : ses projets sont ceux qui ont été lus, dans le même ordre.
   for (const [rang, couleurs] of tenues.entries()) {
     if (entieres(couleurs)) continue;
-    for (const role of ROLES) couleurs[role] ??= tirer(tenues.map((autre) => (autre === couleurs ? undefined : autre[role])), hasard);
+    const teinte = tirer(tenues.flatMap((autre) => (autre === couleurs ? [] : ROLES.map((role) => autre[role]))), hasard);
+    for (const role of ROLES) couleurs[role] ??= teinte;
     const declare = ouvert.contenu.projets[rang] as { couleurs?: Couleurs };
     declare.couleurs = { ...declare.couleurs, ...couleurs };
   }

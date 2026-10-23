@@ -2441,8 +2441,10 @@ function teindre() {
 }
 
 // Les couleurs du projet, sous Paramètres : une rangée par rôle, une pastille par couleur de la
-// palette — celle qu'il porte est pressée. Une couleur écrite à la main hors de la palette se
-// montre aussi, pressée, sans geste : la palette est ce que l'app propose, pas ce qu'elle exige.
+// palette — celle qu'il porte est pressée —, puis le sélecteur d'une couleur libre. Une couleur
+// libre se montre aussi, pressée, au bout de la palette : la palette est ce que l'app propose, pas
+// ce qu'elle exige. Trop proche d'une couleur d'état ou de celle d'un autre projet, elle reste, et
+// une ligne sous sa rangée dit laquelle (couleurs.ts, `proches`).
 /** @param {Projet} projet */
 function poserCouleurs(projet) {
   if (couleurRefusee.projet !== projet.nom) couleurRefusee = { projet: "", refus: "" };
@@ -2462,22 +2464,35 @@ function poserCouleurs(projet) {
       const tienne = bouton("", () => {});
       tienne.className = "teinte";
       tienne.style.setProperty("--teinte", portee);
-      tienne.title = tienne.ariaLabel = `${libelle}: ${portee}, written in the projects file`;
+      tienne.title = tienne.ariaLabel = `${libelle}: ${portee}, your own color`;
       tienne.ariaPressed = "true";
       tienne.disabled = true;
       pastilles.push(tienne);
     }
+    // Le sélecteur du système : la couleur part dès qu'elle est choisie.
+    const libre = document.createElement("input");
+    libre.type = "color";
+    libre.value = portee ?? PALETTE[0]?.valeur ?? "";
+    libre.title = libre.ariaLabel = `${libelle}: another color…`;
+    libre.addEventListener("change", () => void colorer(projet, role, libre.value));
+    const autre = document.createElement("label");
+    autre.className = "libre";
+    autre.append(libre, "other…");
     const ligne = document.createElement("div");
     ligne.className = "rangee";
-    ligne.append(bloc("span", libelle), ...pastilles);
-    return ligne;
+    ligne.append(bloc("span", libelle), ...pastilles, autre);
+    const proche = projet.proches?.[role];
+    if (proche === undefined) return [ligne];
+    const dit = bloc("p", `${libelle}: ${proche}`);
+    dit.className = "proche";
+    return [ligne, dit];
   };
   const refus = bloc("p", couleurRefusee.refus);
   refus.className = "refus";
   couleurs.replaceChildren(
     avecNiveau(bloc("h3", "Colors"), "couleurs"),
-    rangee("onglet", "Tab, in the bar"),
-    rangee("accent", "Accent, in the space"),
+    ...rangee("onglet", "Tab, in the bar"),
+    ...rangee("accent", "Accent, in the space"),
     ...(projet.couleurs === undefined ? [ditEtAide("p", "No colors yet", "the app picks them and writes them to the projects file.")] : []),
     ...(couleurRefusee.refus === "" ? [] : [refus]),
   );
@@ -2485,9 +2500,9 @@ function poserCouleurs(projet) {
 
 // Une couleur choisie : le process principal l'écrit dans le fichier des projets, et elle revient
 // par `surConfiguration` — la barre et l'espace la prennent alors. Refusée, la raison se lit dessous.
-/** @param {Projet} projet @param {"onglet" | "accent"} role @param {string} nom */
-async function colorer(projet, role, nom) {
-  const refus = await brigade.colorer(projet.nom, role, nom);
+/** @param {Projet} projet @param {"onglet" | "accent"} role @param {string} couleur une teinte de la palette par son nom, ou une couleur libre `#rrggbb` */
+async function colorer(projet, role, couleur) {
+  const refus = await brigade.colorer(projet.nom, role, couleur);
   couleurRefusee = { projet: projet.nom, refus: refus ?? "" };
   if (courant?.nom === projet.nom) poserCouleurs(courant);
 }
