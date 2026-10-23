@@ -27,6 +27,7 @@ import {
   type Limite,
 } from "../src/limite-github.ts";
 import { aArreter, DEPOT, jusqua, lancer, repertoireTemporaire, temporaireDuFichier } from "./outils.ts";
+import { posixOnly } from "./support/plateforme.ts";
 
 const rienNeReste = temporaireDuFichier();
 
@@ -415,7 +416,7 @@ test("une fois par heure, la ligne « N appels GitHub sur l'heure écoulée » v
   assert.equal(lignes.length, 3);
 });
 
-test("la station réelle compte chacun de ses appels au gist dans le compteur de son répertoire", async (t) => {
+test("la station réelle compte chacun de ses appels au gist dans le compteur de son répertoire", { skip: posixOnly("the real station reaches GitHub through the fake gh, a bash script: on the Windows job it never printed its pairing code (timed out after 120 s)") }, async (t) => {
   const gists = repertoireTemporaire(t);
   const racine = join(repertoireTemporaire(t), "station");
   mkdirSync(racine);

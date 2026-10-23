@@ -28,9 +28,15 @@ const REFUS = 2;
 
 // Lancé sans rien de l'environnement d'un service : ni état, ni dépôt, ni arbitre
 // — le cache de compilation seul, qui n'en est pas.
+// Sous Windows, `npm` est un `npm.cmd`, que seul un shell lance, et un process
+// n'y démarre pas sans ce que Windows lui donne : son système, son répertoire
+// temporaire, et pour `npm` le répertoire de ses réglages.
+const SOUS_WINDOWS = process.platform === "win32";
+const DE_WINDOWS = SOUS_WINDOWS ? Object.fromEntries(["SystemRoot", "windir", "SystemDrive", "ComSpec", "PATHEXT", "TEMP", "TMP", "APPDATA", "LOCALAPPDATA", "USERPROFILE"].flatMap((nom) => (process.env[nom] === undefined ? [] : [[nom, process.env[nom] as string]]))) : {};
 function jouer(commande: string[]): Promise<{ code: number | null; sortie: string; erreur: string }> {
   return new Promise((resoudre, rejeter) => {
-    const enfant = spawn(commande[0] ?? "", commande.slice(1), { cwd: RUNTIME, env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "/tmp", ...CACHE_DE_COMPILATION } });
+    const programme = SOUS_WINDOWS && commande[0] === "npm" ? "npm.cmd" : (commande[0] ?? "");
+    const enfant = spawn(programme, commande.slice(1), { cwd: RUNTIME, shell: SOUS_WINDOWS && programme === "npm.cmd", env: { ...DE_WINDOWS, PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "/tmp", ...CACHE_DE_COMPILATION } });
     let [sortie, erreur] = ["", ""];
     enfant.stdout.on("data", (morceau) => (sortie += morceau));
     enfant.stderr.on("data", (morceau) => (erreur += morceau));

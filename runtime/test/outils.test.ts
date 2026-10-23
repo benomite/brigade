@@ -8,6 +8,7 @@ import { createServer, type AddressInfo } from "node:net";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { fauxGh, lancerSurPortPose, mort, repertoireTemporaire } from "./outils.ts";
+import { posixOnly } from "./support/plateforme.ts";
 
 test("mort : un process terminé est mort", async () => {
   const enfant = spawn(process.execPath, ["-e", ""], { stdio: "ignore" });
@@ -35,7 +36,7 @@ test("mort : un process qu'on n'a pas le droit de sonder n'est pas mort", async 
   assert.deepEqual(sondes, [[1, 0]]);
 });
 
-test("fauxGh : des appels simultanés gardent chacun leur jeton, à tout instant", async (t) => {
+test("fauxGh : des appels simultanés gardent chacun leur jeton, à tout instant", { skip: posixOnly("spawns the fake gh itself, a link to test/aides/faux-gh.sh: Windows cannot execute a shebang script (ENOENT on the job)") }, async (t) => {
   const gh = fauxGh(t);
   // Un appel n'est jamais lu sans son jeton, ni avec celui d'un autre.
   const apparies = () => {

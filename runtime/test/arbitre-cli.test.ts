@@ -8,6 +8,7 @@ import { ouvrirArbitre, ouvrirReglages, servirArbitre, type Mot } from "../src/a
 import { joindreArbitre } from "../src/arbitrage.ts";
 import { sansMotFrancais } from "./aides/glossaire.ts";
 import { horloge, lancer, lancerSurPortPose, repertoireTemporaire, SANS_RESEAU } from "./outils.ts";
+import { posixOnly } from "./support/plateforme.ts";
 
 const CLI = join(import.meta.dirname, "../src/arbitre-cli.ts");
 const TENIR = join(import.meta.dirname, "../src/tenir-arbitre.ts");
@@ -190,7 +191,7 @@ describe("la commande de l'arbitre", { concurrency: 8 }, () => {
     assert.deepEqual(await commande("weight", "thermigo", "3"), { code: 0, sortie: "thermigo: weight 3 — unchanged; the arbiter reads it at its next decision\n" });
   });
 
-  test("l'arbitre tient dans son propre process : il répond sur son port, et s'arrête proprement sur SIGTERM", async (t) => {
+  test("l'arbitre tient dans son propre process : il répond sur son port, et s'arrête proprement sur SIGTERM", { skip: posixOnly("stops the arbiter with SIGTERM: on Windows kill('SIGTERM') ends the process before its handler runs, so the job saw exit code null instead of 0") }, async (t) => {
     const repertoire = repertoireTemporaire(t);
     // L'arbitre n'en choisit pas : c'est le chef qui pose le port, et l'arbitre dit celui qu'il tient.
     const pose = {
