@@ -1,5 +1,5 @@
 // La page de « parade », confiée à sa box, à qui manquent un Postgres et Docker pour ses tests (#1400, épique
-// 1393) : une carte par besoin, ce qui manque en une phrase, pourquoi dessous, et ses trois issues — le cuire sur
+// 1393) : une carte par besoin, ce qui manque en une phrase, pourquoi dessous, et ses quatre issues — le cuire sur
 // une station qui l'a, le fournir sur la box, adapter les tests —, chacune avec ce qui en suit. Les choix sont ceux
 // que la box publie dans son suivi (runtime/src/installation/besoins/), sous `choix`, avec le blocage qui attend
 // chacun, sous `blocages`.
@@ -17,6 +17,7 @@ export const CHOIX: Choix[] = [
       { id: "cook-elsewhere", label: "Cook it on a station that has it", consequence: "The tickets of parade whose tests need a Postgres database wait until a station that provides `postgres` is declared for parade; none is today, so they do not start." },
       { id: "provide-here", label: "Provide it on box", consequence: "A PostgreSQL server (the `postgresql` package) is installed on box and runs there as a service, and the tests of parade run there with it: no ticket waits for another station." },
       { id: "adapt-tests", label: "Adapt the tests", consequence: "A ticket of parade rewrites its tests so they pass without a Postgres database: the tests that use the database run against a substitute or are skipped, so queries and migrations are no longer checked against a real Postgres." },
+      { id: "setup-brings-it", label: "The project's setup brings it itself", consequence: "A ticket of parade makes its worktree setup bring a Postgres database itself — it starts a throwaway Postgres server of its own for the tests, under the cook's account, in the worktree (`initdb` and `pg_ctl` on a free port), or in a container —, and its tests run with it: box already has what that takes, nothing is installed there.", recommended: true },
     ],
     status: "pending",
   },
@@ -29,6 +30,7 @@ export const CHOIX: Choix[] = [
       { id: "cook-elsewhere", label: "Cook it on a station that has it", consequence: "The tickets of parade whose tests need Docker wait for macbook, which provides it; box keeps cooking the others." },
       { id: "provide-here", label: "Provide it on box", consequence: "Docker Engine (the `docker.io` package) is installed on box and the station's account joins the `docker` group, which lets every cook of the box start containers, and the tests of parade run there with it: no ticket waits for another station." },
       { id: "adapt-tests", label: "Adapt the tests", consequence: "A ticket of parade rewrites its tests so they pass without Docker: the tests that start containers are skipped on this station, so what runs inside them is no longer checked here." },
+      { id: "setup-brings-it", label: "The project's setup brings it itself", consequence: "A ticket of parade makes its worktree setup bring Docker itself — its tests get what they start in containers without a Docker daemon: the services run as processes of the cook's account, or in a rootless engine of its own —, and its tests run with it: what that takes is not on box yet, so the setup has to fetch it, or that ticket says what must be installed there." },
     ],
     status: "pending",
   },
@@ -38,7 +40,7 @@ export const CHOIX: Choix[] = [
 export const BLOCAGES: Blocage[] = CHOIX.map(({ id, message, cause }) => ({ id, message, cause, action: "choose-need" }));
 
 export const ecran: Ecran = {
-  dit: "L'espace de « parade » à qui manquent un Postgres et Docker : une carte par besoin, ses trois issues et ce qui suit de chacune (#1400)",
+  dit: "L'espace de « parade » à qui manquent un Postgres et Docker : une carte par besoin, ses quatre issues et ce qui suit de chacune (#1400)",
   largeur: 1440,
   hauteur: 900,
   etapes: [OUVRIR],

@@ -25,7 +25,7 @@ import { type Choix, documentDeDemande, FICHIER_PROJETS, FICHIER_SUIVI, lireDema
 import { calibrageRecommande, type Choisi, EFFORTS, machineProposee, MODELES, type ProjetVu, tenirProjets, type VuDesProjets } from "../../../src/projets/projets.ts";
 import type { Fichiers } from "../../../src/stations/github.ts";
 import type { StationVue, VuDesStations } from "../../../src/stations/stations.ts";
-import { choixEnAttente, EN_COURS, poserChoix, sansLesChoix, titreDesChoix } from "../../../src/vue/projet/choix.js";
+import { choixEnAttente, EN_COURS, poserChoix, RECOMMANDE, sansLesChoix, titreDesChoix } from "../../../src/vue/projet/choix.js";
 import { Faux, jouerLaVue, repos } from "../../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
@@ -81,6 +81,26 @@ describe("les cartes, posées par le module", () => {
     const pose = poser({ projet: "parade", choix: choixRelus([POSTGRES]), choisir: (id, issue) => choisies.push([id, issue]) });
     boutons(pose).find((b) => b.textContent === "Adapt the tests")?.click();
     assert.deepEqual(choisies, [["need:postgres", "adapt-tests"]]);
+  });
+
+  test("l'issue côté projet porte « recommended » quand la station la recommande, et seulement alors", () => {
+    const recommandee = (choix: typeof POSTGRES) => ({ ...choix, options: choix.options.map((o) => (o.id === "setup-brings-it" ? { ...o, recommended: true as const } : o)) });
+    const marques = (pose: Faux) => pose.dessous("span").filter((s) => s.className === "marque-recommande");
+    const avec = poser({ projet: "parade", choix: choixRelus([recommandee(POSTGRES)]) });
+    assert.deepEqual(marques(avec).map((m) => m.textContent), [RECOMMANDE]);
+    assert.deepEqual(boutons(avec).filter((b) => b.className === "recommande").map((b) => b.textContent), ["The project's setup brings it itself"]);
+    const sans = poser({ projet: "parade", choix: choixRelus([POSTGRES]) });
+    assert.equal(marques(sans).length, 0);
+    assert.equal(boutons(sans).filter((b) => b.className === "recommande").length, 0);
+  });
+
+  test("un clic sur l'issue côté projet donne « setup-brings-it » avec la clé du choix ; la carte du navigateur garde ses issues", () => {
+    const choisies: string[][] = [];
+    const navigateur = enAttente("browser", ["`package.json` depends on `playwright`"]);
+    const pose = poser({ projet: "parade", choix: choixRelus([navigateur]), choisir: (id, issue) => choisies.push([id, issue]) });
+    assert.deepEqual(boutons(pose).map((b) => b.textContent).slice(0, 3), ["Cook it on a station that has it", "Provide it on box", "Adapt the tests"]);
+    boutons(pose).find((b) => b.textContent === "The project's setup brings it itself")?.click();
+    assert.deepEqual(choisies, [["need:browser", "setup-brings-it"]]);
   });
 
   test("deux besoins qui manquent : deux cartes, pas une liste fondue", () => {

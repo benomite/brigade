@@ -15,6 +15,7 @@ import { survol } from "../briques.js";
 // Pourquoi une issue n'a pas été retenue, en une ligne, et ce que GitHub a dit au survol.
 /** @typedef {{ refus: string, detail?: string }} Refus */
 
+export const RECOMMANDE = "recommended";
 export const EN_COURS = "recording your choice…";
 
 /** @param {Fabrique} doc @param {string} balise @param {string} [texte] */
@@ -65,7 +66,13 @@ function carte(doc, choix, { choisir, enCours, refus }) {
       bouton.addEventListener("click", () => choisir(choix.id, option.id));
       const suite = cree(doc, "p", option.consequence);
       suite.className = "consequence";
-      issue.append(bouton, suite);
+      // L'issue que la station conseille se distingue des autres, et le dit ; sans son drapeau, rien.
+      if (option.recommended === true) {
+        bouton.className = "recommande";
+        const marque = cree(doc, "span", RECOMMANDE);
+        marque.className = "marque-recommande";
+        issue.append(bouton, marque, suite);
+      } else issue.append(bouton, suite);
       return issue;
     }),
   );

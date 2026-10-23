@@ -477,6 +477,7 @@ main > header,
   color: var(--texte);
 }
 #blocages-du-projet .cause,
+#blocages-du-projet .aide-du-blocage,
 #blocages-du-projet .sans-geste {
   color: var(--texte-doux);
 }
@@ -574,6 +575,14 @@ main > header,
   font-weight: 600;
   border: 1px solid var(--trait-fort);
   border-radius: var(--rayon-bouton);
+}
+#choix-du-projet .issue button.recommande {
+  border-color: var(--accent);
+}
+#choix-du-projet .marque-recommande {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
 }
 #choix-du-projet .issue button:disabled {
   opacity: 0.5;
