@@ -5693,6 +5693,8 @@ function poserPageDeStation() {
   poserProjets();
 }
 
+// Le seul réglage que la page d'une station montre est son plafond de cooks, étiqueté ci-dessous : le dossier des
+// espaces de travail et les capacités ne se règlent qu'à l'ajout d'une station (son formulaire, étiqueté lui aussi).
 // Le plafond de cooks de la station, comme sa box le dit — `3 at most — 8 cores`, ou `5 at most — set by you,
 // replaces 3 (8 cores)` — ; quand elle retient des tickets, ce qui la retient, avec ce que chaque ressource a et ce
 // qu'il lui faut ; et le réglage : un nombre, ou « default » pour que le plafond des cœurs revienne. Le plafond

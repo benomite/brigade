@@ -34,10 +34,10 @@ describe("le niveau de chaque réglage montré", () => {
     assert.deepEqual(Object.values(NIVEAUX_DITS).map(({ libelle }) => libelle), ["project", "this machine", "you"]);
   });
 
-  test("branche, calibrages et plafond sont du projet ; cooks, dossier et capacités de la machine ; couleurs et affichage de toi", () => {
+  test("branche, calibrages et plafond sont du projet ; cooks, dossier et capacités de la machine ; couleurs de toi", () => {
     for (const cle of ["depot", "branche", "manager", "reviewer", "plafond", "calibrage"]) assert.equal(NIVEAUX[cle], "project", cle);
     for (const cle of ["cooks", "dossier", "capacites", "ordinaires"]) assert.equal(NIVEAUX[cle], "machine", cle);
-    for (const cle of ["couleurs", "affichage"]) assert.equal(NIVEAUX[cle], "you", cle);
+    for (const cle of ["couleurs"]) assert.equal(NIVEAUX[cle], "you", cle);
   });
 
   test("un réglage que la table ne connaît pas ne se rend pas", () => {
@@ -66,9 +66,8 @@ describe("le niveau de chaque réglage montré", () => {
   test("chaque niveau demandé par la vue est dans la table, et chaque ligne de la table est montrée", () => {
     const vues = demandes();
     for (const [cle, ou] of vues) assert.ok(NIVEAUX[cle], `"${cle}" est montré (${ou.join(", ")}) sans niveau dans la table`);
-    // Les réglages du projet se posent par leur clé (le test d'au-dessus les rend) ; « affichage » : aucune préférence
-    // d'affichage n'est encore montrée, la ligne attend la première.
-    const ailleurs: string[] = [...CLES, "affichage"];
+    // Les réglages du projet se posent par leur clé : le test d'au-dessus les rend.
+    const ailleurs: string[] = [...CLES];
     for (const cle of Object.keys(NIVEAUX).filter((cle) => !ailleurs.includes(cle))) assert.ok(vues.has(cle), `"${cle}" est dans la table mais n'est montré nulle part`);
   });
 });
