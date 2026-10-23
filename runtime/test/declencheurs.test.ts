@@ -44,3 +44,9 @@ test("un workflow planifié, déclenché à la main ou sur un tag ne se lance pa
   assert.equal(sur("on:\n  push:\n    tags:\n      - 'v*'\n  workflow_dispatch:\n"), false);
   assert.equal(sur("on:\n  schedule:\n    - cron: '0 6 * * *'\n  pull_request:\n"), true);
 });
+
+test("un événement sans filtre écrit en ligne (`workflow_dispatch: {}`) n'est pas un workflow de PR", () => {
+  assert.equal(sur('on:\n  schedule:\n    - cron: "0 6 * * 1-5"\n  workflow_dispatch: {}\n'), false);
+  assert.equal(sur('on:\n  push:\n    tags:\n      - "v*.*.*"\n  workflow_dispatch: {}\n'), false);
+  assert.equal(sur("on:\n  workflow_dispatch: {}\n  pull_request: { branches: [v2] }\n"), true);
+});
