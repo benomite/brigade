@@ -210,3 +210,16 @@ These French-looking terms are not translated by this ticket, with the reason:
 - `Max` — the Anthropic subscription's name.
 - Identifiers that nothing shows the chef (internal function names, `#kitchen` in the view)
   are renamed only when a ticket touches the file; no mass rename.
+
+## 7. Settings levels
+
+Where a setting lives (ticket 1312, see [`reglages.md`](reglages.md)). The app writes each level
+next to the setting it governs, with the same words.
+
+| French | English | Object | Where |
+|---|---|---|---|
+| niveau | `level` | Where a setting is kept: the project's repository, the station, or the chef's app | app, doc |
+| projet (niveau) | `project` | The setting kept in the project's repository (`projet.json`), changed by a pull request | app, doc |
+| cette machine (niveau) | `this machine` | The setting kept on one station, private, never in git | app, doc |
+| toi (niveau) | `you` | The chef's preference in the app (the colors of a project) | app, doc |
+| réglages du projet | `project settings` | The `projet.json` fields, read from the repository | box, app, doc |
