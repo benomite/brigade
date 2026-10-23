@@ -88,3 +88,30 @@ test("sur le téléphone, GitHub injoignable ou qui refuse : un échec en une ph
   const muet = await module.lireLeTableauDuTelephone("chef/parade", { natif: natif({}, null).natif, maintenant: () => LU_LE });
   assert.equal(muet.lu ? "" : muet.raison, "GitHub could not be reached to read the Kitchen board of chef/parade: the phone's HTTP returned no answer.");
 });
+
+// Une décision du chef, postée par le téléphone sur l'issue du tableau (#1590) : par le HTTP natif, avec le jeton du coffre.
+const VISE = { depot: "chef/parade", numero: 7, tickets: new Set([18, 21]) };
+
+test("le téléphone poste une décision sur le tableau : un POST natif, son corps en JSON, avec le jeton du coffre", async (t) => {
+  const { module, poses } = await posee(t);
+  assert.ok(poses.includes("src/tableau-gestes/github.js") && poses.includes("src/tableau-gestes/gestes.js"));
+  const { natif: pont, appels } = natif({ valeur: "gho_du_coffre" }, { status: 201, headers: {}, data: { id: 4242, html_url: "https://github.com/chef/parade/issues/7#issuecomment-4242" } });
+  const etat = await module.gesteDuTelephone(VISE, { geste: "merge", ticket: 18 }, { natif: pont });
+  assert.deepEqual(etat, { etat: "pending", commentaire: { id: 4242, url: "https://github.com/chef/parade/issues/7#issuecomment-4242" } });
+  const demande = appels.find(({ plugin }) => plugin === "CapacitorHttp")?.options;
+  assert.equal(demande?.url, "https://api.github.com/repos/chef/parade/issues/7/comments");
+  assert.equal(demande?.method, "POST");
+  assert.deepEqual(demande?.data, { body: "/brigade merge #18" });
+  assert.equal((demande?.headers as Record<string, string>).Authorization, "Bearer gho_du_coffre");
+  assert.equal((demande?.headers as Record<string, string>)["Content-Type"], "application/json");
+});
+
+test("sur le téléphone, un ticket hors de la dernière lecture, ou GitHub qui refuse : rien n'est posté, une phrase le dit", async (t) => {
+  const { module } = await posee(t);
+  const hors = natif({ valeur: "gho_du_coffre" }, { status: 201, headers: {}, data: { id: 1 } });
+  const ailleurs = await module.gesteDuTelephone(VISE, { geste: "merge", ticket: 99 }, { natif: hors.natif });
+  assert.equal(ailleurs.etat, "failed");
+  assert.equal(hors.appels.some(({ plugin }) => plugin === "CapacitorHttp"), false);
+  const refuse = await module.gesteDuTelephone(VISE, { geste: "set-aside", ticket: 21 }, { natif: natif({}, { status: 404, headers: {}, data: { message: "Not Found" } }).natif });
+  assert.deepEqual(refuse, { etat: "failed", raison: "The gesture could not be posted on the Kitchen board of chef/parade: GitHub refused the comment (HTTP 404): Not Found." });
+});

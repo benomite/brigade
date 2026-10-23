@@ -3823,6 +3823,112 @@ main > header,
   color: var(--rouge);
   border-top: 0;
 }
+/* Les décisions d'une ligne du tableau de la cuisine (#1590) : ses boutons en ligne, le recommandé en accent ; la
+   confirmation ouverte dessous, sur le papier, bordée de jaune — ce que fait le geste, son prix en une ligne, la raison
+   d'un renvoi —, puis « oui » et « cancel ». Où en est le geste se lit en une ligne, son état en gras : en attente
+   en jaune, pris en vert, refusé ou non posté en rouge, le détail au survol. */
+#rail .bon .decisions {
+  justify-content: flex-start;
+  gap: 4px;
+  padding-top: 4px;
+  border-top: 1px dashed var(--bon-trait);
+  cursor: auto;
+}
+#rail .bon .decisions .action > button,
+#rail .bon .confirmation > button {
+  padding: 3px 8px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--bon-encre);
+  border: 1px solid var(--bon-trait);
+  border-radius: var(--rayon-bouton);
+}
+#rail .bon .decisions .action > button.recommande,
+#rail .bon .confirmation > button.recommande {
+  color: var(--fond);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+#rail .bon .decisions .action > button:disabled {
+  color: var(--bon-discret);
+  background: none;
+  border-style: dashed;
+  cursor: default;
+}
+#rail .bon .confirmation {
+  flex-direction: column;
+  align-items: stretch;
+  margin: 0;
+  padding: 6px 0 2px 8px;
+  font-family: var(--police-interface);
+  font-size: 12px;
+  color: var(--bon-encre);
+  background: none;
+  border-left: 3px solid var(--jaune);
+  cursor: auto;
+}
+#rail .bon .confirmation > p {
+  padding-top: 0;
+  font-size: 12px;
+  color: var(--bon-encre);
+  border-top: 0;
+}
+#rail .bon .confirmation > p.titre {
+  font-weight: 600;
+}
+#rail .bon .confirmation > p.prix {
+  color: var(--bon-discret);
+}
+#rail .bon .confirmation > button {
+  align-self: flex-start;
+}
+#rail .bon .confirmation textarea {
+  min-width: 0;
+  padding: 4px 6px;
+  font: inherit;
+  color: var(--bon-encre);
+  background: var(--bon);
+  border: 1px solid var(--bon-trait);
+  border-radius: var(--rayon-bouton);
+  resize: vertical;
+}
+#rail .bon .confirmation textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+#rail .bon p.geste-du-tableau {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 4px;
+  font-family: var(--police-interface);
+  font-size: 12px;
+  color: var(--bon-encre);
+  white-space: normal;
+}
+#rail .bon p.geste-du-tableau .quoi {
+  color: var(--bon-discret);
+}
+#rail .bon p.geste-du-tableau[data-etat="pending"] strong {
+  color: var(--jaune);
+}
+#rail .bon p.geste-du-tableau[data-etat="taken"] strong {
+  color: var(--vert);
+}
+#rail .bon p.geste-du-tableau:is([data-etat="refused"], [data-etat="echec"]) {
+  color: var(--rouge);
+}
+#rail .bon p.geste-du-tableau[data-etat="refused"] strong {
+  color: var(--rouge);
+}
+/* Un geste dont la ligne a quitté la file : son bon reste sous elle, plus discret, jusqu'à « clear ». */
+#rail .gestes-partis {
+  margin-top: 8px;
+}
+#rail .gestes-partis .bon {
+  opacity: 0.85;
+  cursor: auto;
+}
 /* Ses remarques, sous leur nombre : un clic les déplie sur la fiche, un autre les replie. */
 #rail .remarques,
 #fiche .remarques {

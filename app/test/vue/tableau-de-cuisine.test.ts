@@ -19,6 +19,8 @@ import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import type { ReponseGitHub } from "../../src/tableau/client.ts";
 import { lireLeTableauDuDepot, type LectureDuTableauDuDepot, type TableauLu } from "../../src/tableau/lecture.ts";
 import type { Terminal } from "../../src/terminaux.ts";
+import { ENVOYER } from "../../src/vue/carte-todo.js";
+import { EFFACER, EN_ATTENTE, MERGER, PRIS, PRIX, RAISON, REFUSE, RENVOYER, RETIRER } from "../../src/vue/gestes-du-tableau.js";
 import { RELIRE } from "../../src/vue/premier-lancement.js";
 import {
   COLONNE_DE_LA_CUISINE,
@@ -220,7 +222,9 @@ describe("dans la vue : l'onglet Rail lit le tableau de la cuisine", () => {
     assert.match(rail.textContent, /read \d+ (s|min|h|d) ago/);
     assert.equal(sous(rail).filter((pose) => pose.className === "bon").length, 2);
     assert.match(rail.textContent, /Kitchenopenprojectparade \(chef\/parade\) · open/);
-    assert.deepEqual(boutons([rail]).map((pose) => pose.textContent), [RELIRE, OUVRIR_LA_PR, OUVRIR_L_ISSUE]);
+    // Chaque ligne : sa page, puis ses décisions (#1590) — la livraison de #18 se merge, se renvoie ou se retire ; la carte
+    // de #21 a ses choix, son champ et « send », et se retire.
+    assert.deepEqual(boutons([rail]).map((pose) => pose.textContent), [RELIRE, OUVRIR_LA_PR, MERGER, RENVOYER, RETIRER, OUVRIR_L_ISSUE, "Green", "Blue", ENVOYER, RETIRER]);
     // Le bouton d'une ligne ouvre sa page par le pont, qui ne l'ouvre que si la lecture l'a donnée.
     bouton([rail], OUVRIR_LA_PR).click();
     await repos();
@@ -265,7 +269,20 @@ describe("dans la vue : l'onglet Rail lit le tableau de la cuisine", () => {
     assert.equal(lectures, 2);
     assert.match(rail.textContent, /^2 things await you on parade\./);
     // Lu, le lien direct reste offert, en second geste ; puis le bouton de chaque ligne.
-    assert.deepEqual(boutons([rail]).map((pose) => [pose.textContent, pose.className]), [[RELIRE, ""], [LIEN_DIRECT, ""], [OUVRIR_LA_PR, "pr"], [OUVRIR_L_ISSUE, "pr"]]);
+    // Merger la livraison verte de #18 est le geste recommandé (#1590).
+    assert.deepEqual(boutons([rail]).map((pose) => [pose.textContent, pose.className]), [
+      [RELIRE, ""],
+      [LIEN_DIRECT, ""],
+      [OUVRIR_LA_PR, "pr"],
+      [MERGER, "recommande"],
+      [RENVOYER, ""],
+      [RETIRER, ""],
+      [OUVRIR_L_ISSUE, "pr"],
+      ["Green", "choix"],
+      ["Blue", "choix"],
+      [ENVOYER, ""],
+      [RETIRER, ""],
+    ]);
   });
 
   test("l'onglet Cooks reste celui du lien direct : le tableau ne s'y pose pas", async () => {
@@ -276,6 +293,142 @@ describe("dans la vue : l'onglet Rail lit le tableau de la cuisine", () => {
     assert.match(vue.element("rail").textContent, /^2 things await you on parade\./);
   });
 
+});
+
+// Les décisions du chef, prises sur les lignes du tableau (#1590) : postées par le pont en commentaire sur l'issue du
+// tableau — ni `ssh` ni tailnet —, puis suivies dans les lectures du tableau par l'id du commentaire posté.
+const POSTE = { etat: "pending", commentaire: { id: 4242, url: "https://github.com/chef/parade/issues/7#issuecomment-4242" } } as const;
+const repondu = (etat: "pris" | "refuse", reponse: string, base: TableauLu = LU): TableauLu => ({
+  ...base,
+  gestes: [{ commentaire: 4242, url: POSTE.commentaire.url, le: "2026-10-23T10:05:00.000Z", geste: "merge", ticket: 18, etat, traiteLe: "2026-10-23T10:05:30.000Z", reponse }],
+});
+const bonDe = (rail: Faux, nom: string) => sous(rail).find((pose) => pose.className === "bon" && pose.children[0]?.children[0]?.textContent === nom) ?? assert.fail(`pas de ligne ${nom}`);
+const ligneDuGesteDe = (rail: Faux, nom: string) => sous(bonDe(rail, nom)).find((pose) => pose.className === "geste-du-tableau");
+
+describe("dans la vue : les décisions de la file du tableau", () => {
+  test("merger d'une ligne, sans ssh ni tailnet : confirmé avec son prix, posté, `pending` ; puis `taken into account` à la lecture qui le dit", async () => {
+    let lu: TableauLu = LU;
+    const vue = await jouerLaVue({ demarrage: demarrage(SANS_LIEN), espace: () => [SECOND], tableauDuProjet: () => lu, gesteAuTableau: () => POSTE });
+    (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
+    await repos();
+    const rail = vue.element("rail");
+    bouton([bonDe(rail, "#18")], MERGER).click();
+    await repos();
+    // La confirmation : ce que fait le geste, son prix en une ligne ; rien n'est parti.
+    const confirmation = sous(bonDe(rail, "#18")).find((pose) => pose.className === "confirmation");
+    assert.equal(confirmation?.children[0]?.textContent, "Merge the PR of #18?");
+    assert.equal(confirmation?.children[1]?.textContent, PRIX.merge);
+    assert.equal(vue.appels.some(({ geste }) => geste === "gesteAuTableau"), false);
+    bouton([bonDe(rail, "#18")], "yes, merge it").click();
+    await repos();
+    assert.deepEqual(vue.dernier("gesteAuTableau"), [PARADE, { geste: "merge", ticket: 18 }]);
+    assert.match(ligneDuGesteDe(rail, "#18")?.textContent ?? "", new RegExp(`^${MERGER}: ${EN_ATTENTE}`));
+    // En attente de la box, la ligne n'offre plus ses décisions : un second merge ne part pas.
+    assert.deepEqual(boutons([bonDe(rail, "#18")]).map((pose) => pose.textContent), [OUVRIR_LA_PR]);
+    assert.equal(vue.appels.some(({ geste }) => geste === "relireBox"), false);
+    lu = repondu("pris", "**Done** — [merge #18](https://github.com/chef/parade/issues/7#issuecomment-4242) — cost: the PR is merged");
+    bouton([rail], RELIRE).click();
+    await repos();
+    const pris = ligneDuGesteDe(rail, "#18");
+    assert.match(pris?.textContent ?? "", new RegExp(`^${MERGER}: ${PRIS}`));
+    // La ligne de la box, et ce qu'elle a coûté, passent au survol.
+    assert.deepEqual(aides(pris), ["Done — merge #18 — cost: the PR is merged"]);
+  });
+
+  test("refusé par la box : `refused` et sa ligne, et les décisions reviennent", async () => {
+    let lu: TableauLu = LU;
+    const vue = await jouerLaVue({ demarrage: demarrage(SANS_LIEN), espace: () => [SECOND], tableauDuProjet: () => lu, gesteAuTableau: () => POSTE });
+    (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
+    await repos();
+    const rail = vue.element("rail");
+    bouton([bonDe(rail, "#18")], MERGER).click();
+    await repos();
+    bouton([bonDe(rail, "#18")], "yes, merge it").click();
+    await repos();
+    lu = repondu("refuse", "**Not done** — [merge #18](https://github.com/chef/parade/issues/7#issuecomment-4242): GitHub refused the merge of https://github.com/chef/parade/pull/40: the base branch moved");
+    bouton([rail], RELIRE).click();
+    await repos();
+    assert.equal(ligneDuGesteDe(rail, "#18")?.textContent, `${MERGER}: ${REFUSE} — Not done — merge #18: GitHub refused the merge of https://github.com/chef/parade/pull/40: the base branch moved`);
+    assert.deepEqual(boutons([bonDe(rail, "#18")]).map((pose) => [pose.textContent, pose.disabled]), [[OUVRIR_LA_PR, false], [MERGER, false], [RENVOYER, false], [RETIRER, false]]);
+  });
+
+  test("un post qui échoue : une phrase sur la ligne, ce que GitHub a dit au survol, et les boutons restent", async () => {
+    let posts = 0;
+    const vue = await jouerLaVue({
+      demarrage: demarrage(SANS_LIEN),
+      espace: () => [SECOND],
+      tableauDuProjet: () => LU,
+      gesteAuTableau: () => (++posts === 1 ? { etat: "failed", raison: "The gesture could not be posted on the Kitchen board of chef/parade: GitHub refused the comment (HTTP 403): Resource not accessible by integration." } : POSTE),
+    });
+    (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
+    await repos();
+    const rail = vue.element("rail");
+    bouton([bonDe(rail, "#18")], RETIRER).click();
+    await repos();
+    bouton([bonDe(rail, "#18")], "yes, remove it").click();
+    await repos();
+    const echec = ligneDuGesteDe(rail, "#18");
+    assert.equal(echec?.dataset.etat, "echec");
+    assert.equal(sous(echec).find((pose) => pose.balise === "span" && pose.className === "")?.textContent, "The gesture could not be posted on the Kitchen board of chef/parade.");
+    assert.deepEqual(aides(echec), ["GitHub refused the comment (HTTP 403): Resource not accessible by integration"]);
+    assert.deepEqual(boutons([bonDe(rail, "#18")]).map((pose) => [pose.textContent, pose.disabled]), [[OUVRIR_LA_PR, false], [MERGER, false], [RENVOYER, false], [RETIRER, false]]);
+    // Ils resservent : le même geste, posté cette fois.
+    bouton([bonDe(rail, "#18")], RETIRER).click();
+    await repos();
+    bouton([bonDe(rail, "#18")], "yes, remove it").click();
+    await repos();
+    assert.equal(posts, 2);
+    assert.deepEqual(vue.dernier("gesteAuTableau"), [PARADE, { geste: "set-aside", ticket: 18 }]);
+    assert.equal(ligneDuGesteDe(rail, "#18")?.dataset.etat, "pending");
+  });
+
+  test("renvoyer en cuisine avec sa raison ; répondre à la carte dans ses mots, ou d'un choix", async () => {
+    const vue = await jouerLaVue({ demarrage: demarrage(SANS_LIEN), espace: () => [SECOND], tableauDuProjet: () => LU, gesteAuTableau: () => POSTE });
+    (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
+    await repos();
+    const rail = vue.element("rail");
+    bouton([bonDe(rail, "#18")], RENVOYER).click();
+    await repos();
+    const raison = sous(bonDe(rail, "#18")).find((pose) => pose.balise === "textarea") ?? assert.fail("pas de champ de raison");
+    assert.equal(raison.placeholder, RAISON);
+    raison.value = "  the header row is missing ";
+    raison.declencher("input");
+    bouton([bonDe(rail, "#18")], "yes, send it back").click();
+    await repos();
+    assert.deepEqual(vue.dernier("gesteAuTableau"), [PARADE, { geste: "send-back", ticket: 18, raison: "the header row is missing" }]);
+    // La carte de #21 : le texte libre part par « send ».
+    const reponse = sous(bonDe(rail, "#21")).find((pose) => pose.balise === "textarea") ?? assert.fail("pas de champ de réponse");
+    reponse.value = "Neither: a dark grey";
+    reponse.declencher("input");
+    bouton([bonDe(rail, "#21")], ENVOYER).click();
+    await repos();
+    assert.deepEqual(vue.dernier("gesteAuTableau"), [PARADE, { geste: "answer", ticket: 21, reponse: "Neither: a dark grey" }]);
+    assert.match(ligneDuGesteDe(rail, "#21")?.textContent ?? "", /^your answer: pending/);
+  });
+
+  test("un choix de la carte est la réponse, sans confirmation ; la ligne qui quitte la file garde son geste jusqu'à « clear »", async () => {
+    let lu: TableauLu = LU;
+    const vue = await jouerLaVue({ demarrage: demarrage(SANS_LIEN), espace: () => [SECOND], tableauDuProjet: () => lu, gesteAuTableau: () => POSTE });
+    (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
+    await repos();
+    const rail = vue.element("rail");
+    bouton([bonDe(rail, "#21")], "Blue").click();
+    await repos();
+    assert.deepEqual(vue.dernier("gesteAuTableau"), [PARADE, { geste: "choose", ticket: 21, choix: 2 }]);
+    assert.match(ligneDuGesteDe(rail, "#21")?.textContent ?? "", /^“Blue”: pending/);
+    // La box l'a pris, et la carte a quitté la file : le geste se dit encore, sous elle.
+    lu = repondu("pris", "**Done** — [choose #21](…)", { ...LU, file: LU.file.slice(0, 1), pages: LU.pages.slice(0, 1) });
+    bouton([rail], RELIRE).click();
+    await repos();
+    const parti = sous(rail).find((pose) => pose.className === "gestes-partis") ?? assert.fail("pas de geste parti");
+    assert.match(parti.textContent, new RegExp(`^#21no longer in the queuechoice 2: ${PRIS}`));
+    bouton([parti], EFFACER).click();
+    await repos();
+    assert.equal(sous(rail).some((pose) => pose.className === "gestes-partis"), false);
+  });
+});
+
+describe("dans la vue : un pont d'avant le tableau", () => {
   test("un pont qui ne lit pas de tableau : l'onglet garde son rail d'avant, et le tableau n'est plus demandé", async () => {
     const vue = await jouerLaVue({ demarrage: demarrage(AVEC_BOX), espace: () => [SECOND] });
     (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();

@@ -8,16 +8,19 @@
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
 import { boutonAction, survol } from "./briques.js";
+import { poserLesDecisions, poserLesGestesPartis } from "./gestes-du-tableau.js";
 import { phrase } from "./onboarding/parcours.js";
 import { gestes, phraseEtDetail, RELIRE } from "./premier-lancement.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../tableau/lecture.ts").LectureDuTableauDuDepot} LectureDuTableauDuDepot */
 /** @typedef {import("../tableau/lecture.ts").TableauLu} TableauLu */
+/** @typedef {import("./gestes-du-tableau.js").LigneTenue} LigneTenue */
 
 // Ce que la vue tient du tableau d'un projet. `lu` : absent, sa première lecture est en route. `dernier` : la dernière
 // lecture réussie, gardée quand une suivante échoue. `lienDirect` : le projet a un lien direct. `maintenant` : l'heure
-// de l'écran, en millisecondes — l'âge se compte jusqu'à elle.
+// de l'écran, en millisecondes — l'âge se compte jusqu'à elle. `lignes` : ce que la vue tient de chaque ticket de la
+// file — le geste envoyé, la confirmation ouverte, ce que le chef a tapé (gestes-du-tableau.js, ticket 1590).
 /**
  * @typedef {{
  *   projet: string,
@@ -25,14 +28,17 @@ import { gestes, phraseEtDetail, RELIRE } from "./premier-lancement.js";
  *   dernier?: TableauLu,
  *   lienDirect: boolean,
  *   maintenant: number,
+ *   lignes?: ReadonlyMap<number, LigneTenue>,
  * }} EtatDuTableau
  */
+// `decisions` : les gestes du chef sur les lignes de la file (ticket 1590) ; sans eux, une ligne n'a que sa page.
 /**
  * @typedef {{
  *   relire: () => void,
  *   prendreLeLienDirect: () => void,
  *   ouvrir: (url: string) => void,
  *   forme?: (ton: string | undefined) => string | undefined,
+ *   decisions?: import("./gestes-du-tableau.js").DecisionsDuTableau,
  * }} GestesDuTableau
  */
 
@@ -106,7 +112,7 @@ export function gesteDe(ligne) {
 }
 
 // Le bouton d'une ligne de la file : sa page sur GitHub (lecture.ts, `pages`) — la PR à merger, l'issue où répondre,
-// ou le tableau même. Le geste du chef s'y fait ; les boutons qui le font d'ici sont le ticket 1590.
+// ou le tableau même. Les boutons qui font le geste d'ici la suivent (gestes-du-tableau.js, ticket 1590).
 export const OUVRIR_LA_PR = "open the PR";
 export const OUVRIR_L_ISSUE = "open the issue";
 export const OUVRIR_LE_TABLEAU = "open the Kitchen board";
@@ -115,10 +121,11 @@ export const boutonDeLaLigne = (lu, page) =>
   page === `https://github.com/${lu.depot}/issues/${lu.numero}` ? OUVRIR_LE_TABLEAU : /\/pull\/\d+$/.test(page) ? OUVRIR_LA_PR : OUVRIR_L_ISSUE;
 
 // Une ligne de la file : son nom, depuis quand elle attend, le titre de son ticket, ce qui attend, mot pour mot comme
-// `status` l'écrit, puis son bouton.
-/** @param {Fabrique} doc @param {TableauLu} lu @param {number} rang @param {number} maintenant @param {GestesDuTableau} geste */
-function bonDeLaFile(doc, lu, rang, maintenant, geste) {
-  const { nom, titre, depuis, ligne } = lu.file[rang] ?? { nom: "", titre: null, depuis: "", ligne: "" };
+// `status` l'écrit, puis son bouton, et les décisions qu'elle offre — ou où en est celle que le chef a prise.
+/** @param {Fabrique} doc @param {TableauLu} lu @param {number} rang @param {number} maintenant @param {GestesDuTableau} geste @param {ReadonlyMap<number, LigneTenue>} lignes */
+function bonDeLaFile(doc, lu, rang, maintenant, geste, lignes) {
+  const deLaFile = lu.file[rang];
+  const { nom, titre, depuis, ligne } = deLaFile ?? { nom: "", titre: null, depuis: "", ligne: "" };
   const page = lu.pages?.[rang];
   const bon = cree(doc, "li");
   bon.className = "bon";
@@ -146,6 +153,10 @@ function bonDeLaFile(doc, lu, rang, maintenant, geste) {
     ouvre.addEventListener("click", () => geste.ouvrir(page));
     bon.append(ouvre);
   }
+  if (deLaFile !== undefined && geste.decisions !== undefined) {
+    const tenue = (deLaFile.ticket === null ? undefined : lignes.get(deLaFile.ticket)) ?? {};
+    bon.append(...poserLesDecisions(doc, deLaFile, tenue, lu.gestes, geste.decisions));
+  }
   return bon;
 }
 
@@ -164,8 +175,9 @@ function colonne(doc, nom, compte, ton, geste) {
 
 // Les deux colonnes d'une lecture : TODO, ce qui attend le chef, et ce que `status` en dit sans que ce soit une
 // décision ; puis la cuisine, rubrique par rubrique.
-/** @param {Fabrique} doc @param {TableauLu} lu @param {number} maintenant @param {GestesDuTableau} geste */
-function colonnes(doc, lu, maintenant, geste) {
+// Les gestes du chef dont la ligne a quitté la file restent dits sous elle, jusqu'à ce qu'il les efface.
+/** @param {Fabrique} doc @param {TableauLu} lu @param {number} maintenant @param {GestesDuTableau} geste @param {ReadonlyMap<number, LigneTenue>} lignes */
+function colonnes(doc, lu, maintenant, geste, lignes) {
   const grille = cree(doc, "div");
   grille.className = "colonnes tableau-de-cuisine";
   const file = colonne(doc, COLONNE_DE_LA_FILE, String(lu.file.length), "rouge", geste);
@@ -176,8 +188,13 @@ function colonnes(doc, lu, maintenant, geste) {
     file.append(vide);
   } else {
     const liste = cree(doc, "ol");
-    liste.append(...lu.file.map((_, rang) => bonDeLaFile(doc, lu, rang, maintenant, geste)));
+    liste.append(...lu.file.map((_, rang) => bonDeLaFile(doc, lu, rang, maintenant, geste, lignes)));
     file.append(liste);
+  }
+  if (geste.decisions !== undefined) {
+    const dansLaFile = new Set(lu.file.map(({ ticket }) => ticket));
+    const partis = [...lignes].flatMap(([ticket, { suivi }]) => (suivi === undefined || dansLaFile.has(ticket) ? [] : [{ ticket, suivi }]));
+    file.append(...poserLesGestesPartis(doc, partis, lu.gestes, geste.decisions));
   }
   file.append(...lu.bilans.map((bilan) => phrase(doc, "p", bilan)));
   const etat = ETATS[lu.cuisine.etat] ?? { mot: lu.cuisine.etat, ton: "gris" };
@@ -215,6 +232,7 @@ export function raisonDe(raison) {
 /** @param {Fabrique} doc @param {EtatDuTableau} etat @param {GestesDuTableau} geste @returns {any[]} */
 export function poserLeTableauDeCuisine(doc, etat, geste) {
   const { lu, lienDirect, maintenant } = etat;
+  const lignes = etat.lignes ?? new Map();
   /** @param {string} texte @param {string} [detail] */
   const enTete = (texte, detail) => {
     const tete = phraseEtDetail(doc, "h3", texte, detail);
@@ -233,7 +251,7 @@ export function poserLeTableauDeCuisine(doc, etat, geste) {
   const relire = (recommande = false) => boutonAction(doc, RELIRE, geste.relire, { recommande });
   const direct = (recommande = false) => (lienDirect ? [boutonAction(doc, LIEN_DIRECT, geste.prendreLeLienDirect, { recommande })] : []);
   if (lu === undefined) return [enTete(LECTURE_DU_TABLEAU)];
-  if (lu.lu) return [enTete(attendDe(etat.projet, lu.file.length), provenanceDe(lu)), age(lu, [relire(), ...direct()]), colonnes(doc, lu, maintenant, geste)];
+  if (lu.lu) return [enTete(attendDe(etat.projet, lu.file.length), provenanceDe(lu)), age(lu, [relire(), ...direct()]), colonnes(doc, lu, maintenant, geste, lignes)];
   // Ne se lit pas : la raison en une phrase, l'heure de l'essai au survol. Le lien direct, quand il y en a un, est le
   // geste recommandé ; sinon, relire. La dernière lecture réussie reste dessous, son âge dit.
   const { phrase: raison, detail } = raisonDe(lu.raison);
@@ -242,7 +260,7 @@ export function poserLeTableauDeCuisine(doc, etat, geste) {
   const boutons = gestes(doc, [...direct(true), relire(!lienDirect)]);
   const dernier = etat.dernier;
   if (dernier === undefined) return [tete, boutons];
-  return [tete, boutons, age(dernier, []), colonnes(doc, dernier, maintenant, geste)];
+  return [tete, boutons, age(dernier, []), colonnes(doc, dernier, maintenant, geste, lignes)];
 }
 
 // En tête du rail lu par le lien direct, que le chef a pris : d'où il vient, et le bouton qui ramène au tableau.

@@ -30,7 +30,9 @@
 //
 // Et le tableau de la cuisine d'un projet, lu de GitHub sans la station (le ticket 1587, `lireLeTableauDuTelephone`) : le
 // module du desktop (app/src/tableau/lecture.ts), sa demande portée par le HTTP natif, avec le jeton GitHub du coffre du
-// téléphone (Coffre.java : chiffré par une clé du Keystore d'Android, qui ne sort pas du téléphone).
+// téléphone (Coffre.java : chiffré par une clé du Keystore d'Android, qui ne sort pas du téléphone). Une décision du chef
+// sur une ligne de sa file y part de même (le ticket 1590, `gesteDuTelephone`) : un commentaire sur l'issue du tableau,
+// posté par le HTTP natif.
 import { tenirAccueil, type Accueil } from "../../src/accueil.ts";
 import { tenirBandes, type Bande } from "../../src/alertes.ts";
 import { mettreAPart, type Montree } from "../../src/attend.ts";
@@ -42,6 +44,8 @@ import { ACTIONS, gestesDeCarte, type Actions, type IdDeFiche, type Propose } fr
 import { rendre } from "../../src/markdown.ts";
 import { clientGitHub, corpsLu, DELAI_MS, type Envoi as EnvoiGitHub } from "../../src/tableau/client.ts";
 import { lireLeTableauDuDepot, type LectureDuTableauDuDepot } from "../../src/tableau/lecture.ts";
+import { clientDesGestesGitHub, envoyerLeGeste, type Poste, type TableauVise } from "../../src/tableau-gestes/github.ts";
+import type { EtatDuGeste } from "../../src/tableau-gestes/gestes.ts";
 import type { Conversation, RefusDeConversation } from "../../src/vue/pont.d.ts";
 
 // Ce que le guichet a rendu : son code, et son corps — un objet, ou du texte que le HTTP natif n'a pas lu en JSON.
@@ -463,4 +467,21 @@ export function envoiNatif(natif: Natif): EnvoiGitHub {
 export function lireLeTableauDuTelephone(depot: string, options: { natif: Natif; maintenant?: () => Date }): Promise<LectureDuTableauDuDepot> {
   const appeler = clientGitHub({ jeton: jetonDuCoffre(options.natif), envoyer: envoiNatif(options.natif) });
   return lireLeTableauDuDepot({ depot, appeler, ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }) });
+}
+
+// Le `POST` d'un geste du tableau, par le HTTP natif : son corps en JSON.
+export function posteNatif(natif: Natif): Poste {
+  return async (adresse, entetes, corps) => {
+    const rendu = (await natif("CapacitorHttp", "request", { url: adresse, method: "POST", headers: entetes, data: corps, connectTimeout: DELAI_MS, readTimeout: DELAI_MS })) as Partial<Reponse> | null;
+    if (typeof rendu?.status !== "number") throw new Error("the phone's HTTP returned no answer");
+    return { status: rendu.status, data: typeof rendu.data === "string" ? corpsLu(rendu.data) : rendu.data };
+  };
+}
+
+// Une décision du chef sur une ligne de la file du tableau (le ticket 1590), postée par le téléphone en commentaire sur
+// l'issue du tableau que sa dernière lecture a donné (`vise`), avec le jeton GitHub du coffre — ni guichet ni tailnet.
+export function gesteDuTelephone(vise: TableauVise | undefined, decision: unknown, options: { natif: Natif }): Promise<EtatDuGeste> {
+  const jeton = jetonDuCoffre(options.natif);
+  const client = clientDesGestesGitHub({ jeton, poster: posteNatif(options.natif), appeler: clientGitHub({ jeton, envoyer: envoiNatif(options.natif) }) });
+  return envoyerLeGeste(vise, decision, client);
 }
