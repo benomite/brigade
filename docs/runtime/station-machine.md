@@ -442,13 +442,25 @@ files, a Playwright or Cypress config, the services its CI starts) and its manif
 npm, Ruby, Python, Go, Rust, Maven/Gradle, a Prisma datasource, `go.mod`, `Cargo.toml`, a Flutter
 `pubspec.yaml`, an Xcode project…). The catalogue names a database (Postgres, MySQL, Redis), Docker,
 a browser and the SDKs (Go, Rust, Java, .NET, Flutter, Android, Xcode, Swift); a package manager is
-not in it — the kitchen installs it alone. Nothing is run: the repository is read again only when its
-clone moves to another commit.
+not in it — the kitchen installs it alone. The repository is read again only when its clone moves to
+another commit.
 
-It compares with what the station provides: a command of its machine's `PATH` (`pg_ctlcluster`,
-`docker`, `chromium`, `go`…), Playwright's downloaded browsers, `ANDROID_HOME`, or a capability the
-project declares for a station of this machine in `BRIGADE_STATIONS` (`postgres`, `docker`,
-`navigateur-headless`…). For each need it lacks, **one choice**, with three options, each with what
+It compares with what the station provides: a command of its machine's `PATH` (`chromium`, `go`…),
+Playwright's downloaded browsers, `ANDROID_HOME`, or a capability the project declares for a station
+of this machine in `BRIGADE_STATIONS` (`postgres`, `docker`, `navigateur-headless`…). **A service is
+provided only if the station can actually use it** (#1532): its binaries on the `PATH` only say a
+probe is worth running, and the probe runs under the station's account — the one the kitchen cooks
+under, with its environment (`PGHOST`, `PGUSER`, `~/.pgpass`, `~/.my.cnf`…):
+
+- a database (Postgres with `psql`, MySQL with `mysql` or `mariadb`) — connect to it, create a
+  database `brigade_essai_<pid>_<random>`, then drop it, whatever the result. Connection refused or
+  creation denied: the need is not provided;
+- Redis — `redis-cli ping` answers `PONG`;
+- Docker — `docker info` (or `podman info`) succeeds: the daemon runs and the account may talk to it.
+
+No password is ever asked, a command that does not answer is stopped after 15 s, and a verdict holds
+for two minutes (`ESSAI_VALABLE_MS`): most reads of the station run no process. A declared capability
+is enough without a probe. For each need it lacks, **one choice**, with three options, each with what
 follows from it:
 
 - `cook-elsewhere` — which tickets wait, and for which station (a remote station of the project that

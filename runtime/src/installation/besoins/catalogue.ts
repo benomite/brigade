@@ -36,7 +36,15 @@ export type Indices = {
   contenus?: ReadonlyArray<{ fichier: RegExp; motif: RegExp; raison: string }>;
 };
 
-// Ce qui dit que la station l'a. Une seule preuve suffit.
+// Une commande jouée par la sonde sous le compte de la station — celui sous
+// lequel la cuisine cuit — : son code de sortie (null quand elle ne se lance
+// pas, ou qu'elle dépasse son temps) et ce qu'elle a écrit.
+export type Jouer = (commande: string, args: readonly string[]) => { code: number | null; sortie: string };
+
+// Ce qui dit que la station l'a. Une seule preuve suffit — sauf pour un
+// service : que la machine en ait les binaires ne dit pas que le compte de la
+// cuisine s'en sert (un Postgres qui refuse sa connexion), c'est l'essai qui
+// tranche.
 export type Fourni = {
   // Une commande que la machine trouve dans son PATH.
   commandes: readonly string[];
@@ -46,6 +54,11 @@ export type Fourni = {
   dossiers?: (env: Record<string, string | undefined>, maison: string) => string[];
   // Une variable qui nomme un dossier qui existe (`ANDROID_HOME`).
   variables?: readonly string[];
+  // Ce que la station doit réussir, sous le compte de la cuisine, pour que la
+  // machine fournisse le besoin : vrai quand elle s'en sert. Une capacité
+  // déclarée suffit sans lui ; une commande, un dossier ou une variable ne
+  // disent alors que l'essai vaut d'être tenté.
+  essai?: (jouer: Jouer) => boolean;
 };
 
 export type Besoin = {
@@ -60,6 +73,43 @@ export type Besoin = {
   // Ce que perdent les tests si le chef les fait adapter.
   couverture: string;
 };
+
+const reussi = ({ code }: { code: number | null }) => code === 0;
+
+// Le nom de la base que l'essai crée puis supprime : à lui seul, d'un process
+// et d'un instant à l'autre — un identifiant SQL qui ne demande aucun guillemet.
+export const baseDEssai = () => `brigade_essai_${process.pid}_${Math.random().toString(36).slice(2, 10)}`;
+
+// Postgres : se connecter, créer une base, puis la supprimer — quoi qu'il en
+// soit. `-w` : jamais de mot de passe demandé, la connexion se fait comme
+// celle des tests, avec ce que le compte a (PGHOST, PGUSER, ~/.pgpass).
+// `-d` : la base de maintenance, que tout serveur a, et un délai de connexion.
+export function essaiPostgres(jouer: Jouer, base: string = baseDEssai()): boolean {
+  const sql = (requete: string) => reussi(jouer("psql", ["-X", "-w", "-q", "-v", "ON_ERROR_STOP=1", "-d", "dbname=postgres connect_timeout=5", "-c", requete]));
+  if (!sql("SELECT 1")) return false;
+  try {
+    return sql(`CREATE DATABASE ${base}`);
+  } finally {
+    sql(`DROP DATABASE IF EXISTS ${base}`);
+  }
+}
+
+// MySQL ou MariaDB : de même, avec le premier client que la machine a.
+export function essaiMysql(jouer: Jouer, base: string = baseDEssai()): boolean {
+  for (const client of ["mysql", "mariadb"]) {
+    const sql = (requete: string) => jouer(client, ["--connect-timeout=5", "--batch", "-e", requete]);
+    const connexion = sql("SELECT 1");
+    // Ce client ne se lance pas : l'autre, peut-être.
+    if (connexion.code === null) continue;
+    if (!reussi(connexion)) return false;
+    try {
+      return reussi(sql(`CREATE DATABASE ${base}`));
+    } finally {
+      sql(`DROP DATABASE IF EXISTS ${base}`);
+    }
+  }
+  return false;
+}
 
 const sdk = (id: string, nom: string, partie: string, installe: (station: string) => string, indices: Indices, commandes: readonly string[], plus: Partial<Fourni> = {}): Besoin => ({
   id,
@@ -86,7 +136,7 @@ export const BESOINS: readonly Besoin[] = [
       images: ["postgres", "postgis/postgis"],
       prisma: "postgresql",
     },
-    fourni: { commandes: ["postgres", "pg_ctl", "pg_ctlcluster"], capacites: ["postgres", "postgresql"] },
+    fourni: { commandes: ["postgres", "pg_ctl", "pg_ctlcluster", "psql"], capacites: ["postgres", "postgresql"], essai: (jouer) => essaiPostgres(jouer) },
     installe: (station) => `A PostgreSQL server (the \`postgresql\` package) is installed on ${station} and runs there as a service`,
     couverture: "the tests that use the database run against a substitute or are skipped, so queries and migrations are no longer checked against a real Postgres",
   },
@@ -104,7 +154,7 @@ export const BESOINS: readonly Besoin[] = [
       images: ["mysql", "mariadb"],
       prisma: "mysql",
     },
-    fourni: { commandes: ["mysqld", "mariadbd"], capacites: ["mysql", "mariadb"] },
+    fourni: { commandes: ["mysqld", "mariadbd", "mysql", "mariadb"], capacites: ["mysql", "mariadb"], essai: (jouer) => essaiMysql(jouer) },
     installe: (station) => `A MySQL-compatible server (the \`mariadb-server\` package) is installed on ${station} and runs there as a service`,
     couverture: "the tests that use the database run against a substitute or are skipped, so queries and migrations are no longer checked against a real MySQL",
   },
@@ -119,7 +169,8 @@ export const BESOINS: readonly Besoin[] = [
       pip: ["redis"],
       images: ["redis"],
     },
-    fourni: { commandes: ["redis-server"], capacites: ["redis"] },
+    // Le serveur répond.
+    fourni: { commandes: ["redis-server", "redis-cli"], capacites: ["redis"], essai: (jouer) => /\bPONG\b/.test(jouer("redis-cli", ["ping"]).sortie) },
     installe: (station) => `A Redis server (the \`redis-server\` package) is installed on ${station} and runs there as a service`,
     couverture: "the tests that use Redis run against a fake, so its real behaviour (expiry, queues, pub/sub) is no longer checked",
   },
@@ -133,7 +184,8 @@ export const BESOINS: readonly Besoin[] = [
       go: ["github.com/testcontainers/testcontainers-go"],
       jvm: ["org.testcontainers"],
     },
-    fourni: { commandes: ["docker", "podman"], capacites: ["docker"] },
+    // Le démon répond au compte : il tourne, et le compte a le droit de lui parler.
+    fourni: { commandes: ["docker", "podman"], capacites: ["docker"], essai: (jouer) => ["docker", "podman"].some((commande) => reussi(jouer(commande, ["info"]))) },
     installe: (station) => `Docker Engine (the \`docker.io\` package) is installed on ${station} and the station's account joins the \`docker\` group, which lets every cook of the box start containers`,
     couverture: "the tests that start containers are skipped on this station, so what runs inside them is no longer checked here",
   },

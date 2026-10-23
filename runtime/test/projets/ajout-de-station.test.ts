@@ -30,6 +30,8 @@ function espace(t: TestContext, contenu: Parameters<typeof projetSurGit>[1] = { 
 const MACHINE: Sonde = {
   commande: (nom) => nom === "google-chrome",
   dossier: (chemin) => chemin === "/opt/android-sdk",
+  jouer: () => ({ code: null, sortie: "" }),
+  essayer: (_besoin, essai) => essai(),
   env: { ANDROID_HOME: "/opt/android-sdk" },
   maison: "/home/chef",
 };
