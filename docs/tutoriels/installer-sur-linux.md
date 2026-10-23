@@ -52,14 +52,16 @@ brigade : station installée et active — <version>
 brigade : tout ce qu'elle demande au système vient avec son paquet : sa vie courante ne demande aucune commande root
 ```
 
+The messages of the installer are in French, and are quoted as they appear.
+
 If it stops on `brigade : installation refusée — …`, that line says why (not Debian-family, no
 systemd, unsupported architecture, download failed, `apt` refused). Fix it and rerun the same
 command.
 
 ## 2. Connect the station to your Claude Max subscription
 
-The command goes on by itself, as the last part of step 1, and asks you for the only thing it
-will ever ask:
+There is nothing new to type: this is the last part of the command of step 1, which goes on by
+itself and asks you for the only thing it will ever ask:
 
 ```
 brigade : la connexion Max du compte brigade — le seul moment où elle te demande quelque chose
@@ -118,10 +120,6 @@ sudo journalctl -u brigade-station --no-pager | grep 'station démarrée'
   its creation date beside it. It lives a year, and the station warns you thirty days before.
 - **`/var/lib/brigade`**, where the station keeps its configuration, the log and the clone of
   each project. For now it serves **no project**.
-- **Its updates, on their own**: every ten minutes the station looks for a newer published
-  version and moves to it, going back to the previous one if the new one does not start.
-- **Its doors**, the only network exit of the station and its cooks, limited to Anthropic,
-  GitHub and what a project declares.
 
 **How to check it, any time:** `systemctl status brigade-station` shows `active (running)`, and
 the line `aucun projet servi` in its log says it is waiting for a project.
