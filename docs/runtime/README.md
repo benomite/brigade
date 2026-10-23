@@ -14,6 +14,7 @@ are in the specs, [`superpowers/specs/`](../superpowers/specs/) — here, only t
 
 | Page | What it holds |
 |---|---|
+| [`../reglages.md`](../reglages.md) | The three levels of settings: the project's `projet.json`, this station's, the chef's app; the fallbacks; the migration |
 | [`journal-et-rail.md`](journal-et-rail.md) | What the runtime does today, the log, the ticket rail |
 | [`garde-fous.md`](garde-fous.md) | The guardrails: caps, stop and resume |
 | [`station.md`](station.md) | The station: declared stations, several cooks, the worktree setup, the cook's gates, calibration, a ticket's card, capabilities |
