@@ -305,6 +305,10 @@ export type Pont = {
   // Le rail d'un projet que ni une box ni la station de cet ordinateur ne servent (ticket 1435) : celui que sa station
   // publie sur GitHub, rangé dans les colonnes du rail — ou pourquoi il ne se lit pas, en une phrase.
   railDuProjet?(nom: string): Promise<import("../faits.ts").RailDuProjetLu>;
+  // Le tableau de la cuisine d'un projet (ticket 1588) : l'issue que sa box tient à jour dans son dépôt, lue de GitHub
+  // sans `ssh` ni tailnet (app/src/tableau/lecture.ts) — la file du chef, l'état de la cuisine et l'âge de la lecture, ou
+  // pourquoi il ne se lit pas, en une phrase. Un pont qui ne le lit pas rend `undefined` : la vue garde son rail d'avant.
+  tableauDuProjet?(nom: string): Promise<import("../tableau/lecture.ts").LectureDuTableauDuDepot | undefined>;
   // Ce qu'engage l'allumage du manager, chiffré (allumage.ts) : les issues ouvertes du projet, et
   // celles qui portent `blocked-on-human` — `manager backlog`, lancée une fois sur sa box. Demandé
   // quand la confirmation d'« allumer » s'ouvre : son « oui » n'attend pas cette lecture. Rien, pour un projet sans box.

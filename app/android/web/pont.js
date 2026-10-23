@@ -35,6 +35,8 @@
 // (`GET /projects/<nom>/second`), `envoyerAuSecond` y écrit un message du chef (`POST`), avec le jeton gardé ; la réponse
 // du second, et ce que le chef tape au desktop, arrivent à la vue par `surConversation`. Un lien d'un message du second
 // s'ouvre dans le navigateur du téléphone (Pont.java, `ouvrir`).
+// Et le tableau de la cuisine de chaque projet (le ticket 1588) : `tableauDuProjet` le lit de GitHub, sans la station,
+// par le HTTP natif et le jeton GitHub du coffre du téléphone.
 // Les mises à jour ne sont pas ici.
 //
 // Ce fichier n'est pas joué tel quel : la construction l'enveloppe, avec `DEMARRAGE`, dans
@@ -208,6 +210,20 @@ const connus = {
       return true;
     } catch {
       return false;
+    }
+  },
+  // Le tableau de la cuisine d'un projet (le ticket 1588) : lu de GitHub sans la station — ni guichet ni tailnet —, par
+  // la lecture du téléphone (`lireLeTableauDuTelephone`, app/android/web/lecture.ts), dans le dépôt que la dernière liste
+  // lue donne au projet. Ce qui ne se lit pas se dit en une phrase, comme la lecture le fait.
+  tableauDuProjet: async (/** @type {string} */ projet) => {
+    const luLe = new Date().toISOString();
+    const depot = projetsGardes().find((connu) => connu?.name === projet)?.repository;
+    if (typeof depot !== "string") return { lu: false, depot: "", luLe, raison: `The Kitchen board of ${projet} is not read: this phone does not know its GitHub repository yet.` };
+    try {
+      const { lireLeTableauDuTelephone } = await import(new URL("../../android/lecture.js", window.location.href).href);
+      return await lireLeTableauDuTelephone(depot, { natif });
+    } catch {
+      return { lu: false, depot, luLe, raison: `The Kitchen board of ${projet} could not be read: this app could not load what reads it.` };
     }
   },
   // L'appairage effacé : le jeton, la station et ses projets. La vue revient à l'écran qui relie le téléphone.
