@@ -1,0 +1,146 @@
+/* La table d'autonomie d'un projet (ticket 1563) : la même carte que les réglages du projet. En tête, ce qui est
+   attendu, puis les trois profils ; une rangée par sorte de décision — son nom, ses trois positions en un seul
+   groupe, celle en vigueur pleine, et d'où elle vient ; dessous, les rangées verrouillées, en retrait. Seules des
+   variables de jetons.css portent une couleur. */
+.autonomie {
+  margin: 12px 16px 0;
+  padding: 10px 16px;
+  background: var(--carte);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-carte);
+}
+.autonomie h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 2px;
+  font-weight: 600;
+}
+.autonomie p {
+  margin: 0;
+}
+.autonomie .attendu {
+  margin-bottom: 10px;
+  color: var(--texte-doux);
+}
+.autonomie .nom {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--discret);
+}
+.autonomie .profils {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--trait-doux);
+}
+.autonomie .profils .nom {
+  margin-right: 4px;
+}
+.autonomie .profil > button {
+  padding: 3px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon-bouton);
+}
+.autonomie .profil > button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.autonomie .profil > button:disabled {
+  color: var(--discret);
+  border-style: dashed;
+  cursor: default;
+}
+.autonomie .rangee {
+  display: grid;
+  grid-template-columns: 220px auto 1fr;
+  align-items: center;
+  gap: 2px 12px;
+  padding: 5px 0;
+}
+.autonomie .rangee + .rangee {
+  border-top: 1px solid var(--trait-doux);
+}
+.autonomie .positions {
+  display: inline-flex;
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon-bouton);
+  overflow: hidden;
+}
+.autonomie .positions > button {
+  padding: 3px 12px;
+  font-size: 12px;
+  white-space: nowrap;
+  color: var(--texte-doux);
+}
+.autonomie .positions > button + button {
+  border-left: 1px solid var(--trait-fort);
+}
+.autonomie .positions > button:hover:not(:disabled) {
+  background: var(--bouton);
+  color: var(--texte);
+}
+.autonomie .positions > button[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--fond);
+}
+.autonomie .positions > button.demandee {
+  outline: 1px dashed var(--accent);
+  outline-offset: -3px;
+}
+.autonomie .positions > button:disabled {
+  cursor: default;
+}
+.autonomie .source {
+  font-size: 12px;
+  color: var(--discret);
+}
+.autonomie .dit.refus {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--jaune);
+}
+.autonomie .dit > span + * {
+  margin-left: 8px;
+}
+/* Les rangées verrouillées : ni accent ni survol, la position en vigueur seulement soulignée. */
+.autonomie .fixes {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--trait);
+}
+.autonomie .tete-fixes {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+.autonomie .tete-fixes strong {
+  font-weight: 600;
+  color: var(--texte-doux);
+}
+.autonomie .verrou {
+  padding: 0 8px;
+  font-size: 11px;
+  color: var(--discret);
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon-bouton);
+}
+.autonomie .verrouillee .positions {
+  border-style: dashed;
+}
+.autonomie .verrouillee .positions > button {
+  color: var(--gris);
+}
+.autonomie .verrouillee .positions > button + button {
+  border-left-style: dashed;
+}
+.autonomie .verrouillee .positions > button[aria-pressed="true"] {
+  background: var(--case);
+  color: var(--texte-doux);
+}
