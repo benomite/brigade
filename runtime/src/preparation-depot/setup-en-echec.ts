@@ -31,7 +31,7 @@ export const commandeIntrouvable = (ligne: string): string | null => COMMANDE.ma
 const FICHIER = /^(.*?):?\s*(?:No such file or directory|file not found)\s*$/;
 // Docker installé, mais sans démon qui tourne.
 const DEMON_DOCKER = /Cannot connect to the Docker daemon/i;
-const DOCKER = "a running Docker daemon";
+export const DOCKER = "a running Docker daemon";
 
 const sansGuillemets = (texte: string) => texte.replace(/^['"‘`]+|['"’`]+$/g, "");
 

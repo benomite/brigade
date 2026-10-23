@@ -521,7 +521,9 @@ box/claude because it cannot use a Postgres database there." Its message names t
 the setup failed. **The chef then gets the needs choice, not the red card** "The worktree setup of
 this project fails on box/claude" (blocker `setup`), which is lifted if it was there. The rest of a
 setup failure does not change (the ticket is 86, the issue comment, the preparation ticket's cook
-that leaves anyway). A setup failure that names no need the station lacks keeps the `setup` blocker,
+that leaves anyway). When the output also says something else is missing — a file (`No such file or
+directory`), a command no such need runs —, the choices do not explain the whole failure: they are
+raised, and the `setup` blocker stays too. A setup failure that names no need the station lacks keeps the `setup` blocker,
 with the setup's error as it said it in `detail`, and clears what the station's previous setup said
 was missing. The station's next reads keep that choice as it is, even if the repository says nothing
 of the need, as long as the station still does not provide it; a setup that passes again clears it

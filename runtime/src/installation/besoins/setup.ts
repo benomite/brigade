@@ -5,7 +5,7 @@
 // et dit en une phrase ce qui le prouve : la cause du choix que le chef en
 // fait, à la place de l'échec brut du setup. Pur : rien n'est lu ni écrit ici.
 import { SCRIPT_SETUP } from "../../gates.ts";
-import { commandeIntrouvable } from "../../preparation-depot/setup-en-echec.ts";
+import { ceQuiManque, commandeIntrouvable, DOCKER } from "../../preparation-depot/setup-en-echec.ts";
 import { BESOINS, type Besoin } from "./catalogue.ts";
 
 // Ce qui dit qu'une commande appartient à un besoin : celles que la station
@@ -29,3 +29,11 @@ export function besoinsNommesParLeSetup(sortie: string): Besoin[] {
 // La preuve d'un besoin que le setup a nommé, telle que la cause d'un choix la
 // dit : le fichier, ce qu'il fait — jamais ce qu'il a écrit.
 export const preuveDuSetup = (besoin: Besoin, station: string): string => `\`${SCRIPT_SETUP}\` fails on ${station} because it cannot use ${besoin.nom} there`;
+
+// La sortie dit-elle manquer d'autre chose que de ces besoins — un fichier, une
+// commande qui n'est pas la leur ? Alors leurs choix n'expliquent pas tout
+// l'échec du setup, qui se dit encore tel quel.
+export function manqueAutreChose(sortie: string, besoins: readonly Besoin[]): boolean {
+  const expliques = new Set([...besoins.flatMap((besoin) => commandesDe(besoin).map((commande) => `\`${commande}\``)), ...(besoins.some(({ id }) => id === "docker") ? [DOCKER] : [])]);
+  return ceQuiManque(sortie).some((chose) => !expliques.has(chose));
+}

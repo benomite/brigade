@@ -11,7 +11,7 @@ import { blocagesDuJournal, estUneSortieBrute, poserBlocage } from "../../../src
 import { ACTION_DU_CHOIX, choixDuJournal, ICI, manquesDuSetup, suivreLesBesoins, tenirLeSetup, choisir, type Stations } from "../../../src/installation/besoins/besoins.ts";
 import type { Jouer } from "../../../src/installation/besoins/catalogue.ts";
 import type { Sonde } from "../../../src/installation/besoins/fourni.ts";
-import { besoinsNommesParLeSetup } from "../../../src/installation/besoins/setup.ts";
+import { besoinsNommesParLeSetup, manqueAutreChose } from "../../../src/installation/besoins/setup.ts";
 import { blocageDuSetup, ID_DU_BLOCAGE_DU_SETUP } from "../../../src/installation/preparation/blocage-du-setup.ts";
 import { ouvrirJournal } from "../../../src/journal.ts";
 import { cuisine, fauxGitHub, issue, montre, STATION, type Lieux } from "../../aides/cuisine.ts";
@@ -82,6 +82,14 @@ describe("ce que la sortie du setup nomme", () => {
     assert.deepEqual(besoinsNommesParLeSetup("cp: cannot stat 'apps/api/.env': No such file or directory\ntsc a échoué"), []);
     assert.deepEqual(besoinsNommesParLeSetup(""), []);
   });
+});
+
+test("les choix des besoins expliquent tout l'échec, ou non : un fichier qui manque aussi n'est pas l'un d'eux", () => {
+  const manque = (sortie: string) => manqueAutreChose(sortie, besoinsNommesParLeSetup(sortie));
+  assert.equal(manque(MIRRORLAB), false);
+  assert.equal(manque("./setup.sh: line 12: psql: command not found\nCannot connect to the Docker daemon at unix:///var/run/docker.sock."), false);
+  assert.equal(manque("cp: cannot stat 'apps/api/.env': No such file or directory\n./setup.sh: line 12: psql: command not found"), true);
+  assert.equal(manque("./setup.sh: line 12: psql: command not found\n./setup.sh: line 13: pnpm: command not found"), true);
 });
 
 describe("au journal du projet", () => {

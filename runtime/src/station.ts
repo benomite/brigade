@@ -63,6 +63,7 @@ import { blocageDuSetup, ID_DU_BLOCAGE_DU_SETUP } from "./installation/preparati
 import { leverBlocage, poserBlocage } from "./installation/blocages/blocages.ts";
 import { besoinsManquesParLeSetup, tenirLeSetup, type Stations } from "./installation/besoins/besoins.ts";
 import { sondeDeLaMachine, stationsDuProjet, type Sonde } from "./installation/besoins/fourni.ts";
+import { manqueAutreChose } from "./installation/besoins/setup.ts";
 import { corpsAvecLeSetup, passageDuSetup, phraseDuSetup } from "./preparation-depot/setup-en-echec.ts";
 import type { Decisions } from "./decisions.ts";
 import { ouvrirDepot, worktreeAuJournal, worktreeDuJournal, type Depot, type OptionsDepot } from "./depot.ts";
@@ -1867,12 +1868,13 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       // Un setup qui bute sur un besoin que la station ne fournit pas vraiment
       // — un Postgres qui refuse son compte — pose le choix de ce besoin, que
       // le chef sait trancher, et non son échec brut (#1533). Sur autre chose,
-      // l'échec se dit tel quel.
+      // l'échec se dit tel quel — et aussi quand il dit manquer d'autre chose
+      // encore, un fichier : leurs choix ne l'expliquent pas tout entier.
       const declarees = stationsDuProjet(options.repertoireEtat);
       const stations: Stations = { projet, sonde, fournit: declarees.ici.flatMap(({ fournit }) => fournit), ailleurs: declarees.ailleurs };
-      const manquent = besoinsManquesParLeSetup(sortie, stations).map(({ id }) => id);
-      tenirLeSetup(journal, { projet, auteur: auteurDe(station) }, station, manquent, stations);
-      if (manquent.length > 0) leverBlocage(journal, { projet, auteur: auteurDe(station) }, ID_DU_BLOCAGE_DU_SETUP);
+      const manquent = besoinsManquesParLeSetup(sortie, stations);
+      tenirLeSetup(journal, { projet, auteur: auteurDe(station) }, station, manquent.map(({ id }) => id), stations);
+      if (manquent.length > 0 && !manqueAutreChose(sortie, manquent)) leverBlocage(journal, { projet, auteur: auteurDe(station) }, ID_DU_BLOCAGE_DU_SETUP);
       else poserBlocage(journal, { projet, auteur: auteurDe(station) }, blocageDuSetup({ station, phraseEn: phrases.en, sortie, preparation }));
       if (!preparation) {
         avertir([`brigade : setup du worktree en échec pour le ticket #${numero} (\`${SCRIPT_SETUP}\`, ${pourquoi}) — aucun cook n'est lancé`, sortie].filter(Boolean).join("\n"));
