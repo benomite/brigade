@@ -258,7 +258,7 @@ test("Postgres installé et utilisable par le compte de la station : il le fourn
   assert.equal(serveur.joues.length, 3);
   assert.equal(serveur.joues[0], "psql SELECT 1");
   const base = /^psql CREATE DATABASE (brigade_essai_\w+)$/.exec(serveur.joues[1]!)?.[1];
-  assert.ok(base !== undefined, serveur.joues[1]);
+  assert.ok(base !== undefined, serveur.joues[1]!);
   assert.equal(serveur.joues[2], `psql DROP DATABASE IF EXISTS ${base}`);
   assert.deepEqual([...serveur.bases], []);
 });
