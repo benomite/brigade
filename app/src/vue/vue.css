@@ -2886,7 +2886,8 @@ main > header,
   padding: 8px 16px 16px;
   /* Une seule rangée, jamais empilée : trop étroite, la rangée défile de côté — aucune colonne ne passe dessous, aucune n'est
      écrasée (ticket 1556). Elle défile aussi de haut en bas, pour que les têtes (collantes) restent en vue. */
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: auto;
 }
 /* Partagées entre les deux onglets (ticket 1184) : Rail en a quatre — On the rail, TODO, WAITING, Served —, Cooks deux —
    Taken, Pass. Une largeur plancher où un titre de ticket tient sur deux lignes au plus (ticket 1556). */
@@ -3594,7 +3595,8 @@ main > header,
 /* Une colonne qui s'allonge tout le jour — Livré : ses cartes défilent dans une hauteur bornée. Elle
    ne pousse pas ce qui est sous la grille, et les autres colonnes restent en vue à côté d'elle. */
 #rail .colonne[data-defile] > ol {
-  max-height: none;
+  max-height: 60vh;
+  overflow-y: auto;
 }
 /* Les tickets hors colonnes : la même carte, en ligne sous la grille. */
 #rail > ol {
