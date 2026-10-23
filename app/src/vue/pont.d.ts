@@ -212,6 +212,12 @@ export type Pont = {
   appairerLeTelephone(demande: DemandeDuTelephone): Promise<ReponseDuGuichet>;
   // Le QR que la station montre, lu par l'appareil photo du téléphone : son texte, tel quel.
   scannerLeQr(): Promise<LectureDuQr>;
+  // L'app Android seule (le ticket 1414) : la liste des projets de la station appairée vient d'être lue à son guichet, ou
+  // ne l'a pas été — `liste` dit laquelle. Les projets eux-mêmes arrivent par `surConfiguration`.
+  surTelephone?(recevoir: (telephone: Telephone) => void): void;
+  // L'appairage oublié — la station ne connaît plus ce téléphone : le pont efface son jeton, et la vue revient à
+  // l'écran qui le relie à ses projets.
+  oublierLeTelephone?(): Promise<void>;
   // L'app Android seule (le ticket 1165) : la conversation avec le second d'un projet, là où il n'y a pas de terminal
   // où la lire. C'est celle du second du desktop — ce que le chef y a écrit, d'ici ou de son ordinateur, et ce que le
   // second a répondu, du plus ancien au plus récent —, ou pourquoi elle ne se lit pas. Le desktop ne les porte pas :
@@ -401,7 +407,11 @@ export type MessageDuSecond = { de: "chef" | "second"; a: string; blocs: import(
 export type Conversation = { messages: MessageDuSecond[]; repond?: true };
 // Une phrase, et ce que la station ou le pont en a dit, au survol.
 export type RefusDeConversation = { refus: string; detail?: string };
-export type Telephone = { appaire: false } | { appaire: true; station: string; adresse: string };
+// `liste` : la dernière lecture de la liste des projets au guichet de la station (le ticket 1414) — absente avant la
+// première. Lue, ou ce qui l'a empêchée : le motif d'un guichet qui ne se joint pas (`injoignable`, `sans-guichet`,
+// `inattendu`, comme pour l'appairage), ou `oublie`, la station qui ne connaît plus le jeton de ce téléphone.
+export type ListeDuTelephone = { a: string; lue: true } | { a: string; lue: false; reason: "injoignable" | "sans-guichet" | "inattendu" | "oublie"; said: string };
+export type Telephone = { appaire: false } | { appaire: true; station: string; adresse: string; liste?: ListeDuTelephone };
 // Ce que le téléphone envoie au guichet : son adresse (`http://<hôte>:<port>`, ou `https://<machine>.ts.net` sur
 // le tailnet du chef), le code tapé ou scanné,
 // et ce qu'il dit de lui — son nom de station et sa machine.

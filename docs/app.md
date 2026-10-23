@@ -897,7 +897,7 @@ On the desktop, nothing of this is shown. The screen is `app/src/vue/telephone/a
 that reaches the desk and keeps the token is `app/android/web/pont.js` (with `Pont.java` for the scanner); the
 captures are the `telephone-*` screens of `scripts/capture-ecran` (`docs/captures/1161/`; the tailnet's,
 `telephone-tailnet-injoignable` and `telephone-tailnet-sans-guichet`, in `docs/captures/1409/`). What the paired phone
-then reads — its place in the stations list, each project's queue — comes with the next tickets of #1151.
+then reads — every project of its station and each one's queue — is below (#1414).
 
 **Each project's queue on the phone** (#1163) is the project's page of a narrow screen (see above): Rail — TODO
 first, then On the rail, WAITING and Served, stacked — and Cooks — each station, its state and its running cooks.
@@ -908,8 +908,28 @@ readings** (#1411), behind the paired phone's token — without it, `401`: `GET 
 station's configuration in its order, each `served`, `refused` (with its `reason`) or `opening`; and
 `GET /projects/<name>/queue`, `{"project", "repository", "facts", "status"}` — the very `facts` and `status` the desktop
 reads for that project, read the same way at the same moment (`runtime/src/telephone/projets.ts`); `404` a project the
-station does not have, `503` a log it cannot read, with what the command would say. **The Android bridge does not read
-them yet** (#1414): until it does, a paired phone has no project to open.
+station does not have, `503` a log it cannot read, with what the command would say.
+
+**The paired phone reads them** (#1414). The Android bridge reads `GET /projects` and each project's `queue` with its
+token, every 30 s and whenever the view asks (opening a project, "All projects", *try again now*). It does with them
+what the desktop's main process does with its readings: the same modules of `app/src/` — `facts` through `tenirFaits`,
+`status` through `mettreAPart` and `attendre`, the alert band and the lines of "All projects" — so a queue on the phone
+shows the cards the desktop shows of it at the same moment. That reading is `app/android/web/lecture.ts`; the APK build
+lays it, and what it imports from `app/src/`, next to the view without their types (`www/android/lecture.js`,
+`www/src/*.js`, Node's own modules replaced by inert ones), and the bridge loads it at its first reading. "All projects"
+lists every project of the station in its order, one line each; the last list read is kept, so a relaunched app shows
+it before reading again. Above the lines, the Projects section says in one sentence what the list lacks, and nothing
+when it was just read: *atelier's projects: first read in progress…*; *atelier serves no project yet: a project is
+added from a computer.*; or what cannot be reached, said as at pairing — *This phone cannot reach your station at
+192.168.1.20:7010.*, *This phone cannot reach box.tail1234.ts.net on your tailnet.*, *box.tail1234.ts.net answers, but
+the station's phone desk behind it does not.*, *What answers at … is not a station's phone desk.* — what the network
+said on hover, with *This phone tries again every 30 s.* The projects already known stay under it, each line `station
+unreachable`, and an opened queue says *the rail is not drawn — tried at …* and, under it, *the station did not answer*,
+what the network said on hover — no GitHub list, which the phone does not read, and no panel on the right, which it
+does not have. A station that no longer knows the phone (`401`:
+revoked, or paired again elsewhere) says *atelier no longer knows this phone: pair it again.*, with a **pair again**
+button that forgets the pairing and reopens the pairing screen. Screens: `telephone-projets*` of `scripts/capture-ecran`
+(`docs/captures/1414/`), whose readings are those `lecture.ts` sends for a fixed phone desk.
 
 **The queue's gestures on the phone** (#1164) are the desktop's: a TODO card opens its sheet, and its buttons —
 `merge the PR`, `remove from the rail`, `back to the kitchen`, the recommended one first and in the accent color —

@@ -27,7 +27,8 @@
 // manquant) — rien n'est écrit.
 import { spawnSync } from "node:child_process";
 import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { join, relative, resolve } from "node:path";
+import { stripTypeScriptTypes } from "node:module";
+import { dirname, join, posix, relative, resolve, sep } from "node:path";
 import { parseArgs } from "node:util";
 import type { Pont } from "../src/vue/pont.d.ts";
 import { APP, Arret, executerVraiment, versionDuCommit, type Executer } from "./construire.ts";
@@ -168,6 +169,79 @@ export function poserLaVue(demarrage: Demarrage, www = WWW, app = APP): void {
   copyFileSync(join(ANDROID, "web", "index.html"), join(www, "index.html"));
   mkdirSync(join(www, "android"), { recursive: true });
   writeFileSync(join(www, "android", "pont.js"), scriptDuPont(demarrage));
+  poserLesModules(www, app);
+}
+
+// Le module que le pont charge pour lire la station appairée (#1414), et ce qu'il importe d'app/src/, de proche en
+// proche : la WebView ne lit pas le TypeScript, chacun est posé dans `www` sans ses types (`stripTypeScriptTypes`, la
+// lecture même de Node), à `android/lecture.js` pour lui, à `src/<chemin>.js` pour les modules de l'app — à côté de
+// la vue, comme dans l'app —, ses imports réécrits vers ces fichiers. Les modules de Node qu'ils importent pour le
+// desktop (un `ssh`, un fichier) n'existent pas dans la WebView : chacun est remplacé par un module inerte, aux mêmes
+// noms, que rien n'appelle sur le téléphone — le pont n'en lit que ce qui calcule. Rend les fichiers posés, relatifs à `www`.
+export const LECTURE = join(ANDROID, "web", "lecture.ts");
+export function poserLesModules(www = WWW, app = APP, entree = LECTURE): string[] {
+  const posee = (source: string): string => {
+    const relatif = relative(app, source).split(sep).join("/");
+    if (relatif.startsWith("src/")) return relatif.replace(/\.ts$/, ".js");
+    if (source === entree) return "android/lecture.js";
+    return echouer(`the phone's reading imports ${relatif}, outside app/src/: the WebView cannot load it`);
+  };
+  const inertes = new Map<string, Set<string>>();
+  const poses: string[] = [];
+  const vus = new Set<string>();
+  const pile = [entree];
+  while (pile.length > 0) {
+    const source = pile.pop() as string;
+    if (vus.has(source)) continue;
+    vus.add(source);
+    const ici = posee(source);
+    const code = stripTypeScriptTypes(readFileSync(source, "utf8")).replace(
+      /(\b(?:import|export)\b(?:\s*([^"'`;]*?)\s*\bfrom\b)?\s*)"([^"]+)"/g,
+      (tout, debut: string, clause: string | undefined, specificateur: string) => {
+        let cible: string;
+        if (specificateur.startsWith("node:")) {
+          const nom = specificateur.slice("node:".length);
+          const noms = inertes.get(nom) ?? new Set<string>();
+          inertes.set(nom, noms);
+          for (const importe of nomsImportes(clause ?? "")) noms.add(importe);
+          cible = `android/node/${nom.replaceAll("/", "-")}.js`;
+        } else if (specificateur.startsWith(".")) {
+          const importe = resolve(dirname(source), specificateur);
+          pile.push(importe);
+          cible = posee(importe);
+        } else return echouer(`${relative(app, source)} imports ${specificateur}: the phone's reading takes only app/src/ and Node's modules`);
+        const chemin = posix.relative(posix.dirname(ici), cible);
+        return `${debut}"${chemin.startsWith(".") ? chemin : `./${chemin}`}"`;
+      },
+    );
+    mkdirSync(join(www, dirname(ici)), { recursive: true });
+    writeFileSync(join(www, ici), code);
+    poses.push(ici);
+  }
+  for (const [nom, noms] of inertes) {
+    const ici = `android/node/${nom.replaceAll("/", "-")}.js`;
+    const exports = [...noms].sort().map((importe) => (importe === "default" ? "export default inerte;" : `export const ${importe} = inerte;`));
+    mkdirSync(join(www, "android", "node"), { recursive: true });
+    writeFileSync(
+      join(www, ici),
+      `// Écrit par app/packaging/android.ts : node:${nom} n'est pas dans la WebView. Les modules d'app/src/ que lit le pont du\n// téléphone l'importent pour le desktop ; rien ne l'y appelle — un appel ne rendrait rien.\nconst inerte = () => undefined;\n${exports.join("\n")}\n`,
+    );
+    poses.push(ici);
+  }
+  return poses.sort();
+}
+
+// Les noms qu'une clause d'import lie : `{ a, b as c }` → a, b ; `d` → default ; `* as e` → aucun.
+function nomsImportes(clause: string): string[] {
+  const noms: string[] = [];
+  const accolades = /\{([^}]*)\}/.exec(clause)?.[1];
+  for (const lie of (accolades ?? "").split(",")) {
+    const nom = lie.trim().split(/\s+as\s+/)[0]?.trim();
+    if (nom !== undefined && nom !== "") noms.push(nom);
+  }
+  const avant = clause.replace(/\{[^}]*\}/, "").replace(/\*\s*as\s+\w+/, "").replace(/,/g, " ").trim();
+  if (avant !== "") noms.push("default");
+  return noms;
 }
 
 // Une étape longue : sa sortie passe telle quelle, et elle échoue si son code n'est pas 0.

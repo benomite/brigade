@@ -21,7 +21,14 @@
 //     machine répond mais pas le guichet derrière elle (`sans-guichet` : le 502 de `tailscale serve`,
 //     la station arrêtée), ou autre chose répond à sa place (`inattendu`) ;
 //   - `scannerLeQr` lit le QR de la station par le lecteur de Google Play (Pont.java, `scanner`).
-// La file et les mises à jour ne sont pas ici : ce pont sera remplacé par celui qui lit une station.
+// Et, appairé, les projets de la station et la file de chacun (le ticket 1414) : `faits`, `tous`, `regarder` et
+// `relireBox` lisent son guichet (`GET /projects`, `GET /projects/<nom>/queue`) avec le jeton gardé, et ce qui en sort
+// arrive à la vue par ses abonnements (`surConfiguration`, `surFaits`, `surLecture`, `surAlertes`, `surAccueil`,
+// `surTelephone`) — tel que le process principal du desktop l'enverrait, calculé par les mêmes modules d'app/src/
+// (app/android/web/lecture.ts, que la construction pose dans www/android/lecture.js, chargé à la première lecture).
+// Les projets de la dernière liste lue sont gardés : relancée, l'app les montre avant de relire. `oublierLeTelephone`
+// efface l'appairage — celui que la station ne connaît plus —, et la vue revient à l'écran qui le relie.
+// Les gestes et les mises à jour ne sont pas ici.
 //
 // Ce fichier n'est pas joué tel quel : la construction l'enveloppe, avec `DEMARRAGE`, dans
 // www/android/pont.js, que l'activité injecte au début de chaque document de l'app (Pont.java).
@@ -30,20 +37,36 @@ const AUCUNE_STATION = "the Android app is not paired with a station yet: this p
 const configuration = { chemin: `no projects file on this phone — ${AUCUNE_STATION}`, projets: [] };
 // Ce que l'app garde de son appairage, dans son stockage : effacé avec elle, une installation neuve n'en a pas.
 const CLE = "brigade.telephone";
+// Les projets de la dernière liste lue au guichet de la station appairée.
+const CLE_DES_PROJETS = "brigade.telephone.projets";
 // Le temps de joindre le guichet, puis celui qu'il réponde : au-delà, la station ne répond pas.
 const DELAI_MS = 10_000;
 // Ce qu'un relais — `tailscale serve`, un proxy — répond quand rien n'écoute derrière lui. Le guichet,
 // lui, n'en rend aucun à `/pairing`.
 const SANS_RIEN_DERRIERE = new Set([502, 503, 504]);
-/** @returns {{ appaire: false } | { appaire: true, station: string, adresse: string }} */
-function telephone() {
+/** @returns {{ station: string, adresse: string, jeton: string } | undefined} */
+function garde() {
   try {
-    const garde = JSON.parse(window.localStorage.getItem(CLE) ?? "null");
-    if (typeof garde?.station === "string" && typeof garde.adresse === "string" && typeof garde.jeton === "string") return { appaire: true, station: garde.station, adresse: garde.adresse };
+    const lu = JSON.parse(window.localStorage.getItem(CLE) ?? "null");
+    if (typeof lu?.station === "string" && typeof lu.adresse === "string" && typeof lu.jeton === "string") return { station: lu.station, adresse: lu.adresse, jeton: lu.jeton };
   } catch {
     // Illisible, il ne vaut rien : le téléphone se réappaire.
   }
-  return { appaire: false };
+  return undefined;
+}
+/** @returns {{ appaire: false } | { appaire: true, station: string, adresse: string }} */
+function telephone() {
+  const lu = garde();
+  return lu === undefined ? { appaire: false } : { appaire: true, station: lu.station, adresse: lu.adresse };
+}
+// Les projets de la dernière liste lue — aucun s'ils ne se relisent pas.
+function projetsGardes() {
+  try {
+    const lus = JSON.parse(window.localStorage.getItem(CLE_DES_PROJETS) ?? "[]");
+    return Array.isArray(lus) ? lus : [];
+  } catch {
+    return [];
+  }
 }
 /** @param {unknown} erreur */
 const ditDe = (erreur) => (erreur instanceof Error ? erreur.message : typeof erreur === "object" && erreur !== null && "message" in erreur ? String(erreur.message) : String(erreur));
@@ -73,6 +96,9 @@ async function appairerLeTelephone({ adresse, code, nom, machine }) {
   }
   if (rendu.status === 201 && corps?.paired === true && typeof corps.token === "string" && typeof corps.station?.nom === "string") {
     window.localStorage.setItem(CLE, JSON.stringify({ station: corps.station.nom, adresse, jeton: corps.token }));
+    // Une autre station, peut-être : ses projets se lisent de nouveau.
+    window.localStorage.removeItem(CLE_DES_PROJETS);
+    lecture = undefined;
     return { paired: true, station: corps.station.nom };
   }
   if (corps?.paired === false && typeof corps.reason === "string") return { paired: false, reason: corps.reason, said: typeof corps.said === "string" ? corps.said : "" };
@@ -87,21 +113,77 @@ async function scannerLeQr() {
     return { refus: ditDe(erreur) };
   }
 }
+
+// Les abonnements de la vue, par leur nom : ce que la lecture de la station leur dit.
+/** @type {Map<string, ((...args: any[]) => void)[]>} */
+const abonnes = new Map();
+/** @param {string} canal @param {unknown[]} args */
+const dire = (canal, ...args) => {
+  for (const recevoir of abonnes.get(canal) ?? []) recevoir(...args);
+};
+// La lecture de la station appairée (app/android/web/lecture.ts), ouverte une fois : son module, posé par la
+// construction à côté de la vue (www/android/lecture.js), est chargé à la première lecture. Rien sans appairage.
+/** @type {Promise<any> | undefined} */
+let lecture;
+function laLecture() {
+  const lu = garde();
+  if (lu === undefined) return undefined;
+  lecture ??= Promise.resolve()
+    .then(() => import(new URL("../../android/lecture.js", window.location.href).href))
+    .then(({ ouvrirLaLecture }) =>
+    ouvrirLaLecture({
+      station: lu.station,
+      adresse: lu.adresse,
+      dire,
+      /** @param {string} chemin */
+      requete: (chemin) => natif("CapacitorHttp", "request", { url: `${lu.adresse}${chemin}`, method: "GET", headers: { Authorization: `Bearer ${lu.jeton}` }, connectTimeout: DELAI_MS, readTimeout: DELAI_MS }),
+      connus: projetsGardes(),
+      /** @param {unknown[]} projets */
+      garder: (projets) => window.localStorage.setItem(CLE_DES_PROJETS, JSON.stringify(projets)),
+    }),
+  );
+  return lecture;
+}
+// Une lecture que la vue demande, quand la station est appairée et sa lecture ouverte.
+/** @param {(ouverte: any) => unknown} faire */
+const avecLaLecture = (faire) => void laLecture()?.then(faire, () => undefined);
+
+async function demarrage() {
+  const appaire = telephone();
+  /** @type {any} */
+  const ouverte = await laLecture()?.catch((/** @type {unknown} */ erreur) => ({ refus: ditDe(erreur) }));
+  if (ouverte === undefined) return { ...DEMARRAGE, configuration, telephone: appaire };
+  // Le module de lecture ne s'est pas chargé : l'app s'ouvre sans projet, et dit pourquoi.
+  if ("refus" in ouverte) return { ...DEMARRAGE, configuration: { chemin: "no projects file on this phone", projets: [] }, telephone: { ...appaire, liste: { a: new Date().toISOString(), lue: false, reason: "inattendu", said: `this app could not load what reads its station: ${ouverte.refus}` } } };
+  return { ...DEMARRAGE, configuration: ouverte.configuration(), telephone: ouverte.telephone() };
+}
+
 /** @type {Record<string, (...args: any[]) => unknown>} */
 const connus = {
-  demarrage: async () => ({ ...DEMARRAGE, configuration, telephone: telephone() }),
+  demarrage,
   appairerLeTelephone,
   scannerLeQr,
   choisirDossier: async () => undefined,
-  ajouter: async () => ({ etat: "pas-ajoute", titre: `Nothing was added: ${AUCUNE_STATION}.` }),
+  ajouter: async () => ({ etat: "pas-ajoute", titre: garde() === undefined ? `Nothing was added: ${AUCUNE_STATION}.` : "Nothing was added: a project is added from a computer, and this phone reads it from its station." }),
+  faits: (/** @type {number} */ demande) => avecLaLecture((ouverte) => ouverte.faits(demande)),
+  tous: (/** @type {number} */ demande) => avecLaLecture((ouverte) => ouverte.tous(demande)),
+  regarder: (/** @type {string} */ projet, /** @type {number} */ demande) => avecLaLecture((ouverte) => ouverte.regarder(projet, demande)),
+  relireBox: () => avecLaLecture((ouverte) => ouverte.relire()),
+  // L'appairage effacé : le jeton, la station et ses projets. La vue revient à l'écran qui relie le téléphone.
+  oublierLeTelephone: async () => {
+    window.localStorage.removeItem(CLE);
+    window.localStorage.removeItem(CLE_DES_PROJETS);
+    lecture = undefined;
+  },
 };
 const rien = async () => undefined;
-const sourd = () => undefined;
+/** @param {string} nom */
+const abonner = (nom) => (/** @type {(...args: any[]) => void} */ recevoir) => void abonnes.set(nom, [...(abonnes.get(nom) ?? []), recevoir]);
 const pont = new Proxy(
   {},
   {
     // `then` n'en est pas un : le pont ne doit pas passer pour une promesse.
-    get: (_, nom) => (typeof nom !== "string" || nom === "then" ? undefined : (connus[nom] ?? (/^sur[A-Z]/.test(nom) ? sourd : rien))),
+    get: (_, nom) => (typeof nom !== "string" || nom === "then" ? undefined : (connus[nom] ?? (/^sur[A-Z]/.test(nom) ? abonner(nom) : rien))),
   },
 );
 Object.defineProperty(window, "brigade", { value: pont, enumerable: true });
