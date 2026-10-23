@@ -10,19 +10,28 @@ import { delimiter, join } from "node:path";
 
 const RACINE_TESTS = join(import.meta.dirname, "..");
 
+// Tous les fichiers de test, chemins relatifs à runtime/ écrits avec `/`, triés : aucun n'est écarté.
+export function fichiersDeTest(racine = join(RACINE_TESTS, "..")): string[] {
+  return globSync("test/**/*.test.ts", { cwd: racine }).map((f) => f.replaceAll("\\", "/")).sort();
+}
+
+// L'environnement de la suite, comme `npm test` le pose : les outils de git d'abord dans le PATH.
+// Sous Windows la variable s'écrit `Path` : on garde sa casse, pour n'en poser qu'une.
+export function environnement(env: NodeJS.ProcessEnv, gitCore: string | undefined): NodeJS.ProcessEnv {
+  const cle = Object.keys(env).find((k) => k.toUpperCase() === "PATH") ?? "PATH";
+  const pose: NodeJS.ProcessEnv = { ...env, NODE_COMPILE_CACHE: env.NODE_COMPILE_CACHE ?? join(tmpdir(), "brigade-runtime-compile-cache") };
+  if (gitCore) pose[cle] = `${gitCore}${delimiter}${env[cle] ?? ""}`;
+  return pose;
+}
+
 if (import.meta.main) {
-  const tous = globSync("test/**/*.test.ts", { cwd: join(RACINE_TESTS, "..") }).map((f) => f.replaceAll("\\", "/")).sort();
+  const tous = fichiersDeTest();
   console.log(`${tous.length} test files played`);
-  // Comme `npm test` : les outils de git d'abord dans le PATH.
   const gitCore = spawnSync("git", ["--exec-path"], { encoding: "utf8" }).stdout?.trim();
-  // Sous Windows la variable s'écrit `Path` : on garde sa casse, pour n'en poser qu'une.
-  const cle = Object.keys(process.env).find((k) => k.toUpperCase() === "PATH") ?? "PATH";
-  const env: NodeJS.ProcessEnv = { ...process.env, NODE_COMPILE_CACHE: process.env.NODE_COMPILE_CACHE ?? join(tmpdir(), "brigade-runtime-compile-cache") };
-  if (gitCore) env[cle] = `${gitCore}${delimiter}${process.env[cle] ?? ""}`;
   const r = spawnSync(process.execPath, ["--test", "--test-concurrency=5", "--test-force-exit", "--test-timeout=120000", ...tous], {
     cwd: join(RACINE_TESTS, ".."),
     stdio: "inherit",
-    env,
+    env: environnement(process.env, gitCore),
   });
   process.exit(r.status ?? 1);
 }

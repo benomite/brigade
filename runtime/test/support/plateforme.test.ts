@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { globSync } from "node:fs";
+import { delimiter, join } from "node:path";
 import { linuxOnly, macOnly, posixOnly, seulementSur, windowsOnly } from "./plateforme.ts";
+import { environnement, fichiersDeTest } from "./windows.ts";
 
 test("a Linux-only test is skipped on win32 and darwin, with its reason", () => {
   assert.equal(linuxOnly("requires POSIX permissions", "linux"), false);
@@ -29,4 +32,19 @@ test("a POSIX-only test plays on linux and darwin, not on win32", () => {
 test("the guard follows the real platform by default", () => {
   assert.equal(seulementSur([process.platform], "x"), false);
   assert.equal(seulementSur([], "x"), `skipped on ${process.platform}: x`);
+});
+
+test("the Windows job plays every test file of the runtime, none set aside", () => {
+  const tous = fichiersDeTest();
+  assert.ok(tous.includes("test/support/plateforme.test.ts"));
+  assert.ok(tous.includes("test/bascule/bascule.test.ts"));
+  assert.deepEqual(tous, [...tous].sort());
+  assert.equal(tous.length, globSync("test/**/*.test.ts", { cwd: join(import.meta.dirname, "../..") }).length);
+});
+
+test("the Windows job puts git's tools first in the PATH, under the case the variable already has", () => {
+  const surWindows = environnement({ Path: "C:\\Windows", NODE_COMPILE_CACHE: "cache" }, "C:\\Git\\libexec\\git-core");
+  assert.equal(surWindows.Path, `C:\\Git\\libexec\\git-core${delimiter}C:\\Windows`);
+  assert.equal("PATH" in surWindows, false);
+  assert.equal(environnement({ PATH: "/usr/bin", NODE_COMPILE_CACHE: "cache" }, undefined).PATH, "/usr/bin");
 });
