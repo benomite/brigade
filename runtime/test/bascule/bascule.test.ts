@@ -54,9 +54,9 @@ test("les trois projets passent à la station : une ligne chacun — dépôt, br
   assert.deepEqual(
     configuration.projets.map(({ nom, depot, base, reglages }) => ({ nom, depot, base, reglages })),
     [
-      { nom: "brigade", depot: "benomite/brigade", base: "v2", reglages: { BRIGADE_REPO_DIR: m.sous("var/lib/brigade/brigade/depot"), BRIGADE_ARBITER_PORT: "8470", BRIGADE_ROADMAP_ISSUE: "1" } },
-      { nom: "calculus-workspace", depot: "benomite/calculus-workspace", base: "main", reglages: { BRIGADE_REPO_DIR: m.sous("var/lib/brigade/calculus-workspace/depot"), BRIGADE_ARBITER_PORT: "8470" } },
-      { nom: "espace", depot: "benomite/espace", base: "main", reglages: { BRIGADE_REPO_DIR: m.sous("var/lib/brigade/espace/depot"), BRIGADE_ARBITER_PORT: "8470", BRIGADE_SECRETS_FILE: "/srv/secrets/espace.env" } },
+      { nom: "brigade", depot: "acme/brigade", base: "v2", reglages: { BRIGADE_REPO_DIR: m.sous("var/lib/brigade/brigade/depot"), BRIGADE_ARBITER_PORT: "8470", BRIGADE_ROADMAP_ISSUE: "1" } },
+      { nom: "calculus-workspace", depot: "acme/calculus-workspace", base: "main", reglages: { BRIGADE_REPO_DIR: m.sous("var/lib/brigade/calculus-workspace/depot"), BRIGADE_ARBITER_PORT: "8470" } },
+      { nom: "espace", depot: "acme/espace", base: "main", reglages: { BRIGADE_REPO_DIR: m.sous("var/lib/brigade/espace/depot"), BRIGADE_ARBITER_PORT: "8470", BRIGADE_SECRETS_FILE: "/srv/secrets/espace.env" } },
     ],
   );
   // La station range l'état de chaque projet sous `etat/` : il y est, sans avoir bougé.
@@ -74,7 +74,7 @@ test("les trois projets passent à la station : une ligne chacun — dépôt, br
 });
 
 test("un projet sans porte dans l'ancienne installation : aucun port repris — la station lui en ouvre une, et le dit", (t) => {
-  const m = machine(t, [{ nom: "espace", depot: "benomite/espace", base: "main" }, TROIS[0] ?? assert.fail()], { sansPorte: ["espace"] });
+  const m = machine(t, [{ nom: "espace", depot: "acme/espace", base: "main" }, TROIS[0] ?? assert.fail()], { sansPorte: ["espace"] });
   const { ici, dit } = basculerTout(m);
   assert.deepEqual(lirePortes(join(ici.station, "portes.json")), { station: null, projets: { brigade: 8481 } });
   assert.match(dit.join("\n"), /espace — il n'avait pas de porte : la station lui en ouvre une, qui ne laisse passer que sa liste blanche/);
@@ -176,11 +176,11 @@ test("une machine sans ancienne installation : rien à basculer, rien d'écrit",
 
 for (const [cas, projet, motif] of [
   ["sans dépôt", { nom: "espace", depot: "", base: "main" }, /brigade@espace\.service : BRIGADE_GITHUB_REPO n'est pas défini/],
-  ["avec une valeur à blancs", { nom: "espace", depot: "benomite/espace", base: "main", environnement: { BRIGADE_SECRETS_FILE: "/srv/mes secrets.env" } }, /brigade@espace\.service : BRIGADE_SECRETS_FILE : sa valeur contient un blanc/],
-  ["avec une variable hors BRIGADE_", { nom: "espace", depot: "benomite/espace", base: "main", environnement: { NODE_OPTIONS: "--max-old-space-size=4096" } }, /brigade@espace\.service : NODE_OPTIONS : la configuration de la station ne porte que des réglages BRIGADE_…/],
+  ["avec une valeur à blancs", { nom: "espace", depot: "acme/espace", base: "main", environnement: { BRIGADE_SECRETS_FILE: "/srv/mes secrets.env" } }, /brigade@espace\.service : BRIGADE_SECRETS_FILE : sa valeur contient un blanc/],
+  ["avec une variable hors BRIGADE_", { nom: "espace", depot: "acme/espace", base: "main", environnement: { NODE_OPTIONS: "--max-old-space-size=4096" } }, /brigade@espace\.service : NODE_OPTIONS : la configuration de la station ne porte que des réglages BRIGADE_…/],
 ] as const) {
   test(`un projet ${cas} : la bascule est refusée en le disant, et rien ne change sur la machine`, (t) => {
-    const m = machine(t, [TROIS[0] ?? { nom: "brigade", depot: "benomite/brigade", base: "v2" }, projet]);
+    const m = machine(t, [TROIS[0] ?? { nom: "brigade", depot: "acme/brigade", base: "v2" }, projet]);
     const avant = m.photo();
     const rendu = spawnSync(process.execPath, [MAIN, "--racine", m.racine], { encoding: "utf8", env: { ...process.env, PATH: "/nulle/part" } });
     assert.equal(rendu.status, 1);
@@ -200,20 +200,20 @@ test("un drop-in qui lit ses variables d'un fichier : refusé — elles ne se re
 
 test("la configuration de la station qui porte déjà ce projet sous un autre dépôt : refusée", (t) => {
   const m = machine(t);
-  writeFileSync(m.sous("var/lib/brigade/projets"), "espace benomite/autre main\n");
+  writeFileSync(m.sous("var/lib/brigade/projets"), "espace acme/autre main\n");
   const { refus } = lireAncienneInstallation(lieux(m.racine));
-  assert.match(refus.join("\n"), /brigade@espace\.service : la configuration de la station a déjà une ligne « espace » \(benomite\/autre, main\), qui n'est pas celle de son unité \(benomite\/espace, main\)/);
+  assert.match(refus.join("\n"), /brigade@espace\.service : la configuration de la station a déjà une ligne « espace » \(acme\/autre, main\), qui n'est pas celle de son unité \(acme\/espace, main\)/);
 });
 
 test("une décision restée dans une unité n'est pas recopiée sur la ligne : elle vit au journal, la bascule le dit", (t) => {
-  const m = machine(t, [{ nom: "espace", depot: "benomite/espace", base: "main", environnement: { BRIGADE_MANAGER_MODEL: "opus" } }]);
+  const m = machine(t, [{ nom: "espace", depot: "acme/espace", base: "main", environnement: { BRIGADE_MANAGER_MODEL: "opus" } }]);
   const { ici, dit } = basculerTout(m);
   assert.doesNotMatch(readFileSync(join(ici.station, "projets"), "utf8"), /MANAGER/);
   assert.match(dit.join("\n"), /espace — BRIGADE_MANAGER_MODEL dans son unité, non repris : une décision vit au journal du projet/);
 });
 
 test("une unité déclarée qui n'a jamais servi — aucun journal : rien à reprendre, son unité part", (t) => {
-  const m = machine(t, [TROIS[0] ?? { nom: "brigade", depot: "benomite/brigade", base: "v2" }, { nom: "essai", depot: "benomite/essai", base: "main", sansJournal: true }]);
+  const m = machine(t, [TROIS[0] ?? { nom: "brigade", depot: "acme/brigade", base: "v2" }, { nom: "essai", depot: "acme/essai", base: "main", sansJournal: true }]);
   const { ici, note, dit, appels } = basculerTout(m);
   assert.deepEqual(note.projets, ["brigade"]);
   assert.deepEqual(lireConfiguration(readFileSync(join(ici.station, "projets"), "utf8")).projets.map((p) => p.nom), ["brigade"]);

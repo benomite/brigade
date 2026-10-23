@@ -157,7 +157,7 @@ function reglagesDansLeBacASable(home: string, worktrees: string, ou: string): R
 
 test("sur un Mac, la station sous `~/.config/brigade` sert le projet, ses cooks dans le bac à sable : sans réglage, et sans nettoyage à la main de ce qu'elle avait laissé", (t) => {
   const { compte, home, racine, etat, lieux } = avantLaMiseAJour(t);
-  writeFileSync(join(racine, "projets"), `${PROJET} benomite/${PROJET} ${BASE}\n`);
+  writeFileSync(join(racine, "projets"), `${PROJET} acme/${PROJET} ${BASE}\n`);
   // Le répertoire temporaire d'un Mac n'est pas au-dessus du compte : c'est là
   // que partent les jugements du manager.
   const temporaire = join(compte, "tmp");

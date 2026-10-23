@@ -20,7 +20,7 @@ const rienNeReste = temporaireDuFichier();
 const GIST = "gist1";
 const projet = (nom: string, principale = true) => ({
   nom,
-  depot: `benomite/${nom}`,
+  depot: `acme/${nom}`,
   base: "main",
   principale,
   cooks: 2,
@@ -94,20 +94,20 @@ test("le suivi porte l'onboarding de chaque projet dont la station est la princi
       ["premier-ticket", "a-venir"],
     ],
   );
-  assert.deepEqual(onboarding?.preparation, { ticket: 7, url: "https://github.com/benomite/parade/issues/7", etat: "en-cours", raison: null, prochainEssai: null, pr: null });
+  assert.deepEqual(onboarding?.preparation, { ticket: 7, url: "https://github.com/acme/parade/issues/7", etat: "en-cours", raison: null, prochainEssai: null, pr: null });
   assert.equal(onboarding?.termine, false);
 });
 
 test("les Apps à autoriser : l'onboarding attend le chef sur le dépôt, avec les pages où les autoriser", async (t) => {
   const station = uneStation(t);
   const pages = ["https://github.com/apps/brigade-cook/installations/new"];
-  station.autorisations.set("benomite/parade", { autorisee: false, pages });
+  station.autorisations.set("acme/parade", { autorisee: false, pages });
   station.demander(projet("parade"));
   await station.projets.relire();
 
   const onboarding = station.document()?.onboarding?.parade;
   assert.equal(onboarding?.courante, "depot");
-  assert.deepEqual(onboarding?.etapes[0]?.geste, { quoi: "Authorize brigade's GitHub Apps on benomite/parade.", ou: "On GitHub, one click per page.", liens: pages });
+  assert.deepEqual(onboarding?.etapes[0]?.geste, { quoi: "Authorize brigade's GitHub Apps on acme/parade.", ou: "On GitHub, one click per page.", liens: pages });
 });
 
 test("suivi.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);

@@ -60,7 +60,7 @@ test("ce qui empêche de monter se dit : le label du chef, le plafond atteint", 
 });
 
 const mission = {
-  depot: "benomite/brigade",
+  depot: "acme/brigade",
   issue: { number: 30, title: "Le rail compte", body: "Compter les tickets.", labels: ["fire"] },
   tentatives: [
     { model: "haiku", effort: "low", findings: ["Gates rouges : sorti en 1."] },

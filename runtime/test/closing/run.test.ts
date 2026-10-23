@@ -45,7 +45,7 @@ describe("la passe de fermeture, en cuisine", { concurrency: 8 }, () => {
     const [pr] = gh.prs;
     assert.equal(pr?.base, BASE);
     assert.equal(pr?.branche, branche);
-    assert.equal(passe.pr, "https://github.com/benomite/brigade/pull/101");
+    assert.equal(passe.pr, "https://github.com/acme/brigade/pull/101");
     const corps = pr?.corps ?? "";
     assert.match(corps, /ne merge rien : ce qu'elle retire arrive par cette PR/);
     assert.match(corps, /## Retiré — 1 sur 3 candidats\n\n- \*\*M1\*\* — export `inutile` of `src\/libre\/outils\.ts:2` — referenced nowhere\n/);

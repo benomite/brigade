@@ -158,18 +158,18 @@ test("la station publie le dépôt de chacun de ses projets : l'app d'un ordinat
   const github = fauxGists();
   const horloge = faussesHorloges(Date.parse("2026-10-15T12:00:00Z"));
   const identite = { nom: "box", machine: "Linux 6.1.0", version: "1.4.0" };
-  const presence = tenirPresence({ racine: repertoireTemporaire(t), canal: github.canal, identite, projets: () => ["parade"], depots: () => ({ parade: "benomite/parade" }), dire: () => {}, apres: horloge.apres, maintenant: horloge.maintenant });
+  const presence = tenirPresence({ racine: repertoireTemporaire(t), canal: github.canal, identite, projets: () => ["parade"], depots: () => ({ parade: "acme/parade" }), dire: () => {}, apres: horloge.apres, maintenant: horloge.maintenant });
   aArreter(t, () => presence.arreter());
   await presence.publier();
   const [id] = [...github.gists.keys()];
-  assert.deepEqual(github.document(id ?? "").depots, { parade: "benomite/parade" });
+  assert.deepEqual(github.document(id ?? "").depots, { parade: "acme/parade" });
 });
 
 test("la station publie le rail de chacun de ses projets, et le republie au regard qui suit un changement du rail seul (#1432)", async (t) => {
   const github = fauxGists();
   const horloge = faussesHorloges(Date.parse("2026-10-15T12:00:00Z"));
   const identite = { nom: "box", machine: "Linux 6.1.0", version: "1.4.0" };
-  let rails: RailsPublies = { parade: [{ ticket: 14, etat: "en attente", titre: "Ticket 14", url: "https://github.com/benomite/parade/issues/14" }] };
+  let rails: RailsPublies = { parade: [{ ticket: 14, etat: "en attente", titre: "Ticket 14", url: "https://github.com/acme/parade/issues/14" }] };
   let illisible = false;
   const presence = tenirPresence({
     racine: repertoireTemporaire(t),
@@ -191,7 +191,7 @@ test("la station publie le rail de chacun de ses projets, et le republie au rega
   assert.deepEqual(publie(), { brigade: "rail", format: 1, projets: rails });
 
   // Le ticket est pris : rien d'autre ne change, le regard suivant l'écrit.
-  rails = { parade: [{ ticket: 14, etat: "pris", titre: "Ticket 14", url: "https://github.com/benomite/parade/issues/14" }] };
+  rails = { parade: [{ ticket: 14, etat: "pris", titre: "Ticket 14", url: "https://github.com/acme/parade/issues/14" }] };
   await horloge.avancer(REGARD_MS);
   assert.deepEqual(publie(), { brigade: "rail", format: 1, projets: rails });
 

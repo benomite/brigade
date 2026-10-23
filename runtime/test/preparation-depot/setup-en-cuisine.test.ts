@@ -28,7 +28,7 @@ const SENTENCE = "the setup needs `apps/api/.env`, `docker` and `psql`, which th
 // pas : « brigade: line 5: 3: Bad file descriptor ». Un setup en échec n'y
 // écrit rien, et se joue partout.
 const EXPORTE = { skip: posixOnly("a passing setup hands its exports through file descriptor 3, which bash on Windows does not receive") };
-const CORPS = corps({ projet: "brigade", depot: "benomite/brigade", base: "v2", presents: {} });
+const CORPS = corps({ projet: "brigade", depot: "acme/brigade", base: "v2", presents: {} });
 
 // Une cuisine dont la station a ouvert le ticket de préparation #20, noté
 // avant qu'elle ne démarre. `avant` : ce que le journal porte déjà.
@@ -47,7 +47,7 @@ function unProjet(t: TestContext, { avant = [], corps: corpsDeLIssue = CORPS, ..
 const PREPARATION_SERVIE: Array<{ ticket: number; fait: Fait }> = [
   {
     ticket: PREPARATION,
-    fait: { type: "ticket.arrived", payload: { title: "Préparer le dépôt", priority: null, createdAt: "2026-10-01T00:00:00Z", url: "https://github.com/benomite/brigade/issues/20", model: "opus", effort: "high", card: null } },
+    fait: { type: "ticket.arrived", payload: { title: "Préparer le dépôt", priority: null, createdAt: "2026-10-01T00:00:00Z", url: "https://github.com/acme/brigade/issues/20", model: "opus", effort: "high", card: null } },
   },
   { ticket: PREPARATION, fait: { type: "ticket.taken", payload: { station: STATION, leaseUntil: "2026-10-08T09:30:00.000Z" } } },
   { ticket: PREPARATION, fait: { type: "ticket.passing", payload: { station: STATION } } },

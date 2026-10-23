@@ -11,7 +11,7 @@
 //   BRIGADE_STATION_DIR         le répertoire de la station (obligatoire)
 //   BRIGADE_MISE_A_JOUR_DIR     le répertoire de la mise à jour (obligatoire)
 //   BRIGADE_MISE_A_JOUR_SOURCE  où sont les versions publiées : github:<owner>/<repo>
-//                               (défaut : les releases de benomite/brigade), ou un répertoire
+//                               ou un répertoire (obligatoire ; le paquet la pose)
 //   BRIGADE_MISE_A_JOUR_GARDE_S le temps laissé à la station pour démarrer (défaut 120)
 //
 // Codes de sortie : 0 le passage s'est fait — à jour, gelée, passée ou

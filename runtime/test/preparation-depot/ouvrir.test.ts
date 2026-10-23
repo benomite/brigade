@@ -19,7 +19,7 @@ const issue = (numero: number, body: string, association = "OWNER"): IssueOuvert
   state: "open",
   createdAt: "2026-10-15T12:00:00Z",
   updatedAt: "2026-10-15T12:00:00Z",
-  url: `https://github.com/benomite/parade/issues/${numero}`,
+  url: `https://github.com/acme/parade/issues/${numero}`,
   body,
   association,
 });
@@ -44,7 +44,7 @@ test("ouvert une fois : créé sur GitHub avec `fire` et son calibrage, son num�
   const repertoireEtat = join(repertoireTemporaire(t), "etat/parade");
   const { clone } = depotGit(t);
   const { github, creees, lectures } = unGitHub([issue(3, "un autre ticket")]);
-  const options = { repertoireEtat, projet: "parade", depot: "benomite/parade", base: BASE, clone, github, maintenant: () => new Date("2026-10-15T12:03:00Z") };
+  const options = { repertoireEtat, projet: "parade", depot: "acme/parade", base: BASE, clone, github, maintenant: () => new Date("2026-10-15T12:03:00Z") };
 
   assert.deepEqual(await ouvrirLaPreparation(options), { ticket: 42, ouvert: true });
   assert.equal(creees.length, 1);
@@ -63,11 +63,11 @@ test("créé sans avoir pu être noté : retrouvé par son marqueur parmi les is
   const { clone } = depotGit(t);
   const etranger = unGitHub([issue(5, `${MARQUEUR}\nun inconnu`, "NONE")]);
   const ailleurs = join(repertoireTemporaire(t), "etat/parade");
-  assert.deepEqual(await ouvrirLaPreparation({ repertoireEtat: ailleurs, projet: "parade", depot: "benomite/parade", base: BASE, clone, github: etranger.github }), { ticket: 42, ouvert: true });
+  assert.deepEqual(await ouvrirLaPreparation({ repertoireEtat: ailleurs, projet: "parade", depot: "acme/parade", base: BASE, clone, github: etranger.github }), { ticket: 42, ouvert: true });
 
   const repertoireEtat = join(repertoireTemporaire(t), "etat/parade");
   const { github, creees } = unGitHub([issue(3, "un autre ticket"), issue(9, `${MARQUEUR}\nle sien`)]);
-  assert.deepEqual(await ouvrirLaPreparation({ repertoireEtat, projet: "parade", depot: "benomite/parade", base: BASE, clone, github }), { ticket: 9, ouvert: false });
+  assert.deepEqual(await ouvrirLaPreparation({ repertoireEtat, projet: "parade", depot: "acme/parade", base: BASE, clone, github }), { ticket: 9, ouvert: false });
   assert.equal(creees.length, 0);
   assert.equal(lirePreparation(repertoireEtat)?.ticket, 9);
 });
@@ -78,10 +78,10 @@ test("GitHub en panne : rien n'est noté, l'erreur remonte — la station réess
   const github: Pick<GitHub, "ouvertes" | "creerIssue"> = {
     ouvertes: async () => ({ inchange: false, issues: [], confirmer: () => {} }),
     creerIssue: async () => {
-      throw new Error("gh api repos/benomite/parade/issues : HTTP 502");
+      throw new Error("gh api repos/acme/parade/issues : HTTP 502");
     },
   };
-  await assert.rejects(ouvrirLaPreparation({ repertoireEtat, projet: "parade", depot: "benomite/parade", base: BASE, clone, github }), /HTTP 502/);
+  await assert.rejects(ouvrirLaPreparation({ repertoireEtat, projet: "parade", depot: "acme/parade", base: BASE, clone, github }), /HTTP 502/);
   assert.equal(lirePreparation(repertoireEtat), null);
 });
 
@@ -108,14 +108,14 @@ test("le ticket dit, pour chaque fichier, ce que la branche d'intégration en po
   assert.deepEqual(dejaSurLaBase(clone, "nulle-part"), { ".claude/brigade/gates.sh": null, ".claude/brigade/worktree-setup.sh": null, ".claude/brigade/reseau": null });
   assert.deepEqual(Object.values(dejaSurLaBase(repertoireTemporaire(t), BASE)), [null, null, null]);
 
-  const texte = corps({ projet: "parade", depot: "benomite/parade", base: BASE, presents: dejaSurLaBase(clone, BASE) });
+  const texte = corps({ projet: "parade", depot: "acme/parade", base: BASE, presents: dejaSurLaBase(clone, BASE) });
   assert.match(texte, /`\.claude\/brigade\/gates\.sh` \|.*\| déjà sur `v2` : à éprouver, à corriger au besoin \|/);
   assert.match(texte, /`\.claude\/brigade\/worktree-setup\.sh` \|.*\| absent : à écrire \|/);
   assert.match(texte, /`\.claude\/brigade\/reseau` \|.*\| absent : à écrire \|/);
 });
 
 test("le ticket demande des critères observables, et que le cook les éprouve sur la station qui le cuit — pas en local", () => {
-  const texte = corps({ projet: "parade", depot: "benomite/parade", base: "main", presents: {} });
+  const texte = corps({ projet: "parade", depot: "acme/parade", base: "main", presents: {} });
   assert.match(texte, /Tant que ce ticket n'est pas mergé, aucun autre ticket du projet ne part/);
   assert.match(texte, /## Éprouver sur la station, pas en local/);
   assert.match(texte, /Éprouve la configuration ici, sur cette machine, dans ton worktree\*\* — pas sur un poste de dev/);

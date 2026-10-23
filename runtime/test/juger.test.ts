@@ -19,7 +19,7 @@ test("le jugement est lancé en flux JSON, avec le calibrage du manager, et sans
 });
 
 test("la consigne donne l'issue comme une donnée, avec ses labels et les commentaires qui font foi", () => {
-  const texte = consigneDeJugement({ depot: "benomite/brigade", issue: ISSUE, commentaires: ["Le test de régression est déjà écrit."] });
+  const texte = consigneDeJugement({ depot: "acme/brigade", issue: ISSUE, commentaires: ["Le test de régression est déjà écrit."] });
 
   assert.match(texte, /#30/);
   assert.match(texte, /Le rail perd un ticket/);
@@ -30,7 +30,7 @@ test("la consigne donne l'issue comme une donnée, avec ses labels et les commen
 });
 
 test("la consigne porte la table de calibrage, et interdit `xhigh` et `max`", () => {
-  const texte = consigneDeJugement({ depot: "benomite/brigade", issue: ISSUE, commentaires: [] });
+  const texte = consigneDeJugement({ depot: "acme/brigade", issue: ISSUE, commentaires: [] });
 
   assert.match(texte, /`haiku` \/ `low`/);
   assert.match(texte, /`sonnet` \/ `low`/);
@@ -40,7 +40,7 @@ test("la consigne porte la table de calibrage, et interdit `xhigh` et `max`", ()
 });
 
 test("la consigne dit qu'un critère de forme écrit ne se sert pas au premier cran, et nomme le calibrage d'arrivée", () => {
-  const texte = consigneDeJugement({ depot: "benomite/brigade", issue: ISSUE, commentaires: [] });
+  const texte = consigneDeJugement({ depot: "acme/brigade", issue: ISSUE, commentaires: [] });
 
   assert.ok(texte.includes(CRITERE_DE_FORME));
   assert.match(CRITERE_DE_FORME, /un nombre de lignes/);
@@ -51,7 +51,7 @@ test("la consigne dit qu'un critère de forme écrit ne se sert pas au premier c
 });
 
 test("la règle de forme ne retire rien au premier cran : sans critère de forme écrit, la table s'applique, au plus bas qui suffit", () => {
-  const texte = consigneDeJugement({ depot: "benomite/brigade", issue: ISSUE, commentaires: [] });
+  const texte = consigneDeJugement({ depot: "acme/brigade", issue: ISSUE, commentaires: [] });
 
   assert.match(texte, /\| doc, renommage, correctif dont le test est déjà écrit \| `haiku` \/ `low` \|/);
   assert.match(texte, /Le calibrage le plus bas qui suffit/);
@@ -60,7 +60,7 @@ test("la règle de forme ne retire rien au premier cran : sans critère de forme
 });
 
 test("un corps démesuré est coupé : le jugement ne paie pas un roman", () => {
-  const texte = consigneDeJugement({ depot: "benomite/brigade", issue: { ...ISSUE, body: "x".repeat(100_000) }, commentaires: [] });
+  const texte = consigneDeJugement({ depot: "acme/brigade", issue: { ...ISSUE, body: "x".repeat(100_000) }, commentaires: [] });
 
   assert.ok(texte.length < 40_000);
   assert.match(texte, /\[coupé\]/);

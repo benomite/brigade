@@ -9,9 +9,9 @@
 // pas besoin.
 //
 //   # projet  dépôt              branche  réglages
-//   brigade   benomite/brigade   v2
-//   espace    benomite/espace    main     BRIGADE_SECRETS_FILE=/srv/secrets/espace.env
-//   parade    benomite/parade
+//   brigade   acme/brigade   v2
+//   web       acme/web    main     BRIGADE_SECRETS_FILE=/srv/secrets/web.env
+//   shop      acme/shop
 //
 // Tout le reste vient de la station : son environnement, que chaque projet
 // hérite, et ses répertoires, où chaque projet a sa place.

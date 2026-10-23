@@ -91,7 +91,7 @@ function laBox(t: TestContext) {
   aArreter(t, () => journal.fermer());
   const noter = (fait: Fait, ticket: number | null = null, author = "runtime") => journal.ajouter({ project: "brigade", ticket, author, ...fait });
   const arriver = (ticket: number, priority: number | null, card?: { waitsFor: number[]; zone: string[]; problems: string[] }) =>
-    noter({ type: "ticket.arrived", payload: { title: `Ticket ${ticket}`, priority, createdAt: `2026-10-01T00:00:${ticket}Z`, url: `https://github.com/benomite/brigade/issues/${ticket}`, card } }, ticket, "github");
+    noter({ type: "ticket.arrived", payload: { title: `Ticket ${ticket}`, priority, createdAt: `2026-10-01T00:00:${ticket}Z`, url: `https://github.com/acme/brigade/issues/${ticket}`, card } }, ticket, "github");
   const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: 3_600_000 });
   noter({ type: "runtime.started", payload: { pid: 1, host: "parade-box", node: "v26" } });
   for (const [ticket, priority] of [[14, 1], [15, 1], [16, 2], [17, 2], [19, 3]] as const) arriver(ticket, priority);
@@ -120,9 +120,9 @@ const lire = (github: ReturnType<typeof unGitHub>, project: string, gh = FAUX_GH
 test("sur un PC neuf, sans rien d'avant, le rail du projet a les mêmes tickets — mêmes numéros, mêmes états — que celui que le Mac lit sur la box", async (t) => {
   const github = unGitHub(t);
   const box = laBox(t);
-  const station = await uneStation(t, github, { nom: "parade-box", machine: "Linux 6.1.0", version: "1.5.0" }, { brigade: "benomite/brigade" }, () => ({ brigade: railDuJournal(box.journal) }));
+  const station = await uneStation(t, github, { nom: "parade-box", machine: "Linux 6.1.0", version: "1.5.0" }, { brigade: "acme/brigade" }, () => ({ brigade: railDuJournal(box.journal) }));
   // Le Mac est aussi une station appairée, qui sert un autre projet : son rail ne se mêle pas à celui de la box.
-  await uneStation(t, github, { nom: "mac", machine: "macOS 25.0.0", version: "1.5.0" }, { espace: "benomite/espace" }, () => ({ espace: [{ ticket: 3, etat: "pris", titre: "Ailleurs", url: "https://github.com/benomite/espace/issues/3" }] }));
+  await uneStation(t, github, { nom: "mac", machine: "macOS 25.0.0", version: "1.5.0" }, { espace: "acme/espace" }, () => ({ espace: [{ ticket: 3, etat: "pris", titre: "Ailleurs", url: "https://github.com/acme/espace/issues/3" }] }));
 
   const mac = await surLeMac(box.etat);
   assert.deepEqual(
@@ -137,7 +137,7 @@ test("sur un PC neuf, sans rien d'avant, le rail du projet a les mêmes tickets 
   assert.ok(lu.state === "listed", commande.sortie());
   assert.deepEqual(lu.tickets, mac);
   assert.equal(lu.reason, undefined);
-  assert.deepEqual({ project: lu.project, repository: lu.repository, station: lu.station }, { project: "brigade", repository: "benomite/brigade", station: { id: station.gist, name: "parade-box", online: true } });
+  assert.deepEqual({ project: lu.project, repository: lu.repository, station: lu.station }, { project: "brigade", repository: "acme/brigade", station: { id: station.gist, name: "parade-box", online: true } });
 
   // Le rail bouge sur la box : un ticket arrive, celui en pass est servi. À son écriture suivante, le PC lit ce que le Mac lit.
   box.arriver(20, 1);
@@ -147,15 +147,15 @@ test("sur un PC neuf, sans rien d'avant, le rail du projet a les mêmes tickets 
   assert.deepEqual(apres.find(({ ticket }) => ticket === 15)?.state, "servi");
   assert.ok(apres.some(({ ticket }) => ticket === 20));
   // Lu par son dépôt, comme le dit la liste des stations.
-  const relu = await lire(github, "benomite/brigade");
+  const relu = await lire(github, "acme/brigade");
   assert.ok(relu.state === "listed");
   assert.deepEqual(relu.tickets, apres);
 });
 
 test("le rail que publie une station en ligne passe avant celui d'une station arrêtée qui servait le projet avant elle", async (t) => {
   const github = unGitHub(t);
-  const ancienne = await uneStation(t, github, { nom: "vieille-box", machine: "Linux", version: "1" }, { brigade: "benomite/brigade" }, () => ({ brigade: [{ ticket: 1, etat: "pris", titre: "Vieux", url: "u" }] }));
-  const neuve = await uneStation(t, github, { nom: "parade-box", machine: "Linux", version: "1" }, { brigade: "benomite/brigade" }, () => ({ brigade: [{ ticket: 2, etat: "en attente", titre: "Neuf", url: "u" }] }));
+  const ancienne = await uneStation(t, github, { nom: "vieille-box", machine: "Linux", version: "1" }, { brigade: "acme/brigade" }, () => ({ brigade: [{ ticket: 1, etat: "pris", titre: "Vieux", url: "u" }] }));
+  const neuve = await uneStation(t, github, { nom: "parade-box", machine: "Linux", version: "1" }, { brigade: "acme/brigade" }, () => ({ brigade: [{ ticket: 2, etat: "en attente", titre: "Neuf", url: "u" }] }));
   // L'ancienne a cessé de publier depuis longtemps : son signe de vie a vieilli.
   const vieux = JSON.parse(readFileSync(join(github.repertoire, `${ancienne.gist}.gist.json`), "utf8")) as Gist;
   const document = JSON.parse(vieux.files["brigade-station.json"]?.content ?? "{}") as Record<string, unknown>;
@@ -179,7 +179,7 @@ function phrase(etat: RailDuProjet) {
 
 test("non connecté à GitHub : la réponse dit pourquoi en une phrase, avec le geste qui connecte — jamais un rail vide", async (t) => {
   const github = unGitHub(t);
-  await uneStation(t, github, { nom: "parade-box", machine: "Linux", version: "1" }, { brigade: "benomite/brigade" }, () => ({ brigade: [] }));
+  await uneStation(t, github, { nom: "parade-box", machine: "Linux", version: "1" }, { brigade: "acme/brigade" }, () => ({ brigade: [] }));
   github.tomber("deconnecte");
   const commande = appeler(principal, ["brigade"], { ...github.env(), BRIGADE_GH_BIN: FAUX_GH });
   assert.equal(await commande.fin, 1);
@@ -198,7 +198,7 @@ test("non connecté à GitHub : la réponse dit pourquoi en une phrase, avec le 
 
 test("sans accès au projet — aucune station de ce compte ne le sert — la réponse le dit en une phrase, avec le geste qui connecte sous un autre compte", async (t) => {
   const github = unGitHub(t);
-  await uneStation(t, github, { nom: "parade-box", machine: "Linux", version: "1" }, { parade: "benomite/parade" }, () => ({ parade: [] }));
+  await uneStation(t, github, { nom: "parade-box", machine: "Linux", version: "1" }, { parade: "acme/parade" }, () => ({ parade: [] }));
   const lu = phrase(await lire(github, "brigade"));
   assert.ok(lu.state === "unavailable");
   assert.equal(lu.cause, "not-served");
@@ -212,7 +212,7 @@ test("sans accès au projet — aucune station de ce compte ne le sert — la r�
 
 test("sans réseau, sans `gh`, ou sous la limite de GitHub : la réponse dit pourquoi en une phrase", async (t) => {
   const github = unGitHub(t);
-  await uneStation(t, github, { nom: "parade-box", machine: "Linux", version: "1" }, { brigade: "benomite/brigade" }, () => ({ brigade: [] }));
+  await uneStation(t, github, { nom: "parade-box", machine: "Linux", version: "1" }, { brigade: "acme/brigade" }, () => ({ brigade: [] }));
 
   const sansGh = phrase(await lire(github, "brigade", join(github.repertoire, "pas-de-gh")));
   assert.ok(sansGh.state === "unavailable");
@@ -239,7 +239,7 @@ test("sans réseau, sans `gh`, ou sous la limite de GitHub : la réponse dit pou
 
 test("une station qui sert le projet sans publier de rail — d'avant #1432 —, ou un rail illisible : la réponse le dit en une phrase", async (t) => {
   const github = unGitHub(t);
-  const ancienne = await uneStation(t, github, { nom: "parade-box", machine: "Linux", version: "1" }, { brigade: "benomite/brigade" });
+  const ancienne = await uneStation(t, github, { nom: "parade-box", machine: "Linux", version: "1" }, { brigade: "acme/brigade" });
   const sansRail = phrase(await lire(github, "brigade"));
   assert.ok(sansRail.state === "unavailable");
   assert.equal(sansRail.cause, "not-published");
@@ -260,7 +260,7 @@ test("une station qui sert le projet sans publier de rail — d'avant #1432 —,
 
 test("un rail vide se lit vide, et le dit en une phrase", async (t) => {
   const github = unGitHub(t);
-  await uneStation(t, github, { nom: "parade-box", machine: "Linux", version: "1" }, { brigade: "benomite/brigade" }, () => ({ brigade: [] }));
+  await uneStation(t, github, { nom: "parade-box", machine: "Linux", version: "1" }, { brigade: "acme/brigade" }, () => ({ brigade: [] }));
   const lu = await lire(github, "brigade");
   assert.ok(lu.state === "listed");
   assert.deepEqual(lu.tickets, []);

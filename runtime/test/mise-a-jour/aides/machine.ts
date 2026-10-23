@@ -31,7 +31,7 @@ function fauxNode(repertoire: string): string {
 // Construit le paquet de la station en `version`, depuis ce dépôt.
 export function construirePaquet(dossier: string, version: string): string {
   const sortie = join(dossier, `construit-${version}`);
-  const rendu = spawnSync(process.execPath, [CONSTRUIRE, "--sortie", sortie, "--version", version, "--node", fauxNode(dossier)], { encoding: "utf8" });
+  const rendu = spawnSync(process.execPath, [CONSTRUIRE, "--sortie", sortie, "--version", version, "--node", fauxNode(dossier), "--repo", "acme/brigade", "--maintainer", "Test <test@example.org>"], { encoding: "utf8" });
   if (rendu.status !== 0) throw new Error(`construction de ${version} : ${rendu.stdout}${rendu.stderr}`);
   return join(sortie, readdirSync(sortie)[0] ?? "");
 }

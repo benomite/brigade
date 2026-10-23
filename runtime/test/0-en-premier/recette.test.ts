@@ -61,8 +61,8 @@ test("ajouté depuis l'app, le projet est dans la liste de la station en moins d
   writeFileSync(join(gists, "appels"), "");
   // Le dépôt du projet, sur GitHub.
   const { origine } = depotGit(t);
-  mkdirSync(join(origines, "benomite"));
-  git(origines, "clone", "-q", "--bare", origine, join(origines, "benomite/parade.git"));
+  mkdirSync(join(origines, "acme"));
+  git(origines, "clone", "-q", "--bare", origine, join(origines, "acme/parade.git"));
 
   // Une station déjà appairée à l'app (appairage/presence.ts) : son gist, et ce qu'elle en garde.
   // La doublure écrit le gist sans le remplacer d'un coup : une lecture tombée
@@ -122,7 +122,7 @@ test("ajouté depuis l'app, le projet est dans la liste de la station en moins d
   demande([
     {
       nom: "parade",
-      depot: "benomite/parade",
+      depot: "acme/parade",
       base: "v2",
       principale: true,
       cooks: 2,
@@ -141,7 +141,7 @@ test("ajouté depuis l'app, le projet est dans la liste de la station en moins d
 
   // Ce qui l'a servi : le clone, les décisions du parcours, son premier ticket, sa ligne — et rien qu'il ait fallu taper.
   assert.ok(existsSync(join(racine, "clones/parade/LISEZMOI")));
-  assert.match(readFileSync(join(racine, "projets"), "utf8"), /^parade benomite\/parade v2$/m);
+  assert.match(readFileSync(join(racine, "projets"), "utf8"), /^parade acme\/parade v2$/m);
   // Son premier ticket, ouvert sur GitHub avant sa ligne : préparer le dépôt.
   const [ticket, ...autres] = readFileSync(join(gists, "issues"), "utf8").split("\n").filter(Boolean).map((ligne) => JSON.parse(ligne) as { number: number; title: string; body: string; labels: string[] });
   assert.deepEqual(autres, []);

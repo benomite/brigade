@@ -84,10 +84,10 @@ describe("the `setting` command", () => {
     const [demande] = journal.duType("setting.requested", 10);
     assert.deepEqual(demande?.payload.change, { calibrationCeiling: { model: "sonnet", effort: "high" } });
     const settings = { integrationBranch: "v2", calibrationCeiling: { model: "sonnet", effort: "high" } };
-    journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "setting.proposed", payload: { request: demande?.payload.request ?? "", pr: "https://github.com/benomite/brigade/pull/51", number: 51, branch: "brigade/reglage-1", settings } });
+    journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "setting.proposed", payload: { request: demande?.payload.request ?? "", pr: "https://github.com/acme/brigade/pull/51", number: 51, branch: "brigade/reglage-1", settings } });
     const lu = await enCours;
     assert.equal(lu.code, 0, lu.erreurs.join("\n"));
-    assert.deepEqual(lu.json, { ok: true, pr: "https://github.com/benomite/brigade/pull/51", number: 51, branch: "brigade/reglage-1", settings });
+    assert.deepEqual(lu.json, { ok: true, pr: "https://github.com/acme/brigade/pull/51", number: 51, branch: "brigade/reglage-1", settings });
   });
 
   test("with no runtime to answer in time, it says so in JSON, in 1", async (t) => {

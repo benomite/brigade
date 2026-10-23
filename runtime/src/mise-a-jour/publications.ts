@@ -1,5 +1,6 @@
 // Où la station trouve les versions publiées : les releases GitHub du dépôt
-// de brigade, celles dont l'étiquette est `station-<version>` et qui portent
+// de brigade que l'installation désigne (`BRIGADE_MISE_A_JOUR_SOURCE`, posée
+// par le paquet à sa construction — aucun dépôt n'est supposé), celles dont l'étiquette est `station-<version>` et qui portent
 // le paquet de son architecture, `brigade-station_<arch>.deb` — ce que la
 // commande d'installation du guide télécharge déjà. Ni brouillon, ni
 // pré-version.
@@ -12,7 +13,6 @@ import { copyFileSync, existsSync, readdirSync, renameSync, rmSync, writeFileSyn
 import { join } from "node:path";
 import { VERSION } from "./versions.ts";
 
-export const DEPOT = "benomite/brigade";
 export const ETIQUETTE = "station-";
 export const paquetDe = (arch: string) => `brigade-station_${arch}.deb`;
 
@@ -92,7 +92,8 @@ function depuisRepertoire(repertoire: string, arch: string): Publications {
 
 // `source` : `github:<owner>/<repo>`, ou le chemin d'un répertoire.
 export function publications(source: string | undefined, arch: string): Publications {
-  const lue = source === undefined || source === "" ? `github:${DEPOT}` : source;
+  if (source === undefined || source === "") throw new Error("BRIGADE_MISE_A_JOUR_SOURCE is not set — say where the published versions are: github:<owner>/<repo> (the GitHub account and repository that publish brigade), or the path of a directory");
+  const lue = source;
   if (lue.startsWith("/")) return depuisRepertoire(lue, arch);
   const depot = /^github:([\w.-]+\/[\w.-]+)$/.exec(lue)?.[1];
   if (depot === undefined) throw new Error(`BRIGADE_MISE_A_JOUR_SOURCE=${lue.slice(0, 80)} — attendu github:<owner>/<repo>, ou le chemin d'un répertoire`);

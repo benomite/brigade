@@ -15,7 +15,7 @@ import { FAUX_GH_GISTS } from "../appairage/doublure-des-gists.ts";
 const rienNeReste = temporaireDuFichier();
 
 const STATION = join(import.meta.dirname, "../../src/station/main.ts");
-const DEPOT = "benomite/parade";
+const DEPOT = "acme/parade";
 // Le ticket du chef, plus ancien : sans préparation, c'est lui qui partirait le premier.
 const DU_CHEF = 15;
 const PREPARATION = 20;

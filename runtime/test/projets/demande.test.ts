@@ -7,7 +7,7 @@ import { lireDemande } from "../../src/projets/demande.ts";
 // Tel que l'app l'écrit (app/src/projets/demande.ts).
 const PARADE = {
   nom: "parade",
-  depot: "benomite/parade",
+  depot: "acme/parade",
   base: "main",
   principale: true,
   cooks: 2,

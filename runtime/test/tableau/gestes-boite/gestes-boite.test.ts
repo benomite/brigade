@@ -18,7 +18,7 @@ import { aArreter, DEPOT, horloge, repertoireTemporaire } from "../../outils.ts"
 const PROJET = "brigade";
 const STATION = "box/claude";
 const TABLEAU = 1;
-const CHEF = "benomite";
+const CHEF = "acme";
 const ROUGES = { outcome: "red" as const, code: 1, failures: ["FAIL  tests du runtime"], tail: "" };
 
 function atelier(t: TestContext) {

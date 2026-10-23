@@ -18,6 +18,7 @@ import { createHash, randomInt } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { Base } from "../base.ts";
+import { spawnSync } from "../sans-invite.ts";
 import { ouvrirRegistre, type Presentation, type Registre, type StationGlobale } from "../stations-globales/registre.ts";
 
 // Le temps de lancer la commande, et que le clone se fasse sur un serveur lent.
@@ -26,9 +27,24 @@ export const DUREE_MS = 30 * 60_000;
 // qu'`inconnu`, pour qui relance une vieille commande.
 const GARDE_MS = 7 * 24 * 3600_000;
 
-// Le dépôt et la branche que la commande clone sur le serveur, à défaut.
-export const DEPOT = "https://github.com/benomite/brigade.git";
+// La branche que la commande clone sur le serveur, à défaut.
 export const BRANCHE = "v2";
+// Le dépôt qu'elle clone, à défaut : celui dont ce clone vient (son `origin`),
+// sans l'identifiant qu'une adresse https peut porter. Rien n'est supposé : un
+// clone sans `origin` demande le dépôt.
+export function depotDeCeClone(racine: string = resolve(import.meta.dirname, "../../..")): string {
+  const lu = spawnSync("git", ["-C", racine, "remote", "get-url", "origin"], { encoding: "utf8" });
+  const adresse = lu.status === 0 ? lu.stdout.trim() : "";
+  if (adresse === "") throw new DemandeInvalide("dépôt : aucun dépôt à cloner sur le serveur — ce clone n'a pas d'`origin` ; donne l'adresse du dépôt de brigade à cloner (--repo https://github.com/<compte>/<dépôt>.git)");
+  try {
+    const url = new URL(adresse);
+    url.username = "";
+    url.password = "";
+    return url.toString();
+  } catch {
+    return adresse;
+  }
+}
 // Où la commande installe brigade, sur le serveur.
 export const RACINE_SUR_LE_SERVEUR = "$HOME/.local/share/brigade";
 // Le geste qui reçoit la présentation, dans ce clone : c'est la machine du
@@ -171,7 +187,7 @@ export function ouvrirEnrolements(repertoire: string, options: OptionsEnrolement
     preparer(demande) {
       const vers = verifier(demande.vers, DESTINATION, "destination");
       const nom = demande.nom === undefined ? undefined : verifier(demande.nom, NOM, "nom");
-      const depot = verifier(demande.depot ?? DEPOT, DEPOT_ACCEPTE, "dépôt");
+      const depot = verifier(demande.depot ?? depotDeCeClone(), DEPOT_ACCEPTE, "dépôt");
       const branche = verifier(demande.branche ?? BRANCHE, BRANCHE_ACCEPTEE, "branche");
       verifier(recepteur, CHEMIN, "geste de réception");
       verifier(absolu, CHEMIN, "registre");

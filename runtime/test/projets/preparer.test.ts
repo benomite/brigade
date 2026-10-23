@@ -15,23 +15,23 @@ import { depotGit, git, repertoireTemporaire, temporaireDuFichier } from "../out
 const rienNeReste = temporaireDuFichier();
 
 const FAUX_GH = join(import.meta.dirname, "faux-gh.ts");
-const PARADE = { nom: "parade", depot: "benomite/parade", base: "main", principale: true, cooks: 3, manager: { modele: "sonnet", effort: "medium" }, reviewer: { modele: "opus", effort: "high" }, ouvertLe: null, demandeLe: null };
+const PARADE = { nom: "parade", depot: "acme/parade", base: "main", principale: true, cooks: 3, manager: { modele: "sonnet", effort: "medium" }, reviewer: { modele: "opus", effort: "high" }, ouvertLe: null, demandeLe: null };
 
 test("sans Apps, la station agit sous le compte de son `gh` : rien à autoriser", async () => {
-  assert.deepEqual(await verifierAutorisation({}, "benomite/parade"), { autorisee: true });
+  assert.deepEqual(await verifierAutorisation({}, "acme/parade"), { autorisee: true });
 });
 
 test("avec ses Apps : autorisées, rien à faire ; une App pas installée sur le dépôt, la page où l'installer, en un clic", async (t) => {
   const apps = await fauxGitHubApps(t);
   const env = { BRIGADE_GITHUB_APPS_DIR: apps.repertoire, BRIGADE_GITHUB_API_URL: apps.url };
-  assert.deepEqual(await verifierAutorisation(env, "benomite/parade"), { autorisee: true });
+  assert.deepEqual(await verifierAutorisation(env, "acme/parade"), { autorisee: true });
 
   apps.desinstaller("cook");
   apps.desinstaller("manager");
-  assert.deepEqual(await verifierAutorisation(env, "benomite/parade"), { autorisee: false, pages: ["https://github.com/apps/brigade-cook/installations/new", "https://github.com/apps/brigade-manager/installations/new"] });
+  assert.deepEqual(await verifierAutorisation(env, "acme/parade"), { autorisee: false, pages: ["https://github.com/apps/brigade-cook/installations/new", "https://github.com/apps/brigade-manager/installations/new"] });
 
   apps.panne(502, "Server Error");
-  const panne = await verifierAutorisation(env, "benomite/parade");
+  const panne = await verifierAutorisation(env, "acme/parade");
   assert.ok("panne" in panne, JSON.stringify(panne));
 });
 
@@ -39,8 +39,8 @@ test("le dépôt se clone à sa place par le `gh` de la machine ; déjà cloné,
   const { origine } = depotGit(t);
   const origines = repertoireTemporaire(t);
   const gists = repertoireTemporaire(t);
-  mkdirSync(join(origines, "benomite"));
-  git(origines, "clone", "-q", "--bare", origine, join(origines, "benomite/parade.git"));
+  mkdirSync(join(origines, "acme"));
+  git(origines, "clone", "-q", "--bare", origine, join(origines, "acme/parade.git"));
   const avant = { FAUX_ORIGINES: process.env.FAUX_ORIGINES, FAUX_GISTS: process.env.FAUX_GISTS };
   Object.assign(process.env, { FAUX_ORIGINES: origines, FAUX_GISTS: gists });
   t.after(() => {
@@ -50,21 +50,21 @@ test("le dépôt se clone à sa place par le `gh` de la machine ; déjà cloné,
   const racine = repertoireTemporaire(t);
   const clone = join(racine, "clones/parade");
 
-  await cloner({ gh: FAUX_GH, depot: "benomite/parade", clone });
+  await cloner({ gh: FAUX_GH, depot: "acme/parade", clone });
   assert.ok(existsSync(join(clone, "LISEZMOI")));
   assert.ok(!existsSync(`${clone}.clonage`));
-  await cloner({ gh: FAUX_GH, depot: "benomite/parade", clone });
+  await cloner({ gh: FAUX_GH, depot: "acme/parade", clone });
   assert.equal(readFileSync(join(gists, "clones"), "utf8").split("\n").filter(Boolean).length, 1);
   // Nommé par son adresse HTTPS : gh clone en HTTPS, quel que soit le protocole git réglé pour son compte.
-  assert.deepEqual(readFileSync(join(gists, "clones-nommes"), "utf8").split("\n").filter(Boolean), ["https://github.com/benomite/parade.git"]);
+  assert.deepEqual(readFileSync(join(gists, "clones-nommes"), "utf8").split("\n").filter(Boolean), ["https://github.com/acme/parade.git"]);
 
   // Introuvable : l'erreur porte la ligne `fatal:` de git, pas la dernière de gh, et tout ce qu'ils ont dit.
-  const absent = await cloner({ gh: FAUX_GH, depot: "benomite/absent", clone: join(racine, "clones/absent") }).then(
+  const absent = await cloner({ gh: FAUX_GH, depot: "acme/absent", clone: join(racine, "clones/absent") }).then(
     () => assert.fail("le clone d'un dépôt absent réussit"),
     (erreur: unknown) => erreur,
   );
   assert.ok(absent instanceof CloneEnEchec, String(absent));
-  assert.equal(absent.message, "clone de benomite/absent en échec — repository 'https://github.com/benomite/absent.git/' not found");
+  assert.equal(absent.message, "clone de acme/absent en échec — repository 'https://github.com/acme/absent.git/' not found");
   assert.match(absent.erreurs, /^remote: Repository not found\.\n[^]*failed to run git: exit status 128$/);
   assert.ok(!existsSync(join(racine, "clones/absent")));
   assert.ok(!existsSync(join(racine, "clones/absent.clonage")));
