@@ -19,9 +19,9 @@
 // setup), ou une erreur ici — les gates jouent alors la suite entière.
 // Un package.json de zone dont seuls les scripts ont changé, hors `test` qui
 // règle la suite, ne règle rien d'entier — une commande ajoutée ne rejoue pas
-// les deux suites (#1611) : il touche les tests qui lisent les scripts d'un
-// package.json. Ce qu'il était se lit à la souche : `--souche <commit>`, sinon
-// celle des gates — l'ancêtre commun avec la branche d'intégration.
+// les deux suites (#1611) : il touche les tests qui lisent un package.json.
+// Ce qu'il était se lit à la souche : `--souche <commit>`, sinon celle des
+// gates — l'ancêtre commun avec la branche d'intégration.
 import { execFileSync } from "node:child_process";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { posix } from "node:path";
@@ -182,12 +182,18 @@ const cites = (f) => sousTest(f) && autres.some((m) => {
     return t.includes(m) || t.includes(basename(m)) || (dossier.includes("/") && !dossier.startsWith(".claude/") && citeLeDossier(t, dossier));
   });
 const codeModifie = new Set(modifies.map(normalize).filter((m) => connus.has(m)));
-// Des scripts changés touchent ce qui les lit : une instruction qui lit un
-// `package.json`, dans un fichier qui parle de ses `scripts` — de près ou
-// non, au large. Son nom seul, cité partout, toucherait presque tout. Le code
+// Des scripts changés touchent ce qui peut les lire : tout fichier qui nomme
+// `package.json` hors de ses commentaires, au large — le chemin dans une
+// constante, lu plus loin, ou par un autre moyen que `readFileSync`. Le code
 // du produit compte aussi : un test qui lance `src/station/geste.ts` dépend des
-// scripts qu'il lit, sans les lire lui-même (#1611).
-const litDesScripts = (f) => /\bscripts\b/.test(textes.get(f)) && textes.get(f).split(";").some((s) => s.includes("readFileSync(") && s.includes("package.json"));
+// scripts qu'il lit, sans les lire lui-même (#1611). Un commentaire, lui, ne lit
+// rien : seules en tombent les lignes qui commencent par `//`, `/*` ou `*`.
+const COMMENTAIRE = /^\s*(?:\/\/|\/\*|\*).*$/gm;
+const lecteurs = new Map();
+const litDesScripts = (f) => {
+  if (!lecteurs.has(f)) lecteurs.set(f, textes.get(f).replace(COMMENTAIRE, "").includes("package.json"));
+  return lecteurs.get(f);
+};
 
 for (const zone of ZONES) {
   const tests = fichiers.filter((f) => f.startsWith(`${zone}/test/`) && f.endsWith(".test.ts"));
