@@ -5,7 +5,9 @@
 // tableau. Celui dont la première ligne est un geste (grammaire.ts) et dont
 // l'auteur est le compte du chef est joué par la même action que son geste
 // local (`rail merge`, `rail send-back`, `rail remove`, `rail answer`,
-// `rail choose` : geste-ticket.ts, reponse-carte.ts), puis la box répond sous
+// `rail choose` : geste-ticket.ts, reponse-carte.ts ; les gestes de box —
+// plafond de cooks, stop, resume, rejeu de la base, grant, station — jouent
+// leur commande locale : tableau/gestes-boite/), puis la box répond sous
 // lui en une ligne : fait, ou pourquoi pas. Un geste incompris reçoit la
 // grammaire. Ce qu'écrit un autre compte n'est ni joué ni répondu : la box se
 // tait.
@@ -29,6 +31,8 @@ import type { GesteDuTableau } from "../rendu/bloc.ts";
 import { enMarkdown } from "../rendu/rendre.ts";
 import type { ClientDesGestes, CommentaireDuTableau } from "./client.ts";
 import { GRAMMAIRE, lireLeGeste, type Geste } from "./grammaire.ts";
+import { GRAMMAIRE_DE_BOITE, lireUnGesteDeBoite, type GesteDeBoite } from "../gestes-boite/grammaire.ts";
+import { jouerUnGesteDeBoite, type ResultatDeBoite } from "../gestes-boite/jouer.ts";
 
 // Les gestes que le bloc machine porte, les plus récents ; et ceux dont la
 // réponse se retente.
@@ -43,6 +47,10 @@ export type OptionsDesGestes = {
   projet: string;
   // Le GitHub sous lequel les actions se jouent : celui qui merge et commente les tickets.
   github: GitHub;
+  // Le répertoire d'état de la box : les gestes qui n'existaient que sur elle
+  // (tableau/gestes-boite/) jouent ses commandes locales sur son journal. Sans
+  // lui, ils sont refusés.
+  repertoireEtat?: string;
   // Ce qui n'a pas pu se faire sans empêcher le reste : une réponse refusée.
   avertir?: (ligne: string) => void;
 };
@@ -56,7 +64,7 @@ export type GestesDuTableau = {
 };
 
 // Ce que le geste demande, en deux mots : `merge #12`.
-const nommer = (geste: Geste) => `${geste.verbe} #${geste.ticket}`;
+const nommer = (geste: Geste | GesteDeBoite) => ("verbe" in geste ? `${geste.verbe} #${geste.ticket}` : geste.nom);
 
 // Une ligne : ce qui en dirait plusieurs est resserré.
 const uneLigne = (texte: string) => texte.replace(/\s+/g, " ").trim();
@@ -66,14 +74,18 @@ const lien = (texte: string, url: string) => (url === "" ? texte : `[${texte}]($
 
 // La ligne que la box répond sous le geste. Elle ne commence jamais par
 // `/brigade` : sous le même compte que le chef, elle n'est pas un geste.
-export function direLaReponse(commentaire: Pick<CommentaireDuTableau, "url">, lecture: Geste | { incompris: string }, resultat: Resultat | null): string {
+export function direLaReponse(commentaire: Pick<CommentaireDuTableau, "url">, lecture: Geste | GesteDeBoite | { incompris: string }, resultat: Resultat | ResultatDeBoite | null): string {
   if ("incompris" in lecture) {
-    const grammaire = GRAMMAIRE.map((forme) => `\`${forme}\``).join(" · ");
+    const grammaire = [...GRAMMAIRE, ...GRAMMAIRE_DE_BOITE].map((forme) => `\`${forme}\``).join(" · ");
     return `**Not understood** — ${lien("your gesture", commentaire.url)}: ${enMarkdown(uneLigne(lecture.incompris))}. Accepted, on the first line: ${grammaire}`;
   }
   const nom = lien(nommer(lecture), commentaire.url);
-  if (resultat === null || !resultat.done) return `**Not done** — ${nom}: ${enMarkdown(uneLigne(resultat?.done === false ? resultat.reason : "nothing was played"))}`;
-  return `**Done** — ${nom} — cost: ${enMarkdown(uneLigne(resultat.price))}`;
+  if ("commande" in lecture) {
+    if (resultat !== null && "dit" in resultat) return `**Done** — ${nom}: ${enMarkdown(uneLigne(resultat.dit))} — cost: none: only the log is written`;
+    return `**Not done** — ${nom}: ${enMarkdown(uneLigne(resultat !== null && "reason" in resultat ? resultat.reason : "nothing was played"))}`;
+  }
+  if (resultat === null || !resultat.done) return `**Not done** — ${nom}: ${enMarkdown(uneLigne(resultat?.done === false && "reason" in resultat ? resultat.reason : "nothing was played"))}`;
+  return `**Done** — ${nom} — cost: ${enMarkdown(uneLigne("price" in resultat ? resultat.price : ""))}`;
 }
 
 // Le geste, joué par l'action de son geste local. Ce qui lève — GitHub
@@ -95,6 +107,12 @@ async function jouer({ journal, github, projet }: OptionsDesGestes, geste: Geste
   } catch (erreur) {
     return { done: false, reason: `it did not go through on GitHub (${erreur instanceof Error ? erreur.message : String(erreur)}) — post it again`, price: RIEN_TOUCHE };
   }
+}
+
+// Le geste de box, joué par la commande locale sur le journal de la box.
+async function jouerDeBoite({ repertoireEtat }: OptionsDesGestes, geste: GesteDeBoite): Promise<ResultatDeBoite> {
+  if (repertoireEtat === undefined) return { done: false, reason: "this box does not play its own commands from the board" };
+  return await jouerUnGesteDeBoite(geste, repertoireEtat);
 }
 
 export function gestesDuTableau(options: OptionsDesGestes): GestesDuTableau {
@@ -137,7 +155,7 @@ export function gestesDuTableau(options: OptionsDesGestes): GestesDuTableau {
       const curseur = derniers().at(-1)?.payload ?? null;
       const nouveaux = (await client.commentaires(numero, curseur?.writtenAt || null)).filter((commentaire) => commentaire.id > (curseur?.comment ?? 0)).sort((a, b) => a.id - b.id);
       const gestes = nouveaux.flatMap((commentaire) => {
-        const lecture = lireLeGeste(commentaire.corps);
+        const lecture = lireUnGesteDeBoite(commentaire.corps) ?? lireLeGeste(commentaire.corps);
         return lecture === null ? [] : [{ commentaire, lecture }];
       });
       if (gestes.length === 0) return false;
@@ -146,11 +164,11 @@ export function gestesDuTableau(options: OptionsDesGestes): GestesDuTableau {
       let lu = false;
       for (const { commentaire, lecture } of gestes) {
         if (commentaire.auteur.toLowerCase() !== chef) continue;
-        const resultat = "incompris" in lecture ? null : await jouer(options, lecture);
+        const resultat = "incompris" in lecture ? null : "commande" in lecture ? await jouerDeBoite(options, lecture) : await jouer(options, lecture);
         const reponse = direLaReponse(commentaire, lecture, resultat);
         const ecrit = journal.ajouter({
           project: projet,
-          ticket: "incompris" in lecture ? null : lecture.ticket,
+          ticket: "incompris" in lecture || "commande" in lecture ? null : lecture.ticket,
           author: AUTEUR,
           type: "board.gesture",
           payload: {
@@ -159,7 +177,7 @@ export function gestesDuTableau(options: OptionsDesGestes): GestesDuTableau {
             url: commentaire.url,
             author: commentaire.auteur,
             writtenAt: commentaire.le,
-            gesture: "incompris" in lecture ? null : lecture.verbe,
+            gesture: "incompris" in lecture ? null : "commande" in lecture ? (lecture.nom.split(" ")[0] ?? null) : lecture.verbe,
             done: resultat?.done === true,
             reply: reponse,
           },

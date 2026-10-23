@@ -7,7 +7,8 @@ runtime action as the chef's local gesture. The box then answers under it in one
 not.
 
 The code is in `runtime/src/tableau/gestes/`: `grammaire.ts` (the grammar), `gestes.ts` (reading,
-authorization, execution, reply), `client.ts` (GitHub).
+authorization, execution, reply), `client.ts` (GitHub). The gestures that used to exist only on the
+box are in `runtime/src/tableau/gestes-boite/` (`grammaire.ts`, `jouer.ts`), see "Box gestures".
 
 ## The grammar
 
@@ -28,6 +29,25 @@ the first line, then the next lines. `merge` and `set-aside` take nothing after 
 
 A first line that does not start with `/brigade` is not a gesture. The comment is a conversation:
 the box does not read it, and does not answer it.
+
+## Box gestures
+
+Five more gestures, which used to exist only on the box, take no ticket number. Each runs the same
+command as the one typed on the box, on the project's log, and answers with the command's own line.
+
+| Gesture | First line | Runs, like the local gesture |
+|---|---|---|
+| cooks cap | `/brigade cooks <N \| auto>` | `station -- cooks <N>`: the cap of simultaneous cooks of every station, `0` for no limit, `auto` to return to the default |
+| stop / resume | `/brigade stop`, `/brigade resume` | `guardrails -- stop`, `guardrails -- resume`: stops the project's cooking, reopens it and closes the breaker |
+| base replay | `/brigade base replay` | `base -- replay`: replays the gates of a red base without waiting for a commit |
+| grant | `/brigade grant <enable \| extend \| revoke> merge [--for <duration> \| --until <date or time>] [--uses <n>] [--no-expiry]` | `grant -- <command> merge …`: the options are those of the local `grant` |
+| station cooks | `/brigade station <stop \| start> <station>` | `station -- stop <station>`, `station -- start <station>`: the project's cooking on one station |
+
+A gesture with a missing or invalid argument (`/brigade cooks many`, `/brigade grant enable deploy`)
+is answered `**Not understood**` in one line saying what was expected, and nothing is written. An
+option the local `grant` refuses (`--for soon`) is answered `**Not done**` with its own reason.
+Like the others, a box gesture is run once, and only for the chef's account. Its cost is always
+`none: only the log is written`.
 
 ## Examples
 
@@ -61,6 +81,24 @@ Pick the second choice of the TODO card of #123:
 
 ```
 /brigade choose #123 2
+```
+
+Change the cap to four cooks at a time, stop the kitchen, and open it again:
+
+```
+/brigade cooks 4
+/brigade stop
+/brigade resume
+```
+
+Replay the gates of a red base, let the pass merge for four hours, take the grant back, and stop the
+project's cooking on one station:
+
+```
+/brigade base replay
+/brigade grant enable merge --for 4h
+/brigade grant revoke merge
+/brigade station stop box/claude
 ```
 
 ## Who is obeyed
