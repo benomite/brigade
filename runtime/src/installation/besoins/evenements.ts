@@ -21,4 +21,9 @@ export type FaitBesoin =
   | { type: "need.choice-selected"; payload: { id: string; option: string } }
   // The station no longer lacks the need — it has it now, or the project no
   // longer asks for it: the choice leaves the list, its selection with it.
-  | { type: "need.choice-dropped"; payload: { id: string } };
+  | { type: "need.choice-dropped"; payload: { id: string } }
+  // What the last worktree setup of `station` failed on, among the needs of
+  // the catalogue the station does not really provide (#1533): their choices
+  // hold as long as it says so. Empty: it no longer does — the setup passed,
+  // or failed on something else. Written only when it changes for that station.
+  | { type: "need.setup-lacks"; payload: { station: string; needs: string[] } };

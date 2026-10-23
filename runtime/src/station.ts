@@ -61,6 +61,8 @@ import { argumentsClaude, consigne, consigneDeSuite, direRefus, environnementCoo
 import { preparationEnAttente } from "./preparation-depot/attendre.ts";
 import { blocageDuSetup, ID_DU_BLOCAGE_DU_SETUP } from "./installation/preparation/blocage-du-setup.ts";
 import { leverBlocage, poserBlocage } from "./installation/blocages/blocages.ts";
+import { besoinsManquesParLeSetup, tenirLeSetup, type Stations } from "./installation/besoins/besoins.ts";
+import { sondeDeLaMachine, stationsDuProjet, type Sonde } from "./installation/besoins/fourni.ts";
 import { corpsAvecLeSetup, passageDuSetup, phraseDuSetup } from "./preparation-depot/setup-en-echec.ts";
 import type { Decisions } from "./decisions.ts";
 import { ouvrirDepot, worktreeAuJournal, worktreeDuJournal, type Depot, type OptionsDepot } from "./depot.ts";
@@ -315,6 +317,9 @@ export type OptionsStation = {
   // Les leçons de l'étage commun de l'installation, relues à chaque lancement
   // (`commun/installation.ts`). Absent : le projet est seul, sans étage commun.
   commun?: () => LeconRecue[];
+  // Ce que la machine fournit au projet, pour lire un setup en échec
+  // (`installation/besoins/`). Par défaut, la machine, sous le compte de la station.
+  sonde?: Sonde;
 };
 
 // Ouvre le dépôt de la station là où le runtime le range : les worktrees des
@@ -455,6 +460,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   const entreesMax = options.entreesMax ?? ENTREES_PAR_DEFAUT;
   const seuils = options.seuils ?? configMachine({});
   const machine = options.machine ?? (() => lireMachine(options.repertoireEtat));
+  const sonde = options.sonde ?? sondeDeLaMachine(options.env ?? process.env);
   const noter = (station: string, ticket: number | null, fait: FaitStation) => journal.ajouter({ project: projet, ticket, author: auteurDe(station), ...fait });
   // Les leçons provisoires du projet que reçoit le cook d'un ticket, d'ici ou
   // d'une station distante : lues à son lancement, contre le carnet de la base
@@ -1858,7 +1864,16 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       const pourquoi = setup.depasse ? `plafond de ${duree(delaiSetupMs)} dépassé` : setup.code === null ? "interrompu" : `code de sortie ${setup.code}`;
       const sortie = setup.sortie.trim().slice(-FIN_DE_SETUP_MAX);
       const phrases = phraseDuSetup({ code: setup.code, depasse: setup.depasse, sortie }, station);
-      poserBlocage(journal, { projet, auteur: auteurDe(station) }, blocageDuSetup({ station, phraseEn: phrases.en, sortie, preparation }));
+      // Un setup qui bute sur un besoin que la station ne fournit pas vraiment
+      // — un Postgres qui refuse son compte — pose le choix de ce besoin, que
+      // le chef sait trancher, et non son échec brut (#1533). Sur autre chose,
+      // l'échec se dit tel quel.
+      const declarees = stationsDuProjet(options.repertoireEtat);
+      const stations: Stations = { projet, sonde, fournit: declarees.ici.flatMap(({ fournit }) => fournit), ailleurs: declarees.ailleurs };
+      const manquent = besoinsManquesParLeSetup(sortie, stations).map(({ id }) => id);
+      tenirLeSetup(journal, { projet, auteur: auteurDe(station) }, station, manquent, stations);
+      if (manquent.length > 0) leverBlocage(journal, { projet, auteur: auteurDe(station) }, ID_DU_BLOCAGE_DU_SETUP);
+      else poserBlocage(journal, { projet, auteur: auteurDe(station) }, blocageDuSetup({ station, phraseEn: phrases.en, sortie, preparation }));
       if (!preparation) {
         avertir([`brigade : setup du worktree en échec pour le ticket #${numero} (\`${SCRIPT_SETUP}\`, ${pourquoi}) — aucun cook n'est lancé`, sortie].filter(Boolean).join("\n"));
         retirerLeNeuf();
@@ -1874,8 +1889,10 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       if (arrete) return;
     } else if (setup.joue) {
       // Le setup passe de nouveau : le projet n'est plus bloqué par lui, et le
-      // ticket de préparation ne dit plus qu'il échoue.
+      // ticket de préparation ne dit plus qu'il échoue ; ce qu'il disait
+      // manquer à la station n'a plus de choix qui tienne par lui.
       leverBlocage(journal, { projet, auteur: auteurDe(station) }, ID_DU_BLOCAGE_DU_SETUP);
+      tenirLeSetup(journal, { projet, auteur: auteurDe(station) }, station, []);
       if (preparation) {
         await direLeSetupSurLeTicket(numero, null);
         if (arrete) return;

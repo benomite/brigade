@@ -72,6 +72,11 @@ export type Besoin = {
   installe: (station: string) => string;
   // Ce que perdent les tests si le chef les fait adapter.
   couverture: string;
+  // Ce que dit, sur une ligne de sa sortie, un setup de worktree qui ne peut
+  // pas s'en servir sur la station : un serveur qui refuse le compte, un
+  // démon qui ne répond pas (#1533). Une commande qu'il ne trouve pas
+  // (`psql: command not found`) le dit aussi, par ses `commandes`.
+  erreurs?: readonly RegExp[];
 };
 
 const reussi = ({ code }: { code: number | null }) => code === 0;
@@ -139,6 +144,15 @@ export const BESOINS: readonly Besoin[] = [
     fourni: { commandes: ["postgres", "pg_ctl", "pg_ctlcluster", "psql"], capacites: ["postgres", "postgresql"], essai: (jouer) => essaiPostgres(jouer) },
     installe: (station) => `A PostgreSQL server (the \`postgresql\` package) is installed on ${station} and runs there as a service`,
     couverture: "the tests that use the database run against a substitute or are skipped, so queries and migrations are no longer checked against a real Postgres",
+    erreurs: [
+      // `psql: error: connection to server on socket "/var/run/postgresql/.s.PGSQL.5432" failed: FATAL:  role "claude" does not exist`
+      /\bconnection to server (?:on socket|at) .*\bfailed\b/i,
+      /\bcould not connect to (?:the )?(?:database )?server\b/i,
+      /\bFATAL:\s+(?:role "[^"]*" does not exist|password authentication failed|Peer authentication failed|Ident authentication failed|no pg_hba\.conf entry)/i,
+      /\bpermission denied to create database\b/i,
+      /\bECONNREFUSED\b.*:5432\b/,
+      /\bCan't reach database server at\b.*:5432\b/,
+    ],
   },
   {
     id: "mysql",
@@ -157,6 +171,7 @@ export const BESOINS: readonly Besoin[] = [
     fourni: { commandes: ["mysqld", "mariadbd", "mysql", "mariadb"], capacites: ["mysql", "mariadb"], essai: (jouer) => essaiMysql(jouer) },
     installe: (station) => `A MySQL-compatible server (the \`mariadb-server\` package) is installed on ${station} and runs there as a service`,
     couverture: "the tests that use the database run against a substitute or are skipped, so queries and migrations are no longer checked against a real MySQL",
+    erreurs: [/\bERROR (?:2002|2003|1044|1045) \(/, /\bCan't connect to (?:local )?(?:MySQL|MariaDB) server\b/i, /\bECONNREFUSED\b.*:3306\b/, /\bCan't reach database server at\b.*:3306\b/],
   },
   {
     id: "redis",
@@ -173,6 +188,7 @@ export const BESOINS: readonly Besoin[] = [
     fourni: { commandes: ["redis-server", "redis-cli"], capacites: ["redis"], essai: (jouer) => /\bPONG\b/.test(jouer("redis-cli", ["ping"]).sortie) },
     installe: (station) => `A Redis server (the \`redis-server\` package) is installed on ${station} and runs there as a service`,
     couverture: "the tests that use Redis run against a fake, so its real behaviour (expiry, queues, pub/sub) is no longer checked",
+    erreurs: [/\bCould not connect to Redis\b/i, /\bECONNREFUSED\b.*:6379\b/],
   },
   {
     id: "docker",
@@ -188,6 +204,7 @@ export const BESOINS: readonly Besoin[] = [
     fourni: { commandes: ["docker", "podman"], capacites: ["docker"], essai: (jouer) => ["docker", "podman"].some((commande) => reussi(jouer(commande, ["info"]))) },
     installe: (station) => `Docker Engine (the \`docker.io\` package) is installed on ${station} and the station's account joins the \`docker\` group, which lets every cook of the box start containers`,
     couverture: "the tests that start containers are skipped on this station, so what runs inside them is no longer checked here",
+    erreurs: [/\bCannot connect to the Docker daemon\b/i, /\bpermission denied while trying to connect to the Docker daemon\b/i],
   },
   {
     id: "browser",

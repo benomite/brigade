@@ -16,6 +16,13 @@
 // ou le dépôt n'en parle plus — : le choix quitte la liste
 // (`need.choice-dropped`), le blocage aussi.
 //
+// Le setup de worktree du projet échoue sur un besoin que la station ne
+// fournit pas vraiment (#1533) : la station le dit au journal
+// (`need.setup-lacks`, `tenirLeSetup`) et le choix de ce besoin est posé, sa
+// cause est le setup — le chef a ce choix, pas l'échec brut du setup. Il tient
+// tant que le dernier setup de cette station le dit, et qu'elle ne le fournit
+// toujours pas.
+//
 // La station publie les choix dans le suivi du projet, à côté de ses blocages
 // (`projets/demande.ts`, `choix`). Le chef choisit depuis l'app, qui l'écrit
 // dans la demande du projet (`"choix": { "need:postgres": "provide-here" }`) :
@@ -26,10 +33,11 @@ import type { Base } from "../../base.ts";
 import { masquerIdentifiants } from "../../identifiants.ts";
 import { ouvrirJournal, type Journal } from "../../journal.ts";
 import { blocage, blocagesDuJournal, leverBlocage, lireBlocages, poserBlocage, type Auteur, type Blocage, type NouveauBlocage } from "../blocages/blocages.ts";
-import { idDuChoix, PREFIXE } from "./catalogue.ts";
+import { besoinNomme, idDuChoix, PREFIXE, type Besoin } from "./catalogue.ts";
 import { besoinsDuDepot, type BesoinDuProjet } from "./detecter.ts";
 import type { ChoixEcrit, OptionDeChoix } from "./evenements.ts";
-import { aLeBesoin, sondeDeLaMachine, stationsDuProjet, stationsQuiFournissent, type Sonde } from "./fourni.ts";
+import { aLeBesoin, sondeDeLaMachine, stationsDuProjet, stationsQuiFournissent, type Sonde, type StationVue } from "./fourni.ts";
+import { besoinsNommesParLeSetup, preuveDuSetup } from "./setup.ts";
 
 export type { ChoixEcrit, OptionDeChoix } from "./evenements.ts";
 
@@ -106,6 +114,48 @@ export function choixDesBesoins(besoins: readonly BesoinDuProjet[], station: { p
     .filter(({ besoin }) => !aLeBesoin(besoin, station.sonde, station.fournit))
     .map((manquant) => choixPour(manquant, { projet: station.projet, station: station.nom, ailleurs: stationsQuiFournissent(manquant.besoin, station.ailleurs) }));
 }
+
+// ———— Ce que dit le setup du projet ————
+
+// Ce que les choix d'un projet savent de la station : ce que ses stations
+// d'ici déclarent fournir, et les autres stations du projet.
+export type Stations = { projet: string; sonde: Sonde; fournit: readonly string[]; ailleurs: readonly StationVue[] };
+
+// Les besoins que la sortie d'un setup en échec nomme, et que la station ne
+// fournit pas vraiment. Aucun : le setup a échoué sur autre chose, ou sur un
+// besoin qu'elle fournit — son échec se dit tel quel. Pur, sa sonde mise à part.
+export const besoinsManquesParLeSetup = (sortie: string, { sonde, fournit }: Pick<Stations, "sonde" | "fournit">): Besoin[] => besoinsNommesParLeSetup(sortie).filter((besoin) => !aLeBesoin(besoin, sonde, fournit));
+
+// Ce que le dernier setup de chaque station a dit manquer, d'après le
+// journal : station → besoins. Celle dont le dernier dit est vide n'y est pas.
+export function manquesDuSetup(base: Base): Map<string, string[]> {
+  const manques = new Map<string, string[]>();
+  for (const { payload } of base.lire<{ payload: string }>("SELECT payload FROM events WHERE type = 'need.setup-lacks' ORDER BY seq")) {
+    const { station, needs } = JSON.parse(payload) as { station: string; needs: string[] };
+    if (needs.length === 0) manques.delete(station);
+    else manques.set(station, needs);
+  }
+  return manques;
+}
+
+// Les choix que les manques du setup appellent : un par besoin qu'il a dit
+// manquer à une station, et qu'elle ne fournit toujours pas. Il manque à
+// cette station-là, et c'est le setup qui le prouve. Pur, sa sonde mise à part.
+export function choixDuSetup(manques: ReadonlyMap<string, readonly string[]>, { projet, sonde, fournit, ailleurs }: Stations): ChoixEcrit[] {
+  const choix: ChoixEcrit[] = [];
+  for (const [station, besoins] of manques) {
+    for (const id of besoins) {
+      const besoin = besoinNomme(id);
+      if (besoin === null || choix.some(({ need }) => need === id) || aLeBesoin(besoin, sonde, fournit)) continue;
+      choix.push(choixPour({ besoin, preuves: [preuveDuSetup(besoin, station)] }, { projet, station, ailleurs: stationsQuiFournissent(besoin, ailleurs) }));
+    }
+  }
+  return choix;
+}
+
+// Les choix voulus : ceux du dépôt, puis ceux du setup — qui remplacent ceux
+// du dépôt pour le même besoin : le setup qui échoue le prouve mieux.
+const avecLeSetup = (duDepot: readonly ChoixEcrit[], duSetup: readonly ChoixEcrit[]): ChoixEcrit[] => [...duDepot.filter(({ id }) => !duSetup.some((un) => un.id === id)), ...duSetup];
 
 // ———— Au journal du projet ————
 
@@ -220,6 +270,33 @@ function avecLeJournal<T>(repertoireEtat: string, faire: (journal: Journal) => T
   }
 }
 
+// Le setup de `station` vient d'échouer sur ces besoins, qu'elle ne fournit
+// pas vraiment — aucun : il a échoué sur autre chose, ou il passe. La station
+// le dit au journal, si cela change, et les choix de ces besoins sont posés
+// aussitôt, à côté de ceux qui y sont déjà : la lecture suivante de la station
+// les retrouve tels quels (`suivreLesBesoins`). Un besoin que plus aucun setup
+// ne dit manquer perd son choix — la lecture suivante le repose si le dépôt le
+// demande toujours. `stations` n'est lu que s'il y a des choix à poser. Une
+// seule transaction. Rend le nombre de faits écrits.
+export function tenirLeSetup(journal: Journal, auteur: Auteur, station: string, besoins: readonly string[], stations?: Stations): number {
+  return journal.base.transaction(() => {
+    const avant = manquesDuSetup(journal.base);
+    let ecrits = 0;
+    if (!memes(avant.get(station) ?? [], besoins)) {
+      journal.ajouter({ project: auteur.projet, ticket: null, author: auteur.auteur, type: "need.setup-lacks", payload: { station, needs: [...besoins] } });
+      ecrits++;
+    }
+    const apres = manquesDuSetup(journal.base);
+    const tus = (avant.get(station) ?? []).filter((id) => ![...apres.values()].some((ids) => ids.includes(id)));
+    const duSetup = stations === undefined || besoins.length === 0 ? [] : choixDuSetup(apres, stations);
+    if (tus.length === 0 && duSetup.length === 0) return ecrits;
+    const gardes = choixDuJournal(journal.base)
+      .map(ecritDe)
+      .filter(({ need }) => !tus.includes(need));
+    return ecrits + tenirLesChoix(journal, auteur, avecLeSetup(gardes, duSetup));
+  });
+}
+
 export const choisirDans = (repertoireEtat: string, auteur: Auteur, id: string, option: string, chef = "chef") => avecLeJournal(repertoireEtat, (journal) => choisir(journal, auteur, id, option, chef));
 
 // Les choix d'un projet, lus dans son répertoire d'état, en lecture seule.
@@ -235,6 +312,24 @@ export function lireChoix(repertoireEtat: string): Choix[] {
     return choixDuJournal(journal.base);
   } catch {
     return [];
+  } finally {
+    journal.fermer();
+  }
+}
+
+// Ce que le dernier setup de chaque station a dit manquer, lu dans le
+// répertoire d'état d'un projet, en lecture seule. Sans journal, rien.
+export function lireManquesDuSetup(repertoireEtat: string): Map<string, string[]> {
+  let journal;
+  try {
+    journal = ouvrirJournal(repertoireEtat, { lectureSeule: true });
+  } catch {
+    return new Map();
+  }
+  try {
+    return manquesDuSetup(journal.base);
+  } catch {
+    return new Map();
   } finally {
     journal.fermer();
   }
@@ -301,7 +396,8 @@ export function suivreLesBesoins(options: { station: string; sonde?: Sonde; aver
       if (!projet.principale || !existsSync(join(clone, ".git"))) return lireChoix(repertoireEtat);
       try {
         const declarees = stationsDuProjet(repertoireEtat);
-        const voulus = choixDesBesoins(besoinsDe(clone), { projet: projet.nom, nom: station, sonde, fournit: declarees.ici.flatMap(({ fournit }) => fournit), ailleurs: declarees.ailleurs });
+        const stations: Stations = { projet: projet.nom, sonde, fournit: declarees.ici.flatMap(({ fournit }) => fournit), ailleurs: declarees.ailleurs };
+        const voulus = avecLeSetup(choixDesBesoins(besoinsDe(clone), { ...stations, nom: station }), choixDuSetup(lireManquesDuSetup(repertoireEtat), stations));
         const selections = projet.choix ?? {};
         // Le journal n'est ouvert en écriture que s'il y a quelque chose à y écrire.
         if (plan(lireChoix(repertoireEtat), lireBlocages(repertoireEtat), voulus, selections).length > 0) {
