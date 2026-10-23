@@ -861,7 +861,8 @@ shows, or scan its QR.* Two fields, **your station's address** (`192.168.1.20:70
 and the **pairing code** (`7KQ2-M9XD`, lowercase, spaces and dashes make no difference), then two buttons:
 **pair** (recommended) and **scan the QR**. What a code is — fifteen minutes, one phone, once — is on hover over
 the "?" next to the title. A running station issues the code and its QR (`runtime/src/telephone/appairage-cli.ts`),
-and listens for the phone on its phone desk (`BRIGADE_GUICHET_TELEPHONES`, `runtime/src/telephone/guichet.ts`).
+and listens for the phone on its phone desk (`BRIGADE_GUICHET_TELEPHONES`, `runtime/src/telephone/guichet.ts`) —
+on the local network, or from any network through your tailnet (see "Reaching a station from any network" below).
 
 - **Scanning** reads the station's QR with Google Play's code scanner — the app does not ask for the camera
   itself. The QR carries the code and the desk's address (`brigade://pair?code=…&url=…`): both fields fill in and
@@ -934,6 +935,66 @@ and `ouvrirLienDuSecond` (`app/src/vue/pont.d.ts`, optional: only a phone's brid
 `telephone-second*` of `scripts/capture-ecran` (`docs/captures/1165/`). **The Android bridge does not carry the
 conversation yet**: the station's phone desk does not serve the second's conversation, and the desktop app does not
 hand its second to the station — until both do, the Second tab of the phone says *conversation unavailable*.
+
+### Reaching a station from any network: your tailnet (#1408)
+
+**The phone reaches a station's phone desk through your tailnet** — the private network that
+[Tailscale](https://tailscale.com) weaves between your own devices, over WireGuard. It is the chosen mechanism because:
+
+- it is a standard tool, not a relay of ours to host and keep up;
+- it crosses home routers and mobile data alike: the phone on 4G reaches the remote box and the computer at home, with
+  no port opened on either;
+- it is encrypted end to end, and **only your own devices**, signed in to your tailnet, reach the desk at all — the
+  pairing code and the phone's token still guard it, exactly as on the local network;
+- on the phone it is an app from Google Play: **no terminal on the phone**.
+
+**How it is wired.** The desk keeps listening on the station's loopback (`127.0.0.1`); `tailscale serve` publishes it
+on the tailnet, in HTTPS, under the machine's name (`https://box.tail1234.ts.net`). On the box this matters: the
+station's unit reaches nothing but the loopback (`IPAddressAllow=localhost` in `brigade-station.service`), and
+tailscaled, outside it, receives the phone and hands the request to the desk on the loopback — nothing in the unit
+is reopened. Whatever comes through `serve` arrives from the loopback: that is why the desk never issues a code
+itself, and judges every request by the code and the token alone. The pairing command finds the published address on
+its own (`runtime/src/telephone/tailnet.ts`) and puts it in the QR.
+
+**What you do, once per station — here, the remote box** (over your usual `ssh <box>`):
+
+1. Install Tailscale and join your tailnet: `curl -fsSL https://tailscale.com/install.sh | sh`, then
+   `sudo tailscale up` — it prints a link: open it on your computer and sign in. In the Tailscale admin console (DNS
+   page), MagicDNS and HTTPS certificates must be on: `serve` needs them to publish in HTTPS.
+2. Give the station a phone desk on its loopback: `sudo systemctl edit brigade-station`, add
+
+   ```
+   [Service]
+   Environment=BRIGADE_GUICHET_TELEPHONES=127.0.0.1:7010
+   ```
+
+   then `sudo systemctl restart brigade-station`. Its journal says `guichet des téléphones à l'écoute sur
+   127.0.0.1:7010`. Any free port does; 7010 is an example.
+3. Publish it on the tailnet: `sudo tailscale serve --bg 7010`. `tailscale serve status` then shows
+   `https://box.tail1234.ts.net (tailnet only)` proxying to `http://127.0.0.1:7010`; it survives reboots. **Not
+   `tailscale funnel`**: Funnel opens the desk to the whole internet, not only to your devices — the pairing command
+   says so if it finds it.
+4. Issue a pairing code, as the station's account (its registry is in `/home/brigade/.local/state/brigade`):
+   `sudo -u brigade -H /usr/lib/brigade-station/node/bin/node /usr/lib/brigade-station/runtime/src/telephone/appairage-cli.ts code`.
+   With no `--url`, it asks `tailscale serve status --json` where the desk is published, and the QR carries that
+   address (`brigade://pair?code=…&url=https://box.tail1234.ts.net`, also `url` in its JSON). Its last line says from
+   where the phone reaches the desk: *from any network, through your tailnet* — or, not published, that only this
+   machine reaches it and the `tailscale serve` to run; a desk listening on a local-network address gives that
+   address, *from this network only*. `BRIGADE_TAILSCALE_BIN` names another `tailscale` than the one in the `PATH`.
+
+**On the phone**, once: install **Tailscale** from Google Play and sign in with the same account. Then, on mobile data
+or any Wi-Fi, scan the station's QR — or type `https://box.tail1234.ts.net` as the station's address with the code.
+A station on your computer works the same way: the Tailscale app, the same `BRIGADE_GUICHET_TELEPHONES` in its
+environment, `tailscale serve --bg 7010`.
+
+**A lost phone is revoked** on the station, by name: `appairage-cli.ts revoke pixel-8` (same account, same path as
+the code). Its token opens nothing any more, from any network, and it leaves the stations list; a name that is not a
+paired phone is refused and nothing changes. Paired again, it needs a new code.
+
+**What is not there yet.** Issuing the code still takes the command above: the desktop app does not run it for you
+yet, and the Android app's pairing screen still says to check that *the phone is on its network* when the desk does
+not answer — both come with #1409. The tests stand a relay in for tailscaled (`runtime/test/telephone/tailnet.test.ts`):
+no test mounts a real tailnet.
 
 ### Your stations: paired with a code, read on GitHub
 

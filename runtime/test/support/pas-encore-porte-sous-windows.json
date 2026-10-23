@@ -164,6 +164,7 @@
     "test/status.test.ts",
     "test/telephone/appairage.test.ts",
     "test/telephone/guichet.test.ts",
+    "test/telephone/tailnet.test.ts",
     "test/tirer.test.ts",
     "test/transcripts.test.ts",
     "test/urgence.test.ts",

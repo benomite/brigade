@@ -17,12 +17,16 @@
 // chef. Accepté, un téléphone ne cuit rien pour autant : aucune sélection du
 // registre ne le rend.
 //
+// Un téléphone perdu se révoque (`revoquer`) : ses jetons ne valent plus, et il
+// quitte le registre — d'aucun réseau il n'ouvre plus rien.
+//
 // Ni le code ni le jeton ne sont gardés autrement que par leur empreinte : qui
 // lit la base n'en tire rien qui ouvre une porte.
 //
 // La base, `telephones.db`, est dans le répertoire du registre : la commande
 // qui tire un code et le guichet de la station qui reçoit le téléphone
-// (`guichet.ts`) l'ouvrent ensemble, sans se parler.
+// (`guichet.ts`) l'ouvrent ensemble, sans se parler. Le guichet y écrit aussi
+// où il écoute : la commande en tire l'adresse que le QR porte.
 import { createHash, randomBytes } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -71,8 +75,29 @@ export type Telephones = {
   // La liste des stations du registre, téléphones compris : ce qu'un
   // téléphone appairé lit.
   stations(): StationGlobale[];
+  // Le chef retire un téléphone — perdu, donné : ses jetons ne valent plus,
+  // et il quitte le registre. Rend ce qu'il y était ; un nom qui n'est pas
+  // celui d'un téléphone est refusé, et rien ne change.
+  revoquer(nom: string): StationGlobale;
+  // Le guichet dit où il écoute, quand il s'ouvre : la commande qui tire un
+  // code en tire l'adresse que le QR porte (`appairage-cli.ts`).
+  annoncer(ecoute: Ecoute): void;
+  // Où écoute le dernier guichet ouvert sur ce registre ; null s'il ne s'en
+  // est jamais ouvert.
+  guichet(): Ecoute | null;
   fermer(): void;
 };
+
+// L'adresse où le guichet écoute, telle qu'il l'a ouverte : `0.0.0.0` ou `::`
+// pour toutes celles de la machine.
+export type Ecoute = { hote: string; port: number };
+
+export class RevocationRefusee extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RevocationRefusee";
+  }
+}
 
 export type Motif = "inconnu" | "expire" | "utilise" | "nom-pris";
 
@@ -124,6 +149,12 @@ export function ouvrirTelephones(repertoire: string, options: OptionsTelephones 
       station    TEXT NOT NULL,
       emis_le    TEXT NOT NULL
     ) STRICT;
+    CREATE TABLE IF NOT EXISTS guichet (
+      un        INTEGER PRIMARY KEY CHECK (un = 1),
+      hote      TEXT NOT NULL,
+      port      INTEGER NOT NULL,
+      ouvert_le TEXT NOT NULL
+    ) STRICT;
   `);
 
   return {
@@ -173,6 +204,22 @@ export function ouvrirTelephones(repertoire: string, options: OptionsTelephones 
       return station !== null && station.sorte === TELEPHONE ? station : null;
     },
     stations: () => registre.liste(),
+    revoquer(nom) {
+      return base.transaction(() => {
+        const station = typeof nom === "string" ? registre.lire(nom) : null;
+        if (station === null) throw new RevocationRefusee(`no phone is paired under \`${String(nom)}\``);
+        if (station.sorte !== TELEPHONE) throw new RevocationRefusee(`\`${station.nom}\` is a station that cooks, not a phone: nothing was revoked`);
+        base.executer("DELETE FROM jetons WHERE station = ?", station.nom);
+        return registre.retirer(station.nom);
+      });
+    },
+    annoncer({ hote, port }) {
+      base.executer("INSERT INTO guichet (un, hote, port, ouvert_le) VALUES (1, ?, ?, ?) ON CONFLICT (un) DO UPDATE SET hote = excluded.hote, port = excluded.port, ouvert_le = excluded.ouvert_le", hote, port, maintenant().toISOString());
+    },
+    guichet() {
+      const [ecoute] = base.lire<Ecoute>("SELECT hote, port FROM guichet");
+      return ecoute === undefined ? null : { hote: ecoute.hote, port: ecoute.port };
+    },
     fermer() {
       base.fermer();
       if (!options.registre) registre.fermer();
