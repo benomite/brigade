@@ -31,7 +31,7 @@ function worktree(t: TestContext, scripts: { gates?: string; setup?: string }) {
 const jouer = (racine: string, delaiMs = 60_000) => jouerGates({ worktree: racine, ticket: 17, env: ENV_ENFANT, delaiMs });
 
 // Chaque test a son worktree : ils se jouent de front.
-describe("les gates", { skip: posixOnly("runs a POSIX shell script and calls `ps` (a POSIX tool)"), concurrency: 8 }, () => {
+describe("les gates", { concurrency: 8 }, () => {
   test("ce que le runtime garde de la sortie du setup et des gates est masqué", async (t) => {
     const racine = worktree(t, {
       setup: 'echo "base prête : $DATABASE_URL" >&2; echo "export BASE=$DATABASE_URL/ticket_$1"',
@@ -258,7 +258,7 @@ describe("les gates", { skip: posixOnly("runs a POSIX shell script and calls `ps
     assert.ok(Date.now() - debut < SANS_ATTENDRE_LE_SLEEP_MS);
   });
 
-  test("des gates sorties d'elles-mêmes sont jugées sur leur code, même si leur plafond tombe avant que leur fin soit traitée", async (t) => {
+  test("des gates sorties d'elles-mêmes sont jugées sur leur code, même si leur plafond tombe avant que leur fin soit traitée", { skip: posixOnly("reads the state of the gates' process with `ps -o stat=` to see it a zombie: Windows has no `ps` in the PATH and no zombie state") }, async (t) => {
     // Le process que le runtime lance est le shell qui attend les gates pour
     // dire leur processeur : leur parent.
     const racine = worktree(t, { gates: 'echo "gates : VERT"; echo $PPID > pid' });

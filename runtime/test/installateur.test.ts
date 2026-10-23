@@ -58,7 +58,7 @@ describe("la règle sudoers", () => {
   });
 });
 
-describe("installer un projet", { skip: posixOnly("runs the fake claude, the fake gh and fake systemctl, journalctl or getent (POSIX shell scripts)") }, () => {
+describe("installer un projet", () => {
   test("de bout en bout : `installation` le dit prêt, et la sortie JSON rend les deux ports", async (t) => {
     const b = boite(t);
     b.pousser("acme/calculus");
@@ -199,7 +199,7 @@ describe("installer un projet", { skip: posixOnly("runs the fake claude, the fak
   });
 });
 
-describe("ce que le geste refuse, sans rien écrire sur la box", { skip: posixOnly("runs fake systemctl, journalctl or getent (POSIX shell scripts)") }, () => {
+describe("ce que le geste refuse, sans rien écrire sur la box", () => {
   // Chaque refus : un code non nul, un message, et la box telle qu'elle était.
   async function refuse(t: TestContext, args: (b: Boite) => string[], motif: string, message: RegExp, code: number = CODES.usage): Promise<void> {
     const b = boite(t);
@@ -390,7 +390,7 @@ describe("ce que le geste refuse, sans rien écrire sur la box", { skip: posixOn
   });
 });
 
-describe("une installation qui n'aboutit pas se défait", { skip: posixOnly("runs fake systemctl, journalctl or getent (POSIX shell scripts)") }, () => {
+describe("une installation qui n'aboutit pas se défait", () => {
   test("le dépôt ne se clone pas : la box est comme avant, et le projet s'installe ensuite", async (t) => {
     const b = boite(t);
     const avant = b.photo();
@@ -446,7 +446,7 @@ describe("une installation qui n'aboutit pas se défait", { skip: posixOnly("run
   });
 });
 
-describe("le journal du geste", { skip: posixOnly("runs fake systemctl, journalctl or getent (POSIX shell scripts)") }, () => {
+describe("le journal du geste", () => {
   test("chaque appel, accepté ou refusé, y ajoute qui, quand, quel projet, quelle action et le résultat", async (t) => {
     const b = boite(t);
     b.pousser("acme/calculus");
@@ -551,7 +551,7 @@ describe("le plafond dur ne bouge pas", () => {
     }
   });
 
-  test("après une installation : les unités ne portent que les variables du geste, la cloison livrée, et rien du compte n'a été lu ni écrit", { skip: posixOnly("runs fake systemctl, journalctl or getent (POSIX shell scripts)") }, async (t) => {
+  test("après une installation : les unités ne portent que les variables du geste, la cloison livrée, et rien du compte n'a été lu ni écrit", async (t) => {
     const b = boite(t);
     b.pousser("acme/calculus");
     // La connexion Max du compte : le geste n'a aucune raison d'y toucher.

@@ -397,7 +397,7 @@ esac
 exit 0
 `;
 
-test("la machine joue l'essai sous son propre compte, avec son environnement, et garde son verdict un moment", { skip: posixOnly("the fake psql is a shell script") }, (t) => {
+test("la machine joue l'essai sous son propre compte, avec son environnement, et garde son verdict un moment", (t) => {
   const bin = repertoireTemporaire(t);
   writeFileSync(join(bin, "psql"), FAUX_PSQL);
   chmodSync(join(bin, "psql"), 0o755);

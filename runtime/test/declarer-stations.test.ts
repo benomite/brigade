@@ -6,7 +6,6 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { delimiter, join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { posixOnly } from "./support/plateforme.ts";
 import { decisionsPosees } from "../src/decisions.ts";
 import { principal } from "../src/declarer-stations.ts";
 import { installationDe, noterEtape } from "../src/etapes.ts";
@@ -185,7 +184,7 @@ test("la commande du chef, en texte : l'étape, ce qu'elle sert, ce que la machi
 // Le critère de bout en bout : un runtime démarré sans station ne fait partir
 // aucun cook ; l'action déclare, et sans redémarrage le ticket qui attendait
 // part.
-test("de bout en bout : sur un runtime qui tourne sans station, l'action déclare et un cook part sur le ticket, sans redémarrage", { skip: posixOnly("runs the fake claude and the fake gh (POSIX shell scripts)") }, async (t) => {
+test("de bout en bout : sur un runtime qui tourne sans station, l'action déclare et un cook part sur le ticket, sans redémarrage", async (t) => {
   const etat = repertoireTemporaire(t);
   const { clone } = depotGit(t);
   const gh = fauxGh(t);

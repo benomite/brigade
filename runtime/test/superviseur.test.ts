@@ -13,7 +13,6 @@ const rienNeReste = temporaireDuFichier();
 
 // Ce qui ne se joue que sous macOS et Linux, et pourquoi. L'arrêt d'un cook et
 // de tout ce qu'il a lancé se prouve sous Windows dans `arbre.test.ts`.
-const CHEMIN_POSIX = posixOnly("compares a path written with /");
 const GROUPE = posixOnly("a process escapes its cook only by leaving the POSIX process group; on Windows the tree catches it (arbre.test.ts)");
 
 const LARGES: Plafonds = { turns: 1000, durationMs: 60_000, tokens: 1_000_000, idleMs: 60_000 };
@@ -89,7 +88,7 @@ describe("superviser", { concurrency: true }, () => {
     assert.equal(fin.masques, 3);
   });
 
-  test("ce que le cook fait se lit dans son flux, relatif à son worktree et masqué comme lui — et rien de ce qu'il écrit n'en sort", { skip: CHEMIN_POSIX }, async (t) => {
+  test("ce que le cook fait se lit dans son flux, relatif à son worktree et masqué comme lui — et rien de ce qu'il écrit n'en sort", async (t) => {
     const repertoire = repertoireTemporaire(t);
     const flux = join(repertoire, "run.jsonl");
     const ligne = JSON.stringify({ type: "assistant", message: { id: "m", content: [{ type: "tool_use", id: "t1", name: "Edit", input: { file_path: join(repertoire, "src", "acme-prod.ts"), new_string: "CODE_DU_COOK" } }] } });

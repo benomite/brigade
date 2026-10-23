@@ -6,7 +6,6 @@ import { availableParallelism } from "node:os";
 import { join } from "node:path";
 import { after } from "node:test";
 import { describe, test, type TestContext } from "node:test";
-import { posixOnly } from "./support/plateforme.ts";
 import { ouvrirArbitre, servirArbitre } from "../src/arbitre.ts";
 import { empreinteDuCode, lireCodeEnService } from "../src/code.ts";
 import { ROLES } from "../src/identites.ts";
@@ -117,7 +116,7 @@ function runtimeParDefaut(t: TestContext): Promise<Releve> {
 }
 
 // Chaque test a son état, son dépôt et son GitHub, et écoute sur le port 0 : ils se jouent de front.
-describe("le runtime, son process et ses unités", { skip: posixOnly("runs the fake claude and the fake gh (POSIX shell scripts)"), concurrency: 8 }, () => {
+describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
   test("le runtime démarre, tourne, et s'arrête proprement sur SIGTERM", async (t) => {
     const runtime = await runtimeParDefaut(t);
     assert.deepEqual(runtime.journal.map((e) => e.type), ["runtime.started", "project.switched-on", "grant.activated", "guard.configured", "station.announced", "drift.configured", "session.observed", "isolation.configured"]);

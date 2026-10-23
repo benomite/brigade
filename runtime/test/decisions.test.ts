@@ -8,7 +8,6 @@ import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { isAbsolute, join, relative } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { posixOnly } from "./support/plateforme.ts";
 import { DECISIONS, decisionsDansLEnvironnement, decisionsPosees, direDecisionIgnoree, environnementDecide, poserDecision, retirerDecision, suivreDecisions, supportDesDecisions } from "../src/decisions.ts";
 import { brancherDerive, lireSeuils } from "../src/derive.ts";
 import { MARQUEUR } from "../src/fiche.ts";
@@ -334,7 +333,7 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
 
 // Un runtime complet, dans son propre process : ce que le chef pose pendant
 // qu'il tourne, il le lit sans redémarrer.
-describe("le runtime et les décisions du chef", { skip: posixOnly("runs the fake claude and the fake gh (POSIX shell scripts)"), concurrency: 4 }, () => {
+describe("le runtime et les décisions du chef", { concurrency: 4 }, () => {
   const environnement = (t: TestContext, repertoire: string) => {
     const gh = fauxGh(t);
     gh.issues([]);

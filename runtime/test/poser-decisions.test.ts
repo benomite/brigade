@@ -8,7 +8,6 @@ import assert from "node:assert/strict";
 import { existsSync, writeFileSync } from "node:fs";
 import { delimiter, join } from "node:path";
 import { test } from "node:test";
-import { posixOnly } from "./support/plateforme.ts";
 import { attentesDuChef } from "../src/attend.ts";
 import { DECISIONS, decisionsPosees, OBLIGATOIRES, verifierDecision } from "../src/decisions.ts";
 import { principal as declarerStations } from "../src/declarer-stations.ts";
@@ -273,7 +272,7 @@ test("la commande du chef, en texte : l'étape, puis chaque décision avec sa qu
 // Le critère de bout en bout : un projet dont l'installation a posé toutes
 // ses décisions démarre sans aucune variable de décision dans son
 // environnement, et sa file n'en porte aucune.
-test("de bout en bout : toutes les décisions posées pendant l'installation, le runtime démarre et rien n'attend le chef", { skip: posixOnly("runs the fake claude and the fake gh (POSIX shell scripts)") }, async (t) => {
+test("de bout en bout : toutes les décisions posées pendant l'installation, le runtime démarre et rien n'attend le chef", async (t) => {
   const { clone } = depotGit(t);
   const gh = fauxGh(t);
   gh.issues([]);

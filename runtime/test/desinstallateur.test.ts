@@ -8,7 +8,6 @@ import assert from "node:assert/strict";
 import { existsSync, lstatSync, mkdirSync, readFileSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { posixOnly } from "./support/plateforme.ts";
 import { Sortie } from "../src/appel.ts";
 import { lireRetrait, type Plan } from "../src/desinstallateur.ts";
 import { principal as sousLeCompte } from "../src/desinstaller-sous-le-compte.ts";
@@ -62,7 +61,7 @@ const gestes = (b: Boite, rang = 0) => b.appels().slice(rang).filter((appel) => 
 const sans = (photo: Record<string, string>, chemins: string[]) => Object.fromEntries(Object.entries(photo).filter(([chemin]) => !chemins.some((retire) => chemin === retire || chemin.startsWith(`${retire}/`))));
 
 // Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
-describe("le plan d'une désinstallation", { skip: posixOnly("runs fake systemctl, journalctl or getent (POSIX shell scripts)"), concurrency: 8 }, () => {
+describe("le plan d'une désinstallation", { concurrency: 8 }, () => {
   test("`--plan` liste ce qui serait retiré — unités, drop-ins, clone, worktrees, versions, port — et ne modifie rien sur la box", async (t) => {
     const b = await installee(t, "calculus", "boutique");
     servir(b);
@@ -177,7 +176,7 @@ describe("le plan d'une désinstallation", { skip: posixOnly("runs fake systemct
 });
 
 // Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
-describe("désinstaller un projet", { skip: posixOnly("runs fake systemctl, journalctl or getent (POSIX shell scripts)"), concurrency: 8 }, () => {
+describe("désinstaller un projet", { concurrency: 8 }, () => {
   test("sans confirmation : rien n'est effacé, et le geste dit comment confirmer", async (t) => {
     const b = await installee(t);
     servir(b);
@@ -303,7 +302,7 @@ describe("désinstaller un projet", { skip: posixOnly("runs fake systemctl, jour
 });
 
 // Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
-describe("ce que la désinstallation refuse, sans rien modifier sur la box", { skip: posixOnly("runs fake systemctl, journalctl or getent (POSIX shell scripts)"), concurrency: 8 }, () => {
+describe("ce que la désinstallation refuse, sans rien modifier sur la box", { concurrency: 8 }, () => {
   // Chaque refus : un code non nul, un message, et la box telle qu'elle était.
   async function refuse(b: Boite, args: string[], motif: string, message: RegExp, code: number = CODES.usage): Promise<void> {
     const [avant, rang] = [b.photo(), b.appels().length];
@@ -447,7 +446,7 @@ describe("ce que la désinstallation refuse, sans rien modifier sur la box", { s
 });
 
 // Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
-describe("une désinstallation qui s'arrête en chemin", { skip: posixOnly("runs fake systemctl, journalctl or getent (POSIX shell scripts)"), concurrency: 8 }, () => {
+describe("une désinstallation qui s'arrête en chemin", { concurrency: 8 }, () => {
   test("le runtime arrêté, son clone porte ce que l'origine n'a pas : elle s'arrête là, dit ce qui est fait et ce qui reste, et se rejoue", async (t) => {
     const b = await installee(t);
     servir(b);
@@ -492,7 +491,7 @@ describe("une désinstallation qui s'arrête en chemin", { skip: posixOnly("runs
 });
 
 // Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
-describe("le journal du geste, pour une désinstallation", { skip: posixOnly("runs fake systemctl, journalctl or getent (POSIX shell scripts)"), concurrency: 8 }, () => {
+describe("le journal du geste, pour une désinstallation", { concurrency: 8 }, () => {
   test("chaque appel — plan, refus, exécution — y ajoute qui, quand, quel projet et quoi", async (t) => {
     const b = await installee(t);
     servir(b);
