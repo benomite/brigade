@@ -4562,7 +4562,7 @@ const glisseeIci = (evenement, projet) => carteGlissee?.projet === projet && eve
 function rendreGlissable(projet, carte, bon, cartes) {
   // Le glisser du navigateur est celui de la souris : sur un écran étroit, le doigt a son appui long (ticket 1348).
   bon.draggable = !etroit();
-  bon.classList.add("rangeable");
+  bon.dataset.rangeable = "oui";
   bonsRanges.set(`${projet.nom}#${carte.ticket}`, bon);
   rendreSoulevable(projet, carte, bon, cartes);
   // Le rail relu pendant qu'elle glisse : la carte reposée le dit encore.
@@ -4694,7 +4694,8 @@ function recevoirLesCartes(projet, colonne) {
 
 /** @param {HTMLElement} element @param {"glissee" | "soulevee" | "depot-avant" | "depot-apres"} classe */
 function marquerLeGlisser(element, classe) {
-  element.classList.toggle(classe, true);
+  if (classe === "soulevee") element.classList.toggle("soulevee", true);
+  else element.classList.toggle(classe, true);
   marquees.add(element);
 }
 function effacerLeTrait() {
