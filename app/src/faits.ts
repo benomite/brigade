@@ -13,8 +13,8 @@
 // Ce sont les deux seules choses lues hors de la forme.
 import type { GesteDAttente } from "./attente.ts";
 import { ditDe, ticketsDe, type Montree } from "./attend.ts";
-import { lieuDe, lignesDuRail, porter, type Porte } from "./bon.ts";
-import { ligneAuTravail, ligneEnAttente, ligneEnWaiting, ligneLivree, ligneMiseDeCote, ligneQuiMAttend, ligneRepondue, type LigneDeCarte } from "./ligne-carte.ts";
+import { lieuDe, lignesDuRail, porter, priorite, type Porte } from "./bon.ts";
+import { ligneAuTravail, ligneDeTete, ligneEnAttente, ligneEnWaiting, ligneLivree, ligneMiseDeCote, ligneQuiMAttend, ligneRepondue, type LigneDeCarte } from "./ligne-carte.ts";
 import type { StationDesFaits } from "./ordinaires.ts";
 import type { Echec, Lecture } from "./box.ts";
 import { capturesDeCarte, type CapturesDeCarte, type CapturesLues, type Moment } from "./captures.ts";
@@ -256,7 +256,10 @@ export type Faits = {
   // autre, et pour un ticket que le chef a repris lui-même ; absent d'un runtime d'avant.
   // `captures` : pour un ticket d'interface en pass ou servi, l'écran avant et après de sa
   // dernière livraison (captures.ts) — absentes pour tout autre ticket.
-  rail: { ticket: number; etat: string; titre: string; url: string; activite?: Activite | null; attente?: Attente | null; tiers?: Tiers | null; revenu?: string | null; captures?: CapturesLues }[];
+  // `raison` : pour le ticket en tête de la file seulement, s'il ne part pas, pourquoi, dans les mots du runtime
+  // (`zone held by #12 (src)`, `machine saturated`) — nulle pour tout autre, absente d'un runtime d'avant ce champ.
+  // Le rail est dans l'ordre où il se sert, ordre du chef compris (`rail move`).
+  rail: { ticket: number; etat: string; titre: string; url: string; activite?: Activite | null; attente?: Attente | null; tiers?: Tiers | null; revenu?: string | null; raison?: string | null; captures?: CapturesLues }[];
   cooks?: Cook[];
   attend?: Attendu[];
   livres?: Livre[];
@@ -316,9 +319,12 @@ export type Faits = {
 // (carte-todo.ts) — ce que le chef tranche sur la carte même, d'un clic ou d'un texte.
 // `repondue` : sur une carte de WAITING, sa question est répondue, et elle attend que le manager lise
 // la réponse (repondues.ts) — qui y a répondu, et quand.
+// `rangeable` : la carte d'un ticket en attente sur le rail, que le chef glisse à un autre rang (deplacement.ts) ;
+// `prio` : sa priorité, telle que sa ligne de `status` l'écrit (`prio:2`), `no prio` quand son issue n'en porte
+// pas — absente, la ligne n'est pas lue.
 // Et ce qu'elle dit, elle, en deux lignes (ligne-carte.ts) : `ligne`, ce qui se passe ; `signal`, ce qui demande
 // l'attention ; `repere`, la file ne dit pas tout — le détail est dans la fiche, avec `dit` et `sans`.
-export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraison?: Livraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[]; question?: true; todo?: CarteDeTodo; repondue?: { par: string; a: string } } & Porte;
+export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraison?: Livraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[]; question?: true; todo?: CarteDeTodo; repondue?: { par: string; a: string }; rangeable?: true; prio?: string } & Porte;
 // Ce qui a été livré, sur une carte de Livré : le résumé de la relecture, mot pour
 // mot, et ses constats sous leur nombre dit en clair (`remarques`) — ou, sans
 // relecture, pourquoi elle n'est pas là. Rien n'est mis à sa place.
@@ -596,6 +602,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
           ...(lu.attente === undefined ? {} : { attente: ouRien(lu.attente, `${lequel}.attente`, comprendreAttente) }),
           ...(lu.tiers === undefined ? {} : { tiers: ouRien(lu.tiers, `${lequel}.tiers`, comprendreTiers) }),
           ...(lu.revenu === undefined ? {} : { revenu: ouRien(lu.revenu, `${lequel}.revenu`, texte) }),
+          ...(lu.raison === undefined ? {} : { raison: ouRien(lu.raison, `${lequel}.raison`, texte) }),
           ...(lu.captures === undefined ? {} : { captures: comprendreCaptures(lu.captures, `${lequel}.captures`) }),
         };
       }),
@@ -764,6 +771,10 @@ const COLONNES_DE_FAITS = [
   { nom: "Served", ton: "vert", etats: ["servi"] },
 ] as const;
 const COLONNE_PAR_DEFAUT = "On the rail";
+// Les mots d'état d'un ticket en attente sur le rail : le chef range sa carte (`rail move`, deplacement.ts).
+const EN_FILE: readonly string[] = COLONNES_DE_FAITS[0].etats;
+// La priorité d'un ticket dont l'issue ne porte aucun `prio:` — `-` dans sa ligne de `status`.
+export const SANS_PRIO = "no prio";
 // La colonne de FAITS d'une carte : celle du mot d'état — ou, pour un ticket mis de
 // côté, celle où le runtime dit qu'il attend (`attente.colonne`), et à défaut d'une
 // colonne qu'elle connaisse, la colonne par défaut : une carte mise de côté n'est
@@ -915,7 +926,13 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
             ? ligneAuTravail(connu.etat as "pris" | "en pass", connu.activite, connu.activite == null ? "" : duree(Date.parse(faits.lu) - Date.parse(connu.activite.depuis)))
             : connu?.etat === "servi"
               ? { ligne: "served", repere: true }
-              : ligneEnAttente(connu?.etat ?? "", retient);
+              : connu?.raison != null && EN_FILE.includes(connu.etat)
+                ? ligneDeTete(connu.etat, connu.raison)
+                : ligneEnAttente(connu?.etat ?? "", retient);
+    // Sur le rail, en attente : le chef la range, et sa priorité se lit sur elle — celle que sa ligne de `status` écrit.
+    const rangeable = dit === undefined && connu !== undefined && EN_FILE.includes(connu.etat);
+    const [sienne] = siennes ?? [];
+    const prio = rangeable && connu !== undefined && siennes?.length === 1 && sienne !== undefined ? priorite(sienne, connu.etat, connu.titre) : undefined;
     return {
       ticket,
       ...ligne,
@@ -939,6 +956,8 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
       ...(dit !== undefined && connu !== undefined && POSABLES.includes(connu.etat) ? { gestes: ["attente-poser" as const] } : {}),
       ...(dit !== undefined && interroges.has(ticket) ? { question: true as const } : {}),
       ...(dit !== undefined && donne?.carte !== undefined ? { todo: carteDeTodo(donne.carte) } : {}),
+      ...(rangeable ? { rangeable: true as const } : {}),
+      ...(prio === undefined ? {} : { prio: prio === "-" ? SANS_PRIO : prio }),
     };
   };
 
@@ -1231,6 +1250,12 @@ export function tenirFaits(repondues: (projet: string) => ReadonlyMap<number, Re
     // ceux-là se tranchent depuis l'app (profil.ts).
     profils(projet: unknown): number[] {
       return (typeof projet === "string" ? tenus.get(projet)?.faits.profils : undefined)?.map(({ proposition }) => proposition) ?? [];
+    },
+    // Les tickets en attente sur le rail d'un projet, à la dernière lecture de `facts` — ceux dont le chef range la carte
+    // (deplacement.ts). Rien, si le projet n'est pas lu.
+    enFile(projet: unknown): ReadonlySet<number> | undefined {
+      const tenu = typeof projet === "string" ? tenus.get(projet) : undefined;
+      return tenu === undefined ? undefined : new Set(tenu.faits.rail.filter(({ etat }) => EN_FILE.includes(etat)).map(({ ticket }) => ticket));
     },
     // Ce que `facts` dit des stations d'un projet, à la dernière lecture — rien, s'il n'est pas lu.
     stations(projet: unknown): StationDesFaits[] | undefined {

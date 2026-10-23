@@ -262,6 +262,10 @@ export type Pont = {
   // Le bouton d'une station du projet, sur l'onglet Cooks (ticket 1185) : arrête ou relance la cuisine du projet sur
   // cette station (cuisson.ts). Rend ce qui est fait, ou pourquoi rien — ce que le runtime a dit, en `detail`.
   cuireSurLaStation(projet: string, station: string, geste: import("../cuisson.ts").GesteDeCuisson): Promise<import("../cuisson.ts").RenduDeCuisson>;
+  // Une carte de « On the rail » glissée et lâchée à côté d'une autre (ticket 1347) : `rail move` la place juste avant ou
+  // juste après elle, et lui donne sa priorité (deplacement.ts). Rend ce qui est fait, ou pourquoi rien n'a bougé, en une
+  // phrase — ce que la station a répondu, en `detail`. Absent du téléphone : la carte ne s'y glisse pas.
+  deplacer?(projet: string, ticket: number, voisin: number, cote: import("../deplacement.ts").Cote): Promise<import("../deplacement.ts").RenduDuDeplacement>;
   // Le plafond de cooks d'une station, réglé depuis sa page : un nombre (0 : sans limite) ou « auto » (le plafond de
   // ses cœurs revient). Part sur la box de chaque projet qui nomme la station — ou du seul `projet`, depuis sa ligne de station (ticket 1292) (plafond.ts) ; le plafond neuf arrive par `surAccueil`.
   reglerLePlafond(station: string, valeur: string, projet?: string): Promise<{ fait: string } | { refus: string; detail?: string }>;

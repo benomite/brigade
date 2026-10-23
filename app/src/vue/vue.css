@@ -3660,6 +3660,49 @@ main > header,
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+/* Une carte de « On the rail » se range (ticket 1347) : elle se saisit, s'efface à demi tant qu'elle glisse, et un trait
+   d'accent, dans l'espace entre deux cartes, dit où elle atterrira — avant ou après la carte survolée. */
+#rail .bon[draggable="true"] {
+  position: relative;
+  cursor: grab;
+}
+#rail .bon.glissee {
+  opacity: 0.4;
+}
+#rail .bon:is(.depot-avant, .depot-apres)::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+  pointer-events: none;
+}
+#rail .bon.depot-avant::before {
+  top: -6px;
+}
+#rail .bon.depot-apres::before {
+  bottom: -6px;
+}
+/* Sa priorité, sous son numéro : une étiquette à l'encre discrète. */
+#rail .bon > .prio {
+  align-self: flex-start;
+  padding: 0 6px;
+  font-size: 10px;
+  line-height: 16px;
+  color: var(--bon-discret);
+  border: 1px solid var(--bon-trait);
+  border-radius: 999px;
+}
+/* Une carte que le runtime n'a pas laissé passer a repris sa place : sa phrase, sous la tête de la colonne. */
+#rail .colonne > p.refus-de-rang {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0 0 8px;
+  color: var(--jaune);
+}
 /* La fiche d'un ticket, par-dessus le rail : un popup de lecture au centre, sur un voile qui laisse le
    rail visible, atténué ; le panneau défile dans sa hauteur, un clic sur le voile la ferme. Son titre est entier : il passe à la
    ligne, rien n'est coupé. Ce que la box ne donne pas s'y lit en italique : ce sont les mots de l'app. */

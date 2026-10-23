@@ -7,6 +7,7 @@
 //   au travail   `<fait> <cible> · <durée>`           (« writes the tests · 12 min »)
 //   en pass      la même, sinon « review in progress »
 //   en attente   `after #a, #b` ; ou ce qui le retient ; sinon « ready, waits for a place in the kitchen »
+//   en tête      en tête de la file sans partir : `does not leave: <raison du runtime>` (ticket 1347)
 //   bloquée      ce qui la retient ; signal « blocked »
 //   mise de côté sa raison en clair ; signal « set aside »
 //   en WAITING   `waiting for <quoi> · from <qui>` ; signal si la relance est passée
@@ -40,6 +41,11 @@ export function ligneEnAttente(etat: string, retient: string | undefined): Ligne
   const phrase = numeros.length > 0 ? `after ${numeros.join(", ")}` : retient;
   if (etat === "BLOQUÉ") return { ligne: phrase ?? BLOQUEE, signal: BLOQUEE, ...(phrase === undefined ? { repere: true as const } : {}) };
   return { ligne: phrase ?? PRET };
+}
+
+// En tête de la file, et il ne part pas : pourquoi, dans les mots du runtime — une zone tenue, la machine saturée.
+export function ligneDeTete(etat: string, raison: string): LigneDeCarte {
+  return { ligne: `does not leave: ${raison}`, ...(etat === "BLOQUÉ" ? { signal: BLOQUEE } : {}) };
 }
 
 // Mis de côté (86) : sa raison, telle que le runtime la donne.
