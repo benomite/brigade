@@ -44,6 +44,7 @@ import { GESTES_DES_GRANTS, voir as voirGrants } from "./grants.ts";
 import { ajouterALApp, lireClone } from "./ajout.ts";
 import { tenirConnexionGitHub } from "./connexion-github.ts";
 import { cheminDe, emplacementsDe, lireCheminDuShell } from "./emplacements.ts";
+import { chercherUneMiseAJour, posteDe, refuser as refuserLaVersion, type Avis as AvisDeVersion } from "./mise-a-jour/avis.ts";
 import { tenirMiseAJour } from "./mise-a-jour/etat.ts";
 import { fluxDe, formatDe } from "./mise-a-jour/flux.ts";
 import { installeurDuPoste } from "./mise-a-jour/installation.ts";
@@ -138,6 +139,19 @@ const miseAJour = tenirMiseAJour({
 // station n'est pas lancée, sa fenêtre ne s'ouvre pas — l'app se ferme, l'installeur la rouvre sur
 // la nouvelle version.
 const installeeAuLancement = miseAJour.auLancement();
+// Le bandeau d'une version plus haute (#1528, mise-a-jour/avis.ts) : sur l'app installée d'un Mac ou d'un PC, la plus
+// haute version publiée au-dessus de celle qui tourne, avec le lien direct de son paquet — relue au lancement, puis
+// toutes les six heures. La version que le chef écarte est gardée à côté du fichier des projets, hors du dossier que la
+// mise à jour vide. Lancée depuis le dépôt, l'app ne regarde rien : son clone la met à jour.
+const posteDeLAvis = emplacements.facon === "installee" ? posteDe(plateforme) : undefined;
+const versionEcartee = join(dirname(cheminConfiguration()), "version-ecartee.json");
+let avisDeVersion: Promise<AvisDeVersion | undefined> = Promise.resolve(undefined);
+const verifierLaVersion = () => {
+  if (posteDeLAvis === undefined) return;
+  avisDeVersion = chercherUneMiseAJour({ version: app.getVersion(), poste: posteDeLAvis, fichier: versionEcartee });
+  void avisDeVersion.then((avis) => dire("avisDeVersion", avis));
+};
+let verificationsDeVersion: ReturnType<typeof setInterval> | undefined;
 
 // Chaque second dit ses tours à l'app, par ses crochets, dans un fichier à lui (saisie.ts) :
 // c'est d'après eux qu'un geste direct part, ou dit qu'il ne peut pas.
@@ -1197,6 +1211,21 @@ ipcMain.handle("passer", () => {
 ipcMain.handle("miseAJour", () => miseAJour.vu());
 ipcMain.handle("verifierMiseAJour", () => miseAJour.verifier());
 ipcMain.handle("installerMiseAJour", () => miseAJour.installerMaintenant());
+// Le bandeau d'une version plus haute : le dernier avis, son lien ouvert dans le navigateur — celui de l'avis, et lui
+// seul —, et la version que le chef écarte, gardée d'un lancement à l'autre.
+ipcMain.handle("avisDeVersion", () => avisDeVersion);
+ipcMain.handle("telechargerVersion", async (_, url: unknown) => {
+  if (typeof url !== "string" || (await avisDeVersion)?.url !== url) return false;
+  return shell.openExternal(url).then(
+    () => true,
+    () => false,
+  );
+});
+ipcMain.handle("refuserVersion", async (_, version: unknown) => {
+  if (typeof version !== "string" || !refuserLaVersion(versionEcartee, version)) return false;
+  if ((await avisDeVersion)?.version === version) avisDeVersion = Promise.resolve(undefined);
+  return true;
+});
 // Un clone en retard : sa mise à jour — `git -C <clone> pull` — est écrite dans un shell, et
 // rien ne l'envoie. La vue nomme le clone ; ce qui s'écrit, et dans l'espace de quel projet, se
 // décide dans retard.ts — ou pourquoi rien ne l'est. Rien, pour un clone qui n'est pas en retard.
@@ -1386,6 +1415,7 @@ app.on("will-quit", () => {
   pages.fermer();
   retards.fermer();
   miseAJour.fermer();
+  clearInterval(verificationsDeVersion);
   stations.fermer();
   clearInterval(controles);
   // Les cooks du poste ne survivent pas à l'app : fermée, sa station est absente.
@@ -1426,6 +1456,9 @@ void app.whenReady().then(() => {
   void retards.relire();
   // La première vérification des versions publiées, puis une toutes les six heures.
   miseAJour.demarrer();
+  // Et celle du bandeau d'une version plus haute, puis une toutes les six heures.
+  verifierLaVersion();
+  verificationsDeVersion = setInterval(verifierLaVersion, 6 * 60 * 60 * 1000);
   // Les projets déclarés avant que les couleurs existent reçoivent les leurs, une fois.
   colorer();
   // L'app est lancée : ses stations se manifestent.
