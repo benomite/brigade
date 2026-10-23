@@ -411,6 +411,24 @@ export function coince(ticket: TicketRail, maintenant: Date): boolean {
   return maintenant.getTime() >= progres + (echeance - progres) * PART_SANS_PROGRES;
 }
 
+// Le ticket en tête de la file : le premier en attente dans l'ordre de service
+// du rail — celui que `prendre` donnerait en premier, ordre manuel compris.
+function enTete(rail: TicketRail[]): TicketRail | undefined {
+  return rail.find((ticket) => ticket.state === "waiting");
+}
+
+// Pourquoi le ticket en tête de la file ne part pas : ce qui le retient sur le
+// rail (une zone tenue par tel ticket, un ticket attendu), ou la machine
+// saturée quand toutes les stations le sont. Nul pour tout autre ticket, et
+// pour celui qui part.
+export function raisonDeTete(etat: EtatCuisine, ticket: TicketRail): string | null {
+  if (enTete(etat.rail) !== ticket) return null;
+  const retenue = direRetenueEn(ticket);
+  if (retenue !== null) return retenue;
+  const saturees = etat.stations.length > 0 && etat.stations.every((station) => !station.remote && station.saturatedAt !== null && station.saturatedCauses.length > 0);
+  return saturees ? "machine saturated" : null;
+}
+
 // Ce que l'état a à dire de plus que son nom : qui, depuis quand, jusqu'à quand.
 // `retenues` : ce qui retient chaque station de prendre un ticket qui pourrait partir.
 function detail(ticket: TicketRail, maintenant: Date, depuis: Depuis, retenues: string[]): string {
@@ -660,6 +678,7 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
   // qui se retiennent. Une station qui ne le prendrait de toute façon pas n'y
   // est pour rien.
   const retenuesDe = (ticket: TicketRail) => [
+    ...(raisonDeTete(etat, ticket) === null ? [] : ["machine saturated"]),
     ...(etat.sansStation === null ? [] : ["no station declared"]),
     ...etat.stations.flatMap((station) =>
       station.heldReason === null || !fournitTout(station.provides, requises(ticket.card)) ? [] : [`withheld by ${station.station} (${direRetenueDeStationEn(station.heldReason)})`],
@@ -782,6 +801,10 @@ export type Faits = {
     attente: { raison: string; colonne: string; retour: string | null } | null;
     tiers: { quoi: string; qui: string; depuis: string; relance: string; aLArrivee: string } | null;
     revenu: string | null;
+    // Pour le ticket en tête de la file seulement, s'il ne part pas : pourquoi
+    // (`zone held by #12 (src)`, `machine saturated`). Nul pour tout autre, et
+    // pour celui qui part. Le rail est dans l'ordre où il se sert.
+    raison: string | null;
     captures?: CapturesVues;
   }>;
   // Les cooks en cours, comme `station` les montre. Le titre est celui du rail :
@@ -980,6 +1003,7 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limit
       attente: ticket.state === "86" ? { raison: direMiseDeCote(ticket.reason), colonne: etatLu(ticket), retour: ticket.until } : null,
       tiers: ticket.waitingFor === null ? null : { quoi: ticket.waitingFor.what, qui: ticket.waitingFor.who, depuis: ticket.waitingFor.since, relance: ticket.waitingFor.followUp, aLArrivee: ticket.waitingFor.onArrival },
       revenu: ticket.resumedBecause === null || ticket.resumedBecause === PAR_LE_CHEF ? null : ticket.resumedBecause,
+      raison: raisonDeTete(etat, ticket),
       ...(ticket.state === "pass" || ticket.state === "served" ? captures(ticket.ticket) : {}),
     })),
     // Une station ne lance un cook que pour un ticket.

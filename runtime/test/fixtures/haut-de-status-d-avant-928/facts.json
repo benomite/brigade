@@ -24,7 +24,8 @@
       "activite": null,
       "attente": null,
       "tiers": null,
-      "revenu": null
+      "revenu": null,
+      "raison": null
     },
     {
       "ticket": 17,
@@ -38,7 +39,8 @@
       },
       "attente": null,
       "tiers": null,
-      "revenu": null
+      "revenu": null,
+      "raison": null
     },
     {
       "ticket": 19,
@@ -48,7 +50,8 @@
       "activite": null,
       "attente": null,
       "tiers": null,
-      "revenu": null
+      "revenu": null,
+      "raison": null
     },
     {
       "ticket": 23,
@@ -62,7 +65,8 @@
       },
       "attente": null,
       "tiers": null,
-      "revenu": null
+      "revenu": null,
+      "raison": null
     },
     {
       "ticket": 25,
@@ -76,7 +80,8 @@
         "retour": "2026-10-12T15:00:00.000Z"
       },
       "tiers": null,
-      "revenu": null
+      "revenu": null,
+      "raison": null
     },
     {
       "ticket": 18,
@@ -90,7 +95,8 @@
         "retour": null
       },
       "tiers": null,
-      "revenu": null
+      "revenu": null,
+      "raison": null
     },
     {
       "ticket": 20,
@@ -104,7 +110,8 @@
       },
       "attente": null,
       "tiers": null,
-      "revenu": null
+      "revenu": null,
+      "raison": null
     },
     {
       "ticket": 24,
@@ -114,7 +121,8 @@
       "activite": null,
       "attente": null,
       "tiers": null,
-      "revenu": null
+      "revenu": null,
+      "raison": null
     },
     {
       "ticket": 26,
@@ -124,7 +132,8 @@
       "activite": null,
       "attente": null,
       "tiers": null,
-      "revenu": null
+      "revenu": null,
+      "raison": null
     }
   ],
   "cooks": [],
