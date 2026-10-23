@@ -21,6 +21,18 @@
 //       projet que la station n'a pas ; 503 un journal qui ne se lit pas, et
 //       ce que la commande en dirait. Sans jeton valable : 401, avant tout le
 //       reste — un nom de projet ne se devine pas au code de la réponse.
+//   POST /projects/<nom>/gestures     Authorization: Bearer <token>
+//       {"gesture": "merge" | "remove" | "back-to-kitchen", "ticket": <n>}
+//       un geste de la file sur un ticket — merger sa livraison, le retirer du
+//       rail, le renvoyer en cuisine —, joué par la commande que l'app de
+//       l'ordinateur lance pour le même geste, par le même chemin
+//       (`gestes.ts`) : 200 {"done": true, "said", "detail"} ; 409 {"done":
+//       false, "said", "detail"}, la commande l'a refusé, ou n'a pu le faire ;
+//       400 une demande mal formée ; 404 un projet que la station n'a pas ;
+//       502 une commande qui n'a pas rendu de verdict. `said` est une phrase,
+//       à montrer telle quelle — celle de la commande quand elle en a dit une ;
+//       `detail`, ce qui a été lancé et tout ce qu'il a écrit. Sans jeton
+//       valable : 401, avant tout le reste, et rien n'est lancé.
 //
 // Le guichet ne tire aucun code : une demande qui le joint peut venir de
 // n'importe où — un relais sur la boucle locale fait passer le monde entier
@@ -46,6 +58,7 @@ import { LectureImpossible } from "../appel.ts";
 import { ConfigInvalide } from "../runtime.ts";
 import { PresentationInvalide } from "../stations-globales/registre.ts";
 import { CodeRefuse, type Telephones } from "./appairage.ts";
+import { estUnGeste, GESTES, type GestesDuTelephone } from "./gestes.ts";
 import type { ProjetsDuTelephone } from "./projets.ts";
 
 // `node:http` pris par `process.getBuiltinModule`, pas importé : la façade ESM
@@ -63,6 +76,9 @@ export type OptionsGuichet = {
   // Les projets de la station et leur file : sans eux, la liste est vide et
   // aucune file ne se lit.
   projets?: ProjetsDuTelephone;
+  // Les gestes de la file sur les projets de la station : sans eux, aucun ne
+  // se joue.
+  gestes?: GestesDuTelephone;
   // Zéro : un port libre, que le guichet rend.
   port: number;
   // Où il écoute. Le téléphone doit pouvoir le joindre : l'adresse du réseau
@@ -130,11 +146,12 @@ export function ouvrirGuichet(options: OptionsGuichet): Promise<Guichet> {
     }
   };
 
-  // Une lecture d'un téléphone appairé : GET, et son jeton. Rend vrai quand
-  // la demande peut être servie ; sinon la réponse est déjà rendue.
-  const lecture = (requete: IncomingMessage, reponse: ServerResponse): boolean => {
-    if (requete.method !== "GET") {
-      rendre(reponse, 405, { said: "GET only" }, { allow: "GET" });
+  // Une demande d'un téléphone appairé : sa méthode — GET pour une lecture —,
+  // et son jeton. Rend vrai quand la demande peut être servie ; sinon la
+  // réponse est déjà rendue.
+  const appairee = (requete: IncomingMessage, reponse: ServerResponse, methode = "GET"): boolean => {
+    if (requete.method !== methode) {
+      rendre(reponse, 405, { said: `${methode} only` }, { allow: methode });
       return false;
     }
     if (telephones.authentifier(jetonDe(requete)) === null) {
@@ -161,6 +178,37 @@ export function ouvrirGuichet(options: OptionsGuichet): Promise<Guichet> {
     }
   };
 
+  const geste = async (encode: string, corps: string, reponse: ServerResponse) => {
+    const refus = (code: number, said: string) => rendre(reponse, code, { done: false, said });
+    let nom: string;
+    try {
+      nom = decodeURIComponent(encode);
+    } catch {
+      return rendre(reponse, 404, { said: "unknown" });
+    }
+    let demande: { gesture?: unknown; ticket?: unknown };
+    try {
+      demande = JSON.parse(corps) as typeof demande;
+    } catch {
+      demande = {};
+    }
+    const attendu = `{"gesture": ${Object.keys(GESTES).map((cle) => `"${cle}"`).join(" | ")}, "ticket": <number>} is expected`;
+    if (typeof demande !== "object" || demande === null) return refus(400, `the request is not a gesture: ${attendu}`);
+    const { gesture, ticket } = demande;
+    if (!estUnGeste(gesture)) return refus(400, `“${String(gesture)}” is not a gesture of the queue: ${attendu}`);
+    if (typeof ticket !== "number" || !Number.isSafeInteger(ticket) || ticket < 1) return refus(400, `the gesture names no ticket: ${attendu}`);
+    if (options.gestes === undefined) return refus(404, `this station has no project named “${nom}”`);
+    const rendu = await options.gestes.jouer(nom, gesture, ticket);
+    if (rendu.etat === "inconnu") return refus(404, `this station has no project named “${nom}”`);
+    const code = rendu.etat === "fait" ? 200 : rendu.etat === "refuse" ? 409 : 502;
+    return rendre(reponse, code, { done: rendu.etat === "fait", said: rendu.said, detail: rendu.detail });
+  };
+
+  const trebucher = (reponse: ServerResponse, erreur: unknown) => {
+    console.error(`brigade : the phone desk stumbled — ${erreur instanceof Error ? (erreur.stack ?? erreur.message) : String(erreur)}`);
+    if (!reponse.headersSent) rendre(reponse, 500, { said: "the station stumbled" });
+  };
+
   const traiter = (requete: IncomingMessage, corps: string, reponse: ServerResponse) => {
     const chemin = (requete.url ?? "").split("?")[0] ?? "";
     if (chemin === "/pairing") {
@@ -168,17 +216,22 @@ export function ouvrirGuichet(options: OptionsGuichet): Promise<Guichet> {
       return appairer(corps, reponse);
     }
     if (chemin === "/stations") {
-      if (!lecture(requete, reponse)) return;
+      if (!appairee(requete, reponse)) return;
       return rendre(reponse, 200, { stations: telephones.stations() });
     }
     if (chemin === "/projects") {
-      if (!lecture(requete, reponse)) return;
+      if (!appairee(requete, reponse)) return;
       return rendre(reponse, 200, { projects: options.projets?.liste() ?? [] });
     }
     const [, projet] = /^\/projects\/([^/]+)\/queue$/.exec(chemin) ?? [];
     if (projet !== undefined) {
-      if (!lecture(requete, reponse)) return;
+      if (!appairee(requete, reponse)) return;
       return file(projet, reponse);
+    }
+    const [, duGeste] = /^\/projects\/([^/]+)\/gestures$/.exec(chemin) ?? [];
+    if (duGeste !== undefined) {
+      if (!appairee(requete, reponse, "POST")) return;
+      return void geste(duGeste, corps, reponse).catch((erreur: unknown) => trebucher(reponse, erreur));
     }
     return rendre(reponse, 404, { said: "unknown" });
   };
@@ -194,8 +247,7 @@ export function ouvrirGuichet(options: OptionsGuichet): Promise<Guichet> {
       try {
         traiter(requete, corps, reponse);
       } catch (erreur) {
-        console.error(`brigade : the phone desk stumbled — ${erreur instanceof Error ? (erreur.stack ?? erreur.message) : String(erreur)}`);
-        if (!reponse.headersSent) rendre(reponse, 500, { said: "the station stumbled" });
+        trebucher(reponse, erreur);
       }
     });
   });
