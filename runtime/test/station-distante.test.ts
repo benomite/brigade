@@ -72,9 +72,9 @@ describe("une station distante tire son travail", { concurrency: 8 }, () => {
     // rien de plus. Le cook d'ici, lui, a été lancé avec les mêmes arguments.
     assert.deepEqual(
       { ...mission, prompt: "", args: [] },
-      { ticket: 16, title: "Ticket 16", run: mission.run, branch: `cook/${mission.run}`, base: "v2", repository: "benomite/brigade", model: "sonnet", effort: "low", prompt: "", args: [], limits: PLAFONDS, leaseMs: BAIL_MS, leaseUntil: mission.leaseUntil, resumes: null },
+      { ticket: 16, title: "Ticket 16", run: mission.run, branch: `cook/${mission.run}`, base: "v2", repository: "acme/brigade", model: "sonnet", effort: "low", prompt: "", args: [], limits: PLAFONDS, leaseMs: BAIL_MS, leaseUntil: mission.leaseUntil, resumes: null },
     );
-    assert.match(mission.prompt, /^Tu es un cook de la brigade : tu exécutes un seul ticket, le ticket #16 du dépôt benomite\/brigade/);
+    assert.match(mission.prompt, /^Tu es un cook de la brigade : tu exécutes un seul ticket, le ticket #16 du dépôt acme\/brigade/);
     const dIci = lancements()[0]?.args ?? [];
     assert.deepEqual(mission.args.map((arg, i) => (i === 1 ? "" : arg)), dIci.map((arg, i) => (i === 1 ? "" : arg)));
     assert.equal(mission.args[1], mission.prompt);

@@ -35,14 +35,14 @@ function projet(t: TestContext, { garni = true } = {}) {
 describe("l'apprentissage d'un projet", () => {
   test("ses leçons portent date, tickets et cooks ; seule la promue porte l'adresse de sa ligne ; son profil porte domaine, carnet et tickets", (t) => {
     const { journal, depot } = projet(t);
-    const { lecons, profils } = apprentissageDuProjet({ journal, projet: "p", repoDir: depot, depot: "benomite/brigade", branche: "v2" });
+    const { lecons, profils } = apprentissageDuProjet({ journal, projet: "p", repoDir: depot, depot: "acme/brigade", branche: "v2" });
 
     const [provisoire, promue] = lecons;
     assert.equal(lecons.length, 2);
     assert.deepEqual({ ...provisoire, date: provisoire?.date.length }, { id: "L1", texte: "lancer les tests avant de commiter", statut: "provisoire", date: 10, tickets: [21], origine: { kind: "retro" }, cooks: 2, progres: { avant: null, apres: null } });
     assert.equal("url" in (provisoire ?? {}), false);
     // Le carnet : titre, blanc, « ## L-001 », état, texte → la ligne du texte est la 6e.
-    assert.deepEqual(promue, { id: "L-001", texte: "lire le CLAUDE.md d'abord", statut: "promue", date: "2026-10-01", tickets: [12, 15], origine: { kind: "pass-send-back", ticket: 12 }, cooks: 1, progres: { avant: null, apres: null }, url: `https://github.com/benomite/brigade/blob/v2/${CARNET_PATH}#L5` });
+    assert.deepEqual(promue, { id: "L-001", texte: "lire le CLAUDE.md d'abord", statut: "promue", date: "2026-10-01", tickets: [12, 15], origine: { kind: "pass-send-back", ticket: 12 }, cooks: 1, progres: { avant: null, apres: null }, url: `https://github.com/acme/brigade/blob/v2/${CARNET_PATH}#L5` });
     assert.deepEqual(profils, [{ nom: "app-src-vue", domaine: "app/src/vue", skills: [], perimetre: ["app/src/vue"], carnet: [{ id: "L-001", texte: "peau mince", etat: "promoted", origine: { kind: "chef-correction", ticket: 3 } }], tickets: [3, 4], progres: { avant: null, apres: null } }]);
   });
 
@@ -63,7 +63,7 @@ describe("l'apprentissage d'un projet", () => {
 
   test("un projet sans leçon ni profil rend deux listes vides, sans erreur", (t) => {
     const { journal, depot } = projet(t, { garni: false });
-    assert.deepEqual(apprentissageDuProjet({ journal, projet: "p", repoDir: depot, depot: "benomite/brigade", branche: "v2" }), { lecons: [], profils: [] });
+    assert.deepEqual(apprentissageDuProjet({ journal, projet: "p", repoDir: depot, depot: "acme/brigade", branche: "v2" }), { lecons: [], profils: [] });
     assert.deepEqual(apprentissageDuProjet({ journal, projet: "p" }), { lecons: [], profils: [] });
   });
 
@@ -77,12 +77,12 @@ describe("par `facts`, le canal du runtime vers l'app", () => {
   test("`apprentissage` porte les leçons et les profils ; il est absent quand il n'y a rien", async (t) => {
     const { etat, depot, journal } = projet(t);
     journal.fermer();
-    const env = { BRIGADE_STATE_DIR: etat, BRIGADE_PROJECT: "p", BRIGADE_REPO_DIR: depot, BRIGADE_GITHUB_REPO: "benomite/brigade", BRIGADE_BASE_BRANCH: "v2" };
+    const env = { BRIGADE_STATE_DIR: etat, BRIGADE_PROJECT: "p", BRIGADE_REPO_DIR: depot, BRIGADE_GITHUB_REPO: "acme/brigade", BRIGADE_BASE_BRANCH: "v2" };
     const lancee = appeler(faits, [], env);
     assert.equal(await lancee.fin, 0);
     const forme = JSON.parse(lancee.sortie().split("\n")[0] ?? "");
     assert.deepEqual(forme.apprentissage.lecons.map((l: { id: string }) => l.id), ["L1", "L-001"]);
-    assert.equal(forme.apprentissage.lecons[1].url, `https://github.com/benomite/brigade/blob/v2/${CARNET_PATH}#L5`);
+    assert.equal(forme.apprentissage.lecons[1].url, `https://github.com/acme/brigade/blob/v2/${CARNET_PATH}#L5`);
     // Chaque leçon dit d'où elle est née.
     assert.deepEqual(forme.apprentissage.lecons.map((l: { origine: unknown }) => l.origine), [{ kind: "retro" }, { kind: "pass-send-back", ticket: 12 }]);
     assert.deepEqual(forme.apprentissage.profils[0].carnet[0].origine, { kind: "chef-correction", ticket: 3 });

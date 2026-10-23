@@ -22,7 +22,7 @@ import { git, repertoireTemporaire } from "../outils.ts";
 // est sur github.com.
 function espace(t: TestContext, contenu: Parameters<typeof projetSurGit>[1] = { reglages: { integrationBranch: "v2" } }) {
   const lieux = projetSurGit(t, contenu);
-  git(lieux.clone, "remote", "set-url", "origin", "https://github.com/benomite/espace.git");
+  git(lieux.clone, "remote", "set-url", "origin", "https://github.com/acme/espace.git");
   return lieux;
 }
 
@@ -42,7 +42,7 @@ describe("the defaults of a station, read from this machine and the project's cl
     const racine = repertoireTemporaire(t);
     const defauts = await defautsDeStation({ dossier: clone, racine, env: { HOME: "/home/chef" }, coeurs: 8, sonde: MACHINE });
 
-    assert.deepEqual(defauts.projet, { nom: "espace", depot: "benomite/espace", base: "v2", source: "projet.json", probleme: null });
+    assert.deepEqual(defauts.projet, { nom: "espace", depot: "acme/espace", base: "v2", source: "projet.json", probleme: null });
     assert.equal(defauts.coeurs, 8);
     assert.equal(defauts.cooks, 3);
     assert.match(defauts.cooksDit, /8 cores/);
@@ -76,9 +76,9 @@ describe("adding a station with only what belongs to it", { concurrency: 4 }, ()
     const { clone } = espace(t);
     const ajout = await ajouterUneStation(clone, { cooks: 2, principale: true, capacites: ["navigateur-headless", "android"] });
     assert.ok("projet" in ajout, JSON.stringify(ajout));
-    assert.deepEqual(ajout.projet, { nom: "espace", depot: "benomite/espace", base: null, principale: true, cooks: 2, manager: null, reviewer: null, ouvertLe: null, demandeLe: null, fournit: ["navigateur-headless", "android"] });
+    assert.deepEqual(ajout.projet, { nom: "espace", depot: "acme/espace", base: null, principale: true, cooks: 2, manager: null, reviewer: null, ouvertLe: null, demandeLe: null, fournit: ["navigateur-headless", "android"] });
     // La demande ne nomme pas la branche : la station la relit dans le dépôt.
-    assert.deepEqual(ajout.resolu, { depot: "benomite/espace", base: "v2", depuis: { depot: "clone", base: "projet.json" } });
+    assert.deepEqual(ajout.resolu, { depot: "acme/espace", base: "v2", depuis: { depot: "clone", base: "projet.json" } });
 
     // Telle que la station la lit dans son gist, puis la pose au journal du projet, chez elle.
     const lue = lireDemande(documentDeDemande([ajout.projet]));
@@ -92,13 +92,13 @@ describe("adding a station with only what belongs to it", { concurrency: 4 }, ()
     assert.ok("projet" in ajout, JSON.stringify(ajout));
     assert.equal(ajout.projet.base, null);
     assert.equal(ajout.projet.fournit, undefined);
-    assert.deepEqual(ajout.resolu, { depot: "benomite/espace", base: "main", depuis: { depot: "clone", base: "CLAUDE.md" } });
+    assert.deepEqual(ajout.resolu, { depot: "acme/espace", base: "main", depuis: { depot: "clone", base: "CLAUDE.md" } });
   });
 
   test("an older call that still names the repository and the branch keeps working, with or without a clone here", async (t) => {
-    const ancien = { nom: "parade", depot: "benomite/parade", base: "main", principale: true, cooks: 3, manager: { modele: "sonnet", effort: "medium" }, reviewer: { modele: "opus", effort: "high" }, ouvertLe: "2026-10-15T12:00:00.000Z", demandeLe: "2026-10-15T12:01:00.000Z" };
+    const ancien = { nom: "parade", depot: "acme/parade", base: "main", principale: true, cooks: 3, manager: { modele: "sonnet", effort: "medium" }, reviewer: { modele: "opus", effort: "high" }, ouvertLe: "2026-10-15T12:00:00.000Z", demandeLe: "2026-10-15T12:01:00.000Z" };
     const sansClone = await ajouterUneStation(null, ancien);
-    assert.deepEqual(sansClone, { projet: ancien, resolu: { depot: "benomite/parade", base: "main", depuis: { depot: "saisie", base: "saisie" } } });
+    assert.deepEqual(sansClone, { projet: ancien, resolu: { depot: "acme/parade", base: "main", depuis: { depot: "saisie", base: "saisie" } } });
     // Ce que l'appel nomme passe avant ce que le clone dit.
     const { clone } = espace(t);
     const avecClone = await ajouterUneStation(clone, ancien);
@@ -146,7 +146,7 @@ describe("adding a station with only what belongs to it", { concurrency: 4 }, ()
 });
 
 test("the station reads the capabilities of its demand; an unreadable one is only ignored, and said", () => {
-  const projet: ProjetDemande = { nom: "espace", depot: "benomite/espace", base: null, principale: true, cooks: 2, manager: null, reviewer: null, ouvertLe: null, demandeLe: null };
+  const projet: ProjetDemande = { nom: "espace", depot: "acme/espace", base: null, principale: true, cooks: 2, manager: null, reviewer: null, ouvertLe: null, demandeLe: null };
   const lu = lireDemande(JSON.stringify({ brigade: "projets", format: 1, projets: [{ ...projet, fournit: ["android", "android", "pas une capacité", 3] }] }));
   assert.deepEqual(lu?.projets, [{ ...projet, fournit: ["android"] }]);
   assert.deepEqual(lu?.problemes, ["projet « espace » demandé par l'app : 2 capacités illisibles sont ignorées — attendu des lettres, des chiffres et des tirets"]);

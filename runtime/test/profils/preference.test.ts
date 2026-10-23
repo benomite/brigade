@@ -125,7 +125,7 @@ describe("un profil de cook au dispatch", { concurrency: 8 }, () => {
     await jusqua(() => cooks().length === 2);
 
     assert.deepEqual([carnetDonne(14).length, carnetDonne(15).length], [0, 0]);
-    assert.equal(consigneDe(14), consigne({ ticket: 14, titre: issue(14).title, depot: "benomite/brigade", base: "v2" }));
+    assert.equal(consigneDe(14), consigne({ ticket: 14, titre: issue(14).title, depot: "acme/brigade", base: "v2" }));
     assert.doesNotMatch(consigneDe(15), /profil de cook/);
   });
 

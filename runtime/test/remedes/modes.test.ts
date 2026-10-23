@@ -23,7 +23,7 @@ const GIST = "gist1";
 const INSTANT = Date.parse("2026-10-15T12:02:00Z");
 const PARADE = {
   nom: "parade",
-  depot: "benomite/parade",
+  depot: "acme/parade",
   base: "main",
   principale: true,
   cooks: 2,
@@ -115,7 +115,7 @@ function uneStation(t: TestContext, locale: boolean, remedes: Remede[] = [RETIRE
 for (const { mode, locale } of MODES) {
   test(`${mode} : le refus servi porte le remède ; l'app le demande, la station le joue, réévalue, et répond que le refus est levé`, async (t) => {
     const station = uneStation(t, locale);
-    writeFileSync(join(station.racine, "projets"), "parade benomite/parade main\n");
+    writeFileSync(join(station.racine, "projets"), "parade acme/parade main\n");
     await station.projets.relire();
     const refuse = station.suivi();
     assert.equal(refuse?.etat, "refuse");
@@ -126,7 +126,7 @@ for (const { mode, locale } of MODES) {
     assert.deepEqual(issue, { outcome: "lifted" });
     assert.deepEqual(station.joues, ["remove-hand-written-line"]);
     // La ligne à la main est partie, celle de la station est écrite : le projet est servi.
-    assert.equal(station.configuration().includes(`${DEBUT}\nparade benomite/parade main\n${FIN}`), true);
+    assert.equal(station.configuration().includes(`${DEBUT}\nparade acme/parade main\n${FIN}`), true);
     assert.equal(station.suivi()?.etat, "servi");
     assert.equal(station.suivi()?.ici, locale);
     // La demande est retirée par l'app ; à la cadence suivante, la réponse la suit.
@@ -138,7 +138,7 @@ for (const { mode, locale } of MODES) {
 
   test(`${mode} : un remède qui ne lève pas le refus — la réponse dit pourquoi il tient, en une phrase`, async (t) => {
     const station = uneStation(t, locale, [{ ...RETIRER_LA_LIGNE, executer: () => {} }]);
-    writeFileSync(join(station.racine, "projets"), "parade benomite/parade main\n");
+    writeFileSync(join(station.racine, "projets"), "parade acme/parade main\n");
     await station.projets.relire();
     const issue = await station.demander({ project: "parade", refusal: "hand-written-line", remedy: "remove-hand-written-line" });
     assert.equal(issue.outcome, "holds");
@@ -150,7 +150,7 @@ for (const { mode, locale } of MODES) {
 
   test(`${mode} : un remède inconnu, ou que le refus n'offre pas — une erreur explicite, et rien ne change`, async (t) => {
     const station = uneStation(t, locale);
-    writeFileSync(join(station.racine, "projets"), "parade benomite/parade main\n");
+    writeFileSync(join(station.racine, "projets"), "parade acme/parade main\n");
     await station.projets.relire();
     const avant = station.configuration();
     assert.deepEqual(await station.demander({ project: "parade", refusal: "hand-written-line", remedy: "no-such-remedy" }), { outcome: "error", error: "the station knows no remedy called no-such-remedy: nothing was done" });
@@ -168,7 +168,7 @@ test("les deux modes rendent la même issue pour la même demande", async (t) =>
   const issues: IssueDuRemede[][] = [];
   for (const { locale } of MODES) {
     const station = uneStation(t, locale);
-    writeFileSync(join(station.racine, "projets"), "parade benomite/parade main\n");
+    writeFileSync(join(station.racine, "projets"), "parade acme/parade main\n");
     await station.projets.relire();
     issues.push([
       await station.demander({ project: "parade", refusal: "hand-written-line", remedy: "no-such-remedy" }),
@@ -210,7 +210,7 @@ test("une demande restée dans le gist n'est jouée qu'une fois, même par une s
 
 test("une station qui ne répond pas : l'app retire sa demande au bout du délai, et le dit", async (t) => {
   const station = uneStation(t, false);
-  writeFileSync(join(station.racine, "projets"), "parade benomite/parade main\n");
+  writeFileSync(join(station.racine, "projets"), "parade acme/parade main\n");
   await station.projets.relire();
   // La station s'arrête : plus aucune cadence.
   station.projets.arreter();

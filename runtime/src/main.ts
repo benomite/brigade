@@ -42,6 +42,7 @@ import { clientGitHubDesGestes } from "./tableau/gestes/client.ts";
 import { gestesDuTableau } from "./tableau/gestes/gestes.ts";
 import { mentionsDuTableau } from "./tableau/mention/mention.ts";
 import { ouvrirGitHub } from "./github.ts";
+import { direValeursManquantes, valeursManquantes } from "./valeurs-a-donner.ts";
 
 // Ce que le runtime dit à journald est masqué, avant même son premier mot.
 masquerLaConsole();
@@ -61,6 +62,10 @@ function exiger(variable: string): string {
   return valeur;
 }
 
+// Ce que l'utilisateur doit donner, dit en une fois — pas une variable par
+// démarrage.
+const manquantes = valeursManquantes(process.env);
+if (manquantes.length > 0) refuser(direValeursManquantes(manquantes));
 const repertoireEtat = exiger("BRIGADE_STATE_DIR");
 const projet = exiger("BRIGADE_PROJECT");
 

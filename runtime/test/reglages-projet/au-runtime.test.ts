@@ -43,7 +43,7 @@ describe("asking the project's runtime for a project setting change", () => {
     const reponse = await proposerAuRuntime({ calibrationCeiling: { model: "opus", effort: "high" } }, lieu.appel);
 
     assert.ok(reponse.ok, JSON.stringify(reponse));
-    assert.equal(reponse.pr, `https://github.com/benomite/brigade/pull/${reponse.numero}`);
+    assert.equal(reponse.pr, `https://github.com/acme/brigade/pull/${reponse.numero}`);
     assert.deepEqual(lieu.gh.prs.map(({ base, branche }) => [base, branche]), [[BASE, reponse.branche]]);
     assert.deepEqual(git(lieu.origine, "diff", "--name-only", `${BASE}...${reponse.branche}`).split("\n"), [FICHIER]);
     assert.deepEqual(reglagesDuTexte(`${git(lieu.origine, "show", `${reponse.branche}:${FICHIER}`)}\n`).calibrationCeiling, { model: "opus", effort: "high" });

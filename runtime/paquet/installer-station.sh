@@ -2,7 +2,7 @@
 # Installe une station brigade sur un serveur Debian, en une commande — celle
 # du guide (docs/installation-station.md) :
 #
-#   curl -fsSL https://github.com/benomite/brigade/releases/latest/download/installer-station.sh | sudo sh
+#   curl -fsSL https://github.com/<owner>/<repo>/releases/latest/download/installer-station.sh | sudo sh
 #
 # Le paquet vient de la dernière version publiée. Pour en installer un autre —
 # construit à la main, sur une machine de test —, le donner en argument, par
@@ -24,7 +24,9 @@
 #   1  installation refusée ou échouée, ou connexion Max non faite, dite en une ligne
 set -eu
 
-DEPOT=benomite/brigade
+# Le dépôt GitHub qui publie le paquet : posé dans ce script à la publication
+# (le placeholder ci-dessous), ou donné par BRIGADE_DEPOT. Aucun n'est supposé.
+DEPOT="${BRIGADE_DEPOT:-@DEPOT@}"
 SERVICE=brigade-station.service
 # Ce que le paquet pose : son node, et l'étape de connexion Max.
 NODE=/usr/lib/brigade-station/node/bin/node
@@ -48,6 +50,12 @@ case "$arch" in
   *) refuser "aucun paquet de la station pour l'architecture $arch (amd64, arm64)" ;;
 esac
 
+if [ -z "${1:-}" ]; then
+  case "$DEPOT" in
+    */*) ;;
+    *) refuser "aucun dépôt n'est désigné pour télécharger le paquet — donner le paquet (un chemin ou une adresse) en argument, ou BRIGADE_DEPOT=<compte>/<dépôt> du dépôt GitHub qui publie brigade" ;;
+  esac
+fi
 source="${1:-https://github.com/$DEPOT/releases/latest/download/brigade-station_$arch.deb}"
 
 travail="$(mktemp -d)"

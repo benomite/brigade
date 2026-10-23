@@ -101,7 +101,7 @@ test("une issue qui attend sans être sur le rail a son adresse : celle que le d
   noter({ type: "manager.set-aside", payload: { reason: "blocked-on-human", fired: false } }, 378, "manager");
   const a = new Date(`${JOUR_HORLOGE}T10:04:11.000Z`);
 
-  assert.deepEqual(faits(lireEtat(journal, a), a, "benomite/brigade").attend, [{ ticket: 378, titre: "", url: "https://github.com/benomite/brigade/issues/378", decision: { quoi: "ecartee", motif: "blocked-on-human", cause: null, pr: null } }]);
+  assert.deepEqual(faits(lireEtat(journal, a), a, "acme/brigade").attend, [{ ticket: 378, titre: "", url: "https://github.com/acme/brigade/issues/378", decision: { quoi: "ecartee", motif: "blocked-on-human", cause: null, pr: null } }]);
   assert.deepEqual(lire(`${JOUR_HORLOGE}T10:04:11.000Z`).forme.attend, [{ ticket: 378, titre: "", url: null, decision: { quoi: "ecartee", motif: "blocked-on-human", cause: null, pr: null } }]);
   // Un nom de dépôt qui n'en est pas un ne donne rien : rien n'est composé de travers.
   assert.deepEqual(faits(lireEtat(journal, a), a, "pas un dépôt").attend, [{ ticket: 378, titre: "", url: null, decision: { quoi: "ecartee", motif: "blocked-on-human", cause: null, pr: null } }]);
@@ -122,10 +122,10 @@ test("un ticket d'interface en pass, puis livré, porte les captures de sa derni
   noter({ type: "cook.reported", payload: { run: "15-b", ending: "done", reason: null, summary: null, branch: "cook/15-a", pr: null, captures: { sha: "bbb", screens: [{ screen: "fiche", before: "docs/captures/15/fiche-avant.png", after: "docs/captures/15/fiche-apres.png" }] } } }, 15, "station:box/claude");
   livrer(14);
   const a = new Date(`${JOUR_HORLOGE}T10:04:11.000Z`);
-  const adresse = (moment: string) => `https://github.com/benomite/brigade/blob/bbb/docs/captures/15/fiche-${moment}.png?raw=true`;
+  const adresse = (moment: string) => `https://github.com/acme/brigade/blob/bbb/docs/captures/15/fiche-${moment}.png?raw=true`;
   const attendues = { complet: true, ecrans: [{ ecran: "fiche", avant: adresse("avant"), apres: adresse("apres") }] };
 
-  const enPass = faits(lireEtat(journal, a), a, "benomite/brigade");
+  const enPass = faits(lireEtat(journal, a), a, "acme/brigade");
   assert.deepEqual(enPass.rail.find(({ ticket }) => ticket === 15)?.captures, attendues);
   assert.equal("captures" in (enPass.rail.find(({ ticket }) => ticket === 14) ?? {}), false);
   // Sans dépôt connu, aucune adresse ne se compose : rien n'est montré.
@@ -133,7 +133,7 @@ test("un ticket d'interface en pass, puis livré, porte les captures de sa derni
 
   rail.servir(15);
   rail.servir(14);
-  const servis = faits(lireEtat(journal, a), a, "benomite/brigade").livres;
+  const servis = faits(lireEtat(journal, a), a, "acme/brigade").livres;
   assert.deepEqual(servis.find(({ ticket }) => ticket === 15)?.captures, attendues);
   assert.equal("captures" in (servis.find(({ ticket }) => ticket === 14) ?? {}), false);
 });
@@ -143,9 +143,9 @@ test("un ticket du rail qui attend garde l'adresse et le titre du rail, quel que
   noter({ type: "ticket.arrived", payload: { title: "Ticket 18", priority: 1, createdAt: "2026-10-01T00:00:18Z", url: "https://exemple.test/18", card: { waitsFor: [12], zone: [], problems: [] } } }, 18, "github");
   const a = new Date(`${JOUR_HORLOGE}T10:04:11.000Z`);
 
-  assert.deepEqual(faits(lireEtat(journal, a), a, "benomite/brigade").attend.map(({ ticket }) => ticket), []);
+  assert.deepEqual(faits(lireEtat(journal, a), a, "acme/brigade").attend.map(({ ticket }) => ticket), []);
   noter({ type: "ticket.left", payload: { reason: "unfired" } }, 12, "github");
-  assert.deepEqual(faits(lireEtat(journal, a), a, "benomite/brigade").attend, [{ ticket: 18, titre: "Ticket 18", url: "https://exemple.test/18", decision: { quoi: "bloque", motif: null, cause: null, pr: null } }]);
+  assert.deepEqual(faits(lireEtat(journal, a), a, "acme/brigade").attend, [{ ticket: 18, titre: "Ticket 18", url: "https://exemple.test/18", decision: { quoi: "bloque", motif: null, cause: null, pr: null } }]);
 });
 
 test("la forme et le texte de `status` disent la même chose : le rail ticket par ticket, son décompte, ce qui attend, le dernier événement", (t) => {
@@ -361,7 +361,7 @@ test("les livrés restent dans la forme après la fermeture de leur issue, 24 h 
   );
   // L'adresse d'une livraison hors du rail se compose du dépôt de la box, comme pour `attend`.
   const a = new Date(`${JOUR_HORLOGE}T10:01:00.000Z`);
-  assert.equal(faits(lireEtat(journal, a), a, "benomite/brigade").livres[0]?.url, "https://github.com/benomite/brigade/issues/378");
+  assert.equal(faits(lireEtat(journal, a), a, "acme/brigade").livres[0]?.url, "https://github.com/acme/brigade/issues/378");
 
   // Le compte et la liste glissent ensemble, à l'horloge de la lecture.
   for (const [maintenant, tickets] of [

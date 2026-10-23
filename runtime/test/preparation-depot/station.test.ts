@@ -15,7 +15,7 @@ const rienNeReste = temporaireDuFichier();
 
 const STATION = join(import.meta.dirname, "../../src/station/main.ts");
 const FAUX_GH_GISTS = join(import.meta.dirname, "../appairage/faux-gh-gists.ts");
-const DEPOT = "benomite/parade";
+const DEPOT = "acme/parade";
 // Le ticket du chef, plus ancien : sans préparation, c'est lui qui partirait le premier.
 const DU_CHEF = 15;
 const PREPARATION = 20;

@@ -18,7 +18,7 @@ import { aArreter, DEPOT, jusqua, repertoireTemporaire } from "../../outils.ts";
 
 const PROJET = "brigade";
 const TABLEAU = 1;
-const CHEF = "benomite";
+const CHEF = "acme";
 
 const ligne = (ticket: number, quoi = "merge", depuis = "2026-10-08T10:00:00.000Z"): LigneDeLaFile => ({
   nom: `#${ticket}`,
@@ -114,7 +114,7 @@ describe("la mention du chef", () => {
 
   test("le texte d'une décision n'ouvre pas de mention d'un autre compte", () => {
     const corps = direLaMention(CHEF, { ...ligne(12), titre: "ping @someone", ligne: "ask @other" });
-    assert.ok(!/@(?!⁠)(?!benomite)\w/.test(corps), corps);
+    assert.ok(!/@(?!⁠)(?!acme)\w/.test(corps), corps);
   });
 });
 

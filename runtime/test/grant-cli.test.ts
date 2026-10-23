@@ -141,7 +141,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     juger("a", "green");
     // Trois livraisons arrêtées : une qu'il merge, une qu'il ferme, une qu'il laisse.
     noter({ type: "pass.held", payload: { reason: "no-grant" } });
-    noter({ type: "merge.done", payload: { pr: PR, sha: "abcdef0a", by: "outside", actor: "benomite", reconciled: false } });
+    noter({ type: "merge.done", payload: { pr: PR, sha: "abcdef0a", by: "outside", actor: "acme", reconciled: false } });
     noter({ type: "pass.started", payload: { run: "b", pr: `${PR}8`, number: 408, sha: "abcdef0b" } }, 18);
     noter({ type: "pass.held", payload: { reason: "no-grant" } }, 18);
     noter({ type: "pass.pr-closed", payload: { pr: `${PR}8` } }, 18);
@@ -417,8 +417,8 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     noter({ type: "merge.done", payload: { pr: PR, sha: "abcdef0a", by: "pass", actor: "brigade-pass[bot]", reconciled: true } });
     assert.match((await commande(PASS, "17")).sortie, /merged by the pass, under the identity brigade-pass\[bot\] — noticed afterwards, at restart$/m);
 
-    noter({ type: "merge.done", payload: { pr: PR, sha: "abcdef0a", by: "outside", actor: "benomite", reconciled: false } });
-    assert.match((await commande(PASS, "17")).sortie, /merged outside the runtime \(by hand\), under the identity benomite$/m);
+    noter({ type: "merge.done", payload: { pr: PR, sha: "abcdef0a", by: "outside", actor: "acme", reconciled: false } });
+    assert.match((await commande(PASS, "17")).sortie, /merged outside the runtime \(by hand\), under the identity acme$/m);
   });
 
   test("le chef lit ce que le reviewer a dit — son résumé, chaque constat — et un ticket sans diff servi sans merge", async (t) => {

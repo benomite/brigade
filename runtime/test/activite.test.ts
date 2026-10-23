@@ -52,7 +52,7 @@ describe("lire ce que fait un cook", () => {
     assert.equal(dit(), "écrit app/src/bon.ts");
     lire(f.outil("Grep", { pattern: "motDePasse", path: WT }).ligne);
     assert.equal(dit(), "cherche dans le code");
-    lire(f.outil("Bash", { command: "gh issue view 564 --repo benomite/brigade --comments" }).ligne);
+    lire(f.outil("Bash", { command: "gh issue view 564 --repo acme/brigade --comments" }).ligne);
     assert.equal(dit(), "lit le ticket");
     lire(f.outil("Bash", { command: `cd ${WT} && npm --prefix runtime run typecheck` }).ligne);
     assert.equal(dit(), "vérifie les types");

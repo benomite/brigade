@@ -58,7 +58,7 @@ function machineAvecUnProjet(t: TestContext): Machine & { etatDuProjet: string }
   git(clone, "init", "-q");
   const gh = fauxGh(t);
   gh.issues([]);
-  writeFileSync(join(machine.station, "projets"), `brigade benomite/brigade ${BASE} BRIGADE_GH_BIN=${gh.bin} BRIGADE_SANDBOX_BIN=${FAUX_BWRAP}\n`);
+  writeFileSync(join(machine.station, "projets"), `brigade acme/brigade ${BASE} BRIGADE_GH_BIN=${gh.bin} BRIGADE_SANDBOX_BIN=${FAUX_BWRAP}\n`);
   return { ...machine, etatDuProjet };
 }
 
@@ -250,13 +250,13 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
     git(clone, "add", ".");
     git(clone, "commit", "-q", "-m", "les gates du projet");
     git(clone, "push", "-q", "origin", BASE);
-    const depot = "benomite/brigade";
+    const depot = "acme/brigade";
     const pr = { number: 40, html_url: `https://github.com/${depot}/pull/40`, state: "open", merged: false, mergeable: true, base: { ref: BASE }, head: { sha: "tete" } };
     const gh = fauxGh(t);
     gh.issues([issueGitHub(15, { labels: ["fire", "model:sonnet", "effort:low"] })]);
     gh.repondre(`repos/${depot}/pulls`, { statut: 201, corps: pr });
     gh.repondre(`repos/${depot}/issues/15/comments`, { statut: 201, corps: { id: 1 } });
-    gh.repondre(`repos/${depot}/pulls?head=benomite:cook/*`, { corps: [pr] });
+    gh.repondre(`repos/${depot}/pulls?head=acme:cook/*`, { corps: [pr] });
     gh.repondre(`repos/${depot}/pulls/40`, { corps: pr });
     gh.repondre(`repos/${depot}/commits/*/check-runs?per_page=100`, { corps: { check_runs: [] } });
     gh.repondre(`repos/${depot}/commits/*/status?per_page=100`, { corps: { statuses: [] } });

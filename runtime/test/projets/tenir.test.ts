@@ -29,7 +29,7 @@ const rienNeReste = temporaireDuFichier();
 const GIST = "gist1";
 const PARADE = {
   nom: "parade",
-  depot: "benomite/parade",
+  depot: "acme/parade",
   base: "main",
   principale: true,
   cooks: 2,
@@ -126,8 +126,8 @@ test("un projet dont la station est la principale : cloné, ses décisions posé
   station.demander(PARADE);
   await station.projets.relire();
 
-  assert.deepEqual(station.clones, [`benomite/parade → ${join(station.racine, "clones/parade")}`]);
-  assert.equal(station.configuration(), `${DEBUT}\nparade benomite/parade main\n${FIN}\n`);
+  assert.deepEqual(station.clones, [`acme/parade → ${join(station.racine, "clones/parade")}`]);
+  assert.equal(station.configuration(), `${DEBUT}\nparade acme/parade main\n${FIN}\n`);
   assert.equal(station.relectures(), 1);
   const journal = ouvrirJournal(join(station.racine, "etat/parade"), { lectureSeule: true });
   try {
@@ -163,9 +163,9 @@ test("une demande sans branche ni calibrage : le dépôt cloné les déclare —
   station.demander({ ...sansReglages, base: null });
   await station.projets.relire();
 
-  assert.equal(station.configuration(), `${DEBUT}\nparade benomite/parade\n${FIN}\n`);
+  assert.equal(station.configuration(), `${DEBUT}\nparade acme/parade\n${FIN}\n`);
   // Le ticket qui prépare le dépôt vise la branche que le dépôt déclare.
-  assert.deepEqual(station.preparations, [`benomite/parade v2 → ${join(station.racine, "etat/parade")} ${join(station.racine, "clones/parade")}`]);
+  assert.deepEqual(station.preparations, [`acme/parade v2 → ${join(station.racine, "etat/parade")} ${join(station.racine, "clones/parade")}`]);
   const journal = ouvrirJournal(join(station.racine, "etat/parade"), { lectureSeule: true });
   try {
     assert.deepEqual(decisionsPosees(journal.base), { BRIGADE_STATIONS: "box/claude:2:code+raisonnement" });
@@ -186,7 +186,7 @@ test("une demande sans branche, sur un dépôt qui n'en déclare aucune : refus�
   const [suivi] = station.suivi() ?? [];
   assert.equal(suivi?.etat, "refuse");
   assert.equal(suivi?.refus?.code, "configuration-invalid");
-  assert.match(suivi?.dit ?? "", /benomite\/parade does not declare its integration branch \(\.claude\/brigade\/projet\.json, or the “Branche d'intégration” line of its CLAUDE\.md\), and the app names none/);
+  assert.match(suivi?.dit ?? "", /acme\/parade does not declare its integration branch \(\.claude\/brigade\/projet\.json, or the “Branche d'intégration” line of its CLAUDE\.md\), and the app names none/);
 });
 
 test("le ticket qui prépare le dépôt s'ouvre avant la ligne du projet, une fois ; GitHub muet, rien n'est écrit et la station réessaie", async (t) => {
@@ -198,15 +198,15 @@ test("le ticket qui prépare le dépôt s'ouvre avant la ligne du projet, une fo
   assert.equal(station.configuration(), "");
   assert.equal(station.relectures(), 0);
   assert.equal(station.suivi()?.[0]?.etat, "en-preparation");
-  assert.match(station.suivi()?.[0]?.dit ?? "", /could not open the ticket that prepares benomite\/parade; it retries — HTTP 502/);
+  assert.match(station.suivi()?.[0]?.dit ?? "", /could not open the ticket that prepares acme\/parade; it retries — HTTP 502/);
   assert.ok(station.lignes.includes("brigade : station — parade : le ticket qui prépare son dépôt n'est pas ouvert sur GitHub, la station réessaie : HTTP 502"));
 
   station.echouerLaPreparation(null);
   await station.projets.relire();
-  assert.deepEqual(station.preparations, [`benomite/parade main → ${join(station.racine, "etat/parade")} ${join(station.racine, "clones/parade")}`]);
-  assert.equal(station.configuration(), `${DEBUT}\nparade benomite/parade main\n${FIN}\n`);
+  assert.deepEqual(station.preparations, [`acme/parade main → ${join(station.racine, "etat/parade")} ${join(station.racine, "clones/parade")}`]);
+  assert.equal(station.configuration(), `${DEBUT}\nparade acme/parade main\n${FIN}\n`);
   assert.ok(
-    station.lignes.includes("brigade : station — parade : ticket #7 ouvert sur benomite/parade pour préparer le dépôt (gates, setup de worktree, sites autorisés) — le rail n'en sert aucun autre avant son merge"),
+    station.lignes.includes("brigade : station — parade : ticket #7 ouvert sur acme/parade pour préparer le dépôt (gates, setup de worktree, sites autorisés) — le rail n'en sert aucun autre avant son merge"),
   );
   // Sa ligne écrite, il n'est plus préparé : rien ne repart vers GitHub.
   await station.projets.relire();
@@ -215,14 +215,14 @@ test("le ticket qui prépare le dépôt s'ouvre avant la ligne du projet, une fo
 
 test("retiré depuis l'app, sa ligne quitte la configuration — celles écrites à la main restent", async (t) => {
   const station = uneStation(t);
-  writeFileSync(join(station.racine, "projets"), "brigade benomite/brigade v2\n");
+  writeFileSync(join(station.racine, "projets"), "brigade acme/brigade v2\n");
   station.demander(PARADE);
   await station.projets.relire();
-  assert.equal(station.configuration(), `brigade benomite/brigade v2\n\n${DEBUT}\nparade benomite/parade main\n${FIN}\n`);
+  assert.equal(station.configuration(), `brigade acme/brigade v2\n\n${DEBUT}\nparade acme/parade main\n${FIN}\n`);
 
   station.demander();
   await station.projets.relire();
-  assert.equal(station.configuration(), "brigade benomite/brigade v2\n");
+  assert.equal(station.configuration(), "brigade acme/brigade v2\n");
   assert.equal(station.relectures(), 2);
   assert.deepEqual(station.suivi(), []);
   assert.ok(station.lignes.includes("brigade : station — parade retiré depuis l'app : sa ligne quitte la configuration (son état et son clone restent)"));
@@ -232,30 +232,30 @@ test("retiré depuis l'app, sa ligne quitte la configuration — celles écrites
 test("Apps non autorisées sur le dépôt : rien n'est cloné ni écrit, le suivi porte les pages où le chef les autorise — autorisées, le projet est servi", async (t) => {
   const station = uneStation(t);
   const pages = ["https://github.com/apps/brigade-cook/installations/new", "https://github.com/apps/brigade-pass/installations/new"];
-  station.autorisations.set("benomite/parade", { autorisee: false, pages });
+  station.autorisations.set("acme/parade", { autorisee: false, pages });
   station.demander(PARADE);
   await station.projets.relire();
   assert.deepEqual(station.clones, []);
   assert.equal(station.configuration(), "");
-  assert.deepEqual(station.suivi(), [{ nom: "parade", etat: "a-autoriser", dit: "authorize brigade on benomite/parade, on GitHub: one click per page", autoriser: pages, serviLe: null, cuitSur: null, ici: false, bascule: null }]);
+  assert.deepEqual(station.suivi(), [{ nom: "parade", etat: "a-autoriser", dit: "authorize brigade on acme/parade, on GitHub: one click per page", autoriser: pages, serviLe: null, cuitSur: null, ici: false, bascule: null }]);
   await station.projets.relire();
   assert.equal(station.lignes.filter((ligne) => ligne.includes("attend que le chef autorise")).length, 1);
 
-  station.autorisations.delete("benomite/parade");
+  station.autorisations.delete("acme/parade");
   await station.projets.relire();
   assert.equal(station.suivi()?.[0]?.etat, "servi");
 });
 
 test("GitHub muet sur l'autorisation, ou clone en échec : le projet attend, la station réessaie, rien n'est écrit", async (t) => {
   const station = uneStation(t);
-  station.autorisations.set("benomite/parade", { panne: "identité « cook » : GitHub injoignable" });
+  station.autorisations.set("acme/parade", { panne: "identité « cook » : GitHub injoignable" });
   station.demander(PARADE);
   await station.projets.relire();
   assert.equal(station.suivi()?.[0]?.etat, "en-preparation");
   assert.match(station.suivi()?.[0]?.dit ?? "", /GitHub could not tell .* GitHub injoignable/);
 
-  station.autorisations.delete("benomite/parade");
-  station.echouerLeClone(new Error("clone de benomite/parade en échec — Repository not found"));
+  station.autorisations.delete("acme/parade");
+  station.echouerLeClone(new Error("clone de acme/parade en échec — Repository not found"));
   await station.projets.relire();
   const { clone: muet, blocages, ...sansClone } = station.suivi()?.[0] ?? assert.fail("pas de suivi");
   assert.deepEqual(sansClone, { nom: "parade", etat: "refuse", dit: `${muet?.raison} ${muet?.geste}`, autoriser: [], serviLe: null, cuitSur: null, ici: false, bascule: null, refus: refus("clone-failed") });
@@ -312,10 +312,10 @@ test("un clone en échec se dit en clair : la cause, le compte GitHub de la stat
 
 test("une station qui n'est pas la principale ne lui écrit aucune ligne ; une ligne écrite à la main garde la main", async (t) => {
   const station = uneStation(t);
-  writeFileSync(join(station.racine, "projets"), "espace benomite/espace main\n");
-  station.demander({ ...PARADE, principale: false }, { ...PARADE, nom: "espace", depot: "benomite/espace" });
+  writeFileSync(join(station.racine, "projets"), "espace acme/espace main\n");
+  station.demander({ ...PARADE, principale: false }, { ...PARADE, nom: "espace", depot: "acme/espace" });
   await station.projets.relire();
-  assert.equal(station.configuration(), "espace benomite/espace main\n");
+  assert.equal(station.configuration(), "espace acme/espace main\n");
   assert.deepEqual(
     station.suivi()?.map(({ nom, etat }) => [nom, etat]),
     [
@@ -354,7 +354,7 @@ test("un projet refusé porte un refus structuré — statut, code, phrase, acti
 
 test("un projet écrit à la main dans la configuration : son refus dit pourquoi", async (t) => {
   const station = uneStation(t);
-  writeFileSync(join(station.racine, "projets"), "parade benomite/parade main\n");
+  writeFileSync(join(station.racine, "projets"), "parade acme/parade main\n");
   station.demander(PARADE);
   await station.projets.relire();
   assert.deepEqual(station.suivi()?.[0]?.refus, refus("hand-written-line"));
@@ -378,7 +378,7 @@ test("un dépôt qui refuse la récupération : l'accès est bloqué, en une phr
   assert.equal(suivi?.etat, "refuse");
   assert.equal(suivi?.acces?.bloque, "fetch");
   uneSeulePhrase(suivi?.acces?.raison ?? "");
-  assert.match(suivi?.acces?.raison ?? "", /^box cannot fetch from benomite\/parade: /);
+  assert.match(suivi?.acces?.raison ?? "", /^box cannot fetch from acme\/parade: /);
   assert.equal(suivi?.dit, `${suivi?.acces?.raison} ${suivi?.acces?.geste}`);
   // Ni décisions, ni ticket de préparation, ni ligne : la préparation n'est pas tentée.
   assert.deepEqual(station.preparations, []);
@@ -426,7 +426,7 @@ test("un dépôt qui laisse récupérer mais refuse de pousser : l'accès est bl
   assert.equal(suivi?.etat, "refuse");
   assert.equal(suivi?.acces?.bloque, "push");
   uneSeulePhrase(suivi?.acces?.raison ?? "");
-  assert.match(suivi?.acces?.raison ?? "", /^box can fetch from benomite\/parade but cannot push to it: its GitHub account has no write access to it/);
+  assert.match(suivi?.acces?.raison ?? "", /^box can fetch from acme\/parade but cannot push to it: its GitHub account has no write access to it/);
   assert.deepEqual(station.preparations, []);
   assert.equal(station.configuration(), "");
 });
@@ -437,7 +437,7 @@ test("un dépôt joignable, où la station peut pousser : servi comme avant, san
   await station.projets.relire();
 
   assert.deepEqual(station.suivi(), [{ nom: "parade", etat: "servi", dit: "served by box", autoriser: [], serviLe: "2026-10-15T12:02:00.000Z", cuitSur: "box", ici: false, bascule: null, delai: AJOUTE }]);
-  assert.equal(station.configuration(), `${DEBUT}\nparade benomite/parade ${BASE}\n${FIN}\n`);
+  assert.equal(station.configuration(), `${DEBUT}\nparade acme/parade ${BASE}\n${FIN}\n`);
   assert.equal(station.preparations.length, 1);
 });
 
@@ -457,7 +457,7 @@ test("un worktree que la cuisine d'un projet servi n'a pas pu préparer : le sui
     }
   };
   const why = "git fetch : fatal: could not read Username for 'https://github.com': terminal prompts disabled";
-  const access = { blocked: "fetch" as const, reason: "box cannot fetch from benomite/parade: git has no credentials for https://github.com and no credential helper to ask for them (git: could not read Username for 'https://github.com': terminal prompts disabled).", gesture: "Run `gh auth setup-git` on box, under the account that runs it: git then takes its credentials from gh." };
+  const access = { blocked: "fetch" as const, reason: "box cannot fetch from acme/parade: git has no credentials for https://github.com and no credential helper to ask for them (git: could not read Username for 'https://github.com': terminal prompts disabled).", gesture: "Run `gh auth setup-git` on box, under the account that runs it: git then takes its credentials from gh." };
   noter({ type: "ticket.86", payload: { reason: "worktree-failed", until: "2026-10-15T12:12:00.000Z", why, access } });
   await station.projets.relire();
   const acces = { bloque: "fetch", raison: access.reason, geste: access.gesture };
@@ -487,7 +487,7 @@ test("les blocages d'un projet, posés à son journal, sont publiés dans son su
   const etat = join(station.racine, "etat/parade");
   const qui = { projet: "parade", auteur: "station:box" };
   const postgres = { id: "need:postgres", message: "The tests of parade need a Postgres that box does not have.", cause: "The worktree setup runs psql against a local database.", action: "choose-station" };
-  const jeton = { id: "token", message: "The token of brigade-cook does not include benomite/parade.", cause: "failed to run git: exit status 128", link: "https://github.com/settings/personal-access-tokens" };
+  const jeton = { id: "token", message: "The token of brigade-cook does not include acme/parade.", cause: "failed to run git: exit status 128", link: "https://github.com/settings/personal-access-tokens" };
   poserBlocageDans(etat, qui, postgres);
   poserBlocageDans(etat, qui, jeton);
   await station.projets.relire();

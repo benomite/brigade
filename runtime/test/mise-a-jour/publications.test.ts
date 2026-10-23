@@ -7,7 +7,7 @@ import { test } from "node:test";
 import { lirePublicationsGitHub, publications } from "../../src/mise-a-jour/publications.ts";
 import { repertoireTemporaire } from "../outils.ts";
 
-const asset = (name: string, extra: Record<string, unknown> = {}) => ({ name, browser_download_url: `https://github.com/benomite/brigade/releases/download/x/${name}`, ...extra });
+const asset = (name: string, extra: Record<string, unknown> = {}) => ({ name, browser_download_url: `https://github.com/acme/brigade/releases/download/x/${name}`, ...extra });
 
 test("des releases de GitHub, seules comptent celles de la station, publiées, qui portent le paquet de l'architecture", () => {
   const empreinte = "a".repeat(64);
@@ -28,8 +28,9 @@ test("des releases de GitHub, seules comptent celles de la station, publiées, q
   assert.throws(() => lirePublicationsGitHub({ message: "Not Found" }, "amd64"), /n'a pas rendu une liste de releases/);
 });
 
-test("la source se nomme : les releases d'un dépôt GitHub par défaut, un répertoire pour une installation de test ; autre chose est refusé", () => {
-  assert.equal(publications(undefined, "amd64").nom, "les releases de benomite/brigade");
+test("la source se nomme : les releases d'un dépôt GitHub (aucun par défaut), un répertoire pour une installation de test ; autre chose est refusé", () => {
+  assert.throws(() => publications(undefined, "amd64"), /BRIGADE_MISE_A_JOUR_SOURCE is not set — say where the published versions are: github:<owner>\/<repo>/);
+  assert.throws(() => publications("", "amd64"), /BRIGADE_MISE_A_JOUR_SOURCE is not set/);
   assert.equal(publications("github:moi/fourche", "amd64").nom, "les releases de moi/fourche");
   assert.equal(publications("/srv/versions", "amd64").nom, "le répertoire /srv/versions");
   assert.throws(() => publications("https://exemple.org", "amd64"), /BRIGADE_MISE_A_JOUR_SOURCE=https:\/\/exemple\.org — attendu github:<owner>\/<repo>/);

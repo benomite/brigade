@@ -81,8 +81,8 @@ test("ce qui reste se lit sur la branche de la passe, pas sur la parole du close
 
 test("la consigne du closer nomme ses candidats, les seuls fichiers qu'il peut écrire, son plafond de retraits, et la ligne par laquelle il dit ce qu'il laisse", () => {
   const { proposes, zone } = proposer(candidats(textes(PROJET)), []);
-  const consigne = consigneDuCloser({ depot: "benomite/brigade", base: "v2", candidats: proposes, zone, retraits: 120 });
-  assert.match(consigne, /^Tu es le closer de la brigade : tu ranges le dépôt benomite\/brigade, hors de tout ticket\./);
+  const consigne = consigneDuCloser({ depot: "acme/brigade", base: "v2", candidats: proposes, zone, retraits: 120 });
+  assert.match(consigne, /^Tu es le closer de la brigade : tu ranges le dépôt acme\/brigade, hors de tout ticket\./);
   assert.match(consigne, /\n {3}- D1 — 8 identical lines of code: `src\/libre\/a\.ts:1-8` = `src\/libre\/b\.ts:1-8`\n {3}- M1 — export `inutile` of `src\/libre\/outils\.ts:2` — referenced nowhere\n/);
   assert.match(consigne, /\n {3}- `src\/libre\/a\.ts`\n {3}- `src\/libre\/b\.ts`\n {3}- `src\/libre\/outils\.ts`\n {3}- `src\/tenu\/outils\.ts`\n5\. Tu ne retires pas plus de 120 lignes en tout/);
   assert.match(consigne, /`LAISSÉ <nom du candidat> : <pourquoi tu n'es pas sûr>`/);

@@ -10,7 +10,7 @@ import { DEPOT, fauxGh } from "../../outils.ts";
 
 const SANS_BASH = process.platform === "win32" && "le faux `gh` est un script bash";
 const COMMENTAIRES = `repos/${DEPOT}/issues/4/comments?per_page=100`;
-const brut = (id: number, corps: string, login = "benomite") => ({
+const brut = (id: number, corps: string, login = "acme") => ({
   id,
   body: corps,
   created_at: `2026-10-08T10:0${id % 10}:00Z`,
@@ -23,7 +23,7 @@ test("les commentaires du tableau se lisent du plus ancien au plus récent, relu
   const client = clientGitHubDesGestes({ depot: DEPOT, bin: gh.bin, limite: ouvrirLimite(), jeton: async () => "jeton-du-manager" });
   gh.repondre(COMMENTAIRES, { etag: '"c1"', corps: [brut(11, "/brigade merge #30"), { id: "illisible" }, brut(12, "merci", "passant")] });
   const attendus = [
-    { id: 11, auteur: "benomite", corps: "/brigade merge #30", le: "2026-10-08T10:01:00Z", url: `https://github.com/${DEPOT}/issues/4#issuecomment-11` },
+    { id: 11, auteur: "acme", corps: "/brigade merge #30", le: "2026-10-08T10:01:00Z", url: `https://github.com/${DEPOT}/issues/4#issuecomment-11` },
     { id: 12, auteur: "passant", corps: "merci", le: "2026-10-08T10:02:00Z", url: `https://github.com/${DEPOT}/issues/4#issuecomment-12` },
   ];
   assert.deepEqual(await client.commentaires(4, null), attendus);
@@ -48,9 +48,9 @@ test("la réponse part par l'entrée de `gh`, et le compte du chef est celui du 
   await client.repondre(4, "**Done** — merge #30");
   assert.deepEqual(gh.appels().at(-1), ["api", "-i", "--input", "-", "-X", "POST", `repos/${DEPOT}/issues/4/comments`]);
 
-  gh.repondre("user", { corps: { login: "benomite" } });
-  assert.equal(await client.compteDuChef(), "benomite");
-  assert.equal(await client.compteDuChef(), "benomite");
+  gh.repondre("user", { corps: { login: "acme" } });
+  assert.equal(await client.compteDuChef(), "acme");
+  assert.equal(await client.compteDuChef(), "acme");
   assert.deepEqual(gh.appels().slice(1), [["api", "-i", "user"]]);
   assert.deepEqual(gh.jetons(), ["jeton-du-manager", null]);
 

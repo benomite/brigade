@@ -44,7 +44,7 @@ function demander(port: number, cible: string): Promise<string> {
 function uneStation(t: TestContext, projets: Record<string, string[]>) {
   const racine = repertoireTemporaire(t);
   const fichier = join(racine, "portes.json");
-  const configurer = (noms: string[]) => writeFileSync(join(racine, "projets"), noms.map((nom) => `${nom} benomite/${nom} main\n`).join(""));
+  const configurer = (noms: string[]) => writeFileSync(join(racine, "projets"), noms.map((nom) => `${nom} acme/${nom} main\n`).join(""));
   configurer(Object.keys(projets));
   for (const [nom, hosts] of Object.entries(projets)) {
     mkdirSync(join(racine, "etat", nom), { recursive: true });

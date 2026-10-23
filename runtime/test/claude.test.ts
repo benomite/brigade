@@ -49,11 +49,11 @@ test("le binaire reçoit ces arguments tels quels, la liste vide des sources com
 });
 
 test("la consigne nomme le ticket, la branche de base, et ce que le cook ne fait pas", () => {
-  const texte = consigne({ ticket: 15, titre: "Une station claude", depot: "benomite/brigade", base: "v2" });
+  const texte = consigne({ ticket: 15, titre: "Une station claude", depot: "acme/brigade", base: "v2" });
 
   assert.match(texte, /ticket #15/);
   assert.match(texte, /Une station claude/);
-  assert.match(texte, /gh issue view 15 --repo benomite\/brigade/);
+  assert.match(texte, /gh issue view 15 --repo acme\/brigade/);
   assert.match(texte, /`v2`/);
   assert.match(texte, /ne pousses? (rien|pas)/i);
   assert.match(texte, /ne merges? (rien|jamais|pas)/i);
@@ -61,7 +61,7 @@ test("la consigne nomme le ticket, la branche de base, et ce que le cook ne fait
 });
 
 test("un cook sans accès à GitHub est envoyé lire le ticket que la station lui a remis, pas le demander à gh", () => {
-  const texte = consigne({ ticket: 15, titre: "Une station claude", depot: "benomite/brigade", base: "v2", remis: "/etat/runs/15-abc.ticket.md" });
+  const texte = consigne({ ticket: 15, titre: "Une station claude", depot: "acme/brigade", base: "v2", remis: "/etat/runs/15-abc.ticket.md" });
 
   assert.match(texte, /1\. Lis le ticket en entier : le fichier `\/etat\/runs\/15-abc\.ticket\.md`/);
   assert.match(texte, /aucun accès à GitHub/);
@@ -69,7 +69,7 @@ test("un cook sans accès à GitHub est envoyé lire le ticket que la station lu
 });
 
 test("la consigne demande au cook de délimiter son livrable, et dit que seul ce passage est publié comme tel", () => {
-  const texte = consigne({ ticket: 15, titre: "Une station claude", depot: "benomite/brigade", base: "v2" });
+  const texte = consigne({ ticket: 15, titre: "Une station claude", depot: "acme/brigade", base: "v2" });
 
   assert.match(texte, /délimite[^\n]*entre `<livrable>` et `<\/livrable>`, une seule fois/);
   assert.match(texte, /Seul ce passage est publié comme ton livrable/);
@@ -83,13 +83,13 @@ test("la consigne demande au cook de délimiter son livrable, et dit que seul ce
 });
 
 test("la consigne envoie le cook lire les conventions du dépôt, que rien ne lui charge", () => {
-  const texte = consigne({ ticket: 15, titre: "Une station claude", depot: "benomite/brigade", base: "v2" });
+  const texte = consigne({ ticket: 15, titre: "Une station claude", depot: "acme/brigade", base: "v2" });
 
   assert.match(texte, /lis (le|son) `CLAUDE\.md`/i);
 });
 
 test("la consigne dit au cook que la fiche du ticket porte sa zone, et qu'il ne la modifie pas", () => {
-  const texte = consigne({ ticket: 15, titre: "Une station claude", depot: "benomite/brigade", base: "v2" });
+  const texte = consigne({ ticket: 15, titre: "Une station claude", depot: "acme/brigade", base: "v2" });
 
   assert.match(texte, /`zone`.*possède/);
   assert.match(texte, /hors de la zone est signalé au chef/);
@@ -232,8 +232,8 @@ test("un binaire introuvable se dit tel quel ; une réponse illisible ne tranche
 
 test("les deux consignes imposent de commiter avant de s'arrêter, et nomment ce qui n'arrive pas pendant le tour", async () => {
   const { consigneDeRenvoi } = await import("../src/pass.ts");
-  const premiere = consigne({ ticket: 15, titre: "Une station claude", depot: "benomite/brigade", base: "v2" });
-  const renvoi = consigneDeRenvoi({ ticket: 15, titre: "Une station claude", depot: "benomite/brigade", base: "v2", branche: "cook/15-abc", n: 1, findings: ["Gates rouges."] });
+  const premiere = consigne({ ticket: 15, titre: "Une station claude", depot: "acme/brigade", base: "v2" });
+  const renvoi = consigneDeRenvoi({ ticket: 15, titre: "Une station claude", depot: "acme/brigade", base: "v2", branche: "cook/15-abc", n: 1, findings: ["Gates rouges."] });
 
   for (const texte of [premiere, renvoi]) {
     assert.match(texte, /commite d'abord ce que tu as dans les mains/);
@@ -260,7 +260,7 @@ test("le cook de préparation lancé sur un setup en échec reçoit ce qui a éc
   const { consigneDeRenvoi, consigneDeReprise } = await import("../src/pass.ts");
   const { consigneDeSuite } = await import("../src/claude.ts");
   const setup = { phrase: "le setup a besoin de `psql`, que la station `box/claude` n'a pas", sortie: "./setup.sh: line 3: psql: command not found\n```\nfin" };
-  const mission = { ticket: 20, titre: "Préparer le dépôt", depot: "benomite/parade", base: "main" };
+  const mission = { ticket: 20, titre: "Préparer le dépôt", depot: "acme/parade", base: "main" };
   const renvoi = { ...mission, branche: "cook/20-abc", n: 1, findings: ["Gates rouges."] };
   const consignes = [
     consigne({ ...mission, setup }),

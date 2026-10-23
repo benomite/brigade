@@ -19,7 +19,7 @@ import { journalDeTest, PROJET, servir, tickets, type Service } from "./servir.t
 const REGLAGES = lireReglagesDesProfils({});
 const VUE = ["app/src/vue"];
 const RUNTIME = ["runtime/src"];
-const DEPOT = "benomite/brigade";
+const DEPOT = "acme/brigade";
 
 // Vingt tickets servis et mergés, 16 du premier coup : 80 % pour le projet.
 // `app/src/vue` en porte cinq, 3 du premier coup : 60 %, 20 points dessous.
@@ -82,7 +82,7 @@ test("un domaine relevé devient un profil proposé : son nom, le domaine, les c
       nom: "app-src-vue",
       domaine: "app/src/vue",
       chiffres: {
-        tickets: [1, 2, 3, 4, 5].map((ticket) => ({ ticket, url: `https://github.com/benomite/brigade/issues/${ticket}` })),
+        tickets: [1, 2, 3, 4, 5].map((ticket) => ({ ticket, url: `https://github.com/acme/brigade/issues/${ticket}` })),
         fenetre: 20,
         domaine: { premiers: 3, retenus: 5, part: 0.6 },
         projet: { premiers: 16, retenus: 20, part: 0.8 },

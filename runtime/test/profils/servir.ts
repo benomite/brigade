@@ -21,14 +21,14 @@ let runs = 0;
 export function servir(journal: Journal, { ticket, zone, essais = 1, merge = true, titre = `ticket ${ticket}`, illisible = false }: Service): void {
   const noter = (fait: object) => journal.ajouter({ project: PROJET, ticket, author: "runtime", ...fait } as never);
   const card = zone === undefined ? null : { waitsFor: [], zone, problems: illisible ? ["clé inconnue « zones »"] : [] };
-  noter({ type: "ticket.arrived", payload: { title: titre, priority: 3, createdAt: `${JOUR_HORLOGE}T09:00:00.000Z`, url: `https://github.com/benomite/brigade/issues/${ticket}`, card } });
+  noter({ type: "ticket.arrived", payload: { title: titre, priority: 3, createdAt: `${JOUR_HORLOGE}T09:00:00.000Z`, url: `https://github.com/acme/brigade/issues/${ticket}`, card } });
   noter({ type: "ticket.taken", payload: { station: "box/claude", leaseUntil: JOUR_HORLOGE } });
   for (let i = 0; i < essais; i++) {
     const run = `run-${++runs}`;
     noter({ type: "cook.launched", payload: { run, limits: { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 }, stream: `runs/${run}.jsonl`, station: "box/claude" } });
     noter({ type: "cook.exited", payload: { run, outcome: i === essais - 1 ? "ok" : "failed", code: i === essais - 1 ? 0 : 1, signal: null, turns: 1, tokens: 1, durationMs: 1 } });
   }
-  if (merge) noter({ type: "merge.done", payload: { pr: `https://github.com/benomite/brigade/pull/${ticket}`, sha: null, by: "pass", reconciled: false } });
+  if (merge) noter({ type: "merge.done", payload: { pr: `https://github.com/acme/brigade/pull/${ticket}`, sha: null, by: "pass", reconciled: false } });
   else noter({ type: "pass.served", payload: { verdict: 1 } });
 }
 

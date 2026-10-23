@@ -1453,7 +1453,7 @@ describe("la station", { concurrency: 8 }, () => {
       await jusqua(() => essais().length === 2);
       const second = essais()[1];
       assert.equal(second?.until, "2026-10-08T10:20:00.000Z");
-      assert.match(String(second?.why), /^box cannot fetch from benomite\/brigade: git has no credentials for http:\/\/127\.0\.0\.1:\d+ and no credential helper/);
+      assert.match(String(second?.why), /^box cannot fetch from acme\/brigade: git has no credentials for http:\/\/127\.0\.0\.1:\d+ and no credential helper/);
       assert.equal(echecDuWorktree(journal.base)?.prochainEssai, "2026-10-08T10:20:00.000Z");
       heure.avancer(600_000);
       await jusqua(() => essais().length === 3);
@@ -2151,7 +2151,7 @@ describe("la station, cooks sans identité", { concurrency: 8 }, () => {
     const { repertoire, lancements, dernier } = cuisine(t, { scenario: "bavard", setup: "jeton", issues: [issue(15)] });
     await jusqua(() => lancements().length === 1);
 
-    assert.match(lancements()[0]?.args[1] ?? "", /gh issue view 15 --repo benomite\/brigade --comments/);
+    assert.match(lancements()[0]?.args[1] ?? "", /gh issue view 15 --repo acme\/brigade --comments/);
     assert.doesNotMatch(lancements()[0]?.args[1] ?? "", /Cite ou reprends/);
     assert.equal(existsSync(remisA(repertoire, dernier("cook.launched", 15)?.run)), false);
     // Ce que le setup exporte pour `gh` passe, comme avant.

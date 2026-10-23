@@ -30,7 +30,7 @@ const rienNeReste = temporaireDuFichier();
 const AUJOURDHUI = "2026-10-20T08:00:00.000Z";
 const PARADE = {
   nom: "parade",
-  depot: "benomite/parade",
+  depot: "acme/parade",
   base: "main",
   principale: true,
   cooks: 2,
@@ -177,8 +177,8 @@ async function unProjetServiSurLaBox(t: TestContext) {
   const journal = ouvrirJournal(box.etat());
   try {
     const noter = (ticket: number | null, fait: Record<string, unknown>) => journal.ajouter({ project: "parade", ticket, author: "runtime", ...fait } as never);
-    noter(12, { type: "ticket.arrived", payload: { title: "Ticket 12", priority: 1, createdAt: "2026-10-19T10:00:00Z", url: "https://github.com/benomite/parade/issues/12", model: "opus", effort: "high", card: null } });
-    noter(13, { type: "ticket.arrived", payload: { title: "Ticket 13", priority: 2, createdAt: "2026-10-19T11:00:00Z", url: "https://github.com/benomite/parade/issues/13", model: "sonnet", effort: "low", card: null } });
+    noter(12, { type: "ticket.arrived", payload: { title: "Ticket 12", priority: 1, createdAt: "2026-10-19T10:00:00Z", url: "https://github.com/acme/parade/issues/12", model: "opus", effort: "high", card: null } });
+    noter(13, { type: "ticket.arrived", payload: { title: "Ticket 13", priority: 2, createdAt: "2026-10-19T11:00:00Z", url: "https://github.com/acme/parade/issues/13", model: "sonnet", effort: "low", card: null } });
     noter(13, { type: "ticket.86", payload: { reason: "quota", until: "2026-10-20T12:00:00.000Z" } });
     journal.ajouter({ project: "parade", ticket: null, author: "chef", type: "grant.activated", payload: { action: "merge", uses: 3 } });
   } finally {
@@ -262,7 +262,7 @@ test("tant que la station visée ne s'est pas dite prête, l'ancienne sert toujo
   // La box lit avant le Mac : rien ne bouge chez elle.
   await box.relire();
   assert.equal(box.sert(), true);
-  assert.match(box.configuration(), /parade benomite\/parade main/);
+  assert.match(box.configuration(), /parade acme\/parade main/);
   assert.deepEqual([box.suivi()?.etat, box.suivi()?.cuitSur, box.suivi()?.bascule?.etape], ["servi", "box", "demandee"]);
   assert.match(box.suivi()?.dit ?? "", /moving to mac is asked: it cooks here until mac is ready to take it over/);
 

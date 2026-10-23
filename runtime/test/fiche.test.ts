@@ -88,7 +88,7 @@ test("une valeur que le runtime ne comprend pas est dite, jamais lue comme vide"
 
 test("une puce qui n'est pas « clé : valeur » est dite ; une ligne de prose ne l'est pas", () => {
   assert.match(lue("- attend #68")?.problems[0] ?? "", /ligne illisible : « - attend #68 ».*clé : valeur/);
-  assert.deepEqual(lue("Posée par le manager le 8 octobre.", "https://github.com/benomite/brigade/issues/75", "- attend : #68")?.problems, []);
+  assert.deepEqual(lue("Posée par le manager le 8 octobre.", "https://github.com/acme/brigade/issues/75", "- attend : #68")?.problems, []);
 });
 
 test("une clé posée deux fois : le runtime ne choisit pas", () => {

@@ -68,10 +68,10 @@ const lire = (github: ReturnType<typeof unGitHub>, gh = FAUX_GH) => lireLesStati
 
 test("sur un ordinateur neuf connecté à GitHub, les stations déjà appairées — un Mac et parade-box — sont listées avec les projets que chacune porte", async (t) => {
   const github = unGitHub(t);
-  const mac = await uneStation(t, { nom: "mac", machine: "macOS 25.0.0", version: "1.4.0", coeurs: 10 }, ["brigade"], { brigade: "benomite/brigade" });
+  const mac = await uneStation(t, { nom: "mac", machine: "macOS 25.0.0", version: "1.4.0", coeurs: 10 }, ["brigade"], { brigade: "acme/brigade" });
   // Une station d'avant `depots` : le dépôt d'un projet ajouté depuis l'app se lit dans sa demande ; celui d'une ligne écrite à la main reste inconnu.
   const box = await uneStation(t, { nom: "parade-box", machine: "Linux 6.1.0", version: "1.3.9" }, ["parade", "cantine"]);
-  github.ajouter(box.gist, { "brigade-projets.json": documentDeDemande([{ nom: "parade", depot: "benomite/parade", base: "main", principale: true, cooks: 2, manager: null, reviewer: null, ouvertLe: null, demandeLe: null }]) });
+  github.ajouter(box.gist, { "brigade-projets.json": documentDeDemande([{ nom: "parade", depot: "acme/parade", base: "main", principale: true, cooks: 2, manager: null, reviewer: null, ouvertLe: null, demandeLe: null }]) });
   // Une station qui attend encore son code, et un gist qui n'est pas une station : ni l'une ni l'autre n'est listée.
   await uneStation(t, { nom: "neuve", machine: "Linux 6.1.0", version: "1.4.0" }, []);
   github.autre("notes");
@@ -91,7 +91,7 @@ test("sur un ordinateur neuf connecté à GitHub, les stations déjà appairées
   assert.deepEqual(
     lu.stations.map(({ id, name, machine, kind, cooks, version, online, projects }) => ({ id, name, machine, kind, cooks, version, online, projects })),
     [
-      { id: mac.gist, name: "mac", machine: "macOS 25.0.0", kind: "ordinateur", cooks: true, version: "1.4.0", online: false, projects: [{ name: "brigade", repository: "benomite/brigade" }] },
+      { id: mac.gist, name: "mac", machine: "macOS 25.0.0", kind: "ordinateur", cooks: true, version: "1.4.0", online: false, projects: [{ name: "brigade", repository: "acme/brigade" }] },
       {
         id: box.gist,
         name: "parade-box",
@@ -101,7 +101,7 @@ test("sur un ordinateur neuf connecté à GitHub, les stations déjà appairées
         version: "1.3.9",
         online: true,
         projects: [
-          { name: "parade", repository: "benomite/parade" },
+          { name: "parade", repository: "acme/parade" },
           { name: "cantine", repository: null },
         ],
       },

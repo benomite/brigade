@@ -1726,7 +1726,7 @@ function phaseSurDisque(repertoire: string) {
 test("la consigne de renvoi porte les findings, la branche, et les interdits du cook", () => {
   const consigne = consigneDeRenvoi({ ticket: 17, titre: "La pass", depot: DEPOT, base: "v2", branche: "cook/17-abc", n: 2, findings: ["Gates rouges.", "CI rouge."] });
 
-  assert.match(consigne, /ticket #17 du dépôt benomite\/brigade — « La pass »/);
+  assert.match(consigne, /ticket #17 du dépôt acme\/brigade — « La pass »/);
   assert.match(consigne, /branche `cook\/17-abc`, partie de `v2`/);
   assert.match(consigne, /renvoi 2 sur 2/);
   // Ce qui est jugé n'est pas la branche seule : le cook le sait, et rejoue ses gates à jour de la base.
@@ -1744,7 +1744,7 @@ test("la consigne de renvoi porte les findings, la branche, et les interdits du 
 test("un cook de renvoi sans accès à GitHub relit le ticket qui lui a été remis, pas par gh", () => {
   const mission = { ticket: 17, titre: "La pass", depot: DEPOT, base: "v2", branche: "cook/17-abc", n: 1, findings: ["Gates rouges."] };
 
-  assert.match(consigneDeRenvoi(mission), /1\. Relis le ticket : `gh issue view 17 --repo benomite\/brigade --comments`, et ce qui est déjà commité/);
+  assert.match(consigneDeRenvoi(mission), /1\. Relis le ticket : `gh issue view 17 --repo acme\/brigade --comments`, et ce qui est déjà commité/);
   const remise = consigneDeRenvoi({ ...mission, remis: "/etat/runs/17-def.ticket.md" });
   assert.match(remise, /1\. Relis le ticket : le fichier `\/etat\/runs\/17-def\.ticket\.md`[^\n]*aucun accès à GitHub[^\n]*, et ce qui est déjà commité/);
   assert.doesNotMatch(remise, /gh issue view/);
@@ -1785,10 +1785,10 @@ describe("la pass sous son identité", { concurrency: 8 }, () => {
     gh.merge.mode = "panne";
     await jusqua(() => avertissements.some((ligne) => /sans réponse/.test(ligne)));
 
-    gh.mergerPR(101, "benomite");
+    gh.mergerPR(101, "acme");
     await jusqua(() => gh.fermetures.length === 1);
 
-    assert.deepEqual([fait(journal)?.by, fait(journal)?.actor, fait(journal)?.unverified], ["outside", "benomite", true]);
+    assert.deepEqual([fait(journal)?.by, fait(journal)?.actor, fait(journal)?.unverified], ["outside", "acme", true]);
     await jusquAu("base.checked");
     assert.deepEqual(dernier("base.checked")?.tickets, [17]);
   });
@@ -1798,10 +1798,10 @@ describe("la pass sous son identité", { concurrency: 8 }, () => {
     gh.comptes.pass = PASS;
     await jusquAu("pass.held");
 
-    gh.mergerPR(101, "benomite");
+    gh.mergerPR(101, "acme");
     await jusqua(() => gh.fermetures.length === 1);
 
-    assert.deepEqual([fait(journal)?.by, fait(journal)?.actor], ["outside", "benomite"]);
+    assert.deepEqual([fait(journal)?.by, fait(journal)?.actor], ["outside", "acme"]);
   });
 
   test("sous l'identité unique de la machine, rien ne distingue la pass du chef : ce que le runtime suppose reste, avec le compte que GitHub nomme", async (t) => {
@@ -1809,17 +1809,17 @@ describe("la pass sous son identité", { concurrency: 8 }, () => {
     gh.merge.mode = "panne";
     await jusqua(() => avertissements.some((ligne) => /sans réponse/.test(ligne)));
 
-    gh.mergerPR(101, "benomite");
+    gh.mergerPR(101, "acme");
     await jusqua(() => gh.fermetures.length === 1);
 
-    assert.deepEqual([fait(journal)?.by, fait(journal)?.actor, fait(journal)?.reconciled], ["pass", "benomite", true]);
+    assert.deepEqual([fait(journal)?.by, fait(journal)?.actor, fait(journal)?.reconciled], ["pass", "acme", true]);
   });
 
   test("sous l'identité unique, un merge de la pass ne porte aucun compte : rien ne l'a lu", async (t) => {
     const { gh, journal } = mergeeSousGrant(t);
     await jusqua(() => gh.fermetures.length === 1);
 
-    assert.deepEqual(fait(journal), { pr: "https://github.com/benomite/brigade/pull/101", sha: fait(journal)?.sha, by: "pass", reconciled: false, unverified: false });
+    assert.deepEqual(fait(journal), { pr: "https://github.com/acme/brigade/pull/101", sha: fait(journal)?.sha, by: "pass", reconciled: false, unverified: false });
   });
 
   test("un merge à la main dont l'auteur tarde à se lire, et un ticket parti puis revenu entre-temps avec un cook neuf : le merge n'est pas mis au compte de la nouvelle livraison", async (t) => {
@@ -1832,7 +1832,7 @@ describe("la pass sous son identité", { concurrency: 8 }, () => {
     const lente = new Promise<string>((resoudre) => (repondre = resoudre));
     gh.github.identite = () => (demandes++, lente);
 
-    gh.mergerPR(101, "benomite");
+    gh.mergerPR(101, "acme");
     await jusqua(() => demandes > 0);
     // Pendant l'attente : le ticket part, le chef le rouvre, un cook neuf repart sur une autre branche.
     gh.poser(issue(17, CALIBRE, { state: "closed", updatedAt: "2026-10-08T11:00:00Z" }));

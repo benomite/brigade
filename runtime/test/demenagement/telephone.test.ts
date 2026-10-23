@@ -14,7 +14,7 @@ import { FICHIER_PROJETS, type ProjetDemande } from "../../src/projets/demande.t
 const AUJOURDHUI = "2026-10-21T08:00:00.000Z";
 const PARADE: ProjetDemande = {
   nom: "parade",
-  depot: "benomite/parade",
+  depot: "acme/parade",
   base: "main",
   principale: true,
   cooks: 2,

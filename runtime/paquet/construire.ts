@@ -3,10 +3,16 @@
 // joue à l'installation et à chaque mise à jour. Rien de ce que la station
 // demande au système ne vit hors de ce paquet.
 //
-//   node runtime/paquet/construire.ts                 le paquet de cette machine
+//   node runtime/paquet/construire.ts --repo <compte>/<dépôt> --maintainer "Nom <courriel>"
+//                                                     le paquet de cette machine
 //   node runtime/paquet/construire.ts --version 1.2.0
 //   node runtime/paquet/construire.ts --node <binaire node> --arch arm64
 //   node runtime/paquet/construire.ts --sortie <dossier>
+//
+// `--repo` (ou BRIGADE_PAQUET_DEPOT) nomme le dépôt GitHub qui publie ce paquet :
+// il devient la page du paquet et la source de sa mise à jour. `--maintainer`
+// (ou BRIGADE_PAQUET_MAINTENEUR) est le mainteneur dit dans le paquet. Aucun
+// n'est supposé : sans l'un, la construction est refusée en le disant.
 //
 // Le paquet s'écrit dans runtime/paquet/construit/ (ou `--sortie`), sous le
 // nom brigade-station_<version>_<arch>.deb, et la commande dit son chemin.
@@ -65,15 +71,20 @@ function echouer(motif: string): never {
 
 const lancer = (commande: string, args: string[]) => spawnSync(commande, args, { encoding: "utf8" });
 
-let options: { version?: string; sortie?: string; node?: string; arch?: string };
+let options: { version?: string; sortie?: string; node?: string; arch?: string; repo?: string; maintainer?: string };
 try {
   options = parseArgs({
-    options: { version: { type: "string" }, sortie: { type: "string" }, node: { type: "string" }, arch: { type: "string" } },
+    options: { version: { type: "string" }, sortie: { type: "string" }, node: { type: "string" }, arch: { type: "string" }, repo: { type: "string" }, maintainer: { type: "string" } },
     strict: true,
   }).values;
 } catch (erreur) {
-  refuser(`${erreur instanceof Error ? erreur.message : String(erreur)} — usage : construire.ts [--version <v>] [--sortie <dossier>] [--node <binaire> --arch <amd64|arm64>]`);
+  refuser(`${erreur instanceof Error ? erreur.message : String(erreur)} — usage : construire.ts [--version <v>] [--sortie <dossier>] [--node <binaire> --arch <amd64|arm64>] --repo <compte>/<dépôt> --maintainer "Nom <courriel>"`);
 }
+
+const depotPublie = options.repo ?? process.env.BRIGADE_PAQUET_DEPOT ?? "";
+if (!/^[\w.-]+\/[\w.-]+$/.test(depotPublie)) refuser(`the GitHub repository that publishes this package is missing or invalid (« ${depotPublie} ») — give it as --repo <account>/<repository>, or set BRIGADE_PAQUET_DEPOT`);
+const mainteneur = options.maintainer ?? process.env.BRIGADE_PAQUET_MAINTENEUR ?? "";
+if (!/^[^<>\n]+ <[^<>\s]+@[^<>\s]+>$/.test(mainteneur)) refuser(`the package maintainer is missing or invalid (« ${mainteneur} ») — give it as --maintainer "Name <email>", or set BRIGADE_PAQUET_MAINTENEUR`);
 
 const archHote = ARCHITECTURES[process.arch];
 const arch = options.arch ?? archHote ?? refuser(`aucune architecture Debian pour « ${process.arch} » — la nommer par --arch, avec le --node qui lui va`);
@@ -137,6 +148,12 @@ try {
   // depuis l'ancien chemin : la bascule y pointe /usr/local/bin/brigade.
   poser(join(RUNTIME, "deploy", "brigade"), dans(INSTALLATION.slice(1), "brigade"), 0o755);
   for (const unite of UNITES) poser(join(ICI, "systemd", unite), dans("usr", "lib", "systemd", "system", unite), 0o644);
+  // La source de la mise à jour : le dépôt qui publie ce paquet.
+  const miseAJour = dans("usr", "lib", "systemd", "system", "brigade-station-mise-a-jour.service");
+  const ancre = "Environment=BRIGADE_STATION_DIR=/var/lib/brigade\n";
+  const unite = readFileSync(miseAJour, "utf8");
+  if (!unite.includes(ancre)) echouer("l'unité de mise à jour ne porte plus la ligne BRIGADE_STATION_DIR : la source des versions n'a nulle part où se poser");
+  writeFileSync(miseAJour, unite.replace(ancre, `${ancre}Environment=BRIGADE_MISE_A_JOUR_SOURCE=github:${depotPublie}\n`));
   poser(join(RACINE, "LICENSE"), dans("usr", "share", "doc", PAQUET, "copyright"), 0o644);
 
   // Des droits qui ne dépendent ni du masque de la machine ni du clone.
@@ -161,12 +178,12 @@ try {
       `Package: ${PAQUET}`,
       `Version: ${version}`,
       `Architecture: ${arch}`,
-      "Maintainer: benomite <1735182+benomite@users.noreply.github.com>",
+      `Maintainer: ${mainteneur}`,
       `Installed-Size: ${taille(arbre)}`,
       `Depends: ${DEPENDANCES.join(", ")}`,
       "Section: devel",
       "Priority: optional",
-      "Homepage: https://github.com/benomite/brigade",
+      `Homepage: https://github.com/${depotPublie}`,
       "Description: brigade — la station d'une machine",
       " Un seul service par machine, brigade-station, qui sert tous les projets de",
       " sa configuration (/var/lib/brigade/projets) : il prend leurs tickets sur",

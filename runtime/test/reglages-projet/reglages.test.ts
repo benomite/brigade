@@ -7,7 +7,7 @@ import { git, repertoireTemporaire } from "../outils.ts";
 
 // Un clone du projet dont l'origine est sur github.com : lire son adresse ne
 // joint pas le réseau.
-function clone(t: TestContext, origine: string | null = "git@github.com:benomite/espace.git"): string {
+function clone(t: TestContext, origine: string | null = "git@github.com:acme/espace.git"): string {
   const repertoire = repertoireTemporaire(t);
   git(repertoire, "init", "-q");
   if (origine !== null) git(repertoire, "remote", "add", "origin", origine);
@@ -34,7 +34,7 @@ test("a clone carrying `.claude/brigade/projet.json`: branch, default calibratio
     JSON.stringify({ version: 1, integrationBranch: "v2", defaultCalibrations: { reviewer: { model: "sonnet", effort: "medium" } }, calibrationCeiling: { model: "sonnet", effort: "high" } }),
   );
   assert.deepEqual(await lireReglagesProjet(repertoire), {
-    depot: "benomite/espace",
+    depot: "acme/espace",
     source: "projet.json",
     // Le fichier fait foi : la ligne du CLAUDE.md n'est lue que sans lui.
     integrationBranch: "v2",
@@ -44,31 +44,31 @@ test("a clone carrying `.claude/brigade/projet.json`: branch, default calibratio
 });
 
 test("a clone without the file: the integration branch is the one the CLAUDE.md `Branche d'intégration` line declares", async (t) => {
-  const repertoire = clone(t, "https://github.com/benomite/brigade.git");
+  const repertoire = clone(t, "https://github.com/acme/brigade.git");
   poser(repertoire, "CLAUDE.md", ["# brigade", "", "## Équipe multi-agents (plugin brigade)", "", "- **Acteurs** : the chef", "- **Branche d'intégration** : `v2`", "- **Worktrees** : `<parent>/brigade-wt`", ""].join("\n"));
-  assert.deepEqual(await lireReglagesProjet(repertoire), { depot: "benomite/brigade", source: "CLAUDE.md", integrationBranch: "v2", defaultCalibrations: {}, calibrationCeiling: null });
+  assert.deepEqual(await lireReglagesProjet(repertoire), { depot: "acme/brigade", source: "CLAUDE.md", integrationBranch: "v2", defaultCalibrations: {}, calibrationCeiling: null });
 });
 
 test("a clone with neither the file nor the line, nor a github.com origin: nothing is guessed", async (t) => {
   const sans = clone(t, null);
   assert.deepEqual(await lireReglagesProjet(sans), { depot: null, source: "aucune", integrationBranch: null, defaultCalibrations: {}, calibrationCeiling: null });
-  const ailleurs = clone(t, "https://gitlab.com/benomite/espace.git");
+  const ailleurs = clone(t, "https://gitlab.com/acme/espace.git");
   poser(ailleurs, "CLAUDE.md", "# espace\n\nNo bindings here.\n");
   assert.deepEqual(await lireReglagesProjet(ailleurs), { depot: null, source: "aucune", integrationBranch: null, defaultCalibrations: {}, calibrationCeiling: null });
 });
 
 test("the repository is read from every form of a github.com origin, and from nothing else", () => {
   for (const url of [
-    "https://github.com/benomite/espace.git",
-    "https://github.com/benomite/espace",
-    "https://x-access-token@github.com/benomite/espace.git",
-    "git@github.com:benomite/espace.git",
-    "ssh://git@github.com/benomite/espace.git",
-    "https://github.com/benomite/espace/\n",
+    "https://github.com/acme/espace.git",
+    "https://github.com/acme/espace",
+    "https://x-access-token@github.com/acme/espace.git",
+    "git@github.com:acme/espace.git",
+    "ssh://git@github.com/acme/espace.git",
+    "https://github.com/acme/espace/\n",
   ]) {
-    assert.equal(depotDeLOrigine(url), "benomite/espace", url);
+    assert.equal(depotDeLOrigine(url), "acme/espace", url);
   }
-  for (const url of ["https://gitlab.com/benomite/espace.git", "/srv/git/espace.git", "https://github.com/benomite", "https://github.com.evil.example/benomite/espace"]) {
+  for (const url of ["https://gitlab.com/acme/espace.git", "/srv/git/espace.git", "https://github.com/acme", "https://github.com.evil.example/acme/espace"]) {
     assert.equal(depotDeLOrigine(url), null, url);
   }
 });
@@ -84,10 +84,10 @@ test("the CLAUDE.md line is read with or without its markup, and an unreadable b
 test("writing then reading round-trips", async (t) => {
   const repertoire = clone(t);
   assert.deepEqual(ecrireReglagesProjet(repertoire, COMPLETS), COMPLETS);
-  assert.deepEqual(await lireReglagesProjet(repertoire), { depot: "benomite/espace", source: "projet.json", integrationBranch: "v2", defaultCalibrations: COMPLETS.defaultCalibrations, calibrationCeiling: COMPLETS.calibrationCeiling });
+  assert.deepEqual(await lireReglagesProjet(repertoire), { depot: "acme/espace", source: "projet.json", integrationBranch: "v2", defaultCalibrations: COMPLETS.defaultCalibrations, calibrationCeiling: COMPLETS.calibrationCeiling });
   // Le seul réglage obligatoire est la branche.
   ecrireReglagesProjet(repertoire, { integrationBranch: "main" });
-  assert.deepEqual(await lireReglagesProjet(repertoire), { depot: "benomite/espace", source: "projet.json", integrationBranch: "main", defaultCalibrations: {}, calibrationCeiling: null });
+  assert.deepEqual(await lireReglagesProjet(repertoire), { depot: "acme/espace", source: "projet.json", integrationBranch: "main", defaultCalibrations: {}, calibrationCeiling: null });
   // Rien d'autre n'est laissé à côté du fichier.
   assert.deepEqual(readdirSync(join(repertoire, ".claude/brigade")), ["projet.json"]);
 });

@@ -244,7 +244,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
       const runtime = lancer(t, MAIN, [], env);
 
       assert.equal(await runtime.fin, REFUS);
-      assert.match(runtime.sortie(), new RegExp(`refus de démarrer.*${variable}`));
+      assert.match(runtime.sortie(), new RegExp(`refus de démarrer[\\s\\S]*${variable} is not set`));
     });
   }
 
@@ -252,7 +252,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     ["sans BRIGADE_GITHUB_REPO", { BRIGADE_GITHUB_REPO: "" }, /BRIGADE_GITHUB_REPO is not set/],
     ["avec un dépôt qui n'est pas <owner>/<repo>", { BRIGADE_GITHUB_REPO: "brigade" }, /BRIGADE_GITHUB_REPO invalid/],
     ["avec un bail qui n'est pas un nombre de secondes", { BRIGADE_LEASE_SECONDS: "dix" }, /BRIGADE_LEASE_SECONDS invalid/],
-    ["sans BRIGADE_REPO_DIR", { BRIGADE_REPO_DIR: "" }, /BRIGADE_REPO_DIR n'est pas défini/],
+    ["sans BRIGADE_REPO_DIR", { BRIGADE_REPO_DIR: "" }, /BRIGADE_REPO_DIR is not set: give the folder of the clone/],
     ["avec un clone qui n'est pas un dépôt git", { BRIGADE_REPO_DIR: "/chemin/jamais/cree" }, /BRIGADE_REPO_DIR invalide/],
     ["sans BRIGADE_BASE_BRANCH", { BRIGADE_BASE_BRANCH: "" }, /BRIGADE_BASE_BRANCH n'est pas défini/],
     ["sans BRIGADE_MANAGER_MODEL", { BRIGADE_MANAGER_MODEL: "" }, /BRIGADE_MANAGER_MODEL n'est pas défini/],
@@ -509,7 +509,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
       gh.issues([issueGitHub(15, { labels: ["fire", "model:sonnet", "effort:low"] })]);
       gh.repondre(`repos/${DEPOT}/pulls`, { statut: 201, corps: pr });
       gh.repondre(`repos/${DEPOT}/issues/15/comments`, { statut: 201, corps: { id: 1 } });
-      gh.repondre(`repos/${DEPOT}/pulls?head=benomite:cook/*`, { corps: [pr] });
+      gh.repondre(`repos/${DEPOT}/pulls?head=acme:cook/*`, { corps: [pr] });
       gh.repondre(`repos/${DEPOT}/pulls/40`, { corps: pr });
       gh.repondre(`repos/${DEPOT}/commits/*/check-runs?per_page=100`, { corps: { check_runs: [] } });
       gh.repondre(`repos/${DEPOT}/commits/*/status?per_page=100`, { corps: { statuses: [] } });
@@ -555,7 +555,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     const gh = fauxGh(t);
     gh.issues([]);
     gh.repondre(`repos/${DEPOT}/pulls`, { statut: 201, corps: pr });
-    gh.repondre(`repos/${DEPOT}/pulls?head=benomite:cook/*`, { corps: [pr] });
+    gh.repondre(`repos/${DEPOT}/pulls?head=acme:cook/*`, { corps: [pr] });
     gh.repondre(`repos/${DEPOT}/pulls/41`, { corps: pr });
     const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire, gh), BRIGADE_REPO_DIR: clone });
     await jusqua(() => relire(repertoire).some((e) => e.type === "runtime.started"));
@@ -592,7 +592,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     gh.issues([issueGitHub(15, { labels: ["fire", "model:sonnet", "effort:low"] })]);
     gh.repondre(`repos/${DEPOT}/pulls`, { statut: 201, corps: pr });
     gh.repondre(`repos/${DEPOT}/issues/15/comments`, { statut: 201, corps: { id: 1 } });
-    gh.repondre(`repos/${DEPOT}/pulls?head=benomite:cook/*`, { corps: [pr] });
+    gh.repondre(`repos/${DEPOT}/pulls?head=acme:cook/*`, { corps: [pr] });
     gh.repondre(`repos/${DEPOT}/pulls/40`, { corps: pr });
     gh.repondre(`repos/${DEPOT}/commits/*/check-runs?per_page=100`, { corps: { check_runs: [] } });
     gh.repondre(`repos/${DEPOT}/commits/*/status?per_page=100`, { corps: { statuses: [] } });
@@ -735,7 +735,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     gh.issues([{ ...issueGitHub(15, { labels: ["fire", "model:sonnet", "effort:low"] }), body: "Le corps du ticket privé." } as ReturnType<typeof issueGitHub>]);
     gh.repondre(`repos/${DEPOT}/pulls`, { statut: 201, corps: pr });
     gh.repondre(`repos/${DEPOT}/issues/15/comments`, { statut: 201, corps: { id: 1 } });
-    gh.repondre(`repos/${DEPOT}/pulls?head=benomite:cook/*`, { corps: [pr] });
+    gh.repondre(`repos/${DEPOT}/pulls?head=acme:cook/*`, { corps: [pr] });
     gh.repondre(`repos/${DEPOT}/pulls/40`, { corps: pr });
     gh.repondre(`repos/${DEPOT}/commits/*/check-runs?per_page=100`, { corps: { check_runs: [] } });
     gh.repondre(`repos/${DEPOT}/commits/*/status?per_page=100`, { corps: { statuses: [] } });
