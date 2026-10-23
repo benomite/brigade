@@ -58,7 +58,7 @@ describe("la règle sudoers", () => {
   });
 });
 
-describe("installer un projet", { skip: posixOnly("builds a real git repository, runs the fake claude (a POSIX shell script), runs the fake gh (a POSIX shell script) and runs fake systemctl, journalctl or getent (POSIX shell scripts)") }, () => {
+describe("installer un projet", { skip: posixOnly("runs the fake claude, the fake gh and fake systemctl, journalctl or getent (POSIX shell scripts)") }, () => {
   test("de bout en bout : `installation` le dit prêt, et la sortie JSON rend les deux ports", async (t) => {
     const b = boite(t);
     b.pousser("acme/calculus");
@@ -390,7 +390,7 @@ describe("ce que le geste refuse, sans rien écrire sur la box", { skip: posixOn
   });
 });
 
-describe("une installation qui n'aboutit pas se défait", { skip: posixOnly("builds a real git repository and runs fake systemctl, journalctl or getent (POSIX shell scripts)") }, () => {
+describe("une installation qui n'aboutit pas se défait", { skip: posixOnly("runs fake systemctl, journalctl or getent (POSIX shell scripts)") }, () => {
   test("le dépôt ne se clone pas : la box est comme avant, et le projet s'installe ensuite", async (t) => {
     const b = boite(t);
     const avant = b.photo();
@@ -446,7 +446,7 @@ describe("une installation qui n'aboutit pas se défait", { skip: posixOnly("bui
   });
 });
 
-describe("le journal du geste", { skip: posixOnly("builds a real git repository and runs fake systemctl, journalctl or getent (POSIX shell scripts)") }, () => {
+describe("le journal du geste", { skip: posixOnly("runs fake systemctl, journalctl or getent (POSIX shell scripts)") }, () => {
   test("chaque appel, accepté ou refusé, y ajoute qui, quand, quel projet, quelle action et le résultat", async (t) => {
     const b = boite(t);
     b.pousser("acme/calculus");
@@ -524,7 +524,7 @@ describe("le plafond dur ne bouge pas", () => {
   // Ce qu'aucun grant n'autorise (#259), et ce par quoi une unité y mènerait.
   const INTERDITS = ["acces-prod", "accès-prod", "identifiants-max", "prod", "production", "credentials", "grant", "merge", "secrets", "claude-config-dir", "environnement", "home"];
 
-  test("aucune option n'y mène : ni `accès-prod`, ni les identifiants du compte Max, sous aucune forme", { skip: posixOnly("builds a real git repository") }, async (t) => {
+  test("aucune option n'y mène : ni `accès-prod`, ni les identifiants du compte Max, sous aucune forme", async (t) => {
     const b = boite(t);
     b.pousser("acme/calculus");
     const avant = b.photo();
@@ -551,7 +551,7 @@ describe("le plafond dur ne bouge pas", () => {
     }
   });
 
-  test("après une installation : les unités ne portent que les variables du geste, la cloison livrée, et rien du compte n'a été lu ni écrit", { skip: posixOnly("builds a real git repository and runs fake systemctl, journalctl or getent (POSIX shell scripts)") }, async (t) => {
+  test("après une installation : les unités ne portent que les variables du geste, la cloison livrée, et rien du compte n'a été lu ni écrit", { skip: posixOnly("runs fake systemctl, journalctl or getent (POSIX shell scripts)") }, async (t) => {
     const b = boite(t);
     b.pousser("acme/calculus");
     // La connexion Max du compte : le geste n'a aucune raison d'y toucher.

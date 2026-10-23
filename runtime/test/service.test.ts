@@ -38,7 +38,7 @@ function livrer(worktree: string, ...fichiers: string[]): void {
 }
 
 // Chaque test a son dépôt : ils se jouent de front.
-describe("le service du projet", { skip: posixOnly("builds a real git repository and runs a POSIX shell script"), concurrency: 8 }, () => {
+describe("le service du projet", { skip: posixOnly("runs a POSIX shell script"), concurrency: 8 }, () => {
   test("le dépôt déclare sa commande de service et ses chemins d'interface, une ligne « clé : valeur » chacun", () => {
     const declaration = lireDeclaration("# comment ce projet se sert\n\ncommande : npm run dev -- --host 127.0.0.1 --port \"$BRIGADE_PORT\"\ninterface : app/src/vue/\n  interface:site/pages  \ninterface : app/src/vue\n");
 

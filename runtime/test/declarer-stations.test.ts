@@ -185,7 +185,7 @@ test("la commande du chef, en texte : l'étape, ce qu'elle sert, ce que la machi
 // Le critère de bout en bout : un runtime démarré sans station ne fait partir
 // aucun cook ; l'action déclare, et sans redémarrage le ticket qui attendait
 // part.
-test("de bout en bout : sur un runtime qui tourne sans station, l'action déclare et un cook part sur le ticket, sans redémarrage", { skip: posixOnly("builds a real git repository, runs the fake claude (a POSIX shell script) and runs the fake gh (a POSIX shell script)") }, async (t) => {
+test("de bout en bout : sur un runtime qui tourne sans station, l'action déclare et un cook part sur le ticket, sans redémarrage", { skip: posixOnly("runs the fake claude and the fake gh (POSIX shell scripts)") }, async (t) => {
   const etat = repertoireTemporaire(t);
   const { clone } = depotGit(t);
   const gh = fauxGh(t);

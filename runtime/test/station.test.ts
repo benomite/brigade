@@ -49,7 +49,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal(seconde.types().filter((type) => type === "station.announced").length, 1);
   });
 
-  test("un ticket calibré en attente est pris, et son cook part dans un worktree qui lui est propre", { skip: posixOnly("builds a real git repository and runs the fake claude (a POSIX shell script)") }, async (t) => {
+  test("un ticket calibré en attente est pris, et son cook part dans un worktree qui lui est propre", { skip: posixOnly("runs the fake claude (a POSIX shell script)") }, async (t) => {
     const { repertoire, clone, etat, dernier, lancements, journal } = cuisine(t, { git: true, scenario: "bavard", issues: [issue(15)] });
     await jusqua(() => lancements().length === 1);
 
@@ -87,7 +87,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal(Object.keys(lancements()[0]?.env ?? {}).some((nom) => nom.startsWith("BRIGADE_")), false);
   });
 
-  test("un cook qui livre : sa branche est poussée, une PR vise la base, le ticket part en pass", { skip: posixOnly("builds a real git repository and runs the fake claude (a POSIX shell script)") }, async (t) => {
+  test("un cook qui livre : sa branche est poussée, une PR vise la base, le ticket part en pass", { skip: posixOnly("runs the fake claude (a POSIX shell script)") }, async (t) => {
     const { origine, gh, etat, dernier, types } = cuisine(t, { git: true, issues: [issue(15)] });
     await jusqua(() => gh.commentaires.length === 1);
     // Le rangement du worktree suit le rapport : on attend ce fait, pas une durée.
@@ -726,7 +726,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.deepEqual(avertissements, ["brigade : machine illisible, la station s'en tient à ce qu'elle savait — statfs : ENOENT"]);
   });
 
-  test("quatre cooks partent de front d'un même clone : quatre worktrees, quatre branches poussées, quatre PR", { skip: posixOnly("builds a real git repository and runs the fake claude (a POSIX shell script)") }, async (t) => {
+  test("quatre cooks partent de front d'un même clone : quatre worktrees, quatre branches poussées, quatre PR", { skip: posixOnly("runs the fake claude (a POSIX shell script)") }, async (t) => {
     const numeros = [14, 15, 16, 17];
     const { origine, gh, etat, dernier, avertissements } = cuisine(t, { git: true, cooks: 4, issues: numeros.map((numero) => issue(numero)) });
     await jusqua(() => gh.commentaires.length === 4);
@@ -1129,7 +1129,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal(types(15).filter((type) => type === "ticket.renewed").length, 1);
   });
 
-  test("un commit renouvelle le bail ; un fichier que le projet ignore, non", { skip: posixOnly("builds a real git repository and runs the fake claude (a POSIX shell script)") }, async (t) => {
+  test("un commit renouvelle le bail ; un fichier que le projet ignore, non", { skip: posixOnly("runs the fake claude (a POSIX shell script)") }, async (t) => {
     const { clone, heure, dernier, lancements, types } = cuisine(t, { git: true, scenario: "bavard", seuilDisjoncteur: 1, issues: [issue(15)] });
     await jusqua(() => lancements().length === 1);
     const worktree = lancements()[0]?.cwd ?? "";
@@ -1412,7 +1412,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.match(avertissements[0] ?? "", /worktree.*#15.*git fetch/s);
   });
 
-  describe("un worktree impossible à préparer est dit au projet, avec sa raison et son prochain essai", { skip: posixOnly("builds a real git repository and runs the fake claude (a POSIX shell script)") }, () => {
+  describe("un worktree impossible à préparer est dit au projet, avec sa raison et son prochain essai", { skip: posixOnly("runs the fake claude (a POSIX shell script)") }, () => {
     // Le vrai git de la station, contre un dépôt sur 127.0.0.1 qui demande des
     // identifiants qu'elle n'a pas — sans credential helper, comme le Mac du
     // chef le 20 oct. 2026 (#1115). Le clone le vise avant que la cuisine ne s'ouvre.
@@ -1936,7 +1936,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal(branches[1], branches[0]);
   });
 
-  test("un cook qui échoue en laissant du travail non commité : son worktree part quand même, ce qu'il avait écrit est commité sur sa branche locale, et rien n'est poussé", { skip: posixOnly("builds a real git repository and runs the fake claude (a POSIX shell script)") }, async (t) => {
+  test("un cook qui échoue en laissant du travail non commité : son worktree part quand même, ce qu'il avait écrit est commité sur sa branche locale, et rien n'est poussé", { skip: posixOnly("runs the fake claude (a POSIX shell script)") }, async (t) => {
     const { repertoire, origine, clone, gh, dernier, types } = cuisine(t, { git: true, scenario: "ecrit-puis-echoue", seuilDisjoncteur: 1, issues: [issue(15)] });
     await jusqua(() => types(15).includes("worktree.removed"));
 
@@ -1953,7 +1953,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.ok(types(15).indexOf("cook.reported") < types(15).indexOf("worktree.removed"));
   });
 
-  test("un cook qui réécrit le fichier `.git` de son worktree ne fait rien lancer à la station : sa livraison échoue en le disant, rien n'est poussé, et son worktree est gardé", { skip: posixOnly("builds a real git repository and runs the fake claude (a POSIX shell script)") }, async (t) => {
+  test("un cook qui réécrit le fichier `.git` de son worktree ne fait rien lancer à la station : sa livraison échoue en le disant, rien n'est poussé, et son worktree est gardé", { skip: posixOnly("runs the fake claude (a POSIX shell script)") }, async (t) => {
     const { repertoire, origine, gh, journal, etat, dernier, types } = cuisine(t, { git: true, scenario: "livre-puis-detourne", seuilDisjoncteur: 1, issues: [issue(15)] });
     await jusqua(() => types(15).includes("worktree.kept"));
 
@@ -1973,7 +1973,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.match(String(dernier("worktree.kept", 15)?.detail), /ne désigne plus son dépôt dans le clone/);
   });
 
-  test("un cook qui quitte sa branche et commite ailleurs n'a pas livré un ticket sans diff : il a échoué, rien ne part en pass, et son worktree est gardé avec ce travail", { skip: posixOnly("builds a real git repository and runs the fake claude (a POSIX shell script)") }, async (t) => {
+  test("un cook qui quitte sa branche et commite ailleurs n'a pas livré un ticket sans diff : il a échoué, rien ne part en pass, et son worktree est gardé avec ce travail", { skip: posixOnly("runs the fake claude (a POSIX shell script)") }, async (t) => {
     const { repertoire, clone, gh, journal, etat, dernier, types, avertissements } = cuisine(t, { git: true, scenario: "commite-ailleurs", seuilDisjoncteur: 1, issues: [issue(15)] });
     await jusqua(() => types(15).includes("worktree.kept"));
 
@@ -1990,7 +1990,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal(avertissements.filter((ligne) => /worktree du ticket #15 non rangé/.test(ligne)).length, 1);
   });
 
-  test("un cook qui livre en laissant du travail non commité : la station le commite à sa place avant de pousser, et le dit sur l'issue", { skip: posixOnly("builds a real git repository and runs the fake claude (a POSIX shell script)") }, async (t) => {
+  test("un cook qui livre en laissant du travail non commité : la station le commite à sa place avant de pousser, et le dit sur l'issue", { skip: posixOnly("runs the fake claude (a POSIX shell script)") }, async (t) => {
     const { repertoire, origine, gh, etat, dernier, types } = cuisine(t, { git: true, scenario: "livre-et-laisse", issues: [issue(15)] });
     await jusqua(() => types(15).includes("worktree.removed") && gh.commentaires.length === 1);
 
@@ -2005,7 +2005,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.match(gh.commentaires[0]?.[1] ?? "", new RegExp(`Le cook avait laissé du travail non commité dans son worktree : la station l'a commité à sa place \\(\`${recolte}\`\\), et il fait partie de la livraison`));
   });
 
-  test("un cook mort avec le runtime : au démarrage suivant son worktree est rangé, avec ce qu'il avait écrit, avant qu'un cook neuf ne reparte", { skip: posixOnly("builds a real git repository and runs the fake claude (a POSIX shell script)") }, async (t) => {
+  test("un cook mort avec le runtime : au démarrage suivant son worktree est rangé, avec ce qu'il avait écrit, avant qu'un cook neuf ne reparte", { skip: posixOnly("runs the fake claude (a POSIX shell script)") }, async (t) => {
     const premiere = cuisine(t, { git: true, scenario: "bavard", issues: [issue(15)] });
     await jusqua(() => premiere.lancements().length === 1);
     const run = String(premiere.dernier("cook.launched", 15)?.run);

@@ -341,7 +341,7 @@ describe("la cloison", { concurrency: 8 }, () => {
     assert.deepEqual(readdirSync(vue).sort(), ["hooks", "packed-refs", "refs", "worktrees"]);
   });
 
-  test("le clone servi ne range jamais ses références seul : ni le `git` du runtime, ni celui du cook ne déplacent la branche d'un cook vivant", { skip: posixOnly("builds a real git repository") }, (t) => {
+  test("le clone servi ne range jamais ses références seul : ni le `git` du runtime, ni celui du cook ne déplacent la branche d'un cook vivant", (t) => {
     const { clone } = depotGit(t);
     const racine = repertoireTemporaire(t);
     const etat = join(racine, "etat");

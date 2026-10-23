@@ -9,7 +9,6 @@ import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { posixOnly } from "../support/plateforme.ts";
 import { principal } from "../../src/closing/command.ts";
 import type { Evenement, Fait } from "../../src/evenements.ts";
 import type { ReglagesDeFermeture } from "../../src/events/closing.ts";
@@ -80,14 +79,14 @@ function empreinte(repertoire: string): Record<string, string> {
   return Object.fromEntries(readdirSync(repertoire).map((nom) => [nom, createHash("sha1").update(readFileSync(join(repertoire, nom))).digest("hex")]));
 }
 
-test("sans closer réglé, la réponse le dit et ne porte aucun champ de l'observation", { skip: posixOnly("builds a real git repository") }, async (t) => {
+test("sans closer réglé, la réponse le dit et ne porte aucun champ de l'observation", async (t) => {
   for (const reglages of [null, { ...REGLAGES, calibration: null }]) {
     const lue = await lire(projet(t, reglages));
     assert.deepEqual(lue, { configured: false, text: SANS_CLOSER });
   }
 });
 
-test("avec un closer, l'observation donne ses trois chiffres — le ratio, les doublons, les exports morts — et les merges depuis la dernière fermeture", { skip: posixOnly("builds a real git repository") }, async (t) => {
+test("avec un closer, l'observation donne ses trois chiffres — le ratio, les doublons, les exports morts — et les merges depuis la dernière fermeture", async (t) => {
   const lieu = projet(t);
   for (const ticket of [17, 18, 19]) lieu.noter({ type: "merge.done", payload: { pr: `https://exemple.test/pull/${ticket}`, sha: `sha-${ticket}`, by: "pass", reconciled: false } }, ticket);
 
@@ -109,7 +108,7 @@ test("avec un closer, l'observation donne ses trois chiffres — le ratio, les d
   assert.deepEqual(lue.request, { state: "none" });
 });
 
-test("le ratio se donne en nombre quand des lignes ont été retirées", { skip: posixOnly("builds a real git repository") }, async (t) => {
+test("le ratio se donne en nombre quand des lignes ont été retirées", async (t) => {
   const { clone } = depotGit(t);
   ecrireHistoire(clone, [{ commit: { "stock.txt": lignes(10) } }, { merge: { "a.txt": lignes(10), "stock.txt": lignes(6) } }]);
   const lieu = { clone, etat: projet(t).etat };
@@ -118,7 +117,7 @@ test("le ratio se donne en nombre quand des lignes ont été retirées", { skip:
   assert.deepEqual(lue.observation.ratio[0], { window: 20, merges: 1, added: 10, removed: 4, ratio: 2.5, reads: "2.5:1" });
 });
 
-test("chaque trouvaille porte son fichier et ses lignes, sous le nom que la passe lui donne", { skip: posixOnly("builds a real git repository") }, async (t) => {
+test("chaque trouvaille porte son fichier et ses lignes, sous le nom que la passe lui donne", async (t) => {
   const lue = await lire(projet(t));
   assert.ok(lue.configured);
   assert.deepEqual(lue.findings, [
@@ -129,7 +128,7 @@ test("chaque trouvaille porte son fichier et ses lignes, sous le nom que la pass
   for (const trouvaille of lue.findings) assert.ok(trouvaille.file.length > 0 && trouvaille.start >= 1 && trouvaille.end >= trouvaille.start);
 });
 
-test("la dérive dit si un seuil est franchi, au seuil que le chef a déclaré au relevé des mesures", { skip: posixOnly("builds a real git repository") }, async (t) => {
+test("la dérive dit si un seuil est franchi, au seuil que le chef a déclaré au relevé des mesures", async (t) => {
   const sansSeuil = await lire(projet(t));
   assert.ok(sansSeuil.configured);
   assert.deepEqual(sansSeuil.drift, { declared: false, crossed: false, crossings: [] });
@@ -147,7 +146,7 @@ test("la dérive dit si un seuil est franchi, au seuil que le chef a déclaré a
   assert.deepEqual(franchi.drift, { declared: true, crossed: true, crossings: [{ measure: "merges", observed: 3, limit: 2, text: "3 merges since the last closing for a threshold of 2" }] });
 });
 
-test("une demande qui attend dit ce qui la retient : combien de cooks en vol, pour quel seuil", { skip: posixOnly("builds a real git repository") }, async (t) => {
+test("une demande qui attend dit ce qui la retient : combien de cooks en vol, pour quel seuil", async (t) => {
   const lieu = projet(t);
   lieu.noter({ type: "cook.launched", payload: { run: "7-enVol", limits: PLAFONDS, stream: "runs/7-enVol.jsonl" } }, 7);
   lieu.noter({ type: "closing.requested", payload: {} });
@@ -167,7 +166,7 @@ test("une demande qui attend dit ce qui la retient : combien de cooks en vol, po
   assert.match(lue.text, /^closing pass requested on .*, it waits — start condition not met: 1 cook in flight/);
 });
 
-test("une demande que rien ne retient plus attend le prochain réveil du runtime, sans motif", { skip: posixOnly("builds a real git repository") }, async (t) => {
+test("une demande que rien ne retient plus attend le prochain réveil du runtime, sans motif", async (t) => {
   const lieu = projet(t);
   lieu.noter({ type: "closing.requested", payload: {} });
   const lue = await demande(lieu);
@@ -176,7 +175,7 @@ test("une demande que rien ne retient plus attend le prochain réveil du runtime
   assert.match(lue.text, /its start condition is met, the runtime starts it at its next wake-up/);
 });
 
-test("une demande dite sans issue le dit, et attend toujours", { skip: posixOnly("builds a real git repository") }, async (t) => {
+test("une demande dite sans issue le dit, et attend toujours", async (t) => {
   const lieu = projet(t);
   lieu.noter({ type: "cook.launched", payload: { run: "7-enVol", limits: PLAFONDS, stream: "runs/7-enVol.jsonl" } }, 7);
   lieu.noter({ type: "closing.requested", payload: {} });
@@ -187,7 +186,7 @@ test("une demande dite sans issue le dit, et attend toujours", { skip: posixOnly
   assert.match(lue.text, /^CLOSING PASS WITH NO WAY OUT/);
 });
 
-test("une passe partie se lit en train de ranger, avec ce qu'elle tient", { skip: posixOnly("builds a real git repository") }, async (t) => {
+test("une passe partie se lit en train de ranger, avec ce qu'elle tient", async (t) => {
   const lieu = projet(t);
   lieu.noter({ type: "closing.requested", payload: {} });
   lieu.noter({ type: "closing.started", payload: { run: "fermeture-3f9c1a2e", base: "01913d7", zone: ["src/libre/outils.ts"], held: [], candidates: 3, limits: { tokens: 1000, removedLines: 20 } } });
@@ -195,7 +194,7 @@ test("une passe partie se lit en train de ranger, avec ce qu'elle tient", { skip
   assert.deepEqual({ ...lue, since: "" }, { state: "running", run: "fermeture-3f9c1a2e", since: "", base: "01913d7", zone: ["src/libre/outils.ts"], candidates: 3 });
 });
 
-test("une demande refusée dit son motif", { skip: posixOnly("builds a real git repository") }, async (t) => {
+test("une demande refusée dit son motif", async (t) => {
   const lieu = projet(t);
   lieu.noter({ type: "closing.requested", payload: {} });
   lieu.noter({ type: "closing.refused", payload: { reason: "stopped", observed: null, limit: null, detail: "2026-10-08 10:00" } });
@@ -205,7 +204,7 @@ test("une demande refusée dit son motif", { skip: posixOnly("builds a real git 
   assert.equal(lue.text, lue.reason.text);
 });
 
-test("une demande retirée par le chef se lit retirée", { skip: posixOnly("builds a real git repository") }, async (t) => {
+test("une demande retirée par le chef se lit retirée", async (t) => {
   const lieu = projet(t);
   lieu.noter({ type: "closing.requested", payload: {} });
   lieu.noter({ type: "closing.cancelled", payload: {} });
@@ -214,7 +213,7 @@ test("une demande retirée par le chef se lit retirée", { skip: posixOnly("buil
   assert.ok(lue.state === "cancelled" && /^2026-10-08T11:00/.test(lue.at));
 });
 
-test("une passe livrée dit ce qu'elle a retiré et l'adresse de sa PR", { skip: posixOnly("builds a real git repository") }, async (t) => {
+test("une passe livrée dit ce qu'elle a retiré et l'adresse de sa PR", async (t) => {
   const lieu = projet(t);
   lieu.noter({ type: "closing.requested", payload: {} });
   lieu.noter({ type: "closing.started", payload: { run: "fermeture-3f9c1a2e", base: "01913d7", zone: ["src/libre/outils.ts"], held: [], candidates: 3, limits: { tokens: 1000, removedLines: 20 } } });
@@ -246,7 +245,7 @@ test("une passe livrée dit ce qu'elle a retiré et l'adresse de sa PR", { skip:
   assert.match(lue.text, /^delivered: 1 line removed in 1 file/);
 });
 
-test("une passe finie sans rien livrer le dit : ni PR, ni retrait", { skip: posixOnly("builds a real git repository") }, async (t) => {
+test("une passe finie sans rien livrer le dit : ni PR, ni retrait", async (t) => {
   const lieu = projet(t);
   lieu.noter({ type: "closing.requested", payload: {} });
   lieu.noter({ type: "closing.started", payload: { run: "fermeture-0badf00d", base: "01913d7", zone: [], held: [], candidates: 1, limits: { tokens: 1000, removedLines: 20 } } });
@@ -257,7 +256,7 @@ test("une passe finie sans rien livrer le dit : ni PR, ni retrait", { skip: posi
   assert.match(lue.text, /^stopped: the closing's token cap reached \(1,200 for a cap of 1,000\)/);
 });
 
-test("lire ne change rien : aucune demande n'est créée, aucun fait n'est écrit, le journal n'a pas bougé d'un octet", { skip: posixOnly("builds a real git repository") }, async (t) => {
+test("lire ne change rien : aucune demande n'est créée, aucun fait n'est écrit, le journal n'a pas bougé d'un octet", async (t) => {
   // Une demande que rien ne retient : c'est là qu'un geste en trop la ferait partir.
   const lieu = projet(t);
   const types = () => {
@@ -283,7 +282,7 @@ test("lire ne change rien : aucune demande n'est créée, aucun fait n'est écri
   assert.ok(!types().includes("closing.started"));
 });
 
-test("une branche d'intégration qui ne se lit pas le dit, et la demande et la dérive se lisent quand même", { skip: posixOnly("builds a real git repository") }, async (t) => {
+test("une branche d'intégration qui ne se lit pas le dit, et la demande et la dérive se lisent quand même", async (t) => {
   const lieu = projet(t);
   lieu.noter({ type: "closing.requested", payload: {} });
   const lue = await lire(lieu, { BRIGADE_BASE_BRANCH: "inconnue" });
@@ -295,7 +294,7 @@ test("une branche d'intégration qui ne se lit pas le dit, et la demande et la d
   assert.equal(lue.drift.crossed, false);
 });
 
-test("la commande refuse ce qu'elle ne comprend pas, et ne crée aucun journal là où il n'y en a pas", { skip: posixOnly("builds a real git repository") }, async (t) => {
+test("la commande refuse ce qu'elle ne comprend pas, et ne crée aucun journal là où il n'y en a pas", async (t) => {
   const lieu = projet(t);
   const bavard = appeler(principal, ["--json", "write"], env(lieu));
   assert.equal(await bavard.fin, 2);
@@ -318,7 +317,7 @@ test("la commande refuse ce qu'elle ne comprend pas, et ne crée aucun journal l
   assert.match(ailleurs.sortie(), /is not a git repository/);
 });
 
-test("`run closing -- --json` se joue dans son propre process, et rend un objet sur une ligne", { skip: posixOnly("builds a real git repository") }, async (t) => {
+test("`run closing -- --json` se joue dans son propre process, et rend un objet sur une ligne", async (t) => {
   const lieu = projet(t);
   const enfant = lancer(t, join(import.meta.dirname, "../../src/fermeture.ts"), ["--json"], env(lieu));
   assert.equal(await enfant.fin, 0, enfant.sortie());

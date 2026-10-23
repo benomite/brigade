@@ -61,7 +61,7 @@ const DEPASSEMENT = {
 };
 
 // Chaque test a ses lieux — répertoire d'état, GitHub, gates : ils se jouent de front.
-describe("la pass", { skip: posixOnly("builds a real git repository and runs the fake claude (a POSIX shell script)"), concurrency: 8 }, () => {
+describe("la pass", { skip: posixOnly("runs the fake claude (a POSIX shell script)"), concurrency: 8 }, () => {
   test("un cook qui livre est jugé sans personne : les gates sont jouées dans un worktree jetable, sur la fusion de sa branche avec la base — le sien est déjà parti —, la CI est lue, le verdict dit ce qui l'a produit et sur quoi il porte", async (t) => {
     const { repertoire, gates, dernier, jusquAu, cooks, relectures } = service(t);
     await jusquAu("pass.held");

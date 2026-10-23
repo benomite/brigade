@@ -4,7 +4,6 @@
 // (`../aides/depot-qui-refuse.ts`). Aucun réseau.
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
-import { posixOnly } from "../support/plateforme.ts";
 import { lireLeRefus, verifierAcces, type Acces } from "../../src/projets/acces.ts";
 import { depotQuiRefuse } from "../aides/depot-qui-refuse.ts";
 import { BASE, depotGit, ENV_GIT, git, portsFermesALInstant, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
@@ -19,12 +18,12 @@ function verifier(t: TestContext, clone: string, plus: Record<string, string> = 
   return verifierAcces({ station: "box", depot: "benomite/parade", base: BASE, clone, env: envDe(t, plus) });
 }
 
-test("une origine qui laisse récupérer et pousser : l'accès est libre", { skip: posixOnly("builds a real git repository") }, async (t) => {
+test("une origine qui laisse récupérer et pousser : l'accès est libre", async (t) => {
   const { clone } = depotGit(t);
   assert.deepEqual(await verifier(t, clone), { etat: "libre" });
 });
 
-test("un dépôt en https, sans credential helper : la récupération est refusée vite, et le geste est `gh auth setup-git`", { skip: posixOnly("builds a real git repository") }, async (t) => {
+test("un dépôt en https, sans credential helper : la récupération est refusée vite, et le geste est `gh auth setup-git`", async (t) => {
   const distant = await depotQuiRefuse(t, { statut: 401, tls: true });
   const { clone } = depotGit(t);
   git(clone, "remote", "set-url", "origin", distant.url);
@@ -39,7 +38,7 @@ test("un dépôt en https, sans credential helper : la récupération est refus�
   assert.ok(distant.requetes.length > 0, "git a bien joint le dépôt");
 });
 
-test("un credential helper qui ne donne rien : le geste est de reconnecter gh, puis de le prêter à git", { skip: posixOnly("builds a real git repository") }, async (t) => {
+test("un credential helper qui ne donne rien : le geste est de reconnecter gh, puis de le prêter à git", async (t) => {
   const distant = await depotQuiRefuse(t, { statut: 401, tls: true });
   const { clone } = depotGit(t);
   git(clone, "remote", "set-url", "origin", distant.url);
@@ -50,7 +49,7 @@ test("un credential helper qui ne donne rien : le geste est de reconnecter gh, p
   assert.match(acces.geste, /`gh auth login`.*`gh auth setup-git`/);
 });
 
-test("un dépôt qui refuse la lecture au compte de la station : bloqué en récupération, avec la page où lui donner le droit", { skip: posixOnly("builds a real git repository") }, async (t) => {
+test("un dépôt qui refuse la lecture au compte de la station : bloqué en récupération, avec la page où lui donner le droit", async (t) => {
   const distant = await depotQuiRefuse(t, { statut: 403 });
   const { clone } = depotGit(t);
   git(clone, "remote", "set-url", "origin", distant.url);
@@ -62,7 +61,7 @@ test("un dépôt qui refuse la lecture au compte de la station : bloqué en réc
   assert.match(acces.geste, /read access to benomite\/parade.*https:\/\/github\.com\/benomite\/parade\/settings\/access/);
 });
 
-test("un dépôt qui laisse récupérer mais refuse de pousser : bloqué en écriture, avec une raison propre au push", { skip: posixOnly("builds a real git repository") }, async (t) => {
+test("un dépôt qui laisse récupérer mais refuse de pousser : bloqué en écriture, avec une raison propre au push", async (t) => {
   const distant = await depotQuiRefuse(t, { statut: 403 });
   const { clone } = depotGit(t);
   git(clone, "remote", "set-url", "--push", "origin", distant.url);
@@ -76,7 +75,7 @@ test("un dépôt qui laisse récupérer mais refuse de pousser : bloqué en écr
   assert.ok(distant.requetes.every((requete) => requete.startsWith("GET ") && requete.includes("service=git-receive-pack")), distant.requetes.join("\n"));
 });
 
-test("un dépôt qui n'existe pas : bloqué en récupération, le geste dit comment voir ce que voit le compte", { skip: posixOnly("builds a real git repository") }, async (t) => {
+test("un dépôt qui n'existe pas : bloqué en récupération, le geste dit comment voir ce que voit le compte", async (t) => {
   const { clone } = depotGit(t);
   git(clone, "remote", "set-url", "origin", `${repertoireTemporaire(t)}/absent.git`);
   const acces = await verifier(t, clone);
@@ -87,7 +86,7 @@ test("un dépôt qui n'existe pas : bloqué en récupération, le geste dit comm
   assert.match(acces.geste, /`gh repo view benomite\/parade`/);
 });
 
-test("un dépôt injoignable n'est pas un refus : la station réessaie, sans geste à faire", { skip: posixOnly("builds a real git repository") }, async (t) => {
+test("un dépôt injoignable n'est pas un refus : la station réessaie, sans geste à faire", async (t) => {
   const [port] = await portsFermesALInstant(1);
   const { clone } = depotGit(t);
   git(clone, "remote", "set-url", "origin", `http://127.0.0.1:${port}/benomite/parade.git`);

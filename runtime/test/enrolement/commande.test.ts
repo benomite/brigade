@@ -135,7 +135,7 @@ test("une commande ne sert qu'une fois : relancée, ici ou sur une autre machine
   assert.deepEqual(registre.liste(), avant);
 });
 
-test("sans brigade sur la machine, la commande le clone d'abord, puis lance le geste du clone", { skip: posixOnly("builds a real git repository and runs a POSIX shell script") }, async (t) => {
+test("sans brigade sur la machine, la commande le clone d'abord, puis lance le geste du clone", { skip: posixOnly("runs a POSIX shell script") }, async (t) => {
   // Un dépôt de brigade dont le geste ne fait que noter ce qu'il reçoit.
   const depot = repertoireTemporaire(t);
   git(depot, "init", "-q", `--initial-branch=${BASE}`);

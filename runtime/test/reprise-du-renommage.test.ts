@@ -130,7 +130,7 @@ async function avantEtApresLeRenommage(t: TestContext) {
   return { clone, worktrees, depot, deplacee, intacte, disputee, commit, traduire };
 }
 
-describe("une livraison portée sur l'arbre renommé, sur un vrai dépôt", { skip: posixOnly("builds a real git repository"), concurrency: 4 }, () => {
+describe("une livraison portée sur l'arbre renommé, sur un vrai dépôt", { concurrency: 4 }, () => {
   test("elle touchait des fichiers déplacés : un commit de plus sur sa branche fusionne la base renommée, et y déplace ce qu'elle avait écrit — fichier et dossier", async (t) => {
     const { clone, worktrees, depot, deplacee, commit, traduire } = await avantEtApresLeRenommage(t);
 

@@ -142,7 +142,7 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
     assert.equal(retirerDecision(journal, { projet: "brigade", nom: "BRIGADE_REVIEWER_MODEL", auteur: "chef" }), null);
   });
 
-  test("le support n'est pas sous le clone du dépôt, et aucune pose de décision ne crée ni ne modifie un fichier du dépôt", { skip: posixOnly("builds a real git repository") }, (t) => {
+  test("le support n'est pas sous le clone du dépôt, et aucune pose de décision ne crée ni ne modifie un fichier du dépôt", (t) => {
     const { clone } = depotGit(t);
     const repertoire = repertoireTemporaire(t);
     const chemin = supportDesDecisions({ repertoireEtat: repertoire, clone });
@@ -334,7 +334,7 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
 
 // Un runtime complet, dans son propre process : ce que le chef pose pendant
 // qu'il tourne, il le lit sans redémarrer.
-describe("le runtime et les décisions du chef", { skip: posixOnly("builds a real git repository, runs the fake claude (a POSIX shell script) and runs the fake gh (a POSIX shell script)"), concurrency: 4 }, () => {
+describe("le runtime et les décisions du chef", { skip: posixOnly("runs the fake claude and the fake gh (POSIX shell scripts)"), concurrency: 4 }, () => {
   const environnement = (t: TestContext, repertoire: string) => {
     const gh = fauxGh(t);
     gh.issues([]);
