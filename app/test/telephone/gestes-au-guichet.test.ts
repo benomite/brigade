@@ -20,7 +20,7 @@ import { CONFIRMES, DIRECTS, GRANTS } from "../../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../../src/grants.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
-import { FauxEcran, FauxStockage, type Faux, type Jouee, jouerLaVue, repos } from "../aides/fausse-vue.ts";
+import { FauxEcran, FauxStockage, type Faux, type Jouee, jouerLaVue, type Reponses, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-10-23T08:04:12.000Z";
 const STATION = "atelier";
@@ -131,8 +131,9 @@ async function telephone(station: ReturnType<typeof guichet>): Promise<Jouee> {
       tous: (demande) => void lecture.tous(demande),
       regarder: (projet, demande) => void lecture.regarder(projet, demande),
       relireBox: () => void lecture.relire(),
-      gestesDeFiche: async (carte) => lecture.gestesDeFiche(carte),
-      gesteDeFiche: (projet, id, ticket) => lecture.geste(projet, id, ticket),
+      gestesDeFiche: (carte) => lecture.gestesDeFiche(carte),
+      // Le pont rend la promesse de la lecture ; la fausse vue l'attend comme celle du vrai pont.
+      gesteDeFiche: ((projet: string, id: string, ticket: number) => lecture.geste(projet, id, ticket)) as unknown as Reponses["gesteDeFiche"],
       oublierLeTelephone: async () => undefined,
       espace: () => [],
       machines: () => [],
