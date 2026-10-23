@@ -24,6 +24,7 @@ import { ouvrirTelephones } from "../telephone/appairage.ts";
 import { configGuichet, ouvrirGuichet } from "../telephone/guichet.ts";
 import { gestesDeLaStation } from "../telephone/gestes.ts";
 import { projetsDeLaStation } from "../telephone/projets.ts";
+import { secondsDeLaStation } from "../telephone/second.ts";
 import { CONFIGURATION, worktreesDeLaStation } from "./configuration.ts";
 import { attendrePorteDeLaStation, configPortes, lirePortes, VARIABLE_PORTES } from "./portes.ts";
 import { nommer, ouvrirStation, projetEnCours } from "./station.ts";
@@ -144,8 +145,9 @@ const projetsDeLApp = tenirProjetsDeLApp({
 });
 
 // Le guichet où le téléphone du chef s'appaire, sans terminal, puis lit les
-// stations, les projets de celle-ci et la file de chacun, et y fait les gestes
-// de la file (telephone/guichet.ts, telephone/projets.ts, telephone/gestes.ts) :
+// stations, les projets de celle-ci et la file de chacun, y fait les gestes de
+// la file et parle au second de chaque projet (telephone/guichet.ts,
+// telephone/projets.ts, telephone/gestes.ts, telephone/second.ts) :
 // le code se tire par sa commande
 // (telephone/appairage-cli.ts), dans le même registre.
 let fermerLeGuichet = async () => {};
@@ -154,9 +156,11 @@ if (guichet !== null) {
   try {
     const projets = projetsDeLaStation({ racine, env: process.env, station });
     const gestes = gestesDeLaStation({ racine, env: process.env });
-    const ouvert = await ouvrirGuichet({ telephones, projets, gestes, hote: guichet.hote, port: guichet.port });
+    const seconds = secondsDeLaStation({ racine, env: process.env });
+    const ouvert = await ouvrirGuichet({ telephones, projets, gestes, seconds, hote: guichet.hote, port: guichet.port });
     dire(`brigade : guichet des téléphones à l'écoute sur ${guichet.hote}:${ouvert.port} — registre ${guichet.registre}`);
     fermerLeGuichet = async () => {
+      seconds.arreter();
       await ouvert.fermer();
       telephones.fermer();
     };

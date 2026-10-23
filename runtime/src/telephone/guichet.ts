@@ -33,6 +33,22 @@
 //       à montrer telle quelle — celle de la commande quand elle en a dit une ;
 //       `detail`, ce qui a été lancé et tout ce qu'il a écrit. Sans jeton
 //       valable : 401, avant tout le reste, et rien n'est lancé.
+//   GET /projects/<nom>/second     Authorization: Bearer <token>
+//       la conversation avec le second du projet, celle que le second du
+//       desktop reprend (`second.ts`) : 200 {"project", "session", "messages":
+//       [{"from": "chef" | "second", "at", "text"}, ...], "omitted"?,
+//       "answering"?, "failed"?: {"said", "detail"}}, du plus ancien au plus
+//       récent ; 404 un projet que la station n'a pas ; 503 {"said"} une
+//       conversation que la station ne tient pas ou ne lit pas.
+//   POST /projects/<nom>/second     Authorization: Bearer <token>
+//       {"text": "..."} un message du chef à ce second, qui part dans cette
+//       même conversation : 202 {"sent": true, ...la conversation} dès qu'il y
+//       est — `answering` tant que le second y répond ; 409 {"sent":
+//       false, "said"} le second répond encore au message précédent ; 400 une
+//       demande mal formée ; 404 un projet que la station n'a pas ; 503 une
+//       conversation que la station ne tient pas ; 502 {"sent": false, "said",
+//       "detail"} un second qui n'a pas pris le message. Sans jeton valable :
+//       401, avant tout le reste, et rien ne part.
 //
 // Le guichet ne tire aucun code : une demande qui le joint peut venir de
 // n'importe où — un relais sur la boucle locale fait passer le monde entier
@@ -60,6 +76,7 @@ import { PresentationInvalide } from "../stations-globales/registre.ts";
 import { CodeRefuse, type Telephones } from "./appairage.ts";
 import { estUnGeste, GESTES, type GestesDuTelephone } from "./gestes.ts";
 import type { ProjetsDuTelephone } from "./projets.ts";
+import type { SecondsDuTelephone } from "./second.ts";
 
 // `node:http` pris par `process.getBuiltinModule`, pas importé : la façade ESM
 // d'un module de Node lit tous ses accesseurs, et celui de `WebSocket` charge
@@ -79,6 +96,8 @@ export type OptionsGuichet = {
   // Les gestes de la file sur les projets de la station : sans eux, aucun ne
   // se joue.
   gestes?: GestesDuTelephone;
+  // Le second de chaque projet : sans eux, aucune conversation ne se lit.
+  seconds?: SecondsDuTelephone;
   // Zéro : un port libre, que le guichet rend.
   port: number;
   // Où il écoute. Le téléphone doit pouvoir le joindre : l'adresse du réseau
@@ -149,9 +168,10 @@ export function ouvrirGuichet(options: OptionsGuichet): Promise<Guichet> {
   // Une demande d'un téléphone appairé : sa méthode — GET pour une lecture —,
   // et son jeton. Rend vrai quand la demande peut être servie ; sinon la
   // réponse est déjà rendue.
-  const appairee = (requete: IncomingMessage, reponse: ServerResponse, methode = "GET"): boolean => {
-    if (requete.method !== methode) {
-      rendre(reponse, 405, { said: `${methode} only` }, { allow: methode });
+  const appairee = (requete: IncomingMessage, reponse: ServerResponse, ...methodes: string[]): boolean => {
+    const permises = methodes.length === 0 ? ["GET"] : methodes;
+    if (!permises.includes(requete.method ?? "")) {
+      rendre(reponse, 405, { said: `${permises.join(" or ")} only` }, { allow: permises.join(", ") });
       return false;
     }
     if (telephones.authentifier(jetonDe(requete)) === null) {
@@ -204,6 +224,44 @@ export function ouvrirGuichet(options: OptionsGuichet): Promise<Guichet> {
     return rendre(reponse, code, { done: rendu.etat === "fait", said: rendu.said, detail: rendu.detail });
   };
 
+  const nomDe = (encode: string): string | null => {
+    try {
+      return decodeURIComponent(encode);
+    } catch {
+      return null;
+    }
+  };
+
+  const lireLeSecond = (encode: string, reponse: ServerResponse) => {
+    const nom = nomDe(encode);
+    if (nom === null) return rendre(reponse, 404, { said: "unknown" });
+    const lu = options.seconds?.lire(nom) ?? { etat: "inconnu" };
+    if (lu.etat === "inconnu") return rendre(reponse, 404, { said: `this station has no project named “${nom}”` });
+    if (lu.etat === "indisponible") return rendre(reponse, 503, { said: lu.said });
+    return rendre(reponse, 200, lu.conversation);
+  };
+
+  const ecrireAuSecond = async (encode: string, corps: string, reponse: ServerResponse) => {
+    const refus = (code: number, said: string, detail?: string) => rendre(reponse, code, { sent: false, said, ...(detail === undefined ? {} : { detail }) });
+    const nom = nomDe(encode);
+    if (nom === null) return rendre(reponse, 404, { said: "unknown" });
+    let demande: { text?: unknown };
+    try {
+      demande = JSON.parse(corps) as typeof demande;
+    } catch {
+      demande = {};
+    }
+    const texte = typeof demande === "object" && demande !== null ? demande.text : undefined;
+    if (typeof texte !== "string") return refus(400, 'the request is not a message: {"text": "<your message>"} is expected');
+    if (texte.trim() === "") return refus(400, "the message is empty: nothing was sent");
+    const envoi = (await options.seconds?.envoyer(nom, texte)) ?? { etat: "inconnu" };
+    if (envoi.etat === "inconnu") return refus(404, `this station has no project named “${nom}”`);
+    if (envoi.etat === "indisponible") return refus(503, envoi.said);
+    if (envoi.etat === "occupe") return refus(409, envoi.said);
+    if (envoi.etat === "en-echec") return refus(502, envoi.said, envoi.detail);
+    return rendre(reponse, 202, { sent: true, ...envoi.conversation });
+  };
+
   const trebucher = (reponse: ServerResponse, erreur: unknown) => {
     console.error(`brigade : the phone desk stumbled — ${erreur instanceof Error ? (erreur.stack ?? erreur.message) : String(erreur)}`);
     if (!reponse.headersSent) rendre(reponse, 500, { said: "the station stumbled" });
@@ -232,6 +290,12 @@ export function ouvrirGuichet(options: OptionsGuichet): Promise<Guichet> {
     if (duGeste !== undefined) {
       if (!appairee(requete, reponse, "POST")) return;
       return void geste(duGeste, corps, reponse).catch((erreur: unknown) => trebucher(reponse, erreur));
+    }
+    const [, duSecond] = /^\/projects\/([^/]+)\/second$/.exec(chemin) ?? [];
+    if (duSecond !== undefined) {
+      if (!appairee(requete, reponse, "GET", "POST")) return;
+      if (requete.method === "GET") return lireLeSecond(duSecond, reponse);
+      return void ecrireAuSecond(duSecond, corps, reponse).catch((erreur: unknown) => trebucher(reponse, erreur));
     }
     return rendre(reponse, 404, { said: "unknown" });
   };
