@@ -703,6 +703,27 @@ describe("la pass", { concurrency: 8 }, () => {
     await jusquAu("pass.escalated");
 
     assert.deepEqual(dernier("pass.escalated", 17), { reason: "unjudged", cause: "ci-silent" });
+    assert.deepEqual(dernier("pass.ci-awaited", 17)?.workflows, [".github/workflows/ci.yml"]);
+    await jusqua(() => gh.commentaires.some(([, corps]) => corps.includes("`.github/workflows/ci.yml`")));
+  });
+
+  test("une branche dont les seuls workflows sont planifiés, manuels ou sur tag est jugée sans CI (mirrorlab)", async (t) => {
+    const { gh, compter, dernier, jusquAu } = service(t, {
+      grant: true,
+      depot: (depot) => ({
+        ...depot,
+        liste: (branche, repertoire) => (repertoire === ".github/workflows" ? ["preprod-drift.yml", "release-prod.yml"] : depot.liste(branche, repertoire)),
+        lire: (_branche, chemin) =>
+          chemin.endsWith("preprod-drift.yml")
+            ? "on:\n  schedule:\n    - cron: '0 6 * * *'\n  workflow_dispatch:\n    inputs:\n      a:\n        description: b\n"
+            : "on:\n  push:\n    tags:\n      - 'v*'\n",
+      }),
+    });
+    gh.ci.checks = [];
+    await jusquAu("merge.done");
+
+    assert.equal(dernier("pass.judged", 17)?.verdict, "green");
+    assert.deepEqual([compter("pass.escalated"), compter("pass.ci-awaited")], [0, 0]);
   });
 
   test("une CI qui ne conclut jamais remonte au chef passé le délai, sans renvoi", async (t) => {

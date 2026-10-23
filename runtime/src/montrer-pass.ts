@@ -19,6 +19,7 @@ import { configRail } from "./alimenter.ts";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { direBaseRougeEn, direControleRetenuEn, direPanneEn } from "./dire-base.ts";
 import { direSansGrantEn } from "./attend.ts";
+import { workflowsAttendus } from "./activites.ts";
 import type { Base } from "./base.ts";
 import type { Evenement } from "./evenements.ts";
 import { relancerLeJugement, tourAttendu } from "./file-de-la-pass.ts";
@@ -75,9 +76,15 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
   const direTour = (tour: { tenant: number; devant: number }) =>
     `delivered, waiting for its turn — #${tour.tenant} is in its pass, ${tour.devant === 0 ? "next in line" : `${tour.devant} ahead of it`}`;
 
+  // Une livraison jugée qui attend la CI dit quels workflows elle attend.
+  const attendus = (base: Base, pass: PassDeTicket) => {
+    const workflows = pass.phase === "judging" ? workflowsAttendus(base, pass) : null;
+    return workflows === null ? "" : ` — waiting for the CI of ${workflows}`;
+  };
+
   function decrire(base: Base, pass: PassDeTicket): string {
     const tour = tourAttendu(base, pass.ticket);
-    const phase = `${tour === null ? (PHASES[pass.phase] ?? pass.phase) : direTour(tour)}${pass.reason === null ? "" : ` (${pass.reason}${pass.cause === null ? "" : `: ${pass.cause}`})`}${pass.phase === "waiting" && pass.reason === GATES_COUPEES ? ` — ${DIRE_GATES_COUPEES_EN}` : ""}`;
+    const phase = `${tour === null ? (PHASES[pass.phase] ?? pass.phase) : direTour(tour)}${pass.reason === null ? "" : ` (${pass.reason}${pass.cause === null ? "" : `: ${pass.cause}`})`}${pass.phase === "waiting" && pass.reason === GATES_COUPEES ? ` — ${DIRE_GATES_COUPEES_EN}` : ""}${attendus(base, pass)}`;
     // Hors du rail, le numéro est celui de la PR, et personne n'y est renvoyé.
     return [pass.horsRail ? `PR #${pass.ticket}  off the rail (run ${pass.run})` : `#${pass.ticket}`, phase, pass.horsRail ? null : renvois(pass), `since ${pass.since}`, pass.pr ?? (pass.noDiff ? "no diff" : null)]
       .filter((champ) => champ !== null)
@@ -164,6 +171,8 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
           ...tests.map((test) => `      failing test: ${test}`),
         ];
       }
+      case "pass.ci-awaited":
+        return [`${tete}no check yet on ${evenement.payload.sha.slice(0, 7)}: waiting for the CI of ${evenement.payload.workflows.join(", ")} (runs on PRs to the base)`];
       case "pass.second-judged": {
         const { verdict, reason, judge, model, effort, reviewer } = evenement.payload;
         const par = judge === null ? "not launched" : `run ${judge}, ${model} / ${effort} — the reviewer reads in ${reviewer.model} / ${reviewer.effort}`;

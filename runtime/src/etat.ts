@@ -472,7 +472,8 @@ function decrireCoincees({ coincees }: EtatCuisine, depuis: Depuis): string[] {
 // Des gates coupées sur une machine saturée : la file le dit, à la suite du
 // détail du ticket. Les autres activités de la pass ne s'y lisent pas. L'activité
 // garde sa phrase française (`facts`) : c'est elle qu'on reconnaît.
-const direAttenteDeCharge = (activite: ActiviteDeTicket | null | undefined) => (activite?.fait === DIRE_GATES_COUPEES ? ` — ${DIRE_GATES_COUPEES_EN}` : "");
+const direAttenteDeCharge = (activite: ActiviteDeTicket | null | undefined) =>
+  activite?.fait === DIRE_GATES_COUPEES ? ` — ${DIRE_GATES_COUPEES_EN}` : activite?.fait === "jugement en cours" && activite.cible !== null ? ` — waiting for the CI of ${activite.cible}` : "";
 
 // Un cook sur une ligne : son ticket, son calibrage, où il travaille, son
 // budget consommé, s'il tient un ticket son temps sans progrès — celui du

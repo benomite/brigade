@@ -451,6 +451,9 @@ export const pass = definirProjection<Ecoutes>({
     // nothing in the pass's state: the delivery is still being judged, and the
     // pass reads the rerun in the log.
     "pass.ci-rerun": () => {},
+    // Which workflow the pass waits on changes nothing in its state: `pass`
+    // and `status` read it in the log.
+    "pass.ci-awaited": () => {},
     "pass.judged": (base, { ticket, at, seq, payload }) => {
       const verdict = payload.verdict === "green" ? "green" : "red";
       passer(

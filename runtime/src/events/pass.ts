@@ -230,6 +230,11 @@ export type FaitPass =
   // encore, ils sont en cours. `tests` : les tests en échec, en chemins du
   // dépôt. Une fois par livraison : ni renvoi, ni carte, ni phase changée.
   | { type: "pass.ci-rerun"; payload: { run: string; sha: string; runs: number[]; checks: Check[]; tests: string[] } }
+  // La pass attend la CI du commit `sha` sans qu'aucun check n'existe : la
+  // branche porte ces `workflows` (fichiers sous `.github/workflows`), qui se
+  // lancent sur une PR vers la base. Une fois par commit ; c'est ce que
+  // `pass` et `status` disent attendre.
+  | { type: "pass.ci-awaited"; payload: { sha: string; workflows: string[] } }
   // Le verdict, avec ce qui l'a produit : les gates, la CI, le reviewer — et
   // ce sur quoi il porte : `sha`, la tête de la branche ; `base`, la tête de la
   // base avec laquelle elle a été fusionnée ; `merged`, l'arbre obtenu, celui

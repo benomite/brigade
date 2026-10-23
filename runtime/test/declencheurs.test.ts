@@ -38,3 +38,9 @@ test("dans le doute, la CI est attendue", () => {
   assert.equal(sur("jobs: {}\n"), true);
   assert.equal(sur("on: { pull_request: {} }\n"), true);
 });
+
+test("un workflow planifié, déclenché à la main ou sur un tag ne se lance pas sur une PR (mirrorlab #1627)", () => {
+  assert.equal(sur("name: drift\non:\n  schedule:\n    - cron: '0 6 * * *'\n  workflow_dispatch:\n    inputs:\n      cible:\n        description: x\n        required: false\njobs:\n  a:\n    runs-on: x\n"), false);
+  assert.equal(sur("on:\n  push:\n    tags:\n      - 'v*'\n  workflow_dispatch:\n"), false);
+  assert.equal(sur("on:\n  schedule:\n    - cron: '0 6 * * *'\n  pull_request:\n"), true);
+});
