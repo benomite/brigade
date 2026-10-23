@@ -48,4 +48,4 @@ export type FaitBudgetDesGates =
         run?: GenreDuBudget;
       };
     }
-  | { type: "gates.budget-ticket-closed"; payload: { state: "closed" | "gone" } };
+  | { type: "gates.budget-ticket-closed"; payload: { state: "closed" | "gone" | "off-rail" } };

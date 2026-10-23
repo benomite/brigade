@@ -475,10 +475,13 @@ went over, and a base ticket never asks to fit the full run into the ticket budg
 one to fit the full suite. Its body gives the measured
 wall-clock and CPU, the budget of each (set by the chef or default), which dimension is exceeded and
 by how much, the run that did it, and the criteria: back under budget, no test removed, skipped or
-weakened. It carries `fire` and `model:opus` / `effort:high`: the kitchen serves it like any other
-ticket. **One at a time**: while the last one is open on GitHub, a run over budget opens nothing
-more; once it is closed — or gone —, the next run over budget writes `gates.budget-ticket-closed`
-and opens a new one. A run within budget never calls GitHub. The creation is announced in the log
+weakened. It carries `fire`, `prio:1` and `model:opus` / `effort:high`: the kitchen serves it before the
+tickets of lower priority. **One at a time**: while the last one is on the rail (open on GitHub, with
+`fire`, without `hors-cuisine`), a run over budget opens nothing more; once it is closed, gone — or
+taken off the rail and left open —, the next run over budget writes `gates.budget-ticket-closed`
+(`state`: `closed`, `gone` or `off-rail`) and opens a new one. While the last run is over budget and
+no budget ticket is on the project's rail, `rail` says so in one line (`gates of <project> over budget
+(…) and no budget ticket on the rail`). A run within budget never calls GitHub. The creation is announced in the log
 before the call (`gates.budget-ticket-opening`), and the issue carries the mark
 `<!-- brigade:budget-gates <project> <seq of the announcement> -->`: a lost answer, or a runtime killed
 in between, finds the issue again by its mark — from a trusted author only — instead of opening it

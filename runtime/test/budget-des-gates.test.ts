@@ -7,6 +7,7 @@ import { annonceDuBudget, LABELS_BUDGET, tenirLeBudget } from "../src/budget-des
 import { BUDGET_DUREE, BUDGET_PROCESSEUR } from "../src/cout-des-gates.ts";
 import { poserDecision } from "../src/decisions.ts";
 import type { FaitGates } from "../src/events/gates.ts";
+import { principal as montrerLeRail } from "../src/montrer-rail.ts";
 import { principal as faits } from "../src/faits.ts";
 import type { GitHub } from "../src/github.ts";
 import { ouvrirJournal } from "../src/journal.ts";
@@ -134,6 +135,42 @@ describe("le ticket des gates hors budget", { concurrency: 8 }, () => {
 
     assert.deepEqual(gh.creations, [501]);
     assert.deepEqual(types(), ["gates.budget-ticket-opening -", "gates.budget-ticket-opened 501"]);
+  });
+
+  test("le ticket s'ouvre en prio:1, pour passer devant les tickets de priorité plus basse", async (t) => {
+    const { gh, passage, tenir } = cas(t);
+    passage(TROP_LONG);
+    await tenir();
+    assert.ok(gh.lire(501)!.labels.includes("prio:1"));
+  });
+
+  test("un ticket retiré du rail, resté ouvert, ne retient pas le suivant — ni `hors-cuisine`", async (t) => {
+    const { gh, passage, tenir, types } = cas(t);
+    passage(TROP_LONG);
+    await tenir();
+    gh.poser({ ...gh.lire(501)!, labels: gh.lire(501)!.labels.filter((label) => label !== "fire") });
+
+    passage(TROP_LONG);
+    assert.deepEqual(await tenir(), { ticket: 502, ouvert: true });
+    gh.poser({ ...gh.lire(502)!, labels: [...gh.lire(502)!.labels, "hors-cuisine"] });
+    passage(TROP_LONG);
+    assert.deepEqual(await tenir(), { ticket: 503, ouvert: true });
+    assert.deepEqual(types().filter((type) => type.startsWith("gates.budget-ticket-closed")), ["gates.budget-ticket-closed 501", "gates.budget-ticket-closed 502"]);
+  });
+
+  test("la file du projet dit en une ligne que les gates sont hors budget sans ticket sur le rail, et se tait sinon", async (t) => {
+    const { repertoire, journal, passage } = cas(t);
+    const ligne = async () => {
+      const lancee = appeler(montrerLeRail, [], { BRIGADE_STATE_DIR: repertoire, BRIGADE_PROJECT: PROJET });
+      assert.equal(await lancee.fin, 0, lancee.sortie());
+      return lancee.sortie().split("\n").filter((l) => l.includes("over budget"));
+    };
+    passage(SOUS);
+    assert.deepEqual(await ligne(), []);
+    passage(TROP_LONG);
+    assert.deepEqual(await ligne(), ["gates of espace over budget (gates of a ticket: wall-clock duration) and no budget ticket on the rail"]);
+    journal.ajouter({ project: PROJET, ticket: 501, author: "github", type: "gates.budget-ticket-opened", payload: { durationSeconds: 215, cpuSeconds: 300, budget: { durationSeconds: 100, cpuSeconds: 400 }, exceeded: ["duration"], run: "ticket", reconciled: false } });
+    assert.deepEqual(await ligne(), ["gates of espace over budget (gates of a ticket: wall-clock duration) and no budget ticket on the rail"]);
   });
 
   test("fermé, le passage hors budget suivant en ouvre un neuf — disparu de même ; `facts` donne le dernier", async (t) => {

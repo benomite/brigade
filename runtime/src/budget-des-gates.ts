@@ -8,9 +8,11 @@
 // pas à remarquer la dérive : le ticket la dit, avec ce qui a été mesuré, le
 // budget, et ce qui le dépasse.
 //
-// Un seul à la fois par projet : tant que le dernier ouvert l'est encore sur
-// GitHub, un passage hors budget n'en ouvre pas d'autre. Fermé — ou disparu —,
-// le passage hors budget suivant en ouvre un neuf. Sous le budget, rien ne
+// Un seul à la fois par projet : tant que le dernier ouvert est encore sur le
+// rail (ouvert sur GitHub, avec `fire`, sans `hors-cuisine`), un passage hors
+// budget n'en ouvre pas d'autre. Fermé, disparu — ou retiré du rail, resté
+// ouvert —, le passage hors budget suivant en ouvre un neuf. Il s'ouvre en
+// `prio:1`: les gates hors budget retiennent la box, il passe devant les autres. Sous le budget, rien ne
 // part vers GitHub.
 //
 // Sa création est annoncée au journal avant l'appel à GitHub : la réponse
@@ -22,13 +24,15 @@ import type { Base } from "./base.ts";
 import { budgetDuPassage, dernierPassage, genreDe, lireBudget, lireBudgetDeLaBase, type BudgetDesGates, type PassageDesGates } from "./cout-des-gates.ts";
 import { decisionsPosees } from "./decisions.ts";
 import type { DimensionDuBudget, FaitBudgetDesGates, GenreDuBudget } from "./events/gates.ts";
-import { LABEL, type GitHub } from "./github.ts";
+import { HORS_CUISINE, LABEL, type GitHub } from "./github.ts";
 import type { Journal } from "./journal.ts";
+import { lireRail } from "./projections/rail.ts";
 
 // Le calibrage du ticket : alléger une suite sans rien retirer de ce qu'elle
 // prouve demande de la lire entière.
 export const CALIBRAGE_BUDGET = { model: "opus", effort: "high" } as const;
-export const LABELS_BUDGET = [LABEL, `model:${CALIBRAGE_BUDGET.model}`, `effort:${CALIBRAGE_BUDGET.effort}`];
+export const PRIO_BUDGET = "prio:1";
+export const LABELS_BUDGET = [LABEL, PRIO_BUDGET, `model:${CALIBRAGE_BUDGET.model}`, `effort:${CALIBRAGE_BUDGET.effort}`];
 
 // L'issue retrouvée d'une annonce : créée depuis, avec cette marge.
 const MARGE_MS = 600_000;
@@ -104,7 +108,7 @@ export function corpsDuBudget(horsBudget: HorsBudget, annonce: number): string {
     "",
     "---",
     "",
-    `_Opened by the kitchen on its own, without the chef: the gates went over their ${budgetDit}. Calibrated \`${CALIBRAGE_BUDGET.model}\` / \`${CALIBRAGE_BUDGET.effort}\`. While it is open, no other one is opened for ${projet}; closed, the next run over budget opens a new one._`,
+    `_Opened by the kitchen on its own, without the chef: the gates went over their ${budgetDit}. Calibrated \`${CALIBRAGE_BUDGET.model}\` / \`${CALIBRAGE_BUDGET.effort}\`. While it is on the rail, no other one is opened for ${projet}; closed or taken off the rail, the next run over budget opens a new one._`,
   ].join("\n");
 }
 
@@ -124,6 +128,26 @@ export function ticketDuBudget(base: Base, projet: string): TicketDuBudget | nul
   const [ligne] = base.lire<{ payload: string }>("SELECT payload FROM events WHERE seq = ?", suivi.seq);
   const { exceeded, run } = JSON.parse(ligne?.payload ?? "{}") as { exceeded?: DimensionDuBudget[]; run?: GenreDuBudget };
   return { number: suivi.ticket, openedAt: suivi.at, exceeded: exceeded ?? [], run: run ?? "ticket" };
+}
+
+// Les gates du projet sont hors budget à leur dernier passage, et aucun ticket
+// de budget n'est sur le rail du projet (un servi n'y est plus): ce que la
+// file du projet dit en une ligne. Null sinon.
+export function horsBudgetSansTicket(base: Base, projet: string): HorsBudget | null {
+  const passage = dernierPassage(base, projet);
+  if (passage === null) return null;
+  const posees = decisionsPosees(base);
+  const budget = budgetDuPassage(passage, { ticket: lireBudget(posees), base: lireBudgetDeLaBase(posees) });
+  const depassees = dimensionsDepassees(passage, budget);
+  if (depassees.length === 0) return null;
+  const suivi = ticketDuBudget(base, projet);
+  if (suivi !== null && lireRail(base).some((ticket) => ticket.ticket === suivi.number && ticket.state !== "served")) return null;
+  return { projet, passage, budget, depassees };
+}
+
+export function direHorsBudget({ projet, passage, depassees }: HorsBudget): string {
+  const quoi = depassees.map((dimension) => NOMS[dimension]).join(" and ");
+  return `gates of ${projet} over budget (${genreDe(passage) === "base" ? "full run on the base" : "gates of a ticket"}: ${quoi}) and no budget ticket on the rail`;
 }
 
 export type OptionsBudget = {
@@ -152,8 +176,9 @@ export async function tenirLeBudget(options: OptionsBudget): Promise<{ ticket: n
   let suivi = dernierSuivi(base, projet);
   if (suivi?.type === OUVERT && suivi.ticket !== null) {
     const lue = await github.issue(suivi.ticket);
-    if (lue !== null && lue.state === "open") return { ticket: suivi.ticket, ouvert: false };
-    noter(suivi.ticket, { type: FERME, payload: { state: lue === null ? "gone" : "closed" } });
+    const surLeRail = lue !== null && lue.state === "open" && lue.labels.includes(LABEL) && !lue.labels.includes(HORS_CUISINE);
+    if (surLeRail) return { ticket: suivi.ticket, ouvert: false };
+    noter(suivi.ticket, { type: FERME, payload: { state: lue === null ? "gone" : lue.state === "open" ? "off-rail" : "closed" } });
     suivi = null;
   }
   // Une annonce sans suite : l'issue a peut-être été créée, sa réponse perdue.
