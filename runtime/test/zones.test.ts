@@ -39,3 +39,16 @@ test("hors zone : les fichiers qu'aucun chemin de la zone ne possède, les commu
   assert.deepEqual(horsZone(["runtime/src"], fichiers, ["docs/runtime.md"]), ["runtime/test/rail.test.ts", "README.md"]);
   assert.deepEqual(horsZone(["runtime", "README.md"], fichiers, ["docs"]), []);
 });
+
+test("deux zones ne s'excluent que si un chemin de l'une est, ou contient, un chemin de l'autre — par segments, pas par préfixe", () => {
+  // Deux dossiers voisins sous le même dossier de tête ne se recouvrent pas.
+  assert.equal(recouvrement(["runtime/src"], ["runtime/test/foo.test.ts"]), null);
+  // Un dossier recouvre ce qu'il contient, dans les deux sens.
+  assert.equal(recouvrement(["runtime/src/rail/"], ["runtime/src/rail/queue.ts"]), "runtime/src/rail/queue.ts");
+  assert.equal(recouvrement(["runtime/src/rail/queue.ts"], ["runtime/src/rail/"]), "runtime/src/rail/queue.ts");
+  // `rail` n'est pas un préfixe de chemin de `railway`.
+  assert.equal(recouvrement(["runtime/src/rail"], ["runtime/src/railway"]), null);
+  assert.equal(recouvrement(["runtime/src/railway"], ["runtime/src/rail/"]), null);
+  // Deux zones identiques s'excluent.
+  assert.equal(recouvrement(["runtime/src", "runtime/test"], ["runtime/src", "runtime/test"]), "runtime/src");
+});
