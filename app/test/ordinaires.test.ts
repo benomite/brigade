@@ -160,7 +160,7 @@ describe("les tickets ordinaires dans la vue", () => {
     assert.equal(option?.checked, true);
     assert.equal(limite?.value, "2");
     assert.deepEqual(bloc.dessous("p").map(({ textContent }) => textContent), [EXPLICATION]);
-    assert.deepEqual(bloc.dessous("h3").map(({ textContent }) => textContent), ["Ordinary tickets on this Mac"]);
+    assert.deepEqual(bloc.dessous("h3").map(({ textContent }) => textContent), ["Ordinary tickets on this Macthis machine"]);
     assert.equal(limite?.ariaLabel, "Cooks this Mac runs at once");
   });
 

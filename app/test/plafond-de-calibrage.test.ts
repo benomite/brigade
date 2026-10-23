@@ -160,7 +160,7 @@ describe("l'onglet Cooks : le plafond de calibrage du projet", () => {
     const { vue } = await ouvrir();
     await ouvrirOnglet(vue, "Cooks");
     const pose = section(vue) ?? assert.fail("pas de plafond sur Cooks");
-    assert.equal(pose.children[0]?.textContent, TITRE);
+    assert.equal(pose.children[0]?.textContent, `${TITRE}project`);
     assert.equal(pose.dessous("p").find((p) => p.className === "valeur")?.textContent, "opus / highdefault");
     assert.equal(liste(pose, "model").value, "opus");
     assert.equal(liste(pose, "effort").value, "high");

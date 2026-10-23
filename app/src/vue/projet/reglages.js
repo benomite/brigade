@@ -8,6 +8,7 @@
 // la valeur en vigueur. Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js).
 
 import { boutonAction, lectureIndisponible, survol } from "../briques.js";
+import { niveauDe } from "../niveaux.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../reglages-du-projet.ts").ReglageVu} Vu */
@@ -73,6 +74,7 @@ export function poserUnReglage(doc, { vu, modeles, efforts, etat, choisir, propo
   rangee.dataset.cle = vu.cle;
   const nom = cree(doc, "span", vu.nom);
   nom.className = "nom";
+  nom.append(niveauDe(doc, vu.cle));
   const valeur = cree(doc, "p");
   valeur.className = "valeur";
   const dite = cree(doc, "strong", vu.dit ?? "not set");

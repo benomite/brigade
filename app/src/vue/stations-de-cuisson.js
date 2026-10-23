@@ -13,6 +13,7 @@
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js).
 
 import { boutonAction } from "./briques.js";
+import { niveauDe } from "./niveaux.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../cuisson.ts").LigneDeStation} Ligne */
@@ -101,6 +102,7 @@ function plafondDeLaStation(doc, station, cap, rendu, saisies, regler) {
   const attend = rendu === "en cours";
   const plafond = cree(doc, "p", `Cooks at once: ${cap.plafond.dit}`);
   plafond.className = "plafond-de-station";
+  plafond.append(niveauDe(doc, "cooks"));
   const lignes = [plafond];
   if (cap.retenue !== undefined) {
     const sature = cree(doc, "p", `Saturated on ${cap.retenue.ressources} — ${cap.retenue.detail}. ${BAISSER_LE_PLAFOND}`);
