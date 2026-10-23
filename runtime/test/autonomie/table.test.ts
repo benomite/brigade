@@ -9,14 +9,14 @@ import type { Fait } from "../../src/evenements.ts";
 import { principal as grant } from "../../src/grant-cli.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { etatDuGrant } from "../../src/projections/pass.ts";
-import { appeler, faitInconnu, horloge, repertoireTemporaire, JOUR_HORLOGE } from "../outils.ts";
+import { aArreter, appeler, faitInconnu, horloge, repertoireTemporaire, JOUR_HORLOGE } from "../outils.ts";
 
 const MAINTENANT = new Date(`${JOUR_HORLOGE}T12:00:00.000Z`);
 
 function projet(t: TestContext) {
   const repertoire = repertoireTemporaire(t);
   const journal = ouvrirJournal(repertoire, { maintenant: horloge() });
-  t.after(() => journal.fermer());
+  aArreter(t, () => journal.fermer());
   const noter = (fait: Fait, author = "chef") => journal.ajouter({ project: "brigade", ticket: null, author, ...fait });
   // A project's log is never empty when the chef acts on it: something is written in it.
   noter(faitInconnu("test.seeded"), "runtime");
@@ -113,7 +113,7 @@ describe("a row set to a position", () => {
       assert.deepEqual(positions(), TOUT(position));
       // Another process reads the same table, with nothing rebuilt.
       const autre = ouvrirJournal(repertoire, { lectureSeule: true });
-      t.after(() => autre.fermer());
+      aArreter(t, () => autre.fermer());
       assert.deepEqual(Object.fromEntries(lireAutonomie(autre.base, MAINTENANT).rows.map(({ row, position: lue }) => [row, lue])), TOUT(position));
       for (const row of RANGEES) assert.equal(positionDe(autre.base, row, MAINTENANT), position);
     });
@@ -122,7 +122,7 @@ describe("a row set to a position", () => {
   test("changed again while another handle stays open, the next read of that handle sees the new position", (t) => {
     const { repertoire, journal, geste } = projet(t);
     const autre = ouvrirJournal(repertoire, { lectureSeule: true });
-    t.after(() => autre.fermer());
+    aArreter(t, () => autre.fermer());
     for (const position of POSITIONS) {
       poserRangee(journal, { ...geste, row: "cost", position });
       assert.equal(positionDe(autre.base, "cost", MAINTENANT), position);
