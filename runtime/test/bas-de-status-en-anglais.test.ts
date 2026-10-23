@@ -76,7 +76,7 @@ test("l'état d'exemple fait paraître chaque ligne du bas de `status`, et aucun
 
   assert.deepEqual(bas.slice(0, bas.indexOf("latest events")), [
     "rail       3 taken · 2 in pass · 6 queued · 2 BLOCKED · 4 86 · 1 WAITING · 1 served",
-    "  #30  queued  prio:0  withheld by box/claude (gradual ramp-up, cooks that have just left weigh in advance) — since 4 min  Réparer la base",
+    "  #30  queued  prio:0  machine saturated — withheld by box/claude (gradual ramp-up, cooks that have just left weigh in advance) — since 4 min  Réparer la base",
     "  #17  in pass  prio:1  since 3 d, cooked by box/claude  Ticket 17",
     "  #19  BLOCKED  prio:1  #21 dropped (issue closed without being served) — since 2 h 04  Ticket 19",
     "  #23  taken  prio:1  by box/claude since 5 min, STUCK: no progress since 5 min, lease 5 min left  Ticket 23",
