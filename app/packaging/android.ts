@@ -177,14 +177,17 @@ export function poserLaVue(demarrage: Demarrage, www = WWW, app = APP): void {
 // lecture même de Node), à `android/lecture.js` pour lui, à `src/<chemin>.js` pour les modules de l'app — à côté de
 // la vue, comme dans l'app —, ses imports réécrits vers ces fichiers. Les modules de Node qu'ils importent pour le
 // desktop (un `ssh`, un fichier) n'existent pas dans la WebView : chacun est remplacé par un module inerte, aux mêmes
-// noms, que rien n'appelle sur le téléphone — le pont n'en lit que ce qui calcule. Rend les fichiers posés, relatifs à `www`.
+// noms, que rien n'appelle sur le téléphone — le pont n'en lit que ce qui calcule. Un module du runtime que l'app
+// partage avec lui (le lecteur du tableau de la cuisine, runtime/src/tableau/rendu/bloc.ts) est posé à
+// `runtime/src/<chemin>.js` : à côté de l'app, comme dans le paquet du desktop. Rend les fichiers posés, relatifs à `www`.
 export const LECTURE = join(ANDROID, "web", "lecture.ts");
 export function poserLesModules(www = WWW, app = APP, entree = LECTURE): string[] {
   const posee = (source: string): string => {
     const relatif = relative(app, source).split(sep).join("/");
     if (relatif.startsWith("src/")) return relatif.replace(/\.ts$/, ".js");
+    if (relatif.startsWith("../runtime/src/")) return relatif.slice("../".length).replace(/\.ts$/, ".js");
     if (source === entree) return "android/lecture.js";
-    return echouer(`the phone's reading imports ${relatif}, outside app/src/: the WebView cannot load it`);
+    return echouer(`the phone's reading imports ${relatif}, outside app/src/ and runtime/src/: the WebView cannot load it`);
   };
   const inertes = new Map<string, Set<string>>();
   const poses: string[] = [];
@@ -209,7 +212,7 @@ export function poserLesModules(www = WWW, app = APP, entree = LECTURE): string[
           const importe = resolve(dirname(source), specificateur);
           pile.push(importe);
           cible = posee(importe);
-        } else return echouer(`${relative(app, source)} imports ${specificateur}: the phone's reading takes only app/src/ and Node's modules`);
+        } else return echouer(`${relative(app, source)} imports ${specificateur}: the phone's reading takes only app/src/, runtime/src/ and Node's modules`);
         const chemin = posix.relative(posix.dirname(ici), cible);
         return `${debut}"${chemin.startsWith(".") ? chemin : `./${chemin}`}"`;
       },
