@@ -1,6 +1,6 @@
 // Ce qui manque à la station pour les tests d'un projet : lu dans un vrai
 // dépôt écrit sur le disque, comparé à une machine doublée, tenu dans un vrai
-// journal — un choix par besoin, à trois issues, que le chef retient.
+// journal — un choix par besoin, à quatre issues, que le chef retient.
 import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -16,9 +16,11 @@ import {
   choisirDans,
   choixDesBesoins,
   choixDuJournal,
+  choixDuSetup,
   ChoixInconnu,
   ICI,
   lireChoix,
+  PROJET,
   selectionsLues,
   suivreLesBesoins,
   TESTS,
@@ -26,6 +28,7 @@ import {
   type Choix,
 } from "../../../src/installation/besoins/besoins.ts";
 import { besoinNomme, essaiMysql, type Jouer } from "../../../src/installation/besoins/catalogue.ts";
+import { ouvrirLesTicketsDans } from "../../../src/installation/besoins/ticket.ts";
 import { besoinsDesFichiers, besoinsDuDepot, lireLeDepot } from "../../../src/installation/besoins/detecter.ts";
 import { aLeBesoin, ESSAI_VALABLE_MS, sondeDeLaMachine, type Sonde } from "../../../src/installation/besoins/fourni.ts";
 import { ouvrirJournal } from "../../../src/journal.ts";
@@ -111,7 +114,7 @@ function unProjet(t: TestContext) {
 
 const enAttente = (choix: readonly Choix[]) => choix.filter(({ status }) => status === "pending");
 
-test("les tests d'un projet ont besoin de Postgres, la station ne l'a pas : un seul choix, pour la base, à trois issues qui disent chacune ce qui en suit", (t) => {
+test("les tests d'un projet ont besoin de Postgres, la station ne l'a pas : un seul choix, pour la base, à quatre issues qui disent chacune ce qui en suit", (t) => {
   const besoins = besoinsDuDepot(unDepot(t, MIRRORSCREEN));
   // Le setup d'abord ; un script de déploiement qui lance docker ne dit rien des tests.
   assert.deepEqual(
@@ -126,13 +129,18 @@ test("les tests d'un projet ont besoin de Postgres, la station ne l'a pas : un s
   assert.equal(base!.need, "postgres");
   assert.equal(base!.message, "The tests of mirrorscreen need a Postgres database, which box does not have.");
   assert.equal(base!.cause, "`.claude/brigade/worktree-setup.sh` runs `psql`; `apps/api/.env.example` points at a `postgres://` address; `apps/api/package.json` depends on `pg`.");
-  assert.deepEqual(base!.options.map(({ id }) => id), [AILLEURS, ICI, TESTS]);
-  const [ailleurs, ici, tests] = base!.options;
+  assert.deepEqual(base!.options.map(({ id }) => id), [AILLEURS, ICI, TESTS, PROJET]);
+  const [ailleurs, ici, tests, projet] = base!.options;
   // Quels tickets attendent une autre station, ce qui s'installe sur la box, ce que perd la couverture.
   assert.equal(ailleurs!.consequence, "The tickets of mirrorscreen whose tests need a Postgres database wait until a station that provides `postgres` is declared for mirrorscreen; none is today, so they do not start.");
   assert.equal(ici!.label, "Provide it on box");
   assert.equal(ici!.consequence, "A PostgreSQL server (the `postgresql` package) is installed on box and runs there as a service, and the tests of mirrorscreen run there with it: no ticket waits for another station.");
   assert.match(tests!.consequence, /^A ticket of mirrorscreen rewrites its tests so they pass without a Postgres database: .*no longer checked against a real Postgres\.$/);
+  // La box n'a que le client `psql` : ni serveur à démarrer, ni Docker — le setup doit d'abord aller le chercher.
+  assert.equal(projet!.label, "The project's setup brings it itself");
+  assert.match(projet!.consequence, /^A ticket of mirrorscreen makes its worktree setup bring a Postgres database itself — it starts a throwaway Postgres server of its own .* —, and its tests run with it: what that takes is not on box yet, /);
+  assert.equal(projet!.recommended, undefined);
+  assert.ok(base!.options.every(({ recommended }) => recommended === undefined));
   // Des phrases, jamais la sortie d'une commande.
   for (const phrase of [base!.message, base!.cause, ...base!.options.flatMap(({ label, consequence }) => [label, consequence])]) {
     assert.equal(estUneSortieBrute(phrase), false, phrase);
@@ -144,6 +152,63 @@ test("une autre station du projet fournit le besoin : l'issue « ailleurs » dit
   const besoins = besoinsDuDepot(unDepot(t, MIRRORSCREEN));
   const [choix] = choixDesBesoins(besoins, { projet: "mirrorscreen", nom: "box", sonde: BOX, fournit: ["code"], ailleurs: [{ nom: "mac/claude", fournit: ["code", "postgres"] }] });
   assert.equal(choix!.options[0]!.consequence, "The tickets of mirrorscreen whose tests need a Postgres database wait for mac/claude, which provides it; box keeps cooking the others.");
+});
+
+// Un Docker doublé : son démon répond au compte de la station, ou le refuse.
+const unDocker = (repond: boolean): { jouer: Jouer } => ({
+  jouer: (commande, args) =>
+    commande === "docker" && args[0] === "info" ? (repond ? { code: 0, sortie: "Server Version: 24.0.7\n" } : { code: 1, sortie: "permission denied while trying to connect to the Docker daemon socket\n" }) : { code: null, sortie: "" },
+});
+
+test("l'issue « le setup du projet l'apporte » est recommandée quand rien n'est à installer sur la station : elle a les binaires du serveur, ou un Docker qui répond", (t) => {
+  const besoins = besoinsDuDepot(unDepot(t, MIRRORSCREEN));
+  const station = { projet: "mirrorscreen", nom: "box", fournit: [] as string[], ailleurs: [] };
+  const issues = (sonde: Sonde, fournit: string[] = []) => choixDesBesoins(besoins, { ...station, sonde, fournit })[0]!.options;
+  const duProjet = (sonde: Sonde, fournit: string[] = []) => issues(sonde, fournit).find(({ id }) => id === PROJET)!;
+
+  // mirrorlab : Postgres est installé, mais refuse le compte de la cuisine —
+  // le setup démarre le sien avec les binaires de la station.
+  const binaires = duProjet(machineAvec(unPostgres("refuse"), ...SERVEUR_PG));
+  assert.equal(binaires.recommended, true);
+  assert.match(binaires.consequence, /, and its tests run with it: box already has what that takes, nothing is installed there\.$/);
+  // Seule l'issue du projet l'est.
+  assert.deepEqual(
+    issues(machineAvec(unPostgres("refuse"), ...SERVEUR_PG)).filter(({ recommended }) => recommended === true).map(({ id }) => id),
+    [PROJET],
+  );
+  // Ni binaires du serveur ni Postgres, mais un Docker qui répond : il le démarre en conteneur.
+  assert.equal(duProjet(machineAvec(unDocker(true), "docker", "psql")).recommended, true);
+  // Docker déclaré pour une station d'ici.
+  assert.equal(duProjet(BOX, ["docker"]).recommended, true);
+
+  // Le client `psql` seul, un Docker qui refuse le compte : il faudrait installer quelque chose.
+  assert.equal(duProjet(BOX).recommended, undefined);
+  const refuse = duProjet(machineAvec(unDocker(false), "docker", "psql"));
+  assert.equal(refuse.recommended, undefined);
+  assert.match(refuse.consequence, /: what that takes is not on box yet, so the setup has to fetch it, or that ticket says what must be installed there\.$/);
+
+  // Le choix que pose un setup en échec porte le même jugement.
+  const manques = new Map([["box/claude", ["postgres"]]]);
+  const duSetup = (sonde: Sonde) => choixDuSetup(manques, { projet: "mirrorscreen", sonde, fournit: [], ailleurs: [] })[0]!.options.find(({ id }) => id === PROJET)!;
+  assert.equal(duSetup(machineAvec(unPostgres("refuse"), ...SERVEUR_PG)).recommended, true);
+  assert.equal(duSetup(BOX).recommended, undefined);
+});
+
+test("la carte du navigateur garde ses trois issues, et gagne celle du projet, sans recommandation : Chromium peut demander des bibliothèques du système", (t) => {
+  const besoins = besoinsDuDepot(unDepot(t, { "package.json": JSON.stringify({ name: "site", devDependencies: { "@playwright/test": "^1.48.0" } }) }));
+  assert.deepEqual(besoins.map(({ besoin }) => besoin.id), ["browser"]);
+  const [choix] = choixDesBesoins(besoins, { projet: "site", nom: "box", sonde: machineAvec(unDocker(true), "docker", "npx"), fournit: [], ailleurs: [] });
+  assert.deepEqual(
+    choix!.options.map(({ id, label }) => [id, label]),
+    [
+      [AILLEURS, "Cook it on a station that has it"],
+      [ICI, "Provide it on box"],
+      [TESTS, "Adapt the tests"],
+      [PROJET, "The project's setup brings it itself"],
+    ],
+  );
+  assert.match(choix!.options[3]!.consequence, /^A ticket of site makes its worktree setup bring a browser itself — it downloads the browser its tests drive into the cook's account/);
+  assert.ok(choix!.options.every(({ recommended }) => recommended === undefined));
 });
 
 test("la station a le besoin — sur sa machine, ou déclaré pour une station d'ici — : aucun choix", (t) => {
@@ -217,6 +282,7 @@ test("retenir une issue la garde au journal du projet : le choix n'est plus en a
 
 test("le choix que l'app écrit dans la demande est retenu à la lecture : une issue inconnue, ou un choix qui n'existe pas, n'y fait rien", (t) => {
   assert.deepEqual(selectionsLues({ "need:postgres": ICI, "need:docker": "install-it", clone: AILLEURS, "need:go": 3 }), { "need:postgres": ICI });
+  assert.deepEqual(selectionsLues({ "need:postgres": PROJET }), { "need:postgres": PROJET });
   assert.deepEqual(selectionsLues(["need:postgres"]), {});
   assert.deepEqual(selectionsLues(null), {});
 
@@ -387,7 +453,26 @@ test("la machine a une commande quand son PATH en porte une exécutable", { skip
 // mirrorscreen, écrit sur le disque.
 // `ouvrir` : ce que le test fait quand la station ouvre le ticket qui prépare
 // le dépôt — le premier de sa cuisine ; `ecrite` : quand elle a écrit sa ligne.
-function uneStation(t: TestContext, sonde: Sonde, { ouvrir, ecrite }: { ouvrir?: (repertoireEtat: string) => void; ecrite?: () => void } = {}) {
+// Un GitHub doublé : il retient les issues créées, et rend leurs numéros à partir de 42.
+function unGitHub() {
+  const creees: Array<{ titre: string; corps: string; labels: string[] }> = [];
+  let panne: string | null = null;
+  return {
+    creees,
+    tomber: (raison: string | null) => void (panne = raison),
+    github: {
+      async creerIssue(issue: { titre: string; corps: string; labels: string[] }) {
+        if (panne !== null) throw new Error(panne);
+        creees.push(issue);
+        return 41 + creees.length;
+      },
+      issuesDepuis: async () => [],
+      fermer: () => {},
+    },
+  };
+}
+
+function uneStation(t: TestContext, sonde: Sonde, { ouvrir, ecrite, github }: { ouvrir?: (repertoireEtat: string) => void; ecrite?: () => void; github?: ReturnType<typeof unGitHub>["github"] } = {}) {
   const racine = repertoireTemporaire(t);
   writeFileSync(join(racine, FICHIER_LOCAL), JSON.stringify({ gist: "gist1", appairee: true, code: null, expireLe: null, echus: [] }));
   const fichiers: Fichiers = {};
@@ -422,6 +507,8 @@ function uneStation(t: TestContext, sonde: Sonde, { ouvrir, ecrite }: { ouvrir?:
       ouvrir?.(repertoireEtat);
       return { ticket: 7, ouvert: true };
     },
+    ouvrirLesTicketsDesBesoins: (projet, repertoireEtat) =>
+      ouvrirLesTicketsDans(repertoireEtat, { projet: projet.nom, auteur: "station:box" }, () => github ?? assert.fail("aucun ticket de besoin n'est ouvert dans ce test")),
     sonde,
   });
   aArreter(t, () => projets.arreter());
@@ -440,7 +527,7 @@ test("les choix sont publiés dans le suivi du projet, à côté de ses blocages
   const [choix] = lu.choix!;
   assert.equal(choix!.id, "need:postgres");
   assert.equal(choix!.status, "pending");
-  assert.deepEqual(choix!.options.map(({ id }) => id), [AILLEURS, ICI, TESTS]);
+  assert.deepEqual(choix!.options.map(({ id }) => id), [AILLEURS, ICI, TESTS, PROJET]);
   assert.deepEqual(lu.blocages, [{ id: "need:postgres", message: choix!.message, cause: choix!.cause, action: ACTION_DU_CHOIX }]);
   // Le suivi ne porte que des phrases : aucune n'est la sortie d'une commande.
   assert.ok([choix!.message, choix!.cause, ...choix!.options.map(({ consequence }) => consequence)].every((phrase) => !estUneSortieBrute(phrase)));
@@ -453,6 +540,59 @@ test("les choix sont publiés dans le suivi du projet, à côté de ses blocages
   assert.equal(apres.choix![0]!.status === "chosen" ? apres.choix![0]!.selected : null, ICI);
   assert.equal(apres.blocages, undefined);
   assert.equal(enAttente(lireChoix(join(station.racine, "etat/mirrorscreen"))).length, 0);
+});
+
+test("le chef laisse la base au setup du projet : un seul ticket s'ouvre sur le projet, qui nomme le besoin ; le choix n'est plus une carte en attente, et dit son ticket", async (t) => {
+  const gh = unGitHub();
+  const station = uneStation(t, machineAvec(unPostgres("refuse"), ...SERVEUR_PG), { github: gh.github });
+  station.demander();
+  await station.projets.relire();
+  // En attente, rien ne part vers GitHub.
+  assert.equal(station.suivi().choix![0]!.status, "pending");
+  assert.equal(gh.creees.length, 0);
+
+  // GitHub en panne : le choix est retenu, son ticket attend la lecture suivante.
+  gh.tomber("HTTP 502");
+  station.demander({ "need:postgres": PROJET });
+  await station.projets.relire();
+  assert.equal(gh.creees.length, 0);
+  assert.equal(station.suivi().choix![0]!.status, "chosen");
+  gh.tomber(null);
+  await station.projets.relire();
+
+  assert.equal(gh.creees.length, 1);
+  const [ouvert] = gh.creees;
+  assert.equal(ouvert!.titre, "Make the worktree setup of mirrorscreen bring a Postgres database itself");
+  assert.match(ouvert!.corps, /^<!-- brigade:need-setup mirrorscreen postgres \d+ -->$/m);
+  assert.match(ouvert!.corps, /its worktree setup \(`\.claude\/brigade\/worktree-setup\.sh`\) must provide a Postgres database to the tests on its own, so nothing is installed on the station\./);
+  assert.match(ouvert!.corps, /The tests of mirrorscreen need a Postgres database, which box does not have\./);
+  assert.deepEqual(ouvert!.labels, ["fire", "model:opus", "effort:high"]);
+
+  const lu = station.suivi();
+  assert.deepEqual(
+    lu.choix?.map((choix) => (choix.status === "chosen" ? [choix.id, choix.status, choix.selected, choix.ticket] : [choix.id, choix.status])),
+    [["need:postgres", "chosen", PROJET, 42]],
+  );
+  assert.equal(lu.blocages, undefined);
+
+  // Relu, et relu encore : aucun autre ticket, rien de plus au journal.
+  const journal = ouvrirJournal(join(station.racine, "etat/mirrorscreen"), { lectureSeule: true });
+  aArreter(t, () => journal.fermer());
+  const avant = journal.dernierSeq();
+  await station.projets.relire();
+  await station.projets.relire();
+  assert.equal(gh.creees.length, 1);
+  assert.equal(journal.dernierSeq(), avant);
+  assert.deepEqual(
+    journal
+      .tout()
+      .filter(({ type }) => type.startsWith("need.ticket-"))
+      .map(({ type, payload }) => [type, payload]),
+    [
+      ["need.ticket-opening", { id: "need:postgres", need: "postgres" }],
+      ["need.ticket-opened", { id: "need:postgres", need: "postgres", ticket: 42, reconciled: false }],
+    ],
+  );
 });
 
 test("la station sur laquelle Postgres est installé ne publie aucun choix", async (t) => {
