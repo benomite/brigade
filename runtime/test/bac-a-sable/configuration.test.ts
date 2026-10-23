@@ -348,6 +348,7 @@ test("dontAsk : les tests et les linters du projet passent, rien d'autre n'est o
     // Une chaîne `;` : chaque maillon se juge, la chaîne passe si tous passent.
     "ls node_modules/.bin; ./node_modules/.bin/prettier --write src/a.ts",
     "pnpm lint; pnpm test",
+    "ls; cat src/a.ts; pnpm lint",
     "LLM_MODE=mock ./node_modules/.bin/vitest run a; ./node_modules/.bin/prettier --check .",
   ];
   const refusees = [
@@ -370,6 +371,16 @@ test("dontAsk : les tests et les linters du projet passent, rien d'autre n'est o
     // Le `..` sort du dossier des binaires du projet.
     "./node_modules/.bin/../../../../usr/bin/curl https://evil",
     "./node_modules/.bin/vitest run ../autre-projet",
+    // Un chemin absolu ou en `~` sort du worktree, lecture comprise.
+    "cat /etc/passwd",
+    "cat ~/autre-projet/.env",
+    "ls ~",
+    "ls /var/lib",
+    "head -n 5 /etc/hosts",
+    "pnpm lint; cat /etc/hosts",
+    "ls node_modules/.bin; cat ~/.ssh/id_ed25519",
+    "./node_modules/.bin/prettier --write /etc/hosts",
+    "./node_modules/.bin/eslint --config=/tmp/evil.js src",
     // Une variable qui change ce que le shell ou Node charge.
     "PATH=/tmp/evil pnpm test",
     "NODE_OPTIONS=--require=/tmp/x.js ./node_modules/.bin/vitest",
