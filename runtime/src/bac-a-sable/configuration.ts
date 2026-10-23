@@ -23,6 +23,7 @@
 // Pur : rien n'est lu ni écrit, aucun chemin n'est résolu sur le disque. Les
 // chemins se donnent absolus, comme le Mac les voit.
 import { posix } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { Regle } from "../reseau.ts";
 
 // Ce que le chef garde sous son répertoire et qu'aucun cook ne lit : ses clés,
@@ -70,6 +71,7 @@ export type Reglages = {
     filesystem: { allowWrite: string[]; denyWrite: string[]; denyRead: string[] };
     network: { allowedDomains: string[]; strictAllowlist: true; allowLocalBinding: false; allowAllUnixSockets: false };
   };
+  hooks: { PreToolUse: typeof CROCHET_BASH };
   permissions: { allow: string[]; deny: string[]; disableBypassPermissionsMode: "disable" };
 };
 
@@ -116,6 +118,16 @@ function domaines(regle: Regle): string[] {
 // Une règle de permission sur un chemin absolu : `//` devant, le chemin lui-même
 // et tout ce qui est sous lui.
 const regles = (outil: string, lieu: string) => [`${outil}(/${lieu})`, `${outil}(/${lieu}/**)`];
+
+// Le crochet qui autorise les commandes de vérification du projet (tests et
+// linters, `verification.ts`) : aucune règle `Bash(…)` ne sait les borner.
+const CROCHET = fileURLToPath(new URL("./crochet-bash.ts", import.meta.url));
+export const CROCHET_BASH = [{ matcher: "Bash", hooks: [{ type: "command" as const, command: `"${process.execPath}" "${CROCHET}"` }] }];
+
+// Ce que le cook lit quand `claude` lui refuse une commande : le refus de
+// `dontAsk` est un message fixe, qui ne dit pas quoi faire à la place.
+export const CONSIGNE_DE_REFUS =
+  "Si une commande Bash t'est refusée avec « Permission to use Bash has been denied because Claude Code is running in don't ask mode », ce n'est pas une panne : seules les commandes de vérification du projet sont autorisées, dans ton worktree. À la place, joue ses tests et ses linters ainsi : `./node_modules/.bin/<outil> <args>` (vitest, prettier, eslint…, sans `..`), éventuellement précédé de variables (`DATABASE_URL=… LLM_MODE=mock ./node_modules/.bin/vitest run <chemin>`), ou `pnpm test`, `pnpm lint`, `pnpm format`, `pnpm typecheck` (aussi `npm`, `yarn`, `pnpm run <script>`). Pas de `&&`, de `|`, de redirection ni de guillemets dans ces commandes, et pas de `cd` hors du worktree ; les lectures (`ls`, `cat`, `head`, `tail`, `wc`, `pwd`) passent seules, et on peut les enchaîner avec `;`. Ne contourne pas un refus : si rien de cela ne convient, dis dans ton compte-rendu ce que tu voulais lancer.";
 
 export function configurer(cook: Cook): ConfigDeBacASable {
   if (!posix.isAbsolute(cook.home)) throw new BacASableInvalide(`répertoire du compte (« ${cook.home} ») : un chemin absolu est attendu`);
@@ -164,6 +176,7 @@ export function configurer(cook: Cook): ConfigDeBacASable {
         // soit le mode — sans lui, `bypassPermissions` le laisserait passer.
         network: { allowedDomains: unique(hotes.flatMap(({ noms }) => noms)), strictAllowlist: true, allowLocalBinding: false, allowAllUnixSockets: false },
       },
+      hooks: { PreToolUse: CROCHET_BASH },
       permissions: {
         allow: unique([
           ...ecrits.map((lieu) => `Edit(/${lieu}/**)`),
@@ -185,5 +198,5 @@ export function configurer(cook: Cook): ConfigDeBacASable {
 // Ce que la station ajoute au lancement d'un cook dans le bac à sable, à la
 // place de son `--permission-mode`.
 export function argumentsDuBacASable(config: ConfigDeBacASable): string[] {
-  return ["--permission-mode", config.modeDePermission, "--settings", JSON.stringify(config.reglages)];
+  return ["--permission-mode", config.modeDePermission, "--settings", JSON.stringify(config.reglages), "--append-system-prompt", CONSIGNE_DE_REFUS];
 }

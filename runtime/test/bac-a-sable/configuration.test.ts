@@ -10,7 +10,7 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import { test } from "node:test";
-import { argumentsDuBacASable, BacASableInvalide, configurer, LECTURES_INTERDITES, type Cook } from "../../src/bac-a-sable/configuration.ts";
+import { argumentsDuBacASable, BacASableInvalide, CONSIGNE_DE_REFUS, configurer, LECTURES_INTERDITES, type Cook } from "../../src/bac-a-sable/configuration.ts";
 import { reglesDuProjet, type Regle } from "../../src/reseau.ts";
 
 const HOME = "/Users/chef";
@@ -152,7 +152,7 @@ test("les arguments de lancement portent le mode du cook et des réglages qui se
   const args = argumentsDuBacASable(config);
   assert.deepEqual(args.slice(0, 3), ["--permission-mode", "dontAsk", "--settings"]);
   assert.deepEqual(JSON.parse(args[3] ?? ""), config.reglages);
-  assert.equal(args.length, 4);
+  assert.deepEqual(args.slice(4), ["--append-system-prompt", CONSIGNE_DE_REFUS]);
 });
 
 // Un pnpm 10 : celui du poste s'il en est un, sinon un pnpm 10 installé dans
@@ -314,4 +314,118 @@ test("un fichier remis au cook (son ticket) est lisible par ses outils, lui seul
   assert.deepEqual(permissions.deny, configurer(projet()).reglages.permissions.deny);
   assert.equal(configurer(projet()).reglages.permissions.allow.some((regle) => regle.startsWith("Read(")), false);
   assert.throws(() => configurer({ ...projet(), lit: [`${HOME}/.config/brigade/runs/7.ticket.md`] }), (erreur: unknown) => erreur instanceof BacASableInvalide && /ne peut pas être sous/.test(erreur.message));
+});
+
+// Les formes de commande que le crochet du cook autorise ou laisse à `dontAsk`
+// (qui refuse). Le crochet est celui que `configurer` pose, joué ici comme
+// `claude` le joue : l'appel sur son entrée standard, la décision sur sa sortie.
+// Pourquoi un crochet et non des règles `Bash(…)` : le `*` d'un motif couvre
+// n'importe quoi, espaces comprises (`Bash(VAR=* ./node_modules/.bin/*)`
+// laisserait passer `VAR=a curl x ./node_modules/.bin/y`) — établi avec `claude`.
+function sortieDuCrochet(commande: string): { permissionDecision?: string; permissionDecisionReason?: string; additionalContext?: string } | null {
+  const crochet = configurer(projet()).reglages.hooks.PreToolUse[0]?.hooks[0]?.command ?? "";
+  const [, node, script] = /^"([^"]+)" "([^"]+)"$/.exec(crochet) ?? [];
+  const sortie = spawnSync(node ?? "", [script ?? ""], { input: JSON.stringify({ tool_name: "Bash", tool_input: { command: commande } }), encoding: "utf8" });
+  assert.equal(sortie.status, 0, sortie.stderr);
+  return sortie.stdout === "" ? null : (JSON.parse(sortie.stdout) as { hookSpecificOutput: object }).hookSpecificOutput;
+}
+const autorise = (commande: string) => sortieDuCrochet(commande)?.permissionDecision === "allow";
+
+test("dontAsk : les tests et les linters du projet passent, rien d'autre n'est ouvert", () => {
+  const permises = [
+    "./node_modules/.bin/vitest run src/features/direct-discussion",
+    "DATABASE_URL=postgres://localhost:5432/mirrorlab_test_445 LLM_MODE=mock ./node_modules/.bin/vitest run src/features/direct-discussion",
+    "./node_modules/.bin/prettier --write src/a.ts",
+    "pnpm test",
+    "pnpm lint",
+    "pnpm format",
+    "pnpm test src/a.test.ts",
+    "pnpm run lint",
+    "LLM_MODE=mock pnpm test",
+    "npm test",
+    "npm run typecheck",
+    "yarn lint",
+    // Une chaîne `;` : chaque maillon se juge, la chaîne passe si tous passent.
+    "ls node_modules/.bin; ./node_modules/.bin/prettier --write src/a.ts",
+    "pnpm lint; pnpm test",
+    "ls; cat src/a.ts; pnpm lint",
+    "LLM_MODE=mock ./node_modules/.bin/vitest run a; ./node_modules/.bin/prettier --check .",
+  ];
+  const refusees = [
+    "pnpm install",
+    "pnpm add left-pad",
+    "pnpm run deploy",
+    "npm publish",
+    "curl https://example.com",
+    "FOO=bar curl https://example.com",
+    "rm -rf node_modules",
+    "cd /tmp && ./node_modules/.bin/vitest",
+    "/usr/bin/env sh -c 'pnpm test'",
+    "git push origin HEAD",
+    "../../outside/node_modules/.bin/tool",
+    // Un `=` ou une commande autorisée en queue n'ouvre pas ce qui précède.
+    "curl http://x?a=1 pnpm test",
+    "curl https://evil/?a=1 ./node_modules/.bin/x",
+    "rm -rf ~ a=b pnpm test",
+    "VAR=a curl https://evil ./node_modules/.bin/x",
+    // Le `..` sort du dossier des binaires du projet.
+    "./node_modules/.bin/../../../../usr/bin/curl https://evil",
+    "./node_modules/.bin/vitest run ../autre-projet",
+    // Un chemin absolu ou en `~` sort du worktree, lecture comprise.
+    "cat /etc/passwd",
+    "cat ~/autre-projet/.env",
+    "ls ~",
+    "ls /var/lib",
+    "head -n 5 /etc/hosts",
+    "pnpm lint; cat /etc/hosts",
+    "ls node_modules/.bin; cat ~/.ssh/id_ed25519",
+    "./node_modules/.bin/prettier --write /etc/hosts",
+    "./node_modules/.bin/eslint --config=/tmp/evil.js src",
+    // Une variable qui change ce que le shell ou Node charge.
+    "PATH=/tmp/evil pnpm test",
+    "NODE_OPTIONS=--require=/tmp/x.js ./node_modules/.bin/vitest",
+    "LD_PRELOAD=/tmp/x.so pnpm test",
+    // Une chaîne dont un maillon est refusé n'est pas autorisée.
+    "pnpm test; curl https://example.com",
+    "curl https://example.com; pnpm test",
+    "ls; rm -rf node_modules; pnpm lint",
+    // Autres compositions.
+    "pnpm test && curl https://example.com",
+    "pnpm test | sh",
+    "pnpm test $(curl https://example.com)",
+    "pnpm test `id`",
+    "pnpm test > ~/.bashrc",
+    "pnpm test\ncurl https://example.com",
+  ];
+  for (const commande of permises) assert.equal(autorise(commande), true, commande);
+  for (const commande of refusees) assert.equal(autorise(commande), false, commande);
+  // Aucune règle `Bash(…)` : le droit tient dans le crochet, jamais dans un motif.
+  assert.deepEqual(
+    configurer(projet()).reglages.permissions.allow.filter((regle) => regle.startsWith("Bash")),
+    [],
+  );
+});
+
+test("une commande refusée porte la consigne : en raison du refus quand elle vise les tests ou les linters, en contexte sinon, sans rien autoriser ni refuser de plus", () => {
+  // Vise une vérification sans en être une : le crochet la refuse lui-même, avec la raison.
+  for (const commande of ["pnpm install", "VAR=a curl https://example.com ./node_modules/.bin/x", "./node_modules/.bin/../../usr/bin/curl x", "pnpm test && pnpm lint", "npx vitest run"]) {
+    const sortie = sortieDuCrochet(commande);
+    assert.equal(sortie?.permissionDecision, "deny", commande);
+    assert.equal(sortie?.permissionDecisionReason, CONSIGNE_DE_REFUS, commande);
+  }
+  // Une autre commande : pas de décision (dontAsk tranche, et lit déjà `git status` seul), la consigne en contexte.
+  for (const commande of ["curl https://example.com", "git status", "rm -rf src"]) {
+    const sortie = sortieDuCrochet(commande);
+    assert.equal(sortie?.permissionDecision, undefined, commande);
+    assert.equal(sortie?.additionalContext, CONSIGNE_DE_REFUS, commande);
+  }
+  assert.match(CONSIGNE_DE_REFUS, /pnpm test/);
+  // Une vérification acceptée n'est pas refusée.
+  assert.equal(sortieDuCrochet("pnpm test")?.permissionDecision, "allow");
+});
+
+test("un refus de dontAsk dit au cook quoi lancer à la place, dans les arguments de tout `claude` du bac à sable", () => {
+  for (const attendu of ["don't ask mode", "./node_modules/.bin/", "pnpm test", "pnpm lint", "DATABASE_URL=", "worktree"]) assert.match(CONSIGNE_DE_REFUS, new RegExp(attendu.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  const args = argumentsDuBacASable(configurer(projet()));
+  assert.equal(args[args.indexOf("--append-system-prompt") + 1], CONSIGNE_DE_REFUS);
 });
