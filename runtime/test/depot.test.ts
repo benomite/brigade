@@ -860,7 +860,9 @@ describe("un worktree que son cook a détourné", { concurrency: 8 }, () => {
     const racine = repertoireTemporaire(t);
     const temoin = join(racine, "temoin");
     const commande = join(racine, "commande.sh");
-    writeFileSync(commande, `#!/bin/sh\n: >>'${temoin}'\ncat\n`);
+    // Le témoin s'y nomme avec des barres obliques : le `sh` de git pour
+    // Windows les lit comme les siennes.
+    writeFileSync(commande, `#!/bin/sh\n: >>'${temoin.replaceAll("\\", "/")}'\ncat\n`);
     chmodSync(commande, 0o755);
     return {
       racine,
