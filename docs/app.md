@@ -1417,6 +1417,14 @@ has no blocker row as well (the blocker waiting for it shares its id, `need:<nee
 Every other gesture rewrites the selections as they are. Screenshots: `docs/captures/1400/`. The module is
 `app/src/vue/projet/choix.js`; the write is `choisir` in `app/src/projets/projets.ts`.
 
+**"Cook it on a station that has it" opens the station form** (#1511, epic #1506): that one option writes nothing. It
+switches to Cooks and opens the edit form of #1510 under a station of this workstation — the first one this computer
+plays for the project, else the first the project declares — with the capability the need calls already checked, in
+addition to what the station provides (`browser` → `navigateur-headless`, `postgres` → `postgres`, …: the first
+capability the runtime gives the need, `CAPACITE_DU_BESOIN` in `app/src/vue/stations-declarees.js`). Save writes it like
+any other edit, and the capability shows on the station's row; the card stays until the station publishes the choice as
+answered. No station read yet, one line under the card says so. Screenshots: `docs/captures/1511/`.
+
 **The decision facing a station with no sandbox** (#1113): when the published state says `decisionAttendue`,
 the *Cooking machine* step puts the runtime's sentence up as a warning — the cooks of this machine
 run without a sandbox, nothing goes out before the chef's choice — and two buttons: "choose another

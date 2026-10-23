@@ -102,7 +102,7 @@ import { poserTete } from "./cost/tete.js";
 import { poserFiabilite } from "./fiabilite.js";
 import { poserReculs } from "./recul.js";
 import { poserTriageDeCooks } from "./triage.js";
-import { choixDeCapacites, ouTourne, poserLesDeclarees } from "./stations-declarees.js";
+import { capaciteDuBesoin, choixDeCapacites, ouTourne, poserLesDeclarees, stationAOuvrir } from "./stations-declarees.js";
 import { DIT_PROVISOIRE, PROVISOIRE, poserApprentissage, resumeDeLApprentissage, TITRE as TITRE_APPRIS } from "./apprentissage.js";
 import { lireFermeture, poserCloser } from "./closer/section.js";
 import { poserBilan } from "./closer/bilan/bilan.js";
@@ -2338,18 +2338,19 @@ let editee;
 // Ce que le dernier geste a rendu, sous la ligne de sa station, le formulaire refermé.
 /** @type {{ projet: string, nom: string, fait: string } | undefined} */
 let derniereEditee;
-/** @param {Projet} projet @param {string} nom */
-async function ouvrirLEdition(projet, nom) {
+// `appelee` : une capacité à cocher en plus de celles que la station déclare déjà (ticket 1511).
+/** @param {Projet} projet @param {string} nom @param {string} [appelee] */
+async function ouvrirLEdition(projet, nom, appelee) {
   const lues = declarees.get(projet.nom);
   const station = lues?.declarees.find((lue) => lue.nom === nom);
   if (lues === undefined || station === undefined) return;
-  const ouverte = { projet: projet.nom, edition: { nom, cooks: String(station.cooks), fournit: [...station.fournit], jouee: ouTourne(station, { jouees: projet.stations ?? [], ici: projet.ici === true }) === "poste", choix: choixDeCapacites(station, lues, []), confirmer: false, envoi: false } };
+  const ouverte = { projet: projet.nom, edition: { nom, cooks: String(station.cooks), fournit: appelee === undefined || station.fournit.includes(appelee) ? [...station.fournit] : [...station.fournit, appelee], jouee: ouTourne(station, { jouees: projet.stations ?? [], ici: projet.ici === true }) === "poste", choix: choixDeCapacites(station, lues, [], appelee), confirmer: false, envoi: false } };
   editee = ouverte;
   derniereEditee = undefined;
   poserDeclarees(projet);
   const defauts = await defautsDeCetOrdinateur(projet.nom);
   if (editee !== ouverte || "refus" in defauts) return;
-  ouverte.edition.choix = choixDeCapacites(station, lues, defauts.capacites);
+  ouverte.edition.choix = choixDeCapacites(station, lues, defauts.capacites, appelee);
   if (courant?.nom === projet.nom) poserDeclarees(courant);
 }
 // « Save », ou « Remove » confirmé : le geste part, puis le formulaire se referme sur ce qu'il a rendu — ou reste
@@ -6551,9 +6552,28 @@ function poserLesChoix(projet) {
   for (const id of tenus.retenus) if (!choix.some((un) => un.id === id && un.status === "pending")) tenus.retenus.delete(id);
   for (const id of tenus.refus.keys()) if (!choix.some((un) => un.id === id)) tenus.refus.delete(id);
   choixRetenus.set(nom, tenus);
-  const pose = poserChoix(document, { projet: nom, choix, choisis: vu?.choisis, retenus: tenus.retenus, enCours: tenus.enCours, refus: tenus.refus, choisir: (id, issue) => void choisirUneIssue(nom, id, issue) });
+  const pose = poserChoix(document, { projet: nom, choix, choisis: vu?.choisis, retenus: tenus.retenus, enCours: tenus.enCours, refus: tenus.refus, choisir: (id, issue) => void (issue === "cook-elsewhere" ? ouvrirLaStationQuiLA(nom, id, choix) : choisirUneIssue(nom, id, issue)) });
   choixDuProjet.hidden = pose === null;
   choixDuProjet.replaceChildren(...(pose === null ? [] : [pose]));
+}
+
+// « Cook it on a station that has it » (ticket 1511) n'écrit rien : il ouvre, sur Cooks, le formulaire d'une station de ce
+// poste avec la capacité qui manque déjà cochée. Le chef l'enregistre, ou non ; la station relit ses capacités.
+// Aucune station lue, une ligne sous la carte le dit.
+/** @param {string} nom @param {string} id @param {readonly import("../projets/demande.ts").Choix[]} choix */
+function ouvrirLaStationQuiLA(nom, id, choix) {
+  const projet = courant?.nom === nom ? courant : undefined;
+  const lues = declarees.get(nom);
+  const station = projet === undefined || lues === undefined ? undefined : stationAOuvrir(lues, { jouees: projet.stations ?? [], ici: projet.ici === true });
+  const tenus = choixRetenus.get(nom);
+  if (projet === undefined || station === undefined) {
+    tenus?.refus.set(id, { refus: "no station of the project is read yet: the next check of the installation reads them" });
+    return poserStationsDuProjet();
+  }
+  tenus?.refus.delete(id);
+  const besoin = choix.find((un) => un.id === id)?.need;
+  choisirOnglet(CUISINE);
+  void ouvrirLEdition(projet, station.nom, besoin === undefined ? undefined : capaciteDuBesoin(besoin));
 }
 
 /** @param {string} nom @param {string} id @param {string} issue */
