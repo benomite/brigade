@@ -24,18 +24,18 @@ import { verdictDeLaPanne, verdictDesConstats } from "../../runtime/src/verdict.
 import { ALLUMAGE } from "../src/allumage.ts";
 import { pourLaBarre } from "../src/barre.ts";
 import { BOUTONS } from "../src/boutons.ts";
-import { lancerGeste, type Reglages, type Rendu, type Servi } from "../src/box.ts";
-import { EXEMPLE, type Projet } from "../src/config.ts";
+import { lancerGeste, mots, type Reglages, type Rendu, type Servi } from "../src/box.ts";
+import { EXEMPLE, lireConfiguration, type Projet } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
-import { BANNIERE } from "../src/faits.ts";
+import { BANNIERE, tenirFaits } from "../src/faits.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { commandeDeDemarrage, COMMANDES, INIT, JUGEMENT, jugementDe, lireCourante, lireEtapes, lireJugement, lireProtection, lireStations, manquesDe, tenirServices, VERIFICATION, verdictDe, type Guide } from "../src/service.ts";
 import { ouvrirTerminaux, type Lancement, type Terminal } from "../src/terminaux.ts";
-import { jouerLaVue, repos, type Faux } from "./aides/fausse-vue.ts";
+import { jouerLaVue, ouvrirOnglet, repos, type Faux } from "./aides/fausse-vue.ts";
 import { SANS_POSIX } from "./aides/posix.ts";
 
 const RACINE = join(import.meta.dirname, "../..");
@@ -486,7 +486,8 @@ function boxSimulee(t: TestContext, reglage: { admin?: boolean; calibrage?: bool
   // Ce que le geste de la box rend d'une commande : ses deux sorties, et son code.
   async function lancer(servi: { nom: string }, commande: string): Promise<Rendu> {
     appels.push(commande);
-    const [premier, ...args] = commande.split(" ");
+    // Les mots, tels que le shell de la box les donne au geste : un passage entre apostrophes reste entier.
+    const [premier, ...args] = mots(commande);
     const sortie: string[] = [];
     const erreurs: string[] = [];
     let code = 0;
@@ -1152,5 +1153,208 @@ describe("un projet installé n'affiche jamais l'écran d'installation", () => {
     const box = boxSimulee(t);
     const { services } = app(box);
     assert.equal((await guide(services)).termine, false);
+  });
+});
+
+// L'onglet Cooks (#1510, épique #1506) : une station déclarée s'édite sous sa ligne — son plafond, ses capacités, ce poste
+// qui la joue — ou se retire, après confirmation. Tout est vrai sauf la box : la vue telle qu'elle est, l'installation
+// de l'app (service.ts), les commandes `installation stations` du runtime sur un vrai journal, et le fichier des
+// projets écrit par l'opération du runtime (`jouerIci`), relu par l'app comme main.ts le relit.
+describe("l'onglet Cooks : une station déclarée, changée seule", () => {
+  const DEFAUTS = {
+    cooks: 4,
+    cooksDit: "from this machine's 10 cores",
+    espaceDeTravail: "/tmp/worktrees",
+    capacites: [
+      { capacite: "docker", nom: "Docker", detectee: true },
+      { capacite: "navigateur-headless", nom: "a browser", detectee: true },
+    ],
+  };
+  const FAITS = {
+    etat: "ouverte",
+    lu: "2026-10-23T10:04:11.000Z",
+    dernierTick: "2026-10-23T10:04:02.000Z",
+    compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 },
+    dernierEvenement: null,
+    rail: [],
+    cooks: [],
+    attend: [],
+  };
+
+  // Le projet installé, ses stations déclarées sur la box ; le fichier des projets de ce poste ; l'app et sa vue.
+  async function cuisine(t: TestContext, declaration: string) {
+    const box = boxSimulee(t, { verification: () => PRETS });
+    for (const etape of ["init", "stations", "protection", "decisions", "demarrage"]) await box.lancer({ nom: "calculus" }, `installation etapes ${etape} faite`);
+    await box.lancer({ nom: "calculus" }, `installation stations ${declaration}`);
+    const dossier = mkdtempSync(join(tmpdir(), "brigade-app-station-editee-"));
+    t.after(() => rmSync(dossier, { recursive: true, force: true }));
+    const fichier = join(dossier, "app.json");
+    writeFileSync(fichier, `${JSON.stringify({ projets: [{ nom: "calculus", dossier, hote: "box" }] }, null, 2)}\n`);
+    const projet = () => lireConfiguration(fichier).projets[0] ?? assert.fail(`${fichier} ne se lit plus`);
+    const { jouerIci, nePlusJouerIci } = await import("../../runtime/src/une-station.ts");
+    let vue: Awaited<ReturnType<typeof jouerLaVue>> | undefined;
+    const services = tenirServices({
+      delaiMs: 60_000,
+      lancer: box.lancer,
+      session: fauxTerminaux().terminaux.session,
+      shell: fauxTerminaux().terminaux.shell,
+      surGuide: (guide) => vue?.dire("surGuide", guide),
+      jouerIci: async (nom, station, jouer) => (jouer ? jouerIci : nePlusJouerIci)(fichier, nom, station),
+    });
+    await services.guide(projet());
+    await services.controler(projet(), true);
+    const configuration = () => pourLaBarre(lireConfiguration(fichier));
+    const envois: Promise<unknown>[] = [];
+    vue = await jouerLaVue({
+      demarrage: () => ({
+        configuration: configuration(),
+        palette: PALETTE,
+        exemple: EXEMPLE,
+        onglets: ONGLETS,
+        rubriques: RUBRIQUES,
+        boutons: BOUTONS,
+        gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+        banniere: BANNIERE,
+        calibrage: { modeles: MODELES, efforts: EFFORTS },
+        code: undefined,
+      }),
+      espace: () => [],
+      service: () => services.guide(projet()),
+      defautsDeStation: () => DEFAUTS,
+      changerUneStation: (_, station, voulu) => {
+        const envoi = services.changerUneStation(projet(), station, voulu).then((rendu) => {
+          // Le fichier des projets a changé : l'app le relit et le redit à la vue (main.ts, `suivreConfiguration`).
+          vue?.dire("surConfiguration", configuration(), []);
+          return rendu;
+        });
+        envois.push(envoi);
+        return envoi;
+      },
+    });
+    (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
+    await repos();
+    const recue = tenirFaits().recevoir({ projet: "calculus", demande: 0, a: "2026-10-23T10:04:12.000Z", sorties: [{ commande: "facts", texte: JSON.stringify(FAITS) }] });
+    vue.dire("surFaits", { ...recue, demande: vue.dernier("faits")[0] as number });
+    await ouvrirOnglet(vue, "Cooks");
+    const jouee = vue;
+    // Ce qui est parti vers la box a répondu, et la vue s'est reposée.
+    const fini = async () => {
+      while (envois.length > 0) await envois.shift();
+      for (let tour = 0; tour < 20; tour++) await repos();
+    };
+    // La déclaration telle que la box l'a écrite à son journal, entrée par entrée.
+    const declaree = async () => {
+      const dit: string[] = [];
+      await stations({ args: ["--json"], env: box.env, dire: (ligne) => void dit.push(ligne), redire: () => {} });
+      return lireStations(dit.join("\n"))?.declarees ?? assert.fail("la box ne rend plus ses stations");
+    };
+    return { vue: jouee, fini, declaree, projet, box };
+  }
+
+  const bloc = (vue: Faux) => vue.dessous("section").find((pose) => pose.className === "stations-declarees") ?? assert.fail("pas de stations déclarées sur Cooks");
+  const lignes = (vue: Faux) => bloc(vue).dessous("li").filter(({ className }) => className === "station-declaree");
+  // Une ligne telle qu'elle se lit : son nom, où elle tourne, son plafond, ses capacités.
+  const lues = (vue: Faux) =>
+    lignes(vue).map((ligne) => {
+      const [qui, plafond, capacites] = ligne.children;
+      return { nom: qui?.children[0]?.textContent, ou: qui?.children[1]?.textContent, plafond: plafond?.textContent, capacites: capacites?.children.map(({ textContent }) => textContent) };
+    });
+  const ligne = (vue: Faux, nom: string) => lignes(vue).find(({ dataset }) => dataset.station === nom) ?? assert.fail(`pas de ligne ${nom}`);
+  const formulaire = (vue: Faux, nom: string) => ligne(vue, nom).dessous("div").find(({ className }) => className === "edition") ?? assert.fail(`le formulaire de ${nom} n'est pas ouvert`);
+  const bouton = (dans: Faux, texte: string) => dans.dessous("button").find((pose) => pose.textContent === texte) ?? assert.fail(`pas de bouton « ${texte} »`);
+  const editer = async (vue: Faux, nom: string) => {
+    (ligne(vue, nom).children.find(({ className }) => className === "editer") ?? assert.fail(`pas de « edit » sur ${nom}`)).click();
+    for (let tour = 0; tour < 5; tour++) await repos();
+    return formulaire(vue, nom);
+  };
+  const cocher = (forme: Faux, quoi: string, cochee: boolean) => {
+    const coche = forme.dessous("input").find(({ type, ariaLabel }) => type === "checkbox" && (ariaLabel === quoi || ariaLabel.startsWith(`${quoi}:`))) ?? assert.fail(`pas de case « ${quoi} »`);
+    coche.checked = cochee;
+    coche.declencher("change");
+  };
+  const plafond = (forme: Faux, cooks: string) => {
+    const champ = forme.dessous("input").find(({ type }) => type === "number") ?? assert.fail("pas de plafond");
+    champ.value = cooks;
+    champ.declencher("input");
+  };
+  const sans = <T extends { nom?: string }>(liste: T[], nom: string) => liste.filter((station) => station.nom !== nom);
+
+  // Le même parcours, sur la station `editee` d'un projet qui en déclare trois : la régler, la faire jouer par ce poste,
+  // la retirer — chaque fois, les deux autres restent identiques, sur l'écran comme au journal de la box.
+  async function parcours(t: TestContext, declaration: string, editee: string) {
+    const { vue: jouee, fini, declaree, projet } = await cuisine(t, declaration);
+    const vue = jouee.element("rail");
+    const avant = lues(vue);
+    const auJournal = await declaree();
+    assert.equal(avant.length, 3);
+
+    // Ouvert, le formulaire est rempli de ce qu'elle déclare.
+    const station = auJournal.find(({ nom }) => nom === editee) ?? assert.fail();
+    let forme = await editer(vue, editee);
+    assert.equal(forme.dessous("input").find(({ type }) => type === "number")?.value, String(station.cooks));
+    const cochees = forme.dessous("label").filter(({ className }) => className === "capacite").filter((pose) => pose.dessous("input")[0]?.checked).map((pose) => pose.dessous("span")[0]?.textContent);
+    assert.deepEqual(cochees, station.fournit);
+    // Ce que cet ordinateur sait déclarer est offert aussi, décoché.
+    assert.ok(forme.dessous("input").some(({ ariaLabel, checked }) => ariaLabel === "docker" && !checked));
+
+    // Régler : un autre plafond, une capacité de plus.
+    plafond(forme, "4");
+    cocher(forme, "docker", true);
+    bouton(forme, "Save").click();
+    await fini();
+    const reglee = lues(vue);
+    assert.deepEqual(reglee.find(({ nom }) => nom === editee), { ...avant.find(({ nom }) => nom === editee), plafond: "4 cooks at once", capacites: [...station.fournit, "docker"] });
+    assert.deepEqual(sans(reglee, editee), sans(avant, editee));
+    assert.deepEqual(sans(await declaree(), editee), sans(auJournal, editee));
+    assert.match(ligne(vue, editee).dessous("p").at(-1)?.textContent ?? "", /saved; the other stations are unchanged/);
+
+    // La jouer ici : le fichier des projets la porte, sans qu'on y touche, et sa ligne dit ce poste.
+    forme = await editer(vue, editee);
+    cocher(forme, "this workstation plays it", true);
+    bouton(forme, "Save").click();
+    await fini();
+    assert.deepEqual(projet().stations, [editee]);
+    assert.equal((await declaree()).find(({ nom }) => nom === editee)?.distante, true);
+    const jouees = lues(vue);
+    assert.equal(jouees.find(({ nom }) => nom === editee)?.ou, "this workstation");
+    assert.deepEqual(sans(jouees, editee), sans(avant, editee));
+    assert.deepEqual(sans(await declaree(), editee), sans(auJournal, editee));
+
+    // La retirer : rien ne part avant la confirmation.
+    forme = await editer(vue, editee);
+    bouton(forme, "Remove").click();
+    await fini();
+    forme = formulaire(vue, editee);
+    const confirmation = forme.dessous("section").find(({ className }) => className === "confirmation") ?? assert.fail("pas de confirmation");
+    assert.match(confirmation.textContent, new RegExp(`Remove ${editee} from calculus\\?`));
+    assert.equal((await declaree()).length, 3);
+    bouton(confirmation, "Remove").click();
+    await fini();
+    assert.deepEqual(lues(vue), sans(avant, editee));
+    assert.deepEqual(await declaree(), sans(auJournal, editee));
+    // Ce poste ne la joue plus.
+    assert.equal(projet().stations, undefined);
+  }
+
+  test("trois stations : régler l'une, la faire jouer par ce poste, la retirer — les deux autres restent identiques", async (t) => {
+    await parcours(t, "box/claude:3:code+raisonnement,mac/claude:1:navigateur-headless+chrome-connecté:distante,atelier/claude:2:code", "atelier/claude");
+  });
+
+  test("un poste Windows : le même parcours sur pc/claude", async (t) => {
+    await parcours(t, "box/claude:3:code+raisonnement,pc/claude:1:chrome-connecté:distante,atelier/claude:2:code", "pc/claude");
+  });
+
+  test("la dernière station ne se retire pas, et ce qui ne se déclare pas est refusé en une ligne, sans rien écrire", async (t) => {
+    const { vue: jouee, fini, declaree } = await cuisine(t, "box/claude:3:code");
+    const vue = jouee.element("rail");
+    const forme = await editer(vue, "box/claude");
+    assert.equal(bouton(forme, "Remove").disabled, true);
+    // Aucune capacité cochée : refusé avant de partir, rien n'est écrit.
+    cocher(forme, "code", false);
+    bouton(forme, "Save").click();
+    await fini();
+    const refus = formulaire(vue, "box/claude").dessous("p").find(({ className }) => className === "indisponible");
+    assert.match(refus?.textContent ?? "", /provides at least one capability/);
+    assert.deepEqual((await declaree()).map(({ fournit }) => fournit), [["code"]]);
   });
 });
