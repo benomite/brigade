@@ -10,6 +10,7 @@ import { PROJECTIONS } from "../src/projections.ts";
 import { demarrer } from "../src/runtime.ts";
 import { principal as status } from "../src/status.ts";
 import { appeler, ENV_ENFANT, faitInconnu, FAUX_CLAUDE, lancer, photographier, repertoireTemporaire } from "./outils.ts";
+import { posixOnly } from "./support/plateforme.ts";
 
 const STATUS = join(import.meta.dirname, "../src/status.ts");
 const PLAFONDS: Plafonds = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
@@ -74,7 +75,7 @@ test("la commande ne modifie ni le journal ni ses projections", async (t) => {
   assert.deepEqual(lire(), avant);
 });
 
-test("avec `--suivre`, le chef voit la photo puis chaque événement à mesure qu'il s'écrit, jusqu'à Ctrl-C", async (t) => {
+test("avec `--suivre`, le chef voit la photo puis chaque événement à mesure qu'il s'écrit, jusqu'à Ctrl-C", { skip: posixOnly("Ctrl-C is sent as SIGINT, which Windows cannot deliver to another process: kill('SIGINT') ends the command at once, before its clean exit") }, async (t) => {
   const repertoire = repertoireTemporaire(t);
   const journal = ouvrirJournal(repertoire);
   t.after(() => journal.fermer());
@@ -94,7 +95,7 @@ test("avec `--suivre`, le chef voit la photo puis chaque événement à mesure q
   assert.deepEqual(suivi.trimEnd().split("\n").map((ligne) => ligne.split("  ").slice(3, 5)), [["#7", "ticket.taken"], ["#7", "pass.verdict"]]);
 });
 
-test("avec `--suivre`, deux signaux rapprochés arrêtent proprement la commande : code 0, aucune trace", async (t) => {
+test("avec `--suivre`, deux signaux rapprochés arrêtent proprement la commande : code 0, aucune trace", { skip: posixOnly("holds the command with SIGSTOP and resumes it with SIGCONT, signals Windows does not have") }, async (t) => {
   const repertoire = repertoireTemporaire(t);
   const journal = ouvrirJournal(repertoire);
   t.after(() => journal.fermer());
