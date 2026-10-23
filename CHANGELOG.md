@@ -2,6 +2,34 @@
 
 Changes to the public interface of brigade — the commands of the box (`brigade <project> <command>`), their options, and what the roles cite. Newest first.
 
+## 2026-10-23 — `setting`: the project's settings, read from its repository (#1304, #1309)
+
+New command: `brigade <project> setting` shows the project's settings — the integration branch, the manager's and the reviewer's default calibration (`manager | reviewer <model> <effort> | default`) and the calibration `ceiling` — with the value in force. `setting branch <name>` and the calibration forms do not change the box: they **propose** the change as a pull request on the project's repository, held for the chef, and it applies once merged. These settings come from `.claude/brigade/projet.json` on `origin/<integration branch>`, before what the box holds (the station's configuration line, the chef's decisions); the calibrations and the ceiling are reread at each use, with no restart. A project whose repository has no file keeps the box's values. A station line may now name no branch nor calibration: the cloned repository declares them. No old name.
+
+## 2026-10-23 — `installation stations`: one station read, changed, removed or marked remote (#1507)
+
+Beside `installation stations <declaration>`, which replaces the whole declaration, a single station of a project can be read, have its cook cap and capabilities changed, be removed, or be marked as the one this workstation plays, and the others stay as written, to the character. The app's `app.json` gains the stations a workstation plays for a project (`stations`, which needs `hote`). Refusals are in English.
+
+## 2026-10-22 — one switch for the project: `switch`; `manager on` / `off` and the `merge` grant follow it (#1406)
+
+New command: `brigade <project> switch [on | off]` — one ON/OFF for the whole project, on by default. Off, no station takes a ticket, the manager judges and splits nothing, and a green delivery waits (`project-off`) until the switch is on again; running cooks finish. Switching on enables the `merge` grant. `manager on` and `manager off` are refused: the manager has no switch of its own, it follows the project's. `manager return`, `backlog` and `upstream`, and `grant` with its `--until`, `--for`, `--uses`, stay. A log from before starts on whatever its old switches were (on as soon as one of them was).
+
+## 2026-10-22 — `pass <ticket> --relaunch`: the way out for a stuck delivery (#1425)
+
+New option: `brigade <project> pass <ticket> --relaunch` writes `pass.relaunched` (author: the chef) for a card in pass, delivered and never judged, with no active pass ahead of it; the pass takes the delivery through its queue. A card with an active pass, waiting for its turn, already judged or merged, cooking or off the rail is refused, with why, and nothing is written. `rail send-back` keeps its contract. `status` now lists such cards stuck for more than 15 minutes, with their number, the duration and the gesture (`stuck` block).
+
+## 2026-10-22 — `rail move`: a manual order within a priority (#1345)
+
+New subcommand: `brigade <project> rail move <ticket> --before <other>` or `--after <other>` places a queued ticket next to another queued one. Within a priority, the chef's order wins over age; placed against a ticket of another priority, the ticket takes it (its `prio:<n>` label is replaced, as by `rail priority`). A move that would put a ticket before one it awaits (directly or through a chain), or after one that awaits it, is refused in one sentence naming the awaited ticket, and nothing is touched. The order is kept across restarts; a ticket loses its rank when it changes priority or leaves the rail. `status` and `facts` give the queue in service order, and the top ticket says why it does not leave (`rail[].raison`: zone held, awaited ticket, machine saturated) (#1346).
+
+## 2026-10-20 — `station stop` / `station start`: one station at a time (#1183)
+
+New subcommands: `brigade <project> station stop <station>` and `start <station>` stop and start one station of the project, from here or remote, in the chef's name. A stopped station takes nothing more (withholding `station-stopped`, also for a remote one that claims); its running cooks finish — delivered, or their ticket goes back to the rail. `facts.stations[]` gains `cuisson` (`cooking`, `stopped`, `saturated`, `refused`), `arreteeDepuis`, `refus` and `cooks`, each with its station.
+
+## 2026-10-20 — `profile`: the chef answers a proposed cook profile (#1053)
+
+New command: `brigade <project> profile` lists the proposed profiles awaiting the chef, by number; `profile yes <proposal>` writes the definition under `.claude/brigade/profils/` of the project's repository, `profile no <proposal>` takes the proposal out of the queue. Exit code 0 when the answer is written (or already was), 1 when nothing is written (the reason on the last line), 2 for an unreadable call.
+
 ## 2026-10-19 — the output of the operation commands in English (#933)
 
 What `installation` (`labels`, `setup`, `uninstall`, `--json`), `closing` (`write`, `cancel`), `backup`, `restore`, `measures`, `partition` (`probe`), `pull` (`announce`, `claim`, `renew`, `return`), `door`, `hold-arbiter` and `help` write — lines, refusals, errors and usage, plus the errors of the entry point (unknown command, old name redirected) — is English, in the words of `docs/glossary.md`. This closes the criterion of #536: no output of the box keeps a French word. `runtime/test/exploitation-en-anglais.test.ts` plays every command of `COMMANDES` on the example state of the bottom of `status`, with its subcommands and at least one refusal, and fails if a line carries a word of the French column of the glossary; a command added to `COMMANDES` without a path there fails the first test. The keys of the `--json` outputs do not change, nor do the names of the log's events and of the decisions. The old command names and words still answer, saying the new one, until **2027-01-14**.
