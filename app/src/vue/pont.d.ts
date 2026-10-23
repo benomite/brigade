@@ -73,7 +73,7 @@ export type Pont = {
   verifier(projet: string): Promise<{ refus: string } | undefined>;
   // Déclare les stations choisies parmi celles que la box fournit, chacune à son plafond de cooks.
   declarerStations(projet: string, choix: { nom: string; cooks: number }[]): Promise<{ refus: string } | undefined>;
-  // Change une station déclarée, seule (#1510) : son plafond et ses capacités, ce poste qui la joue — ou la retire.
+  // Change une station déclarée, seule (ticket 1510) : son plafond et ses capacités, ce poste qui la joue — ou la retire.
   // Ses stations relues arrivent par `surGuide` ; ce qu'il en advient, en une ligne.
   changerUneStation(projet: string, station: string, voulu: StationVoulue): Promise<StationChangee | { refus: string }>;
   // Protège la branche d'intégration sur GitHub.
