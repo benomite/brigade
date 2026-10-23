@@ -93,9 +93,10 @@ export function poserLeBacASable(args: readonly string[], config: ConfigDeBacASa
 // Le lancement d'un `claude` de la cuisine : dans le bac à sable si elle en a
 // un, tel quel sinon. `ou` : le répertoire où il travaille — le seul, avec les
 // caches du projet, où il écrit.
-export function dansLeBacASableLocal(bac: BacASableLocal | null | undefined, args: string[], ou: string): string[] {
+// `lit` : les fichiers que la station lui remet à lire hors de ce répertoire.
+export function dansLeBacASableLocal(bac: BacASableLocal | null | undefined, args: string[], ou: string, lit: string[] = []): string[] {
   if (!bac) return args;
-  return poserLeBacASable(args, configurer({ worktree: ou, caches: bac.caches, hotes: bac.hotes(), home: bac.home }));
+  return poserLeBacASable(args, configurer({ worktree: ou, caches: bac.caches, hotes: bac.hotes(), home: bac.home, lit }));
 }
 
 // Ce que la cuisine dit de son bac à sable au démarrage.

@@ -2113,7 +2113,9 @@ describe("la station, cooks sans identité", { concurrency: 8 }, () => {
     const remis = readFileSync(fichier, "utf8");
     assert.match(remis, /^# #15 — Le ticket du Mac\n\nFais ceci, puis cela\./);
     assert.match(remis, /Et n'oublie pas la doc\./);
-    assert.doesNotMatch(JSON.stringify(lancements()[0]?.args), /\.config\/gh"\]|allowRead[^]*\.config\/gh/);
+    // Les outils de `claude` ne lisent hors du worktree que ce qu'une règle autorise : le fichier remis l'est.
+    const reglages = JSON.parse(lancements()[0]?.args[(lancements()[0]?.args.indexOf("--settings") ?? -2) + 1] ?? "{}");
+    assert.ok(reglages.permissions.allow.includes(`Read(/${fichier})`), JSON.stringify(reglages.permissions.allow));
   });
 
   test("un ticket illisible sur GitHub ne lance aucun cook : il est reproposé plus tard, et son worktree ne reste pas", async (t) => {

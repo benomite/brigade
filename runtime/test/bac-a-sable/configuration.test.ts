@@ -303,3 +303,15 @@ test("sous l'environnement du bac à sable, pnpm 10 démarre, installe et lance 
 test("les réglages du bac à sable posent la désactivation du changement de version de pnpm", () => {
   assert.deepEqual(configurer(projet()).reglages.env, { npm_config_manage_package_manager_versions: "false" });
 });
+
+test("un fichier remis au cook (son ticket) est lisible par ses outils, lui seul — et jamais sous un accès interdit", () => {
+  const remis = "/Users/chef/etat/runs/7.ticket.md";
+  const { permissions } = configurer({ ...projet(), lit: [remis] }).reglages;
+  assert.deepEqual(
+    permissions.allow.filter((regle) => regle.startsWith("Read(")),
+    [`Read(/${remis})`],
+  );
+  assert.deepEqual(permissions.deny, configurer(projet()).reglages.permissions.deny);
+  assert.equal(configurer(projet()).reglages.permissions.allow.some((regle) => regle.startsWith("Read(")), false);
+  assert.throws(() => configurer({ ...projet(), lit: [`${HOME}/.config/brigade/runs/7.ticket.md`] }), (erreur: unknown) => erreur instanceof BacASableInvalide && /ne peut pas être sous/.test(erreur.message));
+});
