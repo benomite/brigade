@@ -1,6 +1,6 @@
 # Publie la station : à chaque merge sur la branche d'intégration (`main` après le passage, `v2` avant) qui change ce que le paquet porte
 # (le runtime livré et `runtime/paquet/`), une release `station-<version>` avec
-# `installer-station.sh` et `brigade-station_amd64.deb`. La version est celle que
+# `installer-station.sh`, `brigade-station_amd64.deb` et sa copie `brigade-station-linux-amd64.deb`, avec des notes qui disent la plateforme. La version est celle que
 # `construire.ts` se donne sans `--version` : `0.<AAAAMMJJ>.<HHMMSS>+g<commit>`.
 # Un merge qui ne touche que l'app, la doc ou le plugin V1 ne publie rien.
 # `workflow_dispatch` publie le commit choisi, à la main.
@@ -15,6 +15,7 @@ on:
       - "runtime/deploy/**"
       - "runtime/paquet/**"
       - ".github/workflows/publier-station.yml"
+      - "scripts/app-release/paquets.ts"
   workflow_dispatch:
 
 # Deux publications ne se doublent pas : la dernière release du dépôt doit être la
@@ -49,11 +50,17 @@ jobs:
             echo "La release $tag existe déjà : rien à publier."
             exit 0
           fi
+          # `brigade-station_amd64.deb` est lu par son nom (installer-station.sh, stations installées) ;
+          # sa copie `brigade-station-linux-amd64.deb` dit la plateforme (scripts/app-release/paquets.ts).
           cp "$deb" "$RUNNER_TEMP/brigade-station_amd64.deb"
+          cp "$deb" "$RUNNER_TEMP/brigade-station-linux-amd64.deb"
+          node scripts/app-release/paquets.ts notes --produit station --version "$version" --commit "$GITHUB_SHA" > "$RUNNER_TEMP/notes.md"
+          cat "$RUNNER_TEMP/notes.md" >> "$GITHUB_STEP_SUMMARY"
           gh release create "$tag" \
             runtime/paquet/installer-station.sh \
             "$RUNNER_TEMP/brigade-station_amd64.deb" \
+            "$RUNNER_TEMP/brigade-station-linux-amd64.deb" \
             --target "$GITHUB_SHA" \
             --title "Station $version" \
-            --notes "Station brigade $version, construite du commit $GITHUB_SHA." \
+            --notes-file "$RUNNER_TEMP/notes.md" \
             --latest

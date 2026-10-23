@@ -62,15 +62,22 @@ sur `v2` qui change l'app**, une release `app-v<version>`. Personne ne pose de t
    leurs étapes « Signature (Mac) » et « Signature (Windows) » ne jouent que sur le chemin signé.
 4. Le job `publier`, une fois les constructions faites, crée le tag et la release `app-v<v>` sur le
    commit du merge, aux noms que lit l'app installée (`app/src/mise-a-jour/flux.ts`), tous à la
-   racine. Rien n'est publié si une construction échoue. La release n'est pas marquée « latest » :
+   racine. Les constructions écrivent `Brigade-<v>-arm64.dmg`, `Brigade-<v>-x64-setup.exe` et
+   `Brigade-<v>.apk` ; `scripts/app-release/paquets.ts renommer` leur donne les noms de la release,
+   qui disent la plateforme (`-mac-arm64`, `-windows-x64-setup`, `-android`), et réécrit ces noms dans
+   `latest-mac.yml` et `latest.yml` (les octets, donc le sha512, ne changent pas). Les notes de la
+   release viennent de `paquets.ts notes` : un tableau, une ligne par paquet, avec sa plateforme et
+   comment l'ouvrir quand il n'est pas signé (Gatekeeper, SmartScreen, clés inconnues d'Android).
+   Pour voir ces notes sans rien publier : `node scripts/app-release/paquets.ts notes --produit app
+   --version 1.0.3` (ou `--produit station`). Rien n'est publié si une construction échoue. La release n'est pas marquée « latest » :
    celle-là reste à la station, que `releases/latest/download/installer-station.sh` trouve.
 
 | | Chemin signé | Chemin non signé |
 | --- | --- | --- |
 | Quand | les six secrets sont posés | aucun n'est posé |
-| Mac | `Brigade-<v>-arm64.dmg`, signé Developer ID, notarisé, agrafé, et `latest-mac.yml` | `Brigade-<v>-arm64.dmg`, signé ad hoc |
-| Windows | `Brigade-<v>-x64-setup.exe`, signé, et `latest.yml` | `Brigade-<v>-x64-setup.exe`, non signé |
-| Android | rien | `Brigade-<v>.apk`, signé de la clé de debug |
+| Mac | `Brigade-<v>-mac-arm64.dmg`, signé Developer ID, notarisé, agrafé, et `latest-mac.yml` | `Brigade-<v>-mac-arm64.dmg`, signé ad hoc |
+| Windows | `Brigade-<v>-windows-x64-setup.exe`, signé, et `latest.yml` | `Brigade-<v>-windows-x64-setup.exe`, non signé |
+| Android | rien | `Brigade-<v>-android.apk`, signé de la clé de debug |
 | Mise à jour des apps installées | oui, par `latest-mac.yml` et `latest.yml` | non : ces deux fichiers ne sont pas publiés, une app installée ne se met pas à jour vers une app non signée |
 
 Quatre fichiers sur le chemin signé, trois sur le chemin non signé. Un jeu de secrets incomplet n'est
