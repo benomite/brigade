@@ -80,11 +80,15 @@ describe("la reprise de session d'un renvoi", { concurrency: 6 }, () => {
     // Deux cuisines de front, mêmes gates, même reviewer : l'une retrouve la session du premier cook, l'autre non.
     const repris = renvoye(t);
     const neuf = renvoye(t, { configClaude: false });
-    for (const lieu of [repris, neuf]) {
-      await lieu.jusquAu("pass.returned");
-      chef(lieu.repertoire, "grant.activated");
-      lieu.gates.regler("vert");
-    }
+    // Chacune passe au vert dès son propre renvoi : attendre l'une laisserait
+    // l'autre renvoyée une seconde fois.
+    await Promise.all(
+      [repris, neuf].map(async (lieu) => {
+        await lieu.jusquAu("pass.returned");
+        chef(lieu.repertoire, "grant.activated");
+        lieu.gates.regler("vert");
+      }),
+    );
     await Promise.all([repris.jusquAu("ticket.left"), neuf.jusquAu("ticket.left")]);
 
     assert.equal(reprend(repris.cooks()[1]?.args, repris.sessionDe(repris.lances()[0])), true);
@@ -145,10 +149,12 @@ describe("la reprise de session d'un renvoi", { concurrency: 6 }, () => {
   test("sans répertoire de `claude` connu, ou sans session dans le flux du cook précédent, le renvoi part d'un cook neuf", async (t) => {
     const sansConfig = renvoye(t, { configClaude: false });
     const sansSession = renvoye(t, { suite: ["livre", "livre"] });
-    for (const lieu of [sansConfig, sansSession]) {
-      await lieu.jusquAu("pass.returned");
-      lieu.gates.regler("vert");
-    }
+    await Promise.all(
+      [sansConfig, sansSession].map(async (lieu) => {
+        await lieu.jusquAu("pass.returned");
+        lieu.gates.regler("vert");
+      }),
+    );
     await Promise.all([sansConfig.jusquAu("pass.held"), sansSession.jusquAu("pass.held")]);
 
     for (const lieu of [sansConfig, sansSession]) {

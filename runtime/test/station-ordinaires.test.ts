@@ -9,6 +9,7 @@
 import assert from "node:assert/strict";
 import { posix } from "node:path";
 import { describe, test, type TestContext } from "node:test";
+import { CONSIGNE_DE_REFUS } from "../src/bac-a-sable/configuration.ts";
 import { NON_DIT } from "../src/bac-a-sable/ordinaires.ts";
 import { argumentsClaude } from "../src/claude.ts";
 import type { BacASableDeLaStation, Demande, Mission, Reponse } from "../src/events/remote.ts";
@@ -144,13 +145,15 @@ describe("une station distante et les tickets ordinaires", { concurrency: 4 }, (
     assert.equal(lance(17)?.station, MAC);
 
     // La commande : celle d'un cook de la box, dont le mode de permission cède
-    // la place à celui du bac à sable et à ses réglages — rien d'autre.
+    // la place à celui du bac à sable, à ses réglages et à la consigne de ses
+    // refus — rien d'autre.
     const args = ordinaire.args;
     const place = args.indexOf("--permission-mode");
     assert.deepEqual(args.slice(place, place + 3), ["--permission-mode", "dontAsk", "--settings"]);
+    assert.deepEqual(args.slice(place + 4, place + 6), ["--append-system-prompt", CONSIGNE_DE_REFUS]);
     assert.ok(!args.includes("bypassPermissions"));
     const sansBac = argumentsClaude(ordinaire.prompt, { model: ordinaire.model, effort: ordinaire.effort });
-    assert.deepEqual([...args.slice(0, place), ...args.slice(place + 4)], [...sansBac.slice(0, place), ...sansBac.slice(place + 2)]);
+    assert.deepEqual([...args.slice(0, place), ...args.slice(place + 6)], [...sansBac.slice(0, place), ...sansBac.slice(place + 2)]);
     const reglages = JSON.parse(args[place + 3] ?? "");
     const worktree = posix.join(WORKTREES, ordinaire.run);
     assert.deepEqual(
