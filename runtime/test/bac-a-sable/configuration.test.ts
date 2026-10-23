@@ -322,15 +322,14 @@ test("un fichier remis au cook (son ticket) est lisible par ses outils, lui seul
 // Pourquoi un crochet et non des règles `Bash(…)` : le `*` d'un motif couvre
 // n'importe quoi, espaces comprises (`Bash(VAR=* ./node_modules/.bin/*)`
 // laisserait passer `VAR=a curl x ./node_modules/.bin/y`) — établi avec `claude`.
-function autorise(commande: string): boolean {
+function sortieDuCrochet(commande: string): { permissionDecision?: string; permissionDecisionReason?: string; additionalContext?: string } | null {
   const crochet = configurer(projet()).reglages.hooks.PreToolUse[0]?.hooks[0]?.command ?? "";
   const [, node, script] = /^"([^"]+)" "([^"]+)"$/.exec(crochet) ?? [];
   const sortie = spawnSync(node ?? "", [script ?? ""], { input: JSON.stringify({ tool_name: "Bash", tool_input: { command: commande } }), encoding: "utf8" });
   assert.equal(sortie.status, 0, sortie.stderr);
-  if (sortie.stdout === "") return false;
-  assert.equal((JSON.parse(sortie.stdout) as { hookSpecificOutput: { permissionDecision: string } }).hookSpecificOutput.permissionDecision, "allow");
-  return true;
+  return sortie.stdout === "" ? null : (JSON.parse(sortie.stdout) as { hookSpecificOutput: object }).hookSpecificOutput;
 }
+const autorise = (commande: string) => sortieDuCrochet(commande)?.permissionDecision === "allow";
 
 test("dontAsk : les tests et les linters du projet passent, rien d'autre n'est ouvert", () => {
   const permises = [
@@ -394,6 +393,24 @@ test("dontAsk : les tests et les linters du projet passent, rien d'autre n'est o
     configurer(projet()).reglages.permissions.allow.filter((regle) => regle.startsWith("Bash")),
     [],
   );
+});
+
+test("une commande refusée porte la consigne : en raison du refus quand elle vise les tests ou les linters, en contexte sinon, sans rien autoriser ni refuser de plus", () => {
+  // Vise une vérification sans en être une : le crochet la refuse lui-même, avec la raison.
+  for (const commande of ["pnpm install", "VAR=a curl https://example.com ./node_modules/.bin/x", "./node_modules/.bin/../../usr/bin/curl x", "pnpm test && pnpm lint", "npx vitest run"]) {
+    const sortie = sortieDuCrochet(commande);
+    assert.equal(sortie?.permissionDecision, "deny", commande);
+    assert.equal(sortie?.permissionDecisionReason, CONSIGNE_DE_REFUS, commande);
+  }
+  // Une autre commande : pas de décision (dontAsk tranche, et lit déjà `git status` seul), la consigne en contexte.
+  for (const commande of ["curl https://example.com", "git status", "rm -rf src"]) {
+    const sortie = sortieDuCrochet(commande);
+    assert.equal(sortie?.permissionDecision, undefined, commande);
+    assert.equal(sortie?.additionalContext, CONSIGNE_DE_REFUS, commande);
+  }
+  assert.match(CONSIGNE_DE_REFUS, /pnpm test/);
+  // Une vérification acceptée n'est pas refusée.
+  assert.equal(sortieDuCrochet("pnpm test")?.permissionDecision, "allow");
 });
 
 test("un refus de dontAsk dit au cook quoi lancer à la place, dans les arguments de tout `claude` du bac à sable", () => {

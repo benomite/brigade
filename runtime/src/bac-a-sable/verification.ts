@@ -50,3 +50,11 @@ export function estUneVerification(commande: string): boolean {
   const maillons = commande.split(";");
   return maillons.some((maillon) => maillon.trim() !== "") && maillons.every(unMaillon);
 }
+
+// Une commande qui vise visiblement les tests ou les linters du projet (un
+// binaire de `node_modules/.bin`, un gestionnaire de paquets, une affectation
+// de variable en tête) sans que `estUneVerification` l'accepte : `dontAsk` va la
+// refuser, et le crochet y joint ce que le cook doit lancer à la place.
+export function viseUneVerification(commande: string): boolean {
+  return /node_modules\/\.bin|(^|[;\s])(pnpm|npm|yarn|npx)(\s|$)|(^|;)\s*[A-Za-z_][A-Za-z0-9_]*=/.test(commande);
+}
