@@ -7,7 +7,6 @@ import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { posixOnly } from "./support/plateforme.ts";
 import { decrireEtat, lireEtat } from "../src/etat.ts";
 import type { Fait } from "../src/evenements.ts";
 import type { Issue } from "../src/github.ts";
@@ -51,7 +50,7 @@ function service(t: TestContext, options: { issues?: Issue[]; scenario?: string;
   return { ...lieu, base, essais, compter, jusquAu, laisserTourner, lance, rougir };
 }
 
-describe("une base rouge : rejeu automatique, puis ticket de réparation", { skip: posixOnly("runs the fake claude (a POSIX shell script)"), concurrency: 8 }, () => {
+describe("une base rouge : rejeu automatique, puis ticket de réparation", { concurrency: 8 }, () => {
   test("rouge puis verte au rejeu : la pass rejoue seule, aucun ticket de réparation n'est ouvert, et la cuisine reprend le travail", async (t) => {
     // Le rejeu attend que le test ait vu la station retenue par la base.
     let rejouer = () => {};

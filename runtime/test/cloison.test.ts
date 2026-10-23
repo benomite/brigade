@@ -193,7 +193,7 @@ describe("la cloison", { concurrency: 8 }, () => {
     assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_PRIVATE: ".config/gh" }, lieux)), /invalid BRIGADE_SANDBOX_PRIVATE/);
   });
 
-  test("un outil écrit ses données et son état sous ~/.local, au projet : retrouvés d'un lancement à l'autre, et ce qu'y garde le compte reste en lecture seule", { skip: posixOnly("runs a POSIX shell script") }, (t) => {
+  test("un outil écrit ses données et son état sous ~/.local, au projet : retrouvés d'un lancement à l'autre, et ce qu'y garde le compte reste en lecture seule", (t) => {
     const { lieux, env, racine } = machine(t);
     const home = join(racine, "compte");
     for (const dossier of [".local/bin", ".local/share/claude", ".local/state/claude", ".local/lib/python3", ".config/gh"]) mkdirSync(join(home, dossier), { recursive: true });
@@ -305,7 +305,7 @@ describe("la cloison", { concurrency: 8 }, () => {
     assert.deepEqual(readdirSync(join(lieux.repertoireEtat, "vues-git")), [encodeURIComponent(autre)]);
   });
 
-  test("réenveloppé sur un worktree occupé, le lancement vivant garde ses points de montage", { skip: posixOnly("runs a POSIX shell script") }, (t) => {
+  test("réenveloppé sur un worktree occupé, le lancement vivant garde ses points de montage", (t) => {
     const { lieux, env } = machine(t);
     const git = join(lieux.clone, ".git");
     for (const nom of ["objects", "refs", "worktrees"]) mkdirSync(join(git, nom));
@@ -384,7 +384,7 @@ describe("la cloison", { concurrency: 8 }, () => {
     assert.equal(jugement.some((arg) => arg.startsWith(git) || arg.includes("vues-git")), false);
   });
 
-  test("le setup d'un worktree part dans la cloison, et ses exports reviennent par le canal", { skip: posixOnly("runs a POSIX shell script") }, async (t) => {
+  test("le setup d'un worktree part dans la cloison, et ses exports reviennent par le canal", async (t) => {
     const { lieux, env } = machine(t);
     const temoin = repertoireTemporaire(t);
     const worktree = join(lieux.repertoireEtat, "worktrees/17-abc");
@@ -400,7 +400,7 @@ describe("la cloison", { concurrency: 8 }, () => {
     assert.equal(recu[recu.indexOf("--") + 3], "bash");
   });
 
-  test("dans une cuisine, le setup, le cook, les gates et le reviewer partent chacun dans la cloison", { skip: posixOnly("runs the fake claude (a POSIX shell script)") }, async (t) => {
+  test("dans une cuisine, le setup, le cook, les gates et le reviewer partent chacun dans la cloison", async (t) => {
     const { cloisonnes, lancements, relectures, repertoire } = cuisine(t, { cloison: true, setup: "exporte", pass: true, issues: [issue(15)] });
     await jusqua(() => relectures().length === 1);
 

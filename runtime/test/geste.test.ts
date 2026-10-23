@@ -9,7 +9,6 @@ import { spawn, spawnSync, type SpawnOptions } from "node:child_process";
 import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { posixOnly } from "./support/plateforme.ts";
 import { repertoireDuFichier, repertoireTemporaire } from "./outils.ts";
 
 const SOURCE = join(import.meta.dirname, "../deploy/brigade");
@@ -179,7 +178,7 @@ function machine(t: TestContext, options: { environnement?: (station: string, ch
 }
 
 // Chaque test a sa machine — sa station, ses doublures, son témoin —, et ses process ne bloquent pas : ils se jouent de front.
-describe("le geste brigade", { skip: posixOnly("runs a POSIX shell script"), concurrency: 8 }, () => {
+describe("le geste brigade", { concurrency: 8 }, () => {
   test("le nom du projet et la commande suffisent : le compte et l'environnement viennent de l'unité de la station, le projet de sa configuration", async (t) => {
     const m = machine(t);
 

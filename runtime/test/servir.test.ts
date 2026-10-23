@@ -7,7 +7,6 @@ import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { posixOnly } from "./support/plateforme.ts";
 import { configCloison } from "../src/cloison.ts";
 import type { Fait } from "../src/evenements.ts";
 import { SCRIPT_GATES, SCRIPT_SETUP } from "../src/gates.ts";
@@ -102,7 +101,7 @@ function atelier(t: TestContext, options: { cloison?: boolean; graceMs?: number 
   return { repertoire, journal, serveurs, avertissements, ranges, temoin, livraison, faits };
 }
 
-describe("les serveurs des worktrees", { skip: posixOnly("runs a POSIX shell script"), concurrency: 8 }, () => {
+describe("les serveurs des worktrees", { concurrency: 8 }, () => {
   test("une livraison qui touche l'interface lance la commande déclarée, depuis son worktree et sur son port ; une autre ne lance rien", async (t) => {
     const { journal, serveurs, livraison, faits } = atelier(t);
 
@@ -472,7 +471,7 @@ const montrer = async (commande: typeof status, repertoire: string) => {
   return appel.sortie();
 };
 
-describe("la station sert une livraison d'interface", { skip: posixOnly("runs the fake claude (a POSIX shell script)"), concurrency: 8 }, () => {
+describe("la station sert une livraison d'interface", { concurrency: 8 }, () => {
   test("une livraison qui touche l'interface est servie depuis le worktree de son cook, sur le port que son setup lui a attribué : une requête sur ce port y répond, et `station` comme `status` le listent", async (t) => {
     await surPortsLibres(1, async ([port = 0]) => {
       await enCuisine(t, { lieux: projetServi(t, { interface: ["travail.txt"], ports: { 15: port } }), git: true }, async (lieu) => {

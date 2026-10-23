@@ -234,7 +234,7 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
     ]);
   });
 
-  test("en cuisine : des stations posées par le chef sont annoncées et servies au réveil suivant — un ticket qu'aucune ne pouvait cuisiner part", { skip: posixOnly("runs the fake claude (a POSIX shell script)") }, async (t) => {
+  test("en cuisine : des stations posées par le chef sont annoncées et servies au réveil suivant — un ticket qu'aucune ne pouvait cuisiner part", async (t) => {
     const { repertoire, journal, gh, types, etat } = cuisine(t, { decisions: true, scenario: "muet" });
     gh.ficher(16, "2026-10-08T09:00:00Z", [MARQUEUR, "- requiert : navigateur-headless"].join("\n"));
     gh.poser(issue(16));
@@ -248,7 +248,7 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
     assert.equal(journal.duTicket(16).find((e) => e.type === "ticket.taken")?.author, "station:box/playwright");
   });
 
-  test("en cuisine : le calibrage du reviewer posé par le chef vaut dès la relecture suivante", { skip: posixOnly("runs the fake claude (a POSIX shell script)") }, async (t) => {
+  test("en cuisine : le calibrage du reviewer posé par le chef vaut dès la relecture suivante", async (t) => {
     const { repertoire, gh, relectures } = cuisine(t, { decisions: true, pass: true, issues: [issue(16)] });
     await jusqua(() => relectures().length === 1);
 
@@ -264,7 +264,7 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
     ]);
   });
 
-  test("en cuisine : le calibrage du manager posé par le chef vaut dès le jugement suivant", { skip: posixOnly("runs the fake claude (a POSIX shell script)") }, async (t) => {
+  test("en cuisine : le calibrage du manager posé par le chef vaut dès le jugement suivant", async (t) => {
     const { repertoire, gh, lancements } = cuisine(t, { decisions: true, manager: {}, issues: [issue(30, [])] });
     chef(repertoire, "manager.enabled");
     const jugements = () => lancements().filter((lancement) => lancement.args.includes("--tools"));
@@ -282,7 +282,7 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
     ]);
   });
 
-  test("en cuisine : changer les décisions ne touche à aucun cook en vol — ni arrêt, ni relance, même quand sa station est retirée", { skip: posixOnly("runs the fake claude (a POSIX shell script)") }, async (t) => {
+  test("en cuisine : changer les décisions ne touche à aucun cook en vol — ni arrêt, ni relance, même quand sa station est retirée", async (t) => {
     const { repertoire, journal, types, etat, cooks, conclure } = cuisine(t, { decisions: true, scenario: "commite-puis-attend", issues: [issue(16)] });
     await jusqua(() => cooks().length === 1 && types(16).includes("cook.launched"));
 

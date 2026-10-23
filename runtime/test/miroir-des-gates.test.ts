@@ -11,7 +11,6 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { posixOnly } from "./support/plateforme.ts";
 import { ENV_ENFANT, git, repertoireTemporaire } from "./outils.ts";
 
 const GATES = join(import.meta.dirname, "../../.claude/brigade/gates.sh");
@@ -57,7 +56,7 @@ function jouer(racine: string): { code: number | null; sortie: string } {
 }
 
 // Chaque test a son projet : ils se jouent de front.
-describe("la fraîcheur du miroir Codex, sur une longue liste de changements", { skip: posixOnly("runs a POSIX shell script"), concurrency: 8 }, () => {
+describe("la fraîcheur du miroir Codex, sur une longue liste de changements", { concurrency: 8 }, () => {
   test("un rôle et son miroir modifiés ensemble ne sont pas jugés périmés", (t) => {
     const racine = projet(t);
     writeFileSync(join(racine, "commands/manager.md"), "une règle de plus\n");

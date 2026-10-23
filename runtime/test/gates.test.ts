@@ -332,7 +332,7 @@ describe("les gates", { skip: posixOnly("runs a POSIX shell script and calls `ps
 
 const preparer = (racine: string, delaiMs = 60_000) => jouerSetup({ worktree: racine, ticket: 17, env: { ...ENV_ENFANT, DEJA_LA: "avant" }, delaiMs });
 
-describe("le setup du worktree", { skip: posixOnly("runs a POSIX shell script"), concurrency: 8 }, () => {
+describe("le setup du worktree", { concurrency: 8 }, () => {
   test("un projet sans setup n'a rien à jouer : l'environnement est rendu tel quel", async (t) => {
     const racine = worktree(t, { gates: "exit 0" });
 

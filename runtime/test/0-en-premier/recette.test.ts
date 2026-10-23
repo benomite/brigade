@@ -22,7 +22,6 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { posixOnly } from "../support/plateforme.ts";
 import { FICHIER_APPAIRAGE, FICHIER_STATION } from "../../src/appairage/document.ts";
 import { FICHIER_LOCAL } from "../../src/appairage/presence.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
@@ -40,7 +39,7 @@ const DIX_MINUTES = 10 * 60_000;
 // Le chef met ce temps à remplir le parcours : il compte dans la mesure.
 const PARCOURS_MS = 60_000;
 
-test("ajouté depuis l'app, le projet est dans la liste de la station en moins de dix minutes, parcours compris ; retiré, il quitte sa configuration", { skip: posixOnly("runs the fake claude (a POSIX shell script)"), timeout: 300_000 }, async (t) => {
+test("ajouté depuis l'app, le projet est dans la liste de la station en moins de dix minutes, parcours compris ; retiré, il quitte sa configuration", { timeout: 300_000 }, async (t) => {
   const machine = repertoireTemporaire(t);
   const racine = join(machine, "station");
   const compte = join(machine, "compte");

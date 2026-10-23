@@ -7,7 +7,6 @@ import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { posixOnly } from "./support/plateforme.ts";
 import { aArreter, ENV_ENFANT, mort, repertoireTemporaire } from "./outils.ts";
 
 const GATES = join(import.meta.dirname, "../../.claude/brigade/gates.sh");
@@ -36,7 +35,7 @@ function jouer(racine: string, env: Record<string, string>): Promise<{ code: num
 const desTests = (lignes: string[]) => lignes.filter((ligne) => /^(ok {4}|FAIL {2})(tests du runtime|délai des tests)/.test(ligne));
 
 // Chaque test a son projet : ils se jouent de front.
-describe("la garde d'horloge des gates", { skip: posixOnly("runs a POSIX shell script"), concurrency: 8 }, () => {
+describe("la garde d'horloge des gates", { concurrency: 8 }, () => {
   test("une suite figée dans du code synchrone est tuée passé le délai, avec le process de son fichier, et les gates rougissent en disant qu'aucun test n'a échoué", async (t) => {
     // La suite met deux secondes à démarrer — le double du délai de la garde :
     // c'est une machine chargée, rendue certaine.
