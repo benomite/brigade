@@ -1,7 +1,7 @@
 // La pass branchée sur un runtime complet : la station livre, la pass juge —
 // de fausses gates, un GitHub de test — puis décide sous le grant `merge`.
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, realpathSync, rmSync, symlinkSync } from "node:fs";
+import { existsSync, mkdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { carnetDuProjet } from "../src/apprentissage/provisoires.ts";
@@ -495,10 +495,24 @@ describe("la pass", { concurrency: 8 }, () => {
   });
 
   test("gates rouges : rien n'est mergé, les findings repartent à un cook dans un worktree neuf, sur la même branche et la même PR", async (t) => {
-    const { gh, gates, etat, dernier, cooks, compter, jusquAu, journal } = service(t, { grant: true, gates: "rouge" });
+    // Rouges sur la première fusion jugée, vertes sur la suivante : le scénario
+    // est posé dans le worktree de la seconde fusion, avant ses gates. Basculé
+    // après le renvoi, il ferait course avec le cook repris et son jugement.
+    let fusions = 0;
+    const { gh, etat, dernier, cooks, compter, jusquAu, journal } = service(t, {
+      grant: true,
+      gates: "rouge",
+      depot: (depot) => ({
+        ...depot,
+        async fusionner(nom, tete, sha) {
+          const faite = await depot.fusionner(nom, tete, sha);
+          if (faite !== null && ++fusions > 1) writeFileSync(join(faite.worktree, ".claude/brigade/scenario-gates"), "vert");
+          return faite;
+        },
+      }),
+    });
     await jusquAu("pass.returned");
     const premier = dernier("pass.judged", 17);
-    gates.regler("vert");
     await jusquAu("merge.done");
 
     assert.equal(premier?.verdict, "red");
