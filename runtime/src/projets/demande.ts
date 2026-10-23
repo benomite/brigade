@@ -81,9 +81,11 @@
 //     `choix` (absent tant qu'aucun n'est posé) : ce qui manque à la station
 //     principale pour les tests du projet (`installation/besoins/`), un choix
 //     par besoin — `id` (`need:<besoin>`, celui du blocage qui l'attend),
-//     `need`, `message` et `cause` en une phrase chacun, `options` (les trois
-//     issues : `id`, `label`, `consequence`), et `status` : `pending`, ou
-//     `chosen` avec `selected` (l'issue retenue) et `selectedAt` (ISO).
+//     `need`, `message` et `cause` en une phrase chacun, `options` (les quatre
+//     issues : `id`, `label`, `consequence`, et `recommended` sur celle que la
+//     station conseille), et `status` : `pending`, ou `chosen` avec `selected`
+//     (l'issue retenue), `selectedAt` (ISO) et `ticket` (celui que le choix a
+//     ouvert sur le projet, quand il le laisse à son setup).
 //     Le chef choisit dans l'app, qui l'écrit dans la demande du projet :
 //     `"choix": { "need:postgres": "provide-here" }`.
 //     `station.locale` : cette station est celle de l'ordinateur du chef (une

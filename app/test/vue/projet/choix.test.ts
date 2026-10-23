@@ -1,5 +1,5 @@
 // Ce qui manque à la station pour les tests d'un projet, sur sa page (#1400, épique 1393) : une carte par besoin
-// que sa principale publie en attente — ce qui manque, pourquoi, et ses trois issues, chacune un bouton avec ce qui
+// que sa principale publie en attente — ce qui manque, pourquoi, et ses quatre issues, chacune un bouton avec ce qui
 // en suit sous lui. Un clic écrit l'issue dans la demande de la principale, que la station relit (#1398) ; la carte
 // part. Les choix sont écrits par le runtime lui-même (runtime/src/installation/besoins/), relus par `lireSuivi`
 // comme l'app relit le suivi d'une station ; la demande écrite est relue par le runtime ; la vue est jouée contre
@@ -49,7 +49,7 @@ const texteDe = (ou: Faux, classe: string) => ou.dessous("p").find((p) => p.clas
 const poser = (lu: Parameters<typeof poserChoix>[1]): Faux => poserChoix(doc, lu) ?? assert.fail("aucune section");
 
 describe("les cartes, posées par le module", () => {
-  test("un choix de base de données en attente : une carte, le besoin nommé, trois issues et ce qui suit de chacune sous elle", () => {
+  test("un choix de base de données en attente : une carte, le besoin nommé, quatre issues et ce qui suit de chacune sous elle", () => {
     const pose = poser({ projet: "parade", choix: choixRelus([POSTGRES]) });
     assert.equal(pose.dessous("h3")[0]?.textContent, titreDesChoix("parade", 1));
     assert.equal(titreDesChoix("parade", 1), "One choice waits for you on parade");
@@ -66,6 +66,7 @@ describe("les cartes, posées par le module", () => {
         ["cook-elsewhere", "button", "Cook it on a station that has it", "consequence"],
         ["provide-here", "button", "Provide it on box", "consequence"],
         ["adapt-tests", "button", "Adapt the tests", "consequence"],
+        ["setup-brings-it", "button", "The project's setup brings it itself", "consequence"],
       ],
     );
     assert.deepEqual(
@@ -86,7 +87,7 @@ describe("les cartes, posées par le module", () => {
     const pose = poser({ projet: "parade", choix: choixRelus([POSTGRES, DOCKER]) });
     assert.equal(pose.dessous("h3")[0]?.textContent, "2 choices wait for you on parade");
     assert.deepEqual(cartes(pose).map((c) => c.dataset.choix), ["need:postgres", "need:docker"]);
-    for (const carte of cartes(pose)) assert.equal(boutons(carte).length, 3);
+    for (const carte of cartes(pose)) assert.equal(boutons(carte).length, 4);
   });
 
   test("aucun choix en attente : aucune section — un choix tranché, ou dont l'app a déjà écrit l'issue, n'en a pas", () => {

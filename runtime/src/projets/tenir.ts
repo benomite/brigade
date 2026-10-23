@@ -15,7 +15,8 @@
 //
 // Avant le ticket qui prépare son dépôt, elle tient à son journal ce qui
 // manque à la station pour ses tests (`installation/besoins/`) : le chef en a
-// le choix avant qu'aucun ticket ne cuise.
+// le choix avant qu'aucun ticket ne cuise. Celui qu'il laisse au setup du
+// projet lui fait ouvrir, une fois, le ticket qui le lui demande.
 //
 // Ce qu'elle en dit, projet par projet, elle l'écrit dans le même gist
 // (`brigade-projets-suivi.json`) : l'app le montre au chef — et, pour chacun,
@@ -52,7 +53,8 @@ import { lireEchecDuWorktree } from "../echec-du-worktree.ts";
 import { lireDelai, noterLAjout } from "../installation/delai/delai.ts";
 import { leverBlocageDans, lireBlocages, poserBlocageDans } from "../installation/blocages/blocages.ts";
 import { blocageDuClone, clonerEnReparant, ID_BLOCAGE_CLONE } from "../installation/clone/clone.ts";
-import { suivreLesBesoins } from "../installation/besoins/besoins.ts";
+import { lireChoix, suivreLesBesoins } from "../installation/besoins/besoins.ts";
+import { attendSonTicket, ouvrirLesTicketsDans } from "../installation/besoins/ticket.ts";
 import type { Sonde } from "../installation/besoins/fourni.ts";
 import { lireOnboarding } from "../onboarding/lire.ts";
 import { ouvrirLaPreparation } from "../preparation-depot/ouvrir.ts";
@@ -104,6 +106,9 @@ export type OptionsProjets = {
   // Ouvre le ticket qui prépare le dépôt, une fois (`preparation-depot/`) ;
   // rend son numéro, et s'il vient d'être ouvert.
   ouvrirLaPreparation?: (projet: ProjetResolu, repertoireEtat: string, clone: string) => Promise<{ ticket: number; ouvert: boolean }>;
+  // Ouvre le ticket de chaque besoin que le chef laisse au setup du projet
+  // (`installation/besoins/ticket.ts`) ; rend ceux qui l'ont été, ou retrouvés.
+  ouvrirLesTicketsDesBesoins?: (projet: ProjetDemande, repertoireEtat: string) => Promise<Array<{ id: string; ticket: number; ouvert: boolean }>>;
   // Cette station est celle de l'ordinateur du chef : ses cuisines sont
   // locales (`bac-a-sable/local.ts`). Faux par défaut.
   locale?: boolean;
@@ -174,6 +179,9 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
         github.fermer();
       }
     });
+  const ouvrirLesTicketsDe =
+    options.ouvrirLesTicketsDesBesoins ??
+    ((projet: ProjetDemande, repertoireEtat: string) => ouvrirLesTicketsDans(repertoireEtat, { projet: projet.nom, auteur: `station:${station}` }, () => ouvrirGitHub({ depot: projet.depot, bin: gh, projet: projet.nom })));
   // Ce qui a déjà été dit : la même chose ne se répète pas à chaque cadence.
   const dits = new Set<string>();
   const direUneFois = (cle: string, ligne: string) => {
@@ -497,6 +505,24 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
       const delai = lireDelai(etatDe(dit.nom));
       return { ...dit, ...(delai === null ? {} : { delai }), ...(blocages.length === 0 ? {} : { blocages }), ...(choix.length === 0 ? {} : { choix }) };
     });
+    // Un besoin que le chef laisse au setup du projet : la principale ouvre sur
+    // le projet le ticket qui le lui demande, une fois, et son choix le dit.
+    // GitHub en panne : elle réessaie à la lecture suivante.
+    for (const [rang, dit] of suivi.entries()) {
+      const projet = demande.projets[rang]!;
+      if (!projet.principale || !(dit.choix ?? []).some(attendSonTicket)) continue;
+      try {
+        for (const { id, ticket, ouvert } of await ouvrirLesTicketsDe(projet, etatDe(dit.nom))) {
+          if (ouvert) dire(`brigade : station — ${projet.nom} : ticket #${ticket} ouvert sur ${projet.depot} pour que son setup apporte lui-même ce qui manque (${id})`);
+        }
+        const choix = lireChoix(etatDe(dit.nom));
+        suivi[rang] = { ...dit, ...(choix.length === 0 ? {} : { choix }) };
+      } catch (erreur) {
+        const raison = message(erreur);
+        direUneFois(`besoin ${projet.nom} ${raison}`, `brigade : station — ${projet.nom} : le ticket qui demande à son setup d'apporter ce qui manque n'est pas ouvert sur GitHub, la station réessaie : ${raison}`);
+      }
+      if (arrete) return;
+    }
     for (const nom of [...serviLe.keys()]) if (!servisMaintenant.has(nom)) serviLe.delete(nom);
     // Où en est chaque projet dont elle est la principale, de son ajout à son
     // premier ticket. Un projet qu'elle reprend d'une autre station n'est pas

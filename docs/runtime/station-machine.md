@@ -460,13 +460,23 @@ under, with its environment (`PGHOST`, `PGUSER`, `~/.pgpass`, `~/.my.cnf`…):
 
 No password is ever asked, a command that does not answer is stopped after 15 s, and a verdict holds
 for two minutes (`ESSAI_VALABLE_MS`): most reads of the station run no process. A declared capability
-is enough without a probe. For each need it lacks, **one choice**, with three options, each with what
+is enough without a probe. For each need it lacks, **one choice**, with four options, each with what
 follows from it:
 
 - `cook-elsewhere` — which tickets wait, and for which station (a remote station of the project that
   declares the capability), or that none is declared and they do not start;
 - `provide-here` — what gets installed on this station;
-- `adapt-tests` — what the test coverage loses.
+- `adapt-tests` — what the test coverage loses;
+- `setup-brings-it` (#1534), "The project's setup brings it itself" — a ticket of the project makes
+  its worktree setup provide the need on its own (for a database: start a throwaway server of its
+  own, under the cook's account, on a free port, or in a container), so nothing is installed on the
+  station. It carries `"recommended": true` when nothing has to be installed on the station for that:
+  it already has what the setup would use — the server's binaries (`initdb`, `pg_ctl`,
+  `pg_ctlcluster`, `postgres` for Postgres; `mysqld`, `mariadbd`; `redis-server`), or, for a service,
+  a Docker that answers the cook's account (probed like the Docker need, or declared). The mirrorlab
+  case — Postgres installed, refusing the account — is one. Otherwise the flag is absent, and the
+  consequence says the setup has to fetch what it takes; a browser (Chromium may need system
+  libraries), Docker and the SDKs never carry it. The other three options never do.
 
 A project's tracking line also carries `delai` (#1401, `runtime/src/installation/delai/`): `ajouteLe` (the instant
 the station first prepared the project, written once to its log as `project.added`), `serviLe` (the instant of the
@@ -486,7 +496,9 @@ The choice is written to the project's log (`need.choice-raised`), with a blocke
     "options": [
       { "id": "cook-elsewhere", "label": "Cook it on a station that has it", "consequence": "…" },
       { "id": "provide-here", "label": "Provide it on box", "consequence": "…" },
-      { "id": "adapt-tests", "label": "Adapt the tests", "consequence": "…" } ],
+      { "id": "adapt-tests", "label": "Adapt the tests", "consequence": "…" },
+      { "id": "setup-brings-it", "label": "The project's setup brings it itself", "consequence": "…",
+        "recommended": true } ],
     "status": "pending" }
 ]
 ```
@@ -501,6 +513,20 @@ list (`need.choice-dropped`), with its blocker; a selection still in the request
 it comes back. `choisir` / `choisirDans` record a selection on an open log or a state directory,
 refusing a choice that is not raised or an option it does not offer (`ChoixInconnu`); `lireChoix`
 reads them, read-only.
+
+**Choosing `setup-brings-it` opens one ticket on the project** (#1534,
+`runtime/src/installation/besoins/ticket.ts`): at the read where the main station writes the
+selection, it opens on GitHub the issue "Make the worktree setup of `<project>` bring `<need>`
+itself" — the choice's message and cause, what the setup must do, and its acceptance criteria
+(labels `fire`, `model:opus`, `effort:high`). Its creation is announced in the project's log first
+(`need.ticket-opening`, `{ id, need }`), then noted (`need.ticket-opened`, `{ id, need, ticket,
+reconciled }`): an answer lost, or the station stopped in between, the issue is found again by its
+mark (`<!-- brigade:need-setup <project> <need> <announce seq> -->`, on an issue by a trusted author)
+instead of opened twice; GitHub down, the next read retries. One per choice: switching to another
+option and back opens none, and the published choice carries it (`"ticket": 42`) as long as
+`setup-brings-it` is the selected option. A dropped choice forgets it — the need back and left to the
+project again opens a new one. Like any selection, the choice is no longer pending and its blocker is
+lifted.
 
 **At the project's installation, before its first ticket** (#1533): when the station prepares a project
 added from the app, it holds its needs in the project's log right after the chef's decisions are

@@ -2,11 +2,14 @@
 // (#1393). Le dépôt dit ce dont les tests du projet ont besoin
 // (`detecter.ts`), la machine et les stations déclarées disent ce que la
 // station fournit (`fourni.ts`) ; pour chaque besoin qu'elle n'a pas, un seul
-// choix, à trois issues, chacune avec ce qui en suit pour le chef :
+// choix, à quatre issues, chacune avec ce qui en suit pour le chef :
 //   - `cook-elsewhere` : le cuire sur une station qui l'a — les tickets qui en
 //     ont besoin l'attendent ;
 //   - `provide-here` : le fournir sur cette station — ce qui s'y installe ;
-//   - `adapt-tests` : adapter les tests — ce que la couverture y perd.
+//   - `adapt-tests` : adapter les tests — ce que la couverture y perd ;
+//   - `setup-brings-it` : le setup du projet l'apporte lui-même (#1534) — un
+//     ticket le lui demande (`ticket.ts`), rien ne s'installe sur la station.
+//     Recommandée (`recommended`) quand la station a déjà ce dont il se sert.
 //
 // Le choix s'écrit au journal du projet (`need.choice-raised`), avec le
 // blocage qui l'attend, sous le même identifiant (`need:<besoin>`, action
@@ -36,7 +39,7 @@ import { blocage, blocagesDuJournal, leverBlocage, lireBlocages, poserBlocage, t
 import { besoinNomme, idDuChoix, PREFIXE, type Besoin } from "./catalogue.ts";
 import { besoinsDuDepot, type BesoinDuProjet } from "./detecter.ts";
 import type { ChoixEcrit, OptionDeChoix } from "./evenements.ts";
-import { aLeBesoin, sondeDeLaMachine, stationsDuProjet, stationsQuiFournissent, type Sonde, type StationVue } from "./fourni.ts";
+import { aLeBesoin, apportableSansInstaller, sondeDeLaMachine, stationsDuProjet, stationsQuiFournissent, type Sonde, type StationVue } from "./fourni.ts";
 import { besoinsNommesParLeSetup, preuveDuSetup } from "./setup.ts";
 
 export type { ChoixEcrit, OptionDeChoix } from "./evenements.ts";
@@ -44,13 +47,16 @@ export type { ChoixEcrit, OptionDeChoix } from "./evenements.ts";
 export const AILLEURS = "cook-elsewhere";
 export const ICI = "provide-here";
 export const TESTS = "adapt-tests";
-export const OPTIONS: readonly string[] = [AILLEURS, ICI, TESTS];
+export const PROJET = "setup-brings-it";
+export const OPTIONS: readonly string[] = [AILLEURS, ICI, TESTS, PROJET];
 
 // Le geste de l'app qui lève le blocage d'un besoin : montrer son choix.
 export const ACTION_DU_CHOIX = "choose-need";
 
-// Un choix tel que la page le lit : en attente, ou choisi — l'issue retenue, et quand.
-export type Choix = ChoixEcrit & ({ status: "pending" } | { status: "chosen"; selected: string; selectedAt: string });
+// Un choix tel que la page le lit : en attente, ou choisi — l'issue retenue,
+// et quand. `ticket` : celui que le choix a ouvert sur le projet, tant que
+// le choix tient (`setup-brings-it`).
+export type Choix = ChoixEcrit & ({ status: "pending" } | { status: "chosen"; selected: string; selectedAt: string; ticket?: number });
 
 // Ce que le chef choisit, par identifiant de choix.
 export type Selections = Record<string, string>;
@@ -65,6 +71,9 @@ export type Contexte = {
   station: string;
   // Les autres stations du projet qui le fournissent.
   ailleurs: readonly string[];
+  // Le setup du projet peut l'apporter sans que rien ne soit installé sur la
+  // station : elle a déjà ce dont il se sert. Absent : faux.
+  sansInstaller?: boolean;
 };
 
 const PHRASE_MAX = 400;
@@ -80,9 +89,9 @@ function cause(preuves: readonly string[]): string {
   return `${preuves[0] ?? "The repository asks for it"}.`;
 }
 
-// Le choix d'un besoin qui manque : ce qui manque, pourquoi, et les trois
+// Le choix d'un besoin qui manque : ce qui manque, pourquoi, et les quatre
 // issues, chacune avec ce qui en suit. Pur.
-export function choixPour({ besoin, preuves }: BesoinDuProjet, { projet, station, ailleurs }: Contexte): ChoixEcrit {
+export function choixPour({ besoin, preuves }: BesoinDuProjet, { projet, station, ailleurs, sansInstaller = false }: Contexte): ChoixEcrit {
   const capacite = besoin.fourni.capacites[0] ?? besoin.id;
   const options: OptionDeChoix[] = [
     {
@@ -103,6 +112,14 @@ export function choixPour({ besoin, preuves }: BesoinDuProjet, { projet, station
       label: "Adapt the tests",
       consequence: `A ticket of ${projet} rewrites its tests so they pass without ${besoin.nom}: ${besoin.couverture}.`,
     },
+    {
+      id: PROJET,
+      label: "The project's setup brings it itself",
+      consequence: `A ticket of ${projet} makes its worktree setup bring ${besoin.nom} itself — ${besoin.apporte.comment} —, and its tests run with it: ${
+        sansInstaller ? `${station} already has what that takes, nothing is installed there.` : `what that takes is not on ${station} yet, so the setup has to fetch it, or that ticket says what must be installed there.`
+      }`,
+      ...(sansInstaller ? { recommended: true as const } : {}),
+    },
   ];
   return { id: idDuChoix(besoin.id), need: besoin.id, message: `The tests of ${projet} need ${besoin.nom}, which ${station} does not have.`, cause: cause(preuves), options };
 }
@@ -112,7 +129,9 @@ export function choixPour({ besoin, preuves }: BesoinDuProjet, { projet, station
 export function choixDesBesoins(besoins: readonly BesoinDuProjet[], station: { projet: string; nom: string; sonde: Sonde; fournit: readonly string[]; ailleurs: ReadonlyArray<{ nom: string; fournit: string[] }> }): ChoixEcrit[] {
   return besoins
     .filter(({ besoin }) => !aLeBesoin(besoin, station.sonde, station.fournit))
-    .map((manquant) => choixPour(manquant, { projet: station.projet, station: station.nom, ailleurs: stationsQuiFournissent(manquant.besoin, station.ailleurs) }));
+    .map((manquant) =>
+      choixPour(manquant, { projet: station.projet, station: station.nom, ailleurs: stationsQuiFournissent(manquant.besoin, station.ailleurs), sansInstaller: apportableSansInstaller(manquant.besoin, station.sonde, station.fournit) }),
+    );
 }
 
 // ———— Ce que dit le setup du projet ————
@@ -147,7 +166,7 @@ export function choixDuSetup(manques: ReadonlyMap<string, readonly string[]>, { 
     for (const id of besoins) {
       const besoin = besoinNomme(id);
       if (besoin === null || choix.some(({ need }) => need === id) || aLeBesoin(besoin, sonde, fournit)) continue;
-      choix.push(choixPour({ besoin, preuves: [preuveDuSetup(besoin, station)] }, { projet, station, ailleurs: stationsQuiFournissent(besoin, ailleurs) }));
+      choix.push(choixPour({ besoin, preuves: [preuveDuSetup(besoin, station)] }, { projet, station, ailleurs: stationsQuiFournissent(besoin, ailleurs), sansInstaller: apportableSansInstaller(besoin, sonde, fournit) }));
     }
   }
   return choix;
@@ -159,17 +178,29 @@ const avecLeSetup = (duDepot: readonly ChoixEcrit[], duSetup: readonly ChoixEcri
 
 // ———— Au journal du projet ————
 
-const TYPES = ["need.choice-raised", "need.choice-selected", "need.choice-dropped"];
+const TYPES = ["need.choice-raised", "need.choice-selected", "need.choice-dropped", "need.ticket-opening", "need.ticket-opened"];
 
-// Les choix d'un projet, d'après son journal, dans l'ordre où ils ont été posés.
-export function choixDuJournal(base: Base): Choix[] {
-  const faits = base.lire<{ type: string; payload: string; at: string }>(`SELECT type, payload, at FROM events WHERE type IN (${TYPES.map(() => "?").join(", ")}) ORDER BY seq`, ...TYPES);
+// Le ticket qu'un choix ouvre sur le projet (`ticket.ts`) : annoncé au
+// journal avant l'appel à GitHub (`annonce`, son numéro au journal, et quand),
+// puis ouvert (`ticket`). Un choix abandonné l'oublie : le besoin qui revient
+// et que le chef confie de nouveau au projet en ouvre un neuf.
+export type TicketDuChoix = { need: string; annonce: number; annonceLe: string; ticket: number | null };
+
+function lireLeJournal(base: Base): { choix: Choix[]; tickets: Map<string, TicketDuChoix> } {
+  const faits = base.lire<{ seq: number; type: string; payload: string; at: string }>(`SELECT seq, type, payload, at FROM events WHERE type IN (${TYPES.map(() => "?").join(", ")}) ORDER BY seq`, ...TYPES);
   const enCours = new Map<string, Choix>();
-  for (const { type, payload, at } of faits) {
-    const lu = JSON.parse(payload) as ChoixEcrit & { option?: string };
+  const tickets = new Map<string, TicketDuChoix>();
+  for (const { seq, type, payload, at } of faits) {
+    const lu = JSON.parse(payload) as ChoixEcrit & { option?: string; ticket?: number };
     const deja = enCours.get(lu.id);
-    if (type === "need.choice-dropped") enCours.delete(lu.id);
-    else if (type === "need.choice-raised") {
+    if (type === "need.ticket-opening") tickets.set(lu.id, { need: lu.need, annonce: seq, annonceLe: at, ticket: null });
+    else if (type === "need.ticket-opened") {
+      const annonce = tickets.get(lu.id);
+      tickets.set(lu.id, { need: lu.need, annonce: annonce?.annonce ?? seq, annonceLe: annonce?.annonceLe ?? at, ticket: lu.ticket ?? null });
+    } else if (type === "need.choice-dropped") {
+      enCours.delete(lu.id);
+      tickets.delete(lu.id);
+    } else if (type === "need.choice-raised") {
       // Changé, il garde l'issue retenue — si elle est encore offerte.
       const ecrit: ChoixEcrit = { id: lu.id, need: lu.need, message: lu.message, cause: lu.cause, options: lu.options };
       const garde = deja?.status === "chosen" && ecrit.options.some(({ id }) => id === deja.selected);
@@ -178,8 +209,18 @@ export function choixDuJournal(base: Base): Choix[] {
       enCours.set(lu.id, { ...ecritDe(deja), status: "chosen", selected: lu.option, selectedAt: at });
     }
   }
-  return [...enCours.values()];
+  const choix = [...enCours.values()].map((un): Choix => {
+    const ticket = tickets.get(un.id)?.ticket ?? null;
+    return un.status === "chosen" && un.selected === PROJET && ticket !== null ? { ...un, ticket } : un;
+  });
+  return { choix, tickets };
 }
+
+// Les choix d'un projet, d'après son journal, dans l'ordre où ils ont été posés.
+export const choixDuJournal = (base: Base): Choix[] => lireLeJournal(base).choix;
+
+// Les tickets que ses choix ont annoncés ou ouverts, par identifiant de choix.
+export const ticketsDesChoix = (base: Base): Map<string, TicketDuChoix> => lireLeJournal(base).tickets;
 
 const ecritDe = (choix: ChoixEcrit): ChoixEcrit => ({ id: choix.id, need: choix.need, message: choix.message, cause: choix.cause, options: choix.options });
 // Tel que le journal l'écrit (`identifiants.ts`) : comparé ainsi, rien ne se réécrit pour rien.

@@ -77,6 +77,12 @@ export type Besoin = {
   // démon qui ne répond pas (#1533). Une commande qu'il ne trouve pas
   // (`psql: command not found`) le dit aussi, par ses `commandes`.
   erreurs?: readonly RegExp[];
+  // Ce que le setup du projet fait pour l'apporter lui-même, si le chef le
+  // choisit (#1534) : la fin d'une phrase, et ce dont il se sert sur la
+  // station — une commande de sa machine, ou un Docker qui répond au compte de
+  // la cuisine. Quand elle l'a déjà, rien n'est à y installer. Aucun : il doit
+  // de toute façon aller chercher ce qu'il lui faut.
+  apporte: { comment: string; commandes?: readonly string[]; conteneur?: boolean };
 };
 
 const reussi = ({ code }: { code: number | null }) => code === 0;
@@ -123,6 +129,7 @@ const sdk = (id: string, nom: string, partie: string, installe: (station: string
   fourni: { commandes, capacites: [id], ...plus },
   installe,
   couverture: `the tests that need it are skipped on this station, so ${partie} is no longer built nor tested here`,
+  apporte: { comment: `it downloads ${nom} into the cook's account before the tests, and puts it on their \`PATH\`` },
 });
 
 export const BESOINS: readonly Besoin[] = [
@@ -153,6 +160,12 @@ export const BESOINS: readonly Besoin[] = [
       /\bECONNREFUSED\b.*:5432\b/,
       /\bCan't reach database server at\b.*:5432\b/,
     ],
+    apporte: {
+      comment: "it starts a throwaway Postgres server of its own for the tests, under the cook's account, in the worktree (`initdb` and `pg_ctl` on a free port), or in a container",
+      // Debian n'a dans le PATH que `pg_ctlcluster` : `initdb` et `pg_ctl` sont dans `/usr/lib/postgresql/<version>/bin`.
+      commandes: ["initdb", "pg_ctl", "pg_ctlcluster", "postgres"],
+      conteneur: true,
+    },
   },
   {
     id: "mysql",
@@ -172,6 +185,11 @@ export const BESOINS: readonly Besoin[] = [
     installe: (station) => `A MySQL-compatible server (the \`mariadb-server\` package) is installed on ${station} and runs there as a service`,
     couverture: "the tests that use the database run against a substitute or are skipped, so queries and migrations are no longer checked against a real MySQL",
     erreurs: [/\bERROR (?:2002|2003|1044|1045) \(/, /\bCan't connect to (?:local )?(?:MySQL|MariaDB) server\b/i, /\bECONNREFUSED\b.*:3306\b/, /\bCan't reach database server at\b.*:3306\b/],
+    apporte: {
+      comment: "it starts a throwaway MySQL-compatible server of its own for the tests, under the cook's account, in the worktree (`mysqld --initialize-insecure` on a free port), or in a container",
+      commandes: ["mysqld", "mariadbd"],
+      conteneur: true,
+    },
   },
   {
     id: "redis",
@@ -189,6 +207,7 @@ export const BESOINS: readonly Besoin[] = [
     installe: (station) => `A Redis server (the \`redis-server\` package) is installed on ${station} and runs there as a service`,
     couverture: "the tests that use Redis run against a fake, so its real behaviour (expiry, queues, pub/sub) is no longer checked",
     erreurs: [/\bCould not connect to Redis\b/i, /\bECONNREFUSED\b.*:6379\b/],
+    apporte: { comment: "it starts a Redis server of its own for the tests, under the cook's account, on a free port (`redis-server`), or in a container", commandes: ["redis-server"], conteneur: true },
   },
   {
     id: "docker",
@@ -205,6 +224,7 @@ export const BESOINS: readonly Besoin[] = [
     installe: (station) => `Docker Engine (the \`docker.io\` package) is installed on ${station} and the station's account joins the \`docker\` group, which lets every cook of the box start containers`,
     couverture: "the tests that start containers are skipped on this station, so what runs inside them is no longer checked here",
     erreurs: [/\bCannot connect to the Docker daemon\b/i, /\bpermission denied while trying to connect to the Docker daemon\b/i],
+    apporte: { comment: "its tests get what they start in containers without a Docker daemon: the services run as processes of the cook's account, or in a rootless engine of its own" },
   },
   {
     id: "browser",
@@ -227,6 +247,9 @@ export const BESOINS: readonly Besoin[] = [
     },
     installe: (station) => `A headless Chromium and the system libraries it needs are installed on ${station}`,
     couverture: "the end-to-end tests that drive a browser are skipped on this station, so pages are no longer checked as a user sees them",
+    // Le navigateur téléchargé ne suffit pas toujours : Chromium demande des
+    // bibliothèques du système que le compte de la cuisine n'installe pas.
+    apporte: { comment: "it downloads the browser its tests drive into the cook's account (`npx playwright install chromium`, or the download of its test runner)" },
   },
   sdk("go", "the Go toolchain", "the Go code", (station) => `The Go toolchain is installed on ${station}`, { fichiers: [{ motif: /(?:^|\/)go\.mod$/, raison: "declares a Go module" }] }, ["go"]),
   sdk("rust", "the Rust toolchain", "the Rust code", (station) => `The Rust toolchain (\`rustup\` and \`cargo\`) is installed on ${station}, for the station's account`, { fichiers: [{ motif: /(?:^|\/)Cargo\.toml$/, raison: "declares a Rust crate" }] }, ["cargo"]),
@@ -259,7 +282,10 @@ export const BESOINS: readonly Besoin[] = [
     ["sdkmanager"],
     { variables: ["ANDROID_HOME", "ANDROID_SDK_ROOT"] },
   ),
-  sdk("xcode", "Xcode", "the Apple app", (station) => `Xcode is installed on ${station}, which must then be a Mac: Xcode runs on nothing else`, { fichiers: [{ motif: /\.(?:xcodeproj|xcworkspace)$/, raison: "is an Xcode project" }] }, ["xcodebuild"]),
+  {
+    ...sdk("xcode", "Xcode", "the Apple app", (station) => `Xcode is installed on ${station}, which must then be a Mac: Xcode runs on nothing else`, { fichiers: [{ motif: /\.(?:xcodeproj|xcworkspace)$/, raison: "is an Xcode project" }] }, ["xcodebuild"]),
+    apporte: { comment: "it downloads Xcode into the cook's account before the tests, which works only on a Mac" },
+  },
   sdk("swift", "the Swift toolchain", "the Swift package", (station) => `The Swift toolchain is installed on ${station}`, { fichiers: [{ motif: /(?:^|\/)Package\.swift$/, raison: "declares a Swift package" }] }, ["swift"]),
 ];
 
