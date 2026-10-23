@@ -20,6 +20,13 @@
 // rail, le renvoyer en cuisine —, proposés par la table du desktop (gestes-fiche.ts) et joués par `POST
 // /projects/<nom>/gestures`. Ce que la station en a dit revient à la vue en une phrase, `fait` ou `refus`, et ce qu'elle
 // a lancé et écrit au survol ; la vue relit la station quand il est fait.
+//
+// Et la conversation de chaque projet avec son second (#1426) : celle du second du desktop, que le guichet lit et écrit
+// (`GET` et `POST /projects/<nom>/second`, runtime/src/telephone/second.ts). Lue quand la vue la demande, son markdown
+// rendu par le module des issues (markdown.ts) ; un message du chef y part, et le guichet rend la main dès qu'il y est.
+// Tant que le second répond, la conversation est relue de près, et la vue reçoit sa réponse (`surConversation`) ; celle
+// d'un projet déjà lu l'est aussi à chaque lecture de la station, et ce que le chef tape au desktop arrive ainsi au
+// téléphone. Ce qui ne se lit pas, ou ne part pas, se dit en une phrase, ce que la station ou le réseau en a dit au survol.
 import { tenirAccueil, type Accueil } from "../../src/accueil.ts";
 import { tenirBandes, type Bande } from "../../src/alertes.ts";
 import { mettreAPart, type Montree } from "../../src/attend.ts";
@@ -28,6 +35,8 @@ import type { Echec, Lecture } from "../../src/box.ts";
 import type { Projet } from "../../src/config.ts";
 import { tenirFaits, type Dessinable } from "../../src/faits.ts";
 import { ACTIONS, gestesDeCarte, type Actions, type IdDeFiche, type Propose } from "../../src/gestes-fiche.ts";
+import { rendre } from "../../src/markdown.ts";
+import type { Conversation, RefusDeConversation } from "../../src/vue/pont.d.ts";
 
 // Ce que le guichet a rendu : son code, et son corps — un objet, ou du texte que le HTTP natif n'a pas lu en JSON.
 export type Reponse = { status: number; data: unknown };
@@ -48,6 +57,7 @@ export type Dire = {
   (canal: "surAlertes", bande: Bande): void;
   (canal: "surAccueil", accueil: Accueil): void;
   (canal: "surTelephone", telephone: { appaire: true; station: string; adresse: string; liste?: ListeLue }): void;
+  (canal: "surConversation", projet: string, conversation: Conversation): void;
 };
 
 export type Options = {
@@ -68,6 +78,8 @@ export type Options = {
 
 // Le rythme du desktop : chaque box est relue toutes les trente secondes.
 export const INTERVALLE_MS = 30_000;
+// Le pas auquel la conversation d'un second qui répond est relue : sa réponse arrive au téléphone peu après qu'il l'a écrite.
+export const PAS_DE_LA_REPONSE_MS = 3_000;
 // Ce qu'un relais — `tailscale serve`, un proxy — répond quand rien n'écoute derrière lui.
 const SANS_RIEN_DERRIERE = new Set([502, 503, 504]);
 
@@ -126,6 +138,24 @@ export type RenduDuGeste = { fait: string; detail: string } | { refus: string; d
 // Ce que le réseau dit d'une demande qui n'a pas joint la station : rien n'est parti. Toute autre erreur — la réponse
 // qui n'arrive pas à temps — laisse ouvert si le geste a été fait.
 const PAS_JOINTE = /failed to connect|unable to resolve host|connection refused|ECONNREFUSED|ENETUNREACH|EHOSTUNREACH|network is unreachable|no route to host/i;
+
+// La conversation que le guichet rend (`{"messages": [{"from", "at", "text"}], "answering"?, "failed"?}`), telle que la
+// vue la montre — chaque message en blocs —, ou rien si ce n'en est pas une.
+function conversationDe(corps: Record<string, unknown> | undefined): Conversation | undefined {
+  if (!Array.isArray(corps?.messages)) return undefined;
+  const messages: Conversation["messages"] = [];
+  for (const lu of corps.messages as unknown[]) {
+    const message = typeof lu === "object" && lu !== null ? (lu as Record<string, unknown>) : {};
+    if ((message.from !== "chef" && message.from !== "second") || typeof message.at !== "string" || typeof message.text !== "string") return undefined;
+    messages.push({ de: message.from, a: message.at, blocs: rendre(message.text) });
+  }
+  const echec = typeof corps.failed === "object" && corps.failed !== null ? (corps.failed as Record<string, unknown>) : undefined;
+  return {
+    messages,
+    ...(corps.answering === true ? { repond: true as const } : {}),
+    ...(typeof echec?.said === "string" ? { echec: { refus: echec.said, detail: typeof echec.detail === "string" ? echec.detail : "" } } : {}),
+  };
+}
 
 // Un projet de la station, tel que la barre le reçoit : son nom, son dépôt, et sa station en guise de box — ce qui se lit.
 // Aucun dossier : rien n'est ouvert sur le téléphone.
@@ -194,6 +224,7 @@ export function ouvrirLaLecture(options: Options) {
       }
       recevoir(name, a(), file);
     }
+    if (empechee === undefined) await relireLesConversations([...conversations.keys()]);
   }
 
   // Ce que le desktop fait d'une lecture de `facts`, puis de `status` quand l'écran affiché le lit.
@@ -276,6 +307,99 @@ export function ouvrirLaLecture(options: Options) {
     return { refus: motif.reason === "sans-guichet" ? `${station}'s phone desk does not answer: nothing was changed` : `what answers at ${adresse} is not ${station}'s phone desk: nothing was changed`, detail: motif.said };
   }
 
+  // Les conversations que la vue a lues, par projet, telles qu'elle les a reçues en dernier : chacune est relue avec la
+  // station, et ce qui a bougé lui est poussé. Celles dont le second répond sont relues de près.
+  const conversations = new Map<string, string>();
+  const repondent = new Set<string>();
+  let suivre: (() => void) | undefined;
+
+  const retenir = (projet: string, conversation: Conversation): void => {
+    const vue = JSON.stringify(conversation);
+    const avant = conversations.get(projet);
+    conversations.set(projet, vue);
+    if (conversation.repond === true) repondent.add(projet);
+    else repondent.delete(projet);
+    if (avant !== undefined && avant !== vue) dire("surConversation", projet, conversation);
+    if (repondent.size > 0 && suivre === undefined) {
+      suivre = planifier(() => {
+        suivre = undefined;
+        void relireLesConversations([...repondent]);
+      }, PAS_DE_LA_REPONSE_MS);
+    }
+  };
+
+  // Ce qui a empêché de lire la conversation : une phrase, et ce que la station ou le réseau en a dit au survol.
+  function refusDeLecture(projet: string, rendue: Reponse | { erreur: unknown }): RefusDeConversation & { detail: string } {
+    if ("erreur" in rendue) {
+      const said = ditDe(rendue.erreur);
+      return { refus: PAS_JOINTE.test(said) ? `${station} could not be reached` : `${station} did not answer`, detail: said };
+    }
+    const corps = corpsDe(rendue.data);
+    const said = phraseDe(corps);
+    if (rendue.status === 401) return { refus: `${station} no longer knows this phone: pair it again`, detail: said ?? `${adresse} answered 401` };
+    if (rendue.status === 404 && said !== undefined) return { refus: `${station} has no project named ${projet}`, detail: said };
+    if (rendue.status === 503 && said !== undefined) return { refus: `${station} cannot reach ${projet}'s second`, detail: said };
+    if (said !== undefined) return { refus: said, detail: `${adresse} answered ${rendue.status}` };
+    const motif: Motif = rendue.status === 200 ? { reason: "inattendu", said: `${adresse} answered 200 without a conversation` } : motifDe(adresse, rendue);
+    return { refus: motif.reason === "sans-guichet" ? `${station}'s phone desk does not answer` : `what answers at ${adresse} is not ${station}'s phone desk`, detail: motif.said };
+  }
+
+  // La conversation d'un projet, lue au guichet. Ne lève jamais.
+  async function lireLaConversation(projet: string): Promise<Conversation | RefusDeConversation> {
+    let rendue: Reponse;
+    try {
+      rendue = await requete(`/projects/${encodeURIComponent(projet)}/second`);
+    } catch (erreur) {
+      return refusDeLecture(projet, { erreur });
+    }
+    const conversation = rendue.status === 200 ? conversationDe(corpsDe(rendue.data)) : undefined;
+    return conversation ?? refusDeLecture(projet, rendue);
+  }
+
+  // Les conversations suivies relues : ce qui a bougé est poussé à la vue. Une qui ne se lit plus garde ce que la vue
+  // montre — elle le dit quand le chef rechoisit l'onglet —, et n'est plus relue de près.
+  async function relireLesConversations(projets: string[]): Promise<void> {
+    for (const projet of projets) {
+      const lue = await lireLaConversation(projet);
+      if ("messages" in lue) retenir(projet, lue);
+      else repondent.delete(projet);
+    }
+  }
+
+  // Un message du chef au second du projet : la conversation qui le porte, ou pourquoi rien n'est parti.
+  async function envoyerAuSecond(projet: string, texte: unknown): Promise<Conversation | RefusDeConversation> {
+    if (typeof texte !== "string" || texte.trim() === "") return { refus: "nothing was sent: the message is empty", detail: "" };
+    if (options.envoyer === undefined) return { refus: "your message was not sent: this phone sends nothing to its station", detail: "" };
+    let rendue: Reponse;
+    try {
+      rendue = await options.envoyer(`/projects/${encodeURIComponent(projet)}/second`, { text: texte });
+    } catch (erreur) {
+      const said = ditDe(erreur);
+      if (PAS_JOINTE.test(said)) return { refus: `${station} could not be reached: your message was not sent`, detail: said };
+      // Parti peut-être : la conversation relue le dira.
+      repondent.add(projet);
+      void relireLesConversations([projet]);
+      return { refus: `${station} did not answer: the conversation shows whether your message went through`, detail: said };
+    }
+    const corps = corpsDe(rendue.data);
+    const conversation = rendue.status === 202 ? conversationDe(corps) : undefined;
+    if (conversation !== undefined) {
+      // La vue la montre de ce qui est rendu ici : rien ne lui est poussé.
+      conversations.delete(projet);
+      retenir(projet, conversation);
+      return conversation;
+    }
+    const said = phraseDe(corps);
+    if (rendue.status === 401) return { refus: `${station} no longer knows this phone: pair it again`, detail: said ?? `${adresse} answered 401` };
+    if (rendue.status === 503 && said !== undefined) return { refus: `${station} cannot reach ${projet}'s second: your message was not sent`, detail: said };
+    if (said !== undefined) return { refus: said, detail: typeof corps?.detail === "string" && corps.detail !== "" ? corps.detail : `${adresse} answered ${rendue.status}` };
+    const motif: Motif = rendue.status === 202 ? { reason: "inattendu", said: `${adresse} answered 202 without the conversation` } : motifDe(adresse, rendue);
+    return {
+      refus: motif.reason === "sans-guichet" ? `${station}'s phone desk does not answer: your message was not sent` : `what answers at ${adresse} is not ${station}'s phone desk: your message was not sent`,
+      detail: motif.said,
+    };
+  }
+
   return {
     configuration,
     telephone,
@@ -292,6 +416,16 @@ export function ouvrirLaLecture(options: Options) {
     regarder: (projet: string, demande: number) => regarderLes([projet], demande),
     // « réessayer maintenant » : la station est relue tout de suite.
     relire: () => lire(),
+    // La conversation du projet, lue pour la vue ; elle est suivie désormais.
+    async conversation(projet: string): Promise<Conversation | RefusDeConversation> {
+      const lue = await lireLaConversation(projet);
+      if ("messages" in lue) {
+        conversations.delete(projet);
+        retenir(projet, lue);
+      }
+      return lue;
+    },
+    envoyerAuSecond,
     // L'onglet affiché n'a pas de lecture propre sur le téléphone : son contenu vient des faits et de `status`.
     onglet: (_projet: string | undefined, _id: string | undefined, _demande: number) => undefined,
   };

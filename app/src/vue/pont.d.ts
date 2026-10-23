@@ -403,8 +403,9 @@ declare global {
 // Un message de la conversation avec le second (le ticket 1165) : qui l'a écrit — le chef, d'où qu'il l'ait envoyé, ou
 // le second —, quand, et son texte, le markdown rendu (markdown.ts), comme une discussion d'issue.
 export type MessageDuSecond = { de: "chef" | "second"; a: string; blocs: import("../markdown.ts").Bloc[] };
-// `repond` : le second écrit encore sa réponse au dernier message.
-export type Conversation = { messages: MessageDuSecond[]; repond?: true };
+// `repond` : le second écrit encore sa réponse au dernier message ; `echec` : il a échoué en y répondant (le ticket 1426) — une
+// phrase, et ce que la station en a dit, au survol.
+export type Conversation = { messages: MessageDuSecond[]; repond?: true; echec?: { refus: string; detail: string } };
 // Une phrase, et ce que la station ou le pont en a dit, au survol.
 export type RefusDeConversation = { refus: string; detail?: string };
 // `liste` : la dernière lecture de la liste des projets au guichet de la station (le ticket 1414) — absente avant la

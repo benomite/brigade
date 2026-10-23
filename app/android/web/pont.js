@@ -31,6 +31,10 @@
 // Et les gestes de la fiche d'une carte (le ticket 1420) : `gestesDeFiche` rend ceux que le guichet porte — merger la PR,
 // retirer du rail, renvoyer en cuisine —, et `gesteDeFiche` les joue par `POST /projects/<nom>/gestures`, avec le jeton
 // gardé ; la lecture rend ce que la station en a dit, que la vue montre sur la fiche avant de relire la file.
+// Et la conversation de chaque projet avec son second (le ticket 1426) : `conversation` la lit au guichet
+// (`GET /projects/<nom>/second`), `envoyerAuSecond` y écrit un message du chef (`POST`), avec le jeton gardé ; la réponse
+// du second, et ce que le chef tape au desktop, arrivent à la vue par `surConversation`. Un lien d'un message du second
+// s'ouvre dans le navigateur du téléphone (Pont.java, `ouvrir`).
 // Les mises à jour ne sont pas ici.
 //
 // Ce fichier n'est pas joué tel quel : la construction l'enveloppe, avec `DEMARRAGE`, dans
@@ -152,6 +156,9 @@ function laLecture() {
   );
   return lecture;
 }
+// Ce que dit une conversation quand la lecture de la station ne s'est pas chargée.
+/** @param {unknown} erreur */
+const sansLecture = (erreur) => ({ refus: "this app could not load what reads its station", detail: ditDe(erreur) });
 // Une lecture que la vue demande, quand la station est appairée et sa lecture ouverte.
 /** @param {(ouverte: any) => unknown} faire */
 const avecLaLecture = (faire) => void laLecture()?.then(faire, () => undefined);
@@ -180,6 +187,29 @@ const connus = {
   // Une lecture qui ne s'ouvre pas lève : la fiche dit que ses gestes ne se lisent pas, ou que rien n'est parti.
   gestesDeFiche: async (/** @type {unknown} */ carte) => (await laLecture())?.gestesDeFiche(carte) ?? [],
   gesteDeFiche: async (/** @type {string} */ projet, /** @type {string} */ id, /** @type {number} */ ticket) => (await laLecture())?.geste(projet, id, ticket) ?? { refus: `nothing was sent: ${AUCUNE_STATION}` },
+  // Sans appairage, rien : la vue dit que la conversation ne se lit pas.
+  conversation: async (/** @type {string} */ projet) => {
+    try {
+      return await (await laLecture())?.conversation(projet);
+    } catch (erreur) {
+      return sansLecture(erreur);
+    }
+  },
+  envoyerAuSecond: async (/** @type {string} */ projet, /** @type {string} */ texte) => {
+    try {
+      return await (await laLecture())?.envoyerAuSecond(projet, texte);
+    } catch (erreur) {
+      return sansLecture(erreur);
+    }
+  },
+  ouvrirLienDuSecond: async (/** @type {string} */ _projet, /** @type {string} */ url) => {
+    try {
+      await natif("Pont", "ouvrir", { url });
+      return true;
+    } catch {
+      return false;
+    }
+  },
   // L'appairage effacé : le jeton, la station et ses projets. La vue revient à l'écran qui relie le téléphone.
   oublierLeTelephone: async () => {
     window.localStorage.removeItem(CLE);

@@ -980,8 +980,12 @@ second's reply is spent on your Max quota).
   posed again, never the field — what you are typing is not lost, and each project keeps its own draft.
 - **Not sent**: one line under the list — the bridge's sentence, or *your message was not sent* —, what the station
   said on hover; the text stays in the field, and send can be played again.
-- **A conversation that cannot be read** says *conversation unavailable* in one line, why on hover, with **read
-  again**, and no field. Choosing the Second tab again re-reads it; a re-read that fails keeps what was shown.
+- **A conversation that cannot be read** says why in one sentence — the bridge's (#1426), or *conversation unavailable*
+  from a bridge that does not carry it —, what the station or the network said on hover, with **read again**, and no
+  field. Choosing the Second tab again re-reads it; a re-read that fails keeps what was shown, and says so under it
+  until a read succeeds.
+- **A second that failed answering** (its quota spent, `claude` stopped) says so in one line under the conversation —
+  the station's sentence, what `claude` wrote on hover —; the field stays, and the next message is sent as usual.
 
 On the desktop, nothing changes: the Second tab of a narrow window is still the second's terminal. The screen is
 `app/src/vue/telephone/conversation.js`; the bridge actions are `conversation`, `envoyerAuSecond`, `surConversation`
@@ -1000,9 +1004,23 @@ also `node runtime/src/second/conversation.ts <folder>`), and a message goes int
 folder (`runtime/src/telephone/second.ts`). The station knows that folder from the project's line,
 `BRIGADE_SECOND_DIR=<folder>`, and reads it under its own account's Claude Code configuration — the second must run on
 the station's machine, under its account. A desktop terminal already open does not redraw what the phone wrote: it
-shows it when it resumes the session. **The Android bridge does not carry the conversation yet** (#1426), and the
-desktop app does not write `BRIGADE_SECOND_DIR` on the line yet — until both do, the Second tab of the phone says
-*conversation unavailable*.
+shows it when it resumes the session. The desktop app does not write `BRIGADE_SECOND_DIR` on the line yet: until it
+does, or the line is written by hand, the Second tab of the phone says *atelier cannot reach parade's second*.
+
+**The Android bridge carries the conversation** (#1426): `conversation` reads `GET /projects/<name>/second` with the
+phone's token, each message's markdown rendered by `app/src/markdown.ts`; `envoyerAuSecond` posts `{"text"}` (it waits
+up to 130 s for the station to put the message in, as for a card's gesture), and answers with the conversation that
+carries it. While the second answers (`answering`), the conversation is read again every three seconds
+(`PAS_DE_LA_REPONSE_MS`) and the reply is pushed to the view by `surConversation`; a conversation the phone has read is
+also read again with the station, every thirty seconds, so what the chef types on the desktop reaches the phone. The
+reading is `app/android/web/lecture.ts`; a link in the second's message opens in the phone's browser (`Pont.java`,
+`ouvrir`). What does not go through is said in one sentence, the detail on hover: *atelier could not be reached*,
+*atelier did not answer*, *atelier's phone desk does not answer*, *atelier no longer knows this phone: pair it again*,
+*atelier cannot reach parade's second* (`503`: the station does not hold that second, or cannot read it); for a message,
+the same followed by *your message was not sent*, or the station's own sentence — the second still answering the
+previous one (`409`), a second that did not take it (`502`). A message whose answer never came says *atelier did not
+answer: the conversation shows whether your message went through*, and the conversation is read again at once.
+Screens: `telephone-projets-second*` of `scripts/capture-ecran` (`docs/captures/1426/`).
 
 ### Reaching a station from any network: your tailnet (#1408)
 

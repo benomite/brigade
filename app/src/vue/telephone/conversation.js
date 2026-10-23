@@ -6,7 +6,8 @@
 // conversation, comme s'il était tapé dans le terminal du second, et la réponse vient ici quand le pont la pousse
 // (`surConversation`). Rien ne part d'un champ vide, ni deux fois : pendant l'envoi, le champ et « send » attendent.
 // Pas parti, le texte reste dans le champ, une ligne dit pourquoi, et le détail est au survol. Une conversation qui
-// ne se lit pas se dit en une ligne — « conversation unavailable » —, avec « read again ».
+// ne se lit pas se dit en une ligne — la phrase du pont (le ticket 1426), « conversation unavailable » quand il n'en dit pas —,
+// avec « read again ». Un second qui a échoué en répondant le dit sous la conversation, de la même façon.
 // Ce module ne touche pas `document` et ne joint rien : il reçoit de quoi créer un élément (briques.js), le pont, et
 // de quoi rendre du markdown — `poserBlocs` de vue.js.
 
@@ -30,8 +31,8 @@ export const ENVOYER = "send";
 export const PRIX = "the second's reply is spent on your Max quota";
 export const ILLISIBLE = "conversation unavailable";
 export const NON_ENVOYE = "your message was not sent";
-// Un pont qui ne porte pas la conversation — celui de l'app Android, tant que le guichet de sa station ne la sert
-// pas — ne rend rien : rien n'est lu ni envoyé, et l'écran le dit.
+// Un pont qui ne porte pas la conversation — celui d'un téléphone qu'aucune station n'a encore appairé — ne rend rien :
+// rien n'est lu ni envoyé, et l'écran le dit.
 export const SANS_PONT = "this app does not carry the second's conversation to the station yet";
 export const ATTENTE = "sending to the second…";
 export const REPOND = "the second is answering…";
@@ -46,13 +47,9 @@ export function luDe(rendu, ligne) {
   if (rendu === undefined || rendu === null || typeof rendu !== "object") return { refus: ligne, detail: SANS_PONT };
   const lu = /** @type {Record<string, unknown>} */ (rendu);
   if (Array.isArray(lu.messages)) return /** @type {Conversation} */ (rendu);
-  if (typeof lu.refus === "string") return { refus: lu.refus, detail: typeof lu.detail === "string" ? lu.detail : "" };
+  if (typeof lu.refus === "string") return { refus: lu.refus === "" ? ligne : lu.refus, detail: typeof lu.detail === "string" ? lu.detail : "" };
   return { refus: ligne, detail: SANS_PONT };
 }
-
-// Ce qu'une lecture refusée dit au survol : ce que le pont en a dit, sa phrase puis son détail — rien de répété.
-/** @param {{ refus: string, detail: string }} refus */
-const detailDe = ({ refus, detail }) => [refus, detail].filter((dit) => dit !== "" && dit !== ILLISIBLE).join(" — ");
 
 // L'heure d'un message, comme l'app les écrit — en anglais —, sans les secondes : sur un téléphone, la ligne est courte.
 /** @param {string} a */
@@ -110,6 +107,9 @@ export function tenirConversation(lieu, doc, { pont, rendre }) {
   // Ce qu'il est advenu du dernier envoi, par projet : en route, ou pourquoi rien n'est parti.
   /** @type {Map<string, { envoi: true } | { refus: string, detail: string }>} */
   const envois = new Map();
+  // Une relecture qui a échoué, par projet, quand une conversation lue reste montrée : jusqu'à la suivante qui se lit.
+  /** @type {Map<string, { refus: string, detail: string }>} */
+  const relectures = new Map();
   /** @type {string | undefined} */
   let montre;
 
@@ -134,8 +134,10 @@ export function tenirConversation(lieu, doc, { pont, rendre }) {
       attente.className = "attente";
       return void issue.replaceChildren(attente);
     }
-    if (envoi !== undefined && "refus" in envoi) {
-      const ligne = lectureIndisponible(doc, envoi.refus, envoi.detail);
+    // Ce qui n'est pas parti ; sinon, la relecture qui a échoué ; sinon, le second qui a échoué en répondant.
+    const refus = envoi !== undefined && "refus" in envoi ? envoi : ((montre === undefined ? undefined : relectures.get(montre)) ?? (lue !== undefined && !("refus" in lue) ? lue.echec : undefined));
+    if (refus !== undefined) {
+      const ligne = lectureIndisponible(doc, refus.refus, refus.detail);
       ligne.className = "indisponible refus";
       return void issue.replaceChildren(ligne);
     }
@@ -152,7 +154,7 @@ export function tenirConversation(lieu, doc, { pont, rendre }) {
       const relire = boutonAction(doc, "read again", () => void lire(projet));
       const ligne = poser(doc, "li");
       ligne.className = "illisible";
-      ligne.append(lectureIndisponible(doc, ILLISIBLE, detailDe(lue)), relire);
+      ligne.append(lectureIndisponible(doc, lue.refus, lue.detail), relire);
       fil.replaceChildren(ligne);
     } else {
       /** @param {string} url */
@@ -193,8 +195,11 @@ export function tenirConversation(lieu, doc, { pont, rendre }) {
     const lu = luDe(rendu, ILLISIBLE);
     // Une conversation déjà lue le reste quand une relecture échoue : la ligne d'issue le dit.
     const avant = lues.get(projet);
-    if ("refus" in lu && avant !== undefined && !("refus" in avant)) envois.set(projet, { refus: ILLISIBLE, detail: detailDe(lu) });
-    else lues.set(projet, lu);
+    if ("refus" in lu && avant !== undefined && !("refus" in avant)) relectures.set(projet, lu);
+    else {
+      relectures.delete(projet);
+      lues.set(projet, lu);
+    }
     if (projet === montre) poserMessages();
   }
 
@@ -217,6 +222,7 @@ export function tenirConversation(lieu, doc, { pont, rendre }) {
     if ("refus" in lu) envois.set(projet, lu);
     else {
       envois.delete(projet);
+      relectures.delete(projet);
       lues.set(projet, lu);
       brouillons.delete(projet);
       if (projet === montre) saisie.value = "";
@@ -248,6 +254,7 @@ export function tenirConversation(lieu, doc, { pont, rendre }) {
     recevoir(projet, conversation) {
       const lu = luDe(conversation, ILLISIBLE);
       if ("refus" in lu) return;
+      relectures.delete(projet);
       lues.set(projet, lu);
       if (projet === montre) poserMessages();
     },

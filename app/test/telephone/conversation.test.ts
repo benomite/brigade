@@ -254,7 +254,7 @@ describe("ce qui n'est pas parti, ou ne se lit pas, se dit en une ligne, le dét
   for (const [cas, envoyerAuSecond, attendu] of [
     ["refusé par la station", () => ({ refus: "not sent: parade's second is not running", detail: "the app on atelier has no second open for parade" }), { dit: "not sent: parade's second is not running", survol: "the app on atelier has no second open for parade" }],
     ["un pont qui lève", () => Promise.reject(new Error("connect ECONNREFUSED 192.168.1.20:7010")), { dit: NON_ENVOYE, survol: "connect ECONNREFUSED 192.168.1.20:7010" }],
-    ["un pont qui ne porte pas l'envoi — celui de l'app Android d'aujourd'hui", () => undefined, { dit: NON_ENVOYE, survol: SANS_PONT }],
+    ["un pont qui ne porte pas l'envoi", () => undefined, { dit: NON_ENVOYE, survol: SANS_PONT }],
   ] as const) {
     test(`${cas} : le texte reste dans le champ, la conversation ne bouge pas, et « send » se rejoue`, async () => {
       const vue = await ouvrir({ ...LUE, envoyerAuSecond: envoyerAuSecond as never });
@@ -271,7 +271,7 @@ describe("ce qui n'est pas parti, ou ne se lit pas, se dit en une ligne, le dét
     });
   }
 
-  test("le pont ne porte pas la conversation — celui de l'app Android d'aujourd'hui : « conversation unavailable », pourquoi au survol, pas de champ, et « read again » la relit", async () => {
+  test("le pont ne porte pas la conversation : « conversation unavailable », pourquoi au survol, pas de champ, et « read again » la relit", async () => {
     let lue: Conversation | undefined;
     const vue = await ouvrir({ conversation: () => lue });
     const ligne = conversation(vue).dessous("li")[0] ?? assert.fail();
@@ -287,11 +287,11 @@ describe("ce qui n'est pas parti, ou ne se lit pas, se dit en une ligne, le dét
     assert.equal(champ.hidden, false);
   });
 
-  test("la station refuse la lecture : la ligne dit « conversation unavailable », sa phrase et son détail au survol", async () => {
-    const vue = await ouvrir({ conversation: () => ({ refus: "the station did not reach your computer", detail: "atelier offline for 12 min" }) });
+  test("la station refuse la lecture : la ligne dit sa phrase — plus « conversation unavailable » (#1426) —, son détail au survol", async () => {
+    const vue = await ouvrir({ conversation: () => ({ refus: "atelier cannot reach parade's second", detail: "this station does not hold the second of parade" }) });
     const ligne = conversation(vue).dessous("li")[0] ?? assert.fail();
-    assert.equal(ligne.children[0]?.children[0]?.textContent, ILLISIBLE);
-    assert.equal(ligne.children[0]?.dessous("button")[0]?.ariaLabel, "the station did not reach your computer — atelier offline for 12 min");
+    assert.equal(ligne.children[0]?.children[0]?.textContent, "atelier cannot reach parade's second");
+    assert.equal(ligne.children[0]?.dessous("button")[0]?.ariaLabel, "this station does not hold the second of parade");
   });
 
   test("une relecture qui échoue garde la conversation lue, et la ligne d'issue le dit", async () => {
@@ -300,7 +300,19 @@ describe("ce qui n'est pas parti, ou ne se lit pas, se dit en une ligne, le dét
     rendu = { refus: "the station did not answer" };
     await toucherSecond(vue);
     assert.equal(messages(vue).length, 2);
-    assert.deepEqual(issue(vue), [{ classe: "indisponible refus", dit: ILLISIBLE, survol: "the station did not answer" }]);
+    assert.deepEqual(issue(vue), [{ classe: "indisponible refus", dit: "the station did not answer", survol: "" }]);
+    // La relecture suivante se lit : la ligne s'en va.
+    rendu = { messages: [QUESTION, REPONSE, message("chef", "10:06", "Also look at #21.")] };
+    await toucherSecond(vue);
+    assert.equal(messages(vue).length, 3);
+    assert.deepEqual(issue(vue), []);
+  });
+
+  test("le second qui a échoué en répondant : la conversation reste, et une ligne le dit dessous, ce que la station en a dit au survol (#1426)", async () => {
+    const vue = await ouvrir({ conversation: () => ({ messages: [QUESTION], echec: { refus: "the second of parade failed — You've hit your limit", detail: "$ claude --continue -p\n→ exit code 1" } }) });
+    assert.deepEqual(messages(vue), ["you: What is waiting for me on parade?"]);
+    assert.deepEqual(issue(vue), [{ classe: "indisponible refus", dit: "the second of parade failed — You've hit your limit", survol: "$ claude --continue -p\n→ exit code 1" }]);
+    assert.equal(envoyer(vue).parentElement?.parentElement?.hidden, false, "le champ reste : le message suivant se renvoie");
   });
 });
 
