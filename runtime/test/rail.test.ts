@@ -913,6 +913,37 @@ test("la zone d'un ticket encore en cuisine reste tenue, même s'il a quitté le
   assert.equal(rail.prendre("box/claude", new Map())?.ticket, 15);
 });
 
+test("un ticket en cuisine ne retient que les tickets dont la zone recouvre vraiment la sienne", (t) => {
+  const { journal, rail } = cuisine(t);
+  const arriver = (ticket: number, zone: string[]) =>
+    journal.ajouter({
+      project: "brigade",
+      ticket,
+      author: "github",
+      type: "ticket.arrived",
+      payload: { title: `Ticket ${ticket}`, priority: 1, createdAt: `2026-10-01T00:00:${ticket}.000Z`, url: `https://exemple.test/${ticket}`, card: { waitsFor: [], zone, problems: [] } },
+    });
+  const prend = (enCuisine: [number, string[]][]) => rail.servables(new Map(enCuisine)) > 0;
+
+  // Un dossier de tête entier ne retient pas son voisin.
+  arriver(20, ["runtime/test/foo.test.ts"]);
+  assert.equal(prend([[10, ["runtime/src"]]]), true);
+  // Le dossier retient le fichier qu'il contient, et le fichier son dossier.
+  arriver(21, ["runtime/src/rail/queue.ts"]);
+  assert.equal(prend([[10, ["runtime/src/rail/"]], [11, ["runtime/test"]]]), false);
+  arriver(22, ["runtime/src/rail/"]);
+  assert.equal(prend([[10, ["runtime/src/rail/queue.ts"]], [11, ["runtime/test"]]]), false);
+  // `runtime/src/rail` ne possède pas `runtime/src/railway` : #21 et #22 partent.
+  assert.deepEqual(
+    rail.tickets().filter((ticket) => rail.servables(new Map([[10, ["runtime/src/railway"]], [11, ["runtime/test"]]]), undefined, ticket.ticket) > 0).map(({ ticket }) => ticket),
+    [21, 22],
+  );
+  // Deux zones identiques s'excluent toujours.
+  arriver(23, ["docs/a.md", "docs/b.md"]);
+  assert.equal(rail.servables(new Map([[10, ["docs/a.md", "docs/b.md"]]]), undefined, 23), 0);
+  assert.equal(rail.servables(new Map([[10, ["docs/c.md"]]]), undefined, 23), 1);
+});
+
 test("le rail dit combien de tickets une station pourrait prendre, sans en prendre aucun", (t) => {
   const { journal, rail } = cuisine(t);
   assert.equal(rail.servables(), 0);
