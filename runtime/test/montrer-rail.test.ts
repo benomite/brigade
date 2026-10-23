@@ -139,11 +139,34 @@ test("le rail montre qui possède quoi : la zone de chaque ticket, qui tient cel
     "common paths, held by no one: CHANGELOG.md, docs/runtime.md",
     `#14  taken  -  by box/claude since ${JOUR_HORLOGE}T10:00:04.000Z, last progress ${JOUR_HORLOGE}T10:00:04.000Z, lease until ${JOUR_HORLOGE}T10:40:00.000Z  Ticket 14`,
     "     card — awaiting: nothing · zone: runtime/src, docs/runtime.md",
-    `#15  queued  -  zone held by #14 (runtime/src/rail.ts) — since ${JOUR_HORLOGE}T10:00:02.000Z  Ticket 15`,
+    `#15  queued  -  waits on #14 (zone overlap) — since ${JOUR_HORLOGE}T10:00:02.000Z  Ticket 15`,
     "     card — awaiting: nothing · zone: runtime/src/rail.ts, docs/runtime.md",
     `#16  queued  -  since ${JOUR_HORLOGE}T10:00:03.000Z  Ticket 16`,
     "     card — awaiting: nothing · zone: runtime/test",
   ]);
+});
+
+test("le rail montre les cooks contre le plafond, et pourquoi chaque ticket en attente ne part pas", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const journal = ouvrirJournal(repertoire, { maintenant: horloge() });
+  t.after(() => journal.fermer());
+  const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000, maintenant: () => new Date(`${JOUR_HORLOGE}T10:30:00.000Z`) });
+  journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "station.announced", payload: { station: "box/claude", engine: "claude", provides: ["opus"], maxCooks: 3 } });
+  const zones = { 14: ["runtime/src/a"], 15: ["runtime/src/b"], 16: ["runtime/src/c"], 17: ["runtime/test"], 18: ["runtime/src/a/x.ts"] };
+  for (const [ticket, zone] of Object.entries(zones)) {
+    const payload = { title: `Ticket ${ticket}`, priority: null, createdAt: `2026-10-01T00:00:${ticket}Z`, url: `https://exemple.test/${ticket}`, card: { waitsFor: [], zone, problems: [] } };
+    journal.ajouter({ project: "brigade", ticket: Number(ticket), author: "github", type: "ticket.arrived", payload });
+  }
+  for (let i = 0; i < 3; i++) rail.prendre("box/claude");
+
+  const commande = appeler(montrerRail, [], { BRIGADE_STATE_DIR: repertoire });
+
+  assert.equal(await commande.fin, 0);
+  const lignes = commande.sortie().trimEnd().split("\n");
+  assert.equal(lignes[0], "cooks: 3/3");
+  assert.equal(lignes.filter((l) => / taken /.test(l)).length, 3);
+  assert.match(lignes.find((l) => l.startsWith("#17")) ?? "", /^#17 {2}queued {2}- {2}cap reached — since /);
+  assert.match(lignes.find((l) => l.startsWith("#18")) ?? "", /^#18 {2}queued {2}- {2}waits on #14 \(zone overlap\) — since /);
 });
 
 test("un rail sans ticket le dit", async (t) => {

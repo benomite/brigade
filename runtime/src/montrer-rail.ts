@@ -31,7 +31,8 @@ import { repondreALaCarte } from "./reponse-carte.ts";
 import { ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { communsDuRail, lireRail, ticketDuRail, type TicketRail } from "./projections/rail.ts";
-import { direRetenueEn, etatLuEn } from "./rail.ts";
+import { etatStation, plafondDeCooks, stationsAnnoncees } from "./projections/stations.ts";
+import { direRetenueEn, etatLuEn, retenue } from "./rail.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
 const USAGE = [
@@ -141,10 +142,21 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
 
   // Ce que l'état a à dire de plus que son nom : qui, depuis quand, jusqu'à
   // quand — et, pour un ticket en attente qui ne part pas, pourquoi.
-  function detail(ticket: TicketRail): string {
+  // `cap`: le plafond de cooks de la box (null : sans limite), `enCuisine` : les
+  // tickets pris. Un ticket que rien ne retient sur le rail attend la place
+  // d'un cook quand le plafond est atteint.
+  function detail(ticket: TicketRail, cap: number | null = null, enCuisine = 0): string {
     switch (ticket.state) {
-      case "waiting":
-        return [...[direRetenueEn(ticket) ?? []].flat(), `since ${ticket.since}`].join(" — ");
+      case "waiting": {
+        const tenants = [...new Set(ticket.held.map(({ ticket: numero }) => `#${numero}`))].join(", ");
+        const raison =
+          retenue(ticket) === "zone"
+            ? `waits on ${tenants} (zone overlap)`
+            : retenue(ticket) === null && cap !== null && enCuisine >= cap
+              ? "cap reached"
+              : direRetenueEn(ticket);
+        return [...[raison ?? []].flat(), `since ${ticket.since}`].join(" — ");
+      }
       case "taken":
         return `by ${ticket.station} since ${ticket.since}, last progress ${ticket.progressedAt}, lease until ${ticket.leaseUntil}`;
       case "pass":
@@ -156,12 +168,12 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
     }
   }
 
-  function formater(ticket: TicketRail): string {
+  function formater(ticket: TicketRail, cap: number | null = null, enCuisine = 0): string {
     return [
       `#${ticket.ticket}`,
       etatLuEn(ticket),
       ticket.priority === null ? "-" : `prio:${ticket.priority}`,
-      detail(ticket),
+      detail(ticket, cap, enCuisine),
       ticket.title,
     ].join("  ");
   }
@@ -191,8 +203,16 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
     const tickets = lireRail(journal.base);
     const communs = communsDuRail(journal.base);
     if (communs.length > 0) dire(`common paths, held by no one: ${communs.join(", ")}`);
+    // Les cooks en cuisine contre le plafond de la box : la somme de ceux de ses stations.
+    const enCuisine = tickets.filter(({ state }) => state === "taken").length;
+    const plafonds = stationsAnnoncees(journal.base).flatMap((nom) => {
+      const station = etatStation(journal.base, nom);
+      return station === null ? [] : [plafondDeCooks(station)];
+    });
+    const cap = plafonds.length === 0 || plafonds.includes(null) ? null : plafonds.reduce((somme: number, plafond) => somme + (plafond ?? 0), 0);
+    if (plafonds.length > 0) dire(`cooks: ${enCuisine}/${cap ?? "no limit"}`);
     if (tickets.length === 0) dire("empty rail");
-    for (const ticket of tickets) dire([formater(ticket), ...fiche(ticket)].join("\n"));
+    for (const ticket of tickets) dire([formater(ticket, cap, enCuisine), ...fiche(ticket)].join("\n"));
   } catch (erreur) {
     // En lecture seule, rien ne crée le rail d'un journal écrit par un runtime
     // d'avant ses colonnes d'aujourd'hui.
