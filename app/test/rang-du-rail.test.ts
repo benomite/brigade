@@ -6,7 +6,7 @@
 // La vue est jouée devant un faux document (aides/fausse-vue.ts) : le glisser du navigateur y est rejoué événement par
 // événement, sur la carte puis sur sa colonne, comme ils remontent.
 import assert from "node:assert/strict";
-import { describe, test } from "node:test";
+import { describe, mock, test } from "node:test";
 import { ALLUMAGE } from "../src/allumage.ts";
 import { mettreAPart } from "../src/attend.ts";
 import { pourLaBarre } from "../src/barre.ts";
@@ -21,7 +21,7 @@ import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import type { Terminal } from "../src/terminaux.ts";
-import { type Faux, FauxStockage, FauxTransfert, jouerLaVue, type Jouee, repos } from "./aides/fausse-vue.ts";
+import { type Faux, FauxEcran, FauxStockage, FauxTransfert, jouerLaVue, type Jouee, repos } from "./aides/fausse-vue.ts";
 
 const PARADE = "parade";
 const A = "2026-10-20T10:04:12.000Z";
@@ -76,7 +76,7 @@ function lecture(file: EnFile[], a: string = A): Dessinable {
 // Ce que le pont répond à une carte lâchée : rien tant que le test ne le lâche pas.
 type Reponse = { projet: string; ticket: number; voisin: number; cote: Cote; rendre(rendu: RenduDuDeplacement): void };
 
-async function ouvrir(file: EnFile[] = RAIL, stockage?: FauxStockage) {
+async function ouvrir(file: EnFile[] = RAIL, stockage?: FauxStockage, ecran?: FauxEcran) {
   const reponses: Reponse[] = [];
   const vue = await jouerLaVue(
     {
@@ -85,7 +85,7 @@ async function ouvrir(file: EnFile[] = RAIL, stockage?: FauxStockage) {
       // Le faux pont attend la promesse rendue : la réponse arrive quand le test la lâche.
       deplacer: (projet, ticket, voisin, cote) => new Promise<RenduDuDeplacement>((rendre) => reponses.push({ projet, ticket, voisin, cote, rendre })) as unknown as RenduDuDeplacement,
     },
-    stockage === undefined ? {} : { stockage },
+    { ...(stockage === undefined ? {} : { stockage }), ...(ecran === undefined ? {} : { ecran }) },
   );
   (vue.element("projets").children.at(1) ?? assert.fail("pas de case pour parade")).click();
   await repos();
@@ -233,5 +233,160 @@ describe("glisser une carte et la lâcher entre deux autres", () => {
     glisser(vue, 21, 23, true);
     await repos();
     assert.deepEqual(refus(vue), []);
+  });
+});
+
+// Au doigt (ticket 1348) : sur un écran étroit, un appui long soulève la carte, le doigt la mène, le lever la lâche. Le
+// navigateur donne au doigt un seul élément pour tout le contact — celui de l'appui — et `elementFromPoint` dit ce qui est dessous.
+describe("au doigt : un appui long soulève une carte, le doigt la mène et la lâche", () => {
+  const APPUI = 450;
+  // Les cartes sont rangées dans la page à 100 px d'écart : le doigt à `y` est sur celle dont la bande le contient.
+  const ou = (vue: Jouee, y: number): Faux | null => cartes(vue)[Math.floor(y / 100)] ?? null;
+  async function ouvrirAuDoigt(file: EnFile[] = RAIL) {
+    mock.timers.enable({ apis: ["setTimeout"] });
+    const ouverte = await ouvrir(file, undefined, new FauxEcran(true));
+    (globalThis.document as unknown as { elementFromPoint: (x: number, y: number) => Faux | null }).elementFromPoint = (_x, y) => ou(ouverte.vue, y);
+    return ouverte;
+  }
+  const doigt = (y: number) => ({ touches: [{ clientX: 50, clientY: y }], changedTouches: [{ clientX: 50, clientY: y }] });
+  const leve = (y: number) => ({ touches: [], changedTouches: [{ clientX: 50, clientY: y }] });
+  const fin = () => mock.timers.reset();
+
+  test("l'appui long soulève la carte (visiblement) ; le doigt la mène : le trait dit où elle atterrira, comme à la souris", async () => {
+    try {
+      const { vue } = await ouvrirAuDoigt();
+      // Sur un écran étroit, le glisser du navigateur n'est pas posé : le doigt a le sien.
+      assert.deepEqual(cartes(vue).map(({ draggable }) => draggable), [false, false, false]);
+      const prise = carte(vue, 22);
+      prise.declencher("touchstart", doigt(250));
+      mock.timers.tick(APPUI - 1);
+      assert.equal(prise.classList.contains("soulevee"), false);
+      mock.timers.tick(1);
+      assert.equal(prise.classList.contains("soulevee"), true);
+      let retenu = false;
+      prise.declencher("touchmove", { ...doigt(60), preventDefault: () => void (retenu = true) });
+      assert.equal(retenu, true, "soulevée, la colonne ne défile plus");
+      assert.deepEqual(traits(vue), ["avant #23"]);
+      prise.declencher("touchmove", doigt(150));
+      assert.deepEqual(traits(vue), ["avant #21"]);
+      prise.declencher("touchmove", doigt(250));
+      assert.deepEqual(traits(vue), []);
+    } finally {
+      fin();
+    }
+  });
+
+  test("levé sur une autre carte : `rail move` part, la carte y est aussitôt et prend le badge de ses voisines", async () => {
+    try {
+      const { vue, reponses } = await ouvrirAuDoigt();
+      const prise = carte(vue, 22);
+      prise.declencher("touchstart", doigt(250));
+      mock.timers.tick(APPUI);
+      prise.declencher("touchmove", doigt(150));
+      prise.declencher("touchend", leve(150));
+      await repos();
+      assert.deepEqual(reponses.map(({ ticket, voisin, cote }) => [ticket, voisin, cote]), [[22, 21, "before"]]);
+      assert.deepEqual(ordre(vue), [23, 22, 21]);
+      assert.equal(prio(vue, 22), "prio:1");
+      assert.equal(carte(vue, 22).classList.contains("soulevee"), false);
+      assert.deepEqual(traits(vue), []);
+      reponses[0]?.rendre({ place: true, dit: "#22: placed before #21, prio:1 — cost: none" });
+      await repos();
+      assert.deepEqual(ordre(vue), [23, 22, 21]);
+    } finally {
+      fin();
+    }
+  });
+
+  test("un simple balayage défile la colonne : aucune carte n'est soulevée, ni déplacée", async () => {
+    try {
+      const { vue, reponses } = await ouvrirAuDoigt();
+      const prise = carte(vue, 22);
+      prise.declencher("touchstart", doigt(250));
+      mock.timers.tick(100);
+      let retenu = false;
+      prise.declencher("touchmove", { ...doigt(150), preventDefault: () => void (retenu = true) });
+      assert.equal(retenu, false);
+      mock.timers.tick(APPUI * 2);
+      assert.equal(prise.classList.contains("soulevee"), false);
+      assert.equal(prise.classList.contains("glissee"), false);
+      prise.declencher("touchmove", doigt(60));
+      prise.declencher("touchend", leve(60));
+      await repos();
+      assert.deepEqual(reponses, []);
+      assert.deepEqual(ordre(vue), [23, 21, 22]);
+    } finally {
+      fin();
+    }
+  });
+
+  test("un appui court, ou levé sur la carte elle-même, ne déplace rien", async () => {
+    try {
+      const { vue, reponses } = await ouvrirAuDoigt();
+      const prise = carte(vue, 22);
+      prise.declencher("touchstart", doigt(250));
+      mock.timers.tick(100);
+      prise.declencher("touchend", leve(250));
+      mock.timers.tick(APPUI * 2);
+      assert.equal(prise.classList.contains("soulevee"), false);
+      prise.declencher("touchstart", doigt(250));
+      mock.timers.tick(APPUI);
+      prise.declencher("touchmove", doigt(255));
+      prise.declencher("touchend", leve(255));
+      await repos();
+      assert.deepEqual(reponses, []);
+      assert.equal(prise.classList.contains("soulevee"), false);
+    } finally {
+      fin();
+    }
+  });
+
+  test("le contact interrompu rend la carte à sa place, sans rien envoyer", async () => {
+    try {
+      const { vue, reponses } = await ouvrirAuDoigt();
+      const prise = carte(vue, 22);
+      prise.declencher("touchstart", doigt(250));
+      mock.timers.tick(APPUI);
+      prise.declencher("touchmove", doigt(60));
+      prise.declencher("touchcancel", {});
+      await repos();
+      assert.deepEqual(reponses, []);
+      assert.deepEqual(traits(vue), []);
+      assert.equal(prise.classList.contains("soulevee"), false);
+    } finally {
+      fin();
+    }
+  });
+
+  test("refusé : la carte reprend sa place, et la phrase du runtime le dit, comme à la souris", async () => {
+    try {
+      const { vue, reponses } = await ouvrirAuDoigt();
+      const prise = carte(vue, 22);
+      prise.declencher("touchstart", doigt(250));
+      mock.timers.tick(APPUI);
+      prise.declencher("touchmove", doigt(60));
+      prise.declencher("touchend", leve(60));
+      await repos();
+      assert.deepEqual(ordre(vue), [22, 23, 21]);
+      reponses[0]?.rendre({ refus: "#22 awaits #23, so it cannot be placed before it.", detail: "" });
+      await repos();
+      assert.deepEqual(ordre(vue), [23, 21, 22]);
+      assert.equal(prio(vue, 22), "no prio");
+      assert.equal(refus(vue)[0]?.children[0]?.textContent, "#22 awaits #23, so it cannot be placed before it.");
+    } finally {
+      fin();
+    }
+  });
+
+  test("la carte du ticket pris, elle, ne se soulève pas", async () => {
+    try {
+      const { vue } = await ouvrirAuDoigt();
+      const prise = vue.element("rail").dessous("li").find((li) => li.classList.contains("bon") && numero(li) === 14) ?? assert.fail("pas de carte #14");
+      prise.declencher("touchstart", doigt(10));
+      mock.timers.tick(APPUI);
+      assert.equal(prise.classList.contains("soulevee"), false);
+    } finally {
+      fin();
+    }
   });
 });

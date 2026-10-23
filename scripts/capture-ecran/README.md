@@ -107,6 +107,7 @@ compare que deux captures du même navigateur.
 | `cooks-roles` | L'onglet Cooks de `parade` (#1274) : sous ses stations et son plafond, les rôles de sa cuisine — manager, pass, reviewer, second juge (`no action yet`), triage, closer —, chacun avec ce qu'il fait et sa dernière action datée |
 | `correction` | La file de `parade` quand une cause de ratage revient (#999) : au-dessus des colonnes, la carte d'une correction proposée de son `CLAUDE.md` — ce qu'on attend du chef, la cause, ses trois tickets, le diff, son coût, « yes, open it as a PR » et « no » |
 | `correction-oui`, `correction-sans-geste` | La même, « yes » cliqué : la réponse écrite, la carte a quitté la file — puis sur une station dont le runtime ne connaît pas encore le geste `correction` : la carte reste, et une ligne le dit, le détail au survol |
+| `rail-file-doigt`, `rail-file-doigt-lachee`, `rail-file-doigt-refus` | La même file sur un écran de téléphone, 412 × 915 (#1348) : #24 soulevé par un appui long et mené au-dessus de #23, le trait qui dit où il atterrira ; lâché là, avec la priorité de ses voisines ; et #22 lâché avant #23, qu'il attend : refusé, la carte a repris sa place et la phrase du runtime le dit |
 | `rail-file`, `rail-file-glisse`, `rail-file-lachee`, `rail-file-refus` | La file de `parade`, quatre tickets sur le rail dans l'ordre où le runtime les sert, chacun avec sa priorité, #21 en tête qui dit pourquoi il ne part pas (#1347) — puis #24 en train de glisser au-dessus de #23, le trait qui dit où il atterrira ; lâché là, avec la priorité de ses voisines ; et #22 lâché avant #23, qu'il attend : refusé, la carte a repris sa place et la phrase du runtime le dit |
 | `todo-cartes` | La file de `parade` avec deux cartes dans TODO (#1281) : #12, une validation de design — sa question, ses captures avant et après sur la carte, un bouton par choix, le champ du texte libre et « send » — et #21, un choix de produit sans écran, sans zone de captures |
 | `todo-carte-repondue` | La même, le premier choix de #21 cliqué : la réponse est écrite, la carte a quitté TODO sans autre clic, la colonne compte 1 |
@@ -212,7 +213,9 @@ dans `main.ts`, à partir de ce que la box rendrait (`pass 14 --json`, `pass 14 
   (`{ cliquer: <sélecteur> }`), un texte tapé dans un champ (`{ saisir: <sélecteur>, texte }` : sa
   valeur posée, et l'`input` que la frappe déclencherait — `telephone-second-tape`), ou un glisser
   (`{ glisser: <sélecteur>, sur: <sélecteur> }` : `dragstart` sur l'un, `dragover` sur l'autre, la capture
-  le montre en vol — `rail-file-glisse` ; `lacher: true` le lâche là, `drop` puis `dragend`). Un sélecteur qui
+  le montre en vol — `rail-file-glisse` ; `lacher: true` le lâche là, `drop` puis `dragend`), ou un appui long au doigt
+  (`{ soulever: <sélecteur>, vers: <sélecteur> }` : `touchstart`, l'appui attendu, puis `touchmove` au centre de l'autre — la carte
+  est soulevée, `rail-file-doigt` ; `lacher: true` lève le doigt là, `touchend`). Un sélecteur qui
   ne désigne pas exactement un élément arrête la capture en le disant.
 
 Puis : `--liste` le montre, une capture le rend, et `npm --prefix scripts/capture-ecran test` le

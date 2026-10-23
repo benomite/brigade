@@ -37,3 +37,15 @@ export function apresLeLacher(cartes, { ticket, voisin, cote }) {
   const placee = pres.prio === undefined ? glissee : { ...glissee, prio: pres.prio };
   return [...autres.slice(0, rang), placee, ...autres.slice(rang)];
 }
+
+// Le même geste au doigt (ticket 1348) : un appui long sur une carte la soulève, puis le doigt la mène en haut ou en bas
+// de sa colonne et la lâche — le lâcher est celui de la souris. Un doigt qui bouge avant la fin de l'appui fait défiler
+// la colonne : aucune carte n'est soulevée.
+export const APPUI_LONG_MS = 450;
+export const SEUIL_DE_DEFILEMENT_PX = 10;
+
+// Le doigt a-t-il assez bougé depuis sa pose pour que ce soit un défilement, non un appui ?
+/** @param {{ x: number, y: number }} depart @param {{ x: number, y: number }} point @returns {boolean} */
+export function defileAvantLappui(depart, point) {
+  return Math.hypot(point.x - depart.x, point.y - depart.y) > SEUIL_DE_DEFILEMENT_PX;
+}

@@ -111,6 +111,24 @@ async function rendre(ecran: Ecran, taille: { largeur: number; hauteur: number }
       await poser(`après « ${geste} »`);
       continue;
     }
+    if ("soulever" in etape) {
+      // Un appui long au doigt (ticket 1348) : `touchstart` sur ce qui est soulevé, la vue attend la fin de l'appui, puis le doigt
+      // mène la carte au centre de `vers` (`touchmove`) — et, `lacher`, le lève là (`touchend`). Les mêmes événements que le navigateur.
+      const geste = `soulever ${etape.soulever} vers ${etape.vers}`;
+      const lever = etape.lacher === true ? `source.dispatchEvent(contact("touchend", [])); ` : "";
+      const trouves = (await evaluer(
+        `(async () => { const sources = document.querySelectorAll(${JSON.stringify(etape.soulever)}); const cibles = document.querySelectorAll(${JSON.stringify(etape.vers)});` +
+          ` if (sources.length !== 1 || cibles.length !== 1) return [sources.length, cibles.length]; const [source] = sources; const [cible] = cibles;` +
+          ` const centre = (element) => { const r = element.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };` +
+          ` const toucher = (element) => { const [clientX, clientY] = centre(element); return new Touch({ identifier: 1, target: source, clientX, clientY }); };` +
+          ` const contact = (type, doigts) => new TouchEvent(type, { bubbles: true, cancelable: true, touches: doigts, targetTouches: doigts, changedTouches: [toucher(type === "touchstart" ? source : cible)] });` +
+          ` source.dispatchEvent(contact("touchstart", [toucher(source)])); await new Promise((fini) => setTimeout(fini, 700));` +
+          ` source.dispatchEvent(contact("touchmove", [toucher(cible)])); ${lever}return [1, 1]; })()`,
+      )) as [number, number];
+      if (trouves[0] !== 1 || trouves[1] !== 1) throw new Error(`étape « ${geste} » : ${trouves[0]} et ${trouves[1]} élément(s) trouvé(s), il en faut un de chaque`);
+      await poser(`après « ${geste} »`);
+      continue;
+    }
     // Un clic, ou un texte tapé dans un champ — sa valeur posée, et l'`input` que la frappe déclencherait.
     const [geste, selecteur, faire] =
       "cliquer" in etape
