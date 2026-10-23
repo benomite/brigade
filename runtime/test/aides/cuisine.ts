@@ -75,7 +75,7 @@ export function fauxGitHub(...issues: Issue[]) {
   // `creation` : GitHub refuse de créer une issue ; `creationsMax` : il refuse
   // au-delà de ce nombre. `apresCreation` : il la crée, et la réponse se perd —
   // une fois. `apresRetrait` : de même pour un label retiré.
-  const pannes = { commentaire: false, pr: false, lecture: false, label: false, creation: false, creationsMax: Infinity, apresCreation: false, corps: false, apresRetrait: false };
+  const pannes = { commentaire: false, pr: false, lecture: false, label: false, creation: false, creationsMax: Infinity, apresCreation: false, corps: false, apresRetrait: false, relance: false };
   // Les issues nées par l'API, et les corps réécrits.
   const creations: number[] = [];
   const ecritures: Array<[number, string]> = [];
@@ -96,6 +96,8 @@ export function fauxGitHub(...issues: Issue[]) {
   // Le diff de chaque PR, et le journal de chaque check, tels que GitHub les rend.
   const diffs = new Map<number, string>();
   const journauxDeCI = new Map<string, string>();
+  // Les runs de GitHub Actions dont la pass a relancé les jobs en échec.
+  const relances: number[] = [];
   const merge: { mode: "ok" | "panne" | "panne-apres-merge" | { refus: string } } = { mode: "ok" };
   const merges: Array<[number, string]> = [];
   const fermetures: number[] = [];
@@ -201,6 +203,10 @@ export function fauxGitHub(...issues: Issue[]) {
     },
     diff: async (numero) => diffs.get(numero) ?? "",
     journalDuCheck: async (check) => journauxDeCI.get(check.name) ?? null,
+    async relancerLesEchecs(run) {
+      if (pannes.relance) throw new Error(`gh api repos/${DEPOT}/actions/runs/${run}/rerun-failed-jobs : HTTP 403`);
+      relances.push(run);
+    },
     async remplacerCommentaire(numero, ancien, nouveau) {
       const lus = poses.get(numero) ?? [];
       const rang = lus.findIndex((commentaire) => commentaire.body === ancien);
@@ -225,7 +231,7 @@ export function fauxGitHub(...issues: Issue[]) {
     identite: async () => comptes.pass,
     fermer: () => {},
   };
-  return { github, comptes, commentaires, prs, pannes, ouvertes, ci, diffs, journauxDeCI, merge, merges, fermetures, mergerPR, labellisations, delabellisations, sondages, creations, ecritures,
+  return { github, comptes, commentaires, prs, pannes, ouvertes, ci, diffs, journauxDeCI, relances, merge, merges, fermetures, mergerPR, labellisations, delabellisations, sondages, creations, ecritures,
     // Le corps d'une issue, tel que GitHub le rend.
     corpsDe: (numero: number) => corps.get(numero)?.body ?? "",
     poser: (i: Issue) => void etat.set(i.number, i),

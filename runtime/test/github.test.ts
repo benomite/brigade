@@ -1,7 +1,7 @@
 // Le sondage de GitHub, contre un faux `gh` : aucun test ne touche le réseau.
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
-import { ouvrirGitHub } from "../src/github.ts";
+import { jobDuCheck, ouvrirGitHub } from "../src/github.ts";
 import { JETON_MASQUE, retenirJeton } from "../src/identifiants.ts";
 import { CHEMIN_TICKETS, DEPOT, fauxGh, issueGitHub } from "./outils.ts";
 
@@ -508,6 +508,24 @@ test("le journal d'un check se lit par son job, quand c'en est un de GitHub Acti
   assert.equal(await github.journalDuCheck({ ...check, url: null }), null);
   assert.equal(gh.appels().length, 1);
   assert.equal(await github.journalDuCheck({ ...check, url: `https://github.com/${DEPOT}/actions/runs/123/job/789` }), null);
+});
+
+test("les jobs en échec d'un run de GitHub Actions se relancent, eux seuls ; un refus de GitHub lève", async (t) => {
+  const { gh, github } = sonde(t);
+  const chemin = `repos/${DEPOT}/actions/runs/123/rerun-failed-jobs`;
+  gh.repondre(chemin, { statut: 201, corps: {} });
+  gh.repondre(`repos/${DEPOT}/actions/runs/124/rerun-failed-jobs`, { statut: 403, corps: { message: "Resource not accessible by integration" } });
+
+  await github.relancerLesEchecs(123);
+  assert.deepEqual(gh.appels(), [["api", "-i", "-X", "POST", chemin]]);
+  await assert.rejects(github.relancerLesEchecs(124), /HTTP 403/);
+});
+
+test("un check dit son run et son job quand c'est un job de GitHub Actions ; sinon, rien", () => {
+  const check = { name: "tests", outcome: "red" as const, conclusion: "failure" };
+  assert.deepEqual(jobDuCheck({ ...check, url: `https://github.com/${DEPOT}/actions/runs/123/job/456` }), { run: 123, job: 456 });
+  assert.equal(jobDuCheck({ ...check, url: "https://ci.exemple/6" }), null);
+  assert.equal(jobDuCheck({ ...check, url: null }), null);
 });
 
 test("un commentaire se remplace par son corps : celui qui l'est encore est réécrit, sinon rien", async (t) => {

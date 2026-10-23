@@ -105,8 +105,9 @@ import { empreinteDeConfig, gatesReprises, passageVert, type EmpreinteDesGates }
 import { tenirLeBudget } from "./budget-des-gates.ts";
 import { constaterExtinction, direExtinction } from "./grant.ts";
 import { VARIABLES_GITHUB } from "./identites.ts";
-import type { GitHub, PR } from "./github.ts";
+import { jobDuCheck, type GitHub, type PR } from "./github.ts";
 import { configMachine, direSaturation, lireMachine, saturation, type Machine, type Saturation, type Seuils } from "./machine.ts";
+import type { Evenement } from "./evenements.ts";
 import type { FaitPause } from "./pause/evenements.ts";
 import { mergeRetenu, RENOMMAGE_ABANDONNE, renommageEcarte } from "./pause/pause.ts";
 import { INTRANSPOSABLE, renommagesMerges, traduireChemin } from "./pause/reprise.ts";
@@ -133,6 +134,7 @@ import { compteRetenu, cookDeRun, refusDAffilee, stationsAnnoncees } from "./pro
 import { GesteRefuse, nomAbandon } from "./rail.ts";
 import { corpsDeReparation, echecsDesGates, LABELS_REPARATION, shaDeReparation, titreDeReparation } from "./reparation.ts";
 import { FICHIER as REGLAGES_DU_PROJET } from "./reglages-projet/reglages.ts";
+import { attribuer, testsEnEchec } from "./relance-de-ci.ts";
 import { DECLARATION_RESEAU } from "./reseau.ts";
 import { argumentsReviewer, CONSIGNE_MAX, consigneDeRelecture, DE_LA_BRIGADE, debutDeRelecture, diffCoupe, lireRelecture, REVIEWER, type ConfigReviewer } from "./reviewer.ts";
 import { calibrageDuSecondJuge, carteDuSecondJuge, consigneDuSecondJuge, debutDuSecondJugement, DIRE_VERDICT, lireSecondJugement, SECOND_JUGE } from "./second-juge.ts";
@@ -1508,6 +1510,51 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     return lue() ?? "unknown";
   };
 
+  // La relance de la CI rouge de ce commit, si la pass l'a déjà faite pour
+  // cette livraison.
+  const ciRelancee = (ticket: number, sha: string) =>
+    journal.duTicket(ticket).findLast((evenement): evenement is Evenement<Extract<FaitPass, { type: "pass.ci-rerun" }>> => evenement.type === "pass.ci-rerun" && evenement.payload.sha === sha) ?? null;
+
+  // Une CI rouge sur des tests que la livraison ne touche pas, et sur rien
+  // d'autre, ne fait pas un verdict : ses jobs en échec sont relancés, une fois
+  // par livraison — ni renvoi, ni carte (`relance-de-ci.ts`). Rend vrai si la
+  // relance est partie : la CI est alors attendue de nouveau. Tout ce qui ne
+  // s'établit pas — un check qui n'est pas un job de GitHub Actions, un journal
+  // illisible ou qui ne nomme aucun test, un test que la livraison touche —
+  // laisse le rouge à la livraison.
+  const relancerLaCI = async (connu: PassDeTicket, ref: string, sha: string, rouges: Check[]): Promise<boolean> => {
+    const { ticket, run } = connu;
+    if (ciRelancee(ticket, sha) !== null) return false;
+    const jobs = rouges.map((check) => ({ check, job: jobDuCheck(check) }));
+    if (jobs.some(({ job }) => job === null)) return false;
+    const nommes: string[] = [];
+    for (const { check } of jobs) {
+      const lu = await github.journalDuCheck(check).catch(() => null);
+      const tests = lu === null ? null : testsEnEchec(lu);
+      if (tests === null) return false;
+      nommes.push(...tests);
+    }
+    if (arrete || !enPass(ticket)) return false;
+    const attribution = attribuer(nommes, { changes: depot.changes(ref), fichiers: depot.fichiers(), lire: (chemin) => depot.lire(ref, chemin) });
+    if (!attribution.etranger) return false;
+    // Run par run : une relance refusée laisse ses jobs rouges, et ceux-là
+    // restent le verdict de la livraison.
+    const relances: number[] = [];
+    for (const runCI of new Set(jobs.map(({ job }) => job!.run))) {
+      try {
+        await github.relancerLesEchecs(runCI);
+        relances.push(runCI);
+      } catch (erreur) {
+        avertir(`brigade : jobs en échec du run ${runCI} non relancés sur le ticket #${ticket} — ${message(erreur)} (l'identité de la pass a-t-elle \`actions: write\` ?)`);
+      }
+    }
+    if (relances.length === 0) return false;
+    const checks = jobs.filter(({ job }) => relances.includes(job!.run)).map(({ check }) => check);
+    noter(ticket, { type: "pass.ci-rerun", payload: { run, sha, runs: relances, checks, tests: attribution.tests } });
+    avertir(`brigade : CI relancée sur le ticket #${ticket} (${court(sha)}) — rouge sur des tests que la livraison ne touche pas : ${attribution.tests.join(", ")}`);
+    return true;
+  };
+
   // `poser` : fait le worktree jetable du jugement.
   const jugerLivraison = async (connu: PassDeTicket, branch: string, poser: <T>(faire: (nom: string) => Promise<T>) => Promise<T>) => {
     const { ticket, run } = connu;
@@ -1684,7 +1731,11 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       if (arrete || relue === null) return;
       if (relue.outcome === "unreadable") return remonterIllisible(connu, relue);
       review = { outcome: relue.outcome, run: relue.run, summary: relue.summary, findings: relue.findings };
-      const checks = await github.ci(sha);
+      // Les jobs que la pass a relancés, tant que GitHub rend encore leur
+      // rouge d'avant, sont en cours : leur relance n'a pas encore conclu.
+      const relance = ciRelancee(ticket, sha);
+      const relances = new Set(relance?.payload.checks.map((check) => check.url) ?? []);
+      const checks = (await github.ci(sha)).map((check): Check => (check.outcome === "red" && relances.has(check.url) ? { ...check, outcome: "pending" } : check));
       if (arrete) return;
       // Des workflows sans aucun check : la CI n'a pas encore démarré.
       const attendue = checks.length === 0 && porteDesWorkflows(ref);
@@ -1692,7 +1743,8 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       // Un constat bloquant n'attend pas la CI : le verdict est déjà rouge,
       // et elle sera lue sur le commit qui le corrige.
       if (enCours && review.outcome !== "red") {
-        const depuis = Date.parse(passDuTicket(base, ticket)?.startedAt ?? "");
+        // Relancée, la CI s'attend de nouveau depuis sa relance.
+        const depuis = Math.max(Date.parse(passDuTicket(base, ticket)?.startedAt ?? ""), relance === null ? -Infinity : Date.parse(relance.at));
         if (!(maintenant().getTime() - depuis > options.attenteCiMs) || !enPass(ticket)) return;
         return remonter(
           connu,
@@ -1711,6 +1763,9 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
           ci = { outcome: "skipped", checks };
           findings.push(findingDeCiDepassee(options.base, sha, retard, rouges));
         } else {
+          // Rouge seulement par sa CI, sur des tests qu'elle ne touche pas.
+          if (rouges.length > 0 && review.outcome !== "red" && (await relancerLaCI(connu, ref, sha, rouges))) return;
+          if (arrete || !enPass(ticket)) return;
           ci = { outcome: checks.length === 0 ? "none" : rouges.length > 0 ? "red" : "green", checks };
           findings.push(...rouges.map((check) => `CI rouge — job « ${check.name} » : ${check.conclusion}${check.url ? ` (${check.url})` : ""}.`));
         }
