@@ -6,9 +6,9 @@ name: tests
 
 on:
   pull_request:
-    branches: [v2]
+    branches: [main, v2]
   push:
-    branches: [v2]
+    branches: [main, v2]
   workflow_dispatch:
 
 permissions:
@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      # Tout l'historique : les gates lisent leur diff depuis `origin/v2`.
+      # Tout l'historique : les gates lisent leur diff depuis `origin/<base>` (binding « Branche d'intégration » du CLAUDE.md).
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0

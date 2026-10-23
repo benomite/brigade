@@ -1,4 +1,4 @@
-# Publie la station : à chaque merge sur `v2` qui change ce que le paquet porte
+# Publie la station : à chaque merge sur la branche d'intégration (`main` après le passage, `v2` avant) qui change ce que le paquet porte
 # (le runtime livré et `runtime/paquet/`), une release `station-<version>` avec
 # `installer-station.sh` et `brigade-station_amd64.deb`. La version est celle que
 # `construire.ts` se donne sans `--version` : `0.<AAAAMMJJ>.<HHMMSS>+g<commit>`.
@@ -8,7 +8,7 @@ name: publier-station
 
 on:
   push:
-    branches: [v2]
+    branches: [main, v2]
     paths:
       - "runtime/src/**"
       - "runtime/package.json"

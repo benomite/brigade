@@ -1,15 +1,9 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "brigade",
-  "description": "Protocole de travail multi-agents sur un backlog GitHub",
+  "description": "Brigade V1 plugin is no longer published from the default branch. Install it from the tag v1-final: /plugin marketplace add benomite/brigade@v1-final",
   "owner": {
     "name": "benomite"
   },
-  "plugins": [
-    {
-      "name": "brigade",
-      "description": "Protocole de travail multi-agents : PO, Manager, Dev, Designer sur un backlog GitHub",
-      "source": "./"
-    }
-  ]
+  "plugins": []
 }
