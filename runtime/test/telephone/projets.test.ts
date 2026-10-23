@@ -126,7 +126,7 @@ test("sans jeton valable — absent, faux, ou d'un téléphone révoqué —, ni
   const { lire, jeton, revoquer } = await station(t);
   const chemins = ["/projects", "/projects/brigade/queue", "/projects/inconnu/queue"];
 
-  for (const entetes of [{}, { authorization: "Bearer brgt_faux" }, { authorization: jeton }]) {
+  for (const entetes of [{}, { authorization: "Bearer brgt_faux" }, { authorization: jeton }] as Array<Record<string, string>>) {
     for (const chemin of chemins) {
       const refus = await lire(chemin, entetes);
       assert.equal(refus.statut, 401, `${chemin} ${JSON.stringify(entetes)}`);
