@@ -1,7 +1,7 @@
 // La même file, #24 (`prio:2`) en train de glisser vers le haut, au-dessus de #23 (`prio:1`) : la carte s'efface à demi,
 // et le trait d'accent dit qu'elle atterrira juste avant #23 (ticket 1347). Rien n'est encore lâché.
 import type { Ecran } from "./commun.ts";
-import { CARTE, ecran as file } from "./rail-file-commun.ts";
+import { CARTE, FILE as file } from "./rail-file-commun.ts";
 
 export const ecran: Ecran = {
   ...file,

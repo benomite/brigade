@@ -1,7 +1,7 @@
 // La même file, #24 lâché juste avant #23 (ticket 1347) : la carte a pris sa place et la priorité de ses voisines,
 // `prio:1`, sans attendre la station — le runtime l'a placée (`rail move 24 --before 23`).
 import type { Ecran } from "./commun.ts";
-import { CARTE, ecran as file } from "./rail-file-commun.ts";
+import { CARTE, FILE as file } from "./rail-file-commun.ts";
 
 export const ecran: Ecran = {
   ...file,

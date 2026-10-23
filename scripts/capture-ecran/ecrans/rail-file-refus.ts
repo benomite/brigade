@@ -2,7 +2,7 @@
 // la carte a repris sa place, et la phrase se lit sous la tête de la colonne — ce que la station a rendu, au survol.
 import { raisonDuRefus } from "../../../app/src/deplacement.ts";
 import type { Ecran } from "./commun.ts";
-import { CARTE, ecran as file } from "./rail-file-commun.ts";
+import { CARTE, FILE as file } from "./rail-file-commun.ts";
 
 const DIT = "brigade : #22 is not touched: #22 awaits #23, so it cannot be placed before it — cost: none: only the order of service changes; no cook is launched, nothing is spent";
 

@@ -48,7 +48,7 @@ const STATUS = [
 // La carte de rang `n` dans « On the rail », la première colonne : dans l'ordre de service, #21, #23, #22, #24.
 export const CARTE = (rang: number) => `#rail .colonnes > .colonne:first-child > ol > li.bon:nth-child(${rang})`;
 
-export const ecran: Ecran = {
+export const FILE: Ecran = {
   dit: "La file de « parade », quatre tickets sur le rail dans l'ordre où le runtime les sert, chacun avec sa priorité : #21, en tête, dit pourquoi il ne part pas — #14 tient sa zone",
   largeur: 1440,
   hauteur: 900,
