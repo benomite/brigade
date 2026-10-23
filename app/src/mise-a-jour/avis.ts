@@ -15,6 +15,7 @@
 // throws.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import { estUnMac } from "../plateforme.ts";
 import { comparerVersions, DEPOT, estUneVersion, ETIQUETTE } from "./flux.ts";
 
 export type Poste = "mac" | "windows" | "android";
@@ -28,7 +29,7 @@ export const indiceDe = (poste: Poste): Indice | undefined =>
   poste === "mac" ? "mac-right-click-open" : poste === "windows" ? "windows-more-info-run-anyway" : undefined;
 
 // The device an app runs on, from `process.platform`; Android is told by its caller, not read here.
-export const posteDe = (plateforme: string): Poste | undefined => (plateforme === "darwin" ? "mac" : plateforme === "win32" ? "windows" : undefined);
+export const posteDe = (plateforme: string): Poste | undefined => (estUnMac(plateforme) ? "mac" : plateforme === "win32" ? "windows" : undefined);
 
 export type Avis = { version: string; url: string; indice?: Indice };
 
