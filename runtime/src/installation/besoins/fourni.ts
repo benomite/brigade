@@ -6,12 +6,12 @@
 // alors sous le compte de la station, celui sous lequel la cuisine cuit, et
 // c'est lui qui dit si elle le fournit (#1532). Son verdict vaut un moment :
 // une lecture de la station sur deux ou trois ne relance aucun process.
-import { spawnSync } from "node:child_process";
 import { readdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { delimiter, join } from "node:path";
 import { capacite } from "../../capacites.ts";
 import { lireLesDecisions } from "../../decisions.ts";
+import { spawnSync } from "../../sans-invite.ts";
 import { lireStations, VARIABLE_DES_STATIONS } from "../../stations-declarees.ts";
 import type { Besoin, Jouer } from "./catalogue.ts";
 
