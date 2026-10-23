@@ -46,7 +46,7 @@ import { direCommentLeVoirEn, direEcranEn, direEtatDeServeurEn, direPageEn, dire
 import { lastBackup, type Backup } from "./projections/backups.ts";
 import { dernierTick, derniereSession, type SessionPassee, type Tick } from "./projections/sessions.ts";
 import { arreteeDepuis, cookDeRun, cooksEnCoursDeStation, direDeconnexionEn, direPlafondEn, direRetenueDeStationEn, etatStation, GESTE_DE_CONNEXION_TOMBEE_EN, plafondDeCooks, sansStationDepuis, miseDeCoteBloquee, setupBloque, stationsAnnoncees, type CookDeStation, type EtatStation, type MiseDeCoteBloquee, type SetupBloque } from "./projections/stations.ts";
-import { BLOQUE, BLOQUE_EN, direRetenueEn, EN_WAITING, etatLu, etatLuEn, nomEtat, nomEtatEn } from "./rail.ts";
+import { BLOQUE, BLOQUE_EN, direHorsZoneEn, direRetenueEn, EN_WAITING, etatLu, etatLuEn, nomEtat, nomEtatEn } from "./rail.ts";
 import { PAR_LE_CHEF } from "./events/rail.ts";
 import { direAttenteDeTiersEn } from "./attente.ts";
 import { direMiseDeCote } from "./mise-de-cote.ts";
@@ -712,7 +712,7 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
         `  #${ticket.ticket}`,
         etatLuEn(ticket),
         ticket.priority === null ? "-" : `prio:${ticket.priority}`,
-        detail(ticket, maintenant, depuisEn, retenuesDe(ticket)) + direAttenteDeCharge(etat.activites.get(ticket.ticket)),
+        [detail(ticket, maintenant, depuisEn, retenuesDe(ticket)) + direAttenteDeCharge(etat.activites.get(ticket.ticket)), ...[direHorsZoneEn(ticket) ?? []].flat()].join(" — "),
         ticket.title,
       ].join("  "),
     ),

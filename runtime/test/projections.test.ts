@@ -305,6 +305,14 @@ function raconterLeRail(journal: Journal): void {
     rail.tickets().map((ticket) => [ticket.ticket, ticket.state]),
     [[1, "waiting"], [2, "taken"], [3, "waiting"], [4, "served"], [5, "86"]],
   );
+  // La station dit ce qu'une livraison du 2 a écrit hors de sa zone.
+  journal.ajouter({
+    project: "brigade",
+    ticket: 2,
+    author: "station:box/cook-2",
+    type: "cook.out-of-zone",
+    payload: { run: "run-2", zone: ["runtime/src/rail.ts"], files: [{ path: "runtime/src/gates.ts", owners: [] }], cardChanged: false },
+  });
   // Le chef place le 5 avant le 4, dans leur priorité.
   journal.ajouter({ project: "brigade", ticket: 5, author: "chef", type: "ticket.moved", payload: { priority: null, order: [5, 4] } });
   // Deux tickets attendent un tiers, et leur issue le dit : l'un attend

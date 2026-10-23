@@ -31,7 +31,7 @@ import { repondreALaCarte } from "./reponse-carte.ts";
 import { ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { communsDuRail, lireRail, ticketDuRail, type TicketRail } from "./projections/rail.ts";
-import { direRetenueEn, etatLuEn } from "./rail.ts";
+import { direHorsZoneEn, direRetenueEn, etatLuEn } from "./rail.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
 const USAGE = [
@@ -161,7 +161,7 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
       `#${ticket.ticket}`,
       etatLuEn(ticket),
       ticket.priority === null ? "-" : `prio:${ticket.priority}`,
-      detail(ticket),
+      [detail(ticket), ...[direHorsZoneEn(ticket) ?? []].flat()].join(" — "),
       ticket.title,
     ].join("  ");
   }
