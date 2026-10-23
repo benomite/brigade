@@ -231,6 +231,31 @@ test("le pont dit la station injoignable quand la demande n'arrive pas, et une r
   assert.equal(muet.stockage.size + autre.stockage.size, 0);
 });
 
+// Une box louée ailleurs, jointe du réseau mobile par le tailnet du chef (#1409) : `tailscale serve` publie son guichet
+// en https, et répond 502 quand rien n'écoute derrière lui.
+const TAILNET = { ...DEMANDE, adresse: "https://box.tail1234.ts.net" };
+
+test("le pont appaire le téléphone par le tailnet : la demande part en https au nom de la box, et l'app se sait appairée à elle", async () => {
+  const { pont, appels, stockage, json } = await pontDuTelephone(() => ({ status: 201, headers: {}, data: { paired: true, station: { ...STATION, nom: "box" }, token: "brgt_secret" } }));
+  assert.deepEqual(await json(pont.appairerLeTelephone!(TAILNET)), { paired: true, station: "box" });
+  assert.equal(appels[0]?.options.url, "https://box.tail1234.ts.net/pairing");
+  const relance = await pontDuTelephone(() => assert.fail("nothing is sent at launch"), stockage);
+  assert.deepEqual((await relance.json(relance.pont.demarrage!())).telephone, { appaire: true, station: "box", adresse: "https://box.tail1234.ts.net" });
+});
+
+test("par le tailnet, le pont dit ce qui ne se joint pas : la box elle-même, ou le guichet derrière `tailscale serve`", async () => {
+  const eteint = await pontDuTelephone(() => {
+    throw { message: 'Unable to resolve host "box.tail1234.ts.net": No address associated with hostname' };
+  });
+  assert.deepEqual(await eteint.json(eteint.pont.appairerLeTelephone!(TAILNET)), { paired: false, reason: "injoignable", said: 'Unable to resolve host "box.tail1234.ts.net": No address associated with hostname' });
+  for (const status of [502, 503, 504]) {
+    const muet = await pontDuTelephone(() => ({ status, headers: {}, data: "" }));
+    assert.deepEqual(await muet.json(muet.pont.appairerLeTelephone!(TAILNET)), { paired: false, reason: "sans-guichet", said: `https://box.tail1234.ts.net answered ${status}: nothing answers behind it` });
+    assert.equal(muet.stockage.size, 0);
+  }
+  assert.equal(eteint.stockage.size, 0);
+});
+
 test("le pont lit le QR par le plugin natif : son texte, un renoncement, ou la raison d'un échec", async () => {
   for (const [rendu, attendu] of [
     [{ texte: "brigade://pair?code=7KQ2-M9XD" }, { lu: "brigade://pair?code=7KQ2-M9XD" }],

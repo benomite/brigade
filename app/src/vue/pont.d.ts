@@ -402,12 +402,14 @@ export type Conversation = { messages: MessageDuSecond[]; repond?: true };
 // Une phrase, et ce que la station ou le pont en a dit, au survol.
 export type RefusDeConversation = { refus: string; detail?: string };
 export type Telephone = { appaire: false } | { appaire: true; station: string; adresse: string };
-// Ce que le téléphone envoie au guichet : son adresse (`http://<hôte>:<port>`), le code tapé ou scanné,
+// Ce que le téléphone envoie au guichet : son adresse (`http://<hôte>:<port>`, ou `https://<machine>.ts.net` sur
+// le tailnet du chef), le code tapé ou scanné,
 // et ce qu'il dit de lui — son nom de station et sa machine.
 export type DemandeDuTelephone = { adresse: string; code: string; nom: string; machine: string };
 // Ce que le guichet a répondu : appairé, et à quelle station ; ou refusé, avec son motif (`inconnu`,
 // `expire`, `utilise`, `nom-pris`, `essais`, `invalide`) et sa phrase. `injoignable` : la demande
-// n'est jamais arrivée — `said` dit ce que le réseau en a dit.
+// n'est jamais arrivée — `said` dit ce que le réseau en a dit ; `sans-guichet` : l'adresse répond, mais
+// rien derrière elle (le 502 de `tailscale serve`) ; `inattendu` : ce qui répond n'est pas un guichet.
 export type ReponseDuGuichet = { paired: true; station: string } | { paired: false; reason: string; said: string };
 // Le QR lu, renoncé, ou impossible à lire — l'appareil photo refusé, le lecteur absent.
 export type LectureDuQr = { lu: string } | { annule: true } | { refus: string };

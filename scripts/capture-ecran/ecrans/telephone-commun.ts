@@ -9,6 +9,9 @@ export const HAUTEUR = 915;
 // Le guichet de la station du chef, et le code qu'elle montre : ce que porte son QR.
 export const ADRESSE = "http://192.168.1.20:7010";
 export const QR = `brigade://pair?code=7KQ2-M9XD&url=${encodeURIComponent(ADRESSE)}`;
+// Le guichet d'une box louée ailleurs, publié sur le tailnet du chef (#1408) : ce que porte son QR.
+export const ADRESSE_TAILNET = "https://box.tail1234.ts.net";
+export const QR_TAILNET = `brigade://pair?code=7KQ2-M9XD&url=${encodeURIComponent(ADRESSE_TAILNET)}`;
 
 // `telephone` : l'appairage que le pont lit au lancement — aucun, sur une installation neuve.
 export function demarrageDuTelephone(telephone: { appaire: false } | { appaire: true; station: string; adresse: string } = { appaire: false }) {
@@ -24,13 +27,14 @@ export function demarrageDuTelephone(telephone: { appaire: false } | { appaire: 
 }
 
 // Le QR de la station scanné, d'un clic sur « scan the QR » : il remplit l'adresse et le code, et part
-// aussitôt au guichet, qui répond `reponse` — ou ne répond pas encore (`{ __enAttente: true }`).
-export function apresLeQr(dit: string, reponse: unknown): Ecran {
+// aussitôt au guichet, qui répond `reponse` — ou ne répond pas encore (`{ __enAttente: true }`). `qr` :
+// celui de la station du réseau local, par défaut.
+export function apresLeQr(dit: string, reponse: unknown, qr = QR): Ecran {
   return {
     dit,
     largeur: LARGEUR,
     hauteur: HAUTEUR,
     etapes: [{ cliquer: "#appairage .gestes-appairage .action:nth-child(2) > button" }],
-    donnees: () => ({ maintenant: MAINTENANT, reponses: { demarrage: demarrageDuTelephone(), scannerLeQr: { lu: QR }, appairerLeTelephone: reponse }, envois: {} }),
+    donnees: () => ({ maintenant: MAINTENANT, reponses: { demarrage: demarrageDuTelephone(), scannerLeQr: { lu: qr }, appairerLeTelephone: reponse }, envois: {} }),
   };
 }
