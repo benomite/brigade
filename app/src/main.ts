@@ -65,6 +65,7 @@ import { relanceDe, tenirPassage } from "./rattrapage.ts";
 import { tenirRepondues } from "./repondues.ts";
 import { APP, tenirRetards } from "./retard.ts";
 import { ouvrirTours } from "./saisie.ts";
+import { type Propositions, type ReponseDuChef, tenirLesPropositions } from "./second/propositions.ts";
 import { DELAIS, lancerRetrait, tenirRetraits } from "./retrait.ts";
 import { ouvrirRunner } from "./runner.ts";
 import { tenirServices } from "./service.ts";
@@ -436,6 +437,10 @@ const retraits = tenirRetraits({
     dire("configuration", affichee(), []);
   },
 });
+// Ce que le second de chaque projet propose au chef (second/propositions.ts, #1520) : le canal du runtime
+// (runtime/src/second-propositions/canal.ts, #1519), chargé une fois de celui qui est à côté de l'app. Tant qu'il ne
+// l'est pas, aucun second n'a de proposition ; s'il ne se charge pas, le terminal reste tel quel, sans boutons dessous.
+let propositionsDuSecond: Propositions | undefined;
 // Ce que la veille de `status` lit en ce moment, tel que la vue l'a demandé en dernier :
 // rejoué, il se relit avec les projets tels que l'app les montre maintenant.
 let voir = () => {};
@@ -457,6 +462,8 @@ const suivi = suivreConfiguration({
     void retards.relire(true);
     // L'accueil a une ligne par projet du fichier, tel qu'il est maintenant.
     direLAccueil(accueil.relire());
+    // Le second de chaque projet qui s'ouvre est suivi dans son dossier tel qu'il est maintenant.
+    propositionsDuSecond?.suivre(projets());
     // Un projet qui vient d'y entrer — ajouté depuis l'app, ou écrit à la main — reçoit ses
     // couleurs : écrites, elles reviennent ici par une relecture, qui n'a plus rien à tirer. Un
     // fichier qui n'a pas pu être relu attend de l'être : l'app n'y écrit rien.
@@ -991,6 +998,13 @@ ipcMain.handle("retirerLaStation", (_, id: unknown) => stations.retirer(id));
 // du paquet (emplacements.ts).
 const ghIci = process.env.BRIGADE_GH_BIN || "gh";
 const duRuntime = <M>(...chemin: string[]) => import(pathToFileURL(join(emplacements.runtime, "src", ...chemin)).href) as Promise<M>;
+void duRuntime<typeof import("../../runtime/src/second-propositions/canal.ts")>("second-propositions", "canal.ts").then(
+  (canal) => {
+    propositionsDuSecond = tenirLesPropositions({ canal, surProposition: (projet, proposition) => dire("proposition", projet, proposition) });
+    propositionsDuSecond.suivre(projets());
+  },
+  (erreur: unknown) => console.error(`brigade: the second's proposals cannot be followed — ${erreur instanceof Error ? erreur.message : String(erreur)}`),
+);
 // Les pages qu'un échec du runtime a nommées — installer `gh`, `git`, demander l'accès à un dépôt : seules
 // celles-là s'ouvrent depuis l'écran.
 const pagesDuPremier = new Set<string>();
@@ -1310,6 +1324,14 @@ ipcMain.handle("ouvrirPage", (_, nom: unknown, worktree: unknown) => {
   return vise === undefined ? undefined : pages.ouvrir(vise, worktree);
 });
 ipcMain.on("ecrire", (_, id: number, donnees: string) => terminaux.ecrire(id, donnees));
+ipcMain.handle("propositionsDuSecond", () => propositionsDuSecond?.vu() ?? {});
+// Le chef a répondu au second — d'un clic, dont la vue a déjà tapé le choix dans son terminal, ou en tapant : le canal
+// l'efface, s'il porte encore la proposition à laquelle il a répondu.
+ipcMain.handle("repondreAuSecond", (_, nom: unknown, reponse: ReponseDuChef) => {
+  const vise = connu(nom);
+  if (vise === undefined || propositionsDuSecond === undefined) return { state: "refused", reason: "nothing to answer: this project's second is not followed", current: null };
+  return propositionsDuSecond.repondre(vise.nom, reponse);
+});
 ipcMain.on("redimensionner", (_, id: number, colonnes: number, lignes: number) => terminaux.redimensionner(id, colonnes, lignes));
 
 // Les pty appartiennent à l'app, pas à la fenêtre — mais il n'y a qu'une
@@ -1318,6 +1340,7 @@ app.on("window-all-closed", () => app.quit());
 app.on("will-quit", () => {
   suivi.fermer();
   terminaux.fermer();
+  propositionsDuSecond?.arreter();
   tours.fermer();
   veille.fermer();
   veilleDOnglet.fermer();

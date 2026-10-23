@@ -6170,6 +6170,63 @@ button.recommande {
   gap: 8px;
   padding: 0;
 }
+/* Les choix du second, sous son terminal (ticket 1520) : ce qu'on attend du chef, puis un bouton par choix — sa valeur,
+   ce qu'un clic tape, et son libellé, qui passe à la ligne plutôt que d'être coupé. Le terminal garde le reste. */
+#choix-du-second {
+  max-height: 40%;
+  overflow-y: auto;
+  padding: 10px 16px 12px;
+  border-top: 1px solid var(--trait);
+  user-select: none;
+}
+.choix-du-second .attendu {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+  font-weight: 600;
+  color: var(--texte);
+}
+.choix-du-second ul {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.choix-du-second button.choix {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 10px;
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: left;
+  color: var(--texte);
+  background: var(--bouton);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+}
+.choix-du-second button.choix:hover {
+  border-color: var(--accent);
+}
+.choix-du-second button.choix:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.choix-du-second .valeur {
+  flex: 0 0 auto;
+  min-width: 1.5em;
+  font-weight: 700;
+  color: var(--accent);
+}
+.choix-du-second .libelle {
+  min-width: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
 /* Les réglages du projet, dans son dépôt (ticket 1309) : une rangée par réglage — son nom, sa valeur en vigueur et d'où
    elle vient, son champ et « propose » —, puis ce que le dernier clic a rendu, à côté du champ. Sur Cooks, le plafond
    de calibrage est la même rangée, sous sa ligne repliée. */

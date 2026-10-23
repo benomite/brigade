@@ -356,6 +356,13 @@ export type Pont = {
   ouvrirPage(projet: string, worktree: string): Promise<Pages | undefined>;
   ecrire(id: number, donnees: string): void;
   redimensionner(id: number, colonnes: number, lignes: number): void;
+  // Ce que le second de chaque projet propose au chef, par son canal (second/propositions.ts, ticket 1520) : la proposition en
+  // cours de chaque projet qui en a une, puis chaque changement par `surProposition` — null quand il n'y en a plus.
+  // `repondreAuSecond` signale que le chef a répondu, d'un clic ou en tapant, et rend ce que le canal en a fait. Un
+  // pont qui ne les porte pas (le téléphone) n'a pas de boutons sous le terminal : il n'a pas de terminal.
+  propositionsDuSecond?(): Promise<Record<string, import("../second/propositions.ts").Proposition>>;
+  repondreAuSecond?(projet: string, reponse: import("../second/propositions.ts").ReponseDuChef): Promise<unknown>;
+  surProposition?(recevoir: (projet: string, proposition: import("../second/propositions.ts").Proposition | null) => void): void;
   surSortie(recevoir: (id: number, donnees: string) => void): void;
   surEtat(recevoir: (terminal: Terminal) => void): void;
   // `servies` : les serveurs que le `status` de cette lecture montre, et le geste de chacun (page.ts).

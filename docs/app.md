@@ -307,6 +307,29 @@ still show something, always:
 `railDuProjet` in `app/src/main.ts`, `rangerLeRailPublie` in `app/src/faits.ts`, the plan of the
 second in `app/src/terminaux.ts`. Captures: `docs/captures/1435/`.*
 
+### The second's choices, as buttons under its terminal (#1520)
+
+When the second asks you to choose ("A, B or C?"), it also publishes its choices through its own channel
+(`runtime/src/second-propositions/`, #1519): the app never reads the terminal. Under the second's terminal, one
+line says `The second asks you to choose` (how to answer is in its `?` hover), then **one button per choice**: what
+a click types — its value, `A` — and its one-line label, whole; a long label wraps, it is not cut.
+
+- **A click answers**: the value is typed into the second, then Enter, exactly as if you had typed it; the buttons
+  go away and the terminal takes the keyboard back.
+- **Typing your own answer** in the terminal works as before: once you press Enter, the buttons go away too. A
+  keystroke without Enter, a newline (Shift+Enter) or a paste leaves them.
+- Either way, the app tells the channel you answered, and the channel clears that proposal — and only that one.
+- **A new proposal replaces the buttons** of the previous one; when the second moves on, it clears its proposal and
+  nothing stays under the terminal.
+- **With no pending proposal, nothing is shown**: the terminal is as before. The buttons are only under the second
+  — not under a shell, not under another project's second, not under a second that stopped (a keypress restarts it,
+  it would not receive the choice).
+
+A gesture the second publishes (a merge, a box command) is not shown here yet: that is #1521.
+
+*Code: `app/src/vue/second/choix.js` (the buttons), `app/src/second/propositions.ts` (the channel followed for each
+project, in the main process). Captures: `docs/captures/1520/`.*
+
 ### From the app
 
 Once the file has a project, adding another is the **+**, at the foot of the bar, which opens

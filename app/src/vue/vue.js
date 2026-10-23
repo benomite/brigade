@@ -128,6 +128,7 @@ import { poserPremierLancement } from "./premier-lancement.js";
 import { poserRailPublie } from "./rail-publie.js";
 import { APPUI_LONG_MS, apresLeLacher, defileAvantLappui, GLISSE_CARTE, placeSurvolee } from "./rang-du-rail.js";
 import { poserOutilsDuSecond } from "./outils-du-second.js";
+import { poserChoixDuSecond, reponseTapee, tenirLesChoix } from "./second/choix.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
 // et ne peut pas importer du TypeScript — la locale est la même, anglaise.
@@ -250,6 +251,9 @@ const listeMachines = element("machines");
 const colonneSecond = element("second");
 const noteSecond = element("note-second");
 const outilsDuSecond = element("outils-du-second");
+const choixDuSecond = element("choix-du-second");
+// Ce que le second de chaque projet propose, tel que son canal le dit (ticket 1520) : ses choix, sous son terminal.
+const propositionsDuSecond = tenirLesChoix();
 const fil = element("fil");
 const bandeau = element("bandeau");
 const teteDuSecond = element("tete-du-second");
@@ -1171,7 +1175,12 @@ function vue(id) {
     fil.append(cadre);
     xterm.loadAddon(ajuste);
     xterm.open(cadre);
-    xterm.onData((donnees) => brigade.ecrire(id, donnees));
+    xterm.onData((donnees) => {
+      brigade.ecrire(id, donnees);
+      // Une réponse tapée dans le terminal du second répond aussi à ses choix : leurs boutons partent (ticket 1520).
+      const { terminal } = vue(id);
+      if (terminal.genre === "second" && reponseTapee(donnees)) repondueAuClavier(terminal.projet);
+    });
     // Shift+Entrée : xterm l'envoie comme Entrée (`\r`) et le shell comme `claude` l'exécutent ou
     // l'envoient. Un retour à la ligne, lui, ne part pas : `ESC` + `\r` pour `claude` (son Alt+Entrée),
     // un saut de ligne cité (`^V` `^J`) pour le shell.
@@ -1387,6 +1396,43 @@ function poserSecond(ouvrable, montre) {
           }),
         ]),
   );
+  poserSousLeSecond(ouvrable && !enMessages ? montre : undefined);
+}
+
+// Sous le terminal du second, ses choix quand il demande de choisir (ticket 1520) : seulement quand c'est lui qui est
+// montré, qu'il tourne, et que son canal en porte qui n'ont pas eu de réponse. Sinon, rien sous le terminal.
+/** @param {Terminal | undefined} montre */
+function poserSousLeSecond(montre) {
+  const second = montre?.genre === "second" && !montre.arrete && montre.empeche === undefined ? montre : undefined;
+  const proposition = second === undefined ? undefined : propositionsDuSecond.aMontrer(second.projet);
+  choixDuSecond.hidden = proposition === undefined;
+  choixDuSecond.replaceChildren(
+    ...(second === undefined || proposition === undefined
+      ? []
+      : [poserChoixDuSecond(document, proposition, { choisir: (valeur) => choisirAuSecond(second, valeur) })]),
+  );
+}
+
+// Un clic sur un choix : sa valeur part dans le terminal du second, puis Entrée, comme si le chef l'avait tapée ; les
+// boutons partent, et le canal apprend la réponse. Le terminal reprend le clavier.
+/** @param {Terminal} second @param {string} valeur */
+function choisirAuSecond(second, valeur) {
+  const repondue = propositionsDuSecond.repondre(second.projet);
+  if (repondue === undefined) return;
+  brigade.ecrire(second.id, valeur);
+  brigade.ecrire(second.id, "\r");
+  void brigade.repondreAuSecond?.(second.projet, { id: repondue.id, by: "click", value: valeur });
+  aFocaliser = second.id;
+  montrer();
+}
+
+// Le chef a répondu en tapant dans le terminal du second : ses choix partent, et le canal l'apprend.
+/** @param {string} projet */
+function repondueAuClavier(projet) {
+  const repondue = propositionsDuSecond.repondre(projet);
+  if (repondue === undefined) return;
+  void brigade.repondreAuSecond?.(projet, { id: repondue.id, by: "text" });
+  montrer();
 }
 
 // Une phrase longue tient en une ligne : son début, avant toute commande ou
@@ -7598,6 +7644,11 @@ function oublier(id) {
 brigade.surSortie((id, donnees) => {
   if (!fermes.has(id)) vue(id).xterm.write(donnees);
 });
+// Le second publie une proposition, ou passe à autre chose : ce qui est sous son terminal suit (ticket 1520).
+brigade.surProposition?.((projet, proposition) => {
+  propositionsDuSecond.recevoir(projet, proposition);
+  if (projet === courant?.nom) montrer();
+});
 brigade.surEtat((terminal) => {
   if (terminal.genre === "shell" && terminal.arrete) {
     // Un shell qui sort ferme son onglet ; s'il était montré, le second reprend sa place à droite.
@@ -7939,6 +7990,8 @@ function afficher() {
 }
 
 const demarrage = await brigade.demarrage();
+// Ce que les seconds proposaient déjà quand la vue s'est ouverte ; ce qui est arrivé depuis, par `surProposition`, est plus récent.
+propositionsDuSecond.recevoirToutes((await brigade.propositionsDuSecond?.()) ?? {});
 POSTE = demarrage.poste ?? POSTE;
 const exemple = demarrage.exemple;
 PALETTE = demarrage.palette;
