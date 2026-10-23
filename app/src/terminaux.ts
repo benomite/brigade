@@ -20,6 +20,7 @@ import { ICI, SANS_SESSION } from "./plateforme.ts";
 import { detruire as detruireSession, joindre as joindreMachine, nomDeSession, rattachement, type Cible, type Session } from "./persistance.ts";
 import { crochetsDesTours, DIT, PREUVE, reglages, suivreSaisie, type Saisie, type Tours } from "./saisie.ts";
 import { crochetsDeLaFile } from "./second/file.ts";
+import { crochetsDuRefus } from "./second/refus.ts";
 import { argumentsDuSecond, reglagesDuSecond, type Crochets } from "./second/lancement.ts";
 import type { Rappel, Souvenir, Souvenirs } from "./souvenirs.ts";
 import type { OutilVu } from "../../runtime/src/second/outils.ts";
@@ -279,11 +280,14 @@ export function ouvrirTerminaux(options: {
   // La file du projet, lue à chaque début de session et après chaque compaction (second/file.ts).
   const laFile = (tenu: Tenu): Crochets => (options.node === undefined ? {} : crochetsDeLaFile({ node: options.node, ssh: options.ssh ?? "ssh", cible: tenu.cible }));
 
+  // Ce que le second ne fait jamais — merger, lire les secrets du chef — refusé avant l'appel (second/refus.ts).
+  const lesRefus = (): Crochets => (options.node === undefined ? {} : crochetsDuRefus({ node: options.node }));
+
   function lancerSecond(tenu: Tenu, reprise: boolean): void {
     tenu.titre = TITRE_SECOND;
     if (reprise) tenu.note = `thread resumed: \`claude --continue\`, the latest conversation in this folder — whichever it is, not necessarily a second's; it runs ${ROLE}`;
     else tenu.note = `new session: \`claude\`, ${ROLE}`;
-    lancer(tenu, options.claude, (crochets) => argumentsDuSecond({ reprise, reglages: reglagesDuSecond(crochets, laFile(tenu)) }), (code) => {
+    lancer(tenu, options.claude, (crochets) => argumentsDuSecond({ reprise, reglages: reglagesDuSecond(crochets, laFile(tenu), lesRefus()) }), (code) => {
       if (reprise && code !== 0) {
         lancerSecond(tenu, false);
         if (tenu.empeche === undefined) tenu.note = `new session: \`claude --continue\` exited with code ${code}, the thread was not resumed — \`claude\`, ${ROLE}`;
