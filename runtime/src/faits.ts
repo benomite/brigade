@@ -2,8 +2,11 @@
 // programme : `npm --prefix runtime run facts` rend un objet JSON, sur une
 // ligne. C'est la lecture de `status`, autrement dite — et un contrat :
 // docs/runtime/etat-et-mesures.md, « Les faits, pour un programme ».
+//
+// La lecture se fait aussi sans process (`lireLesFaits`) : le guichet des
+// téléphones rend au téléphone ces faits mêmes (`telephone/projets.ts`).
 import { activiteDeLaCuisine } from "./activite-cuisine/comptes.ts";
-import { enProcess, Sortie, type Appel } from "./appel.ts";
+import { enProcess, LectureImpossible, Sortie, type Appel } from "./appel.ts";
 import { cartesDeCorrection } from "./correctif/cartes.ts";
 import { reculDesCorrections } from "./correctif/recul.ts";
 import { triagesDesDerniersJours } from "./carte-todo.ts";
@@ -29,18 +32,31 @@ export function principal({ args, env, dire, redire }: Appel): void {
     throw new Sortie(code);
   }
 
-  const repertoireEtat = env.BRIGADE_STATE_DIR;
-  if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR n'est pas défini\n${USAGE}`);
+  if (!env.BRIGADE_STATE_DIR) echouer(2, `BRIGADE_STATE_DIR n'est pas défini\n${USAGE}`);
   if (args.length > 0) echouer(2, USAGE);
+  let forme;
+  try {
+    forme = lireLesFaits(env);
+  } catch (erreur) {
+    if (erreur instanceof LectureImpossible) echouer(erreur.code, erreur.message);
+    throw erreur;
+  }
+  dire(JSON.stringify(forme));
+}
+
+// Les faits du projet de cet environnement, à cet instant : l'objet que
+// `facts` écrit. Lève `LectureImpossible` quand son journal ne se lit pas.
+export function lireLesFaits(env: Record<string, string | undefined>, maintenant = new Date()): Record<string, unknown> {
+  const repertoireEtat = env.BRIGADE_STATE_DIR;
+  if (!repertoireEtat) throw new LectureImpossible(2, `BRIGADE_STATE_DIR n'est pas défini\n${USAGE}`);
 
   let journal;
   try {
     journal = ouvrirJournal(repertoireEtat, { lectureSeule: true });
   } catch (erreur) {
-    echouer(1, erreur instanceof Error ? erreur.message : String(erreur));
+    throw new LectureImpossible(1, erreur instanceof Error ? erreur.message : String(erreur));
   }
   try {
-    const maintenant = new Date();
     // Le refus de la station de cette machine, lu dans ce qu'elle dit d'elle-même :
     // les stations d'ici du projet sont alors `refused`.
     const refus = refusDuProjet(env.BRIGADE_STATION_DIR, env.BRIGADE_PROJECT);
@@ -80,12 +96,12 @@ export function principal({ args, env, dire, redire }: Appel): void {
     const projetDesGates = projet || projetDuJournal || "";
     const posees = decisionsPosees(journal.base);
     const coutDesGates = { ...coutDuProjet(journal.base, projetDesGates, lireBudget(posees), maintenant, lireBudgetDeLaBase(posees)), ticket: ticketDuBudget(journal.base, projetDesGates) };
-    dire(JSON.stringify({ ...forme, plafondDeCalibrage, triage, activiteCuisine, rolesCuisine, coutDesGates, ...(corrections.length === 0 ? {} : { corrections }), ...(reculs.length === 0 ? {} : { reculs }), ...(profils.length === 0 ? {} : { profils }), ...(appris ? { apprentissage } : {}) }));
+    return { ...forme, plafondDeCalibrage, triage, activiteCuisine, rolesCuisine, coutDesGates, ...(corrections.length === 0 ? {} : { corrections }), ...(reculs.length === 0 ? {} : { reculs }), ...(profils.length === 0 ? {} : { profils }), ...(appris ? { apprentissage } : {}) };
   } catch (erreur) {
     // En lecture seule, rien ne crée les tables d'un journal écrit par un
     // runtime d'avant ces projections, ni ne leur donne leur forme du jour.
     if (journalPasRejoue(erreur)) {
-      echouer(1, "ce journal n'a pas encore tout l'état que `faits` lit : redémarrer le runtime, qui le recalcule");
+      throw new LectureImpossible(1, "ce journal n'a pas encore tout l'état que `faits` lit : redémarrer le runtime, qui le recalcule");
     }
     throw erreur;
   } finally {

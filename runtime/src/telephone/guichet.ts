@@ -11,6 +11,16 @@
 //   GET /stations     Authorization: Bearer <token>
 //       la liste des stations du registre, téléphones compris :
 //       200 {"stations": [...]}. Sans jeton valable : 401.
+//   GET /projects     Authorization: Bearer <token>
+//       les projets de la station, ceux qu'elle refuse compris (`projets.ts`) :
+//       200 {"projects": [{"name", "repository", "state", "reason"?}, ...]}.
+//       Sans jeton valable : 401.
+//   GET /projects/<nom>/queue     Authorization: Bearer <token>
+//       la file du projet, lue comme l'app de l'ordinateur la lit — `facts` et
+//       `status` : 200 {"project", "repository", "facts", "status"} ; 404 un
+//       projet que la station n'a pas ; 503 un journal qui ne se lit pas, et
+//       ce que la commande en dirait. Sans jeton valable : 401, avant tout le
+//       reste — un nom de projet ne se devine pas au code de la réponse.
 //
 // Le guichet ne tire aucun code : une demande qui le joint peut venir de
 // n'importe où — un relais sur la boucle locale fait passer le monde entier
@@ -32,9 +42,11 @@
 // un code à deviner se devine alors moins vite qu'il n'expire.
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
+import { LectureImpossible } from "../appel.ts";
 import { ConfigInvalide } from "../runtime.ts";
 import { PresentationInvalide } from "../stations-globales/registre.ts";
 import { CodeRefuse, type Telephones } from "./appairage.ts";
+import type { ProjetsDuTelephone } from "./projets.ts";
 
 // `node:http` pris par `process.getBuiltinModule`, pas importé : la façade ESM
 // d'un module de Node lit tous ses accesseurs, et celui de `WebSocket` charge
@@ -48,6 +60,9 @@ export const FENETRE_DES_ESSAIS_MS = 10 * 60_000;
 
 export type OptionsGuichet = {
   telephones: Telephones;
+  // Les projets de la station et leur file : sans eux, la liste est vide et
+  // aucune file ne se lit.
+  projets?: ProjetsDuTelephone;
   // Zéro : un port libre, que le guichet rend.
   port: number;
   // Où il écoute. Le téléphone doit pouvoir le joindre : l'adresse du réseau
@@ -115,6 +130,37 @@ export function ouvrirGuichet(options: OptionsGuichet): Promise<Guichet> {
     }
   };
 
+  // Une lecture d'un téléphone appairé : GET, et son jeton. Rend vrai quand
+  // la demande peut être servie ; sinon la réponse est déjà rendue.
+  const lecture = (requete: IncomingMessage, reponse: ServerResponse): boolean => {
+    if (requete.method !== "GET") {
+      rendre(reponse, 405, { said: "GET only" }, { allow: "GET" });
+      return false;
+    }
+    if (telephones.authentifier(jetonDe(requete)) === null) {
+      rendre(reponse, 401, { said: "a paired phone's token is required: pair the phone first" }, { "www-authenticate": 'Bearer realm="brigade"' });
+      return false;
+    }
+    return true;
+  };
+
+  const file = (encode: string, reponse: ServerResponse) => {
+    let nom: string;
+    try {
+      nom = decodeURIComponent(encode);
+    } catch {
+      return rendre(reponse, 404, { said: "unknown" });
+    }
+    try {
+      const lue = options.projets?.file(nom) ?? null;
+      if (lue === null) return rendre(reponse, 404, { said: `this station has no project named “${nom}”` });
+      return rendre(reponse, 200, lue);
+    } catch (erreur) {
+      if (erreur instanceof LectureImpossible) return rendre(reponse, 503, { said: `the station cannot read the queue of ${nom} right now — ${erreur.message}` });
+      throw erreur;
+    }
+  };
+
   const traiter = (requete: IncomingMessage, corps: string, reponse: ServerResponse) => {
     const chemin = (requete.url ?? "").split("?")[0] ?? "";
     if (chemin === "/pairing") {
@@ -122,11 +168,17 @@ export function ouvrirGuichet(options: OptionsGuichet): Promise<Guichet> {
       return appairer(corps, reponse);
     }
     if (chemin === "/stations") {
-      if (requete.method !== "GET") return rendre(reponse, 405, { said: "GET only" }, { allow: "GET" });
-      if (telephones.authentifier(jetonDe(requete)) === null) {
-        return rendre(reponse, 401, { said: "a paired phone's token is required: pair the phone first" }, { "www-authenticate": 'Bearer realm="brigade"' });
-      }
+      if (!lecture(requete, reponse)) return;
       return rendre(reponse, 200, { stations: telephones.stations() });
+    }
+    if (chemin === "/projects") {
+      if (!lecture(requete, reponse)) return;
+      return rendre(reponse, 200, { projects: options.projets?.liste() ?? [] });
+    }
+    const [, projet] = /^\/projects\/([^/]+)\/queue$/.exec(chemin) ?? [];
+    if (projet !== undefined) {
+      if (!lecture(requete, reponse)) return;
+      return file(projet, reponse);
     }
     return rendre(reponse, 404, { said: "unknown" });
   };

@@ -40,7 +40,7 @@ const VERS = {
   "porte.ts": "les hôtes de la liste blanche du projet, pour ses lancements — elle écoute sur 127.0.0.1",
   "reseau.ts": "la porte du projet, et la sonde du filtre de son unité",
   "servir.ts": "le serveur d'une livraison d'interface, sur 127.0.0.1",
-  "telephone/guichet.ts": "n'ouvre rien : il écoute — le téléphone du chef le joint pour s'appairer, puis lire les stations",
+  "telephone/guichet.ts": "n'ouvre rien : il écoute — le téléphone du chef le joint pour s'appairer, puis lire les stations, les projets et leur file",
 };
 // Ce qui sert les stations distantes, côté box.
 const DISTANTES = ["distantes.ts", "tirer.ts", "tirer-cli.ts", "superviseur-distant.ts", "events/remote.ts"];

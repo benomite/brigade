@@ -19,6 +19,7 @@ import { readFileSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import { LECTURES_INTERDITES } from "../bac-a-sable/configuration.ts";
 import { DECISIONS } from "../decisions.ts";
+import { avecLaBrancheDuDepot } from "../reglages-projet/en-vigueur.ts";
 import { NOM_DE_PROJET } from "../runtime.ts";
 
 // Ce que la station porte sous son répertoire (`BRIGADE_STATION_DIR`).
@@ -163,3 +164,11 @@ export function environnementDuProjet(racine: string, projet: ProjetConfigure, e
     BRIGADE_WORKTREES_DIR: worktrees,
   };
 }
+
+// L'environnement où une commande du chef lit un projet de la station — le
+// geste de la station (`geste.ts`), par où l'app lit `facts` et `status` sur
+// la box, et le guichet des téléphones (`telephone/projets.ts`) : celui du
+// projet, avec la branche d'intégration que son dépôt déclare, celle que sa
+// cuisine lit.
+export const environnementDeLaCommande = (racine: string, projet: ProjetConfigure, env: Record<string, string | undefined>): Record<string, string | undefined> =>
+  avecLaBrancheDuDepot(environnementDuProjet(racine, projet, env));
