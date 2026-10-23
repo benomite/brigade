@@ -3,16 +3,19 @@
 // Aucun test n'attend une durée : chacun attend ce que le faux `claude` écrit.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { pathToFileURL } from "node:url";
 import { ouvrirPty, ptyDisponible } from "../src/pty.ts";
+import { ROLE_DU_SECOND } from "../src/second/lancement.ts";
 import { ouvrirTerminaux, type Terminal } from "../src/terminaux.ts";
 import { SANS_POSIX } from "./aides/posix.ts";
 
 const FAUX_CLAUDE = join(import.meta.dirname, "aides/faux-claude.sh");
+// Ce que le faux `claude` dit du rôle qu'il lit : la première ligne du fichier livré avec l'app.
+const PREMIERE_LIGNE_DU_ROLE = readFileSync(ROLE_DU_SECOND, "utf8").split("\n")[0];
 
 function cuisine(t: TestContext) {
   const dossier = realpathSync(mkdtempSync(join(tmpdir(), "brigade-app-")));
@@ -64,9 +67,10 @@ describe("le second sur un vrai pty", { skip: SAUTE, concurrency: 8 }, () => {
 
     assert.match(sortie(second.id), /No conversation found to continue/);
     assert.ok(sortie(second.id).includes(`session neuve dans ${projet.dossier}`), sortie(second.id));
-    assert.deepEqual(etats.map(({ arrete, note }) => [arrete, note]), [[false, "new session: `claude --continue` exited with code 1, the thread was not resumed — `claude /brigade:po`"]]);
-    // Le rôle est établi par la session neuve, une seule fois.
-    assert.deepEqual(sortie(second.id).match(/reçu : [^\r\n]*/g), ["reçu : /brigade:po"]);
+    assert.deepEqual(etats.map(({ arrete, note }) => [arrete, note]), [[false, "new session: `claude --continue` exited with code 1, the thread was not resumed — `claude`, with the second's role in its system prompt"]]);
+    // Le rôle est lu par la session neuve, dans le fichier que l'app livre — et rien n'est envoyé comme un message.
+    assert.deepEqual(sortie(second.id).match(/rôle : [^\r\n]*/g), [`rôle : ${PREMIERE_LIGNE_DU_ROLE}`]);
+    assert.equal(sortie(second.id).match(/reçu : [^\r\n]*/g), null);
   });
 
   test("avec un fil dans le dossier, il est repris : aucune session neuve, et la note reste « fil repris »", { skip: SANS_POSIX }, async (t) => {
@@ -111,8 +115,9 @@ describe("le second sur un vrai pty", { skip: SAUTE, concurrency: 8 }, () => {
     terminaux.ecrire(second.id, " # relu\r");
     await jusqua(() => sortie(second.id).includes("reçu : !ssh"), () => sortie(second.id));
 
-    // Le rôle, invoqué au démarrage après `--continue`, puis une seule ligne, et entière : rien d'autre n'était parti avant.
-    assert.deepEqual(sortie(second.id).match(/reçu : [^\r\n]*/g), ["reçu : /brigade:po", "reçu : !ssh box brigade essai garde-fous stop # relu"]);
+    // Le rôle, lu au démarrage avec `--continue`, puis une seule ligne, et entière : rien d'autre n'était parti avant.
+    assert.deepEqual(sortie(second.id).match(/rôle : [^\r\n]*/g), [`rôle : ${PREMIERE_LIGNE_DU_ROLE}`]);
+    assert.deepEqual(sortie(second.id).match(/reçu : [^\r\n]*/g), ["reçu : !ssh box brigade essai garde-fous stop # relu"]);
   });
 
   test("le second quitté est dit arrêté ; une touche le relance, et il reprend le fil qu'il avait laissé", { skip: SANS_POSIX }, async (t) => {
@@ -129,7 +134,7 @@ describe("le second sur un vrai pty", { skip: SAUTE, concurrency: 8 }, () => {
     await jusqua(() => sortie(second.id).includes(`fil repris dans ${projet.dossier}`), () => sortie(second.id));
     assert.deepEqual([etats.at(-1)?.arrete, etats.at(-1)?.note], [
       false,
-      "thread resumed: `claude --continue`, the latest conversation in this folder — whichever it is, not necessarily a second's; `/brigade:po` is invoked in it",
+      "thread resumed: `claude --continue`, the latest conversation in this folder — whichever it is, not necessarily a second's; it runs with the second's role in its system prompt",
     ]);
   });
 });

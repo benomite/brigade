@@ -18,7 +18,8 @@ import type { Projet } from "./config.ts";
 import { lieuDe } from "./machines.ts";
 import { ICI, SANS_SESSION } from "./plateforme.ts";
 import { detruire as detruireSession, joindre as joindreMachine, nomDeSession, rattachement, type Cible, type Session } from "./persistance.ts";
-import { DIT, PREUVE, reglages, suivreSaisie, type Saisie, type Tours } from "./saisie.ts";
+import { crochetsDesTours, DIT, PREUVE, reglages, suivreSaisie, type Saisie, type Tours } from "./saisie.ts";
+import { argumentsDuSecond, reglagesDuSecond, type Crochets } from "./second/lancement.ts";
 import type { Rappel, Souvenir, Souvenirs } from "./souvenirs.ts";
 import type { OutilVu } from "../../runtime/src/second/outils.ts";
 import type { PlanDuSecond } from "../../runtime/src/second/lancement.ts";
@@ -193,14 +194,17 @@ export function ouvrirTerminaux(options: {
     tenu.empeche = { reason, tools: manquants(tools) };
   }
 
-  function lancer(tenu: Tenu, commande: string, args: string[], surFin: (code: number) => void): void {
+  // `args` : ce que le programme reçoit — ou, pour le second, ce qu'en fait son lancement avec les crochets
+  // de ses tours (second/lancement.ts).
+  function lancer(tenu: Tenu, commande: string, args: string[] | ((crochets: Crochets) => string[]), surFin: (code: number) => void): void {
     tenu.arrete = false;
     delete tenu.empeche;
     delete tenu.manque;
     // Un second dit ses tours à l'app par ses crochets, dans un fichier qui repart vide avec lui —
-    // les réglages suivent ce qui est lancé : le rôle reste le premier mot que `claude` reçoit.
+    // les réglages suivent ce qui est lancé.
     const tours = tenu.genre === "second" ? options.tours?.(tenu.id) : undefined;
-    const tous = tours === undefined ? args : [...args, "--settings", reglages(tours.chemin)];
+    const tous =
+      typeof args === "function" ? args(tours === undefined ? {} : crochetsDesTours(tours.chemin)) : tours === undefined ? args : [...args, "--settings", reglages(tours.chemin)];
     // Le second part comme le runtime le dit (#1433) : le `claude` que le PATH donne, et sous Windows ce qui le
     // lance — ou il ne part pas, et dit pourquoi. Un outil qui manque sans l'empêcher de partir est dit à côté.
     let lancement: Pick<Lancement, "commande" | "args" | "verbatim" | "env"> = { commande, args: tous };
@@ -253,27 +257,28 @@ export function ouvrirTerminaux(options: {
   const secondDe = (projet: Projet) => de(projet.nom).find(({ genre }) => genre === "second") ?? tenir(projet, "second", TITRE_SECOND);
   const arrete = (code: number) => `the second stopped (code ${code}) — a keypress restarts it`;
 
-  // Le rôle du second, invoqué au démarrage : c'est lui qui lit la file du projet
-  // à l'ouverture. Sans cela l'onglet ne serait qu'un `claude` nu qui s'appelle Second.
-  const ROLE = "/brigade:po";
+  // Le rôle du second, ajouté au prompt système de chaque `claude` que l'onglet lance comme second —
+  // reprise comme session neuve (second/lancement.ts). Sans lui l'onglet ne serait qu'un `claude` nu
+  // qui s'appelle Second.
+  const ROLE = "with the second's role in its system prompt";
   // Un onglet nommé Second est un onglet où le rôle est établi.
   const TITRE_SECOND = "Second";
   // Une session ouverte sur une autre commande (`/brigade:init`) n'est pas le second : l'onglet ne le prétend pas.
   const TITRE_AUTRE = "Claude";
 
-  // Le second reprend le fil de ce dossier si `claude` en a un, et y invoque le
-  // rôle. Ce fil est la dernière conversation du dossier, pas forcément celle
+  // Le second reprend le fil de ce dossier si `claude` en a un, avec le rôle.
+  // Ce fil est la dernière conversation du dossier, pas forcément celle
   // d'un second : la note le dit. Il n'y en a pas — ou `claude` n'a pas su le
   // reprendre — quand `claude --continue` sort en erreur : une session neuve
-  // part alors, une seule fois, sur le rôle, et sa note le dit.
+  // part alors, une seule fois, avec le rôle, et sa note le dit.
   function lancerSecond(tenu: Tenu, reprise: boolean): void {
     tenu.titre = TITRE_SECOND;
-    if (reprise) tenu.note = `thread resumed: \`claude --continue\`, the latest conversation in this folder — whichever it is, not necessarily a second's; \`${ROLE}\` is invoked in it`;
-    else tenu.note = `new session: \`claude ${ROLE}\``;
-    lancer(tenu, options.claude, reprise ? ["--continue", ROLE] : [ROLE], (code) => {
+    if (reprise) tenu.note = `thread resumed: \`claude --continue\`, the latest conversation in this folder — whichever it is, not necessarily a second's; it runs ${ROLE}`;
+    else tenu.note = `new session: \`claude\`, ${ROLE}`;
+    lancer(tenu, options.claude, (crochets) => argumentsDuSecond({ reprise, reglages: reglagesDuSecond(crochets) }), (code) => {
       if (reprise && code !== 0) {
         lancerSecond(tenu, false);
-        if (tenu.empeche === undefined) tenu.note = `new session: \`claude --continue\` exited with code ${code}, the thread was not resumed — \`claude ${ROLE}\``;
+        if (tenu.empeche === undefined) tenu.note = `new session: \`claude --continue\` exited with code ${code}, the thread was not resumed — \`claude\`, ${ROLE}`;
       } else {
         tenu.arrete = true;
         tenu.note = arrete(code);
@@ -302,7 +307,7 @@ export function ouvrirTerminaux(options: {
       lancerSecond(second, true);
       delete second.demandeEcrite;
       second.nonParti = true;
-      if (second.empeche === undefined) second.note = `the second was not running: launched (\`claude --continue ${ROLE}\`) — the command is not written into a second that is starting, click again when it is ready`;
+      if (second.empeche === undefined) second.note = `the second was not running: launched (\`claude --continue\`, ${ROLE}) — the command is not written into a second that is starting, click again when it is ready`;
     } else {
       // Devant un dialogue : le second attend une réponse, et ces caractères y seraient des touches.
       const etat = second.saisie?.etat();
@@ -332,7 +337,7 @@ export function ouvrirTerminaux(options: {
     if (pty === undefined || saisie === undefined) {
       lancerSecond(second, true);
       second.nonParti = true;
-      if (second.empeche === undefined) second.note = `the second was not running: launched (\`claude --continue ${ROLE}\`) — the command did not go: a second that is starting takes nothing, click again when it has finished its first turn`;
+      if (second.empeche === undefined) second.note = `the second was not running: launched (\`claude --continue\`, ${ROLE}) — the command did not go: a second that is starting takes nothing, click again when it has finished its first turn`;
       return Promise.resolve(montre(second));
     }
     const etat = saisie.etat();
@@ -594,7 +599,7 @@ export function ouvrirTerminaux(options: {
       const second = secondDe(projet);
       if (second.pty !== undefined || CONTROLE.test(commande)) return inscrire(projet, commande);
       second.titre = TITRE_AUTRE;
-      second.note = `session launched on \`${commande}\`: \`claude ${commande}\`, a new conversation in this folder — it is not the second: \`${ROLE}\` is not invoked in it`;
+      second.note = `session launched on \`${commande}\`: \`claude ${commande}\`, a new conversation in this folder — it is not the second: it runs without the second's role`;
       lancer(second, options.claude, [commande], (code) => {
         second.arrete = true;
         second.note = arrete(code);
