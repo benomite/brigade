@@ -1892,11 +1892,12 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     // Un setup en échec n'a rien exporté : le cook part avec ce qu'il a reçu.
     const envDuCook = setup.pret ? setup.env : envDuSetup;
 
-    // Sans identité, le cook ne peut pas lire son ticket sur GitHub : la
+    // Sans identité, ou dans le bac à sable d'une cuisine locale (qui refuse
+    // `~/.config/gh`), le cook ne peut pas lire son ticket sur GitHub : la
     // station le lui remet, hors de son worktree — rien n'en est récolté. Un
     // ticket illisible ne lance aucun cook : il est reproposé plus tard.
     let remis: string | undefined;
-    if (options.sansIdentite) {
+    if (options.sansIdentite || options.bacASable) {
       try {
         const [lue, commentaires] = await Promise.all([github.issue(numero), github.commentaires(numero)]);
         if (arrete) return;
