@@ -9,12 +9,15 @@
 // role.md, au lieu d'échouer en silence — et le crochet sort toujours en 0 : il ne bloque jamais la session.
 import { execFile } from "node:child_process";
 import { sep } from "node:path";
-import { cite } from "../box.ts";
 import type { Crochets } from "./lancement.ts";
 
 export const EVENEMENT = "SessionStart";
 // Les trois façons dont une session commence : neuve, reprise, ou après une compaction.
 export const MATCHER = "startup|resume|compact";
+// Le nom du projet tel que le shell de la box le rendra au geste (box.ts, `cite`) — recopié : ce module se joue
+// par Node seul, sans rien importer de l'app.
+const cite = (nom: string) => (/^[a-z0-9-]+$/.test(nom) ? nom : `'${nom.replaceAll("'", `'\\''`)}'`);
+
 export const DELAI_MS = 30_000;
 const CONNEXION_S = 10;
 // Le délai de `claude` pour le crochet, en secondes : celui de la lecture, et de la marge.
