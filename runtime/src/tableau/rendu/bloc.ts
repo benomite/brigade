@@ -90,15 +90,27 @@ export type CuisineDuTableau = {
   rubriques: RubriqueDuTableau[];
 };
 
+// Un geste du chef posté en commentaire sur le tableau (tableau/gestes/), tel
+// que la box l'a pris. `commentaire` : l'id GitHub du commentaire ; `url` : son
+// adresse ; `le` : son heure sur GitHub. `geste` (`merge`, `send-back`,
+// `set-aside`, `answer`, `choose`) et `ticket` : ce qu'il demande — nuls pour
+// un geste incompris. `etat` : `pris`, joué ; `refuse`, refusé ou incompris.
+// `traiteLe` : l'heure où la box l'a lu. `reponse` : la ligne qu'elle a
+// répondue sous lui, en markdown.
+export type GesteDuTableau = { commentaire: number; url: string; le: string; geste: string | null; ticket: number | null; etat: "pris" | "refuse"; traiteLe: string; reponse: string };
+
 // `lu` : l'heure de la lecture de l'état — les durées que les lignes disent se
 // comptent jusqu'à elle. `bilans` : ce que le bloc `awaiting` de `status` dit
 // sans que ce soit une décision (la pause, le bilan sans grant, la version passée).
+// `gestes` : les derniers gestes du chef lus sur le tableau, le plus ancien
+// d'abord — absent d'un bloc écrit sans eux.
 export type Tableau = {
   projet: string | null;
   lu: string;
   file: LigneDeLaFile[];
   bilans: string[];
   cuisine: CuisineDuTableau;
+  gestes?: GesteDuTableau[];
 };
 
 export type BlocDuTableau = { version: number; genereLe: string; tableau: Tableau };

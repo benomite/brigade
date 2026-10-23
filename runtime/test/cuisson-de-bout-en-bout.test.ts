@@ -89,7 +89,9 @@ describe("un projet servi de bout en bout, sur cette plateforme", () => {
     // Le relais a écrit sa fin, de la même forme que partout.
     assert.deepEqual(JSON.parse(readFileSync(join(repertoire, "runs", `${run}.fin.json`), "utf8")), { code: 0, signal: null, erreur: null, masques: 0 });
     // Le journal la raconte comme pour toute station : les mêmes faits, les mêmes valeurs, `/` dans les chemins.
-    const faits = journal.duTicket(14).filter((e) => e.type !== "cook.progressed");
+    // Le rangement du worktree suit le passage en pass sans lui être lié : sur une machine lente il est
+    // déjà au journal quand on le lit, sur une rapide pas encore — il se vérifie plus bas, en l'attendant.
+    const faits = journal.duTicket(14).filter((e) => e.type !== "cook.progressed" && e.type !== "worktree.removed");
     const payload = (type: string): Record<string, unknown> => ({ ...faits.find((e) => e.type === type)?.payload });
     const raconte = JSON.stringify(faits.map((e) => [e.type, e.payload]));
     assert.deepEqual(
