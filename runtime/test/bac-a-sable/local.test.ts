@@ -18,8 +18,11 @@ import { argumentsReviewer } from "../../src/reviewer.ts";
 import { ConfigInvalide } from "../../src/runtime.ts";
 import { chef, cuisine, issue } from "../aides/cuisine.ts";
 import { appeler, jusqua } from "../outils.ts";
+import { posixOnly } from "../support/plateforme.ts";
 
-const MAC: Sondes = { plateforme: "darwin", existe: (chemin) => chemin === SEATBELT, versionDeClaude: () => "2.1.300 (Claude Code)\n" };
+// Le Mac simulé a son propre répertoire temporaire : celui du process qui joue
+// le test n'est pas un chemin de Mac sous Windows.
+const MAC: Sondes = { plateforme: "darwin", existe: (chemin) => chemin === SEATBELT, versionDeClaude: () => "2.1.300 (Claude Code)\n", temporaire: () => "/private/var/folders/xy/T" };
 const HOME = "/Users/chef";
 const LIEUX: Lieux = { home: HOME, worktrees: "/Users/chef/Library/Application Support/brigade/station/etat", caches: ["/Users/chef/Library/Caches/brigade"] };
 const HOTES = reglesDuProjet(["registry.npmjs.org"]);
@@ -111,7 +114,7 @@ function profilDe(args: string[]): { mode: string | undefined; reglages: Reglage
   return { mode: args[args.indexOf("--permission-mode") + 1], reglages: JSON.parse(args[settings + 1] ?? "") as Reglages };
 }
 
-test("dans une cuisine locale, le cook, le reviewer de la pass et le jugement du manager partent chacun dans le bac à sable, avec le profil d'un cook prêté", async (t) => {
+test("dans une cuisine locale, le cook, le reviewer de la pass et le jugement du manager partent chacun dans le bac à sable, avec le profil d'un cook prêté", { skip: posixOnly("runs a kitchen whose cook is the fake claude (a bash script) and compares the manager's profile with the real temporary directory: on the Windows job no judgement was ever launched (condition never met)") }, async (t) => {
   let lues = 0;
   const bacASable: BacASableLocal = { version: "2.1.300", home: HOME, caches: ["/Users/chef/Library/Caches/brigade"], hotes: () => (lues++, HOTES) };
   const c = cuisine(t, { bacASable, pass: true, manager: {}, issues: [issue(15), issue(30, [])] });

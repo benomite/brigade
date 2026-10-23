@@ -27,7 +27,7 @@ function cuisine(t: TestContext) {
   const lancer = (ticket: number, run: string, worktree = run) =>
     noter(ticket, {
       type: "cook.launched",
-      payload: { run, limits: LIMITES, stream: `runs/${run}.jsonl`, station: STATION, model: "sonnet", effort: "low", branch: `cook/${worktree}`, worktree: join("worktrees", worktree) },
+      payload: { run, limits: LIMITES, stream: `runs/${run}.jsonl`, station: STATION, model: "sonnet", effort: "low", branch: `cook/${worktree}`, worktree: `worktrees/${worktree}` },
     });
   const sortir = (ticket: number, run: string) =>
     noter(ticket, { type: "cook.exited", payload: { run, outcome: "ok", code: 0, signal: null, turns: 1, tokens: 1, durationMs: 1 } });
@@ -311,7 +311,7 @@ test("un runtime qui s'arrête ne commence plus rien", async (t) => {
       ticket: 17,
       author: "runtime",
       type: "cook.launched",
-      payload: { run, limits: LIMITES, stream: `runs/${run}.jsonl`, station: STATION, model: "sonnet", effort: "low", branch: `cook/${run}`, worktree: join("worktrees", run) },
+      payload: { run, limits: LIMITES, stream: `runs/${run}.jsonl`, station: STATION, model: "sonnet", effort: "low", branch: `cook/${run}`, worktree: `worktrees/${run}` },
     });
   }
   journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.started", payload: { pid: 1, host: "box", node: "26" } });

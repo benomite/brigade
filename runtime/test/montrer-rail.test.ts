@@ -8,6 +8,7 @@ import { principal as montrerRail } from "../src/montrer-rail.ts";
 import { lireRail, ticketDuRail } from "../src/projections/rail.ts";
 import { ouvrirRail } from "../src/rail.ts";
 import { appeler, DEPOT, fauxGh, horloge, issueGitHub, lancer, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
+import { posixOnly } from "./support/plateforme.ts";
 
 const MONTRER = join(import.meta.dirname, "../src/montrer-rail.ts");
 
@@ -302,7 +303,7 @@ describe("remove, priority, merge, send-back et correct", () => {
     assert.deepEqual(gh.appels(), []);
   });
 
-  test("priority change la priorité d'un ticket, même pris : le nouveau label est posé, l'ancien retiré, le rail la lit aussitôt", async (t) => {
+  test("priority change la priorité d'un ticket, même pris : le nouveau label est posé, l'ancien retiré, le rail la lit aussitôt", { skip: posixOnly("posts the new label through the fake gh, a bash script run by Git Bash on Windows: on the Windows job it exits non-zero without a word on every POST with -f fields, while its GET and DELETE answers pass") }, async (t) => {
     const { journal, gh, jouer } = cuisine(t);
     gh.repondre(ISSUE(14), { corps: issueGitHub(14, { labels: ["fire", "prio:1"] }) });
     gh.repondre(LABELS(14), { corps: [] });

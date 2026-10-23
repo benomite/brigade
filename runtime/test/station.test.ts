@@ -76,7 +76,7 @@ describe("la station", { concurrency: 8 }, () => {
     const lancement = dernier("cook.launched", 15);
     assert.deepEqual(
       [lancement?.station, lancement?.model, lancement?.effort, lancement?.branch, lancement?.worktree],
-      [STATION, "opus", "xhigh", `cook/${lancement?.run}`, join("worktrees", String(lancement?.run))],
+      [STATION, "opus", "xhigh", `cook/${lancement?.run}`, `worktrees/${lancement?.run}`],
     );
   });
 
@@ -360,7 +360,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.deepEqual(lances.map((e) => e.ticket).sort(), [14, 15, 16]);
     for (const { ticket, payload } of lances) {
       assert.match(String(payload.run), new RegExp(`^${ticket}-`));
-      assert.deepEqual([payload.branch, payload.worktree], [`cook/${payload.run}`, join("worktrees", String(payload.run))]);
+      assert.deepEqual([payload.branch, payload.worktree], [`cook/${payload.run}`, `worktrees/${payload.run}`]);
     }
     assert.equal(new Set(lancements().map((lance) => lance.cwd)).size, 3);
     assert.equal(cooksEnCours(journal.base).length, 3);

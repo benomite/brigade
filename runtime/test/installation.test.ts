@@ -1044,7 +1044,8 @@ describe("la mise à jour de la box", { concurrency: 8 }, () => {
     assert.equal(jugerUnites({ ...lu, copies: [{ nom: "brigade@.service", identique: true }] }).etat, "ok");
     const perimees = jugerUnites({ ...lu, copies: [{ nom: "brigade@.service", identique: true }, { nom: "brigade-arbitre.service", identique: false }, { nom: "cloison.conf", identique: false }] });
     assert.match(perimees.texte, /^units out of date: brigade-arbitre\.service, cloison\.conf — /);
-    assert.match(perimees.geste ?? "", /\/etc\/systemd\/system\/brigade@boutique\.service\.d\/cloison\.conf/);
+    // Le chemin s'écrit avec le séparateur de la plateforme.
+    assert.ok((perimees.geste ?? "").includes(join(lu.posees, "brigade@boutique.service.d", "cloison.conf")), String(perimees.geste));
 
   });
 });
