@@ -936,9 +936,23 @@ second's reply is spent on your Max quota).
 On the desktop, nothing changes: the Second tab of a narrow window is still the second's terminal. The screen is
 `app/src/vue/telephone/conversation.js`; the bridge actions are `conversation`, `envoyerAuSecond`, `surConversation`
 and `ouvrirLienDuSecond` (`app/src/vue/pont.d.ts`, optional: only a phone's bridge carries them). Screens:
-`telephone-second*` of `scripts/capture-ecran` (`docs/captures/1165/`). **The Android bridge does not carry the
-conversation yet**: the station's phone desk does not serve the second's conversation, and the desktop app does not
-hand its second to the station — until both do, the Second tab of the phone says *conversation unavailable*.
+`telephone-second*` of `scripts/capture-ecran` (`docs/captures/1165/`). **The station's phone desk serves the
+conversation** (#1413), behind the paired phone's token — without it, `401`, and nothing is read or sent:
+`GET /projects/<name>/second`, `{"project", "session", "messages": [{"from": "chef" | "second", "at", "text"}, …]}`,
+oldest first (the latest 200, `omitted` counting the earlier ones), with `answering` while the second is answering a
+message sent from the phone and `failed` (`said`, `detail`) when it failed doing so; and `POST /projects/<name>/second`
+`{"text"}`, `202` once the message is in the conversation, `409` while the second still answers the previous one,
+`502` a second that did not take it (`claude` missing, a failure such as the quota), each with its one-sentence `said`;
+`404` a project the station does not have, `503` a conversation it does not hold or cannot read. It is the desktop
+second's conversation: the latest Claude Code session of the folder where that second runs — the one
+`claude --continue` resumes —, read by the module the desktop can read it with (`runtime/src/second/conversation.ts`,
+also `node runtime/src/second/conversation.ts <folder>`), and a message goes into it by `claude --continue -p` in that
+folder (`runtime/src/telephone/second.ts`). The station knows that folder from the project's line,
+`BRIGADE_SECOND_DIR=<folder>`, and reads it under its own account's Claude Code configuration — the second must run on
+the station's machine, under its account. A desktop terminal already open does not redraw what the phone wrote: it
+shows it when it resumes the session. **The Android bridge does not carry the conversation yet** (#1426), and the
+desktop app does not write `BRIGADE_SECOND_DIR` on the line yet — until both do, the Second tab of the phone says
+*conversation unavailable*.
 
 ### Reaching a station from any network: your tailnet (#1408)
 
