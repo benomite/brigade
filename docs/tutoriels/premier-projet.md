@@ -4,6 +4,11 @@ You have just installed brigade V2. This guide takes you from an empty app to a 
 request: you add one project, open one ticket as a GitHub issue, watch a cook work it, review
 what it delivers at the pass, and merge.
 
+> **Status: not yet played end to end.** The screens, button labels and results below are
+> written from the app and runtime documentation and source, not from a recorded run on a clean
+> machine with a throwaway repository. Before relying on this guide, play it once on the real
+> app and correct any step where the screen differs.
+
 Brigade lives in [benomite/brigade](https://github.com/benomite/brigade). Words such as *rail*,
 *cook*, *pass*, *served* and *merge* are the ones of [`docs/glossary.md`](../glossary.md).
 
@@ -72,7 +77,7 @@ on.
 If the labels do not exist in the repository, create them first (the guided installation or
 `brigade <project> installation labels` does it).
 
-**You see**: within a minute, in the app's **Rail** tab, the ticket as a card in **On the rail**.
+**You see**: shortly after, in the app's **Rail** tab, the ticket as a card in **On the rail**.
 
 ## 4. Watch the cook work
 
