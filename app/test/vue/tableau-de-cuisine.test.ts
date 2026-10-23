@@ -1,5 +1,5 @@
 // L'onglet Rail d'un projet lu de son tableau de la cuisine sur GitHub (#1588, épique 1580) : ce qui attend le chef —
-// chaque ligne avec son geste — et l'état de la cuisine, sans `ssh` ni tailnet ; l'âge de la lecture, qui suit chaque
+// chaque ligne avec son bouton, sa page sur GitHub — et l'état de la cuisine, sans `ssh` ni tailnet ; l'âge de la lecture, qui suit chaque
 // relecture ; et, quand le tableau ne se lit pas, une phrase et le lien direct — seulement quand le projet en a un —,
 // jamais un écran vide. Le module est joué devant un faux document, puis la vue entière devant un faux pont
 // (aides/fausse-vue.ts), avec des lectures rendues par le module même de l'app (app/src/tableau/lecture.ts).
@@ -23,10 +23,12 @@ import { RELIRE } from "../../src/vue/premier-lancement.js";
 import {
   COLONNE_DE_LA_CUISINE,
   COLONNE_DE_LA_FILE,
-  GESTE_DE_LA_LIGNE,
   gesteDe,
   LECTURE_DU_TABLEAU,
   LIEN_DIRECT,
+  OUVRIR_L_ISSUE,
+  OUVRIR_LA_PR,
+  OUVRIR_LE_TABLEAU,
   PAR_LE_LIEN_DIRECT,
   poserLeTableauDeCuisine,
   RETOUR_AU_TABLEAU,
@@ -58,7 +60,7 @@ const SANS_TABLEAU = await lire({ status: 200, data: [] });
 
 function gestesNotes() {
   const faits: string[] = [];
-  const geste: GestesDuTableau = { relire: () => void faits.push("relire"), prendreLeLienDirect: () => void faits.push("direct") };
+  const geste: GestesDuTableau = { relire: () => void faits.push("relire"), prendreLeLienDirect: () => void faits.push("direct"), ouvrir: (url) => void faits.push(url) };
   return { faits, geste };
 }
 const sous = (pose: Faux | undefined): Faux[] => (pose === undefined ? [] : [...pose.descendants()]);
@@ -69,8 +71,9 @@ const poser = (etat: Partial<Parameters<typeof poserLeTableauDeCuisine>[1]>, ges
   poserLeTableauDeCuisine(doc, { projet: PARADE, lienDirect: true, maintenant: LU_LE.getTime(), ...etat }, geste) as Faux[];
 
 describe("le tableau de la cuisine, posé par son module", () => {
-  test("lu : ce qui t'attend en tête, d'où il vient au survol ; l'âge de la lecture ; la file, chaque ligne et son geste ; la cuisine", () => {
-    const poses = poser({ lu: LU });
+  test("lu : ce qui t'attend en tête, d'où il vient au survol ; l'âge de la lecture ; la file, chaque ligne et son bouton ; la cuisine", () => {
+    const { faits, geste } = gestesNotes();
+    const poses = poser({ lu: LU }, geste);
     const [tete, gestes, grille] = poses;
     assert.equal(tete?.className, "attendu");
     assert.match(tete?.textContent ?? "", /^2 things await you on parade\./);
@@ -81,11 +84,17 @@ describe("le tableau de la cuisine, posé par son module", () => {
     assert.equal(file?.dataset.attend, "");
     const cartes = sous(file).filter((pose) => pose.className === "bon");
     assert.equal(cartes.length, 2);
-    // Le nom, le titre, ce qui attend — sans commande à plat : le geste est au survol de sa ligne, mot pour mot.
-    assert.match(cartes[0]?.textContent ?? "", /^#18waiting 2 hShow the queue on the phonegreen, waiting for your merge\?$/);
-    assert.equal(cartes[0]?.textContent.includes("brigade"), false);
-    assert.deepEqual(aides(cartes[0]), [`${GESTE_DE_LA_LIGNE} brigade parade pass 18`]);
-    assert.deepEqual(aides(cartes[1]), [`${GESTE_DE_LA_LIGNE} brigade parade rail choose 21 <n>`]);
+    // Le nom, le titre, ce qui attend, puis le bouton de la ligne — aucune commande, ni à plat ni au survol : la PR à
+    // merger, l'issue où répondre à la carte, chacune sa page sur GitHub, son adresse au survol du bouton.
+    assert.match(cartes[0]?.textContent ?? "", new RegExp(`^#18waiting 2 hShow the queue on the phonegreen, waiting for your merge${OUVRIR_LA_PR}$`));
+    assert.equal(cartes.some((carte) => carte.textContent.includes("brigade")), false);
+    assert.deepEqual([...aides(cartes[0]), ...aides(cartes[1])], []);
+    assert.deepEqual(boutons(cartes.slice(0, 1)).map((pose) => pose.textContent), [OUVRIR_LA_PR]);
+    assert.deepEqual(boutons(cartes.slice(1)).map((pose) => pose.textContent), [OUVRIR_L_ISSUE]);
+    assert.equal(boutons(cartes.slice(0, 1))[0]?.title, "https://github.com/chef/parade/pull/40");
+    bouton(cartes.slice(0, 1), OUVRIR_LA_PR).click();
+    bouton(cartes.slice(1), OUVRIR_L_ISSUE).click();
+    assert.deepEqual(faits, ["https://github.com/chef/parade/pull/40", "https://github.com/chef/parade/issues/21"]);
     // Le titre d'un ticket reste du texte : `<the>` n'est pas une balise.
     assert.equal(sous(cartes[1]).find((pose) => pose.balise === "strong")?.textContent, "Pick a colour for <the> board");
     assert.match(file?.textContent ?? "", /without a grant, 1 green delivery stopped at the pass$/);
@@ -110,12 +119,19 @@ describe("le tableau de la cuisine, posé par son module", () => {
 
   test("lu, avec un lien direct : « read again » et « use the direct link », aucun recommandé ; sans lien, « read again » seul", () => {
     const { faits, geste } = gestesNotes();
-    const avec = poser({ lu: LU }, geste);
+    const avec = poser({ lu: LU }, geste).slice(0, 2);
     assert.deepEqual(boutons(avec).map((pose) => [pose.textContent, pose.className]), [[RELIRE, ""], [LIEN_DIRECT, ""]]);
     bouton(avec, RELIRE).click();
     bouton(avec, LIEN_DIRECT).click();
     assert.deepEqual(faits, ["relire", "direct"]);
-    assert.deepEqual(boutons(poser({ lu: LU, lienDirect: false })).map((pose) => pose.textContent), [RELIRE]);
+    assert.deepEqual(boutons(poser({ lu: LU, lienDirect: false }).slice(0, 2)).map((pose) => pose.textContent), [RELIRE]);
+  });
+
+  test("une ligne qui n'est à aucun ticket s'ouvre sur le tableau même : son bouton le dit", () => {
+    const panne = { ...TABLEAU.file[0]!, nom: "breaker", ticket: null, titre: null, quoi: "disjoncteur", decision: null, ligne: "the breaker is open — `brigade parade guardrails resume`" };
+    const lu: TableauLu = { ...LU, file: [panne], pages: ["https://github.com/chef/parade/issues/7"] };
+    const carte = sous(poser({ lu })[2]).find((pose) => pose.className === "bon");
+    assert.equal(carte?.textContent, `breakerwaiting 2 hthe breaker is open${OUVRIR_LE_TABLEAU}`);
   });
 
   test("rien n'attend : la tête le dit, et TODO aussi", () => {
@@ -204,7 +220,11 @@ describe("dans la vue : l'onglet Rail lit le tableau de la cuisine", () => {
     assert.match(rail.textContent, /read \d+ (s|min|h|d) ago/);
     assert.equal(sous(rail).filter((pose) => pose.className === "bon").length, 2);
     assert.match(rail.textContent, /Kitchenopenprojectparade \(chef\/parade\) · open/);
-    assert.deepEqual(boutons([rail]).map((pose) => pose.textContent), [RELIRE]);
+    assert.deepEqual(boutons([rail]).map((pose) => pose.textContent), [RELIRE, OUVRIR_LA_PR, OUVRIR_L_ISSUE]);
+    // Le bouton d'une ligne ouvre sa page par le pont, qui ne l'ouvre que si la lecture l'a donnée.
+    bouton([rail], OUVRIR_LA_PR).click();
+    await repos();
+    assert.deepEqual(vue.dernier("ouvrirDuTableau"), [PARADE, "https://github.com/chef/parade/pull/40"]);
     // Aucun `ssh` n'est demandé pour ce projet : il n'en a pas.
     assert.equal(vue.appels.some(({ geste }) => geste === "relireBox"), false);
   });
@@ -244,8 +264,8 @@ describe("dans la vue : l'onglet Rail lit le tableau de la cuisine", () => {
     await repos();
     assert.equal(lectures, 2);
     assert.match(rail.textContent, /^2 things await you on parade\./);
-    // Lu, le lien direct reste offert, en second geste.
-    assert.deepEqual(boutons([rail]).map((pose) => [pose.textContent, pose.className]), [[RELIRE, ""], [LIEN_DIRECT, ""]]);
+    // Lu, le lien direct reste offert, en second geste ; puis le bouton de chaque ligne.
+    assert.deepEqual(boutons([rail]).map((pose) => [pose.textContent, pose.className]), [[RELIRE, ""], [LIEN_DIRECT, ""], [OUVRIR_LA_PR, "pr"], [OUVRIR_L_ISSUE, "pr"]]);
   });
 
   test("l'onglet Cooks reste celui du lien direct : le tableau ne s'y pose pas", async () => {

@@ -112,6 +112,31 @@ test("une réponse qui n'est pas une liste d'issues : un échec", async () => {
   assert.match(lecture.raison, /is not a list of issues\.$/);
 });
 
+test("chaque ligne de la file a sa page sur GitHub : la PR de sa décision, l'issue de son ticket, ou le tableau même", async () => {
+  const [merge, carte] = TABLEAU.file;
+  assert.ok(merge !== undefined && carte !== undefined);
+  const file = [
+    merge,
+    carte,
+    // Une ligne qui n'est à aucun ticket : la box lit sur le tableau ce que le chef y écrit (#1585).
+    { ...carte, nom: "breaker", ticket: null, decision: null, carte: null },
+    // Une PR qui n'est pas de ce dépôt n'en sort pas : c'est l'issue du ticket qui s'ouvre.
+    { ...merge, decision: { ...merge.decision!, pr: "https://evil.example/chef/parade/pull/40" } },
+    { ...merge, decision: { ...merge.decision!, pr: "https://github.com/chef/parade/pull/40/../../other" } },
+  ];
+  const corps = ISSUE.body.replace(ecrireLeBloc(TABLEAU, GENERE_LE), ecrireLeBloc({ ...TABLEAU, file }, GENERE_LE));
+  assert.notEqual(corps, ISSUE.body);
+  const lecture = await lire(github({ status: 200, data: [{ ...ISSUE, body: corps }] }).appeler);
+  assert.ok(lecture.lu, lecture.lu ? "" : lecture.raison);
+  assert.deepEqual(lecture.pages, [
+    "https://github.com/chef/parade/pull/40",
+    "https://github.com/chef/parade/issues/21",
+    "https://github.com/chef/parade/issues/7",
+    "https://github.com/chef/parade/issues/18",
+    "https://github.com/chef/parade/issues/18",
+  ]);
+});
+
 test("pas de tableau dans le dépôt : un échec qui le dit, pas une file vide", async () => {
   const vide = echec(await lire(github({ status: 200, data: [] }).appeler));
   assert.equal(vide.raison, "There is no open Kitchen board in chef/parade: the box serving it has not published one yet, or it was closed.");

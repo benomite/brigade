@@ -1,7 +1,7 @@
 // @ts-check
 // Le tableau de la cuisine d'un projet (« Kitchen board », ticket 1588, épique 1580) : l'issue que sa box tient à jour
 // dans le dépôt du projet, lue de GitHub par l'app (app/src/tableau/lecture.ts) — ni `ssh` ni tailnet. L'onglet Rail en
-// tire ce qui attend le chef, chaque ligne avec son geste — au survol, en attendant qu'il soit un bouton —, et l'état de la cuisine, tels que `status` les écrit ; et il
+// tire ce qui attend le chef, chaque ligne avec son bouton — sa page sur GitHub —, et l'état de la cuisine, tels que `status` les écrit ; et il
 // dit l'âge de cette lecture. Il n'est jamais vide : en tête, toujours une phrase — ce qui attend le chef, ou pourquoi
 // le tableau ne se lit pas. Une lecture qui échoue offre le lien direct (`ssh`, le guichet d'une station) quand le projet
 // en a un, et seulement alors ; la dernière lecture réussie reste dessous, marquée de son âge.
@@ -31,6 +31,7 @@ import { gestes, phraseEtDetail, RELIRE } from "./premier-lancement.js";
  * @typedef {{
  *   relire: () => void,
  *   prendreLeLienDirect: () => void,
+ *   ouvrir: (url: string) => void,
  *   forme?: (ton: string | undefined) => string | undefined,
  * }} GestesDuTableau
  */
@@ -92,8 +93,9 @@ const provenanceDe = (lu) =>
   `From the Kitchen board of ${lu.depot} (issue ${lu.numero}), written by the box at ${utc(lu.genereLe)} and read on GitHub at ${utc(lu.luLe)} — this screen reads GitHub, not the box.`;
 
 // Ce qu'une ligne de la file dit, et le geste du chef qui la finit : `status` l'écrit en code après un tiret
-// (« green, waiting for your merge — `brigade parade pass 18` »). Le geste passe au survol — aucune commande à recopier
-// à plat ; ce qui le dit en mots reste. Une ligne qui ne finit pas sur un geste reste entière.
+// (« green, waiting for your merge — `brigade parade pass 18` »). Aucune commande à recopier : sur une ligne de la file,
+// son bouton la remplace ; dans la cuisine, elle passe au survol. Ce qui le dit en mots reste. Une ligne qui ne finit pas
+// sur un geste reste entière.
 export const GESTE_DE_LA_LIGNE = "the gesture, as status writes it:";
 const GESTES_EN_FIN = /(?:\s+—\s+`[^`]+`)+\s*$/;
 /** @param {string} ligne @returns {{ dit: string, geste: string }} */
@@ -103,10 +105,21 @@ export function gesteDe(ligne) {
   return { dit: ligne.slice(0, fin.index), geste: [...fin[0].matchAll(/`([^`]+)`/g)].map(([, code]) => code).join(" · ") };
 }
 
-// Une ligne de la file : son nom, depuis quand elle attend, le titre de son ticket, puis ce qui attend et le geste du
-// chef, mot pour mot comme `status` l'écrit — le geste en code.
-/** @param {Fabrique} doc @param {TableauLu["file"][number]} ligne @param {number} maintenant */
-function bonDeLaFile(doc, { nom, titre, depuis, ligne }, maintenant) {
+// Le bouton d'une ligne de la file : sa page sur GitHub (lecture.ts, `pages`) — la PR à merger, l'issue où répondre,
+// ou le tableau même. Le geste du chef s'y fait ; les boutons qui le font d'ici sont le ticket 1590.
+export const OUVRIR_LA_PR = "open the PR";
+export const OUVRIR_L_ISSUE = "open the issue";
+export const OUVRIR_LE_TABLEAU = "open the Kitchen board";
+/** @param {TableauLu} lu @param {string} page */
+export const boutonDeLaLigne = (lu, page) =>
+  page === `https://github.com/${lu.depot}/issues/${lu.numero}` ? OUVRIR_LE_TABLEAU : /\/pull\/\d+$/.test(page) ? OUVRIR_LA_PR : OUVRIR_L_ISSUE;
+
+// Une ligne de la file : son nom, depuis quand elle attend, le titre de son ticket, ce qui attend, mot pour mot comme
+// `status` l'écrit, puis son bouton.
+/** @param {Fabrique} doc @param {TableauLu} lu @param {number} rang @param {number} maintenant @param {GestesDuTableau} geste */
+function bonDeLaFile(doc, lu, rang, maintenant, geste) {
+  const { nom, titre, depuis, ligne } = lu.file[rang] ?? { nom: "", titre: null, depuis: "", ligne: "" };
+  const page = lu.pages?.[rang];
   const bon = cree(doc, "li");
   bon.className = "bon";
   const tete = cree(doc, "div");
@@ -121,11 +134,18 @@ function bonDeLaFile(doc, { nom, titre, depuis, ligne }, maintenant) {
   }
   bon.append(tete);
   if (titre !== null && titre !== "") bon.append(cree(doc, "strong", titre));
-  const { dit, geste } = gesteDe(ligne);
-  const pose = phrase(doc, "p", dit);
+  const pose = phrase(doc, "p", gesteDe(ligne).dit);
   pose.className = "ligne-carte";
-  if (geste !== "") pose.append(survol(doc, `${GESTE_DE_LA_LIGNE} ${geste}`));
   bon.append(pose);
+  // Le même bouton que « open the merged PR » d'une carte de Served : son adresse au survol.
+  if (page !== undefined) {
+    const ouvre = cree(doc, "button", boutonDeLaLigne(lu, page));
+    ouvre.type = "button";
+    ouvre.className = "pr";
+    ouvre.title = page;
+    ouvre.addEventListener("click", () => geste.ouvrir(page));
+    bon.append(ouvre);
+  }
   return bon;
 }
 
@@ -156,7 +176,7 @@ function colonnes(doc, lu, maintenant, geste) {
     file.append(vide);
   } else {
     const liste = cree(doc, "ol");
-    liste.append(...lu.file.map((ligne) => bonDeLaFile(doc, ligne, maintenant)));
+    liste.append(...lu.file.map((_, rang) => bonDeLaFile(doc, lu, rang, maintenant, geste)));
     file.append(liste);
   }
   file.append(...lu.bilans.map((bilan) => phrase(doc, "p", bilan)));
@@ -167,7 +187,7 @@ function colonnes(doc, lu, maintenant, geste) {
   for (const { titre, lignes } of lu.cuisine.rubriques) {
     const terme = cree(doc, "dt", titre);
     terme.className = "mono";
-    // Comme une ligne de la file : un geste qui finit une ligne passe au survol de sa rubrique.
+    // Un geste qui finit une ligne de la cuisine passe au survol de sa rubrique.
     const lues = lignes.map(gesteDe);
     const dit = phrase(doc, "dd", lues.map((lue) => lue.dit).join("\n"));
     dit.className = "mono";

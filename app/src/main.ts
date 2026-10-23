@@ -1080,7 +1080,19 @@ const appelerGitHub = clientGitHub({ jeton: jetonDeGh({ gh: ghIci, delaiMs: 10_0
 ipcMain.handle("tableauDuProjet", async (_, nom: unknown): Promise<LectureDuTableauDuDepot> => {
   const vise = declare(nom);
   if (vise === undefined) return { lu: false, depot: String(nom), luLe: new Date().toISOString(), raison: `The Kitchen board of ${String(nom)} is not read: it is no longer in the projects file.` };
-  return lireLeTableauDuDepot({ depot: vise.depot ?? vise.nom, appeler: appelerGitHub });
+  const lu = await lireLeTableauDuDepot({ depot: vise.depot ?? vise.nom, appeler: appelerGitHub });
+  if (lu.lu) pagesDuTableau.set(vise.nom, new Set(lu.pages));
+  return lu;
+});
+// Une ligne de la file du tableau s'ouvre sur sa page de GitHub, dans le navigateur du poste : seulement une page que la
+// dernière lecture du tableau de ce projet a donnée (lecture.ts, `pages`). Rend si elle a été ouverte.
+const pagesDuTableau = new Map<string, Set<string>>();
+ipcMain.handle("ouvrirDuTableau", (_, nom: unknown, url: unknown) => {
+  if (typeof url !== "string" || pagesDuTableau.get(String(nom))?.has(url) !== true) return false;
+  return shell.openExternal(url).then(
+    () => true,
+    () => false,
+  );
 });
 // Le plafond de cooks d'une station, réglé depuis sa page : la vue nomme la station et la valeur — un nombre,
 // 0 ou `auto` —, la commande `station cooks <valeur>` part sur la box de chaque projet dont le `status` lu

@@ -7646,6 +7646,12 @@ function gestesDuTableau(projet) {
       if (courant?.nom === projet.nom) poserRail(projet);
       brigade.relireBox(demandeFaits);
     },
+    // Une ligne de la file, sur sa page de GitHub : ce qui ne s'ouvre pas se dit dans la ligne du bas, comme une issue.
+    ouvrir: (url) =>
+      void (async () => {
+        nonEcrit = (await brigade.ouvrirDuTableau?.(projet.nom, url)) ? "" : `${url} was not opened: it is not a page of the latest Kitchen board read, or this device could not open it`;
+        montrer();
+      })(),
     forme: formeDe,
   };
 }

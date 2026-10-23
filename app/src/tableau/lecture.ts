@@ -33,6 +33,9 @@ export type TableauLu = {
   // Ce que le bloc porte : le projet, la file du chef, ce que `status` dit sans que ce soit une décision, la cuisine.
   projet: string | null;
   file: LigneDeLaFile[];
+  // La page de GitHub où se finit chaque ligne de la file, dans son ordre (`pageDeLaLigne`) : la PR de sa décision,
+  // l'issue de son ticket, ou le tableau même pour une ligne qui n'est à aucun ticket.
+  pages: string[];
   bilans: string[];
   cuisine: CuisineDuTableau;
 };
@@ -75,6 +78,15 @@ function leTableau(issues: IssueBrute[]): IssueBrute | undefined {
     .sort((a, b) => Number(a.number) - Number(b.number))[0];
 }
 
+// La page d'une ligne de la file, sur GitHub : la PR que sa décision nomme, si elle est de ce dépôt ; sinon l'issue de
+// son ticket ; sinon le tableau, où la box lit ce que le chef y écrit (#1585). Aucune autre adresse n'en sort.
+function pageDeLaLigne(depot: string, tableau: string, { ticket, decision }: LigneDeLaFile): string {
+  const pr = decision?.pr ?? "";
+  const dePr = `https://github.com/${depot}/pull/`;
+  if (pr.startsWith(dePr) && /^\d+$/.test(pr.slice(dePr.length))) return pr;
+  return ticket !== null && Number.isInteger(ticket) && ticket > 0 ? `https://github.com/${depot}/issues/${ticket}` : tableau;
+}
+
 export async function lireLeTableauDuDepot({ depot, appeler, maintenant = () => new Date() }: OptionsDeLecture): Promise<LectureDuTableauDuDepot> {
   const echec = (raison: string): TableauNonLu => ({ lu: false, depot, luLe: maintenant().toISOString(), raison });
   if (!DEPOT.test(depot)) return echec(`The project's repository "${depot}" is not an owner/name GitHub repository, so its Kitchen board cannot be read.`);
@@ -105,6 +117,7 @@ export async function lireLeTableauDuDepot({ depot, appeler, maintenant = () => 
     age: Math.max(0, Math.round((luLe.getTime() - Date.parse(genereLe)) / 1000)),
     projet: tableau.projet,
     file: tableau.file,
+    pages: tableau.file.map((ligne) => pageDeLaLigne(depot, `https://github.com/${depot}/issues/${numero}`, ligne)),
     bilans: tableau.bilans,
     cuisine: tableau.cuisine,
   };

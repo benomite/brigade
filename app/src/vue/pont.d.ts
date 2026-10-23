@@ -309,6 +309,9 @@ export type Pont = {
   // sans `ssh` ni tailnet (app/src/tableau/lecture.ts) — la file du chef, l'état de la cuisine et l'âge de la lecture, ou
   // pourquoi il ne se lit pas, en une phrase. Un pont qui ne le lit pas rend `undefined` : la vue garde son rail d'avant.
   tableauDuProjet?(nom: string): Promise<import("../tableau/lecture.ts").LectureDuTableauDuDepot | undefined>;
+  // Une ligne de la file de ce tableau, ouverte sur sa page de GitHub — sa PR, son issue, ou le tableau —, dans le
+  // navigateur : seulement une page que la dernière lecture a donnée. Rend si elle a été ouverte.
+  ouvrirDuTableau?(nom: string, url: string): Promise<boolean>;
   // Ce qu'engage l'allumage du manager, chiffré (allumage.ts) : les issues ouvertes du projet, et
   // celles qui portent `blocked-on-human` — `manager backlog`, lancée une fois sur sa box. Demandé
   // quand la confirmation d'« allumer » s'ouvre : son « oui » n'attend pas cette lecture. Rien, pour un projet sans box.

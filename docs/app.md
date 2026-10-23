@@ -325,9 +325,12 @@ minute), and on `read again`.
   `read 40 s ago`: from when the box wrote the board, counted up to the screen's time, so it ages
   between two reads and changes at each one. Then two columns: **TODO**, each line of the queue —
   its name, how long it has waited, its ticket's title, what awaits the chef in `status`'s words —
-  with the gesture that ends the line (`brigade parade pass 18`) in the line's `?` hover: no command
-  is written out (making it a button is #1590). Under the lines, what `status` says that is no
-  decision. **Kitchen**, the kitchen's state in a word (`open`, `held`, `stopped`, `off`) and each
+  and one button that opens the line's page on GitHub, where its gesture is done: `open the PR` for
+  a delivery to merge, `open the issue` for a card to answer or any other ticket, `open the Kitchen
+  board` for a line that is no ticket's. The page's address is in the button's hover; the app opens
+  only a page its last reading of the board gave. No command is written out, on screen or in a
+  hover (doing the decision from the app itself is #1590). Under the lines, what `status` says that
+  is no decision. **Kitchen**, the kitchen's state in a word (`open`, `held`, `stopped`, `off`) and each
   heading of `status` with its lines.
 - **Not read**: the head is the reading's one sentence — GitHub out of reach (the network's error
   in the hover), a refusal, a repository with no board, a board the app cannot read. When the
@@ -342,7 +345,8 @@ minute), and on `read again`.
 - **Cooks**, and a running cook's live view, still go through the direct link, as before.
 
 *Code: `app/src/vue/tableau-de-cuisine.js` (the screen), `lireLeTableau` in `app/src/vue/vue.js`,
-`tableauDuProjet` in `app/src/main.ts` and `app/android/web/pont.js`. Captures:
+`tableauDuProjet` and `ouvrirDuTableau` in `app/src/main.ts` and `app/android/web/pont.js`, each line's
+page in `app/src/tableau/lecture.ts` (`pages`). Captures:
 `docs/captures/1588/`.*
 
 ### The second's choices, as buttons under its terminal (#1520)
