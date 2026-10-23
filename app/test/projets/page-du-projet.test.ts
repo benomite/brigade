@@ -22,7 +22,7 @@ import { CONFIRMES, DIRECTS, GRANTS } from "../../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../../src/grants.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import type { Panne } from "../../src/pannes/pannes.ts";
-import { calibrageRecommande, EFFORTS, machineProposee, MODELES, type Ajout, type VuDesProjets } from "../../src/projets/projets.ts";
+import { calibrageRecommande, EFFORTS, machineProposee, MODELES, type Ajout, type DefautsDeLaMachine, type VuDesProjets } from "../../src/projets/projets.ts";
 import type { VuDesStations } from "../../src/stations/stations.ts";
 import { type Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../aides/fausse-vue.ts";
 
@@ -38,6 +38,19 @@ const CONFIE: VuDesProjets = {
   projets: [{ nom: "parade", depot: "benomite/parade", base: "main", stations: [{ id: "g1", nom: "parade-box", principale: true, etat: "en-preparation", dit: "cloning benomite/parade", autoriser: [] }], servi: null }],
 };
 const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", depot: "benomite/parade", base: "main" };
+// Ce que l'opération du runtime calcule pour cet ordinateur (ticket 1307) : ses cooks, son dossier, ses capacités.
+const DEFAUTS: DefautsDeLaMachine = {
+  cooks: 5,
+  cooksDit: "from this machine's 12 cores: two are kept for the kitchen itself, then about two per cook",
+  espaceDeTravail: "/Users/chef/.local/state/brigade/worktrees",
+  capacites: [
+    { capacite: "navigateur-headless", nom: "a browser", detectee: true },
+    { capacite: "android", nom: "the Android SDK", detectee: false },
+    { capacite: "docker", nom: "Docker", detectee: true },
+  ],
+};
+// Le même projet confié, quand macbook est la station de cet ordinateur.
+const CONFIE_ICI: VuDesProjets = { ...CONFIE, locale: "g2" };
 
 const demarrage = (projets: Projet[], projetsDesStations: VuDesProjets | undefined) => ({
   configuration: pourLaBarre({ chemin: "/tmp/app.json", projets }),
@@ -67,17 +80,26 @@ const parLibelle = (ou: Faux, libelle: string) => visibles(ou, "input").concat(v
 // Une machine du choix : le libellé qui la porte, son nom et ce que la choisir implique.
 const machines = (ou: Faux, type: string) =>
   choix(ou, type)
-    .filter((champ) => montre(ou, champ))
+    .filter((champ) => montre(ou, champ) && champ.parentElement?.className === "machine")
     .map((champ) => {
       const ligne = champ.parentElement ?? assert.fail("une case sans libellé");
       return { nom: ligne.dessous("strong")[0]?.textContent, recommandee: ligne.dessous("span").some(({ textContent }) => textContent === "recommended"), dit: ligne.dessous("small")[0]?.textContent, choisie: champ.checked, champ };
     });
 
+// Les capacités du formulaire : leur nom, cochée ou non, et ce qui est dit de leur détection.
+const capacites = (ou: Faux) =>
+  visibles(ou, "label")
+    .filter(({ className }) => className === "capacite")
+    .map((ligne) => ({ nom: ligne.dessous("span")[0]?.textContent, cochee: ligne.dessous("input")[0]?.checked, dit: ligne.dessous("small")[0]?.textContent }));
+// Les champs que le chef voit : leur nom, et leur valeur.
+const champsVus = (ou: Faux) => visibles(ou, "input").concat(visibles(ou, "select")).map(({ ariaLabel, type, value, checked }) => `${ariaLabel}=${type === "checkbox" || type === "radio" ? checked : value}`);
+
 // L'espace de « parade », ouvert par sa case de la barre.
-async function laPage(projetsDesStations: VuDesProjets | undefined, projet: Projet = PARADE, confier: () => Ajout = () => ({ ajoute: "parade" })) {
+async function laPage(projetsDesStations: VuDesProjets | undefined, projet: Projet = PARADE, confier: () => Ajout = () => ({ ajoute: "parade" }), defauts: () => DefautsDeLaMachine = () => DEFAUTS) {
   const jouee = await jouerLaVue({
     demarrage: () => demarrage([projet], projetsDesStations),
     confierAUneStation: confier,
+    defautsDeStation: defauts,
     depotsDuChef: () => ({ depots: [{ depot: "benomite/parade", base: "main" }] }),
     espace: () => [],
   });
@@ -284,7 +306,7 @@ test("ce qui manque se lit sous le choix, et rien ne se ferme", async () => {
   assert.match(formulaire.textContent, /How many cooks may the main station run at once for this project\?/);
 });
 
-test("confiée, la page nomme les stations qui font sa cuisine, et « + station » n'offre que des renforts, sans principale ni calibrage à redire", async () => {
+test("confiée, la page nomme les stations qui font sa cuisine, et « + station » n'offre qu'une machine de plus, sans principale ni calibrage à redire", async () => {
   const { jouee, bloc } = await laPage(CONFIE);
   const ligne = bloc.children[0] ?? assert.fail("pas de ligne");
   assert.equal(ligne.textContent, "Cooks on parade-box");
@@ -296,17 +318,11 @@ test("confiée, la page nomme les stations qui font sa cuisine, et « + station 
   await repos();
   const formulaire = bloc.dessous("form")[0] ?? assert.fail("pas de formulaire");
   assert.equal(formulaire.dessous("h3")[0]?.textContent, "Add a station to parade's kitchen.");
-  assert.deepEqual(machines(formulaire, "checkbox").map(({ nom }) => nom), ["macbook"]);
-  assert.deepEqual(machines(formulaire, "radio"), []);
+  // Une machine à la fois, choisie d'office : la seule qui ne la cuit pas encore.
+  assert.deepEqual(machines(formulaire, "radio").map(({ nom, choisie }) => [nom, choisie]), [["macbook", true]]);
+  assert.deepEqual(machines(formulaire, "checkbox"), []);
   assert.equal(visibles(formulaire, "select").length, 0);
-  assert.equal(parLibelle(formulaire, "cooks at once"), undefined);
   assert.equal(visibles(formulaire, "details").length, 0);
-  boutonSous(formulaire, "Add to the kitchen");
-
-  const renfort = machines(formulaire, "checkbox")[0]?.champ ?? assert.fail("pas de case");
-  renfort.checked = true;
-  renfort.declencher("change");
-  boutonSous(formulaire, "Add macbook to the kitchen");
   await Promise.all(formulaire.declencher("submit"));
   await repos();
   const [saisie] = jouee.dernier("confierAUneStation") as [{ stations: string[]; principale: string }];
@@ -320,6 +336,114 @@ test("confiée, la page nomme les stations qui font sa cuisine, et « + station 
   assert.equal(jouee.element("station").dessous("h2")[0]?.textContent, "parade-box");
 });
 
+// Ajouter cet ordinateur à un projet déjà ouvert dans l'app (ticket 1307) : le formulaire ne parle que de la machine.
+test("« + station » : ni dépôt ni branche ; dès l'ouverture, cet ordinateur choisi, ses cooks, son dossier et ses capacités posés, les détectées cochées", async () => {
+  const { jouee, bloc } = await laPage(CONFIE_ICI);
+  boutonSous(bloc, "+ station").click();
+  await repos();
+  // Ce que cet ordinateur propose est lu avant que le formulaire se montre, pour ce projet.
+  assert.deepEqual(jouee.dernier("defautsDeStation"), ["parade"]);
+  const formulaire = bloc.dessous("form")[0] ?? assert.fail("pas de formulaire");
+  assert.equal(formulaire.hidden, false);
+  assert.equal(parLibelle(formulaire, "repository"), undefined);
+  assert.equal(parLibelle(formulaire, "integration branch"), undefined);
+  assert.deepEqual(visibles(formulaire, "label").concat(visibles(formulaire, "legend")).filter(({ textContent }) => /repository|branch/i.test(textContent)), []);
+  assert.equal(jouee.appels.some(({ geste }) => geste === "depotsDuChef"), false);
+  // Au premier rendu, sans autre clic, chaque champ est là, rempli.
+  assert.deepEqual(champsVus(formulaire), [
+    "macbook is the station to add=true",
+    "cooks at once=5",
+    "workspace folder=/Users/chef/.local/state/brigade/worktrees",
+    "a browser=true",
+    "the Android SDK=false",
+    "Docker=true",
+  ]);
+  assert.equal(parLibelle(formulaire, "workspace folder")?.readOnly, true);
+  assert.match(formulaire.textContent, /recommended — from this machine's 12 cores: two are kept for the kitchen itself, then about two per cook/);
+  assert.equal(formulaire.dessous("legend").find(({ textContent }) => textContent.startsWith("What"))?.textContent, "What this computer can do");
+  assert.deepEqual(capacites(formulaire).map(({ dit }) => dit), ["detected", "not found on this computer", "detected"]);
+  boutonSous(formulaire, "Add macbook to the kitchen");
+});
+
+test("garder tout et cliquer Add ajoute la station avec ses cooks et ses capacités détectées, et elle paraît dans la liste des stations", async () => {
+  const { jouee, bloc } = await laPage(CONFIE_ICI);
+  boutonSous(bloc, "+ station").click();
+  await repos();
+  const formulaire = bloc.dessous("form")[0] ?? assert.fail("pas de formulaire");
+  boutonSous(formulaire, "Add macbook to the kitchen").click();
+  await Promise.all(formulaire.declencher("submit"));
+  await repos();
+  const [saisie] = jouee.dernier("confierAUneStation") as [{ nom: string; depot: string; base: string; stations: string[]; principale: string; cooks: string; capacites: string[] }];
+  assert.deepEqual(
+    { nom: saisie.nom, stations: saisie.stations, principale: saisie.principale, cooks: saisie.cooks, capacites: saisie.capacites },
+    { nom: "parade", stations: ["g2"], principale: "", cooks: "5", capacites: ["navigateur-headless", "docker"] },
+  );
+  assert.equal(formulaire.hidden, true);
+  // Le process principal relit les projets après l'écriture : la station neuve est sur la ligne.
+  const [principale] = CONFIE.projets[0]?.stations ?? [];
+  jouee.dire("surProjetsDesStations", {
+    ...CONFIE_ICI,
+    projets: [{ ...(CONFIE.projets[0] ?? assert.fail("pas de projet")), stations: [principale ?? assert.fail("pas de principale"), { id: "g2", nom: "macbook", principale: false, etat: "attendu", dit: "macbook has not read it yet: it reads what the app asks every 30 s", autoriser: [] }] }],
+  });
+  await repos();
+  assert.match(bloc.children[0]?.textContent ?? "", /parade-box.*macbook/);
+});
+
+test("ce que le chef décoche ou change part tel quel ; les cases cochées restent d'une relecture à l'autre", async () => {
+  const { jouee, bloc } = await laPage(CONFIE_ICI);
+  boutonSous(bloc, "+ station").click();
+  await repos();
+  const formulaire = bloc.dessous("form")[0] ?? assert.fail("pas de formulaire");
+  const docker = parLibelle(formulaire, "Docker") ?? assert.fail("pas de case Docker");
+  docker.checked = false;
+  docker.declencher("change");
+  const android = parLibelle(formulaire, "the Android SDK") ?? assert.fail("pas de case Android");
+  android.checked = true;
+  android.declencher("change");
+  const cooks = parLibelle(formulaire, "cooks at once") ?? assert.fail("pas de cooks");
+  cooks.value = "2";
+  cooks.declencher("input");
+  jouee.dire("surProjetsDesStations", { ...CONFIE_ICI, a: "2026-10-19T12:01:00.000Z" });
+  await repos();
+  assert.deepEqual(capacites(formulaire).map(({ cochee }) => cochee), [true, true, false]);
+  await Promise.all(formulaire.declencher("submit"));
+  await repos();
+  const [saisie] = jouee.dernier("confierAUneStation") as [{ cooks: string; capacites: string[] }];
+  assert.deepEqual([saisie.cooks, saisie.capacites], ["2", ["navigateur-headless", "android"]]);
+});
+
+test("une autre machine que cet ordinateur : ses cooks suivent ses cœurs, son dossier est le sien, et ses cases partent vides", async () => {
+  const { jouee, bloc } = await laPage(CONFIE);
+  boutonSous(bloc, "+ station").click();
+  await repos();
+  const formulaire = bloc.dessous("form")[0] ?? assert.fail("pas de formulaire");
+  assert.deepEqual(champsVus(formulaire), ["macbook is the station to add=true", "cooks at once=5", "workspace folder=", "a browser=false", "the Android SDK=false", "Docker=false"]);
+  assert.equal(parLibelle(formulaire, "workspace folder")?.placeholder, "chosen on macbook");
+  assert.match(formulaire.textContent, /recommended — from macbook's 12 cores/);
+  assert.equal(formulaire.dessous("legend").find(({ textContent }) => textContent.startsWith("What"))?.textContent, "What macbook can do");
+  assert.deepEqual(new Set(capacites(formulaire).map(({ dit }) => dit)), new Set(["not detectable from this computer"]));
+  await Promise.all(formulaire.declencher("submit"));
+  await repos();
+  const [saisie] = jouee.dernier("confierAUneStation") as [{ cooks: string; capacites: string[] }];
+  assert.deepEqual([saisie.cooks, saisie.capacites], ["5", []]);
+});
+
+test("cet ordinateur illisible : la raison en une ligne, son détail au survol — et les cooks, le dossier et l'ajout restent", async () => {
+  const { jouee, bloc } = await laPage(CONFIE_ICI, PARADE, () => ({ ajoute: "parade" }), () => ({ refus: "this computer could not be read", detail: "EACCES: /Users/chef/.config/brigade/station" }));
+  boutonSous(bloc, "+ station").click();
+  await repos();
+  const formulaire = bloc.dessous("form")[0] ?? assert.fail("pas de formulaire");
+  const ligne = visibles(formulaire, "p").find(({ className }) => className === "indisponible") ?? assert.fail("pas de ligne indisponible");
+  assert.equal(ligne.dessous("span")[0]?.textContent, "this computer could not be read");
+  assert.doesNotMatch(ligne.textContent, /EACCES/);
+  assert.match(ligne.dessous("button")[0]?.ariaLabel ?? "", /EACCES/);
+  // Ses cœurs publiés donnent les cooks.
+  assert.equal(parLibelle(formulaire, "cooks at once")?.value, "5");
+  await Promise.all(formulaire.declencher("submit"));
+  await repos();
+  assert.equal((jouee.dernier("confierAUneStation") as [{ capacites: string[] }])[0].capacites.length, 0);
+});
+
 test("sur l'onglet Cooks, « + station » ouvre le même parcours que sur Rail, et la box est relue dès que la demande est écrite", async () => {
   const { jouee, bloc } = await laPage(CONFIE);
   await ouvrirOnglet(jouee, "Cooks");
@@ -330,9 +454,6 @@ test("sur l'onglet Cooks, « + station » ouvre le même parcours que sur Rail, 
   const formulaire = bloc.dessous("form")[0] ?? assert.fail("pas de formulaire");
   assert.equal(formulaire.hidden, false);
   assert.equal(formulaire.dessous("h3")[0]?.textContent, "Add a station to parade's kitchen.");
-  const renfort = machines(formulaire, "checkbox")[0]?.champ ?? assert.fail("pas de case");
-  renfort.checked = true;
-  renfort.declencher("change");
   const relectures = jouee.appels.filter(({ geste }) => geste === "relireBox").length;
   await Promise.all(formulaire.declencher("submit"));
   await repos();
@@ -379,6 +500,7 @@ const avantLApp = (confier: (appel: number) => Ajout, projet: Projet = PARADE) =
   return jouerLaVue({
     demarrage: () => ({ ...demarrage([projet], SANS_PROJET), stations: { a: A, stations: [{ ...BOX, projets: ["parade"] }, MAC] } }),
     confierAUneStation: () => confier(appel++),
+    defautsDeStation: () => DEFAUTS,
     depotsDuChef: () => ({ depots: [{ depot: "benomite/parade", base: "main" }] }),
     espace: () => [],
   });
@@ -390,9 +512,6 @@ const ouvrirLAjout = async (jouee: Jouee) => {
   boutonSous(bloc, "+ station").click();
   await repos();
   const formulaire = bloc.dessous("form")[0] ?? assert.fail("pas de formulaire");
-  const renfort = machines(formulaire, "checkbox")[0]?.champ ?? assert.fail("pas de case");
-  renfort.checked = true;
-  renfort.declencher("change");
   return { bloc, formulaire };
 };
 
@@ -408,41 +527,33 @@ test("la page et le formulaire disent que la première station garde le manager 
   assert.doesNotMatch(source, /backup machine/i);
 });
 
-test("un projet d'avant l'app : cocher une machine et confirmer l'ajoute sans qu'aucun champ soit redit ni montré", async () => {
+test("un projet d'avant l'app : confirmer sans rien toucher l'ajoute, sans dépôt ni branche à redire — avec les cooks de la machine ajoutée", async () => {
   const jouee = await avantLApp(() => ({ ajoute: "parade" }));
   const { formulaire } = await ouvrirLAjout(jouee);
   assert.equal(visibles(formulaire, "select").length, 0);
+  assert.equal(parLibelle(formulaire, "repository"), undefined);
   assert.equal(parLibelle(formulaire, "integration branch"), undefined);
-  assert.equal(parLibelle(formulaire, "cooks at once"), undefined);
+  assert.equal(parLibelle(formulaire, "cooks at once")?.value, "5");
   await Promise.all(formulaire.declencher("submit"));
   await repos();
   const [saisie] = jouee.dernier("confierAUneStation") as [{ stations: string[]; principale: string; cooks: string }];
-  assert.deepEqual([saisie.stations, saisie.principale, saisie.cooks], [["g2"], "", ""]);
+  assert.deepEqual([saisie.stations, saisie.principale, saisie.cooks], [["g2"], "", "5"]);
   assert.match(jouee.element("stations-du-projet").textContent, /parade is asked of macbook/);
 });
 
-test("une valeur que la première station ne dit pas se montre, posée de ce qu'on devine : seuls les champs visibles se demandent", async () => {
+test("ce que ni la première station ni le clone ne disent se lit en une phrase : aucun champ ne paraît après le clic", async () => {
   const jouee = await avantLApp(
-    (appel) => (appel === 0 ? { signales: { depot: "parade-box does not say which GitHub repository it serves for parade: give the repository.", cooks: "parade-box does not say how many cooks it may run at once for parade: give the cook cap." }, manque: ["depot", "cooks"] } : { ajoute: "parade" }),
+    (appel) => (appel === 0 ? { signales: { depot: "parade-box does not say which GitHub repository it serves for parade, and neither does its folder on this computer." }, manque: ["depot"] } : { ajoute: "parade" }),
     { nom: "parade", dossier: "/tmp/parade", base: "main" },
   );
   const { formulaire } = await ouvrirLAjout(jouee);
-  assert.equal(parLibelle(formulaire, "repository"), undefined);
+  const avant = champsVus(formulaire);
   await Promise.all(formulaire.declencher("submit"));
   await repos();
   await repos();
-  assert.match(formulaire.textContent, /does not say which GitHub repository/);
+  assert.match(formulaire.textContent, /does not say which GitHub repository it serves for parade, and neither does its folder on this computer/);
   assert.equal(formulaire.hidden, false);
-  // Le dépôt et les cooks se montrent, posés ; la branche, que rien ne demandait, reste cachée.
-  const depot = parLibelle(formulaire, "repository") ?? assert.fail("le dépôt ne se montre pas");
+  assert.deepEqual(champsVus(formulaire), avant);
+  assert.equal(parLibelle(formulaire, "repository"), undefined);
   assert.equal(parLibelle(formulaire, "integration branch"), undefined);
-  const cooks = parLibelle(formulaire, "cooks at once") ?? assert.fail("les cooks ne se montrent pas");
-  assert.notEqual(cooks.value, "");
-  depot.value = "benomite/parade";
-  cooks.value = "4";
-  cooks.declencher("input");
-  await Promise.all(formulaire.declencher("submit"));
-  await repos();
-  const [saisie] = jouee.dernier("confierAUneStation") as [{ depot: string; base: string; cooks: string }];
-  assert.deepEqual([saisie.depot, saisie.base, saisie.cooks], ["benomite/parade", "main", "4"]);
 });

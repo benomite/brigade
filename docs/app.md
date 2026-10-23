@@ -1149,12 +1149,23 @@ cooks <projet> yet.` is followed by **"choose its machine"**. The choice opens b
 
 Once handed over, the page says **where it cooks** — `Cooks on <station>`, its other stations after it
 (`· macbook (second station)`) — and, under that line, `The first station keeps the manager and the pass;
-all the stations cook.` **"+ station"** opens the same card reduced to stations (`Add a station to
-<projet>'s kitchen.`, `Add <station> to the kitchen`, with the same sentence): the extra station takes
-the repository, the integration branch and the cook cap from the first station, and the cooks and
-calibration already requested — nothing is re-entered. The button is on the Cooks tab too (#1271): the same card, the same steps; once the request is written, the app re-reads the box at once, so the new station's block appears on the tab without reloading. **A value the first station does not say** (#1288)
-comes back from the request as `manque`: its field — repository, integration branch or cook cap — then
-shows in the form, preset with what the app can guess, and only a visible field is asked of you.
+all the stations cook.` **"+ station"** opens the same card, about the added machine only (#1307):
+`Add a station to <projet>'s kitchen.`, with the same sentence, then one **machine** — this computer's
+station chosen at once when it does not cook the project yet, otherwise the first paired one — and, from
+the first render, what belongs to that machine: **cooks at once** (from its own cores, with its
+`recommended — …` line), its **workspace folder** (where its station puts its cooks' workspaces: read, not
+changed here), and **what it can do**, one box per capability (a browser, Docker, the Android SDK…), the
+ones detected on this computer ticked. For this computer these values come from the runtime operation
+`defautsDeStation` (`runtime/src/projets/ajout-de-station.ts`, #1306), read before the card shows; for
+another machine, its cooks come from its published cores, its folder is its own, and its boxes start
+unticked (`not detectable from this computer`). If this computer cannot be read, one line says so, the
+detail on hover. The form **never asks for the repository nor the integration branch**: the extra
+station takes them from the first station, or from what the app asked before, or from the project's
+clone on this computer (its `origin`, and the branch its repository declares), and the calibration
+already requested. `Add <station> to the kitchen` with nothing touched adds it: its request carries its
+own cooks and its ticked capabilities (`fournit`), which the station declares in its own journal, never in
+the repository. The button is on the Cooks tab too (#1271): the same card, the same steps; once the request is written, the app re-reads the box at once, so the new station's block appears on the tab without reloading. **A value nobody says** — neither the first
+station nor the clone — is read in one sentence above the button; no field appears after the click.
 
 **The flow of a new project** (#1111), under that line, in place of the empty space: the four steps
 its main station publishes in its tracking (`onboarding`, #1110) — *Repository*, *Cooking machine*,

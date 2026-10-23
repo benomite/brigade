@@ -29,7 +29,7 @@ import type { Vu as VuDuCode } from "../retard.ts";
 import type { Avis, Retrait } from "../retrait.ts";
 import type { Guide } from "../service.ts";
 import type { DepotDuChef } from "../projets/github.ts";
-import type { Ajout, Choisi, Demenagement, EFFORTS, MODELES, Retrait as RetraitDUneStation, VuDesProjets } from "../projets/projets.ts";
+import type { Ajout, Choisi, DefautsDeLaMachine, Demenagement, EFFORTS, MODELES, Retrait as RetraitDUneStation, VuDesProjets } from "../projets/projets.ts";
 import type { IssueDuRemede } from "../projets/remede.ts";
 import type { Appairage, RetraitDeStation, VuDesStations } from "../stations/stations.ts";
 import type { Terminal } from "../terminaux.ts";
@@ -236,7 +236,10 @@ export type Pont = {
   // Confie la cuisine d'un projet de l'app à une première station, ou à une de plus (ticket 983) : la
   // demande s'écrit dans le gist de chaque station choisie, et rend le nom du projet — ou chaque champ
   // qui manque, ou le refus de GitHub. Rien n'est écrit alors.
-  confierAUneStation(saisie: { nom: string; depot: string; base: string; stations: string[]; principale: string; cooks: string; manager: { modele: string; effort: string }; reviewer: { modele: string; effort: string }; ouvertLe: string }): Promise<Ajout>;
+  confierAUneStation(saisie: { nom: string; depot: string; base: string; stations: string[]; principale: string; cooks: string; capacites?: string[]; manager: { modele: string; effort: string }; reviewer: { modele: string; effort: string }; ouvertLe: string }): Promise<Ajout>;
+  // Ce que le formulaire d'ajout d'une station montre d'emblée pour cet ordinateur (ticket 1307) : ses cooks, le dossier
+  // des espaces de travail de sa station, ses capacités détectées — ou pourquoi il n'a pas pu être lu.
+  defautsDeStation(nom: string): Promise<DefautsDeLaMachine>;
   // Retire le projet de la demande de chacune de ses stations : elles le retirent de leur configuration.
   retirerDUneStation(nom: string): Promise<RetraitDUneStation>;
   // Déménage la cuisine d'un projet vers une station appairée — son gist (projets/demenagement.ts).

@@ -45,8 +45,9 @@ export class Faux {
   // Couvert par une page, le rail ne se clique pas au travers.
   inert = false;
   value = "";
-  // Ce qu'un champ montre vide, et s'il est signalé.
+  // Ce qu'un champ montre vide, s'il se lit sans se changer, et s'il est signalé.
   placeholder = "";
+  readOnly = false;
   ariaInvalid = "";
   // Une case à cocher dit si elle l'est.
   checked = false;

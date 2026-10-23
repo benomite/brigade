@@ -14,8 +14,9 @@
 // (#425, #1107) : l'app propose le nombre de cooks que les cœurs de la principale permettent, et le
 // calibrage qui tourne déjà sur ses autres projets — ou la valeur de départ mesurée —, chacun avec
 // d'où il vient. Ce qui manque est signalé champ par champ, sans rien écrire. Une station de plus
-// reprend ce que l'app a déjà demandé pour le projet. Retirer le projet le retire de la demande de
-// chaque station : elle le retire de sa configuration.
+// reprend le dépôt, la branche et le calibrage que la première sert — ou que le clone du projet sur cet
+// ordinateur dit (#1307) —, et n'apporte que ce qui est à sa machine : ses cooks et ses capacités.
+// Retirer le projet le retire de la demande de chaque station : elle le retire de sa configuration.
 //
 // Une fois confiée, sa cuisine déménage d'un geste (#1095, `demenager`) : vers cet ordinateur, vers
 // sa box, vers une autre station, sans retrait ni rajout — c'est l'opération du runtime qui l'écrit
@@ -23,7 +24,7 @@
 // demande : une station qui refuse de le reprendre le laisse cuire là où il cuisait.
 import type { GitHubDesStations } from "../stations/github.ts";
 import type { StationVue } from "../stations/stations.ts";
-import { documentDeDemande, FICHIER_PROJETS, FICHIER_SUIVI, lireDemande, lireOnboarding, lireSuivi, type AccesBloque, type Bascule, type Blocage, type Calibre, type Choix, type Delai, type EchecDuClone, type EchecDuWorktree, type EtatDuProjet, type Onboarding, type ProjetDemande, type Refus, type Selections, type SuiviDuProjet } from "./demande.ts";
+import { capacitesLues, documentDeDemande, FICHIER_PROJETS, FICHIER_SUIVI, lireDemande, lireOnboarding, lireSuivi, type AccesBloque, type Bascule, type Blocage, type Calibre, type Choix, type Delai, type EchecDuClone, type EchecDuWorktree, type EtatDuProjet, type Onboarding, type ProjetDemande, type Refus, type Selections, type SuiviDuProjet } from "./demande.ts";
 import type { Demenagement, Demenageur } from "./demenagement.ts";
 import type { DepotDuChef } from "./github.ts";
 import { canalDesGists, pourLaPage, type DemanderLeRemede, type IssueDuRemede } from "./remede.ts";
@@ -43,8 +44,10 @@ export type SaisieDuProjet = {
   reviewer: Calibre;
   // Quand le chef a ouvert le parcours.
   ouvertLe: string;
+  // Ce que la machine ajoutée sait faire en plus de coder, coché par le chef (#1307) : sa demande le porte.
+  capacites: string[];
 };
-export type Champ = "nom" | "depot" | "base" | "stations" | "principale" | "cooks" | "manager-modele" | "manager-effort" | "reviewer-modele" | "reviewer-effort";
+export type Champ = "nom" | "depot" | "base" | "stations" | "principale" | "cooks" | "capacites" | "manager-modele" | "manager-effort" | "reviewer-modele" | "reviewer-effort";
 export type Signales = Partial<Record<Champ, string>>;
 
 // Une station d'un projet, telle que la home la montre.
@@ -112,6 +115,14 @@ export type VuDesProjets = {
 // `manque` : parmi le dépôt, la branche d'intégration et le plafond de cooks, ceux que la première station
 // ne dit pas et que le chef n'a pas donnés — chacun est aussi dans `signales`, sous son nom.
 export type Manquant = "depot" | "base" | "cooks";
+// Ce que le formulaire d'ajout d'une station montre d'emblée pour cet ordinateur (#1307), tel que l'opération du
+// runtime le calcule (runtime/src/projets/ajout-de-station.ts, `defautsDeStation`) : les cooks que ses cœurs
+// permettent et d'où vient ce nombre, le dossier où sa station pose les espaces de travail de ses cooks, et
+// chaque capacité qu'elle peut déclarer, dite détectée ou non. `refus` : cet ordinateur n'a pas pu être lu.
+export type CapaciteDeLaMachine = { capacite: string; nom: string; detectee: boolean };
+export type DefautsDeLaMachine = { cooks: number; cooksDit: string; espaceDeTravail: string; capacites: CapaciteDeLaMachine[] } | { refus: string; detail?: string };
+// Ce que le clone d'un projet sur cet ordinateur dit de lui : son dépôt, sa branche d'intégration.
+export type DitDuClone = { depot: string | null; base: string | null };
 export type Ajout = { ajoute: string } | { signales: Signales; manque?: Manquant[] } | { refus: string };
 export type Retrait = { retire: string } | { refus: string };
 export type { Demenagement } from "./demenagement.ts";
@@ -126,7 +137,7 @@ const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message :
 
 // Ce que la vue envoie, ramené à des textes : rien n'y est cru sur parole.
 export function lireSaisie(recu: unknown): SaisieDuProjet {
-  const { depot, base, stations, principale, cooks, manager, reviewer, ouvertLe } = (recu ?? {}) as Record<string, unknown>;
+  const { depot, base, stations, principale, cooks, manager, reviewer, ouvertLe, capacites } = (recu ?? {}) as Record<string, unknown>;
   const calibre = (lu: unknown): Calibre => ({ modele: texte((lu as Calibre | undefined)?.modele), effort: texte((lu as Calibre | undefined)?.effort) });
   return {
     depot: texte(depot),
@@ -137,6 +148,7 @@ export function lireSaisie(recu: unknown): SaisieDuProjet {
     manager: calibre(manager),
     reviewer: calibre(reviewer),
     ouvertLe: texte(ouvertLe),
+    capacites: capacitesLues(capacites),
   };
 }
 
@@ -257,7 +269,7 @@ export type DejaTenu = { portee: string[]; principale: boolean; demande?: Projet
 
 // Les champs qui empêchent de confier le projet à ces stations, chacun avec sa raison. Une station
 // qui le porte déjà ne se choisit pas une seconde fois ; un projet qui a sa principale n'en prend pas
-// d'autre ; une station de plus reprend le plafond et le calibrage déjà demandés.
+// d'autre ; une station de plus reprend le calibrage déjà demandé, et n'a que ses cooks à dire.
 export function refusDeConfiance(saisie: SaisieDeConfiance, stations: readonly StationVue[], tenu: DejaTenu): Signales {
   const signales: Signales = {};
   const signaler = (champ: Champ, raison: string | undefined) => {
@@ -286,7 +298,9 @@ export function refusDeConfiance(saisie: SaisieDeConfiance, stations: readonly S
   );
   if (tenu.principale) signaler("principale", saisie.principale === "" ? undefined : "It already has its main station: the stations you add run neither its manager nor its pass.");
   else signaler("principale", saisie.principale === "" ? "Choose its main station: the one that runs its manager and its pass." : saisie.stations.includes(saisie.principale) ? undefined : "The main station must be one of the chosen stations.");
-  return tenu.demande === undefined ? { ...signales, ...refusDesDecisions(saisie) } : signales;
+  if (tenu.demande === undefined) return { ...signales, ...refusDesDecisions(saisie) };
+  if (saisie.cooks !== "" && !/^[1-9][0-9]{0,2}$/.test(saisie.cooks)) signales.cooks = "The number of cooks is a whole number, 1 or more.";
+  return signales;
 }
 
 // Ce qu'une station dit d'un projet, avec elle.
@@ -357,6 +371,10 @@ export type OptionsProjets = {
   // L'opération du runtime qui demande un remède à une station par son gist (remede.ts). Absente, l'app
   // n'a pas de runtime à côté d'elle : aucun refus ne se lève d'ici.
   demanderLeRemede?: DemanderLeRemede;
+  // Ce que le clone du projet sur cet ordinateur dit de lui (runtime/src/projets/ajout-de-station.ts,
+  // `projetDuClone`) — nul sans clone ici. Une station de plus en prend le dépôt et la branche que la
+  // première ne dit pas : le chef ne les retape pas (#1307).
+  leClone?: (nom: string) => Promise<DitDuClone | null>;
 };
 export type DecisionSansBac = { fait: string } | { refus: string; detail?: string };
 export type Choisi = { fait: string } | { refus: string; detail?: string };
@@ -387,6 +405,14 @@ export function tenirProjets(options: OptionsProjets): Projets {
   const { github } = options;
   const maintenant = options.maintenant ?? Date.now;
   const locale = options.locale ?? (() => null);
+  // Le clone illisible se tait : la première station, ou le chef, dit le reste.
+  const lireLeClone = async (nom: string): Promise<DitDuClone | null> => {
+    try {
+      return (await options.leClone?.(nom)) ?? null;
+    } catch {
+      return null;
+    }
+  };
   let vu: VuDesProjets | undefined;
   let enCours: Promise<VuDesProjets> | undefined;
   // Les écritures se suivent : deux gestes du chef ne réécrivent pas la même demande en même temps.
@@ -544,14 +570,27 @@ export function tenirProjets(options: OptionsProjets): Projets {
       const dits = lus.flatMap(({ station, suivi }) => suivi.filter(({ nom }) => nom === saisie.nom).map((un) => ({ station, un }))).sort((a, b) => Number(b.un.etat === "servi") - Number(a.un.etat === "servi"));
       const premiere = <C extends "depot" | "base" | "cooks">(champ: C): SuiviDuProjet[C] | undefined => dits.find(({ un }) => un[champ] !== null)?.un[champ];
       const repris = tenu.demande;
+      // Ce que ni la première ni la demande ne disent, le clone du projet sur cet ordinateur le dit (#1307). Les
+      // cooks sont ceux de la machine ajoutée, tels que le chef les envoie : ceux de la première, à défaut.
+      const [depotConnu, baseConnue] = [premiere("depot") ?? repris?.depot, premiere("base") ?? repris?.base];
+      const clone = tenu.principale && (depotConnu === undefined || baseConnue === undefined) ? await lireLeClone(saisie.nom) : null;
       const reprise = tenu.principale
-        ? { depot: premiere("depot") ?? repris?.depot ?? saisie.depot, base: premiere("base") ?? repris?.base ?? saisie.base, cooks: premiere("cooks") ?? repris?.cooks ?? (saisie.cooks === "" ? undefined : Number(saisie.cooks)) }
+        ? {
+            depot: depotConnu ?? clone?.depot ?? saisie.depot,
+            base: baseConnue ?? clone?.base ?? saisie.base,
+            cooks: saisie.cooks !== "" ? Number(saisie.cooks) : (premiere("cooks") ?? repris?.cooks),
+          }
         : { depot: saisie.depot, base: saisie.base, cooks: Number(saisie.cooks) };
       const effective: SaisieDeConfiance = { ...saisie, depot: reprise.depot, base: reprise.base, cooks: reprise.cooks === undefined ? "" : String(reprise.cooks) };
       const signales = refusDeConfiance(effective, stations, tenu);
       const premiereStation = (dits[0]?.station ?? stations.find(({ id }) => tenu.portee.includes(id)))?.nom ?? "the first station";
       const manque: Manquant[] = tenu.principale ? (["depot", "base", "cooks"] as const).filter((champ) => effective[champ] === "") : [];
-      for (const champ of manque) signales[champ] = `${premiereStation} does not say ${{ depot: "which GitHub repository it serves", base: "which integration branch it delivers to", cooks: "how many cooks it may run at once" }[champ]} for ${saisie.nom}: give the ${{ depot: "repository", base: "integration branch", cooks: "cook cap" }[champ]}.`;
+      for (const champ of manque) {
+        signales[champ] =
+          champ === "cooks"
+            ? `${premiereStation} does not say how many cooks it may run at once for ${saisie.nom}: give the cook cap.`
+            : `${premiereStation} does not say ${champ === "depot" ? "which GitHub repository it serves" : "which integration branch it delivers to"} for ${saisie.nom}, and neither does its folder on this computer.`;
+      }
       if (Object.keys(signales).length > 0) return manque.length > 0 ? { signales, manque } : { signales };
       const instant = new Date(maintenant()).toISOString();
       const projet = (principale: boolean): ProjetDemande => ({
@@ -564,6 +603,7 @@ export function tenirProjets(options: OptionsProjets): Projets {
         reviewer: repris?.reviewer ?? saisie.reviewer,
         ouvertLe: Number.isNaN(Date.parse(saisie.ouvertLe)) ? null : new Date(saisie.ouvertLe).toISOString(),
         demandeLe: instant,
+        ...(saisie.capacites.length === 0 ? {} : { fournit: saisie.capacites }),
       });
       try {
         await reecrire((station, avant) => (saisie.stations.includes(station.id) ? [...avant.filter((p) => p.nom !== saisie.nom), projet(!tenu.principale && station.id === saisie.principale)] : avant));

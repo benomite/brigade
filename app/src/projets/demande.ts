@@ -12,6 +12,8 @@
 // Un déménagement de sa cuisine (runtime/src/demenagement/) ajoute à la demande `remise`, sur la
 // station qu'il quitte, et `reprise`, sur celle qui le reprend : l'app les relit et les réécrit tels
 // quels — sans eux, le déménagement en cours ne serait plus qu'un changement de principale.
+// `fournit` : ce que la machine de la station sait faire en plus de coder, coché par le chef à son
+// ajout (#1307) ; la station le déclare à son journal, jamais dans le dépôt. Relu et réécrit tel quel.
 // Aucune liaison directe entre l'app et la station : c'est tout ce qu'elles se disent.
 
 export const FICHIER_PROJETS = "brigade-projets.json";
@@ -35,6 +37,8 @@ export type ProjetDemande = {
   // (`reprise`) : l'autre station, son gist, l'instant de la demande. Écrits par le runtime seul.
   remise?: { vers: string; gist: string; demandeLe: string };
   reprise?: { de: string; gist: string; demandeLe: string };
+  // Les capacités de la machine de cette station, en plus de coder (`navigateur-headless`, `android`…).
+  fournit?: string[];
   // L'issue que le chef retient pour chaque besoin qui manque à la principale (#1400), par identifiant de choix :
   // `{ "need:postgres": "provide-here" }`. La station la pose à son journal à sa lecture suivante (#1398).
   choix?: Selections;
@@ -91,6 +95,11 @@ const ETAPES: readonly string[] = ["demandee", "acceptee", "refusee", "remise", 
 const texte = (valeur: unknown): valeur is string => typeof valeur === "string";
 const date = (valeur: unknown): string | null => (texte(valeur) && !Number.isNaN(Date.parse(valeur)) ? valeur : null);
 const nomDeStation = (valeur: unknown): valeur is string => texte(valeur) && valeur.trim() !== "" && valeur.length <= 100;
+// Une capacité, telle que la station la lit (runtime/src/capacites.ts, `CAPACITE`).
+export const CAPACITE = /^[\p{L}\p{N}][\p{L}\p{N}_-]*$/u;
+// Les capacités lisibles, chacune une fois : la station ignore les autres.
+export const capacitesLues = (lues: unknown): string[] =>
+  Array.isArray(lues) ? [...new Set(lues.filter((lue): lue is string => texte(lue) && lue.length <= 60 && CAPACITE.test(lue.trim())).map((lue) => lue.trim().normalize("NFC")))] : [];
 const gist = (valeur: unknown): valeur is string => texte(valeur) && /^[A-Za-z0-9]{1,64}$/.test(valeur);
 const lireAcces = (lu: unknown): AccesBloque | null => {
   const { bloque, raison, geste } = (lu ?? {}) as Record<string, unknown>;
@@ -181,8 +190,9 @@ export function lireDemande(brut: string | undefined): ProjetDemande[] | null {
   }
   if (lu === null || typeof lu !== "object" || lu.brigade !== "projets" || !Array.isArray(lu.projets)) return null;
   return (lu.projets as unknown[]).flatMap((brut) => {
-    const { nom, depot, base, principale, cooks, manager, reviewer, ouvertLe, demandeLe, remise, reprise, choix } = (brut ?? {}) as Record<string, unknown>;
+    const { nom, depot, base, principale, cooks, fournit, manager, reviewer, ouvertLe, demandeLe, remise, reprise, choix } = (brut ?? {}) as Record<string, unknown>;
     if (!texte(nom) || !texte(depot) || !texte(base)) return [];
+    const capacites = capacitesLues(fournit);
     const laRemise = (remise ?? {}) as Record<string, unknown>;
     const laReprise = (reprise ?? {}) as Record<string, unknown>;
     const selections = lireSelections(choix);
@@ -199,6 +209,7 @@ export function lireDemande(brut: string | undefined): ProjetDemande[] | null {
         demandeLe: date(demandeLe),
         ...(nomDeStation(laRemise.vers) && gist(laRemise.gist) && date(laRemise.demandeLe) !== null ? { remise: { vers: laRemise.vers, gist: laRemise.gist, demandeLe: laRemise.demandeLe as string } } : {}),
         ...(nomDeStation(laReprise.de) && gist(laReprise.gist) && date(laReprise.demandeLe) !== null ? { reprise: { de: laReprise.de, gist: laReprise.gist, demandeLe: laReprise.demandeLe as string } } : {}),
+        ...(capacites.length === 0 ? {} : { fournit: capacites }),
         // Réécrites telles quelles par tout autre geste : sans elles, la station oublierait ce que le chef a choisi.
         ...(Object.keys(selections).length === 0 ? {} : { choix: selections }),
       },

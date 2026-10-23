@@ -905,6 +905,38 @@ main > header,
 .confiance .champ input:not([type="number"]) {
   width: 100%;
 }
+/* Une station de plus (ticket 1307) : son dossier se lit sans se changer, et ses capacités sont des cases, deux par
+   ligne quand la carte le permet — le nom, et dessous si la machine l'a. */
+.confiance input[readonly] {
+  color: var(--texte-doux);
+  background: var(--case);
+}
+.confiance .capacites {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 8px;
+}
+.confiance .capacite {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 2px 10px;
+  padding: 8px 12px;
+  background: var(--case);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+  cursor: pointer;
+}
+.confiance .capacite:hover {
+  border-color: var(--trait-fort);
+}
+.confiance .capacite input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+.confiance .capacite small {
+  grid-column: 2;
+}
 .confiance .avances {
   border-top: 1px dashed var(--trait);
   padding-top: 14px;
