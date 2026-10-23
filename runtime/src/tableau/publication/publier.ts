@@ -27,6 +27,7 @@ import type { Runtime } from "../../runtime.ts";
 import { lireLeTableau, OUVERTURE_DU_BLOC, type Tableau } from "../rendu/bloc.ts";
 import { tableauDeLaCuisine } from "../rendu/donnees.ts";
 import type { GestesDuTableau } from "../gestes/gestes.ts";
+import type { MentionsDuTableau } from "../mention/mention.ts";
 import { rendreLeTableau, TITRE_DU_TABLEAU } from "../rendu/rendre.ts";
 import type { ClientDuTableau, IssueDuTableau } from "./client.ts";
 
@@ -162,6 +163,9 @@ export type OptionsDuBranchement = Omit<OptionsPublication, "lire"> & {
   // Les gestes du chef postés sous le tableau (tableau/gestes/) : lus après
   // chaque rafraîchissement, et portés par le bloc machine.
   gestes?: GestesDuTableau;
+  // La mention du chef sous le tableau (tableau/mention/), pour chaque décision
+  // qui entre dans sa file : après chaque rafraîchissement, jamais à sa place.
+  mentions?: MentionsDuTableau;
 };
 
 // Branche le tableau au runtime : un rafraîchissement d'emblée, puis à chaque
@@ -173,7 +177,7 @@ export type OptionsDuBranchement = Omit<OptionsPublication, "lire"> & {
 export function brancherLeTableau<R extends Runtime>(runtime: R, options: OptionsDuBranchement): R {
   const maintenant = options.maintenant ?? (() => new Date());
   const { station } = options;
-  const { gestes } = options;
+  const { gestes, mentions } = options;
   const lire =
     options.lire ??
     ((instant: Date) => {
@@ -185,6 +189,7 @@ export function brancherLeTableau<R extends Runtime>(runtime: R, options: Option
   let enCours = false;
   let dernierEchec: string | null = null;
   let dernierEchecDesGestes: string | null = null;
+  let dernierEchecDesMentions: string | null = null;
   const passer = async () => {
     if (enCours) return;
     enCours = true;
@@ -192,6 +197,7 @@ export function brancherLeTableau<R extends Runtime>(runtime: R, options: Option
       const { numero } = await publication.rafraichir(maintenant());
       dernierEchec = null;
       if (gestes !== undefined) await lireLesGestes(numero);
+      if (mentions !== undefined) await mentionnerLeChef(numero);
     } catch (erreur) {
       const motif = erreur instanceof Error ? erreur.message : String(erreur);
       if (motif !== dernierEchec) avertir(`brigade : Kitchen board de ${options.depot} non rafraîchi — ${motif}`);
@@ -214,6 +220,18 @@ export function brancherLeTableau<R extends Runtime>(runtime: R, options: Option
       return;
     }
     if (lu) await publication.rafraichir(maintenant());
+  };
+  // Les décisions entrées dans la file depuis le dernier passage ; ce qui
+  // l'arrête se dit une fois, comme pour les gestes.
+  const mentionnerLeChef = async (numero: number) => {
+    try {
+      await mentions?.traiter(numero, lire(maintenant()).file);
+      dernierEchecDesMentions = null;
+    } catch (erreur) {
+      const motif = erreur instanceof Error ? erreur.message : String(erreur);
+      if (motif !== dernierEchecDesMentions) avertir(`brigade : chef non mentionné sous le Kitchen board de ${options.depot} — ${motif}`);
+      dernierEchecDesMentions = motif;
+    }
   };
   void passer();
   runtime.surReveil((cause) => void (cause === "tick" && passer()));

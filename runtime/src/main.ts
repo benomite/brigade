@@ -40,6 +40,7 @@ import { clientGitHubDuTableau } from "./tableau/publication/client.ts";
 import { brancherLeTableau } from "./tableau/publication/publier.ts";
 import { clientGitHubDesGestes } from "./tableau/gestes/client.ts";
 import { gestesDuTableau } from "./tableau/gestes/gestes.ts";
+import { mentionsDuTableau } from "./tableau/mention/mention.ts";
 import { ouvrirGitHub } from "./github.ts";
 
 // Ce que le runtime dit à journald est masqué, avant même son premier mot.
@@ -218,14 +219,15 @@ try {
   // qui merge et commente les tickets —, sans que la box retienne leurs appels.
   const roles = identites;
   const roleDesGestes = roles ? { jeton: roles.jeton("pass").frais, identite: () => roles.login("pass"), compte: "pass" } : {};
+  const clientDesGestes = clientGitHubDesGestes({ depot: rail.depot, bin: rail.gh, ...(identites ? { jeton: identites.jeton("manager").frais, compte: "manager" } : {}) });
   const gestes = gestesDuTableau({
-    client: clientGitHubDesGestes({ depot: rail.depot, bin: rail.gh, ...(identites ? { jeton: identites.jeton("manager").frais, compte: "manager" } : {}) }),
+    client: clientDesGestes,
     journal: alertee.journal,
     projet,
     repertoireEtat,
     github: ouvrirGitHub({ depot: rail.depot, bin: rail.gh, usage: "geste", ...roleDesGestes }),
   });
-  runtime = brancherLeTableau(alertee, { client: tableau, depot: rail.depot, station: process.env.BRIGADE_STATION_DIR, gestes });
+  runtime = brancherLeTableau(alertee, { client: tableau, depot: rail.depot, station: process.env.BRIGADE_STATION_DIR, gestes, mentions: mentionsDuTableau({ client: clientDesGestes, journal: alertee.journal, projet }) });
 } catch (erreur) {
   if (erreur instanceof ConfigInvalide || erreur instanceof DejaEnCours) refuser(erreur.message);
   throw erreur;
