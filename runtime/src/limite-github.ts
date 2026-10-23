@@ -102,7 +102,7 @@ export class CuisineRalentie extends LimiteGitHubAtteinte {
 export type Etiquette = { projet: string; lecture: Lecture };
 
 // Les sortes de lecture, dans le nom stable que `status` et les faits donnent.
-export const LECTURES = ["issue-comments", "pull-requests", "issues", "gist", "gesture", "other"] as const;
+export const LECTURES = ["issue-comments", "pull-requests", "issues", "gist", "gesture", "board", "other"] as const;
 export type Lecture = (typeof LECTURES)[number];
 export const PROJET_DE_LA_STATION = "station";
 

@@ -133,13 +133,16 @@ gist channel (`appairage/canal.ts`) — goes through the counter before `gh` lea
   (French until the runtime is translated).
 - **Where the calls go (#1417).** Every `gh api` call the box emits is recorded on the counter with its
   project (`BRIGADE_PROJECT`, else the repo; `station` for the gist channel) and a kind of reading:
-  `issue-comments`, `pull-requests`, `issues`, `gist`, `gesture` (any chef gesture, whatever its path)
-  or `other`, over the sliding hour. `status` prints, from the counter, read-only, two lines:
+  `issue-comments`, `pull-requests`, `issues`, `gist`, `gesture` (any chef gesture, whatever its path),
+  `board` (the Kitchen board's refresh, reads and writes) or `other`, over the sliding hour. `status` prints, from the counter, read-only, two lines:
   `gh calls   N calls in the last hour` and `           most calls: project <p> (n), kind <k> (m)`
   (absent without a counter). `faits` carries the same figures as `appelsGithub`, with a stable naming:
   `{ total, topProject: {name, calls} | null, topKind: {name, calls} | null, byProject: [{name, calls}], byKind: [{name, calls}] }`
   (the lists are sorted biggest first, ties by name; the whole object is absent without a counter).
   Calls older than one hour are no longer counted.
+  `status` also prints `board cost   N calls per hour, all projects` — the `board` kind alone, across every
+  project, in the same unit as the budget (calls over the sliding hour); it stays at `0 calls` with no
+  board activity (absent only without a counter, like the `gh calls` lines).
 - **Repeated reads cost nothing while nothing changes (#1419).** Every read the kitchen repeats — an
   issue, its comments, its events, a PR (the list by branch and its detail), its CI, a diff, and the
   station's gist — is asked again with the ETag of its last answer (`If-None-Match`). While nothing
