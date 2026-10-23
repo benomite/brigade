@@ -23,6 +23,7 @@
     "grant": "node src/grant-cli.ts",
     "waiting": "node src/attente-cli.ts",
     "profile": "node src/profil-cli.ts",
+    "report": "node src/rapport-cli.ts",
     "guardrails": "node src/garde-fous-cli.ts",
     "base": "node src/base-cli.ts",
     "installation": "node src/installation-cli.ts",

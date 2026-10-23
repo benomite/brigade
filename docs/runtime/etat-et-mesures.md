@@ -490,3 +490,17 @@ dimensions and `run` (`ticket` or `base`; absent on older facts, read as `ticket
 budget tries again. `facts` gives the ticket in `coutDesGates.ticket` — `{ number, openedAt, exceeded, run }`,
 null when there is none, or when the last one was seen closed —, for the queue to say the kitchen
 opened it.
+
+## The daily report of the decisions brigade told about
+
+Every decision taken under `brigade decides and tells me` writes an entry (`autonomy.reported`).
+`report` reads them back: those of the last 24 hours, grouped by kind of decision (in the table's
+order), each with a one-line summary and a link to what was done. Nothing decided under `brigade decides` or
+`I decide` is in it. A day without entries is a report that says so, not an error.
+
+```sh
+npm --prefix runtime run report   # read-only; exits 0 (an empty day too), 1 if the log cannot be read, 2 on a bad call
+```
+
+The data, for the app and the chef's channel, is `rapportDuJour(base, now)` in
+`runtime/src/autonomie/rapport/rapport.ts`: `{ from, to, vide, groups: [{ row, title, entries: [{ seq, at, ticket, decision, summary, link }] }] }`.
