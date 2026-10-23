@@ -29,7 +29,7 @@ import { ConfigInvalide } from "./runtime.ts";
 import { configStation } from "./station.ts";
 import { verdictDeVerification } from "./verdict.ts";
 
-const USAGE = "usage: <service environment> npm --prefix runtime run installation -- [labels | setup [<cooks>] | uninstall [--confirm] | etapes [--json | <step> <state>] | stations [--json | <declaration>] | protection [--json | poser] | decisions [--json | <decision> <value>…] | --json]";
+const USAGE = "usage: <service environment> npm --prefix runtime run installation -- [labels | setup [<cooks>] | uninstall [--confirm] | etapes [--json | <step> <state>] | stations [--json | <declaration> | set <station> <cap> <capabilities> | remote <station> | remove <station>] | protection [--json | poser] | decisions [--json | <decision> <value>…] | --json]";
 const REFUS = 2;
 const MO = 1024 ** 2;
 
