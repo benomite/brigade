@@ -11,6 +11,8 @@ import { argumentsDuSecond, reglagesDuSecond, type ReglagesDuSecond } from "../.
 import { ouvrirTerminaux, type Lancement } from "../../src/terminaux.ts";
 
 const SCRIPT = join(import.meta.dirname, "..", "..", "src", "second", "file.ts");
+// Le faux `ssh` est un script `sh` : un Windows ne le lance pas.
+const SANS_SH = process.platform === "win32" ? "le faux ssh est un script sh, que Windows ne lance pas" : false;
 const FILE = "attend\n#12 waits for the chef: merge it\nfin attend\n";
 
 function dossier(t: TestContext): string {
@@ -73,7 +75,7 @@ describe("le crochet de la file, dans les réglages du second", () => {
 });
 
 describe("le crochet joué à la main", () => {
-  test("il rend la file au format du contexte additionnel, mot pour mot", (t) => {
+  test("il rend la file au format du contexte additionnel, mot pour mot", { skip: SANS_SH }, (t) => {
     const ssh = fauxSsh(t, 0, FILE);
     const r = jouer(ssh, "brigade", "parade-box");
     assert.equal(r.status, 0);
@@ -87,14 +89,14 @@ describe("le crochet joué à la main", () => {
     [68, /file non lue : box jointe, mais son geste a refusé \(code 68\)/],
     [1, /file non lue : box jointe, mais la commande a échoué \(code 1\)/],
   ] as const) {
-    test(`file illisible (code ${code}) : dite, et la session n'est pas bloquée`, (t) => {
+    test(`file illisible (code ${code}) : dite, et la session n'est pas bloquée`, { skip: SANS_SH }, (t) => {
       const r = jouer(fauxSsh(t, code, "", "Could not resolve hostname"), "brigade", "parade-box");
       assert.equal(r.status, 0);
       assert.match(r.json?.hookSpecificOutput.additionalContext ?? "", attendu);
     });
   }
 
-  test("un projet sans box : dit qu'aucun runtime n'est déclaré, et sort en 0", (t) => {
+  test("un projet sans box : dit qu'aucun runtime n'est déclaré, et sort en 0", { skip: SANS_SH }, (t) => {
     const r = jouer(fauxSsh(t, 0, FILE), "brigade");
     assert.equal(r.status, 0);
     assert.match(r.json?.hookSpecificOutput.additionalContext ?? "", /file non lue : aucun runtime déclaré/);
