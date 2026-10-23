@@ -73,12 +73,12 @@ test("le dépôt se clone à sa place par le `gh` de la machine ; déjà cloné,
 test("après un clone en échec, le `gh` de la station dit son compte, le type de son jeton — jamais le jeton — et si le propriétaire du dépôt existe", async (t) => {
   const origines = repertoireTemporaire(t);
   const gists = repertoireTemporaire(t);
-  mkdirSync(join(origines, "BOBL-tech"));
+  mkdirSync(join(origines, "ACME-tech"));
   const env = { ...process.env, FAUX_ORIGINES: origines, FAUX_GISTS: gists, FAUX_COMPTE: "parade-box", FAUX_JETON: "github_pat_11AAAAsecret" };
-  assert.deepEqual(await enqueter({ gh: FAUX_GH, depot: "BOBL-tech/mirrorscreen", env }), { compte: "parade-box", jeton: "fine-grained", proprietaire: true });
-  assert.deepEqual(await enqueter({ gh: FAUX_GH, depot: "BOBL-tehc/mirrorscreen", env: { ...env, FAUX_JETON: "gho_x" } }), { compte: "parade-box", jeton: "oauth", proprietaire: false });
+  assert.deepEqual(await enqueter({ gh: FAUX_GH, depot: "ACME-tech/widgets", env }), { compte: "parade-box", jeton: "fine-grained", proprietaire: true });
+  assert.deepEqual(await enqueter({ gh: FAUX_GH, depot: "ACME-tehc/widgets", env: { ...env, FAUX_JETON: "gho_x" } }), { compte: "parade-box", jeton: "oauth", proprietaire: false });
   // Un `gh` qui ne répond pas : rien n'est su, rien n'échoue.
-  assert.deepEqual(await enqueter({ gh: join(origines, "pas-de-gh"), depot: "BOBL-tech/mirrorscreen", env }), ENQUETE_MUETTE);
+  assert.deepEqual(await enqueter({ gh: join(origines, "pas-de-gh"), depot: "ACME-tech/widgets", env }), ENQUETE_MUETTE);
 });
 
 test("les décisions du parcours sont posées sous le nom du chef ; celles qu'il a changées depuis ne sont pas écrasées", (t) => {

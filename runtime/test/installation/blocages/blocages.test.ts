@@ -25,23 +25,23 @@ import { aArreter, repertoireTemporaire, temporaireDuFichier } from "../../outil
 
 const rienNeReste = temporaireDuFichier();
 
-const QUI = { projet: "mirrorscreen", auteur: "station:box" };
+const QUI = { projet: "widgets", auteur: "station:box" };
 
 const CLONE: NouveauBlocage = {
   id: "clone",
-  message: "box cannot clone BOBL-tech/mirrorscreen.",
+  message: "box cannot clone ACME-tech/widgets.",
   cause: "Its git settings send GitHub addresses to ssh, which refuses it.",
   detail: "Host key verification failed.\nfatal: Could not read from remote repository.",
 };
 const POSTGRES: NouveauBlocage = {
   id: "need:postgres",
-  message: "The tests of mirrorscreen need a Postgres that box does not have.",
+  message: "The tests of widgets need a Postgres that box does not have.",
   cause: "The worktree setup runs psql against a local database.",
   action: "choose-station",
 };
 const JETONS: NouveauBlocage = {
   id: "token",
-  message: "The token of brigade-cook does not include BOBL-tech/mirrorscreen.",
+  message: "The token of brigade-cook does not include ACME-tech/widgets.",
   cause: "A fine-grained token only covers the repositories chosen for it.",
   link: "https://github.com/settings/personal-access-tokens",
 };
@@ -83,7 +83,7 @@ test("poser puis lister : chaque blocage dit son message, sa cause, et seulement
   // Au journal du projet, sans ticket, sous le nom de qui les a posés.
   assert.deepEqual(
     faits().map(({ project, ticket, author, type }) => ({ project, ticket, author, type })),
-    Array.from({ length: 3 }, () => ({ project: "mirrorscreen", ticket: null, author: "station:box", type: "blocker.raised" })),
+    Array.from({ length: 3 }, () => ({ project: "widgets", ticket: null, author: "station:box", type: "blocker.raised" })),
   );
 });
 
@@ -133,7 +133,7 @@ test("lever un blocage le retire de la liste ; lever ce qui n'est pas posé n'é
 });
 
 test("la station pose et lève dans le répertoire d'état d'un projet dont la cuisine ne s'est pas encore ouverte : le répertoire est créé", (t) => {
-  const repertoireEtat = join(repertoireTemporaire(t), "etat", "mirrorscreen");
+  const repertoireEtat = join(repertoireTemporaire(t), "etat", "widgets");
   assert.equal(poserBlocageDans(repertoireEtat, QUI, CLONE).ecrit, true);
   assert.equal(existsSync(repertoireEtat), true);
   assert.equal(poserBlocageDans(repertoireEtat, QUI, CLONE).ecrit, false);
@@ -142,7 +142,7 @@ test("la station pose et lève dans le répertoire d'état d'un projet dont la c
   assert.equal(lireBlocages(repertoireEtat).length, 0);
 });
 
-// Ce que des commandes ont vraiment dit, à l'installation de mirrorscreen et ailleurs.
+// Ce que des commandes ont vraiment dit, à l'installation de widgets et ailleurs.
 const pile = (() => {
   try {
     JSON.parse("{");
@@ -153,8 +153,8 @@ const pile = (() => {
 })();
 const SORTIES_BRUTES = [
   "failed to run git: exit status 128",
-  "Command failed: git clone https://github.com/BOBL-tech/mirrorscreen.git /srv/clones/mirrorscreen",
-  "fatal: repository 'https://github.com/BOBL-tech/mirrorscreen.git/' not found",
+  "Command failed: git clone https://github.com/ACME-tech/widgets.git /srv/clones/widgets",
+  "fatal: repository 'https://github.com/ACME-tech/widgets.git/' not found",
   "error: could not lock config file /home/brigade/.gitconfig: Permission denied",
   "Host key verification failed.\nfatal: Could not read from remote repository.",
   " ERR_PNPM_PNPM_ENGINE_IDENTITY_UNVERIFIABLE  Cannot verify the integrity of pnpm",
@@ -212,7 +212,7 @@ test("une phrase pour le chef reste le message, telle quelle — celles du clone
   const erreurs = ["Could not resolve host: github.com", "Host key verification failed.", "SAML SSO required", "gh auth login", "HTTP 403", "Repository not found.", "something else"];
   for (const enquete of enquetes) {
     for (const erreur of erreurs) {
-      const { raison } = lireLEchecDuClone({ station: "box", depot: "BOBL-tech/mirrorscreen", erreurs: `${erreur}\nfailed to run git: exit status 128`, enquete, reessaieToutesLes: 60 });
+      const { raison } = lireLEchecDuClone({ station: "box", depot: "ACME-tech/widgets", erreurs: `${erreur}\nfailed to run git: exit status 128`, enquete, reessaieToutesLes: 60 });
       assert.equal(estUneSortieBrute(raison), false, raison);
     }
   }

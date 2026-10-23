@@ -272,10 +272,10 @@ test("GitHub muet sur l'autorisation, ou clone en échec : le projet attend, la 
 
 test("un clone en échec se dit en clair : la cause, le compte GitHub de la station, le geste et sa page — la sortie de git n'est qu'au détail ; le geste fait, l'étape passe au vert seule", async (t) => {
   const station = uneStation(t);
-  const erreurs = "remote: Repository not found.\nfatal: repository 'https://github.com/BOBL-tech/mirrorscreen.git/' not found\nfailed to run git: exit status 128";
-  station.echouerLeClone(new CloneEnEchec("BOBL-tech/mirrorscreen", erreurs));
+  const erreurs = "remote: Repository not found.\nfatal: repository 'https://github.com/ACME-tech/widgets.git/' not found\nfailed to run git: exit status 128";
+  station.echouerLeClone(new CloneEnEchec("ACME-tech/widgets", erreurs));
   station.enqueteDuGh({ compte: "parade-box", jeton: "fine-grained", proprietaire: true });
-  station.demander({ ...PARADE, nom: "mirrorscreen", depot: "BOBL-tech/mirrorscreen" });
+  station.demander({ ...PARADE, nom: "widgets", depot: "ACME-tech/widgets" });
   await station.projets.relire();
 
   const suivi = station.suivi()?.[0];
@@ -283,8 +283,8 @@ test("un clone en échec se dit en clair : la cause, le compte GitHub de la stat
   assert.equal(suivi?.refus?.code, "clone-failed");
   assert.deepEqual(suivi?.clone, {
     cause: "token-excludes-repository",
-    raison: "The token used by parade-box does not include BOBL-tech/mirrorscreen, so GitHub answers that it does not exist and box cannot clone it.",
-    geste: "Add BOBL-tech/mirrorscreen to the repositories of the token used by parade-box (its resource owner must be BOBL-tech): edit the token, and select BOBL-tech/mirrorscreen under “Repository access”.",
+    raison: "The token used by parade-box does not include ACME-tech/widgets, so GitHub answers that it does not exist and box cannot clone it.",
+    geste: "Add ACME-tech/widgets to the repositories of the token used by parade-box (its resource owner must be ACME-tech): edit the token, and select ACME-tech/widgets under “Repository access”.",
     ou: "On GitHub, in the fine-grained tokens of the account.",
     liens: [PAGE_DES_JETONS_FINS],
     compte: "parade-box",
@@ -295,9 +295,9 @@ test("un clone en échec se dit en clair : la cause, le compte GitHub de la stat
   assert.equal(suivi?.dit, `${suivi?.clone?.raison} ${suivi?.clone?.geste}`);
   assert.doesNotMatch(suivi?.dit ?? "", /exit status|fatal:|clone de|en échec/);
   // Le journal de la station garde ce que git a dit.
-  assert.ok(station.lignes.some((ligne) => ligne.includes("mirrorscreen n'est pas cloné") && ligne.includes("repository 'https://github.com/BOBL-tech/mirrorscreen.git/' not found")), station.lignes.join("\n"));
+  assert.ok(station.lignes.some((ligne) => ligne.includes("widgets n'est pas cloné") && ligne.includes("repository 'https://github.com/ACME-tech/widgets.git/' not found")), station.lignes.join("\n"));
 
-  const depot = station.onboarding()?.mirrorscreen?.etapes.find(({ etape }) => etape === "depot");
+  const depot = station.onboarding()?.widgets?.etapes.find(({ etape }) => etape === "depot");
   assert.equal(depot?.etat, "courante");
   assert.equal(depot?.dit, `${suivi?.clone?.raison} box tries again within 60 min: this step turns green by itself once it is fixed.`);
   assert.deepEqual(depot?.geste, { quoi: suivi?.clone?.geste, ou: "On GitHub, in the fine-grained tokens of the account.", liens: [PAGE_DES_JETONS_FINS] });
@@ -307,7 +307,7 @@ test("un clone en échec se dit en clair : la cause, le compte GitHub de la stat
   await station.projets.relire();
   assert.equal(station.suivi()?.[0]?.etat, "servi");
   assert.equal(station.suivi()?.[0]?.clone, undefined);
-  assert.equal(station.onboarding()?.mirrorscreen?.etapes.find(({ etape }) => etape === "depot")?.etat, "faite");
+  assert.equal(station.onboarding()?.widgets?.etapes.find(({ etape }) => etape === "depot")?.etat, "faite");
 });
 
 test("une station qui n'est pas la principale ne lui écrit aucune ligne ; une ligne écrite à la main garde la main", async (t) => {

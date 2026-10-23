@@ -19,7 +19,7 @@ import { aArreter, jusqua, repertoireTemporaire, temporaireDuFichier } from "../
 
 const rienNeReste = temporaireDuFichier();
 
-// Ce que le setup de mirrorlab a dit sur parade-box : le Postgres de la
+// Ce que le setup de gadgets a dit sur parade-box : le Postgres de la
 // station est installé, mais il ne connaît pas le compte de la cuisine.
 const MIRRORLAB = 'psql: error: connection to server on socket "/var/run/postgresql/.s.PGSQL.5432" failed: FATAL:  role "claude" does not exist';
 
@@ -45,8 +45,8 @@ const machine = (sert: boolean): Sonde => ({
 const REFUSE = machine(false);
 const SERT = machine(true);
 
-const QUI = { projet: "mirrorlab", auteur: `station:${STATION}` };
-const stations = (sonde: Sonde): Stations => ({ projet: "mirrorlab", sonde, fournit: ["code"], ailleurs: [] });
+const QUI = { projet: "gadgets", auteur: `station:${STATION}` };
+const stations = (sonde: Sonde): Stations => ({ projet: "gadgets", sonde, fournit: ["code"], ailleurs: [] });
 
 function unJournal(t: TestContext) {
   const repertoireEtat = repertoireTemporaire(t);
@@ -58,7 +58,7 @@ function unJournal(t: TestContext) {
 // Un clone dont rien ne dit qu'il a besoin d'une base : seul le setup le dit.
 function unClone(t: TestContext): string {
   const dossier = repertoireTemporaire(t);
-  for (const [chemin, contenu] of Object.entries({ ".git/HEAD": "0123456789abcdef0123456789abcdef01234567\n", "package.json": JSON.stringify({ name: "mirrorlab", scripts: { test: "vitest run" } }) })) {
+  for (const [chemin, contenu] of Object.entries({ ".git/HEAD": "0123456789abcdef0123456789abcdef01234567\n", "package.json": JSON.stringify({ name: "gadgets", scripts: { test: "vitest run" } }) })) {
     mkdirSync(dirname(join(dossier, chemin)), { recursive: true });
     writeFileSync(join(dossier, chemin), contenu);
   }
@@ -66,7 +66,7 @@ function unClone(t: TestContext): string {
 }
 
 describe("ce que la sortie du setup nomme", () => {
-  test("le Postgres qui refuse le compte de mirrorlab, une commande introuvable, un démon Docker muet : chacun nomme son besoin, une fois, dans l'ordre", () => {
+  test("le Postgres qui refuse le compte de gadgets, une commande introuvable, un démon Docker muet : chacun nomme son besoin, une fois, dans l'ordre", () => {
     const ids = (sortie: string) => besoinsNommesParLeSetup(sortie).map(({ id }) => id);
     assert.deepEqual(ids(`Scope: all 3 workspace projects\n${MIRRORLAB}\n`), ["postgres"]);
     assert.deepEqual(ids("./setup.sh: line 12: psql: command not found"), ["postgres"]);
@@ -101,7 +101,7 @@ describe("au journal du projet", () => {
     assert.deepEqual(autres, []);
     assert.equal(choix?.id, "need:postgres");
     assert.equal(choix?.status, "pending");
-    assert.equal(choix?.message, `The tests of mirrorlab need a Postgres database, which ${STATION} does not have.`);
+    assert.equal(choix?.message, `The tests of gadgets need a Postgres database, which ${STATION} does not have.`);
     assert.equal(choix?.cause, `\`.claude/brigade/worktree-setup.sh\` fails on ${STATION} because it cannot use a Postgres database there.`);
     assert.deepEqual(blocagesDuJournal(journal.base), [{ id: "need:postgres", message: choix!.message, cause: choix!.cause, action: ACTION_DU_CHOIX }]);
     // Des phrases, jamais la sortie du setup.
@@ -115,7 +115,7 @@ describe("au journal du projet", () => {
     const clone = unClone(t);
     tenirLeSetup(journal, QUI, STATION, ["postgres"], stations(REFUSE));
     const avant = journal.dernierSeq();
-    const projet = { nom: "mirrorlab", principale: true };
+    const projet = { nom: "gadgets", principale: true };
     const tenus = suivreLesBesoins({ station: "box", sonde: REFUSE }).tenir(projet, { repertoireEtat, clone });
     assert.deepEqual(tenus.map(({ id, status }) => [id, status]), [["need:postgres", "pending"]]);
     assert.equal(journal.dernierSeq(), avant);

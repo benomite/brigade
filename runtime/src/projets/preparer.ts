@@ -56,7 +56,7 @@ export async function verifierAutorisation(env: Record<string, string | undefine
 // L'adresse HTTPS du dépôt. Nommé par elle, `gh repo clone` clone en HTTPS
 // avec le jeton de la station, quel que soit le protocole git réglé pour son
 // compte : le 22 oct. 2026 (#1390), le `git_protocol ssh` du `gh` de la box
-// envoyait le clone de mirrorscreen sur ssh, qui ne connaissait pas GitHub.
+// envoyait le clone de widgets sur ssh, qui ne connaissait pas GitHub.
 export const adresseHttps = (depot: string) => `https://github.com/${depot}.git`;
 
 // Un clone en échec : `erreurs`, tout ce que gh et git ont écrit — la ligne

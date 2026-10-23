@@ -27,7 +27,7 @@ import { aArreter, BASE, commiter, depotGit, ENV_GIT, FAUX_CLAUDE, git, horloge,
 const rienNeReste = temporaireDuFichier();
 
 const MAC: Sondes = { plateforme: "darwin", existe: (chemin) => chemin === SEATBELT, versionDeClaude: () => "2.1.300 (Claude Code)\n" };
-const PROJET = "mirrorlab";
+const PROJET = "gadgets";
 const RUN = "12-abc";
 const DECIDE = {
   BRIGADE_STATIONS: "mac/claude:2:code",
@@ -143,8 +143,8 @@ test("ce qui ne se déménage pas reste où il est, et se dit : un clone déjà 
   const bilan = demenagerVersLAtelier(racine, PROJET, lieux, { cloneDeLaStation: true, env: ENV_GIT });
   assert.deepEqual(bilan.deplaces, []);
   assert.equal(bilan.restes.length, 2);
-  assert.match(bilan.restes[0] ?? "", /^le clone reste à .*clones\/mirrorlab — .*existe déjà$/);
-  assert.match(bilan.restes[1] ?? "", /^ses worktrees restent à .*etat\/mirrorlab\/worktrees, accrochés à ce clone$/);
+  assert.match(bilan.restes[0] ?? "", /^le clone reste à .*clones\/gadgets — .*existe déjà$/);
+  assert.match(bilan.restes[1] ?? "", /^ses worktrees restent à .*etat\/gadgets\/worktrees, accrochés à ce clone$/);
   assert.equal(readFileSync(join(ancienWorktree, "en-cours.txt"), "utf8"), "le travail que le cook n'a pas commité\n");
 });
 
