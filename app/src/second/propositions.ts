@@ -18,9 +18,9 @@ export type Canal = {
   repondre(chemin: string, brute: unknown): Repondue;
 };
 
-// Ce que la vue signale : le chef a répondu à la proposition `id`, d'un clic sur un choix, ou en tapant dans le
-// terminal du second.
-export type ReponseDuChef = { id: string; by: "click"; value: string } | { id: string; by: "text" };
+// Ce que la vue signale : le chef a répondu à la proposition `id`, d'un clic sur un choix, d'un geste confirmé et
+// lancé (#1521, sans valeur), ou en tapant dans le terminal du second.
+export type ReponseDuChef = { id: string; by: "click"; value: string } | { id: string; by: "click" } | { id: string; by: "text" };
 
 export type Propositions = {
   // Les projets du fichier, tels qu'ils sont maintenant : chacun qui s'ouvre est suivi, les autres ne le sont plus.

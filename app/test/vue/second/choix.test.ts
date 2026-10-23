@@ -80,7 +80,7 @@ describe("le module : un bouton par choix", () => {
     assert.equal(tenues.aMontrer("parade"), MERGER);
     tenues.recevoir("parade", DECOUPER);
     assert.equal(tenues.aMontrer("parade"), DECOUPER);
-    // Un geste n'est pas une liste de choix : rien sous le terminal pour lui ici.
+    // Un geste n'est pas une liste de choix : pas de choix pour lui — son bouton est celui de geste.test.ts (#1521).
     tenues.recevoir("parade", GESTE);
     assert.equal(tenues.aMontrer("parade"), undefined);
     tenues.recevoir("parade", MERGER);
@@ -196,7 +196,7 @@ describe("dans l'onglet du second", () => {
     assert.deepEqual(vu(vue), ["Merge it now", "Wait for the review of #1482 first", "Send it back to its cook"]);
     await publier(vue, "parade", null);
     assert.deepEqual(vu(vue), []);
-    // Un geste n'a pas sa place ici (#1521) : rien sous le terminal pour lui.
+    // Un geste n'a pas de bouton de choix : le sien, qui porte sa commande, est dans geste.test.ts (#1521).
     await publier(vue, "parade", GESTE);
     assert.deepEqual(vu(vue), []);
   });
