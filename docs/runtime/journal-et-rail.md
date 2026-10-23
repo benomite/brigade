@@ -65,7 +65,12 @@ says so and what to do (remove `fire`, set it again now).
 | **WAITING** | waiting for a **third party** — a client, an external decision, a meeting —, not for you: the kitchen does not take it, and it is not among what awaits you (see "A ticket waits for a third party: WAITING") |
 
 **Service order**: `prio:1`, `prio:2`, `prio:3`, then the issues with no `prio:`; at equal priority,
-the oldest first.
+**your manual order** first (`rail move`, see "Placing a ticket before or after another"), then the
+oldest first. A ticket never moved keeps its place by age; in a priority where you placed tickets,
+those you placed come first, in your order, and the others follow, oldest first — including one that
+comes onto the rail afterwards. The manual order never lends a ticket before what it awaits, and a
+ticket whose zone is held still waits where it stands: the rail lends the first ticket, in this order,
+that nothing holds back.
 
 **A ticket can wait for another**: the `attend` line of its card (see "A ticket's card"). The rail
 does not lend it until **all** those it waits for are **served**.
@@ -151,6 +156,31 @@ poll would have written — the rail and the card read it at once —, and state
 (`— cost: …`): on standard output if it is done, on standard error with its reason, with code 1, if
 it is refused.
 
+### Placing a ticket before or after another
+
+```bash
+npm --prefix runtime run rail -- move <ticket> --before <other>
+npm --prefix runtime run rail -- move <ticket> --after <other>
+```
+
+Places a queued ticket just before, or just after, another queued ticket (`BLOCKED` ones included). In
+their priority, this order wins over age, and the rail serves it. If the other ticket has another
+priority, the moved ticket **takes that priority** — its issue's `prio:<n>` label is replaced, as by
+`priority`, under the service account's `gh` — and is placed next to it. A ticket that is taken, in
+pass, served, 86 or WAITING is neither moved nor placed against.
+
+- **What it awaits comes first**: a move that would put a ticket before one it awaits — directly or
+  through a chain of `attend` lines —, or after one that awaits it, is refused in one sentence naming
+  the awaited ticket (`#22 awaits #20, so it cannot be placed before it`), with code 1; the order and
+  the priority are left unchanged, and nothing goes to GitHub. A ticket already served before what it
+  awaits, by its priority, stays so: the rail lends it only after anyway.
+- **The order is written to the log** (`ticket.moved`, in the name of `chef`: the resulting order of
+  the tickets of that priority): it survives a restart, which replays it. It is lost, for one
+  ticket, when that ticket changes priority — by `priority`, a move against another priority, or its
+  label changed on GitHub — or leaves the rail; it then takes its place by age again.
+- `rail` lists the tickets in this order, each with its priority. Like the other gestures, it states
+  its price: none if the priority stays, the replaced label otherwise.
+
 ### Sending a delivery back to a cook, saying why you corrected it
 
 ```bash
@@ -184,7 +214,7 @@ answer" in [`manager.md`](manager.md).
 The rail's facts: `ticket.arrived`, `ticket.changed`, `ticket.left` (in the name of `github`; also
 for an awaited issue, closed without having come onto the rail), `ticket.taken`, `ticket.renewed`,
 `ticket.released`, `ticket.passing`, `ticket.served`, `ticket.86`, `ticket.blocked`,
-`ticket.waiting`, `ticket.resumed` (in the name of `chef`), `ticket.fire-unseen` (a removal of `fire` not counted as the gesture), `waiting.marked`, `rail.commons`.
+`ticket.waiting`, `ticket.resumed` (in the name of `chef`), `ticket.moved` (in the name of `chef`: your manual order in a priority), `ticket.fire-unseen` (a removal of `fire` not counted as the gesture), `waiting.marked`, `rail.commons`.
 
 ### A ticket waits for a third party: WAITING
 

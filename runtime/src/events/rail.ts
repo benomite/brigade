@@ -60,6 +60,11 @@ export type FaitRail =
   // pas compté : le retrait précède la retenue du ticket (`removedAt`, l'instant
   // que GitHub date). Le ticket reste retenu ; sa ligne de file le dit.
   | { type: "ticket.fire-unseen"; payload: { removedAt: string } }
+  // Le chef a déplacé le ticket (`rail move`) : `order`, l'ordre manuel des
+  // tickets de la priorité `priority` qui en résulte, du premier servi au
+  // dernier. Il prime sur l'âge dans cette priorité ; un ticket qui n'y figure
+  // pas passe après, le plus ancien d'abord.
+  | { type: "ticket.moved"; payload: { priority: number | null; order: number[] } }
   // Les chemins communs du projet : ceux qui n'appartiennent à aucun ticket.
   // Écrit au démarrage, quand la configuration change — le rail se relit du
   // journal seul, zones comprises. Ne concerne aucun ticket.
