@@ -33,6 +33,7 @@ import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { communsDuRail, lireRail, ticketDuRail, type TicketRail } from "./projections/rail.ts";
 import { etatStation, plafondDeCooks, stationsAnnoncees } from "./projections/stations.ts";
 import { direRetenueEn, etatLuEn, retenue } from "./rail.ts";
+import { direHorsBudget, horsBudgetSansTicket } from "./budget-des-gates.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
 const USAGE = [
@@ -211,6 +212,9 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
     });
     const cap = plafonds.length === 0 || plafonds.includes(null) ? null : plafonds.reduce((somme: number, plafond) => somme + (plafond ?? 0), 0);
     if (plafonds.length > 0) dire(`cooks: ${enCuisine}/${cap ?? "no limit"}`);
+    const projet = env.BRIGADE_PROJECT || journal.base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project || "";
+    const horsBudget = projet === "" ? null : horsBudgetSansTicket(journal.base, projet);
+    if (horsBudget !== null) dire(direHorsBudget(horsBudget));
     if (tickets.length === 0) dire("empty rail");
     for (const ticket of tickets) dire([formater(ticket, cap, enCuisine), ...fiche(ticket)].join("\n"));
   } catch (erreur) {
