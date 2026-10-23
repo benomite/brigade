@@ -222,6 +222,7 @@ try {
     client: clientGitHubDesGestes({ depot: rail.depot, bin: rail.gh, ...(identites ? { jeton: identites.jeton("manager").frais, compte: "manager" } : {}) }),
     journal: alertee.journal,
     projet,
+    repertoireEtat,
     github: ouvrirGitHub({ depot: rail.depot, bin: rail.gh, usage: "geste", ...roleDesGestes }),
   });
   runtime = brancherLeTableau(alertee, { client: tableau, depot: rail.depot, station: process.env.BRIGADE_STATION_DIR, gestes });
