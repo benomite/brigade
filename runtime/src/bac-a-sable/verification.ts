@@ -16,7 +16,7 @@
 //     pour un script usuel de test ou de lint.
 // Refusé : tout ce qui compose autrement (`&`, `|`, `$`, `` ` ``, redirections,
 // guillemets, sous-shell), un chemin qui sort du worktree (un `..` dans un mot,
-// un mot ou une valeur `=…` absolu ou en `~` : sans quoi `cat /etc/passwd`
+// un mot absolu ou en `~`, nu ou collé à une option (`=`, `:`, `-c`) : sans quoi `cat /etc/passwd`
 // passerait outre le périmètre que `dontAsk` donne à ses lectures), une variable qui change ce que
 // le shell ou Node charge (`PATH`, `LD_PRELOAD`, `NODE_OPTIONS`…).
 
@@ -26,7 +26,11 @@ const LECTURES = ["ls", "pwd", "cat", "head", "tail", "wc"];
 const INTERDIT = /[&|$`()<>{}\\"'\n\r\t]/;
 const AFFECTATION = /^([A-Za-z_][A-Za-z0-9_]*)=(\S*)$/;
 const VARIABLE_DANGEREUSE = /^(PATH|HOME|SHELL|IFS|ENV|BASH_ENV|NODE_.*|LD_.*|DYLD_.*|PYTHON.*|npm_config_.*|NPM_CONFIG_.*)$/i;
-const HORS_DU_WORKTREE = /(^|=)[\/~]/;
+// Un chemin absolu ou en `~` au début du mot, ou collé à ce qui le précède :
+// `=` (`--config=/x`), `,` ou `@`, ou `:` après une option (`--config:/x` ; pas
+// celui d'une URL), ou une option courte
+// (`-c/x`, `-o~/x`).
+const HORS_DU_WORKTREE = /(^|[=,@]|^--?[\w-]+:|^-[A-Za-z0-9]+)[\/~]/;
 const BINAIRE = /^\.\/node_modules\/\.bin\/[A-Za-z0-9_@][A-Za-z0-9_@.-]*$/;
 
 function unMaillon(maillon: string): boolean {
