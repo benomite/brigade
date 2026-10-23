@@ -96,6 +96,8 @@ const pont = {
   tableauDuProjet: (nom) => ipcRenderer.invoke("tableauDuProjet", nom),
   // Une ligne de ce tableau, ouverte sur sa page de GitHub : sa PR, son issue, ou le tableau (ticket 1588).
   ouvrirDuTableau: (nom, url) => ipcRenderer.invoke("ouvrirDuTableau", nom, url),
+  // Une décision du chef sur une ligne de ce tableau, postée en commentaire sur son issue (ticket 1590).
+  gesteAuTableau: (nom, decision) => ipcRenderer.invoke("gesteAuTableau", nom, decision),
   compter: (projet) => ipcRenderer.invoke("compter", projet),
   closer: (projet, action, oui) => ipcRenderer.invoke("closer", projet, action, oui),
   corriger: (projet, proposition, reponse) => ipcRenderer.invoke("corriger", projet, proposition, reponse),

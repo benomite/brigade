@@ -9,7 +9,7 @@
 // Ce qui ne se lit pas le dit, jamais une file vide : GitHub qui ne répond pas ou refuse, le dépôt sans tableau, le
 // tableau sans bloc ou d'une version que l'app ne lit pas — chaque fois un échec, et sa raison en une phrase, que l'app
 // montre telle quelle.
-import { lireLeTableau, OUVERTURE_DU_BLOC, type CuisineDuTableau, type LigneDeLaFile } from "../../../runtime/src/tableau/rendu/bloc.ts";
+import { lireLeTableau, OUVERTURE_DU_BLOC, type CuisineDuTableau, type GesteDuTableau, type LigneDeLaFile } from "../../../runtime/src/tableau/rendu/bloc.ts";
 import type { AppelGitHub, ReponseGitHub } from "./client.ts";
 
 // Le label par lequel la box retrouve son tableau dans le dépôt (runtime/src/tableau/publication/publier.ts,
@@ -38,6 +38,9 @@ export type TableauLu = {
   pages: string[];
   bilans: string[];
   cuisine: CuisineDuTableau;
+  // Les derniers gestes du chef que la box a lus sur le tableau, et ce qu'elle y a répondu (#1589) : la vue y suit ceux
+  // qu'elle a postés (#1590). Vide d'un bloc écrit sans eux.
+  gestes: GesteDuTableau[];
 };
 export type TableauNonLu = { lu: false; depot: string; luLe: string; raison: string };
 export type LectureDuTableauDuDepot = TableauLu | TableauNonLu;
@@ -120,5 +123,6 @@ export async function lireLeTableauDuDepot({ depot, appeler, maintenant = () => 
     pages: tableau.file.map((ligne) => pageDeLaLigne(depot, `https://github.com/${depot}/issues/${numero}`, ligne)),
     bilans: tableau.bilans,
     cuisine: tableau.cuisine,
+    gestes: Array.isArray(tableau.gestes) ? tableau.gestes : [],
   };
 }

@@ -312,6 +312,11 @@ export type Pont = {
   // Une ligne de la file de ce tableau, ouverte sur sa page de GitHub — sa PR, son issue, ou le tableau —, dans le
   // navigateur : seulement une page que la dernière lecture a donnée. Rend si elle a été ouverte.
   ouvrirDuTableau?(nom: string, url: string): Promise<boolean>;
+  // Une décision du chef sur une ligne de la file de ce tableau (ticket 1590) — merger, renvoyer en cuisine, mettre de
+  // côté, répondre à une carte ou choisir l'un de ses choix —, postée en commentaire sur l'issue du tableau, sans `ssh`
+  // ni station (app/src/tableau-gestes/github.ts) : `pending` et le commentaire posté, ou `failed` et pourquoi, en une
+  // phrase. La réponse de la box se lit ensuite dans le tableau (`gestes` de la lecture).
+  gesteAuTableau?(nom: string, decision: import("../tableau-gestes/gestes.ts").DecisionDuChef): Promise<import("../tableau-gestes/gestes.ts").EtatDuGeste>;
   // Ce qu'engage l'allumage du manager, chiffré (allumage.ts) : les issues ouvertes du projet, et
   // celles qui portent `blocked-on-human` — `manager backlog`, lancée une fois sur sa box. Demandé
   // quand la confirmation d'« allumer » s'ouvre : son « oui » n'attend pas cette lecture. Rien, pour un projet sans box.
