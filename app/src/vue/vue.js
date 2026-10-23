@@ -102,6 +102,7 @@ import { poserTete } from "./cost/tete.js";
 import { poserFiabilite } from "./fiabilite.js";
 import { poserReculs } from "./recul.js";
 import { poserTriageDeCooks } from "./triage.js";
+import { poserLesDeclarees } from "./stations-declarees.js";
 import { DIT_PROVISOIRE, PROVISOIRE, poserApprentissage, resumeDeLApprentissage, TITRE as TITRE_APPRIS } from "./apprentissage.js";
 import { lireFermeture, poserCloser } from "./closer/section.js";
 import { poserBilan } from "./closer/bilan/bilan.js";
@@ -301,6 +302,14 @@ cuissonDuProjet.id = "cuisson-du-projet";
 cuissonDuProjet.ariaLive = "polite";
 // Les stations sont posées : l'écran étroit n'a qu'elles à montrer, sinon il dit pourquoi.
 let stationsPosees = false;
+// Ce que chaque station déclarée fournit — son plafond de cooks, ses capacités, la box ou ce poste —, sous les stations
+// (ticket 1509), d'après le dernier contrôle de l'installation : poserDeclarees le remplit ; poserRail le pose.
+const declareesDuProjet = document.createElement("div");
+declareesDuProjet.id = "declarees-du-projet";
+// Les stations que la box de chaque projet déclare, telles que le dernier contrôle de son installation les a lues
+// (service.ts, `controle.stations`) : gardées d'un guide à l'autre, jusqu'à la lecture suivante.
+/** @type {Map<string, import("../service.ts").StationsLues>} */
+const declarees = new Map();
 // Les pages servies dont le ticket n'a pas de carte ici, sous les stations (ticket 1456). poserRail les pose.
 const servisSansCarte = document.createElement("div");
 servisSansCarte.id = "servis-sans-carte";
@@ -2283,7 +2292,24 @@ function gesteDEtape(projet, guide, etape, action, refus) {
 
 /** @param {Projet} projet */
 async function lireService(projet) {
-  poserService(projet, await brigade.service(projet.nom));
+  const guide = await brigade.service(projet.nom);
+  retenirDeclarees(guide);
+  poserService(projet, guide);
+}
+
+// Les stations déclarées qu'un guide porte sont retenues pour son projet ; affiché, son bloc se repose.
+/** @param {import("../service.ts").Guide | undefined} guide */
+function retenirDeclarees(guide) {
+  const lues = guide?.controle?.stations;
+  if (guide === undefined || lues === undefined) return;
+  declarees.set(guide.projet, lues);
+  if (courant?.nom === guide.projet) poserDeclarees(courant);
+}
+
+// Ce que chaque station déclarée du projet fournit, et où elle tourne (stations-declarees.js).
+/** @param {Projet} projet */
+function poserDeclarees(projet) {
+  declareesDuProjet.replaceChildren(poserLesDeclarees(document, { stations: declarees.get(projet.nom), jouees: projet.stations ?? [], ici: projet.ici === true, ...(projet.box === undefined ? {} : { hote: projet.box.hote }) }));
 }
 
 // Une action de l'installation : ce qu'elle fait arrive par `surGuide`. Refusée, sa raison se
@@ -4483,7 +4509,7 @@ async function reglerLePlafondDuProjet(projet, station, valeur) {
 function poserCuisineEtroite(projet, tenu) {
   if (projet.sansStation === true) return rail.replaceChildren(bloc("h3", STATION_ARRETEE));
   // Dans l'ordre de l'écran large (ticket 1456) : ses stations d'abord.
-  if (stationsPosees) return rail.replaceChildren(cuissonDuProjet, activiteDuProjet, gatesDuProjet, rolesDuProjet, triageDuProjet, apprisDuProjet);
+  if (stationsPosees) return rail.replaceChildren(cuissonDuProjet, declareesDuProjet, activiteDuProjet, gatesDuProjet, rolesDuProjet, triageDuProjet, apprisDuProjet);
   const pourquoi = muets.has(projet.nom)
     ? "its stations: not known while the station is unreachable"
     : tenu === undefined
@@ -4521,9 +4547,9 @@ function poserRail(projet) {
     return rail.replaceChildren(bloc("h3", "the rail is not read: no station is known to serve this project yet — it appears as soon as one does"));
   }
   // Sur Cooks, dans l'ordre de sa revue (docs/revue-page-cooks.md, ticket 1456) : ses stations et leurs cooks en tête —
-  // la ligne de sa cuisine dedans —, les pages servies sans carte et ses serveurs de livraison sous elles, puis ses
-  // tickets, ses gates, et en bas, repliés, son plafond de calibrage, ses rôles, ce que ses cooks ont appris et la
-  // lecture de `station`. La carte du projet n'y est que quand ses stations ne se lisent pas : elle dit pourquoi, ou
+  // la ligne de sa cuisine dedans —, les pages servies sans carte et ses serveurs de livraison sous elles, ce que chaque
+  // station déclarée fournit (ticket 1509), puis ses tickets, ses gates, et en bas, repliés, son plafond de calibrage,
+  // ses rôles, ce que ses cooks ont appris et la lecture de `station`. La carte du projet n'y est que quand ses stations ne se lisent pas : elle dit pourquoi, ou
   // ses cooks en cours.
   // Sur Rail, en tête, la ligne qui dit ce qui y demande un geste (ticket 1185).
   // Le bon posé pour chaque carte, celles des stations comprises (ticket 1270) : celui de la fiche ouverte y reprend
@@ -4532,10 +4558,11 @@ function poserRail(projet) {
   const posees = new Map();
   servisSansCarte.replaceChildren();
   poserCuisson(projet, posees);
+  poserDeclarees(projet);
   if (cuisine && etroit()) return poserCuisineEtroite(projet, tenu);
   // Sans stations lues — un runtime qui ne les donne pas, une box muette —, la carte du projet reste entière, en tête :
   // elle seule dit alors ses cooks en cours.
-  const deCooks = () => [...(stationsPosees ? [] : [carte]), cuissonDuProjet, servisSansCarte, pages, activiteDuProjet, gatesDuProjet, plafondDuProjet, rolesDuProjet, triageDuProjet, apprisDuProjet, lectureDeLaCuisine];
+  const deCooks = () => [...(stationsPosees ? [] : [carte]), cuissonDuProjet, servisSansCarte, pages, declareesDuProjet, activiteDuProjet, gatesDuProjet, plafondDuProjet, rolesDuProjet, triageDuProjet, apprisDuProjet, lectureDeLaCuisine];
   /** @param {(HTMLElement | string)[]} poses */
   const poser = (...poses) => rail.replaceChildren(...(cuisine ? [...poses, ...deCooks()] : [...(alerteDeCuisine.hidden ? [] : [alerteDeCuisine]), ...poses]));
   // Cuisine d'un projet servi ici, station arrêtée : rien n'est lu, la page dit pourquoi en une ligne — sur l'un et
@@ -7533,6 +7560,7 @@ brigade.surUrgence(async (nom) => {
 // L'installation d'un projet a changé — une lecture de sa box, une action partie ou revenue :
 // celle du projet affiché se repose.
 brigade.surGuide((guide) => {
+  retenirDeclarees(guide);
   if (courant?.nom === guide.projet) poserService(courant, guide);
 });
 // Le chef déplie l'installation repliée : elle se lit en entier, et ce qui sera à lui s'annonce.

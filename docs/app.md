@@ -65,6 +65,15 @@ banner, the action for a refusal in the block under the stations line. **On Rail
 what, on the cooks' side, asks for your action — a saturated station, a station that refuses the project, repository access
 blocked —, all the causes on the same line, with `open Cooks`, which opens the Cooks tab; nothing shows it
 when nothing asks for it. The modules are `app/src/cuisson.ts` and `app/src/vue/stations-de-cuisson.js`.
+**Under the stations' blocks, what each declared station provides** (#1509, epic #1506): one row per station the project
+declares, in the order of its declaration — its name, where it runs, its cooks cap (`3 cooks at once`) and its capabilities
+(`code`, `raisonnement`, `navigateur-headless`…). Where it runs has three distinct words: `box station`; `this workstation`,
+a remote station this computer plays for the project (it is in the project's `stations` in `app.json` — or any station of a
+project whose kitchen runs here); and `remote`, a station another workstation plays. What each means is on hover. The rows
+come from `installation stations --json`, which the installation check reads (on opening, then every five minutes): before
+the first read, one line says `not read yet`; a project that declares no station says `no station declared: no cook leaves
+for this project`, never a blank. Read-only: changing a station comes with #1510. On a narrow screen, the block sits under
+the stations' lines. The module is `app/src/vue/stations-declarees.js`.
 **Under the stations, the project's calibration ceiling** (#1284): how far the manager raises the model and the effort of a
 ticket that stays red before passing it up to you. It shows the value in force (`opus / high`) and where it comes from —
 `default`, `set by you`, or one of each —, read from `facts` (`plafondDeCalibrage`): the app does not know the default, it
