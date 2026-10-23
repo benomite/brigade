@@ -3,6 +3,7 @@
 // et son lancement, au journal, dit lesquelles (`apprentissage/injection.ts`).
 import assert from "node:assert/strict";
 import { describe, test, type TestContext } from "node:test";
+import { posixOnly } from "../support/plateforme.ts";
 import { blocDesLecons, LECONS_INJECTEES_PAR_DEFAUT, leconsAInjecter, lirePlafondDesLecons, VARIABLE_LECONS_INJECTEES } from "../../src/apprentissage/injection.ts";
 import { writeCarnet } from "../../src/carnet/carnet.ts";
 import { consigne, consigneDeSuite } from "../../src/claude.ts";
@@ -11,6 +12,12 @@ import { consigneDeRenvoi, consigneDeReprise } from "../../src/pass.ts";
 import { ConfigInvalide } from "../../src/runtime.ts";
 import { cuisine, issue } from "../aides/cuisine.ts";
 import { BASE, DEPOT, jusqua, repertoireTemporaire } from "../outils.ts";
+
+// Ces cooks attendent un setup qui passe : il rend ses exports au runtime par le
+// descripteur 3 (`CANAL`, `src/gates.ts`), que le bash de Windows lancé par
+// Node ne reçoit pas (« 3: Bad file descriptor ») — sur le job Windows, le cook
+// ne partait jamais.
+const SETUP_QUI_PASSE = posixOnly("waits for the fake setup to pass, and a passing setup hands its exports through file descriptor 3, which bash on Windows does not receive: on the Windows job the cook was never launched (condition never met after 60 s)");
 
 // La rétro du ticket `ticket` de `projet`, servi, laisse une leçon par texte.
 function retro(journal: Journal, projet: string, ticket: number, ...textes: string[]) {
@@ -98,7 +105,7 @@ describe("les leçons qu'un cook reçoit", () => {
 });
 
 describe("le cook lancé sur un ticket", () => {
-  test("reçoit les leçons de son projet — celle d'un ticket précédent comprise —, jamais celles d'un autre, et son lancement dit lesquelles", async (t) => {
+  test("reçoit les leçons de son projet — celle d'un ticket précédent comprise —, jamais celles d'un autre, et son lancement dit lesquelles", { skip: SETUP_QUI_PASSE }, async (t) => {
     const { journal, setup, cooks, dernier } = cuisine(t, { setup: "attend", issues: [issue(17)] });
     retro(journal, "brigade", 12, "Les gates jouent les tests du runtime : les lancer avant de commiter.");
     retro(journal, "autre", 3, "Une leçon d'un autre projet.");
@@ -121,7 +128,7 @@ describe("le cook lancé sur un ticket", () => {
     return { recues: dernier("cook.launched", 17)?.lessons, texte: prompt(cooks()[0]?.args ?? []) };
   }
 
-  test("avec vingt-cinq leçons, il reçoit les vingt plus récentes", async (t) => {
+  test("avec vingt-cinq leçons, il reçoit les vingt plus récentes", { skip: SETUP_QUI_PASSE }, async (t) => {
     const { recues, texte } = await lanceAvec(t, undefined);
 
     assert.deepEqual(recues, Array.from({ length: 20 }, (_, i) => `L${25 - i}`));
@@ -130,7 +137,7 @@ describe("le cook lancé sur un ticket", () => {
     assert.equal(texte.includes("- L5 :"), false);
   });
 
-  test("le réglage du projet change le compte qu'il reçoit", async (t) => {
+  test("le réglage du projet change le compte qu'il reçoit", { skip: SETUP_QUI_PASSE }, async (t) => {
     const { recues, texte } = await lanceAvec(t, 4);
 
     assert.deepEqual(recues, ["L25", "L24", "L23", "L22"]);

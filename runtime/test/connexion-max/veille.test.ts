@@ -30,7 +30,7 @@ function veille(t: TestContext, racine = repertoireTemporaire(t)) {
 const a = (s: number) => new Date(Date.parse("2026-10-15T12:00:00Z") + s * 1000).toISOString().replace(".000Z", "Z");
 
 test("les deux fichiers : le fichier d'état sous le répertoire de la station, ou celui que l'unité donne ; l'exposition à côté de la configuration", () => {
-  assert.deepEqual(configVeille({}, "/var/lib/brigade"), { renouvellement: "/var/lib/brigade/.session/renouvellement", exposition: `/var/lib/brigade/${EXPOSITION}` });
+  assert.deepEqual(configVeille({}, "/var/lib/brigade"), { renouvellement: join("/var/lib/brigade", ".session", "renouvellement"), exposition: join("/var/lib/brigade", EXPOSITION) });
   assert.equal(configVeille({ BRIGADE_SESSION_STATE: "/srv/etat" }, "/var/lib/brigade").renouvellement, "/srv/etat");
   assert.throws(() => configVeille({ BRIGADE_SESSION_STATE: "relatif" }, "/var/lib/brigade"), ConfigInvalide);
 });

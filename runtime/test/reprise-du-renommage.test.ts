@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
+import { posixOnly } from "./support/plateforme.ts";
 import { attentesDuChef } from "../src/attend.ts";
 import { ouvrirDepot, type Depot, type Transposition } from "../src/depot.ts";
 import { decrireEtat, lireEtat } from "../src/etat.ts";
@@ -200,7 +201,7 @@ function fauxOutil(t: TestContext, feu: string): string {
 // Le numéro de ticket que porte une branche de cook.
 const ticketDeLaBranche = (branche: string) => Number(/^(?:origin\/)?cook\/(\d+)-/.exec(branche)?.[1]);
 
-describe("la cuisine reprise après le renommage", () => {
+describe("la cuisine reprise après le renommage", { skip: posixOnly("runs the fake claude (a POSIX shell script)") }, () => {
   test("le renommage mergé, la pause est levée, et la cuisine reprend seule : les tickets retenus sont repris sur le nouvel arbre — zone et branche sur les nouveaux chemins —, celui qui ne se porte pas est nommé dans la file avec la raison, celui qui ne touchait rien est repris tel quel, et un ticket neuf est pris et mergé", async (t) => {
     // Arrêté avant la cuisine : les crochets de fin se jouent dans l'ordre.
     let renommage: ReturnType<typeof renommeur> | undefined;

@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
+import { posixOnly } from "../support/plateforme.ts";
 import { avecRail } from "../../src/alimenter.ts";
 import { cartesDeCorrection } from "../../src/correctif/cartes.ts";
 import { decider, decisionDe, NON, OUI } from "../../src/correctif/decision.ts";
@@ -142,7 +143,7 @@ function arbreAvec(t: TestContext, clone: string, base: string, diff: string): s
   return gitIci(["write-tree"]);
 }
 
-test("une proposition que personne ne tranche ne fait rien naître ; « oui » sur une autre en fait une PR qui porte exactement son diff, que la pass juge et merge comme une livraison", async (t) => {
+test("une proposition que personne ne tranche ne fait rien naître ; « oui » sur une autre en fait une PR qui porte exactement son diff, que la pass juge et merge comme une livraison", { skip: posixOnly("runs the fake claude (a POSIX shell script)") }, async (t) => {
   const { repertoire, origine, clone, gh, journal, candidat, brancher, trancher, types, base, relectures, branchesDeLOrigine, livrees } = cuisine(t);
   chef(repertoire, "grant.activated");
   // La plus ancienne, que personne ne tranche : c'est elle qui partirait la première.
@@ -195,7 +196,7 @@ test("une proposition que personne ne tranche ne fait rien naître ; « oui » s
   assert.equal(git(origine, "rev-parse", `refs/heads/${BASE}`), base);
 });
 
-test("« oui » deux fois, ou « oui » puis « non » : un seul geste compte, et une seule PR part", async (t) => {
+test("« oui » deux fois, ou « oui » puis « non » : un seul geste compte, et une seule PR part", { skip: posixOnly("runs the fake claude (a POSIX shell script)") }, async (t) => {
   const { gh, journal, candidat, brancher, trancher, base, types, livrees } = cuisine(t);
   const proposee = proposer(journal, candidat.seq, DIFFS.claude, ["CLAUDE.md"], base);
   const premier = trancher(proposee.seq, OUI);

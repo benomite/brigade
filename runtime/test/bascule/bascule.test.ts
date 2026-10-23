@@ -6,14 +6,14 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { test, type TestContext } from "node:test";
 import { lieux, lireAncienneInstallation } from "../../src/bascule/ancienne.ts";
 import { attendreLaReprise, basculer, BasculeEnEchec, lireNote, type Systemctl } from "../../src/bascule/basculer.ts";
 import { lireConfiguration } from "../../src/station/configuration.ts";
 import { lirePortes } from "../../src/station/portes.ts";
 import { repertoireTemporaire } from "../outils.ts";
-import { ancienneMachine, GESTES_ANCIENS, TROIS } from "./aides.ts";
+import { ancienneMachine, enUnite, GESTES_ANCIENS, TROIS } from "./aides.ts";
 
 const MAIN = join(import.meta.dirname, "../../src/bascule/main.ts");
 
@@ -54,15 +54,15 @@ test("les trois projets passent à la station : une ligne chacun — dépôt, br
   assert.deepEqual(
     configuration.projets.map(({ nom, depot, base, reglages }) => ({ nom, depot, base, reglages })),
     [
-      { nom: "brigade", depot: "benomite/brigade", base: "v2", reglages: { BRIGADE_REPO_DIR: m.sous("var/lib/brigade/brigade/depot"), BRIGADE_ARBITER_PORT: "8470", BRIGADE_ROADMAP_ISSUE: "1" } },
-      { nom: "calculus-workspace", depot: "benomite/calculus-workspace", base: "main", reglages: { BRIGADE_REPO_DIR: m.sous("var/lib/brigade/calculus-workspace/depot"), BRIGADE_ARBITER_PORT: "8470" } },
-      { nom: "espace", depot: "benomite/espace", base: "main", reglages: { BRIGADE_REPO_DIR: m.sous("var/lib/brigade/espace/depot"), BRIGADE_ARBITER_PORT: "8470", BRIGADE_SECRETS_FILE: "/srv/secrets/espace.env" } },
+      { nom: "brigade", depot: "benomite/brigade", base: "v2", reglages: { BRIGADE_REPO_DIR: enUnite(m.sous("var/lib/brigade/brigade/depot")), BRIGADE_ARBITER_PORT: "8470", BRIGADE_ROADMAP_ISSUE: "1" } },
+      { nom: "calculus-workspace", depot: "benomite/calculus-workspace", base: "main", reglages: { BRIGADE_REPO_DIR: enUnite(m.sous("var/lib/brigade/calculus-workspace/depot")), BRIGADE_ARBITER_PORT: "8470" } },
+      { nom: "espace", depot: "benomite/espace", base: "main", reglages: { BRIGADE_REPO_DIR: enUnite(m.sous("var/lib/brigade/espace/depot")), BRIGADE_ARBITER_PORT: "8470", BRIGADE_SECRETS_FILE: "/srv/secrets/espace.env" } },
     ],
   );
   // La station range l'état de chaque projet sous `etat/` : il y est, sans avoir bougé.
   for (const { nom } of TROIS) {
-    assert.equal(readlinkSync(join(ici.station, "etat", nom)), m.etat(nom));
-    assert.equal(realpathSync(join(ici.station, "etat", nom, "log.db")), join(m.etat(nom), "log.db"));
+    assert.equal(resolve(readlinkSync(join(ici.station, "etat", nom))), resolve(m.etat(nom)));
+    assert.equal(realpathSync(join(ici.station, "etat", nom, "log.db")), realpathSync(join(m.etat(nom), "log.db")));
   }
   assert.deepEqual(note, { arretee: "2026-10-16T08:00:00.000Z", projets: ["brigade", "calculus-workspace", "espace"], reprise: null });
   assert.deepEqual(lireNote(ici.note), note);
@@ -266,7 +266,7 @@ test("un `etat/<projet>` déjà là, qui n'est pas l'état de son unité : refus
   const m = machine(t);
   mkdirSync(m.sous("var/lib/brigade/etat/espace"), { recursive: true });
   const { refus } = lireAncienneInstallation(lieux(m.racine));
-  assert.match(refus.join("\n"), /brigade@espace\.service : \S+\/etat\/espace existe déjà, et n'est pas son état/);
+  assert.match(refus.join("\n"), /brigade@espace\.service : \S+[\\/]etat[\\/]espace existe déjà, et n'est pas son état/);
 });
 
 test("la reprise constatée : la station sert les projets remis, et l'arrêt de leur cuisine est mesuré, de la bascule à la station", async (t) => {

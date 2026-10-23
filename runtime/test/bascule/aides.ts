@@ -8,7 +8,7 @@
 // décisions, et son clone.
 import { createHash } from "node:crypto";
 import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, symlinkSync, writeFileSync } from "node:fs";
-import { dirname, join, relative } from "node:path";
+import { dirname, join, relative, sep } from "node:path";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { git } from "../outils.ts";
 
@@ -42,6 +42,11 @@ export const TROIS: AncienProjet[] = [
 // Les gestes de l'ancienne installation, dans le `deploy/` de son clone. Le
 // geste `brigade` reste — pointé sur celui du paquet ; les autres partent.
 export const GESTES_ANCIENS = ["brigade-installer", "brigade-ancien-geste"];
+
+// Un chemin tel qu'un fichier d'unité l'écrit : avec `/`. Sous Windows, la
+// racine de la machine d'essai a des contre-obliques, qu'une unité lit comme
+// des échappements.
+export const enUnite = (chemin: string) => chemin.replaceAll("\\", "/");
 
 function ecrire(fichier: string, texte: string, mode = 0o644): void {
   mkdirSync(dirname(fichier), { recursive: true });
@@ -85,12 +90,12 @@ export function ancienneMachine(racine: string, projets: AncienProjet[] = TROIS,
       "[Service]",
       "Type=simple",
       "User=brigade",
-      `WorkingDirectory=${clone}/runtime`,
+      `WorkingDirectory=${enUnite(clone)}/runtime`,
       "ExecStart=/usr/bin/env node src/main.ts",
       "StateDirectory=brigade/%i",
-      `Environment=BRIGADE_STATE_DIR=${sous("var/lib/brigade")}/%i`,
+      `Environment=BRIGADE_STATE_DIR=${enUnite(sous("var/lib/brigade"))}/%i`,
       "Environment=BRIGADE_PROJECT=%i",
-      `Environment=BRIGADE_REPO_DIR=${sous("var/lib/brigade")}/%i/depot`,
+      `Environment=BRIGADE_REPO_DIR=${enUnite(sous("var/lib/brigade"))}/%i/depot`,
       "PrivateTmp=yes",
       "Restart=on-failure",
       "KillMode=process",
@@ -103,15 +108,15 @@ export function ancienneMachine(racine: string, projets: AncienProjet[] = TROIS,
   ecrire(join(unites, "brigade@.service.d/chemin.conf"), "[Service]\nEnvironment=PATH=/usr/local/bin:/usr/bin:/bin\n");
   // La porte de chaque projet, que les portes de la station remplacent ; et
   // l'arbitre des projets, qui n'est pas à l'ancienne unité : il reste.
-  ecrire(join(unites, "brigade-porte@.service"), `[Unit]\nDescription=brigade — porte du projet %i\nBefore=brigade@%i.service\n\n[Service]\nWorkingDirectory=${clone}/runtime\nExecStart=/usr/bin/env node src/tenir-porte.ts\n`);
-  ecrire(join(unites, "brigade-arbitre.service"), `[Service]\nWorkingDirectory=${clone}/runtime\nExecStart=/usr/bin/env node src/tenir-arbitre.ts\n`);
+  ecrire(join(unites, "brigade-porte@.service"), `[Unit]\nDescription=brigade — porte du projet %i\nBefore=brigade@%i.service\n\n[Service]\nWorkingDirectory=${enUnite(clone)}/runtime\nExecStart=/usr/bin/env node src/tenir-porte.ts\n`);
+  ecrire(join(unites, "brigade-arbitre.service"), `[Service]\nWorkingDirectory=${enUnite(clone)}/runtime\nExecStart=/usr/bin/env node src/tenir-arbitre.ts\n`);
   ecrire(join(unites, "brigade-arbitre.service.d/reglages.conf"), `[Service]\nEnvironment=BRIGADE_ARBITER_PORT=${arbitre ?? "8470"}\n`);
   lier(join(unites, "brigade-arbitre.service"), join(unites, "multi-user.target.wants/brigade-arbitre.service"));
 
   for (const projet of projets) {
     const instance = join(unites, `brigade@${projet.nom}.service.d`);
     ecrire(join(instance, "projet.conf"), `[Service]\nEnvironment=BRIGADE_GITHUB_REPO=${projet.depot}\nEnvironment=BRIGADE_BASE_BRANCH=${projet.base}\n`);
-    ecrire(join(instance, "code.conf"), `[Service]\nWorkingDirectory=${sous("opt/brigade-versions", projet.nom, "en-service/runtime")}\n`);
+    ecrire(join(instance, "code.conf"), `[Service]\nWorkingDirectory=${enUnite(sous("opt/brigade-versions", projet.nom, "en-service/runtime"))}\n`);
     if (arbitre !== null) ecrire(join(instance, "arbitre.conf"), `[Service]\nEnvironment=BRIGADE_ARBITER_PORT=${arbitre}\n`);
     const sansPorte = options.sansPorte?.includes(projet.nom) ?? false;
     if (!sansPorte) {
@@ -143,7 +148,7 @@ export function ancienneMachine(racine: string, projets: AncienProjet[] = TROIS,
     git(depot, "init", "-q");
   }
   if (options.renouvellement !== false) {
-    ecrire(join(unites, "brigade-renouvellement.service"), `[Service]\nType=oneshot\nExecStart=${clone}/runtime/deploy/brigade-renouvellement\n`);
+    ecrire(join(unites, "brigade-renouvellement.service"), `[Service]\nType=oneshot\nExecStart=${enUnite(clone)}/runtime/deploy/brigade-renouvellement\n`);
     ecrire(join(unites, "brigade-renouvellement.timer"), "[Timer]\nOnUnitActiveSec=1min\n");
     lier(join(unites, "brigade-renouvellement.timer"), join(unites, "timers.target.wants/brigade-renouvellement.timer"));
   }
@@ -172,9 +177,11 @@ export function ancienneMachine(racine: string, projets: AncienProjet[] = TROIS,
       for (const nom of readdirSync(repertoire)) {
         const chemin = join(repertoire, nom);
         const lu = lstatSync(chemin);
-        if (lu.isSymbolicLink()) vu[relative(racine, chemin)] = `-> ${readlinkSync(chemin)}`;
+        // Chaque chemin écrit avec `/`, sur toutes les plateformes.
+        const cle = relative(racine, chemin).replaceAll(sep, "/");
+        if (lu.isSymbolicLink()) vu[cle] = `-> ${readlinkSync(chemin)}`;
         else if (lu.isDirectory()) parcourir(chemin);
-        else vu[relative(racine, chemin)] = createHash("sha256").update(readFileSync(chemin)).digest("hex");
+        else vu[cle] = createHash("sha256").update(readFileSync(chemin)).digest("hex");
       }
     };
     if (existsSync(racine)) parcourir(racine);

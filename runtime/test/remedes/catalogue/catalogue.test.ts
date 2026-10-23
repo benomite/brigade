@@ -7,6 +7,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, wr
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { posixOnly } from "../../support/plateforme.ts";
 import { DEBUT, FIN } from "../../../src/projets/bloc.ts";
 import { CODES_DE_REFUS, refus, type CodeDeRefus, type Refus } from "../../../src/projets/refus.ts";
 import { executerRemede, type StationDesRemedes } from "../../../src/remedes/executer.ts";
@@ -130,7 +131,7 @@ function unFauxClaude(echoue: boolean) {
   return { bin, marque, nettoyer: () => rmSync(dossier, { recursive: true, force: true }) };
 }
 
-test("sandbox-unusable : le remède met `claude` à jour, et le refus est levé", async () => {
+test("sandbox-unusable : le remède met `claude` à jour, et le refus est levé", { skip: posixOnly("runs the fake claude (a POSIX shell script)") }, async () => {
   const faux = unFauxClaude(false);
   try {
     const { demander } = uneStation({ registre: creerRegistre(remedesDuCatalogue({ claudeBin: faux.bin })), evaluer: () => (existsSync(faux.marque) ? null : "sandbox-unusable") });
@@ -140,7 +141,7 @@ test("sandbox-unusable : le remède met `claude` à jour, et le refus est levé"
   }
 });
 
-test("sandbox-unusable : si la mise à jour échoue, ou ne suffit pas, le refus tient, avec pourquoi en une phrase", async () => {
+test("sandbox-unusable : si la mise à jour échoue, ou ne suffit pas, le refus tient, avec pourquoi en une phrase", { skip: posixOnly("runs the fake claude (a POSIX shell script)") }, async () => {
   const faux = unFauxClaude(true);
   try {
     const { demander } = uneStation({ registre: creerRegistre(remedesDuCatalogue({ claudeBin: faux.bin })), evaluer: () => "sandbox-unusable" });
