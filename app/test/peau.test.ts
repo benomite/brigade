@@ -193,7 +193,7 @@ describe("les polices : Archivo pour l'interface, JetBrains Mono pour ce qui se 
     const mono = regles(lire("vue.css")).filter(({ declarations }) => declarations.get("font-family") === "var(--police-mono)");
     assert.deepEqual(
       mono.map(({ selecteurs }) => selecteurs),
-      [[".mono", "pre", "code", "#projets button", "#formulaire input", "#formulaire select", "#choisi", '#retrait input:not([type="checkbox"])', ".carte dd", "#rail h4 span:last-child", "#rail .bon p", "#appairage input"]],
+      [[".mono", "pre", "code", "#projets button", "#formulaire input", "#formulaire select", "#choisi", '#retrait input:not([type="checkbox"])', ".carte dd", "#rail h4 span:last-child", "#rail .bon p", "#appairage input", ".premier-lancement .formulaire-du-premier input"]],
     );
     // Ce que l'app dit elle-même sur plusieurs lignes revient à la police de l'interface.
     const propos = regles(lire("vue.css")).find(({ selecteurs }) => selecteurs.includes("pre.propos"));

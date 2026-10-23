@@ -58,7 +58,8 @@ code,
 .carte dd,
 #rail h4 span:last-child,
 #rail .bon p,
-#appairage input {
+#appairage input,
+.premier-lancement .formulaire-du-premier input {
   font-family: var(--police-mono);
 }
 code {
@@ -6550,7 +6551,6 @@ button.recommande {
 }
 .premier-lancement .formulaire-du-premier input {
   padding: 7px 10px;
-  font-family: var(--police-mono);
   font-size: 13px;
   color: var(--texte);
   background: var(--fond);
