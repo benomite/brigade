@@ -369,7 +369,7 @@ test("la lecture posée se charge sans rien de Node, comme dans la WebView", asy
   const www = join(dossier(t), "www");
   poserLaVue(await demarrageDuPont(), www);
   const charge = spawnSync(process.execPath, ["--input-type=module", "-e", 'const lu = process.argv[1]; delete globalThis.process; import(lu).then((module) => console.log(Object.keys(module).sort().join(" ")), (erreur) => console.log(`KO ${erreur.message}`))', pathToFileURL(join(www, "android", "lecture.js")).href], { encoding: "utf8" });
-  assert.equal(charge.stdout.trim(), "GESTES_DU_GUICHET INTERVALLE_MS PAS_DE_LA_REPONSE_MS ouvrirLaLecture", charge.stderr);
+  assert.equal(charge.stdout.trim(), "CLE_DU_JETON_GITHUB GESTES_DU_GUICHET INTERVALLE_MS PAS_DE_LA_REPONSE_MS envoiNatif jetonDuCoffre lireLeTableauDuTelephone ouvrirLaLecture", charge.stderr);
 });
 
 // Les gestes de la fiche, par le pont appairé (#1420) : un `POST` au guichet, avec le jeton, le geste et le ticket, et

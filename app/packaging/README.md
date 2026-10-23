@@ -280,6 +280,13 @@ le remplace, injecté par `Pont.java` au début de chaque document de l'app, ava
 Hors de l'appairage, ce téléphone ne lit rien et n'envoie rien. Le pont qui lira une station le
 remplacera ; rien du code partagé n'a changé pour Android.
 
+Le tableau de la cuisine d'un projet se lit de GitHub, sans station (`lireLeTableauDuTelephone`,
+`app/android/web/lecture.ts`) : le module du desktop (`app/src/tableau/`) et le lecteur du bloc
+machine que le runtime partage avec les apps (`runtime/src/tableau/rendu/bloc.ts`, posé à
+`www/runtime/src/`), la demande portée par `CapacitorHttp`, avec le jeton GitHub que garde le coffre
+du téléphone (`Coffre.java` : chiffré par une clé du Keystore d'Android, qui ne sort pas du
+téléphone).
+
 ## Éprouver
 
 Les tests (`app/test/packaging/android.test.ts`) vérifient, sans JDK ni SDK : les prérequis nommés

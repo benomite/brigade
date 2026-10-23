@@ -27,6 +27,10 @@
 // Tant que le second répond, la conversation est relue de près, et la vue reçoit sa réponse (`surConversation`) ; celle
 // d'un projet déjà lu l'est aussi à chaque lecture de la station, et ce que le chef tape au desktop arrive ainsi au
 // téléphone. Ce qui ne se lit pas, ou ne part pas, se dit en une phrase, ce que la station ou le réseau en a dit au survol.
+//
+// Et le tableau de la cuisine d'un projet, lu de GitHub sans la station (le ticket 1587, `lireLeTableauDuTelephone`) : le
+// module du desktop (app/src/tableau/lecture.ts), sa demande portée par le HTTP natif, avec le jeton GitHub du coffre du
+// téléphone (Coffre.java : chiffré par une clé du Keystore d'Android, qui ne sort pas du téléphone).
 import { tenirAccueil, type Accueil } from "../../src/accueil.ts";
 import { tenirBandes, type Bande } from "../../src/alertes.ts";
 import { mettreAPart, type Montree } from "../../src/attend.ts";
@@ -36,6 +40,8 @@ import type { Projet } from "../../src/config.ts";
 import { tenirFaits, type Dessinable } from "../../src/faits.ts";
 import { ACTIONS, gestesDeCarte, type Actions, type IdDeFiche, type Propose } from "../../src/gestes-fiche.ts";
 import { rendre } from "../../src/markdown.ts";
+import { clientGitHub, corpsLu, DELAI_MS, type Envoi as EnvoiGitHub } from "../../src/tableau/client.ts";
+import { lireLeTableauDuDepot, type LectureDuTableauDuDepot } from "../../src/tableau/lecture.ts";
 import type { Conversation, RefusDeConversation } from "../../src/vue/pont.d.ts";
 
 // Ce que le guichet a rendu : son code, et son corps — un objet, ou du texte que le HTTP natif n'a pas lu en JSON.
@@ -429,4 +435,32 @@ export function ouvrirLaLecture(options: Options) {
     // L'onglet affiché n'a pas de lecture propre sur le téléphone : son contenu vient des faits et de `status`.
     onglet: (_projet: string | undefined, _id: string | undefined, _demande: number) => undefined,
   };
+}
+
+// Un appel au natif de Capacitor (`Capacitor.nativePromise`, que le pont tient : app/android/web/pont.js, `natif`).
+export type Natif = (plugin: string, methode: string, options: Record<string, unknown>) => Promise<unknown>;
+// La clé sous laquelle le coffre du téléphone garde le jeton GitHub de l'app.
+export const CLE_DU_JETON_GITHUB = "github";
+
+// Le jeton GitHub que le coffre garde, nul sans lui.
+export function jetonDuCoffre(natif: Natif): () => Promise<string | null> {
+  return async () => {
+    const lu = await natif("Coffre", "lire", { cle: CLE_DU_JETON_GITHUB });
+    return typeof lu === "object" && lu !== null && "valeur" in lu && typeof lu.valeur === "string" && lu.valeur !== "" ? lu.valeur : null;
+  };
+}
+
+// La demande à GitHub, par le HTTP natif : la WebView n'y met rien d'elle.
+export function envoiNatif(natif: Natif): EnvoiGitHub {
+  return async (adresse, entetes) => {
+    const rendu = (await natif("CapacitorHttp", "request", { url: adresse, method: "GET", headers: entetes, connectTimeout: DELAI_MS, readTimeout: DELAI_MS })) as Partial<Reponse> | null;
+    if (typeof rendu?.status !== "number") throw new Error("the phone's HTTP returned no answer");
+    return { status: rendu.status, data: typeof rendu.data === "string" ? corpsLu(rendu.data) : rendu.data };
+  };
+}
+
+// Le tableau de la cuisine du dépôt `<owner>/<repo>`, lu de GitHub par le téléphone.
+export function lireLeTableauDuTelephone(depot: string, options: { natif: Natif; maintenant?: () => Date }): Promise<LectureDuTableauDuDepot> {
+  const appeler = clientGitHub({ jeton: jetonDuCoffre(options.natif), envoyer: envoiNatif(options.natif) });
+  return lireLeTableauDuDepot({ depot, appeler, ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }) });
 }
