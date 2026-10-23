@@ -65,5 +65,6 @@ export function arreterLArbre(pid: number, signal: NodeJS.Signals, plateforme: s
 // Lancé chef de son groupe là où un groupe se signale ; sous Windows, `detached` ouvrirait une console à lui.
 export const enGroupe = (plateforme: string): boolean => plateforme !== "win32";
 
-// Le nom de ce poste-ci, celui où l'app tourne.
-export const ICI = nomDuPoste(process.platform);
+// Le nom de ce poste-ci, celui où l'app tourne. Lu sans supposer Node : la lecture du téléphone (app/android/web/
+// lecture.ts) charge ce module dans la WebView de l'app Android, où `process` n'existe pas.
+export const ICI = nomDuPoste(globalThis.process?.platform ?? "");
