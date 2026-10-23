@@ -1,5 +1,8 @@
 package com.github.benomite.brigade;
 
+import android.content.ActivityNotFoundException;
+import android.content.Intent;
+import android.net.Uri;
 import androidx.webkit.WebViewCompat;
 import androidx.webkit.WebViewFeature;
 import com.getcapacitor.JSObject;
@@ -20,7 +23,8 @@ import java.util.Collections;
 // Le `window.brigade` de la vue, que preload.cjs pose sur le desktop : ici, le pont d'attente
 // (app/android/web/pont.js), posé par la construction dans les fichiers de l'app. Il est injecté
 // au début de chaque document de l'app, avant ses scripts — `load` est joué avant que la WebView
-// ne charge sa première page. Le pont y appelle aussi le lecteur de QR (`scanner`, le ticket 1161).
+// ne charge sa première page. Le pont y appelle aussi le lecteur de QR (`scanner`, le ticket 1161), et
+// le navigateur du téléphone pour un lien d'un message du second (`ouvrir`, le ticket 1426).
 @CapacitorPlugin(name = "Pont")
 public class Pont extends Plugin {
 
@@ -65,5 +69,22 @@ public class Pont extends Plugin {
             })
             .addOnCanceledListener(() -> call.resolve(new JSObject()))
             .addOnFailureListener((erreur) -> call.reject(String.valueOf(erreur.getMessage())));
+    }
+
+    // Un lien d'un message du second, ouvert dans le navigateur du téléphone : une adresse web, rien
+    // d'autre. Rend rien ; impossible, la raison.
+    @PluginMethod
+    public void ouvrir(PluginCall call) {
+        String url = call.getString("url");
+        if (url == null || !(url.startsWith("https://") || url.startsWith("http://"))) {
+            call.reject("only a web address opens in the browser");
+            return;
+        }
+        try {
+            getActivity().startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+            call.resolve();
+        } catch (ActivityNotFoundException erreur) {
+            call.reject("no app on this phone opens web addresses");
+        }
     }
 }

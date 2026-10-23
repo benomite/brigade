@@ -369,7 +369,7 @@ test("la lecture posée se charge sans rien de Node, comme dans la WebView", asy
   const www = join(dossier(t), "www");
   poserLaVue(await demarrageDuPont(), www);
   const charge = spawnSync(process.execPath, ["--input-type=module", "-e", 'const lu = process.argv[1]; delete globalThis.process; import(lu).then((module) => console.log(Object.keys(module).sort().join(" ")), (erreur) => console.log(`KO ${erreur.message}`))', pathToFileURL(join(www, "android", "lecture.js")).href], { encoding: "utf8" });
-  assert.equal(charge.stdout.trim(), "GESTES_DU_GUICHET INTERVALLE_MS ouvrirLaLecture", charge.stderr);
+  assert.equal(charge.stdout.trim(), "GESTES_DU_GUICHET INTERVALLE_MS PAS_DE_LA_REPONSE_MS ouvrirLaLecture", charge.stderr);
 });
 
 // Les gestes de la fiche, par le pont appairé (#1420) : un `POST` au guichet, avec le jeton, le geste et le ticket, et
@@ -405,9 +405,41 @@ test("le pont appairé joue les gestes de la fiche au guichet, avec son jeton, e
   assert.equal(appels.length, envoyes);
 });
 
+// La conversation avec le second, par le pont appairé (#1426) : un `GET` puis un `POST` au guichet, avec le jeton, le
+// message en `{"text"}` et le temps qu'un second met à le prendre ; ce que la station rend arrive à la vue en messages.
+// Un lien d'un message du second s'ouvre dans le navigateur du téléphone, par le plugin natif.
+test("le pont appairé lit la conversation du second au guichet et lui écrit, avec son jeton, et ouvre ses liens dans le navigateur", async () => {
+  const stockage = new Map([["brigade.telephone", JSON.stringify({ station: "atelier", adresse: "http://192.168.1.20:7010", jeton: "brgt_secret" })]]);
+  const lue = { project: "parade", session: "0b6c", messages: [{ from: "second", at: "2026-10-23T08:01:10.000Z", text: "**#15** waits." }] };
+  const reponses: unknown[] = [
+    { status: 200, headers: {}, data: lue },
+    { status: 202, headers: {}, data: JSON.stringify({ sent: true, ...lue, messages: [...lue.messages, { from: "chef", at: "2026-10-23T08:05:00.000Z", text: "Merge #12." }], answering: true }) },
+  ];
+  const { pont, appels, json } = await pontDuTelephone(({ plugin }) => {
+    if (plugin === "Pont") return {};
+    const reponse = reponses.shift();
+    if (reponse === undefined) throw new Error("failed to connect to /192.168.1.20 (port 7010) after 10000ms");
+    return reponse;
+  }, stockage);
+  assert.deepEqual(await json(pont.conversation!("parade")), { messages: [{ de: "second", a: "2026-10-23T08:01:10.000Z", blocs: [{ paragraphe: [{ gras: [{ texte: "#15" }] }, { texte: " waits." }] }] }] });
+  assert.deepEqual(appels.at(-1), { plugin: "CapacitorHttp", methode: "request", options: { url: "http://192.168.1.20:7010/projects/parade/second", method: "GET", headers: { Authorization: "Bearer brgt_secret" }, connectTimeout: 10_000, readTimeout: 10_000 } });
+  const envoyee = await json(pont.envoyerAuSecond!("parade", "Merge #12."));
+  assert.equal(envoyee.repond, true);
+  assert.deepEqual(envoyee.messages.at(-1), { de: "chef", a: "2026-10-23T08:05:00.000Z", blocs: [{ paragraphe: [{ texte: "Merge #12." }] }] });
+  assert.deepEqual(appels.at(-1), {
+    plugin: "CapacitorHttp",
+    methode: "request",
+    options: { url: "http://192.168.1.20:7010/projects/parade/second", method: "POST", headers: { Authorization: "Bearer brgt_secret", "Content-Type": "application/json" }, data: { text: "Merge #12." }, connectTimeout: 10_000, readTimeout: 130_000 },
+  });
+  assert.deepEqual(await json(pont.envoyerAuSecond!("parade", "Again.")), { refus: "atelier could not be reached: your message was not sent", detail: "failed to connect to /192.168.1.20 (port 7010) after 10000ms" });
+  assert.equal(await pont.ouvrirLienDuSecond!("parade", "https://github.com/chef/parade/pull/40"), true);
+  assert.deepEqual(appels.at(-1), { plugin: "Pont", methode: "ouvrir", options: { url: "https://github.com/chef/parade/pull/40" } });
+});
+
 test("l'enveloppe native a de quoi appairer : le lecteur de QR du pont, et le http en clair vers le guichet", () => {
   const java = join(NATIF, "app", "src", "main", "java", ...IDENTIFIANT.split("."));
   assert.match(readFileSync(join(java, "Pont.java"), "utf8"), /@PluginMethod\s+public void scanner\(PluginCall call\)/);
+  assert.match(readFileSync(join(java, "Pont.java"), "utf8"), /@PluginMethod\s+public void ouvrir\(PluginCall call\)/);
   assert.match(readFileSync(join(NATIF, "app", "build.gradle"), "utf8"), /com\.google\.android\.gms:play-services-code-scanner:\$codeScannerVersion/);
   assert.match(readFileSync(join(NATIF, "variables.gradle"), "utf8"), /codeScannerVersion = '\d+\.\d+\.\d+'/);
   const manifeste = readFileSync(join(NATIF, "app", "src", "main", "AndroidManifest.xml"), "utf8");
