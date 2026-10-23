@@ -3,6 +3,14 @@
 //   npm --prefix runtime run installation -- stations                  ce que cette machine fournit, ce que le projet déclare, et où en est l'étape
 //   npm --prefix runtime run installation -- stations --json           la même lecture, pour un programme : un objet JSON, sur une ligne
 //   npm --prefix runtime run installation -- stations <déclaration>    déclare les stations choisies, et note l'étape faite
+//   npm --prefix runtime run installation -- stations set <station> <plafond> <capacité>+<capacité>
+//                                                                      change le plafond et les capacités d'une station, rien d'autre
+//   npm --prefix runtime run installation -- stations remote <station> une station déclarée devient jouée par un poste : elle tire son travail
+//   npm --prefix runtime run installation -- stations remove <station> retire une station, et elle seule
+//
+// Les trois derniers changent une station et laissent les autres telles
+// qu'elles sont écrites (`une-station.ts`) ; l'étape n'y est pas notée : elle
+// l'a été quand le projet a déclaré ses stations.
 //
 // Le chef voit les stations que la machine fournit, en choisit, dit combien
 // de cooks chacune fait tourner à la fois, et valide : la déclaration est une
@@ -25,13 +33,19 @@ import { trouver } from "./installation.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { direStations, FORME, lireStations, VARIABLE_DES_STATIONS, type StationDeclaree } from "./stations-declarees.ts";
+import { changerUneStation, declarationDuJournal, type Changement } from "./une-station.ts";
 
 const ETAPE = "stations";
 const AUTEUR = "chef";
 const USAGE = [
   "usage : <environnement du service> npm --prefix runtime run installation -- stations [--json]",
   `        <environnement du service> npm --prefix runtime run installation -- stations <déclaration : ${FORME}, séparées par des virgules>`,
+  "        <environnement du service> npm --prefix runtime run installation -- stations set <station> <plafond de cooks> <capacité>+<capacité>",
+  "        <environnement du service> npm --prefix runtime run installation -- stations remote <station>",
+  "        <environnement du service> npm --prefix runtime run installation -- stations remove <station>",
 ].join("\n");
+// Les gestes qui changent une seule station, et ce qu'ils attendent après le nom.
+const SUR_UNE_STATION = { set: 2, remote: 0, remove: 0 } as const;
 
 // La machine du runtime, telle que les noms de ses stations la désignent.
 export const MACHINE = "box";
@@ -114,6 +128,17 @@ export function principal({ args, env, dire, redire }: Appel): void {
     return;
   }
 
+  const [verbe = ""] = args;
+  if (Object.hasOwn(SUR_UNE_STATION, verbe)) {
+    const attendus = SUR_UNE_STATION[verbe as keyof typeof SUR_UNE_STATION];
+    const [, nom = "", plafond = "", capacites = ""] = args;
+    if (args.length !== 2 + attendus || nom.startsWith("-")) echouer(2, USAGE);
+    const changement: Changement =
+      verbe === "remove" ? { retiree: true } : verbe === "remote" ? { distante: true } : { reglee: { cooks: /^[0-9]+$/.test(plafond) ? Number(plafond) : Number.NaN, fournit: capacites.split("+").map((capacite) => capacite.trim()) } };
+    changer(nom, verbe, changement);
+    return;
+  }
+
   const [declaration = ""] = args;
   if (args.length !== 1 || declaration.startsWith("-")) echouer(2, USAGE);
   if (declaration.trim() === "") echouer(2, `une déclaration vide ne déclare aucune station : aucun cook ne partirait — rien n'est écrit\n${USAGE}`);
@@ -141,6 +166,33 @@ export function principal({ args, env, dire, redire }: Appel): void {
     dire(`brigade : « ${etape.titre} » notée faite`);
   } finally {
     journal.fermer();
+  }
+
+  // Change une station au journal, et dit ce qu'il en est. Une station que le
+  // projet ne déclare pas, ou une valeur que le runtime ne lirait pas : refusé,
+  // et rien n'est écrit.
+  function changer(nom: string, verbe: string, changement: Changement): void {
+    if (!existsSync(cheminJournal(repertoireEtat as string))) echouer(1, `aucun journal dans ${repertoireEtat} : le projet ne déclare aucune station — rien n'est écrit\n${USAGE}`);
+    const journal = ouvrirJournal(repertoireEtat as string);
+    try {
+      const projet = journal.base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project ?? env.BRIGADE_PROJECT ?? "";
+      let fait;
+      try {
+        fait = changerUneStation(journal, { projet, nom, changement, auteur: AUTEUR });
+      } catch (erreur) {
+        if (erreur instanceof ConfigInvalide) echouer(2, `${verbe} ${nom} refusé — ${erreur.message} — rien n'est écrit`);
+        throw erreur;
+      }
+      const stations = direStations(lireStations({ [VARIABLE_DES_STATIONS]: declarationDuJournal(journal) }));
+      const quoi = verbe === "remove" ? `${nom} retirée` : verbe === "remote" ? `${nom} jouée par un poste : elle tire son travail` : `${nom} réglée`;
+      dire(
+        fait === null
+          ? `brigade : ${nom} est déjà ainsi — rien n'est réécrit ; les stations : ${stations}`
+          : `brigade : ${quoi}, les autres stations inchangées — ${stations} ; lues par le runtime à son réveil suivant, sans redémarrage, ou à son démarrage`,
+      );
+    } finally {
+      journal.fermer();
+    }
   }
 
   function montrer(faits: ReturnType<typeof faitsDesStations>): void {
