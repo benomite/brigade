@@ -401,10 +401,35 @@ a click types — its value, `A` — and its one-line label, whole; a long label
   — not under a shell, not under another project's second, not under a second that stopped (a keypress restarts it,
   it would not receive the choice).
 
-A gesture the second publishes (a merge, a box command) is not shown here yet: that is #1521.
+A gesture the second publishes (a merge, a box command) is shown in the same place, as a button: see below.
 
 *Code: `app/src/vue/second/choix.js` (the buttons), `app/src/second/propositions.ts` (the channel followed for each
 project, in the main process). Captures: `docs/captures/1520/`.*
+
+### The gesture the second names, as a confirm-then-run button (#1521)
+
+When what you have to do is a command — a merge, a pass on the box —, the second publishes it as a gesture through
+the same channel. Under its terminal, one line says `The second asks you to run a command` (how it works is in its
+`?` hover), then **one button that shows the exact command, in full**: nothing shortened, rewritten or hidden — a long
+command wraps between its words, its spaces and quotes kept as published.
+
+- **A click opens a confirmation**, under the button: `Run this command in the second's terminal, in your name?`,
+  the same full command again, then `run it` and `cancel`. Nothing runs yet; a second click on the button closes it.
+- **`cancel` runs nothing**: the confirmation closes, nothing is typed into the terminal, and the button stays — the
+  gesture is still proposed.
+- **`run it` types the command into the second's terminal**, exactly as published, then Enter — as if you had typed
+  it yourself, in your name (`! …` is `claude`'s shell mode). The button goes away, the terminal takes the keyboard
+  back, and the app tells the channel you did it.
+- **The second never runs it.** Publishing, publishing again or writing the command in its terminal only shows the
+  button; the only path that types the command is your click, then your `run it`.
+- **When the second moves on** (it clears its proposal) **or publishes a new one**, the button goes away, and an open
+  confirmation with it: its `run it` no longer runs anything. Typing your own answer in the terminal (Enter) also
+  answers the gesture, as for choices.
+- Like the choices, the button is only under the second of its project, while it runs.
+
+*Code: `app/src/vue/second/geste.js` (the button and its confirmation), `tenirLesChoix` in
+`app/src/vue/second/choix.js` (what the view holds: the open confirmation, the gesture run), `lancerLeGeste` in
+`app/src/vue/vue.js` (the only write). Captures: `docs/captures/1521/`.*
 
 ### From the app
 
