@@ -3,6 +3,10 @@
 // chacun la file que l'app de l'ordinateur lit sur la station — `facts` et
 // `status` —, lue au même instant sur le même état. Sans jeton valable, rien
 // ne se lit.
+//
+// Ce que le test ouvre — journal, guichet, base des téléphones — se ferme par
+// `aArreter`, avant que ses répertoires disparaissent : sous Windows, un
+// fichier ouvert ne se supprime pas.
 import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -16,7 +20,7 @@ import { principal as status } from "../../src/status.ts";
 import { ouvrirTelephones } from "../../src/telephone/appairage.ts";
 import { ouvrirGuichet } from "../../src/telephone/guichet.ts";
 import { projetsDeLaStation } from "../../src/telephone/projets.ts";
-import { appeler, horloge, JOUR_HORLOGE, repertoireTemporaire } from "../outils.ts";
+import { aArreter, appeler, horloge, JOUR_HORLOGE, repertoireTemporaire } from "../outils.ts";
 
 const INSTANT = new Date(`${JOUR_HORLOGE}T10:05:00.000Z`);
 
@@ -32,7 +36,7 @@ async function station(t: TestContext) {
   const repertoireEtat = join(racine, ETATS, "brigade");
   mkdirSync(repertoireEtat, { recursive: true });
   const journal = ouvrirJournal(repertoireEtat, { maintenant: horloge() });
-  t.after(() => journal.fermer());
+  aArreter(t, () => journal.fermer());
   const noter = (fait: Fait, ticket: number | null = null, author = "runtime") => journal.ajouter({ project: "brigade", ticket, author, ...fait });
   const arriver = (ticket: number, priority: number | null) =>
     noter({ type: "ticket.arrived", payload: { title: `Ticket ${ticket}`, priority, createdAt: `2026-10-01T00:00:${ticket}Z`, url: `https://github.com/benomite/brigade/issues/${ticket}` } }, ticket, "github");
@@ -44,7 +48,7 @@ async function station(t: TestContext) {
   const servis = { projets: () => ["brigade"], refuses: (): Record<string, string> => ({ espace: "its clone is missing" }) };
   const telephones = ouvrirTelephones(repertoireTemporaire(t));
   const guichet = await ouvrirGuichet({ telephones, projets: projetsDeLaStation({ racine, env, station: servis, maintenant: () => new Date() }), hote: "127.0.0.1", port: 0 });
-  t.after(async () => {
+  aArreter(t, async () => {
     await guichet.fermer();
     telephones.fermer();
   });
@@ -153,7 +157,7 @@ test("la liste et la file ne se lisent qu'en GET", async (t) => {
 test("un guichet ouvert sans les projets de la station rend une liste vide, et aucune file", async (t) => {
   const telephones = ouvrirTelephones(repertoireTemporaire(t));
   const guichet = await ouvrirGuichet({ telephones, hote: "127.0.0.1", port: 0 });
-  t.after(async () => {
+  aArreter(t, async () => {
     await guichet.fermer();
     telephones.fermer();
   });
