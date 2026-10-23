@@ -26,6 +26,7 @@ import { appelsDeLaStation, pauseDeLaStation } from "../../limite-github.ts";
 import type { Runtime } from "../../runtime.ts";
 import { lireLeTableau, OUVERTURE_DU_BLOC, type Tableau } from "../rendu/bloc.ts";
 import { tableauDeLaCuisine } from "../rendu/donnees.ts";
+import type { GestesDuTableau } from "../gestes/gestes.ts";
 import { rendreLeTableau, TITRE_DU_TABLEAU } from "../rendu/rendre.ts";
 import type { ClientDuTableau, IssueDuTableau } from "./client.ts";
 
@@ -158,29 +159,39 @@ export type OptionsDuBranchement = Omit<OptionsPublication, "lire"> & {
   maintenant?: () => Date;
   // Le répertoire de la station, dont `status` lit la pause et les appels à GitHub.
   station?: string;
+  // Les gestes du chef postés sous le tableau (tableau/gestes/) : lus après
+  // chaque rafraîchissement, et portés par le bloc machine.
+  gestes?: GestesDuTableau;
 };
 
 // Branche le tableau au runtime : un rafraîchissement d'emblée, puis à chaque
 // tick. Un rafraîchissement ne part pas tant que le précédent n'a pas fini, et
 // ce qui l'arrête — GitHub injoignable, son quota retenu — se dit une fois,
 // jusqu'à ce qu'il passe ou qu'autre chose l'arrête : il se retente au tick suivant.
+// Après lui, les gestes du chef se lisent sous le tableau qu'il a trouvé ; un
+// geste lu le rafraîchit aussitôt, pour que le bloc dise son état.
 export function brancherLeTableau<R extends Runtime>(runtime: R, options: OptionsDuBranchement): R {
   const maintenant = options.maintenant ?? (() => new Date());
   const { station } = options;
+  const { gestes } = options;
   const lire =
     options.lire ??
-    ((instant: Date) =>
-      tableauDeLaCuisine(lireEtat(runtime.journal, instant), instant, { limiteGithub: pauseDeLaStation(station, instant.getTime()), appels: appelsDeLaStation(station, instant.getTime()) }));
+    ((instant: Date) => {
+      const tableau = tableauDeLaCuisine(lireEtat(runtime.journal, instant), instant, { limiteGithub: pauseDeLaStation(station, instant.getTime()), appels: appelsDeLaStation(station, instant.getTime()) });
+      return gestes === undefined ? tableau : { ...tableau, gestes: gestes.lus() };
+    });
   const avertir = options.avertir ?? ((ligne: string) => console.error(ligne));
   const publication = publierLeTableau({ ...options, lire, avertir });
   let enCours = false;
   let dernierEchec: string | null = null;
+  let dernierEchecDesGestes: string | null = null;
   const passer = async () => {
     if (enCours) return;
     enCours = true;
     try {
-      await publication.rafraichir(maintenant());
+      const { numero } = await publication.rafraichir(maintenant());
       dernierEchec = null;
+      if (gestes !== undefined) await lireLesGestes(numero);
     } catch (erreur) {
       const motif = erreur instanceof Error ? erreur.message : String(erreur);
       if (motif !== dernierEchec) avertir(`brigade : Kitchen board de ${options.depot} non rafraîchi — ${motif}`);
@@ -188,6 +199,21 @@ export function brancherLeTableau<R extends Runtime>(runtime: R, options: Option
     } finally {
       enCours = false;
     }
+  };
+  // Ce qui arrête la lecture des gestes se dit à part, une fois : le tableau,
+  // lui, reste rafraîchi.
+  const lireLesGestes = async (numero: number) => {
+    let lu: boolean;
+    try {
+      lu = (await gestes?.traiter(numero)) === true;
+      dernierEchecDesGestes = null;
+    } catch (erreur) {
+      const motif = erreur instanceof Error ? erreur.message : String(erreur);
+      if (motif !== dernierEchecDesGestes) avertir(`brigade : gestes du Kitchen board de ${options.depot} non lus — ${motif}`);
+      dernierEchecDesGestes = motif;
+      return;
+    }
+    if (lu) await publication.rafraichir(maintenant());
   };
   void passer();
   runtime.surReveil((cause) => void (cause === "tick" && passer()));

@@ -38,6 +38,9 @@ import { brancherStation, configStation, depotDeStation } from "./station.ts";
 import { direStations, type StationDeclaree } from "./stations-declarees.ts";
 import { clientGitHubDuTableau } from "./tableau/publication/client.ts";
 import { brancherLeTableau } from "./tableau/publication/publier.ts";
+import { clientGitHubDesGestes } from "./tableau/gestes/client.ts";
+import { gestesDuTableau } from "./tableau/gestes/gestes.ts";
+import { ouvrirGitHub } from "./github.ts";
 
 // Ce que le runtime dit à journald est masqué, avant même son premier mot.
 masquerLaConsole();
@@ -210,7 +213,18 @@ try {
   // Le tableau de la cuisine ne lance rien non plus : il publie, dans le dépôt
   // du projet, ce que `status` dit — sous l'identité du manager, s'il en a une.
   const tableau = clientGitHubDuTableau({ depot: rail.depot, bin: rail.gh, ...(identites ? { jeton: identites.jeton("manager").frais, compte: "manager" } : {}) });
-  runtime = brancherLeTableau(alertee, { client: tableau, depot: rail.depot, station: process.env.BRIGADE_STATION_DIR });
+  // Les gestes que le chef y poste se lisent et se répondent sous la même
+  // identité ; ils se jouent comme ses gestes locaux, sous celle de la pass —
+  // qui merge et commente les tickets —, sans que la box retienne leurs appels.
+  const roles = identites;
+  const roleDesGestes = roles ? { jeton: roles.jeton("pass").frais, identite: () => roles.login("pass"), compte: "pass" } : {};
+  const gestes = gestesDuTableau({
+    client: clientGitHubDesGestes({ depot: rail.depot, bin: rail.gh, ...(identites ? { jeton: identites.jeton("manager").frais, compte: "manager" } : {}) }),
+    journal: alertee.journal,
+    projet,
+    github: ouvrirGitHub({ depot: rail.depot, bin: rail.gh, usage: "geste", ...roleDesGestes }),
+  });
+  runtime = brancherLeTableau(alertee, { client: tableau, depot: rail.depot, station: process.env.BRIGADE_STATION_DIR, gestes });
 } catch (erreur) {
   if (erreur instanceof ConfigInvalide || erreur instanceof DejaEnCours) refuser(erreur.message);
   throw erreur;
