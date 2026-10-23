@@ -103,6 +103,8 @@ export type GitHub = {
   // Le journal du job d'un check de GitHub Actions, ou null si le check n'en
   // est pas un, ou que GitHub ne le rend plus.
   journalDuCheck(check: Check): Promise<string | null>;
+  // Relance les jobs en échec d'un run de GitHub Actions, et eux seuls.
+  relancerLesEchecs(run: number): Promise<void>;
   // Remplace, sur l'issue, le commentaire dont le corps est `ancien` par
   // `nouveau` : rend faux si aucun ne l'est plus.
   remplacerCommentaire(numero: number, ancien: string, nouveau: string): Promise<boolean>;
@@ -472,10 +474,14 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
       return exiger(await lireSousCondition(["-H", "Accept: application/vnd.github.diff", chemin]), chemin).corps;
     },
     async journalDuCheck(check) {
-      const job = /\/actions\/runs\/\d+\/job\/(\d+)/.exec(check.url ?? "")?.[1];
+      const job = jobDuCheck(check)?.job;
       if (job === undefined) return null;
       const reponse = await appeler([`repos/${depot}/actions/jobs/${job}/logs`]);
       return reponse.statut === 200 ? reponse.corps : null;
+    },
+    async relancerLesEchecs(run) {
+      const chemin = `repos/${depot}/actions/runs/${run}/rerun-failed-jobs`;
+      exiger(await appeler(["-X", "POST", chemin]), chemin, 201);
     },
     async remplacerCommentaire(numero, ancien, nouveau) {
       const pages = await lireLaListe(`repos/${depot}/issues/${numero}/comments?per_page=100`);
@@ -507,6 +513,13 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
     identite: async () => (options.identite ? options.identite() : null),
     fermer: () => abandon.abort(),
   };
+}
+
+// Le run de GitHub Actions d'un check, et son job, que dit son adresse — null
+// si le check n'est pas un job de GitHub Actions.
+export function jobDuCheck(check: Check): { run: number; job: number } | null {
+  const [, run, job] = /\/actions\/runs\/(\d+)\/job\/(\d+)/.exec(check.url ?? "") ?? [];
+  return run === undefined || job === undefined ? null : { run: Number(run), job: Number(job) };
 }
 
 function pageSuivante(page: Reponse | undefined): string | null {

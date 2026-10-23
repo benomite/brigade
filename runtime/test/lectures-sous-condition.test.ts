@@ -129,7 +129,11 @@ test("avant : sans réponse 304, chaque tick de quatre projets compte toutes ses
   assert.ok(LECTURES_PAR_TICK * 60 > 2500, `${LECTURES_PAR_TICK * 60}`);
 });
 
-test("une heure de ticks sur quatre projets sans rien de changé sur GitHub : les lectures partent toujours, mais seules celles du premier tick comptent, et `status` dit l'heure réduite et qui en a fait le plus", async (t) => {
+// Soixante ticks, chacun de ses lectures par la doublure de `gh` : quelques
+// secondes sous Linux, mais de 70 à 120 s sur un runner Windows, où chaque
+// process coûte cher — au bord des deux minutes laissées à un test. Sa garde
+// est plus large : elle ne sert qu'à ce qu'un test bloqué finisse par le dire.
+test("une heure de ticks sur quatre projets sans rien de changé sur GitHub : les lectures partent toujours, mais seules celles du premier tick comptent, et `status` dit l'heure réduite et qui en a fait le plus", { timeout: 600_000 }, async (t) => {
   const { gh, racine, maintenant, compterUnTick } = uneStation(t, true);
   const parTick: number[] = [];
   for (let i = 0; i < 60; i++) parTick.push(await compterUnTick());

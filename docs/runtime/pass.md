@@ -12,11 +12,25 @@ this order:
 
 | What the CI says | What the pass does with it |
 |---|---|
-| a failing job, the branch **up to date with the base** | **red**, with the job's name, its conclusion, its address |
+| a failing job, the branch **up to date with the base** | **red**, with the job's name, its conclusion, its address — unless the red is not the delivery's (below) |
+| failing jobs, the branch up to date with the base, **only on tests the delivery does not touch** — and nothing else is red (gates, reviewer) | **the failed jobs are rerun, once per delivery** (`pass.ci-rerun`): no verdict, no send-back, no card, no comment. The CI is awaited again — the old red of a rerun job counts as running, and the CI wait restarts from the rerun. Green, the delivery goes on to the merge; red again, it is a verdict as above |
 | a failing job, the branch **without the head of the base** | that CI did not judge what will be merged: **its red is not a verdict**. The cook is sent back with "bring yourself up to date with the base", the jobs named — not with "CI red". It uses up a send-back, like a conflict. In the log, the CI is "not read" (`skipped`), its checks kept |
 | jobs still running | no verdict: read again at each tick. Thirty minutes with no conclusion: escalated to the chef (`unjudged`, cause `ci-silent`). Unless the reviewer has a blocking finding: red right away, CI "not read" |
 | everything green | green — whether or not the branch has the head of the base: the merge is judged by the gates |
 | **no check at all** | neither green nor red: the verdict rests on the gates and the reviewer (`ci: none`). Unless the branch carries a workflow (`.github/workflows`) that triggers on PRs to the base (`pull_request` or `pull_request_target`, branch and path filters included): its checks are awaited. A workflow that only runs on push holds nothing back: the PR is judged without CI |
+
+**A CI red that is not the delivery's** (`runtime/src/relance-de-ci.ts`). It is established only
+when every failing job is a GitHub Actions job whose log names its failing tests (the summary of
+`node --test`: `test at <file>:<line>:<col>`), each test is found once in the repository, and none
+is touched by the change: the test is not modified, no changed file is in what it imports or names
+— itself or its helpers under its test directory, product code being a leaf, type-only imports not
+counted —, and the change touches nothing that rules whole suites (a `package.json`, a lockfile, a
+`tsconfig`, `.github/`, `.claude/brigade/`). Anything that cannot be established — a status that is
+not an Actions job, an unreadable log, a log that names no test (a type check, a lint, a job cut at
+its timeout), a test the change touches — leaves the red to the delivery, as before. The rerun
+needs the right to rerun jobs: under role identities, the pass's token carries no `actions`
+permission (`identites-et-secrets.md`), GitHub refuses it, the runtime says so in its log, and the
+red stays a verdict.
 
 The comments the pass leaves on the issue write the CI as « non lue » (French) for `skipped`. That
 word stays French until the runtime is translated.

@@ -71,6 +71,7 @@ function depot(...issues: Issue[]) {
     ci: async () => [],
     diff: async () => "",
     journalDuCheck: async () => null,
+    relancerLesEchecs: async () => {},
     remplacerCommentaire: async () => false,
     merger: async () => ({ fait: true }),
     fermerIssue: async () => {},

@@ -156,6 +156,14 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
           ...(review?.findings ?? []).filter((finding) => finding.severity === "remark").map(constat),
         ];
       }
+      case "pass.ci-rerun": {
+        const { sha, runs, checks, tests } = evenement.payload;
+        return [
+          `${tete}CI red on ${sha.slice(0, 7)} only on tests the delivery does not touch: failed jobs rerun once (run${runs.length > 1 ? "s" : ""} ${runs.join(", ")}) — no return, no card`,
+          ...checks.map((check) => `      CI “${check.name}”: ${check.conclusion}${check.url ? ` — ${check.url}` : ""}`),
+          ...tests.map((test) => `      failing test: ${test}`),
+        ];
+      }
       case "pass.second-judged": {
         const { verdict, reason, judge, model, effort, reviewer } = evenement.payload;
         const par = judge === null ? "not launched" : `run ${judge}, ${model} / ${effort} — the reviewer reads in ${reviewer.model} / ${reviewer.effort}`;

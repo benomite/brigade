@@ -215,6 +215,13 @@ export type FaitPass =
         truncated: boolean;
       };
     }
+  // La CI du commit `sha` de la livraison du `run` était rouge sur des tests
+  // qu'elle ne touche pas, et sur rien d'autre (`relance-de-ci.ts`) : la pass a
+  // relancé les jobs en échec des `runs` de GitHub Actions, au lieu d'en faire
+  // un verdict. `checks` : les jobs rouges relancés — tant qu'ils se lisent
+  // encore, ils sont en cours. `tests` : les tests en échec, en chemins du
+  // dépôt. Une fois par livraison : ni renvoi, ni carte, ni phase changée.
+  | { type: "pass.ci-rerun"; payload: { run: string; sha: string; runs: number[]; checks: Check[]; tests: string[] } }
   // Le verdict, avec ce qui l'a produit : les gates, la CI, le reviewer — et
   // ce sur quoi il porte : `sha`, la tête de la branche ; `base`, la tête de la
   // base avec laquelle elle a été fusionnée ; `merged`, l'arbre obtenu, celui

@@ -11,6 +11,10 @@ an identity (`<name>[bot]`) that the branch rules can name.
 | **pass** | the pass: read the PRs and the CI, merge, close the issue, publish its verdict and the reviewer's review on it | `contents: write`, `pull_requests: write`, `issues: write`, `checks: read`, `statuses: read` |
 | **manager** | the manager and the rail: poll the issues, set the labels, comment, create an epic's tickets — and what the station says on the issue | `issues: write` |
 
+The pass's token carries **no `actions` permission**: under these identities it neither reads a
+CI job's log nor reruns failed jobs, so a CI red on tests the delivery does not touch stays a
+verdict instead of being rerun once (`pass.md`). Under the machine's single account, it is rerun.
+
 The **reviewer has no GitHub gesture**: it is a `claude` launched without a token in a throwaway
 worktree; its review is a fact of the log, which the pass publishes.
 
