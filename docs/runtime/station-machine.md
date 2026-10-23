@@ -502,6 +502,32 @@ it comes back. `choisir` / `choisirDans` record a selection on an open log or a 
 refusing a choice that is not raised or an option it does not offer (`ChoixInconnu`); `lireChoix`
 reads them, read-only.
 
+**At the project's installation, before its first ticket** (#1533): when the station prepares a project
+added from the app, it holds its needs in the project's log right after the chef's decisions are
+written, before it opens the preparation ticket and writes the project's line. A need the station
+does not really provide (its probe fails) is a pending choice before any ticket can be cooked; a
+project whose needs are all provided gets none.
+
+**When the worktree setup fails on a need** (#1533): the station reads the setup's output
+(`runtime/src/installation/besoins/setup.ts`) for the needs of the catalogue it names — a line that
+says it cannot use one (a Postgres that refuses the account: `connection to server … failed: FATAL:
+role "claude" does not exist`, `permission denied to create database`, `ECONNREFUSED …:5432`; a MySQL
+`ERROR 2002`/`1045`; `Could not connect to Redis`; `Cannot connect to the Docker daemon`), or one of
+its commands not found (`psql: command not found`). Those the station does not really provide (same
+judgment as above, a declared capability included) are written to the project's log
+(`need.setup-lacks`, `{ station, needs }`, only when it changes for that station), and their choice
+is raised at once, its cause being the setup: "`.claude/brigade/worktree-setup.sh` fails on
+box/claude because it cannot use a Postgres database there." Its message names the station where
+the setup failed. **The chef then gets the needs choice, not the red card** "The worktree setup of
+this project fails on box/claude" (blocker `setup`), which is lifted if it was there. The rest of a
+setup failure does not change (the ticket is 86, the issue comment, the preparation ticket's cook
+that leaves anyway). A setup failure that names no need the station lacks keeps the `setup` blocker,
+with the setup's error as it said it in `detail`, and clears what the station's previous setup said
+was missing. The station's next reads keep that choice as it is, even if the repository says nothing
+of the need, as long as the station still does not provide it; a setup that passes again clears it
+(`need.setup-lacks` with no need), and its choice is dropped — raised again by the next read if the
+repository still asks for the need.
+
 ### The first ticket: preparing the repository
 
 *Ticket #796.* Before writing the line of a project added from the app, the station opens on its
