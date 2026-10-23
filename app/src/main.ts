@@ -34,6 +34,8 @@ import { BANNIERE, COMMANDE, rangerLeRailPublie, tenirFaits, type RailDuProjetLu
 import { clientGitHub, parFetch } from "./tableau/client.ts";
 import { jetonDeGh } from "./tableau/jeton-gh.ts";
 import { lireLeTableauDuDepot, type LectureDuTableauDuDepot } from "./tableau/lecture.ts";
+import { clientDesGestesGitHub, envoyerLeGeste, posterParFetch, viseDe, type TableauVise } from "./tableau-gestes/github.ts";
+import type { EtatDuGeste } from "./tableau-gestes/gestes.ts";
 import { demandeDe, demandeDeLAlerte, demandeSurLeTicket, noteDeLaDemande } from "./demande.ts";
 import { CONFIRMES, DIRECTS, ecrireGeste, GRANTS } from "./gestes.ts";
 import { gestesDeCarte, jouerGesteDeFiche } from "./gestes-fiche.ts";
@@ -1081,9 +1083,19 @@ ipcMain.handle("tableauDuProjet", async (_, nom: unknown): Promise<LectureDuTabl
   const vise = declare(nom);
   if (vise === undefined) return { lu: false, depot: String(nom), luLe: new Date().toISOString(), raison: `The Kitchen board of ${String(nom)} is not read: it is no longer in the projects file.` };
   const lu = await lireLeTableauDuDepot({ depot: vise.depot ?? vise.nom, appeler: appelerGitHub });
-  if (lu.lu) pagesDuTableau.set(vise.nom, new Set(lu.pages));
+  if (lu.lu) {
+    pagesDuTableau.set(vise.nom, new Set(lu.pages));
+    tableauxVises.set(vise.nom, viseDe(lu));
+  }
   return lu;
 });
+// Une décision du chef sur une ligne de la file du tableau (#1590) : postée en commentaire sur l'issue du tableau, avec
+// le jeton du `gh` de ce poste — ni `ssh` ni station —, seulement pour un ticket de la file que la dernière lecture a
+// donnée. Rend `pending` et le commentaire posté, ou pourquoi rien n'est parti ; la vue suit la réponse de la box dans
+// les lectures suivantes du tableau.
+const tableauxVises = new Map<string, TableauVise>();
+const clientDesGestes = clientDesGestesGitHub({ jeton: jetonDeGh({ gh: ghIci, delaiMs: 10_000 }), poster: posterParFetch(), appeler: appelerGitHub });
+ipcMain.handle("gesteAuTableau", (_, nom: unknown, decision: unknown): Promise<EtatDuGeste> => envoyerLeGeste(tableauxVises.get(String(nom)), decision, clientDesGestes));
 // Une ligne de la file du tableau s'ouvre sur sa page de GitHub, dans le navigateur du poste : seulement une page que la
 // dernière lecture du tableau de ce projet a donnée (lecture.ts, `pages`). Rend si elle a été ouverte.
 const pagesDuTableau = new Map<string, Set<string>>();

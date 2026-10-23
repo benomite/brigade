@@ -126,6 +126,7 @@ import { AIDE as AIDE_DES_ROLES, poserLesRoles, resumeDesRoles, TITRE as TITRE_D
 import { apresLaDecision, phrase, poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
 import { poserPremierLancement } from "./premier-lancement.js";
 import { poserRailPublie } from "./rail-publie.js";
+import { apresEnvoi, attendLaBox } from "./gestes-du-tableau.js";
 import { ligneDuLienDirect, poserLeTableauDeCuisine } from "./tableau-de-cuisine.js";
 import { APPUI_LONG_MS, apresLeLacher, defileAvantLappui, GLISSE_CARTE, placeSurvolee } from "./rang-du-rail.js";
 import { poserOutilsDuSecond } from "./outils-du-second.js";
@@ -772,6 +773,12 @@ const parLeLienDirect = new Set();
 let tableauSansPont = false;
 // La box réécrit son tableau au plus une fois par minute : l'app ne le relit pas plus souvent.
 const RELECTURE_DU_TABLEAU_MS = 60_000;
+// Les décisions du chef sur les lignes du tableau de chaque projet (ticket 1590, gestes-du-tableau.js) : par ticket, le
+// geste envoyé et où il en est, la confirmation ouverte, ce qu'il a tapé. Tant qu'un geste attend la box, le tableau
+// montré se relit plus souvent : elle le lit à son tick, une fois par minute, et réécrit son tableau aussitôt.
+/** @type {Map<string, Map<number, import("./gestes-du-tableau.js").LigneTenue>>} */
+const lignesDuTableau = new Map();
+const RELECTURE_D_UN_GESTE_MS = 20_000;
 // Les onglets de contenu, dits par le process principal au démarrage (onglets.ts).
 /** @type {readonly import("../onglets.ts").Onglet[]} */
 let ONGLETS = [];
@@ -4323,6 +4330,13 @@ setInterval(() => {
 setInterval(() => {
   if (courant !== undefined && tableaux.has(courant.nom) && !parLeLienDirect.has(courant.nom) && !rail.hidden && ongletDe(courant) !== CUISINE) void lireLeTableau(courant);
 }, RELECTURE_DU_TABLEAU_MS);
+// Et plus souvent tant qu'un geste du chef y attend la réponse de la box.
+setInterval(() => {
+  if (courant === undefined || parLeLienDirect.has(courant.nom) || rail.hidden || ongletDe(courant) === CUISINE) return;
+  const tenu = tableaux.get(courant.nom);
+  const lu = tenu?.lu !== undefined && tenu.lu.lu ? tenu.lu : tenu?.dernier;
+  if (lu !== undefined && [...(lignesDuTableau.get(courant.nom)?.values() ?? [])].some(({ suivi }) => attendLaBox(suivi, lu.gestes))) void lireLeTableau(courant);
+}, RELECTURE_D_UN_GESTE_MS);
 
 // D'où vient ce qui se lit sur le rail, dans Paramètres : les commandes et l'heure de chaque lecture.
 /** @param {Projet} projet @param {string} heure @param {number | string | undefined} attendLu @param {number | string | undefined} railLu */
@@ -4693,7 +4707,10 @@ function poserRail(projet) {
   const tableau = tableaux.get(projet.nom);
   const parLeTableau = !cuisine && tableau !== undefined && projet.sansStation !== true;
   if (parLeTableau && !parLeLienDirect.has(projet.nom)) {
-    return rail.replaceChildren(...poserLeTableauDeCuisine(document, { projet: projet.nom, ...tableau, lienDirect: seLit(projet), maintenant: Date.now() }, gestesDuTableau(projet)));
+    const reprise = repriseDuClavier();
+    const lignes = lignesDuTableau.get(projet.nom);
+    rail.replaceChildren(...poserLeTableauDeCuisine(document, { projet: projet.nom, ...tableau, lienDirect: seLit(projet), maintenant: Date.now(), ...(lignes === undefined ? {} : { lignes }) }, gestesDuTableau(projet)));
+    return rendreLeClavier(reprise);
   }
   const parLeDirect = parLeTableau ? [ligneDuLienDirect(document, () => revenirAuTableau(projet))] : [];
   // Ni box ni station sur cet ordinateur : rien n'en est lu, et la page ne reste pas vide — elle dit pourquoi (ticket 1405).
@@ -4826,9 +4843,7 @@ function poserRail(projet) {
     const [nom, numero] = cle.split("#");
     if (nom === projet.nom && !toutes.some(({ cartes: siennes }) => siennes.some(({ ticket, gestes }) => String(ticket) === numero && gestes?.includes("attente-poser")))) formulairesDAttente.delete(cle);
   }
-  // Le champ où le chef tapait garde le clavier, et son curseur : le rail redessiné le lui rend.
-  const tape = /** @type {HTMLInputElement | null | undefined} */ (document.activeElement);
-  const reprise = tape?.dataset?.cle === undefined ? undefined : { cle: tape.dataset.cle, champ: tape.dataset.champ, debut: tape.selectionStart, fin: tape.selectionEnd };
+  const reprise = repriseDuClavier();
   poser(
     ...fraicheur(tenu.a),
     ...(cuisine
@@ -4843,11 +4858,21 @@ function poserRail(projet) {
     ...(cuisine || hors.length === 0 ? [] : [bloc("h3", `outside the columns — their state is none of the six, and nothing says they await you: the Rail read, in Settings, relays what \`${geste(projet, "rail")}\` says`), bons(hors)]),
   );
   servisSansCarte.replaceChildren(...(sansCarte.length === 0 ? [] : [bloc("h3", `served, without a card here — \`${geste(projet, "status")}\` shows their server`), servis(sansCarte)]));
-  if (reprise !== undefined) {
-    const repris = /** @type {HTMLInputElement[]} */ ([...rail.querySelectorAll("input, textarea")]).find(({ dataset }) => dataset.cle === reprise.cle && dataset.champ === reprise.champ);
-    repris?.focus();
-    if (repris !== undefined && reprise.debut !== null && reprise.fin !== null) repris.setSelectionRange?.(reprise.debut, reprise.fin);
-  }
+  rendreLeClavier(reprise);
+}
+
+// Le champ où le chef tapait garde le clavier, et son curseur : le rail redessiné le lui rend — celui d'une carte, d'un
+// formulaire, ou d'une ligne du tableau de la cuisine.
+function repriseDuClavier() {
+  const tape = /** @type {HTMLInputElement | null | undefined} */ (document.activeElement);
+  return tape?.dataset?.cle === undefined ? undefined : { cle: tape.dataset.cle, champ: tape.dataset.champ, debut: tape.selectionStart, fin: tape.selectionEnd };
+}
+/** @param {ReturnType<typeof repriseDuClavier>} reprise */
+function rendreLeClavier(reprise) {
+  if (reprise === undefined) return;
+  const repris = /** @type {HTMLInputElement[]} */ ([...rail.querySelectorAll("input, textarea")]).find(({ dataset }) => dataset.cle === reprise.cle && dataset.champ === reprise.champ);
+  repris?.focus();
+  if (repris !== undefined && reprise.debut !== null && reprise.fin !== null) repris.setSelectionRange?.(reprise.debut, reprise.fin);
 }
 
 // Ranger une carte de « On the rail » (ticket 1347, rang-du-rail.js) : elle se glisse, et se lâche sur une autre carte de
@@ -7653,6 +7678,52 @@ function gestesDuTableau(projet) {
         montrer();
       })(),
     forme: formeDe,
+    decisions: decisionsDuTableau(projet),
+  };
+}
+
+// Les décisions du chef sur les lignes de ce tableau (ticket 1590) : postées par le pont en commentaire sur son issue —
+// le `fetch` du desktop, le HTTP natif du téléphone —, suivies ensuite dans les lectures du tableau. Ce que la vue en
+// tient est en tête du fichier (`lignesDuTableau`).
+/** @param {Projet} projet @returns {import("./gestes-du-tableau.js").DecisionsDuTableau} */
+function decisionsDuTableau(projet) {
+  const siennes = () => {
+    const lignes = lignesDuTableau.get(projet.nom) ?? new Map();
+    lignesDuTableau.set(projet.nom, lignes);
+    return lignes;
+  };
+  const reposer = () => {
+    if (courant?.nom === projet.nom && !rail.hidden) poserRail(projet);
+  };
+  /** @param {number} ticket @param {import("./gestes-du-tableau.js").LigneTenue} change */
+  const tenir = (ticket, change) => void siennes().set(ticket, { ...siennes().get(ticket), ...change });
+  return {
+    proposer: (ticket, geste) => {
+      tenir(ticket, { propose: geste });
+      reposer();
+    },
+    // Ce que le chef tape ne redessine rien : le champ le montre déjà.
+    ecrire: (ticket, champ, texte) => tenir(ticket, champ === "raison" ? { raison: texte } : { reponse: texte }),
+    oublier: (ticket) => {
+      siennes().delete(ticket);
+      reposer();
+    },
+    decider: (decision) =>
+      void (async () => {
+        tenir(decision.ticket, { suivi: { decision, etape: "envoi" }, propose: undefined });
+        reposer();
+        /** @type {import("../tableau-gestes/gestes.ts").EtatDuGeste | undefined} */
+        let rendu;
+        try {
+          rendu = await brigade.gesteAuTableau?.(projet.nom, decision);
+        } catch {
+          rendu = { etat: "failed", raison: "Nothing was posted: the app failed while posting the gesture." };
+        }
+        const suivi = apresEnvoi(decision, rendu);
+        // Posté, ce que le chef avait tapé est parti avec lui.
+        tenir(decision.ticket, suivi.etape === "poste" ? { suivi, raison: "", reponse: "" } : { suivi });
+        reposer();
+      })(),
   };
 }
 

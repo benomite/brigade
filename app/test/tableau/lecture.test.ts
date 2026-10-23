@@ -5,7 +5,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { test } from "node:test";
-import { ecrireLeBloc, VERSION_DU_TABLEAU } from "../../../runtime/src/tableau/rendu/bloc.ts";
+import { ecrireLeBloc, VERSION_DU_TABLEAU, type GesteDuTableau } from "../../../runtime/src/tableau/rendu/bloc.ts";
+import { rendreLeTableau } from "../../../runtime/src/tableau/rendu/rendre.ts";
 import type { AppelGitHub, ReponseGitHub } from "../../src/tableau/client.ts";
 import { LABEL_DU_TABLEAU, lireLeTableauDuDepot, type LectureDuTableauDuDepot, type TableauNonLu } from "../../src/tableau/lecture.ts";
 import { CORPS, GENERE_LE, ISSUE, TABLEAU } from "./fixture.ts";
@@ -59,6 +60,17 @@ test("le tableau publié se lit : la même file et le même état que la box a �
   assert.equal(demande.pathname, `/repos/${DEPOT}/issues`);
   assert.equal(demande.searchParams.get("labels"), LABEL_DU_TABLEAU);
   assert.equal(demande.searchParams.get("state"), "open");
+});
+
+test("les gestes du chef que la box a lus sur le tableau se lisent avec lui ; un bloc écrit sans eux n'en donne aucun (#1590)", async () => {
+  const gestes: GesteDuTableau[] = [
+    { commentaire: 4242, url: "https://github.com/chef/parade/issues/7#issuecomment-4242", le: "2026-10-23T10:03:00.000Z", geste: "merge", ticket: 18, etat: "pris", traiteLe: "2026-10-23T10:04:00.000Z", reponse: "**Done** — [merge #18](https://github.com/chef/parade/issues/7#issuecomment-4242) — cost: …" },
+  ];
+  const avec = await lire(github({ status: 200, data: [{ ...ISSUE, body: rendreLeTableau({ ...TABLEAU, gestes }, GENERE_LE) }] }).appeler);
+  assert.ok(avec.lu, avec.lu ? "" : avec.raison);
+  assert.deepEqual(avec.gestes, gestes);
+  const sans = await lire(github({ status: 200, data: [ISSUE] }).appeler);
+  assert.deepEqual(sans.lu ? sans.gestes : null, []);
 });
 
 test("l'âge se compte jusqu'à l'heure où la réponse est arrivée, pas celle où la demande est partie", async () => {
