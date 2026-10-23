@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { posixOnly } from "./support/plateforme.ts";
 import type { Cloison } from "../src/cloison.ts";
-import { aDesGates, jouerGates, jouerSetup } from "../src/gates.ts";
+import { aDesGates, jouerGates, jouerGatesMesurees, jouerSetup } from "../src/gates.ts";
 import { JETON_MASQUE } from "../src/identifiants.ts";
 import { environnementClaude, FICHIER_DU_JETON } from "../src/jeton-claude.ts";
 import { ENV_ENFANT, mort, repertoireTemporaire } from "./outils.ts";
@@ -361,6 +361,21 @@ describe("le setup du worktree", { skip: posixOnly("runs a POSIX shell script"),
       SUR_DEUX_LIGNES: "un\ndeux",
     });
     assert.match(setup.sortie, new RegExp(`^setup 17 ${racine} dans .*brigade-test-`));
+  });
+
+  test("par un fichier — le canal de Windows, dont le bash ne reçoit pas le descripteur 3 —, le setup rend de même ce qu'il exporte, et les gates leur processeur", async (t) => {
+    const racine = worktree(t, {
+      setup: "printf \"export SUR_DEUX_LIGNES=%q\\n\" $'un\\ndeux'",
+      gates: 'echo "vu=$SUR_DEUX_LIGNES"',
+    });
+    const demande = { worktree: racine, ticket: 17, env: { ...ENV_ENFANT, DEJA_LA: "avant" }, delaiMs: 60_000, canalParFichier: true };
+
+    const setup = await jouerSetup(demande);
+    const { gates, cout } = await jouerGatesMesurees(demande);
+
+    assert.deepEqual(setup.pret && setup.env, { ...ENV_ENFANT, DEJA_LA: "avant", SUR_DEUX_LIGNES: "un\ndeux" });
+    assert.deepEqual([gates.outcome, gates.tail], ["green", "vu=un\ndeux"]);
+    assert.equal(typeof cout?.cpuMs, "number");
   });
 
   test("un setup en échec le dit : son code, et ce qu'il a écrit", async (t) => {
