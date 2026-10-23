@@ -374,6 +374,12 @@ const services = tenirServices({
     dire("alertes", bandes.controle(guide.projet, guide.controle));
   },
   controleMs: 60_000,
+  // Une station que ce poste joue, ou cesse de jouer (#1510) : l'opération du runtime l'écrit dans le fichier des
+  // projets, que l'app relit — son runner la joue alors (runtime/src/une-station.ts).
+  jouerIci: async (nom, station, jouer) => {
+    const { jouerIci, nePlusJouerIci } = (await import(pathToFileURL(join(emplacements.runtime, "src", "une-station.ts")).href)) as typeof import("../../runtime/src/une-station.ts");
+    return (jouer ? jouerIci : nePlusJouerIci)(cheminConfiguration(), nom, station);
+  },
 });
 // Ce qu'un projet installé a perdu — une station, un geste de box — se relit pour chacun,
 // quel que soit l'écran : sa pastille dans la barre le dit aussi. Toutes les cinq minutes, et
@@ -665,6 +671,12 @@ ipcMain.handle("verifier", (_, nom: unknown) => {
 ipcMain.handle("declarerStations", (_, nom: unknown, choix: unknown) => {
   const vise = connu(nom);
   return vise === undefined ? parti(nom) : services.declarerStations(vise, choix);
+});
+// Une station déclarée, changée seule depuis l'onglet Cooks (#1510) : son plafond, ses capacités, ce poste qui la joue,
+// ou son retrait (service.ts, `changerUneStation`).
+ipcMain.handle("changerUneStation", (_, nom: unknown, station: unknown, voulu: unknown) => {
+  const vise = connu(nom);
+  return vise === undefined ? parti(nom) : services.changerUneStation(vise, station, voulu);
 });
 ipcMain.handle("proteger", (_, nom: unknown) => {
   const vise = connu(nom);

@@ -396,6 +396,20 @@ export function commandeDeDemarrage(projet: Projet, ici = false): { commande: st
 // brute) — la bande d'alertes le reprend, sans le redire autrement.
 export type Controle = { a: string; stations?: StationsLues; manques?: Manque[]; renouvellement?: RenouvellementEnEchec; verification?: Montree };
 
+// Ce que le chef enregistre d'une station déclarée, depuis l'onglet Cooks (#1510) : son plafond de cooks, ses capacités
+// et si ce poste la joue — ou son retrait. Chaque geste ne change qu'elle (runtime/src/une-station.ts).
+export type StationVoulue = { cooks: number; fournit: string[]; jouee: boolean } | { retiree: true };
+// Ce qu'il en advient, en une ligne : `detail`, ce que la box a rendu d'un refus — pour le survol.
+export type StationChangee = { fait: string } | { refus: string; detail?: string };
+// Ce poste joue une station pour un projet, ou cesse : écrit dans le fichier des projets par l'opération du runtime
+// (runtime/src/une-station.ts, `jouerIci`, `nePlusJouerIci`) — l'app relit le fichier, et son runner la joue.
+export type JoueeIci = { ecrit: boolean; stations: string[] } | { refus: string };
+
+// Un nom de capacité, tel que le runtime le lit (runtime/src/capacites.ts, `CAPACITE`) : rien qu'un shell lirait autrement.
+const CAPACITE = /^[\p{L}\p{N}][\p{L}\p{N}_-]*$/u;
+// Un nom de station (runtime/src/stations-declarees.ts, `NOM_DE_STATION`).
+const NOM_DE_STATION = /^[\p{Ll}\p{N}][\p{Ll}\p{N}-]*\/[\p{Ll}\p{N}][\p{Ll}\p{N}-]*$/u;
+
 // --- Ce que la vue pose.
 
 // Un manque, tel que l'écran le pose : en mots simples, qui agit, et — si c'est le chef — le
@@ -565,6 +579,9 @@ export function tenirServices(options: {
   session(projet: Projet, commande: string): Terminal;
   shell(projet: Projet, ecrit: string): Terminal;
   surGuide(guide: Guide): void;
+  // Ce poste joue `station` pour le projet `nom` — ou cesse, `jouer` faux —, écrit dans le fichier des projets.
+  // Absent, aucune station ne se marque jouée ici.
+  jouerIci?(nom: string, station: string, jouer: boolean): Promise<JoueeIci>;
   // L'écart minimal entre deux contrôles d'un projet installé, sauf s'il est demandé exprès :
   // la vérification joint l'origine et GitHub, et tient le passage du projet le temps de le faire.
   controleMs?: number;
@@ -740,6 +757,16 @@ export function tenirServices(options: {
       pousser(projet, tenu);
     })();
     return tenu.controlant;
+  }
+
+  // Les stations du projet, relues seules après qu'une a changé : la vue les montre sans attendre le contrôle
+  // suivant, ni la vérification entière qu'il joue. Un contrôle en route finit d'abord — il les a lues avant.
+  async function relireLesStations(projet: Avec, tenu: Tenu): Promise<void> {
+    await tenu.controlant;
+    const joue = await jouer(projet, COMMANDES.stations);
+    const lues = "echec" in joue || joue.code !== 0 ? undefined : lireStations(joue.sortie);
+    if (lues !== undefined && tenu.controle !== undefined) tenu.controle = { ...tenu.controle, stations: lues };
+    pousser(projet, tenu);
   }
 
   const deplie = (tenu: Tenu) => tenu.suivi || (tenu.etapes !== undefined && tenu.etapes.courante !== null && tenu.etapes.etapes.some(({ etat }) => etat !== "todo"));
@@ -992,6 +1019,74 @@ export function tenirServices(options: {
         if (!/^[A-Za-z0-9/:+,._-]+$/.test(declaration)) return { refus: "Nothing was declared: its main station provides a station whose name the app does not carry safely." };
         return ecrire(avec, `installation stations ${declaration}`, { ok: "Stations declared", non: "Its main station refused the stations" });
       });
+    },
+
+    // Une station déclarée, changée seule depuis l'onglet Cooks (#1510) : son plafond et ses capacités, ce poste qui la
+    // joue ou non, ou son retrait — par les commandes du runtime qui ne touchent qu'elle (`installation stations set`,
+    // `remote`, `remove`) ; les autres restent telles que la box les a écrites. La jouer ici l'écrit aussi dans le
+    // fichier des projets (`jouerIci`) : l'app le relit, et la joue. `voulu` : ce que la vue a recueilli — rien n'y
+    // est cru sur parole. Puis les stations sont relues, et la vue les reçoit par `surGuide`.
+    async changerUneStation(projet: Projet, nom: unknown, voulu: unknown): Promise<StationChangee> {
+      const avec = avecSaCuisine(projet);
+      if (avec === undefined) return { refus: sansBox(projet.nom) };
+      const tenu = tenir(avec);
+      const station = typeof nom === "string" && NOM_DE_STATION.test(nom) ? tenu.controle?.stations?.declarees.find((lue) => lue.nom === nom) : undefined;
+      if (station === undefined) return { refus: `Nothing was changed: “${String(nom)}” is not a station the project declares.` };
+      if (tenu.action !== undefined || tenu.verifiant !== undefined) return { refus: OCCUPE };
+      const lu = (voulu ?? {}) as Lu;
+      const ici = "locale" in avec.cuisine;
+      const jouees = projet.stations ?? [];
+      const ecrites: { commande: string; titre: string }[] = [];
+      let jouer: boolean | undefined;
+      if (lu.retiree === true) {
+        ecrites.push({ commande: `installation stations remove ${station.nom}`, titre: `Its main station did not remove ${station.nom}` });
+        if (jouees.includes(station.nom)) jouer = false;
+      } else {
+        const { cooks, fournit, jouee } = lu;
+        if (typeof cooks !== "number" || !Number.isInteger(cooks) || cooks < 1 || cooks > 99) return { refus: `Nothing was saved: how many cooks ${station.nom} runs at once is a whole number, from 1 to 99.` };
+        const lues = Array.isArray(fournit) ? (fournit as unknown[]).map((capacite) => (typeof capacite === "string" ? capacite.trim().normalize("NFC") : "")) : [];
+        if (lues.length === 0) return { refus: `Nothing was saved: ${station.nom} provides at least one capability — tick one.` };
+        const illisible = lues.find((capacite) => !CAPACITE.test(capacite));
+        if (illisible !== undefined) return { refus: `Nothing was saved: “${illisible}” is not a capability — letters, digits and dashes.` };
+        const capacites = [...new Set(lues)];
+        if (cooks !== station.cooks || capacites.join("+") !== station.fournit.join("+")) {
+          const ecrite = capacites.join("+");
+          ecrites.push({ commande: `installation stations set ${station.nom} ${cooks} ${/^[A-Za-z0-9+_-]+$/.test(ecrite) ? ecrite : `'${ecrite}'`}`, titre: `Its main station refused the change to ${station.nom}` });
+        }
+        // Sur un projet dont la cuisine tourne ici, toutes ses stations y tournent : il n'y a rien à marquer.
+        if (!ici && jouee === true && !jouees.includes(station.nom)) jouer = true;
+        if (!ici && jouee === false && jouees.includes(station.nom)) jouer = false;
+        if (jouer === true && !station.distante) ecrites.push({ commande: `installation stations remote ${station.nom}`, titre: `Its main station did not hand ${station.nom} to a workstation` });
+      }
+      if (ecrites.length === 0 && jouer === undefined) return { fait: `${station.nom}: nothing changed` };
+      if (jouer !== undefined && options.jouerIci === undefined) return { refus: "Nothing was saved: this app does not write which stations this workstation plays." };
+      tenu.action = `changing ${station.nom}…`;
+      pousser(projet, tenu);
+      try {
+        // Jouée ici : le fichier des projets d'abord — il refuse un projet sans box, un moteur que ce poste ne lance
+        // pas —, puis la box. Si elle refuse, le fichier est remis comme il était.
+        if (jouer === true) {
+          const joue = await (options.jouerIci as NonNullable<typeof options.jouerIci>)(projet.nom, station.nom, true);
+          if ("refus" in joue) return { refus: `Nothing was saved: this workstation cannot play ${station.nom}.`, detail: joue.refus };
+        }
+        for (const { commande, titre } of ecrites) {
+          const fait = await ecrire(avec, commande, { ok: "", non: titre });
+          if (!fait.ok) {
+            if (jouer === true) await (options.jouerIci as NonNullable<typeof options.jouerIci>)(projet.nom, station.nom, false);
+            return { refus: fait.titre, detail: fait.obtenu };
+          }
+        }
+        if (jouer === false) {
+          const joue = await (options.jouerIci as NonNullable<typeof options.jouerIci>)(projet.nom, station.nom, false);
+          if ("refus" in joue) return { refus: `This workstation still plays ${station.nom}: the projects file was not written.`, detail: joue.refus };
+        }
+      } finally {
+        tenu.action = undefined;
+        pousser(projet, tenu);
+      }
+      await relireLesStations(avec, tenu);
+      if (lu.retiree === true) return { fait: `${station.nom} removed — the other stations are unchanged` };
+      return { fait: `${station.nom} saved${jouer === true ? " — this workstation plays it" : jouer === false ? " — this workstation no longer plays it" : ""}; the other stations are unchanged` };
     },
 
     // Protège la branche d'intégration sur GitHub, par le compte de `gh` de la box.
