@@ -89,6 +89,12 @@ export function lectureDuTicket(mission: { ticket: number; depot: string; remis?
     : `le fichier \`${mission.remis}\`, où la station te l'a remis avec ses commentaires (tu n'as aucun accès à GitHub : \`gh\` ne te répondra pas)`;
 }
 
+// Le cook qui n'a pas lu son ticket sur GitHub le lit dans un fichier que le
+// relecteur n'ouvre pas : son compte-rendu doit montrer qu'il l'a lu.
+export function preuveDeLecture(remis: string | undefined): string {
+  return remis === undefined ? "" : " Cite ou reprends dans ce compte-rendu les termes du ticket (ses critères, sa fiche) auxquels ta livraison répond, pour que le relecteur voie que tu l'as lu.";
+}
+
 // Le ticket tel que la station le remet à un cook sans accès à GitHub : ce que
 // `gh issue view --comments` lui aurait montré.
 export function ticketRemis(ticket: { number: number; title: string; body: string; commentaires: Array<{ author: string; association: string; body: string }> }): string {
@@ -148,7 +154,7 @@ export function consigne(mission: { ticket: number; titre: string; depot: string
     "3. Vérifie ton travail comme le dépôt le demande (tests, gates), puis commite-le sur cette branche.",
     "4. Si le ticket porte une fiche (un commentaire « Fiche du ticket »), sa ligne `zone` nomme les fichiers et dossiers qu'il possède. N'écris ailleurs que si le ticket l'exige, et dis-le dans ton compte-rendu : tout fichier livré hors de la zone est signalé au chef. Tu ne modifies pas la fiche.",
     "5. Tu ne pousses rien, tu n'ouvres pas de PR, tu ne merges jamais et tu ne commentes pas le ticket : la station s'en charge quand tu as fini.",
-    `6. Termine par ton compte-rendu, en clair : ce que tu as fait, ce que tu as vérifié et comment, ce qui reste à faire ou ce qui t'a bloqué. ${CONSIGNE_DU_LIVRABLE} ${CONSIGNE_DE_RETRO}`,
+    `6. Termine par ton compte-rendu, en clair : ce que tu as fait, ce que tu as vérifié et comment, ce qui reste à faire ou ce qui t'a bloqué.${preuveDeLecture(mission.remis)} ${CONSIGNE_DU_LIVRABLE} ${CONSIGNE_DE_RETRO}`,
     "",
     CONSIGNE_DE_FIN_DE_TOUR,
   ].join("\n");
@@ -174,7 +180,7 @@ export function consigneDeSuite(mission: { ticket: number; titre: string; depot:
     `3. Vérifie ton travail comme le dépôt le demande (tests, gates), ta branche à jour de la base — \`git fetch origin ${base}\`, puis rebase sur \`origin/${base}\` —, puis commite-le sur cette branche.`,
     "4. Si le ticket porte une fiche (un commentaire « Fiche du ticket »), sa ligne `zone` nomme les fichiers et dossiers qu'il possède. N'écris ailleurs que si le ticket l'exige, et dis-le dans ton compte-rendu : tout fichier livré hors de la zone est signalé au chef. Tu ne modifies pas la fiche.",
     "5. Tu ne pousses rien, tu n'ouvres pas de PR, tu ne merges jamais et tu ne commentes pas le ticket : la station s'en charge quand tu as fini.",
-    `6. Termine par ton compte-rendu, en clair : ce que tu as repris, ce que tu as fait, ce que tu as vérifié et comment, ce qui reste à faire ou ce qui t'a bloqué. ${CONSIGNE_DU_LIVRABLE} ${CONSIGNE_DE_RETRO}`,
+    `6. Termine par ton compte-rendu, en clair : ce que tu as repris, ce que tu as fait, ce que tu as vérifié et comment, ce qui reste à faire ou ce qui t'a bloqué.${preuveDeLecture(mission.remis)} ${CONSIGNE_DU_LIVRABLE} ${CONSIGNE_DE_RETRO}`,
     "",
     CONSIGNE_DE_FIN_DE_TOUR,
   ].join("\n");

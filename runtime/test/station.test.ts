@@ -2098,6 +2098,26 @@ describe("la station, cooks sans identité", { concurrency: 8 }, () => {
     assert.ok(!fichier.startsWith(join(repertoire, "worktrees")));
   });
 
+  test("dans le bac à sable d'une cuisine locale, le cook reçoit son ticket en fichier — corps et commentaires —, sans que ~/.config/gh lui soit ouvert", async (t) => {
+    const bacASable = { version: "2.1.300", home: "/Users/chef", caches: [], hotes: () => [] };
+    const { repertoire, gh, lancements, dernier } = cuisine(t, { scenario: "bavard", bacASable, issues: [issue(15, CALIBRE, { title: "Le ticket du Mac" })] });
+    gh.decrire(15, { body: "Fais ceci, puis cela." });
+    gh.repondre(15, "Et n'oublie pas la doc.");
+    await jusqua(() => lancements().length === 1);
+
+    const fichier = remisA(repertoire, dernier("cook.launched", 15)?.run);
+    const consigne = lancements()[0]?.args.find((arg) => arg.startsWith("Tu es un cook")) ?? "";
+    assert.ok(consigne.includes(`le fichier \`${fichier}\``), consigne);
+    assert.doesNotMatch(consigne, /gh issue view/);
+    assert.match(consigne, /Cite ou reprends dans ce compte-rendu/);
+    const remis = readFileSync(fichier, "utf8");
+    assert.match(remis, /^# #15 — Le ticket du Mac\n\nFais ceci, puis cela\./);
+    assert.match(remis, /Et n'oublie pas la doc\./);
+    // Les outils de `claude` ne lisent hors du worktree que ce qu'une règle autorise : le fichier remis l'est.
+    const reglages = JSON.parse(lancements()[0]?.args[(lancements()[0]?.args.indexOf("--settings") ?? -2) + 1] ?? "{}");
+    assert.ok(reglages.permissions.allow.includes(`Read(/${fichier})`), JSON.stringify(reglages.permissions.allow));
+  });
+
   test("un ticket illisible sur GitHub ne lance aucun cook : il est reproposé plus tard, et son worktree ne reste pas", async (t) => {
     const { repertoire, gh, etat, dernier, lancements, avertissements } = cuisine(t, { scenario: "bavard", sansIdentite: true, issues: [issue(15)] });
     const lire = gh.github.commentaires;
@@ -2129,6 +2149,7 @@ describe("la station, cooks sans identité", { concurrency: 8 }, () => {
     await jusqua(() => lancements().length === 1);
 
     assert.match(lancements()[0]?.args[1] ?? "", /gh issue view 15 --repo benomite\/brigade --comments/);
+    assert.doesNotMatch(lancements()[0]?.args[1] ?? "", /Cite ou reprends/);
     assert.equal(existsSync(remisA(repertoire, dernier("cook.launched", 15)?.run)), false);
     // Ce que le setup exporte pour `gh` passe, comme avant.
     assert.equal(lancements()[0]?.env.GH_TOKEN, "ghp-du-projet");

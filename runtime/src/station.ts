@@ -43,6 +43,7 @@
 // lit dans le journal, donc tient après un redémarrage.
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { geste as commandeDeBox } from "./geste.ts";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import type { RuntimeAvecRail } from "./alimenter.ts";
 import type { Mot } from "./arbitre.ts";
@@ -74,6 +75,7 @@ import { IDENTIFIANTS_LIVRES, PART_SANS_PROGRES, SANS_DIFF, SANS_LIVRABLE, type 
 import { illisible, MARQUEUR, requises } from "./fiche.ts";
 import { direMasquage, FICHIER_DES_IDENTIFIANTS, identifiantsLivres, LONGUEUR_MIN_DU_JETON, type SigneDIdentifiants } from "./identifiants.ts";
 import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.ts";
+import { lectureInterdite } from "./bac-a-sable/configuration.ts";
 import { envelopper, type Cloison } from "./cloison.ts";
 import { jouerSetup, SCRIPT_SETUP } from "./gates.ts";
 import { avecLesBins, reparer } from "./installation/reparations/reparations.ts";
@@ -1892,16 +1894,20 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
     // Un setup en échec n'a rien exporté : le cook part avec ce qu'il a reçu.
     const envDuCook = setup.pret ? setup.env : envDuSetup;
 
-    // Sans identité, le cook ne peut pas lire son ticket sur GitHub : la
+    // Sans identité, ou dans le bac à sable d'une cuisine locale (qui refuse
+    // `~/.config/gh`), le cook ne peut pas lire son ticket sur GitHub : la
     // station le lui remet, hors de son worktree — rien n'en est récolté. Un
     // ticket illisible ne lance aucun cook : il est reproposé plus tard.
     let remis: string | undefined;
-    if (options.sansIdentite) {
+    if (options.sansIdentite || options.bacASable) {
       try {
         const [lue, commentaires] = await Promise.all([github.issue(numero), github.commentaires(numero)]);
         if (arrete) return;
         if (lue === null) throw new Error("l'issue n'existe plus");
-        const fichier = resolve(options.repertoireEtat, "runs", `${run}.ticket.md`);
+        // Le bac à sable refuse de lire ce que le chef garde sous
+        // `~/.config/brigade` : un état posé là ne pourrait pas lui être remis.
+        const dossier = options.bacASable && lectureInterdite(options.bacASable.home, resolve(options.repertoireEtat)) ? join(tmpdir(), "brigade-tickets") : resolve(options.repertoireEtat, "runs");
+        const fichier = join(dossier, `${run}.ticket.md`);
         mkdirSync(dirname(fichier), { recursive: true });
         writeFileSync(fichier, ticketRemis({ number: numero, title: lue.title, body: lue.body ?? "", commentaires }));
         remis = fichier;
@@ -1978,6 +1984,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
                   reprise?.session,
                 ),
                 worktree,
+                remis === undefined ? [] : [remis],
               ),
             },
             { cwd: worktree, depot: "ecriture", lit: remis === undefined ? [] : [remis] },

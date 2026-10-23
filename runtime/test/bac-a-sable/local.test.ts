@@ -135,7 +135,11 @@ test("dans une cuisine locale, le cook, le reviewer de la pass et le jugement du
     assert.equal(mode, "dontAsk");
     assert.equal(lance.args.includes("bypassPermissions"), false);
     // Le profil d'un cook prêté par la box, pour le répertoire où il travaille.
-    assert.deepEqual(reglages, configurer({ worktree: ou, caches: bacASable.caches, hotes: HOTES, home: HOME }).reglages);
+    // Seul le cook reçoit un fichier à lire hors de son worktree : son ticket.
+    const lus = reglages.permissions.allow.filter((regle) => regle.startsWith("Read(/")).map((regle) => regle.slice("Read(/".length, -1));
+    assert.equal(lus.length, lance === cook ? 1 : 0);
+    assert.ok(lus.every((fichier) => fichier.endsWith(".ticket.md")));
+    assert.deepEqual(reglages, configurer({ worktree: ou, caches: bacASable.caches, hotes: HOTES, home: HOME, lit: lus }).reglages);
     assert.ok(reglages.sandbox.filesystem.denyRead.includes(join(HOME, ".ssh")));
     assert.ok(reglages.sandbox.filesystem.denyRead.includes(join(HOME, ".claude/.credentials.json")));
     assert.equal(reglages.sandbox.network.strictAllowlist, true);

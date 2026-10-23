@@ -53,7 +53,9 @@ export const LECTURES_INTERDITES = [
 // Le cook pour lequel la configuration s'écrit. `hotes` : la liste réseau du
 // projet, telle que `reseau.ts` la tient — rien n'y est ajouté. `prod` : les
 // accès de prod du chef, hors de ceux que `LECTURES_INTERDITES` nomme déjà.
-export type Cook = { worktree: string; caches: string[]; hotes: Regle[]; home: string; prod?: string[] };
+// `lit` : des fichiers, hors du worktree, que la station lui remet à lire (son
+// ticket) — le seul droit de lecture que la configuration ajoute.
+export type Cook = { worktree: string; caches: string[]; hotes: Regle[]; home: string; prod?: string[]; lit?: string[] };
 
 export type Reglages = {
   env: { npm_config_manage_package_manager_versions: "false" };
@@ -90,6 +92,12 @@ function chemin(brut: string, home: string, quoi: string): string {
 // Vrai si `enfant` est `parent` ou se trouve sous lui.
 const sous = (parent: string, enfant: string) => parent === "/" || enfant === parent || enfant.startsWith(`${parent}/`);
 
+// Vrai si `lieu` est sous un chemin que le cook ne lit pas : un fichier qu'on
+// lui remet n'y serait pas lisible.
+export function lectureInterdite(home: string, lieu: string): boolean {
+  return LECTURES_INTERDITES.some((relatif) => sous(posix.join(home, relatif), posix.normalize(lieu)));
+}
+
 const unique = (valeurs: string[]) => [...new Set(valeurs)];
 
 // Un hôte de la liste, comme `reseau.ts` l'a lu : des labels, rien d'autre.
@@ -120,6 +128,11 @@ export function configurer(cook: Cook): ConfigDeBacASable {
     if (sous(lieu, home)) throw new BacASableInvalide(`${lieu} : un cook n'écrit ni à la racine du compte (${home}), ni au-dessus`);
     const touche = interdits.find((interdit) => sous(interdit, lieu) || sous(lieu, interdit));
     if (touche !== undefined) throw new BacASableInvalide(`${lieu} : un cook n'y écrirait pas sans toucher à ${touche}, qu'il ne doit pas même lire`);
+  }
+  const lus = unique((cook.lit ?? []).map((fichier) => chemin(fichier, home, "fichier remis au cook")));
+  for (const fichier of lus) {
+    const touche = interdits.find((interdit) => sous(interdit, fichier));
+    if (touche !== undefined) throw new BacASableInvalide(`${fichier} : un fichier remis au cook ne peut pas être sous ${touche}, qu'il ne doit pas lire`);
   }
   const hotes = cook.hotes.map((regle) => ({ regle, noms: domaines(regle) }));
   return {
@@ -154,6 +167,9 @@ export function configurer(cook: Cook): ConfigDeBacASable {
       permissions: {
         allow: unique([
           ...ecrits.map((lieu) => `Edit(/${lieu}/**)`),
+          // Le ticket que la station remet en fichier : les outils de `claude`
+          // ne lisent hors du worktree que ce qu'une règle autorise.
+          ...lus.map((fichier) => `Read(/${fichier})`),
           // WebFetch suit ses propres règles, pas la liste du bac à sable ; une
           // règle WebFetch ouvre l'hôte sur tous ses ports, elle ne s'écrit
           // donc pas pour un hôte borné à un port.
