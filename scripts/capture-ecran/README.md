@@ -107,6 +107,7 @@ compare que deux captures du même navigateur.
 | `cooks-roles` | L'onglet Cooks de `parade` (#1274) : sous ses stations et son plafond, les rôles de sa cuisine — manager, pass, reviewer, second juge (`no action yet`), triage, closer —, chacun avec ce qu'il fait et sa dernière action datée |
 | `correction` | La file de `parade` quand une cause de ratage revient (#999) : au-dessus des colonnes, la carte d'une correction proposée de son `CLAUDE.md` — ce qu'on attend du chef, la cause, ses trois tickets, le diff, son coût, « yes, open it as a PR » et « no » |
 | `correction-oui`, `correction-sans-geste` | La même, « yes » cliqué : la réponse écrite, la carte a quitté la file — puis sur une station dont le runtime ne connaît pas encore le geste `correction` : la carte reste, et une ligne le dit, le détail au survol |
+| `rail-file`, `rail-file-glisse`, `rail-file-lachee`, `rail-file-refus` | La file de `parade`, quatre tickets sur le rail dans l'ordre où le runtime les sert, chacun avec sa priorité, #21 en tête qui dit pourquoi il ne part pas (#1347) — puis #24 en train de glisser au-dessus de #23, le trait qui dit où il atterrira ; lâché là, avec la priorité de ses voisines ; et #22 lâché avant #23, qu'il attend : refusé, la carte a repris sa place et la phrase du runtime le dit |
 | `todo-cartes` | La file de `parade` avec deux cartes dans TODO (#1281) : #12, une validation de design — sa question, ses captures avant et après sur la carte, un bouton par choix, le champ du texte libre et « send » — et #21, un choix de produit sans écran, sans zone de captures |
 | `todo-carte-repondue` | La même, le premier choix de #21 cliqué : la réponse est écrite, la carte a quitté TODO sans autre clic, la colonne compte 1 |
 | `fiabilite` | Settings → Reliability de `parade` (#987) : la fiabilité de ses cooks — trois chiffres, les causes d'échec — et ce qu'il a coûté ; aucune correction acceptée de ses consignes, la page n'en dit rien (#1001) |
@@ -208,8 +209,10 @@ dans `main.ts`, à partir de ce que la box rendrait (`pass 14 --json`, `pass 14 
 - **D'autres données de box** : un autre état du rail, une box qui ne répond pas… s'écrivent comme
   la box les rendrait, dans `cuisine-figee.ts` ou à côté, et passent par `cuisine()`.
 - **`etapes`** : après chacune, la page se pose avant la suivante. Une étape est un clic
-  (`{ cliquer: <sélecteur> }`) ou un texte tapé dans un champ (`{ saisir: <sélecteur>, texte }` : sa
-  valeur posée, et l'`input` que la frappe déclencherait — `telephone-second-tape`). Un sélecteur qui
+  (`{ cliquer: <sélecteur> }`), un texte tapé dans un champ (`{ saisir: <sélecteur>, texte }` : sa
+  valeur posée, et l'`input` que la frappe déclencherait — `telephone-second-tape`), ou un glisser
+  (`{ glisser: <sélecteur>, sur: <sélecteur> }` : `dragstart` sur l'un, `dragover` sur l'autre, la capture
+  le montre en vol — `rail-file-glisse` ; `lacher: true` le lâche là, `drop` puis `dragend`). Un sélecteur qui
   ne désigne pas exactement un élément arrête la capture en le disant.
 
 Puis : `--liste` le montre, une capture le rend, et `npm --prefix scripts/capture-ecran test` le
@@ -220,4 +223,4 @@ rend avec les autres — le test vérifie que **chaque** écran de `ecrans/` se 
 - Elle ne lance pas `main.ts` : ce qu'il câble (l'ordre des envois, ce qu'il passe à quel module)
   est repris dans `cuisine()`. Si `main.ts` change ce qu'il envoie à la vue, `cuisine()` est à suivre.
 - Les terminaux ne font tourner ni `claude` ni shell : ils affichent ce qu'un envoi `surSortie` y écrit.
-- Ce qui ne se voit qu'au survol, à la saisie ou au glisser n'a pas d'étape : un clic seulement.
+- Ce qui ne se voit qu'au survol n'a pas d'étape.

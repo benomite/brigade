@@ -96,6 +96,21 @@ async function rendre(ecran: Ecran, taille: { largeur: number; hauteur: number }
   await poser("au démarrage de la vue");
   if (!((await evaluer("window.__capture.demandes.includes('demarrage')")) as boolean)) throw new Error("la vue n'a pas démarré : elle n'a jamais demandé `demarrage` au pont");
   for (const etape of ecran.etapes) {
+    if ("glisser" in etape) {
+      // Un glisser, comme le navigateur le rejoue : `dragstart` sur ce qui part, `dragover` sur ce qu'il survole — et, lâché,
+      // `drop` là, puis `dragend` sur ce qui est parti. Le même transfert les porte tous.
+      const geste = `glisser ${etape.glisser} sur ${etape.sur}`;
+      const lacher = etape.lacher === true ? `cible.dispatchEvent(evenement("drop")); source.dispatchEvent(evenement("dragend"));` : "";
+      const trouves = (await evaluer(
+        `(() => { const sources = document.querySelectorAll(${JSON.stringify(etape.glisser)}); const cibles = document.querySelectorAll(${JSON.stringify(etape.sur)});` +
+          ` if (sources.length !== 1 || cibles.length !== 1) return [sources.length, cibles.length]; const [source] = sources; const [cible] = cibles;` +
+          ` const dataTransfer = new DataTransfer(); const evenement = (type) => new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer });` +
+          ` source.dispatchEvent(evenement("dragstart")); cible.dispatchEvent(evenement("dragover")); ${lacher} return [1, 1]; })()`,
+      )) as [number, number];
+      if (trouves[0] !== 1 || trouves[1] !== 1) throw new Error(`étape « ${geste} » : ${trouves[0]} et ${trouves[1]} élément(s) trouvé(s), il en faut un de chaque`);
+      await poser(`après « ${geste} »`);
+      continue;
+    }
     // Un clic, ou un texte tapé dans un champ — sa valeur posée, et l'`input` que la frappe déclencherait.
     const [geste, selecteur, faire] =
       "cliquer" in etape

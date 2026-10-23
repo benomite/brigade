@@ -123,6 +123,7 @@ import { AIDE as AIDE_DES_ROLES, poserLesRoles, resumeDesRoles, TITRE as TITRE_D
 import { apresLaDecision, phrase, poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
 import { poserPremierLancement } from "./premier-lancement.js";
 import { poserRailPublie } from "./rail-publie.js";
+import { apresLeLacher, GLISSE_CARTE, placeSurvolee } from "./rang-du-rail.js";
 import { poserOutilsDuSecond } from "./outils-du-second.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
@@ -868,6 +869,14 @@ let demandeFaits = 0;
 const cuissonsEnCours = new Map();
 /** @type {Map<string, import("./stations-de-cuisson.js").Dit>} */
 const cuissonsDites = new Map();
+// Les cartes de « On the rail » que le chef range (ticket 1347), par projet : la place où il a lâché la dernière — `envoyee`,
+// la station n'a pas répondu ; `placee`, le runtime l'a placée, et la colonne la montre ainsi jusqu'à la lecture qui suit
+// (`a` : celle qui était posée à la réponse). Puis c'est le runtime qui dit l'ordre. Et le dernier refus, en une phrase,
+// ce que la station a répondu au survol — jusqu'à la carte suivante que le chef lâche.
+/** @type {Map<string, { place: import("./rang-du-rail.js").Place, etape: "envoyee" | "placee", a?: string }>} */
+const rangsLaches = new Map();
+/** @type {Map<string, { ticket: number, refus: string, detail: string }>} */
+const rangsRefuses = new Map();
 // Le plafond d'une station du projet (ticket 1292), même clé : « en cours » tant que le réglage attend sa réponse,
 // puis ce qu'il a rendu ; et ce que le chef a tapé dans le champ, que la relecture ne perd pas.
 /** @type {Map<string, import("./stations-de-cuisson.js").DitDuPlafond | "en cours">} */
@@ -2767,6 +2776,12 @@ function poserBon(projet, carte, tonAttend, execution = true) {
     tete.append(pilule);
   }
   bon.append(tete);
+  // Sur le rail, en attente : sa priorité, sous son numéro — le chef la change en rangeant la carte parmi d'autres (ticket 1347).
+  if (carte.prio !== undefined) {
+    const prio = bloc("span", carte.prio);
+    prio.className = "prio mono";
+    bon.append(prio);
+  }
   const cleDuBon = `${projet.nom}#${ticket}`;
   // Un ticket que la box ne nomme pas : son titre est lu sur l'issue, une fois. Ce qui n'est pas lu n'est pas écrit.
   if (titre === undefined && ouvrable && !titres.has(cleDuBon)) void lireTitre(projet, ticket);
@@ -4420,7 +4435,13 @@ function poserRail(projet) {
     return poser(...marque, ...(sans === "" ? [] : [bloc("h3", sans)]));
   }
   const { hors, attendLu, railLu } = tenu.tableau.rail;
-  const lues = sansCartesRepondues(projet, tenu.tableau.rail.colonnes);
+  const lache = rangsLaches.get(projet.nom);
+  // Placée, la carte garde sa place jusqu'à la lecture qui suit la réponse : c'est alors l'ordre du runtime qui se lit.
+  if (lache?.etape === "placee" && lache.a !== tenu.a) rangsLaches.delete(projet.nom);
+  const relues = sansCartesRepondues(projet, tenu.tableau.rail.colonnes);
+  const lues = lache === undefined || !rangsLaches.has(projet.nom) ? relues : relues.map((colonne) => ({ ...colonne, cartes: apresLeLacher(colonne.cartes, lache.place) }));
+  // Une carte ne se range qu'à la souris, sur un écran large, et quand le pont porte le geste — pas sur le téléphone.
+  const rangeables = !cuisine && !etroit() && muet === undefined && brigade.deplacer !== undefined;
   // La box ne répond pas : ce que ses colonnes contenaient n'est plus lu. Elles le disent, au lieu de montrer des « 0 ».
   const toutes = muet === undefined ? lues : lues.map((colonne) => ({ ...colonne, compte: "?", cartes: [], vide: "not known while the station is unreachable" }));
   // Le kanban est entier sur Rail, Taken et Pass compris ; Cooks n'en porte aucune colonne.
@@ -4435,6 +4456,7 @@ function poserRail(projet) {
       ...cartes.map((carte) => {
         const bon = poserBon(projet, carte, ton, cuisine);
         posees.set(carte, bon);
+        if (rangeables && carte.rangeable === true) rendreGlissable(projet, carte, bon, cartes);
         return bon;
       }),
     );
@@ -4454,7 +4476,12 @@ function poserRail(projet) {
       if (forme !== undefined) colonne.dataset.forme = forme;
       const tete = document.createElement("h4");
       tete.append(bloc("span", nom), bloc("span", compte));
-      colonne.append(tete, cartes.length === 0 ? bloc("p", surMesure(projet, vide)) : bons(cartes, ton));
+      colonne.append(tete);
+      // Une carte refusée a repris sa place : la phrase du runtime le dit sous la tête de sa colonne.
+      const refus = rangsRefuses.get(projet.nom);
+      if (refus !== undefined && cartes.some(({ ticket }) => ticket === refus.ticket)) colonne.append(poserRefusDeRang(refus));
+      colonne.append(cartes.length === 0 ? bloc("p", surMesure(projet, vide)) : bons(cartes, ton));
+      if (rangeables && cartes.some(({ rangeable }) => rangeable === true)) recevoirLesCartes(projet, colonne);
       return colonne;
     }),
   );
@@ -4516,6 +4543,115 @@ function poserRail(projet) {
     repris?.focus();
     if (repris !== undefined && reprise.debut !== null && reprise.fin !== null) repris.setSelectionRange?.(reprise.debut, reprise.fin);
   }
+}
+
+// Ranger une carte de « On the rail » (ticket 1347, rang-du-rail.js) : elle se glisse, et se lâche sur une autre carte de
+// sa colonne — avant elle si elle monte, après si elle descend. Pendant qu'elle glisse, elle s'efface à demi, et un trait
+// dit où elle atterrira ; rien sur la sienne. Lâchée, c'est ce trait qui vaut : elle prend aussitôt sa place et la
+// priorité de sa voisine, et `rail move` part par le process principal (deplacement.ts). Une seule à la fois par projet.
+// Le glisser est celui du navigateur : après lui aucun clic n'arrive, et ce qu'elle porte a son propre type.
+/** @type {{ projet: string, ticket: number, place: import("./rang-du-rail.js").Place | undefined } | undefined} */
+let carteGlissee;
+// Ce que le glisser a marqué — la carte qui glisse, celle qui porte le trait —, effacé à sa fin.
+/** @type {Set<HTMLElement>} */
+const marquees = new Set();
+/** @param {DragEvent} evenement @param {string} projet */
+const glisseeIci = (evenement, projet) => carteGlissee?.projet === projet && evenement.dataTransfer?.types.includes(GLISSE_CARTE) === true;
+
+/** @param {Projet} projet @param {import("../faits.ts").Carte} carte @param {HTMLElement} bon @param {import("../faits.ts").Carte[]} cartes */
+function rendreGlissable(projet, carte, bon, cartes) {
+  bon.draggable = true;
+  // Le rail relu pendant qu'elle glisse : la carte reposée le dit encore.
+  if (carteGlissee?.projet === projet.nom && carteGlissee.ticket === carte.ticket) marquerLeGlisser(bon, "glissee");
+  bon.addEventListener("dragstart", (evenement) => {
+    // Une carte à la fois : la précédente attend encore la station.
+    if (rangsLaches.get(projet.nom)?.etape === "envoyee") return evenement.preventDefault();
+    carteGlissee = { projet: projet.nom, ticket: carte.ticket, place: undefined };
+    evenement.dataTransfer?.setData(GLISSE_CARTE, String(carte.ticket));
+    if (evenement.dataTransfer) evenement.dataTransfer.effectAllowed = "move";
+    marquerLeGlisser(bon, "glissee");
+  });
+  bon.addEventListener("dragover", (evenement) => {
+    if (carteGlissee === undefined || !glisseeIci(evenement, projet.nom)) return;
+    carteGlissee.place = placeSurvolee(cartes, carteGlissee.ticket, carte.ticket);
+    effacerLeTrait();
+    if (carteGlissee.place !== undefined) marquerLeGlisser(bon, carteGlissee.place.cote === "before" ? "depot-avant" : "depot-apres");
+  });
+  bon.addEventListener("dragend", finirGlisseCarte);
+}
+
+// Toute la colonne reçoit la carte — entre deux cartes aussi : c'est le trait posé qui vaut. Hors d'elle, le trait
+// s'efface : lâchée là, la carte garde sa place.
+/** @param {Projet} projet @param {HTMLElement} colonne */
+function recevoirLesCartes(projet, colonne) {
+  colonne.addEventListener("dragover", (evenement) => {
+    if (!glisseeIci(evenement, projet.nom) || evenement.dataTransfer === null) return;
+    evenement.preventDefault();
+    evenement.dataTransfer.dropEffect = "move";
+  });
+  colonne.addEventListener("drop", (evenement) => {
+    if (carteGlissee === undefined || !glisseeIci(evenement, projet.nom)) return;
+    evenement.preventDefault();
+    const { place } = carteGlissee;
+    finirGlisseCarte();
+    if (place !== undefined) void rangerLaCarte(projet, place);
+  });
+  colonne.addEventListener("dragleave", (evenement) => {
+    if (carteGlissee === undefined || colonne.contains(/** @type {Node | null} */ (evenement.relatedTarget))) return;
+    carteGlissee.place = undefined;
+    effacerLeTrait();
+  });
+}
+
+/** @param {HTMLElement} element @param {"glissee" | "depot-avant" | "depot-apres"} classe */
+function marquerLeGlisser(element, classe) {
+  element.classList.toggle(classe, true);
+  marquees.add(element);
+}
+function effacerLeTrait() {
+  for (const element of marquees) {
+    element.classList.toggle("depot-avant", false);
+    element.classList.toggle("depot-apres", false);
+  }
+}
+function finirGlisseCarte() {
+  carteGlissee = undefined;
+  for (const element of marquees) for (const classe of ["glissee", "depot-avant", "depot-apres"]) element.classList.toggle(classe, false);
+  marquees.clear();
+}
+
+// La carte lâchée part par le process principal : la colonne la montre à sa nouvelle place tant que la station n'a pas
+// répondu. Placée, la box est relue tout de suite ; refusée, la carte reprend sa place, et la colonne dit pourquoi.
+/** @param {Projet} projet @param {import("./rang-du-rail.js").Place} place */
+async function rangerLaCarte(projet, place) {
+  rangsRefuses.delete(projet.nom);
+  rangsLaches.set(projet.nom, { place, etape: "envoyee" });
+  if (courant?.nom === projet.nom) poserRail(projet);
+  /** @type {import("../deplacement.ts").RenduDuDeplacement} */
+  let rendu;
+  try {
+    rendu = (await brigade.deplacer?.(projet.nom, place.ticket, place.voisin, place.cote)) ?? { refus: `#${place.ticket} was not moved: nothing was sent`, detail: SANS_PONT };
+  } catch (erreur) {
+    rendu = { refus: `#${place.ticket} was not moved: nothing was sent`, detail: erreur instanceof Error ? erreur.message : String(erreur) };
+  }
+  if ("place" in rendu) {
+    rangsLaches.set(projet.nom, { place, etape: "placee", a: tenus.get(projet.nom)?.a });
+    brigade.relireBox(demandeFaits);
+  } else {
+    rangsLaches.delete(projet.nom);
+    rangsRefuses.set(projet.nom, { ticket: place.ticket, refus: rendu.refus, detail: rendu.detail });
+  }
+  if (courant?.nom === projet.nom) poserRail(projet);
+}
+
+// Le refus du runtime, sous la tête de la colonne : sa phrase, et ce que la station a répondu au survol.
+/** @param {{ refus: string, detail: string }} refus */
+function poserRefusDeRang({ refus, detail }) {
+  const ligne = document.createElement("p");
+  ligne.className = "refus-de-rang";
+  ligne.append(bloc("span", refus));
+  if (detail.trim() !== "") ligne.append(survol(document, detail));
+  return ligne;
 }
 
 // Une carte de TODO à laquelle le chef vient de répondre quitte sa colonne aussitôt, sans attendre la
