@@ -162,7 +162,7 @@ test("relancer l'installation ne duplique rien et ne retire aucun réglage du ch
   assert.equal(seconde.code, 0, seconde.sortie);
   assert.equal(readFileSync(reglages, "utf8"), apres, "la seconde passe a réécrit le fichier");
   assert.match(seconde.sortie, /33 règle\(s\), toutes déjà là : rien n'est écrit/);
-  assert.match(premiere.sortie, /31 règle\(s\) ajoutée\(s\), 1 déjà là/);
+  assert.match(premiere.sortie, /32 règle\(s\) ajoutée\(s\), 1 déjà là/);
   // L'indentation du chef est gardée : le diff ne montre que les règles.
   assert.match(apres, /^ {4}"env"/m);
 
