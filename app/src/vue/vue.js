@@ -115,6 +115,7 @@ import { poserBlocages } from "./projet/blocages.js";
 import { poserDelai } from "./projet/delai.js";
 import { poserChoix, sansLesChoix } from "./projet/choix.js";
 import { poserLesReglages, poserUnReglage } from "./projet/reglages.js";
+import { niveauDe } from "./niveaux.js";
 import { ligneDAlerte, poserLesStations as stationsDeCuisson } from "./stations-de-cuisson.js";
 import { poserLesAppels } from "./appels-de-la-station.js";
 import { EXPLIQUE as AIDE_DU_PLAFOND, poserLePlafond as plafondDeCalibrage, resumeDuPlafond, TITRE as TITRE_DU_PLAFOND } from "./plafond-de-calibrage.js";
@@ -537,14 +538,14 @@ const titreDeConfiance = document.createElement("h3");
 const sensDeConfiance = document.createElement("p");
 sensDeConfiance.className = "aide";
 // Un champ : son libellé, en entier au-dessus de lui, et ce qu'il en est dit dessous.
-/** @param {string} libelle @param {HTMLElement} saisie @param {HTMLElement} [dit] */
-function champDeConfiance(libelle, saisie, dit) {
+/** @param {string} libelle @param {HTMLElement} saisie @param {HTMLElement | undefined} dit @param {HTMLElement} niveau l'étiquette du réglage (niveaux.js) */
+function champDeConfiance(libelle, saisie, dit, niveau) {
   const pose = document.createElement("div");
   pose.className = "champ";
   const nomme = bloc("label", libelle);
   saisie.id = `confiance-${libelle.toLowerCase().replace(/[^a-z]+/g, "-")}`;
   /** @type {HTMLLabelElement} */ (nomme).htmlFor = saisie.id;
-  pose.append(nomme, saisie, ...(dit === undefined ? [] : [dit]));
+  pose.append(nomme, niveau, saisie, ...(dit === undefined ? [] : [dit]));
   return pose;
 }
 const depotDeConfiance = /** @type {HTMLSelectElement} */ (document.createElement("select"));
@@ -552,8 +553,8 @@ depotDeConfiance.ariaLabel = "repository";
 const baseDeConfiance = document.createElement("input");
 baseDeConfiance.ariaLabel = "integration branch";
 baseDeConfiance.spellcheck = false;
-const champDuDepot = champDeConfiance("Its GitHub repository", depotDeConfiance);
-const champDeLaBase = champDeConfiance("Its integration branch", baseDeConfiance, bloc("small", "The branch the kitchen delivers to."));
+const champDuDepot = champDeConfiance("Its GitHub repository", depotDeConfiance, undefined, niveauDe(document, "depot"));
+const champDeLaBase = champDeConfiance("Its integration branch", baseDeConfiance, bloc("small", "The branch the kitchen delivers to."), niveauDe(document, "branche"));
 const principaleDeConfiance = document.createElement("fieldset");
 const choixDeLaPrincipale = document.createElement("div");
 choixDeLaPrincipale.className = "machines";
@@ -571,7 +572,7 @@ cooksDeConfiance.min = "1";
 cooksDeConfiance.ariaLabel = "cooks at once";
 const cooksDits = document.createElement("small");
 cooksDits.className = "propose";
-const champDesCooks = champDeConfiance("Cooks at once", cooksDeConfiance, cooksDits);
+const champDesCooks = champDeConfiance("Cooks at once", cooksDeConfiance, cooksDits, niveauDe(document, "cooks"));
 // Une station de plus (ticket 1307) ne dit que ce qui est à sa machine, posé d'emblée : ses cooks, le dossier où sa
 // station pose les espaces de travail de ses cooks — qu'elle choisit elle-même : il se lit, il ne se change pas ici —,
 // et ce que la machine sait faire, une case par capacité, cochée quand elle y est détectée.
@@ -580,12 +581,12 @@ dossierDeConfiance.readOnly = true;
 dossierDeConfiance.spellcheck = false;
 dossierDeConfiance.ariaLabel = "workspace folder";
 const dossierDit = document.createElement("small");
-const champDuDossier = champDeConfiance("Workspace folder", dossierDeConfiance, dossierDit);
+const champDuDossier = champDeConfiance("Workspace folder", dossierDeConfiance, dossierDit, niveauDe(document, "dossier"));
 const capacitesDeConfiance = document.createElement("fieldset");
 const legendeDesCapacites = document.createElement("legend");
 const choixDesCapacites = document.createElement("div");
 choixDesCapacites.className = "capacites";
-capacitesDeConfiance.append(legendeDesCapacites, choixDesCapacites);
+capacitesDeConfiance.append(legendeDesCapacites, niveauDe(document, "capacites"), choixDesCapacites);
 /** @type {Record<"manager-modele" | "manager-effort" | "reviewer-modele" | "reviewer-effort", HTMLSelectElement>} */
 const calibrageDeConfiance = {
   "manager-modele": /** @type {HTMLSelectElement} */ (document.createElement("select")),
@@ -602,7 +603,11 @@ const calibrageDit = document.createElement("small");
 calibrageDit.className = "propose";
 reglagesAvances.append(
   resumeDesReglages,
-  bloc("p", "The model and effort of the manager, which judges the tickets and splits the epics, and of the reviewer, which reviews the deliveries — and so the share of your quota they use."),
+  (() => {
+    const explique = bloc("p", "The model and effort of the manager, which judges the tickets and splits the epics, and of the reviewer, which reviews the deliveries — and so the share of your quota they use.");
+    explique.append(niveauDe(document, "calibrage"));
+    return explique;
+  })(),
   .../** @type {const} */ (["manager", "reviewer"]).map((role) => {
     const ligne = document.createElement("div");
     ligne.className = "calibre";
@@ -1831,6 +1836,13 @@ function bloc(balise, texte) {
   return cree;
 }
 
+// Un élément qui dit le niveau de son réglage (niveaux.js), à sa suite.
+/** @template {HTMLElement} T @param {T} pose @param {string} cle @returns {T} */
+function avecNiveau(pose, cle) {
+  pose.append(niveauDe(document, cle));
+  return pose;
+}
+
 // Ce qui se recopie tel quel — un numéro de ticket, un identifiant de run, un port : en monospace,
 // et c'est une information, pas un style. Rien d'autre ne l'est que ce que la box a rendu.
 /** @param {string} balise @param {string} texte */
@@ -2437,7 +2449,7 @@ function poserCouleurs(projet) {
   const refus = bloc("p", couleurRefusee.refus);
   refus.className = "refus";
   couleurs.replaceChildren(
-    bloc("h3", "Colors"),
+    avecNiveau(bloc("h3", "Colors"), "couleurs"),
     rangee("onglet", "Tab, in the bar"),
     rangee("accent", "Accent, in the space"),
     ...(projet.couleurs === undefined ? [ditEtAide("p", "No colors yet", "the app picks them and writes them to the projects file.")] : []),
@@ -2587,7 +2599,7 @@ async function poserOrdinaires(projet) {
   const indisponible = recu.indisponible === undefined ? [] : [bloc("p", recu.indisponible)];
   for (const dit of indisponible) dit.className = "indisponible";
   ordinaires.replaceChildren(
-    bloc("h3", titre),
+    avecNiveau(bloc("h3", titre), "ordinaires"),
     etiquette("Take the ordinary tickets too", option),
     etiquette("Cooks at once", limite),
     bloc("p", recu.explication),
@@ -5696,6 +5708,7 @@ function poserPlafond(nom, ligne) {
   const lignes = [];
   const dit = bloc("p", `Cooks at once: ${plafond.dit}`);
   dit.className = "plafond";
+  dit.append(niveauDe(document, "cooks"));
   lignes.push(dit);
   if (retenue !== undefined) {
     const retient = bloc("p", `Holding tickets — ${retenue.ressources}: ${retenue.detail}`);

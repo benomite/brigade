@@ -9,6 +9,7 @@
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js).
 
 import { boutonAction } from "./briques.js";
+import { niveauDe } from "./niveaux.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../plafond-de-calibrage.ts").PlafondVu} Vu */
@@ -66,6 +67,7 @@ export function poserLePlafond(doc, { vu, choisi, enCours, dit, choisir, jouer }
   section.className = "plafond-de-calibrage";
   section.ariaLabel = TITRE;
   const titre = cree(doc, "h3", TITRE);
+  titre.append(niveauDe(doc, "plafond"));
   titre.title = EXPLIQUE;
   // La valeur en vigueur, et d'où elle vient.
   const valeur = cree(doc, "p");
