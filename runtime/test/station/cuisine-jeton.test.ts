@@ -41,7 +41,7 @@ function ouvrir(t: TestContext, avecJeton: boolean) {
       HOME: racine,
       BRIGADE_STATE_DIR: etat,
       BRIGADE_PROJECT: "brigade",
-      BRIGADE_GITHUB_REPO: "benomite/brigade",
+      BRIGADE_GITHUB_REPO: "acme/brigade",
       BRIGADE_REPO_DIR: clone,
       BRIGADE_BASE_BRANCH: "v2",
       BRIGADE_CLAUDE_BIN: FAUX_CLAUDE,

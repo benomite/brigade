@@ -5,9 +5,9 @@ import { test } from "node:test";
 import { lireDemande } from "../../src/projets/demande.ts";
 
 // Tel que l'app l'écrit (app/src/projets/demande.ts).
-const PARADE = {
-  nom: "parade",
-  depot: "benomite/parade",
+const SHOP = {
+  nom: "shop",
+  depot: "acme/shop",
   base: "main",
   principale: true,
   cooks: 2,
@@ -18,12 +18,12 @@ const PARADE = {
 };
 
 test("un projet demandé se lit tel que l'app l'écrit", () => {
-  assert.deepEqual(lireDemande(JSON.stringify({ brigade: "projets", format: 1, projets: [PARADE] })), { projets: [PARADE], problemes: [] });
+  assert.deepEqual(lireDemande(JSON.stringify({ brigade: "projets", format: 1, projets: [SHOP] })), { projets: [SHOP], problemes: [] });
 });
 
 test("un projet demandé sans branche ni calibrage se lit : son dépôt les déclare — mais ce que l'app nomme doit être lisible", () => {
-  const { base: _base, manager: _manager, reviewer: _reviewer, ...sans } = PARADE;
-  assert.deepEqual(lireDemande(JSON.stringify({ brigade: "projets", format: 1, projets: [sans, { ...PARADE, nom: "nuls", base: null, manager: null, reviewer: null }] })), {
+  const { base: _base, manager: _manager, reviewer: _reviewer, ...sans } = SHOP;
+  assert.deepEqual(lireDemande(JSON.stringify({ brigade: "projets", format: 1, projets: [sans, { ...SHOP, nom: "nuls", base: null, manager: null, reviewer: null }] })), {
     projets: [
       { ...sans, base: null, manager: null, reviewer: null },
       { ...sans, nom: "nuls", base: null, manager: null, reviewer: null },
@@ -43,27 +43,27 @@ test("un projet illisible est dit, et les autres sont lus", () => {
       brigade: "projets",
       format: 1,
       projets: [
-        { ...PARADE, nom: "Parade!" },
-        { ...PARADE, nom: "a", depot: "pas un dépôt" },
-        { ...PARADE, nom: "b", cooks: 0 },
-        { ...PARADE, nom: "c", manager: { modele: "gpt", effort: "medium" } },
-        { ...PARADE, nom: "d", principale: "oui" },
-        PARADE,
-        PARADE,
+        { ...SHOP, nom: "Shop!" },
+        { ...SHOP, nom: "a", depot: "pas un dépôt" },
+        { ...SHOP, nom: "b", cooks: 0 },
+        { ...SHOP, nom: "c", manager: { modele: "gpt", effort: "medium" } },
+        { ...SHOP, nom: "d", principale: "oui" },
+        SHOP,
+        SHOP,
       ],
     }),
   );
   assert.deepEqual(
     lu?.projets.map(({ nom }) => nom),
-    ["parade"],
+    ["shop"],
   );
   assert.deepEqual(lu?.problemes, [
-    "projet « Parade! » demandé par l'app : nom de projet invalide — attendu un identifiant court en minuscules, chiffres et tirets",
+    "projet « Shop! » demandé par l'app : nom de projet invalide — attendu un identifiant court en minuscules, chiffres et tirets",
     "projet « a » demandé par l'app : dépôt invalide — attendu <owner>/<repo>",
     "projet « b » demandé par l'app : plafond de cooks invalide — attendu un entier, 1 ou plus",
     "projet « c » demandé par l'app : calibrage du manager invalide — attendu un modèle (opus, sonnet, haiku) et un effort (low, medium, high, xhigh, max)",
     "projet « d » demandé par l'app : on ne sait pas si cette station en est la principale",
-    "projet « parade » demandé par l'app : demandé deux fois",
+    "projet « shop » demandé par l'app : demandé deux fois",
   ]);
 });
 

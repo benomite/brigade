@@ -30,7 +30,7 @@ function poser(journal: Journal, ticket: number, waitsFor: number[], zone: strin
       priority: null,
       // Dans l'ordre où le test les pose : c'est l'ordre de service.
       createdAt: new Date(Date.parse("2026-10-01T00:00:00.000Z") + journal.dernierSeq() * 1000).toISOString(),
-      url: `https://github.com/benomite/brigade/issues/${ticket}`,
+      url: `https://github.com/acme/brigade/issues/${ticket}`,
       card: { waitsFor, zone, problems: [] },
     },
   });

@@ -223,7 +223,7 @@ test("une passe livrée dit ce qu'elle a retiré et l'adresse de sa PR", async (
       run: "fermeture-3f9c1a2e",
       outcome: "delivered",
       branch: "cook/fermeture-3f9c1a2e",
-      pr: "https://github.com/benomite/brigade/pull/101",
+      pr: "https://github.com/acme/brigade/pull/101",
       sha: "abc1234",
       removedLines: 1,
       addedLines: 0,
@@ -237,7 +237,7 @@ test("une passe livrée dit ce qu'elle a retiré et l'adresse de sa PR", async (
   assert.ok(lue.state === "done");
   assert.equal(lue.outcome, "delivered");
   assert.equal(lue.delivered, true);
-  assert.equal(lue.pr, "https://github.com/benomite/brigade/pull/101");
+  assert.equal(lue.pr, "https://github.com/acme/brigade/pull/101");
   assert.deepEqual(lue.removed, [{ id: "M1", what: "export `inutile` of `src/libre/outils.ts:2` — referenced nowhere" }]);
   assert.equal(lue.removedLines, 1);
   assert.deepEqual(lue.files, ["src/libre/outils.ts"]);

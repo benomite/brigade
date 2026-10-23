@@ -44,7 +44,7 @@ function ouvrir(t: TestContext, ligne: string, decisions: Record<string, string>
 
 test("a fresh clone and a newly registered station: the project's branch, calibrations and ceiling, with nothing but the station entered on the box", (t) => {
   // La ligne ne nomme ni branche ni réglage ; le journal ne porte que la station.
-  const dits = ouvrir(t, "espace benomite/espace", { BRIGADE_STATIONS: "box/claude:2:code" });
+  const dits = ouvrir(t, "espace acme/espace", { BRIGADE_STATIONS: "box/claude:2:code" });
   assert.ok(
     dits.includes("project settings — branch v2 (from .claude/brigade/projet.json); from .claude/brigade/projet.json on origin/v2, reread at each use: manager opus/high, reviewer sonnet/low, ceiling sonnet/high"),
     dits.join("\n"),
@@ -52,7 +52,7 @@ test("a fresh clone and a newly registered station: the project's branch, calibr
 });
 
 test("the box's branch, calibrations and ceiling, when they differ from the repository's, are ignored", (t) => {
-  const dits = ouvrir(t, "espace benomite/espace main", {
+  const dits = ouvrir(t, "espace acme/espace main", {
     BRIGADE_STATIONS: "box/claude:2:code",
     BRIGADE_MANAGER_MODEL: "haiku",
     BRIGADE_MANAGER_EFFORT: "low",

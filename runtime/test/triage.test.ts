@@ -137,7 +137,7 @@ describe("la porte de TODO, devant le triage", () => {
     assert.deepEqual(cartesEnTodo(c.journal.base), []);
     // Il lit l'issue, la PR, les reviews et les journaux de la CI.
     const [consigne = ""] = c.consignes;
-    for (const lu of ["Exporter les rapports.", "Le chef préfère le CSV", CARTE.enonce, "PR https://github.com/benomite/brigade/pull/101", "la CI est rouge : tests", "+export const csv = true;", "tests : red (failure)", "not ok 12 - export.test.ts: header missing"]) {
+    for (const lu of ["Exporter les rapports.", "Le chef préfère le CSV", CARTE.enonce, "PR https://github.com/acme/brigade/pull/101", "la CI est rouge : tests", "+export const csv = true;", "tests : red (failure)", "not ok 12 - export.test.ts: header missing"]) {
       assert.ok(consigne.includes(lu), `la consigne ne donne pas « ${lu} »`);
     }
 

@@ -19,7 +19,7 @@ const DU_CHEF = 15;
 function unProjet(t: TestContext, options: Options = {}) {
   const lieux: Lieux = { repertoire: repertoireTemporaire(t), origine: "", clone: "", gh: fauxGitHub(...(options.issues ?? [issue(PREPARATION)])), heure: montre() };
   writeFileSync(join(lieux.repertoire, FICHIER), `${JSON.stringify({ ticket: PREPARATION, ouvertLe: "2026-10-08T09:00:00.000Z" })}\n`);
-  lieux.gh.decrire(PREPARATION, { body: corps({ projet: "brigade", depot: "benomite/brigade", base: "v2", presents: {} }) });
+  lieux.gh.decrire(PREPARATION, { body: corps({ projet: "brigade", depot: "acme/brigade", base: "v2", presents: {} }) });
   ouvrirJournal(lieux.repertoire).fermer();
   return cuisine(t, { scenario: "muet", ...options, lieux });
 }

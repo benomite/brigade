@@ -32,7 +32,7 @@ function poser(journal: Journal, ticket: number, priority: number | null = null,
     ticket,
     author: "github",
     type: "ticket.arrived",
-    payload: { title: `Ticket ${ticket}`, priority, createdAt, url: `https://github.com/benomite/brigade/issues/${ticket}` },
+    payload: { title: `Ticket ${ticket}`, priority, createdAt, url: `https://github.com/acme/brigade/issues/${ticket}` },
   });
 }
 
@@ -51,7 +51,7 @@ test("un ticket arrivé est en attente sur le rail, avec ce que GitHub en dit", 
       title: "Ticket 14",
       priority: 1,
       createdAt: "2026-10-01T00:00:14.000Z",
-      url: "https://github.com/benomite/brigade/issues/14",
+      url: "https://github.com/acme/brigade/issues/14",
       state: "waiting",
       since: null,
       model: null,
@@ -481,7 +481,7 @@ function poserAvecFiche(journal: Journal, ticket: number, waitsFor: number[], pr
       title: `Ticket ${ticket}`,
       priority: null,
       createdAt: `2026-10-01T00:00:${String(ticket).padStart(2, "0")}.000Z`,
-      url: `https://github.com/benomite/brigade/issues/${ticket}`,
+      url: `https://github.com/acme/brigade/issues/${ticket}`,
       card: { waitsFor, zone: [], problems },
     },
   });
@@ -971,7 +971,7 @@ function poserAvec(journal: Journal, ticket: number, requires: string[], priorit
       title: `Ticket ${ticket}`,
       priority,
       createdAt: `2026-10-01T00:00:${String(ticket).padStart(2, "0")}.000Z`,
-      url: `https://github.com/benomite/brigade/issues/${ticket}`,
+      url: `https://github.com/acme/brigade/issues/${ticket}`,
       card: { waitsFor: [], zone: [], problems: [], ...(requires.length === 0 ? {} : { requires }) },
     },
   });

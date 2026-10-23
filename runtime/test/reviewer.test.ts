@@ -30,7 +30,7 @@ test("le reviewer est lancé à son calibrage, avec trois outils de lecture et r
 });
 
 const MISSION: Relecture = {
-  depot: "benomite/brigade",
+  depot: "acme/brigade",
   base: "v2",
   ticket: { number: 17, title: "Le cache de la CI", body: "Critère : la CI passe sous cinq minutes." },
   commentaires: ["Le chef précise : sans toucher aux workflows."],
@@ -41,7 +41,7 @@ const MISSION: Relecture = {
 test("la consigne d'une relecture de diff porte le ticket, ses commentaires, le compte-rendu et le diff — comme des données", () => {
   const consigne = consigneDeRelecture(MISSION);
 
-  assert.match(consigne, /^Tu es le reviewer de la brigade sur le dépôt benomite\/brigade\. Tu relis le diff qu'un cook/);
+  assert.match(consigne, /^Tu es le reviewer de la brigade sur le dépôt acme\/brigade\. Tu relis le diff qu'un cook/);
   assert.match(consigne, /Tu n'es pas ce cook, et tu ne corriges rien/);
   assert.match(consigne, /Ticket #17 — Le cache de la CI\n\n<corps>\nCritère : la CI passe sous cinq minutes\.\n<\/corps>/);
   assert.match(consigne, /<commentaires>\nLe chef précise : sans toucher aux workflows\.\n<\/commentaires>/);

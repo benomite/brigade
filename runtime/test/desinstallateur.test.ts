@@ -500,13 +500,13 @@ describe("le journal du geste, pour une désinstallation", { concurrency: 8 }, (
     const deja = b.journal().length;
     const debut = new Date();
 
-    assert.equal((await b.geste(["uninstall", "calculus", "--plan"], { qui: "benoit" })).code, 0);
+    assert.equal((await b.geste(["uninstall", "calculus", "--plan"], { qui: "alice" })).code, 0);
     assert.equal((await b.geste(["uninstall", "calculus"], { qui: "associe" })).code, CODES.sansConfirmation);
     assert.equal((await b.geste(["uninstall", "fantome", "--confirmer", "fantome"], { qui: "associe" })).code, CODES.inconnu);
     assert.equal((await b.geste(["uninstall", "calculus", "--exec", "/bin/sh"], { qui: "associe" })).code, CODES.usage);
-    assert.equal((await b.geste(["uninstall", "calculus", "--confirmer", "calculus"], { qui: "benoit" })).code, CODES.echec);
+    assert.equal((await b.geste(["uninstall", "calculus", "--confirmer", "calculus"], { qui: "alice" })).code, CODES.echec);
     rmSync(join(b.etats, "calculus/depot/brouillon.txt"));
-    assert.equal((await b.geste(["uninstall", "calculus", "--confirmer", "calculus"], { qui: "benoit" })).code, 0);
+    assert.equal((await b.geste(["uninstall", "calculus", "--confirmer", "calculus"], { qui: "alice" })).code, 0);
 
     const fin = new Date();
     const journal = b.journal().slice(deja);
@@ -516,14 +516,14 @@ describe("le journal du geste, pour une désinstallation", { concurrency: 8 }, (
     assert.deepEqual(
       journal.map(({ author, project, type, payload }) => ({ author, project, type, payload })),
       [
-        { author: "benoit", project: "calculus", type: "installer.planned", payload: { action: "uninstall", args: ["calculus", "--plan"], result: "planned" } },
+        { author: "alice", project: "calculus", type: "installer.planned", payload: { action: "uninstall", args: ["calculus", "--plan"], result: "planned" } },
         { author: "associe", project: "calculus", type: "installer.refused", payload: { action: "uninstall", args: ["calculus"], result: "refused", reason: "sans-confirmation" } },
         { author: "associe", project: "fantome", type: "installer.refused", payload: { action: "uninstall", args: ["fantome", "--confirmer", "fantome"], result: "refused", reason: "projet-inconnu" } },
         { author: "associe", project: "calculus", type: "installer.refused", payload: { action: "uninstall", args: ["calculus", "--exec", "/bin/sh"], result: "refused", reason: "option-inconnue" } },
-        { author: "benoit", project: "calculus", type: "installer.started", payload: { ...confirmee, result: "started" } },
-        { author: "benoit", project: "calculus", type: "installer.failed", payload: { ...confirmee, result: "failed", reason: echec.reason, removed: ["brigade@calculus.service (arrêtée, désactivée)"], left: echec.left } },
-        { author: "benoit", project: "calculus", type: "installer.started", payload: { ...confirmee, result: "started" } },
-        { author: "benoit", project: "calculus", type: "installer.used", payload: { ...confirmee, result: "uninstalled", ports: [PREMIER_PORT], journal: "kept" } },
+        { author: "alice", project: "calculus", type: "installer.started", payload: { ...confirmee, result: "started" } },
+        { author: "alice", project: "calculus", type: "installer.failed", payload: { ...confirmee, result: "failed", reason: echec.reason, removed: ["brigade@calculus.service (arrêtée, désactivée)"], left: echec.left } },
+        { author: "alice", project: "calculus", type: "installer.started", payload: { ...confirmee, result: "started" } },
+        { author: "alice", project: "calculus", type: "installer.used", payload: { ...confirmee, result: "uninstalled", ports: [PREMIER_PORT], journal: "kept" } },
       ],
     );
     assert.match(echec.reason, /carries what the origin does not have[^]*brouillon\.txt/);

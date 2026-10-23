@@ -503,7 +503,7 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
   for (const texte of refus) dits.add(texte);
   // Le point d'entrée du runtime le refuserait avant tout lecteur.
   if (env.BRIGADE_PROJECT && !NOM_DE_PROJET.test(env.BRIGADE_PROJECT)) {
-    dits.add(`invalid project name: “${env.BRIGADE_PROJECT}” (BRIGADE_PROJECT) — expected a short identifier in lowercase letters, digits and hyphens (brigade, thermigo)`);
+    dits.add(`invalid project name: “${env.BRIGADE_PROJECT}” (BRIGADE_PROJECT) — expected a short identifier in lowercase letters, digits and hyphens (brigade, compta)`);
   }
   // Une décision que l'installation pose se répond à son étape, son choix
   // expliqué ; les autres, par `station`.

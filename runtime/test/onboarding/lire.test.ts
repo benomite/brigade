@@ -12,8 +12,8 @@ import { repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
 
 const rienNeReste = temporaireDuFichier();
 
-const PROJET = "mirrorlab";
-const DEPOT = "BOBL-tech/mirrorlab";
+const PROJET = "gadgets";
+const DEPOT = "ACME-tech/gadgets";
 const URL = (ticket: number) => `https://github.com/${DEPOT}/issues/${ticket}`;
 
 // Un répertoire d'état où la station a noté le ticket #433, et le journal de sa cuisine.

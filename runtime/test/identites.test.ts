@@ -134,7 +134,7 @@ test("une App qui n'est pas installée sur le dépôt se dit, rôle et dépôt n
   const { apps, identites: ouvertes } = await identites(t);
   apps.desinstaller("manager");
 
-  await assert.rejects(ouvertes.jeton("manager").frais(), /identité « manager ».*pas installée sur benomite\/brigade/);
+  await assert.rejects(ouvertes.jeton("manager").frais(), /identité « manager ».*pas installée sur acme\/brigade/);
 });
 
 test("un refus de GitHub se lit avec son motif, sans jamais porter de jeton ni de JWT", async (t) => {
@@ -219,7 +219,7 @@ test("chaque geste part sous l'identité de son rôle : le cook livre, la pass m
   const githubs = ouvrirGitHubs({ depot: DEPOT, bin: gh.bin, identites: ouvertes });
   gh.issues([issueGitHub(14)]);
   gh.repondre(`repos/${DEPOT}/issues/14/comments`, { statut: 201, corps: {} });
-  gh.repondre(`repos/${DEPOT}/pulls`, { statut: 201, corps: { html_url: "https://github.com/benomite/brigade/pull/40" } });
+  gh.repondre(`repos/${DEPOT}/pulls`, { statut: 201, corps: { html_url: "https://github.com/acme/brigade/pull/40" } });
   gh.repondre(`repos/${DEPOT}/pulls/40/merge`, { corps: { merged: true } });
   const sous = async (geste: () => Promise<unknown>) => {
     await geste();

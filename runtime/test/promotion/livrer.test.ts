@@ -71,7 +71,7 @@ function cuisine(t: TestContext) {
   const github = {
     async ouvrirPR(pr: { branche: string; base: string; titre: string; corps: string }) {
       const number = 900 + prs.length;
-      const url = `https://github.com/benomite/boutique/pull/${number}`;
+      const url = `https://github.com/acme/boutique/pull/${number}`;
       prs.push({ ...pr, number, url });
       return url;
     },
@@ -208,7 +208,7 @@ test("la PR entre en pass par l'entrée des livraisons hors du rail, du même ge
 
   // La relecture qu'elle reçoit est celle d'un carnet, pas celle d'une passe de fermeture.
   const consigne = consigneDeRelecture({
-    depot: "benomite/boutique",
+    depot: "acme/boutique",
     base: BASE,
     ticket: { number: pr.number, title: pr.titre, body: pr.corps },
     horsRail: true,

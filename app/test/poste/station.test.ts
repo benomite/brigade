@@ -135,8 +135,8 @@ test("ajouter un projet dont cette station est la principale : un ticket du proj
   const { origine, clone } = depotGit(t);
   const gh = fauxGh(t);
   gh.issues([issueGitHub(15, { labels: ["fire", "model:sonnet", "effort:low"] })]);
-  gh.repondre("repos/benomite/brigade/pulls", { statut: 201, corps: { html_url: "https://github.com/benomite/brigade/pull/40" } });
-  gh.repondre("repos/benomite/brigade/issues/15/comments", { statut: 201, corps: { id: 1 } });
+  gh.repondre("repos/acme/brigade/pulls", { statut: 201, corps: { html_url: "https://github.com/acme/brigade/pull/40" } });
+  gh.repondre("repos/acme/brigade/issues/15/comments", { statut: 201, corps: { id: 1 } });
   const etat = join(racine, "etat", "brigade");
   mkdirSync(etat, { recursive: true });
   const journal = ouvrirJournal(etat);
@@ -146,12 +146,12 @@ test("ajouter un projet dont cette station est la principale : un ticket du proj
   journal.fermer();
   // Cette cuisine tourne sans bac à sable : le chef a décidé de continuer ainsi.
   accepterSansBacASable({ repertoireEtat: etat, station: "ordi" });
-  writeFileSync(join(racine, "projets"), `brigade benomite/brigade ${BASE} BRIGADE_GH_BIN=${gh.bin} BRIGADE_REPO_DIR=${clone}\n`);
+  writeFileSync(join(racine, "projets"), `brigade acme/brigade ${BASE} BRIGADE_GH_BIN=${gh.bin} BRIGADE_REPO_DIR=${clone}\n`);
 
   const { dit } = tenir(t, { node: process.execPath, principal: PRINCIPAL, racine, env: { ...env, FAUX_CLAUDE: "livre" }, appairer: async (): Promise<Appairage> => ({ refus: "pas de home dans ce test" }), reessaiMs: 3_600_000 });
-  await jusqua(() => gh.appels().some((appel) => appel.at(-1) === "repos/benomite/brigade/issues/15/comments"));
+  await jusqua(() => gh.appels().some((appel) => appel.at(-1) === "repos/acme/brigade/issues/15/comments"));
 
-  assert.match(dit(), /brigade \[brigade\] : servi par la station — benomite\/brigade, branche v2/);
+  assert.match(dit(), /brigade \[brigade\] : servi par la station — acme\/brigade, branche v2/);
   const lu = ouvrirJournal(etat, { lectureSeule: true });
   const lancement = lu.tout().find((e) => e.type === "cook.launched");
   lu.fermer();

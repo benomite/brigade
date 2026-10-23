@@ -689,13 +689,13 @@ test("un ticket absent de la liste mais toujours ouvert et labellisé reste sur 
 });
 
 test("la configuration du rail vient de l'environnement ; le dépôt n'a pas de défaut", () => {
-  assert.deepEqual(configRail({ BRIGADE_GITHUB_REPO: "benomite/brigade" }), { depot: "benomite/brigade", dureeBailMs: 1_800_000, gh: "gh", communs: [] });
+  assert.deepEqual(configRail({ BRIGADE_GITHUB_REPO: "acme/brigade" }), { depot: "acme/brigade", dureeBailMs: 1_800_000, gh: "gh", communs: [] });
   assert.deepEqual(
-    configRail({ BRIGADE_GITHUB_REPO: "benomite/brigade.v2", BRIGADE_LEASE_SECONDS: "90", BRIGADE_GH_BIN: "/tmp/gh" }),
-    { depot: "benomite/brigade.v2", dureeBailMs: 90_000, gh: "/tmp/gh", communs: [] },
+    configRail({ BRIGADE_GITHUB_REPO: "acme/brigade.v2", BRIGADE_LEASE_SECONDS: "90", BRIGADE_GH_BIN: "/tmp/gh" }),
+    { depot: "acme/brigade.v2", dureeBailMs: 90_000, gh: "/tmp/gh", communs: [] },
   );
   assert.throws(() => configRail({}), (e: unknown) => e instanceof ConfigInvalide && /BRIGADE_GITHUB_REPO is not set/.test(e.message));
-  for (const depot of ["brigade", "benomite/brigade/issues", "https://github.com/benomite/brigade", "benomite/ brigade"]) {
+  for (const depot of ["brigade", "acme/brigade/issues", "https://github.com/acme/brigade", "acme/ brigade"]) {
     assert.throws(() => configRail({ BRIGADE_GITHUB_REPO: depot }), /BRIGADE_GITHUB_REPO invalid/);
   }
   for (const bail of ["0", "-5", "dix", "1.5"]) {

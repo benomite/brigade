@@ -30,7 +30,7 @@ const promue = (id: string, text: string): Lesson => ({ id, text, state: "promot
 // porte son carnet — ses leçons promues. `null` : la base n'a pas de carnet.
 function station(t: TestContext, projets: Record<string, Lesson[] | null>): string {
   const racine = repertoireTemporaire(t);
-  writeFileSync(join(racine, CONFIGURATION), Object.keys(projets).map((nom) => `${nom} benomite/${nom} ${BASE}\n`).join(""));
+  writeFileSync(join(racine, CONFIGURATION), Object.keys(projets).map((nom) => `${nom} acme/${nom} ${BASE}\n`).join(""));
   for (const [nom, lecons] of Object.entries(projets)) {
     const clone = join(racine, CLONES, nom);
     mkdirSync(clone, { recursive: true });

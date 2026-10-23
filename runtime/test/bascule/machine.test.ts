@@ -71,18 +71,18 @@ describe("la bascule d'une machine servie à l'ancienne, sur une installation de
     git(clone, "commit", "-q", "-m", "les gates du projet");
     git(clone, "push", "-q", "origin", BASE);
     const gh = fauxGh(t);
-    const depot = "benomite/brigade";
+    const depot = "acme/brigade";
     const pr = { number: 40, html_url: `https://github.com/${depot}/pull/40`, state: "open", merged: false, mergeable: true, base: { ref: BASE }, head: { sha: "tete" } };
     gh.issues([issueGitHub(15, { labels: ["fire", "model:sonnet", "effort:low"] })]);
     gh.repondre(`repos/${depot}/pulls`, { statut: 201, corps: pr });
     gh.repondre(`repos/${depot}/issues/15/comments`, { statut: 201, corps: { id: 1 } });
-    gh.repondre(`repos/${depot}/pulls?head=benomite:cook/*`, { corps: [pr] });
+    gh.repondre(`repos/${depot}/pulls?head=acme:cook/*`, { corps: [pr] });
     gh.repondre(`repos/${depot}/pulls/40`, { corps: pr });
     gh.repondre(`repos/${depot}/commits/*/check-runs?per_page=100`, { corps: { check_runs: [] } });
     gh.repondre(`repos/${depot}/commits/*/status?per_page=100`, { corps: { statuses: [] } });
     gh.repondre(`repos/${depot}/pulls/40/merge`, { corps: { merged: true } });
-    issuesDe(gh, "benomite/calculus-workspace", []);
-    issuesDe(gh, "benomite/espace", []);
+    issuesDe(gh, "acme/calculus-workspace", []);
+    issuesDe(gh, "acme/espace", []);
 
     // La machine telle que l'ancien chemin l'a laissée : trois unités, leurs
     // drop-ins — la cloison des tests à la place de bwrap —, leurs gestes et
@@ -90,8 +90,8 @@ describe("la bascule d'une machine servie à l'ancienne, sur une installation de
     const reglages = { BRIGADE_GH_BIN: gh.bin, BRIGADE_SANDBOX_BIN: FAUX_BWRAP, BRIGADE_SANDBOX_HIDDEN: station };
     const projets: AncienProjet[] = [
       { nom: "brigade", depot, base: BASE, environnement: { ...reglages, BRIGADE_SANDBOX_HIDDEN: `${station}:${clone}`, BRIGADE_REPO_DIR: clone } },
-      { nom: "calculus-workspace", depot: "benomite/calculus-workspace", base: "main", environnement: reglages },
-      { nom: "espace", depot: "benomite/espace", base: "main", environnement: reglages },
+      { nom: "calculus-workspace", depot: "acme/calculus-workspace", base: "main", environnement: reglages },
+      { nom: "espace", depot: "acme/espace", base: "main", environnement: reglages },
     ];
     const ancienne = ancienneMachine(machine.racine, projets, { arbitre: null, paquet: false });
     for (const { nom } of projets) aArreter(t, () => tuerLesRelais(ancienne.etat(nom)));

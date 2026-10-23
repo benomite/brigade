@@ -152,11 +152,11 @@ describe("l'arbitre", () => {
     const { ouvert, repertoire } = arbitre(t, 10);
     const reglages = ouvrirReglages(repertoire);
     t.after(() => reglages.fermer());
-    reglages.peser("thermigo", 3, "2026-10-09T09:00:00.000Z");
+    reglages.peser("compta", 3, "2026-10-09T09:00:00.000Z");
     ouvert.dire("a", mot(8));
     assert.equal(ouvert.demander("a", mot(8)).accorde, true);
-    ouvert.dire("thermigo", mot(0));
-    assert.deepEqual(ouvert.etat().projets.map(({ projet, presence, poids }) => [projet, presence, poids]), [["a", "entendu", 1], ["thermigo", "entendu", 3]]);
+    ouvert.dire("compta", mot(0));
+    assert.deepEqual(ouvert.etat().projets.map(({ projet, presence, poids }) => [projet, presence, poids]), [["a", "entendu", 1], ["compta", "entendu", 3]]);
   });
 
   test("il dit qui se retient pour la machine, les cooks partis sans lui, et la consommation des cooks telle qu'on la lui redit", (t) => {
@@ -191,11 +191,11 @@ describe("l'arbitre sur son port", () => {
   test("un runtime redit son état, demande une place, lit l'état, et s'en va", async (t) => {
     const { client } = await servi(t, 2);
     assert.deepEqual(await client.echanger("brigade", { ...mot(1), veut: false }), { accorde: null, motif: null });
-    assert.deepEqual(await client.echanger("thermigo", { ...mot(0), veut: true }), { accorde: true, motif: null });
-    assert.deepEqual(await client.echanger("thermigo", { ...mot(1), veut: true }), { accorde: false, motif: "compte" });
-    assert.deepEqual((await client.etat()).projets.map(({ projet, cooks }) => [projet, cooks]), [["brigade", 1], ["thermigo", 1]]);
-    await client.quitter("thermigo");
-    assert.deepEqual((await client.etat()).projets.map(({ projet, presence }) => [projet, presence]), [["brigade", "entendu"], ["thermigo", "absent"]]);
+    assert.deepEqual(await client.echanger("compta", { ...mot(0), veut: true }), { accorde: true, motif: null });
+    assert.deepEqual(await client.echanger("compta", { ...mot(1), veut: true }), { accorde: false, motif: "compte" });
+    assert.deepEqual((await client.etat()).projets.map(({ projet, cooks }) => [projet, cooks]), [["brigade", 1], ["compta", 1]]);
+    await client.quitter("compta");
+    assert.deepEqual((await client.etat()).projets.map(({ projet, presence }) => [projet, presence]), [["brigade", "entendu"], ["compta", "absent"]]);
   });
 
   test("ce qu'il ne comprend pas est refusé, sans rien compter", async (t) => {

@@ -14,7 +14,7 @@ import { cuisineFermee, RETIRER_M1 } from "./kitchen.ts";
 // Le numéro de la première PR du GitHub de test : c'est sous lui que la pass
 // suit la livraison de la passe.
 const PR = 101;
-const URL = `https://github.com/benomite/brigade/pull/${PR}`;
+const URL = `https://github.com/acme/brigade/pull/${PR}`;
 
 // Une passe qui retire M1 et livre : sa fin, et de quoi lire ce que la pass en fait.
 async function livrer(cuisine: ReturnType<typeof cuisineFermee>) {

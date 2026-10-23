@@ -18,7 +18,7 @@ import type { Journal } from "../../src/journal.ts";
 import { appeler, BASE, depotGit, ENV_ENFANT, ENV_GIT, git, JOUR_HORLOGE, repertoireTemporaire } from "../outils.ts";
 
 const PROJET = "brigade";
-const DEPOT = "benomite/brigade";
+const DEPOT = "acme/brigade";
 const PLAFONDS: Plafonds = { turns: 100, durationMs: 3_600_000, tokens: 1_000_000, idleMs: 60_000 };
 const REGLAGES: Reglages = { plafonds: PLAFONDS, seuilDisjoncteur: 3, graceMs: 2000 };
 

@@ -19,7 +19,7 @@ function cuisine(t: TestContext) {
     noter(
       {
         type: "ticket.arrived",
-        payload: { title: `Ticket ${ticket}`, priority: 2, createdAt: `2026-10-01T00:00:${String(ticket).padStart(2, "0")}Z`, url: `https://github.com/benomite/brigade/issues/${ticket}`, card: { waitsFor: [], zone, problems: [] } },
+        payload: { title: `Ticket ${ticket}`, priority: 2, createdAt: `2026-10-01T00:00:${String(ticket).padStart(2, "0")}Z`, url: `https://github.com/acme/brigade/issues/${ticket}`, card: { waitsFor: [], zone, problems: [] } },
       },
       ticket,
       "github",

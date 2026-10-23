@@ -15,7 +15,7 @@ const rienNeReste = temporaireDuFichier();
 const envDe = (t: TestContext, plus: Record<string, string> = {}) => ({ ...ENV_GIT, HOME: repertoireTemporaire(t), GIT_SSL_NO_VERIFY: "1", ...plus });
 
 function verifier(t: TestContext, clone: string, plus: Record<string, string> = {}): Promise<Acces> {
-  return verifierAcces({ station: "box", depot: "benomite/parade", base: BASE, clone, env: envDe(t, plus) });
+  return verifierAcces({ station: "box", depot: "acme/shop", base: BASE, clone, env: envDe(t, plus) });
 }
 
 test("une origine qui laisse récupérer et pousser : l'accès est libre", async (t) => {
@@ -33,7 +33,7 @@ test("un dépôt en https, sans credential helper : la récupération est refus�
   assert.equal(acces.etat, "bloque");
   if (acces.etat !== "bloque") return;
   assert.equal(acces.bloque, "fetch");
-  assert.match(acces.raison, /^box cannot fetch from benomite\/parade: git has no credentials for https:\/\/127\.0\.0\.1:\d+ and no credential helper to ask for them \(git: could not read Username for 'https:\/\/127\.0\.0\.1:\d+': terminal prompts disabled\)\.$/);
+  assert.match(acces.raison, /^box cannot fetch from acme\/shop: git has no credentials for https:\/\/127\.0\.0\.1:\d+ and no credential helper to ask for them \(git: could not read Username for 'https:\/\/127\.0\.0\.1:\d+': terminal prompts disabled\)\.$/);
   assert.match(acces.geste, /`gh auth setup-git`/);
   assert.ok(distant.requetes.length > 0, "git a bien joint le dépôt");
 });
@@ -57,8 +57,8 @@ test("un dépôt qui refuse la lecture au compte de la station : bloqué en réc
   assert.equal(acces.etat, "bloque");
   if (acces.etat !== "bloque") return;
   assert.equal(acces.bloque, "fetch");
-  assert.match(acces.raison, /^box cannot fetch from benomite\/parade: its GitHub account has no read access to it \(git: .*403\)\.$/);
-  assert.match(acces.geste, /read access to benomite\/parade.*https:\/\/github\.com\/benomite\/parade\/settings\/access/);
+  assert.match(acces.raison, /^box cannot fetch from acme\/shop: its GitHub account has no read access to it \(git: .*403\)\.$/);
+  assert.match(acces.geste, /read access to acme\/shop.*https:\/\/github\.com\/acme\/shop\/settings\/access/);
 });
 
 test("un dépôt qui laisse récupérer mais refuse de pousser : bloqué en écriture, avec une raison propre au push", async (t) => {
@@ -69,8 +69,8 @@ test("un dépôt qui laisse récupérer mais refuse de pousser : bloqué en écr
   assert.equal(acces.etat, "bloque");
   if (acces.etat !== "bloque") return;
   assert.equal(acces.bloque, "push");
-  assert.match(acces.raison, /^box can fetch from benomite\/parade but cannot push to it: its GitHub account has no write access to it \(git: .*403\)\.$/);
-  assert.match(acces.geste, /write access to benomite\/parade/);
+  assert.match(acces.raison, /^box can fetch from acme\/shop but cannot push to it: its GitHub account has no write access to it \(git: .*403\)\.$/);
+  assert.match(acces.geste, /write access to acme\/shop/);
   // Le push est à blanc : il s'est authentifié, rien n'a été envoyé.
   assert.ok(distant.requetes.every((requete) => requete.startsWith("GET ") && requete.includes("service=git-receive-pack")), distant.requetes.join("\n"));
 });
@@ -83,13 +83,13 @@ test("un dépôt qui n'existe pas : bloqué en récupération, le geste dit comm
   if (acces.etat !== "bloque") return;
   assert.equal(acces.bloque, "fetch");
   assert.match(acces.raison, /does not exist, or that its account may not see it/);
-  assert.match(acces.geste, /`gh repo view benomite\/parade`/);
+  assert.match(acces.geste, /`gh repo view acme\/shop`/);
 });
 
 test("un dépôt injoignable n'est pas un refus : la station réessaie, sans geste à faire", async (t) => {
   const [port] = await portsFermesALInstant(1);
   const { clone } = depotGit(t);
-  git(clone, "remote", "set-url", "origin", `http://127.0.0.1:${port}/benomite/parade.git`);
+  git(clone, "remote", "set-url", "origin", `http://127.0.0.1:${port}/acme/shop.git`);
   const acces = await verifier(t, clone);
   assert.equal(acces.etat, "injoignable");
   if (acces.etat !== "injoignable") return;
@@ -97,7 +97,7 @@ test("un dépôt injoignable n'est pas un refus : la station réessaie, sans ges
 });
 
 test("par ssh : une clé refusée, ou un hôte inconnu, ont chacun leur geste", () => {
-  const refus = (erreurs: string) => lireLeRefus({ operation: "fetch", station: "box", depot: "benomite/parade", clone: "/clones/parade", url: "git@github.com:benomite/parade.git", erreurs, helper: false });
+  const refus = (erreurs: string) => lireLeRefus({ operation: "fetch", station: "box", depot: "acme/shop", clone: "/clones/shop", url: "git@github.com:acme/shop.git", erreurs, helper: false });
   const cle = refus("git@github.com: Permission denied (publickey).\nfatal: Could not read from remote repository.");
   assert.match(cle?.raison ?? "", /git@github\.com refuses the ssh key of the station/);
   assert.match(cle?.geste ?? "", /`gh ssh-key add <key>\.pub`/);
@@ -108,7 +108,7 @@ test("par ssh : une clé refusée, ou un hôte inconnu, ont chacun leur geste", 
   // Un échec inconnu dit sa ligne de git, et comment la revoir.
   const inconnu = refus("fatal: protocol error: bad line length 1234");
   assert.match(inconnu?.raison ?? "", /\(git: protocol error: bad line length 1234\)\.$/);
-  assert.match(inconnu?.geste ?? "", /`git -C \/clones\/parade ls-remote origin`/);
+  assert.match(inconnu?.geste ?? "", /`git -C \/clones\/shop ls-remote origin`/);
 });
 
 test("acces.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);

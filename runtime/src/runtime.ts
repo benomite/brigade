@@ -57,7 +57,7 @@ export function demarrer(options: OptionsRuntime): Runtime {
   const { repertoireEtat, projet } = options;
   if (!NOM_DE_PROJET.test(projet)) {
     throw new ConfigInvalide(
-      `invalid project name: “${projet}” — expected a short identifier in lowercase letters, digits and hyphens (brigade, thermigo)`,
+      `invalid project name: “${projet}” — expected a short identifier in lowercase letters, digits and hyphens (brigade, compta)`,
     );
   }
   if (repertoireEtat === "") throw new ConfigInvalide("empty state directory");

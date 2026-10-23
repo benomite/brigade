@@ -5,7 +5,7 @@
 //     demande :
 //       { "brigade": "remedies", "format": 1, "requests": [
 //         { "id": "<unique>", "askedAt": "<ISO>",
-//           "project": "parade", "refusal": "<code du refus>", "remedy": "<id du remède>" } ] }
+//           "project": "shop", "refusal": "<code du refus>", "remedy": "<id du remède>" } ] }
 //   - `brigade-remedes-suivi.json`, écrit par la station seule — ce qu'il en
 //     est, pour chaque demande encore posée :
 //       { "brigade": "remedies-answers", "format": 1, "a": "<ISO>", "answers": [
