@@ -41,7 +41,7 @@ describe("la commande de l'arbitre", { concurrency: 8 }, () => {
     assert.match(sortie, /^account cap\s+10 cooks — 7 running, all projects heard$/m);
     assert.match(sortie, /^machine\s+no project says it is held by it$/m);
     assert.match(sortie, /^  brigade {2,}weight 1 · 2 running · share 5 · 3 left · nothing queued · cooks consumed: 300 tokens in 24 h, 300 in 7 days$/m);
-    assert.match(sortie, /^  compta {2}weight 1 · 5 running \(of which 1 left without the arbiter\) · share 5 · 3 left · tickets are queued · cooks consumed: 1,200 tokens in 24 h, 9,000 in 7 days$/m);
+    assert.match(sortie, /^  compta {3}weight 1 · 5 running \(of which 1 left without the arbiter\) · share 5 · 3 left · tickets are queued · cooks consumed: 1,200 tokens in 24 h, 9,000 in 7 days$/m);
     assert.match(sortie, /^cooks consumed\s+1,500 tokens in 24 h, 9,300 in 7 days — that of the ticket cooks the runtimes report, not the account's$/m);
   });
 
@@ -68,7 +68,7 @@ describe("la commande de l'arbitre", { concurrency: 8 }, () => {
     assert.match(sortie, /^machine\s+SATURATED according to brigade — the effective cap is what is running \(9\): only a project under its share launches again$/m);
     assert.match(sortie, /^  muet {2,}weight 1 · HAS NOT SPOKEN SINCE 2026-10-09T09:00:00\.000Z — share reserved: 3, which nobody borrows; `remove` frees it$/m);
     assert.match(sortie, /^  parti {2,}weight 1 · absent since 2026-10-09T08:00:0\d\.000Z — holds no share$/m);
-    assert.match(sortie, /^  compta {2}weight 1 · 9 running · share 3 · 0 left /m);
+    assert.match(sortie, /^  compta {3}weight 1 · 9 running · share 3 · 0 left /m);
   });
 
   test("le chef règle un poids et retire un projet : l'arbitre qui tourne le lit à sa décision suivante", async (t) => {
@@ -89,7 +89,7 @@ describe("la commande de l'arbitre", { concurrency: 8 }, () => {
       code: 0,
       sortie: "brigade: removed — its share is no longer reserved; if its runtime is running, it registers again at weight 1 as soon as it speaks\n",
     });
-    assert.deepEqual(ouvert.etat().projets.map((projet) => projet.projet), ["espace", "compta"]);
+    assert.deepEqual(ouvert.etat().projets.map((projet) => projet.projet), ["compta", "espace"]);
     assert.deepEqual(await commande("remove", "brigade"), { code: 1, sortie: "brigade : brigade: project unknown to the arbiter\n" });
   });
 
@@ -185,7 +185,7 @@ describe("la commande de l'arbitre", { concurrency: 8 }, () => {
     t.after(() => reglages.fermer());
     reglages.peser("compta", 3, "2026-10-01T00:00:00.000Z");
 
-    assert.match((await commande()).sortie, /^  compta {2}weight 3 · /m);
+    assert.match((await commande()).sortie, /^  compta {3}weight 3 · /m);
     assert.equal(ouvert.etat().projets.find((projet) => projet.projet === "compta")?.part, 6);
     assert.deepEqual(await commande("weight", "compta", "3"), { code: 0, sortie: "compta: weight 3 — unchanged; the arbiter reads it at its next decision\n" });
   });
