@@ -2522,6 +2522,16 @@ main > header,
   min-height: 0;
   overflow-y: auto;
   user-select: text;
+  display: flex;
+  flex-direction: column;
+}
+/* Les blocs gardent leur hauteur ; la rangée des colonnes prend le reste, et défile dans celui-ci (ticket 1556). */
+#rail > * {
+  flex: none;
+}
+#rail > .colonnes {
+  flex: 1 1 auto;
+  min-height: 320px;
 }
 #rail h3 {
   padding: 12px 16px 0;
@@ -2870,23 +2880,26 @@ main > header,
 }
 #rail .colonnes {
   display: grid;
-  grid-template-columns: repeat(3, minmax(104px, 1fr)) minmax(160px, 1.6fr) minmax(136px, 1.3fr) minmax(104px, 1fr);
+  grid-template-columns: repeat(3, minmax(240px, 1fr)) minmax(280px, 1.3fr) minmax(280px, 1.2fr) minmax(240px, 1fr);
+  align-items: start;
   gap: 8px;
   padding: 8px 16px 16px;
-  overflow-x: auto;
+  /* Une seule rangée, jamais empilée : trop étroite, la rangée défile de côté — aucune colonne ne passe dessous, aucune n'est
+     écrasée (ticket 1556). Elle défile aussi de haut en bas, pour que les têtes (collantes) restent en vue. */
+  overflow: auto;
 }
 /* Partagées entre les deux onglets (ticket 1184) : Rail en a quatre — On the rail, TODO, WAITING, Served —, Cooks deux —
-   Taken, Pass —, chacune de la largeur que lui donnaient les six. */
+   Taken, Pass. Une largeur plancher où un titre de ticket tient sur deux lignes au plus (ticket 1556). */
 #rail[data-onglet="rail"] .colonnes {
-  grid-template-columns: minmax(104px, 1fr) minmax(160px, 1.6fr) minmax(136px, 1.3fr) minmax(104px, 1fr);
+  grid-template-columns: minmax(240px, 1fr) minmax(280px, 1.3fr) minmax(280px, 1.2fr) minmax(240px, 1fr);
 }
 #rail[data-onglet="cooks"] .colonnes {
-  grid-template-columns: repeat(2, minmax(160px, 1fr));
+  grid-template-columns: repeat(2, minmax(240px, 1fr));
 }
 /* Le tableau de la cuisine lu de GitHub (ticket 1588) en a deux : TODO, puis la cuisine. `:where` : la règle pèse
    autant que celle des quatre, et la page étroite, plus bas, les empile de même. */
 #rail[data-onglet="rail"] .colonnes:where(.tableau-de-cuisine) {
-  grid-template-columns: minmax(200px, 1.3fr) minmax(220px, 1fr);
+  grid-template-columns: minmax(280px, 1.3fr) minmax(280px, 1fr);
 }
 /* Sur Cooks : la carte du projet, quand ses faits ne se dessinent pas, en tête. */
 #rail > .carte {
@@ -3533,6 +3546,12 @@ main > header,
   gap: 8px;
   margin: 0 0 8px;
   font-weight: 700;
+  /* La tête reste en haut de la rangée quand les cartes défilent (ticket 1556). */
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 0 0 4px;
+  background: var(--bandeau);
 }
 #rail h4 span:first-child::before {
   content: "";
@@ -3575,8 +3594,7 @@ main > header,
 /* Une colonne qui s'allonge tout le jour — Livré : ses cartes défilent dans une hauteur bornée. Elle
    ne pousse pas ce qui est sous la grille, et les autres colonnes restent en vue à côté d'elle. */
 #rail .colonne[data-defile] > ol {
-  max-height: 60vh;
-  overflow-y: auto;
+  max-height: none;
 }
 /* Les tickets hors colonnes : la même carte, en ligne sous la grille. */
 #rail > ol {
@@ -5739,15 +5757,7 @@ button.recommande {
   #second > header {
     border-top: 0;
   }
-  /* Les quatre colonnes de Rail ne tiennent pas côte à côte : elles s'empilent, de toute la largeur, et la page défile
-     de haut en bas seulement — jamais de côté (ticket 1163). Ce qui attend le chef, TODO, passe en tête ; les autres
-     gardent leur ordre. */
-  #rail[data-onglet="rail"] .colonnes {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  #rail[data-onglet="rail"] .colonne[data-attend] {
-    order: -1;
-  }
+  /* Les colonnes de Rail restent sur une rangée, qui défile de côté (ticket 1556) : rien à changer ici. */
   #rail .station-de-cuisson {
     grid-template-columns: minmax(0, 1fr) auto;
   }
@@ -6241,7 +6251,7 @@ button.recommande {
   color: var(--rouge-clair);
 }
 #rail[data-onglet="rail"] .colonnes.publiees {
-  grid-template-columns: repeat(3, minmax(104px, 1fr)) minmax(136px, 1.3fr) minmax(104px, 1fr);
+  grid-template-columns: repeat(3, minmax(240px, 1fr)) minmax(280px, 1.2fr) minmax(240px, 1fr);
 }
 #rail .colonne p.vide {
   color: var(--discret);
