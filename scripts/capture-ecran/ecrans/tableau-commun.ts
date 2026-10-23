@@ -79,14 +79,32 @@ export const INJOIGNABLE = await lire(new Error("getaddrinfo ENOTFOUND api.githu
 // Le dépôt est privé, et l'app n'est connectée à aucun compte qui le voit.
 export const PRIVE = await lire({ status: 404, data: { message: "Not Found" } });
 
+// Une décision du chef sur la file (#1590) : le commentaire que le faux pont dit avoir posté sur le tableau — le pont
+// rend une réponse figée par geste —, puis le tableau que la box réécrit après l'avoir lu, ce geste pris ou refusé. La
+// vue suit le geste par l'id du commentaire : une lecture qui le porte déjà le dit pris (ou refusé) dès qu'il est posté.
+export const POSTE = { etat: "pending", commentaire: { id: 9001, url: `https://github.com/${DEPOT}/issues/7#issuecomment-9001` } };
+const repondu = (etat: "pris" | "refuse", reponse: string): Promise<LectureDuTableauDuDepot> =>
+  lire({
+    status: 200,
+    data: [{ ...ISSUE, body: rendreLeTableau({ ...TABLEAU, gestes: [{ commentaire: 9001, url: POSTE.commentaire.url, le: "2026-10-13T10:03:40.000Z", geste: "merge", ticket: 12, etat, traiteLe: "2026-10-13T10:03:31.000Z", reponse }] }, GENERE_LE) }],
+  });
+export const PRIS = await repondu("pris", `**Done** — [merge #12](${POSTE.commentaire.url}) — cost: https://github.com/chef/parade/pull/40 is merged into main, under the box's GitHub account; the pass sees it at its next tick and serves the ticket. A merge is not undone from here`);
+export const REFUSE = await repondu("refuse", `**Not done** — [merge #12](${POSTE.commentaire.url}): GitHub refused the merge of https://github.com/chef/parade/pull/40: the base branch was modified, review and try the merge again`);
+// Le post refusé par GitHub : l'app n'a pas le droit d'écrire dans le dépôt.
+export const ECHEC = { etat: "failed", raison: `The gesture could not be posted on the Kitchen board of ${DEPOT}: GitHub refused the comment (HTTP 403): Resource not accessible by personal access token.` };
+
 const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "second · claude", note: "fil repris : la session d'hier", arrete: false };
 export const OUVRIR_PARADE: Etape = { cliquer: '#projets > button[title^="parade"]' };
 // « use the direct link », le premier geste sous la phrase d'un tableau qui ne se lit pas.
 export const PRENDRE_LE_LIEN_DIRECT: Etape = { cliquer: "#rail > p.gestes .action:first-child > button" };
+// « merge the PR » sur la première ligne de TODO (#12), puis le « oui » de sa confirmation (#1590).
+export const MERGER_LA_PREMIERE: Etape = { cliquer: "#rail .colonne[data-attend] li.bon:first-child .decisions .action:first-child > button" };
+export const CONFIRMER: Etape = { cliquer: "#rail .bon .confirmation > button.recommande" };
 
 // L'espace de parade sur le desktop, son tableau lu comme `lu` le dit. `box` : parade a un lien direct — sa box, jointe
 // par `ssh`, dont la cuisine figée se lit comme sur les autres écrans ; sans lui, ni box ni station sur ce poste.
-export function espaceDuTableau(dit: string, lu: LectureDuTableauDuDepot, { box = true, etapes = [] as Etape[] } = {}): Ecran {
+// `geste` : ce que le pont rend d'une décision postée sur le tableau (#1590).
+export function espaceDuTableau(dit: string, lu: LectureDuTableauDuDepot, { box = true, etapes = [] as Etape[], geste = undefined as unknown } = {}): Ecran {
   return {
     dit,
     largeur: 1440,
@@ -97,7 +115,7 @@ export function espaceDuTableau(dit: string, lu: LectureDuTableauDuDepot, { box 
       const envois = box ? cuisine(RENDUS) : { regarder: {} };
       return {
         maintenant: MAINTENANT,
-        reponses: { demarrage: demarrage(configuration(projets, box ? ["box"] : [])), espace: [SECOND], tableauDuProjet: lu },
+        reponses: { demarrage: demarrage(configuration(projets, box ? ["box"] : [])), espace: [SECOND], tableauDuProjet: lu, ...(geste === undefined ? {} : { gesteAuTableau: geste }) },
         envois,
       };
     },

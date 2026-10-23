@@ -329,7 +329,7 @@ minute), and on `read again`.
   a delivery to merge, `open the issue` for a card to answer or any other ticket, `open the Kitchen
   board` for a line that is no ticket's. The page's address is in the button's hover; the app opens
   only a page its last reading of the board gave. No command is written out, on screen or in a
-  hover (doing the decision from the app itself is #1590). Under the lines, what `status` says that
+  hover; each line's decisions are its own buttons (below). Under the lines, what `status` says that
   is no decision. **Kitchen**, the kitchen's state in a word (`open`, `held`, `stopped`, `off`) and each
   heading of `status` with its lines.
 - **Not read**: the head is the reading's one sentence — GitHub out of reach (the network's error
@@ -348,6 +348,40 @@ minute), and on `read again`.
 `tableauDuProjet` and `ouvrirDuTableau` in `app/src/main.ts` and `app/android/web/pont.js`, each line's
 page in `app/src/tableau/lecture.ts` (`pages`). Captures:
 `docs/captures/1588/`.*
+
+### The decisions of the queue, taken from the Kitchen board (#1590)
+
+Each TODO line of the Kitchen board that awaits a decision carries it as buttons, under its page
+button. The gesture is posted as a comment on the board's issue, in the grammar of
+`docs/tableau-gestes.md`, with the same GitHub token as the reading: no `ssh`, no station, no
+tailnet, on Mac, Windows and Android. The box plays it at its next tick and answers under it.
+
+- **What a line offers**: a green delivery waiting for a merge, `merge the PR` (recommended), `send
+  back to the kitchen` and `remove from the rail`; an escalated delivery, the same three with `send
+  back to the kitchen` recommended; a card, its choices, its text field and `send` — the TODO card
+  brick of the rail — then `remove from the rail`; any other ticket, `remove from the rail`. A line
+  that is no ticket's (the breaker, a station) has none. Each price is in its button's hover.
+- **Confirmation**: merge, send back and remove open a confirmation on the line — what the gesture
+  does and its price in one line, then `yes, …` and `cancel`. Sending back has an optional reason
+  field; the reason becomes a candidate lesson. A card's choice is the answer itself, with no
+  confirmation, as on the rail.
+- **Followed**: the line says what was asked and where it stands — `sending…`; `pending` once the
+  comment is posted (the line offers no decision meanwhile, so nothing is posted twice); then, when
+  a reading of the board carries the comment's id in its `gestes`, `taken into account` (the box's
+  reply in the hover) or `refused` followed by the box's reply line, and the decisions come back.
+  While a gesture is pending, the board is read every 20 seconds instead of every minute.
+- **Not posted**: one sentence on the line (`The gesture could not be posted on the Kitchen board of
+  chef/parade.`), what GitHub or the network said in the hover, and the buttons stay usable. The app
+  only posts for a ticket in the queue of its last reading of the board.
+- **A line that left the queue** — the box took the gesture and rewrote the board — keeps its
+  gesture under TODO, `no longer in the queue`, until `clear`. The followed gestures live as long as
+  the app.
+
+*Code: `app/src/vue/gestes-du-tableau.js` (the line's decisions), `decisionsDuTableau` in
+`app/src/vue/vue.js`, `gesteAuTableau` in `app/src/main.ts` and `app/android/web/pont.js`, the post in
+`app/src/tableau-gestes/github.ts` (desktop `fetch`) and `app/android/web/lecture.ts`
+(`gesteDuTelephone`, the native HTTP), the board's `gestes` in `app/src/tableau/lecture.ts`. Captures:
+`docs/captures/1590/`.*
 
 ### The second's choices, as buttons under its terminal (#1520)
 
