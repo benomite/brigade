@@ -14,6 +14,7 @@ import type { FaitDistante } from "./events/remote.ts";
 import type { FaitFermeture } from "./events/closing.ts";
 import type { FaitGardeFous } from "./events/guardrails.ts";
 import type { FaitGesteDuTableau } from "./tableau/gestes/evenements.ts";
+import type { FaitMentionDuTableau } from "./tableau/mention/evenements.ts";
 import type { FaitBudgetDesGates, FaitGates } from "./events/gates.ts";
 import type { FaitBlocage } from "./installation/blocages/evenements.ts";
 import type { FaitDelai } from "./installation/delai/evenements.ts";
@@ -39,7 +40,7 @@ import type { FaitInterrupteur } from "./events/switch.ts";
 import type { FaitTodo } from "./events/todo.ts";
 import type { FaitUrgence } from "./events/emergency.ts";
 
-export type Fait = FaitRuntime | FaitRail | FaitGardeFous | FaitStation | FaitPass | FaitPassRevolu | FaitSauvegarde | FaitManager | FaitNettoyage | FaitDerive | FaitCloison | FaitInstallateur | FaitInstallation | FaitService | FaitDistante | FaitFermeture | FaitMiseAJour | FaitDecision | FaitRenouvellement | FaitJeton | FaitUrgence | FaitCorrectif | FaitCarnet | FaitProfil | FaitApprentissage | FaitDemenagement | FaitTodo | FaitPause | FaitGates | FaitBudgetDesGates | FaitBlocage | FaitBesoin | FaitDelai | FaitInterrupteur | FaitReparation | FaitReglage | FaitAutonomie | FaitGesteDuTableau;
+export type Fait = FaitRuntime | FaitRail | FaitGardeFous | FaitStation | FaitPass | FaitPassRevolu | FaitSauvegarde | FaitManager | FaitNettoyage | FaitDerive | FaitCloison | FaitInstallateur | FaitInstallation | FaitService | FaitDistante | FaitFermeture | FaitMiseAJour | FaitDecision | FaitRenouvellement | FaitJeton | FaitUrgence | FaitCorrectif | FaitCarnet | FaitProfil | FaitApprentissage | FaitDemenagement | FaitTodo | FaitPause | FaitGates | FaitBudgetDesGates | FaitBlocage | FaitBesoin | FaitDelai | FaitInterrupteur | FaitReparation | FaitReglage | FaitAutonomie | FaitGesteDuTableau | FaitMentionDuTableau;
 
 export type Enveloppe = {
   // Numéro de séquence : l'ordre de vérité du journal.
