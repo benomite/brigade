@@ -322,8 +322,10 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
     assert.match(lu.stdout, /^retenue     version gelée en 1\.0\.0 : 1\.1\.0 attend que le gel soit levé$/m);
 
     writeFileSync(join(machine.station, "reglages"), "gel=non\n");
-    assert.equal(machine.declencher(), 0);
-    assert.equal(machine.installee(), "1.1.0");
+    // Rouge, ce que la mise à jour et la station ont dit nomme la cause.
+    const dit = () => `la mise à jour :\n${machine.sortie("brigade-station-mise-a-jour.service")}\nla station :\n${machine.sortie("brigade-station.service").slice(-4000)}`;
+    assert.equal(machine.declencher(), 0, dit());
+    assert.equal(machine.installee(), "1.1.0", dit());
     await enService(machine, "1.1.0");
     assert.deepEqual([lireEtatMiseAJour(machine.miseAJour)?.gelee, lireEtatMiseAJour(machine.miseAJour)?.derniere?.quoi], [false, "passee"]);
   });
