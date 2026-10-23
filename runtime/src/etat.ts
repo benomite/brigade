@@ -54,7 +54,7 @@ import { GESTE_DE_STATION_A_CHAUD_EN } from "./stations-declarees.ts";
 import { prendLesOrdinaires } from "./bac-a-sable/ordinaires.ts";
 import type { Refus } from "./projets/refus.ts";
 import { alerteEnCours, type AlerteEnCours } from "./projections/emergency.ts";
-import { cleDUrgence, urgenceDuChef, type Urgence } from "./urgence.ts";
+import { cleDUrgence, retenuesDuChef, urgenceDuChef, type CauseDUrgence as RetenueDuChef, type Urgence } from "./urgence.ts";
 
 const EVENEMENTS_MONTRES = 15;
 // La cadence à laquelle le suivi regarde si le journal a changé : une lecture
@@ -103,6 +103,10 @@ export type EtatCuisine = {
   // attend (urgence.ts). Nulle aussi quand le chef a lui-même arrêté la
   // cuisine : c'est son « stop » qui la retient.
   urgence: Urgence | null;
+  // Les décisions du chef sur un ticket qui en retiennent d'autres sans
+  // arrêter la cuisine : un ticket au moins peut cuire (urgence.ts). Vide
+  // quand rien n'est retenu, ou quand tout l'est — c'est alors `urgence`.
+  retenues: RetenueDuChef[];
   // L'alerte que le runtime a émise pour elle, lue du journal : app fermée
   // comme ouverte. Nulle tant que rien n'a été annoncé.
   alerteUrgence: AlerteEnCours | null;
@@ -203,6 +207,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
     captures: capturesDesLivraisons(journal, [...rail.filter(({ state }) => state === "pass" || state === "served").map(({ ticket }) => ticket), ...livres.map(({ ticket }) => ticket)]),
     attend,
     urgence: gardeFous.stoppedAt === null ? urgenceDuChef(base, rail, attend, stations) : null,
+    retenues: gardeFous.stoppedAt === null ? retenuesDuChef(rail, attend, stations) : [],
     alerteUrgence: gardeFous.stoppedAt === null ? alerteEnCours(base) : null,
     sansGrant: bilanSansGrant(base),
     passage: passageEnService(base, maintenant),
@@ -848,6 +853,11 @@ export type Faits = {
   // `url`, l'adresse de son issue, comme dans `attend`. `autres` : les autres
   // décisions qui retiennent aussi des tickets, sous la même forme.
   urgence: (DecisionUrgente & { depuis: string; retenus: number[]; autres: DecisionUrgente[]; alerte: AlerteExposee | null }) | null;
+  // Les décisions du chef qui retiennent des tickets sans arrêter la cuisine :
+  // `retenus`, ceux qui les attendent, directement ou de proche en proche. Les
+  // autres tickets sont servis. Vide sinon, et vide aussi à l'arrêt total
+  // (c'est `urgence`).
+  retenues: Array<DecisionUrgente & { retenus: number[] }>;
   // Les stations que le projet déclare, dans l'ordre de leur nom, et ce
   // qu'elles font des tickets ordinaires — ceux qui ne demandent rien.
   // `distante` : elle tire son travail depuis le poste du chef. `plafond` : ses
@@ -932,15 +942,17 @@ const GRAVITES = { blocking: "bloquant", remark: "remarque" } as const;
 const relectureLivree = (review: Livre["review"]): RelectureLivree | null =>
   review === null ? null : { resume: review.summary, constats: review.findings.map(({ severity, file, text }) => ({ gravite: GRAVITES[severity], fichier: file, constat: text })) };
 
+const decisionUrgente = (attente: Attente, adresse: (ticket: number) => string | null): DecisionUrgente => ({
+  decision: nommerAttente(attente),
+  ticket: attente.ticket,
+  cause: CAUSES_D_URGENCE[attente.quoi],
+  geste: direAttente(attente),
+  url: attente.ticket === null ? null : adresse(attente.ticket),
+});
+
 function faitsDUrgence(urgence: Urgence | null, alerte: AlerteEnCours | null, adresse: (ticket: number) => string | null): Faits["urgence"] {
   if (urgence === null) return null;
-  const decision = ({ attente }: Urgence["causes"][number]): DecisionUrgente => ({
-    decision: nommerAttente(attente),
-    ticket: attente.ticket,
-    cause: CAUSES_D_URGENCE[attente.quoi],
-    geste: direAttente(attente),
-    url: attente.ticket === null ? null : adresse(attente.ticket),
-  });
+  const decision = ({ attente }: Urgence["causes"][number]): DecisionUrgente => decisionUrgente(attente, adresse);
   const [premiere, ...autres] = urgence.causes;
   // L'alerte d'une autre urgence (cause changée, pas encore réannoncée) n'est
   // pas la sienne.
@@ -1018,6 +1030,7 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limit
     }),
     livres: etat.livres.map(({ ticket, title, url, servedAt, station, pr, review }) => ({ ticket, titre: title, url: url ?? adresse(ticket), livre: servedAt, station, pr, relecture: relectureLivree(review), ...captures(ticket) })),
     urgence: faitsDUrgence(etat.urgence, etat.alerteUrgence, adresse),
+    retenues: etat.retenues.map(({ attente, retenus }) => ({ ...decisionUrgente(attente, adresse), retenus })),
     stations: etat.stations.map((station) => ({
       station: station.station,
       distante: station.remote,

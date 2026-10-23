@@ -321,6 +321,16 @@
     }
   ],
   "urgence": null,
+  "retenues": [
+    {
+      "decision": "#18",
+      "ticket": 18,
+      "cause": "remontée",
+      "geste": "remontée par la pass, rouge (still-red : returns-exhausted) — à trancher : merger https://exemple.test/pull/18 à la main, ou retirer `fire` — `brigade <projet> pass 18`",
+      "url": "https://exemple.test/18",
+      "retenus": [33]
+    }
+  ],
   "stations": [
     {
       "station": "box/claude",

@@ -223,6 +223,9 @@ export type DecisionUrgente = { decision: string; ticket: number | null; cause: 
 // `alerte` : celle que le runtime a émise pour cette urgence, nulle tant qu'il ne
 // l'a pas annoncée, absente d'un runtime d'avant ce champ.
 export type Urgence = DecisionUrgente & { depuis: string; retenus: number[]; autres: DecisionUrgente[]; alerte?: AlerteUrgence | null };
+// Une décision du chef qui retient des tickets, et eux seuls : `retenus`, ceux qui l'attendent. Les
+// autres tickets cuisent (runtime/src/etat.ts, `Faits.retenues`).
+export type Retenue = DecisionUrgente & { retenus: number[] };
 // L'alerte d'urgence émise (runtime/src/etat.ts, `AlerteExposee`) : sa ligne, sa
 // première émission, la dernière, rappel compris, et le nombre de rappels.
 export type AlerteUrgence = { libelle: string; emiseLe: string; derniereLe: string; rappels: number };
@@ -264,6 +267,9 @@ export type Faits = {
   attend?: Attendu[];
   livres?: Livre[];
   urgence?: Urgence | null;
+  // Les décisions du chef qui retiennent des tickets sans arrêter la cuisine : absent, c'est un
+  // runtime d'avant ce champ.
+  retenues?: Retenue[];
   // Les stations que le projet déclare et ce qu'elles font des tickets ordinaires (ordinaires.ts) ; absent d'un runtime d'avant ce champ.
   stations?: StationDesFaits[];
   // Le plafond de calibrage du manager, et si le chef l'a posé (plafond-de-calibrage.ts) ; absent d'un runtime
@@ -507,6 +513,12 @@ function comprendreUrgence(valeur: unknown, champ: string): Urgence {
   };
 }
 
+function comprendreRetenue(valeur: unknown, champ: string): Retenue {
+  const lu = objet(valeur, champ);
+  const retenus = Array.isArray(lu.retenus) ? lu.retenus : refuser(`${champ}.retenus`, "a list");
+  return { ...comprendreDecision(lu, champ), retenus: retenus.map((ticket: unknown, rang: number) => entier(ticket, `${champ}.retenus[${rang}]`)) };
+}
+
 // L'alerte émise pour l'urgence : sa ligne, ses deux heures, ses rappels.
 function comprendreAlerteUrgence(valeur: unknown, champ: string): AlerteUrgence {
   const lu = objet(valeur, champ);
@@ -646,6 +658,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
             }),
           }),
       ...(racine.urgence === undefined ? {} : { urgence: ouRien(racine.urgence, "urgence", comprendreUrgence) }),
+      ...(racine.retenues === undefined ? {} : { retenues: (Array.isArray(racine.retenues) ? racine.retenues : refuser("retenues", "a list")).map((r: unknown, rang: number) => comprendreRetenue(r, `retenues[${rang}]`)) }),
       ...(racine.stations === undefined
         ? {}
         : { stations: (Array.isArray(racine.stations) ? racine.stations : refuser("stations", "a list")).map((station: unknown, rang) => comprendreStation(station, `stations[${rang}]`)) }),
