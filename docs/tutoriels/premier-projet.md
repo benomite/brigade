@@ -87,26 +87,29 @@ If the labels do not exist in the repository, create them first (the guided inst
 ## 5. Review at the pass
 
 The pass checks the delivery: it runs the gates and the review on the pull request, and writes
-its verdict on the issue.
+its verdict on the issue. Open the **Pass** card's pull request (its number opens it on GitHub)
+to read the diff and the verdict.
 
-1. On the **Pass** card, open the pull request (its number opens it on GitHub) and read the
-   diff and the pass's verdict.
-2. If the delivery is green and the project switch is on with the `merge` grant enabled, the
-   pass merges it itself: go to step 6. A fresh box has no such grant, so a green delivery waits
-   for you.
-3. A delivery that waits for you shows in **TODO** with its decision as buttons: `merge the PR`
-   (recommended), `send back to the kitchen`, `remove from the rail`. The line's `open the PR`
-   button opens the page on GitHub.
+**Do not wait for a button, and do not merge by hand, unless the pass stops.** A project added
+from the app starts with the project switch on, and switching it on enables the `merge` grant
+(`docs/runtime/exploitation.md`, "The project switch"). A green delivery is therefore merged by
+the pass itself: you have nothing to click.
 
-**You see**: your delivery in **TODO**, with its three buttons.
+A delivery waits for you only in two cases, and then it shows in **TODO** with its decision as
+buttons, `merge the PR` (recommended), `send back to the kitchen` and `remove from the rail`:
 
-## 6. Merge
+- the pass escalates it (a verdict it cannot settle alone);
+- the project switch is off (`project off` at the head of the space), or you revoked the grant.
+  Switch the project back on and the waiting deliveries are merged.
 
-Click `merge the PR`. The app posts the gesture, the box plays it at its next tick and answers
+## 6. The PR is merged
+
+For a green delivery, the pass merges the pull request. In the other case, click `merge the PR`
+on the **TODO** line: the app posts the gesture, the box plays it at its next tick and answers
 under it.
 
-**You see**: the card leave **TODO**, then appear in **Served**; on GitHub, the pull request is
-merged and the issue closed.
+The card leaves **Pass** (or **TODO**) for **Served**; on GitHub, the pull request is merged
+and the issue closed.
 
 ## What you get at the end
 
