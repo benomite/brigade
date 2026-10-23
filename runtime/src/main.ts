@@ -36,6 +36,8 @@ import { ConfigInvalide, DejaEnCours, demarrer } from "./runtime.ts";
 import { lireLesProfils } from "./profils/preference.ts";
 import { brancherStation, configStation, depotDeStation } from "./station.ts";
 import { direStations, type StationDeclaree } from "./stations-declarees.ts";
+import { clientGitHubDuTableau } from "./tableau/publication/client.ts";
+import { brancherLeTableau } from "./tableau/publication/publier.ts";
 
 // Ce que le runtime dit à journald est masqué, avant même son premier mot.
 masquerLaConsole();
@@ -204,7 +206,11 @@ try {
   const datee = brancherJeton(suivie, jeton);
   // L'alerte d'urgence ne lance rien : elle écrit ce que le runtime a dit au
   // chef, une fois, puis un rappel espacé.
-  runtime = brancherAlerteUrgence(datee);
+  const alertee = brancherAlerteUrgence(datee);
+  // Le tableau de la cuisine ne lance rien non plus : il publie, dans le dépôt
+  // du projet, ce que `status` dit — sous l'identité du manager, s'il en a une.
+  const tableau = clientGitHubDuTableau({ depot: rail.depot, bin: rail.gh, ...(identites ? { jeton: identites.jeton("manager").frais, compte: "manager" } : {}) });
+  runtime = brancherLeTableau(alertee, { client: tableau, depot: rail.depot, station: process.env.BRIGADE_STATION_DIR });
 } catch (erreur) {
   if (erreur instanceof ConfigInvalide || erreur instanceof DejaEnCours) refuser(erreur.message);
   throw erreur;

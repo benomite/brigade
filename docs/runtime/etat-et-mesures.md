@@ -309,6 +309,25 @@ cook), `name` and `zone` (the profile and its domain), `file` (its definition, r
 `lessons` (the ids of the notebook lessons given — `[]` for a still-empty notebook). A generalist
 has none.
 
+### The Kitchen board, on GitHub
+
+The runtime publishes what `status` says in the project's own repository: one issue titled
+**Kitchen board**, pinned, whose body is the board (`runtime/src/tableau/`) — the queue with each
+gesture, the kitchen's state, and a machine block for the apps. It carries the labels
+`kitchen-board`, by which it is found again, and `hors-cuisine`, so that neither the rail nor the
+manager takes it as a ticket. On each tick (once a minute) the runtime rereads the board and
+**rewrites the body only if what it says changed**: the reading time, the durations it gives
+("for 4 min") and the runtime's last tick are not a change, so a quiet kitchen writes nothing. Only the body is edited —
+no comment, no mention: a refresh notifies nobody. Each call goes through the GitHub budget
+(`station-machine.md`), as a kitchen call, under the manager's identity when roles have one.
+
+The issue is found by its label and its block, never by a stored number. Closed, it is reopened;
+deleted or transferred, it is recreated; created, reopened, recreated — the service log says it
+in one line. Pinning is checked at the first refresh, after each creation or reopening, then
+hourly; refused (an App without the right), it is said once and retried an hour later. A refresh
+that fails — GitHub unreachable, the budget holding the kitchen back — is said once, and retried
+at the next tick.
+
 ## The measures reading
 
 The gates say "it works", never "it is getting heavy". The reading sets side by side, **over
