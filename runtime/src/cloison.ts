@@ -7,7 +7,7 @@
 // worktree du lancement. Seul module qui sait comment `bwrap` se pilote.
 import { execFileSync } from "./sans-invite.ts";
 import { constants, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { basename, delimiter, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import type { Fait } from "./evenements.ts";
 import type { EtatDeCloison } from "./events/partition.ts";
 import { FICHIER_DU_JETON } from "./jeton-claude.ts";
@@ -69,7 +69,7 @@ const PRIVES_PAR_DEFAUT = [".cache", ".npm", ".claude.json"];
 // seule : un outil y crée la sienne, le binaire `claude` posé sous
 // `~/.local/bin` reste celui du compte. Un répertoire n'y est mêlé que sous
 // un parent qui l'est.
-const MELES = [".local", ".local/share", ".local/state"];
+const MELES = [".local", join(".local", "share"), join(".local", "state")];
 
 const estUn = (chemin: string, quoi: "isFile" | "isDirectory"): boolean => {
   try {
@@ -102,7 +102,8 @@ export function configCloison(env: Record<string, string | undefined>, lieux: { 
   if (!isAbsolute(bin) || !existsSync(bin)) throw new ConfigInvalide(`invalid BRIGADE_SANDBOX_BIN: “${bin}” — expected the absolute path of \`bwrap\` (/usr/bin/bwrap), and it must exist`);
   const home = env.HOME;
   if (!home) throw new ConfigInvalide("BRIGADE_SANDBOX_BIN is set, but HOME is not: the partition does not know where the account keeps its credentials");
-  const masques = [...new Set(brut.split(":").filter(Boolean))];
+  // Séparés comme les chemins d'un PATH : `:` en POSIX.
+  const masques = [...new Set(brut.split(delimiter).filter(Boolean))];
   if (masques.length === 0) {
     throw new ConfigInvalide("BRIGADE_SANDBOX_BIN is set without BRIGADE_SANDBOX_HIDDEN: the partition would hide nothing — set the directories that hold the state and the secrets of all projects, separated by “:” (/var/lib/brigade:/etc/brigade)");
   }

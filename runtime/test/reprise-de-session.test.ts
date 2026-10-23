@@ -255,7 +255,7 @@ describe("retrouver la session du cook précédent", () => {
   });
 
   test("le répertoire d'un projet porte le nom de son chemin, tout ce qui n'est ni lettre ni chiffre changé en tiret — et n'est pas deviné au-delà de 200 caractères", () => {
-    assert.equal(dossierDuProjet("/c", "/var/lib/brigade/worktrees/17-ab_c.d"), "/c/projects/-var-lib-brigade-worktrees-17-ab-c-d");
+    assert.equal(dossierDuProjet("/c", "/var/lib/brigade/worktrees/17-ab_c.d"), join("/c", "projects", "-var-lib-brigade-worktrees-17-ab-c-d"));
     assert.equal(dossierDuProjet("/c", `/${"a".repeat(200)}`), null);
   });
 

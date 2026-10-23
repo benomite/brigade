@@ -9,6 +9,7 @@ import { test, type TestContext } from "node:test";
 import { CodeRefuse, DemandeInvalide, DUREE_MS, lireCode, ouvrirEnrolements, RECEPTEUR, repertoireDuRegistre } from "../../src/enrolement/enrolement.ts";
 import { ouvrirRegistre, PresentationInvalide, type Presentation } from "../../src/stations-globales/registre.ts";
 import { repertoireTemporaire } from "../outils.ts";
+import { posixOnly } from "../support/plateforme.ts";
 
 const SERVEUR: Presentation = { nom: "serveur-1", machine: "Debian GNU/Linux 13 (trixie)", capacites: ["linux"], cloisonnee: false };
 
@@ -30,7 +31,7 @@ const ouvrir = (t: TestContext, heure = horloge()) => {
 
 const refuse = (motif: string) => (erreur: unknown) => erreur instanceof CodeRefuse && erreur.motif === motif;
 
-test("préparer rend un code à usage unique et la commande qui le porte, avec la destination, le geste et le registre du chef", (t) => {
+test("préparer rend un code à usage unique et la commande qui le porte, avec la destination, le geste et le registre du chef", { skip: posixOnly("prepares an enrolment command, which a server runs in a POSIX shell to reach the home's receiver over ssh: preparer refuses the Windows paths of the receiver and of the registry (DemandeInvalide on the job)") }, (t) => {
   const { enrolements, repertoire } = ouvrir(t);
   const { code, commande, expireLe } = enrolements.preparer({ vers: "chef@box" });
 
@@ -57,7 +58,7 @@ test("rien de ce qui sortirait de ses apostrophes ne s'écrit dans la commande",
   assert.throws(() => enrolements.preparer({ vers: "chef@box", branche: "--upload-pack=x" }), DemandeInvalide);
 });
 
-test("le bon code présente la machine au registre « en attente », avec ses capacités — et elle n'est sélectionnable qu'une fois acceptée", (t) => {
+test("le bon code présente la machine au registre « en attente », avec ses capacités — et elle n'est sélectionnable qu'une fois acceptée", { skip: posixOnly("prepares an enrolment command, which a server runs in a POSIX shell to reach the home's receiver over ssh: preparer refuses the Windows paths of the receiver and of the registry (DemandeInvalide on the job)") }, (t) => {
   const { enrolements, registre } = ouvrir(t);
   const { code } = enrolements.preparer({ vers: "chef@box" });
 
@@ -74,7 +75,7 @@ test("le bon code présente la machine au registre « en attente », avec ses ca
   assert.deepEqual(registre.utilisables(["linux"]), [acceptee]);
 });
 
-test("le code se tape comme on le lit : minuscules, sans tiret, O pour 0, I ou L pour 1", (t) => {
+test("le code se tape comme on le lit : minuscules, sans tiret, O pour 0, I ou L pour 1", { skip: posixOnly("prepares an enrolment command, which a server runs in a POSIX shell to reach the home's receiver over ssh: preparer refuses the Windows paths of the receiver and of the registry (DemandeInvalide on the job)") }, (t) => {
   const { enrolements, registre } = ouvrir(t);
   const { code } = enrolements.preparer({ vers: "chef@box" });
   const tape = code.replace("-", " ").toLowerCase().replaceAll("0", "o").replaceAll("1", "l");
@@ -87,7 +88,7 @@ test("le code se tape comme on le lit : minuscules, sans tiret, O pour 0, I ou L
   assert.equal(lireCode("ABCD"), null);
 });
 
-test("un code faux est refusé, et la machine n'apparaît pas au registre", (t) => {
+test("un code faux est refusé, et la machine n'apparaît pas au registre", { skip: posixOnly("prepares an enrolment command, which a server runs in a POSIX shell to reach the home's receiver over ssh: preparer refuses the Windows paths of the receiver and of the registry (DemandeInvalide on the job)") }, (t) => {
   const { enrolements, registre } = ouvrir(t);
   const { code } = enrolements.preparer({ vers: "chef@box" });
   // Un autre code bien formé, et ce qui n'en est pas un.
@@ -101,7 +102,7 @@ test("un code faux est refusé, et la machine n'apparaît pas au registre", (t) 
   assert.equal(enrolements.recevoir(code, SERVEUR).statut, "en-attente");
 });
 
-test("un code expiré est refusé, et la machine n'apparaît pas au registre", (t) => {
+test("un code expiré est refusé, et la machine n'apparaît pas au registre", { skip: posixOnly("prepares an enrolment command, which a server runs in a POSIX shell to reach the home's receiver over ssh: preparer refuses the Windows paths of the receiver and of the registry (DemandeInvalide on the job)") }, (t) => {
   const { enrolements, registre, heure } = ouvrir(t);
   const { code, expireLe } = enrolements.preparer({ vers: "chef@box" });
 
@@ -111,7 +112,7 @@ test("un code expiré est refusé, et la machine n'apparaît pas au registre", (
   assert.deepEqual(registre.liste(), []);
 });
 
-test("un code ne sert qu'une fois : une seconde présentation, de cette machine ou d'une autre, est refusée et n'entre pas au registre", (t) => {
+test("un code ne sert qu'une fois : une seconde présentation, de cette machine ou d'une autre, est refusée et n'entre pas au registre", { skip: posixOnly("prepares an enrolment command, which a server runs in a POSIX shell to reach the home's receiver over ssh: preparer refuses the Windows paths of the receiver and of the registry (DemandeInvalide on the job)") }, (t) => {
   const { enrolements, registre } = ouvrir(t);
   const { code } = enrolements.preparer({ vers: "chef@box" });
   const premiere = enrolements.recevoir(code, SERVEUR);
@@ -121,7 +122,7 @@ test("un code ne sert qu'une fois : une seconde présentation, de cette machine 
   assert.deepEqual(registre.liste(), [premiere]);
 });
 
-test("une présentation mal formée est refusée sans consommer le code", (t) => {
+test("une présentation mal formée est refusée sans consommer le code", { skip: posixOnly("prepares an enrolment command, which a server runs in a POSIX shell to reach the home's receiver over ssh: preparer refuses the Windows paths of the receiver and of the registry (DemandeInvalide on the job)") }, (t) => {
   const { enrolements, registre } = ouvrir(t);
   const { code } = enrolements.preparer({ vers: "chef@box" });
 
@@ -130,7 +131,7 @@ test("une présentation mal formée est refusée sans consommer le code", (t) =>
   assert.equal(enrolements.recevoir(code, SERVEUR).statut, "en-attente");
 });
 
-test("un enrôlement n'hérite jamais d'une acceptation : se présenter sous le nom d'une station acceptée est refusé", (t) => {
+test("un enrôlement n'hérite jamais d'une acceptation : se présenter sous le nom d'une station acceptée est refusé", { skip: posixOnly("prepares an enrolment command, which a server runs in a POSIX shell to reach the home's receiver over ssh: preparer refuses the Windows paths of the receiver and of the registry (DemandeInvalide on the job)") }, (t) => {
   const { enrolements, registre } = ouvrir(t);
   registre.presenter(SERVEUR);
   const acceptee = registre.accepter("serveur-1", { capacites: ["code"] });
@@ -144,7 +145,7 @@ test("un enrôlement n'hérite jamais d'une acceptation : se présenter sous le 
   assert.deepEqual(registre.utilisables(), [acceptee]);
 });
 
-test("un code préparé dans un process se valide dans un autre : les enrôlements vivent sur le disque, sans le code en clair", (t) => {
+test("un code préparé dans un process se valide dans un autre : les enrôlements vivent sur le disque, sans le code en clair", { skip: posixOnly("prepares an enrolment command, which a server runs in a POSIX shell to reach the home's receiver over ssh: preparer refuses the Windows paths of the receiver and of the registry (DemandeInvalide on the job)") }, (t) => {
   const repertoire = repertoireTemporaire(t);
   const avant = ouvrirEnrolements(repertoire);
   const { code } = avant.preparer({ vers: "chef@box" });
@@ -158,7 +159,7 @@ test("un code préparé dans un process se valide dans un autre : les enrôlemen
 
 test("le registre du chef : BRIGADE_REGISTRE_DIR, sinon sous l'état de son compte", () => {
   assert.equal(repertoireDuRegistre({ BRIGADE_REGISTRE_DIR: "/srv/registre", HOME: "/home/chef" }), "/srv/registre");
-  assert.equal(repertoireDuRegistre({ XDG_STATE_HOME: "/etat", HOME: "/home/chef" }), "/etat/brigade");
-  assert.equal(repertoireDuRegistre({ HOME: "/home/chef" }), "/home/chef/.local/state/brigade");
+  assert.equal(repertoireDuRegistre({ XDG_STATE_HOME: "/etat", HOME: "/home/chef" }), join("/etat", "brigade"));
+  assert.equal(repertoireDuRegistre({ HOME: "/home/chef" }), join("/home/chef", ".local", "state", "brigade"));
   assert.throws(() => repertoireDuRegistre({}), DemandeInvalide);
 });

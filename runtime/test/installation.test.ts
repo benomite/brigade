@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { chmodSync, chownSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
+import { posixOnly } from "./support/plateforme.ts";
 import { empreinteDuCode, lireCodeEnService, noterCodeEnService } from "../src/code.ts";
 import { desinstaller, etapesAReprendre, InstallationRefusee, jugerReseau, jugerTemporaire, jugerUnites, LABELS, mesurerSetup, poserLabels, tenir, VARIABLES, verifier, jugerRenouvellement, type Constat } from "../src/installation.ts";
 import type { EtatDuRenouvellement } from "../src/sonde-renouvellement.ts";
@@ -225,7 +226,7 @@ describe("les variables obligatoires", { concurrency: 8 }, () => {
 });
 
 // Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
-describe("le réglage du geste d'installation", { concurrency: 8 }, () => {
+describe("le réglage du geste d'installation", { skip: posixOnly("runs the fake claude, the fake gh and fake systemctl, journalctl or getent (POSIX shell scripts)"), concurrency: 8 }, () => {
   const sauvegardes = (racine: string) => join(racine, "sauvegardes");
   const du_geste = (constats: Constat[]) => constats.filter((constat) => /installation gesture|backups root|réglage du geste|`sauvegardes=` /.test(constat.texte));
 
@@ -338,7 +339,7 @@ describe("le réglage du geste d'installation", { concurrency: 8 }, () => {
 });
 
 // Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
-describe("la vérification", { concurrency: 8 }, () => {
+describe("la vérification", { skip: posixOnly("runs the fake claude, the fake gh and fake systemctl, journalctl or getent (POSIX shell scripts)"), concurrency: 8 }, () => {
   test("un projet installé est prêt : rien ne manque", async (t) => {
     const { env } = projet(t);
 
@@ -773,7 +774,7 @@ describe("la vérification", { concurrency: 8 }, () => {
 // « Vérifier » vert veut dire prêt à servir, et « installation terminée » ne
 // s'atteint que par lui : aucun geste ne se découvre après.
 // Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
-describe("« Vérifier » vert, « installation terminée »", { concurrency: 8 }, () => {
+describe("« Vérifier » vert, « installation terminée »", { skip: posixOnly("runs the fake claude, the fake gh and fake systemctl, journalctl or getent (POSIX shell scripts)"), concurrency: 8 }, () => {
   // Chaque chose qui retient la cuisine, cassée seule sur un projet prêt, et
   // l'étape de l'installation qui la règle.
   const BLOCAGES: Array<{ quoi: string; etape: string; casser: (lu: ReturnType<typeof projet>) => void }> = [
@@ -912,7 +913,7 @@ describe("la mise à jour de la box", { concurrency: 8 }, () => {
     writeFileSync(cloisonPosee(unites), regler(readFileSync(join(DEPLOIEMENT, "cloison.conf"), "utf8")));
   };
 
-  test("des unités posées qui sont celles du dépôt : « à jour » est dit, et ce qui a été comparé est nommé", async (t) => {
+  test("des unités posées qui sont celles du dépôt : « à jour » est dit, et ce qui a été comparé est nommé", { skip: posixOnly("runs the fake claude, the fake gh and fake systemctl, journalctl or getent (POSIX shell scripts)") }, async (t) => {
     const { env, unites } = projet(t);
 
     const constats = await verifier(env);
@@ -926,7 +927,7 @@ describe("la mise à jour de la box", { concurrency: 8 }, () => {
     assert.deepEqual(notes(constats), []);
   });
 
-  test("une unité posée qui diffère de celle du dépôt est nommée, avec le geste qui la règle, sans rien retenir", async (t) => {
+  test("une unité posée qui diffère de celle du dépôt est nommée, avec le geste qui la règle, sans rien retenir", { skip: posixOnly("runs the fake claude, the fake gh and fake systemctl, journalctl or getent (POSIX shell scripts)") }, async (t) => {
     const { env, unites } = projet(t);
     writeFileSync(join(unites, "brigade@.service"), "[Service]\nExecStart=/usr/bin/env node src/main.ts\n");
 
@@ -943,7 +944,7 @@ describe("la mise à jour de la box", { concurrency: 8 }, () => {
     assert.doesNotMatch(constates(constats).join("\n"), /units up to date/);
   });
 
-  test("la cloison posée se compare aussi, réglages du chef mis à part", async (t) => {
+  test("la cloison posée se compare aussi, réglages du chef mis à part", { skip: posixOnly("runs the fake claude, the fake gh and fake systemctl, journalctl or getent (POSIX shell scripts)") }, async (t) => {
     const { env, unites } = projet(t);
     poserCloison(unites, (contenu) =>
       contenu
@@ -966,7 +967,7 @@ describe("la mise à jour de la box", { concurrency: 8 }, () => {
     assert.doesNotMatch(perimee?.geste ?? "", /\*\.service/);
   });
 
-  test("quand systemd ne dit pas d'où l'unité est chargée, rien n'est comparé et c'est dit", async (t) => {
+  test("quand systemd ne dit pas d'où l'unité est chargée, rien n'est comparé et c'est dit", { skip: posixOnly("runs the fake claude, the fake gh and fake systemctl, journalctl or getent (POSIX shell scripts)") }, async (t) => {
     const { env } = projet(t);
 
     const constats = await verifier(sans(env, "FAUX_SYSTEMCTL_FRAGMENT"));
@@ -975,7 +976,7 @@ describe("la mise à jour de la box", { concurrency: 8 }, () => {
     assert.doesNotMatch(constates(constats).join("\n"), /units up to date/);
   });
 
-  test("une unité masquée n'a aucune copie à lire : « non comparées » est dit, pas « à jour »", async (t) => {
+  test("une unité masquée n'a aucune copie à lire : « non comparées » est dit, pas « à jour »", { skip: posixOnly("runs the fake claude, the fake gh and fake systemctl, journalctl or getent (POSIX shell scripts)") }, async (t) => {
     const { env } = projet(t);
 
     const constats = await verifier({ ...env, FAUX_SYSTEMCTL_FRAGMENT: "/dev/null" });
@@ -984,7 +985,7 @@ describe("la mise à jour de la box", { concurrency: 8 }, () => {
     assert.doesNotMatch(constates(constats).join("\n"), /units up to date/);
   });
 
-  test("une unité que systemd dit masquée n'est pas comparée, quel que soit son fichier", async (t) => {
+  test("une unité que systemd dit masquée n'est pas comparée, quel que soit son fichier", { skip: posixOnly("runs the fake claude, the fake gh and fake systemctl, journalctl or getent (POSIX shell scripts)") }, async (t) => {
     const { env } = projet(t);
 
     const constats = await verifier({ ...env, FAUX_SYSTEMCTL_CHARGE: "masked" });
@@ -993,7 +994,7 @@ describe("la mise à jour de la box", { concurrency: 8 }, () => {
     assert.doesNotMatch(constates(constats).join("\n"), /units up to date/);
   });
 
-  test("des unités posées par lien vers les fichiers du dépôt ne sont pas comparées à elles-mêmes", async (t) => {
+  test("des unités posées par lien vers les fichiers du dépôt ne sont pas comparées à elles-mêmes", { skip: posixOnly("runs the fake claude, the fake gh and fake systemctl, journalctl or getent (POSIX shell scripts)") }, async (t) => {
     const { env, unites } = projet(t);
     for (const nom of readdirSync(unites)) rmSync(join(unites, nom), { recursive: true, force: true });
     for (const nom of readdirSync(DEPLOIEMENT)) if (/\.(?:service|timer)$/.test(nom)) symlinkSync(join(DEPLOIEMENT, nom), join(unites, nom));
@@ -1004,7 +1005,7 @@ describe("la mise à jour de la box", { concurrency: 8 }, () => {
     assert.doesNotMatch(constates(constats).join("\n"), /units up to date/);
   });
 
-  test("une unité chargée depuis le dépôt même ne le compare pas à lui-même", async (t) => {
+  test("une unité chargée depuis le dépôt même ne le compare pas à lui-même", { skip: posixOnly("runs the fake claude, the fake gh and fake systemctl, journalctl or getent (POSIX shell scripts)") }, async (t) => {
     const { env } = projet(t);
 
     const constats = await verifier({ ...env, FAUX_SYSTEMCTL_FRAGMENT: join(DEPLOIEMENT, "brigade@.service") });
@@ -1043,13 +1044,14 @@ describe("la mise à jour de la box", { concurrency: 8 }, () => {
     assert.equal(jugerUnites({ ...lu, copies: [{ nom: "brigade@.service", identique: true }] }).etat, "ok");
     const perimees = jugerUnites({ ...lu, copies: [{ nom: "brigade@.service", identique: true }, { nom: "brigade-arbitre.service", identique: false }, { nom: "cloison.conf", identique: false }] });
     assert.match(perimees.texte, /^units out of date: brigade-arbitre\.service, cloison\.conf — /);
-    assert.match(perimees.geste ?? "", /\/etc\/systemd\/system\/brigade@boutique\.service\.d\/cloison\.conf/);
+    // Le chemin s'écrit avec le séparateur de la plateforme.
+    assert.ok((perimees.geste ?? "").includes(join(lu.posees, "brigade@boutique.service.d", "cloison.conf")), String(perimees.geste));
 
   });
 });
 
 // Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
-describe("les labels", { concurrency: 8 }, () => {
+describe("les labels", { skip: posixOnly("runs the fake gh (a POSIX shell script)"), concurrency: 8 }, () => {
   const CREATION = `repos/${DEPOT}/labels`;
   const crees = (gh: FauxGh) =>
     gh
@@ -1098,7 +1100,7 @@ describe("les labels", { concurrency: 8 }, () => {
   });
 });
 
-test("un fichier de secrets que le runtime refuserait est un manque de la machine", async (t) => {
+test("un fichier de secrets que le runtime refuserait est un manque de la machine", { skip: posixOnly("runs the fake claude, the fake gh and fake systemctl, journalctl or getent (POSIX shell scripts)") }, async (t) => {
   const { env, racine } = projet(t);
   writeFileSync(join(racine, "secrets.env"), "CLE_API=une-valeur-de-dev\n", { mode: 0o644 });
 
@@ -1109,7 +1111,7 @@ test("un fichier de secrets que le runtime refuserait est un manque de la machin
 describe("le coût du setup", { concurrency: 8 }, () => {
   const essais = (etat: string) => join(etat, "worktrees/.essais/installation");
 
-  test("le setup est joué une fois, à blanc, dans un worktree neuf de la base — retiré ensuite", async (t) => {
+  test("le setup est joué une fois, à blanc, dans un worktree neuf de la base — retiré ensuite", { skip: posixOnly("runs a POSIX shell script and calls `du` (a POSIX tool)") }, async (t) => {
     const { env, clone, etat, origine } = projet(t);
 
     const mesure = await mesurerSetup(env);
@@ -1123,7 +1125,7 @@ describe("le coût du setup", { concurrency: 8 }, () => {
     assert.equal(git(clone, "worktree", "list").split("\n").length, 1);
   });
 
-  test("ce que le setup pose dans le worktree est pesé", async (t) => {
+  test("ce que le setup pose dans le worktree est pesé", { skip: posixOnly("runs a POSIX shell script and calls `du` (a POSIX tool)") }, async (t) => {
     const pose = '#!/usr/bin/env bash\nhead -c 400000 /dev/urandom > "$2/dependances.bin"\necho "export PRET=1"\n';
     const { env } = projet(t, { setup: { contenu: pose, executable: true } });
 
@@ -1133,7 +1135,7 @@ describe("le coût du setup", { concurrency: 8 }, () => {
     assert.ok(mesure.apresOctets - mesure.avantOctets >= 300_000, `${mesure.avantOctets} → ${mesure.apresOctets}`);
   });
 
-  test("un setup en échec est rendu avec ce qu'il a dit, et son worktree est retiré", async (t) => {
+  test("un setup en échec est rendu avec ce qu'il a dit, et son worktree est retiré", { skip: posixOnly("runs a POSIX shell script and calls `du` (a POSIX tool)") }, async (t) => {
     const { env, etat } = projet(t);
     writeFileSync(env.FAUX_SETUP ?? "", "echec");
 
@@ -1144,7 +1146,7 @@ describe("le coût du setup", { concurrency: 8 }, () => {
     assert.equal(existsSync(essais(etat)), false);
   });
 
-  test("le setup à blanc reçoit les secrets que le dépôt déclare, et ce qu'il en dit est masqué", async (t) => {
+  test("le setup à blanc reçoit les secrets que le dépôt déclare, et ce qu'il en dit est masqué", { skip: posixOnly("runs a POSIX shell script and calls `du` (a POSIX tool)") }, async (t) => {
     const dit = '#!/usr/bin/env bash\necho "base créée sur $DATABASE_URL" >&2\n';
     const { env, racine } = projet(t, { setup: { contenu: dit, executable: true }, secrets: "DATABASE_URL\n" });
     writeFileSync(join(racine, "secrets.env"), "DATABASE_URL=postgres://dev:mot-de-passe@localhost\n", { mode: 0o600 });
@@ -1155,7 +1157,7 @@ describe("le coût du setup", { concurrency: 8 }, () => {
     assert.equal(mesure.sortie, "base créée sur [secret:DATABASE_URL]\n");
   });
 
-  test("un secret déclaré que la machine ne détient pas : le setup n'est pas joué, comme la station ne lancerait aucun cook", async (t) => {
+  test("un secret déclaré que la machine ne détient pas : le setup n'est pas joué, comme la station ne lancerait aucun cook", { skip: posixOnly("calls `du` (a POSIX tool)") }, async (t) => {
     const { env, etat } = projet(t, { secrets: "DATABASE_URL\n" });
 
     const mesure = await mesurerSetup(env);
@@ -1166,7 +1168,7 @@ describe("le coût du setup", { concurrency: 8 }, () => {
     assert.equal(existsSync(essais(etat)), false);
   });
 
-  test("le setup ne reçoit rien de l'état du runtime", async (t) => {
+  test("le setup ne reçoit rien de l'état du runtime", { skip: posixOnly("runs a POSIX shell script and calls `du` (a POSIX tool)") }, async (t) => {
     const temoin = '#!/usr/bin/env bash\nenv | grep -c "^BRIGADE_" > "$2/../../../brigade-vues"\n';
     const { env, etat } = projet(t, { setup: { contenu: temoin, executable: true } });
 
@@ -1175,7 +1177,7 @@ describe("le coût du setup", { concurrency: 8 }, () => {
     assert.equal(readFileSync(join(etat, "brigade-vues"), "utf8").trim(), "0");
   });
 
-  test("un projet sans setup n'a rien à mesurer que son worktree", async (t) => {
+  test("un projet sans setup n'a rien à mesurer que son worktree", { skip: posixOnly("calls `du` (a POSIX tool)") }, async (t) => {
     const { env } = projet(t, { setup: null });
 
     const mesure = await mesurerSetup(env);
@@ -1363,7 +1365,7 @@ describe("la commande du chef", { concurrency: 8 }, () => {
     return { code: await enfant.fin, sortie: enfant.sortie() };
   };
 
-  test("un projet prêt : elle le dit et sort en 0", async (t) => {
+  test("un projet prêt : elle le dit et sort en 0", { skip: posixOnly("runs the fake claude, the fake gh and fake systemctl, journalctl or getent (POSIX shell scripts)") }, async (t) => {
     const { env } = projet(t);
 
     const { code, sortie } = await commande(t, env);
@@ -1373,7 +1375,7 @@ describe("la commande du chef", { concurrency: 8 }, () => {
     assert.equal(code, 0);
   });
 
-  test("une box à mettre à jour : la dérive se lit avec son geste, et le projet reste prêt", async (t) => {
+  test("une box à mettre à jour : la dérive se lit avec son geste, et le projet reste prêt", { skip: posixOnly("runs the fake claude, the fake gh and fake systemctl, journalctl or getent (POSIX shell scripts)") }, async (t) => {
     const { env, unites } = projet(t);
     writeFileSync(join(unites, "brigade@.service"), "[Service]\n");
 
@@ -1384,7 +1386,7 @@ describe("la commande du chef", { concurrency: 8 }, () => {
     assert.equal(code, 0);
   });
 
-  test("un projet mal installé : chaque manque est nommé avec son geste, et elle sort en 1", async (t) => {
+  test("un projet mal installé : chaque manque est nommé avec son geste, et elle sort en 1", { skip: posixOnly("runs the fake claude, the fake gh and fake systemctl, journalctl or getent (POSIX shell scripts)") }, async (t) => {
     const { env, gh, etat } = projet(t, { gates: null });
     gh.repondre(LABELS_DU_DEPOT, { corps: [] });
     sansDecision(etat, "BRIGADE_REVIEWER_MODEL");
@@ -1399,7 +1401,7 @@ describe("la commande du chef", { concurrency: 8 }, () => {
     assert.equal(code, 1);
   });
 
-  test("`labels` crée ce qui manque et le dit", async (t) => {
+  test("`labels` crée ce qui manque et le dit", { skip: posixOnly("runs the fake gh (a POSIX shell script)") }, async (t) => {
     const { env, gh } = projet(t);
     gh.repondre(LABELS_DU_DEPOT, { corps: LABELS.slice(2).map(({ name }) => ({ name })) });
     gh.repondre(`repos/${DEPOT}/labels`, { statut: 201, corps: {} });
@@ -1410,7 +1412,7 @@ describe("la commande du chef", { concurrency: 8 }, () => {
     assert.equal(code, 0);
   });
 
-  test("`setup` mesure le setup et dit si un worktree neuf par cook tient", async (t) => {
+  test("`setup` mesure le setup et dit si un worktree neuf par cook tient", { skip: posixOnly("runs a POSIX shell script and calls `du` (a POSIX tool)") }, async (t) => {
     const { env } = projet(t);
 
     const { code, sortie } = await commande(t, env, "setup", "12");
@@ -1421,7 +1423,7 @@ describe("la commande du chef", { concurrency: 8 }, () => {
     assert.equal(code, 0);
   });
 
-  test("`setup` sur un setup en échec sort en 1 avec ce qu'il a dit", async (t) => {
+  test("`setup` sur un setup en échec sort en 1 avec ce qu'il a dit", { skip: posixOnly("runs a POSIX shell script and calls `du` (a POSIX tool)") }, async (t) => {
     const { env } = projet(t);
     writeFileSync(env.FAUX_SETUP ?? "", "echec");
 
@@ -1454,7 +1456,7 @@ describe("la commande du chef", { concurrency: 8 }, () => {
     return { code, verdict: JSON.parse(sortie) as Verdict };
   };
 
-  test("`--json` d'un projet prêt : le verdict « prêt », sans manque, la sortie brute du texte jointe", async (t) => {
+  test("`--json` d'un projet prêt : le verdict « prêt », sans manque, la sortie brute du texte jointe", { skip: posixOnly("runs the fake claude, the fake gh and fake systemctl, journalctl or getent (POSIX shell scripts)") }, async (t) => {
     const { env } = projet(t);
 
     const texte = await commande(t, env);
@@ -1466,7 +1468,7 @@ describe("la commande du chef", { concurrency: 8 }, () => {
     assert.equal(code, 0);
   });
 
-  test("`--json` d'un projet mal installé : « pas prêt », ses trois manques en mots simples, chacun avec qui le lève et comment", async (t) => {
+  test("`--json` d'un projet mal installé : « pas prêt », ses trois manques en mots simples, chacun avec qui le lève et comment", { skip: posixOnly("runs the fake claude, the fake gh and fake systemctl, journalctl or getent (POSIX shell scripts)") }, async (t) => {
     const { env, gh, etat } = projet(t, { gates: null });
     gh.repondre(LABELS_DU_DEPOT, { corps: [] });
     sansDecision(etat, "BRIGADE_REVIEWER_MODEL");
@@ -1487,7 +1489,7 @@ describe("la commande du chef", { concurrency: 8 }, () => {
     assert.equal(code, 1);
   });
 
-  test("une vérification qui plante sur /etc/sudoers.d (#654) : en texte, la ligne d'erreur ; en JSON, « pas allée au bout », la panne connue, rien à faire — pas « pas prêt »", async (t) => {
+  test("une vérification qui plante sur /etc/sudoers.d (#654) : en texte, la ligne d'erreur ; en JSON, « pas allée au bout », la panne connue, rien à faire — pas « pas prêt »", { skip: posixOnly("runs the fake claude and fake systemctl, journalctl or getent (POSIX shell scripts)") }, async (t) => {
     if (process.getuid?.() === 0) return t.skip("root lit un répertoire en 000 : rien ne plante");
     const { env, racine } = projet(t);
     // Le réglage du geste d'installation, sous un répertoire que ce compte ne lit pas — comme /etc/sudoers.d sur la box du chef.
@@ -1545,7 +1547,7 @@ describe("la ligne du renouvellement", { concurrency: 8 }, () => {
     const dit = ligne({ etat: "echec", raison: "échec (réseau) : timeout", dernierReussi: "08:00", echecsConsecutifs: 3 });
     assert.equal(dit.texte, "renewal: failed, 3 failures in a row (last successful run at 08:00) — échec (réseau) : timeout");
   });
-  test("verifier porte une seule ligne de renouvellement, jouée par le systemd injecté", async (t) => {
+  test("verifier porte une seule ligne de renouvellement, jouée par le systemd injecté", { skip: posixOnly("runs the fake claude, the fake gh and fake systemctl, journalctl or getent (POSIX shell scripts)") }, async (t) => {
     const { env } = projet(t);
     const systemd = { minuteurActif: async () => true, passages: async () => [{ at: new Date(2026, 9, 15, 14, 7), reussi: true, lignes: [] }] };
     const lignes = (await verifier(env, systemd)).filter((constat) => constat.texte.startsWith("renewal"));

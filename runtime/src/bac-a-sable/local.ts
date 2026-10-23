@@ -61,7 +61,7 @@ export function verifier(sondes: Sondes, lieux: Lieux, hotes: Regle[] = REGLES_D
   const constat = constater(pourLaBox(detection, { home, worktrees, caches }), hotes);
   if (!constat.disponible) return { ok: false, raison: constat.raison.replace(/^the sandbox configuration does not hold on this workstation — /, "la configuration du bac à sable ne tient pas sur ce Mac — ") };
   try {
-    configurer({ worktree: tmpdir(), caches, hotes, home });
+    configurer({ worktree: sondes.temporaire?.() ?? tmpdir(), caches, hotes, home });
   } catch (erreur) {
     return { ok: false, raison: `la configuration du bac à sable ne tient pas sur ce Mac pour les jugements du manager — ${erreur instanceof Error ? erreur.message : String(erreur)}` };
   }

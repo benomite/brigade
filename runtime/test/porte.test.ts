@@ -9,6 +9,7 @@ import { AUTRES_HOTES, compterLesRefus, ENTETE_DE_REFUS, garderLaListe, ouvrirPo
 import { autorise, reglesDuProjet } from "../src/reseau.ts";
 import { demarrer } from "../src/runtime.ts";
 import { horloge, jusqua, lancer, lancerSurPortPose, repertoireTemporaire } from "./outils.ts";
+import { posixOnly } from "./support/plateforme.ts";
 
 const TENIR = join(import.meta.dirname, "../src/tenir-porte.ts");
 
@@ -328,7 +329,7 @@ describe("la porte", { concurrency: 8 }, () => {
     assert.equal(autorise(regles(true), "registry.npmjs.org", 443), false);
   });
 
-  test("la porte du projet lit sa liste au journal et y écrit ses refus, depuis son propre process", async (t) => {
+  test("la porte du projet lit sa liste au journal et y écrit ses refus, depuis son propre process", { skip: posixOnly("stops the door with SIGTERM: on Windows kill('SIGTERM') ends the process before its handler runs, so the job saw exit code null instead of 0") }, async (t) => {
     const repertoireEtat = repertoireTemporaire(t);
     const runtime = demarrer({ repertoireEtat, projet: "brigade", intervalleVeilleMs: 5, maintenant: horloge() });
     t.after(() => runtime.arreter("test"));

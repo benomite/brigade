@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join, posix } from "node:path";
 import { test, type TestContext } from "node:test";
+import { posixOnly } from "../support/plateforme.ts";
 import { LECTURES_INTERDITES, type Reglages } from "../../src/bac-a-sable/configuration.ts";
 import { SEATBELT, type Sondes } from "../../src/bac-a-sable/detection.ts";
 import { configBacASableLocal, dansLeBacASableLocal } from "../../src/bac-a-sable/local.ts";
@@ -155,7 +156,7 @@ function reglagesDansLeBacASable(home: string, worktrees: string, ou: string): R
   return JSON.parse(args[args.indexOf("--settings") + 1] ?? "") as Reglages;
 }
 
-test("sur un Mac, la station sous `~/.config/brigade` sert le projet, ses cooks dans le bac à sable : sans réglage, et sans nettoyage à la main de ce qu'elle avait laissé", (t) => {
+test("sur un Mac, la station sous `~/.config/brigade` sert le projet, ses cooks dans le bac à sable : sans réglage, et sans nettoyage à la main de ce qu'elle avait laissé", { skip: posixOnly("runs the fake claude and the fake gh (POSIX shell scripts)") }, (t) => {
   const { compte, home, racine, etat, lieux } = avantLaMiseAJour(t);
   writeFileSync(join(racine, "projets"), `${PROJET} benomite/${PROJET} ${BASE}\n`);
   // Le répertoire temporaire d'un Mac n'est pas au-dessus du compte : c'est là
