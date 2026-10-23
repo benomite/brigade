@@ -13,7 +13,8 @@
 // `--proches` (les gates d'une station) : seuls les tests que le changement
 // modifie, et ceux qui portent le nom d'un fichier modifié (`src/rail.ts` →
 // `test/rail.test.ts`) — quelques secondes, sur la machine qui cuisine. La CI
-// joue la fermeture entière sur la PR, et tout sur la base.
+// joue la fermeture entière sur la PR, et tout sur la base. Ni l'une ni l'autre
+// ne joue un test qui porte `// gates: base` : il ne tourne que sur la base.
 // Tout jouer quand le doute est permis : aucun fichier modifié (la base
 // elle-même), un fichier qui règle toute une suite (package.json, tsconfig, le
 // setup), ou une erreur ici — les gates jouent alors la suite entière.
@@ -81,10 +82,18 @@ if (modifies.length === 0 || modifies.some((f) => !scriptsSeuls.has(f) && GLOBAU
   for (const zone of ZONES) console.log(`${zone} tout`);
   process.exit(0);
 }
+// Les tests lents de bout en bout — une vraie station, de vraies attentes —
+// portent `// gates: base` dans leur en-tête : ils ne tournent que sur la
+// base, où tout se joue, jamais pour un changement — pas même celui qui les
+// modifie : la recette, et ses deux minutes d'attente réelle, ne tient pas
+// dans les gates d'un ticket (#1635).
+const surLaBaseSeule = (texte) => /^\/\/ gates: base$/m.test(texte.slice(0, 4000));
 if (process.argv.includes("--proches")) {
   for (const zone of ZONES) {
     const noms = new Set(modifies.filter((m) => m.startsWith(`${zone}/`) && CODE.test(m)).map((m) => basename(m).replace(/(\.test)?\.[^.]+$/, "")));
-    const proches = lister(join(zone, "test")).filter((t) => t.endsWith(".test.ts") && (modifies.includes(t) || noms.has(basename(t, ".test.ts"))));
+    const proches = lister(join(zone, "test")).filter(
+      (t) => t.endsWith(".test.ts") && (modifies.includes(t) || noms.has(basename(t, ".test.ts"))) && !surLaBaseSeule(readFileSync(t, "utf8")),
+    );
     console.log(proches.length === 0 ? `${zone} rien` : `${zone} fichiers ${proches.map((t) => relative(zone, t)).join(" ")}`);
   }
   process.exit(0);
@@ -201,10 +210,7 @@ for (const zone of ZONES) {
     console.log(`${zone} rien`);
     continue;
   }
-  // Les tests lents de bout en bout — une vraie station, de vraies attentes —
-  // portent `// gates: base` dans leur en-tête : ils ne tournent que sur la
-  // base, où tout se joue, jamais pour un changement.
-  const touches = tests.filter((t) => !/^\/\/ gates: base$/m.test(textes.get(t).slice(0, 4000))).filter((t) => {
+  const touches = tests.filter((t) => !surLaBaseSeule(textes.get(t))).filter((t) => {
     let ferme = fermetures.get(t);
     if (!ferme) fermetures.set(t, (ferme = fermeture(t)));
     for (const f of ferme) if (codeModifie.has(f) || (autres.length > 0 && cites(f)) || (scriptsSeuls.size > 0 && litDesScripts(f))) return true;

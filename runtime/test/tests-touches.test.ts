@@ -4,7 +4,9 @@
 // scripts — tout fichier qui nomme un package.json hors de ses commentaires ;
 // le nom d'un import n'est pas un nom cité, mais un import de type
 // touche le test qui le fait ; `.claude/brigade`, que les tests créent dans
-// leurs faux worktrees, n'est pas un dossier qu'ils lisent.
+// leurs faux worktrees, n'est pas un dossier qu'ils lisent. Un test qui porte
+// `// gates: base` ne se joue pour aucun changement, pas même celui qui le
+// modifie (#1635).
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -185,5 +187,30 @@ describe("ce qu'un test cite", () => {
     const racine = deuxCuisines(t);
     assert.deepEqual(choisir(racine, [".claude/brigade/tests-touches.mjs"]), ["runtime rien", "app rien"]);
     assert.deepEqual(choisir(racine, ["docs/runtime/pass.md"]), ["runtime fichiers test/box.test.ts", "app rien"]);
+  });
+});
+
+describe("un test qui ne tourne que sur la base", () => {
+  // La recette, et un test ordinaire du même nom qu'un fichier du produit.
+  function recette(t: TestContext): string {
+    const racine = repertoireTemporaire(t);
+    ecrire(racine, "runtime/package.json", "{}\n");
+    ecrire(racine, "app/package.json", "{}\n");
+    ecrire(racine, "runtime/src/station.ts", "export const s = 1;\n");
+    ecrire(racine, "runtime/test/recette.test.ts", '// gates: base\n// Deux minutes d\'attente réelle.\nimport { s } from "../src/station.ts";\n');
+    ecrire(racine, "runtime/test/station.test.ts", 'import { s } from "../src/station.ts";\n');
+    return racine;
+  }
+
+  test("modifié, il ne se joue pas dans les gates d'une station : seul l'autre test modifié", (t) => {
+    const racine = recette(t);
+    assert.deepEqual(choisir(racine, ["runtime/test/recette.test.ts", "runtime/test/station.test.ts"], "--proches"), ["runtime fichiers test/station.test.ts", "app rien"]);
+    assert.deepEqual(choisir(racine, ["runtime/test/recette.test.ts"], "--proches"), ["runtime rien", "app rien"]);
+  });
+
+  test("ni dans la fermeture que joue la CI, modifié ou touché par ce qu'il importe", (t) => {
+    const racine = recette(t);
+    assert.deepEqual(choisir(racine, ["runtime/test/recette.test.ts"]), ["runtime rien", "app rien"]);
+    assert.deepEqual(choisir(racine, ["runtime/src/station.ts"]), ["runtime fichiers test/station.test.ts", "app rien"]);
   });
 });
