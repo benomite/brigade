@@ -14,7 +14,7 @@ it on the merge (see "Green means green once merged").
 |---|---|---|
 | **At the split** | Two tickets whose zones overlap and that do not await each other: the code **sets the dependency** | The card (`awaiting`), the split comment, `manager.split` (`overlaps`) |
 | **On the rail** | A queued ticket whose zone overlaps that of a ticket that **has left and is not yet served** is **held** | `run rail`: `zone held by #14 (<path>)`; `status`: `zone held by #14 (<path>)` |
-| **At the harvest** | A file delivered outside the ticket's zone is **flagged**, not stopped | `cook.out-of-zone`, and the end-of-cook comment |
+| **At the harvest** | A file delivered outside the ticket's zone is **flagged**, not stopped — and **held** like the zone, until the gap is settled | `cook.out-of-zone`, and the end-of-cook comment; `run rail` and `status`: `OUT OF ZONE: wrote <paths>` on that ticket; on the one waiting, `waits on #14 (written outside its zone)` in `run rail`, `zone held by #14 (<path>, written outside its zone)` in `status` |
 
 **The hold on the rail** is recomputed at every read and never blocks. **Holds its zone**: a ticket
 that is taken or in pass, a ticket **that the pass sent back** — until its delivery is merged —, and
@@ -29,8 +29,15 @@ it to be served — it never cooks beside it.
 
 **The "out of zone" signal** names on the issue the files delivered out of zone and the rail ticket
 that owns each one; the pass judges the delivery like any other. If the gap is legitimate, widen the
-zone in the card. **The zone that counts is the one at the take**, in the log: if the card changed
-during the cook, the comment shows both zones and the fact carries `cardChanged: true`.
+zone in the card. **The files written outside are held like the zone** (#1367), by the same rule and
+for as long: a queued ticket whose zone overlaps one of them does not leave. The queue shows it on
+the ticket that wrote them (`OUT OF ZONE: wrote <paths>`, five at most, then how many more). The
+gap is settled when the card claims them (the zone amended, or the path made common), when a new
+delivery of the ticket no longer writes them, or when its delivery is merged. Only a delivery is
+checked: what a cook writes outside its zone while it cooks is seen at its delivery.
+
+**The zone that counts is the one at the take**, in the log: if the card changed during the cook,
+the comment shows both zones and the fact carries `cardChanged: true`.
 
 Limits: a PR closed without a merge holds its zone, while its ticket is queued, until that ticket is
 taken again, served or removed from the rail (see "What awaits the chef"); a PR opened outside any ticket holds none.

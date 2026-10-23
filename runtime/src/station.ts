@@ -1340,7 +1340,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
             ...files.slice(0, HORS_ZONE_MAX).map(({ path, owners }) => `- \`${path}\`${owners.length === 0 ? "" : ` — dans la zone de ${owners.map((owner) => `#${owner}`).join(", ")}`}`),
             ...(files.length > HORS_ZONE_MAX ? [`- … et ${files.length - HORS_ZONE_MAX} de plus, tous au journal`] : []),
             "",
-            "Rien n'est arrêté : la pass juge cette livraison comme une autre. C'est le signe d'un découpage à revoir — si l'écart est légitime, élargis la zone dans la fiche du ticket.",
+            "Rien n'est arrêté : la pass juge cette livraison comme une autre. Mais ces fichiers sont tenus comme la zone du ticket : un ticket en attente dessus ne part pas tant que l'écart n'est pas réglé — la fiche élargie, une livraison qui ne les écrit plus, ou celle-ci mergée. C'est le signe d'un découpage à revoir — si l'écart est légitime, élargis la zone dans la fiche du ticket.",
           ]),
       ...(cardChanged
         ? [

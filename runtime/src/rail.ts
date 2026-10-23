@@ -166,7 +166,7 @@ export function direRetenue(ticket: TicketRail): string | null {
     ...(abandonnes.length === 0 ? [] : [bloque]),
     ...enCours.filter(gele).map((attendu) => `${GELE} par #${attendu.ticket} (${DIT_GELE})`),
     ...(attendus.length === 0 ? [] : [`attend ${abandonnes.length === 0 ? "" : "aussi "}${numeros(attendus)}`]),
-    ...ticket.held.map((tenant) => `zone tenue par #${tenant.ticket} (${tenant.path})`),
+    ...ticket.held.map((tenant) => `zone tenue par #${tenant.ticket} (${tenant.path}${tenant.outside ? ", écrit hors de sa zone" : ""})`),
   ].join(" · ");
 }
 
@@ -182,8 +182,30 @@ export function direRetenueEn(ticket: TicketRail): string | null {
     ...(abandonnes.length === 0 ? [] : [bloque]),
     ...enCours.filter(gele).map((attendu) => `${GELE_EN} by #${attendu.ticket} (${DIT_GELE_EN})`),
     ...(attendus.length === 0 ? [] : [`${abandonnes.length === 0 ? "" : "also "}awaiting ${numeros(attendus)}`]),
-    ...ticket.held.map((tenant) => `zone held by #${tenant.ticket} (${tenant.path})`),
+    ...ticket.held.map((tenant) => `zone held by #${tenant.ticket} (${tenant.path}${tenant.outside ? ", written outside its zone" : ""})`),
   ].join(" · ");
+}
+
+// Ce que la file montre d'un ticket que sa dernière livraison a fait écrire
+// hors de sa zone : les chemins en cause, qu'il tient comme sa zone — un ticket
+// en attente dessus ne part pas — jusqu'à ce que sa fiche les nomme, qu'une
+// nouvelle livraison ne les écrive plus, ou qu'il soit mergé. Null s'il n'y en
+// a pas.
+const HORS_ZONE_MONTRES = 5;
+export function direHorsZoneEn(ticket: TicketRail): string | null {
+  const { outOfZone } = ticket;
+  if (outOfZone.length === 0) return null;
+  const montres = outOfZone.slice(0, HORS_ZONE_MONTRES).join(", ");
+  const reste = outOfZone.length - HORS_ZONE_MONTRES;
+  return `OUT OF ZONE: wrote ${montres}${reste > 0 ? ` and ${reste} more` : ""}`;
+}
+
+// Le détail d'une ligne de la file, suivi de l'écart hors zone du ticket s'il
+// en a un.
+export function avecHorsZoneEn(detail: string, ticket: TicketRail): string {
+  const horsZone = direHorsZoneEn(ticket);
+  if (horsZone === null) return detail;
+  return detail === "" ? horsZone : `${detail} — ${horsZone}`;
 }
 
 // Une fiche illisible ne retient pas son ticket : il doit partir pour être

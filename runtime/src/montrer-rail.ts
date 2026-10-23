@@ -32,7 +32,7 @@ import { ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { communsDuRail, lireRail, ticketDuRail, type TicketRail } from "./projections/rail.ts";
 import { etatStation, plafondDeCooks, stationsAnnoncees } from "./projections/stations.ts";
-import { direRetenueEn, etatLuEn, retenue } from "./rail.ts";
+import { avecHorsZoneEn, direRetenueEn, etatLuEn, retenue } from "./rail.ts";
 import { direHorsBudget, horsBudgetSansTicket } from "./budget-des-gates.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
@@ -149,10 +149,16 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
   function detail(ticket: TicketRail, cap: number | null = null, enCuisine = 0): string {
     switch (ticket.state) {
       case "waiting": {
-        const tenants = [...new Set(ticket.held.map(({ ticket: numero }) => `#${numero}`))].join(", ");
+        // Un tenant qui ne retient que par ce qu'il a écrit hors de sa zone le dit.
+        const parZone = new Set(ticket.held.filter(({ outside }) => !outside).map(({ ticket: numero }) => numero));
+        const parEcart = new Set(ticket.held.map(({ ticket: numero }) => numero).filter((numero) => !parZone.has(numero)));
+        const tenants = [
+          ...(parZone.size === 0 ? [] : [`${[...parZone].map((numero) => `#${numero}`).join(", ")} (zone overlap)`]),
+          ...(parEcart.size === 0 ? [] : [`${[...parEcart].map((numero) => `#${numero}`).join(", ")} (written outside its zone)`]),
+        ].join(", ");
         const raison =
           retenue(ticket) === "zone"
-            ? `waits on ${tenants} (zone overlap)`
+            ? `waits on ${tenants}`
             : retenue(ticket) === null && cap !== null && enCuisine >= cap
               ? "cap reached"
               : direRetenueEn(ticket);
@@ -174,7 +180,7 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
       `#${ticket.ticket}`,
       etatLuEn(ticket),
       ticket.priority === null ? "-" : `prio:${ticket.priority}`,
-      detail(ticket, cap, enCuisine),
+      avecHorsZoneEn(detail(ticket, cap, enCuisine), ticket),
       ticket.title,
     ].join("  ");
   }

@@ -188,7 +188,7 @@ describe("la station", { concurrency: 8 }, () => {
   });
 
   test("un cook qui écrit hors de la zone de son ticket est signalé au chef : au journal et sur l'issue, sans que rien ne s'arrête", async (t) => {
-    const { gh, etat, dernier, types } = cuisine(t, { scenario: "bavard", suite: ["livre"] });
+    const { gh, etat, dernier, types, journal } = cuisine(t, { scenario: "bavard", suite: ["livre"] });
     gh.ficher(15, "2026-10-08T09:00:00Z", `${MARQUEUR}\n- zone : runtime/src, docs/`);
     gh.ficher(16, "2026-10-08T09:00:00Z", `${MARQUEUR}\n- zone : travail.txt`);
     gh.poser(issue(15));
@@ -206,6 +206,9 @@ describe("la station", { concurrency: 8 }, () => {
     assert.match(corps, /- `travail\.txt` — dans la zone de #16/);
     assert.match(corps, /zone du ticket : `runtime\/src`, `docs\/`/);
     assert.match(corps, /Rien n'est arrêté/);
+    assert.match(corps, /ces fichiers sont tenus comme la zone du ticket : un ticket en attente dessus ne part pas tant que l'écart n'est pas réglé/);
+    // Ce qu'il a écrit dehors, il le tient : la file le montre.
+    assert.deepEqual(ticketDuRail(journal.base, 15)?.outOfZone, ["travail.txt"]);
     assert.equal(porteFiche(corps), false);
   });
 

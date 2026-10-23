@@ -14,10 +14,11 @@ import type { Evenement } from "../evenements.ts";
 import type { FaitGardeFous } from "../events/guardrails.ts";
 import { NON_JUGEE, type FaitPass, type Finding } from "../events/pass.ts";
 import { ATTEND_UN_TIERS, REVENU_D_ATTENTE, type FaitRail } from "../events/rail.ts";
+import type { FaitStation } from "../events/station.ts";
 import type { Fiche } from "../fiche.ts";
 import { bilanDEpique } from "../bilan-epique.ts";
 import { definirProjection } from "../projection.ts";
-import { recouvrement } from "../zones.ts";
+import { horsZone, recouvrement } from "../zones.ts";
 import { constats } from "./pass.ts";
 import { decoupageDe } from "./splits.ts";
 
@@ -49,8 +50,9 @@ export function direALArriveeEn(delivery: string | null): string {
 }
 
 // A ticket gone to the kitchen and not yet served, whose zone overlaps this
-// one's. `path`: the path by which they overlap.
-export type Tenu = { ticket: number; path: string };
+// one's. `path`: the path by which they overlap. `outside`: that path is one
+// the other ticket wrote outside its own zone — its card does not claim it.
+export type Tenu = { ticket: number; path: string; outside?: true };
 
 export type TicketRail = {
   ticket: number;
@@ -78,6 +80,12 @@ export type TicketRail = {
   // Queued: those that hold a path of its zone. Empty: its zone is
   // free.
   held: Tenu[];
+  // The files its last delivery wrote outside its zone, and that its card
+  // still does not claim — the project's common paths aside. Empty: nothing
+  // to settle. Not empty, they are held like its zone, for as long as it
+  // holds its zone: until its delivery is on the base, or a new delivery
+  // writes none of them, or its card is amended to claim them.
+  outOfZone: string[];
   // Queued: those, among `awaits`, that are frozen — 86 that the pass could
   // not judge, with no return time: nothing will make them leave without the
   // chef. This ticket will not leave before them. Does not change what holds
@@ -207,11 +215,22 @@ function noterServi(base: Base, ticket: number, seq: number): void {
   );
 }
 
+// What a ticket's last delivery wrote outside its zone is forgotten: a new
+// delivery is checked again, a merged one is on the base, a ticket gone has
+// nothing left to hold.
+const oublierHorsZone = (base: Base, ticket: number) => base.executer("DELETE FROM rail_out_of_zone WHERE ticket = ?", ticket);
+
+const fichiersHorsZone = (valeur: unknown) =>
+  liste(valeur, (fichier) => typeof fichier === "object" && fichier !== null && texte((fichier as Record<string, unknown>).path));
+
 export const rail = definirProjection<
-  FaitRail | Extract<FaitGardeFous, { type: "cook.exited" | "cook.interrupted" }> | Extract<FaitPass, { type: "merge.done" }>
+  | FaitRail
+  | Extract<FaitGardeFous, { type: "cook.exited" | "cook.interrupted" }>
+  | Extract<FaitPass, { type: "merge.done" }>
+  | Extract<FaitStation, { type: "cook.out-of-zone" }>
 >({
   nom: "rail",
-  tables: ["rail", "rail_outcomes", "rail_commons", "rail_waiting", "rail_waiting_marks", "rail_waiting_heard", "rail_resumed", "rail_order"],
+  tables: ["rail", "rail_outcomes", "rail_commons", "rail_waiting", "rail_waiting_marks", "rail_waiting_heard", "rail_resumed", "rail_order", "rail_out_of_zone"],
   schema: `
     CREATE TABLE IF NOT EXISTS rail (
       ticket      INTEGER PRIMARY KEY,
@@ -287,6 +306,13 @@ export const rail = definirProjection<
       ticket INTEGER PRIMARY KEY,
       rank   INTEGER NOT NULL
     ) STRICT;
+    -- The files a ticket's last delivery wrote outside the zone it had when
+    -- taken, as the station found them.
+    CREATE TABLE IF NOT EXISTS rail_out_of_zone (
+      ticket INTEGER NOT NULL,
+      path   TEXT NOT NULL,
+      PRIMARY KEY (ticket, path)
+    ) STRICT;
   `,
   sur: {
     "ticket.arrived": lisible("ticket.arrived", (base, ticket, { at, payload }) => {
@@ -308,6 +334,7 @@ export const rail = definirProjection<
       base.executer("DELETE FROM rail_waiting WHERE ticket = ?", ticket);
       base.executer("DELETE FROM rail_fire_unseen WHERE ticket = ?", ticket);
       base.executer("DELETE FROM rail_order WHERE ticket = ?", ticket);
+      oublierHorsZone(base, ticket);
     }),
     "ticket.fire-unseen": lisible("ticket.fire-unseen", (base, ticket, { payload }) => {
       base.executer("INSERT OR REPLACE INTO rail_fire_unseen (ticket, removed_at) VALUES (?, ?)", ticket, payload.removedAt);
@@ -330,6 +357,7 @@ export const rail = definirProjection<
       base.executer("DELETE FROM rail_order WHERE ticket = ?", ticket);
       base.executer("DELETE FROM rail_fire_unseen WHERE ticket = ?", ticket);
       base.executer("DELETE FROM rail_waiting WHERE ticket = ?", ticket);
+      oublierHorsZone(base, ticket);
       base.executer(
         `INSERT INTO rail_outcomes (ticket, outcome, reason, seq) VALUES (?, 'left', ?, ?)
          ON CONFLICT (ticket) DO UPDATE SET reason = excluded.reason, seq = excluded.seq WHERE outcome = 'left'`,
@@ -353,13 +381,18 @@ export const rail = definirProjection<
     "ticket.released": lisible("ticket.released", (base, ticket, { at }) => {
       passer(base, ticket, at, { state: "waiting" });
     }),
+    // A new delivery: the station checks it against the zone right after, and
+    // says what it writes outside (`cook.out-of-zone`) — nothing, if it writes
+    // nothing there.
     "ticket.passing": lisible("ticket.passing", (base, ticket, { at, payload }) => {
       passer(base, ticket, at, { state: "pass", station: payload.station });
       base.executer("UPDATE rail SET delivery = 'open' WHERE ticket = ?", ticket);
+      oublierHorsZone(base, ticket);
     }),
     "ticket.served": lisible("ticket.served", (base, ticket, { at, seq }) => {
       base.executer("UPDATE rail SET state = 'served', since = ? WHERE ticket = ?", at, ticket);
       noterServi(base, ticket, seq);
+      oublierHorsZone(base, ticket);
     }),
     "ticket.86": lisible("ticket.86", (base, ticket, { at, payload }) => {
       passer(base, ticket, at, { state: "86", reason: payload.reason, until: payload.until });
@@ -433,6 +466,12 @@ export const rail = definirProjection<
       if (FINS_SANS_SUITE.includes(payload?.outcome)) rendreApresCook(base, ticket, at);
     },
     "cook.interrupted": (base, { ticket, at }) => rendreApresCook(base, ticket, at),
+    // The delivery's files outside its zone replace those of the one before.
+    "cook.out-of-zone": (base, { ticket, payload }) => {
+      if (ticket === null || !fichiersHorsZone(payload?.files)) return;
+      oublierHorsZone(base, ticket);
+      for (const path of new Set(payload.files.map((fichier) => fichier.path))) base.executer("INSERT INTO rail_out_of_zone (ticket, path) VALUES (?, ?)", ticket, path);
+    },
     // The merge of a delivery counts as service for whoever awaits this ticket,
     // even if the rail could not say so: a ticket escalated to the chef (86)
     // then merged by him is no longer in pass, and `ticket.served` is not
@@ -441,6 +480,7 @@ export const rail = definirProjection<
       if (ticket === null) return;
       noterServi(base, ticket, seq);
       base.executer("UPDATE rail SET delivery = 'merged' WHERE ticket = ?", ticket);
+      oublierHorsZone(base, ticket);
     },
   },
 });
@@ -577,13 +617,16 @@ const lireFiche = (card: string | null) => (card === null ? null : (JSON.parse(c
 // says so. An unreadable card holds nothing, its zone is not authoritative.
 // And a ticket that itself has an open delivery is not held back by another
 // queued ticket: two returns on the same zone would await each other forever.
+// What a holder wrote outside its zone it holds too, under the same rule: a
+// ticket that writes there would collide with it all the same (#1367).
 function tenants(base: Base): (ticket: number, card: Fiche | null, delivery: string | null) => Tenu[] {
-  let tenant: { ticket: number; zone: string[]; parti: boolean }[] | undefined;
+  let tenant: { ticket: number; zone: string[]; dehors: string[]; parti: boolean }[] | undefined;
   let communs: string[] = [];
   return (ticket, card, delivery) => {
     if (!card || card.zone.length === 0 || card.problems.length > 0) return [];
     if (!tenant) {
       communs = communsDuRail(base);
+      const dehors = horsZoneDuRail(base);
       tenant = base
         .lire<{ ticket: number; card: string; state: Etat }>(
           `SELECT ticket, card, state FROM rail
@@ -593,15 +636,29 @@ function tenants(base: Base): (ticket: number, card: Fiche | null, delivery: str
         )
         .flatMap((ligne) => {
           const parsed = lireFiche(ligne.card);
-          return parsed && parsed.problems.length === 0 && parsed.zone.length > 0 ? [{ ticket: ligne.ticket, zone: parsed.zone, parti: ligne.state !== "waiting" }] : [];
+          if (!parsed || parsed.problems.length > 0) return [];
+          const ecrits = horsZone(parsed.zone, dehors.get(ligne.ticket) ?? [], communs);
+          return parsed.zone.length > 0 || ecrits.length > 0 ? [{ ticket: ligne.ticket, zone: parsed.zone, dehors: ecrits, parti: ligne.state !== "waiting" }] : [];
         });
     }
-    return tenant.flatMap((autre) => {
+    return tenant.flatMap((autre): Tenu[] => {
       if (autre.ticket === ticket || card.waitsFor.includes(autre.ticket) || (!autre.parti && delivery === "open")) return [];
       const path = recouvrement(card.zone, autre.zone, communs);
-      return path === null ? [] : [{ ticket: autre.ticket, path }];
+      if (path !== null) return [{ ticket: autre.ticket, path }];
+      const dehors = recouvrement(card.zone, autre.dehors, communs);
+      return dehors === null ? [] : [{ ticket: autre.ticket, path: dehors, outside: true }];
     });
   };
+}
+
+// What each ticket's last delivery wrote outside its zone at the take, as the
+// log carries it: whether its card claims it today is read with the card.
+function horsZoneDuRail(base: Base): Map<number, string[]> {
+  const dehors = new Map<number, string[]>();
+  for (const { ticket, path } of base.lire<{ ticket: number; path: string }>("SELECT ticket, path FROM rail_out_of_zone ORDER BY ticket, path")) {
+    dehors.set(ticket, [...(dehors.get(ticket) ?? []), path]);
+  }
+  return dehors;
 }
 
 // The frozen tickets: 86 with no return time, for a delivery the pass could
@@ -628,18 +685,21 @@ function attentesDeTiers(base: Base): Map<number, AttenteDeTiers> {
   );
 }
 
-type Ligne = Omit<TicketRail, "card" | "awaits" | "held" | "frozenBy" | "waitingFor" | "resumedBecause"> & { card: string | null; delivery: string | null };
+type Ligne = Omit<TicketRail, "card" | "awaits" | "held" | "outOfZone" | "frozenBy" | "waitingFor" | "resumedBecause"> & { card: string | null; delivery: string | null };
 function lire(base: Base, suite: string, ...parametres: number[]): TicketRail[] {
   const tenu = tenants(base);
   const geles = gelesDuRail(base);
   const tiers = attentesDeTiers(base);
+  const dehors = horsZoneDuRail(base);
+  const communs = dehors.size === 0 ? [] : communsDuRail(base);
   const revenus = new Map(base.lire<{ ticket: number; why: string }>("SELECT ticket, why FROM rail_resumed").map(({ ticket, why }) => [ticket, why]));
   return base.lire<Ligne>(`SELECT ${COLONNES}, delivery FROM rail ${suite}`, ...parametres).map(({ delivery, ...ligne }) => {
     const card = lireFiche(ligne.card);
     const awaits = attendus(base, card);
     const held = ligne.state === "waiting" ? tenu(ligne.ticket, card, delivery) : [];
     const frozenBy = ligne.state === "waiting" ? awaits.map((a) => a.ticket).filter((numero) => geles.has(numero)) : [];
-    return { ...ligne, card, awaits, held, frozenBy, waitingFor: tiers.get(ligne.ticket) ?? null, resumedBecause: revenus.get(ligne.ticket) ?? null };
+    const outOfZone = card === null || card.problems.length > 0 ? [] : horsZone(card.zone, dehors.get(ligne.ticket) ?? [], communs);
+    return { ...ligne, card, awaits, held, outOfZone, frozenBy, waitingFor: tiers.get(ligne.ticket) ?? null, resumedBecause: revenus.get(ligne.ticket) ?? null };
   });
 }
 
