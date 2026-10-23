@@ -23,6 +23,7 @@
 // Pur : rien n'est lu ni écrit, aucun chemin n'est résolu sur le disque. Les
 // chemins se donnent absolus, comme le Mac les voit.
 import { posix } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { Regle } from "../reseau.ts";
 
 // Ce que le chef garde sous son répertoire et qu'aucun cook ne lit : ses clés,
@@ -70,6 +71,7 @@ export type Reglages = {
     filesystem: { allowWrite: string[]; denyWrite: string[]; denyRead: string[] };
     network: { allowedDomains: string[]; strictAllowlist: true; allowLocalBinding: false; allowAllUnixSockets: false };
   };
+  hooks: { PreToolUse: typeof CROCHET_BASH };
   permissions: { allow: string[]; deny: string[]; disableBypassPermissionsMode: "disable" };
 };
 
@@ -117,26 +119,15 @@ function domaines(regle: Regle): string[] {
 // et tout ce qui est sous lui.
 const regles = (outil: string, lieu: string) => [`${outil}(/${lieu})`, `${outil}(/${lieu}/**)`];
 
-// Les commandes d'un projet que le cook joue pour vérifier son travail : ses
-// tests et ses linters. `dontAsk` refuse toute commande Bash qu'aucune règle
-// n'autorise, et une affectation de variable en tête (`DATABASE_URL=… cmd`)
-// fait refuser même une commande autorisée : chaque forme a donc ses deux
-// règles, nue et précédée d'affectations (`*=* `). Établi en lançant `claude`
-// en `dontAsk` : `ls` et les lectures passent seuls, une chaîne `a; b` passe
-// quand chacune de ses commandes passe, `cd` hors du worktree ne passe pas.
-// Les binaires du projet se lancent par leur chemin relatif ; les scripts, par
-// le gestionnaire de paquets, sous les noms usuels des tests et des linters.
-const GESTIONNAIRES = ["pnpm", "npm", "yarn"];
-const SCRIPTS = ["test", "lint", "format", "typecheck"];
-export const COMMANDES_DE_VERIFICATION = [
-  "./node_modules/.bin/*",
-  ...GESTIONNAIRES.flatMap((gestionnaire) => SCRIPTS.flatMap((script) => [`${gestionnaire} ${script}`, `${gestionnaire} ${script} *`, `${gestionnaire} run ${script}`, `${gestionnaire} run ${script} *`])),
-].flatMap((commande) => [`Bash(${commande})`, `Bash(*=* ${commande})`]);
+// Le crochet qui autorise les commandes de vérification du projet (tests et
+// linters, `verification.ts`) : aucune règle `Bash(…)` ne sait les borner.
+const CROCHET = fileURLToPath(new URL("./crochet-bash.ts", import.meta.url));
+export const CROCHET_BASH = [{ matcher: "Bash", hooks: [{ type: "command" as const, command: `"${process.execPath}" "${CROCHET}"` }] }];
 
 // Ce que le cook lit quand `claude` lui refuse une commande : le refus de
 // `dontAsk` est un message fixe, qui ne dit pas quoi faire à la place.
 export const CONSIGNE_DE_REFUS =
-  "Si une commande Bash t'est refusée avec « Permission to use Bash has been denied because Claude Code is running in don't ask mode », ce n'est pas une panne : seules les commandes de vérification du projet sont autorisées, dans ton worktree. À la place, joue ses tests et ses linters ainsi : `./node_modules/.bin/<outil> <args>` (vitest, prettier, eslint…), éventuellement précédé de variables (`DATABASE_URL=… LLM_MODE=mock ./node_modules/.bin/vitest run <chemin>`), ou `pnpm test`, `pnpm lint`, `pnpm format`, `pnpm typecheck` (aussi `npm`, `yarn`, `pnpm run <script>`). Une commande par appel, sans `cd` hors du worktree ; les lectures (`ls`, `cat`, `git status`…) passent seules, et on peut les enchaîner avec `;`. Ne contourne pas un refus : si rien de cela ne convient, dis dans ton compte-rendu ce que tu voulais lancer.";
+  "Si une commande Bash t'est refusée avec « Permission to use Bash has been denied because Claude Code is running in don't ask mode », ce n'est pas une panne : seules les commandes de vérification du projet sont autorisées, dans ton worktree. À la place, joue ses tests et ses linters ainsi : `./node_modules/.bin/<outil> <args>` (vitest, prettier, eslint…, sans `..`), éventuellement précédé de variables (`DATABASE_URL=… LLM_MODE=mock ./node_modules/.bin/vitest run <chemin>`), ou `pnpm test`, `pnpm lint`, `pnpm format`, `pnpm typecheck` (aussi `npm`, `yarn`, `pnpm run <script>`). Pas de `&&`, de `|`, de redirection ni de guillemets dans ces commandes, et pas de `cd` hors du worktree ; les lectures (`ls`, `cat`, `head`, `tail`, `wc`, `pwd`) passent seules, et on peut les enchaîner avec `;`. Ne contourne pas un refus : si rien de cela ne convient, dis dans ton compte-rendu ce que tu voulais lancer.";
 
 export function configurer(cook: Cook): ConfigDeBacASable {
   if (!posix.isAbsolute(cook.home)) throw new BacASableInvalide(`répertoire du compte (« ${cook.home} ») : un chemin absolu est attendu`);
@@ -185,10 +176,10 @@ export function configurer(cook: Cook): ConfigDeBacASable {
         // soit le mode — sans lui, `bypassPermissions` le laisserait passer.
         network: { allowedDomains: unique(hotes.flatMap(({ noms }) => noms)), strictAllowlist: true, allowLocalBinding: false, allowAllUnixSockets: false },
       },
+      hooks: { PreToolUse: CROCHET_BASH },
       permissions: {
         allow: unique([
           ...ecrits.map((lieu) => `Edit(/${lieu}/**)`),
-          ...COMMANDES_DE_VERIFICATION,
           // Le ticket que la station remet en fichier : les outils de `claude`
           // ne lisent hors du worktree que ce qu'une règle autorise.
           ...lus.map((fichier) => `Read(/${fichier})`),
