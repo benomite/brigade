@@ -24,6 +24,7 @@ import type { Pages } from "../page.ts";
 import type { RenduDePanne } from "../pannes/gestes.ts";
 import type { EtatDeMiseAJour } from "../mise-a-jour/etat.ts";
 import type { UpdateOffer } from "../mise-a-jour/android.ts";
+import type { Avis as AvisDeVersion } from "../mise-a-jour/avis.ts";
 import type { Lue as QuestionLue, Rendue as ReponseRendue } from "../question.ts";
 import type { Vu as VuDuCode } from "../retard.ts";
 import type { Avis, Retrait } from "../retrait.ts";
@@ -208,6 +209,16 @@ export type Pont = {
   // `miseAJour`, le pont ne rend aucune offre : `surOffreApk` n'y reçoit jamais rien.
   installerApk(apkUrl: string): Promise<unknown> | void;
   surOffreApk(recevoir: (offre: UpdateOffer) => void): void;
+  // Le bandeau d'une version plus haute (le ticket 1528, mise-a-jour/avis.ts) : la plus haute version publiée au-dessus de
+  // celle qui tourne, avec le lien direct du paquet de ce poste et la ligne du premier lancement — ou rien, si l'app est
+  // à jour, si le chef a écarté cette version, ou si ce poste ne se met pas à jour par là (lancée depuis le dépôt).
+  // `avisDeVersion` rend la dernière vérification, `surAvisDeVersion` reçoit chacune de celles qui suivent.
+  // `telechargerVersion` ouvre dans le navigateur le lien de l'avis rendu, et lui seul ; `refuserVersion` écarte une
+  // version, et le pont s'en souvient d'un lancement à l'autre — une version plus haute est montrée de nouveau.
+  avisDeVersion(): Promise<AvisDeVersion | undefined>;
+  surAvisDeVersion(recevoir: (avis: AvisDeVersion | undefined) => void): void;
+  telechargerVersion(url: string): Promise<boolean>;
+  refuserVersion(version: string): Promise<boolean>;
   // L'app Android seule (le ticket 1161) : le téléphone s'appaire au guichet d'une station qui tourne
   // (runtime/src/telephone/guichet.ts) avec le code qu'elle montre — `POST /pairing`. Appairé, le pont
   // garde son jeton, que la vue ne voit jamais, et `telephone` le dit au lancement suivant. Refusé ou
