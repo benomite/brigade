@@ -24,7 +24,12 @@
 // celle des gates — l'ancêtre commun avec la branche d'intégration.
 import { execFileSync } from "node:child_process";
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { basename, dirname, join, normalize, relative } from "node:path";
+import { posix } from "node:path";
+
+// Des chemins en `/` partout, sous Windows aussi : ceux que git donne, et ceux
+// que les règles lisent (`runtime/test/…`). Ceux de `node:path` y prendraient
+// des `\`, et aucun test ne serait plus sous `test/` (#1611).
+const { basename, dirname, join, normalize, relative } = posix;
 
 const ZONES = ["runtime", "app"];
 const CODE = /\.(ts|mts|js|mjs|cjs)$/;
