@@ -17,6 +17,7 @@
     "log": "node src/relire.ts",
     "pass": "node src/montrer-pass.ts",
     "station": "node src/montrer-station.ts",
+    "setting": "node src/reglage-cli.ts",
     "switch": "node src/interrupteur-cli.ts",
     "manager": "node src/manager-cli.ts",
     "grant": "node src/grant-cli.ts",

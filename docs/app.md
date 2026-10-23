@@ -74,6 +74,10 @@ station's button, says `setting…` until the runtime has answered, then rereads
 the manager reads it at its next reaction. Set by you, `back to the default` withdraws it (`station remove …`). Refused
 by the runtime, a line says so, its output on hover. A runtime that does not give it shows nothing. The modules are
 `app/src/plafond-de-calibrage.ts` and `app/src/vue/plafond-de-calibrage.js`.
+**Since #1309, the ceiling is a project setting, changed by a pull request**: when the project's runtime gives its
+settings (`setting`), the folded block holds the same row as Settings (see "The project's settings, changed by a pull
+request"), and nothing is set on the box any more. The lists and `set ceiling` above remain only for a runtime that does
+not give its settings yet.
 **Under the ceiling, the kitchen roles** (#1274), in a block titled `kitchen roles`: the `manager`, the `pass`, the `reviewer`, the
 `second judge`, the `triage` and the `closer`, one per row — its name, one line on what it does, and under it its latest action
 on this project, a short sentence and its time (`merged #12 · Oct 13, 2026, 9:41 AM`). A role that has never acted on the
@@ -1657,6 +1661,22 @@ is read only while the tab is shown. An alert-band line whose cause is fixed the
 (Log) has no tab**: the "log" button, next to the tabs, opens the end of the log
 over the rail; clicking it again closes it. The seven readings below are those of this tab and of this
 action.
+
+**The project's settings, changed by a pull request** (#1309, epic #1301). At the top of Settings (General), a block
+titled `Project settings` holds one row per project setting: the integration branch, the manager's and the reviewer's
+default calibrations, the calibration ceiling. Each row says the value in force and where it comes from — `from the
+repository` (`.claude/brigade/projet.json`), `set on the station`, `from CLAUDE.md`, `default` — and has its edit control —
+a text field for the branch, a model and an effort for a calibration — and `propose`, enabled once the value differs. They
+are read when the project opens, by the runtime's `setting` where its kitchen runs. `propose` plays `setting ceiling
+<model> <effort>` (or `manager`, `reviewer`, `branch <name>`) there: the runtime checks the value against the settings
+writer, opens a pull request on the project's repository and hands it to the pass, which holds it for you. The button
+says `proposing…` until the runtime has answered. Opened, the row says `<value> proposed as a pull request — it applies
+once merged`, with a `pull request #<n>` button that opens it; refused — a value that belongs to the machine, a change
+the repository already carries —, the runtime's sentence is said next to the field, its detail on hover, and the field
+goes back to the value in force. **The value shown never changes on a proposal**: it is the one in force, until the pull
+request is merged. Nothing is saved on the box. A runtime that does not have `setting` yet says `settings unavailable`
+in one line, the detail on hover. The modules are `app/src/reglages-du-projet.ts` and `app/src/vue/projet/reglages.js`;
+the command, `runtime/src/reglage-cli.ts`.
 
 **The drawn rail is at the center of the space, shared between its two tabs** (see "The rail"): On the
 rail, Taken, Pass, TODO, WAITING and Served, all on Rail; Cooks shows no kanban column. **The space opens with no page**: the shown

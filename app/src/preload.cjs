@@ -78,6 +78,9 @@ const pont = {
   deplacer: (projet, ticket, voisin, cote) => ipcRenderer.invoke("deplacer", projet, ticket, voisin, cote),
   reglerLePlafond: (station, valeur, projet) => ipcRenderer.invoke("reglerLePlafond", station, valeur, projet),
   reglerLePlafondDeCalibrage: (projet, choix) => ipcRenderer.invoke("reglerLePlafondDeCalibrage", projet, choix),
+  reglagesDuProjet: (projet) => ipcRenderer.invoke("reglagesDuProjet", projet),
+  proposerUnReglage: (projet, choix) => ipcRenderer.invoke("proposerUnReglage", projet, choix),
+  ouvrirLaProposition: (url) => ipcRenderer.invoke("ouvrirLaProposition", url),
   retirerLaStation: (id) => ipcRenderer.invoke("retirerLaStation", id),
   // Le premier lancement, sur un ordinateur neuf (ticket 1434) : les stations du chef et leurs projets, lus par le
   // runtime ; un projet ouvert d'un clic — chaque étape de sa copie arrive par `surOuverture` — ; la connexion à

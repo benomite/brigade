@@ -25,6 +25,7 @@ import { confirmationDe } from "./confirmation.ts";
 import { cuireSurLaStation } from "./cuisson.ts";
 import { deplacerLaCarte } from "./deplacement.ts";
 import { reglerLePlafond as reglerLePlafondDeCalibrage } from "./plafond-de-calibrage.ts";
+import { lireLesReglages, proposerLeReglage } from "./reglages-du-projet.ts";
 import { choix, entieres, PALETTE } from "./couleurs.ts";
 import { blocDesOrdinaires } from "./ordinaires.ts";
 import { ecrireAttente, GESTES_D_ATTENTE } from "./attente.ts";
@@ -1091,6 +1092,34 @@ ipcMain.handle("reglerLePlafondDeCalibrage", (_, nom: unknown, choix: unknown) =
   if (vise === undefined) return parti(nom);
   const cuisine = cuisines.cuisineDe(vise);
   return reglerLePlafondDeCalibrage(vise.nom, cuisine === undefined ? undefined : { nom: vise.nom, cuisine }, faits.plafondDeCalibrage(vise.nom), choix, lancerSurLaCuisine);
+});
+// Les réglages du projet, sur sa page (#1309) : lus par `setting` là où sa cuisine tourne, et changés par une PR sur
+// son dépôt — rien ne se pose sur la box (reglages-du-projet.ts). La proposition attend que le runtime du projet ait
+// ouvert la PR — il l'attend lui-même deux minutes au plus — : elle ne passe pas par le passage du projet, que ses
+// lectures ne restent pas derrière elle. Seule l'adresse d'une PR qu'elle a rendue s'ouvre depuis l'écran.
+const propositionsDeReglage = new Set<string>();
+const cuisineDuProjet = (nom: unknown) => {
+  const vise = connu(nom);
+  const cuisine = vise === undefined ? undefined : cuisines.cuisineDe(vise);
+  return { vise, lu: vise === undefined || cuisine === undefined ? undefined : { nom: vise.nom, cuisine } };
+};
+ipcMain.handle("reglagesDuProjet", (_, nom: unknown) => {
+  const { vise, lu } = cuisineDuProjet(nom);
+  return vise === undefined ? { sans: `${String(nom)} is no longer in the projects file` } : lireLesReglages(vise.nom, lu, lancerSurLaCuisine);
+});
+ipcMain.handle("proposerUnReglage", async (_, nom: unknown, choix: unknown) => {
+  const { vise, lu } = cuisineDuProjet(nom);
+  if (vise === undefined) return parti(nom);
+  const rendu = await proposerLeReglage(vise.nom, lu, choix, (lu, commande) => lancerLa({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 150_000, connexionS: 10 }, lu, commande));
+  if ("pr" in rendu) propositionsDeReglage.add(rendu.pr);
+  return rendu;
+});
+ipcMain.handle("ouvrirLaProposition", (_, url: unknown) => {
+  if (typeof url !== "string" || !propositionsDeReglage.has(url)) return false;
+  return shell.openExternal(url).then(
+    () => true,
+    () => false,
+  );
 });
 // Le code de l'app, en retard ou à relancer : le clic la met à jour et la relance — rien n'est
 // rendu, elle se ferme — ou dit pourquoi elle reste sur son code (rattrapage.ts).

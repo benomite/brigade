@@ -103,6 +103,7 @@ Commands are run as `brigade <project> <command>` on the box (`npm --prefix runt
 | `rail` | `rail` | The ticket rail | `remove <ticket>` and `priority <ticket> <1-9 \| none>` are new, with no old name |
 | `station` | `station` | A station's settings | `cooks <N>` → `cooks <N>`; `retirer <setting>` → `remove <setting>`; `aide` → `help` |
 | `manager` | `manager` | The manager's decisions — it follows the project switch | `allumer` → `on`; `eteindre` → `off` (both refused since #1406, naming `switch`); `rendre <n°>` → `return <n°>`; `backlog` → `backlog`; `upstream` is new, with no old name |
+| — | `setting` | The project's settings, from its repository; propose a change as a pull request (#1309) | `ceiling`, `manager`, `reviewer <model> <effort> \| default`; `branch <name>` — new, with no old name |
 | `switch` | `switch` | The project switch, one for the whole project (#1406) | new, with no old name |
 | `grant` | `grant` | The `merge` grant | `activer` → `enable`; `prolonger` → `extend`; `revoquer` → `revoke`; `--jusqu-a` → `--until`; `--pour` → `--for`; `--usages` → `--uses`; `--sans-echeance` → `--no-expiry` |
 | `pass` | `pass` | The pass and its verdicts | — |
