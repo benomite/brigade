@@ -19,6 +19,7 @@ import { lieuDe } from "./machines.ts";
 import { ICI, SANS_SESSION } from "./plateforme.ts";
 import { detruire as detruireSession, joindre as joindreMachine, nomDeSession, rattachement, type Cible, type Session } from "./persistance.ts";
 import { crochetsDesTours, DIT, PREUVE, reglages, suivreSaisie, type Saisie, type Tours } from "./saisie.ts";
+import { crochetsDeLaFile } from "./second/file.ts";
 import { argumentsDuSecond, reglagesDuSecond, type Crochets } from "./second/lancement.ts";
 import type { Rappel, Souvenir, Souvenirs } from "./souvenirs.ts";
 import type { OutilVu } from "../../runtime/src/second/outils.ts";
@@ -88,6 +89,8 @@ const manquants = (tools: readonly OutilVu[]): OutilManquant[] =>
 type Attente = { essais: number; sonde?: true; annuler?: () => void };
 type Tenu = Terminal & {
   dossier: string;
+  // Le projet tel que la file se lit : son nom, et sa box.
+  cible: { nom: string; hote?: string };
   colonnes: number;
   lignes: number;
   lances: number;
@@ -132,6 +135,8 @@ export function ouvrirTerminaux(options: {
   souvenirs?: Souvenirs;
   // Le `ssh` qui joint une machine distante — jamais posé hors des essais.
   ssh?: string;
+  // Le `node` qui joue le crochet de la file du second (second/file.ts). Sans lui, le second n'a pas ce crochet.
+  node?: string;
   // Le compte qu'une machine donne au chef, pour le bandeau d'un shell. Par défaut : celui de ce
   // poste, ou celui que `ssh -G` résout pour l'hôte.
   compte?(cible: Cible): string;
@@ -179,7 +184,7 @@ export function ouvrirTerminaux(options: {
   const de = (projet: string) => [...tenus.values()].filter((tenu) => tenu.projet === projet);
 
   function tenir(projet: Projet, genre: Terminal["genre"], titre: string): Tenu {
-    const tenu: Tenu = { id: ++dernier, projet: projet.nom, genre, titre, note: "", arrete: false, dossier: projet.dossier, colonnes: 80, lignes: 24, lances: 0 };
+    const tenu: Tenu = { id: ++dernier, projet: projet.nom, genre, titre, note: "", arrete: false, dossier: projet.dossier, cible: { nom: projet.nom, ...(projet.box === undefined ? {} : { hote: projet.box.hote }) }, colonnes: 80, lignes: 24, lances: 0 };
     tenus.set(tenu.id, tenu);
     return tenu;
   }
@@ -271,11 +276,14 @@ export function ouvrirTerminaux(options: {
   // d'un second : la note le dit. Il n'y en a pas — ou `claude` n'a pas su le
   // reprendre — quand `claude --continue` sort en erreur : une session neuve
   // part alors, une seule fois, avec le rôle, et sa note le dit.
+  // La file du projet, lue à chaque début de session et après chaque compaction (second/file.ts).
+  const laFile = (tenu: Tenu): Crochets => (options.node === undefined ? {} : crochetsDeLaFile({ node: options.node, ssh: options.ssh ?? "ssh", cible: tenu.cible }));
+
   function lancerSecond(tenu: Tenu, reprise: boolean): void {
     tenu.titre = TITRE_SECOND;
     if (reprise) tenu.note = `thread resumed: \`claude --continue\`, the latest conversation in this folder — whichever it is, not necessarily a second's; it runs ${ROLE}`;
     else tenu.note = `new session: \`claude\`, ${ROLE}`;
-    lancer(tenu, options.claude, (crochets) => argumentsDuSecond({ reprise, reglages: reglagesDuSecond(crochets) }), (code) => {
+    lancer(tenu, options.claude, (crochets) => argumentsDuSecond({ reprise, reglages: reglagesDuSecond(crochets, laFile(tenu)) }), (code) => {
       if (reprise && code !== 0) {
         lancerSecond(tenu, false);
         if (tenu.empeche === undefined) tenu.note = `new session: \`claude --continue\` exited with code ${code}, the thread was not resumed — \`claude\`, ${ROLE}`;
