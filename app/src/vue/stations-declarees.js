@@ -79,11 +79,26 @@ function survolDe(ou, distante, hote) {
 
 // Les cases du formulaire : celles que la station déclare, dans son ordre, puis ce que les autres stations du projet
 // fournissent, et ce que cet ordinateur sait déclarer (le catalogue de « + station », avec son nom en clair).
-/** @param {StationDeclaree} station @param {StationsLues} stations @param {readonly CapaciteDeLaMachine[]} catalogue */
-export function choixDeCapacites(station, stations, catalogue) {
+// `enPlus` : une capacité que le chef vient d'appeler (« cook it on a station that has it »), offerte même si rien d'autre ne la nomme.
+/** @param {StationDeclaree} station @param {StationsLues} stations @param {readonly CapaciteDeLaMachine[]} catalogue @param {string} [enPlus] */
+export function choixDeCapacites(station, stations, catalogue, enPlus) {
   const dites = new Map(catalogue.map(({ capacite, nom }) => [capacite, nom]));
-  const toutes = [...station.fournit, ...stations.declarees.flatMap(({ fournit }) => fournit), ...stations.proposees.flatMap(({ fournit }) => fournit), ...catalogue.map(({ capacite }) => capacite)];
+  const toutes = [...station.fournit, ...(enPlus === undefined ? [] : [enPlus]), ...stations.declarees.flatMap(({ fournit }) => fournit), ...stations.proposees.flatMap(({ fournit }) => fournit), ...catalogue.map(({ capacite }) => capacite)];
   return [...new Set(toutes)].map((capacite) => ({ capacite, dite: dites.get(capacite) ?? "" }));
+}
+
+// La capacité qu'un besoin que la station n'a pas appelle, telle qu'on la déclare : la première que le runtime lui donne
+// (runtime/src/installation/besoins/catalogue.ts, `fourni.capacites`) ; un besoin qu'il ne dit pas ici est sa propre capacité.
+/** @type {Readonly<Record<string, string>>} */
+export const CAPACITE_DU_BESOIN = { browser: "navigateur-headless" };
+/** @param {string} besoin */
+export const capaciteDuBesoin = (besoin) => CAPACITE_DU_BESOIN[besoin] ?? besoin;
+
+// La station que « cook it on a station that has it » ouvre : une de celles que ce poste joue — la première —, à défaut la
+// première que le projet déclare (son formulaire permet de la confier à ce poste).
+/** @param {StationsLues} stations @param {{ jouees: readonly string[], ici: boolean }} projet */
+export function stationAOuvrir(stations, projet) {
+  return stations.declarees.find((station) => ouTourne(station, projet) === "poste") ?? stations.declarees[0];
 }
 
 // Le formulaire ouvert d'une station, sous sa ligne : son plafond, ses capacités, ce poste qui la joue, et ses gestes.
