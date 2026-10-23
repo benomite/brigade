@@ -268,6 +268,11 @@ export type Pont = {
   // Le plafond de calibrage du projet, réglé depuis son onglet Cooks (ticket 1284) : un modèle et un effort, ou « defaut »
   // — le retour au défaut. Part là où sa cuisine tourne (plafond-de-calibrage.ts) ; le plafond neuf arrive par la relecture.
   reglerLePlafondDeCalibrage(projet: string, choix: import("../plafond-de-calibrage.ts").ChoixDuPlafond): Promise<import("../plafond-de-calibrage.ts").RenduDuPlafond>;
+  // Les réglages du projet sur sa page (ticket 1309) : lus là où sa cuisine tourne (`setting`), et changés par une PR sur
+  // son dépôt — rien ne se pose sur la box (reglages-du-projet.ts). La PR rendue s'ouvre par `ouvrirLaProposition`.
+  reglagesDuProjet(projet: string): Promise<import("../reglages-du-projet.ts").LectureDesReglages>;
+  proposerUnReglage(projet: string, choix: import("../reglages-du-projet.ts").ChoixDeReglage): Promise<import("../reglages-du-projet.ts").RenduDuReglage>;
+  ouvrirLaProposition(url: string): Promise<boolean>;
   // « Retirer la station », confirmé : son appairage est ôté de son gist (stations/stations.ts) ; la station n'est plus lue.
   retirerLaStation(id: string): Promise<RetraitDeStation>;
   // Le premier lancement, sur un ordinateur neuf (ticket 1434, premier-lancement.ts) : les stations que le chef a

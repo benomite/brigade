@@ -114,6 +114,7 @@ import { poserDepotRetenu } from "./onboarding/depot-retenu.js";
 import { poserBlocages } from "./projet/blocages.js";
 import { poserDelai } from "./projet/delai.js";
 import { poserChoix, sansLesChoix } from "./projet/choix.js";
+import { poserLesReglages, poserUnReglage } from "./projet/reglages.js";
 import { ligneDAlerte, poserLesStations as stationsDeCuisson } from "./stations-de-cuisson.js";
 import { poserLesAppels } from "./appels-de-la-station.js";
 import { EXPLIQUE as AIDE_DU_PLAFOND, poserLePlafond as plafondDeCalibrage, resumeDuPlafond, TITRE as TITRE_DU_PLAFOND } from "./plafond-de-calibrage.js";
@@ -269,6 +270,7 @@ const retraitTitre = element("retrait-titre");
 const retraitGestes = element("retrait-gestes");
 const couleurs = element("couleurs");
 const ordinaires = element("ordinaires");
+const reglagesDuProjet = element("reglages-du-projet");
 const avis = element("avis");
 // L'onglet Cooks se lit dans l'ordre de sa revue (docs/revue-page-cooks.md, ticket 1456) : d'abord ce qui cuit, ce qui
 // est coincé et pourquoi — ses stations et leurs cooks, la ligne de sa cuisine en tête —, puis ses tickets, puis ses
@@ -883,6 +885,12 @@ const plafondsChoisis = new Map();
 const plafondsEnCours = new Map();
 /** @type {Map<string, import("./plafond-de-calibrage.js").Dit>} */
 const plafondsDits = new Map();
+// Les réglages de chaque projet (ticket 1309) : leur dernière lecture, et l'état de chacun — ce que le chef a choisi sans
+// le proposer, le clic qui attend sa réponse, ce que le dernier a rendu. Le plafond, sur Cooks, est le même réglage.
+/** @type {Map<string, import("../reglages-du-projet.ts").LectureDesReglages>} */
+const reglagesLus = new Map();
+/** @type {Map<string, Map<import("../reglages-du-projet.ts").Cle, import("./projet/reglages.js").Etat>>} */
+const etatsDesReglages = new Map();
 // La dernière bande d'alertes de chaque projet, telle que le process principal l'a dite (alertes.ts).
 /** @type {Map<string, Alerte[]>} */
 const bandes = new Map();
@@ -2429,6 +2437,86 @@ async function colorer(projet, role, nom) {
   const refus = await brigade.colorer(projet.nom, role, nom);
   couleurRefusee = { projet: projet.nom, refus: refus ?? "" };
   if (courant?.nom === projet.nom) poserCouleurs(courant);
+}
+
+// Les réglages du projet, sous Paramètres (ticket 1309) : lus là où sa cuisine tourne, à l'ouverture du projet. Un
+// projet qui ne cuit nulle part n'a pas de runtime pour les lire : la section ne se pose pas.
+/** @param {Projet} projet */
+async function lireLesReglages(projet) {
+  if (!seLit(projet)) {
+    reglagesLus.delete(projet.nom);
+    return poserLesReglagesDuProjet(projet);
+  }
+  /** @type {import("../reglages-du-projet.ts").LectureDesReglages | undefined} */
+  let recue;
+  try {
+    recue = await brigade.reglagesDuProjet(projet.nom);
+  } catch (erreur) {
+    recue = { sans: "settings unavailable", detail: erreur instanceof Error ? erreur.message : String(erreur) };
+  }
+  // Un pont qui ne porte pas la lecture — un téléphone — ne rend rien : la section ne se pose pas.
+  if (recue === undefined) reglagesLus.delete(projet.nom);
+  else reglagesLus.set(projet.nom, recue);
+  if (courant?.nom !== projet.nom) return;
+  poserLesReglagesDuProjet(projet);
+  poserPlafondDeCalibrage(projet);
+}
+
+// L'état d'un réglage du projet, et ce que ses gestes en font.
+/** @param {Projet} projet @param {import("../reglages-du-projet.ts").Cle} cle */
+function gestesDuReglage(projet, cle) {
+  const etats = etatsDesReglages.get(projet.nom) ?? new Map();
+  etatsDesReglages.set(projet.nom, etats);
+  return {
+    etat: etats.get(cle),
+    /** @param {string | { modele: string, effort: string }} choisi */
+    choisir: (choisi) => void etats.set(cle, { ...etats.get(cle), choisi }),
+    /** @param {import("../reglages-du-projet.ts").ChoixDeReglage} choix @param {string} dit */
+    proposer: (choix, dit) => void proposerUnReglage(projet, choix, dit),
+    /** @param {string} url */
+    ouvrir: (url) => void brigade.ouvrirLaProposition(url),
+  };
+}
+
+/** @param {Projet} projet */
+function poserLesReglagesDuProjet(projet) {
+  const etats = etatsDesReglages.get(projet.nom) ?? new Map();
+  etatsDesReglages.set(projet.nom, etats);
+  const pose = poserLesReglages(document, {
+    lecture: reglagesLus.get(projet.nom),
+    etats,
+    choisir: (cle, choisi) => gestesDuReglage(projet, cle).choisir(choisi),
+    proposer: (choix, dit) => void proposerUnReglage(projet, choix, dit),
+    ouvrir: (url) => void brigade.ouvrirLaProposition(url),
+  });
+  reglagesDuProjet.hidden = pose === null;
+  reglagesDuProjet.replaceChildren(...(pose === null ? [] : [pose]));
+}
+
+// « propose » : le changement part par le process principal (reglages-du-projet.ts), qui attend que le runtime du projet
+// ait ouvert la PR. Tant qu'il n'a pas répondu, le bouton dit qu'il s'y met. Ouverte, la PR se dit à côté du champ ;
+// refusé, le refus — et le champ revient à la valeur en vigueur, qui ne change pas tant que la PR n'est pas mergée.
+/** @param {Projet} projet @param {import("../reglages-du-projet.ts").ChoixDeReglage} choix @param {string} dit */
+async function proposerUnReglage(projet, choix, dit) {
+  const etats = etatsDesReglages.get(projet.nom) ?? new Map();
+  etatsDesReglages.set(projet.nom, etats);
+  if (etats.get(choix.cle)?.enCours === true) return;
+  etats.set(choix.cle, { ...etats.get(choix.cle), enCours: true, dit: undefined });
+  const reposer = () => {
+    if (courant?.nom !== projet.nom) return;
+    poserLesReglagesDuProjet(projet);
+    poserPlafondDeCalibrage(projet);
+  };
+  reposer();
+  /** @type {import("../reglages-du-projet.ts").RenduDuReglage} */
+  let rendu;
+  try {
+    rendu = (await brigade.proposerUnReglage(projet.nom, choix)) ?? { refus: "nothing was proposed: nothing was sent", detail: SANS_PONT };
+  } catch (erreur) {
+    rendu = { refus: "nothing was proposed: nothing was sent", detail: erreur instanceof Error ? erreur.message : String(erreur) };
+  }
+  etats.set(choix.cle, { dit: "pr" in rendu ? { ...rendu, valeur: dit } : rendu });
+  reposer();
 }
 
 // Les tickets ordinaires de cet ordinateur, sous Paramètres : l'option, la limite de cooks, une ligne
@@ -4259,6 +4347,17 @@ function ligneDeLaCuisine(projet, tableau, heure) {
 // répond pas, ni d'un runtime qui ne le donne pas.
 /** @param {Projet} projet */
 function poserPlafondDeCalibrage(projet) {
+  // Lu par `setting`, le plafond se change comme les autres réglages du projet : par une PR (ticket 1309).
+  const lus = reglagesLus.get(projet.nom);
+  const reglage = lus !== undefined && "vus" in lus ? lus.vus.reglages.find(({ cle }) => cle === "plafond") : undefined;
+  if (lus !== undefined && "vus" in lus && reglage !== undefined) {
+    const rangee = poserUnReglage(document, { vu: reglage, modeles: lus.vus.modeles, efforts: lus.vus.efforts, ...gestesDuReglage(projet, "plafond") });
+    const section = document.createElement("section");
+    section.className = "plafond-de-calibrage reglages-du-projet";
+    section.ariaLabel = TITRE_DU_PLAFOND;
+    section.append(rangee);
+    return plafondDuProjet.replaceChildren(replieDe(projet, "plafond", { titre: TITRE_DU_PLAFOND, resume: `${reglage.dit ?? "not set"} · ${reglage.source}`, aide: AIDE_DU_PLAFOND }, [section]));
+  }
   const tenu = tenus.get(projet.nom);
   const vu = tenu !== undefined && "tableau" in tenu && !muets.has(projet.nom) ? tenu.tableau.plafondDeCalibrage : undefined;
   const pose = plafondDeCalibrage(document, {
@@ -7092,6 +7191,8 @@ async function ouvrir(projet) {
   void lireRetrait(projet);
   poserCouleurs(projet);
   void poserOrdinaires(projet);
+  poserLesReglagesDuProjet(projet);
+  void lireLesReglages(projet);
   brigade.regarder(projet.nom, ++demande);
   if (!seLit(projet) && projet.sansStation !== true) void lireLeRailPublie(projet);
   // Un projet qui ne s'ouvre pas n'a pas de second : sa colonne dit pourquoi.
