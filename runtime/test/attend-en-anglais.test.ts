@@ -88,6 +88,7 @@ const EXEMPLES = {
     { ...ticket(7), quoi: "remontee", reason: "still-red", cause: "returns-exhausted", pr: pr(7) },
     { ...ticket(8), quoi: "remontee", reason: "still-red", cause: "manager-escalated", pr: null },
     { ...ticket(9), quoi: "remontee", reason: "unjudged", cause: "no-verdict", pr: pr(9) },
+    { ...ticket(99), quoi: "remontee", reason: "unjudged", cause: "unstable-test: runtime/test/lectures-sous-condition.test.ts", pr: pr(99) },
     { ...ticket(10), quoi: "remontee", reason: "unknown-reason", cause: null, pr: null },
   ],
   fermee: [{ ...ticket(11), quoi: "fermee", reason: "held", cause: null, pr: pr(11) }],

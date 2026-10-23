@@ -13,7 +13,7 @@ this order:
 | What the CI says | What the pass does with it |
 |---|---|
 | a failing job, the branch **up to date with the base** | **red**, with the job's name, its conclusion, its address — unless the red is not the delivery's (below) |
-| failing jobs, the branch up to date with the base, **only on tests the delivery does not touch** — and nothing else is red (gates, reviewer) | **the failed jobs are rerun, once per delivery** (`pass.ci-rerun`): no verdict, no send-back, no card, no comment. The CI is awaited again — the old red of a rerun job counts as running, and the CI wait restarts from the rerun. Green, the delivery goes on to the merge; red again, it is a verdict as above |
+| failing jobs, the branch up to date with the base, **only on tests the delivery does not touch** — and nothing else is red (gates, reviewer) | **the failed jobs are rerun, once per delivery** (`pass.ci-rerun`): no verdict, no send-back, no card, no comment. The CI is awaited again — the old red of a rerun job counts as running, and the CI wait restarts from the rerun. Green, the delivery goes on to the merge; red again on the same test, the delivery is escalated as an unstable base (`unjudged`, cause `unstable-test`, see below); red on another test, it is a verdict as above |
 | a failing job, the branch **without the head of the base** | that CI did not judge what will be merged: **its red is not a verdict**. The cook is sent back with "bring yourself up to date with the base", the jobs named — not with "CI red". It uses up a send-back, like a conflict. In the log, the CI is "not read" (`skipped`), its checks kept |
 | jobs still running | no verdict: read again at each tick. Thirty minutes with no conclusion: escalated to the chef (`unjudged`, cause `ci-silent`). Unless the reviewer has a blocking finding: red right away, CI "not read" |
 | everything green | green — whether or not the branch has the head of the base: the merge is judged by the gates |
@@ -303,6 +303,7 @@ The causes of an `unjudged` — none uses up a send-back, a cook can do nothing 
 | `worktree-lost` | the station's clone no longer knows the branch, or the merge fails without being a conflict (git down). The pass does not recreate the branch; what the cook pushed stays on the origin |
 | `ci-silent` | thirty minutes of CI with no conclusion |
 | `review-unreadable`, `review-unsendable`, `review-refused` | the review cannot be read, asked twice more of the reviewer; its instructions do not fit in a command; the model refused it three times in a row |
+| `unstable-test: <test>` | the CI of the delivery is red a second time, after the single rerun of its failed jobs, on the same test the change does not touch: the base is unstable, no ticket failed. No send-back; the card reads « base unstable: delivery red on a test this change does not touch, twice (`<test>`) ». Another failing test after the rerun keeps the red a verdict, as before |
 | `secrets-unavailable` | the gates could not receive the project's secrets, and were not played (see "The project's secrets") |
 
 An escalated ticket goes **86**, rail reason `pass:still-red` or `pass:unjudged`. A log from before

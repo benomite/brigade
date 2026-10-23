@@ -87,6 +87,14 @@ export const causeDeDeclarations = (fichiers: string[]) => `${PREFIXE_DECLARATIO
 // Les fichiers que nomme la cause d'un arrêt, si elle est de celles-là.
 export const declarationsDeLaCause = (cause: string | null) => (cause?.startsWith(PREFIXE_DECLARATIONS) ? cause.slice(PREFIXE_DECLARATIONS.length) : null);
 
+// La cause d'une remontée `unjudged` quand la CI de la livraison est rouge deux
+// fois, relancée entre-temps, sur le même test qu'elle ne touche pas : c'est la
+// base qui est instable, pas le ticket qui a échoué (`relance-de-ci.ts`).
+const PREFIXE_TEST_INSTABLE = "unstable-test: ";
+export const causeDeTestInstable = (tests: string[]) => `${PREFIXE_TEST_INSTABLE}${tests.join(", ")}`;
+// Les tests que nomme la cause d'une remontée, si elle est de celles-là.
+export const testsInstablesDeLaCause = (cause: string | null) => (cause?.startsWith(PREFIXE_TEST_INSTABLE) ? cause.slice(PREFIXE_TEST_INSTABLE.length) : null);
+
 // Pourquoi une livraison attend, sans verdict ou sans merge : la base est
 // rouge — une livraison se juge fusionnée avec elle, et son rouge n'est celui
 // d'aucun cook —, ou la machine n'a pas de quoi rejuger. Elle repart seule.

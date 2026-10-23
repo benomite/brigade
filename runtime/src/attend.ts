@@ -45,7 +45,7 @@
 import type { Base } from "./base.ts";
 import { geste } from "./geste.ts";
 import { absentesDuMotif, direManque, direManqueEn, direStationAbsente, direStationAbsenteEn, GESTE_DE_PRESENCE, GESTE_DE_PRESENCE_EN, gesteDeCapacite, gesteDeCapaciteEn, manqueDuMotif, type Manque } from "./capacites.ts";
-import { A_RELIRE, declarationsDeLaCause, DU_MANAGER, ENCORE_ROUGE, MERGE_REFUSE, NON_JUGEE, REDECOUPE, SANS_GRANT } from "./events/pass.ts";
+import { A_RELIRE, declarationsDeLaCause, DU_MANAGER, ENCORE_ROUGE, MERGE_REFUSE, NON_JUGEE, REDECOUPE, SANS_GRANT, testsInstablesDeLaCause } from "./events/pass.ts";
 import { REJOUER_LA_BASE } from "./dire-base.ts";
 import { demandeEnAttente, refus, reglagesEnVigueur, type Demande as DemandeDeFermeture, type Refus } from "./closing/condition.ts";
 import { direDemande as direDemandeDeFermeture, direDemandeEn as direDemandeDeFermetureEn } from "./closing/say.ts";
@@ -515,8 +515,11 @@ export function direAttenteEn(attente: Attente): string {
       switch (attente.reason) {
         case ENCORE_ROUGE:
           return `${attente.cause === DU_MANAGER ? "escalated by the manager, red" : `escalated by the pass, red (${ENCORE_ROUGE}${precise})`} — to decide: ${sortir} — ${voir}${dit}`;
-        case NON_JUGEE:
+        case NON_JUGEE: {
+          const instables = testsInstablesDeLaCause(attente.cause);
+          if (instables !== null) return `base unstable: delivery red on a test this change does not touch, twice (${instables}) — to lift: rerun that test on the base, then remove and set \`fire\` again; or ${sortir} — ${voir}${dit}`;
           return `escalated by the pass, which could not judge it (${NON_JUGEE}${precise}) — to lift: what its issue says, then remove and set \`fire\` again; or ${sortir} — ${voir}${dit}`;
+        }
         default:
           return `escalated (${attente.reason}) — no known action for this reason — ${voir}${dit}`;
       }
@@ -808,8 +811,11 @@ export function direAttente(attente: Attente): string {
       switch (attente.reason) {
         case ENCORE_ROUGE:
           return `${attente.cause === DU_MANAGER ? "remontée par le manager, rouge" : `remontée par la pass, rouge (${ENCORE_ROUGE}${precise})`} — à trancher : ${sortir} — ${voir}${dit}`;
-        case NON_JUGEE:
+        case NON_JUGEE: {
+          const instables = testsInstablesDeLaCause(attente.cause);
+          if (instables !== null) return `base instable : livraison rouge sur un test que ce changement ne touche pas, deux fois (${instables}) — à lever : rejouer ce test sur la base, puis retirer et reposer \`fire\` ; ou ${sortir} — ${voir}${dit}`;
           return `remontée par la pass, qui n'a pas pu la juger (${NON_JUGEE}${precise}) — à lever : ce que dit son issue, puis retirer et reposer \`fire\` ; ou ${sortir} — ${voir}${dit}`;
+        }
         default:
           return `remontée (${attente.reason}) — aucun geste connu pour ce motif — ${voir}${dit}`;
       }

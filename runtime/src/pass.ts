@@ -63,6 +63,7 @@ import {
   A_RELIRE,
   BASE_ROUGE,
   causeDeDeclarations,
+  causeDeTestInstable,
   DIRE_GATES_COUPEES,
   ENCORE_ROUGE,
   EN_PAUSE,
@@ -1515,6 +1516,43 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   const ciRelancee = (ticket: number, sha: string) =>
     journal.duTicket(ticket).findLast((evenement): evenement is Evenement<Extract<FaitPass, { type: "pass.ci-rerun" }>> => evenement.type === "pass.ci-rerun" && evenement.payload.sha === sha) ?? null;
 
+  // Les tests en échec de ces jobs rouges, en chemins du dépôt, si chacun est
+  // hors de ce que la livraison change — sinon null, et le rouge est le sien.
+  const testsEtrangers = async (connu: PassDeTicket, ref: string, jobs: Array<{ check: Check; job: ReturnType<typeof jobDuCheck> }>) => {
+    const { ticket } = connu;
+    if (jobs.some(({ job }) => job === null)) return null;
+    const nommes: string[] = [];
+    for (const { check } of jobs) {
+      const lu = await github.journalDuCheck(check).catch(() => null);
+      const tests = lu === null ? null : testsEnEchec(lu);
+      if (tests === null) return null;
+      nommes.push(...tests);
+    }
+    if (arrete || !enPass(ticket)) return null;
+    const attribution = attribuer(nommes, { changes: depot.changes(ref), fichiers: depot.fichiers(), lire: (chemin) => depot.lire(ref, chemin) });
+    return attribution.etranger ? attribution.tests : null;
+  };
+
+  // La CI de la livraison est rouge de nouveau après sa relance, sur le même
+  // test qu'elle ne touche pas : c'est la base qui est instable, pas le ticket
+  // qui a échoué. Elle remonte au chef, sans renvoi, avec une carte qui le dit
+  // (`causeDeTestInstable`). Un autre test rouge, ou un rouge qui ne s'établit
+  // pas, laisse le rouge à la livraison. Rend vrai si elle a remonté.
+  const remonterLInstabilite = async (connu: PassDeTicket, ref: string, sha: string, rouges: Check[]): Promise<boolean> => {
+    const { ticket } = connu;
+    const relance = ciRelancee(ticket, sha);
+    if (relance === null) return false;
+    const tests = await testsEtrangers(connu, ref, rouges.map((check) => ({ check, job: jobDuCheck(check) })));
+    if (tests === null || tests.some((test) => !relance.payload.tests.includes(test))) return false;
+    if (arrete || !enPass(ticket)) return false;
+    await remonter(
+      connu,
+      causeDeTestInstable(tests),
+      `La base est instable : cette livraison est rouge sur un test que ce changement ne touche pas, deux fois — ${tests.map((test) => `\`${test}\``).join(", ")}, rouge aussi après la relance des jobs en échec. Ce n'est pas un ticket qui a échoué, et aucun cook n'y peut rien.`,
+    );
+    return true;
+  };
+
   // Une CI rouge sur des tests que la livraison ne touche pas, et sur rien
   // d'autre, ne fait pas un verdict : ses jobs en échec sont relancés, une fois
   // par livraison — ni renvoi, ni carte (`relance-de-ci.ts`). Rend vrai si la
@@ -1526,17 +1564,8 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     const { ticket, run } = connu;
     if (ciRelancee(ticket, sha) !== null) return false;
     const jobs = rouges.map((check) => ({ check, job: jobDuCheck(check) }));
-    if (jobs.some(({ job }) => job === null)) return false;
-    const nommes: string[] = [];
-    for (const { check } of jobs) {
-      const lu = await github.journalDuCheck(check).catch(() => null);
-      const tests = lu === null ? null : testsEnEchec(lu);
-      if (tests === null) return false;
-      nommes.push(...tests);
-    }
-    if (arrete || !enPass(ticket)) return false;
-    const attribution = attribuer(nommes, { changes: depot.changes(ref), fichiers: depot.fichiers(), lire: (chemin) => depot.lire(ref, chemin) });
-    if (!attribution.etranger) return false;
+    const etrangers = await testsEtrangers(connu, ref, jobs);
+    if (etrangers === null) return false;
     // Run par run : une relance refusée laisse ses jobs rouges, et ceux-là
     // restent le verdict de la livraison.
     const relances: number[] = [];
@@ -1550,8 +1579,8 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     }
     if (relances.length === 0) return false;
     const checks = jobs.filter(({ job }) => relances.includes(job!.run)).map(({ check }) => check);
-    noter(ticket, { type: "pass.ci-rerun", payload: { run, sha, runs: relances, checks, tests: attribution.tests } });
-    avertir(`brigade : CI relancée sur le ticket #${ticket} (${court(sha)}) — rouge sur des tests que la livraison ne touche pas : ${attribution.tests.join(", ")}`);
+    noter(ticket, { type: "pass.ci-rerun", payload: { run, sha, runs: relances, checks, tests: etrangers } });
+    avertir(`brigade : CI relancée sur le ticket #${ticket} (${court(sha)}) — rouge sur des tests que la livraison ne touche pas : ${etrangers.join(", ")}`);
     return true;
   };
 
@@ -1765,6 +1794,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
         } else {
           // Rouge seulement par sa CI, sur des tests qu'elle ne touche pas.
           if (rouges.length > 0 && review.outcome !== "red" && (await relancerLaCI(connu, ref, sha, rouges))) return;
+          if (rouges.length > 0 && review.outcome !== "red" && (await remonterLInstabilite(connu, ref, sha, rouges))) return;
           if (arrete || !enPass(ticket)) return;
           ci = { outcome: checks.length === 0 ? "none" : rouges.length > 0 ? "red" : "green", checks };
           findings.push(...rouges.map((check) => `CI rouge — job « ${check.name} » : ${check.conclusion}${check.url ? ` (${check.url})` : ""}.`));
