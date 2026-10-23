@@ -181,6 +181,14 @@ const etroit = () => ecranEtroit?.matches === true;
 ecranEtroit?.addEventListener?.("change", () => montrer());
 // La colonne de ce qui attend le chef : sur un écran étroit, les colonnes de Rail s'empilent, et elle passe en tête (ticket 1163).
 const COLONNE_QUI_T_ATTEND = "TODO";
+// Les colonnes où quelque chose attend le chef ou bouge : TODO, Taken, Pass. Les autres — On the rail, WAITING, Served — se
+// lisent en défilant, si elles sont hors de vue (ticket 1556).
+const COLONNES_ACTIVES = new Set([COLONNE_QUI_T_ATTEND, "Taken", "Pass"]);
+// Les projets dont la rangée des colonnes a déjà été placée à l'ouverture : ensuite, la lecture suivante garde le défilement du chef.
+const rangeesPlacees = new Set();
+// La dernière rangée posée de chaque projet : c'est d'elle que la lecture suivante reprend le défilement.
+/** @type {Map<string, HTMLElement>} */
+const rangees = new Map();
 /** @typedef {import("../allumage.ts").Compte} Compte */
 /** @typedef {import("../confirmation.ts").Confirmation} Confirmation */
 /** @typedef {import("../service.ts").Guide} Guide */
@@ -4832,6 +4840,8 @@ function poserRail(projet) {
       // Livré s'allonge tout le jour : ses cartes défilent dans leur hauteur, les autres colonnes restent en vue.
       if (defile) colonne.dataset.defile = "";
       if (nom === COLONNE_QUI_T_ATTEND) colonne.dataset.attend = "";
+      // Ce qui attend le chef, ou bouge : sa colonne est en vue à l'ouverture du rail (ticket 1556).
+      if (cartes.length > 0 && COLONNES_ACTIVES.has(nom)) colonne.dataset.actif = "";
       const forme = formeDe(ton);
       if (forme !== undefined) colonne.dataset.forme = forme;
       const tete = document.createElement("h4");
@@ -4882,6 +4892,8 @@ function poserRail(projet) {
     if (nom === projet.nom && !toutes.some(({ cartes: siennes }) => siennes.some(({ ticket, gestes }) => String(ticket) === numero && gestes?.includes("attente-poser")))) formulairesDAttente.delete(cle);
   }
   const reprise = repriseDuClavier();
+  const ancienne = rangees.get(projet.nom);
+  const defile = ancienne === undefined ? undefined : { gauche: ancienne.scrollLeft, haut: ancienne.scrollTop };
   poser(
     ...fraicheur(tenu.a),
     ...(cuisine
@@ -4897,6 +4909,23 @@ function poserRail(projet) {
   );
   servisSansCarte.replaceChildren(...(sansCarte.length === 0 ? [] : [bloc("h3", `served, without a card here — \`${geste(projet, "status")}\` shows their server`), servis(sansCarte)]));
   rendreLeClavier(reprise);
+  if (!cuisine) placerLaRangee(projet, grille, defile);
+}
+
+// La rangée des colonnes, une fois posée : la lecture qui suit garde le défilement du chef ; à l'ouverture du rail, la
+// première colonne où quelque chose attend ou bouge est à gauche de la vue, sans qu'il défile (ticket 1556).
+/** @param {Projet} projet @param {HTMLElement} grille @param {{ gauche: number, haut: number } | undefined} defile */
+function placerLaRangee(projet, grille, defile) {
+  rangees.set(projet.nom, grille);
+  if (rangeesPlacees.has(projet.nom) && defile !== undefined) {
+    grille.scrollLeft = defile.gauche;
+    grille.scrollTop = defile.haut;
+    return;
+  }
+  const active = /** @type {HTMLElement | undefined} */ ([...grille.children].find((colonne) => /** @type {HTMLElement} */ (colonne).dataset.actif !== undefined));
+  if (active === undefined || active.getBoundingClientRect === undefined) return;
+  rangeesPlacees.add(projet.nom);
+  grille.scrollLeft = Math.max(0, active.getBoundingClientRect().left - grille.getBoundingClientRect().left + grille.scrollLeft - 16);
 }
 
 // Le champ où le chef tapait garde le clavier, et son curseur : le rail redessiné le lui rend — celui d'une carte, d'un

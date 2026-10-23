@@ -1,7 +1,7 @@
 // La file d'un projet sur le téléphone appairé (#1163) : ce qui attend le chef, le rail et les cooks en cours, en
 // largeur de téléphone. La vue est celle du desktop, sur un écran étroit (#1186) : ce qu'elle montre d'une lecture est
 // ce que le desktop montre de la même, au même instant — seule la mise en page change. Les colonnes de Rail
-// s'empilent, TODO en tête, et rien ne défile de côté. La vue est jouée telle qu'elle est (aides/fausse-vue.ts) ; ce
+// restent sur une rangée qui défile de côté (#1556), et la page, elle, ne défile pas de côté. La vue est jouée telle qu'elle est (aides/fausse-vue.ts) ; ce
 // qu'aucun faux document ne mesure — la largeur — est dit par sa peau, que ce test lit, et vu sur les captures
 // (`telephone-file*` de scripts/capture-ecran, docs/captures/1163/).
 import assert from "node:assert/strict";
@@ -181,13 +181,11 @@ function blocEtroit(): Map<string, Map<string, string>> {
   return regles;
 }
 
-describe("sur un écran étroit, rien ne défile de côté", () => {
-  test("les colonnes de Rail s'empilent sur toute la largeur, TODO en tête : ni grille plus large que l'écran, ni défilement de côté", () => {
+describe("sur un écran étroit, la page ne défile pas de côté (les colonnes de Rail, elles, défilent dans leur rangée)", () => {
+  test("les colonnes de Rail restent sur une rangée, même étroite : le bloc étroit ne les empile pas et ne réordonne pas TODO (ticket 1556)", () => {
     const regles = blocEtroit();
-    const grille = regles.get('#rail[data-onglet="rail"] .colonnes');
-    assert.equal(grille?.get("grid-template-columns"), "minmax(0, 1fr)");
-    assert.equal(grille?.has("scroll-snap-type"), false);
-    assert.equal(regles.get('#rail[data-onglet="rail"] .colonne[data-attend]')?.get("order"), "-1");
+    assert.equal(regles.has('#rail[data-onglet="rail"] .colonnes'), false);
+    assert.equal(regles.has('#rail[data-onglet="rail"] .colonne[data-attend]'), false);
     // Rien d'autre du bloc ne pose une largeur minimale qui passerait celle d'un téléphone.
     for (const [selecteur, declarations] of regles) assert.doesNotMatch([...declarations.values()].join(" "), /minmax\((?:[3-9]\d\d|\d{4,})px/, selecteur);
   });
