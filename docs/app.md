@@ -623,8 +623,8 @@ The file stays yours, and you can do anything in it:
   the order of the `projets` rows there, and nothing else: a project added afterwards arrives at the end.
 - **The app rereads this file as soon as it changes** — and every time you come back to its window. The
   bar and "All projects" follow; nothing has to be relaunched (see "When the file changes").
-- **The second reads the same file.** The second is the PO role: a `/brigade:po` session
-  opened in a project's `dossier` takes `nom` and `hote` from it, and runs once on opening the same action as the app:
+- **The second reads the same file.** The second is the PO role: the session the Second tab
+  opens in a project's `dossier` takes `nom` and `hote` from it, and runs once on opening the same action as the app:
   `ssh … <hote> brigade <nom> status`. It relays what awaits you, word for word. A `nom` the
   box does not know is refused by the action, and the second says so in one line; a project
   with no `hote` and no kitchen on this workstation has no queue to read, and it says so the same way. There is no other place to
@@ -1542,10 +1542,19 @@ Click a project: you are in its **second** — `claude`, launched in the project
 role already active, on a real terminal. It is a real Claude Code session: your history, your
 slash commands, and a `!` runs on the Mac, with your access.
 
-**The second is not a new role: it is the PO, and the app invokes it for you.** It runs
-`claude --continue /brigade:po` (or `claude /brigade:po` when there is nothing to resume): you
-have nothing to type, and the second reads the project's queue as soon as it opens — what is waiting, and the action
-that unblocks it. You keep control: leave the role, open shells, do what you want with the session.
+**The second is not a new role: it is the PO, and the app gives it the role for you.** It runs
+`claude --continue` (or `claude` when there is nothing to resume) with the second's role appended to
+Claude Code's system prompt (`--append-system-prompt-file`), from a text the app ships
+(`app/src/second/role.md`): you have nothing to type, no skill is invoked, and the second reads the
+project's queue as soon as it opens — what is waiting, and the action that unblocks it. A system prompt
+is not a message of the conversation: the role stays in force after a compaction and on every resume,
+and updating the app updates it, with no plugin to install. You keep control: open shells, do what
+you want with the session.
+
+**The role exists only in the Second tab.** The role and the settings of the launch (`--settings`, the
+hooks the app gives the second) are arguments of the command the tab runs, and nothing else: the app
+writes nothing into the project's `.claude/`, nor into any file another session reads. A `claude` you
+start yourself in the same folder is a plain Claude Code session, not a second.
 
 **Each project has its second, and a project's product questions go to *its* second.**
 Triaging `calculus`'s issues is asked in `calculus`'s space, not in `brigade`'s:
@@ -1568,7 +1577,7 @@ your `ssh` gives its name (`ssh -G`, nothing is reached); if it does not say, th
 
 **A session that does not have the role is not called Second.** When the app opens a session on
 another command (`/brigade:init`, to prime the repo), the second's tab is called **Claude**;
-it becomes **Second** again if you relaunch it with one key, which invokes `/brigade:po`.
+it becomes **Second** again if you relaunch it with one key, which launches it with the second's role.
 
 - **`+ shell`** asks you **on which machine** to open a shell: **this workstation** (`this Mac`), the project's
   **box** (`box <hote>`), and **each station its box declares** (`station studio/claude`).
@@ -2044,7 +2053,7 @@ none.
   click again.
 - **If the second is not running** — you left `claude` — the button **starts it first**, and
   writes nothing: a starting `claude` would take the command for keys. The line says
-  ``the second was not running: started (`claude --continue /brigade:po`) — the command is not written into a starting second, click again when it is ready``.
+  ``the second was not running: launched (`claude --continue`, with the second's role in its system prompt) — the command is not written into a second that is starting, click again when it is ready``.
 - **Always in the second, never in a shell** opened beside it. Two exceptions, and each
   opens its own shell: `Start`, which needs a real terminal ("After adding: going live"), and the manager's `on` action
   ("The Manager tab").
@@ -3118,16 +3127,16 @@ Under the tabs, a line says what is displayed. For the second, it takes one of t
 
 | The line | What happened |
 |---|---|
-| `thread resumed: `claude --continue`, the last conversation of this folder — whichever it is, not necessarily a second's; `/brigade:po` is invoked in it` | The second was launched by `claude --continue /brigade:po`, and it is running: you find your thread again, and the role is invoked in it. |
-| `new session: `claude --continue` exited with code 1, the thread was not resumed — `claude /brigade:po`` | `claude --continue` exited in error — most often because this folder has no conversation yet. The app launched `claude /brigade:po`, **once**. What `claude` said on exit stays readable in the terminal. |
-| `the second has stopped (code 0) — a key relaunches it` | You quit `claude`, or the new session did not hold. Nothing is relaunched on its own: a key in the terminal relaunches the second, resuming the thread and invoking the role. |
+| `thread resumed: `claude --continue`, the latest conversation in this folder — whichever it is, not necessarily a second's; it runs with the second's role in its system prompt` | The second was launched by `claude --continue`, with the role, and it is running: you find your thread again, and the role is in force in it. |
+| `new session: `claude --continue` exited with code 1, the thread was not resumed — `claude`, with the second's role in its system prompt` | `claude --continue` exited in error — most often because this folder has no conversation yet. The app launched `claude` with the role, **once**. What `claude` said on exit stays readable in the terminal. |
+| `the second stopped (code 0) — a keypress restarts it` | You quit `claude`, or the new session did not hold. Nothing is relaunched on its own: a key in the terminal relaunches the second, resuming the thread, with the role. |
 
 Worth knowing:
 
 - "The thread" is **the last conversation of this folder**, as `claude --continue` picks it —
   including a conversation you had in another terminal, or that of a dev or a manager: the app
-  cannot guarantee it is a second's, and does not pretend to — it invokes `/brigade:po` in that
-  thread, and the line says so. The app keeps no session registry of its own.
+  cannot guarantee it is a second's, and does not pretend to — it resumes that thread with the
+  second's role, and the line says so. The app keeps no session registry of its own.
 - The line says `thread resumed` from the launch; if `claude --continue` has nothing to resume, it
   switches to `new session` the instant it exits.
 - In a folder `claude` does not know yet, it first asks whether you trust it: it is `claude` that

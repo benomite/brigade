@@ -42,9 +42,14 @@ const FIN = "fin";
 // Sous Windows, `claude` joue ses crochets par le `bash` de Git, qui lit `C:/…` : le chemin y part
 // avec des barres obliques.
 export function reglages(chemin: string, separateur: string = sep): string {
+  return JSON.stringify({ hooks: crochetsDesTours(chemin, separateur) });
+}
+
+// Ces trois crochets, seuls : le second les reçoit dans ses réglages, avec les autres (second/lancement.ts).
+export function crochetsDesTours(chemin: string, separateur: string = sep) {
   const lu = separateur === "\\" ? chemin.replaceAll("\\", "/") : chemin;
-  const crochet = (mot: string) => [{ hooks: [{ type: "command", command: `printf '${mot}\\n' >> '${lu.replaceAll("'", `'\\''`)}'` }] }];
-  return JSON.stringify({ hooks: { UserPromptSubmit: crochet(TOUR), PreToolUse: crochet(TOUR), Stop: crochet(FIN) } });
+  const crochet = (mot: string) => [{ hooks: [{ type: "command" as const, command: `printf '${mot}\\n' >> '${lu.replaceAll("'", `'\\''`)}'` }] }];
+  return { UserPromptSubmit: crochet(TOUR), PreToolUse: crochet(TOUR), Stop: crochet(FIN) };
 }
 
 // Les fichiers des tours, un par second, dans un dossier temporaire que l'app retire en fermant.

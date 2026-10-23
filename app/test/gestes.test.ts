@@ -22,6 +22,7 @@ import { commandeDuGeste, CONFIRMES, DIRECTS, ecrireGeste, GESTES, GRANTS, SANS_
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
+import { ROLE_DU_SECOND } from "../src/second/lancement.ts";
 import { ouvrirTerminaux, type Terminal } from "../src/terminaux.ts";
 import { type Faux, jouerLaVue, type Reponses, repos } from "./aides/fausse-vue.ts";
 
@@ -237,7 +238,7 @@ describe("les gestes du chef", () => {
     assert.ok(second !== undefined && "note" in second);
     assert.equal(second.genre, "second");
     assert.match(second.note, /the command did not go/);
-    assert.deepEqual(lances, ["claude --continue /brigade:po /projets/parade"]);
+    assert.deepEqual(lances, [`claude --continue --append-system-prompt-file ${ROLE_DU_SECOND} --settings {} /projets/parade`]);
     assert.deepEqual(ecrits, [[]]);
   });
 
