@@ -17,10 +17,11 @@
 // Tout jouer quand le doute est permis : aucun fichier modifié (la base
 // elle-même), un fichier qui règle toute une suite (package.json, tsconfig, le
 // setup), ou une erreur ici — les gates jouent alors la suite entière.
-// `--souche <commit>` (l'ancêtre commun avec la base) : un package.json de zone
-// dont seuls les scripts ont changé, hors `test` qui règle la suite, ne règle
-// rien d'entier — une commande ajoutée ne rejoue pas les deux suites (#1611) :
-// il touche les tests qui lisent les scripts d'un package.json.
+// Un package.json de zone dont seuls les scripts ont changé, hors `test` qui
+// règle la suite, ne règle rien d'entier — une commande ajoutée ne rejoue pas
+// les deux suites (#1611) : il touche les tests qui lisent les scripts d'un
+// package.json. Ce qu'il était se lit à la souche : `--souche <commit>`, sinon
+// celle des gates — l'ancêtre commun avec la branche d'intégration.
 import { execFileSync } from "node:child_process";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, join, normalize, relative } from "node:path";
@@ -32,7 +33,26 @@ const IGNORES = new Set(["node_modules", ".git", ".brigade-state", "construit", 
 const GLOBAUX = [/^(runtime|app)\/package(-lock)?\.json$/, /^(runtime|app)\/tsconfig[^/]*\.json$/, /^\.claude\/brigade\/worktree-setup\.sh$/, /^package(-lock)?\.json$/];
 
 const modifies = readFileSync(0, "utf8").split("\n").map((l) => l.trim()).filter(Boolean);
-const souche = process.argv.includes("--souche") ? process.argv[process.argv.indexOf("--souche") + 1] : undefined;
+const git = (...args) => execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+// La souche que lisent les gates : la base est `BRIGADE_GATES_BASE`, le binding
+// « Branche d'intégration » du CLAUDE.md, ou `main` ; `origin/` d'abord.
+function soucheDesGates() {
+  let base = process.env.BRIGADE_GATES_BASE;
+  try {
+    base ||= /^- \*\*Branche d'intégration\*\* : `([^`]*)`/m.exec(readFileSync("CLAUDE.md", "utf8"))?.[1];
+  } catch {}
+  for (const ref of [`origin/${base || "main"}`, base || "main"]) {
+    try {
+      return git("merge-base", ref, "HEAD").trim();
+    } catch {}
+  }
+  return undefined;
+}
+const souche = process.argv.includes("--souche")
+  ? process.argv[process.argv.indexOf("--souche") + 1]
+  : modifies.some((f) => /^(runtime|app)\/package\.json$/.test(f))
+    ? soucheDesGates()
+    : undefined;
 // Les scripts qui règlent la suite elle-même : changés, ils la rejouent entière.
 const SCRIPTS_DE_SUITE = new Set(["test", "pretest", "posttest"]);
 // Un package.json de zone dont rien n'a bougé hors de ses scripts, ni ceux de la
@@ -41,7 +61,7 @@ const SCRIPTS_DE_SUITE = new Set(["test", "pretest", "posttest"]);
 function seulsSesScripts(chemin) {
   if (!souche || !/^(runtime|app)\/package\.json$/.test(chemin)) return false;
   try {
-    const avant = JSON.parse(execFileSync("git", ["show", `${souche}:${chemin}`], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }));
+    const avant = JSON.parse(git("show", `${souche}:${chemin}`));
     const apres = JSON.parse(readFileSync(chemin, "utf8"));
     const { scripts: sa = {}, ...ra } = avant;
     const { scripts: sp = {}, ...rp } = apres;
@@ -113,7 +133,10 @@ for (const [f, texte] of textes) {
   }
   // Un nom cité ne compte que dans un test : un helper partagé en cite beaucoup
   // (le `main.ts` qu'il sait lancer), et ferait toucher chaque test par tout.
-  if (f.endsWith(".test.ts")) for (const [nom] of texte.matchAll(CITE)) for (const g of parNom.get(basename(nom)) ?? []) if (g !== f) vers.add(g);
+  // Le chemin d'un import est déjà une arête, résolue : son nom seul, cité, ferait
+  // toucher chaque fichier du même nom — `../src/cuisine.ts` de l'app tirait
+  // `runtime/test/aides/cuisine.ts`, qui sert presque tout le runtime (#1611).
+  if (f.endsWith(".test.ts")) for (const [nom] of texte.replace(IMPORT_DE_TYPE, "").replace(IMPORT, "").matchAll(CITE)) for (const g of parNom.get(basename(nom)) ?? []) if (g !== f) vers.add(g);
   aretes.set(f, vers);
 }
 
@@ -145,8 +168,10 @@ const citeLeDossier = (t, dossier) => new RegExp(`${dossier.replace(/[.*+?^${}()
 const cites = (f) => sousTest(f) && autres.some((m) => {
     const t = textes.get(f);
     // Un helper qui lit tout un dossier (`docs/runtime`) le cite sans nommer ses pages.
+    // `.claude/brigade` n'en est pas un : les tests le créent dans leurs faux
+    // worktrees, et nomment le script du dépôt qu'ils jouent (#1611).
     const dossier = dirname(m);
-    return t.includes(m) || t.includes(basename(m)) || (dossier.includes("/") && citeLeDossier(t, dossier));
+    return t.includes(m) || t.includes(basename(m)) || (dossier.includes("/") && !dossier.startsWith(".claude/") && citeLeDossier(t, dossier));
   });
 const codeModifie = new Set(modifies.map(normalize).filter((m) => connus.has(m)));
 // Des scripts changés touchent ce qui les lit : une instruction qui lit un
