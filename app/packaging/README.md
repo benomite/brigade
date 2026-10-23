@@ -50,16 +50,31 @@ sur `v2` qui change l'app**, une release `app-v<version>`. Personne ne pose de t
    avec tous les tags `app-v*`. L'app a changé quand un fichier d'`app/` hors d'`app/test/` a changé ;
    la version est le correctif du plus haut tag plus un (`1.0.0` pour le premier). Sinon, le run
    finit vert, sans rien construire ni publier, et son résumé dit « nothing to publish ».
-2. Les jobs `mac` (runner macOS) et `windows` (runner Windows) construisent, chacun avec la commande
-   de son poste et cette version : `npm --prefix app run dist -- --version <v>` et
-   `node app/packaging/windows.ts --version <v>`. Chacun vérifie que ses métadonnées nomment bien son
-   installeur.
-3. Le job `publier`, une fois les deux constructions faites, crée le tag et la release `app-v<v>` sur
-   le commit du merge, avec ses quatre fichiers à la racine, aux noms que lit l'app installée
-   (`app/src/mise-a-jour/flux.ts`) : `Brigade-<v>-arm64.dmg`, `latest-mac.yml`,
-   `Brigade-<v>-x64-setup.exe`, `latest.yml`. Rien n'est publié si une construction échoue. La
-   release n'est pas marquée « latest » : celle-là reste à la station, que
-   `releases/latest/download/installer-station.sh` trouve.
+2. Le job `detecter-secrets` regarde la seule présence des six secrets de signature
+   ([`docs/app-signing-secrets.md`](../../docs/app-signing-secrets.md)) et choisit le chemin. Aucun
+   n'est posé : chemin **non signé**. Sinon : chemin **signé**, et `verifier-secrets` refuse qu'il en
+   manque un (rien n'est construit, la PR mergée reçoit un commentaire qui le nomme, le run finit
+   rouge).
+3. Les jobs `mac` (runner macOS), `windows` (runner Windows) et, sur le chemin non signé seulement,
+   `android` (runner Linux) construisent, chacun avec la commande de son poste et cette version :
+   `npm --prefix app run dist -- --version <v>`, `node app/packaging/windows.ts --version <v>` et
+   `node app/packaging/android.ts --version <v>`. Ce sont les mêmes jobs des deux chemins : seules
+   leurs étapes « Signature (Mac) » et « Signature (Windows) » ne jouent que sur le chemin signé.
+4. Le job `publier`, une fois les constructions faites, crée le tag et la release `app-v<v>` sur le
+   commit du merge, aux noms que lit l'app installée (`app/src/mise-a-jour/flux.ts`), tous à la
+   racine. Rien n'est publié si une construction échoue. La release n'est pas marquée « latest » :
+   celle-là reste à la station, que `releases/latest/download/installer-station.sh` trouve.
+
+| | Chemin signé | Chemin non signé |
+| --- | --- | --- |
+| Quand | les six secrets sont posés | aucun n'est posé |
+| Mac | `Brigade-<v>-arm64.dmg`, signé Developer ID, notarisé, agrafé, et `latest-mac.yml` | `Brigade-<v>-arm64.dmg`, signé ad hoc |
+| Windows | `Brigade-<v>-x64-setup.exe`, signé, et `latest.yml` | `Brigade-<v>-x64-setup.exe`, non signé |
+| Android | rien | `Brigade-<v>.apk`, signé de la clé de debug |
+| Mise à jour des apps installées | oui, par `latest-mac.yml` et `latest.yml` | non : ces deux fichiers ne sont pas publiés, une app installée ne se met pas à jour vers une app non signée |
+
+Quatre fichiers sur le chemin signé, trois sur le chemin non signé. Un jeu de secrets incomplet n'est
+pas un chemin : il arrête le run.
 
 C'est le seul chemin de publication : un tag `app-v*` poussé à la main ne publie rien. Il devient la
 base du merge suivant — pousser `app-v1.1.0` fait publier `app-v1.1.1` au prochain merge qui change
@@ -69,10 +84,9 @@ publié. `workflow_dispatch` rejoue la décision à la main, sur `v2` seulement.
 
 ### Signer, notariser
 
-La release ne porte pas encore d'app signée (#1441) : le `.dmg` est signé ad hoc, l'installeur
-Windows ne l'est pas. Chaque job de construction a son étape **« Signature (Mac) »** ou
-**« Signature (Windows) »**, avant que ses fichiers ne partent vers la release : c'est là qu'elle
-s'insère. À la main, sur un Mac qui a un certificat **Developer ID Application** et un profil de
+C'est le chemin signé (#1441). Les jobs `mac` et `windows` ont leurs étapes **« Signature (Mac) »** et
+**« Signature (Windows) »**, avant que leurs fichiers ne partent vers la release ; sans secret, elles
+sont sautées (chemin non signé : le `.dmg` est signé ad hoc, l'installeur Windows ne l'est pas). À la main, sur un Mac qui a un certificat **Developer ID Application** et un profil de
 `xcrun notarytool store-credentials <profil> …` :
 
 ```sh
