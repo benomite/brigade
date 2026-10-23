@@ -17,6 +17,16 @@
 // pour local. Le code se tire chez la station même, par sa commande, qui
 // n'a besoin que du répertoire du registre.
 //
+// D'un autre réseau que celui de la station — le réseau mobile, une box
+// louée ailleurs —, le téléphone le joint par le tailnet du chef (`tailnet.ts`) : le
+// guichet écoute sur la boucle locale, et `tailscale serve` le publie. Rien ne
+// change ici : ce qui passe par le tailnet arrive de la boucle, et se juge au
+// code et au jeton comme le reste.
+//
+// Ouvert, le guichet dit où il écoute dans la base des téléphones
+// (`Telephones.annoncer`) : la commande qui tire un code en tire l'adresse que
+// le QR porte.
+//
 // Un code a 2⁴⁰ valeurs pour un quart d'heure. Le guichet en refuse les
 // essais au-delà de `ESSAIS_MAX` ratés en dix minutes, d'où qu'ils viennent :
 // un code à deviner se devine alors moins vite qu'il n'expire.
@@ -141,8 +151,15 @@ export function ouvrirGuichet(options: OptionsGuichet): Promise<Guichet> {
     serveur.once("error", rejeter);
     serveur.listen(options.port, options.hote, () => {
       serveur.off("error", rejeter);
+      const { port } = serveur.address() as AddressInfo;
+      try {
+        telephones.annoncer({ hote: options.hote, port });
+      } catch (erreur) {
+        serveur.close();
+        return rejeter(erreur);
+      }
       resoudre({
-        port: (serveur.address() as AddressInfo).port,
+        port,
         fermer: () =>
           new Promise<void>((ferme) => {
             serveur.close(() => ferme());

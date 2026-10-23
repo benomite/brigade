@@ -32,7 +32,7 @@ async function ouvrir(t: TestContext) {
   // Le code tel que l'app le reçoit de la commande de la station.
   const tirer = async (args: string[] = []) => {
     const dites: string[] = [];
-    await principal({ args: ["code", "--registry", repertoire, ...args], env: {}, dire: (ligne) => dites.push(ligne), redire: () => {} }, { maintenant: heure.maintenant });
+    await principal({ args: ["code", "--registry", repertoire, ...args], env: {}, dire: (ligne) => dites.push(ligne), redire: () => {} }, { maintenant: heure.maintenant, lirePublication: async () => null });
     return JSON.parse(dites.join("\n")) as { code: string; expiresAt: string; qr: string };
   };
   const appairer = async (corps: unknown) => {
