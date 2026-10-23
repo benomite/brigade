@@ -49,7 +49,7 @@ test("des choix publiés : l'abonné reçoit chaque choix avec son libellé d'un
 test("un geste publié : l'abonné reçoit la commande exacte, ni coupée, ni rognée, ni citée", async (t) => {
   const chemin = canal(t);
   const { recus } = abonne(t, chemin);
-  const longue = `ssh -o BatchMode=yes -- box.example brigade mirrorlab rail answer 433 '${"un texte qui ne doit pas être coupé ".repeat(200)}'  `;
+  const longue = `ssh -o BatchMode=yes -- box.example brigade gadgets rail answer 433 '${"un texte qui ne doit pas être coupé ".repeat(200)}'  `;
   for (const command of ["! gh pr merge 1480 --merge", "  ! gh pr merge 1480 --squash --delete-branch", longue, `! echo "$HOME" && printf '%s\\n' \`date\` ; rm -rf "/tmp/x y"`]) {
     const avant = recus.length;
     publier(chemin, { kind: "gesture", command });
@@ -199,12 +199,12 @@ test("aucun chemin du module ne lance la commande d'un geste", async (t) => {
 
 test("le fichier du canal : un par dossier de projet, sous ~/.config/brigade/second, ou celui que nomme BRIGADE_SECOND_PROPOSAL", (t) => {
   const maison = repertoireTemporaire(t);
-  const un = fichierDeProposition("/projets/mirrorlab", { HOME: maison });
-  assert.equal(fichierDeProposition("/projets/mirrorlab/", { HOME: maison }), un);
+  const un = fichierDeProposition("/projets/gadgets", { HOME: maison });
+  assert.equal(fichierDeProposition("/projets/gadgets/", { HOME: maison }), un);
   assert.match(un, /[\\/]\.config[\\/]brigade[\\/]second[\\/][0-9a-f]{16}\.json$/);
   assert.ok(un.startsWith(maison));
   assert.notEqual(fichierDeProposition("/projets/autre", { HOME: maison }), un);
-  assert.equal(fichierDeProposition("/projets/mirrorlab", { HOME: maison, BRIGADE_SECOND_PROPOSAL: join(maison, "p.json") }), join(maison, "p.json"));
+  assert.equal(fichierDeProposition("/projets/gadgets", { HOME: maison, BRIGADE_SECOND_PROPOSAL: join(maison, "p.json") }), join(maison, "p.json"));
 });
 
 test("la commande : le second publie, l'app lit et signale la réponse, en une ligne JSON chacune", async (t) => {

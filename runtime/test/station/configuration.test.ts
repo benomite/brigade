@@ -109,22 +109,22 @@ test("l'environnement d'un projet : celui de la station, ses lieux sous la stati
 test("sur le Mac du chef, la station vit sous `~/.config/brigade`, qu'aucun cook ne lit : le clone et les worktrees d'un projet vivent dans l'atelier, hors de tout ce que le bac à sable interdit", () => {
   const home = "/Users/chef";
   const racine = "/Users/chef/.config/brigade/station";
-  const [projet] = lireConfiguration("mirrorlab acme/mirrorlab main").projets;
+  const [projet] = lireConfiguration("gadgets acme/gadgets main").projets;
   assert.ok(projet);
   assert.equal(atelierDeLaStation(racine, home), "/Users/chef/.local/share/brigade/station");
   const env = environnementDuProjet(racine, projet, { HOME: home });
-  assert.deepEqual([env.BRIGADE_REPO_DIR, env.BRIGADE_WORKTREES_DIR], ["/Users/chef/.local/share/brigade/station/clones/mirrorlab", "/Users/chef/.local/share/brigade/station/worktrees/mirrorlab"]);
+  assert.deepEqual([env.BRIGADE_REPO_DIR, env.BRIGADE_WORKTREES_DIR], ["/Users/chef/.local/share/brigade/station/clones/gadgets", "/Users/chef/.local/share/brigade/station/worktrees/gadgets"]);
   // L'état du projet — journal, décisions, verrou — reste sous la station.
-  assert.equal(env.BRIGADE_STATE_DIR, "/Users/chef/.config/brigade/station/etat/mirrorlab");
+  assert.equal(env.BRIGADE_STATE_DIR, "/Users/chef/.config/brigade/station/etat/gadgets");
   for (const lieu of [env.BRIGADE_REPO_DIR, env.BRIGADE_WORKTREES_DIR, atelierDeLaStation(racine, home)]) {
     for (const interdit of LECTURES_INTERDITES.map((relatif) => join(home, relatif))) assert.ok(!(lieu ?? "").startsWith(`${interdit}/`) && lieu !== interdit, `${lieu} est sous ${interdit}`);
   }
   assert.equal(worktreesDeLaStation(racine, home), "/Users/chef/.local/share/brigade/station/worktrees");
   // Le clone que la ligne nomme reste le sien ; les worktrees vont à l'atelier.
-  const [ailleurs] = lireConfiguration("mirrorlab acme/mirrorlab main BRIGADE_REPO_DIR=/Users/chef/code/mirrorlab").projets;
+  const [ailleurs] = lireConfiguration("gadgets acme/gadgets main BRIGADE_REPO_DIR=/Users/chef/code/gadgets").projets;
   assert.ok(ailleurs);
   const sien = environnementDuProjet(racine, ailleurs, { HOME: home });
-  assert.deepEqual([sien.BRIGADE_REPO_DIR, sien.BRIGADE_WORKTREES_DIR], ["/Users/chef/code/mirrorlab", "/Users/chef/.local/share/brigade/station/worktrees/mirrorlab"]);
+  assert.deepEqual([sien.BRIGADE_REPO_DIR, sien.BRIGADE_WORKTREES_DIR], ["/Users/chef/code/gadgets", "/Users/chef/.local/share/brigade/station/worktrees/gadgets"]);
 });
 
 test("une station posée ailleurs que sous ce qu'un cook ne lit pas garde tout sous son répertoire, comme sur un serveur", () => {

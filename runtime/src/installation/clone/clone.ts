@@ -1,6 +1,6 @@
 // Le clone d'un projet, réparé seul puis, s'il échoue vraiment, dit comme un
 // blocage (#1395, #1390). Le 22 oct. 2026, le `gh` de la box avait
-// `git_protocol ssh` et le clone de mirrorscreen mourait sur « Host key
+// `git_protocol ssh` et le clone de widgets mourait sur « Host key
 // verification failed », que la page rendait en « exit status 128 ».
 //
 // Réparer : le premier essai nomme le dépôt par son adresse HTTPS ; si git

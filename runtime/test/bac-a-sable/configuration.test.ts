@@ -356,7 +356,7 @@ const autorise = (commande: string) => sortieDuCrochet(commande)?.permissionDeci
 test("dontAsk : les tests et les linters du projet passent, rien d'autre n'est ouvert", () => {
   const permises = [
     "./node_modules/.bin/vitest run src/features/direct-discussion",
-    "DATABASE_URL=postgres://localhost:5432/mirrorlab_test_445 LLM_MODE=mock ./node_modules/.bin/vitest run src/features/direct-discussion",
+    "DATABASE_URL=postgres://localhost:5432/gadgets_test_445 LLM_MODE=mock ./node_modules/.bin/vitest run src/features/direct-discussion",
     "./node_modules/.bin/prettier --write src/a.ts",
     "pnpm test",
     "pnpm lint",
