@@ -174,6 +174,23 @@ function deLUrgence(faits: Faits | Sans): Alerte[] {
   ];
 }
 
+// Une décision du chef qui ne retient que ses tickets : la cuisine n'est pas à l'arrêt, et la ligne
+// ne le dit jamais — « toute la cuisine » n'est que dans l'urgence, quand rien ne peut cuire. Elle
+// nomme la décision et combien de tickets elle retient vraiment, ceux qui l'attendent.
+function desRetenues(faits: Faits | Sans): Alerte[] {
+  if ("sans" in faits || faits.urgence != null) return [];
+  return (faits.retenues ?? []).map((retenue) => ({
+    sujet: "cuisine",
+    verifie: true,
+    ton: "jaune",
+    dit: `waiting for ${attendu(retenue)}: ${retenue.retenus.length} ticket${s(retenue.retenus.length)} held, the other tickets keep cooking`,
+    pourquoi: `held by ${retenue.decision}: ${retenue.retenus.map((ticket) => `#${ticket}`).join(", ")}`,
+    releve: enCause(retenue),
+    geste: `do what ${retenue.decision} waits for, as the station writes it`,
+    prix: "none: the held tickets start again once you act, on your quota",
+  }));
+}
+
 // --- Le manager ---------------------------------------------------------------
 
 // L'interrupteur du projet (#1406) : le manager le suit, et sa ligne le dit. Tant que la file ne porte
@@ -608,7 +625,7 @@ const avecBouton = (alerte: Alerte): Alerte => {
 // La bande d'un projet, d'après ce qui en a été lu : l'urgence, le manager, la cuisine — et
 // son setup —, le grant, et ce que le projet installé a perdu.
 export function alertes({ projet, faits, status, attend, manager, controle, limite }: Lu): Alerte[] {
-  return parGravite([...deLUrgence(faits), ...deLaLimite(faits, limite), ...duManager(manager), ...deLaCuisine(projet, faits, status), ...duSetup(faits, status, attend), ...duGrant(status), ...desPertes(controle, statusLu(status)), ...duRenouvellement(controle), ...dUnePanne(controle)].map(avecBouton));
+  return parGravite([...deLUrgence(faits), ...desRetenues(faits), ...deLaLimite(faits, limite), ...duManager(manager), ...deLaCuisine(projet, faits, status), ...duSetup(faits, status, attend), ...duGrant(status), ...desPertes(controle, statusLu(status)), ...duRenouvellement(controle), ...dUnePanne(controle)].map(avecBouton));
 }
 
 // La plus grave d'abord : l'urgence au-dessus de tout, puis une alerte lue avant un état non vérifié,

@@ -60,18 +60,17 @@ function retenuesDeStation(station: EtatStation, globales: Attente[]): Attente[]
   );
 }
 
-// `rail` : le rail tel que lu ; `attentes` : la file du chef, telle que
-// `attentesDuChef` la rend ; `stations` : les stations annoncées.
-export function urgenceDuChef(base: Base, rail: TicketRail[], attentes: Attente[], stations: EtatStation[]): Urgence | null {
+// Ce que les tickets en attente doivent aux décisions du chef : pour chaque
+// décision, ceux qui y remontent — par leur propre entrée dans la file, ou par
+// leur chaîne `attend`, de proche en proche. `toutRetenu` : chaque ticket en
+// attente y remonte, donc rien ne peut cuire. Un ticket qui n'y remonte pas
+// n'est compté nulle part : il est libre, ou retenu par autre chose que le chef.
+type Causes = { enAttente: TicketRail[]; parCause: Map<string, CauseDUrgence>; toutRetenu: boolean };
+
+function causesDuChef(rail: TicketRail[], attentes: Attente[], stations: EtatStation[]): Causes {
   const duChef = new Map<number, Attente>();
   for (const attente of attentes) if (attente.ticket !== null && !duChef.has(attente.ticket)) duChef.set(attente.ticket, attente);
-  // Quelque chose bouge : un cook de ticket écrit encore, un ticket est pris,
-  // une livraison est à la pass sans attendre le chef.
-  if (cooksEnCours(base).some(({ ticket }) => ticket !== null)) return null;
-  if (rail.some(({ ticket, state }) => state === "taken" || (state === "pass" && !duChef.has(ticket)))) return null;
   const enAttente = rail.filter(({ state }) => state === "waiting");
-  if (enAttente.length === 0) return null;
-
   const parTicket = new Map(rail.map((ticket) => [ticket.ticket, ticket]));
   const globales = attentes.filter((attente) => attente.ticket === null);
 
@@ -111,9 +110,13 @@ export function urgenceDuChef(base: Base, rail: TicketRail[], attentes: Attente[
   };
 
   const parCause = new Map<string, CauseDUrgence>();
+  let toutRetenu = true;
   for (const ticket of enAttente) {
     const causes = causesDe(ticket, new Set());
-    if (causes === null) return null;
+    if (causes === null) {
+      toutRetenu = false;
+      continue;
+    }
     for (const attente of causes) {
       const nom = nommerAttente(attente);
       const cause = parCause.get(nom) ?? { attente, retenus: [] };
@@ -121,13 +124,39 @@ export function urgenceDuChef(base: Base, rail: TicketRail[], attentes: Attente[
       parCause.set(nom, cause);
     }
   }
-  const [premiere, ...autres] = [...parCause.values()].sort(
-    (a, b) => b.retenus.length - a.retenus.length || a.attente.since.localeCompare(b.attente.since) || nommerAttente(a.attente).localeCompare(nommerAttente(b.attente)),
-  );
+  return { enAttente, parCause, toutRetenu };
+}
+
+// Celle qui en retient le plus d'abord — à égalité, la plus ancienne.
+const parRetenus = (parCause: Map<string, CauseDUrgence>) =>
+  [...parCause.values()].sort((a, b) => b.retenus.length - a.retenus.length || a.attente.since.localeCompare(b.attente.since) || nommerAttente(a.attente).localeCompare(nommerAttente(b.attente)));
+
+// `rail` : le rail tel que lu ; `attentes` : la file du chef, telle que
+// `attentesDuChef` la rend ; `stations` : les stations annoncées.
+export function urgenceDuChef(base: Base, rail: TicketRail[], attentes: Attente[], stations: EtatStation[]): Urgence | null {
+  const duChef = new Set(attentes.flatMap(({ ticket }) => (ticket === null ? [] : [ticket])));
+  // Quelque chose bouge : un cook de ticket écrit encore, un ticket est pris,
+  // une livraison est à la pass sans attendre le chef.
+  if (cooksEnCours(base).some(({ ticket }) => ticket !== null)) return null;
+  if (rail.some(({ ticket, state }) => state === "taken" || (state === "pass" && !duChef.has(ticket)))) return null;
+  const { enAttente, parCause, toutRetenu } = causesDuChef(rail, attentes, stations);
+  if (enAttente.length === 0 || !toutRetenu) return null;
+  const [premiere, ...autres] = parRetenus(parCause);
   if (premiere === undefined) return null;
   // Les horodatages sont en ISO 8601 UTC : l'ordre des chaînes est celui du temps.
   const depuis = [dernierMouvement(base) ?? "", ...[...parCause.values()].map(({ attente }) => attente.since)].sort().at(-1) ?? premiere.attente.since;
   return { depuis, retenus: enAttente.map(({ ticket }) => ticket), causes: [premiere, ...autres] };
+}
+
+// Les décisions du chef sur un ticket qui retiennent des tickets, quand la
+// cuisine ne s'arrête pas pour autant : au moins un ticket en attente peut
+// cuire. Elles retiennent ceux qui les attendent, directement ou de proche en
+// proche par `attend` — les autres tickets sont servis. Vide quand rien n'est
+// retenu, ou quand tout l'est (c'est alors l'urgence).
+export function retenuesDuChef(rail: TicketRail[], attentes: Attente[], stations: EtatStation[]): CauseDUrgence[] {
+  const { parCause, toutRetenu } = causesDuChef(rail, attentes, stations);
+  if (toutRetenu) return [];
+  return parRetenus(parCause).filter(({ attente }) => attente.ticket !== null);
 }
 
 // Ce qui fait la même urgence : son début, et les décisions du chef qui la

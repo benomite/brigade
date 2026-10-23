@@ -91,7 +91,7 @@ function cuisine(t: TestContext) {
 }
 
 // Ce que `faits` rendait avant l'urgence : la même forme, sans le champ.
-const sansUrgence = ({ urgence: _, ...reste }: Record<string, unknown>) => reste;
+const sansUrgence = ({ urgence: _, retenues: __, ...reste }: Record<string, unknown>) => reste;
 
 // L'exemple du ticket : une livraison à merger à la main qui tient toutes les zones du rail.
 function toutRetenu(t: TestContext) {
@@ -221,7 +221,7 @@ describe("l'urgence dans la bande", () => {
 });
 
 describe("sans urgence, rien ne change", () => {
-  test("une décision qui ne retient qu'une partie du rail : pas de ligne d'urgence, la bande et la case sont celles d'avant l'urgence", (t) => {
+  test("une décision qui ne retient qu'une partie du rail : pas de ligne d'urgence : la bande nomme la décision et les tickets vraiment retenus, jamais « toute la cuisine »", (t) => {
     const { a, arriver, cuisiner, retenir, rendre, bande } = cuisine(t);
     arriver(535, ["runtime"]);
     arriver(536, ["runtime/src"]);
@@ -236,7 +236,50 @@ describe("sans urgence, rien ne change", () => {
     const lue = bande("10:00:00");
     assert.ok(!lue.alertes.some(({ sujet }) => sujet === "urgence"));
     assert.notEqual(lue.signal?.etat, "urgence");
-    assert.deepEqual(lue, bande("10:00:00", sansUrgence));
+    // Ni la ligne ni la case ne disent « toute la cuisine » tant qu'un ticket peut cuire.
+    assert.ok(!JSON.stringify(lue).includes("whole kitchen"));
+    const [retenue] = lue.alertes;
+    assert.equal(retenue?.dit, "waiting for your merge of #535: 1 ticket held, the other tickets keep cooking");
+    assert.equal(retenue?.pourquoi, "held by #535: #536");
+    // Un runtime d'avant le champ n'en dit rien : la bande est celle d'avant.
+    assert.deepEqual(bande("10:00:00", sansUrgence).alertes, []);
+  });
+
+  test("la situation du 2026-10-23 : une remontée, trois tickets retenus, d'autres libres — la bande nomme #1309 et trois tickets, pas la cuisine entière", (t) => {
+    const { a, arriver, cuisiner, noter, bande } = cuisine(t);
+    const attendre = (ticket: number, zone: string[], waitsFor: number[]) =>
+      noter({ type: "ticket.arrived", payload: { title: `Ticket ${ticket}`, priority: null, createdAt: "2026-10-01T00:00:01Z", url: `https://exemple.test/${ticket}`, card: { waitsFor, zone, problems: [] } } }, ticket, "github");
+    arriver(1309, ["runtime/src"]);
+    attendre(1310, ["docs"], [1309]);
+    attendre(1312, ["app/src"], [1310]);
+    attendre(1323, ["scripts"], [1309]);
+    arriver(1400, ["app/test"]);
+    arriver(1401, ["docs/runtime"]);
+    cuisiner(1309);
+    a("08:30:00");
+    noter({ type: "pass.escalated", payload: { reason: "encore-rouge", cause: "returns-exhausted" } } as never, 1309, "pass");
+    noter({ type: "ticket.86", payload: { reason: "pass:encore-rouge", until: null } } as never, 1309, "pass");
+
+    const lue = bande("12:05:00");
+    assert.ok(!lue.alertes.some(({ sujet }) => sujet === "urgence"));
+    assert.ok(!JSON.stringify(lue).includes("whole kitchen"));
+    const [retenue] = lue.alertes;
+    assert.equal(retenue?.dit, "waiting for your decision on #1309, escalated by the pass: 3 tickets held, the other tickets keep cooking");
+    assert.equal(retenue?.pourquoi, "held by #1309: #1310, #1312, #1323");
+  });
+
+  test("quand rien d'autre ne peut cuire, la bande dit toujours l'arrêt total de la cuisine", (t) => {
+    const { a, arriver, cuisiner, noter, bande } = cuisine(t);
+    arriver(1309, ["runtime/src"]);
+    noter({ type: "ticket.arrived", payload: { title: "Ticket 1310", priority: null, createdAt: "2026-10-01T00:00:01Z", url: "https://exemple.test/1310", card: { waitsFor: [1309], zone: ["docs"], problems: [] } } }, 1310, "github");
+    cuisiner(1309);
+    a("08:30:00");
+    noter({ type: "pass.escalated", payload: { reason: "encore-rouge", cause: "returns-exhausted" } } as never, 1309, "pass");
+    noter({ type: "ticket.86", payload: { reason: "pass:encore-rouge", until: null } } as never, 1309, "pass");
+    const lue = bande("12:05:00");
+    assert.equal(lue.alertes[0]?.sujet, "urgence");
+    assert.match(lue.alertes[0]?.dit ?? "", /^the whole kitchen is waiting for your decision on #1309/);
+    assert.equal(lue.alertes.length, 1);
   });
 
   test("une cuisine qui va bien : la bande reste vide, la case sans signal", (t) => {

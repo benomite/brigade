@@ -287,3 +287,55 @@ test("le disjoncteur ouvert entre dans la file avec ses échecs et son geste, va
   assert.equal(ferme.etat.attend.some(({ quoi }) => quoi === "disjoncteur"), false);
   assert.equal(ferme.faits.urgence, null);
 });
+
+// La situation du 2026-10-23 : #1309 remonté au chef par la pass (86), trois tickets qui l'attendent
+// — #1310 directement, #1312 de proche en proche — et d'autres qui n'en dépendent pas.
+function remontee(t: TestContext, independants: number[]) {
+  const cuisine_ = cuisine(t);
+  const { a, arriver, cuisiner, noter } = cuisine_;
+  arriver(1309, ["runtime/src"]);
+  arriver(1310, ["docs"], [1309]);
+  arriver(1312, ["app/src"], [1310]);
+  arriver(1323, ["scripts"], [1309]);
+  for (const [i, ticket] of independants.entries()) arriver(ticket, [`app/test/${i}`]);
+  cuisiner(1309);
+  a("08:30:00");
+  noter({ type: "pass.escalated", payload: { reason: "encore-rouge", cause: "returns-exhausted" } } as never, 1309, "pass");
+  noter({ type: "ticket.86", payload: { reason: "pass:encore-rouge", until: null } } as never, 1309, "pass");
+  return cuisine_;
+}
+
+test("une remontée ne retient que les tickets qui l'attendent : un ticket indépendant reste servi, et la cuisine ne s'arrête pas", (t) => {
+  const { lire } = remontee(t, [1400, 1401]);
+  const { etat, faits: lus, texte } = lire("11:00:00");
+  const parTicket = new Map(etat.rail.map((ticket) => [ticket.ticket, ticket]));
+  // Les indépendants n'attendent rien et rien ne tient leur zone : la station peut les prendre.
+  for (const libre of [1400, 1401]) {
+    assert.deepEqual([parTicket.get(libre)?.awaits, parTicket.get(libre)?.held], [[], []]);
+  }
+  // Les trois autres attendent #1309, directement ou de proche en proche.
+  for (const retenu of [1310, 1312, 1323]) assert.ok((parTicket.get(retenu)?.awaits.length ?? 0) > 0);
+  assert.equal(lus.urgence, null);
+  assert.ok(!texte.some((ligne) => ligne.startsWith("emergency")));
+  assert.ok(!texte.join("\n").includes("WHOLE KITCHEN"));
+});
+
+test("la remontée avec des tickets libres : la décision nomme #1309 et les trois tickets vraiment retenus, jamais « toute la cuisine »", (t) => {
+  const { lire } = remontee(t, [1400, 1401]);
+  const { faits: lus } = lire("11:00:00");
+  assert.equal(lus.urgence, null);
+  assert.equal(lus.retenues.length, 1);
+  const [retenue] = lus.retenues;
+  assert.equal(retenue?.decision, "#1309");
+  assert.equal(retenue?.cause, "remontée");
+  assert.deepEqual(retenue?.retenus, [1310, 1312, 1323]);
+});
+
+test("quand rien d'autre ne peut cuire, la remontée est toujours un arrêt total : l'urgence le dit, et il n'y a pas de retenue partielle", (t) => {
+  const { lire } = remontee(t, []);
+  const { faits: lus, texte } = lire("11:00:00");
+  assert.equal(lus.urgence?.decision, "#1309");
+  assert.deepEqual(lus.urgence?.retenus, [1310, 1312, 1323]);
+  assert.deepEqual(lus.retenues, []);
+  assert.match(texte[0] ?? "", /^emergency {2}THE WHOLE KITCHEN AWAITS THE CHEF .* 3 tickets stopped, held by #1309/);
+});
