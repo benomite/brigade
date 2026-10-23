@@ -156,7 +156,8 @@ export function urgenceDuChef(base: Base, rail: TicketRail[], attentes: Attente[
 export function retenuesDuChef(rail: TicketRail[], attentes: Attente[], stations: EtatStation[]): CauseDUrgence[] {
   const { parCause, toutRetenu } = causesDuChef(rail, attentes, stations);
   if (toutRetenu) return [];
-  return parRetenus(parCause).filter(({ attente }) => attente.ticket !== null);
+  // Un ticket bloqué par sa propre attente ne retient que lui : ce n'est pas une retenue.
+  return parRetenus(parCause).filter(({ attente, retenus }) => attente.ticket !== null && retenus.some((ticket) => ticket !== attente.ticket));
 }
 
 // Ce qui fait la même urgence : son début, et les décisions du chef qui la
