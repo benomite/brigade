@@ -7,6 +7,7 @@
 # joue celui-là : il ne vaut que pour lui, et ne déborde sur aucun autre.
 # La base seule — le worktree jetable `.essais/base` — est verte, sauf scénario
 # écrit pour elle : celui du test vaut pour ce qu'il fait juger, pas pour la base.
+# Sous Windows, le worktree arrive écrit avec des contre-obliques.
 set -u
 echo "$1" >> "$FAUSSES_GATES.appels"
 # Le jeton GitHub que les gates voient dans leur environnement : une ligne par appel, vide s'il n'y en a pas.
@@ -22,7 +23,7 @@ lire() {
   scenario="${scenario%$'\n'}"
 }
 case "$1" in
-  */.essais/base) lire "$1/.claude/brigade/scenario-gates" || scenario=vert ;;
+  */.essais/base | *\\.essais\\base) lire "$1/.claude/brigade/scenario-gates" || scenario=vert ;;
   *) lire "$1/.claude/brigade/scenario-gates" || lire "$FAUSSES_GATES" || scenario=vert ;;
 esac
 case "$scenario" in
