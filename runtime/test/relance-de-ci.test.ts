@@ -168,15 +168,32 @@ describe("la pass relance une CI rouge sur des tests que la livraison ne touche 
     );
   });
 
-  test("rouge de nouveau après la relance : pas de seconde relance, le rouge est un verdict comme avant", async (t) => {
-    const { gh, compter, jusquAu, dernier } = servir(t, { scenario: "bavard", suite: ["livre"] });
+  test("rouge de nouveau après la relance sur le même test : pas de seconde relance, ni renvoi — la pass remonte une base instable, et la carte nomme le test", async (t) => {
+    const { gh, compter, jusquAu, dernier, auChef, pass } = servir(t, { scenario: "bavard", suite: ["livre"] });
     gh.ci.checks = [job(2)];
     gh.journauxDeCI.set("tests", JOURNAL_LINUX.replace("cuisson-de-bout-en-bout", "rail"));
     await jusquAu("pass.ci-rerun");
     gh.ci.checks = [job(3)];
+    await jusquAu("pass.escalated");
+
+    assert.deepEqual([compter("pass.ci-rerun"), gh.relances.length, compter("pass.returned"), compter("pass.judged"), pass()?.returns], [1, 1, 0, 0, 0]);
+    assert.deepEqual(dernier("pass.escalated", 17), { reason: "unjudged", cause: "unstable-test: runtime/test/rail.test.ts" });
+    assert.deepEqual(auChef().filter((type) => type === "pass.escalated"), ["pass.escalated"]);
+    const commentaire = gh.commentaires.map(([, corps]) => corps).find((corps) => corps.includes("remontée au chef"));
+    assert.match(commentaire ?? "", /La base est instable : cette livraison est rouge sur un test que ce changement ne touche pas, deux fois — `runtime\/test\/rail\.test\.ts`/);
+    assert.ok(!gh.commentaires.some(([, corps]) => corps.includes("Pass — rouge")));
+  });
+
+  test("rouge après la relance sur un autre test, qui n'est pas touché non plus : la carte ne dit pas « deux fois », le rouge est un verdict comme avant", async (t) => {
+    const { gh, compter, jusquAu, dernier } = servir(t, { scenario: "bavard", suite: ["livre"] });
+    gh.ci.checks = [job(2)];
+    gh.journauxDeCI.set("tests", JOURNAL_LINUX.replace("cuisson-de-bout-en-bout", "rail"));
+    await jusquAu("pass.ci-rerun");
+    gh.journauxDeCI.set("tests", JOURNAL_LINUX.replace("cuisson-de-bout-en-bout", "vue"));
+    gh.ci.checks = [job(3)];
     await jusquAu("pass.returned");
 
-    assert.deepEqual([compter("pass.ci-rerun"), gh.relances.length], [1, 1]);
+    assert.deepEqual([compter("pass.ci-rerun"), gh.relances.length, compter("pass.escalated")], [1, 1, 0]);
     assert.deepEqual(dernier("pass.returned", 17)?.findings, [`CI rouge — job « tests » : failure (${job(3).url}).`]);
   });
 

@@ -292,6 +292,17 @@ test("un ticket remonté dont la pass a ouvert la PR elle-même : le geste nomme
   ]);
 });
 
+test("un ticket remonté pour le même test rouge deux fois : la carte dit une base instable et nomme le test, sans parler d'un ticket échoué", (t) => {
+  const { livrer, noter, bloc } = cuisine(t);
+  livrer(17);
+  noter({ type: "pass.escalated", payload: { reason: "unjudged", cause: "unstable-test: runtime/test/lectures-sous-condition.test.ts" } }, 17, "pass");
+  noter({ type: "ticket.86", payload: { reason: "pass:unjudged", until: null } }, 17);
+
+  const carte = bloc(`${JOUR_HORLOGE}T10:00:00.000Z`).find((ligne) => ligne.includes("#17"));
+  assert.match(carte ?? "", /base unstable: delivery red on a test this change does not touch, twice \(runtime\/test\/lectures-sous-condition\.test\.ts\)/);
+  assert.doesNotMatch(carte ?? "", /could not judge it|failed/);
+});
+
 test("un retrait de fire que la cuisine n'a pas compté se dit sur la ligne de la remontée, avec le geste", (t) => {
   const { arriver, remonter, noter, bloc } = cuisine(t);
   arriver(17);
