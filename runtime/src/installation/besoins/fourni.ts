@@ -13,7 +13,7 @@ import { capacite } from "../../capacites.ts";
 import { lireLesDecisions } from "../../decisions.ts";
 import { spawnSync } from "../../sans-invite.ts";
 import { lireStations, VARIABLE_DES_STATIONS } from "../../stations-declarees.ts";
-import type { Besoin, Jouer } from "./catalogue.ts";
+import { besoinNomme, type Besoin, type Jouer } from "./catalogue.ts";
 
 // Ce que la détection demande à la machine, remplaçable par un test.
 export type Sonde = {
@@ -117,3 +117,15 @@ function laMachineLA(besoin: Besoin, sonde: Sonde): boolean {
 
 // Les autres stations du projet qui le fournissent, par leurs capacités.
 export const stationsQuiFournissent = (besoin: Besoin, stations: readonly StationVue[]): string[] => stations.filter((station) => fournitLaCapacite(besoin, station.fournit)).map(({ nom }) => nom);
+
+// Le setup du projet peut-il l'apporter lui-même sans que rien ne soit
+// installé sur la station (#1534) ? Oui quand elle a déjà ce dont il se sert :
+// une de ses commandes (les binaires d'un serveur qu'il démarre pour lui), ou
+// un Docker qui répond au compte de la cuisine, pour un service qu'il peut
+// démarrer en conteneur.
+export function apportableSansInstaller(besoin: Besoin, sonde: Sonde, fournit: readonly string[]): boolean {
+  const { commandes, conteneur } = besoin.apporte;
+  if ((commandes ?? []).some((commande) => sonde.commande(commande))) return true;
+  const docker = besoinNomme("docker");
+  return conteneur === true && docker !== null && besoin.id !== docker.id && aLeBesoin(docker, sonde, fournit);
+}

@@ -6,8 +6,11 @@
 // waits for it (`installation/blocages/`). `need`: the need, as the catalogue
 // names it (`postgres`, `docker`, `browser`…). `message`: what is missing, in
 // one sentence. `cause`: what in the repository says the project needs it, in
-// one sentence. `options`: the three ways out, each with what follows from it.
-export type OptionDeChoix = { id: string; label: string; consequence: string };
+// one sentence. `options`: the four ways out, each with what follows from it;
+// `recommended` (only when set) marks the one the station advises — the
+// project's setup bringing the need itself, when nothing has to be installed
+// on the station for it (#1534).
+export type OptionDeChoix = { id: string; label: string; consequence: string; recommended?: true };
 
 export type ChoixEcrit = { id: string; need: string; message: string; cause: string; options: OptionDeChoix[] };
 
@@ -26,4 +29,10 @@ export type FaitBesoin =
   // the catalogue the station does not really provide (#1533): their choices
   // hold as long as it says so. Empty: it no longer does — the setup passed,
   // or failed on something else. Written only when it changes for that station.
-  | { type: "need.setup-lacks"; payload: { station: string; needs: string[] } };
+  | { type: "need.setup-lacks"; payload: { station: string; needs: string[] } }
+  // The chef left the need to the project's setup (`setup-brings-it`, #1534):
+  // the ticket that asks it to bring the need itself is announced before
+  // GitHub is called — lost, its answer is found again by its mark —, then
+  // opened. One per choice: written again only once the choice is dropped.
+  | { type: "need.ticket-opening"; payload: { id: string; need: string } }
+  | { type: "need.ticket-opened"; payload: { id: string; need: string; ticket: number; reconciled: boolean } };
