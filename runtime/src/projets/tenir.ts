@@ -13,6 +13,10 @@
 // dans sa liste, et sa présence le publie. Un projet que l'app ne demande plus
 // quitte le bloc : la station ne le sert plus — son état et son clone restent.
 //
+// Avant le ticket qui prépare son dépôt, elle tient à son journal ce qui
+// manque à la station pour ses tests (`installation/besoins/`) : le chef en a
+// le choix avant qu'aucun ticket ne cuise.
+//
 // Ce qu'elle en dit, projet par projet, elle l'écrit dans le même gist
 // (`brigade-projets-suivi.json`) : l'app le montre au chef — et, pour chacun,
 // la station où il cuit, et si c'est l'ordinateur du chef ; pour ceux qu'elle
@@ -269,6 +273,10 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
     } catch (erreur) {
       direUneFois(`ajout ${projet.nom} ${message(erreur)}`, `brigade : station — ${projet.nom} : son ajout n'est pas noté au journal, le délai de son premier ticket n'en dira rien : ${message(erreur)}`);
     }
+    // Ce qui manque à la station pour ses tests, devant ce qu'elle fournit
+    // vraiment (`installation/besoins/`) : tenu à son journal avant son premier
+    // ticket et avant sa ligne — le chef a le choix avant qu'aucun ne cuise.
+    besoins.tenir(projet, { repertoireEtat: join(racine, ETATS, projet.nom), clone: cloneDe(projet.nom) });
     // Le premier ticket de sa cuisine, ouvert avant sa ligne : la cuisine qui
     // s'ouvre ensuite n'en laisse partir aucun autre avant lui.
     try {

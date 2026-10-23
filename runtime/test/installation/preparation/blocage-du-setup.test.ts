@@ -29,9 +29,11 @@ describe("le blocage du setup en échec", { concurrency: 2 }, () => {
     const { journal, cooks, etat } = unProjet(t, { setup: "manque" });
     await jusqua(() => cooks().length === 1);
     assert.equal(etat(PREPARATION), "taken");
-    const [bloc, ...autres] = blocagesDuJournal(journal.base);
-    assert.equal(autres.length, 0);
-    assert.equal(bloc?.id, "setup");
+    // Il manque aussi `psql` et `docker` à la station : leurs choix sont
+    // posés, mais n'expliquent pas le `.env` — le blocage du setup reste.
+    const blocages = blocagesDuJournal(journal.base);
+    assert.deepEqual(blocages.map(({ id }) => id).sort(), ["need:docker", "need:postgres", "setup"]);
+    const bloc = blocages.find(({ id }) => id === "setup");
     assert.equal(estUneSortieBrute(bloc?.message ?? ""), false);
     assert.equal(estUneSortieBrute(bloc?.cause ?? ""), false);
     assert.match(bloc?.cause ?? "", /apps\/api\/\.env/);
@@ -42,7 +44,7 @@ describe("le blocage du setup en échec", { concurrency: 2 }, () => {
     const { journal, cooks, etat } = unProjet(t, { setup: "manque", issues: [issue(DU_CHEF)] });
     await jusqua(() => etat(DU_CHEF) === "86");
     assert.deepEqual(cooks(), []);
-    assert.equal(blocagesDuJournal(journal.base).length, 1);
+    assert.equal(blocagesDuJournal(journal.base).filter(({ id }) => id === "setup").length, 1);
   });
 });
 

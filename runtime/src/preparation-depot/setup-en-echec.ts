@@ -24,12 +24,14 @@ const CHOSES_MAX = 6;
 // `bash: docker: command not found`, `./setup.sh: line 4: psql: command not
 // found`, `sh: 1: psql: not found`, `zsh: command not found: docker`.
 const COMMANDE = [/:\s*([^\s:'"`]+): command not found\s*$/, /^\S+: \d+: ([^\s:'"`]+): not found\s*$/, /command not found: ([^\s'"`]+)\s*$/];
+// La commande qu'une ligne de la sortie dit introuvable, ou null.
+export const commandeIntrouvable = (ligne: string): string | null => COMMANDE.map((forme) => forme.exec(ligne)?.[1]).find((nom) => nom !== undefined) ?? null;
 // `cp: cannot stat 'apps/api/.env': No such file or directory`, `cat:
 // .env.local: No such file or directory`, `source: .env: file not found`.
 const FICHIER = /^(.*?):?\s*(?:No such file or directory|file not found)\s*$/;
 // Docker installé, mais sans démon qui tourne.
 const DEMON_DOCKER = /Cannot connect to the Docker daemon/i;
-const DOCKER = "a running Docker daemon";
+export const DOCKER = "a running Docker daemon";
 
 const sansGuillemets = (texte: string) => texte.replace(/^['"‘`]+|['"’`]+$/g, "");
 
@@ -56,8 +58,8 @@ export function ceQuiManque(sortie: string): string[] {
       noter(DOCKER);
       continue;
     }
-    const commande = COMMANDE.map((forme) => forme.exec(ligne)?.[1]).find((nom) => nom !== undefined);
-    if (commande !== undefined) {
+    const commande = commandeIntrouvable(ligne);
+    if (commande !== null) {
       noter(`\`${commande}\``);
       continue;
     }

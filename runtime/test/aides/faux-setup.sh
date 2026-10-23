@@ -46,6 +46,13 @@ case "$scenario" in
     echo "./setup.sh: line 12: psql: command not found" >&2
     exit 1
     ;;
+  # Bute sur le Postgres de la station, qui refuse son compte — l'échec du
+  # setup de mirrorlab sur parade-box.
+  postgres)
+    echo "Scope: all 3 workspace projects" >&2
+    echo 'psql: error: connection to server on socket "/var/run/postgresql/.s.PGSQL.5432" failed: FATAL:  role "claude" does not exist' >&2
+    exit 2
+    ;;
   # Échoue autrement qu'« echec » : une autre cause.
   autre)
     echo "tsc a échoué" >&2
