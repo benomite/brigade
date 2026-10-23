@@ -2261,7 +2261,13 @@ For a ticket in pass or served, `cooked by` is added: who cooked it is not who h
   to its place**, and the runtime's sentence, which names the awaited ticket, is written under the
   column head (`#22 awaits #23, so it cannot be placed before it.`); what the station returned is in its
   hover. A station whose runtime does not know `rail move` yet says so in one line. A taken, in-pass or
-  set-aside card does not move, nor anything on the phone or a narrow screen.
+  set-aside card does not move, nor anything on the phone.
+- **On a narrow screen, the same move is made with a finger: press a queued card for about half a second**
+  — it lifts (slightly larger, with a shadow) — **then drag it** and lift the finger on another card:
+  the accent line, the drop, the refusal and the `rail move` are those of the mouse. A finger that moves
+  before the press ends scrolls the column and moves nothing; once lifted, the column no longer scrolls;
+  an interrupted touch gives the card back with nothing sent. Only a bridge that carries `deplacer` offers
+  it. Captures: `docs/captures/1348/`.
 - **A ticket set aside (`86`) is never out of a column.** The runtime gives, in `rail[].attente`
   of `facts`, its reason in plain words ("awaiting: project setup impossible") and the column where it waits;
   the app files it there — failing a column it knows, in **On the rail** — and its card

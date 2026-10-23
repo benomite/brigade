@@ -123,7 +123,7 @@ import { AIDE as AIDE_DES_ROLES, poserLesRoles, resumeDesRoles, TITRE as TITRE_D
 import { apresLaDecision, phrase, poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
 import { poserPremierLancement } from "./premier-lancement.js";
 import { poserRailPublie } from "./rail-publie.js";
-import { apresLeLacher, GLISSE_CARTE, placeSurvolee } from "./rang-du-rail.js";
+import { APPUI_LONG_MS, apresLeLacher, defileAvantLappui, GLISSE_CARTE, placeSurvolee } from "./rang-du-rail.js";
 import { poserOutilsDuSecond } from "./outils-du-second.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
@@ -4440,8 +4440,8 @@ function poserRail(projet) {
   if (lache?.etape === "placee" && lache.a !== tenu.a) rangsLaches.delete(projet.nom);
   const relues = sansCartesRepondues(projet, tenu.tableau.rail.colonnes);
   const lues = lache === undefined || !rangsLaches.has(projet.nom) ? relues : relues.map((colonne) => ({ ...colonne, cartes: apresLeLacher(colonne.cartes, lache.place) }));
-  // Une carte ne se range qu'à la souris, sur un écran large, et quand le pont porte le geste — pas sur le téléphone.
-  const rangeables = !cuisine && !etroit() && muet === undefined && brigade.deplacer !== undefined;
+  // Une carte se range quand le pont porte le geste : à la souris sur un écran large, au doigt — appui long — sur un écran étroit.
+  const rangeables = !cuisine && muet === undefined && brigade.deplacer !== undefined;
   // La box ne répond pas : ce que ses colonnes contenaient n'est plus lu. Elles le disent, au lieu de montrer des « 0 ».
   const toutes = muet === undefined ? lues : lues.map((colonne) => ({ ...colonne, compte: "?", cartes: [], vide: "not known while the station is unreachable" }));
   // Le kanban est entier sur Rail, Taken et Pass compris ; Cooks n'en porte aucune colonne.
@@ -4560,7 +4560,11 @@ const glisseeIci = (evenement, projet) => carteGlissee?.projet === projet && eve
 
 /** @param {Projet} projet @param {import("../faits.ts").Carte} carte @param {HTMLElement} bon @param {import("../faits.ts").Carte[]} cartes */
 function rendreGlissable(projet, carte, bon, cartes) {
-  bon.draggable = true;
+  // Le glisser du navigateur est celui de la souris : sur un écran étroit, le doigt a son appui long (ticket 1348).
+  bon.draggable = !etroit();
+  bon.classList.add("rangeable");
+  bonsRanges.set(`${projet.nom}#${carte.ticket}`, bon);
+  rendreSoulevable(projet, carte, bon, cartes);
   // Le rail relu pendant qu'elle glisse : la carte reposée le dit encore.
   if (carteGlissee?.projet === projet.nom && carteGlissee.ticket === carte.ticket) marquerLeGlisser(bon, "glissee");
   bon.addEventListener("dragstart", (evenement) => {
@@ -4578,6 +4582,91 @@ function rendreGlissable(projet, carte, bon, cartes) {
     if (carteGlissee.place !== undefined) marquerLeGlisser(bon, carteGlissee.place.cote === "before" ? "depot-avant" : "depot-apres");
   });
   bon.addEventListener("dragend", finirGlisseCarte);
+}
+
+// Au doigt (ticket 1348) : un appui long soulève la carte — elle grossit, une ombre la détache —, le doigt la mène, et le trait
+// dit où elle atterrira, comme à la souris ; levé, elle est lâchée là. Un doigt qui bouge avant la fin de l'appui défile la colonne,
+// et rien ne se soulève ; un contact interrompu par le système (touchcancel) rend la carte à sa place sans rien envoyer.
+/** @type {Map<string, HTMLElement>} */
+const bonsRanges = new Map();
+/** @type {{ depart: { x: number, y: number }, minuteur: ReturnType<typeof setTimeout> | undefined, soulevee: boolean } | undefined} */
+let doigt;
+/** @param {{ touches?: ArrayLike<{ clientX: number, clientY: number }>, changedTouches?: ArrayLike<{ clientX: number, clientY: number }> }} evenement */
+const pointDuDoigt = (evenement) => {
+  const touche = evenement.touches?.[0] ?? evenement.changedTouches?.[0];
+  return touche === undefined ? undefined : { x: touche.clientX, y: touche.clientY };
+};
+function lacherLeDoigt() {
+  if (doigt?.minuteur !== undefined) clearTimeout(doigt.minuteur);
+  doigt = undefined;
+}
+
+/** @param {Projet} projet @param {import("../faits.ts").Carte} carte @param {HTMLElement} bon @param {import("../faits.ts").Carte[]} cartes */
+function rendreSoulevable(projet, carte, bon, cartes) {
+  // Le rail relu pendant qu'elle est soulevée : la carte reposée le dit encore.
+  if (doigt?.soulevee === true && carteGlissee?.projet === projet.nom && carteGlissee.ticket === carte.ticket) {
+    marquerLeGlisser(bon, "glissee");
+    marquerLeGlisser(bon, "soulevee");
+  }
+  bon.addEventListener("touchstart", (evenement) => {
+    const point = pointDuDoigt(evenement);
+    lacherLeDoigt();
+    // Un seul doigt, et une carte à la fois : la précédente attend encore la station.
+    if (point === undefined || (evenement.touches?.length ?? 1) > 1 || rangsLaches.get(projet.nom)?.etape === "envoyee") return;
+    const etat = { depart: point, minuteur: /** @type {ReturnType<typeof setTimeout> | undefined} */ (undefined), soulevee: false };
+    etat.minuteur = setTimeout(() => {
+      etat.minuteur = undefined;
+      etat.soulevee = true;
+      carteGlissee = { projet: projet.nom, ticket: carte.ticket, place: undefined };
+      marquerLeGlisser(bon, "glissee");
+      marquerLeGlisser(bon, "soulevee");
+    }, APPUI_LONG_MS);
+    doigt = etat;
+  });
+  bon.addEventListener(
+    "touchmove",
+    (evenement) => {
+      const point = pointDuDoigt(evenement);
+      if (doigt === undefined || point === undefined) return;
+      if (!doigt.soulevee) {
+        // Avant la fin de l'appui : le doigt défile la colonne, la carte reste où elle est.
+        if (defileAvantLappui(doigt.depart, point)) lacherLeDoigt();
+        return;
+      }
+      // Soulevée : le doigt mène la carte, la colonne ne défile plus.
+      evenement.preventDefault();
+      if (carteGlissee === undefined) return;
+      const sous = document.elementFromPoint?.(point.x, point.y) ?? null;
+      const survolee = cartes.find(({ ticket }) => {
+        const autre = bonsRanges.get(`${projet.nom}#${ticket}`);
+        return autre !== undefined && sous !== null && autre.contains(sous);
+      });
+      carteGlissee.place = survolee === undefined ? undefined : placeSurvolee(cartes, carteGlissee.ticket, survolee.ticket);
+      effacerLeTrait();
+      const cible = survolee === undefined || carteGlissee.place === undefined ? undefined : bonsRanges.get(`${projet.nom}#${survolee.ticket}`);
+      if (cible !== undefined && carteGlissee.place !== undefined) marquerLeGlisser(cible, carteGlissee.place.cote === "before" ? "depot-avant" : "depot-apres");
+    },
+    { passive: false },
+  );
+  bon.addEventListener("touchend", (evenement) => {
+    const soulevee = doigt?.soulevee === true;
+    const place = soulevee ? carteGlissee?.place : undefined;
+    lacherLeDoigt();
+    if (!soulevee) return;
+    // Le clic qui suivrait le lever du doigt ouvrirait la fiche : la carte vient d'être lâchée.
+    evenement.preventDefault();
+    finirGlisseCarte();
+    if (place !== undefined) void rangerLaCarte(projet, place);
+  });
+  bon.addEventListener("touchcancel", () => {
+    const soulevee = doigt?.soulevee === true;
+    lacherLeDoigt();
+    if (soulevee) finirGlisseCarte();
+  });
+  // L'appui long ouvre un menu du système sur une image ou un lien : pas pendant qu'une carte est soulevée.
+  bon.addEventListener("contextmenu", (evenement) => {
+    if (doigt?.soulevee === true) evenement.preventDefault();
+  });
 }
 
 // Toute la colonne reçoit la carte — entre deux cartes aussi : c'est le trait posé qui vaut. Hors d'elle, le trait
@@ -4603,7 +4692,7 @@ function recevoirLesCartes(projet, colonne) {
   });
 }
 
-/** @param {HTMLElement} element @param {"glissee" | "depot-avant" | "depot-apres"} classe */
+/** @param {HTMLElement} element @param {"glissee" | "soulevee" | "depot-avant" | "depot-apres"} classe */
 function marquerLeGlisser(element, classe) {
   element.classList.toggle(classe, true);
   marquees.add(element);
@@ -4616,7 +4705,7 @@ function effacerLeTrait() {
 }
 function finirGlisseCarte() {
   carteGlissee = undefined;
-  for (const element of marquees) for (const classe of ["glissee", "depot-avant", "depot-apres"]) element.classList.toggle(classe, false);
+  for (const element of marquees) for (const classe of ["glissee", "soulevee", "depot-avant", "depot-apres"]) element.classList.toggle(classe, false);
   marquees.clear();
 }
 

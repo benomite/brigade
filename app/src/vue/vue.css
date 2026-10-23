@@ -3662,12 +3662,26 @@ main > header,
 }
 /* Une carte de « On the rail » se range (ticket 1347) : elle se saisit, s'efface à demi tant qu'elle glisse, et un trait
    d'accent, dans l'espace entre deux cartes, dit où elle atterrira — avant ou après la carte survolée. */
-#rail .bon[draggable="true"] {
+#rail .bon.rangeable {
   position: relative;
+}
+#rail .bon[draggable="true"] {
   cursor: grab;
 }
 #rail .bon.glissee {
   opacity: 0.4;
+}
+/* Au doigt (ticket 1348) : soulevée par un appui long, la carte grossit un peu et une ombre la détache de la colonne ; le doigt
+   la tient, elle ne s'efface qu'à demi. Sans sélection de texte ni menu du système sous l'appui. */
+#rail .bon.rangeable {
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+#rail .bon.soulevee {
+  opacity: 0.85;
+  transform: scale(1.03);
+  box-shadow: 0 8px 20px rgb(0 0 0 / 0.35);
+  z-index: 1;
 }
 #rail .bon:is(.depot-avant, .depot-apres)::before {
   content: "";

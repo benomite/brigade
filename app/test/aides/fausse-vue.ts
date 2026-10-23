@@ -17,7 +17,8 @@ const VUE = join(import.meta.dirname, "../../src/vue");
 type Noeud = Faux | string;
 // `dataTransfer` : ce qu'une case glissée porte (voir `glisser`) ; `relatedTarget` : où le pointeur va ;
 // `target` : là où le clic est tombé — rien ne remonte d'un élément à son parent, le test le dit.
-type Evenement = { key?: string; dataTransfer?: FauxTransfert; relatedTarget?: Faux | null; target?: Faux; preventDefault(): void; stopPropagation(): void };
+type Toucher = { clientX: number; clientY: number };
+type Evenement = { touches?: Toucher[]; changedTouches?: Toucher[]; key?: string; dataTransfer?: FauxTransfert; relatedTarget?: Faux | null; target?: Faux; preventDefault(): void; stopPropagation(): void };
 type Ecoute = (evenement: Evenement) => unknown;
 
 // Un élément : ses enfants, son texte, ses écoutes. Ce que la vue y pose d'autre — `title`,
