@@ -5,6 +5,13 @@ will make the **cooks** work on your **rail** once you add a project. It is the 
 from the repository [benomite/brigade](https://github.com/benomite/brigade). The words (chef,
 second, cook, kitchen, rail, pass) are those of [`docs/glossary.md`](../glossary.md).
 
+> **Not yet replayed on a clean machine.** This guide was written from the real installer
+> (`installer-station.sh`, from the latest release) and from
+> [`docs/installation-station.md`](../installation-station.md), but its steps have not yet been
+> run end to end on a clean Linux box. The outputs shown below are the ones the installer is
+> written to print, not outputs observed on a run. If what you see differs, trust your screen
+> and tell us by opening an issue on the repository.
+
 You are the **chef**: you decide, the kitchen cooks. The station is the part that lives on the
 box. It is installed **once per machine**; projects are added to it afterwards.
 
