@@ -890,9 +890,13 @@ then reads — its place in the stations list, each project's queue — comes wi
 first, then On the rail, WAITING and Served, stacked — and Cooks — each station, its state and its running cooks.
 It is the desktop's view, fed the same way: what it shows of a reading is what the desktop shows of the same reading,
 and nothing on it scrolls sideways at phone width. Screens: `telephone-file`, `telephone-file-cooks` and
-`telephone-file-merge` of `scripts/capture-ecran` (`docs/captures/1163/`). **The Android bridge does not read a
-project yet**: the phone desk serves `/pairing` and `/stations` only, so a paired phone has no project to open until
-the station serves a project's readings to it.
+`telephone-file-merge` of `scripts/capture-ecran` (`docs/captures/1163/`). **The station's phone desk serves these
+readings** (#1411), behind the paired phone's token — without it, `401`: `GET /projects`, every project of the
+station's configuration in its order, each `served`, `refused` (with its `reason`) or `opening`; and
+`GET /projects/<name>/queue`, `{"project", "repository", "facts", "status"}` — the very `facts` and `status` the desktop
+reads for that project, read the same way at the same moment (`runtime/src/telephone/projets.ts`); `404` a project the
+station does not have, `503` a log it cannot read, with what the command would say. **The Android bridge does not read
+them yet** (#1414): until it does, a paired phone has no project to open.
 
 **The queue's gestures on the phone** (#1164) are the desktop's: a TODO card opens its sheet, and its buttons —
 `merge the PR`, `remove from the rail`, `back to the kitchen`, the recommended one first and in the accent color —

@@ -7,12 +7,13 @@
 // BRIGADE_BACKUP_MAX_AGE_HOURS règle l'âge au-delà duquel la dernière sauvegarde
 // est marquée (48 par défaut).
 // La commande n'écrit jamais, et répond pendant que le runtime et ses cooks
-// tournent.
+// tournent. La photo se lit aussi sans process (`photoDuProjet`) : le guichet
+// des téléphones la rend au téléphone telle quelle (`telephone/projets.ts`).
 import { direEntreesEn, entreesParType } from "./carte-todo.ts";
-import { enProcess, Sortie, type Appel } from "./appel.ts";
+import { enProcess, LectureImpossible, Sortie, type Appel } from "./appel.ts";
 import { enAnglais } from "./commandes.ts";
 import { AGE_MAX_SAUVEGARDE_MS, decrireEtat, lireEtat, suivre } from "./etat.ts";
-import { ouvrirJournal } from "./journal.ts";
+import { ouvrirJournal, type Journal } from "./journal.ts";
 import { appelsDeLaStation, pauseDeLaStation } from "./limite-github.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 
@@ -38,41 +39,24 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
     args.splice(rangDays, 2);
   }
 
-  const repertoireEtat = env.BRIGADE_STATE_DIR;
-  if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR n'est pas défini\n${USAGE}`);
+  if (!env.BRIGADE_STATE_DIR) echouer(2, `BRIGADE_STATE_DIR n'est pas défini\n${USAGE}`);
   const [option, ticket] = args;
   if (args.length > 2 || (option !== undefined && option !== "--follow") || (ticket !== undefined && !/^[0-9]+$/.test(ticket))) {
     echouer(2, USAGE);
   }
-  const reglage = env.BRIGADE_BACKUP_MAX_AGE_HOURS;
-  if (reglage !== undefined && !/^[1-9][0-9]*$/.test(reglage)) {
-    echouer(2, `BRIGADE_BACKUP_MAX_AGE_HOURS invalide : « ${reglage} » — attendu un nombre d'heures, 1 au moins`);
-  }
-  const ageMaxSauvegardeMs = reglage === undefined ? AGE_MAX_SAUVEGARDE_MS : Number(reglage) * 3_600_000;
 
   let journal;
+  let photo;
   try {
-    journal = ouvrirJournal(repertoireEtat, { lectureSeule: true });
+    const ageMaxSauvegardeMs = ageMaxDeLaSauvegarde(env);
+    journal = ouvrirEnLecture(env.BRIGADE_STATE_DIR);
+    photo = photographier(journal, env, jours, ageMaxSauvegardeMs, new Date());
   } catch (erreur) {
-    echouer(1, erreur instanceof Error ? erreur.message : String(erreur));
-  }
-
-  let etat;
-  try {
-    etat = lireEtat(journal);
-  } catch (erreur) {
-    journal.fermer();
-    // En lecture seule, rien ne crée les tables d'un journal écrit par un
-    // runtime d'avant ces projections, ni ne leur donne leur forme du jour.
-    if (journalPasRejoue(erreur)) {
-      echouer(1, "ce journal n'a pas encore tout l'état que `status` lit : redémarrer le runtime, qui le recalcule");
-    }
+    journal?.fermer();
+    if (erreur instanceof LectureImpossible) echouer(erreur.code, erreur.message);
     throw erreur;
   }
-  for (const ligne of decrireEtat(etat, new Date(), ageMaxSauvegardeMs, pauseDeLaStation(env.BRIGADE_STATION_DIR, Date.now()), appelsDeLaStation(env.BRIGADE_STATION_DIR, Date.now()))) dire(ligne);
-  const maintenant = new Date();
-  dire("");
-  dire(direEntreesEn(entreesParType(journal.base, new Date(maintenant.getTime() - jours * 86_400_000), maintenant), jours));
+  for (const ligne of photo.lignes) dire(ligne);
 
   if (option === undefined) {
     journal.fermer();
@@ -90,11 +74,57 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
     for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, arretPropre);
     dire(`\nsuivi en direct${ticket === undefined ? "" : ` du ticket #${ticket}`} — Ctrl-C pour arrêter`);
     arreter = suivre(journal, {
-      depuis: etat.dernierSeq,
+      depuis: photo.dernierSeq,
       ticket: ticket === undefined ? undefined : Number(ticket),
       ecrire: (ligne) => dire(ligne),
     });
   }
+}
+
+// La photo du projet de cet environnement, à cet instant : les lignes que
+// `status` écrit, sans suivi. Lève `LectureImpossible` quand elle ne se lit pas.
+export function photoDuProjet(env: Record<string, string | undefined>, { jours = JOURS_DE_TODO, maintenant = new Date() }: { jours?: number; maintenant?: Date } = {}): string[] {
+  if (!env.BRIGADE_STATE_DIR) throw new LectureImpossible(2, `BRIGADE_STATE_DIR n'est pas défini\n${USAGE}`);
+  const ageMaxSauvegardeMs = ageMaxDeLaSauvegarde(env);
+  const journal = ouvrirEnLecture(env.BRIGADE_STATE_DIR);
+  try {
+    return photographier(journal, env, jours, ageMaxSauvegardeMs, maintenant).lignes;
+  } finally {
+    journal.fermer();
+  }
+}
+
+function ageMaxDeLaSauvegarde(env: Record<string, string | undefined>): number {
+  const reglage = env.BRIGADE_BACKUP_MAX_AGE_HOURS;
+  if (reglage !== undefined && !/^[1-9][0-9]*$/.test(reglage)) {
+    throw new LectureImpossible(2, `BRIGADE_BACKUP_MAX_AGE_HOURS invalide : « ${reglage} » — attendu un nombre d'heures, 1 au moins`);
+  }
+  return reglage === undefined ? AGE_MAX_SAUVEGARDE_MS : Number(reglage) * 3_600_000;
+}
+
+function ouvrirEnLecture(repertoireEtat: string): Journal {
+  try {
+    return ouvrirJournal(repertoireEtat, { lectureSeule: true });
+  } catch (erreur) {
+    throw new LectureImpossible(1, erreur instanceof Error ? erreur.message : String(erreur));
+  }
+}
+
+function photographier(journal: Journal, env: Record<string, string | undefined>, jours: number, ageMaxSauvegardeMs: number, maintenant: Date): { lignes: string[]; dernierSeq: number } {
+  let etat;
+  try {
+    etat = lireEtat(journal, maintenant);
+  } catch (erreur) {
+    // En lecture seule, rien ne crée les tables d'un journal écrit par un
+    // runtime d'avant ces projections, ni ne leur donne leur forme du jour.
+    if (journalPasRejoue(erreur)) {
+      throw new LectureImpossible(1, "ce journal n'a pas encore tout l'état que `status` lit : redémarrer le runtime, qui le recalcule");
+    }
+    throw erreur;
+  }
+  const lignes = decrireEtat(etat, maintenant, ageMaxSauvegardeMs, pauseDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), appelsDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()));
+  lignes.push("", direEntreesEn(entreesParType(journal.base, new Date(maintenant.getTime() - jours * 86_400_000), maintenant), jours));
+  return { lignes, dernierSeq: etat.dernierSeq };
 }
 
 if (import.meta.main) await enProcess(principal);
