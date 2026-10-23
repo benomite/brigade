@@ -196,7 +196,9 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
         writeFileSync(join(arbre, MAIN), 'console.error("brigade : refus de démarrer la station — essai");\nprocess.exit(1);\n');
       }),
     );
-    assert.equal(machine.declencher(), 0);
+    // Rouge, ce que la mise à jour et la station ont dit nomme la cause.
+    const dit = () => `la mise à jour :\n${machine.sortie("brigade-station-mise-a-jour.service")}\nla station :\n${machine.sortie("brigade-station.service").slice(-4000)}`;
+    assert.equal(machine.declencher(), 0, dit());
     assert.equal(machine.installee(), "1.0.0");
     const pid = await enService(machine, "1.0.0");
     assert.equal(vivant(pid), true);
@@ -215,7 +217,7 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
 
     // Elle n'est pas réessayée : rien n'est réinstallé.
     const installations = machine.appels().filter((a) => a.startsWith("apt-get")).length;
-    assert.equal(machine.declencher(), 0);
+    assert.equal(machine.declencher(), 0, dit());
     assert.equal(machine.appels().filter((a) => a.startsWith("apt-get")).length, installations);
     assert.equal(machine.service().pid, pid);
     // Que la suivante le soit : mettre-a-jour.test.ts.
