@@ -1,8 +1,9 @@
 // La sélection des gates (`.claude/brigade/tests-touches.mjs`), jouée sur un
 // dépôt d'essai (#1611) : un package.json dont seuls les scripts changent ne
 // rejoue pas les deux suites entières, il touche les tests qui lisent ses
-// scripts ; le nom d'un import n'est pas un nom cité ; `.claude/brigade`, que les
-// tests créent dans leurs faux worktrees, n'est pas un dossier qu'ils lisent.
+// scripts ; le nom d'un import n'est pas un nom cité, mais un import de type
+// touche le test qui le fait ; `.claude/brigade`, que les tests créent dans
+// leurs faux worktrees, n'est pas un dossier qu'ils lisent.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -110,6 +111,8 @@ describe("ce qu'un test cite", () => {
     ecrire(racine, "app/package.json", "{}\n");
     ecrire(racine, "app/src/cuisine.ts", "export const c = 1;\n");
     ecrire(racine, "app/test/importe.test.ts", 'import { c } from "../src/cuisine.ts";\n');
+    ecrire(racine, "app/test/type.test.ts", 'import type { C } from "../src/cuisine.ts";\n');
+    ecrire(racine, "app/test/autre.test.ts", "// ne lit rien de tout cela\n");
     ecrire(racine, "app/test/lance.test.ts", 'spawn("node", ["src/cuisine.ts"]);\n');
     ecrire(racine, "runtime/test/aides/cuisine.ts", 'mkdirSync(join(worktree, ".claude/brigade"), { recursive: true });\nexport const gates = 1;\n');
     ecrire(racine, "runtime/test/aides/box.ts", 'readdirSync(join(RACINE, "docs/runtime"));\n');
@@ -121,6 +124,11 @@ describe("ce qu'un test cite", () => {
   test("le nom d'un import n'est pas cité : il ne tire pas le fichier du même nom de l'autre zone", (t) => {
     const racine = deuxCuisines(t);
     assert.deepEqual(choisir(racine, ["runtime/test/aides/cuisine.ts"]), ["runtime fichiers test/cuisine.test.ts", "app fichiers test/lance.test.ts"]);
+  });
+
+  test("un fichier qu'un test n'importe que pour ses types, seul changé, le touche — par son chemin, pas par son nom", (t) => {
+    const racine = deuxCuisines(t);
+    assert.deepEqual(choisir(racine, ["app/src/cuisine.ts"]), ["runtime rien", "app fichiers test/importe.test.ts test/lance.test.ts test/type.test.ts"]);
   });
 
   test("un dossier que les tests créent dans leurs faux worktrees, `.claude/brigade`, n'est pas lu : seul un dossier lu, `docs/runtime`, touche qui le cite", (t) => {

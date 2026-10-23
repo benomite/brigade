@@ -122,13 +122,16 @@ const textes = new Map(fichiers.map((f) => [f, readFileSync(f, "utf8")]));
 // donc au large.
 const CITE = /[\w.@-]+\.(?:ts|mts|js|mjs|cjs)\b/g;
 const IMPORT = /(?:from\s*|import\s*\(\s*|import\s+)["'`](\.{1,2}\/[^"'`]+)["'`]/g;
-// Un import de type ne fait rien tourner : le typecheck le couvre.
+// Un import de type ne fait rien tourner : le typecheck le couvre. Un helper ne
+// le suit pas ; un test, si : sans lui, un fichier que ses tests n'importent que
+// pour ses types (`src/evenements.ts`), seul changé, ne jouerait rien — ni
+// tests, ni typecheck (#1611).
 const IMPORT_DE_TYPE = /^\s*import\s+type\b[^;]*;/gm;
 const sousTest = (f) => /^(runtime|app)\/test\//.test(f);
 const aretes = new Map();
 for (const [f, texte] of textes) {
   const vers = new Set();
-  for (const [, cible] of texte.replace(IMPORT_DE_TYPE, "").matchAll(IMPORT)) {
+  for (const [, cible] of (f.endsWith(".test.ts") ? texte : texte.replace(IMPORT_DE_TYPE, "")).matchAll(IMPORT)) {
     const resolu = normalize(join(dirname(f), cible));
     // Un helper partagé (`aides/cuisine.ts`) importe presque tout le produit, et
     // ferait toucher chaque test qui l'utilise par presque tout : de lui, seuls
@@ -141,7 +144,7 @@ for (const [f, texte] of textes) {
   // Le chemin d'un import est déjà une arête, résolue : son nom seul, cité, ferait
   // toucher chaque fichier du même nom — `../src/cuisine.ts` de l'app tirait
   // `runtime/test/aides/cuisine.ts`, qui sert presque tout le runtime (#1611).
-  if (f.endsWith(".test.ts")) for (const [nom] of texte.replace(IMPORT_DE_TYPE, "").replace(IMPORT, "").matchAll(CITE)) for (const g of parNom.get(basename(nom)) ?? []) if (g !== f) vers.add(g);
+  if (f.endsWith(".test.ts")) for (const [nom] of texte.replace(IMPORT, "").matchAll(CITE)) for (const g of parNom.get(basename(nom)) ?? []) if (g !== f) vers.add(g);
   aretes.set(f, vers);
 }
 
