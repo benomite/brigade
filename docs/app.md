@@ -271,6 +271,12 @@ Open one of your projects on this PC: one click, no folder to choose.
   head says why in the runtime's sentence, its detail in the hover, with the button of the page that
   lifts it (`get the GitHub CLI`) and `read again`. With no station paired yet, the sentence says
   what to do. The screen is never blank.
+- **The screen asks for your own account and project** (#1540): under the head sentence, two empty fields,
+  `Your GitHub account` (`your-github-login`) and `The project to work on` (`owner/repo, or the path of a
+  folder on this computer`), and `open this project`. An `owner/repo` (or a `github.com` address) is cloned by
+  the runtime; a bare name is completed with the account typed, and with no account a sentence says so and
+  nothing starts; a folder path opens **Add a project**, already filled. What was typed is kept between
+  two renderings. No default names the chef's account, machines or projects.
 - **A folder you already have** is still one click away: `add a project from a folder instead`,
   or the **+** at the foot of the bar, open **Add a project**. **T** opens All projects.
 

@@ -6,6 +6,8 @@
 // En tête, toujours une phrase : ce qu'on attend du chef, ou pourquoi rien ne se lit. Une connexion à GitHub qui
 // manque est un bouton — le geste que le runtime nomme ; une lecture qui échoue dit sa raison en une phrase, son
 // détail au survol, et le bouton de la page qui la lève quand le runtime en nomme une. L'écran n'est jamais vide.
+// Sous cette phrase, le formulaire des deux choses que l'app ne devine jamais : le compte GitHub du chef et le projet
+// qu'il veut cuisiner — un dépôt `owner/repo` ou un dossier de ce poste. Rien n'y est prérempli ; ses exemples sont neutres.
 // L'écran d'ajout par un dossier reste à un clic, sous la liste.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
@@ -29,6 +31,7 @@ import { phrase } from "./onboarding/parcours.js";
  *   stations?: StationsDuChef,
  *   ouverture?: { station: string, projet: string, depot: string, etape?: Progres, echec?: Extract<Ouverture, { state: "failed" }> },
  *   connexion?: { enRoute: true } | DebutDeConnexion | FinDeConnexion,
+ *   saisie?: { compte: string, projet: string },
  * }} EtatDuPremier
  */
 /**
@@ -38,9 +41,18 @@ import { phrase } from "./onboarding/parcours.js";
  *   relire: () => void,
  *   ouvrirLaPage: (url: string) => void,
  *   ajouterUnDossier: () => void,
+ *   ouvrirUnDossier: (dossier: string) => void,
  * }} GestesDuPremier
  */
 
+export const COMPTE = "Your GitHub account";
+export const COMPTE_EXEMPLE = "your-github-login";
+export const PROJET = "The project to work on";
+export const PROJET_EXEMPLE = "owner/repo, or the path of a folder on this computer";
+export const OUVRIR_CE_PROJET = "open this project";
+export const PROJET_MANQUE = "Type the project to work on: its GitHub repository, `owner/repo`, or the path of its folder.";
+export const COMPTE_MANQUE = "Type your GitHub account too, or the project as `owner/repo`: a name alone does not say whose it is.";
+export const PROJET_ILLISIBLE = "This is neither a GitHub repository, `owner/repo`, nor the path of a folder.";
 export const LECTURE = "Reading the stations you have paired, on GitHub…";
 /** @param {string} poste */
 export const OUVRIR_UN_PROJET = (poste) => `Open one of your projects on ${poste}: one click, no folder to choose.`;
@@ -59,6 +71,23 @@ export const boutonDeLaPage = (url) => (url.startsWith("https://cli.github.com")
 export const tapeLeCode = (code) => `Type the code ${code} on the GitHub page that opened in your browser.`;
 /** @param {string} projet */
 export const ouvertureDe = (projet) => `Opening ${projet}…`;
+
+// Ce que le chef a tapé, lu : un dossier (chemin absolu, `~/…`, `./…` ou lecteur Windows), un dépôt `owner/repo` — ou
+// un nom seul, complété par son compte —, sinon pourquoi rien ne s'ouvre. Rien n'est deviné : l'adresse de GitHub se
+// reconnaît, le reste se refuse.
+/** @param {string} compte @param {string} projet @returns {{ dossier: string } | { depot: string, nom: string } | { refus: string }} */
+export function lireLeProjet(compte, projet) {
+  const dit = projet.trim();
+  const qui = compte.trim();
+  if (dit === "") return { refus: PROJET_MANQUE };
+  if (/^(?:[/~.]|[A-Za-z]:[\\/]|\\\\)/.test(dit)) return { dossier: dit };
+  const sansAdresse = dit.replace(/^https?:\/\/github\.com\//, "").replace(/\/+$/, "").replace(/\.git$/, "");
+  const complet = /^[A-Za-z0-9][A-Za-z0-9-]*\/[A-Za-z0-9_.-]+$/.test(sansAdresse) ? sansAdresse : /^[A-Za-z0-9_.-]+$/.test(sansAdresse) && qui !== "" ? `${qui}/${sansAdresse}` : undefined;
+  if (complet === undefined) return { refus: /^[A-Za-z0-9_.-]+$/.test(sansAdresse) ? COMPTE_MANQUE : PROJET_ILLISIBLE };
+  if (!/^[A-Za-z0-9][A-Za-z0-9-]*\/[A-Za-z0-9_.-]+$/.test(complet)) return { refus: PROJET_ILLISIBLE };
+  const nom = (complet.split("/")[1] ?? "").toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
+  return nom === "" ? { refus: PROJET_ILLISIBLE } : { depot: complet, nom };
+}
 
 /** @param {Fabrique} doc @param {string} balise @param {string} [texte] */
 function cree(doc, balise, texte) {
@@ -109,6 +138,30 @@ export function connexionDite(doc, connexion, libelle, geste) {
   return [...pose, refus];
 }
 
+// Où en est le projet qu'un clic ouvre — sa copie en cours, ou ce qui l'a empêchée, avec ses gestes. Sous sa station, ou
+// sous le formulaire quand il vient de là (station vide).
+/** @param {Fabrique} doc @param {NonNullable<EtatDuPremier["ouverture"]>} ouverture @param {EtatDuPremier} etat @param {GestesDuPremier} geste */
+function ouvertureDite(doc, ouverture, etat, geste) {
+  if (ouverture.echec === undefined) {
+    const dit = cree(doc, "p", ouverture.etape?.sentence ?? ouvertureDe(ouverture.projet));
+    dit.className = "ouverture";
+    dit.role = "status";
+    return [dit];
+  }
+  const { echec } = ouverture;
+  const refus = phraseEtDetail(doc, "p", echec.reason, echec.detail);
+  refus.className = "refus";
+  const lien = "link" in echec ? echec.link : undefined;
+  return [
+    refus,
+    ...("action" in echec && echec.action !== undefined ? connexionDite(doc, etat.connexion, echec.action.label, geste) : []),
+    gestes(doc, [
+      ...(lien === undefined ? [] : [boutonAction(doc, boutonDeLaPage(lien), () => geste.ouvrirLaPage(lien), { recommande: !("action" in echec && echec.action !== undefined) })]),
+      boutonAction(doc, REESSAYER, () => geste.ouvrir(ouverture.station, ouverture.projet, ouverture.depot)),
+    ]),
+  ];
+}
+
 // Une station : sa pastille, son nom, son état — sa machine et sa version au survol —, puis ses projets, chacun un
 // bouton qui l'ouvre. Celui qu'un clic ouvre dit, sous la liste, où en est sa copie, ou pourquoi elle a échoué.
 /** @param {Fabrique} doc @param {Station} station @param {EtatDuPremier} etat @param {GestesDuPremier} geste */
@@ -153,26 +206,53 @@ function stationDite(doc, station, etat, geste) {
   }
   carte.append(liste);
   if (ouverture === undefined || ouverture.station !== station.id) return carte;
-  if (ouverture.echec === undefined) {
-    const dit = cree(doc, "p", ouverture.etape?.sentence ?? ouvertureDe(ouverture.projet));
-    dit.className = "ouverture";
-    dit.role = "status";
-    carte.append(dit);
-    return carte;
-  }
-  const { echec } = ouverture;
-  const refus = phraseEtDetail(doc, "p", echec.reason, echec.detail);
-  refus.className = "refus";
-  carte.append(refus);
-  if ("action" in echec && echec.action !== undefined) carte.append(...connexionDite(doc, etat.connexion, echec.action.label, geste));
-  const lien = "link" in echec ? echec.link : undefined;
-  carte.append(
-    gestes(doc, [
-      ...(lien === undefined ? [] : [boutonAction(doc, boutonDeLaPage(lien), () => geste.ouvrirLaPage(lien), { recommande: !("action" in echec && echec.action !== undefined) })]),
-      boutonAction(doc, REESSAYER, () => geste.ouvrir(ouverture.station, ouverture.projet, ouverture.depot)),
-    ]),
-  );
+  carte.append(...ouvertureDite(doc, ouverture, etat, geste));
   return carte;
+}
+
+// Le formulaire : le compte GitHub du chef et son projet, deux champs vides aux exemples neutres. Ce qui est tapé se
+// garde dans `etat.saisie` d'un affichage à l'autre. Un dépôt s'ouvre par la copie du runtime, un dossier par l'écran
+// d'ajout ; ce qui ne se lit pas le dit sous le champ, en une phrase.
+/** @param {Fabrique} doc @param {EtatDuPremier} etat @param {GestesDuPremier} geste */
+function formulaireDuProjet(doc, etat, geste) {
+  const saisie = etat.saisie ?? { compte: "", projet: "" };
+  const racine = cree(doc, "div");
+  racine.className = "formulaire-du-premier";
+  /** @param {string} id @param {string} libelle @param {string} exemple @param {"compte" | "projet"} cle */
+  const champ = (id, libelle, exemple, cle) => {
+    const nom = cree(doc, "label", libelle);
+    nom.htmlFor = id;
+    const entree = cree(doc, "input");
+    entree.id = id;
+    entree.placeholder = exemple;
+    entree.value = saisie[cle];
+    entree.autocomplete = "off";
+    entree.spellcheck = false;
+    entree.addEventListener("input", () => void (saisie[cle] = entree.value));
+    return [nom, entree];
+  };
+  const refus = cree(doc, "p");
+  refus.className = "refus-champ";
+  refus.ariaLive = "polite";
+  const ouvrir = () => {
+    const lu = lireLeProjet(saisie.compte, saisie.projet);
+    if ("refus" in lu) return void phraseVers(doc, refus, lu.refus);
+    phraseVers(doc, refus, "");
+    if ("dossier" in lu) return geste.ouvrirUnDossier(lu.dossier);
+    geste.ouvrir("", lu.nom, lu.depot);
+  };
+  const enCours = etat.ouverture !== undefined && etat.ouverture.echec === undefined;
+  const bouton = boutonAction(doc, OUVRIR_CE_PROJET, ouvrir, { recommande: true });
+  bouton.children[0].disabled = enCours;
+  racine.append(...champ("compte-du-premier", COMPTE, COMPTE_EXEMPLE, "compte"), ...champ("projet-du-premier", PROJET, PROJET_EXEMPLE, "projet"), refus, gestes(doc, [bouton]));
+  if (etat.ouverture?.station === "") racine.append(...ouvertureDite(doc, etat.ouverture, etat, geste));
+  return racine;
+}
+
+// Une phrase posée dans un élément qui existe déjà, ses mots entre accents graves en code.
+/** @param {Fabrique} doc @param {any} pose @param {string} texte */
+function phraseVers(doc, pose, texte) {
+  pose.replaceChildren(...(texte === "" ? [] : [phrase(doc, "span", texte)]));
 }
 
 // L'écran entier, d'après ce que la vue tient : la phrase de tête, puis ce qui suit de l'état des stations.
@@ -187,20 +267,22 @@ export function poserPremierLancement(doc, etat, geste) {
     tete.className = "attendu";
     return tete;
   };
+  const formulaire = () => formulaireDuProjet(doc, etat, geste);
   if (stations === undefined) {
-    racine.append(enTete(LECTURE));
+    racine.append(enTete(LECTURE), formulaire());
   } else if (stations.state === "sign-in-required") {
-    racine.append(enTete(stations.reason), ...connexionDite(doc, etat.connexion, stations.action.label, geste));
+    racine.append(enTete(stations.reason), ...connexionDite(doc, etat.connexion, stations.action.label, geste), formulaire());
   } else if (stations.state === "unavailable") {
     const lien = stations.link;
     racine.append(
       enTete(stations.reason, stations.detail),
+      formulaire(),
       gestes(doc, [...(lien === undefined ? [] : [boutonAction(doc, boutonDeLaPage(lien), () => geste.ouvrirLaPage(lien), { recommande: true })]), boutonAction(doc, RELIRE, geste.relire, { recommande: lien === undefined })]),
     );
   } else if (stations.stations.length === 0) {
-    racine.append(enTete(stations.reason ?? "No station is paired with this GitHub account yet."), gestes(doc, [boutonAction(doc, RELIRE, geste.relire)]));
+    racine.append(enTete(stations.reason ?? "No station is paired with this GitHub account yet."), formulaire(), gestes(doc, [boutonAction(doc, RELIRE, geste.relire)]));
   } else {
-    racine.append(enTete(OUVRIR_UN_PROJET(etat.poste)), ...stations.stations.map((station) => stationDite(doc, station, etat, geste)));
+    racine.append(enTete(OUVRIR_UN_PROJET(etat.poste)), formulaire(), ...stations.stations.map((station) => stationDite(doc, station, etat, geste)));
     if (stations.unreadable.length > 0) {
       const combien = stations.unreadable.length;
       const illisibles = phraseEtDetail(doc, "p", `${combien} more station${combien > 1 ? "s" : ""} cannot be read`, stations.unreadable.map(({ id, reason }) => `${id}: ${reason}`).join("\n"));

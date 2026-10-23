@@ -7439,7 +7439,7 @@ function ouvrirTous() {
 // connexion à GitHub qui manque se fait d'un bouton ; faite, les stations sont relues — et une ouverture qu'elle
 // retenait repart d'elle-même.
 /** @type {import("./premier-lancement.js").EtatDuPremier} */
-const premier = { poste: POSTE.nom };
+const premier = { poste: POSTE.nom, saisie: { compte: "", projet: "" } };
 /** @type {any} */
 let ecranDuPremier;
 let lectureDuPremier = 0;
@@ -7453,6 +7453,11 @@ const gestesDuPremier = {
   relire: () => void relireLePremier(),
   ouvrirLaPage: (url) => void brigade.ouvrirLaPage?.(url),
   ajouterUnDossier: () => ouvrirAjout(),
+  // Le dossier tapé sur le premier écran : l'écran d'ajout s'ouvre dessus, son dépôt et sa branche lus dans son clone.
+  ouvrirUnDossier: (pris) => {
+    ouvrirAjout();
+    void prendreLeDossier(pris);
+  },
 };
 // Le desktop porte le premier lancement ; un pont qui ne le porte pas garde l'ajout par un dossier.
 const avecPremier = () => configuration.projets.length === 0 && telephone === undefined && brigade.stationsDuChef !== undefined;
@@ -7623,7 +7628,10 @@ function ouvrirAjout() {
 const lusDuClone = { depot: "", base: "" };
 element("dossier").addEventListener("click", async () => {
   const pris = await brigade.choisirDossier();
-  if (pris === undefined) return;
+  if (pris !== undefined) await prendreLeDossier(pris);
+});
+/** @param {string} pris */
+async function prendreLeDossier(pris) {
   dossier = pris;
   choisi.textContent = pris;
   signaler("dossier");
@@ -7636,7 +7644,7 @@ element("dossier").addEventListener("click", async () => {
     saisi.value = lusDuClone[champ];
     signaler(champ, lu.raisons[champ] ?? "");
   }
-});
+}
 
 // Ce qu'il est advenu de l'ajout, sous le formulaire.
 /** @param {import("../ajout.ts").Issue | { etat: "en-cours", titre: string }} issue */
