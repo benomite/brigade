@@ -5855,6 +5855,10 @@ button.recommande {
   gap: 8px;
   padding: 10px 16px 0;
 }
+/* Sur le téléphone, la file que la station n'a pas rendue (ticket 1414) : ce qui a été obtenu, en une ligne sous le titre. */
+#rail > .indisponible {
+  padding: 4px 16px 0;
+}
 #rail > .code-de-connexion,
 #rail > .refus {
   padding: 8px 16px 0;

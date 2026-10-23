@@ -92,7 +92,7 @@ import { Terminal as Xterm } from "@xterm/xterm";
 // Les briques communes (briques.js) : une même chose se dit partout de la même façon — le prix
 // d'un geste dans son survol, une lecture qui manque en une ligne, une confirmation qui dit son prix.
 import { tenirInvite } from "./mise-a-jour/invite.js";
-import { poserAppaire, tenirAppairage } from "./telephone/appairage.js";
+import { poserAppaire, poserLaListe, tenirAppairage } from "./telephone/appairage.js";
 import { tenirConversation } from "./telephone/conversation.js";
 import { boutonAction, confirmationDeGeste, lectureIndisponible, prixDit, replie, survol } from "./briques.js";
 import { poserChers } from "./cost/chers.js";
@@ -853,6 +853,10 @@ let CALIBRAGE_DU_PROJET = { modeles: [], efforts: [] };
 // Ce que l'accueil dit en dernier (accueil.ts) : une ligne par projet, une par station, la santé. Indéfini : pas encore reçu.
 /** @type {import("../accueil.ts").Accueil | undefined} */
 let accueilVu;
+// Le téléphone appairé (l'app Android) : sa station, et ce que la dernière lecture de la liste de ses projets en a dit
+// (le ticket 1414), relu par `surTelephone`. Indéfini sur le desktop.
+/** @type {import("./pont.d.ts").Telephone | undefined} */
+let telephoneVu;
 // La station dont la page est ouverte, par son gist. Aucune : c'est l'accueil — ou un projet.
 /** @type {string | undefined} */
 let stationOuverte;
@@ -1839,6 +1843,8 @@ function propos(texte) {
 
 // Le geste que l'app nomme quand une box jointe ne lui répond pas comme elle
 // l'attend. Elle ne sait pas pourquoi : ce qu'elle a obtenu est affiché au-dessus.
+// Ce qui se dit, au survol, d'un guichet joint qui n'a pas rendu la file sur le téléphone (le ticket 1414).
+const AU_TELEPHONE = "The station's phone desk was reached, and did not give this project's queue as the app expects. This phone tries again every 30 s.";
 const GESTE = [
   "The station was reached, and this command did not answer there as the app expects: from here, this project can no longer be controlled.",
   "What the app got is above; it knows no more.",
@@ -4429,8 +4435,12 @@ function poserRail(projet) {
   if (tenu === undefined && muet === undefined) return poser(...(cuisine ? [] : [bloc("h3", `the rail: first read of \`${geste(projet, "facts")}\` in progress…`)]));
   // La box ne répond pas : rien de ce que dit le rail n'est lu à neuf. Il garde sa dernière lecture,
   // marquée, et les tickets `fire` que GitHub dit encore passent au-dessus (feu.ts).
-  const marque = muet === undefined || cuisine ? [] : poserMuet(projet);
+  // Le téléphone ne lit pas GitHub : rien n'y passe au-dessus.
+  const auTelephone = telephoneVu?.appaire === true;
+  const marque = muet === undefined || cuisine || auTelephone ? [] : poserMuet(projet);
   if (tenu === undefined || !("tableau" in tenu)) {
+    // Le téléphone n'a pas de panneau à droite : ce qui a été obtenu se dit sous le titre, en une ligne, son détail au survol.
+    if (auTelephone && !cuisine && tenu !== undefined && "erreur" in tenu) return poser(bloc("h3", `the rail is not drawn — tried at ${heureDe(tenu.a)}`), ...obtenuEnUneLigne(projet, tenu, AU_TELEPHONE));
     const sans = tenu === undefined || cuisine ? "" : `the rail is not drawn: ${tenu.titre} — tried at ${heureDe(tenu.a)}. What the app got is in the panel, on the right`;
     return poser(...marque, ...(sans === "" ? [] : [bloc("h3", sans)]));
   }
@@ -5462,10 +5472,14 @@ function ligneDAccueil(nom, { ton, dit, survol }, ouvrirLa) {
 // process principal les a dits (accueil.ts). Un projet qu'il ne dit pas encore attend sa première lecture.
 function poserAccueil() {
   const lignes = new Map((accueilVu?.projets ?? []).map((ligne) => [ligne.nom, ligne]));
+  const desProjets = configuration.projets.map((projet) => ligneDAccueil(projet.nom, lignes.get(projet.nom) ?? { ton: "gris", dit: "first read in progress…", survol: "" }, () => void ouvrir(projet)));
+  // Sur le téléphone appairé, les projets sont ceux de sa station : la section dit ce qui manque à leur liste (telephone/appairage.js).
   projetsDeLAccueil.replaceChildren(
-    ...(configuration.projets.length === 0
-      ? [bloc("p", "no project yet: “+” in the bar adds one")]
-      : configuration.projets.map((projet) => ligneDAccueil(projet.nom, lignes.get(projet.nom) ?? { ton: "gris", dit: "first read in progress…", survol: "" }, () => void ouvrir(projet)))),
+    ...(telephoneVu?.appaire === true
+      ? [...poserLaListe(document, telephoneVu, desProjets.length, () => void oublierLeTelephone()), ...desProjets]
+      : desProjets.length === 0
+        ? [bloc("p", "no project yet: “+” in the bar adds one")]
+        : desProjets),
   );
   const stations = accueilVu?.stations;
   listeDesStations.replaceChildren(
@@ -7712,6 +7726,16 @@ let configuration = demarrage.configuration;
 // appairé, l'app s'ouvre sur l'écran qui le relie aux projets, et le reste de l'app est caché derrière. Appairé,
 // elle passe à « Tous les projets », où une ligne dit à quelle station (telephone/appairage.js).
 const telephone = demarrage.telephone;
+telephoneVu = telephone;
+brigade.surTelephone?.((vu) => {
+  telephoneVu = vu;
+  if (courant === undefined && !ajoute && stationOuverte === undefined) poserAccueil();
+});
+// La station ne connaît plus ce téléphone : son appairage est effacé, et l'app se rouvre sur l'écran qui le relie.
+async function oublierLeTelephone() {
+  await brigade.oublierLeTelephone?.();
+  location.reload();
+}
 if (telephone !== undefined) {
   const tenue = tenirConversation(sectionConversation, document, { pont: brigade, rendre: poserBlocs });
   conversationDuTelephone = tenue;
@@ -7726,6 +7750,8 @@ if (telephone !== undefined && !telephone.appaire) {
     pont: brigade,
     userAgent: navigator.userAgent,
     apres: (station) => {
+      // Sa liste n'est pas encore lue : l'adresse de son guichet vient avec sa première lecture.
+      telephoneVu = { appaire: true, station, adresse: "" };
       appairageDuTelephone.className = "fait";
       appairageDuTelephone.replaceChildren(poserAppaire(document, station));
       cadreDeLApp.hidden = false;

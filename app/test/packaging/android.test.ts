@@ -7,9 +7,10 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { test, type TestContext } from "node:test";
+import { after, test, type TestContext } from "node:test";
 import vm from "node:vm";
-import { ANDROID, dependancesDeLaVue, demarrageDuPont, majeureDuJdk, NATIF, plateformeVisee, poserLaVue, scriptDuPont, verifierPrerequis, type Machine } from "../../packaging/android.ts";
+import { pathToFileURL } from "node:url";
+import { ANDROID, dependancesDeLaVue, demarrageDuPont, majeureDuJdk, NATIF, plateformeVisee, poserLaVue, poserLesModules, scriptDuPont, verifierPrerequis, type Machine } from "../../packaging/android.ts";
 import { APP, Arret, IDENTIFIANT, NOM, type Executer } from "../../packaging/construire.ts";
 import { CACHE_DE_COMPILATION } from "../aides/cache-de-compilation.ts";
 import { PAQUETS } from "../aides/posix.ts";
@@ -176,7 +177,7 @@ type AppelNatif = { plugin: string; methode: string; options: Record<string, unk
 async function pontDuTelephone(natif: (appel: AppelNatif) => unknown, stockage = new Map<string, string>()) {
   const appels: AppelNatif[] = [];
   const window: Record<string, unknown> = {
-    localStorage: { getItem: (cle: string) => stockage.get(cle) ?? null, setItem: (cle: string, valeur: string) => void stockage.set(cle, valeur) },
+    localStorage: { getItem: (cle: string) => stockage.get(cle) ?? null, setItem: (cle: string, valeur: string) => void stockage.set(cle, valeur), removeItem: (cle: string) => void stockage.delete(cle) },
     Capacitor: {
       nativePromise: async (plugin: string, methode: string, options: Record<string, unknown>) => {
         // Les options viennent du contexte du pont : on les garde en JSON, comme elles passent au natif.
@@ -185,10 +186,24 @@ async function pontDuTelephone(natif: (appel: AppelNatif) => unknown, stockage =
       },
     },
   };
-  vm.runInNewContext(scriptDuPont(await demarrageDuPont()), { window });
+  // Le pont tel que la construction le pose, à côté de la vue : appairé, il y charge sa lecture (#1414).
+  const www = await laVuePosee();
+  window.location = { href: pathToFileURL(join(www, "src", "vue", "index.html")).href };
+  vm.runInNewContext(readFileSync(join(www, "android", "pont.js"), "utf8"), { window, URL }, { importModuleDynamically: vm.constants.USE_MAIN_CONTEXT_DEFAULT_LOADER });
   const pont = window.brigade as Record<string, (...args: unknown[]) => Promise<unknown>>;
   const json = async (promesse: Promise<unknown>) => JSON.parse(JSON.stringify(await promesse));
   return { pont, appels, stockage, json };
+}
+// La vue posée pour Capacitor, une fois pour ce fichier, et effacée après lui.
+const POSEE = mkdtempSync(join(tmpdir(), "brigade-app-apk-"));
+after(() => rmSync(POSEE, { recursive: true, force: true }));
+let posee: Promise<string> | undefined;
+function laVuePosee(): Promise<string> {
+  posee ??= demarrageDuPont().then((demarrage) => {
+    poserLaVue(demarrage, join(POSEE, "www"));
+    return join(POSEE, "www");
+  });
+  return posee;
 }
 const DEMANDE = { adresse: "http://192.168.1.20:7010", code: "7KQ2-M9XD", nom: "pixel-8", machine: "Android 14 · Pixel 8" };
 const STATION = { nom: "pixel-8", machine: "Android 14 · Pixel 8", sorte: "telephone", cuisine: false, statut: "acceptee" };
@@ -269,6 +284,82 @@ test("le pont lit le QR par le plugin natif : son texte, un renoncement, ou la r
     throw { message: "Waiting for the Barcode UI module to be downloaded." };
   });
   assert.deepEqual(await json(pont.scannerLeQr!()), { refus: "Waiting for the Barcode UI module to be downloaded." });
+});
+
+// Le pont appairé lit sa station (#1414) : joué depuis la vue posée pour Capacitor, comme dans la WebView — son script,
+// et le module de lecture qu'il charge à côté d'elle (www/android/lecture.js), sans ses types, avec ce qu'il importe
+// d'app/src/. Seul le HTTP natif est un faux, qui rend ce que le guichet rend.
+test("la lecture de la station est posée à côté de la vue, sans types ni modules de Node, et chaque import y tient", async (t) => {
+  const www = join(dossier(t), "www");
+  poserLaVue(await demarrageDuPont(), www);
+  const poses = poserLesModules(www);
+  assert.ok(poses.includes("android/lecture.js"));
+  assert.ok(poses.includes("src/faits.js") && poses.includes("src/attend.js") && poses.includes("src/accueil.js"));
+  for (const pose of poses.filter((chemin) => chemin.endsWith(".js"))) {
+    const code = readFileSync(join(www, pose), "utf8");
+    // Aucun import ne reste vers un fichier TypeScript, ni vers un module de Node : chacun est un fichier posé.
+    for (const [, specificateur = ""] of code.matchAll(/\b(?:import|export)\b[^"'`;]*?\bfrom\s*"([^"]+)"/g)) {
+      assert.ok(specificateur.startsWith("."), `${pose} imports ${specificateur}`);
+      assert.ok(existsSync(resolve(dirname(join(www, pose)), specificateur)), `${pose} imports ${specificateur}, absent`);
+    }
+  }
+  // Ce que les modules d'app/src/ importent de Node pour le desktop est inerte : rien ne l'appelle sur le téléphone.
+  assert.match(readFileSync(join(www, "android", "node", "child_process.js"), "utf8"), /export const execFile = inerte;/);
+});
+
+test("le pont appairé lit les projets de sa station et leur file au guichet, avec son jeton, et les dit à la vue", async (t) => {
+  const www = join(dossier(t), "www");
+  poserLaVue(await demarrageDuPont(), www);
+  const facts = { etat: "ouverte", lu: "2026-10-23T08:04:11.000Z", dernierTick: null, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, dernierEvenement: null, rail: [], cooks: [], attend: [], stations: [] };
+  const projets = [
+    { name: "parade", repository: "chef/parade", state: "served" },
+    { name: "cantine", repository: "chef/cantine", state: "served" },
+  ];
+  const stockage = new Map([
+    ["brigade.telephone", JSON.stringify({ station: "atelier", adresse: "http://192.168.1.20:7010", jeton: "brgt_secret" })],
+    ["brigade.telephone.projets", JSON.stringify([projets[0]])],
+  ]);
+  const appels: Record<string, unknown>[] = [];
+  const window: Record<string, unknown> = {
+    location: { href: pathToFileURL(join(www, "src", "vue", "index.html")).href },
+    localStorage: { getItem: (cle: string) => stockage.get(cle) ?? null, setItem: (cle: string, valeur: string) => void stockage.set(cle, valeur), removeItem: (cle: string) => void stockage.delete(cle) },
+    Capacitor: {
+      nativePromise: async (_plugin: string, _methode: string, options: Record<string, unknown>) => {
+        appels.push(JSON.parse(JSON.stringify(options)));
+        const chemin = String(options.url).replace("http://192.168.1.20:7010", "");
+        if (chemin === "/projects") return { status: 200, headers: {}, data: { projects: projets } };
+        return { status: 200, headers: {}, data: JSON.stringify({ project: "x", repository: "chef/x", facts, status: "état : cuisine ouverte\n" }) };
+      },
+    },
+  };
+  const script = readFileSync(join(www, "android", "pont.js"), "utf8");
+  vm.runInNewContext(script, { window, URL }, { importModuleDynamically: vm.constants.USE_MAIN_CONTEXT_DEFAULT_LOADER });
+  const pont = window.brigade as Record<string, (...args: unknown[]) => unknown>;
+  const recus: Record<string, unknown[][]> = {};
+  for (const canal of ["surConfiguration", "surFaits", "surTelephone", "surAccueil", "surAlertes", "surLecture"]) pont[canal]!((...args: unknown[]) => void (recus[canal] ??= []).push(JSON.parse(JSON.stringify(args))));
+  // Relancée, l'app s'ouvre sur les projets de la dernière liste lue, avant toute lecture.
+  const demarrage = JSON.parse(JSON.stringify(await pont.demarrage!()));
+  assert.deepEqual(demarrage.configuration.projets.map(({ nom }: { nom: string }) => nom), ["parade"]);
+  assert.deepEqual(demarrage.telephone, { appaire: true, station: "atelier", adresse: "http://192.168.1.20:7010" });
+  assert.deepEqual(appels, []);
+  pont.faits!(1);
+  pont.tous!(2);
+  // La lecture répond sans attendre d'horloge : on attend qu'elle ait dit les deux files.
+  for (let tour = 0; tour < 1000 && (recus.surFaits ?? []).filter(([recue]) => (recue as { demande: number }).demande === 1).length < 2; tour++) await new Promise((fait) => setImmediate(fait));
+  assert.deepEqual(recus.surConfiguration?.[0]?.[0] && (recus.surConfiguration[0][0] as { projets: { nom: string }[] }).projets.map(({ nom }) => nom), ["parade", "cantine"]);
+  assert.deepEqual(JSON.parse(stockage.get("brigade.telephone.projets") ?? "null"), projets);
+  assert.deepEqual(
+    appels.slice(0, 3).map(({ url, method, headers }) => ({ url, method, headers })),
+    ["/projects", "/projects/parade/queue", "/projects/cantine/queue"].map((chemin) => ({ url: `http://192.168.1.20:7010${chemin}`, method: "GET", headers: { Authorization: "Bearer brgt_secret" } })),
+  );
+  const dessines = (recus.surFaits ?? []).map(([recue]) => recue as { projet: string; demande: number; tableau?: unknown });
+  assert.deepEqual([...new Set(dessines.filter(({ demande }) => demande === 1).map(({ projet }) => projet))].sort(), ["cantine", "parade"]);
+  assert.ok(dessines.every((recue) => "tableau" in recue));
+  assert.ok((recus.surLecture ?? []).some(([montree]) => (montree as { projet: string; demande: number }).demande === 2));
+  assert.equal((recus.surTelephone?.at(-1)?.[0] as { liste?: { lue: boolean } }).liste?.lue, true);
+  // Oublié, l'appairage s'efface — le jeton et la liste — et le lancement suivant ouvre l'écran qui relie le téléphone.
+  await pont.oublierLeTelephone!();
+  assert.equal(stockage.size, 0);
 });
 
 test("l'enveloppe native a de quoi appairer : le lecteur de QR du pont, et le http en clair vers le guichet", () => {

@@ -266,6 +266,34 @@ export function tenirAppairage(lieu, doc, { pont, userAgent, apres }) {
   return { formulaire };
 }
 
+// Appairé, « All projects » liste les projets de la station, lus à son guichet toutes les trente secondes (le ticket
+// 1414). Au-dessus de leurs lignes, la section dit en une phrase ce qui manque à la liste — rien quand elle vient d'être
+// lue et en porte : sa première lecture en cours, une station qui n'en sert aucun, ou ce qui ne se joint pas, dit comme à
+// l'appairage — les projets déjà connus restent dessous. Une station qui ne connaît plus ce téléphone (son jeton révoqué)
+// le dit aussi, avec le geste qui le relie de nouveau. `oublier` : ce geste.
+/** @param {Fabrique} doc @param {import("../pont.d.ts").Telephone & { appaire: true }} telephone @param {number} projets @param {() => void} oublier @returns {any[]} */
+export function poserLaListe(doc, telephone, projets, oublier) {
+  const { station, adresse, liste } = telephone;
+  /** @param {string} texte */
+  const phrase = (texte) => {
+    const ligne = doc.createElement("p");
+    ligne.textContent = texte;
+    return ligne;
+  };
+  if (liste === undefined) return projets > 0 ? [] : [phrase(`${station}'s projects: first read in progress…`)];
+  if (liste.lue) return projets > 0 ? [] : [phrase(`${station} serves no project yet: a project is added from a computer.`)];
+  if (liste.reason === "oublie") {
+    const ligne = lectureIndisponible(doc, `${station} no longer knows this phone: pair it again.`, `${liste.said} — this phone was revoked on the station, or paired again elsewhere.`);
+    ligne.dataset.etat = "oublie";
+    ligne.append(boutonAction(doc, "pair again", oublier, { recommande: true }));
+    return [ligne];
+  }
+  const { ligne, detail } = /** @type {{ ligne: string, detail: string }} */ (issueDe({ paired: false, reason: liste.reason, said: liste.said }, adresse));
+  const dite = lectureIndisponible(doc, ligne, `${detail} This phone tries again every 30 s.`);
+  dite.dataset.etat = "injoignable";
+  return [dite];
+}
+
 // Appairé : une ligne, en tête des projets, qui dit à quelle station — ce que cela fait, au survol.
 /** @param {Fabrique} doc @param {string} station */
 export function poserAppaire(doc, station) {
