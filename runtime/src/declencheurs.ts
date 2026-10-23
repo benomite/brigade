@@ -72,7 +72,10 @@ const evenements = (lignes: string[]): Map<string, Filtres> | null => {
       trouves.set(nom, courant);
       filtre = null;
       // `pull_request: { branches: [main] }` ou une valeur en ligne : illisible ici.
-      if (reste.trim() !== "" && reste.trim() !== "~" && reste.trim() !== "null") return null;
+      // Une valeur en ligne est vide (`{}`, `[]`, `~`) ou illisible ; elle ne
+      // gêne que si l'événement est de PR (`workflow_dispatch: {}` est sans filtre).
+      const vide = ["", "~", "null", "{}", "[]"].includes(reste.trim());
+      if (!vide && EVENEMENTS_DE_PR.includes(nom)) return null;
     } else if (courant !== null && texte.startsWith("-")) {
       // Sans filtre en cours, c'est la liste de l'événement lui-même
       // (`schedule:` et ses `- cron:`) : aucun filtre de PR à y lire.
