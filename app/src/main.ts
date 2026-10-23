@@ -163,6 +163,7 @@ const terminaux = ouvrirTerminaux({
   souvenirs: souvenirsDansFichier(join(dirname(cheminConfiguration()), "shells.json")),
   // Jamais posée hors des essais, comme pour la veille.
   ssh: process.env.BRIGADE_SSH_BIN || "ssh",
+  node: emplacements.node,
   // La même doublure que le runtime : jamais posée hors des essais.
   claude: process.env.BRIGADE_CLAUDE_BIN || "claude",
   shell: shellIci.commande,

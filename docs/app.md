@@ -1585,6 +1585,14 @@ hooks the app gives the second) are arguments of the command the tab runs, and n
 writes nothing into the project's `.claude/`, nor into any file another session reads. A `claude` you
 start yourself in the same folder is a plain Claude Code session, not a second.
 
+**The queue is read for the second, at each start.** The launch settings carry a `SessionStart` hook
+(`startup`, `resume`, `compact`): it runs `app/src/second/file.ts`, which reads
+`ssh <hote> brigade <name> status` fresh and returns it to Claude Code as additional context, so the
+second sees the queue after a start, a resume or a compaction without thinking of it. A queue that
+cannot be read (box not reached, gesture refused, no answer in 30 s, no box declared) is said in that
+context, in the words of the role, and the hook still exits 0: it never blocks the session. By hand:
+`node app/src/second/file.ts <name> <host> [ssh]`.
+
 **Each project has its second, and a project's product questions go to *its* second.**
 Triaging `calculus`'s issues is asked in `calculus`'s space, not in `brigade`'s:
 a second only knows the product of its folder.
