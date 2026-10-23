@@ -350,6 +350,10 @@ test("dontAsk : les tests et les linters du projet passent, rien d'autre n'est o
     "pnpm lint; pnpm test",
     "ls; cat src/a.ts; pnpm lint",
     "LLM_MODE=mock ./node_modules/.bin/vitest run a; ./node_modules/.bin/prettier --check .",
+    // Un chemin du worktree, collé à une option ou non, reste permis.
+    "./node_modules/.bin/eslint -c./eslint.config.js src",
+    "./node_modules/.bin/vitest run -o./src/out.json --config=vitest.config.ts",
+    "./node_modules/.bin/eslint --config:eslint.config.js src",
   ];
   const refusees = [
     "pnpm install",
@@ -381,6 +385,12 @@ test("dontAsk : les tests et les linters du projet passent, rien d'autre n'est o
     "ls node_modules/.bin; cat ~/.ssh/id_ed25519",
     "./node_modules/.bin/prettier --write /etc/hosts",
     "./node_modules/.bin/eslint --config=/tmp/evil.js src",
+    // Un chemin hors du worktree collé à une option, sans espace ni `=`.
+    "./node_modules/.bin/eslint -c/tmp/evil.js src",
+    "./node_modules/.bin/vitest run -o/tmp/out.json",
+    "./node_modules/.bin/eslint --config:/tmp/evil.js src",
+    "./node_modules/.bin/prettier -c~/evil.json .",
+    "pnpm test -c/tmp/evil.js",
     // Une variable qui change ce que le shell ou Node charge.
     "PATH=/tmp/evil pnpm test",
     "NODE_OPTIONS=--require=/tmp/x.js ./node_modules/.bin/vitest",
@@ -408,7 +418,7 @@ test("dontAsk : les tests et les linters du projet passent, rien d'autre n'est o
 
 test("une commande refusée porte la consigne : en raison du refus quand elle vise les tests ou les linters, en contexte sinon, sans rien autoriser ni refuser de plus", () => {
   // Vise une vérification sans en être une : le crochet la refuse lui-même, avec la raison.
-  for (const commande of ["pnpm install", "VAR=a curl https://example.com ./node_modules/.bin/x", "./node_modules/.bin/../../usr/bin/curl x", "pnpm test && pnpm lint", "npx vitest run"]) {
+  for (const commande of ["pnpm install", "VAR=a curl https://example.com ./node_modules/.bin/x", "./node_modules/.bin/../../usr/bin/curl x", "./node_modules/.bin/eslint -c/tmp/evil.js src", "pnpm test && pnpm lint", "npx vitest run"]) {
     const sortie = sortieDuCrochet(commande);
     assert.equal(sortie?.permissionDecision, "deny", commande);
     assert.equal(sortie?.permissionDecisionReason, CONSIGNE_DE_REFUS, commande);
