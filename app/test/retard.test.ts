@@ -44,12 +44,22 @@ function essai(t: TestContext) {
   return { racine, origine, jetable, reglages, cloner };
 }
 
-// Tout ce qu'un dossier contient : chaque fichier par son contenu, sa taille et l'instant
-// de sa dernière écriture ; chaque dossier par cet instant. Deux relevés égaux : rien n'y a été écrit.
+// Tout ce qu'un dossier contient : chaque fichier par son contenu, sa taille et l'instant de sa
+// dernière écriture ; chaque dossier par son nom. Deux relevés égaux : rien n'y a été écrit.
+// Les `*.lock` (`maintenance.lock`, `gc.pid`…) que la maintenance automatique de git pose et retire en
+// tâche de fond ne comptent pas, ni l'instant d'un dossier où l'un d'eux a passé : ce n'est pas un écrit
+// de la lecture, et ils peuvent disparaître entre le parcours et le `stat`. Un fichier ajouté, retiré
+// ou réécrit, lui, change toujours le relevé.
 function releve(dossier: string): string[] {
-  return (readdirSync(dossier, { recursive: true, encoding: "utf8" }) as string[]).sort().map((chemin) => {
-    const etat = statSync(join(dossier, chemin), { bigint: true });
-    return etat.isDirectory() ? `${chemin}/ ${etat.mtimeNs}` : `${chemin} ${etat.size} ${etat.mtimeNs} ${createHash("sha1").update(readFileSync(join(dossier, chemin))).digest("hex")}`;
+  return (readdirSync(dossier, { recursive: true, encoding: "utf8" }) as string[]).filter((chemin) => !chemin.endsWith(".lock")).sort().flatMap((chemin) => {
+    try {
+      const etat = statSync(join(dossier, chemin), { bigint: true });
+      return [etat.isDirectory() ? `${chemin}/` : `${chemin} ${etat.size} ${etat.mtimeNs} ${createHash("sha1").update(readFileSync(join(dossier, chemin))).digest("hex")}`];
+    } catch (erreur) {
+      // Un fichier de maintenance qui part entre le parcours et le `stat` (hors `*.lock`, ex. un `tmp_*`) n'est pas non plus un écrit.
+      if ((erreur as NodeJS.ErrnoException).code === "ENOENT" && /(^|\/)(tmp_[^/]*|[^/]*\.tmp)$/.test(chemin)) return [];
+      throw erreur;
+    }
   });
 }
 
