@@ -3,9 +3,9 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { delimiter, join, sep } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { linuxOnly, posixOnly } from "./support/plateforme.ts";
+import { posixOnly } from "./support/plateforme.ts";
 import { annoncerCloison, configCloison, envelopper } from "../src/cloison.ts";
 import { jouerSetup } from "../src/gates.ts";
 import { ConfigInvalide, demarrer } from "../src/runtime.ts";
@@ -18,7 +18,7 @@ function machine(t: TestContext) {
   const racine = repertoireTemporaire(t);
   const lieux = { repertoireEtat: join(racine, "etats/brigade"), clone: join(racine, "etats/brigade/depot") };
   mkdirSync(join(lieux.clone, ".git"), { recursive: true });
-  const env = { BRIGADE_SANDBOX_BIN: FAUX_BWRAP, BRIGADE_SANDBOX_HIDDEN: `${join(racine, "etats")}:${join(racine, "secrets")}`, HOME: join(racine, "compte") };
+  const env = { BRIGADE_SANDBOX_BIN: FAUX_BWRAP, BRIGADE_SANDBOX_HIDDEN: [join(racine, "etats"), join(racine, "secrets")].join(delimiter), HOME: join(racine, "compte") };
   return { racine, lieux, env, masques: [join(racine, "etats"), join(racine, "secrets")] };
 }
 
@@ -54,17 +54,17 @@ describe("la cloison", { concurrency: 8 }, () => {
     assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_HIDDEN: "etats" }, lieux)), /is not an absolute path/);
   });
 
-  test("une cloison qui masquerait le compte, /tmp ou le système est refusée", { skip: linuxOnly("the partition is bubblewrap, a Linux tool, and BRIGADE_SANDBOX_HIDDEN a “:”-separated list of POSIX paths") }, (t) => {
+  test("une cloison qui masquerait le compte, /tmp ou le système est refusée", { skip: posixOnly("the guarded directories are the POSIX ones (/, /tmp, /usr): on Windows “/” is the root of the current drive, which need not hold the account, and /tmp is not the temporary directory") }, (t) => {
     const { lieux, env, racine } = machine(t);
     assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_HIDDEN: racine }, lieux)), /would hide the account's home directory/);
     assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_HIDDEN: "/" }, lieux)), /would hide/);
     // Le compte de la machine d'essai vit sous le répertoire temporaire — donc
     // sous /tmp, sur Linux : masquer /tmp y masquerait d'abord le compte. Le
     // refus propre à /tmp se lit avec un compte qui n'y est pas.
-    assert.match(refus(() => configCloison({ ...env, HOME: "/home/brigade", BRIGADE_SANDBOX_HIDDEN: `${env.BRIGADE_SANDBOX_HIDDEN}:/tmp` }, lieux)), /“\/tmp” would hide \/tmp/);
+    assert.match(refus(() => configCloison({ ...env, HOME: "/home/brigade", BRIGADE_SANDBOX_HIDDEN: `${env.BRIGADE_SANDBOX_HIDDEN}${delimiter}/tmp` }, lieux)), /“\/tmp” would hide \/tmp/);
   });
 
-  test("ce que la cloison doit cacher et qu'elle laisserait dehors est nommé", { skip: linuxOnly("the partition is bubblewrap, a Linux tool, and BRIGADE_SANDBOX_HIDDEN a “:”-separated list of POSIX paths") }, (t) => {
+  test("ce que la cloison doit cacher et qu'elle laisserait dehors est nommé", (t) => {
     const { lieux, env, racine, masques } = machine(t);
     const ailleurs = join(racine, "ailleurs");
     assert.match(refus(() => configCloison(env, { ...lieux, repertoireEtat: ailleurs })), /^BRIGADE_STATE_DIR \(.*ailleurs\) is not under any directory of BRIGADE_SANDBOX_HIDDEN/);
@@ -77,7 +77,7 @@ describe("la cloison", { concurrency: 8 }, () => {
     assert.equal(cloison?.identifiants, join(racine, "compte/.claude/.credentials.json"));
   });
 
-  test("le fichier du jeton, masqué avec son répertoire, est recouvert d'un fichier vide en lecture seule : un lancement ne le lit pas et ne l'écrit pas, comme les identifiants", { skip: linuxOnly("the partition is bubblewrap, a Linux tool, and BRIGADE_SANDBOX_HIDDEN a “:”-separated list of POSIX paths") }, (t) => {
+  test("le fichier du jeton, masqué avec son répertoire, est recouvert d'un fichier vide en lecture seule : un lancement ne le lit pas et ne l'écrit pas, comme les identifiants", (t) => {
     const { lieux, env, racine, masques } = machine(t);
     const jeton = join(racine, "secrets/brigade/jeton-claude");
     mkdirSync(join(racine, "secrets/brigade"), { recursive: true });
@@ -104,7 +104,7 @@ describe("la cloison", { concurrency: 8 }, () => {
     assert.equal(readFileSync(jeton, "utf8"), "le-jeton-de-la-machine\n");
   });
 
-  test("le fichier vide qui recouvre le jeton est remis à vide et à lui avant chaque lancement", { skip: linuxOnly("the partition is bubblewrap, a Linux tool, and BRIGADE_SANDBOX_HIDDEN a “:”-separated list of POSIX paths") }, (t) => {
+  test("le fichier vide qui recouvre le jeton est remis à vide et à lui avant chaque lancement", (t) => {
     const { lieux, env, racine } = machine(t);
     const jeton = join(racine, "secrets/jeton-claude");
     const cloison = configCloison({ ...env, BRIGADE_CLAUDE_TOKEN_FILE: jeton }, lieux);
@@ -125,13 +125,13 @@ describe("la cloison", { concurrency: 8 }, () => {
     assert.equal(demande(envelopper(sans, { commande: "true", args: [] }, { cwd: "/tmp", depot: null }).args).some((arg) => arg.includes("jeton")), false);
   });
 
-  test("un masque qui est un fichier est refusé au démarrage, pas à chaque lancement", { skip: linuxOnly("the partition is bubblewrap, a Linux tool, and BRIGADE_SANDBOX_HIDDEN a “:”-separated list of POSIX paths") }, (t) => {
+  test("un masque qui est un fichier est refusé au démarrage, pas à chaque lancement", (t) => {
     const { lieux, env, racine } = machine(t);
     writeFileSync(join(racine, "netrc"), "machine exemple.test");
-    assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_HIDDEN: `${env.BRIGADE_SANDBOX_HIDDEN}:${join(racine, "netrc")}` }, lieux)), /netrc” is not a directory — hide the one that contains it/);
+    assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_HIDDEN: `${env.BRIGADE_SANDBOX_HIDDEN}${delimiter}${join(racine, "netrc")}` }, lieux)), /netrc” is not a directory — hide the one that contains it/);
   });
 
-  test("un cook ne retrouve de ce qui est masqué que son worktree, sa vue du `.git` et son ticket", { skip: linuxOnly("the partition is bubblewrap, a Linux tool, and BRIGADE_SANDBOX_HIDDEN a “:”-separated list of POSIX paths") }, (t) => {
+  test("un cook ne retrouve de ce qui est masqué que son worktree, sa vue du `.git` et son ticket", (t) => {
     const { lieux, env, masques } = machine(t);
     const cloison = configCloison(env, lieux);
     const worktree = join(lieux.repertoireEtat, "worktrees/17-abc");
@@ -160,7 +160,7 @@ describe("la cloison", { concurrency: 8 }, () => {
     assert.ok(recu.lastIndexOf("--tmpfs") < recu.lastIndexOf(worktree));
   });
 
-  test("le compte est rendu en lecture seule : ce qu'un cook écrit sous ~ va au projet, jamais dans le ~/.gitconfig que lit le runtime", { skip: linuxOnly("the partition is bubblewrap, a Linux tool, and BRIGADE_SANDBOX_HIDDEN a “:”-separated list of POSIX paths") }, (t) => {
+  test("le compte est rendu en lecture seule : ce qu'un cook écrit sous ~ va au projet, jamais dans le ~/.gitconfig que lit le runtime", (t) => {
     const { lieux, env, racine } = machine(t);
     const home = join(racine, "compte");
     mkdirSync(join(home, ".claude"), { recursive: true });
@@ -175,10 +175,10 @@ describe("la cloison", { concurrency: 8 }, () => {
 
     const compte = join(lieux.repertoireEtat, "compte");
     // Le seul montage inscriptible à la place du compte est celui du projet…
-    assert.deepEqual(paires(recu, "--bind").filter((paire) => paire.endsWith(` → ${home}`) || paire.includes(`${home}/`)), [`${compte} → ${home}`, `${join(lieux.repertoireEtat, "claude")} → ${join(home, ".claude")}`]);
+    assert.deepEqual(paires(recu, "--bind").filter((paire) => paire.endsWith(` → ${home}`) || paire.includes(`${home}${sep}`)), [`${compte} → ${home}`, `${join(lieux.repertoireEtat, "claude")} → ${join(home, ".claude")}`]);
     // … et le vrai lui est rendu entrée par entrée, en lecture seule : sa configuration de git, ses binaires.
     // Sans exiger qu'elle existe encore : un lien pendant, une entrée partie depuis ne font pas mourir `bwrap`.
-    assert.equal(paires(recu, "--ro-bind").some((paire) => paire.startsWith(`${home}/`)), false);
+    assert.equal(paires(recu, "--ro-bind").some((paire) => paire.startsWith(`${home}${sep}`)), false);
     const rendues = paires(recu, "--ro-bind-try").filter((paire) => !paire.includes(".credentials.json"));
     assert.deepEqual(rendues.sort(), [".gitconfig", ".local/bin", "lien-pendant"].map((nom) => `${join(home, nom)} → ${join(home, nom)}`));
     assert.ok(recu.indexOf(compte) < recu.indexOf(join(home, ".gitconfig")));
@@ -212,7 +212,7 @@ describe("la cloison", { concurrency: 8 }, () => {
 
     // Rien du compte n'est rendu en écriture : chaque entrée de ~/.local l'est en lecture seule,
     // et ~/.local, ~/.local/share, ~/.local/state sont ceux du projet, sous son état.
-    assert.deepEqual(paires(recu, "--bind").filter((paire) => paire.endsWith(` → ${home}`) || paire.includes(`${home}/`)), [`${compte} → ${home}`, `${join(lieux.repertoireEtat, "claude")} → ${join(home, ".claude")}`]);
+    assert.deepEqual(paires(recu, "--bind").filter((paire) => paire.endsWith(` → ${home}`) || paire.includes(`${home}${sep}`)), [`${compte} → ${home}`, `${join(lieux.repertoireEtat, "claude")} → ${join(home, ".claude")}`]);
     const rendues = paires(recu, "--ro-bind-try").filter((paire) => !paire.includes(".credentials.json"));
     assert.deepEqual(rendues.sort(), [".config", ".local/bin", ".local/lib", ".local/share/claude", ".local/state/claude"].map((nom) => `${join(home, nom)} → ${join(home, nom)}`));
     for (const dossier of [".local", ".local/share", ".local/state"]) assert.ok(lstatSync(join(compte, dossier)).isDirectory(), dossier);
@@ -239,7 +239,7 @@ describe("la cloison", { concurrency: 8 }, () => {
     assert.deepEqual(readdirSync(ailleurs), []);
   });
 
-  test("un lien laissé par un cook à la place d'un fichier du projet ne fait pas écrire le runtime ailleurs", { skip: linuxOnly("the partition is bubblewrap, a Linux tool, and BRIGADE_SANDBOX_HIDDEN a “:”-separated list of POSIX paths") }, (t) => {
+  test("un lien laissé par un cook à la place d'un fichier du projet ne fait pas écrire le runtime ailleurs", (t) => {
     const { lieux, env, racine } = machine(t);
     const home = join(racine, "compte");
     mkdirSync(home, { recursive: true });
@@ -255,7 +255,7 @@ describe("la cloison", { concurrency: 8 }, () => {
     assert.equal(existsSync(ailleurs), false);
   });
 
-  test("`git config` écrit dans la vue du worktree, pas dans la config que lit le `git` du runtime", { skip: linuxOnly("the partition is bubblewrap, a Linux tool, and BRIGADE_SANDBOX_HIDDEN a “:”-separated list of POSIX paths") }, (t) => {
+  test("`git config` écrit dans la vue du worktree, pas dans la config que lit le `git` du runtime", (t) => {
     const { lieux, env } = machine(t);
     const git = join(lieux.clone, ".git");
     mkdirSync(join(git, "objects"));
@@ -345,7 +345,7 @@ describe("la cloison", { concurrency: 8 }, () => {
     const { clone } = depotGit(t);
     const racine = repertoireTemporaire(t);
     const etat = join(racine, "etat");
-    const cloison = configCloison({ BRIGADE_SANDBOX_BIN: FAUX_BWRAP, BRIGADE_SANDBOX_HIDDEN: `${etat}:${clone}`, HOME: join(racine, "compte") }, { repertoireEtat: etat, clone });
+    const cloison = configCloison({ BRIGADE_SANDBOX_BIN: FAUX_BWRAP, BRIGADE_SANDBOX_HIDDEN: `${etat}${delimiter}${clone}`, HOME: join(racine, "compte") }, { repertoireEtat: etat, clone });
     const worktree = join(etat, "worktrees/17-abc");
     mkdirSync(worktree, { recursive: true });
     const regle = (fichier: string, cle: string) => execFileSync("git", ["config", "--file", fichier, "--get", cle], { encoding: "utf8" }).trim();
@@ -365,7 +365,7 @@ describe("la cloison", { concurrency: 8 }, () => {
     assert.ok(existsSync(join(clone, ".git/refs/heads/cook/0")));
   });
 
-  test("le reviewer relit en lecture seule, et un juge ne retrouve rien du dépôt", { skip: linuxOnly("the partition is bubblewrap, a Linux tool, and BRIGADE_SANDBOX_HIDDEN a “:”-separated list of POSIX paths") }, (t) => {
+  test("le reviewer relit en lecture seule, et un juge ne retrouve rien du dépôt", (t) => {
     const { lieux, env } = machine(t);
     const cloison = configCloison(env, lieux);
     const worktree = join(lieux.repertoireEtat, "worktrees/.essais/pass");

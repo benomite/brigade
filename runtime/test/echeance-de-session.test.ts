@@ -10,7 +10,7 @@ import { spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
 import { test, type TestContext } from "node:test";
-import { linuxOnly, posixOnly } from "./support/plateforme.ts";
+import { posixOnly } from "./support/plateforme.ts";
 import { configCloison, envelopper } from "../src/cloison.ts";
 import { decrireEtat, lireEtat } from "../src/etat.ts";
 import type { Fait } from "../src/evenements.ts";
@@ -326,7 +326,7 @@ test("la configuration : le fichier d'état à côté des répertoires d'état d
 
 // --- Les identifiants : en lecture seule pour tous, ouverts par personne -------
 
-test("la cloison monte les identifiants en lecture seule pour tous les rôles — setup, cook et gates, reviewer, juge — et rien ne les rend inscriptibles", { skip: linuxOnly("the partition is bubblewrap, a Linux tool, and BRIGADE_SANDBOX_HIDDEN a “:”-separated list of POSIX paths") }, (t) => {
+test("la cloison monte les identifiants en lecture seule pour tous les rôles — setup, cook et gates, reviewer, juge — et rien ne les rend inscriptibles", (t) => {
   const racine = repertoireTemporaire(t);
   const lieux = { repertoireEtat: join(racine, "etats/brigade"), clone: join(racine, "etats/brigade/depot") };
   const worktree = join(lieux.repertoireEtat, "worktrees/17-abc");
@@ -353,7 +353,7 @@ test("la cloison monte les identifiants en lecture seule pour tous les rôles �
     // Un montage recouvre ceux qui le précèdent : aucun montage inscriptible
     // ne le recouvre ensuite, ni lui ni un répertoire qui le contient.
     const apres = recu.slice(recu.lastIndexOf(identifiants) + 1);
-    const recouvrants = apres.flatMap((arg, i) => (arg === "--bind" && (apres[i + 2] === identifiants || identifiants.startsWith(`${apres[i + 2]}/`)) ? [apres[i + 2]] : []));
+    const recouvrants = apres.flatMap((arg, i) => (arg === "--bind" && (apres[i + 2] === identifiants || identifiants.startsWith(`${apres[i + 2]}${sep}`)) ? [apres[i + 2]] : []));
     assert.deepEqual(recouvrants, [], role);
   }
 });
