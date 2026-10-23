@@ -23,6 +23,7 @@ import type { DefinitionDeProfil } from "../../src/profils/definition.ts";
 import type { LeconRecue } from "../../src/apprentissage/injection.ts";
 import { PLAFOND_PAR_DEFAUT, type Plafond } from "../../src/reagir.ts";
 import { demarrer } from "../../src/runtime.ts";
+import type { Sonde } from "../../src/installation/besoins/fourni.ts";
 import { brancherStation } from "../../src/station.ts";
 import { ecrireStation, type StationDeclaree } from "../../src/stations-declarees.ts";
 import { aArreter as finDuTest, BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, lancementsDuFauxBwrap, lancementsDuFauxClaude, poserJournalVide, repertoireTemporaire, tuerLesRelais } from "../outils.ts";
@@ -30,7 +31,7 @@ import { aArreter as finDuTest, BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAU
 const FAUSSES_GATES = join(import.meta.dirname, "fausses-gates.sh");
 const FAUX_SETUP = join(import.meta.dirname, "faux-setup.sh");
 
-export type ScenarioSetup = "exporte" | "jeton" | "attend" | "echec" | "autre" | "refuse" | "lent" | "derive" | "manque";
+export type ScenarioSetup = "exporte" | "jeton" | "attend" | "echec" | "autre" | "refuse" | "lent" | "derive" | "manque" | "postgres";
 
 // Le cook « bavard » rend un tour toutes les deux millisecondes, de vraie
 // horloge : un plafond de tours qu'il atteindrait pendant un test ferait
@@ -509,7 +510,14 @@ export type Options = {
   // Les réglages que le dépôt du projet porte, relus par-dessus ces décisions
   // (`reglages-projet/en-vigueur.ts`).
   reglagesDuDepot?: ReglagesSuivis;
+  // Ce que la machine fournit au projet, quand la station lit un setup en
+  // échec. Par défaut, rien : aucun test ne dépend de ce que le poste a
+  // installé, ni n'y lance rien.
+  sonde?: Sonde;
 };
+
+// Une machine qui n'a rien de ce qu'un projet peut demander.
+export const SONDE_VIDE: Sonde = { commande: () => false, dossier: () => false, jouer: () => ({ code: null, sortie: "" }), essayer: (_besoin, essai) => essai(), env: {}, maison: "/nulle-part" };
 
 export const MACHINE_CALME: Machine = { charge: 0, coeurs: 8, memoireDisponible: 64 * 1024 ** 3, memoireTotale: 64 * 1024 ** 3, disqueLibre: 512 * 1024 ** 3 };
 // La même, avec assez de cœurs pour que leur plafond par défaut (31) ne retienne
@@ -667,6 +675,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
     leconsInjectees: options.leconsInjectees,
     profils: options.profils,
     commun: options.commun,
+    sonde: options.sonde ?? SONDE_VIDE,
   });
   const runtime = options.manager
     ? brancherManager(servie, {

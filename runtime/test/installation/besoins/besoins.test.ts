@@ -385,7 +385,9 @@ test("la machine a une commande quand son PATH en porte une exécutable", { skip
 // La station qui tient les projets que l'app lui demande, contre un gist en
 // mémoire, une autorisation et un accès doublés ; son clone est le dépôt de
 // mirrorscreen, écrit sur le disque.
-function uneStation(t: TestContext, sonde: Sonde) {
+// `ouvrir` : ce que le test fait quand la station ouvre le ticket qui prépare
+// le dépôt — le premier de sa cuisine ; `ecrite` : quand elle a écrit sa ligne.
+function uneStation(t: TestContext, sonde: Sonde, { ouvrir, ecrite }: { ouvrir?: (repertoireEtat: string) => void; ecrite?: () => void } = {}) {
   const racine = repertoireTemporaire(t);
   writeFileSync(join(racine, FICHIER_LOCAL), JSON.stringify({ gist: "gist1", appairee: true, code: null, expireLe: null, echus: [] }));
   const fichiers: Fichiers = {};
@@ -403,7 +405,7 @@ function uneStation(t: TestContext, sonde: Sonde) {
     station: "box",
     env: {},
     servis: { projets: () => [], refus: () => null },
-    apresEcriture: () => {},
+    apresEcriture: () => ecrite?.(),
     dire: () => {},
     cadenceMs: 3_600_000,
     maintenant: () => Date.parse("2026-10-22T12:00:00Z"),
@@ -416,7 +418,10 @@ function uneStation(t: TestContext, sonde: Sonde) {
       }
     },
     verifierAcces: async () => ({ etat: "libre" as const }),
-    ouvrirLaPreparation: async () => ({ ticket: 7, ouvert: true }),
+    ouvrirLaPreparation: async (_projet, repertoireEtat) => {
+      ouvrir?.(repertoireEtat);
+      return { ticket: 7, ouvert: true };
+    },
     sonde,
   });
   aArreter(t, () => projets.arreter());
@@ -454,6 +459,34 @@ test("la station sur laquelle Postgres est installé ne publie aucun choix", asy
   const station = uneStation(t, AVEC_POSTGRES());
   station.demander();
   await station.projets.relire();
+  assert.equal(station.suivi().choix, undefined);
+  assert.equal(station.suivi().blocages, undefined);
+});
+
+test("à l'installation du projet, le Postgres de la station refuse son compte : le choix de la base est au journal avant son premier ticket, et avant sa ligne", async (t) => {
+  const vus: Array<[string, Choix[]]> = [];
+  const station = uneStation(t, machineAvec(unPostgres("refuse"), ...SERVEUR_PG), {
+    ouvrir: (repertoireEtat) => vus.push(["ticket de préparation", lireChoix(repertoireEtat)]),
+    ecrite: () => vus.push(["ligne", lireChoix(join(station.racine, "etat/mirrorscreen"))]),
+  });
+  station.demander();
+  await station.projets.relire();
+  assert.deepEqual(
+    vus.map(([quand, choix]) => [quand, choix.map(({ id, status }) => `${id} ${status}`)]),
+    [
+      ["ticket de préparation", ["need:postgres pending"]],
+      ["ligne", ["need:postgres pending"]],
+    ],
+  );
+  assert.deepEqual(station.suivi().blocages?.map(({ id }) => id), ["need:postgres"]);
+});
+
+test("à l'installation du projet, la station fournit vraiment tout ce dont ses tests ont besoin : aucun choix, ni avant son premier ticket ni après", async (t) => {
+  const vus: Choix[][] = [];
+  const station = uneStation(t, AVEC_POSTGRES(), { ouvrir: (repertoireEtat) => vus.push(lireChoix(repertoireEtat)) });
+  station.demander();
+  await station.projets.relire();
+  assert.deepEqual(vus, [[]]);
   assert.equal(station.suivi().choix, undefined);
   assert.equal(station.suivi().blocages, undefined);
 });
