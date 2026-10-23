@@ -126,6 +126,7 @@ import { AIDE as AIDE_DES_ROLES, poserLesRoles, resumeDesRoles, TITRE as TITRE_D
 import { apresLaDecision, phrase, poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
 import { poserPremierLancement } from "./premier-lancement.js";
 import { poserRailPublie } from "./rail-publie.js";
+import { ligneDuLienDirect, poserLeTableauDeCuisine } from "./tableau-de-cuisine.js";
 import { APPUI_LONG_MS, apresLeLacher, defileAvantLappui, GLISSE_CARTE, placeSurvolee } from "./rang-du-rail.js";
 import { poserOutilsDuSecond } from "./outils-du-second.js";
 import { poserChoixDuSecond, reponseTapee, tenirLesChoix } from "./second/choix.js";
@@ -758,6 +759,19 @@ let lectureDeLaFiabilite;
 const railsPublies = new Map();
 /** @type {Map<string, number>} */
 const lecturesPubliees = new Map();
+// Le tableau de la cuisine de chaque projet, lu de GitHub (ticket 1588, `lireLeTableau`) : la dernière lecture, la
+// dernière réussie, et le rang de la dernière demandée. `parLeLienDirect` : les projets dont le chef a pris le lien
+// direct — leur rail se lit alors comme avant le tableau. `tableauSansPont` : le pont ne lit pas de tableau (un pont
+// d'avant le ticket 1588) — l'onglet garde ce qu'il montrait.
+/** @type {Map<string, Omit<import("./tableau-de-cuisine.js").EtatDuTableau, "projet" | "lienDirect" | "maintenant">>} */
+const tableaux = new Map();
+/** @type {Map<string, number>} */
+const lecturesDesTableaux = new Map();
+/** @type {Set<string>} */
+const parLeLienDirect = new Set();
+let tableauSansPont = false;
+// La box réécrit son tableau au plus une fois par minute : l'app ne le relit pas plus souvent.
+const RELECTURE_DU_TABLEAU_MS = 60_000;
 // Les onglets de contenu, dits par le process principal au démarrage (onglets.ts).
 /** @type {readonly import("../onglets.ts").Onglet[]} */
 let ONGLETS = [];
@@ -4301,10 +4315,14 @@ function poserMuet(projet) {
   return [liste];
 }
 
-// Le rail vieillit sans qu'aucune lecture n'arrive : sa mention se repose d'elle-même.
+// Le rail vieillit sans qu'aucune lecture n'arrive : sa mention se repose d'elle-même — et l'âge du tableau aussi.
 setInterval(() => {
-  if (courant !== undefined && tenus.has(courant.nom) && !rail.hidden) poserRail(courant);
+  if (courant !== undefined && (tenus.has(courant.nom) || tableaux.has(courant.nom)) && !rail.hidden) poserRail(courant);
 }, 15_000);
+// Le tableau montré se relit de lui-même, tant que le chef n'a pas pris le lien direct.
+setInterval(() => {
+  if (courant !== undefined && tableaux.has(courant.nom) && !parLeLienDirect.has(courant.nom) && !rail.hidden && ongletDe(courant) !== CUISINE) void lireLeTableau(courant);
+}, RELECTURE_DU_TABLEAU_MS);
 
 // D'où vient ce qui se lit sur le rail, dans Paramètres : les commandes et l'heure de chaque lecture.
 /** @param {Projet} projet @param {string} heure @param {number | string | undefined} attendLu @param {number | string | undefined} railLu */
@@ -4669,6 +4687,15 @@ function poserRail(projet) {
   // Plus de rail, plus de fiche par-dessus.
   if (rail.hidden && ouverte !== undefined) fermerFiche();
   if (rail.hidden) return rail.replaceChildren();
+  // Sur Rail, le tableau de la cuisine du projet, lu de GitHub sans `ssh` ni tailnet (ticket 1588) : ce qui attend le
+  // chef et l'état de la cuisine, l'âge de la lecture — ou pourquoi il ne se lit pas, et le lien direct quand le projet
+  // en a un. Le chef qui a pris ce lien lit le rail comme avant, une ligne en tête pour revenir au tableau.
+  const tableau = tableaux.get(projet.nom);
+  const parLeTableau = !cuisine && tableau !== undefined && projet.sansStation !== true;
+  if (parLeTableau && !parLeLienDirect.has(projet.nom)) {
+    return rail.replaceChildren(...poserLeTableauDeCuisine(document, { projet: projet.nom, ...tableau, lienDirect: seLit(projet), maintenant: Date.now() }, gestesDuTableau(projet)));
+  }
+  const parLeDirect = parLeTableau ? [ligneDuLienDirect(document, () => revenirAuTableau(projet))] : [];
   // Ni box ni station sur cet ordinateur : rien n'en est lu, et la page ne reste pas vide — elle dit pourquoi (ticket 1405).
   // Sur Rail, celui que sa station publie sur GitHub, s'il y en a une (ticket 1435) : ses tickets, ou pourquoi il ne se lit pas.
   if (!seLit(projet) && projet.sansStation !== true) {
@@ -4694,7 +4721,7 @@ function poserRail(projet) {
   // elle seule dit alors ses cooks en cours.
   const deCooks = () => [...(stationsPosees ? [] : [carte]), cuissonDuProjet, servisSansCarte, pages, declareesDuProjet, activiteDuProjet, gatesDuProjet, plafondDuProjet, rolesDuProjet, triageDuProjet, apprisDuProjet, lectureDeLaCuisine];
   /** @param {(HTMLElement | string)[]} poses */
-  const poser = (...poses) => rail.replaceChildren(...(cuisine ? [...poses, ...deCooks()] : [...(alerteDeCuisine.hidden ? [] : [alerteDeCuisine]), ...poses]));
+  const poser = (...poses) => rail.replaceChildren(...(cuisine ? [...poses, ...deCooks()] : [...parLeDirect, ...(alerteDeCuisine.hidden ? [] : [alerteDeCuisine]), ...poses]));
   // Cuisine d'un projet servi ici, station arrêtée : rien n'est lu, la page dit pourquoi en une ligne — sur l'un et
   // l'autre onglet.
   if (projet.sansStation === true) return rail.replaceChildren(bloc("h3", STATION_ARRETEE));
@@ -7418,6 +7445,7 @@ async function seConnecterAGitHub() {
 function connecteAGitHub() {
   delete premier.connexion;
   if (courant !== undefined && railsPublies.has(courant.nom)) void lireLeRailPublie(courant);
+  if (courant !== undefined && tableaux.has(courant.nom)) void lireLeTableau(courant);
   const retenue = premier.ouverture?.echec?.cause === "sign-in-required" ? premier.ouverture : undefined;
   void relireLePremier();
   if (retenue !== undefined) void ouvrirDUneStation(retenue.station, retenue.projet, retenue.depot);
@@ -7575,6 +7603,66 @@ async function lireLeRailPublie(projet) {
   if (courant?.nom === projet.nom && !rail.hidden) poserRail(projet);
 }
 
+// Le tableau de la cuisine d'un projet (ticket 1588), lu de GitHub par le pont — le `fetch` du desktop, le HTTP natif
+// du téléphone (app/src/tableau/lecture.ts) — à l'ouverture de l'espace, chaque minute tant qu'il est montré, et d'un
+// bouton. Une relecture laisse la précédente à l'écran jusqu'à sa réponse. Ce qui en est tenu est en tête du fichier
+// (`tableaux`).
+/** @param {Projet} projet */
+async function lireLeTableau(projet) {
+  if (tableauSansPont || projet.desinstalle !== undefined) return;
+  const demandee = (lecturesDesTableaux.get(projet.nom) ?? 0) + 1;
+  lecturesDesTableaux.set(projet.nom, demandee);
+  if (!tableaux.has(projet.nom)) {
+    tableaux.set(projet.nom, {});
+    if (courant?.nom === projet.nom && !rail.hidden) poserRail(projet);
+  }
+  /** @type {import("../tableau/lecture.ts").LectureDuTableauDuDepot | undefined} */
+  let lu;
+  try {
+    lu = await brigade.tableauDuProjet?.(projet.nom);
+  } catch {
+    lu = { lu: false, depot: projet.depot ?? projet.nom, luLe: new Date().toISOString(), raison: `The Kitchen board of ${projet.nom} could not be read: the app failed while reading it.` };
+  }
+  if (lu === undefined) {
+    // Un pont qui ne lit pas de tableau : rien n'en est plus demandé, et l'onglet reprend ce qu'il montrait.
+    tableauSansPont = true;
+    tableaux.clear();
+    if (courant !== undefined && !rail.hidden) poserRail(courant);
+    return;
+  }
+  if (lecturesDesTableaux.get(projet.nom) !== demandee) return;
+  const dernier = lu.lu ? lu : tableaux.get(projet.nom)?.dernier;
+  tableaux.set(projet.nom, { lu, ...(dernier === undefined ? {} : { dernier }) });
+  if (courant?.nom === projet.nom && !rail.hidden) poserRail(projet);
+}
+
+/** @param {Projet} projet @returns {import("./tableau-de-cuisine.js").GestesDuTableau} */
+function gestesDuTableau(projet) {
+  return {
+    relire: () => void lireLeTableau(projet),
+    // Le rail se lit alors comme avant le tableau, par le lien direct — relu tout de suite.
+    prendreLeLienDirect: () => {
+      parLeLienDirect.add(projet.nom);
+      if (courant?.nom === projet.nom) poserRail(projet);
+      brigade.relireBox(demandeFaits);
+    },
+    // Une ligne de la file, sur sa page de GitHub : ce qui ne s'ouvre pas se dit dans la ligne du bas, comme une issue.
+    ouvrir: (url) =>
+      void (async () => {
+        nonEcrit = (await brigade.ouvrirDuTableau?.(projet.nom, url)) ? "" : `${url} was not opened: it is not a page of the latest Kitchen board read, or this device could not open it`;
+        montrer();
+      })(),
+    forme: formeDe,
+  };
+}
+
+/** @param {Projet} projet */
+function revenirAuTableau(projet) {
+  parLeLienDirect.delete(projet.nom);
+  if (courant?.nom === projet.nom) poserRail(projet);
+  void lireLeTableau(projet);
+}
+
 /** @param {Projet} projet @returns {import("./rail-publie.js").GestesDuRailPublie} */
 function gestesDuRailPublie(projet) {
   return {
@@ -7618,6 +7706,7 @@ async function ouvrir(projet) {
   void lireLesReglages(projet);
   brigade.regarder(projet.nom, ++demande);
   if (!seLit(projet) && projet.sansStation !== true) void lireLeRailPublie(projet);
+  void lireLeTableau(projet);
   // Un projet qui ne s'ouvre pas n'a pas de second : sa colonne dit pourquoi.
   if (projet.refus !== undefined) return montrer();
   // Le pont du téléphone n'ouvre aucun terminal : il ne rend rien (ticket 1165).

@@ -2874,6 +2874,11 @@ main > header,
 #rail[data-onglet="cooks"] .colonnes {
   grid-template-columns: repeat(2, minmax(160px, 1fr));
 }
+/* Le tableau de la cuisine lu de GitHub (ticket 1588) en a deux : TODO, puis la cuisine. `:where` : la règle pèse
+   autant que celle des quatre, et la page étroite, plus bas, les empile de même. */
+#rail[data-onglet="rail"] .colonnes:where(.tableau-de-cuisine) {
+  grid-template-columns: minmax(200px, 1.3fr) minmax(220px, 1fr);
+}
 /* Sur Cooks : la carte du projet, quand ses faits ne se dessinent pas, en tête. */
 #rail > .carte {
   margin: 12px 16px 0;
@@ -6125,6 +6130,31 @@ button.recommande {
 }
 #rail .colonne p.vide {
   color: var(--discret);
+}
+/* Le tableau de la cuisine d'un projet, lu de GitHub (ticket 1588) : sa phrase de tête, l'âge de la lecture et ses
+   gestes, puis deux colonnes (leur largeur est plus haut, avec celles du rail) — TODO, ce qui attend le chef, chaque
+   ligne avec son geste ; la cuisine, rubrique par rubrique, telle que `status` l'écrit. */
+#rail > .gestes .age,
+#rail > .lien-direct > span {
+  font-size: 12px;
+  color: var(--discret);
+}
+#rail .rubriques {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 12px;
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+}
+#rail .rubriques dt {
+  color: var(--discret);
+}
+#rail .rubriques dd {
+  margin: 0;
+  color: var(--texte);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 /* Le second qui ne part pas, ou part sans tous ses outils (ticket 1435) : sous sa note, chaque outil qui manque — son
    nom, ce qui l'obtient, le bouton de sa page —, et « try again ». Empêché, il tient la place du terminal. */

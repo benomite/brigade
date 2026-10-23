@@ -307,6 +307,48 @@ still show something, always:
 `railDuProjet` in `app/src/main.ts`, `rangerLeRailPublie` in `app/src/faits.ts`, the plan of the
 second in `app/src/terminaux.ts`. Captures: `docs/captures/1435/`.*
 
+Since #1588, the Rail tab reads the project's Kitchen board first (next section): the published rail
+is shown only by an app whose bridge does not read the board.
+
+### Rail reads the project's Kitchen board, with no ssh and no tailnet (#1588)
+
+On the desktop (Mac, Windows) and on the phone, a project's **Rail** tab shows what its **Kitchen
+board** says: the pinned issue the box keeps up to date in the project's own repository (#1582),
+read from GitHub by the app (#1587) — no `ssh`, no station, no tailnet. The desktop reads it with
+the token of this computer's `gh`; the phone with the GitHub token of its vault. The board is read
+when the project opens, then every minute while Rail shows it (the box rewrites it at most once a
+minute), and on `read again`.
+
+- **Read**: the head says what awaits the chef in one sentence (`2 things await you on parade.`,
+  or `Nothing awaits you on parade.`); where it comes from — the repository, the issue, when the box
+  wrote it and when the app read it — is in the `?` hover. Under it, the age of the reading,
+  `read 40 s ago`: from when the box wrote the board, counted up to the screen's time, so it ages
+  between two reads and changes at each one. Then two columns: **TODO**, each line of the queue —
+  its name, how long it has waited, its ticket's title, what awaits the chef in `status`'s words —
+  and one button that opens the line's page on GitHub, where its gesture is done: `open the PR` for
+  a delivery to merge, `open the issue` for a card to answer or any other ticket, `open the Kitchen
+  board` for a line that is no ticket's. The page's address is in the button's hover; the app opens
+  only a page its last reading of the board gave. No command is written out, on screen or in a
+  hover (doing the decision from the app itself is #1590). Under the lines, what `status` says that
+  is no decision. **Kitchen**, the kitchen's state in a word (`open`, `held`, `stopped`, `off`) and each
+  heading of `status` with its lines.
+- **Not read**: the head is the reading's one sentence — GitHub out of reach (the network's error
+  in the hover), a refusal, a repository with no board, a board the app cannot read. When the
+  project has a **direct link** — its box over `ssh`, or on the phone its station's desk —
+  `use the direct link` is the recommended gesture, then `read again`; with none, `read again` alone.
+  When an earlier reading succeeded, it stays under the sentence with its age. The screen is never
+  blank: while the first reading is on its way, one sentence says so.
+- **The direct link**: a project that has one also offers `use the direct link` beside `read again`
+  when the board reads. Taken, Rail reads as before the board — the kanban from `facts` over the
+  direct link, read again at once — with one line at its head, `Read over the direct link, not from
+  the Kitchen board.`, and `back to the Kitchen board`. The choice lasts until the app closes.
+- **Cooks**, and a running cook's live view, still go through the direct link, as before.
+
+*Code: `app/src/vue/tableau-de-cuisine.js` (the screen), `lireLeTableau` in `app/src/vue/vue.js`,
+`tableauDuProjet` and `ouvrirDuTableau` in `app/src/main.ts` and `app/android/web/pont.js`, each line's
+page in `app/src/tableau/lecture.ts` (`pages`). Captures:
+`docs/captures/1588/`.*
+
 ### The second's choices, as buttons under its terminal (#1520)
 
 When the second asks you to choose ("A, B or C?"), it also publishes its choices through its own channel

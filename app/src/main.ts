@@ -31,6 +31,9 @@ import { blocDesOrdinaires } from "./ordinaires.ts";
 import { ecrireAttente, GESTES_D_ATTENTE } from "./attente.ts";
 import { GESTES_DE_LA_CUISINE } from "./cuisine.ts";
 import { BANNIERE, COMMANDE, rangerLeRailPublie, tenirFaits, type RailDuProjetLu } from "./faits.ts";
+import { clientGitHub, parFetch } from "./tableau/client.ts";
+import { jetonDeGh } from "./tableau/jeton-gh.ts";
+import { lireLeTableauDuDepot, type LectureDuTableauDuDepot } from "./tableau/lecture.ts";
 import { demandeDe, demandeDeLAlerte, demandeSurLeTicket, noteDeLaDemande } from "./demande.ts";
 import { CONFIRMES, DIRECTS, ecrireGeste, GRANTS } from "./gestes.ts";
 import { gestesDeCarte, jouerGesteDeFiche } from "./gestes-fiche.ts";
@@ -1069,6 +1072,27 @@ ipcMain.handle("railDuProjet", async (_, nom: unknown): Promise<RailDuProjetLu> 
   // Seule une adresse https s'ouvre, comme pour le rail d'une box (faits.ts).
   adressesPubliees.set(vise.nom, new Map(lu.tickets.filter(({ url }) => URL.parse(url)?.protocol === "https:").map(({ ticket, url }) => [ticket, url])));
   return { ...lu, range: rangerLeRailPublie(lu.tickets) };
+});
+// Le tableau de la cuisine d'un projet (#1588) : l'issue que sa box tient à jour dans le dépôt du projet, lue de GitHub
+// par `fetch`, avec le jeton du `gh` de ce poste (#1587) — ni `ssh` ni station. La vue en tire la file du chef, l'état de
+// la cuisine et l'âge de la lecture ; ce qui ne se lit pas, elle le dit en une phrase.
+const appelerGitHub = clientGitHub({ jeton: jetonDeGh({ gh: ghIci, delaiMs: 10_000 }), envoyer: parFetch() });
+ipcMain.handle("tableauDuProjet", async (_, nom: unknown): Promise<LectureDuTableauDuDepot> => {
+  const vise = declare(nom);
+  if (vise === undefined) return { lu: false, depot: String(nom), luLe: new Date().toISOString(), raison: `The Kitchen board of ${String(nom)} is not read: it is no longer in the projects file.` };
+  const lu = await lireLeTableauDuDepot({ depot: vise.depot ?? vise.nom, appeler: appelerGitHub });
+  if (lu.lu) pagesDuTableau.set(vise.nom, new Set(lu.pages));
+  return lu;
+});
+// Une ligne de la file du tableau s'ouvre sur sa page de GitHub, dans le navigateur du poste : seulement une page que la
+// dernière lecture du tableau de ce projet a donnée (lecture.ts, `pages`). Rend si elle a été ouverte.
+const pagesDuTableau = new Map<string, Set<string>>();
+ipcMain.handle("ouvrirDuTableau", (_, nom: unknown, url: unknown) => {
+  if (typeof url !== "string" || pagesDuTableau.get(String(nom))?.has(url) !== true) return false;
+  return shell.openExternal(url).then(
+    () => true,
+    () => false,
+  );
 });
 // Le plafond de cooks d'une station, réglé depuis sa page : la vue nomme la station et la valeur — un nombre,
 // 0 ou `auto` —, la commande `station cooks <valeur>` part sur la box de chaque projet dont le `status` lu

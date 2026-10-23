@@ -35,6 +35,8 @@
 // (`GET /projects/<nom>/second`), `envoyerAuSecond` y écrit un message du chef (`POST`), avec le jeton gardé ; la réponse
 // du second, et ce que le chef tape au desktop, arrivent à la vue par `surConversation`. Un lien d'un message du second
 // s'ouvre dans le navigateur du téléphone (Pont.java, `ouvrir`).
+// Et le tableau de la cuisine de chaque projet (le ticket 1588) : `tableauDuProjet` le lit de GitHub, sans la station,
+// par le HTTP natif et le jeton GitHub du coffre du téléphone ; `ouvrirDuTableau` ouvre la page d'une de ses lignes.
 // Les mises à jour ne sont pas ici.
 //
 // Ce fichier n'est pas joué tel quel : la construction l'enveloppe, avec `DEMARRAGE`, dans
@@ -174,6 +176,9 @@ async function demarrage() {
 }
 
 /** @type {Record<string, (...args: any[]) => unknown>} */
+// Les pages de GitHub que la dernière lecture du tableau de chaque projet a données (`tableauDuProjet`).
+/** @type {Map<string, Set<string>>} */
+const pagesDuTableau = new Map();
 const connus = {
   demarrage,
   appairerLeTelephone,
@@ -203,6 +208,33 @@ const connus = {
     }
   },
   ouvrirLienDuSecond: async (/** @type {string} */ _projet, /** @type {string} */ url) => {
+    try {
+      await natif("Pont", "ouvrir", { url });
+      return true;
+    } catch {
+      return false;
+    }
+  },
+  // Le tableau de la cuisine d'un projet (le ticket 1588) : lu de GitHub sans la station — ni guichet ni tailnet —, par
+  // la lecture du téléphone (`lireLeTableauDuTelephone`, app/android/web/lecture.ts), dans le dépôt que la dernière liste
+  // lue donne au projet. Ce qui ne se lit pas se dit en une phrase, comme la lecture le fait.
+  tableauDuProjet: async (/** @type {string} */ projet) => {
+    const luLe = new Date().toISOString();
+    const depot = projetsGardes().find((connu) => connu?.name === projet)?.repository;
+    if (typeof depot !== "string") return { lu: false, depot: "", luLe, raison: `The Kitchen board of ${projet} is not read: this phone does not know its GitHub repository yet.` };
+    try {
+      const { lireLeTableauDuTelephone } = await import(new URL("../../android/lecture.js", window.location.href).href);
+      const lu = await lireLeTableauDuTelephone(depot, { natif });
+      if (lu?.lu === true) pagesDuTableau.set(projet, new Set(lu.pages));
+      return lu;
+    } catch {
+      return { lu: false, depot, luLe, raison: `The Kitchen board of ${projet} could not be read: this app could not load what reads it.` };
+    }
+  },
+  // Une ligne de la file de ce tableau, ouverte dans le navigateur du téléphone (Pont.java, `ouvrir`) : seulement une page
+  // que sa dernière lecture a donnée — sa PR, son issue, ou le tableau.
+  ouvrirDuTableau: async (/** @type {string} */ projet, /** @type {string} */ url) => {
+    if (pagesDuTableau.get(projet)?.has(url) !== true) return false;
     try {
       await natif("Pont", "ouvrir", { url });
       return true;
