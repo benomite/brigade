@@ -15,6 +15,8 @@ import { boutonAction, survol } from "../briques.js";
 /** @typedef {{ libelle: string, faire: () => void } | { sans: string }} Geste */
 
 export const DETAILS = "details";
+export const ECHEC_DU_SETUP = "setup";
+export const AIDE_DU_SETUP = "You can open the details, or ask the second.";
 export const SANS_GESTE = "this app cannot do it for you yet";
 
 /** @param {Fabrique} doc @param {string} balise @param {string} [texte] */
@@ -56,6 +58,12 @@ function ligne(doc, blocage, { gestes, ouvrir, deplies, deplier }) {
     const cause = cree(doc, "p", blocage.cause);
     cause.className = "cause";
     pose.append(cause);
+  }
+  // Un échec du setup qu'aucun besoin connu n'explique : une ligne dit au chef ce qu'il peut faire.
+  if (blocage.id === ECHEC_DU_SETUP) {
+    const aide = cree(doc, "p", AIDE_DU_SETUP);
+    aide.className = "aide-du-blocage";
+    pose.append(aide);
   }
   const geste = blocage.action === undefined ? undefined : gestes[blocage.action];
   if (geste !== undefined || blocage.link !== undefined || blocage.action !== undefined) {

@@ -81,7 +81,8 @@ export type Blocage = { id: string; message: string; cause: string; action?: str
 // manque et pourquoi en une phrase chacun, ses issues (chacune son libellé et ce qui en suit), et s'il attend le
 // chef (`pending`) ou s'il est tranché (`chosen`, l'issue retenue). Absent quand rien ne manque, ou d'une station
 // d'avant #1398.
-export type OptionDeChoix = { id: string; label: string; consequence: string };
+// `recommended` : posé (vrai) par la station seulement quand elle conseille cette issue (#1534).
+export type OptionDeChoix = { id: string; label: string; consequence: string; recommended?: true };
 export type Choix = { id: string; need: string; message: string; cause: string; options: OptionDeChoix[] } & ({ status: "pending" } | { status: "chosen"; selected: string; selectedAt: string });
 // Ce que le chef retient, par identifiant de choix.
 export type Selections = Record<string, string>;
@@ -155,8 +156,8 @@ const lireUnBlocage = (lu: unknown): Blocage[] => {
 // Un choix illisible — sans clé, sans phrase, sans issue lisible — n'est pas montré ; une issue illisible non plus.
 const phrase = (valeur: unknown): valeur is string => texte(valeur) && valeur.trim() !== "";
 const lireUneOption = (lu: unknown): OptionDeChoix[] => {
-  const { id, label, consequence } = (lu ?? {}) as Record<string, unknown>;
-  return phrase(id) && phrase(label) && phrase(consequence) ? [{ id, label, consequence }] : [];
+  const { id, label, consequence, recommended } = (lu ?? {}) as Record<string, unknown>;
+  return phrase(id) && phrase(label) && phrase(consequence) ? [{ id, label, consequence, ...(recommended === true ? { recommended } : {}) }] : [];
 };
 const lireUnChoix = (lu: unknown): Choix[] => {
   const { id, need, message, cause, options, status, selected, selectedAt } = (lu ?? {}) as Record<string, unknown>;

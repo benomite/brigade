@@ -22,7 +22,7 @@ import type { Panne } from "../../../src/pannes/pannes.ts";
 import { type Blocage, lireSuivi } from "../../../src/projets/demande.ts";
 import { calibrageRecommande, EFFORTS, machineProposee, MODELES, type ProjetVu, type VuDesProjets } from "../../../src/projets/projets.ts";
 import type { VuDesStations } from "../../../src/stations/stations.ts";
-import { DETAILS, lieuDe, poserBlocages, SANS_GESTE, titreDesBlocages } from "../../../src/vue/projet/blocages.js";
+import { AIDE_DU_SETUP, DETAILS, lieuDe, poserBlocages, SANS_GESTE, titreDesBlocages } from "../../../src/vue/projet/blocages.js";
 import { Faux, jouerLaVue, repos } from "../../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
@@ -92,6 +92,16 @@ describe("la section, posée par le module", () => {
     assert.ok(empeche, "le clic ne navigue pas dans la fenêtre de l'app");
     assert.deepEqual(ouverts, [JETONS]);
     assert.equal(lieuDe("https://github.com/organizations/BOBL-tech/settings/installations/?tab=all"), "github.com/organizations/BOBL-tech/settings/installations");
+  });
+
+  test("l'échec du setup, qu'aucun besoin connu n'explique, dit en une seule ligne ce que le chef peut faire — les autres blocages non", () => {
+    const pose = poser({ projet: "parade", blocages: relus([TOKEN, BRUT]) });
+    const [token, brut] = lignes(pose);
+    assert.match(texteDe(brut ?? assert.fail(), "message") ?? "", /^Something blocks this project/);
+    assert.match(brut?.dessous("pre")[0]?.textContent ?? "", /fatal: could not read Username/);
+    assert.deepEqual((brut?.dessous("p") ?? []).filter((p) => p.className === "aide-du-blocage").map((p) => p.textContent), [AIDE_DU_SETUP]);
+    assert.equal(AIDE_DU_SETUP, "You can open the details, or ask the second.");
+    assert.equal((token?.dessous("p") ?? []).filter((p) => p.className === "aide-du-blocage").length, 0);
   });
 
   test("le détail brut est replié derrière « details », jamais le message — un message brut a été assaini par le runtime", () => {
