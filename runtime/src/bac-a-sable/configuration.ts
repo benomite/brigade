@@ -117,6 +117,27 @@ function domaines(regle: Regle): string[] {
 // et tout ce qui est sous lui.
 const regles = (outil: string, lieu: string) => [`${outil}(/${lieu})`, `${outil}(/${lieu}/**)`];
 
+// Les commandes d'un projet que le cook joue pour vérifier son travail : ses
+// tests et ses linters. `dontAsk` refuse toute commande Bash qu'aucune règle
+// n'autorise, et une affectation de variable en tête (`DATABASE_URL=… cmd`)
+// fait refuser même une commande autorisée : chaque forme a donc ses deux
+// règles, nue et précédée d'affectations (`*=* `). Établi en lançant `claude`
+// en `dontAsk` : `ls` et les lectures passent seuls, une chaîne `a; b` passe
+// quand chacune de ses commandes passe, `cd` hors du worktree ne passe pas.
+// Les binaires du projet se lancent par leur chemin relatif ; les scripts, par
+// le gestionnaire de paquets, sous les noms usuels des tests et des linters.
+const GESTIONNAIRES = ["pnpm", "npm", "yarn"];
+const SCRIPTS = ["test", "lint", "format", "typecheck"];
+export const COMMANDES_DE_VERIFICATION = [
+  "./node_modules/.bin/*",
+  ...GESTIONNAIRES.flatMap((gestionnaire) => SCRIPTS.flatMap((script) => [`${gestionnaire} ${script}`, `${gestionnaire} ${script} *`, `${gestionnaire} run ${script}`, `${gestionnaire} run ${script} *`])),
+].flatMap((commande) => [`Bash(${commande})`, `Bash(*=* ${commande})`]);
+
+// Ce que le cook lit quand `claude` lui refuse une commande : le refus de
+// `dontAsk` est un message fixe, qui ne dit pas quoi faire à la place.
+export const CONSIGNE_DE_REFUS =
+  "Si une commande Bash t'est refusée avec « Permission to use Bash has been denied because Claude Code is running in don't ask mode », ce n'est pas une panne : seules les commandes de vérification du projet sont autorisées, dans ton worktree. À la place, joue ses tests et ses linters ainsi : `./node_modules/.bin/<outil> <args>` (vitest, prettier, eslint…), éventuellement précédé de variables (`DATABASE_URL=… LLM_MODE=mock ./node_modules/.bin/vitest run <chemin>`), ou `pnpm test`, `pnpm lint`, `pnpm format`, `pnpm typecheck` (aussi `npm`, `yarn`, `pnpm run <script>`). Une commande par appel, sans `cd` hors du worktree ; les lectures (`ls`, `cat`, `git status`…) passent seules, et on peut les enchaîner avec `;`. Ne contourne pas un refus : si rien de cela ne convient, dis dans ton compte-rendu ce que tu voulais lancer.";
+
 export function configurer(cook: Cook): ConfigDeBacASable {
   if (!posix.isAbsolute(cook.home)) throw new BacASableInvalide(`répertoire du compte (« ${cook.home} ») : un chemin absolu est attendu`);
   const home = chemin(cook.home, cook.home, "répertoire du compte");
@@ -167,6 +188,7 @@ export function configurer(cook: Cook): ConfigDeBacASable {
       permissions: {
         allow: unique([
           ...ecrits.map((lieu) => `Edit(/${lieu}/**)`),
+          ...COMMANDES_DE_VERIFICATION,
           // Le ticket que la station remet en fichier : les outils de `claude`
           // ne lisent hors du worktree que ce qu'une règle autorise.
           ...lus.map((fichier) => `Read(/${fichier})`),
@@ -185,5 +207,5 @@ export function configurer(cook: Cook): ConfigDeBacASable {
 // Ce que la station ajoute au lancement d'un cook dans le bac à sable, à la
 // place de son `--permission-mode`.
 export function argumentsDuBacASable(config: ConfigDeBacASable): string[] {
-  return ["--permission-mode", config.modeDePermission, "--settings", JSON.stringify(config.reglages)];
+  return ["--permission-mode", config.modeDePermission, "--settings", JSON.stringify(config.reglages), "--append-system-prompt", CONSIGNE_DE_REFUS];
 }

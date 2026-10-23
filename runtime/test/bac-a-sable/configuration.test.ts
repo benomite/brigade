@@ -10,7 +10,7 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import { test } from "node:test";
-import { argumentsDuBacASable, BacASableInvalide, configurer, LECTURES_INTERDITES, type Cook } from "../../src/bac-a-sable/configuration.ts";
+import { argumentsDuBacASable, BacASableInvalide, CONSIGNE_DE_REFUS, configurer, LECTURES_INTERDITES, type Cook } from "../../src/bac-a-sable/configuration.ts";
 import { reglesDuProjet, type Regle } from "../../src/reseau.ts";
 
 const HOME = "/Users/chef";
@@ -136,7 +136,7 @@ test("avec une liste réseau vide, aucun hôte n'est joignable : ni par le bac �
   assert.deepEqual(reglages.sandbox.network.allowedDomains, []);
   assert.equal(reglages.sandbox.network.strictAllowlist, true);
   assert.deepEqual(
-    reglages.permissions.allow.filter((regle) => !regle.startsWith("Edit(")),
+    reglages.permissions.allow.filter((regle) => !regle.startsWith("Edit(") && !regle.startsWith("Bash(")),
     [],
   );
 });
@@ -152,7 +152,7 @@ test("les arguments de lancement portent le mode du cook et des réglages qui se
   const args = argumentsDuBacASable(config);
   assert.deepEqual(args.slice(0, 3), ["--permission-mode", "dontAsk", "--settings"]);
   assert.deepEqual(JSON.parse(args[3] ?? ""), config.reglages);
-  assert.equal(args.length, 4);
+  assert.deepEqual(args.slice(4), ["--append-system-prompt", CONSIGNE_DE_REFUS]);
 });
 
 // Un pnpm 10 : celui du poste s'il en est un, sinon un pnpm 10 installé dans
@@ -314,4 +314,54 @@ test("un fichier remis au cook (son ticket) est lisible par ses outils, lui seul
   assert.deepEqual(permissions.deny, configurer(projet()).reglages.permissions.deny);
   assert.equal(configurer(projet()).reglages.permissions.allow.some((regle) => regle.startsWith("Read(")), false);
   assert.throws(() => configurer({ ...projet(), lit: [`${HOME}/.config/brigade/runs/7.ticket.md`] }), (erreur: unknown) => erreur instanceof BacASableInvalide && /ne peut pas être sous/.test(erreur.message));
+});
+
+// Les formes de commande que `dontAsk` laisse passer ou refuse au cook. Le
+// tableau a été établi en lançant `claude` 2.1.300 en `dontAsk` avec ces
+// règles ; ici, un filtre de motifs (`*` couvre tout) rejoue la même décision
+// pour une commande simple. Les chaînes `a; b` passent quand chaque commande
+// passe — `claude` les découpe —, donc chaque maillon se juge seul.
+test("dontAsk : les tests et les linters du projet passent, rien d'autre n'est ouvert", () => {
+  const regles = configurer(projet()).reglages.permissions.allow.filter((regle) => regle.startsWith("Bash("));
+  const motifs = regles.map((regle) => new RegExp(`^${regle.slice(5, -1).split("*").map((bout) => bout.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join(".*")}$`));
+  const passe = (commande: string) => motifs.some((motif) => motif.test(commande));
+  const permises = [
+    "./node_modules/.bin/vitest run src/features/direct-discussion",
+    "DATABASE_URL=postgres://localhost:5432/mirrorlab_test_445 LLM_MODE=mock ./node_modules/.bin/vitest run src/features/direct-discussion",
+    "./node_modules/.bin/prettier --write src/a.ts",
+    "pnpm test",
+    "pnpm lint",
+    "pnpm format",
+    "pnpm test src/a.test.ts",
+    "pnpm run lint",
+    "LLM_MODE=mock pnpm test",
+    "npm test",
+    "npm run typecheck",
+    "yarn lint",
+  ];
+  const refusees = [
+    "pnpm install",
+    "pnpm add left-pad",
+    "pnpm run deploy",
+    "npm publish",
+    "curl https://example.com",
+    "FOO=bar curl https://example.com",
+    "rm -rf node_modules",
+    "cd /tmp && ./node_modules/.bin/vitest",
+    "/usr/bin/env sh -c 'pnpm test'",
+    "git push origin HEAD",
+    "../../outside/node_modules/.bin/tool",
+  ];
+  for (const commande of permises) assert.equal(passe(commande), true, commande);
+  // `cd /tmp && …` et ses semblables ne sont pas une commande de vérification.
+  for (const commande of refusees) assert.equal(passe(commande), false, commande);
+  // Aucune règle n'ouvre Bash en grand, et aucune ne sort des vérifications.
+  assert.equal(regles.includes("Bash"), false);
+  assert.equal(regles.includes("Bash(*)"), false);
+});
+
+test("un refus de dontAsk dit au cook quoi lancer à la place, dans les arguments de tout `claude` du bac à sable", () => {
+  for (const attendu of ["don't ask mode", "./node_modules/.bin/", "pnpm test", "pnpm lint", "DATABASE_URL=", "worktree"]) assert.match(CONSIGNE_DE_REFUS, new RegExp(attendu.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  const args = argumentsDuBacASable(configurer(projet()));
+  assert.equal(args[args.indexOf("--append-system-prompt") + 1], CONSIGNE_DE_REFUS);
 });
