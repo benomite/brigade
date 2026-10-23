@@ -28,7 +28,7 @@ import { choix, entieres, PALETTE } from "./couleurs.ts";
 import { blocDesOrdinaires } from "./ordinaires.ts";
 import { ecrireAttente, GESTES_D_ATTENTE } from "./attente.ts";
 import { GESTES_DE_LA_CUISINE } from "./cuisine.ts";
-import { BANNIERE, COMMANDE, tenirFaits } from "./faits.ts";
+import { BANNIERE, COMMANDE, rangerLeRailPublie, tenirFaits, type RailDuProjetLu } from "./faits.ts";
 import { demandeDe, demandeDeLAlerte, demandeSurLeTicket, noteDeLaDemande } from "./demande.ts";
 import { CONFIRMES, DIRECTS, ecrireGeste, GRANTS } from "./gestes.ts";
 import { gestesDeCarte, jouerGesteDeFiche } from "./gestes-fiche.ts";
@@ -56,6 +56,7 @@ import { cuisinesIci, roleDe } from "./poste/role.ts";
 import { tenirStationLocale } from "./poste/station.ts";
 import { ouvrirPty } from "./pty.ts";
 import { ouvrirDUneStation, type StationsDuChef } from "./premier-lancement.ts";
+import type { PlanDuSecond } from "../../runtime/src/second/lancement.ts";
 import { LABEL_RETENUE, lever, lireQuestion, repondre as repondreQuestion, titreDe, type Lue as QuestionLue } from "./question.ts";
 import { lireCapture } from "./captures.ts";
 import { relanceDe, tenirPassage } from "./rattrapage.ts";
@@ -135,9 +136,28 @@ const installeeAuLancement = miseAJour.auLancement();
 // Les shells persistants ouverts sont retenus à côté du fichier des projets (souvenirs.ts) :
 // rouverte, l'app les rattache à leur session.
 const tours = ouvrirTours();
+// Le second part comme le runtime le dit (runtime/src/second/lancement.ts, #1433) : le `claude` que le PATH donne, et
+// sous Windows ce qui le lance — ou pourquoi il ne part pas, chaque outil qui manque nommé avec ce qui l'obtient
+// (#1435). Son plan est chargé une fois, du runtime qui est à côté de l'app (emplacements.ts) ; tant qu'il ne l'est pas,
+// `claude` est lancé par son nom, comme avant lui. S'il ne se charge pas, le second le dit.
+type Planifier = (dossier: string, args: readonly string[]) => PlanDuSecond;
+let planifier: Planifier | undefined;
+void Promise.all([
+  import(pathToFileURL(join(emplacements.runtime, "src", "second", "lancement.ts")).href) as Promise<typeof import("../../runtime/src/second/lancement.ts")>,
+  import(pathToFileURL(join(emplacements.runtime, "src", "second", "outils.ts")).href) as Promise<typeof import("../../runtime/src/second/outils.ts")>,
+]).then(
+  ([{ planDuSecond }, { programmesDe }]) => {
+    planifier = (dossier, args) => planDuSecond({ folder: dossier, args, env: process.env, programmes: programmesDe(process.env) });
+  },
+  (erreur: unknown) => {
+    const pourquoi = String(erreur instanceof Error ? erreur.message : erreur).replace(/[.\s]+$/, "");
+    planifier = () => ({ state: "cannot-start", cause: "invalid", reason: `The second cannot start: the app could not load what checks its tools (${pourquoi}).` });
+  },
+);
 const terminaux = ouvrirTerminaux({
   ouvrirPty,
   tours: tours.de,
+  planDuSecond: (dossier, args) => planifier?.(dossier, args) ?? { state: "ready", launch: { command: process.env.BRIGADE_CLAUDE_BIN || "claude", args: [...args], verbatim: false, folder: dossier, env: {} }, missing: [], tools: [] },
   souvenirs: souvenirsDansFichier(join(dirname(cheminConfiguration()), "shells.json")),
   // Jamais posée hors des essais, comme pour la veille.
   ssh: process.env.BRIGADE_SSH_BIN || "ssh",
@@ -975,12 +995,29 @@ ipcMain.handle("seConnecterAGitHub", async () => {
   if ("page" in debut) pagesDuPremier.add(debut.page);
   return debut;
 });
+// Et celles qui disent comment obtenir un outil qui manque au second (#1435), depuis sa colonne.
 ipcMain.handle("ouvrirLaPage", (_, url: unknown) => {
-  if (typeof url !== "string" || !pagesDuPremier.has(url)) return false;
+  if (typeof url !== "string" || !(pagesDuPremier.has(url) || terminaux.pagesDesOutils().has(url))) return false;
   return shell.openExternal(url).then(
     () => true,
     () => false,
   );
+});
+// Le rail d'un projet que ni une box ni la station de cet ordinateur ne servent (#1435) — un projet ouvert depuis le
+// premier lancement : celui que sa station publie sur GitHub, lu par l'opération du runtime (#1432) et rangé dans les
+// colonnes du rail (faits.ts) ; ou pourquoi il ne se lit pas, en une phrase. Ses tickets s'ouvrent sur leur issue
+// (`ouvrirIssue`), et la page qu'un échec nomme, depuis l'écran.
+const adressesPubliees = new Map<string, Map<number, string>>();
+ipcMain.handle("railDuProjet", async (_, nom: unknown): Promise<RailDuProjetLu> => {
+  const vise = declare(nom);
+  if (vise === undefined) return { state: "unavailable", project: String(nom), cause: "unreadable", reason: `The rail of ${String(nom)} is not read: it is no longer in the projects file.` };
+  const { lireLeRailDuProjet } = await duRuntime<typeof import("../../runtime/src/appairage/rail-du-projet.ts")>("appairage", "rail-du-projet.ts");
+  const lu = await lireLeRailDuProjet({ gh: ghIci, env: process.env, project: vise.depot ?? vise.nom });
+  if (lu.state === "unavailable") return retenirLaPage(lu);
+  if (lu.state !== "listed") return lu;
+  // Seule une adresse https s'ouvre, comme pour le rail d'une box (faits.ts).
+  adressesPubliees.set(vise.nom, new Map(lu.tickets.filter(({ url }) => URL.parse(url)?.protocol === "https:").map(({ ticket, url }) => [ticket, url])));
+  return { ...lu, range: rangerLeRailPublie(lu.tickets) };
 });
 // Le plafond de cooks d'une station, réglé depuis sa page : la vue nomme la station et la valeur — un nombre,
 // 0 ou `auto` —, la commande `station cooks <valeur>` part sur la box de chaque projet dont le `status` lu
@@ -1173,7 +1210,11 @@ ipcMain.handle("lireFeu", async (_, nom: unknown) => {
 // projet et le ticket, l'adresse est celle que la box a rendue (faits.ts) — ou, pour une issue
 // qui n'est pas encore sur le rail, celle que `manager upstream` a donnée (amont.ts). Rend si elle a été ouverte.
 ipcMain.handle("ouvrirIssue", (_, nom: unknown, ticket: unknown) => {
-  const adresse = faits.adresse(nom, ticket) ?? amonts.adresse(nom, ticket) ?? (typeof ticket === "number" ? adressesDeFeu.get(String(nom))?.get(ticket) : undefined);
+  // Un projet sans box ni station ici : l'adresse est celle du rail que sa station publie (#1435).
+  const adresse =
+    faits.adresse(nom, ticket) ??
+    amonts.adresse(nom, ticket) ??
+    (typeof ticket === "number" ? (adressesDeFeu.get(String(nom))?.get(ticket) ?? adressesPubliees.get(String(nom))?.get(ticket)) : undefined);
   return adresse === undefined ? false : shell.openExternal(adresse).then(
     () => true,
     () => false,

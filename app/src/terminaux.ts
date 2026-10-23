@@ -20,6 +20,8 @@ import { ICI, SANS_SESSION } from "./plateforme.ts";
 import { detruire as detruireSession, joindre as joindreMachine, nomDeSession, rattachement, type Cible, type Session } from "./persistance.ts";
 import { DIT, PREUVE, reglages, suivreSaisie, type Saisie, type Tours } from "./saisie.ts";
 import type { Rappel, Souvenir, Souvenirs } from "./souvenirs.ts";
+import type { OutilVu } from "../../runtime/src/second/outils.ts";
+import type { PlanDuSecond } from "../../runtime/src/second/lancement.ts";
 
 export type Pty = {
   ecrire(donnees: string): void;
@@ -35,7 +37,17 @@ export type Lancement = {
   lignes: number;
   surSortie(donnees: string): void;
   surFin(code: number): void;
+  // Ce que le plan du second y ajoute (runtime/src/second/lancement.ts, #1433) : `verbatim`, les `args` sont une
+  // ligne déjà écrite pour Windows, que rien ne doit plus citer ; `env`, ce qui s'ajoute à l'environnement du chef.
+  verbatim?: boolean;
+  env?: Record<string, string>;
 };
+
+// Un outil qui manque au second (runtime/src/second/outils.ts, #1433) : son nom, pourquoi le second en a besoin, la
+// phrase qui dit comment l'obtenir sur ce poste, et la page qui l'explique.
+export type OutilManquant = { tool: string; reason: string; install: string; link: string };
+// Ce que le plan du second dit de lui, en une phrase, et chaque outil qui manque (#1435).
+export type DitDuSecond = { reason: string; tools: OutilManquant[] };
 
 // Ce que la vue montre d'un terminal. `note` est ce que l'app en dit — c'est là
 // que se lit « fil repris » ou « session neuve ».
@@ -53,9 +65,17 @@ export type Terminal = {
   demandeEcrite?: true;
   // Rien n'est parti dans le second, et le geste n'a pas eu lieu : la vue le dit au chef, avec de quoi réessayer.
   nonParti?: true;
+  // Le second ne part pas (#1435) : pourquoi, et les outils qui manquent — la vue le dit à la place du terminal.
+  empeche?: DitDuSecond;
+  // Il part, mais des outils lui manquent : ce qui en a besoin échouera tant qu'ils ne sont pas installés.
+  manque?: DitDuSecond;
 };
 
 export type Terminaux = ReturnType<typeof ouvrirTerminaux>;
+
+// Les outils que le plan dit absents, avec ce qui les obtient — rien d'autre de ce qu'il a vu.
+const manquants = (tools: readonly OutilVu[]): OutilManquant[] =>
+  tools.flatMap((vu) => (vu.present ? [] : [{ tool: vu.tool, reason: vu.reason, install: vu.install, link: vu.link }]));
 
 // `saisie` : ce que l'app sait de la saisie d'un second qui tourne (saisie.ts).
 // `persistant` : la session d'un shell persistant, et son rang dans le projet.
@@ -120,6 +140,10 @@ export function ouvrirTerminaux(options: {
   joindre?(cible: Cible): Promise<{ joint: true } | { erreur: string }>;
   // Ce qui fait attendre une reprise : `setTimeout`, hors des essais. Rend ce qui l'annule.
   plusTard?(faire: () => void, ms: number): () => void;
+  // Le plan du second, tel que le runtime le fait (runtime/src/second/lancement.ts, #1433) : ce qui lance `claude`
+  // sur ce poste — son chemin, et sous Windows ce qui le lance —, ou pourquoi il ne part pas. Sans lui, `claude` est
+  // lancé par son nom.
+  planDuSecond?(dossier: string, args: readonly string[]): PlanDuSecond;
 }) {
   const tenus = new Map<number, Tenu>();
   const argsDuShell = options.argsDuShell ?? ["-l"];
@@ -138,7 +162,7 @@ export function ouvrirTerminaux(options: {
       return () => clearTimeout(minuteur);
     });
 
-  const montre = ({ id, projet, genre, titre, note, arrete, bandeau, demandeEcrite, nonParti }: Tenu): Terminal => ({
+  const montre = ({ id, projet, genre, titre, note, arrete, bandeau, demandeEcrite, nonParti, empeche, manque }: Tenu): Terminal => ({
     id,
     projet,
     genre,
@@ -148,6 +172,8 @@ export function ouvrirTerminaux(options: {
     ...(bandeau === undefined ? {} : { bandeau }),
     ...(demandeEcrite === undefined ? {} : { demandeEcrite }),
     ...(nonParti === undefined ? {} : { nonParti }),
+    ...(empeche === undefined ? {} : { empeche }),
+    ...(manque === undefined ? {} : { manque }),
   });
   const de = (projet: string) => [...tenus.values()].filter((tenu) => tenu.projet === projet);
 
@@ -157,18 +183,52 @@ export function ouvrirTerminaux(options: {
     return tenu;
   }
 
+  // Le second ne part pas : sa note dit pourquoi, en une phrase, et la vue montre à la place du terminal chaque outil
+  // qui manque, avec ce qui l'obtient (#1435). Une touche — ou « try again » — refait le plan.
+  function empecher(tenu: Tenu, reason: string, tools: readonly OutilVu[] = []): void {
+    tenu.pty = undefined;
+    tenu.saisie = undefined;
+    tenu.arrete = true;
+    tenu.note = reason;
+    tenu.empeche = { reason, tools: manquants(tools) };
+  }
+
   function lancer(tenu: Tenu, commande: string, args: string[], surFin: (code: number) => void): void {
     tenu.arrete = false;
+    delete tenu.empeche;
+    delete tenu.manque;
     // Un second dit ses tours à l'app par ses crochets, dans un fichier qui repart vide avec lui —
     // les réglages suivent ce qui est lancé : le rôle reste le premier mot que `claude` reçoit.
     const tours = tenu.genre === "second" ? options.tours?.(tenu.id) : undefined;
+    const tous = tours === undefined ? args : [...args, "--settings", reglages(tours.chemin)];
+    // Le second part comme le runtime le dit (#1433) : le `claude` que le PATH donne, et sous Windows ce qui le
+    // lance — ou il ne part pas, et dit pourquoi. Un outil qui manque sans l'empêcher de partir est dit à côté.
+    let lancement: Pick<Lancement, "commande" | "args" | "verbatim" | "env"> = { commande, args: tous };
+    if (tenu.genre === "second" && options.planDuSecond !== undefined) {
+      const plan = options.planDuSecond(tenu.dossier, tous);
+      if (plan.state !== "ready") return empecher(tenu, plan.reason, plan.tools);
+      lancement = { commande: plan.launch.command, args: plan.launch.args, verbatim: plan.launch.verbatim, env: plan.launch.env };
+      if (plan.missing.length > 0) tenu.manque = { reason: plan.reason ?? "", tools: manquants(plan.tools) };
+    }
     tours?.vider();
     const saisie = tenu.genre === "second" ? suivreSaisie(() => tours?.lire() ?? "") : undefined;
     tenu.saisie = saisie;
     const lance = ++tenu.lances;
-    tenu.pty = options.ouvrirPty({
-      commande,
-      args: tours === undefined ? args : [...args, "--settings", reglages(tours.chemin)],
+    try {
+      tenu.pty = ouvrir(tenu, lancement, saisie, lance, surFin);
+    } catch (erreur) {
+      // Un lancement refusé — un programme introuvable, un pty qui ne s'ouvre pas — se dit : jamais un onglet muet.
+      const pourquoi = String(erreur instanceof Error ? erreur.message : erreur).replace(/[.\s]+$/, "");
+      if (tenu.genre === "second") return empecher(tenu, `The second cannot start: launching ${lancement.commande} failed (${pourquoi}).`);
+      tenu.pty = undefined;
+      tenu.arrete = true;
+      tenu.note = `this shell could not start: launching ${lancement.commande} failed (${pourquoi})`;
+    }
+  }
+
+  function ouvrir(tenu: Tenu, lancement: Pick<Lancement, "commande" | "args" | "verbatim" | "env">, saisie: Saisie | undefined, lance: number, surFin: (code: number) => void): Pty {
+    return options.ouvrirPty({
+      ...lancement,
       dossier: tenu.dossier,
       colonnes: tenu.colonnes,
       lignes: tenu.lignes,
@@ -213,7 +273,7 @@ export function ouvrirTerminaux(options: {
     lancer(tenu, options.claude, reprise ? ["--continue", ROLE] : [ROLE], (code) => {
       if (reprise && code !== 0) {
         lancerSecond(tenu, false);
-        tenu.note = `new session: \`claude --continue\` exited with code ${code}, the thread was not resumed — \`claude ${ROLE}\``;
+        if (tenu.empeche === undefined) tenu.note = `new session: \`claude --continue\` exited with code ${code}, the thread was not resumed — \`claude ${ROLE}\``;
       } else {
         tenu.arrete = true;
         tenu.note = arrete(code);
@@ -242,7 +302,7 @@ export function ouvrirTerminaux(options: {
       lancerSecond(second, true);
       delete second.demandeEcrite;
       second.nonParti = true;
-      second.note = `the second was not running: launched (\`claude --continue ${ROLE}\`) — the command is not written into a second that is starting, click again when it is ready`;
+      if (second.empeche === undefined) second.note = `the second was not running: launched (\`claude --continue ${ROLE}\`) — the command is not written into a second that is starting, click again when it is ready`;
     } else {
       // Devant un dialogue : le second attend une réponse, et ces caractères y seraient des touches.
       const etat = second.saisie?.etat();
@@ -272,7 +332,7 @@ export function ouvrirTerminaux(options: {
     if (pty === undefined || saisie === undefined) {
       lancerSecond(second, true);
       second.nonParti = true;
-      second.note = `the second was not running: launched (\`claude --continue ${ROLE}\`) — the command did not go: a second that is starting takes nothing, click again when it has finished its first turn`;
+      if (second.empeche === undefined) second.note = `the second was not running: launched (\`claude --continue ${ROLE}\`) — the command did not go: a second that is starting takes nothing, click again when it has finished its first turn`;
       return Promise.resolve(montre(second));
     }
     const etat = saisie.etat();
@@ -474,6 +534,12 @@ export function ouvrirTerminaux(options: {
         revenir(projet);
       }
       return de(projet.nom).map(montre);
+    },
+
+    // Les pages que les seconds ont nommées pour obtenir un outil qui manque (#1435) : seules celles-là s'ouvrent
+    // depuis leur colonne.
+    pagesDesOutils(): Set<string> {
+      return new Set([...tenus.values()].flatMap(({ empeche, manque }) => [...(empeche?.tools ?? []), ...(manque?.tools ?? [])].map(({ link }) => link)));
     },
 
     // Un shell persistant, sur la machine choisie : une session neuve, que l'app retient.

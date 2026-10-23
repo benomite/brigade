@@ -252,6 +252,36 @@ Open one of your projects on this PC: one click, no folder to choose.
 *Code: `app/src/premier-lancement.ts` and `app/src/connexion-github.ts` (main process),
 `app/src/vue/premier-lancement.js` (the screen). Captures: `docs/captures/1434/`.*
 
+### The project opened there: its Rail and its Second never stay blank (#1435)
+
+A project opened from that screen has neither a box nor a station on this computer. Its two tabs
+still show something, always:
+
+- **Rail** shows the rail its station publishes on GitHub (#1432), in five columns — On the rail,
+  Taken, Pass, WAITING, Served: Cooks has no kitchen to read here, so Taken and Pass stay on Rail.
+  The head says `The rail as parade-box publishes it on GitHub.` (or that the station is offline and
+  this is the last rail it published); when and for which repository is in the `?` hover. A
+  ticket's number opens its issue. While the rail is read, one sentence says so. When it cannot be
+  read, the head is the runtime's sentence, its detail in the hover: not signed in to GitHub, with
+  `Sign in to GitHub` (the same action as the first-launch screen; signed in, the rail is read
+  again); no `gh`, with `get the GitHub CLI`; anything else — no station serves the project, its
+  station publishes no rail, GitHub refuses or is out of reach — with `read again`. Cooks keeps its
+  one line: no station serves the project on this computer.
+- **Second** starts as the runtime plans it (#1433): the `claude` the PATH gives, and on Windows what
+  launches it. When it cannot start, there is no terminal: its note says why in one sentence
+  (`The second cannot start: claude and git are missing on this PC.`), and under it each missing
+  tool by name, with `how to get <tool>`, which opens the page that explains it: the button carries
+  the gesture, no command is written out to copy. Why the second needs the tool, and the runtime's
+  sentence on how to get it, are in the `?` hover. `try again` checks the tools again and starts the
+  second when they are there. When it starts but a tool is missing (`gh`, `ssh`), the terminal is
+  there, and above it the sentence that says what will fail, then the tool and its button. Any other
+  failure — the project's folder missing, a launch refused — is said in the note's one sentence,
+  with `try again`.
+
+*Code: `app/src/vue/rail-publie.js` and `app/src/vue/outils-du-second.js` (the screens),
+`railDuProjet` in `app/src/main.ts`, `rangerLeRailPublie` in `app/src/faits.ts`, the plan of the
+second in `app/src/terminaux.ts`. Captures: `docs/captures/1435/`.*
+
 ### From the app
 
 Once the file has a project, adding another is the **+**, at the foot of the bar, which opens

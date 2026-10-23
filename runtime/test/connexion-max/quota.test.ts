@@ -23,7 +23,11 @@ test("le runtime n'embarque aucune bibliothèque : ni SDK d'Anthropic, ni client
 test("aucun code du runtime ne joint l'API d'Anthropic : son nom n'y sert qu'à la porte réseau, qui laisse passer `claude`", () => {
   assert.deepEqual(qui(/anthropic\.com/), ["reseau.ts"]);
   // claude.ai : la porte, et l'installeur officiel du binaire `claude`.
-  assert.deepEqual(qui(/https:\/\/claude\.ai/), ["connexion-max/connecter-cli.ts", "installation.ts"]);
+  assert.deepEqual(qui(/https:\/\/claude\.ai/), ["connexion-max/connecter-cli.ts", "installation.ts", "second/outils.ts"]);
+  // Les outils du second (#1433) n'en écrivent que la commande, dans la phrase qui dit au chef comment obtenir
+  // `claude` : ils ne lancent rien et ne joignent rien.
+  const outils = lues.find((lue) => lue.nom === "second/outils.ts")?.texte ?? "";
+  assert.doesNotMatch(outils, /from\s+["']node:(child_process|http|https|net|tls|dgram)["']|\bfetch\s*\(/);
 });
 
 test("la veille de la connexion Max et son branchement sur les cuisines ne lancent rien et ne joignent rien : ils lisent un fichier", () => {

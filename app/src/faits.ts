@@ -30,6 +30,7 @@ import { plafondVu, type PlafondLu, type PlafondVu } from "./plafond-de-calibrag
 import { LABEL_RETENUE } from "./question.ts";
 import { carteDeTodo, carteLue, type CarteDeTodo, type CarteLue } from "./carte-todo.ts";
 import type { Repondue } from "./repondues.ts";
+import type { RailDuProjet } from "../../runtime/src/appairage/rail-du-projet.ts";
 
 export const COMMANDE = "facts";
 
@@ -786,6 +787,25 @@ const QUESTION_D_EPIQUE = /manager's question before splitting the epic|question
 const REPONDUE_ENSUITE = "the manager reads the answer at its next tick: it splits the epic, or asks again — the card then comes back to TODO";
 // Ce qu'une carte de WAITING dit quand la box ne donne pas ce qu'il attend.
 const TIERS_PAS_DONNE = "not given — this station's runtime does not give in `facts` what it waits for: what, from whom, since when, its follow-up, what happens on arrival";
+
+// Le rail qu'une station publie sur GitHub (runtime/src/appairage/rail-du-projet.ts, #1432), lu sur un ordinateur
+// où le projet n'a ni box ni station (#1435) : ses tickets rangés par leur mot d'état dans les colonnes du rail que le
+// Mac lit — On the rail, Taken, Pass, WAITING, Served —, du même ton. TODO n'y est pas : ce qui attend le chef ne
+// se publie pas. Un mot d'aucune colonne (`86`, un mot inconnu) est hors colonnes, comme sur le Mac.
+export type CarteDuRailPublie = { ticket: number; etat: string; ton?: string; titre: string; url: string; ouvrable: boolean };
+export type RailPublieRange = { colonnes: { nom: string; ton: string; cartes: CarteDuRailPublie[] }[]; hors: CarteDuRailPublie[] };
+// Ce que la vue en reçoit : le rail lu et rangé, ou pourquoi il ne l'est pas (`railDuProjet`, main.ts).
+export type RailDuProjetLu = Exclude<RailDuProjet, { state: "listed" }> | (Extract<RailDuProjet, { state: "listed" }> & { range: RailPublieRange });
+export function rangerLeRailPublie(tickets: readonly { ticket: number; state: string; title: string; url: string }[]): RailPublieRange {
+  const cartes = tickets.map(({ ticket, state, title, url }): CarteDuRailPublie => ({ ticket, ...colore(TONS_DE_TICKET, state), titre: title, url, ouvrable: ouvrable(url) }));
+  const [surLeRail, pris, pass, servi] = COLONNES_DE_FAITS;
+  const ordre = [surLeRail, pris, pass, WAITING, servi];
+  const colonneDe = (etat: string) => (etat === "WAITING" ? WAITING.nom : colonneDeFaits(undefined, etat));
+  return {
+    colonnes: ordre.map(({ nom, ton }) => ({ nom, ton, cartes: cartes.filter(({ etat }) => colonneDe(etat) === nom) })),
+    hors: cartes.filter(({ etat }) => colonneDe(etat) === undefined),
+  };
+}
 
 // Un instant de la box, tel qu'elle l'a donné : son jour et son heure, en UTC.
 const instant = (iso: string) => `${new Date(iso).toISOString().slice(0, 16).replace("T", " ")} UTC`;

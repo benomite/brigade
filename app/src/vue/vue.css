@@ -5752,3 +5752,74 @@ button.recommande {
   color: var(--texte);
   text-align: right;
 }
+/* Le rail qu'une station publie sur GitHub, sur un ordinateur qui ne sert pas le projet (ticket 1435) : sa phrase de tête,
+   à hauteur de texte — d'où il vient, ou pourquoi il ne se lit pas —, ses gestes dessous, puis les colonnes du rail. */
+#rail > h3.attendu {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--texte);
+}
+#rail > h3.attendu .survol {
+  margin-left: 6px;
+}
+#rail > .gestes {
+  gap: 8px;
+  padding: 10px 16px 0;
+}
+#rail > .code-de-connexion,
+#rail > .refus {
+  padding: 8px 16px 0;
+}
+#rail > .refus {
+  color: var(--rouge-clair);
+}
+#rail[data-onglet="rail"] .colonnes.publiees {
+  grid-template-columns: repeat(3, minmax(104px, 1fr)) minmax(136px, 1.3fr) minmax(104px, 1fr);
+}
+#rail .colonne p.vide {
+  color: var(--discret);
+}
+/* Le second qui ne part pas, ou part sans tous ses outils (ticket 1435) : sous sa note, chaque outil qui manque — son
+   nom, ce qui l'obtient, le bouton de sa page —, et « try again ». Empêché, il tient la place du terminal. */
+#outils-du-second {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--trait-doux);
+  overflow-y: auto;
+  user-select: text;
+}
+#outils-du-second:has(.empeche) {
+  flex: 1;
+  min-height: 0;
+}
+#outils-du-second:not(:has(.empeche)) {
+  max-height: 40%;
+}
+.outils-du-second ul {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.outils-du-second > p {
+  margin: 0 0 10px;
+  color: var(--texte-doux);
+}
+.outil-manquant {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+.outil-manquant strong {
+  font-size: 14px;
+  color: var(--texte);
+}
+.outils-du-second .gestes {
+  padding: 14px 0 0;
+}
+.outil-manquant .gestes {
+  gap: 8px;
+  padding: 0;
+}

@@ -70,7 +70,7 @@ function cree(doc, balise, texte) {
 // Une phrase — ses mots entre accents graves, `gh`, posés en code, comme partout (onboarding/parcours.js) —, et son
 // détail — ce que `gh` ou `git` a dit — au survol, jamais à plat.
 /** @param {Fabrique} doc @param {string} balise @param {string} texte @param {string | undefined} detail */
-function phraseEtDetail(doc, balise, texte, detail) {
+export function phraseEtDetail(doc, balise, texte, detail) {
   const pose = cree(doc, balise);
   pose.append(phrase(doc, "span", texte));
   if (detail !== undefined && detail.trim() !== "") pose.append(survol(doc, detail));
@@ -78,16 +78,17 @@ function phraseEtDetail(doc, balise, texte, detail) {
 }
 
 /** @param {Fabrique} doc @param {any[]} boutons */
-function gestes(doc, boutons) {
+export function gestes(doc, boutons) {
   const pose = cree(doc, "p");
   pose.className = "gestes";
   pose.append(...boutons);
   return pose;
 }
 
-// La connexion à GitHub : son bouton, puis, lancée, le code à taper — ou pourquoi elle n'a pas abouti.
-/** @param {Fabrique} doc @param {EtatDuPremier["connexion"]} connexion @param {string} libelle @param {GestesDuPremier} geste */
-function connexionDite(doc, connexion, libelle, geste) {
+// La connexion à GitHub : son bouton, puis, lancée, le code à taper — ou pourquoi elle n'a pas abouti. Le rail qu'une
+// station publie la demande du même bouton (rail-publie.js, ticket 1435).
+/** @param {Fabrique} doc @param {EtatDuPremier["connexion"]} connexion @param {string} libelle @param {Pick<GestesDuPremier, "seConnecter" | "ouvrirLaPage">} geste */
+export function connexionDite(doc, connexion, libelle, geste) {
   const enRoute = connexion !== undefined && ("enRoute" in connexion || "code" in connexion);
   const bouton = boutonAction(doc, enRoute ? CONNEXION_EN_ROUTE : libelle, geste.seConnecter, { recommande: true });
   const pose = [gestes(doc, [bouton])];
