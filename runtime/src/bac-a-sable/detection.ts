@@ -11,8 +11,9 @@
 // point n'est pas un confort : lancé avec `-p`, `claude` ignore sans rien dire
 // des réglages qu'il ne sait pas valider — et le cook partirait sans bac à
 // sable.
-import { execFileSync } from "../sans-invite.ts";
 import { existsSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { execFileSync } from "../sans-invite.ts";
 
 export type Detection = { disponible: true; version: string } | { disponible: false; raison: string };
 
@@ -22,6 +23,9 @@ export type Sondes = {
   existe(chemin: string): boolean;
   // La sortie de `claude --version`, null s'il n'a pas répondu.
   versionDeClaude(): string | null;
+  // Le répertoire temporaire de la machine, où partent les jugements du
+  // manager. Par défaut, celui du process.
+  temporaire?: () => string;
 };
 
 // L'outil par lequel le bac à sable de Claude Code monte Seatbelt.
@@ -62,6 +66,7 @@ export function sondesDeLaMachine(bin: string): Sondes {
   return {
     plateforme: process.platform,
     existe: existsSync,
+    temporaire: tmpdir,
     versionDeClaude() {
       try {
         return execFileSync(bin, ["--version"], { encoding: "utf8", timeout: 30_000, stdio: ["ignore", "pipe", "ignore"] });

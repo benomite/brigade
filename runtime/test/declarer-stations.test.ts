@@ -4,7 +4,7 @@
 // le runtime qui tourne la lit sans redémarrer.
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { decisionsPosees } from "../src/decisions.ts";
 import { principal } from "../src/declarer-stations.ts";
@@ -155,7 +155,7 @@ test("l'action ne lance aucun geste de box : ni `sudo`, ni `systemctl` — rien 
 
   const commande = lancer(t, INSTALLATION, ["stations", "box/claude:3:code"], {
     ...env(etat),
-    PATH: `${outils}:${process.env.PATH ?? ""}`,
+    PATH: `${outils}${delimiter}${process.env.PATH ?? ""}`,
     BRIGADE_SUDO_BIN: join(outils, "sudo"),
     BRIGADE_SYSTEMCTL_BIN: join(outils, "systemctl"),
     BRIGADE_MISE_EN_SERVICE_LIEN: join(outils, "absent"),

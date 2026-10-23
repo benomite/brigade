@@ -69,7 +69,9 @@ describe("une base rouge : rejeu automatique, puis ticket de réparation", { con
     const demandes = journal.tout().filter((e) => e.type === "base.recheck-requested");
     assert.deepEqual(demandes.map((e) => e.author), ["pass"]);
     assert.deepEqual([dernier("base.checked")?.sha, dernier("base.checked")?.outcome, etatDeLaBase(journal.base)?.outcome], ["base-1", "green", "green"]);
-    assert.deepEqual(gates.appels().length, 1);
+    // Seules les gates de la base seule comptent : la cuisine a repris, et le
+    // ticket 18, parti et livré entre-temps, peut déjà avoir eu les siennes.
+    assert.deepEqual(gates.appels().filter((worktree) => /[\\/]\.essais[\\/]base$/.test(worktree)).length, 1);
     assert.match(avertissements.join("\n"), /v2 n'est plus rouge \(base-1\)/);
 
     // La cuisine reprend : le ticket qui attendait part.

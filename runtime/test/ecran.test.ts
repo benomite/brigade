@@ -157,6 +157,7 @@ describe("la déclaration des écrans du dépôt", () => {
     });
 
     if (process.getuid?.() === 0) return t.diagnostic("sous root, un fichier sans droits reste lisible : l'illisible n'est pas éprouvé");
+    if (process.platform === "win32") return t.diagnostic("sous Windows, chmod ne retire pas la lecture : l'illisible n'est pas éprouvé");
     chmodSync(join(worktree, DECLARATION_ECRANS), 0o000);
     const illisible = ecransDuWorktree(worktree);
     assert.deepEqual(illisible.correspondances, []);

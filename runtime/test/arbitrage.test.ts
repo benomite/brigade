@@ -144,7 +144,11 @@ describe("l'arbitrage entre projets", { concurrency: 8 }, () => {
     await jusqua(() => second.projet("brigade")?.presence === "absent");
   });
 
-  test("deux projets, un plafond haut, la machine saturée par le premier : le second finit par partir", async (t) => {
+  // Deux cuisines de trente cooks et sept faits attendus l'un après l'autre :
+  // quelques secondes sous Linux, mais 104 s puis plus de 120 s sur le runner
+  // Windows, où chaque process coûte cher. Sa garde est plus large : elle ne
+  // sert qu'à ce qu'un test bloqué finisse par le dire.
+  test("deux projets, un plafond haut, la machine saturée par le premier : le second finit par partir", { timeout: 600_000 }, async (t) => {
     const { joint, ouvert, projet } = await arbitre(t, 50);
     // Le premier projet remplit la machine de ses cooks.
     const premier = cuisine(t, { projet: "thermigo", arbitre: joint, cooks: 30, entrees: 30, scenario: "muet", issues: [issue(11), issue(12)] });

@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { userInfo } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { principal, type Machine } from "../../src/connexion-max/connecter-cli.ts";
 import { connecterMax, ConnexionNonFaite, extraireLeJeton, MasqueDuJeton, type Lancement } from "../../src/connexion-max/connecter.ts";
@@ -54,7 +54,7 @@ function installation(t: TestContext, { setupEchoue = false, sansJeton = false, 
     creation: join(etc, "claude-token.cree"),
     environnement: join(etc, "jeton.env"),
     redemarrer: async () => ({ code: ++redemarrages && 0, sortie: "" }),
-    path: `${bin}:/usr/local/bin:/usr/bin:/bin`,
+    path: [bin, "/usr/local/bin", "/usr/bin", "/bin"].join(delimiter),
     lien: join(racine, "lien-claude"),
     installeur: "exit 1",
     home: async () => home,

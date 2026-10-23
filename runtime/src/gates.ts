@@ -5,8 +5,9 @@
 // `.claude/brigade/gates.sh <worktree>` a pour verdict son code de sortie. Seul
 // module qui lance les scripts du projet.
 import { envSansInvite, spawn } from "./sans-invite.ts";
-import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { envelopper, type Cloison } from "./cloison.ts";
 import type { Depassement, Gates } from "./events/pass.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
@@ -17,32 +18,37 @@ export const SCRIPT_SETUP = ".claude/brigade/worktree-setup.sh";
 // Le canal par lequel le setup rend ce qu'il a exporté : ni sa sortie ni sa
 // sortie d'erreur, qui sont au projet.
 const CANAL = 3;
+// Sous Windows, le bash de Git ne reçoit pas de descripteur au-delà des trois
+// standard (« 3: Bad file descriptor ») : le canal y est un fichier, que le
+// shell trouve nommé dans cette variable.
+const VARIABLE_DU_CANAL = "BRIGADE_SCRIPT_CHANNEL";
+const versLeCanal = (parFichier: boolean) => (parFichier ? `>>"$${VARIABLE_DU_CANAL}"` : `>&${CANAL}`);
 
 // Le contrat du setup est `eval "$(worktree-setup.sh N WT)"` : ses exports ne
 // se lisent qu'évalués par un shell. Une fois évalués, tout ce que ce shell
 // exporte part sur le canal, une variable par enregistrement.
-const SETUP = `
+const SETUP = (canal: string) => `
 set -u
 EXPORTS="$("$1" "$2" "$3")" || exit
 eval "$EXPORTS" || exit
-for nom in $(compgen -e); do printf '%s=%s\\0' "$nom" "\${!nom}"; done >&${CANAL}
+for nom in $(compgen -e); do printf '%s=%s\\0' "$nom" "\${!nom}"; done ${canal}
 `;
 // Un seul canal pour les gates : entre deux tubes, l'ordre où deux lignes sont
 // lues n'est pas celui où elles ont été écrites. Le shell attend leur fin pour
 // dire sur le canal, par `times`, le processeur de tout ce qu'il a attendu —
 // les gates et ce qu'elles ont lancé et attendu, workers compris. Tuées par un
 // signal, il en meurt de même : leur code reste le leur.
-const GATES = `
+const GATES = (canal: string) => `
 "$1" "$2" 2>&1
 code=$?
-times >&${CANAL}
+times ${canal}
 if [ "$code" -gt 128 ]; then kill -s "$(kill -l "$code")" "$$" 2>/dev/null; fi
 exit "$code"
 `;
 // Un outil du projet, sa commande et ses arguments : de même, un seul canal.
-const OUTIL = 'exec "$@" 2>&1';
+const OUTIL = () => 'exec "$@" 2>&1';
 // Ce que le shell du setup exporte de lui-même.
-const DU_SHELL = ["_", "OLDPWD", "PWD", "SHLVL"];
+const DU_SHELL = ["_", "OLDPWD", "PWD", "SHLVL", VARIABLE_DU_CANAL];
 
 const LIGNES_DE_FIN = 40;
 // Ce que le verdict garde des gates part au journal, sur l'issue et dans la
@@ -86,6 +92,9 @@ export type DemandeScript = {
   // La cloison dans laquelle le script part : il y retrouve son worktree, en
   // écriture. Absente, il tourne sous le compte du runtime, sans rien autour.
   cloison?: Cloison | null;
+  // Le canal est un fichier plutôt que le descripteur 3 : le défaut sous
+  // Windows, où le bash de Git ne reçoit pas ce descripteur.
+  canalParFichier?: boolean;
 };
 
 // `joue` : le projet a un setup. Sans lui, l'environnement est rendu tel quel.
@@ -106,15 +115,19 @@ type Passage = { code: number | null; depasse: boolean; sortie: string; coupee: 
 // script impossible à lancer est un script en échec, et sa sortie dit pourquoi.
 // `retenir` : les lignes de sa sortie standard à garder entières, hors de ce
 // que le plafond de sortie laisse.
-function jouer(script: string, args: string[], demande: DemandeScript, retenir?: RegExp): Promise<Passage> {
+function jouer(script: (canal: string) => string, args: string[], demande: DemandeScript, retenir?: RegExp): Promise<Passage> {
   return new Promise((resoudre) => {
+    const parFichier = demande.canalParFichier ?? process.platform === "win32";
+    const fichierDuCanal = parFichier ? join(mkdtempSync(join(tmpdir(), "brigade-canal-")), "canal") : null;
+    // Le bash de Git lit un chemin de Windows écrit avec des barres obliques.
+    const env = fichierDuCanal === null ? demande.env : { ...demande.env, [VARIABLE_DU_CANAL]: fichierDuCanal.replaceAll("\\", "/") };
     // Son propre groupe de process : au plafond, le script meurt avec tout ce
     // qu'il a lancé.
-    const lancement = envelopper(demande.cloison, { commande: "bash", args: ["-c", script, "brigade", ...args] }, { cwd: demande.worktree, depot: "ecriture" });
+    const lancement = envelopper(demande.cloison, { commande: "bash", args: ["-c", script(versLeCanal(parFichier)), "brigade", ...args] }, { cwd: demande.worktree, depot: "ecriture" });
     const enfant = spawn(lancement.commande, lancement.args, {
       cwd: demande.worktree,
-      env: demande.env,
-      stdio: ["ignore", "pipe", "pipe", "pipe"],
+      env,
+      stdio: parFichier ? ["ignore", "pipe", "pipe"] : ["ignore", "pipe", "pipe", "pipe"],
       detached: true,
     });
     let sortie = "";
@@ -162,6 +175,11 @@ function jouer(script: string, args: string[], demande: DemandeScript, retenir?:
       if (entamee !== "") trier("\n");
       const dite = erreur ? `${sortie}\n${erreur}` : sortie;
       const masquee = masquerIdentifiants(demande.masquer?.(dite) ?? dite);
+      if (fichierDuCanal !== null) {
+        canal.length = 0;
+        if (existsSync(fichierDuCanal)) canal.push(readFileSync(fichierDuCanal));
+        rmSync(dirname(fichierDuCanal), { recursive: true, force: true });
+      }
       // Arrêté au plafond : le plafond est échu, et le script en est mort. Sorti
       // de lui-même, il a un code, et c'est lui qui le juge — même si le plafond
       // est tombé avant que le runtime, en retard, ait traité sa fin.

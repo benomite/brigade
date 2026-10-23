@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { chmodSync, chownSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
+import { posixOnly } from "./support/plateforme.ts";
 import { empreinteDuCode, lireCodeEnService, noterCodeEnService } from "../src/code.ts";
 import { desinstaller, etapesAReprendre, InstallationRefusee, jugerReseau, jugerTemporaire, jugerUnites, LABELS, mesurerSetup, poserLabels, tenir, VARIABLES, verifier, jugerRenouvellement, type Constat } from "../src/installation.ts";
 import type { EtatDuRenouvellement } from "../src/sonde-renouvellement.ts";
@@ -111,8 +112,11 @@ function projet(t: TestContext, porte: Porte = {}) {
   const racine = repertoireTemporaire(t);
   cpSync(gabarit(porte), racine, { recursive: true });
   const [origine, clone] = [join(racine, "origine.git"), join(racine, "clone")];
+  // Écrite avec des barres obliques : dans la configuration de git, la
+  // contre-oblique d'un chemin de Windows serait un échappement, et le fichier
+  // illisible.
   const config = join(clone, ".git/config");
-  writeFileSync(config, readFileSync(config, "utf8").replaceAll(ORIGINE, origine));
+  writeFileSync(config, readFileSync(config, "utf8").replaceAll(ORIGINE, origine.replaceAll("\\", "/")));
 
   const etat = join(racine, "etat");
   mkdirSync(etat);
@@ -1043,7 +1047,8 @@ describe("la mise à jour de la box", { concurrency: 8 }, () => {
     assert.equal(jugerUnites({ ...lu, copies: [{ nom: "brigade@.service", identique: true }] }).etat, "ok");
     const perimees = jugerUnites({ ...lu, copies: [{ nom: "brigade@.service", identique: true }, { nom: "brigade-arbitre.service", identique: false }, { nom: "cloison.conf", identique: false }] });
     assert.match(perimees.texte, /^units out of date: brigade-arbitre\.service, cloison\.conf — /);
-    assert.match(perimees.geste ?? "", /\/etc\/systemd\/system\/brigade@boutique\.service\.d\/cloison\.conf/);
+    // Le chemin s'écrit avec le séparateur de la plateforme.
+    assert.ok((perimees.geste ?? "").includes(join(lu.posees, "brigade@boutique.service.d", "cloison.conf")), String(perimees.geste));
 
   });
 });
@@ -1109,7 +1114,7 @@ test("un fichier de secrets que le runtime refuserait est un manque de la machin
 describe("le coût du setup", { concurrency: 8 }, () => {
   const essais = (etat: string) => join(etat, "worktrees/.essais/installation");
 
-  test("le setup est joué une fois, à blanc, dans un worktree neuf de la base — retiré ensuite", async (t) => {
+  test("le setup est joué une fois, à blanc, dans un worktree neuf de la base — retiré ensuite", { skip: posixOnly("weighs the worktree the setup prepares with `du -sk`, called by its bare name (src/installation.ts): Windows has no `du` in the PATH") }, async (t) => {
     const { env, clone, etat, origine } = projet(t);
 
     const mesure = await mesurerSetup(env);
@@ -1123,7 +1128,7 @@ describe("le coût du setup", { concurrency: 8 }, () => {
     assert.equal(git(clone, "worktree", "list").split("\n").length, 1);
   });
 
-  test("ce que le setup pose dans le worktree est pesé", async (t) => {
+  test("ce que le setup pose dans le worktree est pesé", { skip: posixOnly("weighs the worktree the setup prepares with `du -sk`, called by its bare name (src/installation.ts): Windows has no `du` in the PATH") }, async (t) => {
     const pose = '#!/usr/bin/env bash\nhead -c 400000 /dev/urandom > "$2/dependances.bin"\necho "export PRET=1"\n';
     const { env } = projet(t, { setup: { contenu: pose, executable: true } });
 
@@ -1133,7 +1138,7 @@ describe("le coût du setup", { concurrency: 8 }, () => {
     assert.ok(mesure.apresOctets - mesure.avantOctets >= 300_000, `${mesure.avantOctets} → ${mesure.apresOctets}`);
   });
 
-  test("un setup en échec est rendu avec ce qu'il a dit, et son worktree est retiré", async (t) => {
+  test("un setup en échec est rendu avec ce qu'il a dit, et son worktree est retiré", { skip: posixOnly("weighs the worktree the setup prepares with `du -sk`, called by its bare name (src/installation.ts): Windows has no `du` in the PATH") }, async (t) => {
     const { env, etat } = projet(t);
     writeFileSync(env.FAUX_SETUP ?? "", "echec");
 
@@ -1144,7 +1149,7 @@ describe("le coût du setup", { concurrency: 8 }, () => {
     assert.equal(existsSync(essais(etat)), false);
   });
 
-  test("le setup à blanc reçoit les secrets que le dépôt déclare, et ce qu'il en dit est masqué", async (t) => {
+  test("le setup à blanc reçoit les secrets que le dépôt déclare, et ce qu'il en dit est masqué", { skip: posixOnly("weighs the worktree the setup prepares with `du -sk`, called by its bare name (src/installation.ts): Windows has no `du` in the PATH") }, async (t) => {
     const dit = '#!/usr/bin/env bash\necho "base créée sur $DATABASE_URL" >&2\n';
     const { env, racine } = projet(t, { setup: { contenu: dit, executable: true }, secrets: "DATABASE_URL\n" });
     writeFileSync(join(racine, "secrets.env"), "DATABASE_URL=postgres://dev:mot-de-passe@localhost\n", { mode: 0o600 });
@@ -1155,7 +1160,7 @@ describe("le coût du setup", { concurrency: 8 }, () => {
     assert.equal(mesure.sortie, "base créée sur [secret:DATABASE_URL]\n");
   });
 
-  test("un secret déclaré que la machine ne détient pas : le setup n'est pas joué, comme la station ne lancerait aucun cook", async (t) => {
+  test("un secret déclaré que la machine ne détient pas : le setup n'est pas joué, comme la station ne lancerait aucun cook", { skip: posixOnly("weighs the worktree the setup prepares with `du -sk`, called by its bare name (src/installation.ts): Windows has no `du` in the PATH") }, async (t) => {
     const { env, etat } = projet(t, { secrets: "DATABASE_URL\n" });
 
     const mesure = await mesurerSetup(env);
@@ -1166,7 +1171,7 @@ describe("le coût du setup", { concurrency: 8 }, () => {
     assert.equal(existsSync(essais(etat)), false);
   });
 
-  test("le setup ne reçoit rien de l'état du runtime", async (t) => {
+  test("le setup ne reçoit rien de l'état du runtime", { skip: posixOnly("weighs the worktree the setup prepares with `du -sk`, called by its bare name (src/installation.ts): Windows has no `du` in the PATH") }, async (t) => {
     const temoin = '#!/usr/bin/env bash\nenv | grep -c "^BRIGADE_" > "$2/../../../brigade-vues"\n';
     const { env, etat } = projet(t, { setup: { contenu: temoin, executable: true } });
 
@@ -1175,7 +1180,7 @@ describe("le coût du setup", { concurrency: 8 }, () => {
     assert.equal(readFileSync(join(etat, "brigade-vues"), "utf8").trim(), "0");
   });
 
-  test("un projet sans setup n'a rien à mesurer que son worktree", async (t) => {
+  test("un projet sans setup n'a rien à mesurer que son worktree", { skip: posixOnly("weighs the worktree the setup prepares with `du -sk`, called by its bare name (src/installation.ts): Windows has no `du` in the PATH") }, async (t) => {
     const { env } = projet(t, { setup: null });
 
     const mesure = await mesurerSetup(env);
@@ -1410,7 +1415,7 @@ describe("la commande du chef", { concurrency: 8 }, () => {
     assert.equal(code, 0);
   });
 
-  test("`setup` mesure le setup et dit si un worktree neuf par cook tient", async (t) => {
+  test("`setup` mesure le setup et dit si un worktree neuf par cook tient", { skip: posixOnly("weighs the worktree the setup prepares with `du -sk`, called by its bare name (src/installation.ts): Windows has no `du` in the PATH") }, async (t) => {
     const { env } = projet(t);
 
     const { code, sortie } = await commande(t, env, "setup", "12");
@@ -1421,7 +1426,7 @@ describe("la commande du chef", { concurrency: 8 }, () => {
     assert.equal(code, 0);
   });
 
-  test("`setup` sur un setup en échec sort en 1 avec ce qu'il a dit", async (t) => {
+  test("`setup` sur un setup en échec sort en 1 avec ce qu'il a dit", { skip: posixOnly("weighs the worktree the setup prepares with `du -sk`, called by its bare name (src/installation.ts): Windows has no `du` in the PATH") }, async (t) => {
     const { env } = projet(t);
     writeFileSync(env.FAUX_SETUP ?? "", "echec");
 
