@@ -1,6 +1,4 @@
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
-import { join } from "node:path";
 import { test } from "node:test";
 import { linuxOnly, macOnly, posixOnly, seulementSur, windowsOnly } from "./plateforme.ts";
 
@@ -31,8 +29,4 @@ test("a POSIX-only test plays on linux and darwin, not on win32", () => {
 test("the guard follows the real platform by default", () => {
   assert.equal(seulementSur([process.platform], "x"), false);
   assert.equal(seulementSur([], "x"), `skipped on ${process.platform}: x`);
-});
-
-test("the pending-Windows list is gone", () => {
-  assert.equal(existsSync(join(import.meta.dirname, "pas-encore-porte-sous-windows.json")), false);
 });
