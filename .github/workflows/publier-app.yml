@@ -12,16 +12,18 @@
 # depuis le dernier tag, et non depuis le seul push, fait qu'un run annulé ou échoué ne perd pas
 # son changement : le suivant le publie. `workflow_dispatch` rejoue la décision à la main.
 #
-# Deux chemins, selon les secrets de signature (#1441, #1526). Le job `detecter-secrets` regarde leur seule
-# présence : si aucun des six n'est posé, le chemin NON SIGNÉ construit et publie le .dmg, l'installeur
-# .exe et l'.apk (jobs `*-non-signe`, `android`, `publier-non-signe`), sans `latest-mac.yml` ni
-# `latest.yml` : une app installée ne se met donc pas à jour vers une app non signée. Sinon, le chemin
-# signé (#1441) joue, tel quel : le .dmg est signé Developer ID, notarisé et agrafé ; l'installeur Windows est signé. Les
-# certificats et identifiants sont des secrets du dépôt, listés dans docs/app-signing-secrets.md.
+# Deux chemins, selon les secrets de signature (#1441, #1526), sur un seul jeu de jobs. Le job
+# `detecter-secrets` regarde leur seule présence. Si aucun des six n'est posé, le chemin NON SIGNÉ
+# construit et publie le .dmg, l'installeur .exe et l'.apk, sans `latest-mac.yml` ni `latest.yml` :
+# une app installée ne se met donc pas à jour vers une app non signée. Sinon, le chemin SIGNÉ
+# (#1441) joue : le .dmg est signé Developer ID, notarisé et agrafé, l'installeur Windows est signé,
+# et la release porte aussi les deux fichiers de mise à jour. Les jobs `mac`, `windows` et `publier`
+# sont les mêmes des deux côtés ; seules leurs étapes de signature, et l'`android` du seul chemin non
+# signé, dépendent de ce choix. Les certificats et identifiants sont des secrets du dépôt, listés
+# dans docs/app-signing-secrets.md.
 # Le job `verifier-secrets` les vérifie avant toute construction : s'il en manque un (mais pas tous),
-# rien n'est
-# construit ni publié, la PR mergée reçoit un commentaire d'une phrase qui le nomme et dit où
-# l'ajouter, et le run finit rouge. Un merge qui ne change pas l'app ne les lit pas.
+# rien n'est construit ni publié, la PR mergée reçoit un commentaire d'une phrase qui le nomme et dit
+# où l'ajouter, et le run finit rouge. Un merge qui ne change pas l'app ne les lit pas.
 name: publier-app
 
 on:
@@ -127,7 +129,7 @@ jobs:
   verifier-secrets:
     # Avant toute construction : chaque secret de signature est là, ou rien ne part.
     needs: [decider, detecter-secrets]
-    if: needs.decider.outputs.changed == 'true' && needs.detecter-secrets.outputs.non_signe != 'true'
+    if: needs.decider.outputs.changed == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -142,6 +144,7 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD != '' }}
           WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE != '' }}
           WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD != '' }}
+          NON_SIGNE: ${{ needs.detecter-secrets.outputs.non_signe }}
           TAG: ${{ needs.decider.outputs.tag }}
           CE_MERGE: ${{ needs.decider.outputs.ce_merge }}
           GH_TOKEN: ${{ github.token }}
@@ -149,6 +152,10 @@ jobs:
           SERVEUR: ${{ github.server_url }}
         run: |
           set -euo pipefail
+          if [ "$NON_SIGNE" = true ]; then
+            echo "No signing secret is set: the unsigned path runs, nothing to check."
+            exit 0
+          fi
           # Chaque secret, et ce qu'il est, dit au chef en clair (docs/app-signing-secrets.md).
           declare -A ce_qu_il_est=(
             [MACOS_CERTIFICATE]="the Mac Developer ID certificate"
@@ -204,12 +211,13 @@ jobs:
           exit 1
 
   mac:
-    needs: [decider, verifier-secrets]
+    needs: [decider, detecter-secrets, verifier-secrets]
     if: needs.decider.outputs.changed == 'true'
     runs-on: macos-14
     timeout-minutes: 90
     env:
       TAG: ${{ needs.decider.outputs.tag }}
+      NON_SIGNE: ${{ needs.detecter-secrets.outputs.non_signe }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -224,6 +232,7 @@ jobs:
       # `latest-mac.yml` pour le .dmg signé (app/packaging/README.md, « Signer, notariser »).
       - name: Signature (Mac) — poser le certificat et la notarisation
         id: signature
+        if: needs.detecter-secrets.outputs.non_signe != 'true'
         env:
           MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
@@ -260,13 +269,21 @@ jobs:
             echo "identite=$identite"
             echo "trousseau=$trousseau"
           } >> "$GITHUB_OUTPUT"
+      - name: Construire le .dmg, non signé
+        if: needs.detecter-secrets.outputs.non_signe == 'true'
+        run: |
+          set -euo pipefail
+          echo "::warning::The builds are unsigned: no signing secret is set."
+          npm --prefix app run dist -- --version "${TAG#app-v}" --sortie "$RUNNER_TEMP/dist"
       - name: Construire, signer et notariser le .dmg
+        if: needs.detecter-secrets.outputs.non_signe != 'true'
         env:
           IDENTITE: ${{ steps.signature.outputs.identite }}
         run: |
           set -euo pipefail
           npm --prefix app run dist -- --version "${TAG#app-v}" --sortie "$RUNNER_TEMP/dist" --identite "$IDENTITE" --notariser brigade-notarisation
       - name: Signature (Mac) — vérifier ce que Gatekeeper dira
+        if: needs.detecter-secrets.outputs.non_signe != 'true'
         run: |
           set -euo pipefail
           dmg="$RUNNER_TEMP/dist/Brigade-${TAG#app-v}-arm64.dmg"
@@ -290,7 +307,12 @@ jobs:
           set -euo pipefail
           dmg="Brigade-${TAG#app-v}-arm64.dmg"
           test -f "$RUNNER_TEMP/dist/$dmg"
-          grep -qx "path: $dmg" "$RUNNER_TEMP/dist/latest-mac.yml" || { echo "::error::latest-mac.yml does not name $dmg"; cat "$RUNNER_TEMP/dist/latest-mac.yml"; exit 1; }
+          if [ "$NON_SIGNE" = true ]; then
+            # Une app non signée ne se met pas à jour : la construction écrit `latest-mac.yml`, il ne part pas.
+            rm -f "$RUNNER_TEMP/dist/latest-mac.yml"
+          else
+            grep -qx "path: $dmg" "$RUNNER_TEMP/dist/latest-mac.yml" || { echo "::error::latest-mac.yml does not name $dmg"; cat "$RUNNER_TEMP/dist/latest-mac.yml"; exit 1; }
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: app-mac
@@ -301,12 +323,13 @@ jobs:
           retention-days: 7
 
   windows:
-    needs: [decider, verifier-secrets]
+    needs: [decider, detecter-secrets, verifier-secrets]
     if: needs.decider.outputs.changed == 'true'
     runs-on: windows-latest
     timeout-minutes: 90
     env:
       TAG: ${{ needs.decider.outputs.tag }}
+      NON_SIGNE: ${{ needs.detecter-secrets.outputs.non_signe }}
     steps:
       - name: Garder les fins de ligne du dépôt
         run: git config --global core.autocrlf false
@@ -324,6 +347,7 @@ jobs:
       # change ses octets : `latest.yml`, écrit par la construction, est réécrit pour l'installeur
       # signé (`metadonneesDeMiseAJour` de app/packaging/construire.ts).
       - name: Signature (Windows) — signer l'installeur
+        if: needs.detecter-secrets.outputs.non_signe != 'true'
         shell: pwsh
         env:
           WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
@@ -354,6 +378,7 @@ jobs:
           if ($signature.Status -ne 'Valid') { Write-Output "::error::The installer signature is $($signature.Status): $($signature.StatusMessage)"; exit 1 }
           Write-Output "Signed by $($signature.SignerCertificate.Subject)."
       - name: Signature (Windows) — réécrire latest.yml pour l'installeur signé
+        if: needs.detecter-secrets.outputs.non_signe != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -372,7 +397,13 @@ jobs:
           set -euo pipefail
           installeur="Brigade-${TAG#app-v}-x64-setup.exe"
           test -f "$RUNNER_TEMP/dist/$installeur"
-          tr -d '\r' < "$RUNNER_TEMP/dist/latest.yml" | grep -qx "path: $installeur" || { echo "::error::latest.yml does not name $installeur"; cat "$RUNNER_TEMP/dist/latest.yml"; exit 1; }
+          if [ "$NON_SIGNE" = true ]; then
+            # Une app non signée ne se met pas à jour : la construction écrit `latest.yml`, il ne part pas.
+            echo "::warning::The builds are unsigned: no signing secret is set."
+            rm -f "$RUNNER_TEMP/dist/latest.yml"
+          else
+            tr -d '\r' < "$RUNNER_TEMP/dist/latest.yml" | grep -qx "path: $installeur" || { echo "::error::latest.yml does not name $installeur"; cat "$RUNNER_TEMP/dist/latest.yml"; exit 1; }
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: app-windows
@@ -382,105 +413,9 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  publier:
-    needs: [decider, verifier-secrets, mac, windows]
-    if: needs.decider.outputs.changed == 'true'
-    runs-on: ubuntu-latest
-    env:
-      TAG: ${{ needs.decider.outputs.tag }}
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: ${{ runner.temp }}/release
-          merge-multiple: true
-      - name: Publier la release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          version="${TAG#app-v}"
-          cd "$RUNNER_TEMP/release"
-          fichiers=("Brigade-$version-arm64.dmg" latest-mac.yml "Brigade-$version-x64-setup.exe" latest.yml)
-          for fichier in "${fichiers[@]}"; do
-            test -f "$fichier" || { echo "::error::$fichier was not built — nothing is published"; ls -la; exit 1; }
-          done
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            # Un run rejoué : la release existe, ses fichiers sont remplacés.
-            gh release upload "$TAG" "${fichiers[@]}" --clobber
-          else
-            # `--latest=false` : la dernière release du dépôt reste celle de la station, que
-            # `releases/latest/download/installer-station.sh` trouve. L'app lit ses versions par
-            # leurs tags `app-v*`.
-            gh release create "$TAG" "${fichiers[@]}" \
-              --target "$GITHUB_SHA" \
-              --title "Brigade $version" \
-              --notes "The Brigade app $version, built from the commit $GITHUB_SHA. Mac: open Brigade-$version-arm64.dmg and drag Brigade into Applications. Windows: run Brigade-$version-x64-setup.exe. The installed apps update themselves to it." \
-              --latest=false
-          fi
-          echo "Published $TAG: ${fichiers[*]}." >> "$GITHUB_STEP_SUMMARY"
-
-  # --- Chemin non signé (#1526) ----------------------------------------------------------------
-  # Sans aucun secret de signature : les mêmes constructions, sans signature, et une release qui ne
-  # porte que le .dmg, l'installeur .exe et l'.apk — pas de `latest-mac.yml` ni de `latest.yml`.
-  mac-non-signe:
-    needs: [decider, detecter-secrets]
-    if: needs.decider.outputs.changed == 'true' && needs.detecter-secrets.outputs.non_signe == 'true'
-    runs-on: macos-14
-    timeout-minutes: 90
-    env:
-      TAG: ${{ needs.decider.outputs.tag }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 26
-      - name: Installer les dépendances de l'app
-        run: npm ci --ignore-scripts --prefix app
-      - name: Construire le .dmg, non signé
-        run: |
-          set -euo pipefail
-          echo "::warning::The builds are unsigned: no signing secret is set."
-          echo "The builds are unsigned."
-          npm --prefix app run dist -- --version "${TAG#app-v}" --sortie "$RUNNER_TEMP/dist"
-      - name: Vérifier ce qui part vers la release
-        run: test -f "$RUNNER_TEMP/dist/Brigade-${TAG#app-v}-arm64.dmg"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: app-mac
-          path: ${{ runner.temp }}/dist/Brigade-*-arm64.dmg
-          if-no-files-found: error
-          retention-days: 7
-
-  windows-non-signe:
-    needs: [decider, detecter-secrets]
-    if: needs.decider.outputs.changed == 'true' && needs.detecter-secrets.outputs.non_signe == 'true'
-    runs-on: windows-latest
-    timeout-minutes: 90
-    env:
-      TAG: ${{ needs.decider.outputs.tag }}
-    steps:
-      - name: Garder les fins de ligne du dépôt
-        run: git config --global core.autocrlf false
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 26
-      - name: Construire l'installeur, non signé
-        shell: bash
-        run: |
-          set -euo pipefail
-          node app/packaging/windows.ts --version "${TAG#app-v}" --sortie "$RUNNER_TEMP/dist"
-          test -f "$RUNNER_TEMP/dist/Brigade-${TAG#app-v}-x64-setup.exe"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: app-windows
-          path: ${{ runner.temp }}/dist/Brigade-*-x64-setup.exe
-          if-no-files-found: error
-          retention-days: 7
-
   android:
-    needs: [decider, detecter-secrets]
+    needs: [decider, detecter-secrets, verifier-secrets]
+    # Le seul .apk est non signé (clé de debug) : le chemin signé n'en construit pas.
     if: needs.decider.outputs.changed == 'true' && needs.detecter-secrets.outputs.non_signe == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 90
@@ -508,18 +443,25 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  publier-non-signe:
-    needs: [decider, detecter-secrets, mac-non-signe, windows-non-signe, android]
-    if: needs.decider.outputs.changed == 'true' && needs.detecter-secrets.outputs.non_signe == 'true'
+  publier:
+    needs: [decider, detecter-secrets, verifier-secrets, mac, windows, android]
+    # `android` est sauté sur le chemin signé : `always()` laisse `publier` jouer, et chaque
+    # construction attendue doit alors avoir réussi.
+    if: >-
+      always() && needs.decider.outputs.changed == 'true'
+      && needs.verifier-secrets.result == 'success'
+      && needs.mac.result == 'success' && needs.windows.result == 'success'
+      && (needs.android.result == 'success' || (needs.android.result == 'skipped' && needs.detecter-secrets.outputs.non_signe != 'true'))
     runs-on: ubuntu-latest
     env:
       TAG: ${{ needs.decider.outputs.tag }}
+      NON_SIGNE: ${{ needs.detecter-secrets.outputs.non_signe }}
     steps:
       - uses: actions/download-artifact@v4
         with:
           path: ${{ runner.temp }}/release
           merge-multiple: true
-      - name: Publier la release, non signée
+      - name: Publier la release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -527,17 +469,30 @@ jobs:
           set -euo pipefail
           version="${TAG#app-v}"
           cd "$RUNNER_TEMP/release"
-          fichiers=("Brigade-$version-arm64.dmg" "Brigade-$version-x64-setup.exe" "Brigade-$version.apk")
+          if [ "$NON_SIGNE" = true ]; then
+            fichiers=("Brigade-$version-arm64.dmg" "Brigade-$version-x64-setup.exe" "Brigade-$version.apk")
+            installation="Mac: open Brigade-$version-arm64.dmg. Windows: run Brigade-$version-x64-setup.exe. Android: install Brigade-$version.apk. These builds are unsigned."
+            resume="The builds are unsigned. Published $TAG: ${fichiers[*]}."
+          else
+            fichiers=("Brigade-$version-arm64.dmg" latest-mac.yml "Brigade-$version-x64-setup.exe" latest.yml)
+            installation="Mac: open Brigade-$version-arm64.dmg and drag Brigade into Applications. Windows: run Brigade-$version-x64-setup.exe. The installed apps update themselves to it."
+            resume="Published $TAG: ${fichiers[*]}."
+          fi
           for fichier in "${fichiers[@]}"; do
             test -f "$fichier" || { echo "::error::$fichier was not built — nothing is published"; ls -la; exit 1; }
           done
           if gh release view "$TAG" >/dev/null 2>&1; then
+            # Un run rejoué : la release existe, ses fichiers sont remplacés.
             gh release upload "$TAG" "${fichiers[@]}" --clobber
           else
+            # `--latest=false` : la dernière release du dépôt reste celle de la station, que
+            # `releases/latest/download/installer-station.sh` trouve. L'app lit ses versions par
+            # leurs tags `app-v*`.
             gh release create "$TAG" "${fichiers[@]}" \
               --target "$GITHUB_SHA" \
               --title "Brigade $version" \
-              --notes "The Brigade app $version, built from the commit $GITHUB_SHA. These builds are unsigned. Mac: open Brigade-$version-arm64.dmg. Windows: run Brigade-$version-x64-setup.exe. Android: install Brigade-$version.apk." \
+              --notes "The Brigade app $version, built from the commit $GITHUB_SHA. $installation" \
               --latest=false
           fi
-          echo "The builds are unsigned. Published $TAG: ${fichiers[*]}." >> "$GITHUB_STEP_SUMMARY"
+          echo "$resume" >> "$GITHUB_STEP_SUMMARY"
+
