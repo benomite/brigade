@@ -147,8 +147,8 @@ describe("l'arbitrage entre projets", { concurrency: 8 }, () => {
   test("deux projets, un plafond haut, la machine saturée par le premier : le second finit par partir", async (t) => {
     const { joint, ouvert, projet } = await arbitre(t, 50);
     // Le premier projet remplit la machine de ses cooks.
-    const premier = cuisine(t, { projet: "thermigo", arbitre: joint, cooks: 30, entrees: 30, scenario: "muet", issues: [issue(11), issue(12)] });
-    await jusqua(() => premier.lancements().length === 2 && projet("thermigo")?.cooks === 2);
+    const premier = cuisine(t, { projet: "compta", arbitre: joint, cooks: 30, entrees: 30, scenario: "muet", issues: [issue(11), issue(12)] });
+    await jusqua(() => premier.lancements().length === 2 && projet("compta")?.cooks === 2);
 
     // Le second a un ticket, et sa station se retient : la machine n'en peut plus.
     let machine: Machine = { ...MACHINE_CALME, charge: 16.2 };
@@ -162,7 +162,7 @@ describe("l'arbitrage entre projets", { concurrency: 8 }, () => {
     await jusqua(() => premier.dernier("station.held") !== undefined);
     assert.deepEqual(premier.dernier("station.held"), { station: STATION, reason: "arbiter" });
     assert.deepEqual([premier.etat(13), premier.lancements().length, second.lancements().length], ["waiting", 2, 0]);
-    assert.deepEqual([projet("thermigo")?.part, projet("thermigo")?.encore, projet("brigade")?.part, projet("brigade")?.encore], [1, 0, 1, 1]);
+    assert.deepEqual([projet("compta")?.part, projet("compta")?.encore, projet("brigade")?.part, projet("brigade")?.encore], [1, 0, 1, 1]);
 
     // La machine respire : c'est le second qui part.
     machine = MACHINE_CALME;
@@ -179,18 +179,18 @@ describe("l'arbitrage entre projets", { concurrency: 8 }, () => {
     const issues = (de: number) => [0, 1, 2, 3].map((rang) => issue(de + rang));
     const reglages = ouvrirReglages(repertoire);
     t.after(() => reglages.fermer());
-    reglages.peser("thermigo", 3, "2026-10-09T09:00:00.000Z");
+    reglages.peser("compta", 3, "2026-10-09T09:00:00.000Z");
     // Les deux projets ont de la demande avant que l'un ne lance : aucun ne part seul.
     const demande: Mot = { cooks: 0, demande: true, machine: false, nonArbitres: 0, consommation: { jour: 0, semaine: 0 } };
-    ouvert.dire("thermigo", demande);
+    ouvert.dire("compta", demande);
     ouvert.dire("brigade", demande);
-    const lourd = cuisine(t, { projet: "thermigo", arbitre: joint, cooks: 30, entrees: 30, scenario: "muet", issues: issues(11) });
+    const lourd = cuisine(t, { projet: "compta", arbitre: joint, cooks: 30, entrees: 30, scenario: "muet", issues: issues(11) });
     const leger = cuisine(t, { projet: "brigade", arbitre: joint, cooks: 30, entrees: 30, scenario: "muet", issues: issues(21) });
     await jusqua(() => leger.lancements().length === 1 && projet("brigade")?.cooks === 1);
-    await jusqua(() => lourd.lancements().length === 3 && projet("thermigo")?.cooks === 3);
+    await jusqua(() => lourd.lancements().length === 3 && projet("compta")?.cooks === 3);
     await jusqua(() => lourd.dernier("station.held") !== undefined && leger.dernier("station.held") !== undefined);
 
-    assert.deepEqual([projet("thermigo")?.part, projet("brigade")?.part], [3, 1]);
+    assert.deepEqual([projet("compta")?.part, projet("brigade")?.part], [3, 1]);
     assert.deepEqual([lourd.lancements().length, leger.lancements().length], [3, 1]);
   });
 
@@ -204,7 +204,7 @@ describe("l'arbitrage entre projets", { concurrency: 8 }, () => {
     await jusqua(() => arrete.dernier("station.held")?.reason === "stopped" && projet("brigade")?.demande === false);
 
     // Le premier prend tout le compte : rien n'est dû à qui ne peut rien lancer.
-    const premier = cuisine(t, { projet: "thermigo", arbitre: joint, cooks: 30, entrees: 30, scenario: "muet", machine: () => MACHINE_VASTE, issues: issues(11) });
+    const premier = cuisine(t, { projet: "compta", arbitre: joint, cooks: 30, entrees: 30, scenario: "muet", machine: () => MACHINE_VASTE, issues: issues(11) });
     await jusqua(() => premier.lancements().length === 6);
     assert.equal(arrete.lancements().length, 0);
   });
@@ -217,7 +217,7 @@ describe("l'arbitrage entre projets", { concurrency: 8 }, () => {
     await jusqua(() => borne.lancements().length === 1 && borne.dernier("station.held")?.reason === "cap");
     await jusqua(() => projet("brigade")?.cooks === 1 && projet("brigade")?.demande === false);
 
-    const premier = cuisine(t, { projet: "thermigo", arbitre: joint, cooks: 30, entrees: 30, scenario: "muet", machine: () => MACHINE_VASTE, issues: issues(11) });
+    const premier = cuisine(t, { projet: "compta", arbitre: joint, cooks: 30, entrees: 30, scenario: "muet", machine: () => MACHINE_VASTE, issues: issues(11) });
     await jusqua(() => premier.lancements().length === 5);
     await jusqua(() => premier.dernier("station.held") !== undefined);
     assert.deepEqual([premier.dernier("station.held"), ouvert.etat().cooks, borne.lancements().length], [{ station: STATION, reason: "arbiter" }, 6, 1]);
