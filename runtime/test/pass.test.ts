@@ -707,7 +707,7 @@ describe("la pass", { concurrency: 8 }, () => {
     await jusqua(() => gh.commentaires.some(([, corps]) => corps.includes("`.github/workflows/ci.yml`")));
   });
 
-  test("une branche dont les seuls workflows sont planifiés, manuels ou sur tag est jugée sans CI (mirrorlab)", async (t) => {
+  test("une branche dont les seuls workflows sont planifiés, manuels ou sur tag est jugée sans CI (gadgets)", async (t) => {
     const { gh, compter, dernier, jusquAu } = service(t, {
       grant: true,
       depot: (depot) => ({

@@ -22,8 +22,8 @@ test("Host key verification failed sous git_protocol ssh : le clone se refait en
   const avant = { ...process.env };
   Object.assign(process.env, { FAUX_JOURNAL: journal, GH_CONFIG_DIR: config });
   try {
-    const clone = join(racine, "clones/parade");
-    await clonerEnReparant({ gh: FAUX_GH, depot: "acme/parade", clone });
+    const clone = join(racine, "clones/shop");
+    await clonerEnReparant({ gh: FAUX_GH, depot: "acme/shop", clone });
     assert.ok(existsSync(join(clone, ".git")));
     assert.deepEqual(readFileSync(join(journal, "essais"), "utf8").trim().split("\n"), ["-", "4"]);
     assert.deepEqual(readdirSync(config), []);
@@ -38,18 +38,18 @@ test("un accès réel refusé n'est pas retenté, et devient un blocage d'une ph
   const { racine, journal, nettoyer } = salle();
   Object.assign(process.env, { FAUX_JOURNAL: journal, FAUX_REFUS: "1" });
   try {
-    const erreur = await clonerEnReparant({ gh: FAUX_GH, depot: "acme/parade", clone: join(racine, "c") }).then(
+    const erreur = await clonerEnReparant({ gh: FAUX_GH, depot: "acme/shop", clone: join(racine, "c") }).then(
       () => null,
       (e: unknown) => e,
     );
     assert.ok(erreur instanceof CloneEnEchec);
     assert.equal(readFileSync(join(journal, "essais"), "utf8").trim().split("\n").length, 1);
-    const echec = lireLEchecDuClone({ station: "parade-box", depot: "acme/parade", erreurs: erreur.erreurs, enquete: { ...ENQUETE_MUETTE, compte: "parade-box", jeton: "oauth", proprietaire: true }, reessaieToutesLes: 30 });
+    const echec = lireLEchecDuClone({ station: "shop-box", depot: "acme/shop", erreurs: erreur.erreurs, enquete: { ...ENQUETE_MUETTE, compte: "shop-box", jeton: "oauth", proprietaire: true }, reessaieToutesLes: 30 });
     const pose = blocage(blocageDuClone(echec));
     assert.doesNotMatch(pose.message, /exit status 128/);
-    assert.match(pose.message, /^parade-box cannot see acme\/parade/);
+    assert.match(pose.message, /^shop-box cannot see acme\/shop/);
     assert.equal(pose.message.split("\n").length, 1);
-    assert.equal(pose.link, "https://github.com/acme/parade/settings/access");
+    assert.equal(pose.link, "https://github.com/acme/shop/settings/access");
     assert.match(pose.detail ?? "", /exit status 128/);
     assert.ok((pose.detail ?? "").length <= DETAIL_MAX);
   } finally {

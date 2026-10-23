@@ -24,7 +24,7 @@ function uneCuisine(t: TestContext, options: { sandbox: typeof BAC | null | "inc
   writeFileSync(join(repertoireEtat, PREPARATION_FICHIER), JSON.stringify({ ticket: 7, ouvertLe: "2026-10-15T12:00:00.000Z" }));
   const journal = ouvrirJournal(repertoireEtat);
   aArreter(t, () => journal.fermer());
-  const noter = (ticket: number | null, fait: Fait, author = "runtime") => journal.ajouter({ project: "parade", ticket, author, ...fait });
+  const noter = (ticket: number | null, fait: Fait, author = "runtime") => journal.ajouter({ project: "shop", ticket, author, ...fait });
   if (options.sandbox !== "inconnu") noter(null, { type: "isolation.configured", payload: { sandbox: options.sandbox, proxy: null } });
   const arriver = (ticket: number) =>
     noter(
@@ -32,10 +32,10 @@ function uneCuisine(t: TestContext, options: { sandbox: typeof BAC | null | "inc
       { type: "ticket.arrived", payload: { title: `Ticket ${ticket}`, priority: null, createdAt: `2026-10-15T00:00:${String(ticket).padStart(2, "0")}Z`, url: `https://exemple.test/${ticket}`, model: "opus", effort: "high", card: null } },
       "github",
     );
-  const rail = ouvrirRail(journal, { projet: "parade", dureeBailMs: 3_600_000 });
+  const rail = ouvrirRail(journal, { projet: "shop", dureeBailMs: 3_600_000 });
   const lignes: string[] = [];
   const dire = (ligne: string) => lignes.push(ligne);
-  const socle = { projet: "parade", journal, rail } as unknown as RuntimeAvecRail;
+  const socle = { projet: "shop", journal, rail } as unknown as RuntimeAvecRail;
   const station = options.station ?? "macbook";
   const runtime = retenirSansDecision(attendreLaPreparation(socle, { repertoireEtat, dire }), { repertoireEtat, station, dire });
   arriver(7);

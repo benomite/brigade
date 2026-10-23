@@ -51,7 +51,7 @@ test("ajouté depuis l'app, le projet est dans la liste de la station en moins d
   // Le dépôt du projet, sur GitHub.
   const { origine } = depotGit(t);
   mkdirSync(join(origines, "acme"));
-  git(origines, "clone", "-q", "--bare", origine, join(origines, "acme/parade.git"));
+  git(origines, "clone", "-q", "--bare", origine, join(origines, "acme/shop.git"));
 
   // Une station déjà appairée à l'app (appairage/presence.ts) : son gist, et ce qu'elle en garde.
   // La doublure écrit le gist sans le remplacer d'un coup : une lecture tombée
@@ -108,8 +108,8 @@ test("ajouté depuis l'app, le projet est dans la liste de la station en moins d
   };
   demande([
     {
-      nom: "parade",
-      depot: "acme/parade",
+      nom: "shop",
+      depot: "acme/shop",
       base: "v2",
       principale: true,
       cooks: 2,
@@ -120,29 +120,29 @@ test("ajouté depuis l'app, le projet est dans la liste de la station en moins d
     },
   ]);
 
-  await jusqua(tenue(() => projetsPublies()?.includes("parade") === true), DIX_MINUTES);
+  await jusqua(tenue(() => projetsPublies()?.includes("shop") === true), DIX_MINUTES);
   const mesure = Date.now() - ouvert;
   t.diagnostic(`du parcours ouvert au projet dans la liste de la station : ${Math.round(mesure / 1000)} s, dont ${PARCOURS_MS / 1000} s de parcours`);
   assert.ok(mesure < DIX_MINUTES, `${Math.round(mesure / 1000)} s`);
 
   // Ce qui l'a servi : le clone, les décisions du parcours, son premier ticket, sa ligne — et rien qu'il ait fallu taper.
-  assert.ok(existsSync(join(racine, "clones/parade/LISEZMOI")));
-  assert.match(readFileSync(join(racine, "projets"), "utf8"), /^parade acme\/parade v2$/m);
+  assert.ok(existsSync(join(racine, "clones/shop/LISEZMOI")));
+  assert.match(readFileSync(join(racine, "projets"), "utf8"), /^shop acme\/shop v2$/m);
   // Son premier ticket, ouvert sur GitHub avant sa ligne : préparer le dépôt.
   const [ticket, ...autres] = readFileSync(join(gists, "issues"), "utf8").split("\n").filter(Boolean).map((ligne) => JSON.parse(ligne) as { number: number; title: string; body: string; labels: string[] });
   assert.deepEqual(autres, []);
   assert.equal(ticket?.title, "Préparer le dépôt : gates, setup de worktree, sites autorisés");
   assert.deepEqual(ticket?.labels, ["fire", "model:opus", "effort:high"]);
   assert.match(ticket?.body ?? "", /## Éprouver sur la station, pas en local/);
-  assert.deepEqual(JSON.parse(readFileSync(join(racine, "etat/parade/preparation-depot.json"), "utf8")).ticket, 1);
-  await station.attendre("brigade [parade] : servi par la station");
+  assert.deepEqual(JSON.parse(readFileSync(join(racine, "etat/shop/preparation-depot.json"), "utf8")).ticket, 1);
+  await station.attendre("brigade [shop] : servi par la station");
   // La machine n'a pas de bac à sable : rien ne part avant que le chef ait choisi — pas même la préparation.
-  await station.attendre("brigade [parade] : box cuit sans bac à sable — aucun cook ne part avant que le chef ait choisi");
-  accepterSansBacASable({ repertoireEtat: join(racine, "etat/parade"), station: "box" });
-  await station.attendre("brigade [parade] : le rail attend #1 (préparer le dépôt) — aucun autre ticket ne part avant son merge");
-  const journal = ouvrirJournal(join(racine, "etat/parade"), { lectureSeule: true });
+  await station.attendre("brigade [shop] : box cuit sans bac à sable — aucun cook ne part avant que le chef ait choisi");
+  accepterSansBacASable({ repertoireEtat: join(racine, "etat/shop"), station: "box" });
+  await station.attendre("brigade [shop] : le rail attend #1 (préparer le dépôt) — aucun autre ticket ne part avant son merge");
+  const journal = ouvrirJournal(join(racine, "etat/shop"), { lectureSeule: true });
   try {
-    assert.ok(journal.tout().some((evenement) => evenement.type === "runtime.started" && evenement.project === "parade"));
+    assert.ok(journal.tout().some((evenement) => evenement.type === "runtime.started" && evenement.project === "shop"));
   } finally {
     journal.fermer();
   }
@@ -152,9 +152,9 @@ test("ajouté depuis l'app, le projet est dans la liste de la station en moins d
   // est mesuré plus haut : un signal la fait relire sans attendre sa cadence.
   demande([]);
   station.process.kill("SIGHUP");
-  await jusqua(tenue(() => projetsPublies()?.includes("parade") === false), DIX_MINUTES);
-  assert.doesNotMatch(readFileSync(join(racine, "projets"), "utf8"), /parade/);
-  await station.attendre("parade retiré depuis l'app");
+  await jusqua(tenue(() => projetsPublies()?.includes("shop") === false), DIX_MINUTES);
+  assert.doesNotMatch(readFileSync(join(racine, "projets"), "utf8"), /shop/);
+  await station.attendre("shop retiré depuis l'app");
 
   station.process.kill("SIGTERM");
   assert.equal(await station.fin, 0);

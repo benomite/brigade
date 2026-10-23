@@ -24,14 +24,14 @@ import { aArreter, appeler, horloge, JOUR_HORLOGE, repertoireTemporaire } from "
 
 const INSTANT = new Date(`${JOUR_HORLOGE}T10:05:00.000Z`);
 
-// Une station qui sert `brigade`, n'a pas encore ouvert `parade`, et refuse
+// Une station qui sert `brigade`, n'a pas encore ouvert `shop`, et refuse
 // `espace` ; seul `brigade` a un journal, avec des tickets sur son rail.
 async function station(t: TestContext) {
   const racine = repertoireTemporaire(t);
   const env = { HOME: repertoireTemporaire(t), BRIGADE_STATION_DIR: racine };
   writeFileSync(
     join(racine, CONFIGURATION),
-    ["# projet  dépôt  branche", "brigade   acme/brigade   v2", "parade    acme/parade", "espace    acme/espace    main"].join("\n") + "\n",
+    ["# projet  dépôt  branche", "brigade   acme/brigade   v2", "shop    acme/shop", "espace    acme/espace    main"].join("\n") + "\n",
   );
   const repertoireEtat = join(racine, ETATS, "brigade");
   mkdirSync(repertoireEtat, { recursive: true });
@@ -80,7 +80,7 @@ test("un téléphone appairé lit tous les projets de la station, dans l'ordre d
   assert.equal(statut, 200);
   assert.deepEqual(corps.projects, [
     { name: "brigade", repository: "acme/brigade", state: "served" },
-    { name: "parade", repository: "acme/parade", state: "opening" },
+    { name: "shop", repository: "acme/shop", state: "opening" },
     { name: "espace", repository: "acme/espace", state: "refused", reason: "its clone is missing" },
   ]);
 });
@@ -121,9 +121,9 @@ test("un projet que la station n'a pas : 404 ; un projet dont le journal ne se l
   assert.equal(inconnu.statut, 404);
   assert.match(String(inconnu.corps.said), /no project named “inconnu”/);
 
-  const sansJournal = await lire("/projects/parade/queue");
+  const sansJournal = await lire("/projects/shop/queue");
   assert.equal(sansJournal.statut, 503);
-  assert.match(String(sansJournal.corps.said), /cannot read the queue of parade right now — no log in /);
+  assert.match(String(sansJournal.corps.said), /cannot read the queue of shop right now — no log in /);
 });
 
 test("sans jeton valable — absent, faux, ou d'un téléphone révoqué —, ni la liste ni une file ne se lisent, et un nom de projet ne se devine pas au code", async (t) => {

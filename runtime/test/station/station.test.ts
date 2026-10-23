@@ -70,10 +70,10 @@ test("la station donne à publier le rail de chaque projet servi, lu par sa cuis
   rails.set("espace", () => {
     throw new Error("journal fermé");
   });
-  // `parade` : une cuisine qui ne lit aucun rail.
-  ecrire("brigade acme/brigade v2\nespace acme/espace main\nparade acme/parade main\n");
+  // `shop` : une cuisine qui ne lit aucun rail.
+  ecrire("brigade acme/brigade v2\nespace acme/espace main\nshop acme/shop main\n");
   servie.relire();
-  assert.deepEqual(servie.projets(), ["brigade", "espace", "parade"]);
+  assert.deepEqual(servie.projets(), ["brigade", "espace", "shop"]);
   assert.deepEqual(servie.rails(), { brigade: [ticket] });
   // Son journal ne se lit pas un instant : son dernier rail lu reste à publier.
   lisible = false;
@@ -170,10 +170,10 @@ test("arrêtée, la station arrête chacun de ses projets par le signal reçu, e
 // dans station/main.ts) : l'app en tire la liste de sa page (#878). Une ligne écrite à la main n'y est
 // pas moins qu'une ligne que l'app a fait écrire.
 test("les projets servis sont tous ceux de la configuration : ceux que l'app a ajoutés, et ceux écrits à la main hors de son bloc", (t) => {
-  const { servie } = station(t, ["cantine acme/cantine main", DEBUT, "parade acme/parade main", FIN, "brigade acme/brigade v2", ""].join("\n"));
-  assert.deepEqual([...servie.projets()].sort(), ["brigade", "cantine", "parade"]);
+  const { servie } = station(t, ["cantine acme/cantine main", DEBUT, "shop acme/shop main", FIN, "brigade acme/brigade v2", ""].join("\n"));
+  assert.deepEqual([...servie.projets()].sort(), ["brigade", "cantine", "shop"]);
   // Et le dépôt de chacun : l'app d'un ordinateur neuf en tire de quoi le cloner (#1428).
-  assert.deepEqual(servie.depots(), { cantine: "acme/cantine", parade: "acme/parade", brigade: "acme/brigade" });
+  assert.deepEqual(servie.depots(), { cantine: "acme/cantine", shop: "acme/shop", brigade: "acme/brigade" });
 });
 
 test("station.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);

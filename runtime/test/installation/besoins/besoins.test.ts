@@ -43,7 +43,7 @@ const QUI = { projet: "widgets", auteur: "station:box" };
 
 // Le dépôt de widgets, tel que le setup écrit pour le Mac du chef le
 // laisse : il joint une base Postgres locale, et son API dépend de `pg`.
-const MIRRORSCREEN: Record<string, string> = {
+const DEPOT_A_BESOINS: Record<string, string> = {
   ".claude/brigade/worktree-setup.sh": "#!/usr/bin/env bash\nset -euo pipefail\n# docker est sur le Mac du chef, pas ici\ncp apps/api/.env.example apps/api/.env\npsql -h localhost -U postgres -c 'create database widgets_test'\npnpm install\n",
   "apps/api/package.json": JSON.stringify({ name: "api", scripts: { test: "vitest run", deploy: "docker build ." }, dependencies: { pg: "^8.11.0", fastify: "^4" } }),
   "apps/api/.env.example": "DATABASE_URL=postgres://postgres@localhost:5432/widgets\n",
@@ -115,7 +115,7 @@ function unProjet(t: TestContext) {
 const enAttente = (choix: readonly Choix[]) => choix.filter(({ status }) => status === "pending");
 
 test("les tests d'un projet ont besoin de Postgres, la station ne l'a pas : un seul choix, pour la base, à quatre issues qui disent chacune ce qui en suit", (t) => {
-  const besoins = besoinsDuDepot(unDepot(t, MIRRORSCREEN));
+  const besoins = besoinsDuDepot(unDepot(t, DEPOT_A_BESOINS));
   // Le setup d'abord ; un script de déploiement qui lance docker ne dit rien des tests.
   assert.deepEqual(
     besoins.map(({ besoin, preuves }) => [besoin.id, preuves]),
@@ -149,7 +149,7 @@ test("les tests d'un projet ont besoin de Postgres, la station ne l'a pas : un s
 });
 
 test("une autre station du projet fournit le besoin : l'issue « ailleurs » dit laquelle les tickets attendent", (t) => {
-  const besoins = besoinsDuDepot(unDepot(t, MIRRORSCREEN));
+  const besoins = besoinsDuDepot(unDepot(t, DEPOT_A_BESOINS));
   const [choix] = choixDesBesoins(besoins, { projet: "widgets", nom: "box", sonde: BOX, fournit: ["code"], ailleurs: [{ nom: "mac/claude", fournit: ["code", "postgres"] }] });
   assert.equal(choix!.options[0]!.consequence, "The tickets of widgets whose tests need a Postgres database wait for mac/claude, which provides it; box keeps cooking the others.");
 });
@@ -161,7 +161,7 @@ const unDocker = (repond: boolean): { jouer: Jouer } => ({
 });
 
 test("l'issue « le setup du projet l'apporte » est recommandée quand rien n'est à installer sur la station : elle a les binaires du serveur, ou un Docker qui répond", (t) => {
-  const besoins = besoinsDuDepot(unDepot(t, MIRRORSCREEN));
+  const besoins = besoinsDuDepot(unDepot(t, DEPOT_A_BESOINS));
   const station = { projet: "widgets", nom: "box", fournit: [] as string[], ailleurs: [] };
   const issues = (sonde: Sonde, fournit: string[] = []) => choixDesBesoins(besoins, { ...station, sonde, fournit })[0]!.options;
   const duProjet = (sonde: Sonde, fournit: string[] = []) => issues(sonde, fournit).find(({ id }) => id === PROJET)!;
@@ -212,7 +212,7 @@ test("la carte du navigateur garde ses trois issues, et gagne celle du projet, s
 });
 
 test("la station a le besoin — sur sa machine, ou déclaré pour une station d'ici — : aucun choix", (t) => {
-  const besoins = besoinsDuDepot(unDepot(t, MIRRORSCREEN));
+  const besoins = besoinsDuDepot(unDepot(t, DEPOT_A_BESOINS));
   assert.equal(besoins.length, 1);
   const station = { projet: "widgets", nom: "box", ailleurs: [] };
   assert.equal(choixDesBesoins(besoins, { ...station, sonde: AVEC_POSTGRES(), fournit: ["code"] }).length, 0);
@@ -220,7 +220,7 @@ test("la station a le besoin — sur sa machine, ou déclaré pour une station d
 });
 
 test("la station principale tient le choix au journal du projet, avec le blocage qui l'attend ; elle a le besoin, rien ne s'écrit", (t) => {
-  const clone = unDepot(t, MIRRORSCREEN);
+  const clone = unDepot(t, DEPOT_A_BESOINS);
   const { repertoireEtat, journal } = unProjet(t);
   poserDecision(journal, { projet: "widgets", nom: "BRIGADE_STATIONS", valeur: "box/claude:2:code+raisonnement", auteur: "chef" });
   const projet = { nom: "widgets", principale: true };
@@ -244,7 +244,7 @@ test("la station principale tient le choix au journal du projet, avec le blocage
 });
 
 test("retenir une issue la garde au journal du projet : le choix n'est plus en attente, son blocage est levé — et la station Postgres installée, il quitte la liste", (t) => {
-  const clone = unDepot(t, MIRRORSCREEN);
+  const clone = unDepot(t, DEPOT_A_BESOINS);
   const { repertoireEtat, journal } = unProjet(t);
   const voulus = choixDesBesoins(besoinsDuDepot(clone), { projet: "widgets", nom: "box", sonde: BOX, fournit: [], ailleurs: [] });
   assert.ok(tenirLesChoix(journal, QUI, voulus) > 0);
@@ -287,7 +287,7 @@ test("le choix que l'app écrit dans la demande est retenu à la lecture : une i
   assert.deepEqual(selectionsLues(null), {});
 
   const { journal } = unProjet(t);
-  const voulus = choixDesBesoins(besoinsDuDepot(unDepot(t, MIRRORSCREEN)), { projet: "widgets", nom: "box", sonde: BOX, fournit: [], ailleurs: [] });
+  const voulus = choixDesBesoins(besoinsDuDepot(unDepot(t, DEPOT_A_BESOINS)), { projet: "widgets", nom: "box", sonde: BOX, fournit: [], ailleurs: [] });
   tenirLesChoix(journal, QUI, voulus, { "need:docker": ICI });
   assert.equal(enAttente(choixDuJournal(journal.base)).length, 1);
   tenirLesChoix(journal, QUI, voulus, { "need:postgres": AILLEURS });
@@ -335,7 +335,7 @@ test("Postgres installé mais qui refuse la connexion du compte de la station : 
   assert.equal(aLeBesoin(POSTGRES, sonde, []), false);
   // Rien n'a été créé : rien à supprimer.
   assert.deepEqual(serveur.joues, ["psql SELECT 1"]);
-  const choix = choixDesBesoins(besoinsDuDepot(unDepot(t, MIRRORSCREEN)), { projet: "widgets", nom: "box", sonde, fournit: ["code"], ailleurs: [] });
+  const choix = choixDesBesoins(besoinsDuDepot(unDepot(t, DEPOT_A_BESOINS)), { projet: "widgets", nom: "box", sonde, fournit: ["code"], ailleurs: [] });
   assert.deepEqual(choix.map(({ id }) => id), ["need:postgres"]);
 });
 
@@ -497,7 +497,7 @@ function uneStation(t: TestContext, sonde: Sonde, { ouvrir, ecrite, github }: { 
     autoriser: async () => ({ autorisee: true }),
     cloner: async (_depot, clone) => {
       mkdirSync(join(clone, ".git"), { recursive: true });
-      for (const [chemin, contenu] of Object.entries(MIRRORSCREEN)) {
+      for (const [chemin, contenu] of Object.entries(DEPOT_A_BESOINS)) {
         mkdirSync(dirname(join(clone, chemin)), { recursive: true });
         writeFileSync(join(clone, chemin), contenu);
       }

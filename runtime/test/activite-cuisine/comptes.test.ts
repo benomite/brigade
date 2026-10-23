@@ -9,14 +9,14 @@ import { principal as faits } from "../../src/faits.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { aArreter, appeler, repertoireTemporaire } from "../outils.ts";
 
-const PROJET = "parade";
+const PROJET = "shop";
 const MAINTENANT = new Date("2026-10-21T12:00:00.000Z");
 const MINUTE_MS = 60_000;
 const ZERO = { served: 0, sentBack: 0, escalated: 0 };
 
 type Fait = Pick<Ajout, "type" | "payload">;
 const SERVI: Fait = { type: "ticket.served", payload: {} };
-const MERGE: Fait = { type: "merge.done", payload: { pr: "https://github.com/chef/parade/pull/1", sha: "c0ffee", by: "pass", reconciled: false } };
+const MERGE: Fait = { type: "merge.done", payload: { pr: "https://github.com/chef/shop/pull/1", sha: "c0ffee", by: "pass", reconciled: false } };
 const RENVOI: Fait = { type: "pass.returned", payload: { n: 1, findings: ["the test is missing"] } };
 const REMONTEE: Fait = { type: "pass.escalated", payload: { reason: "still-red", cause: "returns-exhausted" } };
 
@@ -73,7 +73,7 @@ test("on compte des tickets : renvoyé deux fois, ou mergé puis servi, il compt
   noter(5, 11, SERVI);
   // Remonté au chef, puis mergé par lui hors du rail : servi aussi.
   noter(40, 12, REMONTEE);
-  noter(15, 12, { ...MERGE, payload: { pr: "https://github.com/chef/parade/pull/2", sha: "beef", by: "outside", reconciled: true } });
+  noter(15, 12, { ...MERGE, payload: { pr: "https://github.com/chef/shop/pull/2", sha: "beef", by: "outside", reconciled: true } });
 
   assert.deepEqual(lire().lastHour, { served: 2, sentBack: 1, escalated: 1 });
 });

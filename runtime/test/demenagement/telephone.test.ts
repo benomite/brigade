@@ -12,9 +12,9 @@ import { demenager, principal, type StationLue } from "../../src/demenagement/de
 import { FICHIER_PROJETS, type ProjetDemande } from "../../src/projets/demande.ts";
 
 const AUJOURDHUI = "2026-10-21T08:00:00.000Z";
-const PARADE: ProjetDemande = {
-  nom: "parade",
-  depot: "acme/parade",
+const SHOP: ProjetDemande = {
+  nom: "shop",
+  depot: "acme/shop",
   base: "main",
   principale: true,
   cooks: 2,
@@ -27,29 +27,29 @@ const PARADE: ProjetDemande = {
 const station = (nom: string, demande: ProjetDemande[] = [], cuisine = true): StationLue => ({ gist: `gist${nom}`, nom, cuisine, demande, suivi: undefined });
 
 test("vers un téléphone, le déménagement est refusé en une phrase : il ne fait tourner aucun cook — même quand c'est la seule autre station", () => {
-  const stations = [station("box", [PARADE]), station("pixel", [], false)];
-  assert.deepEqual(demenager(stations, "parade", "gistpixel", AUJOURDHUI), { refus: "pixel does not cook: no project's cooks run there" });
+  const stations = [station("box", [SHOP]), station("pixel", [], false)];
+  assert.deepEqual(demenager(stations, "shop", "gistpixel", AUJOURDHUI), { refus: "pixel does not cook: no project's cooks run there" });
   // Même s'il porte déjà une ligne du projet.
-  const avecLigne = [station("box", [PARADE]), station("pixel", [{ ...PARADE, principale: false }], false)];
-  assert.deepEqual(demenager(avecLigne, "parade", "gistpixel", AUJOURDHUI), { refus: "pixel does not cook: no project's cooks run there" });
+  const avecLigne = [station("box", [SHOP]), station("pixel", [{ ...SHOP, principale: false }], false)];
+  assert.deepEqual(demenager(avecLigne, "shop", "gistpixel", AUJOURDHUI), { refus: "pixel does not cook: no project's cooks run there" });
 });
 
 test("un téléphone parmi les stations ne change pas celle où le projet cuit : le même déménagement, avec ou sans lui", () => {
-  const sans = demenager([station("box", [PARADE]), station("mac")], "parade", "gistmac", AUJOURDHUI);
-  const avec = demenager([station("box", [PARADE]), station("pixel", [], false), station("mac")], "parade", "gistmac", AUJOURDHUI);
+  const sans = demenager([station("box", [SHOP]), station("mac")], "shop", "gistmac", AUJOURDHUI);
+  const avec = demenager([station("box", [SHOP]), station("pixel", [], false), station("mac")], "shop", "gistmac", AUJOURDHUI);
   assert.ok(!("refus" in sans));
   assert.deepEqual(avec, sans);
   assert.deepEqual(avec, { ecrire: (sans as { ecrire: unknown }).ecrire, de: "box", vers: "mac", demandeLe: AUJOURDHUI });
 });
 
 test("un téléphone marqué principal d'un projet n'est pas la station où il cuit : elle reste celle qui cuisine", () => {
-  const stations = [station("box", [PARADE]), station("pixel", [PARADE], false), station("mac")];
-  const rendu = demenager(stations, "parade", "gistmac", AUJOURDHUI);
+  const stations = [station("box", [SHOP]), station("pixel", [SHOP], false), station("mac")];
+  const rendu = demenager(stations, "shop", "gistmac", AUJOURDHUI);
   assert.ok(!("refus" in rendu), JSON.stringify(rendu));
   assert.equal(rendu.de, "box");
   // Seul, il ne fait cuire le projet nulle part.
-  assert.deepEqual(demenager([station("pixel", [PARADE], false), station("mac")], "parade", "gistmac", AUJOURDHUI), {
-    refus: "parade cooks on none of your stations: add it rather than move it",
+  assert.deepEqual(demenager([station("pixel", [SHOP], false), station("mac")], "shop", "gistmac", AUJOURDHUI), {
+    refus: "shop cooks on none of your stations: add it rather than move it",
   });
 });
 
@@ -75,7 +75,7 @@ async function deplacer(canal: Canal, vers: string, gists: string[]) {
   let code = 0;
   try {
     await principal(
-      { args: ["parade", vers, ...gists], env: {}, dire: (ligne) => dit.push(ligne), redire: (ligne) => dit.push(ligne) },
+      { args: ["shop", vers, ...gists], env: {}, dire: (ligne) => dit.push(ligne), redire: (ligne) => dit.push(ligne) },
       { canal, maintenant: () => new Date(AUJOURDHUI), gistLocal: null, verifierBacASable: () => ({ ok: true, version: "2.1.300" }) },
     );
   } catch (erreur) {
@@ -88,7 +88,7 @@ async function deplacer(canal: Canal, vers: string, gists: string[]) {
 test("la commande lit qu'une station ne cuisine pas dans ce qu'elle publie, refuse d'y déménager, et n'écrit rien", async () => {
   const demande = (projets: ProjetDemande[]) => JSON.stringify({ brigade: "projets", format: 1, projets });
   const gists: Record<string, Fichiers> = {
-    gistbox: { [FICHIER_STATION]: JSON.stringify({ brigade: "station", format: 1, nom: "box", sorte: "ordinateur", cuisine: true }), [FICHIER_PROJETS]: demande([PARADE]) },
+    gistbox: { [FICHIER_STATION]: JSON.stringify({ brigade: "station", format: 1, nom: "box", sorte: "ordinateur", cuisine: true }), [FICHIER_PROJETS]: demande([SHOP]) },
     gistpixel: { [FICHIER_STATION]: JSON.stringify({ brigade: "station", format: 1, nom: "pixel", sorte: "telephone", cuisine: false }) },
     // Une station plus ancienne que les sortes : un ordinateur, qui cuisine.
     gistmac: { [FICHIER_STATION]: JSON.stringify({ brigade: "station", format: 1, nom: "mac" }) },
@@ -99,7 +99,7 @@ test("la commande lit qu'une station ne cuisine pas dans ce qu'elle publie, refu
 
   // Vers l'ordinateur, le téléphone parmi les stations lues ne change rien à celle que la cuisine quitte.
   const parti = await deplacer(canal, "gistmac", ["gistbox", "gistpixel"]);
-  assert.deepEqual(parti, { code: 0, rendu: { moved: true, project: "parade", from: "box", to: "mac", askedAt: AUJOURDHUI } });
+  assert.deepEqual(parti, { code: 0, rendu: { moved: true, project: "shop", from: "box", to: "mac", askedAt: AUJOURDHUI } });
   assert.deepEqual(ecrits.sort(), ["gistbox", "gistmac"]);
   assert.equal(gists.gistpixel?.[FICHIER_PROJETS], undefined);
 });

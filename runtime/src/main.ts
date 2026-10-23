@@ -56,18 +56,13 @@ function refuser(motif: string): never {
   process.exit(REFUS);
 }
 
-function exiger(variable: string): string {
-  const valeur = process.env[variable];
-  if (!valeur) refuser(`${variable} n'est pas défini`);
-  return valeur;
-}
-
 // Ce que l'utilisateur doit donner, dit en une fois — pas une variable par
 // démarrage.
 const manquantes = valeursManquantes(process.env);
 if (manquantes.length > 0) refuser(direValeursManquantes(manquantes));
-const repertoireEtat = exiger("BRIGADE_STATE_DIR");
-const projet = exiger("BRIGADE_PROJECT");
+// Présentes : `valeursManquantes` vient de les exiger.
+const repertoireEtat = process.env.BRIGADE_STATE_DIR ?? "";
+const projet = process.env.BRIGADE_PROJECT ?? "";
 
 let runtime;
 // Non nul : chaque rôle agit sur GitHub sous sa propre identité.

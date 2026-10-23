@@ -47,7 +47,7 @@ case "$scenario" in
     exit 1
     ;;
   # Bute sur le Postgres de la station, qui refuse son compte — l'échec du
-  # setup de gadgets sur parade-box.
+  # setup de gadgets sur shop-box.
   postgres)
     echo "Scope: all 3 workspace projects" >&2
     echo 'psql: error: connection to server on socket "/var/run/postgresql/.s.PGSQL.5432" failed: FATAL:  role "claude" does not exist' >&2

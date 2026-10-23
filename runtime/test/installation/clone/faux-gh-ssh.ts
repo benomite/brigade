@@ -9,7 +9,7 @@ const args = process.argv.slice(2);
 const dossier = args[3] ?? "";
 appendFileSync(join(process.env.FAUX_JOURNAL ?? "", "essais"), `${process.env.GIT_CONFIG_COUNT ?? "-"}\n`);
 if (process.env.FAUX_REFUS !== undefined) {
-  process.stderr.write(`remote: Repository not found.\nfatal: repository 'https://github.com/acme/parade.git/' not found\nfailed to run git: exit status 128\n`);
+  process.stderr.write(`remote: Repository not found.\nfatal: repository 'https://github.com/acme/shop.git/' not found\nfailed to run git: exit status 128\n`);
   process.exit(1);
 }
 if (process.env.GIT_CONFIG_KEY_0 === undefined) {
