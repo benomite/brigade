@@ -7,7 +7,8 @@
 // commentaire : éditer un corps ne notifie personne.
 import { decouper } from "../../github.ts";
 import { masquerIdentifiants } from "../../identifiants.ts";
-import { COMPTE_DE_LA_MACHINE, constaterLimite, lectureDe, limiteDuProcess, noterLesEntetes, prendreUnAppel, refusPourLimite, type Limite, type ReponseHttp } from "../../limite-github.ts";
+import { LECTURE_DU_TABLEAU } from "../budget/cout.ts";
+import { COMPTE_DE_LA_MACHINE, constaterLimite, limiteDuProcess, noterLesEntetes, prendreUnAppel, refusPourLimite, type Limite, type ReponseHttp } from "../../limite-github.ts";
 import { execFile } from "../../sans-invite.ts";
 
 // Une issue telle que le tableau la lit.
@@ -73,7 +74,7 @@ export function clientGitHubDuTableau(options: OptionsClient): ClientDuTableau {
     const limite = options.limite ?? limiteDuProcess();
     let env: NodeJS.ProcessEnv | undefined;
     const environnement = async () => (env ??= options.jeton ? { ...process.env, GH_TOKEN: await options.jeton() } : undefined);
-    const appel = await prendreUnAppel(limite, { compte, etiquette: { projet: options.projet ?? (process.env.BRIGADE_PROJECT || depot), lecture: lectureDe(args) }, gh: bin, env: environnement, maintenant: options.maintenant });
+    const appel = await prendreUnAppel(limite, { compte, etiquette: { projet: options.projet ?? (process.env.BRIGADE_PROJECT || depot), lecture: LECTURE_DU_TABLEAU }, gh: bin, env: environnement, maintenant: options.maintenant });
     await environnement();
     return new Promise((resoudre, rejeter) => {
       const enfant = execFile(

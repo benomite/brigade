@@ -21,6 +21,7 @@ import type { Journal } from "./journal.ts";
 import { livraisonsCoincees } from "./file-de-la-pass.ts";
 import { formaterEvenement } from "./ligne-evenement.ts";
 import { direSaturationsEn } from "./machine.ts";
+import { direLeCoutDuTableau } from "./tableau/budget/cout.ts";
 import { direLaLimite, direLesAppels, type Repartition } from "./limite-github.ts";
 import { direJaugeEn, franchis, SANS_SEUIL, type Franchi } from "./mesures.ts";
 import {
@@ -697,6 +698,8 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     ...(limiteGithub === null ? [] : [ligne("github", direLaLimite(limiteGithub))]),
     // Les appels de la box à GitHub sur l'heure écoulée, quand son compteur existe.
     ...(appels === null ? [] : direLesAppels(appels).map((texte, i) => ligne(i === 0 ? "gh calls" : "", texte))),
+    // Le coût du tableau de la cuisine dans ce budget : à zéro sans activité, tant que le compteur existe.
+    ...(appels === null ? [] : [ligne("board cost", direLeCoutDuTableau(appels))]),
     ...decrireRuntime(etat, depuisEn),
     ...(etat.interrupteur == null ? [] : [ligne("switch", direInterrupteur(etat.interrupteur))]),
     decrireCuisine(etat, depuisEn),
