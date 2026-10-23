@@ -2880,7 +2880,9 @@ main > header,
 }
 #rail .colonnes {
   display: grid;
-  grid-template-columns: repeat(3, minmax(240px, 1fr)) minmax(280px, 1.3fr) minmax(280px, 1.2fr) minmax(240px, 1fr);
+  /* Autant de pistes que de colonnes, quel qu'en soit le nombre (six sur Rail, cinq publiées) : jamais de deuxième ligne. */
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(250px, 1fr);
   align-items: start;
   gap: 8px;
   padding: 8px 16px 16px;
@@ -2889,18 +2891,12 @@ main > header,
   overflow-x: auto;
   overflow-y: auto;
 }
-/* Partagées entre les deux onglets (ticket 1184) : Rail en a quatre — On the rail, TODO, WAITING, Served —, Cooks deux —
-   Taken, Pass. Une largeur plancher où un titre de ticket tient sur deux lignes au plus (ticket 1556). */
-#rail[data-onglet="rail"] .colonnes {
-  grid-template-columns: minmax(240px, 1fr) minmax(280px, 1.3fr) minmax(280px, 1.2fr) minmax(240px, 1fr);
-}
-#rail[data-onglet="cooks"] .colonnes {
-  grid-template-columns: repeat(2, minmax(240px, 1fr));
-}
+/* Partagées entre les deux onglets (ticket 1184) : Rail a toutes les siennes — On the rail, Taken, Pass, TODO, WAITING, Served —, Cooks
+   aucune. Chacune a la largeur plancher ci-dessus, où un titre de ticket tient sur deux lignes au plus (ticket 1556). */
 /* Le tableau de la cuisine lu de GitHub (ticket 1588) en a deux : TODO, puis la cuisine. `:where` : la règle pèse
-   autant que celle des quatre, et la page étroite, plus bas, les empile de même. */
+   autant que celle du dessus ; elle ne change que la largeur des pistes. */
 #rail[data-onglet="rail"] .colonnes:where(.tableau-de-cuisine) {
-  grid-template-columns: minmax(280px, 1.3fr) minmax(280px, 1fr);
+  grid-auto-columns: minmax(280px, 1fr);
 }
 /* Sur Cooks : la carte du projet, quand ses faits ne se dessinent pas, en tête. */
 #rail > .carte {
@@ -6251,9 +6247,6 @@ button.recommande {
 }
 #rail > .refus {
   color: var(--rouge-clair);
-}
-#rail[data-onglet="rail"] .colonnes.publiees {
-  grid-template-columns: repeat(3, minmax(240px, 1fr)) minmax(280px, 1.2fr) minmax(240px, 1fr);
 }
 #rail .colonne p.vide {
   color: var(--discret);
