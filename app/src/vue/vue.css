@@ -6535,3 +6535,28 @@ button.recommande {
   border: 1px solid var(--trait);
   border-radius: var(--rayon-bouton);
 }
+/* Le formulaire du premier lancement : le compte GitHub du chef et son projet, deux champs vides aux exemples neutres. */
+.premier-lancement .formulaire-du-premier {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.premier-lancement .formulaire-du-premier label {
+  color: var(--texte-doux);
+}
+.premier-lancement .formulaire-du-premier .refus-champ {
+  margin: 0;
+  color: var(--rouge-clair);
+}
+.premier-lancement .formulaire-du-premier input {
+  padding: 7px 10px;
+  font-family: var(--police-mono);
+  font-size: 13px;
+  color: var(--texte);
+  background: var(--fond);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+}
+.premier-lancement .formulaire-du-premier .refus-champ:empty {
+  display: none;
+}

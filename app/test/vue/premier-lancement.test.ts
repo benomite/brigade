@@ -22,6 +22,15 @@ import type { Ouverture } from "../../src/premier-lancement.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import {
   boutonDeLaPage,
+  COMPTE,
+  COMPTE_EXEMPLE,
+  COMPTE_MANQUE,
+  lireLeProjet,
+  OUVRIR_CE_PROJET,
+  PROJET,
+  PROJET_EXEMPLE,
+  PROJET_ILLISIBLE,
+  PROJET_MANQUE,
   CONNEXION_EN_ROUTE,
   DEPOT_INCONNU,
   LECTURE,
@@ -87,6 +96,7 @@ function unEcran(etat: Partial<EtatDuPremier> = {}) {
     relire: () => void faits.push("relire"),
     ouvrirLaPage: (url) => void faits.push(`page ${url}`),
     ajouterUnDossier: () => void faits.push("ajout"),
+    ouvrirUnDossier: (dossier) => void faits.push(`dossier ${dossier}`),
   };
   const ecran = poserPremierLancement(doc, { poste: "this PC", ...etat }, gestes) as Faux;
   const bouton = (texte: string) => ecran.dessous("button").find((candidat) => candidat.textContent === texte) ?? assert.fail(`pas de bouton « ${texte} » : ${ecran.dessous("button").map((b) => b.textContent).join(", ")}`);
@@ -249,6 +259,69 @@ describe("les stations ne se lisent pas : la raison en une phrase, jamais un éc
       bouton(PAR_UN_DOSSIER).click();
       assert.deepEqual(faits, ["ajout"]);
     }
+  });
+});
+
+describe("le premier lancement demande le compte et le projet de qui l'ouvre, sans rien de présupposé", () => {
+  const champs = (ecran: Faux) => ecran.dessous("input");
+  const taper = (champ: Faux | undefined, valeur: string) => {
+    if (champ === undefined) assert.fail("pas de champ");
+    champ.value = valeur;
+    champ.declencher("input");
+  };
+  test("deux champs vides aux exemples neutres, dans chaque état de la lecture des stations", () => {
+    for (const stations of [undefined, LISTEES, SANS_COMPTE, SANS_GH, SANS_RESEAU]) {
+      const { ecran } = unEcran(stations === undefined ? {} : { stations });
+      assert.deepEqual(champs(ecran).map((champ) => [champ.value, champ.placeholder]), [["", COMPTE_EXEMPLE], ["", PROJET_EXEMPLE]]);
+      assert.deepEqual(ecran.dessous("label").map((nom) => nom.textContent), [COMPTE, PROJET]);
+    }
+    assert.equal(COMPTE_EXEMPLE, "your-github-login");
+    assert.match(PROJET_EXEMPLE, /^owner\/repo/);
+  });
+
+  test("un dépôt tapé s'ouvre par la copie du runtime, sous un nom tiré du dépôt, sans station", () => {
+    const { ecran, bouton, faits } = unEcran();
+    const [, projet] = champs(ecran);
+    taper(projet, "Some-Owner/My_Repo");
+    bouton(OUVRIR_CE_PROJET).click();
+    assert.deepEqual(faits, ["ouvrir  my-repo Some-Owner/My_Repo"]);
+  });
+
+  test("un nom seul est complété par le compte tapé ; sans compte, la phrase le dit et rien ne part", () => {
+    const { ecran, bouton, faits } = unEcran();
+    const [compte, projet] = champs(ecran);
+    taper(projet, "parade");
+    bouton(OUVRIR_CE_PROJET).click();
+    assert.deepEqual(faits, []);
+    assert.match(ecran.dessous("p").find((p) => p.className === "refus-champ")?.textContent ?? "", /Type your GitHub account too/);
+    taper(compte, "someone");
+    bouton(OUVRIR_CE_PROJET).click();
+    assert.deepEqual(faits, ["ouvrir  parade someone/parade"]);
+  });
+
+  test("un chemin de dossier part à l'écran d'ajout, tel quel", () => {
+    for (const chemin of ["/work/thing", "~/code/thing", "./thing", "C:\\code\\thing"]) {
+      const { ecran, bouton, faits } = unEcran();
+      const projet = champs(ecran)[1];
+      taper(projet, chemin);
+      bouton(OUVRIR_CE_PROJET).click();
+      assert.deepEqual(faits, [`dossier ${chemin}`]);
+    }
+  });
+
+  test("ce qui se lit mal ne part pas, et dit pourquoi ; l'adresse GitHub se reconnaît", () => {
+    assert.deepEqual(lireLeProjet("", ""), { refus: PROJET_MANQUE });
+    assert.deepEqual(lireLeProjet("", "parade"), { refus: COMPTE_MANQUE });
+    assert.deepEqual(lireLeProjet("x", "a b/c"), { refus: PROJET_ILLISIBLE });
+    assert.deepEqual(lireLeProjet("", "https://github.com/owner/repo.git"), { depot: "owner/repo", nom: "repo" });
+  });
+
+  test("ce qui est tapé reste d'un affichage à l'autre, et l'ouverture lancée d'ici se dit sous le formulaire", () => {
+    const saisie = { compte: "someone", projet: "someone/parade" };
+    const { ecran, bouton } = unEcran({ saisie, ouverture: { station: "", projet: "parade", depot: "someone/parade" } });
+    assert.deepEqual(champs(ecran).map((champ) => champ.value), ["someone", "someone/parade"]);
+    assert.ok(ecran.dessous("p").some((p) => p.textContent === ouvertureDe("parade")));
+    assert.equal(bouton(OUVRIR_CE_PROJET).disabled, true);
   });
 });
 
