@@ -13,7 +13,7 @@ import { ALLUMAGE } from "../src/allumage.ts";
 import { pourLaBarre } from "../src/barre.ts";
 import { BOUTONS } from "../src/boutons.ts";
 import { ajouterProjet, changerCouleur, colorerProjets, EXEMPLE, lireConfiguration, type Projet } from "../src/config.ts";
-import { choix, couleursLues, PALETTE, ROLES, tirer } from "../src/couleurs.ts";
+import { choix, couleursLues, DISTINCTES, ecart, ecartLab, ETATS, PALETTE, PROCHES, proches, ROLES, tirer } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { BANNIERE } from "../src/faits.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
@@ -38,9 +38,66 @@ function fichier(t: TestContext, contenu: unknown): { racine: string; chemin: st
 }
 const lu = (chemin: string) => JSON.parse(readFileSync(chemin, "utf8")) as { projets: { nom: string; couleurs?: Record<string, string> }[] };
 
+// La luminance relative d'une couleur `#rrggbb`, et le contraste de deux (WCAG 2) : de quoi dire
+// qu'une teinte se lit sur le fond sombre, et sous le texte foncé d'une case choisie.
+const luminance = (couleur: string) => {
+  const [r = 0, v = 0, b = 0] = [1, 3, 5].map((rang) => Number.parseInt(couleur.slice(rang, rang + 2), 16) / 255).map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * v + 0.0722 * b;
+};
+const contraste = (une: string, autre: string) => {
+  const [claire, sombre] = [luminance(une), luminance(autre)].sort((a, b) => b - a) as [number, number];
+  return (claire + 0.05) / (sombre + 0.05);
+};
+
 describe("la palette", () => {
+  const jetons = jetonsDe(readFileSync(join(VUE, "jetons.css"), "utf8"));
+
+  test("l'écart est celui de CIEDE2000 : les paires de référence de Sharma, Wu et Dalal (2005), à 10⁻⁴ près", () => {
+    const paires: [[number, number, number], [number, number, number], number][] = [
+      [[50, 2.6772, -79.7751], [50, 0, -82.7485], 2.0425],
+      [[50, 0, 0], [50, -1, 2], 2.3669],
+      [[50, 2.49, -0.001], [50, -2.49, 0.0009], 7.1792],
+      [[50, 2.49, -0.001], [50, -2.49, 0.0011], 7.2195],
+      [[50, 2.5, 0], [73, 25, -18], 27.1492],
+      [[50, 2.5, 0], [61, -5, 29], 22.8977],
+      [[50, 2.5, 0], [56, -27, -3], 31.903],
+      [[50, 2.5, 0], [58, 24, 15], 19.4535],
+      [[60.2574, -34.0099, 36.2677], [60.4626, -34.1751, 39.4387], 1.2644],
+      [[22.7233, 20.0904, -46.694], [23.0331, 14.973, -42.5619], 2.0373],
+      [[90.8027, -2.0831, 1.441], [91.1528, -1.6435, 0.0447], 1.4441],
+    ];
+    for (const [une, autre, attendu] of paires) {
+      assert.equal(Number(ecartLab(une, autre).toFixed(4)), attendu, `${une} — ${autre}`);
+      assert.equal(Number(ecartLab(autre, une).toFixed(4)), attendu, `${autre} — ${une}`);
+    }
+    assert.equal(ecart("#A98CF2", "#a98cf2"), 0);
+  });
+
+  test("les couleurs d'état mesurées sont celles de la peau, et le fond est celui de l'app", () => {
+    const parNom: Record<string, string> = { green: "--vert", yellow: "--jaune", red: "--rouge", blue: "--bleu", gray: "--gris" };
+    assert.deepEqual(
+      ETATS.map(({ nom, valeur }) => [nom, valeur]),
+      Object.entries(parNom).map(([nom, jeton]) => [nom, jetons.get(jeton)]),
+    );
+    assert.equal(jetons.get("--fond"), "#121418");
+  });
+
+  test(`au moins seize teintes, deux à deux à ΔE ≥ ${DISTINCTES}, et chacune à ΔE ≥ ${DISTINCTES} de chaque couleur d'état`, () => {
+    assert.ok(PALETTE.length >= 16, `${PALETTE.length} teintes`);
+    const trop: string[] = [];
+    for (const [rang, une] of PALETTE.entries()) {
+      for (const autre of PALETTE.slice(rang + 1)) if (ecart(une.valeur, autre.valeur) < DISTINCTES) trop.push(`${une.nom} — ${autre.nom} : ${ecart(une.valeur, autre.valeur).toFixed(1)}`);
+      for (const etat of ETATS) if (ecart(une.valeur, etat.valeur) < DISTINCTES) trop.push(`${une.nom} — ${etat.nom} (état) : ${ecart(une.valeur, etat.valeur).toFixed(1)}`);
+    }
+    assert.deepEqual(trop, []);
+  });
+
+  test("chaque teinte se lit sur le fond sombre de la peau, et sous le texte foncé d'une case choisie", () => {
+    const fond = jetons.get("--fond") ?? assert.fail("pas de --fond");
+    for (const { nom, valeur } of PALETTE) assert.ok(contraste(valeur, fond) >= 4.5, `${nom} : ${contraste(valeur, fond).toFixed(2)}`);
+  });
+
   test("aucune couleur de projet n'est une couleur d'état de la peau : une alerte se lit pareil partout", () => {
-    const jetons = jetonsDe(readFileSync(join(VUE, "jetons.css"), "utf8"));
     const etats = ["--vert", "--jaune", "--rouge", "--rouge-clair", "--bleu", "--gris"].map((nom) => jetons.get(nom));
     assert.ok(etats.every((valeur) => valeur?.startsWith("#")), etats.join());
     for (const valeur of VALEURS) assert.ok(!etats.includes(valeur), `${valeur} est une couleur d'état`);
@@ -71,11 +128,30 @@ describe("la palette", () => {
     assert.match(String(couleursLues({ onglet: "#fff" })), /“onglet” must be a color/);
   });
 
-  test("la vue nomme un rôle et une couleur de la palette : rien d'autre ne s'écrit depuis elle", () => {
+  test("la vue nomme un rôle, et une couleur de la palette par son nom ou une couleur libre `#rrggbb` : rien d'autre ne s'écrit depuis elle", () => {
     assert.deepEqual(choix("onglet", "purple"), { role: "onglet", valeur: "#a98cf2" });
     assert.deepEqual(choix("accent", "orange"), { role: "accent", valeur: "#f2994a" });
+    assert.deepEqual(choix("onglet", "#12AB56"), { role: "onglet", valeur: "#12ab56" });
     assert.match((choix("fond", "violet") as { refus: string }).refus, /^“fond” is not a project color: onglet or accent/);
-    assert.match((choix("onglet", "#123456") as { refus: string }).refus, /^“#123456” is not in the palette/);
+    assert.match((choix("onglet", "violet") as { refus: string }).refus, /^“violet” is neither in the palette \(orange, .*\) nor a color written `#rrggbb`/);
+    assert.match((choix("onglet", "#fff") as { refus: string }).refus, /^“#fff” is neither in the palette/);
+  });
+
+  test(`une couleur libre à ΔE < ${PROCHES} d'une couleur d'état ou de celle d'un autre projet se le voit dire, en nommant laquelle — et reste`, () => {
+    const fanfare = { nom: "fanfare", couleurs: { onglet: "#3c5a8f", accent: "#f2994a" } };
+    // Près du vert d'état, sur l'onglet ; près de l'onglet de fanfare, sur l'accent.
+    const parade = { nom: "parade", couleurs: { onglet: "#70c08c", accent: "#3e5d92" } };
+    assert.ok(ecart("#70c08c", "#6cc28a") < PROCHES && ecart("#3e5d92", "#3c5a8f") < PROCHES);
+    assert.deepEqual(proches(parade, [parade, fanfare]), { onglet: "close to green, a state color — kept anyway", accent: "close to the tab of fanfare — kept anyway" });
+    // La plus proche est nommée : le jaune, plutôt que l'accent d'un autre un peu plus loin.
+    const jaune = { nom: "parade", couleurs: { onglet: "#e8c56c" } };
+    assert.deepEqual(proches(jaune, [jaune, { nom: "cantine", couleurs: { accent: "#e5c070" } }]), { onglet: "close to yellow, a state color — kept anyway" });
+    // Loin de tout : rien à dire. Une teinte de la palette n'en dit rien, même portée par un autre.
+    assert.equal(proches({ nom: "parade", couleurs: { onglet: "#123456", accent: "#ffffff" } }, [fanfare]), undefined);
+    assert.equal(proches({ nom: "parade", couleurs: { onglet: "#f2994a" } }, [fanfare]), undefined);
+    // Ses propres couleurs ne comptent pas : un projet n'est pas trop près de lui-même.
+    assert.equal(proches({ nom: "fanfare", couleurs: { onglet: "#3c5a8f", accent: "#3e5d92" } }, [fanfare]), undefined);
+    assert.equal(proches({ nom: "nue" }, [fanfare]), undefined);
   });
 });
 
@@ -108,6 +184,39 @@ describe("les couleurs dans le fichier des projets", () => {
       lireConfiguration(chemin).projets.map(({ couleurs }) => couleurs),
       ecrit.projets.map(({ couleurs }) => ({ onglet: couleurs?.onglet, accent: couleurs?.accent })),
     );
+  });
+
+  test("un nouveau projet reçoit une teinte de la palette qu'aucun projet ne porte, dans aucun rôle, tant qu'il en reste une", (t) => {
+    // Quinze teintes déjà portées, en onglet ou en accent : il n'en reste qu'une.
+    const portees = VALEURS.slice(0, 15);
+    const projets = Array.from({ length: 8 }, (_, rang) => ({ nom: `p${rang}`, dossier: "/", couleurs: { onglet: portees[rang * 2] ?? portees[0], accent: portees[rang * 2 + 1] ?? portees[0] } }));
+    const { racine, chemin } = fichier(t, { projets: [...projets, { nom: "neuf", dossier: "/" }] });
+    for (const hasard of [0, 0.5, 0.999999]) {
+      writeFileSync(chemin, JSON.stringify({ projets: [...projets, { nom: "neuf", dossier: "/" }] }));
+      assert.equal(colorerProjets(chemin, racine, toujours(hasard)), undefined);
+      assert.deepEqual(lu(chemin).projets.at(-1)?.couleurs, { onglet: VALEURS[15], accent: VALEURS[15] }, `hasard ${hasard}`);
+    }
+    // Toutes portées : l'une des moins portées.
+    writeFileSync(chemin, JSON.stringify({ projets: [...projets, { nom: "seize", dossier: "/", couleurs: { onglet: VALEURS[15], accent: VALEURS[15] } }, { nom: "neuf", dossier: "/" }] }));
+    assert.equal(colorerProjets(chemin, racine, toujours(0)), undefined);
+    const tiree = lu(chemin).projets.at(-1)?.couleurs?.onglet ?? "";
+    assert.ok(VALEURS.includes(tiree) && tiree !== VALEURS[15], tiree);
+  });
+
+  test("les couleurs déjà choisies restent, même hors de la nouvelle palette — tirer celles qui manquent n'y touche pas", (t) => {
+    // Celles de l'ancienne palette à sept teintes (turquoise, sand, indigo, orchid) et une écrite à la main.
+    const anciennes = [
+      { nom: "a", dossier: "/", couleurs: { onglet: "#4fc7b5", accent: "#d9b98a" } },
+      { nom: "b", dossier: "/", couleurs: { onglet: "#8a84f0", accent: "#d77ee0" } },
+      { nom: "c", dossier: "/", couleurs: { onglet: "#123456" } },
+    ];
+    const { racine, chemin } = fichier(t, { projets: anciennes });
+    assert.equal(colorerProjets(chemin, racine, toujours(0)), undefined);
+    const ecrits = lu(chemin).projets;
+    assert.deepEqual(ecrits.slice(0, 2), anciennes.slice(0, 2));
+    assert.equal(ecrits[2]?.couleurs?.onglet, "#123456");
+    assert.equal(ecrits[2]?.couleurs?.accent, VALEURS[0]);
+    assert.deepEqual(lireConfiguration(chemin).projets.map(({ couleurs }) => couleurs?.onglet), ["#4fc7b5", "#8a84f0", "#123456"]);
   });
 
   test("rien ne manque : rien n'est écrit — et un fichier que l'app n'a pas compris n'est pas touché", (t) => {
@@ -170,7 +279,7 @@ describe("les couleurs dans le fichier des projets", () => {
 });
 
 describe("les couleurs dans la vue", () => {
-  const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", box: { hote: "box" }, couleurs: { onglet: "#a98cf2", accent: "#4fc7b5" } };
+  const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", box: { hote: "box" }, couleurs: { onglet: "#a98cf2", accent: "#25c0c5" } };
   const FANFARE: Projet = { nom: "fanfare", dossier: "/tmp/fanfare", box: { hote: "box" }, couleurs: { onglet: "#f28cbf", accent: "#d9b98a" } };
   const NUE: Projet = { nom: "nue", dossier: "/tmp/nue" };
   const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "second · claude", note: "", arrete: false };
@@ -214,7 +323,7 @@ describe("les couleurs dans la vue", () => {
     assert.equal(accent(), "");
     caseDe(vue, 1).click();
     await repos();
-    assert.equal(accent(), "#4fc7b5");
+    assert.equal(accent(), "#25c0c5");
     caseDe(vue, 2).click();
     await repos();
     assert.equal(accent(), "#d9b98a");
@@ -255,13 +364,14 @@ describe("les couleurs dans la vue", () => {
     assert.deepEqual(pastilles(vue, 0).filter(({ ariaPressed }) => ariaPressed === "true").map(({ title }) => title), ["Tab, in the bar: pink"]);
   });
 
-  test("un choix refusé le dit sous les couleurs ; une couleur écrite à la main hors de la palette se montre, sans geste", async () => {
+  test("un choix refusé le dit sous les couleurs ; une couleur libre se montre au bout de la palette, pressée, sans geste", async () => {
     const vue = await jouer([{ ...PARADE, couleurs: { onglet: "#123456" } }], () => "ce fichier n'a pas pu être écrit : EACCES");
     caseDe(vue, 1).click();
     await repos();
     await ouvrirLecture(vue, "General");
     const propre = pastilles(vue, 0).at(-1);
     assert.equal(propre?.style.getPropertyValue("--teinte"), "#123456");
+    assert.equal(propre?.title, "Tab, in the bar: #123456, your own color");
     assert.equal(propre?.ariaPressed, "true");
     assert.equal(propre?.disabled, true);
     assert.equal(pastilles(vue, 0).length, PALETTE.length + 1);
@@ -270,6 +380,53 @@ describe("les couleurs dans la vue", () => {
     pastilles(vue, 1)[0]?.click();
     await repos();
     assert.ok(vue.element("couleurs").dessous("p").some(({ textContent, className }) => className === "refus" && textContent === "ce fichier n'a pas pu être écrit : EACCES"));
+  });
+
+  test("une couleur libre se choisit au sélecteur, au bout de chaque rangée : elle part telle quelle, `#rrggbb`", async () => {
+    const vue = await jouer([PARADE, FANFARE], () => undefined);
+    caseDe(vue, 1).click();
+    await repos();
+    await ouvrirLecture(vue, "General");
+    const libres = vue.element("couleurs").dessous("input");
+    assert.deepEqual(libres.map(({ type, title, value }) => [type, title, value]), [
+      ["color", "Tab, in the bar: another color…", "#a98cf2"],
+      ["color", "Accent, in the space: another color…", "#25c0c5"],
+    ]);
+    assert.deepEqual(vue.element("couleurs").dessous("label").map(({ textContent }) => textContent), ["other…", "other…"]);
+    const [onglet, accentLibre] = libres;
+    if (onglet === undefined || accentLibre === undefined) assert.fail("pas de sélecteur");
+    onglet.value = "#70c08c";
+    onglet.declencher("change");
+    await repos();
+    assert.deepEqual(vue.dernier("colorer"), ["parade", "onglet", "#70c08c"]);
+    accentLibre.value = "#123456";
+    accentLibre.declencher("change");
+    await repos();
+    assert.deepEqual(vue.dernier("colorer"), ["parade", "accent", "#123456"]);
+  });
+
+  test("trop proche d'une couleur d'état ou d'un autre projet, une couleur libre reste, et une ligne sous sa rangée dit laquelle", async () => {
+    // Le vert d'état à ΔE 1 sur l'onglet, l'onglet de fanfare à ΔE 1 sur l'accent.
+    const proche = { ...PARADE, couleurs: { onglet: "#70c08c", accent: "#f08dbe" } };
+    const vue = await jouer([proche, FANFARE], () => undefined);
+    caseDe(vue, 1).click();
+    await repos();
+    await ouvrirLecture(vue, "General");
+    const enfants = vue.element("couleurs").children.map(({ className, textContent }) => [className, className === "rangee" ? "" : textContent]);
+    assert.deepEqual(enfants.slice(1), [
+      ["rangee", ""],
+      ["proche", "Tab, in the bar: close to green, a state color — kept anyway"],
+      ["rangee", ""],
+      ["proche", "Accent, in the space: close to the tab of fanfare — kept anyway"],
+    ]);
+    // Gardée : pressée au bout de sa rangée, et sur la case de la barre.
+    assert.equal(pastilles(vue, 0).at(-1)?.ariaPressed, "true");
+    assert.equal(caseDe(vue, 1).style.getPropertyValue("--teinte"), "#70c08c");
+
+    // Une teinte de la palette choisie à sa place : plus rien à dire.
+    vue.dire("surConfiguration", pourLaBarre({ chemin: "/tmp/app.json", projets: [{ ...proche, couleurs: { onglet: "#a98cf2", accent: "#f08dbe" } }, FANFARE], hotes: ["box"] }), []);
+    await repos();
+    assert.deepEqual(vue.element("couleurs").dessous("p").filter(({ className }) => className === "proche").map(({ textContent }) => textContent), ["Accent, in the space: close to the tab of fanfare — kept anyway"]);
   });
 
   test("la vue ne pose que deux variables — l'accent et la teinte d'un projet — et aucune règle d'état ne les nomme", () => {

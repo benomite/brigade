@@ -610,8 +610,8 @@ ipcMain.handle("lireClone", (_, dossier: unknown) => (typeof dossier === "string
 // machine n'est jointe : le projet a son onglet, et sa cuisine se confie depuis sa page.
 ipcMain.handle("ajouter", (_, saisie: unknown) => ajouterALApp(saisie, suivi.ajouter));
 // Les couleurs d'un projet : la vue nomme le projet, le rôle — onglet ou accent — et une couleur
-// de la palette, par son nom (couleurs.ts). Écrite, elle arrive par `surConfiguration`. Rend la
-// raison, si elle ne l'a pas été.
+// de la palette, par son nom, ou une couleur libre `#rrggbb` (couleurs.ts). Écrite, elle arrive par
+// `surConfiguration`, avec ce qu'elle a de trop proche. Rend la raison, si elle ne l'a pas été.
 ipcMain.handle("colorer", (_, nom: unknown, role: unknown, couleur: unknown) => {
   const vise = declare(nom);
   if (vise === undefined) return parti(nom).refus;

@@ -2064,6 +2064,35 @@ main > header,
 #couleurs button.teinte:disabled {
   cursor: default;
 }
+/* La couleur libre : le sélecteur du système, en pastille cerclée de pointillés, après la palette,
+   et son mot. */
+#couleurs label.libre {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 4px;
+  color: var(--discret);
+  cursor: pointer;
+}
+#couleurs label.libre input {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: none;
+  border: 1px dashed var(--trait-fort);
+  border-radius: 50%;
+  cursor: pointer;
+}
+#couleurs label.libre input::-webkit-color-swatch-wrapper {
+  padding: 3px;
+}
+#couleurs label.libre input::-webkit-color-swatch {
+  border: none;
+  border-radius: 50%;
+}
+#couleurs p.proche {
+  color: var(--jaune);
+}
 #couleurs p {
   margin: 4px 0 0;
   color: var(--discret);

@@ -46,8 +46,9 @@ export type Pont = {
   // L'ajout : le projet est écrit dans le fichier des projets, avec son dépôt et sa branche — ou ce
   // qui l'a empêché, champ par champ ou d'un bloc. Rien ne part vers aucune machine. Ajouté, il arrive par `surConfiguration`.
   ajouter(saisie: Saisie): Promise<Issue>;
-  // Change la couleur d'onglet ou d'accent d'un projet, par le nom d'une couleur de la palette
-  // (couleurs.ts). Rend la raison, si elle ne l'a pas été. Écrite, elle arrive par `surConfiguration`.
+  // Change la couleur d'onglet ou d'accent d'un projet, par le nom d'une couleur de la palette ou
+  // une couleur libre `#rrggbb` (couleurs.ts). Rend la raison, si elle ne l'a pas été. Écrite, elle
+  // arrive par `surConfiguration`.
   colorer(projet: string, role: Role, couleur: string): Promise<string | undefined>;
   // Le bloc « tickets ordinaires » de cet ordinateur pour un projet (ordinaires.ts) — rien, quand l'option n'existe pas ici.
   ordinaires(projet: string): Promise<Bloc | undefined>;
