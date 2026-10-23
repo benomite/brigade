@@ -13,7 +13,7 @@ import type { ClientDesGestes, CommentaireDuTableau } from "../../../src/tableau
 import { gestesDuTableau } from "../../../src/tableau/gestes/gestes.ts";
 import { lireUnGesteDeBoite } from "../../../src/tableau/gestes-boite/grammaire.ts";
 import { fauxGitHub, issue } from "../../aides/cuisine.ts";
-import { DEPOT, horloge, repertoireTemporaire } from "../../outils.ts";
+import { aArreter, DEPOT, horloge, repertoireTemporaire } from "../../outils.ts";
 
 const PROJET = "brigade";
 const STATION = "box/claude";
@@ -24,7 +24,7 @@ const ROUGES = { outcome: "red" as const, code: 1, failures: ["FAIL  tests du ru
 function atelier(t: TestContext) {
   const repertoire = repertoireTemporaire(t);
   const runtime = demarrer({ repertoireEtat: repertoire, projet: PROJET, intervalleVeilleMs: 5, maintenant: horloge() });
-  t.after(() => runtime.arreter("test"));
+  aArreter(t, () => runtime.arreter("test"));
   const { journal } = runtime;
   const noter = (fait: Fait, author = "pass") => journal.ajouter({ project: PROJET, ticket: null, author, ...fait });
   noter({ type: "station.announced", payload: { station: STATION, engine: "claude", provides: ["opus"], maxCooks: 2 } }, `station:${STATION}`);
