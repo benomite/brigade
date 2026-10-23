@@ -21,7 +21,7 @@ test("sans bloc, les lignes de l'app s'ajoutent à la fin, entre ses deux commen
 
 test("réécrit, le bloc reste à sa place ; vidé, il disparaît ; les lignes à la main ne bougent pas", () => {
   const texte = `${A_LA_MAIN}${DEBUT}\nshop acme/shop main\n${FIN}\nespace acme/espace main\n`;
-  assert.equal(reecrireBloc(texte, ["shop acme/shop main", "thermigo acme/thermigo main"]), `${A_LA_MAIN}${DEBUT}\nshop acme/shop main\nthermigo acme/thermigo main\n${FIN}\nespace acme/espace main\n`);
+  assert.equal(reecrireBloc(texte, ["shop acme/shop main", "compta acme/compta main"]), `${A_LA_MAIN}${DEBUT}\nshop acme/shop main\ncompta acme/compta main\n${FIN}\nespace acme/espace main\n`);
   assert.equal(reecrireBloc(texte, []), `${A_LA_MAIN}espace acme/espace main\n`);
   assert.deepEqual(nomsHorsDuBloc(texte), ["brigade", "espace"]);
   // Sans bloc et sans ligne, rien ne change.
