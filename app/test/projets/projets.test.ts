@@ -3,6 +3,7 @@
 // compte et ses dépôts dans un répertoire : ni réseau, ni GitHub, ni station — GitHub est le seul
 // canal, et ce test n'en ouvre aucun autre.
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -10,8 +11,9 @@ import { describe, test, type TestContext } from "node:test";
 import { FICHIER_PROJETS, FICHIER_SUIVI } from "../../src/projets/demande.ts";
 import { depotsDuChef } from "../../src/projets/github.ts";
 import { plafondDesCoeurs } from "../../../runtime/src/projections/stations.ts";
+import { projetDuClone } from "../../../runtime/src/projets/ajout-de-station.ts";
 import type { ProjetDemande } from "../../src/projets/demande.ts";
-import { avertissement, CALIBRAGE_MESURE, calibrageRecommande, cooksDesCoeurs, estUnOrdinateur, lireConfiance, lireSaisie, machineProposee, nomDuProjet, principaleRecommandee, refusDeConfiance, refusDeSaisie, tenirProjets, type VuDesProjets } from "../../src/projets/projets.ts";
+import { avertissement, CALIBRAGE_MESURE, calibrageRecommande, cooksDesCoeurs, estUnOrdinateur, lireConfiance, lireSaisie, machineProposee, nomDuProjet, principaleRecommandee, refusDeConfiance, refusDeSaisie, tenirProjets, type OptionsProjets, type VuDesProjets } from "../../src/projets/projets.ts";
 import { githubDesStations } from "../../src/stations/github.ts";
 import type { StationVue } from "../../src/stations/stations.ts";
 import { ghDuRepertoire } from "../aides/gh-du-repertoire.ts";
@@ -35,10 +37,11 @@ const SAISIE = {
   manager: { modele: "sonnet", effort: "medium" },
   reviewer: { modele: "opus", effort: "high" },
   ouvertLe: OUVERT,
+  capacites: [] as string[],
 };
 
 // GitHub : les gists des stations et les dépôts du compte, dans un répertoire que la doublure lit et écrit.
-function unGitHub(t: TestContext, stations: StationVue[] = [BOX, MAC]) {
+function unGitHub(t: TestContext, stations: StationVue[] = [BOX, MAC], plus: Partial<OptionsProjets> = {}) {
   const repertoire = mkdtempSync(join(tmpdir(), "brigade-app-projets-"));
   writeFileSync(join(repertoire, "appels"), "");
   const gh = ghDuRepertoire(repertoire, repondre);
@@ -60,6 +63,7 @@ function unGitHub(t: TestContext, stations: StationVue[] = [BOX, MAC]) {
     depots: depotsDuChef({ gh, delaiMs: 30_000 }),
     surLecture: (vu) => lectures.push(vu),
     maintenant: () => MAINTENANT,
+    ...plus,
   });
   return { repertoire, projets, lectures, demande, suivre, gist, depots: (liste: object[]) => writeFileSync(join(repertoire, "depots"), JSON.stringify(liste)), panne: () => writeFileSync(join(repertoire, "panne"), "") };
 }
@@ -335,27 +339,81 @@ describe("l'ajout, la lecture et le retrait d'un projet, contre un GitHub de tes
     assert.equal(demande("g1"), undefined);
   });
 
-  test("ce que la première station sert l'emporte sur ce que la saisie dit", { skip: SANS_POSIX }, async (t) => {
+  test("ce que la première station sert l'emporte sur le dépôt et la branche que la saisie dit ; les cooks sont ceux de la machine ajoutée", { skip: SANS_POSIX }, async (t) => {
     const { projets, demande, suivre } = unGitHub(t, [{ ...BOX, projets: ["parade"] }, MAC]);
     suivre("g1", [{ ...SERVI, depot: "benomite/parade", base: "v2", cooks: 3 }]);
+    assert.deepEqual(await projets.confier({ ...SANS_RIEN, cooks: "trois" }), { signales: { cooks: "The number of cooks is a whole number, 1 or more." } });
     assert.deepEqual(await projets.confier({ ...SANS_RIEN, depot: "autre/depot", base: "main", cooks: "9" }), { ajoute: "parade" });
     const ecrit = demande("g2")?.[0];
-    assert.deepEqual([ecrit?.depot, ecrit?.base, ecrit?.cooks], ["benomite/parade", "v2", 3]);
+    assert.deepEqual([ecrit?.depot, ecrit?.base, ecrit?.cooks], ["benomite/parade", "v2", 9]);
   });
 
   test("une valeur que la première station ne dit pas est nommée, champ par champ, au lieu du refus générique", { skip: SANS_POSIX }, async (t) => {
     const { projets, demande, suivre } = unGitHub(t, [{ ...BOX, projets: ["parade"] }, MAC]);
     suivre("g1", [{ ...SERVI, base: "v2", cooks: 3 }]);
     const sans = await projets.confier(SANS_RIEN);
-    assert.deepEqual(sans, { signales: { depot: "box does not say which GitHub repository it serves for parade: give the repository." }, manque: ["depot"] });
+    assert.deepEqual(sans, { signales: { depot: "box does not say which GitHub repository it serves for parade, and neither does its folder on this computer." }, manque: ["depot"] });
     suivre("g1", [{ ...SERVI, depot: "benomite/parade", cooks: 3 }]);
-    assert.deepEqual(await projets.confier(SANS_RIEN), { signales: { base: "box does not say which integration branch it delivers to for parade: give the integration branch." }, manque: ["base"] });
+    assert.deepEqual(await projets.confier(SANS_RIEN), { signales: { base: "box does not say which integration branch it delivers to for parade, and neither does its folder on this computer." }, manque: ["base"] });
     suivre("g1", [{ ...SERVI, depot: "benomite/parade", base: "v2" }]);
     assert.deepEqual(await projets.confier(SANS_RIEN), { signales: { cooks: "box does not say how many cooks it may run at once for parade: give the cook cap." }, manque: ["cooks"] });
     assert.equal(demande("g2"), undefined);
     // Donnée par le chef, la valeur manquante suffit.
     assert.deepEqual(await projets.confier({ ...SANS_RIEN, cooks: "2" }), { ajoute: "parade" });
     assert.equal(demande("g2")?.[0]?.cooks, 2);
+  });
+
+  // Ajouter une station ne demande que ce qui est à sa machine (#1307) : le dépôt et la branche que la première ne dit
+  // pas, le clone du projet sur cet ordinateur les dit — lu par l'opération même du runtime (#1306).
+  test("une station de plus prend au clone du projet sur cet ordinateur le dépôt et la branche que la première ne dit pas", { skip: SANS_POSIX }, async (t) => {
+    const clone = mkdtempSync(join(tmpdir(), "brigade-app-clone-"));
+    t.after(() => rmSync(clone, { recursive: true, force: true }));
+    execFileSync("git", ["init", "--quiet", clone]);
+    execFileSync("git", ["-C", clone, "remote", "add", "origin", "https://github.com/benomite/parade.git"]);
+    writeFileSync(join(clone, "CLAUDE.md"), "- **Branche d'intégration** : `v2`\n");
+    const lus: string[] = [];
+    const { projets, demande } = unGitHub(t, [{ ...BOX, projets: ["parade"] }, MAC], {
+      leClone: async (nom) => {
+        lus.push(nom);
+        const { depot, base } = await projetDuClone(clone);
+        return { depot, base };
+      },
+    });
+    assert.deepEqual(await projets.confier({ ...SANS_RIEN, cooks: "4" }), { ajoute: "parade" });
+    const ecrit = demande("g2")?.[0];
+    assert.deepEqual([ecrit?.depot, ecrit?.base, ecrit?.cooks, ecrit?.principale], ["benomite/parade", "v2", 4, false]);
+    assert.deepEqual(lus, ["parade"]);
+    // Rien ne s'écrit dans le clone : il n'est que lu.
+    assert.equal(execFileSync("git", ["-C", clone, "status", "--porcelain"], { encoding: "utf8" }), "?? CLAUDE.md\n");
+  });
+
+  test("ce que la première dit, ou ce que l'app a déjà demandé, dispense de lire le clone ; un clone illisible se tait", { skip: SANS_POSIX }, async (t) => {
+    const lus: string[] = [];
+    const { projets, suivre } = unGitHub(t, [{ ...BOX, projets: ["parade"] }, MAC], {
+      leClone: async (nom) => {
+        lus.push(nom);
+        throw new Error("not a git repository");
+      },
+    });
+    suivre("g1", [{ ...SERVI, base: "v2", cooks: 3 }]);
+    assert.deepEqual(await projets.confier(SANS_RIEN), { signales: { depot: "box does not say which GitHub repository it serves for parade, and neither does its folder on this computer." }, manque: ["depot"] });
+    assert.deepEqual(lus, ["parade"]);
+    suivre("g1", [{ ...SERVI, depot: "benomite/parade", base: "v2", cooks: 3 }]);
+    assert.deepEqual(await projets.confier(SANS_RIEN), { ajoute: "parade" });
+    assert.deepEqual(lus, ["parade"]);
+  });
+
+  test("les capacités cochées partent dans la demande de la station ajoutée, et seulement la sienne ; une autre écriture les garde", { skip: SANS_POSIX }, async (t) => {
+    const { projets, demande } = unGitHub(t, [BOX, MAC]);
+    await projets.confier(CONFIANCE);
+    const ajout = { ...SANS_RIEN, depot: "benomite/parade", base: "main", cooks: "5", capacites: ["navigateur-headless", "android", "navigateur-headless", "pas une capacité", 7] };
+    assert.deepEqual(await projets.confier(ajout), { ajoute: "parade" });
+    assert.deepEqual(demande("g2")?.[0]?.fournit, ["navigateur-headless", "android"]);
+    assert.equal(demande("g2")?.[0]?.cooks, 5);
+    assert.equal("fournit" in (demande("g1")?.[0] ?? {}), false);
+    // Un autre projet confié à la même station réécrit sa demande : ce que parade y déclare reste.
+    assert.deepEqual(await projets.confier({ ...CONFIANCE, nom: "cantine", depot: "benomite/cantine", stations: ["g2"], principale: "g2" }), { ajoute: "cantine" });
+    assert.deepEqual(demande("g2")?.find(({ nom }) => nom === "parade")?.fournit, ["navigateur-headless", "android"]);
   });
 
   test("rien de choisi, rien d'écrit ; GitHub muet, le refus le dit en une ligne", { skip: SANS_POSIX }, async (t) => {

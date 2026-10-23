@@ -48,7 +48,7 @@ import { jouerPanne } from "./pannes/gestes.ts";
 import { gistLocal, tenirLogin } from "./pannes/login.ts";
 import { demenageurDuRuntime } from "./projets/demenagement.ts";
 import { depotsDuChef } from "./projets/github.ts";
-import { EFFORTS, hoteDeLaStation, MODELES, tenirProjets, type VuDesProjets } from "./projets/projets.ts";
+import { EFFORTS, hoteDeLaStation, MODELES, tenirProjets, type DefautsDeLaMachine, type VuDesProjets } from "./projets/projets.ts";
 import { memoireDansFichier, tenirNotifications } from "./notification.ts";
 import { tenirCuisinesIci } from "./poste/cuisine-ici.ts";
 import { estUnMac, nomDuPoste, persistantSur, shellDuPoste } from "./plateforme.ts";
@@ -516,6 +516,15 @@ const projetsDesStations = tenirProjets({
     return demanderLeRemede(demande);
   },
   ...(role.role === "station" ? { demenager: demenageurDuRuntime({ node: emplacements.node, runtime: emplacements.runtime, racine: racineDeLaStation, env: process.env, delaiMs: 60_000 }) } : {}),
+  // Le dépôt et la branche d'un projet, lus dans son clone sur cet ordinateur par l'opération du runtime (#1306) :
+  // une station de plus les en prend quand la première ne les dit pas.
+  leClone: async (nom) => {
+    const dossier = projets().find((projet) => projet.nom === nom)?.dossier;
+    if (dossier === undefined) return null;
+    const { projetDuClone } = (await import(pathToFileURL(join(emplacements.runtime, "src", "projets", "ajout-de-station.ts")).href)) as typeof import("../../runtime/src/projets/ajout-de-station.ts");
+    const lu = await projetDuClone(dossier);
+    return { depot: lu.depot, base: lu.base };
+  },
   surLecture: (vu) => {
     dernierVuDesProjets = vu;
     dire("projetsDesStations", vu);
@@ -923,6 +932,19 @@ ipcMain.handle("ajouterAUneStation", (_, saisie: unknown) => projetsDesStations.
 // La page d'un projet de l'app confie sa cuisine à une première station, ou à une de plus : c'est le
 // seul geste qui l'installe sur une station (projets/projets.ts, `confier`).
 ipcMain.handle("confierAUneStation", (_, saisie: unknown) => projetsDesStations.confier(saisie));
+// Ce que le formulaire d'ajout d'une station montre d'emblée pour cet ordinateur (#1307) : l'opération du runtime
+// (#1306) le calcule sur cette machine — ses cœurs, le répertoire de sa station, ce qu'elle a —, sans rien y lancer.
+ipcMain.handle("defautsDeStation", async (_, nom: unknown): Promise<DefautsDeLaMachine> => {
+  const dossier = projets().find((projet) => projet.nom === nom)?.dossier;
+  if (dossier === undefined) return { refus: "this computer could not be read", detail: `${String(nom)} is not in this app's projects file` };
+  try {
+    const { defautsDeStation } = (await import(pathToFileURL(join(emplacements.runtime, "src", "projets", "ajout-de-station.ts")).href)) as typeof import("../../runtime/src/projets/ajout-de-station.ts");
+    const { cooks, cooksDit, espaceDeTravail, capacites } = await defautsDeStation({ dossier, racine: racineDeLaStation, env: process.env });
+    return { cooks, cooksDit, espaceDeTravail, capacites };
+  } catch (erreur) {
+    return { refus: "this computer could not be read", detail: erreur instanceof Error ? erreur.message : String(erreur) };
+  }
+});
 // Retiré, le projet quitte la demande de chacune de ses stations : elles le retirent de leur configuration.
 ipcMain.handle("retirerDUneStation", (_, nom: unknown) => projetsDesStations.retirer(nom));
 // La page d'un projet déménage sa cuisine, d'un geste, vers une autre station appairée — cet
