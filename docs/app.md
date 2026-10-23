@@ -1593,6 +1593,16 @@ cannot be read (box not reached, gesture refused, no answer in 30 s, no box decl
 context, in the words of the role, and the hook still exits 0: it never blocks the session. By hand:
 `node app/src/second/file.ts <name> <host> [ssh]`.
 
+**The second's hard limits are held by a hook, not only by its role.** The launch settings carry a
+`PreToolUse` hook on `Bash`, `Read` and `Grep` that runs `app/src/second/refus.ts`. It denies any
+`gh pr merge` (with flags, after `&&` or `;`, in a subshell or a `bash -c`) and any read of the chef's
+secrets: `.env.local` files, the Max token (the file named by `BRIGADE_CLAUDE_TOKEN_FILE`, the variable
+`CLAUDE_CODE_OAUTH_TOKEN`). The denial names the gesture the chef types instead, with `!` in front
+(`!gh pr merge <N> --squash`). The protected names live in one list, `SECRETS`, in that module. The hook
+is only in the Second tab's `--settings`: no project file carries it, so another Claude session in the
+same folder is not restricted. It is a guard against a slip, not a sandbox: a command that hides the
+name it reads (built string, indirection) is not caught.
+
 **Each project has its second, and a project's product questions go to *its* second.**
 Triaging `calculus`'s issues is asked in `calculus`'s space, not in `brigade`'s:
 a second only knows the product of its folder.
