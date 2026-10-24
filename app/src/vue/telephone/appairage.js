@@ -1,7 +1,8 @@
 // @ts-check
 // L'écran d'appairage de l'app Android (le ticket 1161, épique 1151) : le premier écran d'une
 // installation neuve. Ce qu'on attend du chef, en tête, en une phrase ; dessous, l'adresse de sa
-// station et le code qu'elle montre, à taper — ou son QR, qui porte les deux, à scanner d'un bouton.
+// station et le code qu'elle montre, à taper — ou son QR, qui porte les deux, à scanner d'un bouton, ou par
+// l'appareil photo du téléphone, dont le lien ouvre l'app sur cet écran (le ticket 1597).
 // « pair » envoie le code au guichet de la station (runtime/src/telephone/guichet.ts), par le pont :
 // appairé, l'app passe à ses projets ; refusé — un code faux, expiré, déjà servi —, une ligne le dit
 // sous les champs, ce que la station en a dit au survol, et le chef retape ; la station injoignable,
@@ -22,7 +23,7 @@ import { boutonAction, lectureIndisponible, survol } from "../briques.js";
 /** @typedef {import("../pont.d.ts").ReponseDuGuichet} Reponse */
 /** @typedef {import("../pont.d.ts").LectureDuQr} LectureDuQr */
 /** @typedef {import("../pont.d.ts").DemandeDuTelephone} Demande */
-/** @typedef {{ appairerLeTelephone(demande: Demande): Promise<Reponse>, scannerLeQr(): Promise<LectureDuQr> }} PontDuTelephone */
+/** @typedef {{ appairerLeTelephone(demande: Demande): Promise<Reponse>, scannerLeQr(): Promise<LectureDuQr>, surLienDAppairage?(recevoir: (texte: string) => void): void }} PontDuTelephone */
 
 export const TITRE = "Link this phone to your projects";
 export const ATTENDU = "Type the code your station shows, or scan its QR.";
@@ -243,8 +244,6 @@ export function tenirAppairage(lieu, doc, { pont, userAgent, apres }) {
     if (lue.etat === "code") code.saisie.focus();
   }
 
-  // Le QR lu remplit les deux champs, et part aussitôt : il porte tout ce qu'il faut. Sans adresse, il
-  // garde celle qui est tapée.
   async function scanner() {
     if (enCours) return;
     /** @type {LectureDuQr} */
@@ -254,6 +253,13 @@ export function tenirAppairage(lieu, doc, { pont, userAgent, apres }) {
     } catch (erreur) {
       lecture = { refus: erreur instanceof Error ? erreur.message : String(erreur) };
     }
+    await lire(lecture);
+  }
+
+  // Le QR lu — par l'app, ou par l'appareil photo du téléphone, dont le lien a ouvert l'app — remplit les
+  // deux champs, et part aussitôt : il porte tout ce qu'il faut. Sans adresse, il garde celle qui est tapée.
+  /** @param {LectureDuQr} lecture */
+  async function lire(lecture) {
     if ("annule" in lecture) return;
     if ("refus" in lecture) return void dire(lectureIndisponible(doc, "The QR could not be read: type the code instead.", lecture.refus));
     const lu = lireLeQr(lecture.lu);
@@ -262,6 +268,10 @@ export function tenirAppairage(lieu, doc, { pont, userAgent, apres }) {
     if (lu.adresse !== null) adresse.saisie.value = hoteDe(lu.adresse);
     await envoyer();
   }
+  // Un lien qui arrive pendant un envoi est laissé — la station n'a pas encore répondu au premier — : il se rescanne.
+  pont.surLienDAppairage?.((texte) => {
+    if (!enCours) void lire({ lu: texte });
+  });
 
   return { formulaire };
 }
