@@ -60,6 +60,7 @@ export const COMMANDES: readonly DeLaBox[] = [
   { nom: "arbiter", ancien: "arbitre", description: "The arbiter's weights: weight <project> <n>, remove <project>", mots: { poids: "weight", retirer: "remove" } },
   { nom: "door", ancien: "porte", description: "Hold the door of the project's remote stations (its service)" },
   { nom: "hold-arbiter", ancien: "tenir-arbitre", description: "Run the arbiter between projects (its service)" },
+  { nom: "phones", description: "The station's paired phones: code [--url <address>] issues a pairing code and its QR, status <code> says valid, expired or used, list, revoke <phone>" },
   { nom: "help", description: "List these commands" },
 ];
 

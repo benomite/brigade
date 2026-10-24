@@ -36,6 +36,7 @@
     "arbiter": "node src/arbitre-cli.ts",
     "door": "node src/tenir-porte.ts",
     "hold-arbiter": "node src/tenir-arbitre.ts",
+    "phones": "node src/telephones.ts",
     "help": "node src/aide.ts",
     "faits": "node src/ancien-nom.ts",
     "journal": "node src/ancien-nom.ts",
