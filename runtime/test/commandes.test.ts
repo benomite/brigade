@@ -47,6 +47,7 @@ const SANS_EFFET: Record<string, { args?: string[]; dit: RegExp }> = {
   closing: { dit: /run closing\b/ },
   door: { dit: /the door refuses to start/ },
   "hold-arbiter": { dit: /the arbiter refuses to start/ },
+  phones: { dit: /usage: brigade <project> phones code\b/ },
 };
 const refusDe = (nom: string) => SANS_EFFET[nom] ?? { dit: new RegExp(`run ${nom}\\b`) };
 

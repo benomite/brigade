@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test, type TestContext } from "node:test";
 import { DUREE_DU_CODE_MS } from "../../src/appairage/document.ts";
-import { cheminTelephones, CodeRefuse, contenuDuQr, ouvrirTelephones } from "../../src/telephone/appairage.ts";
+import { cheminTelephones, CodeRefuse, contenuDuQr, lireContenuDuQr, ouvrirTelephones } from "../../src/telephone/appairage.ts";
 import { ouvrirRegistre, PresentationInvalide } from "../../src/stations-globales/registre.ts";
 import { repertoireTemporaire } from "../outils.ts";
 
@@ -183,4 +183,61 @@ test("la base ne garde ni le code ni le jeton en clair", (t) => {
   assert.equal(brut.includes(code), false);
   assert.equal(brut.includes(jeton), false);
   assert.equal(brut.includes(jeton.slice(5, 25)), false);
+});
+
+test("le QR se relit comme il s'écrit : son code et l'adresse du guichet, ou le code seul — et rien d'autre n'en est un", () => {
+  const adresse = "https://box.tail1234.ts.net";
+  assert.deepEqual(lireContenuDuQr(contenuDuQr("7KQ2-M9XD", adresse)), { code: "7KQ2-M9XD", adresse });
+  assert.deepEqual(lireContenuDuQr(contenuDuQr("7KQ2-M9XD", "http://192.168.1.20:7010")), { code: "7KQ2-M9XD", adresse: "http://192.168.1.20:7010" });
+  assert.deepEqual(lireContenuDuQr(` ${contenuDuQr("7KQ2-M9XD")} `), { code: "7KQ2-M9XD", adresse: null });
+  // Un paramètre inconnu — d'un format à venir — ne le rend pas illisible.
+  assert.deepEqual(lireContenuDuQr(`${contenuDuQr("7KQ2-M9XD", adresse)}&v=2`), { code: "7KQ2-M9XD", adresse });
+  for (const autre of ["https://example.com/?code=7KQ2-M9XD", "brigade://pair", "brigade://pair?url=https%3A%2F%2Fbox", "brigade://other?code=X", "7KQ2-M9XD", ""]) assert.equal(lireContenuDuQr(autre), null, autre);
+});
+
+test("l'état d'un code tiré : valable avant son heure, expiré après, servi dès qu'il a appairé un téléphone — même échu ensuite", (t) => {
+  const { telephones, heure } = ouvrir(t);
+  const { code, expireLe } = telephones.emettre();
+
+  assert.deepEqual(telephones.etat(code), { code, etat: "valable", expireLe, utiliseLe: null, station: null });
+  // Tapé comme on le lit, c'est le même.
+  assert.equal(telephones.etat(code.toLowerCase().replace("-", " "))?.etat, "valable");
+
+  const servi = telephones.emettre();
+  heure.aller("2026-10-21T09:05:00.000Z");
+  telephones.appairer(servi.code, PIXEL);
+  assert.deepEqual(telephones.etat(servi.code), { code: servi.code, etat: "utilise", expireLe: servi.expireLe, utiliseLe: "2026-10-21T09:05:00.000Z", station: "pixel-8" });
+
+  heure.aller(expireLe);
+  assert.equal(telephones.etat(code)?.etat, "expire");
+  assert.equal(telephones.etat(servi.code)?.etat, "utilise");
+});
+
+test("un code jamais tiré ici, ou qui n'en a pas la forme, n'a pas d'état", (t) => {
+  const { telephones } = ouvrir(t);
+  telephones.emettre();
+
+  for (const code of ["ABCD-EFGH", "pas un code", ""]) assert.equal(telephones.etat(code), null, code);
+});
+
+test("les téléphones appairés sont ceux du registre qui sont des téléphones, dans l'ordre de leur nom ; révoqué, l'un d'eux n'y est plus", (t) => {
+  const { telephones, registre } = ouvrir(t);
+  registre.presenter({ nom: "box", machine: "Debian GNU/Linux 13 (trixie)", capacites: ["linux"], cloisonnee: true });
+  registre.accepter("box");
+  telephones.appairer(telephones.emettre().code, PIXEL);
+  telephones.appairer(telephones.emettre().code, { nom: "galaxy", machine: "Android 15" });
+
+  assert.deepEqual(
+    telephones.appaires().map(({ nom, machine, cuisine }) => ({ nom, machine, cuisine })),
+    [
+      { nom: "galaxy", machine: "Android 15", cuisine: false },
+      { nom: "pixel-8", machine: "Android 16", cuisine: false },
+    ],
+  );
+
+  telephones.revoquer("galaxy");
+  assert.deepEqual(
+    telephones.appaires().map(({ nom }) => nom),
+    ["pixel-8"],
+  );
 });

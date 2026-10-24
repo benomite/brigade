@@ -18,7 +18,9 @@
 // registre ne le rend.
 //
 // Un téléphone perdu se révoque (`revoquer`) : ses jetons ne valent plus, et il
-// quitte le registre — d'aucun réseau il n'ouvre plus rien.
+// quitte le registre — d'aucun réseau il n'ouvre plus rien. Le chef voit les
+// téléphones appairés (`appaires`), et où en est un code qu'il a tiré
+// (`etat`) : valable, expiré ou déjà servi.
 //
 // Ni le code ni le jeton ne sont gardés autrement que par leur empreinte : qui
 // lit la base n'en tire rien qui ouvre une porte.
@@ -69,12 +71,18 @@ export type Telephones = {
   // Le téléphone se présente avec son code : il entre au registre, accepté,
   // et reçoit son jeton — ou il est refusé, et rien n'est écrit.
   appairer(code: string, demande: DemandeDAppairage): Appaire;
+  // Où en est un code tiré : valable, expiré ou déjà servi. Null pour un code
+  // qui n'a jamais été tiré ici — ou plus vieux que ce que la base en garde.
+  etat(code: string): EtatDuCode | null;
   // Le téléphone que ce jeton désigne, s'il est toujours au registre, comme
   // téléphone ; null sinon.
   authentifier(jeton: string | undefined | null): StationGlobale | null;
   // La liste des stations du registre, téléphones compris : ce qu'un
   // téléphone appairé lit.
   stations(): StationGlobale[];
+  // Les téléphones appairés à cette station, dans l'ordre de leur nom : ceux
+  // que le chef peut révoquer.
+  appaires(): StationGlobale[];
   // Le chef retire un téléphone — perdu, donné : ses jetons ne valent plus,
   // et il quitte le registre. Rend ce qu'il y était ; un nom qui n'est pas
   // celui d'un téléphone est refusé, et rien ne change.
@@ -99,6 +107,17 @@ export class RevocationRefusee extends Error {
   }
 }
 
+// Un code tiré, tel qu'il en est : `utilise` dès qu'il a servi, échu ou non ;
+// sinon `expire` passé son heure, `valable` avant. `station` : le téléphone
+// qu'il a appairé, nul tant qu'il n'a pas servi.
+export type EtatDuCode = {
+  code: string;
+  etat: "valable" | "expire" | "utilise";
+  expireLe: string;
+  utiliseLe: string | null;
+  station: string | null;
+};
+
 export type Motif = "inconnu" | "expire" | "utilise" | "nom-pris";
 
 export class CodeRefuse extends Error {
@@ -113,11 +132,40 @@ export class CodeRefuse extends Error {
 
 const hacher = (texte: string) => createHash("sha256").update(texte).digest("hex");
 
-// Le QR : une adresse que l'app du téléphone reconnaît, le code en clair.
+// Le QR d'un appairage — sa forme ne s'écrit qu'ici. La station le rend tel
+// quel (`qr` de `appairage-cli.ts code`, et de `brigade <projet> phones code`) ;
+// l'app de l'ordinateur le dessine sans le relire, l'app du téléphone le lit en
+// le scannant (`app/src/vue/telephone/appairage.js`, `lireLeQr`) :
+//
+//   brigade://pair?code=<code>&url=<adresse du guichet>
+//
+//   - `brigade://pair` : ce qui dit un QR d'appairage de station, et rien
+//     d'autre — ni hôte ni chemin de plus ;
+//   - `code` : le code tel que la station l'a tiré, `7KQ2-M9XD` ;
+//   - `url` : l'adresse http(s) du guichet de la station (`guichet.ts`), sans
+//     `/` final — `https://box.tail1234.ts.net`, `http://192.168.1.20:7010`.
+//     Absente quand la station ne connaît aucune adresse que le téléphone
+//     joigne : il la demande alors au chef.
+//
+// Les valeurs sont encodées comme un formulaire (`URLSearchParams`), `code`
+// d'abord. Un lecteur ignore les paramètres qu'il ne connaît pas : un format à
+// venir en ajoute sans rendre illisibles les QR d'avant.
+export const DEBUT_DU_QR = "brigade://pair";
+
 export function contenuDuQr(code: string, adresse?: string): string {
   const parametres = new URLSearchParams({ code });
   if (adresse !== undefined) parametres.set("url", adresse);
-  return `brigade://pair?${parametres.toString()}`;
+  return `${DEBUT_DU_QR}?${parametres.toString()}`;
+}
+
+// Le QR lu : son code et l'adresse du guichet qu'il porte — nulle s'il n'en
+// porte pas. Null si ce n'est pas un QR d'appairage, ou s'il n'a pas de code.
+export function lireContenuDuQr(texte: string): { code: string; adresse: string | null } | null {
+  const [, requete] = /^brigade:\/\/pair\/?\?([^#]*)$/i.exec(texte.trim()) ?? [];
+  if (requete === undefined) return null;
+  const parametres = new URLSearchParams(requete);
+  const code = parametres.get("code")?.trim() ?? "";
+  return code === "" ? null : { code, adresse: parametres.get("url") };
 }
 
 export type OptionsTelephones = {
@@ -194,6 +242,14 @@ export function ouvrirTelephones(repertoire: string, options: OptionsTelephones 
         return { station, jeton };
       });
     },
+    etat(code) {
+      const lu = typeof code === "string" ? normaliser(code) : null;
+      if (lu === null) return null;
+      const [emis] = base.lire<Rangee & { station: string | null }>("SELECT empreinte, expire_le, utilise_le, station FROM codes WHERE empreinte = ?", hacher(lu));
+      if (emis === undefined) return null;
+      const etat = emis.utilise_le !== null ? "utilise" : maintenant().toISOString() >= emis.expire_le ? "expire" : "valable";
+      return { code: `${lu.slice(0, 4)}-${lu.slice(4)}`, etat, expireLe: emis.expire_le, utiliseLe: emis.utilise_le, station: emis.station };
+    },
     authentifier(jeton) {
       if (typeof jeton !== "string" || !jeton.startsWith(PREFIXE)) return null;
       const [porte] = base.lire<{ station: string }>("SELECT station FROM jetons WHERE empreinte = ?", hacher(jeton));
@@ -204,6 +260,11 @@ export function ouvrirTelephones(repertoire: string, options: OptionsTelephones 
       return station !== null && station.sorte === TELEPHONE ? station : null;
     },
     stations: () => registre.liste(),
+    appaires: () =>
+      registre
+        .liste()
+        .filter((station) => station.sorte === TELEPHONE)
+        .sort((a, b) => (a.nom < b.nom ? -1 : a.nom > b.nom ? 1 : 0)),
     revoquer(nom) {
       return base.transaction(() => {
         const station = typeof nom === "string" ? registre.lire(nom) : null;
