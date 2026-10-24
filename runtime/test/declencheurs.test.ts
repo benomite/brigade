@@ -51,7 +51,7 @@ test("un événement sans filtre écrit en ligne (`workflow_dispatch: {}`) n'est
   assert.equal(sur("on:\n  workflow_dispatch: {}\n  pull_request: { branches: [v2] }\n"), true);
 });
 
-test("seule la clé `on:` compte : ni un commentaire, ni une étape, ni le corps d'un autre événement (mirrorscreen #1647)", () => {
+test("seule la clé `on:` compte : ni un commentaire, ni une étape, ni le corps d'un autre événement (#1647)", () => {
   const rappel = [
     "name: Deploy reminder",
     "# GitHub signale alors un run en échec à 0 s sur CHAQUE push, pull_request compris",
