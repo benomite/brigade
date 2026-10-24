@@ -22,8 +22,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Un plafond de durée (#1645) : la suite passe en cinq minutes ; un test qui pend sous Windows
+  # (le plafond de 120 s par test ne tient pas un process fils resté vivant) rendait le check
+  # silencieux jusqu'aux six heures de GitHub, et la pass le remontait au chef comme `ci-silent`.
+  # Passé le plafond du pas, le job est rouge et son journal dit lequel.
   tests:
     runs-on: windows-latest
+    timeout-minutes: 20
     steps:
       # Git for Windows extrait en `\r\n` par défaut : les tests qui relisent une source ou une doc
       # du dépôt y attendent les `\n` du dépôt.
@@ -36,6 +41,7 @@ jobs:
       - name: Installer les dépendances de l'app
         run: npm ci --ignore-scripts --prefix app
       - name: Tests de l'app
+        timeout-minutes: 15
         run: npm --prefix app test
       - name: Contrôle de types de l'app
         run: npm --prefix app run typecheck
