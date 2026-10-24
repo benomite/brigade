@@ -109,6 +109,7 @@ export function fauxGitHub(...issues: Issue[]) {
   const mergerPR = (numero: number, par: string | null = null) => {
     for (const pr of ouvertes.values()) if (pr.number === numero) Object.assign(pr, { merged: true, state: "closed", mergeePar: par });
   };
+  const fermeesParUnMerge = new Map<number, PR>();
   // Sur GitHub, commenter une issue ou y poser un label la modifie.
   let touches = 0;
   const toucher = (numero: number) => {
@@ -229,10 +230,14 @@ export function fauxGitHub(...issues: Issue[]) {
       const connue = etat.get(numero);
       if (connue) etat.set(numero, { ...connue, state: "closed" });
     },
+    // Les issues qu'un merge a fermées (`Closes`), et la PR qui l'a fait.
+    async prQuiFerme(numero) {
+      return fermeesParUnMerge.get(numero) ?? null;
+    },
     identite: async () => comptes.pass,
     fermer: () => {},
   };
-  return { github, comptes, commentaires, prs, pannes, ouvertes, ci, diffs, journauxDeCI, relances, merge, merges, fermetures, mergerPR, labellisations, delabellisations, sondages, creations, ecritures,
+  return { github, comptes, commentaires, prs, pannes, ouvertes, ci, diffs, journauxDeCI, relances, merge, merges, fermetures, mergerPR, fermeesParUnMerge, labellisations, delabellisations, sondages, creations, ecritures,
     // Le corps d'une issue, tel que GitHub le rend.
     corpsDe: (numero: number) => corps.get(numero)?.body ?? "",
     poser: (i: Issue) => void etat.set(i.number, i),

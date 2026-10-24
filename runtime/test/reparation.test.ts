@@ -14,7 +14,7 @@ import { ouvrirJournal } from "../src/journal.ts";
 import { etatDeLaBase, pass, reparationDeLaBase, reparationEnCours } from "../src/projections/pass.ts";
 import { lireRail, rail } from "../src/projections/rail.ts";
 import { chef, controlerBase, cuisine, issue } from "./aides/cuisine.ts";
-import { horloge, jusqua, repertoireTemporaire } from "./outils.ts";
+import { BASE, horloge, jusqua, repertoireTemporaire } from "./outils.ts";
 
 type Scenario = "vert" | "rouge";
 
@@ -199,6 +199,78 @@ describe("une base rouge : rejeu automatique, puis ticket de réparation", { con
     assert.deepEqual([reparationEnCours(journal.base), reparationDeLaBase(journal.base)?.etat, etatDeLaBase(journal.base)?.outcome], [501, "en-cours", "red"]);
     // Un rejeu de la pass vaut pour tout le rouge : elle ne le redemande pas.
     assert.equal(journal.tout().filter((e) => e.type === "base.recheck-requested" && e.author === "pass").length, 1);
+  });
+
+  // Le cook de la réparation n'a rien livré (`attend`) : c'est le chef qui corrige la base, par une PR
+  // `Closes #501` — GitHub ferme l'issue du ticket.
+  const fermerParUnMerge = (gh: ReturnType<typeof service>["gh"], base: string | null) => {
+    const connue = gh.lire(501);
+    if (connue === undefined) throw new Error("la réparation 501 n'existe pas");
+    if (base !== null) gh.fermeesParUnMerge.set(501, { number: 9, url: "https://github.com/o/r/pull/9", base, sha: "correctif", state: "closed", merged: true, enRetard: false, mergeePar: "chef" });
+    gh.poser({ ...connue, state: "closed", updatedAt: "2026-10-08T11:00:00.000Z" });
+  };
+  const ligneDeLaBase = (journal: ReturnType<typeof service>["journal"]) => {
+    const lignes = decrireEtat(lireEtat(journal, new Date()), new Date());
+    return lignes.slice(lignes.findIndex((ligne) => ligne.startsWith("awaiting")), lignes.indexOf("end awaiting")).filter((ligne) => ligne.startsWith("  base  "));
+  };
+
+  test("une réparation fermée par la PR mergée qui corrige la base n'a pas « quitté le rail sans être servie » : elle est servie, la base est contrôlée sur la tête où le merge l'a laissée, et verte, la cuisine repart seule", async (t) => {
+    const { journal, gh, base, essais, jusquAu, laisserTourner, lance, rougir } = service(t, { essais: { base: "rouge" }, scenario: "attend" });
+    rougir();
+    gh.poser(issue(18));
+    await jusquAu("base.repair-opened");
+    await jusqua(() => lance(501));
+
+    // Le merge fait bouger la base, qui reste rouge pour une autre raison : le ticket est servi, mais n'a pas réparé.
+    base.tete = "base-2";
+    fermerParUnMerge(gh, BASE);
+    await jusqua(() => reparationDeLaBase(journal.base)?.echec === "rouge-apres-merge");
+    assert.equal(journal.tout().findLast((e) => e.type === "base.checked")?.payload.sha, "base-2");
+    const [ligne] = ligneDeLaBase(journal);
+    assert.match(ligne ?? "", /its repair #501 merged, did not bring it back to green/);
+    assert.doesNotMatch(ligne ?? "", /left the rail/);
+
+    // Verte sur la tête suivante : le blocage se lève sans geste du chef et sans rouvrir le ticket.
+    essais.base = "vert";
+    base.tete = "base-3";
+    await jusqua(() => lance(18));
+    await laisserTourner();
+    assert.deepEqual([etatDeLaBase(journal.base)?.outcome, reparationDeLaBase(journal.base)?.etat, ligneDeLaBase(journal)], ["green", "servie", []]);
+    assert.equal(gh.lire(501)?.state, "closed");
+    assert.equal(journal.tout().some((e) => e.author === "chef" && e.type !== "grant.activated"), false);
+    assert.deepEqual(gh.creations, [501]);
+  });
+
+  test("une réparation dont la base est verte sur la tête mergée lève le blocage sans geste du chef ni rouvrir le ticket", async (t) => {
+    const { journal, gh, base, essais, jusquAu, lance, rougir } = service(t, { essais: { base: "rouge" }, scenario: "attend" });
+    rougir();
+    gh.poser(issue(18));
+    await jusquAu("base.repair-opened");
+    await jusqua(() => lance(501));
+
+    essais.base = "vert";
+    base.tete = "base-2";
+    fermerParUnMerge(gh, BASE);
+    await jusqua(() => lance(18));
+    await jusqua(() => reparationDeLaBase(journal.base)?.etat === "servie");
+    const verte = journal.tout().findLast((e) => e.type === "base.checked");
+    assert.deepEqual([verte?.payload.sha, verte?.payload.outcome, reparationDeLaBase(journal.base)?.etat, ligneDeLaBase(journal)], ["base-2", "green", "servie", []]);
+    assert.equal(gh.lire(501)?.state, "closed");
+  });
+
+  test("une réparation fermée sans aucun merge qui l'ait fermée garde « left the rail without being served » : la base reste rouge", async (t) => {
+    const { journal, gh, base, laisserTourner, jusquAu, lance, rougir } = service(t, { essais: { base: "rouge" }, scenario: "attend" });
+    rougir();
+    await jusquAu("base.repair-opened");
+    await jusqua(() => lance(501));
+
+    base.tete = "base-2";
+    fermerParUnMerge(gh, null);
+    await jusqua(() => reparationDeLaBase(journal.base)?.echec === "partie");
+    await laisserTourner();
+    const [ligne] = ligneDeLaBase(journal);
+    assert.match(ligne ?? "", /its repair #501 left the rail without being served/);
+    assert.deepEqual([reparationDeLaBase(journal.base)?.echec, etatDeLaBase(journal.base)?.outcome], ["partie", "red"]);
   });
 
   test("une création dont la réponse se perd n'ouvre pas une seconde issue : au tick suivant, la pass retrouve la sienne par sa marque", async (t) => {
