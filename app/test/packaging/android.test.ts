@@ -514,8 +514,17 @@ test("l'enveloppe native a de quoi appairer : le lecteur de QR du pont, et le ht
   assert.match(duLien, /<data android:scheme="brigade" android:host="pair" \/>/);
   assert.equal(filtres.filter((filtre) => /<data\b/.test(filtre)).length, 1);
   const pont = readFileSync(join(java, "Pont.java"), "utf8");
-  assert.match(pont, /protected void handleOnNewIntent\(Intent intent\)/);
-  assert.match(pont, /FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY/);
+  // Le lien qui lance l'app (démarrage à froid) est lu dans l'intent de l'activité, et ceux qui la rouvrent à leur
+  // arrivée : les deux passent par la même lecture, qui refuse ce qui n'est pas un lien d'appairage, ou qui revient des
+  // applis récentes.
+  const charge = /public void load\(\) \{([\s\S]*?)\n {4}\}/.exec(pont)?.[1] ?? "";
+  assert.match(charge, /lancement = getActivity\(\)\.getIntent\(\);\s+recevoir\(lancement\);/);
+  assert.match(pont, /protected void handleOnNewIntent\(Intent intent\) \{\s+if \(intent != lancement\) recevoir\(intent\);\s+\}/);
+  const lecture = /private void recevoir\(Intent intent\) \{([\s\S]*?)\n {4}\}/.exec(pont)?.[1] ?? "";
+  assert.match(lecture, /Intent\.ACTION_VIEW\.equals\(intent\.getAction\(\)\)/);
+  assert.match(lecture, /"brigade"\.equals\(lu\.getScheme\(\)\)/);
+  assert.match(lecture, /FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY/);
+  assert.match(lecture, /garder\(lu\.toString\(\)\);\s+notifyListeners\("lien", new JSObject\(\)\);/);
   assert.match(pont, /@PluginMethod\s+public void lien\(PluginCall call\)/);
 });
 

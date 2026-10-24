@@ -35,9 +35,16 @@ public class Pont extends Plugin {
     // téléphone, hors de l'app (`brigade://pair?…`, AndroidManifest.xml) —, gardé jusqu'à ce que le pont
     // le prenne (`lien`) : l'écran d'appairage ne s'ouvre qu'une fois la vue chargée.
     private String lienRecu;
+    // L'intent qui a lancé l'activité, lu par `load` : Capacitor le repasse ensuite à
+    // `handleOnNewIntent`, qui ne le garde pas deux fois.
+    private Intent lancement;
 
     @Override
     public void load() {
+        // Le démarrage à froid : le lien qui lance l'app est dans l'intent de l'activité, lu ici, sans
+        // dépendre de ce que Capacitor en repasse à `handleOnNewIntent`.
+        lancement = getActivity().getIntent();
+        recevoir(lancement);
         if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
             Logger.error("Brigade", "this WebView cannot inject a script at document start: the app's view has no bridge", null);
             return;
@@ -55,11 +62,17 @@ public class Pont extends Plugin {
         WebViewCompat.addDocumentStartJavaScript(getBridge().getWebView(), script, Collections.singleton(getBridge().getLocalUrl()));
     }
 
-    // L'intent qui lance l'app, puis chacun de ceux qui la rouvrent (`singleTask`) : seul un lien
-    // d'appairage est gardé, et le pont averti (`lien`). Rouverte depuis les applis récentes, l'activité
-    // reçoit de nouveau l'intent qui l'avait lancée : son lien a déjà servi, il ne repart pas.
+    // Chacun des intents qui rouvrent l'app déjà lancée (`singleTask`).
     @Override
     protected void handleOnNewIntent(Intent intent) {
+        if (intent != lancement) recevoir(intent);
+    }
+
+    // L'intent qui lance l'app (`load`), ou qui la rouvre (`handleOnNewIntent`) : seul un lien
+    // d'appairage est gardé, et le pont averti (`lien`). Rouverte depuis les applis récentes, l'activité
+    // reçoit de nouveau l'intent qui l'avait lancée : son lien a déjà servi, il ne repart pas.
+    private void recevoir(Intent intent) {
+        if (intent == null) return;
         Uri lu = intent.getData();
         if (!Intent.ACTION_VIEW.equals(intent.getAction()) || lu == null || !"brigade".equals(lu.getScheme())) return;
         if ((intent.getFlags() & Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0) return;
