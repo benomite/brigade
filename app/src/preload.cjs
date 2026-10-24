@@ -83,6 +83,11 @@ const pont = {
   proposerUnReglage: (projet, choix) => ipcRenderer.invoke("proposerUnReglage", projet, choix),
   ouvrirLaProposition: (url) => ipcRenderer.invoke("ouvrirLaProposition", url),
   retirerLaStation: (id) => ipcRenderer.invoke("retirerLaStation", id),
+  // « Pair a phone », sur la ligne d'une station (ticket 1598) : un code et son QR, son état, les téléphones appairés, une révocation.
+  tirerUnCodeDeTelephone: (id) => ipcRenderer.invoke("tirerUnCodeDeTelephone", id),
+  etatDuCodeDeTelephone: (id, code) => ipcRenderer.invoke("etatDuCodeDeTelephone", id, code),
+  telephonesDeLaStation: (id) => ipcRenderer.invoke("telephonesDeLaStation", id),
+  revoquerUnTelephone: (id, nom) => ipcRenderer.invoke("revoquerUnTelephone", id, nom),
   // Le premier lancement, sur un ordinateur neuf (ticket 1434) : les stations du chef et leurs projets, lus par le
   // runtime ; un projet ouvert d'un clic — chaque étape de sa copie arrive par `surOuverture` — ; la connexion à
   // GitHub, dont la fin arrive par `surConnexionGitHub` ; une page qu'un échec a nommée.

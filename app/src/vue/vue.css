@@ -1663,6 +1663,133 @@ main > header,
   padding-top: 8px;
   border-top: 1px solid var(--trait);
 }
+/* « pair a phone », au bout de la ligne d'une station sur l'accueil (ticket 1598) : discret, comme « + station ». Il
+   est posé par-dessus la ligne, à droite : elle garde toute sa largeur — sa flèche reste alignée sur les autres —, et son
+   clic. */
+#accueil-stations .ligne-et-geste {
+  position: relative;
+}
+#accueil-stations .appairer-un-telephone {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  padding: 3px 10px;
+  color: var(--discret);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+}
+/* L'écran « Pair a phone » : comme la page d'une station — le retour, le titre et son aide, ce qu'on attend du chef —,
+   puis le QR à gauche, le code, ce qu'il vaut encore et l'adresse de la station à droite ; dessous, les téléphones
+   appairés, une ligne chacun et « revoke » à la suite. Le fond clair du QR est posé ici : son image n'a que ses modules. */
+#telephones-de-station {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+}
+#telephones-de-station .retour {
+  align-self: flex-start;
+  color: var(--discret);
+}
+#telephones-de-station h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 18px;
+  font-weight: 700;
+}
+#telephones-de-station h3 {
+  margin: 6px 0 0;
+}
+#telephones-de-station p {
+  margin: 0;
+}
+#telephones-de-station .attendu {
+  font-size: 14px;
+  color: var(--texte-doux);
+}
+#telephones-de-station .code-de-telephone {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  min-height: 48px;
+  margin: 8px 0;
+}
+#telephones-de-station .qr {
+  flex: none;
+  background: var(--texte);
+  border-radius: var(--rayon-bouton);
+}
+#telephones-de-station .lu {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+#telephones-de-station .code {
+  font-size: 28px;
+  letter-spacing: 0.08em;
+}
+#telephones-de-station .reste {
+  font-size: 14px;
+  color: var(--texte-doux);
+}
+#telephones-de-station .adresse {
+  color: var(--discret);
+}
+#telephones-de-station .adresse .mono {
+  color: var(--texte-doux);
+}
+#telephones-de-station .fin-du-code,
+#telephones-de-station .indisponible {
+  color: var(--jaune);
+}
+#telephones-de-station .telephones-appaires {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--trait);
+}
+#telephones-de-station .telephones-appaires ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+#telephones-de-station .telephone-appaire {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+}
+#telephones-de-station .telephone-appaire > span:not(.action):not(.survol) {
+  color: var(--texte-doux);
+}
+#telephones-de-station .telephone-appaire > .action button,
+#telephones-de-station .telephone-appaire .confirmation > button {
+  padding: 2px 10px;
+  font-size: 12px;
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon-bouton);
+}
+/* La confirmation d'une révocation, sous la ligne du téléphone : sa question, son prix en alerte, puis « revoke » et
+   « cancel » à la suite — pas sur toute la largeur. */
+#telephones-de-station .telephone-appaire .confirmation {
+  flex-flow: row wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+#telephones-de-station .telephone-appaire .confirmation > p {
+  flex: 1 1 100%;
+}
+#telephones-de-station .telephone-appaire .confirmation > p.prix {
+  color: var(--jaune);
+}
+#telephones-de-station .telephone-appaire .confirmation > button.recommande {
+  border-color: var(--accent);
+}
 /* Les états ne se ressemblent pas : le mot, la couleur, et un trait plein pour
    celui qu'on n'a pas joint ou que la box refuse — projet inconnu, droit ou
    commande qui manque —, pointillé pour celui qui ne répond plus. */

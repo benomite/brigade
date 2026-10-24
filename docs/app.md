@@ -1177,6 +1177,36 @@ previous one (`409`), a second that did not take it (`502`). A message whose ans
 answer: the conversation shows whether your message went through*, and the conversation is read again at once.
 Screens: `telephone-projets-second*` of `scripts/capture-ecran` (`docs/captures/1426/`).
 
+### Pairing a phone from the desktop: “pair a phone” on a station's line (#1598)
+
+**On the home screen, each station that cooks has a "pair a phone" button at the end of its line** — a paired phone,
+which does not cook, has none, and neither has the Android app. The line keeps its click (it opens the station's page);
+the button opens, in place of the home, the screen **"Pair a phone with box"**, and "‹ All projects" takes you back.
+
+- **A fresh code at once**: the screen issues one on opening, and shows it with its QR and the time it is still valid
+  for, counting down second by second (`valid for 14:32`), then the station's address the phone types it with
+  (`box.tail1234.ts.net`). One sentence on top says what to do: *Scan this QR with the Brigade app on your phone, or
+  type its code there.* What a code is (fifteen minutes, one phone, once) is on hover over the "?" next to the title.
+  The QR is drawn by the app itself (`app/src/vue/qr.js`), from what the station returns — the format of
+  `runtime/src/telephone/appairage.ts` (`contenuDuQr`), carried as is: no QR service is called.
+- **Expired or used**: past its fifteen minutes, or when the station says a phone used it (the screen asks it every
+  five seconds while the code is valid), the QR and the code disappear, one line says so — *This code has expired:
+  nobody can pair with it any more.*, *This code was used: pixel-9 is now paired.* — and one click on **"new code"**
+  shows a fresh code and its QR. A used code also reads the list again: the new phone appears in it.
+- **The phones paired with the station** are listed under the code, one line each — its name, its machine, when it was
+  paired on hover — with **"revoke"**. Revoking is confirmed, with its price in one line (*galaxy can no longer reach
+  box, from any network; pairing it again takes a new code*); revoked, the phone leaves the list.
+- **Unreachable, or refused**: the screen never shows a blank code. One line replaces it — *box did not answer: it may
+  be off, or offline.*, *box refused: this computer is not allowed to manage its phones.*, *box cannot pair phones
+  yet: its version is too old.* — with what to check on hover, and **"try again"**; the list says *paired phones
+  unavailable* the same way.
+- **No command anywhere**, not even on hover: no terminal, no `ssh`, no `sudo` to type or read. Behind the screen, the
+  app runs the station's command `phones code | status <code> | list | revoke <phone>` (`runtime/src/telephones.ts`,
+  #1596) — on the station's machine through `ssh`, or here, without `ssh`, for this computer's station — in the name of
+  the first project the station carries; a station that carries none yet says so. The station's own rule is what lets
+  this computer in. The module is `app/src/telephones-de-station.ts`, the screen `app/src/vue/telephones-de-station.js`;
+  captures in `docs/captures/1598/`.
+
 ### Reaching a station from any network: your tailnet (#1408)
 
 **The phone reaches a station's phone desk through your tailnet** — the private network that
