@@ -61,6 +61,10 @@ if (args[0] === "repo" && args[1] === "clone") {
     repondre(201, { number: numero });
   } else repondre(200, []);
 } else {
-  const rendu = spawnSync(process.execPath, [join(import.meta.dirname, "../appairage/faux-gh-gists.ts"), ...args], { stdio: "inherit" });
+  // Le frontal shell de la doublure : un gist lu ne démarre pas un second Node (#1635).
+  const rendu =
+    process.platform === "win32"
+      ? spawnSync(process.execPath, [join(import.meta.dirname, "../appairage/faux-gh-gists.ts"), ...args], { stdio: "inherit" })
+      : spawnSync("/bin/sh", [join(import.meta.dirname, "../appairage/faux-gh-gists.sh"), ...args], { stdio: "inherit" });
   process.exit(rendu.status ?? 1);
 }

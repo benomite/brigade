@@ -8,10 +8,10 @@ import { test, type TestContext } from "node:test";
 import { canalGitHub } from "../../src/appairage/canal.ts";
 import { empreinte, FICHIER_APPAIRAGE, FICHIER_STATION, type DocumentStation } from "../../src/appairage/document.ts";
 import { lancer, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
+import { FAUX_GH_GISTS as FAUX_GH } from "./doublure-des-gists.ts";
 
 const rienNeReste = temporaireDuFichier();
 
-const FAUX_GH = join(import.meta.dirname, "faux-gh-gists.ts");
 const STATION = join(import.meta.dirname, "../../src/station/main.ts");
 const SOURCES = join(import.meta.dirname, "../../src/appairage");
 

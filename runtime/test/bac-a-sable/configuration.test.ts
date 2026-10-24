@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -12,6 +12,7 @@ import { delimiter, join } from "node:path";
 import { test } from "node:test";
 import { argumentsDuBacASable, BacASableInvalide, CONSIGNE_DE_REFUS, configurer, LECTURES_INTERDITES, type Cook } from "../../src/bac-a-sable/configuration.ts";
 import { reglesDuProjet, type Regle } from "../../src/reseau.ts";
+import { CACHE_DE_COMPILATION } from "../outils.ts";
 
 const HOME = "/Users/chef";
 const WORKTREE = "/Users/chef/brigade-wt/850-bac-a-sable";
@@ -155,16 +156,34 @@ test("les arguments de lancement portent le mode du cook et des réglages qui se
   assert.deepEqual(args.slice(4), ["--append-system-prompt", CONSIGNE_DE_REFUS]);
 });
 
-// Un pnpm 10 : celui du poste s'il en est un, sinon un pnpm 10 installé dans
-// `racine` avec npm. Rend le dossier de ses binaires à mettre en tête du PATH
-// (vide pour celui du poste), ou la raison pour laquelle il n'y en a pas.
+// Un pnpm 10 : celui du poste s'il en est un, sinon un pnpm 10 installé avec
+// npm. Rend le dossier de ses binaires à mettre en tête du PATH (vide pour
+// celui du poste), ou la raison pour laquelle il n'y en a pas.
+// Celui qu'installe npm se garde un jour, hors du test, d'un passage à l'autre :
+// l'installer, c'est le réseau et six secondes de processeur à chaque passage
+// (#1635). Il s'installe à côté puis prend sa place d'un seul geste, et un
+// passage qui le trouve déjà là garde celui-là : deux suites de front ne
+// s'en disputent pas un à moitié écrit.
+const PNPM10 = join(tmpdir(), `brigade-pnpm10-${process.getuid?.() ?? "partage"}`);
+const UN_JOUR_MS = 24 * 60 * 60_000;
 function provisionnerPnpm10(racine: string): { bin: string } | { raison: string } {
   const poste = spawnSync("pnpm", ["--version"], { encoding: "utf8", cwd: racine });
   if (poste.status === 0 && Number.parseInt(poste.stdout, 10) >= 10) return { bin: "" };
-  const prefixe = join(racine, "pnpm10");
+  const bin = join(PNPM10, "node_modules", ".bin");
+  if (existsSync(join(bin, "pnpm")) && Date.now() - statSync(PNPM10).mtimeMs < UN_JOUR_MS) return { bin };
+  const prefixe = mkdtempSync(`${PNPM10}.`);
   const installe = spawnSync("npm", ["install", "--prefix", prefixe, "--no-audit", "--no-fund", "--loglevel=error", "pnpm@10"], { encoding: "utf8", cwd: racine, timeout: 90_000 });
-  const bin = join(prefixe, "node_modules", ".bin");
-  if (installe.status === 0 && existsSync(join(bin, "pnpm"))) return { bin };
+  if (installe.status === 0 && existsSync(join(prefixe, "node_modules", ".bin", "pnpm"))) {
+    // Le périmé s'écarte avant que le neuf prenne sa place.
+    if (existsSync(PNPM10) && Date.now() - statSync(PNPM10).mtimeMs >= UN_JOUR_MS) renameSync(PNPM10, `${prefixe}.perime`);
+    try {
+      renameSync(prefixe, PNPM10);
+    } catch {
+      // Un autre passage l'a posé entre-temps : c'est le sien qui sert.
+    }
+  }
+  for (const reste of [prefixe, `${prefixe}.perime`]) rmSync(reste, { recursive: true, force: true });
+  if (existsSync(join(bin, "pnpm"))) return { bin };
   return { raison: `no pnpm 10 on the workstation and none could be installed with npm (no network?): ${installe.stderr.trim().split("\n").at(-1) ?? "npm did not run"}` };
 }
 
@@ -259,6 +278,9 @@ test("sous l'environnement du bac à sable, pnpm 10 démarre, installe et lance 
             npm_config_fetch_retry_mintimeout: "10",
             npm_config_fetch_retry_maxtimeout: "10",
             npm_config_update_notifier: "false",
+            // Le pnpm gardé d'un passage à l'autre l'est sous le même chemin :
+            // le cache de compilation de Node lui sert aussi.
+            ...CACHE_DE_COMPILATION,
             ...env,
           },
         });

@@ -19,10 +19,10 @@ import { principal as facts } from "../../src/faits.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { ouvrirRail } from "../../src/rail.ts";
 import { aArreter, appeler, horloge, lancer, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
+import { FAUX_GH_GISTS as FAUX_GH } from "./doublure-des-gists.ts";
 
 const rienNeReste = temporaireDuFichier();
 
-const FAUX_GH = join(import.meta.dirname, "faux-gh-gists.ts");
 const COMMANDE = join(import.meta.dirname, "../../src/appairage/rail-du-projet.ts");
 
 type Gist = { id: string; files: Record<string, { filename: string; content: string }> };

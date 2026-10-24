@@ -14,12 +14,12 @@ import { lirePortes } from "../../src/station/portes.ts";
 import { fauxGitHubApps } from "../aides/faux-github-apps.ts";
 import { relecteur } from "../aides/opt-B-journal.ts";
 import { aArreter, BASE, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancementsDuFauxClaude, lancer, mort, repertoireTemporaire, temporaireDuFichier, tuerLesRelais, vivant } from "../outils.ts";
+import { FAUX_GH_GISTS } from "../appairage/doublure-des-gists.ts";
 
 const rienNeReste = temporaireDuFichier();
 
 const STATION = join(import.meta.dirname, "../../src/station/main.ts");
 const PORTES = join(import.meta.dirname, "../../src/station/tenir-portes.ts");
-const FAUX_GH_GISTS = join(import.meta.dirname, "../appairage/faux-gh-gists.ts");
 const REFUS = 2;
 
 // Les décisions sans lesquelles un projet ne sert pas : le chef les a posées

@@ -17,9 +17,9 @@ import { lireEnService } from "../../src/mise-a-jour/en-service.ts";
 import { aArreter, BASE, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancer, mort, repertoireTemporaire, tuerLesRelais, vivant } from "../outils.ts";
 import { construirePaquet, sansDpkgDeb, uneMachine } from "../mise-a-jour/aides/machine.ts";
 import { ancienneMachine, GESTES_ANCIENS, type AncienProjet } from "./aides.ts";
+import { FAUX_GH_GISTS } from "../appairage/doublure-des-gists.ts";
 
 const MAIN = join(import.meta.dirname, "../../src/main.ts");
-const FAUX_GH_GISTS = join(import.meta.dirname, "../appairage/faux-gh-gists.ts");
 
 // Les réponses du faux `gh` pour un dépôt : ses tickets, leur issue et leurs commentaires.
 function issuesDe(gh: FauxGh, depot: string, liste: ReturnType<typeof issueGitHub>[]) {

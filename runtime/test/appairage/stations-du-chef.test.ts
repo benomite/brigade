@@ -12,10 +12,10 @@ import { FICHIER_LOCAL, tenirPresence, type Identite } from "../../src/appairage
 import { echecDeGh, lireLesStationsDuChef, principal, type StationsDuChef } from "../../src/appairage/stations-du-chef.ts";
 import { documentDeDemande } from "../../src/projets/demande.ts";
 import { appeler, lancer, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
+import { FAUX_GH_GISTS as FAUX_GH } from "./doublure-des-gists.ts";
 
 const rienNeReste = temporaireDuFichier();
 
-const FAUX_GH = join(import.meta.dirname, "faux-gh-gists.ts");
 const COMMANDE = join(import.meta.dirname, "../../src/appairage/stations-du-chef.ts");
 
 type Gist = { id: string; files: Record<string, { filename: string; content: string }> };

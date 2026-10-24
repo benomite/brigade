@@ -27,11 +27,11 @@ import {
   type Limite,
 } from "../src/limite-github.ts";
 import { aArreter, DEPOT, jusqua, lancer, repertoireTemporaire, temporaireDuFichier } from "./outils.ts";
+import { FAUX_GH_GISTS } from "./appairage/doublure-des-gists.ts";
 
 const rienNeReste = temporaireDuFichier();
 
 const MODULE = join(import.meta.dirname, "../src/limite-github.ts");
-const FAUX_GH_GISTS = join(import.meta.dirname, "appairage/faux-gh-gists.ts");
 const STATION = join(import.meta.dirname, "../src/station/main.ts");
 const DEPART = Date.parse("2026-10-22T12:00:00Z");
 const SECONDE = 1000;
