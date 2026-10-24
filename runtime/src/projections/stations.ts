@@ -233,7 +233,8 @@ export const stations = definirProjection<Ecoutes>({
       blocked_hosts  TEXT,
       blocked_base   TEXT,
       blocked_ticket INTEGER,
-      blocked_by     TEXT
+      blocked_by     TEXT,
+      blocked_output TEXT
     ) STRICT;
     CREATE TABLE IF NOT EXISTS mise_de_cote_du_projet (
       id             INTEGER PRIMARY KEY CHECK (id = 1),
@@ -441,7 +442,7 @@ export const stations = definirProjection<Ecoutes>({
       const hosts = JSON.stringify(hotes(payload.hosts));
       base.executer("INSERT OR IGNORE INTO setup_du_projet (id) VALUES (1)");
       base.executer(
-        "UPDATE setup_du_projet SET last_why = ?, last_hosts = ?, blocked_at = ?, blocked_why = ?, blocked_hosts = ?, blocked_base = ?, blocked_ticket = ?, blocked_by = ?",
+        "UPDATE setup_du_projet SET last_why = ?, last_hosts = ?, blocked_at = ?, blocked_why = ?, blocked_hosts = ?, blocked_base = ?, blocked_ticket = ?, blocked_by = ?, blocked_output = ?",
         payload.why,
         hosts,
         at,
@@ -450,6 +451,7 @@ export const stations = definirProjection<Ecoutes>({
         payload.base,
         ticket,
         texteOuRien(payload.station),
+        texteOuRien(payload.output) ?? "",
       );
     },
     "aside.failed": (base, { payload }) => {
@@ -479,7 +481,7 @@ export const stations = definirProjection<Ecoutes>({
     // The cause stays that of the block: the same failure, on the base that
     // moved, blocks again at once.
     "setup.unblocked": (base) => {
-      base.executer("UPDATE setup_du_projet SET blocked_at = NULL, blocked_why = NULL, blocked_hosts = NULL, blocked_base = NULL, blocked_ticket = NULL, blocked_by = NULL");
+      base.executer("UPDATE setup_du_projet SET blocked_at = NULL, blocked_why = NULL, blocked_hosts = NULL, blocked_base = NULL, blocked_ticket = NULL, blocked_by = NULL, blocked_output = NULL");
     },
   },
 });
@@ -505,13 +507,13 @@ export function dernierEchecDeSetup(base: Base): CauseDeSetup | null {
 // The project's blocked setup: since when, on which cause, by which ticket,
 // and the base the worktree had left from — as long as it has not moved, no
 // setup is launched. Null: nothing blocks it.
-export type SetupBloque = CauseDeSetup & { since: string; base: string; ticket: number | null; station: string | null };
+export type SetupBloque = CauseDeSetup & { since: string; base: string; ticket: number | null; station: string | null; output: string };
 
 export function setupBloque(base: Base): SetupBloque | null {
-  const ligne = base.lire<{ since: string | null; why: string; hosts: string; base: string; ticket: number | null; station: string | null }>(
-    "SELECT blocked_at AS since, blocked_why AS why, blocked_hosts AS hosts, blocked_base AS base, blocked_ticket AS ticket, blocked_by AS station FROM setup_du_projet",
+  const ligne = base.lire<{ since: string | null; why: string; hosts: string; base: string; ticket: number | null; station: string | null; output: string | null }>(
+    "SELECT blocked_at AS since, blocked_why AS why, blocked_hosts AS hosts, blocked_base AS base, blocked_ticket AS ticket, blocked_by AS station, blocked_output AS output FROM setup_du_projet",
   )[0];
-  return ligne?.since ? { ...ligne, since: ligne.since, hosts: JSON.parse(ligne.hosts) } : null;
+  return ligne?.since ? { ...ligne, since: ligne.since, hosts: JSON.parse(ligne.hosts), output: ligne.output ?? "" } : null;
 }
 
 type LigneDeStation = Omit<EtatStation, "provides" | "remote" | "ordinary" | "alongside" | "sandbox" | "saturatedCauses"> & {

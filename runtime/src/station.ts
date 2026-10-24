@@ -1224,7 +1224,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
       const bloquer = bloque === null && precedent !== null && memeCause(precedent, cause);
       if (bloquer) {
         const hosts = [...new Set([...precedent.hosts, ...echec.hotes])].sort();
-        noter(station, numero, { type: "setup.blocked", payload: { station, why: echec.pourquoi, hosts, base: echec.vue } });
+        noter(station, numero, { type: "setup.blocked", payload: { station, why: echec.pourquoi, hosts, base: echec.vue, ...(echec.sortie === "" ? {} : { output: echec.sortie }) } });
       }
       return { neuf: dits.at(-1)?.why !== echec.pourquoi || !echec.hotes.every((hote) => nommes.has(hote)), bloque: bloquer };
     });
