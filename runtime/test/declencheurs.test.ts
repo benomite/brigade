@@ -50,3 +50,31 @@ test("un événement sans filtre écrit en ligne (`workflow_dispatch: {}`) n'est
   assert.equal(sur('on:\n  push:\n    tags:\n      - "v*.*.*"\n  workflow_dispatch: {}\n'), false);
   assert.equal(sur("on:\n  workflow_dispatch: {}\n  pull_request: { branches: [v2] }\n"), true);
 });
+
+test("seule la clé `on:` compte : ni un commentaire, ni une étape, ni le corps d'un autre événement (mirrorscreen #1647)", () => {
+  const rappel = [
+    "name: Deploy reminder",
+    "# GitHub signale alors un run en échec à 0 s sur CHAQUE push, pull_request compris",
+    "on:",
+    "  schedule:",
+    '    - cron: "0 7 * * 1-5" # push pull_request',
+    "  workflow_dispatch: {}",
+    "jobs:",
+    "  rappel:",
+    "    runs-on: ubuntu-latest",
+    "    steps:",
+    "      # un push ou une pull_request ne le lance pas",
+    "      - run: echo 'on: pull_request' && echo push",
+    "",
+  ].join("\n");
+  assert.equal(sur(rappel), false);
+  // Le corps d'un événement sans PR n'est pas lu, même plié sur plusieurs lignes.
+  assert.equal(sur("on:\n  workflow_dispatch:\n    inputs:\n      cible:\n        description: >-\n          un texte plié\n          sur plusieurs lignes\n  schedule:\n    - cron: '0 7 * * *'\n"), false);
+  assert.equal(sur("on:\n  push:\n    tags: ['v*']\n  workflow_dispatch:\n"), false);
+});
+
+test("la forme en ligne de `on: {…}` se lit aussi", () => {
+  assert.equal(sur("on: { push: { tags: ['v*'] }, workflow_dispatch: {} }\n"), false);
+  assert.equal(sur("on: { schedule: [{ cron: '0 7 * * *' }] }\n"), false);
+  assert.equal(sur("on: { push: { tags: ['v*'] }, pull_request: { branches: [v2] } }\n"), true);
+});
