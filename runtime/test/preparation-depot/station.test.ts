@@ -10,11 +10,11 @@ import { ouvrirJournal } from "../../src/journal.ts";
 import { accepterSansBacASable } from "../../src/onboarding/attente.ts";
 import { FICHIER } from "../../src/preparation-depot/ouvrir.ts";
 import { aArreter, BASE, depotGit, ecrireSuite, ENV_GIT, FAUX_CLAUDE, fauxGh, issueGitHub, jusqua, lancer, repertoireTemporaire, temporaireDuFichier, tuerLesRelais } from "../outils.ts";
+import { FAUX_GH_GISTS } from "../appairage/doublure-des-gists.ts";
 
 const rienNeReste = temporaireDuFichier();
 
 const STATION = join(import.meta.dirname, "../../src/station/main.ts");
-const FAUX_GH_GISTS = join(import.meta.dirname, "../appairage/faux-gh-gists.ts");
 const DEPOT = "benomite/parade";
 // Le ticket du chef, plus ancien : sans préparation, c'est lui qui partirait le premier.
 const DU_CHEF = 15;

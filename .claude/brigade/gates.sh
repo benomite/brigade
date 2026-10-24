@@ -256,11 +256,17 @@ suite() {
   # Le contrôle de types part en même temps que les tests : il ne leur doit
   # rien. Son verdict n'est lu qu'après celui des tests — l'ordre des lignes
   # FAIL ne dépend pas de qui finit le premier.
+  # TypeScript 7 (tsgo) est natif et parallèle : sur tous les cœurs, il brûle
+  # trois fois plus de processeur que d'horloge, sur une box que les tests
+  # occupent déjà. Deux fils et un ramasse-miettes moins pressé
+  # (`GOMAXPROCS=2 GOGC=200`) : 13,3 s de processeur au lieu de 18,7 pour le
+  # runtime, à mémoire égale (1,1 Go), et son horloge reste sous celle des
+  # tests (#1635).
   TYPES=""
   if node -e 'process.exit(require(process.argv[1]).scripts?.typecheck ? 0 : 1)' "$PWD/$ZONE/package.json" 2>/dev/null; then
     if [ -x "$ZONE/node_modules/.bin/tsc" ]; then
       TYPES="$(mktemp)"
-      npm --prefix "$ZONE" run typecheck >"$TYPES" 2>&1 &
+      GOMAXPROCS=2 GOGC=200 npm --prefix "$ZONE" run typecheck >"$TYPES" 2>&1 &
       PID_TYPES=$!
     else
       TYPES="injouable"

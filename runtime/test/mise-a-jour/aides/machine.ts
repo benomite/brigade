@@ -89,7 +89,8 @@ export function uneMachine(t: TestContext, env: Record<string, string> = {}): Ma
   const bin = join(essai, "bin");
   const publiees = join(essai, "publiees");
   for (const dossier of [join(racine, "run/systemd/system"), join(racine, "var/lib/brigade"), bin, publiees]) mkdirSync(dossier, { recursive: true });
-  executable(join(bin, "systemctl"), `#!/bin/sh\nexec "${process.execPath}" "${join(AIDES, "faux-systemctl.ts")}" "$@"\n`);
+  // Les questions à systemd se répondent en shell ; le reste, faux-systemctl.sh le cède au Node du test.
+  executable(join(bin, "systemctl"), `#!/bin/sh\nexport FAUX_SYSTEMCTL_NODE="${process.execPath}"\nexec /bin/sh "${join(AIDES, "faux-systemctl.sh")}" "$@"\n`);
   executable(join(bin, "apt-get"), `#!/bin/sh\nexec "${process.execPath}" "${join(AIDES, "faux-apt-get.ts")}" "$@"\n`);
   executable(join(bin, "dpkg-query"), `#!/bin/sh\nf="$FAUSSE_RACINE/var/lib/dpkg-faux/brigade-station"\n[ -f "$f" ] || { echo "dpkg-query: no packages found matching brigade-station" >&2; exit 1; }\nprintf 'ii %s' "$(cat "$f")"\n`);
   // Le compte brigade existe déjà.
