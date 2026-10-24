@@ -12,7 +12,7 @@ import { principal, usage } from "../../src/telephone/appairage-cli.ts";
 import { lireContenuDuQr, ouvrirTelephones } from "../../src/telephone/appairage.ts";
 import { ouvrirGuichet } from "../../src/telephone/guichet.ts";
 import { LANCE } from "../../src/telephones.ts";
-import { repertoireTemporaire } from "../outils.ts";
+import { aArreter, repertoireTemporaire } from "../outils.ts";
 
 const DEPART = "2026-10-24T09:00:00.000Z";
 
@@ -23,7 +23,9 @@ async function station(t: TestContext) {
   const telephones = ouvrirTelephones(repertoire, { maintenant });
   const registre = ouvrirRegistre(repertoire, { maintenant });
   const guichet = await ouvrirGuichet({ telephones, hote: "127.0.0.1", port: 0, maintenant: () => instant.getTime() });
-  t.after(async () => {
+  // Fermés avant que le répertoire ne disparaisse : sous Windows, une base
+  // ouverte ne se supprime pas.
+  aArreter(t, async () => {
     await guichet.fermer();
     telephones.fermer();
     registre.fermer();
