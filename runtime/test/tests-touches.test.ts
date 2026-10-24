@@ -187,3 +187,29 @@ describe("ce qu'un test cite", () => {
     assert.deepEqual(choisir(racine, ["docs/runtime/pass.md"]), ["runtime fichiers test/box.test.ts", "app rien"]);
   });
 });
+
+describe("un test de la base", () => {
+  // Un test de bout en bout lent, marqué `// gates: base`, à côté d'un test ordinaire : tous deux importent `src/a.ts`.
+  function avecUnTestDeLaBase(t: TestContext): string {
+    const racine = repertoireTemporaire(t);
+    ecrire(racine, "runtime/package.json", "{}\n");
+    ecrire(racine, "app/package.json", "{}\n");
+    ecrire(racine, "runtime/src/a.ts", "export const a = 1;\n");
+    ecrire(racine, "runtime/test/0-en-premier/recette.test.ts", '// gates: base\n// Deux minutes d\'attente réelle.\nimport { a } from "../../src/a.ts";\n');
+    ecrire(racine, "runtime/test/a.test.ts", 'import { a } from "../src/a.ts";\n');
+    return racine;
+  }
+
+  test("modifié, il n'est pas proche du changement : les gates d'un ticket ne le jouent pas, pas plus que les tests touchés (#1658)", (t) => {
+    const racine = avecUnTestDeLaBase(t);
+    assert.deepEqual(choisir(racine, ["runtime/test/0-en-premier/recette.test.ts"], "--proches"), ["runtime rien", "app rien"]);
+    assert.deepEqual(choisir(racine, ["runtime/test/0-en-premier/recette.test.ts", "runtime/test/a.test.ts"], "--proches"), ["runtime fichiers test/a.test.ts", "app rien"]);
+    assert.deepEqual(choisir(racine, ["runtime/test/0-en-premier/recette.test.ts", "runtime/src/a.ts"]), ["runtime fichiers test/a.test.ts", "app rien"]);
+  });
+
+  test("sur la base, rien de modifié, il se joue avec tout le reste", (t) => {
+    const racine = avecUnTestDeLaBase(t);
+    assert.deepEqual(choisir(racine, [], "--proches"), ["runtime tout", "app tout"]);
+    assert.deepEqual(choisir(racine, []), ["runtime tout", "app tout"]);
+  });
+});
