@@ -323,7 +323,7 @@ export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new 
   // Un seul blocage pour tout le projet, quel que soit le nombre de tickets
   // qu'il retient : la projection n'en tient qu'un.
   const bloque = setupBloque(base);
-  const setup: Attente[] = bloque === null ? [] : [{ ticket: null, title: null, since: bloque.since, quoi: "setup", setup: { why: bloque.why, hosts: bloque.hosts, base: bloque.base, ticket: bloque.ticket, station: bloque.station } }];
+  const setup: Attente[] = bloque === null ? [] : [{ ticket: null, title: null, since: bloque.since, quoi: "setup", setup: { why: bloque.why, hosts: bloque.hosts, base: bloque.base, ticket: bloque.ticket, station: bloque.station, output: bloque.output } }];
 
   const ecartee = miseDeCoteBloquee(base);
   const aside: Attente[] = ecartee === null ? [] : [{ ticket: null, title: null, since: ecartee.since, quoi: "aside", aside: { reason: ecartee.reason, base: ecartee.base, ticket: ecartee.ticket, station: ecartee.station } }];
@@ -472,6 +472,15 @@ function direDisjoncteurEn({ echecs, seuil }: Extract<Attente, { quoi: "disjonct
   return `breaker open: ${cause} — no cook leaves any more — to do: \`${REFERMER_LE_DISJONCTEUR}\` after looking at what fails`;
 }
 
+// Ce que le setup a dit à la fin, sur une ligne, borné : la fin de sa sortie,
+// jamais le début. Rien s'il n'a rien dit.
+export const FIN_DU_SETUP_MAX = 300;
+function finDuSetup(sortie: string): string {
+  const ligne = sortie.split("\n").map((brute) => brute.trim()).filter((brute) => brute !== "").join(" ⏎ ");
+  if (ligne === "") return "";
+  return ` : ${ligne.length > FIN_DU_SETUP_MAX ? `…${ligne.slice(-FIN_DU_SETUP_MAX)}` : ligne}`;
+}
+
 // Le setup du projet bloqué : la cause, en clair, puis le geste. Un hôte que la
 // porte a refusé pendant le setup se déclare ; sans hôte refusé, c'est le
 // setup lui-même qui est à corriger — ce qu'il a dit est sur l'issue du ticket
@@ -483,7 +492,7 @@ function direSetupBloqueEn({ setup }: Extract<Attente, { quoi: "setup" }>): stri
     const hotes = [...new Set(setup.hosts.map(aDeclarer))].map((hote) => `\`${hote}\``).join(", ");
     return `setup impossible: the door refuses ${hotes} (\`${SCRIPT_SETUP}\`, ${setup.why}, twice identically) — to declare in the project's \`${DECLARATION_RESEAU}\`, one line per host, then merge into the integration branch; ${reprise}`;
   }
-  return `setup impossible: \`${SCRIPT_SETUP}\` fails twice identically (${setup.why})${vu} — to fix: the project's setup, then merge into the integration branch; ${reprise}`;
+  return `setup impossible: \`${SCRIPT_SETUP}\` fails twice identically (${setup.why}${finDuSetup(setup.output)})${vu} — to fix: the project's setup, then merge into the integration branch; ${reprise}`;
 }
 
 // Ce qui attend, puis le geste du chef qui le débloque — ou qu'il n'y en a pas
@@ -779,7 +788,7 @@ function direSetupBloque({ setup }: Extract<Attente, { quoi: "setup" }>): string
     const hotes = [...new Set(setup.hosts.map(aDeclarer))].map((hote) => `\`${hote}\``).join(", ");
     return `setup impossible : la porte refuse ${hotes} (\`${SCRIPT_SETUP}\`, ${setup.why}, deux fois à l'identique) — à déclarer dans \`${DECLARATION_RESEAU}\` du projet, une ligne par hôte, puis merger sur la branche d'intégration ; ${reprise}`;
   }
-  return `setup impossible : \`${SCRIPT_SETUP}\` échoue deux fois à l'identique (${setup.why})${vu} — à corriger : le setup du projet, puis merger sur la branche d'intégration ; ${reprise}`;
+  return `setup impossible : \`${SCRIPT_SETUP}\` échoue deux fois à l'identique (${setup.why}${finDuSetup(setup.output)})${vu} — à corriger : le setup du projet, puis merger sur la branche d'intégration ; ${reprise}`;
 }
 
 // Ce qui attend, puis le geste du chef qui le débloque — ou qu'il n'y en a pas

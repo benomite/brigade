@@ -2,6 +2,7 @@
 // retire chaque entrée — tout vient du journal.
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
+import { direAttente, direAttenteEn, FIN_DU_SETUP_MAX, type Attente } from "../src/attend.ts";
 import { decrireEtat, faits, lireEtat } from "../src/etat.ts";
 import type { Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";
@@ -780,4 +781,17 @@ test("une station distante prépare son setup sur son poste : le projet bloqué 
   const etat = lireEtat(journal, maintenant);
   assert.equal(faits(etat, maintenant).etat, "ouverte");
   assert.deepEqual(etat.attend.map(({ quoi }) => quoi), ["setup"]);
+});
+
+test("la ligne d'un setup bloqué porte la fin de ce qu'il a imprimé, bornée, et rien d'autre quand il n'a rien dit", () => {
+  const setup = (output: string): Attente => ({ ticket: null, title: null, since: "2026-10-08T10:00:00.000Z", quoi: "setup", setup: { why: "code de sortie 1", hosts: [], base: "base-0", ticket: 15, station: "box/claude", output } });
+  const longue = `DEBUT-PERDU ${"x".repeat(FIN_DU_SETUP_MAX * 3)}\navant-derniere\nFIN-GARDEE`;
+  for (const dire of [direAttente, direAttenteEn]) {
+    const ligne = dire(setup(longue));
+    assert.match(ligne, /code de sortie 1 : …x+ ⏎ avant-derniere ⏎ FIN-GARDEE\)/);
+    assert.doesNotMatch(ligne, /DEBUT-PERDU/);
+    const dite = /code de sortie 1 : (.*)\)/.exec(ligne)?.[1] ?? "";
+    assert.equal(dite.length, FIN_DU_SETUP_MAX + 1);
+    assert.match(dire(setup("")), /\(code de sortie 1\)/);
+  }
 });

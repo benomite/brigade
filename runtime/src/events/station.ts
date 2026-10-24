@@ -156,7 +156,7 @@ export type FaitStation =
   // aucun hôte refusé de plus : plus aucun setup n'est lancé pour aucun ticket
   // du projet tant que la branche d'intégration reste sur `base`, le commit
   // dont le worktree était parti. `hosts` : ce que la porte a refusé aux deux.
-  | { type: "setup.blocked"; payload: { station: string; why: string; hosts: string[]; base: string } }
+  | { type: "setup.blocked"; payload: { station: string; why: string; hosts: string[]; base: string; output?: string } }
   // La branche d'intégration a bougé depuis le blocage — un hôte déclaré, un
   // setup corrigé, mergés — : les setups reprennent. `base` : là où elle est.
   | { type: "setup.unblocked"; payload: { station: string; base: string } }

@@ -185,9 +185,9 @@ const EXEMPLES = {
     { ...horsTicket, quoi: "base", sha: "0123456789abcdef", echecs: ["runtime tests"], reparation: 41, echec: "rouge-apres-merge" },
   ],
   setup: [
-    { ...horsTicket, quoi: "setup", setup: { why: "exit 1", hosts: ["registry.npmjs.org:443", "example.test:8080"], base: "0123456", ticket: 42, station: "box/claude" } },
-    { ...horsTicket, quoi: "setup", setup: { why: "exit 1", hosts: [], base: "0123456", ticket: 42, station: "box/claude" } },
-    { ...horsTicket, quoi: "setup", setup: { why: "exit 1", hosts: [], base: "0123456", ticket: null, station: null } },
+    { ...horsTicket, quoi: "setup", setup: { why: "exit 1", hosts: ["registry.npmjs.org:443", "example.test:8080"], base: "0123456", ticket: 42, station: "box/claude", output: "" } },
+    { ...horsTicket, quoi: "setup", setup: { why: "exit 1", hosts: [], base: "0123456", ticket: 42, station: "box/claude", output: "" } },
+    { ...horsTicket, quoi: "setup", setup: { why: "exit 1", hosts: [], base: "0123456", ticket: null, station: null, output: "" } },
   ],
   aside: [
     { ...horsTicket, quoi: "aside", aside: { reason: "worktree-failed", base: "0123456", ticket: 43, station: "box/claude" } },
