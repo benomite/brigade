@@ -28,6 +28,11 @@ const HEURE_MS = 3_600_000;
 // Ce que Linux accepte pour un seul argument de commande, son octet nul compris
 // (`MAX_ARG_STRLEN`) : au-delà, le lancement est refusé (`E2BIG`).
 const ARGUMENT_MAX_LINUX = 131_072;
+// Trois livraisons rouges l'une après l'autre — cook, gates, renvoi — avant le
+// fait attendu : quelques secondes sous Linux, d'ordinaire 18 s sur le runner
+// Windows, mais plus de 60 s quand la suite y charge la machine. Sa garde est
+// plus large : elle ne sert qu'à ce qu'un test bloqué finisse par le dire.
+const TROIS_RENVOIS_MS = 300_000;
 const charge = (evenement: { payload: unknown }) => evenement.payload as Record<string, unknown>;
 
 // Une cuisine avec sa pass, et un ticket calibré sur le rail.
@@ -43,7 +48,7 @@ function service(t: TestContext, options: Options & { grant?: boolean; gates?: "
       .map((e) => e.type)
       .filter((type) => /^(pass|grant|merge)\.|^ticket\.(served|released|86|left)$/.test(type));
   const compter = (type: string) => journal.tout().filter((e) => e.type === type).length;
-  const jusquAu = (type: string, combien = 1) => jusqua(() => compter(type) >= combien);
+  const jusquAu = (type: string, combien = 1, delaiMs?: number) => jusqua(() => compter(type) >= combien, delaiMs);
   // Laisse passer quelques ticks : de quoi voir ce que la pass ne fait pas.
   const laisserTourner = () => jusquAu("runtime.ticked", compter("runtime.ticked") + 3);
   return { ...lieu, histoire, compter, jusquAu, laisserTourner, pass: () => passDuTicket(journal.base, 17) };
@@ -557,9 +562,9 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.equal(compter("branch.removed"), 1);
   });
 
-  test("au deuxième renvoi resté rouge, la pass cesse de renvoyer et remonte au chef : rien n'est mergé", async (t) => {
+  test("au deuxième renvoi resté rouge, la pass cesse de renvoyer et remonte au chef : rien n'est mergé", { timeout: 600_000 }, async (t) => {
     const { gh, etat, histoire, cooks, pass, avertissements, runtime, jusquAu } = service(t, { grant: true, gates: "rouge" });
-    await jusquAu("pass.escalated");
+    await jusquAu("pass.escalated", 1, TROIS_RENVOIS_MS);
 
     assert.deepEqual(histoire(), [
       "pass.started",

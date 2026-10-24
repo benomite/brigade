@@ -16,10 +16,13 @@ import { chef, cuisine, issue, type Options } from "./aides/cuisine.ts";
 import { jusqua, repertoireTemporaire } from "./outils.ts";
 
 // Ces tests mènent la cuisine jusqu'au renvoi d'une livraison rouge et au cook
-// qui le reprend — chaque `claude`, `gh` et gates une doublure en bash, que
-// Windows lance par le bash de Git. Sur le job Windows, aucun n'atteignait ce
-// qu'il attend dans les 60 s de `jusqua`.
-const RENVOI_EN_CUISINE = posixOnly("drives the kitchen through a red delivery, its return and the cook that resumes it, where every claude, gh and gates call is a bash script run by Git Bash: on the Windows job none of these tests got its awaited fact within the 60 s of jusqua");
+// qui le reprend, avant le fait attendu : quelques secondes sous Linux, plus de
+// 60 s sur le runner Windows, où chaque `claude`, `gh` et gates est une doublure
+// en bash lancée par le bash de Git, et chaque process coûte cher. Leurs gardes
+// sont plus larges, comme celles des épiques de decoupage.test.ts : elles ne
+// servent qu'à ce qu'un test bloqué finisse par le dire.
+const RENVOI_MS = 300_000;
+const RENVOI = { timeout: 600_000 };
 
 // Une cuisine avec sa pass, un ticket sur le rail, et des gates rouges : sa
 // première livraison est renvoyée. Elles passent au vert dès le renvoi.
@@ -28,7 +31,7 @@ function renvoye(t: TestContext, options: Options = {}) {
   lieu.gates.regler("rouge");
   const { journal } = lieu;
   const compter = (type: string) => journal.duTicket(17).filter((e) => e.type === type).length;
-  const jusquAu = async (type: string, combien = 1) => jusqua(() => compter(type) >= combien);
+  const jusquAu = async (type: string, combien = 1) => jusqua(() => compter(type) >= combien, RENVOI_MS);
   const lances = () => journal.duTicket(17).filter((e) => e.type === "cook.launched").map((e) => e.payload as Record<string, unknown>);
   // La session qu'un cook a ouverte, telle que son flux brut la dit.
   const sessionDe = (lance: Record<string, unknown> | undefined) => sessionDuFlux(readFileSync(join(lieu.repertoire, String(lance?.stream)), "utf8"));
@@ -52,8 +55,8 @@ const autreQueLeRouge = (ligne: string) => !/^brigade : pass rouge sur le ticket
 const projet = (config: string, cwd: string) => dossierDuProjet(config, cwd) ?? "";
 
 describe("la reprise de session d'un renvoi", { concurrency: 6 }, () => {
-  test("un renvoi reprend la session du cook dont la pass a refusé la livraison : il reçoit ce contexte et ce qu'elle a trouvé, sans repasser par la lecture du ticket", { skip: RENVOI_EN_CUISINE }, async (t) => {
-    const { configClaude, gates, cooks, lances, sessionDe, jusquAu, journal } = renvoye(t);
+  test("un renvoi reprend la session du cook dont la pass a refusé la livraison : il reçoit ce contexte et ce qu'elle a trouvé, sans repasser par la lecture du ticket", RENVOI, async (t) => {
+    const { configClaude, repertoire, gates, cooks, lances, sessionDe, jusquAu, journal } = renvoye(t);
     await jusquAu("pass.returned");
     gates.regler("vert");
     await jusquAu("pass.held");
@@ -77,13 +80,16 @@ describe("la reprise de session d'un renvoi", { concurrency: 6 }, () => {
     assert.match(consigne, /Tu reprends ici ta propre session/);
     assert.ok(consigne.includes(`${String(relance?.worktree)}\``), consigne);
     assert.doesNotMatch(consigne, /Relis le ticket|Lis le ticket|gh issue view|lis son `CLAUDE\.md`/);
-    // Le transcript est rendu au répertoire du projet du worktree neuf : c'est là que `claude` le cherche.
-    assert.equal(existsSync(join(projet(String(configClaude), String(renvoi?.cwd)), `${session}.jsonl`)), true);
+    // Le transcript est rendu au répertoire du projet du worktree neuf, nommé
+    // d'après son chemin tel que le runtime le voit : c'est là que `claude` le
+    // cherche. (Celui que la doublure note est le `pwd` du bash de Git sous
+    // Windows, `/c/…`, et non le chemin de Windows qu'un vrai `claude` y voit.)
+    assert.equal(existsSync(join(projet(String(configClaude), join(realpathSync(repertoire), String(relance?.worktree))), `${session}.jsonl`)), true);
     // Celui du premier cook reste où il est.
     assert.equal(existsSync(join(projet(String(configClaude), String(premier?.cwd)), `${session}.jsonl`)), true);
   });
 
-  test("un renvoi repris repasse exactement les gates et la relecture d'un renvoi reparti de zéro : rien n'est sauté, rien n'est assoupli", { skip: RENVOI_EN_CUISINE }, async (t) => {
+  test("un renvoi repris repasse exactement les gates et la relecture d'un renvoi reparti de zéro : rien n'est sauté, rien n'est assoupli", RENVOI, async (t) => {
     // Deux cuisines de front, mêmes gates, même reviewer : l'une retrouve la session du premier cook, l'autre non.
     const repris = renvoye(t);
     const neuf = renvoye(t, { configClaude: false });
@@ -104,7 +110,7 @@ describe("la reprise de session d'un renvoi", { concurrency: 6 }, () => {
     assert.deepEqual(repris.histoire(), neuf.histoire());
     assert.deepEqual(repris.histoire().filter((type) => type === "pass.judged").length, 2);
     // Les gates jouées autant de fois, sur les mêmes lieux ; le reviewer, autant de fois.
-    const lieux = (appels: string[]) => appels.map((appel) => appel.split("/worktrees/")[1]);
+    const lieux = (appels: string[]) => appels.map((appel) => appel.split(/[\\/]worktrees[\\/]/).at(-1));
     assert.deepEqual(lieux(repris.gates.appels()), lieux(neuf.gates.appels()));
     assert.equal(repris.relectures().length, neuf.relectures().length);
     // Chaque verdict dit les mêmes gates, la même relecture, le même verdict.
@@ -126,7 +132,7 @@ describe("la reprise de session d'un renvoi", { concurrency: 6 }, () => {
     );
   });
 
-  test("le transcript du cook précédent rangé avant le renvoi : le renvoi part d'un cook neuf, sans erreur, et livre", { skip: RENVOI_EN_CUISINE }, async (t) => {
+  test("le transcript du cook précédent rangé avant le renvoi : le renvoi part d'un cook neuf, sans erreur, et livre", RENVOI, async (t) => {
     let config = "";
     const lieu = renvoye(t, {
       depot: (depot) => ({
@@ -153,7 +159,7 @@ describe("la reprise de session d'un renvoi", { concurrency: 6 }, () => {
     assert.deepEqual(avertissements.filter(autreQueLeRouge), []);
   });
 
-  test("sans répertoire de `claude` connu, ou sans session dans le flux du cook précédent, le renvoi part d'un cook neuf", { skip: RENVOI_EN_CUISINE }, async (t) => {
+  test("sans répertoire de `claude` connu, ou sans session dans le flux du cook précédent, le renvoi part d'un cook neuf", RENVOI, async (t) => {
     const sansConfig = renvoye(t, { configClaude: false });
     const sansSession = renvoye(t, { suite: ["livre", "livre"] });
     await Promise.all(
@@ -171,7 +177,7 @@ describe("la reprise de session d'un renvoi", { concurrency: 6 }, () => {
     }
   });
 
-  test("un cook de renvoi repris qui échoue sans rien livrer : le suivant part d'un cook neuf — la reprise elle-même a pu buter", { skip: RENVOI_EN_CUISINE }, async (t) => {
+  test("un cook de renvoi repris qui échoue sans rien livrer : le suivant part d'un cook neuf — la reprise elle-même a pu buter", RENVOI, async (t) => {
     const { gates, cooks, lances, sessionDe, jusquAu, journal } = renvoye(t, { suite: ["livre-en-session", "echec", "livre-en-session"] });
     await jusquAu("pass.returned");
     gates.regler("vert");
@@ -183,7 +189,7 @@ describe("la reprise de session d'un renvoi", { concurrency: 6 }, () => {
     assert.equal(lances()[2]?.resumes, undefined);
   });
 
-  test("un renvoi repris livré une seconde fois en rouge : le second renvoi reprend la session bifurquée du premier", { skip: RENVOI_EN_CUISINE }, async (t) => {
+  test("un renvoi repris livré une seconde fois en rouge : le second renvoi reprend la session bifurquée du premier", RENVOI, async (t) => {
     const { gates, cooks, lances, sessionDe, jusquAu } = renvoye(t, { suite: ["livre-en-session", "livre-en-session", "livre-en-session"] });
     await jusquAu("pass.returned", 2);
     gates.regler("vert");
@@ -195,7 +201,7 @@ describe("la reprise de session d'un renvoi", { concurrency: 6 }, () => {
     assert.match(consigneDe(cooks()[2]?.args), /c'est le renvoi 2 sur 2/);
   });
 
-  test("sous cloison, la session se retrouve dans le `~/.claude` du projet", { skip: RENVOI_EN_CUISINE }, async (t) => {
+  test("sous cloison, la session se retrouve dans le `~/.claude` du projet", { ...RENVOI, skip: posixOnly("runs the kitchen with every launch wrapped by test/aides/faux-bwrap.sh, a bash script standing in for bubblewrap: on the Windows job no launch of a kitchen goes through it (its sibling in cloison.test.ts, « dans une cuisine, le setup, le cook, les gates et le reviewer partent chacun dans la cloison », got 0 !== 3 wrapped launches), so the resumed session is never looked for under the sandboxed ~/.claude") }, async (t) => {
     const { configClaude, repertoire, gates, cooks, lances, sessionDe, jusquAu } = renvoye(t, { cloison: true });
     assert.equal(configClaude, join(repertoire, "claude"));
     await jusquAu("pass.returned");
@@ -205,7 +211,7 @@ describe("la reprise de session d'un renvoi", { concurrency: 6 }, () => {
     assert.equal(reprend(cooks()[1]?.args, sessionDe(lances()[0])), true);
   });
 
-  test("au relevé des mesures, le ticket repris se distingue d'un ticket reparti de zéro, et ses perdus se comptent comme avant", { skip: RENVOI_EN_CUISINE }, async (t) => {
+  test("au relevé des mesures, le ticket repris se distingue d'un ticket reparti de zéro, et ses perdus se comptent comme avant", RENVOI, async (t) => {
     const repris = renvoye(t, { suite: ["livre-en-session", "echec", "livre-en-session", "livre-en-session"] });
     await repris.jusquAu("pass.returned", 2);
     chef(repris.repertoire, "grant.activated");

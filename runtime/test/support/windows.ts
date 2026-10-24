@@ -28,7 +28,10 @@ if (import.meta.main) {
   const tous = fichiersDeTest();
   console.log(`${tous.length} test files played`);
   const gitCore = spawnSync("git", ["--exec-path"], { encoding: "utf8" }).stdout?.trim();
-  const r = spawnSync(process.execPath, ["--test", "--test-concurrency=5", "--test-force-exit", "--test-timeout=120000", ...tous], {
+  // Trois fichiers de front, pas cinq comme `npm test` : sous Windows chaque doublure en bash passe par
+  // le bash de Git, et chaque process coûte cher. À cinq, sur les quatre cœurs du runner, des tests qui
+  // passent d'ordinaire (une pass en 18 s, une passe de fermeture en 40 s) y dépassaient leur garde.
+  const r = spawnSync(process.execPath, ["--test", "--test-concurrency=3", "--test-force-exit", "--test-timeout=120000", ...tous], {
     cwd: join(RACINE_TESTS, ".."),
     stdio: "inherit",
     env: environnement(process.env, gitCore),

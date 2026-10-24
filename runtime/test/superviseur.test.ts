@@ -216,7 +216,7 @@ describe("superviser", { concurrency: true }, () => {
     assert.deepEqual([resultat.turns, resultat.tokens], [1, 7]);
   });
 
-  test("un cook qui dépasse son plafond de tours est arrêté, avec le motif", { skip: posixOnly("supervises the fake claude (a bash script) and stops it with POSIX signals (SIGTERM, then SIGKILL to its group), which Windows does not deliver (this test uses POSIX signals, the fake claude (bash)); on the Windows job: null !== 'SIGTERM'") }, async (t) => {
+  test("un cook qui dépasse son plafond de tours est arrêté, avec le motif", { skip: posixOnly("stops the fake claude (a bash script, scenario bavard) at its turn cap by sending SIGTERM to its process group and asserts the child ended on SIGTERM; Windows has no process groups and reports no signal for a killed child: on the Windows job: null !== 'SIGTERM'") }, async (t) => {
     const { fin, arrets } = cook(t, "bavard", { turns: 3 });
 
     const resultat = await fin;
@@ -260,7 +260,7 @@ describe("superviser", { concurrency: true }, () => {
     assert.equal(arrets.length, 1);
   });
 
-  test("un cook sourd à SIGTERM est tué après le délai de grâce", { skip: posixOnly("supervises the fake claude (a bash script) and stops it with POSIX signals (SIGTERM, then SIGKILL to its group), which Windows does not deliver (this test uses POSIX signals, the fake claude (bash)); on the Windows job: null !== 'SIGKILL'") }, async (t) => {
+  test("un cook sourd à SIGTERM est tué après le délai de grâce", { skip: posixOnly("runs the fake claude scenario sourd, a bash trap that ignores SIGTERM, and asserts the supervisor follows with SIGKILL after the grace delay; Windows has no signal a process can ignore: on the Windows job: null !== 'SIGKILL'") }, async (t) => {
     const { fin, arreter, flux } = cook(t, "sourd", {}, 100);
     await aParle(flux);
 
@@ -269,7 +269,7 @@ describe("superviser", { concurrency: true }, () => {
     assert.equal((await fin).signal, "SIGKILL");
   });
 
-  test("un petit-enfant sourd à SIGTERM meurt avec le groupe de son cook", { skip: posixOnly("supervises the fake claude (a bash script) and stops it with POSIX signals (SIGTERM, then SIGKILL to its group), which Windows does not deliver (this test uses POSIX signals, the fake claude (bash)); on the Windows job: null !== 'SIGTERM'") }, async (t) => {
+  test("un petit-enfant sourd à SIGTERM meurt avec le groupe de son cook", { skip: posixOnly("runs the fake claude scenario petit-enfant-sourd, whose grandchild ignores SIGTERM, and asserts the kill of the cook's process group takes the grandchild with it; Windows has no process groups: on the Windows job: null !== 'SIGTERM'") }, async (t) => {
     const { fin, flux, pid, arreter } = cook(t, "petit-enfant-sourd");
     await aParle(flux);
     const { petitEnfant } = JSON.parse(readFileSync(flux, "utf8").trim());
@@ -310,7 +310,7 @@ describe("superviser", { concurrency: true }, () => {
     assert.equal(vivaitEncore, true);
   });
 
-  test("un motif qui ne peut pas être noté n'empêche pas l'arrêt", { skip: posixOnly("supervises the fake claude (a bash script) and stops it with POSIX signals (SIGTERM, then SIGKILL to its group), which Windows does not deliver (this test uses POSIX signals, the fake claude (bash)); on the Windows job: null !== 'SIGTERM'") }, async (t) => {
+  test("un motif qui ne peut pas être noté n'empêche pas l'arrêt", { skip: posixOnly("supervises the fake claude (scenario bavard, a bash script) with a stop reason that cannot be written, and asserts the child still ended on SIGTERM sent to its process group; Windows has no process groups: on the Windows job: null !== 'SIGTERM'") }, async (t) => {
     const flux = join(repertoireTemporaire(t), "run.jsonl");
     const supervise = superviser({
       commande: FAUX_CLAUDE,
@@ -383,7 +383,7 @@ describe("superviser", { concurrency: true }, () => {
     assert.match(resultat.erreur ?? "", /ENOENT/);
   });
 
-  test("abandonner tue le cook sur-le-champ, sans noter de motif", { skip: posixOnly("supervises the fake claude (a bash script) and stops it with POSIX signals (SIGTERM, then SIGKILL to its group), which Windows does not deliver (this test uses POSIX signals); on the Windows job: null !== 'SIGKILL'") }, async (t) => {
+  test("abandonner tue le cook sur-le-champ, sans noter de motif", { skip: posixOnly("abandons the fake claude scenario sourd (a bash script that traps SIGTERM) and asserts it ended on SIGKILL sent to its process group at once; Windows has no process groups and reports no signal for a killed child: on the Windows job: null !== 'SIGKILL'") }, async (t) => {
     const { fin, abandonner, arrets } = cook(t, "sourd");
 
     abandonner();
@@ -412,7 +412,7 @@ describe("superviser, à l'horloge du test", () => {
     assert.deepEqual([resultat.arret?.reason, resultat.turns], ["idle", 1]);
   });
 
-  test("un cook qui produit n'est pas pris pour un inactif", { skip: posixOnly("supervises the fake claude (a bash script) and stops it with POSIX signals (SIGTERM, then SIGKILL to its group), which Windows does not deliver (this test uses POSIX signals); on the Windows job: Unknown signal: SIGUSR1") }, async (t) => {
+  test("un cook qui produit n'est pas pris pour un inactif", { skip: posixOnly("wakes the fake claude scenario au-signal (a bash script) with process.kill(pid, 'SIGUSR1') after each turn so it produces the next one; SIGUSR1 does not exist on Windows: on the Windows job: Unknown signal: SIGUSR1") }, async (t) => {
     t.mock.timers.enable({ apis: ["setTimeout"] });
     const { fin, mesure, pid } = cook(t, "au-signal", { idleMs: 1000, turns: 3 });
     assert.ok(pid);
