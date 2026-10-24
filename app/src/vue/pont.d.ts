@@ -289,6 +289,14 @@ export type Pont = {
   ouvrirLaProposition(url: string): Promise<boolean>;
   // « Retirer la station », confirmé : son appairage est ôté de son gist (stations/stations.ts) ; la station n'est plus lue.
   retirerLaStation(id: string): Promise<RetraitDeStation>;
+  // « Pair a phone », sur la ligne d'une station de l'accueil (ticket 1598), la station nommée par son gist : un code neuf
+  // et ce que son QR porte ; où en est ce code — valable, expiré, servi ; les téléphones appairés ; la révocation de l'un
+  // d'eux. Chacun rend ce qu'il a obtenu, ou pourquoi rien, en une ligne et son survol — jamais la commande lancée
+  // (telephones-de-station.ts). Absents du téléphone : il n'appaire pas de téléphone.
+  tirerUnCodeDeTelephone?(id: string): Promise<import("../telephones-de-station.ts").RenduDuCode>;
+  etatDuCodeDeTelephone?(id: string, code: string): Promise<import("../telephones-de-station.ts").RenduDeLEtat>;
+  telephonesDeLaStation?(id: string): Promise<import("../telephones-de-station.ts").RenduDeLaListe>;
+  revoquerUnTelephone?(id: string, nom: string): Promise<import("../telephones-de-station.ts").RenduDeLaRevocation>;
   // Le premier lancement, sur un ordinateur neuf (ticket 1434, premier-lancement.ts) : les stations que le chef a
   // appairées et leurs projets, tels que le runtime les lit sur GitHub — listées, une connexion à GitHub qui manque,
   // ou pourquoi elles ne se lisent pas. Le téléphone ne les porte pas.

@@ -325,7 +325,13 @@ export function cuitSurDe(dits: readonly Dit[], locale: string | null): CuitSur 
 export function hoteDeLaStation(vu: Pick<VuDesProjets, "projets"> | undefined, nom: string): string | undefined {
   const cuit = vu?.projets.find((projet) => projet.nom === nom)?.cuitSur;
   if (cuit === undefined || cuit === null || cuit.ici) return undefined;
-  const machine = cuit.nom.includes("/") ? cuit.nom.slice(0, cuit.nom.indexOf("/")) : cuit.nom;
+  return machineDuNom(cuit.nom);
+}
+
+// La machine d'une station, par son nom — `<machine>/<moteur>` : la machine —, telle que le réseau du chef la nomme.
+// Rien, quand ce n'est pas un nom de machine.
+export function machineDuNom(nom: string): string | undefined {
+  const machine = nom.includes("/") ? nom.slice(0, nom.indexOf("/")) : nom;
   return /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(machine) ? machine : undefined;
 }
 
