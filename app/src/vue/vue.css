@@ -5924,6 +5924,48 @@ button.recommande {
 #offre-apk .action {
   order: 2;
 }
+/* Le bandeau d'une version plus haute : en tête de l'app, sur toute sa largeur — la phrase et son lien « Download », la
+   ligne du premier lancement dessous, discrète, et la croix à droite. Caché sans version plus haute. */
+#nouvelle-version {
+  flex: none;
+  background: var(--bandeau);
+  border-bottom: 1px solid var(--trait);
+}
+#nouvelle-version .bandeau-mise-a-jour {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px 10px;
+  padding: 6px 8px 6px 12px;
+  border-left: 3px solid var(--accent);
+}
+#nouvelle-version p {
+  grid-column: 1;
+  margin: 0;
+}
+#nouvelle-version .indice {
+  color: var(--discret);
+}
+#nouvelle-version .telecharger {
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+#nouvelle-version .ecarter {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  width: 32px;
+  height: 32px;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--texte-doux);
+  border-radius: var(--rayon-bouton);
+}
+#nouvelle-version .ecarter:hover {
+  color: var(--texte);
+  background: var(--case);
+}
 /* L'appairage du téléphone (l'app Android) : sur une installation neuve, tout l'écran — une carte, comme le
    formulaire d'ajout, ce qu'on attend du chef en tête, les deux champs, « pair » (recommandé) et « scan the QR ».
    Appairé, il ne garde qu'une ligne, en bandeau, en tête des projets. */

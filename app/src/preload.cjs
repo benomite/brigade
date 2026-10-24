@@ -63,6 +63,13 @@ const pont = {
   miseAJour: () => ipcRenderer.invoke("miseAJour"),
   verifierMiseAJour: () => ipcRenderer.invoke("verifierMiseAJour"),
   installerMiseAJour: () => ipcRenderer.invoke("installerMiseAJour"),
+  // Le bandeau d'une version plus haute (ticket 1528, mise-a-jour/avis.ts) : le dernier avis — la version, le lien direct
+  // du paquet de ce poste, la ligne du premier lancement — ou rien ; chaque vérification suivante par `surAvisDeVersion`.
+  // `telechargerVersion` ouvre ce lien dans le navigateur, `refuserVersion` écarte la version d'un lancement à l'autre.
+  avisDeVersion: () => ipcRenderer.invoke("avisDeVersion"),
+  surAvisDeVersion: (recevoir) => void ipcRenderer.on("avisDeVersion", (_, avis) => recevoir(avis)),
+  telechargerVersion: (url) => ipcRenderer.invoke("telechargerVersion", url),
+  refuserVersion: (version) => ipcRenderer.invoke("refuserVersion", version),
   appairer: (code) => ipcRenderer.invoke("appairer", code),
   depotsDuChef: () => ipcRenderer.invoke("depotsDuChef"),
   ajouterAUneStation: (saisie) => ipcRenderer.invoke("ajouterAUneStation", saisie),

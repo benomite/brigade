@@ -91,6 +91,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Terminal as Xterm } from "@xterm/xterm";
 // Les briques communes (briques.js) : une même chose se dit partout de la même façon — le prix
 // d'un geste dans son survol, une lecture qui manque en une ligne, une confirmation qui dit son prix.
+import { tenirBandeau } from "./mise-a-jour/bandeau.js";
 import { tenirInvite } from "./mise-a-jour/invite.js";
 import { poserAppaire, poserLaListe, tenirAppairage } from "./telephone/appairage.js";
 import { tenirConversation } from "./telephone/conversation.js";
@@ -8095,6 +8096,11 @@ brigade.surMiseAJour((vu) => {
 // ferme jusqu'au lancement suivant, « Update » remet l'adresse de l'APK à l'installation.
 const inviteDeMiseAJour = tenirInvite(element("offre-apk"), document, { installer: (apkUrl) => brigade.installerApk(apkUrl) });
 brigade.surOffreApk((offre) => inviteDeMiseAJour.offrir(offre));
+// Une version plus haute publiée pour ce poste (mise-a-jour/avis.ts) : le bandeau se pose en tête de l'app, avec le lien
+// direct de son paquet. La croix l'écarte pour cette version ; le pont s'en souvient d'un lancement à l'autre.
+const bandeauDeVersion = tenirBandeau(element("nouvelle-version"), document, { telecharger: (url) => brigade.telechargerVersion(url), refuser: (version) => brigade.refuserVersion(version) });
+brigade.surAvisDeVersion((avis) => bandeauDeVersion.recevoir(avis));
+void Promise.resolve(brigade.avisDeVersion()).then((avis) => bandeauDeVersion.recevoir(avis), () => undefined);
 // Les stations relues : ce que la page d'une station en montre suit — leurs lignes de l'accueil viennent par `surAccueil`.
 brigade.surStations((vu) => {
   stationsVues = vu;
