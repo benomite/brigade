@@ -10,6 +10,7 @@ import { describe, test, type TestContext } from "node:test";
 import { ouvrirDepot, type Depot } from "../src/depot.ts";
 import type { Machine } from "../src/machine.ts";
 import { decrireEtat, lireEtat } from "../src/etat.ts";
+import { direBaseRougeEn } from "../src/dire-base.ts";
 import { controleRetenu, etatDeLaBase, mergesAVerifier, passDuTicket } from "../src/projections/pass.ts";
 import { chef, cuisine, fauxGitHub, issue, MACHINE_CALME, montre, type Options } from "./aides/cuisine.ts";
 import { BASE, commiter, depotGit, ENV_GIT, git, jusqua, repertoireTemporaire } from "./outils.ts";
@@ -768,6 +769,49 @@ describe("la base elle-même, rouge ou mergée hors du runtime", { concurrency: 
     assert.deepEqual([dernier("base.checked")?.sha, dernier("base.checked")?.outcome, etatDeLaBase(journal.base)?.outcome], ["base-1", "green", "green"]);
     assert.match(avertissements.join("\n"), /v2 n'est plus rouge \(base-1\)/);
     await jusqua(() => dernier("cook.launched", 18) !== undefined);
+  });
+
+  test("le rejeu demandé par le chef est joué quand la pass n'a plus aucune livraison à juger et que GitHub ne répond pas au ticket qu'elle surveille : rouge, la retenue reste et c'est dit ; vert, elle tombe", async (t) => {
+    const lieu = service(t, { essais: { base: "rouge" }, pass: { delaiGithubMs: 200 } });
+    lieu.fusion.panne = "git merge : gpg failed to sign the data";
+    const { journal, repertoire, heure, gh, essais, dernier, compter, jusquAu } = lieu;
+    // Le seul ticket est escaladé : rien à juger.
+    await jusquAu("pass.escalated");
+    // Une base rouge, vue une fois ; la pass la rejoue d'elle-même, rouge encore.
+    journal.ajouter({ project: "brigade", ticket: null, author: "pass", type: "base.checked", payload: { sha: "base-1", outcome: "red", gates: { outcome: "red", code: 1, failures: ["tests du projet"], tail: "" }, tickets: [] } });
+    await jusquAu("base.checked", 2);
+
+    // GitHub ne répond plus : à chaque tick la pass relit la PR du ticket escaladé et y reste suspendue.
+    let pendus = 0;
+    gh.github.prDeBranche = () => (pendus++, new Promise(() => {}));
+    await jusqua(() => pendus > 0);
+
+    const lignes = () => direBaseRougeEn(etatDeLaBase(journal.base)!, controleRetenu(journal.base)).join("\n");
+    // Rejouée rouge : la demande est servie, la base reste rouge, et c'est dit.
+    heure.avancer(60_000);
+    chef(repertoire, "base.recheck-requested");
+    assert.match(lignes(), /replay asked by the chef since \S+: the pass plays it on its next round/);
+    await jusquAu("base.checked", 3);
+    assert.deepEqual([dernier("base.checked")?.outcome, etatDeLaBase(journal.base)?.outcome, etatDeLaBase(journal.base)?.recheck], ["red", "red", null]);
+    assert.match(lignes(), /gates replayed on \S+: the base is still red/);
+    assert.doesNotMatch(lignes(), /replay asked/);
+
+    // Rejouée verte : la base ne l'est plus.
+    essais.base = "vert";
+    heure.avancer(60_000);
+    chef(repertoire, "base.recheck-requested");
+    await jusquAu("base.checked", 4);
+    assert.deepEqual([dernier("base.checked")?.outcome, etatDeLaBase(journal.base)?.outcome, etatDeLaBase(journal.base)?.recheck, compter("base.checked")], ["green", "green", null, 4]);
+  });
+
+  test("un jugement plus long que le délai de GitHub n'est pas abandonné : seuls les appels à GitHub sont bornés", async (t) => {
+    let libere: () => void = () => {};
+    const attente = new Promise<void>((resolu) => (libere = resolu));
+    const { gates, histoire, jusquAu } = service(t, { pass: { delaiGithubMs: 50 }, avantEssai: (nom) => (nom === "jugement-17" ? attente : Promise.resolve()) });
+    await new Promise((resolu) => setTimeout(resolu, 400));
+    libere();
+    await jusquAu("merge.done");
+    assert.deepEqual(histoire(), ["pass.judged", "grant.used", "merge.done"]);
   });
 
   // Un ménage qui échoue après coup : le worktree jetable de la base part, puis git se plaint.
