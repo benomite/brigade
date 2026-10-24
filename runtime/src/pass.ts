@@ -125,6 +125,7 @@ import {
   reparationAnnoncee,
   reparationDeLaBase,
   reparationEnCours,
+  reparationFermeeSansService,
   rougeCompte,
   type Orpheline,
   type PassDeTicket,
@@ -1991,6 +1992,27 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     );
   };
 
+  // Les réparations dont GitHub n'a nommé aucun merge qui les ait fermées :
+  // redemandées au tick seulement.
+  const sansMergeQuiFerme = new Set<number>();
+  // La réparation d'une base rouge dont l'issue est fermée sans que la pass
+  // ait vu sa livraison mergée : si une PR mergée sur la base l'a fermée
+  // (`Closes`), elle est servie. Ce merge n'a été jugé par personne : la base
+  // est contrôlée sur la tête où il l'a laissée.
+  const constaterReparationFermee = async (tick: boolean) => {
+    const ticket = reparationFermeeSansService(base);
+    if (ticket === null || (!tick && sansMergeQuiFerme.has(ticket))) return;
+    const pr = await github.prQuiFerme(ticket);
+    if (arrete) return;
+    if (pr === null || !pr.merged || pr.base !== options.base) {
+      sansMergeQuiFerme.add(ticket);
+      return;
+    }
+    const par = await auteurDuMerge(pr, "outside");
+    if (arrete) return;
+    noter(ticket, { type: "merge.done", payload: { pr: pr.url, sha: pr.sha, by: par, ...acteur(pr.mergeePar), reconciled: true, unverified: true } });
+  };
+
   const traiter = async (connu: PassDeTicket, tick: boolean) => {
     switch (connu.phase) {
       case "delivered":
@@ -2304,6 +2326,11 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
               butees.add(orpheline.seq);
               if (!arrete) avertir(`brigade : la pass a buté sur la livraison lâchée du ticket #${orpheline.ticket} — ${message(erreur)}`);
             }
+          }
+          try {
+            if (!arrete) await constaterReparationFermee(avecTick);
+          } catch (erreur) {
+            if (!arrete) avertir(`brigade : la pass a buté sur la réparation fermée de ${options.base} — ${message(erreur)}`);
           }
           try {
             if (!arrete) await controlerBase(avecTick);

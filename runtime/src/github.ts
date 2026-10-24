@@ -111,6 +111,9 @@ export type GitHub = {
   // Merge la PR, à condition que sa tête soit encore `sha`.
   merger(numero: number, sha: string): Promise<Merge>;
   fermerIssue(numero: number): Promise<void>;
+  // La PR mergée qui a fermé cette issue (`Closes #n`), ou null si rien ne dit
+  // qu'une PR l'ait fermée.
+  prQuiFerme(numero: number): Promise<PR | null>;
   // Le compte sous lequel ce GitHub agit, s'il a une identité à lui (une App
   // de rôle) ; null sous l'identité unique du `gh` de la machine, que rien ne
   // distingue de celle du chef.
@@ -211,7 +214,7 @@ type IssueBrute = {
 
 type CommentaireBrut = { id?: number; body?: string | null; author_association?: string; user?: { login?: string } | null; created_at?: string };
 
-type EvenementBrut = { event?: string; created_at?: string; label?: { name?: string } | null };
+type EvenementBrut = { event?: string; created_at?: string; commit_id?: string | null; label?: { name?: string } | null };
 
 type PRBrute = {
   number: number;
@@ -414,6 +417,21 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
         .flatMap((page) => JSON.parse(page.corps) as EvenementBrut[])
         .filter((brut) => brut.event === "unlabeled" && brut.label?.name === LABEL && typeof brut.created_at === "string")
         .map((brut) => brut.created_at as string);
+    },
+    async prQuiFerme(numero) {
+      // La fermeture par un merge porte le commit du merge ; la dernière
+      // fermeture est celle qui tient si l'issue a été rouverte.
+      const pages = await lireLaListe(`repos/${depot}/issues/${numero}/events?per_page=100`);
+      const fermeture = pages
+        .flatMap((page) => JSON.parse(page.corps) as EvenementBrut[])
+        .findLast((brut) => brut.event === "closed" && typeof brut.commit_id === "string" && brut.commit_id !== "");
+      if (fermeture?.commit_id == null) return null;
+      const chemin = `repos/${depot}/commits/${fermeture.commit_id}/pulls`;
+      const mergee = (JSON.parse(exiger(await lireSousCondition([chemin]), chemin).corps) as PRBrute[]).find((brute) => (brute.merged_at ?? null) !== null || brute.merged === true);
+      if (!mergee) return null;
+      const fiche = `repos/${depot}/pulls/${mergee.number}`;
+      const brute = JSON.parse(exiger(await lireSousCondition([fiche]), fiche).corps) as PRBrute;
+      return { number: brute.number, url: brute.html_url, base: brute.base.ref, sha: brute.head.sha, state: brute.state, merged: true, enRetard: false, mergeePar: brute.merged_by?.login || null };
     },
     async commenter(numero, corps) {
       await creer(`repos/${depot}/issues/${numero}/comments`, { body: corps });

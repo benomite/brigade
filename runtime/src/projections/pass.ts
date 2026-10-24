@@ -765,6 +765,17 @@ export function reparationDeLaBase(base: Base): ReparationDeLaBase | null {
   return { ticket, at, sha, redSince, failures: JSON.parse(ligne.failures), etat: echec !== null ? "echouee" : sortie === "served" ? "servie" : "en-cours", echec };
 }
 
+// The repair ticket whose issue was closed — the only trace left of it is
+// that it left the rail — and which nothing says was served: a fix merged
+// outside its own delivery would have closed it just the same.
+export function reparationFermeeSansService(base: Base): number | null {
+  const [ligne] = base.lire<{ ticket: number }>(
+    `SELECT r.ticket FROM base_repairs r JOIN rail_outcomes o ON o.ticket = r.ticket
+     WHERE o.outcome = 'left' AND o.reason = 'closed' AND r.seq = (SELECT max(seq) FROM base_repairs)`,
+  );
+  return ligne?.ticket ?? null;
+}
+
 // What the gates said at the latest played check of the red base — null if
 // it is not red, or if that check can no longer be read.
 export function gatesDuRouge(base: Base): Gates | null {

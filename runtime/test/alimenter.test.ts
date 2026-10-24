@@ -68,6 +68,7 @@ function depot(...issues: Issue[]) {
     ecrireCorps: async () => {},
     ouvrirPR: async () => "",
     prDeBranche: async () => null,
+    prQuiFerme: async () => null,
     ci: async () => [],
     diff: async () => "",
     journalDuCheck: async () => null,
