@@ -66,6 +66,9 @@ export type OptionsCuisine = {
   // Ce que la cuisine regarde de la machine pour savoir si elle est locale et
   // si le bac à sable y est : de quoi la simuler dans un test.
   sondes?: Sondes;
+  // Entre deux ticks de son runtime — ce qui relit, entre autres, la décision
+  // du chef de cuire sans bac à sable : une minute, à défaut.
+  intervalleTickMs?: number;
 };
 
 // Ouvre la cuisine d'un projet. Toute sa configuration est lue avant de rien
@@ -140,7 +143,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
       apresRapatriement: () => republierReseau(),
     });
     const githubs = ouvrirGitHubs({ depot: rail.depot, bin: rail.gh, identites });
-    socle = demarrer({ repertoireEtat, projet });
+    socle = demarrer({ repertoireEtat, projet, ...(options.intervalleTickMs === undefined ? {} : { intervalleTickMs: options.intervalleTickMs }) });
     const decisions = suivreDecisions(socle.journal.base, envProjet, dire, duDepot.suivis);
     if (porte !== null) republierReseau = brancherReseau(socle, { base: station.base, declaration: () => lireALaBase(station, DECLARATION_RESEAU), avertir: dire });
     // Sous une identité par rôle, ni les cooks, ni les gates, ni les juges ne

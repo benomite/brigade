@@ -418,6 +418,25 @@ test("sans changement et en moins de cinq minutes, rien n'est écrit dans le gis
   assert.equal(ecritures.length, 0);
 });
 
+test("l'écart minimal se règle : deux écritures demandées ne se rapprochent pas plus que lui, et la retenue passe dès qu'il est écoulé (#1658)", async (t) => {
+  const github = fauxGists();
+  const horloge = faussesHorloges(Date.parse("2026-10-15T12:00:00Z"));
+  const presence = tenirPresence({ racine: repertoireTemporaire(t), canal: github.canal, identite: { nom: "box", machine: "Linux", version: "1" }, projets: () => [], dire: () => {}, apres: horloge.apres, maintenant: horloge.maintenant, ecartMinimalMs: 5_000 });
+  aArreter(t, async () => {
+    const arret = presence.arreter();
+    await horloge.avancer(5_000);
+    await arret;
+  });
+  await presence.publier();
+  const ecritures = compterLesEcritures(github, horloge.maintenant);
+  const depart = horloge.maintenant();
+  await presence.publier();
+  await horloge.avancer(4_999);
+  assert.deepEqual(ecritures, []);
+  await horloge.avancer(1);
+  assert.deepEqual(ecritures, [depart + 5_000]);
+});
+
 test("un changement d'état est écrit au regard suivant", async (t) => {
   let projets = ["brigade"];
   const github = fauxGists();

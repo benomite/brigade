@@ -82,16 +82,15 @@ if (modifies.length === 0 || modifies.some((f) => !scriptsSeuls.has(f) && GLOBAU
   process.exit(0);
 }
 // Les tests lents de bout en bout — une vraie station, de vraies attentes —
-// portent `// gates: base` dans leur en-tête : ils ne tournent que sur la base,
-// où tout se joue, jamais pour un changement — pas même celui qui les modifie.
-// Proche ou touché, un tel test tiendrait les gates d'un ticket deux minutes
-// pour une attente que rien ne raccourcit (`0-en-premier/recette.test.ts`, #1658).
+// portent `// gates: base` dans leur en-tête : ils tournent sur la base, où tout
+// se joue, et ne sont proches que d'un changement qui les modifie lui-même —
+// jamais d'un fichier qui porte leur nom, ni touchés par ce qu'ils importent.
 const DE_LA_BASE = /^\/\/ gates: base$/m;
 const deLaBase = (t, texte = readFileSync(t, "utf8")) => DE_LA_BASE.test(texte.slice(0, 4000));
 if (process.argv.includes("--proches")) {
   for (const zone of ZONES) {
     const noms = new Set(modifies.filter((m) => m.startsWith(`${zone}/`) && CODE.test(m)).map((m) => basename(m).replace(/(\.test)?\.[^.]+$/, "")));
-    const proches = lister(join(zone, "test")).filter((t) => t.endsWith(".test.ts") && (modifies.includes(t) || noms.has(basename(t, ".test.ts"))) && !deLaBase(t));
+    const proches = lister(join(zone, "test")).filter((t) => t.endsWith(".test.ts") && (modifies.includes(t) || (noms.has(basename(t, ".test.ts")) && !deLaBase(t))));
     console.log(proches.length === 0 ? `${zone} rien` : `${zone} fichiers ${proches.map((t) => relative(zone, t)).join(" ")}`);
   }
   process.exit(0);

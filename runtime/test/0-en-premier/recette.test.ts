@@ -1,29 +1,37 @@
 // gates: base
-// Ne tourne que sur la base, où les gates jouent tout (#1004) : deux minutes
-// d'attente réelle, que rien ne raccourcit sans toucher la station.
+// Ne tourne que sur la base, où les gates jouent tout (#1004), et pour un
+// changement qui le modifie : une vraie station, et l'attente réelle de sa cadence.
 // La recette de l'ajout d'un projet depuis l'app, sur une installation de
 // test : une vraie station — un seul process, `station/main.ts` —, appairée,
 // dont GitHub est une doublure de `gh` (les gists du compte, et le dépôt à
 // cloner). Le test écrit dans le gist ce que l'app y écrit quand le chef
 // valide le parcours, et mesure le temps jusqu'à ce que la station publie le
 // projet dans sa liste — ce que la home de l'app lit (« 1 project »). Ce temps
-// comprend la cadence réelle de la station : rien n'est accéléré. La spec
-// demande moins de dix minutes, parcours compris ; la station en met moins
-// d'une — sa cadence est de trente secondes.
+// comprend la cadence réelle de la station, trente secondes, à laquelle elle lit
+// la demande de l'app : elle n'est pas accélérée. La spec demande moins de dix
+// minutes, parcours compris ; la station en met moins d'une.
 //
-// Ce fichier dure deux minutes, et rien ne les raccourcit sans toucher la
-// station : elle n'écrit pas son gist plus d'une fois par minute
-// (`ECART_MINIMAL_MS`, appairage/presence.ts), et la recette lit trois de ses
-// écritures — la liste vide, le projet ajouté, le projet retiré. C'est pour
-// cela qu'il vit dans `0-en-premier/` : `node --test` prend les fichiers dans
-// l'ordre de leurs chemins, et celui-ci, lancé le premier, court pendant le
-// reste de la suite au lieu de la prolonger de deux minutes.
+// Deux minuteries de la station sont raccourcies, qui tenaient le fichier deux
+// minutes (#1658) — une minute chacune en service :
+//   - l'écart minimal entre deux écritures de son gist (`BRIGADE_STATION_ECART_S`,
+//     `ECART_MINIMAL_MS` d'appairage/presence.ts) : la recette lit trois de ces
+//     écritures — la liste vide, le projet ajouté, le projet retiré ;
+//   - le tick du runtime du projet (`BRIGADE_STATION_TICK_S`), auquel sa
+//     cuisine relit la décision du chef de cuire sans bac à sable.
+// Ni l'un ni l'autre n'est une échéance : l'écart est un plancher entre deux
+// écritures, le tick une relecture de plus. Rien ici n'attend qu'ils soient
+// tenus à la seconde, chaque attente est celle d'un fait, et ils restent vrais
+// sur une machine dix fois plus lente. Ce que la minute d'écart ajouterait à
+// la mesure se lit dans `ECART_MINIMAL_MS`. Le fichier vit dans
+// `0-en-premier/` : `node --test` prend les fichiers dans l'ordre de leurs
+// chemins, et celui-ci, lancé le premier, court pendant le reste de la suite au
+// lieu de la prolonger.
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { FICHIER_APPAIRAGE, FICHIER_STATION } from "../../src/appairage/document.ts";
-import { FICHIER_LOCAL } from "../../src/appairage/presence.ts";
+import { ECART_MINIMAL_MS, FICHIER_LOCAL } from "../../src/appairage/presence.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { accepterSansBacASable } from "../../src/onboarding/attente.ts";
 import { FICHIER_PROJETS, FICHIER_SUIVI } from "../../src/projets/demande.ts";
@@ -38,6 +46,9 @@ const GIST = "g1appairee";
 const DIX_MINUTES = 10 * 60_000;
 // Le chef met ce temps à remplir le parcours : il compte dans la mesure.
 const PARCOURS_MS = 60_000;
+// L'écart minimal entre deux écritures du gist de la station, et son tick, en secondes.
+const ECART_S = 5;
+const TICK_S = 5;
 
 test("ajouté depuis l'app, le projet est dans la liste de la station en moins de dix minutes, parcours compris ; retiré, il quitte sa configuration", { timeout: 300_000 }, async (t) => {
   const machine = repertoireTemporaire(t);
@@ -87,6 +98,8 @@ test("ajouté depuis l'app, le projet est dans la liste de la station en moins d
     BRIGADE_MAX_LOAD_PER_CORE: "1000000",
     BRIGADE_MIN_FREE_MEMORY_MB: "0",
     BRIGADE_MIN_FREE_DISK_MB: "0",
+    BRIGADE_STATION_ECART_S: String(ECART_S),
+    BRIGADE_STATION_TICK_S: String(TICK_S),
   });
   await station.attendre("aucun projet servi");
   const projetsPublies = () => {
@@ -122,8 +135,9 @@ test("ajouté depuis l'app, le projet est dans la liste de la station en moins d
 
   await jusqua(tenue(() => projetsPublies()?.includes("parade") === true), DIX_MINUTES);
   const mesure = Date.now() - ouvert;
-  t.diagnostic(`du parcours ouvert au projet dans la liste de la station : ${Math.round(mesure / 1000)} s, dont ${PARCOURS_MS / 1000} s de parcours`);
-  assert.ok(mesure < DIX_MINUTES, `${Math.round(mesure / 1000)} s`);
+  t.diagnostic(`du parcours ouvert au projet dans la liste de la station : ${Math.round(mesure / 1000)} s, dont ${PARCOURS_MS / 1000} s de parcours, l'écart entre deux écritures du gist réglé à ${ECART_S} s`);
+  // L'écart de service, une minute au lieu de ECART_S, n'en retiendrait au plus que la différence.
+  assert.ok(mesure + ECART_MINIMAL_MS - ECART_S * 1000 < DIX_MINUTES, `${Math.round(mesure / 1000)} s`);
 
   // Ce qui l'a servi : le clone, les décisions du parcours, son premier ticket, sa ligne — et rien qu'il ait fallu taper.
   assert.ok(existsSync(join(racine, "clones/parade/LISEZMOI")));

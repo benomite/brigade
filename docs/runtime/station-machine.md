@@ -48,7 +48,11 @@ Three settings, all optional: `BRIGADE_GH_BIN` (the machine's `gh`, `gh` by defa
 `BRIGADE_STATION_NOM` (its name on the home — by default, the machine's), and
 `BRIGADE_STATION_VERSION` (the version it announces — set by its package; by default, the
 fingerprint of its code, `code 1a2b3c4d5e6f`). These variable names stay French until the runtime is
-translated.
+translated. Two more are for a test station only, in whole seconds: `BRIGADE_STATION_ECART_S` (the
+minimum gap between two writes of its gist, 60 s by default) and `BRIGADE_STATION_TICK_S` (the tick
+of each project's runtime, which rereads, among other things, the chef's choice to cook without a
+sandbox; 60 s by default). Anything else refuses to start the station. The acceptance test sets both
+short (#1658).
 
 **The detection delay** of a brutal stop (the station killed without warning) is therefore read
 between 5 and 10 min: its last heartbeat is 5 min old at most, at the beat, and the app says it is
