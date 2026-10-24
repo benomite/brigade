@@ -41,6 +41,37 @@ const retenu = (motifs: string[], valeur: string) => {
   return retenue;
 };
 
+// `on: { push: { tags: [v*] }, schedule: [{ cron: x }] }` : les noms de premier
+// niveau se lisent sans les filtres. Un événement de PR écrit ainsi reste
+// illisible (null) ; sans événement de PR, le workflow n'en est pas un.
+const evenementsEnLigne = (texte: string): Map<string, Filtres> | null => {
+  const noms: string[] = [];
+  let profondeur = 0;
+  let mot = "";
+  let attendu = true;
+  let guillemet = "";
+  for (const c of texte) {
+    if (guillemet) {
+      if (c === guillemet) guillemet = "";
+      else if (profondeur === 1 && attendu) mot += c;
+      continue;
+    }
+    if (c === '"' || c === "'") guillemet = c;
+    else if (c === "{" || c === "[") profondeur++;
+    else if (c === "}" || c === "]") profondeur--;
+    else if (profondeur === 1 && c === ",") attendu = true;
+    else if (profondeur === 1 && c === ":" && attendu) {
+      noms.push(mot.trim());
+      mot = "";
+      attendu = false;
+    } else if (profondeur === 1 && attendu) mot += c;
+    if (profondeur === 1 && c === "," ) mot = "";
+  }
+  if (profondeur !== 0 || noms.length === 0) return null;
+  if (noms.some((nom) => EVENEMENTS_DE_PR.includes(nom))) return null;
+  return new Map(noms.map((nom) => [nom, {} as Filtres]));
+};
+
 // Les événements du bloc `on:` et leurs filtres, ou null si la forme échappe.
 const evenements = (lignes: string[]): Map<string, Filtres> | null => {
   const index = lignes.findIndex((ligne) => /^["']?on["']?\s*:/.test(ligne));
@@ -48,7 +79,7 @@ const evenements = (lignes: string[]): Map<string, Filtres> | null => {
   const [, ouverture = ""] = /^["']?on["']?\s*:(.*)$/.exec(lignes[index] ?? "") ?? [];
   const evenementsDe = (noms: string[]) => new Map(noms.map((nom) => [nom, {} as Filtres]));
   if (ouverture.trim() !== "") {
-    if (ouverture.trim().startsWith("{")) return null;
+    if (ouverture.trim().startsWith("{")) return evenementsEnLigne(ouverture.trim());
     return evenementsDe(liste(ouverture));
   }
   const bloc: string[] = [];
@@ -63,12 +94,18 @@ const evenements = (lignes: string[]): Map<string, Filtres> | null => {
   const trouves = new Map<string, Filtres>();
   let courant: Filtres | null = null;
   let filtre: string | null = null;
+  let nomCourant = "";
   for (const ligne of bloc) {
     const texte = ligne.trim();
+    // Le corps d'un événement qui n'est pas de PR (`schedule:` et ses `cron`,
+    // `workflow_dispatch:` et ses `inputs`, `push:` et ses tags) ne dit rien
+    // d'une PR : il n'est pas lu, quelle que soit sa forme (scalaire plié…).
+    if (retrait(ligne) !== niveau && courant !== null && !EVENEMENTS_DE_PR.includes(nomCourant)) continue;
     if (retrait(ligne) === niveau) {
       const [, nom = "", reste = ""] = /^["']?([\w-]+)["']?\s*:(.*)$/.exec(texte) ?? [];
       if (nom === "") return null;
       courant = {};
+      nomCourant = nom;
       trouves.set(nom, courant);
       filtre = null;
       // `pull_request: { branches: [main] }` ou une valeur en ligne : illisible ici.
