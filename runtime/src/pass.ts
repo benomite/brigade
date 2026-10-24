@@ -196,17 +196,40 @@ const MARGE_MS = 600_000;
 const essaiDeJugement = (ticket: number) => `jugement-${ticket}`;
 const essaiDuSecondJuge = (ticket: number) => `second-jugement-${ticket}`;
 const ESSAI_DE_BASE = "base";
-// Un rejeu demandé au chef n'attend pas, derrière un appel GitHub qui pend, plus
-// que ce délai : le tour suivant le joue.
+// Un rejeu demandé par le chef n'attend pas, derrière un appel GitHub qui pend,
+// plus que ce délai : le tour suivant le joue.
 const DELAI_GITHUB_MS = 120_000;
+
+// Chaque lecture ou écriture GitHub de la pass est abandonnée sans réponse au
+// bout de `delaiMs`. `merger` reste libre : une intention de merger sans résultat
+// se réconcilie avec GitHub, mais un merge parti ne se déclare pas perdu.
+function avecDelai(github: GitHub, delaiMs: number): GitHub {
+  return new Proxy(github, {
+    get(cible, nom, receveur) {
+      const valeur = Reflect.get(cible, nom, receveur);
+      if (typeof valeur !== "function" || nom === "merger") return valeur;
+      return (...args: unknown[]) => {
+        const travail = Promise.resolve(valeur.apply(cible, args));
+        // L'appel abandonné peut encore échouer : personne ne l'attend plus.
+        travail.catch(() => {});
+        let minuteur: NodeJS.Timeout;
+        const abandonne = new Promise<never>((_, rejeter) => {
+          minuteur = setTimeout(() => rejeter(new Error(`GitHub (${String(nom)}) sans réponse après ${Math.round(delaiMs / 1000)} s, abandonné`)), delaiMs);
+        });
+        return Promise.race([travail, abandonne]).finally(() => clearTimeout(minuteur));
+      };
+    },
+  });
+}
 
 export type ConfigPass = {
   // Le plafond de durée des gates : au-delà, elles sont arrêtées et rouges.
   delaiGatesMs: number;
   // L'attente tolérée d'une CI qui ne conclut pas, avant de remonter au chef.
   attenteCiMs: number;
-  // Ce qu'une pass attend GitHub sur un ticket avant de passer au suivant :
-  // un appel qui ne répond pas ne retient ni la base ni les autres tickets.
+  // Ce qu'un appel à GitHub peut attendre : un appel qui ne répond pas ne
+  // retient ni la base ni les autres tickets. Le travail local de la pass
+  // (gates, jugements) n'est pas borné par lui.
   delaiGithubMs?: number;
 };
 
@@ -438,7 +461,8 @@ type Suite =
 export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, options: OptionsPass): R & Pass {
   const { journal, projet, rail } = runtime;
   const { base } = journal;
-  const { depot, github } = options;
+  const { depot } = options;
+  const github = avecDelai(options.github, options.delaiGithubMs ?? DELAI_GITHUB_MS);
   const maintenant = options.maintenant ?? (() => new Date());
   const avertir = options.avertir ?? ((texte: string) => console.error(texte));
   const envGates = environnementCook(options.env ?? process.env);
@@ -2236,18 +2260,6 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   // pas perdu : elle repasse aussitôt finie.
   let enCours = false;
   let tickDemande = false;
-  // Une pass suspendue à un appel qui ne répond pas ne repasse plus, et la
-  // base n'est plus contrôlée : l'appel est abandonné au bout du délai.
-  const borner = <T>(travail: Promise<T>, quoi: string): Promise<T> => {
-    const delai = options.delaiGithubMs ?? DELAI_GITHUB_MS;
-    let minuteur: NodeJS.Timeout;
-    const abandonne = new Promise<never>((_, rejeter) => {
-      minuteur = setTimeout(() => rejeter(new Error(`sans réponse après ${Math.round(delai / 1000)} s, abandonné`)), delai);
-    });
-    // L'appel abandonné peut encore échouer : personne ne l'attend plus.
-    travail.catch(() => {});
-    return Promise.race([travail, abandonne]).finally(() => clearTimeout(minuteur));
-  };
   const passer = (tick: boolean) => {
     if (arrete) return;
     tickDemande ||= tick;
@@ -2273,7 +2285,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
             if (arrete) return;
             try {
               const connu = passDuTicket(base, ticket);
-              if (connu) await borner(traiter(connu, avecTick), `ticket #${ticket}`);
+              if (connu) await traiter(connu, avecTick);
             } catch (erreur) {
               // GitHub injoignable, worktree disparu : la livraison reste où
               // elle en est, et le tick suivant y revient.
@@ -2286,7 +2298,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
             if (arrete) return;
             if (!avecTick && butees.has(orpheline.seq)) continue;
             try {
-              await borner(lacher(orpheline), `livraison lâchée du ticket #${orpheline.ticket}`);
+              await lacher(orpheline);
               butees.delete(orpheline.seq);
             } catch (erreur) {
               butees.add(orpheline.seq);

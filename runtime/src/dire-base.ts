@@ -27,9 +27,11 @@ export function direRejeuEn(rejeu: NonNullable<EtatDeLaBase["recheck"]>, depuis:
 // vérifier depuis, puis le rejeu demandé — par le chef, ou par la pass, qui
 // rejoue seule tout rouge une fois — ou, sans demande, ce qui retient son
 // contrôle, et le geste.
-export function suiteDeBaseRougeEn({ unplayed, reason, recheck }: EtatDeLaBase, depuis: (instant: string) => string, retenu: ControleRetenu | null, prep: "for" | "since" = "for"): string[] {
+export function suiteDeBaseRougeEn({ unplayed, reason, recheck, at, redSince }: EtatDeLaBase, depuis: (instant: string) => string, retenu: ControleRetenu | null, prep: "for" | "since" = "for"): string[] {
   return [
     ...(unplayed === null ? [] : [`gates not played on ${court(unplayed.sha)} ${prep} ${depuis(unplayed.at)}${direPanneEn(reason)}: a check that was not played does not lift a red that was found`]),
+    // Un rouge observé de nouveau : les gates ont été rejouées, et la base reste rouge.
+    ...(recheck === null && redSince !== null && at !== redSince ? [`gates replayed ${prep === "for" ? `${depuis(at)} ago` : `on ${at}`}: the base is still red`] : []),
     ...(recheck === null
       ? [...(retenu === null ? [] : [direControleRetenuEn(retenu, depuis, prep)]), `replay its gates without waiting for a commit: ${REJOUER_LA_BASE}`]
       : [`${recheck.by === "chef" ? "replay asked by the chef" : "automatic replay, before opening a repair ticket if the red holds,"} ${prep} ${depuis(recheck.at)}: ${direRejeuEn(recheck, depuis, retenu, prep)}`]),
