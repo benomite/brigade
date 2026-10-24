@@ -30,6 +30,16 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- Le QR d'une station, scanné par l'appareil photo du téléphone plutôt que par l'app : son lien
+                 (`brigade://pair?code=…&url=…`, runtime/src/telephone/appairage.ts) ouvre l'app, qui s'appaire
+                 comme d'un QR scanné d'ici (Pont.java, `lien`). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="brigade" android:host="pair" />
+            </intent-filter>
+
         </activity>
 
         <provider

@@ -295,6 +295,13 @@ le remplace, injecté par `Pont.java` au début de chaque document de l'app, ava
 - `scannerLeQr` lit le QR de la station par le lecteur de Google Play
   (`play-services-code-scanner`, épinglé dans `natif/variables.gradle`), que `Pont.java` appelle
   (`scanner`) : il ouvre l'appareil photo lui-même, l'app ne le demande pas.
+- `surLienDAppairage` rend à l'écran d'appairage le même QR, scanné par l'appareil photo du
+  téléphone plutôt que par l'app (#1597) : son lien, `brigade://pair?code=…&url=…`, ouvre l'app (le
+  filtre d'intent du manifeste), `Pont.java` le garde (`handleOnNewIntent`) jusqu'à ce que le pont le
+  prenne (`lien`), et l'écran l'envoie comme un QR scanné d'ici, sans rien taper. Celui qui a lancé
+  l'app est rendu dès l'abonnement, ceux qui la rouvrent à leur arrivée ; rouverte depuis les applis
+  récentes, l'app ne rejoue pas le lien qui l'avait lancée. Déjà appairé, l'app ne le lit pas : il
+  attend, en mémoire, l'écran d'appairage que « pair again » rouvre.
 - `ajouter` refuse, en disant que ce téléphone n'est appairé à aucune station.
 - Un abonnement (`sur…`) ne reçoit rien ; tout autre geste ne fait rien et ne rend rien.
 
