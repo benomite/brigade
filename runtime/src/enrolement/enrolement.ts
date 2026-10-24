@@ -146,6 +146,9 @@ export type OptionsEnrolements = {
   recepteur?: string;
   // Le registre où la machine se présente : celui du répertoire, à défaut.
   registre?: Registre;
+  // Ce répertoire tel que la commande le nomme au geste qui reçoit : le
+  // répertoire lui-même, à défaut.
+  registreNomme?: string;
 };
 
 export function ouvrirEnrolements(repertoire: string, options: OptionsEnrolements = {}): Enrolements {
@@ -153,6 +156,7 @@ export function ouvrirEnrolements(repertoire: string, options: OptionsEnrolement
   const dureeMs = options.dureeMs ?? DUREE_MS;
   const recepteur = options.recepteur ?? RECEPTEUR;
   const absolu = resolve(repertoire);
+  const registreNomme = options.registreNomme ?? absolu;
   mkdirSync(absolu, { recursive: true });
   const registre = options.registre ?? ouvrirRegistre(absolu, { maintenant });
   const base = new Base(cheminEnrolements(absolu), { attenteMs: 5000 });
@@ -174,7 +178,7 @@ export function ouvrirEnrolements(repertoire: string, options: OptionsEnrolement
       const depot = verifier(demande.depot ?? DEPOT, DEPOT_ACCEPTE, "dépôt");
       const branche = verifier(demande.branche ?? BRANCHE, BRANCHE_ACCEPTEE, "branche");
       verifier(recepteur, CHEMIN, "geste de réception");
-      verifier(absolu, CHEMIN, "registre");
+      verifier(registreNomme, CHEMIN, "registre");
       const code = tirerCode();
       const instant = maintenant();
       const expireLe = new Date(instant.getTime() + dureeMs).toISOString();
@@ -182,7 +186,7 @@ export function ouvrirEnrolements(repertoire: string, options: OptionsEnrolement
         base.executer("DELETE FROM enrolements WHERE expire_le < ?", new Date(instant.getTime() - GARDE_MS).toISOString());
         base.executer("INSERT INTO enrolements (empreinte, vers, prepare_le, expire_le) VALUES (?, ?, ?, ?)", empreinte(lireCode(code) ?? ""), vers, instant.toISOString(), expireLe);
       });
-      return { code, commande: commande(code, { vers, nom, depot, branche, recepteur, registre: absolu }), expireLe };
+      return { code, commande: commande(code, { vers, nom, depot, branche, recepteur, registre: registreNomme }), expireLe };
     },
     recevoir(code, presentation) {
       const lu = lireCode(code);

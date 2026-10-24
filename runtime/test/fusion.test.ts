@@ -14,6 +14,7 @@ import { direBaseRevenueVerteEn, direBaseRougeEn } from "../src/dire-base.ts";
 import { controleRetenu, etatDeLaBase, mergesAVerifier, passDuTicket } from "../src/projections/pass.ts";
 import { chef, cuisine, fauxGitHub, issue, MACHINE_CALME, montre, type Options } from "./aides/cuisine.ts";
 import { BASE, commiter, depotGit, ENV_GIT, git, jusqua, repertoireTemporaire } from "./outils.ts";
+import { posixOnly } from "./support/plateforme.ts";
 
 // `impossible` : le worktree jetable ne se fait pas — le dépôt lève, comme le
 // vrai (`git worktree add` raté), et les gates ne sont pas jouées.
@@ -519,7 +520,7 @@ describe("une livraison se juge fusionnée avec la base", { concurrency: 8 }, ()
     assert.match(String(rejeu?.gates.failures), /aucun test en échec/);
   });
 
-  test("un runtime tué pendant un jugement ne laisse pas son worktree jetable : au redémarrage il est retiré, le jugement repris, et rien n'est mergé deux fois", async (t) => {
+  test("un runtime tué pendant un jugement ne laisse pas son worktree jetable : au redémarrage il est retiré, le jugement repris, et rien n'est mergé deux fois", { skip: posixOnly("judges a delivery merged with the base on a real git repository through gates written as #!/bin/sh scripts that report the directory they ran in; on the Windows job: + true, false, - false") }, async (t) => {
     const premiere = service(t, { essais: { "jugement-17": "lent" } });
     await jusqua(() => premiere.gates.appels().length === 1);
     assert.equal(premiere.pass()?.phase, "judging");

@@ -5,7 +5,7 @@
 // du chef. Le compte du chef est un répertoire temporaire ; la machine, un Mac
 // simulé ; `git` est le vrai.
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs";
 import { join, posix } from "node:path";
 import { test, type TestContext } from "node:test";
 import { LECTURES_INTERDITES, type Reglages } from "../../src/bac-a-sable/configuration.ts";
@@ -23,6 +23,7 @@ import { lieuxDuProjet } from "../../src/station/configuration.ts";
 import { ouvrirCuisine } from "../../src/station/cuisine.ts";
 import { ouvrirStation } from "../../src/station/station.ts";
 import { aArreter, BASE, commiter, depotGit, ENV_GIT, FAUX_CLAUDE, git, horloge, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
+import { posixOnly } from "../support/plateforme.ts";
 
 const rienNeReste = temporaireDuFichier();
 
@@ -80,11 +81,14 @@ test("un projet servi avant l'atelier y déménage : son clone et ses worktrees,
   assert.equal(git(worktree, "rev-parse", "--abbrev-ref", "HEAD"), `cook/${RUN}`);
   assert.equal(git(worktree, "status", "--porcelain"), "?? en-cours.txt");
   assert.equal(git(lieux.clone, "log", "-1", "--format=%s", `cook/${RUN}`), "ajoute commite.txt");
+  // Chaque chemin lu tel que le disque le nomme : sous Windows, `git` l'écrit
+  // avec des barres obliques et sans les noms courts (RUNNER~1) du répertoire
+  // temporaire.
   const listes = git(lieux.clone, "worktree", "list", "--porcelain")
     .split("\n")
-    .filter((ligne) => ligne.startsWith("worktree "))
+    .flatMap((ligne) => (ligne.startsWith("worktree ") ? [realpathSync.native(ligne.slice("worktree ".length))] : []))
     .sort();
-  assert.deepEqual(listes, [`worktree ${lieux.clone}`, `worktree ${join(lieux.worktrees, ".essais/pass-1")}`, `worktree ${worktree}`].sort());
+  assert.deepEqual(listes, [lieux.clone, join(lieux.worktrees, ".essais/pass-1"), worktree].map((chemin) => realpathSync.native(chemin)).sort());
 
   // Rejoué, il n'y a plus rien à déménager.
   assert.deepEqual(demenagerVersLAtelier(racine, PROJET, lieux, { cloneDeLaStation: true, env: ENV_GIT }), { deplaces: [], restes: [] });
@@ -143,8 +147,8 @@ test("ce qui ne se déménage pas reste où il est, et se dit : un clone déjà 
   const bilan = demenagerVersLAtelier(racine, PROJET, lieux, { cloneDeLaStation: true, env: ENV_GIT });
   assert.deepEqual(bilan.deplaces, []);
   assert.equal(bilan.restes.length, 2);
-  assert.match(bilan.restes[0] ?? "", /^le clone reste à .*clones\/mirrorlab — .*existe déjà$/);
-  assert.match(bilan.restes[1] ?? "", /^ses worktrees restent à .*etat\/mirrorlab\/worktrees, accrochés à ce clone$/);
+  assert.match(bilan.restes[0] ?? "", /^le clone reste à .*clones[\\/]mirrorlab — .*existe déjà$/);
+  assert.match(bilan.restes[1] ?? "", /^ses worktrees restent à .*etat[\\/]mirrorlab[\\/]worktrees, accrochés à ce clone$/);
   assert.equal(readFileSync(join(ancienWorktree, "en-cours.txt"), "utf8"), "le travail que le cook n'a pas commité\n");
 });
 
@@ -155,7 +159,7 @@ function reglagesDansLeBacASable(home: string, worktrees: string, ou: string): R
   return JSON.parse(args[args.indexOf("--settings") + 1] ?? "") as Reglages;
 }
 
-test("sur un Mac, la station sous `~/.config/brigade` sert le projet, ses cooks dans le bac à sable : sans réglage, et sans nettoyage à la main de ce qu'elle avait laissé", (t) => {
+test("sur un Mac, la station sous `~/.config/brigade` sert le projet, ses cooks dans le bac à sable : sans réglage, et sans nettoyage à la main de ce qu'elle avait laissé", { skip: posixOnly("simulates a Mac whose station lives under ~/.config/brigade and whose cooks run in the Seatbelt sandbox, which takes POSIX absolute paths only (this test uses the fake claude (bash)); on the Windows job: + { + mirrorlab: \"sur ce Mac, chaque cook part dans le bac à sable, et il n'est pas utilisable — what the station says about its sandbox cannot be rea…") }, (t) => {
   const { compte, home, racine, etat, lieux } = avantLaMiseAJour(t);
   writeFileSync(join(racine, "projets"), `${PROJET} benomite/${PROJET} ${BASE}\n`);
   // Le répertoire temporaire d'un Mac n'est pas au-dessus du compte : c'est là

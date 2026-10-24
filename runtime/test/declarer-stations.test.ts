@@ -4,7 +4,7 @@
 // le runtime qui tourne la lit sans redémarrer.
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { decisionsPosees } from "../src/decisions.ts";
 import { principal } from "../src/declarer-stations.ts";
@@ -12,6 +12,7 @@ import { installationDe, noterEtape } from "../src/etapes.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { lireRail } from "../src/projections/rail.ts";
 import { appeler, BASE, DEPOT, depotGit, ENV_GIT, FAUX_CLAUDE, fauxGh, issueGitHub, jusqua, lancer, repertoireTemporaire } from "./outils.ts";
+import { posixOnly } from "./support/plateforme.ts";
 
 const INSTALLATION = join(import.meta.dirname, "../src/installation-cli.ts");
 const MAIN = join(import.meta.dirname, "../src/main.ts");
@@ -155,7 +156,7 @@ test("l'action ne lance aucun geste de box : ni `sudo`, ni `systemctl` — rien 
 
   const commande = lancer(t, INSTALLATION, ["stations", "box/claude:3:code"], {
     ...env(etat),
-    PATH: `${outils}:${process.env.PATH ?? ""}`,
+    PATH: `${outils}${delimiter}${process.env.PATH ?? ""}`,
     BRIGADE_SUDO_BIN: join(outils, "sudo"),
     BRIGADE_SYSTEMCTL_BIN: join(outils, "systemctl"),
     BRIGADE_MISE_EN_SERVICE_LIEN: join(outils, "absent"),
@@ -184,7 +185,7 @@ test("la commande du chef, en texte : l'étape, ce qu'elle sert, ce que la machi
 // Le critère de bout en bout : un runtime démarré sans station ne fait partir
 // aucun cook ; l'action déclare, et sans redémarrage le ticket qui attendait
 // part.
-test("de bout en bout : sur un runtime qui tourne sans station, l'action déclare et un cook part sur le ticket, sans redémarrage", async (t) => {
+test("de bout en bout : sur un runtime qui tourne sans station, l'action déclare et un cook part sur le ticket, sans redémarrage", { skip: posixOnly("runs the `stations` installation step as a real process and stops it with SIGTERM, which on Windows ends it before its handler runs (exit code null) (this test uses POSIX signals, the fake claude (bash), the fake gh (bash)); on the Windows job: null !== 0") }, async (t) => {
   const etat = repertoireTemporaire(t);
   const { clone } = depotGit(t);
   const gh = fauxGh(t);

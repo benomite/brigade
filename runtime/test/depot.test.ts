@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { appendFileSync, chmodSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
 import { describe, test, type TestContext } from "node:test";
+import { posixOnly } from "./support/plateforme.ts";
 import { environnementReseau, lireALaBase, ouvrirDepot } from "../src/depot.ts";
 import { identifiantsLivres } from "../src/identifiants.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
@@ -528,6 +529,9 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     // qu'il faille écrire des dizaines de milliers de fichiers.
     const long = (lettre: string) => lettre.repeat(200);
     const fond = join(worktree, long("a"), long("b"), long("c"));
+    // Au-delà de 260 caractères, git pour Windows ne lit un chemin que sous
+    // `core.longpaths` ; ailleurs, le réglage ne change rien.
+    git(worktree, "config", "core.longpaths", "true");
     mkdirSync(fond, { recursive: true });
     for (let i = 0; i < 1500; i++) writeFileSync(join(fond, `${long("d")}-${i}`), "");
 
@@ -856,14 +860,19 @@ describe("un worktree que son cook a détourné", { concurrency: 8 }, () => {
     const racine = repertoireTemporaire(t);
     const temoin = join(racine, "temoin");
     const commande = join(racine, "commande.sh");
-    writeFileSync(commande, `#!/bin/sh\n: >>'${temoin}'\ncat\n`);
+    // Le témoin s'y nomme avec des barres obliques : le `sh` de git pour
+    // Windows les lit comme les siennes.
+    writeFileSync(commande, `#!/bin/sh\n: >>'${temoin.replaceAll("\\", "/")}'\ncat\n`);
     chmodSync(commande, 0o755);
     return {
       racine,
       // Ajoute la commande à une configuration, et la fait appeler pour tout
-      // fichier de l'arbre.
+      // fichier de l'arbre. Son chemin s'y écrit avec des barres obliques : la
+      // contre-oblique d'un chemin de Windows y serait un échappement, et le
+      // fichier illisible.
       planter(config: string, arbre: string) {
-        appendFileSync(config, `[core]\n\tfsmonitor = ${commande}\n[filter "piege"]\n\tclean = ${commande}\n`);
+        const chemin = commande.replaceAll("\\", "/");
+        appendFileSync(config, `[core]\n\tfsmonitor = ${chemin}\n[filter "piege"]\n\tclean = ${chemin}\n`);
         writeFileSync(join(arbre, ".gitattributes"), "* filter=piege\n");
       },
       execute: () => existsSync(temoin),
@@ -902,6 +911,9 @@ describe("un worktree que son cook a détourné", { concurrency: 8 }, () => {
     const { racine, planter, execute } = piege(t);
     git(racine, "init", "-q", "a-lui");
     planter(join(racine, "a-lui/.git/config"), worktree);
+    // Retiré d'abord : sous Windows, git le cache, et un fichier caché ne se
+    // réécrit pas (EPERM).
+    rmSync(join(worktree, ".git"));
     writeFileSync(join(worktree, ".git"), `gitdir: ${join(racine, "a-lui/.git")}\n`);
 
     const refus = /« .*15-abc » ne désigne plus son dépôt dans le clone \(fichier `\.git` réécrit\)/;

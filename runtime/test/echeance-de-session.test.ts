@@ -8,7 +8,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join, relative } from "node:path";
+import { dirname, join, relative, sep } from "node:path";
 import { test, type TestContext } from "node:test";
 import { configCloison, envelopper } from "../src/cloison.ts";
 import { decrireEtat, lireEtat } from "../src/etat.ts";
@@ -23,6 +23,7 @@ import { brancherJeton } from "../src/jeton-claude.ts";
 import { brancherSession, configSession, lireSession } from "../src/renouvellement.ts";
 import { ConfigInvalide, demarrer, type CauseReveil } from "../src/runtime.ts";
 import { appeler, FAUX_BWRAP, JOUR_HORLOGE, repertoireTemporaire } from "./outils.ts";
+import { posixOnly } from "./support/plateforme.ts";
 
 const STATION = "box/claude";
 const GESTE_TOMBEE = "`claude /login` under the service account — the kitchen starts again on its own within the minute, without “resume”";
@@ -207,7 +208,7 @@ test("le fichier d'état se lit clé par clé : un échec derrière un passage r
   assert.deepEqual(lireSession(CONFIG(repertoire), new Date(a("10:00:00"))), observation({ state: repertoire, file: "unreadable" }));
 });
 
-test("le fichier que le vrai `brigade-renouvellement` écrit se lit : son échec, puis son renouvellement — sans que le runtime ouvre les identifiants", (t) => {
+test("le fichier que le vrai `brigade-renouvellement` écrit se lit : son échec, puis son renouvellement — sans que le runtime ouvre les identifiants", { skip: posixOnly("runs deploy/brigade-renouvellement, a bash script, to write the session state the runtime reads (this test uses a shell script of its own, POSIX mode bits); on the Windows job: null !== 1") }, (t) => {
   const racine = repertoireTemporaire(t);
   const [home, bin, session] = ["home", "bin", "session"].map((nom) => join(racine, nom)) as [string, string, string];
   for (const repertoire of [join(home, ".claude"), bin, session]) mkdirSync(repertoire, { recursive: true });
@@ -313,7 +314,7 @@ test("le runtime écrit au journal ce qu'il lit au démarrage, puis ce qui chang
 });
 
 test("la configuration : le fichier d'état à côté des répertoires d'état des projets par défaut, des durées en secondes, et jamais un fichier d'identifiants", () => {
-  assert.deepEqual(configSession({}, "/var/lib/brigade/brigade"), { etat: ETAT, vieS: 28_800, preavisS: 10_800 });
+  assert.deepEqual(configSession({}, "/var/lib/brigade/brigade"), { etat: join("/var/lib/brigade", ".session", "renouvellement"), vieS: 28_800, preavisS: 10_800 });
   assert.deepEqual(configSession({ BRIGADE_SESSION_STATE: "/ailleurs/etat", BRIGADE_SESSION_LIFETIME: "3600", BRIGADE_SESSION_WARNING: "600" }, "/x/y"), { etat: "/ailleurs/etat", vieS: 3600, preavisS: 600 });
   const refus = (env: NodeJS.ProcessEnv) => assert.throws(() => configSession(env, "/var/lib/brigade/brigade"), ConfigInvalide);
   refus({ BRIGADE_SESSION_STATE: "relatif" });
@@ -352,7 +353,7 @@ test("la cloison monte les identifiants en lecture seule pour tous les rôles �
     // Un montage recouvre ceux qui le précèdent : aucun montage inscriptible
     // ne le recouvre ensuite, ni lui ni un répertoire qui le contient.
     const apres = recu.slice(recu.lastIndexOf(identifiants) + 1);
-    const recouvrants = apres.flatMap((arg, i) => (arg === "--bind" && (apres[i + 2] === identifiants || identifiants.startsWith(`${apres[i + 2]}/`)) ? [apres[i + 2]] : []));
+    const recouvrants = apres.flatMap((arg, i) => (arg === "--bind" && (apres[i + 2] === identifiants || identifiants.startsWith(`${apres[i + 2]}${sep}`)) ? [apres[i + 2]] : []));
     assert.deepEqual(recouvrants, [], role);
   }
 });
@@ -361,7 +362,7 @@ test("aucun code du runtime n'ouvre le fichier d'identifiants : son nom n'y sert
   const SRC = join(import.meta.dirname, "../src");
   const sources = (repertoire: string): string[] =>
     readdirSync(repertoire, { withFileTypes: true }).flatMap((entree) => (entree.isDirectory() ? sources(join(repertoire, entree.name)) : entree.name.endsWith(".ts") ? [join(repertoire, entree.name)] : []));
-  const lues = sources(SRC).map((fichier) => ({ nom: relative(SRC, fichier), texte: readFileSync(fichier, "utf8") }));
+  const lues = sources(SRC).map((fichier) => ({ nom: relative(SRC, fichier).replaceAll(sep, "/"), texte: readFileSync(fichier, "utf8") }));
   const qui = (motif: RegExp) => lues.filter(({ texte }) => motif.test(texte)).map(({ nom }) => nom).sort();
 
   // Son nom en clair : la cloison, qui le monte, le module qui le reconnaît dans une livraison, et le bac à

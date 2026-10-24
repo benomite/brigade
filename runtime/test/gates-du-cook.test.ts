@@ -37,8 +37,8 @@ function cuisson(t: TestContext, avecGates = true) {
   return { clone, worktree, journal, jouer, passages };
 }
 
-describe("les gates du cook", { concurrency: 8, skip: posixOnly("the launcher is a bash script, and so are the gates it plays") }, () => {
-  test("le lanceur est posé dans le `.git` du clone, exécutable — sauf pour un projet sans gates, ou hors d'un dépôt git", (t) => {
+describe("les gates du cook", { concurrency: 8 }, () => {
+  test("le lanceur est posé dans le `.git` du clone, exécutable — sauf pour un projet sans gates, ou hors d'un dépôt git", { skip: posixOnly("plays the gates-du-cook launcher, a bash script the station writes into .git/brigade, which records the paths it was given as Git Bash sees them (long or /c/ form, not the 8.3 path of the test) (this test uses POSIX mode bits); on the Windows job: + '<tmp>\\clone\\.git\\brigade\\gates-du-cook' - '<tmp>\\clone\\.git\\brigade\\gates-du-cook'") }, (t) => {
     const { clone, worktree } = cuisson(t);
     const lanceur = poserLeLanceur(worktree);
 
@@ -54,7 +54,7 @@ describe("les gates du cook", { concurrency: 8, skip: posixOnly("the launcher is
     assert.equal(poserLeLanceur(sansGit), null);
   });
 
-  test("le lanceur joue le script du projet tel quel — sa sortie, son code de sortie — et son reçu porte l'arbre que le cook livrera, ce qui n'était pas commité compris, sans toucher à son index", (t) => {
+  test("le lanceur joue le script du projet tel quel — sa sortie, son code de sortie — et son reçu porte l'arbre que le cook livrera, ce qui n'était pas commité compris, sans toucher à son index", { skip: posixOnly("plays the gates-du-cook launcher, a bash script the station writes into .git/brigade, which records the paths it was given as Git Bash sees them (long or /c/ form, not the 8.3 path of the test); on the Windows job: + null, + null - 3,") }, (t) => {
     const { worktree, jouer } = cuisson(t);
     const lanceur = poserLeLanceur(worktree)!;
     // Du travail non commité : un fichier suivi modifié, un fichier neuf.
@@ -81,7 +81,7 @@ describe("les gates du cook", { concurrency: 8, skip: posixOnly("the launcher is
     assert.deepEqual(new Set(recus.map((recu) => recu.tree)), new Set([git(worktree, "rev-parse", "HEAD^{tree}")]));
   });
 
-  test("à la fin du cook, chaque reçu devient un `gates.ran` du cook, avec son empreinte — que la pass reprend sur le même arbre — puis il est effacé", (t) => {
+  test("à la fin du cook, chaque reçu devient un `gates.ran` du cook, avec son empreinte — que la pass reprend sur le même arbre — puis il est effacé", { skip: posixOnly("plays the gates-du-cook launcher, a bash script the station writes into .git/brigade, which records the paths it was given as Git Bash sees them (long or /c/ form, not the 8.3 path of the test); on the Windows job: 0 !== 2") }, (t) => {
     const { worktree, journal, jouer, passages } = cuisson(t);
     const lanceur = poserLeLanceur(worktree)!;
     jouer(lanceur, 1);
@@ -113,7 +113,7 @@ describe("les gates du cook", { concurrency: 8, skip: posixOnly("the launcher is
     assert.equal(passages().length, 2);
   });
 
-  test("un reçu illisible ne compte pas, et un nouveau cook dans le worktree repart sans les reçus du précédent", (t) => {
+  test("un reçu illisible ne compte pas, et un nouveau cook dans le worktree repart sans les reçus du précédent", { skip: posixOnly("plays the gates-du-cook launcher, a bash script the station writes into .git/brigade, which records the paths it was given as Git Bash sees them (long or /c/ form, not the 8.3 path of the test); on the Windows job: 0 !== 1") }, (t) => {
     const { worktree, journal, jouer, passages } = cuisson(t);
     const lanceur = poserLeLanceur(worktree)!;
     jouer(lanceur);

@@ -10,6 +10,7 @@ import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, s
 import { dirname, join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { repertoireDuFichier, repertoireTemporaire } from "./outils.ts";
+import { posixOnly } from "./support/plateforme.ts";
 
 const SOURCE = join(import.meta.dirname, "../deploy/brigade");
 const USAGE = 64;
@@ -179,7 +180,7 @@ function machine(t: TestContext, options: { environnement?: (station: string, ch
 
 // Chaque test a sa machine — sa station, ses doublures, son témoin —, et ses process ne bloquent pas : ils se jouent de front.
 describe("le geste brigade", { concurrency: 8 }, () => {
-  test("le nom du projet et la commande suffisent : le compte et l'environnement viennent de l'unité de la station, le projet de sa configuration", async (t) => {
+  test("le nom du projet et la commande suffisent : le compte et l'environnement viennent de l'unité de la station, le projet de sa configuration", { skip: posixOnly("spawns the station's gesture usr/lib/brigade-station/brigade, an extensionless bash script that Windows cannot execute (spawn ENOENT); on the Windows job: Error: spawn <tmp>\\usr\\lib\\brigade-station\\brigade ENOENT") }, async (t) => {
     const m = machine(t);
 
     const fin = await m.lancer(["calculus", "status", "--suivre", "12"]);
@@ -209,7 +210,7 @@ describe("le geste brigade", { concurrency: 8 }, () => {
 
   const realpath = (chemin: string) => spawnSync("/bin/sh", ["-c", 'cd "$1" && pwd -P', "sh", chemin], { encoding: "utf8" }).stdout.trim();
 
-  test("le clone que la ligne du projet nomme est celui de la commande", async (t) => {
+  test("le clone que la ligne du projet nomme est celui de la commande", { skip: posixOnly("spawns the station's gesture usr/lib/brigade-station/brigade, an extensionless bash script that Windows cannot execute (spawn ENOENT); on the Windows job: Error: spawn <tmp>\\usr\\lib\\brigade-station\\brigade ENOENT") }, async (t) => {
     const m = machine(t, { ligne: "calculus benomite/calculus main BRIGADE_REPO_DIR=/var/lib/brigade/calculus/depot" });
 
     assert.equal((await m.lancer(["calculus", "status"])).code, 0);
@@ -217,7 +218,7 @@ describe("le geste brigade", { concurrency: 8 }, () => {
     assert.equal(m.commande()?.env.BRIGADE_REPO_DIR, "/var/lib/brigade/calculus/depot");
   });
 
-  test("rien de l'environnement de celui qui lance n'arrive à la commande", async (t) => {
+  test("rien de l'environnement de celui qui lance n'arrive à la commande", { skip: posixOnly("spawns the station's gesture usr/lib/brigade-station/brigade, an extensionless bash script that Windows cannot execute (spawn ENOENT); on the Windows job: Error: spawn <tmp>\\usr\\lib\\brigade-station\\brigade ENOENT") }, async (t) => {
     const m = machine(t);
 
     assert.equal((await m.lancer(["calculus", "status"])).code, 0);
@@ -227,7 +228,7 @@ describe("le geste brigade", { concurrency: 8 }, () => {
     assert.equal(env.FAUX_QUI, undefined);
   });
 
-  test("une valeur de l'unité qui contient des espaces, des guillemets ou un dollar arrive entière", async (t) => {
+  test("une valeur de l'unité qui contient des espaces, des guillemets ou un dollar arrive entière", { skip: posixOnly("spawns the station's gesture usr/lib/brigade-station/brigade, an extensionless bash script that Windows cannot execute (spawn ENOENT); on the Windows job: Error: spawn <tmp>\\usr\\lib\\brigade-station\\brigade ENOENT") }, async (t) => {
     const m = machine(t, { environnement: (station, chemin, temoin) => [`BRIGADE_STATION_DIR=${station}`, String.raw`"BRIGADE_SANDBOX_PRIVATE=/srv/deux mots:/srv/\"cité\" \$HOME \\fin"`, `PATH=${chemin}`, `TEMOIN_DU_TEST=${temoin}`, `"VIDE="`].join(" ") });
 
     assert.equal((await m.lancer(["calculus", "status"])).code, 0);
@@ -237,7 +238,7 @@ describe("le geste brigade", { concurrency: 8 }, () => {
     assert.equal(env.VIDE, "");
   });
 
-  test("les arguments arrivent à la commande tels qu'ils ont été donnés, espaces compris", async (t) => {
+  test("les arguments arrivent à la commande tels qu'ils ont été donnés, espaces compris", { skip: posixOnly("spawns the station's gesture usr/lib/brigade-station/brigade, an extensionless bash script that Windows cannot execute (spawn ENOENT); on the Windows job: Error: spawn <tmp>\\usr\\lib\\brigade-station\\brigade ENOENT") }, async (t) => {
     const m = machine(t);
 
     assert.equal((await m.lancer(["calculus", "grant", "activer", "merge", "--jusqu-a", "2026-10-12 18:00", "$HOME; true"])).code, 0);
@@ -245,7 +246,7 @@ describe("le geste brigade", { concurrency: 8 }, () => {
     assert.deepEqual(m.commande()?.args, ["activer", "merge", "--jusqu-a", "2026-10-12 18:00", "$HOME; true"]);
   });
 
-  test("un `--` devant les arguments, comme `npm run` en demandait un, ne change rien", async (t) => {
+  test("un `--` devant les arguments, comme `npm run` en demandait un, ne change rien", { skip: posixOnly("spawns the station's gesture usr/lib/brigade-station/brigade, an extensionless bash script that Windows cannot execute (spawn ENOENT); on the Windows job: Error: spawn <tmp>\\usr\\lib\\brigade-station\\brigade ENOENT") }, async (t) => {
     const m = machine(t);
 
     assert.equal((await m.lancer(["calculus", "grant", "--", "activer", "merge"])).code, 0);
@@ -253,7 +254,7 @@ describe("le geste brigade", { concurrency: 8 }, () => {
     assert.deepEqual(m.commande()?.args, ["activer", "merge"]);
   });
 
-  test("lancé sous le compte de la station, il ne passe pas par `sudo`", async (t) => {
+  test("lancé sous le compte de la station, il ne passe pas par `sudo`", { skip: posixOnly("spawns the station's gesture usr/lib/brigade-station/brigade, an extensionless bash script that Windows cannot execute (spawn ENOENT); on the Windows job: Error: spawn <tmp>\\usr\\lib\\brigade-station\\brigade ENOENT") }, async (t) => {
     const m = machine(t);
 
     assert.equal((await m.lancer(["calculus", "status"], "brigade")).code, 0);
@@ -263,13 +264,13 @@ describe("le geste brigade", { concurrency: 8 }, () => {
     assert.deepEqual(m.commande()?.args, []);
   });
 
-  test("le code de sortie de la commande est rendu tel quel", async (t) => {
+  test("le code de sortie de la commande est rendu tel quel", { skip: posixOnly("spawns the station's gesture usr/lib/brigade-station/brigade, an extensionless bash script that Windows cannot execute (spawn ENOENT); on the Windows job: Error: spawn <tmp>\\usr\\lib\\brigade-station\\brigade ENOENT") }, async (t) => {
     const m = machine(t, { environnement: (station, chemin, temoin) => [`BRIGADE_STATION_DIR=${station}`, `PATH=${chemin}`, `TEMOIN_DU_TEST=${temoin}`, "FAUX_CODE=3"].join(" ") });
 
     assert.equal((await m.lancer(["calculus", "status"])).code, 3);
   });
 
-  test("un projet que cette station ne sert pas est refusé en le disant", async (t) => {
+  test("un projet que cette station ne sert pas est refusé en le disant", { skip: posixOnly("spawns the station's gesture usr/lib/brigade-station/brigade, an extensionless bash script that Windows cannot execute (spawn ENOENT); on the Windows job: Error: spawn <tmp>\\usr\\lib\\brigade-station\\brigade ENOENT") }, async (t) => {
     const m = machine(t);
 
     const fin = await m.lancer(["calculs", "status"]);
@@ -280,7 +281,7 @@ describe("le geste brigade", { concurrency: 8 }, () => {
     assert.equal(m.commande(), null);
   });
 
-  test("un nom qui n'est pas un nom de projet est refusé sans interroger systemd", async (t) => {
+  test("un nom qui n'est pas un nom de projet est refusé sans interroger systemd", { skip: posixOnly("spawns the station's gesture usr/lib/brigade-station/brigade, an extensionless bash script that Windows cannot execute (spawn ENOENT); on the Windows job: Error: spawn <tmp>\\usr\\lib\\brigade-station\\brigade ENOENT") }, async (t) => {
     const m = machine(t);
 
     for (const nom of ["../calculus", "calculus.service", "cal culus", ""]) {
@@ -292,7 +293,7 @@ describe("le geste brigade", { concurrency: 8 }, () => {
     assert.equal(m.commande(), null);
   });
 
-  test("une commande qui n'est pas du runtime est refusée, en nommant celles de la station", async (t) => {
+  test("une commande qui n'est pas du runtime est refusée, en nommant celles de la station", { skip: posixOnly("spawns the station's gesture usr/lib/brigade-station/brigade, an extensionless bash script that Windows cannot execute (spawn ENOENT); on the Windows job: Error: spawn <tmp>\\usr\\lib\\brigade-station\\brigade ENOENT") }, async (t) => {
     const m = machine(t);
 
     // `journal` est une commande du runtime de ce dépôt, pas de cette station.
@@ -305,7 +306,7 @@ describe("le geste brigade", { concurrency: 8 }, () => {
     assert.equal(m.commande(), null);
   });
 
-  test("sans projet ou sans commande, il dit comment il se lance", async (t) => {
+  test("sans projet ou sans commande, il dit comment il se lance", { skip: posixOnly("spawns the station's gesture usr/lib/brigade-station/brigade, an extensionless bash script that Windows cannot execute (spawn ENOENT); on the Windows job: Error: spawn <tmp>\\usr\\lib\\brigade-station\\brigade ENOENT") }, async (t) => {
     const m = machine(t);
 
     for (const args of [[], ["calculus"]]) {
@@ -316,7 +317,7 @@ describe("le geste brigade", { concurrency: 8 }, () => {
     assert.equal(m.commande(), null);
   });
 
-  test("`--help` sans projet dit comment il se lance, en anglais, sur la sortie standard et en 0 ; avec un projet, c'est la commande `help` du runtime", async (t) => {
+  test("`--help` sans projet dit comment il se lance, en anglais, sur la sortie standard et en 0 ; avec un projet, c'est la commande `help` du runtime", { skip: posixOnly("spawns the station's gesture usr/lib/brigade-station/brigade, an extensionless bash script that Windows cannot execute (spawn ENOENT); on the Windows job: Error: spawn <tmp>\\usr\\lib\\brigade-station\\brigade ENOENT") }, async (t) => {
     const m = machine(t);
 
     for (const option of ["--help", "-h"]) {
@@ -333,7 +334,7 @@ describe("le geste brigade", { concurrency: 8 }, () => {
     }
   });
 
-  test("un ancien nom de commande — un script qui lance `ancien-nom.ts` — est lancé comme les autres, sous le nom tapé, mais le refus d'une commande inconnue ne le nomme pas", async (t) => {
+  test("un ancien nom de commande — un script qui lance `ancien-nom.ts` — est lancé comme les autres, sous le nom tapé, mais le refus d'une commande inconnue ne le nomme pas", { skip: posixOnly("spawns the station's gesture usr/lib/brigade-station/brigade, an extensionless bash script that Windows cannot execute (spawn ENOENT) (this test uses a shell script of its own, POSIX mode bits); on the Windows job: Error: spawn <tmp>\\usr\\lib\\brigade-station\\brigade ENOENT") }, async (t) => {
     const m = machine(t);
 
     assert.equal((await m.lancer(["calculus", "plat-d-hier", "--vite"])).code, 0);
@@ -345,7 +346,7 @@ describe("le geste brigade", { concurrency: 8 }, () => {
     assert.doesNotMatch(fin.erreur, /plat-d-hier/);
   });
 
-  test("`test`, `typecheck` et `start` ne sont pas des commandes d'un projet : refusées comme les autres", async (t) => {
+  test("`test`, `typecheck` et `start` ne sont pas des commandes d'un projet : refusées comme les autres", { skip: posixOnly("spawns the station's gesture usr/lib/brigade-station/brigade, an extensionless bash script that Windows cannot execute (spawn ENOENT) (this test uses a shell script of its own, POSIX mode bits); on the Windows job: Error: spawn <tmp>\\usr\\lib\\brigade-station\\brigade ENOENT") }, async (t) => {
     const m = machine(t);
 
     for (const commande of ["test", "typecheck", "start"]) {
@@ -366,7 +367,7 @@ describe("le geste brigade", { concurrency: 8 }, () => {
     assert.equal(scripts.facts, "node src/faits.ts");
   });
 
-  test("un `systemctl` qui échoue arrête le geste en le disant : ni compte ni environnement supposés", async (t) => {
+  test("un `systemctl` qui échoue arrête le geste en le disant : ni compte ni environnement supposés", { skip: posixOnly("spawns the station's gesture usr/lib/brigade-station/brigade, an extensionless bash script that Windows cannot execute (spawn ENOENT) (this test uses a shell script of its own, POSIX mode bits); on the Windows job: Error: spawn <tmp>\\usr\\lib\\brigade-station\\brigade ENOENT") }, async (t) => {
     for (const propriete of ["User", "Environment"]) {
       const m = machine(t);
       m.panne(propriete);
@@ -380,7 +381,7 @@ describe("le geste brigade", { concurrency: 8 }, () => {
     }
   });
 
-  test("une unité de la station qui ne nomme pas son répertoire : refusé, avec le code de systemd — ses projets ne se trouvent pas", async (t) => {
+  test("une unité de la station qui ne nomme pas son répertoire : refusé, avec le code de systemd — ses projets ne se trouvent pas", { skip: posixOnly("spawns the station's gesture usr/lib/brigade-station/brigade, an extensionless bash script that Windows cannot execute (spawn ENOENT) (this test uses a shell script of its own, POSIX mode bits); on the Windows job: Error: spawn <tmp>\\usr\\lib\\brigade-station\\brigade ENOENT") }, async (t) => {
     const m = machine(t, { environnement: (_station, chemin, temoin) => [`PATH=${chemin}`, `TEMOIN_DU_TEST=${temoin}`].join(" ") });
 
     const fin = await m.lancer(["calculus", "status"]);
@@ -392,7 +393,7 @@ describe("le geste brigade", { concurrency: 8 }, () => {
 
   const REFUS = (qui: string) => `brigade : « ${qui} » n'a pas le droit de lancer le geste sur cette machine — sans terminal, \`sudo\` ne le lui donne pas sous le compte « brigade » sans mot de passe (docs/bascule.md, « Le geste brigade »)\n`;
 
-  test("sans terminal, celui à qui aucune règle ne donne le geste est refusé en le disant, avec son code : `sudo` ne demande rien", async (t) => {
+  test("sans terminal, celui à qui aucune règle ne donne le geste est refusé en le disant, avec son code : `sudo` ne demande rien", { skip: posixOnly("spawns the station's gesture usr/lib/brigade-station/brigade, an extensionless bash script that Windows cannot execute (spawn ENOENT) (this test uses a shell script of its own, POSIX mode bits); on the Windows job: Error: spawn <tmp>\\usr\\lib\\brigade-station\\brigade ENOENT") }, async (t) => {
     const m = machine(t);
     m.sansDroit();
 
@@ -405,7 +406,7 @@ describe("le geste brigade", { concurrency: 8 }, () => {
     assert.equal(m.commande(), null);
   });
 
-  test("sans terminal, celui à qui `sudo` demanderait un mot de passe est refusé avec le même code, même si lister ses droits n'en demande pas", async (t) => {
+  test("sans terminal, celui à qui `sudo` demanderait un mot de passe est refusé avec le même code, même si lister ses droits n'en demande pas", { skip: posixOnly("spawns the station's gesture usr/lib/brigade-station/brigade, an extensionless bash script that Windows cannot execute (spawn ENOENT) (this test uses a shell script of its own, POSIX mode bits); on the Windows job: Error: spawn <tmp>\\usr\\lib\\brigade-station\\brigade ENOENT") }, async (t) => {
     const m = machine(t);
     m.avecMotDePasse();
 
@@ -418,7 +419,7 @@ describe("le geste brigade", { concurrency: 8 }, () => {
     assert.equal(m.commande(), null);
   });
 
-  test("sans terminal, le droit s'éprouve en lançant ce fichier-ci à vide sous le compte du service, et rien de cet essai n'arrive dans la sortie", async (t) => {
+  test("sans terminal, le droit s'éprouve en lançant ce fichier-ci à vide sous le compte du service, et rien de cet essai n'arrive dans la sortie", { skip: posixOnly("spawns the station's gesture usr/lib/brigade-station/brigade, an extensionless bash script that Windows cannot execute (spawn ENOENT) (this test uses a shell script of its own, POSIX mode bits); on the Windows job: Error: spawn <tmp>\\usr\\lib\\brigade-station\\brigade ENOENT") }, async (t) => {
     const m = machine(t);
 
     const fin = await m.lancer(["calculus", "status"]);
@@ -443,7 +444,7 @@ describe("le geste brigade", { concurrency: 8 }, () => {
     }
   });
 
-  test("une machine sans `sudo` le dit, avec son code — pas celui du droit refusé", async (t) => {
+  test("une machine sans `sudo` le dit, avec son code — pas celui du droit refusé", { skip: posixOnly("spawns the station's gesture usr/lib/brigade-station/brigade, an extensionless bash script that Windows cannot execute (spawn ENOENT) (this test uses a shell script of its own, POSIX mode bits); on the Windows job: Error: spawn <tmp>\\usr\\lib\\brigade-station\\brigade ENOENT") }, async (t) => {
     const m = machine(t);
     m.sansSudo();
 
@@ -467,7 +468,7 @@ describe("le geste brigade", { concurrency: 8 }, () => {
     return node;
   }
 
-  test("sans le `node` du paquet, le geste le dit, avec son code et ce qui le remet — rien n'est lancé", async (t) => {
+  test("sans le `node` du paquet, le geste le dit, avec son code et ce qui le remet — rien n'est lancé", { skip: posixOnly("spawns the station's gesture usr/lib/brigade-station/brigade, an extensionless bash script that Windows cannot execute (spawn ENOENT); on the Windows job: Error: spawn <tmp>\\usr\\lib\\brigade-station\\brigade ENOENT") }, async (t) => {
     const m = machine(t);
     const node = nodeDuPaquet(m, null);
 
@@ -480,7 +481,7 @@ describe("le geste brigade", { concurrency: 8 }, () => {
     assert.equal(m.commande(), null);
   });
 
-  test("un `node` à qui libatomic manque : son refus est rendu avec ses mots, et le remède est le paquet de la bibliothèque", async (t) => {
+  test("un `node` à qui libatomic manque : son refus est rendu avec ses mots, et le remède est le paquet de la bibliothèque", { skip: posixOnly("spawns the station's gesture usr/lib/brigade-station/brigade, an extensionless bash script that Windows cannot execute (spawn ENOENT); on the Windows job: Error: spawn <tmp>\\usr\\lib\\brigade-station\\brigade ENOENT") }, async (t) => {
     const m = machine(t);
     nodeDuPaquet(m, ["echo 'node: error while loading shared libraries: libatomic.so.1: cannot open shared object file: No such file or directory' >&2", "exit 127"]);
 
@@ -491,7 +492,7 @@ describe("le geste brigade", { concurrency: 8 }, () => {
     assert.equal(m.commande(), null);
   });
 
-  test("sans le runtime du paquet à côté du geste, il le dit, avec le même code", async (t) => {
+  test("sans le runtime du paquet à côté du geste, il le dit, avec le même code", { skip: posixOnly("spawns the station's gesture usr/lib/brigade-station/brigade, an extensionless bash script that Windows cannot execute (spawn ENOENT); on the Windows job: Error: spawn <tmp>\\usr\\lib\\brigade-station\\brigade ENOENT") }, async (t) => {
     const m = machine(t);
     rmSync(m.runtime, { recursive: true });
 

@@ -14,6 +14,14 @@ import { chef } from "../aides/cuisine.ts";
 import { appeler, BASE, ENV_GIT, git, jusqua, repertoireTemporaire } from "../outils.ts";
 import { cuisineFermee, RETIRER_M1 } from "./kitchen.ts";
 import { lignes, type Etape } from "./history.ts";
+import { posixOnly } from "../support/plateforme.ts";
+
+// Une passe livrée, jugée par la pass puis mergée ou remontée, avant le fait
+// attendu : quelques secondes sous Linux, plus de 60 s sur le runner Windows,
+// où chaque process coûte cher. Ces gardes sont plus larges : elles ne servent
+// qu'à ce qu'un test bloqué finisse par le dire.
+const PASSE_JUGEE_MS = 300_000;
+const PASSE_JUGEE = { timeout: 600_000 };
 
 // Le numéro de la première PR du GitHub de test.
 const PR = 101;
@@ -51,7 +59,7 @@ async function lire({ clone, repertoire }: ReturnType<typeof cuisineFermee>): Pr
 
 // Chaque test a sa cuisine — état, dépôt, GitHub : ils se jouent de front.
 describe("le bilan d'une passe de fermeture", { concurrency: 8 }, () => {
-  test("après une passe, `run fermeture` en donne le bilan sans rouvrir sa PR : chaque retrait avec son chemin et son motif, chaque candidat laissé avec sa raison, la pente avant et après sur les mêmes merges, et les trois garde-fous avec leur valeur avant, après et leur verdict", async (t) => {
+  test("après une passe, `run fermeture` en donne le bilan sans rouvrir sa PR : chaque retrait avec son chemin et son motif, chaque candidat laissé avec sa raison, la pente avant et après sur les mêmes merges, et les trois garde-fous avec leur valeur avant, après et leur verdict", PASSE_JUGEE, async (t) => {
     const cuisine = cuisineFermee(t, { histoire: DEUX_MERGES });
     const { repertoire, types, teteDeLaBase } = cuisine;
     const base = teteDeLaBase().slice(0, 7);
@@ -61,7 +69,7 @@ describe("le bilan d'une passe de fermeture", { concurrency: 8 }, () => {
     cuisine.gates.mesurer({ couverture: 87.5, verifications: 12 });
 
     const passe = await livrer(cuisine);
-    await jusqua(() => types(PR).includes("merge.done"));
+    await jusqua(() => types(PR).includes("merge.done"), PASSE_JUGEE_MS);
 
     // Le journal porte de quoi le dire : ce qu'elle a retiré, ce qu'elle a
     // ajouté, et la pente de la base dont elle est partie.
@@ -93,7 +101,7 @@ describe("le bilan d'une passe de fermeture", { concurrency: 8 }, () => {
     );
   });
 
-  test("une couverture ou un nombre de vérifications en baisse est un échec, dit en tête du bilan — même si les gates sont vertes et que la pass a mergé", async (t) => {
+  test("une couverture ou un nombre de vérifications en baisse est un échec, dit en tête du bilan — même si les gates sont vertes et que la pass a mergé", PASSE_JUGEE, async (t) => {
     const cuisine = cuisineFermee(t, { histoire: DEUX_MERGES });
     const { repertoire, journal, types } = cuisine;
     chef(repertoire, "grant.activated");
@@ -102,7 +110,7 @@ describe("le bilan d'une passe de fermeture", { concurrency: 8 }, () => {
     cuisine.gates.mesurer({ couverture: 86.9, verifications: 11 });
 
     await livrer(cuisine);
-    await jusqua(() => types(PR).includes("merge.done"));
+    await jusqua(() => types(PR).includes("merge.done"), PASSE_JUGEE_MS);
     // Les gates étaient vertes, et la pass a mergé : elle ne juge pas ces mesures.
     const jugement = journal.duTicket(PR).findLast((fait) => fait.type === "pass.judged")?.payload;
     assert.deepEqual([jugement?.verdict, jugement?.gates.outcome], ["green", "green"]);
@@ -215,7 +223,7 @@ describe("le bilan d'une passe de fermeture", { concurrency: 8 }, () => {
     ]);
   });
 
-  test("une pente qui n'a pas bougé : le bilan écrit en toutes lettres que la passe n'a pas servi — qu'elle ait livré ou non", async (t) => {
+  test("une pente qui n'a pas bougé : le bilan écrit en toutes lettres que la passe n'a pas servi — qu'elle ait livré ou non", { skip: posixOnly("runs a closing pass on a real git repository with the fake claude (a bash script) as the closer, then reads its report; the pass judged the closer's files out of its zone; on the Windows job: + 'zone' - 'delivered'") }, async (t) => {
     // Un merge de deux mille lignes ajoutées pour mille retirées : une ligne de
     // moins n'y change rien qui se lise.
     const lourde = cuisineFermee(t, { histoire: [{ commit: { "stock.txt": lignes(1100) } }, { merge: { "plats/1.txt": lignes(2000), "stock.txt": lignes(100) } }] });
@@ -243,7 +251,7 @@ describe("le bilan d'une passe de fermeture", { concurrency: 8 }, () => {
     ]);
   });
 
-  test("une PR de passe rouge : l'état du produit est en échec, mesuré contre la base que la pass a jugée seule — et une passe demandée depuis n'efface pas le bilan de la dernière qui a fini", async (t) => {
+  test("une PR de passe rouge : l'état du produit est en échec, mesuré contre la base que la pass a jugée seule — et une passe demandée depuis n'efface pas le bilan de la dernière qui a fini", PASSE_JUGEE, async (t) => {
     const cuisine = cuisineFermee(t, { histoire: DEUX_MERGES });
     const { types, clone, teteDeLaBase } = cuisine;
     cuisine.gates.mesurer({ couverture: 87.5, verifications: 12 });
@@ -251,7 +259,7 @@ describe("le bilan d'une passe de fermeture", { concurrency: 8 }, () => {
 
     await livrer(cuisine);
     // Rouge une fois fusionnée : la pass joue les gates sur la base seule — vertes.
-    await jusqua(() => types(PR).includes("pass.escalated"));
+    await jusqua(() => types(PR).includes("pass.escalated"), PASSE_JUGEE_MS);
     assert.equal(cuisine.dernier("closing.ended")?.outcome, "delivered");
     const base = cuisine.journal.duType("base.checked", 1)[0]?.payload;
     assert.deepEqual([base?.sha, base?.outcome], [teteDeLaBase(), "green"]);
