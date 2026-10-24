@@ -1,7 +1,7 @@
 // Seul module du runtime qui importe node:sqlite. Tout accès à une base passe
 // par ici : si node:sqlite se révélait insuffisant, le repli (better-sqlite3,
 // API proche) ne toucherait que ce fichier.
-import { DatabaseSync } from "node:sqlite";
+import { DatabaseSync, type StatementSync } from "node:sqlite";
 
 export type Valeur = string | number | bigint | null;
 export type Ligne = Record<string, Valeur>;
@@ -19,9 +19,19 @@ export function estOccupee(erreur: unknown): boolean {
   return erreur instanceof Error && (erreur as { errcode?: number }).errcode === 5;
 }
 
+// Combien de requêtes préparées une connexion garde. Les textes de requête du
+// runtime sont en nombre fini — quelques centaines, avec ceux qu'il compose —,
+// et la plus ancienne servie sort la première quand la borne est atteinte.
+const REQUETES_GARDEES = 256;
+
 export class Base {
   #db: DatabaseSync;
   #profondeur = 0;
+  // Les requêtes préparées, par leur texte. Préparer coûte bien plus que
+  // jouer une requête déjà préparée, et le runtime rejoue sans cesse les mêmes :
+  // chaque lecture du rail en fait une dizaine (#1650). SQLite re-prépare de
+  // lui-même une requête que le schéma a changée depuis.
+  #requetes = new Map<string, StatementSync>();
 
   constructor(chemin: string, options: OptionsBase = {}) {
     this.#db = new DatabaseSync(chemin, {
@@ -36,14 +46,28 @@ export class Base {
   }
 
   executer(sql: string, ...parametres: Valeur[]): { changements: number; dernierId: number } {
-    const resultat = this.#db.prepare(sql).run(...parametres);
+    const resultat = this.#preparee(sql).run(...parametres);
     return { changements: Number(resultat.changes), dernierId: Number(resultat.lastInsertRowid) };
   }
 
   lire<L = Ligne>(sql: string, ...parametres: Valeur[]): L[] {
     // node:sqlite rend des objets sans prototype : on en fait des objets
     // ordinaires, pour qu'ils se comparent et s'affichent comme les autres.
-    return this.#db.prepare(sql).all(...parametres).map((ligne) => ({ ...ligne })) as L[];
+    return this.#preparee(sql).all(...parametres).map((ligne) => ({ ...ligne })) as L[];
+  }
+
+  #preparee(sql: string): StatementSync {
+    const gardee = this.#requetes.get(sql);
+    if (gardee !== undefined) {
+      // Servie : elle repasse en dernière, loin de la sortie.
+      this.#requetes.delete(sql);
+      this.#requetes.set(sql, gardee);
+      return gardee;
+    }
+    const preparee = this.#db.prepare(sql);
+    if (this.#requetes.size >= REQUETES_GARDEES) this.#requetes.delete(this.#requetes.keys().next().value ?? "");
+    this.#requetes.set(sql, preparee);
+    return preparee;
   }
 
   // Transaction d'écriture : le verrou est pris dès l'ouverture (BEGIN
@@ -86,6 +110,7 @@ export class Base {
   }
 
   fermer(): void {
+    this.#requetes.clear();
     this.#db.close();
   }
 }
