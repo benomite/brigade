@@ -20,6 +20,7 @@ import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import type { DemandeDuTelephone, LectureDuQr, ReponseDuGuichet, Telephone } from "../../src/vue/pont.d.ts";
 import { adresseDuGuichet, ATTENDU, issueDe, lireLeQr, parLeTailnet, presentationDuTelephone, TITRE } from "../../src/vue/telephone/appairage.js";
+import { contenuDuQr } from "../../../runtime/src/telephone/appairage.ts";
 import { type Faux, jouerLaVue, repos } from "../aides/fausse-vue.ts";
 
 const PIXEL = "Mozilla/5.0 (Linux; Android 14; Pixel 8 Build/AP2A.240805.005; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/127.0.6533.103 Mobile Safari/537.36";
@@ -43,6 +44,18 @@ describe("ce que l'écran lit et dit", () => {
     assert.deepEqual(lireLeQr("  brigade://pair?code=7KQ2-M9XD "), { code: "7KQ2-M9XD", adresse: null });
     assert.deepEqual(lireLeQr("BRIGADE://pair/?code=7KQ2-M9XD&url=192.168.1.20%3A7010#x"), { code: "7KQ2-M9XD", adresse: ADRESSE });
     for (const autre of ["https://example.com/?code=7KQ2-M9XD", "brigade://pair", "brigade://other?code=X", "7KQ2-M9XD", ""]) assert.equal(lireLeQr(autre), null, autre);
+  });
+
+  test("le QR tel que la station l'écrit (runtime, `contenuDuQr`) se lit ; un QR mal formé ou d'ailleurs, jamais", () => {
+    assert.deepEqual(lireLeQr(contenuDuQr("7KQ2-M9XD", ADRESSE)), { code: "7KQ2-M9XD", adresse: ADRESSE });
+    assert.deepEqual(lireLeQr(contenuDuQr("7KQ2-M9XD", TAILNET)), { code: "7KQ2-M9XD", adresse: TAILNET });
+    assert.deepEqual(lireLeQr(contenuDuQr("7KQ2-M9XD")), { code: "7KQ2-M9XD", adresse: null });
+    // Un paramètre à venir n'empêche pas de lire le QR ; une adresse qui n'est pas http(s) n'est pas gardée.
+    assert.deepEqual(lireLeQr(`${contenuDuQr("7KQ2-M9XD", ADRESSE)}&v=2`), { code: "7KQ2-M9XD", adresse: ADRESSE });
+    assert.deepEqual(lireLeQr("brigade://pair?code=7KQ2-M9XD&url=ftp%3A%2F%2Fbox"), { code: "7KQ2-M9XD", adresse: null });
+    for (const autre of ["brigade://pair?code=", "brigade://pair?code=%20%20", "brigade://pair?url=http%3A%2F%2F192.168.1.20%3A7010", "brigade://pairing?code=7KQ2-M9XD", "brigade://pair/x?code=7KQ2-M9XD", "WIFI:S:box;T:WPA;P:secret;;", "https://brigade.example/pair?code=7KQ2-M9XD", "\u0000"]) {
+      assert.equal(lireLeQr(autre), null, autre);
+    }
   });
 
   test("l'adresse tapée, avec ou sans http : celle que le pont joint", () => {
@@ -340,6 +353,82 @@ describe("le QR de la station", () => {
     await repos();
     assert.equal(ligne(), "This QR is not a pairing code from a station.");
     assert.deepEqual(envois(), []);
+  });
+});
+
+// Le QR scanné par l'appareil photo du téléphone, hors de l'app (#1597) : son lien, `brigade://pair?…`, ouvre l'app sur
+// cet écran, et le pont le lui rend (`surLienDAppairage`) — sans que rien ne soit tapé ni touché.
+describe("le QR scanné par l'appareil photo du téléphone", () => {
+  test("son lien ouvre l'app : l'adresse et le code sont remplis, la demande part, et l'app passe aux projets — rien n'est tapé", async () => {
+    const { vue, champ, envois } = await auLancement({ appairerLeTelephone: () => ({ paired: true, station: "atelier" }) });
+    const [adresse, code] = [champ("adresse-guichet"), champ("code-telephone")];
+    vue.dire("surLienDAppairage", contenuDuQr("7KQ2-M9XD", ADRESSE));
+    await repos();
+    assert.equal(code.value, "7KQ2-M9XD");
+    assert.equal(adresse.value, "192.168.1.20:7010");
+    assert.deepEqual(envois(), [{ adresse: ADRESSE, code: "7KQ2-M9XD", nom: "pixel-8", machine: "Android 14 · Pixel 8" }]);
+    assert.equal(vue.element("cadre").hidden, false);
+    assert.equal(vue.element("appairage").className, "fait");
+  });
+
+  for (const [motif, dit] of [
+    ["expire", "This code has expired: ask your station for a new one."],
+    ["utilise", "This code was already used: ask your station for a new one."],
+  ] as const) {
+    test(`le lien d'un code ${motif === "expire" ? "expiré" : "déjà servi"} : la ligne le dit, ce que la station en a dit au survol, et rien n'est appairé`, async () => {
+      const { vue, ligne, detail, bouton, envois } = await auLancement({ appairerLeTelephone: () => REFUS[motif]! });
+      vue.dire("surLienDAppairage", contenuDuQr("7KQ2-M9XD", TAILNET));
+      await repos();
+      assert.equal(envois().length, 1);
+      assert.equal(ligne(), dit);
+      assert.equal(detail(), (REFUS[motif] as { said: string }).said);
+      assert.equal(vue.element("cadre").hidden, true);
+      assert.equal(vue.element("appairage").className, "");
+      assert.equal(bouton("pair").disabled, false);
+    });
+  }
+
+  test("un lien mal formé : une ligne le dit, rien ne part, et l'écran reste là ; un bon lien ensuite passe", async () => {
+    const { vue, ligne, detail, bouton, envois } = await auLancement({ appairerLeTelephone: () => ({ paired: true, station: "atelier" }) });
+    for (const lien of ["brigade://pair", "brigade://pair?code=", "brigade://pair?url=http%3A%2F%2F192.168.1.20%3A7010", "brigade://pair/x?code=7KQ2-M9XD"]) {
+      vue.dire("surLienDAppairage", lien);
+      await repos();
+      assert.equal(ligne(), "This QR is not a pairing code from a station.", lien);
+      assert.equal(detail(), lien);
+      assert.equal(bouton("scan the QR").disabled, false);
+    }
+    assert.deepEqual(envois(), []);
+    assert.equal(vue.element("cadre").hidden, true);
+    vue.dire("surLienDAppairage", contenuDuQr("7KQ2-M9XD", ADRESSE));
+    await repos();
+    assert.equal(envois().length, 1);
+    assert.equal(vue.element("cadre").hidden, false);
+  });
+
+  test("un lien sans adresse garde celle qui est tapée ; sans aucune, la ligne la demande, et rien ne part", async () => {
+    const { vue, champ, taper, envois } = await auLancement({ appairerLeTelephone: () => ({ paired: true, station: "atelier" }) });
+    vue.dire("surLienDAppairage", contenuDuQr("7KQ2-M9XD"));
+    await repos();
+    assert.equal(champ("code-telephone").value, "7KQ2-M9XD");
+    assert.equal(vue.element("appairage").dessous("p").find((pose) => pose.className === "refus-champ")?.textContent, "Type your station's address, like box.tail1234.ts.net.");
+    assert.deepEqual(envois(), []);
+    taper("192.168.1.20:7010", "");
+    vue.dire("surLienDAppairage", contenuDuQr("7KQ2-M9XD"));
+    await repos();
+    assert.deepEqual(envois().map((envoi) => (envoi as DemandeDuTelephone).adresse), [ADRESSE]);
+  });
+
+  test("un lien qui arrive pendant un envoi est laissé : seul le premier part", async () => {
+    let repondre: (reponse: ReponseDuGuichet) => void = () => undefined;
+    const { vue, envois } = await auLancement({ appairerLeTelephone: () => new Promise<ReponseDuGuichet>((resolve) => (repondre = resolve)) });
+    vue.dire("surLienDAppairage", contenuDuQr("7KQ2-M9XD", ADRESSE));
+    await repos();
+    vue.dire("surLienDAppairage", contenuDuQr("AAAA-BBBB", ADRESSE));
+    await repos();
+    assert.deepEqual(envois().map((envoi) => (envoi as DemandeDuTelephone).code), ["7KQ2-M9XD"]);
+    repondre({ paired: true, station: "atelier" });
+    await repos();
+    assert.equal(vue.element("cadre").hidden, false);
   });
 });
 

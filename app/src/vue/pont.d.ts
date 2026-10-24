@@ -216,6 +216,10 @@ export type Pont = {
   appairerLeTelephone(demande: DemandeDuTelephone): Promise<ReponseDuGuichet>;
   // Le QR que la station montre, lu par l'appareil photo du téléphone : son texte, tel quel.
   scannerLeQr(): Promise<LectureDuQr>;
+  // L'app Android seule (le ticket 1597) : le texte du lien qui a ouvert l'app — le même QR, scanné par l'appareil photo
+  // du téléphone plutôt que par l'app, `brigade://pair?…` —, celui qui l'a lancée dès l'abonnement, puis chacun de ceux
+  // qui la rouvrent, une fois.
+  surLienDAppairage?(recevoir: (texte: string) => void): void;
   // L'app Android seule (le ticket 1414) : la liste des projets de la station appairée vient d'être lue à son guichet, ou
   // ne l'a pas été — `liste` dit laquelle. Les projets eux-mêmes arrivent par `surConfiguration`.
   surTelephone?(recevoir: (telephone: Telephone) => void): void;

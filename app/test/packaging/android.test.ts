@@ -193,7 +193,7 @@ async function pontDuTelephone(natif: (appel: AppelNatif) => unknown, stockage =
   vm.runInNewContext(readFileSync(join(www, "android", "pont.js"), "utf8"), { window, URL }, { importModuleDynamically: vm.constants.USE_MAIN_CONTEXT_DEFAULT_LOADER });
   const pont = window.brigade as Record<string, (...args: unknown[]) => Promise<unknown>>;
   const json = async (promesse: Promise<unknown>) => JSON.parse(JSON.stringify(await promesse));
-  return { pont, appels, stockage, json };
+  return { pont, appels, stockage, json, window };
 }
 // La vue posée pour Capacitor, une fois pour ce fichier, et effacée après lui.
 const POSEE = mkdtempSync(join(tmpdir(), "brigade-app-apk-"));
@@ -305,6 +305,45 @@ test("le pont lit le QR par le plugin natif : son texte, un renoncement, ou la r
     throw { message: "Waiting for the Barcode UI module to be downloaded." };
   });
   assert.deepEqual(await json(pont.scannerLeQr!()), { refus: "Waiting for the Barcode UI module to be downloaded." });
+});
+
+// Le QR scanné par l'appareil photo du téléphone, hors de l'app (#1597) : son lien ouvre l'app, Pont.java le garde, et le
+// pont le rend à l'écran d'appairage — celui qui a lancé l'app dès l'abonnement, ceux qui la rouvrent quand Pont.java avertit.
+test("le pont rend le lien d'appairage qui a ouvert l'app, puis chacun de ceux qui la rouvrent, une fois", async () => {
+  const LIEN = "brigade://pair?code=7KQ2-M9XD&url=http%3A%2F%2F192.168.1.20%3A7010";
+  const garde: string[] = [LIEN];
+  const { pont, appels, window } = await pontDuTelephone(({ plugin, methode }) => {
+    assert.deepEqual([plugin, methode], ["Pont", "lien"]);
+    const pris = garde.shift();
+    return pris === undefined ? {} : { texte: pris };
+  });
+  const ecoutes: [string, string, () => void][] = [];
+  (window.Capacitor as Record<string, unknown>).addListener = (plugin: string, evenement: string, recevoir: () => void) => void ecoutes.push([plugin, evenement, recevoir]);
+  const recus: string[] = [];
+  const repos = () => new Promise((resolve) => setImmediate(resolve));
+  pont.surLienDAppairage!((texte: unknown) => void recus.push(String(texte)));
+  await repos();
+  assert.deepEqual(recus, [LIEN]);
+  assert.deepEqual(
+    ecoutes.map(([plugin, evenement]) => [plugin, evenement]),
+    [["Pont", "lien"]],
+  );
+  // L'app rouverte par un autre QR : Pont.java avertit, et le pont prend le lien.
+  garde.push("brigade://pair?code=AAAA-BBBB");
+  ecoutes[0]![2]();
+  await repos();
+  assert.deepEqual(recus, [LIEN, "brigade://pair?code=AAAA-BBBB"]);
+  // Pris, il ne revient pas.
+  ecoutes[0]![2]();
+  await repos();
+  assert.equal(recus.length, 2);
+  assert.equal(appels.length, 3);
+  // Le pont natif absent ou qui lève : rien n'est rendu, et rien ne lève.
+  const sans = await pontDuTelephone(() => {
+    throw new Error("the app's native bridge is missing");
+  });
+  sans.pont.surLienDAppairage!(() => assert.fail("no link is received"));
+  await repos();
 });
 
 // Le pont appairé lit sa station (#1414) : joué depuis la vue posée pour Capacitor, comme dans la WebView — son script,
@@ -466,6 +505,18 @@ test("l'enveloppe native a de quoi appairer : le lecteur de QR du pont, et le ht
   const manifeste = readFileSync(join(NATIF, "app", "src", "main", "AndroidManifest.xml"), "utf8");
   assert.match(manifeste, /android:usesCleartextTraffic="true"/);
   assert.match(manifeste, /android:name="com\.google\.mlkit\.vision\.DEPENDENCIES"\s+android:value="barcode_ui"/);
+  // Le QR scanné par l'appareil photo du téléphone ouvre l'app (#1597) : son lien `brigade://pair`, et lui seul.
+  const filtres = [...manifeste.replace(/<!--[\s\S]*?-->/g, "").matchAll(/<intent-filter>([\s\S]*?)<\/intent-filter>/g)].map(([, filtre = ""]) => filtre);
+  const duLien = filtres.find((filtre) => /<data\b/.test(filtre)) ?? "";
+  assert.match(duLien, /android\.intent\.action\.VIEW/);
+  assert.match(duLien, /android\.intent\.category\.DEFAULT/);
+  assert.match(duLien, /android\.intent\.category\.BROWSABLE/);
+  assert.match(duLien, /<data android:scheme="brigade" android:host="pair" \/>/);
+  assert.equal(filtres.filter((filtre) => /<data\b/.test(filtre)).length, 1);
+  const pont = readFileSync(join(java, "Pont.java"), "utf8");
+  assert.match(pont, /protected void handleOnNewIntent\(Intent intent\)/);
+  assert.match(pont, /FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY/);
+  assert.match(pont, /@PluginMethod\s+public void lien\(PluginCall call\)/);
 });
 
 test("ce que posent la construction et `cap sync` n'est pas une source : git l'ignore", () => {

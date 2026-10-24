@@ -20,7 +20,9 @@
 //     reçoit que le nom. Ce qui n'est pas le guichet est dit : rien ne répond (`injoignable`), la
 //     machine répond mais pas le guichet derrière elle (`sans-guichet` : le 502 de `tailscale serve`,
 //     la station arrêtée), ou autre chose répond à sa place (`inattendu`) ;
-//   - `scannerLeQr` lit le QR de la station par le lecteur de Google Play (Pont.java, `scanner`).
+//   - `scannerLeQr` lit le QR de la station par le lecteur de Google Play (Pont.java, `scanner`) ;
+//   - `surLienDAppairage` rend à l'écran d'appairage le lien qui a ouvert l'app (le ticket 1597) : le même QR, scanné
+//     par l'appareil photo du téléphone plutôt que par l'app (Pont.java, `lien`).
 // Et, appairé, les projets de la station et la file de chacun (le ticket 1414) : `faits`, `tous`, `regarder` et
 // `relireBox` lisent son guichet (`GET /projects`, `GET /projects/<nom>/queue`) avec le jeton gardé, et ce qui en sort
 // arrive à la vue par ses abonnements (`surConfiguration`, `surFaits`, `surLecture`, `surAlertes`, `surAccueil`,
@@ -126,6 +128,20 @@ async function scannerLeQr() {
     return { refus: ditDe(erreur) };
   }
 }
+// Le lien d'appairage que Pont.java garde (`lien`) : celui qui a lancé l'app est rendu dès l'abonnement, ceux qui la
+// rouvrent ensuite à leur arrivée — Pont.java avertit, et le pont le prend. Pris, il ne se rend plus : chacun une fois.
+/** @param {(texte: string) => void} recevoir */
+function surLienDAppairage(recevoir) {
+  const prendre = () =>
+    natif("Pont", "lien", {}).then(
+      (lu) => {
+        if (typeof lu?.texte === "string") recevoir(lu.texte);
+      },
+      () => undefined,
+    );
+  /** @type {any} */ (window).Capacitor?.addListener?.("Pont", "lien", () => void prendre());
+  void prendre();
+}
 
 // Les abonnements de la vue, par leur nom : ce que la lecture de la station leur dit.
 /** @type {Map<string, ((...args: any[]) => void)[]>} */
@@ -187,6 +203,7 @@ const connus = {
   demarrage,
   appairerLeTelephone,
   scannerLeQr,
+  surLienDAppairage,
   choisirDossier: async () => undefined,
   ajouter: async () => ({ etat: "pas-ajoute", titre: garde() === undefined ? `Nothing was added: ${AUCUNE_STATION}.` : "Nothing was added: a project is added from a computer, and this phone reads it from its station." }),
   faits: (/** @type {number} */ demande) => avecLaLecture((ouverte) => ouverte.faits(demande)),
