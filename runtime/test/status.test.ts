@@ -186,7 +186,14 @@ test("une cuisine retenue par une base rouge le dit sans qu'on le demande : depu
   assert.match(sortie, /^           replay its gates without waiting for a commit: brigade <projet> base replay$/m);
   assert.doesNotMatch(sortie, /prochain passage/);
 
+  // Le rejeu vert lève la retenue, et le dit sur le commit rejoué (#1567).
   noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "green", gates: { outcome: "green", code: 0, failures: [], tail: "" }, tickets: [] } });
+  sortie = await statut();
+  assert.match(sortie, /^base       base replayed on ba5e000 \d+ s ago: green again, the hold is lifted$/m);
+  assert.doesNotMatch(sortie, /RED since|replay its gates/);
+
+  // Un contrôle vert de plus : la base n'a plus été rouge, rien à en dire.
+  noter({ type: "base.checked", payload: { sha: "c0ffee05ffff", outcome: "green", gates: { outcome: "green", code: 0, failures: [], tail: "" }, tickets: [] } });
   assert.doesNotMatch(await statut(), /^base /m);
 });
 
