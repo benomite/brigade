@@ -284,6 +284,15 @@ describe("la station, son process", { concurrency: 8 }, () => {
     assert.match(refusee.sortie(), /BRIGADE_PROXY_PORT et BRIGADE_STATION_PORTES sont définis ensemble/);
   });
 
+  test("un écart du gist ou un tick qui n'est pas un nombre entier de secondes : la station refuse de démarrer et nomme la variable (#1658)", async (t) => {
+    const { env } = uneStation(t);
+    for (const [variable, valeur] of [["BRIGADE_STATION_ECART_S", "0.5"], ["BRIGADE_STATION_TICK_S", "0"]] as const) {
+      const refusee = lancer(t, STATION, [], { ...env, [variable]: valeur });
+      assert.equal(await refusee.fin, REFUS);
+      assert.match(refusee.sortie(), new RegExp(`refus de démarrer la station — ${variable}=${valeur.replace(".", "\\.")} — attendu un nombre entier de secondes`));
+    }
+  });
+
   test("sans BRIGADE_STATION_DIR, la station refuse de démarrer et nomme la variable ; sans configuration, elle démarre et ne sert aucun projet", async (t) => {
     const { env } = uneStation(t);
     const { BRIGADE_STATION_DIR: _, ...sans } = env;

@@ -27,6 +27,8 @@ export type OptionsStation = {
   relectureMs?: number;
   // La connexion Max de la machine, remise à chaque cuisine.
   connexion?: VeilleConnexionMax;
+  // Entre deux ticks du runtime de chaque cuisine : une minute, à défaut.
+  intervalleTickMs?: number;
   // Le fichier des ports des portes que tient `brigade-station-porte`
   // (`BRIGADE_STATION_PORTES`), ou null : chaque projet sort alors par la
   // porte que sa ligne nomme, ou sans porte.
@@ -134,7 +136,7 @@ export function ouvrirStation(options: OptionsStation): Station {
         for (const ligne of demenagement.deplaces) dit(`déménagé dans l'atelier de la station — ${ligne}`);
         for (const ligne of demenagement.restes) dit(`pas déménagé dans l'atelier de la station — ${ligne}`);
       }
-      const cuisine = enCours.run(projet.nom, () => ouvrir(sien, { dire: dit, connexion: options.connexion }));
+      const cuisine = enCours.run(projet.nom, () => ouvrir(sien, { dire: dit, connexion: options.connexion, ...(options.intervalleTickMs === undefined ? {} : { intervalleTickMs: options.intervalleTickMs }) }));
       ouvertes.set(projet.nom, { cle, depot: projet.depot, cuisine });
       refuses.delete(projet.nom);
       dit(`servi par la station — ${projet.depot}, branche ${projet.base ?? "déclarée par son dépôt"}, état dans ${cuisine.repertoireEtat}`);

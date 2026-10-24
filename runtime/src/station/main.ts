@@ -69,6 +69,13 @@ try {
   if (erreur instanceof ConfigInvalide || erreur instanceof DemandeInvalide) refuser(erreur.message);
   throw erreur;
 }
+// L'écart minimal entre deux écritures de son gist, et l'intervalle entre deux
+// ticks du runtime de ses projets, en secondes entières : une minute chacun, à
+// défaut. Une station de test les règle plus courts (recette.test.ts).
+const ecartS = process.env.BRIGADE_STATION_ECART_S;
+if (ecartS !== undefined && !/^[1-9]\d*$/.test(ecartS)) refuser(`BRIGADE_STATION_ECART_S=${ecartS} — attendu un nombre entier de secondes`);
+const tickS = process.env.BRIGADE_STATION_TICK_S;
+if (tickS !== undefined && !/^[1-9]\d*$/.test(tickS)) refuser(`BRIGADE_STATION_TICK_S=${tickS} — attendu un nombre entier de secondes`);
 mkdirSync(racine, { recursive: true });
 
 const dire = (ligne: string) => console.log(ligne);
@@ -105,7 +112,7 @@ for (const sortie of ["log", "error"] as const) {
 }
 // La connexion Max de la machine : une seule veille, pour tous les projets.
 const connexion: VeilleConnexionMax = veillerConnexionMax({ ...fichiersDeLaConnexion, jeton: Boolean(process.env.BRIGADE_CLAUDE_TOKEN_FILE), dire });
-const station = ouvrirStation({ racine, env: process.env, dire, connexion, portes });
+const station = ouvrirStation({ racine, env: process.env, dire, connexion, portes, ...(tickS === undefined ? {} : { intervalleTickMs: Number(tickS) * 1000 }) });
 // Sa présence sur GitHub, seul canal entre la station et l'app du chef : son
 // état, chaque minute, et le code qui l'appaire (appairage/presence.ts). Ses
 // pannes y vont aussi : sa mise à jour, que son unité lui fait lire
@@ -121,6 +128,7 @@ const presence = tenirPresence({
   depots: () => station.depots(),
   rails: () => station.rails(),
   etats: () => etatsPublies(dossierMiseAJour === null ? null : lireEtatMiseAJour(dossierMiseAJour), connexion.connexion()),
+  ...(ecartS === undefined ? {} : { ecartMinimalMs: Number(ecartS) * 1000 }),
   dire,
 });
 // Les projets que le chef lui ajoute depuis l'app, par le même gist : la

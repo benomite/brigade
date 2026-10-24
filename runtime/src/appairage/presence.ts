@@ -35,6 +35,7 @@ export const REGARD_MS = 60_000;
 // Sans changement, elle écrit quand même à cette fréquence : son signe de vie.
 export const BATTEMENT_MS = 300_000;
 // Deux écritures dans le gist, quelle qu'en soit la cause, ne se rapprochent pas plus.
+// Une station de test le règle plus court (`ecartMinimalMs`, `BRIGADE_STATION_ECART_S`).
 export const ECART_MINIMAL_MS = 60_000;
 // Ce que l'app lit : elle dit la station hors ligne après 2 × cadenceMs + 30 s,
 // et la détection d'un arrêt brutal doit tenir en 10 min au plus. Un battement
@@ -71,6 +72,8 @@ export type OptionsPresence = {
   // horloge simulée.
   apres?: (tache: () => void, ms: number, retient?: boolean) => () => void;
   dureeDuCodeMs?: number;
+  // L'écart minimal entre deux écritures : `ECART_MINIMAL_MS`, à défaut.
+  ecartMinimalMs?: number;
   maintenant?: () => number;
   tirer?: (borne: number) => number;
 };
@@ -139,6 +142,7 @@ export function tenirPresence(options: OptionsPresence): Presence {
     return () => clearTimeout(minuteur);
   });
   const dureeDuCodeMs = options.dureeDuCodeMs ?? DUREE_DU_CODE_MS;
+  const ecartMinimalMs = options.ecartMinimalMs ?? ECART_MINIMAL_MS;
   const maintenant = options.maintenant ?? Date.now;
   const fichier = join(options.racine, FICHIER_LOCAL);
   let etat = lireEtat(fichier);
@@ -255,12 +259,12 @@ export function tenirPresence(options: OptionsPresence): Presence {
     let ecriture = preparer(instant, arret);
     const ecart = instant - dernierEcrit;
     const aEcrire = arret || demandee || etat.gist === null || ecriture.cle !== publie || ecart >= BATTEMENT_MS;
-    if (aEcrire && !arret && ecart < ECART_MINIMAL_MS) {
+    if (aEcrire && !arret && ecart < ecartMinimalMs) {
       // Trop tôt : le regard suivant, ou ce minuteur, l'écrira.
       reportee ??= apres(() => {
         reportee = null;
         void enchainer(false);
-      }, ECART_MINIMAL_MS - ecart);
+      }, ecartMinimalMs - ecart);
       return;
     }
     if (aEcrire) {

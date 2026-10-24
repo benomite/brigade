@@ -81,10 +81,16 @@ if (modifies.length === 0 || modifies.some((f) => !scriptsSeuls.has(f) && GLOBAU
   for (const zone of ZONES) console.log(`${zone} tout`);
   process.exit(0);
 }
+// Les tests lents de bout en bout — une vraie station, de vraies attentes —
+// portent `// gates: base` dans leur en-tête : ils tournent sur la base, où tout
+// se joue, et ne sont proches que d'un changement qui les modifie lui-même —
+// jamais d'un fichier qui porte leur nom, ni touchés par ce qu'ils importent.
+const DE_LA_BASE = /^\/\/ gates: base$/m;
+const deLaBase = (t, texte = readFileSync(t, "utf8")) => DE_LA_BASE.test(texte.slice(0, 4000));
 if (process.argv.includes("--proches")) {
   for (const zone of ZONES) {
     const noms = new Set(modifies.filter((m) => m.startsWith(`${zone}/`) && CODE.test(m)).map((m) => basename(m).replace(/(\.test)?\.[^.]+$/, "")));
-    const proches = lister(join(zone, "test")).filter((t) => t.endsWith(".test.ts") && (modifies.includes(t) || noms.has(basename(t, ".test.ts"))));
+    const proches = lister(join(zone, "test")).filter((t) => t.endsWith(".test.ts") && (modifies.includes(t) || (noms.has(basename(t, ".test.ts")) && !deLaBase(t))));
     console.log(proches.length === 0 ? `${zone} rien` : `${zone} fichiers ${proches.map((t) => relative(zone, t)).join(" ")}`);
   }
   process.exit(0);
@@ -201,10 +207,8 @@ for (const zone of ZONES) {
     console.log(`${zone} rien`);
     continue;
   }
-  // Les tests lents de bout en bout — une vraie station, de vraies attentes —
-  // portent `// gates: base` dans leur en-tête : ils ne tournent que sur la
-  // base, où tout se joue, jamais pour un changement.
-  const touches = tests.filter((t) => !/^\/\/ gates: base$/m.test(textes.get(t).slice(0, 4000))).filter((t) => {
+  // Les tests de la base (`// gates: base`, plus haut) ne sont jamais touchés.
+  const touches = tests.filter((t) => !deLaBase(t, textes.get(t))).filter((t) => {
     let ferme = fermetures.get(t);
     if (!ferme) fermetures.set(t, (ferme = fermeture(t)));
     for (const f of ferme) if (codeModifie.has(f) || (autres.length > 0 && cites(f)) || (scriptsSeuls.size > 0 && litDesScripts(f))) return true;

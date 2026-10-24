@@ -187,3 +187,37 @@ describe("ce qu'un test cite", () => {
     assert.deepEqual(choisir(racine, ["docs/runtime/pass.md"]), ["runtime fichiers test/box.test.ts", "app rien"]);
   });
 });
+
+describe("un test de la base", () => {
+  // Un test de bout en bout lent, marqué `// gates: base`, qui importe le fichier
+  // de son nom, à côté d'un test ordinaire qui importe le sien.
+  function avecUnTestDeLaBase(t: TestContext): string {
+    const racine = repertoireTemporaire(t);
+    ecrire(racine, "runtime/package.json", "{}\n");
+    ecrire(racine, "app/package.json", "{}\n");
+    ecrire(racine, "runtime/src/a.ts", "export const a = 1;\n");
+    ecrire(racine, "runtime/src/recette.ts", "export const r = 1;\n");
+    ecrire(racine, "runtime/test/0-en-premier/recette.test.ts", '// gates: base\n// Une vraie station, et sa cadence réelle.\nimport { r } from "../../src/recette.ts";\n');
+    ecrire(racine, "runtime/test/a.test.ts", 'import { a } from "../src/a.ts";\n');
+    return racine;
+  }
+
+  test("modifié lui-même, il est proche du changement : les gates d'un ticket le jouent (#1658)", (t) => {
+    const racine = avecUnTestDeLaBase(t);
+    assert.deepEqual(choisir(racine, ["runtime/test/0-en-premier/recette.test.ts"], "--proches"), ["runtime fichiers test/0-en-premier/recette.test.ts", "app rien"]);
+    assert.deepEqual(choisir(racine, ["runtime/test/0-en-premier/recette.test.ts", "runtime/src/a.ts"], "--proches"), ["runtime fichiers test/0-en-premier/recette.test.ts test/a.test.ts", "app rien"]);
+  });
+
+  test("retenu seulement parce qu'il porte le nom d'un fichier modifié, il n'est pas proche ; ni touché par ce qu'il importe", (t) => {
+    const racine = avecUnTestDeLaBase(t);
+    assert.deepEqual(choisir(racine, ["runtime/src/recette.ts"], "--proches"), ["runtime rien", "app rien"]);
+    assert.deepEqual(choisir(racine, ["runtime/src/recette.ts", "runtime/src/a.ts"], "--proches"), ["runtime fichiers test/a.test.ts", "app rien"]);
+    assert.deepEqual(choisir(racine, ["runtime/src/recette.ts", "runtime/src/a.ts"]), ["runtime fichiers test/a.test.ts", "app rien"]);
+  });
+
+  test("sur la base, rien de modifié, il se joue avec tout le reste", (t) => {
+    const racine = avecUnTestDeLaBase(t);
+    assert.deepEqual(choisir(racine, [], "--proches"), ["runtime tout", "app tout"]);
+    assert.deepEqual(choisir(racine, []), ["runtime tout", "app tout"]);
+  });
+});
