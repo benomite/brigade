@@ -444,6 +444,11 @@ You can always push the fix yourself, or merge a waiting delivery by hand.
 (`base.recheck-requested`, read at once by the running pass). **Green**, the hold falls; **red**,
 it stays. With the machine saturated, the replay waits (`base.recheck-held`).
 
+**A red base is also re-checked on its own when main moves past it**: the pass replays the gates
+on the new head, once per head, with no gesture. **Green**, the hold falls and `status` and `base`
+say the base was re-checked on that head, after the base moved past the red one; **red**, the hold
+stays and they say it is still red on the new head. A base that has not moved is not re-checked.
+
 **A base that cannot be fetched holds its check** (origin unreachable, token refused): neither red
 nor a check not played. The pass writes it and says it **once per cause** (`base.check-held`), then
 retries at the tick; `status`, `pass` and `base` say the current reason and since when. **A red

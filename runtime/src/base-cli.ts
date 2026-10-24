@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 import { geste } from "./geste.ts";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { enAnglais } from "./commandes.ts";
-import { direBaseRougeEn, direControleRetenuEn, direPanneEn, direRejeuEn } from "./dire-base.ts";
+import { direBaseRevenueVerteEn, direBaseRougeEn, direControleRetenuEn, direPanneEn, direRejeuEn } from "./dire-base.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { controleRetenu, etatDeLaBase } from "./projections/pass.ts";
@@ -35,7 +35,11 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
       return;
     }
     if (controle === null) dire(retenu === null ? "base never checked: no merge has had to be verified on it yet" : "base never checked");
-    else if (controle.outcome === "green") dire(`base green at the last check, on ${controle.at} (${controle.sha.slice(0, 7)})`);
+    else if (controle.outcome === "green") {
+      dire(`base green at the last check, on ${controle.at} (${controle.sha.slice(0, 7)})`);
+      const levee = direBaseRevenueVerteEn(controle, (instant) => instant, "since");
+      if (levee !== null) dire(`  ${levee}`);
+    }
     else dire(`base not checked: its gates could not be played on ${controle.at} (${controle.sha.slice(0, 7)})${direPanneEn(controle.reason)} — nothing is held`);
     // Des merges attendent leur contrôle, et il ne part pas.
     if (retenu !== null) dire(`  ${direControleRetenuEn(retenu, (instant) => instant, "since")}`);
