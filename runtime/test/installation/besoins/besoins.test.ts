@@ -397,7 +397,7 @@ esac
 exit 0
 `;
 
-test("la machine joue l'essai sous son propre compte, avec son environnement, et garde son verdict un moment", (t) => {
+test("la machine joue l'essai sous son propre compte, avec son environnement, et garde son verdict un moment", { skip: posixOnly("probes the machine with a fake `psql` written by the test as an extensionless #!/bin/sh script on a PATH of its own, which Windows does not execute (this test uses POSIX mode bits); on the Windows job: false !== true") }, (t) => {
   const bin = repertoireTemporaire(t);
   writeFileSync(join(bin, "psql"), FAUX_PSQL);
   chmodSync(join(bin, "psql"), 0o755);

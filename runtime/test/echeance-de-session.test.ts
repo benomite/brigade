@@ -23,6 +23,7 @@ import { brancherJeton } from "../src/jeton-claude.ts";
 import { brancherSession, configSession, lireSession } from "../src/renouvellement.ts";
 import { ConfigInvalide, demarrer, type CauseReveil } from "../src/runtime.ts";
 import { appeler, FAUX_BWRAP, JOUR_HORLOGE, repertoireTemporaire } from "./outils.ts";
+import { posixOnly } from "./support/plateforme.ts";
 
 const STATION = "box/claude";
 const GESTE_TOMBEE = "`claude /login` under the service account — the kitchen starts again on its own within the minute, without “resume”";
@@ -207,7 +208,7 @@ test("le fichier d'état se lit clé par clé : un échec derrière un passage r
   assert.deepEqual(lireSession(CONFIG(repertoire), new Date(a("10:00:00"))), observation({ state: repertoire, file: "unreadable" }));
 });
 
-test("le fichier que le vrai `brigade-renouvellement` écrit se lit : son échec, puis son renouvellement — sans que le runtime ouvre les identifiants", (t) => {
+test("le fichier que le vrai `brigade-renouvellement` écrit se lit : son échec, puis son renouvellement — sans que le runtime ouvre les identifiants", { skip: posixOnly("runs deploy/brigade-renouvellement, a bash script, to write the session state the runtime reads (this test uses a shell script of its own, POSIX mode bits); on the Windows job: null !== 1") }, (t) => {
   const racine = repertoireTemporaire(t);
   const [home, bin, session] = ["home", "bin", "session"].map((nom) => join(racine, nom)) as [string, string, string];
   for (const repertoire of [join(home, ".claude"), bin, session]) mkdirSync(repertoire, { recursive: true });

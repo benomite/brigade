@@ -10,6 +10,7 @@ import type { FaitGates } from "../src/events/gates.ts";
 import type { Gates } from "../src/events/pass.ts";
 import { cuisine, fauxGitHub, issue, montre, type Options } from "./aides/cuisine.ts";
 import { BASE, depotGit, git, jusqua, repertoireTemporaire } from "./outils.ts";
+import { posixOnly } from "./support/plateforme.ts";
 
 // Le projet porte ses gates sur sa base : la doublure, par un lien. `copie` :
 // un lien vers une copie à lui, que le test peut changer sans toucher à l'arbre.
@@ -38,7 +39,7 @@ function service(t: TestContext, options: Options) {
 }
 
 describe("la pass reprend les gates du cook", { concurrency: 8 }, () => {
-  test("le cook a passé les gates vertes sur ce qu'il livre, la base n'a pas bougé : la pass ne lance aucune gate, son verdict nomme le passage du cook qu'elle reprend, et rien ne s'ajoute au coût", async (t) => {
+  test("le cook a passé les gates vertes sur ce qu'il livre, la base n'a pas bougé : la pass ne lance aucune gate, son verdict nomme le passage du cook qu'elle reprend, et rien ne s'ajoute au coût", { skip: posixOnly("runs a cook (the fake claude, a bash script) that plays its gates through the gates-du-cook launcher, a bash script the station writes into .git/brigade; on the Windows job: no match: 'Tu es un cook de la brigade : tu exécutes un seul ticket, le ticket #17 du dépôt benomite/brigade — « Ticket 17 ».\\n' + '\\n' + \"Les gates d…") }, async (t) => {
     const { lieux } = lieuxDuProjet(t);
     const { verdict, passages, parLaPass, gates, cooks, journal, heure } = service(t, { lieux, pass: true, scenario: "livre-apres-ses-gates" });
     await jusqua(() => verdict() !== undefined);
@@ -57,7 +58,7 @@ describe("la pass reprend les gates du cook", { concurrency: 8 }, () => {
     assert.equal(coutDuProjet(journal.base, "brigade", lireBudget({}), heure.maintenant()).lastDay.runs, 1);
   });
 
-  test("le cook a passé les gates avant son dernier changement : l'arbre n'est plus le même, la pass les joue en entier", async (t) => {
+  test("le cook a passé les gates avant son dernier changement : l'arbre n'est plus le même, la pass les joue en entier", { skip: posixOnly("runs a cook (the fake claude, a bash script) that plays its gates through the gates-du-cook launcher, a bash script the station writes into .git/brigade; on the Windows job: 1 !== 2") }, async (t) => {
     const { lieux } = lieuxDuProjet(t);
     const { verdict, passages, parLaPass, gates } = service(t, { lieux, pass: true, scenario: "livre-avant-ses-gates" });
     await jusqua(() => verdict() !== undefined);
@@ -75,7 +76,7 @@ describe("la pass reprend les gates du cook", { concurrency: 8 }, () => {
     assert.equal(verdict()?.gates.reused, undefined);
   });
 
-  test("les gates du cook étaient rouges : la pass les joue en entier", async (t) => {
+  test("les gates du cook étaient rouges : la pass les joue en entier", { skip: posixOnly("runs a cook (the fake claude, a bash script) that plays its gates through the gates-du-cook launcher, a bash script the station writes into .git/brigade; on the Windows job: - 'cook', - 'red'") }, async (t) => {
     const { lieux } = lieuxDuProjet(t);
     const lieu = service(t, { lieux, pass: true, scenario: "livre-apres-ses-gates" });
     lieu.gates.regler("rouge");
@@ -96,7 +97,7 @@ describe("la pass reprend les gates du cook", { concurrency: 8 }, () => {
     assert.equal(lieu.verdict()?.gates.reused, undefined);
   });
 
-  test("la configuration des gates a changé entre le cook et la pass, sur le même arbre : la pass les joue en entier", async (t) => {
+  test("la configuration des gates a changé entre le cook et la pass, sur le même arbre : la pass les joue en entier", { skip: posixOnly("runs a cook (the fake claude, a bash script) that plays its gates through the gates-du-cook launcher, a bash script the station writes into .git/brigade; on the Windows job: - 'cook', 'pass', + undefined") }, async (t) => {
     const { lieux, script } = lieuxDuProjet(t, true);
     // Une première vie sans pass : le cook passe ses gates vertes et livre.
     const premiere = service(t, { lieux, scenario: "livre-apres-ses-gates" });

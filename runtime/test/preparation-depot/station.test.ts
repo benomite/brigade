@@ -11,6 +11,7 @@ import { accepterSansBacASable } from "../../src/onboarding/attente.ts";
 import { FICHIER } from "../../src/preparation-depot/ouvrir.ts";
 import { aArreter, BASE, depotGit, ecrireSuite, ENV_GIT, FAUX_CLAUDE, fauxGh, issueGitHub, jusqua, lancer, repertoireTemporaire, temporaireDuFichier, tuerLesRelais } from "../outils.ts";
 import { FAUX_GH_GISTS } from "../appairage/doublure-des-gists.ts";
+import { posixOnly } from "../support/plateforme.ts";
 
 const rienNeReste = temporaireDuFichier();
 
@@ -84,7 +85,7 @@ function uneStation(t: TestContext, preparation: "ouverte" | "servie") {
   return { station, faits };
 }
 
-test("tant que le ticket qui prépare le dépôt n'est pas servi, la cuisine ne prend que lui — un ticket plus ancien reste sur le rail", async (t) => {
+test("tant que le ticket qui prépare le dépôt n'est pas servi, la cuisine ne prend que lui — un ticket plus ancien reste sur le rail", { skip: posixOnly("runs the real station process with the fake gh (a bash script) and stops it with SIGTERM, which on Windows ends it before its handler runs (exit code null) (this test uses POSIX signals); on the Windows job: null !== 0") }, async (t) => {
   const { station, faits } = uneStation(t, "ouverte");
   await station.attendre("le rail attend #20 (préparer le dépôt) — aucun autre ticket ne part avant son merge");
   await jusqua(() => faits("cook.launched").length === 1);
@@ -102,7 +103,7 @@ test("tant que le ticket qui prépare le dépôt n'est pas servi, la cuisine ne 
   assert.equal(await station.fin, 0);
 });
 
-test("le ticket qui prépare le dépôt servi, la cuisine prend les autres", async (t) => {
+test("le ticket qui prépare le dépôt servi, la cuisine prend les autres", { skip: posixOnly("runs the real station process with the fake gh (a bash script) and stops it with SIGTERM, which on Windows ends it before its handler runs (exit code null) (this test uses POSIX signals); on the Windows job: null !== 0") }, async (t) => {
   const { station, faits } = uneStation(t, "servie");
   await jusqua(() => faits("cook.launched").length === 1);
   assert.deepEqual(

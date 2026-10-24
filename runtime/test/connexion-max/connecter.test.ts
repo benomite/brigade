@@ -10,6 +10,7 @@ import { principal, type Machine } from "../../src/connexion-max/connecter-cli.t
 import { connecterMax, ConnexionNonFaite, extraireLeJeton, MasqueDuJeton, type Lancement } from "../../src/connexion-max/connecter.ts";
 import { configJeton } from "../../src/jeton-claude.ts";
 import { appeler, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
+import { posixOnly } from "../support/plateforme.ts";
 
 const rienNeReste = temporaireDuFichier();
 
@@ -67,7 +68,7 @@ function installation(t: TestContext, { setupEchoue = false, sansJeton = false, 
   return { racine, etc, machine, montre: () => montre, appels: () => lire(appels), environnements: () => lire(environnements) };
 }
 
-test("l'installation fait la connexion Max par `claude setup-token`, une fois, et range le jeton en 600 avec sa date à côté", async (t) => {
+test("l'installation fait la connexion Max par `claude setup-token`, une fois, et range le jeton en 600 avec sa date à côté", { skip: posixOnly("runs the Max-connection step, which launches a fake `claude` written by the test as a #!/bin/sh script whose `setup-token` prints the token: on Windows the step could not launch that script (« claude » ne se lance pas sous le compte de la station) (this test uses POSIX mode bits); on the Windows job: connexion Max — `claude setup-token` va te donner un lien : ouvre-le, connecte-toi avec ton compte Claude Max, puis recopie ici le code qu'il affiche.…") }, async (t) => {
   const { machine, appels } = installation(t);
   const etape = appeler((appel) => principal(appel, machine));
   assert.equal(await etape.fin, 0, etape.sortie());
@@ -84,7 +85,7 @@ test("l'installation fait la connexion Max par `claude setup-token`, une fois, e
   assert.equal(readFileSync(machine.environnement, "utf8"), `BRIGADE_CLAUDE_TOKEN_FILE=${machine.jeton}\n`);
 });
 
-test("la date de création est écrite à côté du jeton, sans le jeton", async (t) => {
+test("la date de création est écrite à côté du jeton, sans le jeton", { skip: posixOnly("runs the Max-connection step, which launches a fake `claude` written by the test as a #!/bin/sh script whose `setup-token` prints the token: on Windows the step could not launch that script (« claude » ne se lance pas sous le compte de la station); on the Windows job: connexion Max — `claude setup-token` va te donner un lien : ouvre-le, connecte-toi avec ton compte Claude Max, puis recopie ici le code qu'il affiche.…") }, async (t) => {
   const { machine } = installation(t);
   const avant = Date.now();
   const etape = appeler((appel) => principal(appel, machine));
@@ -95,7 +96,7 @@ test("la date de création est écrite à côté du jeton, sans le jeton", async
   assert.notEqual(machine.creation, machine.jeton);
 });
 
-test("le jeton n'est affiché dans aucune sortie de l'étape, réussie ou non", async (t) => {
+test("le jeton n'est affiché dans aucune sortie de l'étape, réussie ou non", { skip: posixOnly("runs the Max-connection step, which launches a fake `claude` written by the test as a #!/bin/sh script whose `setup-token` prints the token: on Windows the step could not launch that script (« claude » ne se lance pas sous le compte de la station); on the Windows job: 1 !== 0") }, async (t) => {
   const reussie = installation(t);
   const etape = appeler((appel) => principal(appel, reussie.machine));
   assert.equal(await etape.fin, 0);
@@ -110,7 +111,7 @@ test("le jeton n'est affiché dans aucune sortie de l'étape, réussie ou non", 
   assert.doesNotMatch(echec.sortie(), /sk-ant|secret/);
 });
 
-test("le chef voit l'interface de `setup-token` — le lien —, jamais le jeton", async (t) => {
+test("le chef voit l'interface de `setup-token` — le lien —, jamais le jeton", { skip: posixOnly("runs the Max-connection step, which launches a fake `claude` written by the test as a #!/bin/sh script whose `setup-token` prints the token: on Windows the step could not launch that script (« claude » ne se lance pas sous le compte de la station); on the Windows job: connexion Max — `claude setup-token` va te donner un lien : ouvre-le, connecte-toi avec ton compte Claude Max, puis recopie ici le code qu'il affiche.…") }, async (t) => {
   const { machine, montre } = installation(t);
   const etape = appeler((appel) => principal(appel, machine));
   assert.equal(await etape.fin, 0, etape.sortie());
@@ -120,7 +121,7 @@ test("le chef voit l'interface de `setup-token` — le lien —, jamais le jeton
   assert.doesNotMatch(etape.sortie(), /oat01|secret/);
 });
 
-test("un `setup-token` muet est arrêté, et l'étape le dit en une ligne avec le geste pour réessayer", async (t) => {
+test("un `setup-token` muet est arrêté, et l'étape le dit en une ligne avec le geste pour réessayer", { skip: posixOnly("runs the Max-connection step, which launches a fake `claude` written by the test as a #!/bin/sh script whose `setup-token` prints the token: on Windows the step could not launch that script (« claude » ne se lance pas sous le compte de la station); on the Windows job: no match: \"connexion Max — `claude setup-token` va te donner un lien : ouvre-le, connecte-toi avec ton compte Claude Max, puis recopie ici le code qu'…") }, async (t) => {
   const { machine, etc } = installation(t, { muet: true });
   const etape = appeler((appel) => principal(appel, machine));
   assert.equal(await etape.fin, 1);
@@ -153,7 +154,7 @@ test("un jeton déjà rangé ne se refait pas", async (t) => {
   assert.equal(readFileSync(machine.jeton, "utf8"), "sk-ant-oat01-deja-la-et-bien-rangee\n");
 });
 
-test("un `setup-token` qui échoue est dit en une ligne, et rien n'est rangé", async (t) => {
+test("un `setup-token` qui échoue est dit en une ligne, et rien n'est rangé", { skip: posixOnly("runs the Max-connection step, which launches a fake `claude` written by the test as a #!/bin/sh script whose `setup-token` prints the token: on Windows the step could not launch that script (« claude » ne se lance pas sous le compte de la station); on the Windows job: no match: \"connexion Max — `claude setup-token` va te donner un lien : ouvre-le, connecte-toi avec ton compte Claude Max, puis recopie ici le code qu'…") }, async (t) => {
   const { machine, etc } = installation(t, { setupEchoue: true });
   const etape = appeler((appel) => principal(appel, machine));
   assert.equal(await etape.fin, 1);
@@ -161,7 +162,7 @@ test("un `setup-token` qui échoue est dit en une ligne, et rien n'est rangé", 
   assert.equal(existsSync(etc), false);
 });
 
-test("un `setup-token` sans jeton lisible : l'étape le dit, sans rien ranger", async (t) => {
+test("un `setup-token` sans jeton lisible : l'étape le dit, sans rien ranger", { skip: posixOnly("runs the Max-connection step, which launches a fake `claude` written by the test as a #!/bin/sh script whose `setup-token` prints the token: on Windows the step could not launch that script (« claude » ne se lance pas sous le compte de la station); on the Windows job: no match: \"connexion Max — `claude setup-token` va te donner un lien : ouvre-le, connecte-toi avec ton compte Claude Max, puis recopie ici le code qu'…") }, async (t) => {
   const { machine, etc } = installation(t, { sansJeton: true });
   const etape = appeler((appel) => principal(appel, machine));
   assert.equal(await etape.fin, 1);
@@ -177,7 +178,7 @@ test("ni root ni le compte de la station : l'étape refuse, sans rien lancer", a
   assert.deepEqual(appels(), []);
 });
 
-test("l'étape ne passe à `claude` aucune variable de jeton ou de clé : le jeton naît de `setup-token`", async (t) => {
+test("l'étape ne passe à `claude` aucune variable de jeton ou de clé : le jeton naît de `setup-token`", { skip: posixOnly("runs the Max-connection step, which launches a fake `claude` written by the test as a #!/bin/sh script whose `setup-token` prints the token: on Windows the step could not launch that script (« claude » ne se lance pas sous le compte de la station); on the Windows job: connexion Max — `claude setup-token` va te donner un lien : ouvre-le, connecte-toi avec ton compte Claude Max, puis recopie ici le code qu'il affiche.…") }, async (t) => {
   const essai = installation(t);
   const avant = { ...process.env };
   Object.assign(process.env, { ANTHROPIC_API_KEY: "sk-ant-api-test", CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat-test" });

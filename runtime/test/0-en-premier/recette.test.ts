@@ -28,6 +28,7 @@ import { ouvrirJournal } from "../../src/journal.ts";
 import { accepterSansBacASable } from "../../src/onboarding/attente.ts";
 import { FICHIER_PROJETS, FICHIER_SUIVI } from "../../src/projets/demande.ts";
 import { depotGit, ENV_GIT, FAUX_CLAUDE, git, jusqua, lancer, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
+import { posixOnly } from "../support/plateforme.ts";
 
 const rienNeReste = temporaireDuFichier();
 
@@ -39,7 +40,7 @@ const DIX_MINUTES = 10 * 60_000;
 // Le chef met ce temps à remplir le parcours : il compte dans la mesure.
 const PARCOURS_MS = 60_000;
 
-test("ajouté depuis l'app, le projet est dans la liste de la station en moins de dix minutes, parcours compris ; retiré, il quitte sa configuration", { timeout: 300_000 }, async (t) => {
+test("ajouté depuis l'app, le projet est dans la liste de la station en moins de dix minutes, parcours compris ; retiré, il quitte sa configuration", { skip: posixOnly("plays the app's add-a-project journey against a real station process that reaches GitHub through the fake gh (a bash script) and waits real minutes (this test uses the fake claude (bash), the fake gh (bash)); on the Windows job: timed out"), timeout: 300_000 }, async (t) => {
   const machine = repertoireTemporaire(t);
   const racine = join(machine, "station");
   const compte = join(machine, "compte");

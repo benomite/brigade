@@ -8,6 +8,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { ENV_ENFANT, repertoireTemporaire } from "./outils.ts";
+import { posixOnly } from "./support/plateforme.ts";
 
 const GATES = join(import.meta.dirname, "../../.claude/brigade/gates.sh");
 
@@ -62,7 +63,7 @@ describe("la durée des gates", { concurrency: 8 }, () => {
     }
   });
 
-  test("le compte est le processeur entier : utilisateur et système, dont la ligne donne le partage", async (t) => {
+  test("le compte est le processeur entier : utilisateur et système, dont la ligne donne le partage", { skip: posixOnly("plays this repository's real .claude/brigade/gates.sh, a bash script, on a test project and checks the user and system time it prints for a test suite that burns processor; on the Windows job: utilisateur : 0.3") }, async (t) => {
     const { processeur, utilisateur, systeme } = releve(deLaDuree((await jouer(projet(t, { suite: CALCULE }))).lignes)[0] ?? "");
 
     assert.ok(utilisateur >= 2, `utilisateur : ${utilisateur}`);

@@ -21,6 +21,7 @@ import { configStation } from "../src/station.ts";
 import { BAIL_MS, CALIBRE, chef, controlerBase, cuisine, fauxGitHub, issue, MACHINE_CALME, MACHINE_VASTE, montre, PLAFONDS, plafonner, STATION } from "./aides/cuisine.ts";
 import { depotQuiRefuse } from "./aides/depot-qui-refuse.ts";
 import { BASE, commiter, DEPOT, depotGit, git, jusqua, mort, repertoireTemporaire, tuerLesRelais } from "./outils.ts";
+import { posixOnly } from "./support/plateforme.ts";
 
 // Une base que le test fait bouger — un correctif mergé —, et le compte des
 // fois où la station l'a rapatriée.
@@ -48,7 +49,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal(seconde.types().filter((type) => type === "station.announced").length, 1);
   });
 
-  test("un ticket calibré en attente est pris, et son cook part dans un worktree qui lui est propre", async (t) => {
+  test("un ticket calibré en attente est pris, et son cook part dans un worktree qui lui est propre", { skip: posixOnly("runs the box/claude station on a full runtime with the fake claude (a bash script) as its cook; on the Windows job: false !== true") }, async (t) => {
     const { repertoire, clone, etat, dernier, lancements, journal } = cuisine(t, { git: true, scenario: "bavard", issues: [issue(15)] });
     await jusqua(() => lancements().length === 1);
 
@@ -409,7 +410,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal(lancements().length, 2);
   });
 
-  test("un cook qui meurt et un cook qui dépasse un plafond n'emportent pas les autres : leurs tickets repartent, les autres continuent", async (t) => {
+  test("un cook qui meurt et un cook qui dépasse un plafond n'emportent pas les autres : leurs tickets repartent, les autres continuent", { skip: posixOnly("runs the box/claude station on a full runtime with the fake claude (a bash script) as its cook; on the Windows job: the awaited fact never came (condition never met)") }, async (t) => {
     const { journal, etat, lancements } = cuisine(t, {
       cooks: 4,
       machine: () => MACHINE_VASTE,
@@ -435,7 +436,7 @@ describe("la station", { concurrency: 8 }, () => {
     }
   });
 
-  test("un cook qui perd son bail n'emporte pas son voisin : chacun a son regard, et seul celui qui ne progresse pas est arrêté", async (t) => {
+  test("un cook qui perd son bail n'emporte pas son voisin : chacun a son regard, et seul celui qui ne progresse pas est arrêté", { skip: posixOnly("runs the box/claude station on a full runtime with the fake claude (a bash script) as its cook; on the Windows job: true !== false") }, async (t) => {
     const { repertoire, heure, journal, dernier, types, lancements } = cuisine(t, { cooks: 2, scenario: "muet", issues: [issue(14), issue(15)] });
     await jusqua(() => lancements().length === 2);
 
@@ -989,7 +990,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.match(String(dernier("cook.reported", 15)?.reason), /push-failed/);
   });
 
-  test("le « stop » du chef ne récolte rien : le ticket revient en attente, le travail reste sur la station", async (t) => {
+  test("le « stop » du chef ne récolte rien : le ticket revient en attente, le travail reste sur la station", { skip: posixOnly("runs the box/claude station on a full runtime with the fake claude (a bash script) as its cook; on the Windows job: the awaited fact never came (condition never met)") }, async (t) => {
     const { repertoire, gh, etat, dernier, lancements } = cuisine(t, { scenario: "commite-puis-bavarde", issues: [issue(15)] });
     await jusqua(() => lancements().length === 1 && existsSync(join(lancements()[0]?.cwd ?? "", "travail.txt")));
 
@@ -1111,7 +1112,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal(etatDesGardeFous(journal.base).failures, 1);
   });
 
-  test("un fichier touché dans le worktree renouvelle le bail, et l'échéance repart de là", async (t) => {
+  test("un fichier touché dans le worktree renouvelle le bail, et l'échéance repart de là", { skip: posixOnly("runs the station with the fake claude (a bash script) writing in its worktree, whose path it reports as Git Bash names it (/c/Users/…), which node resolves on drive D:; on the Windows job: Error: ENOENT: no such file or directory, open 'D:\\c\\Users\\runneradmin\\AppData\\Local\\Temp\\brigade-test-ABiBtD\\worktrees\\15-b3a56696\\brouillon.txt'") }, async (t) => {
     const { heure, dernier, lancements, types } = cuisine(t, { scenario: "bavard", seuilDisjoncteur: 1, issues: [issue(15)] });
     await jusqua(() => lancements().length === 1);
 
@@ -1131,7 +1132,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal(types(15).filter((type) => type === "ticket.renewed").length, 1);
   });
 
-  test("un commit renouvelle le bail ; un fichier que le projet ignore, non", async (t) => {
+  test("un commit renouvelle le bail ; un fichier que le projet ignore, non", { skip: posixOnly("runs the station with the fake claude (a bash script) writing in its worktree, whose path it reports as Git Bash names it (/c/Users/…), which node resolves on drive D:; on the Windows job: Error: ENOENT: no such file or directory, open 'D:\\c\\Users\\runneradmin\\AppData\\Local\\Temp\\brigade-test-AHJiHm\\worktrees\\15-5732c31f\\travail.txt'") }, async (t) => {
     const { clone, heure, dernier, lancements, types } = cuisine(t, { git: true, scenario: "bavard", seuilDisjoncteur: 1, issues: [issue(15)] });
     await jusqua(() => lancements().length === 1);
     const worktree = lancements()[0]?.cwd ?? "";
@@ -1148,7 +1149,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal(types(15).filter((type) => type === "ticket.renewed").length, 1);
   });
 
-  test("un cook qui a commité puis ne progresse plus : à l'échéance son travail est récolté et part en pass", async (t) => {
+  test("un cook qui a commité puis ne progresse plus : à l'échéance son travail est récolté et part en pass", { skip: posixOnly("runs the box/claude station on a full runtime with the fake claude (a bash script) as its cook; on the Windows job: the awaited fact never came (condition never met)") }, async (t) => {
     const { gh, heure, journal, etat, dernier, lancements, types } = cuisine(t, { scenario: "commite-puis-bavarde", issues: [issue(15)] });
     await jusqua(() => lancements().length === 1 && existsSync(join(lancements()[0]?.cwd ?? "", "travail.txt")));
 
@@ -1175,7 +1176,7 @@ describe("la station", { concurrency: 8 }, () => {
     },
   });
 
-  test("une lecture ratée du worktree à l'échéance n'arrête pas le cook : la station relit au tick suivant, et son progrès compte", async (t) => {
+  test("une lecture ratée du worktree à l'échéance n'arrête pas le cook : la station relit au tick suivant, et son progrès compte", { skip: posixOnly("runs the station with the fake claude (a bash script) writing in its worktree, whose path it reports as Git Bash names it (/c/Users/…), which node resolves on drive D:; on the Windows job: Error: ENOENT: no such file or directory, open 'D:\\c\\Users\\runneradmin\\AppData\\Local\\Temp\\brigade-test-twUZOX\\worktrees\\15-45ce5595\\brouillon.txt'") }, async (t) => {
     const etat = { panne: false };
     const { heure, lancements, types, avertissements } = cuisine(t, { scenario: "bavard", seuilDisjoncteur: 1, issues: [issue(15)], depot: illisible(etat) });
     await jusqua(() => lancements().length === 1);
@@ -1871,7 +1872,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal(setup.appels().length, 2);
   });
 
-  test("un setup qui dépasse la moitié du bail est arrêté, et c'est un échec de setup", async (t) => {
+  test("un setup qui dépasse la moitié du bail est arrêté, et c'est un échec de setup", { skip: posixOnly("runs the box/claude station on a full runtime with the fake claude (a bash script) as its cook; on the Windows job: the awaited fact never came (condition never met)") }, async (t) => {
     const { etat, dernier, lancements, avertissements } = cuisine(t, { setup: "lent", bailMs: 400, issues: [issue(15)] });
     const debut = Date.now();
 
@@ -1884,7 +1885,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.ok(Date.now() - debut < 20_000);
   });
 
-  test("le runtime qui s'arrête abandonne le setup en cours, sans rien écrire sur le ticket", async (t) => {
+  test("le runtime qui s'arrête abandonne le setup en cours, sans rien écrire sur le ticket", { skip: posixOnly("runs the box/claude station on a full runtime with the fake claude (a bash script) as its cook; on the Windows job: Error: EPERM, Permission denied: '<tmp>'") }, async (t) => {
     const { repertoire, runtime, setup, lancements, avertissements } = cuisine(t, { setup: "lent", issues: [issue(15)] });
     await jusqua(() => setup.appels().length === 1);
 
@@ -2011,7 +2012,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.match(gh.commentaires[0]?.[1] ?? "", new RegExp(`Le cook avait laissé du travail non commité dans son worktree : la station l'a commité à sa place \\(\`${recolte}\`\\), et il fait partie de la livraison`));
   });
 
-  test("un cook mort avec le runtime : au démarrage suivant son worktree est rangé, avec ce qu'il avait écrit, avant qu'un cook neuf ne reparte", async (t) => {
+  test("un cook mort avec le runtime : au démarrage suivant son worktree est rangé, avec ce qu'il avait écrit, avant qu'un cook neuf ne reparte", { skip: posixOnly("runs the station with the fake claude (a bash script) writing in its worktree, whose path it reports as Git Bash names it (/c/Users/…), which node resolves on drive D:; on the Windows job: Error: ENOENT: no such file or directory, open 'D:\\c\\Users\\runneradmin\\AppData\\Local\\Temp\\brigade-test-ByWNF5\\worktrees\\15-431941c8\\brouillon.txt'") }, async (t) => {
     const premiere = cuisine(t, { git: true, scenario: "bavard", issues: [issue(15)] });
     await jusqua(() => premiere.lancements().length === 1);
     const run = String(premiere.dernier("cook.launched", 15)?.run);
@@ -2105,7 +2106,7 @@ describe("la station, cooks sans identité", { concurrency: 8 }, () => {
     assert.ok(!fichier.startsWith(join(repertoire, "worktrees")));
   });
 
-  test("dans le bac à sable d'une cuisine locale, le cook reçoit son ticket en fichier — corps et commentaires —, sans que ~/.config/gh lui soit ouvert", async (t) => {
+  test("dans le bac à sable d'une cuisine locale, le cook reçoit son ticket en fichier — corps et commentaires —, sans que ~/.config/gh lui soit ouvert", { skip: posixOnly("runs the box/claude station on a full runtime with the fake claude (a bash script) as its cook; on the Windows job: the awaited fact never came (condition never met)") }, async (t) => {
     const bacASable = { version: "2.1.300", home: "/Users/chef", caches: [], hotes: () => [] };
     const { repertoire, gh, lancements, dernier } = cuisine(t, { scenario: "bavard", bacASable, issues: [issue(15, CALIBRE, { title: "Le ticket du Mac" })] });
     gh.decrire(15, { body: "Fais ceci, puis cela." });

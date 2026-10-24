@@ -23,6 +23,7 @@ import { lieuxDuProjet } from "../../src/station/configuration.ts";
 import { ouvrirCuisine } from "../../src/station/cuisine.ts";
 import { ouvrirStation } from "../../src/station/station.ts";
 import { aArreter, BASE, commiter, depotGit, ENV_GIT, FAUX_CLAUDE, git, horloge, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
+import { posixOnly } from "../support/plateforme.ts";
 
 const rienNeReste = temporaireDuFichier();
 
@@ -158,7 +159,7 @@ function reglagesDansLeBacASable(home: string, worktrees: string, ou: string): R
   return JSON.parse(args[args.indexOf("--settings") + 1] ?? "") as Reglages;
 }
 
-test("sur un Mac, la station sous `~/.config/brigade` sert le projet, ses cooks dans le bac à sable : sans réglage, et sans nettoyage à la main de ce qu'elle avait laissé", (t) => {
+test("sur un Mac, la station sous `~/.config/brigade` sert le projet, ses cooks dans le bac à sable : sans réglage, et sans nettoyage à la main de ce qu'elle avait laissé", { skip: posixOnly("simulates a Mac whose station lives under ~/.config/brigade and whose cooks run in the Seatbelt sandbox, which takes POSIX absolute paths only (this test uses the fake claude (bash)); on the Windows job: + { + mirrorlab: \"sur ce Mac, chaque cook part dans le bac à sable, et il n'est pas utilisable — what the station says about its sandbox cannot be rea…") }, (t) => {
   const { compte, home, racine, etat, lieux } = avantLaMiseAJour(t);
   writeFileSync(join(racine, "projets"), `${PROJET} benomite/${PROJET} ${BASE}\n`);
   // Le répertoire temporaire d'un Mac n'est pas au-dessus du compte : c'est là

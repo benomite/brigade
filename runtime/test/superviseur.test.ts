@@ -216,7 +216,7 @@ describe("superviser", { concurrency: true }, () => {
     assert.deepEqual([resultat.turns, resultat.tokens], [1, 7]);
   });
 
-  test("un cook qui dépasse son plafond de tours est arrêté, avec le motif", async (t) => {
+  test("un cook qui dépasse son plafond de tours est arrêté, avec le motif", { skip: posixOnly("supervises the fake claude (a bash script) and stops it with POSIX signals (SIGTERM, then SIGKILL to its group), which Windows does not deliver (this test uses POSIX signals, the fake claude (bash)); on the Windows job: null !== 'SIGTERM'") }, async (t) => {
     const { fin, arrets } = cook(t, "bavard", { turns: 3 });
 
     const resultat = await fin;
@@ -260,7 +260,7 @@ describe("superviser", { concurrency: true }, () => {
     assert.equal(arrets.length, 1);
   });
 
-  test("un cook sourd à SIGTERM est tué après le délai de grâce", async (t) => {
+  test("un cook sourd à SIGTERM est tué après le délai de grâce", { skip: posixOnly("supervises the fake claude (a bash script) and stops it with POSIX signals (SIGTERM, then SIGKILL to its group), which Windows does not deliver (this test uses POSIX signals, the fake claude (bash)); on the Windows job: null !== 'SIGKILL'") }, async (t) => {
     const { fin, arreter, flux } = cook(t, "sourd", {}, 100);
     await aParle(flux);
 
@@ -269,7 +269,7 @@ describe("superviser", { concurrency: true }, () => {
     assert.equal((await fin).signal, "SIGKILL");
   });
 
-  test("un petit-enfant sourd à SIGTERM meurt avec le groupe de son cook", async (t) => {
+  test("un petit-enfant sourd à SIGTERM meurt avec le groupe de son cook", { skip: posixOnly("supervises the fake claude (a bash script) and stops it with POSIX signals (SIGTERM, then SIGKILL to its group), which Windows does not deliver (this test uses POSIX signals, the fake claude (bash)); on the Windows job: null !== 'SIGTERM'") }, async (t) => {
     const { fin, flux, pid, arreter } = cook(t, "petit-enfant-sourd");
     await aParle(flux);
     const { petitEnfant } = JSON.parse(readFileSync(flux, "utf8").trim());
@@ -310,7 +310,7 @@ describe("superviser", { concurrency: true }, () => {
     assert.equal(vivaitEncore, true);
   });
 
-  test("un motif qui ne peut pas être noté n'empêche pas l'arrêt", async (t) => {
+  test("un motif qui ne peut pas être noté n'empêche pas l'arrêt", { skip: posixOnly("supervises the fake claude (a bash script) and stops it with POSIX signals (SIGTERM, then SIGKILL to its group), which Windows does not deliver (this test uses POSIX signals, the fake claude (bash)); on the Windows job: null !== 'SIGTERM'") }, async (t) => {
     const flux = join(repertoireTemporaire(t), "run.jsonl");
     const supervise = superviser({
       commande: FAUX_CLAUDE,
@@ -383,7 +383,7 @@ describe("superviser", { concurrency: true }, () => {
     assert.match(resultat.erreur ?? "", /ENOENT/);
   });
 
-  test("abandonner tue le cook sur-le-champ, sans noter de motif", async (t) => {
+  test("abandonner tue le cook sur-le-champ, sans noter de motif", { skip: posixOnly("supervises the fake claude (a bash script) and stops it with POSIX signals (SIGTERM, then SIGKILL to its group), which Windows does not deliver (this test uses POSIX signals); on the Windows job: null !== 'SIGKILL'") }, async (t) => {
     const { fin, abandonner, arrets } = cook(t, "sourd");
 
     abandonner();
@@ -412,7 +412,7 @@ describe("superviser, à l'horloge du test", () => {
     assert.deepEqual([resultat.arret?.reason, resultat.turns], ["idle", 1]);
   });
 
-  test("un cook qui produit n'est pas pris pour un inactif", async (t) => {
+  test("un cook qui produit n'est pas pris pour un inactif", { skip: posixOnly("supervises the fake claude (a bash script) and stops it with POSIX signals (SIGTERM, then SIGKILL to its group), which Windows does not deliver (this test uses POSIX signals); on the Windows job: Unknown signal: SIGUSR1") }, async (t) => {
     t.mock.timers.enable({ apis: ["setTimeout"] });
     const { fin, mesure, pid } = cook(t, "au-signal", { idleMs: 1000, turns: 3 });
     assert.ok(pid);

@@ -12,6 +12,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { ENV_ENFANT, git, repertoireTemporaire } from "./outils.ts";
+import { posixOnly } from "./support/plateforme.ts";
 
 const GATES = join(import.meta.dirname, "../../.claude/brigade/gates.sh");
 const ROLES = ["po", "manager", "dev", "designer"];
@@ -57,7 +58,7 @@ function jouer(racine: string): { code: number | null; sortie: string } {
 
 // Chaque test a son projet : ils se jouent de front.
 describe("la fraîcheur du miroir Codex, sur une longue liste de changements", { concurrency: 8 }, () => {
-  test("un rôle et son miroir modifiés ensemble ne sont pas jugés périmés", (t) => {
+  test("un rôle et son miroir modifiés ensemble ne sont pas jugés périmés", { skip: posixOnly("plays this repository's real .claude/brigade/gates.sh, a bash script, on a test project written by the test: under Git Bash it reported the project's declared role files absent from the disk; on the Windows job: no match: 'ok JSON valide : .claude-plugin/plugin.json\\n' + 'ok JSON valide : .claude-plugin/marketplace.json\\n' + 'ok JSON valide : .claude/settings.…") }, (t) => {
     const racine = projet(t);
     writeFileSync(join(racine, "commands/manager.md"), "une règle de plus\n");
     writeFileSync(join(racine, "codex/skills/manager/SKILL.md"), "une règle de plus\n");
@@ -70,7 +71,7 @@ describe("la fraîcheur du miroir Codex, sur une longue liste de changements", {
     assert.equal(code, 0, sortie);
   });
 
-  test("un rôle modifié sans son miroir n'est pas sauté : il rougit, et lui seul", (t) => {
+  test("un rôle modifié sans son miroir n'est pas sauté : il rougit, et lui seul", { skip: posixOnly("plays this repository's real .claude/brigade/gates.sh, a bash script, on a test project written by the test: under Git Bash it reported the project's declared role files absent from the disk; on the Windows job: + 'FAIL declare dans plugin.json[commands] mais absent du disque : commands/designer.md', + 'FAIL declare dans plugin.json[commands] mais absent du di…") }, (t) => {
     const racine = projet(t);
     writeFileSync(join(racine, "commands/po.md"), "une règle de plus\n");
     encombrer(racine, "z");
@@ -81,7 +82,7 @@ describe("la fraîcheur du miroir Codex, sur une longue liste de changements", {
     assert.equal(code, 1, sortie);
   });
 
-  test("un fichier dont le chemin ne fait que contenir celui d'un rôle ou d'un miroir ne compte pas pour lui", (t) => {
+  test("un fichier dont le chemin ne fait que contenir celui d'un rôle ou d'un miroir ne compte pas pour lui", { skip: posixOnly("plays this repository's real .claude/brigade/gates.sh, a bash script, on a test project written by the test: under Git Bash it reported the project's declared role files absent from the disk; on the Windows job: + 'FAIL declare dans plugin.json[commands] mais absent du disque : commands/designer.md', + 'FAIL declare dans plugin.json[commands] mais absent du di…") }, (t) => {
     const racine = projet(t);
     writeFileSync(join(racine, "commands/dev.md"), "une règle de plus\n");
     mkdirSync(join(racine, "docs/codex/skills/dev"), { recursive: true });

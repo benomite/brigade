@@ -193,7 +193,7 @@ describe("la cloison", { concurrency: 8 }, () => {
     assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_PRIVATE: ".config/gh" }, lieux)), /invalid BRIGADE_SANDBOX_PRIVATE/);
   });
 
-  test("un outil écrit ses données et son état sous ~/.local, au projet : retrouvés d'un lancement à l'autre, et ce qu'y garde le compte reste en lecture seule", (t) => {
+  test("un outil écrit ses données et son état sous ~/.local, au projet : retrouvés d'un lancement à l'autre, et ce qu'y garde le compte reste en lecture seule", { skip: posixOnly("launches the enveloped command through spawnSync('/bin/sh'), a path Windows does not have (this test uses a shell script of its own); on the Windows job: Error: spawnSync /bin/sh ENOENT") }, (t) => {
     const { lieux, env, racine } = machine(t);
     const home = join(racine, "compte");
     for (const dossier of [".local/bin", ".local/share/claude", ".local/state/claude", ".local/lib/python3", ".config/gh"]) mkdirSync(join(home, dossier), { recursive: true });
@@ -305,7 +305,7 @@ describe("la cloison", { concurrency: 8 }, () => {
     assert.deepEqual(readdirSync(join(lieux.repertoireEtat, "vues-git")), [encodeURIComponent(autre)]);
   });
 
-  test("réenveloppé sur un worktree occupé, le lancement vivant garde ses points de montage", (t) => {
+  test("réenveloppé sur un worktree occupé, le lancement vivant garde ses points de montage", { skip: posixOnly("launches the enveloped command through spawnSync('/bin/sh'), a path Windows does not have (this test uses a shell script of its own, POSIX mode bits); on the Windows job: Error: spawnSync /bin/sh ENOENT") }, (t) => {
     const { lieux, env } = machine(t);
     const git = join(lieux.clone, ".git");
     for (const nom of ["objects", "refs", "worktrees"]) mkdirSync(join(git, nom));
@@ -400,7 +400,7 @@ describe("la cloison", { concurrency: 8 }, () => {
     assert.equal(recu[recu.indexOf("--") + 3], "bash");
   });
 
-  test("dans une cuisine, le setup, le cook, les gates et le reviewer partent chacun dans la cloison", async (t) => {
+  test("dans une cuisine, le setup, le cook, les gates et le reviewer partent chacun dans la cloison", { skip: posixOnly("runs a kitchen whose setup, cook, gates and reviewer are wrapped by test/aides/faux-bwrap.sh, a bash script standing in for bubblewrap (no real bubblewrap is launched), and counts the launches it noted (this test uses the fake claude (bash), a shell script of its own); on the Windows job: 0 !== 3") }, async (t) => {
     const { cloisonnes, lancements, relectures, repertoire } = cuisine(t, { cloison: true, setup: "exporte", pass: true, issues: [issue(15)] });
     await jusqua(() => relectures().length === 1);
 

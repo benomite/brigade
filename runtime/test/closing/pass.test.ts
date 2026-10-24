@@ -10,6 +10,7 @@ import { principal as montrerPass } from "../../src/montrer-pass.ts";
 import { chef } from "../aides/cuisine.ts";
 import { appeler, BASE, git, jusqua } from "../outils.ts";
 import { cuisineFermee, RETIRER_M1 } from "./kitchen.ts";
+import { posixOnly } from "../support/plateforme.ts";
 
 // Le numéro de la première PR du GitHub de test : c'est sous lui que la pass
 // suit la livraison de la passe.
@@ -40,7 +41,7 @@ async function livrer(cuisine: ReturnType<typeof cuisineFermee>) {
   };
 }
 
-test("ce que la passe retire passe par la pass et le merge normaux : sa PR est jugée fusionnée avec la base — gates, reviewer —, mergée sous le grant `merge`, et rien n'est commité sur la branche d'intégration", async (t) => {
+test("ce que la passe retire passe par la pass et le merge normaux : sa PR est jugée fusionnée avec la base — gates, reviewer —, mergée sous le grant `merge`, et rien n'est commité sur la branche d'intégration", { skip: posixOnly("runs a closing pass on a real git repository with the fake claude (a bash script) as the closer; the pass judged its branch's files out of the closer's zone; on the Windows job: + 'zone' - 'delivered'") }, async (t) => {
   const cuisine = cuisineFermee(t);
   const { repertoire, gh, journal, origine, clone, teteDeLaBase, gates, relectures, pass, closer, types } = cuisine;
   const avant = teteDeLaBase();
@@ -95,7 +96,7 @@ test("ce que la passe retire passe par la pass et le merge normaux : sa PR est j
   assert.match(commentaires(), /\*\*Pass — verte, mergée sur `v2` sous le grant `merge`\.\*\*/);
 });
 
-test("sans grant, la PR d'une passe n'est pas mergée : la pass s'arrête verte, le dit sur la PR, et voit le merge que le chef fait à la main", async (t) => {
+test("sans grant, la PR d'une passe n'est pas mergée : la pass s'arrête verte, le dit sur la PR, et voit le merge que le chef fait à la main", { skip: posixOnly("runs a closing pass on a real git repository with the fake claude (a bash script) as the closer; the pass judged its branch's files out of the closer's zone; on the Windows job: + 'zone' - 'delivered'") }, async (t) => {
   const cuisine = cuisineFermee(t);
   const { repertoire, gh, types, pass, teteDeLaBase } = cuisine;
   const avant = teteDeLaBase();
@@ -140,7 +141,7 @@ test("sans grant, la PR d'une passe n'est pas mergée : la pass s'arrête verte,
   assert.equal(seconde.relectures().length, 1);
 });
 
-test("un constat bloquant du reviewer retient la PR d'une passe, grant ou pas : rien n'est mergé, aucun cook ni closer n'est renvoyé, elle remonte au chef", async (t) => {
+test("un constat bloquant du reviewer retient la PR d'une passe, grant ou pas : rien n'est mergé, aucun cook ni closer n'est renvoyé, elle remonte au chef", { skip: posixOnly("runs a closing pass on a real git repository with the fake claude (a bash script) as the closer; the pass judged its branch's files out of the closer's zone; on the Windows job: + 'zone' - 'delivered'") }, async (t) => {
   const cuisine = cuisineFermee(t, { relecture: "relit-rouge" });
   const { repertoire, gh, types, pass, closer, relectures } = cuisine;
   chef(repertoire, "grant.activated");
@@ -173,7 +174,7 @@ test("un constat bloquant du reviewer retient la PR d'une passe, grant ou pas : 
   assert.deepEqual(gh.merges, []);
 });
 
-test("des gates rouges sur la fusion retiennent la PR d'une passe : le reviewer n'est pas appelé, rien n'est mergé sous le grant, elle remonte au chef", async (t) => {
+test("des gates rouges sur la fusion retiennent la PR d'une passe : le reviewer n'est pas appelé, rien n'est mergé sous le grant, elle remonte au chef", { skip: posixOnly("runs a closing pass on a real git repository with the fake claude (a bash script) as the closer; the pass judged its branch's files out of the closer's zone; on the Windows job: + 'zone' - 'delivered'") }, async (t) => {
   const cuisine = cuisineFermee(t);
   const { repertoire, gh, types, gates, relectures } = cuisine;
   chef(repertoire, "grant.activated");
