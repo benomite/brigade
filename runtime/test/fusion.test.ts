@@ -770,6 +770,28 @@ describe("la base elle-même, rouge ou mergée hors du runtime", { concurrency: 
     await jusqua(() => dernier("cook.launched", 18) !== undefined);
   });
 
+  test("le rejeu demandé par le chef est joué même si GitHub ne répond pas au ticket que la pass surveille : l'appel est borné, la pass passe à la base", async (t) => {
+    const { journal, repertoire, gh, essais, dernier, jusquAu } = service(t, {
+      essais: { "jugement-17": "rouge", base: "rouge" }, pass: { delaiGithubMs: 200 } });
+    await jusquAu("pass.waiting");
+    await jusquAu("base.checked", 2);
+
+    // GitHub ne répond plus : la pass, qui y relit son ticket à chaque tick, y reste suspendue.
+    const lecture = gh.github.prDeBranche;
+    let pendus = 0;
+    gh.github.prDeBranche = (branche) => {
+      pendus++;
+      return new Promise(() => {});
+    };
+    await jusqua(() => pendus > 0);
+
+    essais.base = "vert";
+    chef(repertoire, "base.recheck-requested");
+    await jusqua(() => dernier("base.checked")?.outcome === "green");
+    assert.deepEqual([etatDeLaBase(journal.base)?.outcome, etatDeLaBase(journal.base)?.recheck], ["green", null]);
+    gh.github.prDeBranche = lecture;
+  });
+
   // Un ménage qui échoue après coup : le worktree jetable de la base part, puis git se plaint.
   // `pose` : où ce worktree vit, connu une fois la cuisine montée.
   const menageEnPanne = (depot: Depot, pose: () => string) => (nom?: string) => {
