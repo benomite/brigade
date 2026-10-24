@@ -457,6 +457,10 @@ jobs:
       TAG: ${{ needs.decider.outputs.tag }}
       NON_SIGNE: ${{ needs.detecter-secrets.outputs.non_signe }}
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
       - uses: actions/download-artifact@v4
         with:
           path: ${{ runner.temp }}/release
@@ -469,21 +473,33 @@ jobs:
           set -euo pipefail
           version="${TAG#app-v}"
           cd "$RUNNER_TEMP/release"
+          for construit in "Brigade-$version-arm64.dmg" "Brigade-$version-x64-setup.exe"; do
+            test -f "$construit" || { echo "::error::$construit was not built — nothing is published"; ls -la; exit 1; }
+          done
           if [ "$NON_SIGNE" = true ]; then
-            fichiers=("Brigade-$version-arm64.dmg" "Brigade-$version-x64-setup.exe" "Brigade-$version.apk")
-            installation="Mac: open Brigade-$version-arm64.dmg. Windows: run Brigade-$version-x64-setup.exe. Android: install Brigade-$version.apk. These builds are unsigned."
+            test -f "Brigade-$version.apk" || { echo "::error::Brigade-$version.apk was not built — nothing is published"; ls -la; exit 1; }
+            signe=()
+          else
+            signe=(--signe)
+          fi
+          # Les noms de la release disent la plateforme ; les fichiers de mise à jour suivent.
+          node "$GITHUB_WORKSPACE/scripts/app-release/paquets.ts" renommer --version "$version" --dossier .
+          node "$GITHUB_WORKSPACE/scripts/app-release/paquets.ts" notes --produit app --version "$version" --commit "$GITHUB_SHA" "${signe[@]}" > "$RUNNER_TEMP/notes.md"
+          if [ "$NON_SIGNE" = true ]; then
+            fichiers=("Brigade-$version-mac-arm64.dmg" "Brigade-$version-windows-x64-setup.exe" "Brigade-$version-android.apk")
             resume="The builds are unsigned. Published $TAG: ${fichiers[*]}."
           else
-            fichiers=("Brigade-$version-arm64.dmg" latest-mac.yml "Brigade-$version-x64-setup.exe" latest.yml)
-            installation="Mac: open Brigade-$version-arm64.dmg and drag Brigade into Applications. Windows: run Brigade-$version-x64-setup.exe. The installed apps update themselves to it."
+            fichiers=("Brigade-$version-mac-arm64.dmg" latest-mac.yml "Brigade-$version-windows-x64-setup.exe" latest.yml)
             resume="Published $TAG: ${fichiers[*]}."
           fi
           for fichier in "${fichiers[@]}"; do
             test -f "$fichier" || { echo "::error::$fichier was not built — nothing is published"; ls -la; exit 1; }
           done
+          cat "$RUNNER_TEMP/notes.md" >> "$GITHUB_STEP_SUMMARY"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            # Un run rejoué : la release existe, ses fichiers sont remplacés.
+            # Un run rejoué : la release existe, ses fichiers et ses notes sont remplacés.
             gh release upload "$TAG" "${fichiers[@]}" --clobber
+            gh release edit "$TAG" --notes-file "$RUNNER_TEMP/notes.md"
           else
             # `--latest=false` : la dernière release du dépôt reste celle de la station, que
             # `releases/latest/download/installer-station.sh` trouve. L'app lit ses versions par
@@ -491,8 +507,7 @@ jobs:
             gh release create "$TAG" "${fichiers[@]}" \
               --target "$GITHUB_SHA" \
               --title "Brigade $version" \
-              --notes "The Brigade app $version, built from the commit $GITHUB_SHA. $installation" \
+              --notes-file "$RUNNER_TEMP/notes.md" \
               --latest=false
           fi
           echo "$resume" >> "$GITHUB_STEP_SUMMARY"
-

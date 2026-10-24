@@ -14,7 +14,7 @@ Windows, mobile and Intel Macs are not covered yet.
 ## Where to download it
 
 On the repo's releases page, **<https://github.com/benomite/brigade/releases>**. Take the latest
-**"Brigade (Mac)"** release and download the **`Brigade-<version>-arm64.dmg`** file attached to
+**"Brigade (Mac)"** release and download the **`Brigade-<version>-mac-arm64.dmg`** file attached to
 it.
 
 ## Install
