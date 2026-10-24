@@ -111,6 +111,10 @@ export type EtatDeLaBase = {
   // chef, or by the pass itself, which replays once on its own when all is red
   // (`by`). `heldAt`: the machine has withheld it since that instant.
   recheck: { at: string; heldAt: string | null; by: string } | null;
+  // The red head this played check followed: green, the red it lifted; red,
+  // the head it was first judged on before the base moved past it. Null: the
+  // base was not red before this check, or has not moved since.
+  afterRed: string | null;
 };
 
 // A counted red: how many played checks have observed it since it began to
@@ -291,7 +295,8 @@ export const pass = definirProjection<Ecoutes>({
       recheck_by      TEXT,
       red_checks      INTEGER NOT NULL DEFAULT 0,
       replayed        INTEGER NOT NULL DEFAULT 0,
-      checked_seq     INTEGER NOT NULL DEFAULT 0
+      checked_seq     INTEGER NOT NULL DEFAULT 0,
+      after_red       TEXT
     ) STRICT;
     -- Les tickets de réparation nés d'une base rouge, et celui dont la
     -- création est annoncée sans être confirmée.
@@ -514,8 +519,8 @@ export const pass = definirProjection<Ecoutes>({
       if (!texte(payload.sha)) return;
       const verifies = (Array.isArray(payload.tickets) ? payload.tickets : []).filter((ticket) => Number.isSafeInteger(ticket));
       const outcome = payload.outcome === "green" || payload.outcome === "skipped" ? payload.outcome : "red";
-      const rouge = base.lire<{ red_since: string | null; tickets: string; red_checks: number; replayed: number }>(
-        "SELECT red_since, tickets, red_checks, replayed FROM base_checks WHERE outcome = 'red'",
+      const rouge = base.lire<{ sha: string; red_since: string | null; tickets: string; red_checks: number; replayed: number; after_red: string | null }>(
+        "SELECT sha, red_since, tickets, red_checks, replayed, after_red FROM base_checks WHERE outcome = 'red'",
       )[0];
       // A red that stays red keeps its attributed merges: a replay without a new merge does not erase them.
       const attribues: number[] = outcome === "red" && rouge ? JSON.parse(rouge.tickets) : [];
@@ -532,12 +537,14 @@ export const pass = definirProjection<Ecoutes>({
       } else {
         // A red that lasts is counted; a new red starts again at one, and has not yet been replayed.
         const suite = outcome === "red" && rouge !== undefined;
+        // The head a red was re-checked past stays named while the red holds.
+        const apresRouge = rouge === undefined ? null : outcome === "green" || rouge.sha !== payload.sha ? rouge.sha : rouge.after_red;
         base.executer(
-          `INSERT INTO base_checks (id, sha, outcome, at, tickets, red_since, unplayed_reason, red_checks, replayed, checked_seq) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `INSERT INTO base_checks (id, sha, outcome, at, tickets, red_since, unplayed_reason, red_checks, replayed, checked_seq, after_red) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT (id) DO UPDATE SET sha = excluded.sha, outcome = excluded.outcome, at = excluded.at, tickets = excluded.tickets,
              red_since = excluded.red_since, unplayed_sha = NULL, unplayed_at = NULL, unplayed_reason = excluded.unplayed_reason,
              recheck_at = NULL, recheck_held_at = NULL, recheck_by = NULL,
-             red_checks = excluded.red_checks, replayed = excluded.replayed, checked_seq = excluded.checked_seq`,
+             red_checks = excluded.red_checks, replayed = excluded.replayed, checked_seq = excluded.checked_seq, after_red = excluded.after_red`,
           payload.sha,
           outcome,
           at,
@@ -547,6 +554,7 @@ export const pass = definirProjection<Ecoutes>({
           outcome !== "red" ? 0 : suite ? rouge.red_checks + 1 : 1,
           suite ? rouge.replayed : 0,
           seq,
+          apresRouge,
         );
         // A creation announced and never confirmed no longer holds for a green base.
         if (outcome === "green") base.executer("DELETE FROM base_repair_opening");
@@ -700,12 +708,13 @@ export function etatDeLaBase(base: Base): EtatDeLaBase | null {
     recheckAt: string | null;
     recheckHeldAt: string | null;
     recheckBy: string | null;
+    afterRed: string | null;
   }>(
     `SELECT sha, outcome, at, tickets, red_since AS redSince, unplayed_sha AS unplayedSha, unplayed_at AS unplayedAt, unplayed_reason AS reason,
-            recheck_at AS recheckAt, recheck_held_at AS recheckHeldAt, recheck_by AS recheckBy FROM base_checks`,
+            recheck_at AS recheckAt, recheck_held_at AS recheckHeldAt, recheck_by AS recheckBy, after_red AS afterRed FROM base_checks`,
   )[0];
   if (!ligne) return null;
-  const { sha, outcome, at, redSince, unplayedSha, unplayedAt, reason, recheckAt, recheckHeldAt, recheckBy } = ligne;
+  const { sha, outcome, at, redSince, unplayedSha, unplayedAt, reason, recheckAt, recheckHeldAt, recheckBy, afterRed } = ligne;
   return {
     sha,
     outcome,
@@ -715,6 +724,7 @@ export function etatDeLaBase(base: Base): EtatDeLaBase | null {
     unplayed: unplayedSha === null || unplayedAt === null ? null : { sha: unplayedSha, at: unplayedAt },
     reason,
     recheck: recheckAt === null ? null : { at: recheckAt, heldAt: recheckHeldAt, by: recheckBy ?? "chef" },
+    afterRed,
   };
 }
 

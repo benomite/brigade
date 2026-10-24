@@ -10,7 +10,7 @@ import { describe, test, type TestContext } from "node:test";
 import { ouvrirDepot, type Depot } from "../src/depot.ts";
 import type { Machine } from "../src/machine.ts";
 import { decrireEtat, lireEtat } from "../src/etat.ts";
-import { direBaseRougeEn } from "../src/dire-base.ts";
+import { direBaseRevenueVerteEn, direBaseRougeEn } from "../src/dire-base.ts";
 import { controleRetenu, etatDeLaBase, mergesAVerifier, passDuTicket } from "../src/projections/pass.ts";
 import { chef, cuisine, fauxGitHub, issue, MACHINE_CALME, montre, type Options } from "./aides/cuisine.ts";
 import { BASE, commiter, depotGit, ENV_GIT, git, jusqua, repertoireTemporaire } from "./outils.ts";
@@ -802,6 +802,37 @@ describe("la base elle-même, rouge ou mergée hors du runtime", { concurrency: 
     chef(repertoire, "base.recheck-requested");
     await jusquAu("base.checked", 4);
     assert.deepEqual([dernier("base.checked")?.outcome, etatDeLaBase(journal.base)?.outcome, etatDeLaBase(journal.base)?.recheck, compter("base.checked")], ["green", "green", null, 4]);
+  });
+
+  test("main passe devant la tête sur laquelle la base est rouge : ses gates sont rejouées sur la nouvelle tête sans aucun geste — verte, la retenue tombe et c'est dit ; rouge, elle reste et c'est dit", async (t) => {
+    const { journal, base, essais, avertissements, dernier, compter, jusquAu, laisserTourner } = service(t, { aLaMain: true, essais: { base: "rouge" } });
+    // Rouge sur base-1, et rejouée seule une fois par la pass : rouge encore.
+    await jusquAu("base.checked", 2);
+    await laisserTourner();
+    assert.deepEqual([compter("base.checked"), etatDeLaBase(journal.base)?.afterRed], [2, null]);
+
+    // main avance, toujours rouge : rejouée sur base-2, sans `base replay`.
+    base.tete = "base-2";
+    await jusquAu("base.checked", 3);
+    assert.deepEqual([dernier("base.checked")?.sha, dernier("base.checked")?.outcome, etatDeLaBase(journal.base)?.recheck], ["base-2", "red", null]);
+    const rouge = direBaseRougeEn(etatDeLaBase(journal.base)!, null).join("\n");
+    assert.match(rouge, /\(base-2\)/);
+    assert.match(rouge, /re-checked on base-2 on \S+, after the base moved past base-1: the base is still red/);
+    assert.match(decrireEtat(lireEtat(journal), new Date()).join("\n"), /re-checked on base-2 .* ago, after the base moved past base-1: the base is still red/);
+
+    // La même tête : plus rien n'est rejoué d'elle-même.
+    await laisserTourner();
+    assert.equal(compter("base.checked"), 3);
+
+    // main avance encore, et les gates passent : la retenue tombe.
+    essais.base = "vert";
+    base.tete = "base-3";
+    await jusquAu("base.checked", 4);
+    const controle = etatDeLaBase(journal.base)!;
+    assert.deepEqual([controle.outcome, controle.sha, controle.afterRed], ["green", "base-3", "base-2"]);
+    assert.match(avertissements.join("\n"), /v2 n'est plus rouge \(base-3\)/);
+    assert.match(direBaseRevenueVerteEn(controle, (instant) => instant, "since") ?? "", /^base re-checked on base-3 on \S+, after the base moved past base-2: green, the hold is lifted$/);
+    assert.match(decrireEtat(lireEtat(journal), new Date()).join("\n"), /base +re-checked on base-3 .* ago, after the base moved past base-2: green, the hold is lifted/);
   });
 
   test("un jugement plus long que le délai de GitHub n'est pas abandonné : seuls les appels à GitHub sont bornés", async (t) => {

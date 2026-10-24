@@ -14,7 +14,7 @@ import type { Evenement } from "./evenements.ts";
 import { RELEVE } from "./events/guardrails.ts";
 import { PART_SANS_PROGRES } from "./events/station.ts";
 import { BATTEMENT } from "./events/runtime.ts";
-import { direControleRetenuEn, suiteDeBaseRougeEn } from "./dire-base.ts";
+import { direBaseRevenueVerteEn, direControleRetenuEn, suiteDeBaseRougeEn } from "./dire-base.ts";
 import { requises } from "./fiche.ts";
 import { ACTIONS, bientotEteint, direExtinctionEn, direResteEn } from "./grant.ts";
 import type { Journal } from "./journal.ts";
@@ -351,7 +351,10 @@ function decrireMiseDeCote({ miseDeCote }: EtatCuisine, depuis: Depuis): string[
 // part pas — la base ne se rapatrie pas — se lit même sur une base qui n'est
 // pas rouge : des merges y attendent d'être vérifiés. Rien à dire sinon.
 function decrireBase({ base, baseRetenue }: EtatCuisine, depuis: Depuis): string[] {
-  if (base?.outcome !== "red") return baseRetenue === null ? [] : [ligne("base", direControleRetenuEn(baseRetenue, depuis))];
+  if (base?.outcome !== "red") {
+    const levee = base === null ? null : direBaseRevenueVerteEn(base, depuis);
+    return [...(levee === null ? [] : [ligne("base", levee)]), ...(baseRetenue === null ? [] : [ligne("base", direControleRetenuEn(baseRetenue, depuis))])];
+  }
   return [
     ligne("base", `RED since ${depuis(base.redSince ?? base.at)} ago on ${base.sha.slice(0, 7)} — the station takes no more tickets, the pass neither judges nor merges`),
     ...suiteDeBaseRougeEn(base, depuis, baseRetenue).map((suite) => ligne("", suite)),
