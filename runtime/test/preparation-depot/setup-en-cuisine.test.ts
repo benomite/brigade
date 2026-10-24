@@ -15,7 +15,6 @@ import { corps } from "../../src/preparation-depot/ticket.ts";
 import { etatStation } from "../../src/projections/stations.ts";
 import { cuisine, fauxGitHub, issue, montre, STATION, type Lieux, type Options } from "../aides/cuisine.ts";
 import { jusqua, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
-import { posixOnly } from "../support/plateforme.ts";
 
 const rienNeReste = temporaireDuFichier();
 
@@ -23,11 +22,6 @@ const PREPARATION = 20;
 const DU_CHEF = 15;
 const PHRASE = "le setup a besoin de `apps/api/.env`, `docker` et `psql`, que la station `box/claude` n'a pas";
 const SENTENCE = "the setup needs `apps/api/.env`, `docker` and `psql`, which the station `box/claude` does not have";
-// Un setup qui passe rend ses exports au runtime par le descripteur 3
-// (`CANAL`, `src/gates.ts`), que le bash de Windows lancé par Node ne reçoit
-// pas : « brigade: line 5: 3: Bad file descriptor ». Un setup en échec n'y
-// écrit rien, et se joue partout.
-const EXPORTE = { skip: posixOnly("a passing setup hands its exports through file descriptor 3, which bash on Windows does not receive") };
 const CORPS = corps({ projet: "brigade", depot: "benomite/brigade", base: "v2", presents: {} });
 
 // Une cuisine dont la station a ouvert le ticket de préparation #20, noté
@@ -96,7 +90,7 @@ describe("le setup en échec du ticket qui prépare le dépôt", { concurrency: 
     assert.equal(gh.corpsDe(PREPARATION), deja);
   });
 
-  test("un setup qui passe de nouveau : le corps ne dit plus qu'il échoue, et le cook reçoit ce qu'il exporte", EXPORTE, async (t) => {
+  test("un setup qui passe de nouveau : le corps ne dit plus qu'il échoue, et le cook reçoit ce qu'il exporte", async (t) => {
     const { cooks, gh } = unProjet(t, { setup: "exporte", corps: corpsAvecLeSetup(CORPS, passageDuSetup(PHRASE)) });
     await jusqua(() => cooks().length === 1);
     assert.equal(gh.corpsDe(PREPARATION), CORPS);
@@ -122,7 +116,7 @@ describe("le setup en échec du ticket qui prépare le dépôt", { concurrency: 
     assert.equal(types().includes("preparation.setup-failed"), false);
   });
 
-  test("une fois la préparation servie, le setup qu'elle a livré passe avant chaque cook, et le cook reçoit ce qu'il exporte", EXPORTE, async (t) => {
+  test("une fois la préparation servie, le setup qu'elle a livré passe avant chaque cook, et le cook reçoit ce qu'il exporte", async (t) => {
     const { setup, cooks } = unProjet(t, { setup: "exporte", issues: [issue(DU_CHEF)], avant: PREPARATION_SERVIE });
     await jusqua(() => cooks().length === 1);
 

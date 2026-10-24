@@ -5,7 +5,7 @@
 // du chef. Le compte du chef est un répertoire temporaire ; la machine, un Mac
 // simulé ; `git` est le vrai.
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs";
 import { join, posix } from "node:path";
 import { test, type TestContext } from "node:test";
 import { LECTURES_INTERDITES, type Reglages } from "../../src/bac-a-sable/configuration.ts";
@@ -80,11 +80,14 @@ test("un projet servi avant l'atelier y déménage : son clone et ses worktrees,
   assert.equal(git(worktree, "rev-parse", "--abbrev-ref", "HEAD"), `cook/${RUN}`);
   assert.equal(git(worktree, "status", "--porcelain"), "?? en-cours.txt");
   assert.equal(git(lieux.clone, "log", "-1", "--format=%s", `cook/${RUN}`), "ajoute commite.txt");
+  // Chaque chemin lu tel que le disque le nomme : sous Windows, `git` l'écrit
+  // avec des barres obliques et sans les noms courts (RUNNER~1) du répertoire
+  // temporaire.
   const listes = git(lieux.clone, "worktree", "list", "--porcelain")
     .split("\n")
-    .filter((ligne) => ligne.startsWith("worktree "))
+    .flatMap((ligne) => (ligne.startsWith("worktree ") ? [realpathSync.native(ligne.slice("worktree ".length))] : []))
     .sort();
-  assert.deepEqual(listes, [`worktree ${lieux.clone}`, `worktree ${join(lieux.worktrees, ".essais/pass-1")}`, `worktree ${worktree}`].sort());
+  assert.deepEqual(listes, [lieux.clone, join(lieux.worktrees, ".essais/pass-1"), worktree].map((chemin) => realpathSync.native(chemin)).sort());
 
   // Rejoué, il n'y a plus rien à déménager.
   assert.deepEqual(demenagerVersLAtelier(racine, PROJET, lieux, { cloneDeLaStation: true, env: ENV_GIT }), { deplaces: [], restes: [] });
@@ -143,8 +146,8 @@ test("ce qui ne se déménage pas reste où il est, et se dit : un clone déjà 
   const bilan = demenagerVersLAtelier(racine, PROJET, lieux, { cloneDeLaStation: true, env: ENV_GIT });
   assert.deepEqual(bilan.deplaces, []);
   assert.equal(bilan.restes.length, 2);
-  assert.match(bilan.restes[0] ?? "", /^le clone reste à .*clones\/mirrorlab — .*existe déjà$/);
-  assert.match(bilan.restes[1] ?? "", /^ses worktrees restent à .*etat\/mirrorlab\/worktrees, accrochés à ce clone$/);
+  assert.match(bilan.restes[0] ?? "", /^le clone reste à .*clones[\\/]mirrorlab — .*existe déjà$/);
+  assert.match(bilan.restes[1] ?? "", /^ses worktrees restent à .*etat[\\/]mirrorlab[\\/]worktrees, accrochés à ce clone$/);
   assert.equal(readFileSync(join(ancienWorktree, "en-cours.txt"), "utf8"), "le travail que le cook n'a pas commité\n");
 });
 

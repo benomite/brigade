@@ -10,7 +10,6 @@ import type { FaitGates } from "../src/events/gates.ts";
 import type { Gates } from "../src/events/pass.ts";
 import { cuisine, fauxGitHub, issue, montre, type Options } from "./aides/cuisine.ts";
 import { BASE, depotGit, git, jusqua, repertoireTemporaire } from "./outils.ts";
-import { posixOnly } from "./support/plateforme.ts";
 
 // Le projet porte ses gates sur sa base : la doublure, par un lien. `copie` :
 // un lien vers une copie à lui, que le test peut changer sans toucher à l'arbre.
@@ -38,7 +37,7 @@ function service(t: TestContext, options: Options) {
   return { ...lieu, verdict, passages, parLaPass };
 }
 
-describe("la pass reprend les gates du cook", { concurrency: 8, skip: posixOnly("the kitchen runs the fake claude and the launcher, POSIX shell scripts") }, () => {
+describe("la pass reprend les gates du cook", { concurrency: 8 }, () => {
   test("le cook a passé les gates vertes sur ce qu'il livre, la base n'a pas bougé : la pass ne lance aucune gate, son verdict nomme le passage du cook qu'elle reprend, et rien ne s'ajoute au coût", async (t) => {
     const { lieux } = lieuxDuProjet(t);
     const { verdict, passages, parLaPass, gates, cooks, journal, heure } = service(t, { lieux, pass: true, scenario: "livre-apres-ses-gates" });

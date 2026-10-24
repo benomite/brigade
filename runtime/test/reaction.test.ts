@@ -2,6 +2,7 @@
 // des gates rouges, un GitHub de test, et un faux `claude` pour ses choix.
 import assert from "node:assert/strict";
 import { describe, test, type TestContext } from "node:test";
+import { posixOnly } from "./support/plateforme.ts";
 import { carnetDuProjet } from "../src/apprentissage/provisoires.ts";
 import { attentesDuChef } from "../src/attend.ts";
 import { cartesEnTodo } from "../src/carte-todo.ts";
@@ -18,6 +19,13 @@ import { chef, cuisine, issue, STATION, type Options } from "./aides/cuisine.ts"
 import { partagee } from "./aides/opt-C-partage.ts";
 import { projetSurGit } from "./aides/projet-sur-git.ts";
 import { jusqua } from "./outils.ts";
+
+// Ces tests mènent la cuisine sur plusieurs tours — cook, fausses gates rouges,
+// renvoi, réaction du manager —, chaque `claude`, `gh` et gates une doublure en
+// bash, que Windows lance par le bash de Git. Sur le job Windows, aucun
+// n'atteignait ce qu'il attend dans les 60 s de `jusqua`, quand le seul test
+// d'un tour (« remonté sans diff ») passait en 30 s.
+const PLUSIEURS_TOURS = posixOnly("drives the kitchen through several rounds (cook, red fake gates, return, manager reaction), where every claude, gh and gates call is a bash script run by Git Bash: on the Windows job the awaited fact never came within the 60 s of jusqua, while the one-round test of this file passed in 30 s");
 
 type Charge = Record<string, unknown>;
 
@@ -48,7 +56,7 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
   // sans rien y changer — il n'est joué qu'une fois pour eux trois.
   const remonteTelQuel = partagee(3, (t) => echec(t, { issues: [issue(17)] }));
 
-  test("éteint, rien ne change : deux renvois au même calibrage, puis la pass remonte au chef", async (t) => {
+  test("éteint, rien ne change : deux renvois au même calibrage, puis la pass remonte au chef", { skip: PLUSIEURS_TOURS }, async (t) => {
     const c = echec(t, { eteint: true, issues: [issue(17)], manager: { plafond: { model: "opus", effort: "max" } } });
     await c.jusquAu("pass.escalated", 17);
 
@@ -56,7 +64,7 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     assert.deepEqual([c.pass(17)?.cause, c.faits("pass.deferred").length, c.faits("manager.reacted").length], ["returns-exhausted", 0, 0]);
   });
 
-  test("au second rouge, la pass passe la main : le manager monte d'un cran le label qu'il a posé, sans LLM, puis renvoie", async (t) => {
+  test("au second rouge, la pass passe la main : le manager monte d'un cran le label qu'il a posé, sans LLM, puis renvoie", { skip: PLUSIEURS_TOURS }, async (t) => {
     const c = echec(t, { issues: [issue(30, [])], manager: { suite: ["juge-ticket"], plafond: { model: "sonnet", effort: "medium" } } });
     await c.jusquAu("pass.returned", 30, 2);
 
@@ -85,7 +93,7 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     assert.deepEqual(c.calibrages(30), ["haiku/low", "haiku/low", "haiku/medium"]);
   });
 
-  test("un label de calibrage posé par le chef n'est jamais touché : le second renvoi part au même calibrage, et le manager dit pourquoi", async (t) => {
+  test("un label de calibrage posé par le chef n'est jamais touché : le second renvoi part au même calibrage, et le manager dit pourquoi", { skip: PLUSIEURS_TOURS }, async (t) => {
     const c = echec(t, { issues: [issue(17)], manager: { plafond: { model: "opus", effort: "max" } } });
     await c.jusquAu("pass.returned", 17, 2);
 
@@ -97,7 +105,7 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     assert.ok(c.dits(17).some((dit) => /second renvoi au même calibrage.*posés par le chef/s.test(dit)));
   });
 
-  test("sans plafond posé par le chef, le défaut vaut : le ticket monte, et le commentaire nomme le plafond", async (t) => {
+  test("sans plafond posé par le chef, le défaut vaut : le ticket monte, et le commentaire nomme le plafond", { skip: PLUSIEURS_TOURS }, async (t) => {
     const c = echec(t, { issues: [issue(30, [])], manager: { suite: ["juge-ticket"] }, decisions: true });
     await c.jusquAu("pass.returned", 30, 2);
 
@@ -107,7 +115,7 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     assert.match(c.dits(30).find((dit) => /second renvoi/.test(dit)) ?? "", /monté de `haiku` \/ `low` à `haiku` \/ `medium`.*dans la limite du plafond du projet, `opus` \/ `high`/s);
   });
 
-  test("le plafond posé par le chef est relu à chaque réaction, sans redémarrage, et c'est lui que le commentaire nomme", async (t) => {
+  test("le plafond posé par le chef est relu à chaque réaction, sans redémarrage, et c'est lui que le commentaire nomme", { skip: PLUSIEURS_TOURS }, async (t) => {
     const c = echec(t, { issues: [issue(30, [])], manager: { suite: ["juge-ticket"] }, decisions: true });
     poserDecision(c.journal, { projet: "brigade", nom: "BRIGADE_CEILING_EFFORT", valeur: "low", auteur: "chef" });
     poserDecision(c.journal, { projet: "brigade", nom: "BRIGADE_CEILING_MODEL", valeur: "sonnet", auteur: "chef" });
@@ -120,7 +128,7 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     assert.match(c.dits(30).find((dit) => /second renvoi/.test(dit)) ?? "", /dans la limite du plafond du projet, `sonnet` \/ `low`/);
   });
 
-  test("le plafond que porte le dépôt du projet passe avant celui de la box ; baissé par une PR, il vaut dès la réaction suivante, sans redémarrage", async (t) => {
+  test("le plafond que porte le dépôt du projet passe avant celui de la box ; baissé par une PR, il vaut dès la réaction suivante, sans redémarrage", { skip: PLUSIEURS_TOURS }, async (t) => {
     const depot = projetSurGit(t, { reglages: { integrationBranch: "v2", calibrationCeiling: { model: "opus", effort: "high" } } });
     const lu = lireLeDepot({ BRIGADE_REPO_DIR: depot.clone, BRIGADE_BASE_BRANCH: "v2" });
     const c = echec(t, { issues: [issue(30, [])], manager: { suite: ["juge-ticket"] }, decisions: true, reglagesDuDepot: lu.suivis });
@@ -139,7 +147,7 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     assert.match(c.dits(30).find((dit) => /second renvoi/.test(dit)) ?? "", /dans la limite du plafond du projet, `sonnet` \/ `low`/);
   });
 
-  test("passé les deux renvois, le manager choisit — monter — et un ticket ne repart jamais à l'identique", async (t) => {
+  test("passé les deux renvois, le manager choisit — monter — et un ticket ne repart jamais à l'identique", { skip: PLUSIEURS_TOURS }, async (t) => {
     const c = echec(t, { issues: [issue(30, [])], manager: { suite: ["juge-ticket", "reagit-monte"], plafond: { model: "sonnet", effort: "medium" } } });
     await c.jusquAu("pass.escalated", 30);
 
@@ -159,7 +167,7 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     assert.ok(c.dits(30).some((dit) => /monte le calibrage.*`haiku` \/ `medium` à `sonnet` \/ `medium`.*le cook cale sur le raisonnement/s.test(dit)));
   });
 
-  test("le chef n'est sollicité qu'en dernier recours, et reçoit de quoi trancher : ce qui a été tenté, ce qui a échoué, ce que le manager propose", async (t) => {
+  test("le chef n'est sollicité qu'en dernier recours, et reçoit de quoi trancher : ce qui a été tenté, ce qui a échoué, ce que le manager propose", { skip: PLUSIEURS_TOURS }, async (t) => {
     const c = remonteTelQuel(t);
     await c.jusquAu("pass.escalated", 17);
     await jusqua(() => c.dits(17).some((dit) => /remontée au chef/.test(dit)));
@@ -178,7 +186,7 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     assert.equal(c.cooks().length, 3);
   });
 
-  test("remonté pour un choix de produit ou un geste : la carte proposée passe par le triage, et c'est sa question et ses choix qui entrent dans TODO", async (t) => {
+  test("remonté pour un choix de produit ou un geste : la carte proposée passe par le triage, et c'est sa question et ses choix qui entrent dans TODO", { skip: PLUSIEURS_TOURS }, async (t) => {
     for (const [jugement, type, enonce] of [
       ["reagit-remonte-produit", "product", "Choisir entre la voie A et la voie B."],
       ["reagit-remonte-geste", "gesture", "Poser le jeton du compte client."],
@@ -198,7 +206,7 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     }
   });
 
-  test("un rouge sans choix de produit ni geste ne produit jamais de carte : il est remonté tel quel, et le manager le dit", async (t) => {
+  test("un rouge sans choix de produit ni geste ne produit jamais de carte : il est remonté tel quel, et le manager le dit", { skip: PLUSIEURS_TOURS }, async (t) => {
     const c = remonteTelQuel(t);
     await c.jusquAu("pass.escalated", 17);
     await jusqua(() => c.dits(17).some((dit) => /remontée au chef/.test(dit)));
@@ -222,7 +230,7 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     assert.match(dit, /Il n'a pas de PR, donc rien à merger : retirer `fire` le sort du rail, ou ferme-le/);
   });
 
-  test("une réaction illisible, ou qui choisit ce qui n'était pas offert, vaut remontée : le manager ne devine pas", async (t) => {
+  test("une réaction illisible, ou qui choisit ce qui n'était pas offert, vaut remontée : le manager ne devine pas", { skip: PLUSIEURS_TOURS }, async (t) => {
     // Monter n'est pas offert — le calibrage est au chef — et c'est ce que le jugement choisit.
     const c = echec(t, { issues: [issue(17)], manager: { jugement: "reagit-monte", plafond: { model: "opus", effort: "max" } } });
     await c.jusquAu("pass.escalated", 17);
@@ -234,7 +242,7 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     assert.deepEqual(c.labels(17), ["fire", "model:sonnet", "effort:low"]);
   });
 
-  test("redécoupé, le ticket devient l'épique de ses sous-tickets : il ne tient plus sa zone, et ils partent", async (t) => {
+  test("redécoupé, le ticket devient l'épique de ses sous-tickets : il ne tient plus sa zone, et ils partent", { skip: PLUSIEURS_TOURS }, async (t) => {
     const c = echec(t, { issues: [issue(30, [])], manager: { suite: ["juge-ticket", "reagit-redecoupe", "decoupe-tickets"] } });
     c.gh.ficher(30, "2026-10-08T09:00:00Z", `${MARQUEUR}\n- zone : runtime/src, docs/`);
     await c.jusquAu("manager.split-done", 30);
@@ -261,7 +269,7 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     assert.equal(c.faits("manager.split").length, 1);
   });
 
-  test("un redécoupage que le LLM ne sait pas faire vaut remontée, sans rien créer", async (t) => {
+  test("un redécoupage que le LLM ne sait pas faire vaut remontée, sans rien créer", { skip: PLUSIEURS_TOURS }, async (t) => {
     const c = echec(t, { issues: [issue(17)], manager: { suite: ["reagit-redecoupe", "decoupe-question"] } });
     await c.jusquAu("pass.escalated", 17);
 
@@ -270,7 +278,7 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     assert.deepEqual([c.gh.creations, c.pass(17)?.cause, c.ticket(17)?.reason], [[], "manager-escalated", "manager:escalated"]);
   });
 
-  test("le disjoncteur garde le dernier mot : des relances du manager restées rouges l'ouvrent, et il remonte sans plus rien relancer ni juger", async (t) => {
+  test("le disjoncteur garde le dernier mot : des relances du manager restées rouges l'ouvrent, et il remonte sans plus rien relancer ni juger", { skip: PLUSIEURS_TOURS }, async (t) => {
     const c = echec(t, {
       seuilDisjoncteur: 2,
       issues: [issue(30, [])],
@@ -291,7 +299,7 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     assert.deepEqual([c.ticket(30)?.state, c.ticket(30)?.reason], ["86", "manager:escalated"]);
   });
 
-  test("éteint pendant qu'il tenait un ticket, le manager le rend à la pass, qui reprend sa règle d'avant", async (t) => {
+  test("éteint pendant qu'il tenait un ticket, le manager le rend à la pass, qui reprend sa règle d'avant", { skip: PLUSIEURS_TOURS }, async (t) => {
     const c = echec(t, { issues: [issue(17)] });
     // Sa réaction ne peut pas se dire : le ticket reste entre ses mains.
     c.gh.pannes.commentaire = true;
@@ -306,7 +314,7 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     assert.equal(c.faits("manager.reaction-commented", 17).length, 0);
   });
 
-  test("une montée que GitHub refuse ne relance rien et ne se redécide pas : elle reprend où elle en était", async (t) => {
+  test("une montée que GitHub refuse ne relance rien et ne se redécide pas : elle reprend où elle en était", { skip: PLUSIEURS_TOURS }, async (t) => {
     const c = echec(t, { issues: [issue(30, [])], manager: { suite: ["juge-ticket"], plafond: { model: "sonnet", effort: "medium" } } });
     await c.jusquAu("manager.labeled", 30);
     c.gh.pannes.label = true;
@@ -324,7 +332,7 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     assert.deepEqual([c.charges("manager.reacted", 30).filter((reaction) => reaction.returns === 1).length, c.faits("manager.raised", 30).length, c.dits(30).filter((dit) => /second renvoi/.test(dit)).length], [1, 1, 1]);
   });
 
-  test("le chef recalibre pendant que le manager tient le ticket : son label reste, et le ticket repart à son calibrage", async (t) => {
+  test("le chef recalibre pendant que le manager tient le ticket : son label reste, et le ticket repart à son calibrage", { skip: PLUSIEURS_TOURS }, async (t) => {
     const c = echec(t, { issues: [issue(30, [])], manager: { suite: ["juge-ticket"], plafond: { model: "sonnet", effort: "medium" } } });
     await c.jusquAu("manager.labeled", 30);
     c.gh.pannes.label = true;
@@ -344,7 +352,7 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     assert.ok(c.dits(30).some((dit) => /second renvoi à ton calibrage \(`haiku` \/ `high`\).*`effort:low` n'y est plus/s.test(dit)));
   });
 
-  test("une montée faite sur GitHub mais dont la note s'est perdue n'est ni refaite ni reniée : le label reste au manager, qui peut monter encore", async (t) => {
+  test("une montée faite sur GitHub mais dont la note s'est perdue n'est ni refaite ni reniée : le label reste au manager, qui peut monter encore", { skip: PLUSIEURS_TOURS }, async (t) => {
     const c = echec(t, { issues: [issue(30, [])], manager: { suite: ["juge-ticket", "reagit-monte"], plafond: { model: "sonnet", effort: "medium" } } });
     // Le label est retiré, et la réponse se perd : rien n'est noté de l'échange.
     c.gh.pannes.apresRetrait = true;
@@ -358,7 +366,7 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     assert.ok(!c.charges("manager.reacted", 30).some((reaction) => /posé par le chef/.test(String(reaction.reason))));
   });
 
-  test("éteint pendant le redécoupage, le manager n'en garde rien : aucun sous-ticket ne naîtra derrière un parent qui tient sa zone", async (t) => {
+  test("éteint pendant le redécoupage, le manager n'en garde rien : aucun sous-ticket ne naîtra derrière un parent qui tient sa zone", { skip: PLUSIEURS_TOURS }, async (t) => {
     const c = echec(t, { issues: [issue(17)], manager: { suite: ["reagit-redecoupe", "decoupe-tickets-lent"] } });
     // Le choix est fait, le découpage est en cours.
     await jusqua(() => c.jugements().length === 2);
@@ -375,7 +383,7 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     assert.deepEqual([c.gh.creations, c.faits("manager.split").length], [[], 0]);
   });
 
-  test("une remontée que GitHub empêche de dire est faite quand même, et dite dès qu'il répond", async (t) => {
+  test("une remontée que GitHub empêche de dire est faite quand même, et dite dès qu'il répond", { skip: PLUSIEURS_TOURS }, async (t) => {
     const c = echec(t, { issues: [issue(17)] });
     await c.jusquAu("pass.returned", 17, 2);
     c.gh.pannes.commentaire = true;
@@ -390,7 +398,7 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     assert.equal(c.dits(17).filter((dit) => /remontée au chef/.test(dit)).length, 1);
   });
 
-  test("une remontée que GitHub empêche de dire, puis dont le chef ferme la PR : le mot du manager est dit quand même", async (t) => {
+  test("une remontée que GitHub empêche de dire, puis dont le chef ferme la PR : le mot du manager est dit quand même", { skip: PLUSIEURS_TOURS }, async (t) => {
     const c = echec(t, { issues: [issue(17)] });
     await c.jusquAu("pass.returned", 17, 2);
     c.gh.pannes.commentaire = true;
@@ -406,7 +414,7 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     assert.equal(c.dits(17).filter((dit) => /remontée au chef/.test(dit)).length, 1);
   });
 
-  test("la réaction en cours se relit dans le journal : le chef y lit le choix et son motif", async (t) => {
+  test("la réaction en cours se relit dans le journal : le chef y lit le choix et son motif", { skip: PLUSIEURS_TOURS }, async (t) => {
     const c = remonteTelQuel(t);
     // Le ticket est 86 d'abord, le commentaire suit : il ne dit rien qui n'ait eu lieu.
     await jusqua(() => reactionDe(c.journal.base, 17)?.choice === "escalate" && reactionDe(c.journal.base, 17)?.commented === true);

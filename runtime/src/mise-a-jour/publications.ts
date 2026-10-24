@@ -9,7 +9,7 @@
 // paquet dedans sous le même nom. Publier une version, c'est l'y poser.
 import { createHash } from "node:crypto";
 import { copyFileSync, existsSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { VERSION } from "./versions.ts";
 
 export const DEPOT = "benomite/brigade";
@@ -93,7 +93,7 @@ function depuisRepertoire(repertoire: string, arch: string): Publications {
 // `source` : `github:<owner>/<repo>`, ou le chemin d'un répertoire.
 export function publications(source: string | undefined, arch: string): Publications {
   const lue = source === undefined || source === "" ? `github:${DEPOT}` : source;
-  if (lue.startsWith("/")) return depuisRepertoire(lue, arch);
+  if (isAbsolute(lue)) return depuisRepertoire(lue, arch);
   const depot = /^github:([\w.-]+\/[\w.-]+)$/.exec(lue)?.[1];
   if (depot === undefined) throw new Error(`BRIGADE_MISE_A_JOUR_SOURCE=${lue.slice(0, 80)} — attendu github:<owner>/<repo>, ou le chemin d'un répertoire`);
   return depuisGitHub(depot, arch);

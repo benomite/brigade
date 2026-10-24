@@ -10,6 +10,7 @@ import { principal } from "../../src/enrolement/enrolement-cli.ts";
 import { machineCourante, nomDeMachine, presenterLaMachine, type Machine } from "../../src/enrolement/presentation.ts";
 import { ouvrirRegistre } from "../../src/stations-globales/registre.ts";
 import { appeler, ENV_ENFANT, repertoireTemporaire } from "../outils.ts";
+import { posixOnly } from "../support/plateforme.ts";
 
 const GESTE = join(import.meta.dirname, "../../deploy/brigade-enrolement");
 
@@ -45,7 +46,7 @@ test("ce qu'est la machine se lit dans son os-release ; sa cloison, dans les dro
   assert.equal(machineCourante(racine).cloisonnee, true);
 });
 
-test("`prepare` rend le code et la commande en JSON, au registre que la home lui nomme", async (t) => {
+test("`prepare` rend le code et la commande en JSON, au registre que la home lui nomme", { skip: posixOnly("runs deploy/brigade-enrolement itself, a bash script: Windows cannot execute it (exit -1 on the job)") }, async (t) => {
   const registre = repertoireTemporaire(t);
 
   const { statut, sortie, erreurs } = await lancer(["prepare", "--to", "chef@box", "--registry", registre], { HOME: repertoireTemporaire(t) });
@@ -59,7 +60,7 @@ test("`prepare` rend le code et la commande en JSON, au registre que la home lui
   assert.match(erreurs, /lance cette commande sur le serveur/);
 });
 
-test("`receive` sans présentation, ou un geste mal écrit, est refusé sans rien écrire", async (t) => {
+test("`receive` sans présentation, ou un geste mal écrit, est refusé sans rien écrire", { skip: posixOnly("runs deploy/brigade-enrolement itself, a bash script, for the refusals ssh must not receive: Windows cannot execute it (exit -1 on the job)") }, async (t) => {
   const repertoire = repertoireTemporaire(t);
   for (const args of [["receive", "--registry", repertoire], ["present"], ["prepare", "--registry", repertoire], ["inconnu"], []]) {
     const { fin } = appeler((appel) => principal(appel, async () => "pas du JSON"), args, { HOME: repertoire });

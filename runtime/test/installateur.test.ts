@@ -9,6 +9,7 @@ import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readF
 import { createServer, type AddressInfo } from "node:net";
 import { dirname, join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
+import { posixOnly } from "./support/plateforme.ts";
 import { EFFORTS, MODELES } from "../src/calibrage.ts";
 import { decisionsPosees } from "../src/decisions.ts";
 import { ouvrirJournal } from "../src/journal.ts";
@@ -523,7 +524,7 @@ describe("le plafond dur ne bouge pas", () => {
   // Ce qu'aucun grant n'autorise (#259), et ce par quoi une unité y mènerait.
   const INTERDITS = ["acces-prod", "accès-prod", "identifiants-max", "prod", "production", "credentials", "grant", "merge", "secrets", "claude-config-dir", "environnement", "home"];
 
-  test("aucune option n'y mène : ni `accès-prod`, ni les identifiants du compte Max, sous aucune forme", async (t) => {
+  test("aucune option n'y mène : ni `accès-prod`, ni les identifiants du compte Max, sous aucune forme", { skip: posixOnly("plays the sudo gesture of a Linux box, which checks it runs as root with process.getuid: Windows has no getuid, so on the Windows job every call stopped at sans-droit (77) before its options were read") }, async (t) => {
     const b = boite(t);
     b.pousser("acme/calculus");
     const avant = b.photo();

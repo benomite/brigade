@@ -6,7 +6,7 @@
 // démarrage.
 import assert from "node:assert/strict";
 import { existsSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import { test } from "node:test";
 import { attentesDuChef } from "../src/attend.ts";
 import { DECISIONS, decisionsPosees, OBLIGATOIRES, verifierDecision } from "../src/decisions.ts";
@@ -241,7 +241,7 @@ test("l'action ne lance aucun geste de box : ni `sudo`, ni `systemctl`, ni drop-
 
   const commande = lancer(t, INSTALLATION, ["decisions", ...RECLAMEES.flat()], {
     ...env(etat),
-    PATH: `${outils}:${process.env.PATH ?? ""}`,
+    PATH: `${outils}${delimiter}${process.env.PATH ?? ""}`,
     BRIGADE_SUDO_BIN: join(outils, "sudo"),
     BRIGADE_SYSTEMCTL_BIN: join(outils, "systemctl"),
     BRIGADE_MISE_EN_SERVICE_LIEN: join(outils, "absent"),

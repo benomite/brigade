@@ -6,7 +6,7 @@
 // de sa configuration par projet, son état laissé où il est —, et ce qui
 // part. Tout est lu, et tout refus dit, avant que rien ne change.
 import { existsSync, lstatSync, readdirSync, readFileSync, readlinkSync, realpathSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve, sep } from "node:path";
 import { DECISIONS } from "../decisions.ts";
 import { NOM_DE_PROJET } from "../runtime.ts";
 import { CONFIGURATION, ETATS, lireConfiguration, lireFichierDeConfiguration } from "../station/configuration.ts";
@@ -115,7 +115,7 @@ const reel = (chemin: string) => {
     return resolve(chemin);
   }
 };
-const sous = (racine: string, chemin: string) => chemin.startsWith(`${racine}/`);
+const sous = (racine: string, chemin: string) => chemin.startsWith(`${racine}${sep}`);
 
 // Lit l'ancienne installation. Sans elle — ni gabarit, ni instance —, il n'y a
 // rien à basculer : `plan` est null.
@@ -247,8 +247,8 @@ export function lireAncienneInstallation(ici: Lieux): Lecture {
     if (!estLien(chemin)) continue;
     const cible = resolve(dirname(chemin), readlinkSync(chemin));
     if (!deploysReels.some((deploy) => sous(deploy, cible) || sous(deploy, reel(cible)))) continue;
-    if (cible.endsWith("/brigade") && existsSync(ici.geste)) geste = { lien: chemin, vers: ici.geste };
-    else if (!cible.endsWith("/brigade")) liens.push(chemin);
+    if (basename(cible) === "brigade" && existsSync(ici.geste)) geste = { lien: chemin, vers: ici.geste };
+    else if (basename(cible) !== "brigade") liens.push(chemin);
   }
 
   // Les règles sudoers : un fichier dont une règle nomme un geste retiré part.

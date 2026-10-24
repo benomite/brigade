@@ -8,6 +8,7 @@ import { principal as montrerRail } from "../src/montrer-rail.ts";
 import { lireRail, ticketDuRail } from "../src/projections/rail.ts";
 import { ouvrirRail } from "../src/rail.ts";
 import { appeler, DEPOT, fauxGh, horloge, issueGitHub, lancer, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
+import { posixOnly } from "./support/plateforme.ts";
 
 const MONTRER = join(import.meta.dirname, "../src/montrer-rail.ts");
 
@@ -302,7 +303,7 @@ describe("remove, priority, merge, send-back et correct", () => {
     assert.deepEqual(gh.appels(), []);
   });
 
-  test("priority change la priorité d'un ticket, même pris : le nouveau label est posé, l'ancien retiré, le rail la lit aussitôt", async (t) => {
+  test("priority change la priorité d'un ticket, même pris : le nouveau label est posé, l'ancien retiré, le rail la lit aussitôt", { skip: posixOnly("posts the new label through the fake gh, a bash script run by Git Bash on Windows: on the Windows job it exits non-zero without a word on every POST with -f fields, while its GET and DELETE answers pass") }, async (t) => {
     const { journal, gh, jouer } = cuisine(t);
     gh.repondre(ISSUE(14), { corps: issueGitHub(14, { labels: ["fire", "prio:1"] }) });
     gh.repondre(LABELS(14), { corps: [] });
@@ -407,7 +408,7 @@ describe("move", () => {
     assert.deepEqual(await lister(), ["#21  queued  prio:2", "#20  queued  prio:2", "#22  queued  prio:3", "#23  queued  prio:3"]);
   });
 
-  test("move --after contre un ticket d'une autre priorité lui donne cette priorité : le label est remplacé, le rail le liste juste après lui", async (t) => {
+  test("move --after contre un ticket d'une autre priorité lui donne cette priorité : le label est remplacé, le rail le liste juste après lui", { skip: posixOnly("posts the new label through the fake gh, a bash script run by Git Bash on Windows: on the Windows job `move` ended with code 1, as every POST with -f fields through it does, while its GET and DELETE answers pass") }, async (t) => {
     const { journal, gh, jouer, lister } = cuisine(t);
     gh.repondre(ISSUE(23), { corps: issueGitHub(23, { labels: ["fire", "prio:3"] }) });
     gh.repondre(LABELS(23), { corps: [] });

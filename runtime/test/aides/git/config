@@ -2,3 +2,7 @@
 	auto = false
 [gc]
 	auto = 0
+# Git pour Windows extrait un lien symbolique en fichier texte, sauf si on le lui
+# demande : les dépôts de test commitent leurs gates en lien vers la doublure.
+[core]
+	symlinks = true
