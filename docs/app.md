@@ -1264,12 +1264,11 @@ or any Wi-Fi, scan the station's QR — or type `https://box.tail1234.ts.net` as
 A station on your computer works the same way: the Tailscale app, the same `BRIGADE_GUICHET_TELEPHONES` in its
 environment, `tailscale serve --bg 7010`.
 
-**A lost phone is revoked** on the station, by name: `appairage-cli.ts revoke pixel-8` (same account, same path as
-the code). Its token opens nothing any more, from any network, and it leaves the stations list; a name that is not a
-paired phone is refused and nothing changes. Paired again, it needs a new code.
+**A lost phone is revoked** from the desktop: on the station's "pair a phone" screen, its line in the list of paired
+phones, with **"revoke"** (see "Pairing a phone from the desktop" above). Its token opens nothing any more, from any
+network, and it leaves the stations list. Paired again, it needs a new code.
 
-**What is not there yet.** Issuing the code still takes the command above: the desktop app does not run it for you
-yet. The Android app pairs through the tailnet and says what it cannot reach there (#1409, "Pairing the phone with
+The Android app pairs through the tailnet and says what it cannot reach there (#1409, "Pairing the phone with
 your projects" above). The tests stand a relay in for tailscaled (`runtime/test/telephone/tailnet.test.ts`):
 no test mounts a real tailnet.
 
