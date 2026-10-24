@@ -49,7 +49,7 @@ function cuisine(t: TestContext) {
   const lire = (h: string) => {
     const maintenant = new Date(heure(h));
     const etat = lireEtat(journal, maintenant);
-    return { etat, faits: faits(etat, maintenant, "benomite/brigade"), texte: decrireEtat(etat, maintenant) };
+    return { etat, faits: faits(etat, maintenant, "acme/brigade"), texte: decrireEtat(etat, maintenant) };
   };
   noter({ type: "runtime.started", payload: { pid: 1, host: "box" } } as Fait);
   noter({ type: "station.announced", payload: { station: STATION, engine: "claude", provides: ["opus"], maxCooks: 2 } });

@@ -34,9 +34,9 @@ export type AncienProjet = {
 };
 
 export const TROIS: AncienProjet[] = [
-  { nom: "brigade", depot: "benomite/brigade", base: "v2", environnement: { BRIGADE_ROADMAP_ISSUE: "1", BRIGADE_PROXY_PORT: "8481" } },
-  { nom: "calculus-workspace", depot: "benomite/calculus-workspace", base: "main", environnement: { BRIGADE_PROXY_PORT: "8482" } },
-  { nom: "espace", depot: "benomite/espace", base: "main", environnement: { BRIGADE_PROXY_PORT: "8483", BRIGADE_SECRETS_FILE: "/srv/secrets/espace.env" } },
+  { nom: "brigade", depot: "acme/brigade", base: "v2", environnement: { BRIGADE_ROADMAP_ISSUE: "1", BRIGADE_PROXY_PORT: "8481" } },
+  { nom: "calculus-workspace", depot: "acme/calculus-workspace", base: "main", environnement: { BRIGADE_PROXY_PORT: "8482" } },
+  { nom: "espace", depot: "acme/espace", base: "main", environnement: { BRIGADE_PROXY_PORT: "8483", BRIGADE_SECRETS_FILE: "/srv/secrets/espace.env" } },
 ];
 
 // Les gestes de l'ancienne installation, dans le `deploy/` de son clone. Le

@@ -75,7 +75,7 @@ describe("la reprise des cooks en vol", { concurrency: 4 }, () => {
 
     await jusqua(() => seconde.types(15).includes("ticket.served"));
     await mort(pid);
-    const pr = `https://github.com/benomite/brigade/pull/101`;
+    const pr = `https://github.com/acme/brigade/pull/101`;
     assert.deepEqual(seconde.dernier("cook.exited", 15) && [seconde.dernier("cook.exited", 15)?.run, seconde.dernier("cook.exited", 15)?.outcome], [run, "ok"]);
     assert.deepEqual([seconde.dernier("cook.reported", 15)?.ending, seconde.dernier("cook.reported", 15)?.branch, seconde.dernier("cook.reported", 15)?.pr], ["done", branche, pr]);
     assert.deepEqual(seconde.gh.prs.map((ouverte) => [ouverte.branche, ouverte.base]), [[branche, BASE]]);

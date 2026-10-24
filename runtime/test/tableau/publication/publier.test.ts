@@ -17,7 +17,7 @@ import { LU_LE } from "../../aides/haut-de-status.ts";
 import { copieDeLExempleDuBas } from "../../aides/opt-A-etat.ts";
 import { aArreter, jusqua, repertoireTemporaire } from "../../outils.ts";
 
-const DEPOT = "benomite/brigade";
+const DEPOT = "acme/brigade";
 const MINUTE = 60_000;
 
 // Un GitHub de test : les issues du dépôt, chaque lecture et chaque écriture
@@ -166,7 +166,7 @@ test("le corps publié ne mentionne personne : aucun `@` collé à un nom, d'où
     const tableau = base(maintenant);
     const [premiere] = tableau.file;
     assert.ok(premiere !== undefined);
-    return { ...tableau, projet: "@octo", file: [{ ...premiere, titre: "Ask @octocat about it", ligne: "ping @benomite" }], bilans: ["seen by @someone"] };
+    return { ...tableau, projet: "@octo", file: [{ ...premiere, titre: "Ask @octocat about it", ligne: "ping @acme" }], bilans: ["seen by @someone"] };
   });
   await publier().rafraichir(LU_LE);
   const corps = issues.get(1)?.corps ?? "";
@@ -219,7 +219,7 @@ test("l'épinglage refusé n'empêche pas le corps de s'écrire : il se dit une 
   assert.deepEqual(await tableau.rafraichir(LU_LE), { numero: 1, gestes: ["cree"] });
   assert.equal(issues.get(1)?.epinglee, false);
   assert.equal(avertis.length, 1);
-  assert.match(avertis[0] ?? "", /Kitchen board #1 de benomite\/brigade non épinglé, réessayé dans une heure — .*Resource not accessible/);
+  assert.match(avertis[0] ?? "", /Kitchen board #1 de acme\/brigade non épinglé, réessayé dans une heure — .*Resource not accessible/);
   await tableau.rafraichir(apres(1));
   assert.equal(avertis.length, 1);
   assert.equal(lectures.filter((lecture) => lecture.startsWith("epingle")).length, 1);

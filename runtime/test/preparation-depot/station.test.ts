@@ -15,7 +15,7 @@ import { FAUX_GH_GISTS } from "../appairage/doublure-des-gists.ts";
 const rienNeReste = temporaireDuFichier();
 
 const STATION = join(import.meta.dirname, "../../src/station/main.ts");
-const DEPOT = "benomite/parade";
+const DEPOT = "acme/shop";
 // Le ticket du chef, plus ancien : sans préparation, c'est lui qui partirait le premier.
 const DU_CHEF = 15;
 const PREPARATION = 20;
@@ -26,16 +26,16 @@ function uneStation(t: TestContext, preparation: "ouverte" | "servie") {
   const compte = join(machine, "compte");
   mkdirSync(racine);
   mkdirSync(compte);
-  const etat = join(racine, "etat/parade");
+  const etat = join(racine, "etat/shop");
   mkdirSync(etat, { recursive: true });
   aArreter(t, () => tuerLesRelais(etat));
   // Ce que la station a fait en ajoutant le projet depuis l'app : les décisions
   // du parcours au journal, et le ticket qui prépare le dépôt.
   const journal = ouvrirJournal(etat);
   const decide = { BRIGADE_STATIONS: "box/claude:30:code", BRIGADE_MANAGER_MODEL: "sonnet", BRIGADE_MANAGER_EFFORT: "medium", BRIGADE_REVIEWER_MODEL: "sonnet", BRIGADE_REVIEWER_EFFORT: "medium" };
-  for (const [name, value] of Object.entries(decide)) journal.ajouter({ project: "parade", ticket: null, author: "chef", type: "decision.set", payload: { name, value, previous: null } });
+  for (const [name, value] of Object.entries(decide)) journal.ajouter({ project: "shop", ticket: null, author: "chef", type: "decision.set", payload: { name, value, previous: null } });
   if (preparation === "servie") {
-    const noter = (type: string, payload: object, author = "runtime") => journal.ajouter({ project: "parade", ticket: PREPARATION, author, type, payload } as never);
+    const noter = (type: string, payload: object, author = "runtime") => journal.ajouter({ project: "shop", ticket: PREPARATION, author, type, payload } as never);
     noter("ticket.arrived", { title: "Préparer le dépôt", priority: null, createdAt: "2026-10-15T00:00:00Z", url: `https://github.com/${DEPOT}/issues/${PREPARATION}`, model: "opus", effort: "high", card: null }, "github");
     noter("ticket.taken", { station: "box/claude", leaseUntil: "2026-10-15T01:00:00.000Z" }, "station:box/claude");
     noter("ticket.passing", { station: "box/claude" }, "station:box/claude");
@@ -54,7 +54,7 @@ function uneStation(t: TestContext, preparation: "ouverte" | "servie") {
     gh.repondre(`repos/${DEPOT}/issues/${issue.number}/comments?per_page=100`, { corps: [] });
   }
   gh.repondre(`repos/${DEPOT}/issues?labels=fire&state=open&per_page=100`, { corps: issues });
-  writeFileSync(join(racine, "projets"), `parade ${DEPOT} ${BASE} BRIGADE_GH_BIN=${gh.bin} BRIGADE_REPO_DIR=${clone}\n`);
+  writeFileSync(join(racine, "projets"), `shop ${DEPOT} ${BASE} BRIGADE_GH_BIN=${gh.bin} BRIGADE_REPO_DIR=${clone}\n`);
 
   // Chaque cook commite, puis attend : il tient son ticket tant que le test dure.
   const suite = join(repertoireTemporaire(t), "suite.txt");

@@ -30,7 +30,7 @@ test("la cuisine ouverte donne le rail de son journal — celui de `facts` — e
   const journal = ouvrirJournal(etat);
   for (const [name, value] of Object.entries(DECIDE)) journal.ajouter({ project: "brigade", ticket: null, author: "chef", type: "decision.set", payload: { name, value, previous: null } });
   const arriver = (ticket: number, priority: number | null, card?: { waitsFor: number[]; zone: string[]; problems: string[] }) =>
-    journal.ajouter({ project: "brigade", ticket, author: "github", type: "ticket.arrived", payload: { title: `Ticket ${ticket}`, priority, createdAt: `2026-10-01T00:00:${ticket}Z`, url: `https://github.com/benomite/brigade/issues/${ticket}`, card } });
+    journal.ajouter({ project: "brigade", ticket, author: "github", type: "ticket.arrived", payload: { title: `Ticket ${ticket}`, priority, createdAt: `2026-10-01T00:00:${ticket}Z`, url: `https://github.com/acme/brigade/issues/${ticket}`, card } });
   arriver(14, 1);
   arriver(15, 2);
   arriver(18, null, { waitsFor: [12], zone: [], problems: [] });
@@ -42,7 +42,7 @@ test("la cuisine ouverte donne le rail de son journal — celui de `facts` — e
       HOME: racine,
       BRIGADE_STATE_DIR: etat,
       BRIGADE_PROJECT: "brigade",
-      BRIGADE_GITHUB_REPO: "benomite/brigade",
+      BRIGADE_GITHUB_REPO: "acme/brigade",
       BRIGADE_REPO_DIR: clone,
       BRIGADE_BASE_BRANCH: "v2",
       BRIGADE_CLAUDE_BIN: FAUX_CLAUDE,

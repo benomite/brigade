@@ -129,8 +129,8 @@ describe("la station, son process", { concurrency: 8 }, () => {
     configurer(
       [
         "# projet  dépôt             branche  réglages",
-        `brigade   benomite/brigade  ${BASE}  BRIGADE_GH_BIN=${brigade.bin}`,
-        `espace    benomite/espace   main     BRIGADE_GH_BIN=${espace.bin} BRIGADE_SANDBOX_BIN=${FAUX_BWRAP} BRIGADE_SANDBOX_HIDDEN=${racine} BRIGADE_PROXY_PORT=3128`,
+        `brigade   acme/brigade  ${BASE}  BRIGADE_GH_BIN=${brigade.bin}`,
+        `espace    acme/espace   main     BRIGADE_GH_BIN=${espace.bin} BRIGADE_SANDBOX_BIN=${FAUX_BWRAP} BRIGADE_SANDBOX_HIDDEN=${racine} BRIGADE_PROXY_PORT=3128`,
         "",
       ].join("\n"),
     );
@@ -144,7 +144,7 @@ describe("la station, son process", { concurrency: 8 }, () => {
     for (const projet of ["brigade", "espace"]) {
       const demarrage = relire(projet).find((e) => e.type === "runtime.started");
       assert.deepEqual([demarrage?.project, (demarrage?.payload as { pid: number }).pid], [projet, pid]);
-      assert.match(station.sortie(), new RegExp(`brigade \\[${projet}\\] : servi par la station — benomite/${projet}, branche ${projet === "brigade" ? BASE : "main"}, état dans ${join(racine, "etat", projet)}`));
+      assert.match(station.sortie(), new RegExp(`brigade \\[${projet}\\] : servi par la station — acme/${projet}, branche ${projet === "brigade" ? BASE : "main"}, état dans ${join(racine, "etat", projet)}`));
     }
     // Chacun sa cloison et sa porte, dites à son nom dans la même sortie.
     assert.deepEqual(relire("brigade").find((e) => e.type === "isolation.configured")?.payload, { sandbox: null, proxy: null });
@@ -157,8 +157,8 @@ describe("la station, son process", { concurrency: 8 }, () => {
     assert.match(station.sortie(), new RegExp(`brigade \\[espace\\] : cloison — every launch .* runs in \`${FAUX_BWRAP}\``));
     // Chacun sonde son dépôt par son `gh`.
     await jusqua(() => brigade.appels().length > 0 && espace.appels().length > 0);
-    assert.ok(brigade.appels().every((appel) => !appel.join(" ").includes("benomite/espace")));
-    assert.ok(espace.appels().every((appel) => !appel.join(" ").includes("benomite/brigade")));
+    assert.ok(brigade.appels().every((appel) => !appel.join(" ").includes("acme/espace")));
+    assert.ok(espace.appels().every((appel) => !appel.join(" ").includes("acme/brigade")));
     await station.attendre("brigade [espace] : sondage GitHub en échec");
     assert.doesNotMatch(station.sortie(), /^brigade : sondage/m);
 
@@ -173,10 +173,10 @@ describe("la station, son process", { concurrency: 8 }, () => {
     const brigade = fauxGh(t);
     brigade.issues([]);
     const espace = fauxGh(t);
-    issuesDe(espace, "benomite/espace", []);
+    issuesDe(espace, "acme/espace", []);
     preparer("brigade");
     preparer("espace");
-    const ligneBrigade = `brigade benomite/brigade ${BASE} BRIGADE_GH_BIN=${brigade.bin}\n`;
+    const ligneBrigade = `brigade acme/brigade ${BASE} BRIGADE_GH_BIN=${brigade.bin}\n`;
     configurer(ligneBrigade);
     const station = lancer(t, STATION, [], env);
     await station.attendre("station démarrée");
@@ -194,7 +194,7 @@ describe("la station, son process", { concurrency: 8 }, () => {
     const avant = photographier(machine, sauf);
 
     // Ajouter : une ligne de plus, rien d'autre.
-    appendFileSync(join(racine, "projets"), `espace benomite/espace main BRIGADE_GH_BIN=${espace.bin}\n`);
+    appendFileSync(join(racine, "projets"), `espace acme/espace main BRIGADE_GH_BIN=${espace.bin}\n`);
     await jusqua(() => faits("espace", "runtime.started").length === 1);
     assert.equal(faits("espace", "runtime.started")[0]?.payload.pid, pid);
     await station.attendre("brigade [espace] : servi par la station");
@@ -210,7 +210,7 @@ describe("la station, son process", { concurrency: 8 }, () => {
     const sondes = espace.appels().length;
 
     // Rajouté, il repart de son journal : son verrou a été rendu, rien n'est interrompu.
-    appendFileSync(join(racine, "projets"), `espace benomite/espace main BRIGADE_GH_BIN=${espace.bin}\n`);
+    appendFileSync(join(racine, "projets"), `espace acme/espace main BRIGADE_GH_BIN=${espace.bin}\n`);
     await jusqua(() => faits("espace", "runtime.started").length === 2);
     assert.deepEqual(faits("espace", "runtime.interrupted"), []);
     await jusqua(() => espace.appels().length > sondes);
@@ -233,7 +233,7 @@ describe("la station, son process", { concurrency: 8 }, () => {
     brigade.issues([]);
     preparer("brigade");
     // Sans clone et sans décisions : ce projet ne peut pas être servi.
-    configurer(`brigade benomite/brigade ${BASE} BRIGADE_GH_BIN=${brigade.bin}\nespace benomite/espace main\nseul\n`);
+    configurer(`brigade acme/brigade ${BASE} BRIGADE_GH_BIN=${brigade.bin}\nespace acme/espace main\nseul\n`);
     const station = lancer(t, STATION, [], env);
     await station.attendre("station démarrée");
 
@@ -251,10 +251,10 @@ describe("la station, son process", { concurrency: 8 }, () => {
     const brigade = fauxGh(t);
     brigade.issues([]);
     const espace = fauxGh(t);
-    issuesDe(espace, "benomite/espace", []);
+    issuesDe(espace, "acme/espace", []);
     preparer("brigade");
     preparer("espace");
-    configurer(`brigade benomite/brigade ${BASE} BRIGADE_GH_BIN=${brigade.bin}\nespace benomite/espace main BRIGADE_GH_BIN=${espace.bin}\n`);
+    configurer(`brigade acme/brigade ${BASE} BRIGADE_GH_BIN=${brigade.bin}\nespace acme/espace main BRIGADE_GH_BIN=${espace.bin}\n`);
     const fichier = join(racine, "portes.json");
 
     const station = lancer(t, STATION, [], { ...env, BRIGADE_STATION_PORTES: fichier });
@@ -312,8 +312,8 @@ describe("la station, son process", { concurrency: 8 }, () => {
     test("deux projets cuisinés par le même process : chacun voit son issue devenir une branche poussée sur son origine, une PR et un commentaire", async (t) => {
       const { env, preparer, configurer, faits } = uneStation(t);
       const projets = [
-        { nom: "brigade", depot: "benomite/brigade", numero: 15 },
-        { nom: "espace", depot: "benomite/espace", numero: 7 },
+        { nom: "brigade", depot: "acme/brigade", numero: 15 },
+        { nom: "espace", depot: "acme/espace", numero: 7 },
       ].map((projet) => {
         const { origine, clone } = depotGit(t);
         const gh = fauxGh(t);
@@ -345,20 +345,20 @@ describe("la station, son process", { concurrency: 8 }, () => {
       const { origine, clone } = depotGit(t);
       const gh = fauxGh(t);
       gh.issues([issueGitHub(15, { labels: ["fire", "model:sonnet", "effort:low"] })]);
-      gh.repondre("repos/benomite/brigade/pulls", { statut: 201, corps: { html_url: "https://github.com/benomite/brigade/pull/40" } });
-      gh.repondre("repos/benomite/brigade/issues/15/comments", { statut: 201, corps: { id: 1 } });
+      gh.repondre("repos/acme/brigade/pulls", { statut: 201, corps: { html_url: "https://github.com/acme/brigade/pull/40" } });
+      gh.repondre("repos/acme/brigade/issues/15/comments", { statut: 201, corps: { id: 1 } });
       const apps = await fauxGitHubApps(t);
       preparer("brigade", { clone: false });
       const temoin = join(repertoireTemporaire(t), "temoin");
       mkdirSync(temoin);
-      configurer(`brigade benomite/brigade ${BASE} BRIGADE_GH_BIN=${gh.bin} BRIGADE_REPO_DIR=${clone} BRIGADE_GITHUB_APPS_DIR=${apps.repertoire} BRIGADE_GITHUB_API_URL=${apps.url}\n`);
+      configurer(`brigade acme/brigade ${BASE} BRIGADE_GH_BIN=${gh.bin} BRIGADE_REPO_DIR=${clone} BRIGADE_GITHUB_APPS_DIR=${apps.repertoire} BRIGADE_GITHUB_API_URL=${apps.url}\n`);
       const station = lancer(t, STATION, [], { ...env, GH_TOKEN: "ghp_du_compte", FAUX_CLAUDE: "livre", FAUX_CLAUDE_TEMOIN: temoin });
 
-      await jusqua(() => gh.appels().some((appel) => appel.at(-1) === "repos/benomite/brigade/issues/15/comments"));
+      await jusqua(() => gh.appels().some((appel) => appel.at(-1) === "repos/acme/brigade/issues/15/comments"));
       assert.match(station.sortie(), /brigade \[brigade\] : GitHub — une identité par rôle \(cook, pass, manager\)/);
       const sous = (chemin: string) => [...new Set(gh.appels().flatMap((appel, i) => (appel.at(-1) === chemin ? [/^ghs_([a-z]+)_/.exec(gh.jetons()[i] ?? "")?.[1] ?? gh.jetons()[i]] : [])))];
-      assert.deepEqual(sous("repos/benomite/brigade/pulls"), ["cook"]);
-      assert.deepEqual(sous("repos/benomite/brigade/issues?labels=fire&state=open&per_page=100"), ["manager"]);
+      assert.deepEqual(sous("repos/acme/brigade/pulls"), ["cook"]);
+      assert.deepEqual(sous("repos/acme/brigade/issues?labels=fire&state=open&per_page=100"), ["manager"]);
       assert.ok(!gh.jetons().includes(null) && !gh.jetons().includes("ghp_du_compte"));
       const [lancement] = faits("brigade", "cook.launched");
       assert.equal(git(origine, "show", `cook/${String(lancement?.payload.run)}:travail.txt`), "le travail du cook");
@@ -388,13 +388,13 @@ describe("la station, son process", { concurrency: 8 }, () => {
     git(clone, "add", ".");
     git(clone, "commit", "-q", "-m", "les gates du projet");
     git(clone, "push", "-q", "origin", BASE);
-    const depot = "benomite/brigade";
+    const depot = "acme/brigade";
     const pr = { number: 40, html_url: `https://github.com/${depot}/pull/40`, state: "open", merged: false, mergeable: true, base: { ref: BASE }, head: { sha: "tete" } };
     const gh = fauxGh(t);
     gh.issues([issueGitHub(15, { labels: ["fire", "model:sonnet", "effort:low"] })]);
     gh.repondre(`repos/${depot}/pulls`, { statut: 201, corps: pr });
     gh.repondre(`repos/${depot}/issues/15/comments`, { statut: 201, corps: { id: 1 } });
-    gh.repondre(`repos/${depot}/pulls?head=benomite:cook/*`, { corps: [pr] });
+    gh.repondre(`repos/${depot}/pulls?head=acme:cook/*`, { corps: [pr] });
     gh.repondre(`repos/${depot}/pulls/40`, { corps: pr });
     gh.repondre(`repos/${depot}/commits/*/check-runs?per_page=100`, { corps: { check_runs: [] } });
     gh.repondre(`repos/${depot}/commits/*/status?per_page=100`, { corps: { statuses: [] } });

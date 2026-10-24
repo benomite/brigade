@@ -18,7 +18,7 @@ export async function depotQuiRefuse(t: TestContext, options: { statut: 401 | 40
   const repondre = (requete: IncomingMessage, reponse: ServerResponse) => {
     requetes.push(`${requete.method} ${requete.url}`);
     if (options.statut === 401) reponse.writeHead(401, { "WWW-Authenticate": 'Basic realm="GitHub"' }).end();
-    else reponse.writeHead(403, { "Content-Type": "text/plain" }).end("Permission to benomite/parade.git denied to station.\n");
+    else reponse.writeHead(403, { "Content-Type": "text/plain" }).end("Permission to acme/shop.git denied to station.\n");
   };
   let serveur;
   if (options.tls === true) {
@@ -33,5 +33,5 @@ export async function depotQuiRefuse(t: TestContext, options: { statut: 401 | 40
     serveur.closeAllConnections();
   }));
   const { port } = serveur.address() as { port: number };
-  return { url: `${options.tls === true ? "https" : "http"}://127.0.0.1:${port}/benomite/parade.git`, requetes };
+  return { url: `${options.tls === true ? "https" : "http"}://127.0.0.1:${port}/acme/shop.git`, requetes };
 }

@@ -9,7 +9,7 @@ import { creerRegistre, type ContexteDuRemede, type Remede } from "../../src/rem
 
 const unePhrase = (texte: string) => /^[A-Z][^\n]*\.$/.test(texte) && !/[.!?] [A-Z]/.test(texte.slice(0, -1));
 
-// Une station qui refuse `parade` pour `refuse`, et dont la réévaluation rend `apres`.
+// Une station qui refuse `shop` pour `refuse`, et dont la réévaluation rend `apres`.
 function uneStation(options: { refuse: CodeDeRefus | null; apres?: () => CodeDeRefus | null; remede?: Partial<Remede>; autres?: Remede[] }) {
   const joues: ContexteDuRemede[] = [];
   const reevaluations: string[] = [];
@@ -27,7 +27,7 @@ function uneStation(options: { refuse: CodeDeRefus | null; apres?: () => CodeDeR
   let actuel: CodeDeRefus | null = options.refuse;
   const servi = (): Refus | null => (actuel === null ? null : refus(actuel, registre));
   const station: StationDesRemedes = {
-    refusDe: async (projet) => (projet === "parade" ? servi() : null),
+    refusDe: async (projet) => (projet === "shop" ? servi() : null),
     reevaluer: async (projet) => {
       reevaluations.push(projet);
       actuel = options.apres === undefined ? null : options.apres();
@@ -38,13 +38,13 @@ function uneStation(options: { refuse: CodeDeRefus | null; apres?: () => CodeDeR
   return { station, registre, joues, reevaluations };
 }
 
-const DEMANDE = { project: "parade", refusal: "hand-written-line", remedy: "remove-hand-written-line" };
+const DEMANDE = { project: "shop", refusal: "hand-written-line", remedy: "remove-hand-written-line" };
 
 test("le remède inscrit est joué, avec ce que la station lui donne, puis le refus réévalué : levé", async () => {
   const { station, registre, joues, reevaluations } = uneStation({ refuse: "hand-written-line" });
   assert.deepEqual(await executerRemede(DEMANDE, station, registre), { outcome: "lifted" });
-  assert.deepEqual(joues.map(({ projet, racine }) => [projet, racine]), [["parade", "/station"]]);
-  assert.deepEqual(reevaluations, ["parade"]);
+  assert.deepEqual(joues.map(({ projet, racine }) => [projet, racine]), [["shop", "/station"]]);
+  assert.deepEqual(reevaluations, ["shop"]);
 });
 
 test("le remède joué, le refus tient encore : il le dit en une phrase, avec le refus tel qu'il est maintenant", async () => {
@@ -80,7 +80,7 @@ test("le remède qui échoue : le refus est quand même réévalué, et tient �
     },
   });
   const issue = await executerRemede(DEMANDE, station, registre);
-  assert.deepEqual(reevaluations, ["parade"]);
+  assert.deepEqual(reevaluations, ["shop"]);
   assert.equal(issue.outcome, "holds");
   if (issue.outcome !== "holds") return;
   assert.equal(issue.reason, "The action did not go through, so the station still refuses this project: the configuration is read-only.");
@@ -112,7 +112,7 @@ test("un remède inscrit que le refus courant n'offre pas : une erreur explicite
   // Le refus a changé depuis que l'app l'a lu.
   assert.deepEqual(await executerRemede({ ...DEMANDE, refusal: "door-not-open", remedy: "open-the-door" }, station, registre), {
     outcome: "error",
-    error: "the station now refuses parade for another reason (hand-written-line, not door-not-open): nothing was done",
+    error: "the station now refuses shop for another reason (hand-written-line, not door-not-open): nothing was done",
   });
   // Un projet qu'elle ne refuse pas.
   assert.deepEqual(await executerRemede({ ...DEMANDE, project: "autre" }, station, registre), { outcome: "error", error: "the station no longer refuses autre: nothing was done" });
@@ -121,6 +121,6 @@ test("un remède inscrit que le refus courant n'offre pas : une erreur explicite
 
 test("un refus sans remède, demandé quand même : une erreur explicite, rien n'est joué", async () => {
   const { station, registre, joues } = uneStation({ refuse: "door-not-open", autres: [{ id: "open-the-door", leve: ["clone-missing"], description: "Fetches the repository again.", destructif: false, executer: () => assert.fail("jamais joué") }] });
-  assert.deepEqual(await executerRemede({ project: "parade", refusal: "door-not-open", remedy: "open-the-door" }, station, registre), { outcome: "error", error: "this refusal does not offer the remedy open-the-door: nothing was done" });
+  assert.deepEqual(await executerRemede({ project: "shop", refusal: "door-not-open", remedy: "open-the-door" }, station, registre), { outcome: "error", error: "this refusal does not offer the remedy open-the-door: nothing was done" });
   assert.deepEqual(joues, []);
 });

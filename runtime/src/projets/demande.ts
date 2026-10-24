@@ -7,7 +7,7 @@
 //   - `brigade-projets.json`, écrit par l'app seule — les projets que le chef
 //     demande à cette station :
 //       { "brigade": "projets", "format": 1, "projets": [
-//         { "nom": "parade", "depot": "benomite/parade", "base": "main",
+//         { "nom": "shop", "depot": "acme/shop", "base": "main",
 //           "principale": true, "cooks": 2,
 //           "manager": { "modele": "sonnet", "effort": "medium" },
 //           "reviewer": { "modele": "sonnet", "effort": "medium" },
@@ -36,7 +36,7 @@
 //     chaque projet demandé, et où il cuit :
 //       { "brigade": "projets-suivi", "format": 1, "a": "<ISO>",
 //         "station": { "nom": "mac", "locale": true }, "projets": [
-//         { "nom": "parade", "etat": "servi", "dit": "…", "autoriser": [],
+//         { "nom": "shop", "etat": "servi", "dit": "…", "autoriser": [],
 //           "serviLe": "<ISO>" | null, "cuitSur": "mac" | null, "ici": true,
 //           "bascule": null | { "de": "box", "vers": "mac", "demandeLe": "<ISO>",
 //             "etape": "demandee" | "acceptee" | "refusee" | "remise" | "recue" } } ] }

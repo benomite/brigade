@@ -126,7 +126,7 @@ test("`arbiter` : l'état, weight, remove et les refus ne portent aucun mot fran
     await serveur.fermer();
     ouvert.fermer();
   });
-  ouvert.dire("thermigo", { cooks: 3, demande: true, machine: false, nonArbitres: 1, consommation: { jour: 10, semaine: 20 } });
+  ouvert.dire("compta", { cooks: 3, demande: true, machine: false, nonArbitres: 1, consommation: { jour: 10, semaine: 20 } });
   const dans = async (env: Record<string, string>, ...args: string[]) => {
     const cli = lancer(t, ARBITRE, args, env);
     const code = await cli.fin;
@@ -135,10 +135,10 @@ test("`arbiter` : l'état, weight, remove et les refus ne portent aucun mot fran
     return { code, lignes };
   };
   const env = { BRIGADE_ARBITER_PORT: String(serveur.port), BRIGADE_ARBITER_STATE_DIR: repertoire };
-  for (const args of [[], ["weight", "thermigo", "3"], ["weight", "thermigo", "3"], ["weight", "atelier", "2"], [], ["remove", "atelier"]]) assert.equal((await dans(env, ...args)).code, 0, args.join(" "));
+  for (const args of [[], ["weight", "compta", "3"], ["weight", "compta", "3"], ["weight", "atelier", "2"], [], ["remove", "atelier"]]) assert.equal((await dans(env, ...args)).code, 0, args.join(" "));
   for (const [args, environnement] of [
-    [["remove", "atelier"], env], [["weight", "thermigo", "0"], env], [["weight", "Pas Un Nom", "2"], env], [["peser", "thermigo", "2"], env], [["weight", "thermigo"], env],
-    [[], {}], [[], { BRIGADE_ARBITER_PORT: "pas-un-port" }], [["weight", "thermigo", "2"], {}], [["weight", "thermigo", "2"], { BRIGADE_ARBITER_STATE_DIR: repertoireTemporaire(t) }],
+    [["remove", "atelier"], env], [["weight", "compta", "0"], env], [["weight", "Pas Un Nom", "2"], env], [["peser", "compta", "2"], env], [["weight", "compta"], env],
+    [[], {}], [[], { BRIGADE_ARBITER_PORT: "pas-un-port" }], [["weight", "compta", "2"], {}], [["weight", "compta", "2"], { BRIGADE_ARBITER_STATE_DIR: repertoireTemporaire(t) }],
   ] as const) assert.notEqual((await dans({ ...environnement }, ...args)).code, 0, args.join(" "));
 });
 

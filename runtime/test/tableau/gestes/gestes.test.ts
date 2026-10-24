@@ -27,7 +27,7 @@ const PROJET = "brigade";
 const STATION = "box/claude";
 const BRANCHE = "cook/30-x";
 const TABLEAU = 1;
-const CHEF = "benomite";
+const CHEF = "acme";
 const CARTE: Proposition = { type: "product", enonce: "Export CSV ou export JSON ?", choix: [{ texte: "L'export CSV." }, { texte: "L'export JSON." }] };
 
 // Le tableau vu de GitHub : ses commentaires, les réponses de la box — postées

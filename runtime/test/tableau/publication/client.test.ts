@@ -30,7 +30,7 @@ test("le client lit le tableau au label, ouvert ou fermé, et une issue transfé
 
   gh.repondre(`repos/${DEPOT}/issues/3`, { corps: issueBrute(3) });
   assert.equal((await client.issue(3))?.ouverte, true);
-  gh.repondre(`repos/${DEPOT}/issues/5`, { corps: issueBrute(5, { repository_url: "https://api.github.com/repos/benomite/ailleurs" }) });
+  gh.repondre(`repos/${DEPOT}/issues/5`, { corps: issueBrute(5, { repository_url: "https://api.github.com/repos/acme/ailleurs" }) });
   assert.equal(await client.issue(5), null, "transférée");
   assert.equal(await client.issue(6), null, "supprimée : GitHub répond 404");
   gh.repondre(`repos/${DEPOT}/issues/7`, { statut: 410, corps: { message: "This issue was deleted" } });
@@ -54,7 +54,7 @@ test("le client crée, réécrit le corps par l'entrée de `gh`, rouvre et épin
   gh.repondre("graphql", { corps: { data: { repository: { issue: { id: "I_12", isPinned: false } }, pinIssue: { issue: { isPinned: true } } } } });
   assert.equal(await client.epingler(12), true);
   const [lecture, mutation] = gh.appels().slice(-2);
-  assert.ok(lecture?.includes("-F") && lecture.includes("number=12") && lecture.includes("owner=benomite") && lecture.includes("name=brigade"));
+  assert.ok(lecture?.includes("-F") && lecture.includes("number=12") && lecture.includes("owner=acme") && lecture.includes("name=brigade"));
   assert.ok(mutation?.includes("id=I_12") && mutation.some((arg) => arg.includes("pinIssue")));
   // Déjà épinglée : rien ne s'écrit.
   gh.repondre("graphql", { corps: { data: { repository: { issue: { id: "I_12", isPinned: true } } } } });

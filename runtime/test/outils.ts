@@ -413,7 +413,7 @@ export async function lancerSurPortPose(
   }
 }
 
-export const DEPOT = "benomite/brigade";
+export const DEPOT = "acme/brigade";
 export const CHEMIN_TICKETS = `repos/${DEPOT}/issues?labels=fire&state=open&per_page=100`;
 
 // Une issue telle que l'API de GitHub la rend.

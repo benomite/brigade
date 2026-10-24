@@ -4,7 +4,7 @@
 // message : elle reste dans `detail`, que l'app ne montre que derrière un lien
 // « details ».
 //
-// Le 22 oct. 2026 (#1390), la box ne clonait pas BOBL-tech/mirrorscreen, et la
+// Le 22 oct. 2026 (#1390), la box ne clonait pas ACME-tech/widgets, et la
 // page disait « clone de … en échec — failed to run git: exit status 128 » :
 // la dernière ligne de gh, pas celle de git. GitHub répond « Repository not
 // found » aussi bien pour un dépôt qui n'existe pas que pour un compte qui ne

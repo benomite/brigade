@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { adresseDeCapture, capturesLivrees, capturesManquantes, capturesVues, direCaptures, estDInterface, lireCaptures } from "../src/captures.ts";
 
-const DEPOT = "benomite/brigade";
+const DEPOT = "acme/brigade";
 const SHA = "0123abcd";
 
 test("un ticket est d'interface quand sa zone touche la vue de l'app, ou que le manager l'a désigné pour le cook design", () => {

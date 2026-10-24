@@ -81,7 +81,7 @@ describe("un projet servi de bout en bout, sur cette plateforme", () => {
     // lignes, un argument vide, des espaces, des parenthèses, des astérisques.
     const [drapeau, consigne = ""] = lance.args;
     assert.equal(drapeau, "-p");
-    assert.match(consigne, /le ticket #14 du dépôt benomite\/brigade — « Ticket 14 »/);
+    assert.match(consigne, /le ticket #14 du dépôt acme\/brigade — « Ticket 14 »/);
     assert.deepEqual(lance.args, argumentsClaude(consigne, { model: "sonnet", effort: "low" }));
     // Le worktree est extrait dans les fins de ligne du dépôt, malgré `core.autocrlf`.
     assert.equal(lance.lisezmoi, "le projet\n");

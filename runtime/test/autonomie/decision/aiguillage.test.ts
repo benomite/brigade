@@ -11,7 +11,7 @@ import { ouvrirJournal } from "../../../src/journal.ts";
 import { aArreter, faitInconnu, horloge, repertoireTemporaire, JOUR_HORLOGE } from "../../outils.ts";
 
 const MAINTENANT = new Date(`${JOUR_HORLOGE}T12:00:00.000Z`);
-const LIEN = "https://github.com/benomite/brigade/pull/1561";
+const LIEN = "https://github.com/acme/brigade/pull/1561";
 
 function projet(t: TestContext) {
   const repertoire = repertoireTemporaire(t);

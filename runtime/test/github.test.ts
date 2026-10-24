@@ -28,7 +28,7 @@ test("le sondage rend les issues ouvertes qui portent le label, telles que le ra
       state: "open",
       createdAt: "2026-10-01T00:00:14Z",
       updatedAt: "2026-10-08T09:30:00Z",
-      url: "https://github.com/benomite/brigade/issues/14",
+      url: "https://github.com/acme/brigade/issues/14",
     },
   ]);
   assert.deepEqual(gh.appels(), [["api", "-i", CHEMIN_TICKETS]]);
@@ -207,7 +207,7 @@ const pr = (autres: object = {}) => ({
 
 test("la PR d'une branche se lit par sa tête : base, commit, état", async (t) => {
   const { gh, github } = sonde(t);
-  const liste = `repos/${DEPOT}/pulls?head=benomite:cook/15-abc&state=all&per_page=1`;
+  const liste = `repos/${DEPOT}/pulls?head=acme:cook/15-abc&state=all&per_page=1`;
   gh.repondre(liste, { corps: [pr()] });
   gh.repondre(`repos/${DEPOT}/pulls/40`, { corps: pr() });
 
@@ -226,8 +226,8 @@ test("la PR d'une branche se lit par sa tête : base, commit, état", async (t) 
 
 test("une branche sans PR n'en rend aucune ; une PR mergée se dit mergée", async (t) => {
   const { gh, github } = sonde(t);
-  gh.repondre(`repos/${DEPOT}/pulls?head=benomite:cook/sans&state=all&per_page=1`, { corps: [] });
-  gh.repondre(`repos/${DEPOT}/pulls?head=benomite:cook/15-abc&state=all&per_page=1`, { corps: [pr()] });
+  gh.repondre(`repos/${DEPOT}/pulls?head=acme:cook/sans&state=all&per_page=1`, { corps: [] });
+  gh.repondre(`repos/${DEPOT}/pulls?head=acme:cook/15-abc&state=all&per_page=1`, { corps: [pr()] });
   gh.repondre(`repos/${DEPOT}/pulls/40`, { corps: pr({ state: "closed", merged: true, mergeable: null }) });
 
   assert.equal(await github.prDeBranche("cook/sans"), null);
@@ -475,8 +475,8 @@ test("un GitHub ouvert sous une identité la nomme", async (t) => {
 
 test("une PR mergée dit par qui, telle que GitHub le nomme", async (t) => {
   const { gh, github } = sonde(t);
-  const liste = `repos/${DEPOT}/pulls?head=benomite:cook/15-abc&state=all&per_page=1`;
-  const fiche = { number: 40, html_url: "https://github.com/benomite/brigade/pull/40", state: "closed", merged: true, mergeable: null, base: { ref: "v2" }, head: { sha: "abc123" } };
+  const liste = `repos/${DEPOT}/pulls?head=acme:cook/15-abc&state=all&per_page=1`;
+  const fiche = { number: 40, html_url: "https://github.com/acme/brigade/pull/40", state: "closed", merged: true, mergeable: null, base: { ref: "v2" }, head: { sha: "abc123" } };
   gh.repondre(liste, { corps: [fiche] });
   gh.repondre(`repos/${DEPOT}/pulls/40`, { corps: { ...fiche, merged_by: { login: "brigade-pass[bot]" } } });
 

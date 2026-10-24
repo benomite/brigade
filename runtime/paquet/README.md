@@ -12,7 +12,7 @@ qui le servait, portes comprises (« La porte réseau »).
 ## Construire
 
 ```sh
-node runtime/paquet/construire.ts
+node runtime/paquet/construire.ts --repo <compte>/<dépôt> --maintainer "Nom <courriel>"
 ```
 
 écrit `runtime/paquet/construit/brigade-station_<version>_<arch>.deb` et dit son chemin. Il faut
@@ -24,6 +24,8 @@ node runtime/paquet/construire.ts
 | `--sortie <dossier>` | `runtime/paquet/construit/` (ignoré par git) |
 | `--node <binaire>` | le `node` qui lance la commande, vérifié contre l'`engines` du runtime |
 | `--arch <amd64\|arm64>` | l'architecture de la machine ; une autre exige son `--node` |
+| `--repo <compte>/<dépôt>` | refusée : le dépôt GitHub qui publie le paquet (aussi `BRIGADE_PAQUET_DEPOT`) — sa page d'accueil et la source de sa mise à jour |
+| `--maintainer "Nom <courriel>"` | refusée : le mainteneur dit dans le paquet (aussi `BRIGADE_PAQUET_MAINTENEUR`) |
 
 Le paquet pèse une trentaine de mégaoctets : le binaire `node` en fait l'essentiel.
 
@@ -177,6 +179,8 @@ Sur la VM de l'essai précédent, la station installée, sans rien publier sur G
 
 ```sh
 # Les versions de l'essai, lues dans un répertoire au lieu des releases.
+# (Le paquet pose lui-même BRIGADE_MISE_A_JOUR_SOURCE=github:<dépôt de --repo> dans l'unité ;
+# ce drop-in la remplace pour l'essai.)
 sudo mkdir -p /etc/systemd/system/brigade-station-mise-a-jour.service.d /srv/versions
 printf '[Service]\nEnvironment=BRIGADE_MISE_A_JOUR_SOURCE=/srv/versions\n' | sudo tee /etc/systemd/system/brigade-station-mise-a-jour.service.d/essai.conf
 sudo systemctl daemon-reload
@@ -187,7 +191,7 @@ sudo systemctl start brigade-station-mise-a-jour.service
 cat /var/lib/brigade-station/etat.json
 ```
 
-Trois versions construites l'une après l'autre (`node runtime/paquet/construire.ts` sur trois
+Trois versions construites l'une après l'autre (`node runtime/paquet/construire.ts --repo <compte>/<dépôt> --maintainer "Nom <courriel>"` sur trois
 commits, ou `--version 1.0.0`, `1.1.0`…, dont une qui change `systemd/brigade-station.service`)
 doivent passer seules ; une version dont `src/station/main.ts` sort en erreur doit revenir à la
 précédente. Le minuteur seul suffit : `start` ne fait que ne pas l'attendre. L'essai fini, retirer

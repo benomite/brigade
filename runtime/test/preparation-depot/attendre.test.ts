@@ -22,7 +22,7 @@ function uneCuisine(t: TestContext, options: { preparation?: number } = {}) {
   if (options.preparation !== undefined) writeFileSync(join(repertoireEtat, FICHIER), JSON.stringify({ ticket: options.preparation, ouvertLe: "2026-10-15T12:00:00.000Z" }));
   const journal = ouvrirJournal(repertoireEtat);
   t.after(() => journal.fermer());
-  const noter = (ticket: number, fait: Fait, author = "runtime") => journal.ajouter({ project: "parade", ticket, author, ...fait });
+  const noter = (ticket: number, fait: Fait, author = "runtime") => journal.ajouter({ project: "shop", ticket, author, ...fait });
   // Chacun arrive dans l'ordre de son numéro : sans priorité, le plus ancien passe devant.
   const arriver = (ticket: number) =>
     noter(
@@ -30,9 +30,9 @@ function uneCuisine(t: TestContext, options: { preparation?: number } = {}) {
       { type: "ticket.arrived", payload: { title: `Ticket ${ticket}`, priority: null, createdAt: `2026-10-15T00:00:${String(ticket).padStart(2, "0")}Z`, url: `https://exemple.test/${ticket}`, model: "opus", effort: "high", card: null } },
       "github",
     );
-  const rail = ouvrirRail(journal, { projet: "parade", dureeBailMs: 3_600_000 });
+  const rail = ouvrirRail(journal, { projet: "shop", dureeBailMs: 3_600_000 });
   const lignes: string[] = [];
-  const socle = { projet: "parade", journal, rail } as unknown as RuntimeAvecRail;
+  const socle = { projet: "shop", journal, rail } as unknown as RuntimeAvecRail;
   const runtime = attendreLaPreparation(socle, { repertoireEtat, dire: (ligne) => lignes.push(ligne) });
   return { repertoireEtat, runtime, socle, rail, noter, arriver, lignes };
 }

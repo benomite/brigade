@@ -96,7 +96,7 @@ describe("relancer une pass coincée", { concurrency: 2 }, () => {
 test("une carte mergée puis partie du rail — sa pass partie avec elle — se dit mergée, pas jamais passée en pass ; une carte inconnue, jamais passée", (t) => {
   const journal = ouvrirJournal(repertoireTemporaire(t));
   aArreter(t, () => journal.fermer());
-  journal.ajouter({ project: "brigade", ticket: 17, author: "pass", type: "merge.done", payload: { pr: "https://github.com/benomite/brigade/pull/1", sha: null, by: "pass", reconciled: false } });
+  journal.ajouter({ project: "brigade", ticket: 17, author: "pass", type: "merge.done", payload: { pr: "https://github.com/acme/brigade/pull/1", sha: null, by: "pass", reconciled: false } });
   journal.ajouter({ project: "brigade", ticket: 17, author: "github", type: "ticket.left", payload: { reason: "closed" } });
   assert.equal(passDuTicket(journal.base, 17), null);
   assert.deepEqual(relancerLeJugement(journal, 17), { fait: false, raison: "#17 is already merged: there is no judgement to relaunch" });
