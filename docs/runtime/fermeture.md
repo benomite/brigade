@@ -51,18 +51,19 @@ the closer is set.
 The observing closing touches nothing; this one **removes**. It is the most dangerous agent in the
 system: a cook that gets it wrong adds bad code, and the pass catches it; a closer that gets it
 wrong **erases good code**, and the gates will say "it still works", since what disappeared was
-tested by nothing. So it leaves only on **your gesture**, under a measured start condition, and
-under all the guardrails — everyone's, no others.
+tested by nothing. So it leaves only on **a request** — your gesture, or the runtime's own once a
+symptom shows (see "The automatic trigger") —, under a measured start condition, and under all the
+guardrails — everyone's, no others.
 
 ```
 brigade <project> closing write    # npm --prefix runtime run closing -- write
 brigade <project> closing cancel   # npm --prefix runtime run closing -- cancel
 ```
 
-- **Nothing else launches it.** Not a threshold crossed (`measures` *proposes* it, `drift.crossed`
-  launches nothing), not a clock, not a restart: a request that the runtime had not sent off before
-  it stopped — whether or not it was waiting — is refused when the runtime comes back (`restarted`,
-  said in journald); it has to be requested again.
+- **Nothing else launches it** but your gesture and the automatic trigger: not a clock, not a
+  restart. A request that the runtime had not sent off before it stopped, waiting or not, yours or
+  its own, is refused when the runtime comes back (`restarted`, said in journald); it has to be
+  requested again.
 - **You request it once, it waits.** With too many cooks in flight it is not refused: it waits for
   its start condition and leaves on its own, once, as soon as it is met — nothing to watch, nothing
   to restart (see "The request waits").
@@ -74,6 +75,39 @@ brigade <project> closing cancel   # npm --prefix runtime run closing -- cancel
   through the pass").
 
 The branch name `cook/fermeture-<8 characters>` and the run names `fermeture-…` stay French until the runtime is translated.
+
+### The automatic trigger
+
+For a project whose closer is set, the runtime **requests the pass on its own**, with no gesture
+from you, as soon as one of two symptoms shows since the last pass that left
+(`closing.started`) — whichever comes first:
+
+| Symptom | Read in the log |
+|---|---|
+| **20 merges** on the integration branch | The `merge.done` facts since the last pass that left, whoever merged — the closing PR's own merge included. With no pass ever, every merge of the log counts |
+| **A drift threshold crossed** | A `drift.crossed` fact since the last pass that left — the crossing the measures report once (see "Thresholds, and what warns you" in `etat-et-mesures.md`). A threshold that stays crossed after a pass does not trigger again: it is a new crossing that does, after it went back under (`drift.cleared`) |
+
+- **It is the same request as yours** (`closing.requested`, author `runtime`): it waits for its start
+  condition, it reads in the queue and on the `pass` line of `closing`, you withdraw it by
+  `closing cancel`, and everything this page says of a pass holds for it. The runtime says why it
+  requested it, on one line of journald: `passe de fermeture demandée par le runtime — 20 merges
+  depuis la dernière passe`, or `— seuil de dérive franchi — <the measure and its threshold>` (it
+  stays in French until the runtime is translated).
+- **One pass a day per project, at most.** No request is written within **24 hours** of the
+  previous one — yours or its own, whatever became of it: left, refused, withdrawn. The merges and
+  the thresholds crossed in the meantime are not lost: a pass that has not left restarts nothing,
+  and the runtime requests it once the day is over.
+- **It does not request what would be refused**: not while a request waits or a pass tidies, not
+  under your "stop" nor with the breaker open — it requests at the first wake-up after "resume".
+  A request that leaves and finds nothing to remove (`nothing`) has not left: the counters do not
+  restart, and the next day it is requested again.
+- **A project with no closer set is never touched**: no request, no fact written, whatever its
+  merges and its thresholds. Setting a closer on every project is another epic (#1665).
+- **Your gesture keeps working, and is not capped**: `closing write` requests a pass as before, even
+  on a day the runtime has already requested one.
+
+The 20 merges and the day are the runtime's values (`MERGES_PER_PASS`, `ONE_PASS_A_DAY_MS` in
+`runtime/src/closing/trigger.ts`); no variable sets them.
 
 ### The closer is set, or there is none
 
@@ -339,6 +373,8 @@ The measure names `MESURE couverture` and `MESURE verifications` are lines the g
   `brigade <projet> station`: it reads in `brigade <projet> pass`, and on the PR.
 - **In `journalctl`, the pass still says "ticket #<n>"** for a pass's PR on most of its lines: the
   number is the right one, the word is not.
-- **The counter "merges since the last closing"** of the measures does not yet restart from a pass.
+- **The counter "merges since the last closing"** of the measures (`mergesSinceCleanup`, the `merges`
+  drift threshold) does not yet restart from a pass; the automatic trigger counts its own, which
+  does (see "The automatic trigger").
 - `brigade <projet> guardrails` calls `manager` any cook with no ticket: the closer is recognised
   there by its run, `fermeture-…`.
