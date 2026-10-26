@@ -18,6 +18,10 @@
 // le choix avant qu'aucun ticket ne cuise. Celui qu'il laisse au setup du
 // projet lui fait ouvrir, une fois, le ticket qui le lui demande.
 //
+// Les stations que l'app appaire à un projet en plus de sa principale, la
+// principale les lit dans les gists appairés du compte, les déclare au journal
+// du projet et dit dans son suivi si chacune est atteinte (`secondaires.ts`).
+//
 // Ce qu'elle en dit, projet par projet, elle l'écrit dans le même gist
 // (`brigade-projets-suivi.json`) : l'app le montre au chef — et, pour chacun,
 // la station où il cuit, et si c'est l'ordinateur du chef ; pour ceux qu'elle
@@ -70,6 +74,7 @@ import { ENQUETE_MUETTE, enqueter, lireLEchecDuClone, type Enquete } from "./ech
 import { repondeurDeRemedes } from "../remedes/distant.ts";
 import { executerRemede, type StationDesRemedes } from "../remedes/executer.ts";
 import { REMEDES, type Registre } from "../remedes/registre.ts";
+import { CADENCE_DES_APPAIREES_MS, declarerLesSecondaires, injoignables, secondairesDuProjet, type LectureDesAppairees, type StationSecondaire } from "./secondaires.ts";
 
 // Entre deux lectures de ce que l'app demande.
 export const CADENCE_MS = 30_000;
@@ -127,6 +132,11 @@ export type OptionsProjets = {
   // gist de son appairage (`demandeDeLAppairage`). La station y met les projets
   // choisis pour elle dans l'app (`projets-station/`).
   source?: () => Promise<DemandeLue | null>;
+  // Les gists appairés du compte, où elle lit les stations que l'app appaire à
+  // ses projets en plus d'elle (`secondaires.ts`) — au plus toutes les
+  // `cadenceDesAppareesMs`. Absent : elle n'en lit aucune.
+  lireLesAppairees?: () => Promise<LectureDesAppairees>;
+  cadenceDesAppareesMs?: number;
 };
 
 // Ce que l'app demande, tel qu'une lecture le rend : le gist où la station le
@@ -227,6 +237,47 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
   const remedes = options.remedes ?? REMEDES;
   const besoins = suivreLesBesoins({ station, sonde: options.sonde, avertir: dire });
   const suiviDu = (projet: ProjetDemande, etat: SuiviDuProjet["etat"], dit: string, autoriser: string[] = [], cause?: CodeDeRefus): SuiviDuProjet => ({ nom: projet.nom, etat, dit, autoriser, serviLe: null, cuitSur: null, ici: false, bascule: null, ...(cause === undefined ? {} : { refus: refusDe(cause, remedes) }) });
+
+  // Les stations que l'app appaire à ses projets en plus d'elle : la dernière
+  // lecture des gists appairés, et ce qu'elle a trouvé pour chaque projet —
+  // gardé, non atteint, quand GitHub ne répond pas à la suivante.
+  let appairees: { a: number; lue: LectureDesAppairees | { panne: string } } | null = null;
+  const secondairesConnues = new Map<string, StationSecondaire[]>();
+  // Ce que le journal de service a dit de chacune : il ne le redit qu'au changement.
+  const ditDesSecondaires = new Map<string, string>();
+  const lireLesAppairees = async (): Promise<LectureDesAppairees | { panne: string } | null> => {
+    const lire = options.lireLesAppairees;
+    if (lire === undefined) return null;
+    const instant = maintenant();
+    if (appairees === null || instant - appairees.a >= (options.cadenceDesAppareesMs ?? CADENCE_DES_APPAIREES_MS)) {
+      appairees = { a: instant, lue: await lire().catch((erreur: unknown) => ({ panne: message(erreur) })) };
+    }
+    return appairees.lue;
+  };
+  // Déclare au journal du projet celles que l'app lui appaire, et rend ce que
+  // son suivi en dit.
+  const tenirLesSecondaires = (projet: ProjetDemande, lue: LectureDesAppairees | { panne: string }): StationSecondaire[] => {
+    const trouvees = "panne" in lue ? { illisible: lue.panne } : secondairesDuProjet(lue, projet.depot, { nom: station, gist: gistAppaire(racine) });
+    if ("illisible" in trouvees) return injoignables(secondairesConnues.get(projet.nom) ?? [], trouvees.illisible);
+    secondairesConnues.set(projet.nom, trouvees);
+    try {
+      const { ecrites, refusees } = declarerLesSecondaires(etatDe(projet.nom), projet.nom, trouvees);
+      for (const nom of ecrites) {
+        const tenue = trouvees.find((une) => une.station === nom);
+        dire(`brigade : station — ${projet.nom} : ${nom} déclarée au journal, appairée par l'app en plus de ${station} — ${tenue?.cooks ?? "?"} cook(s) au plus, fournit : ${tenue?.fournit.join(", ") ?? "?"} ; elle tire son travail`);
+      }
+      for (const { station: nom, raison } of refusees) direUneFois(`secondaire refusee ${projet.nom} ${nom} ${raison}`, `brigade : station — ${projet.nom} : ${nom}, appairée par l'app, n'est pas déclarée — ${raison}`);
+    } catch (erreur) {
+      direUneFois(`secondaires ${projet.nom} ${message(erreur)}`, `brigade : station — ${projet.nom} : les stations que l'app lui appaire ne sont pas déclarées au journal, la station réessaie : ${message(erreur)}`);
+    }
+    for (const secondaire of trouvees) {
+      const cle = `${projet.nom} ${secondaire.station}`;
+      if (ditDesSecondaires.get(cle) === secondaire.dit) continue;
+      ditDesSecondaires.set(cle, secondaire.dit);
+      dire(`brigade : station — ${projet.nom} : ${secondaire.station} ${secondaire.atteinte ? "atteinte" : "pas atteinte"} (${secondaire.dit})`);
+    }
+    return trouvees;
+  };
 
   // Le projet, sa branche d'intégration résolue par son clone ; null si ni son
   // dépôt ni l'app ne la nomment.
@@ -523,6 +574,19 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
       const delai = lireDelai(etatDe(dit.nom));
       return { ...dit, ...(delai === null ? {} : { delai }), ...(blocages.length === 0 ? {} : { blocages }), ...(choix.length === 0 ? {} : { choix }) };
     });
+    // Les stations que l'app appaire au projet en plus de celle-ci : déclarées
+    // au journal de chaque projet qu'elle sert en principale, et dites dans son
+    // suivi, atteintes ou non (`secondaires.ts`). Sans un tel projet, les gists
+    // du compte ne sont pas lus.
+    const principaux = [...suivi.entries()].filter(([rang, dit]) => demande.projets[rang]!.principale && dit.etat === "servi");
+    const lesAppairees = principaux.length === 0 ? null : await lireLesAppairees();
+    if (arrete) return;
+    if (lesAppairees !== null) {
+      for (const [rang, dit] of principaux) {
+        const secondaires = tenirLesSecondaires(demande.projets[rang]!, lesAppairees);
+        if (secondaires.length > 0) suivi[rang] = { ...dit, secondaires };
+      }
+    }
     // Un besoin que le chef laisse au setup du projet : la principale ouvre sur
     // le projet le ticket qui le lui demande, une fois, et son choix le dit.
     // GitHub en panne : elle réessaie à la lecture suivante.

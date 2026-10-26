@@ -19,7 +19,9 @@ import type { Onboarding } from "../../src/onboarding/etat.ts";
 import { ENQUETE_MUETTE, PAGE_DES_JETONS_FINS, type Enquete } from "../../src/projets/echec-du-clone.ts";
 import { CloneEnEchec, type Autorisation } from "../../src/projets/preparer.ts";
 import { refus } from "../../src/projets/refus.ts";
+import type { LectureDesAppairees } from "../../src/projets/secondaires.ts";
 import { tenirProjetsDeLApp } from "../../src/projets/tenir.ts";
+import { lectureDesAppairees } from "../aides/appairees.ts";
 import { depotQuiRefuse } from "../aides/depot-qui-refuse.ts";
 import { projetSurGit } from "../aides/projet-sur-git.ts";
 import { aArreter, BASE, depotGit, ENV_GIT, git, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
@@ -42,7 +44,9 @@ const SHOP = {
 // `remote` : le clone est un vrai clone d'une origine nue, et ce rappel en
 // règle le remote ; l'accès est alors vérifié par un vrai git — sans
 // configuration globale, donc sans credential helper.
-function uneStation(t: TestContext, options: { appairee?: boolean; remote?: (clone: string) => void } = {}) {
+// `appairees` : les gists appairés du compte, où elle lit les stations que
+// l'app appaire à ses projets en plus d'elle — relus à chaque cycle.
+function uneStation(t: TestContext, options: { appairee?: boolean; remote?: (clone: string) => void; appairees?: () => Promise<LectureDesAppairees> } = {}) {
   const racine = repertoireTemporaire(t);
   writeFileSync(join(racine, FICHIER_LOCAL), JSON.stringify({ gist: GIST, appairee: options.appairee ?? true, code: null, expireLe: null, echus: [] }));
   const fichiers: Fichiers = {};
@@ -107,6 +111,7 @@ function uneStation(t: TestContext, options: { appairee?: boolean; remote?: (clo
       preparations.push(`${projet.depot} ${projet.base} → ${repertoireEtat} ${clone}`);
       return { ticket: 7, ouvert: preparations.length === 1 };
     },
+    ...(options.appairees === undefined ? {} : { lireLesAppairees: options.appairees, cadenceDesAppareesMs: 0 }),
   });
   aArreter(t, () => projets.arreter());
   // Ce que l'app écrit : les projets que le chef demande à cette station.
@@ -152,6 +157,70 @@ test("un projet dont la station est la principale : cloné, ses décisions posé
   assert.equal(station.clones.length, 1);
   assert.equal(station.relectures(), 1);
   assert.equal(station.ecritures.length, ecritures);
+});
+
+test("une station que l'app appaire au projet sans en faire la principale : la principale la déclare au journal du projet avec ce qu'elle fournit, sans commande du chef, et son suivi la dit atteinte — puis plus atteinte, et pourquoi", async (t) => {
+  const MAINTENANT = Date.parse("2026-10-15T12:02:00Z");
+  const SECONDAIRE = { ...SHOP, principale: false, cooks: 1, manager: null, reviewer: null, fournit: ["macos"] };
+  let lue: () => LectureDesAppairees = () => lectureDesAppairees(MAINTENANT, { id: GIST, nom: "box", projets: [SHOP] }, { id: "gistmac", nom: "mac", projets: [SECONDAIRE] });
+  const station = uneStation(t, { appairees: async () => lue() });
+  station.demander(SHOP);
+  await station.projets.relire();
+
+  const declaree = () => {
+    const journal = ouvrirJournal(join(station.racine, "etat/shop"), { lectureSeule: true });
+    try {
+      return decisionsPosees(journal.base).BRIGADE_STATIONS;
+    } finally {
+      journal.fermer();
+    }
+  };
+  // La station de la box, posée par le parcours, reste telle quelle ; le Mac s'ajoute.
+  assert.equal(declaree(), "box/claude:2:code+raisonnement,mac/claude:1:code+raisonnement+macos:distante+ensemble");
+  const MAC = { nom: "mac", station: "mac/claude", gist: "gistmac", cooks: 1, fournit: ["code", "raisonnement", "macos"] };
+  assert.deepEqual(station.suivi()?.[0]?.secondaires, [{ ...MAC, atteinte: true, dit: "reached: it is online on GitHub" }]);
+  assert.equal(station.suivi()?.[0]?.etat, "servi");
+  assert.ok(station.lignes.includes("brigade : station — shop : mac/claude déclarée au journal, appairée par l'app en plus de box — 1 cook(s) au plus, fournit : code, raisonnement, macos ; elle tire son travail"));
+  assert.ok(station.lignes.includes("brigade : station — shop : mac/claude atteinte (reached: it is online on GitHub)"));
+
+  // Relu sans changement : rien n'est réécrit, ni au journal, ni dans le suivi.
+  const [ecritures, lignes] = [station.ecritures.length, station.lignes.length];
+  await station.projets.relire();
+  assert.equal(station.ecritures.length, ecritures);
+  assert.equal(station.lignes.length, lignes);
+
+  // Le Mac s'arrête : il n'est plus atteint, et son suivi dit pourquoi ; sa déclaration reste.
+  lue = () => lectureDesAppairees(MAINTENANT, { id: "gistmac", nom: "mac", projets: [SECONDAIRE], signe: 3, arretee: true });
+  await station.projets.relire();
+  assert.deepEqual(station.suivi()?.[0]?.secondaires, [{ ...MAC, atteinte: false, dit: "not reached: it stopped at 2026-10-15T11:59:00.000Z" }]);
+  assert.ok(station.lignes.includes("brigade : station — shop : mac/claude pas atteinte (not reached: it stopped at 2026-10-15T11:59:00.000Z)"));
+
+  // GitHub ne répond pas : le Mac reste dit, non atteint, avec la raison — et rien n'est retiré du journal.
+  lue = () => {
+    throw new Error("gh: could not resolve api.github.com");
+  };
+  await station.projets.relire();
+  assert.deepEqual(station.suivi()?.[0]?.secondaires, [{ ...MAC, atteinte: false, dit: "not reached: its gist could not be read on GitHub — gh: could not resolve api.github.com" }]);
+  assert.equal(declaree(), "box/claude:2:code+raisonnement,mac/claude:1:code+raisonnement+macos:distante+ensemble");
+
+  // L'app lui coche une capacité de plus : son entrée seule est réécrite.
+  lue = () => lectureDesAppairees(MAINTENANT, { id: "gistmac", nom: "mac", projets: [{ ...SECONDAIRE, fournit: ["macos", "enregistrement-ecran"] }] });
+  await station.projets.relire();
+  assert.equal(declaree(), "box/claude:2:code+raisonnement,mac/claude:1:code+raisonnement+macos+enregistrement-ecran:distante+ensemble");
+  assert.equal(station.suivi()?.[0]?.secondaires?.[0]?.atteinte, true);
+});
+
+test("sans station appairée en plus d'elle, ni le journal ni le suivi n'en disent rien", async (t) => {
+  const station = uneStation(t, { appairees: async () => lectureDesAppairees(Date.parse("2026-10-15T12:02:00Z"), { id: GIST, nom: "box", projets: [SHOP] }) });
+  station.demander(SHOP);
+  await station.projets.relire();
+  const journal = ouvrirJournal(join(station.racine, "etat/shop"), { lectureSeule: true });
+  try {
+    assert.equal(decisionsPosees(journal.base).BRIGADE_STATIONS, "box/claude:2:code+raisonnement");
+  } finally {
+    journal.fermer();
+  }
+  assert.equal(station.suivi()?.[0]?.secondaires, undefined);
 });
 
 test("une demande sans branche ni calibrage : le dépôt cloné les déclare — la ligne n'écrit pas de branche, seule la station est posée au journal", async (t) => {

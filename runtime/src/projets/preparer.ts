@@ -15,6 +15,10 @@ import type { ProjetDemande } from "./demande.ts";
 // (`declarer-stations.ts`).
 export const FOURNIT = "code+raisonnement";
 
+// Ce qu'une station déclarée par l'app fournit : son moteur, et ce que le chef
+// a coché pour sa machine — chaque capacité une fois.
+export const capacitesDe = (fournit: readonly string[] = []) => [...new Set([...FOURNIT.split("+"), ...fournit])];
+
 // La page GitHub où le chef installe une App sur ses dépôts, en un clic.
 export const pageDInstallation = (slug: string) => `https://github.com/apps/${encodeURIComponent(slug)}/installations/new`;
 
@@ -107,7 +111,7 @@ export const machineDe = (station: string) => station.toLowerCase().replace(/[^\
 // (`reglages-projet/en-vigueur.ts`) : rien n'en est posé sur la box.
 export function decisionsDe(projet: ProjetDemande, station: string): Record<string, string> {
   const calibrage = (prefixe: string, calibre: ProjetDemande["manager"]) => (calibre === null ? {} : { [`${prefixe}_MODEL`]: calibre.modele, [`${prefixe}_EFFORT`]: calibre.effort });
-  const fournit = [...new Set([...FOURNIT.split("+"), ...(projet.fournit ?? [])])].join("+");
+  const fournit = capacitesDe(projet.fournit).join("+");
   return {
     BRIGADE_STATIONS: `${machineDe(station)}/claude:${projet.cooks}:${fournit}`,
     ...calibrage("BRIGADE_MANAGER", projet.manager),

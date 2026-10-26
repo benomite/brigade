@@ -88,6 +88,13 @@
 //     ouvert sur le projet, quand il le laisse à son setup).
 //     Le chef choisit dans l'app, qui l'écrit dans la demande du projet :
 //     `"choix": { "need:postgres": "provide-here" }`.
+//     `secondaires` (absent tant qu'il n'y en a aucune) : pour un projet servi
+//     dont elle est la principale, les stations que l'app lui appaire en plus
+//     d'elle (`principale: false` dans leur gist), qu'elle déclare au journal
+//     du projet (`secondaires.ts`) — pour chacune, `nom` (le sien), `station`
+//     (celui que le projet déclare : `<machine>/claude`), `gist`, `cooks`,
+//     `fournit`, `atteinte` (son gist s'est lu, et elle y donne signe de vie)
+//     et `dit`, en une phrase, pourquoi elle l'est ou ne l'est pas.
 //     `station.locale` : cette station est celle de l'ordinateur du chef (une
 //     cuisine locale, sous macOS). `cuitSur` : la station où le projet cuit, telle
 //     que celle-ci la connaît — nul si elle n'en sait rien ; `ici` : il cuit sur
@@ -106,6 +113,7 @@ import { selectionsLues, type Choix, type Selections } from "../installation/bes
 import type { AccesBloque } from "./acces.ts";
 import type { EchecDuClone } from "./echec-du-clone.ts";
 import type { Refus } from "./refus.ts";
+import type { StationSecondaire } from "./secondaires.ts";
 import { NOM_DE_PROJET } from "../runtime.ts";
 
 export const FICHIER_PROJETS = "brigade-projets.json";
@@ -185,6 +193,8 @@ export type SuiviDuProjet = {
   // Le temps de son ajout à son premier ticket servi (`installation/delai/`).
   delai?: Delai;
   choix?: Choix[];
+  // Les stations que l'app lui appaire en plus de la principale (`secondaires.ts`).
+  secondaires?: StationSecondaire[];
 };
 
 const ETAPES: readonly string[] = ["demandee", "acceptee", "refusee", "remise", "recue"];

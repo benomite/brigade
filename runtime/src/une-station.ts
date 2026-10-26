@@ -8,7 +8,9 @@
 //   - la box, où la déclaration est une décision du chef au journal du projet
 //     (`BRIGADE_STATIONS`, `decisions.ts`) : `stationsDuProjet` la lit,
 //     `changerUneStation` y pose la déclaration où seule une entrée a changé.
-//     `installation stations` les joue (`declarer-stations.ts`) ;
+//     `installation stations` les joue (`declarer-stations.ts`) ; la station
+//     principale y tient, par `tenirUneStation`, chaque station que l'app lui
+//     appaire en secondaire (`projets/secondaires.ts`) ;
 //   - le poste du chef, où l'app lit dans `app.json` les stations qu'il joue
 //     pour un projet (app/src/config.ts, `stations`) : `jouerIci` y ajoute une
 //     station, `nePlusJouerIci` l'en retire, et l'app la joue — ou cesse — sans
@@ -61,6 +63,32 @@ export function changerDansLaDeclaration(declaration: string, nom: string, chang
   // Relue : un plafond ou une capacité que le runtime ne lirait pas est refusé ici.
   lireStations({ [VARIABLE_DES_STATIONS]: neuve });
   return neuve;
+}
+
+// La déclaration où `station` est écrite telle qu'elle est donnée : ajoutée à
+// la fin si la déclaration ne l'a pas, réécrite à sa place sinon. Les autres
+// entrées sont reprises telles qu'elles étaient écrites, et une entrée qui dit
+// déjà la même chose n'est pas réécrite. Une valeur que le runtime ne lirait
+// pas lève `ConfigInvalide`.
+export function tenirDansLaDeclaration(declaration: string, station: StationDeclaree): string {
+  const stations = lireStations({ [VARIABLE_DES_STATIONS]: declaration });
+  const entrees = declaration.trim() === "" ? [] : declaration.trim().split(",").map((entree) => entree.trim());
+  const rang = stations.findIndex((lue) => lue.nom === station.nom);
+  const ecrite = ecrireStation(station);
+  if (rang !== -1 && ecrireStation(stations[rang]!) === ecrite) return declaration;
+  const neuve = (rang === -1 ? [...entrees, ecrite] : entrees.map((entree, place) => (place === rang ? ecrite : entree))).join(",");
+  lireStations({ [VARIABLE_DES_STATIONS]: neuve });
+  return neuve;
+}
+
+// Tient une station au journal du projet, dans la même transaction que sa
+// relecture : rend le fait écrit, ou null si elle y est déjà telle quelle.
+export function tenirUneStation(journal: Journal, pose: { projet: string; station: StationDeclaree; auteur: string }): Evenement | null {
+  return journal.base.transaction(() => {
+    const avant = declarationDuJournal(journal);
+    const neuve = tenirDansLaDeclaration(avant, pose.station);
+    return neuve === avant ? null : poserDecision(journal, { projet: pose.projet, nom: VARIABLE_DES_STATIONS, valeur: neuve, auteur: pose.auteur });
+  });
 }
 
 // La déclaration que le journal porte, telle qu'elle y est écrite — vide s'il
