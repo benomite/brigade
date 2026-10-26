@@ -18,7 +18,7 @@ import { etablirLInterrupteur } from "./interrupteur.ts";
 import { brancherManager, configManager } from "./manager.ts";
 import { brancherPass, configPass } from "./pass.ts";
 import { plafondDuProjet } from "./reagir.ts";
-import { lireLeDepot } from "./reglages-projet/en-vigueur.ts";
+import { lireLeDepot, variablesDesGatesDuDepot } from "./reglages-projet/en-vigueur.ts";
 import { CARNET_PATH } from "./carnet/carnet.ts";
 import { brancherCarnet } from "./promotion/livrer.ts";
 import { brancherRenommage } from "./pause/renommage.ts";
@@ -106,7 +106,7 @@ try {
   const station = configStation(decide);
   supportDesDecisions({ repertoireEtat, clone: station.clone });
   ({ stations } = station);
-  const delais = configPass(process.env);
+  const delais = configPass({ ...process.env, ...variablesDesGatesDuDepot(duDepot.reglages) });
   const reviewer = configReviewer(decide);
   const manager = { ...configManager(decide), plafond: plafondDuProjet(decide, duDepot.reglages) };
   // Lus ici pour qu'un seuil mal écrit refuse le démarrage ; la dérive les
