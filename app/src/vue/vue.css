@@ -3492,11 +3492,14 @@ main > header,
   gap: 8px;
   margin: 0 0 8px;
   font-weight: 700;
-  /* La tête reste en haut de la rangée quand les cartes défilent (ticket 1556). */
+  padding: 0 0 4px;
+}
+/* La tête d'une colonne reste en haut de la rangée quand ses cartes défilent (ticket 1556). Elle seule : un titre de
+   section (Cooks, gates…) collé au haut du rail flotterait sur le reste de la page (ticket 1701). */
+#rail .colonne h4 {
   position: sticky;
   top: 0;
   z-index: 1;
-  padding: 0 0 4px;
   background: var(--bandeau);
 }
 #rail h4 span:first-child::before {
