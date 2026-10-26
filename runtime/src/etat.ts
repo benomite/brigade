@@ -6,7 +6,7 @@ import { direActiviteEn, type Activite } from "./activite.ts";
 import { activitesDuRail, type ActiviteDeTicket } from "./activites.ts";
 import { DIRE_GATES_COUPEES, DIRE_GATES_COUPEES_EN } from "./events/pass.ts";
 import type { CarteDeTodo } from "./carte-todo.ts";
-import { attentesDuChef, decisionDe, type Livraison, decrireAttentes, direAttente, direAttenteEn, nommerAttente, nommerEn, passageEnService, pauseDeLaCuisine, type Attente, type Decision, type Passage, type PauseEnVigueur } from "./attend.ts";
+import { attentesDuChef, decisionDe, type Livraison, decrireAttentes, direAttente, direAttenteEn, nommerAttente, nommerEn, passageEnService, pauseDeLaCuisine, reposSansStation, type Attente, type Decision, type Passage, type PauseEnVigueur } from "./attend.ts";
 import { geste } from "./geste.ts";
 import { fournitTout } from "./capacites.ts";
 import { capturesManquantes, capturesVues, lireCaptures, type Captures, type CapturesVues } from "./captures.ts";
@@ -716,7 +716,7 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     decrireSauvegarde(etat, maintenant, ageMaxSauvegardeMs),
     "",
     // Avant le rail : « est-ce qu'on m'attend ? » se lit sans le parcourir.
-    ...decrireAttentes(etat.attend, depuisEn, etat.sansGrant, etat.passage, etat.pause),
+    ...decrireAttentes(etat.attend, depuisEn, etat.sansGrant, etat.passage, etat.pause, reposSansStation(etat.rail, etat.attend)),
     ...decrireCoincees(etat, depuisEn),
     ligne("rail", decompte.length === 0 ? "empty" : decompte.join(" · ")),
     ...etat.rail.map((ticket) =>
