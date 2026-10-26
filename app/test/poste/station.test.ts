@@ -33,8 +33,11 @@ function unGitHub(t: TestContext) {
   writeFileSync(join(repertoire, "appels"), "");
   const gh = ghDuRepertoire(repertoire, repondre);
   t.after(() => rmSync(repertoire, { recursive: true, force: true }));
-  const gists = () => readdirSync(repertoire).filter((nom) => nom.endsWith(".gist.json"));
-  const etat = (gist: string) => JSON.parse(JSON.parse(readFileSync(join(repertoire, gist), "utf8")).files[FICHIER_STATION].content) as { nom: string; arreteeLe: string | null };
+  // Les gists de la présence de la station : celui de son enregistrement sous le compte
+  // (runtime/src/enregistrement-station/) est à côté, sans `brigade-station.json`.
+  const fichiers = (gist: string) => (JSON.parse(readFileSync(join(repertoire, gist), "utf8")) as { files: Record<string, { content: string }> }).files;
+  const gists = () => readdirSync(repertoire).filter((nom) => nom.endsWith(".gist.json") && FICHIER_STATION in fichiers(nom));
+  const etat = (gist: string) => JSON.parse(fichiers(gist)[FICHIER_STATION]?.content ?? "null") as { nom: string; arreteeLe: string | null };
   return { repertoire, gh, gists, etat };
 }
 

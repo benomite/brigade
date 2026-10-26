@@ -10,6 +10,7 @@ import { FICHIER_LOCAL } from "../../src/enregistrement-station/enregistrer.ts";
 import { lireLesStationsDuCompte, type StationEnregistree } from "../../src/enregistrement-station/stations-du-compte.ts";
 import { ENV_GIT, FAUX_CLAUDE, lancer, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
 import { FAUX_GH_GISTS } from "../appairage/doublure-des-gists.ts";
+import { posixOnly } from "../support/plateforme.ts";
 
 const rienNeReste = temporaireDuFichier();
 
@@ -45,7 +46,20 @@ function uneMachine(t: TestContext) {
   return { racine, env, stations };
 }
 
-test("démarrée, la station est enregistrée sous le compte sans aucune commande ; arrêtée, indisponible ; redémarrée, disponible sous le même gist", async (t) => {
+const plateforme = process.platform === "darwin" ? "macos" : process.platform === "win32" ? "windows" : process.platform;
+
+// Lit les stations du compte jusqu'à ce que l'une remplisse la condition : la station écrit de son
+// côté, sans rien dire au test. Le délai du test est la seule garde.
+async function attendreStation(stations: () => Promise<StationEnregistree[]>, condition: (station: StationEnregistree) => boolean, station: { process: { exitCode: number | null }; sortie: () => string }) {
+  for (;;) {
+    const [lue] = await stations();
+    if (lue !== undefined && condition(lue)) return lue;
+    assert.equal(station.process.exitCode, null, station.sortie());
+    await new Promise((resoudre) => setTimeout(resoudre, 50));
+  }
+}
+
+test("démarrée, la station est enregistrée sous le compte sans aucune commande ; redémarrée, elle rafraîchit le même gist", async (t) => {
   const { racine, env, stations } = uneMachine(t);
 
   const premiere = lancer(t, STATION, [], env);
@@ -55,9 +69,37 @@ test("démarrée, la station est enregistrée sous le compte sans aucune command
   assert.ok(enregistree);
   assert.equal(enregistree.name, "box");
   assert.equal(enregistree.version, "1.4.0");
-  assert.equal(enregistree.platform, process.platform === "darwin" ? "macos" : process.platform === "win32" ? "windows" : process.platform);
+  assert.equal(enregistree.platform, plateforme);
   assert.equal(enregistree.available, true);
+  assert.equal(enregistree.stoppedAt, null);
   assert.match(premiere.sortie(), new RegExp(`\\(gist ${enregistree.id}\\)`));
+  assert.ok(existsSync(join(racine, FICHIER_LOCAL)));
+
+  // Tuée net — sur toute plateforme : elle n'écrit rien de son arrêt.
+  premiere.process.kill("SIGKILL");
+  await premiere.fin;
+
+  const seconde = lancer(t, STATION, [], env);
+  await seconde.attendre("station démarrée");
+  // Elle ne s'annonce pas de nouveau : elle reprend son gist, et le rafraîchit.
+  const reprise = await attendreStation(stations, (station) => station.lastSeen !== enregistree.lastSeen, seconde);
+  assert.equal(reprise.id, enregistree.id);
+  assert.equal(reprise.available, true);
+  assert.equal(reprise.registeredAt, enregistree.registeredAt);
+  assert.equal((await stations()).length, 1);
+  assert.equal(JSON.parse(readFileSync(join(racine, FICHIER_LOCAL), "utf8")).gist, enregistree.id);
+  assert.doesNotMatch(seconde.sortie(), /station enregistrée sous le compte/);
+});
+
+// Sous Windows, `kill("SIGTERM")` termine le process sans que son gestionnaire tourne : l'arrêt
+// propre de la station n'y est pas un signal.
+test("arrêtée proprement, la station est indisponible à la lecture suivante ; redémarrée, de nouveau disponible sous le même gist", { skip: posixOnly("SIGTERM on Windows ends the process without running its handler") }, async (t) => {
+  const { env, stations } = uneMachine(t);
+
+  const premiere = lancer(t, STATION, [], env);
+  await premiere.attendre("station enregistrée sous le compte GitHub de sa machine");
+  const [enregistree] = await stations();
+  assert.ok(enregistree);
 
   premiere.process.kill("SIGTERM");
   assert.equal(await premiere.fin, 0);
@@ -65,24 +107,13 @@ test("démarrée, la station est enregistrée sous le compte sans aucune command
   assert.equal(arretee?.id, enregistree.id);
   assert.equal(arretee?.available, false);
   assert.ok(arretee?.stoppedAt);
-  assert.ok(existsSync(join(racine, FICHIER_LOCAL)));
 
   const seconde = lancer(t, STATION, [], env);
   await seconde.attendre("station démarrée");
-  // Elle ne s'annonce pas de nouveau : elle reprend son gist, et le rafraîchit.
-  let reprise: StationEnregistree | undefined;
-  for (;;) {
-    [reprise] = await stations();
-    if (reprise?.available === true) break;
-    assert.equal(seconde.process.exitCode, null, seconde.sortie());
-    await new Promise((resoudre) => setTimeout(resoudre, 50));
-  }
+  const reprise = await attendreStation(stations, (station) => station.available, seconde);
   assert.equal(reprise.id, enregistree.id);
   assert.equal(reprise.stoppedAt, null);
-  assert.equal(reprise.registeredAt, enregistree.registeredAt);
   assert.equal((await stations()).length, 1);
-  assert.equal(JSON.parse(readFileSync(join(racine, FICHIER_LOCAL), "utf8")).gist, enregistree.id);
-  assert.doesNotMatch(seconde.sortie(), /station enregistrée sous le compte/);
   seconde.process.kill("SIGTERM");
   assert.equal(await seconde.fin, 0);
 });
