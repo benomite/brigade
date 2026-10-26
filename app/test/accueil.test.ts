@@ -148,12 +148,17 @@ describe("la ligne d'une station : son état, ce qu'elle fait, ses projets — s
     for (const etat of etats) {
       for (const saturee of [false, true]) {
         const ligne = ligneDeStation(etat, 0, saturee);
-        if (ligne.ton === "gris") assert.ok(ligne.raison !== undefined && ligne.raison.phrase.includes(ligne.nom), JSON.stringify(ligne));
+        if (ligne.ton === "gris") assert.ok(ligne.raison !== undefined && ligne.raison.phrase !== "" && ligne.raison.bouton.libelle !== "", JSON.stringify(ligne));
       }
     }
-    assert.deepEqual(ligneDeStation(station({ etat: "hors-ligne", dit: "offline for 4 min" }), 0, false).raison, { cle: "hors-ligne", phrase: "not reached: start Brigade on parade-box's computer, this line turns green when it signs again" });
-    assert.equal(ligneDeStation(station({ etat: "illisible", dit: "unreadable" }), 0, false).raison?.cle, "illisible");
-    assert.equal(ligneDeStation(station({ projets: [] }), 0, false).raison?.phrase, "not added to any project: add a project to parade-box with “+” in the bar");
+    const hors = ligneDeStation(station({ etat: "hors-ligne", dit: "offline for 4 min" }), 0, false).raison;
+    assert.deepEqual([hors?.cle, hors?.phrase, hors?.bouton], ["hors-ligne", "not reached", { libelle: "check again", geste: "relire" }]);
+    assert.match(hors?.survol ?? "", /^start Brigade on parade-box's computer/);
+    assert.deepEqual(ligneDeStation(station({ etat: "illisible", dit: "unreadable" }), 0, false).raison?.bouton, { libelle: "open its page", geste: "ouvrir-la-page" });
+    const sans = ligneDeStation(station({ projets: [] }), 0, false).raison;
+    assert.deepEqual([sans?.phrase, sans?.bouton], ["not added to any project", { libelle: "add a project", geste: "ajouter-un-projet" }]);
+    // Une phrase tient sur une ligne : quelques mots, le reste au survol.
+    for (const raison of [hors, sans]) assert.ok((raison?.phrase.length ?? 99) <= 30);
     assert.equal(ligneDeStation(station(), 0, false).raison, undefined);
     assert.equal(ligneDeStation(station({ projets: [] }), 0, false, [{ projet: "a", station: "box" }]).raison, undefined);
   });

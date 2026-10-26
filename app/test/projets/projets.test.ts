@@ -452,10 +452,10 @@ describe("l'ajout, la lecture et le retrait d'un projet, contre un GitHub de tes
     suivre("g1", [{ ...SERVI, secondaires: [{ ...tenue, atteinte: true, dit: "reached: it is online on GitHub" }] }]);
     assert.deepEqual((await lue())?.atteinte, { oui: true, dit: "reached: it is online on GitHub" });
     suivre("g1", [{ ...SERVI, secondaires: [{ ...tenue, atteinte: false, dit: "not reached: it stopped at 2026-10-15T11:50:00.000Z" }] }]);
-    assert.deepEqual((await lue())?.atteinte, { oui: false, dit: "not reached: it stopped at 2026-10-15T11:50:00.000Z", pourquoi: "not reached — open Brigade on that computer" });
+    assert.deepEqual((await lue())?.atteinte, { oui: false, dit: "not reached: it stopped at 2026-10-15T11:50:00.000Z", pourquoi: "not reached", geste: "open Brigade on that computer" });
     // Le geste que la principale publie (#1758) est celui de la phrase.
     suivre("g1", [{ ...SERVI, secondaires: [{ ...tenue, atteinte: false, dit: "not reached: it stopped at 2026-10-15T11:50:00.000Z", raison: "arretee", geste: "start Brigade on that computer again" }] }]);
-    assert.equal((await lue())?.atteinte?.pourquoi, "not reached — start Brigade on that computer again");
+    assert.deepEqual([(await lue())?.atteinte?.pourquoi, (await lue())?.atteinte?.geste], ["not reached", "start Brigade on that computer again"]);
     // Une secondaire illisible, ou celle d'une autre station, ne dit rien de celle-ci.
     suivre("g1", [{ ...SERVI, secondaires: [{ ...tenue, gist: "g9", atteinte: true, dit: "reached" }, { ...tenue, atteinte: "oui", dit: "reached" }] }]);
     assert.equal((await lue())?.atteinte, undefined);

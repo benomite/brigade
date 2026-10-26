@@ -5280,7 +5280,7 @@ async function passer() {
 
 // Une ligne de l'accueil : sa pastille, son nom, ce qui s'y passe — et, au survol, ce qu'elle tait.
 // Toute la ligne est un bouton : un clic n'importe où l'ouvre. Elle ne porte aucun autre geste.
-/** @param {string} nom @param {{ ton: string, dit: string, survol: string, raison?: { phrase: string } }} ligne @param {() => void} ouvrirLa */
+/** @param {string} nom @param {{ ton: string, dit: string, survol: string, raison?: { phrase: string, survol: string } }} ligne @param {() => void} ouvrirLa */
 function ligneDAccueil(nom, { ton, dit, survol, raison }, ouvrirLa) {
   const cree = document.createElement("button");
   cree.type = "button";
@@ -5294,6 +5294,7 @@ function ligneDAccueil(nom, { ton, dit, survol, raison }, ouvrirLa) {
   suite.ariaHidden = "true";
   const pourquoi = bloc("span", raison?.phrase ?? "");
   pourquoi.className = "pourquoi";
+  pourquoi.title = raison?.survol ?? "";
   cree.append(pastille(dit, ton), appele, bloc("span", dit), ...(raison === undefined ? [] : [pourquoi]), suite);
   cree.addEventListener("click", ouvrirLa);
   return cree;
@@ -5305,15 +5306,36 @@ function ligneDAccueil(nom, { ton, dit, survol, raison }, ouvrirLa) {
 function ligneDeStationDeLAccueil(station) {
   const ligne = ligneDAccueil(station.nom, station, () => ouvrirStation(station.id));
   const cuisine = stationsVues?.stations.find(({ id }) => id === station.id)?.cuisine !== false;
-  if (telephoneVu !== undefined || brigade.tirerUnCodeDeTelephone === undefined || !cuisine) return ligne;
+  const gestes = [];
+  // Une station qui ne cuit pas encore : le bouton de sa raison, un geste que l'app fait (stations/raison.ts).
+  if (station.raison !== undefined) {
+    const { geste, libelle } = station.raison.bouton;
+    const remede = /** @type {HTMLButtonElement} */ (bloc("button", libelle));
+    remede.type = "button";
+    remede.className = "remede-de-station";
+    remede.ariaLabel = `${libelle} — ${station.nom}`;
+    remede.addEventListener("click", () => {
+      if (geste === "ouvrir-la-page") ouvrirStation(station.id);
+      else if (geste === "ajouter-un-projet") ouvrirAjout();
+      else {
+        remede.disabled = true;
+        void brigade.panne(station.id, "relire-la-station").finally(() => (remede.disabled = false));
+      }
+    });
+    gestes.push(remede);
+  }
+  if (telephoneVu === undefined && brigade.tirerUnCodeDeTelephone !== undefined && cuisine) {
+    const appairer = /** @type {HTMLButtonElement} */ (bloc("button", APPAIRER_UN_TELEPHONE));
+    appairer.type = "button";
+    appairer.className = "appairer-un-telephone";
+    appairer.ariaLabel = `${APPAIRER_UN_TELEPHONE} with ${station.nom}`;
+    appairer.addEventListener("click", () => ouvrirLesTelephones({ id: station.id, nom: station.nom }));
+    gestes.push(appairer);
+  }
+  if (gestes.length === 0) return ligne;
   const rang = document.createElement("div");
   rang.className = "ligne-et-geste";
-  const appairer = /** @type {HTMLButtonElement} */ (bloc("button", APPAIRER_UN_TELEPHONE));
-  appairer.type = "button";
-  appairer.className = "appairer-un-telephone";
-  appairer.ariaLabel = `${APPAIRER_UN_TELEPHONE} with ${station.nom}`;
-  appairer.addEventListener("click", () => ouvrirLesTelephones({ id: station.id, nom: station.nom }));
-  rang.append(ligne, appairer);
+  rang.append(ligne, ...gestes);
   return rang;
 }
 
@@ -5809,10 +5831,10 @@ function cuisineDe(projet) {
   const demande = projetsVus?.projets.find(({ nom }) => nom === projet.nom);
   const servies = (stationsVues?.stations ?? []).filter(({ projets }) => projets.includes(projet.nom));
   const stations = [
-    ...servies.map(({ id, nom }) => ({ id, nom, principale: true, ...(muette ? { dit: "unreachable", ton: "rouge" } : etatDeLaCuisine("servi")), pourquoi: "", survol: muette ? `${nom} does not answer: the app knows nothing of the kitchen right now` : `${nom} serves it: it runs its manager and its pass`, autoriser: /** @type {string[]} */ ([]) })),
+    ...servies.map(({ id, nom }) => ({ id, nom, principale: true, ...(muette ? { dit: "unreachable", ton: "rouge" } : etatDeLaCuisine("servi")), pourquoi: "", geste: "", survol: muette ? `${nom} does not answer: the app knows nothing of the kitchen right now` : `${nom} serves it: it runs its manager and its pass`, autoriser: /** @type {string[]} */ ([]) })),
     ...(demande?.stations ?? [])
       .filter(({ id }) => !servies.some((servie) => servie.id === id))
-      .map((station) => ({ id: station.id, nom: station.nom, principale: station.principale, ...etatDeLaCuisine(station.etat, station.atteinte), pourquoi: station.atteinte?.pourquoi ?? "", survol: station.atteinte === undefined ? station.dit : station.atteinte.dit.replace(/^(not )?reached: /, ""), autoriser: station.autoriser })),
+      .map((station) => ({ id: station.id, nom: station.nom, principale: station.principale, ...etatDeLaCuisine(station.etat, station.atteinte), pourquoi: station.atteinte?.pourquoi ?? "", geste: station.atteinte?.geste ?? "", survol: station.atteinte === undefined ? station.dit : station.atteinte.dit.replace(/^(not )?reached: /, ""), autoriser: station.autoriser })),
   ];
   return { stations, demande: demande !== undefined, principale: stations.some(({ principale }) => principale) };
 }
@@ -5862,9 +5884,19 @@ function stationNommee(station, ici, rang = "") {
   });
   const pose = document.createElement("span");
   pose.className = "station-et-gestes";
+  // Une station ajoutée mais pas atteinte : deux mots, ce que le chef fait ailleurs au survol, et le geste de l'app.
   const pourquoi = bloc("span", station.pourquoi);
   pourquoi.className = "pourquoi";
-  pose.append(nomme, ...(station.pourquoi === "" ? [] : [pourquoi]), ...autoriser);
+  pourquoi.title = station.geste;
+  const relire = /** @type {HTMLButtonElement} */ (bloc("button", "check again"));
+  relire.type = "button";
+  relire.className = "relire-la-station";
+  relire.title = "reads GitHub again, to see whether the station has spoken";
+  relire.addEventListener("click", () => {
+    relire.disabled = true;
+    void brigade.panne(station.id, "relire-la-station").finally(() => (relire.disabled = false));
+  });
+  pose.append(nomme, ...(station.pourquoi === "" ? [] : [pourquoi, relire]), ...autoriser);
   return pose;
 }
 
@@ -6068,7 +6100,7 @@ function poserStationsDuProjet() {
     // Où il cuit, d'abord — « this Mac » pour la station de cet ordinateur —, puis ses renforts.
     const sienne = stations.find(({ id }) => id === ou?.id);
     const autres = stations.filter((station) => station !== sienne && !(enCours !== null && enCours.etape !== "refusee" && station.nom === enCours.vers));
-    const tete = ou === undefined ? [] : [stationNommee(sienne ?? { id: ou.id ?? "", nom: ou.nom, principale: true, dit: "served", ton: "vert", survol: "", pourquoi: "", autoriser: [] }, ou.ici)];
+    const tete = ou === undefined ? [] : [stationNommee(sienne ?? { id: ou.id ?? "", nom: ou.nom, principale: true, dit: "served", ton: "vert", survol: "", pourquoi: "", geste: "", autoriser: [] }, ou.ici)];
     ligneDesStationsDuProjet.replaceChildren(
       bloc("span", ou === undefined ? "Cooked by " : "Cooks on "),
       ...tete,

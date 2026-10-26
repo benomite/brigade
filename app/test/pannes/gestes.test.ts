@@ -2,7 +2,7 @@
 // le login — celui de la station de cet ordinateur seulement.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { jouerPanne, type OptionsGestes } from "../../src/pannes/gestes.ts";
+import { jouerPanne, RELIRE_LA_STATION, type OptionsGestes } from "../../src/pannes/gestes.ts";
 import type { Panne } from "../../src/pannes/pannes.ts";
 import type { StationVue, VuDesStations } from "../../src/stations/stations.ts";
 
@@ -59,4 +59,13 @@ test("une panne qui n'est plus sur la ligne — relue entre-temps, ou jamais mon
     assert.deepEqual(await jouerPanne(options, id, cle), { refus: "this breakdown is no longer shown: the station was read again in the meantime" });
   }
   assert.deepEqual(fait, { relectures: 0, ecartees: [], logins: 0 });
+});
+
+test("« check again » d'une station qui ne cuit pas encore relit GitHub sans viser une panne, et dit si elle a reparlé (#1758)", async () => {
+  const hors = { ...station([]), etat: "hors-ligne" as const };
+  const muette = desGestes([], { a: "", stations: [hors] });
+  assert.deepEqual(await jouerPanne(muette.options, "g1", RELIRE_LA_STATION), { fait: "still no sign of life from box on GitHub" });
+  assert.equal(muette.fait.relectures, 1);
+  assert.deepEqual(await jouerPanne(desGestes([]).options, "g1", RELIRE_LA_STATION), { fait: "box is back" });
+  assert.deepEqual(await jouerPanne(desGestes([], { a: "", stations: [] }).options, "g1", RELIRE_LA_STATION), { refus: "this station is no longer paired with this app" });
 });

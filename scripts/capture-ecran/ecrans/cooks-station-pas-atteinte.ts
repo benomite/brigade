@@ -10,5 +10,5 @@ export const ecran: Ecran = {
   largeur: 1440,
   hauteur: 900,
   etapes: [OUVRIR, { cliquer: "#onglets-du-projet button:nth-child(2)" }],
-  donnees: () => donnees({ ...SUR_LA_BOX, stations: [box!, { ...mac!, atteinte: { oui: false, dit: "not reached: no sign of life on GitHub since 2026-10-16T09:41:00.000Z", pourquoi: "not reached — open Brigade on that computer: its station signs again within a minute" } }] }),
+  donnees: () => donnees({ ...SUR_LA_BOX, stations: [box!, { ...mac!, atteinte: { oui: false, dit: "not reached: no sign of life on GitHub since 2026-10-16T09:41:00.000Z", pourquoi: "not reached", geste: "open Brigade on that computer" } }] }),
 };

@@ -1411,15 +1411,16 @@ one line.
 
 #### A station that is installed but cannot cook yet says why (#1758)
 
-A grey dot is never alone: a station line that cannot cook yet carries one sentence, next to its state, that says
-why and the gesture to do. Offline: "not reached: start Brigade on *name*'s computer, this line turns green when it
-signs again". Unreadable: "cannot be read: open *name*'s page and remove it, then pair it again with a new code".
-Online with no project (and none of this computer's projects cooking on it): "not added to any project: add a
-project to *name* with “+” in the bar". The sentences live in `app/src/stations/raison.ts`, one per key, and a
-test fails when a grey station line has none. A station added to a project that its main station cannot reach is
-the same on the project's Cooks tab: its main station publishes the reason key and the gesture
-(`raison`, `geste` of `secondaires` in its tracking, `runtime/src/projets/secondaires.ts`: `arretee`, `muette`,
-`gist-illisible`), and the line reads "not reached — *gesture*", the detail staying on hover.
+A grey dot is never alone: a station line that cannot cook yet carries a few words next to its state, and the
+button that does the gesture. Offline: "not reached" and **check again** (reads GitHub again). Unreadable:
+"cannot be read" and **open its page** (where it is removed). Online with no project (and none of this
+computer's projects cooking on it): "not added to any project" and **add a project**. What the chef does on
+another computer ("start Brigade on *name*'s computer") is the hover of the words. The wording lives in
+`app/src/stations/raison.ts`, and a test fails when a grey station line has no reason and button. A station added
+to a project that its main station cannot reach is the same on the project's Cooks tab: its main station
+publishes the reason key and the gesture (`raison`, `geste` of `secondaires` in its tracking,
+`runtime/src/projets/secondaires.ts`: `arretee`, `muette`, `gist-illisible`); the line reads "not reached" with
+**check again**, the gesture on hover.
 
 ### Your stations under your GitHub account, and the projects each serves (#1706)
 
