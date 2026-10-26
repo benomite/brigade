@@ -52,7 +52,17 @@ describe("the `setting` command", () => {
     assert.deepEqual(changementDesMots(["manager", "opus", "high"]), { defaultCalibrations: { manager: { model: "opus", effort: "high" } } });
     assert.deepEqual(changementDesMots(["reviewer", "default"]), { defaultCalibrations: { reviewer: null } });
     assert.deepEqual(changementDesMots(["branch", "v3"]), { integrationBranch: "v3" });
-    for (const mots of [["ceiling", "opus"], ["branch"], ["branch", "a", "b"], ["cooks", "4"], ["ceiling", "opus", "high", "x"]]) assert.equal(changementDesMots(mots), null, mots.join(" "));
+    // Le closer (#1685) : son calibrage, et ses trois nombres — des chiffres sont un nombre, un autre mot reste un mot, que
+    // l'écriture refuse en le nommant.
+    assert.deepEqual(changementDesMots(["closer", "sonnet", "medium"]), { closer: { calibration: { model: "sonnet", effort: "medium" } } });
+    assert.deepEqual(changementDesMots(["closer", "default"]), { closer: { calibration: null } });
+    assert.deepEqual(changementDesMots(["closer-cooks", "2"]), { closer: { cooksBelow: 2 } });
+    assert.deepEqual(changementDesMots(["closer-tokens", "200000"]), { closer: { maxTokens: 200_000 } });
+    assert.deepEqual(changementDesMots(["closer-lines", "default"]), { closer: { maxRemovedLines: null } });
+    assert.deepEqual(changementDesMots(["closer-lines", "1.5"]), { closer: { maxRemovedLines: "1.5" } });
+    for (const mots of [["ceiling", "opus"], ["branch"], ["branch", "a", "b"], ["cooks", "4"], ["ceiling", "opus", "high", "x"], ["closer-cooks"], ["closer-cooks", "1", "2"], ["closer", "opus"], ["constructor", "1"]]) {
+      assert.equal(changementDesMots(mots), null, mots.join(" "));
+    }
   });
 
   test("words it does not read are a usage, in 2, and nothing is asked", async (t) => {
@@ -71,6 +81,17 @@ describe("the `setting` command", () => {
     assert.equal(lu.json?.reason, "chemin");
     assert.equal(lu.json?.key, "integrationBranch");
     assert.match(String(lu.json?.message), /`integrationBranch` does not belong in the project's repository/);
+    assert.deepEqual(evenements(repertoire), []);
+  });
+
+  test("a closer's number the file would refuse answers its reason in JSON, in 1, before any request (#1685)", async (t) => {
+    const repertoire = repertoireTemporaire(t);
+    for (const [mots, cle] of [[["closer-cooks", "0"], "closer.cooksBelow"], [["closer-tokens", "lots"], "closer.maxTokens"], [["closer-lines", "99999999999999999999"], "closer.maxRemovedLines"], [["closer", "gpt", "high"], "closer.calibration.model"]] as const) {
+      const lu = await jouer({ BRIGADE_STATE_DIR: repertoire, BRIGADE_PROJECT: "brigade" }, [...mots]);
+      assert.equal(lu.code, 1, mots.join(" "));
+      assert.deepEqual([lu.json?.ok, lu.json?.reason, lu.json?.key], [false, "invalide", cle], mots.join(" "));
+      assert.match(String(lu.json?.message), new RegExp(`^\`${cle.replaceAll(".", "\\.")}\` must be`), mots.join(" "));
+    }
     assert.deepEqual(evenements(repertoire), []);
   });
 
@@ -100,14 +121,17 @@ describe("the `setting` command", () => {
   test("with no argument, it shows the settings the kitchen applies — the repository's first — and where each comes from", async (t) => {
     const { clone } = depotGit(t);
     mkdirSync(join(clone, ".claude/brigade"), { recursive: true });
-    writeFileSync(join(clone, FICHIER), `${JSON.stringify({ version: 1, integrationBranch: BASE, defaultCalibrations: { manager: { model: "sonnet", effort: "medium" } }, calibrationCeiling: { model: "sonnet", effort: "high" } })}\n`);
+    const closer = { calibration: { model: "sonnet", effort: "medium" }, maxTokens: 200_000 };
+    writeFileSync(join(clone, FICHIER), `${JSON.stringify({ version: 1, integrationBranch: BASE, defaultCalibrations: { manager: { model: "sonnet", effort: "medium" } }, calibrationCeiling: { model: "sonnet", effort: "high" }, closer })}\n`);
     git(clone, "add", ".");
     git(clone, "commit", "-q", "-m", "les réglages du projet");
     git(clone, "push", "-q", "origin", BASE);
-    // Le calibrage du reviewer, que le dépôt ne porte pas : celui que le chef a posé sur la station.
+    // Le calibrage du reviewer et la condition de départ du closer, que le dépôt ne porte pas : ceux que le chef a posés
+    // sur la station. Le plafond de tokens du closer posé sur la station cède à celui du dépôt.
     const repertoire = repertoireTemporaire(t);
     const journal = ouvrirJournal(repertoire);
-    for (const [nom, valeur] of [["BRIGADE_REVIEWER_MODEL", "opus"], ["BRIGADE_REVIEWER_EFFORT", "high"]] as const) poserDecision(journal, { projet: "brigade", nom, valeur, auteur: "chef" });
+    const poses = [["BRIGADE_REVIEWER_MODEL", "opus"], ["BRIGADE_REVIEWER_EFFORT", "high"], ["BRIGADE_CLOSING_COOKS", "3"], ["BRIGADE_CLOSING_MAX_TOKENS", "900000"]] as const;
+    for (const [nom, valeur] of poses) poserDecision(journal, { projet: "brigade", nom, valeur, auteur: "chef" });
     journal.fermer();
     const env = { BRIGADE_STATE_DIR: repertoire, BRIGADE_PROJECT: "brigade", BRIGADE_REPO_DIR: clone, BRIGADE_BASE_BRANCH: BASE };
     const lu = await jouer(env, []);
@@ -118,11 +142,25 @@ describe("the `setting` command", () => {
       integrationBranch: { value: BASE, from: "repository" },
       defaultCalibrations: { manager: { model: "sonnet", effort: "medium", from: "repository" }, reviewer: { model: "opus", effort: "high", from: "station" } },
       calibrationCeiling: { model: "sonnet", effort: "high", from: "repository" },
+      closer: {
+        calibration: { model: "sonnet", effort: "medium", from: "repository" },
+        cooksBelow: { value: 3, from: "station" },
+        maxTokens: { value: 200_000, from: "repository" },
+        maxRemovedLines: { value: 500, from: "default" },
+      },
     });
 
     // Sans dépôt lisible : rien n'en vient, le plafond est le défaut.
     const sans = await jouer({ BRIGADE_STATE_DIR: etatDuRuntime(t), BRIGADE_PROJECT: "brigade" }, []);
     assert.equal(sans.code, 0, sans.erreurs.join("\n"));
-    assert.deepEqual(sans.json, { file: FICHIER, inRepository: false, integrationBranch: null, defaultCalibrations: { manager: null, reviewer: null }, calibrationCeiling: { model: "opus", effort: "high", from: "default" } });
+    assert.deepEqual(sans.json, {
+      file: FICHIER,
+      inRepository: false,
+      integrationBranch: null,
+      defaultCalibrations: { manager: null, reviewer: null },
+      calibrationCeiling: { model: "opus", effort: "high", from: "default" },
+      // Sans calibrage, pas de closer ; ses nombres sont les défauts du runtime.
+      closer: { calibration: null, cooksBelow: { value: 1, from: "default" }, maxTokens: { value: 500_000, from: "default" }, maxRemovedLines: { value: 500, from: "default" } },
+    });
   });
 });

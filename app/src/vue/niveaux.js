@@ -18,13 +18,18 @@ export const NIVEAUX_DITS = {
 // Chaque réglage montré, et son niveau.
 /** @type {Readonly<Record<string, Niveau>>} */
 export const NIVEAUX = {
-  // Le projet : son dépôt, sa branche d'intégration, les calibrages par défaut de son manager et de son reviewer, son plafond.
+  // Le projet : son dépôt, sa branche d'intégration, les calibrages par défaut de son manager et de son reviewer, son plafond,
+  // et les réglages de son closer (ticket 1685).
   depot: "project",
   branche: "project",
   manager: "project",
   reviewer: "project",
   plafond: "project",
   calibrage: "project",
+  closer: "project",
+  "closer-cooks": "project",
+  "closer-tokens": "project",
+  "closer-lines": "project",
   // Cette machine : ses cooks, le dossier de ses espaces de travail, ce qu'elle sait faire, ses tickets ordinaires.
   cooks: "machine",
   dossier: "machine",

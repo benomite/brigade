@@ -1,33 +1,38 @@
 // Les réglages d'un projet sur sa page (#1309, épique 1301) : sa branche d'intégration, les calibrages par défaut de
-// son manager et de son reviewer, et son plafond de calibrage. Ils vivent dans son dépôt
+// son manager et de son reviewer, son plafond de calibrage, et les réglages de son closer (#1685) — son calibrage, sa
+// condition de départ, ses plafonds de tokens et de lignes retirées. Ils vivent dans son dépôt
 // (`.claude/brigade/projet.json`) et changent par une PR, comme le code : rien ne s'en pose sur la box.
 //
 // Les deux passent par la commande du runtime `setting` (runtime/src/reglage-cli.ts), là où la cuisine du projet
 // tourne, comme le bouton d'une station (cuisson.ts) :
 //   - `setting` : les réglages tels que la cuisine les applique, et d'où vient chacun ;
-//   - `setting ceiling|manager|reviewer <modèle> <effort>`, `setting branch <nom>` : le changement proposé. Le
-//     runtime le passe au crible de l'écriture — une valeur qui est à la machine ou au chef n'ouvre rien —, puis
-//     ouvre la PR, que la pass retient pour le chef. La réponse est l'adresse de la PR, ou pourquoi il n'y en a pas.
+//   - `setting ceiling|manager|reviewer|closer <modèle> <effort>`, `setting closer-cooks|closer-tokens|closer-lines <n>`,
+//     `setting branch <nom>` : le changement proposé. Le runtime le passe au crible de l'écriture du fichier — une
+//     valeur que `projet.json` refuserait n'ouvre rien, pas même une demande —, puis ouvre la PR, que la pass retient
+//     pour le chef. La réponse est l'adresse de la PR, ou la phrase du refus.
 // L'app ne juge aucune valeur à la place du runtime : elle refuse seulement ce qui ne s'écrirait pas en mots d'une
-// commande.
+// commande — et tout ce qu'elle refuse, le fichier le refuserait aussi.
 import type { Lu, Rendu } from "./box.ts";
 import { EFFORTS, MODELES } from "./projets/projets.ts";
 
-export const CLES = ["branche", "manager", "reviewer", "plafond"] as const;
+export const CLES = ["branche", "manager", "reviewer", "plafond", "closer", "closer-cooks", "closer-tokens", "closer-lines"] as const;
 export type Cle = (typeof CLES)[number];
+// Les réglages qui s'écrivent en un mot — un nom de branche, un nombre —, et ceux qui se calibrent.
+type Ecrit = "branche" | "closer-cooks" | "closer-tokens" | "closer-lines";
+type Calibre = Exclude<Cle, Ecrit>;
 
 // Ce que la page pose d'un réglage : son nom, sa valeur en vigueur — null si rien ne la dit —, d'où elle vient, et
-// de quoi la changer : un nom de branche, ou un modèle et un effort.
+// de quoi la changer : un mot, ou un modèle et un effort.
 export type ReglageVu =
-  | { cle: "branche"; nom: string; dit: string | null; source: string; valeur: string }
-  | { cle: "manager" | "reviewer" | "plafond"; nom: string; dit: string | null; source: string; modele: string; effort: string };
+  | { cle: Ecrit; nom: string; dit: string | null; source: string; valeur: string }
+  | { cle: Calibre; nom: string; dit: string | null; source: string; modele: string; effort: string };
 export type ReglagesVus = { fichier: string; reglages: ReglageVu[]; modeles: readonly string[]; efforts: readonly string[] };
 
 // Ce que la lecture rend : les réglages, ou pourquoi ils ne se lisent pas — en une ligne, le détail au survol.
 export type LectureDesReglages = { vus: ReglagesVus } | { sans: string; detail?: string };
 
 // Le changement que le chef propose : la clé, et sa valeur.
-export type ChoixDeReglage = { cle: "branche"; valeur: string } | { cle: "manager" | "reviewer" | "plafond"; modele: string; effort: string };
+export type ChoixDeReglage = { cle: Ecrit; valeur: string } | { cle: Calibre; modele: string; effort: string };
 // Ce que la proposition a rendu : la PR ouverte, ou pourquoi il n'y en a pas.
 export type RenduDuReglage = { propose: string; pr: string; numero: number } | { refus: string; detail?: string };
 
@@ -36,7 +41,13 @@ export const NOMS: Readonly<Record<Cle, string>> = {
   manager: "manager's default calibration",
   reviewer: "reviewer's default calibration",
   plafond: "calibration ceiling",
+  closer: "closer's calibration",
+  "closer-cooks": "closer's start threshold (cooks in flight)",
+  "closer-tokens": "closer's tokens cap",
+  "closer-lines": "closer's removed-lines cap",
 };
+// Les nombres du closer : le mot de la commande, et le nom que `setting` leur donne.
+const NOMBRES = { "closer-cooks": "cooksBelow", "closer-tokens": "maxTokens", "closer-lines": "maxRemovedLines" } as const;
 const SOURCES: Readonly<Record<string, string>> = {
   repository: "from the repository",
   station: "set on the station",
@@ -61,7 +72,7 @@ export function reglagesVus(sortie: string): ReglagesVus | null {
   if (!estObjet(lu)) return null;
   const branche = estObjet(lu.integrationBranch) && texte(lu.integrationBranch.value) ? lu.integrationBranch : null;
   const calibrages = estObjet(lu.defaultCalibrations) ? lu.defaultCalibrations : {};
-  const calibrage = (cle: "manager" | "reviewer" | "plafond", pose: unknown): ReglageVu => {
+  const calibrage = (cle: Calibre, pose: unknown): ReglageVu => {
     const lue = estObjet(pose) && texte(pose.model) && texte(pose.effort) ? pose : null;
     return {
       cle,
@@ -72,6 +83,13 @@ export function reglagesVus(sortie: string): ReglagesVus | null {
       effort: lue === null ? "" : (lue.effort as string),
     };
   };
+  const nombre = (cle: keyof typeof NOMBRES, pose: unknown): ReglageVu => {
+    const lue = estObjet(pose) && Number.isSafeInteger(pose.value) ? pose : null;
+    const dit = lue === null ? null : String(lue.value);
+    return { cle, nom: NOMS[cle], dit, source: lue === null ? "not given" : sourceDite(lue.from), valeur: dit ?? "" };
+  };
+  // Un runtime d'avant #1685 ne dit pas le closer : ses rangées ne se posent pas, plutôt que de se dire vides.
+  const closer = estObjet(lu.closer) ? lu.closer : null;
   return {
     fichier: texte(lu.file) ? lu.file : ".claude/brigade/projet.json",
     reglages: [
@@ -79,6 +97,7 @@ export function reglagesVus(sortie: string): ReglagesVus | null {
       calibrage("manager", calibrages.manager),
       calibrage("reviewer", calibrages.reviewer),
       calibrage("plafond", lu.calibrationCeiling),
+      ...(closer === null ? [] : [calibrage("closer", closer.calibration), ...(Object.keys(NOMBRES) as Array<keyof typeof NOMBRES>).map((cle) => nombre(cle, closer[NOMBRES[cle]]))]),
     ],
     modeles: MODELES,
     efforts: EFFORTS,
@@ -99,13 +118,19 @@ export async function lireLesReglages(projet: string, lu: Lu | undefined, lancer
 }
 
 // Les mots de la commande d'un changement, ou pourquoi il ne s'écrit pas : une branche est un nom, sans blanc ni
-// apostrophe ; un calibrage, un modèle et un effort que le runtime connaît.
+// apostrophe ; un nombre du closer, des chiffres ; un calibrage, un modèle et un effort que le runtime connaît. Le
+// reste — une branche que git refuserait, un nombre nul — est jugé par le runtime, avec la phrase du fichier.
 export function commandeDuReglage(choix: unknown): { commande: string } | { refus: string } {
   if (!estObjet(choix) || !(CLES as readonly unknown[]).includes(choix.cle)) return { refus: "nothing was sent: this is not a project setting" };
   if (choix.cle === "branche") {
     const valeur = typeof choix.valeur === "string" ? choix.valeur.trim() : "";
     if (!/^[A-Za-z0-9._/-]+$/.test(valeur)) return { refus: "nothing was sent: a branch name is made of letters, digits and . _ / -" };
     return { commande: `setting branch ${valeur}` };
+  }
+  if (Object.hasOwn(NOMBRES, choix.cle as string)) {
+    const valeur = typeof choix.valeur === "string" ? choix.valeur.trim() : "";
+    if (!/^[0-9]+$/.test(valeur)) return { refus: "nothing was sent: this value is a whole number, written in digits" };
+    return { commande: `setting ${choix.cle as string} ${valeur}` };
   }
   const { modele, effort } = choix;
   if (!(MODELES as readonly unknown[]).includes(modele) || !(EFFORTS as readonly unknown[]).includes(effort)) {

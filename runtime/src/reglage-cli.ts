@@ -11,6 +11,11 @@
 //   setting reviewer <model> <effort>    … du reviewer
 //   setting <ceiling|manager|reviewer> default   propose de le retirer du fichier
 //   setting branch <name>                propose cette branche d'intégration
+//   setting closer <model> <effort>      propose ce calibrage du closer (#1685)
+//   setting closer-cooks <n>             … sa condition de départ : moins de n cooks en vol
+//   setting closer-tokens <n>            … son plafond de tokens
+//   setting closer-lines <n>             … son plafond de lignes retirées
+//   setting <closer…> default            propose de le retirer du fichier
 //
 // Une proposition passe par `proposerAuRuntime` : le crible de l'écriture
 // d'abord — un refus n'écrit rien —, puis la demande au journal du runtime du
@@ -19,6 +24,7 @@
 // ouverte, ou pourquoi il n'y en a pas. Le code de sortie est 0 pour une PR
 // ouverte, 1 pour un refus dit, 2 pour un usage qui ne se lit pas.
 import { enProcess, Sortie, type Appel } from "./appel.ts";
+import { configFermeture, provenancesDeFermeture } from "./closing/settings.ts";
 import { decisionsPosees, environnementDecide } from "./decisions.ts";
 import { ouvrirJournal } from "./journal.ts";
 import { plafondDuProjet } from "./reagir.ts";
@@ -27,7 +33,10 @@ import { avecLaBrancheDuDepot, brancheDuProjet, reglagesPourMontrer } from "./re
 import { FICHIER, ROLES, type Role } from "./reglages-projet/reglages.ts";
 
 const USAGE =
-  "usage: BRIGADE_STATE_DIR=<state directory> BRIGADE_PROJECT=<project> npm --prefix runtime run setting -- [ceiling | manager | reviewer <model> <effort> | default] [branch <name>]";
+  "usage: BRIGADE_STATE_DIR=<state directory> BRIGADE_PROJECT=<project> npm --prefix runtime run setting -- [ceiling | manager | reviewer | closer <model> <effort> | default] [closer-cooks | closer-tokens | closer-lines <n> | default] [branch <name>]";
+
+// Les nombres du closer, sous les noms de la commande, et ceux du fichier.
+const NOMBRES_DU_CLOSER = { "closer-cooks": "cooksBelow", "closer-tokens": "maxTokens", "closer-lines": "maxRemovedLines" } as const;
 
 // Ce que les mots de la commande proposent, sous les noms du fichier — ou null
 // s'ils ne se lisent pas. Les valeurs ne sont pas jugées ici : c'est l'écriture
@@ -35,11 +44,19 @@ const USAGE =
 export function changementDesMots(mots: readonly string[]): Record<string, unknown> | null {
   const [quoi, ...reste] = mots;
   if (quoi === "branch") return reste.length === 1 ? { integrationBranch: reste[0] } : null;
-  if (quoi !== "ceiling" && !(ROLES as readonly string[]).includes(quoi ?? "")) return null;
+  if (quoi !== undefined && Object.hasOwn(NOMBRES_DU_CLOSER, quoi)) {
+    if (reste.length !== 1) return null;
+    const [mot] = reste as [string];
+    // Des chiffres sont un nombre ; tout autre mot reste un mot, que l'écriture refuse en le nommant.
+    const valeur = mot === "default" ? null : /^[0-9]+$/.test(mot) ? Number(mot) : mot;
+    return { closer: { [NOMBRES_DU_CLOSER[quoi as keyof typeof NOMBRES_DU_CLOSER]]: valeur } };
+  }
+  if (quoi !== "ceiling" && quoi !== "closer" && !(ROLES as readonly string[]).includes(quoi ?? "")) return null;
   let calibrage: { model: string; effort: string } | null;
   if (reste.length === 1 && reste[0] === "default") calibrage = null;
   else if (reste.length === 2) calibrage = { model: reste[0] as string, effort: reste[1] as string };
   else return null;
+  if (quoi === "closer") return { closer: { calibration: calibrage } };
   return quoi === "ceiling" ? { calibrationCeiling: calibrage } : { defaultCalibrations: { [quoi as Role]: calibrage } };
 }
 
@@ -69,12 +86,21 @@ function enVigueur(env: Record<string, string | undefined>) {
     return { model, effort, from: (reglages?.defaultCalibrations?.[role] === undefined ? "station" : "repository") as Provenance };
   };
   const plafond = plafondDuProjet(posees, reglages);
+  // Le closer tel que le runtime le lit : le dépôt d'abord, réglage par réglage, puis la box, puis le défaut.
+  const fermeture = configFermeture(decide);
+  const provenances = provenancesDeFermeture(decide, reglages);
   return {
     file: FICHIER,
     inRepository: reglages !== null,
     integrationBranch: branche?.branche == null ? null : { value: branche.branche, from: branche.provenance === null ? "station" : provenanceDeLaBranche[branche.provenance] },
     defaultCalibrations: Object.fromEntries(ROLES.map((role) => [role, calibrage(role)])),
     calibrationCeiling: { model: plafond.model, effort: plafond.effort, from: (plafond.depot ? "repository" : plafond.pose.model || plafond.pose.effort ? "station" : "default") as Provenance },
+    closer: {
+      calibration: fermeture.calibration === null ? null : { ...fermeture.calibration, from: provenances.calibration },
+      cooksBelow: { value: fermeture.cooksBelow, from: provenances.cooksBelow },
+      maxTokens: { value: fermeture.tokens, from: provenances.tokens },
+      maxRemovedLines: { value: fermeture.removedLines, from: provenances.removedLines },
+    },
   };
 }
 
