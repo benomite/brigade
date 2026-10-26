@@ -171,7 +171,8 @@ test("sur un Mac, la station sous `~/.config/brigade` sert le projet, ses cooks 
   const lignes: string[] = [];
   const station = ouvrirStation({
     racine,
-    env: { ...ENV_GIT, HOME: home, BRIGADE_CLAUDE_BIN: FAUX_CLAUDE, BRIGADE_SESSION_DIR: session },
+    // Aucun test ne joint GitHub : ce `gh` n'existe pas, le tableau de la cuisine ne se publie nulle part.
+    env: { ...ENV_GIT, HOME: home, BRIGADE_CLAUDE_BIN: FAUX_CLAUDE, BRIGADE_SESSION_DIR: session, BRIGADE_GH_BIN: join(compte, "gh-absent") },
     dire: (ligne) => void lignes.push(ligne),
     ouvrir: (env, options) => ouvrirCuisine(env, { ...options, sondes: MAC }),
     relectureMs: 3_600_000,

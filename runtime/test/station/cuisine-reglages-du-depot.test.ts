@@ -31,7 +31,8 @@ function ouvrir(t: TestContext, ligne: string, decisions: Record<string, string>
   projetSurGit(t, { reglages: PROJET_JSON, parDefaut: "main", autres: ["v2"], clone: join(racine, CLONES, "espace") });
   const [projet] = lireConfiguration(ligne).projets;
   assert.ok(projet);
-  const env = environnementDuProjet(racine, projet, { HOME: repertoireTemporaire(t), BRIGADE_CLAUDE_BIN: FAUX_CLAUDE, BRIGADE_SESSION_STATE: join(racine, "session", "renouvellement") });
+  // Aucun test ne joint GitHub : ce `gh` n'existe pas, le tableau de la cuisine ne se publie nulle part.
+  const env = environnementDuProjet(racine, projet, { HOME: repertoireTemporaire(t), BRIGADE_CLAUDE_BIN: FAUX_CLAUDE, BRIGADE_SESSION_STATE: join(racine, "session", "renouvellement"), BRIGADE_GH_BIN: join(racine, "gh-absent") });
   mkdirSync(env.BRIGADE_STATE_DIR ?? "", { recursive: true });
   const journal = ouvrirJournal(env.BRIGADE_STATE_DIR ?? "");
   for (const [name, value] of Object.entries(decisions)) journal.ajouter({ project: "espace", ticket: null, author: "chef", type: "decision.set", payload: { name, value, previous: null } });
