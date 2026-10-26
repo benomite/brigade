@@ -50,7 +50,7 @@ test("a proposed change sets or withdraws the gates' settings one by one, and ke
   assert.equal(apres.gates?.timeoutSeconds, 600);
   assert.equal(apres.gates?.ciWaitSeconds, undefined);
   assert.equal(apres.gates?.durationBudgetSeconds, 400);
-  assert.deepEqual(changementsDits(AVEC_GATES, apres), ["gates' `timeoutSeconds`: 1500 → 600", "gates' `ciWaitSeconds`: 2400 → none"]);
+  assert.deepEqual(changementsDits(AVEC_GATES, apres), ["gates threshold `timeoutSeconds`: 1500 → 600", "gates threshold `ciWaitSeconds`: 2400 → none"]);
 });
 
 test("what the repository sets wins over the box, setting by setting; without it, the box's decisions and defaults stand", () => {
