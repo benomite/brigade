@@ -9,7 +9,7 @@ import { Base } from "../../src/base.ts";
 import { corpsDeLaPR, SANS_MOTIF } from "../../src/closing/brief.ts";
 import { candidats } from "../../src/closing/candidates.ts";
 import { CONTEXTE, empreinte, memoire, poserLaMemoire, retenir, trier } from "../../src/closing/memory.ts";
-import { BASE, git, jusqua, repertoireTemporaire } from "../outils.ts";
+import { aArreter, BASE, git, jusqua, repertoireTemporaire } from "../outils.ts";
 import { ecrireHistoire } from "./history.ts";
 import { cuisineFermee, PROJET, RETIRER_M1 } from "./kitchen.ts";
 
@@ -24,7 +24,8 @@ const du = (id: string) => {
 
 function baseNeuve(t: Parameters<typeof repertoireTemporaire>[0]): Base {
   const base = new Base(join(repertoireTemporaire(t), "log.db"));
-  t.after(() => base.fermer());
+  // Fermée avant que son répertoire disparaisse : Windows ne retire pas un fichier ouvert.
+  aArreter(t, () => base.fermer());
   poserLaMemoire(base);
   return base;
 }
