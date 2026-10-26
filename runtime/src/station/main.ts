@@ -20,6 +20,7 @@ import { tenirProjetsDeLApp } from "../projets/tenir.ts";
 import { configReseau, passerParLaPorte } from "../reseau.ts";
 import { ConfigInvalide } from "../runtime.ts";
 import { DemandeInvalide, repertoireDuRegistre } from "../enrolement/enrolement.ts";
+import { tenirEnregistrement } from "../enregistrement-station/enregistrer.ts";
 import { ouvrirTelephones } from "../telephone/appairage.ts";
 import { configGuichet, ouvrirGuichet } from "../telephone/guichet.ts";
 import { gestesDeLaStation } from "../telephone/gestes.ts";
@@ -131,6 +132,9 @@ const presence = tenirPresence({
   ...(ecartS === undefined ? {} : { ecartMinimalMs: Number(ecartS) * 1000 }),
   dire,
 });
+// Son enregistrement sous le compte GitHub de la machine, sans code : l'app
+// connectée au même compte la trouve (enregistrement-station/).
+const enregistrement = tenirEnregistrement({ racine, canal, identite, dire });
 // Les projets que le chef lui ajoute depuis l'app, par le même gist : la
 // station les prépare et leur écrit leur ligne (projets/tenir.ts) — et les
 // déménage, d'elle vers une autre ou d'une autre vers elle. Sur l'ordinateur du
@@ -188,6 +192,8 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
     console.log(`brigade : station arrêtée (${signal})`);
     // L'heure de l'arrêt, écrite sur GitHub : l'app la dit hors ligne sans attendre.
     void presence.arreter();
+    // Et sur son enregistrement : l'app la dit indisponible à sa lecture suivante.
+    void enregistrement.arreter();
   });
 }
 // Relire tout de suite, sans attendre la relecture suivante — la configuration,
