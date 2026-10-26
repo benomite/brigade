@@ -48,7 +48,9 @@ describe("la passe de fermeture, en cuisine", { concurrency: 8 }, () => {
     assert.equal(passe.pr, "https://github.com/acme/brigade/pull/101");
     const corps = pr?.corps ?? "";
     assert.match(corps, /ne merge rien : ce qu'elle retire arrive par cette PR/);
-    assert.match(corps, /## Retiré — 1 sur 3 candidats\n\n- \*\*M1\*\* — export `inutile` of `src\/libre\/outils\.ts:2` — referenced nowhere\n/);
+    assert.match(corps, /## Retiré — 1 sur 2 exports morts\n\n- \*\*M1\*\* — export `inutile` of `src\/libre\/outils\.ts:2` — referenced nowhere\n/);
+    assert.match(corps, /## Factorisé — 0 sur 1 doublon\n\nAucun doublon n'a été réuni\.\n/);
+    assert.match(corps, /## Lignes gagnées — 1\n\n1 ligne retirée, aucune ajoutée, dans 1 fichier : 1 ligne de moins\./);
     // Ce qu'elle a laissé : ce que le closer dit, avec son motif — et ce qu'il
     // n'a pas nommé mais que sa branche porte encore, dit sans motif.
     assert.match(corps, /## Laissé faute d'être sûr — 2\n/);
@@ -68,6 +70,32 @@ describe("la passe de fermeture, en cuisine", { concurrency: 8 }, () => {
     assert.equal(lancement?.ticket, null);
     assert.equal((lancement?.payload as { station?: string }).station, "closer");
     assert.match(closer.consigne(), /- M1 — export `inutile`/);
+  });
+
+  test("un doublon que le closer réunit en un seul endroit est dit factorisé, à côté du code mort supprimé, avec les lignes gagnées et ce qui est laissé — une entrée par candidat, son lieu et son motif", async (t) => {
+    const { demander, fin, closer, gh } = cuisineFermee(t);
+    // `b.ts` appelle ce que `a.ts` garde, au lieu d'en porter la copie ; `inutile` part.
+    closer.gestes(
+      [`printf 'export const partage = 1;\\n' >>src/libre/a.ts`, `printf 'import { partage } from "./a.ts";\\nconsole.log(partage);\\n' >src/libre/b.ts`, RETIRER_M1].join("\n"),
+    );
+    closer.message("<livrable>\nFactorisé : D1, dans `src/libre/a.ts`. Supprimé : M1.\nLAISSÉ M2 : lu par convention par le framework de tests\n</livrable>\n");
+
+    const { code, sortie } = await demander();
+    assert.equal(code, 0, sortie);
+    const passe = await fin();
+    assert.equal(passe.outcome, "delivered");
+    assert.deepEqual([passe.removedLines, passe.addedLines], [9, 3]);
+    assert.deepEqual(passe.removed?.map(({ id }) => id), ["D1", "M1"]);
+    const corps = gh.prs[0]?.corps ?? "";
+    // Les quatre parties, dans cet ordre.
+    const parties = [...corps.matchAll(/^## (.+) — /gm)].map(([, titre]) => titre);
+    assert.deepEqual(parties, ["Retiré", "Factorisé", "Lignes gagnées", "Laissé faute d'être sûr"]);
+    assert.match(corps, /## Retiré — 1 sur 2 exports morts\n\n- \*\*M1\*\* — export `inutile`/);
+    assert.match(corps, /## Factorisé — 1 sur 1 doublon\n\n- \*\*D1\*\* — 8 identical lines of code: `src\/libre\/a\.ts:1-8` = `src\/libre\/b\.ts:1-8`\n/);
+    assert.match(corps, /## Lignes gagnées — 6\n\n9 lignes retirées, 3 ajoutées, dans 3 fichiers : 6 lignes de moins\./);
+    assert.match(corps, /## Laissé faute d'être sûr — 1\n\n- \*\*M2\*\* — export `oublie` of `src\/tenu\/outils\.ts:2` — referenced nowhere\n {2}- lu par convention par le framework de tests\n/);
+    const json = /```json\n([\s\S]*?)\n```/.exec(corps)?.[1] ?? "null";
+    assert.deepEqual(JSON.parse(json), [{ id: "M2", location: ["src/tenu/outils.ts:2"], reason: "lu par convention par le framework de tests" }]);
   });
 
   // Rien n'est parti : ni closer, ni lancement gardé, ni branche, ni PR.

@@ -14,13 +14,15 @@ import type { Depot, Texte } from "./reading.ts";
 export const CANDIDATS_MAX = 40;
 
 // `id`: `D<n>` for a duplicate, `M<n>` for a dead export. `quoi`: as it
-// reads. `fichiers`: those to write in order to remove it. `cle`: what
+// reads. `lieux`: where it is, `<path>:<line>` or `<path>:<first>-<last>`, one
+// per passage. `fichiers`: those to write in order to remove it. `cle`: what
 // recognizes it in another observation, wherever its lines are rendered.
-export type Candidat = { id: string; quoi: string; fichiers: string[]; cle: string };
+export type Candidat = { id: string; quoi: string; lieux: string[]; fichiers: string[]; cle: string };
 
 const DOC = /\.(md|mdx|markdown|rst|txt)$/;
 const cleDeMort = (chemin: string, nom: string) => `mort ${chemin} ${nom}`;
 const cleDeDoublon = (lignes: string) => `doublon ${lignes}`;
+const liste = (chemins: string[]) => chemins.map((chemin) => `\`${chemin}\``).join(", ");
 
 function cles({ textes }: Pick<Depot, "textes">): Set<string> {
   const contenu = new Map(textes.map(({ chemin, texte }) => [chemin, texte]));
@@ -39,15 +41,22 @@ export function candidats({ textes }: Pick<Depot, "textes">): Candidat[] {
   const doublons = repererDoublons(textes).map(({ lignes, passages: [premier, second] }, rang): Candidat => ({
     id: `D${rang + 1}`,
     quoi: `${lignes} identical lines of code: \`${premier.chemin}:${premier.debut}-${premier.fin}\` = \`${second.chemin}:${second.debut}-${second.fin}\``,
+    lieux: [`${premier.chemin}:${premier.debut}-${premier.fin}`, `${second.chemin}:${second.debut}-${second.fin}`],
     fichiers: [...new Set([premier.chemin, second.chemin])],
     cle: cleDeDoublon(extrait(contenu.get(premier.chemin) ?? "", premier)),
   }));
-  const morts = repererCodeMort(textes).map(({ chemin, ligne, nom, tests }, rang): Candidat => ({
-    id: `M${rang + 1}`,
-    quoi: `export \`${nom}\` of \`${chemin}:${ligne}\` — referenced ${tests.length === 0 ? "nowhere" : `only by tests (${tests.map((test) => `\`${test}\``).join(", ")})`}`,
-    fichiers: [...new Set([chemin, ...tests, ...nomment(nom)])],
-    cle: cleDeMort(chemin, nom),
-  }));
+  const morts = repererCodeMort(textes).map(({ chemin, ligne, nom, tests }, rang): Candidat => {
+    // Said in its description: an export that `docs/` names may be API, which
+    // the closer leaves.
+    const decrit = nomment(nom);
+    return {
+      id: `M${rang + 1}`,
+      quoi: `export \`${nom}\` of \`${chemin}:${ligne}\` — referenced ${tests.length === 0 ? "nowhere" : `only by tests (${liste(tests)})`}${decrit.length === 0 ? "" : `, named in docs (${liste(decrit)})`}`,
+      lieux: [`${chemin}:${ligne}`],
+      fichiers: [...new Set([chemin, ...tests, ...decrit])],
+      cle: cleDeMort(chemin, nom),
+    };
+  });
   return [...doublons, ...morts];
 }
 

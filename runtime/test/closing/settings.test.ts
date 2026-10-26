@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { candidats, proposer, restants } from "../../src/closing/candidates.ts";
-import { consigneDuCloser, laisses, motifsDuCloser } from "../../src/closing/brief.ts";
+import { aRetenir, consigneDuCloser, corpsDeLaPR, laisses, motifsDuCloser, PARTIES_DE_LA_PR, SANS_MOTIF } from "../../src/closing/brief.ts";
 import { configFermeture } from "../../src/closing/settings.ts";
 import { ConfigInvalide } from "../../src/runtime.ts";
 import { PROJET } from "./kitchen.ts";
@@ -82,9 +82,49 @@ test("ce qui reste se lit sur la branche de la passe, pas sur la parole du close
 test("la consigne du closer nomme ses candidats, les seuls fichiers qu'il peut écrire, son plafond de retraits, et la ligne par laquelle il dit ce qu'il laisse", () => {
   const { proposes, zone } = proposer(candidats(textes(PROJET)), []);
   const consigne = consigneDuCloser({ depot: "acme/brigade", base: "v2", candidats: proposes, zone, retraits: 120 });
-  assert.match(consigne, /^Tu es le closer de la brigade : tu ranges le dépôt acme\/brigade, hors de tout ticket\./);
+  assert.match(consigne, /^Tu es le closer de la brigade : tu ranges le dépôt acme\/brigade, hors de tout ticket,/);
   assert.match(consigne, /\n {3}- D1 — 8 identical lines of code: `src\/libre\/a\.ts:1-8` = `src\/libre\/b\.ts:1-8`\n {3}- M1 — export `inutile` of `src\/libre\/outils\.ts:2` — referenced nowhere\n/);
-  assert.match(consigne, /\n {3}- `src\/libre\/a\.ts`\n {3}- `src\/libre\/b\.ts`\n {3}- `src\/libre\/outils\.ts`\n {3}- `src\/tenu\/outils\.ts`\n5\. Tu ne retires pas plus de 120 lignes en tout/);
+  assert.match(consigne, /\n {3}- `src\/libre\/a\.ts`\n {3}- `src\/libre\/b\.ts`\n {3}- `src\/libre\/outils\.ts`\n {3}- `src\/tenu\/outils\.ts`\n6\. Tu ne retires pas plus de 120 lignes en tout/);
   assert.match(consigne, /`LAISSÉ <nom du candidat> : <pourquoi tu n'es pas sûr>`/);
   assert.match(consigne, /Tu ne pousses rien, tu n'ouvres pas de PR et tu ne merges jamais/);
+});
+
+test("la consigne du closer lui fait supprimer le code mort et réunir les doublons en un seul endroit, pas seulement les lister, sous la règle de sûreté — et lui dit les quatre parties de sa PR", () => {
+  const { proposes, zone } = proposer(candidats(textes(PROJET)), []);
+  const consigne = consigneDuCloser({ depot: "acme/brigade", base: "v2", candidats: proposes, zone, retraits: 120 });
+  // Supprimer, factoriser : pas lister.
+  assert.match(consigne, /le code mort, tu le supprimes ; les passages dupliqués, tu les réunis en un seul endroit partagé\. Tu ne te contentes pas de les lister/);
+  assert.match(consigne, /un export mort \(`M…`\) : tu le supprimes/);
+  assert.match(consigne, /un doublon \(`D…`\) : tu le factorises\. Tu gardes une seule copie, dans l'un des fichiers que tu tiens/);
+  // La règle de sûreté : vert après coup, ce qui se lit par convention laissé, le doute aussi.
+  assert.match(consigne, /Tu ne supprimes et ne factorises que ce que les gates, puis la CI que la pass attend avant de merger, prouvent encore vert après coup/);
+  assert.match(consigne, /les points d'entrée \(.*\), l'API exportée que nomme `docs\/`, et les fichiers chargés par leur nom/);
+  assert.match(consigne, /Dans le doute, tu laisses, et tu dis pourquoi\.\n5\./);
+  // Les quatre parties de la PR, dans leur ordre.
+  const { retire, factorise, gagne, laisse } = PARTIES_DE_LA_PR;
+  assert.ok(consigne.includes(`quatre parties, dans cet ordre : « ${retire} » (le code mort supprimé), « ${factorise} » (les doublons réunis), « ${gagne} » (les lignes retirées contre les lignes ajoutées) et « ${laisse} » (chaque candidat laissé, avec son motif)`), consigne);
+});
+
+test("la PR d'une passe a quatre parties — retiré, factorisé, lignes gagnées, laissé avec son motif — et ce qui est laissé s'y lit aussi une entrée par candidat, son lieu et son motif", () => {
+  const { proposes } = proposer(candidats(textes({ ...PROJET, "docs/outils.md": "`oublie` rend quatre.\n" })), []);
+  // D1 réuni, M1 supprimé, M2 laissé sans que le closer dise pourquoi.
+  const gardes = laisses(proposes, proposes.filter(({ id }) => id === "M2"), new Map());
+  const corps = corpsDeLaPR({ run: "fermeture-0000abcd", base: "v2", calibration: { model: "opus", effort: "high" }, proposes, laisses: gardes, ecartes: [], retirees: 4, ajoutees: 7, cap: 120, fichiers: ["src/libre/a.ts", "src/libre/b.ts"], compteRendu: null });
+  assert.deepEqual([...corps.matchAll(/^## (.+) — /gm)].map(([, titre]) => titre), Object.values(PARTIES_DE_LA_PR));
+  assert.match(corps, /\n## Retiré — 1 sur 2 exports morts\n\n- \*\*M1\*\* — export `inutile` of `src\/libre\/outils\.ts:2` — referenced nowhere\n/);
+  assert.match(corps, /\n## Factorisé — 1 sur 1 doublon\n\n- \*\*D1\*\* — 8 identical lines/);
+  // Plus de lignes ajoutées que retirées : la PR le dit, sans le cacher.
+  assert.match(corps, /\n## Lignes gagnées — −3\n\n4 lignes retirées, 7 ajoutées, dans 2 fichiers : 3 lignes de plus\. Le plafond de retraits de la passe est de 120\.\n/);
+  assert.ok(corps.includes(`\n## Laissé faute d'être sûr — 1\n\n- **M2** — export \`oublie\` of \`src/tenu/outils.ts:2\` — referenced nowhere, named in docs (\`docs/outils.md\`)\n  - ${SANS_MOTIF}\n`), corps);
+  const json = /```json\n([\s\S]*?)\n```/.exec(corps)?.[1] ?? "null";
+  assert.deepEqual(JSON.parse(json), aRetenir(gardes, proposes));
+  assert.deepEqual(aRetenir(gardes, proposes), [{ id: "M2", location: ["src/tenu/outils.ts:2"], reason: SANS_MOTIF }]);
+
+  // Rien de laissé : ni entrée, ni bloc ; un doublon laissé dit ses deux lieux.
+  const tout = corpsDeLaPR({ run: "fermeture-0000abcd", base: "v2", calibration: { model: "opus", effort: "high" }, proposes, laisses: [], ecartes: [], retirees: 3, ajoutees: 0, cap: 120, fichiers: ["src/libre/a.ts"], compteRendu: null });
+  assert.match(tout, /## Laissé faute d'être sûr — 0\n\nRien : tout ce qui était proposé a été retiré ou factorisé\./);
+  assert.doesNotMatch(tout, /```json/);
+  assert.match(tout, /## Lignes gagnées — 3\n\n3 lignes retirées, aucune ajoutée, dans 1 fichier : 3 lignes de moins\./);
+  const d1 = laisses(proposes, [], new Map([["D1", "deux modules qui évoluent à part"]]));
+  assert.deepEqual(aRetenir(d1, proposes), [{ id: "D1", location: ["src/libre/a.ts:1-8", "src/libre/b.ts:1-8"], reason: "deux modules qui évoluent à part" }]);
 });
