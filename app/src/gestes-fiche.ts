@@ -19,6 +19,7 @@ import type { Cuisine } from "./box.ts";
 import type { Projet } from "./config.ts";
 import { attenduDe, decisionLue, type Decision } from "./decision.ts";
 import { enPoste } from "./gestes.ts";
+import { PRIORITES } from "./priorite.ts";
 import { CONTROLE, type Terminal } from "./terminaux.ts";
 
 export type IdDeFiche = "issue" | "pr" | "second" | "merger" | "retirer" | "cuisine" | "priorite" | "waiting" | "navigateur";
@@ -31,7 +32,8 @@ export type Branchement = ({ app: true } | { box: (ticket: number, valeur?: stri
 export type Actions = Readonly<Partial<Record<IdDeFiche, Branchement>>>;
 
 // Ce qui est branché aujourd'hui. Ouvrir l'issue et la PR, demander au second : l'app les joue
-// elle-même. Retirer du rail, merger la livraison et changer la priorité : les actions du runtime
+// elle-même ; changer la priorité aussi — elle remplace le label `prio:` de l'issue sur GitHub
+// (priorite.ts, #1739), sans la box. Retirer du rail et merger la livraison : les actions du runtime
 // (#637, runtime/src/geste-ticket.ts), sous la commande `rail` de la box — elle dit le prix du
 // geste, ou pourquoi elle le refuse ; renvoyer en cuisine un ticket revenu de WAITING : sa commande
 // `waiting arrived`. Les autres attendent leur action (en tête de ce fichier).
@@ -39,10 +41,10 @@ export const ACTIONS: Actions = {
   issue: { app: true },
   pr: { app: true },
   second: { app: true },
+  priorite: { app: true },
   merger: { box: (ticket) => `rail merge ${ticket}` },
   retirer: { box: (ticket) => `rail remove ${ticket}` },
   cuisine: { box: (ticket) => `waiting arrived ${ticket}` },
-  priorite: { box: (ticket, valeur) => `rail priority ${ticket} ${valeur ?? ""}` },
 };
 
 // Ce que la fiche lit de la carte cliquée (faits.ts, `Carte`) : son mot d'état, si elle s'ouvre
@@ -54,13 +56,10 @@ export type CarteDeFiche = { ticket: number; etat?: string; ouvrable: boolean; a
 // le chef choisit avant de le jouer.
 export type Propose = { id: IdDeFiche; libelle: string; prix: string | null; recommande?: true; valeurs?: readonly string[] };
 
-// Les priorités qu'un ticket peut prendre (runtime/src/geste-ticket.ts) : 1 est servi d'abord ;
-// `none` la retire, il passe après les autres.
-export const PRIORITES: readonly string[] = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "none"];
-
 // Ce que chaque geste coûte, dans les mots de l'app — ceux du runtime pour ses actions
 // (runtime/src/geste-ticket.ts, `price`). Nul : rien ne change sur la box, ou seulement l'ordre
-// de service, et rien ne se dépense — ouvrir une adresse, écrire dans le second sans Entrée.
+// de service, et rien ne se dépense — ouvrir une adresse, écrire dans le second sans Entrée,
+// changer le label `prio:` d'une issue.
 export const PRIX = {
   issue: null,
   pr: null,
@@ -151,7 +150,6 @@ export function jouerGesteDeFiche(
   if (projet.refus !== undefined) return { refus: `nothing is sent: “${projet.nom}” does not open — ${projet.refus}` };
   const action = typeof id === "string" && Object.hasOwn(actions, id) ? actions[id as IdDeFiche] : undefined;
   if (action === undefined || !("box" in action)) return { refus: `nothing is sent: “${String(id)}” is not an action of the station that this app can run` };
-  if (id === "priorite" && !(texte(valeur) && PRIORITES.includes(valeur))) return { refus: `nothing is sent: the priority ${JSON.stringify(valeur) ?? String(valeur)} is not one of ${PRIORITES.join(", ")}` };
   const suite = action.box(ticket, texte(valeur) ? valeur : undefined);
   if (CONTROLE.test(suite)) return { refus: "nothing is sent: the command carries a control character" };
   const ecrit = enPoste(cuisine, projet.nom, suite);

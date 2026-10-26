@@ -1,13 +1,15 @@
 // Les gestes du chef sur un ticket du rail, depuis la fiche de l'app : le
-// retirer du rail, changer sa priorité, merger la livraison que la file lui
-// demande de merger à la main, la renvoyer à un cook, ou dire pourquoi il a
-// corrigé une livraison — ces deux-là font de sa raison une leçon candidate
-// (`apprentissage/renvoi.ts`). Les deux premiers ne s'écrivent pas d'abord
-// au journal : le rail se lit de GitHub (label `fire`, label `prio:<n>`), et un
-// fait posé sans le label serait défait au sondage suivant. Le geste pose donc
-// le label, puis écrit au journal le fait que le sondage y aurait écrit — la
-// fiche relit le ticket sans attendre le tick. Le merge non plus : la pass le
-// constate à son tour suivant, comme tout merge à la main, et sert le ticket.
+// retirer du rail, merger la livraison que la file lui demande de merger à la
+// main, la renvoyer à un cook, ou dire pourquoi il a corrigé une livraison —
+// ces deux-là font de sa raison une leçon candidate (`apprentissage/renvoi.ts`).
+// Le retrait ne s'écrit pas d'abord au journal : le rail se lit de GitHub
+// (label `fire`), et un fait posé sans le label serait défait au sondage
+// suivant. Le geste retire donc le label, puis écrit au journal le fait que le
+// sondage y aurait écrit — la fiche relit le ticket sans attendre le tick. Le
+// merge non plus : la pass le constate à son tour suivant, comme tout merge à
+// la main, et sert le ticket. Changer la priorité n'est pas un geste de la box :
+// l'app change elle-même le label `prio:` de l'issue sur GitHub
+// (app/src/priorite.ts), et le sondage le lit comme tout label.
 //
 // Un geste dit toujours son prix (`price`), refusé comme accompli : le chef le
 // lit avant d'agir, et l'app l'affiche après.
@@ -37,9 +39,6 @@ const dansLEtat = (ticket: number, etat: string, enCours: boolean): string =>
     ? `#${ticket} is ${etat}: a ticket in progress is not touched — wait for its cook or its review to end`
     : `#${ticket} is ${etat}: the gesture does not apply`;
 
-export const PRIORITE_MIN = 1;
-export const PRIORITE_MAX = 9;
-
 // Ce que la file dit que ce ticket attend du chef, s'il l'attend (attend.ts).
 const attenteDuTicket = (journal: Journal, ticket: number) => attentesDuChef(journal.base, lireRail(journal.base)).find((attente) => attente.ticket === ticket);
 
@@ -61,36 +60,6 @@ export async function retirerDuRail(journal: Journal, github: GitHub, projet: st
   return { done: true, price: `the ticket leaves the rail and is not cooked; its issue stays open and loses its \`${LABEL}\` label — put it back to bring the ticket back on the rail. Nothing is lost, nothing is spent` };
 }
 
-// Change la priorité d'un ticket, quel que soit son état : le label `prio:<n>`
-// de l'issue est remplacé. `priorite` : un entier de 1 à 9, ou null pour retirer
-// la priorité — le ticket passe alors après les autres.
-export async function changerPriorite(journal: Journal, github: GitHub, projet: string, ticket: number, priorite: unknown): Promise<Resultat> {
-  if (priorite !== null && !(Number.isInteger(priorite) && (priorite as number) >= PRIORITE_MIN && (priorite as number) <= PRIORITE_MAX)) {
-    return refuse(`priority ${JSON.stringify(priorite) ?? String(priorite)} is not valid: expected a whole number from ${PRIORITE_MIN} to ${PRIORITE_MAX} (1 is served first), or null for none`);
-  }
-  const niveau = priorite as number | null;
-  const courant = ticketDuRail(journal.base, ticket);
-  if (!courant) return refuse(`#${ticket} is not on the rail`);
-  const issue = await github.issue(ticket);
-  if (!issue) return refuse(`the issue of #${ticket} is gone from GitHub`);
-  const voulu = niveau === null ? null : `prio:${niveau}`;
-  const anciens = issue.labels.filter((label) => /^prio:[0-9]$/.test(label) && label !== voulu);
-  if (voulu !== null && !issue.labels.includes(voulu)) await github.labelliser(ticket, [voulu]);
-  for (const ancien of anciens) await github.delabelliser(ticket, ancien);
-  const apres = ticketDuRail(journal.base, ticket);
-  if (apres && apres.priority !== niveau) {
-    journal.ajouter({
-      project: projet,
-      ticket,
-      author: AUTEUR,
-      type: "ticket.changed",
-      payload: { title: apres.title, priority: niveau, model: apres.model, effort: apres.effort, card: apres.card },
-    });
-  }
-  return { done: true, price: "none: only the order of service changes; no cook is launched or interrupted, and nothing is spent" };
-}
-
-// Où le chef place un ticket : juste avant un autre, ou juste après.
 // Merge la livraison d'un ticket que la file demande de merger à la main — une
 // livraison verte que la pass ne merge pas elle-même, ou une remontée qui a sa
 // PR (attend.ts, `merge` et `remontee`) —, à la tête que sa PR porte sur GitHub.

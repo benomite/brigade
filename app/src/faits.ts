@@ -30,6 +30,7 @@ import { plafondVu, type PlafondLu, type PlafondVu } from "./plafond-de-calibrag
 import { LABEL_RETENUE } from "./question.ts";
 import { carteDeTodo, carteLue, type CarteDeTodo, type CarteLue } from "./carte-todo.ts";
 import type { Repondue } from "./repondues.ts";
+import type { PrioriteMontree } from "./priorite.ts";
 import type { RailDuProjet } from "../../runtime/src/appairage/rail-du-projet.ts";
 
 export const COMMANDE = "facts";
@@ -697,13 +698,13 @@ export function titreDEchec({ cas, atteinte, duTableau }: Echec, sansReponse = "
 
 // Une lecture de la veille, et ce qui s'en dessine. Sans faits, rien n'est
 // dessiné : le titre dit quel cas, et ce qui a été obtenu suit.
-function lire(lecture: Lecture, attend?: BlocLu, status?: StatusLu, repondues?: ReadonlyMap<number, Repondue>): { faits?: Faits; recue: Dessinable } {
+function lire(lecture: Lecture, attend?: BlocLu, status?: StatusLu, repondues?: ReadonlyMap<number, Repondue>, ecrites?: PrioriteMontree): { faits?: Faits; recue: Dessinable } {
   if ("erreur" in lecture) return { recue: { ...lecture, titre: titreDEchec(lecture) } };
   const { projet, demande, a } = lecture;
   const rendu = lecture.sorties.find(({ commande }) => commande === COMMANDE)?.texte ?? "";
   const faits = comprendre(rendu);
   if ("informe" in faits) return { recue: { projet, demande, a, titre: "THE STATION DID NOT RETURN THE SHAPE OF `facts`", informe: faits.informe, rendu } };
-  return { faits, recue: { projet, demande, a, tableau: tableau(faits, attend, status, repondues) } };
+  return { faits, recue: { projet, demande, a, tableau: tableau(faits, attend, status, repondues, ecrites) } };
 }
 
 export const dessiner = (lecture: Lecture): Dessinable => lire(lecture).recue;
@@ -883,7 +884,9 @@ const RIEN_DE_LU = "not read: this station's runtime does not give `attend` in `
 // depuis, 86 — reste aussi là où ce mot le range. Sans `livres`, un runtime
 // d'avant ce champ : Livré prend les tickets `servi` du rail, comme les autres.
 // `status` : ce que la box en a rendu, d'où vient la ligne que chaque carte porte.
-export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues?: ReadonlyMap<number, Repondue>): Rail {
+// `ecrites` : la priorité que l'app vient d'écrire sur l'issue d'un ticket (priorite.ts), que sa carte et sa fiche
+// montrent tant que le tableau montre encore celle d'avant.
+export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues?: ReadonlyMap<number, Repondue>, ecrites?: PrioriteMontree): Rail {
   const lignes = status === undefined ? undefined : lignesDuRail(status.texte);
   const connus = new Map(faits.rail.map((connu) => [connu.ticket, connu]));
   // Où cuit chaque station : la box, ou le Mac (bon.ts) — rien, d'un runtime qui ne donne pas les stations.
@@ -943,10 +946,14 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
               : connu?.raison != null && EN_FILE.includes(connu.etat)
                 ? ligneDeTete(connu.etat, connu.raison)
                 : ligneEnAttente(connu?.etat ?? "", retient);
-    // Sur le rail, en attente : sa priorité se lit sur la carte — celle que sa ligne de `status` écrit.
+    // Sur le rail, en attente : sa priorité se lit sur la carte — celle que sa ligne de `status` écrit, ou celle que
+    // l'app vient d'écrire sur son issue, tant que le tableau montre encore l'ancienne.
     const enFile = dit === undefined && connu !== undefined && EN_FILE.includes(connu.etat);
     const [sienne] = siennes ?? [];
-    const prio = enFile && connu !== undefined && siennes?.length === 1 && sienne !== undefined ? priorite(sienne, connu.etat, connu.titre) : undefined;
+    const prioLue = connu !== undefined && siennes?.length === 1 && sienne !== undefined ? priorite(sienne, connu.etat, connu.titre) : undefined;
+    const niveauLu = prioLue === "-" ? null : /^prio:([0-9])$/.exec(prioLue ?? "")?.[1];
+    const ecrite = connu === undefined ? undefined : ecrites?.(ticket, niveauLu === undefined || niveauLu === null ? niveauLu : Number(niveauLu));
+    const prio = !enFile ? undefined : ecrite !== undefined ? (ecrite === null ? "-" : `prio:${ecrite}`) : prioLue;
     return {
       ticket,
       ...ligne,
@@ -962,7 +969,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
       ...porte,
       // La PR n'est donnée que d'un ticket livré : ici, la box ne la donne pas.
       fiche: {
-        ...entete({ ...(titre === undefined ? {} : { titre }), url, ...sur(connu), ...(siennes === undefined ? {} : { lignes: siennes }) }),
+        ...entete({ ...(titre === undefined ? {} : { titre }), url, ...sur(connu), ...(siennes === undefined ? {} : { lignes: siennes }), ...(ecrite === undefined ? {} : { prio: ecrite }) }),
         ...(dit === undefined ? {} : { attendu: attenduDe(donne?.decision).phrase }),
         ...(dit === undefined ? {} : tete(teteDe(donne?.decision, donne?.livraison))),
       },
@@ -1109,7 +1116,7 @@ const COOKS_PAS_LUS = "cooks running: not read — this station's runtime does n
 // Les faits, tels que la vue les pose : la pastille, les cinq compteurs dans
 // l'ordre de la carte, les cooks en cours dans celui de la box, le dernier
 // événement, et le rail en six colonnes.
-export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues?: ReadonlyMap<number, Repondue>): Tableau {
+export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues?: ReadonlyMap<number, Repondue>, ecrites?: PrioriteMontree): Tableau {
   const { compteurs } = faits;
   return {
     ...colore(TONS_DE_PROJET, faits.etat),
@@ -1125,7 +1132,7 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu, repond
     cooks: { enCours: faits.cooks ?? [], vide: faits.cooks === undefined ? COOKS_PAS_LUS : AUCUN_COOK },
     evenement: evenement(faits),
     ...rienNeCuit(status),
-    rail: rail(faits, attend, status, repondues),
+    rail: rail(faits, attend, status, repondues, ecrites),
     ...(faits.stations === undefined ? {} : { stations: cuissonDe(faits.stations, faits.cooks, faits.lu) }),
     ...(faits.plafondDeCalibrage === undefined ? {} : { plafondDeCalibrage: plafondVu(faits.plafondDeCalibrage) }),
     ...(triageDe(faits.triage, faits.lu) === undefined ? {} : { triage: triageDe(faits.triage, faits.lu) }),
@@ -1150,15 +1157,16 @@ export const BANNIERE = {
 // que la box a donnée pour ce ticket, à la dernière lecture. Le dernier `status`
 // de chaque projet y est tenu aussi, son bloc `attend` mis à part : il vient d'une
 // autre lecture, et le rail se dessine des deux. `repondues` : les questions répondues de chaque
-// projet (repondues.ts), que le rail range dans WAITING.
-export function tenirFaits(repondues: (projet: string) => ReadonlyMap<number, Repondue> = () => new Map()) {
+// projet (repondues.ts), que le rail range dans WAITING. `ecrites` : les priorités que l'app vient d'écrire sur
+// les issues de chaque projet (priorite.ts), que le rail montre tant que le tableau ne les a pas lues.
+export function tenirFaits(repondues: (projet: string) => ReadonlyMap<number, Repondue> = () => new Map(), ecrites: (projet: string) => PrioriteMontree = () => () => undefined) {
   const tenus = new Map<string, { faits: Faits; lecture: Lecture }>();
   const blocs = new Map<string, BlocLu>();
   const statuts = new Map<string, StatusLu>();
   const poser = <T>(ou: Map<string, T>, projet: string, valeur: T | undefined) => void (valeur === undefined ? ou.delete(projet) : ou.set(projet, valeur));
   return {
     recevoir(lecture: Lecture): Dessinable {
-      const { faits, recue } = lire(lecture, blocs.get(lecture.projet), statuts.get(lecture.projet), repondues(lecture.projet));
+      const { faits, recue } = lire(lecture, blocs.get(lecture.projet), statuts.get(lecture.projet), repondues(lecture.projet), ecrites(lecture.projet));
       if (faits === undefined) tenus.delete(lecture.projet);
       else tenus.set(lecture.projet, { faits, lecture });
       return recue;
@@ -1178,7 +1186,7 @@ export function tenirFaits(repondues: (projet: string) => ReadonlyMap<number, Re
       poser(statuts, montree.projet, status);
       const tenu = tenus.get(montree.projet);
       if (tenu === undefined || (!avant && bloc === undefined && status === undefined)) return undefined;
-      return lire(tenu.lecture, bloc, status, repondues(montree.projet)).recue;
+      return lire(tenu.lecture, bloc, status, repondues(montree.projet), ecrites(montree.projet)).recue;
     },
     // Les projets dont `status` est lu désormais — celui qui est affiché, ou tous.
     // Ce qu'il a rendu pour un projet qui n'en est plus est lâché : ses faits, eux,
@@ -1189,14 +1197,14 @@ export function tenirFaits(repondues: (projet: string) => ReadonlyMap<number, Re
         blocs.delete(projet);
         statuts.delete(projet);
         const tenu = tenus.get(projet);
-        return tenu === undefined ? [] : [lire(tenu.lecture, undefined, undefined, repondues(projet)).recue];
+        return tenu === undefined ? [] : [lire(tenu.lecture, undefined, undefined, repondues(projet), ecrites(projet)).recue];
       });
     },
     // Le rail d'un projet redessiné des dernières lectures, sans en attendre une : une question vient
     // d'y être répondue, ou de ne plus l'être. Rien, s'il n'a pas de faits lus.
     redessiner(projet: string): Dessinable | undefined {
       const tenu = tenus.get(projet);
-      return tenu === undefined ? undefined : lire(tenu.lecture, blocs.get(projet), statuts.get(projet), repondues(projet)).recue;
+      return tenu === undefined ? undefined : lire(tenu.lecture, blocs.get(projet), statuts.get(projet), repondues(projet), ecrites(projet)).recue;
     },
     // Les tickets qui attendent le chef d'après les dernières lectures : ceux que le bloc `attend` nomme
     // en tête d'une ligne, et ceux que `faits` donne dans `attend`. Indéfini : ni l'un ni l'autre n'est lu.

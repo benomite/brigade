@@ -75,9 +75,10 @@ test("un texte sur la carte de TODO : `/brigade answer #<n> <texte>` est écrit,
 test("chaque geste que la vue du rail a aujourd'hui : écrit sur le tableau s'il est de sa grammaire, sinon dit hors du tableau et rien n'y part", async (t) => {
   const lu = await tableau(t);
   // Les gestes de la fiche qui partaient vers la box (gestes-fiche.ts, `ACTIONS`) : ceux que la grammaire connaît
-  // sont sur le tableau ; changer la priorité et renvoyer en cuisine un ticket revenu de WAITING n'y ont pas de mot.
+  // sont sur le tableau ; renvoyer en cuisine un ticket revenu de WAITING n'y a pas de mot. Changer la priorité ne part
+  // plus vers la box : l'app change le label `prio:` de l'issue elle-même (priorite.ts, #1739).
   const versLaBox = Object.entries(ACTIONS).flatMap(([id, branchement]) => ("box" in branchement ? [id] : []));
-  assert.deepEqual(versLaBox.sort(), ["cuisine", "merger", "priorite", "retirer"]);
+  assert.deepEqual(versLaBox.sort(), ["cuisine", "merger", "retirer"]);
   assert.deepEqual(Object.keys(GESTES_DE_FICHE).sort(), ["merger", "retirer"]);
   const { client, ecrits } = github();
   for (const id of ["cuisine", "priorite", "issue", "second", "inconnu"]) assert.deepEqual(await gesteDeFiche(lu, id, 35, client), { horsDuTableau: true }, id);

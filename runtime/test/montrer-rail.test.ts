@@ -7,7 +7,7 @@ import { ouvrirJournal } from "../src/journal.ts";
 import { principal as montrerRail } from "../src/montrer-rail.ts";
 import { lireRail, ticketDuRail } from "../src/projections/rail.ts";
 import { ouvrirRail } from "../src/rail.ts";
-import { appeler, DEPOT, fauxGh, horloge, issueGitHub, lancer, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
+import { appeler, DEPOT, fauxGh, horloge, lancer, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
 
 const MONTRER = join(import.meta.dirname, "../src/montrer-rail.ts");
 
@@ -245,10 +245,10 @@ test("la fiche d'un ticket qui demande une capacité la montre, et son 86 dit la
 });
 
 // Les gestes du chef sur un ticket du rail (geste-ticket.ts), tels que la fiche de l'app les
-// lance : `brigade <projet> rail remove <ticket>`, `… rail priority <ticket> <1-9 | none>`,
-// `… rail merge <ticket>` ; et ceux qui font d'une raison une leçon, `… rail send-back <ticket>
-// [raison…]` et `… rail correct <ticket> <raison…>`.
-describe("remove, priority, merge, send-back et correct", () => {
+// lance : `brigade <projet> rail remove <ticket>`, `… rail merge <ticket>` ; et ceux qui font
+// d'une raison une leçon, `… rail send-back <ticket> [raison…]` et `… rail correct <ticket>
+// <raison…>`. La priorité n'en est plus un : l'app change le label `prio:` de l'issue (#1739).
+describe("remove, merge, send-back et correct", () => {
   const ISSUE = (numero: number) => `repos/${DEPOT}/issues/${numero}`;
   const LABELS = (numero: number) => `${ISSUE(numero)}/labels`;
 
@@ -302,35 +302,16 @@ describe("remove, priority, merge, send-back et correct", () => {
     assert.deepEqual(gh.appels(), []);
   });
 
-  test("priority change la priorité d'un ticket, même pris : le nouveau label est posé, l'ancien retiré, le rail la lit aussitôt", async (t) => {
+  test("la priorité n'est pas un geste de la box : `priority` est un geste inconnu, refusé en 2, et rien ne part à GitHub (#1739)", async (t) => {
     const { journal, gh, jouer } = cuisine(t);
-    gh.repondre(ISSUE(14), { corps: issueGitHub(14, { labels: ["fire", "prio:1"] }) });
-    gh.repondre(LABELS(14), { corps: [] });
-    gh.repondre(`${LABELS(14)}/prio%3A1`, { corps: [] });
 
-    const commande = jouer(["priority", "14", "3"]);
+    const commande = jouer(["priority", "18", "3"]);
 
-    assert.equal(await commande.fin, 0);
-    assert.match(commande.sortie(), /^#14: priority prio:3 — cost: none: only the order of service changes/);
-    assert.deepEqual(gh.appels().map((appel) => appel.at(-1)), [ISSUE(14), LABELS(14), `${LABELS(14)}/prio%3A1`]);
-    assert.equal(ticketDuRail(journal.base, 14)?.priority, 3);
-    assert.equal(ticketDuRail(journal.base, 14)?.state, "taken");
-  });
-
-  test("priority none retire la priorité ; une valeur hors de 1 à 9 est refusée sans rien demander à GitHub", async (t) => {
-    const { journal, gh, jouer } = cuisine(t);
-    gh.repondre(ISSUE(18), { corps: issueGitHub(18, { labels: ["fire", "prio:5"] }) });
-    gh.repondre(`${LABELS(18)}/prio%3A5`, { corps: [] });
-
-    const hors = jouer(["priority", "18", "12"]);
-    assert.equal(await hors.fin, 1);
-    assert.match(hors.sortie(), /priority 12 is not valid/);
+    assert.equal(await commande.fin, 2);
+    assert.match(commande.sortie(), /unknown gesture: “priority”/);
+    assert.doesNotMatch(commande.sortie(), /priority </);
     assert.deepEqual(gh.appels(), []);
-
-    const aucune = jouer(["priority", "18", "none"]);
-    assert.equal(await aucune.fin, 0);
-    assert.match(aucune.sortie(), /^#18: priority removed — cost: /);
-    assert.equal(ticketDuRail(journal.base, 18)?.priority, null);
+    assert.equal(ticketDuRail(journal.base, 18)?.priority, 5);
   });
 
   test("correct dit pourquoi le chef a corrigé une livraison, en mots tapés sans guillemets : une leçon candidate, sans rien demander à GitHub ; send-back refuse ce qui n'attend pas le chef", async (t) => {
@@ -353,7 +334,7 @@ describe("remove, priority, merge, send-back et correct", () => {
 
   test("une demande mal formée, ou sans dépôt déclaré, est refusée en 2 avant que rien ne parte", async (t) => {
     const { gh, jouer } = cuisine(t);
-    for (const args of [["remove"], ["remove", "x"], ["remove", "18", "3"], ["priority", "18"], ["priority", "18", "3", "4"], ["merge"], ["merge", "18", "now"], ["send-back"], ["correct", "x", "raison"], ["supprimer", "18"]]) {
+    for (const args of [["remove"], ["remove", "x"], ["remove", "18", "3"], ["merge"],["merge", "18", "now"], ["send-back"], ["correct", "x", "raison"], ["supprimer", "18"]]) {
       const commande = jouer(args);
       assert.equal(await commande.fin, 2, args.join(" "));
       assert.match(commande.sortie(), /usage/, args.join(" "));

@@ -1,10 +1,10 @@
-// Retirer un ticket du rail, changer sa priorité, merger la livraison qui attend
-// le chef, la renvoyer à un cook, dire pourquoi il l'a corrigée : les cas
-// acceptés, les cas refusés, et ce que chaque geste dit de son prix.
+// Retirer un ticket du rail, merger la livraison qui attend le chef, la renvoyer
+// à un cook, dire pourquoi il l'a corrigée : les cas acceptés, les cas refusés,
+// et ce que chaque geste dit de son prix.
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { carnetDuProjet } from "../src/apprentissage/provisoires.ts";
-import { changerPriorite, corrigerLaLivraison, mergerLaLivraison, renvoyerLaLivraison, RENVOI_DU_CHEF, RENVOI_SANS_RAISON, retirerDuRail } from "../src/geste-ticket.ts";
+import { corrigerLaLivraison, mergerLaLivraison, renvoyerLaLivraison, RENVOI_DU_CHEF, RENVOI_SANS_RAISON, retirerDuRail } from "../src/geste-ticket.ts";
 import { renvoiEnAttente } from "../src/projections/pass.ts";
 import type { GitHub, Issue, Merge, PR } from "../src/github.ts";
 import { ouvrirJournal } from "../src/journal.ts";
@@ -129,43 +129,6 @@ test("retirer un ticket qui n'est pas sur le rail est refusé", async (t) => {
   const r = await retirerDuRail(journal, github, PROJET, 99);
   assert.deepEqual(r, { done: false, reason: "#99 is not on the rail", price: "none: nothing was changed" });
   assert.deepEqual(ecrits, []);
-});
-
-test("changer la priorité met à jour le ticket, remplace le label de l'issue et dit son prix", async (t) => {
-  const { journal, github, ecrits, etat } = cuisine(t, issue(7, ["fire", "prio:3", "model:sonnet"]));
-  const r = await changerPriorite(journal, github, PROJET, 7, 1);
-  assert.equal(r.done, true);
-  assert.match(r.price, /^none:/);
-  assert.equal(ticketDuRail(journal.base, 7)?.priority, 1);
-  assert.deepEqual(ecrits, ["+7:prio:1", "-7:prio:3"]);
-  assert.deepEqual(etat.get(7)?.labels.sort(), ["fire", "model:sonnet", "prio:1"]);
-});
-
-test("changer la priorité vaut pour un ticket au travail, et null la retire", async (t) => {
-  const { journal, github, prendre } = cuisine(t, issue(7, ["fire", "prio:2"]));
-  prendre(7);
-  assert.equal((await changerPriorite(journal, github, PROJET, 7, 5)).done, true);
-  assert.equal(ticketDuRail(journal.base, 7)?.priority, 5);
-  assert.equal((await changerPriorite(journal, github, PROJET, 7, null)).done, true);
-  assert.equal(ticketDuRail(journal.base, 7)?.priority, null);
-});
-
-test("une priorité invalide est refusée avec sa raison, rien n'est modifié", async (t) => {
-  const { journal, github, ecrits } = cuisine(t, issue(7, ["fire", "prio:2"]));
-  for (const mauvaise of [0, 10, 1.5, "1", -1, undefined, Number.NaN]) {
-    const r = await changerPriorite(journal, github, PROJET, 7, mauvaise);
-    assert.equal(r.done, false);
-    assert.match(r.done ? "" : r.reason, /is not valid: expected a whole number from 1 to 9/);
-    assert.match(r.price, /nothing was changed/);
-  }
-  assert.deepEqual(ecrits, []);
-  assert.equal(ticketDuRail(journal.base, 7)?.priority, null);
-});
-
-test("changer la priorité d'un ticket absent du rail est refusé", async (t) => {
-  const { journal, github } = cuisine(t);
-  const r = await changerPriorite(journal, github, PROJET, 5, 2);
-  assert.equal(r.done, false);
 });
 
 test("retirer un ticket remonté (86) ou une livraison verte qui attend le chef est accepté : rien n'y est en cours", async (t) => {

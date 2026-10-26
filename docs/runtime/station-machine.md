@@ -121,7 +121,7 @@ gist channel (`appairage/canal.ts`) — goes through the counter before `gh` lea
   service log): `quota GitHub entamé : N appels restants sur 5000 — la cuisine ralentit, son prochain
   appel part dans N s`, then `quota GitHub bas : N appels restants sur 5000, gardés pour les gestes du
   chef — la cuisine attend la fin de la fenêtre, dans N s` (French until the runtime is translated).
-- **The chef's gestures are never held by the box.** `rail` (remove, priority, merge, send-back,
+- **The chef's gestures are never held by the box.** `rail` (remove, merge, send-back,
   choose, answer), `pass <ticket> issue|comment|ask` and `manager` call GitHub as gestures: neither
   the box's count, nor the reserve, nor a pause stops them. They fail only if GitHub itself refuses.
   They are counted, and they spend the reserve.

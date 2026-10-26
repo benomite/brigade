@@ -26,7 +26,7 @@ function messageDe(data: unknown): string | null {
   return phrase === "" || phrase.length > 200 ? null : phrase;
 }
 
-function refusDe(quoi: string, { status, data }: ReponseGitHub): Error {
+export function refusDe(quoi: string, { status, data }: ReponseGitHub): Error {
   const message = messageDe(data);
   if (status === 401) return new Error(`GitHub refused the app's GitHub sign-in (HTTP 401)${message === null ? "" : `: ${message}`} — sign in to GitHub again`);
   return new Error(`GitHub refused ${quoi} (HTTP ${status})${message === null ? "" : `: ${message}`}`);

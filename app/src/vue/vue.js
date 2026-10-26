@@ -3426,6 +3426,9 @@ async function lireGestes(projet, carte) {
 
 // Un geste de la fiche que la vue ne joue pas : une action de box, qui part dans le second. Le
 // second se montre à droite ; ce qui n'est pas parti se dit sur la fiche, sous ses gestes.
+// Changer la priorité ne passe pas par la box : le process principal change le label `prio:` de
+// l'issue sur GitHub (priorite.ts) — fait, la fiche le dit et le rail redessiné montre la nouvelle
+// priorité ; en échec, rien n'a changé, la ligne le dit et son détail est au survol.
 // Sur le téléphone (ticket 1164), il n'y a pas de second où l'écrire : le pont joue l'action sur la station et rend ce
 // qu'elle a fait, comme le bouton d'une station sur Cooks — dit sur la fiche, et la box relue tout de suite : la carte
 // quitte la file à la lecture qui suit. Tant que la réponse n'est pas là, les gestes de la fiche attendent ; refusé,
