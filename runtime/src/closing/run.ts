@@ -1,6 +1,9 @@
 // La fermeture qui écrit, branchée sur le runtime : une passe ne part que sur
-// la commande du chef (`closing.requested`) — jamais d'un seuil franchi, jamais
-// d'une horloge. La demande attend que sa condition d'exécution soit remplie,
+// une demande (`closing.requested`) — la commande du chef, ou celle que le
+// runtime écrit seul pour un projet dont le closer est réglé, après
+// `MERGES_PER_PASS` merges ou un seuil de dérive franchi depuis la dernière
+// passe partie, et jamais deux le même jour (`trigger.ts`) ; jamais d'une
+// horloge seule. La demande attend que sa condition d'exécution soit remplie,
 // relue à chaque réveil, et la passe part alors, une fois ; une demande qui
 // attend depuis `SANS_ISSUE_MS` est dite sans issue. Elle part hors du rail :
 // elle ne prend aucun ticket et n'a pas de priorité. C'est l'agent le plus
@@ -37,6 +40,7 @@ import { SANS_ISSUE_MS, type FaitFermeture, type FinDePasse, type Laisse, type P
 import { LancementRefuse, type CookLance, type GardeFous, type Verdict } from "../garde-fous.ts";
 import type { GitHub } from "../github.ts";
 import { identifiantsLivres } from "../identifiants.ts";
+import { direJauge } from "../mesures.ts";
 import type { Pass } from "../pass.ts";
 import { etatDesGardeFous } from "../projections/guardrails.ts";
 import type { Rail } from "../rail.ts";
@@ -48,6 +52,7 @@ import { consigneDuCloser, corpsDeLaPR, laisses, motifsDuCloser, titreDeLaPR } f
 import { direDemande, direFin, direRefus } from "./say.ts";
 import { lignesChangees, lignesRetirees, lireDepot } from "./reading.ts";
 import { mesurerRatio } from "./ratio.ts";
+import { trigger } from "./trigger.ts";
 
 const AUTEUR = "closer";
 // La station sous laquelle le closer est lancé : c'est par elle que le relevé
@@ -366,6 +371,25 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
     await depot.ranger(worktree, branche).catch((erreur) => avertir(`brigade : worktree de la passe ${run} non rangé — ${message(erreur)}`));
   };
 
+  // La demande que le runtime écrit seul, comme le geste du chef l'écrirait :
+  // un projet sans closer réglé n'en reçoit jamais. Ni pendant qu'une passe
+  // attend ou range, ni sous le « stop » ou le disjoncteur, qui la
+  // refuseraient — elle vient au réveil qui suit la reprise.
+  const declencher = () => {
+    if (arrete || occupee || !reglages.calibration) return;
+    const reglee = reglages;
+    base.transaction(() => {
+      if (passeEnCours(journal) !== null) return;
+      const motif = refus(base, reglee, false);
+      if (motif && !faitAttendre(motif)) return;
+      const pourquoi = trigger(base, maintenant());
+      if (pourquoi === null) return;
+      journal.ajouter({ project: projet, ticket: null, author: "runtime", type: "closing.requested", payload: {} });
+      const cause = pourquoi.reason === "merges" ? `${pourquoi.merges} merges depuis la dernière passe` : `seuil de dérive franchi — ${direJauge(pourquoi.crossing)}`;
+      avertir(`brigade : passe de fermeture demandée par le runtime — ${cause}`);
+    });
+  };
+
   // La demande qui attend, relue à chaque réveil : elle part si rien ne la
   // retient, attend si c'est sa condition d'exécution — et le dit, une fois,
   // passé `SANS_ISSUE_MS` —, et est refusée sinon.
@@ -402,6 +426,7 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
 
   const desabonner = runtime.surReveil((cause) => {
     relire();
+    declencher();
     passer();
     const vol = enCours;
     if (vol === null) return;

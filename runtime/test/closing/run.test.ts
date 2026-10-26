@@ -1,6 +1,6 @@
 // La fermeture qui écrit, de bout en bout sur un vrai dépôt git : la passe ne
-// part que sur la commande du chef, sous sa condition d'exécution ; chaque
-// garde-fou l'arrête et le dit ; les zones tiennent dans les deux sens ; et ce
+// part que sur une demande — du chef, ou du runtime sur un déclencheur —, sous
+// sa condition d'exécution ; chaque garde-fou l'arrête et le dit ; les zones tiennent dans les deux sens ; et ce
 // qu'elle retire arrive par une PR, jamais par un commit sur la base.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
@@ -84,14 +84,13 @@ describe("la passe de fermeture, en cuisine", { concurrency: 8 }, () => {
     assert.deepEqual(branchesDeLOrigine(), [BASE]);
   }
 
-  test("sans la commande du chef, aucune passe qui écrit ne démarre — pas même quand un déclencheur est franchi", async (t) => {
+  test("sans la commande du chef ni déclencheur — vingt merges, un seuil franchi —, aucune passe qui écrit ne démarre : pas sur une horloge", async (t) => {
     const cuisine = cuisineFermee(t);
     const { journal, types } = cuisine;
     cuisine.closer.gestes(RETIRER_M1);
     const seuils = { tests: null, testsSeconds: null, gatesSeconds: null, contextKb: null, repoMb: null, merges: 1, growthPercent: null };
     journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "drift.configured", payload: { limits: seuils } });
-    journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "drift.crossed", payload: { measure: "merges", observed: 80, limit: 1 } });
-    // Le runtime a vu le franchissement, et laissé passer dix ticks.
+    // Le runtime a laissé passer dix ticks, sans merge ni seuil franchi.
     const vus = types().filter((type) => type === "runtime.ticked").length;
     await jusqua(() => types().filter((type) => type === "runtime.ticked").length >= vus + 10);
 
