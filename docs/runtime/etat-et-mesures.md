@@ -315,7 +315,8 @@ The runtime publishes what `status` says in the project's own repository: one is
 **Kitchen board**, pinned, whose body is the board (`runtime/src/tableau/`) — the queue with each
 gesture, the kitchen's state, and a machine block for the apps. It carries the labels
 `kitchen-board`, by which it is found again, and `hors-cuisine`, so that neither the rail nor the
-manager takes it as a ticket. On each tick (once a minute) the runtime rereads the board and
+manager takes it as a ticket. Its format, field by field — including what the project's rail view
+draws from it (#1693) — is in [`tableau-de-cuisine.md`](tableau-de-cuisine.md). On each tick (once a minute) the runtime rereads the board and
 **rewrites the body only if what it says changed**: the reading time, the durations it gives
 ("for 4 min") and the runtime's last tick are not a change, so a quiet kitchen writes nothing. Only the body is edited —
 no comment, no mention: a refresh notifies nobody. Each call goes through the GitHub budget

@@ -16,6 +16,9 @@
 // tels que `status` les lit. Dans le JSON, `<`, `>`, `&` et `@` sont écrits en
 // `\uXXXX` : rien de ce qu'il porte ne ferme le commentaire, et aucun `@`
 // n'y mentionne personne. `JSON.parse` les rend tels quels.
+//
+// Le format, champ par champ, est décrit pour les apps dans
+// docs/runtime/tableau-de-cuisine.md.
 
 export const VERSION_DU_TABLEAU = 1;
 export const OUVERTURE_DU_BLOC = "<!-- brigade:kitchen-board";
@@ -99,11 +102,34 @@ export type CuisineDuTableau = {
 // répondue sous lui, en markdown.
 export type GesteDuTableau = { commentaire: number; url: string; le: string; geste: string | null; ticket: number | null; etat: "pris" | "refuse"; traiteLe: string; reponse: string };
 
+// Ce que la vue du rail d'un projet dessine (#1693) : l'objet de `facts`, dans
+// sa forme et ses mots (etat.ts, `Faits` ; docs/runtime/etat-et-mesures.md,
+// « Les faits, pour un programme ») — ses tickets et leur état, les cooks en
+// cours, ce qui attend le chef et ses cartes, les livrés, les stations —, sans
+// ce que d'autres écrans lisent (donnees.ts, `FaitsDuTableau`). Ce module
+// n'importe rien : la forme est typée là, et une app la vérifie en la lisant,
+// comme elle vérifie la sortie de `facts`.
+export type FaitsPublies = { [champ: string]: unknown };
+
+// Un ticket du rail tel que `status` l'écrit sous sa ligne `rail`, dans l'ordre
+// du rail : sa priorité (`prio:` de l'issue, nulle sans elle), que les faits ne
+// portent pas, et sa ligne mot pour mot, retrait compris —
+// `  #<ticket>  <état>  <priorité>  <détail>  <titre>`.
+export type LigneDuRail = { ticket: number; priorite: number | null; ligne: string };
+
+// Ce qu'un corps trop long pour GitHub a retiré du bloc, dans l'ordre où il l'a
+// retiré (rendre.ts) : les relectures des livrés, les livraisons qui attendent,
+// les diffs des corrections, puis les faits et les lignes du rail entiers.
+export type Resserre = "faits.livres.relecture" | "faits.attend.livraison" | "faits.corrections.diff" | "faits" | "lignesDuRail";
+
 // `lu` : l'heure de la lecture de l'état — les durées que les lignes disent se
 // comptent jusqu'à elle. `bilans` : ce que le bloc `awaiting` de `status` dit
 // sans que ce soit une décision (la pause, le bilan sans grant, la version passée).
 // `gestes` : les derniers gestes du chef lus sur le tableau, le plus ancien
-// d'abord — absent d'un bloc écrit sans eux.
+// d'abord — absent d'un bloc écrit sans eux. `faits` et `lignesDuRail` : ce que
+// la vue du rail dessine — absents d'un bloc écrit avant eux (#1693).
+// `resserre` : ce que le corps a dû retirer du bloc pour tenir dans une issue —
+// absent quand rien ne l'a été.
 export type Tableau = {
   projet: string | null;
   lu: string;
@@ -111,6 +137,9 @@ export type Tableau = {
   bilans: string[];
   cuisine: CuisineDuTableau;
   gestes?: GesteDuTableau[];
+  faits?: FaitsPublies;
+  lignesDuRail?: LigneDuRail[];
+  resserre?: Resserre[];
 };
 
 export type BlocDuTableau = { version: number; genereLe: string; tableau: Tableau };

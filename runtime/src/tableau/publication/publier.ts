@@ -19,10 +19,13 @@
 //
 // Rien n'y poste de commentaire, et le corps ne mentionne personne (rendre.ts) :
 // un rafraîchissement ne notifie aucun compte.
+import { cartesDeCorrection } from "../../correctif/cartes.ts";
 import { lireEtat } from "../../etat.ts";
 import { HORS_CUISINE } from "../../github.ts";
 import { masquerIdentifiants } from "../../identifiants.ts";
 import { appelsDeLaStation, pauseDeLaStation } from "../../limite-github.ts";
+import { refusDuProjet } from "../../mise-a-jour/en-service.ts";
+import { cartesDeProfil } from "../../profils/cartes.ts";
 import type { Runtime } from "../../runtime.ts";
 import { lireLeTableau, OUVERTURE_DU_BLOC, type Tableau } from "../rendu/bloc.ts";
 import { tableauDeLaCuisine } from "../rendu/donnees.ts";
@@ -60,7 +63,12 @@ export function contenuDuCorps(corps: string): string | null {
   // la cuisine a bougé — ni dans le bloc, ni dans la ligne de `status` qui le dit.
   const rubriques = tableau.cuisine.rubriques.map((rubrique) => (rubrique.titre === "runtime" ? { ...rubrique, lignes: rubrique.lignes.map((ligne) => ligne.replace(LIGNE_DU_TICK, "…")) } : rubrique));
   const cuisine = { ...tableau.cuisine, runtime: { ...tableau.cuisine.runtime, dernierTick: null }, rubriques };
-  return JSON.stringify({ ...tableau, lu: "", cuisine }).replace(DUREE, "…");
+  // Les faits portent aussi l'heure de leur lecture, ce dernier tick, et le
+  // dernier événement du journal : un événement qui ne change rien d'autre
+  // (un garde-fou réglé, une station réannoncée) ne réécrit pas le corps — le
+  // prochain changement publie le dernier du moment.
+  const faits = tableau.faits === undefined ? {} : { faits: { ...tableau.faits, lu: "", dernierTick: null, dernierEvenement: null } };
+  return JSON.stringify({ ...tableau, lu: "", cuisine, ...faits }).replace(DUREE, "…");
 }
 
 // Ce qu'un rafraîchissement a fait sur GitHub, dans l'ordre.
@@ -178,10 +186,20 @@ export function brancherLeTableau<R extends Runtime>(runtime: R, options: Option
   const maintenant = options.maintenant ?? (() => new Date());
   const { station } = options;
   const { gestes, mentions } = options;
+  // Le tableau lu par défaut : l'état du journal, comme `status` le lit, et les
+  // faits comme `facts` les rend — l'adresse des issues par le dépôt du tableau,
+  // le refus de la station de cette machine, les corrections et les profils proposés.
   const lire =
     options.lire ??
     ((instant: Date) => {
-      const tableau = tableauDeLaCuisine(lireEtat(runtime.journal, instant), instant, { limiteGithub: pauseDeLaStation(station, instant.getTime()), appels: appelsDeLaStation(station, instant.getTime()) });
+      const tableau = tableauDeLaCuisine(lireEtat(runtime.journal, instant), instant, {
+        limiteGithub: pauseDeLaStation(station, instant.getTime()),
+        appels: appelsDeLaStation(station, instant.getTime()),
+        depot: options.depot,
+        refus: refusDuProjet(station, runtime.projet),
+        corrections: cartesDeCorrection(runtime.journal, options.depot),
+        profils: cartesDeProfil(runtime.journal, options.depot),
+      });
       return gestes === undefined ? tableau : { ...tableau, gestes: gestes.lus() };
     });
   const avertir = options.avertir ?? ((ligne: string) => console.error(ligne));
