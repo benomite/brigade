@@ -24,7 +24,7 @@ The code is `runtime/src/tableau/`: `rendu/donnees.ts` builds the board from the
 -->
 ```
 
-- In the JSON, `<`, `>`, `&` and `@` are written as `<`, `>`, `&`, `@`: nothing
+- In the JSON, `<`, `>`, `&` and `@` are written as `\u003c`, `\u003e`, `\u0026`, `\u0040`: nothing
   closes the comment, nothing mentions anyone. `JSON.parse` gives them back.
 - If a body holds several blocks, the **last** one counts.
 - `version` changes when a field changes meaning or disappears; **an added field does not change it**.
@@ -134,6 +134,8 @@ empty rail.
 ## What changes the body
 
 The box rewrites the body only when what it says changes. The reading time (`lu`, `faits.lu`), the
-runtime's last tick (`cuisine.runtime.dernierTick`, `faits.dernierTick`, its line in `rubriques`)
-and the durations the lines give ("for 4 min") are not a change. A lease that expires, a cook that
-gets stuck, a ticket that moves, a new event are.
+runtime's last tick (`cuisine.runtime.dernierTick`, `faits.dernierTick`, its line in `rubriques`),
+the log's last event (`faits.dernierEvenement`) and the durations the lines give ("for 4 min") are
+not a change: an event that changes nothing else does not rewrite the body, and `faits.dernierEvenement`
+is the last event as of the latest rewrite. A lease that expires, a cook that gets stuck, a ticket
+that moves are a change.

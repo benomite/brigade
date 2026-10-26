@@ -133,6 +133,11 @@ test("un corps inchangé ne fait aucun appel d'écriture — même quand l'heure
   // À 6 minutes, le bail de #23 échoit : sa ligne du rail le dit (« lease expired »), c'est un changement.
   assert.ok(lire(apres(6)).lignesDuRail?.find(({ ticket }) => ticket === 23)?.ligne.includes("lease expired since"));
   assert.notEqual(contenuDuCorps(corps(6)), contenuDuCorps(corps(0)));
+  // Un événement du journal qui ne change rien d'autre n'est pas un changement : seuls les faits le nomment.
+  const autreEvenement = { ...lire(apres(0)) };
+  autreEvenement.faits = { ...autreEvenement.faits, dernierEvenement: { seq: 999, at: apres(0).toISOString(), type: "guard.configured", ticket: null } };
+  assert.notEqual(rendreLeTableau(autreEvenement, apres(0)), corps(0));
+  assert.equal(contenuDuCorps(rendreLeTableau(autreEvenement, apres(0))), contenuDuCorps(corps(0)));
   // Plus tard, un cook passe la moitié de son bail sans progrès : coincé, c'est un changement.
   assert.notEqual(contenuDuCorps(corps(45)), contenuDuCorps(corps(0)));
   await tableau.rafraichir(apres(45));

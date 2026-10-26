@@ -63,8 +63,11 @@ export function contenuDuCorps(corps: string): string | null {
   // la cuisine a bougé — ni dans le bloc, ni dans la ligne de `status` qui le dit.
   const rubriques = tableau.cuisine.rubriques.map((rubrique) => (rubrique.titre === "runtime" ? { ...rubrique, lignes: rubrique.lignes.map((ligne) => ligne.replace(LIGNE_DU_TICK, "…")) } : rubrique));
   const cuisine = { ...tableau.cuisine, runtime: { ...tableau.cuisine.runtime, dernierTick: null }, rubriques };
-  // Les faits portent aussi l'heure de leur lecture et ce dernier tick.
-  const faits = tableau.faits === undefined ? {} : { faits: { ...tableau.faits, lu: "", dernierTick: null } };
+  // Les faits portent aussi l'heure de leur lecture, ce dernier tick, et le
+  // dernier événement du journal : un événement qui ne change rien d'autre
+  // (un garde-fou réglé, une station réannoncée) ne réécrit pas le corps — le
+  // prochain changement publie le dernier du moment.
+  const faits = tableau.faits === undefined ? {} : { faits: { ...tableau.faits, lu: "", dernierTick: null, dernierEvenement: null } };
   return JSON.stringify({ ...tableau, lu: "", cuisine, ...faits }).replace(DUREE, "…");
 }
 
