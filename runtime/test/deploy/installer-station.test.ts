@@ -66,11 +66,15 @@ describe("sous Linux", { skip: sansSystemd }, () => {
   // `gh` sous le compte brigade : connecté ou non.
   const runuser = (connecte: boolean) => (connecte ? "exit 0" : 'case "$*" in *"gh auth status"*) exit 1 ;; esac');
   // Le node du paquet et son étape de connexion Max : une doublure qui note son appel.
-  function paquetPose(t: TestContext, appels: string, code = 0): string {
+  function paquetPose(t: TestContext, appels: string, { code = 0, etape = true } = {}): string {
     const lib = repertoireTemporaire(t);
     mkdirSync(join(lib, "node/bin"), { recursive: true });
     writeFileSync(join(lib, "node/bin/node"), `#!/bin/sh\necho "node $*" >>"${appels}"\nexit ${code}\n`);
     chmodSync(join(lib, "node/bin/node"), 0o755);
+    if (etape) {
+      mkdirSync(join(lib, "runtime/src/connexion-max"), { recursive: true });
+      writeFileSync(join(lib, "runtime/src/connexion-max/connecter-cli.ts"), "// l'étape de connexion Max\n");
+    }
     return lib;
   }
 
@@ -173,6 +177,26 @@ describe("sous Linux", { skip: sansSystemd }, () => {
     assert.equal(rendu.code, 1);
     assert.match(rendu.sortie, /la station est installée, mais sa connexion GitHub n'est pas faite.*relance la même commande/);
     assert.deepEqual(machine.appels().filter((a) => a.startsWith("node")), []);
+  });
+
+  test("une connexion Max ratée est dite, avec de quoi la reprendre : rejouer la même commande", (t) => {
+    const machine = doublures(t, { ...debian, runuser: runuser(true) });
+    const lib = paquetPose(t, join(machine.bin, "appels"), { code: 1 });
+    const rendu = jouer([], { ...machine.env, BRIGADE_TERMINAL: unTerminal(t), BRIGADE_STATION_LIB: lib });
+    assert.equal(rendu.code, 1);
+    assert.match(rendu.sortie, /la station est installée, mais sa connexion Max n'est pas faite.*relance la même commande pour la reprendre/);
+    assert.deepEqual(machine.appels().filter((a) => a.startsWith("node")), [`node ${lib}/runtime/src/connexion-max/connecter-cli.ts`]);
+    assert.doesNotMatch(rendu.sortie, /la station est connectée à GitHub et à Claude/);
+  });
+
+  test("un paquet sans l'étape de connexion Max le dit, sans rien lancer, et dit de rejouer la même commande", (t) => {
+    const machine = doublures(t, { ...debian, runuser: runuser(true) });
+    const lib = paquetPose(t, join(machine.bin, "appels"), { etape: false });
+    const rendu = jouer([], { ...machine.env, BRIGADE_TERMINAL: unTerminal(t), BRIGADE_STATION_LIB: lib });
+    assert.equal(rendu.code, 1);
+    assert.match(rendu.sortie, new RegExp(`la station est installée, mais l'étape de sa connexion Max manque au paquet \\(${lib}/runtime/src/connexion-max/connecter-cli\\.ts\\).*relance la même commande`));
+    assert.deepEqual(machine.appels().filter((a) => a.startsWith("node")), []);
+    assert.doesNotMatch(rendu.sortie, /la station est connectée à GitHub et à Claude/);
   });
 });
 

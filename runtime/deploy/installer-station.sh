@@ -196,7 +196,7 @@ linux() {
   MAISON="$(getent passwd "$COMPTE" | cut -d: -f6)"
   [ -n "$MAISON" ] || refuser "le compte $COMPTE n'existe pas après l'installation du paquet"
   connexion_github sous_le_compte || non_connectee "sa connexion GitHub n'est pas faite"
-  [ -x "$NODE" ] || non_connectee "l'étape de sa connexion Max manque ($NODE)"
+  [ -x "$NODE" ] && [ -f "$CONNEXION" ] || non_connectee "l'étape de sa connexion Max manque au paquet ($CONNEXION)"
   echo
   dire "la connexion Max du compte $COMPTE"
   en_root "$NODE" "$CONNEXION" <"$TERMINAL" || non_connectee "sa connexion Max n'est pas faite"
