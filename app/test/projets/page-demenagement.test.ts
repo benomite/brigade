@@ -79,6 +79,20 @@ test("un projet qui cuit sur sa box : « Cooks on parade-box », sans rien dire 
   assert.equal(sienne.ariaLabel, "parade-box — main — served");
 });
 
+test("la station ajoutée en plus de la principale : pastille verte quand la principale la dit atteinte, grise sinon, pourquoi au survol (#1757)", async () => {
+  const avec = (atteinte?: { oui: boolean; dit: string }) => vuDes({ ...SUR_LA_BOX, stations: [SUR_LA_BOX.stations[0]!, { ...SUR_LA_BOX.stations[1]!, ...(atteinte === undefined ? {} : { atteinte }) }] });
+  const leMac = async (vu: VuDesProjets) => {
+    const { bloc } = await laPage(vu);
+    assert.equal(ligne(bloc).textContent, "Cooks on parade-box · macbook (second station)");
+    const sienne = ligne(bloc).dessous("button").find(({ ariaLabel }) => ariaLabel.startsWith("macbook")) ?? assert.fail("pas de macbook");
+    return { ton: sienne.children[0]?.dataset.ton, aria: sienne.ariaLabel, survol: sienne.title };
+  };
+  assert.deepEqual(await leMac(avec({ oui: true, dit: "reached: it is online on GitHub" })), { ton: "vert", aria: "macbook — secondary — reached: it cooks with the main station", survol: "reached: it cooks with the main station\nit is online on GitHub" });
+  assert.deepEqual(await leMac(avec({ oui: false, dit: "not reached: it stopped at 2026-10-20T09:50:00.000Z" })), { ton: "gris", aria: "macbook — secondary — not reached", survol: "not reached\nit stopped at 2026-10-20T09:50:00.000Z" });
+  // La principale n'en dit rien encore : grise, comme avant.
+  assert.equal((await leMac(avec())).ton, "gris");
+});
+
 test("un projet qui cuit sur ce Mac : « Cooks on this Mac », et sa cuisine s'arrête quand on ferme l'app", async () => {
   const { bloc } = await laPage(vuDes(SUR_LE_MAC));
   assert.equal(ligne(bloc).textContent, "Cooks on this Mac · its kitchen stops when you close the app · parade-box (second station)");

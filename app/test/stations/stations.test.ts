@@ -14,6 +14,7 @@ import { ghDuRepertoire } from "../aides/gh-du-repertoire.ts";
 import { repondre } from "./faux-gh-gists.ts";
 import { duree, ligneDe, ligneDeVersion, tenirStations, type VuDesStations } from "../../src/stations/stations.ts";
 import { SANS_POSIX } from "../aides/posix.ts";
+import { ceQueFournitCetOrdinateur } from "../../src/stations/fournit.ts";
 
 const SOURCES = join(import.meta.dirname, "../../src/stations");
 const MAINTENANT = Date.parse("2026-10-15T12:00:00Z");
@@ -237,6 +238,39 @@ describe("les stations retirées, et leur version lue d'un lancement à l'autre"
     assert.deepEqual(Object.keys(github.gist("box1").files), [FICHIER_STATION], "seul l'appairage est ôté, l'état de la station reste");
     assert.deepEqual(Object.keys(github.gist("box2").files).sort(), [FICHIER_APPAIRAGE, FICHIER_STATION]);
     assert.deepEqual((await stations.relire()).stations.map(({ nom }) => nom), ["mac"], "relue, elle n'est toujours pas là");
+  });
+
+  test("l'appairage d'une station de Mac dit qu'elle fournit `macos`, et ce que l'installation y a détecté (#1757)", { skip: SANS_POSIX }, async (t) => {
+    const github = unGitHub(t);
+    github.station("mac1", publie({ nom: "macbook-air-de-benoit", machine: "macOS 15.1" }));
+    const { stations } = desStations(t, github);
+    const detectees = [
+      { capacite: "navigateur-headless", nom: "a browser", detectee: true },
+      { capacite: "android", nom: "the Android SDK", detectee: false },
+    ];
+    assert.ok("appairee" in (await stations.appairer(CODE, ceQueFournitCetOrdinateur("darwin", detectees))));
+    const ecrit = JSON.parse(github.gist("mac1").files[FICHIER_APPAIRAGE]?.content ?? "null") as { empreinte: string; fournit: string[] };
+    assert.equal(ecrit.empreinte, empreinte(CODE));
+    assert.deepEqual(ecrit.fournit, ["macos", "navigateur-headless"]);
+    assert.deepEqual(stations.vu()?.stations[0]?.fournit, ["macos", "navigateur-headless"]);
+    // Une autre machine ne fournit que ce qu'on y détecte ; rien de détecté, l'appairage n'en dit rien.
+    assert.deepEqual(ceQueFournitCetOrdinateur("linux", detectees), ["navigateur-headless"]);
+    assert.deepEqual(ceQueFournitCetOrdinateur("win32", []), []);
+  });
+
+  test("une station appairée avant que l'app n'écrive ce qu'elle fournit : son appairage le prend, une fois, l'empreinte gardée (#1757)", { skip: SANS_POSIX }, async (t) => {
+    const github = unGitHub(t);
+    github.station("mac1", publie({ nom: "macbook" }));
+    const { stations } = desStations(t, github);
+    assert.ok("appairee" in (await stations.appairer(CODE)));
+    const avant = JSON.parse(github.gist("mac1").files[FICHIER_APPAIRAGE]?.content ?? "null") as Record<string, unknown>;
+    assert.equal("fournit" in avant, false);
+    assert.equal(stations.vu()?.stations[0]?.fournit, undefined);
+    assert.equal(await stations.tenirCeQuElleFournit("mac1", ["macos"]), true);
+    assert.deepEqual(JSON.parse(github.gist("mac1").files[FICHIER_APPAIRAGE]?.content ?? "null"), { ...avant, fournit: ["macos"] });
+    assert.deepEqual(stations.vu()?.stations[0]?.fournit, ["macos"]);
+    assert.equal(await stations.tenirCeQuElleFournit("mac1", ["macos"]), false, "déjà dit : rien n'est réécrit");
+    assert.equal(await stations.tenirCeQuElleFournit("inconnue", ["macos"]), false);
   });
 
   test("retirer la station, GitHub injoignable : rien n'est retiré, le refus tient en une ligne et son détail à part", { skip: SANS_POSIX }, async (t) => {

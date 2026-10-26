@@ -50,8 +50,9 @@ export type SaisieDuProjet = {
 export type Champ = "nom" | "depot" | "base" | "stations" | "principale" | "cooks" | "capacites" | "manager-modele" | "manager-effort" | "reviewer-modele" | "reviewer-effort";
 export type Signales = Partial<Record<Champ, string>>;
 
-// Une station d'un projet, telle que la home la montre.
-export type StationDuProjet = { id: string; nom: string; principale: boolean; etat: EtatDuProjet | "attendu"; dit: string; autoriser: string[] };
+// Une station d'un projet, telle que la home la montre. `atteinte` : pour une station ajoutée en plus de la
+// principale, si la principale la dit atteinte, et pourquoi en une phrase (#1756) — absent tant qu'elle n'en dit rien.
+export type StationDuProjet = { id: string; nom: string; principale: boolean; etat: EtatDuProjet | "attendu"; dit: string; autoriser: string[]; atteinte?: { oui: boolean; dit: string } };
 // Où cuit un projet : la station qui le sert — son gist quand elle est appairée —, et si c'est
 // celle de cet ordinateur.
 export type CuitSur = { id: string | null; nom: string; ici: boolean };
@@ -303,6 +304,13 @@ export function refusDeConfiance(saisie: SaisieDeConfiance, stations: readonly S
   return signales;
 }
 
+// Ce que la demande d'un projet porte pour une station : ce que son appairage dit qu'elle fournit (#1757,
+// stations/document.ts), en plus de ce que le chef a coché — c'est par là que la principale du projet l'apprend.
+export function avecCeQuElleFournit(station: Pick<StationVue, "fournit">, projet: ProjetDemande): ProjetDemande {
+  const fournit = capacitesLues([...(projet.fournit ?? []), ...(station.fournit ?? [])]);
+  return fournit.length === 0 || fournit.join("+") === (projet.fournit ?? []).join("+") ? projet : { ...projet, fournit };
+}
+
 // Ce qu'une station dit d'un projet, avec elle.
 type Dit = { station: StationVue; suivi: SuiviDuProjet };
 const ORDRE_DES_ETAPES: readonly Bascule["etape"][] = ["demandee", "acceptee", "remise", "refusee"];
@@ -491,9 +499,21 @@ export function tenirProjets(options: OptionsProjets): Projets {
           projets.set(projet.nom, vu);
         }
       }
+      // Les stations ajoutées en plus de la principale : atteintes ou non, c'est la principale qui le dit (#1756),
+      // chacune par son gist.
+      for (const { suivi } of lus) {
+        for (const { nom, secondaires } of suivi) {
+          for (const tenue of secondaires ?? []) {
+            const sienne = projets.get(nom)?.stations.find(({ id, principale }) => id === tenue.gist && !principale);
+            if (sienne !== undefined) sienne.atteinte = { oui: tenue.atteinte, dit: tenue.dit };
+          }
+        }
+      }
       for (const projet of projets.values()) projet.stations.sort((a, b) => Number(b.principale) - Number(a.principale) || a.nom.localeCompare(b.nom));
       const calibrage = calibrageRecommande(lus.flatMap(({ demande }) => demande ?? []));
       vu = { a: new Date(instant).toISOString(), projets: [...projets.values()].sort((a, b) => a.nom.localeCompare(b.nom)), locale: ici, ...choix(), calibrage };
+      // Une station ajoutée avant que son appairage ne dise ce qu'elle fournit : sa demande le reprend.
+      if (lus.some(({ station, demande }) => (demande ?? []).some((projet) => avecCeQuElleFournit(station, projet) !== projet))) porterCeQuEllesFournissent();
     } catch (erreur) {
       vu = { a: new Date(instant).toISOString(), projets: vu?.projets ?? [], locale: locale(), ...choix(), calibrage: vu?.calibrage ?? calibrageRecommande([]), sans: `the projects on your stations could not be read on GitHub — ${message(erreur)}` };
     }
@@ -504,6 +524,15 @@ export function tenirProjets(options: OptionsProjets): Projets {
   const relire = () => {
     enCours ??= lire().finally(() => (enCours = undefined));
     return enCours;
+  };
+
+  // Porte dans la demande de chaque station ce que son appairage dit qu'elle fournit, à la suite des gestes du
+  // chef. GitHub en panne : la lecture suivante réessaie.
+  let porte: Promise<unknown> | undefined;
+  const porterCeQuEllesFournissent = () => {
+    porte ??= enFile(() => reecrire((station, avant) => avant.map((projet) => avecCeQuElleFournit(station, projet))))
+      .catch(() => undefined)
+      .finally(() => (porte = undefined));
   };
 
   // Réécrit la demande de chaque station : `changer` rend ses projets, à partir de ceux d'avant.
@@ -543,7 +572,7 @@ export function tenirProjets(options: OptionsProjets): Projets {
         demandeLe: instant,
       });
       try {
-        await reecrire((station, avant) => (saisie.stations.includes(station.id) ? [...avant.filter((p) => p.nom !== nom), projet(station.id === saisie.principale)] : avant));
+        await reecrire((station, avant) => (saisie.stations.includes(station.id) ? [...avant.filter((p) => p.nom !== nom), avecCeQuElleFournit(station, projet(station.id === saisie.principale))] : avant));
       } catch (erreur) {
         await relire();
         return { refus: `${nom} was not added: GitHub could not be read or written — ${message(erreur)}` };
@@ -612,7 +641,7 @@ export function tenirProjets(options: OptionsProjets): Projets {
         ...(saisie.capacites.length === 0 ? {} : { fournit: saisie.capacites }),
       });
       try {
-        await reecrire((station, avant) => (saisie.stations.includes(station.id) ? [...avant.filter((p) => p.nom !== saisie.nom), projet(!tenu.principale && station.id === saisie.principale)] : avant));
+        await reecrire((station, avant) => (saisie.stations.includes(station.id) ? [...avant.filter((p) => p.nom !== saisie.nom), avecCeQuElleFournit(station, projet(!tenu.principale && station.id === saisie.principale))] : avant));
       } catch (erreur) {
         await relire();
         return { refus: `${saisie.nom} was not entrusted to a station: GitHub could not be read or written — ${message(erreur)}` };
