@@ -81,6 +81,9 @@ import { githubDesStations } from "./stations/github.ts";
 import { tenirStations } from "./stations/stations.ts";
 import { versionsDansFichier } from "./stations/versions.ts";
 import { suivreConfiguration } from "./suivi.ts";
+import { gistDesPreferences } from "./reglages-perso/gist.ts";
+import { reglagesPerso } from "./reglages-perso/reglages-perso.ts";
+import { tenirPreferences } from "./reglages-perso/synchro.ts";
 import { ouvrirTerminaux } from "./terminaux.ts";
 
 // Où sont le runtime de la station, son `node` et le clone de l'app : dans le dépôt, ou dans le
@@ -465,6 +468,18 @@ let propositionsDuSecond: Propositions | undefined;
 // rejoué, il se relit avec les projets tels que l'app les montre maintenant.
 let voir = () => {};
 
+// Les préférences du chef — les couleurs des projets, leur ordre, ce qu'il règle de l'affichage — le
+// suivent d'un appareil à l'autre dans un gist secret de son compte, lu et écrit par le `gh` du poste
+// (reglages-perso/). Le fichier des projets reste ce que les écrans lisent : chaque accord y pose ce que
+// le gist porte, et y prend ce que le chef a changé ici. Le dossier d'un projet et son hôte n'en partent
+// jamais. Le gist illisible — GitHub injoignable, un autre compte —, l'app montre le fichier tel qu'il est.
+const preferences = tenirPreferences({
+  // Jamais posé hors des essais, comme pour les gists des stations.
+  perso: reglagesPerso({ gist: gistDesPreferences({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 30_000 }), appJson: cheminConfiguration() }),
+  fichier: { preferences: () => suivi.preferences(), poserPreferences: (voulues) => suivi.poserPreferences(voulues) },
+  surPanne: (raison) => console.error(`brigade: your preferences were not synced with GitHub — ${raison}`),
+});
+
 // Le fichier des projets : créé s'il manque, relu dès qu'il change. Un projet
 // qui a quitté la liste — ou changé de dossier — perd ses terminaux, sa mise
 // en service et ses transferts de port ; les autres n'en savent rien. Celui qui a quitté la liste n'a plus
@@ -488,6 +503,8 @@ const suivi = suivreConfiguration({
     // couleurs : écrites, elles reviennent ici par une relecture, qui n'a plus rien à tirer. Un
     // fichier qui n'a pas pu être relu attend de l'être : l'app n'y écrit rien.
     if (configuration.nonRelu === undefined && !configuration.projets.every(({ couleurs }) => entieres(couleurs))) colorer();
+    // Ce que le chef vient de changer de ses préférences part dans son gist.
+    preferences.signaler();
   },
 });
 // Les couleurs qui manquent aux projets, tirées et écrites dans le fichier (config.ts). Un fichier
@@ -1421,6 +1438,7 @@ ipcMain.on("redimensionner", (_, id: number, colonnes: number, lignes: number) =
 app.on("window-all-closed", () => app.quit());
 app.on("will-quit", () => {
   suivi.fermer();
+  preferences.fermer();
   terminaux.fermer();
   propositionsDuSecond?.arreter();
   tours.fermer();
@@ -1446,6 +1464,8 @@ app.on("will-quit", () => {
 app.on("browser-window-focus", () => {
   suivi.relire();
   void retards.relire();
+  // Et les préférences du chef : il revient peut-être d'un autre appareil, où il les a changées.
+  void preferences.tirer();
 });
 
 // Sous Windows, une notification ne s'affiche que pour une app qui a son identifiant de modèle
@@ -1485,6 +1505,9 @@ void app.whenReady().then(() => {
   verificationsDeVersion = setInterval(verifierLaVersion, 6 * 60 * 60 * 1000);
   // Les projets déclarés avant que les couleurs existent reçoivent les leurs, une fois.
   colorer();
+  // Les préférences du chef : lues dans son gist — qui en prend celles du fichier, s'il n'en a encore
+  // aucune —, puis relues chaque minute. Celles du gist l'emportent sur les couleurs tout juste tirées.
+  preferences.demarrer();
   // L'app est lancée : ses stations se manifestent.
   runner.servir(cuisinesIci(role, projets()));
   // Le poste se réveille : chaque shell distant se rattache à sa session, sans attendre que `ssh`

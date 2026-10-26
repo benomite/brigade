@@ -4,8 +4,9 @@
 import { realpathSync, watch, type FSWatcher } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname } from "node:path";
-import { ajouterProjet, changerCouleur, changerOrdinaires, colorerProjets, creerConfiguration, lireConfiguration, rangerProjet, retirerProjet, type Configuration, type Declare } from "./config.ts";
+import { ajouterProjet, changerCouleur, changerOrdinaires, colorerProjets, creerConfiguration, lireConfiguration, poserPreferences, preferencesDuFichier, rangerProjet, retirerProjet, type Configuration, type Declare } from "./config.ts";
 import type { Role } from "./couleurs.ts";
+import type { Preferences } from "./reglages-perso/partage.ts";
 
 export function suivreConfiguration(options: {
   chemin: string;
@@ -86,6 +87,11 @@ export function suivreConfiguration(options: {
     // Range un projet à la place `rang` de la liste : `surChangement` dit le nouvel ordre, et
     // personne de parti. Rend la raison, s'il ne l'a pas été.
     ranger: (nom: string, rang: number) => ecrire(() => rangerProjet(chemin, nom, rang, maison)),
+    // Les préférences personnelles du fichier tel qu'il est, ou pourquoi il n'est pas compris (config.ts).
+    preferences: () => preferencesDuFichier(chemin, maison),
+    // Pose les préférences lues dans le gist du chef (reglages-perso/) : `surChangement` dit ce qui a
+    // changé, comme pour un geste. Rend la raison, si elles ne l'ont pas été.
+    poserPreferences: (preferences: Preferences) => ecrire(() => poserPreferences(chemin, preferences, maison)),
     fermer(): void {
       veille?.close();
     },
