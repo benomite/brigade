@@ -165,6 +165,9 @@ test("la sortie de `status` refaite du tableau : ses rubriques, le bloc `awaitin
   assert.doesNotMatch(texte, /^latest events$/m);
   // Une file vide : le bloc le dit, comme `status`.
   assert.match(statusDuTableau({ ...publie, file: [], bilans: [] }), /^awaiting {3}nothing awaits the chef\nend awaiting$/m);
+  // La cuisine à l'arrêt faute de station : sa ligne vient sous la tête, sans compter pour une décision.
+  const idle = "kitchen idle: nothing can be cooked, no station provides `macos` — held behind it: #1548 — needs a human";
+  assert.match(statusDuTableau({ ...publie, file: [], bilans: [idle] }), new RegExp(`^awaiting {3}nothing awaits the chef\\n  kitchen idle: .*#1548.*\\nend awaiting$`, "m"));
 });
 
 test("le manager suit l'interrupteur du projet, que le tableau porte : sa ligne se lit comme celle de `manager`", async (t) => {

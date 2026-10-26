@@ -39,7 +39,7 @@ The code is `runtime/src/tableau/`: `rendu/donnees.ts` builds the board from the
 | `projet` | The project's name, as the log knows it; `null` for an empty log |
 | `lu` | When the state was read. Every duration in the lines counts up to it; count your own from the instants |
 | `file` | What awaits the chef, oldest first — one entry per line of the `awaiting` block of `status` (below) |
-| `bilans` | What the `awaiting` block says that is not a decision: the pause, the no-grant summary, the version passed |
+| `bilans` | What the `awaiting` block says that is not a decision: the pause, the idle-kitchen line (nothing can be cooked and tickets wait for a capability no station provides), the no-grant summary, the version passed |
 | `cuisine` | The kitchen's state (below) |
 | `gestes` | The chef's latest gestures read under the board, oldest first; absent from a block written without them |
 | `faits` | **The rail view's facts** (#1693): the object of `facts`, see below |

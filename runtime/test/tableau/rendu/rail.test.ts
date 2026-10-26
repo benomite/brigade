@@ -211,3 +211,13 @@ test("en dernier recours, le corps retire les faits et les lignes du rail entier
   assert.deepEqual(lu.tableau.cuisine, tableau.cuisine);
   assert.equal(rendreLeTableau(lu.tableau, GENERE_LE), corps);
 });
+
+test("la cuisine à l'arrêt faute de station : le tableau porte la ligne dans ses bilans, et rien quand un ticket se cuisine encore", (t) => {
+  const { etat } = projet(t);
+  const mis = { ...etat.rail[0]!, ticket: 1548, state: "86" as const, reason: "no-station: macos", until: null, awaits: [], waitingFor: null };
+  const sans = tableauDeLaCuisine({ ...etat, rail: [mis] }, LU_LE, { depot: DEPOT });
+  assert.equal(sans.bilans.filter((bilan) => bilan.startsWith("kitchen idle: ")).length, 1);
+  assert.match(sans.bilans.join("\n"), /`macos`.*#1548/);
+  const cuisinable = { ...mis, ticket: 1549, state: "taken" as const, reason: null };
+  assert.deepEqual(tableauDeLaCuisine({ ...etat, rail: [mis, cuisinable] }, LU_LE, { depot: DEPOT }).bilans.filter((bilan) => bilan.startsWith("kitchen idle")), []);
+});
