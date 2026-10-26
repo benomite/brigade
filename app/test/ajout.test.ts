@@ -8,7 +8,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { ajouterALApp, brancheDe, depotDe, lireClone, lireSaisie, refusDeSaisie, type Saisie } from "../src/ajout.ts";
+import { ajouterALApp, brancheDe, depotDe, depotDeLOrigine, lireClone, lireSaisie, refusDeSaisie, type Saisie } from "../src/ajout.ts";
 import { lireConfiguration } from "../src/config.ts";
 import { suivreConfiguration } from "../src/suivi.ts";
 
@@ -135,5 +135,20 @@ describe("ce que le clone choisi propose", () => {
     const sans = await lireClone("git", nu);
     assert.match(sans.raisons.depot ?? "", /^This folder's origin cannot be read/);
     assert.deepEqual(Object.keys((await lireClone(join(racine, "pas-de-git"), clone)).raisons).sort(), ["base", "depot"]);
+  });
+
+  test("le dépôt d'un projet sans `depot` est celui de l'origine de son dossier (#1660), en https comme en ssh", async (t) => {
+    const racine = mkdtempSync(join(tmpdir(), "brigade-app-origine-"));
+    t.after(() => rmSync(racine, { recursive: true, force: true }));
+    const dossiers = new Map<string, string | undefined>([["https", "https://github.com/chef/parade.git"], ["ssh", "git@github.com:chef/parade"], ["gitlab", "https://gitlab.com/chef/parade.git"], ["sans", undefined]]);
+    for (const [nom, origine] of dossiers) {
+      execFileSync("git", ["init", "-q", join(racine, nom)]);
+      if (origine !== undefined) execFileSync("git", ["-C", join(racine, nom), "remote", "add", "origin", origine]);
+    }
+    assert.equal(await depotDeLOrigine("git", join(racine, "https")), "chef/parade");
+    assert.equal(await depotDeLOrigine("git", join(racine, "ssh")), "chef/parade");
+    assert.equal(await depotDeLOrigine("git", join(racine, "gitlab")), undefined);
+    assert.equal(await depotDeLOrigine("git", join(racine, "sans")), undefined);
+    assert.equal(await depotDeLOrigine("git", join(racine, "absent")), undefined);
   });
 });

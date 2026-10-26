@@ -93,6 +93,12 @@ export type Lu = { depot?: string; base?: string; raisons: Signales };
 const git = (binaire: string, dossier: string, args: string[]) =>
   new Promise<string | undefined>((resoudre) => execFile(binaire, ["-C", dossier, ...args], { windowsHide: true, timeout: 10_000 }, (erreur, sortie) => resoudre(erreur === null ? sortie : undefined)));
 
+// Le dépôt GitHub de l'origine d'un dossier — rien, sans origine lisible ou si ce n'est pas GitHub.
+export async function depotDeLOrigine(binaire: string, dossier: string): Promise<string | undefined> {
+  const origine = await git(binaire, dossier, ["remote", "get-url", "origin"]);
+  return origine === undefined ? undefined : depotDe(origine);
+}
+
 export async function lireClone(binaire: string, dossier: string): Promise<Lu> {
   const [origine, tete] = await Promise.all([git(binaire, dossier, ["remote", "get-url", "origin"]), git(binaire, dossier, ["rev-parse", "--abbrev-ref", "origin/HEAD"])]);
   const depot = origine === undefined ? undefined : depotDe(origine);
