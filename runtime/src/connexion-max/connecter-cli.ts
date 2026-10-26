@@ -1,5 +1,5 @@
 // L'étape de connexion Max d'une station serveur, telle que la commande
-// d'installation du guide la joue (`paquet/installer-station.sh`), et telle
+// d'installation du guide la joue (`deploy/installer-station.sh`), et telle
 // qu'elle se rejoue pour refaire le jeton (docs/installation-station.md) :
 //
 //   sudo /usr/lib/brigade-station/node/bin/node /usr/lib/brigade-station/runtime/src/connexion-max/connecter-cli.ts
