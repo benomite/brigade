@@ -56,6 +56,7 @@ const ICI = import.meta.dirname;
 export const ARCH = "x64";
 // L'exécutable de l'app, et celui qui la retire.
 export const EXE = `${NOM}.exe`;
+export const ICONE = `${NOM}.ico`;
 export const DESINSTALLEUR = `Uninstall ${NOM}.exe`;
 // Le `node` du paquet : NODE_DU_PAQUET, le nom que l'app lance, plus l'extension que Windows lui
 // trouve tout seul (CreateProcess essaie `.com`, puis `.exe`).
@@ -172,6 +173,8 @@ export function assembler(options: OptionsAssemblage, dossier: string): string {
   renameSync(join(dossier, "electron.exe"), join(dossier, EXE));
   const ressources = join(dossier, "resources");
   rmSync(join(ressources, "default_app.asar"), { force: true });
+  // L'icône du raccourci et de la liste des applications : posée à côté de l'exécutable.
+  cpSync(join(ICI, "icones", "Brigade.ico"), join(dossier, ICONE));
 
   // L'app : ses sources, son package.json — au nom de l'app, à la version construite — et ses
   // dépendances de production, rangées comme dans le dépôt : la vue les charge par `../../node_modules`.
@@ -275,14 +278,14 @@ export function scriptNsis(options: OptionsScript): string {
     '  SetOutPath "$INSTDIR"',
     `  File /r "${echapper(join(options.arbre, "*"))}"`,
     `  WriteUninstaller ${dansLApp(DESINSTALLEUR)}`,
-    `  CreateShortcut ${raccourci} ${dansLApp(EXE)} "" ${dansLApp(EXE)} 0`,
+    `  CreateShortcut ${raccourci} ${dansLApp(EXE)} "" ${dansLApp(ICONE)} 0`,
     // L'AppUserModelID que l'app se donne (process.execPath, main.ts) : Windows n'affiche les
     // notifications d'une app que si un raccourci du menu Démarrer porte le même.
     `  WinShell::SetLnkAUMI ${raccourci} ${dansLApp(EXE)}`,
     `  WriteRegStr ${cle} "DisplayName" "${NOM}"`,
     `  WriteRegStr ${cle} "DisplayVersion" "${echapper(options.version)}"`,
     `  WriteRegStr ${cle} "Publisher" "benomite"`,
-    `  WriteRegStr ${cle} "DisplayIcon" "$INSTDIR\\${EXE},0"`,
+    `  WriteRegStr ${cle} "DisplayIcon" "$INSTDIR\\${ICONE}"`,
     `  WriteRegStr ${cle} "InstallLocation" "$INSTDIR"`,
     `  WriteRegStr ${cle} "UninstallString" '"$INSTDIR\\${DESINSTALLEUR}"'`,
     `  WriteRegStr ${cle} "QuietUninstallString" '"$INSTDIR\\${DESINSTALLEUR}" /S'`,

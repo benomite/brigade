@@ -208,6 +208,8 @@ export function assembler(options: Omit<OptionsConstruction, "sortie" | "atelier
   const plist = join(contenu, "Info.plist");
   writeFileSync(plist, reecrirePlist(readFileSync(plist, "utf8"), courte));
   rmSync(join(ressources, "default_app.asar"), { force: true });
+  // L'icône du Dock : Electron la lit dans `electron.icns` (CFBundleIconFile), qu'on remplace.
+  cpSync(join(ICI, "icones", "Brigade.icns"), join(ressources, "electron.icns"));
 
   // L'app : ses sources, son package.json — au nom de l'app, à la version construite — et ses
   // dépendances de production, rangées comme dans le dépôt : la vue les charge par `../../node_modules`.
