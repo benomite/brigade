@@ -28,15 +28,10 @@
 // sans l'envoyer (boutons.ts). La vue n'y lit rien —
 // elle ne sait pas ce qu'est un ticket. Ce qui attend le chef lui arrive déjà
 // mis à part (attend.ts) : elle le pose en tête, quel que soit l'onglet.
-// Dans l'onglet Manager, l'état du manager se pose au-dessus du texte — allumé ou éteint,
-// depuis quand et par qui, ses dernières décisions, ce qu'il a écarté et pourquoi —, déjà lu
-// par le process principal (manager.ts). À côté, ses deux gestes : éteindre, direct ; allumer,
-// confirmé — sa confirmation dit l'avertissement de la doc et deux nombres, les issues ouvertes et
-// celles qui portent `blocked-on-human`, demandés à la box dès qu'elle s'ouvre (allumage.ts).
-// Dans l'onglet Grants, de même, l'état des grants : lequel est actif, son échéance — la durée
-// restante en tête, l'heure ensuite —, ses derniers usages, et ce qu'aucun grant n'autorise,
-// déjà lus par le process principal (grants.ts). À côté de chaque grant, ses deux gestes,
-// accorder et révoquer, confirmés : chacun dit ce que le grant change avant de partir.
+// Settings (ticket 1700) ne tient que ce que le chef règle, en trois groupes — le projet, cette machine, toi —, une
+// ligne par réglage : son nom, sa valeur en vigueur, un seul contrôle. Les grants y sont une ligne chacun, déjà lus par
+// le process principal (grants.ts) : son état, ce qu'il lui reste, et un interrupteur dont le clic ouvre la
+// confirmation qui dit ce que le grant change avant de partir.
 // La barre est faite d'icônes : « Tous les projets » en tête — l'accueil, la vue d'ensemble de
 // brigade : une ligne par projet, une par station, et la ligne de santé, dites par le process
 // principal (accueil.ts) ; on n'y agit pas, un clic sur une ligne ouvre sa page, et « Cost » celle
@@ -45,14 +40,9 @@
 // dans l'app d'un seul geste. Ce qui manque à un champ, ce qui part vers la box et ce
 // qu'elle en a rendu se décident dans le process principal (installation.ts) : la vue
 // recueille, signale le champ qu'on lui nomme, et pose ce qu'on lui rend.
-// Après l'ajout, l'installation guidée — toutes ses étapes, celle qui attend le chef, ce
-// qu'il aura à faire lui-même annoncé d'emblée, un bouton ou une réponse par geste — se
-// suit dans l'espace du projet, en tête de Paramètres : ce qui s'y dit, ce qui s'y refuse
-// et ce qui part vers la box se décident de même hors d'ici (service.ts).
-// Dessous, « Retirer ce projet » : deux gestes, chacun sous son libellé — le retirer de
-// l'app, qui n'envoie rien à sa box ; le désinstaller de sa box, qui montre d'abord le
-// plan qu'elle rend, et ne part qu'une fois son nom écrit. Là encore la vue pose : ce qui
-// se refuse, ce qui part et ce qui s'en dit se décident dans retrait.ts.
+// L'installation guidée et la vérification de l'installation ne sont plus dans la vue (ticket 1700) : l'app n'a besoin
+// que d'une connexion GitHub. Le retrait du projet est une ligne de Settings, sous toi : le retirer de l'app, qui
+// n'envoie rien à sa station, après un « yes » — ce qui se refuse et ce qui s'en dit se décident dans retrait.ts.
 // Et, sur la carte de chaque ticket dont `status` montre un serveur, l'écran à regarder — la phrase
 // du cook, et la mention quand l'écran est déduit plutôt que déclaré — puis sa page : un geste
 // direct, qui ouvre l'écran dans le navigateur du poste, posé seulement s'il y a une page à voir —
@@ -66,14 +56,13 @@
 // place. Ce qui s'y dit et ce que son bouton appelle se décident dans alertes.ts : la vue pose.
 // Chaque alerte tient en une ligne — ce qui ne va pas — et un contrôle — son geste (ticket 907) :
 // confirmé — reprendre —, ou une demande au second quand il faut lire, juger ou agir sur la box ;
-// une ligne « non vérifié » mène à l'onglet qui lit l'état. Le prix n'est jamais posé à côté : le
+// une ligne « non vérifié » mène à la page qui lit l'état, quand il y en a une. Le prix n'est jamais posé à côté : le
 // clic ouvre la confirmation, qui le dit. Ce que la box en écrit est derrière « detail ». Le projet
 // éteint n'y fait pas de ligne : c'est un interrupteur, un seul pour tout le projet (ticket 1406), en tête
 // de l'espace, à droite des onglets — allumé ou éteint, un clic le bascule —, et, éteint, la tête du
 // rail est marquée à l'arrêt d'une ligne (ticket 906).
-// Arrêter la cuisine est sur le rail, qu'il arrête ; vérifier l'installation, en tête de l'espace,
-// à côté du nom du projet.
-// En tête de Paramètres, et au survol de « T », le code de l'app lui-même : à jour, ou en retard sur
+// Arrêter la cuisine est une ligne de Settings, sous le projet.
+// Dans Settings, sous cette machine, et au survol de « T », le code de l'app lui-même : à jour, ou en retard sur
 // l'origine de son clone — et de combien de commits —, avec l'heure de sa lecture ; de même
 // pour le clone d'un projet qui est celui de brigade. En retard, un bouton écrit `git pull`
 // dans un shell, et n'envoie rien : l'app ne met rien à jour. Ce qui se lit, ce qui s'en dit
@@ -3184,7 +3173,7 @@ function suivreFiche(cartes, posees) {
 
 // Ce que la file dit du ticket, et que la carte ne porte plus : qui le tient, depuis quand, son bail,
 // ce qu'il brûle, ce qui le bloque. Ce qu'elle ne dit pas n'est pas écrit, et la ligne brute de
-// `status` n'est nulle part sur la fiche : elle se lit tout entière dans Paramètres. Pour un
+// `status` n'est nulle part sur la fiche. Pour un
 // ticket livré, ce qui a été livré.
 /** @param {Projet} projet @param {import("../faits.ts").Carte} carte */
 function poserDetailsDeFiche(projet, carte) {
@@ -5102,11 +5091,6 @@ function poserPages(projet, servies) {
 /** @param {string} instant */
 const quand = (instant) => (Number.isNaN(Date.parse(instant)) ? instant : dateHeure(instant));
 
-// L'état du manager du projet affiché, au-dessus du texte de l'onglet Manager : allumé ou éteint
-// — il suit l'interrupteur du projet (ticket 1406), qui seul l'allume et l'éteint, en tête de l'espace —,
-// depuis quand et par qui, puis ses dernières décisions et ce qu'il a écarté, chaque écart avec son
-// motif. Tout est déjà lu par le process principal (manager.ts), dans la sortie qui se lit dessous :
-// la vue pose. Sans état lu, elle dit pourquoi — jamais « éteint ».
 // La page des coûts de l'app (ticket 1022). En tête (cost/tete.js), les tokens lancés sur 5 h, 24 h et 7 jours,
 // tous projets confondus, et la part de chacun — chaque projet qui a une box, et qu'elle sert encore ;
 // un clic sur son nom l'ouvre. Puis les tokens perdus (cost/perdus.js) — leur liste repliée à
@@ -5394,7 +5378,7 @@ function interrupteur(nom, allume, { pourquoi, eteindre, allumer, clic, confirma
 // sont pris, le manager juge et découpe, une livraison verte est mergée ; éteint, rien de neuf ne l'est.
 // Éteindre part au clic, dans le second ; allumer ouvre sa confirmation, qui dit en une phrase ce que
 // le manager va juger. Sa ligne `manager` — le manager le suit, et c'est elle qui le dit —, mot pour
-// mot, est au survol, le détail dans l'onglet Manager.
+// mot, est au survol.
 function poserInterrupteur() {
   const projet = courant;
   const cache = projet === undefined || !seLit(projet) || projet.desinstalle !== undefined;
@@ -7704,7 +7688,7 @@ brigade.surContenu((recue, _manager, desGrants, laFiabilite) => {
   }
   poserLeCloser();
 });
-// Les clones relus : leur état remplace celui d'avant, dans Paramètres et sur la case « T ».
+// Les clones relus : leur état remplace celui d'avant, dans Settings et sur la case « T ».
 brigade.surCode((vu) => {
   codeVu = vu;
   poserCode();
