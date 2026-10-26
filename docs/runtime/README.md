@@ -26,6 +26,7 @@ are in the specs, [`superpowers/specs/`](../superpowers/specs/) — here, only t
 | [`pass.md`](pass.md) | The pass: review, reviewer, decision, green once merged |
 | [`pass-merge.md`](pass-merge.md) | The `merge` grant, seeing the pass, what is left after a cook, what the pass does not guarantee |
 | [`etat-et-mesures.md`](etat-et-mesures.md) | The state of the kitchen, the measures reading |
+| [`tableau-de-cuisine.md`](tableau-de-cuisine.md) | The Kitchen board's published format, field by field: what an app reads to draw the project's rail view from GitHub |
 | [`carnet-lecons.md`](carnet-lecons.md) | The lessons notebook: its thresholds, promotion and expiry delivered by a PR, removing a lesson, the common tier shared by several projects |
 | [`fermeture.md`](fermeture.md) | The closing that observes, the closing that writes |
 | [`identites-et-secrets.md`](identites-et-secrets.md) | One GitHub identity per role, the project's secrets |

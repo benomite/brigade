@@ -90,7 +90,10 @@ test("le tableau montre l'état de la cuisine comme `status` l'écrit : cooks, m
   // Ce qui ne se lit que sur la box n'y est pas : les serveurs locaux, les worktrees, les derniers événements.
   assert.ok(!lu.includes("127.0.0.1"));
   assert.ok(!lu.includes("not cleaned up after their cook"));
-  assert.ok(!lu.includes("guard.configured"));
+  // Les derniers événements ne sont ni dans la partie lisible ni dans l'état du bloc : seuls les
+  // faits nomment le dernier, comme `facts` (`dernierEvenement`), que la vue du rail date.
+  assert.ok(!enClair(partieLisible(rendreLeTableau(tableau, GENERE_LE))).includes("guard.configured"));
+  assert.ok(!JSON.stringify(tableau.cuisine).includes("guard.configured"));
   // Les champs, pour un programme.
   const { cuisine } = tableau;
   assert.equal(cuisine.etat, "retenue");

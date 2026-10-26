@@ -9,7 +9,7 @@
 // sépare du nom qui le suit ; dans le code, GitHub ne mentionne pas ; dans le
 // bloc, il est écrit `@`.
 import { dureeEn } from "../../etat.ts";
-import { ecrireLeBloc, type LigneDeLaFile, type RubriqueDuTableau, type Tableau } from "./bloc.ts";
+import { ecrireLeBloc, type LigneDeLaFile, type Resserre, type RubriqueDuTableau, type Tableau } from "./bloc.ts";
 
 // La longueur au-delà de laquelle GitHub refuse le corps d'une issue.
 export const LONGUEUR_MAX_DU_CORPS = 65_536;
@@ -75,12 +75,41 @@ function partieLisible(tableau: Tableau, compacte: boolean): string[] {
   ];
 }
 
+// Chaque élément d'une liste, sans ce champ.
+const sansLeChamp = (liste: unknown, champ: string): unknown =>
+  Array.isArray(liste) ? liste.map((element: unknown) => (typeof element === "object" && element !== null ? Object.fromEntries(Object.entries(element).filter(([cle]) => cle !== champ)) : element)) : liste;
+const dansLesFaits = (tableau: Tableau, liste: string, champ: string): Tableau =>
+  tableau.faits === undefined || !(liste in tableau.faits) ? tableau : { ...tableau, faits: { ...tableau.faits, [liste]: sansLeChamp(tableau.faits[liste], champ) } };
+
+// Ce qu'un corps encore trop long retire du bloc, dans cet ordre, jusqu'à tenir :
+// le plus lourd et le moins utile au rail d'abord — le texte des relectures des
+// livrés, les livraisons qui attendent, les diffs des corrections —, puis les
+// faits et les lignes du rail entiers. Ce que dit l'état, lui, n'est jamais retiré.
+const RESSERREMENTS: Array<{ quoi: Resserre[]; retirer(tableau: Tableau): Tableau }> = [
+  { quoi: ["faits.livres.relecture"], retirer: (tableau) => dansLesFaits(tableau, "livres", "relecture") },
+  { quoi: ["faits.attend.livraison"], retirer: (tableau) => dansLesFaits(tableau, "attend", "livraison") },
+  { quoi: ["faits.corrections.diff"], retirer: (tableau) => dansLesFaits(tableau, "corrections", "diff") },
+  { quoi: ["faits", "lignesDuRail"], retirer: ({ faits: _faits, lignesDuRail: _lignes, ...reste }) => reste },
+];
+
 // Le corps de l'issue, généré à `genereLe`. Trop long pour GitHub, la partie
 // lisible se resserre — les noms de la file et la première ligne de chaque
-// rubrique — ; le bloc, lui, reste entier.
+// rubrique — ; encore trop long, le bloc perd ce que `RESSERREMENTS` retire, et
+// `resserre` le dit. Un tableau déjà resserré se rend resserré : le relire et le
+// rendre redonne le corps publié, octet pour octet.
 export function rendreLeTableau(tableau: Tableau, genereLe: Date): string {
-  const bloc = ecrireLeBloc(tableau, genereLe);
-  const corps = [...partieLisible(tableau, false), bloc, ""].join("\n");
-  if (corps.length <= LONGUEUR_MAX_DU_CORPS) return corps;
-  return [...partieLisible(tableau, true), bloc, ""].join("\n");
+  const corps = (rendu: Tableau, compacte: boolean) => [...partieLisible(rendu, compacte), ecrireLeBloc(rendu, genereLe), ""].join("\n");
+  if (tableau.resserre === undefined) {
+    const entier = corps(tableau, false);
+    if (entier.length <= LONGUEUR_MAX_DU_CORPS) return entier;
+  }
+  let rendu = tableau;
+  for (const { quoi, retirer } of RESSERREMENTS) {
+    const compact = corps(rendu, true);
+    if (compact.length <= LONGUEUR_MAX_DU_CORPS) return compact;
+    const retire = retirer(rendu);
+    // Rien à retirer à cette étape : elle ne se dit pas.
+    if (JSON.stringify(retire) !== JSON.stringify(rendu)) rendu = { ...retire, resserre: [...(rendu.resserre ?? []), ...quoi] };
+  }
+  return corps(rendu, true);
 }
