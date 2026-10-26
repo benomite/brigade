@@ -39,7 +39,7 @@ const GESTES = [
   ["ceiling-effort", "BRIGADE_CEILING_EFFORT", "medium", "xhigh"],
 ] as const;
 // Les décisions qui ont un défaut, et lui.
-const DEFAUTS: Partial<Record<string, string>> = { BRIGADE_CEILING_MODEL: "opus", BRIGADE_CEILING_EFFORT: "high", BRIGADE_GATES_BUDGET_SECONDS: "100", BRIGADE_GATES_BUDGET_CPU_SECONDS: "400", BRIGADE_GATES_BASE_BUDGET_SECONDS: "400", BRIGADE_GATES_BASE_BUDGET_CPU_SECONDS: "1600" };
+const DEFAUTS: Partial<Record<string, string>> = { BRIGADE_CEILING_MODEL: "opus", BRIGADE_CEILING_EFFORT: "high", BRIGADE_GATES_BUDGET_SECONDS: "100", BRIGADE_GATES_BUDGET_CPU_SECONDS: "400", BRIGADE_GATES_BASE_BUDGET_SECONDS: "400", BRIGADE_GATES_BASE_BUDGET_CPU_SECONDS: "1600", BRIGADE_CLOSING_COOKS: "1", BRIGADE_CLOSING_MAX_TOKENS: "500000", BRIGADE_CLOSING_MAX_REMOVED_LINES: "500" };
 
 // Un journal où le runtime a déjà tourné : une station s'y est annoncée.
 function journalDuProjet(t: TestContext) {

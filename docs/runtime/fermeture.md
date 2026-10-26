@@ -40,7 +40,7 @@ the closer is set.
 | Field | What it carries |
 |---|---|
 | `configured` | Is the closer set (`closing.configured` in the log)? False: the object carries only `text`, which says so — no observation, no finding, no request |
-| `closer` | Its calibration and its caps in force |
+| `closer` | Its calibration and its caps in force, and `from`: where each one comes from — `calibration`, `cooksBelow`, `tokens`, `removedLines`, each `repository` (`.claude/brigade/projet.json`), `station` (a decision held on the box) or `default` (the calibration has no default). `from` is null when the runtime that noted them predates it |
 | `observation` | `mergesSinceCleanup` (the measures' counter), `ratio` (each window: `added`, `removed`, `ratio` — null if nothing is removed —, `reads`), `duplicates`, `deadExports`. `readable` false: the branch cannot be read, `error` says why, the rest of the object can still be read |
 | `findings` | Each duplicate and each dead export, under the name the pass gives it (`D1`, `M1`…): `file`, `start`, `end` — a duplicate also says its `copy` |
 | `request` | The last request: `none`, `waiting` (`reason`: what holds it, null when nothing does any more; `stalledAt`: with no way out), `running`, `refused` (`reason`), `cancelled`, `done` (`outcome`, `removed`, `pr` — null without a PR —, `kept`); each `reason` carries its code (`code`) and its sentence |
@@ -120,6 +120,17 @@ force. Without a calibration, the project has no writing pass and nothing else c
 refuses, naming the gesture. One without the other, or an unreadable value, makes the start be
 **refused**. These values stay in the state directory's log, out of a cook's reach.
 
+**The project's repository comes first** (#1684). The `closer` field of `.claude/brigade/projet.json`
+([`../reglages.md`](../reglages.md)) carries the same five settings: `calibration` (`{ "model",
+"effort" }`), `cooksBelow`, `maxTokens`, `maxRemovedLines`. Each one it sets wins over the box's
+decision of the same name; each one it leaves out stays the box's, then the default. Every station
+serving the project reads the file on `origin/<integration branch>` as its last fetch saw it, and
+rereads it at each wake-up: a pull request merged there applies at the station's next fetch, with
+no restart and no command on the box, and two stations apply the same values. A gesture on the box
+for a setting the file sets is still written, and `station` says it is ignored while the file sets
+it. `station` says where each value comes from — on each decision row, and on the line under
+**closer in force** —, and so does `closing --json` (`closer.from`).
+
 The gesture names `closer-modele`, `closer-effort`, `closer-cooks`, `closer-tokens` and `closer-retraits` stay French until the runtime is translated.
 
 | Variable | Default | Role |
@@ -129,7 +140,7 @@ The gesture names `closer-modele`, `closer-effort`, `closer-cooks`, `closer-toke
 | `BRIGADE_CLOSING_MAX_TOKENS` | 500,000 | Tokens per pass — in place of a cook's cap, not on top of it. No cap per week |
 | `BRIGADE_CLOSING_MAX_REMOVED_LINES` | 500 | Lines a pass may remove |
 
-They are written to the log when they change (`closing.configured`): that is where the command reads them.
+They are written to the log when they change (`closing.configured`), with where each one comes from: that is where the command reads them.
 
 ### The start condition
 

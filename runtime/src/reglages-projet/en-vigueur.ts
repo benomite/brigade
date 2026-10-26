@@ -2,7 +2,7 @@
 // que son dépôt porte (`reglages.ts`) passent avant ceux que la box tient — la
 // branche de la ligne de configuration de la station, et les décisions du chef
 // au journal : le calibrage du manager et du reviewer, le plafond de
-// calibrage. Un projet dont le dépôt n'a pas encore le fichier garde ceux de
+// calibrage, les réglages du closer. Un projet dont le dépôt n'a pas encore le fichier garde ceux de
 // la box, comme avant.
 //
 // Le fichier se lit sur la branche d'intégration telle que le dernier
@@ -95,12 +95,22 @@ export function reglagesAuDemarrage(lieu: { clone: string; base: string }, env?:
 }
 
 // Les variables de décision que les réglages du dépôt remplacent : le
-// calibrage du manager et du reviewer. Le plafond de calibrage n'y est pas :
-// d'où il vient se dit (`plafondDuProjet`, `reagir.ts`).
+// calibrage du manager et du reviewer, et les réglages du closer, un par un —
+// celui que le fichier tait reste celui de la box. Le plafond de calibrage
+// n'y est pas : d'où il vient se dit (`plafondDuProjet`, `reagir.ts`).
 export function variablesDuDepot(reglages: ReglagesProjet | null): Record<string, string> {
   const calibrages = reglages?.defaultCalibrations ?? {};
+  const closer = reglages?.closer ?? {};
   const poser = (prefixe: string, calibrage: Calibrage | undefined) => (calibrage === undefined ? {} : { [`${prefixe}_MODEL`]: calibrage.model, [`${prefixe}_EFFORT`]: calibrage.effort });
-  return { ...poser("BRIGADE_MANAGER", calibrages.manager), ...poser("BRIGADE_REVIEWER", calibrages.reviewer) };
+  const nombre = (variable: string, valeur: number | undefined) => (valeur === undefined ? {} : { [variable]: String(valeur) });
+  return {
+    ...poser("BRIGADE_MANAGER", calibrages.manager),
+    ...poser("BRIGADE_REVIEWER", calibrages.reviewer),
+    ...poser("BRIGADE_CLOSING", closer.calibration),
+    ...nombre("BRIGADE_CLOSING_COOKS", closer.cooksBelow),
+    ...nombre("BRIGADE_CLOSING_MAX_TOKENS", closer.maxTokens),
+    ...nombre("BRIGADE_CLOSING_MAX_REMOVED_LINES", closer.maxRemovedLines),
+  };
 }
 
 // Ce que les réglages du dépôt disent, en une ligne pour le journal de la
@@ -109,9 +119,13 @@ export function direReglagesDuDepot(branche: BrancheDuProjet, reglages: Reglages
   const d = (calibrage: Calibrage | undefined) => (calibrage === undefined ? "box" : `${calibrage.model}/${calibrage.effort}`);
   const depuis = { "projet.json": `${FICHIER}`, configuration: "the station's configuration line", "CLAUDE.md": "the clone's CLAUDE.md" };
   const brancheDite = `branch ${branche.branche ?? "?"} (from ${branche.provenance === null ? "nowhere" : depuis[branche.provenance]})`;
-  if (reglages === null) return `project settings — ${brancheDite}; origin/${base} has no ${FICHIER}: calibrations and ceiling are the box's`;
+  if (reglages === null) return `project settings — ${brancheDite}; origin/${base} has no ${FICHIER}: calibrations, ceiling and closer are the box's`;
   const { manager, reviewer } = reglages.defaultCalibrations ?? {};
-  return `project settings — ${brancheDite}; from ${FICHIER} on origin/${base}, reread at each use: manager ${d(manager)}, reviewer ${d(reviewer)}, ceiling ${d(reglages.calibrationCeiling)}`;
+  const { calibration, cooksBelow, maxTokens, maxRemovedLines } = reglages.closer ?? {};
+  const n = (valeur: number | undefined) => (valeur === undefined ? "box" : String(valeur));
+  // Un closer que le fichier tait est tout entier celui de la box.
+  const closer = reglages.closer === undefined ? "closer box" : `closer ${d(calibration)}, cooks below ${n(cooksBelow)}, max tokens ${n(maxTokens)}, max removed lines ${n(maxRemovedLines)}`;
+  return `project settings — ${brancheDite}; from ${FICHIER} on origin/${base}, reread at each use: manager ${d(manager)}, reviewer ${d(reviewer)}, ceiling ${d(reglages.calibrationCeiling)}, ${closer}`;
 }
 
 // L'environnement d'un projet, sa branche d'intégration résolue par son

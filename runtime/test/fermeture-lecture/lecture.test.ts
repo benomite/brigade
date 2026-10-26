@@ -92,7 +92,7 @@ test("avec un closer, l'observation donne ses trois chiffres — le ratio, les d
 
   const lue = await lire(lieu);
   assert.ok(lue.configured);
-  assert.deepEqual(lue.closer, { model: "sonnet", effort: "low", cooksBelow: 1, tokens: 1000, removedLines: 20 });
+  assert.deepEqual(lue.closer, { model: "sonnet", effort: "low", cooksBelow: 1, tokens: 1000, removedLines: 20, from: null });
   assert.ok(lue.observation.readable);
   const { ratio, duplicates, deadExports, mergesSinceCleanup, ref } = lue.observation;
   assert.equal(ref, `origin/${BASE}`);

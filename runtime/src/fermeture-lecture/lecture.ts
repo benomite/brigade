@@ -7,7 +7,7 @@
 //
 // Rien n'y écrit. Le journal est ouvert en lecture seule par la commande, le
 // dépôt n'est lu que par l'observation : lire n'a jamais rien lancé.
-import type { FaitFermeture, Laisse, Retrait } from "../events/closing.ts";
+import type { FaitFermeture, Laisse, ProvenancesDeFermeture, Retrait } from "../events/closing.ts";
 import type { Journal } from "../journal.ts";
 import { direJaugeEn, franchis, SANS_SEUIL } from "../mesures.ts";
 import { mergedDeliveries, seuilsEnVigueur } from "../projections/measures.ts";
@@ -71,12 +71,14 @@ export type Demande =
 export type Derive = { declared: boolean; crossed: boolean; crossings: Array<{ measure: string; observed: number; limit: number; text: string }> };
 
 // La réponse. Sans closer réglé, elle le dit, et rien d'autre : ni observation,
-// ni trouvaille, ni demande.
+// ni trouvaille, ni demande. `closer.from` : d'où vient chacun de ses
+// réglages — le dépôt du projet, la box, ou le défaut (#1684) ; null si le
+// runtime qui les a notés ne le disait pas encore.
 export type LectureDeFermeture =
   | { configured: false; text: string }
   | {
       configured: true;
-      closer: { model: string; effort: string; cooksBelow: number; tokens: number; removedLines: number };
+      closer: { model: string; effort: string; cooksBelow: number; tokens: number; removedLines: number; from: ProvenancesDeFermeture | null };
       observation: ObservationLue;
       findings: Trouvaille[];
       request: Demande;
@@ -150,12 +152,12 @@ export function derive(journal: Journal): Derive {
 export function lireFermeture(journal: Journal, observation: () => Observation | { erreur: string }): LectureDeFermeture {
   const reglages = reglagesEnVigueur(journal);
   if (!reglages?.calibration) return { configured: false, text: SANS_CLOSER };
-  const { calibration, cooksBelow, tokens, removedLines } = reglages;
+  const { calibration, cooksBelow, tokens, removedLines, from } = reglages;
   const mergesSinceCleanup = mergedDeliveries(journal.base).length;
   const lue = observation();
   return {
     configured: true,
-    closer: { model: calibration.model, effort: calibration.effort, cooksBelow, tokens, removedLines },
+    closer: { model: calibration.model, effort: calibration.effort, cooksBelow, tokens, removedLines, from: from ?? null },
     observation:
       "erreur" in lue
         ? { readable: false, error: lue.erreur, mergesSinceCleanup }

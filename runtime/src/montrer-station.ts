@@ -33,7 +33,8 @@ import { EFFORTS, MODELES } from "./calibrage.ts";
 import { decisionsPosees, poserDecision, retirerDecision, type Decision } from "./decisions.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
 import { reglagesEnVigueur } from "./closing/condition.ts";
-import { direReglagesEn } from "./closing/say.ts";
+import { direProvenancesEn, direReglagesEn } from "./closing/say.ts";
+import { COOKS_PAR_DEFAUT, RETRAITS_PAR_DEFAUT, TOKENS_PAR_DEFAUT } from "./closing/settings.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { direConsommationEn, NOTE_CONSOMMATION_EN } from "./etat.ts";
 import { direSaturationsEn } from "./machine.ts";
@@ -96,6 +97,9 @@ const DEFAUTS: Partial<Record<Decision, string>> = {
   BRIGADE_GATES_BUDGET_CPU_SECONDS: String(BUDGET_PROCESSEUR_PAR_DEFAUT),
   BRIGADE_GATES_BASE_BUDGET_SECONDS: String(BUDGET_BASE_DUREE_PAR_DEFAUT),
   BRIGADE_GATES_BASE_BUDGET_CPU_SECONDS: String(BUDGET_BASE_PROCESSEUR_PAR_DEFAUT),
+  BRIGADE_CLOSING_COOKS: String(COOKS_PAR_DEFAUT),
+  BRIGADE_CLOSING_MAX_TOKENS: String(TOKENS_PAR_DEFAUT),
+  BRIGADE_CLOSING_MAX_REMOVED_LINES: String(RETRAITS_PAR_DEFAUT),
 };
 const AIDE = ["help", "--help"];
 const LU = "read by the runtime at its next read, without a restart; no running cook is stopped";
@@ -232,7 +236,8 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
   }
 
   // Ce que le dépôt du projet fixe à la place des décisions de la box : le
-  // calibrage du manager et du reviewer, le plafond de calibrage.
+  // calibrage du manager et du reviewer, le plafond de calibrage, les
+  // réglages du closer.
   const duDepot = (): Record<string, string> => {
     const reglages = reglagesPourMontrer(env);
     const plafond = reglages?.calibrationCeiling;
@@ -275,9 +280,11 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
     const plafond = plafondDuProjet(posees, reglages);
     ligne("calibration ceiling", `${direPlafondDeCalibrageEn(plafond)} — ${plafond.depot ? `a pull request on ${FICHIER} to change it` : "`station -- ceiling-modele <model>`, `station -- ceiling-effort <effort>` to change it"}`);
     // Ce que la passe de fermeture vaut en ce moment, plafonds compris : tel
-    // que le runtime les a notés, défauts et environnement compris.
+    // que le runtime les a notés, défauts et dépôt compris, et d'où chacun
+    // vient.
     const closer = reglagesEnVigueur(journal);
     ligne("closer in force", closer === null ? "no runtime has noted it yet — not set, no pass writes" : direReglagesEn(closer));
+    if (closer !== null) ligne("", direProvenancesEn(closer.from));
   }
 
   function montrer(journal: Journal, station: string): void {

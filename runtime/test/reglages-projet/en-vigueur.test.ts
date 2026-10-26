@@ -116,7 +116,7 @@ describe("the project's settings are read from its repository before the box's",
     assert.deepEqual(decisions.manager(), { model: "opus", effort: "high" });
     assert.deepEqual(decisions.reviewer(), { model: "sonnet", effort: "low" });
     assert.deepEqual(decisions.plafond(), { model: "sonnet", effort: "high", pose: { model: false, effort: false }, depot: true });
-    assert.match(lu.dits.at(-1) ?? "", /branch v2 \(from \.claude\/brigade\/projet\.json\); from \.claude\/brigade\/projet\.json on origin\/v2, reread at each use: manager opus\/high, reviewer sonnet\/low, ceiling sonnet\/high/);
+    assert.match(lu.dits.at(-1) ?? "", /branch v2 \(from \.claude\/brigade\/projet\.json\); from \.claude\/brigade\/projet\.json on origin\/v2, reread at each use: manager opus\/high, reviewer sonnet\/low, ceiling sonnet\/high, closer box/);
   });
 
   test("without the box's calibrations nor the repository's, the runtime refuses to start, naming both places", (t) => {
