@@ -964,7 +964,7 @@ added / removed, per project
 
 - **One row per project with a closer set**, in the file's order; **a project with no closer set has no row**. A
   click on its name opens its space.
-- **Its current ratio** is the one of its Closer reading (see "The Closer reading"): the longest window, in the words
+- **Its current ratio** is the one of its closer section on Cooks (see "The closer, on Cooks"): the longest window, in the words
   of `closing` (`15.5:1`, `nothing removed`), with what it counts below.
 - **Its trend — going down, flat or going up — is read from successive values of the ratio.** The runtime keeps no
   history of the ratio: `closing --json` gives it over the last 20, 50 and 100 merges, each window taken from the same
