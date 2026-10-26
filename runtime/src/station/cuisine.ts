@@ -39,7 +39,7 @@ import { attendreLaPreparation } from "../preparation-depot/attendre.ts";
 import { brancherSession, configSession } from "../renouvellement.ts";
 import { brancherReseau, configReseau, DECLARATION_RESEAU, lireDeclaration, reglesDuProjet, REGLES_DE_BASE, sonderLeFiltre, variablesDeRelais } from "../reseau.ts";
 import { plafondDuProjet } from "../reagir.ts";
-import { lireLeDepot } from "../reglages-projet/en-vigueur.ts";
+import { lireLeDepot, variablesDesGatesDuDepot } from "../reglages-projet/en-vigueur.ts";
 import { configReviewer } from "../reviewer.ts";
 import { ConfigInvalide, demarrer, type Runtime } from "../runtime.ts";
 import { configSecrets, DECLARATION } from "../secrets.ts";
@@ -108,7 +108,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
   if (!existsSync(station.clone)) throw new ConfigInvalide(`le clone du projet (${station.clone}) n'existe pas`, "clone-missing");
   supportDesDecisions({ repertoireEtat, clone: station.clone });
   const { stations } = station;
-  const delais = configPass(envProjet);
+  const delais = configPass({ ...envProjet, ...variablesDesGatesDuDepot(duDepot.reglages) });
   const reviewer = configReviewer(decide);
   const manager = { ...configManager(decide), plafond: plafondDuProjet(decide, duDepot.reglages) };
   lireSeuils(decide);

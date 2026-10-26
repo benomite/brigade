@@ -63,6 +63,18 @@ export const SEUILS_DU_PROJET = {
     threshold: seuil("BRIGADE_CORRECTION_THRESHOLD", true, 2),
     window: seuil("BRIGADE_CORRECTION_WINDOW", true, 1),
   },
+  // Ce que valent les tests et la CI du projet (#1672) : le budget d'un passage
+  // de gates de ticket et celui du run complet sur la base, en durée et en
+  // processeur (secondes), le plafond de durée des gates et l'attente d'une CI
+  // qui ne conclut pas. Ils ne dépendent pas de la machine.
+  gates: {
+    durationBudgetSeconds: seuil("BRIGADE_GATES_BUDGET_SECONDS", true, 1),
+    processorBudgetSeconds: seuil("BRIGADE_GATES_BUDGET_CPU_SECONDS", true, 1),
+    baseDurationBudgetSeconds: seuil("BRIGADE_GATES_BASE_BUDGET_SECONDS", true, 1),
+    baseProcessorBudgetSeconds: seuil("BRIGADE_GATES_BASE_BUDGET_CPU_SECONDS", true, 1),
+    timeoutSeconds: seuil("BRIGADE_GATES_TIMEOUT_SECONDS", true, 1),
+    ciWaitSeconds: seuil("BRIGADE_CI_WAIT_SECONDS", true, 1),
+  },
   profile: {
     window: seuil("BRIGADE_PROFILE_WINDOW", true, 1),
     minTickets: seuil("BRIGADE_PROFILE_MIN_TICKETS", true, 1),

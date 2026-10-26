@@ -108,6 +108,14 @@ function seuilsDuDepot(reglages: ReglagesProjet | null): Record<string, string> 
   return variables;
 }
 
+// Ce que le dépôt fixe des gates que la pass lit de l'environnement et non des
+// décisions : le plafond de durée des gates et l'attente de la CI (`configPass`).
+// Les quatre budgets, eux, passent par `variablesDuDepot`.
+export function variablesDesGatesDuDepot(reglages: ReglagesProjet | null): Record<string, string> {
+  const { BRIGADE_GATES_TIMEOUT_SECONDS: timeout, BRIGADE_CI_WAIT_SECONDS: attente } = seuilsDuDepot(reglages);
+  return { ...(timeout === undefined ? {} : { BRIGADE_GATES_TIMEOUT_SECONDS: timeout }), ...(attente === undefined ? {} : { BRIGADE_CI_WAIT_SECONDS: attente }) };
+}
+
 // Les variables de décision que les réglages du dépôt remplacent : le
 // calibrage du manager et du reviewer, les réglages du closer et les seuils de
 // dérive, de correction et de profil, un par un —
