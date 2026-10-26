@@ -7,6 +7,7 @@ import type { Laisse } from "../events/closing.ts";
 import { tenant, type Vol } from "./condition.ts";
 import { repererCodeMort } from "./dead-code.ts";
 import { extrait, repererDoublons } from "./duplicates.ts";
+import { empreinte } from "./memory.ts";
 import type { Depot, Texte } from "./reading.ts";
 
 // A pass proposes no more than this: its brief stays readable, and what it
@@ -17,7 +18,9 @@ export const CANDIDATS_MAX = 40;
 // reads. `lieux`: where it is, `<path>:<line>` or `<path>:<first>-<last>`, one
 // per passage. `fichiers`: those to write in order to remove it. `cle`: what
 // recognizes it in another observation, wherever its lines are rendered.
-export type Candidat = { id: string; quoi: string; lieux: string[]; fichiers: string[]; cle: string };
+// `empreinte`: the fingerprint of the code around its places, by which the
+// memory tells whether it changed since a pass left it (`memory.ts`).
+export type Candidat = { id: string; quoi: string; lieux: string[]; fichiers: string[]; cle: string; empreinte: string };
 
 const DOC = /\.(md|mdx|markdown|rst|txt)$/;
 const cleDeMort = (chemin: string, nom: string) => `mort ${chemin} ${nom}`;
@@ -38,13 +41,17 @@ export function candidats({ textes }: Pick<Depot, "textes">): Candidat[] {
   // Docs that write a name do not keep it alive: they are to be taken back with it.
   const docs = textes.filter(({ chemin }) => DOC.test(chemin));
   const nomment = (nom: string) => docs.filter(({ texte }: Texte) => new RegExp(`(?<![\\w$])${nom.replaceAll("$", "\\$")}(?![\\w$])`).test(texte)).map(({ chemin }) => chemin);
-  const doublons = repererDoublons(textes).map(({ lignes, passages: [premier, second] }, rang): Candidat => ({
-    id: `D${rang + 1}`,
-    quoi: `${lignes} identical lines of code: \`${premier.chemin}:${premier.debut}-${premier.fin}\` = \`${second.chemin}:${second.debut}-${second.fin}\``,
-    lieux: [`${premier.chemin}:${premier.debut}-${premier.fin}`, `${second.chemin}:${second.debut}-${second.fin}`],
-    fichiers: [...new Set([premier.chemin, second.chemin])],
-    cle: cleDeDoublon(extrait(contenu.get(premier.chemin) ?? "", premier)),
-  }));
+  const doublons = repererDoublons(textes).map(({ lignes, passages: [premier, second] }, rang): Candidat => {
+    const lieux = [`${premier.chemin}:${premier.debut}-${premier.fin}`, `${second.chemin}:${second.debut}-${second.fin}`];
+    return {
+      id: `D${rang + 1}`,
+      quoi: `${lignes} identical lines of code: \`${premier.chemin}:${premier.debut}-${premier.fin}\` = \`${second.chemin}:${second.debut}-${second.fin}\``,
+      lieux,
+      fichiers: [...new Set([premier.chemin, second.chemin])],
+      cle: cleDeDoublon(extrait(contenu.get(premier.chemin) ?? "", premier)),
+      empreinte: empreinte(contenu, lieux),
+    };
+  });
   const morts = repererCodeMort(textes).map(({ chemin, ligne, nom, tests }, rang): Candidat => {
     // Said in its description: an export that `docs/` names may be API, which
     // the closer leaves.
@@ -55,6 +62,7 @@ export function candidats({ textes }: Pick<Depot, "textes">): Candidat[] {
       lieux: [`${chemin}:${ligne}`],
       fichiers: [...new Set([chemin, ...tests, ...decrit])],
       cle: cleDeMort(chemin, nom),
+      empreinte: empreinte(contenu, [`${chemin}:${ligne}`]),
     };
   });
   return [...doublons, ...morts];

@@ -78,7 +78,9 @@ export function aRetenir(gardes: Laisse[], proposes: Candidat[]): Reste[] {
 }
 
 // The body of a pass's PR, in four parts: what it removed, what it factored,
-// the lines saved, and everything it did not remove, with its reason.
+// the lines saved, and everything it did not remove, with its reason. `deja`:
+// how many candidates were not proposed again, left by an earlier pass with
+// the code around them unchanged since (`memory.ts`).
 export function corpsDeLaPR(passe: {
   run: string;
   base: string;
@@ -86,13 +88,14 @@ export function corpsDeLaPR(passe: {
   proposes: Candidat[];
   laisses: Laisse[];
   ecartes: Laisse[];
+  deja?: number;
   retirees: number;
   ajoutees: number;
   cap: number;
   fichiers: string[];
   compteRendu: string | null;
 }): string {
-  const { proposes, laisses: gardes, ecartes, retirees, ajoutees } = passe;
+  const { proposes, laisses: gardes, ecartes, retirees, ajoutees, deja = 0 } = passe;
   const { retire, factorise, gagne, laisse } = PARTIES_DE_LA_PR;
   const encore = new Set(gardes.map(({ id }) => id));
   const morts = proposes.filter(estMort);
@@ -123,6 +126,7 @@ export function corpsDeLaPR(passe: {
     `## ${laisse} — ${gardes.length}`,
     "",
     ...(gardes.length === 0 ? ["Rien : tout ce qui était proposé a été retiré ou factorisé."] : gardes.map(dire)),
+    ...(deja === 0 ? [] : ["", `${pluriel(deja, "candidat")} laissé${deja > 1 ? "s" : ""} par une passe précédente, sans que le code autour ait changé depuis, ${deja > 1 ? "n'ont" : "n'a"} pas été reproposé${deja > 1 ? "s" : ""} au closer.`]),
     ...(ecartes.length === 0 ? [] : ["", `## Écarté avant la passe — ${ecartes.length}`, "", ...ecartes.map(dire)]),
     ...(gardes.length === 0 ? [] : ["", "<details>", "<summary>Ce qui est laissé, une entrée par candidat</summary>", "", "```json", JSON.stringify(aRetenir(gardes, proposes), null, 2), "```", "", "</details>"]),
     ...(passe.compteRendu === null ? [] : ["", "<details>", "<summary>Le compte-rendu du closer</summary>", "", passe.compteRendu, "", "</details>"]),
