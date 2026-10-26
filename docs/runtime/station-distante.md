@@ -218,11 +218,45 @@ brigade <project> station stations box/claude:3:code+raisonnement,mac/claude:2:c
 station of the project — not only when the box is saturated — …`), and `facts` in the `ensemble`
 field of `stations`.
 
-**What is not done yet.** The second station still has to reach the kitchen: today, only through the
-`pull` gesture (`ssh <host> brigade <project> pull …`), which the app's runner plays for a project
-it reaches by `ssh`. A station the app pairs through its gist and adds to a project as not its main
-one (`secondaire`, in [`station-machine.md`](station-machine.md)) is not declared in the project's
-log and pulls nothing yet.
+**A station paired through the app is declared with no command.** A station the app pairs through its
+gist and adds to a project as not its main one (`secondaire`, in [`station-machine.md`](station-machine.md))
+is read by the project's main station, which declares it in the project's log as `distante+ensemble` —
+the declaration above, written by the runtime and not by a `station stations` line from the chef. The
+main station reads the paired gists at most every five minutes, the cadence where a station rewrites its
+sign of life (`CADENCE_DES_APPAIREES_MS`, `runtime/src/projets/secondaires.ts`). Then:
+
+- **Its name** is that of its machine, with the station's engine: `<machine>/claude`, as the main
+  station's is (`machineDe`).
+- **Its cap on cooks** is the one set when the project was added in the app. Changing it or its
+  capabilities in the app changes the declaration on the next reading.
+- **What it provides** is what the app's pairing says of its computer, and what the chef ticked for it
+  when adding the project. Beside that, it provides `code` and `raisonnement`; a Mac also provides
+  `macos`, the system itself. The rest is what the installation **detects** on that machine — Chrome,
+  the Android SDK, a Postgres server, … — looked at without launching anything
+  (`capacitesDeLaMachine`, `runtime/src/projets/ajout-de-station.ts`). A machine that is not a Mac
+  provides only what is detected there.
+- **It pulls its work** like any remote station: `ssh <host> brigade <project> pull …`, with the same
+  rules as above. The main station keeps the manager and the pass.
+
+**What it says when it cannot cook yet.** A station installed from the app and cooking nothing yet says
+why in one short sentence, with the gesture to make, on its line of the home screen. The reasons are:
+
+| Reason shown in the app | Sentence on the station's line | Gesture |
+|---|---|---|
+| The station does not sign on GitHub: stopped, or silent | `not reached` | `start Brigade on <name>'s computer`, then the line turns green when it signs again — button **check again** |
+| Its page on GitHub cannot be read | `cannot be read` | remove it from its page, then pair it again with a new code — button **open its page** |
+| It is not added to any project | `not added to any project` | add a project to it — button **add a project** |
+
+A station added to a project as a second one, and not reached by the main station, shows `not reached` on
+its line in the project's list, with the reason in the runtime's status (`station`, `dit`). The gesture
+for that line is in the hover text, and it is one of these three (`GESTES_DE_LA_RAISON`,
+`runtime/src/projets/secondaires.ts`):
+
+- `arretee`: `not reached: it stopped at <time>` — start Brigade on that computer again.
+- `muette`: `not reached: no sign of life on GitHub since <time>` — open Brigade on that computer; its
+  station signs again within a minute.
+- `gist-illisible`: `not reached: its gist could not be read on GitHub — <reason>` — check your GitHub
+  connection in the app; the next reading tries again.
 
 #### A local kitchen: all its cooks in the sandbox
 
