@@ -152,7 +152,7 @@ describe("les tickets ordinaires dans la vue", () => {
   const champs = (bloc: Faux) => bloc.dessous("input");
 
   // Les lignes du bloc : le nom de chaque réglage, sans son étiquette de niveau (le groupe la dit), et sa valeur.
-  const lignes = (bloc: Faux) => bloc.dessous("div").filter(({ className }) => className === "reglage").map((ligne) => [ligne.children[0]?.children[0]?.textContent, ligne.children[1]?.children[0]?.textContent]);
+  const lignes = (bloc: Faux) => bloc.dessous("div").filter(({ className }) => className === "reglage").map((ligne) => [ligne.children[0]?.textContent, ligne.children[1]?.children[0]?.textContent]);
   const refus = (bloc: Faux) => bloc.dessous("p").filter(({ className }) => className === "dit refus").map(({ textContent }) => textContent);
 
   test("dans Settings, sous cette machine : deux lignes — les prendre, et combien de cooks à la fois —, l'explication au survol", async () => {
