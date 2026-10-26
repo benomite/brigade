@@ -5,8 +5,9 @@
 //   - la fiche d'un ticket : « merge the PR » (`merger`) → `/brigade merge #<n>`, « remove from the rail » (`retirer`)
 //     → `/brigade set-aside #<n>` ;
 //   - la carte de TODO : un choix → `/brigade choose #<n> <rang>`, un texte → `/brigade answer #<n> <texte>`.
-// Ce que la grammaire ne connaît pas (changer la priorité, renvoyer en cuisine un ticket revenu de WAITING) n'est pas
-// d'ici : `gesteDeFiche` le dit (`horsDuTableau`), et l'appelant le joue comme avant.
+// Ce que la grammaire ne connaît pas (renvoyer en cuisine un ticket revenu de WAITING) n'est pas d'ici : `gesteDeFiche`
+// le dit (`horsDuTableau`), et l'appelant le joue comme avant. Changer la priorité ne passe pas par le tableau : l'app
+// change le label `prio:` de l'issue elle-même (../priorite.ts).
 //
 // Rien ne part pour un ticket que la dernière lecture du tableau ne porte pas — ni sur son rail, ni dans sa file —, ni
 // sans tableau lu : chaque fois une phrase, et rien n'est posté.

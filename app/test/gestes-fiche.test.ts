@@ -9,7 +9,8 @@ import type { Projet } from "../src/config.ts";
 import { demandeSurLeTicket, REFUS_CONTROLE_TICKET } from "../src/demande.ts";
 import { tenirFaits, type Faits } from "../src/faits.ts";
 import type { Decision } from "../src/decision.ts";
-import { ACTIONS, type Actions, type CarteDeFiche, gestesDeCarte, gestesDeLaFiche, jouerGesteDeFiche, PRIORITES, PRIX } from "../src/gestes-fiche.ts";
+import { ACTIONS, type Actions, type CarteDeFiche, gestesDeCarte, gestesDeLaFiche, jouerGesteDeFiche, PRIX } from "../src/gestes-fiche.ts";
+import { PRIORITES } from "../src/priorite.ts";
 import type { Terminal } from "../src/terminaux.ts";
 
 const PARADE: Projet = { nom: "parade", dossier: "/projets/parade", box: { hote: "box" } };
@@ -89,7 +90,7 @@ describe("la table du chef : pour chaque état, l'ensemble exact des gestes prop
     }
   });
 
-  test("un geste qui ne coûte rien n'a pas de prix ; un geste qui coûte le dit en clair — et la priorité se choisit parmi celles que le runtime prend", () => {
+  test("un geste qui ne coûte rien n'a pas de prix ; un geste qui coûte le dit en clair — et la priorité se choisit parmi les labels `prio:` que la box lit", () => {
     const renonce: Decision = { quoi: "remontee", motif: "still-red", cause: null, pr: "https://github.com/o/r/pull/8" };
     const tous = [
       ...gestesDeLaFiche(carte("servi", { pr: true }), TOUT),
@@ -123,29 +124,27 @@ describe("jouer un geste de la fiche", () => {
     return { envoyes, terminaux: { envoyer: async (_: Projet, commande: string) => (envoyes.push(commande), SECOND) } };
   };
 
-  test("changer la priorité, retirer du rail, merger, renvoyer en cuisine partent dans le second, sous les commandes de la box (#637) ; une priorité hors de la liste ne part pas", async () => {
+  test("retirer du rail, merger, renvoyer en cuisine partent dans le second, sous les commandes de la box (#637)", async () => {
     const { terminaux, envoyes } = registre();
-    assert.equal(await jouerGesteDeFiche(terminaux, PARADE, "priorite", 21, "2"), SECOND);
-    assert.equal(await jouerGesteDeFiche(terminaux, PARADE, "priorite", 21, "none"), SECOND);
     assert.equal(await jouerGesteDeFiche(terminaux, PARADE, "retirer", 21, undefined), SECOND);
     assert.equal(await jouerGesteDeFiche(terminaux, PARADE, "merger", 21, undefined), SECOND);
     assert.equal(await jouerGesteDeFiche(terminaux, PARADE, "cuisine", 21, undefined), SECOND);
-    assert.deepEqual(envoyes, [
-      "!ssh box brigade parade rail priority 21 2",
-      "!ssh box brigade parade rail priority 21 none",
-      "!ssh box brigade parade rail remove 21",
-      "!ssh box brigade parade rail merge 21",
-      "!ssh box brigade parade waiting arrived 21",
-    ]);
-    for (const mauvaise of ["0", "10", "1.5", "", 3, undefined]) {
-      assert.match((jouerGesteDeFiche(terminaux, PARADE, "priorite", 21, mauvaise) as { refus: string }).refus, /^nothing is sent: the priority .* is not one of 1, 2, 3, 4, 5, 6, 7, 8, 9, none$/, String(mauvaise));
+    assert.deepEqual(envoyes, ["!ssh box brigade parade rail remove 21", "!ssh box brigade parade rail merge 21", "!ssh box brigade parade waiting arrived 21"]);
+  });
+
+  test("changer la priorité n'est pas une commande de la box : l'app la joue elle-même, sur GitHub (#1739) — rien ne part dans le second", () => {
+    const { terminaux, envoyes } = registre();
+    assert.deepEqual(ACTIONS.priorite, { app: true });
+    for (const valeur of ["2", "none"]) {
+      assert.deepEqual(jouerGesteDeFiche(terminaux, PARADE, "priorite", 21, valeur), { refus: "nothing is sent: “priorite” is not an action of the station that this app can run" }, valeur);
     }
-    assert.equal(envoyes.length, 5);
+    assert.deepEqual(envoyes, []);
+    assert.ok(!Object.values(ACTIONS).some((action) => "box" in action && /priority/.test(action.box(21, "2"))), "aucune commande de la box ne change la priorité");
   });
 
   test("une action qui n'est pas branchée ne part pas — ni la commande d'une file, ni un projet sans box, ni un ticket qui n'en est pas un", () => {
     const { terminaux, envoyes } = registre();
-    for (const id of ["waiting", "navigateur", "issue", "file", "inconnu", "toString"]) {
+    for (const id of ["waiting", "navigateur", "issue", "priorite", "file", "inconnu", "toString"]) {
       assert.deepEqual(jouerGesteDeFiche(terminaux, PARADE, id, 21, "2"), { refus: `nothing is sent: “${id}” is not an action of the station that this app can run` }, id);
     }
     assert.deepEqual(jouerGesteDeFiche(terminaux, { nom: "parade", dossier: "/p" }, "retirer", 21, undefined), { refus: "nothing is sent: “parade” has no station — there is no command to run" });

@@ -35,7 +35,7 @@ test("`rail` : le rail de l'état d'exemple ne porte aucun mot français du glos
   sansMotFrancais(rail.lignes);
 
   // Les refus : un geste inconnu, un ticket pris, un ticket absent, sans dépôt déclaré.
-  for (const args of [["bouger", "1"], ["remove"], ["priority", "30", "12"], ["remove", "31"], ["merge", "404"], ["remove", "30"]]) {
+  for (const args of [["bouger", "1"], ["remove"], ["remove", "31"], ["merge", "404"], ["remove", "30"]]) {
     const refus = await sortie(montrerRail, args, { ...env, BRIGADE_GITHUB_REPO: DEPOT, BRIGADE_GH_BIN: "/inexistant" });
     assert.notEqual(refus.code, 0, args.join(" "));
     sansMotFrancais(refus.lignes);

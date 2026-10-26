@@ -14,6 +14,7 @@ import { GESTES_DE_LA_CUISINE } from "../../../app/src/cuisine.ts";
 import { GESTES_D_ATTENTE } from "../../../app/src/attente.ts";
 import { BANNIERE, type Carte, type Faits, tenirFaits } from "../../../app/src/faits.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../../../app/src/gestes.ts";
+import type { PrioriteMontree } from "../../../app/src/priorite.ts";
 import { GESTES_DES_GRANTS } from "../../../app/src/grants.ts";
 import { EFFORTS, MODELES } from "../../../app/src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../../../app/src/onglets.ts";
@@ -89,8 +90,9 @@ export type Rendu = { facts: Faits; status: string; station: string; manager?: s
 // Les envois d'une cuisine figée, dans l'ordre où main.ts les fait : la barre posée, `facts` de
 // chaque projet, puis `manager` de ceux qui le rendent ; « Tous les projets », `status` et `station` de
 // chacun ; un espace ouvert, le `status` de son projet. Chaque lecture passe par les modules de l'app, comme dans main.ts.
-export function cuisine(rendus: Record<string, Rendu>): Required<Pick<Donnees["envois"], "faits" | "tous" | "regarder">> {
-  const faits = tenirFaits();
+// `ecrites` : les priorités que l'app vient d'écrire sur des issues (app/src/priorite.ts), que le rail montre.
+export function cuisine(rendus: Record<string, Rendu>, ecrites?: (projet: string) => PrioriteMontree): Required<Pick<Donnees["envois"], "faits" | "tous" | "regarder">> {
+  const faits = tenirFaits(undefined, ecrites);
   const bandes = tenirBandes({ maintenant: () => Date.parse(MAINTENANT) });
   const lecture = (projet: string, sorties: Record<string, string>): Lecture => ({ projet, demande: 0, a: MAINTENANT, sorties: Object.entries(sorties).map(([commande, texte]) => ({ commande, texte })) });
   const projets = Object.keys(rendus);
@@ -120,8 +122,8 @@ export function cuisine(rendus: Record<string, Rendu>): Required<Pick<Donnees["e
 
 // La carte d'un ticket telle que la vue la reçoit sur le rail du projet, `facts` puis `status` lus —
 // pour calculer, par les modules de l'app, ce que sa fiche demande au pont.
-export function carteDe(rendu: Rendu, projet: string, ticket: number): Carte {
-  const faits = tenirFaits();
+export function carteDe(rendu: Rendu, projet: string, ticket: number, ecrites?: (projet: string) => PrioriteMontree): Carte {
+  const faits = tenirFaits(undefined, ecrites);
   const lecture = (sorties: Record<string, string>): Lecture => ({ projet, demande: 0, a: MAINTENANT, sorties: Object.entries(sorties).map(([commande, texte]) => ({ commande, texte })) });
   faits.recevoir(lecture({ facts: JSON.stringify(rendu.facts) }));
   const recue = faits.attendre(mettreAPart(lecture({ status: rendu.status })));

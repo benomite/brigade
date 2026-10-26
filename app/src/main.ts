@@ -41,6 +41,7 @@ import { clientDesGestesGitHub, posterParFetch } from "./tableau-gestes/github.t
 import { demandeDe, demandeDeLAlerte, demandeSurLeTicket, noteDeLaDemande } from "./demande.ts";
 import { CONFIRMES, DIRECTS, ecrireGeste, GRANTS } from "./gestes.ts";
 import { gestesDeCarte, jouerGesteDeFiche } from "./gestes-fiche.ts";
+import { changerLaPriorite, clientDeLaPriorite, envoyerParFetch, tenirPrioritesEcrites } from "./priorite.ts";
 import { voir as voirFiabilite } from "./fiabilite.ts";
 import { GESTES_DES_GRANTS, voir as voirGrants } from "./grants.ts";
 import { ajouterALApp, depotDeLOrigine, lireClone } from "./ajout.ts";
@@ -267,7 +268,13 @@ const veilleDOnglet = ouvrirVeille({
 // Les questions du manager que le chef a répondues (repondues.ts) : leur carte quitte TODO pour
 // WAITING sans attendre le manager.
 const repondues = tenirRepondues();
-const faits = tenirFaits((projet) => repondues.de(projet));
+// Les priorités que le chef vient de changer depuis une fiche (priorite.ts) : le rail les montre tant que le tableau
+// de la cuisine montre encore les anciennes.
+const prioritesEcrites = tenirPrioritesEcrites();
+const faits = tenirFaits(
+  (projet) => repondues.de(projet),
+  (projet) => prioritesEcrites.de(projet),
+);
 // L'accueil (accueil.ts) : une ligne par projet, une par station, et la ligne de santé — redessiné à
 // chaque lecture qui le change, de `faits`, de `status` ou des stations sur GitHub.
 const accueil = tenirAccueil({ locale: () => (stationLocale === undefined ? null : gistLocal(racineDeLaStation)), projets: () => projets().map((projet) => ({ nom: projet.nom, box: lisible(projet), desinstalle: projet.desinstalle !== undefined })) });
@@ -815,15 +822,25 @@ ipcMain.handle("demander", (_, nom: unknown, ticket: unknown) => {
 // ceux qui tranchent ce qu'on attend du chef, puis ceux que la table du chef permet pour son état,
 // dont l'action est branchée, chacun avec son prix.
 ipcMain.handle("gestesDeFiche", (_, carte: unknown) => gestesDeCarte(carte));
-// Un geste de la fiche que la vue ne joue pas elle-même. Merger la livraison et retirer le ticket du
-// rail s'écrivent sur le tableau de la cuisine du projet (#1694, tableau-gestes/rail.ts), en
-// commentaire, par le jeton du `gh` de ce poste — ni `ssh` ni second : la box les joue à son tick
-// suivant, et le rail, relu du tableau, le montre. Les autres — que la grammaire du tableau ne
-// connaît pas — sont une action de box, qui part dans le second comme un geste du socle. La vue
+// Un geste de la fiche que la vue ne joue pas elle-même. Changer la priorité remplace le label `prio:`
+// de l'issue sur GitHub (priorite.ts, #1739), par le jeton du `gh` de ce poste — ni box, ni tableau :
+// fait, le rail montre aussitôt la nouvelle priorité, jusqu'à ce que le tableau la montre. Merger la
+// livraison et retirer le ticket du rail s'écrivent sur le tableau de la cuisine du projet (#1694,
+// tableau-gestes/rail.ts), en commentaire, par le même jeton — ni `ssh` ni second : la box les joue à
+// son tick suivant, et le rail, relu du tableau, le montre. Les autres — que la grammaire du tableau
+// ne connaît pas — sont une action de box, qui part dans le second comme un geste du socle. La vue
 // nomme le geste, le ticket et la valeur ; ce qui part se compose ici, jamais dans la vue.
 ipcMain.handle("gesteDeFiche", async (_, nom: unknown, id: unknown, ticket: unknown, valeur: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return parti(nom);
+  if (id === "priorite") {
+    if (faits.ticket(vise.nom, ticket)?.etat === undefined) return { refus: `nothing was changed: #${String(ticket)} is not on the latest rail read — read it again`, detail: "" };
+    const rendu = await changerLaPriorite({ depot: await depotDuProjet(vise), ticket, valeur, client: clientDesLabels });
+    if (!("fait" in rendu)) return rendu;
+    prioritesEcrites.ecrite(vise.nom, ticket as number, rendu.niveau, rendu.avant);
+    redessinerRail(vise.nom);
+    return { fait: rendu.fait, detail: rendu.detail };
+  }
   const auTableau = await gesteDeFicheAuTableau(tableaux.dernier(vise.nom), id, ticket, clientDesGestes);
   if ("horsDuTableau" in auTableau) return jouerGesteDeFiche(terminaux, vise, id, ticket, valeur, undefined, cuisines.cuisineDe(vise));
   if ("fait" in auTableau) tableaux.oublier();
@@ -1139,6 +1156,8 @@ ipcMain.handle("railDuProjet", async (_, nom: unknown): Promise<RailDuProjetLu> 
   return { ...lu, range: rangerLeRailPublie(lu.tickets) };
 });
 const clientDesGestes = clientDesGestesGitHub({ jeton: jetonDeGh({ gh: ghIci, delaiMs: 10_000 }), poster: posterParFetch(), appeler: appelerGitHub });
+// Les labels `prio:` d'une issue, lus et changés depuis une fiche (priorite.ts), avec le même jeton.
+const clientDesLabels = clientDeLaPriorite({ jeton: jetonDeGh({ gh: ghIci, delaiMs: 10_000 }), appeler: appelerGitHub, envoyer: envoyerParFetch() });
 // Le plafond de cooks d'une station, réglé depuis sa page : la vue nomme la station et la valeur — un nombre,
 // 0 ou `auto` —, la commande `station cooks <valeur>` part sur la box de chaque projet dont le `status` lu
 // nomme cette station (plafond.ts). Réglé, ce `status` est relu aussitôt : la page dit le plafond neuf, et ce qu'il remplace.

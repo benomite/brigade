@@ -137,21 +137,25 @@ as it is).
 The finding after `UNREADABLE CARD —` (here `clé inconnue « budget »`) is French, as the card
 reader writes it; it stays French until the runtime is translated.
 
-### Removing a ticket from the rail, changing its priority
+### Removing a ticket from the rail
 
 ```bash
 npm --prefix runtime run rail -- remove <ticket>
-npm --prefix runtime run rail -- priority <ticket> <1-9 | none>
 ```
 
-The two actions of the app's card (`runtime/src/geste-ticket.ts`). `remove` takes the `fire` label
-off the issue of a queued or `BLOCKED` ticket: it leaves the rail, its issue stays open. A ticket
-that is taken, in pass, served or 86 is refused, and nothing is touched. `priority` replaces the
-issue's `prio:<n>` label, whatever the state of the ticket; `none` removes it. Each sets the label
-under the service account's `gh` (`BRIGADE_GITHUB_REPO` is required), writes to the log the fact the
-poll would have written — the rail and the card read it at once —, and states its price
-(`— cost: …`): on standard output if it is done, on standard error with its reason, with code 1, if
-it is refused.
+`remove` (`runtime/src/geste-ticket.ts`) takes the `fire` label off the issue of a queued or
+`BLOCKED` ticket: it leaves the rail, its issue stays open. A ticket that is taken, in pass, served
+or 86 is refused, and nothing is touched. It removes the label under the service account's `gh`
+(`BRIGADE_GITHUB_REPO` is required), writes to the log the fact the poll would have written — the
+rail and the card read it at once —, and states its price (`— cost: …`): on standard output if it
+is done, on standard error with its reason, with code 1, if it is refused.
+
+### A ticket's priority is its `prio:` label
+
+The box has no command to change a priority: it is the `prio:<n>` label of the issue, and the box
+reads it like any label, at its next poll (service order above). The chef changes it on GitHub, or
+from the ticket's sheet in the app, which replaces the label itself (`app/src/priorite.ts`, see
+`docs/app.md`, "Changing a ticket's priority").
 
 ### Sending a delivery back to a cook, saying why you corrected it
 

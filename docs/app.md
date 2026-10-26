@@ -330,6 +330,30 @@ above (#1435). Captures: `docs/captures/1695/` — `espace-projet-avant.png` (th
 `espace-projet-apres.png` (the rail view of the same project), and `espace-projet-gestes-apres.png` (the
 sheet of a TODO ticket whose decision is known, offering its gestures, `merge the PR` first).
 
+### Changing a ticket's priority (#1739)
+
+A ticket's priority is the `prio:<n>` label of its issue on GitHub. On the sheet of a rail card, `change the priority`
+offers `1` to `9` (`1` is served first) and `none`; nothing is chosen in advance, and the button stays inactive until a
+value is. A click and **the app replaces the label itself on GitHub** (`app/src/priorite.ts`), with the token of this
+computer's `gh`: it reads the issue, puts the new `prio:` label, then removes every other one (`none` removes them all
+and puts none). No box, no `ssh`, no Kitchen board, no second: the gesture works with the box unreachable. It costs
+nothing, and asks for no confirmation.
+
+- **Done**: the sheet says `priority changed on GitHub: #22 now carries prio:1 — the box reorders the rail when it reads
+  it`, the issue's address on hover. The card and the sheet show the new priority at once. The box reads the label at
+  its next poll and reorders the rail; until the Kitchen board shows it, the rail keeps showing the priority the app
+  wrote — as long as the board still shows the old one, the box unreachable included. Once the board shows another
+  priority, the board says it.
+- **Failed**: nothing changes on the rail, which keeps the old priority, and the sheet says why in one line — `nothing was
+  changed: issue #22 was not read on GitHub`, `nothing was changed: GitHub did not put prio:1 on #22` —, GitHub's answer
+  on hover. A refusal after the new label is put (the old one could not be removed) says which `prio:` labels the issue
+  now carries. The chosen value stays chosen: one click tries again.
+
+The box has no command for it: the label is read like any other (`docs/runtime/journal-et-rail.md`). Captures:
+`docs/captures/1739/` — `fiche-priorite-avant.png` (the old path: the command went into the second, through the box),
+`fiche-priorite-apres.png` (the label changed on GitHub, the sheet showing `prio:1`) and `fiche-priorite-echec-apres.png`
+(GitHub refused: the sheet keeps `prio:2` and says why).
+
 ### The second's choices, as buttons under its terminal (#1520)
 
 When the second asks you to choose ("A, B or C?"), it also publishes its choices through its own channel
