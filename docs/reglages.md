@@ -9,7 +9,7 @@ where a value is kept before you change it. The three levels are named with the 
 |---|---|---|---|
 | **project** | `.claude/brigade/projet.json`, in the project's repository | by a pull request, held for the chef | yes: everyone who clones the repository gets it |
 | **this machine** | the station's configuration, on that machine | the chef, on that station (`brigade <projet> station`, or the app) | no: private to the station |
-| **you** | `~/.config/brigade/app.json`, on the chef's Mac | the chef, in the app | no: it follows the chef, not the project |
+| **you** | `~/.config/brigade/app.json`, and a secret gist of the chef's GitHub account | the chef, in the app | no: it follows the chef, not the project |
 
 **Nothing private goes in git.** Secrets, the paths of a machine, and what a machine decides for
 itself (its cook count, its workspace folders, its capabilities, its sandbox) stay at their level. The
@@ -148,10 +148,17 @@ These are the settings the writer of `projet.json` refuses: a project's file nev
 
 ## 3. You — the app's preferences
 
-The app keeps its own preferences in `~/.config/brigade/app.json`, outside any repository. Today
-the one preference of this level is the **colors of a project** (`couleurs`: the tab color and the
-accent color). The app draws them and writes them itself; see [`app.md`](app.md), "The colors of a
-project". Nothing you set here reaches the project's repository or another machine.
+The app keeps its own preferences in `~/.config/brigade/app.json`, outside any repository, and in
+a **secret gist of your GitHub account**, so that they follow you from one device to another: the
+**colors of a project** (`couleurs`: the tab color and the accent color), the **order of your
+projects**, and any display preference. The app draws the colors and writes them itself; see
+[`app.md`](app.md), "A project's colors" and "Your preferences follow you from one device to
+another". Nothing you set here reaches the project's repository.
+
+What only holds for one computer stays in its `app.json` and never goes to the gist: a project's
+folder (`dossier`), its ssh host (`hote`), the declared boxes (`hotes`), the stations this computer
+plays (`stations`) and its ordinary-ticket settings (`ordinaires`, `limiteCooks`). The list is
+`app/src/reglages-perso/partage.ts`: any other key of the file is a preference, and follows you.
 
 ## 4. Moving the box's settings into the repository — the migration
 

@@ -5,12 +5,14 @@
 // qu'un projet ou qu'un hôte, dans la même forme — n'en retire qu'un projet, et n'y change
 // l'ordre des projets que lorsque le chef les range dans la barre. Elle y
 // écrit aussi les couleurs d'un projet (couleurs.ts) : celles qui lui manquent, et celles
-// que le chef choisit.
+// que le chef choisit — et les préférences du chef lues dans son gist (reglages-perso/synchro.ts).
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, sep } from "node:path";
 import { ordinairesLus } from "./ordinaires.ts";
 import { couleursLues, entieres, estCouleur, ROLES, tirer, type Couleurs, type Role } from "./couleurs.ts";
+import { memes, poser } from "./reglages-perso/fusion.ts";
+import { personnelles, type Preferences } from "./reglages-perso/partage.ts";
 
 // Le modèle et l'effort du manager et du reviewer d'un projet.
 export type CalibrageDuProjet = { manager: { modele: string; effort: string }; reviewer: { modele: string; effort: string } };
@@ -299,6 +301,30 @@ export function changerOrdinaires(chemin: string, nom: string, actif: unknown, l
   if (limite === null) delete declare.limiteCooks;
   else declare.limiteCooks = limite as number;
   return reecrire(chemin, ecrit(ouvert.contenu));
+}
+
+// Les préférences personnelles du fichier (reglages-perso/partage.ts), celles qui suivent le chef d'un
+// appareil à l'autre — ou la raison pour laquelle il n'est pas compris : un fichier qu'un éditeur est
+// en train d'écrire ne dit pas que le chef a tout effacé.
+export function preferencesDuFichier(chemin: string, maison = homedir()): { preferences: Preferences } | { refus: string } {
+  const ouvert = relu(chemin, maison);
+  return "refus" in ouvert ? ouvert : { preferences: personnelles(ouvert.contenu) };
+}
+
+// Pose dans le fichier les préférences personnelles lues dans le gist (reglages-perso/fusion.ts) : les
+// couleurs, l'ordre et les réglages des projets qu'il connaît, et les préférences du fichier. Le dossier
+// d'un projet, son hôte et tout ce qui ne vaut que pour cet ordinateur restent ceux du fichier. Rien
+// n'est écrit si rien ne change, ni si le fichier ne serait plus compris. Rend la raison, si elles ne
+// l'ont pas été.
+export function poserPreferences(chemin: string, preferences: Preferences, maison = homedir()): string | undefined {
+  const ouvert = relu(chemin, maison);
+  if ("refus" in ouvert) return ouvert.refus;
+  const pose = poser(ouvert.contenu, preferences);
+  if (memes(pose, ouvert.contenu)) return undefined;
+  const neuf = ecrit(pose);
+  const comprise = comprendre(chemin, neuf, maison);
+  if (comprise.refus !== undefined) return `the preferences read from GitHub were not written: the file would no longer be understood — ${comprise.refus}`;
+  return reecrire(chemin, neuf);
 }
 
 // Un dossier absent n'invalide pas le fichier : un disque débranché ne doit pas

@@ -1760,7 +1760,8 @@ On the left, a column of tiles, Slack or Discord style:
   you go up, after it if you go down; nothing over its own tile. Dropped, it takes that place and the
   others shift; dropped outside the bar, it goes back to its own. The new order is written
   in `app.json` — the order of the `projets` rows, nothing else — : you find it again on reopening
-  the app, and **"All projects" follows it**. A project added afterwards arrives at the end of the bar. If
+  the app, and **"All projects" follows it**. It also goes to your preferences gist, and your other
+  devices take it at their next read (see "Your preferences follow you from one device to another"). A project added afterwards arrives at the end of the bar. If
   the file cannot be written (it cannot be re-read, it is not writable), the bar keeps
   its order and the reason is shown over the screen. The **T** and **+** tiles do not move.
 - **A click stays a click**: dragging starts only past the system's threshold, and a tile dropped
@@ -1904,7 +1905,8 @@ a space ("All projects", the add form), the accent is the skin's.
   for the accent (`accent, in the space`), each with the color's name, then one dot per palette color, the one the
   project carries circled, then **other…**,
   the system color picker, for any color you like. A click writes it to `app.json`, and **the bar
-  and the space take it at once**. A color outside the palette shows at the end of its row, circled.
+  and the space take it at once**; your other devices take it at their next read (see "Your
+  preferences follow you from one device to another"). A color outside the palette shows at the end of its row, circled.
 - **A color of your own that looks too much like another is said, and kept**: when it is at
   ΔE < 10 (CIEDE2000) of a state color or of a color of another of your projects, a line under its
   line names the closest — `tab, in the bar: close to green, a state color — kept anyway`,
@@ -1917,6 +1919,31 @@ a space ("All projects", the add form), the accent is the skin's.
   and no project color stands in for them. Each reads on the dark background and under the dark text
   of a selected tile (contrast ≥ 4.5). `app/test/couleurs.test.ts` measures all of it. Captures:
   `docs/captures/1106/`.
+
+### Your preferences follow you from one device to another (#1677)
+
+What you set at the `you` level ([`reglages.md`](reglages.md), §3) — **the colors of your projects,
+their order in the bar, your display preferences** — is kept in a **secret gist of your own GitHub
+account** as well as in `app.json`, and every app signed in to that account reads it. Change a color on
+your Mac, and your PC shows it at its next read: **when the app starts, each time you come back to its
+window, and every minute**. Nothing to copy, and the screens are the same: they still read `app.json`,
+which each read brings up to date (`app/src/reglages-perso/`, on the module of #1676).
+
+- **What stays on the device never goes to the gist**: a project's folder (`dossier`), its ssh host
+  (`hote`), the boxes you declared (`hotes`), the stations this computer plays and its ordinary-ticket
+  settings. Each device reads them in its own `app.json`.
+- **A read takes what changed on the other devices, a change made here wins over it**: the app writes
+  to the gist only what you changed on this device since its last read, so two devices that each
+  change a different project keep both changes. On the first read of a new device, the gist wins,
+  and the device only adds what the gist did not have — a project it is the only one to know, for one.
+- **A project only one device has** keeps its colors and its place in the gist: the others do not
+  show it (they have no folder for it), and do not remove it.
+- **No gist to read** — GitHub unreachable, `gh` signed in to another account, no `gh` at all — and
+  the app shows what `app.json` holds, writes nothing, and says why once in the terminal that started
+  it; the next read catches up. A gist the app would not understand (a color that is not `#rrggbb`) is
+  not written into `app.json` either.
+- Nothing here reads or writes a project's `projet.json`: the project's shared settings change by a
+  pull request ([`reglages.md`](reglages.md), §1).
 
 ### The Settings tab, and the log by its action
 
