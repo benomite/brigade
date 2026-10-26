@@ -402,18 +402,21 @@ describe("la fiabilité des cooks, sur l'onglet Cooks du projet (#1699)", () => 
     const lecture = lue(demande);
     vue.dire("surContenu", lecture, undefined, undefined, { ...voir(lecture), demande });
     await repos();
-    // Une page ouverte par-dessus — Settings → Rail — : Cooks n'est plus lu, sa section se vide.
-    await ouvrirLecture(vue, "Rail");
+    // Une page ouverte par-dessus — Settings — : Cooks n'est plus lu, sa section se vide.
+    (vue.element("onglets").children.find(({ textContent }) => textContent === "Settings") ?? assert.fail("pas d'onglet Settings")).click();
+    await repos();
     assert.equal(section.children.length, 0);
     // L'onglet Rail choisi : la section n'est plus dans la page.
     await ouvrirOnglet(vue, "Rail");
     assert.ok(!vue.element("rail").children.includes(section));
   });
 
-  test("Settings n'a plus de page Reliability", async () => {
+  test("Settings n'a plus de page Reliability : ni sous-pages (#1700), ni section de fiabilité", async () => {
     const vue = await ouvrir();
-    await ouvrirLecture(vue, "General");
-    assert.ok(!vue.element("parametres-onglets").children.some(({ textContent }) => textContent === "Reliability"));
-    await assert.rejects(ouvrirLecture(vue, "Reliability"), /pas de « Reliability »/);
+    (vue.element("onglets").children.find(({ textContent }) => textContent === "Settings") ?? assert.fail("pas d'onglet Settings")).click();
+    await repos();
+    assert.throws(() => vue.element("parametres-onglets"), /aucun élément « parametres-onglets »/);
+    assert.ok(!vue.element("etat").dessous("button").some(({ textContent }) => textContent === "Reliability"));
+    assert.ok(!vue.element("etat").descendants().includes(vue.element("fiabilite-du-projet")));
   });
 });

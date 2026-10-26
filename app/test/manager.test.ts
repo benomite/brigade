@@ -2,7 +2,8 @@
 // quand et par qui, ses dernières décisions, ce qu'il a écarté et pourquoi. Les
 // sorties lues ici sont écrites par la commande du runtime elle-même
 // (runtime/src/manager-cli.ts), jouée dans ce process sur un vrai journal : la
-// forme que l'app lit est tenue contre celle que le runtime écrit. À côté, les
+// forme que l'app lit est tenue contre celle que le runtime écrit. Manager n'est
+// plus un onglet (#1700) : sa lecture sert l'amont et les alertes. À côté, les
 // deux gestes, qui envoient la commande de la doc dans le second, s'il est dit
 // libre (terminaux.test.ts) : éteindre, direct ; allumer, confirmé — rien ne part
 // sans son « oui » (confirmation.test.ts).
@@ -231,7 +232,7 @@ describe("l'état du manager, lu dans la sortie de `manager`", () => {
   });
 });
 
-describe("ce que l'onglet Manager pose au-dessus du texte", () => {
+describe("ce que l'app pose de la lecture du manager — l'amont la lit (amont.ts)", () => {
   test("lu : l'interrupteur, les décisions et les écartées, avec l'heure de la lecture — la vue n'y calcule rien", (t) => {
     const { noter, sortie } = cuisine(t);
     noter(allumer, null, "chef");
@@ -285,14 +286,14 @@ describe("ce que l'onglet Manager pose au-dessus du texte", () => {
   });
 });
 
-describe("l'onglet Manager et ses deux gestes", () => {
-  test("l'onglet relaie `manager`, un script du runtime, sans argument : rien n'y est allumé ni éteint par la lecture", () => {
+describe("la lecture du manager et ses deux gestes", () => {
+  test("la lecture lance `manager`, un script du runtime, sans argument : rien n'y est allumé ni éteint — et Manager n'est plus un onglet (#1700)", () => {
     const { scripts } = JSON.parse(readFileSync(join(RACINE, "runtime/package.json"), "utf8")) as { scripts: Record<string, string> };
 
     assert.equal(COMMANDE, "manager");
     assert.ok(COMMANDE in scripts);
-    assert.equal(commandeDe("manager"), COMMANDE);
-    assert.equal(ONGLETS.find(({ id }) => id === "manager")?.titre, "Manager");
+    assert.equal(commandeDe("manager"), undefined);
+    assert.equal(ONGLETS.some(({ id, titre }) => id === "manager" || titre === "Manager"), false);
   });
 
   test("le manager n'a plus de geste à lui : l'interrupteur du projet l'allume et l'éteint avec le reste (#1406)", () => {

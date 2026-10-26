@@ -87,7 +87,9 @@ describe("le coût d'un projet n'est plus sur sa page (#1699)", () => {
     const poses = vue.poses();
     assert.deepEqual(poses.filter(({ className }) => /^(cout-du-projet|perdus-cout|chers-cout)$/.test(className)), []);
     assert.doesNotMatch(vue.element("rail").textContent, /cost of this project|most expensive|120,000/);
-    await ouvrirLecture(vue, "General");
+    // Settings — une seule page, sans sous-pages (#1700) — ne les pose pas non plus.
+    (vue.element("onglets").children.find(({ textContent }) => textContent === "Settings") ?? assert.fail("pas d'onglet Settings")).click();
+    await repos();
     assert.deepEqual(vue.poses().filter(({ className }) => /^(cout-du-projet|perdus-cout|chers-cout)$/.test(className)), []);
   });
 });

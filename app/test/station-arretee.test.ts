@@ -71,7 +71,7 @@ describe("la page d'un projet qui cuit ici, station arrêtée", () => {
     await ouvrirOnglet(vue, "Cooks");
     assert.equal(centre(vue).textContent, LIGNE);
     assert.equal(centre(vue).children.length, 1);
-    console.log(JSON.stringify([vue.element("lu-cuisine").textContent, vue.element("lecture-cuisine").textContent]));
+    assert.ok(!vue.poses().some(({ id }) => id === "lu-cuisine" || id === "lecture-cuisine"));
   });
 
   test("une lecture qui arrive quand même ne remplace pas la ligne", async () => {
@@ -82,7 +82,8 @@ describe("la page d'un projet qui cuit ici, station arrêtée", () => {
     await repos();
 
     assert.equal(centre(vue).textContent, LIGNE);
-    console.log(JSON.stringify([vue.element("lu-cuisine").textContent, vue.element("lecture-cuisine").textContent]));
+    // Ni ailleurs : ce que `status` a rendu ne se lit nulle part sur la page.
+    assert.ok(!vue.poses().some(({ textContent }) => textContent.includes("parade : rien")));
   });
 
   test("la station démarre : la configuration reposée enlève la ligne, et le rail reprend sa place — l'app n'est pas relancée", async () => {
