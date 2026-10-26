@@ -19,7 +19,7 @@ import { join } from "node:path";
 import type { Calibrage } from "../calibrage.ts";
 import { lireALaBase } from "../depot.ts";
 import { ConfigInvalide } from "../runtime.ts";
-import { brancheDuClaudeMd, FICHIER, reglagesDuTexte, ReglageRefuse, type ReglagesProjet } from "./reglages.ts";
+import { brancheDuClaudeMd, FAMILLES_DE_SEUILS, FICHIER, reglagesDuTexte, ReglageRefuse, SEUILS_DU_PROJET, type ReglagesProjet } from "./reglages.ts";
 
 // Les réglages que la branche d'intégration porte, ou null si elle n'a pas le
 // fichier. Lève `ReglageRefuse` si le fichier n'est pas fait de réglages du
@@ -94,8 +94,23 @@ export function reglagesAuDemarrage(lieu: { clone: string; base: string }, env?:
   }
 }
 
+// Les seuils de dérive, de correction et de profil que le dépôt porte, sous
+// le nom de la variable de la box que chacun remplace : les lecteurs du
+// runtime les lisent comme ils lisaient la box.
+function seuilsDuDepot(reglages: ReglagesProjet | null): Record<string, string> {
+  const variables: Record<string, string> = {};
+  for (const famille of FAMILLES_DE_SEUILS) {
+    const poses: Record<string, number | undefined> = reglages?.[famille] ?? {};
+    for (const [nom, { variable }] of Object.entries<{ variable: string }>(SEUILS_DU_PROJET[famille])) {
+      if (poses[nom] !== undefined) variables[variable] = String(poses[nom]);
+    }
+  }
+  return variables;
+}
+
 // Les variables de décision que les réglages du dépôt remplacent : le
-// calibrage du manager et du reviewer, et les réglages du closer, un par un —
+// calibrage du manager et du reviewer, les réglages du closer et les seuils de
+// dérive, de correction et de profil, un par un —
 // celui que le fichier tait reste celui de la box. Le plafond de calibrage
 // n'y est pas : d'où il vient se dit (`plafondDuProjet`, `reagir.ts`).
 export function variablesDuDepot(reglages: ReglagesProjet | null): Record<string, string> {
@@ -110,6 +125,7 @@ export function variablesDuDepot(reglages: ReglagesProjet | null): Record<string
     ...nombre("BRIGADE_CLOSING_COOKS", closer.cooksBelow),
     ...nombre("BRIGADE_CLOSING_MAX_TOKENS", closer.maxTokens),
     ...nombre("BRIGADE_CLOSING_MAX_REMOVED_LINES", closer.maxRemovedLines),
+    ...seuilsDuDepot(reglages),
   };
 }
 
@@ -125,7 +141,13 @@ export function direReglagesDuDepot(branche: BrancheDuProjet, reglages: Reglages
   const n = (valeur: number | undefined) => (valeur === undefined ? "box" : String(valeur));
   // Un closer que le fichier tait est tout entier celui de la box.
   const closer = reglages.closer === undefined ? "closer box" : `closer ${d(calibration)}, cooks below ${n(cooksBelow)}, max tokens ${n(maxTokens)}, max removed lines ${n(maxRemovedLines)}`;
-  return `project settings — ${brancheDite}; from ${FICHIER} on origin/${base}, reread at each use: manager ${d(manager)}, reviewer ${d(reviewer)}, ceiling ${d(reglages.calibrationCeiling)}, ${closer}`;
+  return `project settings — ${brancheDite}; from ${FICHIER} on origin/${base}, reread at each use: manager ${d(manager)}, reviewer ${d(reviewer)}, ceiling ${d(reglages.calibrationCeiling)}, ${closer}${direSeuils(reglages)}`;
+}
+
+// Les seuils que le fichier fixe, nommés ; ce qu'il tait est celui de la box.
+function direSeuils(reglages: ReglagesProjet): string {
+  const noms = FAMILLES_DE_SEUILS.flatMap((famille) => Object.entries(reglages[famille] ?? {}).map(([nom]) => `${famille}.${nom}`));
+  return noms.length === 0 ? "" : `, thresholds ${noms.join(" ")}`;
 }
 
 // L'environnement d'un projet, sa branche d'intégration résolue par son

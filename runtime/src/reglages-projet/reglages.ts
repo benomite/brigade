@@ -36,8 +36,45 @@ export type Role = (typeof ROLES)[number];
 export const CLES_DU_CLOSER = ["calibration", "cooksBelow", "maxTokens", "maxRemovedLines"] as const;
 export type ReglagesDuCloser = { calibration?: Calibrage; cooksBelow?: number; maxTokens?: number; maxRemovedLines?: number };
 
+// Les seuils du projet (#1671) : ce qui est trop cher ou trop dérivé pour lui
+// (`drift`), à partir de quand une correction se répète (`correction`), et les
+// seuils de la mesure des profils de cooks (`profile`). Chaque clé dit la
+// variable de la box qu'elle remplace, et ce qu'elle doit être — ce que le
+// lecteur du runtime refuserait (`derive.ts`, `correctif/reglages.ts`,
+// `profils/reglages.ts`). Chacune est facultative : celle que le fichier tait
+// reste celle de la box, ou son défaut.
+export type SeuilDuProjet = { variable: string; entier: boolean; min: number; max?: number };
+const seuil = (variable: string, entier = false, min = 0, max?: number): SeuilDuProjet => ({ variable, entier, min, ...(max === undefined ? {} : { max }) });
+export const SEUILS_DU_PROJET = {
+  drift: {
+    contextKb: seuil("BRIGADE_DRIFT_CONTEXT_KB"),
+    gatesSeconds: seuil("BRIGADE_DRIFT_GATES_SECONDS"),
+    growthPercent: seuil("BRIGADE_DRIFT_GROWTH_PERCENT"),
+    merges: seuil("BRIGADE_DRIFT_MERGES", true),
+    repoMb: seuil("BRIGADE_DRIFT_REPO_MB"),
+    tests: seuil("BRIGADE_DRIFT_TESTS", true),
+    testsSeconds: seuil("BRIGADE_DRIFT_TESTS_SECONDS"),
+    ticketTokens: seuil("BRIGADE_DRIFT_TICKET_TOKENS", true),
+    lostTokens: seuil("BRIGADE_DRIFT_LOST_TOKENS", true),
+    firstTryPercent: seuil("BRIGADE_DRIFT_FIRST_TRY_PERCENT"),
+    firstTryWindow: seuil("BRIGADE_DRIFT_FIRST_TRY_WINDOW", true),
+  },
+  correction: {
+    threshold: seuil("BRIGADE_CORRECTION_THRESHOLD", true, 2),
+    window: seuil("BRIGADE_CORRECTION_WINDOW", true, 1),
+  },
+  profile: {
+    window: seuil("BRIGADE_PROFILE_WINDOW", true, 1),
+    minTickets: seuil("BRIGADE_PROFILE_MIN_TICKETS", true, 1),
+    gapPoints: seuil("BRIGADE_PROFILE_GAP_POINTS", false, 0, 100),
+  },
+} as const satisfies Record<string, Record<string, SeuilDuProjet>>;
+export const FAMILLES_DE_SEUILS = Object.keys(SEUILS_DU_PROJET) as Array<keyof typeof SEUILS_DU_PROJET>;
+export type FamilleDeSeuils = (typeof FAMILLES_DE_SEUILS)[number];
+export type SeuilsDuProjet = { [F in FamilleDeSeuils]?: { [K in keyof (typeof SEUILS_DU_PROJET)[F]]?: number } };
+
 // Ce que le fichier porte, sous les noms qu'il leur donne.
-export type ReglagesProjet = {
+export type ReglagesProjet = SeuilsDuProjet & {
   integrationBranch: string;
   defaultCalibrations?: Partial<Record<Role, Calibrage>>;
   calibrationCeiling?: Calibrage;
@@ -56,7 +93,7 @@ export type ReglagesLus = {
   defaultCalibrations: Partial<Record<Role, Calibrage>>;
   calibrationCeiling: Calibrage | null;
   closer: ReglagesDuCloser;
-};
+} & SeuilsDuProjet;
 
 // Pourquoi un réglage est refusé : il est à la machine ou au chef, ou il n'est
 // pas un réglage valide du projet.
@@ -79,7 +116,7 @@ export class ReglageRefuse extends Error {
 const BRANCHE = /^(?!-)(?!.*\.\.)(?!.*\/\/)(?!.*@\{)(?!.*\.lock(?:\/|$))[A-Za-z0-9._/-]+(?<![/.])$/;
 const brancheValide = (branche: string) => BRANCHE.test(branche) && !branche.startsWith("/") && !branche.split("/").some((morceau) => morceau.startsWith("."));
 
-const CLES = ["version", "integrationBranch", "defaultCalibrations", "calibrationCeiling", "closer"];
+const CLES = ["version", "integrationBranch", "defaultCalibrations", "calibrationCeiling", "closer", ...FAMILLES_DE_SEUILS];
 const CLES_DE_CALIBRAGE = ["model", "effort"];
 
 const estObjet = (valeur: unknown): valeur is Record<string, unknown> => typeof valeur === "object" && valeur !== null && !Array.isArray(valeur);
@@ -89,7 +126,8 @@ const estObjet = (valeur: unknown): valeur is Record<string, unknown> => typeof 
 // projet, pas le nombre de cooks d'une machine ; `closer.maxTokens`, un
 // plafond de consommation, pas un jeton. Ces chemins exacts, et eux seuls :
 // le même nom ailleurs reste refusé.
-const NOMS_DU_PROJET = new Set(["closer.cooksBelow", "closer.maxTokens"]);
+// `drift.ticketTokens` et `drift.lostTokens` sont des seuils de coût.
+const NOMS_DU_PROJET = new Set(["closer.cooksBelow", "closer.maxTokens", "drift.ticketTokens", "drift.lostTokens"]);
 
 // Passe tout ce qu'on veut écrire au crible de `prive.ts`, clés et valeurs, à
 // toute profondeur — y compris ce qui n'est pas un réglage du projet : c'est
@@ -145,6 +183,27 @@ function closerDe(valeur: unknown): ReglagesDuCloser {
   return closer;
 }
 
+// Les seuils d'une famille, ou un refus qui dit lequel : une clé inconnue, un
+// nombre qui n'est pas de la forme que le lecteur du runtime lit.
+function seuilsDe(famille: FamilleDeSeuils, valeur: unknown): Record<string, number> {
+  const connus: Record<string, SeuilDuProjet> = SEUILS_DU_PROJET[famille];
+  const noms = Object.keys(connus).map((nom) => `\`${nom}\``).join(", ");
+  if (!estObjet(valeur)) throw invalide(famille, `must be an object of thresholds: ${noms}`);
+  const inconnue = Object.keys(valeur).find((nom) => connus[nom] === undefined);
+  if (inconnue !== undefined) throw invalide(`${famille}.${inconnue}`, `is not a ${famille} threshold: expected ${noms}`);
+  const seuils: Record<string, number> = {};
+  for (const [nom, { entier, min, max }] of Object.entries(connus)) {
+    const nombre = valeur[nom];
+    if (nombre === undefined) continue;
+    const borne = max === undefined ? "" : `, ${max} at most`;
+    const attendu = entier ? (min > 1 ? `an integer of ${min} or more` : "an integer greater than zero") : `a number greater than zero${borne}`;
+    const bon = typeof nombre === "number" && Number.isFinite(nombre) && (entier ? Number.isSafeInteger(nombre) && nombre >= Math.max(min, 1) : nombre > min) && (max === undefined || nombre <= max);
+    if (!bon) throw invalide(`${famille}.${nom}`, `must be ${attendu}`);
+    seuils[nom] = nombre;
+  }
+  return seuils;
+}
+
 // Les réglages valides tirés d'un objet quelconque, ou un refus qui dit
 // lequel et pourquoi. `version` : vrai pour le contenu du fichier, qui la
 // porte ; faux pour ce qu'on demande d'écrire, qui ne la porte pas.
@@ -176,6 +235,11 @@ function valider(objet: unknown, version: boolean): ReglagesProjet {
     const lus = closerDe(closer);
     if (Object.keys(lus).length > 0) reglages.closer = lus;
   }
+  for (const famille of FAMILLES_DE_SEUILS) {
+    if (objet[famille] === undefined) continue;
+    const lus = seuilsDe(famille, objet[famille]);
+    if (Object.keys(lus).length > 0) reglages[famille] = lus;
+  }
   return reglages;
 }
 
@@ -195,6 +259,11 @@ export function texteDuFichier(reglages: ReglagesProjet): string {
     if (pose === undefined) return [];
     return [[nom, typeof pose === "number" ? pose : calibrage(pose)] as const];
   });
+  const desSeuils = FAMILLES_DE_SEUILS.flatMap((famille) => {
+    const poses: Record<string, number | undefined> = reglages[famille] ?? {};
+    const lus = Object.keys(SEUILS_DU_PROJET[famille]).flatMap((nom) => (poses[nom] === undefined ? [] : [[nom, poses[nom]] as const]));
+    return lus.length === 0 ? [] : [[famille, Object.fromEntries(lus)] as const];
+  });
   const roles = ROLES.flatMap((role) => {
     const pose = defaultCalibrations?.[role];
     return pose === undefined ? [] : [[role, calibrage(pose)] as const];
@@ -206,6 +275,7 @@ export function texteDuFichier(reglages: ReglagesProjet): string {
       ...(roles.length === 0 ? {} : { defaultCalibrations: Object.fromEntries(roles) }),
       ...(calibrationCeiling === undefined ? {} : { calibrationCeiling: calibrage(calibrationCeiling) }),
       ...(duCloser.length === 0 ? {} : { closer: Object.fromEntries(duCloser) }),
+      ...Object.fromEntries(desSeuils),
     },
     null,
     2,
@@ -271,6 +341,13 @@ export function reglagesDuTexte(texte: string): ReglagesProjet {
   return valider(contenu, true);
 }
 
+// Les seuils que portent des réglages, famille par famille.
+export function seuilsDuProjet(reglages: SeuilsDuProjet | null): SeuilsDuProjet {
+  const seuils: SeuilsDuProjet = {};
+  for (const famille of FAMILLES_DE_SEUILS) if (reglages?.[famille] !== undefined) seuils[famille] = reglages[famille];
+  return seuils;
+}
+
 // Lit les réglages du projet dans son clone. Un fichier illisible ou qui porte
 // autre chose que des réglages du projet est un refus dit, jamais des
 // réglages devinés.
@@ -290,5 +367,6 @@ export async function lireReglagesProjet(clone: string): Promise<ReglagesLus> {
     defaultCalibrations: reglages.defaultCalibrations ?? {},
     calibrationCeiling: reglages.calibrationCeiling ?? null,
     closer: reglages.closer ?? {},
+    ...seuilsDuProjet(reglages),
   };
 }

@@ -417,6 +417,10 @@ exceeds them; `BRIGADE_DRIFT_MERGES`, when the number of merges since the last c
 reaches it; `BRIGADE_DRIFT_GROWTH_PERCENT` — **the slope** —, when `tests`, `test suite`, `repo`,
 `context` or `docs` has grown by more than this percentage in ten merges.
 
+Each of these thresholds, the cost ones below, `BRIGADE_CORRECTION_*` and `BRIGADE_PROFILE_*` can also be
+set by the project in `.claude/brigade/projet.json` (`drift`, `correction` and `profile`, see
+[`../reglages.md`](../reglages.md)); the file's value wins over the box's, key by key.
+
 Two thresholds concern **cost**, in tokens, over the last ten merges, and are set
 **by gesture**, not by a variable (`station seuil-ticket <integer>` and `station seuil-perdus <integer>`):
 the ticket threshold — the tokens of the most expensive ticket, all its launches counted — and the lost one —

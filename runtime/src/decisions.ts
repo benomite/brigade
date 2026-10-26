@@ -325,7 +325,7 @@ export function suivreDecisions(base: Base, env: Record<string, string | undefin
   };
   return {
     stations: suivre("les stations", lireStations),
-    seuils: suivre("les seuils de la dérive", lireSeuils),
+    seuils: suivre("les seuils de la dérive", lireSeuils, true),
     manager: suivre("le calibrage du manager", (lu) => configManager(lu).calibrage, true),
     plafond: suivre("le plafond de calibrage", plafondDuProjet, true),
     reviewer: suivre("le calibrage du reviewer", (lu) => configReviewer(lu).calibrage, true),
