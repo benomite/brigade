@@ -24,8 +24,9 @@
 //   POST /projects/<nom>/gestures     Authorization: Bearer <token>
 //       {"gesture": "merge" | "remove" | "back-to-kitchen", "ticket": <n>}
 //       un geste de la file sur un ticket — merger sa livraison, le retirer du
-//       rail, le renvoyer en cuisine —, joué par la commande que l'app de
-//       l'ordinateur lance pour le même geste, par le même chemin
+//       rail, le renvoyer en cuisine —, joué par la commande de la box pour
+//       le même geste, par le même chemin — le renvoi en cuisine, par l'action
+//       que la box joue pour son geste du tableau de la cuisine
 //       (`gestes.ts`) : 200 {"done": true, "said", "detail"} ; 409 {"done":
 //       false, "said", "detail"}, la commande l'a refusé, ou n'a pu le faire ;
 //       400 une demande mal formée ; 404 un projet que la station n'a pas ;

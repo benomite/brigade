@@ -33,18 +33,20 @@ export type Actions = Readonly<Partial<Record<IdDeFiche, Branchement>>>;
 
 // Ce qui est branché aujourd'hui. Ouvrir l'issue et la PR, demander au second : l'app les joue
 // elle-même ; changer la priorité aussi — elle remplace le label `prio:` de l'issue sur GitHub
-// (priorite.ts, #1739), sans la box. Retirer du rail et merger la livraison : les actions du runtime
-// (#637, runtime/src/geste-ticket.ts), sous la commande `rail` de la box — elle dit le prix du
-// geste, ou pourquoi elle le refuse ; renvoyer en cuisine un ticket revenu de WAITING : sa commande
-// `waiting arrived`. Les autres attendent leur action (en tête de ce fichier).
+// (priorite.ts, #1739), sans la box ; renvoyer en cuisine un ticket revenu de WAITING aussi — elle
+// poste `/brigade arrived #<ticket>` sur le tableau de la cuisine (tableau-gestes/rail.ts, #1740),
+// sans la box, qui le joue à son tick. Retirer du rail et merger la livraison : les actions du
+// runtime (#637, runtime/src/geste-ticket.ts), sous la commande `rail` de la box — elle dit le prix
+// du geste, ou pourquoi elle le refuse ; sur l'ordinateur, elles partent elles aussi sur le tableau
+// (#1694). Les autres attendent leur action (en tête de ce fichier).
 export const ACTIONS: Actions = {
   issue: { app: true },
   pr: { app: true },
   second: { app: true },
   priorite: { app: true },
+  cuisine: { app: true },
   merger: { box: (ticket) => `rail merge ${ticket}` },
   retirer: { box: (ticket) => `rail remove ${ticket}` },
-  cuisine: { box: (ticket) => `waiting arrived ${ticket}` },
 };
 
 // Ce que la fiche lit de la carte cliquée (faits.ts, `Carte`) : son mot d'état, si elle s'ouvre

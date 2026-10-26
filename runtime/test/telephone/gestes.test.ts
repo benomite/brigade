@@ -14,7 +14,7 @@ import { execFile } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { mettreEnAttente } from "../../src/attente.ts";
+import { mettreEnAttente, PRIX_DE_L_ARRIVEE, renvoyerEnCuisine } from "../../src/attente.ts";
 import type { Fait } from "../../src/evenements.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { ticketDuRail } from "../../src/projections/rail.ts";
@@ -108,7 +108,6 @@ async function railLu(cuisine: Awaited<ReturnType<typeof station>>) {
 
 for (const { gesture, args, ticket, fait } of [
   { gesture: "remove", args: ["rail", "remove", "15"], ticket: 15, fait: /^#15 removed from the rail — cost: the ticket leaves the rail/ },
-  { gesture: "back-to-kitchen", args: ["waiting", "arrived", "16"], ticket: 16, fait: /^#16: it arrived — it goes back to the kitchen$/ },
   { gesture: "merge", args: ["rail", "merge", "14"], ticket: 14, fait: /^#14: delivery merged — cost: https:\/\/github\.com\/acme\/brigade\/pull\/114 is merged into v2/ },
 ]) {
   test(`« ${gesture} » du téléphone change la station comme le même geste de l'ordinateur : même journal, mêmes appels à GitHub, même phrase`, async (t) => {
@@ -130,6 +129,24 @@ for (const { gesture, args, ticket, fait } of [
     assert.notDeepEqual([telephone.ecrits(), telephone.gh.appels()], [[], []]);
   });
 }
+
+// Le renvoi en cuisine n'est pas une commande de la box : l'ordinateur le poste sur le tableau de la cuisine
+// (`/brigade arrived #16`), et la box joue `renvoyerEnCuisine` — l'action que le téléphone joue ici.
+test("« back-to-kitchen » du téléphone change la station comme `/brigade arrived` posté sur le tableau de la cuisine : même journal, sans GitHub", async (t) => {
+  const telephone = await station(t);
+  const tableau = await station(t);
+
+  const reponse = await telephone.geste("back-to-kitchen", 16);
+  assert.deepEqual(renvoyerEnCuisine(tableau.journal, "brigade", 16), { done: true, price: PRIX_DE_L_ARRIVEE });
+
+  assert.equal(reponse.statut, 200, JSON.stringify(reponse.corps));
+  assert.equal(reponse.corps.done, true);
+  assert.equal(reponse.corps.said, "#16: it arrived — it goes back to the kitchen");
+  assert.equal(reponse.corps.detail, `brigade: /brigade arrived #16, played by the station on the project's log\n→ cost: ${PRIX_DE_L_ARRIVEE}`);
+  assert.deepEqual(telephone.ecrits(), tableau.ecrits());
+  assert.notDeepEqual(telephone.ecrits(), []);
+  assert.deepEqual(telephone.gh.appels(), []);
+});
 
 test("après un geste du téléphone, la file que l'ordinateur lit a changé : #15 retiré n'est plus sur le rail, #16 revenu de WAITING repart en cuisine", async (t) => {
   const cuisine = await station(t);
@@ -165,7 +182,7 @@ test("un geste que la commande refuse rend 409 et sa phrase — celle que l'ordi
     assert.equal(reponse.corps.done, false);
     assert.equal(reponse.corps.said, phrase);
     assert.doesNotMatch(String(reponse.corps.said), /\n/);
-    assert.match(String(reponse.corps.detail), /→ exit code 1$/);
+    assert.match(String(reponse.corps.detail), gesture === "back-to-kitchen" ? /\n→ refused: ticket 15 is not waiting for a third party — it is queued$/ : /→ exit code 1$/);
   }
   assert.deepEqual(cuisine.ecrits(), []);
   assert.deepEqual(cuisine.gh.appels(), []);

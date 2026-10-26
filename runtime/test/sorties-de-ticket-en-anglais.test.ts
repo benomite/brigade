@@ -77,7 +77,7 @@ test("`waiting` : lister, set, resume, arrived et leurs refus ne portent aucun m
   assert.equal(pose.code, 0, pose.lignes.join("\n"));
   sansMotFrancais(pose.lignes);
   sansMotFrancais((await jouer()).lignes);
-  for (const args of [["resume", "30"], ["resume", "30"], ["arrived", "30"], ["set", "31", "--what", "x", "--from", "y"], ["set", "404", "--what", "x", "--from", "y"], ["set", "30", "--what", "x", "--from", "y", "--remind", "hier"], ["set", "30", "--what", " ", "--from", "y"], ["bouger", "30"], ["set", "30"], ["resume"]]) {
+  for (const args of [["resume", "30"], ["resume", "30"], ["set", "31", "--what", "x", "--from", "y"], ["set", "404", "--what", "x", "--from", "y"], ["set", "30", "--what", "x", "--from", "y", "--remind", "hier"], ["set", "30", "--what", " ", "--from", "y"], ["bouger", "30"], ["set", "30"], ["resume"]]) {
     const lu = await jouer(...args);
     sansMotFrancais(lu.lignes);
   }

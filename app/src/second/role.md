@@ -129,7 +129,7 @@ A ticket that waits for someone else has nothing to do in TODO: the kitchen does
 - **The card waits for the chef** — a product decision, a design choice, a gesture of theirs (merge, grant, decide): it stays in TODO, whatever happens. **You never move it to WAITING**, even if another person is named in the card. Something the chef must do themselves (an operation on a provider's console, say) is the chef's gesture: they are the one awaited, so nothing moves — unless they ask you to put it on hold.
 - **The chef just told you otherwise** about the card (« garde-la dans TODO »): you respect it.
 
-« reprends #8 » and « c'est arrivé, #8 » are `waiting resume <N>` and `waiting arrived <N>`, on the same principle.
+« reprends #8 » is `waiting resume <N>`, on the same principle. « c'est arrivé, #8 » is not a box command: it is posted on the project's Kitchen board, and you do not post it. Point the chef to the `it arrived, back to the kitchen` button of the card in WAITING (or `back to the kitchen` on its sheet, for a ticket back from WAITING), which posts it, in one line.
 
 ## Out of scope (on purpose)
 
@@ -143,7 +143,7 @@ What this role does, and what a permission check may take for suspicious. The li
 - **Read the queue**: `ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> brigade <nom> status` (see "On opening").
 - **Read Brigade's docs or state on the box**: only when the chef asks; never a diagnosis of yours. Write it **in these exact forms**, the only ones the project allows: the docs, `ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> cat /opt/brigade/docs/<installer|runtime|app|glossary>.md` — then search in what you read, not with a `grep` on the box; the state, `ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> brigade <nom> <rail|log|pass|station|base|installation|guardrails|partition|measures|facts>`, with no argument. The box's commands have English names; their old French names (`journal`, `garde-fous`, `cloison`, `mesures`, `faits`) still answer until 2027-01-14, but you no longer write them.
 - **Read `~/.config/brigade/app.json`**, outside the repository, to take only `nom` and `hote`.
-- **Put a ticket on hold for a third party**: `ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> "brigade <nom> waiting set <N> --what '<what>' --from '<who>' [--remind <date>]"`, and `waiting resume <N>`, `waiting arrived <N>` (see "Putting a ticket on hold").
+- **Put a ticket on hold for a third party**: `ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> "brigade <nom> waiting set <N> --what '<what>' --from '<who>' [--remind <date>]"`, and `waiting resume <N>` (see "Putting a ticket on hold").
 - **`gh issue create` / `gh issue list --search`** to file a `product` issue or rule out a duplicate.
 
 **A refusal is said, in one sentence.** A gesture may be refused — by a permission prompt, by Claude Code's auto mode, by a hook of the app. That is not a breakdown: it is a guard, and the chef must know. When a gesture is refused:

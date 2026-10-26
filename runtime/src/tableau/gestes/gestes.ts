@@ -1,11 +1,14 @@
 // Les gestes du chef postés en commentaires sur le tableau de la cuisine :
-// merger, renvoyer en cuisine, mettre de côté, répondre à une carte — sans
+// merger, renvoyer en cuisine, mettre de côté, répondre à une carte, faire
+// repartir un ticket de WAITING (« c'est arrivé ») — sans
 // lien direct avec la box. À chaque passage (au tick, après le
 // rafraîchissement du tableau), la box lit les commentaires nouveaux du
 // tableau. Celui dont la première ligne est un geste (grammaire.ts) et dont
 // l'auteur est le compte du chef est joué par la même action que son geste
 // local (`rail merge`, `rail send-back`, `rail remove`, `rail answer`,
-// `rail choose` : geste-ticket.ts, reponse-carte.ts ; les gestes de box —
+// `rail choose` : geste-ticket.ts, reponse-carte.ts ; « c'est arrivé », qui
+// n'a pas d'autre geste que celui-ci et le téléphone : `renvoyerEnCuisine`,
+// attente.ts ; les gestes de box —
 // plafond de cooks, stop, resume, rejeu de la base, grant, station — jouent
 // leur commande locale : tableau/gestes-boite/), puis la box répond sous
 // lui en une ligne : fait, ou pourquoi pas. Un geste incompris reçoit la
@@ -23,6 +26,7 @@
 //
 // Le bloc machine du tableau porte les derniers gestes et leur état (`lus`),
 // pour que les apps disent au chef que le sien est pris en compte.
+import { renvoyerEnCuisine } from "../../attente.ts";
 import { mergerLaLivraison, renvoyerLaLivraison, retirerDuRail, type Resultat } from "../../geste-ticket.ts";
 import type { GitHub } from "../../github.ts";
 import type { Journal } from "../../journal.ts";
@@ -103,6 +107,8 @@ async function jouer({ journal, github, projet }: OptionsDesGestes, geste: Geste
         return await repondreALaCarte(journal, github, projet, geste.ticket, { texte: geste.reponse });
       case "choose":
         return await repondreALaCarte(journal, github, projet, geste.ticket, { choix: geste.choix });
+      case "arrived":
+        return renvoyerEnCuisine(journal, projet, geste.ticket);
     }
   } catch (erreur) {
     return { done: false, reason: `it did not go through on GitHub (${erreur instanceof Error ? erreur.message : String(erreur)}) — post it again`, price: RIEN_TOUCHE };

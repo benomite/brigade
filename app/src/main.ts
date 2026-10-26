@@ -36,7 +36,7 @@ import { clientGitHub, parFetch } from "./tableau/client.ts";
 import { jetonDeGh } from "./tableau/jeton-gh.ts";
 import { lireLeTableauDuDepot } from "./tableau/lecture.ts";
 import { ouvrirVeilleDuTableau, tenirLecturesDuTableau } from "./tableau/rail.ts";
-import { gesteDeFiche as gesteDeFicheAuTableau, reponseDeCarte as reponseDeCarteAuTableau } from "./tableau-gestes/rail.ts";
+import { arriveeDeCarte, gesteDeFiche as gesteDeFicheAuTableau, reponseDeCarte as reponseDeCarteAuTableau } from "./tableau-gestes/rail.ts";
 import { clientDesGestesGitHub, posterParFetch } from "./tableau-gestes/github.ts";
 import { demandeDe, demandeDeLAlerte, demandeSurLeTicket, noteDeLaDemande } from "./demande.ts";
 import { CONFIRMES, DIRECTS, ecrireGeste, GRANTS } from "./gestes.ts";
@@ -825,10 +825,11 @@ ipcMain.handle("gestesDeFiche", (_, carte: unknown) => gestesDeCarte(carte));
 // Un geste de la fiche que la vue ne joue pas elle-même. Changer la priorité remplace le label `prio:`
 // de l'issue sur GitHub (priorite.ts, #1739), par le jeton du `gh` de ce poste — ni box, ni tableau :
 // fait, le rail montre aussitôt la nouvelle priorité, jusqu'à ce que le tableau la montre. Merger la
-// livraison et retirer le ticket du rail s'écrivent sur le tableau de la cuisine du projet (#1694,
-// tableau-gestes/rail.ts), en commentaire, par le même jeton — ni `ssh` ni second : la box les joue à
-// son tick suivant, et le rail, relu du tableau, le montre. Les autres — que la grammaire du tableau
-// ne connaît pas — sont une action de box, qui part dans le second comme un geste du socle. La vue
+// livraison, retirer le ticket du rail et renvoyer en cuisine un ticket revenu de WAITING s'écrivent
+// sur le tableau de la cuisine du projet (#1694, #1740, tableau-gestes/rail.ts), en commentaire, par le
+// même jeton — ni `ssh` ni second : la box les joue à son tick suivant, et le rail, relu du tableau, le
+// montre. Les autres — que la grammaire du tableau ne connaît pas — sont une action de box, qui part
+// dans le second comme un geste du socle. La vue
 // nomme le geste, le ticket et la valeur ; ce qui part se compose ici, jamais dans la vue.
 ipcMain.handle("gesteDeFiche", async (_, nom: unknown, id: unknown, ticket: unknown, valeur: unknown) => {
   const vise = connu(nom);
@@ -987,10 +988,16 @@ ipcMain.handle("geste", (_, nom: unknown, id: unknown, grant: unknown, oui: unkn
 });
 // Un geste de WAITING, sur une carte du rail : sa commande part dans le second du projet, comme un
 // geste du socle. La vue nomme le geste et le ticket, et donne ce que le chef a rempli ; ce qui
-// part se décide dans attente.ts.
-ipcMain.handle("attente", (_, nom: unknown, id: unknown, ticket: unknown, saisie: unknown) => {
+// part se décide dans attente.ts. « It arrived, back to the kitchen » n'a pas de commande : il
+// s'écrit sur le tableau de la cuisine du projet (#1740, tableau-gestes/rail.ts), comme le geste
+// `cuisine` de la fiche — posté, la carte le dit, et la box le joue à son tick suivant.
+ipcMain.handle("attente", async (_, nom: unknown, id: unknown, ticket: unknown, saisie: unknown) => {
   const vise = connu(nom);
-  return vise === undefined ? parti(nom) : ecrireAttente(terminaux, id, vise, ticket, saisie, undefined, cuisines.cuisineDe(vise));
+  if (vise === undefined) return parti(nom);
+  if (id !== "attente-arrivee") return ecrireAttente(terminaux, id, vise, ticket, saisie, undefined, cuisines.cuisineDe(vise));
+  const rendu = await arriveeDeCarte(tableaux.dernier(vise.nom), ticket, clientDesGestes);
+  if ("fait" in rendu) tableaux.oublier();
+  return rendu;
 });
 // Ce qu'un geste confirmé coûte, dit avant son « oui » (confirmation.ts) : tiré des derniers faits
 // lus du projet — les cooks en cours, le rail. Rien ne part, rien

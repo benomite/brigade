@@ -3,11 +3,13 @@
 // GitHub de l'app (gestes.ts) — ni `ssh`, ni second, ni box jointe. La box les joue à son tick suivant et répond sous
 // eux ; le rail, relu du tableau, montre ce qu'elle en a fait.
 //   - la fiche d'un ticket : « merge the PR » (`merger`) → `/brigade merge #<n>`, « remove from the rail » (`retirer`)
-//     → `/brigade set-aside #<n>` ;
+//     → `/brigade set-aside #<n>`, « back to the kitchen » (`cuisine`, un ticket revenu de WAITING) → `/brigade arrived
+//     #<n>` (#1740) ;
+//   - la carte de WAITING : « it arrived, back to the kitchen » → `/brigade arrived #<n>`, le même geste ;
 //   - la carte de TODO : un choix → `/brigade choose #<n> <rang>`, un texte → `/brigade answer #<n> <texte>`.
-// Ce que la grammaire ne connaît pas (renvoyer en cuisine un ticket revenu de WAITING) n'est pas d'ici : `gesteDeFiche`
-// le dit (`horsDuTableau`), et l'appelant le joue comme avant. Changer la priorité ne passe pas par le tableau : l'app
-// change le label `prio:` de l'issue elle-même (../priorite.ts).
+// Ce que la grammaire ne connaît pas n'est pas d'ici : `gesteDeFiche` le dit (`horsDuTableau`), et l'appelant le joue
+// comme avant. Changer la priorité ne passe pas par le tableau : l'app change le label `prio:` de l'issue elle-même
+// (../priorite.ts).
 //
 // Rien ne part pour un ticket que la dernière lecture du tableau ne porte pas — ni sur son rail, ni dans sa file —, ni
 // sans tableau lu : chaque fois une phrase, et rien n'est posté.
@@ -15,7 +17,7 @@ import type { TableauLu } from "../tableau/lecture.ts";
 import { gestesDuTableau, type ClientDesGestes, type DecisionDuChef, type EtatDuGeste } from "./gestes.ts";
 
 // Les gestes de la fiche que le tableau porte, et celui de sa grammaire que chacun écrit.
-export const GESTES_DE_FICHE = { merger: "merge", retirer: "set-aside" } as const satisfies Readonly<Record<string, DecisionDuChef["geste"]>>;
+export const GESTES_DE_FICHE = { merger: "merge", retirer: "set-aside", cuisine: "arrived" } as const satisfies Readonly<Record<string, DecisionDuChef["geste"]>>;
 export type GesteDeFicheDuTableau = keyof typeof GESTES_DE_FICHE;
 export const duTableau = (id: unknown): id is GesteDeFicheDuTableau => typeof id === "string" && Object.hasOwn(GESTES_DE_FICHE, id);
 
@@ -52,13 +54,20 @@ async function poster(lu: TableauLu | undefined, decision: DecisionDuChef, clien
   return ditDe(await gestesDuTableau({ depot: lu.depot, tableau: lu.numero, client }).envoyer(decision));
 }
 
-// Un geste de la fiche d'un ticket : posté sur le tableau s'il est de sa grammaire ; `horsDuTableau` sinon — l'appelant
-// le joue comme avant.
-export async function gesteDeFiche(lu: TableauLu | undefined, id: unknown, ticket: unknown, client: ClientDesGestes): Promise<RenduDeFiche | { horsDuTableau: true }> {
-  if (!duTableau(id)) return { horsDuTableau: true };
+// Un geste de la fiche que le tableau porte, posté pour ce ticket.
+async function decider(lu: TableauLu | undefined, id: GesteDeFicheDuTableau, ticket: unknown, client: ClientDesGestes): Promise<RenduDeFiche> {
   if (typeof ticket !== "number" || !Number.isSafeInteger(ticket) || ticket < 1) return { refus: "nothing was posted: the action names no ticket", detail: "" };
   return poster(lu, { geste: GESTES_DE_FICHE[id], ticket }, client);
 }
+
+// Un geste de la fiche d'un ticket : posté sur le tableau s'il est de sa grammaire ; `horsDuTableau` sinon — l'appelant
+// le joue comme avant.
+export async function gesteDeFiche(lu: TableauLu | undefined, id: unknown, ticket: unknown, client: ClientDesGestes): Promise<RenduDeFiche | { horsDuTableau: true }> {
+  return duTableau(id) ? decider(lu, id, ticket, client) : { horsDuTableau: true };
+}
+
+// « It arrived, back to the kitchen », sur une carte de WAITING : le geste `cuisine` de la fiche, posté de même.
+export const arriveeDeCarte = (lu: TableauLu | undefined, ticket: unknown, client: ClientDesGestes): Promise<RenduDeFiche> => decider(lu, "cuisine", ticket, client);
 
 // La réponse du chef à une carte de TODO, déjà lue (carte-todo.ts, `reponseLue`) : son choix ou son texte, posté sur
 // le tableau. Postée, la carte quitte TODO ; la box l'écrit sur l'issue à son tick suivant.

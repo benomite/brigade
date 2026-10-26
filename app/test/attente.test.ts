@@ -54,7 +54,7 @@ const refus = (id: string, ticket: unknown, saisie?: unknown) => {
   return ecrit.refus;
 };
 
-describe("les trois gestes de WAITING écrivent la commande `waiting` du runtime", () => {
+describe("les gestes de WAITING écrivent la commande `waiting` du runtime — sauf « it arrived », posté sur le tableau de la cuisine", () => {
   test("la relance proposée est dans sept jours, au calendrier du poste — fin de mois et d'année comprises", () => {
     assert.equal(relanceProposee(AUJOURDHUI), "2026-10-22");
     assert.equal(relanceProposee(new Date(2026, 9, 28, 23, 59)), "2026-11-04");
@@ -66,20 +66,20 @@ describe("les trois gestes de WAITING écrivent la commande `waiting` du runtime
     assert.equal(scripts.waiting, "node src/attente-cli.ts");
     const cli = readFileSync(join(RACINE, "runtime/src/attente-cli.ts"), "utf8");
     assert.ok(cli.includes('const OPTIONS = ["--what", "--from", "--remind"];'), "la commande du runtime ne prend plus ces options");
-    assert.ok(cli.includes('!["set", "resume", "arrived"].includes(geste)'), "la commande du runtime ne prend plus ces gestes");
+    assert.ok(cli.includes('!["set", "resume"].includes(geste)'), "la commande du runtime ne prend plus ces gestes");
     assert.deepEqual(
       GESTES_D_ATTENTE.map(({ id, commande }) => [id, commande]),
       [
         ["attente-poser", "waiting set"],
         ["attente-reprendre", "waiting resume"],
-        ["attente-arrivee", "waiting arrived"],
+        ["attente-arrivee", null],
       ],
     );
   });
 
-  test("« resume » et « it arrived » écrivent la commande de poste, au caractère près, pour le ticket nommé", () => {
+  test("« resume » écrit la commande de poste, au caractère près, pour le ticket nommé ; « it arrived » n'en écrit aucune : il part sur le tableau de la cuisine (#1740)", () => {
     assert.equal(ecrite("attente-reprendre", 8), "ssh box brigade parade waiting resume 8");
-    assert.equal(ecrite("attente-arrivee", 8), "ssh box brigade parade waiting arrived 8");
+    assert.equal(commandeDAttente("attente-arrivee", PARADE, 8), undefined);
   });
 
   test("« waiting for… » écrit ce que le chef a rempli : la box reçoit chaque champ entier, en un argument, sans rien en exécuter", () => {
@@ -111,8 +111,8 @@ describe("les trois gestes de WAITING écrivent la commande `waiting` du runtime
     const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "second", note: "", arrete: false };
     const terminaux = { envoyer: (_: Projet, commande: string) => (envoyes.push(commande), Promise.resolve(SECOND)) };
 
-    assert.deepEqual(await ecrireAttente(terminaux, "attente-arrivee", PARADE, 8), SECOND);
-    assert.deepEqual(envoyes, ["!ssh box brigade parade waiting arrived 8"]);
+    assert.deepEqual(await ecrireAttente(terminaux, "attente-reprendre", PARADE, 8), SECOND);
+    assert.deepEqual(envoyes, ["!ssh box brigade parade waiting resume 8"]);
     assert.deepEqual(ecrireAttente(terminaux, "attente-poser", PARADE, 8, { quoi: "", qui: "x", relance: "2026-10-22" }, AUJOURDHUI), { refus: "nothing is written: say what it waits for, in your words" });
     assert.match((ecrireAttente(terminaux, "attente-reprendre", { ...PARADE, refus: "illisible" }, 8) as { refus: string }).refus, /does not open — illisible/);
     assert.equal(envoyes.length, 1);
@@ -303,7 +303,7 @@ describe("sur l'écran, les cartes de WAITING et leurs gestes", () => {
     assert.deepEqual(vue.dernier("attente"), ["parade", "attente-reprendre", 8, undefined]);
     boutonDe(bonDe(vue, 8), "it arrived, back to the kitchen").click();
     await repos();
-    assert.deepEqual(vue.dernier("attente"), ["parade", "attente-arrivee", 8, undefined]);
+    assert.deepEqual(vue.dernier("attente"), ["parade", "attente-arrivee", 8]);
     // Le clic d'un geste n'ouvre pas la fiche par-dessus le rail.
     assert.equal(fiche(vue).hidden, true);
     // Une carte de TODO n'a pas ces deux-là ; une carte de WAITING n'a pas « waiting for… ».

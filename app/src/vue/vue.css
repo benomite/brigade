@@ -4416,6 +4416,17 @@ main > header,
   color: var(--rouge);
   border-top: 0;
 }
+/* « it arrived, back to the kitchen », parti sur le tableau de la cuisine : sous les gestes de la carte de WAITING, en
+   une ligne — en route, posté (le commentaire au survol), ou ce qui l'a refusé, en rouge. */
+#rail .bon p.arrivee {
+  margin: 0;
+  font-size: 11px;
+  color: var(--bon-discret);
+  border-top: 0;
+}
+#rail .bon p.arrivee.refus {
+  color: var(--rouge);
+}
 /* La confirmation d'un geste confirmé : sous son bouton, sur toute la largeur de la ligne, bordée
    de jaune — ce qu'il fait, son prix, les cooks en vol, puis chaque « oui » avec ce qu'il engage, et
    le « non ». Rien n'en part sans un clic sur un « oui ». */

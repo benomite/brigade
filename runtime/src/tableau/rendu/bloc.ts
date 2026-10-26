@@ -96,7 +96,7 @@ export type CuisineDuTableau = {
 // Un geste du chef posté en commentaire sur le tableau (tableau/gestes/), tel
 // que la box l'a pris. `commentaire` : l'id GitHub du commentaire ; `url` : son
 // adresse ; `le` : son heure sur GitHub. `geste` (`merge`, `send-back`,
-// `set-aside`, `answer`, `choose`) et `ticket` : ce qu'il demande — nuls pour
+// `set-aside`, `answer`, `choose`, `arrived`) et `ticket` : ce qu'il demande — nuls pour
 // un geste incompris. `etat` : `pris`, joué ; `refuse`, refusé ou incompris.
 // `traiteLe` : l'heure où la box l'a lu. `reponse` : la ligne qu'elle a
 // répondue sous lui, en markdown.

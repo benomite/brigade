@@ -37,8 +37,8 @@ export const COMMANDES: readonly DeLaBox[] = [
   {
     nom: "waiting",
     ancien: "attente",
-    description: "Tickets waiting on a third party: set <ticket> --what <…> --from <who> [--remind <when>], resume <ticket>, arrived <ticket>",
-    mots: { poser: "set", reprendre: "resume", arrive: "arrived", "--quoi": "--what", "--de": "--from", "--relance": "--remind" },
+    description: "Tickets waiting on a third party: set <ticket> --what <…> --from <who> [--remind <when>], resume <ticket>",
+    mots: { poser: "set", reprendre: "resume", "--quoi": "--what", "--de": "--from", "--relance": "--remind" },
   },
   { nom: "profile", description: "The cook profiles proposed: yes <proposal> writes its definition in the project's repository, no <proposal> declines it" },
   { nom: "report", description: "The daily report of the decisions brigade took and told about, the last 24 hours (read-only)" },

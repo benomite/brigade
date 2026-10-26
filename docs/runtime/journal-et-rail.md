@@ -202,12 +202,14 @@ your words, from whom, since when, the date to come back to it, and what will ha
 npm --prefix runtime run waiting                # the tickets in WAITING
 npm --prefix runtime run waiting -- set 8 --what "sa validation écrite du devis" --from "le client" [--remind 2026-10-21]
 npm --prefix runtime run waiting -- resume 8    # WAITING → TODO, right away
-npm --prefix runtime run waiting -- arrived 8   # "it arrived, we go on": taken, without going through TODO
 ```
 
+"It arrived, we go on" is not a box command: it is posted on the Kitchen board,
+`/brigade arrived #8` (`docs/tableau-gestes.md`), and the box plays it at its next tick.
+
 The `--what` and `--from` values above are the chef's own words, so here they are French; the
-words `set`, `resume`, `arrived`, `--what`, `--from` and `--remind` are the runtime's English ones.
-The old words (`poser`, `reprendre`, `arrive`, `--quoi`, `--de`) still answer.
+words `set`, `resume`, `--what`, `--from` and `--remind` are the runtime's English ones.
+The old words (`poser`, `reprendre`, `--quoi`, `--de`) still answer.
 
 - **`set`** puts a ticket of the rail that is **queued or 86** in WAITING; a ticket that is taken or
   in pass is refused — the kitchen holds it. `--remind`: a date (that day at midnight, box time), a
@@ -233,8 +235,11 @@ The old words (`poser`, `reprendre`, `arrive`, `--quoi`, `--de`) still answer.
   (its `attend` line comes back as it was), otherwise set aside for you (reason
   `third-party:resumed`), with what it was waiting for and your actions. It does not go to the
   kitchen alone.
-- **`arrived`** puts it back on the rail, queued: a cook takes it in turn — on its open delivery, if
-  it carries one. It also works on a ticket that came back from WAITING into TODO.
+- **`/brigade arrived #<N>`**, posted on the Kitchen board, puts it back on the rail, queued: a cook
+  takes it in turn — on its open delivery, if it carries one. It also works on a ticket that came
+  back from WAITING into TODO. The box answers under the comment: done, or why not (a ticket not on
+  the rail, or neither in WAITING nor back from it), and nothing changes. The app's "it arrived,
+  back to the kitchen" (WAITING card) and "back to the kitchen" (sheet) post it.
 - **On the issue**, the running runtime says so as soon as it reads the action: the `waiting` label
   while the ticket waits, and a comment on entering WAITING and at each change — from whom, what,
   since when, the follow-up, what will happen on arrival; on leaving, the label is removed and a

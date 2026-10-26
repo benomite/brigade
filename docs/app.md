@@ -325,7 +325,7 @@ sections, with `use the direct link` and its own decision buttons (#1590) — is
 bridge calls (`tableauDuProjet`, `ouvrirDuTableau`, `gesteAuTableau`) on the desktop and the phone.
 The gestures of the rail view that the board's grammar knows (`docs/tableau-gestes.md`) are posted
 on the board from the card or the sheet: `merge the PR`, `remove from the rail`, a TODO card's
-choice or text. A project that neither a box nor this computer serves keeps the published rail
+choice or text, and `back to the kitchen` after WAITING (#1740, below). A project that neither a box nor this computer serves keeps the published rail
 above (#1435). Captures: `docs/captures/1695/` — `espace-projet-avant.png` (the screen removed) and
 `espace-projet-apres.png` (the rail view of the same project), and `espace-projet-gestes-apres.png` (the
 sheet of a TODO ticket whose decision is known, offering its gestures, `merge the PR` first).
@@ -353,6 +353,29 @@ The box has no command for it: the label is read like any other (`docs/runtime/j
 `docs/captures/1739/` — `fiche-priorite-avant.png` (the old path: the command went into the second, through the box),
 `fiche-priorite-apres.png` (the label changed on GitHub, the sheet showing `prio:1`) and `fiche-priorite-echec-apres.png`
 (GitHub refused: the sheet keeps `prio:2` and says why).
+
+### Sending a ticket back to the kitchen after WAITING (#1740)
+
+`it arrived, back to the kitchen`, on a WAITING card, and `back to the kitchen`, on the sheet of a ticket back from
+WAITING into TODO (recommended there, confirmed with its cost), are one gesture: the app posts `/brigade arrived #<n>` on
+the project's Kitchen board (`app/src/tableau-gestes/rail.ts`, `docs/tableau-gestes.md`), with the token of this
+computer's `gh`. No `ssh`, no second, no box command: the gesture works with the box unreachable, and the box plays it
+at its next tick — the ticket leaves WAITING (or TODO) and goes back on the rail, queued, without going through TODO.
+
+- **Posted**: the card says `posted on the Kitchen board — the box plays it at its next tick and answers under it` under
+  its buttons, the comment's address on hover; the sheet says the same under its gestures. While the post is on its way,
+  the card says `it arrived, back to the kitchen: sent, waiting for the answer…` and its buttons are inactive. The card
+  stays in WAITING until the board, read again, shows the ticket back on the rail.
+- **Not posted**: nothing changes and the card says why in one line, in red — the board not read yet, a ticket the
+  latest board read does not carry, or GitHub refusing the comment (`The gesture could not be posted on the Kitchen board
+  of chef/parade: GitHub refused the comment (HTTP 403): …`). One click tries again.
+- **Refused by the box** (a ticket neither in WAITING nor back from it): the box answers so under the comment, and the
+  rail does not move.
+
+Captures: `docs/captures/1740/` — `carte-waiting-arrivee-avant.png` (the old path: the command went into the second,
+through the box), `carte-waiting-arrivee-apres.png` (posted on the board, said on the card),
+`carte-waiting-arrivee-echec-apres.png` (GitHub refused: the card stays and says why), and `fiche-cuisine-avant.png` /
+`fiche-cuisine-apres.png` (the sheet of a ticket back from WAITING, `back to the kitchen` confirmed).
 
 ### The second's choices, as buttons under its terminal (#1520)
 
@@ -1113,8 +1136,9 @@ is in the Second tab`. Screens: `telephone-gestes-*` of `scripts/capture-ecran` 
 
 **The paired phone plays them at its station** (#1420). The station's phone desk takes `POST
 /projects/<name>/gestures` (#1412), behind the phone's token — `{"gesture": "merge" | "remove" | "back-to-kitchen",
-"ticket"}`, each the command the desktop runs for the same button (`rail merge`, `rail remove`, `waiting arrived`), so
-the desktop reads the change at its next reading. On the phone, a card's sheet offers the gestures that desk carries,
+"ticket"}`: `merge` and `remove` run the box command for the same button (`rail merge`, `rail remove`), and
+`back-to-kitchen` plays on the project's log the action the box plays for `/brigade arrived #<n>` posted on the Kitchen
+board, which is how the desktop sends it — so the desktop reads the change at its next reading. On the phone, a card's sheet offers the gestures that desk carries,
 and only those — `merge the PR`, `remove from the rail`, `back to the kitchen`, chosen and ordered by the desktop's table
 (`gestes-fiche.ts`); opening the issue or the PR, asking the second and changing the priority are not offered there.
 The Android bridge's reading (`app/android/web/lecture.ts`) sends the gesture with the token, waits up to 130 s for the

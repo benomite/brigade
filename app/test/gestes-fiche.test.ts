@@ -124,12 +124,18 @@ describe("jouer un geste de la fiche", () => {
     return { envoyes, terminaux: { envoyer: async (_: Projet, commande: string) => (envoyes.push(commande), SECOND) } };
   };
 
-  test("retirer du rail, merger, renvoyer en cuisine partent dans le second, sous les commandes de la box (#637)", async () => {
+  test("retirer du rail et merger partent dans le second, sous les commandes de la box (#637)", async () => {
     const { terminaux, envoyes } = registre();
     assert.equal(await jouerGesteDeFiche(terminaux, PARADE, "retirer", 21, undefined), SECOND);
     assert.equal(await jouerGesteDeFiche(terminaux, PARADE, "merger", 21, undefined), SECOND);
-    assert.equal(await jouerGesteDeFiche(terminaux, PARADE, "cuisine", 21, undefined), SECOND);
-    assert.deepEqual(envoyes, ["!ssh box brigade parade rail remove 21", "!ssh box brigade parade rail merge 21", "!ssh box brigade parade waiting arrived 21"]);
+    assert.deepEqual(envoyes, ["!ssh box brigade parade rail remove 21", "!ssh box brigade parade rail merge 21"]);
+  });
+
+  test("renvoyer en cuisine n'est pas une commande de la box : l'app le poste sur le tableau de la cuisine (#1740) — rien ne part dans le second", () => {
+    const { terminaux, envoyes } = registre();
+    assert.deepEqual(ACTIONS.cuisine, { app: true });
+    assert.deepEqual(jouerGesteDeFiche(terminaux, PARADE, "cuisine", 21, undefined), { refus: "nothing is sent: “cuisine” is not an action of the station that this app can run" });
+    assert.deepEqual(envoyes, []);
   });
 
   test("changer la priorité n'est pas une commande de la box : l'app la joue elle-même, sur GitHub (#1739) — rien ne part dans le second", () => {

@@ -32,6 +32,7 @@ const CAS: Array<[DecisionDuChef, string]> = [
   [{ geste: "set-aside", ticket: 123 }, "/brigade set-aside #123"],
   [{ geste: "answer", ticket: 123, reponse: "Neither: an Excel export,\non top of the CSV." }, "/brigade answer #123 Neither: an Excel export,\non top of the CSV."],
   [{ geste: "choose", ticket: 123, choix: 2 }, "/brigade choose #123 2"],
+  [{ geste: "arrived", ticket: 123 }, "/brigade arrived #123"],
 ];
 
 for (const [decision, attendu] of CAS) {
