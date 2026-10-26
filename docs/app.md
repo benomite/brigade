@@ -870,6 +870,9 @@ CLOSER
 - **"+ station"**, under the list of stations, opens the pairing code field — nowhere
   else on the home. Once paired, the station appears in the list and the field closes, with no
   message left on display; "cancel" closes it, empty.
+- **"Under your GitHub account"**, under "+ station", lists the stations registered under your GitHub account,
+  available or not, and opens each on the projects it serves, to tick (#1706, see "Your stations under your GitHub
+  account, and the projects each serves").
 - **The health row**, at the bottom, sums up the Max connection and the access to GitHub. All is well: green
   and discreet, `Max ✓ · GitHub ✓`. When one of the two is off, it says in one sentence what is
   wrong: `Max: token to redo within 20 d`, `Max: connection lost on Mac`,
@@ -1421,6 +1424,39 @@ again. "cancel" closes it and leaves the station in place; "remove" takes its pa
 gist (`brigade-appairage.json`, the only file the app writes there), takes you back to the home screen, and the station
 is no longer in its list. If GitHub cannot be written to, the station stays, and the page says so in
 one line.
+
+### Your stations under your GitHub account, and the projects each serves (#1706)
+
+A station installed on one of your machines, its `gh` signed in to your GitHub account, registers itself under that
+account (`runtime/src/enregistrement-station/README.md`, #1705): no code to pair. **On the home screen, under "+ station",
+the block "Under your GitHub account" lists them**, read each time the home opens, with "read again":
+
+```
+Under your GitHub account  ?
+Open a station to choose the projects it serves.
+● parade-box  Linux · available · serves 2 projects              ›
+○ mac         macOS · unavailable · no project chosen yet        ›
+read again
+```
+
+- **One line per station**, in the reader's order: its name, its platform, `available` or `unavailable` (the
+  contract's freshness rule: a clean stop, or no sign of life for 4 min 30 s), and what it serves — `no project
+  chosen yet`, `serves no project`, `serves 2 projects`. Its machine, its version and its last sign of life are on
+  hover. Dot green and full when available, grey ring when not.
+- **A click on its line opens its projects**, "Projects it serves": your GitHub repositories (the list "add a
+  project" reads), one checkbox each, ticked when the station serves it; a repository it serves that the list no
+  longer names stays there, to be unticked. **Ticking or unticking writes at once** the whole selection into the
+  station's gist (`brigade-selection.json`, the only file the app writes there; `app/src/stations-du-compte.ts`):
+  it is what the app reads again at the next launch. While it is written, the boxes wait; refused by GitHub, one
+  line says so under the boxes, the detail on hover, and nothing changes.
+- **An unavailable station stays editable**: one line says it serves these projects once it is back.
+- **No station yet**: the block says to install one on the machine that will cook, and gives the installation
+  command of each system (`docs/installation-station.md`), each with "copy".
+- **This computer signed in to no account**: the reason and "Sign in to GitHub", the same as on the first launch;
+  signed in, the block reads again. **Any other failure** (no `gh`, no network, GitHub's limit): one line, "your
+  stations could not be read", the detail on hover, the page that fixes it when there is one, and "read again".
+
+The station does not act on its selection yet (#1707). Screens: `docs/captures/1706/`.
 
 ### This computer is a station; a phone is a workstation
 
