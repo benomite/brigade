@@ -39,7 +39,18 @@ const MOTEUR = "claude";
 // l'état des stations du compte, et les fichiers du gist de chacune.
 export type LectureDesAppairees = { etat: StationsDuChef; gists: Map<string, Record<string, string>> };
 
-// Une station secondaire du projet, telle que la principale la tient.
+// Pourquoi une station secondaire n'est pas atteinte, par clé, et le geste du chef qui y remédie, en une phrase
+// (ce qu'il clique ou lance) : l'app montre la phrase sur la ligne de la station, à côté de la raison (`dit`).
+// Un test refuse une clé sans geste.
+export const GESTES_DE_LA_RAISON = {
+  arretee: "start Brigade on that computer again",
+  muette: "open Brigade on that computer: its station signs again within a minute",
+  "gist-illisible": "check your GitHub connection in the app, the next reading tries again",
+} as const;
+export type RaisonPasAtteinte = keyof typeof GESTES_DE_LA_RAISON;
+
+// Une station secondaire du projet, telle que la principale la tient. `raison` et `geste` : absents quand elle
+// est atteinte, sinon la clé de ce qui l'empêche et le geste qui y remédie (`GESTES_DE_LA_RAISON`).
 export type StationSecondaire = {
   // Son nom, tel qu'elle le publie.
   nom: string;
@@ -52,15 +63,20 @@ export type StationSecondaire = {
   fournit: string[];
   atteinte: boolean;
   dit: string;
+  raison?: RaisonPasAtteinte;
+  geste?: string;
 };
 
 const minuscules = (depot: string) => depot.toLowerCase();
 
-// Pourquoi une station que son gist dit hors ligne ne l'est pas, en une phrase.
-function pourquoiPasAtteinte(signeDeVie: string, arreteeLe: string | null): string {
-  if (arreteeLe !== null && Date.parse(arreteeLe) >= Date.parse(signeDeVie)) return `not reached: it stopped at ${arreteeLe}`;
-  return `not reached: no sign of life on GitHub since ${signeDeVie}`;
+// Pourquoi une station que son gist dit hors ligne ne l'est pas : sa clé et la phrase qui le dit.
+export function pourquoiPasAtteinte(signeDeVie: string, arreteeLe: string | null): { raison: RaisonPasAtteinte; dit: string } {
+  if (arreteeLe !== null && Date.parse(arreteeLe) >= Date.parse(signeDeVie)) return { raison: "arretee", dit: `not reached: it stopped at ${arreteeLe}` };
+  return { raison: "muette", dit: `not reached: no sign of life on GitHub since ${signeDeVie}` };
 }
+
+// La raison et son geste, tels que le suivi les publie.
+export const avecSonGeste = (raison: RaisonPasAtteinte) => ({ raison, geste: GESTES_DE_LA_RAISON[raison] });
 
 // Les secondaires du projet `depot` dans ce que la lecture a rendu, `soi` mis
 // à part — la principale, par son nom et son gist. `illisible` : GitHub n'a pas
@@ -79,7 +95,8 @@ export function secondairesDuProjet(lecture: LectureDesAppairees, depot: string,
     // Une station qui remet le projet (`remise`) le quitte : elle n'y cuit pas.
     const demande = (brut === undefined ? null : lireDemande(brut))?.projets.find((projet) => minuscules(projet.depot) === minuscules(depot) && !projet.principale && (projet.remise ?? null) === null);
     if (demande === undefined) continue;
-    trouvees.push({ nom: lue.name, station, gist: lue.id, cooks: demande.cooks, fournit: capacitesDe(demande.fournit), atteinte: lue.online, dit: lue.online ? "reached: it is online on GitHub" : pourquoiPasAtteinte(lue.lastSeen, lue.stoppedAt) });
+    const pas = lue.online ? null : pourquoiPasAtteinte(lue.lastSeen, lue.stoppedAt);
+    trouvees.push({ nom: lue.name, station, gist: lue.id, cooks: demande.cooks, fournit: capacitesDe(demande.fournit), atteinte: lue.online, dit: pas === null ? "reached: it is online on GitHub" : pas.dit, ...(pas === null ? {} : avecSonGeste(pas.raison)) });
   }
   return trouvees;
 }
@@ -87,7 +104,7 @@ export function secondairesDuProjet(lecture: LectureDesAppairees, depot: string,
 // Celles qu'une lecture précédente a trouvées, quand GitHub n'a pas pu être
 // lu : aucune n'est atteinte, et `raison` dit pourquoi.
 export const injoignables = (connues: readonly StationSecondaire[], raison: string): StationSecondaire[] =>
-  connues.map((connue) => ({ ...connue, atteinte: false, dit: `not reached: its gist could not be read on GitHub — ${raison.replace(/[.\s]+$/, "")}` }));
+  connues.map((connue) => ({ ...connue, atteinte: false, dit: `not reached: its gist could not be read on GitHub — ${raison.replace(/[.\s]+$/, "")}`, ...avecSonGeste("gist-illisible") }));
 
 // Comment le projet la déclare.
 export const declarationDe = (secondaire: Pick<StationSecondaire, "station" | "cooks" | "fournit">): StationDeclaree => ({

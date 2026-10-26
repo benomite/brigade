@@ -19,7 +19,18 @@ export type OptionsGestes = {
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
+// Le bouton « check again » d'une station qui ne cuit pas encore (stations/raison.ts, #1758) : il ne vise pas une
+// panne, il relit GitHub et dit si la station a reparlé.
+export const RELIRE_LA_STATION = "relire-la-station";
+
 export async function jouerPanne(options: OptionsGestes, id: unknown, cle: unknown): Promise<RenduDePanne> {
+  if (cle === RELIRE_LA_STATION) {
+    const vu = await options.stations.relire();
+    if (vu.sans !== undefined) return { refus: vu.sans };
+    const relue = vu.stations.find((candidate) => candidate.id === id);
+    if (relue === undefined) return { refus: "this station is no longer paired with this app" };
+    return { fait: relue.etat === "en-ligne" ? `${relue.nom} is back` : `still no sign of life from ${relue.nom} on GitHub` };
+  }
   const station = options.stations.vu()?.stations.find((candidate) => candidate.id === id);
   const panne = station?.pannes.find((candidate) => candidate.cle === cle);
   if (station === undefined || panne === undefined) return { refus: "this breakdown is no longer shown: the station was read again in the meantime" };

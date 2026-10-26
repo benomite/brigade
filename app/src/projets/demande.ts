@@ -92,8 +92,8 @@ export type Selections = Record<string, string>;
 export type Delai = { ajouteLe: string; serviLe: string | null; duree: number | null };
 // `secondaires` : les stations que l'app appaire au projet en plus de sa principale, telles que la principale les
 // tient (#1756, runtime/src/projets/secondaires.ts) — déclarées à son journal, chacune par son gist, avec ce qu'elle
-// fournit, si elle est atteinte, et pourquoi en une phrase. Seule la principale les publie ; absentes sans elles.
-export type SecondaireTenue = { nom: string; station: string; gist: string; cooks: number; fournit: string[]; atteinte: boolean; dit: string };
+// fournit, si elle est atteinte, et pourquoi en une phrase — pas atteinte, le geste du chef qui y remédie (`geste`, #1758). Seule la principale les publie ; absentes sans elles.
+export type SecondaireTenue = { nom: string; station: string; gist: string; cooks: number; fournit: string[]; atteinte: boolean; dit: string; geste?: string };
 export type SuiviDuProjet = { nom: string; etat: EtatDuProjet; dit: string; autoriser: string[]; serviLe: string | null; cuitSur: string | null; ici: boolean; bascule: Bascule | null; acces: AccesBloque | null; refus: Refus | null; worktree: EchecDuWorktree | null; clone?: EchecDuClone; blocages?: Blocage[]; delai?: Delai; choix?: Choix[]; secondaires?: SecondaireTenue[]; depot: string | null; base: string | null; cooks: number | null };
 
 const ETATS: readonly string[] = ["servi", "a-autoriser", "en-preparation", "refuse", "secondaire"];
@@ -225,9 +225,9 @@ export function lireDemande(brut: string | undefined): ProjetDemande[] | null {
 
 // Une station secondaire illisible — sans gist, sans nom, sans phrase — n'est pas montrée.
 const lireUneSecondaire = (lue: unknown): SecondaireTenue[] => {
-  const { nom, station, gist: sien, cooks, fournit, atteinte, dit } = (lue ?? {}) as Record<string, unknown>;
+  const { nom, station, gist: sien, cooks, fournit, atteinte, dit, geste } = (lue ?? {}) as Record<string, unknown>;
   if (!nomDeStation(nom) || !texte(station) || !gist(sien) || typeof atteinte !== "boolean" || !phrase(dit)) return [];
-  return [{ nom, station, gist: sien, cooks: typeof cooks === "number" && Number.isSafeInteger(cooks) && cooks >= 1 ? cooks : 0, fournit: capacitesLues(fournit), atteinte, dit }];
+  return [{ nom, station, gist: sien, cooks: typeof cooks === "number" && Number.isSafeInteger(cooks) && cooks >= 1 ? cooks : 0, fournit: capacitesLues(fournit), atteinte, dit, ...(phrase(geste) ? { geste } : {}) }];
 };
 
 // Le délai publié d'un projet : l'instant d'ajout, et, servi, l'instant et la durée figée. Illisible : rien.

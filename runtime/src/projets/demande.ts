@@ -94,7 +94,8 @@
 //     du projet (`secondaires.ts`) — pour chacune, `nom` (le sien), `station`
 //     (celui que le projet déclare : `<machine>/claude`), `gist`, `cooks`,
 //     `fournit`, `atteinte` (son gist s'est lu, et elle y donne signe de vie)
-//     et `dit`, en une phrase, pourquoi elle l'est ou ne l'est pas.
+//     et `dit`, en une phrase, pourquoi elle l'est ou ne l'est pas ; pas atteinte, `raison`
+//     (la clé : `arretee`, `muette`, `gist-illisible`) et `geste`, le geste du chef qui y remédie.
 //     `station.locale` : cette station est celle de l'ordinateur du chef (une
 //     cuisine locale, sous macOS). `cuitSur` : la station où le projet cuit, telle
 //     que celle-ci la connaît — nul si elle n'en sait rien ; `ici` : il cuit sur

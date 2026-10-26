@@ -1,5 +1,5 @@
 // Le même onglet (#1757), la box ne parvenant pas à atteindre ce Mac : sa pastille reste grise, et pourquoi
-// se lit au survol — ce que la box en dit (#1756).
+// se lit sur sa ligne avec le geste (#1758), et au survol (#1756).
 import type { Ecran } from "./commun.ts";
 import { donnees, OUVRIR, SUR_LA_BOX } from "./cuisine-demenagee.ts";
 
@@ -10,5 +10,5 @@ export const ecran: Ecran = {
   largeur: 1440,
   hauteur: 900,
   etapes: [OUVRIR, { cliquer: "#onglets-du-projet button:nth-child(2)" }],
-  donnees: () => donnees({ ...SUR_LA_BOX, stations: [box!, { ...mac!, atteinte: { oui: false, dit: "not reached: no sign of life on GitHub since 2026-10-16T09:41:00.000Z" } }] }),
+  donnees: () => donnees({ ...SUR_LA_BOX, stations: [box!, { ...mac!, atteinte: { oui: false, dit: "not reached: no sign of life on GitHub since 2026-10-16T09:41:00.000Z", pourquoi: "not reached", geste: "open Brigade on that computer" } }] }),
 };

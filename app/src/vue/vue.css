@@ -592,7 +592,8 @@ main > header,
   align-items: center;
   gap: 6px;
 }
-#stations-du-projet .ajout-de-station {
+#stations-du-projet .ajout-de-station,
+#stations-du-projet .relire-la-station {
   padding: 3px 10px;
   color: var(--discret);
   border: 1px solid var(--trait);
@@ -606,7 +607,8 @@ main > header,
 /* Un projet qui cuit sur ce Mac (ticket 1095) : ce que ça implique, à côté de « this Mac », plus
    discret que le nom ; un déménagement en route, de même. */
 #stations-du-projet .s-arrete,
-#stations-du-projet .en-mouvement {
+#stations-du-projet .en-mouvement,
+#stations-du-projet .pourquoi {
   color: var(--discret);
 }
 /* Le choix d'un déménagement : une carte sous la ligne, sa phrase, les machines — chacune un bouton,
@@ -1753,7 +1755,8 @@ main > header,
 #accueil-stations .ligne-et-geste {
   position: relative;
 }
-#accueil-stations .appairer-un-telephone {
+#accueil-stations .appairer-un-telephone,
+#accueil-stations .remede-de-station {
   position: absolute;
   top: 50%;
   right: 8px;
@@ -1762,6 +1765,10 @@ main > header,
   color: var(--discret);
   border: 1px solid var(--trait);
   border-radius: var(--rayon-bouton);
+}
+/* Le bouton de la raison d'une station qui ne cuit pas encore (ticket 1758) : à gauche de « pair a phone ». */
+#accueil-stations .remede-de-station {
+  right: 120px;
 }
 /* L'écran « Pair a phone » : comme la page d'une station — le retour, le titre et son aide, ce qu'on attend du chef —,
    puis le QR à gauche, le code, ce qu'il vaut encore et l'adresse de la station à droite ; dessous, les téléphones
@@ -6573,4 +6580,8 @@ button.recommande {
   color: var(--texte-doux);
   border: 1px solid var(--trait);
   border-radius: var(--rayon-bouton);
+}
+/* Pourquoi une station installée ne cuit pas encore (ticket 1758) : une phrase à côté de sa pastille grise, qui nomme le geste. */
+#tous .ligne span.pourquoi {
+  color: var(--discret);
 }
