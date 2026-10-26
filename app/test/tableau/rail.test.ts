@@ -8,7 +8,13 @@ import { readFileSync } from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
 import { dirname, join, relative, resolve } from "node:path";
 import { test, type TestContext } from "node:test";
-import { mettreAPart } from "../../src/attend.ts";
+import { decrireEtat, lireEtat } from "../../../runtime/src/etat.ts";
+import { ouvrirJournal } from "../../../runtime/src/journal.ts";
+import { ouvrirRail } from "../../../runtime/src/rail.ts";
+import { tableauDeLaCuisine } from "../../../runtime/src/tableau/rendu/donnees.ts";
+import { rendreLeTableau } from "../../../runtime/src/tableau/rendu/rendre.ts";
+import { aArreter, horloge, repertoireTemporaire } from "../../../runtime/test/outils.ts";
+import { mettreAPart, ticketsDe } from "../../src/attend.ts";
 import { lancerGeste } from "../../src/box.ts";
 import { lignesDuRail } from "../../src/bon.ts";
 import { comprendre, rail, tenirFaits, titreDEchec, type Dessinable } from "../../src/faits.ts";
@@ -16,7 +22,7 @@ import { voir as voirAmont } from "../../src/amont.ts";
 import { voir as voirManager } from "../../src/manager.ts";
 import { lireLeTableauDuDepot, type LectureDuTableauDuDepot, type TableauLu } from "../../src/tableau/lecture.ts";
 import { lectureDuTableau, ouvrirVeilleDuTableau, statusDuTableau, tenirLecturesDuTableau, type LectureDuRail } from "../../src/tableau/rail.ts";
-import { DEPOT, githubDuTableau, LU_LE, projetPublie } from "./projet-publie.ts";
+import { DEPOT, GENERE_LE, githubDuTableau, LU_LE, projetPublie } from "./projet-publie.ts";
 
 const LU_PAR_L_APP = new Date("2026-10-12T10:05:00.000Z");
 const PROJET = { nom: "brigade" };
@@ -165,6 +171,60 @@ test("la sortie de `status` refaite du tableau : ses rubriques, le bloc `awaitin
   assert.doesNotMatch(texte, /^latest events$/m);
   // Une file vide : le bloc le dit, comme `status`.
   assert.match(statusDuTableau({ ...publie, file: [], bilans: [] }), /^awaiting {3}nothing awaits the chef\nend awaiting$/m);
+});
+
+// Un projet dont le reste du rail attend une capacité qu'aucune station ne fournit (#1751) : #12 mis de côté
+// `no-station`, le manager allumé qui le reprend avant le chef, #15 qui l'attend, #17 qui attend #20, sans lien avec lui.
+// `libre` : un ticket de plus, que rien ne retient — il peut cuire. Le tableau que la box en publie, et son `status`.
+function railSansStation(t: TestContext, { libre = false }: { libre?: boolean } = {}) {
+  const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: horloge("2026-10-12T09:00:00.000Z") });
+  aArreter(t, () => journal.fermer());
+  journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "project.switched-on", payload: { cause: "default" } });
+  const arriver = (ticket: number, waitsFor: number[], requires: string[] = []) =>
+    journal.ajouter({
+      project: "brigade",
+      ticket,
+      author: "github",
+      type: "ticket.arrived",
+      payload: { title: `Ticket ${ticket}`, priority: null, createdAt: `2026-10-01T00:00:${ticket}Z`, url: `https://exemple.test/${ticket}`, card: { waitsFor, zone: [`zone/${ticket}/`], problems: [], requires } },
+    });
+  arriver(12, [], ["macos"]);
+  arriver(15, [12]);
+  arriver(17, [20]);
+  if (libre) arriver(18, []);
+  ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000 }).quatreVingtSix(12, { motif: "no-station: macos" });
+  const etat = lireEtat(journal, LU_LE);
+  return { corps: rendreLeTableau(tableauDeLaCuisine(etat, LU_LE, { depot: DEPOT }), GENERE_LE), status: decrireEtat(etat, LU_LE).join("\n") };
+}
+
+test("la cuisine au repos faute de station : le bloc `awaiting` refait du tableau porte la ligne de `status`, sous « nothing awaits the chef », sans qu'elle compte pour une décision", async (t) => {
+  const { corps, status } = railSansStation(t);
+  const publie = await lu(corps);
+  const texte = statusDuTableau(publie);
+
+  const ligne =
+    "  kitchen idle — the rest of the rail needs a human: no station provides `macos` (#12) — waiting behind it: #15 — to unblock: attach a station that provides it, or lower this ticket — remove it from the `requiert` line of its card — or close it";
+  const lignes = texte.split("\n");
+  const tete = lignes.indexOf("awaiting   nothing awaits the chef");
+  assert.deepEqual(lignes.slice(tete, tete + 3), ["awaiting   nothing awaits the chef", ligne, "end awaiting"]);
+  // Mot pour mot le bloc que la box écrit ; et le ticket qui en attend un autre, sans lien, n'y est pas nommé.
+  const montree = mettreAPart({ projet: "brigade", demande: 1, a: LU_LE.toISOString(), sorties: [{ commande: "status", texte }] });
+  const parSsh = mettreAPart({ projet: "brigade", demande: 1, a: LU_LE.toISOString(), sorties: [{ commande: "status", texte: status }] });
+  assert.ok(!("erreur" in montree) && !("erreur" in parSsh));
+  assert.equal(montree.attend, parSsh.attend);
+  assert.doesNotMatch(montree.attend ?? "", /#17/);
+  // Pas une décision : la file du tableau est vide, et le bloc ne nomme aucun ticket en tête de ligne.
+  assert.deepEqual(publie.file, []);
+  assert.deepEqual(ticketsDe(montree.attend ?? ""), []);
+});
+
+test("un ticket peut encore cuire : ni le bloc `awaiting` refait du tableau ni celui de `status` ne disent la cuisine au repos", async (t) => {
+  const { corps, status } = railSansStation(t, { libre: true });
+  const texte = statusDuTableau(await lu(corps));
+
+  assert.match(texte, /^awaiting {3}nothing awaits the chef\nend awaiting$/m);
+  assert.doesNotMatch(texte, /kitchen idle/);
+  assert.doesNotMatch(status, /kitchen idle/);
 });
 
 test("le manager suit l'interrupteur du projet, que le tableau porte : sa ligne se lit comme celle de `manager`", async (t) => {

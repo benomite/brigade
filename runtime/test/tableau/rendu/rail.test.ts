@@ -9,13 +9,14 @@ import { entrerDansTodo } from "../../../src/carte-todo.ts";
 import { cartesDeCorrection } from "../../../src/correctif/cartes.ts";
 import { decrireEtat, faits, lireEtat } from "../../../src/etat.ts";
 import { ouvrirJournal } from "../../../src/journal.ts";
+import { ouvrirRail } from "../../../src/rail.ts";
 import { contenuDuCorps } from "../../../src/tableau/publication/publier.ts";
 import { lireLeTableau, type LigneDuRail, type Tableau } from "../../../src/tableau/rendu/bloc.ts";
 import { tableauDeLaCuisine, type FaitsDuTableau } from "../../../src/tableau/rendu/donnees.ts";
 import { LONGUEUR_MAX_DU_CORPS, rendreLeTableau } from "../../../src/tableau/rendu/rendre.ts";
 import { LU_LE } from "../../aides/haut-de-status.ts";
 import { copieDeLExempleDuBas } from "../../aides/opt-A-etat.ts";
-import { aArreter } from "../../outils.ts";
+import { aArreter, horloge, repertoireTemporaire } from "../../outils.ts";
 
 const DEPOT = "acme/brigade";
 const GENERE_LE = new Date("2026-10-12T10:04:30.000Z");
@@ -210,4 +211,31 @@ test("en dernier recours, le corps retire les faits et les lignes du rail entier
   assert.deepEqual(lu.tableau.file, tableau.file);
   assert.deepEqual(lu.tableau.cuisine, tableau.cuisine);
   assert.equal(rendreLeTableau(lu.tableau, GENERE_LE), corps);
+});
+
+// Le reste du rail attend une capacité qu'aucune station ne fournit (#1751) : #12 mis de côté `no-station`, le
+// manager allumé, #15 qui l'attend. Rien ne cuit : la ligne de la cuisine au repos est un bilan du tableau, pas une
+// décision de sa file — et dans le projet d'exemple, où des tickets cuisent, elle n'y est pas.
+test("la cuisine au repos faute de station : le tableau publié porte sa ligne dans `bilans`, relue telle quelle, et sa file reste vide", (t) => {
+  const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: horloge("2026-10-12T09:00:00.000Z") });
+  aArreter(t, () => journal.fermer());
+  journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "project.switched-on", payload: { cause: "default" } });
+  for (const [ticket, waitsFor, requires] of [[12, [], ["macos"]], [15, [12], []]] as const) {
+    const card = { waitsFor: [...waitsFor], zone: [`zone/${ticket}/`], problems: [], requires: [...requires] };
+    journal.ajouter({ project: "brigade", ticket, author: "github", type: "ticket.arrived", payload: { title: `Ticket ${ticket}`, priority: null, createdAt: "2026-10-01T00:00:00Z", url: `https://exemple.test/${ticket}`, card } });
+  }
+  ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000 }).quatreVingtSix(12, { motif: "no-station: macos" });
+  const etat = lireEtat(journal, LU_LE);
+  const corps = rendreLeTableau(tableauDeLaCuisine(etat, LU_LE, { depot: DEPOT }), GENERE_LE);
+  const lu = lireLeTableau(corps);
+  assert.ok(lu.lu, lu.lu ? "" : lu.raison);
+
+  const ligne =
+    "kitchen idle — the rest of the rail needs a human: no station provides `macos` (#12) — waiting behind it: #15 — to unblock: attach a station that provides it, or lower this ticket — remove it from the `requiert` line of its card — or close it";
+  assert.deepEqual(lu.tableau.bilans, [ligne]);
+  assert.deepEqual(lu.tableau.file, []);
+  // La même ligne que `status`, sous sa tête.
+  assert.ok(decrireEtat(etat, LU_LE).includes(`  ${ligne}`));
+  // Des tickets cuisent dans le projet d'exemple : pas de ligne.
+  assert.ok(projet(t).publie.bilans.every((bilan) => !bilan.startsWith("kitchen idle")));
 });
