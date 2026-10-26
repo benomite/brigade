@@ -11,6 +11,7 @@ import { tableauDeLaCuisine } from "../../../runtime/src/tableau/rendu/donnees.t
 import { rendreLeTableau } from "../../../runtime/src/tableau/rendu/rendre.ts";
 import { LU_LE } from "../../../runtime/test/aides/haut-de-status.ts";
 import { copieDeLExempleDuBas } from "../../../runtime/test/aides/opt-A-etat.ts";
+import { aArreter } from "../../../runtime/test/outils.ts";
 import type { AppelGitHub, ReponseGitHub } from "../../src/tableau/client.ts";
 
 export const DEPOT = "acme/brigade";
@@ -20,7 +21,8 @@ export { LU_LE };
 
 export function projetPublie(t: TestContext) {
   const journal = ouvrirJournal(copieDeLExempleDuBas(t), { maintenant: () => new Date("2026-10-12T10:03:00.000Z") });
-  t.after(() => journal.fermer());
+  // Fermé avant que son répertoire ne soit retiré : sous Windows, un journal encore ouvert ne se retire pas (EPERM).
+  aArreter(t, () => journal.fermer());
   entrerDansTodo(journal, "brigade", 24, { type: "product", enonce: "One list per project, or one for all?", choix: [{ texte: "One per project." }, { texte: "One for all.", suite: "resume" }] }, "manager");
   const etat = lireEtat(journal, LU_LE);
   const corps = rendreLeTableau(tableauDeLaCuisine(etat, LU_LE, { depot: DEPOT }), GENERE_LE);
