@@ -7,7 +7,7 @@
 //
 // L'appairage porte aussi ce que la station fournit (`fournit`, #1757), quand
 // c'est l'app de sa machine qui l'appaire — elle seule voit la machine : un Mac
-// fournit `macos`, plus ce que l'installation y détecte (poste/fournit.ts).
+// fournit `macos`, plus ce que l'installation y détecte (fournit.ts).
 // L'app le reprend dans la demande de chaque projet où la station est ajoutée
 // (projets/projets.ts) : c'est là que la station principale du projet le lit.
 // Une station appairée d'ailleurs, ou avant #1757, n'en dit rien.

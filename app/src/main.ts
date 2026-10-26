@@ -62,7 +62,7 @@ import { memoireDansFichier, tenirNotifications } from "./notification.ts";
 import { tenirCuisinesIci } from "./poste/cuisine-ici.ts";
 import { estUnMac, nomDuPoste, persistantSur, shellDuPoste } from "./plateforme.ts";
 import { cuisinesIci, roleDe } from "./poste/role.ts";
-import { ceQueFournitCetOrdinateur } from "./poste/fournit.ts";
+import { ceQueFournitCetOrdinateur } from "./stations/fournit.ts";
 import { tenirStationLocale } from "./poste/station.ts";
 import { ouvrirPty } from "./pty.ts";
 import { ouvrirDUneStation, type StationsDuChef } from "./premier-lancement.ts";
@@ -611,7 +611,7 @@ const stations = tenirStations({
     void tenirCeQueFournitCetOrdinateur(vu);
   },
 });
-// Ce que la station de cet ordinateur fournit (poste/fournit.ts, #1757) : `macos` sur un Mac, et ce que
+// Ce que la station de cet ordinateur fournit (stations/fournit.ts, #1757) : `macos` sur un Mac, et ce que
 // le runtime détecte sur la machine — regardé une fois par lancement, sans rien y lancer. Son appairage le
 // porte : écrit quand l'app l'appaire, et réécrit si une station appairée avant ne le dit pas.
 let fournitIci: Promise<string[]> | undefined;

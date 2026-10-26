@@ -14,7 +14,7 @@ import { ghDuRepertoire } from "../aides/gh-du-repertoire.ts";
 import { repondre } from "./faux-gh-gists.ts";
 import { duree, ligneDe, ligneDeVersion, tenirStations, type VuDesStations } from "../../src/stations/stations.ts";
 import { SANS_POSIX } from "../aides/posix.ts";
-import { ceQueFournitCetOrdinateur } from "../../src/poste/fournit.ts";
+import { ceQueFournitCetOrdinateur } from "../../src/stations/fournit.ts";
 
 const SOURCES = join(import.meta.dirname, "../../src/stations");
 const MAINTENANT = Date.parse("2026-10-15T12:00:00Z");
