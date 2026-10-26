@@ -80,6 +80,10 @@ const SAUTE = process.platform === "win32" && ptyDisponible ? false : "this test
 // (le ConPTY y tient son répertoire courant), laissait son pty vivant, et le fichier restait pendu 5 h 39 min
 // (« Promise resolution is still pending but the event loop has already resolved »). Les pty sont maintenant tués dans
 // `t.after` avant `rmSync`, et lancés dans `tmpdir()`, hors du dossier supprimé : le test rejoue sous Windows.
+// Ticket 1685 : ne tuer que les pty vivants. Sous Windows, `kill()` de node-pty forke un agent qui s'attache à la console
+// du process ; un process déjà sorti — le lecteur sort de lui-même — le fait lever (« AttachConsole failed »), et cet
+// agent, qui hérite de l'environnement du fichier de test et de sa sortie, fait compter son erreur au fichier. Le test
+// attend donc la fin du lecteur, et `t.after` ne tue que les pty qui ne sont pas finis.
 const LECTEUR = `
 process.stdin.setRawMode(true);
 let recu = Buffer.alloc(0);
@@ -96,18 +100,19 @@ process.stdin.on("data", (morceau) => {
 describe("sur un vrai ConPTY", { skip: SAUTE }, () => {
   test("la commande publiée et l'Entrée arrivent au process octet pour octet : ni guillemet perdu, ni `!` mangé, ni `\\n` ajouté", async (t) => {
     const dossier = mkdtempSync(join(tmpdir(), "brigade-second-windows-"));
-    const ptys: Array<{ tuer: () => void }> = [];
+    const ptys: Array<{ tuer: () => void; fini: () => boolean }> = [];
     // Les pty d'abord : un ConPTY vivant tient son répertoire courant, et sa suppression échoue en EPERM.
     t.after(() => {
-      for (const p of ptys) try { p.tuer(); } catch { /* déjà mort */ }
+      for (const p of ptys.filter(({ fini }) => !fini())) try { p.tuer(); } catch { /* déjà mort */ }
       rmSync(dossier, { recursive: true, force: true });
     });
     const script = join(dossier, "lecteur.cjs");
     writeFileSync(script, LECTEUR);
     for (const commande of [AVEC_GUILLEMETS, SSH_SOUS_BANG]) {
       let sortie = "";
-      const pty = ouvrirPty({ commande: process.execPath, args: [script], dossier: tmpdir(), colonnes: 200, lignes: 40, surSortie: (donnees) => void (sortie += donnees), surFin: () => {} });
-      ptys.push(pty);
+      let fin = false;
+      const pty = ouvrirPty({ commande: process.execPath, args: [script], dossier: tmpdir(), colonnes: 200, lignes: 40, surSortie: (donnees) => void (sortie += donnees), surFin: () => void (fin = true) });
+      ptys.push({ tuer: pty.tuer, fini: () => fin });
       const attendre = async (condition: () => boolean) => {
         const limite = Date.now() + 60_000;
         while (!condition()) {
@@ -121,7 +126,8 @@ describe("sur un vrai ConPTY", { skip: SAUTE }, () => {
       await attendre(() => /hex:[0-9a-f]*:fin/.test(sortie));
       const recu = Buffer.from(/hex:([0-9a-f]*):fin/.exec(sortie)?.[1] ?? "", "hex").toString("utf8");
       assert.equal(recu, `${commande}\r`);
-      pty.tuer();
+      // Le lecteur sort de lui-même après sa réponse : on attend sa fin plutôt que de tuer un process peut-être sorti.
+      await attendre(() => fin);
     }
   });
 });

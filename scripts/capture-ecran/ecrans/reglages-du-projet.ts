@@ -1,6 +1,7 @@
 // Les réglages de « parade » (Settings, General) et ceux de son projet, lus dans son dépôt (#1309) : sa branche
-// d'intégration, les calibrages par défaut de son manager et de son reviewer, son plafond de calibrage — chacun sa
-// valeur, d'où elle vient, et de quoi la changer. Le chef a choisi `sonnet` pour le plafond, sans l'avoir proposé.
+// d'intégration, les calibrages par défaut de son manager et de son reviewer, son plafond de calibrage, les réglages de
+// son closer (#1685) — chacun sa valeur, d'où elle vient, et de quoi la changer. Le chef a choisi `sonnet` pour le
+// plafond, sans l'avoir proposé.
 import { reglagesVus } from "../../../app/src/reglages-du-projet.ts";
 import { configuration, cuisine, demarrage, type Ecran, type Etape, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
@@ -14,6 +15,12 @@ export const LUS = {
       integrationBranch: { value: "main", from: "repository" },
       defaultCalibrations: { manager: { model: "opus", effort: "high", from: "repository" }, reviewer: { model: "sonnet", effort: "medium", from: "station" } },
       calibrationCeiling: { model: "opus", effort: "high", from: "default" },
+      closer: {
+        calibration: { model: "sonnet", effort: "medium", from: "repository" },
+        cooksBelow: { value: 1, from: "default" },
+        maxTokens: { value: 200000, from: "repository" },
+        maxRemovedLines: { value: 500, from: "station" },
+      },
     }),
   ),
 };

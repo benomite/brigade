@@ -1,7 +1,8 @@
 // @ts-check
 // Les réglages du projet sur sa page (ticket 1309, épique 1301) : sa branche d'intégration, les calibrages par défaut
-// de son manager et de son reviewer, son plafond de calibrage. Chacun dit sa valeur en vigueur et d'où elle vient, et
-// a de quoi la changer : un champ — un nom, ou un modèle et un effort — et « propose ». Ils vivent dans le dépôt du
+// de son manager et de son reviewer, son plafond de calibrage, et ceux de son closer (ticket 1685). Chacun dit sa valeur
+// en vigueur et d'où elle vient, et a de quoi la changer : un champ — un nom, un nombre, ou un modèle et un effort — et
+// « propose ». Ils vivent dans le dépôt du
 // projet : le clic ouvre une PR, que la pass retient pour le chef, et rien ne se pose sur la box. La valeur montrée
 // reste celle en vigueur — la PR vaut une fois mergée : ce qui est dit à côté du champ, avec de quoi ouvrir la PR.
 // Refusé — une valeur qui est à la machine, rien qui change —, le refus se dit à côté du champ, et le champ revient à
@@ -54,9 +55,9 @@ function liste(doc, libelle, valeurs, choisie, changer) {
 // Ce que le choix dit, et s'il change quelque chose à la valeur en vigueur.
 /** @param {Vu} vu @param {Etat["choisi"]} choisi */
 function choixDe(vu, choisi) {
-  if (vu.cle === "branche") {
+  if ("valeur" in vu) {
     const valeur = typeof choisi === "string" ? choisi : vu.valeur;
-    return { dit: valeur.trim(), change: valeur.trim() !== "" && valeur.trim() !== vu.valeur, choix: /** @type {Choix} */ ({ cle: "branche", valeur: valeur.trim() }) };
+    return { dit: valeur.trim(), change: valeur.trim() !== "" && valeur.trim() !== vu.valeur, choix: /** @type {Choix} */ ({ cle: vu.cle, valeur: valeur.trim() }) };
   }
   const { modele, effort } = typeof choisi === "object" ? choisi : { modele: vu.modele, effort: vu.effort };
   return { dit: `${modele} / ${effort}`, change: modele !== "" && effort !== "" && (modele !== vu.modele || effort !== vu.effort), choix: /** @type {Choix} */ ({ cle: vu.cle, modele, effort }) };
@@ -104,9 +105,11 @@ export function poserUnReglage(doc, { vu, modeles, efforts, etat, choisir, propo
     suivre();
   };
   if (clic !== undefined) clic.title = BOUTON.survol;
-  if (vu.cle === "branche") {
+  if ("valeur" in vu) {
     const saisie = cree(doc, "input");
     saisie.type = "text";
+    // Un nombre du closer s'écrit en chiffres ; le runtime juge s'il est admis.
+    if (vu.cle !== "branche") saisie.inputMode = "numeric";
     saisie.ariaLabel = vu.nom;
     saisie.spellcheck = false;
     saisie.value = typeof choisi === "string" ? choisi : vu.valeur;

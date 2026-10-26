@@ -1897,18 +1897,24 @@ action.
 
 **The project's settings, changed by a pull request** (#1309, epic #1301). At the top of Settings (General), a block
 titled `Project settings` holds one row per project setting: the integration branch, the manager's and the reviewer's
-default calibrations, the calibration ceiling. Each row says the value in force and where it comes from — `from the
+default calibrations, the calibration ceiling, and the closer's four settings (#1685) — its calibration, its start
+threshold (`cooksBelow`), its tokens cap and its removed-lines cap. Each row says the value in force and where it comes from — `from the
 repository` (`.claude/brigade/projet.json`), `set on the station`, `from CLAUDE.md`, `default` — and has its edit control —
-a text field for the branch, a model and an effort for a calibration — and `propose`, enabled once the value differs. They
+a text field for the branch and for a closer's number, a model and an effort for a calibration — and `propose`, enabled once the value differs. They
 are read when the project opens, by the runtime's `setting` where its kitchen runs. `propose` plays `setting ceiling
-<model> <effort>` (or `manager`, `reviewer`, `branch <name>`) there: the runtime checks the value against the settings
-writer, opens a pull request on the project's repository and hands it to the pass, which holds it for you. The button
+<model> <effort>` (or `manager`, `reviewer`, `closer`, `closer-cooks <n>`, `closer-tokens <n>`, `closer-lines <n>`,
+`branch <name>`) there: the runtime checks the value against the settings writer — the check the file itself passes, so
+a value the file would refuse (a closer's `0`, a branch git would refuse, a path) is refused there, before any request
+and any pull request —, opens a pull request on the project's repository and hands it to the pass, which holds it for you. The button
 says `proposing…` until the runtime has answered. Opened, the row says `<value> proposed as a pull request — it applies
 once merged`, with a `pull request #<n>` button that opens it; refused — a value that belongs to the machine, a change
 the repository already carries —, the runtime's sentence is said next to the field, its detail on hover, and the field
 goes back to the value in force. **The value shown never changes on a proposal**: it is the one in force, until the pull
-request is merged. Nothing is saved on the box. A runtime that does not have `setting` yet says `settings unavailable`
-in one line, the detail on hover. The modules are `app/src/reglages-du-projet.ts` and `app/src/vue/projet/reglages.js`;
+request is merged. Nothing is saved on the box. The app itself refuses only what does not write as the command's words
+(a branch name with a blank, a closer's number that is not digits: `nothing was sent: this value is a whole number,
+written in digits`), all of which the file would refuse too. A runtime that does not have `setting` yet says `settings
+unavailable` in one line, the detail on hover; one from before #1685, which does not give the closer's settings, shows
+the first four rows only. The modules are `app/src/reglages-du-projet.ts` and `app/src/vue/projet/reglages.js`;
 the command, `runtime/src/reglage-cli.ts`.
 
 **The drawn rail is at the center of the space, shared between its two tabs** (see "The rail"): On the
