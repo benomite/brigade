@@ -4,11 +4,10 @@
 // ordinaires ; le téléphone a la largeur d'un téléphone.
 import type { Lecture } from "../../../app/src/box.ts";
 import { voir as voirGrants } from "../../../app/src/grants.ts";
-import { voir as voirManager } from "../../../app/src/manager.ts";
 import { blocDesOrdinaires } from "../../../app/src/ordinaires.ts";
 import { DESINSTALLER, RETIRER } from "../../../app/src/retrait.ts";
 import { configuration, cuisine, demarrage, type Donnees, type Envoi, type Etape, MAINTENANT } from "./commun.ts";
-import { MANAGER_ALLUME, PROJETS, RENDUS } from "./cuisine-figee.ts";
+import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 import { LUS } from "./reglages-du-projet.ts";
 
 // Ce que `grant` rend de parade (runtime/src/grant-cli.ts), mot pour mot : le grant `merge` accordé ce matin, et ce
@@ -30,16 +29,6 @@ export const GRANT = [
   usage("07:33:00", 21, 51, "3f8c2a6", 35),
   usage("07:10:00", 20, 49, "c4e9b10", 34),
   "without a grant, 2 green deliveries stopped: 2 merged by hand, 0 closed without merge — no disagreement —, 0 still open",
-  "",
-].join("\n");
-
-// Ce que `rail` rend de parade, mot pour mot : la page Rail de Settings le relayait tel quel.
-const RAIL = [
-  "rail       2 queued · 1 taken · 1 at the pass",
-  "  #14  queued   -       since 41 min  Le menu du jour en vitrine",
-  "  #15  queued   -       since 12 min  Les prix en euros",
-  "  #13  taken    box     since 18 min  La carte des desserts",
-  "  #12  pass     box     since 2 j     Le plat signature",
   "",
 ].join("\n");
 
@@ -71,8 +60,6 @@ export function donnees(poste: Poste): Donnees {
       ...cuisine(RENDUS),
       onglet: {
         "parade/grants": [lu("grant", GRANT, [undefined, voirGrants(lecture("grant", GRANT))])],
-        "parade/manager": [lu("manager", MANAGER_ALLUME, [voirManager(lecture("manager", MANAGER_ALLUME))])],
-        "parade/rail": [lu("rail", RAIL)],
       },
     },
   };
