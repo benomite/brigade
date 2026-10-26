@@ -107,6 +107,7 @@ import { poserTriageDeCooks } from "./triage.js";
 import { capaciteDuBesoin, choixDeCapacites, ouTourne, poserLesDeclarees, stationAOuvrir } from "./stations-declarees.js";
 import { DIT_PROVISOIRE, PROVISOIRE, poserApprentissage, resumeDeLApprentissage, TITRE as TITRE_APPRIS } from "./apprentissage.js";
 import { lireFermeture, poserCloser } from "./closer/section.js";
+import { ACCUEIL as RATIOS_DE_L_ACCUEIL, poserTendances, TITRE as TITRE_DES_RATIOS } from "./closer/tendance/tendance.js";
 import { poserBilan } from "./closer/bilan/bilan.js";
 import { apresRendu, lireLancement, poserLancement, REPOS } from "./closer/lancement/lancement.js";
 import { lireDerive, poserDerive } from "./closer/derive/derive.js";
@@ -156,6 +157,8 @@ const JOURNAL = "log";
 const PARAMETRES = "parametres";
 // Et la lecture de la page des coûts de l'app (ticket 1022) : `station`, sur la box de chaque projet (onglets.ts, `COUTS`).
 const COUTS = "couts";
+// Et celle de la page des ratios de l'app (ticket 1682) : `closing --json`, sur la box de chaque projet (onglets.ts, `RATIOS`).
+const RATIOS = "ratios";
 // Et celle de l'onglet Reliability : la fiabilité des cooks du projet affiché (fiabilite.ts).
 const FIABILITE = "fiabilite";
 // Et celle de l'onglet Closer : `closing --json`, la partie « closer » du projet affiché (closer/section.js).
@@ -538,6 +541,33 @@ retourDesCouts.className = "retour";
 const corpsDesCouts = document.createElement("div");
 corpsDesCouts.ariaLive = "polite";
 pageDesCouts.append(retourDesCouts, corpsDesCouts);
+// Le rapport ajouté / retiré de tous les projets (ticket 1682), de même : sur l'accueil, une ligne « Closer » ouvre
+// sa page, sans ouvrir aucun projet — un projet par ligne qui a un closer réglé, son rapport et sa tendance
+// (closer/tendance/). Un clic sur un projet l'ouvre.
+const ratiosDeLAccueil = document.createElement("section");
+ratiosDeLAccueil.id = "accueil-ratios";
+ratiosDeLAccueil.className = "liste";
+ratiosDeLAccueil.ariaLabel = "Closer";
+const ouvrirLesRatios = /** @type {HTMLButtonElement} */ (bloc("button", ""));
+ouvrirLesRatios.type = "button";
+ouvrirLesRatios.className = "ligne";
+ouvrirLesRatios.ariaLabel = "the added / removed ratio of all projects";
+{
+  const suite = bloc("span", "›");
+  suite.className = "ouvrir";
+  suite.ariaHidden = "true";
+  ouvrirLesRatios.append(bloc("strong", "all projects"), bloc("span", RATIOS_DE_L_ACCUEIL), suite);
+}
+ratiosDeLAccueil.append(ouvrirLesRatios);
+const pageDesRatios = document.createElement("section");
+pageDesRatios.id = "ratios";
+pageDesRatios.ariaLabel = TITRE_DES_RATIOS;
+const retourDesRatios = /** @type {HTMLButtonElement} */ (bloc("button", "‹ All projects"));
+retourDesRatios.type = "button";
+retourDesRatios.className = "retour";
+const corpsDesRatios = document.createElement("div");
+corpsDesRatios.ariaLive = "polite";
+pageDesRatios.append(retourDesRatios, corpsDesRatios);
 
 // La cuisine d'un projet de l'app (ticket 983), en tête de son espace : les stations qui la font, en une
 // ligne — chacune avec ce qu'elle en dit, un clic ouvre sa page —, et « + station » pour en ajouter
@@ -772,6 +802,9 @@ let ongletDemande;
 // Le dernier `station` lu de chaque projet pour la page des coûts — ou ce qui a été obtenu à sa place.
 /** @type {Map<string, Lecture>} */
 const coutsLus = new Map();
+// Le dernier `closing --json` lu de chaque projet pour la page des ratios — ou ce qui a été obtenu à sa place.
+/** @type {Map<string, Lecture>} */
+const ratiosLus = new Map();
 // La dernière lecture de Reliability du projet affiché : son `station` dit aussi ce que ce projet a coûté,
 // posé sous sa fiabilité (ticket 1022). Indéfinie : pas encore lue depuis que la lecture est affichée.
 /** @type {Lecture | undefined} */
@@ -923,8 +956,10 @@ let telephoneVu;
 // La station dont la page est ouverte, par son gist. Aucune : c'est l'accueil — ou un projet.
 /** @type {string | undefined} */
 let stationOuverte;
-// La page des coûts de tous les projets est ouverte, à la place de l'accueil (ticket 1022).
-let coutsOuverts = false;
+// La page de l'app ouverte à la place de l'accueil : celle des coûts de tous les projets (ticket 1022), ou celle de
+// leurs ratios ajouté / retiré (ticket 1682). Aucune : l'accueil — ou un projet, une station.
+/** @type {typeof COUTS | typeof RATIOS | undefined} */
+let pageDeLApp;
 // La station dont l'écran « Pair a phone » est ouvert, par son gist (ticket 1598). Aucune : il est fermé.
 /** @type {string | undefined} */
 let telephonesOuverts;
@@ -1889,11 +1924,11 @@ journal.addEventListener("click", () => {
 
 // Seul l'onglet de contenu affiché est lu sur la box : en changer, passer à un
 // terminal ou quitter l'espace arrête sa lecture. Rien ne reste de l'onglet d'avant.
-// La page des coûts de l'app tient lieu d'onglet, l'espace fermé : elle lit la box de chaque projet.
+// La page des coûts de l'app, ou celle des ratios, tient lieu d'onglet, l'espace fermé : elle lit la box de chaque projet.
 function lireOnglet() {
   const relaye = ONGLETS.find(({ id }) => id === lue());
-  const couts = courant === undefined && coutsOuverts && !ajoute;
-  const voulu = couts ? JSON.stringify(["", COUTS]) : courant === undefined || relaye === undefined ? "" : JSON.stringify([courant.nom, relaye.id]);
+  const page = courant === undefined && !ajoute ? pageDeLApp : undefined;
+  const voulu = page !== undefined ? JSON.stringify(["", page]) : courant === undefined || relaye === undefined ? "" : JSON.stringify([courant.nom, relaye.id]);
   if (voulu === suivi) return;
   suivi = voulu;
   // L'état du manager lu avant n'est plus celui de cette lecture : il revient avec elle.
@@ -1913,7 +1948,7 @@ function lireOnglet() {
     if (actif() === undefined) attendre(courant, luCuisine, lectureCuisine);
     else attendre(courant, luOnglet, lectureOnglet);
   }
-  ongletDemande = couts ? COUTS : relaye?.id;
+  ongletDemande = page ?? relaye?.id;
   brigade.onglet(courant?.nom, ongletDemande, ++demandeOnglet);
 }
 
@@ -5433,7 +5468,7 @@ function basculerPerdus() {
 /** @param {{ nom: string, couleurs?: { onglet?: string, accent?: string } }} projet */
 const projetDuCout = ({ nom, couleurs }) => ({ nom, teinte: couleurs?.onglet ?? couleurs?.accent });
 function poserCout() {
-  if (!coutsOuverts) return corpsDesCouts.replaceChildren();
+  if (pageDeLApp !== COUTS) return corpsDesCouts.replaceChildren();
   const projets = configuration.projets.filter((projet) => seLit(projet) && projet.desinstalle === undefined).map(projetDuCout);
   corpsDesCouts.replaceChildren(
     poserTete(document, projets, coutsLus, ouvrirDepuisLesCouts),
@@ -5442,11 +5477,18 @@ function poserCout() {
     poserCourbe(document, projets, coutsLus),
   );
 }
-// Un projet cliqué sur la page des coûts : son espace s'ouvre.
+// Un projet cliqué sur la page des coûts, ou sur celle des ratios : son espace s'ouvre.
 /** @param {string} nom */
 function ouvrirDepuisLesCouts(nom) {
   const projet = projetDe(nom);
   if (projet !== undefined) void ouvrir(projet);
+}
+// La page des ratios de l'app (ticket 1682, closer/tendance/tendance.js) : chaque projet que la page des coûts lit
+// aussi, et que sa lecture de `closing --json` dit réglé, avec son rapport ajouté / retiré et sa tendance.
+function poserRatios() {
+  if (pageDeLApp !== RATIOS) return corpsDesRatios.replaceChildren();
+  const projets = configuration.projets.filter((projet) => seLit(projet) && projet.desinstalle === undefined).map(projetDuCout);
+  corpsDesRatios.replaceChildren(poserTendances(document, projets, ratiosLus, ouvrirDepuisLesCouts));
 }
 // Un ticket cliqué sur la page des coûts : son projet s'ouvre, puis sa fiche, par-dessus le rail. La
 // fiche refermée rend le clavier au rail : le bouton cliqué n'est plus à l'écran.
@@ -7457,12 +7499,13 @@ function ouvrirTous() {
   ajoute = false;
   stationOuverte = undefined;
   telephonesOuverts = undefined;
-  coutsOuverts = false;
+  pageDeLApp = undefined;
   marquer();
   poserCode();
   poserAccueil();
   poserCout();
-  tous.replaceChildren(bloc("h2", "Projects"), projetsDeLAccueil, bloc("h2", "Stations"), stationsDeLAccueil, bloc("h2", "Cost"), coutsDeLAccueil, titreDeLApp, appDeLAccueil, santeDeLAccueil);
+  poserRatios();
+  tous.replaceChildren(bloc("h2", "Projects"), projetsDeLAccueil, bloc("h2", "Stations"), stationsDeLAccueil, bloc("h2", "Cost"), coutsDeLAccueil, bloc("h2", "Closer"), ratiosDeLAccueil, titreDeLApp, appDeLAccueil, santeDeLAccueil);
   brigade.tous(++demande);
 }
 
@@ -7501,7 +7544,7 @@ function ouvrirPremier() {
   ajoute = false;
   stationOuverte = undefined;
   telephonesOuverts = undefined;
-  coutsOuverts = false;
+  pageDeLApp = undefined;
   marquer();
   ecranDuPremier = poserPremierLancement(document, { ...premier, poste: POSTE.nom }, gestesDuPremier);
   tous.replaceChildren(ecranDuPremier);
@@ -7602,7 +7645,7 @@ function ouvrirCouts() {
   ajoute = false;
   stationOuverte = undefined;
   telephonesOuverts = undefined;
-  coutsOuverts = true;
+  pageDeLApp = COUTS;
   marquer();
   poserCout();
   tous.replaceChildren(pageDesCouts);
@@ -7610,6 +7653,21 @@ function ouvrirCouts() {
 }
 ouvrirLesCouts.addEventListener("click", () => ouvrirCouts());
 retourDesCouts.addEventListener("click", () => ouvrirTous());
+// La page des ratios de tous les projets, de même : seule sa lecture part — `closing --json` sur la box de chaque
+// projet — tant qu'elle est affichée.
+function ouvrirRatios() {
+  courant = undefined;
+  ajoute = false;
+  stationOuverte = undefined;
+  telephonesOuverts = undefined;
+  pageDeLApp = RATIOS;
+  marquer();
+  poserRatios();
+  tous.replaceChildren(pageDesRatios);
+  retourDesRatios.focus();
+}
+ouvrirLesRatios.addEventListener("click", () => ouvrirRatios());
+retourDesRatios.addEventListener("click", () => ouvrirTous());
 
 // La page d'une station, à la place de l'accueil : « T » reste l'entrée affichée, et un geste y ramène.
 /** @param {string} id */
@@ -7618,7 +7676,7 @@ function ouvrirStation(id) {
   ajoute = false;
   stationOuverte = id;
   telephonesOuverts = undefined;
-  coutsOuverts = false;
+  pageDeLApp = undefined;
   retraitDeStationDemande = undefined;
   retraitDeStationRefuse = "";
   marquer();
@@ -7650,7 +7708,7 @@ function montrerLesTelephones() {
   courant = undefined;
   ajoute = false;
   stationOuverte = undefined;
-  coutsOuverts = false;
+  pageDeLApp = undefined;
   marquer();
   if (parcours !== undefined) fermerParcours();
   tous.replaceChildren(pageDesTelephones);
@@ -7698,7 +7756,7 @@ function ouvrirAjout() {
   ajoute = true;
   stationOuverte = undefined;
   telephonesOuverts = undefined;
-  coutsOuverts = false;
+  pageDeLApp = undefined;
   marquer();
   ou.textContent = `${configuration.projets.length === 0 ? "No project yet. " : ""}It is written to ${configuration.chemin} — which you can also edit by hand: the app re-reads it as soon as it changes.`;
   choisi.textContent = dossier === "" ? "no folder chosen" : dossier;
@@ -7906,7 +7964,7 @@ async function ouvrir(projet) {
   courant = projet;
   stationOuverte = undefined;
   telephonesOuverts = undefined;
-  coutsOuverts = false;
+  pageDeLApp = undefined;
   if (urgenceChoisie !== projet.nom) urgenceChoisie = "";
   nonEcrit = nonEcritSecond = "";
   gesteRate = undefined;
@@ -8062,6 +8120,11 @@ brigade.surContenu((recue, vu, desGrants, laFiabilite) => {
   if (ongletDemande === COUTS) {
     coutsLus.set(recue.projet, recue);
     return poserCout();
+  }
+  // Celle des ratios lit `closing --json` sur la box de chaque projet : chacune y pose sa ligne, ou n'en a pas.
+  if (ongletDemande === RATIOS) {
+    ratiosLus.set(recue.projet, recue);
+    return poserRatios();
   }
   if (recue.projet !== courant?.nom || courant.sansStation === true) return;
   // Reliability : son `station` dit aussi ce que le projet a coûté.
@@ -8302,7 +8365,8 @@ function afficher() {
   else if (meme !== undefined) void ouvrir(meme);
   else if (stationOuverte !== undefined && !ajoute) ouvrirStation(stationOuverte);
   else if (telephonesOuverts !== undefined && !ajoute) montrerLesTelephones();
-  else if (coutsOuverts && !ajoute) ouvrirCouts();
+  else if (pageDeLApp === COUTS && !ajoute) ouvrirCouts();
+  else if (pageDeLApp === RATIOS && !ajoute) ouvrirRatios();
   // Sur un ordinateur neuf, sans projet : ses stations et leurs projets (premier-lancement.js). Sur le téléphone,
   // aucun projet ne s'ajoute d'un dossier : sans projet, l'app reste sur « Tous les projets ».
   else if (ajoute || (configuration.projets.length === 0 && telephone === undefined && !avecPremier())) ouvrirAjout();

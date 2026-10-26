@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 import { ouvrirVeille, type Lecture } from "../src/box.ts";
-import { COMMANDE_DES_COUTS, COUTS, commandeDe, EVENEMENTS_DU_LOG, ONGLETS, projetsLus, RUBRIQUES } from "../src/onglets.ts";
+import { COMMANDE_DES_COUTS, COMMANDE_DES_RATIOS, COUTS, commandeDe, EVENEMENTS_DU_LOG, ONGLETS, projetsLus, RATIOS, RUBRIQUES } from "../src/onglets.ts";
 import { SANS_POSIX } from "./aides/posix.ts";
 
 describe("les onglets de contenu d'un espace", () => {
@@ -41,6 +41,20 @@ describe("les onglets de contenu d'un espace", () => {
     assert.equal(COMMANDE_DES_COUTS, commandeDe("cooks"));
     assert.equal(commandeDe(COUTS), undefined);
     assert.ok(!RUBRIQUES.some(({ titre, lectures }) => titre === "Cost" || lectures.includes(COUTS)));
+  });
+
+  test("la page des ratios de l'app lit `closing --json` sur les mêmes box que celle des coûts (#1682)", () => {
+    const projets = [
+      { nom: "parade", box: { hote: "box" } },
+      { nom: "ici", ici: true },
+      { nom: "local" },
+      { nom: "parti", box: { hote: "box" }, desinstalle: { titre: "uninstalled" } },
+    ];
+    assert.deepEqual(projetsLus(RATIOS, undefined, projets), projetsLus(COUTS, undefined, projets));
+    assert.deepEqual(projetsLus(RATIOS, undefined, projets).map(({ nom }) => nom), ["parade", "ici"]);
+    // La lecture de l'onglet Closer d'un projet, sur chaque box ; elle n'est elle-même l'onglet d'aucun projet.
+    assert.equal(COMMANDE_DES_RATIOS, commandeDe("closer"));
+    assert.equal(commandeDe(RATIOS), undefined);
   });
 
   test("seul l'onglet affiché est lu : un `ssh`, pour sa commande — pas un par onglet", { skip: SANS_POSIX }, async (t) => {

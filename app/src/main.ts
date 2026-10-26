@@ -51,7 +51,7 @@ import { fluxDe, formatDe } from "./mise-a-jour/flux.ts";
 import { installeurDuPoste } from "./mise-a-jour/installation.ts";
 import { COMMANDE as COMMANDE_MANAGER, voir as voirManager } from "./manager.ts";
 import { machineChoisie, machinesDe } from "./machines.ts";
-import { COMMANDE_DES_COUTS, COUTS, commandeDe, ONGLETS, projetsLus, RUBRIQUES } from "./onglets.ts";
+import { COMMANDE_DES_COUTS, COMMANDE_DES_RATIOS, COUTS, commandeDe, ONGLETS, projetsLus, RATIOS, RUBRIQUES } from "./onglets.ts";
 import { ouvrirTransfert, tenirPages } from "./page.ts";
 import { jouerPanne } from "./pannes/gestes.ts";
 import { gistLocal, tenirLogin } from "./pannes/login.ts";
@@ -1337,9 +1337,10 @@ ipcMain.on("regarder", (_, nom: unknown, demande: number) => (voir = () => regar
 // Aucun — un terminal, « Tous les projets » — ou un nom qui n'est pas celui d'un onglet : plus rien n'est lu pour lui.
 // Reliability lit `station`, puis `measures` sur la fenêtre que `station` dit (fiabilite.ts).
 // La page des coûts de l'app (#1022), elle, n'a pas de projet : elle lit `station` sur la box de chaque
-// projet qu'elle sert encore — ses chiffres sont tous projets confondus (vue/cost/tete.js).
+// projet qu'elle sert encore — ses chiffres sont tous projets confondus (vue/cost/tete.js). Celle des ratios
+// (#1682) lit de même `closing --json` sur la box de chacun (vue/closer/tendance/tendance.js).
 ipcMain.on("onglet", (_, nom: unknown, id: unknown, demande: number) => {
-  const commande = id === COUTS ? COMMANDE_DES_COUTS : commandeDe(id);
+  const commande = id === COUTS ? COMMANDE_DES_COUTS : id === RATIOS ? COMMANDE_DES_RATIOS : commandeDe(id);
   ongletLu = { id, demande };
   const lus = projetsLus(id, nom, affichee().projets);
   const commandes = commande === undefined ? [] : id === FIABILITE ? COMMANDES_DE_FIABILITE : [commande];

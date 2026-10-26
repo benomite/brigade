@@ -40,12 +40,16 @@ export const RUBRIQUES: readonly Rubrique[] = [
 // chaque projet qu'elle sert encore, tant que la page est affichée.
 export const COUTS = "couts";
 export const COMMANDE_DES_COUTS = "station";
+// La tendance du rapport ajouté / retiré de tous les projets (#1682), de même : une page ouverte depuis « Tous les
+// projets », qui lit `closing --json` sur la box de chaque projet qu'elle sert encore (vue/closer/tendance/).
+export const RATIOS = "ratios";
+export const COMMANDE_DES_RATIOS = "closing --json";
 
-// Les projets dont une lecture lit la cuisine : pour un onglet, son projet et lui seul ; pour la page des coûts,
-// chaque projet qu'une box sert encore, ou qui cuit sur cet ordinateur (`ici`) — jamais un projet qui
-// n'est lu nulle part, ni un projet désinstallé de sa box.
+// Les projets dont une lecture lit la cuisine : pour un onglet, son projet et lui seul ; pour la page des coûts
+// et celle des ratios, chaque projet qu'une box sert encore, ou qui cuit sur cet ordinateur (`ici`) — jamais
+// un projet qui n'est lu nulle part, ni un projet désinstallé de sa box.
 export function projetsLus<P extends { nom: string; box?: unknown; ici?: unknown; desinstalle?: unknown }>(id: unknown, nom: unknown, projets: readonly P[]): P[] {
-  if (id === COUTS) return projets.filter(({ box, ici, desinstalle }) => (box !== undefined || ici === true) && desinstalle === undefined);
+  if (id === COUTS || id === RATIOS) return projets.filter(({ box, ici, desinstalle }) => (box !== undefined || ici === true) && desinstalle === undefined);
   return projets.filter((projet) => projet.nom === nom);
 }
 
