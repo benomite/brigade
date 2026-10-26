@@ -716,7 +716,7 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     decrireSauvegarde(etat, maintenant, ageMaxSauvegardeMs),
     "",
     // Avant le rail : « est-ce qu'on m'attend ? » se lit sans le parcourir.
-    ...decrireAttentes(etat.attend, depuisEn, etat.sansGrant, etat.passage, etat.pause, cuisineSansStation(etat.rail)),
+    ...decrireAttentes(etat.attend, depuisEn, etat.sansGrant, etat.passage, etat.pause, cuisineSansStation(etat.rail, etat.attend)),
     ...decrireCoincees(etat, depuisEn),
     ligne("rail", decompte.length === 0 ? "empty" : decompte.join(" · ")),
     ...etat.rail.map((ticket) =>

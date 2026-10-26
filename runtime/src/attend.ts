@@ -695,7 +695,9 @@ export const nommerEn = (attente: Attente): string => (attente.ticket === null ?
 // `tickets` : ceux mis de côté, puis ceux qui attendent derrière eux.
 export type CuisineSansStation = { capacites: string[]; tickets: number[] };
 
-export function cuisineSansStation(rail: TicketRail[]): CuisineSansStation | null {
+// Manager éteint, le bloc nomme déjà ces tickets, une entrée chacun : la ligne ferait doublon.
+export function cuisineSansStation(rail: TicketRail[], attentes: Attente[] = []): CuisineSansStation | null {
+  if (attentes.some(({ quoi }) => quoi === "capacite")) return null;
   const cuisinable = rail.some((ticket) => ticket.state === "taken" || ticket.state === "pass" || (ticket.state === "waiting" && ticket.awaits.length === 0));
   if (cuisinable) return null;
   const mis = rail.flatMap((ticket) => {

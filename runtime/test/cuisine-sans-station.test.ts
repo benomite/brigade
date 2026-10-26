@@ -3,7 +3,7 @@
 // qu'un ticket se cuisine encore, il ne dit rien de plus.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { cuisineSansStation, decrireAttentes, direCuisineSansStationEn } from "../src/attend.ts";
+import { type Attente, cuisineSansStation, decrireAttentes, direCuisineSansStationEn } from "../src/attend.ts";
 import { direMiseDeCote } from "../src/mise-de-cote.ts";
 import type { TicketRail } from "../src/projections/rail.ts";
 
@@ -27,6 +27,11 @@ test("un ticket qui se cuisine encore : aucun avertissement", () => {
   assert.equal(cuisineSansStation([...MIS, ticket(7, {})]), null);
   assert.equal(cuisineSansStation([...MIS, ticket(7, { state: "taken" })]), null);
   assert.deepEqual(decrireAttentes([], () => "1 min", null, null, null, null), ["awaiting   nothing awaits the chef", "end awaiting", ""]);
+});
+
+test("manager éteint, le bloc nomme déjà les tickets : pas de doublon", () => {
+  const entree = { ticket: 1548, title: null, since: "2026-10-26T10:00:00Z", quoi: "capacite", manque: { capacites: ["macos"], ensemble: false } } as unknown as Attente;
+  assert.equal(cuisineSansStation(MIS, [entree]), null);
 });
 
 test("pas de ticket mis de côté faute de station : pas d'avertissement", () => {
