@@ -259,19 +259,48 @@ pass       fermeture-3f9c1a2e, on 2026-10-13 14:02 — stopped: the closing's to
 
 The run name `fermeture-3f9c1a2e` stays French until the runtime is translated; the rest of the line is what the command prints.
 
+### What the closer does with its candidates
+
+Its brief (`runtime/src/closing/brief.ts`) gives it one aim: **remove as much as it safely can**, so
+that the project does not bloat. Listing is not enough:
+
+- **A dead export (`M…`) is deleted**, with what existed only for it — the test that exercises only
+  it, the doc sentence that describes it. No test of living code is removed or weakened to make a
+  removal pass.
+- **A duplicate (`D…`) is factored**: one copy is kept, in one of the files the pass holds, and the
+  other place calls it. Since the closer creates no file, the shared place is always one of those.
+  Two passages that look alike but must evolve apart are left, saying so.
+- **The safety rule**: it removes or factors only what the gates, then the CI the pass waits for,
+  still prove green afterwards — it plays the gates after each gesture and undoes the one that turns
+  them red. It leaves whatever a framework or a tool may read by convention: **entry points**, the
+  **exported API named in `docs/`**, and **files loaded by name**. A dead export that a doc names
+  says so in its description (`named in docs (…)`). **Doubt means leave it and say so.**
+
 ### The PR, and what it left
 
-The PR says what was **removed** and everything that was not, **with its reason**:
+The PR body has **four parts**, in this order, which the brief also names to the closer:
 
+| Part | What it says |
+|---|---|
+| `Retiré` | The dead exports deleted, out of those proposed |
+| `Factorisé` | The duplicates factored, out of those proposed |
+| `Lignes gagnées` | The lines removed against the lines added, and the difference — "N lignes de plus" when a factoring added more than it removed |
+| `Laissé faute d'être sûr` | Each candidate left, with its reason |
+
+- **Nothing is held as removed or factored on the closer's word**: the pass replays the observation
+  on its branch. A candidate no longer spotted there is removed (`M…`) or factored (`D…`).
 - **Left for lack of certainty**: for each candidate it does not remove, the closer writes a line
-  `LAISSÉ <name> : <why>` — copied as it is. Nothing is held as removed on its word: the pass replays
-  the observation on its branch, and a candidate that is still spotted there without the closer having
-  named it is said to be **left with no reason**.
+  `LAISSÉ <name> : <why>` — copied as it is. A candidate that is still spotted on its branch without
+  the closer having named it is said to be **left with no reason**.
+- **The same list, one entry per candidate**: under the four parts, a folded JSON block gives what
+  was left as `{ id, location, reason }` — `location` is `<path>:<line>` for a dead export and the
+  two `<path>:<first>-<last>` of a duplicate. It is what a later pass can store so as not to
+  propose it again (#1681); today it is only in the PR, and `closing.ended` keeps `kept` as before.
 - **Set aside before the pass**: what a cook was holding, and what went beyond the forty candidates.
 
 A pass that removed nothing opens no PR: what it left is in `closing.ended` (`kept`).
 
-The `LAISSÉ` keyword is the one the runtime asks of the closer and reads back, and the PR body the closing pass writes is still French; both stay as they are until the runtime is translated.
+The `LAISSÉ` keyword is the one the runtime asks of the closer and reads back, and the PR body the closing pass writes is still French — its four part titles included; both stay as they are until the runtime is translated.
 
 ### The PR goes through the pass
 

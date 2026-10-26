@@ -68,7 +68,7 @@ test("ce que la passe retire passe par la pass et le merge normaux : sa PR est j
   const consigne = relectures()[0]?.args[1] ?? "";
   assert.match(consigne, /Tu relis le diff qu'un closer .* a livré dans la PR #101, avant qu'il ne soit mergé sur `v2`/);
   assert.match(consigne, /PR #101 — Fermeture — passe fermeture-[0-9a-f]{8}\n/);
-  assert.match(consigne, /## Retiré — 1 sur 3 candidats/);
+  assert.match(consigne, /## Retiré — 1 sur 2 exports morts/);
   assert.match(consigne, /-export function inutile\(\) \{ return 2; \}/);
   assert.doesNotMatch(consigne, /repart au cook/);
   // Le merge est celui de la pass, sous le grant : demandé à GitHub pour ce

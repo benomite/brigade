@@ -339,7 +339,7 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
       // Sa branche, jamais celle d'intégration ; et une PR, que rien ici ne merge.
       try {
         depot.pousser(branche);
-        const corps = corpsDeLaPR({ run, base: options.base, calibration: calibrage, proposes, laisses: livree.gardes, ecartes, retirees: livree.retirees, cap: reglages.removedLines, fichiers: livree.fichiers, compteRendu: livree.compteRendu });
+        const corps = corpsDeLaPR({ run, base: options.base, calibration: calibrage, proposes, laisses: livree.gardes, ecartes, retirees: livree.retirees, ajoutees: livree.ajoutees, cap: reglages.removedLines, fichiers: livree.fichiers, compteRendu: livree.compteRendu });
         const pr = await options.github.ouvrirPR({ branche, base: options.base, titre: titreDeLaPR(run), corps });
         const ouverte = await options.github.prDeBranche(branche);
         if (ouverte === null) throw new Error(`GitHub ne rend pas la PR qu'il vient d'ouvrir (${pr})`);
