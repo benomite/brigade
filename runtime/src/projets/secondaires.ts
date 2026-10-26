@@ -1,0 +1,124 @@
+// Les stations que l'app appaire à un projet en plus de sa principale : celles
+// dont le chef a dit, en ajoutant le projet, qu'elles n'en sont pas la
+// principale (`principale: false` dans le `brigade-projets.json` de leur gist,
+// `demande.ts`). Rien d'autre ne les nomme à la principale : elle les lit dans
+// les gists appairés du compte (`appairage/stations-du-chef.ts`), les déclare
+// au journal du projet — la même décision que toutes ses stations
+// (`BRIGADE_STATIONS`, tenue par `une-station.ts`), sans commande du chef —,
+// et dit dans son suivi si chacune est atteinte.
+//
+// Une station secondaire est déclarée `distante+ensemble` : elle cuit à côté
+// de la principale, et tire son travail (docs/runtime/station-distante.md,
+// « A second station of the project »). Son nom est celui de sa machine, comme
+// celui de la principale (`machineDe`) ; elle fournit `code` et `raisonnement`,
+// et ce que le chef a coché pour sa machine (`fournit` de sa demande) ; son
+// plafond de cooks est celui de sa demande. Son entrée suit son appairage :
+// c'est dans l'app que son plafond et ses capacités changent.
+//
+// Atteinte : son gist s'est lu, et elle y donne signe de vie — le jugement de
+// l'app (`online` de `stations-du-chef.ts`). Sinon, `dit` dit pourquoi en une
+// phrase, en anglais — c'est l'app qui la montre : arrêtée, muette depuis son
+// dernier signe de vie, ou GitHub qui n'a pas pu être lu.
+import type { StationsDuChef } from "../appairage/stations-du-chef.ts";
+import { ouvrirJournal } from "../journal.ts";
+import { ConfigInvalide } from "../runtime.ts";
+import type { StationDeclaree } from "../stations-declarees.ts";
+import { tenirUneStation } from "../une-station.ts";
+import { FICHIER_PROJETS, lireDemande } from "./demande.ts";
+import { capacitesDe, machineDe } from "./preparer.ts";
+
+// Entre deux lectures des gists appairés du compte : la liste des gists et
+// chacun des appairés, autant d'appels à GitHub. Cinq minutes, la cadence où
+// une station réécrit son signe de vie.
+export const CADENCE_DES_APPAIREES_MS = 5 * 60_000;
+
+// Le moteur qu'un poste lance (`une-station.ts`).
+const MOTEUR = "claude";
+
+// Ce que la lecture des gists appairés rend (`lireLesStationsEtLeursGists`) :
+// l'état des stations du compte, et les fichiers du gist de chacune.
+export type LectureDesAppairees = { etat: StationsDuChef; gists: Map<string, Record<string, string>> };
+
+// Une station secondaire du projet, telle que la principale la tient.
+export type StationSecondaire = {
+  // Son nom, tel qu'elle le publie.
+  nom: string;
+  // Le nom sous lequel le projet la déclare : `<machine>/claude`.
+  station: string;
+  // Son gist d'appairage : ce par quoi l'app la reconnaît.
+  gist: string;
+  cooks: number;
+  // Ce qu'elle fournit, tel que le projet le déclare.
+  fournit: string[];
+  atteinte: boolean;
+  dit: string;
+};
+
+const minuscules = (depot: string) => depot.toLowerCase();
+
+// Pourquoi une station que son gist dit hors ligne ne l'est pas, en une phrase.
+function pourquoiPasAtteinte(signeDeVie: string, arreteeLe: string | null): string {
+  if (arreteeLe !== null && Date.parse(arreteeLe) >= Date.parse(signeDeVie)) return `not reached: it stopped at ${arreteeLe}`;
+  return `not reached: no sign of life on GitHub since ${signeDeVie}`;
+}
+
+// Les secondaires du projet `depot` dans ce que la lecture a rendu, `soi` mis
+// à part — la principale, par son nom et son gist. `illisible` : GitHub n'a pas
+// pu dire les stations du compte, et pourquoi.
+export function secondairesDuProjet(lecture: LectureDesAppairees, depot: string, soi: { nom: string; gist: string | null }): StationSecondaire[] | { illisible: string } {
+  const { etat, gists } = lecture;
+  if (etat.state !== "listed") return { illisible: etat.reason };
+  const trouvees: StationSecondaire[] = [];
+  for (const lue of etat.stations) {
+    if (!lue.cooks || lue.id === soi.gist) continue;
+    const station = `${machineDe(lue.name)}/${MOTEUR}`;
+    // Deux stations ne partagent pas un nom : la principale garde le sien, la
+    // première lue garde l'autre.
+    if (station === `${machineDe(soi.nom)}/${MOTEUR}` || trouvees.some((une) => une.station === station)) continue;
+    const brut = gists.get(lue.id)?.[FICHIER_PROJETS];
+    // Une station qui remet le projet (`remise`) le quitte : elle n'y cuit pas.
+    const demande = (brut === undefined ? null : lireDemande(brut))?.projets.find((projet) => minuscules(projet.depot) === minuscules(depot) && !projet.principale && (projet.remise ?? null) === null);
+    if (demande === undefined) continue;
+    trouvees.push({ nom: lue.name, station, gist: lue.id, cooks: demande.cooks, fournit: capacitesDe(demande.fournit), atteinte: lue.online, dit: lue.online ? "reached: it is online on GitHub" : pourquoiPasAtteinte(lue.lastSeen, lue.stoppedAt) });
+  }
+  return trouvees;
+}
+
+// Celles qu'une lecture précédente a trouvées, quand GitHub n'a pas pu être
+// lu : aucune n'est atteinte, et `raison` dit pourquoi.
+export const injoignables = (connues: readonly StationSecondaire[], raison: string): StationSecondaire[] =>
+  connues.map((connue) => ({ ...connue, atteinte: false, dit: `not reached: its gist could not be read on GitHub — ${raison.replace(/[.\s]+$/, "")}` }));
+
+// Comment le projet la déclare.
+export const declarationDe = (secondaire: Pick<StationSecondaire, "station" | "cooks" | "fournit">): StationDeclaree => ({
+  nom: secondaire.station,
+  moteur: MOTEUR,
+  fournit: [...secondaire.fournit],
+  cooks: secondaire.cooks,
+  distante: true,
+  ordinaires: true,
+  ensemble: true,
+});
+
+// Les déclare au journal du projet, chacune seule : les autres stations restent
+// écrites comme elles l'étaient. Rend celles dont l'entrée a été écrite, et
+// celles que le runtime ne lirait pas — rien n'en est écrit.
+export function declarerLesSecondaires(repertoireEtat: string, projet: string, secondaires: readonly StationSecondaire[], auteur = "chef"): { ecrites: string[]; refusees: Array<{ station: string; raison: string }> } {
+  const ecrites: string[] = [];
+  const refusees: Array<{ station: string; raison: string }> = [];
+  if (secondaires.length === 0) return { ecrites, refusees };
+  const journal = ouvrirJournal(repertoireEtat);
+  try {
+    for (const secondaire of secondaires) {
+      try {
+        if (tenirUneStation(journal, { projet, station: declarationDe(secondaire), auteur }) !== null) ecrites.push(secondaire.station);
+      } catch (erreur) {
+        if (!(erreur instanceof ConfigInvalide)) throw erreur;
+        refusees.push({ station: secondaire.station, raison: erreur.message });
+      }
+    }
+  } finally {
+    journal.fermer();
+  }
+  return { ecrites, refusees };
+}

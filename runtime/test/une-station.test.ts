@@ -11,7 +11,7 @@ import { decisionsPosees } from "../src/decisions.ts";
 import { principal } from "../src/declarer-stations.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
-import { changerDansLaDeclaration, changerUneStation, jouerIci, nePlusJouerIci, stationsDuProjet } from "../src/une-station.ts";
+import { changerDansLaDeclaration, changerUneStation, jouerIci, nePlusJouerIci, stationsDuProjet, tenirDansLaDeclaration, tenirUneStation } from "../src/une-station.ts";
 import { appeler, FAUX_CLAUDE, repertoireTemporaire } from "./outils.ts";
 
 const PROJET = "espace";
@@ -191,4 +191,24 @@ test("app.json : un projet sans box, un projet absent, un autre moteur ou un fic
   writeFileSync(chemin, "{ pas du json");
   assert.match((jouerIci(chemin, "servi", "mac/claude") as { refus: string }).refus, /is not JSON/);
   assert.equal(readFileSync(chemin, "utf8"), "{ pas du json");
+});
+
+test("tenir une station : ajoutée à la fin si la déclaration ne l'a pas, réécrite à sa place sinon, les autres écrites à l'identique ; rien de réécrit quand elle dit déjà la même chose", (t) => {
+  const mac = { nom: "mac/claude", moteur: "claude", fournit: ["code", "macos"], cooks: 1, distante: true as const, ordinaires: true as const, ensemble: true as const };
+  assert.equal(tenirDansLaDeclaration("", mac), "mac/claude:1:code+macos:distante+ensemble");
+  const declaration = "box/claude:3:code+raisonnement , box/playwright : 1 : navigateur-headless";
+  assert.equal(tenirDansLaDeclaration(declaration, mac), "box/claude:3:code+raisonnement,box/playwright : 1 : navigateur-headless,mac/claude:1:code+macos:distante+ensemble");
+  assert.equal(tenirDansLaDeclaration("mac/claude : 1 : code+macos : distante+ensemble,box/claude:3:code", mac), "mac/claude : 1 : code+macos : distante+ensemble,box/claude:3:code");
+  assert.equal(tenirDansLaDeclaration("mac/claude:2:chrome:distante,box/claude:3:code", mac), "mac/claude:1:code+macos:distante+ensemble,box/claude:3:code");
+  assert.throws(() => tenirDansLaDeclaration(declaration, { ...mac, fournit: ["Code Rapide"] }), ConfigInvalide);
+
+  const etat = repertoireTemporaire(t);
+  const journal = ouvrirJournal(etat);
+  try {
+    assert.notEqual(tenirUneStation(journal, { projet: PROJET, station: mac, auteur: "chef" }), null);
+    assert.equal(tenirUneStation(journal, { projet: PROJET, station: mac, auteur: "chef" }), null);
+  } finally {
+    journal.fermer();
+  }
+  assert.equal(declarationAuJournal(etat), "mac/claude:1:code+macos:distante+ensemble");
 });
