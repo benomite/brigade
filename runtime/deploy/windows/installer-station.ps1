@@ -106,12 +106,13 @@ $brigade = @{ code = 0 }
     if (-not (Test-Path -LiteralPath $b -PathType Leaf)) { return $false }
     return ([IO.File]::ReadAllText($a) -ceq [IO.File]::ReadAllText($b))
   }
-  # The pid a launcher wrote ($fichier), if a node process still has it.
+  # The pid a launcher wrote ($fichier), if a node process still has it. On Windows its name is
+  # `node`; elsewhere, node names its main thread `node-MainThread`, and that is the name read.
   function PidVivant([string]$fichier) {
     try { $lu = ([IO.File]::ReadAllText($fichier)).Trim() } catch { return $null }
     if ($lu -notmatch '^[0-9]+$') { return $null }
     $process = Get-Process -Id ([int]$lu) -ErrorAction SilentlyContinue
-    if ($process -and $process.ProcessName -eq 'node') { return [int]$lu }
+    if ($process -and $process.ProcessName -like 'node*') { return [int]$lu }
     return $null
   }
   # The machine's and the account's PATH, read again: what winget just installed is on it.
