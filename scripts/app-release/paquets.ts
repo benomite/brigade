@@ -43,15 +43,19 @@ export function paquetsDeLApp(version: string, signe: boolean): Paquet[] {
   ];
 }
 
-// The station runs on Linux and macOS, installed by one script (runtime/deploy/installer-station.sh).
-// `installer-station.sh`, `brigade-station_amd64.deb` and `brigade-station-mac.tar.gz` keep their
-// names: the install command (`releases/latest/download/installer-station.sh`), the script itself and
+// The station runs on Linux and macOS, installed by one script (runtime/deploy/installer-station.sh),
+// and on Windows, installed by its PowerShell twin (runtime/deploy/windows/installer-station.ps1).
+// `installer-station.sh`, `installer-station.ps1`, `brigade-station_amd64.deb`,
+// `brigade-station-mac.tar.gz` and `brigade-station-windows.zip` keep their names: the install
+// commands (`releases/latest/download/installer-station.sh` and `.ps1`), the scripts themselves and
 // the running stations' own update (runtime/src/mise-a-jour/publications.ts) read them by name.
 export function paquetsDeLaStation(): Paquet[] {
   return [
     { construit: "installer-station.sh", nom: "installer-station.sh", plateforme: "Linux", quoi: "Station, install script (Linux and macOS)", ouverture: OUVERTURE.Linux },
     { construit: "brigade-station_amd64.deb", nom: "brigade-station-linux-amd64.deb", plateforme: "Linux", quoi: "Station, Debian/Ubuntu package (amd64)", ouverture: "No executable bit to set: install it with `sudo apt install ./brigade-station-linux-amd64.deb`." },
     { construit: "brigade-station-mac.tar.gz", nom: "brigade-station-mac.tar.gz", plateforme: "Mac", quoi: "Station, runtime for macOS (the install script sets it up)", ouverture: "Nothing to open: run `installer-station.sh` with `sh`, under your account, without sudo." },
+    { construit: "installer-station.ps1", nom: "installer-station.ps1", plateforme: "Windows", quoi: "Station, install script (Windows)", ouverture: "Nothing to unblock: paste `irm <its address> | iex` into PowerShell, under your account, as an ordinary user." },
+    { construit: "brigade-station-windows.zip", nom: "brigade-station-windows.zip", plateforme: "Windows", quoi: "Station, runtime for Windows (the install script sets it up)", ouverture: "Nothing to open: `installer-station.ps1` downloads and sets it up." },
   ];
 }
 
@@ -66,7 +70,7 @@ export function notes({ produit, version, signe, commit }: OptionsNotes): string
   // The station has no signing: its row says what to do, not that the build is unsigned.
   const etat =
     produit === "station"
-      ? "The station is a Linux package and a macOS runtime, both set up by the install script: nothing is signed by an app store, so there is no warning to click through."
+      ? "The station is a Linux package, and a runtime for macOS and for Windows, each set up by its install script: nothing is signed by an app store, so there is no warning to click through."
       : signe
         ? "These builds are signed: the Mac app is notarized and the Windows installer is signed, so they open without a warning. The steps below only apply to an unsigned build."
         : "These builds are unsigned: the first time you open one, your system warns you. Follow the steps of its row.";

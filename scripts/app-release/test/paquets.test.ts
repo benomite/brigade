@@ -8,7 +8,7 @@ import { notes, paquetsDeLApp, paquetsDeLaStation, renommer } from "../paquets.t
 
 test("every package name includes its platform", () => {
   for (const p of [...paquetsDeLApp("1.2.3", false), ...paquetsDeLaStation()]) {
-    if (p.nom === "installer-station.sh") continue; // named by the install command everybody copies
+    if (p.nom === "installer-station.sh" || p.nom === "installer-station.ps1") continue; // named by the install commands everybody copies
     assert.match(p.nom.toLowerCase(), new RegExp(p.plateforme.toLowerCase()), p.nom);
   }
 });
@@ -27,11 +27,13 @@ test("the app notes list each package with its platform and its steps", () => {
   assert.match(texte, /unsigned/);
 });
 
-test("the station notes list its Linux packages, its macOS runtime and the executable bit", () => {
+test("the station notes list its Linux packages, its macOS and Windows runtimes, and the executable bit", () => {
   const texte = notes({ produit: "station", version: "0.1.0" });
   assert.match(texte, /\| `brigade-station-linux-amd64\.deb` \| Linux \|/);
   assert.match(texte, /\| `brigade-station-mac\.tar\.gz` \| Mac \|.*without sudo/);
   assert.match(texte, /\| `installer-station\.sh` \| Linux \|.*chmod \+x/);
+  assert.match(texte, /\| `installer-station\.ps1` \| Windows \|.*irm <its address> \\\| iex/);
+  assert.match(texte, /\| `brigade-station-windows\.zip` \| Windows \|/);
 });
 
 test("renaming gives the release names and keeps the updater files readable", () => {

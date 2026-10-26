@@ -1,8 +1,10 @@
 # Publie la station : à chaque merge sur la branche d'intégration (`main` après le passage, `v2` avant) qui change ce que le paquet porte
 # (le runtime livré et `runtime/paquet/`), une release `station-<version>` avec
 # `installer-station.sh` (runtime/deploy/, la commande d'installation sous Linux et macOS),
-# `brigade-station_amd64.deb` et sa copie `brigade-station-linux-amd64.deb`, et
-# `brigade-station-mac.tar.gz` — le runtime que le paquet porte, pour macOS —, avec des notes qui disent la plateforme. La version est celle que
+# `installer-station.ps1` (runtime/deploy/windows/, celle de Windows),
+# `brigade-station_amd64.deb` et sa copie `brigade-station-linux-amd64.deb`,
+# `brigade-station-mac.tar.gz` — le runtime que le paquet porte, pour macOS — et
+# `brigade-station-windows.zip` — le même, pour Windows —, avec des notes qui disent la plateforme. La version est celle que
 # `construire.ts` se donne sans `--version` : `0.<AAAAMMJJ>.<HHMMSS>+g<commit>`.
 # Un merge qui ne touche que l'app, la doc ou le plugin V1 ne publie rien.
 # `workflow_dispatch` publie le commit choisi, à la main.
@@ -63,14 +65,19 @@ jobs:
           # installer-station.sh pose sur un Mac, à côté du node qu'il y télécharge.
           dpkg-deb -x "$deb" "$RUNNER_TEMP/deb"
           tar -C "$RUNNER_TEMP/deb/usr/lib/brigade-station" -czf "$RUNNER_TEMP/brigade-station-mac.tar.gz" runtime
+          # Le même runtime, zippé : ce que runtime/deploy/windows/installer-station.ps1 pose sur un PC.
+          (cd "$RUNNER_TEMP/deb/usr/lib/brigade-station" && zip -qr "$RUNNER_TEMP/brigade-station-windows.zip" runtime)
           node scripts/app-release/paquets.ts notes --produit station --version "$version" --commit "$GITHUB_SHA" > "$RUNNER_TEMP/notes.md"
           cat "$RUNNER_TEMP/notes.md" >> "$GITHUB_STEP_SUMMARY"
           sed "s#@DEPOT@#$GITHUB_REPOSITORY#" runtime/deploy/installer-station.sh >"$RUNNER_TEMP/installer-station.sh"
+          sed "s#@DEPOT@#$GITHUB_REPOSITORY#" runtime/deploy/windows/installer-station.ps1 >"$RUNNER_TEMP/installer-station.ps1"
           gh release create "$tag" \
             "$RUNNER_TEMP/installer-station.sh" \
+            "$RUNNER_TEMP/installer-station.ps1" \
             "$RUNNER_TEMP/brigade-station_amd64.deb" \
             "$RUNNER_TEMP/brigade-station-linux-amd64.deb" \
             "$RUNNER_TEMP/brigade-station-mac.tar.gz" \
+            "$RUNNER_TEMP/brigade-station-windows.zip" \
             --target "$GITHUB_SHA" \
             --title "Station $version" \
             --notes-file "$RUNNER_TEMP/notes.md" \
