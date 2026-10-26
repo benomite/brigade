@@ -1237,6 +1237,113 @@ main > header,
   font-size: 12px;
   color: var(--discret);
 }
+/* La page des ratios de tous les projets (ticket 1682), à la place de l'accueil comme celle des coûts : le retour
+   à l'accueil, puis une ligne par projet qui a un closer réglé — sa teinte, son nom, son rapport ajouté / retiré
+   et ce qu'il compte, sa tendance et ses valeurs successives. */
+#ratios {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+#ratios .retour {
+  align-self: flex-start;
+  color: var(--discret);
+}
+.tendances h2 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--discret);
+}
+.tendances .projets-tendance {
+  display: grid;
+  gap: 0;
+  list-style: none;
+  margin: 0;
+  padding: 4px 14px;
+  background: var(--carte);
+  border: 1px solid var(--trait-doux);
+  border-radius: var(--rayon-carte);
+}
+.tendances .projets-tendance li {
+  display: grid;
+  grid-template-columns: 8px minmax(7em, 12em) minmax(0, 1fr) minmax(0, 1.6fr);
+  align-items: baseline;
+  gap: 12px;
+  padding: 10px 0;
+  font-size: 13px;
+}
+.tendances .projets-tendance li + li {
+  border-top: 1px solid var(--trait-doux);
+}
+.tendances .teinte {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--teinte);
+}
+.tendances button.projet {
+  padding: 0;
+  text-align: left;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+  color: var(--texte);
+}
+.tendances button.projet:hover {
+  text-decoration: underline;
+}
+.tendances :is(.actuel, .tendance) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  min-width: 0;
+}
+.tendances .rapport {
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--texte);
+}
+.tendances .rapport.sans {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--discret);
+}
+.tendances :is(.precise, .valeurs) {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--discret);
+}
+.tendances .valeurs {
+  flex-basis: 100%;
+}
+.tendances .sens {
+  font-weight: 600;
+  color: var(--texte-doux);
+}
+.tendances .sens[data-sens="down"] {
+  color: var(--vert);
+}
+.tendances .sens[data-sens="up"] {
+  color: var(--jaune);
+}
+.tendances .sens.peu {
+  font-weight: 400;
+  color: var(--discret);
+}
+.tendances .indisponible {
+  grid-column: 3 / -1;
+  margin: 0;
+  font-size: 13px;
+  color: var(--discret);
+}
+.tendances .sans {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: var(--discret);
+}
 /* La courbe de la page des coûts, sous la tête : les tokens de chaque jour, une ligne par projet, à la teinte de
    sa pastille. Le tracé s'étire à la largeur de l'onglet ; ses jours et son plus haut sont du texte
    posé autour, qui ne s'étire pas. */

@@ -841,6 +841,9 @@ STATIONS
 COST
   all projects  tokens over 5 h, 24 h and 7 d · lost tokens · most …  ›
 
+CLOSER
+  all projects  added / removed ratio and its trend                  ›
+
 ● Max ✓  ·  GitHub ✓
 ```
 
@@ -865,6 +868,8 @@ COST
 - **A "Cost" row**, under the stations, opens **the cost of all projects** (#1022), in place of
   the home — without opening any project (see "The cost of all projects"). It shows no
   figure: the cost reading only starts when its page is open.
+- **A "Closer" row**, under it, opens **the added / removed ratio of all projects** (#1682) the same way (see "The
+  added / removed ratio of all projects").
 - **"+ station"**, under the list of stations, opens the pairing code field — nowhere
   else on the home. Once paired, the station appears in the list and the field closes, with no
   message left on display; "cancel" closes it, empty.
@@ -937,6 +942,41 @@ known of it, its number.
 project's threshold, or a project's lost tokens exceed theirs, the block turns red and **a single line carries the action, as a button** ("open the card of #7", "open the list");
 under the threshold, nothing more is shown. A threshold "not set" is not invented: the block says "ceiling: not communicated"
 in place of the alert. The same thresholds judge, the same way, a project's cost on its page.
+
+### The added / removed ratio of all projects
+
+*Ticket: #1682 (epic #1663).* **On the home, under "Cost", a "Closer" row opens the page of the added / removed
+ratio of every project**, in place of the home, like the cost page — "‹ All projects" brings you back. It reads
+`closing --json` **on the box of each project** the cost page reads (`RATIOS`, `app/src/onglets.ts`), every thirty
+seconds while it is displayed, and only then. Nothing is added to the runtime: the page reads the object that
+`closing --json` writes today.
+
+```
+added / removed, per project
+● brigade   15.5:1  +24,800 / −1,600 · last 100 merges   going down ?
+                                                         51–100 merges ago: 20:1 · 21–50 merges ago: 16:1 · last 20 merges: 8:1
+● parade    4:1     +18,200 / −4,500 · last 100 merges   flat ?
+● cantine   2.8:1   +17,000 / −6,000 · last 100 merges   going up ?
+● atelier   7:1     +2,100 / −300 · last 14 merges       not enough data ?
+```
+
+- **One row per project with a closer set**, in the file's order; **a project with no closer set has no row**. A
+  click on its name opens its space.
+- **Its current ratio** is the one of its Closer reading (see "The Closer reading"): the longest window, in the words
+  of `closing` (`15.5:1`, `nothing removed`), with what it counts below.
+- **Its trend — going down, flat or going up — is read from successive values of the ratio.** The runtime keeps no
+  history of the ratio: `closing --json` gives it over the last 20, 50 and 100 merges, each window taken from the same
+  list of merges. Their differences are three spans that follow each other — merges 51 to 100 back, 21 to 50, the last
+  20 —, shown oldest first under the trend. The most recent span is compared with the oldest: more than 10% lower is
+  **going down** (green), more than 10% higher **going up** (yellow), **flat** otherwise; the rule is on hover. A span
+  that removed nothing counts as the highest of ratios.
+- **Too little data says so**: a span counts only with 10 merges or more that changed a line, and a trend needs two.
+  A younger branch shows **"not enough data"** — and why, on hover — instead of a trend; its current ratio stays.
+- An unreadable integration branch, or a reading that failed, fits in one line (`the integration branch could not be
+  read`, `the closer could not be read`), the detail on hover. As long as a box is not read: `reading…`. All read and no
+  closer set anywhere: `No project has a closer set.`
+
+The code lives in `app/src/vue/closer/tendance/tendance.js`. Capture: `docs/captures/1682/`.
 
 ### The app's code: up to date, or behind
 
