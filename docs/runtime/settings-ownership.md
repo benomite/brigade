@@ -64,43 +64,86 @@ These are the `BRIGADE_*` variables the runtime reads from the service environme
 
 | Setting | What it sets | Belongs to | Reason | Moved by |
 |---|---|---|---|---|
-| `BRIGADE_DRIFT_CONTEXT_KB`, `BRIGADE_DRIFT_GATES_SECONDS`, `BRIGADE_DRIFT_GROWTH_PERCENT`, `BRIGADE_DRIFT_MERGES`, `BRIGADE_DRIFT_REPO_MB`, `BRIGADE_DRIFT_TESTS`, `BRIGADE_DRIFT_TESTS_SECONDS` | The other drift thresholds | project | What counts as drift is about the project's code and tests | [#1671](https://github.com/benomite/brigade/issues/1671) |
-| `BRIGADE_CORRECTION_THRESHOLD`, `BRIGADE_CORRECTION_WINDOW` | When repeated corrections raise a proposal | project | A rule about the project's work | [#1671](https://github.com/benomite/brigade/issues/1671) |
-| `BRIGADE_PROFILE_WINDOW`, `BRIGADE_PROFILE_MIN_TICKETS`, `BRIGADE_PROFILE_GAP_POINTS` | When a cook profile is proposed | project | Computed from the project's tickets | [#1671](https://github.com/benomite/brigade/issues/1671) |
-| `BRIGADE_GATES_TIMEOUT_SECONDS`, `BRIGADE_CI_WAIT_SECONDS` | How long the pass waits for the gates and for CI | project | Depends on the project's tests and CI | [#1672](https://github.com/benomite/brigade/issues/1672) |
-| `BRIGADE_LEASE_SECONDS` | The lease on a taken ticket | project | Rail rule for the project's tickets | [#1673](https://github.com/benomite/brigade/issues/1673) *Move the rail and lessons policy…* |
+| `BRIGADE_DRIFT_CONTEXT_KB` | Drift threshold: size of the context a cook receives, in KB | project | What counts as drift is about the project's code | [#1671](https://github.com/benomite/brigade/issues/1671) |
+| `BRIGADE_DRIFT_GATES_SECONDS` | Drift threshold: duration of the gates, in seconds | project | Depends on the project's tests | [#1671](https://github.com/benomite/brigade/issues/1671) |
+| `BRIGADE_DRIFT_GROWTH_PERCENT` | Drift threshold: growth of the project's measures, in % | project | About the project's code | [#1671](https://github.com/benomite/brigade/issues/1671) |
+| `BRIGADE_DRIFT_MERGES` | Drift measure: number of merges per reading | project | About the project's rhythm of work | [#1671](https://github.com/benomite/brigade/issues/1671) |
+| `BRIGADE_DRIFT_REPO_MB` | Drift threshold: size of the repository, in MB | project | About the project's code | [#1671](https://github.com/benomite/brigade/issues/1671) |
+| `BRIGADE_DRIFT_TESTS` | Drift threshold: number of tests | project | About the project's tests | [#1671](https://github.com/benomite/brigade/issues/1671) |
+| `BRIGADE_DRIFT_TESTS_SECONDS` | Drift threshold: duration of the tests, in seconds | project | About the project's tests | [#1671](https://github.com/benomite/brigade/issues/1671) |
+| `BRIGADE_CORRECTION_THRESHOLD` | How many repeated corrections raise a proposal (2 or more) | project | A rule about the project's work | [#1671](https://github.com/benomite/brigade/issues/1671) |
+| `BRIGADE_CORRECTION_WINDOW` | Window, in tickets, in which corrections are counted | project | A rule about the project's work | [#1671](https://github.com/benomite/brigade/issues/1671) |
+| `BRIGADE_PROFILE_WINDOW` | Window, in tickets, from which a cook profile is computed | project | Computed from the project's tickets | [#1671](https://github.com/benomite/brigade/issues/1671) |
+| `BRIGADE_PROFILE_MIN_TICKETS` | Tickets needed in that window before a profile is proposed | project | Computed from the project's tickets | [#1671](https://github.com/benomite/brigade/issues/1671) |
+| `BRIGADE_PROFILE_GAP_POINTS` | Gap, in points, that makes a profile worth proposing | project | Computed from the project's tickets | [#1671](https://github.com/benomite/brigade/issues/1671) |
+| `BRIGADE_GATES_TIMEOUT_SECONDS` | How long the pass waits for the gates | project | Depends on the project's tests | [#1672](https://github.com/benomite/brigade/issues/1672) |
+| `BRIGADE_CI_WAIT_SECONDS` | How long the pass waits for CI | project | Depends on the project's CI | [#1672](https://github.com/benomite/brigade/issues/1672) |
+| `BRIGADE_LEASE_SECONDS` | The lease on a taken ticket | project | Rail rule for the project's tickets | [#1673](https://github.com/benomite/brigade/issues/1673) |
 | `BRIGADE_COMMON_PATHS` | Paths the rail treats as common to all tickets | project | Describes the project's tree | [#1673](https://github.com/benomite/brigade/issues/1673) |
 | `BRIGADE_ROADMAP_ISSUE` | The roadmap issue the manager reads | project | Names a ticket of the project | [#1673](https://github.com/benomite/brigade/issues/1673) |
 | `BRIGADE_INJECTED_LESSONS` | How many lessons a cook receives (20) | project | Policy on the project's notebook | [#1673](https://github.com/benomite/brigade/issues/1673) |
-| `BRIGADE_PROMOTION_RETROS`, `BRIGADE_PROVISIONAL_EXPIRY_TICKETS`, `BRIGADE_PROMOTED_EXPIRY_TICKETS`, `BRIGADE_SENDBACK_PROMOTION_GAP` | When a lesson is promoted or expires | project | Policy on the project's notebook | [#1673](https://github.com/benomite/brigade/issues/1673) |
+| `BRIGADE_PROMOTION_RETROS` | Retros needed before a lesson is promoted | project | Policy on the project's notebook | [#1673](https://github.com/benomite/brigade/issues/1673) |
+| `BRIGADE_PROVISIONAL_EXPIRY_TICKETS` | Tickets after which a provisional lesson expires | project | Policy on the project's notebook | [#1673](https://github.com/benomite/brigade/issues/1673) |
+| `BRIGADE_PROMOTED_EXPIRY_TICKETS` | Tickets after which a promoted lesson expires | project | Policy on the project's notebook | [#1673](https://github.com/benomite/brigade/issues/1673) |
+| `BRIGADE_SENDBACK_PROMOTION_GAP` | Send-back gap that triggers a lesson promotion | project | Policy on the project's notebook | [#1673](https://github.com/benomite/brigade/issues/1673) |
 
 ### 2.3 Identity of the project on the station
 
 | Setting | What it sets | Belongs to | Reason |
 |---|---|---|---|
-| `BRIGADE_PROJECT`, `BRIGADE_GITHUB_REPO`, `BRIGADE_BASE_BRANCH` | Name, repository and integration branch: the first three fields of the station's line | station | They tell this station which project to serve; the project's own value of the branch is `projet.json` (`../reglages.md`) |
-| `BRIGADE_REPO_DIR`, `BRIGADE_WORKTREES_DIR`, `BRIGADE_PROJECTS_DIR`, `BRIGADE_STATION_DIR`, `BRIGADE_STATE_DIR` | Where the clone, the worktrees, the station and the state (the **log**) live | station | Paths of a machine |
+| `BRIGADE_PROJECT` | Name of the project: first field of the station's line | station | It tells this station which project to serve |
+| `BRIGADE_GITHUB_REPO` | Repository of the project: second field of the line | station | Same |
+| `BRIGADE_BASE_BRANCH` | Integration branch: third field of the line | station | Same; the project's own value is `projet.json` (`../reglages.md`) |
+| `BRIGADE_REPO_DIR` | The station's reserved clone of the project | station | A path of a machine |
+| `BRIGADE_WORKTREES_DIR` | The station's workshop for worktrees | station | A path of a machine |
+| `BRIGADE_PROJECTS_DIR` | Where local copies of projects are kept | station | A path of a machine |
+| `BRIGADE_STATION_DIR` | The station's own directory | station | A path of a machine |
+| `BRIGADE_STATE_DIR` | The project's state directory, where the **log** lives | station | A path of a machine |
 | `BRIGADE_PORT` | The project's port | station | A port of a machine |
 
 ### 2.4 Engines and tools
 
 | Setting | What it sets | Belongs to | Reason |
 |---|---|---|---|
-| `BRIGADE_CLAUDE_BIN`, `BRIGADE_GH_BIN`, `BRIGADE_GIT_BIN`, `BRIGADE_SSH_BIN`, `BRIGADE_SYSTEMCTL_BIN`, `BRIGADE_TAILSCALE_BIN`, `BRIGADE_SANDBOX_BIN` | The programs the station runs (the **engines** and their tools) | station | What is installed on the machine |
-| `BRIGADE_STATION_NOM`, `BRIGADE_STATION_VERSION`, `BRIGADE_STATION_PORTES`, `BRIGADE_STATION_TICK_S`, `BRIGADE_STATION_ECART_S`, `BRIGADE_PRESENCE_MINUTES` | Name, version, doors and timing of the station | station | Identity and rhythm of the machine |
-| `BRIGADE_MISE_A_JOUR_DIR`, `BRIGADE_MISE_A_JOUR_SOURCE`, `BRIGADE_MISE_A_JOUR_GARDE_S` | The station's own update | station | Which brigade runs on this machine |
-| `BRIGADE_GUICHET_TELEPHONES`, `BRIGADE_SECOND_DIR`, `BRIGADE_SECOND_PROPOSAL`, `BRIGADE_APP_CONFIG`, `BRIGADE_REGISTRE_DIR` | Phones, the second, the app's file, the station registry | station | Files and channels of one machine |
+| `BRIGADE_CLAUDE_BIN` | The `claude` program the station runs (its **engine**) | station | What is installed on the machine |
+| `BRIGADE_GH_BIN` | The `gh` program | station | What is installed on the machine |
+| `BRIGADE_GIT_BIN` | The `git` program | station | What is installed on the machine |
+| `BRIGADE_SSH_BIN` | The `ssh` program | station | What is installed on the machine |
+| `BRIGADE_SYSTEMCTL_BIN` | The `systemctl` program | station | What is installed on the machine |
+| `BRIGADE_TAILSCALE_BIN` | The `tailscale` program | station | What is installed on the machine |
+| `BRIGADE_SANDBOX_BIN` | The sandbox program (bwrap) | station | What is installed on the machine |
+| `BRIGADE_STATION_NOM` | Name the station announces (the host name by default) | station | Identity of the machine |
+| `BRIGADE_STATION_VERSION` | Version the station announces | station | Which brigade runs on this machine |
+| `BRIGADE_STATION_PORTES` | File of the station's doors | station | A file of a machine |
+| `BRIGADE_STATION_TICK_S` | The station's tick, in seconds | station | Rhythm of the machine |
+| `BRIGADE_STATION_ECART_S` | Gap tolerated between the station's ticks, in seconds | station | Rhythm of the machine |
+| `BRIGADE_PRESENCE_MINUTES` | How long a station counts as present after its last sign | station | Rhythm of the machine |
+| `BRIGADE_MISE_A_JOUR_DIR` | Directory of the station's own update | station | Which brigade runs on this machine |
+| `BRIGADE_MISE_A_JOUR_SOURCE` | Where the station finds new versions of brigade | station | Which brigade runs on this machine |
+| `BRIGADE_MISE_A_JOUR_GARDE_S` | Time left to the station to start after an update, in seconds | station | Which brigade runs on this machine |
+| `BRIGADE_GUICHET_TELEPHONES` | The counter of paired phones | station | A channel of one machine |
+| `BRIGADE_SECOND_DIR` | The second's directory | station | A file of one machine |
+| `BRIGADE_SECOND_PROPOSAL` | The channel of the second's proposals | station | A file of one machine |
+| `BRIGADE_APP_CONFIG` | The app's configuration file (`app.json`) | station | A file of the chef's Mac |
+| `BRIGADE_REGISTRE_DIR` | The registry of enrolled stations | station | A directory of one machine |
 | `BRIGADE_INSTALLER_CONFIG` | The installer's configuration | station | Installing this machine |
 
 ### 2.5 Capacity
 
 | Setting | What it sets | Belongs to | Reason |
 |---|---|---|---|
-| `BRIGADE_MAX_LOAD_PER_CORE`, `BRIGADE_MIN_FREE_DISK_MB`, `BRIGADE_MIN_FREE_MEMORY_MB` | When the machine is too loaded to take a cook | station | The machine's capacity |
+| `BRIGADE_MAX_LOAD_PER_CORE` | Load per core above which the machine takes no cook (1.5) | station | The machine's capacity |
+| `BRIGADE_MIN_FREE_DISK_MB` | Free disk below which the machine takes no cook | station | The machine's capacity |
+| `BRIGADE_MIN_FREE_MEMORY_MB` | Free memory below which the machine takes no cook | station | The machine's capacity |
 | `BRIGADE_MAX_SETUPS` | Cooks entering a worktree setup at a time | station | The machine's capacity |
-| `BRIGADE_ARBITER_MAX_COOKS`, `BRIGADE_ARBITER_PORT`, `BRIGADE_ARBITER_STATE_DIR` | The arbiter that shares the machine between projects | station | It splits one machine, across projects |
+| `BRIGADE_ARBITER_MAX_COOKS` | Cooks the arbiter lets all projects run together | station | It splits one machine between projects |
+| `BRIGADE_ARBITER_PORT` | Port of the arbiter | station | A port of a machine |
+| `BRIGADE_ARBITER_STATE_DIR` | State directory of the arbiter | station | A path of a machine |
 | `BRIGADE_COMMON_TIER_PROJECTS` | Number of projects from which a proposal rises to the common tier | station | Counts across the projects of a machine |
-| `BRIGADE_SANDBOX_HIDDEN`, `BRIGADE_SANDBOX_PRIVATE`, `BRIGADE_SANDBOX_CACHES`, `BRIGADE_PROXY_PORT` | The partition: what a cook cannot see, the caches, the proxy | station | Isolation is a property of the machine |
+| `BRIGADE_SANDBOX_HIDDEN` | What a cook cannot see in the partition | station | Isolation is a property of the machine |
+| `BRIGADE_SANDBOX_PRIVATE` | Entries of the account's home kept private | station | Isolation is a property of the machine |
+| `BRIGADE_SANDBOX_CACHES` | Caches shared into the sandbox | station | Isolation is a property of the machine |
+| `BRIGADE_PROXY_PORT` | Port of the proxy a cook goes out through | station | A port of a machine |
 
 ### 2.6 Secrets
 
@@ -108,15 +151,20 @@ These are the `BRIGADE_*` variables the runtime reads from the service environme
 |---|---|---|---|
 | `BRIGADE_SECRETS_FILE` | The project's secrets file | station | A **secret** never leaves its machine |
 | `BRIGADE_CLAUDE_TOKEN_FILE` | The Max token | station | Same |
-| `BRIGADE_GITHUB_APPS_DIR`, `BRIGADE_GITHUB_API_URL` | The GitHub Apps' keys and the API they call | station | Same |
-| `BRIGADE_SESSION_STATE`, `BRIGADE_SESSION_LIFETIME`, `BRIGADE_SESSION_WARNING` | The renewal of the session token | station | Same |
+| `BRIGADE_GITHUB_APPS_DIR` | The GitHub Apps' keys | station | Same |
+| `BRIGADE_GITHUB_API_URL` | The API the Apps call | station | Same machine-side credential path |
+| `BRIGADE_SESSION_STATE` | State file of the session token's renewal | station | Same |
+| `BRIGADE_SESSION_LIFETIME` | How long a session token lives | station | Same |
+| `BRIGADE_SESSION_WARNING` | Notice given before a token expires | station | Same |
 | `BRIGADE_FICHIER_PROTEGE` | Internal: file whose rights are tightened | station | Internal to the machine |
 
 ### 2.7 Log and backups
 
 | Setting | What it sets | Belongs to | Reason |
 |---|---|---|---|
-| `BRIGADE_BACKUP_DIR`, `BRIGADE_BACKUP_KEEP`, `BRIGADE_BACKUP_MAX_AGE_HOURS` | Where and how long the **log** is backed up | station | The log is the machine's |
+| `BRIGADE_BACKUP_DIR` | Where the **log** is backed up | station | The log is the machine's |
+| `BRIGADE_BACKUP_KEEP` | How many dated backups are kept | station | The log is the machine's |
+| `BRIGADE_BACKUP_MAX_AGE_HOURS` | Age past which the last backup is reported stale | station | The log is the machine's |
 | `BRIGADE_TRANSCRIPTS_KEEP_DAYS` | How long cook transcripts are kept | station | Disk of the machine |
 
 (`BRIGADE_SUR_L_ISSUE` and `BRIGADE_SANDBOX_` in the code are internal markers, not settings.)
