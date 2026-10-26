@@ -280,8 +280,9 @@ describe("sous macOS", { skip: posixOnly("the installer is a POSIX shell script"
     assert.equal(jouer([], mac.env).code, 0);
     const racine = join(mac.home, ".config/brigade/station");
     writeFileSync(join(racine, "app.pid"), `${process.pid}\n`);
-    const lanceur = spawn("/bin/sh", [join(mac.base, "lancer-station")], { env: { PATH: "/usr/bin:/bin", BRIGADE_STATION_DIR: racine } });
-    t.after(() => void lanceur.kill("SIGKILL"));
+    // Son propre groupe : le `sleep` qu'il attend part avec lui.
+    const lanceur = spawn("/bin/sh", [join(mac.base, "lancer-station")], { env: { PATH: "/usr/bin:/bin", BRIGADE_STATION_DIR: racine }, detached: true });
+    t.after(() => void process.kill(-(lanceur.pid as number), "SIGKILL"));
     let sortie = "";
     lanceur.stdout.on("data", (bloc: Buffer) => void (sortie += bloc.toString()));
     await jusqua(() => sortie.includes("tenue par l'app"));
