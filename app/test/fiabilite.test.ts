@@ -1,6 +1,7 @@
 // La fiabilité des cooks d'un projet (#987) : ce que l'app lit de `station` et de `measures` — la part
 // livrée du premier coup face à son seuil, les essais moyens, les tokens perdus, les causes d'échec —,
-// la dérive que `status` signale, et la page Reliability telle que la vue la pose. Les sorties de
+// la dérive que `status` signale, et sa section de l'onglet Cooks telle que la vue la pose (#1699 : elle était la page
+// Settings → Reliability). Les sorties de
 // `measures` et les lignes `drift` sont écrites par les fonctions mêmes du runtime : l'app lit ce
 // que la box écrit, pas une copie de sa forme.
 import assert from "node:assert/strict";
@@ -26,9 +27,9 @@ import { BANNIERE } from "../src/faits.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
-import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
+import { commandesDe, ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { CAUSES, ESSAIS, PERDUS, PREMIER_COUP, poserFiabilite } from "../src/vue/fiabilite.js";
-import { Faux, jouerLaVue, ouvrirLecture, repos } from "./aides/fausse-vue.ts";
+import { Faux, jouerLaVue, ouvrirLecture, ouvrirOnglet, repos } from "./aides/fausse-vue.ts";
 import { SANS_POSIX } from "./aides/posix.ts";
 
 const A = "2026-10-19T10:00:00.000Z";
@@ -266,14 +267,16 @@ describe("la dérive, dans `status`, et l'accueil", () => {
   });
 });
 
-describe("la page Reliability, posée par la vue", () => {
+describe("la fiabilité des cooks, posée par la vue", () => {
   const texteDe = (poses: Faux[]) => poses.map(({ textContent }) => textContent).join("\n");
   const mesure = (vu: Vu) => ("mesure" in vu ? vu : assert.fail("pas mesurée"));
 
-  test("elle est une lecture de Settings, à côté de Rail, Cooks, Manager et Grants — le seul onglet du haut, Cost vivant au niveau de l'app (#1022)", () => {
+  test("elle n'est plus une page de Settings : l'onglet Cooks la lit, `station` puis `measures` sur sa fenêtre (#1699)", () => {
     assert.deepEqual(RUBRIQUES.map(({ titre }) => titre), ["Settings"]);
-    assert.ok(RUBRIQUES.find(({ titre }) => titre === "Settings")?.lectures.includes("fiabilite"));
-    assert.equal(ONGLETS.find(({ id }) => id === "fiabilite")?.titre, "Reliability");
+    assert.ok(!RUBRIQUES.some(({ lectures }) => lectures.includes("fiabilite")));
+    assert.ok(!ONGLETS.some(({ id, titre }) => id === "fiabilite" || titre === "Reliability"));
+    assert.deepEqual(commandesDe("fiabilite"), []);
+    assert.deepEqual(commandesDe("cooks").slice(0, COMMANDES.length), [...COMMANDES]);
   });
 
   test("trois chiffres face à leurs seuils, celui qui les franchit mis en évidence, puis les causes et leurs tickets", () => {
@@ -331,7 +334,7 @@ describe("la page Reliability, posée par la vue", () => {
   });
 });
 
-describe("la page Reliability, dans l'espace du projet", () => {
+describe("la fiabilité des cooks, sur l'onglet Cooks du projet (#1699)", () => {
   async function ouvrir() {
     const vue = await jouerLaVue({
       demarrage: () => ({
@@ -350,38 +353,67 @@ describe("la page Reliability, dans l'espace du projet", () => {
     });
     (vue.element("projets").children.at(1) ?? assert.fail("pas de case parade")).click();
     await repos();
-    await ouvrirLecture(vue, "Reliability");
+    await ouvrirLecture(vue, "Cooks");
     return vue;
   }
+  const lue = (demande: number) => ({ projet: "parade", demande, a: A, sorties: [{ commande: "station", texte: station() }, { commande: "measures --last 10 --by 1", texte: mesures({ merges: TREIZE, tickets: DIX }) }] });
 
-  test("Settings → Reliability lit la fiabilité du projet, la pose, et un ticket d'une cause ouvre sa fiche", async () => {
+  test("Cooks lit la fiabilité du projet avec sa lecture, la pose sous ses tickets, et un ticket d'une cause ouvre sa fiche", async () => {
     const vue = await ouvrir();
     const [projet, id, demande] = vue.dernier("onglet") as [string, string, number];
-    assert.deepEqual([projet, id], ["parade", "fiabilite"]);
-    const page = vue.element("fiabilite");
-    assert.equal(page.hidden, false);
-    assert.match(page.textContent, /reading…/);
+    assert.deepEqual([projet, id], ["parade", "cooks"]);
+    const section = vue.element("fiabilite-du-projet");
+    assert.match(section.textContent, /reading…/);
+    // Une section de Cooks, sous ses tickets de l'heure et du jour, au-dessus de ses gates : pas un écran à part.
+    const rail = vue.element("rail");
+    const place = (cherche: string) => rail.children.findIndex((pose) => pose.id === cherche);
+    assert.equal(place("fiabilite-du-projet"), place("activite-du-projet") + 1);
+    assert.equal(place("gates-du-projet"), place("fiabilite-du-projet") + 1);
 
-    const lecture = { projet: "parade", demande, a: A, sorties: [{ commande: "station", texte: station() }, { commande: "measures --last 10 --by 1", texte: mesures({ merges: TREIZE, tickets: DIX }) }] };
+    const lecture = lue(demande);
     vue.dire("surContenu", lecture, undefined, undefined, { ...voir(lecture), demande });
     await repos();
-    assert.match(page.textContent, /delivered on the first try/);
-    // Ce que la box a dit n'est pas recopié : aucun bloc brut.
-    assert.deepEqual(vue.element("lecture-onglet").dessous("pre"), []);
+    assert.match(section.textContent, /delivered on the first try/);
     // Rien de technique à plat : ni commande, ni mode d'emploi.
-    assert.doesNotMatch(page.textContent, /ssh|brigade parade|usage|`/);
+    assert.doesNotMatch(section.textContent, /ssh|brigade parade|usage|`/);
+    // Ce que le projet a coûté n'y est pas porté : la page des coûts de l'app le dit, projet par projet.
+    assert.doesNotMatch(section.textContent, /cost of this project|most expensive/);
 
     assert.equal(vue.element("fiche").hidden, true);
-    (page.dessous("button").find(({ textContent }) => textContent === "#956") ?? assert.fail("pas de #956")).click();
+    (section.dessous("button").find(({ textContent }) => textContent === "#956") ?? assert.fail("pas de #956")).click();
     await repos();
     assert.equal(vue.element("fiche").hidden, false);
     assert.ok(vue.element("fiche").dessous("span").some(({ textContent }) => textContent === "#956"));
   });
 
-  test("quitter la page la vide : la lecture d'après ne montre rien de celle d'avant", async () => {
+  test("une lecture de Cooks ratée : sa ligne le dit, une fois — la section ne le redit pas", async () => {
     const vue = await ouvrir();
+    const demande = (vue.dernier("onglet") as [string, string, number])[2];
+    const ratee = { projet: "parade", demande, a: A, erreur: "ssh: connect to host box port 22: Connection refused", atteinte: false, cas: "ssh-en-echec" } as Lecture;
+    vue.dire("surContenu", ratee, undefined, undefined, { ...voir(ratee), demande });
+    await repos();
+    assert.equal(vue.element("fiabilite-du-projet").children.length, 0);
+  });
+
+  test("quitter Cooks la vide : la lecture d'après ne montre rien de celle d'avant", async () => {
+    const vue = await ouvrir();
+    const section = vue.element("fiabilite-du-projet");
+    const demande = (vue.dernier("onglet") as [string, string, number])[2];
+    const lecture = lue(demande);
+    vue.dire("surContenu", lecture, undefined, undefined, { ...voir(lecture), demande });
+    await repos();
+    // Une page ouverte par-dessus — Settings → Rail — : Cooks n'est plus lu, sa section se vide.
     await ouvrirLecture(vue, "Rail");
-    assert.equal(vue.element("fiabilite").hidden, true);
-    assert.equal(vue.element("fiabilite").children.length, 0);
+    assert.equal(section.children.length, 0);
+    // L'onglet Rail choisi : la section n'est plus dans la page.
+    await ouvrirOnglet(vue, "Rail");
+    assert.ok(!vue.element("rail").children.includes(section));
+  });
+
+  test("Settings n'a plus de page Reliability", async () => {
+    const vue = await ouvrir();
+    await ouvrirLecture(vue, "General");
+    assert.ok(!vue.element("parametres-onglets").children.some(({ textContent }) => textContent === "Reliability"));
+    await assert.rejects(ouvrirLecture(vue, "Reliability"), /pas de « Reliability »/);
   });
 });

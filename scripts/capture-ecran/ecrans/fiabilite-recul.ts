@@ -1,4 +1,4 @@
-// Settings → Reliability de « parade » quand des corrections de ses consignes ont été acceptées (#1001,
+// La fiabilité des cooks de « parade », sur son onglet Cooks quand des corrections de ses consignes ont été acceptées (#1001,
 // épique 994) : sous la fiabilité des cooks, ce que chaque correction a fait de sa cause, avant et après
 // son merge. Ce que la box rend de plus que la cuisine figée : le champ `reculs` de `facts`
 // (runtime/src/correctif/recul.ts), quatre corrections dans les quatre états qu'il connaît — la cause
@@ -41,7 +41,7 @@ export const RECULS = [
 
 export const ecran: Ecran = {
   ...fiabilite,
-  dit: "Settings → Reliability de « parade » avec quatre corrections acceptées : sous la fiabilité des cooks, chaque cause corrigée avant et après le merge — elle recule, elle ne recule pas, rien à comparer encore, pas encore mergée",
+  dit: "La fiabilité des cooks de « parade », sur son onglet Cooks avec quatre corrections acceptées : sous la fiabilité des cooks, chaque cause corrigée avant et après le merge — elle recule, elle ne recule pas, rien à comparer encore, pas encore mergée",
   donnees: () => {
     const sans = fiabilite.donnees();
     return { ...sans, envois: { ...sans.envois, ...cuisine({ ...RENDUS, parade: { ...PARADE, facts: { ...PARADE.facts, reculs: RECULS } as Rendu["facts"] } }) } };

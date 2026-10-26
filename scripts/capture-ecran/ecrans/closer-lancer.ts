@@ -1,4 +1,4 @@
-// Settings → Closer de « parade », « Launch a cleanup… » cliqué (#991) : la confirmation, d'après
+// Le closer de « parade », sur son onglet Cooks, « Launch a cleanup… » cliqué (#991) : la confirmation, d'après
 // l'aperçu que la box rend (`closing preview --json`, runtime/src/fermeture-action/apercu.ts) — ce
 // que le nettoyage coûte, en une ligne, ce que le closer va faire, ce que deviendrait la demande, et
 // le « oui », sans lequel rien ne part.
@@ -22,7 +22,7 @@ export const APERCU: Apercu = {
 
 export const ecran: Ecran = {
   ...closer,
-  dit: "Settings → Closer de « parade », « Launch a cleanup… » cliqué : la confirmation — le prix, ce que le closer va faire, et le « oui »",
+  dit: "Le closer de « parade », sur son onglet Cooks, « Launch a cleanup… » cliqué : la confirmation — le prix, ce que le closer va faire, et le « oui »",
   etapes: [...(closer.etapes ?? []), { cliquer: ".closer-lancement button.recommande" }],
   donnees: () => {
     const donnees = closer.donnees();

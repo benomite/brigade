@@ -1,7 +1,8 @@
 // La partie « closer » de la page d'un projet (vue/closer/section.js, #990) : les quatre chiffres de la
 // dernière observation, la liste de ce qu'elle a repéré derrière un bouton, et — sans closer réglé — le
 // message et le geste qui en règle un, un bouton, sans aucun chiffre. Le module est lu seul, sur un faux document,
-// puis la vue jouée telle qu'elle est (aides/fausse-vue.ts), sous Settings → Closer.
+// puis la vue jouée telle qu'elle est (aides/fausse-vue.ts), en section de l'onglet Cooks (#1699 : elle était la page
+// Settings → Closer).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../../src/allumage.ts";
@@ -14,7 +15,7 @@ import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
 import { BANNIERE } from "../../src/faits.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../../src/grants.ts";
-import { commandeDe, ONGLETS, PARAMETRES, RUBRIQUES } from "../../src/onglets.ts";
+import { commandeDe, commandesDe, ONGLETS, PARAMETRES, RUBRIQUES } from "../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import {
   AUCUNE,
@@ -34,7 +35,7 @@ import {
   REGLER,
   SANS_CLOSER,
 } from "../../src/vue/closer/section.js";
-import { Faux, jouerLaVue, ouvrirLecture, repos } from "../aides/fausse-vue.ts";
+import { Faux, jouerLaVue, ouvrirLecture, ouvrirOnglet, repos } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
 const A = "2026-10-19T12:00:00.000Z";
@@ -249,12 +250,14 @@ describe("la partie closer, pas encore lue ou ratée", () => {
   });
 });
 
-describe("la partie closer, dans l'espace du projet", () => {
-  test("elle est une lecture de Settings, qui lance `closing --json` — Settings reste le seul onglet du haut (#1022)", () => {
-    assert.equal(commandeDe("closer"), "closing --json");
-    assert.ok(ONGLETS.some(({ id, titre }) => id === "closer" && titre === "Closer"));
-    assert.ok(RUBRIQUES.find(({ id }) => id === PARAMETRES)?.lectures.includes("closer"));
+describe("la partie closer, sur l'onglet Cooks du projet (#1699)", () => {
+  test("elle n'est plus une page de Settings : l'onglet Cooks lance `closing --json` avec sa lecture", () => {
+    assert.equal(commandeDe("closer"), undefined);
+    assert.deepEqual(commandesDe("closer"), []);
+    assert.ok(!ONGLETS.some(({ id, titre }) => id === "closer" || titre === "Closer"));
+    assert.ok(!RUBRIQUES.find(({ id }) => id === PARAMETRES)?.lectures.includes("closer"));
     assert.deepEqual(RUBRIQUES.map(({ id }) => id), [PARAMETRES]);
+    assert.equal(commandesDe("cooks").at(-1), COMMANDE);
   });
 
   async function ouvrir() {
@@ -275,17 +278,19 @@ describe("la partie closer, dans l'espace du projet", () => {
     });
     (vue.element("projets").children.at(1) ?? assert.fail("pas de case parade")).click();
     await repos();
-    await ouvrirLecture(vue, "Closer");
+    await ouvrirLecture(vue, "Cooks");
     const [projet, id, demande] = vue.dernier("onglet") as [string, string, number];
-    assert.deepEqual([projet, id], ["parade", "closer"]);
+    assert.deepEqual([projet, id], ["parade", "cooks"]);
     return { vue, demande };
   }
 
-  test("Settings → Closer lit la partie, pose ses chiffres, et la liste dépliée le reste à la relecture", async () => {
+  test("Cooks lit la partie avec sa lecture, la pose sous ses gates, et la liste dépliée le reste à la relecture", async () => {
     const { vue, demande } = await ouvrir();
-    const page = vue.element("closer");
-    assert.equal(page.hidden, false);
+    const page = vue.element("closer-du-projet");
     assert.match(page.textContent, /reading…/);
+    // Une section de Cooks, juste sous ses gates : pas un écran à part.
+    const rail = vue.element("rail");
+    assert.equal(rail.children.indexOf(page), rail.children.findIndex(({ id }) => id === "gates-du-projet") + 1);
 
     vue.dire("surContenu", lecture(OBSERVEE, demande), undefined, undefined);
     await repos();
@@ -296,8 +301,8 @@ describe("la partie closer, dans l'espace du projet", () => {
       [MORTS, "1"],
     ]);
     // Ce que la box a dit n'est pas recopié : aucun bloc brut.
-    assert.deepEqual(vue.element("lecture-onglet").dessous("pre"), []);
-    assert.doesNotMatch(vue.element("lecture-onglet").textContent, /what the station said/);
+    assert.deepEqual(vue.element("lecture-cuisine").dessous("pre"), []);
+    assert.doesNotMatch(vue.element("lecture-cuisine").textContent, /what the station said/);
 
     (page.dessous("button").find(({ className }) => className === "deplier") ?? assert.fail("pas de bouton")).click();
     await repos();
@@ -312,7 +317,7 @@ describe("la partie closer, dans l'espace du projet", () => {
     const { vue, demande } = await ouvrir();
     vue.dire("surContenu", lecture(SANS, demande), undefined, undefined);
     await repos();
-    const page = vue.element("closer");
+    const page = vue.element("closer-du-projet");
     assert.match(page.textContent, new RegExp(SANS_CLOSER.replace(".", "\\.")));
     assert.deepEqual(chiffres(page), []);
     assert.doesNotMatch(page.textContent, /ssh|closer-modele/);
@@ -329,12 +334,22 @@ describe("la partie closer, dans l'espace du projet", () => {
     assert.deepEqual(vue.dernier("inscrire"), ["parade", "regler-closer", ["sonnet", "medium"]]);
   });
 
-  test("quitter la page la vide : la lecture d'après ne montre rien de celle d'avant", async () => {
+  test("quitter Cooks la vide : la lecture d'après ne montre rien de celle d'avant", async () => {
     const { vue, demande } = await ouvrir();
+    const page = vue.element("closer-du-projet");
     vue.dire("surContenu", lecture(OBSERVEE, demande), undefined, undefined);
     await repos();
+    // Une page ouverte par-dessus — Settings → Rail — : Cooks n'est plus lu, sa section se vide.
     await ouvrirLecture(vue, "Rail");
-    assert.equal(vue.element("closer").hidden, true);
-    assert.equal(vue.element("closer").children.length, 0);
+    assert.equal(page.children.length, 0);
+    await ouvrirOnglet(vue, "Rail");
+    assert.ok(!vue.element("rail").children.includes(page));
+  });
+
+  test("une lecture de Cooks ratée : sa ligne le dit, une fois — la section ne le redit pas", async () => {
+    const { vue, demande } = await ouvrir();
+    vue.dire("surContenu", { projet: "parade", demande, a: A, erreur: "ssh: connect to host box port 22: Connection refused", atteinte: false, cas: "ssh-en-echec" }, undefined, undefined);
+    await repos();
+    assert.equal(vue.element("closer-du-projet").children.length, 0);
   });
 });

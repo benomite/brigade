@@ -16,7 +16,6 @@
 // chaque ligne du bloc `launches` porte alors son rang, et la somme se fait sur les dix derniers.
 import type { Commande, Lecture, Sortie } from "./box.ts";
 
-export const ONGLET = "fiabilite";
 export const STATION = "station";
 export const MESURES = "measures";
 

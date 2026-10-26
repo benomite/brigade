@@ -198,7 +198,7 @@ export function poserTendances(doc, projets, lectures, ouvrir) {
   } else if (lignes.length === 0) {
     const aucun = cree(doc, "p", AUCUN);
     aucun.className = "sans";
-    aucun.append(survol(doc, "a closer is set on a project's page, under Settings → Closer"));
+    aucun.append(survol(doc, "a closer is set on a project's page, in the closer section of its Cooks tab"));
     bloc.append(aucun);
   }
   return bloc;

@@ -175,10 +175,12 @@ describe("les gates de la dernière heure et des dernières 24 h, sur l'onglet C
       pose.dessous("tr").find(({ dataset }) => dataset.ligne === "lastDay")?.dessous("td").map(({ title }) => title),
       ["", "200.3 s", "915.8 s", "1402.3 s", "6410.8 s"],
     );
-    // Juste sous les tickets de la dernière heure et du dernier jour, eux-mêmes sous la carte du projet (#1456).
+    // Sous les tickets de la dernière heure et du dernier jour, eux-mêmes sous la carte du projet (#1456) — la fiabilité
+    // de ses cooks entre les deux (#1699).
     const rail = vue.element("rail");
     const place = (id: string) => rail.children.findIndex((pose) => pose.id === id);
-    assert.equal(place("gates-du-projet"), place("activite-du-projet") + 1);
+    assert.equal(place("gates-du-projet"), place("fiabilite-du-projet") + 1);
+    assert.equal(place("fiabilite-du-projet"), place("activite-du-projet") + 1);
     assert.ok(rail.children.findIndex((pose) => pose.className === "carte") < place("gates-du-projet"));
   });
 

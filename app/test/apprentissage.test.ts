@@ -322,16 +322,17 @@ describe("l'onglet Cooks, dans l'espace du projet", () => {
     assert.equal(vue.element("fiche").hidden, false);
   });
 
-  test("ils ne sont plus sur Reliability, ni sur Rail : une seule place, Cooks", async () => {
+  test("ils ne sont ni dans la fiabilité des cooks, ni sur Rail : une seule place, Cooks", async () => {
     const vue = await ouvrir();
     vue.dire("surFaits", faitsLus(vue, GARNI));
     await repos();
     assert.match(vue.element("rail").textContent, new RegExp(TITRE));
     await ouvrirOnglet(vue, "Rail");
     assert.doesNotMatch(vue.element("rail").textContent, new RegExp(TITRE));
-    await ouvrirLecture(vue, "Reliability");
-    assert.doesNotMatch(vue.element("fiabilite").textContent, new RegExp(TITRE));
-    assert.deepEqual(vue.element("fiabilite").dessous("div").filter(({ className }) => className === "apprentissage-fiabilite"), []);
+    // La fiabilité des cooks est une section de Cooks (#1699) : ils n'y sont pas.
+    await ouvrirOnglet(vue, "Cooks");
+    assert.doesNotMatch(vue.element("fiabilite-du-projet").textContent, new RegExp(TITRE));
+    assert.deepEqual(vue.element("fiabilite-du-projet").dessous("div").filter(({ className }) => className === "apprentissage-fiabilite"), []);
   });
 
   test("un projet sans leçon ni profil : la section dit une phrase, à la place d'une liste vide", async () => {
