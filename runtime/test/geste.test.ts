@@ -108,7 +108,7 @@ function machine(t: TestContext, options: { environnement?: (station: string, ch
     join(runtime, "package.json"),
     JSON.stringify({ type: "module", scripts: { test: "node --test", typecheck: "tsc --noEmit", start: "node src/station/main.ts", status: "node src/temoin.ts", grant: "node src/temoin.ts", help: "node src/temoin.ts", "plat-du-jour": "node src/temoin.ts", ailleurs: "node src/../../ailleurs.ts", "plat-d-hier": "node src/ancien-nom.ts" } }),
   );
-  writeFileSync(join(station, "projets"), `${options.ligne ?? "calculus benomite/calculus main BRIGADE_PROXY_PORT=8482"}\n`);
+  writeFileSync(join(station, "projets"), `${options.ligne ?? "calculus acme/calculus main BRIGADE_PROXY_PORT=8482"}\n`);
 
   // `show -p <propriété> --value brigade-station.service` : ce que l'unité déclare.
   executable(join(bin, "systemctl"), [
@@ -194,7 +194,7 @@ describe("le geste brigade", { concurrency: 8 }, () => {
     // Ce que la station donne au projet : son nom, son dépôt, sa branche, ses
     // lieux, les réglages de sa ligne — et l'environnement de l'unité.
     assert.equal(lancee.env.BRIGADE_PROJECT, "calculus");
-    assert.equal(lancee.env.BRIGADE_GITHUB_REPO, "benomite/calculus");
+    assert.equal(lancee.env.BRIGADE_GITHUB_REPO, "acme/calculus");
     assert.equal(lancee.env.BRIGADE_BASE_BRANCH, "main");
     assert.equal(lancee.env.BRIGADE_STATE_DIR, join(m.station, "etat/calculus"));
     assert.equal(lancee.env.BRIGADE_REPO_DIR, join(m.station, "clones/calculus"));
@@ -210,7 +210,7 @@ describe("le geste brigade", { concurrency: 8 }, () => {
   const realpath = (chemin: string) => spawnSync("/bin/sh", ["-c", 'cd "$1" && pwd -P', "sh", chemin], { encoding: "utf8" }).stdout.trim();
 
   test("le clone que la ligne du projet nomme est celui de la commande", async (t) => {
-    const m = machine(t, { ligne: "calculus benomite/calculus main BRIGADE_REPO_DIR=/var/lib/brigade/calculus/depot" });
+    const m = machine(t, { ligne: "calculus acme/calculus main BRIGADE_REPO_DIR=/var/lib/brigade/calculus/depot" });
 
     assert.equal((await m.lancer(["calculus", "status"])).code, 0);
 

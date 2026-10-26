@@ -39,7 +39,7 @@ function poser(journal: Journal, ticket: number, zone: string[], type: "ticket.a
             title: `Ticket ${ticket}`,
             priority: null,
             createdAt: new Date(Date.parse("2026-10-01T00:00:00.000Z") + ticket * 1000).toISOString(),
-            url: `https://github.com/benomite/brigade/issues/${ticket}`,
+            url: `https://github.com/acme/brigade/issues/${ticket}`,
             card,
           },
         }
@@ -142,7 +142,7 @@ test("une livraison mergée règle l'écart : ce qu'elle a écrit est sur la bas
   poser(journal, 1402, ["runtime/src/gates/x.ts"]);
   assert.equal(rail.prendre(STATION), null);
 
-  journal.ajouter({ project: "brigade", ticket: 1401, author: "pass", type: "merge.done", payload: { pr: "https://github.com/benomite/brigade/pull/9", sha: "abc", by: "pass", reconciled: false } });
+  journal.ajouter({ project: "brigade", ticket: 1401, author: "pass", type: "merge.done", payload: { pr: "https://github.com/acme/brigade/pull/9", sha: "abc", by: "pass", reconciled: false } });
 
   assert.deepEqual(ticket(journal, 1401)?.outOfZone, []);
   assert.equal(rail.prendre(STATION)?.ticket, 1402);

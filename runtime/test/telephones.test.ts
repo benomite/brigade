@@ -36,7 +36,7 @@ function machine(t: TestContext, { droit }: { droit: boolean }) {
   chmodSync(geste, 0o755);
   symlinkSync(process.execPath, join(paquet, "node/bin/node"));
   symlinkSync(RUNTIME, join(paquet, "runtime"));
-  writeFileSync(join(station, "projets"), "calculus benomite/calculus main\n");
+  writeFileSync(join(station, "projets"), "calculus acme/calculus main\n");
 
   const unite: Record<string, string> = { User: "brigade", Environment: [`NODE_COMPILE_CACHE=${CACHE_DE_COMPILATION}`, `BRIGADE_STATION_DIR=${station}`, `BRIGADE_REGISTRE_DIR=${registre}`, "PATH=/usr/bin:/bin"].join(" ") };
   executable(join(bin, "systemctl"), [`case "$3" in`, ...Object.entries(unite).map(([cle, valeur]) => `  ${cle}) echo '${valeur}' ;;`), "esac"]);

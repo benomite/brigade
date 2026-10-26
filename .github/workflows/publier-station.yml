@@ -36,6 +36,9 @@ jobs:
         with:
           node-version: 26
       - name: Construire le paquet
+        env:
+          BRIGADE_PAQUET_DEPOT: ${{ github.repository }}
+          BRIGADE_PAQUET_MAINTENEUR: ${{ github.repository_owner }} <${{ github.repository_owner_id }}+${{ github.repository_owner }}@users.noreply.github.com>
         run: node runtime/paquet/construire.ts --sortie "$RUNNER_TEMP/paquet"
       - name: Publier la release
         env:
@@ -56,8 +59,9 @@ jobs:
           cp "$deb" "$RUNNER_TEMP/brigade-station-linux-amd64.deb"
           node scripts/app-release/paquets.ts notes --produit station --version "$version" --commit "$GITHUB_SHA" > "$RUNNER_TEMP/notes.md"
           cat "$RUNNER_TEMP/notes.md" >> "$GITHUB_STEP_SUMMARY"
+          sed "s#@DEPOT@#$GITHUB_REPOSITORY#" runtime/paquet/installer-station.sh >"$RUNNER_TEMP/installer-station.sh"
           gh release create "$tag" \
-            runtime/paquet/installer-station.sh \
+            "$RUNNER_TEMP/installer-station.sh" \
             "$RUNNER_TEMP/brigade-station_amd64.deb" \
             "$RUNNER_TEMP/brigade-station-linux-amd64.deb" \
             --target "$GITHUB_SHA" \

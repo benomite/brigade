@@ -24,7 +24,9 @@ type Rendu = { code: number; sortie: string };
 
 function construire(args: string[]): Promise<Rendu> {
   return new Promise((resoudre) => {
-    execFile(process.execPath, [CONSTRUIRE, ...args], { encoding: "utf8" }, (erreur, stdout, stderr) => {
+    const donnee = args.includes("--repo") || args.includes("--sans-identite");
+    const identite = donnee ? [] : ["--repo", "acme/brigade", "--maintainer", "Test <test@example.org>"];
+    execFile(process.execPath, [CONSTRUIRE, ...args.filter((a) => a !== "--sans-identite"), ...identite], { encoding: "utf8" }, (erreur, stdout, stderr) => {
       resoudre({ code: erreur ? Number(erreur.code ?? 1) : 0, sortie: stdout + stderr });
     });
   });
@@ -49,7 +51,7 @@ function doublures(t: TestContext, corps: Record<string, string>) {
     chmodSync(join(bin, nom), 0o755);
   }
   return {
-    env: { ...process.env, PATH: `${bin}:/usr/bin:/bin` },
+    env: { ...process.env, PATH: `${bin}:/usr/bin:/bin`, BRIGADE_DEPOT: "acme/brigade" },
     appels: () => readFileSync(appels, "utf8").trim().split("\n").filter(Boolean),
   };
 }
@@ -89,6 +91,14 @@ describe("la construction du paquet", { skip: sansDpkgDeb }, () => {
     assert.equal(champ("Package"), "brigade-station");
     assert.equal(champ("Version"), "1.2.3");
     for (const dependance of ["git", "gh", "bubblewrap", "libatomic1", "adduser", "systemd"]) assert.ok(champ("Depends").split(/,\s*/).some((d) => d.split(" ")[0] === dependance), `Depends sans ${dependance} : ${champ("Depends")}`);
+  });
+
+  test("le dépôt et le mainteneur sont ceux qu'on a donnés, et la mise à jour lit les versions de ce dépôt", () => {
+    assert.equal(champ("Maintainer"), "Test <test@example.org>");
+    assert.equal(champ("Homepage"), "https://github.com/acme/brigade");
+    const unite = spawnSync("dpkg-deb", ["--fsys-tarfile", deb], { maxBuffer: 64 * 1024 * 1024 });
+    const lu = spawnSync("tar", ["-xOf", "-", "./usr/lib/systemd/system/brigade-station-mise-a-jour.service"], { input: unite.stdout, encoding: "utf8" });
+    assert.match(lu.stdout, /^Environment=BRIGADE_MISE_A_JOUR_SOURCE=github:acme\/brigade$/m);
   });
 
   test("il porte le runtime, son node, ses unités, le renouvellement et le geste `brigade` — ni tests, ni rien sous /etc, aucune règle sudoers", () => {
@@ -178,6 +188,18 @@ describe("les refus de la construction", { skip: sansDpkgDeb }, () => {
     const rendu = await construire(["--sortie", join(dossier, "construit"), "--version", "1.0.0", "--node", fauxNode(dossier, "v20.1.0")]);
     assert.equal(rendu.code, REFUS, rendu.sortie);
     assert.match(rendu.sortie, /paquet non construit — le node à porter .* est en v20\.1\.0, le runtime réclame la version \d+ au moins/);
+    assert.equal(existsSync(join(dossier, "construit")), false);
+  });
+
+  test("sans le dépôt qui publie le paquet, ou sans mainteneur, la construction est refusée en le disant, sans rien écrire", async (t) => {
+    const dossier = repertoireTemporaire(t);
+    const base = ["--sortie", join(dossier, "construit"), "--version", "1.0.0", "--node", fauxNode(dossier, "v99.0.0")];
+    const sansDepot = await construire([...base, "--sans-identite", "--maintainer", "Test <test@example.org>"]);
+    assert.equal(sansDepot.code, REFUS, sansDepot.sortie);
+    assert.match(sansDepot.sortie, /the GitHub repository that publishes this package is missing or invalid.*--repo <account>\/<repository>/);
+    const sansMainteneur = await construire([...base, "--sans-identite", "--repo", "acme/brigade"]);
+    assert.equal(sansMainteneur.code, REFUS, sansMainteneur.sortie);
+    assert.match(sansMainteneur.sortie, /the package maintainer is missing or invalid.*--maintainer "Name <email>"/);
     assert.equal(existsSync(join(dossier, "construit")), false);
   });
 
@@ -278,12 +300,22 @@ describe("la commande d'installation du guide", { skip: sansSystemd }, () => {
     const rendu = jouer(INSTALLER, [], machine.env);
     assert.equal(rendu.code, 0, rendu.sortie);
     const appels = machine.appels();
-    assert.ok(appels.some((a) => /^curl -fsSL -o \S+\/brigade-station\.deb https:\/\/github\.com\/benomite\/brigade\/releases\/latest\/download\/brigade-station_amd64\.deb$/.test(a)), appels.join("\n"));
+    assert.ok(appels.some((a) => /^curl -fsSL -o \S+\/brigade-station\.deb https:\/\/github\.com\/acme\/brigade\/releases\/latest\/download\/brigade-station_amd64\.deb$/.test(a)), appels.join("\n"));
     assert.ok(appels.includes("apt-get update -q"), appels.join("\n"));
     assert.ok(appels.some((a) => /^apt-get install -y -q \/\S+\/brigade-station\.deb$/.test(a)), appels.join("\n"));
     assert.ok(appels.includes("systemctl --quiet is-active brigade-station.service"), appels.join("\n"));
     assert.match(rendu.sortie, /station installée et active — 1\.2\.3/);
     assert.match(rendu.sortie, /la suite : la connexion Max du compte brigade, puis l'appairage avec l'app/);
+  });
+
+  test("sans argument et sans dépôt désigné, rien n'est téléchargé : le script dit quoi donner", (t) => {
+    const machine = doublures(t, debian);
+    const brut = readFileSync(INSTALLER, "utf8");
+    assert.match(brut, /DEPOT="\$\{BRIGADE_DEPOT:-@DEPOT@\}"/);
+    const rendu = jouer(INSTALLER, [], { ...machine.env, BRIGADE_DEPOT: "" });
+    assert.equal(rendu.code, 1);
+    assert.match(rendu.sortie, /aucun dépôt n'est désigné pour télécharger le paquet.*BRIGADE_DEPOT=<compte>\/<dépôt>/);
+    assert.deepEqual(machine.appels().filter((a) => a.startsWith("apt-get") || a.startsWith("curl")), []);
   });
 
   test("un paquet donné par son chemin s'installe sans rien télécharger", (t) => {

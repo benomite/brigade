@@ -153,7 +153,7 @@ test("une station qui tourne sans se dire en service dans la garde n'est pas gar
 
 test("une version qui ne sert plus un projet que la précédente servait n'est pas gardée : le motif nomme le projet et son refus", async (t) => {
   const m = machine(t, "1.0.0", (version) => (version === "1.1.0" ? { servis: ["espace"], refuses: { brigade: "BRIGADE_X n'est pas défini" } } : { servis: ["brigade", "espace"] }));
-  m.configurer("brigade benomite/brigade v2\nespace benomite/espace main\n");
+  m.configurer("brigade acme/brigade v2\nespace acme/espace main\n");
   const { issue } = await passage(m, publiees(["1.0.0", "1.1.0"]));
   assert.equal(issue?.quoi === "revenue" && issue.motif, "le projet brigade n'est plus servi en 1.1.0 : BRIGADE_X n'est pas défini en 2 s (systemd : active)");
   assert.equal(issue?.quoi === "revenue" && issue.retour, null);
@@ -161,7 +161,7 @@ test("une version qui ne sert plus un projet que la précédente servait n'est p
 
 test("un projet retiré de la configuration entre-temps ne retient pas la nouvelle version", async (t) => {
   const m = machine(t, "1.0.0", (version) => (version === "1.1.0" ? { servis: ["espace"] } : { servis: ["brigade", "espace"] }));
-  m.configurer("espace benomite/espace main\n");
+  m.configurer("espace acme/espace main\n");
   assert.equal((await passage(m, publiees(["1.0.0", "1.1.0"]))).issue?.quoi, "passee");
 });
 
@@ -191,8 +191,8 @@ test("le paquet d'avant gardé de côté suffit au retour, même dépublié", as
 
 test("des versions publiées illisibles, ou un paquet publié qui n'est pas le bon : rien n'est installé, l'état dit pourquoi", async (t) => {
   const m = machine(t, "1.0.0");
-  const illisibles = await passage(m, publiees([], { illisibles: "GitHub a répondu 503 à la liste des releases de benomite/brigade" }));
-  assert.equal(illisibles.etat.verification, "les versions publiées ne se lisent pas (les publications d'essai) : GitHub a répondu 503 à la liste des releases de benomite/brigade");
+  const illisibles = await passage(m, publiees([], { illisibles: "GitHub a répondu 503 à la liste des releases de acme/brigade" }));
+  assert.equal(illisibles.etat.verification, "les versions publiées ne se lisent pas (les publications d'essai) : GitHub a répondu 503 à la liste des releases de acme/brigade");
   const mauvais = await passage(m, publiees(["1.0.0", "1.1.0"], { autrePaquet: "1.1.0" }));
   assert.equal(mauvais.etat.verification, "le paquet de 1.1.0 ne s'obtient pas : le paquet publié pour 1.1.0 n'est pas celui de brigade-station en 1.1.0 (autre-chose 1.1.0)");
   assert.deepEqual(m.installations, []);
@@ -215,7 +215,7 @@ const essaiNote = (dossier: string, essai: { visee: string; depuis: string; serv
 
 test("un essai interrompu dont la version tourne est conclu au passage suivant : elle est gardée, et l'issue le dit", async (t) => {
   const m = machine(t, "1.1.0", () => ({ servis: ["brigade"] }));
-  m.configurer("brigade benomite/brigade v2\n");
+  m.configurer("brigade acme/brigade v2\n");
   essaiNote(m.dossier, { visee: "1.1.0", depuis: "1.0.0", servis: ["brigade"] });
   const publications = publiees(["1.0.0", "1.1.0"]);
   const { etat, issue } = await passage(m, publications);

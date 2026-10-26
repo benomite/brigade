@@ -34,7 +34,7 @@ const TRANSCRIPT = [
   second([{ type: "text", text: "Sub-agent talk" }], "2026-10-23T08:02:00.500Z", { isSidechain: true }),
   chef("[Request interrupted by user]", "2026-10-23T08:02:01.000Z"),
   chef("This session is being continued from a previous conversation…", "2026-10-23T08:02:02.000Z", { isCompactSummary: true }),
-  second([{ type: "text", text: "Merged: https://github.com/benomite/brigade/pull/114" }], "2026-10-23T08:02:30.000Z"),
+  second([{ type: "text", text: "Merged: https://github.com/acme/brigade/pull/114" }], "2026-10-23T08:02:30.000Z"),
   '{"type":"user","message":{"content":"cut in the mid',
 ].join("");
 
@@ -45,14 +45,14 @@ test("une conversation est ce que le chef a écrit et ce que le second a répond
     { from: "second", at: "2026-10-23T08:00:04.000Z", text: "Two tickets wait for you.\n\n**#14** waits for your merge." },
     { from: "chef", at: "2026-10-23T08:01:00.000Z", text: "!git status" },
     { from: "chef", at: "2026-10-23T08:02:00.000Z", text: "Merge #14 please" },
-    { from: "second", at: "2026-10-23T08:02:30.000Z", text: "Merged: https://github.com/benomite/brigade/pull/114" },
+    { from: "second", at: "2026-10-23T08:02:30.000Z", text: "Merged: https://github.com/acme/brigade/pull/114" },
   ]);
 });
 
 function poser(t: TestContext) {
   const racine = repertoireTemporaire(t);
   const claude = join(racine, "claude");
-  const dossier = join(racine, "parade");
+  const dossier = join(racine, "shop");
   mkdirSync(dossier);
   const projet = join(claude, "projects", realpathSync(dossier).replace(/[^a-zA-Z0-9]/g, "-"));
   return { claude, dossier, projet };

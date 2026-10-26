@@ -9,9 +9,9 @@
 // pas besoin.
 //
 //   # projet  dépôt              branche  réglages
-//   brigade   benomite/brigade   v2
-//   espace    benomite/espace    main     BRIGADE_SECRETS_FILE=/srv/secrets/espace.env
-//   parade    benomite/parade
+//   brigade   acme/brigade   v2
+//   web       acme/web    main     BRIGADE_SECRETS_FILE=/srv/secrets/web.env
+//   shop      acme/shop
 //
 // Tout le reste vient de la station : son environnement, que chaque projet
 // hérite, et ses répertoires, où chaque projet a sa place.
@@ -119,7 +119,7 @@ export function lireConfiguration(texte: string): Configuration {
     // Un réglage n'est pas une branche : la ligne n'en dit alors aucune.
     const base = reste[0] !== undefined && !REGLAGE.test(reste[0]) ? reste[0] : null;
     const suite = base === null ? reste : reste.slice(1);
-    if (!NOM_DE_PROJET.test(nom)) return refuser(`nom de projet invalide — attendu un identifiant court en minuscules, chiffres et tirets (brigade, thermigo)`);
+    if (!NOM_DE_PROJET.test(nom)) return refuser(`nom de projet invalide — attendu un identifiant court en minuscules, chiffres et tirets (brigade, compta)`);
     if (projets.some((projet) => projet.nom === nom)) return refuser(`le projet « ${nom} » a déjà sa ligne`);
     const reglages: Record<string, string> = {};
     for (const champ of suite) {

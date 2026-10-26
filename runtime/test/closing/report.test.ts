@@ -138,7 +138,7 @@ describe("le bilan d'une passe de fermeture", { concurrency: 8 }, () => {
       run: "fermeture-0a1b2c3d",
       outcome: "delivered",
       branch: "cook/fermeture-0a1b2c3d",
-      pr: "https://github.com/benomite/brigade/pull/101",
+      pr: "https://github.com/acme/brigade/pull/101",
       sha: "c0ffee1",
       removedLines: 4,
       addedLines: 0,
@@ -156,7 +156,7 @@ describe("le bilan d'une passe de fermeture", { concurrency: 8 }, () => {
         type: "pass.judged",
         payload: {
           run: "r",
-          pr: `https://github.com/benomite/brigade/pull/${numero}`,
+          pr: `https://github.com/acme/brigade/pull/${numero}`,
           number: numero,
           sha: "c0ffee1",
           base: sur,

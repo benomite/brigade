@@ -63,7 +63,7 @@ async function station(t: TestContext, ligne = "") {
 
   // Ce que GitHub répond : la PR de #14, ouverte, à la tête `sha-14`, et qui se merge ; le label `fire` de #15, qui se retire.
   const pr = { number: 114, html_url: `https://github.com/${DEPOT}/pull/114`, state: "open", merged: false, merged_at: null, mergeable_state: "clean", base: { ref: "v2" }, head: { sha: "sha-14" } };
-  gh.repondre(`${PULLS}?head=benomite:cook/14-aa&state=all&per_page=1`, { corps: [pr] });
+  gh.repondre(`${PULLS}?head=acme:cook/14-aa&state=all&per_page=1`, { corps: [pr] });
   gh.repondre(`${PULLS}/114`, { corps: pr });
   gh.repondre(`${PULLS}/114/merge`, { corps: { merged: true } });
   gh.repondre(`${ISSUE(15)}/labels/fire`, { corps: [] });
@@ -109,7 +109,7 @@ async function railLu(cuisine: Awaited<ReturnType<typeof station>>) {
 for (const { gesture, args, ticket, fait } of [
   { gesture: "remove", args: ["rail", "remove", "15"], ticket: 15, fait: /^#15 removed from the rail — cost: the ticket leaves the rail/ },
   { gesture: "back-to-kitchen", args: ["waiting", "arrived", "16"], ticket: 16, fait: /^#16: it arrived — it goes back to the kitchen$/ },
-  { gesture: "merge", args: ["rail", "merge", "14"], ticket: 14, fait: /^#14: delivery merged — cost: https:\/\/github\.com\/benomite\/brigade\/pull\/114 is merged into v2/ },
+  { gesture: "merge", args: ["rail", "merge", "14"], ticket: 14, fait: /^#14: delivery merged — cost: https:\/\/github\.com\/acme\/brigade\/pull\/114 is merged into v2/ },
 ]) {
   test(`« ${gesture} » du téléphone change la station comme le même geste de l'ordinateur : même journal, mêmes appels à GitHub, même phrase`, async (t) => {
     const telephone = await station(t);

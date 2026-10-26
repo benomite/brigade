@@ -228,7 +228,7 @@ remove it.**
 ```bash
 export BRIGADE_ARBITER_PORT=<port> BRIGADE_ARBITER_STATE_DIR=<arbiter directory>
 npm --prefix runtime run arbiter                          # the state
-npm --prefix runtime run arbiter -- weight thermigo 3     # "thermigo has priority this week"
+npm --prefix runtime run arbiter -- weight compta 3     # "compta has priority this week"
 npm --prefix runtime run arbiter -- remove vieux-projet   # its share is no longer reserved
 ```
 

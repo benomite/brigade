@@ -451,11 +451,11 @@ describe("le journal du geste", () => {
     b.pousser("acme/calculus");
     const debut = new Date();
 
-    assert.equal((await b.geste(b.demande(), { qui: "benoit" })).code, 0);
+    assert.equal((await b.geste(b.demande(), { qui: "alice" })).code, 0);
     assert.equal((await b.geste(b.demande(), { qui: "associe" })).code, CODES.dejaInstalle);
     assert.equal((await b.geste(["exec", "calculus", "--exec", "/bin/sh"], { qui: "associe" })).code, CODES.usage);
-    assert.equal((await b.geste(["install", "../etc", "--depot", "acme/x"], { qui: "benoit" })).code, CODES.usage);
-    assert.equal((await b.geste(b.demande("boutique"), { qui: "benoit" })).code, CODES.echec);
+    assert.equal((await b.geste(["install", "../etc", "--depot", "acme/x"], { qui: "alice" })).code, CODES.usage);
+    assert.equal((await b.geste(b.demande("boutique"), { qui: "alice" })).code, CODES.echec);
 
     const fin = new Date();
     const journal = b.journal();
@@ -464,14 +464,14 @@ describe("le journal du geste", () => {
     assert.deepEqual(
       journal.map(({ author, project, type, payload }) => ({ author, project, type, payload })),
       [
-        { author: "benoit", project: "calculus", type: "installer.started", payload: { action: "install", args, result: "started" } },
-        { author: "benoit", project: "calculus", type: "installer.used", payload: { action: "install", args, result: "installed", ports: { porte: PREMIER_PORT, arbitre: null } } },
+        { author: "alice", project: "calculus", type: "installer.started", payload: { action: "install", args, result: "started" } },
+        { author: "alice", project: "calculus", type: "installer.used", payload: { action: "install", args, result: "installed", ports: { porte: PREMIER_PORT, arbitre: null } } },
         { author: "associe", project: "calculus", type: "installer.refused", payload: { action: "install", args, result: "refused", reason: "deja-installe" } },
         { author: "associe", project: "calculus", type: "installer.refused", payload: { action: "exec", args: ["calculus", "--exec", "/bin/sh"], result: "refused", reason: "sous-commande-inconnue" } },
-        { author: "benoit", project: "-", type: "installer.refused", payload: { action: "install", args: ["../etc", "--depot", "acme/x"], result: "refused", reason: "projet-hors-motif" } },
-        { author: "benoit", project: "boutique", type: "installer.started", payload: { action: "install", args: b.demande("boutique").slice(1), result: "started" } },
+        { author: "alice", project: "-", type: "installer.refused", payload: { action: "install", args: ["../etc", "--depot", "acme/x"], result: "refused", reason: "projet-hors-motif" } },
+        { author: "alice", project: "boutique", type: "installer.started", payload: { action: "install", args: b.demande("boutique").slice(1), result: "started" } },
         {
-          author: "benoit",
+          author: "alice",
           project: "boutique",
           type: "installer.failed",
           payload: { action: "install", args: b.demande("boutique").slice(1), result: "failed", reason: (journal.at(-1)?.payload as { reason: string }).reason, undone: true },
@@ -489,9 +489,9 @@ describe("le journal du geste", () => {
     const lignes: string[] = [];
     relire({ args: [], env: { BRIGADE_STATE_DIR: b.box.journal }, dire: (ligne) => lignes.push(ligne), redire: (ligne) => lignes.push(ligne) });
     assert.equal(lignes.length, 3, lignes.join("\n"));
-    assert.match(lignes[0] ?? "", /^1  \S+  calculus  -  installer\.started  benoit  \{"action":"install",/);
-    assert.match(lignes[1] ?? "", /  installer\.used  benoit  .*"result":"installed","ports":\{"porte":4100,"arbitre":null\}\}$/);
-    assert.match(lignes[2] ?? "", /  calculus  -  installer\.refused  benoit  \{"action":"exec","args":\["calculus"\],"result":"refused","reason":"sous-commande-inconnue"\}$/);
+    assert.match(lignes[0] ?? "", /^1  \S+  calculus  -  installer\.started  alice  \{"action":"install",/);
+    assert.match(lignes[1] ?? "", /  installer\.used  alice  .*"result":"installed","ports":\{"porte":4100,"arbitre":null\}\}$/);
+    assert.match(lignes[2] ?? "", /  calculus  -  installer\.refused  alice  \{"action":"exec","args":\["calculus"\],"result":"refused","reason":"sous-commande-inconnue"\}$/);
   });
 
   test("un contenu de fichier n'y entre pas en entier, et qui lance sans `sudo` y est nommé par son compte", async (t) => {

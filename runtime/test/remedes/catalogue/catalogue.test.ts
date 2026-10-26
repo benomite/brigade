@@ -17,7 +17,7 @@ import { CONFIGURATION, lieuxDuProjet, lireFichierDeConfiguration } from "../../
 const unePhrase = (texte: string) => /^[A-Z][^\n]*\.$/.test(texte) && !/[.!?] [A-Z]/.test(texte.slice(0, -1));
 
 // Une station dont la racine est un répertoire temporaire, et dont le refus de
-// `parade` est celui que `evaluer` en tire à chaque réévaluation.
+// `shop` est celui que `evaluer` en tire à chaque réévaluation.
 function uneStation(options: { configuration?: string; evaluer: (racine: string) => CodeDeRefus | null; registre?: ReturnType<typeof creerRegistre> }) {
   const racine = mkdtempSync(join(tmpdir(), "brigade-remedes-"));
   if (options.configuration !== undefined) writeFileSync(join(racine, CONFIGURATION), options.configuration);
@@ -35,25 +35,25 @@ function uneStation(options: { configuration?: string; evaluer: (racine: string)
   const demander = (code: CodeDeRefus) => {
     const remede = registre.pour(code);
     assert.ok(remede, `${code} : un remède`);
-    return executerRemede({ project: "parade", refusal: code, remedy: remede.id }, station, registre);
+    return executerRemede({ project: "shop", refusal: code, remedy: remede.id }, station, registre);
   };
   return { racine, registre, relectures, demander, fichier: join(racine, CONFIGURATION) };
 }
 
-const reglagesDeParade = (racine: string) => lireFichierDeConfiguration(join(racine, CONFIGURATION)).projets.find(({ nom }) => nom === "parade")?.reglages;
+const reglagesDeShop = (racine: string) => lireFichierDeConfiguration(join(racine, CONFIGURATION)).projets.find(({ nom }) => nom === "shop")?.reglages;
 
 test("proxy-port-set : le remède retire le réglage du port de la ligne, et le refus est levé", async () => {
   const { racine, demander, relectures, fichier } = uneStation({
-    configuration: "autre org/autre v2\nparade org/parade v2 BRIGADE_PROXY_PORT=8080 BRIGADE_LEASE_SECONDS=60\n",
-    evaluer: (racine) => (reglagesDeParade(racine)?.BRIGADE_PROXY_PORT !== undefined ? "proxy-port-set" : null),
+    configuration: "autre org/autre v2\nshop org/shop v2 BRIGADE_PROXY_PORT=8080 BRIGADE_LEASE_SECONDS=60\n",
+    evaluer: (racine) => (reglagesDeShop(racine)?.BRIGADE_PROXY_PORT !== undefined ? "proxy-port-set" : null),
   });
   assert.deepEqual(await demander("proxy-port-set"), { outcome: "lifted" });
-  assert.equal(readFileSync(fichier, "utf8"), "autre org/autre v2\nparade org/parade v2 BRIGADE_LEASE_SECONDS=60\n");
-  assert.deepEqual(relectures, ["parade"]);
+  assert.equal(readFileSync(fichier, "utf8"), "autre org/autre v2\nshop org/shop v2 BRIGADE_LEASE_SECONDS=60\n");
+  assert.deepEqual(relectures, ["shop"]);
 });
 
 test("proxy-port-set : sans réglage de port sur la ligne, le remède échoue et le refus tient, en une phrase", async () => {
-  const { demander } = uneStation({ configuration: "parade org/parade v2\n", evaluer: () => "proxy-port-set" });
+  const { demander } = uneStation({ configuration: "shop org/shop v2\n", evaluer: () => "proxy-port-set" });
   const issue = await demander("proxy-port-set");
   assert.equal(issue.outcome, "holds");
   if (issue.outcome !== "holds") return;
@@ -62,12 +62,12 @@ test("proxy-port-set : sans réglage de port sur la ligne, le remède échoue et
 });
 
 test("hand-written-line : le remède retire la ligne écrite à la main, jamais celle du bloc de l'app, et le refus est levé", async () => {
-  const bloc = `${DEBUT}\nparade org/parade v2\nneuf org/neuf v2\n${FIN}`;
+  const bloc = `${DEBUT}\nshop org/shop v2\nneuf org/neuf v2\n${FIN}`;
   const { demander, fichier } = uneStation({
-    configuration: `main org/main v2\nparade org/vieux v1 BRIGADE_LEASE_SECONDS=60\n${bloc}\n`,
+    configuration: `main org/main v2\nshop org/vieux v1 BRIGADE_LEASE_SECONDS=60\n${bloc}\n`,
     evaluer: (racine) => {
       const texte = readFileSync(join(racine, CONFIGURATION), "utf8").split("\n");
-      const dehors = texte.slice(0, texte.indexOf(DEBUT)).some((ligne) => ligne.startsWith("parade "));
+      const dehors = texte.slice(0, texte.indexOf(DEBUT)).some((ligne) => ligne.startsWith("shop "));
       return dehors ? "hand-written-line" : null;
     },
   });
@@ -77,11 +77,11 @@ test("hand-written-line : le remède retire la ligne écrite à la main, jamais 
 
 test("configuration-invalid : le remède efface la ligne de l'app, qui la réécrit à neuf ; il laisse la ligne écrite à la main", async () => {
   const { demander, fichier } = uneStation({
-    configuration: `parade org/parade v2\n${DEBUT}\nparade org/parade v2 BRIGADE_X=1\nneuf org/neuf v2\n${FIN}\n`,
+    configuration: `shop org/shop v2\n${DEBUT}\nshop org/shop v2 BRIGADE_X=1\nneuf org/neuf v2\n${FIN}\n`,
     evaluer: (racine) => (readFileSync(join(racine, CONFIGURATION), "utf8").includes("BRIGADE_X=1") ? "configuration-invalid" : null),
   });
   assert.deepEqual(await demander("configuration-invalid"), { outcome: "lifted" });
-  assert.equal(readFileSync(fichier, "utf8"), `parade org/parade v2\n${DEBUT}\nneuf org/neuf v2\n${FIN}\n`);
+  assert.equal(readFileSync(fichier, "utf8"), `shop org/shop v2\n${DEBUT}\nneuf org/neuf v2\n${FIN}\n`);
 });
 
 test("clone-missing : le remède reclone le dépôt de la ligne du projet, à la place du clone de la station ; le refus est levé", async () => {
@@ -95,24 +95,24 @@ test("clone-missing : le remède reclone le dépôt de la ligne du projet, à la
     }),
   );
   const { racine, demander, relectures } = uneStation({
-    configuration: "parade org/parade v2\n",
+    configuration: "shop org/shop v2\n",
     registre,
-    evaluer: (racine) => (existsSync(lieuxDuProjet(racine, "parade", racine).clone) ? null : "clone-missing"),
+    evaluer: (racine) => (existsSync(lieuxDuProjet(racine, "shop", racine).clone) ? null : "clone-missing"),
   });
   assert.deepEqual(await demander("clone-missing"), { outcome: "lifted" });
-  assert.deepEqual(clonages, [["org/parade", lieuxDuProjet(racine, "parade", racine).clone, "gh"]]);
-  assert.deepEqual(relectures, ["parade"]);
+  assert.deepEqual(clonages, [["org/shop", lieuxDuProjet(racine, "shop", racine).clone, "gh"]]);
+  assert.deepEqual(relectures, ["shop"]);
 });
 
 test("clone-missing : un clonage qui échoue laisse le refus en place, avec pourquoi", async () => {
   const registre = creerRegistre(
     remedesDuCatalogue({
       cloner: async () => {
-        throw new Error("clone de org/parade en échec — repository not found");
+        throw new Error("clone de org/shop en échec — repository not found");
       },
     }),
   );
-  const { demander } = uneStation({ configuration: "parade org/parade v2\n", registre, evaluer: () => "clone-missing" });
+  const { demander } = uneStation({ configuration: "shop org/shop v2\n", registre, evaluer: () => "clone-missing" });
   const issue = await demander("clone-missing");
   assert.equal(issue.outcome, "holds");
   if (issue.outcome !== "holds") return;

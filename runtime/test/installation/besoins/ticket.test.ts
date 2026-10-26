@@ -12,9 +12,9 @@ import { aArreter, repertoireTemporaire, temporaireDuFichier } from "../../outil
 
 const rienNeReste = temporaireDuFichier();
 
-const QUI = { projet: "mirrorlab", auteur: "station:box" };
+const QUI = { projet: "gadgets", auteur: "station:box" };
 
-const choixDe = (id: string) => choixPour({ besoin: besoinNomme(id)!, preuves: [`\`apps/api/package.json\` depends on \`${id}\``] }, { projet: "mirrorlab", station: "box", ailleurs: [] });
+const choixDe = (id: string) => choixPour({ besoin: besoinNomme(id)!, preuves: [`\`apps/api/package.json\` depends on \`${id}\``] }, { projet: "gadgets", station: "box", ailleurs: [] });
 
 function unProjet(t: TestContext) {
   const repertoireEtat = repertoireTemporaire(t);
@@ -57,7 +57,7 @@ test("seul un choix laissé au projet ouvre un ticket, un seul ; un autre choix,
   assert.deepEqual(await ouvrirLesTicketsDesBesoins({ journal, github, auteur: QUI }), []);
   assert.deepEqual(
     github.creees.map(({ titre }) => titre),
-    ["Make the worktree setup of mirrorlab bring a Postgres database itself"],
+    ["Make the worktree setup of gadgets bring a Postgres database itself"],
   );
   assert.match(github.creees[0]!.corps, /must provide a Postgres database to the tests on its own/);
   assert.match(github.creees[0]!.corps, /For instance, it starts a throwaway Postgres server of its own/);
@@ -82,7 +82,7 @@ test("la réponse de GitHub perdue, l'issue créée se retrouve par sa marque : 
   github.perdreLaReponse();
   await assert.rejects(ouvrirLesTicketsDesBesoins({ journal, github, auteur: QUI }), /socket hang up/);
   assert.equal(github.creees.length, 1);
-  assert.equal(annonceDuBesoin(github.creees[0]!.corps, "mirrorlab", "postgres"), journal.tout().find(({ type }) => type === "need.ticket-opening")!.seq);
+  assert.equal(annonceDuBesoin(github.creees[0]!.corps, "gadgets", "postgres"), journal.tout().find(({ type }) => type === "need.ticket-opening")!.seq);
   assert.deepEqual(await ouvrirLesTicketsDesBesoins({ journal, github, auteur: QUI }), [{ id: "need:postgres", ticket: 101, ouvert: false }]);
   assert.equal(github.creees.length, 1);
   assert.deepEqual(journal.tout().at(-1)?.payload, { id: "need:postgres", need: "postgres", ticket: 101, reconciled: true });

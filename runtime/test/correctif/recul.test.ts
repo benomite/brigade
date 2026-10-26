@@ -9,7 +9,7 @@ import { ouvrirJournal, type Journal } from "../../src/journal.ts";
 import { appeler, horloge, JOUR_HORLOGE, repertoireTemporaire } from "../outils.ts";
 
 const PROJET = "brigade";
-const PR = "https://github.com/benomite/brigade/pull/900";
+const PR = "https://github.com/acme/brigade/pull/900";
 const NUMERO = 900;
 
 function journalDeTest(t: TestContext): { journal: Journal; repertoire: string } {
@@ -34,7 +34,7 @@ function essayer(journal: Journal, ticket: number, issue: "criteres" | "plafond"
   if (issue === "plafond") noter(journal, ticket, { type: "guard.tripped", payload: { run, reason: "turns", limit: 100, observed: 100 } });
   noter(journal, ticket, { type: "cook.exited", payload: { run, outcome: issue === "ok" ? "ok" : issue === "plafond" ? "guard" : "failed", code: issue === "ok" ? 0 : 1, signal: null, turns: 1, tokens: 1, durationMs: 1 } });
 }
-function merger(journal: Journal, ticket: number, pr = `https://github.com/benomite/brigade/pull/${ticket + 1000}`): void {
+function merger(journal: Journal, ticket: number, pr = `https://github.com/acme/brigade/pull/${ticket + 1000}`): void {
   noter(journal, ticket, { type: "merge.done", payload: { pr, sha: "f".repeat(40), by: "pass", reconciled: false, unverified: false } });
 }
 // Un ticket pris, raté pour ces causes, puis livré et mergé.

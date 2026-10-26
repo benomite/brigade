@@ -143,7 +143,7 @@ test("le corps ne mentionne personne : aucun `@` collé à un nom hors du code, 
     ...tableau,
     projet: "@octo/brigade",
     file: [
-      { ...premiere, titre: "Ask @octocat about it", ligne: "to decide: ping @benomite, or run `npm i x@1`" },
+      { ...premiere, titre: "Ask @octocat about it", ligne: "to decide: ping @acme, or run `npm i x@1`" },
       { ...premiere, nom: "#99", ticket: 99, carte: { type: "product", question: "Ask @hubot?", choix: [{ texte: "yes @someone", suite: "resume" }] } },
     ],
     bilans: ["seen by @someone-else"],

@@ -1406,7 +1406,7 @@ describe("la commande du chef", { concurrency: 8 }, () => {
 
     const { code, sortie } = await commande(t, env, "labels");
 
-    assert.match(sortie, /2 labels created on benomite\/brigade: fire, prio:1/);
+    assert.match(sortie, /2 labels created on acme\/brigade: fire, prio:1/);
     assert.equal(code, 0);
   });
 

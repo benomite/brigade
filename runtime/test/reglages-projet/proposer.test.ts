@@ -42,7 +42,7 @@ function station(t: TestContext, contenu: Parameters<typeof projetSurGit>[1] = {
     async ouvrirPR(pr: { branche: string; base: string; titre: string; corps: string }) {
       if (pannes.pr) throw new Error("gh api : HTTP 422");
       const number = 900 + prs.length;
-      const url = `https://github.com/benomite/espace/pull/${number}`;
+      const url = `https://github.com/acme/espace/pull/${number}`;
       prs.push({ ...pr, number, url });
       return url;
     },

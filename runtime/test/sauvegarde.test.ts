@@ -201,11 +201,11 @@ describe("la sauvegarde", { concurrency: 8 }, () => {
 
   test("une destination qui porte déjà les sauvegardes d'un autre projet est refusée", (t) => {
     const brigade = projet(t);
-    const thermigo = projet(t, "thermigo");
+    const compta = projet(t, "compta");
     sauvegarder(brigade.options());
 
     const lendemain = () => new Date("2026-10-09T03:30:00.000Z");
-    assert.throws(() => sauvegarder({ ...thermigo.options(), destination: brigade.destination, maintenant: lendemain }), /backups of project "brigade"/);
+    assert.throws(() => sauvegarder({ ...compta.options(), destination: brigade.destination, maintenant: lendemain }), /backups of project "brigade"/);
 
     assert.deepEqual(brigade.datees(), ["2026-10-08T03-30-00Z"]);
   });

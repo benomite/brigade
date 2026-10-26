@@ -73,7 +73,7 @@ test("un second runtime sur le même répertoire d'état est refusé, et le refu
   assert.deepEqual(premier.journal.tout().map((e) => e.type), ["runtime.started"]);
 });
 
-for (const projet of ["", "benomite/brigade", "Brigade", "-brigade", "bri gade"]) {
+for (const projet of ["", "acme/brigade", "Brigade", "-brigade", "bri gade"]) {
   test(`le nom de projet « ${projet} » est refusé, et rien n'est écrit`, (t) => {
     const repertoire = repertoireTemporaire(t);
 

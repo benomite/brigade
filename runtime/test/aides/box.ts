@@ -17,7 +17,7 @@ export const DEPLOIEMENT = join(import.meta.dirname, "../../deploy");
 const GABARITS = ["brigade@.service", "brigade-sauvegarde@.service", "brigade-sauvegarde@.timer", "brigade-porte@.service", "brigade-arbitre.service"];
 // Le compte du service de la box d'essai. Il porte l'uid de qui joue la suite.
 export const COMPTE = "cuisine";
-export const CHEF = "benoit";
+export const CHEF = "alice";
 export const PREMIER_PORT = 4100;
 
 // Le dépôt d'un projet tel que son origine le porte, prêt à être servi : ses

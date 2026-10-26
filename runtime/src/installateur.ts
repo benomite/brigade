@@ -174,7 +174,7 @@ export function lireAppel(args: string[]): { action: Action; projet: string; res
   const usageDeLAction = USAGES[action as Action];
   if (projet === undefined || projet.startsWith("-")) throw usage("projet-manquant", `il manque le projet\n${usageDeLAction}`);
   if (!NOM_DE_PROJET.test(projet) || projet.length > LONGUEUR_MAX_DU_PROJET) {
-    throw usage("projet-hors-motif", `nom de projet hors motif : « ${projet} » — attendu un identifiant court en minuscules, chiffres et tirets (brigade, thermigo), ${LONGUEUR_MAX_DU_PROJET} caractères au plus`);
+    throw usage("projet-hors-motif", `nom de projet hors motif : « ${projet} » — attendu un identifiant court en minuscules, chiffres et tirets (brigade, compta), ${LONGUEUR_MAX_DU_PROJET} caractères au plus`);
   }
   return { action: action as Action, projet, reste };
 }

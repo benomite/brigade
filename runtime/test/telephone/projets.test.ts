@@ -24,14 +24,14 @@ import { aArreter, appeler, horloge, JOUR_HORLOGE, repertoireTemporaire } from "
 
 const INSTANT = new Date(`${JOUR_HORLOGE}T10:05:00.000Z`);
 
-// Une station qui sert `brigade`, n'a pas encore ouvert `parade`, et refuse
+// Une station qui sert `brigade`, n'a pas encore ouvert `shop`, et refuse
 // `espace` ; seul `brigade` a un journal, avec des tickets sur son rail.
 async function station(t: TestContext) {
   const racine = repertoireTemporaire(t);
   const env = { HOME: repertoireTemporaire(t), BRIGADE_STATION_DIR: racine };
   writeFileSync(
     join(racine, CONFIGURATION),
-    ["# projet  dépôt  branche", "brigade   benomite/brigade   v2", "parade    benomite/parade", "espace    benomite/espace    main"].join("\n") + "\n",
+    ["# projet  dépôt  branche", "brigade   acme/brigade   v2", "shop    acme/shop", "espace    acme/espace    main"].join("\n") + "\n",
   );
   const repertoireEtat = join(racine, ETATS, "brigade");
   mkdirSync(repertoireEtat, { recursive: true });
@@ -39,7 +39,7 @@ async function station(t: TestContext) {
   aArreter(t, () => journal.fermer());
   const noter = (fait: Fait, ticket: number | null = null, author = "runtime") => journal.ajouter({ project: "brigade", ticket, author, ...fait });
   const arriver = (ticket: number, priority: number | null) =>
-    noter({ type: "ticket.arrived", payload: { title: `Ticket ${ticket}`, priority, createdAt: `2026-10-01T00:00:${ticket}Z`, url: `https://github.com/benomite/brigade/issues/${ticket}` } }, ticket, "github");
+    noter({ type: "ticket.arrived", payload: { title: `Ticket ${ticket}`, priority, createdAt: `2026-10-01T00:00:${ticket}Z`, url: `https://github.com/acme/brigade/issues/${ticket}` } }, ticket, "github");
   const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000, maintenant: () => new Date(`${JOUR_HORLOGE}T10:00:30.000Z`) });
   noter({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
   for (const [ticket, priority] of [[14, 1], [15, 2], [16, null]] as const) arriver(ticket, priority);
@@ -79,9 +79,9 @@ test("un téléphone appairé lit tous les projets de la station, dans l'ordre d
 
   assert.equal(statut, 200);
   assert.deepEqual(corps.projects, [
-    { name: "brigade", repository: "benomite/brigade", state: "served" },
-    { name: "parade", repository: "benomite/parade", state: "opening" },
-    { name: "espace", repository: "benomite/espace", state: "refused", reason: "its clone is missing" },
+    { name: "brigade", repository: "acme/brigade", state: "served" },
+    { name: "shop", repository: "acme/shop", state: "opening" },
+    { name: "espace", repository: "acme/espace", state: "refused", reason: "its clone is missing" },
   ]);
 });
 
@@ -92,7 +92,7 @@ test("la file d'un projet servie au téléphone est celle que l'app de l'ordinat
   const avant = await lire("/projects/brigade/queue");
   assert.equal(avant.statut, 200);
   const ordinateur = await commeLOrdinateur("brigade");
-  assert.deepEqual(avant.corps, { project: "brigade", repository: "benomite/brigade", ...ordinateur });
+  assert.deepEqual(avant.corps, { project: "brigade", repository: "acme/brigade", ...ordinateur });
   // La file n'est pas vide : la comparaison porte sur des tickets.
   const railAvant = (avant.corps.facts as { rail: Array<{ ticket: number; etat: string }> }).rail;
   assert.deepEqual(
@@ -110,7 +110,7 @@ test("la file d'un projet servie au téléphone est celle que l'app de l'ordinat
   t.mock.timers.setTime(INSTANT.getTime() + 60_000);
   const apres = await lire("/projects/brigade/queue");
   assert.equal(apres.statut, 200);
-  assert.deepEqual(apres.corps, { project: "brigade", repository: "benomite/brigade", ...(await commeLOrdinateur("brigade")) });
+  assert.deepEqual(apres.corps, { project: "brigade", repository: "acme/brigade", ...(await commeLOrdinateur("brigade")) });
   assert.notDeepEqual(apres.corps.facts, avant.corps.facts);
 });
 
@@ -121,9 +121,9 @@ test("un projet que la station n'a pas : 404 ; un projet dont le journal ne se l
   assert.equal(inconnu.statut, 404);
   assert.match(String(inconnu.corps.said), /no project named “inconnu”/);
 
-  const sansJournal = await lire("/projects/parade/queue");
+  const sansJournal = await lire("/projects/shop/queue");
   assert.equal(sansJournal.statut, 503);
-  assert.match(String(sansJournal.corps.said), /cannot read the queue of parade right now — no log in /);
+  assert.match(String(sansJournal.corps.said), /cannot read the queue of shop right now — no log in /);
 });
 
 test("sans jeton valable — absent, faux, ou d'un téléphone révoqué —, ni la liste ni une file ne se lisent, et un nom de projet ne se devine pas au code", async (t) => {

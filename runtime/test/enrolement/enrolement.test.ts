@@ -3,10 +3,11 @@
 // code faux, expiré ou déjà servi est refusé sans que rien n'entre au
 // registre. Et ce qui y entre attend l'acceptation du chef.
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { CodeRefuse, DemandeInvalide, DUREE_MS, lireCode, ouvrirEnrolements, RECEPTEUR, repertoireDuRegistre } from "../../src/enrolement/enrolement.ts";
+import { CodeRefuse, DemandeInvalide, depotDeCeClone, DUREE_MS, lireCode, ouvrirEnrolements, RECEPTEUR, repertoireDuRegistre } from "../../src/enrolement/enrolement.ts";
 import { ouvrirRegistre, PresentationInvalide, type Presentation } from "../../src/stations-globales/registre.ts";
 import { repertoireTemporaire } from "../outils.ts";
 
@@ -32,13 +33,13 @@ const refuse = (motif: string) => (erreur: unknown) => erreur instanceof CodeRef
 
 test("préparer rend un code à usage unique et la commande qui le porte, avec la destination, le geste et le registre du chef", (t) => {
   const { enrolements, repertoire } = ouvrir(t);
-  const { code, commande, expireLe } = enrolements.preparer({ vers: "chef@box" });
+  const { code, commande, expireLe } = enrolements.preparer({ vers: "chef@box", depot: "https://github.com/acme/brigade.git" });
 
   assert.match(code, /^[0-9A-HJKMNP-TV-Z]{5}-[0-9A-HJKMNP-TV-Z]{5}$/);
   assert.equal(expireLe, new Date(Date.parse("2026-10-15T09:00:00.000Z") + DUREE_MS).toISOString());
   assert.equal(
     commande,
-    `d="$HOME/.local/share/brigade"; { [ -e "$d/.git" ] || git clone --quiet --depth 1 --branch 'v2' 'https://github.com/benomite/brigade.git' "$d"; } && ` +
+    `d="$HOME/.local/share/brigade"; { [ -e "$d/.git" ] || git clone --quiet --depth 1 --branch 'v2' 'https://github.com/acme/brigade.git' "$d"; } && ` +
       `"$d/runtime/deploy/brigade-enrolement" present '${code}' --to 'chef@box' --receiver '${RECEPTEUR}' --registry '${repertoire}'`,
   );
   // Deux enrôlements, deux codes.
@@ -161,4 +162,19 @@ test("le registre du chef : BRIGADE_REGISTRE_DIR, sinon sous l'état de son comp
   assert.equal(repertoireDuRegistre({ XDG_STATE_HOME: "/etat", HOME: "/home/chef" }), "/etat/brigade");
   assert.equal(repertoireDuRegistre({ HOME: "/home/chef" }), "/home/chef/.local/state/brigade");
   assert.throws(() => repertoireDuRegistre({}), DemandeInvalide);
+});
+
+test("sans dépôt donné, la commande clone celui dont ce clone vient — sans l'identifiant que son adresse porte", (t) => {
+  const clone = repertoireTemporaire(t);
+  execFileSync("git", ["init", "-q", clone]);
+  execFileSync("git", ["-C", clone, "remote", "add", "origin", "https://alice:secret@github.com/acme/web.git"]);
+  assert.equal(depotDeCeClone(clone), "https://github.com/acme/web.git");
+  execFileSync("git", ["-C", clone, "remote", "set-url", "origin", "git@github.com:acme/web.git"]);
+  assert.equal(depotDeCeClone(clone), "git@github.com:acme/web.git");
+});
+
+test("sans dépôt donné et un clone sans origin, l'enrôlement dit quoi donner au lieu de cloner le dépôt de quelqu'un d'autre", (t) => {
+  const clone = repertoireTemporaire(t);
+  execFileSync("git", ["init", "-q", clone]);
+  assert.throws(() => depotDeCeClone(clone), (erreur: unknown) => erreur instanceof DemandeInvalide && /aucun dépôt à cloner.*--repo https:\/\/github\.com\/<compte>\/<dépôt>\.git/.test(erreur.message));
 });

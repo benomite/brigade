@@ -29,7 +29,7 @@ const illisible = (texte: string) => {
 
 test("la consigne porte l'épique comme une donnée, le plan du dépôt, et dit de ne pas inventer", () => {
   const consigne = consigneDeDecoupage({
-    depot: "benomite/brigade",
+    depot: "acme/brigade",
     issue: { ...EPIQUE, body: `Le chef veut voir un compte.\n\n${rendreListe(30, [])}` },
     commentaires: ["Sur le rail seulement."],
     fichiers: ["README.md", "runtime/src/rail.ts", "runtime/src/pass.ts", "docs/runtime.md"],
@@ -49,19 +49,19 @@ test("la consigne porte l'épique comme une donnée, le plan du dépôt, et dit 
 });
 
 test("la consigne nomme les chemins communs du projet : ils n'entrent dans aucune zone", () => {
-  const consigne = consigneDeDecoupage({ depot: "benomite/brigade", issue: EPIQUE, commentaires: [], fichiers: [], communs: ["docs/runtime.md", "CHANGELOG.md"] });
+  const consigne = consigneDeDecoupage({ depot: "acme/brigade", issue: EPIQUE, commentaires: [], fichiers: [], communs: ["docs/runtime.md", "CHANGELOG.md"] });
   assert.match(consigne, /n'appartiennent à aucun ticket.*`docs\/runtime\.md`, `CHANGELOG\.md`/);
 });
 
 test("la consigne ne laisse au chef que les choix de produit : le reste, le manager le tranche et le dit", () => {
-  const consigne = consigneDeDecoupage({ depot: "benomite/brigade", issue: EPIQUE, commentaires: [], fichiers: [] });
+  const consigne = consigneDeDecoupage({ depot: "acme/brigade", issue: EPIQUE, commentaires: [], fichiers: [] });
   assert.match(consigne, /ne poses au chef que ce qui est un choix de produit/);
   assert.match(consigne, /tu la tranches seul, et tu \*\*écris sur l'issue ce que tu as décidé et pourquoi\*\*/);
   assert.match(consigne, /choix entre des voies/);
 });
 
 test("la consigne du découpage porte la même règle de forme que celle du jugement, sous la même table", () => {
-  const consigne = consigneDeDecoupage({ depot: "benomite/brigade", issue: EPIQUE, commentaires: [], fichiers: [] });
+  const consigne = consigneDeDecoupage({ depot: "acme/brigade", issue: EPIQUE, commentaires: [], fichiers: [] });
 
   assert.match(consigne, /\| doc, renommage, correctif dont le test est déjà écrit \| `haiku` \/ `low` \|/);
   assert.ok(consigne.includes(CRITERE_DE_FORME));
@@ -199,7 +199,7 @@ test("l'empreinte d'une épique ne change pas quand le runtime y écrit la liste
 });
 
 test("la consigne dit ce qu'est une capacité, et nomme celles que fournissent les stations du projet", () => {
-  const mission = { depot: "benomite/brigade", issue: EPIQUE, commentaires: [], fichiers: [] };
+  const mission = { depot: "acme/brigade", issue: EPIQUE, commentaires: [], fichiers: [] };
   const consigne = consigneDeDecoupage({ ...mission, capacites: ["code", "navigateur-headless"] });
 
   assert.match(consigne, /- `capacites` : ce que la machine doit savoir faire pour que le ticket soit \*\*possible\*\*/);
@@ -234,7 +234,7 @@ test("des capacités qui ne sont pas des noms rendent le découpage illisible, e
 });
 
 test("la consigne propose le cook design dans un dépôt qui le définit, et nulle part ailleurs", () => {
-  const mission = { depot: "benomite/brigade", issue: EPIQUE, commentaires: [] };
+  const mission = { depot: "acme/brigade", issue: EPIQUE, commentaires: [] };
   const avec = consigneDeDecoupage({ ...mission, fichiers: ["agents/cook-design.md", "app/src/vue/carte.js", "runtime/src/rail.ts"] });
 
   assert.match(avec, /- `cook` : `design` pour un \*\*ticket d'interface\*\*/);
