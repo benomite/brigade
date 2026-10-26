@@ -81,8 +81,8 @@ async function ouvrir(closer: (action: string) => Rendu | undefined) {
   });
   (vue.element("projets").children.at(1) ?? assert.fail("pas de case parade")).click();
   await repos();
-  await ouvrirLecture(vue, "Closer");
-  const page = vue.element("closer");
+  await ouvrirLecture(vue, "Cooks");
+  const page = vue.element("closer-du-projet");
   const demande = () => (vue.dernier("onglet") as [string, string, number])[2];
   const dire = async (objet: unknown) => {
     vue.dire("surContenu", lecture(objet, demande()), undefined, undefined);

@@ -1,7 +1,8 @@
 // L'onglet Cooks de « parade » entier, sur un écran de portable 1366×768 (#1456, épique #1454) : tous ses blocs à la
 // fois — ses quatre stations et leurs cooks (#14 coincé, `STUCK`), ses tickets de l'heure et du jour, ses gates, son
 // plafond de calibrage, les rôles de sa cuisine, ce que ses cooks ont appris, la lecture de `station`. Ce qui doit se
-// voir sans défiler : ce qui cuit, et ce qui est coincé et pourquoi.
+// voir sans défiler : ce qui cuit, et ce qui est coincé et pourquoi. Depuis #1699, la lecture de l'onglet pose aussi la
+// fiabilité de ses cooks, sous ses tickets, et son closer, sous ses gates (lecture-de-cooks.ts).
 import type { Faits } from "../../../app/src/faits.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
@@ -9,6 +10,7 @@ import { FACTS as STATIONS } from "./cooks-stations.ts";
 import { COUT_DES_GATES } from "./file-gates.ts";
 import { ROLES } from "./cooks-roles.ts";
 import { APPRENTISSAGE } from "./cooks-apprentissage.ts";
+import { COOKS, luDeCooks } from "./lecture-de-cooks.ts";
 
 const PARADE = RENDUS.parade as Rendu;
 
@@ -25,13 +27,13 @@ export const FACTS: Faits = {
 export const STATUS = PARADE.status.replace("by box/claude since 12 min, no progress since 3 min, lease 27 min left", "by box/claude since 42 min, STUCK: no progress since 31 min, lease 3 min left");
 
 export const ecran: Ecran = {
-  dit: "L'onglet Cooks de « parade » sur un écran de portable 1366×768 : ses quatre stations et leurs cooks (#14 coincé), ses tickets de l'heure et du jour, ses gates, son plafond de calibrage, ses rôles, ce que ses cooks ont appris, la lecture de `station`",
+  dit: "L'onglet Cooks de « parade » sur un écran de portable 1366×768 : ses quatre stations et leurs cooks (#14 coincé), ses tickets de l'heure et du jour, ses gates, son plafond de calibrage, la fiabilité de ses cooks, son closer, ses rôles, ce que ses cooks ont appris, la lecture de `station`",
   largeur: 1366,
   hauteur: 768,
   etapes: [{ cliquer: '#projets > button[title^="parade — "]' }, { cliquer: "#onglets-du-projet button:nth-child(2)" }],
   donnees: () => ({
     maintenant: MAINTENANT,
     reponses: { demarrage: demarrage(configuration(PROJETS)), espace: [] },
-    envois: cuisine({ ...RENDUS, parade: { ...PARADE, facts: FACTS, status: STATUS } }),
+    envois: { ...cuisine({ ...RENDUS, parade: { ...PARADE, facts: FACTS, status: STATUS } }), onglet: { [COOKS]: [luDeCooks()] } },
   }),
 };

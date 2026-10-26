@@ -40,7 +40,7 @@ import type { EtatDuGeste } from "./tableau-gestes/gestes.ts";
 import { demandeDe, demandeDeLAlerte, demandeSurLeTicket, noteDeLaDemande } from "./demande.ts";
 import { CONFIRMES, DIRECTS, ecrireGeste, GRANTS } from "./gestes.ts";
 import { gestesDeCarte, jouerGesteDeFiche } from "./gestes-fiche.ts";
-import { COMMANDES as COMMANDES_DE_FIABILITE, ONGLET as FIABILITE, voir as voirFiabilite } from "./fiabilite.ts";
+import { voir as voirFiabilite } from "./fiabilite.ts";
 import { GESTES_DES_GRANTS, voir as voirGrants } from "./grants.ts";
 import { ajouterALApp, depotDeLOrigine, lireClone } from "./ajout.ts";
 import { tenirConnexionGitHub } from "./connexion-github.ts";
@@ -51,7 +51,7 @@ import { fluxDe, formatDe } from "./mise-a-jour/flux.ts";
 import { installeurDuPoste } from "./mise-a-jour/installation.ts";
 import { COMMANDE as COMMANDE_MANAGER, voir as voirManager } from "./manager.ts";
 import { machineChoisie, machinesDe } from "./machines.ts";
-import { COMMANDE_DES_COUTS, COMMANDE_DES_RATIOS, COUTS, commandeDe, ONGLETS, projetsLus, RATIOS, RUBRIQUES } from "./onglets.ts";
+import { commandesDe, CUISINE, ONGLETS, projetsLus, RUBRIQUES } from "./onglets.ts";
 import { ouvrirTransfert, tenirPages } from "./page.ts";
 import { jouerPanne } from "./pannes/gestes.ts";
 import { gistLocal, tenirLogin } from "./pannes/login.ts";
@@ -231,7 +231,7 @@ const veille = ouvrirVeille({
 // La page des coûts de l'app (#1022) est lue par elle aussi : elle prend la place d'un onglet, l'espace fermé.
 // La lecture de l'onglet Manager part avec ce qui s'y pose au-dessus du texte : l'état du
 // manager, lu dans cette sortie (manager.ts) ; celle de l'onglet Grants, avec l'état des
-// grants (grants.ts) ; celle de l'onglet Reliability, avec la fiabilité des cooks (fiabilite.ts).
+// grants (grants.ts) ; celle de l'onglet Cooks, avec la fiabilité des cooks (fiabilite.ts, #1699).
 // `ongletLu` : l'onglet que la veille lit, et sa demande.
 let ongletLu: { id: unknown; demande: number } | undefined;
 const veilleDOnglet = ouvrirVeille({
@@ -243,7 +243,7 @@ const veilleDOnglet = ouvrirVeille({
   cuisine: cuisines.cuisineDe,
   surLecture: (lecture) => {
     const lu = ongletLu?.demande === lecture.demande ? ongletLu.id : undefined;
-    dire("contenu", lecture, lu === "manager" ? voirManager(lecture) : undefined, lu === "grants" ? voirGrants(lecture) : undefined, lu === FIABILITE ? voirFiabilite(lecture) : undefined);
+    dire("contenu", lecture, lu === "manager" ? voirManager(lecture) : undefined, lu === "grants" ? voirGrants(lecture) : undefined, lu === CUISINE ? voirFiabilite(lecture) : undefined);
     // La même lecture que celle de la veille du manager, à l'instant : la bande la reprend sans attendre la suivante.
     if (lu === "manager") direLaBande(bandes.manager(lecture));
   },
@@ -1335,16 +1335,16 @@ ipcMain.handle("ouvrirLecon", (_, nom: unknown, id: unknown) => {
 ipcMain.on("regarder", (_, nom: unknown, demande: number) => (voir = () => regarder(projets().filter((candidat) => candidat.nom === nom), ["status"], demande, true))());
 // L'onglet de contenu affiché, et lui seul : sa commande, sur la box de son projet.
 // Aucun — un terminal, « Tous les projets » — ou un nom qui n'est pas celui d'un onglet : plus rien n'est lu pour lui.
-// Reliability lit `station`, puis `measures` sur la fenêtre que `station` dit (fiabilite.ts).
+// Cooks lit `station`, puis `measures` sur la fenêtre que `station` dit et `closing --json` : ses sections
+// de fiabilité et de closer (onglets.ts, #1699).
 // La page des coûts de l'app (#1022), elle, n'a pas de projet : elle lit `station` sur la box de chaque
 // projet qu'elle sert encore — ses chiffres sont tous projets confondus (vue/cost/tete.js). Celle des ratios
 // (#1682) lit de même `closing --json` sur la box de chacun (vue/closer/tendance/tendance.js).
 ipcMain.on("onglet", (_, nom: unknown, id: unknown, demande: number) => {
-  const commande = id === COUTS ? COMMANDE_DES_COUTS : id === RATIOS ? COMMANDE_DES_RATIOS : commandeDe(id);
+  const commandes = commandesDe(id);
   ongletLu = { id, demande };
   const lus = projetsLus(id, nom, affichee().projets);
-  const commandes = commande === undefined ? [] : id === FIABILITE ? COMMANDES_DE_FIABILITE : [commande];
-  veilleDOnglet.regarder(commande === undefined ? [] : lus, commandes, demande);
+  veilleDOnglet.regarder(commandes.length === 0 ? [] : lus, commandes, demande);
 });
 // « Tous les projets » : le `status` de chacun — ce qui bloque un projet, depuis quand ses décisions
 // attendent, une station saturée : ce que l'accueil dit en une ligne et que `faits` ne porte pas.

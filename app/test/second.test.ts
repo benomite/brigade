@@ -458,7 +458,7 @@ describe("l'écran principal ne garde que la bande, le rail et les terminaux ; l
     assert.equal(vue.element("contenu").hidden, false);
     assert.deepEqual(selectionne(vue), ["Settings"]);
     assert.deepEqual(vue.element("lecture").dessous("pre"), []);
-    assert.deepEqual(vue.element("parametres-onglets").children.map((pose) => pose.textContent), ["General", "Rail", "Manager", "Grants", "Reliability", "Closer"]);
+    assert.deepEqual(vue.element("parametres-onglets").children.map((pose) => pose.textContent), ["General", "Rail", "Manager", "Grants"]);
     await cliquer(vue, vue.element("parametres-onglets"), "Manager");
     assert.equal(vue.element("etat").hidden, true);
     assert.deepEqual(selectionne(vue), ["Settings"]);

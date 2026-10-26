@@ -183,7 +183,7 @@ describe("la section, telle que la vue la pose", () => {
   });
 });
 
-describe("la page Reliability, dans l'espace du projet", () => {
+describe("la fiabilité des cooks, sur l'onglet Cooks du projet (#1699)", () => {
   async function ouvrir() {
     const vue = await jouerLaVue({
       demarrage: () => ({
@@ -202,7 +202,7 @@ describe("la page Reliability, dans l'espace du projet", () => {
     });
     (vue.element("projets").children.at(1) ?? assert.fail("pas de case parade")).click();
     await repos();
-    await ouvrirLecture(vue, "Reliability");
+    await ouvrirLecture(vue, "Cooks");
     return vue;
   }
   const faitsLus = (vue: Awaited<ReturnType<typeof ouvrir>>, reculs?: ReculDeCorrection[]): Dessinable => {
@@ -210,10 +210,9 @@ describe("la page Reliability, dans l'espace du projet", () => {
     return { projet: "parade", demande: vue.dernier("faits")[0] as number, a: A, tableau: tableau(faits) };
   };
 
-  test("les faits lus portent une correction mergée : la page pose sa cause, avant et après, et son verdict", async () => {
+  test("les faits lus portent une correction mergée : la section pose sa cause, avant et après, et son verdict", async () => {
     const vue = await ouvrir();
-    const page = vue.element("fiabilite");
-    assert.equal(page.hidden, false);
+    const page = vue.element("fiabilite-du-projet");
     assert.doesNotMatch(page.textContent, /corrected causes/);
     vue.dire("surFaits", faitsLus(vue, [RECULE_MESURE, EN_COURS]));
     await repos();
@@ -221,7 +220,7 @@ describe("la page Reliability, dans l'espace du projet", () => {
     assert.match(page.textContent, /red gates: app testsrecedes/);
     assert.match(page.textContent, /30%.*13%/);
     assert.match(page.textContent, /conflict with the basenot merged yet/);
-    // Un ticket atteint ouvre sa fiche, par-dessus la page.
+    // Un ticket atteint ouvre sa fiche, par-dessus l'onglet.
     (page.dessous("button").find(({ textContent }) => textContent === "#29") ?? assert.fail("pas de #29")).click();
     await repos();
     assert.equal(vue.element("fiche").hidden, false);
@@ -231,7 +230,7 @@ describe("la page Reliability, dans l'espace du projet", () => {
     const vue = await ouvrir();
     vue.dire("surFaits", faitsLus(vue));
     await repos();
-    assert.equal(vue.element("fiabilite").hidden, false);
-    assert.equal(vue.element("fiabilite").dessous("div").some(({ className }) => className === "reculs-fiabilite"), false);
+    assert.ok(vue.element("fiabilite-du-projet").children.length > 0);
+    assert.equal(vue.element("fiabilite-du-projet").dessous("div").some(({ className }) => className === "reculs-fiabilite"), false);
   });
 });

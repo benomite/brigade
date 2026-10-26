@@ -16,7 +16,9 @@ in the middle hides them, and switching tabs neither cuts nor empties the conver
 — the stations' block, headed by the kitchen's line (its state in a pill and its latest event; the project tile is
 folded into it, and is shown whole above the stations only when they are not read), each station with its state, its
 reason and its cooks' cards, a stuck cook's card saying `STUCK: no progress since 31 min`; on a 1366×768 laptop
-screen, all of it is visible without scrolling. Then the pages served, the project's tickets, its gates. Then, **folded
+screen, all of it is visible without scrolling. Then the pages served, the project's tickets, **the reliability of its
+cooks**, its gates and **its closer** — these two were the Settings pages Reliability and Closer until #1699 (see "The
+cooks' reliability, on Cooks" and "The closer, on Cooks"). Then, **folded
 behind a single line each and closed by default**: the calibration ceiling (`opus / high · default`), the kitchen roles
 (`6 roles · latest: … · no action yet: …`), what the cooks learned (`4 lessons, 3 profiles`) and the raw reading of
 `station`. A click on the line opens it; the app keeps it open from one reading to the next. **A block with nothing to
@@ -851,7 +853,7 @@ CLOSER
   says what is going on — **what blocks first**, then **what awaits you** (how many decisions,
   since when), then **what is cooking** (its cooks' tickets, or what is at the pass). Nothing
   going on: `nothing cooking, nothing waits for you`. When the reliability of its cooks has drifted, it ends
-  with one word, `drifting`, and hovering says why (#987, see "The Reliability reading").
+  with one word, `drifting`, and hovering says why (#987, see "The cooks' reliability, on Cooks").
 - **A project's dot** is **red** when it is blocked — base red, kitchen stopped or
   held, runtime off, box unreachable —, **yellow** when a decision awaits you, **green**
   otherwise. **Grey** as long as nothing is read from it, or when nothing can be: a project without a box, or
@@ -902,7 +904,7 @@ your stations" list and the "add a project" path, on a station's page.
 in place of the home, without opening any project — the **T** icon remains the entry shown, and "‹ All projects"
 brings you back to the home. What holds for all projects together lives at the app level; what holds for one project lives
 in the project (the home's rule, #868): **no project has a Cost tab**, and what a project has cost is read
-on its page, next to its reliability (see "The Reliability reading"). The page reads `station` (the cap, the cooks,
+on this page, as its share of each figure (its own "cost of this project" block, under Reliability, was dropped by #1699). The page reads `station` (the cap, the cooks,
 **the consumed**) **on the box of each project** it still serves, every thirty seconds while it is
 displayed — and only then. **At the top,
 three figures**: the tokens brigade has launched over **5 h, 24 h and 7 days, all projects together**, and under
@@ -1923,16 +1925,17 @@ a space ("All projects", the add form), the accent is the skin's.
 ### The Settings tab, and the log by its action
 
 **Only one tab is set at the top, next to the project's name: Settings.** Cost is no longer one (#1022): that
-of all projects lives at the app level (see "The cost of all projects"), the project's under Reliability.
+of all projects lives at the app level (see "The cost of all projects"), each project's share named there.
 **Settings** opens the project's state —
 the installation, **the backup and its age**, the pages served, the removal, the project's colors, and
 `status` as the box renders it —, with below it a row of readings: Preferences, Rail, Cooks,
-Manager, Grants, Reliability (see "The Reliability reading"), Closer (see "The Closer reading"). **Cooks** is
+Manager, Grants. **Reliability and Closer are no longer there** (#1699): they are sections of the Cooks tab (see "The
+cooks' reliability, on Cooks" and "The closer, on Cooks"), and no button or link of Settings leads to them. **Cooks** is
 no longer there (#1184): it is the space's Cooks tab, which relays `station`, read on the box of the single project shown, at
 the bottom of the tab — folded behind its line (#1456), with no button: the cap on cooks is set on each station's line; it
 is read only while the tab is shown. An alert-band line whose cause is fixed there leads to it in one click. **The log
 (Log) has no tab**: the "log" button, next to the tabs, opens the end of the log
-over the rail; clicking it again closes it. The seven readings below are those of this tab and of this
+over the rail; clicking it again closes it. The five readings below are those of this tab and of this
 action.
 
 **The project's settings, changed by a pull request** (#1309, epic #1301). At the top of Settings (General), a block
@@ -1964,24 +1967,23 @@ it stays laid underneath, and re-read, but nothing of it can be clicked through.
 the page, and **the rail comes back as you left it**, scrolled where it was. The alert band,
 above, stays visible: no page covers it, nor do the terminals, on the right.
 
-In these pages, seven **content readings**. A reading relays **as text, word for word,** the output of a runtime command
+In these pages, five **content readings**. A reading relays **as text, word for word,** the output of a runtime command
 (`docs/runtime/exploitation.md`, "Piloter"). **Manager** first shows the manager's state, **Grants** that
 of the grants:
 
 | Tab | The command the app runs on the box | What you read there |
 |---|---|---|
 | **Rail** | `ssh <hote> brigade <nom> rail` | the text of `rail`, as the box renders it: each ticket on its line, its card below — the drawn rail, for its part, is at the center, under the page |
-| **Cooks** | `ssh <hote> brigade <nom> station` | the station: the cooks, the machine, the quota — on the Cooks tab, not under Settings |
+| **Cooks** | `ssh <hote> brigade <nom> station`, then `ssh <hote> brigade <nom> measures --last <window> --by 1`, then `ssh <hote> brigade <nom> closing --json` | the station: the cooks, the machine, the quota — on the Cooks tab, not under Settings —, with **the reliability of the project's cooks** (see "The cooks' reliability, on Cooks") and **its closer** (see "The closer, on Cooks") as sections of that tab (#1699) |
 | **Manager** | `ssh <hote> brigade <nom> manager` | **the manager's state** (see "The Manager tab") — on or off, since when and by whom, its latest decisions, what it set aside and why —, then the text of `manager`, which also tells the epics and its reactions to failures |
 | **Grants** | `ssh <hote> brigade <nom> grant` | **the grants' state** (see "The Grants tab") — which is active, its expiry with the remaining duration first, its latest uses, what no grant authorizes —, then the text of `grant`, which also tells the latest actions (enabled, extended, revoked, lapsed, refused) |
-| **Reliability** | `ssh <hote> brigade <nom> station`, then `ssh <hote> brigade <nom> measures --last <window> --by 1` | **the reliability of the project's cooks** (see "The Reliability reading"), then the two texts, folded |
-| **Closer** | `ssh <hote> brigade <nom> closing --json` | **the project's closer part** (see "The Closer reading"), then the object the box returned, folded |
 | **Log** | `ssh <hote> brigade <nom> log --last 200` | the end of the log: the last 200 events, not the whole log — the line under the tabs says so |
 
 - **Only the displayed tab is read**: its command goes out when you open it, then every thirty
   seconds as long as it is on screen. Changing it, closing it or leaving the space stops its
   reading. With no content tab open, the app therefore runs only `status` for this project; with
-  one, `status` and the tab's command — never all seven (Reliability runs two, one after the other). Added to this is `facts`, read for
+  one, `status` and the tab's command — never all five (Cooks runs three, one after the other: `station`, `measures`,
+`closing --json`). Added to this is `facts`, read for
   **all** projects whatever the screen: it is what the bar draws.
 - **What awaits you stays in front of you**: the panel, between the center and the second — the project's state, the
   `awaiting` block, the rest of `status` — does not move when you change tab.
@@ -1992,7 +1994,7 @@ of the grants:
 - A runtime that does not yet know `--last` returns its usage as an error: it is read in the tab like any failing command.
 - Under the tabs, the line says what you are reading: ``the output of `ssh <hote> brigade <nom> rail`, as the box
   renders it — re-read alone every thirty seconds, as long as this tab is displayed``.
-- A project with no `hote` and no kitchen on this workstation has its seven tabs, and each says `no reading` and what is missing.
+- A project with no `hote` and no kitchen on this workstation has its five tabs, and each says `no reading` and what is missing.
 - **Nothing is drawn there**: only the manager's state and the grants' are laid
   above their text. Rail, Cooks and Log are text you can select and copy, like the
   text of any tab. The only buttons are those that write a command in the second — on
@@ -2001,10 +2003,12 @@ of the grants:
   ("The Manager tab", "The Grants tab"). Above, on the rail, a number opens its issue.
 - The space gives you back the tab where you left it, content tab included.
 
-### The Reliability reading
+### The cooks' reliability, on Cooks
 
-*Ticket: #987.* Under **Settings → Reliability**, **the reliability of the project's cooks, over its latest
-served tickets**, and **what the project cost** (#1022). It is not a tab at the top: the only one there is Settings.
+*Tickets: #987, #1699.* On the project's **Cooks** tab, in a section under its tickets, **the reliability of the
+project's cooks, over its latest served tickets** — the same on a narrow screen. Until #1699 it was the page **Settings →
+Reliability**; it is read with the Cooks tab, every thirty seconds while that tab is shown, and a reading that fails
+whole is said once, by the tab's reading line, not again in the section.
 
 - **At the top, three figures**: the share **delivered first time** ("1 of 7 · 14%"), against its threshold;
   the **average number of attempts per ticket**; the **tokens lost on failed attempts**, against their cap.
@@ -2012,13 +2016,12 @@ served tickets**, and **what the project cost** (#1022). It is not a tab at the 
   merged, left out`.
 - **Then the failure causes that come back most, three at most**: each with its number of attempts,
   its share of the failed attempts, and its latest tickets — three at most, most recent first. **A click
-  on a ticket opens its card**, over the page, with its history (like its most expensive tickets,
-  below). With no failed attempt, `no failed attempt`.
+  on a ticket opens its card**, over the tab, with its history. With no failed attempt, `no failed attempt`.
 - **A figure past its threshold turns red** — the first-time share *below* its own, the lost tokens
   *above* theirs —, as the `drift` line of `status` flags it. The average number of attempts has
   no threshold. A threshold the chef has not set: the runtime's for first time, `50% (default)`;
   none for the lost tokens, `no ceiling set`, and nothing is judged.
-- **Not enough served tickets yet to measure, the page says so** —
+- **Not enough served tickets yet to measure, the section says so** —
   `not enough tickets served yet to measure: 6 of the 10 it takes`, or `none of the last 10 tickets
   served is merged yet` —, **never zeros**.
 - **Below, the causes a correction of the guidelines aimed at** (#1001, epic #994), under "corrected causes:
@@ -2054,22 +2057,17 @@ served tickets**, and **what the project cost** (#1022). It is not a tab at the 
   profile` (#1456) —, **and no list**, nothing to open. It comes from `facts` (`apprentissage`, `docs/runtime/etat-et-mesures.md`),
   read by `app/src/apprentissage.ts`; a runtime from before this field does not return it either, and the page says the
   same sentence. While the project's facts are not read, the section is not laid.
-- **Alongside, what the project cost, and it alone** (#1022), under "cost of this project": **its lost
-  tokens** and **its most expensive tickets**, the same blocks as on the app's cost page (see "The
-  cost of all projects") — a click on the figure unfolds the list of lost cooks, a click on a
-  ticket opens its card —, but **read in the `station` of its own box only**: no figure from another project
-  enters. **Its thresholds are highlighted there as on the app's page**: past `seuil-ticket`
-  or `seuil-perdus`, the block turns red and a line carries the action; a threshold not set is said
-  "ceiling: not communicated". The lost tokens here are not those of the top: those are the
-  failed attempts of the last 10 merges (`measures`); these, the red attempts and the interrupted cooks
-  among the latest cooks that `station` lists.
+- **What the project cost is no longer there** (#1699): the "cost of this project" block — its lost tokens and its
+  most expensive tickets, read in its own `station` — was dropped instead of moved. The app's cost page (see "The cost of
+  all projects") gives each project's share of every figure, and the lost tokens and most expensive tickets of all
+  projects together; this project's lost tokens, judged against `seuil-perdus`, stay in the third figure above.
 
 **Where it comes from** (`app/src/fiabilite.ts`). The app computes nothing and asks the runtime for nothing new:
 it reads what `measures` writes (`docs/runtime/etat-et-mesures.md`, "Le relevé des mesures") — the blocks
 `retries`, `failures` and `launches` —, and the chef's settings under "chef's decisions" of `station`.
 
 - **The window is that of the first-time drift**: `fenetre-renvois` (10 absent a setting), its
-  threshold `seuil-renvois` (50%). The reading therefore runs `station`, then `measures --last <window>`: the page
+  threshold `seuil-renvois` (50%). The reading therefore runs `station`, then `measures --last <window>`: the section
   and the `drift` line of `status` judge the same tickets. **The minimum to measure is the drift's**:
   the full window, of which at least one merged ticket. Served tickets that are not merged (in progress,
   dropped, served with no diff) are set aside, and the line under the figures says so.
@@ -2077,21 +2075,20 @@ it reads what `measures` writes (`docs/runtime/etat-et-mesures.md`, "Le relevé 
   `--by 1` puts each merge in its own slice, so that each row of the `launches` block carries its rank;
   the app sums the `lost` column of the last ten. A launch whose tokens are not known makes the
   sum "≥".
-- A box whose `measures` does not yet count returns (a runtime from before #946): the page says in one
-  line that reliability is not communicated, the detail on hover. A failed reading, likewise.
-- **What the project cost comes from the same `station`**, the one this reading runs first: no
-  extra command goes out. A failed reading leaves it "not communicated".
+- A box whose `measures` does not yet count returns (a runtime from before #946): the section says in one
+  line that reliability is not communicated, the detail on hover.
 
 **On the home screen, the line of a project whose reliability has drifted says so in one word: `drifting`** — when the
 project's `status` carries a `drift` line on the first-time share, or on the lost tokens. What it
 says is on hover; the dot does not change: nothing awaits the chef, nothing blocks. The other thresholds
 (tests, repo, most expensive ticket) are not the cooks' reliability, and add nothing to it.
 
-### The Closer reading
+### The closer, on Cooks
 
-*Ticket: #990 (epic #986).* Under **Settings → Closer**, **the project's "closer" part**: what the
-closer's last observation spotted (`docs/runtime/fermeture.md`, "La fermeture qui observe"). It
-is one more reading, next to Reliability: the two top tabs stay two.
+*Tickets: #990 (epic #986), #1699.* On the project's **Cooks** tab, in a section under its gates, **the project's
+"closer" part**: what the closer's last observation spotted (`docs/runtime/fermeture.md`, "La fermeture qui observe").
+Until #1699 it was the page **Settings → Closer**; `closing --json` now goes out with the Cooks tab's reading, after
+`station` and `measures`.
 
 - **At the top, four figures**: the **merges since the last cleanup**, the **added / removed**
   ratio (`2.5:1`, or `nothing removed`, as `closing` says it — over its longest window, with below it
@@ -2163,7 +2160,7 @@ running, or when an action is on its way; threshold not crossed (or not declared
 
 **Where it comes from.** The app runs `closing --json` (#988) and reads the object it returns on one line — nothing is
 recounted, nothing is launched: the command opens the log read-only. The view reads it itself in the
-tab's output (`app/src/vue/closer/section.js`), and what the box returned stays readable, folded below.
+Cooks tab's output (`app/src/vue/closer/section.js`); the raw object is not shown.
 ### The Manager tab
 
 **Is it on?** This is where you read it, per project. At the top of the tab, above the text of

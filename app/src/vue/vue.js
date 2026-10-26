@@ -159,10 +159,6 @@ const PARAMETRES = "parametres";
 const COUTS = "couts";
 // Et celle de la page des ratios de l'app (ticket 1682) : `closing --json`, sur la box de chaque projet (onglets.ts, `RATIOS`).
 const RATIOS = "ratios";
-// Et celle de l'onglet Reliability : la fiabilité des cooks du projet affiché (fiabilite.ts).
-const FIABILITE = "fiabilite";
-// Et celle de l'onglet Closer : `closing --json`, la partie « closer » du projet affiché (closer/section.js).
-const CLOSER = "closer";
 // Le geste qui règle le closer, son modèle et son effort ensemble (boutons.ts, `REGLER_LE_CLOSER`).
 const REGLER_LE_CLOSER = "regler-closer";
 // Les deux onglets de la page d'un projet (ticket 1184), et la lecture que Cooks suit : `station`, celle que `onglets.ts`
@@ -243,8 +239,6 @@ const rail = element("rail");
 const fiche = element("fiche");
 const manager = element("manager");
 const grants = element("grants");
-const fiabilite = element("fiabilite");
-const closer = element("closer");
 const luOnglet = element("lu-onglet");
 const lectureOnglet = element("lecture-onglet");
 const gestesOnglet = element("gestes-onglet");
@@ -359,6 +353,16 @@ apprisDuProjet.id = "appris-du-projet";
 // remplit ; poserRail le pose.
 const triageDuProjet = document.createElement("div");
 triageDuProjet.id = "triage-du-projet";
+// La fiabilité de ses cooks, sous ses tickets, sur Cooks (ticket 1699) : elle était la page Settings → Reliability.
+// poserLaFiabilite la remplit, de la lecture de Cooks ; poserRail la pose.
+const fiabilite = document.createElement("section");
+fiabilite.id = "fiabilite-du-projet";
+fiabilite.ariaLabel = "Reliability";
+// Son closer, sous ses gates, sur Cooks (ticket 1699) : il était la page Settings → Closer. poserLeCloser le remplit, de
+// la lecture de Cooks ; poserRail le pose.
+const closer = document.createElement("section");
+closer.id = "closer-du-projet";
+closer.ariaLabel = "Closer";
 const alerteDeCuisine = document.createElement("div");
 alerteDeCuisine.id = "alerte-de-cuisine";
 const lu = element("lu");
@@ -805,10 +809,6 @@ const coutsLus = new Map();
 // Le dernier `closing --json` lu de chaque projet pour la page des ratios — ou ce qui a été obtenu à sa place.
 /** @type {Map<string, Lecture>} */
 const ratiosLus = new Map();
-// La dernière lecture de Reliability du projet affiché : son `station` dit aussi ce que ce projet a coûté,
-// posé sous sa fiabilité (ticket 1022). Indéfinie : pas encore lue depuis que la lecture est affichée.
-/** @type {Lecture | undefined} */
-let lectureDeLaFiabilite;
 // Le rail que sa station publie, par projet sans box ni station ici (ticket 1435, `lireLeRailPublie`), et le rang de sa
 // dernière lecture. `sansReponse` : un pont qui ne le lit pas, et l'onglet garde sa phrase d'avant (ticket 1405).
 /** @type {Map<string, import("./rail-publie.js").EtatDuRailPublie & { sansReponse?: true }>} */
@@ -892,14 +892,17 @@ let CONFIRMES = [];
 // que l'onglet est affiché — rien ne reste de ce qui s'y lisait avant, ni la durée qui restait.
 /** @type {VuDesGrants | undefined} */
 let grantsVus;
-// Ce que la dernière lecture de l'onglet Reliability donne à poser. Indéfini : pas encore lu depuis
-// que l'onglet est affiché.
+// Ce que la dernière lecture de l'onglet Cooks donne à poser dans sa section de fiabilité. Indéfini : pas encore lu
+// depuis que l'onglet est affiché.
 /** @type {VuDeLaFiabilite | undefined} */
 let fiabiliteVue;
-// Ce que la dernière lecture de l'onglet Closer a donné, pour son projet. Indéfini : pas encore lu
-// depuis que l'onglet est affiché.
+// Ce que la dernière lecture de l'onglet Cooks a donné à sa section du closer, pour son projet. Indéfini : pas encore
+// lu depuis que l'onglet est affiché.
 /** @type {{ projet: string, lu: import("./closer/section.js").Lu } | undefined} */
 let closerLu;
+// La dernière lecture de l'onglet Cooks a échoué tout entière : la ligne de sa lecture le dit, une fois — ses sections de
+// fiabilité et de closer ne le redisent pas (ticket 1699).
+let cooksEnEchec = false;
 // Les projets dont le chef a déplié la liste de ce que le closer a repéré : une relecture ne la replie pas.
 /** @type {Set<string>} */
 const trouvaillesDepliees = new Set();
@@ -1383,8 +1386,8 @@ function montrer() {
   const explication =
     suivie === undefined || courant === undefined || courant.desinstalle !== undefined
       ? ""
-      : suivie.id === FIABILITE
-        ? `the reliability of the cooks, as the station measures it: the chef's window and thresholds from \`${geste(courant, "station")}\`, then \`${geste(courant, "measures --last <window> --by 1")}\` — both outputs are below, as the station returns them; re-read on their own every thirty seconds, while this tab is shown`
+      : suivie.id === CUISINE
+        ? `the output of \`${geste(courant, "station")}\`, as the station returns it; the reliability of the cooks from the chef's window and thresholds it gives, then \`${geste(courant, "measures --last <window> --by 1")}\`; the closer from \`${geste(courant, "closing --json")}\` — re-read on their own every thirty seconds, while this tab is shown`
         : `${suivie.id === "manager" ? "the manager state, then " : suivie.id === "grants" ? "the grants state, then " : ""}the output of \`${geste(courant, suivie.commande)}\`, as the station returns it${suivie.precision === undefined ? "" : ` (${suivie.precision})`} — re-read on its own every thirty seconds, while this tab is shown`;
   // Sur Cooks, elle est en tête de sa lecture, sous les colonnes : la ligne du haut n'a rien à dire.
   const surCuisine = cuisineMontree();
@@ -1937,9 +1940,9 @@ function lireOnglet() {
   // Celui des grants non plus.
   grantsVus = undefined;
   poserGrants();
-  // Ni la fiabilité, ni ce que le projet a coûté.
+  // Ni la fiabilité.
   fiabiliteVue = undefined;
-  lectureDeLaFiabilite = undefined;
+  cooksEnEchec = false;
   poserLaFiabilite();
   // Ni le closer.
   closerLu = undefined;
@@ -3819,7 +3822,7 @@ function poserHistoire(projet, ticket, carte) {
 }
 
 // La rétro du ticket servi : les leçons qu'elle a laissées au projet — chacune sa pastille
-// « provisional », son sens au survol comme sur la page Reliability, son id et son texte —, puis ce
+// « provisional », son sens au survol comme dans ce que les cooks ont appris, son id et son texte —, puis ce
 // que son cook a écrit, tel que la box l'a rendu. Sans rétro, une phrase le dit, jamais une section vide.
 /** @param {number} ticket @param {import("../histoire.ts").RetroDite} retro */
 function poserRetro(ticket, retro) {
@@ -3847,7 +3850,7 @@ function poserRetro(ticket, retro) {
     const liste = document.createElement("ul");
     for (const { id, texte, reconfirmee } of retro.lecons) {
       const ligne = document.createElement("li");
-      // La pastille est le déclencheur de son survol, comme sur la page Reliability.
+      // La pastille est le déclencheur de son survol, comme dans ce que les cooks ont appris.
       const pastille = bloc("span", PROVISOIRE);
       pastille.className = "statut";
       pastille.tabIndex = 0;
@@ -4766,8 +4769,9 @@ async function reglerLePlafondDuProjet(projet, station, valeur) {
 /** @param {Projet} projet @param {Dessinable | undefined} tenu */
 function poserCuisineEtroite(projet, tenu) {
   if (projet.sansStation === true) return rail.replaceChildren(bloc("h3", STATION_ARRETEE));
-  // Dans l'ordre de l'écran large (ticket 1456) : ses stations d'abord.
-  if (stationsPosees) return rail.replaceChildren(cuissonDuProjet, declareesDuProjet, activiteDuProjet, gatesDuProjet, rolesDuProjet, triageDuProjet, apprisDuProjet);
+  // Dans l'ordre de l'écran large (ticket 1456) : ses stations d'abord — la fiabilité de ses cooks et son closer compris
+  // (ticket 1699).
+  if (stationsPosees) return rail.replaceChildren(cuissonDuProjet, declareesDuProjet, activiteDuProjet, fiabilite, gatesDuProjet, closer, rolesDuProjet, triageDuProjet, apprisDuProjet);
   const pourquoi = muets.has(projet.nom)
     ? "its stations: not known while the station is unreachable"
     : tenu === undefined
@@ -4818,7 +4822,8 @@ function poserRail(projet) {
   }
   // Sur Cooks, dans l'ordre de sa revue (docs/revue-page-cooks.md, ticket 1456) : ses stations et leurs cooks en tête —
   // la ligne de sa cuisine dedans —, les pages servies sans carte et ses serveurs de livraison sous elles, ce que chaque
-  // station déclarée fournit (ticket 1509), puis ses tickets, ses gates, et en bas, repliés, son plafond de calibrage,
+  // station déclarée fournit (ticket 1509), puis ses tickets et la fiabilité de ses cooks, ses gates et son closer
+  // (ticket 1699 : ils étaient sous Settings), et en bas, repliés, son plafond de calibrage,
   // ses rôles, ce que ses cooks ont appris et la lecture de `station`. La carte du projet n'y est que quand ses stations ne se lisent pas : elle dit pourquoi, ou
   // ses cooks en cours.
   // Sur Rail, en tête, la ligne qui dit ce qui y demande un geste (ticket 1185).
@@ -4832,7 +4837,7 @@ function poserRail(projet) {
   if (cuisine && etroit()) return poserCuisineEtroite(projet, tenu);
   // Sans stations lues — un runtime qui ne les donne pas, une box muette —, la carte du projet reste entière, en tête :
   // elle seule dit alors ses cooks en cours.
-  const deCooks = () => [...(stationsPosees ? [] : [carte]), cuissonDuProjet, servisSansCarte, pages, declareesDuProjet, activiteDuProjet, gatesDuProjet, plafondDuProjet, rolesDuProjet, triageDuProjet, apprisDuProjet, lectureDeLaCuisine];
+  const deCooks = () => [...(stationsPosees ? [] : [carte]), cuissonDuProjet, servisSansCarte, pages, declareesDuProjet, activiteDuProjet, fiabilite, gatesDuProjet, closer, plafondDuProjet, rolesDuProjet, triageDuProjet, apprisDuProjet, lectureDeLaCuisine];
   /** @param {(HTMLElement | string)[]} poses */
   const poser = (...poses) => rail.replaceChildren(...(cuisine ? [...poses, ...deCooks()] : [...parLeDirect, ...(alerteDeCuisine.hidden ? [] : [alerteDeCuisine]), ...poses]));
   // Cuisine d'un projet servi ici, station arrêtée : rien n'est lu, la page dit pourquoi en une ligne — sur l'un et
@@ -5525,7 +5530,7 @@ function carteDuCook(nom, { ticket, titre }) {
 const titreSurLeRail = (nom, ticket) => carteSurLeRail(nom, ticket)?.titre;
 
 // Un clic sur un ticket d'une cause d'échec, ou sur un des tickets perdus ou les plus chers du projet,
-// dans Reliability — ou sur la page des coûts de l'app, une fois son projet ouvert —, ou sur celui que la
+// dans la fiabilité de Cooks — ou sur la page des coûts de l'app, une fois son projet ouvert —, ou sur celui que la
 // cuisine a ouvert seule pour ramener ses gates sous leur budget, en tête de la file, ouvre sa fiche,
 // par-dessus l'onglet. Un ticket que le rail ne porte pas s'ouvre avec ce qu'en dit la dernière lecture de
 // ce qui est en amont — son titre, son issue —, à défaut avec ce que l'on en sait : son numéro.
@@ -5543,50 +5548,30 @@ function ouvrirFicheDeCout(nom, ticket, retour) {
   ouvrirFiche(projet, carte, retour);
 }
 
-// La fiabilité des cooks du projet affiché, en tête de l'onglet Reliability (fiabilite.js) : trois chiffres
-// face à leurs seuils, puis les causes d'échec qui reviennent le plus. Un ticket d'une cause ouvre sa fiche.
-// Dessous, chaque cause qu'une correction acceptée des consignes visait, avant et après son merge (ticket 1001),
-// (ce que les cooks ont appris au projet — leçons et profils, ticket 1058 — est sur l'onglet Cooks depuis le ticket 1273).
-// À côté, ce que ce projet a coûté, et lui seul (ticket 1022) : ses tokens perdus et ses tickets les plus chers,
-// lus dans le `station` de sa propre box — celui que cette lecture lance — et jugés face à ses propres
-// seuils (cost/seuils.js). Un ticket ouvre sa fiche.
-let perdusDuProjetOuverts = false;
-function basculerPerdusDuProjet() {
-  perdusDuProjetOuverts = !perdusDuProjetOuverts;
-  poserLaFiabilite();
-}
+// La fiabilité des cooks du projet affiché, en section de l'onglet Cooks sous ses tickets (fiabilite.js, ticket 1699) :
+// trois chiffres face à leurs seuils, puis les causes d'échec qui reviennent le plus. Un ticket d'une cause ouvre sa
+// fiche. Dessous, chaque cause qu'une correction acceptée des consignes visait, avant et après son merge (ticket 1001).
+// Ce que le projet a coûté n'y est pas : la page des coûts de l'app le dit, projet par projet (ticket 1022).
 function poserLaFiabilite() {
   const projet = courant;
-  fiabilite.hidden = projet === undefined || !seLit(projet) || actif() !== FIABILITE;
-  if (projet === undefined || fiabilite.hidden) return fiabilite.replaceChildren();
+  if (projet === undefined || !seLit(projet) || !cuisineMontree() || cooksEnEchec) return fiabilite.replaceChildren();
   const vu = fiabiliteVue?.projet === projet.nom ? fiabiliteVue : undefined;
-  const seul = [projetDuCout(projet)];
-  /** @type {Map<string, Lecture>} */
-  const lue = new Map(lectureDeLaFiabilite?.projet === projet.nom ? [[projet.nom, lectureDeLaFiabilite]] : []);
-  const coute = document.createElement("div");
-  coute.className = "cout-du-projet";
-  coute.append(
-    bloc("h2", "cost of this project"),
-    poserPerdus(document, seul, lue, titreSurLeRail, perdusDuProjetOuverts, basculerPerdusDuProjet, ouvrirFicheDeCout),
-    poserChers(document, seul, lue, titreSurLeRail, ouvrirFicheDeCout),
-  );
   /** @param {number} ticket @param {HTMLElement} retour */
   const ouvrir = (ticket, retour) => ouvrirFicheDeCout(projet.nom, ticket, retour);
   // Les corrections acceptées de ses consignes, et ce qu'elles ont fait de leur cause (recul.js) : lues
   // dans `facts`, pas dans cette lecture — une box pas jointe garde la dernière.
   const tenu = tenus.get(projet.nom);
   const reculs = tenu !== undefined && "tableau" in tenu ? tenu.tableau.reculs : undefined;
-  fiabilite.replaceChildren(...poserFiabilite(document, vu, ouvrir), ...poserReculs(document, reculs, ouvrir), coute);
+  fiabilite.replaceChildren(...poserFiabilite(document, vu, ouvrir), ...poserReculs(document, reculs, ouvrir));
 }
 
-// La partie « closer » du projet affiché, sous Settings → Closer (closer/section.js) : les quatre chiffres
+// La partie « closer » du projet affiché, en section de l'onglet Cooks sous ses gates (closer/section.js, ticket 1699) : les quatre chiffres
 // de sa dernière observation, ce qu'elle a repéré derrière un bouton — ou, sans closer réglé, le geste
 // qui en règle un, écrit dans le second comme un bouton d'action. Les places du lancement et du bilan y
 // sont posées ; celle du bilan se remplit quand la dernière passe a fini (closer/bilan/bilan.js).
 function poserLeCloser() {
   const projet = courant;
-  closer.hidden = projet === undefined || !seLit(projet) || actif() !== CLOSER;
-  if (projet === undefined || closer.hidden) return closer.replaceChildren();
+  if (projet === undefined || !seLit(projet) || !cuisineMontree() || cooksEnEchec) return closer.replaceChildren();
   const lu = closerLu?.projet === projet.nom ? closerLu.lu : undefined;
   const basculer = () => {
     if (!trouvaillesDepliees.delete(projet.nom)) trouvaillesDepliees.add(projet.nom);
@@ -5608,7 +5593,7 @@ function poserLeCloser() {
 
 // La place du lancement, dans la partie closer (closer/lancement/lancement.js) : le bouton, la
 // confirmation, puis où en est la demande. Chaque geste part sur la box par le process principal
-// (closer-lancement.ts) ; le lancement, seulement au « oui » du chef. Revenu, il fait relire l'onglet :
+// (closer-lancement.ts) ; le lancement, seulement au « oui » du chef. Revenu, il fait relire l'onglet Cooks :
 // la lecture suivante est la première à le montrer, et c'est elle qui ramène la place au repos.
 /** @param {string} nom @param {import("./closer/section.js").Lu | undefined} lu */
 function poserLeLancement(nom, lu) {
@@ -5631,7 +5616,7 @@ function poserLeLancement(nom, lu) {
     }
     const suite = apresRendu(geste, rendu);
     poser(suite);
-    if (suite.etape === "relecture" && courant?.nom === nom && ongletDemande === CLOSER) brigade.onglet(nom, CLOSER, ++demandeOnglet);
+    if (suite.etape === "relecture" && courant?.nom === nom && ongletDemande === CUISINE) brigade.onglet(nom, CUISINE, ++demandeOnglet);
   };
   const etat = lancementsDuCloser.get(nom) ?? REPOS;
   // La proposition de la dérive franchie ne fait que mener au bouton de lancement : même geste, même confirmation.
@@ -8105,15 +8090,15 @@ brigade.surFaits((recue) => {
   if (courant?.nom === recue.projet) {
     dessiner();
     void poserOrdinaires(courant);
-    // Reliability pose aussi ce que `facts` dit des corrections acceptées.
+    // La fiabilité, sur Cooks, pose aussi ce que `facts` dit des corrections acceptées.
     poserLaFiabilite();
   }
 });
 // Ce que l'onglet de contenu affiché a rendu : une lecture ratée s'y lit comme
 // dans le panneau, et n'en retire rien. Celle de l'onglet Manager vient avec l'état du
 // manager, lu dans sa sortie : il remplace celui d'avant, au-dessus du texte. Celle de
-// l'onglet Grants, de même, avec l'état des grants ; celle de l'onglet Reliability, avec la fiabilité des cooks ;
-// celle de l'onglet Closer, lue ici même dans sa sortie (closer/section.js).
+// l'onglet Grants, de même, avec l'état des grants ; celle de l'onglet Cooks, avec la fiabilité des cooks, et la
+// partie de son closer, lue ici même dans sa sortie de `closing --json` (closer/section.js, ticket 1699).
 brigade.surContenu((recue, vu, desGrants, laFiabilite) => {
   if (recue.demande !== demandeOnglet) return;
   // La page des coûts lit `station` sur la box de chaque projet : chacune entre dans ses chiffres.
@@ -8127,8 +8112,6 @@ brigade.surContenu((recue, vu, desGrants, laFiabilite) => {
     return poserRatios();
   }
   if (recue.projet !== courant?.nom || courant.sansStation === true) return;
-  // Reliability : son `station` dit aussi ce que le projet a coûté.
-  if (ongletDemande === FIABILITE) lectureDeLaFiabilite = recue;
   // Sans page par-dessus, c'est la lecture de l'onglet Cooks : elle se pose sur lui (ticket 1184).
   if (actif() === undefined) rendre(recue, luCuisine, lectureCuisine);
   else rendre(recue, luOnglet, lectureOnglet);
@@ -8137,8 +8120,9 @@ brigade.surContenu((recue, vu, desGrants, laFiabilite) => {
   grantsVus = desGrants;
   poserGrants();
   fiabiliteVue = laFiabilite;
+  cooksEnEchec = ongletDemande === CUISINE && "erreur" in recue;
   poserLaFiabilite();
-  if (ongletDemande === CLOSER) {
+  if (ongletDemande === CUISINE) {
     closerLu = { projet: recue.projet, lu: lireFermeture(recue) };
     // Le geste revenu se lit désormais dans la lecture : la place revient au repos.
     if (lancementsDuCloser.get(recue.projet)?.etape === "relecture") lancementsDuCloser.delete(recue.projet);

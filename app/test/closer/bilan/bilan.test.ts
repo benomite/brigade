@@ -1,7 +1,7 @@
 // Le bilan d'une passe finie (vue/closer/bilan/bilan.js, ticket 992) : la place reste vide tant que la
 // dernière demande n'est pas finie ; finie, elle liste ce que la passe a retiré et montre la PR
 // ouverte, en lien vers l'adresse que `closing --json` a rendue. Le module est lu seul, sur un faux
-// document, puis la vue jouée telle qu'elle est (aides/fausse-vue.ts), sous Settings → Closer.
+// document, puis la vue jouée telle qu'elle est (aides/fausse-vue.ts), sur l'onglet Cooks (#1699 : elle était sous Settings → Closer).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { PR, poserBilan, RIEN_RETIRE, RETIRE, SANS_PR, TITRE } from "../../../src/vue/closer/bilan/bilan.js";

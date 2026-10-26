@@ -4473,8 +4473,8 @@ main > header,
   margin: 0;
   color: var(--discret);
 }
-/* La rétro du ticket servi : ses leçons, chacune sa pastille « provisional » comme sur la page
-   Reliability, son id et son texte ; puis ce que son cook a écrit, tel quel. */
+/* La rétro du ticket servi : ses leçons, chacune sa pastille « provisional » comme dans ce que les
+   cooks ont appris, son id et son texte ; puis ce que son cook a écrit, tel quel. */
 #fiche .retro {
   display: flex;
   flex-direction: column;
@@ -5162,45 +5162,57 @@ button.recommande {
   border-radius: var(--rayon-bouton);
   cursor: pointer;
 }
-/* Reliability (#987) : la fiabilité des cooks du projet — trois chiffres face à leurs seuils, puis les
-   causes d'échec qui reviennent le plus. Un chiffre au-delà de son seuil passe en rouge, comme pour ses coûts. */
-#fiabilite {
-  padding: 16px 16px 4px;
+/* La fiabilité des cooks du projet (#987), section de Cooks sous ses tickets (#1699) — trois chiffres face à leurs
+   seuils, puis les causes d'échec qui reviennent le plus. Un chiffre au-delà de son seuil passe en rouge, comme pour
+   ses coûts. Et son closer (#990), sous ses gates : un bloc comme les autres de Cooks. */
+#fiabilite-du-projet:empty,
+#closer-du-projet:empty {
+  display: none;
 }
-/* À côté de la fiabilité, ce que le projet a coûté, et lui seul (ticket 1022) : ses tokens perdus, ses tickets les plus chers. */
-.cout-du-projet {
-  margin: 18px 0 0;
-  padding: 12px 0 0;
-  border-top: 1px dashed var(--trait);
+#rail :is(#fiabilite-du-projet, #closer-du-projet) {
+  margin: 12px 16px 0;
+  padding: 8px 16px 12px;
+  background: var(--bandeau);
+  border: 1px solid var(--trait-doux);
+  border-radius: var(--rayon-carte);
 }
-.tete-fiabilite h2,
-.causes-fiabilite h2,
-.reculs-fiabilite h2,
-.cout-du-projet > h2 {
+/* Les titres du rail (#rail h3, #rail h4) n'ont pas cours dans ces sections : leurs chiffres ont les leurs. */
+#rail :is(#fiabilite-du-projet, #closer-du-projet) h3 {
+  padding: 0;
+}
+#rail :is(#fiabilite-du-projet, #closer-du-projet) h4 {
+  justify-content: flex-start;
+  position: static;
+  padding: 0;
+  background: none;
+}
+#rail .tete-fiabilite h2,
+#rail .causes-fiabilite h2,
+#rail .reculs-fiabilite h2 {
   margin: 0 0 8px;
   font-size: 12px;
   font-weight: 600;
   color: var(--discret);
 }
-.tete-fiabilite .chiffres {
+#rail .tete-fiabilite .chiffres {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
 }
-.tete-fiabilite .chiffre {
+#rail .tete-fiabilite .chiffre {
   min-width: 0;
   padding: 12px 14px;
   background: var(--carte);
   border: 1px solid var(--trait-doux);
   border-radius: var(--rayon-carte);
 }
-.tete-fiabilite .chiffre h3 {
+#rail .tete-fiabilite .chiffre h3 {
   margin: 0;
   font-size: 12px;
   font-weight: 600;
   color: var(--discret);
 }
-.tete-fiabilite .total {
+#rail .tete-fiabilite .total {
   margin: 2px 0 6px;
   font-size: 26px;
   font-weight: 700;
@@ -5208,40 +5220,40 @@ button.recommande {
   font-variant-numeric: tabular-nums;
   color: var(--texte);
 }
-.tete-fiabilite .seuil {
+#rail .tete-fiabilite .seuil {
   margin: 0;
   font-size: 12px;
   color: var(--discret);
 }
-.tete-fiabilite .chiffre.depasse {
+#rail .tete-fiabilite .chiffre.depasse {
   border-color: var(--rouge);
 }
-.tete-fiabilite .chiffre.depasse :is(.total, .seuil) {
+#rail .tete-fiabilite .chiffre.depasse :is(.total, .seuil) {
   color: var(--rouge-clair);
 }
-.tete-fiabilite .portee,
-.causes-fiabilite .portee {
+#rail .tete-fiabilite .portee,
+#rail .causes-fiabilite .portee {
   margin: 8px 0 0;
   font-size: 12px;
   color: var(--discret);
 }
-.tete-fiabilite :is(.sans, .pas-assez),
-.causes-fiabilite .sans {
+#rail .tete-fiabilite :is(.sans, .pas-assez),
+#rail .causes-fiabilite .sans {
   margin: 0;
   font-size: 14px;
   color: var(--discret);
 }
-.causes-fiabilite {
+#rail .causes-fiabilite {
   margin: 14px 0 0;
 }
-.causes-fiabilite .causes {
+#rail .causes-fiabilite .causes {
   display: grid;
   gap: 4px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.causes-fiabilite .causes li {
+#rail .causes-fiabilite .causes li {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 7em 3.5em auto;
   align-items: center;
@@ -5253,24 +5265,24 @@ button.recommande {
   border: 1px solid var(--trait-doux);
   border-radius: var(--rayon-carte);
 }
-.causes-fiabilite .titre {
+#rail .causes-fiabilite .titre {
   min-width: 0;
   overflow-wrap: anywhere;
   color: var(--texte);
 }
-.causes-fiabilite :is(.essais, .part) {
+#rail .causes-fiabilite :is(.essais, .part) {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
-.causes-fiabilite .part {
+#rail .causes-fiabilite .part {
   color: var(--discret);
 }
-.causes-fiabilite .tickets {
+#rail .causes-fiabilite .tickets {
   display: flex;
   gap: 6px;
 }
-.causes-fiabilite .tickets button,
-.reculs-fiabilite .tickets button {
+#rail .causes-fiabilite .tickets button,
+#rail .reculs-fiabilite .tickets button {
   padding: 2px 8px;
   font-size: 12px;
   color: var(--texte);
@@ -5282,36 +5294,36 @@ button.recommande {
 /* Sous les causes, celles qu'une correction acceptée des consignes visait (ticket 1001) : une carte chacune, sa
    cause et ce qu'en dit le runtime — elle recule en vert, ne recule pas en rouge —, puis avant et après le
    merge côte à côte. Un côté sans rien à lire le dit en mots, discrets, à la place du chiffre. */
-.reculs-fiabilite {
+#rail .reculs-fiabilite {
   margin: 14px 0 0;
 }
-.reculs-fiabilite .reculs {
+#rail .reculs-fiabilite .reculs {
   display: grid;
   gap: 8px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.reculs-fiabilite .recul {
+#rail .reculs-fiabilite .recul {
   padding: 12px 14px;
   background: var(--carte);
   border: 1px solid var(--trait-doux);
   border-radius: var(--rayon-carte);
 }
-.reculs-fiabilite .tete-recul {
+#rail .reculs-fiabilite .tete-recul {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: 10px;
 }
-.reculs-fiabilite .titre {
+#rail .reculs-fiabilite .titre {
   min-width: 0;
   overflow-wrap: anywhere;
   font-size: 14px;
   font-weight: 600;
   color: var(--texte);
 }
-.reculs-fiabilite .verdict {
+#rail .reculs-fiabilite .verdict {
   padding: 1px 8px;
   font-size: 12px;
   font-weight: 600;
@@ -5319,33 +5331,33 @@ button.recommande {
   border: 1px solid var(--trait-fort);
   border-radius: var(--rayon-bouton);
 }
-.reculs-fiabilite .verdict.recule {
+#rail .reculs-fiabilite .verdict.recule {
   color: var(--vert);
   border-color: var(--vert);
 }
-.reculs-fiabilite .verdict.ne-recule-pas {
+#rail .reculs-fiabilite .verdict.ne-recule-pas {
   color: var(--rouge-clair);
   border-color: var(--rouge);
 }
-.reculs-fiabilite .portee {
+#rail .reculs-fiabilite .portee {
   margin: 4px 0 0;
   font-size: 12px;
   color: var(--discret);
 }
-.reculs-fiabilite .cotes {
+#rail .reculs-fiabilite .cotes {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   margin: 10px 0 0;
 }
-.reculs-fiabilite .cote {
+#rail .reculs-fiabilite .cote {
   min-width: 0;
   padding: 10px 14px;
   background: var(--case);
   border: 1px solid var(--trait-doux);
   border-radius: var(--rayon-carte);
 }
-.reculs-fiabilite .cote h4 {
+#rail .reculs-fiabilite .cote h4 {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -5354,7 +5366,7 @@ button.recommande {
   font-weight: 600;
   color: var(--discret);
 }
-.reculs-fiabilite .total {
+#rail .reculs-fiabilite .total {
   margin: 2px 0 4px;
   font-size: 22px;
   font-weight: 700;
@@ -5362,17 +5374,17 @@ button.recommande {
   font-variant-numeric: tabular-nums;
   color: var(--texte);
 }
-.reculs-fiabilite .cote.attente .total {
+#rail .reculs-fiabilite .cote.attente .total {
   font-size: 16px;
   font-weight: 600;
   color: var(--discret);
 }
-.reculs-fiabilite .sur {
+#rail .reculs-fiabilite .sur {
   margin: 0;
   font-size: 12px;
   color: var(--discret);
 }
-.reculs-fiabilite .tickets {
+#rail .reculs-fiabilite .tickets {
   display: flex;
   gap: 6px;
   margin: 8px 0 0;
@@ -5571,39 +5583,36 @@ button.recommande {
 }
 /* Closer (#990) : quatre chiffres de la dernière observation, ce qu'elle a repéré derrière un bouton —
    ou, sans closer réglé, le message, et le modèle et l'effort à choisir devant le bouton qui les écrit.
-   Les mêmes chiffres que Reliability. */
-#closer {
-  padding: 16px 16px 4px;
-}
-.tete-closer h2 {
+   Les mêmes chiffres que la fiabilité, à côté d'elle sur Cooks (#1699). */
+#rail .tete-closer h2 {
   margin: 0 0 8px;
   font-size: 12px;
   font-weight: 600;
   color: var(--discret);
 }
-.tete-closer .calibrage {
+#rail .tete-closer .calibrage {
   margin: 0 0 0 6px;
   font-weight: 400;
 }
-.tete-closer .chiffres {
+#rail .tete-closer .chiffres {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
 }
-.tete-closer .chiffre {
+#rail .tete-closer .chiffre {
   min-width: 0;
   padding: 12px 14px;
   background: var(--carte);
   border: 1px solid var(--trait-doux);
   border-radius: var(--rayon-carte);
 }
-.tete-closer .chiffre h3 {
+#rail .tete-closer .chiffre h3 {
   margin: 0;
   font-size: 12px;
   font-weight: 600;
   color: var(--discret);
 }
-.tete-closer .total {
+#rail .tete-closer .total {
   margin: 2px 0 6px;
   font-size: 26px;
   font-weight: 700;
@@ -5611,35 +5620,35 @@ button.recommande {
   font-variant-numeric: tabular-nums;
   color: var(--texte);
 }
-.tete-closer .total.sans {
+#rail .tete-closer .total.sans {
   font-size: 14px;
   font-weight: 400;
   color: var(--discret);
 }
-.tete-closer .precise {
+#rail .tete-closer .precise {
   margin: 0;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   color: var(--discret);
 }
-.tete-closer :is(.sans, .indisponible) {
+#rail .tete-closer :is(.sans, .indisponible) {
   margin: 8px 0 0;
   font-size: 14px;
 }
-.tete-closer .attendu {
+#rail .tete-closer .attendu {
   margin: 0;
   font-size: 15px;
   font-weight: 600;
   color: var(--texte);
 }
-.tete-closer .reglage-closer {
+#rail .tete-closer .reglage-closer {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
   margin: 10px 0 0;
 }
-.tete-closer .reglage-closer button.recommande {
+#rail .tete-closer .reglage-closer button.recommande {
   padding: 3px 10px;
   font-size: 12px;
   font-weight: 600;
@@ -5648,14 +5657,14 @@ button.recommande {
   cursor: pointer;
 }
 /* Tant que le modèle et l'effort ne sont pas choisis tous deux, le bouton n'agit pas, et le montre. */
-.tete-closer .reglage-closer button.recommande:disabled {
+#rail .tete-closer .reglage-closer button.recommande:disabled {
   color: var(--discret);
   background: none;
   border-color: var(--trait);
   border-style: dashed;
   cursor: default;
 }
-.tete-closer .reglage-closer select {
+#rail .tete-closer .reglage-closer select {
   padding: 3px 8px;
   font-size: 12px;
   color: var(--texte);
@@ -5663,10 +5672,10 @@ button.recommande {
   border: 1px solid var(--trait-fort);
   border-radius: var(--rayon-bouton);
 }
-.closer-trouvailles {
+#rail .closer-trouvailles {
   margin: 14px 0 0;
 }
-.closer-trouvailles .deplier {
+#rail .closer-trouvailles .deplier {
   padding: 3px 10px;
   font-size: 12px;
   color: var(--texte);
@@ -5675,19 +5684,19 @@ button.recommande {
   border-radius: var(--rayon-bouton);
   cursor: pointer;
 }
-.closer-trouvailles .sans {
+#rail .closer-trouvailles .sans {
   margin: 0;
   font-size: 14px;
   color: var(--discret);
 }
-.closer-trouvailles .trouvailles {
+#rail .closer-trouvailles .trouvailles {
   display: grid;
   gap: 4px;
   margin: 8px 0 0;
   padding: 0;
   list-style: none;
 }
-.closer-trouvailles .trouvailles li {
+#rail .closer-trouvailles .trouvailles li {
   display: grid;
   grid-template-columns: 3em minmax(0, 1fr) minmax(0, 1.4fr);
   align-items: center;
@@ -5699,10 +5708,10 @@ button.recommande {
   border: 1px solid var(--trait-doux);
   border-radius: var(--rayon-carte);
 }
-.closer-trouvailles :is(.nom, .ou) {
+#rail .closer-trouvailles :is(.nom, .ou) {
   color: var(--texte);
 }
-.closer-trouvailles :is(.ou, .quoi) {
+#rail .closer-trouvailles :is(.ou, .quoi) {
   min-width: 0;
   overflow-wrap: anywhere;
 }
@@ -5710,18 +5719,18 @@ button.recommande {
    prix au survol ; la confirmation, la même que celle des autres gestes, qui dit ce que le closer va
    faire ; puis où en est la demande, en une ligne — en attente en jaune, en cours en vert, refusée en
    rouge — et, tant qu'elle n'est pas partie, le bouton qui l'annule. */
-.closer-lancement {
+#rail .closer-lancement {
   display: flex;
   flex-wrap: wrap;
   gap: 8px 12px;
   align-items: center;
   margin: 14px 0 0;
 }
-.closer-lancement:empty {
+#rail .closer-lancement:empty {
   display: none;
 }
-.closer-lancement .action > button,
-.closer-lancement .annuler {
+#rail .closer-lancement .action > button,
+#rail .closer-lancement .annuler {
   padding: 3px 10px;
   font-size: 12px;
   font-weight: 600;
@@ -5729,10 +5738,10 @@ button.recommande {
   border-radius: var(--rayon-bouton);
   cursor: pointer;
 }
-.closer-lancement .action > button.recommande {
+#rail .closer-lancement .action > button.recommande {
   border-color: var(--accent);
 }
-.closer-lancement .action > button:disabled {
+#rail .closer-lancement .action > button:disabled {
   color: var(--discret);
   background: none;
   border-color: var(--trait);
@@ -5741,19 +5750,19 @@ button.recommande {
 }
 /* La proposition de la dérive franchie (#993), en tête de la place : une phrase, et le bouton qui mène à
    la même confirmation que « Launch a cleanup… » — elle ne lance rien. */
-.closer-derive {
+#rail .closer-derive {
   display: flex;
   flex-basis: 100%;
   flex-wrap: wrap;
   gap: 6px 12px;
   align-items: center;
 }
-.closer-derive .attendu {
+#rail .closer-derive .attendu {
   margin: 0;
   font-size: 14px;
   color: var(--texte);
 }
-.closer-derive .action > button {
+#rail .closer-derive .action > button {
   padding: 3px 10px;
   font-size: 12px;
   font-weight: 600;
@@ -5763,11 +5772,11 @@ button.recommande {
   border-radius: var(--rayon-bouton);
   cursor: pointer;
 }
-.closer-lancement .annuler {
+#rail .closer-lancement .annuler {
   color: var(--texte);
   background: var(--bouton);
 }
-.closer-lancement .etat {
+#rail .closer-lancement .etat {
   display: inline-flex;
   gap: 6px;
   align-items: center;
@@ -5775,34 +5784,34 @@ button.recommande {
   font-size: 14px;
   color: var(--texte);
 }
-.closer-lancement .etat.retenue {
+#rail .closer-lancement .etat.retenue {
   padding-left: 8px;
   border-left: 3px solid var(--jaune);
 }
-.closer-lancement .etat.cours {
+#rail .closer-lancement .etat.cours {
   padding-left: 8px;
   border-left: 3px solid var(--vert);
 }
-.closer-lancement .etat.refusee {
+#rail .closer-lancement .etat.refusee {
   padding-left: 8px;
   border-left: 3px solid var(--rouge);
 }
-.closer-lancement .etat:is(.sans, .finie, .indisponible) {
+#rail .closer-lancement .etat:is(.sans, .finie, .indisponible) {
   color: var(--discret);
 }
-.closer-lancement .confirmation {
+#rail .closer-lancement .confirmation {
   margin: 0;
 }
-.closer-lancement .confirmation .titre {
+#rail .closer-lancement .confirmation .titre {
   margin: 0;
   font-weight: 600;
 }
-.closer-lancement .confirmation .reponses {
+#rail .closer-lancement .confirmation .reponses {
   display: flex;
   gap: 8px;
   margin: 4px 0 0;
 }
-.closer-lancement .confirmation .reponses button {
+#rail .closer-lancement .confirmation .reponses button {
   padding: 3px 10px;
   font-size: 12px;
   font-weight: 600;
@@ -5812,25 +5821,25 @@ button.recommande {
   border-radius: var(--rayon-bouton);
   cursor: pointer;
 }
-.closer-lancement .confirmation .reponses button.recommande {
+#rail .closer-lancement .confirmation .reponses button.recommande {
   color: var(--fond);
   background: var(--accent);
   border-color: var(--accent);
 }
 /* Le bilan de la dernière passe finie (ticket 992), sous le lancement : ce qu'elle a retiré, une ligne par
    candidat, et la PR qu'elle a ouverte, en lien. Vide, la place ne prend rien. */
-.closer-bilan {
+#rail .closer-bilan {
   margin: 14px 0 0;
 }
-.closer-bilan:empty {
+#rail .closer-bilan:empty {
   display: none;
 }
-.closer-bilan .bilan h3 {
+#rail .closer-bilan .bilan h3 {
   margin: 0 0 6px;
   font-size: 14px;
   font-weight: 600;
 }
-.closer-bilan .bilan h4 {
+#rail .closer-bilan .bilan h4 {
   display: flex;
   gap: 6px;
   align-items: center;
@@ -5839,19 +5848,19 @@ button.recommande {
   font-weight: 600;
   color: var(--texte-doux);
 }
-.closer-bilan .sans {
+#rail .closer-bilan .sans {
   margin: 4px 0 0;
   font-size: 14px;
   color: var(--discret);
 }
-.closer-bilan .retraits {
+#rail .closer-bilan .retraits {
   display: grid;
   gap: 4px;
   margin: 6px 0 0;
   padding: 0;
   list-style: none;
 }
-.closer-bilan .retraits li {
+#rail .closer-bilan .retraits li {
   display: grid;
   grid-template-columns: 3em minmax(0, 1fr);
   gap: 10px;
@@ -5861,47 +5870,47 @@ button.recommande {
   background: var(--carte);
   border-radius: var(--rayon-bouton);
 }
-.closer-bilan .retraits .nom {
+#rail .closer-bilan .retraits .nom {
   color: var(--texte);
 }
-.closer-bilan .retraits .quoi {
+#rail .closer-bilan .retraits .quoi {
   min-width: 0;
   overflow-wrap: anywhere;
 }
-.closer-bilan .bilan-pr {
+#rail .closer-bilan .bilan-pr {
   margin: 8px 0 0;
   font-size: 14px;
   color: var(--texte);
 }
-.closer-bilan .bilan-pr a {
+#rail .closer-bilan .bilan-pr a {
   color: var(--accent);
   cursor: pointer;
   text-decoration: underline;
 }
-.closer-lancement .confirmation .reponses button:disabled {
+#rail .closer-lancement .confirmation .reponses button:disabled {
   color: var(--discret);
   background: none;
   border-color: var(--trait);
   border-style: dashed;
   cursor: default;
 }
-.closer-lancement .confirmation .fera .quoi {
+#rail .closer-lancement .confirmation .fera .quoi {
   margin: 0;
   font-size: 12px;
   font-weight: 600;
   color: var(--discret);
 }
-.closer-lancement .confirmation .fera ul {
+#rail .closer-lancement .confirmation .fera ul {
   margin: 4px 0 0;
   padding-left: 18px;
   font-size: 13px;
   color: var(--texte-doux);
 }
-.closer-lancement .confirmation .maintenant {
+#rail .closer-lancement .confirmation .maintenant {
   margin: 0;
   font-size: 13px;
 }
-.closer-lancement .confirmation .maintenant.ferme {
+#rail .closer-lancement .confirmation .maintenant.ferme {
   color: var(--rouge-clair);
 }
 .apprentissage-fiabilite .progres {

@@ -2,7 +2,7 @@
 // ouvre une confirmation qui dit ce que ça coûte et ce que le closer va faire, et rien ne part sans le
 // « oui » du chef ; demandée, la place dit où en est la demande — en attente et de quoi, en cours,
 // refusée et pourquoi, finie — et, tant qu'elle n'est pas partie, l'annule. Le module est lu seul,
-// sur un faux document, puis la vue jouée telle qu'elle est (aides/fausse-vue.ts), sous Settings → Closer.
+// sur un faux document, puis la vue jouée telle qu'elle est (aides/fausse-vue.ts), sur l'onglet Cooks (#1699 : elle était sous Settings → Closer).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../../../src/allumage.ts";
@@ -217,8 +217,8 @@ async function ouvrir(closer: (action: string) => Rendu | undefined) {
   });
   (vue.element("projets").children.at(1) ?? assert.fail("pas de case parade")).click();
   await repos();
-  await ouvrirLecture(vue, "Closer");
-  const page = vue.element("closer");
+  await ouvrirLecture(vue, "Cooks");
+  const page = vue.element("closer-du-projet");
   const demande = () => (vue.dernier("onglet") as [string, string, number])[2];
   const dire = async (request: unknown) => {
     vue.dire("surContenu", lecture(lue(request), demande()), undefined, undefined);

@@ -1,5 +1,6 @@
 // @ts-check
-// La page Reliability d'un projet (le ticket 987) : la fiabilité de ses cooks sur ses derniers tickets servis.
+// La fiabilité des cooks d'un projet (le ticket 987), en section de son onglet Cooks depuis le ticket 1699 — elle était
+// la page Settings → Reliability : sur ses derniers tickets servis.
 // En tête, trois chiffres — la part livrée du premier coup face à son seuil, le nombre moyen d'essais
 // par ticket, les tokens perdus en essais ratés face au leur —, puis les causes d'échec qui reviennent
 // le plus, trois au plus, chacune avec son nombre, sa part et ses derniers tickets, dont un clic ouvre la

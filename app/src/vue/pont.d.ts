@@ -405,7 +405,7 @@ export type Pont = {
   // Ce que la commande de l'onglet affiché a rendu, mot pour mot. `manager` : dans l'onglet
   // Manager, ce qui se pose au-dessus — l'état du manager, lu dans cette sortie (manager.ts).
   // `grants` : dans l'onglet Grants, de même — l'état des grants (grants.ts). `fiabilite` : dans
-  // l'onglet Reliability, la fiabilité des cooks, lue dans `station` et `measures` (fiabilite.ts).
+  // l'onglet Cooks, la fiabilité des cooks, lue dans `station` et `measures` (fiabilite.ts, ticket 1699).
   surContenu(recevoir: (lecture: Lecture, manager: Vu | undefined, grants: VuDesGrants | undefined, fiabilite?: VuDeLaFiabilite) => void): void;
   // Ce que `faits` a rendu pour un projet : de quoi dessiner, ou ce qui a été obtenu à la place.
   surFaits(recevoir: (recue: Dessinable) => void): void;

@@ -1,5 +1,5 @@
 // @ts-check
-// Sous la fiabilité des cooks, sur la page Reliability (ticket 1001, épique 994) : ce que chaque correction
+// Sous la fiabilité des cooks, sur l'onglet Cooks (ticket 1001, épique 994 ; déplacée de Reliability par le ticket 1699) : ce que chaque correction
 // acceptée des consignes du projet a fait de sa cause. Une carte par correction : la cause, ce qu'en dit
 // le runtime — elle recule, ou non —, et côte à côte la part des tickets qu'elle a fait rater avant le
 // merge de la correction, et après. Un ticket atteint ouvre sa fiche, comme ceux des causes.
