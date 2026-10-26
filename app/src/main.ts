@@ -1463,7 +1463,7 @@ void app.whenReady().then(() => {
   // `Brigade.ico` posé à côté de l'exécutable une fois installée.
   const icone = join(import.meta.dirname, "..", "packaging", "icones", "Brigade-1024.png");
   const iconeWindows = app.isPackaged ? join(dirname(process.execPath), "Brigade.ico") : icone;
-  if (plateforme === "darwin" && !app.isPackaged) app.dock?.setIcon(icone);
+  if (estUnMac(plateforme) && !app.isPackaged) app.dock?.setIcon(icone);
   fenetre = new BrowserWindow({
     ...(plateforme === "win32" ? { icon: iconeWindows } : {}),
     width: 1280,
