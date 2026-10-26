@@ -149,16 +149,37 @@ These are the settings the writer of `projet.json` refuses: a project's file nev
 ## 3. You — the app's preferences
 
 The app keeps its own preferences in `~/.config/brigade/app.json`, outside any repository, and in
-a **secret gist of your GitHub account**, so that they follow you from one device to another: the
-**colors of a project** (`couleurs`: the tab color and the accent color), the **order of your
-projects**, and any display preference. The app draws the colors and writes them itself; see
-[`app.md`](app.md), "A project's colors" and "Your preferences follow you from one device to
-another". Nothing you set here reaches the project's repository.
+a **secret gist of your GitHub account**. Every `you` setting is one of two kinds, and the split is
+the list of device-bound keys in `app/src/reglages-perso/partage.ts`: a key on that list stays on
+the machine it was set on; any other key of the file is a preference, and follows you from one
+device to another — including one added later, with no change to this page. The app draws the
+colors and writes them itself; see [`app.md`](app.md), "A project's colors" and "Your preferences
+follow you from one device to another".
 
-What only holds for one computer stays in its `app.json` and never goes to the gist: a project's
-folder (`dossier`), its ssh host (`hote`), the declared boxes (`hotes`), the stations this computer
-plays (`stations`) and its ordinary-ticket settings (`ordinaires`, `limiteCooks`). The list is
-`app/src/reglages-perso/partage.ts`: any other key of the file is a preference, and follows you.
+**Follows you** (the gist, then `app.json` on each device):
+
+| Setting | Key in `app.json` | Note |
+|---|---|---|
+| The colors of a project (tab and accent) | `projets[].couleurs` | the only `you` setting the Settings screen shows (`app/src/vue/niveaux.js`) |
+| The order of your projects in the bar | the order of `projets` | set by arranging the bar; the order of two devices is merged, not overwritten |
+| Display preferences | none yet | the app has none today (no theme, density or font size); one added later follows you by default |
+| Any other personal key | any key not listed below | follows you by default |
+
+**Stays on this device** (never in the gist; each device keeps its own):
+
+| Setting | Key in `app.json` | Why it stays |
+|---|---|---|
+| A project's folder on this machine | `projets[].dossier` | a path that exists on this machine only |
+| A project's ssh host | `projets[].hote` | the name this machine's `ssh` knows the box by |
+| The boxes you declared | `hotes` | the ssh hosts this machine reaches |
+| The stations this machine plays for a project | `projets[].stations` | what this machine takes on |
+| Ordinary tickets and the cook limit of this machine's station | `projets[].ordinaires`, `projets[].limiteCooks` | decisions this machine makes for itself (§2) |
+
+**A collaborator never sees your preferences.** Someone who shares a project and clones its
+repository runs the app with their own `app.json` and reads their own gist: your colors, your order
+and your gist never reach them, and nothing of yours reaches the project's repository.
+**`projet.json` is not affected**: nothing in this section reads or writes it. The project's shared
+settings stay in §1, and change by a pull request.
 
 ## 4. Moving the box's settings into the repository — the migration
 
