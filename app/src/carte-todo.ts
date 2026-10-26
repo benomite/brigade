@@ -94,29 +94,35 @@ const PAS_DEMANDE = "nothing was sent: the station could not be asked";
 // La dernière ligne non vide d'une sortie : ce que le runtime dit en dernier.
 const derniere = (sortie: string) => sortie.split("\n").map((ligne) => ligne.trim()).filter(Boolean).at(-1) ?? "";
 
-// La réponse du chef à la carte de TODO de `ticket`, sur la box du projet. `connue` : la carte que les
-// derniers faits lus portent pour ce ticket — sans elle, ou sur une autre question, rien ne part.
+// La réponse du chef à la carte de TODO de `ticket`, lue de ce que la vue envoie : le rang d'un choix, ou son texte —
+// ou pourquoi rien ne part. `connue` : la carte que les derniers faits lus portent pour ce ticket — sans elle, ou sur une
+// autre question, rien ne part. Le même contrôle vaut sur la box et sur le tableau de la cuisine (tableau-gestes/rail.ts).
+export function reponseLue(connue: CarteLue | undefined, ticket: unknown, brute: unknown): { ticket: number; choix: number } | { ticket: number; texte: string } | { refus: string; detail: string } {
+  if (typeof ticket !== "number" || !Number.isSafeInteger(ticket) || ticket < 1 || connue === undefined) return { refus: INCONNUE, detail: "" };
+  const reponse = objet(brute);
+  if (reponse === undefined || reponse.question !== connue.question) return { refus: CHANGEE, detail: "" };
+  if ("choix" in reponse) {
+    const { choix } = reponse;
+    if (typeof choix !== "number" || !Number.isSafeInteger(choix) || choix < 1 || choix > connue.choix.length) return { refus: `nothing was sent: the card offers choices 1 to ${connue.choix.length}`, detail: "" };
+    return { ticket, choix };
+  }
+  // Les retours à la ligne du poste sont ceux de GitHub : `\n`.
+  const saisi = texte(reponse.texte) ? reponse.texte.trim().replace(/\r\n?/g, "\n") : "";
+  if (saisi === "") return { refus: VIDE, detail: "" };
+  if (saisi.includes("\0")) return { refus: "nothing was sent: your answer carries a NUL character", detail: "" };
+  if (saisi.length > LONGUEUR_MAX) return { refus: `nothing was sent: GitHub refuses a comment longer than ${LONGUEUR_MAX} characters — this one has ${saisi.length}`, detail: "" };
+  return { ticket, texte: saisi };
+}
+
+// La réponse du chef à la carte de TODO de `ticket`, sur la box du projet (`reponseLue`).
 //   0  la réponse est écrite : la carte quitte TODO
 //   1  le runtime a refusé — sa dernière ligne le dit
 //   2, 66  le runtime de la station ne connaît pas ce geste
 // Jamais d'exception.
 export async function repondreALaCarte(reglages: Reglages, servi: Servi, connue: CarteLue | undefined, ticket: unknown, brute: unknown): Promise<Rendu> {
-  if (typeof ticket !== "number" || !Number.isSafeInteger(ticket) || ticket < 1 || connue === undefined) return { refus: INCONNUE, detail: "" };
-  const reponse = objet(brute);
-  if (reponse === undefined || reponse.question !== connue.question) return { refus: CHANGEE, detail: "" };
-  let commande: string;
-  if ("choix" in reponse) {
-    const { choix } = reponse;
-    if (typeof choix !== "number" || !Number.isSafeInteger(choix) || choix < 1 || choix > connue.choix.length) return { refus: `nothing was sent: the card offers choices 1 to ${connue.choix.length}`, detail: "" };
-    commande = choisir(ticket, choix);
-  } else {
-    // Les retours à la ligne du poste sont ceux de GitHub : `\n`.
-    const saisi = texte(reponse.texte) ? reponse.texte.trim().replace(/\r\n?/g, "\n") : "";
-    if (saisi === "") return { refus: VIDE, detail: "" };
-    if (saisi.includes("\0")) return { refus: "nothing was sent: your answer carries a NUL character", detail: "" };
-    if (saisi.length > LONGUEUR_MAX) return { refus: `nothing was sent: GitHub refuses a comment longer than ${LONGUEUR_MAX} characters — this one has ${saisi.length}`, detail: "" };
-    commande = repondre(ticket, saisi);
-  }
+  const lue = reponseLue(connue, ticket, brute);
+  if ("refus" in lue) return lue;
+  const commande = "choix" in lue ? choisir(lue.ticket, lue.choix) : repondre(lue.ticket, lue.texte);
   const rendu = await lancerGeste(reglages, servi, commande);
   const { erreur } = rendu;
   if (erreur === null) return { repondue: true, dit: derniere(rendu.sortie) };
