@@ -86,7 +86,7 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
       lostTokens: 200_000,
       manager: { model: "sonnet", effort: "medium" },
       reviewer: { model: "haiku", effort: "medium" },
-      fermeture: { calibration: null, cooksBelow: 1, tokens: 500_000, removedLines: 500 },
+      fermeture: { calibration: null, cooksBelow: 1, tokens: 500_000, removedLines: 500, from: { calibration: null, cooksBelow: "default", tokens: "default", removedLines: "default" } },
       // Le plafond de calibrage, seul, a un défaut.
       plafond: { model: "opus", effort: "high", pose: { model: false, effort: false } },
     });
@@ -101,7 +101,7 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
       lostTokens: 100_000,
       manager: { model: "opus", effort: "high" },
       reviewer: { model: "sonnet", effort: "low" },
-      fermeture: { calibration: { model: "sonnet", effort: "high" }, cooksBelow: 2, tokens: 300_000, removedLines: 200 },
+      fermeture: { calibration: { model: "sonnet", effort: "high" }, cooksBelow: 2, tokens: 300_000, removedLines: 200, from: { calibration: "station", cooksBelow: "station", tokens: "station", removedLines: "station" } },
       plafond: { model: "sonnet", effort: "xhigh", pose: { model: true, effort: true } },
     });
     // Toutes les décisions de la famille sont couvertes, et chacune est au

@@ -24,7 +24,7 @@ import type { Depot } from "../depot.ts";
 import type { GitHub } from "../github.ts";
 import type { LivraisonHorsRail } from "../pass.ts";
 import { execFileSync } from "../sans-invite.ts";
-import { ecrireReglagesProjet, FICHIER, lireReglagesProjet, ReglageRefuse, ROLES, validerReglagesProjet, type Motif, type ReglagesProjet } from "./reglages.ts";
+import { CLES_DU_CLOSER, ecrireReglagesProjet, FICHIER, lireReglagesProjet, ReglageRefuse, ROLES, validerReglagesProjet, type Motif, type ReglagesProjet } from "./reglages.ts";
 
 // Le run d'une proposition : le nom de sa branche, et celui sous lequel la
 // pass la suit.
@@ -65,21 +65,21 @@ const estObjet = (valeur: unknown): valeur is Record<string, unknown> => typeof 
 
 // Les réglages actuels, changés de ce que la proposition nomme. Un réglage
 // nommé remplace l'actuel, `null` le retire ; les calibrages par défaut se
-// changent rôle par rôle. Ce qui sort n'est pas encore validé : c'est
+// changent rôle par rôle, les réglages du closer un par un. Ce qui sort n'est pas encore validé : c'est
 // l'écriture qui le juge, clés inconnues comprises.
 export function appliquerLeChangement(actuels: ReglagesProjet, changement: unknown): Record<string, unknown> {
   if (!estObjet(changement)) throw new ReglageRefuse("invalide", "", "the change must be a JSON object of project settings");
   if (Object.keys(changement).length === 0) throw new ReglageRefuse("invalide", "", "the change names no project setting");
   const change: Record<string, unknown> = { ...actuels };
   for (const [cle, valeur] of Object.entries(changement)) {
-    if (cle === "defaultCalibrations" && estObjet(valeur)) {
-      const calibrages: Record<string, unknown> = { ...actuels.defaultCalibrations };
-      for (const [role, calibrage] of Object.entries(valeur)) {
-        if (calibrage === null) delete calibrages[role];
-        else calibrages[role] = calibrage;
+    if ((cle === "defaultCalibrations" || cle === "closer") && estObjet(valeur)) {
+      const parties: Record<string, unknown> = { ...actuels[cle] };
+      for (const [nom, partie] of Object.entries(valeur)) {
+        if (partie === null) delete parties[nom];
+        else parties[nom] = partie;
       }
-      if (Object.keys(calibrages).length === 0) delete change.defaultCalibrations;
-      else change.defaultCalibrations = calibrages;
+      if (Object.keys(parties).length === 0) delete change[cle];
+      else change[cle] = parties;
     } else if (valeur === null) delete change[cle];
     else change[cle] = valeur;
   }
@@ -99,6 +99,12 @@ export function changementsDits(avant: ReglagesProjet, apres: ReglagesProjet): s
     if (!meme(de, vers)) dits.push(`${role}'s default calibration: ${calibrageDit(de)} → ${calibrageDit(vers)}`);
   }
   if (!meme(avant.calibrationCeiling, apres.calibrationCeiling)) dits.push(`calibration ceiling: ${calibrageDit(avant.calibrationCeiling)} → ${calibrageDit(apres.calibrationCeiling)}`);
+  if (!meme(avant.closer?.calibration, apres.closer?.calibration)) dits.push(`closer's calibration: ${calibrageDit(avant.closer?.calibration)} → ${calibrageDit(apres.closer?.calibration)}`);
+  for (const nom of CLES_DU_CLOSER) {
+    if (nom === "calibration") continue;
+    const [de, vers] = [avant.closer?.[nom], apres.closer?.[nom]];
+    if (de !== vers) dits.push(`closer's \`${nom}\`: ${de ?? "none"} → ${vers ?? "none"}`);
+  }
   return dits;
 }
 
@@ -120,8 +126,8 @@ export function refusDuChangement(changement: unknown, base: string): Extract<Pr
 // Propose le changement des réglages du projet par une PR sur son dépôt.
 // `changement` : ce que l'app envoie, rien n'y est cru sur parole — les
 // réglages qu'il nomme, sous les noms du fichier (`calibrationCeiling`,
-// `defaultCalibrations.manager`, `integrationBranch`), `null` pour en retirer
-// un. Ne lève pas : ce qui n'est pas proposé le dit.
+// `defaultCalibrations.manager`, `integrationBranch`, `closer.maxTokens`),
+// `null` pour en retirer un. Ne lève pas : ce qui n'est pas proposé le dit.
 export async function proposerUnReglage(changement: unknown, options: OptionsDeProposition): Promise<Proposition> {
   const { depot, github, base } = options;
   const env = options.env ?? process.env;
@@ -150,6 +156,7 @@ export async function proposerUnReglage(changement: unknown, options: OptionsDeP
       integrationBranch: lus.integrationBranch ?? base,
       ...(Object.keys(lus.defaultCalibrations).length === 0 ? {} : { defaultCalibrations: lus.defaultCalibrations }),
       ...(lus.calibrationCeiling === null ? {} : { calibrationCeiling: lus.calibrationCeiling }),
+      ...(Object.keys(lus.closer).length === 0 ? {} : { closer: lus.closer }),
     };
     apres = validerReglagesProjet(appliquerLeChangement(avant, changement));
     if (changementsDits(avant, apres).length === 0) {

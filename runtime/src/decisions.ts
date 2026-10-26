@@ -21,7 +21,7 @@ import { lireSeuils } from "./derive.ts";
 import type { Evenement } from "./evenements.ts";
 import type { Seuils } from "./events/drift.ts";
 import type { ReglagesDeFermeture } from "./events/closing.ts";
-import { configFermeture } from "./closing/settings.ts";
+import { configFermeture, provenancesDeFermeture } from "./closing/settings.ts";
 import { lireBudget, lireBudgetDeLaBase } from "./cout-des-gates.ts";
 import { cheminJournal, type Journal } from "./journal.ts";
 import { configManager } from "./manager.ts";
@@ -143,7 +143,8 @@ export function decisionsPosees(base: Base): Posees {
 // L'environnement tel que le runtime le lit : celui de son process, sans les
 // variables de décision — le drop-in n'en est plus le support —, avec les
 // décisions posées au journal, et par-dessus elles le calibrage du manager et
-// du reviewer que le dépôt du projet porte (`reglages-projet/en-vigueur.ts`).
+// du reviewer et les réglages du closer que le dépôt du projet porte
+// (`reglages-projet/en-vigueur.ts`).
 export function environnementDecide(env: Record<string, string | undefined>, posees: Posees, depot: ReglagesProjet | null = null): Record<string, string | undefined> {
   const sans = { ...env };
   for (const nom of DECISIONS) delete sans[nom];
@@ -283,8 +284,9 @@ export type ReglagesSuivis = { auDemarrage: ReglagesProjet | null; relire: () =>
 // une fois. La première lecture, elle, n'a rien à quoi se tenir : illisible,
 // c'est un refus de démarrer.
 // `depot` : les réglages que le dépôt du projet porte. Le calibrage du manager
-// et du reviewer et le plafond de calibrage y sont relus à chaque lecture, et
-// passent avant les décisions de la box. Illisibles un moment, le runtime s'en
+// et du reviewer, le plafond de calibrage et les réglages du closer y sont
+// relus à chaque lecture, et passent avant les décisions de la box. Ceux du
+// closer disent d'où chacun vient (`from`) : c'est ce que le runtime en note. Illisibles un moment, le runtime s'en
 // tient aux derniers qu'il a lus, et le dit une fois.
 export function suivreDecisions(base: Base, env: Record<string, string | undefined>, avertir: (message: string) => void = (message) => console.error(message), depot?: ReglagesSuivis): Decisions {
   let derniers = depot?.auDemarrage ?? null;
@@ -327,6 +329,6 @@ export function suivreDecisions(base: Base, env: Record<string, string | undefin
     manager: suivre("le calibrage du manager", (lu) => configManager(lu).calibrage, true),
     plafond: suivre("le plafond de calibrage", plafondDuProjet, true),
     reviewer: suivre("le calibrage du reviewer", (lu) => configReviewer(lu).calibrage, true),
-    fermeture: suivre("les réglages du closer", configFermeture),
+    fermeture: suivre("les réglages du closer", (lu, reglages) => ({ ...configFermeture(lu), from: provenancesDeFermeture(lu, reglages) }), true),
   };
 }

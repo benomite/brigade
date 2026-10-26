@@ -11,7 +11,7 @@ Words are those of [`../glossary.md`](../glossary.md).
 
 Each row has one owner. When a row mixes both, the reason says which side was kept and why. A project row names the ticket that moves it: [#1668](https://github.com/benomite/brigade/issues/1668) (the reader of the chef's decisions, for the closer settings, the manager and reviewer calibration and the project's caps) or a follow-up opened by this audit.
 
-Today the "station" gestures write a decision to the project's **log** (`decision.set`, read at the next read, no restart). A "project" row in this page is not yet read from anywhere else: the column says where it *belongs*, not where it is kept now. The file `.claude/brigade/projet.json` ([`../reglages.md`](../reglages.md)) already carries the manager and reviewer calibrations and the ceiling for the project; the sections below do not change that.
+Today the "station" gestures write a decision to the project's **log** (`decision.set`, read at the next read, no restart). A "project" row in this page is not yet read from anywhere else: the column says where it *belongs*, not where it is kept now. The file `.claude/brigade/projet.json` ([`../reglages.md`](../reglages.md)) already carries the manager and reviewer calibrations, the ceiling and the closer's settings (#1684) for the project; the sections below do not change that.
 
 ## 1. The `brigade <project> station` gestures
 
@@ -34,11 +34,11 @@ Today the "station" gestures write a decision to the project's **log** (`decisio
 | `manager-effort` | Effort of the manager's judgments (`BRIGADE_MANAGER_EFFORT`) | project | Manager calibration | [#1668](https://github.com/benomite/brigade/issues/1668) |
 | `reviewer-modele` | Model of the reviewer's reviews (`BRIGADE_REVIEWER_MODEL`) | project | Reviewer calibration | [#1668](https://github.com/benomite/brigade/issues/1668) |
 | `reviewer-effort` | Effort of the reviewer's reviews (`BRIGADE_REVIEWER_EFFORT`) | project | Reviewer calibration | [#1668](https://github.com/benomite/brigade/issues/1668) |
-| `closer-modele` | Model of the closing pass (`BRIGADE_CLOSING_MODEL`) | project | How the project's closing is calibrated | [#1668](https://github.com/benomite/brigade/issues/1668) |
-| `closer-effort` | Effort of the closing pass (`BRIGADE_CLOSING_EFFORT`) | project | Same | [#1668](https://github.com/benomite/brigade/issues/1668) |
-| `closer-cooks` | The pass starts when fewer cooks than this are in flight (`BRIGADE_CLOSING_COOKS`) | project | How much of the kitchen the project lets its closing take | [#1668](https://github.com/benomite/brigade/issues/1668) |
-| `closer-tokens` | Token cap of a closing pass (`BRIGADE_CLOSING_MAX_TOKENS`) | project | A cap on the project's spending | [#1668](https://github.com/benomite/brigade/issues/1668) |
-| `closer-retraits` | Cap on the lines a closing pass may remove (`BRIGADE_CLOSING_MAX_REMOVED_LINES`) | project | A cap on what the project lets be cut | [#1668](https://github.com/benomite/brigade/issues/1668) |
+| `closer-modele` | Model of the closing pass (`BRIGADE_CLOSING_MODEL`) | project | How the project's closing is calibrated | [#1684](https://github.com/benomite/brigade/issues/1684) — `closer.calibration.model` in `projet.json`, which wins over the box |
+| `closer-effort` | Effort of the closing pass (`BRIGADE_CLOSING_EFFORT`) | project | Same | [#1684](https://github.com/benomite/brigade/issues/1684) — `closer.calibration.effort` in `projet.json`, which wins over the box |
+| `closer-cooks` | The pass starts when fewer cooks than this are in flight (`BRIGADE_CLOSING_COOKS`) | project | How much of the kitchen the project lets its closing take | [#1684](https://github.com/benomite/brigade/issues/1684) — `closer.cooksBelow` in `projet.json`, which wins over the box |
+| `closer-tokens` | Token cap of a closing pass (`BRIGADE_CLOSING_MAX_TOKENS`) | project | A cap on the project's spending | [#1684](https://github.com/benomite/brigade/issues/1684) — `closer.maxTokens` in `projet.json`, which wins over the box |
+| `closer-retraits` | Cap on the lines a closing pass may remove (`BRIGADE_CLOSING_MAX_REMOVED_LINES`) | project | A cap on what the project lets be cut | [#1684](https://github.com/benomite/brigade/issues/1684) — `closer.maxRemovedLines` in `projet.json`, which wins over the box |
 | `ceiling-modele` | Calibration ceiling: highest model for a red ticket (`BRIGADE_CEILING_MODEL`) | project | Raising a ticket's calibration is a project choice | [#1670](https://github.com/benomite/brigade/issues/1670) *Move the manager's calibration ceiling…* |
 | `ceiling-effort` | Calibration ceiling: highest effort (`BRIGADE_CEILING_EFFORT`) | project | Same | [#1670](https://github.com/benomite/brigade/issues/1670) |
 | `remove <geste>` | Withdraws a decision set by one of the gestures above | follows the gesture | It undoes the gesture it names; the row of that gesture decides | — |

@@ -47,7 +47,7 @@ test("a fresh clone and a newly registered station: the project's branch, calibr
   // La ligne ne nomme ni branche ni réglage ; le journal ne porte que la station.
   const dits = ouvrir(t, "espace acme/espace", { BRIGADE_STATIONS: "box/claude:2:code" });
   assert.ok(
-    dits.includes("project settings — branch v2 (from .claude/brigade/projet.json); from .claude/brigade/projet.json on origin/v2, reread at each use: manager opus/high, reviewer sonnet/low, ceiling sonnet/high"),
+    dits.includes("project settings — branch v2 (from .claude/brigade/projet.json); from .claude/brigade/projet.json on origin/v2, reread at each use: manager opus/high, reviewer sonnet/low, ceiling sonnet/high, closer box"),
     dits.join("\n"),
   );
 });
@@ -62,7 +62,7 @@ test("the box's branch, calibrations and ceiling, when they differ from the repo
     BRIGADE_CEILING_MODEL: "opus",
     BRIGADE_CEILING_EFFORT: "max",
   });
-  assert.ok(dits.some((dit) => dit.startsWith("project settings — branch v2 (from .claude/brigade/projet.json); ") && dit.endsWith("manager opus/high, reviewer sonnet/low, ceiling sonnet/high")), dits.join("\n"));
+  assert.ok(dits.some((dit) => dit.startsWith("project settings — branch v2 (from .claude/brigade/projet.json); ") && dit.endsWith("manager opus/high, reviewer sonnet/low, ceiling sonnet/high, closer box")), dits.join("\n"));
 });
 
 test("cuisine-reglages-du-depot.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);

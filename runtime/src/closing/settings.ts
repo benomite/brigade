@@ -3,8 +3,9 @@
 // the project has no writing pass, and nothing else changes. Its thresholds and
 // caps, though, have a prudent default the chef adjusts.
 import { EFFORTS, MODELES } from "../calibrage.ts";
-import type { ReglagesDeFermeture } from "../events/closing.ts";
+import type { ProvenanceDeFermeture, ProvenancesDeFermeture, ReglagesDeFermeture } from "../events/closing.ts";
 import { lire } from "../plafonds.ts";
+import type { ReglagesProjet } from "../reglages-projet/reglages.ts";
 import { ConfigInvalide } from "../runtime.ts";
 
 // The pass leaves when fewer cooks than this are in flight: by default, none.
@@ -34,5 +35,21 @@ export function configFermeture(env: Record<string, string | undefined>): Reglag
     cooksBelow: entier("BRIGADE_CLOSING_COOKS", COOKS_PAR_DEFAUT),
     tokens: entier("BRIGADE_CLOSING_MAX_TOKENS", TOKENS_PAR_DEFAUT),
     removedLines: entier("BRIGADE_CLOSING_MAX_REMOVED_LINES", RETRAITS_PAR_DEFAUT),
+  };
+}
+
+// Where each setting of the closer comes from (#1684). `env`: the environment
+// as the runtime reads it (`environnementDecide`) — the chef's decisions held
+// on the box, with what `depot`, the project's repository, sets over them. A
+// setting the repository sets comes from it; else from the box if a decision
+// sets it; else it is the default.
+export function provenancesDeFermeture(env: Record<string, string | undefined>, depot: ReglagesProjet | null): ProvenancesDeFermeture {
+  const closer = depot?.closer ?? {};
+  const de = (duDepot: number | undefined, variable: string): ProvenanceDeFermeture => (duDepot !== undefined ? "repository" : env[variable] ? "station" : "default");
+  return {
+    calibration: closer.calibration !== undefined ? "repository" : env.BRIGADE_CLOSING_MODEL ? "station" : null,
+    cooksBelow: de(closer.cooksBelow, "BRIGADE_CLOSING_COOKS"),
+    tokens: de(closer.maxTokens, "BRIGADE_CLOSING_MAX_TOKENS"),
+    removedLines: de(closer.maxRemovedLines, "BRIGADE_CLOSING_MAX_REMOVED_LINES"),
   };
 }

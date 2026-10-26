@@ -27,6 +27,20 @@ The file is versioned with the code. Its fields:
 | `integrationBranch` | the branch every worktree starts from and every PR aims at | the name of a git branch (required) |
 | `defaultCalibrations` | the default model and effort of the manager and of the reviewer; keyed by role | `manager` and/or `reviewer`, each `{ "model", "effort" }` (optional) |
 | `calibrationCeiling` | the ceiling of calibration for the whole project; it replaces the ceiling set on the box | `{ "model", "effort" }` (optional) |
+| `closer` | the settings of the project's closer — the closing pass that writes ([`runtime/fermeture.md`](runtime/fermeture.md)); each one it sets replaces the box's | an object of the keys below, each optional (optional) |
+
+The `closer` keys, each one in place of a setting the box held (`brigade <projet> station <gesture>`):
+
+| Key | Meaning | Values | In place of |
+|---|---|---|---|
+| `calibration` | the closer's model and effort; without one, from the file or the box, no closing pass writes | `{ "model", "effort" }` | `closer-modele`, `closer-effort` |
+| `cooksBelow` | the start condition: the pass leaves when fewer cooks than this are in flight | an integer greater than zero (default 1: none in flight) | `closer-cooks` |
+| `maxTokens` | the tokens cap of one pass | an integer greater than zero (default 500,000) | `closer-tokens` |
+| `maxRemovedLines` | the cap on the lines one pass may remove | an integer greater than zero (default 500) | `closer-retraits` |
+
+These names are the project's settings, not what the writer's sieve looks for: `closer.cooksBelow`
+is not a machine's cook count, `closer.maxTokens` is not a token. Elsewhere in the file, the same
+names are still refused.
 
 A calibration is `{ "model": "opus" | "sonnet" | "haiku", "effort": "low" | "medium" | "high" | "xhigh" | "max" }`.
 Both keys are needed: a model alone is refused. Any other key is refused, with its name.
@@ -40,7 +54,11 @@ Example:
   "defaultCalibrations": {
     "manager": { "model": "sonnet", "effort": "medium" }
   },
-  "calibrationCeiling": { "model": "opus", "effort": "high" }
+  "calibrationCeiling": { "model": "opus", "effort": "high" },
+  "closer": {
+    "calibration": { "model": "sonnet", "effort": "medium" },
+    "maxTokens": 300000
+  }
 }
 ```
 
@@ -67,6 +85,11 @@ branch takes effect at the next fetch, with no restart and no `sudo`.
   `BRIGADE_REVIEWER_MODEL`, `BRIGADE_REVIEWER_EFFORT`, see [`runtime/exploitation.md`](runtime/exploitation.md)).
 - **The ceiling of calibration**: without `calibrationCeiling`, the box's `BRIGADE_CEILING_MODEL` and
   `BRIGADE_CEILING_EFFORT` apply; without them, the runtime's default (`opus` / `high`).
+- **The closer's settings**, one by one: a key of `closer` the file leaves out is the box's decision
+  (`closer-modele`, `closer-effort`, `closer-cooks`, `closer-tokens`, `closer-retraits`), and without
+  one, the runtime's default — the calibration has none. `brigade <projet> station` says, on each of
+  these rows and under **closer in force**, whether the value comes from the repository, from the box
+  or from the default; `brigade <projet> closing --json` says the same in `closer.from`.
 - **A file that is not project settings** (unknown key, wrong value, a secret in it) is **refused**:
   the kitchen does not open, and it says why. It does not fall back to the box's values, which the
   file would replace.

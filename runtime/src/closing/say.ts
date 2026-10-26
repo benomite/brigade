@@ -2,7 +2,7 @@
 // comment elle a fini. Les mêmes mots sur la sortie de sa commande, dans
 // journald et dans le bloc `journal` de l'observation. Et la mise en page de
 // `run closing` : un titre, puis des colonnes sous lui.
-import { SANS_ISSUE_MS, type FaitFermeture, type ReglagesDeFermeture } from "../events/closing.ts";
+import { SANS_ISSUE_MS, type FaitFermeture, type ProvenanceDeFermeture, type ProvenancesDeFermeture, type ReglagesDeFermeture } from "../events/closing.ts";
 import { geste } from "../geste.ts";
 import { faitAttendre, type Demande, type Refus } from "./condition.ts";
 
@@ -119,6 +119,19 @@ export function direReglagesEn({ calibration, cooksBelow, tokens, removedLines }
     `starts under ${pluralEn(cooksBelow, "cook")} in flight`,
     `${tokens.toLocaleString("en-US")} tokens at most`,
     `${pluralEn(removedLines, "line")} removed at most`,
+  ].join(" · ");
+}
+
+// D'où vient chacun, en anglais : ce que dit `station` (#1684). Absent : le
+// runtime qui les a notés ne le disait pas encore.
+const DE: Record<ProvenanceDeFermeture, string> = { repository: "from the project's repository (.claude/brigade/projet.json)", station: "set on the box", default: "the default" };
+export function direProvenancesEn(from: ProvenancesDeFermeture | undefined): string {
+  if (from === undefined) return "where each value comes from is not noted: the runtime that noted them predates it";
+  return [
+    `calibration ${from.calibration === null ? "set nowhere" : DE[from.calibration]}`,
+    `start condition ${DE[from.cooksBelow]}`,
+    `token cap ${DE[from.tokens]}`,
+    `removed-lines cap ${DE[from.removedLines]}`,
   ].join(" · ");
 }
 

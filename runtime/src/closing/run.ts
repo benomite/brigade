@@ -423,9 +423,9 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
   // La demande qui attend, relue à chaque réveil : elle part si rien ne la
   // retient, attend si c'est sa condition d'exécution — et le dit, une fois,
   // passé `SANS_ISSUE_MS` —, et est refusée sinon.
+  // Les réglages viennent d'être relus par le réveil qui l'appelle.
   const passer = () => {
     if (arrete || occupee) return;
-    relire();
     const lue = base.transaction(() => {
       const demande = demandeEnAttente(base);
       if (demande === null) return null;

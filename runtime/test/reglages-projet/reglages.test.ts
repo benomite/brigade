@@ -40,21 +40,22 @@ test("a clone carrying `.claude/brigade/projet.json`: branch, default calibratio
     integrationBranch: "v2",
     defaultCalibrations: { reviewer: { model: "sonnet", effort: "medium" } },
     calibrationCeiling: { model: "sonnet", effort: "high" },
+    closer: {},
   });
 });
 
 test("a clone without the file: the integration branch is the one the CLAUDE.md `Branche d'intégration` line declares", async (t) => {
   const repertoire = clone(t, "https://github.com/acme/brigade.git");
   poser(repertoire, "CLAUDE.md", ["# brigade", "", "## Équipe multi-agents (plugin brigade)", "", "- **Acteurs** : the chef", "- **Branche d'intégration** : `v2`", "- **Worktrees** : `<parent>/brigade-wt`", ""].join("\n"));
-  assert.deepEqual(await lireReglagesProjet(repertoire), { depot: "acme/brigade", source: "CLAUDE.md", integrationBranch: "v2", defaultCalibrations: {}, calibrationCeiling: null });
+  assert.deepEqual(await lireReglagesProjet(repertoire), { depot: "acme/brigade", source: "CLAUDE.md", integrationBranch: "v2", defaultCalibrations: {}, calibrationCeiling: null, closer: {} });
 });
 
 test("a clone with neither the file nor the line, nor a github.com origin: nothing is guessed", async (t) => {
   const sans = clone(t, null);
-  assert.deepEqual(await lireReglagesProjet(sans), { depot: null, source: "aucune", integrationBranch: null, defaultCalibrations: {}, calibrationCeiling: null });
+  assert.deepEqual(await lireReglagesProjet(sans), { depot: null, source: "aucune", integrationBranch: null, defaultCalibrations: {}, calibrationCeiling: null, closer: {} });
   const ailleurs = clone(t, "https://gitlab.com/acme/espace.git");
   poser(ailleurs, "CLAUDE.md", "# espace\n\nNo bindings here.\n");
-  assert.deepEqual(await lireReglagesProjet(ailleurs), { depot: null, source: "aucune", integrationBranch: null, defaultCalibrations: {}, calibrationCeiling: null });
+  assert.deepEqual(await lireReglagesProjet(ailleurs), { depot: null, source: "aucune", integrationBranch: null, defaultCalibrations: {}, calibrationCeiling: null, closer: {} });
 });
 
 test("the repository is read from every form of a github.com origin, and from nothing else", () => {
@@ -84,10 +85,10 @@ test("the CLAUDE.md line is read with or without its markup, and an unreadable b
 test("writing then reading round-trips", async (t) => {
   const repertoire = clone(t);
   assert.deepEqual(ecrireReglagesProjet(repertoire, COMPLETS), COMPLETS);
-  assert.deepEqual(await lireReglagesProjet(repertoire), { depot: "acme/espace", source: "projet.json", integrationBranch: "v2", defaultCalibrations: COMPLETS.defaultCalibrations, calibrationCeiling: COMPLETS.calibrationCeiling });
+  assert.deepEqual(await lireReglagesProjet(repertoire), { depot: "acme/espace", source: "projet.json", integrationBranch: "v2", defaultCalibrations: COMPLETS.defaultCalibrations, calibrationCeiling: COMPLETS.calibrationCeiling, closer: {} });
   // Le seul réglage obligatoire est la branche.
   ecrireReglagesProjet(repertoire, { integrationBranch: "main" });
-  assert.deepEqual(await lireReglagesProjet(repertoire), { depot: "acme/espace", source: "projet.json", integrationBranch: "main", defaultCalibrations: {}, calibrationCeiling: null });
+  assert.deepEqual(await lireReglagesProjet(repertoire), { depot: "acme/espace", source: "projet.json", integrationBranch: "main", defaultCalibrations: {}, calibrationCeiling: null, closer: {} });
   // Rien d'autre n'est laissé à côté du fichier.
   assert.deepEqual(readdirSync(join(repertoire, ".claude/brigade")), ["projet.json"]);
 });

@@ -6,8 +6,17 @@ import type { Calibrage } from "../calibrage.ts";
 // The settings of a pass. `calibration` null: the project does not set the
 // closer, no pass starts. `cooksBelow`: the pass starts when fewer cooks than
 // that are in flight. `tokens`, `removedLines`: its caps — what it may
-// consume, and the lines it may remove.
-export type ReglagesDeFermeture = { calibration: Calibrage | null; cooksBelow: number; tokens: number; removedLines: number };
+// consume, and the lines it may remove. `from`: where each one comes from, as
+// the runtime read it (`closing/settings.ts`) — absent from a fact written
+// before #1684, or from settings not read through the chef's decisions.
+export type ReglagesDeFermeture = { calibration: Calibrage | null; cooksBelow: number; tokens: number; removedLines: number; from?: ProvenancesDeFermeture };
+
+// Where a setting of the closer comes from: the project's repository
+// (`.claude/brigade/projet.json`), a decision held on the box (`station`), or
+// the runtime's default. The calibration has no default: set by neither, it
+// comes from nowhere (null).
+export type ProvenanceDeFermeture = "repository" | "station" | "default";
+export type ProvenancesDeFermeture = { calibration: Exclude<ProvenanceDeFermeture, "default"> | null; cooksBelow: ProvenanceDeFermeture; tokens: ProvenanceDeFermeture; removedLines: ProvenanceDeFermeture };
 
 // Why a requested pass did not start. `unconfigured`: the closer is not set.
 // `busy`: a pass is already tidying. `stopped`, `breaker`: the chef's "stop",

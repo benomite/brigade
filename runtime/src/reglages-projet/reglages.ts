@@ -1,6 +1,6 @@
 // Les réglages d'un projet, versionnés dans son dépôt (épique 1301) : sa
 // branche d'intégration, les calibrages par défaut de son manager et de son
-// reviewer, et son plafond de calibrage. Ils vivent dans
+// reviewer, son plafond de calibrage, et les réglages de son closer (#1684). Ils vivent dans
 // `.claude/brigade/projet.json`, lisibles par quiconque a accès au dépôt, et
 // changent par une PR comme le code.
 //
@@ -29,11 +29,19 @@ export const VERSION = 1;
 export const ROLES = ["manager", "reviewer"] as const;
 export type Role = (typeof ROLES)[number];
 
+// Les réglages du closer (`closing/settings.ts`) : son calibrage, sa
+// condition de départ — la passe part quand moins de `cooksBelow` cooks sont
+// en vol —, ses plafonds de tokens et de lignes retirées. Chacun est
+// facultatif : celui que le fichier tait reste celui de la box.
+export const CLES_DU_CLOSER = ["calibration", "cooksBelow", "maxTokens", "maxRemovedLines"] as const;
+export type ReglagesDuCloser = { calibration?: Calibrage; cooksBelow?: number; maxTokens?: number; maxRemovedLines?: number };
+
 // Ce que le fichier porte, sous les noms qu'il leur donne.
 export type ReglagesProjet = {
   integrationBranch: string;
   defaultCalibrations?: Partial<Record<Role, Calibrage>>;
   calibrationCeiling?: Calibrage;
+  closer?: ReglagesDuCloser;
 };
 
 // D'où vient ce qu'on a lu : le fichier, la ligne du `CLAUDE.md`, ou rien.
@@ -47,6 +55,7 @@ export type ReglagesLus = {
   integrationBranch: string | null;
   defaultCalibrations: Partial<Record<Role, Calibrage>>;
   calibrationCeiling: Calibrage | null;
+  closer: ReglagesDuCloser;
 };
 
 // Pourquoi un réglage est refusé : il est à la machine ou au chef, ou il n'est
@@ -70,10 +79,17 @@ export class ReglageRefuse extends Error {
 const BRANCHE = /^(?!-)(?!.*\.\.)(?!.*\/\/)(?!.*@\{)(?!.*\.lock(?:\/|$))[A-Za-z0-9._/-]+(?<![/.])$/;
 const brancheValide = (branche: string) => BRANCHE.test(branche) && !branche.startsWith("/") && !branche.split("/").some((morceau) => morceau.startsWith("."));
 
-const CLES = ["version", "integrationBranch", "defaultCalibrations", "calibrationCeiling"];
+const CLES = ["version", "integrationBranch", "defaultCalibrations", "calibrationCeiling", "closer"];
 const CLES_DE_CALIBRAGE = ["model", "effort"];
 
 const estObjet = (valeur: unknown): valeur is Record<string, unknown> => typeof valeur === "object" && valeur !== null && !Array.isArray(valeur);
+
+// Les réglages du projet dont le nom tombe sous le crible sans être ce qu'il
+// y reconnaît : `closer.cooksBelow` est la condition de départ de la passe du
+// projet, pas le nombre de cooks d'une machine ; `closer.maxTokens`, un
+// plafond de consommation, pas un jeton. Ces chemins exacts, et eux seuls :
+// le même nom ailleurs reste refusé.
+const NOMS_DU_PROJET = new Set(["closer.cooksBelow", "closer.maxTokens"]);
 
 // Passe tout ce qu'on veut écrire au crible de `prive.ts`, clés et valeurs, à
 // toute profondeur — y compris ce qui n'est pas un réglage du projet : c'est
@@ -87,7 +103,7 @@ function cribler(valeur: unknown, cle: string): void {
   const enfants: Array<[string, unknown]> = Array.isArray(valeur) ? valeur.map((v, i) => [String(i), v]) : estObjet(valeur) ? Object.entries(valeur) : [];
   for (const [nom, enfant] of enfants) {
     const chemin = cle === "" ? nom : `${cle}.${nom}`;
-    const constat = Array.isArray(valeur) ? null : nomPrive(nom);
+    const constat = Array.isArray(valeur) || NOMS_DU_PROJET.has(chemin) ? null : nomPrive(nom);
     if (constat !== null) throw new ReglageRefuse(constat.motif, chemin, `\`${chemin}\` does not belong in the project's repository: ${constat.pourquoi}. ${RESTE[constat.motif]}`);
     cribler(enfant, chemin);
   }
@@ -111,6 +127,24 @@ function calibrageDe(valeur: unknown, cle: string): Calibrage {
   return { model, effort };
 }
 
+// Les réglages du closer, ou un refus qui dit lequel : une clé inconnue, un
+// calibrage incomplet, un nombre qui n'est pas un entier supérieur à zéro —
+// ce que le runtime refuserait de la box (`closing/settings.ts`).
+function closerDe(valeur: unknown): ReglagesDuCloser {
+  if (!estObjet(valeur)) throw invalide("closer", `must be an object of the closer's settings: ${CLES_DU_CLOSER.map((nom) => `\`${nom}\``).join(", ")}`);
+  const inconnue = Object.keys(valeur).find((nom) => !(CLES_DU_CLOSER as readonly string[]).includes(nom));
+  if (inconnue !== undefined) throw invalide(`closer.${inconnue}`, `is not a setting of the closer: expected ${CLES_DU_CLOSER.map((nom) => `\`${nom}\``).join(", ")}`);
+  const closer: ReglagesDuCloser = {};
+  if (valeur.calibration !== undefined) closer.calibration = calibrageDe(valeur.calibration, "closer.calibration");
+  for (const nom of ["cooksBelow", "maxTokens", "maxRemovedLines"] as const) {
+    const nombre = valeur[nom];
+    if (nombre === undefined) continue;
+    if (typeof nombre !== "number" || !Number.isSafeInteger(nombre) || nombre < 1) throw invalide(`closer.${nom}`, "must be an integer greater than zero");
+    closer[nom] = nombre;
+  }
+  return closer;
+}
+
 // Les réglages valides tirés d'un objet quelconque, ou un refus qui dit
 // lequel et pourquoi. `version` : vrai pour le contenu du fichier, qui la
 // porte ; faux pour ce qu'on demande d'écrire, qui ne la porte pas.
@@ -123,7 +157,7 @@ function valider(objet: unknown, version: boolean): ReglagesProjet {
     if (typeof objet.version !== "number" || !Number.isInteger(objet.version) || objet.version < 1) throw invalide("version", `must be a whole number: this brigade writes version ${VERSION}`);
     if (objet.version > VERSION) throw invalide("version", `is ${objet.version}: this file was written by a newer brigade, which this one cannot read (it knows version ${VERSION})`);
   }
-  const { integrationBranch, defaultCalibrations, calibrationCeiling } = objet;
+  const { integrationBranch, defaultCalibrations, calibrationCeiling, closer } = objet;
   if (typeof integrationBranch !== "string" || !brancheValide(integrationBranch)) throw invalide("integrationBranch", "must be the name of a git branch");
   const reglages: ReglagesProjet = { integrationBranch };
   if (defaultCalibrations !== undefined) {
@@ -138,6 +172,10 @@ function valider(objet: unknown, version: boolean): ReglagesProjet {
     if (Object.keys(calibrages).length > 0) reglages.defaultCalibrations = calibrages;
   }
   if (calibrationCeiling !== undefined) reglages.calibrationCeiling = calibrageDe(calibrationCeiling, "calibrationCeiling");
+  if (closer !== undefined) {
+    const lus = closerDe(closer);
+    if (Object.keys(lus).length > 0) reglages.closer = lus;
+  }
   return reglages;
 }
 
@@ -151,7 +189,12 @@ export function validerReglagesProjet(reglages: unknown): ReglagesProjet {
 // ligne. Les mêmes réglages donnent les mêmes octets.
 export function texteDuFichier(reglages: ReglagesProjet): string {
   const calibrage = ({ model, effort }: Calibrage) => ({ model, effort });
-  const { integrationBranch, defaultCalibrations, calibrationCeiling } = reglages;
+  const { integrationBranch, defaultCalibrations, calibrationCeiling, closer } = reglages;
+  const duCloser = CLES_DU_CLOSER.flatMap((nom) => {
+    const pose = closer?.[nom];
+    if (pose === undefined) return [];
+    return [[nom, typeof pose === "number" ? pose : calibrage(pose)] as const];
+  });
   const roles = ROLES.flatMap((role) => {
     const pose = defaultCalibrations?.[role];
     return pose === undefined ? [] : [[role, calibrage(pose)] as const];
@@ -162,6 +205,7 @@ export function texteDuFichier(reglages: ReglagesProjet): string {
       integrationBranch,
       ...(roles.length === 0 ? {} : { defaultCalibrations: Object.fromEntries(roles) }),
       ...(calibrationCeiling === undefined ? {} : { calibrationCeiling: calibrage(calibrationCeiling) }),
+      ...(duCloser.length === 0 ? {} : { closer: Object.fromEntries(duCloser) }),
     },
     null,
     2,
@@ -236,7 +280,7 @@ export async function lireReglagesProjet(clone: string): Promise<ReglagesLus> {
   if (!existsSync(fichier)) {
     const claudeMd = join(clone, "CLAUDE.md");
     const branche = existsSync(claudeMd) ? brancheDuClaudeMd(readFileSync(claudeMd, "utf8")) : null;
-    return { depot, source: branche === null ? "aucune" : "CLAUDE.md", integrationBranch: branche, defaultCalibrations: {}, calibrationCeiling: null };
+    return { depot, source: branche === null ? "aucune" : "CLAUDE.md", integrationBranch: branche, defaultCalibrations: {}, calibrationCeiling: null, closer: {} };
   }
   const reglages = reglagesDuTexte(readFileSync(fichier, "utf8"));
   return {
@@ -245,5 +289,6 @@ export async function lireReglagesProjet(clone: string): Promise<ReglagesLus> {
     integrationBranch: reglages.integrationBranch,
     defaultCalibrations: reglages.defaultCalibrations ?? {},
     calibrationCeiling: reglages.calibrationCeiling ?? null,
+    closer: reglages.closer ?? {},
   };
 }
