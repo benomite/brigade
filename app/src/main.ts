@@ -80,6 +80,7 @@ import { ouvrirRunner } from "./runner.ts";
 import { tenirServices } from "./service.ts";
 import { souvenirsDansFichier } from "./souvenirs.ts";
 import { githubDesStations } from "./stations/github.ts";
+import { choixDesProjets, type StationsDuCompte } from "./stations-du-compte.ts";
 import { tenirStations } from "./stations/stations.ts";
 import { versionsDansFichier } from "./stations/versions.ts";
 import { suivreConfiguration } from "./suivi.ts";
@@ -1077,6 +1078,19 @@ ipcMain.handle("stationsDuChef", async (): Promise<StationsDuChef> => {
   const lu = await lireLesStationsDuChef({ gh: ghIci, env: process.env });
   return lu.state === "unavailable" ? retenirLaPage(lu) : lu;
 });
+// Les stations enregistrées sous le compte GitHub du chef (#1706), lues par l'opération du runtime (#1705) ; les
+// projets que le chef choisit pour l'une, écrits dans son gist, au fichier que le contrat du runtime nomme
+// (stations-du-compte.ts).
+ipcMain.handle("stationsDuCompte", async (): Promise<StationsDuCompte> => {
+  const { lireLesStationsDuCompte } = await duRuntime<typeof import("../../runtime/src/enregistrement-station/stations-du-compte.ts")>("enregistrement-station", "stations-du-compte.ts");
+  const lu = await lireLesStationsDuCompte({ gh: ghIci, env: process.env });
+  return lu.state === "unavailable" ? retenirLaPage(lu) : lu;
+});
+const choisirLesProjets = choixDesProjets({
+  ecrire: (id, fichiers) => githubDesStations({ gh: ghIci, delaiMs: 30_000 }).ecrire(id, fichiers),
+  contrat: () => duRuntime<typeof import("../../runtime/src/enregistrement-station/contrat.ts")>("enregistrement-station", "contrat.ts"),
+});
+ipcMain.handle("choisirLesProjets", (_, id: unknown, depots: unknown) => choisirLesProjets(id, depots));
 const ouvrirUnProjetDUneStation = ouvrirDUneStation({
   ouvrirLaCopie: async (options) => {
     const { ouvrirLaCopieLocale } = await duRuntime<typeof import("../../runtime/src/projets/copie-locale.ts")>("projets", "copie-locale.ts");

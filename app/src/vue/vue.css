@@ -6575,3 +6575,112 @@ button.recommande {
 .premier-lancement .formulaire-du-premier .refus-champ:empty {
   display: none;
 }
+
+/* Les stations enregistrées sous le compte GitHub du chef (ticket 1706, stations-du-compte.js) : sous « + station »,
+   un titre discret, une ligne par station comme sur l'accueil, et ses projets à cocher dessous. */
+#accueil-stations .stations-du-compte {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--trait-doux);
+}
+#accueil-stations .stations-du-compte h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 4px 12px 0;
+}
+#accueil-stations .stations-du-compte > p {
+  margin: 0;
+  padding: 4px 12px;
+  color: var(--texte-doux);
+}
+#accueil-stations .stations-du-compte > p.vide,
+#accueil-stations .stations-du-compte > p.indisponible {
+  color: var(--discret);
+}
+#accueil-stations .stations-du-compte .attendu .survol {
+  margin-left: 6px;
+}
+#accueil-stations .du-compte {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+#accueil-stations .du-compte .ligne[aria-expanded="true"] .ouvrir > span {
+  display: inline-block;
+  transform: rotate(90deg);
+}
+#accueil-stations .projets-de-la-station {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  margin: 2px 12px 10px;
+  padding: 10px 14px;
+  background: var(--fond);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-carte);
+}
+#accueil-stations .projets-de-la-station legend {
+  float: left;
+  padding: 0;
+  font-weight: 600;
+  color: var(--texte);
+}
+#accueil-stations .projets-de-la-station p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--discret);
+}
+#accueil-stations .projets-de-la-station .capacites {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 6px;
+}
+#accueil-stations .projets-de-la-station .capacite {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  font-size: 13px;
+  background: var(--case);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+  cursor: pointer;
+}
+#accueil-stations .projets-de-la-station .capacite:hover {
+  border-color: var(--trait-fort);
+}
+#accueil-stations .projets-de-la-station .capacite input {
+  flex: none;
+  margin: 0;
+  accent-color: var(--accent);
+}
+#accueil-stations .stations-du-compte .installer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+#accueil-stations .stations-du-compte .installer > span:first-child {
+  flex: 0 0 11em;
+  color: var(--discret);
+}
+#accueil-stations .stations-du-compte .installer code {
+  flex: 1 1 20em;
+  min-width: 0;
+  color: var(--texte);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+#accueil-stations .stations-du-compte .installer button {
+  padding: 2px 10px;
+  font-size: 12px;
+  color: var(--texte-doux);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+}
