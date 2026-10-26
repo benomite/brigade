@@ -7,11 +7,11 @@
 //   - la lecture du champ `corrections` de `facts`, champ pour champ (`correctionsLues`) ;
 //   - la carte, prête à poser (`carteDeCorrection`) : la cause, les tickets ouvrables, le diff découpé
 //     par fichier — ses lignes ajoutées et retirées comptées et dites à part —, et ce qu'elle a coûté ;
-//   - le geste du chef, lancé une fois sur la box du projet par `ssh`, comme ceux du closer
-//     (closer-lancement.ts) : `correction yes <proposition>` ou `correction no <proposition>`. L'app
-//     n'en double aucun : c'est le runtime qui tranche (runtime/src/correctif/decision.ts). Un runtime
-//     qui ne connaît pas encore ce geste le dit (66, ou 2 sur son usage) : une ligne, rien de deviné.
-import { echecDe, lancerGeste, type Reglages, type Servi } from "./box.ts";
+//   - ce que la vue reçoit du geste du chef (`Rendu`). Le geste ne passe pas par la box : il est posté
+//     sur le tableau de la cuisine du projet, `/brigade correction yes|no <proposition>`
+//     (tableau-gestes/rail.ts, `reponseALaFile`, #1741), par l'accès GitHub de l'app — ni `ssh` ni box
+//     jointe. La box le joue à son tick suivant ; c'est le runtime qui tranche
+//     (runtime/src/correctif/decision.ts).
 
 // Ce que `facts` dit d'une correction proposée (runtime/src/correctif/cartes.ts, `CarteDeCorrection`).
 export type CorrectionLue = {
@@ -54,9 +54,6 @@ export type CarteDeCorrection = {
 export const OUI = "yes";
 export const NON = "no";
 export type Reponse = typeof OUI | typeof NON;
-
-// La commande du runtime qui tranche une proposition, sur la box.
-export const commandeDe = (reponse: Reponse, proposition: number) => `correction ${reponse} ${proposition}`;
 
 class Informe extends Error {}
 const refuser = (champ: string, attendu: string): never => {
@@ -162,53 +159,8 @@ export function carteDeCorrection(lue: CorrectionLue): CarteDeCorrection {
 
 // --- Le geste du chef --------------------------------------------------------------
 
-// Ce que la vue reçoit du geste : la réponse est écrite — ou l'était déjà — et la carte quitte la
-// file ; ou rien n'a été écrit, et pourquoi en une ligne — `detail`, ce que l'app a obtenu, pour le survol.
-export type Rendu = { tranchee: Reponse; dit: string } | { refus: string; detail: string };
-
-const PAS_DEMANDE = "nothing was sent: the station could not be asked";
-export const INCONNUE = "nothing was sent: this proposal is not in the latest facts read — it was answered elsewhere, or set aside";
-export const PAS_COMPRIS = "nothing was sent: the app only knows “yes” and “no”";
-// Un constat, pas une consigne : rien à faire ailleurs n'est demandé au chef (règle #830) — la commande et
-// ce que la box a rendu sont au survol.
-export const SANS_GESTE = "nothing was sent: this station cannot take your answer yet";
-
-// La dernière ligne non vide d'une sortie : ce que le runtime dit en dernier.
-const derniere = (sortie: string) => sortie.split("\n").map((ligne) => ligne.trim()).filter(Boolean).at(-1) ?? "";
-
-// Le « yes » ou le « no » du chef sur la proposition `proposition`, sur la box du projet. `connues` :
-// les propositions que les derniers faits lus portent — un numéro venu de la vue qu'ils ne portent
-// pas ne lance rien, une réponse qui n'est ni « yes » ni « no » non plus.
-//   0  la réponse est écrite, ou la proposition l'était déjà : la carte quitte la file
-//   1  le runtime a refusé — sa dernière ligne le dit
-//   2, 66  le runtime de la station ne connaît pas ce geste
-// Jamais d'exception.
-export function repondreALaCorrection(reglages: Reglages, servi: Servi, connues: readonly number[], proposition: unknown, reponse: unknown): Promise<Rendu> {
-  return trancherSurLaBox(reglages, servi, connues, proposition, reponse, {
-    commande: commandeDe,
-    yes: "your “yes” is recorded: the correction leaves as a PR, through the pass",
-    no: "your “no” is recorded: the correction leaves the queue",
-  });
-}
-
-// Ce qu'une proposition de la file fait trancher sur la box : la commande du runtime, et ce que la carte
-// dit de chaque réponse écrite. Le profil proposé (profil.ts) se tranche par le même chemin.
-export type Geste = { commande: (reponse: Reponse, proposition: number) => string } & Record<Reponse, string>;
-
-// Le « yes » ou le « no » du chef sur une proposition de la file, sur la box du projet — les codes,
-// comme ci-dessus. Jamais d'exception.
-export async function trancherSurLaBox(reglages: Reglages, servi: Servi, connues: readonly number[], proposition: unknown, reponse: unknown, geste: Geste): Promise<Rendu> {
-  if (reponse !== OUI && reponse !== NON) return { refus: PAS_COMPRIS, detail: "" };
-  if (typeof proposition !== "number" || !connues.includes(proposition)) return { refus: INCONNUE, detail: "" };
-  const commande = geste.commande(reponse, proposition);
-  const rendu = await lancerGeste(reglages, servi, commande);
-  const { erreur } = rendu;
-  if (erreur === null) return { tranchee: reponse, dit: geste[reponse] };
-  const echec = echecDe({ ...rendu, erreur }, reglages.delaiMs);
-  if (erreur.killed !== true && erreur.code === 1) {
-    const dit = derniere(rendu.sortie) || derniere(rendu.erreurs);
-    return { refus: `nothing was recorded${dit === "" ? "" : ` — ${dit}`}`, detail: echec.erreur };
-  }
-  if (erreur.killed !== true && (erreur.code === 2 || erreur.code === 66)) return { refus: SANS_GESTE, detail: echec.erreur };
-  return { refus: `${PAS_DEMANDE} — ${echec.atteinte ? "reached, but it did not answer" : "not reached"}`, detail: echec.erreur };
-}
+// Ce que la vue reçoit du geste, posté sur le tableau de la cuisine du projet (tableau-gestes/rail.ts,
+// `reponseALaFile`) : la réponse est postée — `dit`, ce que la carte en dit, `detail`, l'adresse du
+// commentaire, pour le survol —, et la box la tranche à son tick suivant ; ou rien n'a été posté, et
+// pourquoi en une ligne — `detail`, ce que l'app a obtenu, pour le survol.
+export type Rendu = { postee: Reponse; dit: string; detail: string } | { refus: string; detail: string };

@@ -40,7 +40,6 @@ export const COMMANDES: readonly DeLaBox[] = [
     description: "Tickets waiting on a third party: set <ticket> --what <…> --from <who> [--remind <when>], resume <ticket>",
     mots: { poser: "set", reprendre: "resume", "--quoi": "--what", "--de": "--from", "--relance": "--remind" },
   },
-  { nom: "profile", description: "The cook profiles proposed: yes <proposal> writes its definition in the project's repository, no <proposal> declines it" },
   { nom: "report", description: "The daily report of the decisions brigade took and told about, the last 24 hours (read-only)" },
   { nom: "guardrails", ancien: "garde-fous", description: "Show the caps and the breaker; stop or resume the kitchen", mots: { reprendre: "resume" } },
   { nom: "base", description: "Show the integration base; replay its gates when red", mots: { rejouer: "replay" } },

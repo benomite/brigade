@@ -4752,8 +4752,9 @@ async function repondreALaCarte(projet, ticket, reponse) {
 
 // Les corrections proposées des consignes du projet, chacune une carte de la file, au-dessus des
 // colonnes : ce qu'on attend du chef y est dit en tête, et ses deux réponses sont des boutons. Le
-// « yes » ou le « no » part par le process principal (correction.ts) ; écrit, la carte quitte la
-// file, et `facts` est relu tout de suite. Une réponse que les faits lus ne portent plus est oubliée.
+// « yes » ou le « no » part par le process principal, sur le tableau de la cuisine (tableau-gestes/rail.ts) ;
+// posté, la carte le dit, et le tableau est relu tout de suite — elle quitte la file à la lecture qui ne la
+// porte plus. Une réponse que les faits lus ne portent plus est oubliée.
 /** @param {Projet} projet @param {import("../correction.ts").CarteDeCorrection[] | undefined} corrections */
 function poserLesCorrections(projet, corrections) {
   const { etatDe, gestes } = gestesDeLaFile(projet, corrections, reponsesAuxCorrections, (proposition, reponse) => brigade.corriger(projet.nom, proposition, reponse));
@@ -4761,7 +4762,8 @@ function poserLesCorrections(projet, corrections) {
 }
 
 // Les profils de cook proposés (ticket 1053), chacun une carte de la file, sous les corrections : le même
-// geste, par le même chemin (profil.ts) — le « yes » écrit la définition du profil dans le dépôt du projet.
+// geste, par le même chemin (tableau-gestes/rail.ts) — le « yes », joué par la box, écrit la définition du profil
+// dans le dépôt du projet.
 /** @param {Projet} projet @param {import("../profil.ts").CarteDeProfil[] | undefined} profils */
 function poserLesProfils(projet, profils) {
   const { etatDe, gestes } = gestesDeLaFile(projet, profils, reponsesAuxProfils, (proposition, reponse) => brigade.trancherLeProfil(projet.nom, proposition, reponse));
@@ -4770,7 +4772,7 @@ function poserLesProfils(projet, profils) {
 
 // Ce qu'une carte de la file que le chef tranche d'un « yes » ou d'un « no » reçoit : l'état de son geste,
 // tenu dans `reponses` par projet et proposition, et ce que ses boutons appellent — `trancher`, le geste
-// sur la box. Une réponse que les faits lus ne portent plus est oubliée.
+// posté sur le tableau de la cuisine. Une réponse que les faits lus ne portent plus est oubliée.
 /**
  * @param {Projet} projet
  * @param {{ proposition: number }[] | undefined} cartes
@@ -4796,11 +4798,11 @@ function gestesDeLaFile(projet, cartes, reponses, trancher) {
         try {
           rendu = await trancher(proposition, reponse);
         } catch (erreur) {
-          rendu = { refus: "nothing was sent: the app could not ask the station", detail: erreur instanceof Error ? erreur.message : String(erreur) };
+          rendu = { refus: SANS_ENVOI, detail: erreur instanceof Error ? erreur.message : String(erreur) };
         }
         const suite = apresLaCorrection(reponse, rendu);
         poser(proposition, suite);
-        if (suite.etape === "tranchee") brigade.relireBox(demandeFaits);
+        if (suite.etape === "postee") brigade.relireBox(demandeFaits);
       },
     },
   };

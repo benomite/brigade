@@ -1,4 +1,4 @@
-// Les gestes de la vue du rail, écrits sur le tableau de la cuisine (app/src/tableau-gestes/rail.ts, #1694) : chaque
+// Les gestes de la vue du rail, écrits sur le tableau de la cuisine (app/src/tableau-gestes/rail.ts, #1694, #1741) : chaque
 // geste que la vue a aujourd'hui et que la grammaire du tableau connaît (docs/tableau-gestes.md, #1584) part en
 // commentaire sur l'issue du tableau — l'écriture même est vérifiée, adresse et corps. Ceux qu'elle ne connaît pas ne
 // partent pas sur le tableau, et le disent. GitHub est une doublure : aucun réseau, aucune box.
@@ -9,7 +9,7 @@ import { ACTIONS } from "../../src/gestes-fiche.ts";
 import type { ReponseGitHub } from "../../src/tableau/client.ts";
 import { lireLeTableauDuDepot, type TableauLu } from "../../src/tableau/lecture.ts";
 import { clientDesGestesGitHub, type Poste } from "../../src/tableau-gestes/github.ts";
-import { arriveeDeCarte, GESTES_DE_FICHE, gesteDeFiche, POSTE, reponseDeCarte, ticketsDuTableau } from "../../src/tableau-gestes/rail.ts";
+import { arriveeDeCarte, GESTES_DE_FICHE, gesteDeFiche, PAS_COMPRIS, POSTE, propositionsDuTableau, reponseALaFile, reponseDeCarte, ticketsDuTableau } from "../../src/tableau-gestes/rail.ts";
 import { DEPOT, githubDuTableau, NUMERO, projetPublie } from "../tableau/projet-publie.ts";
 
 type Ecrit = { adresse: string; corps: unknown };
@@ -95,6 +95,41 @@ test("un texte sur la carte de TODO : `/brigade answer #<n> <texte>` est écrit,
   const { client, ecrits } = github();
   assert.deepEqual(await reponseDeCarte(lu, lue, client), { repondue: true, dit: POSTE });
   assert.deepEqual(ecrits, [{ adresse: COMMENTAIRES, corps: { body: "/brigade answer #24 Neither: one per station,\nthen one for all." } }]);
+});
+
+test("« yes » ou « no » sur la carte d'une correction ou d'un profil proposés : `/brigade correction|profile yes|no <proposition>` est écrit, sans `#` (#1741)", async (t) => {
+  const publie = projetPublie(t, { propositions: true });
+  const lu = await lireLeTableauDuDepot({ depot: DEPOT, appeler: githubDuTableau(publie.corps).appeler });
+  assert.ok(lu.lu && publie.proposees !== null);
+  const { correction, profil } = publie.proposees;
+  assert.deepEqual([...propositionsDuTableau(lu, "correction")], [correction]);
+  assert.deepEqual([...propositionsDuTableau(lu, "profile")], [profil]);
+  const { client, ecrits } = github();
+  const adresse = `https://github.com/${DEPOT}/issues/${NUMERO}#issuecomment-9001`;
+  assert.deepEqual(await reponseALaFile(lu, "correction", correction, "yes", client), { postee: "yes", dit: POSTE, detail: adresse });
+  assert.deepEqual(await reponseALaFile(lu, "profile", profil, "no", client), { postee: "no", dit: POSTE, detail: adresse });
+  assert.deepEqual(ecrits, [
+    { adresse: COMMENTAIRES, corps: { body: `/brigade correction yes ${correction}` } },
+    { adresse: COMMENTAIRES, corps: { body: `/brigade profile no ${profil}` } },
+  ]);
+});
+
+test("une réponse de la file qui ne part pas : ni « yes » ni « no », sans tableau lu, une proposition qu'il ne porte pas, ou GitHub qui refuse — une phrase, la carte reste", async (t) => {
+  const publie = projetPublie(t, { propositions: true });
+  const lu = await lireLeTableauDuDepot({ depot: DEPOT, appeler: githubDuTableau(publie.corps).appeler });
+  assert.ok(lu.lu && publie.proposees !== null);
+  const { correction, profil } = publie.proposees;
+  const { client, ecrits } = github();
+  for (const reponse of ["oui", "YES", undefined]) assert.deepEqual(await reponseALaFile(lu, "correction", correction, reponse, client), { refus: PAS_COMPRIS, detail: "" });
+  assert.deepEqual(await reponseALaFile(undefined, "profile", profil, "yes", client), { refus: "nothing was posted: the Kitchen board of this project has not been read yet — read it again", detail: "" });
+  // Un profil n'est pas une correction : chaque carte ne répond que pour les propositions de sa sorte.
+  for (const proposition of [profil, 999999, String(correction)]) {
+    assert.deepEqual(await reponseALaFile(lu, "correction", proposition, "yes", client), { refus: "nothing was posted: this correction is not on the latest Kitchen board read — it was answered elsewhere, or set aside", detail: "" });
+  }
+  assert.deepEqual(await reponseALaFile(lu, "profile", correction, "no", client), { refus: "nothing was posted: this profile is not on the latest Kitchen board read — it was answered elsewhere, or set aside", detail: "" });
+  assert.deepEqual(ecrits, []);
+  const refuse = await reponseALaFile(lu, "profile", profil, "yes", github({ status: 403, data: { message: "Resource not accessible by integration." } }).client);
+  assert.deepEqual(refuse, { refus: `The gesture could not be posted on the Kitchen board of ${DEPOT}: GitHub refused the comment (HTTP 403): Resource not accessible by integration.`, detail: "" });
 });
 
 test("chaque geste que la vue du rail a aujourd'hui : écrit sur le tableau s'il est de sa grammaire, sinon dit hors du tableau et rien n'y part", async (t) => {

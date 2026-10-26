@@ -43,7 +43,7 @@ for (const [decision, attendu] of CAS) {
     assert.equal(etat.etat, "pending");
     // La box lit ce corps comme le geste demandé.
     const lu = lireLeGeste(postes[0] ?? "");
-    assert.ok(lu !== null && "verbe" in lu && lu.verbe === decision.geste && lu.ticket === 123);
+    assert.ok(lu !== null && "verbe" in lu && lu.verbe === decision.geste && "ticket" in lu && lu.ticket === 123);
   });
 }
 

@@ -7,12 +7,13 @@
 // qu'il fait de la proposition au survol.
 //
 // Tout est calculé dans le process principal (app/src/profil.ts) : la carte pose. Le geste part par lui
-// aussi (`profile yes|no <proposition>` sur la box). Le geste en route se tient comme celui d'une
-// correction — mêmes étapes (`Etat`), mêmes mots pendant l'envoi. Ce module ne touche pas `document` :
+// aussi, sur le tableau de la cuisine du projet (`/brigade profile yes|no <proposition>`) — jamais par la
+// box. Le geste en route se tient comme celui d'une correction — mêmes étapes (`Etat`), mêmes mots, mêmes
+// réponses posées (`poserLesReponses`). Ce module ne touche pas `document` :
 // il reçoit de quoi créer un élément (briques.js) et ce que chaque bouton appelle, et rend des éléments.
 
 import { boutonAction, survol } from "../briques.js";
-import { ENVOI } from "../correction/carte.js";
+import { poserLesReponses } from "../correction/carte.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../profil.ts").CarteDeProfil} Carte */
@@ -122,10 +123,9 @@ function contenu(doc, { skills, perimetre, carnet }) {
   return bloc;
 }
 
-// La carte d'un profil proposé, dans son état. Tranché, il n'est plus posé : il a quitté la file.
+// La carte d'un profil proposé, dans son état. Elle reste posée tant que le tableau de la cuisine la porte.
 /** @param {Fabrique} doc @param {Carte} carte @param {Etat} etat @param {{ ouvrir: (ticket: number) => void, repondre: (reponse: Reponse) => void }} gestes */
 export function poserProfil(doc, carte, etat, gestes) {
-  if (etat.etape === "tranchee") return [];
   const racine = cree(doc, "section");
   racine.className = "profil";
   racine.ariaLabel = `cook profile proposed: ${carte.nom}`;
@@ -151,31 +151,10 @@ export function poserProfil(doc, carte, etat, gestes) {
   const proposee = cree(doc, "p", `proposed ${quand(carte.proposee)}`);
   proposee.className = "quand";
 
-  const enRoute = etat.etape === "envoi";
-  const reponses = cree(doc, "div");
-  reponses.className = "reponses";
   const oui = boutonAction(doc, OUI, () => gestes.repondre("yes"), { recommande: true, prix: EFFET_DU_OUI });
   const non = boutonAction(doc, NON, () => gestes.repondre("no"), { prix: EFFET_DU_NON });
-  for (const groupe of [oui, non]) {
-    const bouton = groupe.children?.[0];
-    if (bouton !== undefined) bouton.disabled = enRoute;
-  }
-  reponses.append(oui, non);
-  if (etat.etape === "envoi") {
-    const envoi = cree(doc, "span", ENVOI[etat.reponse]);
-    envoi.className = "en-route";
-    reponses.append(envoi);
-  }
 
-  const corps = [attendu, tete, frequence, premierCoup, tickets(doc, carte.tickets, gestes.ouvrir), contenu(doc, carte), proposee, reponses];
-  if (etat.etape === "refus") {
-    const refus = cree(doc, "p");
-    refus.className = "refus";
-    refus.append(cree(doc, "span", etat.dit));
-    if (etat.detail.trim() !== "") refus.append(survol(doc, etat.detail));
-    corps.push(refus);
-  }
-  racine.append(...corps);
+  racine.append(attendu, tete, frequence, premierCoup, tickets(doc, carte.tickets, gestes.ouvrir), contenu(doc, carte), proposee, ...poserLesReponses(doc, etat, [oui, non]));
   return [racine];
 }
 

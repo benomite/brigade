@@ -3,16 +3,14 @@
 // propose d'en faire un profil de cook. `facts` le porte dans `profils` (runtime/src/profils/cartes.ts) ;
 // l'app en fait une carte de la file, que le chef tranche d'un « yes » ou d'un « no ».
 //
-// Ce module tient les trois choses que la vue ne calcule pas :
+// Ce module tient les deux choses que la vue ne calcule pas :
 //   - la lecture du champ `profils` de `facts`, champ pour champ (`profilsLus`) ;
 //   - la carte, prête à poser (`carteDeProfil`) : le nom, le domaine, les chiffres qui le justifient
 //     dits en phrases, ses tickets ouvrables, et ce que le profil contiendrait ;
-//   - le geste du chef, lancé une fois sur la box du projet par `ssh`, par le même chemin que celui
-//     d'une correction (correction.ts) : `profile yes <proposition>` ou `profile no <proposition>`.
-//     L'app n'en double aucun : c'est le runtime qui tranche (runtime/src/profils/decision.ts) — le
-//     « yes » y écrit la définition du profil dans le dépôt du projet.
-import type { Reglages, Servi } from "./box.ts";
-import { trancherSurLaBox, type Rendu, type Reponse } from "./correction.ts";
+// Le geste du chef ne passe pas par la box : comme celui d'une correction (correction.ts), il est posté
+// sur le tableau de la cuisine du projet, `/brigade profile yes|no <proposition>` (tableau-gestes/rail.ts,
+// `reponseALaFile`, #1741). La box le joue à son tick suivant ; c'est le runtime qui tranche
+// (runtime/src/profils/decision.ts) — le « yes » y écrit la définition du profil dans le dépôt du projet.
 
 // Une part livrée du premier coup : `premiers` sur `retenus` mergés, `part` entre 0 et 1.
 export type PartLue = { premiers: number; retenus: number; part: number };
@@ -54,9 +52,6 @@ export type CarteDeProfil = {
   carnet: { id: string; texte: string; de: string }[];
   proposee: string;
 };
-
-// La commande du runtime qui tranche un profil proposé, sur la box.
-export const commandeDe = (reponse: Reponse, proposition: number) => `profile ${reponse} ${proposition}`;
 
 class Informe extends Error {}
 const refuser = (champ: string, attendu: string): never => {
@@ -142,15 +137,4 @@ export function carteDeProfil(lu: ProfilLu): CarteDeProfil {
     carnet: lu.carnet.map(({ id, texte: lecon, retros }) => ({ id, texte: lecon, de: retros.length === 0 ? "" : `from ${retros.join(", ")}` })),
     proposee: lu.proposee,
   };
-}
-
-// Le « yes » ou le « no » du chef sur le profil proposé `proposition`, sur la box du projet, par le
-// chemin d'une correction (`trancherSurLaBox`) : `connues`, les propositions que les derniers faits lus
-// portent. Jamais d'exception.
-export function repondreAuProfil(reglages: Reglages, servi: Servi, connues: readonly number[], proposition: unknown, reponse: unknown): Promise<Rendu> {
-  return trancherSurLaBox(reglages, servi, connues, proposition, reponse, {
-    commande: commandeDe,
-    yes: "your “yes” is recorded: the profile's definition is written to the project's repository",
-    no: "your “no” is recorded: the proposal leaves the queue",
-  });
 }

@@ -176,7 +176,7 @@ Gestures outside `station` that persist something. They are listed so that nothi
 | Command | What it writes | Belongs to | Reason |
 |---|---|---|---|
 | `setting ceiling \| manager \| reviewer \| branch` | Proposes `projet.json` as a pull request | project | Already in the project's repository |
-| `profile yes \| no <proposal>` | Writes a cook profile definition in the project's repository | project | Already in the project's repository |
+| `/brigade profile yes \| no <proposal>`, on the Kitchen board | Writes a cook profile definition in the project's repository | project | Already in the project's repository |
 | `installation stations …`, `installation decisions …` | The same stations and decisions as §1, at installation time | follows §1 | Same rows |
 | `arbiter weight \| remove` | A project's weight on the machine | station | Shares one machine between projects |
 | `guardrails stop \| resume \| pause`, `switch on \| off` | The live state of the kitchen (written to the log) | station | An operation on a running kitchen, not a setting |

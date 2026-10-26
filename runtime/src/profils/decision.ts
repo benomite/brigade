@@ -12,8 +12,12 @@
 //
 // Une proposition se tranche une fois : un second geste, le même ou l'autre,
 // n'écrit rien et rend le premier.
+//
+// Le chef le fait par le tableau de la cuisine (`/brigade profile yes|no
+// <proposition>`, tableau/gestes/) : la box le joue par `trancherLeProfil`.
 import { RETRO_ORIGIN } from "../carnet/carnet.ts";
 import type { Evenement } from "../evenements.ts";
+import type { Resultat } from "../geste-ticket.ts";
 import type { Journal } from "../journal.ts";
 import { definitionExiste, fichierDuProfil, saveDefinition } from "./definition.ts";
 import { ticketsServis } from "./domaines.ts";
@@ -78,4 +82,21 @@ export function decider({ journal, projet, repoDir }: OptionsDeDecision, proposi
     if (fait.type === "profile.accepted") saveDefinition(repoDir, { name, zone, perimeter, skills, accepted: fait.at.slice(0, 10), tickets, notebook: { lessons } });
     return { issue: "tranchee", fait: fait as Acceptee | Refusee };
   });
+}
+
+const RIEN_TOUCHE = "none: nothing was changed";
+
+// Le « oui » ou le « non » du chef, joué comme un geste du rail : fait, avec
+// ce qu'il a écrit, ou refusé — une proposition inconnue, déjà tranchée, ou un
+// profil que le dépôt définit déjà —, et rien n'est écrit.
+export function trancherLeProfil(options: OptionsDeDecision, proposition: number, reponse: Reponse): Resultat {
+  const decision = decider(options, proposition, reponse);
+  if (decision.issue === "inconnue") return { done: false, reason: `no cook profile is proposed under ${proposition}`, price: RIEN_TOUCHE };
+  if (decision.issue === "existe") return { done: false, reason: `the project's repository already defines this profile (${decision.fichier}): nothing is written, the proposal still waits`, price: RIEN_TOUCHE };
+  const { fait } = decision;
+  if (decision.issue === "deja") return { done: false, reason: `this profile was already answered “${fait.type === "profile.accepted" ? OUI : NON}”`, price: RIEN_TOUCHE };
+  return {
+    done: true,
+    price: fait.type === "profile.accepted" ? `none on the quota: the definition of ${fait.payload.name} is written to ${fait.payload.file}, in the project's repository` : `none: ${fait.payload.name} leaves the queue`,
+  };
 }

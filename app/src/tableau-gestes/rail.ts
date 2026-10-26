@@ -6,13 +6,16 @@
 //     → `/brigade set-aside #<n>`, « back to the kitchen » (`cuisine`, un ticket revenu de WAITING) → `/brigade arrived
 //     #<n>` (#1740) ;
 //   - la carte de WAITING : « it arrived, back to the kitchen » → `/brigade arrived #<n>`, le même geste ;
-//   - la carte de TODO : un choix → `/brigade choose #<n> <rang>`, un texte → `/brigade answer #<n> <texte>`.
+//   - la carte de TODO : un choix → `/brigade choose #<n> <rang>`, un texte → `/brigade answer #<n> <texte>` ;
+//   - la carte d'une correction proposée, de la file : « yes » ou « no » → `/brigade correction yes|no <proposition>` ;
+//     celle d'un profil proposé, de même → `/brigade profile yes|no <proposition>` (#1741).
 // Ce que la grammaire ne connaît pas n'est pas d'ici : `gesteDeFiche` le dit (`horsDuTableau`), et l'appelant le joue
 // comme avant. Changer la priorité ne passe pas par le tableau : l'app change le label `prio:` de l'issue elle-même
 // (../priorite.ts).
 //
 // Rien ne part pour un ticket que la dernière lecture du tableau ne porte pas — ni sur son rail, ni dans sa file —, ni
-// sans tableau lu : chaque fois une phrase, et rien n'est posté.
+// pour une proposition qu'elle ne porte pas, ni sans tableau lu : chaque fois une phrase, et rien n'est posté.
+import type { Rendu as RenduDeProposition } from "../correction.ts";
 import type { TableauLu } from "../tableau/lecture.ts";
 import { gestesDuTableau, type ClientDesGestes, type DecisionDuChef, type EtatDuGeste } from "./gestes.ts";
 
@@ -48,10 +51,38 @@ function ditDe(etat: EtatDuGeste): { fait: string; detail: string } | { refus: s
 }
 
 // Une décision postée sur le tableau de la dernière lecture, pour un ticket qu'il porte.
-async function poster(lu: TableauLu | undefined, decision: DecisionDuChef, client: ClientDesGestes): Promise<{ fait: string; detail: string } | { refus: string; detail: string }> {
+async function poster(lu: TableauLu | undefined, decision: Exclude<DecisionDuChef, { proposition: number }>, client: ClientDesGestes): Promise<{ fait: string; detail: string } | { refus: string; detail: string }> {
   if (lu === undefined) return { refus: PAS_LU, detail: "" };
   if (!ticketsDuTableau(lu).has(decision.ticket)) return { refus: `nothing was posted: #${decision.ticket} is not on the latest Kitchen board read — read it again`, detail: "" };
   return ditDe(await gestesDuTableau({ depot: lu.depot, tableau: lu.numero, client }).envoyer(decision));
+}
+
+// Les propositions de la file que la dernière lecture du tableau porte, par leur numéro : `faits.corrections` pour une
+// correction, `faits.profils` pour un profil.
+export function propositionsDuTableau(lu: Pick<TableauLu, "faits">, geste: "correction" | "profile"): Set<number> {
+  const liste: unknown = lu.faits?.[geste === "correction" ? "corrections" : "profils"];
+  return new Set(
+    Array.isArray(liste)
+      ? liste.flatMap((entree: unknown) => (typeof entree === "object" && entree !== null && typeof (entree as { proposition?: unknown }).proposition === "number" ? [(entree as { proposition: number }).proposition] : []))
+      : [],
+  );
+}
+
+export const PAS_COMPRIS = "nothing was posted: the app only knows “yes” and “no”";
+
+// Le « yes » ou le « no » du chef sur une correction ou un profil proposés de la file (correction.ts, profil.ts),
+// posté sur le tableau pour une proposition que sa dernière lecture porte. Posté, la carte le dit, son commentaire au
+// survol ; la box le tranche à son tick suivant (runtime/src/correctif/decision.ts, runtime/src/profils/decision.ts), et
+// la carte quitte la file à la lecture du tableau qui ne la porte plus.
+export async function reponseALaFile(lu: TableauLu | undefined, geste: "correction" | "profile", proposition: unknown, reponse: unknown, client: ClientDesGestes): Promise<RenduDeProposition> {
+  if (reponse !== "yes" && reponse !== "no") return { refus: PAS_COMPRIS, detail: "" };
+  if (lu === undefined) return { refus: PAS_LU, detail: "" };
+  const nom = geste === "correction" ? "correction" : "profile";
+  if (typeof proposition !== "number" || !propositionsDuTableau(lu, geste).has(proposition)) {
+    return { refus: `nothing was posted: this ${nom} is not on the latest Kitchen board read — it was answered elsewhere, or set aside`, detail: "" };
+  }
+  const dit = ditDe(await gestesDuTableau({ depot: lu.depot, tableau: lu.numero, client }).envoyer({ geste, proposition, reponse }));
+  return "fait" in dit ? { postee: reponse, dit: dit.fait, detail: dit.detail } : dit;
 }
 
 // Un geste de la fiche que le tableau porte, posté pour ce ticket.

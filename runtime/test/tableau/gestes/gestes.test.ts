@@ -1,16 +1,24 @@
 // Les gestes du chef postés en commentaires sous le tableau de la cuisine :
 // écrits par le compte du chef, ils se jouent par l'action de leur geste local
-// — merge, renvoi, mise de côté, réponse à une carte, « c'est arrivé » — et la box répond sous
+// — merge, renvoi, mise de côté, réponse à une carte, « c'est arrivé », « yes » ou « no » à une
+// correction ou à un profil proposés — et la box répond sous
 // chacun en une ligne ; écrits par un autre, rien ne se joue et rien ne se
 // répond. Un commentaire ne se joue qu'une fois, et un geste incompris reçoit
 // la grammaire. GitHub est ici un faux client, le journal un vrai.
 import assert from "node:assert/strict";
 import { describe, test, type TestContext } from "node:test";
 import { mettreEnAttente, PRIX_DE_L_ARRIVEE, reprendre } from "../../../src/attente.ts";
+import { saveCarnet } from "../../../src/carnet/carnet.ts";
 import { entrerDansTodo, cartesEnTodo, type Proposition } from "../../../src/carte-todo.ts";
+import { cartesDeCorrection } from "../../../src/correctif/cartes.ts";
+import { PRIX_DE_LA_CORRECTION } from "../../../src/correctif/decision.ts";
 import type { Fait } from "../../../src/evenements.ts";
 import { RENVOI_DU_CHEF } from "../../../src/geste-ticket.ts";
 import { ouvrirJournal } from "../../../src/journal.ts";
+import { cartesDeProfil } from "../../../src/profils/cartes.ts";
+import { PROFILS_DIR } from "../../../src/profils/definition.ts";
+import { proposerLesProfils } from "../../../src/profils/proposer.ts";
+import { lireReglagesDesProfils } from "../../../src/profils/reglages.ts";
 import { passDuTicket } from "../../../src/projections/pass.ts";
 import { sortDuTicket, ticketDuRail } from "../../../src/projections/rail.ts";
 import { ouvrirRail } from "../../../src/rail.ts";
@@ -22,6 +30,7 @@ import type { ClientDuTableau, IssueDuTableau } from "../../../src/tableau/publi
 import { brancherLeTableau } from "../../../src/tableau/publication/publier.ts";
 import { lireLeTableau } from "../../../src/tableau/rendu/bloc.ts";
 import { fauxGitHub, issue, montre } from "../../aides/cuisine.ts";
+import { servir, tickets } from "../../profils/servir.ts";
 import { aArreter, DEPOT, jusqua, repertoireTemporaire } from "../../outils.ts";
 
 const PROJET = "brigade";
@@ -224,6 +233,86 @@ describe("un geste du chef posté sous le tableau", () => {
     assert.deepEqual(a.gestes.lus().map(({ etat }) => etat), ["refuse", "refuse"]);
   });
 
+  test("`correction yes|no` tranche la correction proposée, sans commande de la box : elle quitte la file ; une proposition inconnue ou déjà tranchée est refusée", async (t) => {
+    const a = atelier(t);
+    const proposer = () =>
+      a.journal.ajouter({
+        project: PROJET,
+        ticket: null,
+        author: "runtime",
+        type: "correction.proposed",
+        payload: {
+          candidate: 1,
+          cause: "criteres",
+          title: "contradictory criteria or incomplete ticket",
+          tickets: [11, 12, 13],
+          run: "correctif-1-0000",
+          tokens: 4321,
+          reason: "The cooks guessed.",
+          diff: ["--- a/CLAUDE.md", "+++ b/CLAUDE.md", "@@ -1,1 +1,2 @@", " # Project", "+- **Criteria**: an incomplete ticket is said in the report.", ""].join("\n"),
+          files: ["CLAUDE.md"],
+          base: "abc123",
+        },
+      })?.seq ?? 0;
+    const oui = proposer();
+    const non = proposer();
+    assert.deepEqual(cartesDeCorrection(a.journal, DEPOT).map(({ proposition }) => proposition), [oui, non]);
+    const geste = a.tableau.poster(`/brigade correction yes ${oui}`);
+    a.tableau.poster(`/brigade correction no ${non}`);
+    a.tableau.poster(`/brigade correction no ${oui}`);
+    a.tableau.poster("/brigade correction yes 999999");
+
+    assert.equal(await a.gestes.traiter(TABLEAU), true);
+
+    assert.deepEqual(cartesDeCorrection(a.journal, DEPOT), []);
+    assert.deepEqual(
+      a.journal.tout().flatMap(({ type, payload }) => (type === "correction.accepted" || type === "correction.refused" ? [[type, (payload as { proposal: number }).proposal]] : [])),
+      [
+        ["correction.accepted", oui],
+        ["correction.refused", non],
+      ],
+    );
+    assert.equal(a.tableau.reponses[0], `**Done** — [correction yes ${oui}](${geste.url}) — cost: ${PRIX_DE_LA_CORRECTION.yes}`);
+    assert.deepEqual(a.tableau.reponses.slice(1).map((reponse) => reponse.replace(/\]\(.*?\)/, "]")), [
+      `**Done** — [correction no ${non}] — cost: ${PRIX_DE_LA_CORRECTION.no}`,
+      `**Not done** — [correction no ${oui}]: this correction was already answered “yes”`,
+      "**Not done** — [correction yes 999999]: no correction is proposed under 999999",
+    ]);
+    // Une proposition n'est pas un ticket : le fait et le bloc n'en nomment aucun.
+    assert.deepEqual(a.faits().map(({ ticket, payload }) => [ticket, payload.gesture, payload.done]), [
+      [null, "correction", true],
+      [null, "correction", true],
+      [null, "correction", false],
+      [null, "correction", false],
+    ]);
+    assert.deepEqual(a.gestes.lus().map(({ geste: verbe, ticket }) => [verbe, ticket]), Array(4).fill(["correction", null]));
+  });
+
+  test("`profile yes|no` tranche le profil proposé, sans commande de la box : « yes » écrit sa définition dans le clone du projet ; sans clone connu, « yes » est refusé", async (t) => {
+    const a = atelier(t);
+    const repoDir = repertoireTemporaire(t);
+    saveCarnet(repoDir, { lessons: [] });
+    // Vingt tickets servis : `app/src/vue` en porte cinq, livrés du premier coup 20 points sous le projet.
+    for (const service of [...tickets(1, 5, 3, ["app/src/vue"]), ...tickets(6, 15, 13, ["runtime/src"])]) servir(a.journal, service);
+    const [proposee] = proposerLesProfils({ journal: a.journal, projet: PROJET, reglages: lireReglagesDesProfils({}), repoDir });
+    assert.ok(proposee);
+    a.tableau.poster(`/brigade profile yes ${proposee.seq}`);
+
+    assert.equal(await a.gestes.traiter(TABLEAU), true);
+    assert.match(a.tableau.reponses[0] ?? "", /^\*\*Not done\*\* — \[profile yes \d+\]\(.*\): this box does not know the project's repository/);
+    assert.equal(cartesDeProfil(a.journal).length, 1);
+
+    const avecLeClone = gestesDuTableau({ client: a.tableau.client, journal: a.journal, projet: PROJET, github: a.gh.github, repoDir });
+    const geste = a.tableau.poster(`/brigade profile yes ${proposee.seq}`);
+    assert.equal(await avecLeClone.traiter(TABLEAU), true);
+    assert.equal(a.tableau.reponses[1], `**Done** — [profile yes ${proposee.seq}](${geste.url}) — cost: none on the quota: the definition of app-src-vue is written to ${PROFILS_DIR}/app-src-vue.md, in the project's repository`);
+    assert.deepEqual(cartesDeProfil(a.journal), []);
+    assert.deepEqual(a.faits().map(({ ticket, payload }) => [ticket, payload.gesture, payload.done]), [
+      [null, "profile", false],
+      [null, "profile", true],
+    ]);
+  });
+
   test("un geste que l'action refuse est lu, non joué, et la box dit pourquoi en une ligne", async (t) => {
     const a = atelier(t);
     a.arriver();
@@ -327,6 +416,8 @@ describe("la grammaire", () => {
     assert.deepEqual(lireLeGeste("/brigade answer #9 CSV"), { verbe: "answer", ticket: 9, reponse: "CSV" });
     assert.deepEqual(lireLeGeste("/brigade choose #9 2"), { verbe: "choose", ticket: 9, choix: 2 });
     assert.deepEqual(lireLeGeste("/brigade arrived #16"), { verbe: "arrived", ticket: 16 });
+    assert.deepEqual(lireLeGeste("/brigade correction yes 412"), { verbe: "correction", reponse: "yes", proposition: 412 });
+    assert.deepEqual(lireLeGeste("/brigade profile no 377"), { verbe: "profile", reponse: "no", proposition: 377 });
   });
 
   test("ce qui ne commence pas par `/brigade` n'est pas un geste ; ce qui commence par lui sans s'y conformer est incompris", () => {
@@ -338,6 +429,10 @@ describe("la grammaire", () => {
     assert.deepEqual(lireLeGeste("/brigade arrived #12 at last"), { incompris: "arrived takes nothing after the ticket number" });
     assert.deepEqual(lireLeGeste("/brigade choose #12 first"), { incompris: "choose needs one choice number, from 1, after the ticket number" });
     assert.deepEqual(lireLeGeste("/brigade choose #12 1 2"), { incompris: "choose needs one choice number, from 1, after the ticket number" });
+    assert.deepEqual(lireLeGeste("/brigade correction 412"), { incompris: "correction needs “yes” or “no”, then the proposal number" });
+    assert.deepEqual(lireLeGeste("/brigade profile maybe 377"), { incompris: "profile needs “yes” or “no”, then the proposal number" });
+    assert.deepEqual(lireLeGeste("/brigade profile yes #377"), { incompris: "profile yes needs one proposal number, and nothing after it" });
+    assert.deepEqual(lireLeGeste("/brigade correction no 412 please"), { incompris: "correction no needs one proposal number, and nothing after it" });
   });
 });
 

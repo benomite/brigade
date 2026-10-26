@@ -6,7 +6,8 @@
 // réponses : « yes », recommandé, son prix au survol ; « no ».
 //
 // Tout est calculé dans le process principal (app/src/correction.ts) : la carte pose. Le geste part
-// par lui aussi (`correction yes|no <proposition>` sur la box). Ce module tient le geste en route —
+// par lui aussi, sur le tableau de la cuisine du projet (`/brigade correction yes|no <proposition>`,
+// tableau-gestes/rail.ts) — jamais par la box. Ce module tient le geste en route —
 // `Etat` — et ne touche pas `document` : il reçoit de quoi créer un élément (briques.js) et ce que
 // chaque bouton appelle, et rend des éléments.
 
@@ -19,13 +20,15 @@ import { boutonAction, survol } from "../briques.js";
 
 // Le geste en route, pour une proposition.
 //   repos     rien n'est parti : la carte attend le chef
-//   envoi     sa réponse est partie, la box n'a pas encore répondu : les deux boutons attendent
-//   tranchee  la box l'a écrite : la carte quitte la file
-//   refus     rien n'a été écrit (`dit`, et `detail` au survol) : la carte reste, ses deux boutons aussi
+//   envoi     sa réponse part sur le tableau de la cuisine : les deux boutons attendent
+//   postee    elle y est postée (`dit`, et `detail`, son commentaire, au survol) : la carte le dit sous ses
+//             deux boutons, qui attendent ; la box la tranche à son tick, et la carte quitte la file à la
+//             lecture du tableau qui ne la porte plus
+//   refus     rien n'a été posté (`dit`, et `detail` au survol) : la carte reste, ses deux boutons aussi
 /**
  * @typedef {{ etape: "repos" }
  *   | { etape: "envoi", reponse: Reponse }
- *   | { etape: "tranchee", reponse: Reponse }
+ *   | { etape: "postee", reponse: Reponse, dit: string, detail: string }
  *   | { etape: "refus", dit: string, detail: string }} Etat
  */
 
@@ -38,15 +41,43 @@ export const RATES = "failed because of it:";
 export const OUI = "yes, open it as a PR";
 export const NON = "no";
 export const PRIX_DU_OUI = "a PR carrying exactly this diff goes through the pass like a delivery — gates, the reviewer's reading, CI — on your quota";
-export const ENVOI = { yes: "sending your “yes”…", no: "sending your “no”…" };
+export const ENVOI = { yes: "posting your “yes” on the Kitchen board…", no: "posting your “no” on the Kitchen board…" };
 export const COUTE = "this proposal cost";
 
 // L'étape qui suit la réponse du process principal.
 /** @param {Reponse} reponse @param {Rendu | undefined} rendu @returns {Etat} */
 export function apresRendu(reponse, rendu) {
-  if (rendu === undefined) return { etape: "refus", dit: "nothing was sent: this project has no station", detail: "" };
+  if (rendu === undefined) return { etape: "refus", dit: "nothing was posted: this project is not known to the app", detail: "" };
   if ("refus" in rendu) return { etape: "refus", dit: rendu.refus, detail: rendu.detail };
-  return { etape: "tranchee", reponse };
+  return { etape: "postee", reponse, dit: `your “${reponse}”: ${rendu.dit}`, detail: rendu.detail };
+}
+
+// Les deux réponses d'une carte de la file — celle d'une correction, celle d'un profil (profil/carte.js) —
+// dans l'état de son geste : inactives pendant l'envoi et une fois postée, ce qui est en route dit à côté ;
+// dessous, en une ligne, ce qui est posté ou ce qui ne l'est pas, le détail au survol.
+/** @param {Fabrique} doc @param {Etat} etat @param {ReturnType<typeof boutonAction>[]} boutons @returns {HTMLElement[]} */
+export function poserLesReponses(doc, etat, boutons) {
+  const reponses = cree(doc, "div");
+  reponses.className = "reponses";
+  for (const groupe of boutons) {
+    const bouton = groupe.children?.[0];
+    if (bouton !== undefined) bouton.disabled = etat.etape === "envoi" || etat.etape === "postee";
+  }
+  reponses.append(...boutons);
+  if (etat.etape === "envoi") {
+    const envoi = cree(doc, "span", ENVOI[etat.reponse]);
+    envoi.className = "en-route";
+    reponses.append(envoi);
+  }
+  if (etat.etape !== "postee" && etat.etape !== "refus") return [reponses];
+  const dite = cree(doc, "p");
+  // Chaque classe en clair : la peau ne vise que celles que la vue écrit (peau.test.ts).
+  if (etat.etape === "postee") dite.className = "postee";
+  else dite.className = "refus";
+  dite.ariaLive = "polite";
+  dite.append(cree(doc, "span", etat.dit));
+  if (etat.detail.trim() !== "") dite.append(survol(doc, etat.detail));
+  return [reponses, dite];
 }
 
 /** @param {Fabrique} doc @param {string} balise @param {string} [texte] */
@@ -119,10 +150,9 @@ function fichierDuDiff(doc, { fichier, ajoutees, retirees, lignes }) {
   return section;
 }
 
-// La carte d'une correction, dans son état. Tranchée, elle n'est plus posée : elle a quitté la file.
+// La carte d'une correction, dans son état. Elle reste posée tant que le tableau de la cuisine la porte.
 /** @param {Fabrique} doc @param {Carte} carte @param {Etat} etat @param {{ ouvrir: (ticket: number) => void, repondre: (reponse: Reponse) => void }} gestes */
 export function poserCorrection(doc, carte, etat, gestes) {
-  if (etat.etape === "tranchee") return [];
   const racine = cree(doc, "section");
   racine.className = "correction";
   racine.ariaLabel = `correction proposed: ${carte.titre}`;
@@ -153,29 +183,9 @@ export function poserCorrection(doc, carte, etat, gestes) {
   cout.append(cree(doc, "span", `${COUTE} `), tokens, cree(doc, "span", ` · proposed ${quand(carte.proposee)}`));
   corps.push(cout);
 
-  const enRoute = etat.etape === "envoi";
-  const reponses = cree(doc, "div");
-  reponses.className = "reponses";
   const oui = boutonAction(doc, OUI, () => gestes.repondre("yes"), { recommande: true, prix: PRIX_DU_OUI });
   const non = boutonAction(doc, NON, () => gestes.repondre("no"));
-  for (const groupe of [oui, non]) {
-    const bouton = groupe.children?.[0];
-    if (bouton !== undefined) bouton.disabled = enRoute;
-  }
-  reponses.append(oui, non);
-  if (etat.etape === "envoi") {
-    const envoi = cree(doc, "span", ENVOI[etat.reponse]);
-    envoi.className = "en-route";
-    reponses.append(envoi);
-  }
-  corps.push(reponses);
-  if (etat.etape === "refus") {
-    const refus = cree(doc, "p");
-    refus.className = "refus";
-    refus.append(cree(doc, "span", etat.dit));
-    if (etat.detail.trim() !== "") refus.append(survol(doc, etat.detail));
-    corps.push(refus);
-  }
+  corps.push(...poserLesReponses(doc, etat, [oui, non]));
   racine.append(...corps);
   return [racine];
 }
