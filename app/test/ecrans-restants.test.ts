@@ -87,30 +87,14 @@ describe("l'onglet Cooks (#1184) : la lecture de `station`, des gestes en bouton
   });
 });
 
-describe("Settings : l'onglet Manager n'a plus d'interrupteur à lui", () => {
+describe("Settings n'a plus de page Manager (#1700)", () => {
   // Un seul interrupteur pour tout le projet (#1406), en tête de l'espace : sa confirmation, qui dit son
   // prix en une ligne, est éprouvée là (interrupteur-projet.test.ts).
-  test("ni « on… » ni « off » : le manager suit l'interrupteur du projet", async () => {
+  test("ni page ni bouton du manager dans Settings : le manager suit l'interrupteur du projet", async () => {
     const vue = await ouvrir({ confirmer: (_: string, id: string, grant: unknown) => confirmationDe(id, PARADE, { sans: "pas lus" }, grant) });
-    await ouvrirLecture(vue, "Manager");
-    assert.deepEqual(
-      vue.element("manager").dessous("button").filter(({ textContent }) => /^(?:on|off)(?:…)?$/.test(textContent)),
-      [],
-    );
+    await ouvrirLecture(vue, "Settings");
+    assert.throws(() => vue.element("manager"), /aucun élément « manager »/);
+    assert.deepEqual(vue.element("etat").dessous("button").filter(({ textContent }) => /manager|^(?:on|off)(?:…)?$/i.test(textContent)), []);
     assert.deepEqual(vue.element("interrupteur-projet").dessous("button").filter(({ className }) => className === "bascule").length, 1);
-  });
-
-  test("le titre du manager ne porte pas sa commande, et un état illisible tient en une ligne", async () => {
-    const vue = await ouvrir();
-    await ouvrirLecture(vue, "Manager");
-    const numero = (vue.dernier("onglet") as [string, string, number])[2];
-    vue.dire("surContenu", { projet: "parade", demande: numero, a: A, sorties: [{ commande: "manager", texte: "?" }] }, { projet: "parade", demande: numero, a: A, sans: "usage: brigade manager — ssh: refused" }, undefined);
-    await repos();
-
-    const manager = vue.element("manager");
-    assert.doesNotMatch(aPlat(manager), TECHNIQUE);
-    assert.equal(manager.dessous("h3")[0]?.textContent, "the manager?");
-    assert.ok(survols(manager).includes("from `ssh box brigade parade manager`"));
-    assert.ok(survols(manager).some((dit) => dit.includes("usage: brigade manager")));
   });
 });
