@@ -5,14 +5,11 @@
 // telle quelle : la question, un bouton par choix, un champ pour répondre en texte libre, et les
 // captures quand il y en a — une carte sans écran n'a pas de zone de captures.
 //
-// Un clic sur un choix, ou le texte envoyé, est la réponse du chef : un seul appel du runtime la
-// règle — `rail choose <ticket> <n>` ou `rail answer <ticket> <texte>`, sur la box du projet. La
-// réponse est écrite sur l'issue, la carte quitte TODO et le ticket avance ; l'app n'en double rien.
-// La commande se compose ici, jamais dans la vue : la vue nomme le ticket, la question qu'elle
-// montre, et le rang du choix ou le texte.
-import { echecDe, lancerGeste, type Reglages, type Servi } from "./box.ts";
+// Un clic sur un choix, ou le texte envoyé, est la réponse du chef : elle est lue ici (`reponseLue`) avant de partir
+// sur le tableau de la cuisine (tableau-gestes/rail.ts). La vue nomme le ticket, la question qu'elle montre, et le rang
+// du choix ou le texte.
 import { capturesDeCarte, type CapturesDeCarte, type CapturesLues } from "./captures.ts";
-import { citer, LONGUEUR_MAX } from "./discussion.ts";
+import { LONGUEUR_MAX } from "./discussion.ts";
 
 // La carte telle que `facts` la donne : sa sorte (`product`, `design`), sa question, ses choix —
 // chacun son texte et sa suite (`resume`, `merge`), dans l'ordre que `rail choose` numérote à partir
@@ -80,23 +77,13 @@ export function carteDeTodo({ type, question, choix, captures }: CarteLue): Cart
   };
 }
 
-// Les deux commandes du runtime, telles qu'elles partent après `brigade <projet>`.
-export const choisir = (ticket: number, choix: number) => `rail choose ${ticket} ${choix}`;
-export const repondre = (ticket: number, texte: string) => `rail answer ${ticket} ${citer(texte)}`;
-
 export const INCONNUE = "nothing was sent: this card is not in the latest facts read — it was answered elsewhere, or it left TODO";
 export const CHANGEE = "nothing was sent: the card's question changed since you read it — read it again";
 export const VIDE = "nothing was sent: your answer is empty — write something to send";
-// Un constat, pas une consigne : la commande et ce que la box a rendu sont au survol.
-export const SANS_GESTE = "nothing was sent: this station cannot take your answer yet";
-const PAS_DEMANDE = "nothing was sent: the station could not be asked";
-
-// La dernière ligne non vide d'une sortie : ce que le runtime dit en dernier.
-const derniere = (sortie: string) => sortie.split("\n").map((ligne) => ligne.trim()).filter(Boolean).at(-1) ?? "";
 
 // La réponse du chef à la carte de TODO de `ticket`, lue de ce que la vue envoie : le rang d'un choix, ou son texte —
 // ou pourquoi rien ne part. `connue` : la carte que les derniers faits lus portent pour ce ticket — sans elle, ou sur une
-// autre question, rien ne part. Le même contrôle vaut sur la box et sur le tableau de la cuisine (tableau-gestes/rail.ts).
+// autre question, rien ne part. Le contrôle de la réponse écrite sur le tableau de la cuisine (tableau-gestes/rail.ts).
 export function reponseLue(connue: CarteLue | undefined, ticket: unknown, brute: unknown): { ticket: number; choix: number } | { ticket: number; texte: string } | { refus: string; detail: string } {
   if (typeof ticket !== "number" || !Number.isSafeInteger(ticket) || ticket < 1 || connue === undefined) return { refus: INCONNUE, detail: "" };
   const reponse = objet(brute);
@@ -112,25 +99,4 @@ export function reponseLue(connue: CarteLue | undefined, ticket: unknown, brute:
   if (saisi.includes("\0")) return { refus: "nothing was sent: your answer carries a NUL character", detail: "" };
   if (saisi.length > LONGUEUR_MAX) return { refus: `nothing was sent: GitHub refuses a comment longer than ${LONGUEUR_MAX} characters — this one has ${saisi.length}`, detail: "" };
   return { ticket, texte: saisi };
-}
-
-// La réponse du chef à la carte de TODO de `ticket`, sur la box du projet (`reponseLue`).
-//   0  la réponse est écrite : la carte quitte TODO
-//   1  le runtime a refusé — sa dernière ligne le dit
-//   2, 66  le runtime de la station ne connaît pas ce geste
-// Jamais d'exception.
-export async function repondreALaCarte(reglages: Reglages, servi: Servi, connue: CarteLue | undefined, ticket: unknown, brute: unknown): Promise<Rendu> {
-  const lue = reponseLue(connue, ticket, brute);
-  if ("refus" in lue) return lue;
-  const commande = "choix" in lue ? choisir(lue.ticket, lue.choix) : repondre(lue.ticket, lue.texte);
-  const rendu = await lancerGeste(reglages, servi, commande);
-  const { erreur } = rendu;
-  if (erreur === null) return { repondue: true, dit: derniere(rendu.sortie) };
-  const echec = echecDe({ ...rendu, erreur }, reglages.delaiMs);
-  if (erreur.killed !== true && erreur.code === 1) {
-    const dit = derniere(rendu.erreurs) || derniere(rendu.sortie);
-    return { refus: `nothing was recorded${dit === "" ? "" : ` — ${dit}`}`, detail: echec.erreur };
-  }
-  if (erreur.killed !== true && (erreur.code === 2 || erreur.code === 66)) return { refus: SANS_GESTE, detail: echec.erreur };
-  return { refus: `${PAS_DEMANDE} — ${echec.atteinte ? "reached, but it did not answer: your answer may be on the issue, read it before answering again" : "not reached"}`, detail: echec.erreur };
 }

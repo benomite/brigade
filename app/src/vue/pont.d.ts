@@ -336,18 +336,6 @@ export type Pont = {
   // Le rail d'un projet que ni une box ni la station de cet ordinateur ne servent (ticket 1435) : celui que sa station
   // publie sur GitHub, rangé dans les colonnes du rail — ou pourquoi il ne se lit pas, en une phrase.
   railDuProjet?(nom: string): Promise<import("../faits.ts").RailDuProjetLu>;
-  // Le tableau de la cuisine d'un projet (ticket 1588) : l'issue que sa box tient à jour dans son dépôt, lue de GitHub
-  // sans `ssh` ni tailnet (app/src/tableau/lecture.ts) — la file du chef, l'état de la cuisine et l'âge de la lecture, ou
-  // pourquoi il ne se lit pas, en une phrase. Un pont qui ne le lit pas rend `undefined` : la vue garde son rail d'avant.
-  tableauDuProjet?(nom: string): Promise<import("../tableau/lecture.ts").LectureDuTableauDuDepot | undefined>;
-  // Une ligne de la file de ce tableau, ouverte sur sa page de GitHub — sa PR, son issue, ou le tableau —, dans le
-  // navigateur : seulement une page que la dernière lecture a donnée. Rend si elle a été ouverte.
-  ouvrirDuTableau?(nom: string, url: string): Promise<boolean>;
-  // Une décision du chef sur une ligne de la file de ce tableau (ticket 1590) — merger, renvoyer en cuisine, mettre de
-  // côté, répondre à une carte ou choisir l'un de ses choix —, postée en commentaire sur l'issue du tableau, sans `ssh`
-  // ni station (app/src/tableau-gestes/github.ts) : `pending` et le commentaire posté, ou `failed` et pourquoi, en une
-  // phrase. La réponse de la box se lit ensuite dans le tableau (`gestes` de la lecture).
-  gesteAuTableau?(nom: string, decision: import("../tableau-gestes/gestes.ts").DecisionDuChef): Promise<import("../tableau-gestes/gestes.ts").EtatDuGeste>;
   // Ce qu'engage l'allumage du manager, chiffré (allumage.ts) : les issues ouvertes du projet, et
   // celles qui portent `blocked-on-human` — `manager backlog`, lancée une fois sur sa box. Demandé
   // quand la confirmation d'« allumer » s'ouvre : son « oui » n'attend pas cette lecture. Rien, pour un projet sans box.

@@ -1,11 +1,10 @@
 // Les gestes du tableau (gestes.ts) sur l'API REST de GitHub : le client que la plateforme donne au module — poster le
-// commentaire d'un geste sur l'issue du tableau, relire les gestes que son bloc machine porte —, et ce que les ponts font
-// d'une décision que la vue leur demande (`envoyerLeGeste`, ticket 1590). Ce module compose les demandes, avec les mêmes
-// en-têtes et le même jeton que la lecture du tableau (app/src/tableau/client.ts) ; ce qui les porte est donné par la
-// plateforme : le `fetch` du desktop (`posterParFetch`), le HTTP natif du téléphone (app/android/web/lecture.ts). Il ne
-// parle qu'à GitHub : aucune box, aucune station n'est jointe.
+// commentaire d'un geste sur l'issue du tableau, relire les gestes que son bloc machine porte. Ce module compose les
+// demandes, avec les mêmes en-têtes et le même jeton que la lecture du tableau (app/src/tableau/client.ts) ; ce qui les
+// porte est donné par la plateforme : le `fetch` du desktop (`posterParFetch`). Il ne parle qu'à GitHub : aucune box,
+// aucune station n'est jointe.
 import { clientGitHub, corpsLu, DELAI_MS, type AppelGitHub, type ReponseGitHub } from "../tableau/client.ts";
-import { gestesDuCorps, gestesDuTableau, type ClientDesGestes, type DecisionDuChef, type EtatDuGeste } from "./gestes.ts";
+import { gestesDuCorps, type ClientDesGestes } from "./gestes.ts";
 
 // Un `POST` à cette adresse, avec ces en-têtes et ce corps — un objet, que la plateforme écrit en JSON. Lève quand rien
 // n'a répondu.
@@ -70,39 +69,3 @@ export function posterParFetch(options: { fetch?: typeof fetch; delaiMs?: number
     }
   };
 }
-
-const GESTES = new Set(["merge", "send-back", "set-aside", "answer", "choose"]);
-const entier = (valeur: unknown): valeur is number => typeof valeur === "number" && Number.isSafeInteger(valeur) && valeur > 0;
-
-// Une décision venue de la vue — ou rien, si elle n'en a pas la forme.
-export function decisionLue(brute: unknown): DecisionDuChef | undefined {
-  if (typeof brute !== "object" || brute === null) return undefined;
-  const { geste, ticket, raison, reponse, choix } = brute as Record<string, unknown>;
-  if (typeof geste !== "string" || !GESTES.has(geste) || !entier(ticket)) return undefined;
-  if (geste === "merge" || geste === "set-aside") return { geste, ticket };
-  if (geste === "send-back") return typeof raison === "string" ? { geste, ticket, raison } : { geste, ticket };
-  if (geste === "answer") return typeof reponse === "string" ? { geste, ticket, reponse } : undefined;
-  return entier(choix) ? { geste: "choose", ticket, choix } : undefined;
-}
-
-// Ce que la dernière lecture du tableau d'un projet a donné, et que le pont garde : son dépôt, son issue, et les tickets
-// de sa file — seuls ceux-là reçoivent un geste.
-export type TableauVise = { depot: string; numero: number; tickets: ReadonlySet<number> };
-
-// Une décision que la vue demande, postée sur le tableau que la dernière lecture a donné. Ce qui ne part pas le dit en
-// une phrase (`failed`), et rien n'est posté : une décision sans sa forme, un ticket que la file ne porte plus, un
-// tableau que l'app n'a pas lu.
-export async function envoyerLeGeste(vise: TableauVise | undefined, brute: unknown, client: ClientDesGestes): Promise<EtatDuGeste> {
-  const decision = decisionLue(brute);
-  if (decision === undefined) return { etat: "failed", raison: "Nothing was posted: the app asked for a gesture the Kitchen board does not know." };
-  if (vise === undefined) return { etat: "failed", raison: "Nothing was posted: the Kitchen board has not been read yet — read it again." };
-  if (!vise.tickets.has(decision.ticket)) return { etat: "failed", raison: `Nothing was posted: #${decision.ticket} is not in the queue of the latest Kitchen board read — read it again.` };
-  return gestesDuTableau({ depot: vise.depot, tableau: vise.numero, client }).envoyer(decision);
-}
-
-// Le tableau visé d'une lecture réussie (app/src/tableau/lecture.ts).
-export const viseDe = (lu: { depot: string; numero: number; file: ReadonlyArray<{ ticket: number | null }> }): TableauVise => ({
-  depot: lu.depot,
-  numero: lu.numero,
-  tickets: new Set(lu.file.flatMap(({ ticket }) => (ticket === null ? [] : [ticket]))),
-});

@@ -14,7 +14,6 @@ import { ANDROID, dependancesDeLaVue, demarrageDuPont, majeureDuJdk, NATIF, plat
 import { APP, Arret, IDENTIFIANT, NOM, type Executer } from "../../packaging/construire.ts";
 import { CACHE_DE_COMPILATION } from "../aides/cache-de-compilation.ts";
 import { PAQUETS } from "../aides/posix.ts";
-import { ISSUE as ISSUE_DU_TABLEAU, TABLEAU as TABLEAU_DU_DEPOT } from "../tableau/fixture.ts";
 
 const COMMANDE = join(APP, "packaging", "android.ts");
 
@@ -272,26 +271,6 @@ test("par le tailnet, le pont dit ce qui ne se joint pas : la box elle-même, ou
   assert.equal(eteint.stockage.size, 0);
 });
 
-// Le tableau de la cuisine d'un projet (#1588) : lu de GitHub sans la station — aucune demande ne part au guichet —, dans
-// le dépôt que la dernière liste lue donne au projet, avec le jeton du coffre.
-test("le pont lit le tableau d'un projet de GitHub, sans la station : la file, l'état et l'âge ; un projet inconnu le dit", async () => {
-  const stockage = new Map([
-    ["brigade.telephone", JSON.stringify({ station: "atelier", adresse: "http://192.168.1.20:7010", jeton: "brgt_secret" })],
-    ["brigade.telephone.projets", JSON.stringify([{ name: "parade", repository: "chef/parade", state: "served" }])],
-  ]);
-  const { pont, appels, json } = await pontDuTelephone(({ plugin }) => (plugin === "Coffre" ? { valeur: "gho_du_coffre" } : { status: 200, headers: {}, data: [ISSUE_DU_TABLEAU] }), stockage);
-  const lu = await json(pont.tableauDuProjet!("parade"));
-  assert.equal(lu.lu, true, lu.raison);
-  assert.equal(lu.depot, "chef/parade");
-  assert.deepEqual(lu.file, TABLEAU_DU_DEPOT.file);
-  assert.equal(typeof lu.age, "number");
-  const demandes = appels.filter(({ plugin }) => plugin === "CapacitorHttp").map(({ options }) => String(options.url));
-  assert.deepEqual(demandes.map((url) => url.split("?")[0]), ["https://api.github.com/repos/chef/parade/issues"]);
-  const inconnu = await json(pont.tableauDuProjet!("cantine"));
-  assert.equal(inconnu.lu, false);
-  assert.match(inconnu.raison, /^The Kitchen board of cantine is not read: this phone does not know its GitHub repository yet\.$/);
-});
-
 test("le pont lit le QR par le plugin natif : son texte, un renoncement, ou la raison d'un échec", async () => {
   for (const [rendu, attendu] of [
     [{ texte: "brigade://pair?code=7KQ2-M9XD" }, { lu: "brigade://pair?code=7KQ2-M9XD" }],
@@ -429,7 +408,7 @@ test("la lecture posée se charge sans rien de Node, comme dans la WebView", asy
   const www = join(dossier(t), "www");
   poserLaVue(await demarrageDuPont(), www);
   const charge = spawnSync(process.execPath, ["--input-type=module", "-e", 'const lu = process.argv[1]; delete globalThis.process; import(lu).then((module) => console.log(Object.keys(module).sort().join(" ")), (erreur) => console.log(`KO ${erreur.message}`))', pathToFileURL(join(www, "android", "lecture.js")).href], { encoding: "utf8" });
-  assert.equal(charge.stdout.trim(), "CLE_DU_JETON_GITHUB GESTES_DU_GUICHET INTERVALLE_MS PAS_DE_LA_REPONSE_MS envoiNatif gesteDuTelephone jetonDuCoffre lireLeTableauDuTelephone ouvrirLaLecture posteNatif", charge.stderr);
+  assert.equal(charge.stdout.trim(), "GESTES_DU_GUICHET INTERVALLE_MS PAS_DE_LA_REPONSE_MS ouvrirLaLecture", charge.stderr);
 });
 
 // Les gestes de la fiche, par le pont appairé (#1420) : un `POST` au guichet, avec le jeton, le geste et le ticket, et

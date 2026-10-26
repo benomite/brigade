@@ -108,12 +108,6 @@ const pont = {
   choisirLesProjets: (id, depots) => ipcRenderer.invoke("choisirLesProjets", id, depots),
   // Le rail d'un projet sans box ni station ici, tel que sa station le publie sur GitHub (ticket 1435).
   railDuProjet: (nom) => ipcRenderer.invoke("railDuProjet", nom),
-  // Le tableau de la cuisine d'un projet, lu de GitHub sans `ssh` ni tailnet (ticket 1588).
-  tableauDuProjet: (nom) => ipcRenderer.invoke("tableauDuProjet", nom),
-  // Une ligne de ce tableau, ouverte sur sa page de GitHub : sa PR, son issue, ou le tableau (ticket 1588).
-  ouvrirDuTableau: (nom, url) => ipcRenderer.invoke("ouvrirDuTableau", nom, url),
-  // Une décision du chef sur une ligne de ce tableau, postée en commentaire sur son issue (ticket 1590).
-  gesteAuTableau: (nom, decision) => ipcRenderer.invoke("gesteAuTableau", nom, decision),
   compter: (projet) => ipcRenderer.invoke("compter", projet),
   closer: (projet, action, oui) => ipcRenderer.invoke("closer", projet, action, oui),
   corriger: (projet, proposition, reponse) => ipcRenderer.invoke("corriger", projet, proposition, reponse),

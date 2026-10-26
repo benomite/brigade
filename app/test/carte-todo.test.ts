@@ -3,14 +3,10 @@
 // forme —, rangé pour la carte du rail, et la réponse du chef part sur la box par une seule commande du
 // runtime : `rail choose <ticket> <n>` ou `rail answer <ticket> <texte>`.
 import assert from "node:assert/strict";
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { describe, test, type TestContext } from "node:test";
+import { describe, test } from "node:test";
 import type { CarteVue } from "../../runtime/src/etat.ts";
-import { CHANGEE, carteDeTodo, carteLue, choisir, INCONNUE, PRIX_DU_TEXTE, repondre, repondreALaCarte, SANS_GESTE, VIDE } from "../src/carte-todo.ts";
+import { CHANGEE, carteDeTodo, carteLue, INCONNUE, PRIX_DU_TEXTE, reponseLue, VIDE } from "../src/carte-todo.ts";
 import { comprendre, tenirFaits, type Faits } from "../src/faits.ts";
-import { SANS_POSIX } from "./aides/posix.ts";
 
 const ISSUE = (ticket: number) => `https://github.com/chef/parade/issues/${ticket}`;
 const CAPTURE = (moment: string) => `https://github.com/chef/parade/blob/5d41402abc4b2a76b9719d911017c592/docs/captures/12/formulaire-${moment}.png?raw=true`;
@@ -100,79 +96,20 @@ describe("la carte de TODO, lue dans `facts`", () => {
   });
 });
 
-// --- La réponse, sur la box ------------------------------------------------------------
+// --- La réponse lue ---------------------------------------------------------------------
 
-const SERVI = { nom: "parade", box: { hote: "box" } };
-const OPTIONS = "-o BatchMode=yes -o ConnectTimeout=10";
-
-// Un faux `ssh` : il note chaque appel, puis joue `corps`.
-function box(t: TestContext, corps: string) {
-  const racine = mkdtempSync(join(tmpdir(), "carte-todo-"));
-  t.after(() => rmSync(racine, { recursive: true, force: true }));
-  const ssh = join(racine, "ssh");
-  writeFileSync(ssh, `#!/bin/sh\nD='${racine}'\nprintf '%s\\n' "$*" >>"$D/appels"\n${corps}\n`);
-  chmodSync(ssh, 0o755);
-  const appels = () => (existsSync(join(racine, "appels")) ? readFileSync(join(racine, "appels"), "utf8") : "");
-  return { reglages: { ssh, delaiMs: 60_000, connexionS: 10 }, appels };
-}
-const dit = (texte: string, code = 0, sortie: 1 | 2 = 1) => `cat <<'FIN' >&${sortie}\n${texte}\nFIN\nexit ${code}`;
-
-describe("la réponse du chef, sur la box", () => {
-  test("les deux commandes : `rail choose <ticket> <n>`, et `rail answer <ticket>` suivi du texte en un seul argument cité", () => {
-    assert.equal(choisir(21, 2), "rail choose 21 2");
-    assert.equal(repondre(12, "it's fine"), `rail answer 12 'it'\\''s fine'`);
+describe("la réponse du chef, lue avant de partir", () => {
+  test("un choix garde son rang ; le texte libre ses blancs autour retirés et ses retours à la ligne de GitHub", () => {
+    assert.deepEqual(reponseLue(PRODUIT, 21, { question: PRODUIT.question, choix: 2 }), { ticket: 21, choix: 2 });
+    assert.deepEqual(reponseLue(DESIGN, 12, { question: DESIGN.question, texte: "  Merge it; don't touch the label.\r\n" }), { ticket: 12, texte: "Merge it; don't touch the label." });
   });
 
-  test("un clic sur un choix lance `rail choose`, une fois : écrite, la réponse fait quitter TODO à la carte", { skip: SANS_POSIX }, async (t) => {
-    const { reglages, appels } = box(t, dit("#21: card answered, choice 2 — cost: your answer is written on the issue"));
-    const rendu = await repondreALaCarte(reglages, SERVI, PRODUIT, 21, { question: PRODUIT.question, choix: 2 });
-    assert.deepEqual(rendu, { repondue: true, dit: "#21: card answered, choice 2 — cost: your answer is written on the issue" });
-    assert.equal(appels(), `${OPTIONS} -- box brigade parade rail choose 21 2\n`);
-  });
-
-  test("le texte libre lance `rail answer`, tel que le chef l'a tapé, ses blancs autour retirés", { skip: SANS_POSIX }, async (t) => {
-    const { reglages, appels } = box(t, dit("#12: card answered"));
-    const rendu = await repondreALaCarte(reglages, SERVI, DESIGN, 12, { question: DESIGN.question, texte: "  Merge it; don't touch the label.\r\n" });
-    assert.ok("repondue" in rendu);
-    assert.equal(appels(), `${OPTIONS} -- box brigade parade rail answer 12 'Merge it; don'\\''t touch the label.'\n`);
-  });
-
-  test("rien n'est lancé pour une carte que les faits ne portent pas, une autre question, un choix hors de la carte, un texte vide", async (t) => {
-    const { reglages, appels } = box(t, dit("ok"));
-    assert.deepEqual(await repondreALaCarte(reglages, SERVI, undefined, 21, { question: PRODUIT.question, choix: 1 }), { refus: INCONNUE, detail: "" });
-    assert.deepEqual(await repondreALaCarte(reglages, SERVI, PRODUIT, "21", { question: PRODUIT.question, choix: 1 }), { refus: INCONNUE, detail: "" });
-    assert.deepEqual(await repondreALaCarte(reglages, SERVI, PRODUIT, 21, { question: "Another question?", choix: 1 }), { refus: CHANGEE, detail: "" });
-    for (const choix of [0, 3, 1.5, "1"]) assert.match(((await repondreALaCarte(reglages, SERVI, PRODUIT, 21, { question: PRODUIT.question, choix })) as { refus: string }).refus, /choices 1 to 2/);
-    for (const texte of ["", "   ", undefined]) assert.deepEqual(await repondreALaCarte(reglages, SERVI, PRODUIT, 21, { question: PRODUIT.question, texte }), { refus: VIDE, detail: "" });
-    assert.equal(appels(), "");
-  });
-
-  test("refusée par le runtime (1) : sa dernière ligne le dit, la commande et le code au survol", { skip: SANS_POSIX }, async (t) => {
-    const { reglages } = box(t, dit("#21 is not touched: a cook is working on #21: answer once it has delivered — cost: none: nothing was changed", 1, 2));
-    const rendu = await repondreALaCarte(reglages, SERVI, PRODUIT, 21, { question: PRODUIT.question, choix: 1 });
-    assert.ok("refus" in rendu);
-    assert.equal(rendu.refus, "nothing was recorded — #21 is not touched: a cook is working on #21: answer once it has delivered — cost: none: nothing was changed");
-    assert.match(rendu.detail, /rail choose 21 1/);
-    assert.match(rendu.detail, /exit code 1/);
-  });
-
-  test("un runtime qui ne connaît pas encore `choose` ni `answer` (2 sur son usage, ou 66) : une ligne, sans commande ni code", { skip: SANS_POSIX }, async (t) => {
-    for (const code of [2, 66]) {
-      const { reglages } = box(t, dit("unknown gesture: “choose”", code, 2));
-      const rendu = await repondreALaCarte(reglages, SERVI, PRODUIT, 21, { question: PRODUIT.question, choix: 1 });
-      assert.ok("refus" in rendu);
-      assert.equal(rendu.refus, SANS_GESTE);
-      assert.doesNotMatch(rendu.refus, /ssh|code|`/);
-      assert.match(rendu.detail, new RegExp(`exit code ${code}`));
-    }
-  });
-
-  test("une box pas jointe : une ligne, et ce que `ssh` a rendu au survol", { skip: SANS_POSIX }, async (t) => {
-    const { reglages } = box(t, `echo "ssh: connect to host box port 22: Connection refused" >&2\nexit 255`);
-    const rendu = await repondreALaCarte(reglages, SERVI, PRODUIT, 21, { question: PRODUIT.question, choix: 1 });
-    assert.ok("refus" in rendu);
-    assert.equal(rendu.refus, "nothing was sent: the station could not be asked — not reached");
-    assert.match(rendu.detail, /Connection refused/);
+  test("rien ne part pour une carte que les faits ne portent pas, une autre question, un choix hors de la carte, un texte vide", () => {
+    assert.deepEqual(reponseLue(undefined, 21, { question: PRODUIT.question, choix: 1 }), { refus: INCONNUE, detail: "" });
+    assert.deepEqual(reponseLue(PRODUIT, "21", { question: PRODUIT.question, choix: 1 }), { refus: INCONNUE, detail: "" });
+    assert.deepEqual(reponseLue(PRODUIT, 21, { question: "Another question?", choix: 1 }), { refus: CHANGEE, detail: "" });
+    for (const choix of [0, 3, 1.5, "1"]) assert.match((reponseLue(PRODUIT, 21, { question: PRODUIT.question, choix }) as { refus: string }).refus, /choices 1 to 2/);
+    for (const texte of ["", "   ", undefined]) assert.deepEqual(reponseLue(PRODUIT, 21, { question: PRODUIT.question, texte }), { refus: VIDE, detail: "" });
   });
 });
 
