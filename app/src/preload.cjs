@@ -83,7 +83,6 @@ const pont = {
   autoriserSurGitHub: (url) => ipcRenderer.invoke("autoriserSurGitHub", url),
   panne: (id, cle) => ipcRenderer.invoke("panne", id, cle),
   cuireSurLaStation: (projet, station, geste) => ipcRenderer.invoke("cuireSurLaStation", projet, station, geste),
-  deplacer: (projet, ticket, voisin, cote) => ipcRenderer.invoke("deplacer", projet, ticket, voisin, cote),
   reglerLePlafond: (station, valeur, projet) => ipcRenderer.invoke("reglerLePlafond", station, valeur, projet),
   reglerLePlafondDeCalibrage: (projet, choix) => ipcRenderer.invoke("reglerLePlafondDeCalibrage", projet, choix),
   reglagesDuProjet: (projet) => ipcRenderer.invoke("reglagesDuProjet", projet),

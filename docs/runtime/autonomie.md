@@ -15,7 +15,7 @@ Each row is a kind of decision. The table shows them in this order.
 | **Screens** | Validating the captures of an interface change before merge |
 | **Merge** | Merging a green delivery. This row is the `merge` grant (see "The Merge row" below) |
 | **Specification** | Adjusting a ticket's criteria, splitting it again, closing a ticket judged useless |
-| **Priorities** | Reordering the queue, posing tickets born in the kitchen |
+| **Priorities** | Changing ticket priorities, posing tickets born in the kitchen |
 | **Cost** | Raising a ticket's calibration, relaunching it beyond its resends, the share of the Max quota |
 | **Dependencies** | Adding a library or a service (a database, Docker…) |
 | **Publishing** | Releases and station updates |

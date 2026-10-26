@@ -276,8 +276,7 @@ function raconterLaStation(journal: Journal): void {
   noter({ type: "aside.blocked", payload: { station, reason: "secrets-unavailable", base: "base-2" } }, 4);
 }
 
-// Six tickets, un par destin : resté en attente, pris, rendu, servi, 86, parti ;
-// et l'ordre manuel du chef.
+// Six tickets, un par destin : resté en attente, pris, rendu, servi, 86, parti.
 function raconterLeRail(journal: Journal): void {
   const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000, maintenant: () => new Date(`${JOUR_HORLOGE}T11:00:00.000Z`) });
   for (const ticket of [1, 2, 3, 4, 5, 6]) {
@@ -313,8 +312,6 @@ function raconterLeRail(journal: Journal): void {
     type: "cook.out-of-zone",
     payload: { run: "run-2", zone: ["runtime/src/rail.ts"], files: [{ path: "runtime/src/gates.ts", owners: [] }], cardChanged: false },
   });
-  // Le chef place le 5 avant le 4, dans leur priorité.
-  journal.ajouter({ project: "brigade", ticket: 5, author: "chef", type: "ticket.moved", payload: { priority: null, order: [5, 4] } });
   // Deux tickets attendent un tiers, et leur issue le dit : l'un attend
   // encore, l'autre est repris — sa marque retirée.
   for (const ticket of [70, 71]) {

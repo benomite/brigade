@@ -1,7 +1,7 @@
 // La file de « parade » quand quatre tickets attendent sur le rail (ticket 1347) : la colonne « On the rail » dans
 // l'ordre où le runtime les sert — #21 et #23 en `prio:1`, #22 et #24 en `prio:2` —, chaque carte avec sa priorité. #21,
 // en tête, ne part pas : #14 tient sa zone, et `facts` le dit (`rail[].raison`, #1346). Ce que la box rend, mot pour
-// mot ; les écrans `rail-file-*` y glissent une carte. Ce fichier n'est pas un écran.
+// mot. Ce fichier n'est pas un écran.
 import type { Faits } from "../../../app/src/faits.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
