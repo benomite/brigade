@@ -92,7 +92,7 @@ function pageDeLaLigne(depot: string, tableau: string, { ticket, decision }: Lig
 
 export async function lireLeTableauDuDepot({ depot, appeler, maintenant = () => new Date() }: OptionsDeLecture): Promise<LectureDuTableauDuDepot> {
   const echec = (raison: string): TableauNonLu => ({ lu: false, depot, luLe: maintenant().toISOString(), raison });
-  if (!DEPOT.test(depot)) return echec(`The project's repository "${depot}" is not an owner/name GitHub repository, so its Kitchen board cannot be read.`);
+  if (!DEPOT.test(depot)) return echec(`The project's repository "${depot}" is not an owner/name GitHub repository, so its Kitchen board cannot be read. Its folder has no GitHub \`origin\` remote to take it from: in ~/.config/brigade/app.json, give this project the field "depot" with its GitHub repository as value, for example "depot": "acme/kitchen".`);
   let reponse: ReponseGitHub;
   try {
     reponse = await appeler(`/repos/${depot}/issues?labels=${LABEL_DU_TABLEAU}&state=open&sort=created&direction=asc&per_page=${PAR_PAGE}`);

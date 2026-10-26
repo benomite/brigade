@@ -176,6 +176,7 @@ test("un dépôt qui n'est pas `<owner>/<repo>` : un échec, et rien ne part ver
   const lecture = await lireLeTableauDuDepot({ depot: "../evil", appeler, maintenant: () => LU_LE });
   assert.equal(lecture.lu, false);
   assert.match(lecture.lu ? "" : lecture.raison, /is not an owner\/name GitHub repository/);
+  assert.match(lecture.lu ? "" : lecture.raison, /no GitHub `origin` remote.*field "depot".*"depot": "acme\/kitchen"/);
   assert.deepEqual(chemins, []);
 });
 

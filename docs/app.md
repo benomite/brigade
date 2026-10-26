@@ -325,6 +325,10 @@ the token of this computer's `gh`; the phone with the GitHub token of its vault.
 when the project opens, then every minute while Rail shows it (the box rewrites it at most once a
 minute), and on `read again`.
 
+A project with no `depot` in `app.json` needs nothing declared: the repository is that of its
+folder's `origin` remote (https or ssh, `github.com` only; #1660). With no such remote, the board
+says so and names the one thing to do: give the project the field `depot` (`"depot": "acme/kitchen"`).
+
 - **Read**: the head says what awaits the chef in one sentence (`2 things await you on parade.`,
   or `Nothing awaits you on parade.`); where it comes from — the repository, the issue, when the box
   wrote it and when the app read it — is in the `?` hover. Under it, the age of the reading,

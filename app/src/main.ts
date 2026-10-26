@@ -42,7 +42,7 @@ import { CONFIRMES, DIRECTS, ecrireGeste, GRANTS } from "./gestes.ts";
 import { gestesDeCarte, jouerGesteDeFiche } from "./gestes-fiche.ts";
 import { COMMANDES as COMMANDES_DE_FIABILITE, ONGLET as FIABILITE, voir as voirFiabilite } from "./fiabilite.ts";
 import { GESTES_DES_GRANTS, voir as voirGrants } from "./grants.ts";
-import { ajouterALApp, lireClone } from "./ajout.ts";
+import { ajouterALApp, depotDeLOrigine, lireClone } from "./ajout.ts";
 import { tenirConnexionGitHub } from "./connexion-github.ts";
 import { cheminDe, emplacementsDe, lireCheminDuShell } from "./emplacements.ts";
 import { chercherUneMiseAJour, posteDe, refuser as refuserLaVersion, type Avis as AvisDeVersion } from "./mise-a-jour/avis.ts";
@@ -1112,7 +1112,7 @@ const appelerGitHub = clientGitHub({ jeton: jetonDeGh({ gh: ghIci, delaiMs: 10_0
 ipcMain.handle("tableauDuProjet", async (_, nom: unknown): Promise<LectureDuTableauDuDepot> => {
   const vise = declare(nom);
   if (vise === undefined) return { lu: false, depot: String(nom), luLe: new Date().toISOString(), raison: `The Kitchen board of ${String(nom)} is not read: it is no longer in the projects file.` };
-  const lu = await lireLeTableauDuDepot({ depot: vise.depot ?? vise.nom, appeler: appelerGitHub });
+  const lu = await lireLeTableauDuDepot({ depot: vise.depot ?? (await depotDeLOrigine(process.env.BRIGADE_GIT_BIN || "git", vise.dossier)) ?? vise.nom, appeler: appelerGitHub });
   if (lu.lu) {
     pagesDuTableau.set(vise.nom, new Set(lu.pages));
     tableauxVises.set(vise.nom, viseDe(lu));
