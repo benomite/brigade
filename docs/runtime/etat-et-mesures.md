@@ -321,6 +321,12 @@ manager takes it as a ticket. On each tick (once a minute) the runtime rereads t
 no comment, no mention: a refresh notifies nobody. Each call goes through the GitHub budget
 (`station-machine.md`), as a kitchen call, under the manager's identity when roles have one.
 
+A station publishes one board for each project it serves (#1662): each project's kitchen
+(`runtime/src/station/cuisine.ts`) publishes its own board, in its own repository, as the
+single-project runtime does. The gestures posted under a project's board are played on that
+project's log. The chef is mentioned under that project's board. Its calls are counted to that
+project in the station's counter, and that counter is the one `status` reads for `board cost`.
+
 The issue is found by its label and its block, never by a stored number. Closed, it is reopened;
 deleted or transferred, it is recreated; created, reopened, recreated — the service log says it
 in one line. Pinning is checked at the first refresh, after each creation or reopening, then

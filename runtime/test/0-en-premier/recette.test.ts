@@ -75,6 +75,12 @@ test("ajouté depuis l'app, le projet est dans la liste de la station en moins d
     }
   };
   const fichier = (nom: string) => gist().files[nom]?.content;
+  // Les issues ouvertes sur GitHub, dans l'ordre, telles que la doublure les a notées.
+  const issuesOuvertes = () =>
+    (existsSync(join(gists, "issues")) ? readFileSync(join(gists, "issues"), "utf8") : "")
+      .split("\n")
+      .filter(Boolean)
+      .map((ligne) => JSON.parse(ligne) as { number: number; depot: string; title: string; body: string; labels: string[] });
   const ecrire = (nom: string, contenu: string) => {
     const lu = gist();
     lu.files[nom] = { content: contenu };
@@ -142,14 +148,17 @@ test("ajouté depuis l'app, le projet est dans la liste de la station en moins d
   // Ce qui l'a servi : le clone, les décisions du parcours, son premier ticket, sa ligne — et rien qu'il ait fallu taper.
   assert.ok(existsSync(join(racine, "clones/shop/LISEZMOI")));
   assert.match(readFileSync(join(racine, "projets"), "utf8"), /^shop acme\/shop v2$/m);
-  // Son premier ticket, ouvert sur GitHub avant sa ligne : préparer le dépôt.
-  const [ticket, ...autres] = readFileSync(join(gists, "issues"), "utf8").split("\n").filter(Boolean).map((ligne) => JSON.parse(ligne) as { number: number; title: string; body: string; labels: string[] });
+  // Son premier ticket, ouvert sur GitHub avant sa ligne : préparer le dépôt. Le
+  // tableau de sa cuisine n'est pas un ticket.
+  const [ticket, ...autres] = issuesOuvertes().filter((issue) => !issue.labels.includes("kitchen-board"));
   assert.deepEqual(autres, []);
   assert.equal(ticket?.title, "Préparer le dépôt : gates, setup de worktree, sites autorisés");
   assert.deepEqual(ticket?.labels, ["fire", "model:opus", "effort:high"]);
   assert.match(ticket?.body ?? "", /## Éprouver sur la station, pas en local/);
   assert.deepEqual(JSON.parse(readFileSync(join(racine, "etat/shop/preparation-depot.json"), "utf8")).ticket, 1);
   await station.attendre("brigade [shop] : servi par la station");
+  // Sa cuisine publie son tableau dans son dépôt, comme le runtime d'un seul projet.
+  await jusqua(() => issuesOuvertes().some((issue) => issue.depot === "acme/shop" && issue.title === "Kitchen board" && issue.labels.includes("kitchen-board")));
   // La machine n'a pas de bac à sable : rien ne part avant que le chef ait choisi — pas même la préparation.
   await station.attendre("brigade [shop] : box cuit sans bac à sable — aucun cook ne part avant que le chef ait choisi");
   accepterSansBacASable({ repertoireEtat: join(racine, "etat/shop"), station: "box" });

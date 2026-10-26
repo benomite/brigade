@@ -45,6 +45,12 @@ import { ConfigInvalide, demarrer, type Runtime } from "../runtime.ts";
 import { configSecrets, DECLARATION } from "../secrets.ts";
 import { brancherStation, configStation } from "../station.ts";
 import { direStations } from "../stations-declarees.ts";
+import { ouvrirGitHub } from "../github.ts";
+import { clientGitHubDuTableau } from "../tableau/publication/client.ts";
+import { brancherLeTableau } from "../tableau/publication/publier.ts";
+import { clientGitHubDesGestes } from "../tableau/gestes/client.ts";
+import { gestesDuTableau } from "../tableau/gestes/gestes.ts";
+import { mentionsDuTableau } from "../tableau/mention/mention.ts";
 
 export type Cuisine = {
   projet: string;
@@ -196,7 +202,25 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     // Ce que la mise à jour de la station a donné, recopié au journal du
     // projet : la file le dit.
     const suivie = brancherMiseAJour(brancherAlerteUrgence(brancherJeton(brancherSession(dirige, session, undefined, jeton), jeton)), envProjet.BRIGADE_MISE_A_JOUR_DIR || null, dire);
-    ouverte = options.connexion ? brancherConnexionMax(suivie, options.connexion) : suivie;
+    const connectee = options.connexion ? brancherConnexionMax(suivie, options.connexion) : suivie;
+    // Le tableau de la cuisine, publié dans le dépôt du projet comme le
+    // runtime d'un seul projet le publiait (`main.ts`) : chaque cuisine le
+    // sien, dans son dépôt, ses gestes joués sur son journal. Le process de la
+    // station ne porte aucun projet : chaque appel est compté au sien.
+    const roles = identites;
+    const sousLeManager = roles ? { jeton: roles.jeton("manager").frais, compte: "manager" } : {};
+    const tableau = clientGitHubDuTableau({ depot: rail.depot, bin: rail.gh, projet, ...sousLeManager });
+    const clientDesGestes = clientGitHubDesGestes({ depot: rail.depot, bin: rail.gh, projet, ...sousLeManager });
+    const gestes = gestesDuTableau({
+      client: clientDesGestes,
+      journal: connectee.journal,
+      projet,
+      repertoireEtat,
+      github: ouvrirGitHub({ depot: rail.depot, bin: rail.gh, usage: "geste", projet, ...(roles ? { jeton: roles.jeton("pass").frais, identite: () => roles.login("pass"), compte: "pass" } : {}) }),
+      avertir: dire,
+    });
+    const mentions = mentionsDuTableau({ client: clientDesGestes, journal: connectee.journal, projet, avertir: dire });
+    ouverte = brancherLeTableau(connectee, { client: tableau, depot: rail.depot, station: envProjet.BRIGADE_STATION_DIR, gestes, mentions, dire, avertir: dire });
   } catch (erreur) {
     identites?.fermer();
     try {

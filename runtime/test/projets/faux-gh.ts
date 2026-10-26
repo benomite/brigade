@@ -50,14 +50,18 @@ if (args[0] === "repo" && args[1] === "clone") {
   }
 } else if (args[0] === "api" && args.some((arg) => /^repos\/[^/]+\/[^/]+\/issues(\?|$)/.test(arg))) {
   // Les issues du dépôt : aucune à lister ; une créée est notée dans
-  // `$FAUX_GISTS/issues`, une ligne JSON chacune, et reçoit le numéro suivant.
+  // `$FAUX_GISTS/issues`, une ligne JSON chacune avec son dépôt, et reçoit le
+  // numéro suivant. Ses champs arrivent par `-f`, ou en JSON sur l'entrée
+  // (`--input -`), comme le tableau de la cuisine les envoie.
   const champs = args.flatMap((arg, rang) => (args[rang - 1] === "-f" ? [arg] : []));
   const champ = (nom: string) => champs.flatMap((brut) => (brut.startsWith(`${nom}=`) ? [brut.slice(nom.length + 1)] : []));
   const repondre = (statut: number, corps: unknown) => process.stdout.write(`HTTP/2.0 ${statut}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(corps)}\n`);
   if (args.includes("POST")) {
     const notees = join(process.env.FAUX_GISTS ?? "", "issues");
     const numero = (existsSync(notees) ? readFileSync(notees, "utf8").split("\n").filter(Boolean).length : 0) + 1;
-    appendFileSync(notees, `${JSON.stringify({ number: numero, title: champ("title")[0], body: champ("body")[0], labels: champ("labels[]") })}\n`);
+    const entree = args.includes("--input") ? (JSON.parse(readFileSync(0, "utf8")) as { title?: string; body?: string; labels?: string[] }) : null;
+    const depot = /^repos\/([^/]+\/[^/]+)\/issues$/.exec(args.at(-1) ?? "")?.[1];
+    appendFileSync(notees, `${JSON.stringify({ number: numero, depot, title: entree?.title ?? champ("title")[0], body: entree?.body ?? champ("body")[0], labels: entree?.labels ?? champ("labels[]") })}\n`);
     repondre(201, { number: numero });
   } else repondre(200, []);
 } else {
