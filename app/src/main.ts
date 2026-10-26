@@ -19,8 +19,9 @@ import { agirSurLeCloser } from "./closer-lancement.ts";
 import { repondreALaCorrection } from "./correction.ts";
 import { reponseLue } from "./carte-todo.ts";
 import { repondreAuProfil } from "./profil.ts";
-import { histoireDe, situationDe } from "./histoire.ts";
-import { commenter, demanderAuSecond, lireDiscussion } from "./discussion.ts";
+import { situationDe } from "./histoire.ts";
+import { commenter, demanderAuSecond } from "./discussion.ts";
+import { discussionDeGitHub, histoireDeGitHub } from "./fiche-github.ts";
 import { cheminConfiguration, EXEMPLE, type Projet } from "./config.ts";
 import { confirmationDe } from "./confirmation.ts";
 import { cuireSurLaStation } from "./cuisson.ts";
@@ -859,21 +860,16 @@ ipcMain.handle("lireQuestion", (_, nom: unknown, ticket: unknown) => {
   // Jamais posée hors des essais, comme BRIGADE_SSH_BIN.
   return adresse === undefined ? { a: new Date().toISOString(), sans: "the station gave no https address for this issue: the app has nothing to read" } : lireQuestion(reglagesGh(), adresse).then((lue) => retenirLue(vise.nom, ticket, lue));
 });
-// L'histoire d'un ticket et ce qu'il a coûté : `pass <ticket> --json` sur la box du projet, lu en
-// lecture seule (histoire.ts). La vue nomme le projet et le ticket ; la commande se compose ici.
+// L'histoire d'un ticket, sur sa fiche : lue de GitHub par le `gh` du poste (fiche-github.ts), jamais de la
+// box — le coût et la rétro que seul son journal porte sont dits non communiqués. La vue nomme le projet et le ticket.
 ipcMain.handle("situation", (_, carte: unknown) => situationDe(carte));
 ipcMain.handle("lireHistoire", async (_, nom: unknown, ticket: unknown) => {
   const vise = connu(nom);
-  if (vise === undefined) return undefined;
-  if (vise.box === undefined || typeof ticket !== "number" || !Number.isSafeInteger(ticket) || ticket < 1) return { sans: "no station for this project: the app has nothing to read" };
-  const servi = { nom: vise.nom, box: vise.box };
-  const rendu = await (passage.get(servi.nom) ?? Promise.resolve()).then(() => lancerGeste({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 30_000, connexionS: 10 }, servi, `pass ${ticket} --json`));
-  if (rendu.erreur !== null) return { sans: `not read: ${rendu.lance}\n${rendu.erreurs}${rendu.sortie}`.trim() };
-  return histoireDe(rendu.sortie);
+  return vise === undefined ? undefined : histoireDeGitHub(reglagesGh(), await depotDuProjet(vise), ticket);
 });
-// L'issue d'un ticket et sa discussion, sur la fiche de toute carte : `pass <ticket> issue` sur la box
-// du projet (discussion.ts), le markdown rendu. Les adresses qu'elle montre sont gardées ici : un
-// clic de la vue n'ouvre que l'une d'elles, jamais une adresse qu'elle aurait composée.
+// L'issue d'un ticket et sa discussion, sur la fiche de toute carte : lues de GitHub par le `gh` du poste
+// (fiche-github.ts), le markdown rendu. Les adresses qu'elle montre sont gardées ici : un clic de la vue n'ouvre
+// que l'une d'elles, jamais une adresse qu'elle aurait composée.
 // Le commentaire du chef part par `pass <ticket> comment <texte>`, au clic : la vue nomme le
 // projet, le ticket et le texte ; la commande se compose ici.
 const liensLus = new Map<string, readonly string[]>();
@@ -886,7 +882,7 @@ const lancerSurLaBox = (servi: Servi, commande: string) => {
 ipcMain.handle("lireDiscussion", async (_, nom: unknown, ticket: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return undefined;
-  const lue = await lireDiscussion(lancerSurLaBox, vise, ticket, 30_000);
+  const lue = await discussionDeGitHub(reglagesGh(), await depotDuProjet(vise), ticket);
   if (!("sans" in lue)) liensLus.set(`${vise.nom}#${String(ticket)}`, lue.liens);
   return lue;
 });

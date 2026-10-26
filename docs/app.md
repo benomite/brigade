@@ -2473,6 +2473,13 @@ For a ticket in pass or served, `cooked by` is added: who cooked it is not who h
   `docs/runtime/pass-merge.md`). A ticket with no retro says `no retro for this ticket yet`; one served whose cook
   wrote none says `served, but its cook wrote no retro`; a box from before the retro on the sheet says
   `retro unavailable`, its why on hover — never an empty section.
+- **A rail card's history and discussion come from GitHub, not from the box** (#1735): the sheet reads the ticket's
+  issue (body and comments) and the PRs that close it with the `gh` of this computer, on the project's repository —
+  no `ssh`, so the sheet opens with the box off. The history is what GitHub keeps: `arrived` (the issue's creation),
+  `delivered` and `merged` for each PR, or `closed without a merge`. What only the box's journal carries — the cook's
+  tokens and time, the attempts, the retro — says `not communicated`, never a made-up value (so the retro section
+  above reads `retro not communicated` there). An issue absent from GitHub is one sentence: `<repo>#<n> is not on
+  GitHub: there is nothing to read`. Posting a comment and "ask the second" still go through the box.
 - **A served interface ticket shows its screenshots, without a click** (#842): for each screen
   changed, the before screenshot and the after screenshot side by side, each under its caption (`fiche — before`,
   `fiche — after`), on its card in Pass as in Served. They come from `captures`, in `facts`,
