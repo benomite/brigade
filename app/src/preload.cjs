@@ -102,6 +102,10 @@ const pont = {
   ouvrirDUneStation: (nom, depot) => ipcRenderer.invoke("ouvrirDUneStation", nom, depot),
   seConnecterAGitHub: () => ipcRenderer.invoke("seConnecterAGitHub"),
   ouvrirLaPage: (url) => ipcRenderer.invoke("ouvrirLaPage", url),
+  // Les stations enregistrées sous le compte GitHub du chef (ticket 1706), et les projets que chacune sert, écrits dans
+  // son gist.
+  stationsDuCompte: () => ipcRenderer.invoke("stationsDuCompte"),
+  choisirLesProjets: (id, depots) => ipcRenderer.invoke("choisirLesProjets", id, depots),
   // Le rail d'un projet sans box ni station ici, tel que sa station le publie sur GitHub (ticket 1435).
   railDuProjet: (nom) => ipcRenderer.invoke("railDuProjet", nom),
   // Le tableau de la cuisine d'un projet, lu de GitHub sans `ssh` ni tailnet (ticket 1588).

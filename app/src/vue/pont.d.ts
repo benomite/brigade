@@ -36,6 +36,7 @@ import type { Appairage, RetraitDeStation, VuDesStations } from "../stations/sta
 import type { Terminal } from "../terminaux.ts";
 import type { DebutDeConnexion, FinDeConnexion } from "../connexion-github.ts";
 import type { Ouverture, Progres, StationsDuChef } from "../premier-lancement.ts";
+import type { Choix, StationsDuCompte } from "../stations-du-compte.ts";
 
 export type Pont = {
   // `poste` : le nom que l'écran donne à cet ordinateur (« this Mac », « this PC »), et s'il est un Mac — les raccourcis du terminal en dépendent.
@@ -325,6 +326,13 @@ export type Pont = {
   // Ouvre une page qu'un échec du runtime a nommée (installer `gh`, demander l'accès), ou celle qui dit comment obtenir
   // un outil qui manque au second (ticket 1435) ; rend faux pour toute autre.
   ouvrirLaPage?(url: string): Promise<boolean>;
+  // Les stations enregistrées sous le compte GitHub du chef (ticket 1706, stations-du-compte.ts) : listées — chacune
+  // disponible ou non, avec les projets qu'elle sert —, une connexion à GitHub qui manque, ou pourquoi elles ne se
+  // lisent pas. Le téléphone ne les porte pas.
+  stationsDuCompte?(): Promise<StationsDuCompte>;
+  // Écrit, dans le gist d'une station du compte, les projets qu'elle sert : la sélection entière — ou pourquoi elle
+  // n'est pas écrite, en une ligne, son détail à part.
+  choisirLesProjets?(id: string, depots: string[]): Promise<Choix>;
   // Le rail d'un projet que ni une box ni la station de cet ordinateur ne servent (ticket 1435) : celui que sa station
   // publie sur GitHub, rangé dans les colonnes du rail — ou pourquoi il ne se lit pas, en une phrase.
   railDuProjet?(nom: string): Promise<import("../faits.ts").RailDuProjetLu>;
