@@ -27,6 +27,7 @@ Neither one reads the other.
 |---|---|---|
 | `brigade-enregistrement.json` | the station only | its registration, below |
 | `brigade-selection.json` | the app only | the projects chosen for this station, below |
+| `brigade-projets-suivi.json` | the station only | where each chosen project stands (#1707, `../projets-station/`) |
 
 A gist write (`PATCH /gists/<id>`) replaces only the files it names. The station never names
 `brigade-selection.json`, and the app never names `brigade-enregistrement.json`, so neither can erase
@@ -129,8 +130,9 @@ The last two states, and their wording, are those of the paired stations' reader
 ## The selection the app writes
 
 `brigade-selection.json` is written by the app (#1706) into the station's registration gist. The
-station reads it (#1707). This ticket only fixes its place and its shape: the station does not read
-it yet.
+station reads it every 30 s and serves exactly those projects (#1707,
+[`../projets-station/README.md`](../projets-station/README.md)). It answers with its tracking of
+each project, `brigade-projets-suivi.json`, in the same gist.
 
 ```json
 {
@@ -152,4 +154,4 @@ it yet.
 - The pairing by code (`runtime/src/appairage/`) still runs alongside, and still prints its code in
   the service log. The app stops needing it once it reads this registration (#1706). Removing it is
   left to a later ticket.
-- The station does not act on `brigade-selection.json` yet (#1707).
+- Serving the selection is done by `runtime/src/projets-station/` (#1707).

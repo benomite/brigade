@@ -83,6 +83,23 @@ three states, never an empty list without a reason:
   `github`), `reason` in one sentence, `link` when a page lifts it (`https://cli.github.com` for a
   missing `gh`), and `detail`, what `gh` said.
 
+## The projects chosen in the app
+
+*Code: `runtime/src/projets-station/` (#1707); its README holds the detail.*
+
+The app, signed in to the GitHub account of the station's machine, ticks the projects this station
+serves: it writes `brigade-selection.json` in the station's registration gist
+(`runtime/src/enregistrement-station/`). The station rereads it **every 30 s** (and at once on
+`SIGHUP`), and serves exactly those repositories through the flow of "Adding a project to a station
+from the app" below: a ticked repository is cloned, prepared and served; an unticked one leaves its
+configuration within 30 s, its state and clone kept. Its name, its cap of cooks (from the machine's
+cores) and a starting calibration (`sonnet` / `medium`, which the repository's own settings override)
+are derived by the station. Its tracking goes into the same gist.
+
+With no selection, or an empty one, the station serves no project from the app, and its service log
+says so — again every hour while it lasts, so that `systemctl status` always shows it. A station
+paired by code keeps serving its pairing's request until the app writes a selection.
+
 ## The calls to GitHub, on the account's real quota, and waiting out the limit
 
 *Code: `runtime/src/limite-github.ts` (#873, #874, #1416).*
