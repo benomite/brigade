@@ -237,8 +237,7 @@ station (written in French in its log, which is the terminal that started the ap
 
 When a project is served from a box, the runtime needs its own variables (`BRIGADE_STATE_DIR`,
 `BRIGADE_PROJECT`, `BRIGADE_GITHUB_REPO`, `BRIGADE_REPO_DIR`, `BRIGADE_BASE_BRANCH` and the manager
-and reviewer calibration) and names the missing one; that path is
-[`installer.md`](installer.md), not this guide.
+and reviewer calibration) and names the missing one; that is the station's business, not this guide's: [`installer.md`](installer.md).
 
 ### Claude authentication
 
@@ -279,8 +278,8 @@ the app is still open if the station is this computer's.
 
 - Every screen: [`app.md`](app.md). The same walkthrough, with more detail on each state:
   [`tutoriels/premier-projet.md`](tutoriels/premier-projet.md).
-- A server station, in detail: [`installation-station.md`](installation-station.md). A project on a box,
-  with the guided installation: [`installer.md`](installer.md).
+- A server station, in detail: [`installation-station.md`](installation-station.md). The one-command install, on one screen:
+  [`installer.md`](installer.md).
 - What the runtime does once it runs: [`runtime/`](runtime/README.md).
 
 ## What was checked

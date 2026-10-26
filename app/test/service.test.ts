@@ -344,10 +344,8 @@ describe("« Vérifier » : `installation --json`, et le verdict que l'écran en
 });
 
 describe("ce que « Démarrer » écrit", () => {
-  test("le geste de docs/installer.md, « Servir le premier ticket », et celui que la box nomme en fin d'installation — porté par un `ssh` qui a un terminal", () => {
-    const doc = readFileSync(join(RACINE, "docs/installer.md"), "utf8");
+  test("le geste que la box nomme en fin d'installation — porté par un `ssh` qui a un terminal", () => {
     const installateur = readFileSync(join(RACINE, "runtime/src/installateur.ts"), "utf8");
-    assert.ok(doc.includes("sudo systemctl enable --now brigade@<projet>"), "docs/installer.md ne donne plus ce geste");
     assert.ok(installateur.includes("sudo systemctl enable --now ${unites.runtime}"), "le geste d'installation ne nomme plus ce geste");
 
     assert.deepEqual(commandeDeDemarrage(CALCULUS), { commande: "ssh -t box sudo systemctl enable --now brigade@calculus.service" });

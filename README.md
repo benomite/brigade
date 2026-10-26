@@ -22,6 +22,7 @@ You need a GitHub account with a repository you can push to (a throwaway one is 
 ## Where to read next
 
 - [`docs/installation.md`](docs/installation.md) — install and cook your first ticket.
+- [`docs/installer.md`](docs/installer.md) — install a station in one command.
 - [`docs/app.md`](docs/app.md) — the app, screen by screen.
 - [`docs/runtime/README.md`](docs/runtime/README.md) — the runtime (station, rail, pass): index of its pages.
 - [`docs/glossary.md`](docs/glossary.md) — the word for each object of the product (*cook*, *rail*, *station*, *pass*, *served*…).
