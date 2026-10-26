@@ -1,6 +1,6 @@
 // Une base rouge dont la réparation a échoué attend le chef : sa ligne est dans le bloc
-// `attend` que `status` écrit, et elle se lit telle quelle là où ce bloc est lu — dans le
-// panneau de l'app, mis à part du reste de `status`, et dans le second, qui relaie la sortie
+// `attend` que `status` écrit, et elle se lit telle quelle là où ce bloc est lu — dans ce que
+// l'app en met à part du reste de `status` (attend.ts), et dans le second, qui relaie la sortie
 // entière de `status` mot pour mot (commands/po.md, « À l'ouverture »). Au retour au vert,
 // elle en est sortie, chez les deux. Ce que la box rend est écrit ici par le runtime lui-même.
 import assert from "node:assert/strict";
@@ -11,21 +11,8 @@ import { describe, test, type TestContext } from "node:test";
 import type { Fait } from "../../runtime/src/evenements.ts";
 import { ouvrirJournal } from "../../runtime/src/journal.ts";
 import { principal as status } from "../../runtime/src/status.ts";
-import { ALLUMAGE } from "../src/allumage.ts";
 import { mettreAPart, ticketsDe } from "../src/attend.ts";
-import { pourLaBarre } from "../src/barre.ts";
-import { BOUTONS } from "../src/boutons.ts";
 import type { Lecture } from "../src/box.ts";
-import { EXEMPLE } from "../src/config.ts";
-import { PALETTE } from "../src/couleurs.ts";
-import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
-import { BANNIERE } from "../src/faits.ts";
-import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
-import { GESTES_DES_GRANTS } from "../src/grants.ts";
-import { EFFORTS, MODELES } from "../src/projets/projets.ts";
-import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
-import type { Terminal } from "../src/terminaux.ts";
-import { type Faux, jouerLaVue, repos } from "./aides/fausse-vue.ts";
 
 const PARADE = "parade";
 const HEURE_MS = 3_600_000;
@@ -67,26 +54,8 @@ const lue = (texte: string): Lecture => ({ projet: PARADE, demande: 1, a: "2026-
 const LIGNE = /^ {2}base {2}for 3 h 00 {2}BASE RED on ba5e000, failing: tests du runtime en échec — its repair #501 left the rail without being served — to repair: .*`brigade \S+ base replay`$/m;
 const lignesDeBase = (texte: string) => texte.split("\n").filter((ligne) => ligne.startsWith("  base  "));
 
-const SECOND: Terminal = { id: 1, projet: PARADE, genre: "second", titre: "second · claude", note: "session neuve", arrete: false };
-const REPONSES = {
-  demarrage: () => ({
-    configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade", box: { hote: "box" } }], hotes: ["box"] }),
-    palette: PALETTE,
-    exemple: EXEMPLE,
-    onglets: ONGLETS, rubriques: RUBRIQUES,
-    boutons: BOUTONS,
-    gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
-    banniere: BANNIERE,
-    calibrage: { modeles: MODELES, efforts: EFFORTS },
-    code: undefined,
-  }),
-  espace: () => [SECOND],
-};
-// Le panneau de l'espace : le bloc `attend` posé à part, puis le reste de `status`.
-const relayes = (ou: Faux) => ou.dessous("pre").filter((pre) => pre.className === "").map((pre) => pre.textContent);
-
-describe("une base rouge dont la réparation a échoué : la même ligne dans le panneau de l'app et dans le second", () => {
-  test("le second reçoit la sortie de `status`, qui porte la ligne dans le bloc `attend` ; l'app la pose à part, mot pour mot, sans en faire un ticket", async (t) => {
+describe("une base rouge dont la réparation a échoué : la même ligne dans ce que l'app met à part et dans le second", () => {
+  test("le second reçoit la sortie de `status`, qui porte la ligne dans le bloc `attend` ; l'app la met à part, mot pour mot, sans en faire un ticket", (t) => {
     const { status } = cuisine(t);
     const texte = status();
 
@@ -103,16 +72,6 @@ describe("une base rouge dont la réparation a échoué : la même ligne dans le
     assert.deepEqual(lignesDeBase(montree.attend), [ligne]);
     assert.deepEqual(montree.sorties.flatMap(({ texte }) => lignesDeBase(texte)), []);
     assert.deepEqual(ticketsDe(montree.attend), []);
-
-    // Posée dans le panneau de l'espace, telle quelle.
-    const vue = await jouerLaVue(REPONSES);
-    (vue.element("projets").children.at(1) ?? assert.fail("pas de case pour parade")).click();
-    await repos();
-    const demande = vue.dernier("regarder")[1] as number;
-    vue.dire("surLecture", { ...montree, demande }, { projet: PARADE, pages: [], aLancer: [], illisibles: [], empeche: [] });
-    const [bloc] = relayes(vue.element("lecture"));
-    assert.equal(bloc, montree.attend);
-    assert.deepEqual(lignesDeBase(bloc ?? ""), [ligne]);
   });
 
   test("la base revenue au vert, la ligne a quitté le bloc : ni le second ni l'app ne la lisent plus", (t) => {

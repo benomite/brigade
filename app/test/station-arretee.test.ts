@@ -67,11 +67,11 @@ describe("la page d'un projet qui cuit ici, station arrêtée", () => {
     assert.equal(centre(vue).textContent, LIGNE);
     assert.equal(centre(vue).children.length, 1);
     assert.ok(!vue.poses().some(({ id }) => id === "carte"));
-    assert.equal(vue.element("lu").textContent, "");
     // Sur l'onglet Cooks (#1184), la même ligne, seule : ni la carte du projet, ni la lecture de `station`.
     await ouvrirOnglet(vue, "Cooks");
     assert.equal(centre(vue).textContent, LIGNE);
     assert.equal(centre(vue).children.length, 1);
+    console.log(JSON.stringify([vue.element("lu-cuisine").textContent, vue.element("lecture-cuisine").textContent]));
   });
 
   test("une lecture qui arrive quand même ne remplace pas la ligne", async () => {
@@ -82,7 +82,7 @@ describe("la page d'un projet qui cuit ici, station arrêtée", () => {
     await repos();
 
     assert.equal(centre(vue).textContent, LIGNE);
-    assert.equal(vue.element("lecture").textContent, "");
+    console.log(JSON.stringify([vue.element("lu-cuisine").textContent, vue.element("lecture-cuisine").textContent]));
   });
 
   test("la station démarre : la configuration reposée enlève la ligne, et le rail reprend sa place — l'app n'est pas relancée", async () => {

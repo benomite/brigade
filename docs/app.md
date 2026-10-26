@@ -1926,20 +1926,45 @@ a space ("All projects", the add form), the accent is the skin's.
 
 **Only one tab is set at the top, next to the project's name: Settings.** Cost is no longer one (#1022): that
 of all projects lives at the app level (see "The cost of all projects"), each project's share named there.
-**Settings** opens the project's state —
-the installation, **the backup and its age**, the pages served, the removal, the project's colors, and
-`status` as the box renders it —, with below it a row of readings: Preferences, Rail, Cooks,
-Manager, Grants. **Reliability and Closer are no longer there** (#1699): they are sections of the Cooks tab (see "The
-cooks' reliability, on Cooks" and "The closer, on Cooks"), and no button or link of Settings leads to them. **Cooks** is
-no longer there (#1184): it is the space's Cooks tab, which relays `station`, read on the box of the single project shown, at
-the bottom of the tab — folded behind its line (#1456), with no button: the cap on cooks is set on each station's line; it
-is read only while the tab is shown. An alert-band line whose cause is fixed there leads to it in one click. **The log
-(Log) has no tab**: the "log" button, next to the tabs, opens the end of the log
-over the rail; clicking it again closes it. The five readings below are those of this tab and of this
-action.
 
-**The project's settings, changed by a pull request** (#1309, epic #1301). At the top of Settings (General), a block
-titled `Project settings` holds one row per project setting: the integration branch, the manager's and the reviewer's
+**Settings holds only what you can set, grouped by level** (#1700, epic #1698). It is one page, with no sub-page and no
+navigation of its own, in three groups, each a card titled by the word of its level (`app/src/vue/niveaux.js`), where
+it is kept on hover:
+
+| Group | Its settings |
+|---|---|
+| **project** | the project's settings in its repository (below); one line per grant (`grant merge`…); the kitchen — `running` or `stopped`, with `stop the kitchen…` or the gesture that resumes it |
+| **this machine** | the ordinary tickets on this computer — `taken` or `not taken`, a checkbox — and `cooks at once`, a number (a Mac only: off a Mac the group says `nothing to set on <this computer> for this project`); the app's code, and each brigade clone, in one sentence with its one button when it has one |
+| **you** | the project's two colors — `tab, in the bar` and `accent, in the space`, the color's name, the palette —, and `in your app`: `Remove from the app…`, which asks for a `yes` first |
+
+**Every setting is one line**, the same everywhere: its name, its value in force, and **one** control to change it — a
+field and `propose`, a switch, a checkbox, a number, a palette, a button. What the control opened or returned — a
+confirmation, a refusal — is laid under the value. Nothing else is laid in Settings: no statistic, no history, no reading's
+text, no explanatory paragraph — what a setting implies is on hover of its value. A group with nothing to set says so in
+one line.
+
+**Grants are one line each**: `grant <action>`, its state in one word with its dot and, when it has one, the remaining
+duration (`6 h left`) — since when, by whom, until when, on hover — and a switch, `merge on` / `merge off`. Clicking it
+opens the confirmation of `grant-activer` or `grant-revoquer`, which says what the grant changes: nothing goes before
+your "yes". Settings reads `grant` on the station for that (`grants.ts`), every thirty seconds while it is shown;
+unread, each grant named by the doc still has its line, its switch muted and the reason on hover. Its latest uses, its
+latest actions, what no grant allows and the deliveries stopped for lack of a grant are no longer shown.
+
+**Removed from Settings** (#1700): the General, Rail and Manager pages and their navigation — Rail and Manager have no
+route left (`app/src/onglets.ts`); the installation guide and **the installation check** — the `check the installation`
+button in the space's header, the verdict at the top of Settings —: the app only needs a GitHub connection (#1692), and
+installing a station is a separate topic (#1536); uninstalling the project from its station (`See what the station would
+remove`, `Uninstall from the station`); `where the rail's data comes from`; and the project's `status`, as the station
+renders it. **Reliability and Closer are no longer there either** (#1699): they are sections of the Cooks tab (see "The
+cooks' reliability, on Cooks" and "The closer, on Cooks"). **Cooks** is no longer there (#1184): it is the space's Cooks
+tab, which relays `station`, read on the box of the single project shown, at the bottom of the tab — folded behind its
+line (#1456), with no button: the cap on cooks is set on each station's line; it is read only while the tab is shown.
+An alert-band line whose cause is fixed there leads to it in one click; the grant line that is not verified opens
+Settings. **The log (Log) has no tab**: the "log" button, next to the tabs, opens the end of the log over the rail;
+clicking it again closes it.
+
+**The project's settings, changed by a pull request** (#1309, epic #1301). At the top of Settings, in its **project** group,
+one row per project setting: the integration branch, the manager's and the reviewer's
 default calibrations, the calibration ceiling, and the closer's four settings (#1685) — its calibration, its start
 threshold (`cooksBelow`), its tokens cap and its removed-lines cap. Each row says the value in force and where it comes from — `from the
 repository` (`.claude/brigade/projet.json`), `set on the station`, `from CLAUDE.md`, `default` — and has its edit control —
@@ -1963,45 +1988,30 @@ the command, `runtime/src/reglage-cli.ts`.
 **The drawn rail is at the center of the space, shared between its two tabs** (see "The rail"): On the
 rail, Taken, Pass, TODO, WAITING and Served, all on Rail; Cooks shows no kanban column. **The space opens with no page**: the shown
 tab has the whole center, over its full height. **A page opens over the rail**: it covers it entirely, without undoing it —
-it stays laid underneath, and re-read, but nothing of it can be clicked through. Clicking the tab again closes
-the page, and **the rail comes back as you left it**, scrolled where it was. The alert band,
-above, stays visible: no page covers it, nor do the terminals, on the right.
+it stays laid underneath, and re-read, but nothing of it can be clicked through, and nothing of it — not even its sticky
+column heads — shows through. Clicking the tab again closes the page, and **the rail comes back as you left it**,
+scrolled where it was. The alert band, above, stays visible: no page covers it, nor do the terminals, on the right.
 
-In these pages, five **content readings**. A reading relays **as text, word for word,** the output of a runtime command
-(`docs/runtime/exploitation.md`, "Piloter"). **Manager** first shows the manager's state, **Grants** that
-of the grants:
+Two **content readings** remain, plus the one Settings makes. A reading relays **as text, word for word,** the output of
+a runtime command (`docs/runtime/exploitation.md`, "Piloter"):
 
-| Tab | The command the app runs on the box | What you read there |
+| Reading | The command the app runs on the box | What you read there |
 |---|---|---|
-| **Rail** | `ssh <hote> brigade <nom> rail` | the text of `rail`, as the box renders it: each ticket on its line, its card below — the drawn rail, for its part, is at the center, under the page |
 | **Cooks** | `ssh <hote> brigade <nom> station`, then `ssh <hote> brigade <nom> measures --last <window> --by 1`, then `ssh <hote> brigade <nom> closing --json` | the station: the cooks, the machine, the quota — on the Cooks tab, not under Settings —, with **the reliability of the project's cooks** (see "The cooks' reliability, on Cooks") and **its closer** (see "The closer, on Cooks") as sections of that tab (#1699) |
-| **Manager** | `ssh <hote> brigade <nom> manager` | **the manager's state** (see "The Manager tab") — on or off, since when and by whom, its latest decisions, what it set aside and why —, then the text of `manager`, which also tells the epics and its reactions to failures |
-| **Grants** | `ssh <hote> brigade <nom> grant` | **the grants' state** (see "The Grants tab") — which is active, its expiry with the remaining duration first, its latest uses, what no grant authorizes —, then the text of `grant`, which also tells the latest actions (enabled, extended, revoked, lapsed, refused) |
+| **Grants** | `ssh <hote> brigade <nom> grant` | nothing as text: Settings lays one line per grant from it (above) |
 | **Log** | `ssh <hote> brigade <nom> log --last 200` | the end of the log: the last 200 events, not the whole log — the line under the tabs says so |
 
-- **Only the displayed tab is read**: its command goes out when you open it, then every thirty
+- **Only the displayed reading is read**: its command goes out when you open it, then every thirty
   seconds as long as it is on screen. Changing it, closing it or leaving the space stops its
-  reading. With no content tab open, the app therefore runs only `status` for this project; with
-  one, `status` and the tab's command — never all five (Cooks runs three, one after the other: `station`, `measures`,
-`closing --json`). Added to this is `facts`, read for
-  **all** projects whatever the screen: it is what the bar draws.
-- **What awaits you stays in front of you**: the panel, between the center and the second — the project's state, the
-  `awaiting` block, the rest of `status` — does not move when you change tab.
-- **A tab has its own reading**, with its time (`read at 14:32:07`) and, if it fails, its error:
-  the same headers as the panel (`NOT REACHED — …`, `REACHED, BUT NO LONGER DRIVABLE — …`), and below
-  what the app got, as is. **A command that fails in a tab takes nothing away from the
-  panel** — a runtime too old for `log` leaves `status` readable beside it — and the reverse.
-- A runtime that does not yet know `--last` returns its usage as an error: it is read in the tab like any failing command.
-- Under the tabs, the line says what you are reading: ``the output of `ssh <hote> brigade <nom> rail`, as the box
-  renders it — re-read alone every thirty seconds, as long as this tab is displayed``.
-- A project with no `hote` and no kitchen on this workstation has its five tabs, and each says `no reading` and what is missing.
-- **Nothing is drawn there**: only the manager's state and the grants' are laid
-  above their text. Rail, Cooks and Log are text you can select and copy, like the
-  text of any tab. The only buttons are those that write a command in the second — on
-  **Grants**, under the reading's time ("Buttons write, they do not send") —,
-  the manager's two actions and those of each grant, which write it in a shell
-  ("The Manager tab", "The Grants tab"). Above, on the rail, a number opens its issue.
-- The space gives you back the tab where you left it, content tab included.
+  reading. With no page open, the app therefore runs only `status` for this project; with
+  one, `status` and the page's command (Cooks runs three, one after the other: `station`, `measures`,
+  `closing --json`). Added to this is `facts`, read for **all** projects whatever the screen: it is what the bar draws.
+- **A reading has its own time** (`read at 14:32:07`) and, if it fails, its error, in one line, its detail on hover.
+  **A command that fails takes nothing away from the rest** — a runtime too old for `log` leaves the rail readable.
+- A runtime that does not yet know `--last` returns its usage as an error: it is read like any failing command.
+- Under the tabs, the line says what you are reading: ``the output of `ssh <hote> brigade <nom> log --last 200`, as
+  the box renders it — re-read alone every thirty seconds, as long as this tab is displayed``.
+- The space gives you back the tab where you left it.
 
 ### The cooks' reliability, on Cooks
 
