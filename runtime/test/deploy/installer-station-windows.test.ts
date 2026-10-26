@@ -12,7 +12,7 @@ import { createHash } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { delimiter, join, relative } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { jusqua, repertoireTemporaire } from "../outils.ts";
+import { aArreter, jusqua, repertoireTemporaire } from "../outils.ts";
 import { posixOnly } from "../support/plateforme.ts";
 
 const INSTALLER = join(import.meta.dirname, "../../deploy/windows/installer-station.ps1");
@@ -111,8 +111,9 @@ function unPC(t: TestContext, servi: string, { manquants = [] as string[], winge
     ].join("\n"),
   );
   const base = join(local, "brigade-station");
-  // Ce que le lanceur a lancé ne survit pas au test.
-  t.after(() => {
+  // Ce que le lanceur a lancé ne survit pas au test : arrêté avant que ses répertoires — et les
+  // pids qu'ils notent — ne soient supprimés.
+  aArreter(t, () => {
     for (const fichier of ["lanceur.pid", "station.pid"]) {
       const pid = Number.parseInt(lire(join(base, fichier)), 10);
       if (Number.isInteger(pid) && pid > 0) {
@@ -383,7 +384,7 @@ describe("le lanceur", { skip: saut }, () => {
   }
   function lanceur(t: TestContext, pc: PC, env: NodeJS.ProcessEnv = {}) {
     const enfant = spawn(PWSH as string, ["-NoProfile", "-NonInteractive", "-File", join(pc.base, "lancer-station.ps1")], { env: { ...pc.env, ...env }, stdio: "ignore" });
-    t.after(() => {
+    aArreter(t, () => {
       const pid = pidDe(join(pc.base, "lanceur.pid"));
       if (Number.isInteger(pid) && vivant(pid)) process.kill(pid, "SIGKILL");
     });
