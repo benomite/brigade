@@ -11,7 +11,7 @@ Words are those of [`../glossary.md`](../glossary.md).
 
 Each row has one owner. When a row mixes both, the reason says which side was kept and why. A project row names the ticket that moves it: [#1668](https://github.com/benomite/brigade/issues/1668) (the reader of the chef's decisions, for the closer settings, the manager and reviewer calibration and the project's caps) or a follow-up opened by this audit.
 
-Today the "station" gestures write a decision to the project's **log** (`decision.set`, read at the next read, no restart). A "project" row in this page is not yet read from anywhere else: the column says where it *belongs*, not where it is kept now. The file `.claude/brigade/projet.json` ([`../reglages.md`](../reglages.md)) already carries the manager and reviewer calibrations, the ceiling and the closer's settings (#1684) for the project; the sections below do not change that.
+Today the "station" gestures write a decision to the project's **log** (`decision.set`, read at the next read, no restart). A "project" row in this page is not yet read from anywhere else: the column says where it *belongs*, not where it is kept now. The file `.claude/brigade/projet.json` ([`../reglages.md`](../reglages.md)) already carries the manager and reviewer calibrations, the ceiling and the closer's settings (#1684) for the project; the sections below do not change that. It also carries the drift, correction and profile thresholds (#1671): each one is read from the file first, then from the box's decision or variable, so a box whose project has no file keeps working on its gestures and variables.
 
 ## 1. The `brigade <project> station` gestures
 
@@ -22,10 +22,10 @@ Today the "station" gestures write a decision to the project's **log** (`decisio
 | `cooks auto` | Withdraws that cap; the default derived from the cores returns | station | Capacity | — |
 | `stop <station>` / `start <station>` | Stops or restarts the project's cooking on one station | station | An operation on a running machine, not a decision carried by the project | — |
 | `stations <declaration>` | Which stations serve the project, each as `<machine>/<engine>:<cooks cap>:<capabilities>[:remote…]` | station | Every field is a machine fact (engine, capacity, capabilities, remote or not); the project does not decide what a machine can do | — |
-| `seuil-ticket` | Drift threshold: tokens of the most expensive ticket (`BRIGADE_DRIFT_TICKET_TOKENS`) | project | What is too expensive for this project | [#1671](https://github.com/benomite/brigade/issues/1671) *Move drift, correction and profile thresholds…* |
-| `seuil-perdus` | Drift threshold: lost tokens (`BRIGADE_DRIFT_LOST_TOKENS`) | project | Same | [#1671](https://github.com/benomite/brigade/issues/1671) |
-| `seuil-renvois` | Drift threshold: share delivered first try (`BRIGADE_DRIFT_FIRST_TRY_PERCENT`) | project | Same | [#1671](https://github.com/benomite/brigade/issues/1671) |
-| `fenetre-renvois` | Window of that threshold, in tickets (`BRIGADE_DRIFT_FIRST_TRY_WINDOW`) | project | Same | [#1671](https://github.com/benomite/brigade/issues/1671) |
+| `seuil-ticket` | Drift threshold: tokens of the most expensive ticket (`BRIGADE_DRIFT_TICKET_TOKENS`) | project | What is too expensive for this project | [#1671](https://github.com/benomite/brigade/issues/1671) — `drift.ticketTokens` in `projet.json`, which wins over the box |
+| `seuil-perdus` | Drift threshold: lost tokens (`BRIGADE_DRIFT_LOST_TOKENS`) | project | Same | [#1671](https://github.com/benomite/brigade/issues/1671) — `drift.lostTokens` in `projet.json`, which wins over the box |
+| `seuil-renvois` | Drift threshold: share delivered first try (`BRIGADE_DRIFT_FIRST_TRY_PERCENT`) | project | Same | [#1671](https://github.com/benomite/brigade/issues/1671) — `drift.firstTryPercent` in `projet.json`, which wins over the box |
+| `fenetre-renvois` | Window of that threshold, in tickets (`BRIGADE_DRIFT_FIRST_TRY_WINDOW`) | project | Same | [#1671](https://github.com/benomite/brigade/issues/1671) — `drift.firstTryWindow` in `projet.json`, which wins over the box |
 | `budget-gates` | Wall-clock budget of one gates run (`BRIGADE_GATES_BUDGET_SECONDS`) | project | Depends on the project's tests, not on the machine | [#1672](https://github.com/benomite/brigade/issues/1672) *Move the gates budgets, gates timeout and CI wait…* |
 | `budget-gates-cpu` | CPU budget of one gates run (`BRIGADE_GATES_BUDGET_CPU_SECONDS`) | project | Same | [#1672](https://github.com/benomite/brigade/issues/1672) |
 | `budget-base` | Wall-clock budget of the full run on the base (`BRIGADE_GATES_BASE_BUDGET_SECONDS`) | project | Same | [#1672](https://github.com/benomite/brigade/issues/1672) |
@@ -64,18 +64,18 @@ These are the `BRIGADE_*` variables the runtime reads from the service environme
 
 | Setting | What it sets | Belongs to | Reason | Moved by |
 |---|---|---|---|---|
-| `BRIGADE_DRIFT_CONTEXT_KB` | Drift threshold: size of the context a cook receives, in KB | project | What counts as drift is about the project's code | [#1671](https://github.com/benomite/brigade/issues/1671) |
-| `BRIGADE_DRIFT_GATES_SECONDS` | Drift threshold: duration of the gates, in seconds | project | Depends on the project's tests | [#1671](https://github.com/benomite/brigade/issues/1671) |
-| `BRIGADE_DRIFT_GROWTH_PERCENT` | Drift threshold: growth of the project's measures, in % | project | About the project's code | [#1671](https://github.com/benomite/brigade/issues/1671) |
-| `BRIGADE_DRIFT_MERGES` | Drift measure: number of merges per reading | project | About the project's rhythm of work | [#1671](https://github.com/benomite/brigade/issues/1671) |
-| `BRIGADE_DRIFT_REPO_MB` | Drift threshold: size of the repository, in MB | project | About the project's code | [#1671](https://github.com/benomite/brigade/issues/1671) |
-| `BRIGADE_DRIFT_TESTS` | Drift threshold: number of tests | project | About the project's tests | [#1671](https://github.com/benomite/brigade/issues/1671) |
-| `BRIGADE_DRIFT_TESTS_SECONDS` | Drift threshold: duration of the tests, in seconds | project | About the project's tests | [#1671](https://github.com/benomite/brigade/issues/1671) |
-| `BRIGADE_CORRECTION_THRESHOLD` | How many repeated corrections raise a proposal (2 or more) | project | A rule about the project's work | [#1671](https://github.com/benomite/brigade/issues/1671) |
-| `BRIGADE_CORRECTION_WINDOW` | Window, in tickets, in which corrections are counted | project | A rule about the project's work | [#1671](https://github.com/benomite/brigade/issues/1671) |
-| `BRIGADE_PROFILE_WINDOW` | Window, in tickets, from which a cook profile is computed | project | Computed from the project's tickets | [#1671](https://github.com/benomite/brigade/issues/1671) |
-| `BRIGADE_PROFILE_MIN_TICKETS` | Tickets needed in that window before a profile is proposed | project | Computed from the project's tickets | [#1671](https://github.com/benomite/brigade/issues/1671) |
-| `BRIGADE_PROFILE_GAP_POINTS` | Gap, in points, that makes a profile worth proposing | project | Computed from the project's tickets | [#1671](https://github.com/benomite/brigade/issues/1671) |
+| `BRIGADE_DRIFT_CONTEXT_KB` | Drift threshold: size of the context a cook receives, in KB | project | What counts as drift is about the project's code | [#1671](https://github.com/benomite/brigade/issues/1671) — `drift.contextKb` in `projet.json`, which wins over the box |
+| `BRIGADE_DRIFT_GATES_SECONDS` | Drift threshold: duration of the gates, in seconds | project | Depends on the project's tests | [#1671](https://github.com/benomite/brigade/issues/1671) — `drift.gatesSeconds` in `projet.json`, which wins over the box |
+| `BRIGADE_DRIFT_GROWTH_PERCENT` | Drift threshold: growth of the project's measures, in % | project | About the project's code | [#1671](https://github.com/benomite/brigade/issues/1671) — `drift.growthPercent` in `projet.json`, which wins over the box |
+| `BRIGADE_DRIFT_MERGES` | Drift measure: number of merges per reading | project | About the project's rhythm of work | [#1671](https://github.com/benomite/brigade/issues/1671) — `drift.merges` in `projet.json`, which wins over the box |
+| `BRIGADE_DRIFT_REPO_MB` | Drift threshold: size of the repository, in MB | project | About the project's code | [#1671](https://github.com/benomite/brigade/issues/1671) — `drift.repoMb` in `projet.json`, which wins over the box |
+| `BRIGADE_DRIFT_TESTS` | Drift threshold: number of tests | project | About the project's tests | [#1671](https://github.com/benomite/brigade/issues/1671) — `drift.tests` in `projet.json`, which wins over the box |
+| `BRIGADE_DRIFT_TESTS_SECONDS` | Drift threshold: duration of the tests, in seconds | project | About the project's tests | [#1671](https://github.com/benomite/brigade/issues/1671) — `drift.testsSeconds` in `projet.json`, which wins over the box |
+| `BRIGADE_CORRECTION_THRESHOLD` | How many repeated corrections raise a proposal (2 or more) | project | A rule about the project's work | [#1671](https://github.com/benomite/brigade/issues/1671) — `correction.threshold` in `projet.json`, which wins over the box |
+| `BRIGADE_CORRECTION_WINDOW` | Window, in tickets, in which corrections are counted | project | A rule about the project's work | [#1671](https://github.com/benomite/brigade/issues/1671) — `correction.window` in `projet.json`, which wins over the box |
+| `BRIGADE_PROFILE_WINDOW` | Window, in tickets, from which a cook profile is computed | project | Computed from the project's tickets | [#1671](https://github.com/benomite/brigade/issues/1671) — `profile.window` in `projet.json`, which wins over the box |
+| `BRIGADE_PROFILE_MIN_TICKETS` | Tickets needed in that window before a profile is proposed | project | Computed from the project's tickets | [#1671](https://github.com/benomite/brigade/issues/1671) — `profile.minTickets` in `projet.json`, which wins over the box |
+| `BRIGADE_PROFILE_GAP_POINTS` | Gap, in points, that makes a profile worth proposing | project | Computed from the project's tickets | [#1671](https://github.com/benomite/brigade/issues/1671) — `profile.gapPoints` in `projet.json`, which wins over the box |
 | `BRIGADE_GATES_TIMEOUT_SECONDS` | How long the pass waits for the gates | project | Depends on the project's tests | [#1672](https://github.com/benomite/brigade/issues/1672) |
 | `BRIGADE_CI_WAIT_SECONDS` | How long the pass waits for CI | project | Depends on the project's CI | [#1672](https://github.com/benomite/brigade/issues/1672) |
 | `BRIGADE_LEASE_SECONDS` | The lease on a taken ticket | project | Rail rule for the project's tickets | [#1673](https://github.com/benomite/brigade/issues/1673) |

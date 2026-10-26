@@ -28,6 +28,7 @@ The file is versioned with the code. Its fields:
 | `defaultCalibrations` | the default model and effort of the manager and of the reviewer; keyed by role | `manager` and/or `reviewer`, each `{ "model", "effort" }` (optional) |
 | `calibrationCeiling` | the ceiling of calibration for the whole project; it replaces the ceiling set on the box | `{ "model", "effort" }` (optional) |
 | `closer` | the settings of the project's closer — the closing pass that writes ([`runtime/fermeture.md`](runtime/fermeture.md)); each one it sets replaces the box's | an object of the keys below, each optional (optional) |
+| `drift`, `correction`, `profile` | the project's thresholds: what is too expensive or too drifted, when a correction repeats, when a cook profile is worth proposing; each one it sets replaces the box's | objects of the keys below, each optional (optional) |
 
 The `closer` keys, each one in place of a setting the box held (`brigade <projet> station <gesture>`):
 
@@ -37,6 +38,27 @@ The `closer` keys, each one in place of a setting the box held (`brigade <projet
 | `cooksBelow` | the start condition: the pass leaves when fewer cooks than this are in flight | an integer greater than zero (default 1: none in flight) | `closer-cooks` |
 | `maxTokens` | the tokens cap of one pass | an integer greater than zero (default 500,000) | `closer-tokens` |
 | `maxRemovedLines` | the cap on the lines one pass may remove | an integer greater than zero (default 500) | `closer-retraits` |
+
+The thresholds, each one in place of a variable of the box (the four cost ones also of a gesture of `brigade <projet> station`):
+
+| Key | Meaning | Values | In place of |
+|---|---|---|---|
+| `drift.ticketTokens` | tokens of the most expensive ticket | integer > 0 | `seuil-ticket` |
+| `drift.lostTokens` | lost tokens | integer > 0 | `seuil-perdus` |
+| `drift.firstTryPercent` | share of tickets delivered first try, in % | number > 0 | `seuil-renvois` |
+| `drift.firstTryWindow` | window of that threshold, in tickets | integer > 0 | `fenetre-renvois` |
+| `drift.contextKb` | size of the context a cook receives, in KB | number > 0 | `BRIGADE_DRIFT_CONTEXT_KB` |
+| `drift.gatesSeconds` | duration of the gates, in seconds | number > 0 | `BRIGADE_DRIFT_GATES_SECONDS` |
+| `drift.growthPercent` | growth of the project's measures, in % | number > 0 | `BRIGADE_DRIFT_GROWTH_PERCENT` |
+| `drift.merges` | merges per reading | integer > 0 | `BRIGADE_DRIFT_MERGES` |
+| `drift.repoMb` | size of the repository, in MB | number > 0 | `BRIGADE_DRIFT_REPO_MB` |
+| `drift.tests` | number of tests | integer > 0 | `BRIGADE_DRIFT_TESTS` |
+| `drift.testsSeconds` | duration of the tests, in seconds | number > 0 | `BRIGADE_DRIFT_TESTS_SECONDS` |
+| `correction.threshold` | repeated corrections that raise a proposal | integer ≥ 2 | `BRIGADE_CORRECTION_THRESHOLD` |
+| `correction.window` | window, in tickets, in which corrections are counted | integer > 0 | `BRIGADE_CORRECTION_WINDOW` |
+| `profile.window` | window, in tickets, a cook profile is computed from | integer > 0 | `BRIGADE_PROFILE_WINDOW` |
+| `profile.minTickets` | tickets needed in that window before a profile is proposed | integer > 0 | `BRIGADE_PROFILE_MIN_TICKETS` |
+| `profile.gapPoints` | gap, in points, that makes a profile worth proposing | number > 0, 100 at most | `BRIGADE_PROFILE_GAP_POINTS` |
 
 These names are the project's settings, not what the writer's sieve looks for: `closer.cooksBelow`
 is not a machine's cook count, `closer.maxTokens` is not a token. Elsewhere in the file, the same
@@ -93,6 +115,11 @@ branch takes effect at the next fetch, with no restart and no `sudo`.
   one, the runtime's default — the calibration has none. `brigade <projet> station` says, on each of
   these rows and under **closer in force**, whether the value comes from the repository, from the box
   or from the default; `brigade <projet> closing --json` says the same in `closer.from`.
+- **The thresholds**, one by one: a key of `drift`, `correction` or `profile` the file leaves out is the
+  box's (the gesture's decision, else the variable of the station's line), and without one, the runtime's
+  default. A box whose project has no file keeps its gestures (`seuil-ticket`, `seuil-perdus`,
+  `seuil-renvois`, `fenetre-renvois`) and its variables exactly as before; while the file sets a key,
+  the gesture's decision is ignored, and `station` says so.
 - **A file that is not project settings** (unknown key, wrong value, a secret in it) is **refused**:
   the kitchen does not open, and it says why. It does not fall back to the box's values, which the
   file would replace.

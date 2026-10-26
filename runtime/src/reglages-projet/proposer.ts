@@ -24,7 +24,7 @@ import type { Depot } from "../depot.ts";
 import type { GitHub } from "../github.ts";
 import type { LivraisonHorsRail } from "../pass.ts";
 import { execFileSync } from "../sans-invite.ts";
-import { CLES_DU_CLOSER, ecrireReglagesProjet, FICHIER, lireReglagesProjet, ReglageRefuse, ROLES, validerReglagesProjet, type Motif, type ReglagesProjet } from "./reglages.ts";
+import { CLES_DU_CLOSER, ecrireReglagesProjet, FAMILLES_DE_SEUILS, FICHIER, lireReglagesProjet, ReglageRefuse, ROLES, seuilsDuProjet, validerReglagesProjet, type Motif, type ReglagesProjet } from "./reglages.ts";
 
 // Le run d'une proposition : le nom de sa branche, et celui sous lequel la
 // pass la suit.
@@ -72,8 +72,8 @@ export function appliquerLeChangement(actuels: ReglagesProjet, changement: unkno
   if (Object.keys(changement).length === 0) throw new ReglageRefuse("invalide", "", "the change names no project setting");
   const change: Record<string, unknown> = { ...actuels };
   for (const [cle, valeur] of Object.entries(changement)) {
-    if ((cle === "defaultCalibrations" || cle === "closer") && estObjet(valeur)) {
-      const parties: Record<string, unknown> = { ...actuels[cle] };
+    if ((cle === "defaultCalibrations" || cle === "closer" || (FAMILLES_DE_SEUILS as readonly string[]).includes(cle)) && estObjet(valeur)) {
+      const parties: Record<string, unknown> = { ...(actuels as unknown as Record<string, Record<string, unknown> | undefined>)[cle] };
       for (const [nom, partie] of Object.entries(valeur)) {
         if (partie === null) delete parties[nom];
         else parties[nom] = partie;
@@ -104,6 +104,13 @@ export function changementsDits(avant: ReglagesProjet, apres: ReglagesProjet): s
     if (nom === "calibration") continue;
     const [de, vers] = [avant.closer?.[nom], apres.closer?.[nom]];
     if (de !== vers) dits.push(`closer's \`${nom}\`: ${de ?? "none"} → ${vers ?? "none"}`);
+  }
+  for (const famille of FAMILLES_DE_SEUILS) {
+    const de: Record<string, number | undefined> = avant[famille] ?? {};
+    const vers: Record<string, number | undefined> = apres[famille] ?? {};
+    for (const nom of new Set([...Object.keys(de), ...Object.keys(vers)])) {
+      if (de[nom] !== vers[nom]) dits.push(`${famille} threshold \`${nom}\`: ${de[nom] ?? "none"} → ${vers[nom] ?? "none"}`);
+    }
   }
   return dits;
 }
@@ -157,6 +164,7 @@ export async function proposerUnReglage(changement: unknown, options: OptionsDeP
       ...(Object.keys(lus.defaultCalibrations).length === 0 ? {} : { defaultCalibrations: lus.defaultCalibrations }),
       ...(lus.calibrationCeiling === null ? {} : { calibrationCeiling: lus.calibrationCeiling }),
       ...(Object.keys(lus.closer).length === 0 ? {} : { closer: lus.closer }),
+      ...seuilsDuProjet(lus),
     };
     apres = validerReglagesProjet(appliquerLeChangement(avant, changement));
     if (changementsDits(avant, apres).length === 0) {
