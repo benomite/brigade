@@ -687,18 +687,45 @@ export const nommerAttente = (attente: Attente): string => (attente.ticket !== n
 const NOMS_EN: Partial<Record<Attente["quoi"], string>> = { jeton: "token", fermeture: "closing", disjoncteur: "breaker", renommage: "rename" };
 export const nommerEn = (attente: Attente): string => (attente.ticket === null ? (NOMS_EN[attente.quoi] ?? nommerAttente(attente)) : nommerAttente(attente));
 
+// La cuisine à l'arrêt faute de station : plus rien ne se cuisine — aucun ticket
+// pris, en pass, ni en attente sans rien qui le précède — et des tickets mis de
+// côté demandent ce qu'aucune station ne fournit. Le manager les reprend, donc
+// le bloc ne les nomme pas un à un : sans cette ligne, il dirait « nothing
+// awaits the chef » d'une cuisine que seul le chef remettra en marche.
+// `tickets` : ceux mis de côté, puis ceux qui attendent derrière eux.
+export type CuisineSansStation = { capacites: string[]; tickets: number[] };
+
+export function cuisineSansStation(rail: TicketRail[]): CuisineSansStation | null {
+  const cuisinable = rail.some((ticket) => ticket.state === "taken" || ticket.state === "pass" || (ticket.state === "waiting" && ticket.awaits.length === 0));
+  if (cuisinable) return null;
+  const mis = rail.flatMap((ticket) => {
+    const manque = ticket.state === "86" && ticket.until === null ? manqueDuMotif(ticket.reason) : null;
+    return manque === null ? [] : [{ ticket: ticket.ticket, manque }];
+  });
+  if (mis.length === 0) return null;
+  const derriere = rail.filter((ticket) => ticket.state === "waiting" && ticket.awaits.length > 0).map(({ ticket }) => ticket);
+  return { capacites: [...new Set(mis.flatMap(({ manque }) => manque.capacites))], tickets: [...mis.map(({ ticket }) => ticket), ...derriere] };
+}
+
+// Sa ligne dans le bloc `awaiting` : ce qui manque, les tickets retenus, le geste.
+export function direCuisineSansStationEn({ capacites, tickets }: CuisineSansStation): string {
+  const noms = capacites.map((nom) => `\`${nom}\``).join(", ");
+  const numeros = tickets.map((ticket) => `#${ticket}`).join(", ");
+  return `kitchen idle: nothing can be cooked, no station provides ${noms} — held behind it: ${numeros} — needs a human: declare a station that provides ${capacites.length > 1 ? "them" : "it"} with \`brigade <project> station stations <machine>/<engine>:<cook cap>:${capacites.join("+")}\`, or lower or close ${tickets.length > 1 ? "those tickets" : "that ticket"}`;
+}
+
 // Le bloc `awaiting` de l'état : le décompte, puis une ligne par décision, puis le bilan des arrêts
 // faute de grant, puis la version passée en service ce jour. Il est toujours
 // là, entre les mêmes bords : la file vide, il le dit — un silence ne se
 // distinguerait pas d'une lecture ratée —, et ne porte rien d'autre que la
 // version passée en service. Ni l'un ni l'autre ne compte pour une décision.
 // `depuis` : la durée écoulée depuis un instant, en anglais (`3 d`, `2 h 04`).
-export function decrireAttentes(attentes: Attente[], depuis: (instant: string) => string, sansGrant: SansGrant | null = null, passage: Passage | null = null, pause: PauseEnVigueur | null = null): string[] {
+export function decrireAttentes(attentes: Attente[], depuis: (instant: string) => string, sansGrant: SansGrant | null = null, passage: Passage | null = null, pause: PauseEnVigueur | null = null, sansStation: CuisineSansStation | null = null): string[] {
   const [premiere] = attentes;
   const passee = passage === null ? [] : [`  ${passage.ligne}`];
   // La pause acceptée n'est pas une décision : sa ligne vient sous la tête,
   // et ne compte pas.
-  const enPause = pause === null ? [] : [`  ${direPauseEn(pause, depuis)}`];
+  const enPause = [...(pause === null ? [] : [`  ${direPauseEn(pause, depuis)}`]), ...(sansStation === null ? [] : [`  ${direCuisineSansStationEn(sansStation)}`])];
   if (premiere === undefined) return [`${TETE_AWAITING.padEnd(11)}nothing awaits the chef`, ...enPause, ...passee, FIN_AWAITING, ""];
   const tete = attentes.length === 1 ? `1 decision awaits the chef — for ${depuis(premiere.since)}` : `${attentes.length} decisions await the chef — the oldest for ${depuis(premiere.since)}`;
   return [

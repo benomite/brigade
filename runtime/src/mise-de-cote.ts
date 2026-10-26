@@ -50,7 +50,7 @@ export function direMiseDeCote(motif: string | null): string {
   if (motif === null || motif === "") return "attend : mis de côté, sans motif";
   const connue = RAISONS[motif];
   if (connue !== undefined) return connue;
-  if (motif.startsWith(`${SANS_STATION}: `)) return `attend : aucune station ne fournit ${motif.slice(SANS_STATION.length + 2)}`;
+  if (motif.startsWith(`${SANS_STATION}: `)) return `attend : un humain — aucune station ne fournit ${motif.slice(SANS_STATION.length + 2)}, il ne repartira pas seul`;
   if (motif.startsWith(`${STATION_ABSENTE}: `)) return `attend : station absente (${motif.slice(STATION_ABSENTE.length + 2)})`;
   return `attend : mis de côté (${motif})`;
 }
