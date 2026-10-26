@@ -182,7 +182,9 @@ export type Pont = {
   // Un geste de WAITING (attente.ts), sur la carte d'un ticket : sa commande part dans le second du
   // projet, comme un geste du socle. `saisie` : ce que le chef a rempli pour « waiting for… » — ce
   // qu'il attend, de qui, le jour de la relance. Rend le second, ou pourquoi rien n'est parti.
-  attente(projet: string, id: string, ticket: number, saisie?: SaisieDAttente): Promise<Terminal | { refus: string } | undefined>;
+  // « it arrived, back to the kitchen » (`attente-arrivee`) part sur le tableau de la cuisine : il rend
+  // ce qui est posté (`fait`, le commentaire au survol), ou pourquoi rien ne l'est.
+  attente(projet: string, id: string, ticket: number, saisie?: SaisieDAttente): Promise<Terminal | { refus: string; detail?: string } | { fait: string; detail?: string } | undefined>;
   // Un clone en retard sur son origine (retard.ts) : sa mise à jour, `git -C <clone> pull`, est
   // écrite dans un shell de l'espace d'un projet, ouvert pour elle, sans être envoyée. Rend ce
   // shell — son projet est celui où il s'est ouvert — ou pourquoi rien n'est écrit. Rien, pour un

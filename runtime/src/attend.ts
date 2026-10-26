@@ -556,7 +556,7 @@ export function direAttenteEn(attente: Attente): string {
       return "manager's question before splitting the epic — to answer: on the issue, the manager reads it again and splits it; or close the issue";
     case "repris": {
       const attendait = attente.attendait === null ? "" : ` (it was waiting for ${attente.attendait.who}: “${attente.attendait.what}”)`;
-      return `back from WAITING, picked up again by the chef${attendait} — to decide: \`${geste(`waiting arrived ${attente.ticket}`)}\` sends it back to the kitchen; \`${geste(`waiting set ${attente.ticket} --what <what it waits for> --from <who>`)}\` puts it back in WAITING; or remove \`fire\``;
+      return `back from WAITING, picked up again by the chef${attendait} — to decide: \`/brigade arrived #${attente.ticket}\` on the Kitchen board sends it back to the kitchen; \`${geste(`waiting set ${attente.ticket} --what <what it waits for> --from <who>`)}\` puts it back in WAITING; or remove \`fire\``;
     }
     case "carte":
       return direCarteEn(attente.carte);
@@ -852,7 +852,7 @@ export function direAttente(attente: Attente): string {
       return "question du manager avant de découper l'épique — à répondre : sur l'issue, il la relit et la découpe ; ou fermer l'issue";
     case "repris": {
       const attendait = attente.attendait === null ? "" : ` (il attendait ${attente.attendait.who} : « ${attente.attendait.what} »)`;
-      return `revenu de WAITING, repris par le chef${attendait} — à trancher : \`${geste(`waiting arrived ${attente.ticket}`)}\` le renvoie en cuisine ; \`${geste(`waiting set ${attente.ticket} --what <ce qu'il attend> --from <qui>`)}\` le remet en attente ; ou retirer \`fire\``;
+      return `revenu de WAITING, repris par le chef${attendait} — à trancher : \`/brigade arrived #${attente.ticket}\` sur le tableau de la cuisine le renvoie en cuisine ; \`${geste(`waiting set ${attente.ticket} --what <ce qu'il attend> --from <qui>`)}\` le remet en attente ; ou retirer \`fire\``;
     }
     case "carte":
       return direCarte(attente.carte);

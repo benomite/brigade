@@ -16,6 +16,7 @@
 // quoi, jusqu'à quand ; puis qu'il n'attend plus, et pourquoi.
 import { NOUVEAU_SUR_L_ISSUE, PAR_LE_CHEF, REVENU_D_ATTENTE } from "./events/rail.ts";
 import { geste } from "./geste.ts";
+import type { Resultat } from "./geste-ticket.ts";
 import type { GitHub } from "./github.ts";
 import { dateLocale, direInstant, direInstantEn, dureeTapee } from "./grant.ts";
 import type { Journal } from "./journal.ts";
@@ -94,7 +95,9 @@ export function reprendre(journal: Journal, projet: string, ticket: number): Tic
 }
 
 // « C'est arrivé, on repart » : le ticket repart en cuisine sans repasser par
-// TODO — de WAITING, ou revenu de WAITING devant le chef.
+// TODO — de WAITING, ou revenu de WAITING devant le chef. Le chef le fait par
+// le tableau de la cuisine (`/brigade arrived #<ticket>`, tableau/gestes/) ou
+// par son téléphone (telephone/gestes.ts) : tous deux jouent `renvoyerEnCuisine`.
 export function cestArrive(journal: Journal, projet: string, ticket: number): TicketRail {
   return journal.base.transaction(() => {
     const trouve = ticketDuRail(journal.base, ticket);
@@ -102,6 +105,22 @@ export function cestArrive(journal: Journal, projet: string, ticket: number): Ti
     journal.ajouter({ project: projet, ticket, author: AUTEUR, type: "ticket.resumed", payload: { to: "kitchen", why: PAR_LE_CHEF } });
     return ticketDuRail(journal.base, ticket) as TicketRail;
   });
+}
+
+// Le prix de « c'est arrivé », dit comme celui des gestes du rail (geste-ticket.ts).
+export const PRIX_DE_L_ARRIVEE = "it goes back on the rail and leaves WAITING: a cook takes it in turn and spends what a cook spends";
+
+// « C'est arrivé », joué comme un geste du rail : fait, avec son prix, ou
+// refusé — un ticket qui n'est pas sur le rail, qui n'attend pas un tiers et
+// n'en est pas revenu —, et rien n'est changé.
+export function renvoyerEnCuisine(journal: Journal, projet: string, ticket: number): Resultat {
+  try {
+    cestArrive(journal, projet, ticket);
+  } catch (erreur) {
+    if (erreur instanceof GesteRefuse) return { done: false, reason: erreur.message, price: "none: nothing was changed" };
+    throw erreur;
+  }
+  return { done: true, price: PRIX_DE_L_ARRIVEE };
 }
 
 function exigerWaiting(journal: Journal, ticket: number): void {
@@ -135,7 +154,7 @@ export function direMarque(ticket: number, attente: AttenteDeTiers, miseAJour: b
     `- **relance** : ${direInstant(attente.followUp)}`,
     `- **à l'arrivée** : ${attente.onArrival}`,
     "",
-    `Tant qu'il porte le label \`${LABEL_WAITING}\`, la cuisine ne le prend pas. \`${geste(`waiting resume ${ticket}`)}\` le ramène dans TODO ; \`${geste(`waiting arrived ${ticket}`)}\` le renvoie en cuisine.`,
+    `Tant qu'il porte le label \`${LABEL_WAITING}\`, la cuisine ne le prend pas. \`${geste(`waiting resume ${ticket}`)}\` le ramène dans TODO ; \`/brigade arrived #${ticket}\`, posté sur le tableau de la cuisine, le renvoie en cuisine.`,
   ].join("\n");
 }
 

@@ -9,7 +9,7 @@ import { ACTIONS } from "../../src/gestes-fiche.ts";
 import type { ReponseGitHub } from "../../src/tableau/client.ts";
 import { lireLeTableauDuDepot, type TableauLu } from "../../src/tableau/lecture.ts";
 import { clientDesGestesGitHub, type Poste } from "../../src/tableau-gestes/github.ts";
-import { GESTES_DE_FICHE, gesteDeFiche, POSTE, reponseDeCarte, ticketsDuTableau } from "../../src/tableau-gestes/rail.ts";
+import { arriveeDeCarte, GESTES_DE_FICHE, gesteDeFiche, POSTE, reponseDeCarte, ticketsDuTableau } from "../../src/tableau-gestes/rail.ts";
 import { DEPOT, githubDuTableau, NUMERO, projetPublie } from "../tableau/projet-publie.ts";
 
 type Ecrit = { adresse: string; corps: unknown };
@@ -52,6 +52,31 @@ test("« remove from the rail » sur la fiche : `/brigade set-aside #<n>` est é
   assert.deepEqual(ecrits, [{ adresse: COMMENTAIRES, corps: { body: "/brigade set-aside #30" } }]);
 });
 
+test("« back to the kitchen » sur la fiche d'un ticket revenu de WAITING, et « it arrived, back to the kitchen » sur sa carte de WAITING : `/brigade arrived #<n>` est écrit (#1740)", async (t) => {
+  const lu = await tableau(t);
+  const { client, ecrits } = github();
+  const rendu = await gesteDeFiche(lu, "cuisine", 30, client);
+  assert.deepEqual(rendu, { fait: POSTE, detail: `https://github.com/${DEPOT}/issues/${NUMERO}#issuecomment-9001` });
+  assert.deepEqual(await arriveeDeCarte(lu, 30, client), rendu);
+  assert.deepEqual(ecrits, [
+    { adresse: COMMENTAIRES, corps: { body: "/brigade arrived #30" } },
+    { adresse: COMMENTAIRES, corps: { body: "/brigade arrived #30" } },
+  ]);
+});
+
+test("« it arrived, back to the kitchen » qui ne part pas : sans tableau lu, pour un ticket qu'il ne porte pas, ou GitHub qui refuse — une phrase, et la carte reste dans WAITING", async (t) => {
+  const lu = await tableau(t);
+  const { client, ecrits } = github();
+  assert.deepEqual(await arriveeDeCarte(undefined, 30, client), { refus: "nothing was posted: the Kitchen board of this project has not been read yet — read it again", detail: "" });
+  assert.deepEqual(await arriveeDeCarte(lu, 999, client), { refus: "nothing was posted: #999 is not on the latest Kitchen board read — read it again", detail: "" });
+  assert.deepEqual(await arriveeDeCarte(lu, "30", client), { refus: "nothing was posted: the action names no ticket", detail: "" });
+  assert.deepEqual(ecrits, []);
+  const refuse = await arriveeDeCarte(lu, 30, github({ status: 403, data: { message: "Resource not accessible by integration." } }).client);
+  assert.deepEqual(refuse, { refus: `The gesture could not be posted on the Kitchen board of ${DEPOT}: GitHub refused the comment (HTTP 403): Resource not accessible by integration.`, detail: "" });
+  const muet = await gesteDeFiche(lu, "cuisine", 30, github(new Error("getaddrinfo ENOTFOUND api.github.com")).client);
+  assert.deepEqual(muet, { refus: `The gesture could not be posted on the Kitchen board of ${DEPOT}: getaddrinfo ENOTFOUND api.github.com.`, detail: "" });
+});
+
 test("un choix sur la carte de TODO : `/brigade choose #<n> <rang>` est écrit", async (t) => {
   const lu = await tableau(t);
   const carte = carteDe(lu, 24);
@@ -75,13 +100,14 @@ test("un texte sur la carte de TODO : `/brigade answer #<n> <texte>` est écrit,
 test("chaque geste que la vue du rail a aujourd'hui : écrit sur le tableau s'il est de sa grammaire, sinon dit hors du tableau et rien n'y part", async (t) => {
   const lu = await tableau(t);
   // Les gestes de la fiche qui partaient vers la box (gestes-fiche.ts, `ACTIONS`) : ceux que la grammaire connaît
-  // sont sur le tableau ; renvoyer en cuisine un ticket revenu de WAITING n'y a pas de mot. Changer la priorité ne part
-  // plus vers la box : l'app change le label `prio:` de l'issue elle-même (priorite.ts, #1739).
+  // sont sur le tableau ; renvoyer en cuisine un ticket revenu de WAITING ne part plus vers la box : il est sur le tableau
+  // (`/brigade arrived`, #1740). Changer la priorité non plus : l'app change le label `prio:` de l'issue elle-même
+  // (priorite.ts, #1739).
   const versLaBox = Object.entries(ACTIONS).flatMap(([id, branchement]) => ("box" in branchement ? [id] : []));
-  assert.deepEqual(versLaBox.sort(), ["cuisine", "merger", "retirer"]);
-  assert.deepEqual(Object.keys(GESTES_DE_FICHE).sort(), ["merger", "retirer"]);
+  assert.deepEqual(versLaBox.sort(), ["merger", "retirer"]);
+  assert.deepEqual(Object.keys(GESTES_DE_FICHE).sort(), ["cuisine", "merger", "retirer"]);
   const { client, ecrits } = github();
-  for (const id of ["cuisine", "priorite", "issue", "second", "inconnu"]) assert.deepEqual(await gesteDeFiche(lu, id, 35, client), { horsDuTableau: true }, id);
+  for (const id of ["priorite", "issue", "second", "inconnu"]) assert.deepEqual(await gesteDeFiche(lu, id, 35, client), { horsDuTableau: true }, id);
   assert.deepEqual(ecrits, []);
 });
 

@@ -6,6 +6,7 @@
 //   /brigade set-aside #<ticket>
 //   /brigade answer #<ticket> <answer…>
 //   /brigade choose #<ticket> <choice number>
+//   /brigade arrived #<ticket>
 //
 // Le `#` devant le numéro est facultatif. La raison d'un renvoi et la réponse
 // à une carte vont jusqu'au bout du commentaire : la suite de la première
@@ -18,11 +19,11 @@
 export const PREFIXE = "/brigade";
 
 // Les gestes, dans l'ordre où la grammaire les dit.
-export const VERBES = ["merge", "send-back", "set-aside", "answer", "choose"] as const;
+export const VERBES = ["merge", "send-back", "set-aside", "answer", "choose", "arrived"] as const;
 export type Verbe = (typeof VERBES)[number];
 
 export type Geste =
-  | { verbe: "merge" | "set-aside"; ticket: number }
+  | { verbe: "merge" | "set-aside" | "arrived"; ticket: number }
   | { verbe: "send-back"; ticket: number; raison: string | null }
   | { verbe: "answer"; ticket: number; reponse: string }
   | { verbe: "choose"; ticket: number; choix: number };
@@ -38,6 +39,7 @@ export const GRAMMAIRE = [
   `${PREFIXE} set-aside #<ticket>`,
   `${PREFIXE} answer #<ticket> <answer>`,
   `${PREFIXE} choose #<ticket> <choice number>`,
+  `${PREFIXE} arrived #<ticket>`,
 ];
 
 const TICKET = /^#?([1-9][0-9]*)$/;
@@ -61,8 +63,9 @@ export function lireLeGeste(corps: string): Lecture {
   switch (verbe as Verbe) {
     case "merge":
     case "set-aside":
+    case "arrived":
       if (reste.length > 0) return { incompris: `${verbe} takes nothing after the ticket number` };
-      return { verbe: verbe as "merge" | "set-aside", ticket: Number(ticket) };
+      return { verbe: verbe as "merge" | "set-aside" | "arrived", ticket: Number(ticket) };
     case "send-back":
       return { verbe: "send-back", ticket: Number(ticket), raison: texte === "" ? null : texte };
     case "answer":

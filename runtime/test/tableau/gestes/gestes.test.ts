@@ -1,11 +1,12 @@
 // Les gestes du chef postés en commentaires sous le tableau de la cuisine :
 // écrits par le compte du chef, ils se jouent par l'action de leur geste local
-// — merge, renvoi, mise de côté, réponse à une carte — et la box répond sous
+// — merge, renvoi, mise de côté, réponse à une carte, « c'est arrivé » — et la box répond sous
 // chacun en une ligne ; écrits par un autre, rien ne se joue et rien ne se
 // répond. Un commentaire ne se joue qu'une fois, et un geste incompris reçoit
 // la grammaire. GitHub est ici un faux client, le journal un vrai.
 import assert from "node:assert/strict";
 import { describe, test, type TestContext } from "node:test";
+import { mettreEnAttente, PRIX_DE_L_ARRIVEE, reprendre } from "../../../src/attente.ts";
 import { entrerDansTodo, cartesEnTodo, type Proposition } from "../../../src/carte-todo.ts";
 import type { Fait } from "../../../src/evenements.ts";
 import { RENVOI_DU_CHEF } from "../../../src/geste-ticket.ts";
@@ -181,6 +182,48 @@ describe("un geste du chef posté sous le tableau", () => {
     assert.match(a.tableau.reponses[1] ?? "", /^\*\*Done\*\* — \[choose #30\]/);
   });
 
+  test("`arrived` renvoie en cuisine un ticket de WAITING — et un ticket qui en est revenu dans TODO —, sans commande de la box ni GitHub", async (t) => {
+    const a = atelier(t);
+    a.arriver();
+    mettreEnAttente(a.journal, PROJET, 30, { quoi: "the client's go-ahead", qui: "the client" });
+    const geste = a.tableau.poster("/brigade arrived #30");
+
+    assert.equal(await a.gestes.traiter(TABLEAU), true);
+
+    const lu = ticketDuRail(a.journal.base, 30);
+    assert.deepEqual([lu?.state, lu?.waitingFor], ["waiting", null]);
+    assert.deepEqual(a.journal.duTicket(30).findLast((fait) => fait.type === "ticket.resumed")?.payload, { to: "kitchen", why: "chef" });
+    assert.deepEqual([a.gh.merges, a.gh.delabellisations, a.gh.commentaires], [[], [], []]);
+    assert.equal(a.tableau.reponses[0], `**Done** — [arrived #30](${geste.url}) — cost: ${PRIX_DE_L_ARRIVEE}`);
+    assert.deepEqual(a.faits().map(({ ticket, payload }) => [ticket, payload.gesture, payload.done]), [[30, "arrived", true]]);
+
+    // Revenu de WAITING devant le chef (« resume »), il repart de TODO de même.
+    mettreEnAttente(a.journal, PROJET, 30, { quoi: "the signed quote", qui: "the client" });
+    reprendre(a.journal, PROJET, 30);
+    a.tableau.poster("/brigade arrived 30");
+    await a.gestes.traiter(TABLEAU);
+    assert.deepEqual([ticketDuRail(a.journal.base, 30)?.state, ticketDuRail(a.journal.base, 30)?.reason], ["waiting", null]);
+    assert.match(a.tableau.reponses[1] ?? "", /^\*\*Done\*\* — \[arrived #30\]/);
+  });
+
+  test("`arrived` sur un ticket qui n'attend pas de tiers est refusé, en une ligne, et rien ne change", async (t) => {
+    const a = atelier(t);
+    a.arriver();
+    const duRail = () => a.journal.duTicket(30).filter((fait) => fait.type !== "board.gesture");
+    const avant = duRail();
+    a.tableau.poster("/brigade arrived #30");
+    a.tableau.poster("/brigade arrived #404");
+
+    assert.equal(await a.gestes.traiter(TABLEAU), true);
+
+    assert.deepEqual(duRail(), avant);
+    assert.deepEqual(a.tableau.reponses.map((reponse) => reponse.replace(/\]\(.*?\)/, "]")), [
+      "**Not done** — [arrived #30]: ticket 30 is not waiting for a third party — it is queued",
+      "**Not done** — [arrived #404]: ticket 404 is not on the rail",
+    ]);
+    assert.deepEqual(a.gestes.lus().map(({ etat }) => etat), ["refuse", "refuse"]);
+  });
+
   test("un geste que l'action refuse est lu, non joué, et la box dit pourquoi en une ligne", async (t) => {
     const a = atelier(t);
     a.arriver();
@@ -283,6 +326,7 @@ describe("la grammaire", () => {
     assert.deepEqual(lireLeGeste("/brigade send-back #8 the tests  are red\r\non Windows"), { verbe: "send-back", ticket: 8, raison: "the tests  are red\non Windows" });
     assert.deepEqual(lireLeGeste("/brigade answer #9 CSV"), { verbe: "answer", ticket: 9, reponse: "CSV" });
     assert.deepEqual(lireLeGeste("/brigade choose #9 2"), { verbe: "choose", ticket: 9, choix: 2 });
+    assert.deepEqual(lireLeGeste("/brigade arrived #16"), { verbe: "arrived", ticket: 16 });
   });
 
   test("ce qui ne commence pas par `/brigade` n'est pas un geste ; ce qui commence par lui sans s'y conformer est incompris", () => {
@@ -291,6 +335,7 @@ describe("la grammaire", () => {
     assert.deepEqual(lireLeGeste("/brigade Merge #12"), { incompris: "unknown gesture “Merge”" });
     assert.deepEqual(lireLeGeste("/brigade merge #0"), { incompris: "merge needs the ticket number, not “#0”" });
     assert.deepEqual(lireLeGeste("/brigade answer #12"), { incompris: "answer needs the answer after the ticket number" });
+    assert.deepEqual(lireLeGeste("/brigade arrived #12 at last"), { incompris: "arrived takes nothing after the ticket number" });
     assert.deepEqual(lireLeGeste("/brigade choose #12 first"), { incompris: "choose needs one choice number, from 1, after the ticket number" });
     assert.deepEqual(lireLeGeste("/brigade choose #12 1 2"), { incompris: "choose needs one choice number, from 1, after the ticket number" });
   });

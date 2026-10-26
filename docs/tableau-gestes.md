@@ -22,9 +22,10 @@ word after it, then the ticket number. The `#` before the number is optional.
 | set aside | `/brigade set-aside #<ticket>` | `rail remove <ticket>`: the ticket leaves the rail and its issue loses `fire` |
 | answer a card | `/brigade answer #<ticket> <answer>` | `rail answer <ticket> <answer>`: your own words, written on the ticket's issue |
 | pick a card's choice | `/brigade choose #<ticket> <choice number>` | `rail choose <ticket> <n>`: the card's choice `n`, counted from 1 |
+| it arrived, back to the kitchen | `/brigade arrived #<ticket>` | no local gesture: the ticket leaves WAITING (or TODO, when it came back from WAITING) and goes back on the rail, queued, without going through TODO |
 
 The reason of a `send-back` and the answer of an `answer` run to the end of the comment: the rest of
-the first line, then the next lines. `merge` and `set-aside` take nothing after the number, and
+the first line, then the next lines. `merge`, `set-aside` and `arrived` take nothing after the number, and
 `choose` takes one number.
 
 A first line that does not start with `/brigade` is not a gesture. The comment is a conversation:

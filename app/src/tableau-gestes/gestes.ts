@@ -5,9 +5,10 @@
 // avec la ligne de la box. Aucun écran ici, et aucune box jointe : ni ssh ni lien direct, rien que GitHub.
 import { lireLeTableau, type GesteDuTableau } from "../../../runtime/src/tableau/rendu/bloc.ts";
 
-// Les quatre décisions du chef, plus le choix d'une carte (`choose`, que la grammaire connaît aussi).
+// Les quatre décisions du chef, plus le choix d'une carte (`choose`, que la grammaire connaît aussi) et « c'est arrivé »
+// (`arrived`), qui renvoie en cuisine un ticket de WAITING, ou revenu de WAITING.
 export type DecisionDuChef =
-  | { geste: "merge" | "set-aside"; ticket: number }
+  | { geste: "merge" | "set-aside" | "arrived"; ticket: number }
   | { geste: "send-back"; ticket: number; raison?: string }
   | { geste: "answer"; ticket: number; reponse: string }
   | { geste: "choose"; ticket: number; choix: number };
@@ -39,6 +40,7 @@ export function corpsDuGeste(d: DecisionDuChef): string {
   switch (d.geste) {
     case "merge":
     case "set-aside":
+    case "arrived":
       return `/brigade ${d.geste} #${d.ticket}`;
     case "send-back": {
       const raison = (d.raison ?? "").trim();

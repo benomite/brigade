@@ -2,8 +2,9 @@
 //   npm --prefix runtime run waiting                                          les tickets qui attendent un tiers
 //   npm --prefix runtime run waiting -- set 8 --what "sa validation écrite" --from "le client" [--remind 2026-10-21]
 //   npm --prefix runtime run waiting -- resume 8                              WAITING → TODO, tout de suite
-//   npm --prefix runtime run waiting -- arrived 8                             « c'est arrivé, on repart » : en cuisine, sans repasser par TODO
-// Les anciens mots (`attente`, `poser`, `reprendre`, `arrive`, `--quoi`, `--de`,
+// « C'est arrivé, on repart » n'est pas une commande de la box : le chef le
+// poste sur le tableau de la cuisine (`/brigade arrived #8`, docs/tableau-gestes.md).
+// Les anciens mots (`attente`, `poser`, `reprendre`, `--quoi`, `--de`,
 // `--relance`) répondent encore, en disant le nouveau (`commandes.ts`).
 // `--remind` : une date (2026-10-21, ce jour-là à minuit, heure de la box —
 // UTC), une date et une heure (2026-10-21T09:00) ou une durée (7j, 36h) ; sans
@@ -12,7 +13,7 @@
 // sur l'issue (label `waiting`, commentaire) dès qu'il le lit.
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { enAnglais } from "./commandes.ts";
-import { cestArrive, direAttenteDeTiersEn, lireRelance, mettreEnAttente, reprendre } from "./attente.ts";
+import { direAttenteDeTiersEn, lireRelance, mettreEnAttente, reprendre } from "./attente.ts";
 import { dureeEn } from "./etat.ts";
 import { ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
@@ -23,7 +24,6 @@ const USAGE = [
   "usage: BRIGADE_STATE_DIR=<state directory> npm --prefix runtime run waiting -- [<geste> <ticket> …]",
   "  set <ticket> --what <what it waits for> --from <who> [--remind <date, date and time, or duration>]",
   "  resume <ticket>",
-  "  arrived <ticket>",
 ].join("\n");
 
 const OPTIONS = ["--what", "--from", "--remind"];
@@ -46,7 +46,7 @@ export function principal({ args: tapes, env, dire, redire }: Appel, maintenant 
     if (!OPTIONS.includes(mot) || lues.has(mot) || i + 1 >= suite.length) echouer(2, USAGE);
     lues.set(mot, suite[++i] ?? "");
   }
-  if (geste !== undefined && !["set", "resume", "arrived"].includes(geste)) echouer(2, `unknown gesture: “${geste}”\n${USAGE}`);
+  if (geste !== undefined && !["set", "resume"].includes(geste)) echouer(2, `unknown gesture: “${geste}”\n${USAGE}`);
   if (geste !== undefined && (numero === undefined || !/^[1-9][0-9]*$/.test(numero))) echouer(2, `the ticket number is needed\n${USAGE}`);
   if (geste !== "set" && lues.size > 0) echouer(2, USAGE);
   const ticket = Number(numero);
@@ -78,12 +78,9 @@ export function principal({ args: tapes, env, dire, redire }: Appel, maintenant 
         const relance = brute === undefined ? undefined : lireRelance(brute, instant);
         const lu = mettreEnAttente(journal, projet, ticket, { quoi, qui, ...(relance === undefined ? {} : { relance }) }, instant);
         dire(`WAITING: ${ligne(lu)}`);
-      } else if (geste === "resume") {
+      } else {
         reprendre(journal, projet, ticket);
         dire(`#${ticket} resumed: it goes back to TODO, in front of the chef`);
-      } else {
-        cestArrive(journal, projet, ticket);
-        dire(`#${ticket}: it arrived — it goes back to the kitchen`);
       }
     } catch (erreur) {
       if (erreur instanceof GesteRefuse) echouer(1, erreur.message);

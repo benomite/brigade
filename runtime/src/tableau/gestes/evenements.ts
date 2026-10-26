@@ -8,7 +8,7 @@
 // joué qu'une fois (la clé d'unicité du fait le garde). `board` : le numéro du
 // tableau qui le porte. `url` : l'adresse du commentaire. `writtenAt` : son
 // heure sur GitHub. `gesture` : le geste lu (`merge`, `send-back`, `set-aside`,
-// `answer`, `choose`, ou le premier mot d'un geste de box : `cooks`, `stop`, `resume`,
+// `answer`, `choose`, `arrived`, ou le premier mot d'un geste de box : `cooks`, `stop`, `resume`,
 // `base`, `grant`, `station`), nul s'il ne se comprend pas. `done` : joué, ou refusé —
 // incompris compris. `reply` : la ligne que la box répond sous lui.
 export type FaitGesteDuTableau =
