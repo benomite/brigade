@@ -1458,7 +1458,11 @@ if (plateforme === "win32") app.setAppUserModelId(process.execPath);
 void app.whenReady().then(() => {
   // L'installeur attend que l'app soit fermée pour la remplacer.
   if (installeeAuLancement) return app.quit();
+  // Installée, l'app porte son icône (le .app, l'exécutable) ; sous `npm start`, on pose celle de brigade à la main.
+  const icone = join(import.meta.dirname, "..", "packaging", "icones", "Brigade-1024.png");
+  if (plateforme === "darwin" && !app.isPackaged) app.dock?.setIcon(icone);
   fenetre = new BrowserWindow({
+    ...(plateforme === "win32" && !app.isPackaged ? { icon: icone } : {}),
     width: 1280,
     height: 800,
     // Le plancher : la moitié de la largeur d'ouverture. En deçà, la peau ne tient plus (vue.css).

@@ -1,4 +1,10 @@
-# brigade — a team of AI agents that works your GitHub tickets
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/logo/brigade-logo-sombre.svg">
+    <img src="docs/logo/brigade-logo-clair.svg" alt="" height="40" align="absmiddle">
+  </picture>
+  brigade — a team of AI agents that works your GitHub tickets
+</h1>
 
 You write a ticket and put the label `fire` on it. A **cook** (a `claude` session) takes it in its own git worktree, implements it and opens a pull request. The **pass** judges that pull request — gates, CI, an independent review — and merges it. You decide what matters; brigade does the cooking.
 

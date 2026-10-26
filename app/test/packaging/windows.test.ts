@@ -23,6 +23,7 @@ import {
   estPeX64,
   executerVraiment,
   EXE,
+  ICONE,
   extraireZip,
   makensisDe,
   NODE_EXE,
@@ -231,7 +232,7 @@ test("scriptNsis : installé pour le compte, un raccourci au menu Démarrer, un 
   assert.ok(lignes.includes(`OutFile "${installeur}"`));
   assert.ok(lignes.includes(`File /r "${join(arbre, "*")}"`));
   assert.ok(lignes.includes(`WriteUninstaller "$INSTDIR\\${DESINSTALLEUR}"`));
-  assert.ok(lignes.includes(`CreateShortcut "$SMPROGRAMS\\Brigade.lnk" "$INSTDIR\\${EXE}" "" "$INSTDIR\\${EXE}" 0`));
+  assert.ok(lignes.includes(`CreateShortcut "$SMPROGRAMS\\Brigade.lnk" "$INSTDIR\\${EXE}" "" "$INSTDIR\\${ICONE}" 0`));
   assert.ok(lignes.includes(`WinShell::SetLnkAUMI "$SMPROGRAMS\\Brigade.lnk" "$INSTDIR\\${EXE}"`), "l'AppUserModelID de l'app : process.execPath");
   assert.ok(lignes.includes(`WriteRegStr HKCU "${CLE_DE_DESINSTALLATION}" "DisplayVersion" "1.2.3+gabc"`));
   assert.ok(lignes.includes(`WriteRegStr HKCU "${CLE_DE_DESINSTALLATION}" "QuietUninstallString" '"$INSTDIR\\${DESINSTALLEUR}" /S'`));
