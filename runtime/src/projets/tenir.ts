@@ -60,7 +60,7 @@ import { lireOnboarding } from "../onboarding/lire.ts";
 import { ouvrirLaPreparation } from "../preparation-depot/ouvrir.ts";
 import { CONFIGURATION, ETATS, lieuxDuProjet } from "../station/configuration.ts";
 import { lignesDuBloc, nomsHorsDuBloc, reecrireBloc } from "./bloc.ts";
-import { documentDeSuivi, FICHIER_PROJETS, FICHIER_SUIVI, lireDemande, suiviDe, type Bascule, type ProjetDemande, type SuiviDuProjet } from "./demande.ts";
+import { documentDeSuivi, FICHIER_PROJETS, FICHIER_SUIVI, lireDemande, suiviDe, type Bascule, type Demande, type ProjetDemande, type SuiviDuProjet } from "./demande.ts";
 import { verifierAcces, type Acces } from "./acces.ts";
 import { refus as refusDe, type CodeDeRefus } from "./refus.ts";
 import { brancheDuProjet } from "../reglages-projet/en-vigueur.ts";
@@ -123,7 +123,16 @@ export type OptionsProjets = {
   remedes?: Registre;
   // Ce que la machine a, pour ce qui manque aux projets (`installation/besoins/`) — par défaut, la machine.
   sonde?: Sonde;
+  // D'où vient ce que l'app demande — par défaut, `brigade-projets.json` du
+  // gist de son appairage (`demandeDeLAppairage`). La station y met les projets
+  // choisis pour elle dans l'app (`projets-station/`).
+  source?: () => Promise<DemandeLue | null>;
 };
+
+// Ce que l'app demande, tel qu'une lecture le rend : le gist où la station le
+// lit et répond, ses fichiers, le fichier lu, et la demande — null si elle est
+// illisible, la station n'en change alors rien.
+export type DemandeLue = { gist: string; lus: Fichiers; fichier: string; brut: string; demande: Demande | null };
 
 export type ProjetsDeLApp = {
   // Une lecture, tout de suite — après celle qui est en cours.
@@ -150,6 +159,17 @@ function gistAppaire(racine: string): string | null {
   } catch {
     return null;
   }
+}
+
+// Ce que l'app demande par le gist de l'appairage : null tant que la station
+// n'est pas appairée, ou si son gist n'existe plus.
+export async function demandeDeLAppairage(racine: string, canal: Canal): Promise<DemandeLue | null> {
+  const gist = gistAppaire(racine);
+  if (gist === null) return null;
+  const lus = await canal.lire(gist);
+  if (lus === null) return null;
+  const brut = lus[FICHIER_PROJETS];
+  return { gist, lus, fichier: FICHIER_PROJETS, brut: brut ?? "", demande: brut === undefined ? { projets: [], problemes: [] } : lireDemande(brut) };
 }
 
 function lireTexte(fichier: string): string {
@@ -195,7 +215,7 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
   const serviLe = new Map<string, string>();
   let dernierSuivi = "";
   // La dernière lecture du gist, et le dernier suivi : ce que les remèdes en lisent.
-  let derniersLus: Fichiers | null = null;
+  let derniersLus: { gist: string; lus: Fichiers } | null = null;
   let derniersSuivis: SuiviDuProjet[] = [];
   let arrete = false;
 
@@ -300,16 +320,14 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
     return { ligne: ligneDe(projet) };
   };
 
+  const source = options.source ?? (() => demandeDeLAppairage(racine, canal));
   const cycle = async () => {
-    const gist = gistAppaire(racine);
-    if (gist === null) return;
-    const lus = await canal.lire(gist);
-    if (lus === null || arrete) return;
-    derniersLus = lus;
-    const brut = lus[FICHIER_PROJETS];
-    const demande = brut === undefined ? { projets: [], problemes: [] } : lireDemande(brut);
+    const lue = await source();
+    if (lue === null || arrete) return;
+    const { gist, lus, demande } = lue;
+    derniersLus = { gist, lus };
     if (demande === null) {
-      direUneFois(`illisible ${brut}`, `brigade : station — ce que l'app demande (${FICHIER_PROJETS}) est illisible : la station n'en change rien`);
+      direUneFois(`illisible ${lue.fichier} ${lue.brut}`, `brigade : station — ce que l'app demande (${lue.fichier}) est illisible : la station n'en change rien`);
       return;
     }
     for (const probleme of demande.problemes) direUneFois(probleme, `brigade : station — ${probleme}`);
@@ -558,12 +576,11 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
   };
   const repondeur = repondeurDeRemedes({ executer: (demande) => executerRemede(demande, ici, remedes), maintenant });
   const servirLesRemedes = async () => {
-    const lus = derniersLus;
-    const gist = gistAppaire(racine);
+    const derniers = derniersLus;
     derniersLus = null;
-    if (lus === null || gist === null || arrete) return;
-    const fichiers = await repondeur.repondre(lus);
-    if (fichiers !== null && !arrete) await canal.ecrire(gist, fichiers);
+    if (derniers === null || arrete) return;
+    const fichiers = await repondeur.repondre(derniers.lus);
+    if (fichiers !== null && !arrete) await canal.ecrire(derniers.gist, fichiers);
   };
 
   let panne: string | null = null;

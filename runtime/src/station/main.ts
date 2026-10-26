@@ -17,6 +17,7 @@ import { installerLimite, journaliserLesAppels, limiteDeLaStation } from "../lim
 import { annoncerEnService } from "../mise-a-jour/en-service.ts";
 import { lireEtatMiseAJour } from "../mise-a-jour/etat.ts";
 import { tenirProjetsDeLApp } from "../projets/tenir.ts";
+import { sourceDesProjets } from "../projets-station/source.ts";
 import { configReseau, passerParLaPorte } from "../reseau.ts";
 import { ConfigInvalide } from "../runtime.ts";
 import { DemandeInvalide, repertoireDuRegistre } from "../enrolement/enrolement.ts";
@@ -149,6 +150,9 @@ const projetsDeLApp = tenirProjetsDeLApp({
   locale,
   ...(locale ? { verifierBacASable: () => verifier(sondesDeLaMachine(process.env.BRIGADE_CLAUDE_BIN || "claude"), { home: process.env.HOME ?? homedir(), worktrees: worktreesDeLaStation(racine, process.env.HOME ?? homedir()), caches: lireCaches(process.env) }) } : {}),
   servis: station,
+  // Les projets choisis pour elle dans l'app, lus dans le gist de son
+  // enregistrement — à défaut, ce que l'app demande par l'appairage (projets-station/).
+  source: sourceDesProjets({ racine, canal, gist: () => enregistrement.gist(), env: process.env, dire }),
   apresEcriture: () => {
     station.relire();
     void presence.publier();
