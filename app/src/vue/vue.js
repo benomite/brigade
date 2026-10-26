@@ -5280,19 +5280,21 @@ async function passer() {
 
 // Une ligne de l'accueil : sa pastille, son nom, ce qui s'y passe — et, au survol, ce qu'elle tait.
 // Toute la ligne est un bouton : un clic n'importe où l'ouvre. Elle ne porte aucun autre geste.
-/** @param {string} nom @param {{ ton: string, dit: string, survol: string }} ligne @param {() => void} ouvrirLa */
-function ligneDAccueil(nom, { ton, dit, survol }, ouvrirLa) {
+/** @param {string} nom @param {{ ton: string, dit: string, survol: string, raison?: { phrase: string } }} ligne @param {() => void} ouvrirLa */
+function ligneDAccueil(nom, { ton, dit, survol, raison }, ouvrirLa) {
   const cree = document.createElement("button");
   cree.type = "button";
   cree.className = "ligne";
   cree.title = survol;
-  cree.ariaLabel = `${nom} — ${dit}`;
+  cree.ariaLabel = `${nom} — ${dit}${raison === undefined ? "" : ` — ${raison.phrase}`}`;
   const appele = bloc("strong", nom);
   appele.className = "mono";
   const suite = bloc("span", "›");
   suite.className = "ouvrir";
   suite.ariaHidden = "true";
-  cree.append(pastille(dit, ton), appele, bloc("span", dit), suite);
+  const pourquoi = bloc("span", raison?.phrase ?? "");
+  pourquoi.className = "pourquoi";
+  cree.append(pastille(dit, ton), appele, bloc("span", dit), ...(raison === undefined ? [] : [pourquoi]), suite);
   cree.addEventListener("click", ouvrirLa);
   return cree;
 }
@@ -5807,10 +5809,10 @@ function cuisineDe(projet) {
   const demande = projetsVus?.projets.find(({ nom }) => nom === projet.nom);
   const servies = (stationsVues?.stations ?? []).filter(({ projets }) => projets.includes(projet.nom));
   const stations = [
-    ...servies.map(({ id, nom }) => ({ id, nom, principale: true, ...(muette ? { dit: "unreachable", ton: "rouge" } : etatDeLaCuisine("servi")), survol: muette ? `${nom} does not answer: the app knows nothing of the kitchen right now` : `${nom} serves it: it runs its manager and its pass`, autoriser: /** @type {string[]} */ ([]) })),
+    ...servies.map(({ id, nom }) => ({ id, nom, principale: true, ...(muette ? { dit: "unreachable", ton: "rouge" } : etatDeLaCuisine("servi")), pourquoi: "", survol: muette ? `${nom} does not answer: the app knows nothing of the kitchen right now` : `${nom} serves it: it runs its manager and its pass`, autoriser: /** @type {string[]} */ ([]) })),
     ...(demande?.stations ?? [])
       .filter(({ id }) => !servies.some((servie) => servie.id === id))
-      .map((station) => ({ id: station.id, nom: station.nom, principale: station.principale, ...etatDeLaCuisine(station.etat, station.atteinte), survol: station.atteinte === undefined ? station.dit : station.atteinte.dit.replace(/^(not )?reached: /, ""), autoriser: station.autoriser })),
+      .map((station) => ({ id: station.id, nom: station.nom, principale: station.principale, ...etatDeLaCuisine(station.etat, station.atteinte), pourquoi: station.atteinte?.pourquoi ?? "", survol: station.atteinte === undefined ? station.dit : station.atteinte.dit.replace(/^(not )?reached: /, ""), autoriser: station.autoriser })),
   ];
   return { stations, demande: demande !== undefined, principale: stations.some(({ principale }) => principale) };
 }
@@ -5850,6 +5852,7 @@ function stationNommee(station, ici, rang = "") {
   appele.className = ici ? "" : "mono";
   nomme.ariaLabel = `${ici ? POSTE.nom : station.nom} — ${station.principale ? "main" : "secondary"} — ${station.dit}`;
   nomme.append(pastille(station.dit, station.ton), appele, ...(rang !== "" && !station.principale ? [bloc("span", ` (${rang})`)] : []));
+
   if (station.id !== "") nomme.addEventListener("click", () => ouvrirStation(station.id));
   else nomme.disabled = true;
   const autoriser = station.autoriser.map((url) => {
@@ -5859,7 +5862,9 @@ function stationNommee(station, ici, rang = "") {
   });
   const pose = document.createElement("span");
   pose.className = "station-et-gestes";
-  pose.append(nomme, ...autoriser);
+  const pourquoi = bloc("span", station.pourquoi);
+  pourquoi.className = "pourquoi";
+  pose.append(nomme, ...(station.pourquoi === "" ? [] : [pourquoi]), ...autoriser);
   return pose;
 }
 
@@ -6063,7 +6068,7 @@ function poserStationsDuProjet() {
     // Où il cuit, d'abord — « this Mac » pour la station de cet ordinateur —, puis ses renforts.
     const sienne = stations.find(({ id }) => id === ou?.id);
     const autres = stations.filter((station) => station !== sienne && !(enCours !== null && enCours.etape !== "refusee" && station.nom === enCours.vers));
-    const tete = ou === undefined ? [] : [stationNommee(sienne ?? { id: ou.id ?? "", nom: ou.nom, principale: true, dit: "served", ton: "vert", survol: "", autoriser: [] }, ou.ici)];
+    const tete = ou === undefined ? [] : [stationNommee(sienne ?? { id: ou.id ?? "", nom: ou.nom, principale: true, dit: "served", ton: "vert", survol: "", pourquoi: "", autoriser: [] }, ou.ici)];
     ligneDesStationsDuProjet.replaceChildren(
       bloc("span", ou === undefined ? "Cooked by " : "Cooks on "),
       ...tete,

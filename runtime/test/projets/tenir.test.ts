@@ -192,7 +192,7 @@ test("une station que l'app appaire au projet sans en faire la principale : la p
   // Le Mac s'arrête : il n'est plus atteint, et son suivi dit pourquoi ; sa déclaration reste.
   lue = () => lectureDesAppairees(MAINTENANT, { id: "gistmac", nom: "mac", projets: [SECONDAIRE], signe: 3, arretee: true });
   await station.projets.relire();
-  assert.deepEqual(station.suivi()?.[0]?.secondaires, [{ ...MAC, atteinte: false, dit: "not reached: it stopped at 2026-10-15T11:59:00.000Z" }]);
+  assert.deepEqual(station.suivi()?.[0]?.secondaires, [{ ...MAC, atteinte: false, dit: "not reached: it stopped at 2026-10-15T11:59:00.000Z", raison: "arretee", geste: "start Brigade on that computer again" }]);
   assert.ok(station.lignes.includes("brigade : station — shop : mac/claude pas atteinte (not reached: it stopped at 2026-10-15T11:59:00.000Z)"));
 
   // GitHub ne répond pas : le Mac reste dit, non atteint, avec la raison — et rien n'est retiré du journal.
@@ -200,7 +200,7 @@ test("une station que l'app appaire au projet sans en faire la principale : la p
     throw new Error("gh: could not resolve api.github.com");
   };
   await station.projets.relire();
-  assert.deepEqual(station.suivi()?.[0]?.secondaires, [{ ...MAC, atteinte: false, dit: "not reached: its gist could not be read on GitHub — gh: could not resolve api.github.com" }]);
+  assert.deepEqual(station.suivi()?.[0]?.secondaires, [{ ...MAC, atteinte: false, dit: "not reached: its gist could not be read on GitHub — gh: could not resolve api.github.com", raison: "gist-illisible", geste: "check your GitHub connection in the app, the next reading tries again" }]);
   assert.equal(declaree(), "box/claude:2:code+raisonnement,mac/claude:1:code+raisonnement+macos:distante+ensemble");
 
   // L'app lui coche une capacité de plus : son entrée seule est réécrite.

@@ -136,6 +136,28 @@ describe("la ligne d'une station : son état, ce qu'elle fait, ses projets — s
     assert.equal(ligneDeStation(station({ projets: [] }), 0, false).dit, "online · idle · runs no kitchen");
   });
 
+  test("aucune pastille grise sans sa phrase : chaque état d'une station qui ne cuit pas dit pourquoi, et le geste (#1758)", () => {
+    const etats: StationVue[] = [
+      station({ etat: "hors-ligne", dit: "offline for 4 min" }),
+      station({ etat: "illisible", dit: "unreadable", projets: [] }),
+      station({ projets: [] }),
+      station({ cuisine: false, etat: "hors-ligne", dit: "offline for 4 min", projets: [] }),
+      station({ cuisine: false, projets: [] }),
+      station(),
+    ];
+    for (const etat of etats) {
+      for (const saturee of [false, true]) {
+        const ligne = ligneDeStation(etat, 0, saturee);
+        if (ligne.ton === "gris") assert.ok(ligne.raison !== undefined && ligne.raison.phrase.includes(ligne.nom), JSON.stringify(ligne));
+      }
+    }
+    assert.deepEqual(ligneDeStation(station({ etat: "hors-ligne", dit: "offline for 4 min" }), 0, false).raison, { cle: "hors-ligne", phrase: "not reached: start Brigade on parade-box's computer, this line turns green when it signs again" });
+    assert.equal(ligneDeStation(station({ etat: "illisible", dit: "unreadable" }), 0, false).raison?.cle, "illisible");
+    assert.equal(ligneDeStation(station({ projets: [] }), 0, false).raison?.phrase, "not added to any project: add a project to parade-box with “+” in the bar");
+    assert.equal(ligneDeStation(station(), 0, false).raison, undefined);
+    assert.equal(ligneDeStation(station({ projets: [] }), 0, false, [{ projet: "a", station: "box" }]).raison, undefined);
+  });
+
   test("en ligne sans cuisine : elle le dit, nomme la station qui porte les cuisines de l'ordinateur, et sa page dit si c'est normal", () => {
     const ailleurs = [{ projet: "a", station: "parade-box" }, { projet: "b", station: "parade-box" }, { projet: "c", station: "parade-box" }];
     const ligne = ligneDeStation(station({ projets: [] }), 0, false, ailleurs);

@@ -14,7 +14,7 @@ import { lireLesStationsEtLeursGists } from "../../src/appairage/stations-du-che
 import { decisionsPosees } from "../../src/decisions.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { documentDeDemande, FICHIER_PROJETS, type ProjetDemande } from "../../src/projets/demande.ts";
-import { declarationDe, declarerLesSecondaires, injoignables, secondairesDuProjet } from "../../src/projets/secondaires.ts";
+import { declarationDe, declarerLesSecondaires, GESTES_DE_LA_RAISON, injoignables, secondairesDuProjet } from "../../src/projets/secondaires.ts";
 import { lireStations } from "../../src/stations-declarees.ts";
 import { lectureDesAppairees, type Publiee } from "../aides/appairees.ts";
 import { repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
@@ -120,6 +120,23 @@ test("atteinte ou non : en ligne, arrêtée proprement, ou muette depuis plus de
       ["linux/claude", false, "not reached: no sign of life on GitHub since 2026-10-26T09:49:00.000Z"],
     ],
   );
+});
+
+test("chaque raison de ne pas être atteinte porte sa clé et le geste du chef, et une atteinte n'en porte aucune", () => {
+  const trouvees = secondairesDuProjet(lecture({ id: "a", nom: "mac", projets: [SHOP], signe: 4 }, { id: "b", nom: "pc", projets: [SHOP], signe: 2, arretee: true }, { id: "c", nom: "linux", projets: [SHOP], signe: 11 }), "acme/shop", BOX);
+  assert.ok(Array.isArray(trouvees));
+  assert.deepEqual(
+    trouvees.map(({ station, raison, geste }) => [station, raison, geste]),
+    [
+      ["mac/claude", undefined, undefined],
+      ["pc/claude", "arretee", GESTES_DE_LA_RAISON.arretee],
+      ["linux/claude", "muette", GESTES_DE_LA_RAISON.muette],
+    ],
+  );
+  const connues = secondairesDuProjet(lecture({ id: "a", nom: "mac", projets: [SHOP] }), "acme/shop", BOX);
+  assert.ok(Array.isArray(connues));
+  assert.deepEqual(injoignables(connues, "x").map(({ raison, geste }) => [raison, geste]), [["gist-illisible", GESTES_DE_LA_RAISON["gist-illisible"]]]);
+  for (const [cle, geste] of Object.entries(GESTES_DE_LA_RAISON)) assert.match(geste, /^[a-z].{10,}[^.]$/, cle);
 });
 
 test("GitHub illisible : rien n'est trouvé ni retiré — celles qu'une lecture précédente a trouvées restent, non atteintes, et la raison est dite", () => {

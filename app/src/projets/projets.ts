@@ -28,6 +28,7 @@ import { capacitesLues, documentDeDemande, FICHIER_PROJETS, FICHIER_SUIVI, lireD
 import type { Demenagement, Demenageur } from "./demenagement.ts";
 import type { DepotDuChef } from "./github.ts";
 import { canalDesGists, pourLaPage, type DemanderLeRemede, type IssueDuRemede } from "./remede.ts";
+import { pasAtteinte } from "./pas-atteinte.ts";
 
 // Le calibrage que la station accepte : ses deux listes fermées (runtime/src/calibrage.ts).
 export const MODELES = ["opus", "sonnet", "haiku"] as const;
@@ -51,8 +52,9 @@ export type Champ = "nom" | "depot" | "base" | "stations" | "principale" | "cook
 export type Signales = Partial<Record<Champ, string>>;
 
 // Une station d'un projet, telle que la home la montre. `atteinte` : pour une station ajoutée en plus de la
-// principale, si la principale la dit atteinte, et pourquoi en une phrase (#1756) — absent tant qu'elle n'en dit rien.
-export type StationDuProjet = { id: string; nom: string; principale: boolean; etat: EtatDuProjet | "attendu"; dit: string; autoriser: string[]; atteinte?: { oui: boolean; dit: string } };
+// principale, si la principale la dit atteinte, et pourquoi en une phrase (#1756) — absent tant qu'elle n'en dit rien ;
+// `pourquoi` : pas atteinte, la phrase de sa ligne, avec le geste du chef (pas-atteinte.ts, #1758).
+export type StationDuProjet = { id: string; nom: string; principale: boolean; etat: EtatDuProjet | "attendu"; dit: string; autoriser: string[]; atteinte?: { oui: boolean; dit: string; pourquoi?: string } };
 // Où cuit un projet : la station qui le sert — son gist quand elle est appairée —, et si c'est
 // celle de cet ordinateur.
 export type CuitSur = { id: string | null; nom: string; ici: boolean };
@@ -505,7 +507,7 @@ export function tenirProjets(options: OptionsProjets): Projets {
         for (const { nom, secondaires } of suivi) {
           for (const tenue of secondaires ?? []) {
             const sienne = projets.get(nom)?.stations.find(({ id, principale }) => id === tenue.gist && !principale);
-            if (sienne !== undefined) sienne.atteinte = { oui: tenue.atteinte, dit: tenue.dit };
+            if (sienne !== undefined) sienne.atteinte = { oui: tenue.atteinte, dit: tenue.dit, ...(tenue.atteinte ? {} : { pourquoi: pasAtteinte(tenue.geste) }) };
           }
         }
       }

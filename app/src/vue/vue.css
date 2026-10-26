@@ -606,7 +606,8 @@ main > header,
 /* Un projet qui cuit sur ce Mac (ticket 1095) : ce que ça implique, à côté de « this Mac », plus
    discret que le nom ; un déménagement en route, de même. */
 #stations-du-projet .s-arrete,
-#stations-du-projet .en-mouvement {
+#stations-du-projet .en-mouvement,
+#stations-du-projet .pourquoi {
   color: var(--discret);
 }
 /* Le choix d'un déménagement : une carte sous la ligne, sa phrase, les machines — chacune un bouton,
@@ -6573,4 +6574,8 @@ button.recommande {
   color: var(--texte-doux);
   border: 1px solid var(--trait);
   border-radius: var(--rayon-bouton);
+}
+/* Pourquoi une station installée ne cuit pas encore (ticket 1758) : une phrase à côté de sa pastille grise, qui nomme le geste. */
+#tous .ligne span.pourquoi {
+  color: var(--discret);
 }

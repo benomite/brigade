@@ -23,6 +23,7 @@ import { deriveDe } from "./fiabilite.ts";
 import { heure, heureCourte } from "./format.ts";
 import type { VuDesProjets } from "./projets/projets.ts";
 import { plafondsDe, retenuesDe, type PlafondVu, type RetenueVue } from "./plafond.ts";
+import { raisonDe, type RaisonDeStation } from "./stations/raison.ts";
 import { LIMITE, type StationVue, type VuDesStations } from "./stations/stations.ts";
 
 // Les tons des pastilles de la peau (vue.css) : vert, jaune — l'orange de la maquette —, rouge, gris.
@@ -31,10 +32,11 @@ export type Ton = "vert" | "jaune" | "rouge" | "gris";
 export type LigneDeProjet = { nom: string; ton: Ton; dit: string; survol: string };
 // Une station a aussi `phrase` : son état en une phrase, en tête de sa page (#877) — « online · 2 cooks
 // running », « offline for 12 min », « saturated ». Ni sa machine, ni sa version, ni ses projets.
+// `raison` : une station installée qui ne cuit pas encore dit pourquoi, en une phrase qui nomme le geste (stations/raison.ts, #1758).
 // `note` : sous la phrase, une station en ligne qui ne fait la cuisine d'aucun projet dit en une phrase si c'est normal.
 // `plafond` et `retenue` : ce que le `status` d'un projet dit de son plafond de cooks et de ce qui la retient (plafond.ts) ;
 // `reglable` : un projet que l'app lit nomme son plafond, la page peut donc le régler.
-export type LigneDeStation = { id: string; nom: string; ton: Ton; dit: string; phrase: string; survol: string; note?: string; plafond?: PlafondVu; retenue?: RetenueVue; reglable?: true; appels?: AppelsGithub };
+export type LigneDeStation = { id: string; nom: string; ton: Ton; dit: string; phrase: string; survol: string; note?: string; raison?: RaisonDeStation; plafond?: PlafondVu; retenue?: RetenueVue; reglable?: true; appels?: AppelsGithub };
 export type Sante = { ton: Ton; dit: string; survol: string };
 // `stations` : absentes, la première lecture sur GitHub est en route.
 // `plafonds` : par projet dont le `status` est lu, et par station qu'il nomme, le plafond de cooks de ce projet sur elle
@@ -171,6 +173,7 @@ function ligneDeTelephone(station: StationVue, survol: string): LigneDeStation {
     nom,
     ton: enLigne ? "vert" : "gris",
     dit: [station.dit, NE_CUISINE_PAS].join(" · "),
+    ...(enLigne ? {} : { raison: raisonDe("hors-ligne", nom) }),
     phrase: `${station.dit} · ${NE_CUISINE_PAS}`,
     survol,
     ...(enLigne ? { note: "A phone: it runs no cook, and is never offered to run a project's cooks." } : {}),
@@ -186,7 +189,7 @@ export function ligneDeStation(station: StationVue, cooks: number, saturee: bool
   // Un téléphone (#1158) ne fait tourner aucun cook : sa ligne le dit, et il n'a aucun projet à attendre.
   if (station.cuisine === false) return ligneDeTelephone(station, survol);
   const projets = sansCuisine ? "no project" : station.projets.join(", ");
-  if (station.etat !== "en-ligne") return { id, nom, ton: "gris", dit: [station.dit, ...(station.etat === "illisible" ? [] : [projets])].join(" · "), phrase: station.dit, survol: survol === "" ? "its state on GitHub cannot be read — open it to see why" : survol };
+  if (station.etat !== "en-ligne") return { id, nom, ton: "gris", dit: [station.dit, ...(station.etat === "illisible" ? [] : [projets])].join(" · "), phrase: station.dit, raison: raisonDe(station.etat === "illisible" ? "illisible" : "hors-ligne", nom), survol: survol === "" ? "its state on GitHub cannot be read — open it to see why" : survol };
   const max = station.pannes.some(({ sujet }) => sujet === "connexion-max");
   const miseAJour = station.pannes.some(({ sujet }) => sujet === "mise-a-jour");
   const fait = [...(max ? ["Max connection lost"] : []), ...(miseAJour ? ["update failed"] : []), ...(saturee ? ["saturated"] : []), ...(cooks > 0 ? [`${cooks} cook${s(cooks)}`] : [])];
@@ -197,6 +200,7 @@ export function ligneDeStation(station: StationVue, cooks: number, saturee: bool
     dit: [station.dit, ...(fait.length === 0 ? ["idle"] : fait), sansCuisine ? "runs no kitchen" : projets].join(" · "),
     // Saturée, elle ne prend plus de ticket : c'est ce qui compte d'elle, ses cooks attendent.
     phrase: saturee ? "saturated" : `${station.dit} · ${cooks === 0 ? "no cook running" : `${cooks} cook${s(cooks)} running`}`,
+    ...(sansCuisine && ailleurs.length === 0 ? { raison: raisonDe("sans-projet", nom) } : {}),
     survol: sansCuisine && ailleurs.length > 0 ? [survol, cuisinesAilleurs(ailleurs)].filter((partie) => partie !== "").join(" · ") : survol,
     ...(sansCuisine
       ? {
