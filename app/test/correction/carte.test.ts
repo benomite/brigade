@@ -3,7 +3,8 @@
 // box (faits.ts, correction.ts). Une proposition, une carte, au-dessus des colonnes du rail — aucune
 // sans proposition. Elle dit ce qu'on attend du chef en tête, la cause, chaque ticket concerné qui
 // s'ouvre d'un clic, la correction en diff — ajouts et retraits chacun de sa classe, son signe gardé —,
-// ce qu'elle a coûté ; « yes » lance l'acceptation, « no » le refus, et la carte quitte la file.
+// ce qu'elle a coûté ; « yes » poste l'acceptation sur le tableau de la cuisine, « no » le refus, et la carte
+// le dit jusqu'à la lecture qui ne la porte plus.
 // Le module de la carte est aussi lu seul, sur un faux document (vue/correction/carte.js).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
@@ -12,14 +13,15 @@ import { pourLaBarre } from "../../src/barre.ts";
 import { BOUTONS } from "../../src/boutons.ts";
 import { EXEMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
-import { carteDeCorrection, SANS_GESTE, type Rendu } from "../../src/correction.ts";
+import { carteDeCorrection, type Rendu } from "../../src/correction.ts";
 import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
 import { BANNIERE, tenirFaits, type Faits } from "../../src/faits.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../../src/grants.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
-import { ATTENDU, COUTE, NON, OUI, poserCorrection, PRIX_DU_OUI, REPOS } from "../../src/vue/correction/carte.js";
+import { POSTE } from "../../src/tableau-gestes/rail.ts";
+import { ATTENDU, COUTE, ENVOI, NON, OUI, poserCorrection, PRIX_DU_OUI, REPOS } from "../../src/vue/correction/carte.js";
 import { Faux, type Jouee, jouerLaVue, type Reponses, repos } from "../aides/fausse-vue.ts";
 import { CORRECTION, FAITS } from "./donnees.ts";
 
@@ -53,6 +55,7 @@ const cartes = (vue: Jouee) => vue.element("rail").dessous("section").filter((po
 const carte = (vue: Jouee): Faux => cartes(vue)[0] ?? assert.fail("pas de carte de correction dans la file");
 const bouton = (ou: Faux, texte: string): Faux => ou.dessous("button").find((pose) => pose.textContent === texte) ?? assert.fail(`pas de bouton « ${texte} »`);
 const { corrections: _, ...SANS } = FAITS;
+const COMMENTAIRE = "https://github.com/acme/parade/issues/1#issuecomment-5012";
 
 describe("la carte d'une correction proposée, dans la file du projet", () => {
   test("une proposition : une carte, au-dessus des colonnes du rail ; sans proposition, aucune", async () => {
@@ -148,54 +151,62 @@ describe("la carte d'une correction proposée, dans la file du projet", () => {
     [OUI, "yes"],
     [NON, "no"],
   ] as const) {
-    test(`« ${libelle} » lance ${reponse === "yes" ? "l'acceptation" : "le refus"} de cette proposition ; écrite, la carte quitte la file et \`facts\` est relu`, async () => {
-      const vue = await ouvrir({ corriger: (_projet, _proposition, voulue) => ({ tranchee: voulue, dit: "" }) });
+    test(`« ${libelle} » poste ${reponse === "yes" ? "l'acceptation" : "le refus"} de cette proposition sur le tableau ; postée, la carte le dit, ses réponses inactives, et \`facts\` est relu`, async () => {
+      const vue = await ouvrir({ corriger: (_projet, _proposition, voulue) => ({ postee: voulue, dit: POSTE, detail: COMMENTAIRE }) });
       recevoir(vue);
       const relectures = vue.appels.filter(({ geste }) => geste === "relireBox").length;
       bouton(carte(vue), libelle).click();
       await repos();
       assert.deepEqual(vue.dernier("corriger"), [PARADE, 412, reponse]);
       assert.equal(vue.appels.filter(({ geste }) => geste === "corriger").length, 1);
-      assert.equal(cartes(vue).length, 0);
       assert.equal(vue.appels.filter(({ geste }) => geste === "relireBox").length, relectures + 1);
-      // La lecture qui suit ne la porte plus : rien ne revient. Une lecture qui la porterait encore ne la remet pas.
+      // La lecture qui la porte encore — la box ne l'a pas encore tranchée — la garde, postée.
       recevoir(vue);
-      assert.equal(cartes(vue).length, 0);
+      assert.equal(cartes(vue).length, 1);
+      const postee = carte(vue).dessous("p").find((pose) => pose.className === "postee") ?? assert.fail("la réponse postée n'est pas dite");
+      assert.equal(postee.children[0]?.textContent, `your “${reponse}”: ${POSTE}`);
+      assert.equal((postee.dessous("button")[0] as { ariaLabel?: string } | undefined)?.ariaLabel, COMMENTAIRE);
+      assert.ok(bouton(carte(vue), OUI).disabled && bouton(carte(vue), NON).disabled);
+      // La lecture qui ne la porte plus : la box l'a tranchée, la carte quitte la file.
       recevoir(vue, SANS);
       assert.equal(cartes(vue).length, 0);
       // Proposée de nouveau, plus tard, sous le même numéro qu'aucune lecture ne portait plus : elle attend de nouveau.
       recevoir(vue);
       assert.equal(cartes(vue).length, 1);
+      assert.ok(!bouton(carte(vue), OUI).disabled && !bouton(carte(vue), NON).disabled);
     });
   }
 
-  test("tant que la box n'a pas répondu, les deux réponses attendent : un second clic ne lance rien", async () => {
+  test("tant que la réponse n'est pas postée, les deux réponses attendent : un second clic ne lance rien", async () => {
     let repondre: (rendu: Rendu) => void = () => assert.fail("pas lancé");
     const vue = await ouvrir({ corriger: () => new Promise<Rendu>((rendre) => (repondre = rendre)) as unknown as Rendu });
     recevoir(vue);
     bouton(carte(vue), OUI).click();
     await repos();
     assert.ok(bouton(carte(vue), OUI).disabled && bouton(carte(vue), NON).disabled);
-    assert.ok(carte(vue).textContent.includes("sending your “yes”…"));
+    assert.ok(carte(vue).textContent.includes(ENVOI.yes));
     bouton(carte(vue), NON).click();
     await repos();
     assert.equal(vue.appels.filter(({ geste }) => geste === "corriger").length, 1);
-    repondre({ tranchee: "yes", dit: "" });
+    repondre({ postee: "yes", dit: POSTE, detail: COMMENTAIRE });
     await repos();
-    assert.equal(cartes(vue).length, 0);
+    assert.equal(cartes(vue).length, 1);
+    assert.ok(!carte(vue).textContent.includes(ENVOI.yes));
+    assert.ok(carte(vue).dessous("p").some((pose) => pose.className === "postee"));
   });
 
-  test("rien n'est écrit — le runtime ne connaît pas le geste : la carte reste, ses deux réponses aussi, et une ligne le dit, le détail au survol", async () => {
-    const detail = "$ ssh -o BatchMode=yes -- box brigade parade correction yes 412\n→ exit code 66";
-    const vue = await ouvrir({ corriger: () => ({ refus: SANS_GESTE, detail }) });
+  test("rien n'est posté — GitHub refuse le commentaire : la carte reste, ses deux réponses aussi, et une ligne le dit, le détail au survol", async () => {
+    const refus = "nothing was posted: GitHub refused the comment";
+    const detail = "POST repos/acme/parade/issues/1/comments → HTTP 403: Resource not accessible by integration";
+    const vue = await ouvrir({ corriger: () => ({ refus, detail }) });
     recevoir(vue);
     bouton(carte(vue), OUI).click();
     await repos();
     assert.equal(cartes(vue).length, 1);
-    const refus = carte(vue).dessous("p").find((pose) => pose.className === "refus") ?? assert.fail("le refus n'est pas dit");
-    assert.equal(refus.children[0]?.textContent, SANS_GESTE);
-    assert.equal((refus.dessous("button")[0] as { ariaLabel?: string } | undefined)?.ariaLabel, detail);
-    assert.ok(!carte(vue).textContent.includes("exit code"), "le code de sortie est écrit à plat");
+    const dite = carte(vue).dessous("p").find((pose) => pose.className === "refus") ?? assert.fail("le refus n'est pas dit");
+    assert.equal(dite.children[0]?.textContent, refus);
+    assert.equal((dite.dessous("button")[0] as { ariaLabel?: string } | undefined)?.ariaLabel, detail);
+    assert.ok(!carte(vue).textContent.includes("HTTP 403"), "la réponse de GitHub est écrite à plat");
     assert.ok(!bouton(carte(vue), OUI).disabled && !bouton(carte(vue), NON).disabled);
     assert.equal(vue.appels.filter(({ geste }) => geste === "relireBox").length, 0);
   });
@@ -204,10 +215,14 @@ describe("la carte d'une correction proposée, dans la file du projet", () => {
 describe("le module de la carte, seul", () => {
   const doc = { createElement: (balise: string) => new Faux(balise) };
 
-  test("tranchée, la carte n'est plus posée", () => {
+  test("postée, la carte reste posée, ses deux réponses inactives", () => {
     const pose = carteDeCorrection(CORRECTION);
     assert.equal(poserCorrection(doc, pose, REPOS, { ouvrir: () => {}, repondre: () => {} }).length, 1);
-    assert.deepEqual(poserCorrection(doc, pose, { etape: "tranchee", reponse: "no" }, { ouvrir: () => {}, repondre: () => {} }), []);
+    const [racine] = poserCorrection(doc, pose, { etape: "postee", reponse: "no", dit: POSTE, detail: "" }, { ouvrir: () => {}, repondre: () => {} });
+    assert.ok(racine !== undefined);
+    const boutons = (racine as Faux).dessous("button").filter((b) => b.textContent === OUI || b.textContent === NON);
+    assert.equal(boutons.length, 2);
+    for (const b of boutons) assert.ok(b.disabled);
   });
 
   test("sans motif, aucune ligne à sa place", () => {

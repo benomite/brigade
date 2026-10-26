@@ -1,19 +1,15 @@
 // Une correction proposée des consignes du projet, côté process principal (app/src/correction.ts, #999) :
 // le champ `corrections` de `facts` lu champ pour champ, la carte qu'il donne au rail — la cause, les
-// tickets ouvrables, le diff découpé par fichier, ses lignes ajoutées et retirées à part, le coût —,
-// et le « yes » ou le « no » du chef, lancé une fois sur la box par un faux `ssh` écrit par chaque test.
+// tickets ouvrables, le diff découpé par fichier, ses lignes ajoutées et retirées à part, le coût. Le
+// « yes » ou le « no » du chef, lui, est posté sur le tableau de la cuisine (test/tableau-gestes/rail.test.ts).
 // La forme lue est tenue contre celle que le runtime écrit (runtime/src/correctif/cartes.ts) par le
 // contrôle de types.
 import assert from "node:assert/strict";
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { describe, test, type TestContext } from "node:test";
+import { describe, test } from "node:test";
 import type { CarteDeCorrection as CarteDuRuntime } from "../../../runtime/src/correctif/cartes.ts";
-import { carteDeCorrection, commandeDe, correctionsLues, type CorrectionLue, decouper, INCONNUE, PAS_COMPRIS, repondreALaCorrection, SANS_GESTE } from "../../src/correction.ts";
+import { carteDeCorrection, correctionsLues, type CorrectionLue, decouper } from "../../src/correction.ts";
 import { comprendre, tenirFaits, type Faits } from "../../src/faits.ts";
 import { CORRECTION, DIFF, FAITS } from "./donnees.ts";
-import { SANS_POSIX } from "../aides/posix.ts";
 
 // Ce que le runtime écrit, l'app le lit : toute carte de `facts` entre dans la forme de l'app.
 const _formeTenue: CarteDuRuntime extends CorrectionLue ? true : never = true;
@@ -149,81 +145,6 @@ describe("le diff, découpé pour être lu", () => {
     assert.equal(carteDeCorrection({ ...CORRECTION, cout: { tokens: 0 } }).cout, "0 tokens");
     assert.equal(carteDeCorrection({ ...CORRECTION, motif: "  " }).motif, null);
     assert.equal(carteDeCorrection({ ...CORRECTION, motif: null }).motif, null);
-  });
-});
-
-// --- Le geste, sur la box ------------------------------------------------------------
-
-const SERVI = { nom: "parade", box: { hote: "box" } };
-const OPTIONS = "-o BatchMode=yes -o ConnectTimeout=10";
-
-// Un faux `ssh` : il note chaque appel, puis joue `corps`.
-function box(t: TestContext, corps: string) {
-  const racine = mkdtempSync(join(tmpdir(), "correction-geste-"));
-  t.after(() => rmSync(racine, { recursive: true, force: true }));
-  const ssh = join(racine, "ssh");
-  writeFileSync(ssh, `#!/bin/sh\nD='${racine}'\necho "$*" >>"$D/appels"\n${corps}\n`);
-  chmodSync(ssh, 0o755);
-  const appels = () => (existsSync(join(racine, "appels")) ? readFileSync(join(racine, "appels"), "utf8") : "");
-  return { reglages: { ssh, delaiMs: 60_000, connexionS: 10 }, appels };
-}
-const dit = (texte: string, code = 0) => `cat <<'FIN'\n${texte}\nFIN\nexit ${code}`;
-
-describe("le « yes » ou le « no » du chef, sur la box", () => {
-  test("les deux commandes sont `correction yes <proposition>` et `correction no <proposition>`", () => {
-    assert.equal(commandeDe("yes", 412), "correction yes 412");
-    assert.equal(commandeDe("no", 7), "correction no 7");
-  });
-
-  test("« yes » lance `correction yes 412`, une fois : écrite, la réponse fait quitter la file à la carte", { skip: SANS_POSIX }, async (t) => {
-    const { reglages, appels } = box(t, dit("correction 412 accepted"));
-    const rendu = await repondreALaCorrection(reglages, SERVI, [412], 412, "yes");
-    assert.ok("tranchee" in rendu);
-    assert.equal(rendu.tranchee, "yes");
-    assert.equal(appels(), `${OPTIONS} -- box brigade parade correction yes 412\n`);
-  });
-
-  test("« no » lance `correction no 412`, une fois", { skip: SANS_POSIX }, async (t) => {
-    const { reglages, appels } = box(t, dit("correction 412 refused"));
-    const rendu = await repondreALaCorrection(reglages, SERVI, [412], 412, "no");
-    assert.ok("tranchee" in rendu);
-    assert.equal(rendu.tranchee, "no");
-    assert.equal(appels(), `${OPTIONS} -- box brigade parade correction no 412\n`);
-  });
-
-  test("une proposition que les derniers faits lus ne portent pas, ou une autre réponse que « yes » et « no » : rien n'est lancé", async (t) => {
-    const { reglages, appels } = box(t, dit("ok"));
-    for (const proposition of [413, "412", undefined, -1]) assert.deepEqual(await repondreALaCorrection(reglages, SERVI, [412], proposition, "yes"), { refus: INCONNUE, detail: "" });
-    for (const reponse of ["oui", "YES", "", undefined, true]) assert.deepEqual(await repondreALaCorrection(reglages, SERVI, [412], 412, reponse), { refus: PAS_COMPRIS, detail: "" });
-    assert.equal(appels(), "");
-  });
-
-  test("refusée par le runtime (1) : sa dernière ligne le dit, rien n'est écrit, la carte reste", { skip: SANS_POSIX }, async (t) => {
-    const { reglages } = box(t, dit("brigade: correction 412 is not shown in the queue: it cannot be answered", 1));
-    const rendu = await repondreALaCorrection(reglages, SERVI, [412], 412, "yes");
-    assert.ok("refus" in rendu);
-    assert.equal(rendu.refus, "nothing was recorded — brigade: correction 412 is not shown in the queue: it cannot be answered");
-    assert.match(rendu.detail, /exit code 1/);
-  });
-
-  test("un runtime qui ne connaît pas encore le geste (66, ou 2 sur son usage) : une ligne, la commande et le code au survol", { skip: SANS_POSIX }, async (t) => {
-    for (const code of [66, 2]) {
-      const { reglages } = box(t, `echo "brigade: “correction” is not a command of the runtime" >&2\nexit ${code}`);
-      const rendu = await repondreALaCorrection(reglages, SERVI, [412], 412, "no");
-      assert.ok("refus" in rendu);
-      assert.equal(rendu.refus, SANS_GESTE);
-      assert.match(rendu.detail, /correction no 412/);
-      assert.match(rendu.detail, new RegExp(`exit code ${code}`));
-      assert.doesNotMatch(rendu.refus, /ssh|code|`/);
-    }
-  });
-
-  test("une box pas jointe : une ligne, et ce que `ssh` a rendu au survol", { skip: SANS_POSIX }, async (t) => {
-    const { reglages } = box(t, `echo "ssh: connect to host box port 22: Connection refused" >&2\nexit 255`);
-    const rendu = await repondreALaCorrection(reglages, SERVI, [412], 412, "yes");
-    assert.ok("refus" in rendu);
-    assert.equal(rendu.refus, "nothing was sent: the station could not be asked — not reached");
-    assert.match(rendu.detail, /Connection refused/);
   });
 });
 

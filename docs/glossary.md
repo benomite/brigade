@@ -115,7 +115,6 @@ Commands are run as `brigade <project> <command>` on the box (`npm --prefix runt
 | `cloison` | `partition` | Show the partition | — |
 | `arbitre` | `arbiter` | The arbiter's weights | `poids` → `weight`; `retirer` → `remove` |
 | `porte` / `tenir-porte` | `door` / `hold-door` | The remote station's door | — |
-| — | `profile` | The cook profiles proposed; answer one | `yes <proposal>`, `no <proposal>` — new, with no old name |
 
 ## 4. The lines of `status`
 

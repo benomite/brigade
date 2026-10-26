@@ -3,7 +3,8 @@
 // box (faits.ts, profil.ts). Une proposition, une carte, au-dessus des colonnes du rail — aucune sans
 // proposition. Elle dit ce qu'on attend du chef en tête, le nom du profil et son domaine, les chiffres
 // qui le justifient, chaque ticket du domaine qui s'ouvre d'un clic, ce que le profil contiendrait —
-// skills, périmètre, carnet — ; « yes » lance l'acceptation, « no » le refus, et la carte quitte la file.
+// skills, périmètre, carnet — ; « yes » poste l'acceptation sur le tableau de la cuisine, « no » le refus, et
+// la carte le dit jusqu'à la lecture qui ne la porte plus.
 // Le module de la carte est aussi lu seul, sur un faux document (vue/profil/carte.js).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
@@ -12,7 +13,7 @@ import { pourLaBarre } from "../../src/barre.ts";
 import { BOUTONS } from "../../src/boutons.ts";
 import { EXEMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
-import { SANS_GESTE, type Rendu } from "../../src/correction.ts";
+import type { Rendu } from "../../src/correction.ts";
 import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
 import { BANNIERE, tenirFaits, type Faits } from "../../src/faits.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../../src/gestes.ts";
@@ -20,7 +21,8 @@ import { GESTES_DES_GRANTS } from "../../src/grants.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { carteDeProfil } from "../../src/profil.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
-import { REPOS } from "../../src/vue/correction/carte.js";
+import { POSTE } from "../../src/tableau-gestes/rail.ts";
+import { ENVOI, REPOS } from "../../src/vue/correction/carte.js";
 import { ATTENDU, CARNET_VIDE, EFFET_DU_NON, EFFET_DU_OUI, NON, OUI, poserProfil, POURQUOI_SANS_SKILLS, SANS_SKILLS } from "../../src/vue/profil/carte.js";
 import { Faux, type Jouee, jouerLaVue, type Reponses, repos } from "../aides/fausse-vue.ts";
 import { CORRECTION } from "../correction/donnees.ts";
@@ -57,6 +59,7 @@ const carte = (vue: Jouee): Faux => cartes(vue)[0] ?? assert.fail("pas de carte 
 const bouton = (ou: Faux, texte: string): Faux => ou.dessous("button").find((pose) => pose.textContent === texte) ?? assert.fail(`pas de bouton « ${texte} »`);
 const parClasse = (ou: Faux, balise: string, classe: string): Faux[] => ou.dessous(balise).filter((pose) => pose.className === classe);
 const { profils: _, ...SANS } = FAITS;
+const COMMENTAIRE = "https://github.com/acme/parade/issues/1#issuecomment-5013";
 
 describe("la carte d'un profil proposé, dans la file du projet", () => {
   test("une proposition : une carte, au-dessus des colonnes du rail ; sans proposition, aucune", async () => {
@@ -172,8 +175,8 @@ describe("la carte d'un profil proposé, dans la file du projet", () => {
     [OUI, "yes"],
     [NON, "no"],
   ] as const) {
-    test(`« ${libelle} » lance ${reponse === "yes" ? "l'acceptation" : "le refus"} de cette proposition ; écrite, la carte quitte la file, \`facts\` est relu, et elle ne revient pas`, async () => {
-      const vue = await ouvrir({ trancherLeProfil: (_projet, _proposition, voulue) => ({ tranchee: voulue, dit: "" }) });
+    test(`« ${libelle} » poste ${reponse === "yes" ? "l'acceptation" : "le refus"} de cette proposition sur le tableau ; postée, la carte le dit, ses réponses inactives, \`facts\` est relu, et elle part avec la lecture qui ne la porte plus`, async () => {
+      const vue = await ouvrir({ trancherLeProfil: (_projet, _proposition, voulue) => ({ postee: voulue, dit: POSTE, detail: COMMENTAIRE }) });
       recevoir(vue);
       const relectures = vue.appels.filter(({ geste }) => geste === "relireBox").length;
       bouton(carte(vue), libelle).click();
@@ -181,43 +184,49 @@ describe("la carte d'un profil proposé, dans la file du projet", () => {
       assert.deepEqual(vue.dernier("trancherLeProfil"), [PARADE, 377, reponse]);
       assert.equal(vue.appels.filter(({ geste }) => geste === "trancherLeProfil").length, 1);
       assert.equal(vue.appels.filter(({ geste }) => geste === "corriger").length, 0);
-      assert.equal(cartes(vue).length, 0);
       assert.equal(vue.appels.filter(({ geste }) => geste === "relireBox").length, relectures + 1);
-      // Une lecture qui la porterait encore ne la remet pas ; celle qui suit ne la porte plus : rien ne revient.
+      // La lecture qui la porte encore — la box ne l'a pas encore tranchée — la garde, postée.
       recevoir(vue);
-      assert.equal(cartes(vue).length, 0);
+      assert.equal(cartes(vue).length, 1);
+      const postee = parClasse(carte(vue), "p", "postee")[0] ?? assert.fail("la réponse postée n'est pas dite");
+      assert.equal(postee.children[0]?.textContent, `your “${reponse}”: ${POSTE}`);
+      assert.equal((postee.dessous("button")[0] as { ariaLabel?: string } | undefined)?.ariaLabel, COMMENTAIRE);
+      assert.ok(bouton(carte(vue), OUI).disabled && bouton(carte(vue), NON).disabled);
+      // La lecture qui ne la porte plus : la box l'a tranchée, la carte quitte la file.
       recevoir(vue, SANS);
       assert.equal(cartes(vue).length, 0);
     });
   }
 
-  test("tant que la box n'a pas répondu, les deux réponses attendent : un second clic ne lance rien", async () => {
+  test("tant que la réponse n'est pas postée, les deux réponses attendent : un second clic ne lance rien", async () => {
     let repondre: (rendu: Rendu) => void = () => assert.fail("pas lancé");
     const vue = await ouvrir({ trancherLeProfil: () => new Promise<Rendu>((rendre) => (repondre = rendre)) as unknown as Rendu });
     recevoir(vue);
     bouton(carte(vue), NON).click();
     await repos();
     assert.ok(bouton(carte(vue), OUI).disabled && bouton(carte(vue), NON).disabled);
-    assert.ok(carte(vue).textContent.includes("sending your “no”…"));
+    assert.ok(carte(vue).textContent.includes(ENVOI.no));
     bouton(carte(vue), OUI).click();
     await repos();
     assert.equal(vue.appels.filter(({ geste }) => geste === "trancherLeProfil").length, 1);
-    repondre({ tranchee: "no", dit: "" });
+    repondre({ postee: "no", dit: POSTE, detail: COMMENTAIRE });
     await repos();
-    assert.equal(cartes(vue).length, 0);
+    assert.equal(cartes(vue).length, 1);
+    assert.equal(parClasse(carte(vue), "p", "postee").length, 1);
   });
 
-  test("rien n'est écrit — le runtime ne connaît pas le geste : la carte reste, ses deux réponses aussi, et une ligne le dit, le détail au survol", async () => {
-    const detail = "$ ssh -o BatchMode=yes -- box brigade parade profile yes 377\n→ exit code 66";
-    const vue = await ouvrir({ trancherLeProfil: () => ({ refus: SANS_GESTE, detail }) });
+  test("rien n'est posté — GitHub refuse le commentaire : la carte reste, ses deux réponses aussi, et une ligne le dit, le détail au survol", async () => {
+    const refus = "nothing was posted: GitHub refused the comment";
+    const detail = "POST repos/acme/parade/issues/1/comments → HTTP 403: Resource not accessible by integration";
+    const vue = await ouvrir({ trancherLeProfil: () => ({ refus, detail }) });
     recevoir(vue);
     bouton(carte(vue), OUI).click();
     await repos();
     assert.equal(cartes(vue).length, 1);
-    const refus = parClasse(carte(vue), "p", "refus")[0] ?? assert.fail("le refus n'est pas dit");
-    assert.equal(refus.children[0]?.textContent, SANS_GESTE);
-    assert.equal((refus.dessous("button")[0] as { ariaLabel?: string } | undefined)?.ariaLabel, detail);
-    assert.ok(!carte(vue).textContent.includes("exit code"), "le code de sortie est écrit à plat");
+    const dite = parClasse(carte(vue), "p", "refus")[0] ?? assert.fail("le refus n'est pas dit");
+    assert.equal(dite.children[0]?.textContent, refus);
+    assert.equal((dite.dessous("button")[0] as { ariaLabel?: string } | undefined)?.ariaLabel, detail);
+    assert.ok(!carte(vue).textContent.includes("HTTP 403"), "la réponse de GitHub est écrite à plat");
     assert.ok(!bouton(carte(vue), OUI).disabled && !bouton(carte(vue), NON).disabled);
     assert.equal(vue.appels.filter(({ geste }) => geste === "relireBox").length, 0);
   });
@@ -226,9 +235,13 @@ describe("la carte d'un profil proposé, dans la file du projet", () => {
 describe("le module de la carte, seul", () => {
   const doc = { createElement: (balise: string) => new Faux(balise) };
 
-  test("tranchée, la carte n'est plus posée", () => {
+  test("postée, la carte reste posée, ses deux réponses inactives", () => {
     const pose = carteDeProfil(PROFIL);
     assert.equal(poserProfil(doc, pose, REPOS, { ouvrir: () => {}, repondre: () => {} }).length, 1);
-    assert.deepEqual(poserProfil(doc, pose, { etape: "tranchee", reponse: "yes" }, { ouvrir: () => {}, repondre: () => {} }), []);
+    const [racine] = poserProfil(doc, pose, { etape: "postee", reponse: "yes", dit: POSTE, detail: "" }, { ouvrir: () => {}, repondre: () => {} });
+    assert.ok(racine !== undefined);
+    const boutons = (racine as Faux).dessous("button").filter((b) => b.textContent === OUI || b.textContent === NON);
+    assert.equal(boutons.length, 2);
+    for (const b of boutons) assert.ok(b.disabled);
   });
 });

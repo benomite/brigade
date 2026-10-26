@@ -325,7 +325,8 @@ sections, with `use the direct link` and its own decision buttons (#1590) — is
 bridge calls (`tableauDuProjet`, `ouvrirDuTableau`, `gesteAuTableau`) on the desktop and the phone.
 The gestures of the rail view that the board's grammar knows (`docs/tableau-gestes.md`) are posted
 on the board from the card or the sheet: `merge the PR`, `remove from the rail`, a TODO card's
-choice or text, and `back to the kitchen` after WAITING (#1740, below). A project that neither a box nor this computer serves keeps the published rail
+choice or text, `back to the kitchen` after WAITING (#1740, below), and the "yes" or "no" on a proposed
+correction or cook profile (#1741, below). A project that neither a box nor this computer serves keeps the published rail
 above (#1435). Captures: `docs/captures/1695/` — `espace-projet-avant.png` (the screen removed) and
 `espace-projet-apres.png` (the rail view of the same project), and `espace-projet-gestes-apres.png` (the
 sheet of a TODO ticket whose decision is known, offering its gestures, `merge the PR` first).
@@ -2804,22 +2805,26 @@ this proposal cost 18,342 tokens · proposed 10/13/2026, 9:58:40 AM
 - **"yes, open it as a PR"**, recommended, and **"no"**. The price of the "yes" is in its hover:
   a PR that carries exactly this diff goes through the pass like a delivery — gates, review, CI —,
   on your quota. The action goes out right away: the whole card is what you have to read before.
-- **The action goes out on the project's box**, once, through `ssh` (`app/src/correction.ts`):
-  `brigade <name> correction yes <proposal>` or `… correction no <proposal>`, for a
-  proposal that the latest facts read carry. **Once written, the answer makes the card leave the
-  queue**, and `facts` is reread right away: the settled proposal is no longer in it. As long as the box
-  has not answered, both buttons wait (`sending your “yes”…`).
-- **Nothing is written** — box not reached, runtime that refuses (code 1, its last line said),
-  or **a runtime that does not know the action yet** (66, or 2 on its usage): the card stays,
-  and so do its two buttons, and a line states the fact (`nothing was sent: this station cannot take your answer
-  yet`), without asking you to do anything elsewhere; the command and what the box returned are on hover.
+- **The answer is posted on the project's Kitchen board** (#1741, `app/src/tableau-gestes/rail.ts`,
+  `docs/tableau-gestes.md`), with the token of this computer's `gh`: `/brigade correction yes <proposal>` or
+  `/brigade correction no <proposal>`, once, for a proposal the latest board read carries. No `ssh`, no second, no
+  box command: the gesture works with the box unreachable, and the box plays it at its next tick
+  (`runtime/src/correctif/decision.ts`).
+- **Posted**: both buttons stay inactive, and a line under them says `your “yes”: posted on the Kitchen board — the box
+  plays it at its next tick and answers under it`, the comment's address on hover — the same words as the other
+  gestures posted on the board. While the post is on its way, the buttons wait (`posting your “yes” on the Kitchen
+  board…`). The board is read again at once; the card leaves the queue with the first read that no longer carries the
+  proposal.
+- **Not posted** — the board not read yet, a proposal the latest board read does not carry, or GitHub refusing the
+  comment: the card stays, and so do its two buttons, and a line says why, what GitHub answered on hover. One click
+  tries again.
+- **Refused by the box** (a proposal already answered, or that no card shows any more): the box answers so under the
+  comment, and nothing is written.
 
-**The contract the app expects from the runtime**: `correction yes|no <proposal>`, where `<proposal>`
-is the `proposition` of `corrections` — the `seq` of the `correction.proposed` fact. It exits 0 when
-the answer is written, or when the proposal was already settled (`decider`,
-`runtime/src/correctif/decision.ts`, outcomes `tranchee` and `deja`); 1 when no card shows
-this proposal (`inconnue`), the reason on its last line. **This command does not exist yet
-in the runtime**: as long as it is missing, each click says the line above, and nothing goes out.
+Captures: `docs/captures/1741/` — `correction-oui-avant.png` (the old path: the answer went to the box, and the card
+left the queue at once), `correction-oui-apres.png` (posted on the board, said on the card),
+`correction-refus-avant.png` (the old refusal: a station that did not know the gesture) and `correction-refus-apres.png`
+(GitHub refused the comment: the card stays and says why).
 
 ### A proposed cook profile (#1053, epic #1033)
 
@@ -2853,19 +2858,16 @@ proposed 10/13/2026, 9:41:05 AM
 - **What the profile would hold**: its skills (the measure proposes none — said, with the why
   on hover), its perimeter, and its starting notebook, lesson by lesson with the retros that carry it.
 - **"yes, create the profile"**, recommended, and **"no"**; what each does is in its hover.
-  The action goes out like that of a correction (`trancherSurLaBox`, `app/src/correction.ts`):
-  `brigade <name> profile yes <proposal>` or `… profile no <proposal>`, once, on the project's
-  box. Once written, the answer makes the card leave the queue and `facts` is reread; nothing written, the
-  card stays and a line says so, the command and what the box returned on hover.
+  The answer is posted like that of a correction, on the project's Kitchen board (#1741): `/brigade profile yes
+  <proposal>` or `/brigade profile no <proposal>`, once, for a proposal the latest board read carries — no `ssh`, no
+  box command, the box unreachable included. Posted, the card says so under its two inactive buttons, the comment's
+  address on hover, and leaves the queue with the first board read that no longer carries it; not posted, the card
+  stays and a line says why, what GitHub answered on hover. The box plays it at its next tick
+  (`runtime/src/profils/decision.ts`): the "yes" writes the profile's definition in the project's clone on the box,
+  and a definition the repository already has is refused under the comment, the proposal still waiting.
 
-**The contract the app expects from the runtime**: `profile yes|no <proposal>`, where `<proposal>` is
-the `proposition` of `profils` — the `seq` of the `profile.proposed` fact. It exits 0 when the answer
-is written, or when the proposal was already settled (`decider`, `runtime/src/profils/decision.ts`,
-outcomes `tranchee` and `deja`); 1 on `inconnue` or `existe` (a "yes" on a profile that the repository
-already defines), the reason on its last line (`runtime/src/profil-cli.ts`,
-`docs/runtime/etat-et-mesures.md`, "Les profils proposés"). A station whose runtime is from before
-this command refuses it (66): the click says `nothing was sent: this station cannot take your answer
-yet`, and nothing goes out.
+Captures: `docs/captures/1741/` — `profil-oui-avant.png` (the old path: the answer went to the box, and the card left
+the queue at once) and `profil-oui-apres.png` (posted on the board, said on the card).
 
 ### The stop banner
 

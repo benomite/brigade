@@ -227,19 +227,12 @@ only one conclusion. Nothing is applied: it is your "yes" that will do it.
 no one decides stays in `corrections`, and nothing is born of it — neither branch nor PR. Decided, it
 leaves; it is decided only once, and a second gesture, the same or the other, writes nothing.
 
-The gesture is `profile` — on the box, `brigade <project> profile yes|no <proposal>`, and it is what the two
-buttons of the card launch, in the app:
-
-```sh
-npm --prefix runtime run profile                       # the proposed profiles that await you, by number
-npm --prefix runtime run profile -- yes <proposition>  # "yes": the definition is written into BRIGADE_REPO_DIR
-npm --prefix runtime run profile -- no <proposition>   # "no": the proposal leaves the queue
-```
-
-`<proposition>` is the `proposition` of `profils`. It exits with `0` when the answer is written, or
-the proposal already was (it says so, `already answered`); with `1` when nothing is — no
-proposal under that number, or a definition already there —, the reason on its last line; with `2` on
-a call that cannot be read.
+You answer on the project's **Kitchen board** (`docs/tableau-gestes.md`): a comment whose first line is
+`/brigade correction yes <proposal>` or `/brigade correction no <proposal>`, with no `#` before the
+number — it is what the two buttons of the card post, in the app. The box plays it at its next tick
+(`trancherLaCorrection`) and answers under the comment in one line: done, with the cost of the answer,
+or not done — no proposal under that number, or one already answered — and nothing is written.
+`<proposal>` is the `proposition` of `corrections`.
 
 | Your gesture | What happens |
 |---|---|
@@ -281,6 +274,13 @@ in the repository.
 **A profile exists only if you say "yes"** (`runtime/src/profils/decision.ts`). A proposal
 that no one decides stays in `profils`, and nothing is born of it. Decided, it leaves; it is decided
 only once, and a second gesture, the same or the other, writes nothing.
+
+You answer on the project's **Kitchen board** (`docs/tableau-gestes.md`), like a correction:
+`/brigade profile yes <proposal>` or `/brigade profile no <proposal>`, with no `#` before the number —
+it is what the two buttons of the card post, in the app. `<proposal>` is the `proposition` of
+`profils`. The box plays it at its next tick (`trancherLeProfil`), in the project's clone on the box,
+and answers under the comment in one line: done, or not done — no proposal under that number, one
+already answered, or a definition already in the repository — and nothing is written.
 
 | Your gesture | What happens |
 |---|---|

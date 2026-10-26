@@ -2750,12 +2750,20 @@ main > header,
   color: var(--discret);
 }
 #rail .correction .refus,
-#rail .profil .refus {
+#rail .profil .refus,
+#rail .correction .postee,
+#rail .profil .postee {
   display: flex;
   align-items: center;
   gap: 6px;
   font-size: 12px;
   color: var(--jaune);
+}
+/* Le « yes » ou le « no » posté sur le tableau de la cuisine : une ligne discrète sous les deux réponses,
+   le commentaire au survol, jusqu'à ce que la box l'ait tranché et que la carte quitte la file. */
+#rail .correction .postee,
+#rail .profil .postee {
+  color: var(--discret);
 }
 /* Un profil de cook proposé (#1053) : la même carte de la file, sous les corrections. Sa pilule est
    bleue — rien n'a raté, c'est une proposition —, ses chiffres et ce qu'il contiendrait se lisent en

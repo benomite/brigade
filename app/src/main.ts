@@ -16,9 +16,7 @@ import { pourLaBarre } from "./barre.ts";
 import { BOUTONS, ecritPar, ecritPourLeCloser, REGLER_LE_CLOSER } from "./boutons.ts";
 import { lancerGeste, lancerLa, ouvrirVeille, type Lu, type Servi } from "./box.ts";
 import { agirSurLeCloser } from "./closer-lancement.ts";
-import { repondreALaCorrection } from "./correction.ts";
 import { reponseLue } from "./carte-todo.ts";
-import { repondreAuProfil } from "./profil.ts";
 import { situationDe } from "./histoire.ts";
 import { commenter, demanderAuSecond } from "./discussion.ts";
 import { discussionDeGitHub, histoireDeGitHub } from "./fiche-github.ts";
@@ -36,7 +34,7 @@ import { clientGitHub, parFetch } from "./tableau/client.ts";
 import { jetonDeGh } from "./tableau/jeton-gh.ts";
 import { lireLeTableauDuDepot } from "./tableau/lecture.ts";
 import { ouvrirVeilleDuTableau, tenirLecturesDuTableau } from "./tableau/rail.ts";
-import { arriveeDeCarte, gesteDeFiche as gesteDeFicheAuTableau, reponseDeCarte as reponseDeCarteAuTableau } from "./tableau-gestes/rail.ts";
+import { arriveeDeCarte, gesteDeFiche as gesteDeFicheAuTableau, reponseALaFile, reponseDeCarte as reponseDeCarteAuTableau } from "./tableau-gestes/rail.ts";
 import { clientDesGestesGitHub, posterParFetch } from "./tableau-gestes/github.ts";
 import { demandeDe, demandeDeLAlerte, demandeSurLeTicket, noteDeLaDemande } from "./demande.ts";
 import { CONFIRMES, DIRECTS, ecrireGeste, GRANTS } from "./gestes.ts";
@@ -1300,15 +1298,16 @@ ipcMain.handle("closer", (_, nom: unknown, action: unknown, oui: unknown) => {
   passage.set(servi.nom, rendu);
   return rendu;
 });
-// Le « yes » ou le « no » du chef sur une correction proposée (correction.ts) : lancé une fois sur la
-// box par le passage du projet, pour une proposition que ses derniers faits lus portent. La relecture
-// de `facts` qui suit le montre : tranchée, la proposition n'y est plus.
-ipcMain.handle("corriger", (_, nom: unknown, proposition: unknown, reponse: unknown) => {
+// Le « yes » ou le « no » du chef sur une correction proposée (correction.ts), pour une proposition que la
+// dernière lecture du tableau de la cuisine du projet porte : écrit sur ce tableau (#1741,
+// tableau-gestes/rail.ts), en commentaire `correction`, par le jeton du `gh` de ce poste — ni `ssh` ni box
+// jointe. La box le tranche à son tick suivant ; le tableau relu le montre : tranchée, la proposition n'y
+// est plus.
+ipcMain.handle("corriger", async (_, nom: unknown, proposition: unknown, reponse: unknown) => {
   const vise = connu(nom);
-  if (vise?.box === undefined) return undefined;
-  const servi = { nom: vise.nom, box: vise.box };
-  const rendu = (passage.get(servi.nom) ?? Promise.resolve()).then(() => repondreALaCorrection({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 30_000, connexionS: 10 }, servi, faits.corrections(servi.nom), proposition, reponse));
-  passage.set(servi.nom, rendu);
+  if (vise === undefined) return undefined;
+  const rendu = await reponseALaFile(tableaux.dernier(vise.nom), "correction", proposition, reponse, clientDesGestes);
+  if ("postee" in rendu) tableaux.oublier();
   return rendu;
 });
 // La réponse du chef à une carte de TODO (carte-todo.ts) : un choix, d'un clic, ou son texte, pour la carte
@@ -1325,14 +1324,14 @@ ipcMain.handle("repondreCarte", async (_, nom: unknown, ticket: unknown, reponse
   if ("repondue" in rendu) tableaux.oublier();
   return rendu;
 });
-// Le « yes » ou le « no » du chef sur un profil de cook proposé (profil.ts), par le même chemin : lancé une
-// fois sur la box par le passage du projet, pour une proposition que ses derniers faits lus portent.
-ipcMain.handle("trancherLeProfil", (_, nom: unknown, proposition: unknown, reponse: unknown) => {
+// Le « yes » ou le « no » du chef sur un profil de cook proposé (profil.ts), par le même chemin : écrit sur
+// le tableau de la cuisine du projet, en commentaire `profile`, pour une proposition que sa dernière lecture
+// porte — ni `ssh` ni box jointe.
+ipcMain.handle("trancherLeProfil", async (_, nom: unknown, proposition: unknown, reponse: unknown) => {
   const vise = connu(nom);
-  if (vise?.box === undefined) return undefined;
-  const servi = { nom: vise.nom, box: vise.box };
-  const rendu = (passage.get(servi.nom) ?? Promise.resolve()).then(() => repondreAuProfil({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 30_000, connexionS: 10 }, servi, faits.profils(servi.nom), proposition, reponse));
-  passage.set(servi.nom, rendu);
+  if (vise === undefined) return undefined;
+  const rendu = await reponseALaFile(tableaux.dernier(vise.nom), "profile", proposition, reponse, clientDesGestes);
+  if ("postee" in rendu) tableaux.oublier();
   return rendu;
 });
 // La PR qu'un nettoyage fini a ouverte (bilan du closer, #992) s'ouvre dans le navigateur du poste :

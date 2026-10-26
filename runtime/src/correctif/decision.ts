@@ -10,7 +10,11 @@
 //
 // Une proposition se tranche une fois : un second geste, le même ou l'autre,
 // n'écrit rien et rend le premier.
+//
+// Le chef le fait par le tableau de la cuisine (`/brigade correction yes|no
+// <proposition>`, tableau/gestes/) : la box le joue par `trancherLaCorrection`.
 import type { Evenement } from "../evenements.ts";
+import type { Resultat } from "../geste-ticket.ts";
 import type { Journal } from "../journal.ts";
 import { parcoursDesTickets } from "../parcours-des-tickets.ts";
 import { ratesDeLaCause } from "./detecter.ts";
@@ -67,4 +71,20 @@ export function decider(journal: Journal, projet: string, proposition: number, r
     if (fait === null) throw new Error(`la proposition ${proposition} est tranchée sans que le journal le dise`);
     return { issue: "tranchee", fait: fait as Acceptee | Refusee };
   });
+}
+
+// Le prix de chaque réponse, dit comme celui des gestes du rail (geste-ticket.ts).
+export const PRIX_DE_LA_CORRECTION: Record<Reponse, string> = {
+  yes: "a PR carrying exactly this diff goes through the pass like a delivery — gates, the reviewer's reading, CI — on the chef's quota",
+  no: "none: the proposal leaves the queue, and the same cause comes back only with new failures",
+};
+
+// Le « oui » ou le « non » du chef, joué comme un geste du rail : fait, avec
+// son prix, ou refusé — une proposition qu'aucune carte ne montre, ou déjà
+// tranchée —, et rien n'est écrit.
+export function trancherLaCorrection(journal: Journal, projet: string, proposition: number, reponse: Reponse): Resultat {
+  const decision = decider(journal, projet, proposition, reponse);
+  if (decision.issue === "inconnue") return { done: false, reason: `no correction is proposed under ${proposition}`, price: "none: nothing was changed" };
+  if (decision.issue === "deja") return { done: false, reason: `this correction was already answered “${decision.fait.type === "correction.accepted" ? OUI : NON}”`, price: "none: nothing was changed" };
+  return { done: true, price: PRIX_DE_LA_CORRECTION[reponse] };
 }

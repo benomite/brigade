@@ -225,6 +225,7 @@ try {
     journal: alertee.journal,
     projet,
     repertoireEtat,
+    repoDir: station.clone,
     github: ouvrirGitHub({ depot: rail.depot, bin: rail.gh, usage: "geste", ...roleDesGestes }),
   });
   runtime = brancherLeTableau(alertee, { client: tableau, depot: rail.depot, station: process.env.BRIGADE_STATION_DIR, gestes, mentions: mentionsDuTableau({ client: clientDesGestes, journal: alertee.journal, projet }) });

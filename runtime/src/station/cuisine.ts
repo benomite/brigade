@@ -216,6 +216,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
       journal: connectee.journal,
       projet,
       repertoireEtat,
+      repoDir: station.clone,
       github: ouvrirGitHub({ depot: rail.depot, bin: rail.gh, usage: "geste", projet, ...(roles ? { jeton: roles.jeton("pass").frais, identite: () => roles.login("pass"), compte: "pass" } : {}) }),
       avertir: dire,
     });

@@ -23,10 +23,19 @@ word after it, then the ticket number. The `#` before the number is optional.
 | answer a card | `/brigade answer #<ticket> <answer>` | `rail answer <ticket> <answer>`: your own words, written on the ticket's issue |
 | pick a card's choice | `/brigade choose #<ticket> <choice number>` | `rail choose <ticket> <n>`: the card's choice `n`, counted from 1 |
 | it arrived, back to the kitchen | `/brigade arrived #<ticket>` | no local gesture: the ticket leaves WAITING (or TODO, when it came back from WAITING) and goes back on the rail, queued, without going through TODO |
+| answer a proposed correction | `/brigade correction <yes \| no> <proposal>` | no local gesture: "yes" accepts the correction of the project's guidance, which leaves as a PR through the pass; "no" takes it out of the queue (`runtime/src/correctif/decision.ts`) |
+| answer a proposed cook profile | `/brigade profile <yes \| no> <proposal>` | no local gesture: "yes" writes the profile's definition in the project's clone on the box; "no" takes it out of the queue (`runtime/src/profils/decision.ts`) |
 
 The reason of a `send-back` and the answer of an `answer` run to the end of the comment: the rest of
 the first line, then the next lines. `merge`, `set-aside` and `arrived` take nothing after the number, and
 `choose` takes one number.
+
+A proposed correction and a proposed cook profile are not tickets. Their number is the `proposition`
+the board's machine block gives them (`faits.corrections`, `faits.profils`), written **without `#`**:
+GitHub would make it the link of an issue. `correction` and `profile` take `yes` or `no`, then that
+number, and nothing after it. A proposal is answered once: a second answer, the same or the other, is
+`**Not done**`, and so is a number no proposal carries. A "yes" to a profile whose definition the
+repository already has is `**Not done**` too, and the proposal keeps waiting.
 
 A first line that does not start with `/brigade` is not a gesture. The comment is a conversation:
 the box does not read it, and does not answer it.
@@ -82,6 +91,14 @@ Pick the second choice of the TODO card of #123:
 
 ```
 /brigade choose #123 2
+```
+
+Accept the proposed correction 412 of the project's guidance, and decline the proposed cook
+profile 377:
+
+```
+/brigade correction yes 412
+/brigade profile no 377
 ```
 
 Change the cap to four cooks at a time, stop the kitchen, and open it again:
@@ -143,7 +160,8 @@ for the chef anymore.
 
 The board's machine block (`runtime/src/tableau/rendu/bloc.ts`) carries the last 20 gestures, the
 oldest first, in `tableau.gestes`. Each one has `commentaire` (the comment's id), `url`, `le` (its
-time on GitHub), `geste` and `ticket` (null for a gesture not understood), `etat` (`pris`: run;
+time on GitHub), `geste` and `ticket` (null for a gesture not understood; `ticket` is null too for
+`correction` and `profile`), `etat` (`pris`: run;
 `refuse`: refused or not understood), `traiteLe` (when the box read it) and `reponse` (the line it
 answered). A gesture read makes the box rewrite the board at once, so an app sees it taken into
 account at the box's next read, within the minute. A block written before this field has no

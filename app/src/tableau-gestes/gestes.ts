@@ -6,12 +6,15 @@
 import { lireLeTableau, type GesteDuTableau } from "../../../runtime/src/tableau/rendu/bloc.ts";
 
 // Les quatre décisions du chef, plus le choix d'une carte (`choose`, que la grammaire connaît aussi) et « c'est arrivé »
-// (`arrived`), qui renvoie en cuisine un ticket de WAITING, ou revenu de WAITING.
+// (`arrived`), qui renvoie en cuisine un ticket de WAITING, ou revenu de WAITING ; et le « yes » ou le « no » à une
+// correction ou à un profil proposés de la file (`correction`, `profile`), qui portent le numéro de leur proposition, pas
+// un ticket.
 export type DecisionDuChef =
   | { geste: "merge" | "set-aside" | "arrived"; ticket: number }
   | { geste: "send-back"; ticket: number; raison?: string }
   | { geste: "answer"; ticket: number; reponse: string }
-  | { geste: "choose"; ticket: number; choix: number };
+  | { geste: "choose"; ticket: number; choix: number }
+  | { geste: "correction" | "profile"; proposition: number; reponse: "yes" | "no" };
 
 export type CommentairePoste = { id: number; url: string | null };
 
@@ -36,6 +39,12 @@ export function gestesDuCorps(corps: string): GesteDuTableau[] | null {
 
 // Le commentaire de la décision : sa première ligne est le geste, la raison et la réponse courent jusqu'au bout.
 export function corpsDuGeste(d: DecisionDuChef): string {
+  if ("proposition" in d) {
+    if (!Number.isInteger(d.proposition) || d.proposition < 1) throw new Error(`"${d.proposition}" is not a proposal number.`);
+    if (d.reponse !== "yes" && d.reponse !== "no") throw new Error(`"${String(d.reponse)}" is neither “yes” nor “no”.`);
+    // Sans `#` : GitHub ferait du numéro d'une proposition le lien d'une issue.
+    return `/brigade ${d.geste} ${d.reponse} ${d.proposition}`;
+  }
   if (!Number.isInteger(d.ticket) || d.ticket < 1) throw new Error(`"${d.ticket}" is not a ticket number.`);
   switch (d.geste) {
     case "merge":
