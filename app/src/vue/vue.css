@@ -91,6 +91,7 @@ pre.propos {
 }
 /* Une carte : le cadre de tout ce qui se lit d'un bloc. */
 .carte,
+#etat > .groupe,
 #pages,
 #tous .liste,
 #formulaire,
@@ -2137,9 +2138,6 @@ main > header,
 #etat > .groupe {
   margin: 12px 16px 0;
   padding: 10px 16px 4px;
-  background: var(--carte);
-  border: 1px solid var(--trait);
-  border-radius: var(--rayon-carte);
 }
 #etat .niveau-du-groupe {
   display: flex;
