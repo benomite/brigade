@@ -195,7 +195,6 @@ The app reads each of these forms in both languages, whole: a line that mixes th
 | `Paramètres` | `Settings` | Section |
 | `Les pages` / `Les terminaux` | `Pages` / `Terminals` | Tab strips |
 | `le second et les shells` | `the second and the shells` | Right-hand panel |
-| `projet` / `cette machine` / `toi` | `project` / `this machine` / `you` | The three groups of Settings (#1700) |
 
 ## 6. Left as it is
 
