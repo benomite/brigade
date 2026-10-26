@@ -2511,30 +2511,13 @@ For a ticket in pass or served, `cooked by` is added: who cooked it is not who h
 | **Awaiting you** | the tickets that await a decision from you: those the `awaiting` block of `status` names, in the block's order — the oldest first —, then those `facts` names alone | **`attend`, in `facts`**, which says who is awaiting; and **the number at the head of a line of the block** (see "The number it reads there"), which also says what is expected of it |
 | **Served** | the tickets served in the last 24 h, **the most recent on top** — whether their issue is closed or not: as many cards as the `served 24 h` counter | **`livres`, in `facts`**; from a box that does not give it yet, the `served` tickets of the rail |
 
-- **On the rail is in the order the runtime serves** (#1347) — the order of `rail[]` in `facts`, the
-  chef's manual order included (`rail move`, `docs/runtime/journal-et-rail.md`), the same order `status`
+- **On the rail is in the order the runtime serves** (#1347) — the order of `rail[]` in `facts`, by
+  `prio:` label then age (`docs/runtime/journal-et-rail.md`), the same order `status`
   prints under its `rail` line: after a reload or a restart of the app, the column shows it again. Each
   queued card carries **its priority**, as its `status` line writes it (`prio:2`), or `no prio` when its
   issue has none. **The card at the top of the queue that does not leave says why**, on its line:
   `does not leave: zone held by #14 (app/src)` or `does not leave: machine saturated` — `rail[].raison`
   in `facts` (#1346); a runtime from before this field says nothing more.
-- **On a wide screen, a queued card is dragged up or down its column with the mouse** and dropped on
-  another one: before it when it goes up, after it when it goes down. While it moves, it fades to half and
-  an accent line says where it will land. **Dropped, it takes its place at once, with the priority of
-  its neighbour** — its badge changes right after the drop —, and the app runs `rail move <ticket>
-  --before|--after <neighbour>` where the project's kitchen runs (`app/src/deplacement.ts`); placed, the
-  box is read again, and the column then shows the order the runtime serves. One card at a time: the next
-  one waits for the station's answer. **Refused — it would pass a ticket it awaits —, the card goes back
-  to its place**, and the runtime's sentence, which names the awaited ticket, is written under the
-  column head (`#22 awaits #23, so it cannot be placed before it.`); what the station returned is in its
-  hover. A station whose runtime does not know `rail move` yet says so in one line. A taken, in-pass or
-  set-aside card does not move, nor anything on the phone.
-- **On a narrow screen, the same move is made with a finger: press a queued card for about half a second**
-  — it lifts (slightly larger, with a shadow) — **then drag it** and lift the finger on another card:
-  the accent line, the drop, the refusal and the `rail move` are those of the mouse. A finger that moves
-  before the press ends scrolls the column and moves nothing; once lifted, the column no longer scrolls;
-  an interrupted touch gives the card back with nothing sent. Only a bridge that carries `deplacer` offers
-  it. Captures: `docs/captures/1348/`.
 - **A ticket set aside (`86`) is never out of a column.** The runtime gives, in `rail[].attente`
   of `facts`, its reason in plain words ("awaiting: project setup impossible") and the column where it waits;
   the app files it there — failing a column it knows, in **On the rail** — and its card

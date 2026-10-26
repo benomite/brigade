@@ -48,7 +48,7 @@ export const LIBELLES_DES_RANGEES: Record<Rangee | Fixe, { titre: string; dit: s
   screens: { titre: "Screens", dit: "validating the captures of an interface change before merge" },
   merge: { titre: "Merge", dit: "merging a green delivery (the `merge` grant)" },
   specification: { titre: "Specification", dit: "adjusting a ticket's criteria, splitting it again, closing a ticket judged useless" },
-  priorities: { titre: "Priorities", dit: "reordering the queue, posing tickets born in the kitchen" },
+  priorities: { titre: "Priorities", dit: "changing ticket priorities, posing tickets born in the kitchen" },
   cost: { titre: "Cost", dit: "raising a ticket's calibration, relaunching it beyond its resends, the share of the Max quota" },
   dependencies: { titre: "Dependencies", dit: "adding a library or a service (a database, Docker…)" },
   publishing: { titre: "Publishing", dit: "releases and station updates" },

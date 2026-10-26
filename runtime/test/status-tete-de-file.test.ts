@@ -1,4 +1,4 @@
-// `status` donne la file dans l'ordre où le rail la sert, ordre manuel compris,
+// `status` donne la file dans l'ordre où le rail la sert (priorité, puis âge),
 // et dit pourquoi le ticket en tête ne part pas : la zone tenue (et par qui) ou
 // la machine saturée. Les mêmes mots sont dans les faits que l'app lit.
 import assert from "node:assert/strict";
@@ -15,11 +15,11 @@ function cuisine(t: TestContext) {
   const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: horloge() });
   aArreter(t, () => journal.fermer());
   const noter = (fait: Fait, ticket: number | null = null, author = "runtime") => journal.ajouter({ project: "brigade", ticket, author, ...fait });
-  const arriver = (ticket: number, zone: string[] = []) =>
+  const arriver = (ticket: number, zone: string[] = [], priority = 2) =>
     noter(
       {
         type: "ticket.arrived",
-        payload: { title: `Ticket ${ticket}`, priority: 2, createdAt: `2026-10-01T00:00:${String(ticket).padStart(2, "0")}Z`, url: `https://github.com/acme/brigade/issues/${ticket}`, card: { waitsFor: [], zone, problems: [] } },
+        payload: { title: `Ticket ${ticket}`, priority, createdAt: `2026-10-01T00:00:${String(ticket).padStart(2, "0")}Z`, url: `https://github.com/acme/brigade/issues/${ticket}`, card: { waitsFor: [], zone, problems: [] } },
       },
       ticket,
       "github",
@@ -32,12 +32,11 @@ function cuisine(t: TestContext) {
 const lire = (journal: ReturnType<typeof ouvrirJournal>) => lireEtat(journal, LU_LE);
 const lignesDuRail = (journal: ReturnType<typeof ouvrirJournal>) => decrireEtat(lire(journal), LU_LE).filter((ligne) => /^ {2}#\d+ {2}queued/.test(ligne));
 
-test("après `rail move`, `status` liste la file dans l'ordre où le rail la sert, et les faits de l'app aussi", (t) => {
+test("`status` liste la file dans l'ordre où le rail la sert, et les faits de l'app aussi", (t) => {
   const { journal, noter, arriver } = cuisine(t);
   arriver(10);
   arriver(11);
-  arriver(12);
-  noter({ type: "ticket.moved", payload: { priority: 2, order: [12, 10, 11] } }, 12, "chef");
+  arriver(12, [], 1);
 
   const sert = ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000 }).tickets().map(({ ticket }) => ticket);
   const etat = lire(journal);

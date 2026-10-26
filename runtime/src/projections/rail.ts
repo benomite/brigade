@@ -138,7 +138,6 @@ const FORMES: { [T in FaitRail["type"]]: { [C in keyof Payload<T>]: (valeur: unk
   "ticket.served": {},
   "ticket.86": { reason: texte, until: texteOuRien, why: (valeur) => valeur === undefined || typeof valeur === "string", access: (valeur) => valeur === undefined || (typeof valeur === "object" && valeur !== null) },
   "ticket.fire-unseen": { removedAt: texte },
-  "ticket.moved": { priority: prioriteOuRien, order: (valeur) => liste(valeur, Number.isSafeInteger) },
   "ticket.blocked": { by: Number.isSafeInteger, reason: texte },
   "ticket.waiting": { what: texte, who: texte, followUp: texte },
   "ticket.resumed": { to: (valeur) => valeur === "todo" || valeur === "kitchen", why: texte },
@@ -230,7 +229,7 @@ export const rail = definirProjection<
   | Extract<FaitStation, { type: "cook.out-of-zone" }>
 >({
   nom: "rail",
-  tables: ["rail", "rail_outcomes", "rail_commons", "rail_waiting", "rail_waiting_marks", "rail_waiting_heard", "rail_resumed", "rail_order", "rail_out_of_zone"],
+  tables: ["rail", "rail_outcomes", "rail_commons", "rail_waiting", "rail_waiting_marks", "rail_waiting_heard", "rail_resumed", "rail_out_of_zone"],
   schema: `
     CREATE TABLE IF NOT EXISTS rail (
       ticket      INTEGER PRIMARY KEY,
@@ -299,13 +298,6 @@ export const rail = definirProjection<
       ticket INTEGER PRIMARY KEY,
       why    TEXT NOT NULL
     ) STRICT;
-    -- The chef's manual order within a priority: its rank there, 0 first.
-    -- It wins over age; a ticket without a rank comes after those that have
-    -- one. Lost when the ticket changes priority, leaves or comes back.
-    CREATE TABLE IF NOT EXISTS rail_order (
-      ticket INTEGER PRIMARY KEY,
-      rank   INTEGER NOT NULL
-    ) STRICT;
     -- The files a ticket's last delivery wrote outside the zone it had when
     -- taken, as the station found them.
     CREATE TABLE IF NOT EXISTS rail_out_of_zone (
@@ -333,15 +325,12 @@ export const rail = definirProjection<
       base.executer("DELETE FROM rail_outcomes WHERE ticket = ? AND outcome = 'left'", ticket);
       base.executer("DELETE FROM rail_waiting WHERE ticket = ?", ticket);
       base.executer("DELETE FROM rail_fire_unseen WHERE ticket = ?", ticket);
-      base.executer("DELETE FROM rail_order WHERE ticket = ?", ticket);
       oublierHorsZone(base, ticket);
     }),
     "ticket.fire-unseen": lisible("ticket.fire-unseen", (base, ticket, { payload }) => {
       base.executer("INSERT OR REPLACE INTO rail_fire_unseen (ticket, removed_at) VALUES (?, ?)", ticket, payload.removedAt);
     }),
     "ticket.changed": lisible("ticket.changed", (base, ticket, { payload }) => {
-      // Its rank said where it stood among the tickets of its old priority.
-      base.executer("DELETE FROM rail_order WHERE ticket IN (SELECT ticket FROM rail WHERE ticket = ? AND priority IS NOT ?)", ticket, payload.priority);
       base.executer(
         "UPDATE rail SET title = ?, priority = ?, model = ?, effort = ?, card = ? WHERE ticket = ?",
         payload.title,
@@ -354,7 +343,6 @@ export const rail = definirProjection<
     }),
     "ticket.left": lisible("ticket.left", (base, ticket, { seq, payload }) => {
       base.executer("DELETE FROM rail WHERE ticket = ?", ticket);
-      base.executer("DELETE FROM rail_order WHERE ticket = ?", ticket);
       base.executer("DELETE FROM rail_fire_unseen WHERE ticket = ?", ticket);
       base.executer("DELETE FROM rail_waiting WHERE ticket = ?", ticket);
       oublierHorsZone(base, ticket);
@@ -398,15 +386,6 @@ export const rail = definirProjection<
       passer(base, ticket, at, { state: "86", reason: payload.reason, until: payload.until });
     }),
     "ticket.blocked": () => {},
-    // The order replaces the priority's whole manual order: those of its
-    // tickets it does not name lose their rank. A named ticket that is no
-    // longer on the rail, or no longer at this priority, gets none.
-    "ticket.moved": lisible("ticket.moved", (base, _ticket, { payload }) => {
-      base.executer("DELETE FROM rail_order WHERE ticket IN (SELECT ticket FROM rail WHERE priority IS ?)", payload.priority);
-      payload.order.forEach((numero, rank) => {
-        base.executer("INSERT OR REPLACE INTO rail_order (ticket, rank) SELECT ticket, ? FROM rail WHERE ticket = ? AND priority IS ?", rank, numero, payload.priority);
-      });
-    }),
     // Only a queued ticket on the rail, or one set aside, awaits a third party:
     // taken, in pass or served, the kitchen holds it.
     "ticket.waiting": lisible("ticket.waiting", (base, ticket, { at, payload }) => {
@@ -731,10 +710,9 @@ export function marquesDAttente(base: Base): MarqueDAttente[] {
 export const texteDeMarque = (attente: { what: string; who: string; followUp: string } | null): string | null => (attente === null ? null : JSON.stringify(marqueDe(attente)));
 
 // The rail in service order: `prio:1` first, tickets without a priority
-// last; at equal priority, the chef's manual order (`rail move`), then the
-// oldest issue.
+// last; at equal priority, the oldest issue.
 export function lireRail(base: Base): TicketRail[] {
-  return lire(base, "ORDER BY priority IS NULL, priority, (SELECT rank FROM rail_order WHERE rail_order.ticket = rail.ticket) NULLS LAST, created_at, ticket");
+  return lire(base, "ORDER BY priority IS NULL, priority, created_at, ticket");
 }
 
 export function ticketDuRail(base: Base, ticket: number): TicketRail | null {

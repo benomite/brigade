@@ -3945,45 +3945,6 @@ main > header,
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
-/* Une carte de « On the rail » se range (ticket 1347) : elle se saisit, s'efface à demi tant qu'elle glisse, et un trait
-   d'accent, dans l'espace entre deux cartes, dit où elle atterrira — avant ou après la carte survolée. */
-#rail .bon[data-rangeable] {
-  position: relative;
-}
-#rail .bon[draggable="true"] {
-  cursor: grab;
-}
-#rail .bon.glissee {
-  opacity: 0.4;
-}
-/* Au doigt (ticket 1348) : soulevée par un appui long, la carte grossit un peu et une ombre la détache de la colonne ; le doigt
-   la tient, elle ne s'efface qu'à demi. Sans sélection de texte ni menu du système sous l'appui. */
-#rail .bon[data-rangeable] {
-  -webkit-touch-callout: none;
-  user-select: none;
-}
-#rail .bon.soulevee {
-  opacity: 0.85;
-  transform: scale(1.03);
-  box-shadow: 0 8px 20px var(--ombre);
-  z-index: 1;
-}
-#rail .bon:is(.depot-avant, .depot-apres)::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 3px;
-  border-radius: 2px;
-  background: var(--accent);
-  pointer-events: none;
-}
-#rail .bon.depot-avant::before {
-  top: -6px;
-}
-#rail .bon.depot-apres::before {
-  bottom: -6px;
-}
 /* Sa priorité, sous son numéro : une étiquette à l'encre discrète. */
 #rail .bon > .prio {
   align-self: flex-start;
@@ -3993,14 +3954,6 @@ main > header,
   color: var(--bon-discret);
   border: 1px solid var(--bon-trait);
   border-radius: 999px;
-}
-/* Une carte que le runtime n'a pas laissé passer a repris sa place : sa phrase, sous la tête de la colonne. */
-#rail .colonne > p.refus-de-rang {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  margin: 0 0 8px;
-  color: var(--jaune);
 }
 /* La fiche d'un ticket, par-dessus le rail : un popup de lecture au centre, sur un voile qui laisse le
    rail visible, atténué ; le panneau défile dans sa hauteur, un clic sur le voile la ferme. Son titre est entier : il passe à la

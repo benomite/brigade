@@ -421,7 +421,7 @@ export function coince(ticket: TicketRail, maintenant: Date): boolean {
 }
 
 // Le ticket en tête de la file : le premier en attente dans l'ordre de service
-// du rail — celui que `prendre` donnerait en premier, ordre manuel compris.
+// du rail — celui que `prendre` donnerait en premier.
 function enTete(rail: TicketRail[]): TicketRail | undefined {
   return rail.find((ticket) => ticket.state === "waiting");
 }

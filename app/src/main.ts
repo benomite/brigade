@@ -25,7 +25,6 @@ import { discussionDeGitHub, histoireDeGitHub } from "./fiche-github.ts";
 import { cheminConfiguration, EXEMPLE, type Projet } from "./config.ts";
 import { confirmationDe } from "./confirmation.ts";
 import { cuireSurLaStation } from "./cuisson.ts";
-import { deplacerLaCarte } from "./deplacement.ts";
 import { reglerLePlafond as reglerLePlafondDeCalibrage } from "./plafond-de-calibrage.ts";
 import { lireLesReglages, proposerLeReglage } from "./reglages-du-projet.ts";
 import { choix, entieres, PALETTE } from "./couleurs.ts";
@@ -1172,15 +1171,6 @@ ipcMain.handle("cuireSurLaStation", (_, nom: unknown, station: unknown, geste: u
   if (vise === undefined) return parti(nom);
   const cuisine = cuisines.cuisineDe(vise);
   return cuireSurLaStation(vise.nom, cuisine === undefined ? undefined : { nom: vise.nom, cuisine }, faits.stations(vise.nom), station, geste, lancerSurLaCuisine);
-});
-// Une carte de « On the rail » glissée à un autre rang (ticket 1347) : `rail move <ticket> --before|--after <voisin>`
-// part là où la cuisine du projet tourne, par son passage (deplacement.ts). Les deux tickets doivent être en attente
-// sur le rail que ses derniers `facts` donnent. La vue relit la box quand il est placé : la colonne prend l'ordre du runtime.
-ipcMain.handle("deplacer", (_, nom: unknown, ticket: unknown, voisin: unknown, cote: unknown) => {
-  const vise = connu(nom);
-  if (vise === undefined) return { refus: parti(nom).refus, detail: "" };
-  const cuisine = cuisines.cuisineDe(vise);
-  return deplacerLaCarte(cuisine === undefined ? undefined : { nom: vise.nom, cuisine }, faits.enFile(vise.nom), ticket, voisin, cote, lancerSurLaCuisine, 30_000);
 });
 // Le plafond de calibrage du projet, réglé depuis son onglet Cooks (ticket 1284) : `station ceiling-modele|ceiling-effort`,
 // ou leur retrait, part là où sa cuisine tourne (plafond-de-calibrage.ts). La vue relit la box quand il est fait.
