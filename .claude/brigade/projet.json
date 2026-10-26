@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "integrationBranch": "v2",
+  "defaultCalibrations": {
+    "manager": {
+      "model": "sonnet",
+      "effort": "medium"
+    },
+    "reviewer": {
+      "model": "sonnet",
+      "effort": "medium"
+    }
+  },
+  "closer": {
+    "calibration": {
+      "model": "opus",
+      "effort": "high"
+    }
+  }
+}
