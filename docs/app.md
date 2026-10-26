@@ -326,7 +326,8 @@ bridge calls (`tableauDuProjet`, `ouvrirDuTableau`, `gesteAuTableau`) on the des
 The gestures of the rail view that the board's grammar knows (`docs/tableau-gestes.md`) are posted
 on the board from the card or the sheet: `merge the PR`, `remove from the rail`, a TODO card's
 choice or text. A project that neither a box nor this computer serves keeps the published rail
-above (#1435).
+above (#1435). Captures: `docs/captures/1695/` — `espace-projet-avant.png` (the screen removed) and
+`espace-projet-apres.png` (the rail view of the same project).
 
 ### The second's choices, as buttons under its terminal (#1520)
 
