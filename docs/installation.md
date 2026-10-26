@@ -108,17 +108,16 @@ nor `cifs`). The app that you look at it with is the one of a Mac or a Windows P
    (`wget -qO-` in place of `curl -fsSL` if you have no `curl`.) It installs the package and what it
    depends on (`git`, `gh`, `bubblewrap`…), creates a `brigade` account and starts the
    `brigade-station` service. Allow one to two minutes.
-3. **Connect it to your Claude Max subscription** — the only thing it asks you, once. The command
-   shows a link: open it in a browser (on any machine), log in with your Max account, then paste the
-   code the page gives you into the server's terminal. The token is stored, never displayed.
-4. **What you should see**: `Active: active (running)`, then
+3. **What you should see**: `Active: active (running)`, then
    `brigade : station installée et active — <version>`. (The installer's messages are in French.)
    If it stops on `brigade : installation refusée — …`, that line says why; fix it and rerun the
    same command.
-5. **Log `gh` in under the station's account**, so it can read and push to your repository:
-   `sudo -u brigade gh auth login --hostname github.com --web --git-protocol https`, then
-   `sudo -u brigade gh auth setup-git`. (`gh auth login` with these options is the command the app
-   itself runs; `gh auth setup-git` is the one the app names when a station cannot fetch.)
+4. **Connect it to GitHub, then to your Claude Max subscription** — the only things it asks you,
+   once each. For GitHub, the command runs `gh auth login --web` under the station's account: type
+   the code it shows on `https://github.com/login/device`, then it runs `gh auth setup-git` itself.
+   For Max, it shows a link: open it in a browser (on any machine), log in with your Max account,
+   then paste the code the page gives you into the server's terminal. The token is stored, never
+   displayed. Rerunning the command redoes neither connection once made.
 
 The detail, and everything else the station puts on the machine, is in
 [`installation-station.md`](installation-station.md). Then **go to a Mac or a Windows PC**, install

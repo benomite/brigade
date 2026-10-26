@@ -5,8 +5,8 @@ server's station, from the command to the running station. It talks about no pro
 project is not an installation, it is a line in a station's configuration, and it is added
 later, from the app.
 
-On a computer (Mac, Windows, desktop Linux), the station is the app: this guide is not
-for it.
+On a Mac, the same command installs the station under your account, so that it runs even when the
+app is closed: see "On a Mac", at the end. On Windows, the station is the app for now.
 
 **You can get help.** Paste this guide into an assistant (Claude, for example) and
 ask it to walk you through step by step: everything it needs to know is here, and there is only
@@ -21,25 +21,26 @@ one command to type.
 | **The network** | the server reaches GitHub and its distribution's package repositories. |
 | **A local disk** | `/var/lib` is neither on `nfs` nor on `cifs` (`df -T /var/lib`): each project's lock depends on it. |
 
-| **Your Claude Max subscription** | for the Max connection, at the end of the command, only once: a link to open in your browser, a code to copy back. |
-
-Your GitHub account will serve in the following steps, not in this one.
+| **Your GitHub account** | for the GitHub connection, at the end of the command, only once: a code to type on a GitHub page. It is the account the station reads and pushes with. |
+| **Your Claude Max subscription** | for the Max connection, right after, only once: a link to open in your browser, a code to copy back. |
 
 ## 1. The command
 
 On the server, paste:
 
 ```sh
-curl -fsSL https://github.com/benomite/brigade/releases/latest/download/installer-station.sh | sudo sh
+curl -fsSL https://github.com/benomite/brigade/releases/latest/download/installer-station.sh | sh
 ```
 
-That is all. Without `sudo` on the server, run the same one in a root session, without the
-final `sudo`. Without `curl`, the same with `wget -qO-` in place of `curl -fsSL`.
+That is all: it is the same command on a Mac. Under an ordinary account, it runs its root steps
+through `sudo`, which may ask your password; in a root session, it needs none. Without `curl`, the
+same with `wget -qO-` in place of `curl -fsSL`. (`… | sudo sh` works too.)
 
 The command downloads the `brigade-station` package of the latest published version, hands it to
 `apt` — which installs what it depends on (`git`, `gh`, `bubblewrap`…) —, waits for the station
-to start, then does the **Max connection** (step 2). Allow one to two minutes, plus the time to
-log in.
+to start, then does the **GitHub connection** and the **Max connection** (step 2). Allow one to two
+minutes, plus the time to log in. Nothing is left to edit by hand afterwards: no drop-in, no
+environment file.
 
 ## 2. What you should see
 
@@ -59,10 +60,17 @@ brigade : tout ce qu'elle demande au système vient avec son paquet : sa vie cou
 **`active (running)` and `aucun projet servi`: the station is installed.** It is running, it will
 restart with the machine, and it waits for its projects.
 
+### The GitHub connection
+
+The command first connects the station's `brigade` account to GitHub: `gh auth login --web`, under
+that account. `gh` shows a one-time code and the address `https://github.com/login/device`: open it
+in your browser (on any machine), type the code, and authorize. Then `gh auth setup-git`, so that
+`git` reads and pushes through it. Already connected — a rerun —, it is not redone.
+
 ### The Max connection
 
-The command goes on to connect the station to your Claude Max subscription — the only
-time it asks you for anything, and it does not come back:
+The command goes on to connect the station to your Claude Max subscription — with the GitHub
+connection, the only time it asks you for anything, and it does not come back:
 
 ```
 brigade : la connexion Max du compte brigade — le seul moment où elle te demande quelque chose
@@ -99,10 +107,11 @@ then restarts the station so it reads it. Your Max quota will never be consumed 
 stat -c '%a %U' /etc/brigade/claude-token     # expected: 600 brigade
 ```
 
-**If the connection fails** (`brigade : connexion Max non faite — …`), the line says why:
-rerun the same command. It reinstalls nothing, and does not redo a token already stored.
+**If a connection fails** (`brigade : la station est installée, mais sa connexion … n'est pas
+faite`), the line above it says why: rerun the same command. It reinstalls nothing, leaves the
+station running, and does not redo a connection already made nor a token already stored.
 **If the command had no terminal** (run from a script), it says so, and stops
-before the connection: rerun it from a terminal on the server.
+before the connections: rerun it from a terminal on the server.
 
 If the command stops on `brigade : installation refusée — …`, the line says why: the
 machine is not a Debian, its architecture has no package, the download failed, or
@@ -194,6 +203,30 @@ same state, in plain text, without root:
 ```sh
 cd /usr/lib/brigade-station/runtime && BRIGADE_STATION_DIR=/var/lib/brigade BRIGADE_MISE_A_JOUR_DIR=/var/lib/brigade-station /usr/lib/brigade-station/node/bin/node src/mise-a-jour/main.ts etat
 ```
+
+## On a Mac
+
+The same command, in a Terminal, under your account — **without `sudo`**:
+
+```sh
+curl -fsSL https://github.com/benomite/brigade/releases/latest/download/installer-station.sh | sh
+```
+
+It needs the Command Line Tools (`git`): if they are missing, macOS offers to install them, then you
+rerun the command. It installs `gh` (by Homebrew, or from its release) and `claude` (by its official
+installer) if they are missing, then:
+
+- the station's runtime of the latest version and the `node` it requires, checked against the
+  checksums nodejs.org publishes, under `~/.local/share/brigade-station/`;
+- a launchd agent, `~/Library/LaunchAgents/brigade.station.plist`, which starts the station when you
+  log in and restarts it if it stops — its log is `~/Library/Logs/brigade-station.log`;
+- then the GitHub connection (`gh auth login --web`) and the Claude connection (`claude auth login`,
+  like the app's button), under your account, once each.
+
+`launchctl print gui/$(id -u)/brigade.station` says `state = running`. The station keeps the same
+directory as the app's (`~/.config/brigade/station`): only one of them runs at a time, and the
+other waits for it to stop. Rerunning the command is how a Mac station moves to the latest version:
+it replaces only what changed, and restarts the station only then.
 
 ## 7. What comes next — not yet in this guide
 

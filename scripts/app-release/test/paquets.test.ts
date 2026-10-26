@@ -27,9 +27,10 @@ test("the app notes list each package with its platform and its steps", () => {
   assert.match(texte, /unsigned/);
 });
 
-test("the station notes list its Linux packages and the executable bit", () => {
+test("the station notes list its Linux packages, its macOS runtime and the executable bit", () => {
   const texte = notes({ produit: "station", version: "0.1.0" });
   assert.match(texte, /\| `brigade-station-linux-amd64\.deb` \| Linux \|/);
+  assert.match(texte, /\| `brigade-station-mac\.tar\.gz` \| Mac \|.*without sudo/);
   assert.match(texte, /\| `installer-station\.sh` \| Linux \|.*chmod \+x/);
 });
 

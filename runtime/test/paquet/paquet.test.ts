@@ -1,6 +1,7 @@
 // Le paquet Debian de la station (runtime/paquet) : ce que la commande de
-// construction produit, ce que dpkg joue à l'installation et à la mise à jour,
-// et la commande d'installation du guide. Ni root, ni vraie machine : `dpkg-deb`
+// construction produit, et ce que dpkg joue à l'installation et à la mise à
+// jour — la commande d'installation du guide a les siens
+// (deploy/installer-station.test.ts). Ni root, ni vraie machine : `dpkg-deb`
 // construit et ouvre le paquet, et les commandes du système que les scripts
 // appellent sont des doublures qui notent leurs appels.
 import assert from "node:assert/strict";
@@ -13,7 +14,6 @@ import { lancer, repertoireTemporaire } from "../outils.ts";
 
 const PAQUET = join(import.meta.dirname, "../../paquet");
 const CONSTRUIRE = join(PAQUET, "construire.ts");
-const INSTALLER = join(PAQUET, "installer-station.sh");
 const REFUS = 2;
 
 const sansDpkgDeb = spawnSync("dpkg-deb", ["--version"]).status !== 0 && "`dpkg-deb` manque sur cette machine : le paquet ne s'y construit pas";
@@ -281,74 +281,5 @@ describe("ce que dpkg joue à l'installation et à la mise à jour", { skip: san
     const systeme = doublures(t, { systemctl: "" });
     assert.equal(jouer(join(PAQUET, "debian/prerm"), ["upgrade", "1.2.4"], systeme.env).code, 0);
     assert.deepEqual(systeme.appels(), []);
-  });
-});
-
-describe("la commande d'installation du guide", { skip: sansSystemd }, () => {
-  // Une machine Debian amd64, sous root, où apt installe et la station démarre.
-  const debian = {
-    id: "echo 0",
-    dpkg: "echo amd64",
-    "dpkg-query": "printf 1.2.3",
-    "apt-get": "",
-    systemctl: "",
-    curl: 'while [ $# -gt 0 ]; do [ "$1" = -o ] && { echo paquet >"$2"; shift; }; shift; done',
-  };
-
-  test("sans argument : le paquet de la dernière version publiée, pour l'architecture de la machine, remis à apt", (t) => {
-    const machine = doublures(t, debian);
-    const rendu = jouer(INSTALLER, [], machine.env);
-    assert.equal(rendu.code, 0, rendu.sortie);
-    const appels = machine.appels();
-    assert.ok(appels.some((a) => /^curl -fsSL -o \S+\/brigade-station\.deb https:\/\/github\.com\/acme\/brigade\/releases\/latest\/download\/brigade-station_amd64\.deb$/.test(a)), appels.join("\n"));
-    assert.ok(appels.includes("apt-get update -q"), appels.join("\n"));
-    assert.ok(appels.some((a) => /^apt-get install -y -q \/\S+\/brigade-station\.deb$/.test(a)), appels.join("\n"));
-    assert.ok(appels.includes("systemctl --quiet is-active brigade-station.service"), appels.join("\n"));
-    assert.match(rendu.sortie, /station installée et active — 1\.2\.3/);
-    assert.match(rendu.sortie, /la suite : la connexion Max du compte brigade, puis l'appairage avec l'app/);
-  });
-
-  test("sans argument et sans dépôt désigné, rien n'est téléchargé : le script dit quoi donner", (t) => {
-    const machine = doublures(t, debian);
-    const brut = readFileSync(INSTALLER, "utf8");
-    assert.match(brut, /DEPOT="\$\{BRIGADE_DEPOT:-@DEPOT@\}"/);
-    const rendu = jouer(INSTALLER, [], { ...machine.env, BRIGADE_DEPOT: "" });
-    assert.equal(rendu.code, 1);
-    assert.match(rendu.sortie, /aucun dépôt n'est désigné pour télécharger le paquet.*BRIGADE_DEPOT=<compte>\/<dépôt>/);
-    assert.deepEqual(machine.appels().filter((a) => a.startsWith("apt-get") || a.startsWith("curl")), []);
-  });
-
-  test("un paquet donné par son chemin s'installe sans rien télécharger", (t) => {
-    const machine = doublures(t, debian);
-    const deb = join(repertoireTemporaire(t), "brigade-station_1.2.3_amd64.deb");
-    writeFileSync(deb, "paquet");
-    const rendu = jouer(INSTALLER, [deb], machine.env);
-    assert.equal(rendu.code, 0, rendu.sortie);
-    assert.deepEqual(machine.appels().filter((a) => a.startsWith("curl")), []);
-    assert.ok(machine.appels().some((a) => /^apt-get install -y -q \/\S+\/brigade-station\.deb$/.test(a)));
-  });
-
-  test("hors root, rien n'est installé", (t) => {
-    const machine = doublures(t, { ...debian, id: "echo 1000" });
-    const rendu = jouer(INSTALLER, [], machine.env);
-    assert.equal(rendu.code, 1);
-    assert.match(rendu.sortie, /installation refusée — elle se fait en root/);
-    assert.deepEqual(machine.appels().filter((a) => a.startsWith("apt-get") || a.startsWith("curl")), []);
-  });
-
-  test("une architecture sans paquet est refusée avant tout téléchargement", (t) => {
-    const machine = doublures(t, { ...debian, dpkg: "echo i386" });
-    const rendu = jouer(INSTALLER, [], machine.env);
-    assert.equal(rendu.code, 1);
-    assert.match(rendu.sortie, /aucun paquet de la station pour l'architecture i386/);
-    assert.deepEqual(machine.appels().filter((a) => a.startsWith("apt-get") || a.startsWith("curl")), []);
-  });
-
-  test("un échec d'apt est dit, et la station n'est pas attendue", (t) => {
-    const machine = doublures(t, { ...debian, "apt-get": '[ "$1" = install ] && exit 100; exit 0' });
-    const rendu = jouer(INSTALLER, [], machine.env);
-    assert.equal(rendu.code, 1);
-    assert.match(rendu.sortie, /apt n'a pas pu installer le paquet/);
-    assert.deepEqual(machine.appels().filter((a) => a.startsWith("systemctl")), []);
   });
 });

@@ -119,13 +119,16 @@ dans `/var/lib/brigade-station/issues` — la station le recopie au journal de c
 ## Publier
 
 La commande du guide prend la dernière release GitHub du dépôt : elle y télécharge
-`installer-station.sh`, qui y télécharge à son tour `brigade-station_<arch>.deb`. Publier une
-version, c'est joindre ces fichiers à une release — le `.deb` sous ce nom sans version, un par
-architecture :
+`installer-station.sh` (`runtime/deploy/`, la seule entrée de l'installation d'une station, sous
+Linux comme sous macOS), qui y télécharge à son tour `brigade-station_<arch>.deb` sous Linux, ou
+`brigade-station-mac.tar.gz` sous macOS — le répertoire `runtime/` que le paquet porte, tel quel.
+Publier une version, c'est joindre ces fichiers à une release — le `.deb` sous ce nom sans
+version, un par architecture :
 
 ```sh
 cp runtime/paquet/construit/brigade-station_<version>_amd64.deb /tmp/brigade-station_amd64.deb
-gh release create station-<version> runtime/paquet/installer-station.sh /tmp/brigade-station_amd64.deb
+dpkg-deb -x /tmp/brigade-station_amd64.deb /tmp/deb && tar -C /tmp/deb/usr/lib/brigade-station -czf /tmp/brigade-station-mac.tar.gz runtime
+gh release create station-<version> runtime/deploy/installer-station.sh /tmp/brigade-station_amd64.deb /tmp/brigade-station-mac.tar.gz
 ```
 
 Ce geste n'est pas à faire à la main : `.github/workflows/publier-station.yml` le fait à chaque
@@ -164,8 +167,9 @@ défaire : `sudo apt purge brigade-station`, puis, si la machine resservira, `su
 /var/lib/brigade` et `sudo deluser --remove-home brigade`.
 
 Les tests (`runtime/test/paquet/`) construisent un paquet, l'ouvrent, y lancent la station et ses portes telles que
-son unité la lance, et jouent `postinst`, `prerm` et `installer-station.sh` sur des doublures des
-commandes du système. Ils ne remplacent pas cet essai : aucun n'installe le paquet pour de vrai.
+son unité la lance, et jouent `postinst` et `prerm` sur des doublures des commandes du système ;
+`runtime/test/deploy/installer-station.test.ts` joue de même `installer-station.sh`, sous Linux et
+sous macOS. Ils ne remplacent pas cet essai : aucun n'installe le paquet pour de vrai.
 
 ### La mise à jour, sur une machine de test
 

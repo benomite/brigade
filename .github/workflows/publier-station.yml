@@ -1,6 +1,8 @@
 # Publie la station : à chaque merge sur la branche d'intégration (`main` après le passage, `v2` avant) qui change ce que le paquet porte
 # (le runtime livré et `runtime/paquet/`), une release `station-<version>` avec
-# `installer-station.sh`, `brigade-station_amd64.deb` et sa copie `brigade-station-linux-amd64.deb`, avec des notes qui disent la plateforme. La version est celle que
+# `installer-station.sh` (runtime/deploy/, la commande d'installation sous Linux et macOS),
+# `brigade-station_amd64.deb` et sa copie `brigade-station-linux-amd64.deb`, et
+# `brigade-station-mac.tar.gz` — le runtime que le paquet porte, pour macOS —, avec des notes qui disent la plateforme. La version est celle que
 # `construire.ts` se donne sans `--version` : `0.<AAAAMMJJ>.<HHMMSS>+g<commit>`.
 # Un merge qui ne touche que l'app, la doc ou le plugin V1 ne publie rien.
 # `workflow_dispatch` publie le commit choisi, à la main.
@@ -57,13 +59,18 @@ jobs:
           # sa copie `brigade-station-linux-amd64.deb` dit la plateforme (scripts/app-release/paquets.ts).
           cp "$deb" "$RUNNER_TEMP/brigade-station_amd64.deb"
           cp "$deb" "$RUNNER_TEMP/brigade-station-linux-amd64.deb"
+          # Le runtime du paquet, tel quel (son package.json porte la version) : ce que
+          # installer-station.sh pose sur un Mac, à côté du node qu'il y télécharge.
+          dpkg-deb -x "$deb" "$RUNNER_TEMP/deb"
+          tar -C "$RUNNER_TEMP/deb/usr/lib/brigade-station" -czf "$RUNNER_TEMP/brigade-station-mac.tar.gz" runtime
           node scripts/app-release/paquets.ts notes --produit station --version "$version" --commit "$GITHUB_SHA" > "$RUNNER_TEMP/notes.md"
           cat "$RUNNER_TEMP/notes.md" >> "$GITHUB_STEP_SUMMARY"
-          sed "s#@DEPOT@#$GITHUB_REPOSITORY#" runtime/paquet/installer-station.sh >"$RUNNER_TEMP/installer-station.sh"
+          sed "s#@DEPOT@#$GITHUB_REPOSITORY#" runtime/deploy/installer-station.sh >"$RUNNER_TEMP/installer-station.sh"
           gh release create "$tag" \
             "$RUNNER_TEMP/installer-station.sh" \
             "$RUNNER_TEMP/brigade-station_amd64.deb" \
             "$RUNNER_TEMP/brigade-station-linux-amd64.deb" \
+            "$RUNNER_TEMP/brigade-station-mac.tar.gz" \
             --target "$GITHUB_SHA" \
             --title "Station $version" \
             --notes-file "$RUNNER_TEMP/notes.md" \
