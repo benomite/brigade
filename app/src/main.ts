@@ -35,11 +35,10 @@ import { GESTES_DE_LA_CUISINE } from "./cuisine.ts";
 import { BANNIERE, COMMANDE, rangerLeRailPublie, tenirFaits, type RailDuProjetLu } from "./faits.ts";
 import { clientGitHub, parFetch } from "./tableau/client.ts";
 import { jetonDeGh } from "./tableau/jeton-gh.ts";
-import { lireLeTableauDuDepot, type LectureDuTableauDuDepot } from "./tableau/lecture.ts";
+import { lireLeTableauDuDepot } from "./tableau/lecture.ts";
 import { ouvrirVeilleDuTableau, tenirLecturesDuTableau } from "./tableau/rail.ts";
 import { gesteDeFiche as gesteDeFicheAuTableau, reponseDeCarte as reponseDeCarteAuTableau } from "./tableau-gestes/rail.ts";
-import { clientDesGestesGitHub, envoyerLeGeste, posterParFetch, viseDe, type TableauVise } from "./tableau-gestes/github.ts";
-import type { EtatDuGeste } from "./tableau-gestes/gestes.ts";
+import { clientDesGestesGitHub, posterParFetch } from "./tableau-gestes/github.ts";
 import { demandeDe, demandeDeLAlerte, demandeSurLeTicket, noteDeLaDemande } from "./demande.ts";
 import { CONFIRMES, DIRECTS, ecrireGeste, GRANTS } from "./gestes.ts";
 import { gestesDeCarte, jouerGesteDeFiche } from "./gestes-fiche.ts";
@@ -1140,36 +1139,7 @@ ipcMain.handle("railDuProjet", async (_, nom: unknown): Promise<RailDuProjetLu> 
   adressesPubliees.set(vise.nom, new Map(lu.tickets.filter(({ url }) => URL.parse(url)?.protocol === "https:").map(({ ticket, url }) => [ticket, url])));
   return { ...lu, range: rangerLeRailPublie(lu.tickets) };
 });
-// Le tableau de la cuisine d'un projet (#1588) : l'issue que sa box tient à jour dans le dépôt du projet, lue de GitHub
-// par `fetch`, avec le jeton du `gh` de ce poste (#1587) — ni `ssh` ni station. La vue en tire la file du chef, l'état de
-// la cuisine et l'âge de la lecture ; ce qui ne se lit pas, elle le dit en une phrase.
-ipcMain.handle("tableauDuProjet", async (_, nom: unknown): Promise<LectureDuTableauDuDepot> => {
-  const vise = declare(nom);
-  if (vise === undefined) return { lu: false, depot: String(nom), luLe: new Date().toISOString(), raison: `The Kitchen board of ${String(nom)} is not read: it is no longer in the projects file.` };
-  const lu = await lireLeTableauDuDepot({ depot: await depotDuProjet(vise), appeler: appelerGitHub });
-  if (lu.lu) {
-    pagesDuTableau.set(vise.nom, new Set(lu.pages));
-    tableauxVises.set(vise.nom, viseDe(lu));
-  }
-  return lu;
-});
-// Une décision du chef sur une ligne de la file du tableau (#1590) : postée en commentaire sur l'issue du tableau, avec
-// le jeton du `gh` de ce poste — ni `ssh` ni station —, seulement pour un ticket de la file que la dernière lecture a
-// donnée. Rend `pending` et le commentaire posté, ou pourquoi rien n'est parti ; la vue suit la réponse de la box dans
-// les lectures suivantes du tableau.
-const tableauxVises = new Map<string, TableauVise>();
 const clientDesGestes = clientDesGestesGitHub({ jeton: jetonDeGh({ gh: ghIci, delaiMs: 10_000 }), poster: posterParFetch(), appeler: appelerGitHub });
-ipcMain.handle("gesteAuTableau", (_, nom: unknown, decision: unknown): Promise<EtatDuGeste> => envoyerLeGeste(tableauxVises.get(String(nom)), decision, clientDesGestes));
-// Une ligne de la file du tableau s'ouvre sur sa page de GitHub, dans le navigateur du poste : seulement une page que la
-// dernière lecture du tableau de ce projet a donnée (lecture.ts, `pages`). Rend si elle a été ouverte.
-const pagesDuTableau = new Map<string, Set<string>>();
-ipcMain.handle("ouvrirDuTableau", (_, nom: unknown, url: unknown) => {
-  if (typeof url !== "string" || pagesDuTableau.get(String(nom))?.has(url) !== true) return false;
-  return shell.openExternal(url).then(
-    () => true,
-    () => false,
-  );
-});
 // Le plafond de cooks d'une station, réglé depuis sa page : la vue nomme la station et la valeur — un nombre,
 // 0 ou `auto` —, la commande `station cooks <valeur>` part sur la box de chaque projet dont le `status` lu
 // nomme cette station (plafond.ts). Réglé, ce `status` est relu aussitôt : la page dit le plafond neuf, et ce qu'il remplace.

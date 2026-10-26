@@ -125,8 +125,8 @@ validation (`attend[].carte` in `facts`, see `docs/runtime/manager.md`, "What en
 card says what is expected (`Validate its screen: answer its question.`), then the question, one button per choice — in
 the runtime's order —, and a free-text field with its `send` button, inactive while empty. A design validation shows its
 before and after captures under the question, read without a click like those of a delivery; a card without a screen
-has no capture area. One click on a choice, or `send`, is the answer: it plays `rail choose <ticket> <n>` or
-`rail answer <ticket> <text>` on the project's box, once — no confirmation; each choice's price (a merge, a cook relaunched)
+has no capture area. One click on a choice, or `send`, is the answer: it is posted once on the Kitchen board (#1694) —
+no confirmation; each choice's price (a merge, a cook relaunched)
 is on hover. Written, the card leaves TODO at once and `facts` is read again; refused, it stays with its gestures, and a
 line says why, the box's output on hover. The modules are `app/src/carte-todo.ts` and `app/src/vue/carte-todo.js`.
 **The main screen keeps only three things: the alert band, the rail and the terminals**; there is
@@ -315,85 +315,18 @@ still show something, always:
 `railDuProjet` in `app/src/main.ts`, `rangerLeRailPublie` in `app/src/faits.ts`, the plan of the
 second in `app/src/terminaux.ts`. Captures: `docs/captures/1435/`.*
 
-Since #1588, the Rail tab reads the project's Kitchen board first (next section): the published rail
-is shown only by an app whose bridge does not read the board.
+### The project view is the rail view (#1692)
 
-### Rail reads the project's Kitchen board, with no ssh and no tailnet (#1588)
-
-On the desktop (Mac, Windows) and on the phone, a project's **Rail** tab shows what its **Kitchen
-board** says: the pinned issue the box keeps up to date in the project's own repository (#1582),
-read from GitHub by the app (#1587) — no `ssh`, no station, no tailnet. The desktop reads it with
-the token of this computer's `gh`; the phone with the GitHub token of its vault. The board is read
-when the project opens, then every minute while Rail shows it (the box rewrites it at most once a
-minute), and on `read again`.
-
-A project with no `depot` in `app.json` needs nothing declared: the repository is that of its
-folder's `origin` remote (https or ssh, `github.com` only; #1660). With no such remote, the board
-says so and names the one thing to do: give the project the field `depot` (`"depot": "acme/kitchen"`).
-
-- **Read**: the head says what awaits the chef in one sentence (`2 things await you on parade.`,
-  or `Nothing awaits you on parade.`); where it comes from — the repository, the issue, when the box
-  wrote it and when the app read it — is in the `?` hover. Under it, the age of the reading,
-  `read 40 s ago`: from when the box wrote the board, counted up to the screen's time, so it ages
-  between two reads and changes at each one. Then two columns: **TODO**, each line of the queue —
-  its name, how long it has waited, its ticket's title, what awaits the chef in `status`'s words —
-  and one button that opens the line's page on GitHub, where its gesture is done: `open the PR` for
-  a delivery to merge, `open the issue` for a card to answer or any other ticket, `open the Kitchen
-  board` for a line that is no ticket's. The page's address is in the button's hover; the app opens
-  only a page its last reading of the board gave. No command is written out, on screen or in a
-  hover; each line's decisions are its own buttons (below). Under the lines, what `status` says that
-  is no decision. **Kitchen**, the kitchen's state in a word (`open`, `held`, `stopped`, `off`) and each
-  heading of `status` with its lines.
-- **Not read**: the head is the reading's one sentence — GitHub out of reach (the network's error
-  in the hover), a refusal, a repository with no board, a board the app cannot read. When the
-  project has a **direct link** — its box over `ssh`, or on the phone its station's desk —
-  `use the direct link` is the recommended gesture, then `read again`; with none, `read again` alone.
-  When an earlier reading succeeded, it stays under the sentence with its age. The screen is never
-  blank: while the first reading is on its way, one sentence says so.
-- **The direct link**: a project that has one also offers `use the direct link` beside `read again`
-  when the board reads. Taken, Rail reads as before the board — the kanban from `facts` over the
-  direct link, read again at once — with one line at its head, `Read over the direct link, not from
-  the Kitchen board.`, and `back to the Kitchen board`. The choice lasts until the app closes.
-- **Cooks**, and a running cook's live view, still go through the direct link, as before.
-
-*Code: `app/src/vue/tableau-de-cuisine.js` (the screen), `lireLeTableau` in `app/src/vue/vue.js`,
-`tableauDuProjet` and `ouvrirDuTableau` in `app/src/main.ts` and `app/android/web/pont.js`, each line's
-page in `app/src/tableau/lecture.ts` (`pages`). Captures:
-`docs/captures/1588/`.*
-
-### The decisions of the queue, taken from the Kitchen board (#1590)
-
-Each TODO line of the Kitchen board that awaits a decision carries it as buttons, under its page
-button. The gesture is posted as a comment on the board's issue, in the grammar of
-`docs/tableau-gestes.md`, with the same GitHub token as the reading: no `ssh`, no station, no
-tailnet, on Mac, Windows and Android. The box plays it at its next tick and answers under it.
-
-- **What a line offers**: a green delivery waiting for a merge, `merge the PR` (recommended), `send
-  back to the kitchen` and `remove from the rail`; an escalated delivery, the same three with `send
-  back to the kitchen` recommended; a card, its choices, its text field and `send` — the TODO card
-  brick of the rail — then `remove from the rail`; any other ticket, `remove from the rail`. A line
-  that is no ticket's (the breaker, a station) has none. Each price is in its button's hover.
-- **Confirmation**: merge, send back and remove open a confirmation on the line — what the gesture
-  does and its price in one line, then `yes, …` and `cancel`. Sending back has an optional reason
-  field; the reason becomes a candidate lesson. A card's choice is the answer itself, with no
-  confirmation, as on the rail.
-- **Followed**: the line says what was asked and where it stands — `sending…`; `pending` once the
-  comment is posted (the line offers no decision meanwhile, so nothing is posted twice); then, when
-  a reading of the board carries the comment's id in its `gestes`, `taken into account` (the box's
-  reply in the hover) or `refused` followed by the box's reply line, and the decisions come back.
-  While a gesture is pending, the board is read every 20 seconds instead of every minute.
-- **Not posted**: one sentence on the line (`The gesture could not be posted on the Kitchen board of
-  chef/parade.`), what GitHub or the network said in the hover, and the buttons stay usable. The app
-  only posts for a ticket in the queue of its last reading of the board.
-- **A line that left the queue** — the box took the gesture and rewrote the board — keeps its
-  gesture under TODO, `no longer in the queue`, until `clear`. The followed gestures live as long as
-  the app.
-
-*Code: `app/src/vue/gestes-du-tableau.js` (the line's decisions), `decisionsDuTableau` in
-`app/src/vue/vue.js`, `gesteAuTableau` in `app/src/main.ts` and `app/android/web/pont.js`, the post in
-`app/src/tableau-gestes/github.ts` (desktop `fetch`) and `app/android/web/lecture.ts`
-(`gesteDuTelephone`, the native HTTP), the board's `gestes` in `app/src/tableau/lecture.ts`. Captures:
-`docs/captures/1590/`.*
+A project has one view: the rail view, with its columns, its ticket cards, its TODO and its
+gestures. Since #1694 it is fed from the project's Kitchen board on GitHub (read with the token of
+this computer's `gh`), with no `ssh` and no box reachable; the app only has to be connected to
+GitHub. The screen #1588 added for a board read from GitHub — a TODO column and the raw `status`
+sections, with `use the direct link` and its own decision buttons (#1590) — is gone, and so are its
+bridge calls (`tableauDuProjet`, `ouvrirDuTableau`, `gesteAuTableau`) on the desktop and the phone.
+The gestures of the rail view that the board's grammar knows (`docs/tableau-gestes.md`) are posted
+on the board from the card or the sheet: `merge the PR`, `remove from the rail`, a TODO card's
+choice or text. A project that neither a box nor this computer serves keeps the published rail
+above (#1435).
 
 ### The second's choices, as buttons under its terminal (#1520)
 
