@@ -46,7 +46,8 @@ unsigned.
   These releases are not marked “Latest”: that mark belongs to the station's releases. Scroll to the
   newest “Brigade” one.
 - The **station** is in the releases named **“Station `<version>`”**:
-  `brigade-station-linux-amd64.deb` and `installer-station.sh`.
+  `brigade-station-linux-amd64.deb` and `installer-station.sh` (Linux and macOS), and
+  `installer-station.ps1` (Windows), with the runtimes these scripts set up.
 
 The builds are **unsigned** (the table of the release says so): your system warns you the first time
 you open one. The steps are in each section below, and they are the same as in the release notes.
@@ -86,6 +87,11 @@ itself to an unsigned build: to update, download the new `.dmg` and drag it over
 
 A shell in the app's terminals ends with its terminal on Windows (there is no `tmux` there): the app
 says so.
+
+The app runs this PC's station while it is open. To keep the station running when the app is
+closed, one PowerShell command installs it under your account, with its GitHub and Claude
+connections: `irm https://github.com/benomite/brigade/releases/latest/download/installer-station.ps1 | iex`
+— the detail is in [`installation-station.md`](installation-station.md#on-windows).
 
 ## On Linux
 

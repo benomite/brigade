@@ -14,8 +14,11 @@ const lire = (chemin: string) => readFileSync(chemin, "utf8");
 const AFFECTE = new RegExp(`(^|[\\s;])#?(Environment=)?(${DECISIONS.join("|")})=`, "m");
 
 test("aucun fichier de déploiement ne pose une décision du chef", () => {
-  for (const nom of readdirSync(DEPLOY)) {
-    const contenu = lire(join(DEPLOY, nom));
+  // Ses sous-répertoires compris : l'installation sous Windows est dans `windows/`.
+  for (const entree of readdirSync(DEPLOY, { recursive: true, withFileTypes: true })) {
+    if (!entree.isFile()) continue;
+    const nom = join(entree.parentPath, entree.name);
+    const contenu = lire(nom);
     for (const decision of DECISIONS) assert.equal(contenu.includes(decision), false, `${nom} nomme ${decision}`);
   }
 });

@@ -6,7 +6,8 @@ project is not an installation, it is a line in a station's configuration, and i
 later, from the app.
 
 On a Mac, the same command installs the station under your account, so that it runs even when the
-app is closed: see "On a Mac", at the end. On Windows, the station is the app for now.
+app is closed: see "On a Mac", at the end. On Windows, one PowerShell command does the same: see
+"On Windows", after it.
 
 **You can get help.** Paste this guide into an assistant (Claude, for example) and
 ask it to walk you through step by step: everything it needs to know is here, and there is only
@@ -227,6 +228,43 @@ installer) if they are missing, then:
 directory as the app's (`~/.config/brigade/station`): only one of them runs at a time, and the
 other waits for it to stop. Rerunning the command is how a Mac station moves to the latest version:
 it replaces only what changed, and restarts the station only then.
+
+## On Windows
+
+One command, pasted into **PowerShell** (Windows 10 version 1803 or later, or Windows 11, on x64 or
+ARM64), under your account — **not** in an administrator window:
+
+```powershell
+irm https://github.com/benomite/brigade/releases/latest/download/installer-station.ps1 | iex
+```
+
+It is the Windows side of the Mac command (`runtime/deploy/windows/installer-station.ps1`), and
+installs the same station, configured the same way. If they are missing, it installs **Git for
+Windows** and **`gh`** with `winget` — Windows may ask you to allow their installers — and
+**`claude`** with its official installer. Then:
+
+- the station's runtime of the latest version (`brigade-station-windows.zip`, the same runtime as
+  the Mac's) and the `node` it requires, checked against the checksums nodejs.org publishes, under
+  `%LOCALAPPDATA%\brigade-station\`;
+- its launcher, `%LOCALAPPDATA%\brigade-station\lancer-station.ps1`, started hidden when you log in
+  (the `brigade-station` value of `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, listed in
+  Task Manager's startup apps) and started right away; it relaunches the station five seconds after
+  it stops on a failure, like a server's service — not when it refused to start. The station's log
+  is `%LOCALAPPDATA%\brigade-station\brigade-station.log`;
+- then the GitHub connection (`gh auth login --web`, then `gh auth setup-git`) and the Claude
+  connection (`claude auth login`, like the app's button), under your account, once each.
+
+The command ends on `brigade: station installed and running -- <version>`: the station runs. It
+keeps the same directory as the app's (`%USERPROFILE%\.config\brigade\station`): only one of them
+runs at a time, and the other waits for it to stop. Its messages are in English: Windows PowerShell
+reads the script in the machine's code page, so it is kept plain ASCII.
+
+Rerunning the command is safe, and it is how a Windows station moves to the latest version: it
+replaces only what changed, stops and restarts the station only then — leaving its cooks to finish
+their work, as on a server —, and does not redo a connection already made. If it stops on
+`brigade: installation refused -- …` or `brigade: the station is installed, but …`, the line says
+why: fix it, and rerun the same command. A station built by hand installs from its archive:
+`powershell -ExecutionPolicy Bypass -File installer-station.ps1 .\brigade-station-windows.zip`.
 
 ## 7. What comes next — not yet in this guide
 
