@@ -4769,9 +4769,8 @@ async function reglerLePlafondDuProjet(projet, station, valeur) {
 /** @param {Projet} projet @param {Dessinable | undefined} tenu */
 function poserCuisineEtroite(projet, tenu) {
   if (projet.sansStation === true) return rail.replaceChildren(bloc("h3", STATION_ARRETEE));
-  // Dans l'ordre de l'écran large (ticket 1456) : ses stations d'abord — la fiabilité de ses cooks et son closer compris
-  // (ticket 1699).
-  if (stationsPosees) return rail.replaceChildren(cuissonDuProjet, declareesDuProjet, activiteDuProjet, fiabilite, gatesDuProjet, closer, rolesDuProjet, triageDuProjet, apprisDuProjet);
+  // Dans l'ordre de l'écran large (ticket 1456) : ses stations d'abord.
+  if (stationsPosees) return rail.replaceChildren(cuissonDuProjet, declareesDuProjet, activiteDuProjet, gatesDuProjet, rolesDuProjet, triageDuProjet, apprisDuProjet);
   const pourquoi = muets.has(projet.nom)
     ? "its stations: not known while the station is unreachable"
     : tenu === undefined

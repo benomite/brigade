@@ -2006,7 +2006,8 @@ of the grants:
 ### The cooks' reliability, on Cooks
 
 *Tickets: #987, #1699.* On the project's **Cooks** tab, in a section under its tickets, **the reliability of the
-project's cooks, over its latest served tickets** — the same on a narrow screen. Until #1699 it was the page **Settings →
+project's cooks, over its latest served tickets** — on a wide screen only: a narrow screen's Cooks is read-only and runs
+no reading (#1186), so neither this section nor the closer's is laid there. Until #1699 it was the page **Settings →
 Reliability**; it is read with the Cooks tab, every thirty seconds while that tab is shown, and a reading that fails
 whole is said once, by the tab's reading line, not again in the section.
 
