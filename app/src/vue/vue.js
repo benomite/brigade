@@ -1974,13 +1974,6 @@ function bloc(balise, texte) {
   return cree;
 }
 
-// Un élément qui dit le niveau de son réglage (niveaux.js), à sa suite.
-/** @template {HTMLElement} T @param {T} pose @param {string} cle @returns {T} */
-function avecNiveau(pose, cle) {
-  pose.append(niveauDe(document, cle));
-  return pose;
-}
-
 // Ce qui se recopie tel quel — un numéro de ticket, un identifiant de run, un port : en monospace,
 // et c'est une information, pas un style. Rien d'autre ne l'est que ce que la box a rendu.
 /** @param {string} balise @param {string} texte */
@@ -2451,6 +2444,7 @@ function poserCouleurs(projet) {
     const proche = projet.proches?.[role];
     const pose = rangeeDeReglage(libelle, [bloc("span", portee === undefined ? "none yet" : (nommee ?? portee))], [palette], proche === undefined ? [] : refusDeReglage(`${libelle}: ${proche}`));
     pose.dataset.cle = "couleurs";
+    pose.firstElementChild?.append(niveauDe(document, "couleurs"));
     return pose;
   };
   couleurs.replaceChildren(rangee("onglet", "tab, in the bar"), rangee("accent", "accent, in the space"), ...refusDeReglage(couleurRefusee.refus));
@@ -2592,7 +2586,11 @@ async function poserOrdinaires(projet) {
   // Ce que l'option implique est au survol de sa valeur ; un bac à sable indisponible, sous sa ligne.
   const prendre = rangeeDeReglage("ordinary tickets", [bloc("span", recu.actif ? "taken" : "not taken"), survol(document, recu.explication)], [option], [...refusDeReglage(recu.indisponible ?? ""), ...refusDeReglage(ordinairesRefuses.refus)]);
   const combien = rangeeDeReglage("cooks at once", [bloc("span", recu.limite === null ? "no limit" : String(recu.limite))], [limite]);
-  for (const pose of [prendre, combien]) pose.dataset.cle = "ordinaires";
+  // Leur niveau, celui de la table (niveaux.js) : le groupe le dit, l'étiquette reste sur la ligne.
+  for (const pose of [prendre, combien]) {
+    pose.dataset.cle = "ordinaires";
+    pose.firstElementChild?.append(niveauDe(document, "ordinaires"));
+  }
   ordinaires.replaceChildren(prendre, combien);
   poserLesGroupes();
 }

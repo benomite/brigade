@@ -417,6 +417,6 @@ describe("la fiabilité des cooks, sur l'onglet Cooks du projet (#1699)", () => 
     await repos();
     assert.throws(() => vue.element("parametres-onglets"), /aucun élément « parametres-onglets »/);
     assert.ok(!vue.element("etat").dessous("button").some(({ textContent }) => textContent === "Reliability"));
-    assert.ok(!vue.element("etat").descendants().includes(vue.element("fiabilite-du-projet")));
+    assert.ok(![...vue.element("etat").descendants()].includes(vue.element("fiabilite-du-projet")));
   });
 });
