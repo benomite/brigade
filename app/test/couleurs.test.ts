@@ -339,7 +339,7 @@ describe("les couleurs dans la vue", () => {
     const vue = await jouer([PARADE, FANFARE], () => undefined);
     caseDe(vue, 1).click();
     await repos();
-    await ouvrirLecture(vue, "General");
+    await ouvrirLecture(vue, "Settings");
     const couleurs = vue.element("couleurs");
     assert.equal(couleurs.hidden, false);
     for (const [rangee, portee] of [[0, "purple"], [1, "turquoise"]] as const) {
@@ -368,7 +368,7 @@ describe("les couleurs dans la vue", () => {
     const vue = await jouer([{ ...PARADE, couleurs: { onglet: "#123456" } }], () => "ce fichier n'a pas pu être écrit : EACCES");
     caseDe(vue, 1).click();
     await repos();
-    await ouvrirLecture(vue, "General");
+    await ouvrirLecture(vue, "Settings");
     const propre = pastilles(vue, 0).at(-1);
     assert.equal(propre?.style.getPropertyValue("--teinte"), "#123456");
     assert.equal(propre?.title, "Tab, in the bar: #123456, your own color");
@@ -386,7 +386,7 @@ describe("les couleurs dans la vue", () => {
     const vue = await jouer([PARADE, FANFARE], () => undefined);
     caseDe(vue, 1).click();
     await repos();
-    await ouvrirLecture(vue, "General");
+    await ouvrirLecture(vue, "Settings");
     const libres = vue.element("couleurs").dessous("input");
     assert.deepEqual(libres.map(({ type, title, value }) => [type, title, value]), [
       ["color", "Tab, in the bar: another color…", "#a98cf2"],
@@ -411,7 +411,7 @@ describe("les couleurs dans la vue", () => {
     const vue = await jouer([proche, FANFARE], () => undefined);
     caseDe(vue, 1).click();
     await repos();
-    await ouvrirLecture(vue, "General");
+    await ouvrirLecture(vue, "Settings");
     const enfants = vue.element("couleurs").children.map(({ className, textContent }) => [className, className === "rangee" ? "" : textContent]);
     assert.deepEqual(enfants.slice(1), [
       ["rangee", ""],
