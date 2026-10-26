@@ -4,8 +4,16 @@
 // seule, et `brigade-appairage.json`, écrit par l'app seule quand le chef a
 // tapé le bon code. Aucune liaison directe entre l'app et la station : c'est
 // tout ce qu'elles se disent.
+//
+// L'appairage porte aussi ce que la station fournit (`fournit`, #1757), quand
+// c'est l'app de sa machine qui l'appaire — elle seule voit la machine : un Mac
+// fournit `macos`, plus ce que l'installation y détecte (poste/fournit.ts).
+// L'app le reprend dans la demande de chaque projet où la station est ajoutée
+// (projets/projets.ts) : c'est là que la station principale du projet le lit.
+// Une station appairée d'ailleurs, ou avant #1757, n'en dit rien.
 import { createHash } from "node:crypto";
 import { lireEtatsPublies, type EtatsPublies } from "../pannes/etats.ts";
+import { capacitesLues } from "../projets/demande.ts";
 
 export const FICHIER_STATION = "brigade-station.json";
 export const FICHIER_APPAIRAGE = "brigade-appairage.json";
@@ -80,4 +88,25 @@ export function lireDocument(brut: string): DocumentStation | { illisible: strin
     echus: Array.isArray(echus) ? echus.filter(texte) : [],
     ...lireEtatsPublies(lu),
   };
+}
+
+// L'appairage, tel que l'app l'écrit : quand, par quel code — son empreinte —, et ce que la station fournit.
+export type DocumentAppairage = { appaireeLe: string; empreinte: string; fournit?: string[] };
+
+export function documentDAppairage(appairage: DocumentAppairage): string {
+  const fournit = capacitesLues(appairage.fournit);
+  return `${JSON.stringify({ appaireeLe: appairage.appaireeLe, empreinte: appairage.empreinte, ...(fournit.length === 0 ? {} : { fournit }) }, null, 2)}\n`;
+}
+
+// L'appairage relu : illisible, ou d'une app d'avant #1757, il ne fournit rien.
+export function lireAppairage(brut: string | undefined): DocumentAppairage | null {
+  if (brut === undefined) return null;
+  try {
+    const { appaireeLe, empreinte, fournit } = (JSON.parse(brut) ?? {}) as Record<string, unknown>;
+    if (!date(appaireeLe) || !texte(empreinte)) return null;
+    const capacites = capacitesLues(fournit);
+    return { appaireeLe, empreinte, ...(capacites.length === 0 ? {} : { fournit: capacites }) };
+  } catch {
+    return null;
+  }
 }

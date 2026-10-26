@@ -416,6 +416,48 @@ describe("l'ajout, la lecture et le retrait d'un projet, contre un GitHub de tes
     assert.deepEqual(demande("g2")?.find(({ nom }) => nom === "parade")?.fournit, ["navigateur-headless", "android"]);
   });
 
+  test("ce que l'appairage d'un Mac dit qu'il fournit part dans sa demande quand il est ajouté au projet, avec ce que le chef a coché (#1757)", { skip: SANS_POSIX }, async (t) => {
+    const { projets, demande } = unGitHub(t, [BOX, { ...MAC, fournit: ["macos", "docker"] }]);
+    await projets.confier(CONFIANCE);
+    assert.equal("fournit" in (demande("g1")?.[0] ?? {}), false, "la box n'en dit rien : sa demande non plus");
+    assert.deepEqual(await projets.confier({ ...SANS_RIEN, depot: "benomite/parade", base: "main", cooks: "3", capacites: ["navigateur-headless", "docker"] }), { ajoute: "parade" });
+    const ecrit = demande("g2")?.[0];
+    assert.deepEqual([ecrit?.principale, ecrit?.fournit], [false, ["navigateur-headless", "docker", "macos"]]);
+  });
+
+  test("un Mac ajouté avant que son appairage ne dise ce qu'il fournit : sa demande le reprend à la lecture suivante, sans geste du chef (#1757)", { skip: SANS_POSIX }, async (t) => {
+    const mac: StationVue = { ...MAC };
+    const { projets, demande } = unGitHub(t, [BOX, mac]);
+    await projets.confier(CONFIANCE);
+    await projets.confier({ ...SANS_RIEN, depot: "benomite/parade", base: "main", cooks: "3", capacites: ["docker"] });
+    assert.deepEqual(demande("g2")?.[0]?.fournit, ["docker"]);
+    await projets.relire();
+    assert.deepEqual(demande("g2")?.[0]?.fournit, ["docker"], "rien à reprendre : rien n'est réécrit");
+    mac.fournit = ["macos"];
+    await projets.relire();
+    // La reprise passe à la suite des gestes du chef : un retrait qui ne trouve rien la suit, et n'écrit rien.
+    assert.deepEqual(await projets.retirer("absent"), { refus: "absent is on none of your stations" });
+    assert.deepEqual(demande("g2")?.[0]?.fournit, ["docker", "macos"]);
+    assert.equal("fournit" in (demande("g1")?.[0] ?? {}), false);
+  });
+
+  test("la station ajoutée est dite atteinte, ou pas et pourquoi, telle que la principale la tient (#1756, #1757)", { skip: SANS_POSIX }, async (t) => {
+    const { projets, suivre } = unGitHub(t);
+    await projets.confier(CONFIANCE);
+    await projets.confier({ ...SANS_RIEN, depot: "benomite/parade", base: "main", cooks: "3" });
+    suivre("g2", [{ nom: "parade", etat: "secondaire", dit: "not its main station", autoriser: [], serviLe: null }]);
+    const lue = async () => (await projets.relire()).projets[0]?.stations.find(({ id }) => id === "g2");
+    assert.equal((await lue())?.atteinte, undefined, "la principale n'en dit rien encore");
+    const tenue = { nom: "macbook", station: "macbook/claude", gist: "g2", cooks: 3, fournit: ["code", "raisonnement", "macos"] };
+    suivre("g1", [{ ...SERVI, secondaires: [{ ...tenue, atteinte: true, dit: "reached: it is online on GitHub" }] }]);
+    assert.deepEqual((await lue())?.atteinte, { oui: true, dit: "reached: it is online on GitHub" });
+    suivre("g1", [{ ...SERVI, secondaires: [{ ...tenue, atteinte: false, dit: "not reached: it stopped at 2026-10-15T11:50:00.000Z" }] }]);
+    assert.deepEqual((await lue())?.atteinte, { oui: false, dit: "not reached: it stopped at 2026-10-15T11:50:00.000Z" });
+    // Une secondaire illisible, ou celle d'une autre station, ne dit rien de celle-ci.
+    suivre("g1", [{ ...SERVI, secondaires: [{ ...tenue, gist: "g9", atteinte: true, dit: "reached" }, { ...tenue, atteinte: "oui", dit: "reached" }] }]);
+    assert.equal((await lue())?.atteinte, undefined);
+  });
+
   test("rien de choisi, rien d'écrit ; GitHub muet, le refus le dit en une ligne", { skip: SANS_POSIX }, async (t) => {
     const { projets, demande, panne } = unGitHub(t, [BOX]);
     assert.deepEqual(await projets.confier({ ...CONFIANCE, stations: [], principale: "" }), {

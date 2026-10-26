@@ -9,8 +9,9 @@
 // code, et y écrit l'appairage — la station le lit à son signe de vie suivant.
 // Un code mal formé, inconnu ou échu est refusé en une ligne, et rien n'est écrit.
 import type { ConnexionPubliee } from "../pannes/etats.ts";
+import { capacitesLues } from "../projets/demande.ts";
 import { pannesDe, type Panne } from "../pannes/pannes.ts";
-import { empreinte, FICHIER_APPAIRAGE, FICHIER_STATION, lireDocument, normaliser, type DocumentStation } from "./document.ts";
+import { documentDAppairage, empreinte, FICHIER_APPAIRAGE, FICHIER_STATION, lireAppairage, lireDocument, normaliser, type DocumentAppairage, type DocumentStation } from "./document.ts";
 import { suivreLesVersions, type VersionsVues } from "./versions.ts";
 import type { GistDeStation, GitHubDesStations } from "./github.ts";
 
@@ -21,8 +22,9 @@ export type EtatDeStation = "en-ligne" | "hors-ligne" | "illisible";
 // morceaux : `dit`, son état en quelques mots
 // (« online », « offline for 12 min ») ; sa `version` ; les `projets` qu'elle porte ; sa connexion Max
 // telle qu'elle la publie — nulle quand elle n'en dit rien, ou qu'elle se tait ; `versionDit`, sa ligne de
-// mise à jour (`ligneDeVersion`), vide quand il n'y a rien à en dire.
-export type StationVue = { id: string; nom: string; machine: string; coeurs?: number; cuisine?: false; etat: EtatDeStation; ligne: string; pannes: Panne[]; dit: string; version: string; projets: string[]; max: ConnexionPubliee["etat"] | null; versionDit?: string };
+// mise à jour (`ligneDeVersion`), vide quand il n'y a rien à en dire. `fournit` : ce que son appairage
+// dit qu'elle fournit (document.ts, #1757) — absent quand il n'en dit rien.
+export type StationVue = { id: string; nom: string; machine: string; coeurs?: number; cuisine?: false; fournit?: string[]; etat: EtatDeStation; ligne: string; pannes: Panne[]; dit: string; version: string; projets: string[]; max: ConnexionPubliee["etat"] | null; versionDit?: string };
 // `sans` : pourquoi la dernière lecture n'a pas abouti — la liste est alors celle d'avant.
 // `limite` : c'est GitHub qui limite les appels du compte, et `reprise`, l'heure où il les rend —
 // nulle quand il ne l'a pas dite.
@@ -93,7 +95,11 @@ export type OptionsStations = {
 export type Stations = {
   vu(): VuDesStations | undefined;
   relire(): Promise<VuDesStations>;
-  appairer(tape: unknown): Promise<Appairage>;
+  // `fournit` : ce que la station fournit, quand l'app de sa machine l'appaire — l'appairage le porte.
+  appairer(tape: unknown, fournit?: readonly string[]): Promise<Appairage>;
+  // Réécrit ce que l'appairage d'une station dit qu'elle fournit, s'il en dit autre chose — la station de cet
+  // ordinateur, appairée avant que l'app ne l'y écrive. Rend vrai quand il a été réécrit.
+  tenirCeQuElleFournit(id: string, fournit: readonly string[]): Promise<boolean>;
   // Écarte une panne de la ligne d'une station : elle n'y revient pas, tant que l'app est ouverte.
   ecarter(id: string, cle: string): VuDesStations | undefined;
   // Retire la station de l'app : son appairage est ôté de son gist, elle n'est plus lue ni listée.
@@ -106,7 +112,7 @@ export function tenirStations(options: OptionsStations): Stations {
   const { github } = options;
   const maintenant = options.maintenant ?? Date.now;
   // Ce que chaque gist appairé disait à sa dernière lecture, et quand GitHub l'a changé.
-  const lus = new Map<string, { misAJour: string; document: DocumentStation | { illisible: string } }>();
+  const lus = new Map<string, { misAJour: string; document: DocumentStation | { illisible: string }; appairage: DocumentAppairage | null }>();
   let vu: VuDesStations | undefined;
   let enCours: Promise<VuDesStations> | undefined;
   // Les pannes écartées : `<gist> <clé>`.
@@ -115,7 +121,7 @@ export function tenirStations(options: OptionsStations): Stations {
 
   const montrer = (sans?: string, limite?: VuDesStations["limite"]): VuDesStations => {
     const instant = maintenant();
-    const stations = [...lus].map(([id, { document }]): StationVue =>
+    const stations = [...lus].map(([id, { document, appairage }]): StationVue =>
       "illisible" in document
         ? { id, nom: id, machine: "", etat: "illisible", ligne: `unreadable: ${document.illisible}`, pannes: [], dit: "unreadable", version: "", projets: [], max: null, versionDit: "" }
         : {
@@ -124,6 +130,7 @@ export function tenirStations(options: OptionsStations): Stations {
             machine: document.machine,
             ...(document.cuisine === false ? { cuisine: false as const } : {}),
             ...(document.coeurs === undefined ? {} : { coeurs: document.coeurs }),
+            ...(appairage?.fournit === undefined ? {} : { fournit: appairage.fournit }),
             ...ligneDe(document, instant),
             pannes: pannesDe(document, instant).filter(({ cle }) => !ecartees.has(`${id} ${cle}`)),
             dit: etatDe(document, instant).dit,
@@ -146,7 +153,7 @@ export function tenirStations(options: OptionsStations): Stations {
     const fichiers = await github.lire(gist.id);
     if (fichiers === null) return undefined;
     const brut = fichiers[FICHIER_STATION];
-    return { misAJour: gist.misAJour, document: brut === undefined ? { illisible: "its gist no longer holds its state" } : lireDocument(brut) };
+    return { misAJour: gist.misAJour, document: brut === undefined ? { illisible: "its gist no longer holds its state" } : lireDocument(brut), appairage: lireAppairage(fichiers[FICHIER_APPAIRAGE]) };
   };
 
   const lire = async (): Promise<VuDesStations> => {
@@ -169,7 +176,7 @@ export function tenirStations(options: OptionsStations): Stations {
     return enCours;
   };
 
-  const appairer = async (tape: unknown): Promise<Appairage> => {
+  const appairer = async (tape: unknown, fournit: readonly string[] = []): Promise<Appairage> => {
     const dit = typeof tape === "string" ? tape.trim() : "";
     const code = normaliser(dit);
     if (code === null) return { refus: `“${dit.slice(0, 20)}” is not a pairing code: the station shows 8 letters and digits, like 7KQ2-M9XD` };
@@ -190,7 +197,7 @@ export function tenirStations(options: OptionsStations): Stations {
       const { appairage } = trouvee.document;
       nom = trouvee.document.nom;
       if (appairage?.empreinte !== cherchee || Date.parse(appairage.expireLe) <= instant) return { refus: `this code has expired: station ${nom} shows a new one in its log — type that one` };
-      await github.ecrire(trouvee.id, { [FICHIER_APPAIRAGE]: `${JSON.stringify({ appaireeLe: new Date(instant).toISOString(), empreinte: cherchee }, null, 2)}\n` });
+      await github.ecrire(trouvee.id, { [FICHIER_APPAIRAGE]: documentDAppairage({ appaireeLe: new Date(instant).toISOString(), empreinte: cherchee, fournit: [...fournit] }) });
     } catch (erreur) {
       return { refus: "nothing was paired: GitHub could not be read or written", detail: message(erreur) };
     }
@@ -198,6 +205,17 @@ export function tenirStations(options: OptionsStations): Stations {
     await enCours;
     await relire();
     return { appairee: nom };
+  };
+
+  const tenirCeQuElleFournit = async (id: string, fournit: readonly string[]): Promise<boolean> => {
+    const lu = lus.get(id);
+    const appairage = lu?.appairage ?? null;
+    const voulu = capacitesLues(fournit);
+    if (appairage === null || (appairage.fournit ?? []).join("+") === voulu.join("+")) return false;
+    await github.ecrire(id, { [FICHIER_APPAIRAGE]: documentDAppairage({ ...appairage, fournit: voulu }) });
+    await enCours;
+    await relire();
+    return true;
   };
 
   const retirer = async (id: unknown): Promise<RetraitDeStation> => {
@@ -223,6 +241,7 @@ export function tenirStations(options: OptionsStations): Stations {
     vu: () => vu,
     relire,
     appairer,
+    tenirCeQuElleFournit,
     ecarter(id, cle) {
       ecartees.add(`${id} ${cle}`);
       return vu === undefined ? undefined : montrer(vu.sans, vu.limite);

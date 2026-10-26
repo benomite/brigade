@@ -13,7 +13,8 @@
 // station qu'il quitte, et `reprise`, sur celle qui le reprend : l'app les relit et les réécrit tels
 // quels — sans eux, le déménagement en cours ne serait plus qu'un changement de principale.
 // `fournit` : ce que la machine de la station sait faire en plus de coder, coché par le chef à son
-// ajout (#1307) ; la station le déclare à son journal, jamais dans le dépôt. Relu et réécrit tel quel.
+// ajout (#1307), et ce que l'appairage de la station dit qu'elle fournit (#1757, stations/document.ts) ; la station
+// le déclare à son journal, jamais dans le dépôt. Relu et réécrit tel quel.
 // Aucune liaison directe entre l'app et la station : c'est tout ce qu'elles se disent.
 
 export const FICHIER_PROJETS = "brigade-projets.json";
@@ -89,7 +90,11 @@ export type Selections = Record<string, string>;
 // Le temps de l'ajout du projet à son premier ticket servi (#1401, runtime/src/installation/delai/) : `ajouteLe` (ISO),
 // `serviLe` (ISO, ou null tant qu'aucun ticket n'est servi) et `duree` (millisecondes, figée, ou null).
 export type Delai = { ajouteLe: string; serviLe: string | null; duree: number | null };
-export type SuiviDuProjet = { nom: string; etat: EtatDuProjet; dit: string; autoriser: string[]; serviLe: string | null; cuitSur: string | null; ici: boolean; bascule: Bascule | null; acces: AccesBloque | null; refus: Refus | null; worktree: EchecDuWorktree | null; clone?: EchecDuClone; blocages?: Blocage[]; delai?: Delai; choix?: Choix[]; depot: string | null; base: string | null; cooks: number | null };
+// `secondaires` : les stations que l'app appaire au projet en plus de sa principale, telles que la principale les
+// tient (#1756, runtime/src/projets/secondaires.ts) — déclarées à son journal, chacune par son gist, avec ce qu'elle
+// fournit, si elle est atteinte, et pourquoi en une phrase. Seule la principale les publie ; absentes sans elles.
+export type SecondaireTenue = { nom: string; station: string; gist: string; cooks: number; fournit: string[]; atteinte: boolean; dit: string };
+export type SuiviDuProjet = { nom: string; etat: EtatDuProjet; dit: string; autoriser: string[]; serviLe: string | null; cuitSur: string | null; ici: boolean; bascule: Bascule | null; acces: AccesBloque | null; refus: Refus | null; worktree: EchecDuWorktree | null; clone?: EchecDuClone; blocages?: Blocage[]; delai?: Delai; choix?: Choix[]; secondaires?: SecondaireTenue[]; depot: string | null; base: string | null; cooks: number | null };
 
 const ETATS: readonly string[] = ["servi", "a-autoriser", "en-preparation", "refuse", "secondaire"];
 const ETAPES: readonly string[] = ["demandee", "acceptee", "refusee", "remise", "recue"];
@@ -218,6 +223,13 @@ export function lireDemande(brut: string | undefined): ProjetDemande[] | null {
   });
 }
 
+// Une station secondaire illisible — sans gist, sans nom, sans phrase — n'est pas montrée.
+const lireUneSecondaire = (lue: unknown): SecondaireTenue[] => {
+  const { nom, station, gist: sien, cooks, fournit, atteinte, dit } = (lue ?? {}) as Record<string, unknown>;
+  if (!nomDeStation(nom) || !texte(station) || !gist(sien) || typeof atteinte !== "boolean" || !phrase(dit)) return [];
+  return [{ nom, station, gist: sien, cooks: typeof cooks === "number" && Number.isSafeInteger(cooks) && cooks >= 1 ? cooks : 0, fournit: capacitesLues(fournit), atteinte, dit }];
+};
+
 // Le délai publié d'un projet : l'instant d'ajout, et, servi, l'instant et la durée figée. Illisible : rien.
 function lireDelai(lu: unknown): Delai | null {
   const { ajouteLe, serviLe, duree } = (lu ?? {}) as Record<string, unknown>;
@@ -234,12 +246,13 @@ export function lireSuivi(brut: string | undefined): SuiviDuProjet[] {
     const lu = JSON.parse(brut) as { brigade?: unknown; projets?: unknown };
     if (lu?.brigade !== "projets-suivi" || !Array.isArray(lu.projets)) return [];
     return (lu.projets as unknown[]).flatMap((brut) => {
-      const { nom, etat, dit, autoriser, serviLe, cuitSur, ici, bascule, acces, refus, worktree, clone, blocages, delai, choix, depot, base, cooks } = (brut ?? {}) as Record<string, unknown>;
+      const { nom, etat, dit, autoriser, serviLe, cuitSur, ici, bascule, acces, refus, worktree, clone, blocages, delai, choix, secondaires, depot, base, cooks } = (brut ?? {}) as Record<string, unknown>;
       if (!texte(nom) || !texte(etat) || !ETATS.includes(etat)) return [];
       const echecDuClone = lireClone(clone);
       const lesBlocages = Array.isArray(blocages) ? blocages.flatMap(lireUnBlocage) : [];
       const leDelai = lireDelai(delai);
       const lesChoix = Array.isArray(choix) ? choix.flatMap(lireUnChoix) : [];
+      const lesSecondaires = Array.isArray(secondaires) ? secondaires.flatMap(lireUneSecondaire) : [];
       return [
         {
           nom,
@@ -257,6 +270,7 @@ export function lireSuivi(brut: string | undefined): SuiviDuProjet[] {
           ...(lesBlocages.length === 0 ? {} : { blocages: lesBlocages }),
           ...(leDelai === null ? {} : { delai: leDelai }),
           ...(lesChoix.length === 0 ? {} : { choix: lesChoix }),
+          ...(lesSecondaires.length === 0 ? {} : { secondaires: lesSecondaires }),
           depot: texte(depot) && depot.trim() !== "" ? depot.trim() : null,
           base: texte(base) && base.trim() !== "" ? base.trim() : null,
           cooks: typeof cooks === "number" && Number.isSafeInteger(cooks) && cooks >= 1 ? cooks : null,

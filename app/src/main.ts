@@ -62,6 +62,7 @@ import { memoireDansFichier, tenirNotifications } from "./notification.ts";
 import { tenirCuisinesIci } from "./poste/cuisine-ici.ts";
 import { estUnMac, nomDuPoste, persistantSur, shellDuPoste } from "./plateforme.ts";
 import { cuisinesIci, roleDe } from "./poste/role.ts";
+import { ceQueFournitCetOrdinateur } from "./poste/fournit.ts";
 import { tenirStationLocale } from "./poste/station.ts";
 import { ouvrirPty } from "./pty.ts";
 import { ouvrirDUneStation, type StationsDuChef } from "./premier-lancement.ts";
@@ -79,7 +80,7 @@ import { tenirServices } from "./service.ts";
 import { souvenirsDansFichier } from "./souvenirs.ts";
 import { githubDesStations } from "./stations/github.ts";
 import { choixDesProjets, type StationsDuCompte } from "./stations-du-compte.ts";
-import { tenirStations } from "./stations/stations.ts";
+import { tenirStations, type VuDesStations } from "./stations/stations.ts";
 import { versionsDansFichier } from "./stations/versions.ts";
 import { suivreConfiguration } from "./suivi.ts";
 import { gistDesPreferences } from "./reglages-perso/gist.ts";
@@ -607,8 +608,37 @@ const stations = tenirStations({
     for (const bande of bandes.limite(vu.limite)) direLaBande(bande);
     direLAccueil(accueil.stations(vu));
     void projetsDesStations.relire();
+    void tenirCeQueFournitCetOrdinateur(vu);
   },
 });
+// Ce que la station de cet ordinateur fournit (poste/fournit.ts, #1757) : `macos` sur un Mac, et ce que
+// le runtime détecte sur la machine — regardé une fois par lancement, sans rien y lancer. Son appairage le
+// porte : écrit quand l'app l'appaire, et réécrit si une station appairée avant ne le dit pas.
+let fournitIci: Promise<string[]> | undefined;
+const ceQueFournitIci = () =>
+  (fournitIci ??= (async () => {
+    try {
+      const { capacitesDeLaMachine } = (await import(pathToFileURL(join(emplacements.runtime, "src", "projets", "ajout-de-station.ts")).href)) as typeof import("../../runtime/src/projets/ajout-de-station.ts");
+      const { sondeDeLaMachine } = (await import(pathToFileURL(join(emplacements.runtime, "src", "installation", "besoins", "fourni.ts")).href)) as typeof import("../../runtime/src/installation/besoins/fourni.ts");
+      return ceQueFournitCetOrdinateur(process.platform, capacitesDeLaMachine(sondeDeLaMachine(process.env)));
+    } catch (erreur) {
+      console.error(`brigade: what this computer provides beyond its system could not be read — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+      return ceQueFournitCetOrdinateur(process.platform, []);
+    }
+  })());
+let fournitTenu = false;
+async function tenirCeQueFournitCetOrdinateur(vu: VuDesStations): Promise<void> {
+  const ici = stationLocale === undefined ? null : gistLocal(racineDeLaStation);
+  if (fournitTenu || ici === null || !vu.stations.some(({ id }) => id === ici)) return;
+  fournitTenu = true;
+  try {
+    if (await stations.tenirCeQuElleFournit(ici, await ceQueFournitIci())) console.error("brigade: this computer's station now says on GitHub what it provides");
+  } catch (erreur) {
+    // Le gist n'a pas pu s'écrire : la lecture suivante réessaie.
+    fournitTenu = false;
+    console.error(`brigade: what this computer's station provides could not be written on GitHub — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+  }
+}
 // Sur un ordinateur, l'app est une station (`role`) : elle lance celle de la machine — la même
 // que celle d'un serveur —, sous `station/` à côté du fichier des projets, et l'appaire seule,
 // par le geste du champ de la home (poste/station.ts). Ce que la station dit s'écrit dans le
@@ -622,7 +652,7 @@ const stationLocale =
         racine: racineDeLaStation,
         env: process.env,
         dire: (ligne) => console.error(ligne),
-        appairer: (code) => stations.appairer(code),
+        appairer: async (code) => stations.appairer(code, await ceQueFournitIci()),
         // Lancée ou arrêtée : la page d'un projet qui cuit ici le dit, ou cesse de le dire.
         surChangement: () => dire("configuration", affichee(), []),
       })

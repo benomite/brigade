@@ -5783,13 +5783,15 @@ async function ajouterProjet() {
   validerAjout.disabled = false;
 }
 
-// Ce qu'une station dit du projet qu'on lui a confié, en quelques mots, et le ton de sa pastille.
-/** @param {import("../projets/projets.ts").StationDuProjet["etat"]} etat */
-function etatDeLaCuisine(etat) {
+// Ce qu'une station dit du projet qu'on lui a confié, en quelques mots, et le ton de sa pastille. Une station
+// ajoutée en plus de la principale est verte quand la principale la dit atteinte (ticket 1757), grise sinon.
+/** @param {import("../projets/projets.ts").StationDuProjet["etat"]} etat @param {import("../projets/projets.ts").StationDuProjet["atteinte"]} [atteinte] */
+function etatDeLaCuisine(etat, atteinte) {
   if (etat === "servi") return { dit: "served", ton: "vert" };
   if (etat === "a-autoriser") return { dit: "waiting for your authorization on GitHub", ton: "jaune" };
   if (etat === "en-preparation") return { dit: "being prepared", ton: "gris" };
   if (etat === "refuse") return { dit: "refused", ton: "rouge" };
+  if (etat === "secondaire" && atteinte !== undefined) return atteinte.oui ? { dit: "reached: it cooks with the main station", ton: "vert" } : { dit: "not reached", ton: "gris" };
   if (etat === "secondaire") return { dit: "secondary", ton: "gris" };
   return { dit: "not read yet", ton: "gris" };
 }
@@ -5808,7 +5810,7 @@ function cuisineDe(projet) {
     ...servies.map(({ id, nom }) => ({ id, nom, principale: true, ...(muette ? { dit: "unreachable", ton: "rouge" } : etatDeLaCuisine("servi")), survol: muette ? `${nom} does not answer: the app knows nothing of the kitchen right now` : `${nom} serves it: it runs its manager and its pass`, autoriser: /** @type {string[]} */ ([]) })),
     ...(demande?.stations ?? [])
       .filter(({ id }) => !servies.some((servie) => servie.id === id))
-      .map((station) => ({ id: station.id, nom: station.nom, principale: station.principale, ...etatDeLaCuisine(station.etat), survol: station.dit, autoriser: station.autoriser })),
+      .map((station) => ({ id: station.id, nom: station.nom, principale: station.principale, ...etatDeLaCuisine(station.etat, station.atteinte), survol: station.atteinte === undefined ? station.dit : station.atteinte.dit.replace(/^(not )?reached: /, ""), autoriser: station.autoriser })),
   ];
   return { stations, demande: demande !== undefined, principale: stations.some(({ principale }) => principale) };
 }
