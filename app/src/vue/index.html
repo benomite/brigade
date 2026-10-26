@@ -72,8 +72,6 @@
         <div id="interrupteur-projet" class="interrupteur-de-tete" hidden></div>
         <!-- Le journal est de l'outillage de panne : il n'est pas à l'écran, ce geste l'ouvre. -->
         <button type="button" id="journal" title="open the log — breakdown tooling, only the end of the log" hidden>log</button>
-        <!-- Le geste du projet lui-même : vérifier son installation. Les autres sont collés à l'état qu'ils changent. -->
-        <div id="gestes-projet" class="gestes" hidden></div>
       </header>
       <!-- Les stations qui font la cuisine du projet (ticket 983) : nommées en une ligne, avec de quoi en ajouter
            une ; s'il n'en a aucune, une phrase le dit, et le geste qui la lui confie est à côté. Elles sont de
@@ -97,38 +95,32 @@
            bouton, ou Échap —, elle rend le rail tel qu'il était. Une page ouverte se pose par-dessus elle aussi. -->
       <section id="fiche" role="dialog" aria-label="The ticket's sheet" tabindex="-1" hidden></section>
       <section id="contenu" hidden>
-        <!-- Paramètres : ce qui se règle, et ce qui est bon à savoir sans être une alerte. Ses lectures sont dessous. -->
-        <nav id="parametres-onglets" aria-label="Settings" hidden></nav>
-        <section id="etat" aria-label="Project settings" hidden>
-          <!-- La vérification d'un projet installé : son verdict en une phrase, ses manques, la sortie brute repliée. -->
-          <div id="verification-etat" hidden></div>
-          <details id="service" hidden>
-            <summary id="service-titre"></summary>
-            <div id="service-tete"></div>
-            <ol id="service-etapes"></ol>
-          </details>
-          <details id="retrait" hidden>
-            <summary id="retrait-titre"></summary>
-            <div id="retrait-gestes"></div>
-          </details>
-          <!-- Les réglages du projet, dans son dépôt (ticket 1309) : sa branche, ses calibrages par défaut, son plafond — chacun changé par une PR. -->
-          <div id="reglages-du-projet" aria-live="polite" hidden></div>
-          <!-- Les couleurs du projet : son onglet dans la barre, son accent ici. Tirées à son ajout, elles se changent d'un clic. -->
-          <section id="couleurs" aria-label="The project colors" hidden></section>
-          <!-- Les tickets ordinaires de cet ordinateur : l'option et sa limite de cooks, pour un projet dont il joue une station — hors d'un Mac, pourquoi il n'en prend pas. -->
-          <section id="ordinaires" aria-label="Ordinary tickets on this computer" hidden></section>
-          <!-- D'où viennent les lectures du rail : pour le jour d'une panne, pas en tête de l'écran. -->
-          <details id="provenance" hidden>
-            <summary>where the rail's data comes from</summary>
-            <div id="provenance-lignes"></div>
-          </details>
-          <!-- Le geste rare et lourd, rangé ici : arrêter la cuisine. -->
-          <section id="arreter-cuisine" class="gestes" aria-label="Stop the kitchen" hidden></section>
-          <p id="lu" aria-live="polite"></p>
-          <div id="lecture"></div>
+        <!-- Settings (ticket 1700) : seulement ce que le chef règle, en trois groupes — le projet, cette machine, toi.
+             Chaque réglage dit sa valeur et a un seul contrôle pour la changer ; ni statistique, ni historique, ni texte
+             d'explication. -->
+        <section id="etat" aria-label="Settings" hidden>
+          <!-- Le projet : ses réglages dans son dépôt (ticket 1309), chacun changé par une PR ; ses grants, une ligne
+               chacun ; sa cuisine, en marche ou à l'arrêt. -->
+          <section id="reglages-projet" class="groupe" aria-label="Project">
+            <h2 id="niveau-project" class="niveau-du-groupe"></h2>
+            <p id="vide-project" class="vide" hidden></p>
+            <div id="reglages-du-projet" aria-live="polite" hidden></div>
+            <div id="grants" aria-label="The grants" hidden></div>
+            <div id="arreter-cuisine" class="gestes" aria-label="The kitchen" hidden></div>
+          </section>
+          <!-- Cette machine : ses tickets ordinaires, pour un projet dont elle joue une station. -->
+          <section id="reglages-machine" class="groupe" aria-label="This machine">
+            <h2 id="niveau-machine" class="niveau-du-groupe"></h2>
+            <p id="vide-machine" class="vide" hidden></p>
+            <div id="ordinaires" aria-label="Ordinary tickets on this computer" hidden></div>
+          </section>
+          <!-- Toi : les couleurs du projet, et sa place dans ton app. -->
+          <section id="reglages-toi" class="groupe" aria-label="You">
+            <h2 id="niveau-you" class="niveau-du-groupe"></h2>
+            <div id="couleurs" aria-label="The project colors" hidden></div>
+            <div id="retrait" aria-label="This project in your app" hidden></div>
+          </section>
         </section>
-        <section id="manager" aria-label="The manager" hidden></section>
-        <section id="grants" aria-label="The grants" hidden></section>
         <p id="lu-onglet" aria-live="polite"></p>
         <p id="gestes-onglet" class="gestes" hidden></p>
         <div id="lecture-onglet"></div>
