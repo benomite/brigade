@@ -294,11 +294,41 @@ The PR body has **four parts**, in this order, which the brief also names to the
   the closer having named it is said to be **left with no reason**.
 - **The same list, one entry per candidate**: under the four parts, a folded JSON block gives what
   was left as `{ id, location, reason }` — `location` is `<path>:<line>` for a dead export and the
-  two `<path>:<first>-<last>` of a duplicate. It is what a later pass can store so as not to
-  propose it again (#1681); today it is only in the PR, and `closing.ended` keeps `kept` as before.
+  two `<path>:<first>-<last>` of a duplicate. The same entries are what the pass remembers (see
+  "What a pass remembers"), and `closing.ended` keeps `kept` as before.
 - **Set aside before the pass**: what a cook was holding, and what went beyond the forty candidates.
+- **Not proposed again**: a line says how many candidates an earlier pass left, with the code around
+  them unchanged since, and that were not proposed to the closer.
 
 A pass that removed nothing opens no PR: what it left is in `closing.ended` (`kept`).
+
+### What a pass remembers
+
+A closer that left a candidate once, with its reason, would leave it again on the same code. So the
+pass **remembers what its closer left**, per project, and the next passes do not propose it again
+**unless the code around it changed** since (`runtime/src/closing/memory.ts`):
+
+- **What is remembered**: each candidate the closer left — with its reason, or "left with no
+  reason" — once its end is judged, whether the pass delivered a PR or removed nothing. Not what
+  was set aside before the pass (a cook held it, the forty were reached): the closer did not judge
+  it. Not what a pass stopped by a guardrail left. An entry holds the candidate's key (what
+  recognises it in another observation, wherever its lines moved), its places, its reason, the
+  fingerprint of its surroundings, and the pass that left it.
+- **How "the code around it changed" is told**: the fingerprint of a candidate is a hash, for each
+  of its places, of its lines and of the **10 lines above and 10 lines below** — trimmed, blank
+  lines neither kept nor counted — with its path. It is taken on the base the pass started from
+  when it is remembered, and again on the base at each later pass. **The same**: it is not
+  proposed. **Another**: it is proposed again, and its old entry is dropped — a closer that leaves
+  it again writes a new one. **No longer spotted**: its entry is dropped.
+- So lines added or removed elsewhere in the file, a re-indentation or a blank line do not bring it
+  back; a changed line within ten of it does. What lies further — the far end of a long function,
+  the doc that names a dead export — is not seen: that is the price of a simple rule.
+- **Per project**: the memory is a table of the project's log base (`closing_left`), keyed by
+  project; what one project left has no effect on another. It is not a projection — the
+  fingerprint is read on the code, not in the log —, and a replay of the log leaves it as it is.
+- **Everything left, unchanged**: the pass does not start — refused `nothing`, saying "the N
+  candidates of the observation were all left by an earlier pass, with the code around them
+  unchanged since" (in French in the log, like the other details).
 
 The `LAISSÉ` keyword is the one the runtime asks of the closer and reads back, and the PR body the closing pass writes is still French — its four part titles included; both stay as they are until the runtime is translated.
 

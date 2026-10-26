@@ -27,6 +27,10 @@
 // remet à la pass, qui la juge et la merge comme celle d'un ticket : la fusion
 // avec la base, les gates, le reviewer, la CI, le grant `merge`. Un garde-fou
 // franchi, un fichier écrit hors de ce qu'elle tenait : rien n'est poussé.
+//
+// Ce que son closer a laissé faute d'être sûr, elle le retient pour le projet
+// (`memory.ts`) : les passes suivantes ne le lui reproposent pas tant que le
+// code autour n'a pas changé.
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -51,6 +55,7 @@ import { DEMANDEE, demandeEnAttente, faitAttendre, passeEnCours, refus, reglages
 import { consigneDuCloser, corpsDeLaPR, laisses, motifsDuCloser, titreDeLaPR } from "./brief.ts";
 import { direDemande, direFin, direRefus } from "./say.ts";
 import { lignesChangees, lignesRetirees, lireDepot } from "./reading.ts";
+import { poserLaMemoire, retenir, trier } from "./memory.ts";
 import { mesurerRatio } from "./ratio.ts";
 import { trigger } from "./trigger.ts";
 
@@ -94,6 +99,9 @@ type FinEcrite = Omit<Extract<FaitFermeture, { type: "closing.ended" }>["payload
 // Ce que la passe retient d'un closer qui a livré, entre le jugement de sa
 // fin et le push.
 type Livraison = { fichiers: string[]; retirees: number; ajoutees: number; retires: Retrait[]; gardes: Laisse[]; compteRendu: string | null };
+// Ce que la passe propose à son closer, et combien de candidats elle ne lui
+// repropose pas : laissés par une passe précédente, au code alentour inchangé.
+type Mission = Proposition & { deja: number };
 type EnCours = { lance: CookLance; worktree: string; entree: string; disjoncte: boolean };
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
@@ -117,6 +125,7 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
     avertir(`brigade : passe de fermeture refusée — ${direRefus(motif)}`);
   };
 
+  poserLaMemoire(base);
   base.transaction(() => {
     // Réconciliation : une passe sans fin au journal est morte avec le runtime
     // précédent, et une demande qu'il n'a pas prise ne vaut plus — l'agent le
@@ -185,7 +194,7 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
     // D'un seul geste : la demande toujours là, la condition relue, ce que les
     // cooks tiennent, et ce que la passe tient à son tour. Aucun cook ne part
     // entre les deux, et le chef ne retire pas la demande entre les deux.
-    const proposition = base.transaction((): Proposition | null => {
+    const proposition = base.transaction((): Mission | null => {
       // Retirée par le chef pendant le rapatriement : rien ne part.
       if (demandeEnAttente(base)?.seq !== demande.seq) return null;
       const motif = refus(base, reglages, false);
@@ -198,9 +207,20 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
       }
       const tenues = zonesTenues(base);
       const tous = candidats(avant);
-      const choix = proposer(tous, tenues);
+      // Ce qu'une passe précédente a laissé, et dont le code alentour n'a pas
+      // changé depuis, ne lui est pas reproposé.
+      const { neufs, deja } = trier(base, projet, tous);
+      const choix = proposer(neufs, tenues);
       if (choix.proposes.length === 0) {
-        const detail = tous.length === 0 ? `l'observation ne repère ni doublon ni code mort sur \`${options.base}\`` : `les ${tous.length} candidats de l'observation sont tous dans ce que des cooks tiennent`;
+        const laisses = `laissés par une passe précédente, sans que le code autour d'eux ait changé depuis`;
+        const detail =
+          tous.length === 0
+            ? `l'observation ne repère ni doublon ni code mort sur \`${options.base}\``
+            : deja.length === 0
+              ? `les ${tous.length} candidats de l'observation sont tous dans ce que des cooks tiennent`
+              : deja.length === tous.length
+                ? `les ${tous.length} candidats de l'observation ont tous été ${laisses}`
+                : `des ${tous.length} candidats de l'observation, ${deja.length} ont été ${laisses}, et les autres sont dans ce que des cooks tiennent`;
         refuser({ reason: "nothing", observed: null, limit: null, detail });
         return null;
       }
@@ -209,7 +229,7 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
         type: "closing.started",
         payload: { run, base: avant.sha, zone: choix.zone, held: tenues.flatMap(({ zone }) => zone ?? ["*"]), candidates: choix.proposes.length, limits: { tokens: reglages.tokens, removedLines: reglages.removedLines } },
       });
-      return choix;
+      return { ...choix, deja: deja.length };
     });
     if (proposition === null) return;
     const pente = mesurerRatio(avant.merges).map(({ fenetre, merges, ajoute, retire }): Pente => ({ window: fenetre, merges, added: ajoute, removed: retire }));
@@ -222,7 +242,7 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
     }
   };
 
-  const cuisiner = async (run: string, calibrage: NonNullable<ReglagesDeFermeture["calibration"]>, { proposes, ecartes, zone }: Proposition, pente: Pente[], finir: (fin: FinEcrite) => void): Promise<void> => {
+  const cuisiner = async (run: string, calibrage: NonNullable<ReglagesDeFermeture["calibration"]>, { proposes, ecartes, zone, deja }: Mission, pente: Pente[], finir: (fin: FinEcrite) => void): Promise<void> => {
     let worktree: string;
     let branche: string;
     try {
@@ -244,7 +264,9 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
     // La fin du closer se juge ici, avant qu'elle ne s'écrive : un closer qui
     // sort en 0 mais dépasse son plafond de retraits, ou écrit ce qu'il ne
     // tenait pas, a échoué — et le disjoncteur le compte.
-    const issue: { fin: FinEcrite; livraison: Livraison | null } = { fin: { outcome: "failed" }, livraison: null };
+    // `laisses` : ce que le closer a laissé, dès que sa fin est jugée — c'est
+    // ce que la passe retient.
+    const issue: { fin: FinEcrite; livraison: Livraison | null; laisses: Laisse[] | null } = { fin: { outcome: "failed" }, livraison: null, laisses: null };
     const conclure = (fin: FinEcrite, verdictDuCook: Verdict): Verdict => {
       issue.fin = fin;
       return verdictDuCook;
@@ -269,7 +291,10 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
         depot.recolter(worktree, branche);
         const fichiers = depot.changes(branche);
         const motifs = motifsDuCloser(lecture.message);
-        if (fichiers.length === 0) return conclure({ outcome: "nothing", kept: [...laisses(proposes, proposes, motifs), ...ecartes], slope: pente }, "ok");
+        if (fichiers.length === 0) {
+          issue.laisses = laisses(proposes, proposes, motifs);
+          return conclure({ outcome: "nothing", kept: [...issue.laisses, ...ecartes], slope: pente }, "ok");
+        }
         const { retire: retirees, ajoute: ajoutees } = lignesChangees(options.clone, env, entree, branche);
         if (retirees > reglages.removedLines) return conclure({ outcome: "removals", observed: retirees, limit: reglages.removedLines }, "failed");
         // Les deux sens, relus à la livraison : rien hors de ce qu'elle
@@ -287,6 +312,7 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
         const restes = new Set(gardes.map(({ id }) => id));
         const retires = proposes.filter(({ id }) => !restes.has(id)).map(({ id, quoi }) => ({ id, what: quoi }));
         issue.livraison = { fichiers, retirees, ajoutees, retires, gardes, compteRendu: lecture.message };
+        issue.laisses = gardes;
         return "ok";
       } catch (erreur) {
         return conclure({ outcome: "failed", detail: message(erreur) }, "failed");
@@ -339,7 +365,7 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
       // Sa branche, jamais celle d'intégration ; et une PR, que rien ici ne merge.
       try {
         depot.pousser(branche);
-        const corps = corpsDeLaPR({ run, base: options.base, calibration: calibrage, proposes, laisses: livree.gardes, ecartes, retirees: livree.retirees, ajoutees: livree.ajoutees, cap: reglages.removedLines, fichiers: livree.fichiers, compteRendu: livree.compteRendu });
+        const corps = corpsDeLaPR({ run, base: options.base, calibration: calibrage, proposes, laisses: livree.gardes, ecartes, deja, retirees: livree.retirees, ajoutees: livree.ajoutees, cap: reglages.removedLines, fichiers: livree.fichiers, compteRendu: livree.compteRendu });
         const pr = await options.github.ouvrirPR({ branche, base: options.base, titre: titreDeLaPR(run), corps });
         const ouverte = await options.github.prDeBranche(branche);
         if (ouverte === null) throw new Error(`GitHub ne rend pas la PR qu'il vient d'ouvrir (${pr})`);
@@ -362,8 +388,12 @@ export function brancherFermeture<R extends RuntimeAvecRail & GardeFous & Pass>(
     }
     // Livrée, elle entre en pass du même geste : une passe dite livrée dont la
     // PR ne serait jugée par personne aurait un chemin à elle vers la base.
+    // Ce que son closer a laissé est retenu du même geste — livrée ou non, il
+    // l'a jugé : une passe arrêtée par un garde-fou n'en dit rien.
+    const retenus = resultat.arret ? null : issue.laisses;
     base.transaction(() => {
       finir(fin);
+      if (!arrete && retenus !== null) retenir(base, projet, { run, at: maintenant().toISOString(), proposes, laisses: retenus });
       if (!arrete && numero !== null && fin.outcome === "delivered" && fin.pr !== undefined) runtime.prendreHorsRail({ run, branche, pr: fin.pr, numero });
     });
     // Son worktree part comme celui d'un cook : ce qui y traîne est commité

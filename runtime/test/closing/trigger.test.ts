@@ -71,8 +71,11 @@ describe("the automatic closing pass", { concurrency: 4 }, () => {
 
   test("once a pass is requested, no second one is requested the same day, whatever the merges or thresholds; a day later the runtime requests again, and the chef's gesture is never capped", async (t) => {
     const cuisine = cuisineFermee(t);
-    const { fin, heure, demander, journal, types } = cuisine;
-    // The closer removes nothing: the pass ends with no PR.
+    const { fin, heure, demander, journal, types, dernier } = cuisine;
+    const refused = () => types().filter((type) => type === "closing.refused").length;
+    // The closer removes nothing: the pass ends with no PR, and the pass
+    // remembers all it left. The merges below are facts, not code: the next
+    // passes find nothing new to propose, and are refused.
     merge(cuisine, 20);
     await jusqua(() => requests(cuisine).length > 0);
     assert.equal((await fin()).outcome, "nothing");
@@ -89,14 +92,15 @@ describe("the automatic closing pass", { concurrency: 4 }, () => {
     heure.avancer(60_000);
     await jusqua(() => requests(cuisine).length === 2);
     assert.deepEqual(requests(cuisine), ["runtime", "runtime"]);
-    await jusqua(() => types().filter((type) => type === "closing.ended").length === 2);
+    await jusqua(() => refused() === 1);
+    assert.equal(dernier("closing.refused")?.reason, "nothing");
 
     // The chef's gesture is not capped: right after, it still requests a pass.
     const geste = await demander();
     assert.equal(geste.code, 0, geste.sortie);
     assert.match(geste.sortie, /^brigade : closing pass requested/);
     assert.deepEqual(requests(cuisine), ["runtime", "runtime", "chef"]);
-    await jusqua(() => types().filter((type) => type === "closing.ended").length === 3);
+    await jusqua(() => refused() === 2);
   });
 
   test("a served project with no closer set never gets a pass requested, whatever the merges or thresholds", async (t) => {
