@@ -61,7 +61,8 @@ test("la station réelle affiche son code, publie « aucun projet » sur GitHub,
   await station.attendre("station à appairer");
   const code = /tape ce code dans l'app : ([0-9A-Z]{4}-[0-9A-Z]{4})/.exec(station.sortie())?.[1];
   assert.ok(code, station.sortie());
-  const [fichier] = github.gists();
+  // Le gist de sa présence : celui de son enregistrement (enregistrement-station/) est à côté.
+  const fichier = github.gists().find((nom) => FICHIER_STATION in github.lire(nom).files);
   assert.ok(fichier);
   const document = () => JSON.parse(github.lire(fichier).files[FICHIER_STATION]?.content ?? "null") as DocumentStation;
   assert.equal(document().nom, "box");

@@ -184,8 +184,9 @@ describe("la station, son process", { concurrency: 8 }, () => {
     const pid = station.process.pid;
     assert.match(station.sortie(), /1 projet servi : brigade/);
     assert.deepEqual(faits("espace", "runtime.started"), []);
-    // Sa présence sur GitHub publiée, la station n'écrit plus rien d'elle-même.
+    // Sa présence et son enregistrement sur GitHub publiés, la station n'écrit plus rien d'elle-même.
     await station.attendre("station à appairer");
+    await station.attendre("station enregistrée sous le compte GitHub");
 
     // Tout ce que la machine porte, sauf l'état des projets, la configuration
     // elle-même, ce que la station dit de ce qu'elle sert (`en-service`, que
