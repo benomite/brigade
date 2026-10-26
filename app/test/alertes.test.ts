@@ -570,7 +570,7 @@ describe("le mot du bouton d'une alerte", () => {
     assert.equal(boutonDe({ geste: "resume the kitchen, once you have read why they fail", appel: { geste: "reprendre" } }), "resume the kitchen");
     assert.equal(boutonDe({ geste: "enable `merge` again", appel: { geste: "grant-activer", grant: "merge" } }), "enable merge again");
     assert.equal(boutonDe({ geste: "start it on the station: `systemctl start brigade@parade`", appel: { demande: true } }), "ask the second");
-    assert.equal(boutonDe({ geste: "read it: the Grants tab reads `grant` on the station", appel: { onglet: "grants" } }), "open the grants tab");
+    assert.equal(boutonDe({ geste: "read it: Settings reads `grant` on the station", appel: { onglet: "parametres" } }), "open Settings");
     assert.equal(boutonDe({ geste: "nothing to do: this is on brigade" }), undefined);
   });
 

@@ -24,7 +24,7 @@ import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { ROLE_DU_SECOND } from "../src/second/lancement.ts";
 import { ouvrirTerminaux, type Terminal } from "../src/terminaux.ts";
-import { type Faux, jouerLaVue, type Reponses, repos } from "./aides/fausse-vue.ts";
+import { jouerLaVue, ouvrirLecture, type Reponses, repos } from "./aides/fausse-vue.ts";
 
 const RACINE = join(import.meta.dirname, "../..");
 const SOURCE = SOURCE_DOC;
@@ -359,30 +359,13 @@ async function ouvrir(geste: NonNullable<Reponses["geste"]>, autres: Reponses = 
   await repos();
   return vue;
 }
-const cliquer = async (ou: Faux, libelle: string) => {
-  (ou.dessous("button").find((bouton) => bouton.textContent === libelle) ?? assert.fail(`pas de bouton « ${libelle} »`)).click();
-  await repos();
-};
 
-describe("dans la vue, un geste direct part au clic", () => {
-  test("vérifier l'installation est le geste du projet lui-même : en tête de son espace, à côté de son nom — le panneau d'état n'a plus de gestes", async () => {
-    const vue = await ouvrir(() => SECOND);
-
-    const projet = vue.element("gestes-projet");
-    assert.equal(projet.hidden, false);
-    assert.deepEqual(projet.children.map((pose) => [pose.balise, pose.textContent, pose.dataset.geste]), [["button", "check the installation", "direct"]]);
-    // Le panneau de droite ne porte plus de geste de la cuisine ni de l'état.
-    assert.throws(() => vue.element("gestes-cuisine"));
-    assert.throws(() => vue.element("gestes-etat"));
-    assert.deepEqual(vue.element("etat").dessous("button").map(({ textContent }) => textContent).filter((texte) => /cuisine|installation|garde-fous/.test(texte)), []);
-  });
-
-  test("le clic lance la vérification structurée, jamais une commande : rien n'est écrit dans le second, son verdict se lit dans Paramètres", async () => {
-    const vue = await ouvrir(() => assert.fail("rien ne s'écrit dans le second"), { verifier: () => undefined });
-
-    await cliquer(vue.element("gestes-projet"), "check the installation");
-
-    assert.deepEqual(vue.appels.filter(({ geste }) => geste === "verifier").map(({ args }) => args), [["parade"]]);
-    assert.deepEqual(vue.appels.filter(({ geste }) => geste === "geste" || geste === "confirmer"), []);
+describe("vérifier l'installation n'est plus dans l'app (#1700)", () => {
+  test("ni en tête de l'espace ni dans Settings : aucun bouton « check the installation », et rien ne lance la vérification", async () => {
+    const vue = await ouvrir(() => SECOND, { verifier: () => undefined });
+    assert.throws(() => vue.element("gestes-projet"));
+    await ouvrirLecture(vue, "Settings");
+    for (const ou of ["etat", "onglets", "interrupteur-projet"]) assert.deepEqual(vue.element(ou).dessous("button").map(({ textContent }) => textContent).filter((texte) => /installation/.test(texte)), [], ou);
+    assert.deepEqual(vue.appels.filter(({ geste }) => geste === "verifier"), []);
   });
 });

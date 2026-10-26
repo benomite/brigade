@@ -158,11 +158,11 @@ sentence with the real number of issues the manager will judge (`it will judge t
 **the page says so in one line: the head of the rail is marked as stopped** — a hatched bar, `project off
 — nothing new is taken, split or merged` —: running cooks finish, nothing new is taken; the kitchen it
 holds makes no second line. The `manager` line of the box (`OFF since … (by chef) — the project switch is
-off: …`) is now only on hover of the switch, and in full in the Manager tab, which has no switch of its
-own. Not yet read, or not read, the switch says neither (`project …`) and toggles nothing; a read that
+off: …`) is now only on hover of the switch: the Manager page is gone from Settings (#1700), and the manager has
+no switch of its own. Not yet read, or not read, the switch says neither (`project …`) and toggles nothing; a read that
 fails makes its "unchecked" line in the band. On the bar, the tile of a project switched off keeps its
 signal. The `merge` grant is no longer a switch: lapsed on its own, it is a line of the band, to enable
-again; "expiring soon" remains a line, to extend; the Grants tab still enables and revokes it.
+again; "expiring soon" remains a line, to extend; its line in Settings still enables and revokes it (#1700).
 **"All projects" is the overview of
 brigade**: one line per project, one per station, each with its pill and what is going on there in
 a few words, and one click opens it — you do not act there, you look, then go where it is decided; a
@@ -659,16 +659,11 @@ served without a `merge` grant, and the first backup is launched by hand: it is 
   the next read — `off` as long as it is not running.
 ### Removing a project: from the app, or from its box
 
-**Two actions, and they are never mixed up.** They are in the project's space, in the right-hand
-panel, under **Remove this project** — a collapsed line, below the commissioning: a project is not
-removed by a stray click. Unfolded, it shows two blocks, each under its own label.
-
-| | **Remove from the app** | **Uninstall from the box** |
-|---|---|---|
-| What changes | the project's row leaves the bar and `app.json` — nothing else | what the box says it removes: its instances, their drop-ins, its reserved clone, its worktrees |
-| What goes to the box | **nothing** — no `ssh` is run | its uninstall action, `sudo brigade-installer uninstall <name>`, run for you |
-| The project's log | untouched: the box knows nothing about it | **kept**, unless you tick the option that deletes it |
-| Afterwards | the project is still installed, and served if it was | the project is still in the app, and can no longer be driven from it |
+**Since #1700, the app's view offers only one of the two: Remove from the app.** It is the `in your app` line of
+Settings' `you` group — its value `in the bar`, its one control `Remove from the app…`, which asks for a `yes, remove
+"<name>" from the app` before anything happens: a project is not removed by a stray click. Uninstalling a project
+from its station is no longer in the view — installing and uninstalling a station is a separate topic (#1536) —; what
+follows about it describes what `retrait.ts` still holds, not a screen.
 
 **Remove from the app** takes a single click. The project's open terminals are stopped, its folder
 is not touched, and a notice says so again over the screen: `"calculus" is removed from the app.` —
@@ -1905,14 +1900,15 @@ a space ("All projects", the add form), the accent is the skin's.
   role**, as its tab and its accent; two projects share a color only when the palette is
   exhausted. They are **written in `app.json`** (`couleurs`): closing and reopening the app does not
   change them, and a color already chosen — from an older palette, or written by hand — is kept.
-- **You change them under Settings → Preferences**, "Colors" block: a row for the tab, one
-  for the accent, one dot per palette color, the one the project carries circled, then **other…**,
+- **You change them in Settings, in its `you` group** (#1700): a line for the tab (`tab, in the bar`), one
+  for the accent (`accent, in the space`), each with the color's name, then one dot per palette color, the one the
+  project carries circled, then **other…**,
   the system color picker, for any color you like. A click writes it to `app.json`, and **the bar
   and the space take it at once**. A color outside the palette shows at the end of its row, circled.
 - **A color of your own that looks too much like another is said, and kept**: when it is at
   ΔE < 10 (CIEDE2000) of a state color or of a color of another of your projects, a line under its
-  row names the closest — `Tab, in the bar: close to green, a state color — kept anyway`,
-  `Accent, in the space: close to the tab of fanfare — kept anyway`. Pick another, and the line goes.
+  line names the closest — `tab, in the bar: close to green, a state color — kept anyway`,
+  `accent, in the space: close to the tab of fanfare — kept anyway`. Pick another, and the line goes.
 - **The palette** (`app/src/couleurs.ts`, #1106): sixteen colors on three lightnesses — orange, rust,
   peach, raspberry, pink, blush, plum, purple, lavender, cobalt, teal, turquoise, ice, mint, lime,
   olive. **Any two are at ΔE ≥ 15** (CIEDE2000, measured as displayed on the app's background
@@ -1926,20 +1922,45 @@ a space ("All projects", the add form), the accent is the skin's.
 
 **Only one tab is set at the top, next to the project's name: Settings.** Cost is no longer one (#1022): that
 of all projects lives at the app level (see "The cost of all projects"), each project's share named there.
-**Settings** opens the project's state —
-the installation, **the backup and its age**, the pages served, the removal, the project's colors, and
-`status` as the box renders it —, with below it a row of readings: Preferences, Rail, Cooks,
-Manager, Grants. **Reliability and Closer are no longer there** (#1699): they are sections of the Cooks tab (see "The
-cooks' reliability, on Cooks" and "The closer, on Cooks"), and no button or link of Settings leads to them. **Cooks** is
-no longer there (#1184): it is the space's Cooks tab, which relays `station`, read on the box of the single project shown, at
-the bottom of the tab — folded behind its line (#1456), with no button: the cap on cooks is set on each station's line; it
-is read only while the tab is shown. An alert-band line whose cause is fixed there leads to it in one click. **The log
-(Log) has no tab**: the "log" button, next to the tabs, opens the end of the log
-over the rail; clicking it again closes it. The five readings below are those of this tab and of this
-action.
 
-**The project's settings, changed by a pull request** (#1309, epic #1301). At the top of Settings (General), a block
-titled `Project settings` holds one row per project setting: the integration branch, the manager's and the reviewer's
+**Settings holds only what you can set, grouped by level** (#1700, epic #1698). It is one page, with no sub-page and no
+navigation of its own, in three groups, each a card titled by the word of its level (`app/src/vue/niveaux.js`), where
+it is kept on hover:
+
+| Group | Its settings |
+|---|---|
+| **project** | the project's settings in its repository (below); one line per grant (`grant merge`…); the kitchen — `running` or `stopped`, with `stop the kitchen…` or the gesture that resumes it |
+| **this machine** | the ordinary tickets on this computer — `taken` or `not taken`, a checkbox — and `cooks at once`, a number (a Mac only: off a Mac the group says `nothing to set on <this computer> for this project`); the app's code, and each brigade clone, in one sentence with its one button when it has one |
+| **you** | the project's two colors — `tab, in the bar` and `accent, in the space`, the color's name, the palette —, and `in your app`: `Remove from the app…`, which asks for a `yes` first |
+
+**Every setting is one line**, the same everywhere: its name, its value in force, and **one** control to change it — a
+field and `propose`, a switch, a checkbox, a number, a palette, a button. What the control opened or returned — a
+confirmation, a refusal — is laid under the value. Nothing else is laid in Settings: no statistic, no history, no reading's
+text, no explanatory paragraph — what a setting implies is on hover of its value. A group with nothing to set says so in
+one line.
+
+**Grants are one line each**: `grant <action>`, its state in one word with its dot and, when it has one, the remaining
+duration (`6 h left`) — since when, by whom, until when, on hover — and a switch, `merge on` / `merge off`. Clicking it
+opens the confirmation of `grant-activer` or `grant-revoquer`, which says what the grant changes: nothing goes before
+your "yes". Settings reads `grant` on the station for that (`grants.ts`), every thirty seconds while it is shown;
+unread, each grant named by the doc still has its line, its switch muted and the reason on hover. Its latest uses, its
+latest actions, what no grant allows and the deliveries stopped for lack of a grant are no longer shown.
+
+**Removed from Settings** (#1700): the General, Rail and Manager pages and their navigation — Rail and Manager have no
+route left (`app/src/onglets.ts`); the installation guide and **the installation check** — the `check the installation`
+button in the space's header, the verdict at the top of Settings —: the app only needs a GitHub connection (#1692), and
+installing a station is a separate topic (#1536); uninstalling the project from its station (`See what the station would
+remove`, `Uninstall from the station`); `where the rail's data comes from`; and the project's `status`, as the station
+renders it. **Reliability and Closer are no longer there either** (#1699): they are sections of the Cooks tab (see "The
+cooks' reliability, on Cooks" and "The closer, on Cooks"). **Cooks** is no longer there (#1184): it is the space's Cooks
+tab, which relays `station`, read on the box of the single project shown, at the bottom of the tab — folded behind its
+line (#1456), with no button: the cap on cooks is set on each station's line; it is read only while the tab is shown.
+An alert-band line whose cause is fixed there leads to it in one click; the grant line that is not verified opens
+Settings. **The log (Log) has no tab**: the "log" button, next to the tabs, opens the end of the log over the rail;
+clicking it again closes it.
+
+**The project's settings, changed by a pull request** (#1309, epic #1301). At the top of Settings, in its **project** group,
+one row per project setting: the integration branch, the manager's and the reviewer's
 default calibrations, the calibration ceiling, and the closer's four settings (#1685) — its calibration, its start
 threshold (`cooksBelow`), its tokens cap and its removed-lines cap. Each row says the value in force and where it comes from — `from the
 repository` (`.claude/brigade/projet.json`), `set on the station`, `from CLAUDE.md`, `default` — and has its edit control —
@@ -1963,45 +1984,30 @@ the command, `runtime/src/reglage-cli.ts`.
 **The drawn rail is at the center of the space, shared between its two tabs** (see "The rail"): On the
 rail, Taken, Pass, TODO, WAITING and Served, all on Rail; Cooks shows no kanban column. **The space opens with no page**: the shown
 tab has the whole center, over its full height. **A page opens over the rail**: it covers it entirely, without undoing it —
-it stays laid underneath, and re-read, but nothing of it can be clicked through. Clicking the tab again closes
-the page, and **the rail comes back as you left it**, scrolled where it was. The alert band,
-above, stays visible: no page covers it, nor do the terminals, on the right.
+it stays laid underneath, and re-read, but nothing of it can be clicked through, and nothing of it — not even its sticky
+column heads — shows through. Clicking the tab again closes the page, and **the rail comes back as you left it**,
+scrolled where it was. The alert band, above, stays visible: no page covers it, nor do the terminals, on the right.
 
-In these pages, five **content readings**. A reading relays **as text, word for word,** the output of a runtime command
-(`docs/runtime/exploitation.md`, "Piloter"). **Manager** first shows the manager's state, **Grants** that
-of the grants:
+Two **content readings** remain, plus the one Settings makes. A reading relays **as text, word for word,** the output of
+a runtime command (`docs/runtime/exploitation.md`, "Piloter"):
 
-| Tab | The command the app runs on the box | What you read there |
+| Reading | The command the app runs on the box | What you read there |
 |---|---|---|
-| **Rail** | `ssh <hote> brigade <nom> rail` | the text of `rail`, as the box renders it: each ticket on its line, its card below — the drawn rail, for its part, is at the center, under the page |
 | **Cooks** | `ssh <hote> brigade <nom> station`, then `ssh <hote> brigade <nom> measures --last <window> --by 1`, then `ssh <hote> brigade <nom> closing --json` | the station: the cooks, the machine, the quota — on the Cooks tab, not under Settings —, with **the reliability of the project's cooks** (see "The cooks' reliability, on Cooks") and **its closer** (see "The closer, on Cooks") as sections of that tab (#1699) |
-| **Manager** | `ssh <hote> brigade <nom> manager` | **the manager's state** (see "The Manager tab") — on or off, since when and by whom, its latest decisions, what it set aside and why —, then the text of `manager`, which also tells the epics and its reactions to failures |
-| **Grants** | `ssh <hote> brigade <nom> grant` | **the grants' state** (see "The Grants tab") — which is active, its expiry with the remaining duration first, its latest uses, what no grant authorizes —, then the text of `grant`, which also tells the latest actions (enabled, extended, revoked, lapsed, refused) |
+| **Grants** | `ssh <hote> brigade <nom> grant` | nothing as text: Settings lays one line per grant from it (above) |
 | **Log** | `ssh <hote> brigade <nom> log --last 200` | the end of the log: the last 200 events, not the whole log — the line under the tabs says so |
 
-- **Only the displayed tab is read**: its command goes out when you open it, then every thirty
+- **Only the displayed reading is read**: its command goes out when you open it, then every thirty
   seconds as long as it is on screen. Changing it, closing it or leaving the space stops its
-  reading. With no content tab open, the app therefore runs only `status` for this project; with
-  one, `status` and the tab's command — never all five (Cooks runs three, one after the other: `station`, `measures`,
-`closing --json`). Added to this is `facts`, read for
-  **all** projects whatever the screen: it is what the bar draws.
-- **What awaits you stays in front of you**: the panel, between the center and the second — the project's state, the
-  `awaiting` block, the rest of `status` — does not move when you change tab.
-- **A tab has its own reading**, with its time (`read at 14:32:07`) and, if it fails, its error:
-  the same headers as the panel (`NOT REACHED — …`, `REACHED, BUT NO LONGER DRIVABLE — …`), and below
-  what the app got, as is. **A command that fails in a tab takes nothing away from the
-  panel** — a runtime too old for `log` leaves `status` readable beside it — and the reverse.
-- A runtime that does not yet know `--last` returns its usage as an error: it is read in the tab like any failing command.
-- Under the tabs, the line says what you are reading: ``the output of `ssh <hote> brigade <nom> rail`, as the box
-  renders it — re-read alone every thirty seconds, as long as this tab is displayed``.
-- A project with no `hote` and no kitchen on this workstation has its five tabs, and each says `no reading` and what is missing.
-- **Nothing is drawn there**: only the manager's state and the grants' are laid
-  above their text. Rail, Cooks and Log are text you can select and copy, like the
-  text of any tab. The only buttons are those that write a command in the second — on
-  **Grants**, under the reading's time ("Buttons write, they do not send") —,
-  the manager's two actions and those of each grant, which write it in a shell
-  ("The Manager tab", "The Grants tab"). Above, on the rail, a number opens its issue.
-- The space gives you back the tab where you left it, content tab included.
+  reading. With no page open, the app therefore runs only `status` for this project; with
+  one, `status` and the page's command (Cooks runs three, one after the other: `station`, `measures`,
+  `closing --json`). Added to this is `facts`, read for **all** projects whatever the screen: it is what the bar draws.
+- **A reading has its own time** (`read at 14:32:07`) and, if it fails, its error, in one line, its detail on hover.
+  **A command that fails takes nothing away from the rest** — a runtime too old for `log` leaves the rail readable.
+- A runtime that does not yet know `--last` returns its usage as an error: it is read like any failing command.
+- Under the tabs, the line says what you are reading: ``the output of `ssh <hote> brigade <nom> log --last 200`, as
+  the box renders it — re-read alone every thirty seconds, as long as this tab is displayed``.
+- The space gives you back the tab where you left it.
 
 ### The cooks' reliability, on Cooks
 
@@ -2162,120 +2168,25 @@ running, or when an action is on its way; threshold not crossed (or not declared
 **Where it comes from.** The app runs `closing --json` (#988) and reads the object it returns on one line — nothing is
 recounted, nothing is launched: the command opens the log read-only. The view reads it itself in the
 Cooks tab's output (`app/src/vue/closer/section.js`); the raw object is not shown.
-### The Manager tab
+### The grants, in Settings
 
-**Is it on?** This is where you read it, per project. At the top of the tab, above the text of
-`ssh <host> brigade <name> manager`, the app puts what it read **in that output**, and nothing
-else:
+*Ticket: #1700.* **Is a grant active, and until when?** It is the heaviest authorization in the system — under a
+`merge` grant, code written by a cook lands on the integration branch without you (`docs/runtime/pass-merge.md`, "Le
+grant `merge`") —, and it is read in Settings' **project** group, **one line per grant** the doc names, from `ssh
+<host> brigade <name> grant`, read while Settings is shown (`grants.ts`):
 
-| What you read | Where it comes from |
-|---|---|
-| **`ON`** (green pill) or **`OFF`** (grey), then `since <date> · by <who>` | the `manager` line of the output. The date is that of the last switch, in your workstation's time; `by` is whoever made it. A manager **never turned on** has neither: the line says `never turned on`. The app also reads the line from before #951 (`ALLUMÉ` / `ÉTEINT`, `depuis le … (par …)`): a box not yet updated reads without any change |
-| what the runtime says about it next | the end of the same line, word for word (``the project switch is on: it judges the open issues, sets `fire` and the calibration``) |
-| **latest decisions**, most recent first | the lines under `latest decisions` (or `dernières décisions`, from before) — fifteen at most, the runtime sets the bound: the issue, the moment, and what it did with it, word for word (`on the rail, haiku / low (set: fire, effort:low) — …`, `refused (an epic) — …`) |
-| **set aside**, each with its reason | the lines under `set aside` (or `écartées`, from before) — ten at most: the issue, the moment, **the reason**, and below it what the runtime says about what returns it to the manager (``to return it to the manager: remove `blocked-on-human`: …``, or `nothing returns it to the manager`) |
+- **its value**: its state in one word with its pill — `ACTIVE` (green), `LAPSED` (yellow), `REVOKED` or `ABSENT`
+  (grey) —, and, when it has an expiry, **the remaining time** the box counted at the time of the read (`6 h left`).
+  Since when and by whom, the hour of its expiry (in UTC, spelled out), what is left of it (`9 uses left`) and what
+  the runtime says of it (`a green pass is merged without you`) are on hover. An expired expiry never reads as a
+  duration: past its hour, the line says `LAPSED`.
+- **its one control**: a switch, `merge on` / `merge off`. Its click opens the confirmation of `grant-activer` or
+  `grant-revoquer`, which says what the grant changes: nothing goes before your "yes".
+- **The app guesses nothing**: a failed read says neither active nor absent — each named grant keeps its line, its
+  switch muted, the reason on hover.
 
-- **The app guesses nothing here.** A failed read, or an output with no `manager` line (a runtime
-  from before the manager), says **neither on nor off**: `the manager's state was not read: … This
-  is not "off"`, and what the app got is read below, as in every tab. A section the output does
-  not have reads `not read`, never `none`; with no decision and no set-aside, it is the runtime's
-  word that is read (`none`). A line that does not have the expected form stays **as it is**,
-  apart, under `what the app could not read`.
-- **What else the output says is read below**: the epics, the reactions to failures. The app does
-  not set them apart. A command the runtime cites in a reason (`npm --prefix runtime run
-  manager -- return 77`) is the box's: from your workstation, it is `ssh <host> brigade <name>
-  manager return 77` (`docs/runtime/exploitation.md`, "Piloter").
-- **Read as long as the tab is shown**, like the others: on opening, then every thirty
-  seconds. Coming back to the tab reads it again at once — nothing stays from the previous read.
-- **No action here: the manager has no switch of its own** (#1406). It follows the project switch,
-  at the head of the space, which turns it on and off with the rest — taking the fired tickets,
-  merging the green deliveries. Its `ON` / `OFF` is that switch's state, and the line says so
-  (``the project switch is on: it judges the open issues…``).
-  **Turning on commits**: once on, the manager judges the whole open backlog, and what it judges
-  executable goes straight to the kitchen (`docs/runtime/manager.md`, "Le manager") — that is why the command
-  is written and read before it goes. Once sent, come back to **Manager**: the state is read again.
-- **With "on", the app says what it commits — and the figure.** From the click, **above the
-  shell** where the command waits, the warning of `docs/runtime/manager.md` is set, word for word
-  ("Once on, it judges the whole open backlog, and what it judges executable goes straight to the
-  kitchen. Before turning on, put `blocked-on-human` on whatever must not go…"), then **two
-  numbers**, said in one sentence — what it is going to judge: `it will judge 9 of the 12 open issues — 3 carry
-  blocked-on-human` (#906).
-
-  | What you read | Where it comes from |
-  |---|---|
-  | the warning | the text of `docs/runtime/manager.md`, "Le manager" — it is there from the click, before any read |
-  | the two numbers | the `backlog` line of `ssh <host> brigade <name> manager backlog`, which the app runs **for you, once, after** writing the action: the box counts on GitHub the repository's open issues (PRs set aside) and those carrying `blocked-on-human`, at that moment. The time of the read and the command are said below |
-  | why they are missing | the box not reached, GitHub not read by it, a runtime from before this read ("update brigade on the box"), or an output without its `backlog` line: the app says so, shows what it got instead, and **never writes "0"** — that is not "no issue" |
-
-  **This is not a confirmation.** The command is already written in the shell when the numbers
-  are requested: the warning holds nothing back, asks no question and has no button. You
-  can press Enter before they arrive — a few seconds, the time of an `ssh` and a
-  read of GitHub — or erase the command. "off" shows nothing of the kind.
-  **No extra permission on the box**: `manager backlog` is a runtime command like
-  `manager` or `status`, run by the same action (`brigade <project> <command>`) under the same
-  right — it only reads. It just needs a runtime that knows it.
-- Both actions are offered whatever state was read — and even without one: they wait for nothing
-  from the read, and the runtime answers `already on` or `nothing to turn off` if there is nothing to do.
-  A project **without `host`** and without a kitchen on this workstation has none; a `host` that starts with a dash, or a project whose
-  folder is not there, has nothing written — no shell is opened, and the line under the right-hand
-  tabs says why.
-
-### The Grants tab
-
-**Is a grant active, and until when?** It is the heaviest authorization in the system —
-under a `merge` grant, code written by a cook lands on the integration branch without you
-(`docs/runtime/pass-merge.md`, "Le grant `merge`") —, and this is where it is read, per project. At the top of
-the tab, above the text of `ssh <host> brigade <name> grant`, the app puts what it read **in
-that output**, and nothing else — one block per grant:
-
-| What you read | Where it comes from |
-|---|---|
-| **`grant merge`**, then **`ACTIVE`** (green pill), **`LAPSED`** (yellow), **`REVOKED`** or **`ABSENT`** (grey), then `since <date> · by <who>` | the `grant merge` line of the output. The date is that of its last change, in your workstation's time. A grant **never given** has neither date nor author; a lapsed grant has no author — the rest of the line says who had enabled it. A grant active within an hour of its expiry, or with a single use left, also carries **`EXPIRING SOON`**, and its pill is yellow |
-| **its expiry: `2 h 10 left`**, then `until 13 Oct 18:40 UTC` | the same line. **The remaining time comes first**, before the hour: the box counted it, with its clock, at the time of the read (`read at 14:32:07`, in the title) — the app recomputes none. The hour is the box's, **in UTC, spelled out**: it is not converted to your workstation's time. Beside it, what the line says of what is left, word for word: `9 uses left, 1 of them held by a merge in progress`, or `no expiry` |
-| what the runtime says about it next | the end of the same line, word for word (`a green pass is merged without you`, `the pass stops at the open PR`) |
-| **latest uses of the grant**, most recent first | the lines under `latest uses` that name this grant — ten at most, the runtime sets the bound: the issue, the moment, what the merge became (`merged`, `not merged`, `merge in progress`), the branch, the PR, the commit and the number of the verdict that authorized it |
-| **what no grant authorizes** | the lines under `never granted`: each action, and what it forbids, word for word (`max-credentials — read the Max account's credentials`, `prod-access — any action on a project's production`). The list is the runtime's, and no command changes it |
-| **the deliveries stopped for lack of a grant** | the line `without a grant, N green deliveries stopped: …`, as it is — the figure to enable against. Absent as long as no delivery has been stopped |
-
-- **An expired expiry never reads as a duration.** Past its hour, the runtime no longer calls the
-  grant active, whether or not the log has already written it: the line says `LAPSED since
-  <expiry> — its expiry has passed`, and that is what the app puts. No remaining duration is
-  kept from the previous read.
-- **The app guesses nothing here.** A failed read, or an output with no `grant <name>` line (a
-  runtime from before grants, a log that does not have their state yet), says **neither active
-  nor absent**: `the grants' state was not read: … This is not "no grant active"`, and what the
-  app got is read below, as in every tab. A state the app does not know leaves the grant's line
-  **as it is**, in alert. A section the output does not have reads `not read`, never
-  `none`; with no use, it is the runtime's word that is read (`none`). A line that does not have
-  the expected form stays as it is, apart.
-- **What else the output says is read below**: the `latest actions` — who enabled, extended,
-  revoked, what lapsed on its own, what was refused. The app does not set them apart.
-- **Read as long as the tab is shown**, like the others: on opening, then every thirty
-  seconds — the remaining duration is thus at most thirty seconds behind, and the time of the read
-  is in the title. Coming back to the tab reads it again at once.
-- **Two actions per grant, next to its state: `enable merge`, `revoke merge`.** Each
-  **writes** its command into **a shell of the space**, opened for it, and **sends nothing**:
-  the app takes you to that shell, the command at its prompt, and it is your Enter that sends it.
-
-  | The action | What it writes into the shell |
-  |---|---|
-  | `enable merge` | `ssh <host> brigade <name> grant enable merge` |
-  | `revoke merge` | `ssh <host> brigade <name> grant revoke merge` |
-
-  It is the command of `docs/runtime/exploitation.md`, "Piloter", in its workstation form, word for word: it
-  stays in the shell's history and can be replayed by hand identically. **`merge` is the heaviest
-  grant, and it is written like the others**: no confirmation box opens. What protects
-  you is that the command **is read and corrected before it goes** — you can add an
-  expiry to it (`--for 4h`, `--until 18h30`, `--uses 10`) before pressing Enter; without one, the
-  grant is enabled **with no expiry**. Once sent, come back to **Grants**: the state is read again.
-- Both actions are offered whatever state was read — and even without one: they wait for nothing
-  from the read, and the runtime answers `already active` or `nothing to revoke` if there is nothing to do. They
-  are only offered for a grant the doc names (`merge`). A project **without `host`** and without a kitchen on this workstation has
-  none; a `host` that starts with a dash, or a project whose folder is not there, has nothing
-  written — no shell is opened, and the line under the right-hand tabs says why.
-- **The earlier buttons are still there**, under the time of the read: `grant enable merge`,
-  `grant extend merge …`, `grant revoke merge` write into **the second**, preceded by `!`
-  ("Buttons write, they do not send"). Extending has only this button.
+Its latest uses, its latest actions, what no grant authorizes and the deliveries stopped for lack of a grant are no
+longer shown (#1700): they are history and statistics, not settings — `grant` on the station still says them.
 
 ## Buttons write, they do not send
 
@@ -2294,9 +2205,6 @@ none.
 |---|---|---|
 | the state panel, under the time of the read | `guardrails stop` | `!ssh <host> brigade <name> guardrails stop` |
 | | `guardrails resume` | `!ssh <host> brigade <name> guardrails resume` |
-| the **Grants** tab | `grant enable merge` | `!ssh <host> brigade <name> grant enable merge` |
-| | `grant extend merge …` | `!ssh <host> brigade <name> grant extend merge ` — the expiry is left to type (`--for 2h`, `--uses 3`…) |
-| | `grant revoke merge` | `!ssh <host> brigade <name> grant revoke merge` |
 
 - **It is the doc's command, word for word**: the form of `docs/runtime/exploitation.md`, "Piloter",
   from your workstation (`ssh <box> brigade <project> <command>`), with your `host` and your `name`. The `!`
@@ -2323,8 +2231,7 @@ none.
   writes nothing: a starting `claude` would take the command for keys. The line says
   ``the second was not running: launched (`claude --continue`, with the second's role in its system prompt) — the command is not written into a second that is starting, click again when it is ready``.
 - **Always in the second, never in a shell** opened beside it. Two exceptions, and each
-  opens its own shell: `Start`, which needs a real terminal ("After adding: going live"), and the manager's `on` action
-  ("The Manager tab").
+  opens its own shell: `Start`, which needs a real terminal ("After adding: going live"), and the project switch's `on`.
 - **A `host` that starts with a dash** (`-box`) has no command written: in the doc's
   form, `ssh` would read it as an option. The button writes nothing, and the line under the right-hand tabs
   says why — reading the box, for its part, does not suffer.
@@ -2332,48 +2239,25 @@ none.
   — for example when the project has just left the file.
 - A project **without `host`** and without a kitchen on this workstation has no button: there is no command to write. A project whose
   folder is not there has no second: its column says why (`folder not found: …`).
-- **Only these six buttons exist**, each where what it changes is read — and, apart, the two
-  manager actions: `on`, which writes into a shell, and `off`, which goes out ("The Manager tab"). The
+- **Only these buttons exist**, each where what it changes is read — and, apart, the project switch. The
   rest of "Piloter" (`manager return`, `base replay`…) is typed. "All projects" has
   none. Going live with a project just added has its own, apart: `installation`
   is run for you there, and `Start` writes into a shell.
 - **The stop banner carries `guardrails resume`**: the same button, the same written command,
   set where the stop is read ("What is drawn", "The stop banner").
 
-### The kitchen and installation actions
+### The kitchen action
 
-Under the project tile — the state of the kitchen, of the "stop" and of the breaker that `status` relays —,
-three actions of the base (`gestes.ts`): **`resume the kitchen`**, **`stop the kitchen`**,
-**`check the installation`**. The first two, like those of the grants, **write** their command
-into **a shell of the space**, opened for it, and **send nothing**: it is your Enter that
-sends it. **`check the installation` is direct**: it only reads, its command **goes out**
-into the second ("A direct action really goes out — or says why it does not"). The two
-forms are set apart, each under its label:
+**The kitchen is a line of Settings' project group** (#1700): `kitchen`, its value `running` or `stopped`, and its one
+control — **`stop the kitchen…`**, in its own form (a solid red square before the word, a red line), or the gesture
+that resumes it. Each says first what it costs, in its confirmation: nothing goes before your "yes". **Stopping the
+kitchen is dangerous**: all running cooks are stopped, and none is launched again until it is resumed.
 
-```
-write into a shell of the space, without sending:  [resume the kitchen] [stop the kitchen]
-send into the second — goes out at once, if it is free:  [check the installation]
-```
-
-| The action | What it writes into the shell, or sends into the second |
-|---|---|
-| `resume the kitchen` | writes: `ssh <host> brigade <name> guardrails resume` |
-| `stop the kitchen` | writes: `ssh <host> brigade <name> guardrails stop` |
-| `check the installation` | sends: `!ssh <host> brigade <name> installation` |
-
-- **At the head of the rail, no more technical sentence or stop button.** The rail starts with its
-  columns. A single discreet mention may precede it: `up to date 3 min ago — …`, **visible
-  only when the read is more than two minutes old** (or did not succeed). Where the data comes from
-  (the commands, the time of each read) is read in **Settings**, under "where the rail's data
-  comes from". **`stop the kitchen` is tucked into Settings** too, in its own form — a
-  solid red square before the word, a red line; its confirmation, which says the price, is unchanged.
-- **Stopping the kitchen is dangerous**: all running cooks are stopped, and none is
-  launched again until "resume". **The app adds no confirmation**: the command is read, and
-  corrected, in the shell before Enter.
-- Offered whatever state was read. A project **without `host`** and without a kitchen on this workstation has none; a `host` that starts with
-  a dash, or a project whose folder is not there, has nothing written — the line under the right-hand tabs
-  says why. The two buttons of the state panel (`guardrails stop`, `guardrails resume`) and
-  the one on the stop banner stay: those write into the second.
+- **At the head of the rail, no technical sentence and no stop button.** The rail starts with its columns. A single
+  discreet mention may precede it: `up to date 3 min ago — the station has not answered since`, **visible only when
+  the read is more than two minutes old** (or did not succeed).
+- **No installation action is left in the app** (#1700): `check the installation` and the installation guide are
+  gone — the app only needs a GitHub connection (#1692); installing a station is a separate topic (#1536).
 
 ## A direct action really goes out — or says why it does not
 
@@ -2383,13 +2267,12 @@ from the `claude` session —, **its output is read in its thread**, on the righ
 changing. The line under the second's title says what went out:
 
 ```
-sent into the second: `!ssh box brigade parade installation` — `claude` went into shell mode, the app pressed Enter. Its output is read in its thread, and the second reads it too
+sent into the second: `!ssh box brigade parade switch off` — `claude` went into shell mode, the app pressed Enter. Its output is read in its thread, and the second reads it too
 ```
 
 | The direct action | Where | What goes out |
 |---|---|---|
 | `project off` | the project switch, at the head of the space | `!ssh <host> brigade <name> switch off` |
-| `check the installation` | under the project tile | `!ssh <host> brigade <name> installation` |
 
 **The other actions stay written** — stopping and resuming the kitchen, enabling and revoking a
 grant: they destroy or commit, and are read before they go. **Turning on the
@@ -3025,9 +2908,9 @@ failed reading does not set it.
 
 ### What is not drawn, and will not be here
 
-- **The log, the grants, the output of `station`** stay text: they are streams, not
-  state tables. The state of the grants, like that of the manager, is not drawn from `facts`: it
-  is read in this text, and laid above it ("The Grants tab").
+- **The log and the output of `station`** stay text: they are streams, not state tables. The state of the
+  grants is not drawn from `facts`: it is read in the output of `grant`, one line per grant in Settings ("The grants,
+  in Settings").
 - **No numeric gauge**, neither of the quota nor of the machine: the runtime does not know the account's
   consumption (`/usage` gives it) and gives figures for the machine only when it saturates. The
   `quota` and `machine` lines of `station` are read as they are, in Cooks.

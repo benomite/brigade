@@ -955,156 +955,33 @@ describe("l'écran, tel que la vue le pose", () => {
     await repos();
     return vue;
   }
-  // Ce que l'écran dit au survol : le nom accessible de chaque icône d'aide posée dessous.
-  const survols = (element: Faux) => element.dessous("button").filter(({ className }) => className === "aide").map(({ ariaLabel }) => ariaLabel);
+  // L'installation guidée et sa vérification ne sont plus posées dans la vue (#1700) : ni leurs éléments,
+  // ni étapes numérotées, ni « Verify » — le guide n'y sert plus qu'à retenir les stations déclarées.
+  const DE_L_INSTALLATION = ["service", "service-titre", "service-tete", "service-etapes", "verification-etat", "gestes-projet"];
+  function sansEcranDInstallation(vue: Awaited<ReturnType<typeof ouvrirLEcran>>) {
+    const poses = vue.poses();
+    assert.deepEqual(poses.filter(({ id }) => DE_L_INSTALLATION.includes(id)).map(({ id }) => id), []);
+    assert.equal(poses.filter(({ className }) => className === "verification").length, 0);
+    const boutons = poses.filter(({ balise }) => balise === "button").map(({ textContent }) => textContent);
+    assert.ok(!boutons.some((texte) => /^Verify|check the installation|Declare the stations|Initialize the project in the second/.test(texte)), boutons.join(" | "));
+    assert.ok(!poses.some(({ textContent }) => ETAPES.some(({ titre }, rang) => textContent.startsWith(`${rang + 1}. ${titre}`))));
+  }
 
-  test("toutes les étapes, chacune avec son état, à quoi elle sert et ce qui se passe si on la saute ; la courante mise en avant ; ce qui sera au chef, en tête", async (t) => {
+  test("en cours : l'écran d'installation n'est pas posé — ni étapes numérotées, ni « Verify » : le clic sur le projet ouvre le rail", async (t) => {
     const box = boxSimulee(t, { verification: () => SANS_GESTES });
     const { services } = app(box);
     services.suivre(CALCULUS);
     const lu = await guide(services);
+    assert.equal(lu.termine, false);
 
     const vue = await ouvrirLEcran(lu);
 
-    const service = vue.element("service") as Faux & { open?: boolean };
-    assert.equal(service.hidden, false);
-    assert.equal(service.open, true);
     // #699 : même en cours, l'installation ne redirige pas — le clic sur un projet ouvre le rail, pas Paramètres.
     assert.equal(vue.element("etat").hidden, true);
-    assert.equal(vue.element("service-titre").textContent, lu.titre);
-    const etapes = vue.element("service-etapes").children;
-    assert.equal(etapes.length, ETAPES.length);
-    for (const [rang, etape] of ETAPES.entries()) {
-      const posee = etapes[rang];
-      assert.ok(posee !== undefined);
-      assert.ok(posee.textContent.includes(`${rang + 1}. ${etape.titre}`));
-      // Le mode d'emploi d'une étape n'est pas écrit à plat : il est au survol de son titre.
-      assert.ok(survols(posee).some((dit) => dit.includes(`What it is for: ${etape.sert}`) && dit.includes(`If you skip it: ${etape.sauter}`)), etape.id);
-      assert.doesNotMatch(posee.dessous("p").map(({ textContent }) => textContent).join("\n"), /What it is for:|If you skip it:/, etape.id);
-    }
-    assert.deepEqual(etapes.map(({ className }) => className), ["", "courante", "", "", "", "", ""]);
-    assert.deepEqual(etapes.map(({ dataset }) => dataset.etat), ["done", "todo", "waiting", "todo", "todo", "todo", "todo"]);
-    // La commande unique et sa raison, en tête, avant tout bouton.
-    const tete = vue.element("service-tete");
-    assert.ok(tete.textContent.includes(GESTE_TROP_VIEUX));
-    // La commande exacte n'est pas écrite à plat : elle est au survol de sa ligne.
-    assert.ok(survols(tete).includes(GESTE_A_NIVEAU));
-    assert.ok(survols(tete).includes("ssh -t box sudo systemctl enable --now brigade@calculus.service"));
-    // L'étape courante a ses boutons ; les autres n'en ont pas.
-    assert.deepEqual(etapes[1]?.dessous("button").filter(({ className }) => className !== "aide").map(({ textContent }) => textContent), ["Initialize the project in the second", "The initialization is merged onto the integration branch"]);
-    assert.ok(etapes.filter((_, rang) => rang !== 1).every((etape) => etape.dessous("button").every(({ className }) => className === "aide")));
+    sansEcranDInstallation(vue);
   });
 
-  test("les stations se déclarent par une case et un nombre : la vue porte le choix, sans rien écrire elle-même", async (t) => {
-    const box = boxSimulee(t);
-    const { services } = app(box);
-    services.suivre(CALCULUS);
-    await guide(services);
-    await services.direMerge(CALCULUS, true);
-    const lu = await guide(services);
-
-    const vue = await ouvrirLEcran(lu);
-    const stations = vue.element("service-etapes").children[3];
-    assert.ok(stations !== undefined);
-    const nombre = stations.dessous("input").find((champ) => (champ as Faux & { type?: string }).type === "number");
-    assert.ok(nombre !== undefined);
-    nombre.value = "3";
-    stations.dessous("button").find(({ textContent }) => textContent === "Declare the stations")?.click();
-    await repos();
-
-    assert.deepEqual(vue.dernier("declarerStations"), ["calculus", [{ nom: "box/claude", cooks: 3 }]]);
-  });
-
-  // Le bloc de « Vérifier », sous son bouton : le verdict, puis ce qu'il dit.
-  const verificationDe = (vue: Awaited<ReturnType<typeof ouvrirLEcran>>) => vue.element("service-tete").dessous("div").find(({ className }) => className === "verification") ?? assert.fail("aucune vérification posée");
-  const partie = (verification: Faux, classe: string) => verification.children.find(({ className }) => className === classe);
-  // Le mode d'emploi qu'elle portait, et le verdict qu'il accompagnait : plus rien de cela.
-  const MODE_D_EMPLOI = /Each `MANQUE` line|the arrow \(`→`\)|Where the arrow says|holds nothing back —|NOT READY/;
-  const RANG_DES_STATIONS = ETAPES.findIndex(({ id }) => id === "stations") + 1;
-
-  test("prêt : la première ligne est la phrase « prêt », sans manque ni mode d'emploi ; la ligne `à savoir` à part ; aucune sortie brute", async (t) => {
-    const box = boxSimulee(t, { verification: () => PRETS });
-    const { services } = app(box);
-    services.suivre(CALCULUS);
-    const lu = await guide(services);
-    assert.ok(lu.verification?.etat === "pret");
-
-    const vue = await ouvrirLEcran(lu);
-
-    const verification = verificationDe(vue);
-    const [premiere] = verification.children;
-    assert.equal(premiere?.textContent, "prêt : rien ne manque pour lancer un cook");
-    assert.equal(premiere?.dataset.verdict, "pret");
-    assert.equal(verification.dessous("li").length, 0);
-    assert.doesNotMatch(vue.element("service-tete").textContent, MODE_D_EMPLOI);
-    // Le geste de la ligne `à savoir` est au survol, pas écrit après une flèche.
-    const aSavoir = partie(verification, "a-savoir");
-    assert.deepEqual(aSavoir?.dessous("p").map(({ textContent }) => textContent), [`${PRETS[2]?.texte}?`]);
-    assert.deepEqual(survols(aSavoir ?? verification), [PRETS[2]?.geste]);
-    // La sortie brute n'est montrée nulle part : ni « detail », ni bloc.
-    assert.equal(partie(verification, "detail"), undefined);
-    assert.equal(verification.dessous("pre").length, 0);
-    assert.ok(lu.verification.detail.includes(PRET));
-  });
-
-  test("pas prêt : « pas prêt : N choses à faire », une ligne par manque avec qui agit — au chef un bouton ou la commande exacte, à copier ; à brigade, rien", async (t) => {
-    const box = boxSimulee(t, { verification: () => QUATRE });
-    const { services } = app(box);
-    services.suivre(CALCULUS);
-    const lu = await guide(services);
-    assert.ok(lu.verification?.etat === "pas-pret");
-
-    const vue = await ouvrirLEcran(lu);
-
-    const verification = verificationDe(vue);
-    assert.equal(verification.children[0]?.textContent, "pas prêt : 4 choses à faire");
-    const lignes = verification.dessous("li");
-    const textes = (poses: Faux[]) => poses.map(({ textContent }) => textContent);
-    assert.deepEqual(lignes.map(({ dataset }) => dataset.acteur), ["chef", "chef", "chef", "brigade"]);
-    assert.deepEqual(lignes.map((ligne) => ligne.dessous("strong")[0]?.textContent), ["you:", "you:", "you:", "brigade, on its own — nothing for you to do:"]);
-    assert.ok(lignes[0]?.textContent.includes(SANS_GESTES[0]?.simple ?? "∅"));
-    // Un geste que l'app ne fait pas : la commande exacte, au survol — jamais écrite à plat.
-    assert.equal(lignes[0]?.dessous("pre").length, 0);
-    assert.deepEqual(survols(lignes[0] ?? verification), ["sudo git -C /opt/brigade pull --ff-only"]);
-    // Un geste que l'app fait : son bouton — ou, pour un choix, celui qui mène à son étape.
-    assert.deepEqual(textes(lignes[1]?.dessous("button") ?? []), [`Go to step ${RANG_DES_STATIONS}. ${ETAPES[RANG_DES_STATIONS - 1]?.titre}`]);
-    assert.deepEqual(textes(lignes[2]?.dessous("button") ?? []), ["Protect the integration branch"]);
-    lignes[2]?.dessous("button")[0]?.click();
-    await repos();
-    assert.deepEqual(vue.dernier("proteger"), ["calculus"]);
-    // Ce que brigade lève seule n'a ni bouton ni commande.
-    assert.deepEqual([lignes[3]?.dessous("button").length, lignes[3]?.dessous("pre").length], [0, 0]);
-    // La ligne `à savoir` n'est pas un manque : à part, hors du compte.
-    assert.equal(partie(verification, "a-savoir")?.dessous("p").length, 1);
-    assert.ok(!lignes.some(({ textContent }) => textContent.includes("push protection")));
-    assert.doesNotMatch(vue.element("service-tete").textContent, MODE_D_EMPLOI);
-    assert.equal(partie(verification, "detail"), undefined);
-  });
-
-  test("plantée sur /etc/sudoers.d : « problème de brigade, pas de ton projet », #654, rien à faire — nulle part « NOT READY », et rien n'est noté de la box", async (t) => {
-    const box = boxSimulee(t, { verification: () => EACCES });
-    const { services } = app(box);
-    services.suivre(CALCULUS);
-    const lu = await guide(services);
-    assert.ok(lu.verification?.etat === "plantee");
-
-    const vue = await ouvrirLEcran(lu);
-
-    const verification = verificationDe(vue);
-    const phrase = verification.children[0]?.textContent ?? "";
-    assert.match(phrase, /problème de brigade, pas de ton projet/);
-    assert.match(phrase, /#654/);
-    assert.match(phrase, /tu n'as rien à faire/);
-    assert.equal(verification.dessous("li").length, 0);
-    assert.ok(verification.dessous("p").some(({ textContent }) => textContent.startsWith("#654 — ")));
-    assert.doesNotMatch(vue.element("service-tete").textContent, MODE_D_EMPLOI);
-    assert.ok(!vue.element("service-tete").textContent.includes("NOT READY"));
-    assert.ok(lu.verification.detail.includes(`brigade : ${EACCES.message}\n`));
-    // Rien n'a été constaté du projet : l'étape « verification » n'est pas notée.
-    assert.equal(etats(lu).verification, "todo");
-  });
-
-  test("terminée : l'écran d'installation n'est plus posé — ni étapes numérotées, ni « Verify » : l'espace est le rail", async (t) => {
+  test("terminée : l'écran d'installation n'est pas posé — ni étapes numérotées, ni « Verify » : l'espace est le rail", async (t) => {
     const box = boxSimulee(t, { verification: () => PRETS });
     const { services } = app(box);
     await guide(services);
@@ -1115,9 +992,7 @@ describe("l'écran, tel que la vue le pose", () => {
 
     const vue = await ouvrirLEcran(lu);
 
-    assert.equal((vue.element("service") as Faux & { hidden?: boolean }).hidden, true);
-    assert.equal(vue.element("service-etapes").children.length, 0);
-    assert.ok(!vue.element("service-tete").textContent.includes("Verify"));
+    sansEcranDInstallation(vue);
   });
 });
 

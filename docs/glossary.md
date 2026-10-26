@@ -187,19 +187,14 @@ The app reads each of these forms in both languages, whole: a line that mixes th
 | `renoncer à la demande` | `withdraw the request` | Alert action |
 | `reprendre la cuisine` | `resume the kitchen` | Button |
 | `arrêter la cuisine` | `stop the kitchen` | Button |
-| `vérifier l'installation` | `check the installation` | Button |
 | `allumer` / `éteindre` | `on` / `off` | The project switch (same words as the command) |
-| `accorder` / `révoquer` | `enable` / `revoke` | Grants buttons (same words as the command) |
-| `Retirer ce projet de l'app` | `Remove this project from the app` | Remove |
-| `Désinstaller` | `Uninstall` | Remove from the box |
-| `Rail` / `Cooks` / `Manager` / `Grants` / `Log` | unchanged | Tabs of a project's space |
+| `accorder` / `révoquer` | `enable` / `revoke` | A grant's confirmation, in Settings (same words as the command) |
+| `Retirer de l'app` | `Remove from the app` | The `in your app` line of Settings |
+| `Rail` / `Cooks` / `Settings` / `log` | unchanged | Tabs of a project's space, and the log's action |
 | `Coût` | `Cost` | Section |
 | `Paramètres` | `Settings` | Section |
 | `Les pages` / `Les terminaux` | `Pages` / `Terminals` | Tab strips |
 | `le second et les shells` | `the second and the shells` | Right-hand panel |
-| `jamais accordé` | `never granted` | Grants tab |
-| `derniers gestes` / `derniers usages` | `latest actions` / `latest uses` | Grants tab |
-| `dernières décisions` / `écartées` | `latest decisions` / `set aside` | Manager tab |
 
 ## 6. Left as it is
 

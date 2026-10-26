@@ -1,5 +1,5 @@
 // Garde-fou (#835) : « l'app parle moins » doit tenir dans le temps. Chaque écran — l'accueil, la bande
-// d'alertes, la fiche d'une carte, la page des coûts de l'app, Verify, Settings, le bandeau du second — est joué tel que la vue
+// d'alertes, la fiche d'une carte, la page des coûts de l'app, Settings, le bandeau du second — est joué tel que la vue
 // le pose, dans deux états : une lecture en échec, et une décision qui attend le chef. Le texte *visible
 // par défaut* (celui des éléments, sans le survol, sans un `details` replié) ne porte jamais une commande à
 // recopier, un mode d'emploi, un code de sortie, ni une phrase de prix sous un bouton ; une lecture qui
@@ -21,7 +21,6 @@ import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { ligneDeProjet, tenirAccueil, type Accueil, type ProjetDeLAccueil } from "../src/accueil.ts";
 import { tenirBandes, type Alerte } from "../src/alertes.ts";
-import type { Guide } from "../src/service.ts";
 import type { Terminal } from "../src/terminaux.ts";
 import { Faux, type Jouee, jouerLaVue, type Reponses, ouvrirLecture, ouvrirLesCouts, repos } from "./aides/fausse-vue.ts";
 
@@ -170,12 +169,13 @@ async function cooks(): Promise<Joue> {
   return { vue, racine: ecran(vue, "rail", ...LECTURE) };
 }
 
-async function settings(titre: "Manager" | "Grants" | "Rail"): Promise<Joue> {
+// Settings (#1700) : une seule page, qui lit les grants — chaque grant nommé garde sa ligne, sa lecture ratée en une ligne.
+async function settings(): Promise<Joue> {
   const vue = await ouvrir();
-  await ouvrirLecture(vue, titre);
+  await ouvrirLecture(vue, "Settings");
   const numero = (vue.dernier("onglet") as [string, string, number])[2];
   const sans = { projet: "parade", demande: numero, a: A, sans: BRUT };
-  vue.dire("surContenu", { projet: "parade", demande: numero, a: A, erreur: BRUT, atteinte: false, cas: "ssh-en-echec" }, titre === "Manager" ? sans : undefined, titre === "Grants" ? sans : undefined);
+  vue.dire("surContenu", { projet: "parade", demande: numero, a: A, erreur: BRUT, atteinte: false, cas: "ssh-en-echec" }, undefined, sans);
   await repos();
   return { vue, racine: ecran(vue, ...LECTURE) };
 }
@@ -190,27 +190,8 @@ async function couts(): Promise<Joue> {
   return { vue, racine: page };
 }
 
-// Ce que Settings pose : la lecture ouverte, l'état du projet, le manager, les grants.
-const LECTURE = ["lu-onglet", "gestes-onglet", "lecture-onglet", "lu", "lecture", "etat", "manager", "grants"];
-
-// Verify : la vérification d'un projet dont la box ne répond pas.
-async function verify(): Promise<Joue> {
-  const echec = { a: A, code: null, obtenu: BRUT, erreur: BRUT, atteinte: false, cas: "ssh-en-echec" };
-  const guide = {
-    projet: "parade",
-    deplie: true,
-    titre: "Installing parade",
-    lecture: { etat: "lue", a: A },
-    etapes: [],
-    courante: null,
-    annonces: { etat: "lues", liste: [] },
-    verification: { etat: "sans-verdict", a: A, titre: "The verification returned no verdict", echec },
-    demarrage: { refus: "no" },
-    termine: false,
-  } as unknown as Guide;
-  const vue = await ouvrir({ service: () => guide });
-  return { vue, racine: ecran(vue, "service", "service-tete", "service-etapes", "verification-etat") };
-}
+// Ce que pose une page ouverte par-dessus le rail : la lecture relayée, Settings et ses grants.
+const LECTURE = ["lu-onglet", "gestes-onglet", "lecture-onglet", "etat", "grants"];
 
 // Le bandeau du second : le shell dit où il est, son bandeau ne porte ni commande ni code.
 async function second(): Promise<Joue> {
@@ -227,10 +208,7 @@ const ECRANS: Ecran[] = [
   { nom: "fiche d'une carte", echec: ficheEnEchec, lectures: 3 },
   { nom: "Cost, au niveau de l'app", echec: couts, lectures: 0 },
   { nom: "Cooks", echec: cooks, lectures: 1 },
-  { nom: "Verify", echec: verify, lectures: 1 },
-  { nom: "Settings · Rail", echec: () => settings("Rail"), lectures: 1 },
-  { nom: "Settings · Manager", echec: () => settings("Manager"), lectures: 2 },
-  { nom: "Settings · Grants", echec: () => settings("Grants"), lectures: 2 },
+  { nom: "Settings", echec: settings, lectures: 1 },
   { nom: "bandeau du second", echec: second, lectures: 0 },
 ];
 
@@ -362,34 +340,4 @@ describe("en attente de décision, chaque geste attendu est un bouton, pas du te
     for (const ligne of gestes.dessous("li")) assert.ok(boutons(ligne).length > 0, `le geste « ${ligne.dataset.geste} » n'est pas un bouton`);
   });
 
-  test("Verify : un manque que le chef lève est un bouton, et sa commande, au survol", async () => {
-    const guide = {
-      projet: "parade",
-      deplie: true,
-      titre: "Installing parade",
-      lecture: { etat: "lue", a: A },
-      etapes: [],
-      courante: null,
-      annonces: { etat: "lues", liste: [] },
-      verification: {
-        etat: "pas-pret",
-        a: A,
-        titre: "NOT READY — 2 things lack",
-        manques: [
-          { texte: "the box has no stations", acteur: "chef", qui: "you", geste: { action: "stations", libelle: "Declare the stations" } },
-          { texte: "the box lacks a command", acteur: "chef", qui: "you", geste: { commande: "sudo apt install gh" } },
-        ],
-        panne: null,
-        aSavoir: [],
-        detail: "MANQUE    brut",
-      },
-      demarrage: { refus: "no" },
-      termine: false,
-    } as unknown as Guide;
-    const vue = await ouvrir({ service: () => guide });
-    const racine = ecran(vue, "service", "service-tete", "service-etapes", "verification-etat");
-    assert.ok(boutons(racine).some(({ textContent }) => textContent === "Declare the stations"), "le geste n'est pas un bouton");
-    assert.ok(!visible(racine).includes("sudo apt install gh"), "la commande est écrite à plat");
-    assert.ok(survols(racine).includes("sudo apt install gh"), "la commande n'est pas au survol");
-  });
 });

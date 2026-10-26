@@ -54,7 +54,6 @@ code,
 #formulaire input,
 #formulaire select,
 #choisi,
-#retrait input:not([type="checkbox"]),
 .carte dd,
 #rail h4 span:last-child,
 #rail .bon p,
@@ -92,16 +91,8 @@ pre.propos {
 }
 /* Une carte : le cadre de tout ce qui se lit d'un bloc. */
 .carte,
-#service,
-#retrait,
-#provenance,
-#arreter-cuisine,
-#couleurs,
-#ordinaires,
+#etat > .groupe,
 #pages,
-#manager,
-#grants,
-#code,
 #tous .liste,
 #formulaire,
 #stations-du-projet .confiance {
@@ -111,7 +102,7 @@ pre.propos {
 }
 /* Un bouton de geste : il écrit, ou il demande — le même partout. Inactif, il est en pointillé,
    et sa raison se lit dessous. `:where` : la règle ne pèse rien, chaque bloc la précise. */
-:where(.gestes, .alerte > .ligne, #service, #retrait, #pages, #formulaire, #avis, #accueil-app) button,
+:where(.gestes, .alerte > .ligne, #retrait, #pages, #formulaire, #avis, #accueil-app) button,
 #fiche button,
 #rail .pr,
 #rail .servie button {
@@ -123,13 +114,13 @@ pre.propos {
   border: 1px solid var(--trait);
   border-radius: var(--rayon-bouton);
 }
-:where(.gestes, .alerte > .ligne, #service, #retrait, #pages, #formulaire, #avis, #accueil-app) button:hover:not(:disabled),
+:where(.gestes, .alerte > .ligne, #retrait, #pages, #formulaire, #avis, #accueil-app) button:hover:not(:disabled),
 #fiche button:hover,
 #rail .pr:hover,
 #rail .servie button:hover:not(:disabled) {
   border-color: var(--trait-fort);
 }
-:where(.gestes, .alerte > .ligne, #service, #retrait, #pages, #formulaire, #avis, #accueil-app) button:disabled,
+:where(.gestes, .alerte > .ligne, #retrait, #pages, #formulaire, #avis, #accueil-app) button:disabled,
 #rail .servie button:disabled {
   color: var(--discret);
   background: none;
@@ -270,20 +261,16 @@ main > header,
   font-weight: 700;
   overflow-wrap: anywhere;
 }
-/* Le geste du projet lui-même, à droite de son nom. */
-#gestes-projet {
-  margin-left: auto;
-}
 /* L'interrupteur de l'espace (tickets 906, 1406), à droite des onglets — un seul pour tout le projet : une
    glissière et son mot, « project on » ou « project off » — lisible sans rien lire d'autre. Allumé, la
    glissière est à droite, verte ; éteint, à gauche, grise ; pas lu, en pointillés, et il ne bascule rien.
-   Sa confirmation s'ouvre dessous, par-dessus le rail. */
+   Sa confirmation s'ouvre dessous, par-dessus le rail. La ligne d'un grant, dans Settings, a la même glissière. */
 .interrupteur-de-tete {
   position: relative;
   flex: none;
   margin-left: 16px;
 }
-.interrupteur-de-tete .bascule {
+:is(.interrupteur-de-tete, #etat .reglage) .bascule {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -293,17 +280,17 @@ main > header,
   border: 1px solid var(--trait);
   border-radius: 999px;
 }
-.interrupteur-de-tete .bascule:hover:not(:disabled) {
+:is(.interrupteur-de-tete, #etat .reglage) .bascule:hover:not(:disabled) {
   border-color: var(--trait-fort);
 }
-.interrupteur-de-tete .glissiere {
+:is(.interrupteur-de-tete, #etat .reglage) .glissiere {
   position: relative;
   width: 30px;
   height: 16px;
   background: var(--trait-fort);
   border-radius: 999px;
 }
-.interrupteur-de-tete .glissiere::after {
+:is(.interrupteur-de-tete, #etat .reglage) .glissiere::after {
   content: "";
   position: absolute;
   top: 2px;
@@ -313,22 +300,22 @@ main > header,
   background: var(--discret);
   border-radius: 50%;
 }
-.interrupteur-de-tete .bascule[data-etat="allume"] .glissiere {
+:is(.interrupteur-de-tete, #etat .reglage) .bascule[data-etat="allume"] .glissiere {
   background: var(--vert);
 }
-.interrupteur-de-tete .bascule[data-etat="allume"] .glissiere::after {
+:is(.interrupteur-de-tete, #etat .reglage) .bascule[data-etat="allume"] .glissiere::after {
   left: 16px;
   background: var(--texte);
 }
-.interrupteur-de-tete .bascule[data-etat="eteint"] {
+:is(.interrupteur-de-tete, #etat .reglage) .bascule[data-etat="eteint"] {
   color: var(--texte-doux);
 }
-.interrupteur-de-tete .bascule[data-etat="inconnu"] {
+:is(.interrupteur-de-tete, #etat .reglage) .bascule[data-etat="inconnu"] {
   color: var(--discret);
   border-style: dashed;
   cursor: default;
 }
-.interrupteur-de-tete .bascule[data-etat="inconnu"] .glissiere::after {
+:is(.interrupteur-de-tete, #etat .reglage) .bascule[data-etat="inconnu"] .glissiere::after {
   left: 9px;
   background: transparent;
   border: 1px dashed var(--discret);
@@ -1038,6 +1025,8 @@ main > header,
 #contenu {
   position: absolute;
   inset: 0;
+  /* Par-dessus le rail, ses têtes de colonne collantes comprises : rien du rail ne se lit au travers. */
+  z-index: 2;
   overflow-y: auto;
   background: var(--fond);
   user-select: text;
@@ -1046,12 +1035,6 @@ main > header,
 #etat {
   min-width: 0;
   user-select: text;
-}
-#parametres-onglets {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 12px 16px 0;
 }
 #journal {
   margin-left: auto;
@@ -1120,10 +1103,6 @@ main > header,
 #fil > div {
   height: 100%;
 }
-#etat > :is(.carte, #service, #retrait, #provenance, #arreter-cuisine, #couleurs, #ordinaires, #pages) {
-  margin: 12px 16px 0;
-}
-#lu,
 #lu-onglet,
 #lu-cuisine {
   position: sticky;
@@ -1447,7 +1426,6 @@ main > header,
   font-weight: 600;
 }
 /* Ce qui se lit : une commande, puis ce qu'elle a rendu — l'une sous l'autre. */
-#lecture,
 #lecture-onglet,
 #lecture-cuisine {
   display: flex;
@@ -1455,7 +1433,6 @@ main > header,
   gap: 6px;
   padding: 12px 16px 24px;
 }
-#lecture h3,
 #lecture-onglet h3,
 #lecture-cuisine h3,
 #tous h3 {
@@ -1903,7 +1880,6 @@ main > header,
 [data-etat] {
   border-left: 4px solid transparent;
 }
-#lu[data-etat],
 #lu-onglet[data-etat],
 #lu-cuisine[data-etat] {
   padding-left: 12px;
@@ -1912,7 +1888,6 @@ main > header,
    disque plein ; joint mais plus pilotable — ou sans le droit, ou sans commande —, un losange ;
    pas joint, un carré. Ton et forme sont posés par la vue (data-ton, data-forme) ; le mot reste
    le texte de la ligne. */
-#lu[data-forme]::before,
 #lu-onglet[data-forme]::before,
 #lu-cuisine[data-forme]::before {
   content: "";
@@ -1923,17 +1898,14 @@ main > header,
   background: var(--ton);
   border: 1px solid var(--ton);
 }
-#lu[data-forme="disque"]::before,
 #lu-onglet[data-forme="disque"]::before,
 #lu-cuisine[data-forme="disque"]::before {
   border-radius: 50%;
 }
-#lu[data-forme="carre"]::before,
 #lu-onglet[data-forme="carre"]::before,
 #lu-cuisine[data-forme="carre"]::before {
   border-radius: 1px;
 }
-#lu[data-forme="losange"]::before,
 #lu-onglet[data-forme="losange"]::before,
 #lu-cuisine[data-forme="losange"]::before {
   border-radius: 1px;
@@ -1966,27 +1938,9 @@ main > header,
   color: var(--bleu);
   border-left: 4px dotted var(--bleu);
 }
-/* En tête de Paramètres : le code de l'app, et les clones de brigade parmi les
-   projets. À jour, une ligne discrète ; en retard sur son origine — ou à relancer —, en
-   alerte, trait plein ; pas lu, en alerte, trait pointillé : ce n'est pas « à jour ». */
-#code {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 10px 14px;
-}
-#code > p:not(.gestes) {
-  margin: 0;
-  padding: 2px 12px;
-  font-weight: 600;
-}
-#code > .gestes {
-  padding: 0 0 0 16px;
-}
-#code > pre {
-  margin-left: 16px;
-}
+/* Le code de l'app, et les clones de brigade parmi les projets, sous cette machine dans Settings : à jour, une
+   ligne discrète ; en retard sur son origine — ou à relancer —, en alerte ; pas lu, en alerte : ce n'est pas
+   « à jour ». */
 [data-etat="hors-ligne"],
 [data-etat="illisible"],
 [data-etat="a-autoriser"],
@@ -2015,11 +1969,6 @@ main > header,
   background: var(--attend);
   border: 1px solid var(--attend-trait);
   border-radius: var(--rayon-carte);
-}
-#lecture .attend h3 {
-  margin: 0;
-  font-weight: 600;
-  color: var(--texte);
 }
 .attend pre {
   padding: 6px 0 0;
@@ -2157,95 +2106,6 @@ main > header,
 .gestes button.mono {
   font-weight: 500;
 }
-/* L'état du manager, en tête de son onglet : l'interrupteur et sa pastille, ses deux gestes —
-   qui écrivent dans un shell, et n'envoient rien —, puis ses dernières décisions et ce qu'il
-   a écarté : une issue par ligne, ce qui en est dit dessous. Sans état lu, la raison est en alerte.
-   L'état des grants, en tête du sien, se pose de même : un bloc par grant, ses deux gestes, ses usages. */
-:is(#manager, #grants) {
-  margin: 16px 16px 0;
-  padding: 14px 16px;
-}
-:is(#manager, #grants) h3,
-:is(#manager, #grants) h4 {
-  margin: 0 0 6px;
-  color: var(--discret);
-}
-:is(#manager, #grants) h4 {
-  margin-top: 12px;
-}
-:is(#manager, #grants) p {
-  margin: 0 0 4px;
-  overflow-wrap: anywhere;
-}
-:is(#manager, #grants) .interrupteur {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-:is(#manager, #grants) .interrupteur span:not(.pastille),
-:is(#manager, #grants) li small {
-  color: var(--discret);
-}
-:is(#manager, #grants) .gestes {
-  padding: 6px 0 0;
-}
-:is(#manager, #grants) ol {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-:is(#manager, #grants) li {
-  padding: 6px 0;
-  border-top: 1px solid var(--trait-doux);
-}
-:is(#manager, #grants) li:first-child {
-  border-top: 0;
-}
-:is(#manager, #grants) li div {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 8px;
-}
-:is(#manager, #grants) li small {
-  display: block;
-  overflow-wrap: anywhere;
-}
-:is(#manager, #grants) .refus {
-  color: var(--jaune);
-}
-:is(#manager, #grants) pre {
-  margin: 4px 0 0;
-}
-/* Un grant : son bloc, séparé du précédent. De son échéance, la durée restante est en tête et
-   en clair ; l'heure la suit, en discret ; ce qu'il en reste d'autre — ses usages, ou qu'il est
-   sans échéance — se lit à côté. */
-#grants article {
-  padding: 10px 0;
-  border-top: 1px solid var(--trait);
-}
-#grants article:first-of-type {
-  border-top: 0;
-}
-#grants .interrupteur em {
-  font-style: normal;
-  color: var(--jaune);
-}
-#grants .echeance {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 8px;
-}
-#grants .echeance strong + span,
-#grants article > small {
-  color: var(--discret);
-}
-#grants article > small {
-  display: block;
-  padding-top: 6px;
-}
 /* Les pages servies, sous l'état : ce que `status` montre de ses serveurs, et ce qui les empêche.
    Leur geste n'est pas ici : il est sur la carte de chaque ticket servi. Rien ne s'y valide. */
 #pages {
@@ -2267,32 +2127,96 @@ main > header,
 #pages pre {
   margin: 4px 0 0;
 }
-/* L'installation guidée, en tête du panneau : d'abord ce que l'app ne fera pas à la place du
-   chef, sous un trait jaune ; puis toutes les étapes, chacune avec son état, la courante sous
-   un trait de l'accent. Un bouton inactif a sa raison dessous ; le verdict d'`installation` a
-   sa couleur, sa sortie non.
-   Retirer le projet, dessous : deux gestes, chacun dans son bloc et sous son libellé. Celui
-   qui désinstalle de la box a la couleur de ce qui ne se rattrape pas. Ce que la box a rendu
-   a sa couleur, ses phrases non. */
-/* Les couleurs du projet : une rangée par rôle, une pastille ronde par couleur de la palette.
-   Celle que le projet porte est cerclée. */
-#couleurs {
-  padding: 10px 16px;
+/* Settings (ticket 1700) : trois groupes, un par niveau — le projet, cette machine, toi —, chacun une carte sous son
+   titre, le mot du niveau. Dedans, chaque réglage est une ligne, la même pour tous : son nom, sa valeur en vigueur, son
+   contrôle — puis, sous la valeur, ce que le contrôle a ouvert ou rendu. Les réglages du projet dans son dépôt gardent
+   leurs rangées (projet/reglages.js), sans second cadre ni second titre : le groupe les porte. Sur un écran étroit,
+   le nom, la valeur et le contrôle passent l'un sous l'autre. */
+#etat {
+  padding-bottom: 16px;
 }
-#couleurs h3 {
+#etat > .groupe {
+  margin: 12px 16px 0;
+  padding: 10px 16px 4px;
+}
+#etat .niveau-du-groupe {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 700;
+}
+#etat .groupe > .vide {
   margin: 0 0 6px;
+  color: var(--discret);
+}
+#etat .groupe > :is(div, section) > .reglage,
+#etat .reglages-du-projet .reglage {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 260px) minmax(0, 1fr);
+  align-items: center;
+  gap: 2px 12px;
+  padding: 7px 0;
+  border-top: 1px solid var(--trait-doux);
+}
+#etat .reglage > .nom {
+  color: var(--discret);
+}
+#etat .reglage > p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+#etat .reglage > .valeur strong {
   font-weight: 600;
 }
+#etat .reglage > .valeur small {
+  font-size: 12px;
+  color: var(--discret);
+}
+#etat .reglage > p.dit,
+#etat .reglage > .confirmation {
+  grid-column: 2 / -1;
+  font-size: 12px;
+  color: var(--discret);
+}
+#etat .reglage > p.dit.refus {
+  color: var(--jaune);
+}
+#etat #reglages-du-projet {
+  margin: 0;
+}
+#etat .reglages-du-projet {
+  padding: 0;
+  background: none;
+  border: 0;
+}
+#etat .reglages-du-projet > h3,
+#etat .reglage .niveau {
+  display: none;
+}
+#etat #arreter-cuisine {
+  display: block;
+  padding: 0;
+}
+#etat .reglage [data-etat] {
+  border-left: 0;
+}
+#etat .reglage input[type="number"] {
+  width: 64px;
+}
+/* Les couleurs du projet : une pastille ronde par couleur de la palette, sur la ligne de chaque rôle. Celle que le
+   projet porte est cerclée. */
 #couleurs .rangee {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 4px 0;
-}
-#couleurs .rangee span {
-  flex: 0 0 160px;
-  color: var(--discret);
 }
 #couleurs button.teinte {
   width: 22px;
@@ -2333,203 +2257,6 @@ main > header,
 #couleurs label.libre input::-webkit-color-swatch {
   border: none;
   border-radius: 50%;
-}
-#couleurs p.proche {
-  color: var(--jaune);
-}
-#couleurs p {
-  margin: 4px 0 0;
-  color: var(--discret);
-}
-#couleurs p.refus {
-  color: var(--jaune);
-}
-/* Les tickets ordinaires du Mac : l'option, sa limite, une ligne d'explication à côté, et — quand le
-   bac à sable manque — le message, dans la couleur de ce qui se refuse. */
-#ordinaires {
-  padding: 10px 16px;
-}
-#ordinaires h3 {
-  margin: 0 0 6px;
-  font-weight: 600;
-}
-#ordinaires label {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-right: 16px;
-}
-#ordinaires input[type="number"] {
-  width: 64px;
-}
-#ordinaires p {
-  margin: 4px 0 0;
-  color: var(--discret);
-}
-#ordinaires p.indisponible,
-#ordinaires p.refus {
-  color: var(--jaune);
-}
-:is(#service, #retrait, #provenance) summary {
-  padding: 10px 16px;
-  font-weight: 600;
-  cursor: pointer;
-  user-select: none;
-}
-:is(#service, #retrait, #provenance) p {
-  margin: 4px 0;
-  color: var(--discret);
-  overflow-wrap: anywhere;
-}
-:is(#service, #retrait) button {
-  margin-top: 6px;
-}
-:is(#service, #retrait) .refus,
-#retrait .avertissement {
-  color: var(--jaune);
-}
-:is(#service, #retrait) .verdict {
-  margin-top: 8px;
-  padding-left: 8px;
-  font-weight: 600;
-  border-left: 4px solid currentColor;
-}
-:is(#service, #retrait) pre {
-  margin: 4px 0;
-}
-#service ol {
-  margin: 0;
-  padding: 0 16px 12px 36px;
-}
-#service li {
-  margin-top: 12px;
-}
-#service li:first-child {
-  margin-top: 0;
-}
-#service label {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  margin-top: 6px;
-}
-#service-tete {
-  padding: 0 16px 8px;
-}
-#service .annonces {
-  margin: 4px 0 8px;
-  padding: 6px 10px;
-  border-left: 4px solid var(--jaune);
-}
-#service .annonce {
-  margin-top: 8px;
-}
-#service li.courante {
-  padding-left: 8px;
-  border-left: 4px solid var(--accent);
-}
-#service .etat {
-  font-size: smaller;
-  color: var(--discret);
-}
-#service li[data-etat="done"] .etat {
-  color: var(--vert);
-}
-#service li[data-etat="waiting"] .etat {
-  color: var(--jaune);
-}
-#service input[type="number"] {
-  width: 5em;
-}
-#service [data-verdict="pret"] {
-  color: var(--vert);
-}
-#service [data-verdict="incomplete"],
-#service [data-verdict="pas-pret"],
-#service [data-verdict="plantee"],
-#service [data-verdict="illisible"] {
-  color: var(--jaune);
-}
-#service [data-verdict="sans-verdict"] {
-  color: var(--rouge-clair);
-}
-/* Le verdict de « Vérifier » : une ligne par manque, sous la phrase ; ce que brigade lève seule
-   est plus discret que ce qui attend le chef. Les lignes « à savoir » sont à part, plus discrètes
-   encore ; la sortie brute est repliée sous « detail ». */
-#service .manques {
-  margin: 6px 0;
-  padding-left: 18px;
-}
-#service .manques li {
-  margin-top: 6px;
-}
-#service .manques li[data-acteur="brigade"] {
-  color: var(--discret);
-}
-#service .a-savoir {
-  margin: 8px 0;
-  padding-left: 8px;
-  font-size: smaller;
-  border-left: 2px solid var(--trait-doux);
-}
-#service .detail summary {
-  padding: 4px 0;
-  font-weight: normal;
-  color: var(--discret);
-}
-#retrait section {
-  margin: 0 16px 12px;
-  padding: 10px 12px;
-  background: var(--bandeau);
-  border: 1px solid var(--trait-doux);
-  border-radius: var(--rayon-bouton);
-}
-#retrait section > strong {
-  display: block;
-}
-#retrait label {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 6px;
-  margin-top: 8px;
-}
-#retrait input:not([type="checkbox"]) {
-  flex: 1;
-  min-width: 120px;
-  padding: 3px 8px;
-  font-size: 12px;
-  color: var(--texte);
-  background: var(--fond);
-  border: 1px solid var(--trait);
-  border-radius: var(--rayon-bouton);
-}
-#retrait button.sans-retour {
-  color: var(--rouge-clair);
-  border-color: var(--rouge);
-}
-#retrait button:disabled,
-#retrait input:disabled {
-  color: var(--discret);
-  border-color: var(--trait);
-  border-style: dashed;
-  cursor: default;
-}
-#retrait [data-verdict="plan"] {
-  color: var(--bleu);
-}
-#retrait [data-verdict="desinstalle"] {
-  color: var(--vert);
-}
-#retrait [data-verdict="pas-parti"],
-#retrait [data-verdict="refuse"],
-#retrait [data-verdict="inachevee"],
-#retrait [data-verdict="geste-absent"],
-#retrait [data-verdict="sans-reponse"] {
-  color: var(--jaune);
-}
-#retrait [data-verdict="injoignable"] {
-  color: var(--rouge-clair);
 }
 /* Un projet retiré de l'app n'a plus d'espace où le dire : dit par-dessus l'écran, au-dessus
    du bandeau du fichier, jusqu'à ce que le chef l'ait lu. */
@@ -2891,21 +2618,8 @@ main > header,
   color: var(--bon-discret);
   overflow-wrap: anywhere;
 }
-/* L'arrêt de la cuisine, rangé dans Paramètres : son bouton prend la forme d'un arrêt — un carré
+/* L'arrêt de la cuisine, la ligne de la cuisine dans Settings : son bouton prend la forme d'un arrêt — un carré
    plein devant le mot, un trait rouge — et ne ressemble à aucun geste ordinaire. */
-#arreter-cuisine {
-  display: block;
-  padding: 12px 16px;
-}
-#arreter-cuisine h3 {
-  margin: 0 0 4px;
-  font-size: 12px;
-  color: var(--discret);
-}
-#arreter-cuisine p {
-  margin: 0 0 8px;
-  overflow-wrap: anywhere;
-}
 #arreter-cuisine button[data-arret] {
   display: inline-flex;
   align-items: center;
@@ -5947,6 +5661,19 @@ button.recommande {
    centre (vue.js montre l'un ou l'autre). La tête du projet passe à la ligne plutôt que de déborder, et une ligne de
    station pose son bouton à côté de son nom, son état et ses cooks dessous. Le même seuil que `ECRAN_ETROIT` (vue.js). */
 @media (max-width: 720px) {
+  /* Settings (ticket 1700) : les groupes serrés, et le nom, la valeur et le contrôle d'un réglage l'un sous l'autre. */
+  #etat > .groupe {
+    margin: 8px 8px 0;
+    padding: 8px 12px 2px;
+  }
+  #etat .groupe > :is(div, section) > .reglage,
+  #etat .reglages-du-projet .reglage {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  #etat .reglage > p.dit,
+  #etat .reglage > .confirmation {
+    grid-column: 1;
+  }
   #cadre {
     flex-direction: column;
   }

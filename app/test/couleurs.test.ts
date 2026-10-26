@@ -304,7 +304,9 @@ describe("les couleurs dans la vue", () => {
   // La case de la barre : « T », puis les projets dans l'ordre du fichier, puis « + ».
   const caseDe = (vue: Jouee, rang: number): Faux => vue.element("projets").children.at(rang) ?? assert.fail(`pas d'entrée ${rang}`);
   const accent = () => (globalThis as unknown as { document: { documentElement: Faux } }).document.documentElement.style.getPropertyValue("--accent");
-  const pastilles = (vue: Jouee, rangee: number) => (vue.element("couleurs").children.filter(({ className }) => className === "rangee")[rangee] ?? assert.fail(`pas de rangée ${rangee}`)).dessous("button");
+  // Une ligne de réglage par rôle (#1700) : son nom, sa couleur, puis la palette — ses seuls boutons.
+  const pastilles = (vue: Jouee, rangee: number) => (vue.element("couleurs").children.filter(({ className }) => className === "reglage")[rangee] ?? assert.fail(`pas de rangée ${rangee}`)).dessous("button");
+  const dits = (vue: Jouee) => vue.element("couleurs").dessous("p").filter(({ className }) => className === "dit refus").map(({ textContent }) => textContent);
 
   test("dans la barre, chaque case porte la couleur d'onglet de son projet — celle d'un projet qui n'en a pas reste celle de la peau", async () => {
     const vue = await jouer([PARADE, FANFARE, NUE]);
@@ -335,11 +337,11 @@ describe("les couleurs dans la vue", () => {
     assert.equal(accent(), "");
   });
 
-  test("sous Paramètres, les couleurs se choisissent dans la palette, et le choix se voit dès que le fichier l'a pris", async () => {
+  test("dans Settings, sous toi, les couleurs se choisissent dans la palette, et le choix se voit dès que le fichier l'a pris", async () => {
     const vue = await jouer([PARADE, FANFARE], () => undefined);
     caseDe(vue, 1).click();
     await repos();
-    await ouvrirLecture(vue, "General");
+    await ouvrirLecture(vue, "Settings");
     const couleurs = vue.element("couleurs");
     assert.equal(couleurs.hidden, false);
     for (const [rangee, portee] of [[0, "purple"], [1, "turquoise"]] as const) {
@@ -361,17 +363,17 @@ describe("les couleurs dans la vue", () => {
     await repos();
     assert.equal(caseDe(vue, 1).style.getPropertyValue("--teinte"), "#f28cbf");
     assert.equal(accent(), "#f2994a");
-    assert.deepEqual(pastilles(vue, 0).filter(({ ariaPressed }) => ariaPressed === "true").map(({ title }) => title), ["Tab, in the bar: pink"]);
+    assert.deepEqual(pastilles(vue, 0).filter(({ ariaPressed }) => ariaPressed === "true").map(({ title }) => title), ["tab, in the bar: pink"]);
   });
 
   test("un choix refusé le dit sous les couleurs ; une couleur libre se montre au bout de la palette, pressée, sans geste", async () => {
     const vue = await jouer([{ ...PARADE, couleurs: { onglet: "#123456" } }], () => "ce fichier n'a pas pu être écrit : EACCES");
     caseDe(vue, 1).click();
     await repos();
-    await ouvrirLecture(vue, "General");
+    await ouvrirLecture(vue, "Settings");
     const propre = pastilles(vue, 0).at(-1);
     assert.equal(propre?.style.getPropertyValue("--teinte"), "#123456");
-    assert.equal(propre?.title, "Tab, in the bar: #123456, your own color");
+    assert.equal(propre?.title, "tab, in the bar: #123456, your own color");
     assert.equal(propre?.ariaPressed, "true");
     assert.equal(propre?.disabled, true);
     assert.equal(pastilles(vue, 0).length, PALETTE.length + 1);
@@ -379,18 +381,18 @@ describe("les couleurs dans la vue", () => {
 
     pastilles(vue, 1)[0]?.click();
     await repos();
-    assert.ok(vue.element("couleurs").dessous("p").some(({ textContent, className }) => className === "refus" && textContent === "ce fichier n'a pas pu être écrit : EACCES"));
+    assert.deepEqual(dits(vue), ["ce fichier n'a pas pu être écrit : EACCES"]);
   });
 
   test("une couleur libre se choisit au sélecteur, au bout de chaque rangée : elle part telle quelle, `#rrggbb`", async () => {
     const vue = await jouer([PARADE, FANFARE], () => undefined);
     caseDe(vue, 1).click();
     await repos();
-    await ouvrirLecture(vue, "General");
+    await ouvrirLecture(vue, "Settings");
     const libres = vue.element("couleurs").dessous("input");
     assert.deepEqual(libres.map(({ type, title, value }) => [type, title, value]), [
-      ["color", "Tab, in the bar: another color…", "#a98cf2"],
-      ["color", "Accent, in the space: another color…", "#25c0c5"],
+      ["color", "tab, in the bar: another color…", "#a98cf2"],
+      ["color", "accent, in the space: another color…", "#25c0c5"],
     ]);
     assert.deepEqual(vue.element("couleurs").dessous("label").map(({ textContent }) => textContent), ["other…", "other…"]);
     const [onglet, accentLibre] = libres;
@@ -411,14 +413,12 @@ describe("les couleurs dans la vue", () => {
     const vue = await jouer([proche, FANFARE], () => undefined);
     caseDe(vue, 1).click();
     await repos();
-    await ouvrirLecture(vue, "General");
-    const enfants = vue.element("couleurs").children.map(({ className, textContent }) => [className, className === "rangee" ? "" : textContent]);
-    assert.deepEqual(enfants.slice(1), [
-      ["rangee", ""],
-      ["proche", "Tab, in the bar: close to green, a state color — kept anyway"],
-      ["rangee", ""],
-      ["proche", "Accent, in the space: close to the tab of fanfare — kept anyway"],
-    ]);
+    await ouvrirLecture(vue, "Settings");
+    // Chaque avertissement sous la ligne de son rôle.
+    assert.deepEqual(
+      vue.element("couleurs").children.map((ligne) => ligne.dessous("p").filter(({ className }) => className === "dit refus").map(({ textContent }) => textContent)),
+      [["tab, in the bar: close to green, a state color — kept anyway"], ["accent, in the space: close to the tab of fanfare — kept anyway"]],
+    );
     // Gardée : pressée au bout de sa rangée, et sur la case de la barre.
     assert.equal(pastilles(vue, 0).at(-1)?.ariaPressed, "true");
     assert.equal(caseDe(vue, 1).style.getPropertyValue("--teinte"), "#70c08c");
@@ -426,7 +426,7 @@ describe("les couleurs dans la vue", () => {
     // Une teinte de la palette choisie à sa place : plus rien à dire.
     vue.dire("surConfiguration", pourLaBarre({ chemin: "/tmp/app.json", projets: [{ ...proche, couleurs: { onglet: "#a98cf2", accent: "#f08dbe" } }, FANFARE], hotes: ["box"] }), []);
     await repos();
-    assert.deepEqual(vue.element("couleurs").dessous("p").filter(({ className }) => className === "proche").map(({ textContent }) => textContent), ["Accent, in the space: close to the tab of fanfare — kept anyway"]);
+    assert.deepEqual(dits(vue), ["accent, in the space: close to the tab of fanfare — kept anyway"]);
   });
 
   test("la vue ne pose que deux variables — l'accent et la teinte d'un projet — et aucune règle d'état ne les nomme", () => {

@@ -208,7 +208,7 @@ const releveDe = ({ mot, depuis, par, dit }: Interrupteur) => `${mot}${depuis ==
 // dans la barre. Dans l'espace du projet, la vue ne la pose pas : son interrupteur et la tête du rail
 // le disent (#906, #1406) — `manager`, sur la bande.
 function duManager(manager: Interrupteur | Sans): Alerte[] {
-  if ("sans" in manager) return [nonVerifie("manager", "project switch not verified", { pourquoi: manager.sans, geste: "wait for it to be read: `manager` is re-read every 30 s — or open it in the Manager tab", prix: LIRE, appel: { onglet: "manager" } })];
+  if ("sans" in manager) return [nonVerifie("manager", "project switch not verified", { pourquoi: manager.sans, geste: "wait for it to be read: `manager` is re-read every 30 s", prix: LIRE })];
   if (manager.allume) return [];
   return [
     {
@@ -433,7 +433,7 @@ const MERGE_SANS_TOI = "a green pass will be merged without you";
 
 function duGrant(status: string | Sans): Alerte[] {
   const lu = statusLu(status);
-  const lireGrants = { geste: "read it: the Grants tab reads `grant` on the station", prix: LIRE, appel: { onglet: "grants" } };
+  const lireGrants = { geste: "read it: Settings reads `grant` on the station", prix: LIRE, appel: { onglet: "parametres" } };
   if (typeof lu !== "string") return [nonVerifie("grant", "grant state not verified", { pourquoi: lu.sans, ...lireGrants })];
   return tetesDe(lu)
     .filter(({ titre }) => titre === "grant")
@@ -612,7 +612,7 @@ const BOUTONS_DE_GESTE: Readonly<Record<string, string>> = { "projet-allumer": "
 export function boutonDe({ geste, appel }: Pick<Alerte, "geste" | "appel">): string | undefined {
   if (appel === undefined) return undefined;
   if ("demande" in appel) return "ask the second";
-  if ("onglet" in appel) return `open the ${appel.onglet} tab`;
+  if ("onglet" in appel) return appel.onglet === "parametres" ? "open Settings" : `open the ${appel.onglet} tab`;
   if ("relire" in appel) return "try again now";
   if (appel.geste === "grant-activer" && appel.grant !== undefined) return `enable ${appel.grant} again`;
   return BOUTONS_DE_GESTE[appel.geste] ?? (geste.split(/[:,—`]/)[0] ?? geste).trim();

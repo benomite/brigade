@@ -1,4 +1,4 @@
-// Les onglets de contenu d'un espace : cinq, chacun relaie une commande du
+// Les onglets de contenu d'un espace : trois, chacun relaie une commande du
 // runtime qui existe — et seul celui qui est affiché est lu, par la veille des
 // box, contre un faux `ssh` écrit par le test.
 import assert from "node:assert/strict";
@@ -11,27 +11,27 @@ import { COMMANDE_DES_COUTS, COMMANDE_DES_RATIOS, COMMANDE_DU_CLOSER, COUTS, com
 import { SANS_POSIX } from "./aides/posix.ts";
 
 describe("les onglets de contenu d'un espace", () => {
-  test("ils sont cinq, dans cet ordre : Rail, Cooks, Manager, Grants, Log — Reliability et Closer sont des sections de Cooks (#1699)", () => {
-    assert.deepEqual(ONGLETS.map(({ titre }) => titre), ["Rail", "Cooks", "Manager", "Grants", "Log"]);
-    assert.deepEqual(RUBRIQUES.map(({ lectures }) => lectures), [["parametres", "manager", "grants", "rail", "cooks"]]);
+  test("ils sont trois, dans cet ordre : Cooks, Grants, Log — ni Rail ni Manager (#1700), Reliability et Closer sont des sections de Cooks (#1699)", () => {
+    assert.deepEqual(ONGLETS.map(({ titre }) => titre), ["Cooks", "Grants", "Log"]);
+    assert.deepEqual(RUBRIQUES.map(({ lectures }) => lectures), [["parametres", "cooks"]]);
   });
 
   test("chacun relaie une commande que le geste de la box accepte : un script du runtime, tel qu'il existe", () => {
     const { scripts } = JSON.parse(readFileSync(join(import.meta.dirname, "../../runtime/package.json"), "utf8")) as { scripts: Record<string, string> };
 
-    assert.deepEqual(ONGLETS.map(({ commande }) => commande), ["rail", "station", "manager", "grant", `log --last ${EVENEMENTS_DU_LOG}`]);
+    assert.deepEqual(ONGLETS.map(({ commande }) => commande), ["station", "grant", `log --last ${EVENEMENTS_DU_LOG}`]);
     for (const { commande } of ONGLETS) assert.ok((commande.split(" ")[0] as string) in scripts, `« ${commande} » n'est pas un script du runtime`);
     // Et ce que Cooks lit de plus pour ses sections de fiabilité et de closer.
     for (const commande of ["measures", COMMANDE_DU_CLOSER]) assert.ok((commande.split(" ")[0] as string) in scripts, `« ${commande} » n'est pas un script du runtime`);
   });
 
   test("la vue nomme un onglet, pas une commande : un nom qui n'est pas celui d'un onglet ne lance rien", () => {
-    assert.deepEqual(ONGLETS.map(({ id }) => commandeDe(id)), ["rail", "station", "manager", "grant", "log --last 200"]);
-    for (const autre of ["status", "start", "rail; rm -rf /", "", undefined, 3, null, "fiabilite", "closer"]) {
+    assert.deepEqual(ONGLETS.map(({ id }) => commandeDe(id)), ["station", "grant", "log --last 200"]);
+    // Rail et Manager ne sont plus des onglets (#1700) : leur nom ne lance plus rien.
+    for (const autre of ["status", "start", "rail; rm -rf /", "", undefined, 3, null, "fiabilite", "closer", "rail", "manager"]) {
       assert.equal(commandeDe(autre), undefined);
       assert.deepEqual(commandesDe(autre), []);
     }
-    assert.deepEqual(commandesDe("manager"), ["manager"]);
     assert.deepEqual(commandesDe(COUTS), [COMMANDE_DES_COUTS]);
   });
 

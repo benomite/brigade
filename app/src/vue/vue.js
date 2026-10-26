@@ -28,15 +28,10 @@
 // sans l'envoyer (boutons.ts). La vue n'y lit rien —
 // elle ne sait pas ce qu'est un ticket. Ce qui attend le chef lui arrive déjà
 // mis à part (attend.ts) : elle le pose en tête, quel que soit l'onglet.
-// Dans l'onglet Manager, l'état du manager se pose au-dessus du texte — allumé ou éteint,
-// depuis quand et par qui, ses dernières décisions, ce qu'il a écarté et pourquoi —, déjà lu
-// par le process principal (manager.ts). À côté, ses deux gestes : éteindre, direct ; allumer,
-// confirmé — sa confirmation dit l'avertissement de la doc et deux nombres, les issues ouvertes et
-// celles qui portent `blocked-on-human`, demandés à la box dès qu'elle s'ouvre (allumage.ts).
-// Dans l'onglet Grants, de même, l'état des grants : lequel est actif, son échéance — la durée
-// restante en tête, l'heure ensuite —, ses derniers usages, et ce qu'aucun grant n'autorise,
-// déjà lus par le process principal (grants.ts). À côté de chaque grant, ses deux gestes,
-// accorder et révoquer, confirmés : chacun dit ce que le grant change avant de partir.
+// Settings (ticket 1700) ne tient que ce que le chef règle, en trois groupes — le projet, cette machine, toi —, une
+// ligne par réglage : son nom, sa valeur en vigueur, un seul contrôle. Les grants y sont une ligne chacun, déjà lus par
+// le process principal (grants.ts) : son état, ce qu'il lui reste, et un interrupteur dont le clic ouvre la
+// confirmation qui dit ce que le grant change avant de partir.
 // La barre est faite d'icônes : « Tous les projets » en tête — l'accueil, la vue d'ensemble de
 // brigade : une ligne par projet, une par station, et la ligne de santé, dites par le process
 // principal (accueil.ts) ; on n'y agit pas, un clic sur une ligne ouvre sa page, et « Cost » celle
@@ -45,14 +40,9 @@
 // dans l'app d'un seul geste. Ce qui manque à un champ, ce qui part vers la box et ce
 // qu'elle en a rendu se décident dans le process principal (installation.ts) : la vue
 // recueille, signale le champ qu'on lui nomme, et pose ce qu'on lui rend.
-// Après l'ajout, l'installation guidée — toutes ses étapes, celle qui attend le chef, ce
-// qu'il aura à faire lui-même annoncé d'emblée, un bouton ou une réponse par geste — se
-// suit dans l'espace du projet, en tête de Paramètres : ce qui s'y dit, ce qui s'y refuse
-// et ce qui part vers la box se décident de même hors d'ici (service.ts).
-// Dessous, « Retirer ce projet » : deux gestes, chacun sous son libellé — le retirer de
-// l'app, qui n'envoie rien à sa box ; le désinstaller de sa box, qui montre d'abord le
-// plan qu'elle rend, et ne part qu'une fois son nom écrit. Là encore la vue pose : ce qui
-// se refuse, ce qui part et ce qui s'en dit se décident dans retrait.ts.
+// L'installation guidée et la vérification de l'installation ne sont plus dans la vue (ticket 1700) : l'app n'a besoin
+// que d'une connexion GitHub. Le retrait du projet est une ligne de Settings, sous toi : le retirer de l'app, qui
+// n'envoie rien à sa station, après un « yes » — ce qui se refuse et ce qui s'en dit se décident dans retrait.ts.
 // Et, sur la carte de chaque ticket dont `status` montre un serveur, l'écran à regarder — la phrase
 // du cook, et la mention quand l'écran est déduit plutôt que déclaré — puis sa page : un geste
 // direct, qui ouvre l'écran dans le navigateur du poste, posé seulement s'il y a une page à voir —
@@ -66,14 +56,13 @@
 // place. Ce qui s'y dit et ce que son bouton appelle se décident dans alertes.ts : la vue pose.
 // Chaque alerte tient en une ligne — ce qui ne va pas — et un contrôle — son geste (ticket 907) :
 // confirmé — reprendre —, ou une demande au second quand il faut lire, juger ou agir sur la box ;
-// une ligne « non vérifié » mène à l'onglet qui lit l'état. Le prix n'est jamais posé à côté : le
+// une ligne « non vérifié » mène à la page qui lit l'état, quand il y en a une. Le prix n'est jamais posé à côté : le
 // clic ouvre la confirmation, qui le dit. Ce que la box en écrit est derrière « detail ». Le projet
 // éteint n'y fait pas de ligne : c'est un interrupteur, un seul pour tout le projet (ticket 1406), en tête
 // de l'espace, à droite des onglets — allumé ou éteint, un clic le bascule —, et, éteint, la tête du
 // rail est marquée à l'arrêt d'une ligne (ticket 906).
-// Arrêter la cuisine est sur le rail, qu'il arrête ; vérifier l'installation, en tête de l'espace,
-// à côté du nom du projet.
-// En tête de Paramètres, et au survol de « T », le code de l'app lui-même : à jour, ou en retard sur
+// Arrêter la cuisine est une ligne de Settings, sous le projet.
+// Dans Settings, sous cette machine, et au survol de « T », le code de l'app lui-même : à jour, ou en retard sur
 // l'origine de son clone — et de combien de commits —, avec l'heure de sa lecture ; de même
 // pour le clone d'un projet qui est celui de brigade. En retard, un bouton écrit `git pull`
 // dans un shell, et n'envoie rien : l'app ne met rien à jour. Ce qui se lit, ce qui s'en dit
@@ -119,7 +108,7 @@ import { poserBlocages } from "./projet/blocages.js";
 import { poserDelai } from "./projet/delai.js";
 import { poserChoix, sansLesChoix } from "./projet/choix.js";
 import { poserLesReglages, poserUnReglage } from "./projet/reglages.js";
-import { niveauDe } from "./niveaux.js";
+import { niveauDe, NIVEAUX_DITS } from "./niveaux.js";
 import { ligneDAlerte, poserLesStations as stationsDeCuisson } from "./stations-de-cuisson.js";
 import { poserLesAppels } from "./appels-de-la-station.js";
 import { EXPLIQUE as AIDE_DU_PLAFOND, poserLePlafond as plafondDeCalibrage, resumeDuPlafond, TITRE as TITRE_DU_PLAFOND } from "./plafond-de-calibrage.js";
@@ -149,12 +138,13 @@ const dateHeure = (/** @type {number | string | Date} */ instant) => new Date(in
 /** @typedef {import("../faits.ts").Dessinable} Dessinable */
 /** @typedef {import("../alertes.ts").Alerte} Alerte */
 /** @typedef {import("../page.ts").Pages} Pages */
-/** @typedef {import("../manager.ts").Vu} VuDuManager */
 /** @typedef {import("../grants.ts").Vu} VuDesGrants */
 /** @typedef {import("../fiabilite.ts").Vu} VuDeLaFiabilite */
 // Ce que `onglets.ts` nomme : le journal, et l'onglet Paramètres, qui n'a pas de commande à lui.
 const JOURNAL = "log";
 const PARAMETRES = "parametres";
+// La lecture que Settings suit (ticket 1700) : celle des grants, `grant` sur la station du projet (onglets.ts).
+const GRANTS_LUS = "grants";
 // Et la lecture de la page des coûts de l'app (ticket 1022) : `station`, sur la box de chaque projet (onglets.ts, `COUTS`).
 const COUTS = "couts";
 // Et celle de la page des ratios de l'app (ticket 1682) : `closing --json`, sur la box de chaque projet (onglets.ts, `RATIOS`).
@@ -237,15 +227,11 @@ const contenu = element("contenu");
 const centre = element("centre");
 const rail = element("rail");
 const fiche = element("fiche");
-const manager = element("manager");
 const grants = element("grants");
 const luOnglet = element("lu-onglet");
 const lectureOnglet = element("lecture-onglet");
 const gestesOnglet = element("gestes-onglet");
-const gestesProjet = element("gestes-projet");
 const interrupteurProjet = element("interrupteur-projet");
-const provenance = /** @type {HTMLDetailsElement} */ (element("provenance"));
-const provenanceLignes = element("provenance-lignes");
 const arreterCuisine = element("arreter-cuisine");
 // Les serveurs de livraison du projet — ce que `status` en montre — sont sur l'onglet Cooks (ticket 1184), sous ses
 // colonnes : poserRail les y pose.
@@ -276,16 +262,13 @@ const sectionConversation = element("conversation");
 let conversationDuTelephone;
 const message = element("message");
 const etat = element("etat");
-const parametresOnglets = element("parametres-onglets");
 const journal = element("journal");
-const service = /** @type {HTMLDetailsElement} */ (element("service"));
-const serviceTitre = element("service-titre");
-const serviceTete = element("service-tete");
-const verificationEtat = element("verification-etat");
-const serviceEtapes = element("service-etapes");
-const retrait = /** @type {HTMLDetailsElement} */ (element("retrait"));
-const retraitTitre = element("retrait-titre");
-const retraitGestes = element("retrait-gestes");
+// Settings (ticket 1700) : trois groupes, un par niveau — le projet, cette machine, toi. Chacun a son titre, le mot du
+// niveau ; un groupe sans réglage le dit en une ligne.
+const groupeMachine = element("reglages-machine");
+const videProjet = element("vide-project");
+const videMachine = element("vide-machine");
+const retrait = element("retrait");
 const couleurs = element("couleurs");
 const ordinaires = element("ordinaires");
 const reglagesDuProjet = element("reglages-du-projet");
@@ -365,8 +348,6 @@ closer.id = "closer-du-projet";
 closer.ariaLabel = "Closer";
 const alerteDeCuisine = document.createElement("div");
 alerteDeCuisine.id = "alerte-de-cuisine";
-const lu = element("lu");
-const lecture = element("lecture");
 const ajout = element("ajout");
 const formulaire = /** @type {HTMLFormElement} */ (element("formulaire"));
 const ou = element("ou");
@@ -376,11 +357,11 @@ const base = /** @type {HTMLInputElement} */ (element("base"));
 const envoi = /** @type {HTMLButtonElement} */ (element("ajouter"));
 const issueAjout = element("issue-ajout");
 const relecture = element("relecture");
-// Dans Paramètres, le retard du code de l'app, et des clones de brigade — la case « T » le dit aussi, au survol.
-const code = document.createElement("section");
+// Dans Settings, sous cette machine : le code de l'app, et des clones de brigade — la case « T » le dit aussi, au survol.
+const code = document.createElement("div");
 code.id = "code";
 code.ariaLive = "polite";
-etat.prepend(code);
+groupeMachine.append(code);
 // L'accueil, « Tous les projets » : la vue d'ensemble de brigade (accueil.ts). Une liste des projets,
 // une des stations — une ligne chacun, un clic ouvre sa page —, et en bas la ligne de santé. On n'y
 // agit pas : seul « + station » y ouvre le champ où le chef tape le code qu'une station neuve affiche.
@@ -858,12 +839,8 @@ let ALLUMAGE;
 // absent, en cours ; nul, pas demandé. Indéfinie : aucune n'est ouverte, et rien ne part.
 /** @type {{ projet: string, cle: string, rendu?: Confirmation | { refus: string }, compte?: Compte | null } | undefined} */
 let aConfirmer;
-// Ce que la dernière lecture de l'onglet Manager donne à poser. Indéfini : pas encore lu depuis
-// que l'onglet est affiché — rien ne reste de ce qui s'y lisait avant.
-/** @type {VuDuManager | undefined} */
-let managerVu;
-// Les trois gestes de la cuisine et de l'installation, dits de même (cuisine.ts) : leurs libellés.
-// Arrêter se pose sur le rail ; reprendre, sur ce qui dit la cuisine à l'arrêt ; vérifier l'installation, en tête de l'espace.
+// Les gestes de la cuisine, dits de même (cuisine.ts) : leurs libellés. Arrêter et reprendre sont la ligne de la
+// cuisine, dans Settings ; reprendre est aussi sur ce qui dit la cuisine à l'arrêt.
 /** @type {readonly { id: string, libelle: string }[]} */
 let GESTES_DE_LA_CUISINE = [];
 // Les deux gestes d'un grant, dits de même (grants.ts), et les grants que la doc nomme (gestes.ts) :
@@ -888,8 +865,8 @@ const formulairesDAttente = new Map();
 let DIRECTS = [];
 /** @type {readonly string[]} */
 let CONFIRMES = [];
-// Ce que la dernière lecture de l'onglet Grants donne à poser. Indéfini : pas encore lu depuis
-// que l'onglet est affiché — rien ne reste de ce qui s'y lisait avant, ni la durée qui restait.
+// Ce que la dernière lecture des grants donne à poser dans Settings. Indéfini : pas encore lu depuis
+// que Settings est affiché — rien ne reste de ce qui s'y lisait avant.
 /** @type {VuDesGrants | undefined} */
 let grantsVus;
 // Ce que la dernière lecture de l'onglet Cooks donne à poser dans sa section de fiabilité. Indéfini : pas encore lu
@@ -1133,20 +1110,12 @@ const levees = new Map();
 // La phrase que le chef écrit en réponse, par projet et ticket : une fiche reposée ne la perd pas.
 /** @type {Map<string, string>} */
 const brouillons = new Map();
-// Le projet dont l'installation est posée dans le panneau : la reposer ne la replie ni ne la déplie.
-let misEnService = "";
-// Si elle l'était, dépliée d'elle-même : une installation qui le devient s'ouvre, une fois.
-let serviceDeplie = false;
-// Celui dont les deux gestes de retrait sont posés : les reposer ne les replie pas, et ne
-// perd ni le nom que le chef est en train d'écrire pour confirmer, ni pourquoi il n'a pas été retiré de l'app.
-let retraitPose = "";
+// « Remove from the app » : le projet dont le retrait attend son « yes », et pourquoi il n'a pas été retiré — chacun
+// pour son projet.
+let retraitDeLApp = "";
+let nonRetire = { projet: "", refus: "" };
 // Pourquoi la dernière couleur choisie n'a pas été écrite, et pour quel projet — rien, si elle l'a été.
 let couleurRefusee = { projet: "", refus: "" };
-let confirmation = "";
-// Le plan sous lequel ce nom a été écrit, par l'instant où la box l'a rendu : un nom écrit
-// devant un plan ne confirme pas le suivant.
-let planConfirme = "";
-let nonRetire = "";
 // Ce que la dernière lecture des clones donne à poser (retard.ts). Indéfini : pas encore lus.
 /** @type {VuDuCode | undefined} */
 let codeVu;
@@ -1295,9 +1264,16 @@ function vue(id) {
 
 const duCourant = () => [...vues.values()].filter(({ terminal }) => terminal.projet === courant?.nom);
 const actif = () => (courant === undefined ? undefined : laisse.get(courant.nom));
-// La lecture suivie : celle de la page ouverte par-dessus ; sans page, sur l'onglet Cooks, `station` (ticket 1184).
-// Sur un écran étroit, Cooks ne la suit pas : le plafond et le quota sont des réglages (ticket 1186).
-const lue = () => actif() ?? (courant !== undefined && ongletDe(courant) === CUISINE && !etroit() ? CUISINE : undefined);
+// La lecture suivie : celle de la page ouverte par-dessus — Settings lit les grants (ticket 1700) ; sans page, sur
+// l'onglet Cooks, `station` (ticket 1184). Sur un écran étroit, Cooks ne la suit pas : le plafond et le quota sont des
+// réglages (ticket 1186).
+const lue = () => {
+  const ouverte = actif();
+  if (ouverte === PARAMETRES) return GRANTS_LUS;
+  return ouverte ?? (courant !== undefined && ongletDe(courant) === CUISINE && !etroit() ? CUISINE : undefined);
+};
+// Settings est ouvert : sa lecture, celle des grants, ne pose que leurs lignes — ni sa sortie, ni son heure.
+const reglagesMontres = () => courant !== undefined && actif() === PARAMETRES;
 // L'onglet Cooks est montré, avec la lecture de `station` : aucune page ne le couvre, et l'écran est large.
 const cuisineMontree = () => courant !== undefined && actif() === undefined && ongletDe(courant) === CUISINE && !etroit();
 // L'onglet de la conversation est montré (écran étroit) : le second prend la place du centre. Une page ouverte
@@ -1382,13 +1358,14 @@ function montrer() {
   );
 
   // L'explication d'un onglet relayé n'est pas écrite à plat : une icône d'aide la porte. Celle de Cooks aussi.
-  const suivie = ONGLETS.find(({ id }) => id === lue());
+  // Settings n'en a pas : il n'a que des réglages.
+  const suivie = reglagesMontres() ? undefined : ONGLETS.find(({ id }) => id === lue());
   const explication =
     suivie === undefined || courant === undefined || courant.desinstalle !== undefined
       ? ""
       : suivie.id === CUISINE
         ? `the output of \`${geste(courant, "station")}\`, as the station returns it; the reliability of the cooks from the chef's window and thresholds it gives, then \`${geste(courant, "measures --last <window> --by 1")}\`; the closer from \`${geste(courant, "closing --json")}\` — re-read on their own every thirty seconds, while this tab is shown`
-        : `${suivie.id === "manager" ? "the manager state, then " : suivie.id === "grants" ? "the grants state, then " : ""}the output of \`${geste(courant, suivie.commande)}\`, as the station returns it${suivie.precision === undefined ? "" : ` (${suivie.precision})`} — re-read on its own every thirty seconds, while this tab is shown`;
+        : `the output of \`${geste(courant, suivie.commande)}\`, as the station returns it${suivie.precision === undefined ? "" : ` (${suivie.precision})`} — re-read on its own every thirty seconds, while this tab is shown`;
   // Sur Cooks, elle est en tête de sa lecture, sous les colonnes : la ligne du haut n'a rien à dire.
   const surCuisine = cuisineMontree();
   const resumeDeLaCuisine = bloc("span", "its machine, its quota, as the station returns them");
@@ -1401,30 +1378,19 @@ function montrer() {
       : nonEcrit !== "" ? [nonEcrit] : suivie !== undefined && courant?.desinstalle !== undefined ? ["nothing is read for this tab: this project is uninstalled from its station"] : explication === "" || surCuisine ? [] : [survol(document, explication)]),
   );
   note.hidden = (note.childElementCount === 0 && note.textContent === "") || conversationMontree();
-  const parametres = rubriqueDe(visible)?.id === PARAMETRES;
   // Une page se pose par-dessus le rail : il reste dessous, tel quel, et rien de lui ne se clique au travers.
   contenu.hidden = relaye === undefined && visible !== PARAMETRES;
   rail.inert = !contenu.hidden || !fiche.hidden;
-  // Paramètres pose d'abord l'état du projet, puis, au choix, la lecture du manager, des grants, du rail.
+  // Settings est une seule page, sans sous-pages (ticket 1700) : ses trois groupes, et rien d'autre.
   etat.hidden = courant === undefined || visible !== PARAMETRES;
   luOnglet.hidden = relaye === undefined;
-  parametresOnglets.hidden = !parametres;
-  if (parametres) {
-    parametresOnglets.replaceChildren(
-      // La lecture de `station` n'y est plus : elle est l'onglet Cooks (ticket 1184).
-      ...[[PARAMETRES, "General"], ...ONGLETS.filter(({ id }) => id !== CUISINE && rubriqueDe(id)?.id === PARAMETRES).map(({ id, titre }) => [id, titre])].map(([id, titre]) => {
-        const cree = bouton(/** @type {string} */ (titre), () => void (laisse.set(/** @type {Projet} */ (courant).nom, /** @type {string} */ (id)), nonEcrit = "", montrer()));
-        cree.ariaPressed = String(id === visible);
-        return cree;
-      }),
-    );
-  }
   // Le journal : un geste, pas un onglet. Le recliquer le referme.
   journal.hidden = courant === undefined || !seLit(courant);
   journal.ariaPressed = String(visible === JOURNAL);
   // Au centre, seul un fichier des projets illisible a sa raison à la place de l'espace.
   message.hidden = courant !== undefined;
   poserSecond(ouvrable, droite?.terminal);
+  poserLesGroupes();
   poserLaFiabilite();
   poserLeCloser();
   poserGestes(gestesOnglet, relaye?.id);
@@ -1909,7 +1875,7 @@ function choisirOnglet(id) {
   montrer();
 }
 
-// Paramètres ouvre l'état du projet — par-dessus le rail. Recliqué, l'onglet ouvert se referme.
+// Settings s'ouvre par-dessus le rail. Recliqué, il se referme.
 /** @param {string} id */
 function activerRubrique(id) {
   const rubrique = RUBRIQUES.find((candidate) => candidate.id === id);
@@ -1934,10 +1900,7 @@ function lireOnglet() {
   const voulu = page !== undefined ? JSON.stringify(["", page]) : courant === undefined || relaye === undefined ? "" : JSON.stringify([courant.nom, relaye.id]);
   if (voulu === suivi) return;
   suivi = voulu;
-  // L'état du manager lu avant n'est plus celui de cette lecture : il revient avec elle.
-  managerVu = undefined;
-  poserManager();
-  // Celui des grants non plus.
+  // L'état des grants lu avant n'est plus celui de cette lecture : il revient avec elle.
   grantsVus = undefined;
   poserGrants();
   // Ni la fiabilité.
@@ -1949,7 +1912,7 @@ function lireOnglet() {
   poserLeCloser();
   if (courant !== undefined && relaye !== undefined) {
     if (actif() === undefined) attendre(courant, luCuisine, lectureCuisine);
-    else attendre(courant, luOnglet, lectureOnglet);
+    else if (!reglagesMontres()) attendre(courant, luOnglet, lectureOnglet);
   }
   ongletDemande = page ?? relaye?.id;
   brigade.onglet(courant?.nom, ongletDemande, ++demandeOnglet);
@@ -2009,13 +1972,6 @@ function bloc(balise, texte) {
   const cree = document.createElement(balise);
   cree.textContent = texte;
   return cree;
-}
-
-// Un élément qui dit le niveau de son réglage (niveaux.js), à sa suite.
-/** @template {HTMLElement} T @param {T} pose @param {string} cle @returns {T} */
-function avecNiveau(pose, cle) {
-  pose.append(niveauDe(document, cle));
-  return pose;
 }
 
 // Ce qui se recopie tel quel — un numéro de ticket, un identifiant de run, un port : en monospace,
@@ -2252,8 +2208,7 @@ function poserManque(projet, manque, action) {
     const id = geste.action;
     if (id === "init") ligne.append(action(geste.libelle, () => amorcerService(projet)));
     else if (id === "protection") ligne.append(action(geste.libelle, () => brigade.proteger(projet.nom)));
-    // Les stations et les décisions se choisissent : le bouton mène à leur étape.
-    else ligne.append(action(geste.libelle, async () => [...serviceEtapes.children].find((etape) => /** @type {HTMLElement} */ (etape).dataset.id === id)?.scrollIntoView?.({ block: "center" })));
+    // Les stations et les décisions se choisissent sur la page du projet : la ligne n'a pas de bouton.
     return ligne;
   }
   // Ni commande ni phrase de mode d'emploi à plat : elles se lisent au survol.
@@ -2261,206 +2216,9 @@ function poserManque(projet, manque, action) {
   return ligne;
 }
 
-// Ce que la box a rendu à la place de ce qui était demandé : son titre, ce que l'app a obtenu.
-/** @param {Projet} projet @param {import("../service.ts").Rate | { etat: "en-cours"; titre: string }} rate */
-function poserRate(projet, rate) {
-  const tete = bloc("p", rate.titre);
-  tete.className = "verdict";
-  tete.dataset.verdict = rate.etat === "en-cours" ? "en-cours" : "sans-verdict";
-  if (rate.etat === "en-cours") return [tete];
-  if (rate.etat === "echec") return [tete, ...obtenuEnUneLigne(projet, { ...rate.echec, projet: projet.nom }, GESTE)];
-  return [tete, ...rate.lignes.map((ligne) => bloc("p", ligne))];
-}
-
-// Les mots d'un état d'étape, tels que l'écran les montre.
-/** @type {Record<import("../service.ts").EtatDEtape, string>} */
-const ETATS_D_ETAPE = { todo: "to do", done: "done", waiting: "waiting for you" };
-
-// L'installation du projet affiché, en tête du panneau : d'abord ce que l'app ne fera pas à
-// la place du chef, puis toutes les étapes, dans leur ordre — leur état, à quoi chacune sert,
-// ce qui se passe si on la saute —, et l'étape courante mise en avant, avec son geste. Un
-// bouton qui ne peut pas partir est grisé ; le process principal le refuse de même.
-/** @param {Projet} projet @param {Guide | undefined} guide */
-function poserService(projet, guide) {
-  // Le chef a pu changer d'espace pendant que la box répondait.
-  if (courant?.nom !== projet.nom) return;
-  service.hidden = guide === undefined || guide.termine;
-  // Installé, ce que sa dernière vérification a donné se pose en tête de Paramètres : la même règle que l'écran Verify.
-  const verifiee = guide !== undefined && guide.termine && guide.verification !== undefined;
-  verificationEtat.hidden = !verifiee;
-  verificationEtat.replaceChildren(...(verifiee ? poserVerdict(projet, guide.verification, (texte, geste) => bouton(texte, () => void geste())) : []));
-  if (guide === undefined || guide.termine) return serviceEtapes.replaceChildren(), serviceTete.replaceChildren();
-  // En cours, ou entamée par le chef, elle s'ouvre d'elle-même ; ensuite, c'est lui qui la replie.
-  if (misEnService !== projet.nom || (guide.deplie && !serviceDeplie)) {
-    // Elle se déplie, mais n'envoie jamais le chef dans Paramètres : le rail reste l'écran d'un projet.
-    service.open = guide.deplie;
-  }
-  misEnService = projet.nom;
-  serviceDeplie = guide.deplie;
-  serviceTitre.textContent = guide.titre;
-  const occupe = guide.action !== undefined || guide.verification?.etat === "en-cours";
-
-  /** @param {string} texte @param {() => Promise<unknown>} geste */
-  const action = (texte, geste) => {
-    const cree = bouton(texte, () => void agirService(projet, geste));
-    cree.type = "button";
-    cree.disabled = occupe;
-    return cree;
-  };
-  /** @param {string} texte */
-  const refus = (texte) => {
-    const cree = bloc("p", texte);
-    cree.className = "refus";
-    return cree;
-  };
-
-  // En tête : ce que l'app ne fera pas à la place du chef, dit avant qu'il le rencontre ; puis
-  // ce que la box a rendu de la dernière action, et de la dernière vérification.
-  const tete = [];
-  if (guide.lecture.etat !== "lue") tete.push(...poserRate(projet, guide.lecture));
-  if (guide.courante === null && guide.lecture.etat === "lue") {
-    tete.push(ditEtAide("p", "The installation is finished", "the station verified everything, the kitchen is ready to serve, and no installation step is left."));
-    if ("commande" in guide.demarrage) tete.push(action("Write the start of the service in a shell", () => demarrerService(projet)));
-  }
-  if (guide.courante !== null && guide.lecture.etat === "lue") {
-    const annonces = document.createElement("div");
-    annonces.className = "annonces";
-    annonces.append(ditEtAide("strong", "What the app cannot do for you", "said before you meet it"));
-    if (guide.annonces.etat === "en-cours") annonces.append(ditEtAide("p", "The station is being verified…", "what it lacks, that only someone with `sudo` there can set up, is announced here as soon as it answers."));
-    if (guide.annonces.etat === "pas-lues") annonces.append(refus("The verification did not return its verdict: what the station may lack is not known."));
-    for (const annonce of guide.annonces.liste) {
-      const ligne = document.createElement("div");
-      ligne.className = "annonce";
-      ligne.append(bloc("strong", annonce.titre), annonce.geste === null ? bloc("p", annonce.texte) : ditEtAide("p", annonce.texte, annonce.geste));
-      annonces.append(ligne);
-    }
-    tete.push(annonces);
-  }
-  if (guide.action !== undefined) tete.push(bloc("p", `running: ${guide.action}`));
-  if (guide.fait !== undefined) {
-    const fait = bloc("p", `${guide.fait.titre} — at ${heureDe(guide.fait.a)}`);
-    fait.className = "verdict";
-    fait.dataset.verdict = guide.fait.ok ? "pret" : "incomplete";
-    tete.push(fait);
-  }
-  if (guide.lecture.etat === "lue") tete.push(action("Verify", () => brigade.verifier(projet.nom)), ...poserVerdict(projet, guide.verification, action));
-  serviceTete.replaceChildren(...tete);
-
-  serviceEtapes.replaceChildren(
-    ...guide.etapes.map((etape) => {
-      const li = document.createElement("li");
-      li.dataset.id = etape.id;
-      li.dataset.etat = etape.etat;
-      if (etape.courante) li.className = "courante";
-      const titre = document.createElement("p");
-      const etat = bloc("span", ETATS_D_ETAPE[etape.etat]);
-      etat.className = "etat";
-      titre.append(bloc("strong", `${etape.rang}. ${etape.titre}`), " ", etat, ...(etape.courante ? [" ", bloc("em", "← now")] : []));
-      // À quoi sert l'étape, ce qui arrive si on la saute, ce qui reste au chef : au survol de son titre.
-      titre.append(survol(document, [`What it is for: ${etape.sert}`, `If you skip it: ${etape.sauter}`, ...(etape.geste === null ? [] : [`Yours to do: ${etape.geste}`])].join("\n")));
-      li.append(titre);
-      for (const manque of etape.manques) li.append(manque.geste === null ? refus(`“Verify” says: ${manque.texte}`) : ditEtAide("p", `“Verify” says: ${manque.texte}`, manque.geste));
-      // Une étape faite n'a plus de geste — sauf les décisions qui restent, présentées jusqu'à la fin.
-      if (!etape.courante && etape.detail === undefined) return li;
-      li.append(...etape.lignes.map((ligne) => bloc("p", ligne)), ...gesteDEtape(projet, guide, etape, action, refus));
-      return li;
-    }),
-  );
-}
-
-// Le geste de l'étape courante : ses boutons, et ce que la box a dit pour qu'on choisisse.
-/**
- * @param {Projet} projet @param {Guide} guide @param {Guide["etapes"][number]} etape
- * @param {(texte: string, geste: () => Promise<unknown>) => HTMLButtonElement} action @param {(texte: string) => HTMLElement} refus
- * @returns {HTMLElement[]}
- */
-function gesteDEtape(projet, guide, etape, action, refus) {
-  const { detail } = etape;
-  if (!etape.courante && etape.id !== "decisions") return [];
-  if (etape.id === "init") {
-    return [action("Initialize the project in the second", () => amorcerService(projet)), action("The initialization is merged onto the integration branch", () => brigade.direMerge(projet.nom, true))];
-  }
-  if (etape.id === "verification") return [ditEtAide("p", "Verify again once the station is set up", "“Verify” is at the top of this screen: once what it says is missing on the station is set up, verify again.")];
-  if (etape.id === "demarrage") return "refus" in guide.demarrage ? [refus(guide.demarrage.refus)] : [action("Start", () => demarrerService(projet))];
-  if (detail === undefined) return [];
-  if (detail.etat !== "lu") return poserRate(projet, detail);
-
-  if (detail.id === "stations") {
-    const { proposees, absent, declarees } = detail.lu;
-    const poses = [];
-    if (declarees.length > 0) poses.push(bloc("p", `Declared now: ${declarees.map(({ nom, cooks, fournit }) => `${nom} — ${cooks} cook${cooks > 1 ? "s" : ""} at most, provides ${fournit.join(", ")}`).join(" · ")}`));
-    if (absent !== null) poses.push(refus(`Its main station provides no station — ${absent}`));
-    /** @type {{ nom: string; coche: HTMLInputElement; cooks: HTMLInputElement }[]} */
-    const choix = [];
-    for (const proposee of proposees) {
-      const coche = /** @type {HTMLInputElement} */ (document.createElement("input"));
-      coche.type = "checkbox";
-      coche.checked = true;
-      const cooks = /** @type {HTMLInputElement} */ (document.createElement("input"));
-      cooks.type = "number";
-      cooks.min = "1";
-      cooks.placeholder = "cooks at once";
-      cooks.value = String(declarees.find(({ nom }) => nom === proposee.nom)?.cooks ?? "");
-      const ligne = document.createElement("label");
-      ligne.append(coche, exact("span", proposee.nom), ` provides ${proposee.fournit.join(", ")} — `, cooks, " cooks at once", survol(document, "no default: it is your quota"));
-      poses.push(ligne);
-      choix.push({ nom: proposee.nom, coche, cooks });
-    }
-    if (proposees.length > 0) {
-      poses.push(action("Declare the stations", () => brigade.declarerStations(projet.nom, choix.filter(({ coche }) => coche.checked).map(({ nom, cooks }) => ({ nom, cooks: Number(cooks.value) })))));
-    }
-    return poses;
-  }
-
-  if (detail.id === "protection") {
-    const { depot, branche, protection, manque, droits, raison } = detail.lu;
-    const poses = [
-      bloc(
-        "p",
-        {
-          posée: `\`${branche}\` is protected on ${depot}.`,
-          autre: `\`${branche}\` is protected on ${depot}, without: ${manque.join(", ")} — the app does not overwrite a protection you set.`,
-          absente: `\`${branche}\` is not protected on ${depot}.`,
-          illisible: `\`${branche}\` on ${depot}: ${raison ?? "GitHub did not say"}.`,
-        }[protection],
-      ),
-    ];
-    for (const droit of droits) poses.push(refus(`Missing: ${droit.droit}`), bloc("p", `→ ${droit.action}`), bloc("p", `why: ${droit.pourquoi}`));
-    if (protection === "absente" || protection === "posée") poses.push(action(protection === "posée" ? "Record the protection" : "Protect the integration branch", () => brigade.proteger(projet.nom)));
-    return poses;
-  }
-
-  const { courante, enAttente } = detail.lu;
-  if (courante === null && !etape.courante) return [];
-  if (courante === null) return [bloc("p", "No decision waiting."), ...(detail.passable ? [action("Mark the decisions done", () => brigade.passerDecisions(projet.nom))] : [])];
-  const poses = [bloc("p", `${enAttente} decision${enAttente > 1 ? "s" : ""} waiting, this one included${courante.reclamee ? " — the start requires it" : " — the start does not require it"}.`), exact("strong", courante.nom), bloc("p", courante.question)];
-  if (courante.recommandee !== null) poses.push(bloc("p", `Recommended: ${courante.recommandee.valeur} — ${courante.recommandee.pourquoi}`));
-  poses.push(ditEtAide("p", "If you skip it", courante.sauter));
-  /** @param {import("../service.ts").Option[]} options */
-  const choisir = (options) => {
-    if (options.some(({ valeur }) => valeur.startsWith("<"))) {
-      const saisie = /** @type {HTMLInputElement} */ (document.createElement("input"));
-      saisie.placeholder = options[0]?.valeur ?? "";
-      return { poses: [saisie, ...options.map(({ valeur, effet }) => bloc("p", `${valeur}: ${effet}`))], valeur: () => saisie.value };
-    }
-    const liste = /** @type {HTMLSelectElement} */ (document.createElement("select"));
-    liste.append(new Option("— choose —", ""), ...options.map(({ valeur, effet }) => new Option(`${valeur} — ${effet}`, valeur)));
-    return { poses: [liste], valeur: () => liste.value };
-  };
-  const sienne = choisir(courante.options);
-  poses.push(...sienne.poses);
-  const avec = courante.avec === null ? undefined : choisir(courante.avec.options);
-  if (courante.avec !== null && avec !== undefined) poses.push(exact("strong", courante.avec.nom), bloc("p", courante.avec.question), ...avec.poses);
-  poses.push(action("Answer", () => brigade.repondre(projet.nom, [sienne.valeur(), ...(avec === undefined ? [] : [avec.valeur()])])));
-  if (detail.passable) poses.push(action("Skip the optional decisions — the start does not require them", () => brigade.passerDecisions(projet.nom)));
-  return poses;
-}
-
 /** @param {Projet} projet */
 async function lireService(projet) {
-  const guide = await brigade.service(projet.nom);
-  retenirDeclarees(guide);
-  poserService(projet, guide);
+  retenirDeclarees(await brigade.service(projet.nom));
 }
 
 // Les stations déclarées qu'un guide porte sont retenues pour son projet ; affiché, son bloc se repose.
@@ -2547,19 +2305,6 @@ async function envoyerLEdition(projet, retrait) {
   if (courant?.nom === projet.nom) poserDeclarees(courant);
 }
 
-// Une action de l'installation : ce qu'elle fait arrive par `surGuide`. Refusée, sa raison se
-// lit là où le chef a cliqué : à droite, sous les onglets des terminaux.
-/** @param {Projet} projet @param {() => Promise<unknown>} geste */
-async function agirService(projet, geste) {
-  const rendu = await geste();
-  if (rendu !== null && typeof rendu === "object" && "refus" in rendu && typeof rendu.refus === "string" && !("id" in rendu)) {
-    nonEcrit = nonEcritSecond = "";
-    gesteRate = undefined;
-    nonEcritSecond = rendu.refus;
-    if (courant?.nom === projet.nom) montrer();
-  }
-}
-
 // Un geste de l'installation a rendu un terminal — le second, pour la session d'init ; un
 // shell, pour le démarrage — ou la raison pour laquelle rien n'est fait. Le terminal est
 // montré, à droite : c'est sa note qui dit ce qui a été lancé, ou écrit. La raison se lit là
@@ -2578,93 +2323,72 @@ async function amorcerService(projet) {
   suivreGeste(projet, await brigade.amorcer(projet.nom));
 }
 
-/** @param {Projet} projet */
-async function demarrerService(projet) {
-  suivreGeste(projet, await brigade.demarrer(projet.nom));
+// Une ligne de Settings (ticket 1700), la même pour chaque réglage : son nom, sa valeur en vigueur, son contrôle —
+// puis, sous elle, ce que le contrôle a ouvert ou rendu (une confirmation, un refus).
+/** @param {string} nom @param {(Node | string)[]} valeur @param {HTMLElement[]} controle @param {HTMLElement[]} [dessous] */
+function rangeeDeReglage(nom, valeur, controle, dessous = []) {
+  const rangee = document.createElement("div");
+  rangee.className = "reglage";
+  const nomme = bloc("span", nom);
+  nomme.className = "nom";
+  const vaut = document.createElement("p");
+  vaut.className = "valeur";
+  vaut.append(...valeur);
+  const champ = document.createElement("p");
+  champ.className = "champ";
+  champ.append(...controle);
+  rangee.append(nomme, vaut, champ, ...dessous);
+  return rangee;
 }
 
-// Ce qu'une demande faite à la box pour désinstaller a donné : son titre, l'heure, ce que
-// l'app a obtenu — les phrases de la box, telles quelles — et ce que l'app en dit.
-/** @param {import("../retrait.ts").Montre | undefined} montre */
-function poserMontre(montre) {
-  if (montre === undefined) return [];
-  const tete = bloc("p", "a" in montre ? `${montre.titre} — at ${heureDe(montre.a)}` : montre.titre);
-  tete.className = "verdict";
-  tete.dataset.verdict = montre.etat;
-  return [tete, ...("suite" in montre ? montre.suite.map((ligne) => bloc("p", ligne)) : [])];
+// Un refus, sous la ligne qu'il concerne.
+/** @param {string} texte @returns {HTMLElement[]} */
+function refusDeReglage(texte) {
+  if (texte === "") return [];
+  const dit = bloc("p", texte);
+  dit.className = "dit refus";
+  return [dit];
 }
 
-// Retirer le projet affiché, sous la mise en service : deux gestes, chacun dans son bloc
-// et sous son libellé. Le premier ne touche qu'à l'app. Le second, sur la box : la case
-// du journal, le plan, le nom à écrire, puis le bouton — inactif tant que la box n'a pas
-// rendu son plan, et il dit pourquoi.
+// Les trois groupes de Settings : leur titre est le mot du niveau (niveaux.js), son survol dit où ses réglages sont
+// gardés. Un groupe sans réglage le dit en une ligne — celui de toi a toujours les couleurs.
+for (const [niveau, aide] of /** @type {const} */ ([
+  ["project", "the project's settings — those in its repository change by a pull request, held for you; its grants and its kitchen are set on the station that serves it"],
+  ["machine", NIVEAUX_DITS.machine.survol],
+  ["you", NIVEAUX_DITS.you.survol],
+])) {
+  const titre = element(`niveau-${niveau}`);
+  titre.dataset.niveau = niveau;
+  titre.replaceChildren(NIVEAUX_DITS[niveau].libelle, survol(document, aide));
+}
+function poserLesGroupes() {
+  videProjet.hidden = !reglagesDuProjet.hidden || !grants.hidden || !arreterCuisine.hidden;
+  videProjet.textContent = videProjet.hidden ? "" : "nothing to set: no station reads this project";
+  videMachine.hidden = !ordinaires.hidden || !code.hidden;
+  videMachine.textContent = videMachine.hidden ? "" : `nothing to set on ${POSTE.nom} for this project`;
+}
+// Le projet dans ton app (ticket 1700) : une ligne du groupe de toi — il est dans la barre, et « Remove from the app »
+// l'en retire ; rien ne part vers sa station, ce que le survol du bouton dit. Le clic demande d'abord un « yes » : un
+// projet ne se retire pas d'un clic perdu. Refusé, la raison se lit sous la ligne.
 /** @param {Projet} projet @param {Retrait | undefined} pose */
 function poserRetrait(projet, pose) {
-  // Le chef a pu changer d'espace pendant que la box répondait.
+  // Le chef a pu changer d'espace pendant que le process principal répondait.
   if (courant?.nom !== projet.nom) return;
   retrait.hidden = pose === undefined;
-  if (pose === undefined) return retraitGestes.replaceChildren();
-  // Replié d'office : un projet ne se retire pas d'un clic perdu. Ensuite, c'est le chef qui le déplie.
-  if (retraitPose !== projet.nom) {
-    retrait.open = false;
-    confirmation = "";
-    planConfirme = "";
-    nonRetire = "";
-  }
-  retraitPose = projet.nom;
-  // Le plan affiché n'est plus celui devant lequel le nom a été écrit — redemandé, ou lâché
-  // par la case du journal : ce nom ne vaut plus, il se récrit devant ce que la box dit maintenant.
-  const plan = pose.desinstaller.geste?.plan;
-  const rendu = plan?.etat === "plan" ? plan.a : "";
-  if (rendu !== planConfirme) confirmation = "";
-  planConfirme = rendu;
-  retraitTitre.textContent = pose.titre;
-
-  /** @param {string} titre @param {(Node | string)[]} contenu */
-  const partie = (titre, ...contenu) => {
-    const cree = document.createElement("section");
-    cree.append(bloc("strong", titre), ...contenu);
-    return cree;
-  };
-  /** @param {string[]} textes */
-  const lignes = (textes) => textes.map((texte) => bloc("p", texte));
-  /** @param {string | undefined} raison */
-  const refus = (raison) => {
-    const cree = bloc("p", raison ?? "");
-    cree.className = "refus";
-    return raison === undefined || raison === "" ? [] : [cree];
-  };
-
-  const retirer = bouton(pose.retirer.libelle, () => void retirerDeLApp(projet));
-  const box = pose.desinstaller.geste;
-  /** @type {(Node | string)[]} */
-  let surLaBox = [];
-  if (box !== undefined) {
-    const coche = document.createElement("input");
-    coche.type = "checkbox";
-    coche.checked = box.journal.coche;
-    coche.disabled = box.journal.refus !== undefined;
-    coche.addEventListener("change", async () => poserRetrait(projet, await brigade.direJournal(projet.nom, coche.checked)));
-    const option = document.createElement("label");
-    option.append(coche, box.journal.libelle);
-    const avertissement = lignes(box.journal.avertissement);
-    for (const ligne of avertissement) ligne.className = "avertissement";
-    const planifier = bouton(box.planifier, () => void planifierRetrait(projet));
-    planifier.disabled = box.planifierRefuse !== undefined;
-    const saisie = document.createElement("input");
-    saisie.autocomplete = "off";
-    saisie.spellcheck = false;
-    saisie.value = confirmation;
-    saisie.disabled = box.desinstallerRefuse !== undefined;
-    saisie.addEventListener("input", () => (confirmation = saisie.value));
-    const consigne = document.createElement("label");
-    consigne.append(box.consigne, saisie);
-    const desinstaller = bouton(pose.desinstaller.libelle, () => void desinstallerRetrait(projet));
-    desinstaller.className = "sans-retour";
-    desinstaller.disabled = box.desinstallerRefuse !== undefined;
-    surLaBox = [option, ...avertissement, ...refus(box.journal.refus), planifier, ...refus(box.planifierRefuse), ...poserMontre(box.plan), consigne, desinstaller, ...refus(box.desinstallerRefuse), ...poserMontre(box.issue)];
-  }
-  retraitGestes.replaceChildren(partie(pose.retirer.libelle, ...lignes(pose.retirer.lignes), retirer, ...refus(nonRetire)), partie(pose.desinstaller.libelle, ...lignes(pose.desinstaller.lignes), ...surLaBox));
+  if (pose === undefined) return retrait.replaceChildren();
+  if (retraitDeLApp !== projet.nom) retraitDeLApp = "";
+  if (nonRetire.projet !== projet.nom) nonRetire = { projet: "", refus: "" };
+  const { libelle, lignes } = pose.retirer;
+  const demande = bouton(`${libelle}…`, () => {
+    retraitDeLApp = projet.nom;
+    poserRetrait(projet, pose);
+  });
+  demande.title = lignes.join("\n");
+  const controle =
+    retraitDeLApp === projet.nom
+      ? [bouton(`yes, remove “${projet.nom}” from the app`, () => void retirerDeLApp(projet)), bouton("no", () => ((retraitDeLApp = ""), poserRetrait(projet, pose)))]
+      : [demande];
+  retrait.replaceChildren(rangeeDeReglage("in your app", [bloc("span", "in the bar")], controle, refusDeReglage(nonRetire.refus)));
 }
 
 // L'accent de l'espace affiché : celui de son projet, à la place de celui de la peau — posé sur la
@@ -2675,11 +2399,11 @@ function teindre() {
   else document.documentElement.style.setProperty("--accent", accent);
 }
 
-// Les couleurs du projet, sous Paramètres : une rangée par rôle, une pastille par couleur de la
-// palette — celle qu'il porte est pressée —, puis le sélecteur d'une couleur libre. Une couleur
-// libre se montre aussi, pressée, au bout de la palette : la palette est ce que l'app propose, pas
-// ce qu'elle exige. Trop proche d'une couleur d'état ou de celle d'un autre projet, elle reste, et
-// une ligne sous sa rangée dit laquelle (couleurs.ts, `proches`).
+// Les couleurs du projet, dans le groupe de toi de Settings : une ligne par rôle — la couleur qu'il porte, puis une
+// pastille par couleur de la palette, celle qu'il porte pressée, et le sélecteur d'une couleur libre. Une couleur libre
+// se montre aussi, pressée, au bout de la palette : la palette est ce que l'app propose, pas ce qu'elle exige. Trop
+// proche d'une couleur d'état ou de celle d'un autre projet, elle reste, et une ligne sous la sienne dit laquelle
+// (couleurs.ts, `proches`).
 /** @param {Projet} projet */
 function poserCouleurs(projet) {
   if (couleurRefusee.projet !== projet.nom) couleurRefusee = { projet: "", refus: "" };
@@ -2687,6 +2411,7 @@ function poserCouleurs(projet) {
   /** @param {"onglet" | "accent"} role @param {string} libelle */
   const rangee = (role, libelle) => {
     const portee = projet.couleurs?.[role];
+    const nommee = PALETTE.find(({ valeur }) => valeur === portee)?.nom;
     const pastilles = PALETTE.map(({ nom, valeur }) => {
       const cree = bouton("", () => void colorer(projet, role, nom));
       cree.className = "teinte";
@@ -2695,7 +2420,7 @@ function poserCouleurs(projet) {
       cree.ariaPressed = String(valeur === portee);
       return cree;
     });
-    if (portee !== undefined && !PALETTE.some(({ valeur }) => valeur === portee)) {
+    if (portee !== undefined && nommee === undefined) {
       const tienne = bouton("", () => {});
       tienne.className = "teinte";
       tienne.style.setProperty("--teinte", portee);
@@ -2713,24 +2438,16 @@ function poserCouleurs(projet) {
     const autre = document.createElement("label");
     autre.className = "libre";
     autre.append(libre, "other…");
-    const ligne = document.createElement("div");
-    ligne.className = "rangee";
-    ligne.append(bloc("span", libelle), ...pastilles, autre);
+    const palette = document.createElement("span");
+    palette.className = "rangee";
+    palette.append(...pastilles, autre);
     const proche = projet.proches?.[role];
-    if (proche === undefined) return [ligne];
-    const dit = bloc("p", `${libelle}: ${proche}`);
-    dit.className = "proche";
-    return [ligne, dit];
+    const pose = rangeeDeReglage(libelle, [bloc("span", portee === undefined ? "none yet" : (nommee ?? portee))], [palette], proche === undefined ? [] : refusDeReglage(`${libelle}: ${proche}`));
+    pose.dataset.cle = "couleurs";
+    pose.firstElementChild?.append(niveauDe(document, "couleurs"));
+    return pose;
   };
-  const refus = bloc("p", couleurRefusee.refus);
-  refus.className = "refus";
-  couleurs.replaceChildren(
-    avecNiveau(bloc("h3", "Colors"), "couleurs"),
-    ...rangee("onglet", "Tab, in the bar"),
-    ...rangee("accent", "Accent, in the space"),
-    ...(projet.couleurs === undefined ? [ditEtAide("p", "No colors yet", "the app picks them and writes them to the projects file.")] : []),
-    ...(couleurRefusee.refus === "" ? [] : [refus]),
-  );
+  couleurs.replaceChildren(rangee("onglet", "tab, in the bar"), rangee("accent", "accent, in the space"), ...refusDeReglage(couleurRefusee.refus));
 }
 
 // Une couleur choisie : le process principal l'écrit dans le fichier des projets, et elle revient
@@ -2822,10 +2539,10 @@ async function proposerUnReglage(projet, choix, dit) {
   reposer();
 }
 
-// Les tickets ordinaires de cet ordinateur, sous Paramètres : l'option, la limite de cooks, une ligne
-// qui dit ce que ça implique — et, quand la station dit son bac à sable indisponible, pourquoi ce poste
-// ne prend aucun ticket ordinaire. Le process principal décide du bloc (ordinaires.ts) : hors d'un Mac,
-// il n'est pas réglable, et seule sa ligne se pose — pourquoi ce poste n'en prend pas.
+// Les tickets ordinaires de cet ordinateur, sous cette machine dans Settings (ticket 1700) : deux lignes — les prendre
+// ou non, et combien de cooks à la fois —, ce que ça implique au survol, et, quand la station dit son bac à sable
+// indisponible, pourquoi ce poste n'en prend aucun, sous la première. Le process principal décide du bloc
+// (ordinaires.ts) : hors d'un Mac, il n'est pas réglable, et rien ne se pose.
 let ordinairesRefuses = { projet: "", refus: "" };
 // Ce qui est posé : une lecture qui n'a rien changé ne le repose pas — le chef peut être en train d'écrire la limite.
 let ordinairesPose = "";
@@ -2834,33 +2551,29 @@ async function poserOrdinaires(projet) {
   const recu = await brigade.ordinaires(projet.nom);
   // Le chef a pu ouvrir un autre projet pendant la lecture.
   if (courant?.nom !== projet.nom) return;
-  if (recu === undefined) {
+  // Hors d'un Mac, ils ne se règlent pas : il n'y a rien à poser — le groupe dit qu'il n'a rien à régler.
+  if (recu === undefined || recu.reglable === false) {
     ordinaires.hidden = true;
-    return;
+    ordinairesPose = "";
+    ordinaires.replaceChildren();
+    return poserLesGroupes();
   }
   if (ordinairesRefuses.projet !== projet.nom) ordinairesRefuses = { projet: "", refus: "" };
   const pose = JSON.stringify([projet.nom, recu, ordinairesRefuses.refus]);
   if (pose === ordinairesPose) return;
   ordinairesPose = pose;
-  const titre = `Ordinary tickets on ${POSTE.nom}`;
-  ordinaires.ariaLabel = titre;
+  ordinaires.ariaLabel = `Ordinary tickets on ${POSTE.nom}`;
   ordinaires.hidden = false;
-  if (recu.reglable === false) return ordinaires.replaceChildren(bloc("h3", titre), bloc("p", recu.explication));
   const option = document.createElement("input");
   option.type = "checkbox";
   option.checked = recu.actif;
+  option.ariaLabel = `Take the ordinary tickets on ${POSTE.nom}`;
   const limite = document.createElement("input");
   limite.type = "number";
   limite.min = "1";
   limite.step = "1";
   limite.value = recu.limite === null ? "" : String(recu.limite);
   limite.ariaLabel = `Cooks ${POSTE.nom} runs at once`;
-  /** @param {string} libelle @param {HTMLElement} champ */
-  const etiquette = (libelle, champ) => {
-    const cree = document.createElement("label");
-    cree.append(champ, libelle);
-    return cree;
-  };
   const regler = async () => {
     const voulue = limite.value.trim() === "" ? null : Number(limite.value);
     const refus = await brigade.reglerOrdinaires(projet.nom, option.checked, voulue);
@@ -2870,18 +2583,16 @@ async function poserOrdinaires(projet) {
   };
   option.addEventListener("change", () => void regler());
   limite.addEventListener("change", () => void regler());
-  const refus = bloc("p", ordinairesRefuses.refus);
-  refus.className = "refus";
-  const indisponible = recu.indisponible === undefined ? [] : [bloc("p", recu.indisponible)];
-  for (const dit of indisponible) dit.className = "indisponible";
-  ordinaires.replaceChildren(
-    avecNiveau(bloc("h3", titre), "ordinaires"),
-    etiquette("Take the ordinary tickets too", option),
-    etiquette("Cooks at once", limite),
-    bloc("p", recu.explication),
-    ...indisponible,
-    ...(ordinairesRefuses.refus === "" ? [] : [refus]),
-  );
+  // Ce que l'option implique est au survol de sa valeur ; un bac à sable indisponible, sous sa ligne.
+  const prendre = rangeeDeReglage("ordinary tickets", [bloc("span", recu.actif ? "taken" : "not taken"), survol(document, recu.explication)], [option], [...refusDeReglage(recu.indisponible ?? ""), ...refusDeReglage(ordinairesRefuses.refus)]);
+  const combien = rangeeDeReglage("cooks at once", [bloc("span", recu.limite === null ? "no limit" : String(recu.limite))], [limite]);
+  // Leur niveau, celui de la table (niveaux.js) : le groupe le dit, l'étiquette reste sur la ligne.
+  for (const pose of [prendre, combien]) {
+    pose.dataset.cle = "ordinaires";
+    pose.firstElementChild?.append(niveauDe(document, "ordinaires"));
+  }
+  ordinaires.replaceChildren(prendre, combien);
+  poserLesGroupes();
 }
 
 /** @param {Projet} projet */
@@ -2897,39 +2608,15 @@ function poserAvis(dit) {
   avis.hidden = false;
 }
 
-// Le premier geste : le projet quitte l'app, et rien ne part vers sa box. Retiré, il a déjà
-// quitté la barre par `surConfiguration` ; refusé, la raison se lit sous le bouton.
+// Le « yes » : le projet quitte l'app, et rien ne part vers sa station. Retiré, il a déjà quitté la barre par
+// `surConfiguration` ; refusé, la raison se lit sous sa ligne.
 /** @param {Projet} projet */
 async function retirerDeLApp(projet) {
   const rendu = await brigade.retirerDeLApp(projet.nom);
-  if ("avis" in rendu) {
-    // Revenu sous le même nom, ce serait un autre projet : ses gestes se reposeront repliés.
-    retraitPose = "";
-    return poserAvis(rendu.avis);
-  }
-  nonRetire = rendu.refus;
+  retraitDeLApp = "";
+  if ("avis" in rendu) return poserAvis(rendu.avis);
+  nonRetire = { projet: projet.nom, refus: rendu.refus };
   await lireRetrait(projet);
-}
-
-// Le plan part, et se dit en cours ; ce que la box rend remplace ce qui était affiché.
-/** @param {Projet} projet */
-async function planifierRetrait(projet) {
-  const planifie = brigade.planifier(projet.nom);
-  await lireRetrait(projet);
-  poserRetrait(projet, await planifie);
-}
-
-// Le second geste : la désinstallation part avec le nom que le chef a écrit — c'est hors
-// d'ici qu'il est comparé à celui du projet, et que rien ne part s'il diffère.
-/** @param {Projet} projet */
-async function desinstallerRetrait(projet) {
-  const desinstalle = brigade.desinstaller(projet.nom, confirmation);
-  await lireRetrait(projet);
-  const pose = await desinstalle;
-  // Partie vers la box, la confirmation a servi : une autre désinstallation se confirme de
-  // nouveau. Si le chef est passé à un autre projet entre-temps, ce qu'il y écrit est à l'autre.
-  if (courant?.nom === projet.nom && pose?.desinstaller.geste?.issue?.etat !== "pas-parti") confirmation = "";
-  poserRetrait(projet, pose);
 }
 
 // Ce que l'app dit sous ce que la box a rendu à la place des faits.
@@ -3484,7 +3171,7 @@ function suivreFiche(cartes, posees) {
 
 // Ce que la file dit du ticket, et que la carte ne porte plus : qui le tient, depuis quand, son bail,
 // ce qu'il brûle, ce qui le bloque. Ce qu'elle ne dit pas n'est pas écrit, et la ligne brute de
-// `status` n'est nulle part sur la fiche : elle se lit tout entière dans Paramètres. Pour un
+// `status` n'est nulle part sur la fiche. Pour un
 // ticket livré, ce qui a été livré.
 /** @param {Projet} projet @param {import("../faits.ts").Carte} carte */
 function poserDetailsDeFiche(projet, carte) {
@@ -4349,14 +4036,14 @@ fiche.addEventListener("keydown", (evenement) => {
 });
 
 // Le haut du rail ne dit rien d'une lecture récente. Passé ce délai sans lecture neuve — la box est
-// relue toutes les trente secondes —, une mention discrète dit depuis quand, et où est la provenance.
+// relue toutes les trente secondes —, une mention discrète dit depuis quand.
 const LECTURE_VIEILLE_MS = 120_000;
 /** @param {number | string} a */
 function fraicheur(a) {
   const age = Date.now() - new Date(a).getTime();
   if (!(age > LECTURE_VIEILLE_MS)) return [];
   const minutes = Math.floor(age / 60_000);
-  const dit = bloc("p", `up to date ${minutes} min ago — the station has not answered since; the commands and read times are in Settings`);
+  const dit = bloc("p", `up to date ${minutes} min ago — the station has not answered since`);
   dit.className = "fraicheur";
   return [dit];
 }
@@ -4437,35 +4124,21 @@ setInterval(() => {
   if (lu !== undefined && [...(lignesDuTableau.get(courant.nom)?.values() ?? [])].some(({ suivi }) => attendLaBox(suivi, lu.gestes))) void lireLeTableau(courant);
 }, RELECTURE_D_UN_GESTE_MS);
 
-// D'où vient ce qui se lit sur le rail, dans Paramètres : les commandes et l'heure de chaque lecture.
-/** @param {Projet} projet @param {string} heure @param {number | string | undefined} attendLu @param {number | string | undefined} railLu */
-function poserProvenance(projet, heure, attendLu, railLu) {
-  provenance.hidden = false;
-  const status = `\`${geste(projet, "status")}\``;
-  const lu = attendLu ?? railLu;
-  provenanceLignes.replaceChildren(
-    bloc("p", `the columns, from \`${geste(projet, "facts")}\` — read at ${heure}, in service order`),
-    bloc(
-      "p",
-      lu === undefined
-        ? `${status} was not read: each card carries only what \`facts\` says`
-        : `${status}, read at ${heureDe(lu)}: ${attendLu === undefined ? "its `attend` block was not taken" : "its `attend` block says what awaits you"}, ${railLu === undefined ? "its `rail` line was not read — each card carries only what `facts` says" : "its `rail` line what each card carries besides"}`,
-    ),
-    bloc("p", "a number on a card opens the issue"),
-  );
-}
-
-// « stop the kitchen » est un geste rare et lourd : il est rangé dans Paramètres, sous sa propre
-// forme (un carré plein, rouge), pas sur le chemin de tous les jours. Tant qu'elle est déjà à
-// l'arrêt, le geste n'est pas posé : la reprendre est sur la bannière et la bande.
+// La cuisine du projet, dans le groupe du projet de Settings (ticket 1700) : en marche ou à l'arrêt, et le seul geste
+// qui la fait changer — « stop the kitchen » sous sa propre forme (un carré plein, rouge), ou « resume the kitchen ».
+// Chacun dit d'abord ce qu'il coûte : rien ne part avant son « oui ».
 /** @param {Projet} projet @param {boolean} arretee */
 function poserArreter(projet, arretee) {
-  const arreter = GESTES_DE_LA_CUISINE.find(({ id }) => id === "stop");
-  arreterCuisine.hidden = arretee || arreter === undefined;
-  if (arreterCuisine.hidden || arreter === undefined) return arreterCuisine.replaceChildren();
-  const poses = poserGeste(projet, { ...arreter, ou: "parametres" });
-  if (poses[0] !== undefined) poses[0].dataset.arret = "";
-  arreterCuisine.replaceChildren(ditEtAide("h3", "stopping the kitchen", "stops the running cooks and holds the rail. It says what it costs before anything goes."), ...poses);
+  const geste = GESTES_DE_LA_CUISINE.find(({ id }) => id === (arretee ? "reprendre" : "stop"));
+  arreterCuisine.hidden = geste === undefined;
+  if (geste === undefined) {
+    arreterCuisine.replaceChildren();
+    return poserLesGroupes();
+  }
+  const [declencheur, ...dessous] = poserGeste(projet, { ...geste, ou: "parametres" });
+  if (declencheur !== undefined && !arretee) declencheur.dataset.arret = "";
+  arreterCuisine.replaceChildren(rangeeDeReglage("kitchen", [bloc("span", arretee ? "stopped" : "running")], declencheur === undefined ? [] : [declencheur], dessous));
+  poserLesGroupes();
 }
 
 // En tête du rail, ce qui n'est pas encore dessus (amont.ts) : un nombre — « 23 upcoming » — qui
@@ -4796,7 +4469,7 @@ function poserRail(projet) {
   const cuisine = ongletDe(projet) === CUISINE;
   rail.dataset.onglet = cuisine ? CUISINE : RAIL;
   rail.ariaLabel = cuisine ? "The cooks" : "The rail";
-  provenance.hidden = arreterCuisine.hidden = true;
+  arreterCuisine.hidden = true;
   // Plus de rail, plus de fiche par-dessus.
   if (rail.hidden && ouverte !== undefined) fermerFiche();
   if (rail.hidden) return rail.replaceChildren();
@@ -4856,7 +4529,7 @@ function poserRail(projet) {
     const sans = tenu === undefined || cuisine ? "" : `the rail is not drawn: ${tenu.titre} — tried at ${heureDe(tenu.a)}. What the app got is in the panel, on the right`;
     return poser(...marque, ...(sans === "" ? [] : [bloc("h3", sans)]));
   }
-  const { hors, attendLu, railLu } = tenu.tableau.rail;
+  const { hors } = tenu.tableau.rail;
   const lache = rangsLaches.get(projet.nom);
   // Placée, la carte garde sa place jusqu'à la lecture qui suit la réponse : c'est alors l'ordre du runtime qui se lit.
   if (lache?.etape === "placee" && lache.a !== tenu.a) rangsLaches.delete(projet.nom);
@@ -4911,9 +4584,7 @@ function poserRail(projet) {
   );
   // Rien d'autre n'est lu à neuf : ni ce qui est en amont, ni les corrections, ni les pages servies.
   if (muet !== undefined) return poser(...marque, ...(cuisine ? [] : [grille]));
-  // D'où vient ce qui se lit n'est pas en tête du rail : cela ne change rien à ce que fait le chef.
-  // C'est dans Paramètres, pour le jour d'une panne ; en tête, seule une lecture vieille se dit.
-  poserProvenance(projet, heure, attendLu, railLu);
+  // La cuisine, en marche ou à l'arrêt, est une ligne de Settings (ticket 1700).
   poserArreter(projet, tenu.tableau.arretee);
   // Les serveurs sont sur Cooks : la page dont le ticket n'y a pas de carte — dans le bloc de sa station — se pose
   // à part, juste sous les stations, son worktree et son port compris. Sur Rail, sa carte n'en porte que l'écran et le
@@ -4959,7 +4630,7 @@ function poserRail(projet) {
           ...poserLesProfils(projet, tenu.tableau.rail.profils),
         ]),
     ...(cuisine ? [] : [grille]),
-    ...(cuisine || hors.length === 0 ? [] : [bloc("h3", `outside the columns — their state is none of the six, and nothing says they await you: the Rail read, in Settings, relays what \`${geste(projet, "rail")}\` says`), bons(hors)]),
+    ...(cuisine || hors.length === 0 ? [] : [bloc("h3", "outside the columns — their state is none of the six, and nothing says they await you"), bons(hors)]),
   );
   servisSansCarte.replaceChildren(...(sansCarte.length === 0 ? [] : [bloc("h3", `served, without a card here — \`${geste(projet, "status")}\` shows their server`), servis(sansCarte)]));
   rendreLeClavier(reprise);
@@ -5418,46 +5089,6 @@ function poserPages(projet, servies) {
 /** @param {string} instant */
 const quand = (instant) => (Number.isNaN(Date.parse(instant)) ? instant : dateHeure(instant));
 
-// Une liste lue dans la sortie d'un onglet, sous son titre : ses lignes, ce qui se lit à leur
-// place quand elle n'en a pas, et ce que l'app n'a pas su y lire, tel quel.
-/** @template L @param {string} titre @param {import("../manager.ts").Liste<L>} liste @param {(ligne: L) => (Node | string)[]} poser */
-function listeLue(titre, { lignes, illisibles, vide }, poser) {
-  const posees = document.createElement("ol");
-  posees.append(
-    ...lignes.map((ligne) => {
-      const posee = document.createElement("li");
-      posee.append(...poser(ligne));
-      return posee;
-    }),
-  );
-  return [
-    bloc("h4", titre),
-    ...(vide === undefined ? [] : [bloc("p", vide)]),
-    ...(lignes.length === 0 ? [] : [posees]),
-    ...(illisibles.length === 0 ? [] : [bloc("p", "under this heading, what the app could not read — as is:"), bloc("pre", illisibles.join("\n"))]),
-  ];
-}
-// La tête d'une de ces lignes : l'issue, et l'instant.
-/** @param {{ a: string, ticket: number }} ligne */
-function teteDIssue({ a, ticket }) {
-  const posee = document.createElement("div");
-  posee.append(exact("strong", `#${ticket}`), bloc("small", quand(a)));
-  return posee;
-}
-
-// Ce qu'un usage de grant laisse derrière lui : sa PR et son commit se recopient, son verdict se lit.
-/** @param {import("../grants.ts").Usage} usage */
-function tracesDUsage({ pr, commit, verdict }) {
-  const posees = document.createElement("small");
-  posees.append(exact("span", pr), " · ", exact("span", commit), ` · ${verdict}`);
-  return posees;
-}
-
-// L'état du manager du projet affiché, au-dessus du texte de l'onglet Manager : allumé ou éteint
-// — il suit l'interrupteur du projet (ticket 1406), qui seul l'allume et l'éteint, en tête de l'espace —,
-// depuis quand et par qui, puis ses dernières décisions et ce qu'il a écarté, chaque écart avec son
-// motif. Tout est déjà lu par le process principal (manager.ts), dans la sortie qui se lit dessous :
-// la vue pose. Sans état lu, elle dit pourquoi — jamais « éteint ».
 // La page des coûts de l'app (ticket 1022). En tête (cost/tete.js), les tokens lancés sur 5 h, 24 h et 7 jours,
 // tous projets confondus, et la part de chacun — chaque projet qui a une box, et qu'elle sert encore ;
 // un clic sur son nom l'ouvre. Puis les tokens perdus (cost/perdus.js) — leur liste repliée à
@@ -5631,98 +5262,58 @@ function poserLeLancement(nom, lu) {
   ];
 }
 
-function poserManager() {
-  const projet = courant;
-  // Sans box, rien n'est lu et rien ne s'écrit : l'onglet le dit déjà.
-  manager.hidden = projet === undefined || !seLit(projet) || actif() !== "manager";
-  if (projet === undefined || manager.hidden) return manager.replaceChildren();
-  const vu = managerVu?.projet === projet.nom ? managerVu : undefined;
-
-  // L'heure n'est dite que d'un état lu : celle d'un essai raté se lit dessous, avec ce qu'il a rendu.
-  const titre = bloc("h3", `the manager${vu === undefined || "sans" in vu ? "" : ` — read at ${heureDe(vu.a)}`}`);
-  titre.append(survol(document, `from \`${geste(projet, "manager")}\``));
-  if (vu === undefined) return manager.replaceChildren(titre, bloc("p", "first read in progress…"));
-  if ("sans" in vu) return manager.replaceChildren(titre, lectureIndisponible(document, "the manager state could not be read", vu.sans));
-
-  const { mot, ton, depuis, par, dit } = vu.interrupteur;
-  const interrupteur = document.createElement("p");
-  interrupteur.className = "interrupteur";
-  interrupteur.append(pastille(mot, ton), bloc("strong", mot), ...(depuis === undefined || par === undefined ? [] : [bloc("span", `since ${quand(depuis)} · by ${par}`)]));
-  manager.replaceChildren(
-    titre,
-    interrupteur,
-    bloc("p", dit),
-    ...listeLue("latest decisions — most recent first", vu.decisions, (decision) => [teteDIssue(decision), bloc("p", decision.dit)]),
-    ...listeLue("set aside — each with its reason", vu.ecartees, (ecart) => [teteDIssue(ecart), bloc("p", ecart.motif), ...(ecart.rend === undefined ? [] : [bloc("small", ecart.rend)])]),
-  );
-}
-
-// L'état des grants du projet affiché, au-dessus du texte de l'onglet Grants : un bloc par grant
-// — actif ou non, depuis quand et par qui, son échéance, ses deux gestes, ses derniers usages —,
-// puis ce qu'aucun grant n'autorise. De l'échéance, la durée restante se pose en tête, l'heure
-// ensuite : c'est la box qui l'a comptée, à l'heure de la lecture. Tout est déjà lu par le process
-// principal (grants.ts), dans la sortie qui se lit dessous : la vue pose. Sans état lu, elle dit
-// pourquoi — jamais « aucun grant actif » — et les gestes restent : ils n'attendent rien de la
-// lecture. Chacun ouvre sa confirmation, qui dit ce que le grant change : rien ne part avant son « oui ».
+// Les grants du projet, dans le groupe du projet de Settings (ticket 1700) : une ligne par grant — son nom, son état en
+// un mot et ce qu'il lui reste, et un seul contrôle, son interrupteur. Accordé, un clic ouvre la confirmation qui le
+// révoque ; sinon, celle qui l'accorde : rien ne part avant son « oui ». Le détail de la ligne de `grant` — depuis
+// quand, par qui, jusqu'à quand — est au survol. Ses usages, ce qu'aucun grant n'autorise et le bilan des livraisons
+// arrêtées ne se posent plus : ce n'est pas un réglage. Tout est déjà lu par le process principal (grants.ts) : la vue
+// pose. Sans état lu, chaque grant nommé a sa ligne, son interrupteur muet, et la raison au survol.
 function poserGrants() {
   const projet = courant;
-  // Sans box, rien n'est lu et rien ne s'écrit : l'onglet le dit déjà.
-  grants.hidden = projet === undefined || !seLit(projet) || actif() !== "grants";
-  if (projet === undefined || grants.hidden) return grants.replaceChildren();
+  // Sans station, rien n'est lu et rien ne s'écrit : le groupe le dit.
+  grants.hidden = projet === undefined || !seLit(projet) || projet.desinstalle !== undefined;
+  if (projet === undefined || grants.hidden) {
+    grants.replaceChildren();
+    return poserLesGroupes();
+  }
   const vu = grantsVus?.projet === projet.nom ? grantsVus : undefined;
 
-  // Les deux gestes d'un grant : chacun le nomme, sur son bouton comme dans ce qu'il écrit.
-  /** @param {string} action */
-  const gestes = (action) => {
-    const poses = document.createElement("div");
-    poses.className = "gestes";
-    poses.append(...GESTES_DES_GRANTS.flatMap(({ id, libelle }) => poserGeste(projet, { id, libelle: `${libelle} ${action}`, ou: "grants", grant: action })));
-    return poses;
+  /** @param {string} action @param {boolean | undefined} allume @param {(Node | string)[]} valeur @param {string | undefined} pourquoi indéfini : il se commande */
+  const ligne = (action, allume, valeur, pourquoi) => {
+    const cle = JSON.stringify(["grant", action, "reglages"]);
+    const ouverte = aConfirmer?.projet === projet.nom && aConfirmer.cle === cle ? aConfirmer : undefined;
+    const id = allume ? "grant-revoquer" : "grant-activer";
+    const [bascule] = interrupteur(action, pourquoi === undefined ? allume : undefined, {
+      pourquoi: pourquoi ?? `the ${action} grant: ${allume ? "enabled" : "not enabled"}`,
+      eteindre: `click to revoke it: says first what it changes — nothing goes before your “yes”`,
+      allumer: `click to enable it: says first what it changes — nothing goes before your “yes”`,
+      clic: () => (CONFIRMES.includes(id) ? void ouvrirConfirmation(projet, cle, id, action) : void ecrireGeste(id, action)),
+    });
+    return rangeeDeReglage(`grant ${action}`, valeur, bascule === undefined ? [] : [bascule], ouverte === undefined ? [] : [poserConfirmation(projet, ouverte, action)]);
   };
 
-  // L'heure n'est dite que d'un état lu : celle d'un essai raté se lit dessous, avec ce qu'il a rendu.
-  const titre = bloc("h3", `the grants${vu === undefined || "sans" in vu ? "" : ` — read at ${heureDe(vu.a)}`}`);
-  titre.append(survol(document, `from \`${geste(projet, "grant")}\``));
-  if (vu === undefined) return grants.replaceChildren(titre, bloc("p", "first read in progress…"), ...GRANTS_NOMMES.map(gestes));
-  if ("sans" in vu) return grants.replaceChildren(titre, lectureIndisponible(document, "the grants state could not be read", vu.sans), ...GRANTS_NOMMES.map(gestes));
-
-  /** @param {import("../grants.ts").GrantVu} grant */
-  const poser = (grant) => {
-    const pose = document.createElement("article");
-    const nomme = document.createElement("p");
-    nomme.className = "interrupteur";
-    if ("sans" in grant) {
-      nomme.append(pastille("", undefined), bloc("strong", `grant ${grant.action}`));
-      pose.append(nomme, lectureIndisponible(document, "this grant could not be read", grant.sans));
-    } else {
-      const { mot, ton, depuis, par, bientot, echeance, limites, dit } = grant;
-      nomme.append(
-        pastille(mot, ton),
-        bloc("strong", `grant ${grant.action}`),
-        bloc("strong", mot),
-        ...(bientot === undefined ? [] : [bloc("em", bientot)]),
-        ...(depuis === undefined ? [] : [bloc("span", `since ${quand(depuis)}${par === undefined ? "" : ` · by ${par}`}`)]),
-      );
-      // Ce qu'il en reste : la durée d'abord, l'heure ensuite, puis ce que la ligne en dit d'autre.
-      const reste = document.createElement("p");
-      reste.className = "echeance";
-      reste.append(...(echeance === undefined ? [] : [bloc("strong", echeance.reste), bloc("span", echeance.jusqua)]), ...limites.map((limite) => bloc("span", limite)));
-      pose.append(nomme, ...(reste.childElementCount === 0 ? [] : [reste]), ...(dit === "" ? [] : [bloc("p", dit)]));
-    }
-    pose.append(
-      grant.commandable ? gestes(grant.action) : bloc("small", "no action here for this grant"),
-      ...listeLue(`latest uses of the ${grant.action} grant — most recent first`, grant.usages, (usage) => [teteDIssue(usage), bloc("p", `${usage.suite} — on ${usage.base}`), tracesDUsage(usage)]),
-    );
-    return pose;
-  };
-
+  if (vu === undefined || "sans" in vu) {
+    const valeur = vu === undefined ? [bloc("span", "first read in progress…")] : [lectureIndisponible(document, "not read", vu.sans)];
+    grants.replaceChildren(...GRANTS_NOMMES.map((action) => ligne(action, undefined, valeur, vu === undefined ? `the ${action} grant: first read in progress` : `the ${action} grant is not read`)));
+    return poserLesGroupes();
+  }
   grants.replaceChildren(
-    titre,
-    ...vu.grants.map(poser),
-    ...(vu.illisibles.length === 0 ? [] : [bloc("p", "under `derniers usages`, what the app could not read, or attach to a grant — as is:"), bloc("pre", vu.illisibles.join("\n"))]),
-    ...listeLue("what no grant allows — not even if you ask", vu.interdits, (interdit) => [bloc("strong", interdit.action), bloc("p", interdit.dit)]),
-    ...(vu.bilan === undefined ? [] : [bloc("h4", "the deliveries stopped for lack of a grant"), bloc("p", vu.bilan)]),
+    ...vu.grants.map((grant) => {
+      if ("sans" in grant) return ligne(grant.action, undefined, [lectureIndisponible(document, "not read", grant.sans)], `the ${grant.action} grant is not read`);
+      const { mot, ton, depuis, par, bientot, echeance, limites, dit } = grant;
+      // L'état en un mot, puis ce qu'il en reste — la durée, comptée par la box à l'heure de la lecture.
+      const detail = [
+        `${mot}${depuis === undefined ? "" : ` since ${quand(depuis)}`}${par === undefined ? "" : ` · by ${par}`}`,
+        ...(bientot === undefined ? [] : [bientot]),
+        ...(echeance === undefined ? [] : [`${echeance.reste} (${echeance.jusqua})`]),
+        ...limites,
+        ...(dit === "" ? [] : [dit]),
+      ].join("\n");
+      const valeur = [pastille(mot, ton), bloc("strong", mot), ...(echeance === undefined ? [] : [bloc("small", echeance.reste)]), survol(document, detail)];
+      return ligne(grant.action, grant.actif, valeur, grant.commandable ? undefined : `no action here for the ${grant.action} grant`);
+    }),
   );
+  poserLesGroupes();
 }
 
 // Le geste : le process principal amène le port du worktree sur ce poste et ouvre le
@@ -5756,20 +5347,6 @@ async function ouvrirPr(projet, ticket) {
   montrer();
 }
 
-// Le geste du projet lui-même, en tête de son espace, à côté de son nom : vérifier son
-// installation — il ne fait que lire, et son verdict se lit dans Paramètres. Un projet qui ne se
-// lit nulle part — ni box, ni cuisine sur cet ordinateur — n'a pas de commande à envoyer.
-function poserProjet() {
-  const projet = courant;
-  const geste = GESTES_DE_LA_CUISINE.find(({ id }) => id === "installation");
-  gestesProjet.hidden = projet === undefined || !seLit(projet) || geste === undefined;
-  if (projet === undefined || gestesProjet.hidden || geste === undefined) return gestesProjet.replaceChildren();
-  const verifier = bouton(geste.libelle, () => void brigade.verifier(projet.nom));
-  verifier.dataset.geste = "direct";
-  verifier.title = "runs the verification on the station — its verdict is read in Settings, in one sentence";
-  gestesProjet.replaceChildren(verifier);
-}
-
 // L'interrupteur de l'espace, en tête, à droite des onglets (tickets 906, 1406) : une glissière et son
 // mot — « project on », « project off » —, lisible sans rien lire d'autre, et un clic le bascule. Ce qui
 // en a été lu, mot pour mot, est au survol, avec ce que le clic fait. Pas encore lu, ou pas lu : il ne
@@ -5799,7 +5376,7 @@ function interrupteur(nom, allume, { pourquoi, eteindre, allumer, clic, confirma
 // sont pris, le manager juge et découpe, une livraison verte est mergée ; éteint, rien de neuf ne l'est.
 // Éteindre part au clic, dans le second ; allumer ouvre sa confirmation, qui dit en une phrase ce que
 // le manager va juger. Sa ligne `manager` — le manager le suit, et c'est elle qui le dit —, mot pour
-// mot, est au survol, le détail dans l'onglet Manager.
+// mot, est au survol.
 function poserInterrupteur() {
   const projet = courant;
   const cache = projet === undefined || !seLit(projet) || projet.desinstalle !== undefined;
@@ -5822,12 +5399,11 @@ function poserInterrupteur() {
   );
 }
 
-// Le code de l'app, et les clones de brigade parmi les projets : l'état de chacun en une
-// ligne, avec l'heure de sa lecture ; dessous, ce que le process principal en dit (retard.ts).
-// L'app en retard, ou à relancer : un bouton la met à jour et la relance, sans terminal
-// (rattrapage.ts). Le clone d'un projet en retard : la commande qui le met à jour est un bouton,
-// elle s'écrit dans un shell, et rien ne l'envoie. La case « T » de la barre le dit aussi, quel
-// que soit l'écran.
+// Le code de l'app, et les clones de brigade parmi les projets, sous cette machine dans Settings (ticket 1700) : une
+// ligne chacun — son état en une phrase, l'heure de sa lecture et ce que le process principal en dit au survol
+// (retard.ts) —, et son seul geste quand il en a un. L'app en retard, ou à relancer : un bouton la met à jour et la
+// relance, sans terminal (rattrapage.ts). Le clone d'un projet en retard : la commande qui le met à jour est un bouton,
+// elle s'écrit dans un shell, et rien ne l'envoie. La case « T » de la barre le dit aussi, quel que soit l'écran.
 function poserCode() {
   const entree = document.getElementById("entree-tous");
   if (entree !== null) {
@@ -5836,29 +5412,30 @@ function poserCode() {
     entree.ariaLabel = entree.title;
   }
   if (codeVu === undefined) {
-    const tete = bloc("p", "this app's code: first read of how far it is behind origin in progress…");
-    tete.dataset.etat = "en-cours";
     code.hidden = false;
-    return code.replaceChildren(tete);
+    code.replaceChildren(rangeeDeReglage("this app", [bloc("span", "first read of how far its code is behind origin in progress…")], []));
+    return poserLesGroupes();
   }
   const heure = heureDe(codeVu.a);
   code.replaceChildren(
-    ...codeVu.clones.flatMap(({ id, etat, tete, lignes, commande, bouton: geste }) => {
-      const pose = bloc("p", `${tete} — ${etat === "pas-lu" ? "tried at" : "read at"} ${heure}, re-read when you come back to the window`);
-      pose.dataset.etat = etat;
-      const gestes = document.createElement("p");
-      gestes.className = "gestes";
+    ...codeVu.clones.map(({ id, etat, tete, lignes, commande, bouton: geste }, rang) => {
+      const dit = bloc("span", tete);
+      dit.dataset.etat = etat;
+      const aide = [`${etat === "pas-lu" ? "tried at" : "read at"} ${heure}, re-read when you come back to the window`, ...lignes].join("\n");
+      /** @type {HTMLElement[]} */
+      const controle = [];
       if (geste !== undefined) {
         const cree = bouton(enPassage ? "updating — the app relaunches itself…" : geste, () => void passer());
         cree.disabled = enPassage;
-        gestes.append(cree);
-      } else if (commande !== undefined) gestes.append(bloc("span", "write into a shell, without sending:"), boutonDeCommande(commande, () => void mettreAJour(id)));
-      return [pose, ...(lignes.length === 0 ? [] : [propos(lignes.join("\n"))]), ...(commande === undefined && geste === undefined ? [] : [gestes])];
+        controle.push(cree);
+      } else if (commande !== undefined) controle.push(boutonDeCommande(commande, () => void mettreAJour(id)));
+      // Ce qui n'a pas été écrit, ou pas fait, se lit sous la première ligne, jusqu'à la prochaine demande.
+      return rangeeDeReglage(rang === 0 ? "this app" : "a brigade clone", [dit, survol(document, aide)], controle, rang === 0 ? refusDeReglage(nonMisAJour) : []);
     }),
-    ...(nonMisAJour === "" ? [] : [propos(nonMisAJour)]),
   );
-  // L'app installée n'a pas de clone (emplacements.ts) : sans rien à dire, le bloc ne laisse pas de cadre vide.
+  // L'app installée n'a pas de clone (emplacements.ts) : sans rien à dire, la ligne n'est pas posée.
   code.hidden = code.childElementCount === 0;
+  poserLesGroupes();
 }
 
 // L'app passe à la nouvelle version : elle se met à jour, puis se ferme et repart d'elle-même —
@@ -7413,9 +6990,7 @@ function dessiner() {
   bande.hidden = true;
   arret.hidden = true;
   rail.hidden = true;
-  poserManager();
   poserGrants();
-  poserProjet();
   poserInterrupteur();
   poserStationsDuProjet();
   if (courant === undefined) return;
@@ -7961,14 +7536,12 @@ async function ouvrir(projet) {
   // Dès maintenant : la carte et la bannière du projet quitté ne restent pas sur celui-ci
   // pendant que son espace s'ouvre.
   dessiner();
-  attendre(projet, lu, lecture);
   // Ni ses pages servies : celles de ce projet viennent avec sa première lecture.
   servir(projet, undefined);
-  // L'installation du projet quitté ne reste pas non plus : celle-ci arrive.
-  if (misEnService !== projet.nom) service.hidden = true;
+  // Les stations que sa box déclare viennent avec la lecture de son installation (service.ts).
   void lireService(projet);
-  // Ni ses deux gestes de retrait : ils nomment leur projet.
-  if (retraitPose !== projet.nom) retrait.hidden = true;
+  // Ni sa ligne de retrait : elle nomme son projet.
+  retrait.hidden = true;
   void lireRetrait(projet);
   poserCouleurs(projet);
   void poserOrdinaires(projet);
@@ -8018,16 +7591,11 @@ brigade.surEtat((terminal) => {
   }
   montrer();
 });
-// Une lecture remplace tout ce qui était affiché du projet. Ratée, elle n'a pas
-// d'état à montrer : ce que `ssh` a rendu prend sa place.
-// Dans l'espace du projet, les serveurs que ce `status` montre viennent avec elle, et leur geste.
+// Dans l'espace du projet, les serveurs que ce `status` montre viennent avec sa lecture, et leur geste.
 brigade.surLecture((recue, servies) => {
   // Demandée par un écran quitté depuis, elle était déjà en route : elle n'est pas pour celui-ci.
   if (recue.demande !== demande) return;
-  if (recue.projet === courant?.nom && courant.sansStation !== true) {
-    rendre(recue, lu, lecture);
-    servir(courant, servies);
-  }
+  if (recue.projet === courant?.nom && courant.sansStation !== true) servir(courant, servies);
 });
 // Les faits d'un projet : ils remplacent ceux d'avant, partout où ils se dessinent —
 // sa pastille dans la barre, et son espace s'il est affiché — sa ligne de l'accueil vient par `surAccueil`.
@@ -8062,16 +7630,8 @@ brigade.surUrgence(async (nom) => {
   poserAlertes(courant);
   gesteDeLUrgence?.focus();
 });
-// L'installation d'un projet a changé — une lecture de sa box, une action partie ou revenue :
-// celle du projet affiché se repose.
-brigade.surGuide((guide) => {
-  retenirDeclarees(guide);
-  if (courant?.nom === guide.projet) poserService(courant, guide);
-});
-// Le chef déplie l'installation repliée : elle se lit en entier, et ce qui sera à lui s'annonce.
-service.addEventListener("toggle", () => {
-  if (service.open && courant !== undefined && misEnService === courant.nom && !serviceDeplie) void brigade.deplierService(courant.nom);
-});
+// L'installation d'un projet a été relue : les stations que sa box déclare se reposent, si c'est le projet affiché.
+brigade.surGuide(retenirDeclarees);
 // Ce qui n'est pas encore sur le rail d'un projet : le sien se repose, s'il est affiché.
 brigade.surAmont((vu) => {
   amonts.set(vu.projet, vu);
@@ -8094,11 +7654,10 @@ brigade.surFaits((recue) => {
   }
 });
 // Ce que l'onglet de contenu affiché a rendu : une lecture ratée s'y lit comme
-// dans le panneau, et n'en retire rien. Celle de l'onglet Manager vient avec l'état du
-// manager, lu dans sa sortie : il remplace celui d'avant, au-dessus du texte. Celle de
-// l'onglet Grants, de même, avec l'état des grants ; celle de l'onglet Cooks, avec la fiabilité des cooks, et la
-// partie de son closer, lue ici même dans sa sortie de `closing --json` (closer/section.js, ticket 1699).
-brigade.surContenu((recue, vu, desGrants, laFiabilite) => {
+// dans le panneau, et n'en retire rien. Celle de Settings vient avec l'état des grants, lu dans sa sortie : leurs
+// lignes se reposent. Celle de l'onglet Cooks, avec la fiabilité des cooks, et la partie de son closer, lue ici même
+// dans sa sortie de `closing --json` (closer/section.js, ticket 1699).
+brigade.surContenu((recue, _manager, desGrants, laFiabilite) => {
   if (recue.demande !== demandeOnglet) return;
   // La page des coûts lit `station` sur la box de chaque projet : chacune entre dans ses chiffres.
   if (ongletDemande === COUTS) {
@@ -8111,11 +7670,10 @@ brigade.surContenu((recue, vu, desGrants, laFiabilite) => {
     return poserRatios();
   }
   if (recue.projet !== courant?.nom || courant.sansStation === true) return;
-  // Sans page par-dessus, c'est la lecture de l'onglet Cooks : elle se pose sur lui (ticket 1184).
+  // Sans page par-dessus, c'est la lecture de l'onglet Cooks : elle se pose sur lui (ticket 1184). Settings ne pose que
+  // les lignes des grants (ticket 1700).
   if (actif() === undefined) rendre(recue, luCuisine, lectureCuisine);
-  else rendre(recue, luOnglet, lectureOnglet);
-  managerVu = vu;
-  poserManager();
+  else if (!reglagesMontres()) rendre(recue, luOnglet, lectureOnglet);
   grantsVus = desGrants;
   poserGrants();
   fiabiliteVue = laFiabilite;
@@ -8128,7 +7686,7 @@ brigade.surContenu((recue, vu, desGrants, laFiabilite) => {
   }
   poserLeCloser();
 });
-// Les clones relus : leur état remplace celui d'avant, dans Paramètres et sur la case « T ».
+// Les clones relus : leur état remplace celui d'avant, dans Settings et sur la case « T ».
 brigade.surCode((vu) => {
   codeVu = vu;
   poserCode();

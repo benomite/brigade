@@ -317,25 +317,15 @@ describe("une carte porte ce que la file dit", () => {
     for (const bon of bons(vue.element("rail"))) for (const [, valeur] of portes(bon)) assert.doesNotMatch(valeur ?? "", /^(|0|-|—|\?|aucun|personne|inconnu)$/i);
   });
 
-  test("sans `status` lu, elle le dit : ce que `faits` donne seul est posé, le reste est écrit non communiqué — et Paramètres dit d'où vient ce qu'elle porte", async () => {
+  test("sans `status` lu, elle le dit : ce que `faits` donne seul est posé, le reste est écrit non communiqué", async () => {
     const vue = await ouvrir();
     recevoir(vue, dessinable(FAITS, PAS_LU));
 
     assert.deepEqual(portes(detailsDe(vue, 14) ?? assert.fail("pas de détail")).map(([libelle]) => libelle), ["right now", "taken by"]);
     assert.deepEqual(sans(bonDe(vue, 14)), []);
-    // Le haut du rail ne dit rien d'une lecture récente : la provenance est dans Paramètres.
-    const provenance = () => vue.element("provenance-lignes").textContent;
-    assert.match(provenance(), /^the columns, from `ssh box brigade parade facts` — read at .*, in service order`ssh box brigade parade status` was not read: each card carries only what `facts` says/);
-    recevoir(vue);
-    assert.match(provenance(), /`ssh box brigade parade status`, read at .*: its `attend` block says what awaits you, its `rail` line what each card carries besides/);
-    // Un `status` sans le bord de son bloc, ou sans sa ligne `rail` : la provenance dit lequel manque.
-    recevoir(vue, dessinable(FAITS, STATUS.replace("fin attend\n", "")));
-    assert.match(provenance(), /: its `attend` block was not taken, its `rail` line what each card carries besides/);
-    recevoir(vue, dessinable(FAITS, STATUS.replace("rail       ", "le rail    ")));
-    assert.match(provenance(), /: its `attend` block says what awaits you, its `rail` line was not read — each card carries only what `facts` says/);
   });
 
-  test("une ligne de `status` que l'app n'a pas su découper n'est ni sur la carte ni sur la fiche : elle se lit entière dans Paramètres", async () => {
+  test("une ligne de `status` que l'app n'a pas su découper n'est ni sur la carte ni sur la fiche", async () => {
     const vue = await ouvrir();
     recevoir(vue);
     const bon = bonDe(vue, 31);
@@ -356,13 +346,13 @@ describe("le haut du rail est allégé (#623)", () => {
     const rail = vue.element("rail");
     assert.equal(rail.dessous("h3").some((pose) => /read at|stop the kitchen/.test(pose.textContent)), false);
     assert.equal(rail.dessous("button").some((pose) => /stop the kitchen/.test(pose.textContent)), false);
-    // La provenance et l'arrêt sont dans Paramètres.
-    assert.equal(vue.element("provenance").hidden, false);
-    assert.match(vue.element("provenance-lignes").textContent, /ssh box brigade parade facts/);
+    // L'arrêt est une ligne de Settings, sous le projet (#1700) : la cuisine, en marche, et son geste.
     const arret = vue.element("arreter-cuisine");
     assert.equal(arret.hidden, false);
     const bouton = arret.dessous("button").find((pose) => /stop the kitchen/.test(pose.textContent)) ?? assert.fail("pas de bouton d'arrêt");
     assert.equal(bouton.dataset.arret, "");
+    assert.equal(arret.dessous("p").find(({ className }) => className === "valeur")?.textContent, "running");
+    assert.deepEqual(arret.dessous("span").filter(({ className }) => className === "nom").map(({ textContent }) => textContent), ["kitchen"]);
   });
 
   test("une lecture vieille se dit en tête, avec son âge ; une lecture neuve ne dit rien", async () => {

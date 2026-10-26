@@ -147,11 +147,15 @@ describe("les tickets ordinaires dans la vue", () => {
   const ouvrir = async (vue: Awaited<ReturnType<typeof jouer>>) => {
     (vue.element("projets").children.at(1) ?? assert.fail("pas de case")).click();
     await repos();
-    await ouvrirLecture(vue, "General");
+    await ouvrirLecture(vue, "Settings");
   };
   const champs = (bloc: Faux) => bloc.dessous("input");
 
-  test("sous Paramètres : l'option, la limite de cooks et une seule ligne d'explication, à côté", async () => {
+  // Les lignes du bloc : le nom de chaque réglage, sans son étiquette de niveau (le groupe la dit), et sa valeur.
+  const lignes = (bloc: Faux) => bloc.dessous("div").filter(({ className }) => className === "reglage").map((ligne) => [ligne.children[0]?.textContent, ligne.children[1]?.children[0]?.textContent]);
+  const refus = (bloc: Faux) => bloc.dessous("p").filter(({ className }) => className === "dit refus").map(({ textContent }) => textContent);
+
+  test("dans Settings, sous cette machine : deux lignes — les prendre, et combien de cooks à la fois —, l'explication au survol", async () => {
     const vue = await jouer(PARADE, blocDesOrdinaires({ ...PARADE, ordinaires: true, limiteCooks: 2 }, "darwin", undefined));
     await ouvrir(vue);
     const bloc = vue.element("ordinaires");
@@ -159,9 +163,13 @@ describe("les tickets ordinaires dans la vue", () => {
     const [option, limite] = champs(bloc);
     assert.equal(option?.checked, true);
     assert.equal(limite?.value, "2");
-    assert.deepEqual(bloc.dessous("p").map(({ textContent }) => textContent), [EXPLICATION]);
-    assert.deepEqual(bloc.dessous("h3").map(({ textContent }) => textContent), ["Ordinary tickets on this Macthis machine"]);
+    assert.deepEqual(lignes(bloc), [["ordinary tickets", "taken"], ["cooks at once", "2"]]);
+    // Ni titre ni paragraphe : l'explication est au survol de la valeur.
+    assert.deepEqual(bloc.dessous("h3"), []);
+    assert.ok(bloc.dessous("button").some(({ ariaLabel }) => ariaLabel === EXPLICATION));
+    assert.deepEqual(refus(bloc), []);
     assert.equal(limite?.ariaLabel, "Cooks this Mac runs at once");
+    assert.equal(option?.ariaLabel, "Take the ordinary tickets on this Mac");
   });
 
   test("régler l'option ou la limite l'envoie au process principal, qui l'écrit", async () => {
@@ -181,33 +189,31 @@ describe("les tickets ordinaires dans la vue", () => {
     assert.deepEqual(vue.dernier("reglerOrdinaires"), ["parade", true, 4]);
   });
 
-  test("un réglage refusé dit pourquoi, sous le bloc", async () => {
+  test("un réglage refusé dit pourquoi, sous sa ligne", async () => {
     const vue = await jouer(PARADE, blocDesOrdinaires(PARADE, "darwin", undefined), () => "nothing was written: EACCES");
     await ouvrir(vue);
     const [option] = champs(vue.element("ordinaires"));
     if (option === undefined) return assert.fail("pas de case");
     option.declencher("change");
     await repos();
-    assert.ok(vue.element("ordinaires").dessous("p").some(({ className, textContent }) => className === "refus" && textContent === "nothing was written: EACCES"));
+    assert.deepEqual(refus(vue.element("ordinaires")), ["nothing was written: EACCES"]);
   });
 
   test("bac à sable indisponible : le message est à côté de l'option, avec la raison, et dit que le Mac ne prend pas de ticket ordinaire", async () => {
     const vue = await jouer(PARADE, blocDesOrdinaires({ ...PARADE, ordinaires: true }, "darwin", [station(INDISPONIBLE)]));
     await ouvrir(vue);
-    const dits = vue.element("ordinaires").dessous("p").filter(({ className }) => className === "indisponible");
+    const dits = refus(vue.element("ordinaires"));
     assert.equal(dits.length, 1);
-    assert.match(dits[0]?.textContent ?? "", /sandbox is unavailable.*Seatbelt \(\/usr\/bin\/sandbox-exec\) is missing.*takes no ordinary ticket/);
+    assert.match(dits[0] ?? "", /sandbox is unavailable.*Seatbelt \(\/usr\/bin\/sandbox-exec\) is missing.*takes no ordinary ticket/);
   });
 
-  test("sous Windows, le bloc porte le nom de ce poste et dit en une ligne pourquoi il ne prend aucun ticket ordinaire : ni option ni limite", async () => {
+  test("sous Windows, rien ne se règle : ni option ni limite, ni ligne qui l'explique", async () => {
     const vue = await jouer(PARADE, blocDesOrdinaires({ ...PARADE, ordinaires: true }, "win32", undefined), undefined, { nom: "this PC", mac: false });
     await ouvrir(vue);
     const bloc = vue.element("ordinaires");
-    assert.equal(bloc.hidden, false);
-    assert.equal(bloc.ariaLabel, "Ordinary tickets on this PC");
-    assert.deepEqual(bloc.dessous("h3").map(({ textContent }) => textContent), ["Ordinary tickets on this PC"]);
-    assert.deepEqual(bloc.dessous("p").map(({ textContent }) => textContent), [sansBacASable("this PC")]);
+    assert.equal(bloc.hidden, true);
     assert.equal(champs(bloc).length, 0);
+    assert.ok(!vue.element("reglages-machine").dessous("div").some(({ dataset }) => dataset.cle === "ordinaires"));
   });
 
   test("sans station du projet sur ce poste, rien n'est posé : pas d'option", async () => {

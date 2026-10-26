@@ -122,7 +122,7 @@ test("ce qui a quitté l'accueil n'y est plus : le code de l'app, les blocs par 
   assert.doesNotMatch(texte, /\b(brigade|gh|git|ssh)\s+(-|\S+\s)/);
   // Le seul champ de l'accueil est celui du code d'appairage, replié sous « + station ».
   assert.ok(tous.dessous("input").every((champ) => champ.parentElement?.hidden === true));
-  // Le code de l'app est dans Paramètres, et au survol de « T ».
-  assert.equal(vue.element("code").parentElement, vue.element("etat"));
+  // Le code de l'app est dans Settings, sous cette machine (#1700), et au survol de « T ».
+  assert.equal(vue.element("code").parentElement, vue.element("reglages-machine"));
   assert.match(vue.element("projets").children[0]?.title ?? "", /^All projects — this app's code is 3 commits behind$/);
 });

@@ -1,7 +1,7 @@
 // Les états se lisent sans lire : une forme et une couleur par état, selon la maquette — la
 // pastille, la pilule, le point. Chaque forme se lit sans la couleur (niveaux de gris), et le
 // libellé de chaque état reste dans le DOM. Rien n'est demandé au runtime : tout vient de ce que
-// la box dit déjà (faits, status, manager, grant). La vue est jouée devant un faux document.
+// la box dit déjà (faits, la lecture d'un onglet, grant). La vue est jouée devant un faux document.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -17,10 +17,9 @@ import { entete } from "../src/fiche.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS, type Vu as VuDesGrants } from "../src/grants.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
-import type { Vu as VuDuManager } from "../src/manager.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import type { Terminal } from "../src/terminaux.ts";
-import { type Faux, jouerLaVue, type Reponses, ouvrirLecture, ouvrirOnglet, repos } from "./aides/fausse-vue.ts";
+import { type Faux, jouerLaVue, type Reponses, ouvrirOnglet, repos } from "./aides/fausse-vue.ts";
 
 const VUE = join(import.meta.dirname, "../src/vue");
 const css = readFileSync(join(VUE, "vue.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
@@ -81,10 +80,13 @@ const regle = (selecteur: string): Map<string, string> => {
 const silhouette = (declarations: Map<string, string>) => `${declarations.get("border-radius") ?? ""}|${declarations.get("transform") ?? ""}|${declarations.get("clip-path") ?? ""}|${declarations.get("background") ?? ""}`;
 
 describe("les trois états de pilotage ont chacun leur forme et leur couleur", () => {
+  // La tête de la lecture de l'onglet Cooks (#1184) : Settings ne montre plus celle de `status` (#1700).
   async function entete(lecture: object) {
     const vue = await ouvrir();
-    vue.dire("surLecture", { projet: PARADE, demande: vue.dernier("regarder")[1] as number, a: A, ...lecture } as never, { projet: PARADE, pages: [], aLancer: [], illisibles: [], empeche: [] });
-    return vue.element("lu");
+    await ouvrirOnglet(vue, "Cooks");
+    vue.dire("surContenu", { projet: PARADE, demande: vue.dernier("onglet")[2] as number, a: A, ...lecture } as never, undefined, undefined);
+    await repos();
+    return vue.element("lu-cuisine");
   }
 
   test("pilotable, joignable mais plus pilotable, pas joignable : trois états, trois formes", async () => {
@@ -101,7 +103,7 @@ describe("les trois états de pilotage ont chacun leur forme et leur couleur", (
     // Trois formes distinctes, posées par la vue, et que la feuille dessine chacune à sa façon.
     const formes = [pilotable, plus, pas].map((tete) => tete.dataset.forme ?? "");
     assert.deepEqual(formes, ["disque", "losange", "carre"]);
-    assert.equal(new Set(formes.map((forme) => silhouette(regle(`#lu[data-forme="${forme}"]::before`)))).size, 3, "deux formes se dessinent pareil");
+    assert.equal(new Set(formes.map((forme) => silhouette(regle(`#lu-cuisine[data-forme="${forme}"]::before`)))).size, 3, "deux formes se dessinent pareil");
     // Et trois couleurs.
     assert.deepEqual([pilotable, plus, pas].map((tete) => tete.dataset.ton), ["vert", "jaune", "rouge"]);
   });
@@ -113,7 +115,7 @@ describe("les trois états de pilotage ont chacun leur forme et leur couleur", (
   });
 });
 
-describe("la cuisine, le grant, le manager : une pastille à forme, et son libellé", () => {
+describe("la cuisine, le grant : une pastille à forme, et son libellé", () => {
   // La carte du projet est sur l'onglet Cooks (#1184), fondue dans la ligne de sa cuisine, en tête de ses stations (#1456).
   const cuisine = (vue: Awaited<ReturnType<typeof ouvrir>>) => vue.element("rail").dessous("p").find(({ className }) => className === "etat-de-la-cuisine") ?? assert.fail("pas de ligne de la cuisine");
   test("cuisine ouverte : disque vert ; arrêtée : carré rouge — le mot est dans la pilule", async () => {
@@ -157,7 +159,9 @@ describe("la cuisine, le grant, le manager : une pastille à forme, et son libel
 
   test("grant actif ; grant éteint : deux formes, deux libellés", async () => {
     const vue = await ouvrir();
-    await ouvrirLecture(vue, "Grants");
+    // Settings ouvert lit l'onglet des grants (#1700) : une ligne de réglage par grant.
+    (vue.element("onglets").children.find((onglet) => onglet.textContent === "Settings") ?? assert.fail("pas d'onglet Settings")).click();
+    await repos();
     const numero = vue.dernier("onglet")[2] as number;
     const vide = { lignes: [], illisibles: [] };
     const grants: VuDesGrants = {
@@ -172,23 +176,13 @@ describe("la cuisine, le grant, le manager : une pastille à forme, et son libel
       illisibles: [],
     };
     vue.dire("surContenu", { projet: PARADE, demande: numero, a: A, sorties: [{ commande: "x", texte: "" }] }, undefined, grants);
-    const poses = vue.element("grants").dessous("p").filter((p) => p.className === "interrupteur");
-    const lu = poses.map((p) => ({ mots: p.textContent, forme: p.dessous("span").find((s) => s.className === "pastille")?.dataset.forme }));
-    assert.deepEqual(lu, [{ mots: "grant mergeACTIF", forme: "disque" }, { mots: "grant fireABSENT", forme: "anneau" }]);
-  });
-
-  test("manager allumé ; éteint", async () => {
-    const vue = await ouvrir();
-    await ouvrirLecture(vue, "Manager");
-    const numero = vue.dernier("onglet")[2] as number;
-    const vide = { lignes: [], illisibles: [] };
-    for (const [allume, mot, ton, forme] of [[true, "ALLUMÉ", "vert", "disque"], [false, "ÉTEINT", "gris", "anneau"]] as const) {
-      const manager: VuDuManager = { projet: PARADE, demande: numero, a: A, interrupteur: { allume, mot, ton, dit: "…" } as VuDuManager extends { interrupteur: infer I } ? I : never, decisions: vide, ecartees: vide };
-      vue.dire("surContenu", { projet: PARADE, demande: numero, a: A, sorties: [{ commande: "x", texte: "" }] }, manager, undefined);
-      const [tete] = vue.element("manager").dessous("p").filter((p) => p.className === "interrupteur");
-      assert.equal(tete?.textContent, mot);
-      assert.equal(tete?.dessous("span")[0]?.dataset.forme, forme);
-    }
+    await repos();
+    const lu = vue.element("grants").dessous("div").filter((rangee) => rangee.className === "reglage").map((rangee) => {
+      const nom = rangee.dessous("span").find((s) => s.className === "nom")?.textContent;
+      const valeur = rangee.dessous("p").find((p) => p.className === "valeur") ?? assert.fail("pas de valeur");
+      return { nom, mot: valeur.dessous("strong")[0]?.textContent, forme: valeur.dessous("span").find((s) => s.className === "pastille")?.dataset.forme };
+    });
+    assert.deepEqual(lu, [{ nom: "grant merge", mot: "ACTIF", forme: "disque" }, { nom: "grant fire", mot: "ABSENT", forme: "anneau" }]);
   });
 });
 
