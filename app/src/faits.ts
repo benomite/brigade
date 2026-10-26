@@ -689,7 +689,9 @@ const TITRES: Readonly<Record<Exclude<Echec["cas"], null | "ssh-en-echec">, stri
   "node-inapte": "REACHED, BUT THE STATION'S NODE DOES NOT SUIT THE RUNTIME",
 };
 // `sansReponse` : ce qui se dit d'une box jointe dont le code ne dit aucun cas — pour une autre commande que `facts`.
-export function titreDEchec({ cas, atteinte }: Echec, sansReponse = "REACHED, BUT `facts` DID NOT ANSWER"): string {
+export function titreDEchec({ cas, atteinte, duTableau }: Echec, sansReponse = "REACHED, BUT `facts` DID NOT ANSWER"): string {
+  // Lue du tableau de la cuisine (#1694) : aucune station n'a été jointe, c'est GitHub ou le tableau qui n'a pas dit.
+  if (duTableau === true) return "NOT READ FROM THE KITCHEN BOARD";
   if (cas !== null && cas !== "ssh-en-echec") return TITRES[cas];
   return atteinte ? sansReponse : "NOT REACHED";
 }

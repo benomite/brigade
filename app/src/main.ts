@@ -17,7 +17,7 @@ import { BOUTONS, ecritPar, ecritPourLeCloser, REGLER_LE_CLOSER } from "./bouton
 import { lancerGeste, lancerLa, ouvrirVeille, type Lu, type Servi } from "./box.ts";
 import { agirSurLeCloser } from "./closer-lancement.ts";
 import { repondreALaCorrection } from "./correction.ts";
-import { repondreALaCarte } from "./carte-todo.ts";
+import { reponseLue } from "./carte-todo.ts";
 import { repondreAuProfil } from "./profil.ts";
 import { histoireDe, situationDe } from "./histoire.ts";
 import { commenter, demanderAuSecond, lireDiscussion } from "./discussion.ts";
@@ -35,6 +35,8 @@ import { BANNIERE, COMMANDE, rangerLeRailPublie, tenirFaits, type RailDuProjetLu
 import { clientGitHub, parFetch } from "./tableau/client.ts";
 import { jetonDeGh } from "./tableau/jeton-gh.ts";
 import { lireLeTableauDuDepot, type LectureDuTableauDuDepot } from "./tableau/lecture.ts";
+import { ouvrirVeilleDuTableau, tenirLecturesDuTableau } from "./tableau/rail.ts";
+import { gesteDeFiche as gesteDeFicheAuTableau, reponseDeCarte as reponseDeCarteAuTableau } from "./tableau-gestes/rail.ts";
 import { clientDesGestesGitHub, envoyerLeGeste, posterParFetch, viseDe, type TableauVise } from "./tableau-gestes/github.ts";
 import type { EtatDuGeste } from "./tableau-gestes/gestes.ts";
 import { demandeDe, demandeDeLAlerte, demandeSurLeTicket, noteDeLaDemande } from "./demande.ts";
@@ -197,21 +199,28 @@ const terminaux = ouvrirTerminaux({
   surEtat: (terminal) => dire("etat", terminal),
 });
 
+// La vue du rail d'un projet — ses colonnes, ses cartes, sa file TODO, l'état de sa cuisine, sa bande — se lit du
+// tableau de la cuisine que sa box publie sur GitHub (#1694, tableau/rail.ts), avec le jeton du `gh` de ce poste : ni
+// `ssh`, ni tailnet, ni box jointe. Les veilles du rail, des faits, du manager et de l'amont lisent toutes ce même
+// tableau, une lecture à la fois par projet, reprise par chacune tant qu'elle a moins de quinze secondes. Le dépôt d'un
+// projet est son `depot`, ou celui de l'`origin` de son dossier. Un projet que ni sa box ni cet ordinateur ne servent
+// garde son écran (#1435) : son rail n'est pas lu ici.
+const appelerGitHub = clientGitHub({ jeton: jetonDeGh({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 10_000 }), envoyer: parFetch() });
+const depotDuProjet = async (projet: Projet) => projet.depot ?? (await depotDeLOrigine(process.env.BRIGADE_GIT_BIN || "git", projet.dossier)) ?? projet.nom;
+const tableaux = tenirLecturesDuTableau<Projet>({ lire: async (projet) => lireLeTableauDuDepot({ depot: await depotDuProjet(projet), appeler: appelerGitHub }), fraicheurMs: 15_000 });
+const railLisible = (projet: Projet) => cuisines.cuisineDe(projet) !== undefined;
+
 // Seul ce qui est affiché est lu — un projet, ou chacun dans « Tous les projets » : toutes
-// les trente secondes, et un `ssh` qui n'a rien rendu au bout de trente est arrêté.
-// La veille rend les sorties mot pour mot ; ce qui attend le chef en est mis à
+// les trente secondes, sur le tableau de la cuisine. Ce qui attend le chef en est mis à
 // part ici, avant la vue.
-// Les trois veilles se partagent le passage de chaque projet : à elles toutes, un projet
-// n'ouvre qu'une connexion à la fois — sshd refuse au hasard ce qui arrive de front.
+// Les veilles des onglets (Cooks, Settings) et les gestes qui partent sur la box se partagent le
+// passage de chaque projet : à eux tous, un projet n'ouvre qu'une connexion à la fois — sshd refuse
+// au hasard ce qui arrive de front.
 const passage = new Map<string, Promise<unknown>>();
-const veille = ouvrirVeille({
-  // Jamais posée hors des essais, comme BRIGADE_CLAUDE_BIN.
-  ssh: process.env.BRIGADE_SSH_BIN || "ssh",
+const veille = ouvrirVeilleDuTableau({
+  lire: tableaux.lire,
   intervalleMs: 30_000,
-  delaiMs: 30_000,
-  connexionS: 10,
-  passage,
-  cuisine: cuisines.cuisineDe,
+  lisible: railLisible,
   surLecture: (lecture) => {
     const montree = mettreAPart(lecture);
     // Les serveurs que ce `status` montre : un transfert dont le serveur n'y est plus est fermé.
@@ -300,13 +309,10 @@ const urgences = tenirNotifications({
     dire("urgence", projet);
   },
 });
-const veilleDesFaits = ouvrirVeille({
-  ssh: process.env.BRIGADE_SSH_BIN || "ssh",
+const veilleDesFaits = ouvrirVeilleDuTableau({
+  lire: tableaux.lire,
   intervalleMs: 30_000,
-  delaiMs: 30_000,
-  connexionS: 10,
-  passage,
-  cuisine: cuisines.cuisineDe,
+  lisible: railLisible,
   surLecture: (lecture) => {
     dire("faits", faits.recevoir(lecture));
     direLaBande(bandes.faits(lecture));
@@ -317,16 +323,14 @@ const veilleDesFaits = ouvrirVeille({
   },
 });
 
-// L'état du manager n'est pas dit par la file (#438) : l'app lit `manager` elle-même, pour chaque
-// projet et quel que soit l'écran, au même rythme que `faits`. Une lecture qui échoue donne
-// « non vérifié » avec son motif, jamais « sain ». Elle partage le passage des autres veilles.
-const veilleDuManager = ouvrirVeille({
-  ssh: process.env.BRIGADE_SSH_BIN || "ssh",
+// L'état du manager n'est pas dit par la file (#438) : l'app le lit elle-même, pour chaque projet
+// et quel que soit l'écran, au même rythme que `faits` — la ligne de l'interrupteur du projet, que
+// le manager suit et que le tableau porte (tableau/rail.ts). Une lecture qui échoue donne
+// « non vérifié » avec son motif, jamais « sain ».
+const veilleDuManager = ouvrirVeilleDuTableau({
+  lire: tableaux.lire,
   intervalleMs: 30_000,
-  delaiMs: 30_000,
-  connexionS: 10,
-  passage,
-  cuisine: cuisines.cuisineDe,
+  lisible: railLisible,
   surLecture: (lecture) => {
     direLaBande(bandes.manager(lecture));
     // Ce qui est en amont du rail dit aussi si le manager le lit : sa phrase suit son état.
@@ -336,16 +340,13 @@ const veilleDuManager = ouvrirVeille({
 });
 
 // Ce qui n'est pas encore sur le rail (amont.ts) : `manager upstream`, lu pour le projet affiché
-// seulement — son nombre se pose à côté de son rail. La box lit GitHub à chaque fois : une minute
-// entre deux lectures. Une lecture ratée le dit, jamais « rien à venir ». Elle partage le passage des autres veilles.
+// seulement — son nombre se pose à côté de son rail. Le tableau de la cuisine ne le publie pas encore
+// (#1694) : la lecture le dit en une phrase, jamais « rien à venir », et aucune box n'est jointe pour lui.
 const amonts = tenirAmont();
-const veilleDeLAmont = ouvrirVeille({
-  ssh: process.env.BRIGADE_SSH_BIN || "ssh",
+const veilleDeLAmont = ouvrirVeilleDuTableau({
+  lire: tableaux.lire,
   intervalleMs: 60_000,
-  delaiMs: 30_000,
-  connexionS: 10,
-  passage,
-  cuisine: cuisines.cuisineDe,
+  lisible: railLisible,
   surLecture: (lecture) => dire("amont", amonts.recevoir(lecture)),
 });
 
@@ -814,12 +815,19 @@ ipcMain.handle("demander", (_, nom: unknown, ticket: unknown) => {
 // ceux qui tranchent ce qu'on attend du chef, puis ceux que la table du chef permet pour son état,
 // dont l'action est branchée, chacun avec son prix.
 ipcMain.handle("gestesDeFiche", (_, carte: unknown) => gestesDeCarte(carte));
-// Un geste de la fiche que la vue ne joue pas elle-même : une action de box, qui part dans le
-// second comme un geste du socle. La vue nomme le geste, le ticket et la valeur ; la commande se
-// compose ici, jamais dans la vue.
-ipcMain.handle("gesteDeFiche", (_, nom: unknown, id: unknown, ticket: unknown, valeur: unknown) => {
+// Un geste de la fiche que la vue ne joue pas elle-même. Merger la livraison et retirer le ticket du
+// rail s'écrivent sur le tableau de la cuisine du projet (#1694, tableau-gestes/rail.ts), en
+// commentaire, par le jeton du `gh` de ce poste — ni `ssh` ni second : la box les joue à son tick
+// suivant, et le rail, relu du tableau, le montre. Les autres — que la grammaire du tableau ne
+// connaît pas — sont une action de box, qui part dans le second comme un geste du socle. La vue
+// nomme le geste, le ticket et la valeur ; ce qui part se compose ici, jamais dans la vue.
+ipcMain.handle("gesteDeFiche", async (_, nom: unknown, id: unknown, ticket: unknown, valeur: unknown) => {
   const vise = connu(nom);
-  return vise === undefined ? parti(nom) : jouerGesteDeFiche(terminaux, vise, id, ticket, valeur, undefined, cuisines.cuisineDe(vise));
+  if (vise === undefined) return parti(nom);
+  const auTableau = await gesteDeFicheAuTableau(tableaux.dernier(vise.nom), id, ticket, clientDesGestes);
+  if ("horsDuTableau" in auTableau) return jouerGesteDeFiche(terminaux, vise, id, ticket, valeur, undefined, cuisines.cuisineDe(vise));
+  if ("fait" in auTableau) tableaux.oublier();
+  return auTableau;
 });
 // La question qu'une carte de T'attend pose, telle qu'elle est écrite sur son issue (question.ts) :
 // l'issue est lue par le `gh` du poste — celui du chef —, à l'ouverture de sa fiche. La vue nomme le
@@ -1125,11 +1133,10 @@ ipcMain.handle("railDuProjet", async (_, nom: unknown): Promise<RailDuProjetLu> 
 // Le tableau de la cuisine d'un projet (#1588) : l'issue que sa box tient à jour dans le dépôt du projet, lue de GitHub
 // par `fetch`, avec le jeton du `gh` de ce poste (#1587) — ni `ssh` ni station. La vue en tire la file du chef, l'état de
 // la cuisine et l'âge de la lecture ; ce qui ne se lit pas, elle le dit en une phrase.
-const appelerGitHub = clientGitHub({ jeton: jetonDeGh({ gh: ghIci, delaiMs: 10_000 }), envoyer: parFetch() });
 ipcMain.handle("tableauDuProjet", async (_, nom: unknown): Promise<LectureDuTableauDuDepot> => {
   const vise = declare(nom);
   if (vise === undefined) return { lu: false, depot: String(nom), luLe: new Date().toISOString(), raison: `The Kitchen board of ${String(nom)} is not read: it is no longer in the projects file.` };
-  const lu = await lireLeTableauDuDepot({ depot: vise.depot ?? (await depotDeLOrigine(process.env.BRIGADE_GIT_BIN || "git", vise.dossier)) ?? vise.nom, appeler: appelerGitHub });
+  const lu = await lireLeTableauDuDepot({ depot: await depotDuProjet(vise), appeler: appelerGitHub });
   if (lu.lu) {
     pagesDuTableau.set(vise.nom, new Set(lu.pages));
     tableauxVises.set(vise.nom, viseDe(lu));
@@ -1308,15 +1315,18 @@ ipcMain.handle("corriger", (_, nom: unknown, proposition: unknown, reponse: unkn
   passage.set(servi.nom, rendu);
   return rendu;
 });
-// La réponse du chef à une carte de TODO (carte-todo.ts) : un choix, d'un clic, ou son texte — par le même
-// chemin, lancée une fois sur la box par le passage du projet, pour la carte que ses derniers faits lus
-// portent : `rail choose` ou `rail answer` l'écrit sur l'issue, sort la carte de TODO et fait avancer le ticket.
-ipcMain.handle("repondreCarte", (_, nom: unknown, ticket: unknown, reponse: unknown) => {
+// La réponse du chef à une carte de TODO (carte-todo.ts) : un choix, d'un clic, ou son texte, pour la carte
+// que ses derniers faits lus portent — écrite sur le tableau de la cuisine du projet (#1694,
+// tableau-gestes/rail.ts), en commentaire `choose` ou `answer`, par le jeton du `gh` de ce poste : ni
+// `ssh` ni box jointe. La box la joue à son tick suivant — `rail choose` ou `rail answer` l'écrit sur
+// l'issue, sort la carte de TODO et fait avancer le ticket.
+ipcMain.handle("repondreCarte", async (_, nom: unknown, ticket: unknown, reponse: unknown) => {
   const vise = connu(nom);
-  if (vise?.box === undefined) return undefined;
-  const servi = { nom: vise.nom, box: vise.box };
-  const rendu = (passage.get(servi.nom) ?? Promise.resolve()).then(() => repondreALaCarte({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 30_000, connexionS: 10 }, servi, faits.carte(servi.nom, ticket), ticket, reponse));
-  passage.set(servi.nom, rendu);
+  if (vise === undefined) return undefined;
+  const lue = reponseLue(faits.carte(vise.nom, ticket), ticket, reponse);
+  if ("refus" in lue) return lue;
+  const rendu = await reponseDeCarteAuTableau(tableaux.dernier(vise.nom), lue, clientDesGestes);
+  if ("repondue" in rendu) tableaux.oublier();
   return rendu;
 });
 // Le « yes » ou le « no » du chef sur un profil de cook proposé (profil.ts), par le même chemin : lancé une
@@ -1376,8 +1386,10 @@ ipcMain.on("faits", (_, demande: number) => {
   veilleDuManager.regarder(projets(), [COMMANDE_MANAGER], demande);
   controlerTout();
 });
-// « réessayer maintenant » (#728) : la box est relue tout de suite, sans effacer ce qui en était tenu.
+// « réessayer maintenant » (#728) : le tableau est relu tout de suite, sur GitHub — pas la lecture
+// d'il y a quelques secondes —, sans effacer ce qui en était tenu.
 ipcMain.on("relireBox", (_, demande: number) => {
+  tableaux.oublier();
   veilleDesFaits.regarder(projets(), [COMMANDE], demande);
   veilleDuManager.regarder(projets(), [COMMANDE_MANAGER], demande);
 });

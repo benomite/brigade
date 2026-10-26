@@ -28,7 +28,9 @@ export type Commande = string | ((lues: readonly Sortie[]) => string);
 //   `commande-manque` une commande manque à la box — le geste lui-même, ou `sudo`
 //   `node-inapte`     le geste a refusé de lancer le runtime : le `node` de la box ne démarre pas, ou n'est pas la version réclamée
 export type Cas = "ssh-en-echec" | "projet-inconnu" | "sans-droit" | "commande-manque" | "node-inapte";
-export type Echec = { erreur: string; atteinte: boolean; cas: Cas | null };
+// `duTableau` : ce n'est ni `ssh` ni la station d'ici qui a échoué, mais la lecture du tableau de la cuisine du projet
+// sur GitHub (tableau/rail.ts, #1694) — `erreur` est alors sa raison, en une phrase.
+export type Echec = { erreur: string; atteinte: boolean; cas: Cas | null; duTableau?: true };
 // `demande` : celle à laquelle la lecture répond, telle que `regarder` l'a reçue.
 // `a` : l'instant où la lecture a fini. Une lecture a des sorties, ou une
 // erreur — jamais les deux.

@@ -9,7 +9,7 @@
 // Ce qui ne se lit pas le dit, jamais une file vide : GitHub qui ne répond pas ou refuse, le dépôt sans tableau, le
 // tableau sans bloc ou d'une version que l'app ne lit pas — chaque fois un échec, et sa raison en une phrase, que l'app
 // montre telle quelle.
-import { lireLeTableau, OUVERTURE_DU_BLOC, type CuisineDuTableau, type GesteDuTableau, type LigneDeLaFile } from "../../../runtime/src/tableau/rendu/bloc.ts";
+import { lireLeTableau, OUVERTURE_DU_BLOC, type CuisineDuTableau, type FaitsPublies, type GesteDuTableau, type LigneDeLaFile, type LigneDuRail, type Resserre } from "../../../runtime/src/tableau/rendu/bloc.ts";
 import type { AppelGitHub, ReponseGitHub } from "./client.ts";
 
 // Le label par lequel la box retrouve son tableau dans le dépôt (runtime/src/tableau/publication/publier.ts,
@@ -41,6 +41,14 @@ export type TableauLu = {
   // Les derniers gestes du chef que la box a lus sur le tableau, et ce qu'elle y a répondu (#1589) : la vue y suit ceux
   // qu'elle a postés (#1590). Vide d'un bloc écrit sans eux.
   gestes: GesteDuTableau[];
+  // Ce que la vue du rail dessine (#1693, #1694) : l'objet de `facts` et la ligne `status` de chaque ticket du rail —
+  // absents d'un bloc écrit avant eux, ou que la box a dû retirer pour tenir dans une issue (`resserre`, absent quand
+  // rien ne l'a été).
+  faits?: FaitsPublies;
+  lignesDuRail?: LigneDuRail[];
+  // L'heure où la box a lu l'état qu'elle publie (`tableau.lu`) : les durées que ses lignes disent se comptent jusqu'à elle.
+  etatLuLe?: string;
+  resserre?: Resserre[];
 };
 export type TableauNonLu = { lu: false; depot: string; luLe: string; raison: string };
 export type LectureDuTableauDuDepot = TableauLu | TableauNonLu;
@@ -124,5 +132,9 @@ export async function lireLeTableauDuDepot({ depot, appeler, maintenant = () => 
     bilans: tableau.bilans,
     cuisine: tableau.cuisine,
     gestes: Array.isArray(tableau.gestes) ? tableau.gestes : [],
+    ...(typeof tableau.faits === "object" && tableau.faits !== null && !Array.isArray(tableau.faits) ? { faits: tableau.faits } : {}),
+    ...(Array.isArray(tableau.lignesDuRail) ? { lignesDuRail: tableau.lignesDuRail } : {}),
+    etatLuLe: tableau.lu,
+    ...(Array.isArray(tableau.resserre) ? { resserre: tableau.resserre } : {}),
   };
 }

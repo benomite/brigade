@@ -123,8 +123,10 @@ const sortieDe = (lecture: Lecture) => ("erreur" in lecture ? undefined : compre
 function sansLecture(lecture: Lecture, informe: string | undefined): string {
   if (!("erreur" in lecture)) return `${PAS_LU} in what the station returned: ${informe ?? "it has no output"}. ${PAS_RIEN}`;
   const code = Number(/→ exit code (\d+)$/.exec(lecture.erreur)?.[1]);
-  const pourquoi =
-    lecture.atteinte && lecture.cas === null && code === 2
+  // Lue du tableau de la cuisine (#1694) : sa raison, en une phrase — aucune station n'a été jointe.
+  const pourquoi = lecture.duTableau === true
+    ? lecture.erreur.replace(/[.\s]+$/, "")
+    : lecture.atteinte && lecture.cas === null && code === 2
       ? "the station's runtime refused `manager upstream` (code 2) — if it is older than this app, it does not know this reading yet: update brigade on the station"
       : lecture.atteinte && lecture.cas === null && code === 1
         ? "the station answered, but `manager upstream` read neither GitHub nor its log (code 1)"
