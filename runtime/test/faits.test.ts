@@ -64,12 +64,12 @@ test("la forme d'une cuisine connue est figée, au caractère près : un champ r
       `"compteurs":{"rail":2,"auTravail":1,"aLaPass":1,"attend":1,"livres24h":1},` +
       `"dernierEvenement":{"seq":15,"at":"${JOUR_HORLOGE}T10:00:14.000Z","type":"ticket.served","ticket":19},` +
       `"rail":[` +
-      `{"ticket":14,"etat":"pris","titre":"Ticket 14","url":"https://exemple.test/14","activite":{"fait":"la station prépare le poste du cook","cible":null,"depuis":"${JOUR_HORLOGE}T10:00:08.000Z"},"attente":null,"tiers":null,"revenu":null,"raison":null},` +
-      `{"ticket":15,"etat":"en pass","titre":"Ticket 15","url":"https://exemple.test/15","activite":null,"attente":null,"tiers":null,"revenu":null,"raison":null},` +
-      `{"ticket":16,"etat":"en attente","titre":"Ticket 16","url":"https://exemple.test/16","activite":null,"attente":null,"tiers":null,"revenu":null,"raison":null},` +
-      `{"ticket":17,"etat":"86","titre":"Ticket 17","url":"https://exemple.test/17","activite":null,"attente":{"raison":"attend : quota du compte épuisé","colonne":"86","retour":"${JOUR_HORLOGE}T15:00:00.000Z"},"tiers":null,"revenu":null,"raison":null},` +
-      `{"ticket":19,"etat":"servi","titre":"Ticket 19","url":"https://exemple.test/19","activite":null,"attente":null,"tiers":null,"revenu":null,"raison":null},` +
-      `{"ticket":18,"etat":"BLOQUÉ","titre":"Ticket 18","url":"https://exemple.test/18","activite":null,"attente":null,"tiers":null,"revenu":null,"raison":null}],` +
+      `{"ticket":14,"etat":"pris","titre":"Ticket 14","url":"https://exemple.test/14","depuis":"${JOUR_HORLOGE}T10:00:08.000Z","activite":{"fait":"la station prépare le poste du cook","cible":null,"depuis":"${JOUR_HORLOGE}T10:00:08.000Z"},"attente":null,"tiers":null,"revenu":null,"raison":null},` +
+      `{"ticket":15,"etat":"en pass","titre":"Ticket 15","url":"https://exemple.test/15","depuis":"${JOUR_HORLOGE}T10:00:10.000Z","activite":null,"attente":null,"tiers":null,"revenu":null,"raison":null},` +
+      `{"ticket":16,"etat":"en attente","titre":"Ticket 16","url":"https://exemple.test/16","depuis":"${JOUR_HORLOGE}T10:00:03.000Z","activite":null,"attente":null,"tiers":null,"revenu":null,"raison":null},` +
+      `{"ticket":17,"etat":"86","titre":"Ticket 17","url":"https://exemple.test/17","depuis":"${JOUR_HORLOGE}T10:00:11.000Z","activite":null,"attente":{"raison":"attend : quota du compte épuisé","colonne":"86","retour":"${JOUR_HORLOGE}T15:00:00.000Z"},"tiers":null,"revenu":null,"raison":null},` +
+      `{"ticket":19,"etat":"servi","titre":"Ticket 19","url":"https://exemple.test/19","depuis":"${JOUR_HORLOGE}T10:00:14.000Z","activite":null,"attente":null,"tiers":null,"revenu":null,"raison":null},` +
+      `{"ticket":18,"etat":"BLOQUÉ","titre":"Ticket 18","url":"https://exemple.test/18","depuis":"${JOUR_HORLOGE}T10:00:06.000Z","activite":null,"attente":null,"tiers":null,"revenu":null,"raison":null}],` +
       `"cooks":[],` +
       `"attend":[{"ticket":18,"titre":"Ticket 18","url":"https://exemple.test/18","decision":{"quoi":"bloque","motif":null,"cause":null,"pr":null},` +
       `"carte":{"type":"bloque","resume":"#18 waits for #12, which left the rail without being served.","question":null,"choix":[{"texte":"Take it off the rail","suite":"drop"}],"reponseLibre":true,"secondaire":{"action":"ask-second","texte":"ask the second"},"captures":null}}],` +
@@ -529,7 +529,7 @@ test("la commande rend la forme sur une seule ligne de JSON, sans rien écrire a
   assert.equal(lignes.length, 2);
   assert.equal(lignes[1], "");
   const forme = JSON.parse(lignes[0] ?? "");
-  assert.deepEqual(Object.keys(forme), ["etat", "lu", "dernierTick", "compteurs", "dernierEvenement", "rail", "cooks", "attend", "livres", "urgence", "retenues", "stations", "plafondDeCalibrage", "triage", "activiteCuisine", "rolesCuisine", "coutDesGates"]);
+  assert.deepEqual(Object.keys(forme), ["etat", "lu", "dernierTick", "compteurs", "dernierEvenement", "rail", "cooks", "attend", "livres", "urgence", "retenues", "stations", "plafondDeCalibrage", "triage", "activiteCuisine", "cadence", "rolesCuisine", "coutDesGates"]);
   // Aucune gate jouée, aucun budget posé : le défaut, rien de dépassé, un jour à zéro.
   assert.deepEqual(forme.coutDesGates, {
     budget: { durationSeconds: 100, cpuSeconds: 400, parLeChef: { durationSeconds: false, cpuSeconds: false } },

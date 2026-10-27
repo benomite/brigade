@@ -26,6 +26,7 @@ import { carteDeProfil, profilInforme, profilsLus, type CarteDeProfil, type Prof
 import { attenduDe, decisionLue, livraisonLue, teteDe, type Decision, type Livraison as LivraisonAttendue } from "./decision.ts";
 import { entete, type Entete } from "./fiche.ts";
 import { cuissonDe, type CuissonDuProjet } from "./cuisson.ts";
+import { anciennete, cadenceLue, histogramme, type Anciennete, type CadenceLue, type Histogramme } from "./cadence.ts";
 import { plafondVu, type PlafondLu, type PlafondVu } from "./plafond-de-calibrage.ts";
 import { LABEL_RETENUE } from "./question.ts";
 import { carteDeTodo, carteLue, type CarteDeTodo, type CarteLue } from "./carte-todo.ts";
@@ -263,8 +264,9 @@ export type Faits = {
   // dernière livraison (captures.ts) — absentes pour tout autre ticket.
   // `raison` : pour le ticket en tête de la file seulement, s'il ne part pas, pourquoi, dans les mots du runtime
   // (`zone held by #12 (src)`, `machine saturated`) — nulle pour tout autre, absente d'un runtime d'avant ce champ.
+  // `depuis` : l'heure de son entrée dans cet état — sa prise, son entrée en pass… (#1811) ; absent d'un runtime d'avant.
   // Le rail est dans l'ordre où il se sert : la priorité de l'issue, puis son âge.
-  rail: { ticket: number; etat: string; titre: string; url: string; activite?: Activite | null; attente?: Attente | null; tiers?: Tiers | null; revenu?: string | null; raison?: string | null; captures?: CapturesLues; illisible?: string }[];
+  rail: { ticket: number; etat: string; titre: string; url: string; depuis?: string; activite?: Activite | null; attente?: Attente | null; tiers?: Tiers | null; revenu?: string | null; raison?: string | null; captures?: CapturesLues; illisible?: string }[];
   cooks?: Cook[];
   attend?: Attendu[];
   livres?: Livre[];
@@ -282,6 +284,9 @@ export type Faits = {
   // Ce que la cuisine du projet a servi, renvoyé et remonté au chef dans la dernière heure et le dernier jour (ticket
   // 1272) : six nombres, à zéro sans activité ; absent d'un runtime d'avant ce champ.
   activiteCuisine?: ActiviteCuisine;
+  // À quelle allure elle sert (cadence.ts, ticket 1811) : servis et ratés heure par heure sur les 24 dernières, et le temps
+  // ordinaire d'un ticket pris, puis en pass ; absent d'un runtime d'avant ce champ.
+  cadence?: CadenceLue;
   // Les rôles de la cuisine du projet, chacun avec sa ligne et sa dernière action (ticket 1274) ; absent d'un runtime
   // d'avant ce champ.
   rolesCuisine?: RoleDeCuisine[];
@@ -329,9 +334,11 @@ export type Faits = {
 // la réponse (repondues.ts) — qui y a répondu, et quand.
 // `prio` : sa priorité, telle que sa ligne de `status` l'écrit (`prio:2`), `no prio` quand son issue n'en porte
 // pas — absente, la ligne n'est pas lue.
+// `age` : sur une carte de Taken ou de Pass, depuis combien de temps elle y est (cadence.ts) — absent pour une autre, et
+// d'un runtime qui ne dit pas l'entrée du ticket dans sa colonne.
 // Et ce qu'elle dit, elle, en deux lignes (ligne-carte.ts) : `ligne`, ce qui se passe ; `signal`, ce qui demande
 // l'attention ; `repere`, la file ne dit pas tout — le détail est dans la fiche, avec `dit` et `sans`.
-export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraison?: Livraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[]; question?: true; todo?: CarteDeTodo; repondue?: { par: string; a: string }; prio?: string } & Porte;
+export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraison?: Livraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[]; question?: true; todo?: CarteDeTodo; repondue?: { par: string; a: string }; prio?: string; age?: Anciennete } & Porte;
 // Ce qui a été livré, sur une carte de Livré : le résumé de la relecture, mot pour
 // mot, et ses constats sous leur nombre dit en clair (`remarques`) — ou, sans
 // relecture, pourquoi elle n'est pas là. Rien n'est mis à sa place.
@@ -351,7 +358,8 @@ export type Colonne = { nom: string; ton: string; compte: string; cartes: Carte[
 // quand il n'y en a aucune.
 // `profils` : les profils de cook proposés, chacun une carte de la file que le chef tranche de même
 // (profil.ts), le plus ancien d'abord — absent quand il n'y en a aucun.
-export type Rail = { colonnes: Colonne[]; hors: Carte[]; aucunTicket?: true; attendLu?: string; railLu?: string; corrections?: CarteDeCorrection[]; profils?: CarteDeProfil[] };
+// `cadence` : l'histogramme des 24 dernières heures, servis et ratés (cadence.ts) — absent d'un runtime d'avant ce champ.
+export type Rail = { colonnes: Colonne[]; hors: Carte[]; aucunTicket?: true; attendLu?: string; railLu?: string; corrections?: CarteDeCorrection[]; profils?: CarteDeProfil[]; cadence?: Histogramme };
 // Le bloc `attend` d'un projet, tel que `status` l'a écrit, et l'heure de sa lecture.
 export type BlocLu = { bloc: string; a: string };
 // Ce que `status` a rendu pour un projet, son bloc `attend` mis à part, et l'heure de sa lecture.
@@ -626,6 +634,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
           etat: texte(lu.etat, `${lequel}.etat`),
           titre: texte(lu.titre, `${lequel}.titre`),
           url: texte(lu.url, `${lequel}.url`),
+          ...(lu.depuis === undefined ? {} : { depuis: heure(lu.depuis, `${lequel}.depuis`) }),
           ...(lu.activite === undefined ? {} : { activite: ouRien(lu.activite, `${lequel}.activite`, comprendreActivite) }),
           ...(lu.attente === undefined ? {} : { attente: ouRien(lu.attente, `${lequel}.attente`, comprendreAttente) }),
           ...(lu.tiers === undefined ? {} : { tiers: ouRien(lu.tiers, `${lequel}.tiers`, comprendreTiers) }),
@@ -683,6 +692,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
       ...(racine.plafondDeCalibrage === undefined ? {} : { plafondDeCalibrage: plafondLu(racine.plafondDeCalibrage) }),
       ...(triageLu(racine.triage) === undefined ? {} : { triage: triageLu(racine.triage) }),
       ...(activiteCuisineLue(racine.activiteCuisine) === undefined ? {} : { activiteCuisine: activiteCuisineLue(racine.activiteCuisine) }),
+      ...(cadenceLue(racine.cadence) === undefined ? {} : { cadence: cadenceLue(racine.cadence) }),
       ...(rolesCuisineLus(racine.rolesCuisine) === undefined ? {} : { rolesCuisine: rolesCuisineLus(racine.rolesCuisine) }),
       ...(coutDesGatesLu(racine.coutDesGates) === undefined ? {} : { coutDesGates: coutDesGatesLu(racine.coutDesGates) }),
       ...(racine.corrections === undefined ? {} : { corrections: correctionsLues(racine.corrections) }),
@@ -975,6 +985,8 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
     const niveauLu = prioLue === "-" ? null : /^prio:([0-9])$/.exec(prioLue ?? "")?.[1];
     const ecrite = connu === undefined ? undefined : ecrites?.(ticket, niveauLu === undefined || niveauLu === null ? niveauLu : Number(niveauLu));
     const prio = !enFile ? undefined : ecrite !== undefined ? (ecrite === null ? "-" : `prio:${ecrite}`) : prioLue;
+    // Dans Taken et Pass : depuis quand elle y est, et si c'est bien plus que d'ordinaire.
+    const age = connu === undefined || connu.illisible !== undefined ? undefined : anciennete(connu.etat, connu.depuis, faits.lu, faits.cadence?.medianSeconds);
     return {
       ticket,
       ...ligne,
@@ -999,6 +1011,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
       ...(dit !== undefined && interroges.has(ticket) ? { question: true as const } : {}),
       ...(dit !== undefined && donne?.carte !== undefined ? { todo: carteDeTodo(donne.carte) } : {}),
       ...(prio === undefined ? {} : { prio: prio === "-" ? SANS_PRIO : prio }),
+      ...(age === undefined ? {} : { age }),
     };
   };
 
@@ -1121,6 +1134,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
     ...(status === undefined || lignes === undefined ? {} : { railLu: status.a }),
     ...(faits.corrections === undefined || faits.corrections.length === 0 ? {} : { corrections: faits.corrections.map(carteDeCorrection) }),
     ...(faits.profils === undefined || faits.profils.length === 0 ? {} : { profils: faits.profils.map(carteDeProfil) }),
+    ...(faits.cadence === undefined ? {} : { cadence: histogramme(faits.cadence) }),
   };
 }
 
