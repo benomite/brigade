@@ -21,6 +21,9 @@
 // Les stations que l'app appaire à un projet en plus de sa principale, la
 // principale les lit dans les gists appairés du compte, les déclare au journal
 // du projet et dit dans son suivi si chacune est atteinte (`secondaires.ts`).
+// Ce qu'elles lui demandent par GitHub — réclamer un ticket, renouveler un
+// bail —, elle le lit dans leur gist à chaque cadence et le relaie au journal du
+// projet, dont le runtime décide (`tirer-par-github/`).
 //
 // Ce qu'elle en dit, projet par projet, elle l'écrit dans le même gist
 // (`brigade-projets-suivi.json`) : l'app le montre au chef — et, pour chacun,
@@ -74,6 +77,7 @@ import { ENQUETE_MUETTE, enqueter, lireLEchecDuClone, type Enquete } from "./ech
 import { repondeurDeRemedes } from "../remedes/distant.ts";
 import { executerRemede, type StationDesRemedes } from "../remedes/executer.ts";
 import { REMEDES, type Registre } from "../remedes/registre.ts";
+import { relayerLesDemandes } from "../tirer-par-github/relayer.ts";
 import { CADENCE_DES_APPAIREES_MS, declarerLesSecondaires, injoignables, secondairesDuProjet, type LectureDesAppairees, type StationSecondaire } from "./secondaires.ts";
 
 // Entre deux lectures de ce que l'app demande.
@@ -585,6 +589,21 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
       for (const [rang, dit] of principaux) {
         const secondaires = tenirLesSecondaires(demande.projets[rang]!, lesAppairees);
         if (secondaires.length > 0) suivi[rang] = { ...dit, secondaires };
+      }
+      // Ce que ces stations demandent par GitHub — réclamer un ticket, renouveler
+      // un bail —, relayé au journal du projet à chaque lecture : son runtime en
+      // décide, et publie sa réponse au Kitchen board (`tirer-par-github/`).
+      for (const [rang] of principaux) {
+        const projet = demande.projets[rang]!;
+        const secondaires = secondairesConnues.get(projet.nom) ?? [];
+        if (secondaires.length === 0) continue;
+        try {
+          const { relayees } = await relayerLesDemandes({ repertoireEtat: etatDe(projet.nom), depot: projet.depot, secondaires, lire: (id) => canal.lire(id), maintenant });
+          for (const { station: nom, verb } of relayees) dire(`brigade : station — ${projet.nom} : ${nom} demande par GitHub (${verb}), relayé au journal du projet`);
+        } catch (erreur) {
+          direUneFois(`relais ${projet.nom} ${message(erreur)}`, `brigade : station — ${projet.nom} : ce que ses stations secondaires demandent par GitHub n'est pas relayé, la station réessaie : ${message(erreur)}`);
+        }
+        if (arrete) return;
       }
     }
     // Un besoin que le chef laisse au setup du projet : la principale ouvre sur

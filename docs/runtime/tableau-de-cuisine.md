@@ -44,6 +44,7 @@ The code is `runtime/src/tableau/`: `rendu/donnees.ts` builds the board from the
 | `gestes` | The chef's latest gestures read under the board, oldest first; absent from a block written without them |
 | `faits` | **The rail view's facts** (#1693): the object of `facts`, see below |
 | `lignesDuRail` | **Each rail ticket's line of `status`** (#1693), see below |
+| `distantes` | **What the box lent the remote stations, and its answers to the requests they made through GitHub** (#1793), see below; absent when no remote station holds a ticket or asked anything |
 | `resserre` | What the body had to remove from the block to fit in an issue, see below; absent when nothing was |
 
 `faits` and `lignesDuRail` are absent from a block written before #1693: the reader then draws
@@ -114,6 +115,26 @@ One entry per rail ticket, in the rail's order:
 
 Placed under a `rail` line, these lines are the `rail` block of `status`: an app that already reads
 that block for its cards (`app/src/bon.ts`) reads them unchanged.
+
+### `distantes` — the main station's arbitration, for a second station with no ssh
+
+A second station of the project asks through GitHub only: it writes its request in its own paired
+gist, one file per slot — `brigade-pull.<owner>.<repo>.claim.json` to claim a ticket (or announce
+itself), `brigade-pull.<owner>.<repo>.renew.<run>.json` for each cook that renews its lease — holding
+`{"brigade":"pull","format":1,"id","depot","le","verb",…}` with the fields of the matching `pull`
+request (`sandbox`; `run`, `proof`, `turns`, `tokens`). At each reading (thirty seconds), the main
+station relays each new, fresh request (less than five minutes old) to the project's log, once; its
+runtime answers it as it answers `pull`, one request at a time — a ticket is lent once, even when two
+stations claim it at the same moment. The answer is published here
+(`runtime/src/tirer-par-github/`):
+
+| Field | What it holds |
+|---|---|
+| `attributions[]` | Each ticket a remote station holds: `ticket`, `station`, `run`, `bailJusqua` — its lease's end, which a renewal moves forward |
+| `reponses[]` | The runtime's answer to each request made through GitHub — the latest of each slot of each station, for fifteen minutes: `demande` (the request's `id`), `station`, `geste` (`announce`, `claim`, `renew`), `run` (a renewal's, `null` otherwise), `le` (when it was answered), `reponse` — the answer `pull` would have printed, except a claimed mission's `args`, published without the brief they open with (`suiteDesArgs`: `args` is `["-p", prompt, ...suiteDesArgs]`) |
+
+`distantes` is never removed from a body that is too long: it is the arbitration itself, and it is
+bounded — one claim per station and one renewal per cook in flight.
 
 ### `resserre` — when the body is too long for GitHub
 

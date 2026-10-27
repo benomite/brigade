@@ -21,6 +21,7 @@ import { CloneEnEchec, type Autorisation } from "../../src/projets/preparer.ts";
 import { refus } from "../../src/projets/refus.ts";
 import type { LectureDesAppairees } from "../../src/projets/secondaires.ts";
 import { tenirProjetsDeLApp } from "../../src/projets/tenir.ts";
+import { poserLaDemande } from "../../src/tirer-par-github/demande.ts";
 import { lectureDesAppairees } from "../aides/appairees.ts";
 import { depotQuiRefuse } from "../aides/depot-qui-refuse.ts";
 import { projetSurGit } from "../aides/projet-sur-git.ts";
@@ -46,7 +47,8 @@ const SHOP = {
 // configuration globale, donc sans credential helper.
 // `appairees` : les gists appairés du compte, où elle lit les stations que
 // l'app appaire à ses projets en plus d'elle — relus à chaque cycle.
-function uneStation(t: TestContext, options: { appairee?: boolean; remote?: (clone: string) => void; appairees?: () => Promise<LectureDesAppairees> } = {}) {
+// `gists` : ceux des autres stations du compte, que son canal lit aussi.
+function uneStation(t: TestContext, options: { appairee?: boolean; remote?: (clone: string) => void; appairees?: () => Promise<LectureDesAppairees>; gists?: Record<string, Fichiers> } = {}) {
   const racine = repertoireTemporaire(t);
   writeFileSync(join(racine, FICHIER_LOCAL), JSON.stringify({ gist: GIST, appairee: options.appairee ?? true, code: null, expireLe: null, echus: [] }));
   const fichiers: Fichiers = {};
@@ -59,7 +61,7 @@ function uneStation(t: TestContext, options: { appairee?: boolean; remote?: (clo
       Object.assign(fichiers, ecrits);
       return "ecrit";
     },
-    lire: async (id) => (id === GIST ? { ...fichiers } : null),
+    lire: async (id) => (id === GIST ? { ...fichiers } : options.gists?.[id] === undefined ? null : { ...options.gists[id] }),
   };
   // Ce que la station sert : ce que sa configuration nomme, sauf ce qu'elle refuse.
   const refuses = new Map<string, string>();
@@ -208,6 +210,35 @@ test("une station que l'app appaire au projet sans en faire la principale : la p
   await station.projets.relire();
   assert.equal(declaree(), "box/claude:2:code+raisonnement,mac/claude:1:code+raisonnement+macos+enregistrement-ecran:distante+ensemble");
   assert.equal(station.suivi()?.[0]?.secondaires?.[0]?.atteinte, true);
+});
+
+test("ce qu'une station secondaire demande par GitHub, posé dans son gist, la principale le relaie au journal du projet à chaque lecture — une fois", async (t) => {
+  const MAINTENANT = Date.parse("2026-10-15T12:02:00Z");
+  const SECONDAIRE = { ...SHOP, principale: false, cooks: 1, manager: null, reviewer: null };
+  const gistmac: Fichiers = {};
+  const station = uneStation(t, { appairees: async () => lectureDesAppairees(MAINTENANT, { id: GIST, nom: "box", projets: [SHOP] }, { id: "gistmac", nom: "mac", projets: [SECONDAIRE] }), gists: { gistmac } });
+  station.demander(SHOP);
+  await station.projets.relire();
+  // Le runtime du projet tourne : il y a quelqu'un pour répondre.
+  const ecrire = ouvrirJournal(join(station.racine, "etat/shop"));
+  try {
+    ecrire.ajouter({ project: "shop", ticket: null, author: "runtime", type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
+  } finally {
+    ecrire.fermer();
+  }
+  Object.assign(gistmac, poserLaDemande({ id: "0f8fad5b-d9cb-469f-a165-70867728950e", depot: "acme/shop", le: new Date(MAINTENANT).toISOString(), demande: { verb: "claim" } }));
+  await station.projets.relire();
+  await station.projets.relire();
+  const journal = ouvrirJournal(join(station.racine, "etat/shop"), { lectureSeule: true });
+  try {
+    assert.deepEqual(
+      journal.tout().filter((e) => e.type === "remote.asked").map((e) => [e.author, e.payload]),
+      [["station:mac/claude", { id: "0f8fad5b-d9cb-469f-a165-70867728950e", station: "mac/claude", via: "github", verb: "claim" }]],
+    );
+  } finally {
+    journal.fermer();
+  }
+  assert.equal(station.lignes.filter((ligne) => ligne === "brigade : station — shop : mac/claude demande par GitHub (claim), relayé au journal du projet").length, 1);
 });
 
 test("sans station appairée en plus d'elle, ni le journal ni le suivi n'en disent rien", async (t) => {
