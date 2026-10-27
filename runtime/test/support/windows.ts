@@ -5,9 +5,10 @@
 //
 // Usage : node test/support/windows.ts [--part <i>/<n>]   (depuis runtime/)
 import { spawnSync } from "node:child_process";
-import { globSync } from "node:fs";
+import { globSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const RACINE_TESTS = join(import.meta.dirname, "..");
 
@@ -43,10 +44,21 @@ if (import.meta.main) {
   // Trois fichiers de front, pas cinq comme `npm test` : sous Windows chaque doublure en bash passe par
   // le bash de Git, et chaque process coûte cher. À cinq, sur les quatre cœurs du runner, des tests qui
   // passent d'ordinaire (une pass en 18 s, une passe de fermeture en 40 s) y dépassaient leur garde.
-  const r = spawnSync(process.execPath, ["--test", "--test-concurrency=3", "--test-force-exit", "--test-timeout=120000", ...joues], {
+  // Le rapport lisible par le journal, et ses échecs, ses sauts et ses comptes en annotations du check
+  // (annotations.ts), écrites une fois la suite finie.
+  const rapport = mkdtempSync(join(tmpdir(), "brigade-annotations-"));
+  const annotations = join(rapport, "annotations.txt");
+  const reporters = ["--test-reporter=spec", "--test-reporter-destination=stdout", `--test-reporter=${pathToFileURL(join(import.meta.dirname, "annotations.ts")).href}`, `--test-reporter-destination=${annotations}`];
+  const r = spawnSync(process.execPath, ["--test", "--test-concurrency=3", "--test-force-exit", "--test-timeout=120000", ...reporters, ...joues], {
     cwd: join(RACINE_TESTS, ".."),
     stdio: "inherit",
     env: environnement(process.env, gitCore),
   });
+  try {
+    process.stdout.write(readFileSync(annotations, "utf8"));
+  } catch {
+    console.log("no annotations: the test runner wrote no report");
+  }
+  rmSync(rapport, { recursive: true, force: true });
   process.exit(r.status ?? 1);
 }

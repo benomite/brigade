@@ -3,7 +3,10 @@
 # runtime/test/support/windows.ts, qui joue tous les fichiers. Les tests propres à Linux ou à macOS se
 # sautent eux-mêmes, avec leur raison dans le journal (runtime/test/support/plateforme.ts). Entière, la
 # suite dépasse sous Windows l'heure d'un job (run 40080634237, annulé à 60 min) : elle se joue en
-# quatre parts, une par runner, qui ensemble couvrent chaque fichier une fois (`--part`).
+# quatre parts, une par runner, qui ensemble couvrent chaque fichier une fois (`--part`). Chaque part
+# finit par ses échecs, ses tests sautés et ses comptes en annotations du check, lisibles par l'API de
+# GitHub sans le journal du job (runtime/test/support/annotations.ts) :
+#   gh api repos/<dépôt>/check-runs/<job>/annotations
 name: runtime-windows
 
 on:
