@@ -6772,9 +6772,7 @@ button.recommande {
 }
 #accueil-stations .ligne strong {
   flex: 0 0 13em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 #accueil-stations .ligne span:not(.pastille):not(.ouvrir):not(.pourquoi) {
   flex: 1 1 0;
