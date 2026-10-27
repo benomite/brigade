@@ -242,14 +242,15 @@ test("le manager suit l'interrupteur du projet, que le tableau porte : sa ligne 
   assert.match(lecture.erreur, /^The project switch is not on the Kitchen board of acme\/brigade \(issue 7\)/);
 });
 
-test("ce que le tableau ne porte pas — ce qui est en amont du rail — se dit en une phrase, jamais « rien à venir », et rien d'autre n'est lu", async (t) => {
+test("ce que le tableau ne porte pas — ce qui est en amont du rail — n'est ni compté ni dit « pas lu » (#1770), et rien d'autre n'est lu", async (t) => {
   const lances = sansProcessus(t);
   const { corps } = projetPublie(t);
   const lecture = lectureDuTableau(await lu(corps), "brigade", 1, ["manager upstream"]);
   assert.ok("erreur" in lecture && lecture.duTableau === true);
   const vu = voirAmont(lecture);
-  assert.ok("sans" in vu);
-  assert.equal(vu.sans, "what is upcoming was not read: `manager upstream` is not on the Kitchen board of acme/brigade (issue 7): the box does not publish it there. This is not “nothing upcoming”");
+  assert.ok("nonPublie" in vu);
+  assert.ok(!("sans" in vu) && !("compte" in vu));
+  assert.equal(vu.vide, "nothing on the rail");
   assert.deepEqual(lances, []);
 });
 

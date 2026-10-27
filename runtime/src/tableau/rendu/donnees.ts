@@ -89,6 +89,15 @@ export function rubriquesDeStatus(lignes: string[]): RubriqueDuTableau[] {
     .map((rubrique) => (DECOMPTE_SEUL.has(rubrique.titre) ? { ...rubrique, lignes: rubrique.lignes.slice(0, 1) } : rubrique));
 }
 
+// La rubrique `switch` est toujours sur le tableau (#1770) : `status` n'écrit pas sa ligne tant qu'aucun runtime n'a posé
+// l'interrupteur, mais l'app lit l'état du projet là et nulle part ailleurs. Posé nulle part, il ne retient rien : allumé.
+const SANS_INTERRUPTEUR = "ON — not set in the log yet: nothing holds the kitchen, the runtime sets it at its next start";
+export function avecLInterrupteur(rubriques: RubriqueDuTableau[]): RubriqueDuTableau[] {
+  if (rubriques.some(({ titre }) => titre === "switch")) return rubriques;
+  const apres = rubriques.findLastIndex(({ titre }) => titre === "runtime") + 1;
+  return [...rubriques.slice(0, apres), { titre: "switch", lignes: [SANS_INTERRUPTEUR] }, ...rubriques.slice(apres)];
+}
+
 // Les lignes des tickets sous la ligne `rail` de `status`, une par ticket du
 // rail et dans son ordre : celles en retrait qui suivent son titre.
 export function lignesDuRail(etat: EtatCuisine, lignes: string[]): LigneDuRail[] {
@@ -161,7 +170,7 @@ export function tableauDeLaCuisine(
       enCours: { ...etat.consommation.enCours },
       fenetres: etat.consommation.fenetres.map((fenetre) => ({ ...fenetre })),
     },
-    rubriques: rubriquesDeStatus(status),
+    rubriques: avecLInterrupteur(rubriquesDeStatus(status)),
   };
   // La forme de `facts`, champ pour champ — `faits.ts` y ajoute les cartes de même.
   const lesFaits: FaitsDuTableau = {

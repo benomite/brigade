@@ -10,8 +10,8 @@
 //   - `status`  ses rubriques, le bloc `awaiting` refait de la file, et la ligne `rail` suivie de la ligne de chaque
 //               ticket (`lignesDuRail`) — ce que `status` écrit, sans ce qui ne se lit que sur la box ;
 //   - `manager` la ligne de l'interrupteur du projet (`switch` de `status`), que le manager suit (#1406).
-// Ce que le tableau ne porte pas (`manager upstream`, une commande composée d'après d'autres sorties) n'est pas lu : la
-// lecture le dit en une phrase (`duTableau` dans l'échec), jamais un rail vide.
+// Ce que le tableau ne porte pas (`manager upstream`, une commande composée d'après d'autres sorties) n'est pas lu :
+// la lecture échoue en `pasPublie`, et la vue n'en dit rien — ni nombre, ni « pas lu » (#1770), jamais un rail vide.
 //
 // La veille du tableau (`ouvrirVeilleDuTableau`) a l'usage de celle des box : ce qui est affiché, et les commandes à y
 // lire. Ses lectures passent par `tenirLecturesDuTableau`, qui ne demande à GitHub qu'une lecture à la fois par projet,
@@ -29,7 +29,7 @@ export const MANAGER = "manager";
 // Une lecture, de la forme de celle de la veille des box (box.ts, `Lecture`) : des sorties, ou l'échec de la lecture du
 // tableau — `duTableau` la distingue d'un `ssh` en échec, et `erreur` est sa raison en une phrase.
 export type SortieDuTableau = { commande: string; texte: string };
-export type EchecDuTableau = { erreur: string; atteinte: true; cas: null; duTableau: true };
+export type EchecDuTableau = { erreur: string; atteinte: true; cas: null; duTableau: true; pasPublie?: true };
 export type LectureDuRail = { projet: string; demande: number; a: string } & ({ sorties: SortieDuTableau[] } | EchecDuTableau);
 // Une commande demandée : son texte — ou ce qui le compose d'après les sorties d'avant (box.ts, `Commande`), que le
 // tableau ne lit pas.
@@ -108,7 +108,7 @@ export function managerDuTableau(lu: Pick<TableauLu, "cuisine">): string | undef
 }
 
 // La sortie d'une commande demandée, tirée du tableau — ou pourquoi elle ne s'en tire pas, en une phrase.
-export function sortieDuTableau(lu: TableauLu, commande: CommandeDemandee): { texte: string } | { raison: string } {
+export function sortieDuTableau(lu: TableauLu, commande: CommandeDemandee): { texte: string } | { raison: string; pasPublie?: true } {
   const ou = `the Kitchen board of ${lu.depot} (issue ${lu.numero})`;
   if (commande === FAITS) {
     if (lu.resserre?.includes("faits") === true) return { raison: `The rail is not on ${ou}: the board was too long for GitHub, and the box had to leave the rail out of it.` };
@@ -121,18 +121,18 @@ export function sortieDuTableau(lu: TableauLu, commande: CommandeDemandee): { te
     return texte === undefined ? { raison: `The project switch is not on ${ou}: the box that serves it does not publish it yet.` } : { texte };
   }
   const nom = typeof commande === "string" ? `\`${commande}\`` : "this reading";
-  return { raison: `${nom.charAt(0).toUpperCase()}${nom.slice(1)} is not on ${ou}: the box does not publish it there.` };
+  return { raison: `${nom.charAt(0).toUpperCase()}${nom.slice(1)} is not on ${ou}: the box does not publish it there.`, pasPublie: true };
 }
 
 // La lecture de la veille que ce tableau donne, pour ces commandes, dans leur ordre : la première qui ne s'en tire pas
 // fait l'échec, comme la première commande qui échoue sur une box.
 export function lectureDuTableau(lu: LectureDuTableauDuDepot, projet: string, demande: number, commandes: readonly CommandeDemandee[]): LectureDuRail {
-  const echec = (erreur: string): LectureDuRail => ({ projet, demande, a: lu.luLe, erreur, atteinte: true, cas: null, duTableau: true });
+  const echec = (erreur: string, pasPublie?: true): LectureDuRail => ({ projet, demande, a: lu.luLe, erreur, atteinte: true, cas: null, duTableau: true, ...(pasPublie === undefined ? {} : { pasPublie }) });
   if (!lu.lu) return echec(lu.raison);
   const sorties: SortieDuTableau[] = [];
   for (const commande of commandes) {
     const sortie = sortieDuTableau(lu, commande);
-    if ("raison" in sortie) return echec(sortie.raison);
+    if ("raison" in sortie) return echec(sortie.raison, sortie.pasPublie);
     sorties.push({ commande: commande as string, texte: sortie.texte });
   }
   return { projet, demande, a: lu.luLe, sorties };

@@ -168,6 +168,7 @@ describe("ce qui n'est pas encore sur le rail, lu dans la sortie de `manager ups
     const echec = (erreur: string, atteinte: boolean, cas: null | "ssh-en-echec" = null): Lecture => ({ projet: PARADE, demande: 3, a: A, erreur, atteinte, cas });
     const sans = (vu: Vu) => {
       assert.ok(!("compte" in vu), "un nombre a été donné");
+      assert.ok("sans" in vu, "la lecture ratée doit dire pourquoi");
       assert.match(vu.sans, /This is not “nothing upcoming”$/);
       assert.equal(vu.vide, `nothing on the rail — ${vu.sans}`);
       return vu.sans;
