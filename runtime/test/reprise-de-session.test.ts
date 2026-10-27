@@ -202,7 +202,7 @@ describe("la reprise de session d'un renvoi", { concurrency: 6 }, () => {
     assert.match(consigneDe(cooks()[2]?.args), /c'est le renvoi 2 sur 2/);
   });
 
-  test("sous cloison, la session se retrouve dans le `~/.claude` du projet", { ...RENVOI, skip: posixOnly("runs the kitchen with every launch wrapped by test/aides/faux-bwrap.sh, a bash script standing in for bubblewrap: on the Windows job no launch of a kitchen goes through it (its sibling in cloison.test.ts, « dans une cuisine, le setup, le cook, les gates et le reviewer partent chacun dans la cloison », got 0 !== 3 wrapped launches), so the resumed session is never looked for under the sandboxed ~/.claude") }, async (t) => {
+  test("sous cloison, la session se retrouve dans le `~/.claude` du projet", { ...RENVOI, skip: posixOnly("resumes a returned cook's session inside the partition and expects it found under the project's own ~/.claude; partitioned launches are a bubblewrap command line run by /bin/sh through test/aides/faux-bwrap.sh, and on Windows no launch of a kitchen reaches the fake bwrap, so the resumed session is never looked for there") }, async (t) => {
     const { configClaude, repertoire, gates, cooks, lances, sessionDe, jusquAu } = renvoye(t, { cloison: true });
     assert.equal(configClaude, join(repertoire, "claude"));
     await jusquAu("pass.returned");

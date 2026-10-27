@@ -156,7 +156,7 @@ function environnement(t: TestContext, repertoire: string) {
   };
 }
 
-test("après le redémarrage du runtime, la même lecture rend les mêmes états : les faites le restent, la courante est la première non faite", { skip: posixOnly("stops the runtime with SIGTERM: on Windows kill('SIGTERM') ends the process before its handler runs, so the job saw exit code null instead of 0") }, async (t) => {
+test("après le redémarrage du runtime, la même lecture rend les mêmes états : les faites le restent, la courante est la première non faite", { skip: posixOnly("reads the installation steps before, during and after three runs of the runtime and expects the same states each time, the first and last runs stopped with SIGTERM and a clean exit 0; on Windows kill('SIGTERM') ends the runtime without running its handler, so it exits with no code") }, async (t) => {
   const repertoire = repertoireTemporaire(t);
   // L'installation précède le premier démarrage : le journal naît de la première note.
   await noter(repertoire, "ajout", "faite");

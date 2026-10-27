@@ -208,7 +208,7 @@ test("le fichier d'état se lit clé par clé : un échec derrière un passage r
   assert.deepEqual(lireSession(CONFIG(repertoire), new Date(a("10:00:00"))), observation({ state: repertoire, file: "unreadable" }));
 });
 
-test("le fichier que le vrai `brigade-renouvellement` écrit se lit : son échec, puis son renouvellement — sans que le runtime ouvre les identifiants", { skip: posixOnly("runs deploy/brigade-renouvellement, a bash script, to write the session state the runtime reads (this test uses a shell script of its own, POSIX mode bits); on the Windows job: null !== 1") }, (t) => {
+test("le fichier que le vrai `brigade-renouvellement` écrit se lit : son échec, puis son renouvellement — sans que le runtime ouvre les identifiants", { skip: posixOnly("runs deploy/brigade-renouvellement against a fake `claude` that fails `mcp list`, then renews, and expects the runtime to read the failure then the renewal without the credentials; the renewal is an extensionless shell script spawned directly, which Windows cannot start, so it never runs") }, (t) => {
   const racine = repertoireTemporaire(t);
   const [home, bin, session] = ["home", "bin", "session"].map((nom) => join(racine, nom)) as [string, string, string];
   for (const repertoire of [join(home, ".claude"), bin, session]) mkdirSync(repertoire, { recursive: true });

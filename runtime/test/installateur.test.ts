@@ -42,7 +42,7 @@ const ports = (rendu: Rendu) => rendu.json.ports as { porte: number; arbitre: nu
 // répertoire de root seul (uid et bits de mode lus par `lstat`). Sous Windows,
 // `process.getuid` n'existe pas : le geste s'arrête à `sans-droit` (77).
 const sansRoot = (quoi: string) =>
-  posixOnly(`brigade-installer checks process.getuid() against root, and Windows has no uid (the job refused every gesture with sans-droit, 77); past it, the test box needs #!/bin/sh fakes of systemctl and getent and a root-only journal directory (lstat uid and mode bits): this test ${quoi}`);
+  posixOnly(`${quoi}; brigade-installer checks process.getuid() against root before anything else and Windows has no getuid, so every gesture stops at sans-droit — past that check, the test box needs #!/bin/sh fakes of systemctl and getent and a root-only journal directory (lstat uid and mode bits)`);
 
 describe("la règle sudoers", () => {
   const regles = readFileSync(SUDOERS, "utf8").split("\n").filter((ligne) => ligne.trim() !== "" && !ligne.startsWith("#"));
@@ -66,7 +66,7 @@ describe("la règle sudoers", () => {
 });
 
 describe("installer un projet", () => {
-  test("de bout en bout : `installation` le dit prêt, et la sortie JSON rend les deux ports", { skip: sansRoot("installs calculus end to end, then runs `installation` in the environment its units give (expected code 0, got 77)") }, async (t) => {
+  test("de bout en bout : `installation` le dit prêt, et la sortie JSON rend les deux ports", { skip: sansRoot("installs calculus end to end, then runs `installation` in the environment its units give and expects it ready, both ports in its JSON") }, async (t) => {
     const b = boite(t);
     b.pousser("acme/calculus");
     // La box a un arbitre : son port est à elle, le même pour tous ses projets.
@@ -127,7 +127,7 @@ describe("installer un projet", () => {
     assert.deepEqual(constats.filter((constat) => constat.texte.includes("sauvegarde n'est pas programmée")), []);
   });
 
-  test("deux projets de suite : chacun reçoit le port de sa porte, distinct, sans qu'aucun n'ait été fourni — celui de l'arbitre est à la box", { skip: sansRoot("installs two projects in a row to prove each gets its own gate port (expected [0, 0], got [77, 77])") }, async (t) => {
+  test("deux projets de suite : chacun reçoit le port de sa porte, distinct, sans qu'aucun n'ait été fourni — celui de l'arbitre est à la box", { skip: sansRoot("installs two projects in a row next to an arbiter and expects each its own distinct gate port, the arbiter's port shared") }, async (t) => {
     const b = boite(t);
     b.pousser("acme/calculus");
     b.pousser("acme/boutique");
@@ -144,7 +144,7 @@ describe("installer un projet", () => {
     for (const projet of ["calculus", "boutique"]) assert.match(dropIn(b, `brigade@${projet}.service`, "arbitre.conf"), new RegExp(`^Environment=BRIGADE_ARBITER_PORT=${PREMIER_PORT}$`, "m"));
   });
 
-  test("une box sans arbitre : le projet n'en reçoit pas, et le geste le dit", { skip: sansRoot("installs on a box with no arbiter drop-in and checks no arbitre.conf is written (expected code 0, got 77)") }, async (t) => {
+  test("une box sans arbitre : le projet n'en reçoit pas, et le geste le dit", { skip: sansRoot("installs on a box with no arbiter drop-in and checks no arbitre.conf is written and the gesture says so") }, async (t) => {
     const b = boite(t);
     b.pousser("acme/calculus");
     const rendu = await b.geste(b.demande());
@@ -154,7 +154,7 @@ describe("installer un projet", () => {
     assert.match((rendu.json.aSavoir as string[]).join("\n"), /cette box n'a pas d'arbitre déclaré/);
   });
 
-  test("un port que quelqu'un tient n'est pas attribué", { skip: sansRoot("needs the gesture to reach its port allocation to prove a port held by a listening server is not given out (expected boxPasPrete 76, got 77)") }, async (t) => {
+  test("un port que quelqu'un tient n'est pas attribué", { skip: sansRoot("holds a port with a listening server and expects the gesture's port allocation to refuse it with aucun-port-libre") }, async (t) => {
     const tenu = createServer();
     t.after(() => tenu.close());
     const port = await new Promise<number>((resoudre) => tenu.listen(0, "127.0.0.1", () => resoudre((tenu.address() as AddressInfo).port)));
@@ -170,7 +170,7 @@ describe("installer un projet", () => {
     assert.deepEqual(b.photo(), avant);
   });
 
-  test("la branche d'intégration se donne, ou se lit sur l'origine", { skip: sansRoot("installs with `--branche recette` and reads it back from projet.conf (expected code 0, got 77)") }, async (t) => {
+  test("la branche d'intégration se donne, ou se lit sur l'origine", { skip: sansRoot("installs with `--branche recette` and reads that integration branch back from the gesture's JSON and projet.conf") }, async (t) => {
     const b = boite(t);
     b.pousser("acme/calculus");
     const rendu = await b.geste(b.demande("calculus", { "--branche": "recette" }));
@@ -179,7 +179,7 @@ describe("installer un projet", () => {
     assert.match(dropIn(b, "brigade@calculus.service", "projet.conf"), /^Environment=BRIGADE_BASE_BRANCH=recette$/m);
   });
 
-  test("un projet déjà installé n'est pas écrasé : message explicite, code non nul, état inchangé", { skip: sansRoot("installs calculus, then replays the install to prove it is not overwritten (the first install expected 0, got 77)") }, async (t) => {
+  test("un projet déjà installé n'est pas écrasé : message explicite, code non nul, état inchangé", { skip: sansRoot("installs calculus, then replays the install with other options and expects deja-installe with the state unchanged") }, async (t) => {
     const b = boite(t);
     b.pousser("acme/calculus");
     assert.equal((await b.geste(b.demande())).code, 0);
@@ -194,7 +194,7 @@ describe("installer un projet", () => {
     assert.deepEqual(b.photo(), avant);
   });
 
-  test("un projet désinstallé se réinstalle : son état laissé là n'est pas un projet installé", { skip: sansRoot("reinstalls over the log.db an uninstall leaves behind (expected code 0, got 77)") }, async (t) => {
+  test("un projet désinstallé se réinstalle : son état laissé là n'est pas un projet installé", { skip: sansRoot("reinstalls a project over the log.db its uninstall left behind") }, async (t) => {
     const b = boite(t);
     b.pousser("acme/calculus");
     // Ce qu'une désinstallation laisse : le journal du projet, dans son état.
@@ -222,24 +222,24 @@ describe("ce que le geste refuse, sans rien écrire sur la box", () => {
     assert.deepEqual(b.appels().filter((appel) => !appel.startsWith("show ")), []);
   }
 
-  test("une sous-commande inconnue", { skip: sansRoot("refuses `exec`, `desinstaller` and a missing subcommand with usage, but the root check answers first (expected 64, got 77)") }, async (t) => {
+  test("une sous-commande inconnue", { skip: sansRoot("expects usage for `exec`, `desinstaller` and a missing subcommand") }, async (t) => {
     await refuse(t, (b) => ["exec", ...b.demande().slice(1)], "sous-commande-inconnue", /sous-commande inconnue : « exec »/);
     await refuse(t, (b) => ["desinstaller", ...b.demande().slice(1)], "sous-commande-inconnue", /ce geste ne connaît que `install`/);
     await refuse(t, () => [], "sous-commande-manquante", /il manque la sous-commande/);
   });
 
-  test("une option `--exec`", { skip: sansRoot("refuses `--exec /bin/sh` at the end or in the middle of a request (expected usage 64, got 77)") }, async (t) => {
+  test("une option `--exec`", { skip: sansRoot("expects usage for `--exec /bin/sh` at the end or in the middle of a request") }, async (t) => {
     await refuse(t, (b) => [...b.demande(), "--exec", "/bin/sh"], "option-inconnue", /option inconnue : « --exec »/);
     await refuse(t, (b) => ["install", "calculus", "--exec", "/bin/sh", ...b.demande().slice(2)], "option-inconnue", /option inconnue : « --exec »/);
   });
 
   for (const option of ["--port", "--porte", "--arbitre", "--compte", "--drop-in", "--unite", "--environnement", "--secrets", "--confirmer", "-x", "--depot=acme/calculus"]) {
-    test(`un drapeau hors de la liste fermée : ${option}`, { skip: sansRoot(`refuses the out-of-list flag ${option} (expected usage 64 option-inconnue, got 77)`) }, async (t) => {
+    test(`un drapeau hors de la liste fermée : ${option}`, { skip: sansRoot(`expects usage option-inconnue for the out-of-list flag ${option}`) }, async (t) => {
       await refuse(t, (b) => [...b.demande(), option, "4000"], "option-inconnue", /option inconnue/);
     });
   }
 
-  test("une option donnée deux fois, sans valeur, ou qui manque", { skip: sansRoot("refuses a duplicated, valueless or missing option and an extra argument (expected usage 64, got 77)") }, async (t) => {
+  test("une option donnée deux fois, sans valeur, ou qui manque", { skip: sansRoot("expects usage for a duplicated, valueless or missing option and an extra argument") }, async (t) => {
     await refuse(t, (b) => [...b.demande(), "--depot", "acme/autre"], "option-en-double", /--depot est donnée deux fois/);
     await refuse(t, (b) => [...b.demande("calculus", { "--branche": null }), "--branche"], "valeur-manquante", /--branche attend une valeur/);
     await refuse(t, (b) => b.demande("calculus", { "--reviewer-effort": null }), "option-manquante", /il manque --reviewer-effort — aucune n'a de défaut/);
@@ -247,22 +247,22 @@ describe("ce que le geste refuse, sans rien écrire sur la box", () => {
   });
 
   for (const projet of ["Calculus", "calc ulus", "../calculus", "calculus/..", "calculus.service", "-calculus", "calc_ulus", "calculus;id", "c".repeat(64), ""]) {
-    test(`un nom de projet hors motif : « ${projet.slice(0, 20)} »`, { skip: sansRoot(`refuses the project name « ${projet.slice(0, 20)} » (expected usage 64, got 77)`) }, async (t) => {
+    test(`un nom de projet hors motif : « ${projet.slice(0, 20)} »`, { skip: sansRoot(`expects usage for the project name « ${projet.slice(0, 20)} »`) }, async (t) => {
       await refuse(t, (b) => ["install", projet, ...b.demande().slice(2)], projet.startsWith("-") ? "projet-manquant" : "projet-hors-motif", projet.startsWith("-") ? /il manque le projet/ : /nom de projet hors motif/);
     });
   }
 
-  test("un chemin de sauvegarde relatif", { skip: sansRoot("refuses a relative backup path (expected usage 64 sauvegardes-relatif, got 77)") }, async (t) => {
+  test("un chemin de sauvegarde relatif", { skip: sansRoot("expects usage sauvegardes-relatif for a relative backup path") }, async (t) => {
     await refuse(t, (b) => b.demande("calculus", { "--sauvegardes": "sauvegardes/calculus" }), "sauvegardes-relatif", /est un chemin relatif — attendu un chemin absolu/);
     await refuse(t, (b) => b.demande("calculus", { "--sauvegardes": "./calculus" }), "sauvegardes-relatif", /est un chemin relatif/);
   });
 
-  test("un chemin de sauvegarde contenant `..`", { skip: sansRoot("refuses a backup path containing `..` (expected usage 64 sauvegardes-avec-points, got 77)") }, async (t) => {
+  test("un chemin de sauvegarde contenant `..`", { skip: sansRoot("expects usage sauvegardes-avec-points for a backup path containing `..`") }, async (t) => {
     await refuse(t, (b) => b.demande("calculus", { "--sauvegardes": `${b.sauvegardes}/../etats/calculus` }), "sauvegardes-avec-points", /contient `\.\.`/);
     await refuse(t, (b) => b.demande("calculus", { "--sauvegardes": `${b.sauvegardes}/calculus/..` }), "sauvegardes-avec-points", /contient `\.\.`/);
   });
 
-  test("un chemin de sauvegarde qui n'est pas normalisé, ou porte ce qu'une unité développerait", { skip: sansRoot("refuses a backup path that is not normalized or carries a `%i` a unit would expand (expected usage 64, got 77)") }, async (t) => {
+  test("un chemin de sauvegarde qui n'est pas normalisé, ou porte ce qu'une unité développerait", { skip: sansRoot("expects usage for a backup path that is not normalized or carries a `%i` a unit would expand") }, async (t) => {
     await refuse(t, (b) => b.demande("calculus", { "--sauvegardes": `${b.sauvegardes}//calculus` }), "sauvegardes-non-normalise", /n'est pas normalisé/);
     await refuse(t, (b) => b.demande("calculus", { "--sauvegardes": `${b.sauvegardes}/./calculus` }), "sauvegardes-non-normalise", /n'est pas normalisé/);
     await refuse(t, (b) => b.demande("calculus", { "--sauvegardes": `${b.sauvegardes}/calculus/` }), "sauvegardes-non-normalise", /n'est pas normalisé/);
@@ -270,7 +270,7 @@ describe("ce que le geste refuse, sans rien écrire sur la box", () => {
     await refuse(t, (b) => b.demande("calculus", { "--sauvegardes": `${b.sauvegardes}/cal culus` }), "sauvegardes-hors-motif", /porte un segment hors motif/);
   });
 
-  test("un chemin de sauvegarde hors de la racine autorisée", { skip: sansRoot("refuses a backup path outside the configured backup root, `/etc/cron.d` included (expected usage 64, got 77)") }, async (t) => {
+  test("un chemin de sauvegarde hors de la racine autorisée", { skip: sansRoot("expects usage for a backup path outside the configured backup root, `/etc/cron.d` included") }, async (t) => {
     await refuse(t, (b) => b.demande("calculus", { "--sauvegardes": join(b.racine, "ailleurs/calculus") }), "sauvegardes-hors-racine", /n'est pas sous la racine autorisée sur cette box/);
     await refuse(t, () => ["install", "calculus", "--depot", "acme/calculus", "--sauvegardes", "/etc/cron.d", "--manager-modele", "sonnet", "--manager-effort", "low", "--reviewer-modele", "sonnet", "--reviewer-effort", "low"], "sauvegardes-hors-racine", /n'est pas sous la racine autorisée/);
     // Ni la racine elle-même, ni un voisin dont le nom commence comme elle.
@@ -278,7 +278,7 @@ describe("ce que le geste refuse, sans rien écrire sur la box", () => {
     await refuse(t, (b) => b.demande("calculus", { "--sauvegardes": `${b.sauvegardes}-bis/calculus` }), "sauvegardes-hors-racine", /n'est pas sous la racine autorisée/);
   });
 
-  test("une destination de sauvegarde qu'un autre projet de la box tient déjà, ou qui la croise", { skip: sansRoot("refuses a backup destination another project's backup drop-in already holds or crosses (expected usage 64, got 77)") }, async (t) => {
+  test("une destination de sauvegarde qu'un autre projet de la box tient déjà, ou qui la croise", { skip: sansRoot("expects usage for a backup destination another project's backup drop-in already holds or crosses") }, async (t) => {
     // Ce qu'un autre projet a déclaré : sa sauvegarde refuserait de partager sa destination.
     const voisin = (b: Boite) => {
       mkdirSync(join(b.unites, "brigade-sauvegarde@boutique.service.d"));
@@ -299,7 +299,7 @@ describe("ce que le geste refuse, sans rien écrire sur la box", () => {
     );
   });
 
-  test("un chemin de sauvegarde qui passe par un lien, ou par un répertoire ouvert à d'autres", { skip: sansRoot("refuses a backup path through a symlink or a chmod 0777 directory, a mode-bit check too (expected boxPasPrete 76, got 77)") }, async (t) => {
+  test("un chemin de sauvegarde qui passe par un lien, ou par un répertoire ouvert à d'autres", { skip: sansRoot("expects boxPasPrete for a backup path through a symlink or through a chmod 0777 directory, the latter a mode-bit check") }, async (t) => {
     await refuse(
       t,
       (b) => {
@@ -324,7 +324,7 @@ describe("ce que le geste refuse, sans rien écrire sur la box", () => {
     );
   });
 
-  test("un argument contenant un contenu de fichier", { skip: sansRoot("refuses arguments that carry a unit file body, a newline or more than 256 characters (expected usage 64, got 77)") }, async (t) => {
+  test("un argument contenant un contenu de fichier", { skip: sansRoot("expects usage for arguments that carry a unit file body, a newline or more than 256 characters") }, async (t) => {
     const contenu = "[Service]\nExecStart=/bin/sh -c 'id > /tmp/pris'\n";
     await refuse(t, (b) => b.demande("calculus", { "--manager-modele": `sonnet\n${contenu}` }), "contenu-de-fichier", /aucun argument de ce geste n'est un contenu de fichier/);
     await refuse(t, (b) => b.demande("calculus", { "--branche": `main\nEnvironment=BRIGADE_SECRETS_FILE=/etc/shadow` }), "contenu-de-fichier", /aucun argument de ce geste n'est un contenu de fichier/);
@@ -333,7 +333,7 @@ describe("ce que le geste refuse, sans rien écrire sur la box", () => {
     await refuse(t, (b) => b.demande("calculus", { "--sauvegardes": `${b.sauvegardes}/${"a".repeat(300)}` }), "contenu-de-fichier", /plus de 256 caractères/);
   });
 
-  test("un dépôt, une branche ou un calibrage hors de ce qui est accepté", { skip: sansRoot("refuses repositories, branches and calibrations outside their patterns or lists (expected usage 64, got 77)") }, async (t) => {
+  test("un dépôt, une branche ou un calibrage hors de ce qui est accepté", { skip: sansRoot("expects usage for repositories, branches and calibrations outside their patterns or lists") }, async (t) => {
     for (const depot of ["https://github.com/acme/calculus", "acme/calculus.git", "acme", "acme/calculus/extra", "acme/..", "-acme/calculus", "acme/cal culus", "git@github.com:acme/calculus"]) {
       await refuse(t, (b) => b.demande("calculus", { "--depot": depot }), "depot-hors-motif", /n'est pas un dépôt GitHub/);
     }
@@ -344,7 +344,7 @@ describe("ce que le geste refuse, sans rien écrire sur la box", () => {
     await refuse(t, (b) => b.demande("calculus", { "--reviewer-effort": "extreme" }), "calibrage-inconnu", new RegExp(`n'est pas dans la liste — ${EFFORTS.join(", ")}`));
   });
 
-  test("une box qui n'est pas préparée : sans réglage à root seul, sans unités, sans compte, sans `bwrap`", { skip: sansRoot("refuses a box whose config is unreadable or chmod 0666 (a mode-bit check), whose account is root or unknown to the getent fake, or without bwrap (expected boxPasPrete 76, got 77)") }, async (t) => {
+  test("une box qui n'est pas préparée : sans réglage à root seul, sans unités, sans compte, sans `bwrap`", { skip: sansRoot("expects boxPasPrete for a box whose config is unreadable or chmod 0666 (a mode-bit check), whose account is root or unknown to the getent fake, or which has no bwrap") }, async (t) => {
     const preparer = CODES.boxPasPrete;
     await refuse(t, (b) => (writeFileSync(b.box.config, "# rien\n"), b.demande()), "reglage-illisible", /ne dit pas `sauvegardes=`/, preparer);
     await refuse(t, (b) => (chmodSync(b.box.config, 0o666), b.demande()), "reglage-douteux", /n'est pas à root seul/, preparer);
@@ -356,7 +356,7 @@ describe("ce que le geste refuse, sans rien écrire sur la box", () => {
     await refuse(t, (b) => (writeFileSync(join(b.box.deploiement, "cloison.conf"), "[Service]\nEnvironment=BRIGADE_SANDBOX_BIN=/nulle/part/bwrap\n"), b.demande()), "bwrap-absent", /`bwrap` n'est pas sur cette box/, preparer);
   });
 
-  test("le réglage absent, ou les unités : rien n'est fait", { skip: sansRoot("refuses when the config file or the units directory is missing (expected boxPasPrete 76 reglage-absent, got 77)") }, async (t) => {
+  test("le réglage absent, ou les unités : rien n'est fait", { skip: sansRoot("expects boxPasPrete reglage-absent when the config file or the units directory is missing") }, async (t) => {
     const b = boite(t);
     b.pousser("acme/calculus");
     const config = join(b.racine, "absent.conf");
@@ -383,7 +383,7 @@ describe("ce que le geste refuse, sans rien écrire sur la box", () => {
     assert.ok(!existsSync(b.box.journal));
   });
 
-  test("un autre geste en cours : le second attend son tour, dehors", { skip: sansRoot("refuses while another gesture holds the lock of the journal directory (expected occupe 75, got 77)") }, async (t) => {
+  test("un autre geste en cours : le second attend son tour, dehors", { skip: sansRoot("expects occupe while another gesture holds the lock of the journal directory") }, async (t) => {
     const b = boite(t);
     b.pousser("acme/calculus");
     mkdirSync(b.box.journal);
@@ -398,7 +398,7 @@ describe("ce que le geste refuse, sans rien écrire sur la box", () => {
 });
 
 describe("une installation qui n'aboutit pas se défait", () => {
-  test("le dépôt ne se clone pas : la box est comme avant, et le projet s'installe ensuite", { skip: sansRoot("rolls back when cloning a missing origin fails, then installs once it is pushed (expected echec, got 77)") }, async (t) => {
+  test("le dépôt ne se clone pas : la box est comme avant, et le projet s'installe ensuite", { skip: sansRoot("expects a rollback when cloning a missing origin fails, then an install once the origin is pushed") }, async (t) => {
     const b = boite(t);
     const avant = b.photo();
 
@@ -413,7 +413,7 @@ describe("une installation qui n'aboutit pas se défait", () => {
     assert.equal((await b.geste(b.demande())).code, 0);
   });
 
-  test("une branche que l'origine n'a pas", { skip: sansRoot("rolls back when `--branche absente` is not on the origin (expected echec, got 77)") }, async (t) => {
+  test("une branche que l'origine n'a pas", { skip: sansRoot("expects a rollback when `--branche absente` is not on the origin") }, async (t) => {
     const b = boite(t);
     b.pousser("acme/calculus");
     const avant = b.photo();
@@ -423,7 +423,7 @@ describe("une installation qui n'aboutit pas se défait", () => {
     assert.deepEqual(b.photo(), avant);
   });
 
-  test("systemd refuse d'activer la porte : les drop-ins, le clone et la sauvegarde programmée sont retirés", { skip: sansRoot("rolls back when the systemctl fake refuses `enable --now` of the gate unit (expected echec, got 77)") }, async (t) => {
+  test("systemd refuse d'activer la porte : les drop-ins, le clone et la sauvegarde programmée sont retirés", { skip: sansRoot("expects a rollback of drop-ins, clone and backup timer when the systemctl fake refuses `enable --now` of the gate unit") }, async (t) => {
     const b = boite(t);
     b.pousser("acme/calculus");
     b.refuserDActiver("brigade-porte@calculus.service");
@@ -440,7 +440,7 @@ describe("une installation qui n'aboutit pas se défait", () => {
     assert.deepEqual(b.appels().filter((appel) => !appel.startsWith("show ")).slice(-3), ["disable --now brigade-porte@calculus.service", "disable --now brigade-sauvegarde@calculus.timer", "daemon-reload"]);
   });
 
-  test("coupé avant d'avoir cloné : rien ne reste", { skip: sansRoot("aborts the gesture by its signal before cloning and checks nothing is left (expected echec, got 77)") }, async (t) => {
+  test("coupé avant d'avoir cloné : rien ne reste", { skip: sansRoot("aborts the gesture by its signal before cloning and checks nothing is left") }, async (t) => {
     const b = boite(t);
     b.pousser("acme/calculus");
     const avant = b.photo();
@@ -454,7 +454,7 @@ describe("une installation qui n'aboutit pas se défait", () => {
 });
 
 describe("le journal du geste", () => {
-  test("chaque appel, accepté ou refusé, y ajoute qui, quand, quel projet, quelle action et le résultat", { skip: sansRoot("records who, when, which project, which action and the result of five calls in the gesture journal (the first install expected 0, got 77)") }, async (t) => {
+  test("chaque appel, accepté ou refusé, y ajoute qui, quand, quel projet, quelle action et le résultat", { skip: sansRoot("records who, when, which project, which action and the result of five calls in the gesture journal") }, async (t) => {
     const b = boite(t);
     b.pousser("acme/calculus");
     const debut = new Date();
@@ -489,7 +489,7 @@ describe("le journal du geste", () => {
     assert.match((journal.at(-1)?.payload as { reason: string }).reason, /le dépôt acme\/boutique n'a pas pu être cloné/);
   });
 
-  test("il se relit par la commande `journal`, une ligne par appel", { skip: sansRoot("reads the gesture journal back through the `journal` command (the install expected 0, got 77)") }, async (t) => {
+  test("il se relit par la commande `journal`, une ligne par appel", { skip: sansRoot("reads the gesture journal back through the `journal` command, one line per call") }, async (t) => {
     const b = boite(t);
     b.pousser("acme/calculus");
     assert.equal((await b.geste(b.demande())).code, 0);
@@ -502,7 +502,7 @@ describe("le journal du geste", () => {
     assert.match(lignes[2] ?? "", /  calculus  -  installer\.refused  alice  \{"action":"exec","args":\["calculus"\],"result":"refused","reason":"sous-commande-inconnue"\}$/);
   });
 
-  test("un contenu de fichier n'y entre pas en entier, et qui lance sans `sudo` y est nommé par son compte", { skip: sansRoot("truncates a 5000-character argument in the gesture journal and names a caller without SUDO_USER (expected usage 64, got 77)") }, async (t) => {
+  test("un contenu de fichier n'y entre pas en entier, et qui lance sans `sudo` y est nommé par son compte", { skip: sansRoot("truncates a 5000-character argument in the gesture journal and names a caller without SUDO_USER by its account") }, async (t) => {
     const b = boite(t);
     const long = "x".repeat(5000);
     assert.equal((await b.geste(["install", "calculus", "--depot", long], { qui: null })).code, CODES.usage);
@@ -513,7 +513,7 @@ describe("le journal du geste", () => {
     assert.ok(premier?.author !== undefined && premier.author === second?.author && !premier.author.includes("\n"));
   });
 
-  test("sans journal où l'écrire, le geste ne fait rien", { skip: sansRoot("refuses when the journal path is a file, not a directory (expected boxPasPrete 76 journal-indisponible, got 77)") }, async (t) => {
+  test("sans journal où l'écrire, le geste ne fait rien", { skip: sansRoot("expects boxPasPrete journal-indisponible when the journal path is a file, not a directory") }, async (t) => {
     const b = boite(t);
     b.pousser("acme/calculus");
     // Là où le journal devrait vivre : un fichier, pas un répertoire.
@@ -531,7 +531,7 @@ describe("le plafond dur ne bouge pas", () => {
   // Ce qu'aucun grant n'autorise (#259), et ce par quoi une unité y mènerait.
   const INTERDITS = ["acces-prod", "accès-prod", "identifiants-max", "prod", "production", "credentials", "grant", "merge", "secrets", "claude-config-dir", "environnement", "home"];
 
-  test("aucune option n'y mène : ni `accès-prod`, ni les identifiants du compte Max, sous aucune forme", { skip: posixOnly("plays the sudo gesture of a Linux box, which checks it runs as root with process.getuid: Windows has no getuid, so on the Windows job every call stopped at sans-droit (77) before its options were read") }, async (t) => {
+  test("aucune option n'y mène : ni `accès-prod`, ni les identifiants du compte Max, sous aucune forme", { skip: posixOnly("passes `accès-prod`, the Max account credentials and their kin as an action, an argument, a flag and a grant, and expects each refused as usage with the box untouched; brigade-installer checks process.getuid() against root first and Windows has no getuid, so every call stops at sans-droit before its options are read") }, async (t) => {
     const b = boite(t);
     b.pousser("acme/calculus");
     const avant = b.photo();
@@ -558,7 +558,7 @@ describe("le plafond dur ne bouge pas", () => {
     }
   });
 
-  test("après une installation : les unités ne portent que les variables du geste, la cloison livrée, et rien du compte n'a été lu ni écrit", { skip: sansRoot("installs next to a chmod 0o000 credentials file and checks the units carry only the gesture's variables (expected code 0, got 77)") }, async (t) => {
+  test("après une installation : les unités ne portent que les variables du geste, la cloison livrée, et rien du compte n'a été lu ni écrit", { skip: sansRoot("installs next to a chmod 0o000 credentials file and checks the units carry only the gesture's variables") }, async (t) => {
     const b = boite(t);
     b.pousser("acme/calculus");
     // La connexion Max du compte : le geste n'a aucune raison d'y toucher.

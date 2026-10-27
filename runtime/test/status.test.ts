@@ -75,7 +75,7 @@ test("la commande ne modifie ni le journal ni ses projections", async (t) => {
   assert.deepEqual(lire(), avant);
 });
 
-test("avec `--suivre`, le chef voit la photo puis chaque événement à mesure qu'il s'écrit, jusqu'à Ctrl-C", { skip: posixOnly("Ctrl-C is sent as SIGINT, which Windows cannot deliver to another process: kill('SIGINT') ends the command at once, before its clean exit") }, async (t) => {
+test("avec `--suivre`, le chef voit la photo puis chaque événement à mesure qu'il s'écrit, jusqu'à Ctrl-C", { skip: posixOnly("follows ticket #7 with `--follow`, checks each new event of #7 is printed as it is written, then expects exit code 0 on Ctrl-C (SIGINT); Windows cannot deliver SIGINT to another process: kill('SIGINT') ends the command at once, before its clean exit") }, async (t) => {
   const repertoire = repertoireTemporaire(t);
   const journal = ouvrirJournal(repertoire);
   t.after(() => journal.fermer());
@@ -95,7 +95,7 @@ test("avec `--suivre`, le chef voit la photo puis chaque événement à mesure q
   assert.deepEqual(suivi.trimEnd().split("\n").map((ligne) => ligne.split("  ").slice(3, 5)), [["#7", "ticket.taken"], ["#7", "pass.verdict"]]);
 });
 
-test("avec `--suivre`, deux signaux rapprochés arrêtent proprement la commande : code 0, aucune trace", { skip: posixOnly("holds the command with SIGSTOP and resumes it with SIGCONT, signals Windows does not have") }, async (t) => {
+test("avec `--suivre`, deux signaux rapprochés arrêtent proprement la commande : code 0, aucune trace", { skip: posixOnly("suspends `--follow` with SIGSTOP, queues SIGINT and SIGTERM, resumes it with SIGCONT and expects a clean exit with code 0 and no trace; Windows has neither SIGSTOP nor SIGCONT") }, async (t) => {
   const repertoire = repertoireTemporaire(t);
   const journal = ouvrirJournal(repertoire);
   t.after(() => journal.fermer());

@@ -38,7 +38,7 @@ function traces(lieu: ReturnType<typeof cuisine>): string {
 
 // Chaque test a ses lieux : ils se jouent de front.
 describe("les secrets du projet", { concurrency: 8 }, () => {
-  test("le setup puis le cook reçoivent les secrets que le dépôt déclare, et rien d'autre de ce que la machine détient", { skip: posixOnly("runs a kitchen whose setup and cook are the fake setup and the fake claude (bash scripts) reading the project's secrets from a file named by a Windows path; on the Windows job: the awaited fact never came (condition never met)") }, async (t) => {
+  test("le setup puis le cook reçoivent les secrets que le dépôt déclare, et rien d'autre de ce que la machine détient", { skip: posixOnly("launches the setup then the cook of a ticket with the declared secrets and checks the cook's environment holds them and the test database the setup derived, nothing undeclared; on Windows the secrets file the kitchen writes with mode 0o600 inherits from the temporary directory an ACL that also lets Administrators read it, so the runtime refuses it as readable by others, and no cook is ever launched") }, async (t) => {
     const { lancements, avertissements } = cuisine(t, { scenario: "bavard", setup: "derive", secrets: SECRETS, issues: [issue(15)] });
     await jusqua(() => lancements().length === 1);
 
@@ -60,7 +60,7 @@ describe("les secrets du projet", { concurrency: 8 }, () => {
     assert.equal(Object.values(env).includes(secrets.fichier), false);
   });
 
-  test("un secret qui manque : aucun setup, aucun cook, le ticket est 86 dix minutes et l'issue dit lequel — une fois", { skip: posixOnly("runs a kitchen whose setup and cook are the fake setup and the fake claude (bash scripts) reading the project's secrets from a file named by a Windows path; on the Windows job: problems: [ + '<tmp>\\secrets.env est lisible par d\\'autres que le compte du service (Administrators (S-1-5-32-544)) — ce sont les secrets du projet : …") }, async (t) => {
+  test("un secret qui manque : aucun setup, aucun cook, le ticket est 86 dix minutes et l'issue dit lequel — une fois", { skip: posixOnly("with DATABASE_URL missing from the secrets file, expects the ticket 86'd for ten minutes, one issue comment naming that variable, and the cook launched once the value is set; on Windows the secrets file the kitchen writes with mode 0o600 inherits from the temporary directory an ACL that also lets Administrators read it, so the runtime refuses it as readable by others, so the problem reported is that ACL instead of the missing variable") }, async (t) => {
     const lieu = cuisine(t, { scenario: "bavard", setup: "derive", secrets: { declares: DECLARES, valeurs: `CLE_API=${CLE}\n` }, issues: [issue(15)] });
     const { repertoire, journal, heure, secrets, setup, etat, dernier, types, lancements, gh } = lieu;
     await jusqua(() => etat(15) === "86");
@@ -96,7 +96,7 @@ describe("les secrets du projet", { concurrency: 8 }, () => {
     assert.deepEqual(lancements(), []);
   });
 
-  test("un cook qui dit ses secrets tout haut ne les révèle nulle part : flux brut, sortie d'erreur, journal, issue et PR sont masqués", { skip: posixOnly("runs a kitchen whose setup and cook are the fake setup and the fake claude (bash scripts) reading the project's secrets from a file named by a Windows path; on the Windows job: the awaited fact never came (condition never met)") }, async (t) => {
+  test("un cook qui dit ses secrets tout haut ne les révèle nulle part : flux brut, sortie d'erreur, journal, issue et PR sont masqués", { skip: posixOnly("runs a cook that prints its secrets on stdout and stderr and checks the raw stream, stderr, journal, issue and PR show only their masks; on Windows the secrets file the kitchen writes with mode 0o600 inherits from the temporary directory an ACL that also lets Administrators read it, so the runtime refuses it as readable by others, so the cook never launches and the pass never comes") }, async (t) => {
     const lieu = cuisine(t, { scenario: "livre-et-revele", secrets: SECRETS, issues: [issue(15)] });
     const { repertoire, dernier, gh, etat } = lieu;
     await jusqua(() => etat(15) === "pass" && gh.commentaires.length === 1);
@@ -114,7 +114,7 @@ describe("les secrets du projet", { concurrency: 8 }, () => {
     assert.equal(tout.includes("mot-de-passe"), false);
   });
 
-  test("une livraison qui porte la valeur d'un secret n'est pas poussée : le cook est en échec, et l'issue nomme la variable", { skip: posixOnly("runs a kitchen whose setup and cook are the fake setup and the fake claude (bash scripts) reading the project's secrets from a file named by a Windows path; on the Windows job: the awaited fact never came (condition never met)") }, async (t) => {
+  test("une livraison qui porte la valeur d'un secret n'est pas poussée : le cook est en échec, et l'issue nomme la variable", { skip: posixOnly("runs a cook on a real repository declaring CLE_API whose delivery commits that secret's value, and expects it reported failed and not pushed, the issue naming the variable; on Windows the secrets file the kitchen writes with mode 0o600 inherits from the temporary directory an ACL that also lets Administrators read it, so the runtime refuses it as readable by others, so no cook is launched") }, async (t) => {
     // Un vrai dépôt, dont la base déclare un secret.
     const depot = depotGit(t);
     const semis = join(repertoireTemporaire(t), "semis");
@@ -139,7 +139,7 @@ describe("les secrets du projet", { concurrency: 8 }, () => {
     assert.equal(traces(lieu).includes(CLE), false);
   });
 
-  test("un secret commité sur un renvoi ne condamne pas le ticket : la branche revient à la livraison refusée, et le cook suivant livre", { skip: posixOnly("runs a kitchen whose setup and cook are the fake setup and the fake claude (bash scripts) reading the project's secrets from a file named by a Windows path; on the Windows job: the awaited fact never came (condition never met)") }, async (t) => {
+  test("un secret commité sur un renvoi ne condamne pas le ticket : la branche revient à la livraison refusée, et le cook suivant livre", { skip: posixOnly("on a real repository with red gates, a sent-back cook commits a secret: expects the branch reset to the refused delivery and the next cook to deliver; on Windows the secrets file the kitchen writes with mode 0o600 inherits from the temporary directory an ACL that also lets Administrators read it, so the runtime refuses it as readable by others, so no cook is launched") }, async (t) => {
     // Un vrai dépôt, dont la base porte des gates et déclare un secret.
     const depot = depotGit(t);
     const semis = join(repertoireTemporaire(t), "semis");
@@ -176,7 +176,7 @@ describe("les secrets du projet", { concurrency: 8 }, () => {
     assert.equal(traces(lieu).includes(CLE), false);
   });
 
-  test("les gates de la pass reçoivent les secrets du projet, le reviewer aucun, et ce qu'elles en disent est masqué", { skip: posixOnly("runs a kitchen whose setup and cook are the fake setup and the fake claude (bash scripts) reading the project's secrets from a file named by a Windows path; on the Windows job: the awaited fact never came (condition never met)") }, async (t) => {
+  test("les gates de la pass reçoivent les secrets du projet, le reviewer aucun, et ce qu'elles en disent est masqué", { skip: posixOnly("runs the pass gates with the project's secrets and checks they receive them, their failure output is masked and the reviewer gets none; on Windows the secrets file the kitchen writes with mode 0o600 inherits from the temporary directory an ACL that also lets Administrators read it, so the runtime refuses it as readable by others, so no cook delivers and the gates never run") }, async (t) => {
     const lieu = cuisine(t, { pass: true, secrets: SECRETS, issues: [issue(17)] });
     const { journal, gates, relectures, dernier, gh } = lieu;
     gates.regler("bavard");
@@ -195,7 +195,7 @@ describe("les secrets du projet", { concurrency: 8 }, () => {
     assert.deepEqual([env.CLE_API, env.DATABASE_URL], [undefined, undefined]);
   });
 
-  test("un reviewer qui cite ce que les gates ont laissé sur le disque ne publie pas le secret", { skip: posixOnly("runs a kitchen whose setup and cook are the fake setup and the fake claude (bash scripts) reading the project's secrets from a file named by a Windows path; on the Windows job: the awaited fact never came (condition never met)") }, async (t) => {
+  test("un reviewer qui cite ce que les gates ont laissé sur le disque ne publie pas le secret", { skip: posixOnly("has the pass reviewer quote what the gates left on disk and checks its published summary holds only the mask; on Windows the secrets file the kitchen writes with mode 0o600 inherits from the temporary directory an ACL that also lets Administrators read it, so the runtime refuses it as readable by others, so the pass is never reached") }, async (t) => {
     const lieu = cuisine(t, { pass: true, reviewer: { relecture: "relit-en-citant" }, secrets: SECRETS, issues: [issue(17)] });
     const { journal, dernier, gh } = lieu;
     await jusqua(() => journal.tout().some((e) => e.type === "pass.judged") && gh.commentaires.some(([, corps]) => corps.includes("Les gates ont tourné")));
@@ -204,7 +204,7 @@ describe("les secrets du projet", { concurrency: 8 }, () => {
     assert.equal(traces(lieu).includes(CLE), false);
   });
 
-  test("un secret retiré avant les gates : elles ne sont pas jouées, rien n'est renvoyé au cook, et la pass remonte au chef", { skip: posixOnly("runs a kitchen whose setup and cook are the fake setup and the fake claude (bash scripts) reading the project's secrets from a file named by a Windows path; on the Windows job: the awaited fact never came (condition never met)") }, async (t) => {
+  test("un secret retiré avant les gates : elles ne sont pas jouées, rien n'est renvoyé au cook, et la pass remonte au chef", { skip: posixOnly("removes DATABASE_URL from the secrets file while a cook is in flight and expects the gates not played and the pass escalated to the chef as unjudged; on Windows the secrets file the kitchen writes with mode 0o600 inherits from the temporary directory an ACL that also lets Administrators read it, so the runtime refuses it as readable by others from the start, so the cook is never launched") }, async (t) => {
     const lieu = cuisine(t, { pass: true, scenario: "commite-puis-attend", secrets: SECRETS, issues: [issue(17)] });
     const { journal, gates, secrets, lancements, conclure, etat, dernier, gh } = lieu;
     await jusqua(() => lancements().length === 1);
@@ -221,7 +221,7 @@ describe("les secrets du projet", { concurrency: 8 }, () => {
     assert.match(gh.commentaires.at(-1)?.[1] ?? "", /n'ont pas été jouées[\s\S]*`DATABASE_URL` : aucune valeur/);
   });
 
-  test("le contrôle de la base, sans ses secrets, n'est pas joué — et dit pourquoi", { skip: posixOnly("runs a kitchen whose setup and cook are the fake setup and the fake claude (bash scripts) reading the project's secrets from a file named by a Windows path; on the Windows job: no match: 'secrets du projet indisponibles — <tmp>\\secrets.env est lisible par d\\'autres que le compte du service (Administrators (S-1-5-32-544)) — ce…") }, async (t) => {
+  test("le contrôle de la base, sans ses secrets, n'est pas joué — et dit pourquoi", { skip: posixOnly("replays the base check with DATABASE_URL missing and expects it skipped, saying that variable has no value; on Windows the secrets file the kitchen writes with mode 0o600 inherits from the temporary directory an ACL that also lets Administrators read it, so the runtime refuses it as readable by others, so the reason given names that ACL instead of the missing variable") }, async (t) => {
     const lieu = cuisine(t, { pass: true, secrets: { declares: DECLARES, valeurs: `CLE_API=${CLE}\n` } });
     const { repertoire, journal, gates, dernier } = lieu;
     // Une base rouge, que le chef fait rejouer.

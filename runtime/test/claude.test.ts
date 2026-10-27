@@ -38,7 +38,7 @@ test("un cook ne charge aucune source de réglages, aucune skill, aucun serveur 
   assert.deepEqual(args.slice(args.indexOf("--disallowedTools") + 1), ["Bash(gh pr merge:*)", "Bash(git push:*)", "Bash(git merge:*)"]);
 });
 
-test("le binaire reçoit ces arguments tels quels, la liste vide des sources comprise", { skip: posixOnly("runs test/aides/faux-claude.sh itself with execFileSync: Windows cannot execute a shebang script (EFTYPE)") }, (t) => {
+test("le binaire reçoit ces arguments tels quels, la liste vide des sources comprise", { skip: posixOnly("runs test/aides/faux-claude.sh with the cook's arguments through execFileSync and checks it receives them verbatim, the empty --setting-sources included; Node on Windows cannot execute a shebang script directly (EFTYPE)") }, (t) => {
   const temoin = repertoireTemporaire(t);
   const args = argumentsClaude("la consigne", CALIBRAGE);
 

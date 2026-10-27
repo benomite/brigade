@@ -66,7 +66,7 @@ function ouvrir(t: TestContext, sondes: Sondes) {
   }
 }
 
-test("sur un Mac qui a le bac à sable, la cuisine s'ouvre et dit que chaque `claude` y part", { skip: posixOnly("simulates a Mac whose station lives in the real temporary directory: the Seatbelt profile takes POSIX absolute paths only, and on Windows that directory is C:\\… (refused on the job)") }, (t) => {
+test("sur un Mac qui a le bac à sable, la cuisine s'ouvre et dit que chaque `claude` y part", { skip: posixOnly("opens a kitchen with Mac probes and Seatbelt present and expects it to announce that every `claude` runs in the sandbox; its worktrees and caches live in the test's temporary directory, a drive path on Windows, which the sandbox check, wanting POSIX absolute paths, refuses") }, (t) => {
   const { dits, erreur } = ouvrir(t, MAC);
   assert.equal(erreur, null);
   const ligne = dits.find((dit) => dit.startsWith("bac à sable — "));

@@ -273,7 +273,7 @@ test("la commande du chef, en texte : l'étape, puis chaque décision avec sa qu
 // Le critère de bout en bout : un projet dont l'installation a posé toutes
 // ses décisions démarre sans aucune variable de décision dans son
 // environnement, et sa file n'en porte aucune.
-test("de bout en bout : toutes les décisions posées pendant l'installation, le runtime démarre et rien n'attend le chef", { skip: posixOnly("runs the `decisions` installation step as a real process and stops it with SIGTERM, which on Windows ends it before its handler runs (exit code null) (this test uses POSIX signals, the fake claude (bash), the fake gh (bash)); on the Windows job: null !== 0") }, async (t) => {
+test("de bout en bout : toutes les décisions posées pendant l'installation, le runtime démarre et rien n'attend le chef", { skip: posixOnly("answers every decision through the installation step, starts the real runtime and expects nothing missing nor awaiting the chef, then a clean exit 0 on SIGTERM; on Windows kill('SIGTERM') ends the runtime without running its handler, so it exits with no code") }, async (t) => {
   const { clone } = depotGit(t);
   const gh = fauxGh(t);
   gh.issues([]);

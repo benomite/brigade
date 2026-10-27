@@ -98,7 +98,7 @@ test("démarrée, la station est enregistrée sous le compte sans aucune command
 
 // Sous Windows, `kill("SIGTERM")` termine le process sans que son gestionnaire tourne : l'arrêt
 // propre de la station n'y est pas un signal.
-test("arrêtée proprement, la station est indisponible à la lecture suivante ; redémarrée, de nouveau disponible sous le même gist", { skip: posixOnly("SIGTERM on Windows ends the process without running its handler") }, async (t) => {
+test("arrêtée proprement, la station est indisponible à la lecture suivante ; redémarrée, de nouveau disponible sous le même gist", { skip: posixOnly("stops the registered station with SIGTERM and expects it to write itself unavailable with its stop time, then restarts it under the same gist; on Windows kill('SIGTERM') ends the station without running its handler, so it writes nothing of its stop") }, async (t) => {
   const { env, stations } = uneMachine(t);
 
   const premiere = lancer(t, STATION, [], env);

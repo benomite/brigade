@@ -249,7 +249,7 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     assert.deepEqual(c.labels(17), ["fire", "model:sonnet", "effort:low"]);
   });
 
-  test("redécoupé, le ticket devient l'épique de ses sous-tickets : il ne tient plus sa zone, et ils partent", { ...PLUSIEURS_TOURS, skip: posixOnly("runs three cooks and three passes on the fake claude and the fake gates (bash scripts) before the manager splits the ticket; on the Windows job (run 40525346451) the splitting brief the fake claude received did not match /a échoué 3 fois en pass.*Gates rouges/s, and the job printed only its first 10,000 characters") }, async (t) => {
+  test("redécoupé, le ticket devient l'épique de ses sous-tickets : il ne tient plus sa zone, et ils partent", { ...PLUSIEURS_TOURS, skip: posixOnly("fails a ticket three times in pass on red fake gates, has the manager split it into sub-tickets and expects the splitting brief to quote the three failures and the red gates; on Windows the brief the fake claude received did not carry them, a cause not traced yet since the job only printed the brief truncated") }, async (t) => {
     const c = echec(t, { issues: [issue(30, [])], manager: { suite: ["juge-ticket", "reagit-redecoupe", "decoupe-tickets"] } });
     c.gh.ficher(30, "2026-10-08T09:00:00Z", `${MARQUEUR}\n- zone : runtime/src, docs/`);
     await c.jusquAu("manager.split-done", 30);

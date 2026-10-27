@@ -120,7 +120,7 @@ function photographier(racine: string, sauf: string[]): Record<string, string> {
 
 // Chaque test a sa station — racine, configuration, doublures — sur le port 0 : ils se jouent de front.
 describe("la station, son process", { concurrency: 8 }, () => {
-  test("deux projets dans la configuration : un seul process les sert, chacun avec son journal, sa cloison et son `gh`, et sa sortie est le seul journal de service", { skip: posixOnly("runs the real station process serving projects through the fake gh and the fake claude (bash scripts), driven by POSIX signals (this test uses POSIX signals, the fake gh (bash)); on the Windows job: no match: \"brigade : station — connexion Max encore inconnue — le renouvellement n'a fait aucun passage réussi\\n\" + \"brigade [brigade] : GitHub — iden…") }, async (t) => {
+  test("deux projets dans la configuration : un seul process les sert, chacun avec son journal, sa cloison et son `gh`, et sa sortie est le seul journal de service", { skip: posixOnly("serves two projects from one station process and checks each one's log, sandbox and gh in its single output, then stops it with SIGTERM; the expected startup line is a RegExp built from a Windows path, whose backslashes it reads as escapes, and SIGTERM kills the station before its handler runs, so neither exit code 0 nor the SIGTERM stop facts can come") }, async (t) => {
     const { racine, compte, env, preparer, configurer, relire } = uneStation(t);
     const brigade = fauxGh(t);
     brigade.issues([]);
@@ -170,7 +170,7 @@ describe("la station, son process", { concurrency: 8 }, () => {
     assert.match(station.sortie(), /station arrêtée \(SIGTERM\)/);
   });
 
-  test("un projet ajouté à la configuration est servi, sans redémarrer ; retiré, il ne l'est plus ; et rien d'autre que la configuration n'a été écrit pour cela", { skip: posixOnly("runs the real station process and stops it with SIGTERM, which on Windows ends it before its handler runs (exit code null instead of 0) (this test uses POSIX signals, the fake gh (bash)); on the Windows job: null !== 0") }, async (t) => {
+  test("un projet ajouté à la configuration est servi, sans redémarrer ; retiré, il ne l'est plus ; et rien d'autre que la configuration n'a été écrit pour cela", { skip: posixOnly("adds then withdraws a project by editing the station's configuration and checks nothing else on the machine was written, then stops the station with SIGTERM expecting exit 0; on Windows SIGTERM kills the station before its handler runs, so the exit code is null") }, async (t) => {
     const { machine, racine, env, preparer, configurer, relire, faits } = uneStation(t);
     const brigade = fauxGh(t);
     brigade.issues([]);
@@ -230,7 +230,7 @@ describe("la station, son process", { concurrency: 8 }, () => {
     assert.equal(await station.fin, 0);
   });
 
-  test("une ligne refusée n'arrête pas la station : elle le dit au nom du projet, et sert les autres", { skip: posixOnly("runs the real station process and stops it with SIGTERM, which on Windows ends it before its handler runs (exit code null instead of 0) (this test uses POSIX signals, the fake claude (bash), the fake gh (bash)); on the Windows job: null !== 0") }, async (t) => {
+  test("une ligne refusée n'arrête pas la station : elle le dit au nom du projet, et sert les autres", { skip: posixOnly("gives the station a configuration with two refused lines and expects it to name them and serve the valid project, then stops it with SIGTERM expecting exit 0; on Windows SIGTERM kills the station before its handler runs, so the exit code is null") }, async (t) => {
     const { env, preparer, configurer, faits } = uneStation(t);
     const brigade = fauxGh(t);
     brigade.issues([]);
@@ -249,7 +249,7 @@ describe("la station, son process", { concurrency: 8 }, () => {
     assert.equal(await station.fin, 0);
   });
 
-  test("sous les portes de la station : elle attend la sienne avant de rien joindre, puis chaque projet sort par la sienne — jamais par celle d'un autre", { skip: posixOnly("runs the real station process serving projects through the fake gh and the fake claude (bash scripts), driven by POSIX signals (this test uses POSIX signals, the fake claude (bash), the fake gh (bash)); on the Windows job: the awaited fact never came (condition never met)") }, async (t) => {
+  test("sous les portes de la station : elle attend la sienne avant de rien joindre, puis chaque projet sort par la sienne — jamais par celle d'un autre", { skip: posixOnly("starts the station under its doors (tenir-portes.ts) and expects each project's proxy on a port of its own, then stops both processes with SIGTERM expecting exit 0; on Windows SIGTERM kills them before their handlers run, and a project's isolation.configured fact did not even come within the test's one-minute wait") }, async (t) => {
     const { racine, env, preparer, configurer, faits } = uneStation(t);
     const brigade = fauxGh(t);
     brigade.issues([]);
@@ -280,7 +280,7 @@ describe("la station, son process", { concurrency: 8 }, () => {
     assert.equal(await portes.fin, 0);
   });
 
-  test("chaque projet servi publie son Kitchen board dans son dépôt : un geste posté sous celui d'un projet est joué par sa cuisine, le chef y est mentionné pour ce qui l'attend, et `status` compte le coût des tableaux (#1662)", { skip: posixOnly("runs the real station process, whose two kitchens create and pin their Kitchen board through the fake gh (a bash script), and ends it with SIGTERM, which Windows turns into an immediate kill: the station's exit code is null there, not the 0 the test expects") }, async (t) => {
+  test("chaque projet servi publie son Kitchen board dans son dépôt : un geste posté sous celui d'un projet est joué par sa cuisine, le chef y est mentionné pour ce qui l'attend, et `status` compte le coût des tableaux (#1662)", { skip: posixOnly("two kitchens create and pin their Kitchen board through the fake gh and a gesture under brigade's board is played by its kitchen alone, then the station is stopped with SIGTERM expecting exit 0; on Windows SIGTERM kills the station before its handler runs, so the exit code is null") }, async (t) => {
     const { racine, env, etat, preparer, configurer, faits } = uneStation(t);
     const projets = [
       { nom: "brigade", depot: "acme/brigade", tableau: 90, gestes: ["/brigade stop"] },
@@ -359,7 +359,7 @@ describe("la station, son process", { concurrency: 8 }, () => {
     }
   });
 
-  test("sans BRIGADE_STATION_DIR, la station refuse de démarrer et nomme la variable ; sans configuration, elle démarre et ne sert aucun projet", { skip: posixOnly("runs the real station process and stops it with SIGTERM, which on Windows ends it before its handler runs (exit code null instead of 0) (this test uses POSIX signals, the fake claude (bash), the fake gh (bash)); on the Windows job: null !== 0") }, async (t) => {
+  test("sans BRIGADE_STATION_DIR, la station refuse de démarrer et nomme la variable ; sans configuration, elle démarre et ne sert aucun projet", { skip: posixOnly("expects the station refused without BRIGADE_STATION_DIR, then started without configuration and serving nothing, and stopped with SIGTERM expecting exit 0; on Windows SIGTERM kills the station before its handler runs, so the exit code is null") }, async (t) => {
     const { env } = uneStation(t);
     const { BRIGADE_STATION_DIR: _, ...sans } = env;
     const refusee = lancer(t, STATION, [], sans);
@@ -375,7 +375,7 @@ describe("la station, son process", { concurrency: 8 }, () => {
 
   // Deux cuisines complètes : elles se jouent de front.
   describe("de bout en bout", { concurrency: 2 }, () => {
-    test("deux projets cuisinés par le même process : chacun voit son issue devenir une branche poussée sur son origine, une PR et un commentaire", { skip: posixOnly("runs the real station process serving projects through the fake gh and the fake claude (bash scripts), driven by POSIX signals (this test uses POSIX signals, the fake claude (bash), the fake gh (bash), POSIX mode bits); on the Windows job: the awaited fact never came (condition never met)") }, async (t) => {
+    test("deux projets cuisinés par le même process : chacun voit son issue devenir une branche poussée sur son origine, une PR et un commentaire", { skip: posixOnly("has one station process cook an issue in each of two projects, through the fake claude (Git Bash), to a pushed branch, a PR and a comment, then stops it with SIGTERM expecting exit 0; on Windows SIGTERM kills the station before its handler runs, and the comments did not even come within the test's one-minute wait") }, async (t) => {
       const { env, preparer, configurer, faits } = uneStation(t);
       const projets = [
         { nom: "brigade", depot: "acme/brigade", numero: 15 },
@@ -406,7 +406,7 @@ describe("la station, son process", { concurrency: 8 }, () => {
       assert.equal(await station.fin, 0);
     });
 
-    test("une identité par rôle sous la station : la PR part sous l'identité cook, et ni le cook ni le reviewer ne reçoivent de jeton — pas même celui du compte de la station", { skip: posixOnly("runs the real station process serving projects through the fake gh and the fake claude (bash scripts), driven by POSIX signals (this test uses POSIX signals, the fake claude (bash), the fake gh (bash), POSIX mode bits); on the Windows job: the awaited fact never came (condition never met)") }, async (t) => {
+    test("une identité par rôle sous la station : la PR part sous l'identité cook, et ni le cook ni le reviewer ne reçoivent de jeton — pas même celui du compte de la station", { skip: posixOnly("one identity per role under the station: the PR opened as cook, no token reaching the cook or the reviewer, then a SIGTERM stop expecting exit 0; on Windows SIGTERM kills the station before its handler runs, and the issue comment did not even come within the test's one-minute wait") }, async (t) => {
       const { env, etat, preparer, configurer, faits } = uneStation(t);
       const { origine, clone } = depotGit(t);
       const gh = fauxGh(t);
@@ -444,7 +444,7 @@ describe("la station, son process", { concurrency: 8 }, () => {
     });
   });
 
-  test("la station remplacée pendant qu'un cook tourne — une mise à jour : le cook lui survit, la station suivante le reprend sans le relancer, et sa livraison est jugée, mergée sous grant et servie", { skip: posixOnly("runs the real station process serving projects through the fake gh and the fake claude (bash scripts), driven by POSIX signals (this test uses POSIX signals, the fake claude (bash), the fake gh (bash), POSIX mode bits); on the Windows job: the awaited fact never came (condition never met)") }, async (t) => {
+  test("la station remplacée pendant qu'un cook tourne — une mise à jour : le cook lui survit, la station suivante le reprend sans le relancer, et sa livraison est jugée, mergée sous grant et servie", { skip: posixOnly("replaces the station by SIGTERM while a cook runs and expects the cook to survive, be resumed by the next station, judged, merged under grant and served; on Windows SIGTERM kills the station before its handler runs, and the first cook was not even launched within the test's one-minute wait") }, async (t) => {
     const { env, etat, preparer, configurer, faits } = uneStation(t);
     aArreter(t, () => tuerLesRelais(etat("brigade")));
     const { origine, clone } = depotGit(t);

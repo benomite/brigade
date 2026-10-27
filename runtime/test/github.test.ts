@@ -355,7 +355,7 @@ test("la liste des issues ouvertes a son propre ETag : confirmée, elle ne coût
   assert.deepEqual(await github.tickets(), { inchange: true });
 });
 
-test("labelliser une issue y ajoute les labels, sans toucher aux autres", { skip: posixOnly("posts through the fake gh, a bash script run by Git Bash on Windows: on the Windows job it exits non-zero without a word on every POST with -f fields, while its GET and DELETE answers pass") }, async (t) => {
+test("labelliser une issue y ajoute les labels, sans toucher aux autres", { skip: posixOnly("labels issue 15 with fire and model:sonnet and expects a single POST of two `labels[]=` fields; on Windows the fake gh, run by Git Bash, exits non-zero without a message on calls carrying a `labels[]=` field, while POSTs whose fields hold no brackets pass") }, async (t) => {
   const { gh, github } = sonde(t);
   const chemin = `repos/${DEPOT}/issues/15/labels`;
   gh.repondre(chemin, { corps: [] });
@@ -379,14 +379,14 @@ test("retirer un label le supprime de l'issue ; déjà absent, il n'y a rien à 
   await assert.rejects(github.delabelliser(17, "effort:low"), /HTTP 403/);
 });
 
-test("un label refusé par GitHub lève", { skip: posixOnly("posts through the fake gh, a bash script run by Git Bash on Windows: on the Windows job it exits non-zero without a word on every POST with -f fields, while its GET and DELETE answers pass") }, async (t) => {
+test("un label refusé par GitHub lève", { skip: posixOnly("expects a label POST that GitHub answers with 403 to throw HTTP 403; on Windows the fake gh, run by Git Bash, exits non-zero without a message on calls carrying a `labels[]=` field, while POSTs whose fields hold no brackets pass") }, async (t) => {
   const { gh, github } = sonde(t);
   gh.repondre(`repos/${DEPOT}/issues/15/labels`, { statut: 403, corps: { message: "Forbidden" } });
 
   await assert.rejects(github.labelliser(15, ["fire"]), /HTTP 403/);
 });
 
-test("créer une issue poste son titre, son corps et ses labels tels quels, et rend son numéro", { skip: posixOnly("posts through the fake gh, a bash script run by Git Bash on Windows: on the Windows job it exits non-zero without a word on every POST with -f fields, while its GET and DELETE answers pass") }, async (t) => {
+test("créer une issue poste son titre, son corps et ses labels tels quels, et rend son numéro", { skip: posixOnly("creates an issue and expects its title, multi-line body and two `labels[]=` fields posted verbatim, and its number returned; on Windows the fake gh, run by Git Bash, exits non-zero without a message on calls carrying a `labels[]=` field, while POSTs whose fields hold no brackets pass") }, async (t) => {
   const { gh, github } = sonde(t);
   const chemin = `repos/${DEPOT}/issues`;
   gh.repondre(chemin, { statut: 201, corps: { number: 501 } });

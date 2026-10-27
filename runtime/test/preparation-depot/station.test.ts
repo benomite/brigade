@@ -85,7 +85,7 @@ function uneStation(t: TestContext, preparation: "ouverte" | "servie") {
   return { station, faits };
 }
 
-test("tant que le ticket qui prépare le dépôt n'est pas servi, la cuisine ne prend que lui — un ticket plus ancien reste sur le rail", { skip: posixOnly("runs the real station process with the fake gh (a bash script) and stops it with SIGTERM, which on Windows ends it before its handler runs (exit code null) (this test uses POSIX signals); on the Windows job: null !== 0") }, async (t) => {
+test("tant que le ticket qui prépare le dépôt n'est pas servi, la cuisine ne prend que lui — un ticket plus ancien reste sur le rail", { skip: posixOnly("starts the real station with the repository-preparation ticket #20 open and checks only it is taken while the older #15 waits, then expects exit code 0 on SIGTERM; on Windows kill('SIGTERM') terminates the station outright, before its handler runs, so the exit code is null") }, async (t) => {
   const { station, faits } = uneStation(t, "ouverte");
   await station.attendre("le rail attend #20 (préparer le dépôt) — aucun autre ticket ne part avant son merge");
   await jusqua(() => faits("cook.launched").length === 1);
@@ -103,7 +103,7 @@ test("tant que le ticket qui prépare le dépôt n'est pas servi, la cuisine ne 
   assert.equal(await station.fin, 0);
 });
 
-test("le ticket qui prépare le dépôt servi, la cuisine prend les autres", { skip: posixOnly("runs the real station process with the fake gh (a bash script) and stops it with SIGTERM, which on Windows ends it before its handler runs (exit code null) (this test uses POSIX signals); on the Windows job: null !== 0") }, async (t) => {
+test("le ticket qui prépare le dépôt servi, la cuisine prend les autres", { skip: posixOnly("starts the real station with the repository-preparation ticket already served and checks #15 is taken next, then expects a clean exit on SIGTERM; on Windows kill('SIGTERM') ends the station at once without running its handler, so it exits with no code") }, async (t) => {
   const { station, faits } = uneStation(t, "servie");
   await jusqua(() => faits("cook.launched").length === 1);
   assert.deepEqual(

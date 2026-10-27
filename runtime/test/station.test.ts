@@ -49,7 +49,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal(seconde.types().filter((type) => type === "station.announced").length, 1);
   });
 
-  test("un ticket calibré en attente est pris, et son cook part dans un worktree qui lui est propre", { skip: posixOnly("runs the box/claude station on a full runtime with the fake claude (a bash script) as its cook; on the Windows job: false !== true") }, async (t) => {
+  test("un ticket calibré en attente est pris, et son cook part dans un worktree qui lui est propre", { skip: posixOnly("takes a calibrated waiting ticket and checks its cook's working directory is a worktree of its own; the fake claude (a bash script) records that directory as Git Bash writes it (/c/Users/...), which never ends with the worktree's Windows path") }, async (t) => {
     const { repertoire, clone, etat, dernier, lancements, journal } = cuisine(t, { git: true, scenario: "bavard", issues: [issue(15)] });
     await jusqua(() => lancements().length === 1);
 
@@ -410,7 +410,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal(lancements().length, 2);
   });
 
-  test("un cook qui meurt et un cook qui dépasse un plafond n'emportent pas les autres : leurs tickets repartent, les autres continuent", { skip: posixOnly("runs the box/claude station on a full runtime with the fake claude (a bash script) as its cook; on the Windows job: the awaited fact never came (condition never met)") }, async (t) => {
+  test("un cook qui meurt et un cook qui dépasse un plafond n'emportent pas les autres : leurs tickets repartent, les autres continuent", { skip: posixOnly("launches four cooks, one failing and one over its turn ceiling, and expects both tickets relaunched while the other two cooks run on; on Windows the cooks only ended `failed`, never by the turn guard, and the six launches never came: the kitchen runs there far slower than the 30 s its silent fake cooks (a Git Bash `sleep`) live") }, async (t) => {
     const { journal, etat, lancements } = cuisine(t, {
       cooks: 4,
       machine: () => MACHINE_VASTE,
@@ -436,7 +436,7 @@ describe("la station", { concurrency: 8 }, () => {
     }
   });
 
-  test("un cook qui perd son bail n'emporte pas son voisin : chacun a son regard, et seul celui qui ne progresse pas est arrêté", { skip: posixOnly("runs the box/claude station on a full runtime with the fake claude (a bash script) as its cook; on the Windows job: true !== false") }, async (t) => {
+  test("un cook qui perd son bail n'emporte pas son voisin : chacun a son regard, et seul celui qui ne progresse pas est arrêté", { skip: posixOnly("lets #14 lose its lease while #15 renews it by writing in its worktree, and expects only #14 stopped; on Windows #15's cook had ended too by the last check: the kitchen runs there far slower than the 30 s its silent fake cook (a Git Bash `sleep`) lives") }, async (t) => {
     const { repertoire, heure, journal, dernier, types, lancements } = cuisine(t, { cooks: 2, scenario: "muet", issues: [issue(14), issue(15)] });
     await jusqua(() => lancements().length === 2);
 
@@ -990,7 +990,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.match(String(dernier("cook.reported", 15)?.reason), /push-failed/);
   });
 
-  test("le « stop » du chef ne récolte rien : le ticket revient en attente, le travail reste sur la station", { skip: posixOnly("runs the box/claude station on a full runtime with the fake claude (a bash script) as its cook; on the Windows job: the awaited fact never came (condition never met)") }, async (t) => {
+  test("le « stop » du chef ne récolte rien : le ticket revient en attente, le travail reste sur la station", { skip: posixOnly("waits for the fake claude's commit in its worktree, then expects the chef's stop to return the ticket without harvesting; it looks for travail.txt under the worktree path the fake claude (a bash script) reports as Git Bash writes it (/c/Users/...), which node resolves on the current drive, so the file is never found") }, async (t) => {
     const { repertoire, gh, etat, dernier, lancements } = cuisine(t, { scenario: "commite-puis-bavarde", issues: [issue(15)] });
     await jusqua(() => lancements().length === 1 && existsSync(join(lancements()[0]?.cwd ?? "", "travail.txt")));
 
@@ -1112,7 +1112,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal(etatDesGardeFous(journal.base).failures, 1);
   });
 
-  test("un fichier touché dans le worktree renouvelle le bail, et l'échéance repart de là", { skip: posixOnly("runs the station with the fake claude (a bash script) writing in its worktree, whose path it reports as Git Bash names it (/c/Users/…), which node resolves on drive D:; on the Windows job: Error: ENOENT: no such file or directory, open 'D:\\c\\Users\\runneradmin\\AppData\\Local\\Temp\\brigade-test-ABiBtD\\worktrees\\15-b3a56696\\brouillon.txt'") }, async (t) => {
+  test("un fichier touché dans le worktree renouvelle le bail, et l'échéance repart de là", { skip: posixOnly("touches a file in the cook's worktree and expects the lease renewed, then lost one full lease later; the file is written under the worktree path the fake claude (a bash script) reports as Git Bash writes it (/c/Users/...), which node resolves on the current drive, where that directory does not exist") }, async (t) => {
     const { heure, dernier, lancements, types } = cuisine(t, { scenario: "bavard", seuilDisjoncteur: 1, issues: [issue(15)] });
     await jusqua(() => lancements().length === 1);
 
@@ -1132,7 +1132,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal(types(15).filter((type) => type === "ticket.renewed").length, 1);
   });
 
-  test("un commit renouvelle le bail ; un fichier que le projet ignore, non", { skip: posixOnly("runs the station with the fake claude (a bash script) writing in its worktree, whose path it reports as Git Bash names it (/c/Users/…), which node resolves on drive D:; on the Windows job: Error: ENOENT: no such file or directory, open 'D:\\c\\Users\\runneradmin\\AppData\\Local\\Temp\\brigade-test-AHJiHm\\worktrees\\15-5732c31f\\travail.txt'") }, async (t) => {
+  test("un commit renouvelle le bail ; un fichier que le projet ignore, non", { skip: posixOnly("commits in the cook's worktree and expects the lease renewed, then writes an ignored file and expects it lost; the commit is made under the worktree path the fake claude (a bash script) reports as Git Bash writes it (/c/Users/...), which node resolves on the current drive, where that directory does not exist") }, async (t) => {
     const { clone, heure, dernier, lancements, types } = cuisine(t, { git: true, scenario: "bavard", seuilDisjoncteur: 1, issues: [issue(15)] });
     await jusqua(() => lancements().length === 1);
     const worktree = lancements()[0]?.cwd ?? "";
@@ -1149,7 +1149,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal(types(15).filter((type) => type === "ticket.renewed").length, 1);
   });
 
-  test("un cook qui a commité puis ne progresse plus : à l'échéance son travail est récolté et part en pass", { skip: posixOnly("runs the box/claude station on a full runtime with the fake claude (a bash script) as its cook; on the Windows job: the awaited fact never came (condition never met)") }, async (t) => {
+  test("un cook qui a commité puis ne progresse plus : à l'échéance son travail est récolté et part en pass", { skip: posixOnly("lets a cook that committed then stalls reach its lease and expects its work harvested and sent to the pass; it first waits for travail.txt under the worktree path the fake claude (a bash script) reports as Git Bash writes it (/c/Users/...), which node resolves on the current drive, so the file is never found") }, async (t) => {
     const { gh, heure, journal, etat, dernier, lancements, types } = cuisine(t, { scenario: "commite-puis-bavarde", issues: [issue(15)] });
     await jusqua(() => lancements().length === 1 && existsSync(join(lancements()[0]?.cwd ?? "", "travail.txt")));
 
@@ -1176,7 +1176,7 @@ describe("la station", { concurrency: 8 }, () => {
     },
   });
 
-  test("une lecture ratée du worktree à l'échéance n'arrête pas le cook : la station relit au tick suivant, et son progrès compte", { skip: posixOnly("runs the station with the fake claude (a bash script) writing in its worktree, whose path it reports as Git Bash names it (/c/Users/…), which node resolves on drive D:; on the Windows job: Error: ENOENT: no such file or directory, open 'D:\\c\\Users\\runneradmin\\AppData\\Local\\Temp\\brigade-test-twUZOX\\worktrees\\15-45ce5595\\brouillon.txt'") }, async (t) => {
+  test("une lecture ratée du worktree à l'échéance n'arrête pas le cook : la station relit au tick suivant, et son progrès compte", { skip: posixOnly("writes a draft in the cook's worktree while the worktree read fails at the lease, and expects a warning then a renewal at the next tick; the draft is written under the worktree path the fake claude (a bash script) reports as Git Bash writes it (/c/Users/...), which node resolves on the current drive, where that directory does not exist") }, async (t) => {
     const etat = { panne: false };
     const { heure, lancements, types, avertissements } = cuisine(t, { scenario: "bavard", seuilDisjoncteur: 1, issues: [issue(15)], depot: illisible(etat) });
     await jusqua(() => lancements().length === 1);
@@ -1872,7 +1872,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal(setup.appels().length, 2);
   });
 
-  test("un setup qui dépasse la moitié du bail est arrêté, et c'est un échec de setup", { skip: posixOnly("runs the box/claude station on a full runtime with the fake claude (a bash script) as its cook; on the Windows job: the awaited fact never came (condition never met)") }, async (t) => {
+  test("un setup qui dépasse la moitié du bail est arrêté, et c'est un échec de setup", { skip: posixOnly("runs a setup that sleeps 30 s under a 0.2 s ceiling and expects it stopped and the ticket set aside as a setup failure; on Windows the ceiling kills the setup's process group by negative pid, which does not exist there, so the setup runs to its end, succeeds, and the ticket is never 86") }, async (t) => {
     const { etat, dernier, lancements, avertissements } = cuisine(t, { setup: "lent", bailMs: 400, issues: [issue(15)] });
     const debut = Date.now();
 
@@ -1885,7 +1885,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.ok(Date.now() - debut < 20_000);
   });
 
-  test("le runtime qui s'arrête abandonne le setup en cours, sans rien écrire sur le ticket", { skip: posixOnly("runs the box/claude station on a full runtime with the fake claude (a bash script) as its cook; on the Windows job: Error: EPERM, Permission denied: '<tmp>'") }, async (t) => {
+  test("le runtime qui s'arrête abandonne le setup en cours, sans rien écrire sur le ticket", { skip: posixOnly("stops the runtime while a 30 s setup runs and expects nothing written on the ticket; on Windows the abort kills the setup's process group by negative pid, which does not exist there, so Git Bash and its `sleep` live on and hold the test's temporary directory when it is removed (EPERM)") }, async (t) => {
     const { repertoire, runtime, setup, lancements, avertissements } = cuisine(t, { setup: "lent", issues: [issue(15)] });
     await jusqua(() => setup.appels().length === 1);
 
@@ -2012,7 +2012,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.match(gh.commentaires[0]?.[1] ?? "", new RegExp(`Le cook avait laissé du travail non commité dans son worktree : la station l'a commité à sa place \\(\`${recolte}\`\\), et il fait partie de la livraison`));
   });
 
-  test("un cook mort avec le runtime : au démarrage suivant son worktree est rangé, avec ce qu'il avait écrit, avant qu'un cook neuf ne reparte", { skip: posixOnly("runs the station with the fake claude (a bash script) writing in its worktree, whose path it reports as Git Bash names it (/c/Users/…), which node resolves on drive D:; on the Windows job: Error: ENOENT: no such file or directory, open 'D:\\c\\Users\\runneradmin\\AppData\\Local\\Temp\\brigade-test-ByWNF5\\worktrees\\15-431941c8\\brouillon.txt'") }, async (t) => {
+  test("un cook mort avec le runtime : au démarrage suivant son worktree est rangé, avec ce qu'il avait écrit, avant qu'un cook neuf ne reparte", { skip: posixOnly("kills a cook with its runtime after it wrote a draft in its worktree, and expects the next runtime to harvest and remove that worktree first; the draft is written under the worktree path the fake claude (a bash script) reports as Git Bash writes it (/c/Users/...), which node resolves on the current drive, where that directory does not exist") }, async (t) => {
     const premiere = cuisine(t, { git: true, scenario: "bavard", issues: [issue(15)] });
     await jusqua(() => premiere.lancements().length === 1);
     const run = String(premiere.dernier("cook.launched", 15)?.run);
@@ -2106,7 +2106,7 @@ describe("la station, cooks sans identité", { concurrency: 8 }, () => {
     assert.ok(!fichier.startsWith(join(repertoire, "worktrees")));
   });
 
-  test("dans le bac à sable d'une cuisine locale, le cook reçoit son ticket en fichier — corps et commentaires —, sans que ~/.config/gh lui soit ouvert", { skip: posixOnly("runs the box/claude station on a full runtime with the fake claude (a bash script) as its cook; on the Windows job: the awaited fact never came (condition never met)") }, async (t) => {
+  test("dans le bac à sable d'une cuisine locale, le cook reçoit son ticket en fichier — corps et commentaires —, sans que ~/.config/gh lui soit ouvert", { skip: posixOnly("launches a cook through a local kitchen's macOS Claude Code sandbox and checks the ticket file it is handed and its Read rule; that sandbox configuration only takes POSIX absolute paths, so on Windows the worktree's drive-letter path is refused and no cook is launched") }, async (t) => {
     const bacASable = { version: "2.1.300", home: "/Users/chef", caches: [], hotes: () => [] };
     const { repertoire, gh, lancements, dernier } = cuisine(t, { scenario: "bavard", bacASable, issues: [issue(15, CALIBRE, { title: "Le ticket du Mac" })] });
     gh.decrire(15, { body: "Fais ceci, puis cela." });

@@ -36,7 +36,7 @@ function jouer(t: TestContext, racine: string, verrou: string): Passage {
 const suiteRetenue = (signal: string, libere: string) => `touch ${signal}; while [ ! -e ${libere} ]; do sleep 0.1; done; touch ${libere}.vu`;
 
 describe("le tour des gates sur une box", () => {
-  test("le second passage n'exécute ses tests qu'une fois le premier fini, et dit combien il a attendu", { skip: posixOnly("plays this repository's real .claude/brigade/gates.sh, a bash script, on two test projects that share its turn lock (a file lock taken by the bash script) (this test uses POSIX signals); on the Windows job: the awaited fact never came (condition never met)") }, async (t) => {
+  test("le second passage n'exécute ses tests qu'une fois le premier fini, et dit combien il a attendu", { skip: posixOnly("plays the real gates.sh twice on projects sharing one turn lock and expects the second suite to wait for the first, then say how long it waited; on Windows npm runs each project's `test` script through cmd.exe, which cannot run the test's `touch`/`while` shell loop, so the first suite never signals its start") }, async (t) => {
     const verrou = join(repertoireTemporaire(t), "verrou");
     const libere = join(repertoireTemporaire(t), "libere");
     const signalA = join(repertoireTemporaire(t), "a");
@@ -60,7 +60,7 @@ describe("le tour des gates sur une box", () => {
     assert.equal(existsSync(verrou), false, "le verrou n'est pas rendu");
   });
 
-  test("un passage tué en cours rend son tour au suivant", { skip: posixOnly("plays this repository's real .claude/brigade/gates.sh, a bash script, on two test projects that share its turn lock (a file lock taken by the bash script) (this test uses POSIX signals); on the Windows job: the awaited fact never came (condition never met)") }, async (t) => {
+  test("un passage tué en cours rend son tour au suivant", { skip: posixOnly("kills the first gates run with SIGKILL while its suite holds the turn lock, and expects the next run to take the lock over from the dead pid; on Windows npm runs the held suite's `touch`/`while` loop through cmd.exe, which cannot run it, so that suite never signals its start") }, async (t) => {
     const verrou = join(repertoireTemporaire(t), "verrou");
     const signalA = join(repertoireTemporaire(t), "a");
     const signalB = join(repertoireTemporaire(t), "b");

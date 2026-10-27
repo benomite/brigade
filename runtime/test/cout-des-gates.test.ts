@@ -50,7 +50,7 @@ function worktree(t: TestContext, gates: string) {
 const BRULE = `node -e "while (process.cpuUsage().user < 1e6) for (let i = 0; i < 1e6; i++);"`;
 
 describe("le coût des gates", { concurrency: 8 }, () => {
-  test("le processeur des process que les gates lancent compte dans leur coût, même lancés de proche en proche, et le passage se relit par `facts`", { skip: posixOnly("plays gates written by the test as #!/bin/sh scripts and counts the processor time of the processes they launch, read from the process tree, and their kill at the cap (this test uses POSIX mode bits); on the Windows job: processeur : 60") }, async (t) => {
+  test("le processeur des process que les gates lancent compte dans leur coût, même lancés de proche en proche, et le passage se relit par `facts`", { skip: posixOnly("plays gates whose nested bash runs a node process burning one second of processor, and expects that second in the gates' cost, read back through `facts`; Git Bash's `times` does not count the processor time of native Windows programs such as node.exe, so the cost stays far under a second") }, async (t) => {
     // Les gates ne calculent rien elles-mêmes : un shell qu'elles lancent en
     // lance un autre, qui brûle.
     const racine = worktree(t, `bash -c '${BRULE}'\necho "gates : VERT"`);
@@ -70,7 +70,7 @@ describe("le coût des gates", { concurrency: 8 }, () => {
     assert.ok(!Number.isNaN(Date.parse(latest.at)));
   });
 
-  test("des gates coupées à leur plafond ont une durée, et pas de processeur : il est mort avec elles", { skip: posixOnly("plays gates written by the test as #!/bin/sh scripts and counts the processor time of the processes they launch, read from the process tree, and their kill at the cap (this test uses POSIX mode bits); on the Windows job: 'green' !== 'timeout'") }, async (t) => {
+  test("des gates coupées à leur plafond ont une durée, et pas de processeur : il est mort avec elles", { skip: posixOnly("plays gates that sleep 30 s under a 200 ms cap and expects a timeout with a duration but no processor time; on Windows the cap's kill of their process group (a negative pid) fails silently, so the gates sleep to their end, come back green, and their processor time is read") }, async (t) => {
     const racine = worktree(t, "sleep 30");
 
     const { gates, cout } = await jouerGatesMesurees({ worktree: racine, ticket: 17, env: ENV_ENFANT, delaiMs: 200 });

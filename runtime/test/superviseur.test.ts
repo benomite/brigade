@@ -13,7 +13,7 @@ const rienNeReste = temporaireDuFichier();
 
 // Ce qui ne se joue que sous macOS et Linux, et pourquoi. L'arrêt d'un cook et
 // de tout ce qu'il a lancé se prouve sous Windows dans `arbre.test.ts`.
-const GROUPE = posixOnly("a process escapes its cook only by leaving the POSIX process group; on Windows the tree catches it (arbre.test.ts)");
+const GROUPE = posixOnly("a node grandchild spawned detached leaves its cook's process group and holds both pipes open, and the test expects the supervisor's safety net to flush and mask the unfinished line while that grandchild lives; on Windows the supervisor kills the cook's whole tree by pid at its end, detached grandchild included, so nothing escapes (arbre.test.ts proves that)");
 
 // La fin d'un cook que le superviseur a arrêté par ce signal. Sous Windows il n'y a pas de signal : le
 // superviseur y tue l'arbre du cook par ses pids (arbre.ts), Windows termine chaque process avec le code
@@ -265,7 +265,7 @@ describe("superviser", { concurrency: true }, () => {
     assert.equal(arrets.length, 1);
   });
 
-  test("un cook sourd à SIGTERM est tué après le délai de grâce", { skip: posixOnly("runs the fake claude scenario sourd, a bash trap that ignores SIGTERM, and asserts the supervisor follows with SIGKILL after the grace delay; Windows has no signal a process can ignore: on the Windows job: null !== 'SIGKILL'") }, async (t) => {
+  test("un cook sourd à SIGTERM est tué après le délai de grâce", { skip: posixOnly("stops the fake claude scenario sourd, whose bash trap ignores SIGTERM, and expects the supervisor to follow with SIGKILL after the grace delay; on Windows the supervisor terminates the cook's tree outright, which no trap can ignore, and Node reports no signal for it") }, async (t) => {
     const { fin, arreter, flux } = cook(t, "sourd", {}, 100);
     await aParle(flux);
 
@@ -274,7 +274,7 @@ describe("superviser", { concurrency: true }, () => {
     assert.equal((await fin).signal, "SIGKILL");
   });
 
-  test("un petit-enfant sourd à SIGTERM meurt avec le groupe de son cook", { skip: posixOnly("runs the fake claude scenario petit-enfant-sourd, whose grandchild ignores SIGTERM, and asserts the kill of the cook's process group takes the grandchild with it; Windows has no process groups: on the Windows job: null !== 'SIGTERM'") }, async (t) => {
+  test("un petit-enfant sourd à SIGTERM meurt avec le groupe de son cook", { skip: posixOnly("stops the fake claude scenario petit-enfant-sourd and expects the cook ended by SIGTERM and its grandchild, deaf to SIGTERM, killed with the process group; Windows has neither process groups nor signals: the supervisor terminates the tree by pid and Node reports exit code 1 with no signal") }, async (t) => {
     const { fin, flux, pid, arreter } = cook(t, "petit-enfant-sourd");
     await aParle(flux);
     const { petitEnfant } = JSON.parse(readFileSync(flux, "utf8").trim());
@@ -417,7 +417,7 @@ describe("superviser, à l'horloge du test", () => {
     assert.deepEqual([resultat.arret?.reason, resultat.turns], ["idle", 1]);
   });
 
-  test("un cook qui produit n'est pas pris pour un inactif", { skip: posixOnly("wakes the fake claude scenario au-signal (a bash script) with process.kill(pid, 'SIGUSR1') after each turn so it produces the next one; SIGUSR1 does not exist on Windows: on the Windows job: Unknown signal: SIGUSR1") }, async (t) => {
+  test("un cook qui produit n'est pas pris pour un inactif", { skip: posixOnly("wakes the fake claude scenario au-signal with SIGUSR1 after each turn and expects the idle timer reset each time, the cook reaching its turn cap; Node on Windows has no SIGUSR1, so process.kill throws") }, async (t) => {
     t.mock.timers.enable({ apis: ["setTimeout"] });
     const { fin, mesure, pid } = cook(t, "au-signal", { idleMs: 1000, turns: 3 });
     assert.ok(pid);

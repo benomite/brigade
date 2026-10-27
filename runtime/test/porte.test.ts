@@ -329,7 +329,7 @@ describe("la porte", { concurrency: 8 }, () => {
     assert.equal(autorise(regles(true), "registry.npmjs.org", 443), false);
   });
 
-  test("la porte du projet lit sa liste au journal et y écrit ses refus, depuis son propre process", { skip: posixOnly("stops the door with SIGTERM: on Windows kill('SIGTERM') ends the process before its handler runs, so the job saw exit code null instead of 0") }, async (t) => {
+  test("la porte du projet lit sa liste au journal et y écrit ses refus, depuis son propre process", { skip: posixOnly("runs the project's door in its own process, tunnels to a host off its list and expects the 403 refusal in the journal, then a clean exit 0 on SIGTERM; on Windows kill('SIGTERM') ends the door without running its handler, so it exits with no code") }, async (t) => {
     const repertoireEtat = repertoireTemporaire(t);
     const runtime = demarrer({ repertoireEtat, projet: "brigade", intervalleVeilleMs: 5, maintenant: horloge() });
     t.after(() => runtime.arreter("test"));

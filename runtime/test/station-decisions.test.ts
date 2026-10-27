@@ -215,7 +215,7 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
     assert.equal(existsSync(cheminJournal(autre)), false);
   });
 
-  test("en cuisine : poser chaque décision, depuis le process du chef, n'interrompt pas le cook en vol — il continue et livre, et le runtime n'a pas redémarré", { skip: posixOnly("runs a kitchen whose cook is the fake claude (a bash script) while the chef's process writes each decision: on the Windows job that process stopped on 'database is locked' (BEGIN IMMEDIATE)") }, async (t) => {
+  test("en cuisine : poser chaque décision, depuis le process du chef, n'interrompt pas le cook en vol — il continue et livre, et le runtime n'a pas redémarré", { skip: posixOnly("sets every decision through `npm run station` in a process of its own while a kitchen's fake-claude cook is in flight, and expects the cook untouched and the runtime not restarted; on Windows that process cannot take the journal's write lock while the kitchen holds the journal, so SQLite reports the database locked and the command fails") }, async (t) => {
     const { repertoire, journal, types, etat, cooks, conclure } = cuisine(t, { decisions: true, scenario: "commite-puis-attend", issues: [issue(16)] });
     await jusqua(() => cooks().length === 1 && types(16).includes("cook.launched"));
 

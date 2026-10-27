@@ -525,7 +525,7 @@ describe("une livraison se juge fusionnée avec la base", { concurrency: 8 }, ()
     assert.match(String(rejeu?.gates.failures), /aucun test en échec/);
   });
 
-  test("un runtime tué pendant un jugement ne laisse pas son worktree jetable : au redémarrage il est retiré, le jugement repris, et rien n'est mergé deux fois", { skip: posixOnly("judges a delivery merged with the base on a real git repository through gates written as #!/bin/sh scripts that report the directory they ran in; on the Windows job: + true, false, - false") }, async (t) => {
+  test("un runtime tué pendant un jugement ne laisse pas son worktree jetable : au redémarrage il est retiré, le jugement repris, et rien n'est mergé deux fois", { skip: posixOnly("a runtime stopped while slow fake gates (`sleep 30`) judge a merged delivery must, once restarted, remove the disposable worktree, judge again and merge once; on Windows the stop's kill of the gates' process group (a negative pid) fails silently, and Windows will not remove a worktree that the still-running gates have as their working directory") }, async (t) => {
     const premiere = service(t, { essais: { "jugement-17": "lent" } });
     await jusqua(() => premiere.gates.appels().length === 1);
     assert.equal(premiere.pass()?.phase, "judging");

@@ -39,7 +39,7 @@ function service(t: TestContext, options: Options) {
 }
 
 describe("la pass reprend les gates du cook", { concurrency: 8 }, () => {
-  test("le cook a passé les gates vertes sur ce qu'il livre, la base n'a pas bougé : la pass ne lance aucune gate, son verdict nomme le passage du cook qu'elle reprend, et rien ne s'ajoute au coût", { skip: posixOnly("runs a cook (the fake claude, a bash script) that plays its gates through the gates-du-cook launcher, a bash script the station writes into .git/brigade; on the Windows job: no match: 'Tu es un cook de la brigade : tu exécutes un seul ticket, le ticket #17 du dépôt acme/brigade — « Ticket 17 ».\\n' + '\\n' + \"Les gates d…") }, async (t) => {
+  test("le cook a passé les gates vertes sur ce qu'il livre, la base n'a pas bougé : la pass ne lance aucune gate, son verdict nomme le passage du cook qu'elle reprend, et rien ne s'ajoute au coût", { skip: posixOnly("a cook whose green launcher run covers what it delivers lets the pass reuse it without playing any gates; on Windows the brief names the launcher with backslashes, which neither the test's regular expression nor the fake claude's grep for `/brigade/gates-du-cook` matches, so the cook never plays its gates") }, async (t) => {
     const { lieux } = lieuxDuProjet(t);
     const { verdict, passages, parLaPass, gates, cooks, journal, heure } = service(t, { lieux, pass: true, scenario: "livre-apres-ses-gates" });
     await jusqua(() => verdict() !== undefined);
@@ -58,7 +58,7 @@ describe("la pass reprend les gates du cook", { concurrency: 8 }, () => {
     assert.equal(coutDuProjet(journal.base, "brigade", lireBudget({}), heure.maintenant()).lastDay.runs, 1);
   });
 
-  test("le cook a passé les gates avant son dernier changement : l'arbre n'est plus le même, la pass les joue en entier", { skip: posixOnly("runs a cook (the fake claude, a bash script) that plays its gates through the gates-du-cook launcher, a bash script the station writes into .git/brigade; on the Windows job: 1 !== 2") }, async (t) => {
+  test("le cook a passé les gates avant son dernier changement : l'arbre n'est plus le même, la pass les joue en entier", { skip: posixOnly("a cook plays its gates through the launcher and then commits more, so the pass must replay them on the new tree; on Windows the fake claude's grep for `/brigade/gates-du-cook` misses the launcher the brief names with backslashes, so only the pass plays the gates") }, async (t) => {
     const { lieux } = lieuxDuProjet(t);
     const { verdict, passages, parLaPass, gates } = service(t, { lieux, pass: true, scenario: "livre-avant-ses-gates" });
     await jusqua(() => verdict() !== undefined);
@@ -76,7 +76,7 @@ describe("la pass reprend les gates du cook", { concurrency: 8 }, () => {
     assert.equal(verdict()?.gates.reused, undefined);
   });
 
-  test("les gates du cook étaient rouges : la pass les joue en entier", { skip: posixOnly("runs a cook (the fake claude, a bash script) that plays its gates through the gates-du-cook launcher, a bash script the station writes into .git/brigade; on the Windows job: - 'cook', - 'red'") }, async (t) => {
+  test("les gates du cook étaient rouges : la pass les joue en entier", { skip: posixOnly("a cook's launcher run is red, so the pass must replay the gates on the same tree; on Windows the fake claude's grep for `/brigade/gates-du-cook` misses the backslashed launcher path of the brief, so no red run of the cook is ever noted") }, async (t) => {
     const { lieux } = lieuxDuProjet(t);
     const lieu = service(t, { lieux, pass: true, scenario: "livre-apres-ses-gates" });
     lieu.gates.regler("rouge");
@@ -97,7 +97,7 @@ describe("la pass reprend les gates du cook", { concurrency: 8 }, () => {
     assert.equal(lieu.verdict()?.gates.reused, undefined);
   });
 
-  test("la configuration des gates a changé entre le cook et la pass, sur le même arbre : la pass les joue en entier", { skip: posixOnly("runs a cook (the fake claude, a bash script) that plays its gates through the gates-du-cook launcher, a bash script the station writes into .git/brigade; on the Windows job: - 'cook', 'pass', + undefined") }, async (t) => {
+  test("la configuration des gates a changé entre le cook et la pass, sur le même arbre : la pass les joue en entier", { skip: posixOnly("the gates script behind the link changes between a cook's green launcher run and the pass, which must replay them on the same tree; on Windows the fake claude's grep for `/brigade/gates-du-cook` misses the backslashed launcher path of the brief, so there is no cook run to compare with") }, async (t) => {
     const { lieux, script } = lieuxDuProjet(t, true);
     // Une première vie sans pass : le cook passe ses gates vertes et livre.
     const premiere = service(t, { lieux, scenario: "livre-apres-ses-gates" });

@@ -397,7 +397,7 @@ esac
 exit 0
 `;
 
-test("la machine joue l'essai sous son propre compte, avec son environnement, et garde son verdict un moment", { skip: posixOnly("probes the machine with a fake `psql` written by the test as an extensionless #!/bin/sh script on a PATH of its own, which Windows does not execute (this test uses POSIX mode bits); on the Windows job: false !== true") }, (t) => {
+test("la machine joue l'essai sous son propre compte, avec son environnement, et garde son verdict un moment", { skip: posixOnly("plays the Postgres probe against a fake `psql`, an extensionless #!/bin/sh script alone on PATH, and checks the queries it receives, its verdicts and how long they are kept; Windows does not run that extensionless script as `psql`, so the probe never reaches the fake and finds no usable Postgres") }, (t) => {
   const bin = repertoireTemporaire(t);
   writeFileSync(join(bin, "psql"), FAUX_PSQL);
   chmodSync(join(bin, "psql"), 0o755);
@@ -437,7 +437,7 @@ test("la machine joue l'essai sous son propre compte, avec son environnement, et
   assert.equal(aLeBesoin(POSTGRES, sondeDeLaMachine({ PATH: repertoireTemporaire(t), HOME: bin }), []), false);
 });
 
-test("la machine a une commande quand son PATH en porte une exécutable", { skip: posixOnly("the executable bit is a POSIX permission") }, (t) => {
+test("la machine a une commande quand son PATH en porte une exécutable", { skip: posixOnly("expects a 0o755 file on PATH to count as a command and a plain file without the executable bit not to; Windows has no executable bit, so the probe takes any file on PATH as a command") }, (t) => {
   const bin = repertoireTemporaire(t);
   writeFileSync(join(bin, "pg_ctlcluster"), "#!/bin/sh\n");
   chmodSync(join(bin, "pg_ctlcluster"), 0o755);

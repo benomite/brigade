@@ -153,7 +153,7 @@ describe("les portes de la station", { concurrency: 4 }, () => {
     assert.ok(troisiemes.lignes.includes(`brigade [espace] : le port ${pris} de sa porte est pris (EADDRINUSE) : elle en prend un autre`), troisiemes.lignes.join("\n"));
   });
 
-  test("le process des portes, tel que son unité le lance : il écrit ses ports, relit sa configuration, et se ferme sur SIGTERM ; sans fichier des ports, il refuse de démarrer", { skip: posixOnly("reloads the doors with SIGHUP and stops them with SIGTERM: Windows cannot send SIGHUP, and kill('SIGTERM') ends the process before its handler runs") }, async (t) => {
+  test("le process des portes, tel que son unité le lance : il écrit ses ports, relit sa configuration, et se ferme sur SIGTERM ; sans fichier des ports, il refuse de démarrer", { skip: posixOnly("runs the doors process as its unit does and expects it to write its ports, reread its configuration on SIGHUP, close on SIGTERM and refuse to start without a ports file; Windows cannot send SIGHUP, and kill('SIGTERM') ends the process before its handler runs") }, async (t) => {
     const { racine, fichier, configurer } = uneStation(t, { calcul: [], espace: [] });
     configurer(["calcul"]);
     const tenues = lancer(t, TENIR, [], { BRIGADE_STATION_DIR: racine, BRIGADE_STATION_PORTES: fichier });

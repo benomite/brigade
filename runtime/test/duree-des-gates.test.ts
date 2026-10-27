@@ -63,7 +63,7 @@ describe("la durée des gates", { concurrency: 8 }, () => {
     }
   });
 
-  test("le compte est le processeur entier : utilisateur et système, dont la ligne donne le partage", { skip: posixOnly("plays this repository's real .claude/brigade/gates.sh, a bash script, on a test project and checks the user and system time it prints for a test suite that burns processor; on the Windows job: utilisateur : 0.3") }, async (t) => {
+  test("le compte est le processeur entier : utilisateur et système, dont la ligne donne le partage", { skip: posixOnly("plays the real gates.sh on a project whose test suite burns two seconds of processor in node, and expects at least two seconds of user time in its duration line; Git Bash's `times` leaves out native Windows programs such as the node.exe npm starts, so the line reports a fraction of a second") }, async (t) => {
     const { processeur, utilisateur, systeme } = releve(deLaDuree((await jouer(projet(t, { suite: CALCULE }))).lignes)[0] ?? "");
 
     assert.ok(utilisateur >= 2, `utilisateur : ${utilisateur}`);

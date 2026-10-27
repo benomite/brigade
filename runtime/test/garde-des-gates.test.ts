@@ -37,7 +37,7 @@ const desTests = (lignes: string[]) => lignes.filter((ligne) => /^(ok {4}|FAIL {
 
 // Chaque test a son projet : ils se jouent de front.
 describe("la garde d'horloge des gates", { concurrency: 8 }, () => {
-  test("une suite figée dans du code synchrone est tuée passé le délai, avec le process de son fichier, et les gates rougissent en disant qu'aucun test n'a échoué", { skip: posixOnly("plays this repository's real .claude/brigade/gates.sh, a bash script, on a test project whose suite never returns, and waits for its clock guard to kill the process group (no process groups on Windows) (this test uses POSIX signals); on the Windows job: the awaited fact never came (condition never met)") }, async (t) => {
+  test("une suite figée dans du code synchrone est tuée passé le délai, avec le process de son fichier, et les gates rougissent en disant qu'aucun test n'a échoué", { skip: posixOnly("plays the real gates.sh on a project whose test file freezes in synchronous code, with a 1 s clock guard, and expects the guard's kill to take that file's node process too; Git Bash's kill of the suite's process group cannot reach the native Windows processes npm started below it, so the frozen file's node.exe outlives the guard") }, async (t) => {
     // La suite met deux secondes à démarrer — le double du délai de la garde :
     // c'est une machine chargée, rendue certaine.
     const racine = projet(t, `sleep 2 && node --test --test-force-exit --test-timeout=500 ${JSON.stringify(TEST_FIGE)}`);
@@ -66,7 +66,7 @@ describe("la garde d'horloge des gates", { concurrency: 8 }, () => {
     assert.equal(readdirSync(join(racine, ".brigade-state/gates")).length, 1);
   });
 
-  test("un test en échec avant la coupure garde la ligne d'un rouge", { skip: posixOnly("plays this repository's real .claude/brigade/gates.sh, a bash script, on a test project whose suite never returns, and waits for its clock guard to kill the process group (no process groups on Windows) (this test uses POSIX signals); on the Windows job: FAIL absent : .claude-plugin/plugin.json") }, async (t) => {
+  test("un test en échec avant la coupure garde la ligne d'un rouge", { skip: posixOnly("plays the real gates.sh on a suite that runs a failing test file then a frozen one, and expects the guard's cut line saying tests failed before the cut; on Windows npm runs that suite through cmd.exe, where `;` does not chain two commands, so the two files do not run one after the other") }, async (t) => {
     // Le fichier en échec rend son verdict avant que l'autre ne se fige.
     const racine = projet(
       t,

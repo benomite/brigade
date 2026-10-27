@@ -1151,7 +1151,7 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.equal(git(clone, "show", `${branche}:brouillon.txt`), "brouillon.txt");
   });
 
-  test("des gates qui dépassent leur plafond sont arrêtées, et c'est rouge", { skip: posixOnly("runs the pass on a full runtime whose gates are bash scripts reporting the directory they ran in, as Git Bash names it (/c/Users/…); on the Windows job: the awaited fact never came (condition never met)") }, async (t) => {
+  test("des gates qui dépassent leur plafond sont arrêtées, et c'est rouge", { skip: posixOnly("a delivery's slow fake gates (`sleep 30`) run under a 150 ms cap, and the pass must stop them, judge a timeout and send the delivery back; on Windows the cap's kill of the gates' process group (a negative pid) fails silently, so they sleep to their end and come back green, and no send-back comes") }, async (t) => {
     // Le plafond réglé court ne doit valoir que pour les gates lentes de la
     // livraison. La pass rejoue un rouge sur la base seule, sous le même
     // plafond : vertes, ces gates-là le franchiraient aussi sur une machine
@@ -1319,7 +1319,7 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.equal(journal.duTicket(17).filter((e) => e.type === "cook.launched").length, 2);
   });
 
-  test("un runtime arrêté pendant les gates ne laisse pas de verdict : au redémarrage, la livraison est jugée", { skip: posixOnly("runs the pass on a full runtime whose gates are bash scripts reporting the directory they ran in, as Git Bash names it (/c/Users/…); on the Windows job: the awaited fact never came (condition never met)") }, async (t) => {
+  test("un runtime arrêté pendant les gates ne laisse pas de verdict : au redémarrage, la livraison est jugée", { skip: posixOnly("the runtime is stopped while slow fake gates (`sleep 30`) judge a delivery, and a restarted runtime must judge it exactly once; on Windows the stop's kill of the gates' process group (a negative pid) fails silently, so they keep the disposable worktree busy and the restarted runtime never gets the delivery held") }, async (t) => {
     const premiere = service(t, { gates: "lent" });
     await jusqua(() => premiere.gates.appels().length === 1);
     premiere.runtime.arreter("test");
@@ -1332,7 +1332,7 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.equal(gates.appels().length, 2);
   });
 
-  test("le reviewer relit le diff après des gates vertes : un autre process que le cook, à son propre calibrage, en lecture seule dans le worktree jetable de la pass", { skip: posixOnly("runs the pass on a full runtime whose gates are bash scripts reporting the directory they ran in, as Git Bash names it (/c/Users/…); on the Windows job: + '/c/…/<tmp>/worktrees/.essais/jugement-17' - '<tmp>\\worktrees\\.essais/jugement-17'") }, async (t) => {
+  test("le reviewer relit le diff après des gates vertes : un autre process que le cook, à son propre calibrage, en lecture seule dans le worktree jetable de la pass", { skip: posixOnly("checks that the reviewer runs after green gates, read-only in the pass's disposable worktree at its own calibration, and compares the directory it ran in with the real path; the fake claude, a bash script, records that directory as Git Bash names it (/c/...), not as the Windows path the test expects") }, async (t) => {
     const { repertoire, gh, journal, dernier, jusquAu, cooks, relectures } = service(t);
     gh.decrire(17, { body: "Critère : `travail.txt` existe." });
     gh.repondre(17, "Le chef précise : un seul fichier.");
@@ -1747,7 +1747,7 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.deepEqual([relectures().length, compter("pass.served"), gh.fermetures, pass()?.returns], [1, 0, [], 1]);
   });
 
-  test("une consigne trop lourde pour partir en commande ne se lance pas et ne boucle pas : la cuisine en fait un ticket `fix`", { skip: posixOnly("runs the pass on a full runtime whose gates are bash scripts reporting the directory they ran in, as Git Bash names it (/c/Users/…); on the Windows job: the awaited fact never came (condition never met)") }, async (t) => {
+  test("une consigne trop lourde pour partir en commande ne se lance pas et ne boucle pas : la cuisine en fait un ticket `fix`", { skip: posixOnly("a 60,000-character ticket title makes the reviewer's brief too heavy for a command, and the kitchen must take it over as a `fix`; Windows caps a whole command line at 32,767 characters, so the cook whose brief carries that title cannot even be launched and nothing reaches the pass") }, async (t) => {
     // Seul le titre du ticket n'a pas de plafond dans la consigne du reviewer :
     // c'est lui qui la fait déborder. Il pèse ce plafond, pas plus — il part
     // d'abord dans la consigne du cook, en un argument lui aussi, et ce que

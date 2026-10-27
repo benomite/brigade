@@ -246,7 +246,7 @@ describe("le renommage dans la pause", { concurrency: 4 }, () => {
     assert.equal(attentesDuChef(lieu.journal.base, lireRail(lieu.journal.base))[0]?.quoi, "renommage");
   });
 
-  test("au-delà de sa limite, comptée sur l'horloge de la cuisine depuis le « oui », le renommage est abandonné : l'outil arrêté, rien de livré ni de mergé, la pause levée avant l'heure", { skip: posixOnly("runs the rename tool as a shell command that writes its pid and blocks, then checks that process is alive and stops it by signal; on the Windows job: l'outil tourne") }, async (t) => {
+  test("au-delà de sa limite, comptée sur l'horloge de la cuisine depuis le « oui », le renommage est abandonné : l'outil arrêté, rien de livré ni de mergé, la pause levée avant l'heure", { skip: posixOnly("runs a rename tool that writes `$$` to a file and sleeps, expects that pid alive until the kitchen's clock passes the rename limit, then dead and the pause released as a timeout; under Git Bash `$$` is an MSYS pid, not the Windows pid Node probes, so the tool reads as not running") }, async (t) => {
     const temoin = join(repertoireTemporaire(t), "pid");
     const lieu = await enPause(t, { outil: ["bloque", temoin] });
     const { accepter, premier, levee, gh, heure } = lieu;

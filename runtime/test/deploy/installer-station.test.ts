@@ -200,7 +200,7 @@ describe("sous Linux", { skip: sansSystemd }, () => {
   });
 });
 
-describe("sous macOS", { skip: posixOnly("the installer is a POSIX shell script") }, () => {
+describe("sous macOS", { skip: posixOnly("plays deploy/installer-station.sh through `sh` on a fake macOS whose uname, curl and launchctl are #!/bin/sh doubles first in a PATH joined with “:”, and runs the #!/bin/sh node it installs: on Windows that PATH is one unknown directory, so neither `sh` nor the doubles are found, and the node stand-in cannot be launched") }, () => {
   const VERSION_NODE = "v26.1.0";
 
   // Ce que les releases et nodejs.org servent : l'archive du runtime d'une
@@ -372,7 +372,7 @@ describe("sous macOS", { skip: posixOnly("the installer is a POSIX shell script"
   });
 });
 
-test("un système qui n'est ni Linux ni macOS est refusé", { skip: posixOnly("the installer is a POSIX shell script") }, (t) => {
+test("un système qui n'est ni Linux ni macOS est refusé", { skip: posixOnly("plays deploy/installer-station.sh through `sh` with a #!/bin/sh uname double answering FreeBSD, first in a PATH joined with “:”, and expects its refusal: on Windows that PATH is one unknown directory, so `sh` itself is not found") }, (t) => {
   const machine = doublures(t, { uname: "echo FreeBSD" });
   const rendu = jouer([], machine.env);
   assert.equal(rendu.code, 1);

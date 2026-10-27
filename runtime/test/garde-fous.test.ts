@@ -460,7 +460,7 @@ test("un cook relayé que personne ne reprend au démarrage est arrêté, et son
   assert.equal(seconde.runtime.reprendre(lance.run), null);
 });
 
-test("un cook relayé dont le relais est mort sans écrire de fin n'est pas un survivant : il est noté interrompu, et son groupe tué", { skip: posixOnly("kills the relayed cook by its pid: on Windows the fake claude it ran (a bash script, under Git Bash) kept files of the test directory open, and the job failed to remove it (EPERM)") }, async (t) => {
+test("un cook relayé dont le relais est mort sans écrire de fin n'est pas un survivant : il est noté interrompu, et son groupe tué", { skip: posixOnly("kills a relayed cook's relay with SIGKILL, reopens the kitchen and expects the cook noted interrupted, no survivor and its group killed; on Windows the fake claude the relay started under Git Bash outlives it and keeps files of the test directory open, so the directory cannot be removed") }, async (t) => {
   const premiere = cuisineRelayee(t);
   const lance = premiere.cook(7, "commite-puis-attend");
   await jusqua(() => existsSync(join(premiere.repertoire, "runs", `${lance.run}.cook.pid`)));

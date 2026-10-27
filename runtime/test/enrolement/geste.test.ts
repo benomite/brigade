@@ -46,7 +46,7 @@ test("ce qu'est la machine se lit dans son os-release ; sa cloison, dans les dro
   assert.equal(machineCourante(racine).cloisonnee, true);
 });
 
-test("`prepare` rend le code et la commande en JSON, au registre que la home lui nomme", { skip: posixOnly("runs deploy/brigade-enrolement itself, a bash script: Windows cannot execute it (exit -1 on the job)") }, async (t) => {
+test("`prepare` rend le code et la commande en JSON, au registre que la home lui nomme", { skip: posixOnly("runs deploy/brigade-enrolement `prepare` and expects the code, the command and its expiry in JSON for the registry the home names; the gesture is an extensionless bash script, which Node's execFile cannot start on Windows") }, async (t) => {
   const registre = repertoireTemporaire(t);
 
   const { statut, sortie, erreurs } = await lancer(["prepare", "--to", "chef@box", "--registry", registre], { HOME: repertoireTemporaire(t) });
@@ -60,7 +60,7 @@ test("`prepare` rend le code et la commande en JSON, au registre que la home lui
   assert.match(erreurs, /lance cette commande sur le serveur/);
 });
 
-test("`receive` sans présentation, ou un geste mal écrit, est refusé sans rien écrire", { skip: posixOnly("runs deploy/brigade-enrolement itself, a bash script, for the refusals ssh must not receive: Windows cannot execute it (exit -1 on the job)") }, async (t) => {
+test("`receive` sans présentation, ou un geste mal écrit, est refusé sans rien écrire", { skip: posixOnly("expects malformed CLI calls refused, then runs deploy/brigade-enrolement `present` with what ssh must not receive and expects usage each time; the gesture is an extensionless bash script, which Node's execFile cannot start on Windows") }, async (t) => {
   const repertoire = repertoireTemporaire(t);
   for (const args of [["receive", "--registry", repertoire], ["present"], ["prepare", "--registry", repertoire], ["inconnu"], []]) {
     const { fin } = appeler((appel) => principal(appel, async () => "pas du JSON"), args, { HOME: repertoire });

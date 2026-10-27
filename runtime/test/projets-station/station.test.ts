@@ -22,7 +22,7 @@ const STATION = join(import.meta.dirname, "../../src/station/main.ts");
 type Gist = { files: Record<string, { filename: string; content: string }> };
 
 // SIGHUP n'existe pas sous Windows : la relecture y attend sa cadence.
-test("sans sélection, la vraie station dit qu'elle ne sert aucun projet ; un dépôt choisi dans l'app, elle le prend en main et le suit dans son enregistrement", { skip: posixOnly("SIGHUP, which makes the station reread at once, does not exist on Windows") }, async (t) => {
+test("sans sélection, la vraie station dit qu'elle ne sert aucun projet ; un dépôt choisi dans l'app, elle le prend en main et le suit dans son enregistrement", { skip: posixOnly("starts the real station without a selection, then selects a repository in the app and expects the station, made to reread at once by SIGHUP, to take it in hand and follow it in its registration; Windows cannot send SIGHUP to a process") }, async (t) => {
   const machine = repertoireTemporaire(t);
   const racine = join(machine, "station");
   const compte = join(machine, "compte");

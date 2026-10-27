@@ -344,7 +344,7 @@ describe("sauvegarder et restaurer, en commandes", { concurrency: 8 }, () => {
     assert.equal((await commande(t, RESTAURER, {}, "quelque-part")).code, REFUS);
   });
 
-  test("restaurée sur une machine neuve, la sauvegarde d'un runtime en marche rend un runtime qui redémarre et relit ce qu'il avait servi", { skip: posixOnly("stops the restored runtime with SIGTERM: on Windows kill('SIGTERM') ends the process before its handler runs, so the job saw exit code null instead of 0") }, async (t) => {
+  test("restaurée sur une machine neuve, la sauvegarde d'un runtime en marche rend un runtime qui redémarre et relit ce qu'il avait servi", { skip: posixOnly("restores a running runtime's backup on a fresh machine, starts the runtime on it and expects it to reread what it served, then a clean exit 0 on SIGTERM; on Windows kill('SIGTERM') ends the restored runtime without running its handler, so it exits with no code") }, async (t) => {
     // Une cuisine sert un ticket sous grant `merge`, de la prise au merge.
     const ancienne = cuisine(t, { pass: true, issues: [issue(17, CALIBRE)] });
     chef(ancienne.repertoire, "grant.activated");

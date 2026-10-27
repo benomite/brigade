@@ -81,7 +81,7 @@ test("on Windows, the refusal names the file, who can read it, and the icacls co
   assert.deepEqual(remedeWindows(fichier, acl([regle(MOI)], { proprietaire: AUTRE }))[0], [fichier, "/setowner", `*${MOI}`]);
 });
 
-test("on macOS and Linux, the mode bits decide, as before: 600 is closed, any bit for group or others opens", { skip: posixOnly("reads POSIX mode bits") }, (t) => {
+test("on macOS and Linux, the mode bits decide, as before: 600 is closed, any bit for group or others opens", { skip: posixOnly("writes a secret at 600, then chmods it to each group and other bit in turn and expects each refused with `chmod 600`; on Windows chmod only toggles read-only, and the check reads the file's ACL instead of mode bits") }, (t) => {
   const fichier = join(repertoireTemporaire(t), "secrets.env");
   ecrireSecret(fichier, "CLE_API=une-valeur-de-dev\n");
   assert.equal(statSync(fichier).mode & 0o777, 0o600);

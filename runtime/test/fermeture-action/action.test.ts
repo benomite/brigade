@@ -83,7 +83,7 @@ test("l'aperçu dit ce que coûte la passe et ce que le closer va faire, et ne c
   assert.deepEqual(demandes(cuisine), []);
 });
 
-test("sans `--confirm`, la demande de l'app est refusée et rien n'est écrit ; avec, une demande est créée, qui se lit en attente puis partie", { skip: posixOnly("runs the app's closing gesture through to a closer that is the fake claude (a bash script) on a real git repository; the pass judged the closer's files out of its zone; on the Windows job: + 'zone' - 'delivered'") }, async (t) => {
+test("sans `--confirm`, la demande de l'app est refusée et rien n'est écrit ; avec, une demande est créée, qui se lit en attente puis partie", { skip: posixOnly("requests a closing pass through the app's write gesture, refused without --confirm, then waiting behind a cook and leaving once it ends, and expects the fake-claude closer's pass delivered; on Windows the pass was judged out of its zone, the gates link the closing kitchen commits being rewritten by Git for Windows (the cause closing/history.ts now avoids)") }, async (t) => {
   const cuisine = cuisineFermee(t);
   const { closer } = cuisine;
   closer.gestes(`attendre\n${RETIRER_M1}`);
@@ -142,7 +142,7 @@ test("sans closer réglé, la demande échoue en le disant et en nommant le gest
   assert.ok(!cuisine.types().includes("closing.requested"));
 });
 
-test("le retrait d'une demande qui n'est pas partie la retire ; partie, il est refusé avec sa raison", { skip: posixOnly("withdraws then asks again for a closing pass through the app's gesture, whose closer is the fake claude (a bash script) on a real git repository; the pass judged the closer's files out of its zone; on the Windows job: + 'zone' - 'delivered'") }, async (t) => {
+test("le retrait d'une demande qui n'est pas partie la retire ; partie, il est refusé avec sa raison", { skip: posixOnly("withdraws a waiting closing request through the app's cancel gesture, then requests again and expects the cancel of the started run refused and the pass delivered; on Windows the pass was judged out of its zone because Git for Windows rewrote the gates link of the closing kitchen (closing/history.ts now writes it with /)") }, async (t) => {
   const cuisine = cuisineFermee(t);
   const { closer, types } = cuisine;
   closer.gestes(`attendre\n${RETIRER_M1}`);

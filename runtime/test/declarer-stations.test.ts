@@ -185,7 +185,7 @@ test("la commande du chef, en texte : l'étape, ce qu'elle sert, ce que la machi
 // Le critère de bout en bout : un runtime démarré sans station ne fait partir
 // aucun cook ; l'action déclare, et sans redémarrage le ticket qui attendait
 // part.
-test("de bout en bout : sur un runtime qui tourne sans station, l'action déclare et un cook part sur le ticket, sans redémarrage", { skip: posixOnly("runs the `stations` installation step as a real process and stops it with SIGTERM, which on Windows ends it before its handler runs (exit code null) (this test uses POSIX signals, the fake claude (bash), the fake gh (bash)); on the Windows job: null !== 0") }, async (t) => {
+test("de bout en bout : sur un runtime qui tourne sans station, l'action déclare et un cook part sur le ticket, sans redémarrage", { skip: posixOnly("declares a station through the `stations` installation step against a real runtime started without one, expects a cook to leave on the waiting ticket without restart, then a clean exit 0 on SIGTERM; on Windows kill('SIGTERM') ends the runtime without running its handler, so it exits with no code") }, async (t) => {
   const etat = repertoireTemporaire(t);
   const { clone } = depotGit(t);
   const gh = fauxGh(t);

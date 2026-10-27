@@ -395,7 +395,7 @@ test("une fois par heure, la ligne « N appels GitHub sur l'heure écoulée » v
   assert.equal(lignes.length, 3);
 });
 
-test("la station réelle compte chacun de ses appels au gist dans le compteur de son répertoire", { skip: posixOnly("the real station reaches GitHub through the fake gh, a bash script: on the Windows job it never printed its pairing code (timed out after 120 s)") }, async (t) => {
+test("la station réelle compte chacun de ses appels au gist dans le compteur de son répertoire", { skip: posixOnly("starts the real station on a fake gh that notes its gist calls, stops it on SIGTERM and expects its own call counter to match them; on Windows kill('SIGTERM') ends the station without running its handler, and the station did not even print its pairing code there, a cause not traced yet") }, async (t) => {
   const gists = repertoireTemporaire(t);
   const racine = join(repertoireTemporaire(t), "station");
   mkdirSync(racine);
