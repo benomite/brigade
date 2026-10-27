@@ -814,6 +814,8 @@ export type Faits = {
     etat: string;
     titre: string;
     url: string;
+    // Depuis quand il est dans cet état : sa prise, son entrée en pass… (#1811).
+    depuis: string;
     activite: ActiviteDeTicket | null;
     attente: { raison: string; colonne: string; retour: string | null } | null;
     tiers: { quoi: string; qui: string; depuis: string; relance: string | null; aLArrivee: string } | null;
@@ -1029,6 +1031,7 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limit
         etat: faute === null ? etatLu(ticket) : EN_WAITING,
         titre: ticket.title,
         url: ticket.url,
+        depuis: ticket.since,
         activite: etat.activites.get(ticket.ticket) ?? null,
         attente: ticket.state === "86" ? { raison: direMiseDeCote(ticket.reason), colonne: faute === null ? etatLu(ticket) : EN_WAITING, retour: ticket.until } : null,
         tiers:

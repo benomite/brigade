@@ -5,6 +5,7 @@
 //
 // La lecture se fait aussi sans process (`lireLesFaits`) : le guichet des
 // téléphones rend au téléphone ces faits mêmes (`telephone/projets.ts`).
+import { cadenceDeLaCuisine } from "./activite-cuisine/cadence.ts";
 import { activiteDeLaCuisine } from "./activite-cuisine/comptes.ts";
 import { enProcess, LectureImpossible, Sortie, type Appel } from "./appel.ts";
 import { cartesDeCorrection } from "./correctif/cartes.ts";
@@ -87,6 +88,9 @@ export function lireLesFaits(env: Record<string, string | undefined>, maintenant
     // jour : six nombres, six zéros sans activité. Le projet est celui de l'unité, à défaut celui du journal.
     const projetDuJournal = journal.base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project;
     const activiteCuisine = activiteDeLaCuisine(journal.base, projet || projetDuJournal || "", maintenant);
+    // À quelle allure elle sert (#1811) : servis et ratés heure par heure sur les 24 dernières, et le temps
+    // ordinaire d'un ticket pris, puis en pass — d'où l'histogramme du rail et la carte qui traîne.
+    const cadence = cadenceDeLaCuisine(journal.base, projet || projetDuJournal || "", maintenant);
     // Les rôles de la cuisine du projet, chacun avec sa ligne et sa dernière action — nulle s'il n'a rien fait.
     const rolesCuisine = rolesDeLaCuisine(journal.base, projet || projetDuJournal || "");
     // Ce que coûtent les gates du projet face à son budget — posé par le chef,
@@ -96,7 +100,7 @@ export function lireLesFaits(env: Record<string, string | undefined>, maintenant
     const projetDesGates = projet || projetDuJournal || "";
     const posees = decisionsPosees(journal.base);
     const coutDesGates = { ...coutDuProjet(journal.base, projetDesGates, lireBudget(posees), maintenant, lireBudgetDeLaBase(posees)), ticket: ticketDuBudget(journal.base, projetDesGates) };
-    return { ...forme, plafondDeCalibrage, triage, activiteCuisine, rolesCuisine, coutDesGates, ...(corrections.length === 0 ? {} : { corrections }), ...(reculs.length === 0 ? {} : { reculs }), ...(profils.length === 0 ? {} : { profils }), ...(appris ? { apprentissage } : {}) };
+    return { ...forme, plafondDeCalibrage, triage, activiteCuisine, cadence, rolesCuisine, coutDesGates, ...(corrections.length === 0 ? {} : { corrections }), ...(reculs.length === 0 ? {} : { reculs }), ...(profils.length === 0 ? {} : { profils }), ...(appris ? { apprentissage } : {}) };
   } catch (erreur) {
     // En lecture seule, rien ne crée les tables d'un journal écrit par un
     // runtime d'avant ces projections, ni ne leur donne leur forme du jour.

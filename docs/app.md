@@ -2817,6 +2817,18 @@ For a ticket in pass or served, `cooked by` is added: who cooked it is not who h
   A failed reading — box not reached, GitHub not read by the box, a runtime from before `upstream`
   ("update brigade on the box") — never gives a number: the button says `upcoming: not read`,
   the expanded list says why, and it is not "nothing upcoming".
+- **How fast tickets are being served (#1811, `app/src/cadence.ts`)**: on the same line as `23 upcoming`, a small
+  histogram of the last 24 hours — one line high, one thin bar per hour, the hour in progress on the right. Each bar is
+  stacked: the tickets **served** in that hour in green at the bottom, the **failed** ones in red on top (a pass that came
+  back red, or a cook a guardrail stopped). An hour with nothing is an empty slot on a faint baseline: a run of empty
+  slots shows at once that nothing moved — there is no sentence, and no reassuring blank. The scale is the day's busiest
+  hour, four tickets at least. On hover, on the keyboard or on a tap on the phone, a bar says its hour and its two counts
+  (`14:00–15:00 · 3 served · 1 failed`, the last one `…–now`): that is its only text. **Each Taken or Pass card** carries
+  how long it has been in that column (`12 min`, `3 h`, `2 d`), its exact age and the usual time on hover; a card there
+  more than **twice the median** of the tickets that went through that column in the last 7 days turns its age red and
+  takes a red edge. With fewer than three such tickets, nothing is usual yet: no card stands out, and the hover says why.
+  Everything is read in `facts` (`cadence`, and each rail ticket's `depuis`: `docs/runtime/etat-et-mesures.md`), never
+  from the app's own memory: it is right as soon as the app opens. A runtime from before these fields draws neither.
 - **The triage, day by day (#1283)**: at the head of the rail, a compact block — `triage, day by day` — gives, for each of the last
   seven days (UTC), the most recent first, two counts: `decided alone` (the cards the triage settled itself) and `sent to TODO`
   (the cards it let into TODO). A day with no activity says `0` and `0`, never a blank. The runtime counts (`facts`, `triage`:
