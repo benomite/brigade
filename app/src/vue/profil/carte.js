@@ -13,7 +13,7 @@
 // il reçoit de quoi créer un élément (briques.js) et ce que chaque bouton appelle, et rend des éléments.
 
 import { boutonAction, survol } from "../briques.js";
-import { poserLesReponses } from "../correction/carte.js";
+import { ligneDesTickets, poserLesReponses } from "../correction/carte.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("../../profil.ts").CarteDeProfil} Carte */
@@ -41,31 +41,6 @@ function cree(doc, balise, texte) {
 
 // Un instant de la box, comme la vue les dit ailleurs.
 const quand = (/** @type {string} */ instant) => (Number.isNaN(Date.parse(instant)) ? instant : new Date(instant).toLocaleString("en-US"));
-
-// Les tickets du domaine : chacun son numéro, en monospace, qui ouvre son issue d'un clic — ou, sans
-// adresse que l'app puisse ouvrir, posé seul. Les mêmes que sur la carte d'une correction.
-/** @param {Fabrique} doc @param {Carte["tickets"]} tickets @param {(ticket: number) => void} ouvrir */
-function tickets(doc, tickets, ouvrir) {
-  const ligne = cree(doc, "p");
-  ligne.className = "tickets";
-  ligne.append(cree(doc, "span", TICKETS));
-  for (const { ticket, ouvrable } of tickets) {
-    if (!ouvrable) {
-      const seul = cree(doc, "span", `#${ticket}`);
-      seul.className = "ticket mono";
-      seul.title = "the station gave no https address for this ticket: the app does not open it";
-      ligne.append(seul);
-      continue;
-    }
-    const numero = cree(doc, "button", `#${ticket}`);
-    numero.type = "button";
-    numero.className = "ticket mono";
-    numero.title = `open issue #${ticket} in the browser`;
-    numero.addEventListener("click", () => ouvrir(ticket));
-    ligne.append(numero);
-  }
-  return ligne;
-}
 
 // Une ligne de ce que le profil contiendrait : son libellé, puis ce qu'elle porte.
 /** @param {Fabrique} doc @param {string} libelle @param {any[]} contenu */
@@ -154,7 +129,7 @@ export function poserProfil(doc, carte, etat, gestes) {
   const oui = boutonAction(doc, OUI, () => gestes.repondre("yes"), { recommande: true, prix: EFFET_DU_OUI });
   const non = boutonAction(doc, NON, () => gestes.repondre("no"), { prix: EFFET_DU_NON });
 
-  racine.append(attendu, tete, frequence, premierCoup, tickets(doc, carte.tickets, gestes.ouvrir), contenu(doc, carte), proposee, ...poserLesReponses(doc, etat, [oui, non]));
+  racine.append(attendu, tete, frequence, premierCoup, ligneDesTickets(doc, TICKETS, carte.tickets, gestes.ouvrir), contenu(doc, carte), proposee, ...poserLesReponses(doc, etat, [oui, non]));
   return [racine];
 }
 
