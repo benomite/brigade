@@ -1587,9 +1587,6 @@ function boutonDeCommande(texte, geste) {
   return cree;
 }
 
-// Une entrée de la barre : deux caractères, et ce qu'ils désignent dit en entier
-// au survol et à qui ne voit pas l'écran.
-/** @param {string} signe @param {string} nom @param {() => void} geste */
 // Le logo de brigade (docs/logo/brigade-icone.svg), la queue : la page ne charge aucune image, il est dessiné ici.
 function logoDeBrigade() {
   const ns = "http://www.w3.org/2000/svg";
@@ -1608,6 +1605,9 @@ function logoDeBrigade() {
   return svg;
 }
 
+// Une entrée de la barre : deux caractères, et ce qu'ils désignent dit en entier
+// au survol et à qui ne voit pas l'écran.
+/** @param {string} signe @param {string} nom @param {() => void} geste */
 function icone(signe, nom, geste) {
   const cree = bouton(signe, geste);
   cree.title = nom;
