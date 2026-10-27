@@ -76,7 +76,7 @@ export function clientGitHubDuTableau(options: OptionsClient): ClientDuTableau {
     const limite = options.limite ?? limiteDuProcess();
     let env: NodeJS.ProcessEnv | undefined;
     const environnement = async () => (env ??= options.jeton ? { ...process.env, GH_TOKEN: await options.jeton() } : undefined);
-    const appel = await prendreUnAppel(limite, { usage, compte, etiquette: { projet: options.projet ?? (process.env.BRIGADE_PROJECT || depot), lecture: usage === "geste" ? "gesture" : LECTURE_DU_TABLEAU }, gh: bin, env: environnement, maintenant: options.maintenant });
+    const appel = await prendreUnAppel(limite, { usage, compte, etiquette: { projet: options.projet ?? (process.env.BRIGADE_PROJECT || depot), lecture: LECTURE_DU_TABLEAU }, gh: bin, env: environnement, maintenant: options.maintenant });
     await environnement();
     return new Promise((resoudre, rejeter) => {
       const enfant = execFile(
