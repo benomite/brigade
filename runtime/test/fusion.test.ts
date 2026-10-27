@@ -240,6 +240,8 @@ describe("une livraison se juge fusionnée avec la base", { concurrency: 8 }, ()
     });
     await jusquAu("pass.waiting");
     await laisserTourner();
+    // Le rejeu de la base seule s'écrit après son appel aux gates : on attend le fait.
+    await jusquAu("base.checked", 2);
 
     assert.deepEqual(histoire(), ["pass.waiting"]);
     assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.verdict, pass()?.returns], ["waiting", "base-red", null, 0]);
