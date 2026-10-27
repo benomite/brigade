@@ -1458,9 +1458,9 @@ account (`runtime/src/enregistrement-station/README.md`, #1705): no code to pair
 the list of stations** (#1778), read each time the home opens — **one row per computer**:
 
 ```
-● macbook-air-de-benoit  online · idle · benomite/brigade        ›   choose projects  pair a phone
+● macbook-air-de-benoit  online · idle · benomite/brigade        ›   pair a phone
 ● nas                    online · no project chosen yet           ›
-● parade-box             online · idle · brigade, calculus-workspace, espace, …     ›   choose projects  pair a phone
+● parade-box             online · idle · brigade, calculus-workspace, espace, …     ›   pair a phone
 ```
 
 - **A machine is recognized by its name**, which its registration shares with its presence (case aside). **A paired
@@ -1475,8 +1475,9 @@ the list of stations** (#1778), read each time the home opens — **one row per 
   `offline` (the contract's freshness rule: a clean stop, or no sign of life for 4 min 30 s), then the projects it
   serves — `no project chosen yet`, `no project`, or the repositories themselves. Its platform, machine, version and
   last sign of life are on hover. Dot green and full when online, grey ring when not.
-- **A click on its line opens its projects** — for a paired machine, the whole row opens its station page, and the
-  **choose projects** button next to it opens them under the row (a second click closes them) —, "Projects it serves": your GitHub repositories (the list "add a
+- **Every row does the same thing: a click anywhere on it (or Enter on the focused row) opens the station's page**
+  (#1779) — paired or only registered, online or not, with the same `›` arrow, hover and focus. No row expands a block
+  in place. The page of a registered station carries "Projects it serves": your GitHub repositories (the list "add a
   project" reads), one checkbox each, ticked when the station serves it; a repository it serves that the list no
   longer names stays there, to be unticked. **Ticking or unticking writes at once** the whole selection into the
   station's gist (`brigade-selection.json`, the only file the app writes there; `app/src/stations-du-compte.ts`):

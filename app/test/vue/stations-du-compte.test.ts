@@ -32,12 +32,12 @@ import {
   DEPOTS_ILLISIBLES,
   EN_SON_ABSENCE,
   ENVOI,
-  CHOISIR_SES_PROJETS,
   ILLISIBLES,
   INSTALLER,
   LECTURE_DES_DEPOTS,
   lectureDuCompte,
   ligneDeLEnregistree,
+  projetsDe,
   ligneFondue,
   projetsServis,
   RELIRE,
@@ -73,11 +73,11 @@ const SANS_COMPTE = echecDeGh("gh", 30_000, { code: 4, message: "Command failed:
 const SANS_RESEAU = echecDeGh("gh", 30_000, { code: 1, message: "Command failed" }, "error connecting to api.github.com\ncheck your internet connection or https://githubstatus.com\n");
 
 // Ce que la vue pose d'après les stations du compte : la ligne de chacune, puis ce que leur lecture dit sous la liste.
-function unBloc(etat: EtatDuCompte, vide = false) {
+// `ouverte` : la station dont la page est ouverte, où se posent ses cases (vue.js, `poserLesProjetsChoisis`).
+function unBloc({ ouverte, ...etat }: EtatDuCompte & { ouverte?: string }, vide = false) {
   const faits: string[] = [];
   const gestes: GestesDuCompte = {
-    ouvrir: (id) => void faits.push(`ouvrir ${id}`),
-    fermer: () => void faits.push("fermer"),
+    ouvrirLaStation: (id) => void faits.push(`ouvrir ${id}`),
     choisir: (id, depots) => void faits.push(`choisir ${id} [${depots.join(", ")}]`),
     relire: () => void faits.push("relire"),
     seConnecter: () => void faits.push("se connecter"),
@@ -86,7 +86,8 @@ function unBloc(etat: EtatDuCompte, vide = false) {
   };
   const bloc = new Faux("div");
   const stations = etat.stations?.state === "listed" ? etat.stations.stations : [];
-  bloc.append(...stations.map((station) => ligneDeLEnregistree(doc, station, etat, gestes) as Faux), ...(lectureDuCompte(doc, etat, gestes, vide) as Faux[]));
+  const page = stations.filter(({ id }) => id === ouverte).map((station) => projetsDe(doc, station, etat, gestes) as Faux);
+  bloc.append(...stations.map((station) => ligneDeLEnregistree(doc, station, gestes) as Faux), ...page, ...(lectureDuCompte(doc, etat, gestes, vide) as Faux[]));
   return { bloc, faits, ...lecteurs(bloc) };
 }
 
@@ -191,16 +192,16 @@ describe("la ligne d'une station seulement enregistrée : en ligne ou non, et le
     assert.match(ligne("mac").title, /macOS · macOS 24\.1\.0 · version 1\.4\.0 · last sign of life 2026-10-26 09:42 UTC/);
   });
 
-  test("un clic sur une ligne l'ouvre, un autre la referme", () => {
-    const fermee = unBloc({ stations: LISTEES });
-    assert.equal(fermee.ligne("box").ariaExpanded, "false");
-    fermee.ligne("box").click();
-    assert.deepEqual(fermee.faits, [`ouvrir ${BOX.id}`]);
-    assert.deepEqual(fermee.cases(), [], "une station fermée ne montre pas ses cases");
-    const ouverte = unBloc({ stations: LISTEES, ouverte: BOX.id, depots: DEPOTS });
-    assert.equal(ouverte.ligne("box").ariaExpanded, "true");
-    ouverte.ligne("box").click();
-    assert.deepEqual(ouverte.faits, ["fermer"]);
+  test("un clic sur une ligne ouvre la page de la station, en ligne ou non — la même flèche, rien ne se déplie", () => {
+    const { ligne, faits, cases } = unBloc({ stations: LISTEES });
+    for (const station of [BOX, MAC]) {
+      const une = ligne(station.name);
+      assert.equal(une.ariaExpanded, "", "une ligne n'annonce aucun bloc déplié");
+      assert.deepEqual(une.dessous("span").filter(({ className }) => className === "ouvrir").map(({ textContent }) => textContent), ["›"]);
+      une.click();
+    }
+    assert.deepEqual(faits, [`ouvrir ${BOX.id}`, `ouvrir ${MAC.id}`]);
+    assert.deepEqual(cases(), [], "aucune ligne ne déplie ses cases");
   });
 
   test("une registration illisible se dit en une ligne sous la liste, sa raison au survol, et « read again »", () => {
@@ -384,19 +385,38 @@ describe("la vue jouée : une seule liste de stations, une ligne par machine", (
     assert.match(lus.ligne("macbook-air-de-benoit").textContent, /online · idle · acme\/shop/);
     assert.doesNotMatch(section(vue).textContent, /runs no kitchen|not added to any project|no project chosen yet/);
     assert.deepEqual(lus.cases(), [], "fermée, ses cases ne se montrent pas");
-    // Toute la ligne ouvre la page de la station ; ses cases s'ouvrent du bouton à côté.
-    lus.bouton(CHOISIR_SES_PROJETS).click();
+    // Toute la ligne ouvre la page de la station, où se cochent ses projets : pas de bouton à côté, rien ne se déplie.
+    assert.deepEqual(section(vue).dessous("button").filter(({ textContent }) => textContent === "choose projects"), []);
+    lus.ligne("macbook-air-de-benoit").click();
     await repos();
-    const ouverte = lecteurs(section(vue));
-    assert.equal(ouverte.bouton(CHOISIR_SES_PROJETS).ariaExpanded, "true");
-    assert.deepEqual(ouverte.cases().map(({ ariaLabel, checked }) => [ariaLabel, checked]), [["acme/shop", true], ["acme/site", false]]);
-    cocher(ouverte.caseDe("acme/site"), true);
+    const page = lecteurs(vue.element("station"));
+    assert.ok(vue.element("station").textContent.includes("macbook-air-de-benoit"));
+    assert.deepEqual(page.cases().map(({ ariaLabel, checked }) => [ariaLabel, checked]), [["acme/shop", true], ["acme/site", false]]);
+    cocher(page.caseDe("acme/site"), true);
     await repos();
     assert.deepEqual(vue.dernier("choisirLesProjets"), [mac.id, ["acme/shop", "acme/site"]]);
-    assert.match(lecteurs(section(vue)).ligne("macbook-air-de-benoit").textContent, /online · idle · acme\/shop, acme\/site/);
-    lecteurs(section(vue)).bouton(CHOISIR_SES_PROJETS).click();
-    await repos();
-    assert.deepEqual(lecteurs(section(vue)).cases(), [], "un autre clic referme ses cases");
+    assert.deepEqual(lecteurs(vue.element("station")).cases().map(({ ariaLabel, checked }) => [ariaLabel, checked]), [["acme/shop", true], ["acme/site", true]]);
+  });
+
+  test("toute ligne ouvre la page de sa station : en ligne qui sert des projets, ou hors ligne qui n'en a aucun — aucune ne se déplie", async () => {
+    const box = lue("e3e5", { [contrat.FICHIER_ENREGISTREMENT]: enregistrement("parade-box", "linux", "Linux 6.1.0", null) });
+    const nas = lue("e2d4", { [contrat.FICHIER_ENREGISTREMENT]: enregistrement("nas", "linux", "Linux 6.1.0", VU) });
+    const horsLigne = { ...presence("f0c3", "vieille-box", []), etat: "hors-ligne" as const, dit: "offline for 12 min" };
+    const { stations, accueil: lignes } = appairees(presence("f0a1", "parade-box", ["brigade"]), horsLigne);
+    const vue = await jouerLaVue({ demarrage: () => demarrage(stations, lignes), espace: () => [], stationsDuCompte: () => ({ state: "listed", stations: [nas, box], unreadable: [] }), depotsDuChef: () => DEPOTS });
+    await accueil(vue);
+    assert.deepEqual(nomsDe(vue), ["nas", "parade-box", "vieille-box"]);
+    for (const nom of ["parade-box", "vieille-box", "nas"]) {
+      const lus = lecteurs(section(vue));
+      const ligne = lus.ligne(nom);
+      assert.equal(ligne.ariaExpanded, "");
+      assert.deepEqual(ligne.dessous("span").filter(({ className }) => className === "ouvrir").map(({ textContent }) => textContent), ["›"], `la flèche de ${nom}`);
+      ligne.click();
+      await repos();
+      assert.equal(vue.element("station").dessous("h2")[0]?.textContent, nom, `la page de ${nom}`);
+      vue.element("entree-tous").click();
+      await repos();
+    }
   });
 
   test("cocher un projet l'écrit dans le gist de la station ; relancée, l'app le montre coché", async () => {
@@ -421,15 +441,16 @@ describe("la vue jouée : une seule liste de stations, une ligne par machine", (
     premier.ligne("box").click();
     await repos();
     assert.ok(vue.appels.some(({ geste }) => geste === "depotsDuChef"), "les dépôts du chef ne sont pas lus");
-    const ouvert = lecteurs(section(vue));
+    const ouvert = lecteurs(vue.element("station"));
     assert.deepEqual(ouvert.cases().map(({ ariaLabel, checked }) => [ariaLabel, checked]), [["acme/shop", false], ["acme/site", false]]);
     cocher(ouvert.caseDe("acme/site"), true);
     await repos();
     assert.deepEqual(vue.dernier("choisirLesProjets"), [BOX.id, ["acme/site"]]);
     assert.deepEqual(ecrits, [[contrat.FICHIER_SELECTION]], "l'app écrit un autre fichier que la sélection");
-    const apres = lecteurs(section(vue));
-    assert.match(apres.ligne("box").textContent, /online · acme\/site/);
-    assert.equal(apres.caseDe("acme/site").checked, true);
+    assert.equal(lecteurs(vue.element("station")).caseDe("acme/site").checked, true);
+    vue.element("entree-tous").click();
+    await repos();
+    assert.match(lecteurs(section(vue)).ligne("box").textContent, /online · acme\/site/);
 
     // Relancée : la sélection est relue dans le gist, par le lecteur du runtime.
     const relancee = await jouerLaVue(reponses);
@@ -437,7 +458,7 @@ describe("la vue jouée : une seule liste de stations, une ligne par machine", (
     assert.match(relu.ligne("box").textContent, /online · acme\/site/);
     relu.ligne("box").click();
     await repos();
-    const rouvert = lecteurs(section(relancee));
+    const rouvert = lecteurs(relancee.element("station"));
     assert.deepEqual(rouvert.cases().map(({ ariaLabel, checked }) => [ariaLabel, checked]), [["acme/shop", false], ["acme/site", true]]);
   });
 
