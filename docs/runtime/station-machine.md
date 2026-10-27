@@ -112,15 +112,15 @@ gist channel (`appairage/canal.ts`) — goes through the counter before `gh` lea
   `x-ratelimit-limit`, until `x-ratelimit-reset`, for the REST resource `core`), and the counter keeps
   it. A decision taken on a low quota read more than a minute ago is confirmed first with
   `gh api rate_limit`, which GitHub does not count — at most once a minute.
-- **The kitchen slows down as the quota shrinks.** Polls, pass, manager, heartbeat: above half of
-  the quota, nothing holds them back, however many calls the box made in the hour. Below half, what
-  is left above the reserve is spread over the rest of GitHub's window (so many calls per minute, or
-  one call every so many minutes). At the **reserve of the chef's gestures** — a tenth of the quota,
-  500 of 5,000 — the kitchen waits for the end of the window, then resumes by itself. A held call
-  does not leave and is not counted; the caller treats it as GitHub's limit (said once in the
-  service log): `quota GitHub entamé : N appels restants sur 5000 — la cuisine ralentit, son prochain
-  appel part dans N s`, then `quota GitHub bas : N appels restants sur 5000, gardés pour les gestes du
-  chef — la cuisine attend la fin de la fenêtre, dans N s` (French until the runtime is translated).
+- **The kitchen is held only at the gestures' reserve.** Polls, pass, manager, heartbeat: above the
+  **reserve of the chef's gestures** — a tenth of the quota, 500 of 5,000 — nothing holds them back,
+  however many calls the box made in the hour or however much of the quota is spent. At the reserve,
+  the kitchen waits for the end of the window, then resumes by itself. A held call does not leave and
+  is not counted; the caller treats it as a wait (said once in the service log): `quota GitHub bas : N
+  appels restants sur 5000, gardés pour les gestes du chef — la cuisine attend la fin de la fenêtre,
+  dans N s` (French until the runtime is translated). `status` says it on its own `github` line
+  (`the box holds its own calls to keep the reserve for your gestures, back around HH:MM`); "GitHub
+  is rate-limiting calls" is kept for the times GitHub itself refused a call.
 - **The chef's gestures are never held by the box.** `rail` (remove, merge, send-back,
   choose, answer), `pass <ticket> issue|comment|ask` and `manager` call GitHub as gestures: neither
   the box's count, nor the reserve, nor a pause stops them. They fail only if GitHub itself refuses.
@@ -135,9 +135,8 @@ gist channel (`appairage/canal.ts`) — goes through the counter before `gh` lea
 - **More than three projects**: nothing to tune. The pace is not divided among the projects: a
   project that polls a lot takes what another does not spend. What grows with the projects is the
   consumption: each one adds its polls to the same account.
-- **Tuning it**: there is **no environment variable**. The reserve (`RESERVE_DES_GESTES`), the
-  threshold of the slowdown (`SEUIL_DE_RALENTI`) and the step of the pace (`PAS_DU_DEBIT_MS`) are
-  constants of `runtime/src/limite-github.ts`; they are changed in the code, and checked with the
+- **Tuning it**: there is **no environment variable**. The reserve (`RESERVE_DES_GESTES`) is a
+  constant of `runtime/src/limite-github.ts`; it is changed in the code, and checked with the
   tests of `runtime/test/limite-github.test.ts`.
 - **The hourly line**: once an hour, from the station's start, its service log writes
   `brigade : N appels GitHub sur l'heure écoulée`, N being the count of the last hour, all processes

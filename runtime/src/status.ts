@@ -14,7 +14,7 @@ import { enProcess, LectureImpossible, Sortie, type Appel } from "./appel.ts";
 import { enAnglais } from "./commandes.ts";
 import { AGE_MAX_SAUVEGARDE_MS, decrireEtat, lireEtat, suivre } from "./etat.ts";
 import { ouvrirJournal, type Journal } from "./journal.ts";
-import { appelsDeLaStation, pauseDeLaStation } from "./limite-github.ts";
+import { appelsDeLaStation, pauseDeLaStation, retenueDeLaStation } from "./limite-github.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run status -- [--days <N>] [--follow [<numéro de ticket>]]";
@@ -122,7 +122,7 @@ function photographier(journal: Journal, env: Record<string, string | undefined>
     }
     throw erreur;
   }
-  const lignes = decrireEtat(etat, maintenant, ageMaxSauvegardeMs, pauseDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), appelsDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()));
+  const lignes = decrireEtat(etat, maintenant, ageMaxSauvegardeMs, pauseDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), appelsDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), retenueDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()));
   lignes.push("", direEntreesEn(entreesParType(journal.base, new Date(maintenant.getTime() - jours * 86_400_000), maintenant), jours));
   return { lignes, dernierSeq: etat.dernierSeq };
 }

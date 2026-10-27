@@ -6,7 +6,7 @@ import { test } from "node:test";
 import { Base } from "../src/base.ts";
 import { principal as faits } from "../src/faits.ts";
 import { ouvrirJournal } from "../src/journal.ts";
-import { constaterLimite, limiteDeLaStation, pauseDeLaStation, REPERTOIRE_COMPTEUR } from "../src/limite-github.ts";
+import { constaterLimite, limiteDeLaStation, pauseDeLaStation, REPERTOIRE_COMPTEUR, retenueDeLaStation } from "../src/limite-github.ts";
 import { principal as status } from "../src/status.ts";
 import { appeler, repertoireTemporaire } from "./outils.ts";
 
@@ -54,4 +54,33 @@ test("quand GitHub refuse pour sa limite, status et faits disent la reprise en u
   assert.equal(pauseDeLaStation(station, Date.now()), null);
   assert.doesNotMatch(await lire(status), /rate-limiting/);
   assert.equal(JSON.parse(await lire(faits)).limiteGithub, undefined);
+});
+
+test("quand la box retient ses appels à la réserve des gestes, status le dit à sa façon, sans dire que GitHub limite ; la ligne tombe avec la fenêtre", async (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const station = repertoireTemporaire(t);
+  ouvrirJournal(repertoire).fermer();
+  const env = { BRIGADE_STATE_DIR: repertoire, BRIGADE_STATION_DIR: station };
+  const lire = async () => {
+    const rendu = appeler(status, [], env);
+    assert.equal(await rendu.fin, 0);
+    return rendu.sortie();
+  };
+  const limite = limiteDeLaStation(station);
+  t.after(() => limite.fermer());
+
+  // Au-dessus de la réserve, rien à dire.
+  limite.noter("gh", { restant: 2000, plafond: 5000, reset: Math.floor(Date.now() / 1000 + 1200) * 1000 });
+  assert.equal(retenueDeLaStation(station, Date.now()), null);
+  assert.doesNotMatch(await lire(), /^github /m);
+
+  // À la réserve : la box retient, GitHub n'a rien refusé.
+  limite.noter("gh", { restant: 500, plafond: 5000, reset: Math.floor(Date.now() / 1000 + 1200) * 1000 });
+  assert.notEqual(retenueDeLaStation(station, Date.now()), null);
+  const sortie = await lire();
+  assert.match(sortie, /^github {5}the box holds its own calls to keep the reserve for your gestures, back around \d\d:\d\d$/m);
+  assert.doesNotMatch(sortie, /rate-limiting/);
+
+  // La fenêtre passée, la ligne tombe.
+  assert.equal(retenueDeLaStation(station, Date.now() + 3_600_000), null);
 });

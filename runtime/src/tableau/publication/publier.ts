@@ -23,7 +23,7 @@ import { cartesDeCorrection } from "../../correctif/cartes.ts";
 import { lireEtat } from "../../etat.ts";
 import { HORS_CUISINE } from "../../github.ts";
 import { masquerIdentifiants } from "../../identifiants.ts";
-import { appelsDeLaStation, pauseDeLaStation } from "../../limite-github.ts";
+import { appelsDeLaStation, pauseDeLaStation, retenueDeLaStation } from "../../limite-github.ts";
 import { refusDuProjet } from "../../mise-a-jour/en-service.ts";
 import { cartesDeProfil } from "../../profils/cartes.ts";
 import type { Journal } from "../../journal.ts";
@@ -193,6 +193,7 @@ export function tableauDuJournal(journal: Journal, projet: string, instant: Date
   const { depot, station, gestes } = options;
   const tableau = tableauDeLaCuisine(lireEtat(journal, instant), instant, {
     limiteGithub: pauseDeLaStation(station, instant.getTime()),
+    retenue: retenueDeLaStation(station, instant.getTime()),
     appels: appelsDeLaStation(station, instant.getTime()),
     depot,
     refus: refusDuProjet(station, projet),
