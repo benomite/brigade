@@ -161,8 +161,9 @@ session() {
 
 # Ne rien dire, et rester : le test, ou un garde-fou, y mettra fin. Trente
 # secondes, pas davantage — une suite tuée en plein vol ne laisse pas de faux
-# cook derrière elle.
-rester() { exec sleep 30; }
+# cook derrière elle. FAUX_CLAUDE_RESTER_S le change, pour un test qui compte
+# ses cooks et que la charge d'une machine lente ferait durer plus.
+rester() { exec sleep "${FAUX_CLAUDE_RESTER_S:-30}"; }
 
 # Cède la place à un scénario qui vit : même process, même sortie.
 vivre() { FAUX_CLAUDE="$1" exec node "$ICI/faux-claude.ts"; }

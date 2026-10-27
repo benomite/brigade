@@ -16,6 +16,12 @@ import { posixOnly } from "./support/plateforme.ts";
 const DEUX = lireStations({ BRIGADE_STATIONS: "box/claude:1:code+raisonnement,box/playwright:2:navigateur-headless" });
 const [CLAUDE, PLAYWRIGHT] = ["box/claude", "box/playwright"];
 
+// Un cook muet ne rend sa place qu'en finissant : il reste trente secondes
+// (faux-claude.sh, `rester`). Sous Windows, une suite chargée met parfois plus
+// entre le premier lancement et le dernier, et le cook fini laisse partir le
+// ticket de trop : il y reste cinq minutes.
+const RESTER = { FAUX_CLAUDE_RESTER_S: process.platform === "win32" ? "300" : "30" };
+
 // Le temps qu'une prise qui ne doit pas avoir lieu aurait largement eu pour se faire.
 const laisserServir = () => new Promise((resoudre) => setTimeout(resoudre, 80));
 
@@ -48,7 +54,7 @@ describe("les stations que le projet déclare", { concurrency: 8 }, () => {
   });
 
   test("le plafond de chaque station est respecté : celle à un cook n'en reçoit pas un second, l'autre prend les siens, et le ticket de trop attend", async (t) => {
-    const { journal, etat, lancements } = cuisine(t, { stations: DEUX, scenario: "muet", issues: [issue(14), issue(15), issue(16), issue(17)] });
+    const { journal, etat, lancements } = cuisine(t, { stations: DEUX, scenario: "muet", env: RESTER, issues: [issue(14), issue(15), issue(16), issue(17)] });
     await jusqua(() => lancements().length === 3);
     await laisserServir();
 
@@ -82,7 +88,7 @@ describe("les stations que le projet déclare", { concurrency: 8 }, () => {
     // Trente déclarés chacune, sur six cœurs : deux cooks au plus par station.
     const TRENTE = lireStations({ BRIGADE_STATIONS: "box/claude:30:code+raisonnement,box/playwright:30:navigateur-headless" });
     const six: Machine = { ...MACHINE_CALME, coeurs: 6 };
-    const { journal, etat, lancements } = cuisine(t, { stations: TRENTE, scenario: "muet", machine: () => six, issues: [issue(14), issue(15), issue(16), issue(17), issue(18)] });
+    const { journal, etat, lancements } = cuisine(t, { stations: TRENTE, scenario: "muet", env: RESTER, machine: () => six, issues: [issue(14), issue(15), issue(16), issue(17), issue(18)] });
     await jusqua(() => lancements().length === 4);
     await laisserServir();
 
@@ -113,7 +119,7 @@ describe("les stations que le projet déclare", { concurrency: 8 }, () => {
   });
 
   test("une station à plafond 1, seule : jamais deux cooks à la fois, même devant un rail plein", async (t) => {
-    const { journal, etat, lancements } = cuisine(t, { stations: [DEUX[0]!], scenario: "muet", issues: [issue(14), issue(15), issue(16)] });
+    const { journal, etat, lancements } = cuisine(t, { stations: [DEUX[0]!], scenario: "muet", env: RESTER, issues: [issue(14), issue(15), issue(16)] });
     await jusqua(() => lancements().length === 1);
     await laisserServir();
 
@@ -135,7 +141,7 @@ describe("les stations que le projet déclare", { concurrency: 8 }, () => {
   });
 
   test("le chef règle le plafond d'une station à chaud : il l'emporte sur celui qu'elle déclare, sans toucher à l'autre", { skip: posixOnly("raises box/claude's cap to 2 from the chef's own process while four tickets wait and expects the fourth launch to be credited to box/claude; on Windows that launch came but box/claude still held a single ticket, a cause not traced yet") }, async (t) => {
-    const { repertoire, journal, lancements } = cuisine(t, { stations: DEUX, scenario: "muet", issues: [issue(14), issue(15), issue(16), issue(17)] });
+    const { repertoire, journal, lancements } = cuisine(t, { stations: DEUX, scenario: "muet", env: RESTER, issues: [issue(14), issue(15), issue(16), issue(17)] });
     await jusqua(() => lancements().length === 3);
 
     plafonner(repertoire, 2, CLAUDE);
@@ -192,7 +198,7 @@ describe("les stations que le projet déclare", { concurrency: 8 }, () => {
     assert.equal(seconde.types().filter((type) => type === "stations.undeclared").length, 1);
     seconde.runtime.arreter("test");
 
-    const troisieme = cuisine(t, { lieux: premiere.lieux, stations: [DEUX[0]!], scenario: "muet", issues: [issue(15)] });
+    const troisieme = cuisine(t, { lieux: premiere.lieux, stations: [DEUX[0]!], scenario: "muet", env: RESTER, issues: [issue(15)] });
     await jusqua(() => troisieme.lancements().length === 1);
     assert.equal(sansStationDepuis(troisieme.journal.base), null);
     assert.equal(troisieme.etat(15), "taken");
@@ -291,7 +297,7 @@ describe("les stations que le projet déclare", { concurrency: 8 }, () => {
   });
 
   test("à l'arrêt, plus aucune station ne retient personne", async (t) => {
-    const { repertoire, runtime, lancements } = cuisine(t, { stations: DEUX, scenario: "muet", issues: [issue(14), issue(15), issue(16), issue(17)] });
+    const { repertoire, runtime, lancements } = cuisine(t, { stations: DEUX, scenario: "muet", env: RESTER, issues: [issue(14), issue(15), issue(16), issue(17)] });
     await jusqua(() => lancements().length === 3);
     await jusqua(() => etatStation(runtime.journal.base, PLAYWRIGHT)?.heldReason === "cap");
 
