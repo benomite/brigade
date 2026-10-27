@@ -79,6 +79,18 @@ test("chaque créneau a son fichier : la réclamation, et le renouvellement de c
   assert.throws(() => poserLaDemande(posee({ id: "court" })), /id/);
 });
 
+test("la livraison d'un cook a son créneau à elle, à côté de son renouvellement : son message borné comme `pull` le borne, une fin qui ne se lit pas n'est pas relayée", () => {
+  const livrer = { verb: "deliver" as const, run: "17-a", ending: "delivered" as const, reason: null, message: `J'ai fini.${"x".repeat(30_000)}`, turns: 4, tokens: 400 };
+  assert.equal(fichierDeLaDemande(DEPOT, livrer), "brigade-pull.acme.app.deliver.17-a.json");
+  assert.notEqual(fichierDeLaDemande(DEPOT, livrer), fichierDeLaDemande(DEPOT, { verb: "renew", run: "17-a", proof: null, turns: 0, tokens: 0 }));
+  const [lue] = demandesDuGist(poserLaDemande(posee({ demande: livrer })), DEPOT);
+  assert.ok(lue?.demande.verb === "deliver");
+  assert.deepEqual({ ...lue.demande, message: lue.demande.message?.length }, { ...livrer, message: 20_000 });
+  // Une fin ni `delivered` ni `failed` : la principale ne relaie pas ce qu'elle ne comprend pas.
+  const [nom, brut] = Object.entries(poserLaDemande(posee({ demande: livrer })))[0]!;
+  assert.deepEqual(demandesDuGist({ [nom]: brut.replace('"ending":"delivered"', '"ending":"maybe"') }, DEPOT), []);
+});
+
 test("le tableau publie la dernière réponse de chaque créneau, tant qu'elle a moins de sa garde — la mission rendue telle que `pull` la rend", async (t) => {
   const { journal, gists, relayer, avancer } = projet(t);
   Object.assign(gists.get("gistmac")!, poserLaDemande(posee()));
