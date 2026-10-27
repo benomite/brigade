@@ -716,6 +716,10 @@ const TITRES: Readonly<Record<Exclude<Echec["cas"], null | "ssh-en-echec">, stri
   "commande-manque": "REACHED, BUT A COMMAND IS MISSING ON THE STATION",
   "node-inapte": "REACHED, BUT THE STATION'S NODE DOES NOT SUIT THE RUNTIME",
 };
+// Une lecture qui n'a pas joint GitHub du tout (tableau/lecture.ts, `horsLigne`) : l'app est hors ligne, une seule cause
+// pour tout ce qu'elle lit (#1818). Rien de ce qui était lu ne s'en efface, et rien n'y est une panne.
+export const estHorsLigne = (lecture: object): boolean => "horsLigne" in lecture && lecture.horsLigne === true;
+
 // `sansReponse` : ce qui se dit d'une box jointe dont le code ne dit aucun cas — pour une autre commande que `facts`.
 export function titreDEchec({ cas, atteinte, duTableau }: Echec, sansReponse = "REACHED, BUT `facts` DID NOT ANSWER"): string {
   // Lue du tableau de la cuisine (#1694) : aucune station n'a été jointe, c'est GitHub ou le tableau qui n'a pas dit.
@@ -1202,8 +1206,10 @@ export function tenirFaits(repondues: (projet: string) => ReadonlyMap<number, Re
   const statuts = new Map<string, StatusLu>();
   const poser = <T>(ou: Map<string, T>, projet: string, valeur: T | undefined) => void (valeur === undefined ? ou.delete(projet) : ou.set(projet, valeur));
   return {
+    // Hors ligne, les derniers faits lus restent : la fiche, ses adresses et le rail gardé s'y lisent encore (#1818).
     recevoir(lecture: Lecture): Dessinable {
       const { faits, recue } = lire(lecture, blocs.get(lecture.projet), statuts.get(lecture.projet), repondues(lecture.projet), ecrites(lecture.projet));
+      if (faits === undefined && estHorsLigne(lecture)) return recue;
       if (faits === undefined) tenus.delete(lecture.projet);
       else tenus.set(lecture.projet, { faits, lecture });
       return recue;
@@ -1212,8 +1218,10 @@ export function tenirFaits(repondues: (projet: string) => ReadonlyMap<number, Re
     // change ce qui est dessiné, les derniers faits du projet reviennent
     // redessinés. Une lecture ratée retire tout de celle d'avant, une lecture sans
     // bord son bloc, une lecture sans ligne `rail` ce que les cartes en portaient —
-    // rien ne se dessine d'une sortie qui n'est plus la dernière.
+    // rien ne se dessine d'une sortie qui n'est plus la dernière. Hors ligne, rien n'est retiré, et rien ne se redessine :
+    // le dernier `status` lu reste celui du rail gardé (#1818).
     attendre(montree: Montree): Dessinable | undefined {
+      if (estHorsLigne(montree)) return undefined;
       const avant = blocs.has(montree.projet) || statuts.has(montree.projet);
       const lue = "erreur" in montree ? undefined : montree;
       const bloc = lue?.attend === undefined ? undefined : { bloc: lue.attend, a: montree.a };

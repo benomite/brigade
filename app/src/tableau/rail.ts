@@ -29,7 +29,8 @@ export const MANAGER = "manager";
 // Une lecture, de la forme de celle de la veille des box (box.ts, `Lecture`) : des sorties, ou l'échec de la lecture du
 // tableau — `duTableau` la distingue d'un `ssh` en échec, et `erreur` est sa raison en une phrase.
 export type SortieDuTableau = { commande: string; texte: string };
-export type EchecDuTableau = { erreur: string; atteinte: true; cas: null; duTableau: true; pasPublie?: true };
+// `horsLigne` : GitHub n'a pas été joint (lecture.ts) — l'app est hors ligne, rien n'est en panne (#1818).
+export type EchecDuTableau = { erreur: string; atteinte: true; cas: null; duTableau: true; pasPublie?: true; horsLigne?: true };
 export type LectureDuRail = { projet: string; demande: number; a: string } & ({ sorties: SortieDuTableau[] } | EchecDuTableau);
 // Une commande demandée : son texte — ou ce qui le compose d'après les sorties d'avant (box.ts, `Commande`), que le
 // tableau ne lit pas.
@@ -127,8 +128,8 @@ export function sortieDuTableau(lu: TableauLu, commande: CommandeDemandee): { te
 // La lecture de la veille que ce tableau donne, pour ces commandes, dans leur ordre : la première qui ne s'en tire pas
 // fait l'échec, comme la première commande qui échoue sur une box.
 export function lectureDuTableau(lu: LectureDuTableauDuDepot, projet: string, demande: number, commandes: readonly CommandeDemandee[]): LectureDuRail {
-  const echec = (erreur: string, pasPublie?: true): LectureDuRail => ({ projet, demande, a: lu.luLe, erreur, atteinte: true, cas: null, duTableau: true, ...(pasPublie === undefined ? {} : { pasPublie }) });
-  if (!lu.lu) return echec(lu.raison);
+  const echec = (erreur: string, pasPublie?: true, horsLigne?: true): LectureDuRail => ({ projet, demande, a: lu.luLe, erreur, atteinte: true, cas: null, duTableau: true, ...(pasPublie === undefined ? {} : { pasPublie }), ...(horsLigne === undefined ? {} : { horsLigne }) });
+  if (!lu.lu) return echec(lu.raison, undefined, lu.horsLigne);
   const sorties: SortieDuTableau[] = [];
   for (const commande of commandes) {
     const sortie = sortieDuTableau(lu, commande);

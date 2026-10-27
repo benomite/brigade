@@ -276,6 +276,67 @@ describe("une box pas jointe, après une lecture (#1078)", () => {
   });
 });
 
+// Ce que le process principal envoie à la vue d'une lecture du tableau qui n'a pas joint GitHub (tableau/lecture.ts, #1818).
+const HORS_LIGNE = "2026-10-13T13:35:36.000Z";
+const horsLigne = (a = HORS_LIGNE): Dessinable => tenirFaits().recevoir({ projet: PARADE, demande: 0, a, erreur: "GitHub could not be reached to read the Kitchen board of benomite/parade: fetch failed.", atteinte: true, cas: null, duTableau: true, horsLigne: true });
+const signes = (vue: Jouee) => vue.element("rail").dessous("p").filter(({ className }) => className === "hors-ligne");
+// L'espace du projet : sa bande, et son rail — la carte du projet y est, sur Cooks.
+const ESPACE = ["alertes", "rail"];
+const ALARMES = /not verified|not drawn|not read|open Settings|could not be reached|NOT READ|tried at/;
+
+describe("hors ligne (#1818)", () => {
+  test("le rail garde sa dernière lecture, atténué, sous un seul signe daté — ni erreur, ni « not verified » ; le réseau revenu, il se relit et le signe part", async () => {
+    const vue = await ouvrir();
+    recevoir(vue);
+    const lus = comptes(vue);
+    recevoir(vue, horsLigne());
+    recevoir(vue, horsLigne("2026-10-13T13:36:06.000Z"));
+
+    const rail = vue.element("rail");
+    assert.deepEqual(comptes(vue), lus);
+    assert.equal(bonDe(vue, 14).hidden, false);
+    assert.equal(rail.dataset.horsLigne, "");
+    // Un seul signe, daté de la première lecture ratée de la série.
+    assert.deepEqual(
+      signes(vue).map(({ textContent }) => textContent),
+      [`offline since ${new Date(HORS_LIGNE).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`],
+    );
+    for (const id of ESPACE) assert.doesNotMatch(vue.element(id).textContent, ALARMES, id);
+    // Sur Cooks aussi, un seul signe.
+    montrerOnglet(vue, "Cooks");
+    await repos();
+    assert.equal(signes(vue).length, 1);
+    assert.doesNotMatch(vue.element("rail").textContent, /not verified|not drawn|NOT READ|tried at/);
+    montrerOnglet(vue, "Rail");
+    await repos();
+
+    recevoir(vue);
+    assert.deepEqual(signes(vue), []);
+    assert.equal(rail.dataset.horsLigne, undefined);
+    assert.deepEqual(comptes(vue), lus);
+  });
+
+  test("hors ligne dès l'ouverture : le signe seul, ni rail vide, ni « first read », ni erreur", async () => {
+    const vue = await ouvrir();
+    recevoir(vue, horsLigne());
+    assert.deepEqual(colonnes(vue), []);
+    assert.equal(signes(vue).length, 1);
+    assert.match(vue.element("rail").textContent, /^offline since /);
+    for (const id of ESPACE) assert.doesNotMatch(vue.element(id).textContent, /first read|not verified|not drawn|tried at|NOT READ/, id);
+    montrerOnglet(vue, "Cooks");
+    await repos();
+    assert.equal(signes(vue).length, 1);
+    assert.doesNotMatch(vue.element("rail").textContent, /facts: first read|not verified|not drawn|NOT READ|tried at/);
+  });
+
+  test("une vraie panne, en ligne, se dit comme avant", async () => {
+    const vue = await ouvrir();
+    recevoir(vue, { projet: PARADE, demande: 0, a: A, titre: "NOT READ FROM THE KITCHEN BOARD", erreur: "The Kitchen board of benomite/parade (issue 7) cannot be read: no machine block.", atteinte: true, cas: null, duTableau: true });
+    assert.match(vue.element("rail").textContent, /^the rail is not drawn: NOT READ FROM THE KITCHEN BOARD — tried at /);
+    assert.deepEqual(signes(vue), []);
+  });
+});
+
 describe("une carte porte ce que la file dit", () => {
   test("ce que la cuisine en fait en ce moment, qui tient le ticket, depuis quand, son bail, et en clair ce qui le bloque — quand la file les donne", async () => {
     const vue = await ouvrir();

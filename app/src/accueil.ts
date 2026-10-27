@@ -18,7 +18,7 @@
 import { CONNEXION, CUISINE, tetesDe } from "./alertes.ts";
 import type { Montree } from "./attend.ts";
 import type { Lecture } from "./box.ts";
-import { COMMANDE as FAITS, comprendre, type AppelsGithub, type Faits } from "./faits.ts";
+import { COMMANDE as FAITS, comprendre, estHorsLigne, type AppelsGithub, type Faits } from "./faits.ts";
 import { deriveDe } from "./fiabilite.ts";
 import { heure, heureCourte } from "./format.ts";
 import type { VuDesProjets } from "./projets/projets.ts";
@@ -351,8 +351,10 @@ export function tenirAccueil({ projets, locale = () => null, maintenant = Date.n
     // Le fichier des projets a changé : leurs lignes suivent.
     relire: change,
     // Une lecture de `faits`.
+    // Hors ligne (#1818), la ligne garde ce qui a été lu en dernier : sa station n'y est pour rien.
     faits(lecture: Lecture): Accueil | undefined {
       const { projet, a } = lecture;
+      if (estHorsLigne(lecture)) return undefined;
       if ("erreur" in lecture) faits.set(projet, lecture.atteinte ? { a, illisible: true } : { a, injoignable: true });
       else {
         const lu = comprendre(lecture.sorties.find(({ commande }) => commande === FAITS)?.texte ?? "");
@@ -360,8 +362,9 @@ export function tenirAccueil({ projets, locale = () => null, maintenant = Date.n
       }
       return change();
     },
-    // Une lecture de `status`, son bloc `attend` mis à part. Ratée, elle ne dit plus rien.
+    // Une lecture de `status`, son bloc `attend` mis à part. Ratée, elle ne dit plus rien ; hors ligne, rien n'en change (#1818).
     status(montree: Montree): Accueil | undefined {
+      if (estHorsLigne(montree)) return undefined;
       const texte = "erreur" in montree ? undefined : montree.sorties.find(({ commande }) => commande === "status")?.texte;
       if ("erreur" in montree || texte === undefined) statuts.delete(montree.projet);
       else statuts.set(montree.projet, { texte, ...(montree.attend === undefined ? {} : { attend: montree.attend }) });

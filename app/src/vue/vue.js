@@ -984,6 +984,12 @@ let telephonesOuverts;
 // une par barre posée. Sans entrée, le projet n'a pas encore été lu.
 /** @type {Map<string, Dessinable>} */
 const tenus = new Map();
+// L'app n'a pas joint GitHub (tableau/lecture.ts, `horsLigne`, ticket 1818) : depuis quand, d'après la première lecture ratée
+// de la série. Ce n'est pas une panne : le rail garde sa dernière lecture, atténué, et un seul signe le dit. Il part à la
+// première lecture qui joint GitHub.
+/** @type {Map<string, string>} */
+const horsLignes = new Map();
+const heureCourte = (/** @type {number | string} */ instant) => new Date(instant).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 let demandeFaits = 0;
 // Les clics sur le bouton d'une station qui attendent leur réponse, et ce que le dernier de chacune a rendu
 // (ticket 1185) — par projet et station.
@@ -2746,7 +2752,16 @@ function marquerPastille(nom) {
     delete posee.dataset.forme;
     posee.dataset.lu = "non";
   }
-  const dit = muette ? "unreachable" : tenu === undefined ? "first read in progress…" : "tableau" in tenu ? tenu.tableau.etat : `no facts read — ${tenu.titre}`;
+  const horsLigne = horsLignes.get(nom);
+  const dit = muette
+    ? "unreachable"
+    : horsLigne !== undefined
+      ? `offline since ${heureCourte(horsLigne)}${tenu !== undefined && "tableau" in tenu ? ` — ${tenu.tableau.etat} when last read` : ""}`
+      : tenu === undefined
+        ? "first read in progress…"
+        : "tableau" in tenu
+          ? tenu.tableau.etat
+          : `no facts read — ${tenu.titre}`;
   posee.textContent = muette || (tenu !== undefined && !("tableau" in tenu)) ? "!" : "";
   const entree = /** @type {HTMLElement} */ (posee.parentElement);
   entree.title = `${nom} — ${dit}`;
@@ -2802,6 +2817,8 @@ function poserCarte(ou, projet) {
   // Rien n'est lu — ni box, ni cuisine sur cet ordinateur : le panneau le dit déjà.
   ou.hidden = !seLit(projet);
   if (!seLit(projet)) return ou.replaceChildren();
+  // Hors ligne sans rien de lu avant : le signe du rail dit tout, la carte n'ajoute rien (ticket 1818).
+  if (horsLignes.has(projet.nom) && (tenu === undefined || !("tableau" in tenu))) return ou.replaceChildren();
   if (tenu === undefined) return ou.replaceChildren(bloc("p", "facts: first read in progress…"));
   const heure = heureDe(tenu.a);
   if (!("tableau" in tenu)) {
@@ -4164,6 +4181,19 @@ function fraicheur(a) {
   dit.className = "fraicheur";
   return [dit];
 }
+// Le signe de l'app hors ligne (ticket 1818), à la place de toute erreur : il bat doucement, une lecture est en attente.
+/** @param {string} depuis */
+function signeHorsLigne(depuis) {
+  const signe = bloc("p", `offline since ${heureCourte(depuis)}`);
+  signe.className = "hors-ligne";
+  signe.title = "GitHub cannot be reached from this computer: what is shown is the last state the app read. It is read again on its own when the network comes back.";
+  return signe;
+}
+// Le réseau revient : la lecture n'attend pas son tour.
+window.addEventListener?.("online", () => {
+  if (horsLignes.size > 0) brigade.relireBox(demandeFaits);
+});
+
 // La box d'un projet ne répond pas (alertes.ts, `injoignable`) : depuis quand, d'après la première
 // lecture ratée de la série. Le rail garde alors sa dernière lecture — il n'est plus remplacé par
 // « non joint ».
@@ -4597,6 +4627,8 @@ function poserRail(projet) {
   const cuisine = ongletDe(projet) === CUISINE;
   rail.dataset.onglet = cuisine ? CUISINE : RAIL;
   rail.ariaLabel = cuisine ? "The cooks" : "The rail";
+  const horsLigne = horsLignes.get(projet.nom);
+  delete rail.dataset.horsLigne;
   arreterCuisine.hidden = true;
   // Plus de rail, plus de fiche par-dessus.
   if (rail.hidden && ouverte !== undefined) fermerFiche();
@@ -4633,6 +4665,8 @@ function poserRail(projet) {
   // l'autre onglet.
   if (projet.sansStation === true) return rail.replaceChildren(bloc("h3", STATION_ARRETEE));
   const muet = muets.get(projet.nom);
+  // Hors ligne sans rien de lu avant : le signe seul, sans erreur ni rail vide (ticket 1818).
+  if (horsLigne !== undefined && (tenu === undefined || !("tableau" in tenu))) return poser(signeHorsLigne(horsLigne));
   // Ce que dit le rail qui n'est pas lu : la carte du projet le dit déjà, sur Cooks.
   if (tenu === undefined && muet === undefined) return poser(...(cuisine ? [] : [bloc("h3", `the rail: first read of \`${geste(projet, "facts")}\` in progress…`)]));
   // La box ne répond pas : rien de ce que dit le rail n'est lu à neuf. Il garde sa dernière lecture,
@@ -4725,8 +4759,10 @@ function poserRail(projet) {
   const reprise = repriseDuClavier();
   const ancienne = rangees.get(projet.nom);
   const defile = ancienne === undefined ? undefined : { gauche: ancienne.scrollLeft, haut: ancienne.scrollTop };
+  // Hors ligne, le rail lu en dernier est atténué, et le signe dit depuis quand à la place de son âge (ticket 1818).
+  if (horsLigne !== undefined) rail.dataset.horsLigne = "";
   poser(
-    ...fraicheur(tenu.a),
+    ...(horsLigne === undefined ? fraicheur(tenu.a) : [signeHorsLigne(horsLigne)]),
     ...(cuisine
       ? []
       : [
@@ -7773,8 +7809,13 @@ brigade.surFaits((recue) => {
   const muette = !("tableau" in recue) && "atteinte" in recue && !recue.atteinte;
   if (muette) muets.set(recue.projet, muets.get(recue.projet) ?? recue.a);
   else muets.delete(recue.projet);
+  // Hors ligne, de même : le dernier rail lu reste, et aucun échec ne prend sa place (ticket 1818).
+  const horsLigne = !("tableau" in recue) && "horsLigne" in recue && recue.horsLigne === true;
+  if (horsLigne) horsLignes.set(recue.projet, horsLignes.get(recue.projet) ?? recue.a);
+  else horsLignes.delete(recue.projet);
   const gardee = tenus.get(recue.projet);
-  if (!(muette && gardee !== undefined && "tableau" in gardee)) tenus.set(recue.projet, recue);
+  if (horsLigne && (gardee === undefined || !("tableau" in gardee))) tenus.delete(recue.projet);
+  else if (!((muette || horsLigne) && gardee !== undefined && "tableau" in gardee)) tenus.set(recue.projet, recue);
   marquerPastille(recue.projet);
   if (courant?.nom === recue.projet) {
     dessiner();

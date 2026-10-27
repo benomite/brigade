@@ -30,7 +30,7 @@ export type Commande = string | ((lues: readonly Sortie[]) => string);
 export type Cas = "ssh-en-echec" | "projet-inconnu" | "sans-droit" | "commande-manque" | "node-inapte";
 // `duTableau` : ce n'est ni `ssh` ni la station d'ici qui a échoué, mais la lecture du tableau de la cuisine du projet
 // sur GitHub (tableau/rail.ts, #1694) — `erreur` est alors sa raison, en une phrase.
-export type Echec = { erreur: string; atteinte: boolean; cas: Cas | null; duTableau?: true; pasPublie?: true };
+export type Echec = { erreur: string; atteinte: boolean; cas: Cas | null; duTableau?: true; pasPublie?: true; horsLigne?: true };
 // `demande` : celle à laquelle la lecture répond, telle que `regarder` l'a reçue.
 // `a` : l'instant où la lecture a fini. Une lecture a des sorties, ou une
 // erreur — jamais les deux.

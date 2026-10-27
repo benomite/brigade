@@ -3027,6 +3027,29 @@ failed reading does not set it.
   expanded, they are lines like the rest of the page, each number opening the issue (the address comes from `gh`).
   When GitHub does not answer either, the line from `gh` is said.
 
+### Offline: the last rail read, and one quiet sign (#1818)
+
+The rail is read from the project's Kitchen board on GitHub (#1694). With no network, every reading of that board
+fails at once — the project switch, the kitchen state, the grant state — for one plain cause that is not a fault. A
+reading **that did not reach GitHub at all** (the request threw: no network, no DNS, no answer within its delay —
+`horsLigne` in `tableau/lecture.ts`) is told apart from one that reached it and failed (an HTTP refusal, no board, a
+board the app cannot read), and the app then:
+
+- **keeps the last rail it read**, drawn whole — columns, cards, counts — and **dimmed**; the last facts and `status`
+  are kept in the main process too (`faits.ts`, `tenirFaits`), so a card's sheet and its addresses still open;
+- says it with **one discreet sign** at the top of the rail, in place of the "up to date N min ago" note: `offline since
+  1:35 PM` — the time of the first reading of the series that did not reach GitHub. It **pulses slowly**: a reading
+  is pending, and no sentence says so;
+- puts **nothing in the band**: no "not verified" line, no "open Settings", no signal on the project's box in the bar
+  (`alertes.ts`, `tenirBandes`); the project switch keeps the state last read. Upstream says nothing either;
+- with nothing read before (offline from the start), shows the sign alone — no "first read in progress", no error, no
+  empty rail.
+
+When the network comes back, the rail refreshes on its own: the next reading of the board (every 30 s) — or at once,
+when the system says the network is back — redraws it, and the sign goes away. Alarms then appear only for a real
+fault: a board that cannot be read, or GitHub refusing, is said as before, after the same two readings. A failed `ssh`
+says nothing about the network: it neither sets nor lifts the offline state.
+
 ### What is not drawn, and will not be here
 
 - **The log and the output of `station`** stay text: they are streams, not state tables. The state of the

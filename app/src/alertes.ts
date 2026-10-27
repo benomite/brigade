@@ -34,7 +34,7 @@
 // cuisine attend (« L'urgence », plus bas). Elle vient de `faits`, et la case du projet la dit aussi.
 import type { Montree } from "./attend.ts";
 import type { Echec, Lecture } from "./box.ts";
-import { COMMANDE as FAITS, comprendre, duree, tick, titreDEchec, type DecisionUrgente, type Faits } from "./faits.ts";
+import { COMMANDE as FAITS, comprendre, duree, estHorsLigne, tick, titreDEchec, type DecisionUrgente, type Faits } from "./faits.ts";
 import { GRANTS } from "./gestes.ts";
 import { COMMANDE as MANAGER, managerDe, type Interrupteur } from "./manager.ts";
 import { heureHM } from "./format.ts";
@@ -71,7 +71,8 @@ export type Signal = { etat: "urgence" | "alerte" | "non-verifie" | "injoignable
 // `releve` : la ligne `manager` du runtime, mot pour mot, que l'interrupteur montre au survol.
 // `sans` : pourquoi il n'est pas lu — ce n'est jamais « éteint ».
 export type EtatDuManager = { allume: boolean; dit?: string; releve: string } | Sans;
-export type Bande = { projet: string; alertes: Alerte[]; signal?: Signal; manager?: EtatDuManager };
+// `horsLigne` : l'app n'a pas joint GitHub depuis cet instant (#1818) — la bande est alors vide, sans signal.
+export type Bande = { projet: string; alertes: Alerte[]; signal?: Signal; manager?: EtatDuManager; horsLigne?: string };
 
 // Un état que l'app n'a pas : pourquoi, dans ses mots.
 export type Sans = { sans: string };
@@ -682,6 +683,15 @@ function deLaBoxMuette({ depuis, a, lectures, cause }: SansReponse): Alerte {
   };
 }
 
+// --- L'app hors ligne ---------------------------------------------------------------
+//
+// Sans réseau, tout ce que l'app lit du tableau de la cuisine rate d'un coup : le manager, la cuisine, le grant. Trois
+// « non vérifié » pour une seule cause, qui n'est pas une panne, et aucun geste qui y change rien (#1818). Dès qu'une
+// lecture n'a pas joint GitHub du tout (tableau/lecture.ts, `horsLigne`), la bande se tait : ni ligne, ni signal — la
+// vue garde le dernier rail lu, et un seul signe dit depuis quand l'app est hors ligne. Ce qui avait été lu n'est pas
+// effacé : à la première lecture qui joint GitHub, la bande se redessine de ce qu'elle dit, et une vraie panne — le
+// tableau illisible, GitHub qui refuse — y entre comme avant.
+
 // --- Ce qui est tenu, projet par projet -----------------------------------------
 
 const FAITS_PAS_ENCORE = "first reading in progress";
@@ -738,6 +748,18 @@ export function tenirBandes({ maintenant = Date.now, etablir = LECTURES_POUR_ETA
   const rendues = new Map<string, Bande>();
   // La box d'un projet qui ne répond pas : depuis quand, et combien de lectures de `faits` de suite.
   const silences = new Map<string, SansReponse>();
+  // L'app hors ligne pour un projet : depuis la première lecture de la série qui n'a pas joint GitHub.
+  const horsLigne = new Map<string, string>();
+  // Une lecture hors ligne le note, et ne change rien de ce qui était lu ; une lecture qui a joint GitHub le lève — pas
+  // un `ssh` en échec, qui ne dit rien du réseau.
+  const hors = (lecture: Lecture): boolean => {
+    if (!estHorsLigne(lecture)) {
+      if (!("erreur" in lecture) || lecture.duTableau === true) horsLigne.delete(lecture.projet);
+      return false;
+    }
+    horsLigne.set(lecture.projet, horsLigne.get(lecture.projet) ?? lecture.a);
+    return true;
+  };
   const brute = (projet: string): Alerte[] => {
     const attend = attends.get(projet);
     const controle = controles.get(projet);
@@ -768,12 +790,21 @@ export function tenirBandes({ maintenant = Date.now, etablir = LECTURES_POUR_ETA
     return trouvee ?? LECTURES_DE[alerte.sujet][0] ?? "faits";
   };
   const bande = (projet: string, source?: Source): Bande => {
+    const depuis = horsLigne.get(projet);
+    if (depuis !== undefined) {
+      const manager = etatDuManager(managers.get(projet) ?? { sans: MANAGER_PAS_DIT });
+      const avant = rendues.get(projet);
+      if (avant !== undefined && avant.horsLigne === depuis && avant.alertes.length === 0 && JSON.stringify(avant.manager) === JSON.stringify(manager)) return avant;
+      const rendue: Bande = { projet, alertes: [], manager, horsLigne: depuis };
+      rendues.set(projet, rendue);
+      return rendue;
+    }
     const silence = silences.get(projet);
     if (silence !== undefined && silence.lectures >= LECTURES_POUR_INJOIGNABLE) {
       const triees = [deLaBoxMuette(silence)];
       const manager = etatDuManager(managers.get(projet) ?? { sans: MANAGER_PAS_DIT });
       const avant = rendues.get(projet);
-      if (avant !== undefined && JSON.stringify(avant.alertes) === JSON.stringify(triees) && JSON.stringify(avant.manager) === JSON.stringify(manager)) return avant;
+      if (avant !== undefined && avant.horsLigne === undefined && JSON.stringify(avant.alertes) === JSON.stringify(triees) && JSON.stringify(avant.manager) === JSON.stringify(manager)) return avant;
       const rendue: Bande = { projet, alertes: triees, signal: signalDe(triees), manager };
       rendues.set(projet, rendue);
       return rendue;
@@ -812,7 +843,7 @@ export function tenirBandes({ maintenant = Date.now, etablir = LECTURES_POUR_ETA
     const triees = parGravite(dites);
     const manager = etatDuManager(managers.get(projet) ?? { sans: MANAGER_PAS_DIT });
     const avant = rendues.get(projet);
-    if (avant !== undefined && JSON.stringify(avant.alertes) === JSON.stringify(triees) && JSON.stringify(avant.manager) === JSON.stringify(manager)) return avant;
+    if (avant !== undefined && avant.horsLigne === undefined && JSON.stringify(avant.alertes) === JSON.stringify(triees) && JSON.stringify(avant.manager) === JSON.stringify(manager)) return avant;
     const rendue: Bande = { projet, alertes: triees, signal: signalDe(triees), manager };
     rendues.set(projet, rendue);
     return rendue;
@@ -834,11 +865,12 @@ export function tenirBandes({ maintenant = Date.now, etablir = LECTURES_POUR_ETA
     // lu est oublié ; un projet qui n'en est plus n'a plus rien de tenu.
     ouvrir(projets: readonly string[]): Bande[] {
       faits.clear();
-      for (const tenus of [statuts, attends, managers, controles, silences, suivis, rendues]) for (const projet of tenus.keys()) if (!projets.includes(projet)) tenus.delete(projet);
+      for (const tenus of [statuts, attends, managers, controles, silences, horsLigne, suivis, rendues]) for (const projet of tenus.keys()) if (!projets.includes(projet)) tenus.delete(projet);
       return projets.map((projet) => bande(projet));
     },
     // Une lecture de `faits`.
     faits(lecture: Lecture): Bande {
+      if (hors(lecture)) return bande(lecture.projet, "faits");
       noter(lecture, true);
       if ("erreur" in lecture) faits.set(lecture.projet, { sans: rate(FAITS, lecture) });
       else {
@@ -854,6 +886,7 @@ export function tenirBandes({ maintenant = Date.now, etablir = LECTURES_POUR_ETA
     },
     // Une lecture de `status`, son bloc `attend` mis à part : les lignes de tête restent.
     status(montree: Montree): Bande {
+      if (hors(montree)) return bande(montree.projet, "status");
       noter(montree, false);
       const texte = "erreur" in montree ? undefined : montree.sorties.find(({ commande }) => commande === "status")?.texte;
       statuts.set(montree.projet, "erreur" in montree ? { sans: rate("status", montree) } : (texte ?? { sans: "the reading did not return `status`" }));
@@ -874,6 +907,7 @@ export function tenirBandes({ maintenant = Date.now, etablir = LECTURES_POUR_ETA
     },
     // Une lecture de `manager` — celle de la veille du manager, ou celle de l'onglet : l'état du manager, ou pourquoi il n'est pas lu.
     manager(lecture: Lecture): Bande {
+      if (hors(lecture)) return bande(lecture.projet, "manager");
       noter(lecture, false);
       const sortie = "erreur" in lecture ? undefined : lecture.sorties.find(({ commande }) => commande === MANAGER)?.texte;
       const lu = sortie === undefined ? undefined : managerDe(sortie);

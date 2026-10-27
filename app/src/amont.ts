@@ -7,7 +7,7 @@
 // À côté du rail, un nombre — « 23 upcoming » — qui ouvre la liste ; et, quand le rail est vide, ce
 // qu'il y a en amont, et si le manager les lit — son état vient de `manager` (manager.ts).
 import type { Lecture } from "./box.ts";
-import { titreDEchec } from "./faits.ts";
+import { estHorsLigne, titreDEchec } from "./faits.ts";
 import { entete, type Entete } from "./fiche.ts";
 import { voir as voirManager, type Vu as VuManager } from "./manager.ts";
 
@@ -157,8 +157,9 @@ function direVide(compte: { issues: number; groupes: Groupe[] } | { sans: string
 // Ce qu'une lecture de `manager upstream` donne à poser, avec le dernier état du manager lu.
 export function voir(lecture: Lecture, manager?: VuManager): Vu {
   const { projet, demande, a } = lecture;
-  // Le tableau est frais et lisible, mais ne publie pas ce qui est à venir : la vue n'en dit rien (#1770).
-  if ("pasPublie" in lecture && lecture.pasPublie === true) return { projet, demande, a, nonPublie: true, vide: "nothing on the rail" };
+  // Le tableau est frais et lisible, mais ne publie pas ce qui est à venir : la vue n'en dit rien (#1770). Hors ligne non
+  // plus : le rail gardé n'a pas à dire que ce qui est à venir n'a pas été lu (#1818).
+  if (("pasPublie" in lecture && lecture.pasPublie === true) || estHorsLigne(lecture)) return { projet, demande, a, nonPublie: true, vide: "nothing on the rail" };
   const amont = sortieDe(lecture);
   if (amont === undefined || "informe" in amont) {
     const sans = sansLecture(lecture, amont?.informe);
