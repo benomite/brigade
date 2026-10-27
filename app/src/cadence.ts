@@ -53,10 +53,9 @@ export function cadenceLue(brut: unknown): CadenceLue | undefined {
   return { hours: lues, medianSeconds: { taken, pass } };
 }
 
-const pluriel = (n: number, mot: string) => `${n} ${mot}`;
-
 // Les vingt-quatre barres, à l'échelle de l'heure la plus chargée du jour — `ECHELLE_MIN` au moins. Les heures se
-// disent à l'heure locale du poste ; la dernière va jusqu'à maintenant.
+// disent à l'heure locale du poste ; la dernière va jusqu'à maintenant. La part des ratés est ce qui reste de la barre
+// entière une fois les servis posés : arrondies chacune de leur côté, les deux pourraient passer 100.
 export function histogramme({ hours }: CadenceLue): Histogramme {
   const echelle = Math.max(ECHELLE_MIN, ...hours.map(({ served, failed }) => served + failed));
   const part = (n: number) => Math.round((n / echelle) * 100);
@@ -68,8 +67,8 @@ export function histogramme({ hours }: CadenceLue): Histogramme {
       servis: served,
       rates: failed,
       hautServis: part(served),
-      hautRates: part(failed),
-      dit: `${heureHM(at)}–${fin} · ${pluriel(served, "served")} · ${pluriel(failed, "failed")}`,
+      hautRates: part(served + failed) - part(served),
+      dit: `${heureHM(at)}–${fin} · ${served} served · ${failed} failed`,
       vide: served === 0 && failed === 0,
       enCours,
     };

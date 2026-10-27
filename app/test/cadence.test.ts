@@ -68,6 +68,9 @@ describe("l'histogramme", () => {
     // Plus chargé, l'échelle suit.
     const charge = histogramme({ ...CADENCE, hours: vides().map((heure, rang) => (rang === 5 ? { ...heure, served: 6, failed: 2 } : rang === 6 ? { ...heure, served: 2 } : heure)) });
     assert.deepEqual([charge.barres[5]?.hautServis, charge.barres[5]?.hautRates, charge.barres[6]?.hautServis], [75, 25, 25]);
+    // Arrondies chacune de leur côté, 1 et 7 sur 8 feraient 13 et 88 : la barre pleine ne passe pas 100.
+    const juste = histogramme({ ...CADENCE, hours: vides().map((heure, rang) => (rang === 5 ? { ...heure, served: 1, failed: 7 } : heure)) });
+    assert.deepEqual([juste.barres[5]?.hautServis, juste.barres[5]?.hautRates], [13, 87]);
   });
 });
 
