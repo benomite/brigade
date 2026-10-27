@@ -25,6 +25,12 @@
 // bail —, elle le lit dans leur gist à chaque cadence et le relaie au journal du
 // projet, dont le runtime décide (`tirer-par-github/`).
 //
+// Un projet que l'app lui demande en principale, alors qu'une autre station
+// appairée du compte le sert déjà : elle n'en ouvre pas une seconde cuisine.
+// Elle rejoint celle qui tourne, comme une station de plus, en le publiant dans
+// son gist d'appairage. Ou elle refuse en une phrase, si elle ne peut pas la
+// rejoindre — et rien n'est créé (`rejoindre.ts`).
+//
 // Ce qu'elle en dit, projet par projet, elle l'écrit dans le même gist
 // (`brigade-projets-suivi.json`) : l'app le montre au chef — et, pour chacun,
 // la station où il cuit, et si c'est l'ordinateur du chef ; pour ceux qu'elle
@@ -72,12 +78,14 @@ import { verifierAcces, type Acces } from "./acces.ts";
 import { refus as refusDe, type CodeDeRefus } from "./refus.ts";
 import { brancheDuProjet } from "../reglages-projet/en-vigueur.ts";
 import { FICHIER } from "../reglages-projet/reglages.ts";
-import { cloner, CloneEnEchec, decisionsDe, poserLesDecisions, verifierAutorisation, type Autorisation } from "./preparer.ts";
+import { capacitesDe, cloner, CloneEnEchec, decisionsDe, poserLesDecisions, verifierAutorisation, type Autorisation } from "./preparer.ts";
 import { ENQUETE_MUETTE, enqueter, lireLEchecDuClone, type Enquete } from "./echec-du-clone.ts";
 import { repondeurDeRemedes } from "../remedes/distant.ts";
 import { executerRemede, type StationDesRemedes } from "../remedes/executer.ts";
 import { REMEDES, type Registre } from "../remedes/registre.ts";
 import { relayerLesDemandes } from "../tirer-par-github/relayer.ts";
+import { plateformeDe } from "../enregistrement-station/contrat.ts";
+import { documentDesRejointes, FICHIER_REJOINTES, issueDeLAjout, rejoindreDe, type CuisineRejointe } from "./rejoindre.ts";
 import { CADENCE_DES_APPAIREES_MS, declarerLesSecondaires, injoignables, secondairesDuProjet, type LectureDesAppairees, type StationSecondaire } from "./secondaires.ts";
 
 // Entre deux lectures de ce que l'app demande.
@@ -141,6 +149,13 @@ export type OptionsProjets = {
   // `cadenceDesAppareesMs`. Absent : elle n'en lit aucune.
   lireLesAppairees?: () => Promise<LectureDesAppairees>;
   cadenceDesAppareesMs?: number;
+  // La plateforme de sa machine (`process.platform` par défaut) : un Mac fournit
+  // `macos` à la cuisine qu'il rejoint (`rejoindre.ts`).
+  plateforme?: string;
+  // Les cuisines qu'elle a rejointes, à chaque lecture, et son gist
+  // d'appairage, où elle pose ses demandes : la station y cuit
+  // (`tirer-par-github/cuisiner.ts`). Absent : elle n'y cuit pas.
+  surLesRejointes?: (rejointes: readonly CuisineRejointe[], gist: string) => void;
 };
 
 // Ce que l'app demande, tel qu'une lecture le rend : le gist où la station le
@@ -228,6 +243,9 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
   // Quand chaque projet a été servi pour la première fois.
   const serviLe = new Map<string, string>();
   let dernierSuivi = "";
+  // Les cuisines rejointes, telles que son gist d'appairage les porte : null
+  // avant de l'avoir lu.
+  let rejointesPubliees: string | null = null;
   // La dernière lecture du gist, et le dernier suivi : ce que les remèdes en lisent.
   let derniersLus: { gist: string; lus: Fichiers } | null = null;
   let derniersSuivis: SuiviDuProjet[] = [];
@@ -396,6 +414,10 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
     // est son déménagement.
     const motifs = new Map<string, string>();
     const bascules = new Map<string, Bascule>();
+    // Ceux qu'une autre station sert déjà : rejoints, ou refusés — leur
+    // cuisine ne s'ouvre pas ici, rien ne s'en prépare (`rejoindre.ts`).
+    const horsCuisine = new Set<string>();
+    const rejointes: CuisineRejointe[] = [];
     // Les projets à remettre : leur ligne quitte le bloc d'abord.
     const aRemettre: Array<{ projet: ProjetDemande; remise: NonNullable<ProjetDemande["remise"]> }> = [];
     for (const projet of demande.projets) {
@@ -499,6 +521,24 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
           suivis.set(projet.nom, { ...suiviDu(projet, "refuse", `it was handed over to ${ailleurs.to} (move asked on ${ailleurs.askedAt}) and cooks there: move it back to bring it here`, [], "handed-over-elsewhere"), cuitSur: ailleurs.to });
           continue;
         }
+        // Une autre station le sert déjà : avant tout clone, toute décision,
+        // tout journal, elle en rejoint la cuisine, ou refuse en une phrase.
+        const issue = issueDeLAjout(await lireLesAppairees(), projet.depot, { nom: station, gist: gistAppaire(racine) });
+        if (arrete) return;
+        if (issue.issue !== "seule") {
+          horsCuisine.add(projet.nom);
+          if (issue.issue === "rejointe") {
+            const { nom: principale } = issue.principale;
+            const fournit = capacitesDe(projet.fournit, plateformeDe(options.plateforme ?? process.platform));
+            rejointes.push({ nom: projet.nom, depot: projet.depot, principale, cooks: projet.cooks, fournit });
+            direUneFois(`rejointe ${projet.nom} ${principale}`, `brigade : station — ${projet.nom} est déjà servi par ${principale} : elle en rejoint la cuisine comme une station de plus (${projet.cooks} cook(s) au plus, fournit : ${fournit.join(", ")}) — ${principale} garde son manager et sa pass, aucune cuisine ne s'ouvre ici`);
+            suivis.set(projet.nom, { ...suiviDu(projet, "secondaire", `joined the kitchen that ${principale} runs: it cooks there as one more station, and ${principale} keeps the manager and the pass`), cuitSur: principale, rejoindre: rejoindreDe(issue) });
+          } else {
+            direUneFois(`injoignable ${projet.nom} ${issue.phrase}`, `brigade : station — ${projet.nom} n'est pas servi ici, et aucune cuisine ne s'ouvre : ${issue.phrase}`);
+            suivis.set(projet.nom, { ...suiviDu(projet, "refuse", issue.phrase, [], "kitchen-not-joinable"), rejoindre: rejoindreDe(issue) });
+          }
+          continue;
+        }
       }
       const prepare = await preparer(projet, recu);
       if (arrete) return;
@@ -571,7 +611,9 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
     }).map((dit, rang) => {
       // Ce qui manque à la station pour ses tests : un choix par besoin, et le
       // blocage qui l'attend — tenus avant que les blocages ne soient lus.
-      const choix = besoins.tenir(demande.projets[rang]!, { repertoireEtat: etatDe(dit.nom), clone: cloneDe(dit.nom) });
+      // Un projet dont elle a rejoint la cuisine n'a pas de journal ici : elle n'en est pas la principale.
+      const projet = demande.projets[rang]!;
+      const choix = besoins.tenir(horsCuisine.has(projet.nom) ? { ...projet, principale: false } : projet, { repertoireEtat: etatDe(dit.nom), clone: cloneDe(dit.nom) });
       // Ce qui bloque le projet, lu dans son journal, quel que soit son état.
       const blocages = lireBlocages(etatDe(dit.nom));
       // Le temps de son ajout à son premier ticket servi (#1401).
@@ -611,7 +653,7 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
     // GitHub en panne : elle réessaie à la lecture suivante.
     for (const [rang, dit] of suivi.entries()) {
       const projet = demande.projets[rang]!;
-      if (!projet.principale || !(dit.choix ?? []).some(attendSonTicket)) continue;
+      if (!projet.principale || horsCuisine.has(projet.nom) || !(dit.choix ?? []).some(attendSonTicket)) continue;
       try {
         for (const { id, ticket, ouvert } of await ouvrirLesTicketsDe(projet, etatDe(dit.nom))) {
           if (ouvert) dire(`brigade : station — ${projet.nom} : ticket #${ticket} ouvert sur ${projet.depot} pour que son setup apporte lui-même ce qui manque (${id})`);
@@ -630,13 +672,24 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
     // neuf : il n'en a pas.
     const onboarding = Object.fromEntries(
       demande.projets.flatMap((projet) => {
-        if (!projet.principale || (projet.reprise ?? null) !== null) return [];
+        if (!projet.principale || (projet.reprise ?? null) !== null || horsCuisine.has(projet.nom)) return [];
         const dit = suivi.find(({ nom }) => nom === projet.nom) ?? null;
         const repertoireEtat = etatDe(projet.nom);
         return [[projet.nom, lireOnboarding({ repertoireEtat, projet: projet.nom, depot: projet.depot, station, suivi: dit, clone: existsSync(cloneDe(projet.nom)) })]];
       }),
     );
     derniersSuivis = suivi;
+    // Les cuisines qu'elle a rejointes, dans son gist d'appairage : c'est là
+    // que la principale de chacune les lit, et l'y déclare (`secondaires.ts`).
+    const appairage = gistAppaire(racine);
+    if (appairage !== null) {
+      const rejointesDoc = documentDesRejointes(rejointes);
+      if (rejointesPubliees === null) rejointesPubliees = (appairage === gist ? lus : await canal.lire(appairage))?.[FICHIER_REJOINTES] ?? documentDesRejointes([]);
+      if (arrete) return;
+      if (rejointesDoc !== rejointesPubliees && (await canal.ecrire(appairage, { [FICHIER_REJOINTES]: rejointesDoc })) !== "absent") rejointesPubliees = rejointesDoc;
+      if (arrete) return;
+      options.surLesRejointes?.(rejointes, appairage);
+    }
     // Le suivi ne se réécrit que s'il a changé : un gist n'est pas un journal.
     const compare = JSON.stringify({ suivi, onboarding });
     if (compare === dernierSuivi && lus[FICHIER_SUIVI] !== undefined) return;

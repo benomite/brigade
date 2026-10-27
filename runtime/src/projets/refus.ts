@@ -23,6 +23,7 @@ export const CODES_DE_REFUS = [
   "decisions-not-written",
   "hand-written-line",
   "handed-over-elsewhere",
+  "kitchen-not-joinable",
   // Tout le reste.
   "unexpected",
 ] as const;
@@ -46,6 +47,7 @@ export const CAUSES: Record<CodeDeRefus, Cause> = {
   "decisions-not-written": { message: "The station could not save the choices you made for this project.", action: "Check that the station's disk is not full or read-only, then wait: the station tries again." },
   "hand-written-line": { message: "This project is already set up by hand on the station, which blocks the app's setup.", action: "Remove the hand-written line from the app; the station then writes its own." },
   "handed-over-elsewhere": { message: "This project was moved to another station and cooks there.", action: "Move it back to this station from the app if you want it to cook here." },
+  "kitchen-not-joinable": { message: "Another station already runs this project's kitchen, and this computer cannot join it.", action: "Make sure the station that serves it is online and this computer is paired in the app; this computer tries again by itself." },
   unexpected: { message: "The station could not open this project for a reason it does not recognise.", action: "Ask for help with the station's log; the station does not retry until the project's settings change." },
 };
 

@@ -7,7 +7,7 @@
 // réseau ; `deconnecte`, comme un `gh` connecté à aucun compte (son message et
 // son code 4) ; `jeton-refuse`, comme un `gh` dont GitHub refuse le jeton ;
 // `limite`, comme un compte dont GitHub limite les appels.
-import { appendFileSync, existsSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmdirSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 type Gist = { id: string; description: string; public: boolean; updated_at: string; files: Record<string, { filename: string; content: string }> };
@@ -55,10 +55,32 @@ if (methode === "POST" && id === undefined) {
   ecrire(gist);
   rendre(gist);
 } else if (methode === "PATCH" && id !== undefined) {
-  const gist = lire(id) ?? sortir(1, "gh: Not Found (HTTP 404)");
-  Object.assign(gist.files, fichiers(entree().files));
-  ecrire({ ...gist, updated_at: new Date().toISOString() });
-  rendre(gist);
+  // GitHub fusionne les fichiers d'un PATCH de son côté : deux réécritures du
+  // même gist au même instant — l'enregistrement d'une station et son suivi —
+  // gardent chacune les siens. La doublure lit, modifie et récrit : elle le
+  // fait sous un verrou, sinon la seconde efface la première.
+  const corps = entree();
+  const verrou = `${fichier(id)}.verrou`;
+  for (;;) {
+    try {
+      mkdirSync(verrou);
+      break;
+    } catch {
+      // Un verrou laissé par une doublure tuée en plein PATCH ne bloque pas les suivantes.
+      try {
+        if (Date.now() - statSync(verrou).mtimeMs > 10_000) rmdirSync(verrou);
+      } catch {}
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5);
+    }
+  }
+  // `sortir` quitte le process sans passer par un `finally` : le verrou est levé avant.
+  const gist = lire(id);
+  if (gist !== null) {
+    Object.assign(gist.files, fichiers(corps.files));
+    ecrire({ ...gist, updated_at: new Date().toISOString() });
+  }
+  rmdirSync(verrou);
+  rendre(gist ?? sortir(1, "gh: Not Found (HTTP 404)"));
 } else if (methode === "GET" && id !== undefined) {
   rendre(lire(id) ?? sortir(1, "gh: Not Found (HTTP 404)"));
 } else if (methode === "GET") {

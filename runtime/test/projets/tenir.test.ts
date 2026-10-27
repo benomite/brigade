@@ -20,6 +20,7 @@ import { ENQUETE_MUETTE, PAGE_DES_JETONS_FINS, type Enquete } from "../../src/pr
 import { CloneEnEchec, type Autorisation } from "../../src/projets/preparer.ts";
 import { refus } from "../../src/projets/refus.ts";
 import type { LectureDesAppairees } from "../../src/projets/secondaires.ts";
+import { documentDesRejointes, FICHIER_REJOINTES } from "../../src/projets/rejoindre.ts";
 import { tenirProjetsDeLApp } from "../../src/projets/tenir.ts";
 import { poserLaDemande } from "../../src/tirer-par-github/demande.ts";
 import { lectureDesAppairees } from "../aides/appairees.ts";
@@ -239,6 +240,50 @@ test("ce qu'une station secondaire demande par GitHub, posé dans son gist, la p
     journal.fermer();
   }
   assert.equal(station.lignes.filter((ligne) => ligne === "brigade : station — shop : mac/claude demande par GitHub (claim), relayé au journal du projet").length, 1);
+});
+
+test("un ordinateur ajouté au projet alors qu'elle le servait, qui en a rejoint la cuisine (#1789) : la principale le déclare au journal comme une station de plus, relaie ce qu'il réclame, et garde son manager et sa pass", async (t) => {
+  const MAINTENANT = Date.parse("2026-10-15T12:02:00Z");
+  // Ce que le Mac publie dans son gist d'appairage (`rejoindre.ts`) : l'app ne
+  // l'y dit pas secondaire — sa demande n'est pas dans ce gist.
+  const gistmac: Fichiers = { [FICHIER_REJOINTES]: documentDesRejointes([{ nom: "shop", depot: "acme/shop", principale: "box", cooks: 2, fournit: ["code", "raisonnement", "macos"] }]) };
+  const station = uneStation(t, { appairees: async () => lectureDesAppairees(MAINTENANT, { id: GIST, nom: "box", sert: { shop: "acme/shop" } }, { id: "gistmac", nom: "mac", fichiers: gistmac }), gists: { gistmac } });
+  station.demander(SHOP);
+  await station.projets.relire();
+
+  const journal = () => ouvrirJournal(join(station.racine, "etat/shop"), { lectureSeule: true });
+  const lu = journal();
+  try {
+    const decisions = decisionsPosees(lu.base);
+    assert.equal(decisions.BRIGADE_STATIONS, "box/claude:2:code+raisonnement,mac/claude:2:code+raisonnement+macos:distante+ensemble");
+    // Une seule cuisine : le calibrage du manager et du reviewer est le sien.
+    assert.equal(decisions.BRIGADE_MANAGER_MODEL, "sonnet");
+    assert.equal(lu.tout().filter((evenement) => evenement.type === "project.added").length, 1);
+  } finally {
+    lu.fermer();
+  }
+  assert.equal(station.suivi()?.[0]?.etat, "servi");
+  assert.equal(station.suivi()?.[0]?.rejoindre, undefined);
+  assert.deepEqual(station.suivi()?.[0]?.secondaires, [{ nom: "mac", station: "mac/claude", gist: "gistmac", cooks: 2, fournit: ["code", "raisonnement", "macos"], atteinte: true, dit: "reached: it is online on GitHub" }]);
+
+  // Il cuit : ce qu'il réclame par son gist arrive au journal du projet.
+  const ecrire = ouvrirJournal(join(station.racine, "etat/shop"));
+  try {
+    ecrire.ajouter({ project: "shop", ticket: null, author: "runtime", type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
+  } finally {
+    ecrire.fermer();
+  }
+  Object.assign(gistmac, poserLaDemande({ id: "6fa459ea-ee8a-3ca4-894e-db77e160355e", depot: "acme/shop", le: new Date(MAINTENANT).toISOString(), demande: { verb: "claim" } }));
+  await station.projets.relire();
+  const relu = journal();
+  try {
+    assert.deepEqual(
+      relu.tout().filter((e) => e.type === "remote.asked").map((e) => [e.author, e.payload]),
+      [["station:mac/claude", { id: "6fa459ea-ee8a-3ca4-894e-db77e160355e", station: "mac/claude", via: "github", verb: "claim" }]],
+    );
+  } finally {
+    relu.fermer();
+  }
 });
 
 test("sans station appairée en plus d'elle, ni le journal ni le suivi n'en disent rien", async (t) => {

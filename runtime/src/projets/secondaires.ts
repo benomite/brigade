@@ -1,7 +1,9 @@
 // Les stations que l'app appaire à un projet en plus de sa principale : celles
 // dont le chef a dit, en ajoutant le projet, qu'elles n'en sont pas la
 // principale (`principale: false` dans le `brigade-projets.json` de leur gist,
-// `demande.ts`). Rien d'autre ne les nomme à la principale : elle les lit dans
+// `demande.ts`), et celles qu'il a ajoutées au projet alors qu'une station le
+// servait déjà, qui en ont rejoint la cuisine (`brigade-cuisines-rejointes.json`
+// de leur gist, `rejoindre.ts`). Rien d'autre ne les nomme à la principale : elle les lit dans
 // les gists appairés du compte (`appairage/stations-du-chef.ts`), les déclare
 // au journal du projet — la même décision que toutes ses stations
 // (`BRIGADE_STATIONS`, tenue par `une-station.ts`), sans commande du chef —,
@@ -26,6 +28,7 @@ import type { StationDeclaree } from "../stations-declarees.ts";
 import { tenirUneStation } from "../une-station.ts";
 import { FICHIER_PROJETS, lireDemande } from "./demande.ts";
 import { capacitesDe, machineDe } from "./preparer.ts";
+import { FICHIER_REJOINTES, rejointesLues } from "./rejoindre.ts";
 
 // Entre deux lectures des gists appairés du compte : la liste des gists et
 // chacun des appairés, autant d'appels à GitHub. Cinq minutes, la cadence où
@@ -93,7 +96,11 @@ export function secondairesDuProjet(lecture: LectureDesAppairees, depot: string,
     if (station === `${machineDe(soi.nom)}/${MOTEUR}` || trouvees.some((une) => une.station === station)) continue;
     const brut = gists.get(lue.id)?.[FICHIER_PROJETS];
     // Une station qui remet le projet (`remise`) le quitte : elle n'y cuit pas.
-    const demande = (brut === undefined ? null : lireDemande(brut))?.projets.find((projet) => minuscules(projet.depot) === minuscules(depot) && !projet.principale && (projet.remise ?? null) === null);
+    const demandee = (brut === undefined ? null : lireDemande(brut))?.projets.find((projet) => minuscules(projet.depot) === minuscules(depot) && !projet.principale && (projet.remise ?? null) === null);
+    // Ou celle que l'app en dit principale, mais qui a trouvé sa cuisine
+    // ouverte ici, et l'a rejointe plutôt que d'en ouvrir une seconde (`rejoindre.ts`).
+    const rejointe = rejointesLues(gists.get(lue.id)?.[FICHIER_REJOINTES]).find((projet) => minuscules(projet.depot) === minuscules(depot));
+    const demande = demandee ?? rejointe;
     if (demande === undefined) continue;
     const pas = lue.online ? null : pourquoiPasAtteinte(lue.lastSeen, lue.stoppedAt);
     trouvees.push({ nom: lue.name, station, gist: lue.id, cooks: demande.cooks, fournit: capacitesDe(demande.fournit), atteinte: lue.online, dit: pas === null ? "reached: it is online on GitHub" : pas.dit, ...(pas === null ? {} : avecSonGeste(pas.raison)) });

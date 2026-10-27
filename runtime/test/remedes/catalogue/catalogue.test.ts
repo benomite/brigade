@@ -179,7 +179,7 @@ test("chaque remède du catalogue porte son drapeau destructif : vrai s'il retir
 
 test("un refus sans remède porte pourquoi il n'y a pas de bouton, en une phrase non vide", () => {
   const sans = CODES_DE_REFUS.filter((code) => !(code in AVEC_REMEDE));
-  assert.deepEqual([...sans].sort(), ["already-served", "clone-failed", "decisions-not-written", "door-not-open", "fetch-blocked", "handed-over-elsewhere", "push-blocked", "unexpected"]);
+  assert.deepEqual([...sans].sort(), ["already-served", "clone-failed", "decisions-not-written", "door-not-open", "fetch-blocked", "handed-over-elsewhere", "kitchen-not-joinable", "push-blocked", "unexpected"]);
   for (const code of sans) {
     assert.equal(REMEDES.pour(code), null, code);
     const servi = refus(code);

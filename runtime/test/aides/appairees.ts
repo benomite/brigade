@@ -9,18 +9,21 @@ import type { LectureDesAppairees } from "../../src/projets/secondaires.ts";
 
 // `signe` : son dernier signe de vie, en minutes avant l'instant de la
 // lecture ; `arretee` : elle s'est arrêtée proprement depuis ; `sorte` : ce
-// qu'elle publie être (`telephone` ne cuit pas).
-export type Publiee = { id: string; nom: string; projets?: ProjetDemande[]; signe?: number; arretee?: boolean; sorte?: string };
+// qu'elle publie être (`telephone` ne cuit pas) ; `sert` : les projets qu'elle
+// sert, et leur dépôt, tels que sa présence les publie ; `fichiers` : ce que
+// son gist porte d'autre.
+export type Publiee = { id: string; nom: string; projets?: ProjetDemande[]; signe?: number; arretee?: boolean; sorte?: string; sert?: Record<string, string>; fichiers?: Record<string, string> };
 
 export function lectureDesAppairees(instant: number, ...publiees: Publiee[]): LectureDesAppairees {
   const gists = new Map<string, Record<string, string>>();
   const stations: StationAppairee[] = [];
-  for (const { id, nom, projets, signe = 1, arretee = false, sorte } of publiees) {
+  for (const { id, nom, projets, signe = 1, arretee = false, sorte, sert = {}, fichiers: autres = {} } of publiees) {
     const signeDeVie = new Date(instant - signe * 60_000).toISOString();
     const fichiers: Record<string, string> = {
-      [FICHIER_STATION]: JSON.stringify({ brigade: "station", format: 1, nom, machine: "macOS 25.0.0", ...(sorte === undefined ? {} : { sorte }), version: "1.4.0", projets: [], signeDeVie, cadenceMs: 285_000, arreteeLe: arretee ? signeDeVie : null }),
+      [FICHIER_STATION]: JSON.stringify({ brigade: "station", format: 1, nom, machine: "macOS 25.0.0", ...(sorte === undefined ? {} : { sorte }), version: "1.4.0", projets: Object.keys(sert), depots: sert, signeDeVie, cadenceMs: 285_000, arreteeLe: arretee ? signeDeVie : null }),
       [FICHIER_APPAIRAGE]: "{}",
       ...(projets === undefined ? {} : { [FICHIER_PROJETS]: documentDeDemande(projets) }),
+      ...autres,
     };
     const station = stationDuGist(id, fichiers, instant);
     assert.ok(!("illisible" in station), JSON.stringify(station));
