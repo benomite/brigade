@@ -82,7 +82,9 @@ export type Reponse =
 
 export type FaitDistante =
   // La demande d'une station, écrite par son geste. `id` : ce par quoi la
-  // réponse la retrouve.
-  | { type: "remote.asked"; payload: { id: string; station: string } & Demande }
+  // réponse la retrouve. `via` : `github`, la demande que la station a posée
+  // dans son gist et que la principale a relayée ici (`tirer-par-github/`) —
+  // sa réponse se publie au Kitchen board ; absent, le geste `pull` sur la box.
+  | { type: "remote.asked"; payload: { id: string; station: string; via?: "github" } & Demande }
   // La réponse du runtime.
   | { type: "remote.answered"; payload: { id: string; station: string } & Reponse };

@@ -117,6 +117,21 @@ export type FaitsPublies = { [champ: string]: unknown };
 // `  #<ticket>  <état>  <priorité>  <détail>  <titre>`.
 export type LigneDuRail = { ticket: number; priorite: number | null; ligne: string };
 
+// Ce que la box a prêté aux stations distantes, et ce qu'elle a répondu à
+// celles qui le lui demandent par GitHub (#1793, tirer-par-github/) : c'est ici
+// qu'une station sans ssh vers la box lit sa réponse. Jamais retiré d'un corps
+// trop long : c'est l'arbitrage même, et il est borné (tirer-par-github/tableau.ts).
+// `attributions` : chaque ticket qu'une station distante tient — son run, et
+// l'échéance de son bail, qui avance à chaque renouvellement.
+export type AttributionPubliee = { ticket: number; station: string; run: string | null; bailJusqua: string | null };
+// `demande` : l'id que la station a donné à sa demande ; `geste` : `announce`,
+// `claim`, `renew` ; `run` : celui d'un renouvellement ; `le` : l'heure de la
+// réponse. `reponse` : celle du runtime, telle que `pull` la rend, sauf la
+// mission d'un `claim` — ses arguments de `claude` sans la consigne, qu'ils
+// répéteraient (`suiteDesArgs`).
+export type ReponsePubliee = { demande: string; station: string; geste: string; run: string | null; le: string; reponse: { ok: boolean; [champ: string]: unknown } };
+export type DistantesPubliees = { attributions: AttributionPubliee[]; reponses: ReponsePubliee[] };
+
 // Ce qu'un corps trop long pour GitHub a retiré du bloc, dans l'ordre où il l'a
 // retiré (rendre.ts) : les relectures des livrés, les livraisons qui attendent,
 // les diffs des corrections, puis les faits et les lignes du rail entiers.
@@ -129,7 +144,9 @@ export type Resserre = "faits.livres.relecture" | "faits.attend.livraison" | "fa
 // d'abord — absent d'un bloc écrit sans eux. `faits` et `lignesDuRail` : ce que
 // la vue du rail dessine — absents d'un bloc écrit avant eux (#1693).
 // `resserre` : ce que le corps a dû retirer du bloc pour tenir dans une issue —
-// absent quand rien ne l'a été.
+// absent quand rien ne l'a été. `distantes` : ce que la box a prêté aux
+// stations distantes et répondu à leurs demandes par GitHub — absent quand
+// aucune ne tient de ticket ni n'a rien demandé.
 export type Tableau = {
   projet: string | null;
   lu: string;
@@ -139,6 +156,7 @@ export type Tableau = {
   gestes?: GesteDuTableau[];
   faits?: FaitsPublies;
   lignesDuRail?: LigneDuRail[];
+  distantes?: DistantesPubliees;
   resserre?: Resserre[];
 };
 
