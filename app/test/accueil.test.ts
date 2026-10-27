@@ -292,6 +292,10 @@ describe("l'accueil tenu : chaque lecture rend l'accueil à redessiner, rien qua
     assert.equal(accueil.status({ projet: "espace", demande: 1, a: A, attend: CINQ, sorties: [{ commande: "status", texte: "cuisine    ouverte" }] })?.projets[1]?.dit, "5 decisions await you, for 2 d · #12 cooking");
     // Le `status` que plus rien ne rafraîchit est lâché.
     assert.equal(accueil.veiller(["brigade"])?.projets[1]?.dit, "5 decisions await you · #12 cooking");
+    // Hors ligne (#1818) : rien ne change, la ligne garde ce qui a été lu en dernier — sa station n'y est pour rien.
+    const horsLigne = { projet: "espace", demande: 1, a: A, erreur: "GitHub could not be reached to read the Kitchen board of acme/espace: fetch failed.", atteinte: true, cas: null, duTableau: true, horsLigne: true } as const;
+    assert.equal(accueil.faits(horsLigne), undefined);
+    assert.equal(accueil.status(horsLigne), undefined);
     // Une box qui n'est pas jointe se dit injoignable — rien de ce que `ssh` a écrit.
     const injoignable = accueil.faits({ projet: "brigade", demande: 1, a: A, erreur: "$ ssh -o BatchMode=yes box brigade brigade facts\nssh: connect to host box port 22: Connection refused\n→ exit code 255", atteinte: false, cas: "ssh-en-echec" });
     assert.deepEqual(injoignable?.projets[0], ligneDeProjet(PROJET, { a: A, injoignable: true }, undefined));

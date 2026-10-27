@@ -106,6 +106,8 @@ test("parmi les issues au label, c'est le tableau de la box qui se lit : ni une 
 test("GitHub injoignable : un échec qui dit que GitHub n'a pas répondu, et ce que le réseau en a dit", async () => {
   const lecture = echec(await lire(github(() => Promise.reject(new Error("getaddrinfo ENOTFOUND api.github.com\n    at stack"))).appeler));
   assert.equal(lecture.raison, "GitHub could not be reached to read the Kitchen board of chef/parade: getaddrinfo ENOTFOUND api.github.com.");
+  // GitHub pas joint du tout : l'app est hors ligne, ce n'est pas une panne (#1818).
+  assert.equal(lecture.horsLigne, true);
 });
 
 test("GitHub qui refuse : un échec par code, avec ce que GitHub en dit", async () => {
@@ -117,6 +119,8 @@ test("GitHub qui refuse : un échec par code, avec ce que GitHub en dit", async 
   assert.equal(limite.raison, "GitHub refused to list the issues of chef/parade (HTTP 403): API rate limit exceeded for 1.2.3.4.");
   const panne = echec(await lire(github({ status: 502, data: "<html><body>Bad gateway</body></html>" }).appeler));
   assert.equal(panne.raison, "GitHub refused to list the issues of chef/parade (HTTP 502).");
+  // GitHub joint qui refuse : une vraie panne, jamais « hors ligne » (#1818).
+  for (const refus of [nonConnecte, prive, limite, panne]) assert.equal(refus.horsLigne, undefined, refus.raison);
 });
 
 test("une réponse qui n'est pas une liste d'issues : un échec", async () => {

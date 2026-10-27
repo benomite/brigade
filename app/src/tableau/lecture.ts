@@ -50,7 +50,9 @@ export type TableauLu = {
   etatLuLe?: string;
   resserre?: Resserre[];
 };
-export type TableauNonLu = { lu: false; depot: string; luLe: string; raison: string };
+// `horsLigne` : GitHub n'a pas été joint du tout — pas de réseau, une seule cause (#1818). Ce n'est pas une panne : la vue
+// garde le dernier rail lu, et le dit hors ligne. Un GitHub joint qui refuse, ou un tableau illisible, en est une.
+export type TableauNonLu = { lu: false; depot: string; luLe: string; raison: string; horsLigne?: true };
 export type LectureDuTableauDuDepot = TableauLu | TableauNonLu;
 
 export type OptionsDeLecture = {
@@ -99,14 +101,14 @@ function pageDeLaLigne(depot: string, tableau: string, { ticket, decision }: Lig
 }
 
 export async function lireLeTableauDuDepot({ depot, appeler, maintenant = () => new Date() }: OptionsDeLecture): Promise<LectureDuTableauDuDepot> {
-  const echec = (raison: string): TableauNonLu => ({ lu: false, depot, luLe: maintenant().toISOString(), raison });
+  const echec = (raison: string, horsLigne?: true): TableauNonLu => ({ lu: false, depot, luLe: maintenant().toISOString(), raison, ...(horsLigne === undefined ? {} : { horsLigne }) });
   if (!DEPOT.test(depot)) return echec(`The project's repository "${depot}" is not an owner/name GitHub repository, so its Kitchen board cannot be read. Its folder has no GitHub \`origin\` remote to take it from: in ~/.config/brigade/app.json, give this project the field "depot" with its GitHub repository as value, for example "depot": "acme/kitchen".`);
   let reponse: ReponseGitHub;
   try {
     reponse = await appeler(`/repos/${depot}/issues?labels=${LABEL_DU_TABLEAU}&state=open&sort=created&direction=asc&per_page=${PAR_PAGE}`);
   } catch (erreur) {
     const dit = (erreur instanceof Error ? erreur.message : String(erreur)).trim().split("\n")[0]?.replace(/[.\s]+$/, "") ?? "";
-    return echec(`GitHub could not be reached to read the Kitchen board of ${depot}${dit === "" ? "" : `: ${dit}`}.`);
+    return echec(`GitHub could not be reached to read the Kitchen board of ${depot}${dit === "" ? "" : `: ${dit}`}.`, true);
   }
   const luLe = maintenant();
   if (reponse.status !== 200) return echec(refusDe(depot, reponse));

@@ -264,6 +264,9 @@ test("un tableau qui ne se lit pas, ou qui ne porte pas le rail : un échec en u
   const recue = tenirFaits().recevoir(rate);
   assert.ok("titre" in recue && "erreur" in recue);
   assert.equal(recue.titre, "NOT READ FROM THE KITCHEN BOARD");
+  // GitHub pas joint du tout (#1818) : l'échec le porte jusqu'à ce qui le dessine.
+  const horsLigne = lectureDuTableau({ ...non, horsLigne: true }, "brigade", 3, ["facts"]);
+  assert.deepEqual(horsLigne, { projet: "brigade", demande: 3, a: LU_PAR_L_APP.toISOString(), erreur: non.raison, atteinte: true, cas: null, duTableau: true, horsLigne: true });
 
   const publie = await lu(corps);
   const { faits: _faits, ...davant } = publie;

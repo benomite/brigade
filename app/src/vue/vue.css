@@ -2533,6 +2533,28 @@ main > header,
   font-size: 12px;
   color: var(--jaune);
 }
+/* Hors ligne (ticket 1818) : le rail lu en dernier reste, atténué, et un seul signe, à voix basse, dit depuis quand. */
+#rail[data-hors-ligne] > :not(.hors-ligne) {
+  opacity: 0.55;
+}
+#rail .hors-ligne {
+  padding: 8px 16px 0;
+  font-size: 12px;
+  color: var(--discret);
+}
+/* Une lecture des faits en cours — la première, ou une relecture demandée — : le haut du rail bat doucement, sans
+   phrase pour le dire, et s'éteint à la réponse (ticket 1818). Hors ligne ou non, le signe n'y est pour rien. */
+#rail {
+  border-top: 2px solid transparent;
+}
+#rail[data-lecture] {
+  animation: lecture-en-cours 1.6s ease-in-out infinite;
+}
+@keyframes lecture-en-cours {
+  50% {
+    border-top-color: var(--accent);
+  }
+}
 /* Les tickets `fire` que GitHub dit encore, quand la station ne répond pas : repliés, puis lisibles comme le reste. */
 #rail .feu {
   padding: 8px 16px 0;
