@@ -4,9 +4,23 @@
 // (`runtime/src/enregistrement-station/README.md`, « The selection the app writes ») : le fichier
 // `brigade-selection.json` du gist de la station, réécrit en entier à chaque changement. L'app n'écrit que ce
 // fichier-là — l'enregistrement est à la station seule, et un `PATCH` ne touche que les fichiers qu'il nomme.
-import type { StationEnregistree, StationsDuCompte } from "../../runtime/src/enregistrement-station/stations-du-compte.ts";
+//
+// Et ce que chaque station a fait d'un dépôt choisi pour elle (#1790, épique #1785) : quand une autre station le servait
+// déjà, elle en a rejoint la cuisine, ou elle refuse en une phrase (runtime/src/projets/rejoindre.ts). Elle l'écrit dans
+// le suivi de ce même gist (`brigade-projets-suivi.json`, `rejoindre`) : l'app l'y lit, pour chaque station à qui un dépôt
+// est choisi, et le joint à ce que le runtime en a lu (`ajouts`).
+import type { StationEnregistree as Enregistree, StationsDuCompte as DuCompte } from "../../runtime/src/enregistrement-station/stations-du-compte.ts";
+import { FICHIER_SUIVI, lireSuivi } from "./projets/demande.ts";
+// Le nom du projet tiré de son dépôt : celui que la station en fait (runtime/src/projets/ajout-de-station.ts, `nomDuDepot`).
+import { nomDuProjet } from "./projets/projets.ts";
 
-export type { StationEnregistree, StationsDuCompte };
+// Ce qu'une station a fait d'un dépôt choisi pour elle, une fois lu : `seule` — aucune autre ne le servait, elle le
+// prépare elle-même, comme avant ; `rejointe` — elle cuit dans la cuisine que `principale` fait tourner ; `refusee` —
+// elle ne peut pas la rejoindre, n'en ouvre pas une seconde, et `phrase` dit pourquoi. Un dépôt qu'elle n'a pas encore
+// lu n'y est pas.
+export type IssueDeLAjout = { depot: string; issue: "seule" } | { depot: string; issue: "rejointe"; principale: string } | { depot: string; issue: "refusee"; phrase: string };
+export type StationEnregistree = Enregistree & { ajouts?: IssueDeLAjout[] };
+export type StationsDuCompte = Exclude<DuCompte, { state: "listed" }> | (Omit<Extract<DuCompte, { state: "listed" }>, "stations"> & { stations: StationEnregistree[] });
 
 // Ce que le contrat fixe de la sélection : son fichier et son format (`contrat.ts` du runtime, lu par main.ts).
 export type ContratDeLaSelection = { FICHIER_SELECTION: string; FORMAT: number };
@@ -50,4 +64,37 @@ export function choixDesProjets(options: OptionsDuChoix): (id: unknown, depots: 
     }
     return { selection };
   };
+}
+
+// Ce que le suivi d'une station dit des dépôts choisis pour elle : un par dépôt qu'elle a lu, dans l'ordre de sa sélection.
+export function ajoutsDuSuivi(brut: string | undefined, selection: readonly string[]): IssueDeLAjout[] {
+  const suivi = lireSuivi(brut);
+  return selection.flatMap((depot): IssueDeLAjout[] => {
+    const dit = suivi.find(({ nom }) => nom === nomDuProjet(depot));
+    if (dit === undefined) return [];
+    const { rejoindre } = dit;
+    if (rejoindre === undefined) return [{ depot, issue: "seule" }];
+    return [rejoindre.issue === "rejointe" ? { depot, issue: "rejointe", principale: rejoindre.principale } : { depot, issue: "refusee", phrase: rejoindre.phrase }];
+  });
+}
+
+// Les stations du compte, avec ce que chacune a fait des dépôts choisis pour elle, lu dans son gist (`lire`, celui de
+// stations/github.ts). Un gist qui ne se lit pas n'en dit rien : la station reste telle que le runtime l'a lue.
+export async function avecLeursAjouts(lues: DuCompte, lire: (id: string) => Promise<Record<string, string> | null>): Promise<StationsDuCompte> {
+  if (lues.state !== "listed") return lues;
+  const stations = await Promise.all(
+    lues.stations.map(async (station): Promise<StationEnregistree> => {
+      const selection = station.selection ?? [];
+      if (selection.length === 0) return station;
+      let fichiers: Record<string, string> | null;
+      try {
+        fichiers = await lire(station.id);
+      } catch {
+        return station;
+      }
+      const ajouts = ajoutsDuSuivi(fichiers?.[FICHIER_SUIVI], selection);
+      return ajouts.length === 0 ? station : { ...station, ajouts };
+    }),
+  );
+  return { ...lues, stations };
 }

@@ -117,7 +117,7 @@ import { GATES_HORS_BUDGET, poserLeJourDesGates, poserLesGatesDeCooks } from "./
 import { AIDE as AIDE_DES_ROLES, poserLesRoles, resumeDesRoles, TITRE as TITRE_DES_ROLES } from "./roles-cuisine.js";
 import { apresLaDecision, phrase, poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
 import { poserPremierLancement } from "./premier-lancement.js";
-import { detailsDe, EN_LIGNE, HORS_LIGNE, lectureDuCompte, ligneDeLEnregistree, ligneFondue, projetsDe as casesDeLEnregistree, uneLigneParMachine } from "./stations-du-compte.js";
+import { ajoutsDuProjet as ajoutsDesEnregistrees, detailsDe, EN_LIGNE, HORS_LIGNE, issueDeLAjout, lectureDuCompte, ligneDeLEnregistree, ligneFondue, projetsDe as casesDeLEnregistree, uneLigneParMachine } from "./stations-du-compte.js";
 import { poserRailPublie } from "./rail-publie.js";
 import { poserOutilsDuSecond } from "./outils-du-second.js";
 import { poserChoixDuSecond, reponseTapee, tenirLesChoix } from "./second/choix.js";
@@ -740,6 +740,12 @@ choixDuDemenagement.hidden = true;
 const demenagementDit = document.createElement("p");
 demenagementDit.className = "demenagement-dit";
 demenagementDit.ariaLive = "polite";
+// Une station du compte à qui le chef a choisi le projet alors qu'une autre le servait déjà, et qui ne peut pas en
+// rejoindre la cuisine (ticket 1790) : sa phrase, sous la ligne — la ligne ne la compte pas parmi ses stations.
+const rejointeRefusee = document.createElement("div");
+rejointeRefusee.className = "ajout-refuse";
+rejointeRefusee.ariaLive = "polite";
+rejointeRefusee.hidden = true;
 // Le parcours d'un projet neuf (ticket 1111) : de sa station choisie à son premier ticket, en quatre
 // étapes, telles que sa principale les publie — à la place du vide sous la ligne (onboarding/parcours.js).
 const parcoursDuProjet = document.createElement("div");
@@ -749,7 +755,7 @@ parcoursDuProjet.ariaLive = "polite";
 // impossible à préparer, avec sa raison et l'heure du prochain essai — à la place de « prepares it within a minute ».
 const depotRetenu = document.createElement("div");
 depotRetenu.hidden = true;
-stationsDuProjet.append(ligneDesStationsDuProjet, sensDesStations, ouvrirLeDemenagement, ouvrirLaConfiance, choixDuDemenagement, formulaireDeConfiance, demenagementDit, depotRetenu, confianceDite, parcoursDuProjet);
+stationsDuProjet.append(ligneDesStationsDuProjet, sensDesStations, ouvrirLeDemenagement, ouvrirLaConfiance, choixDuDemenagement, formulaireDeConfiance, demenagementDit, rejointeRefusee, depotRetenu, confianceDite, parcoursDuProjet);
 
 // La lecture brute de `station` sur l'onglet Cooks (ticket 1184), en bas : la machine — saturée ou non —, le quota.
 // Elle était sous Settings → Cooks ; elle se lit de même, seule, toutes les trente secondes tant que l'onglet est montré.
@@ -5975,7 +5981,33 @@ function cuisineDe(projet) {
         return { id: station.id, nom: station.nom, ...(station.atteinte?.station === undefined ? {} : { station: station.atteinte.station }), principale: station.principale, ...etatDeLaCuisine(station.etat, station.atteinte), pourquoi: sans?.pourquoi ?? station.atteinte?.pourquoi ?? "", geste: sans?.geste ?? station.atteinte?.geste ?? "", survol: station.atteinte === undefined ? station.dit : station.atteinte.dit.replace(/^(not )?reached: /, ""), autoriser: station.autoriser, bloquee };
       }),
   ];
+  // Puis les stations du compte qui ont rejoint sa cuisine (ticket 1790) : une de plus, qui ne fait tourner ni son manager
+  // ni sa pass — chaque machine une fois.
+  const memeMachine = (/** @type {string} */ nom) => stations.some((station) => station.nom.toLowerCase() === nom.toLowerCase());
+  for (const { station, principale } of ajoutsDuProjet(projet).rejointes) {
+    if (memeMachine(station.name)) continue;
+    const appairee = (stationsVues?.stations ?? []).find(({ nom }) => nom.toLowerCase() === station.name.toLowerCase());
+    stations.push({
+      id: appairee?.id ?? station.id,
+      nom: station.name,
+      principale: false,
+      ...(station.available ? { dit: "joined: it cooks with the main station", ton: "vert" } : { dit: "joined, offline: it cooks once it is back", ton: "gris" }),
+      pourquoi: "",
+      geste: "",
+      survol: `it joined the kitchen that ${principale} runs: it cooks there as one more station, and ${principale} keeps the manager and the pass`,
+      autoriser: [],
+      bloquee: false,
+    });
+  }
   return { stations, demande: demande !== undefined, principale: stations.some(({ principale }) => principale) };
+}
+
+// Ce que les stations du compte ont fait du dépôt du projet, choisi pour elles alors qu'une autre le servait déjà (ticket
+// 1790, stations-du-compte.js).
+/** @param {Projet} projet */
+function ajoutsDuProjet(projet) {
+  const depot = projet.depot ?? projetsVus?.projets.find(({ nom }) => nom === projet.nom)?.depot ?? "";
+  return ajoutsDesEnregistrees(enregistreesAbsentes ? undefined : etatDesEnregistrees.stations, { nom: projet.nom, depot });
 }
 
 // Où cuit un projet de l'app : la station que ses stations disent le servir (projets.ts, `cuitSur`) —
@@ -5989,6 +6021,12 @@ function ouCuit(projet, stations) {
   if (dit !== undefined && dit !== null) return { ...dit, ici: dit.ici || (dit.id !== null && dit.id === locale) };
   const principale = stations.find((station) => station.principale);
   if (principale !== undefined) return { id: principale.id, nom: principale.nom, ici: principale.id === locale || projet.ici === true };
+  // Une station du compte en a rejoint la cuisine : il cuit sur celle qui la fait tourner, pas sur elle (ticket 1790).
+  const rejointe = ajoutsDuProjet(projet).rejointes[0];
+  if (rejointe !== undefined) {
+    const sienne = (stationsVues?.stations ?? []).find(({ nom }) => nom.toLowerCase() === rejointe.principale.toLowerCase());
+    return { id: sienne?.id ?? null, nom: rejointe.principale, ici: false };
+  }
   if (projet.ici === true) return { id: null, nom: "", ici: true };
   return undefined;
 }
@@ -6303,6 +6341,18 @@ function poserStationsDuProjet() {
     ligneDesStationsDuProjet.textContent = lues ? `No station cooks ${projet.nom} yet.` : "reading your stations on GitHub…";
   }
   poserLeDemenagement(projet, ou, enCours, lues);
+  // Une station du compte qui refuse d'en rejoindre la cuisine (ticket 1790) : son nom et sa phrase, une ligne chacune.
+  const { refusees } = ajoutsDuProjet(projet);
+  rejointeRefusee.replaceChildren(
+    ...refusees.map(({ station, phrase }) => {
+      const ligne = document.createElement("p");
+      const appele = bloc("strong", station.name);
+      appele.className = "mono";
+      ligne.append(appele, bloc("span", ` was not added: ${phrase}`));
+      return ligne;
+    }),
+  );
+  rejointeRefusee.hidden = refusees.length === 0;
   poserLesChoix(projet);
   poserLesBlocages(projet);
   poserLeDelai(projet);
@@ -6340,7 +6390,7 @@ function poserStationsDuProjet() {
   const rangees = etroit() && ongletDe(projet) !== RAIL;
   stationsDuProjet.hidden =
     rangees ||
-    (ongletDe(projet) !== CUISINE && seLit(projet) && parcoursDuProjet.hidden && (depotRetenu.hidden || ditParLAlerte) && confiance === undefined && demenagement?.projet !== projet.nom);
+    (ongletDe(projet) !== CUISINE && seLit(projet) && parcoursDuProjet.hidden && (depotRetenu.hidden || ditParLAlerte) && rejointeRefusee.hidden && confiance === undefined && demenagement?.projet !== projet.nom);
   if (confiance === undefined) return;
   poserLaConfiance(confiance, projet, { exclues: stations.map(({ id }) => id), demande, principale });
 }
@@ -7158,7 +7208,40 @@ async function lireLesEnregistrees() {
   if (demandee !== lectureDesEnregistrees) return;
   enregistreesAbsentes = lu === undefined;
   if (lu !== undefined) etatDesEnregistrees.stations = lu;
+  suivreLesAttendus();
   poserStationsDeLAccueil();
+  // La page d'un projet dit les stations du compte qui ont rejoint sa cuisine, ou qui refusent (ticket 1790).
+  if (courant !== undefined) {
+    poserStationsDuProjet();
+    poserCuisson(courant);
+  }
+}
+
+// Un dépôt que le chef vient de cocher pour une station : elle le lit dans les 30 s, et dit ce qu'elle en fait — elle le
+// sert, rejoint la cuisine d'une autre qui le sert déjà, ou refuse (ticket 1790). Jusqu'à ce qu'elle l'ait dit, les stations
+// du compte se relisent toutes les `ATTENTE_D_UN_AJOUT_MS`, au plus `RELECTURES_D_UN_AJOUT` fois : sa réponse se lit sous la
+// case au moment de l'ajout, sans que le chef ait à relire.
+const ATTENTE_D_UN_AJOUT_MS = 15_000;
+const RELECTURES_D_UN_AJOUT = 8;
+let relecturesDUnAjout = 0;
+/** @type {ReturnType<typeof setTimeout> | undefined} */
+let relectureDUnAjout;
+function suivreLesAttendus() {
+  clearTimeout(relectureDUnAjout);
+  const attendus = etatDesEnregistrees.attendus;
+  if (attendus === undefined) return;
+  const lues = etatDesEnregistrees.stations;
+  const station = lues?.state === "listed" ? lues.stations.find(({ id }) => id === attendus.id) : undefined;
+  const restants = attendus.depots.filter((depot) => (station?.selection ?? []).includes(depot) && issueDeLAjout(station, depot) === undefined);
+  if (restants.length === 0 || relecturesDUnAjout >= RELECTURES_D_UN_AJOUT) {
+    delete etatDesEnregistrees.attendus;
+    return;
+  }
+  etatDesEnregistrees.attendus = { id: attendus.id, depots: restants };
+  relectureDUnAjout = setTimeout(() => {
+    relecturesDUnAjout += 1;
+    void lireLesEnregistrees();
+  }, ATTENTE_D_UN_AJOUT_MS);
 }
 
 // Les dépôts du chef, entre lesquels il choisit ce qu'une station sert : lus à l'ouverture d'une première station.
@@ -7197,7 +7280,15 @@ async function choisirPourUneEnregistree(id, depots) {
   if ("refus" in rendu) etatDesEnregistrees.refus = { id, ...rendu };
   else if (lues?.state === "listed") {
     const { selection } = rendu;
+    const avant = lues.stations.find((station) => station.id === id)?.selection ?? [];
     etatDesEnregistrees.stations = { ...lues, stations: lues.stations.map((station) => (station.id === id ? { ...station, selection } : station)) };
+    // Les dépôts cochés à l'instant : la station va dire ce qu'elle en fait.
+    const coches = selection.filter((depot) => !avant.includes(depot));
+    if (coches.length > 0) {
+      etatDesEnregistrees.attendus = { id, depots: [...new Set([...(etatDesEnregistrees.attendus?.id === id ? etatDesEnregistrees.attendus.depots : []), ...coches])] };
+      relecturesDUnAjout = 0;
+      suivreLesAttendus();
+    }
   }
   poserStationsDeLAccueil();
 }

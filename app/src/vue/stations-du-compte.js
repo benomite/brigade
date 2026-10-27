@@ -32,7 +32,8 @@ import { boutonDeLaPage, connexionDite, gestes, phraseEtDetail } from "./premier
 // `<owner>/<name>` ou par son nom. `ajoutes` : les dépôts que le chef a ajoutés par la recherche, ou décochés, pendant la session. `recherche` : ce qu'il
 // tape dans le champ de la station ouverte. `envoi` : la station dont la sélection s'écrit — ses cases attendent.
 // `refus` : pourquoi la dernière écriture n'a pas eu lieu. `copiee` : la commande d'installation que le bouton vient de
-// copier. `connexion` : la connexion à GitHub lancée.
+// copier. `connexion` : la connexion à GitHub lancée. `attendus` : les dépôts que le chef vient de cocher pour une station,
+// dont elle n'a pas encore dit ce qu'elle fait (ticket 1790).
 /**
  * @typedef {{
  *   stations?: StationsDuCompte,
@@ -44,6 +45,7 @@ import { boutonDeLaPage, connexionDite, gestes, phraseEtDetail } from "./premier
  *   refus?: { id: string, refus: string, detail?: string },
  *   copiee?: string,
  *   connexion?: Connexion,
+ *   attendus?: { id: string, depots: readonly string[] },
  * }} EtatDuCompte
  */
 // `chercher` : le texte du champ de recherche a changé — la vue le retient, sans redessiner. `ajouter` : un dépôt trouvé
@@ -86,6 +88,42 @@ export const ET_ENCORE = (combien) => `${combien} more — keep typing`;
 export const TROUVES_AU_PLUS = 8;
 export const ENVOI = "saving…";
 export const EN_SON_ABSENCE = "it is offline: it serves these projects once it is back";
+// Ce qu'une station a fait d'un dépôt coché pour elle qu'une autre servait déjà (ticket 1790, runtime/src/projets/rejoindre.ts),
+// sous sa case : elle cuit dans la cuisine qui tourne, ou elle refuse — sa phrase dessous, en entier. Tant qu'elle ne l'a pas
+// lu, la case dit qu'elle va répondre.
+/** @param {string} principale */
+export const REJOINTE = (principale) => `cooks in ${principale}'s kitchen`;
+export const REFUSEE = "refused";
+export const DEMANDEE = "asked: the station answers within a minute";
+
+// Ce qu'une station a fait d'un dépôt choisi pour elle, tel que son gist le dit (stations-du-compte.ts, `ajouts`) — rien tant
+// qu'elle ne l'a pas lu.
+/** @param {StationEnregistree | undefined} station @param {string} depot */
+export function issueDeLAjout(station, depot) {
+  return (station?.ajouts ?? []).find((ajout) => ajout.depot.toLowerCase() === depot.toLowerCase());
+}
+
+// Ce que les stations du compte ont fait d'un projet qui leur a été choisi alors qu'une autre le servait déjà (ticket
+// 1790) : celles qui ont rejoint sa cuisine, avec la station qui la fait tourner ; celles qui refusent, avec leur phrase.
+// Le projet se reconnaît à son dépôt ; sans dépôt connu, au nom que la station tire du dépôt choisi. Un dépôt décoché
+// depuis n'en dit plus rien.
+/** @param {StationsDuCompte | undefined} lues @param {{ nom: string, depot: string }} projet */
+export function ajoutsDuProjet(lues, { nom, depot }) {
+  /** @type {{ station: StationEnregistree, principale: string }[]} */
+  const rejointes = [];
+  /** @type {{ station: StationEnregistree, phrase: string }[]} */
+  const refusees = [];
+  if (lues?.state !== "listed") return { rejointes, refusees };
+  const estLeSien = (/** @type {string} */ choisi) => (depot === "" ? (choisi.split("/")[1] ?? "").toLowerCase() === nom : choisi.toLowerCase() === depot.toLowerCase());
+  for (const station of lues.stations) {
+    for (const choisi of (station.selection ?? []).filter(estLeSien)) {
+      const issue = issueDeLAjout(station, choisi);
+      if (issue?.issue === "rejointe") rejointes.push({ station, principale: issue.principale });
+      if (issue?.issue === "refusee") refusees.push({ station, phrase: issue.phrase });
+    }
+  }
+  return { rejointes, refusees };
+}
 
 // La commande d'installation d'une station, selon le système de la machine qui cuit (docs/installation-station.md).
 /** @type {readonly { systeme: string, commande: string }[]} */
@@ -305,12 +343,27 @@ export function projetsDe(doc, station, etat, geste) {
   if (cases.length > 0) {
     const liste = cree(doc, "div");
     liste.className = "capacites";
+    /** @type {string[]} */
+    const refus = [];
     for (const depot of cases) {
-      const coche = caseACocher(doc, { nom: depot, dit: "", cochee: (station.selection ?? []).includes(depot), mono: true }, (cochee) => geste.choisir(station.id, selectionApres(cases, station.selection, depot, cochee)));
+      const cochee = (station.selection ?? []).includes(depot);
+      // Ce que la station en a fait, tant qu'il est coché : une cuisine rejointe, un refus, ou sa réponse attendue.
+      const issue = cochee ? issueDeLAjout(station, depot) : undefined;
+      const attendu = cochee && issue === undefined && etat.attendus?.id === station.id && etat.attendus.depots.includes(depot);
+      const dit = issue?.issue === "rejointe" ? REJOINTE(issue.principale) : issue?.issue === "refusee" ? REFUSEE : attendu ? DEMANDEE : "";
+      if (issue?.issue === "refusee") refus.push(issue.phrase);
+      const coche = caseACocher(doc, { nom: depot, dit, cochee, mono: true }, (voulue) => geste.choisir(station.id, selectionApres(cases, station.selection, depot, voulue)));
       coche.children[0].disabled = enRoute;
+      if (issue?.issue === "refusee") coche.classList.add("refusee");
       liste.append(coche);
     }
     choix.append(liste);
+    for (const phrase of refus) {
+      const dit = cree(doc, "p", phrase);
+      dit.className = "refus";
+      dit.role = "alert";
+      choix.append(dit);
+    }
   }
   if (atteints.length > 0) choix.append(rechercheDe(doc, station, atteints, cases, etat, geste));
   if (enRoute) {
