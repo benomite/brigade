@@ -18,7 +18,7 @@ import { consigneDeRenvoi, consigneDeReprise } from "../../src/pass.ts";
 import { PROFILS_DIR, saveDefinition, type DefinitionDeProfil } from "../../src/profils/definition.ts";
 import { blocDuCarnet, carnetDuProfil, lireLesProfils, profilPrefere, profilsOccupes } from "../../src/profils/preference.ts";
 import { lireStations } from "../../src/stations-declarees.ts";
-import { demander } from "../../src/tirer.ts";
+import { demander } from "../aides/demander.ts";
 import { PLAFONDS, cuisine, issue, type Lieux, type Options } from "../aides/cuisine.ts";
 import { jusqua, repertoireTemporaire } from "../outils.ts";
 

@@ -5,7 +5,7 @@
 // lancé, avec la configuration de `bac-a-sable/`. Sans lui, elle n'en prend
 // aucun, et le dit. Jamais plus de cooks que son plafond. Sur une cuisine
 // complète, la station jouée par le test depuis sa propre connexion au
-// journal, comme le ferait son geste (`run pull`).
+// journal, comme le ferait sa demande.
 import assert from "node:assert/strict";
 import { posix } from "node:path";
 import { describe, test, type TestContext } from "node:test";
@@ -20,7 +20,7 @@ import { etatStation } from "../src/projections/stations.ts";
 import type { Machine } from "../src/machine.ts";
 import { DECLARATION_RESEAU } from "../src/reseau.ts";
 import { lireStations } from "../src/stations-declarees.ts";
-import { demander } from "../src/tirer.ts";
+import { demander } from "./aides/demander.ts";
 import { cuisine, issue, MACHINE_CALME, type Lieux, type Options } from "./aides/cuisine.ts";
 import { appeler, jusqua } from "./outils.ts";
 

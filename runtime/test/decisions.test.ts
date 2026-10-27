@@ -17,7 +17,7 @@ import { stationsAnnoncees } from "../src/projections/stations.ts";
 import { configReviewer } from "../src/reviewer.ts";
 import { ConfigInvalide, demarrer } from "../src/runtime.ts";
 import { lireStations } from "../src/stations-declarees.ts";
-import { demander } from "../src/tirer.ts";
+import { demander } from "./aides/demander.ts";
 import { chef, cuisine, decider, issue, pousserSurLOrigine } from "./aides/cuisine.ts";
 import { BASE, DEPOT, depotGit, ENV_GIT, FAUX_CLAUDE, fauxGh, git, jusqua, lancer, repertoireTemporaire } from "./outils.ts";
 

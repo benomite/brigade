@@ -15,7 +15,7 @@
 // La mission d'une réclamation y est entière — la consigne du cook, son
 // calibrage, sa branche, ses plafonds, son bail —, sauf les arguments de
 // `claude`, qui répéteraient la consigne : ils se publient sans elle
-// (`suiteDesArgs`), et `reponseDuTableau` les rend tels que `pull` les aurait
+// (`suiteDesArgs`), et `reponseDuTableau` les rend tels que le runtime les a
 // rendus.
 import type { Base } from "../base.ts";
 import type { Mission, Reponse } from "../events/remote.ts";
@@ -73,7 +73,7 @@ export function distantesDuTableau(base: Base, maintenant: Date): DistantesPubli
 }
 
 // La réponse que le tableau publie à cette demande de cette station, telle que
-// `pull` l'aurait rendue ; null tant qu'elle n'y est pas. `illisible` : le
+// le runtime l'a rendue ; null tant qu'elle n'y est pas. `illisible` : le
 // corps n'est pas celui d'un tableau que cette version lit.
 export function reponseDuTableau(corps: string, station: string, id: string): Reponse | null | { illisible: string } {
   const lu = lireLeTableau(corps);

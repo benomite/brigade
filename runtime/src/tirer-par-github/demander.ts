@@ -1,8 +1,7 @@
 // Le côté de la station secondaire : demander à la principale par GitHub
 // seulement, sans ssh vers la box. La station pose sa demande dans son propre
 // gist (`demande.ts`), puis lit le Kitchen board du projet jusqu'à y trouver la
-// réponse que la principale y publie (`tableau.ts`) — celle même que le geste
-// `pull` lui aurait rendue (`tirer.ts`).
+// réponse que la principale y publie (`tableau.ts`).
 //
 // Rendre son travail ne demande rien de plus : la station pousse la branche de
 // sa mission sur l'origine, puis le dit (`deliver`) ; la principale la

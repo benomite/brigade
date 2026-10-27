@@ -13,13 +13,13 @@ import { lireRail } from "../src/projections/rail.ts";
 import { proposerAuRuntime } from "../src/reglages-projet/au-runtime.ts";
 import { FICHIER } from "../src/reglages-projet/reglages.ts";
 import { fauxGitHubApps } from "./aides/faux-github-apps.ts";
+import { demander } from "./aides/demander.ts";
 import { relecteur } from "./aides/opt-B-journal.ts";
 import { aArreter, BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancementsDuFauxClaude, lancer, mort, repertoireDuFichier, repertoireTemporaire, rienEcritParLeRuntime, SANS_RESEAU, temporaireDuFichier, tuerLesRelais, vivant } from "./outils.ts";
 
 const rienNeReste = temporaireDuFichier();
 
 const MAIN = join(import.meta.dirname, "../src/main.ts");
-const TIRER = join(import.meta.dirname, "../src/tirer-cli.ts");
 const REFUS = 2;
 
 // L'environnement d'un runtime complet. Son `gh` est un faux, qui répond un
@@ -310,7 +310,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     assert.equal(await runtime.fin, 0);
   });
 
-  test("sur le vrai process : une station déclarée distante s'annonce et réclame par le geste `tirer`, lancé dans son propre process — le runtime lui prête le ticket qu'elle seule peut cuisiner, sans rien lancer ici", async (t) => {
+  test("sur le vrai process : une station déclarée distante s'annonce et réclame par sa demande au journal, écrite hors du process du runtime — le runtime lui prête le ticket qu'elle seule peut cuisiner, sans rien lancer ici", async (t) => {
     const repertoire = repertoireTemporaire(t);
     const gh = fauxGh(t);
     // Sans cloison sur son poste, elle ne prend que ce qui demande ses capacités.
@@ -329,27 +329,22 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     await jusqua(() => lireLeRail(repertoire).some((ticket) => ticket.ticket === 16 && ticket.state === "86"));
     assert.equal(lireLeRail(repertoire)[0]?.reason, "station-absent: mac/claude");
 
-    // Le geste, tel que la box le lance pour la station : un process, sa sortie, son code.
-    const tirer = async (...args: string[]) => {
-      const geste = lancer(t, TIRER, ["mac/claude", ...args], { BRIGADE_STATE_DIR: repertoire });
-      const code = await geste.fin;
-      return { code, sortie: geste.sortie() };
-    };
-    const annonce = await tirer("announce");
-    assert.equal(annonce.code, 0, annonce.sortie);
-    assert.deepEqual([JSON.parse(annonce.sortie).ok, JSON.parse(annonce.sortie).provides], [true, ["chrome-connecté"]]);
+    // La demande de la station, écrite au journal depuis un autre process que le runtime ; la réponse, relue.
+    const tirer = async (demande: Parameters<typeof demander>[2]) => demander(repertoire, "mac/claude", demande);
+    const annonce = await tirer({ verb: "announce" });
+    assert.ok(annonce.ok && annonce.verb === "announce", JSON.stringify(annonce));
+    assert.deepEqual(annonce.provides, ["chrome-connecté"]);
     await jusqua(() => lireLeRail(repertoire).some((ticket) => ticket.ticket === 16 && ticket.state === "waiting"));
-    const prise = await tirer("claim");
-    assert.equal(prise.code, 0, prise.sortie);
-    const { mission } = JSON.parse(prise.sortie);
+    const prise = await tirer({ verb: "claim" });
+    assert.ok(prise.ok && prise.verb === "claim" && prise.mission !== null, JSON.stringify(prise));
+    const { mission } = prise;
     assert.deepEqual([mission.ticket, mission.branch, mission.base, mission.model], [16, `cook/${mission.run}`, BASE, "sonnet"]);
     assert.deepEqual(lireLeRail(repertoire).map((ticket) => [ticket.ticket, ticket.state, ticket.station]), [[16, "taken", "mac/claude"]]);
-    // Sans preuve, le renouvellement est refusé : code 1, et le refus se lit.
-    const sansPreuve = await tirer("renew", mission.run, "--turns", "1", "--tokens", "10");
-    assert.equal(sansPreuve.code, 1, sansPreuve.sortie);
-    assert.equal(JSON.parse(sansPreuve.sortie.split("\n")[0] ?? "").refusal, "no-progress");
-    const renouvele = await tirer("renew", mission.run, "--proof", "empreinte-1", "--turns", "1", "--tokens", "10");
-    assert.equal(renouvele.code, 0, renouvele.sortie);
+    // Sans preuve, le renouvellement est refusé, et le refus se lit.
+    const sansPreuve = await tirer({ verb: "renew", run: mission.run, proof: null, turns: 1, tokens: 10 });
+    assert.ok(!sansPreuve.ok && sansPreuve.refusal === "no-progress", JSON.stringify(sansPreuve));
+    const renouvele = await tirer({ verb: "renew", run: mission.run, proof: "empreinte-1", turns: 1, tokens: 10 });
+    assert.ok(renouvele.ok, JSON.stringify(renouvele));
     // Rien n'a été lancé sur la box : ni `claude`, ni worktree.
     assert.deepEqual(lancementsDuFauxClaude(temoin), []);
     assert.equal(existsSync(join(repertoire, "worktrees")), false);

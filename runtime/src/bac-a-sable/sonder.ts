@@ -6,7 +6,7 @@
 // absolus.
 //
 // Elle rend, sur une ligne, l'objet JSON que la station passe à la box tel
-// quel (`pull <station> claim --sandbox <json>`) : disponible, avec la version
+// quel (la demande `claim` de la station, posée dans son gist) : disponible, avec la version
 // de `claude` et les lieux du poste ; indisponible, avec la raison. Code 0
 // dans les deux cas — un bac à sable absent est un constat, pas une panne ; 2,
 // la sonde est mal appelée. Le `claude` sondé est celui que la station lance

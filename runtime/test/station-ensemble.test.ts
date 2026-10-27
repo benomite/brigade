@@ -5,7 +5,7 @@
 // Arrêter ou perdre l'une n'empêche pas l'autre de prendre. Et la première
 // garde le manager et la pass : la seconde ne reçoit que des cooks. Sur une
 // cuisine complète, la seconde station jouée par le test depuis sa propre
-// connexion au journal, comme le ferait son geste (`run pull`).
+// connexion au journal, comme le ferait sa demande.
 import assert from "node:assert/strict";
 import { describe, test, type TestContext } from "node:test";
 import type { BacASableDeLaStation, Demande, Mission, Reponse } from "../src/events/remote.ts";
@@ -13,7 +13,7 @@ import { faits, lireEtat } from "../src/etat.ts";
 import { principal as montrerStation } from "../src/montrer-station.ts";
 import { etatStation } from "../src/projections/stations.ts";
 import { lireStations } from "../src/stations-declarees.ts";
-import { demander } from "../src/tirer.ts";
+import { demander } from "./aides/demander.ts";
 import { BAIL_MS, CALIBRAGE_DU_MANAGER, CALIBRAGE_DU_REVIEWER, chef, cuisine, issue, MACHINE_CALME, pousserSurLOrigine, type Options } from "./aides/cuisine.ts";
 import { appeler, jusqua } from "./outils.ts";
 import { posixOnly } from "./support/plateforme.ts";

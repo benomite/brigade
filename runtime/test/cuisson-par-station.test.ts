@@ -20,7 +20,7 @@ import { principal as station } from "../src/montrer-station.ts";
 import { etatStation } from "../src/projections/stations.ts";
 import { refus } from "../src/projets/refus.ts";
 import { lireStations } from "../src/stations-declarees.ts";
-import { demander } from "../src/tirer.ts";
+import { demander } from "./aides/demander.ts";
 import { chef, cuisine, issue } from "./aides/cuisine.ts";
 import { appeler, horloge, JOUR_HORLOGE, jusqua, repertoireTemporaire } from "./outils.ts";
 

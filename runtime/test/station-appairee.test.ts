@@ -5,7 +5,7 @@
 // station, part chez elle, et chez aucune autre ; celui qui demande ce
 // qu'aucune station ne fournit reste de côté. Sur une cuisine complète, la
 // station appairée jouée par le test depuis sa propre connexion au journal,
-// comme son geste (`pull`).
+// comme le ferait sa demande.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { MARQUEUR } from "../src/fiche.ts";
@@ -13,7 +13,7 @@ import { declarerLesSecondaires, secondairesDuProjet } from "../src/projets/seco
 import type { ProjetDemande } from "../src/projets/demande.ts";
 import { stationsAnnoncees } from "../src/projections/stations.ts";
 import { lireStations } from "../src/stations-declarees.ts";
-import { demander } from "../src/tirer.ts";
+import { demander } from "./aides/demander.ts";
 import { lectureDesAppairees } from "./aides/appairees.ts";
 import { cuisine, issue, type Lieux } from "./aides/cuisine.ts";
 import { jusqua } from "./outils.ts";
