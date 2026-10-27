@@ -21,6 +21,7 @@
       "etat": "en attente",
       "titre": "Réparer la base",
       "url": "https://exemple.test/30",
+      "depuis": "2026-10-12T10:00:00.000Z",
       "activite": null,
       "attente": null,
       "tiers": null,
@@ -32,6 +33,7 @@
       "etat": "en pass",
       "titre": "Ticket 17",
       "url": "https://exemple.test/17",
+      "depuis": "2026-10-09T10:00:00.000Z",
       "activite": {
         "fait": "arrêtée par la pass",
         "cible": null,
@@ -47,6 +49,7 @@
       "etat": "BLOQUÉ",
       "titre": "Ticket 19",
       "url": "https://exemple.test/19",
+      "depuis": "2026-10-12T08:00:00.000Z",
       "activite": null,
       "attente": null,
       "tiers": null,
@@ -58,6 +61,7 @@
       "etat": "pris",
       "titre": "Ticket 23",
       "url": "https://exemple.test/23",
+      "depuis": "2026-10-12T09:59:00.000Z",
       "activite": {
         "fait": "la station prépare le poste du cook",
         "cible": null,
@@ -73,6 +77,7 @@
       "etat": "86",
       "titre": "Ticket 25",
       "url": "https://exemple.test/25",
+      "depuis": "2026-10-12T09:59:00.000Z",
       "activite": null,
       "attente": {
         "raison": "attend : quota du compte épuisé",
@@ -88,6 +93,7 @@
       "etat": "86",
       "titre": "Ticket 18",
       "url": "https://exemple.test/18",
+      "depuis": "2026-10-12T08:00:00.000Z",
       "activite": null,
       "attente": {
         "raison": "attend : mis de côté (pass:returns-exhausted)",
@@ -103,6 +109,7 @@
       "etat": "en pass",
       "titre": "Ticket 20",
       "url": "https://exemple.test/20",
+      "depuis": "2026-10-12T09:58:00.000Z",
       "activite": {
         "fait": "arrêtée par la pass",
         "cible": null,
@@ -118,6 +125,7 @@
       "etat": "en attente",
       "titre": "Ticket 24",
       "url": "https://exemple.test/24",
+      "depuis": "2026-10-12T09:58:00.000Z",
       "activite": null,
       "attente": null,
       "tiers": null,
@@ -129,6 +137,7 @@
       "etat": "en attente",
       "titre": "Ticket 26",
       "url": "https://exemple.test/26",
+      "depuis": "2026-10-12T09:58:00.000Z",
       "activite": null,
       "attente": null,
       "tiers": null,
