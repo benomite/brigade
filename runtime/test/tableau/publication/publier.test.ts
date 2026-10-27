@@ -328,3 +328,31 @@ test("branché au runtime : GitHub injoignable se dit une fois, pas à chaque ti
   await jusqua(() => ecritures.length === 2);
   assert.equal(avertis.length, 1);
 });
+
+test("le compteur d'appels à GitHub, que le tableau fait bouger lui-même, ne réécrit pas le corps — un tick sans changement ne fait aucune écriture", async (t) => {
+  const journal = ouvrirJournal(copieDeLExempleDuBas(t), { lectureSeule: true });
+  aArreter(t, () => journal.fermer());
+  const etat = lireEtat(journal, LU_LE);
+  const repartition = (board: number, autres: number) => ({
+    total: board + autres,
+    parProjet: [{ nom: "acme", appels: board + autres }],
+    parLecture: [
+      { nom: "board", appels: board },
+      { nom: "issues", appels: autres },
+    ],
+  });
+  let appels = repartition(100, 40);
+  const lire = (maintenant: Date) => tableauDeLaCuisine(etat, maintenant, { appels });
+  const { publier, ecritures } = publication(t, lire);
+  const tableau = publier();
+  await tableau.rafraichir(LU_LE);
+  const publie = ecritures.length;
+  // Le compteur change à chaque tick (les appels du tableau, ceux des autres projets) : rien d'écrit.
+  for (const [minutes, board] of [[1, 101], [2, 105], [3, 90]] as const) {
+    appels = repartition(board, 40 + minutes * 7);
+    const corps = rendreLeTableau(lire(apres(minutes)), apres(minutes));
+    assert.ok(corps.includes("board cost"), "le tableau le dit encore");
+    await tableau.rafraichir(apres(minutes));
+  }
+  assert.equal(ecritures.length, publie, "aucune écriture, donc aucun appel d'écriture au compteur");
+});
