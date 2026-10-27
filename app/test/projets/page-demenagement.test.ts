@@ -30,7 +30,7 @@ const ACCUEIL: Accueil = { projets: [], stations: [], sante: { ton: "vert", dit:
 const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", depot: "benomite/parade", base: "main" };
 
 // parade, confié à ses deux stations : sa principale, et où il cuit, tel que leurs suivis le disent.
-const station = (id: string, nom: string, principale: boolean, etat: "servi" | "secondaire" | "refuse" = principale ? "servi" : "secondaire", dit = "") => ({ id, nom, principale, etat, dit, autoriser: [] });
+const station = (id: string, nom: string, principale: boolean, etat: "servi" | "secondaire" | "refuse" | "attendu" | "a-autoriser" = principale ? "servi" : "secondaire", dit = "") => ({ id, nom, principale, etat, dit, autoriser: [] });
 const SUR_LA_BOX: ProjetVu = { nom: "parade", depot: "benomite/parade", base: "main", stations: [station("gbox", "parade-box", true), station("gmac", "macbook", false)], servi: null, cuitSur: { id: "gbox", nom: "parade-box", ici: false }, demenagement: null };
 const SUR_LE_MAC: ProjetVu = { ...SUR_LA_BOX, stations: [station("gmac", "macbook", true), station("gbox", "parade-box", false)], cuitSur: { id: "gmac", nom: "macbook", ici: true } };
 const vuDes = (...projets: ProjetVu[]): VuDesProjets => ({ a: A, projets, locale: "gmac", recommandee: "gbox", avertissements: {}, machines: { gbox: machineProposee(BOX), gmac: machineProposee(MAC) }, calibrage: calibrageRecommande([]) });
@@ -91,6 +91,22 @@ test("la station ajoutée en plus de la principale : pastille verte quand la pri
   assert.deepEqual(await leMac(avec({ oui: false, dit: "not reached: it stopped at 2026-10-20T09:50:00.000Z" })), { ton: "gris", aria: "macbook — secondary — not reached", survol: "not reached\nit stopped at 2026-10-20T09:50:00.000Z" });
   // La principale n'en dit rien encore : grise, comme avant.
   assert.equal((await leMac(avec())).ton, "gris");
+});
+
+test("la station ajoutée depuis l'app qui ne sert rien n'est pas une « second station » : la ligne dit où elle en est, avec de quoi relire (#1774)", async () => {
+  const bloquee = (etat: "attendu" | "a-autoriser" | "refuse", dit = "") => vuDes({ ...SUR_LA_BOX, stations: [SUR_LA_BOX.stations[0]!, station("gmac", "macbook", false, etat, dit)] });
+  const attendue = (await laPage(bloquee("attendu"))).bloc;
+  assert.equal(ligne(attendue).textContent, "Cooks on parade-box · macbooknot received by the stationcheck again");
+  assert.doesNotMatch(attendue.textContent, /second station/);
+  const sienne = ligne(attendue).dessous("button").find(({ ariaLabel }) => ariaLabel.startsWith("macbook")) ?? assert.fail("pas de macbook");
+  assert.equal(sienne.children[0]?.dataset.ton, "gris");
+  assert.match(ligne(attendue).dessous("span").find(({ className }) => className === "pourquoi")?.title ?? "", /open Brigade on macbook's computer/);
+  bouton(attendue, "check again");
+  const refusee = (await laPage(bloquee("refuse", "refused: no sandbox"))).bloc;
+  assert.match(ligne(refusee).textContent, /macbookrefusedcheck again/);
+  assert.doesNotMatch(refusee.textContent, /second station/);
+  const autorisation = (await laPage(bloquee("a-autoriser"))).bloc;
+  assert.match(ligne(autorisation).textContent, /macbookwaiting for your authorization on GitHub/);
 });
 
 test("un projet qui cuit sur ce Mac : « Cooks on this Mac », et sa cuisine s'arrête quand on ferme l'app", async () => {
