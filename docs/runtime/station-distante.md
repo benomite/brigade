@@ -5,15 +5,17 @@ cook on the chef's machine and has no path to their workstation. A station that 
 than on the runtime's machine — `mac/claude`, with the chef's connected Chrome — therefore declares
 itself `distante` (the setting word stays French until the runtime is translated), and **it is the
 one that comes**: it announces itself, claims a ticket, renews its lease, hands back its delivery.
-This chapter describes the box side; the program that plays the station on the workstation (the
-app's runner) lives in `app/`.
+A second station of the project does so **through GitHub alone** — no ssh, no host, no key — as
+described under "A second station of the project" below. This chapter describes the box side; the
+program that plays the station on the workstation (the app's runner) lives in `app/`.
 
 ```bash
 brigade <project> station stations box/claude:30:code,mac/claude:1:chrome-connecté:distante
 ```
 
-**One single entry point: the box's gesture**, launched by the station from its workstation —
-`ssh <host> brigade <name> pull <station> <request>`. The gesture opens no connection: it writes the
+**The box's gesture, for a remote station that is not a second station**, launched by the station from
+its workstation — `ssh <host> brigade <name> pull <station> <request>`. A second station of the project
+never uses it: it asks through its gist (see below). The gesture opens no connection: it writes the
 request to the project's log (`remote.asked`), the running runtime reads it when it wakes (within a
 second) and answers the same way (`remote.answered`). It returns the answer as **JSON, on one line**,
 and its exit code says the rest:
@@ -206,10 +208,25 @@ brigade <project> station stations box/claude:3:code+raisonnement,mac/claude:2:c
   station goes quiet: its lease falls, its ticket goes back to the rail, the box takes it up, and keeps
   taking the new ones. The runtime itself is not shared: if the first station's machine stops, its
   kitchen — rail, manager, pass — stops with it, and no station takes anything until it is back.
-- **The first station keeps the manager and the pass.** They run where the kitchen runs; every
-  station cooks, none other runs them. The second station receives only cooks — `announce`,
-  `claim`, `renew`, `return` —, and its deliveries go through the first station's pass, judged by
-  its reviewer, like any other.
+- **One kitchen per project, run by the main station.** The rail, the manager and the pass run only
+  where the project's kitchen runs, on the first station; every station cooks, none other runs them.
+  The second station receives only cooks — `announce`, `claim`, `renew`, `deliver` —, and its
+  deliveries go through the first station's pass, judged by its reviewer, like any other.
+- **How a second station cooks, through GitHub only, in this order.** Its requests are written in its
+  own paired gist, one file per slot, written by the station alone (`brigade-pull.<owner>.<repo>.<slot>.json`,
+  `runtime/src/tirer-par-github/demande.ts`). The main station reads them at each reading (every
+  thirty seconds), relays each fresh one to the project's log once, and publishes its answer on the
+  Kitchen board (`distantes`, [`tableau-de-cuisine.md`](tableau-de-cuisine.md)):
+  1. **Take** — `claim`: the station takes the first ticket it can cook, as above. The ticket is
+     written to the log at once, and a ticket is lent once even when two stations claim it together.
+  2. **Renew** — `renew.<run>`, with the proof of its worktree, for each cook still at work. The lease
+     moves forward only on a proof of work, as for any remote cook.
+  3. **Hand back** — `deliver.<run>`, once the station has pushed its cook's branch to the origin. The
+     main station fetches that branch from there, opens the PR, and the pass judges it as any cook's.
+  4. **Lease expiry** — a station that goes silent stops renewing: at the deadline, the main station
+     stops its cook, the ticket goes back to the rail with nothing asked of the station, and any
+     station that can cook it may take it up. What the station's cook would deliver afterwards is not
+     received; it learns so from its next answer (`stopped`, `lease`).
 - **The same guards as `ordinaires`.** An ordinary ticket only leaves for another machine inside the
   Claude Code sandbox of its workstation: with no sandbox said, or an unavailable one, it takes no
   ordinary ticket, only those that ask for one of its capabilities.
@@ -235,8 +252,8 @@ sign of life (`CADENCE_DES_APPAIREES_MS`, `runtime/src/projets/secondaires.ts`).
   the Android SDK, a Postgres server, … — looked at without launching anything
   (`capacitesDeLaMachine`, `runtime/src/projets/ajout-de-station.ts`). A machine that is not a Mac
   provides only what is detected there.
-- **It pulls its work** like any remote station: `ssh <host> brigade <project> pull …`, with the same
-  rules as above. The main station keeps the manager and the pass.
+- **It works through GitHub** like any second station (see above): it takes, renews and hands back
+  through its gist, with the same rules. The main station keeps the manager and the pass.
 
 **What it says when it cannot cook yet.** A station installed from the app and cooking nothing yet says
 why in one short sentence, with the gesture to make, on its line of the home screen. The reasons are:
