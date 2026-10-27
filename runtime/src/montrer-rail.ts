@@ -32,7 +32,7 @@ import { ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { communsDuRail, lireRail, type TicketRail } from "./projections/rail.ts";
 import { etatStation, plafondDeCooks, stationsAnnoncees } from "./projections/stations.ts";
-import { avecHorsZoneEn, direRetenueEn, etatLuEn, retenue } from "./rail.ts";
+import { avecHorsZoneEn, direAttentesLeveesEn, direRetenueEn, etatLuEn, retenue } from "./rail.ts";
 import { direHorsBudget, horsBudgetSansTicket } from "./budget-des-gates.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
@@ -142,7 +142,8 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
             : retenue(ticket) === null && cap !== null && enCuisine >= cap
               ? "cap reached"
               : direRetenueEn(ticket);
-        return [...[raison ?? []].flat(), `since ${ticket.since}`].join(" — ");
+        // Une attente que la cuisine a levée d'elle-même se dit aussi (#1834).
+        return [...[raison ?? []].flat(), ...[direAttentesLeveesEn(ticket) ?? []].flat(), `since ${ticket.since}`].join(" — ");
       }
       case "taken":
         return `by ${ticket.station} since ${ticket.since}, last progress ${ticket.progressedAt}, lease until ${ticket.leaseUntil}`;
