@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { after } from "node:test";
 import { describe, test, type TestContext } from "node:test";
 import { ouvrirArbitre, servirArbitre } from "../src/arbitre.ts";
+import { signalerLArbre } from "../src/arbre.ts";
 import { empreinteDuCode, lireCodeEnService } from "../src/code.ts";
 import { ROLES } from "../src/identites.ts";
 import { ouvrirJournal } from "../src/journal.ts";
@@ -101,6 +102,7 @@ function runtimeParDefaut(t: TestContext): Promise<Releve> {
     const repertoire = repertoireTemporaire(t);
     const gh = fauxGh(t);
     gh.issues([]);
+    const depuis = Date.now();
     const runtime = lancer(t, MAIN, [], environnement(t, repertoire, gh));
     await runtime.attendre("démarré");
     const sortie = runtime.sortie();
@@ -109,7 +111,10 @@ function runtimeParDefaut(t: TestContext): Promise<Releve> {
     await jusqua(() => gh.jetons().length > 0);
     const jetons = gh.jetons();
     const sansCompte = existsSync(join(repertoire, "gh-sans-compte"));
-    runtime.process.kill("SIGTERM");
+    // Sous Windows, SIGTERM tue le runtime sur-le-champ et laisse vivre ses enfants, qui tiennent encore
+    // son répertoire d'état quand le test l'efface (EPERM sur le job) : c'est son arbre qui s'y arrête.
+    if (process.platform === "win32") await signalerLArbre(runtime.process.pid ?? 0, "SIGKILL", { depuis });
+    else runtime.process.kill("SIGTERM");
     const code = await runtime.fin;
     return { sortie, journal, codeEnService, jetons, sansCompte, code, sortieFinale: runtime.sortie(), journalFinal: relire(repertoire) };
   })();

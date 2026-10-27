@@ -15,6 +15,11 @@ const rienNeReste = temporaireDuFichier();
 // de tout ce qu'il a lancé se prouve sous Windows dans `arbre.test.ts`.
 const GROUPE = posixOnly("a process escapes its cook only by leaving the POSIX process group; on Windows the tree catches it (arbre.test.ts)");
 
+// La fin d'un cook que le superviseur a arrêté par ce signal. Sous Windows il n'y a pas de signal : le
+// superviseur y tue l'arbre du cook par ses pids (arbre.ts), Windows termine chaque process avec le code
+// 1, et Node ne rapporte aucun signal pour un enfant tué par un autre que lui.
+const tuePar = (signal: NodeJS.Signals) => (process.platform === "win32" ? { code: 1, signal: null } : { code: null, signal });
+
 const LARGES: Plafonds = { turns: 1000, durationMs: 60_000, tokens: 1_000_000, idleMs: 60_000 };
 
 function cook(t: TestContext, scenario: string, plafonds: Partial<Plafonds> = {}, graceMs = 2000) {
@@ -216,14 +221,14 @@ describe("superviser", { concurrency: true }, () => {
     assert.deepEqual([resultat.turns, resultat.tokens], [1, 7]);
   });
 
-  test("un cook qui dépasse son plafond de tours est arrêté, avec le motif", { skip: posixOnly("stops the fake claude (a bash script, scenario bavard) at its turn cap by sending SIGTERM to its process group and asserts the child ended on SIGTERM; Windows has no process groups and reports no signal for a killed child: on the Windows job: null !== 'SIGTERM'") }, async (t) => {
+  test("un cook qui dépasse son plafond de tours est arrêté, avec le motif", async (t) => {
     const { fin, arrets } = cook(t, "bavard", { turns: 3 });
 
     const resultat = await fin;
 
     assert.deepEqual(resultat.arret, { reason: "turns", limit: 3, observed: 4 });
     assert.deepEqual(arrets, [resultat.arret]);
-    assert.equal(resultat.signal, "SIGTERM");
+    assert.deepEqual({ code: resultat.code, signal: resultat.signal }, tuePar("SIGTERM"));
   });
 
   test("un cook qui dépasse son plafond de tokens est arrêté, avec le motif", async (t) => {
@@ -310,7 +315,7 @@ describe("superviser", { concurrency: true }, () => {
     assert.equal(vivaitEncore, true);
   });
 
-  test("un motif qui ne peut pas être noté n'empêche pas l'arrêt", { skip: posixOnly("supervises the fake claude (scenario bavard, a bash script) with a stop reason that cannot be written, and asserts the child still ended on SIGTERM sent to its process group; Windows has no process groups: on the Windows job: null !== 'SIGTERM'") }, async (t) => {
+  test("un motif qui ne peut pas être noté n'empêche pas l'arrêt", async (t) => {
     const flux = join(repertoireTemporaire(t), "run.jsonl");
     const supervise = superviser({
       commande: FAUX_CLAUDE,
@@ -328,7 +333,7 @@ describe("superviser", { concurrency: true }, () => {
     const resultat = await supervise.fin;
 
     assert.equal(resultat.arret?.reason, "turns");
-    assert.equal(resultat.signal, "SIGTERM");
+    assert.deepEqual({ code: resultat.code, signal: resultat.signal }, tuePar("SIGTERM"));
   });
 
   test("un flux brut qui ne peut pas s'écrire ne rend pas les plafonds aveugles", async (t) => {
@@ -383,13 +388,13 @@ describe("superviser", { concurrency: true }, () => {
     assert.match(resultat.erreur ?? "", /ENOENT/);
   });
 
-  test("abandonner tue le cook sur-le-champ, sans noter de motif", { skip: posixOnly("abandons the fake claude scenario sourd (a bash script that traps SIGTERM) and asserts it ended on SIGKILL sent to its process group at once; Windows has no process groups and reports no signal for a killed child: on the Windows job: null !== 'SIGKILL'") }, async (t) => {
+  test("abandonner tue le cook sur-le-champ, sans noter de motif", async (t) => {
     const { fin, abandonner, arrets } = cook(t, "sourd");
 
     abandonner();
 
     const resultat = await fin;
-    assert.equal(resultat.signal, "SIGKILL");
+    assert.deepEqual({ code: resultat.code, signal: resultat.signal }, tuePar("SIGKILL"));
     assert.equal(resultat.arret, null);
     assert.deepEqual(arrets, []);
   });
