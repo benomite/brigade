@@ -93,7 +93,7 @@ function livraisonDe(base: Base, pass: PassDeTicket): Livraison | undefined {
 
 // `title` : nul pour une issue qui n'est pas sur le rail — le journal ne
 // connaît pas son titre.
-type AttenteDeTicket = { ticket: number; title: string | null; since: string } & (
+export type AttenteDeTicket = { ticket: number; title: string | null; since: string } & (
   // Une livraison verte que la pass ne merge pas elle-même. `reason` : le
   // motif, `cause` : ce qui le précise. `expired` : faute d'un grant qui
   // s'était éteint seul à cet instant.

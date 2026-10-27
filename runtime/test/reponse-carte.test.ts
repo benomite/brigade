@@ -5,6 +5,7 @@
 import assert from "node:assert/strict";
 import { describe, test, type TestContext } from "node:test";
 import { cartesEnTodo, entrerDansTodo, type Proposition } from "../src/carte-todo.ts";
+import { carteDuTicket } from "../src/carte-todo/cartes.ts";
 import type { Fait } from "../src/evenements.ts";
 import { DU_MANAGER, ENCORE_ROUGE } from "../src/events/pass.ts";
 import { ouvrirJournal } from "../src/journal.ts";
@@ -24,6 +25,7 @@ const STATION = "box/claude";
 const BRANCHE = "cook/30-x";
 const CARTE: Proposition = {
   type: "product",
+  resume: "The ticket adds an export. Its format decides what the user downloads.",
   enonce: "Export CSV ou export JSON ?",
   choix: [{ texte: "L'export CSV." }, { texte: "L'export JSON." }, { texte: "Garder la livraison telle quelle.", suite: "merge" }],
 };
@@ -150,6 +152,66 @@ describe("répondre d'un clic à une carte de TODO", () => {
     await assert.rejects(c.repondre({ choix: 1 }), /HTTP 502/);
     assert.equal(cartesEnTodo(c.journal.base).length, 1);
     assert.equal(ticketDuRail(c.journal.base, 30)?.state, "86");
+  });
+});
+
+describe("toute carte de TODO se répond, pas seulement celle de la porte", () => {
+  test("une livraison verte à merger à la main : son seul bouton la merge, et la réponse dit ce que la carte disait", async (t) => {
+    const c = atelier(t);
+    await c.livrer();
+    c.noter(30, { type: "pass.held", payload: { reason: "no-grant" } }, "pass");
+    assert.match(((await c.repondre({ choix: 2 })) as { reason: string }).reason, /offers choices 1 to 1/);
+
+    const resultat = await c.repondre({ choix: 1 });
+
+    assert.equal(resultat.done, true);
+    assert.deepEqual(c.gh.merges, [[101, `tete-de-${BRANCHE}`]]);
+    assert.match(c.dits()[0] ?? "", /^\*\*The chef's answer\*\* to the TODO card — choice 1 of 1:\n\n> The delivery of #30 is green, but the pass does not merge it without a merge grant\.\n\nMerge /);
+    assert.deepEqual(c.journal.duTicket(30).findLast((e) => e.type === "todo.answered")?.payload.then, "merge");
+    // Aucune carte de la porte : rien à en sortir.
+    assert.equal(c.journal.duTicket(30).some((e) => e.type === "todo.left"), false);
+  });
+
+  test("un rouge remonté par la pass : « Take it off the rail » sort le ticket du rail, la réponse écrite", async (t) => {
+    const c = atelier(t);
+    await c.livrer();
+    c.noter(30, { type: "pass.escalated", payload: { reason: ENCORE_ROUGE, cause: "returns-exhausted" } }, "pass");
+    c.rail.quatreVingtSix(30, { motif: REMONTE });
+
+    const resultat = await c.repondre({ choix: 3 });
+
+    assert.equal(resultat.done, true, (resultat as { reason?: string }).reason ?? "");
+    assert.match(resultat.price, /the ticket leaves the rail and is not cooked/);
+    assert.deepEqual(c.gh.delabellisations, [[30, "fire"]]);
+    assert.equal(ticketDuRail(c.journal.base, 30), null);
+    assert.match(c.dits()[0] ?? "", /choice 3 of 3:\n\n> What does the kitchen do with #30\?\n\nTake it off the rail$/);
+    assert.deepEqual(c.journal.duTicket(30).findLast((e) => e.type === "todo.answered")?.payload.then, "drop");
+  });
+
+  test("un rouge remonté avec sa PR : « Merge … as it is » la merge", async (t) => {
+    const c = atelier(t);
+    await c.livrer();
+    c.noter(30, { type: "pass.escalated", payload: { reason: ENCORE_ROUGE, cause: "returns-exhausted" } }, "pass");
+    c.rail.quatreVingtSix(30, { motif: REMONTE });
+
+    const resultat = await c.repondre({ choix: 2 });
+
+    assert.equal(resultat.done, true, (resultat as { reason?: string }).reason ?? "");
+    assert.deepEqual(c.gh.merges, [[101, `tete-de-${BRANCHE}`]]);
+  });
+
+  test("une PR fermée sans merge : « Start it over » rend le ticket au rail", async (t) => {
+    const c = atelier(t);
+    await c.livrer();
+    c.noter(30, { type: "pass.held", payload: { reason: "no-grant" } }, "pass");
+    c.noter(30, { type: "pass.pr-closed", payload: { pr: "https://exemple.test/pull/101" } }, "pass");
+    assert.equal(carteDuTicket(c.journal.base, 30)?.attente.quoi, "fermee");
+
+    const resultat = await c.repondre({ choix: 1 });
+
+    assert.equal(resultat.done, true, (resultat as { reason?: string }).reason ?? "");
+    assert.equal(ticketDuRail(c.journal.base, 30)?.state, "waiting");
+    assert.equal(c.journal.duTicket(30).findLast((e) => e.type === "ticket.released")?.payload.reason, REPONSE_DU_CHEF);
   });
 });
 

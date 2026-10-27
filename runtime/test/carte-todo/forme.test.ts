@@ -169,22 +169,23 @@ describe("the validation refuses an incomplete card, saying why", () => {
 // La carte que le chef a reçue pour #1752 : une question produit, posée au nom
 // du manager qui l'avait remonté, deux choix qui reprennent le ticket, et la
 // réponse libre — c'est par elle que le chef a répondu.
+const RESUME_1752 = "Le critère de #1752 veut le geste dans le libellé, et la relecture le refuse sans bouton (règle #830). Le manager te le remonte après deux renvois rouges.";
 const CARTE_1752: Proposition = {
   type: "product",
+  resume: RESUME_1752,
   enonce: "La carte d'un ticket en attente de station doit-elle dire au chef de brancher une station, alors que la règle de l'app veut qu'un geste soit un bouton ?",
   choix: [
     { texte: "Garder le geste « brancher une station » dans le libellé, en dérogeant à #830.", suite: "resume" },
     { texte: "Retirer le geste du libellé en attendant un bouton.", suite: "resume" },
   ],
 };
-const RESUME_1752 = "Le critère de #1752 veut le geste dans le libellé, et la relecture le refuse sans bouton (règle #830). Le manager te le remonte après deux renvois rouges.";
 
 test("the product question card of #1752 is a valid card under the single shape", () => {
   const jugement = jugerCarte(CARTE_1752);
   assert.equal(jugement.admise, true, jugement.admise ? "" : jugement.raison);
   const admise = (jugement as { carte: Parameters<typeof carteDeLaPorte>[0] }).carte;
 
-  const carte = valide(carteDeLaPorte(admise, RESUME_1752));
+  const carte = valide(carteDeLaPorte(admise));
   assert.equal(carte.resume, RESUME_1752);
   assert.equal(carte.question, CARTE_1752.enonce);
   assert.deepEqual(carte.choix, admise.choix);
@@ -194,9 +195,8 @@ test("the product question card of #1752 is a valid card under the single shape"
   assert.equal(carte.captures, null);
 });
 
-test("a card the gate of #1281 admits still needs its summary", () => {
-  const jugement = jugerCarte(CARTE_1752);
-  assert.equal(jugement.admise, true);
-  const admise = (jugement as { carte: Parameters<typeof carteDeLaPorte>[0] }).carte;
-  assert.match(refusee(carteDeLaPorte(admise, "")), /^no summary/);
+test("the gate of TODO refuses a card without its summary", () => {
+  const jugement = jugerCarte({ ...CARTE_1752, resume: null });
+  assert.equal(jugement.admise, false);
+  assert.match((jugement as { raison: string }).raison, /^no summary/);
 });

@@ -28,7 +28,7 @@ const DIFF = ["--- a/CLAUDE.md", "+++ b/CLAUDE.md", "@@ -1,1 +1,2 @@", " # Proje
 function projet(t: TestContext) {
   const journal = ouvrirJournal(copieDeLExempleDuBas(t), { maintenant: () => new Date("2026-10-12T10:03:00.000Z") });
   aArreter(t, () => journal.fermer());
-  entrerDansTodo(journal, "brigade", 24, { type: "product", enonce: "One list per project, or one for all?", choix: [{ texte: "One per project." }, { texte: "One for all.", suite: "resume" }] }, "manager");
+  entrerDansTodo(journal, "brigade", 24, { type: "product", resume: "The ticket adds a saved list.", enonce: "One list per project, or one for all?", choix: [{ texte: "One per project." }, { texte: "One for all.", suite: "resume" }] }, "manager");
   journal.ajouter({
     project: "brigade",
     ticket: null,
@@ -107,11 +107,14 @@ test("le tableau publié porte les cooks en cours — quel ticket, quel cook, su
   const carte = publies.attend.find(({ ticket }) => ticket === 24)?.carte;
   assert.deepEqual(carte, {
     type: "product",
+    resume: "The ticket adds a saved list.",
     question: "One list per project, or one for all?",
     choix: [
       { texte: "One per project.", suite: "resume" },
       { texte: "One for all.", suite: "resume" },
     ],
+    reponseLibre: true,
+    secondaire: { action: "ask-second", texte: "ask the second" },
     captures: null,
   });
   assert.equal(publies.attend.find(({ ticket }) => ticket === 24)?.url, "https://exemple.test/24");

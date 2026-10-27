@@ -370,22 +370,36 @@ it refuses stays held until the manager is back.
 #### What enters TODO, and how you answer
 
 The TODO gate (`runtime/src/carte-todo.ts`) admits **two kinds of cards, and no other**: a choice
-that changes the product (`product`) and a design validation (`design`). Each asks **exactly one
-question** (one line, ending with its only "?") and offers **at least one choice**, each one line,
-each with what follows it: `resume` (the kitchen takes the ticket up again with your answer) or
-`merge` (the green delivery waiting for you is merged). A `design` card shows **the captures its
+that changes the product (`product`) and a design validation (`design`). Each says first **what
+happens, in at most two plain sentences** (`resume`: one line, no Markdown), asks **exactly one
+question** (one line, ending with its only "?") and offers **at least two choices**, each one line,
+each with the gesture it plays: `resume` (the kitchen takes the ticket up again with your answer),
+`merge` (the green delivery waiting for you is merged) or `drop` (the ticket leaves the rail). The
+gate judges by the single shape of every TODO card (`runtime/src/carte-todo/forme.ts`). A `design` card shows **the captures its
 ticket delivered**, each screen before and after (`docs/captures/<ticket>/<screen>-avant.png` and
 `-apres.png`, taken with `scripts/capture-ecran/` and read from its last delivery,
 `runtime/src/captures.ts`); without them it does not enter. A `product` card shows them when its ticket delivered some, and none otherwise. Anything
 else — a `gesture`, a card with no question or no choice — is refused (`todo.refused`, with the
 reason) and **sent back to the triage**: it stays held, and the agent reads the reason at its next
 turn. A card the gate sends back three times after an answer of the agent is no longer taken up:
-the ticket shows in `attend` as it is, without a card. A card entered before this gate (a `gesture`,
+the ticket shows in `attend` with the card of what it waits for (below). A card entered before this gate (a `gesture`,
 a card without choices) is no longer read as a card.
 
-`facts` gives each card in `attend[].carte`: `type`, `question`, `choix` (`texte`, `suite`) and
-`captures` (`complet`, `ecrans` with `avant` and `apres`, by address), `null` on a `product` card
-without a screen. **One call settles it**, by a choice or in your own words:
+Every ticket in `attend` has a card of that same shape (`runtime/src/carte-todo/cartes.ts`), built
+from what it waits for when no card of the gate stands for it: a green delivery the pass does not
+merge, a red ticket escalated by the manager or the pass, a PR closed without a merge, a ticket set
+aside (86, a missing capability, an absent station, back from WAITING), a ticket blocked by one that
+left the rail, an issue the manager set aside or could not read, the manager's question before
+splitting an epic. A card with a single gesture — merging a green delivery without a grant, taking a
+blocked ticket off the rail, handing an issue back to the manager — shows that one button and asks no
+question. Every card offers the free answer, and "ask the second" beside its choices, never among
+them. A card that does not hold the shape is never shown half-built: the runtime raises.
+
+`facts` gives each card in `attend[].carte`: `type` (`product` or `design` for a card of the gate,
+otherwise what the ticket waits for — `merge`, `remontee`…), `resume`, `question` (`null` on a single
+gesture), `choix` (`texte`, `suite`), `reponseLibre`, `secondaire` (`ask the second`) and `captures`
+(`complet`, `ecrans` with `avant` and `apres`, by address), `null` without a screen. **One call
+settles it**, by a choice or in your own words:
 
 ```
 npm --prefix runtime run rail -- choose 8 2              # choice 2 of the card, from 1

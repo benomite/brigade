@@ -136,15 +136,19 @@ const EXEMPLES = {
     {
       ...ticket(46),
       quoi: "carte",
-      carte: { type: "product", question: "One list per project, or one for all projects?", choix: [{ texte: "One list per project.", suite: "resume" }, { texte: "One for all.", suite: "resume" }], captures: null },
+      carte: { type: "product", resume: "The ticket adds a saved list.", question: "One list per project, or one for all projects?", choix: [{ texte: "One list per project.", suite: "resume" }, { texte: "One for all.", suite: "resume" }], captures: null },
     },
     {
       ...ticket(47),
       quoi: "carte",
       carte: {
         type: "design",
+        resume: "The empty rail now says what to do next.",
         question: "Is the empty rail screen right?",
-        choix: [{ texte: "Yes, merge it.", suite: "merge" }],
+        choix: [
+          { texte: "Yes, merge it.", suite: "merge" },
+          { texte: "No, send it back.", suite: "resume" },
+        ],
         captures: { sha: "c0ffee", screens: [{ screen: "rail-vide", before: "docs/captures/47/rail-vide-avant.png", after: "docs/captures/47/rail-vide-apres.png" }] },
       },
     },

@@ -71,7 +71,7 @@ export function projetPublie(t: TestContext, { propositions = false }: { proposi
   const journal = ouvrirJournal(copieDeLExempleDuBas(t), { maintenant: () => new Date("2026-10-12T10:03:00.000Z") });
   // Fermé avant que son répertoire ne soit retiré : sous Windows, un journal encore ouvert ne se retire pas (EPERM).
   aArreter(t, () => journal.fermer());
-  entrerDansTodo(journal, "brigade", 24, { type: "product", enonce: "One list per project, or one for all?", choix: [{ texte: "One per project." }, { texte: "One for all.", suite: "resume" }] }, "manager");
+  entrerDansTodo(journal, "brigade", 24, { type: "product", resume: "The ticket adds a saved list.", enonce: "One list per project, or one for all?", choix: [{ texte: "One per project." }, { texte: "One for all.", suite: "resume" }] }, "manager");
   const proposees = propositions ? proposer(journal) : null;
   const etat = lireEtat(journal, LU_LE);
   const file = proposees === null ? {} : { corrections: cartesDeCorrection(journal, DEPOT), profils: cartesDeProfil(journal, DEPOT) };

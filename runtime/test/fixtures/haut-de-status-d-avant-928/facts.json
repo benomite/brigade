@@ -147,6 +147,23 @@
         "motif": "no-grant",
         "cause": null,
         "pr": "https://exemple.test/pull/17"
+      },
+      "carte": {
+        "type": "merge",
+        "resume": "The delivery of #17 is green, but the pass does not merge it without a merge grant.",
+        "question": null,
+        "choix": [
+          {
+            "texte": "Merge https://exemple.test/pull/17",
+            "suite": "merge"
+          }
+        ],
+        "reponseLibre": true,
+        "secondaire": {
+          "action": "ask-second",
+          "texte": "ask the second"
+        },
+        "captures": null
       }
     },
     {
@@ -158,6 +175,31 @@
         "motif": "still-red",
         "cause": "returns-exhausted",
         "pr": "https://exemple.test/pull/18"
+      },
+      "carte": {
+        "type": "remontee",
+        "resume": "The pass escalated #18: its delivery is still red after its returns.",
+        "question": "What does the kitchen do with #18?",
+        "choix": [
+          {
+            "texte": "Send it back to a cook",
+            "suite": "resume"
+          },
+          {
+            "texte": "Merge https://exemple.test/pull/18 as it is",
+            "suite": "merge"
+          },
+          {
+            "texte": "Take it off the rail",
+            "suite": "drop"
+          }
+        ],
+        "reponseLibre": true,
+        "secondaire": {
+          "action": "ask-second",
+          "texte": "ask the second"
+        },
+        "captures": null
       }
     },
     {
@@ -169,6 +211,23 @@
         "motif": null,
         "cause": null,
         "pr": null
+      },
+      "carte": {
+        "type": "bloque",
+        "resume": "#19 waits for #21, which left the rail without being served.",
+        "question": null,
+        "choix": [
+          {
+            "texte": "Take it off the rail",
+            "suite": "drop"
+          }
+        ],
+        "reponseLibre": true,
+        "secondaire": {
+          "action": "ask-second",
+          "texte": "ask the second"
+        },
+        "captures": null
       }
     },
     {
@@ -180,6 +239,31 @@
         "motif": "review-required",
         "cause": "judge-modified",
         "pr": "https://exemple.test/pull/20"
+      },
+      "carte": {
+        "type": "merge",
+        "resume": "The delivery of #20 is green, and it changes its own judges or what the project opens up. The pass leaves that merge to you, once reviewed.",
+        "question": "Merge this delivery of #20?",
+        "choix": [
+          {
+            "texte": "Merge https://exemple.test/pull/20",
+            "suite": "merge"
+          },
+          {
+            "texte": "Send it back to a cook",
+            "suite": "resume"
+          },
+          {
+            "texte": "Take it off the rail",
+            "suite": "drop"
+          }
+        ],
+        "reponseLibre": true,
+        "secondaire": {
+          "action": "ask-second",
+          "texte": "ask the second"
+        },
+        "captures": null
       }
     }
   ],

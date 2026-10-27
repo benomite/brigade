@@ -28,6 +28,10 @@ const PARADE = "parade";
 const ISSUE = (ticket: number) => `https://github.com/chef/parade/issues/${ticket}`;
 const CAPTURE = (moment: string) => `https://github.com/chef/parade/blob/5d41402abc4b2a76b9719d911017c592/docs/captures/12/formulaire-${moment}.png?raw=true`;
 
+// Une carte telle qu'un runtime d'avant la forme unique (#1766) la donnait : sans résumé, sans
+// réponse libre ni « ask the second » dits.
+type CarteDAvant = Omit<CarteVue, "resume" | "reponseLibre" | "secondaire">;
+
 // Les deux cartes telles que le runtime les donne dans `attend[].carte` : leur type est le sien.
 const DESIGN = {
   type: "design",
@@ -37,7 +41,7 @@ const DESIGN = {
     { texte: "No: the error line goes under the field.", suite: "resume" },
   ],
   captures: { complet: true, ecrans: [{ ecran: "formulaire", avant: CAPTURE("avant"), apres: CAPTURE("apres") }] },
-} satisfies CarteVue;
+} satisfies CarteDAvant;
 const PRODUIT = {
   type: "product",
   question: "One journal export per project, or a single one?",
@@ -46,7 +50,7 @@ const PRODUIT = {
     { texte: "A single export.", suite: "resume" },
   ],
   captures: null,
-} satisfies CarteVue;
+} satisfies CarteDAvant;
 
 const FAITS: Faits = {
   etat: "ouverte",
