@@ -1,7 +1,7 @@
 // Les faits d'une station distante : ce qu'elle demande à la box, et ce que le
 // runtime lui répond. La station ne tourne pas sur la machine du runtime, et
-// la box n'a aucun chemin vers elle : c'est elle qui vient, par le geste de la
-// box (`run pull`), écrire sa demande ici ; le runtime qui tourne la lit à son
+// la box n'a aucun chemin vers elle : c'est elle qui vient, par GitHub
+// (`tirer-par-github/`), faire écrire sa demande ici ; le runtime qui tourne la lit à son
 // réveil et y répond de même. Rien ne part de la box vers la station.
 import type { Plafonds } from "./guardrails.ts";
 
@@ -81,10 +81,10 @@ export type Reponse =
   | { ok: false; verb: Geste; refusal: Refus; said: string; stop?: string | null; leaseUntil?: string | null };
 
 export type FaitDistante =
-  // La demande d'une station, écrite par son geste. `id` : ce par quoi la
+  // La demande d'une station, écrite pour elle. `id` : ce par quoi la
   // réponse la retrouve. `via` : `github`, la demande que la station a posée
   // dans son gist et que la principale a relayée ici (`tirer-par-github/`) —
-  // sa réponse se publie au Kitchen board ; absent, le geste `pull` sur la box.
+  // sa réponse se publie au Kitchen board ; absent, une demande écrite directement au journal.
   | { type: "remote.asked"; payload: { id: string; station: string; via?: "github" } & Demande }
   // La réponse du runtime.
   | { type: "remote.answered"; payload: { id: string; station: string } & Reponse };

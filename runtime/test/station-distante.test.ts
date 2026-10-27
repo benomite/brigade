@@ -16,7 +16,7 @@ import { ouvrirJournal } from "../src/journal.ts";
 import { etatDesGardeFous } from "../src/projections/guardrails.ts";
 import { etatStation } from "../src/projections/stations.ts";
 import { lireStations } from "../src/stations-declarees.ts";
-import { demander } from "../src/tirer.ts";
+import { demander } from "./aides/demander.ts";
 import { BAIL_MS, chef, cuisine, issue, PLAFONDS, pousserSurLOrigine, type Lieux, type Options } from "./aides/cuisine.ts";
 import { jusqua } from "./outils.ts";
 

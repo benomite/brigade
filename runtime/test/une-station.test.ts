@@ -177,12 +177,11 @@ test("sans journal, changer une station est refusé sans en créer un", async (t
   assert.match(sortie, /aucun journal dans .* rien n'est écrit/);
 });
 
-test("app.json : un projet sans box, un projet absent, un autre moteur ou un fichier illisible — refusés, le fichier n'est pas réécrit", (t) => {
+test("app.json : un projet absent, un autre moteur ou un fichier illisible — refusés, le fichier n'est pas réécrit", (t) => {
   const chemin = join(repertoireTemporaire(t), "app.json");
   const texte = `${JSON.stringify({ projets: [{ nom: PROJET, dossier: "~/espace" }, { nom: "servi", dossier: "~/servi", hote: "box" }] }, null, 2)}\n`;
   writeFileSync(chemin, texte);
 
-  assert.match((jouerIci(chemin, PROJET, "pc/claude") as { refus: string }).refus, /espace has no box .* \(“hote”\)/);
   assert.match((jouerIci(chemin, "inconnu", "mac/claude") as { refus: string }).refus, /declares no project named “inconnu”/);
   assert.match((jouerIci(chemin, "servi", "mac/playwright") as { refus: string }).refus, /runs an engine this workstation does not run/);
   assert.match((jouerIci(chemin, "servi", "Mac/Claude") as { refus: string }).refus, /is not a station name/);
@@ -211,4 +210,14 @@ test("tenir une station : ajoutée à la fin si la déclaration ne l'a pas, ré�
     journal.fermer();
   }
   assert.equal(declarationAuJournal(etat), "mac/claude:1:code+macos:distante+ensemble");
+});
+
+test("app.json : un projet sans `hote` joue une station, et un `hote` laissé par une ancienne config est ignoré sans être touché", (t) => {
+  const chemin = join(repertoireTemporaire(t), "app.json");
+  writeFileSync(chemin, `${JSON.stringify({ projets: [{ nom: PROJET, dossier: "~/espace" }, { nom: "ancien", dossier: "~/ancien", hote: "box" }] }, null, 2)}\n`);
+
+  assert.deepEqual(jouerIci(chemin, PROJET, "pc/claude"), { ecrit: true, stations: ["pc/claude"] });
+  assert.deepEqual(jouerIci(chemin, "ancien", "pc/claude"), { ecrit: true, stations: ["pc/claude"] });
+  const projets = (JSON.parse(readFileSync(chemin, "utf8")) as { projets: Record<string, unknown>[] }).projets;
+  assert.deepEqual(projets.map((p) => [p.nom, p.hote, p.stations]), [[PROJET, undefined, ["pc/claude"]], ["ancien", "box", ["pc/claude"]]]);
 });

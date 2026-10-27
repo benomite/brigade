@@ -114,12 +114,11 @@ const MOTEUR_DU_POSTE = "claude";
 
 export type JoueeIci = { ecrit: boolean; stations: string[] } | { refus: string };
 
-type ProjetEcrit = Record<string, unknown> & { nom?: unknown; hote?: unknown; stations?: unknown };
+type ProjetEcrit = Record<string, unknown> & { nom?: unknown; stations?: unknown };
 
 // Change la liste des stations que ce poste joue pour `projet` dans le fichier
 // de l'app, `chemin`. Un fichier que l'app ne lirait plus après l'écriture
-// n'est pas écrit : le projet doit avoir sa box (`hote`), la station tourner
-// sous `claude`.
+// n'est pas écrit : la station doit tourner sous `claude`.
 function changerLesJouees(chemin: string, projet: string, station: string, jouer: boolean): JoueeIci {
   if (!NOM_DE_STATION.test(station)) return { refus: `“${station}” is not a station name: \`<machine>/<engine>\`, in lowercase letters, digits and dashes (mac/claude)` };
   let texte: string;
@@ -145,7 +144,6 @@ function changerLesJouees(chemin: string, projet: string, station: string, jouer
   if (!jouer && !avant.includes(station)) return { ecrit: false, stations: avant };
   if (jouer) {
     if (station.slice(station.indexOf("/") + 1) !== MOTEUR_DU_POSTE) return { refus: `${station} runs an engine this workstation does not run — it only runs \`${MOTEUR_DU_POSTE}\`` };
-    if (typeof ecrit.hote !== "string" || ecrit.hote.trim() === "") return { refus: `${projet} has no box in ${chemin} (“hote”): a station played here pulls its work from the project's main station — nothing is written` };
   }
   const apres = jouer ? [...avant, station] : avant.filter((nom) => nom !== station);
   if (apres.length === 0) delete ecrit.stations;

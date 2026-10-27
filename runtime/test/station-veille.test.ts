@@ -6,7 +6,7 @@
 // cook : réveillé, le Mac apprend que le sien est arrêté, et rien de lui n'est
 // plus reçu. Sur une cuisine complète — la box saturée par sa machine, le Mac
 // `distante+ordinaires` avec son bac à sable —, la station jouée par le test
-// depuis sa propre connexion au journal, comme le ferait son geste (`run pull`).
+// depuis sa propre connexion au journal, comme le ferait sa demande.
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
@@ -15,7 +15,7 @@ import type { Machine } from "../src/machine.ts";
 import { cooksEnCours } from "../src/projections/guardrails.ts";
 import { etatStation } from "../src/projections/stations.ts";
 import { lireStations } from "../src/stations-declarees.ts";
-import { demander } from "../src/tirer.ts";
+import { demander } from "./aides/demander.ts";
 import { travailLaisse } from "../src/travail-conserve.ts";
 import { BAIL_MS, cuisine, issue, MACHINE_CALME, pousserSurLOrigine, type Options } from "./aides/cuisine.ts";
 import { BASE, commiter, git, jusqua, repertoireTemporaire } from "./outils.ts";

@@ -107,7 +107,7 @@ describe("les commandes du runtime", { concurrency: 8 }, () => {
   test("chaque commande remplace ses anciens mots par les siens, et le dit : sa sous-commande au rang qu'elle lit, ses options où qu'elles soient", async () => {
     const fichierDe = (nom: string) => /^node (src\/[\w-]+\.ts)$/.exec(scripts[nom] ?? "")?.[1] ?? "";
     const essais = COMMANDES.flatMap(({ nom, mots = {}, rang = 0 }) => Object.entries(mots).map(([ancien, nouveau]) => ({ nom, ancien, nouveau, args: placer(rang, ancien) })));
-    assert.ok(essais.length >= 30);
+    assert.ok(essais.length >= 20);
     const lances = essais.map(async (essai) => ({ ...essai, fin: await jouer([process.execPath, fichierDe(essai.nom), ...essai.args]) }));
     for (const { nom, ancien, nouveau, fin } of await Promise.all(lances)) {
       assert.equal(fin.erreur.split("\n")[0], direAncien(ancien, nouveau), `${nom} ${ancien}`);
@@ -131,9 +131,8 @@ describe("les commandes du runtime", { concurrency: 8 }, () => {
 
     const silence: string[] = [];
     assert.deepEqual(enAnglais("grant", ["enable", "merge", "--for", "4h"], (ligne) => silence.push(ligne)), ["enable", "merge", "--for", "4h"]);
-    assert.deepEqual(enAnglais("pull", ["annoncer", "rendre"], (ligne) => silence.push(ligne)).slice(0, 1), ["annoncer"]);
     assert.deepEqual(enAnglais("rail", ["voir"], (ligne) => silence.push(ligne)), ["voir"]);
-    assert.deepEqual(silence, [direAncien("rendre", "return")]);
+    assert.deepEqual(silence, []);
   });
 
   test("l'aide ne nomme que les commandes sous leur nom anglais, chacune avec ce qu'elle fait, en anglais", async () => {

@@ -1,7 +1,7 @@
 // Les stations distantes du projet, vues de la box : celles qui ne tournent
 // pas sur la machine du runtime — le poste du chef. La box n'a aucun chemin
-// vers elles, et n'en ouvre aucun : c'est la station qui vient, par le geste
-// de la box (`run pull`, `tirer.ts`), écrire sa demande au journal ; ce module
+// vers elles, et n'en ouvre aucun : c'est la station qui vient, par GitHub
+// (`tirer-par-github/`), faire écrire sa demande au journal ; ce module
 // la lit au réveil du runtime et y répond de même. Rien ici ne lance un
 // process, n'ouvre une connexion, ni ne connaît l'adresse de qui que ce soit.
 //
@@ -74,7 +74,7 @@ export const PRESENCE_PAR_DEFAUT_MIN = 2;
 const MINUTE = 60_000;
 // Une demande à laquelle le runtime n'a pas répondu dans ce délai n'attend
 // plus personne : y répondre prêterait un ticket à une station qui n'écoute
-// plus. Le geste de la station attend un peu plus longtemps (`tirer.ts`).
+// plus. La station attend sa réponse un peu plus longtemps.
 export const DELAI_DE_REPONSE_MS = 20_000;
 // Le curseur de celui qui lit les demandes dans le journal.
 const CONSOMMATEUR = "distantes";

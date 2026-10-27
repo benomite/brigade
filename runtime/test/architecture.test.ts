@@ -16,7 +16,7 @@ import { MARQUEUR } from "../src/fiche.ts";
 import { ACTIONS, jamaisAccordee } from "../src/grant.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
 import { lireStations } from "../src/stations-declarees.ts";
-import { demander } from "../src/tirer.ts";
+import { demander } from "./aides/demander.ts";
 import { chef, cuisine, issue, pousserSurLOrigine } from "./aides/cuisine.ts";
 import { jusqua } from "./outils.ts";
 
@@ -43,7 +43,7 @@ const VERS = {
   "telephone/guichet.ts": "n'ouvre rien : il écoute — le téléphone du chef le joint pour s'appairer, puis lire les stations, les projets et leur file, y faire les gestes de la file et parler au second de chaque projet",
 };
 // Ce qui sert les stations distantes, côté box.
-const DISTANTES = ["distantes.ts", "tirer.ts", "tirer-cli.ts", "superviseur-distant.ts", "events/remote.ts"];
+const DISTANTES = ["distantes.ts", "superviseur-distant.ts", "events/remote.ts"];
 
 test("la déclaration d'une station distante ne porte aucune adresse : la box ne sait pas où elle est, elle ne peut donc pas la joindre", () => {
   const [distante] = lireStations({ BRIGADE_STATIONS: "mac/claude:1:chrome-connecté:distante" });

@@ -1,19 +1,13 @@
-// Le geste d'une station distante : le seul point par lequel elle parle à la
-// box. Elle ne tourne pas sur la machine du runtime — c'est le poste du chef —
-// et la box n'a aucun chemin vers elle : c'est donc elle qui vient, par le
-// geste de la box (`ssh <hote> brigade <projet> pull <station> …`), s'annoncer,
-// réclamer un ticket, renouveler son bail et le rendre.
-//
-// Ce module tourne dans le process de ce geste, sur la box. Il n'ouvre aucune
-// connexion et ne décide de rien : il écrit la demande au journal du projet,
-// et y attend la réponse du runtime qui tourne (`distantes.ts`). Toutes les
-// règles — bornes, bail, plafonds, pass — sont appliquées par le runtime.
+// Ce que fait, dans un test, une station distante qui parle à la box : écrire sa
+// demande au journal du projet (`remote.asked`) et y attendre la réponse du
+// runtime (`distantes.ts`). Les stations réelles passent par GitHub
+// (`tirer-par-github/`) ; ce chemin direct ne sert qu'à jouer la demande.
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import type { Demande, Reponse } from "./events/remote.ts";
-import { cheminJournal, ouvrirJournal } from "./journal.ts";
-import { sessionEnCours } from "./projections/sessions.ts";
-import { NOM_DE_STATION } from "./stations-declarees.ts";
+import type { Demande, Reponse } from "../../src/events/remote.ts";
+import { cheminJournal, ouvrirJournal } from "../../src/journal.ts";
+import { sessionEnCours } from "../../src/projections/sessions.ts";
+import { NOM_DE_STATION } from "../../src/stations-declarees.ts";
 
 // Ce que le geste attend la réponse du runtime : un peu plus que le délai
 // passé lequel le runtime ne répond plus à une demande (`DELAI_DE_REPONSE_MS`).

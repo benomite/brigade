@@ -126,7 +126,7 @@ export type LigneDuRail = { ticket: number; priorite: number | null; ligne: stri
 export type AttributionPubliee = { ticket: number; station: string; run: string | null; bailJusqua: string | null };
 // `demande` : l'id que la station a donné à sa demande ; `geste` : `announce`,
 // `claim`, `renew` ; `run` : celui d'un renouvellement ; `le` : l'heure de la
-// réponse. `reponse` : celle du runtime, telle que `pull` la rend, sauf la
+// réponse. `reponse` : celle du runtime, telle que le runtime la rend, sauf la
 // mission d'un `claim` — ses arguments de `claude` sans la consigne, qu'ils
 // répéteraient (`suiteDesArgs`).
 export type ReponsePubliee = { demande: string; station: string; geste: string; run: string | null; le: string; reponse: { ok: boolean; [champ: string]: unknown } };

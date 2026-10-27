@@ -48,13 +48,6 @@ export const COMMANDES: readonly DeLaBox[] = [
   { nom: "closing", ancien: "fermeture", description: "The closing pass: observe; write requests it, cancel withdraws the request", mots: { ecrire: "write", annuler: "cancel" } },
   { nom: "backup", ancien: "sauvegarder", description: "Take a backup of the log" },
   { nom: "restore", ancien: "restaurer", description: "Restore a backup into a fresh state directory" },
-  {
-    nom: "pull",
-    ancien: "tirer",
-    description: "A remote station asks the box for work: <station> announce | claim | renew | return",
-    rang: 1,
-    mots: { annoncer: "announce", reclamer: "claim", renouveler: "renew", rendre: "return", "--preuve": "--proof", "--tours": "--turns", "--jetons": "--tokens", "--fin": "--end", "--raison": "--reason" },
-  },
   { nom: "partition", ancien: "cloison", description: "Show the partition; probe [<tries>] runs real probes inside it", mots: { eprouver: "probe" } },
   { nom: "arbiter", ancien: "arbitre", description: "The arbiter's weights: weight <project> <n>, remove <project>", mots: { poids: "weight", retirer: "remove" } },
   { nom: "door", ancien: "porte", description: "Hold the door of the project's remote stations (its service)" },
