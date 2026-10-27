@@ -1,3 +1,7 @@
-# .claude/brigade/reseau — un hôte par ligne
-# Le setup de worktree de ce dépôt fait un `npm ci` : sous cloison, le registre doit être nommé ici.
+# .claude/brigade/reseau — les sites que ce projet a le droit de joindre, en plus d'Anthropic et de GitHub.
+# Un hôte par ligne ; `*.` devant pour ses sous-domaines, `:port` derrière pour un autre port que 443 et 80.
+#
+# Le setup de worktree fait deux `npm ci` (runtime/, app/ sans ses scripts d'installation) : les
+# paquets et l'audit viennent du registre npm, le seul hôte des package-lock.json.
+# Les gates ne joignent rien : ni téléchargement, ni service, et aucun test ne touche au réseau.
 registry.npmjs.org
