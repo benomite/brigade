@@ -96,6 +96,15 @@
 //     `fournit`, `atteinte` (son gist s'est lu, et elle y donne signe de vie)
 //     et `dit`, en une phrase, pourquoi elle l'est ou ne l'est pas ; pas atteinte, `raison`
 //     (la clé : `arretee`, `muette`, `gist-illisible`) et `geste`, le geste du chef qui y remédie.
+//     `rejoindre` (absent quand aucune autre station ne le sert) : le chef l'a
+//     ajouté à cette station alors qu'une autre le servait déjà (`rejoindre.ts`).
+//     `{ "issue": "rejointe", "principale": "<station>" }` : elle en a rejoint
+//     la cuisine, comme une station de plus — l'état est alors `secondaire`, et
+//     `cuitSur` nomme la principale, qui garde son manager et sa pass ;
+//     `{ "issue": "refusee", "phrase": "…" }` : elle ne peut pas la rejoindre,
+//     et n'en ouvre pas une seconde — l'état est `refuse`, `dit` porte la même
+//     phrase, et `refus` le code `kitchen-not-joinable`. Rien n'est alors créé
+//     pour ce projet sur la station : ni clone, ni journal, ni ligne.
 //     `station.locale` : cette station est celle de l'ordinateur du chef (une
 //     cuisine locale, sous macOS). `cuitSur` : la station où le projet cuit, telle
 //     que celle-ci la connaît — nul si elle n'en sait rien ; `ici` : il cuit sur
@@ -114,6 +123,7 @@ import { selectionsLues, type Choix, type Selections } from "../installation/bes
 import type { AccesBloque } from "./acces.ts";
 import type { EchecDuClone } from "./echec-du-clone.ts";
 import type { Refus } from "./refus.ts";
+import type { Rejoindre } from "./rejoindre.ts";
 import type { StationSecondaire } from "./secondaires.ts";
 import { NOM_DE_PROJET } from "../runtime.ts";
 
@@ -196,6 +206,9 @@ export type SuiviDuProjet = {
   choix?: Choix[];
   // Les stations que l'app lui appaire en plus de la principale (`secondaires.ts`).
   secondaires?: StationSecondaire[];
+  // Une autre station le servait déjà : celle-ci en a rejoint la cuisine, ou
+  // refuse en une phrase (`rejoindre.ts`).
+  rejoindre?: Rejoindre;
 };
 
 const ETAPES: readonly string[] = ["demandee", "acceptee", "refusee", "remise", "recue"];
