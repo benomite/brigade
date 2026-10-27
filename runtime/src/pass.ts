@@ -2,13 +2,15 @@
 // fusion de sa branche avec la base, la relecture de son diff par le reviewer,
 // la CI de son commit — puis décide. Verte, elle merge si le grant `merge` est
 // actif, et s'arrête en le disant sinon ; rouge, elle renvoie les findings à
-// un cook, deux fois au plus, puis remonte au chef. Manager allumé, elle lui
+// un cook, deux fois au plus, puis remonte — à la cuisine, qui en fait un
+// ticket `fix` (remontee-a-la-cuisine.ts), pas au chef. Manager allumé, elle lui
 // passe la main dès le second rouge : c'est lui qui monte le calibrage du
 // second renvoi, puis qui choisit la suite. Sa boucle est du code ; elle
 // n'appelle un modèle que pour relire, une fois par livraison, et jamais avant
 // des gates vertes. Une relecture qui ne se lit pas n'est pas l'affaire du
 // cook : elle se redemande au reviewer, sur le même commit, deux fois au plus,
-// puis remonte au chef — jamais de merge sans relecture lisible.
+// puis remonte, et la cuisine la reprend — jamais de merge sans relecture
+// lisible.
 //
 // Un ticket qui n'a produit aucun diff n'a ni gates, ni CI, ni PR : le
 // reviewer est son seul juge, et vert, il est servi sans merge ni grant.
@@ -130,13 +132,27 @@ import {
   type PassDeTicket,
   type Relue,
 } from "./projections/pass.ts";
-import { ticketDuRail } from "./projections/rail.ts";
+import { sortDuTicket, ticketDuRail } from "./projections/rail.ts";
+import {
+  aLaCuisine,
+  constatsDuRenvoi,
+  corpsDuFix,
+  dejaTente,
+  derniereRemontee,
+  fixPermis,
+  LABELS_DU_FIX,
+  prochainCoup,
+  repriseDeLaRemontee,
+  ticketDeLaMarque,
+  titreDuFix,
+  type Remontee,
+} from "./remontee-a-la-cuisine.ts";
 import { compteRetenu, cookDeRun, refusDAffilee, stationsAnnoncees } from "./projections/stations.ts";
 import { GesteRefuse, nomAbandon } from "./rail.ts";
 import { corpsDeReparation, echecsDesGates, LABELS_REPARATION, shaDeReparation, titreDeReparation } from "./reparation.ts";
 import { FICHIER as REGLAGES_DU_PROJET } from "./reglages-projet/reglages.ts";
 import { attribuer, testsEnEchec } from "./relance-de-ci.ts";
-import { corpsDeTestInstable, LABELS_TEST_INSTABLE, testDuTicket, titreDeTestInstable, type TestInstable } from "./test-instable.ts";
+import { CALIBRAGE_TEST_INSTABLE, corpsDeTestInstable, LABELS_TEST_INSTABLE, PRIO_TEST_INSTABLE, testDuTicket, titreDeTestInstable, type TestInstable } from "./test-instable.ts";
 import { DECLARATION_RESEAU } from "./reseau.ts";
 import { argumentsReviewer, CONSIGNE_MAX, consigneDeRelecture, DE_LA_BRIGADE, debutDeRelecture, diffCoupe, lireRelecture, REVIEWER, type ConfigReviewer } from "./reviewer.ts";
 import { calibrageDuSecondJuge, carteDuSecondJuge, consigneDuSecondJuge, debutDuSecondJugement, DIRE_VERDICT, lireSecondJugement, SECOND_JUGE } from "./second-juge.ts";
@@ -432,6 +448,10 @@ const suiteDuChef = (pr: string | null) =>
     ? "Mergée à la main, la pass le verra et fermera le ticket ; retirer `fire` le sort du rail."
     : "Il n'a pas de PR, donc rien à merger : retirer `fire` le sort du rail, ou ferme l'issue si le compte-rendu du cook, plus haut, suffit.";
 
+// Ce que la cuisine fera d'une remontée technique (`remontee-a-la-cuisine.ts`).
+const SUITE_DE_LA_CUISINE =
+  "Non jugée, elle repart une fois chez un cook — sauf si le cook n'y peut rien (base de la PR, gates du projet, consigne de relecture) ; restée rouge, ou non jugée de nouveau, la cuisine ouvre un ticket `fix` sur la cause, et ce ticket repart chez un cook une fois ce `fix` servi. Sa carte sur le rail dit où elle en est.";
+
 // De même hors du rail : il n'y a que la PR.
 const SUITE_HORS_RAIL = "Mergée à la main, la pass le verra ; fermée sans merge, elle ne la suit plus.";
 // Ce que la pass fera d'un merge à la main : hors du rail, il n'y a pas de ticket à servir.
@@ -668,23 +688,139 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     );
   };
 
-  // La pass n'a pas pu juger : au chef. `cause` : ce qui l'en a empêchée, d'un mot.
+  // La pass n'a pas pu juger. `cause` : ce qui l'en a empêchée, d'un mot. Sur
+  // le rail, la cuisine la reprend au réveil suivant (`reprendreALaCuisine`) —
+  // sauf une cause que seul le chef lève, qui va dans sa file.
   const remonter = async (connu: PassDeTicket, cause: string, pourquoi: string) => {
     const { ticket } = connu;
     base.transaction(() => {
-      noter(ticket, { type: "pass.escalated", payload: { reason: NON_JUGEE, cause } });
+      noter(ticket, { type: "pass.escalated", payload: { reason: NON_JUGEE, cause, why: pourquoi } });
       if (!connu.horsRail) rail.quatreVingtSix(ticket, { motif: `pass:${NON_JUGEE}` });
     });
     gatesJouees.delete(ticket);
-    avertir(`brigade : la pass remonte ${connu.horsRail ? `la PR #${ticket}, hors du rail,` : `le ticket #${ticket}`} au chef (${NON_JUGEE} : ${cause})`);
+    const cuisine = !connu.horsRail && aLaCuisine(base, ticket, NON_JUGEE, cause);
+    avertir(`brigade : la pass ne juge pas ${connu.horsRail ? `la PR #${ticket}, hors du rail,` : `le ticket #${ticket}`} (${NON_JUGEE} : ${cause}) — ${cuisine ? "la cuisine le reprend" : "au chef"}`);
     await commenter(
       ticket,
       [
-        `**Pass — remontée au chef (\`${NON_JUGEE}\` : ${cause}).** ${pourquoi}`,
+        cuisine ? `**Pass — non jugée (\`${NON_JUGEE}\` : ${cause}) : la cuisine la reprend.** ${pourquoi}` : `**Pass — remontée au chef (\`${NON_JUGEE}\` : ${cause}).** ${pourquoi}`,
         "",
         connu.horsRail
           ? `Rien n'est mergé : cette PR reste ouverte, hors du rail. ${SUITE_HORS_RAIL}`
-          : `Rien n'est mergé, et aucun cook n'est relancé : le ticket est 86.${connu.pr ? ` PR : ${connu.pr}.` : ""} ${suiteDuChef(connu.pr)}`,
+          : cuisine
+            ? `Rien n'est mergé : le ticket est 86 le temps que la cuisine le reprenne — ce n'est ni un choix de produit ni un geste du chef, rien n'entre dans TODO. ${SUITE_DE_LA_CUISINE}`
+            : `Rien n'est mergé, et aucun cook n'est relancé : le ticket est 86.${connu.pr ? ` PR : ${connu.pr}.` : ""} ${suiteDuChef(connu.pr)}`,
+      ].join("\n"),
+    );
+  };
+
+  // La cuisine reprend une remontée technique, au lieu de la poser devant le
+  // chef (`remontee-a-la-cuisine.ts`, #1826) : un renvoi, puis un ticket `fix`,
+  // puis plus rien — le ticket reste alors 86 sur le rail, et sa carte le dit.
+  // Rend vrai si le ticket est reparti chez un cook.
+  const fixButes = new Set<number>();
+  const reprendreALaCuisine = async (connu: PassDeTicket, tick: boolean): Promise<boolean> => {
+    const { ticket } = connu;
+    if (connu.horsRail || connu.phase !== "escalated") return false;
+    const sur = ticketDuRail(base, ticket);
+    if (sur?.state !== "86" || sur.until !== null || sur.waitingFor !== null) return false;
+    const remontee = derniereRemontee(base, ticket);
+    if (remontee === null || !aLaCuisine(base, ticket, remontee.reason, remontee.cause)) return false;
+    const cause = remontee.cause ?? remontee.reason;
+    const prise = repriseDeLaRemontee(base, ticket, remontee);
+    if (prise === null) {
+      const permis = fixPermis(base, ticket);
+      const coup = prochainCoup(remontee, dejaTente(base, ticket), permis);
+      if (coup === "return") return renvoyerDeLaCuisine(connu, remontee, "return", null);
+      if (coup === "fix") {
+        if (!tick && fixButes.has(ticket)) return false;
+        await ouvrirLeFixDeLaCuisine(connu, remontee);
+        return false;
+      }
+      noter(ticket, { type: "pass.kitchen-took-over", payload: { cause, move: "none" } });
+      avertir(`brigade : la cuisine n'a plus rien à essayer sur le ticket #${ticket} (${cause}) — il reste de côté sur le rail, hors de TODO`);
+      await commenter(
+        ticket,
+        [
+          `**Cuisine — plus rien à essayer (\`${cause}\`).**${connu.pr ? ` ${connu.pr}` : ""}`,
+          "",
+          `${permis ? "La cuisine a déjà repris ce ticket — renvoyé à un cook, ou un ticket `fix` ouvert sur ce qui le bloquait" : "Ce ticket est lui-même une correction ouverte par la cuisine, ou la réparation de la base : elle n'en ouvre pas une de plus"}. Elle ne tente rien de plus : il reste 86 sur le rail, sa carte le dit, et il n'entre pas dans TODO — ce n'est pas un choix de produit.`,
+          "",
+          suiteDuChef(connu.pr),
+        ].join("\n"),
+      );
+      return false;
+    }
+    // Le `fix` de la cuisine a quitté le rail — servi, ou retiré : la livraison
+    // repart chez un cook.
+    if (prise.coup === "fix" && prise.issue !== null && sortDuTicket(base, prise.issue) !== null) return renvoyerDeLaCuisine(connu, remontee, "resume", prise.issue);
+    return false;
+  };
+
+  // Renvoie la livraison à un cook, sur sa branche, sans consommer de renvoi.
+  const renvoyerDeLaCuisine = async (connu: PassDeTicket, remontee: Remontee, coup: "return" | "resume", issue: number | null): Promise<boolean> => {
+    const { ticket } = connu;
+    const cause = remontee.cause ?? remontee.reason;
+    const findings = constatsDuRenvoi(remontee, coup, issue, remontee.reason === ENCORE_ROUGE ? connu.findings : []);
+    const fait = base.transaction(() => {
+      const frais = passDuTicket(base, ticket);
+      if (frais?.phase !== "escalated" || ticketDuRail(base, ticket)?.state !== "86") return false;
+      noter(ticket, { type: "pass.kitchen-took-over", payload: { cause, move: coup, ...(issue === null ? {} : { issue }) } });
+      noter(ticket, { type: "pass.returned", payload: { n: frais.returns, findings, kitchen: true } });
+      rail.rendre(ticket, PASS_ROUGE);
+      return true;
+    });
+    if (!fait) return false;
+    avertir(`brigade : la cuisine renvoie le ticket #${ticket} à un cook (${cause}${issue === null ? "" : `, après son \`fix\` #${issue}`}) — pas de carte pour le chef`);
+    await commenter(
+      ticket,
+      [
+        coup === "return" ? `**Cuisine — renvoi après une livraison non jugée (\`${cause}\`).**${connu.pr ? ` ${connu.pr}` : ""}` : `**Cuisine — \`fix\` #${issue} sorti du rail : renvoi.**${connu.pr ? ` ${connu.pr}` : ""}`,
+        "",
+        ...findings.flatMap((finding) => [finding, ""]),
+        "Le ticket est revenu en attente : la station relance un cook dessus, sur la même branche. Ce renvoi ne compte pas parmi ceux de la pass.",
+      ].join("\n"),
+    );
+    return true;
+  };
+
+  // Le ticket `fix` de la cuisine sur une remontée : ouvert, ou retrouvé par sa
+  // marque si l'annonce de son ouverture n'a pas eu de suite — la réponse de
+  // GitHub perdue, ou le runtime tué entre les deux. GitHub en panne : dit une
+  // fois, et retenté au tick.
+  const ouvrirLeFixDeLaCuisine = async (connu: PassDeTicket, remontee: Remontee) => {
+    const { ticket } = connu;
+    const cause = remontee.cause ?? remontee.reason;
+    const annonce = journal.duTicket(ticket).findLast((evenement) => evenement.type === "pass.kitchen-fix-opening" && evenement.seq > remontee.seq) ?? null;
+    let issue: number | undefined;
+    try {
+      if (annonce !== null) {
+        const recentes = await github.issuesDepuis(new Date(Date.parse(annonce.at) - MARGE_MS).toISOString());
+        // La marque ne vaut que sur une issue de confiance : n'importe qui peut en ouvrir une qui la porte.
+        issue = recentes.find((ouverte) => DE_CONFIANCE.includes(ouverte.association) && ticketDeLaMarque(ouverte.body) === ticket)?.number;
+      }
+      if (arrete) return;
+      const retrouvee = issue !== undefined;
+      if (issue === undefined) {
+        if (annonce === null) noter(ticket, { type: "pass.kitchen-fix-opening", payload: { cause } });
+        const fix = { ticket, titre: ticketDuRail(base, ticket)?.title ?? "", reason: remontee.reason, cause, why: remontee.why, findings: remontee.reason === ENCORE_ROUGE ? connu.findings : [], pr: connu.pr, branch: connu.branch };
+        issue = await github.creerIssue({ titre: titreDuFix(fix), corps: corpsDuFix(fix), labels: LABELS_DU_FIX });
+      }
+      fixButes.delete(ticket);
+      if (arrete || passDuTicket(base, ticket)?.phase !== "escalated") return;
+      noter(ticket, { type: "pass.kitchen-took-over", payload: { cause, move: "fix", issue, reconciled: retrouvee } });
+    } catch (erreur) {
+      if (!arrete && !fixButes.has(ticket)) avertir(`brigade : la cuisine n'a pas pu ouvrir le ticket \`fix\` de la remontée du ticket #${ticket} (${cause}) — ${message(erreur)}. La pass y revient au tick`);
+      fixButes.add(ticket);
+      return;
+    }
+    avertir(`brigade : la cuisine reprend le ticket #${ticket} (${cause}) — ticket \`fix\` #${issue} ouvert, pas de carte pour le chef`);
+    await commenter(
+      ticket,
+      [
+        `**Cuisine — ticket \`fix\` #${issue} ouvert (\`${cause}\`).**${connu.pr ? ` ${connu.pr}` : ""}`,
+        "",
+        `${remontee.reason === ENCORE_ROUGE ? "Cette livraison reste rouge après ses renvois" : "La pass n'a pas pu juger cette livraison"} : ce n'est pas un choix de produit, la cuisine le garde au lieu de le poser dans TODO. Le ticket \`fix\` #${issue} cherche la cause là où elle vit (\`${CALIBRAGE_TEST_INSTABLE.model}\` / \`${CALIBRAGE_TEST_INSTABLE.effort}\`, \`${PRIO_TEST_INSTABLE}\`). Ce ticket reste 86 sur le rail ; une fois #${issue} servi, il repart chez un cook, sur sa livraison.`,
       ].join("\n"),
     );
   };
@@ -1242,9 +1378,9 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
         rail.quatreVingtSix(ticket, { motif: `pass:${ENCORE_ROUGE}` });
         return {
           commentaire: [
-            `**Pass — rouge après ${RENVOIS_MAX} renvois : remontée au chef.** ${livraison}`,
+            `**Pass — rouge après ${RENVOIS_MAX} renvois : la cuisine le reprend.** ${livraison}`,
             ...constat,
-            `Rien n'est mergé, et aucun cook n'est relancé : le ticket est 86. ${suiteDuChef(pr)}`,
+            `Rien n'est mergé : le ticket est 86 le temps que la cuisine le reprenne — ce n'est ni un choix de produit ni un geste du chef, rien n'entre dans TODO. ${SUITE_DE_LA_CUISINE}`,
           ].join("\n"),
         };
       }
@@ -1451,8 +1587,9 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   // renommé avant d'être jugée (pause/reprise.ts) : un commit de plus sur sa
   // branche, poussé, où ce qu'elle change suit les déplacements de l'outil.
   // Elle ne touchait aucun fichier déplacé : elle se juge telle quelle. Elle
-  // ne se porte pas — un conflit avec le renommage — : elle est remontée au
-  // chef, et la file la nomme avec la raison. Rend vrai si le jugement suit.
+  // ne se porte pas — un conflit avec le renommage — : elle est remontée, et
+  // la cuisine la renvoie à un cook avec la raison. Rend vrai si le jugement
+  // suit.
   const porterSurLeRenommage = async (connu: PassDeTicket, branch: string): Promise<boolean> => {
     const { ticket } = connu;
     const noterReprise = (fait: FaitPause) => journal.ajouter({ project: projet, ticket, author: AUTEUR, ...fait });
@@ -2138,7 +2275,11 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
         // Établie non affaiblie, elle est décidée comme une livraison verte.
         if (aReprendre(passDuTicket(base, connu.ticket))) await decider(connu.ticket);
         return;
+      // Remontée sur une cause technique, la cuisine la reprend d'abord.
       case "escalated":
+        if (await reprendreALaCuisine(connu, tick)) return;
+        if (tick) await surveiller(connu);
+        return;
       case "closed":
         if (tick) await surveiller(connu);
         return;

@@ -83,8 +83,9 @@ from before the rename; they are picked up on the new tree, through the moves th
   pause and delivers after it.
 - **A delivery that touched no moved file** is judged as it is.
 - **A delivery that cannot be carried** (what it changes conflicts with what the rename wrote) is
-  not merged. It is escalated (`pass.escalated`, cause `rename-conflict`), and your queue names it:
-  `held by the code rename and not resumed on the renamed tree: … conflict on …`.
+  not merged. It is escalated (`pass.escalated`, cause `rename-conflict`), and the kitchen takes it
+  up, not your queue: it goes back once to a cook, with the conflict, then to a `fix` ticket if it
+  comes back (`pass.md`, "A technical escalation goes to the kitchen").
 
 On failure, **nothing is merged**, and the pause is lifted with no action from you. The possible
 failures: the tool, the setup, red gates, a conflict with `v2`, a pass that does not judge or stops

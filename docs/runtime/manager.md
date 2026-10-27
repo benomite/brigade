@@ -310,7 +310,7 @@ ticket that failed twice never goes out identical**: if nothing changes, it is p
 | **re-split** | the ticket becomes **the epic of its sub-tickets**: they are born calibrated, ordered and launched, and start again from the base. It goes **86** (`manager:split`, pass `manager-split`); its PR stays open, as a reference, and **it no longer holds its zone**. A ticket born from such a re-split is not re-split |
 | **pass up** | the ticket goes **86** (`manager:escalated`, pass `still-red`, cause `manager-escalated`), and you receive what you need to decide: each attempt with its calibration and what the pass found in it, why it is passed up, and **what it proposes** |
 
-A card is proposed only if the cause of the red is a **product choice** (`product`) or a **gesture** that only you can make (`gesture`): the manager proposes it with the passing up, in one line; like any card it goes to the triage, and what enters TODO (`todo.entered`) is a question with its choices, which replaces the bare passing up in `attend`. A red that hides neither is passed up **without a card** — the issue says so —, and no card is ever set for it. The card leaves TODO as soon as the ticket is no longer 86 `manager:escalated`.
+A card is proposed only if the cause of the red is a **product choice** (`product`) or a **gesture** that only you can make (`gesture`): the manager proposes it with the passing up, in one line; like any card it goes to the triage, and what enters TODO (`todo.entered`) is a question with its choices, which replaces the bare passing up in `attend`. A red that hides neither is passed up **without a card** — the issue says so —, and no card is ever set for it: it does not enter `attend` either, the kitchen takes it up (a `fix` ticket on its cause, then the ticket goes back to a cook — `pass.md`, "A technical escalation goes to the kitchen"). The card leaves TODO as soon as the ticket is no longer 86 `manager:escalated`.
 
 An unreadable answer, a choice that was not offered (raising at the ceiling, re-splitting a
 sub-ticket) or an impossible re-split counts as **passing up**. **The breaker has the last
@@ -387,7 +387,7 @@ a card without choices) is no longer read as a card.
 
 Every ticket in `attend` has a card of that same shape (`runtime/src/carte-todo/cartes.ts`), built
 from what it waits for when no card of the gate stands for it: a green delivery the pass does not
-merge, a red ticket escalated by the manager or the pass, a PR closed without a merge, a ticket set
+merge, an escalation that stays the chef's (`secrets-unavailable`), a PR closed without a merge, a ticket set
 aside (86, a missing capability, an absent station, back from WAITING), a ticket blocked by one that
 left the rail, an issue the manager set aside or could not read, the manager's question before
 splitting an epic. A card with a single gesture — merging a green delivery without a grant, taking a

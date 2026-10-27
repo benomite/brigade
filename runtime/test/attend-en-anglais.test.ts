@@ -54,7 +54,8 @@ test("sur l'état d'avant, le bloc `awaiting` nomme les mêmes décisions que le
   const d = decisions(bloc(avant, (ligne) => ligne.startsWith("attend"), "fin attend"), /^attend +(\d+) décisions? attend/, /^ {2}(\S+) {2}depuis /);
   const a = decisions(bloc(apres, (ligne) => ligne.startsWith("awaiting"), "end awaiting"), /^awaiting +(\d+) decisions? awaits? the chef/, /^ {2}(\S+) {2}for /);
   assert.deepEqual(d, { nombre: 4, nommees: ["#17", "#18", "#19", "#20"] });
-  assert.deepEqual(a, d);
+  // Sauf #18, remonté sur une cause technique (`returns-exhausted`) : il est à la cuisine, plus au chef (#1826).
+  assert.deepEqual(a, { nombre: 3, nommees: ["#17", "#19", "#20"] });
 
   // Le bord : une seule ligne qui commence par `awaiting`, une seule qui vaut
   // `end awaiting`, et plus rien de l'ancien.

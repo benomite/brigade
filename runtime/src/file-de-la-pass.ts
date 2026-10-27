@@ -75,7 +75,7 @@ const JUGEE: Partial<Record<PassDeTicket["phase"], string>> = {
   held: "already judged green, and stopped",
   returned: "already judged red, and returned to a cook",
   deferred: "already judged red, and with the manager",
-  escalated: "already judged, and escalated to the chef",
+  escalated: "already judged, and escalated",
   closed: "already judged — its PR is closed without merge",
   merged: "already merged",
   served: "already served",

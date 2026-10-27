@@ -162,11 +162,11 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
   test("le chef n'est sollicité qu'en dernier recours, et reçoit de quoi trancher : ce qui a été tenté, ce qui a échoué, ce que le manager propose", async (t) => {
     const c = remonteTelQuel(t);
     await c.jusquAu("pass.escalated", 17);
-    await jusqua(() => c.dits(17).some((dit) => /remontée au chef/.test(dit)));
+    await jusqua(() => c.dits(17).some((dit) => /\*\*Manager — rouge après/.test(dit)));
 
     assert.deepEqual([c.pass(17)?.phase, c.pass(17)?.reason, c.pass(17)?.cause], ["escalated", "still-red", "manager-escalated"]);
     assert.deepEqual([c.ticket(17)?.state, c.ticket(17)?.reason], ["86", "manager:escalated"]);
-    const dit = c.dits(17).find((corps) => /remontée au chef/.test(corps)) ?? "";
+    const dit = c.dits(17).find((corps) => /\*\*Manager — rouge après/.test(corps)) ?? "";
     assert.match(dit, /Ce qui a été tenté/);
     assert.match(dit, /1\. `sonnet` \/ `low` — pass rouge/);
     assert.match(dit, /3\. `sonnet` \/ `low` — pass rouge/);
@@ -174,8 +174,9 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     assert.match(dit, /Pourquoi le manager remonte\.\*\* Le critère d'acceptation n° 2 se contredit\./);
     assert.match(dit, /Ce qu'il propose\.\*\* Trancher le critère n° 2, puis rendre le ticket\./);
     assert.match(dit, /Réagi par le manager en `sonnet` \/ `medium`/);
-    assert.match(dit, /Mergée à la main, sa PR sert le ticket/);
-    assert.equal(c.cooks().length, 3);
+    // Sans carte, rien n'attend le chef : la cuisine le reprend (#1826).
+    assert.match(dit, /le temps que la cuisine le reprenne/);
+    assert.equal(c.charges("cook.launched", 17).filter((lance) => lance.station === STATION).length, 3);
   });
 
   test("remonté pour un choix de produit ou un geste : la carte proposée passe par le triage, et c'est sa question et ses choix qui entrent dans TODO", async (t) => {
@@ -198,28 +199,30 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     }
   });
 
-  test("un rouge sans choix de produit ni geste ne produit jamais de carte : il est remonté tel quel, et le manager le dit", async (t) => {
+  test("un rouge sans choix de produit ni geste ne produit jamais de carte : il n'entre pas dans TODO, la cuisine le reprend, et le manager le dit", async (t) => {
     const c = remonteTelQuel(t);
-    await c.jusquAu("pass.escalated", 17);
-    await jusqua(() => c.dits(17).some((dit) => /remontée au chef/.test(dit)));
+    await c.jusquAu("pass.kitchen-took-over", 17);
+    await jusqua(() => c.dits(17).some((dit) => /rouge après 2 renvois : la cuisine le reprend/.test(dit)));
 
     assert.deepEqual(cartesEnTodo(c.journal.base), []);
     assert.equal(c.faits("todo.entered").length, 0);
     assert.equal(reactionDe(c.journal.base, 17)?.card, null);
-    assert.ok(c.dits(17).some((dit) => /aucune carte n'est posée dans TODO/.test(dit)));
-    assert.deepEqual(attentesDuChef(c.journal.base, c.runtime.rail.tickets()).map((attente) => attente.quoi), ["remontee"]);
+    assert.ok(c.dits(17).some((dit) => /il n'entre pas dans TODO, la cuisine le reprend/.test(dit)));
+    // Restée rouge, sans rien à choisir : un ticket `fix` sur sa cause, et le ticket l'attend, 86.
+    assert.deepEqual(c.charges("pass.kitchen-took-over", 17).map(({ cause, move }) => [cause, move]), [["manager-escalated", "fix"]]);
+    assert.deepEqual(attentesDuChef(c.journal.base, c.runtime.rail.tickets()).filter((attente) => attente.ticket === 17), []);
   });
 
-  test("remonté sans diff, le ticket n'a pas de PR : le commentaire ne propose pas de la merger, et dit ce que le chef peut faire", async (t) => {
+  test("remonté sans diff, le ticket n'a pas de PR : le commentaire ne propose pas de la merger, et dit que la cuisine le reprend", async (t) => {
     const c = echec(t, { issues: [issue(17)], scenario: "bavard", suite: ["rapporte-sans-commit", "rapporte-sans-commit", "rapporte-sans-commit"], reviewer: { relecture: "relit-rouge" } });
     await c.jusquAu("pass.escalated", 17);
-    await jusqua(() => c.dits(17).some((dit) => /remontée au chef/.test(dit)));
+    await jusqua(() => c.dits(17).some((dit) => /la cuisine le reprend\./.test(dit)));
 
     assert.deepEqual(c.gh.prs, []);
-    const dit = c.dits(17).find((corps) => /remontée au chef/.test(corps)) ?? "";
+    const dit = c.dits(17).find((corps) => /la cuisine le reprend\./.test(corps)) ?? "";
     assert.match(dit, /le ticket est 86/);
     assert.doesNotMatch(dit, /sa PR|Mergée/);
-    assert.match(dit, /Il n'a pas de PR, donc rien à merger : retirer `fire` le sort du rail, ou ferme-le/);
+    assert.match(dit, /le temps que la cuisine le reprenne/);
   });
 
   test("une réaction illisible, ou qui choisit ce qui n'était pas offert, vaut remontée : le manager ne devine pas", async (t) => {
@@ -267,7 +270,10 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
 
     assert.deepEqual(c.charges("manager.reacted", 17).map((reaction) => reaction.choice), ["retry", "split", "escalate"]);
     assert.match(String(c.charges("manager.reacted", 17).at(-1)?.reason), /redécoupage est impossible.*Plus rapide/s);
-    assert.deepEqual([c.gh.creations, c.pass(17)?.cause, c.ticket(17)?.reason], [[], "manager-escalated", "manager:escalated"]);
+    // Le redécoupage n'a rien créé : le seul ticket ouvert est le `fix` de la cuisine, sur la remontée.
+    await c.jusquAu("pass.kitchen-took-over", 17);
+    assert.deepEqual([c.gh.creations, c.pass(17)?.cause, c.ticket(17)?.reason], [[501], "manager-escalated", "manager:escalated"]);
+    assert.equal(c.charges("pass.kitchen-took-over", 17)[0]?.issue, 501);
   });
 
   test("le disjoncteur garde le dernier mot : des relances du manager restées rouges l'ouvrent, et il remonte sans plus rien relancer ni juger", async (t) => {
@@ -372,7 +378,9 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     chef(c.repertoire, "manager.enabled");
     const depart = c.gh.sondages.ouvertes;
     await jusqua(() => c.gh.sondages.ouvertes >= depart + 3);
-    assert.deepEqual([c.gh.creations, c.faits("manager.split").length], [[], 0]);
+    // Aucun sous-ticket : le seul ticket ouvert est le `fix` de la cuisine sur la remontée (#1826).
+    const fixes = c.charges("pass.kitchen-took-over", 17).flatMap(({ issue }) => (typeof issue === "number" ? [issue] : []));
+    assert.deepEqual([c.gh.creations, c.faits("manager.split").length], [fixes, 0]);
   });
 
   test("une remontée que GitHub empêche de dire est faite quand même, et dite dès qu'il répond", async (t) => {
@@ -382,12 +390,12 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     await c.jusquAu("pass.escalated", 17);
 
     assert.deepEqual([c.ticket(17)?.state, c.ticket(17)?.reason], ["86", "manager:escalated"]);
-    assert.ok(!c.dits(17).some((dit) => /remontée au chef/.test(dit)));
+    assert.ok(!c.dits(17).some((dit) => /\*\*Manager — rouge après/.test(dit)));
 
     c.gh.pannes.commentaire = false;
-    await jusqua(() => c.dits(17).some((dit) => /remontée au chef/.test(dit)));
+    await jusqua(() => c.dits(17).some((dit) => /\*\*Manager — rouge après/.test(dit)));
     await jusqua(() => reactionDe(c.journal.base, 17)?.commented === true);
-    assert.equal(c.dits(17).filter((dit) => /remontée au chef/.test(dit)).length, 1);
+    assert.equal(c.dits(17).filter((dit) => /\*\*Manager — rouge après/.test(dit)).length, 1);
   });
 
   test("une remontée que GitHub empêche de dire, puis dont le chef ferme la PR : le mot du manager est dit quand même", async (t) => {
@@ -399,11 +407,11 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     await c.jusquAu("pass.pr-closed", 17);
 
     assert.deepEqual([c.pass(17)?.phase, c.pass(17)?.reason, c.pass(17)?.cause], ["closed", "still-red", "manager-escalated"]);
-    assert.ok(!c.dits(17).some((dit) => /remontée au chef/.test(dit)));
+    assert.ok(!c.dits(17).some((dit) => /\*\*Manager — rouge après/.test(dit)));
 
     c.gh.pannes.commentaire = false;
     await jusqua(() => reactionDe(c.journal.base, 17)?.commented === true);
-    assert.equal(c.dits(17).filter((dit) => /remontée au chef/.test(dit)).length, 1);
+    assert.equal(c.dits(17).filter((dit) => /\*\*Manager — rouge après/.test(dit)).length, 1);
   });
 
   test("la réaction en cours se relit dans le journal : le chef y lit le choix et son motif", async (t) => {

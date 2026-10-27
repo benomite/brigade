@@ -16,7 +16,7 @@ import { direSaturationEn } from "../src/machine.ts";
 import { etatLu, etatLuEn, nomEtat, nomEtatEn } from "../src/rail.ts";
 import { sansMotFrancais } from "./aides/glossaire.ts";
 import { exempleDuBas } from "./aides/bas-de-status.ts";
-import { ETAT_D_AVANT, etatDAvant, LU_LE } from "./aides/haut-de-status.ts";
+import { depuis1826, ETAT_D_AVANT, etatDAvant, LU_LE } from "./aides/haut-de-status.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { repertoireTemporaire } from "./outils.ts";
 
@@ -51,7 +51,8 @@ test("sur l'état d'avant, `status` montre les mêmes tickets, dans les mêmes �
     "  #19  BLOCKED  prio:1  #21 dropped (issue closed without being served) — since 2 h 04  Ticket 19",
     "  #23  taken  prio:1  by box/claude since 5 min, STUCK: no progress since 5 min, lease 5 min left  Ticket 23",
     "  #25  86  prio:1  since 5 min (quota), back in 4 h 56  Ticket 25",
-    "  #18  86  -  since 2 h 04 (pass:returns-exhausted), no return time  Ticket 18",
+    // Remontée technique, elle est à la cuisine (#1826) : sa ligne le dit.
+    "  #18  86  -  since 2 h 04 (pass:returns-exhausted) — the kitchen takes it up (returns-exhausted), not the chef  Ticket 18",
     "  #20  in pass  -  since 6 min, cooked by box/claude  Ticket 20",
     "  #24  queued  -  since 6 min  Ticket 24",
     "  #26  queued  -  since 6 min  Ticket 26",
@@ -81,7 +82,8 @@ test("l'état d'exemple fait paraître chaque ligne du bas de `status`, et aucun
     "  #19  BLOCKED  prio:1  #21 dropped (issue closed without being served) — since 2 h 04  Ticket 19",
     "  #23  taken  prio:1  by box/claude since 5 min, STUCK: no progress since 5 min, lease 5 min left  Ticket 23",
     "  #25  86  prio:1  since 5 min (quota), back in 4 h 56  Ticket 25",
-    "  #18  86  -  since 2 h 04 (pass:returns-exhausted), no return time  Ticket 18",
+    // Remontée technique, elle est à la cuisine (#1826) : sa ligne le dit.
+    "  #18  86  -  since 2 h 04 (pass:returns-exhausted) — the kitchen takes it up (returns-exhausted), not the chef  Ticket 18",
     "  #20  in pass  -  since 6 min, cooked by box/claude  Ticket 20",
     "  #24  queued  -  withheld by box/claude (gradual ramp-up, cooks that have just left weigh in advance) — since 6 min  Ticket 24",
     "  #26  queued  -  withheld by box/claude (gradual ramp-up, cooks that have just left weigh in advance) — since 6 min  Ticket 26",
@@ -169,7 +171,7 @@ test("sur l'état d'exemple d'avant, chaque ligne du bas dit les mêmes tickets,
 });
 
 test("`facts` de l'état d'exemple est identique à ce qu'il était avant la traduction : mêmes clés, mêmes valeurs", (t) => {
-  const avant = JSON.parse(readFileSync(join(FIXTURE_940, "facts.json"), "utf8"));
+  const avant = depuis1826(JSON.parse(readFileSync(join(FIXTURE_940, "facts.json"), "utf8")));
   assert.deepEqual(JSON.parse(JSON.stringify(faits(lireEtat(exempleDuBas(t), LU_LE), LU_LE))), avant);
 });
 

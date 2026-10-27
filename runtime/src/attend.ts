@@ -66,6 +66,7 @@ import { SCRIPT_SETUP } from "./gates.ts";
 import { CAUSES_DU_PROJET } from "./mise-de-cote.ts";
 import { REVENU_D_ATTENTE } from "./events/rail.ts";
 import { cartesEnTodo, direCarte, direCarteEn, type CarteDeTodo } from "./carte-todo.ts";
+import { aLaCuisine } from "./remontee-a-la-cuisine.ts";
 import type { EnVol } from "./pause/evenements.ts";
 import { echecDuRenommage, EN_PAUSE_POUR_LE_RENOMMAGE, NON, OUI, pauseAccordee, pauseEnCours, ticketsEnVol } from "./pause/pause.ts";
 import { INTRANSPOSABLE, pourquoiIntransposable } from "./pause/reprise.ts";
@@ -180,6 +181,39 @@ type AttenteHorsTicket = { ticket: null; title: null; since: string } & (
 
 export type Attente = AttenteDeTicket | AttenteHorsTicket;
 
+// Ce qui peut encore entrer dans la file du chef, sorte par sorte, et pourquoi
+// c'est à lui (#1826) : un choix de produit, ou un geste que lui seul peut
+// faire. Une cause technique n'y a pas sa place — elle va à la cuisine, qui la
+// relance, la renvoie à un cook ou en fait un ticket `fix`. Une sorte ajoutée
+// à `Attente` doit dire ici laquelle elle est, ou le contrôle de types refuse.
+// Les remontées (`remontee`) n'y entrent que pour les causes que
+// `CAUSES_DU_CHEF` nomme (remontee-a-la-cuisine.ts).
+export type SorteDAttente = "product" | "chef-gesture";
+export const QUI_ATTEND: Record<Attente["quoi"], { sorte: SorteDAttente; pourquoi: string }> = {
+  merge: { sorte: "chef-gesture", pourquoi: "a green delivery the pass may not merge: granting `merge`, reviewing what touches the judges or the declarations, or lifting what GitHub refuses is the chef's" },
+  remontee: { sorte: "chef-gesture", pourquoi: "only the causes `CAUSES_DU_CHEF` names: secrets only the chef sets, or the manager's product question — every other escalation goes to the kitchen" },
+  fermee: { sorte: "chef-gesture", pourquoi: "its PR was closed without merge — the chef's refusal; taking the ticket off the rail is the chef's too" },
+  "86": { sorte: "chef-gesture", pourquoi: "the station set it aside on what the chef writes: the issue's calibration (the chef's quota), its card, or wording the model refuses" },
+  capacite: { sorte: "chef-gesture", pourquoi: "no station provides what it needs: attaching a machine is the chef's" },
+  absente: { sorte: "chef-gesture", pourquoi: "only an absent remote station can cook it: switching that machine on is the chef's" },
+  bloque: { sorte: "product", pourquoi: "a ticket it awaits left the rail unserved: going on without it, or not, is a product choice" },
+  ecartee: { sorte: "chef-gesture", pourquoi: "it carries the chef's own label (`question`, `decision`, `blocked-on-human`)" },
+  illisible: { sorte: "chef-gesture", pourquoi: "the manager cannot judge the issue as written: rewording it is the chef's, the manager judges it again when it changes" },
+  question: { sorte: "product", pourquoi: "the manager's question on an epic, before cutting it up" },
+  repris: { sorte: "chef-gesture", pourquoi: "the chef took it back from WAITING" },
+  carte: { sorte: "product", pourquoi: "a typed card that passed the TODO gate: a product choice or a design validation" },
+  connexion: { sorte: "chef-gesture", pourquoi: "a station's Max connection is missing: only the chef logs in" },
+  session: { sorte: "chef-gesture", pourquoi: "the Max session is about to fall: only the chef logs in" },
+  jeton: { sorte: "chef-gesture", pourquoi: "the long-lived Max token is due: only the chef remakes it" },
+  fermeture: { sorte: "chef-gesture", pourquoi: "the closing pass the chef asked for, waiting for its condition" },
+  base: { sorte: "chef-gesture", pourquoi: "the base is red and the kitchen's own repair failed: nothing else leaves a red base, only a hand can repair it" },
+  setup: { sorte: "chef-gesture", pourquoi: "the project's setup is blocked: the door's hosts and the box's installation are the chef's to declare" },
+  aside: { sorte: "chef-gesture", pourquoi: "a cause of the box repeats on every ticket (its disk, its GitHub access, its secrets): the box is the chef's" },
+  disjoncteur: { sorte: "chef-gesture", pourquoi: "the breaker stops every cook after failures in a row: by design, only the chef resumes" },
+  pause: { sorte: "chef-gesture", pourquoi: "the code rename asks the chef's yes before pausing the kitchen" },
+  renommage: { sorte: "chef-gesture", pourquoi: "the paused code rename failed: the chef reads it and lifts the pause" },
+};
+
 export const REFERMER_LE_DISJONCTEUR = geste("guardrails resume");
 export const ACCORDER_LE_GRANT = geste("grant enable merge");
 
@@ -248,6 +282,9 @@ export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new 
     // n'attend personne : ses sous-tickets portent le travail.
     if (pass.phase === "escalated" && ticket.state === "86" && pass.reason !== REDECOUPE) {
       if (pass.cause === DU_MANAGER && avecCarte.has(pass.ticket)) return [];
+      // Une remontée technique est à la cuisine, pas au chef (#1826) : sa
+      // carte sur le rail dit ce qu'elle en fait.
+      if (aLaCuisine(base, pass.ticket, pass.reason ?? "", pass.cause)) return [];
       const why = pass.cause === INTRANSPOSABLE ? pourquoiIntransposable(base, pass.ticket) : null;
       const nonVu = feuNonVu(base, pass.ticket);
       return [{ ...commun, quoi: "remontee", ...(why === null ? {} : { why }), ...(nonVu === null ? {} : { nonVu }) }];

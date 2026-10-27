@@ -115,16 +115,17 @@ export const EN_PAUSE = "paused";
 export const PROJET_ETEINT = "project-off";
 export type MotifDAttente = typeof BASE_ROUGE | typeof MACHINE_SATUREE | typeof GATES_COUPEES | typeof EN_PAUSE | typeof PROJET_ETEINT;
 
-// Pourquoi la pass remonte au chef sans renvoyer au cook : un motif par geste.
-// `still-red` : la livraison est rouge et personne ne la corrigera plus — les
-// renvois sont épuisés, ou le manager a choisi de remonter. Au chef de
-// reprendre le ticket ou de le retirer. `unjudged` : la pass n'a pas pu juger —
-// la PR ne vise pas la base, le projet n'a pas de gates, le worktree ou la
-// fusion manquent, la CI se tait, la relecture ne part pas ou ne se lit pas,
-// les secrets du projet manquent. Au chef de lever l'empêchement, ou de juger
-// lui-même. `manager-split` : le manager a redécoupé le ticket, ses
-// sous-tickets portent le travail — aucun geste. `cause` dit lequel des cas,
-// d'un mot ; le commentaire d'issue dit le détail.
+// Pourquoi la pass cesse de renvoyer au cook : un motif par suite.
+// `still-red` : la livraison est rouge et ses renvois ne la corrigeront plus —
+// les renvois sont épuisés, ou le manager a choisi de remonter. `unjudged` : la
+// pass n'a pas pu juger — la PR ne vise pas la base, le projet n'a pas de
+// gates, le worktree ou la fusion manquent, la CI se tait, la relecture ne part
+// pas ou ne se lit pas, les secrets du projet manquent. L'un et l'autre vont à
+// la cuisine, pas au chef (`remontee-a-la-cuisine.ts`, #1826) — sauf les
+// secrets, que lui seul pose, et la remontée du manager avec une carte.
+// `manager-split` : le manager a redécoupé le ticket, ses sous-tickets portent
+// le travail — aucun geste. `cause` dit lequel des cas, d'un mot ; le
+// commentaire d'issue dit le détail.
 export const ENCORE_ROUGE = "still-red";
 export const NON_JUGEE = "unjudged";
 export const REDECOUPE = "manager-split";
@@ -245,6 +246,18 @@ export type FaitPass =
   // jugée sans eux. Chaque test part à la cuisine en ticket `fix` : `issue`,
   // ouvert pour lui — ou déjà ouvert, `reused`. Ni renvoi, ni carte.
   | { type: "pass.ci-set-aside"; payload: { sha: string; checks: Check[]; fixes: Array<{ test: string; issue: number; reused: boolean }> } }
+  // La pass va ouvrir le ticket `fix` d'une remontée technique du ticket
+  // (`remontee-a-la-cuisine.ts`, #1826) : `cause`, celle de la remontée. Écrit
+  // avant l'appel à GitHub, comme celui d'un test instable.
+  | { type: "pass.kitchen-fix-opening"; payload: { cause: string } }
+  // La cuisine reprend une remontée technique, au lieu de la poser devant le
+  // chef (#1826). `move` : `return`, la livraison renvoyée une fois à un cook ;
+  // `fix`, le ticket `fix` `issue` ouvert sur sa cause — retrouvé par sa marque,
+  // `reconciled` —, le ticket l'attend, 86 ; `resume`, ce `fix` sorti du rail,
+  // la livraison renvoyée à un cook ; `none`, plus rien à essayer, le ticket
+  // reste 86 sur le rail. Jamais de carte. Un `return` ou un `resume` est suivi
+  // du `pass.returned` qui le fait, sans consommer de renvoi.
+  | { type: "pass.kitchen-took-over"; payload: { cause: string; move: "return" | "fix" | "resume" | "none"; issue?: number; reconciled?: boolean } }
   // La pass attend la CI du commit `sha` sans qu'aucun check n'existe : la
   // branche porte ces `workflows` (fichiers sous `.github/workflows`), qui se
   // lancent sur une PR vers la base. Une fois par commit ; c'est ce que
@@ -368,12 +381,16 @@ export type FaitPass =
   | { type: "base.check-resumed"; payload: Record<string, never> }
   // Rouge : les findings repartent à un cook, dans le worktree de la livraison.
   // Écrit par la pass, ou par le manager quand elle lui a passé la main.
-  | { type: "pass.returned"; payload: { n: number; findings: string[] } }
+  // `kitchen` : renvoyée par la cuisine sur une remontée technique
+  // (`pass.kitchen-took-over`) — `n` reste celui des renvois déjà consommés.
+  | { type: "pass.returned"; payload: { n: number; findings: string[]; kitchen?: true } }
   // Rouge, et la pass passe la main au manager : c'est lui qui dira la suite —
   // un renvoi à un autre calibrage, un redécoupage, une remontée.
   | { type: "pass.deferred"; payload: Record<string, never> }
   // La pass cesse de renvoyer, ou refuse de juger : au chef.
-  | { type: "pass.escalated"; payload: { reason: MotifDeRemontee; cause?: string } }
+  // `why` : ce qui a empêché le jugement, tel que le commentaire de l'issue le
+  // dit — ce que la cuisine reprend (#1826). Absent d'une remontée d'avant.
+  | { type: "pass.escalated"; payload: { reason: MotifDeRemontee; cause?: string; why?: string } }
   // La PR de la livraison a été fermée sans être mergée : la pass ne juge, ne
   // renvoie ni ne merge plus cette livraison. Le ticket reste où il était sur
   // le rail — c'est au chef de l'en sortir. Rouverte puis mergée, un

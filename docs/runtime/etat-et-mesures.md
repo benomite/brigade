@@ -52,14 +52,18 @@ The kitchen never blocks on you: what awaits you piles up, the oldest first, and
 moves on. Each entry **names the gesture that unblocks it** — or says that none is known for its
 reason — and leaves **on its own** as soon as the log carries the decision taken, including on GitHub.
 Closing a PR without merging it is only half a decision: the entry does not leave, it changes.
+Only a product choice or a gesture only you can make enters it (#1826): a delivery still red, or
+one the pass could not judge for a technical cause (`ci-silent`, `review-unreadable`,
+`worktree-lost`…), stays on the rail, 86, and its line says what the kitchen does with it — sent
+back to a cook, a `fix` ticket open on its cause, or nothing left to try (`pass.md`, "A technical
+escalation goes to the kitchen").
 
 | Entry | The gesture | What removes it |
 |---|---|---|
 | ``green delivery, not merged for lack of a `merge` grant`` · ``… the `merge` grant lapsed on its own on …`` (`no-grant`) | merge its PR by hand; or enable the grant for the next ones: `npm --prefix runtime run grant -- enable merge` | the merge by hand, which the pass notes (`merge.done`); the ticket leaving the rail (`ticket.left`); a cook restarted on the ticket. Its PR closed without merge replaces it with `PR closed without merge` |
 | `green delivery that touches its judges` · `… what the project opens up (<files>)` (`review-required`) | read it, then merge it by hand | likewise |
 | `green delivery, merge refused by GitHub (…)` (`merge-refused`) | lift what GitHub refuses, then merge by hand | likewise |
-| `escalated by the pass, red (still-red: returns-exhausted)` · `escalated by the manager, red` | to decide: merge its PR by hand, or remove `fire`; without a PR, remove `fire` or close the issue. Detail: `run pass -- <ticket>` | the merge by hand; the ticket leaving the rail, or returned to the rail (`ticket.released`). Its PR closed without merge replaces it likewise |
-| `escalated by the pass, which could not judge it (unjudged: <cause>)` | to lift: what its issue says, then remove and set `fire` again; or merge by hand, or remove `fire` | likewise |
+| `escalated by the pass, which could not judge it (unjudged: secrets-unavailable)` | to lift: set the secrets, then remove and set `fire` again; or merge by hand, or remove `fire`. Detail: `run pass -- <ticket>` | the merge by hand; the ticket leaving the rail, or returned to the rail (`ticket.released`). Its PR closed without merge replaces it likewise |
 | `PR closed without merge` | the ticket still holds its place on the rail: remove `fire`, or close the issue | the ticket leaving the rail, or returned to the rail if it was 86; the PR reopened then merged by hand. A re-split ticket does not enter there |
 | `no calibration` · `unreadable card` · `refused three times by the model` | an 86 from the station **with no return time**: set `model:` and `effort:`, fix the card, or — refused — rephrase or recalibrate then remove and set `fire` again | calibrated or fixed, the station returns it to the rail on its own; the ticket leaving the rail |
 | ``no station provides `<capability>` `` · ``… `<a>` and `<b>` together`` (86 `no-station: …`) | declare a station that provides it with `station stations …` (read without restart); or remove it from the `requiert` line of the card | at restart, a declared station provides it; the card fixed; the station returns it to the rail on its own (`capabilities-reread`); the ticket leaving the rail |

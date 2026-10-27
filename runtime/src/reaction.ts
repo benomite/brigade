@@ -169,16 +169,20 @@ export function ouvrirReaction(atelier: AtelierDeReaction) {
       case "escalate":
         return [
           MARQUEUR_MANAGER,
-          `**Manager — rouge après ${reaction.returns} renvois : remontée au chef.**${livraison}`,
+          `**Manager — rouge après ${reaction.returns} renvois : ${reaction.card === null ? "la cuisine le reprend" : "remontée au chef"}.**${livraison}`,
           "",
           "**Ce qui a été tenté.**",
           "",
           ...lister(tentatives(connu.ticket)),
           `**Pourquoi le manager remonte.** ${reaction.reason}`,
           ...(reaction.proposal === null ? [] : ["", `**Ce qu'il propose.** ${reaction.proposal}`]),
-          ...(reaction.card === null ? ["", "Aucun choix de produit ni geste derrière ce rouge : aucune carte n'est posée dans TODO."] : ["", `**Carte dans TODO** (${reaction.card.kind}). ${reaction.card.statement}`]),
+          ...(reaction.card === null
+            ? ["", "Aucun choix de produit ni geste derrière ce rouge : il n'entre pas dans TODO, la cuisine le reprend — un ticket `fix` sur sa cause, puis ce ticket repart chez un cook une fois ce `fix` servi."]
+            : ["", `**Carte dans TODO** (${reaction.card.kind}). ${reaction.card.statement}`]),
           "",
-          `Rien n'est mergé, et aucun cook n'est relancé : le ticket est 86 (\`${REMONTE}\`). ${connu.pr ? "Mergée à la main, sa PR sert le ticket ; retirer \`fire\` le sort du rail." : "Il n'a pas de PR, donc rien à merger : retirer \`fire\` le sort du rail, ou ferme-le si le compte-rendu du cook, plus haut sur cette issue, suffit."}`,
+          reaction.card === null
+            ? `Rien n'est mergé : le ticket est 86 (\`${REMONTE}\`) le temps que la cuisine le reprenne. Sa carte sur le rail dit où elle en est.`
+            : `Rien n'est mergé : le ticket est 86 (\`${REMONTE}\`). ${connu.pr ? "Mergée à la main, sa PR sert le ticket ; retirer \`fire\` le sort du rail." : "Il n'a pas de PR, donc rien à merger : retirer \`fire\` le sort du rail, ou ferme-le si le compte-rendu du cook, plus haut sur cette issue, suffit."}`,
           ...(reaction.run === null ? [] : ["", atelier.signature(reaction.run, "Réagi")]),
         ].join("\n");
     }

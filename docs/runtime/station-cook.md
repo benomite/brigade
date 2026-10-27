@@ -144,7 +144,7 @@ the category of the refusal when `claude` gives it.
 | What the model refuses | Up to two refusals in a row | At the third |
 |---|---|---|
 | a ticket's **cook** | back to queued, comment `refusé par le modèle, essai n/3` | 86, reason `refused`, `Remonté au chef` |
-| the **review** of a delivery | retried at the next wake-up | the pass escalates the ticket to you (`unjudged`, cause `review-refused`): 86, no merge and no send back |
+| the **review** of a delivery | retried at the next wake-up | the pass escalates the ticket (`unjudged`, cause `review-refused`): 86, no merge; the kitchen takes it up — sent back once to a cook, then a `fix` ticket —, not your queue |
 | a manager's **judgment**, **split** or **reaction** | retried at the next wake-up | pinned like an unreadable answer (`manager.failed`, `manager.split-failed`, or a reaction that escalates) |
 
 The comment `refusé par le modèle, essai n/3` and the mention `Remonté au chef` are written by the

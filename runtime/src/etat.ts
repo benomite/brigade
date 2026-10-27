@@ -51,11 +51,16 @@ import { avecHorsZoneEn, BLOQUE, BLOQUE_EN, direRetenueEn, EN_WAITING, etatLu, e
 import { PAR_LE_CHEF } from "./events/rail.ts";
 import { direAttenteDeTiersEn } from "./attente.ts";
 import { attenteDUneStation, direMiseDeCote } from "./mise-de-cote.ts";
+import { direReprise, direRepriseEn, reprisesDuRail, type RepriseDuTicket } from "./remontee-a-la-cuisine.ts";
 import { GESTE_DE_STATION_A_CHAUD_EN } from "./stations-declarees.ts";
 import { prendLesOrdinaires } from "./bac-a-sable/ordinaires.ts";
 import type { Refus } from "./projets/refus.ts";
 import { alerteEnCours, type AlerteEnCours } from "./projections/emergency.ts";
 import { cleDUrgence, retenuesDuChef, urgenceDuChef, type CauseDUrgence as RetenueDuChef, type Urgence } from "./urgence.ts";
+
+// La raison d'un ticket 86 sous sa carte : ce que la cuisine fait d'une
+// remontée technique, sinon la raison de sa mise de côté.
+const direRaisonDuRail = (motif: string | null, reprise: RepriseDuTicket | undefined) => (reprise === undefined ? direMiseDeCote(motif) : direReprise(reprise));
 
 const EVENEMENTS_MONTRES = 15;
 // La cadence à laquelle le suivi regarde si le journal a changé : une lecture
@@ -94,6 +99,10 @@ export type EtatCuisine = {
   // Ce que la cuisine fait en ce moment de chaque ticket pris ou en pass — nul
   // quand le runtime ne le sait pas. Les autres tickets n'y sont pas.
   activites: Map<number, ActiviteDeTicket | null>;
+  // Ce que la cuisine fait de chaque ticket 86 sur une remontée technique
+  // (remontee-a-la-cuisine.ts) : sa carte le dit. Absente d'un état construit
+  // sans elle.
+  reprises?: Map<number, RepriseDuTicket>;
   // Les captures de la dernière livraison de chaque ticket d'interface en
   // pass ou servi dans les 24 h (captures.ts). Un ticket qui n'y est pas n'en
   // a pas : il n'est pas d'interface, ou il n'a rien livré.
@@ -205,6 +214,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
     grants: ACTIONS.flatMap((action) => etatDuGrant(base, action, maintenant) ?? []),
     rail,
     activites: activitesDuRail(base, rail),
+    reprises: reprisesDuRail(base, rail),
     captures: capturesDesLivraisons(journal, [...rail.filter(({ state }) => state === "pass" || state === "served").map(({ ticket }) => ticket), ...livres.map(({ ticket }) => ticket)]),
     attend,
     urgence: gardeFous.stoppedAt === null ? urgenceDuChef(base, rail, attend, stations) : null,
@@ -440,7 +450,7 @@ export function raisonDeTete(etat: EtatCuisine, ticket: TicketRail): string | nu
 
 // Ce que l'état a à dire de plus que son nom : qui, depuis quand, jusqu'à quand.
 // `retenues` : ce qui retient chaque station de prendre un ticket qui pourrait partir.
-function detail(ticket: TicketRail, maintenant: Date, depuis: Depuis, retenues: string[]): string {
+function detail(ticket: TicketRail, maintenant: Date, depuis: Depuis, retenues: string[], reprise?: RepriseDuTicket): string {
   const reste = (instant: string) => Date.parse(instant) - maintenant.getTime();
   switch (ticket.state) {
     case "waiting":
@@ -460,6 +470,8 @@ function detail(ticket: TicketRail, maintenant: Date, depuis: Depuis, retenues: 
     case "86": {
       if (ticket.waitingFor !== null) return direAttenteDeTiersEn(ticket.waitingFor, depuis);
       const retour = ticket.until === null ? "no return time" : reste(ticket.until) >= 0 ? `back in ${dureeEn(reste(ticket.until))}` : "back at the next tick";
+      // Une remontée technique : la carte dit ce que la cuisine en fait.
+      if (reprise !== undefined) return `since ${depuis(ticket.since)} (${ticket.reason}) — ${direRepriseEn(reprise)}`;
       return `since ${depuis(ticket.since)} (${ticket.reason}), ${retour}`;
     }
   }
@@ -726,7 +738,7 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
         `  #${ticket.ticket}`,
         etatLuEn(ticket),
         ticket.priority === null ? "-" : `prio:${ticket.priority}`,
-        avecHorsZoneEn(detail(ticket, maintenant, depuisEn, retenuesDe(ticket)) + direAttenteDeCharge(etat.activites.get(ticket.ticket)), ticket),
+        avecHorsZoneEn(detail(ticket, maintenant, depuisEn, retenuesDe(ticket), etat.reprises?.get(ticket.ticket)) + direAttenteDeCharge(etat.activites.get(ticket.ticket)), ticket),
         ticket.title,
       ].join("  "),
     ),
@@ -1033,7 +1045,7 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limit
         url: ticket.url,
         depuis: ticket.since,
         activite: etat.activites.get(ticket.ticket) ?? null,
-        attente: ticket.state === "86" ? { raison: direMiseDeCote(ticket.reason), colonne: faute === null ? etatLu(ticket) : EN_WAITING, retour: ticket.until } : null,
+        attente: ticket.state === "86" ? { raison: direRaisonDuRail(ticket.reason, etat.reprises?.get(ticket.ticket)), colonne: faute === null ? etatLu(ticket) : EN_WAITING, retour: ticket.until } : null,
         tiers:
           faute !== null
             ? { ...faute, depuis: ticket.since, relance: null }

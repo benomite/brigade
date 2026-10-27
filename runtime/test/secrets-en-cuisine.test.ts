@@ -212,7 +212,7 @@ describe("les secrets du projet", { concurrency: 8 }, () => {
     conclure();
     await jusqua(() => journal.tout().some((e) => e.type === "pass.escalated"));
 
-    assert.deepEqual(dernier("pass.escalated", 17), { reason: "unjudged", cause: "secrets-unavailable" });
+    assert.deepEqual([dernier("pass.escalated", 17)?.reason, dernier("pass.escalated", 17)?.cause], ["unjudged", "secrets-unavailable"]);
     assert.deepEqual(gates.appels(), []);
     assert.equal(journal.tout().some((e) => e.type === "pass.judged"), false);
     assert.equal(etat(17), "86");

@@ -28,6 +28,8 @@ const HEURE_MS = 3_600_000;
 // (`MAX_ARG_STRLEN`) : au-delà, le lancement est refusé (`E2BIG`).
 const ARGUMENT_MAX_LINUX = 131_072;
 const charge = (evenement: { payload: unknown }) => evenement.payload as Record<string, unknown>;
+// Le motif d'une remontée, sans ce que la pass en a dit (`why`).
+const motifDe = (remontee: Record<string, unknown> | undefined) => ({ reason: remontee?.reason, cause: remontee?.cause });
 
 // Une cuisine avec sa pass, et un ticket calibré sur le rail.
 function service(t: TestContext, options: Options & { grant?: boolean; gates?: "vert" | "rouge" | "lent" | "plafond" | "rouge-et-plafond" } = {}) {
@@ -164,20 +166,21 @@ describe("la pass", { concurrency: 8 }, () => {
 
   test("un ticket remonté dont le chef ferme la PR : la fermeture est constatée de même, et le ticket reste 86", async (t) => {
     const { gh, etat, histoire, pass, jusquAu } = service(t, { sansGates: true });
-    await jusquAu("pass.escalated");
+    // Sans gates, la cuisine ouvre un ticket `fix` : le ticket reste 86 en l'attendant.
+    await jusquAu("pass.kitchen-took-over");
 
     for (const pr of gh.ouvertes.values()) pr.state = "closed";
     await jusquAu("pass.pr-closed");
 
-    assert.deepEqual(histoire(), ["pass.escalated", "ticket.86", "pass.pr-closed"]);
+    assert.deepEqual(histoire(), ["pass.escalated", "ticket.86", "pass.kitchen-fix-opening", "pass.kitchen-took-over", "pass.pr-closed"]);
     assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.cause, etat(17)], ["closed", "unjudged", "no-gates", "86"]);
     await jusqua(() => gh.commentaires.some(([, corps]) => /PR fermée sans merge[\s\S]*Le ticket reste 86/.test(corps)));
   });
 
   test("un ticket remonté que le chef rend au rail, puis dont il ferme la PR : la fermeture est écrite, mais rien n'est dit d'un ticket qui attend un cook", async (t) => {
     const { repertoire, gh, etat, histoire, pass, compter, jusquAu, laisserTourner } = service(t, { sansGates: true });
-    await jusquAu("pass.escalated");
-    await jusqua(() => gh.commentaires.some(([, corps]) => /remontée au chef/.test(corps)));
+    await jusquAu("pass.kitchen-took-over");
+    await jusqua(() => gh.commentaires.some(([, corps]) => /la cuisine la reprend/.test(corps)));
 
     // La cuisine arrêtée, aucun cook ne le reprend : le ticket attend sur le
     // rail, et sa pass garde sa phase.
@@ -190,7 +193,7 @@ describe("la pass", { concurrency: 8 }, () => {
     await jusquAu("pass.pr-closed");
     await laisserTourner();
 
-    assert.deepEqual(histoire(), ["pass.escalated", "ticket.86", "ticket.released", "pass.pr-closed"]);
+    assert.deepEqual(histoire(), ["pass.escalated", "ticket.86", "pass.kitchen-fix-opening", "pass.kitchen-took-over", "ticket.released", "pass.pr-closed"]);
     assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.cause, etat(17), compter("pass.pr-closed")], ["closed", "unjudged", "no-gates", "waiting", 1]);
     assert.ok(!gh.commentaires.some(([, corps]) => /PR fermée sans merge/.test(corps)));
   });
@@ -556,9 +559,9 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.equal(compter("branch.removed"), 1);
   });
 
-  test("au deuxième renvoi resté rouge, la pass cesse de renvoyer et remonte au chef : rien n'est mergé", async (t) => {
-    const { gh, etat, histoire, cooks, pass, avertissements, runtime, jusquAu } = service(t, { grant: true, gates: "rouge" });
-    await jusquAu("pass.escalated");
+  test("au deuxième renvoi resté rouge, la pass cesse de renvoyer et la cuisine reprend le ticket, pas le chef : rien n'est mergé", async (t) => {
+    const { gh, etat, histoire, journal, pass, avertissements, runtime, jusquAu, dernier } = service(t, { grant: true, gates: "rouge" });
+    await jusquAu("pass.kitchen-took-over");
 
     assert.deepEqual(histoire(), [
       "pass.started",
@@ -573,13 +576,19 @@ describe("la pass", { concurrency: 8 }, () => {
       "pass.judged",
       "pass.escalated",
       "ticket.86",
+      "pass.kitchen-fix-opening",
+      "pass.kitchen-took-over",
     ]);
-    assert.equal(cooks().length, 3);
+    // Restée rouge : un ticket `fix` sur sa cause, et le ticket l'attend, 86 — hors de TODO.
+    assert.deepEqual(dernier("pass.kitchen-took-over", 17), { cause: "returns-exhausted", move: "fix", issue: 501, reconciled: false });
+    assert.equal(journal.duTicket(17).filter((e) => e.type === "cook.launched").length, 3);
     assert.deepEqual(gh.merges, []);
     assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.cause, pass()?.returns], ["escalated", "still-red", "returns-exhausted", 2]);
     const ticket = runtime.rail.tickets().find((x) => x.ticket === 17);
     assert.deepEqual([etat(17), ticket?.reason, ticket?.until], ["86", "pass:still-red", null]);
-    await jusqua(() => gh.commentaires.some(([, corps]) => /rouge après 2 renvois : remontée au chef[\s\S]*Mergée à la main, la pass le verra/.test(corps)));
+    await jusqua(() => gh.commentaires.some(([, corps]) => /rouge après 2 renvois : la cuisine le reprend[\s\S]*rien n'entre dans TODO/.test(corps)));
+    await jusqua(() => gh.commentaires.some(([, corps]) => /Cuisine — ticket `fix` #501 ouvert \(`returns-exhausted`\)/.test(corps)));
+    assert.deepEqual(attentesDuChef(journal.base, lireRail(journal.base)).filter((attente) => attente.ticket === 17), []);
     assert.equal(avertissements.filter((ligne) => /pass rouge sur le ticket #17/.test(ligne)).length, 3);
   });
 
@@ -702,7 +711,7 @@ describe("la pass", { concurrency: 8 }, () => {
     heure.avancer(61_000);
     await jusquAu("pass.escalated");
 
-    assert.deepEqual(dernier("pass.escalated", 17), { reason: "unjudged", cause: "ci-silent" });
+    assert.deepEqual(motifDe(dernier("pass.escalated", 17)), { reason: "unjudged", cause: "ci-silent" });
     assert.deepEqual(dernier("pass.ci-awaited", 17)?.workflows, [".github/workflows/ci.yml"]);
     await jusqua(() => gh.commentaires.some(([, corps]) => corps.includes("`.github/workflows/ci.yml`")));
   });
@@ -726,44 +735,86 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.deepEqual([compter("pass.escalated"), compter("pass.ci-awaited")], [0, 0]);
   });
 
-  test("une CI qui ne conclut jamais remonte au chef passé le délai, sans renvoi", async (t) => {
-    const { gh, heure, compter, dernier, etat, jusquAu } = service(t, { grant: true, pass: { attenteCiMs: 60_000 } });
+  test("une CI qui ne conclut jamais n'est pas jugée passé le délai : la cuisine renvoie la livraison à un cook, sans consommer de renvoi ni poser de carte", async (t) => {
+    const { gh, heure, compter, dernier, histoire, journal, jusquAu } = service(t, { grant: true, pass: { attenteCiMs: 60_000 } });
     gh.ci.checks = [{ name: "tests", outcome: "pending", conclusion: "queued", url: null }];
     await jusquAu("pass.started");
 
     heure.avancer(61_000);
-    await jusquAu("pass.escalated");
+    await jusquAu("pass.kitchen-took-over");
 
-    assert.deepEqual(dernier("pass.escalated", 17), { reason: "unjudged", cause: "ci-silent" });
-    assert.equal(compter("pass.judged") + compter("pass.returned"), 0);
-    assert.equal(etat(17), "86");
+    assert.deepEqual(motifDe(dernier("pass.escalated", 17)), { reason: "unjudged", cause: "ci-silent" });
+    assert.match(String(dernier("pass.escalated", 17)?.why), /n'a pas conclu en 1 min/);
+    const suite = histoire();
+    assert.deepEqual(suite.slice(suite.indexOf("pass.escalated"), suite.indexOf("pass.escalated") + 5), ["pass.escalated", "ticket.86", "pass.kitchen-took-over", "pass.returned", "ticket.released"]);
+    assert.deepEqual(dernier("pass.kitchen-took-over", 17), { cause: "ci-silent", move: "return" });
+    const renvoi = dernier("pass.returned", 17);
+    assert.deepEqual([renvoi?.n, renvoi?.kitchen], [0, true]);
+    assert.match(String((renvoi?.findings as string[])[0]), /La pass n'a pas pu juger cette livraison \(`unjudged` : `ci-silent`\) : La CI du commit/);
+    assert.equal(compter("pass.judged"), 0);
+    assert.deepEqual(attentesDuChef(journal.base, lireRail(journal.base)), []);
     assert.deepEqual(gh.merges, []);
+    await jusqua(() => gh.commentaires.some(([, corps]) => /^\*\*Cuisine — renvoi après une livraison non jugée \(`ci-silent`\)\.\*\*/.test(corps)));
   });
 
   test("une PR qui ne vise pas la base est refusée : ni gates, ni merge, ni renvoi", async (t) => {
-    const { gh, gates, histoire, etat, jusquAu } = service(t, { grant: true });
+    const { gh, gates, histoire, etat, dernier, jusquAu } = service(t, { grant: true });
     // Quelqu'un a retourné la PR vers `main` avant que la pass ne la lise.
     const lecture = gh.github.prDeBranche;
     gh.github.prDeBranche = async (branche) => {
       const pr = await lecture(branche);
       return pr && { ...pr, base: "main" };
     };
-    await jusquAu("pass.escalated");
+    await jusquAu("pass.kitchen-took-over");
 
-    assert.deepEqual(histoire(), ["pass.escalated", "ticket.86"]);
+    // Le cook n'y peut rien : la cuisine va droit au ticket `fix`, et le ticket l'attend, 86.
+    assert.deepEqual(histoire(), ["pass.escalated", "ticket.86", "pass.kitchen-fix-opening", "pass.kitchen-took-over"]);
+    assert.deepEqual(dernier("pass.kitchen-took-over", 17), { cause: "wrong-base", move: "fix", issue: 501, reconciled: false });
     assert.deepEqual(gates.appels(), []);
     assert.deepEqual(gh.merges, []);
     assert.equal(etat(17), "86");
-    await jusqua(() => gh.commentaires.some(([, corps]) => /remontée au chef \(`unjudged` : wrong-base\)[\s\S]*vise `main`/.test(corps)));
+    await jusqua(() => gh.commentaires.some(([, corps]) => /non jugée \(`unjudged` : wrong-base\) : la cuisine la reprend\.\*\*[^\n]*vise `main`/.test(corps)));
   });
 
-  test("un projet sans gates n'est pas jugé vert : la pass remonte au chef", async (t) => {
-    const { gh, histoire, dernier, jusquAu } = service(t, { grant: true, sansGates: true });
-    await jusquAu("pass.escalated");
+  test("le ticket `fix` de la cuisine sorti du rail, la livraison repart chez un cook ; non jugée de nouveau, la cuisine n'a plus rien à essayer : le ticket reste de côté sur le rail, jamais dans TODO", async (t) => {
+    const { gh, journal, etat, dernier, compter, jusquAu } = service(t, { grant: true });
+    const lecture = gh.github.prDeBranche;
+    gh.github.prDeBranche = async (branche) => {
+      const pr = await lecture(branche);
+      return pr && { ...pr, base: "main" };
+    };
+    await jusquAu("pass.kitchen-took-over");
+    assert.deepEqual(dernier("pass.kitchen-took-over", 17), { cause: "wrong-base", move: "fix", issue: 501, reconciled: false });
+    // Le ticket `fix` porte la marque de son ticket, le calibrage des corrections de la cuisine, et aucun geste du chef.
+    assert.deepEqual(gh.creations, [501]);
+    assert.deepEqual(gh.lire(501)?.labels, ["fire", "fix", "prio:1", "model:sonnet", "effort:medium"]);
+    assert.match(gh.corpsDe(501), /^<!-- brigade:remontee 17 -->\n[\s\S]*could not be judged by the pass \(`unjudged`: `wrong-base`\)/);
 
-    assert.deepEqual(histoire(), ["pass.escalated", "ticket.86"]);
-    assert.deepEqual(dernier("pass.escalated", 17), { reason: "unjudged", cause: "no-gates" });
+    // Le `fix` quitte le rail : la livraison repart, sur sa branche, sans consommer de renvoi.
+    journal.ajouter({ project: "brigade", ticket: 501, author: "github", type: "ticket.left", payload: { reason: "closed" } });
+    await jusquAu("pass.kitchen-took-over", 2);
+    assert.deepEqual(dernier("pass.kitchen-took-over", 17), { cause: "wrong-base", move: "resume", issue: 501 });
+    const renvoi = dernier("pass.returned", 17);
+    assert.deepEqual([renvoi?.n, renvoi?.kitchen], [0, true]);
+    assert.match(String((renvoi?.findings as string[])[0]), /Le ticket `fix` #501, ouvert par la cuisine .* est servi : la livraison te revient/);
+
+    // Rien n'a changé : de nouveau non jugée, la cuisine a déjà tout tenté.
+    await jusquAu("pass.kitchen-took-over", 3);
+    assert.deepEqual(dernier("pass.kitchen-took-over", 17), { cause: "wrong-base", move: "none" });
+    assert.equal(compter("pass.kitchen-fix-opening"), 1);
+    assert.equal(etat(17), "86");
+    assert.deepEqual(attentesDuChef(journal.base, lireRail(journal.base)).filter((attente) => attente.ticket === 17), []);
+    await jusqua(() => gh.commentaires.some(([, corps]) => /^\*\*Cuisine — plus rien à essayer \(`wrong-base`\)\.\*\*/.test(corps)));
+  });
+
+  test("un projet sans gates n'est pas jugé vert : la cuisine en fait un ticket `fix`, sans renvoyer au cook ses propres gates à écrire", async (t) => {
+    const { gh, histoire, dernier, journal, jusquAu } = service(t, { grant: true, sansGates: true });
+    await jusquAu("pass.kitchen-took-over");
+
+    assert.deepEqual(histoire(), ["pass.escalated", "ticket.86", "pass.kitchen-fix-opening", "pass.kitchen-took-over"]);
+    assert.deepEqual(motifDe(dernier("pass.escalated", 17)), { reason: "unjudged", cause: "no-gates" });
     assert.deepEqual(gh.merges, []);
+    assert.deepEqual(attentesDuChef(journal.base, lireRail(journal.base)).filter((attente) => attente.ticket === 17), []);
   });
 
   // La branche disparaît du clone avant que la pass ne juge : une restauration
@@ -782,12 +833,12 @@ describe("la pass", { concurrency: 8 }, () => {
     const lieu = service(t, { grant: true, ...sansBranche });
     perdreLaBranche(lieu);
     const { gh, gates, histoire, dernier, etat, jusquAu } = lieu;
-    await jusquAu("pass.escalated");
+    await jusquAu("pass.kitchen-took-over");
 
-    assert.deepEqual(histoire(), ["pass.escalated", "ticket.86"]);
-    assert.deepEqual(dernier("pass.escalated", 17), { reason: "unjudged", cause: "worktree-lost" });
-    assert.deepEqual([gates.appels(), gh.merges, etat(17)], [[], [], "86"]);
-    await jusqua(() => gh.commentaires.some(([, corps]) => /remontée au chef \(`unjudged` : worktree-lost\)/.test(corps)));
+    assert.deepEqual(histoire().slice(0, 5), ["pass.escalated", "ticket.86", "pass.kitchen-took-over", "pass.returned", "ticket.released"]);
+    assert.deepEqual(motifDe(dernier("pass.escalated", 17)), { reason: "unjudged", cause: "worktree-lost" });
+    assert.deepEqual([gates.appels(), gh.merges], [[], []]);
+    await jusqua(() => gh.commentaires.some(([, corps]) => /non jugée \(`unjudged` : worktree-lost\) : la cuisine la reprend/.test(corps)));
     const remontee = gh.commentaires.map(([, corps]) => corps).find((corps) => /worktree-lost/.test(corps)) ?? "";
     assert.match(remontee, /Le clone de la station ne connaît plus la branche de cette livraison \(`cook\/17-[\s\S]*sur l'origine, sous le même nom/);
     assert.doesNotMatch(remontee, /gates\.sh/);
@@ -797,10 +848,10 @@ describe("la pass", { concurrency: 8 }, () => {
     const lieu = service(t, sansBranche);
     perdreLaBranche(lieu, "absente");
     const { gh, histoire, dernier, jusquAu } = lieu;
-    await jusquAu("pass.escalated");
+    await jusquAu("pass.kitchen-took-over");
 
-    assert.deepEqual(histoire(), ["pass.escalated", "ticket.86"]);
-    assert.deepEqual(dernier("pass.escalated", 17), { reason: "unjudged", cause: "worktree-lost" });
+    assert.deepEqual(histoire().slice(0, 3), ["pass.escalated", "ticket.86", "pass.kitchen-took-over"]);
+    assert.deepEqual(motifDe(dernier("pass.escalated", 17)), { reason: "unjudged", cause: "worktree-lost" });
     assert.deepEqual(gh.merges, []);
   });
 
@@ -1199,7 +1250,7 @@ describe("la pass", { concurrency: 8 }, () => {
     gh.pannes.pr = false;
     await jusquAu("pass.escalated");
 
-    assert.deepEqual(histoire(), ["pass.pr-opened", "pass.escalated", "ticket.86"]);
+    assert.deepEqual(histoire().slice(0, 3), ["pass.pr-opened", "pass.escalated", "ticket.86"]);
     assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.cause, pass()?.pr, pass()?.number], ["escalated", "unjudged", "no-gates", PR, 101]);
   });
 
@@ -1349,13 +1400,14 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.match(cooks()[1]?.args[1] ?? "", new RegExp(`${lecon?.id} : Relecture — constat bloquant`));
   });
 
-  test("un reviewer resté rouge consomme les deux renvois comme des gates rouges, puis la pass remonte au chef", async (t) => {
-    const { gh, etat, pass, cooks, relectures, compter, jusquAu } = service(t, { grant: true, reviewer: { relecture: "relit-rouge" } });
-    await jusquAu("pass.escalated");
+  test("un reviewer resté rouge consomme les deux renvois comme des gates rouges, puis la cuisine en fait un ticket `fix`", async (t) => {
+    const { gh, etat, pass, journal, dernier, jusquAu } = service(t, { grant: true, reviewer: { relecture: "relit-rouge" } });
+    await jusquAu("pass.kitchen-took-over");
 
     assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.cause, pass()?.returns], ["escalated", "still-red", "returns-exhausted", 2]);
-    assert.deepEqual([cooks().length, relectures().length, compter("pass.returned")], [3, 3, 2]);
-    assert.equal(etat(17), "86");
+    const compte = (type: string) => journal.duTicket(17).filter((e) => e.type === type).length;
+    assert.deepEqual([compte("cook.launched"), compte("pass.reviewed"), compte("pass.returned")], [3, 3, 2]);
+    assert.deepEqual([dernier("pass.kitchen-took-over", 17)?.move, etat(17)], ["fix", "86"]);
     assert.deepEqual(gh.merges, []);
   });
 
@@ -1381,30 +1433,34 @@ describe("la pass", { concurrency: 8 }, () => {
     ["de la prose", "relit-illisible", "aucun objet JSON dans la réponse"],
     ["un verdict que ses constats contredisent", "relit-incoherent", "verdict vert avec 1 constat bloquant"],
   ] as const) {
-    test(`une relecture illisible — ${cas} — n'est ni verte ni rouge : redemandée deux fois au reviewer sur la même livraison, jamais une troisième, puis elle remonte au chef, sans merge ni renvoi`, async (t) => {
-      const { gh, etat, runtime, journal, dernier, pass, histoire, relectures, cooks, compter, laisserTourner, jusquAu } = service(t, { grant: true, reviewer: { relecture } });
-      await jusquAu("pass.escalated");
-      await laisserTourner();
+    test(`une relecture illisible — ${cas} — n'est ni verte ni rouge : redemandée deux fois au reviewer sur la même livraison, jamais une troisième, puis la cuisine renvoie la livraison à un cook, sans merge ni renvoi consommé`, async (t) => {
+      const { gh, journal, dernier, pass, histoire, compter, jusquAu } = service(t, { grant: true, reviewer: { relecture } });
+      await jusquAu("pass.kitchen-took-over");
 
-      assert.deepEqual(histoire(), ["pass.started", "pass.reviewed", "pass.reviewed", "pass.reviewed", "pass.escalated", "ticket.86"]);
-      const relues = journal.duTicket(17).flatMap((e) => (e.type === "pass.reviewed" ? [e.payload] : []));
-      assert.deepEqual(relues.map((relue) => [relue.outcome, relue.reason, relue.sha, relue.run]), Array(3).fill(["unreadable", motif, pass()?.sha, pass()?.run]));
+      assert.deepEqual(histoire().slice(0, 9), ["pass.started", "pass.reviewed", "pass.reviewed", "pass.reviewed", "pass.escalated", "ticket.86", "pass.kitchen-took-over", "pass.returned", "ticket.released"]);
+      // Jusqu'à la remontée : ce que la pass a fait de cette livraison.
+      const remontee17 = journal.duTicket(17).find((e) => e.type === "pass.escalated");
+      const avant = journal.tout().filter((e) => e.seq <= (remontee17?.seq ?? 0));
+      const relues = avant.flatMap((e) => (e.type === "pass.reviewed" && e.ticket === 17 ? [e.payload] : []));
+      const livree = journal.duTicket(17).find((e) => e.type === "pass.started")?.payload;
+      assert.deepEqual(relues.map((relue) => [relue.outcome, relue.reason, relue.sha, relue.run]), Array(3).fill(["unreadable", motif, livree?.sha, livree?.run]));
       assert.equal(new Set(relues.map((relue) => relue.review)).size, 3);
-      assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.cause, pass()?.returns], ["escalated", "unjudged", "review-unreadable", 0]);
-      assert.deepEqual([etat(17), runtime.rail.tickets().find((x) => x.ticket === 17)?.reason], ["86", "pass:unjudged"]);
+      assert.deepEqual(motifDe(remontee17?.payload), { reason: "unjudged", cause: "review-unreadable" });
       // Le reviewer seul a été redemandé : le ticket n'a eu que son premier cook, et rien n'est jugé ni mergé.
-      assert.deepEqual([gh.merges, relectures().length, cooks().length, journal.duTicket(17).filter((e) => e.type === "cook.launched").length], [[], 3, 1, 1]);
-      assert.deepEqual([compter("pass.judged"), compter("pass.returned"), compter("merge.done")], [0, 0, 0]);
+      const deType = (type: string) => avant.filter((e) => e.type === type && e.ticket === 17).length;
+      assert.deepEqual([gh.merges, deType("cook.launched"), deType("pass.judged"), deType("pass.returned"), deType("merge.done")], [[], 1, 0, 0, 0]);
       // Une livraison non jugée compte un échec au disjoncteur, comme avant : ses redemandes ne comptent pas.
-      const fins = journal.tout().flatMap((e) => (e.type === "cook.exited" && String(e.payload.run).startsWith("review-") ? [e.payload.outcome] : []));
+      const fins = avant.flatMap((e) => (e.type === "cook.exited" && String(e.payload.run).startsWith("review-") ? [e.payload.outcome] : []));
       assert.deepEqual([fins, compter("breaker.opened")], [["neutral", "neutral", "failed"], 0]);
+      // Puis la cuisine la renvoie une fois à un cook, sans consommer de renvoi.
+      assert.deepEqual(dernier("pass.kitchen-took-over", 17), { cause: "review-unreadable", move: "return" });
+      assert.equal(pass()?.returns, 0);
       // Le chef lit que la relecture a été redemandée, et où sont les trois flux.
-      const remontee = () => gh.commentaires.find(([, corps]) => corps.includes("remontée au chef (`unjudged` : review-unreadable)"))?.[1] ?? "";
+      const remontee = () => gh.commentaires.find(([, corps]) => corps.includes("non jugée (`unjudged` : review-unreadable) : la cuisine la reprend"))?.[1] ?? "";
       await jusqua(() => remontee() !== "");
       assert.ok(remontee().includes(motif));
       assert.match(remontee(), /Le reviewer a relu cette livraison 3 fois — la relecture lui a été redemandée 2 fois, sans relancer de cook —, et aucune de ses réponses ne se lit/);
       for (const relue of relues) assert.ok(remontee().includes(`\`runs/${relue.review}.jsonl\``));
-      assert.equal(dernier("pass.reviewed", 17)?.review, relues[2]?.review);
     });
   }
 
@@ -1467,13 +1523,14 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.equal(compter("pass.reviewed"), 1);
 
     chef(repertoire, "kitchen.resumed");
-    await jusqua(() => compter("pass.escalated") === 1);
-    await jusqua(() => compter("runtime.ticked") >= ticks + 5);
+    await jusqua(() => compter("pass.escalated") >= 1);
     // Trois relectures en tout sur la même livraison — la première et ses deux redemandes —, d'un runtime à l'autre.
-    const relues = journal.duTicket(17).flatMap((e) => (e.type === "pass.reviewed" ? [e.payload] : []));
+    const remontee = journal.duTicket(17).find((e) => e.type === "pass.escalated");
+    const avant = journal.duTicket(17).filter((e) => e.seq < (remontee?.seq ?? 0));
+    const relues = avant.flatMap((e) => (e.type === "pass.reviewed" ? [e.payload] : []));
     assert.deepEqual(relues.map((relue) => relue.outcome), ["unreadable", "unreadable", "unreadable"]);
     assert.equal(new Set(relues.map((relue) => `${relue.run} ${relue.sha}`)).size, 1);
-    assert.deepEqual([etat(17), passDuTicket(journal.base, 17)?.cause, gh.merges, journal.duTicket(17).filter((e) => e.type === "cook.launched").length], ["86", "review-unreadable", [], 1]);
+    assert.deepEqual([motifDe(remontee?.payload).cause, gh.merges, avant.filter((e) => e.type === "cook.launched").length], ["review-unreadable", [], 1]);
   });
 
   test("une relecture qui n'aboutit pas ne dit rien de la livraison : rien n'est écrit, elle est retentée", async (t) => {
@@ -1496,16 +1553,18 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.equal(pass()?.review?.outcome, "green");
   });
 
-  test("une relecture refusée trois fois d'affilée ne boucle pas jusqu'au disjoncteur : la pass remonte au chef, qui lit pourquoi sur l'issue", async (t) => {
-    const { gh, etat, runtime, pass, compter, relectures, laisserTourner, jusquAu } = service(t, { grant: true, seuilDisjoncteur: 1, reviewer: { relecture: "refuse" } });
-    await jusquAu("pass.escalated");
-    await laisserTourner();
+  test("une relecture refusée trois fois d'affilée ne boucle pas jusqu'au disjoncteur : la cuisine reprend la livraison, et l'issue dit pourquoi", async (t) => {
+    const { gh, journal, dernier, compter, jusquAu } = service(t, { grant: true, seuilDisjoncteur: 1, reviewer: { relecture: "refuse" } });
+    await jusquAu("pass.kitchen-took-over");
 
-    assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.cause], ["escalated", "unjudged", "review-refused"]);
-    assert.deepEqual([etat(17), runtime.rail.tickets().find((x) => x.ticket === 17)?.reason], ["86", "pass:unjudged"]);
-    assert.deepEqual([relectures().length, compter("pass.reviewed"), compter("pass.judged"), compter("breaker.opened"), gh.merges], [3, 0, 0, 0, []]);
+    const remontee17 = journal.duTicket(17).find((e) => e.type === "pass.escalated");
+    assert.deepEqual(motifDe(remontee17?.payload), { reason: "unjudged", cause: "review-refused" });
+    assert.equal(dernier("pass.kitchen-took-over", 17)?.move, "return");
+    const avant = journal.tout().filter((e) => e.seq < (remontee17?.seq ?? 0));
+    const relancees = avant.filter((e) => e.type === "cook.launched" && e.ticket === null).length;
+    assert.deepEqual([relancees, avant.filter((e) => e.type === "pass.reviewed").length, avant.filter((e) => e.type === "pass.judged").length, compter("breaker.opened"), gh.merges], [3, 0, 0, 0, []]);
     await jusqua(() =>
-      gh.commentaires.some(([, corps]) => /remontée au chef \(`unjudged` : review-refused\)\.\*\* Le modèle a refusé 3 fois d'affilée de relire cette livraison — refus du modèle \(reasoning_extraction\), `stop_reason: refusal`/.test(corps)),
+      gh.commentaires.some(([, corps]) => /non jugée \(`unjudged` : review-refused\) : la cuisine la reprend\.\*\* Le modèle a refusé 3 fois d'affilée de relire cette livraison — refus du modèle \(reasoning_extraction\), `stop_reason: refusal`/.test(corps)),
     );
   });
 
@@ -1678,7 +1737,7 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.deepEqual([relectures().length, compter("pass.served"), gh.fermetures, pass()?.returns], [1, 0, [], 1]);
   });
 
-  test("une consigne trop lourde pour partir en commande ne se lance pas et ne boucle pas : la pass remonte au chef", async (t) => {
+  test("une consigne trop lourde pour partir en commande ne se lance pas et ne boucle pas : la cuisine en fait un ticket `fix`", async (t) => {
     // Seul le titre du ticket n'a pas de plafond dans la consigne du reviewer :
     // c'est lui qui la fait déborder. Il pèse ce plafond, pas plus — il part
     // d'abord dans la consigne du cook, en un argument lui aussi, et ce que
@@ -1686,24 +1745,26 @@ describe("la pass", { concurrency: 8 }, () => {
     // cook ne partirait pas, et rien n'arriverait jamais en pass.
     const titre = "é".repeat(CONSIGNE_MAX / 2);
     assert.ok(Buffer.byteLength(consigne({ ticket: 17, titre, depot: DEPOT, base: BASE })) < ARGUMENT_MAX_LINUX);
-    const { etat, pass, relectures, compter, laisserTourner, jusquAu } = service(t, { issues: [issue(17, CALIBRE, { title: titre })] });
-    await jusquAu("pass.escalated");
-    await laisserTourner();
+    const { etat, pass, journal, dernier, compter, jusquAu } = service(t, { issues: [issue(17, CALIBRE, { title: titre })] });
+    await jusquAu("pass.kitchen-took-over");
 
-    assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.cause, etat(17)], ["escalated", "unjudged", "review-unsendable", "86"]);
-    assert.deepEqual([relectures().length, compter("pass.reviewed"), compter("pass.judged"), compter("breaker.opened")], [0, 0, 0, 0]);
+    // Un renvoi n'y changerait rien : la consigne est celle du runtime.
+    assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.cause, etat(17), dernier("pass.kitchen-took-over", 17)?.move], ["escalated", "unjudged", "review-unsendable", "86", "fix"]);
+    const compte = (type: string) => journal.duTicket(17).filter((e) => e.type === type).length;
+    assert.deepEqual([compte("pass.reviewed"), compte("pass.judged"), compte("pass.returned"), compter("breaker.opened")], [0, 0, 0, 0]);
   });
 
-  test("un ticket sans diff n'est jamais servi sans avoir été relu : relecture illisible, il remonte au chef ; cuisine arrêtée, il attend", async (t) => {
+  test("un ticket sans diff n'est jamais servi sans avoir été relu : relecture illisible, la cuisine le reprend ; cuisine arrêtée, il attend", async (t) => {
     const illisible = service(t, { suite: ["rapporte-sans-commit"], scenario: "bavard", reviewer: { relecture: "relit-illisible" } });
-    await illisible.jusquAu("pass.escalated");
-    assert.deepEqual([illisible.etat(17), illisible.pass()?.cause, illisible.compter("ticket.served"), illisible.gh.fermetures], ["86", "review-unreadable", 0, []]);
+    await illisible.jusquAu("pass.kitchen-took-over");
+    const remontee17 = illisible.journal.duTicket(17).find((e) => e.type === "pass.escalated");
+    assert.deepEqual([motifDe(remontee17?.payload).cause, illisible.compter("ticket.served"), illisible.gh.fermetures], ["review-unreadable", 0, []]);
     // Redemandée deux fois au reviewer, sur le même livrable, avant de remonter.
-    assert.deepEqual([illisible.relectures().length, illisible.cooks().length, illisible.compter("pass.reviewed")], [3, 1, 3]);
+    const avant = illisible.journal.duTicket(17).filter((e) => e.seq < (remontee17?.seq ?? 0));
+    assert.deepEqual([avant.filter((e) => e.type === "cook.launched").length, avant.filter((e) => e.type === "pass.reviewed").length], [1, 3]);
     // Sans PR, la remontée ne propose pas d'en merger une.
-    await jusqua(() => illisible.gh.commentaires.some(([, corps]) => /remontée au chef \(`unjudged` : review-unreadable\)/.test(corps)));
-    const remontee = illisible.gh.commentaires.find(([, corps]) => /remontée au chef \(`unjudged` : review-unreadable\)/.test(corps))?.[1] ?? "";
-    assert.match(remontee, /Il n'a pas de PR, donc rien à merger/);
+    await jusqua(() => illisible.gh.commentaires.some(([, corps]) => /non jugée \(`unjudged` : review-unreadable\) : la cuisine la reprend/.test(corps)));
+    const remontee = illisible.gh.commentaires.find(([, corps]) => /non jugée \(`unjudged` : review-unreadable\) : la cuisine la reprend/.test(corps))?.[1] ?? "";
     assert.doesNotMatch(remontee, /Mergée à la main/);
 
     const arretee = service(t, { suite: ["rapporte-sans-commit"], scenario: "bavard", seuilDisjoncteur: 1, reviewer: { relecture: "echec" } });

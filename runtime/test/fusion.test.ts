@@ -288,16 +288,21 @@ describe("une livraison se juge fusionnée avec la base", { concurrency: 8 }, ()
     assert.deepEqual([gates.appels().length, relectures().length, compter("base.checked"), gh.merges.length], [0, 0, 0, 0]);
   });
 
-  test("une fusion qui échoue sans conflit est une panne de la machine : ni verdict ni renvoi, elle remonte au chef avec ce que git en dit — et se lit sur l'issue", async (t) => {
+  test("une fusion qui échoue sans conflit est une panne de la machine : ni verdict ni renvoi de la pass, la cuisine la renvoie une fois puis veut en faire un ticket `fix`, avec ce que git en dit — et se lit sur l'issue", async (t) => {
     const lieu = service(t);
     lieu.fusion.panne = "git merge : gpg failed to sign the data";
-    const { gh, gates, cooks, dernier, histoire, pass, jusquAu, laisserTourner, commentaires } = lieu;
-    await jusquAu("pass.escalated");
+    const { gh, gates, cooks, dernier, histoire, pass, journal, jusquAu, laisserTourner, commentaires } = lieu;
+    // GitHub refuse ici d'ouvrir un ticket : le `fix` est annoncé, et retenté au tick.
+    await jusquAu("pass.kitchen-fix-opening");
     await laisserTourner();
 
-    assert.deepEqual(histoire(), ["pass.escalated"]);
-    assert.deepEqual([dernier("pass.escalated", 17), pass()?.returns, pass()?.verdict], [{ reason: "unjudged", cause: "worktree-lost" }, 0, null]);
-    assert.deepEqual([cooks().length, gates.appels().length, gh.merges.length], [1, 0, 0]);
+    assert.deepEqual(histoire(), ["pass.escalated", "pass.returned", "pass.escalated"]);
+    assert.deepEqual([dernier("pass.escalated", 17)?.reason, dernier("pass.escalated", 17)?.cause, pass()?.returns, pass()?.verdict], ["unjudged", "worktree-lost", 0, null]);
+    assert.deepEqual(
+      journal.duTicket(17).flatMap((e) => (e.type === "pass.kitchen-took-over" ? [e.payload.move] : [])),
+      ["return"],
+    );
+    assert.deepEqual([cooks().length, gates.appels().length, gh.merges.length], [2, 0, 0]);
     await jusqua(() => /worktree-lost/.test(commentaires()));
     assert.match(commentaires(), /n'a pas pu fusionner cette livraison[\s\S]*git merge : gpg failed to sign the data\. Ce n'est ni un conflit ni un verdict/);
   });
@@ -572,7 +577,7 @@ describe("une livraison se juge fusionnée avec la base", { concurrency: 8 }, ()
     assert.deepEqual(lieu.histoire().slice(-3), ["pass.outdated", "pass.deferred", "pass.escalated"]);
     const jugement = lieu.relectures().at(-1)?.args.join("\n") ?? "";
     assert.match(jugement, /3\. `sonnet` \/ `low` — pass rouge :\nBranche en retard sur `v2`[\s\S]*Mets-toi à jour de la base/);
-    await jusqua(() => /remontée au chef/.test(lieu.commentaires()));
+    await jusqua(() => /rouge après \d+ renvois : la cuisine le reprend/.test(lieu.commentaires()));
     assert.match(lieu.commentaires(), /\*\*Ce qui a été tenté\.\*\*[\s\S]*3\. `sonnet` \/ `low` — pass rouge :\n\n {3}Branche en retard sur `v2`/);
   });
 });
@@ -775,8 +780,8 @@ describe("la base elle-même, rouge ou mergée hors du runtime", { concurrency: 
     const lieu = service(t, { essais: { base: "rouge" }, pass: { delaiGithubMs: 200 } });
     lieu.fusion.panne = "git merge : gpg failed to sign the data";
     const { journal, repertoire, heure, gh, essais, dernier, compter, jusquAu } = lieu;
-    // Le seul ticket est escaladé : rien à juger.
-    await jusquAu("pass.escalated");
+    // Le seul ticket est escaladé — renvoyé une fois, escaladé de nouveau, son `fix` refusé par GitHub : rien à juger.
+    await jusquAu("pass.kitchen-fix-opening");
     // Une base rouge, vue une fois ; la pass la rejoue d'elle-même, rouge encore.
     journal.ajouter({ project: "brigade", ticket: null, author: "pass", type: "base.checked", payload: { sha: "base-1", outcome: "red", gates: { outcome: "red", code: 1, failures: ["tests du projet"], tail: "" }, tickets: [] } });
     await jusquAu("base.checked", 2);
