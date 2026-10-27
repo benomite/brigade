@@ -179,7 +179,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     assert.deepEqual(relire(repertoire).map((e) => e.type), ["runtime.started", "project.switched-on", "grant.activated", "guard.configured", "station.announced", "drift.configured", "session.observed", "isolation.configured"]);
   });
 
-  test("sans cloison ni porte, le runtime le dit au démarrage et l'écrit : les projets se voient", { skip: posixOnly("reads the start-up lines of the real runtime it launches and then ends by SIGTERM, which Windows turns into an immediate kill: the runtime's children still held its state directory when the test removed it; on the Windows job: Error: EPERM, Permission denied: '<tmp>\\brigade-test-…'") }, async (t) => {
+  test("sans cloison ni porte, le runtime le dit au démarrage et l'écrit : les projets se voient", async (t) => {
     const runtime = await runtimeParDefaut(t);
 
     assert.match(runtime.sortie, /brigade : cloison — none \(BRIGADE_SANDBOX_BIN is not set\): a cook reads everything the service account reads — the state, the clone, the worktrees and the secrets of the other projects included/);

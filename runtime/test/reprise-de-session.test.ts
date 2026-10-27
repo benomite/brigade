@@ -78,7 +78,8 @@ describe("la reprise de session d'un renvoi", { concurrency: 6 }, () => {
     for (const finding of findings) assert.ok(consigne.includes(finding), finding);
     assert.match(consigne, /refusé ta livraison : c'est le renvoi 1 sur 2/);
     assert.match(consigne, /Tu reprends ici ta propre session/);
-    assert.ok(consigne.includes(`${String(relance?.worktree)}\``), consigne);
+    // Le journal écrit le worktree avec `/` ; la consigne le nomme avec les séparateurs de la plateforme.
+    assert.ok(consigne.includes(`${join(String(relance?.worktree))}\``), consigne);
     assert.doesNotMatch(consigne, /Relis le ticket|Lis le ticket|gh issue view|lis son `CLAUDE\.md`/);
     // Le transcript est rendu au répertoire du projet du worktree neuf, nommé
     // d'après son chemin tel que le runtime le voit : c'est là que `claude` le

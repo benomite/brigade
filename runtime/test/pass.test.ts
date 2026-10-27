@@ -445,7 +445,11 @@ describe("la pass", { concurrency: 8 }, () => {
 
     const verdict = dernier("pass.judged", 17);
     assert.equal(verdict?.verdict, "green");
-    assert.deepEqual(verdict?.gates, {
+    // Sous Windows, le bash de Git qui joue les fausses gates peut dire en tête
+    // de sortie qu'il ne trouve pas son /tmp : ce n'est pas ce que les gates disent.
+    const gates = verdict?.gates as { tail: string } | undefined;
+    const tail = gates?.tail.replace(/^(bash\.exe: warning: could not find \/tmp, please create!\n)+/, "");
+    assert.deepEqual({ ...gates, tail }, {
       outcome: "green",
       code: 1,
       failures: [],
