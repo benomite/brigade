@@ -12,8 +12,12 @@ import { connexionRefusee } from "./aides/connexion-refusee.ts";
 import { chef, cuisine, issue, MACHINE_CALME, MACHINE_VASTE, plafonner, STATION } from "./aides/cuisine.ts";
 import { jusqua, repertoireTemporaire } from "./outils.ts";
 
-// La garde de chaque fait attendu du test de la machine saturée (voir plus bas).
-const SATUREE_MS = 300_000;
+// Les gardes du test de la machine saturée (voir plus bas) : élargies sous
+// Windows seulement. Ailleurs, celles de la base — 120 s pour le test
+// (`--test-timeout`) et 60 s pour chaque fait attendu (`jusqua`).
+const SOUS_WINDOWS = process.platform === "win32";
+const SATUREE_TEST_MS = SOUS_WINDOWS ? 600_000 : 120_000;
+const SATUREE_MS = SOUS_WINDOWS ? 300_000 : 60_000;
 
 // Un arbitre sur son port, et de quoi le couper puis le rendre : coupé, tout
 // échange est refusé comme le serait une connexion.
@@ -149,10 +153,12 @@ describe("l'arbitrage entre projets", { concurrency: 8 }, () => {
 
   // Deux cuisines de trente cooks et sept faits attendus l'un après l'autre :
   // quelques secondes sous Linux, mais 104 s puis plus de 120 s sur le runner
-  // Windows, où chaque process coûte cher. Ses gardes sont plus larges — celle
-  // du test et celle de chaque fait attendu : elles ne servent qu'à ce qu'un
-  // test bloqué finisse par le dire.
-  test("deux projets, un plafond haut, la machine saturée par le premier : le second finit par partir", { timeout: 600_000 }, async (t) => {
+  // Windows, où chaque process coûte cher. Sous Windows seulement, ses gardes
+  // sont plus larges — celle du test et celle de chaque fait attendu : elles ne
+  // servent qu'à ce qu'un test bloqué finisse par le dire. Sous Linux et macOS,
+  // elles restent celles de la base, pour qu'un départ du second retardé d'une
+  // minute y fasse encore rougir le test.
+  test("deux projets, un plafond haut, la machine saturée par le premier : le second finit par partir", { timeout: SATUREE_TEST_MS }, async (t) => {
     const { joint, ouvert, projet } = await arbitre(t, 50);
     // Le premier projet remplit la machine de ses cooks.
     const premier = cuisine(t, { projet: "compta", arbitre: joint, cooks: 30, entrees: 30, scenario: "muet", issues: [issue(11), issue(12)] });
