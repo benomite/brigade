@@ -33,7 +33,7 @@ const poser = (gh: Lieux["gh"], numero: number, ...lignes: string[]) => {
   gh.poser(issue(numero));
 };
 
-describe("une station appairée par l'app reçoit les tickets qui demandent ce qu'elle fournit", { concurrency: 4, skip: posixOnly("the kitchen runs the fake claude, a POSIX shell script") }, () => {
+describe("une station appairée par l'app reçoit les tickets qui demandent ce qu'elle fournit", { concurrency: 4, skip: posixOnly("runs a full kitchen on the fake claude, then declares a paired Mac from the test's own journal connection and has it claim the `macos` ticket while the `ios` one stays aside; skipped because the fake claude is a bash script, though Windows launches it through Git Bash and no failure of this kitchen there is known") }, () => {
   test("le ticket qui demande `macos`, mis de côté faute de station, part sur le Mac dès que la principale le déclare ; celui qui demande `ios` reste de côté, et la box ne prend ni l'un ni l'autre", async (t) => {
     const { repertoire, journal, gh, heure, types, etat, dernier } = cuisine(t, { decisions: true, scenario: "muet", stations: lireStations({ BRIGADE_STATIONS: `${BOX}:2:code+raisonnement` }) });
     poser(gh, 14, "- requiert : macos");

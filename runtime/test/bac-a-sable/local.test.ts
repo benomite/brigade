@@ -18,8 +18,11 @@ import { argumentsReviewer } from "../../src/reviewer.ts";
 import { ConfigInvalide } from "../../src/runtime.ts";
 import { chef, cuisine, issue } from "../aides/cuisine.ts";
 import { appeler, jusqua } from "../outils.ts";
+import { posixOnly } from "../support/plateforme.ts";
 
-const MAC: Sondes = { plateforme: "darwin", existe: (chemin) => chemin === SEATBELT, versionDeClaude: () => "2.1.300 (Claude Code)\n" };
+// Le Mac simulé a son propre répertoire temporaire : celui du process qui joue
+// le test n'est pas un chemin de Mac sous Windows.
+const MAC: Sondes = { plateforme: "darwin", existe: (chemin) => chemin === SEATBELT, versionDeClaude: () => "2.1.300 (Claude Code)\n", temporaire: () => "/private/var/folders/xy/T" };
 const HOME = "/Users/chef";
 const LIEUX: Lieux = { home: HOME, worktrees: "/Users/chef/Library/Application Support/brigade/station/etat", caches: ["/Users/chef/Library/Caches/brigade"] };
 const HOTES = reglesDuProjet(["registry.npmjs.org"]);
@@ -111,7 +114,7 @@ function profilDe(args: string[]): { mode: string | undefined; reglages: Reglage
   return { mode: args[args.indexOf("--permission-mode") + 1], reglages: JSON.parse(args[settings + 1] ?? "") as Reglages };
 }
 
-test("dans une cuisine locale, le cook, le reviewer de la pass et le jugement du manager partent chacun dans le bac à sable, avec le profil d'un cook prêté", async (t) => {
+test("dans une cuisine locale, le cook, le reviewer de la pass et le jugement du manager partent chacun dans le bac à sable, avec le profil d'un cook prêté", { skip: posixOnly("runs a local kitchen with the sandbox and the manager and checks the cook, the pass reviewer and the manager's judgement each get a lent cook's profile for where they work; the sandbox profile takes only POSIX absolute paths without backslashes, so on Windows the worktrees and the temporary directory are refused and those launches never happen") }, async (t) => {
   let lues = 0;
   const bacASable: BacASableLocal = { version: "2.1.300", home: HOME, caches: ["/Users/chef/Library/Caches/brigade"], hotes: () => (lues++, HOTES) };
   const c = cuisine(t, { bacASable, pass: true, manager: {}, issues: [issue(15), issue(30, [])] });
@@ -150,7 +153,7 @@ test("dans une cuisine locale, le cook, le reviewer de la pass et le jugement du
   assert.ok(lues >= 3);
 });
 
-test("la commande de vérification dit `ok`, ou la raison en une phrase et le code 1 ; mal appelée, code 2", async () => {
+test("la commande de vérification dit `ok`, ou la raison en une phrase et le code 1 ; mal appelée, code 2", { skip: posixOnly("runs the check command on a simulated Mac and expects ok, a one-sentence reason with code 1, or code 2 when misused; the command resolves BRIGADE_STATION_DIR with the host's node:path, which on Windows turns the /Users/chef paths into drive paths with backslashes that the sandbox profile refuses, so the check answers code 1 instead of ok") }, async () => {
   const env = { BRIGADE_STATION_DIR: "/Users/chef/Library/Application Support/brigade/station" };
   const ok = appeler((appel) => verifierEnCommande(appel, MAC, HOME), [], env);
   assert.equal(await ok.fin, 0);

@@ -12,6 +12,13 @@ import { connexionRefusee } from "./aides/connexion-refusee.ts";
 import { chef, cuisine, issue, MACHINE_CALME, MACHINE_VASTE, plafonner, STATION } from "./aides/cuisine.ts";
 import { jusqua, repertoireTemporaire } from "./outils.ts";
 
+// Les gardes du test de la machine saturée (voir plus bas) : élargies sous
+// Windows seulement. Ailleurs, celles de la base — 120 s pour le test
+// (`--test-timeout`) et 60 s pour chaque fait attendu (`jusqua`).
+const SOUS_WINDOWS = process.platform === "win32";
+const SATUREE_TEST_MS = SOUS_WINDOWS ? 600_000 : 120_000;
+const SATUREE_MS = SOUS_WINDOWS ? 300_000 : 60_000;
+
 // Un arbitre sur son port, et de quoi le couper puis le rendre : coupé, tout
 // échange est refusé comme le serait une connexion.
 async function arbitre(t: TestContext, plafond: number, repertoire = repertoireTemporaire(t)) {
@@ -144,33 +151,40 @@ describe("l'arbitrage entre projets", { concurrency: 8 }, () => {
     await jusqua(() => second.projet("brigade")?.presence === "absent");
   });
 
-  test("deux projets, un plafond haut, la machine saturée par le premier : le second finit par partir", async (t) => {
+  // Deux cuisines de trente cooks et sept faits attendus l'un après l'autre :
+  // quelques secondes sous Linux, mais 104 s puis plus de 120 s sur le runner
+  // Windows, où chaque process coûte cher. Sous Windows seulement, ses gardes
+  // sont plus larges — celle du test et celle de chaque fait attendu : elles ne
+  // servent qu'à ce qu'un test bloqué finisse par le dire. Sous Linux et macOS,
+  // elles restent celles de la base, pour qu'un départ du second retardé d'une
+  // minute y fasse encore rougir le test.
+  test("deux projets, un plafond haut, la machine saturée par le premier : le second finit par partir", { timeout: SATUREE_TEST_MS }, async (t) => {
     const { joint, ouvert, projet } = await arbitre(t, 50);
     // Le premier projet remplit la machine de ses cooks.
     const premier = cuisine(t, { projet: "compta", arbitre: joint, cooks: 30, entrees: 30, scenario: "muet", issues: [issue(11), issue(12)] });
-    await jusqua(() => premier.lancements().length === 2 && projet("compta")?.cooks === 2);
+    await jusqua(() => premier.lancements().length === 2 && projet("compta")?.cooks === 2, SATUREE_MS);
 
     // Le second a un ticket, et sa station se retient : la machine n'en peut plus.
     let machine: Machine = { ...MACHINE_CALME, charge: 16.2 };
     const second = cuisine(t, { projet: "brigade", arbitre: joint, cooks: 30, scenario: "muet", machine: () => machine, issues: [issue(21)] });
-    await jusqua(() => ouvert.etat().saturePar.includes("brigade"));
+    await jusqua(() => ouvert.etat().saturePar.includes("brigade"), SATUREE_MS);
     assert.deepEqual(second.dernier("station.held"), { station: STATION, reason: "machine" });
 
     // Un ticket de plus pour le premier, dont la station voit, elle, de quoi
     // lancer : l'arbitre le lui refuse — il a plus que sa part de ce qui tourne.
     premier.lieux.gh.poser(issue(13));
-    await jusqua(() => premier.dernier("station.held") !== undefined);
+    await jusqua(() => premier.dernier("station.held") !== undefined, SATUREE_MS);
     assert.deepEqual(premier.dernier("station.held"), { station: STATION, reason: "arbiter" });
     assert.deepEqual([premier.etat(13), premier.lancements().length, second.lancements().length], ["waiting", 2, 0]);
     assert.deepEqual([projet("compta")?.part, projet("compta")?.encore, projet("brigade")?.part, projet("brigade")?.encore], [1, 0, 1, 1]);
 
     // La machine respire : c'est le second qui part.
     machine = MACHINE_CALME;
-    await jusqua(() => second.lancements().length === 1);
+    await jusqua(() => second.lancements().length === 1, SATUREE_MS);
     assert.equal(second.etat(21), "taken");
     // Plus personne n'attend la machine : le premier retrouve sa part du compte.
-    await jusqua(() => premier.lancements().length === 3);
-    await jusqua(() => ouvert.etat().cooks === 4);
+    await jusqua(() => premier.lancements().length === 3, SATUREE_MS);
+    await jusqua(() => ouvert.etat().cooks === 4, SATUREE_MS);
     assert.deepEqual(ouvert.etat().saturePar, []);
   });
 

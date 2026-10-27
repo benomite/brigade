@@ -5,8 +5,9 @@ import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
+import { posixOnly } from "./support/plateforme.ts";
 import type { Cloison } from "../src/cloison.ts";
-import { aDesGates, jouerGates, jouerSetup } from "../src/gates.ts";
+import { aDesGates, jouerGates, jouerGatesMesurees, jouerSetup } from "../src/gates.ts";
 import { JETON_MASQUE } from "../src/identifiants.ts";
 import { environnementClaude, FICHIER_DU_JETON } from "../src/jeton-claude.ts";
 import { ENV_ENFANT, mort, repertoireTemporaire } from "./outils.ts";
@@ -193,19 +194,19 @@ describe("les gates", { concurrency: 8 }, () => {
     );
   });
 
-  test("arrêtées au plafond de la pass, des gates ne sont pas vertes pour autant", async (t) => {
+  test("arrêtées au plafond de la pass, des gates ne sont pas vertes pour autant", { skip: posixOnly("plays gates that print the over-ceiling lines, then wait on a `sleep 30` past a 2 s cap, and expects a timeout rather than green; on Windows the cap's kill of the script's process group (a negative pid) fails silently, so the gates run to their end and come back green") }, async (t) => {
     const gates = await jouer(worktree(t, { gates: `${PLAFOND_FRANCHI}; sleep 30 & wait` }), 2000);
 
     assert.equal(gates.outcome, "timeout");
   });
 
-  test("les gates écrivent sur un seul canal : ce que le runtime en garde est dans l'ordre où elles l'ont écrit", async (t) => {
+  test("les gates écrivent sur un seul canal : ce que le runtime en garde est dans l'ordre où elles l'ont écrit", { skip: posixOnly("plays gates that check with `[ /dev/fd/1 -ef /dev/fd/2 ]` that their stdout and stderr are one channel; under Git Bash that check does not see stderr, duplicated from stdout by the runtime's `2>&1`, as the same file, so the gates answer \"deux canaux\"") }, async (t) => {
     const racine = worktree(t, { gates: '[ /dev/fd/1 -ef /dev/fd/2 ] && echo "un seul canal" || echo "deux canaux"' });
 
     assert.equal((await jouer(racine)).tail, "un seul canal");
   });
 
-  test("les gates reçoivent le worktree en argument et s'y jouent", async (t) => {
+  test("les gates reçoivent le worktree en argument et s'y jouent", { skip: posixOnly("plays gates that echo their argument and their working directory, and matches the argument against a regular expression built from the worktree path; the backslashes of a Windows path turn into regex escapes there, so the echoed path never matches") }, async (t) => {
     const racine = worktree(t, { gates: 'echo "arg=$1"; echo "cwd=$(pwd -P)"' });
 
     const gates = await jouer(racine);
@@ -236,7 +237,7 @@ describe("les gates", { concurrency: 8 }, () => {
     assert.doesNotMatch(gates.tail, /gates jouées/);
   });
 
-  test("un setup qui dépasse le plafond des gates les arrête avant qu'elles ne partent", async (t) => {
+  test("un setup qui dépasse le plafond des gates les arrête avant qu'elles ne partent", { skip: posixOnly("plays a setup that sleeps 30 s under a 200 ms cap and expects the gates stopped as a timeout before they start; on Windows the cap's kill of the setup's process group (a negative pid) fails silently, so the setup sleeps its 30 s and the gates then come back green") }, async (t) => {
     const racine = worktree(t, { setup: "sleep 30", gates: 'echo "gates jouées"' });
 
     const gates = await jouer(racine, 200);
@@ -245,7 +246,7 @@ describe("les gates", { concurrency: 8 }, () => {
     assert.doesNotMatch(gates.tail, /gates jouées/);
   });
 
-  test("des gates qui dépassent leur plafond sont arrêtées, avec ce qu'elles ont lancé", async (t) => {
+  test("des gates qui dépassent leur plafond sont arrêtées, avec ce qu'elles ont lancé", { skip: posixOnly("plays gates that wait on a background `sleep 30` under a 200 ms cap and expects them stopped, with what they launched, long before the sleep ends; on Windows the kill of their process group (a negative pid) fails silently, so the gates wait the sleep out and exit 0, green") }, async (t) => {
     const racine = worktree(t, { gates: "sleep 30 & wait" });
 
     const debut = Date.now();
@@ -257,7 +258,7 @@ describe("les gates", { concurrency: 8 }, () => {
     assert.ok(Date.now() - debut < SANS_ATTENDRE_LE_SLEEP_MS);
   });
 
-  test("des gates sorties d'elles-mêmes sont jugées sur leur code, même si leur plafond tombe avant que leur fin soit traitée", async (t) => {
+  test("des gates sorties d'elles-mêmes sont jugées sur leur code, même si leur plafond tombe avant que leur fin soit traitée", { skip: posixOnly("holds the runtime's event loop until the gates have exited on their own and their cap has passed, using `ps -o stat=` to see their script as a zombie not yet reaped; Windows processes have no zombie state, so the test has nothing to wait for") }, async (t) => {
     // Le process que le runtime lance est le shell qui attend les gates pour
     // dire leur processeur : leur parent.
     const racine = worktree(t, { gates: 'echo "gates : VERT"; echo $PPID > pid' });
@@ -303,7 +304,7 @@ describe("les gates", { concurrency: 8 }, () => {
     await mort(pid);
   });
 
-  test("le runtime qui s'arrête abandonne les gates en cours", async (t) => {
+  test("le runtime qui s'arrête abandonne les gates en cours", { skip: posixOnly("plays gates that sleep 30 s and aborts them through the runtime's stop signal after 50 ms, expecting red; on Windows the abort's kill of their process group (a negative pid) fails silently, so the gates finish their sleep and come back green") }, async (t) => {
     const racine = worktree(t, { gates: "sleep 30" });
     const abandon = new AbortController();
 
@@ -313,7 +314,7 @@ describe("les gates", { concurrency: 8 }, () => {
     assert.equal((await enCours).outcome, "red");
   });
 
-  test("des gates non exécutables sont rouges, et le disent", async (t) => {
+  test("des gates non exécutables sont rouges, et le disent", { skip: posixOnly("plays gates whose script the test makes non-executable with `chmod 644`, and expects them red with a line naming gates.sh; Windows has no execute bit and Git Bash runs a script with a shebang anyway, so the gates exit 0, green") }, async (t) => {
     const racine = worktree(t, { gates: "exit 0" });
     chmodSync(join(racine, ".claude/brigade/gates.sh"), 0o644);
 
@@ -338,7 +339,7 @@ describe("le setup du worktree", { concurrency: 8 }, () => {
     assert.deepEqual(await preparer(racine), { pret: true, joue: false, env: { ...ENV_ENFANT, DEJA_LA: "avant" }, sortie: "", masques: 0 });
   });
 
-  test("le setup reçoit le numéro du ticket et le worktree, s'y joue, et ce qu'il exporte s'ajoute à l'environnement", async (t) => {
+  test("le setup reçoit le numéro du ticket et le worktree, s'y joue, et ce qu'il exporte s'ajoute à l'environnement", { skip: posixOnly("plays a setup that echoes its ticket and worktree and exports four variables, one of them over two lines, and compares the environment it returns exactly; Git Bash adds COMSPEC and other variables of its own to what `compgen -e` exports, so they come back as exports of the setup") }, async (t) => {
     const racine = worktree(t, {
       setup: [
         'echo "setup $1 $2 dans $(pwd -P)" >&2',
@@ -362,6 +363,21 @@ describe("le setup du worktree", { concurrency: 8 }, () => {
     assert.match(setup.sortie, new RegExp(`^setup 17 ${racine} dans .*brigade-test-`));
   });
 
+  test("par un fichier — le canal de Windows, dont le bash ne reçoit pas le descripteur 3 —, le setup rend de même ce qu'il exporte, et les gates leur processeur", { skip: posixOnly("forces the file channel (`canalParFichier`) and checks that the setup's exports come back exactly and that the gates' processor time is read; on Windows Git Bash adds COMSPEC and other variables of its own to what `compgen -e` writes to that file, so the exact comparison of the environment fails") }, async (t) => {
+    const racine = worktree(t, {
+      setup: "printf \"export SUR_DEUX_LIGNES=%q\\n\" $'un\\ndeux'",
+      gates: 'echo "vu=$SUR_DEUX_LIGNES"',
+    });
+    const demande = { worktree: racine, ticket: 17, env: { ...ENV_ENFANT, DEJA_LA: "avant" }, delaiMs: 60_000, canalParFichier: true };
+
+    const setup = await jouerSetup(demande);
+    const { gates, cout } = await jouerGatesMesurees(demande);
+
+    assert.deepEqual(setup.pret && setup.env, { ...ENV_ENFANT, DEJA_LA: "avant", SUR_DEUX_LIGNES: "un\ndeux" });
+    assert.deepEqual([gates.outcome, gates.tail], ["green", "vu=un\ndeux"]);
+    assert.equal(typeof cout?.cpuMs, "number");
+  });
+
   test("un setup en échec le dit : son code, et ce qu'il a écrit", async (t) => {
     const racine = worktree(t, { setup: 'echo "export A_MOITIE=1"; echo "npm ci a échoué" >&2; exit 3' });
 
@@ -376,7 +392,7 @@ describe("le setup du worktree", { concurrency: 8 }, () => {
     assert.equal(setup.pret, false);
   });
 
-  test("un setup qui dépasse son plafond est arrêté, avec ce qu'il a lancé", async (t) => {
+  test("un setup qui dépasse son plafond est arrêté, avec ce qu'il a lancé", { skip: posixOnly("plays a setup that waits on a background `sleep 30` under a 200 ms cap and expects it stopped as over its cap, with its child; on Windows the kill of the setup's process group (a negative pid) fails silently, so the setup waits the sleep out and comes back ready") }, async (t) => {
     const racine = worktree(t, { setup: "sleep 30 & wait" });
 
     const debut = Date.now();

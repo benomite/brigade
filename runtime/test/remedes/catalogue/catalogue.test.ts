@@ -120,12 +120,14 @@ test("clone-missing : un clonage qui échoue laisse le refus en place, avec pour
   assert.match(issue.reason, /repository not found/);
 });
 
-// Un faux `claude` : `update` pose un fichier (ou échoue).
+// Un faux `claude` : `update` pose un fichier (ou échoue). Le chemin de la
+// marque est écrit entre apostrophes et avec des `/` : sous Windows, le `sh` de
+// Git lit `D:\a\…` sans apostrophes comme des échappements, et la marque partait ailleurs.
 function unFauxClaude(echoue: boolean) {
   const dossier = mkdtempSync(join(tmpdir(), "brigade-faux-claude-"));
   const marque = join(dossier, "mis-a-jour");
   const bin = join(dossier, "claude");
-  writeFileSync(bin, echoue ? "#!/bin/sh\necho 'no network' >&2\nexit 1\n" : `#!/bin/sh\n[ "$1" = update ] && touch ${marque}\n`);
+  writeFileSync(bin, echoue ? "#!/bin/sh\necho 'no network' >&2\nexit 1\n" : `#!/bin/sh\n[ "$1" = update ] && touch '${marque.replaceAll("\\", "/")}'\n`);
   chmodSync(bin, 0o755);
   return { bin, marque, nettoyer: () => rmSync(dossier, { recursive: true, force: true }) };
 }

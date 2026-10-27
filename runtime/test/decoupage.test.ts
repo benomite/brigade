@@ -13,6 +13,9 @@ import { lireStations } from "../src/stations-declarees.ts";
 import { chef, cuisine, issue, type Options } from "./aides/cuisine.ts";
 import { jusqua } from "./outils.ts";
 
+// La garde des épiques servies de bout en bout (voir plus bas).
+const TROIS_TOURS_MS = 300_000;
+
 const EPIQUE = "Le chef veut voir, partout, combien de tickets attendent.";
 
 // Une cuisine dont le manager est allumé, et qui découpe ce qu'on lui donne.
@@ -243,12 +246,16 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     assert.ok(c.gh.ecritures.every(([numero]) => numero === 30));
   });
 
-  test("une épique traverse la cuisine : ses tickets servis l'un après l'autre, la liste le dit", async (t) => {
+  // Trois tickets servis l'un après l'autre — cook, pass, merge — avant le fait
+  // attendu : quelques secondes sous Linux, plus de 60 s sur le runner Windows,
+  // où chaque process coûte cher. Leurs gardes sont plus larges : elles ne
+  // servent qu'à ce qu'un test bloqué finisse par le dire.
+  test("une épique traverse la cuisine : ses tickets servis l'un après l'autre, la liste le dit", { timeout: 600_000 }, async (t) => {
     const c = brigade(t, { pass: true, issues: [issue(30, ["epic"])] });
     chef(c.repertoire, "grant.activated");
     epique(c);
 
-    await jusqua(() => /\*\*3\/3 servis\.\*\*/.test(c.liste(30)));
+    await jusqua(() => /\*\*3\/3 servis\.\*\*/.test(c.liste(30)), TROIS_TOURS_MS);
 
     assert.deepEqual(c.gh.creations, [501, 502, 503]);
     for (const numero of [501, 502, 503]) assert.match(c.liste(30), new RegExp(`\\| #${numero} \\| [^|]+ \\| servi \\|`));
@@ -258,12 +265,12 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     assert.equal(c.gh.ecritures.length, ecrites);
   });
 
-  test("une épique dont tous les tickets sont servis se ferme d'elle-même, avec ses tickets et leurs PR, une seule fois", async (t) => {
+  test("une épique dont tous les tickets sont servis se ferme d'elle-même, avec ses tickets et leurs PR, une seule fois", { timeout: 600_000 }, async (t) => {
     const c = brigade(t, { pass: true, issues: [issue(30, ["epic"])] });
     chef(c.repertoire, "grant.activated");
     epique(c);
 
-    await jusqua(() => c.gh.lire(30)?.state === "closed" && c.faits(30).some((e) => e.type === "manager.split-served"));
+    await jusqua(() => c.gh.lire(30)?.state === "closed" && c.faits(30).some((e) => e.type === "manager.split-served"), TROIS_TOURS_MS);
 
     const dit = c.gh.commentaires.filter(([n, corps]) => n === 30 && /épique servie/.test(corps));
     assert.equal(dit.length, 1);

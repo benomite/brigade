@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, posix } from "node:path";
 import { test, type TestContext } from "node:test";
 import { CodeRefuse, DemandeInvalide, depotDeCeClone, DUREE_MS, lireCode, ouvrirEnrolements, RECEPTEUR, repertoireDuRegistre } from "../../src/enrolement/enrolement.ts";
 import { ouvrirRegistre, PresentationInvalide, type Presentation } from "../../src/stations-globales/registre.ts";
@@ -18,9 +18,18 @@ const horloge = (depart = "2026-10-15T09:00:00.000Z") => {
   return { maintenant: () => instant, aller: (iso: string) => void (instant = new Date(iso)) };
 };
 
+// Le geste et le registre tels qu'une home les nomme à la commande : des chemins
+// POSIX, que la commande donne à un shell POSIX. Ceux de cette machine-ci, sous
+// Windows, ne s'y écrivent pas (dernier test).
+const CHEZ_LE_CHEF = posix.join("/home", "chef");
+const NOMMES = {
+  recepteur: posix.join(CHEZ_LE_CHEF, ".local/share/brigade/runtime/deploy/brigade-enrolement"),
+  registreNomme: posix.join(CHEZ_LE_CHEF, ".local/state/brigade"),
+};
+
 const ouvrir = (t: TestContext, heure = horloge()) => {
   const repertoire = repertoireTemporaire(t);
-  const enrolements = ouvrirEnrolements(repertoire, { maintenant: heure.maintenant });
+  const enrolements = ouvrirEnrolements(repertoire, { maintenant: heure.maintenant, ...NOMMES });
   const registre = ouvrirRegistre(repertoire, { maintenant: heure.maintenant });
   t.after(() => {
     enrolements.fermer();
@@ -32,7 +41,7 @@ const ouvrir = (t: TestContext, heure = horloge()) => {
 const refuse = (motif: string) => (erreur: unknown) => erreur instanceof CodeRefuse && erreur.motif === motif;
 
 test("préparer rend un code à usage unique et la commande qui le porte, avec la destination, le geste et le registre du chef", (t) => {
-  const { enrolements, repertoire } = ouvrir(t);
+  const { enrolements } = ouvrir(t);
   const { code, commande, expireLe } = enrolements.preparer({ vers: "chef@box", depot: "https://github.com/acme/brigade.git" });
 
   assert.match(code, /^[0-9A-HJKMNP-TV-Z]{5}-[0-9A-HJKMNP-TV-Z]{5}$/);
@@ -40,7 +49,7 @@ test("préparer rend un code à usage unique et la commande qui le porte, avec l
   assert.equal(
     commande,
     `d="$HOME/.local/share/brigade"; { [ -e "$d/.git" ] || git clone --quiet --depth 1 --branch 'v2' 'https://github.com/acme/brigade.git' "$d"; } && ` +
-      `"$d/runtime/deploy/brigade-enrolement" present '${code}' --to 'chef@box' --receiver '${RECEPTEUR}' --registry '${repertoire}'`,
+      `"$d/runtime/deploy/brigade-enrolement" present '${code}' --to 'chef@box' --receiver '${NOMMES.recepteur}' --registry '${NOMMES.registreNomme}'`,
   );
   // Deux enrôlements, deux codes.
   assert.notEqual(enrolements.preparer({ vers: "chef@box" }).code, code);
@@ -147,20 +156,20 @@ test("un enrôlement n'hérite jamais d'une acceptation : se présenter sous le 
 
 test("un code préparé dans un process se valide dans un autre : les enrôlements vivent sur le disque, sans le code en clair", (t) => {
   const repertoire = repertoireTemporaire(t);
-  const avant = ouvrirEnrolements(repertoire);
+  const avant = ouvrirEnrolements(repertoire, NOMMES);
   const { code } = avant.preparer({ vers: "chef@box" });
   avant.fermer();
 
   assert.equal(readFileSync(join(repertoire, "enrolements.db")).includes(Buffer.from(code.replace("-", ""))), false);
-  const apres = ouvrirEnrolements(repertoire);
+  const apres = ouvrirEnrolements(repertoire, NOMMES);
   t.after(() => apres.fermer());
   assert.equal(apres.recevoir(code, SERVEUR).statut, "en-attente");
 });
 
 test("le registre du chef : BRIGADE_REGISTRE_DIR, sinon sous l'état de son compte", () => {
   assert.equal(repertoireDuRegistre({ BRIGADE_REGISTRE_DIR: "/srv/registre", HOME: "/home/chef" }), "/srv/registre");
-  assert.equal(repertoireDuRegistre({ XDG_STATE_HOME: "/etat", HOME: "/home/chef" }), "/etat/brigade");
-  assert.equal(repertoireDuRegistre({ HOME: "/home/chef" }), "/home/chef/.local/state/brigade");
+  assert.equal(repertoireDuRegistre({ XDG_STATE_HOME: "/etat", HOME: "/home/chef" }), join("/etat", "brigade"));
+  assert.equal(repertoireDuRegistre({ HOME: "/home/chef" }), join("/home/chef", ".local", "state", "brigade"));
   assert.throws(() => repertoireDuRegistre({}), DemandeInvalide);
 });
 
@@ -177,4 +186,17 @@ test("sans dépôt donné et un clone sans origin, l'enrôlement dit quoi donner
   const clone = repertoireTemporaire(t);
   execFileSync("git", ["init", "-q", clone]);
   assert.throws(() => depotDeCeClone(clone), (erreur: unknown) => erreur instanceof DemandeInvalide && /aucun dépôt à cloner.*--repo https:\/\/github\.com\/<compte>\/<dépôt>\.git/.test(erreur.message));
+});
+
+test("sans nom donné, la commande porte le geste de ce dépôt et le registre du répertoire — et une home Windows, dont les chemins ne s'écrivent pas pour un shell POSIX, est refusée", (t) => {
+  const repertoire = repertoireTemporaire(t);
+  const enrolements = ouvrirEnrolements(repertoire);
+  t.after(() => enrolements.fermer());
+
+  if (process.platform === "win32") {
+    assert.throws(() => enrolements.preparer({ vers: "chef@box", depot: "https://github.com/acme/brigade.git" }), (erreur: unknown) => erreur instanceof DemandeInvalide && erreur.message.startsWith("geste de réception"));
+    return;
+  }
+  const { commande } = enrolements.preparer({ vers: "chef@box", depot: "https://github.com/acme/brigade.git" });
+  assert.ok(commande.endsWith(` --receiver '${RECEPTEUR}' --registry '${repertoire}'`), commande);
 });

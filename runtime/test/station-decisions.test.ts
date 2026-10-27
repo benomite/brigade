@@ -12,6 +12,7 @@ import { principal as montrerStation } from "../src/montrer-station.ts";
 import { stationsAnnoncees } from "../src/projections/stations.ts";
 import { cuisine, issue, STATION } from "./aides/cuisine.ts";
 import { appeler, jusqua, lancer, repertoireTemporaire } from "./outils.ts";
+import { posixOnly } from "./support/plateforme.ts";
 
 const MONTRER = join(import.meta.dirname, "../src/montrer-station.ts");
 
@@ -214,7 +215,7 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
     assert.equal(existsSync(cheminJournal(autre)), false);
   });
 
-  test("en cuisine : poser chaque décision, depuis le process du chef, n'interrompt pas le cook en vol — il continue et livre, et le runtime n'a pas redémarré", async (t) => {
+  test("en cuisine : poser chaque décision, depuis le process du chef, n'interrompt pas le cook en vol — il continue et livre, et le runtime n'a pas redémarré", { skip: posixOnly("sets every decision through `npm run station` in a process of its own while a kitchen's fake-claude cook is in flight, and expects the cook untouched and the runtime not restarted; on Windows that process cannot take the journal's write lock while the kitchen holds the journal, so SQLite reports the database locked and the command fails") }, async (t) => {
     const { repertoire, journal, types, etat, cooks, conclure } = cuisine(t, { decisions: true, scenario: "commite-puis-attend", issues: [issue(16)] });
     await jusqua(() => cooks().length === 1 && types(16).includes("cook.launched"));
 

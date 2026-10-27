@@ -3,8 +3,9 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { delimiter, join, sep } from "node:path";
 import { describe, test, type TestContext } from "node:test";
+import { posixOnly } from "./support/plateforme.ts";
 import { annoncerCloison, configCloison, envelopper } from "../src/cloison.ts";
 import { jouerSetup } from "../src/gates.ts";
 import { ConfigInvalide, demarrer } from "../src/runtime.ts";
@@ -17,7 +18,7 @@ function machine(t: TestContext) {
   const racine = repertoireTemporaire(t);
   const lieux = { repertoireEtat: join(racine, "etats/brigade"), clone: join(racine, "etats/brigade/depot") };
   mkdirSync(join(lieux.clone, ".git"), { recursive: true });
-  const env = { BRIGADE_SANDBOX_BIN: FAUX_BWRAP, BRIGADE_SANDBOX_HIDDEN: `${join(racine, "etats")}:${join(racine, "secrets")}`, HOME: join(racine, "compte") };
+  const env = { BRIGADE_SANDBOX_BIN: FAUX_BWRAP, BRIGADE_SANDBOX_HIDDEN: [join(racine, "etats"), join(racine, "secrets")].join(delimiter), HOME: join(racine, "compte") };
   return { racine, lieux, env, masques: [join(racine, "etats"), join(racine, "secrets")] };
 }
 
@@ -53,14 +54,14 @@ describe("la cloison", { concurrency: 8 }, () => {
     assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_HIDDEN: "etats" }, lieux)), /is not an absolute path/);
   });
 
-  test("une cloison qui masquerait le compte, /tmp ou le système est refusée", (t) => {
+  test("une cloison qui masquerait le compte, /tmp ou le système est refusée", { skip: posixOnly("checks that a partition hiding the account's home, / or /tmp is refused; the guarded directories are the POSIX /tmp and /usr, which on Windows resolve against the current drive and are neither the temporary directory nor the system, so the refusals would prove nothing") }, (t) => {
     const { lieux, env, racine } = machine(t);
     assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_HIDDEN: racine }, lieux)), /would hide the account's home directory/);
     assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_HIDDEN: "/" }, lieux)), /would hide/);
     // Le compte de la machine d'essai vit sous le répertoire temporaire — donc
     // sous /tmp, sur Linux : masquer /tmp y masquerait d'abord le compte. Le
     // refus propre à /tmp se lit avec un compte qui n'y est pas.
-    assert.match(refus(() => configCloison({ ...env, HOME: "/home/brigade", BRIGADE_SANDBOX_HIDDEN: `${env.BRIGADE_SANDBOX_HIDDEN}:/tmp` }, lieux)), /“\/tmp” would hide \/tmp/);
+    assert.match(refus(() => configCloison({ ...env, HOME: "/home/brigade", BRIGADE_SANDBOX_HIDDEN: `${env.BRIGADE_SANDBOX_HIDDEN}${delimiter}/tmp` }, lieux)), /“\/tmp” would hide \/tmp/);
   });
 
   test("ce que la cloison doit cacher et qu'elle laisserait dehors est nommé", (t) => {
@@ -127,7 +128,7 @@ describe("la cloison", { concurrency: 8 }, () => {
   test("un masque qui est un fichier est refusé au démarrage, pas à chaque lancement", (t) => {
     const { lieux, env, racine } = machine(t);
     writeFileSync(join(racine, "netrc"), "machine exemple.test");
-    assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_HIDDEN: `${env.BRIGADE_SANDBOX_HIDDEN}:${join(racine, "netrc")}` }, lieux)), /netrc” is not a directory — hide the one that contains it/);
+    assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_HIDDEN: `${env.BRIGADE_SANDBOX_HIDDEN}${delimiter}${join(racine, "netrc")}` }, lieux)), /netrc” is not a directory — hide the one that contains it/);
   });
 
   test("un cook ne retrouve de ce qui est masqué que son worktree, sa vue du `.git` et son ticket", (t) => {
@@ -174,10 +175,10 @@ describe("la cloison", { concurrency: 8 }, () => {
 
     const compte = join(lieux.repertoireEtat, "compte");
     // Le seul montage inscriptible à la place du compte est celui du projet…
-    assert.deepEqual(paires(recu, "--bind").filter((paire) => paire.endsWith(` → ${home}`) || paire.includes(`${home}/`)), [`${compte} → ${home}`, `${join(lieux.repertoireEtat, "claude")} → ${join(home, ".claude")}`]);
+    assert.deepEqual(paires(recu, "--bind").filter((paire) => paire.endsWith(` → ${home}`) || paire.includes(`${home}${sep}`)), [`${compte} → ${home}`, `${join(lieux.repertoireEtat, "claude")} → ${join(home, ".claude")}`]);
     // … et le vrai lui est rendu entrée par entrée, en lecture seule : sa configuration de git, ses binaires.
     // Sans exiger qu'elle existe encore : un lien pendant, une entrée partie depuis ne font pas mourir `bwrap`.
-    assert.equal(paires(recu, "--ro-bind").some((paire) => paire.startsWith(`${home}/`)), false);
+    assert.equal(paires(recu, "--ro-bind").some((paire) => paire.startsWith(`${home}${sep}`)), false);
     const rendues = paires(recu, "--ro-bind-try").filter((paire) => !paire.includes(".credentials.json"));
     assert.deepEqual(rendues.sort(), [".gitconfig", ".local/bin", "lien-pendant"].map((nom) => `${join(home, nom)} → ${join(home, nom)}`));
     assert.ok(recu.indexOf(compte) < recu.indexOf(join(home, ".gitconfig")));
@@ -192,7 +193,7 @@ describe("la cloison", { concurrency: 8 }, () => {
     assert.match(refus(() => configCloison({ ...env, BRIGADE_SANDBOX_PRIVATE: ".config/gh" }, lieux)), /invalid BRIGADE_SANDBOX_PRIVATE/);
   });
 
-  test("un outil écrit ses données et son état sous ~/.local, au projet : retrouvés d'un lancement à l'autre, et ce qu'y garde le compte reste en lecture seule", (t) => {
+  test("un outil écrit ses données et son état sous ~/.local, au projet : retrouvés d'un lancement à l'autre, et ce qu'y garde le compte reste en lecture seule", { skip: posixOnly("launches twice through the fake bwrap and checks ~/.local, ~/.local/share and ~/.local/state are the project's and kept across launches while the account's entries stay read-only; the enveloped command starts with /bin/sh, which the test's direct execFileSync does not find on Windows") }, (t) => {
     const { lieux, env, racine } = machine(t);
     const home = join(racine, "compte");
     for (const dossier of [".local/bin", ".local/share/claude", ".local/state/claude", ".local/lib/python3", ".config/gh"]) mkdirSync(join(home, dossier), { recursive: true });
@@ -211,7 +212,7 @@ describe("la cloison", { concurrency: 8 }, () => {
 
     // Rien du compte n'est rendu en écriture : chaque entrée de ~/.local l'est en lecture seule,
     // et ~/.local, ~/.local/share, ~/.local/state sont ceux du projet, sous son état.
-    assert.deepEqual(paires(recu, "--bind").filter((paire) => paire.endsWith(` → ${home}`) || paire.includes(`${home}/`)), [`${compte} → ${home}`, `${join(lieux.repertoireEtat, "claude")} → ${join(home, ".claude")}`]);
+    assert.deepEqual(paires(recu, "--bind").filter((paire) => paire.endsWith(` → ${home}`) || paire.includes(`${home}${sep}`)), [`${compte} → ${home}`, `${join(lieux.repertoireEtat, "claude")} → ${join(home, ".claude")}`]);
     const rendues = paires(recu, "--ro-bind-try").filter((paire) => !paire.includes(".credentials.json"));
     assert.deepEqual(rendues.sort(), [".config", ".local/bin", ".local/lib", ".local/share/claude", ".local/state/claude"].map((nom) => `${join(home, nom)} → ${join(home, nom)}`));
     for (const dossier of [".local", ".local/share", ".local/state"]) assert.ok(lstatSync(join(compte, dossier)).isDirectory(), dossier);
@@ -304,7 +305,7 @@ describe("la cloison", { concurrency: 8 }, () => {
     assert.deepEqual(readdirSync(join(lieux.repertoireEtat, "vues-git")), [encodeURIComponent(autre)]);
   });
 
-  test("réenveloppé sur un worktree occupé, le lancement vivant garde ses points de montage", (t) => {
+  test("réenveloppé sur un worktree occupé, le lancement vivant garde ses points de montage", { skip: posixOnly("rewraps a worktree whose live launch holds mount points in its git view and checks they are kept; the enveloped command starts with /bin/sh, which Node's execFileSync, called directly by the test, cannot find on Windows") }, (t) => {
     const { lieux, env } = machine(t);
     const git = join(lieux.clone, ".git");
     for (const nom of ["objects", "refs", "worktrees"]) mkdirSync(join(git, nom));
@@ -344,7 +345,7 @@ describe("la cloison", { concurrency: 8 }, () => {
     const { clone } = depotGit(t);
     const racine = repertoireTemporaire(t);
     const etat = join(racine, "etat");
-    const cloison = configCloison({ BRIGADE_SANDBOX_BIN: FAUX_BWRAP, BRIGADE_SANDBOX_HIDDEN: `${etat}:${clone}`, HOME: join(racine, "compte") }, { repertoireEtat: etat, clone });
+    const cloison = configCloison({ BRIGADE_SANDBOX_BIN: FAUX_BWRAP, BRIGADE_SANDBOX_HIDDEN: `${etat}${delimiter}${clone}`, HOME: join(racine, "compte") }, { repertoireEtat: etat, clone });
     const worktree = join(etat, "worktrees/17-abc");
     mkdirSync(worktree, { recursive: true });
     const regle = (fichier: string, cle: string) => execFileSync("git", ["config", "--file", fichier, "--get", cle], { encoding: "utf8" }).trim();
@@ -399,7 +400,7 @@ describe("la cloison", { concurrency: 8 }, () => {
     assert.equal(recu[recu.indexOf("--") + 3], "bash");
   });
 
-  test("dans une cuisine, le setup, le cook, les gates et le reviewer partent chacun dans la cloison", async (t) => {
+  test("dans une cuisine, le setup, le cook, les gates et le reviewer partent chacun dans la cloison", { skip: posixOnly("runs a kitchen under the fake bwrap and counts the setups, gates, cook and reviewer it wrapped, by command name and writable worktree bind; on Windows the binds it notes are backslash paths, so the search for `/worktrees/` finds no writable launch") }, async (t) => {
     const { cloisonnes, lancements, relectures, repertoire } = cuisine(t, { cloison: true, setup: "exporte", pass: true, issues: [issue(15)] });
     await jusqua(() => relectures().length === 1);
 

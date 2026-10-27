@@ -4,8 +4,10 @@ import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { availableParallelism } from "node:os";
 import { join } from "node:path";
-import { after, describe, test, type TestContext } from "node:test";
+import { after } from "node:test";
+import { describe, test, type TestContext } from "node:test";
 import { ouvrirArbitre, servirArbitre } from "../src/arbitre.ts";
+import { signalerLArbre } from "../src/arbre.ts";
 import { empreinteDuCode, lireCodeEnService } from "../src/code.ts";
 import { ROLES } from "../src/identites.ts";
 import { ouvrirJournal } from "../src/journal.ts";
@@ -16,6 +18,7 @@ import { fauxGitHubApps } from "./aides/faux-github-apps.ts";
 import { demander } from "./aides/demander.ts";
 import { relecteur } from "./aides/opt-B-journal.ts";
 import { aArreter, BASE, DEPOT, depotGit, ecrireSuite, ENV_GIT, FAUX_BWRAP, FAUX_CLAUDE, fauxGh, type FauxGh, git, issueGitHub, jusqua, lancementsDuFauxClaude, lancer, mort, repertoireDuFichier, repertoireTemporaire, rienEcritParLeRuntime, SANS_RESEAU, temporaireDuFichier, tuerLesRelais, vivant } from "./outils.ts";
+import { posixOnly } from "./support/plateforme.ts";
 
 const rienNeReste = temporaireDuFichier();
 
@@ -99,6 +102,7 @@ function runtimeParDefaut(t: TestContext): Promise<Releve> {
     const repertoire = repertoireTemporaire(t);
     const gh = fauxGh(t);
     gh.issues([]);
+    const depuis = Date.now();
     const runtime = lancer(t, MAIN, [], environnement(t, repertoire, gh));
     await runtime.attendre("démarré");
     const sortie = runtime.sortie();
@@ -107,7 +111,10 @@ function runtimeParDefaut(t: TestContext): Promise<Releve> {
     await jusqua(() => gh.jetons().length > 0);
     const jetons = gh.jetons();
     const sansCompte = existsSync(join(repertoire, "gh-sans-compte"));
-    runtime.process.kill("SIGTERM");
+    // Sous Windows, SIGTERM tue le runtime sur-le-champ et laisse vivre ses enfants, qui tiennent encore
+    // son répertoire d'état quand le test l'efface (EPERM sur le job) : c'est son arbre qui s'y arrête.
+    if (process.platform === "win32") await signalerLArbre(runtime.process.pid ?? 0, "SIGKILL", { depuis });
+    else runtime.process.kill("SIGTERM");
     const code = await runtime.fin;
     return { sortie, journal, codeEnService, jetons, sansCompte, code, sortieFinale: runtime.sortie(), journalFinal: relire(repertoire) };
   })();
@@ -116,7 +123,7 @@ function runtimeParDefaut(t: TestContext): Promise<Releve> {
 
 // Chaque test a son état, son dépôt et son GitHub, et écoute sur le port 0 : ils se jouent de front.
 describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
-  test("le runtime démarre, tourne, et s'arrête proprement sur SIGTERM", async (t) => {
+  test("le runtime démarre, tourne, et s'arrête proprement sur SIGTERM", { skip: posixOnly("reads the shared runtime's record and expects exit code 0, the `arrêté` line and a runtime.stopped fact after SIGTERM; on Windows that shared runtime is stopped by killing its process tree, since SIGTERM would end it before its handler runs, so none of the three can be there") }, async (t) => {
     const runtime = await runtimeParDefaut(t);
     assert.deepEqual(runtime.journal.map((e) => e.type), ["runtime.started", "project.switched-on", "grant.activated", "guard.configured", "station.announced", "drift.configured", "session.observed", "isolation.configured"]);
 
@@ -142,7 +149,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     );
   });
 
-  test("tué sans préavis puis relancé, le runtime retrouve son journal et y note l'interruption", async (t) => {
+  test("tué sans préavis puis relancé, le runtime retrouve son journal et y note l'interruption", { skip: posixOnly("kills the runtime with SIGKILL, restarts it and expects runtime.interrupted in its log; on Windows a killed runtime leaves the children it had launched (Git Bash running the fake gh, git) alive, and they still hold one of the test's temporary directories when it is removed (EPERM)") }, async (t) => {
     const repertoire = repertoireTemporaire(t);
     const env = environnement(t, repertoire);
     const premier = lancer(t, MAIN, [], env);
@@ -163,7 +170,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     assert.deepEqual(apres.map((e) => e.type), ["runtime.started", "project.switched-on", "grant.activated", "guard.configured", "station.announced", "drift.configured", "session.observed", "isolation.configured", "runtime.interrupted", "runtime.started"]);
   });
 
-  test("un second runtime sur le même projet refuse de démarrer et dit pourquoi", async (t) => {
+  test("un second runtime sur le même projet refuse de démarrer et dit pourquoi", { skip: posixOnly("starts a second runtime on a project the first one holds and expects it refused, naming the first one's pid; on Windows the first runtime, killed at the end of the test, leaves its children (Git Bash running the fake gh, git) alive in the test's temporary directories, whose removal then fails (EPERM)") }, async (t) => {
     const repertoire = repertoireTemporaire(t);
     const env = environnement(t, repertoire);
     const premier = lancer(t, MAIN, [], env);
@@ -185,7 +192,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     assert.deepEqual(runtime.journal.find((e) => e.type === "isolation.configured")?.payload, { sandbox: null, proxy: null });
   });
 
-  test("avec une cloison, le runtime dit ce qu'elle masque, et le journal le garde pour le chef", async (t) => {
+  test("avec une cloison, le runtime dit ce qu'elle masque, et le journal le garde pour le chef", { skip: posixOnly("starts the runtime under the fake bwrap and checks the sandbox line it prints, its isolation.configured fact and the transcripts it tidies; the expected line is a RegExp built from Windows paths, whose backslashes it reads as escapes, so it never matches there") }, async (t) => {
     // L'état et le clone sous une même racine, que la cloison masque ; le compte à côté.
     const racine = repertoireTemporaire(t);
     const repertoire = join(racine, "etats/brigade");
@@ -216,7 +223,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     assert.deepEqual([rangement?.removed, rangement?.kept, rangement?.keepMs], [1, 1, 7 * 24 * 3_600_000]);
   });
 
-  test("le runtime démarre avec ses garde-fous : les plafonds réglés par l'environnement sont au journal", async (t) => {
+  test("le runtime démarre avec ses garde-fous : les plafonds réglés par l'environnement sont au journal", { skip: posixOnly("starts the runtime with BRIGADE_MAX_TURNS=40 and reads the ceilings of its guard.configured fact; on Windows the runtime, killed at the end of the test, leaves its children (Git Bash running the fake gh, git) alive in the test's state directory, whose removal then fails (EPERM)") }, async (t) => {
     const repertoire = repertoireTemporaire(t);
     const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_MAX_TURNS: "40" });
     await runtime.attendre("démarré");
@@ -292,7 +299,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     return lecteur.lire(repertoire, "rail", (journal) => lireRail(journal.base)).slice();
   }
 
-  test("un projet qui déclare deux stations démarre avec les deux : chacune s'annonce, avec son plafond, et le runtime les dit", async (t) => {
+  test("un projet qui déclare deux stations démarre avec les deux : chacune s'annonce, avec son plafond, et le runtime les dit", { skip: posixOnly("starts the runtime with two declared stations and checks each station.announced fact and the stations line, then stops it with SIGTERM expecting exit 0; on Windows SIGTERM kills the runtime before its handler runs, so the exit code is null") }, async (t) => {
     const repertoire = repertoireTemporaire(t);
     const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_STATIONS: "box/claude:3:code+raisonnement,box/playwright:1:navigateur-headless" });
     await runtime.attendre("démarré");
@@ -310,7 +317,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     assert.equal(await runtime.fin, 0);
   });
 
-  test("sur le vrai process : une station déclarée distante s'annonce et réclame par sa demande au journal, écrite hors du process du runtime — le runtime lui prête le ticket qu'elle seule peut cuisiner, sans rien lancer ici", async (t) => {
+  test("sur le vrai process : une station déclarée distante s'annonce et réclame par sa demande au journal, écrite hors du process du runtime — le runtime lui prête le ticket qu'elle seule peut cuisiner, sans rien lancer ici", { skip: posixOnly("lends the ticket only a remote station can cook through announce, claim and renew requests written from outside the runtime, then stops it with SIGTERM expecting exit 0; on Windows SIGTERM kills the runtime before its handler runs, so the exit code is null") }, async (t) => {
     const repertoire = repertoireTemporaire(t);
     const gh = fauxGh(t);
     // Sans cloison sur son poste, elle ne prend que ce qui demande ses capacités.
@@ -352,7 +359,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     assert.equal(await runtime.fin, 0);
   });
 
-  test("un projet qui ne déclare aucune station démarre quand même : le runtime le dit, l'écrit, et aucun cook ne part", async (t) => {
+  test("un projet qui ne déclare aucune station démarre quand même : le runtime le dit, l'écrit, et aucun cook ne part", { skip: posixOnly("starts the runtime with no station declared and checks the ticket stays waiting and the fake claude is never launched, then stops it with SIGTERM expecting exit 0; on Windows SIGTERM kills the runtime before its handler runs, so the exit code is null") }, async (t) => {
     const repertoire = repertoireTemporaire(t);
     const gh = fauxGh(t);
     gh.issues([issueGitHub(15, { labels: ["fire", "model:sonnet", "effort:low"] })]);
@@ -374,7 +381,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     assert.equal(await runtime.fin, 0);
   });
 
-  test("les issues du dépôt arrivent sur le rail ; tué puis relancé sans GitHub, le runtime retrouve le même rail", async (t) => {
+  test("les issues du dépôt arrivent sur le rail ; tué puis relancé sans GitHub, le runtime retrouve le même rail", { skip: posixOnly("kills the runtime, restarts it with a fake gh that answers nothing and expects the same rail, then stops the second one with SIGTERM expecting exit 0; on Windows SIGTERM kills the runtime before its handler runs, so the exit code is null") }, async (t) => {
     const repertoire = repertoireTemporaire(t);
     const gh = fauxGh(t);
     gh.commentaires(15, "Un commentaire.", "<!-- brigade:fiche -->\n**Fiche du ticket**\n- attend : #14\n- zone : runtime/src/rail.ts");
@@ -401,7 +408,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
   });
 
   // L'interrupteur du projet (#1406) : posé allumé au premier démarrage, sans geste du chef.
-  test("le manager est branché, et suit l'interrupteur du projet : allumé par défaut au premier démarrage, il sonde les issues ouvertes sans geste du chef", async (t) => {
+  test("le manager est branché, et suit l'interrupteur du projet : allumé par défaut au premier démarrage, il sonde les issues ouvertes sans geste du chef", { skip: posixOnly("checks the manager, switched on by default, polls the open issues and is turned off only by the project switch, then stops the runtime with SIGTERM expecting exit 0; on Windows SIGTERM kills the runtime before its handler runs, so the exit code is null") }, async (t) => {
     const repertoire = repertoireTemporaire(t);
     const gh = fauxGh(t);
     gh.issues([]);
@@ -432,7 +439,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
 
   // Deux cuisines complètes, chacune avec son dépôt et son `gh` : elles se jouent de front.
   describe("de bout en bout", { concurrency: 2 }, () => {
-    test("une issue calibrée posée sur le dépôt devient une branche poussée, une PR et un commentaire", async (t) => {
+    test("une issue calibrée posée sur le dépôt devient une branche poussée, une PR et un commentaire", { skip: posixOnly("lets the real runtime turn a calibrated issue into a commit by the fake claude (Git Bash), a pushed branch, a PR and a comment, then stops it with SIGTERM expecting exit 0; on Windows SIGTERM kills the runtime before its handler runs, and the comment did not even come within the test's one-minute wait") }, async (t) => {
       const repertoire = repertoireTemporaire(t);
       const { origine, clone } = depotGit(t);
       const gh = fauxGh(t);
@@ -455,7 +462,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
       assert.equal(await runtime.fin, 0);
     });
 
-    test("avec le jeton à son emplacement, sur une machine sans session : la station se sait connectée, et le cook reçoit le jeton dans CLAUDE_CODE_OAUTH_TOKEN", async (t) => {
+    test("avec le jeton à son emplacement, sur une machine sans session : la station se sait connectée, et le cook reçoit le jeton dans CLAUDE_CODE_OAUTH_TOKEN", { skip: posixOnly("lets the real runtime launch a cook with the token of BRIGADE_CLAUDE_TOKEN_FILE and expects it in the cook's CLAUDE_CODE_OAUTH_TOKEN; the test writes that file with mode 0o600, which on Windows keeps the ACL inherited from the temporary directory, so the runtime refuses it as readable by others and no cook is launched") }, async (t) => {
       const repertoire = repertoireTemporaire(t);
       const { clone } = depotGit(t);
       const gh = fauxGh(t);
@@ -489,7 +496,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
       assert.equal(await runtime.fin, 0);
     });
 
-    test("sous grant, la livraison d'un cook est jugée par les gates du projet, mergée sur le commit jugé, et son issue fermée", async (t) => {
+    test("sous grant, la livraison d'un cook est jugée par les gates du projet, mergée sur le commit jugé, et son issue fermée", { skip: posixOnly("under grant, lets the real runtime judge a cook's delivery with the project's gates, merge it on the judged commit and close the issue, then stops it with SIGTERM expecting exit 0; on Windows SIGTERM kills the runtime before its handler runs, and the closing PATCH did not even come within the test's one-minute wait") }, async (t) => {
       const repertoire = repertoireTemporaire(t);
       const { origine, clone } = depotGit(t);
       // Le projet a des gates : elles sont sur la base, donc dans le worktree du cook.
@@ -543,7 +550,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     });
   });
 
-  test("un réglage du projet demandé au runtime : le vrai process ouvre la PR, qui ne change que le fichier des réglages, la remet à sa pass, et l'appel en rend l'adresse ; une valeur refusée rend son erreur, sans PR", async (t) => {
+  test("un réglage du projet demandé au runtime : le vrai process ouvre la PR, qui ne change que le fichier des réglages, la remet à sa pass, et l'appel en rend l'adresse ; une valeur refusée rend son erreur, sans PR", { skip: posixOnly("has the real runtime open a settings PR for a calibration ceiling and refuse a value carrying a GitHub token, then stops it with SIGTERM expecting exit 0; on Windows SIGTERM kills the runtime before its handler runs, so the exit code is null") }, async (t) => {
     const repertoire = repertoireTemporaire(t);
     const { origine, clone } = depotGit(t);
     const pr = { number: 41, html_url: `https://github.com/${DEPOT}/pull/41`, state: "open", merged: false, mergeable: true, base: { ref: BASE }, head: { sha: "tete" } };
@@ -572,7 +579,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     assert.equal(await runtime.fin, 0);
   });
 
-  test("un runtime remplacé pendant qu'un cook tourne : le cook lui survit, le runtime suivant le reprend sans le relancer, et sa livraison est jugée et mergée", async (t) => {
+  test("un runtime remplacé pendant qu'un cook tourne : le cook lui survit, le runtime suivant le reprend sans le relancer, et sa livraison est jugée et mergée", { skip: posixOnly("replaces the runtime by SIGTERM while a cook runs, expecting exit 0, the cook alive, resumed by the next runtime, judged and merged; on Windows SIGTERM kills the runtime before its handler runs, so the first exit code is already null") }, async (t) => {
     const repertoire = repertoireTemporaire(t);
     aArreter(t, () => tuerLesRelais(repertoire));
     const { origine, clone } = depotGit(t);
@@ -649,7 +656,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     assert.equal(runtime.sansCompte, false);
   });
 
-  test("le runtime dit au démarrage où vivent les secrets du projet, ou qu'il n'en a pas", async (t) => {
+  test("le runtime dit au démarrage où vivent les secrets du projet, ou qu'il n'en a pas", { skip: posixOnly("checks the startup line that names the secrets file, which the test writes with mode 0o600; on Windows that mode keeps the ACL inherited from the temporary directory, so the runtime refuses the file as readable by others and never starts") }, async (t) => {
     const sans = await runtimeParDefaut(t);
     assert.match(sans.sortie, /secrets du projet — aucun \(BRIGADE_SECRETS_FILE n'est pas défini\)/);
 
@@ -661,7 +668,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     assert.equal(avec.sortie().includes("une-valeur-de-dev"), false);
   });
 
-  test("avec CLAUDE_CODE_OAUTH_TOKEN seul dans l'environnement, le runtime démarre, et dit qu'il ne le transmet à aucun `claude`", async (t) => {
+  test("avec CLAUDE_CODE_OAUTH_TOKEN seul dans l'environnement, le runtime démarre, et dit qu'il ne le transmet à aucun `claude`", { skip: posixOnly("starts the runtime with CLAUDE_CODE_OAUTH_TOKEN in its environment and checks it says it passes it to no `claude`, then stops it with SIGTERM expecting exit 0; on Windows SIGTERM kills the runtime before its handler runs, so the exit code is null") }, async (t) => {
     const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoireTemporaire(t)), CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat01-pose-dans-l-environnement" });
     await runtime.attendre("démarré");
 
@@ -671,7 +678,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     assert.equal(await runtime.fin, 0);
   });
 
-  test("sans jeton, le runtime démarre sur la connexion du compte et le dit", async (t) => {
+  test("sans jeton, le runtime démarre sur la connexion du compte et le dit", { skip: posixOnly("checks the shared runtime's `the account's own` connection line and its exit code 0 after SIGTERM; on Windows that shared runtime is stopped by killing its process tree, so its exit code is never 0") }, async (t) => {
     const runtime = await runtimeParDefaut(t);
 
     assert.match(runtime.sortie, /connection of `claude` — the account's own \(BRIGADE_CLAUDE_TOKEN_FILE is not set\)$/m);
@@ -679,7 +686,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     assert.equal(runtime.code, 0);
   });
 
-  test("un fichier de jeton rangé dans l'état du runtime fait refuser de démarrer, sans laisser de journal", async (t) => {
+  test("un fichier de jeton rangé dans l'état du runtime fait refuser de démarrer, sans laisser de journal", { skip: posixOnly("writes the claude token file, mode 0o600, inside the state directory and expects the refusal to name its location; on Windows that mode keeps the ACL inherited from the temporary directory, so the runtime refuses the file as readable by others before it looks at where it lies") }, async (t) => {
     const repertoire = repertoireTemporaire(t);
     writeFileSync(join(repertoire, "jeton-claude"), "sk-ant-oat01-range-dans-l-etat\n", { mode: 0o600 });
     const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_CLAUDE_TOKEN_FILE: join(repertoire, "jeton-claude") });
@@ -690,7 +697,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     assert.equal(rienEcritParLeRuntime(repertoire), true);
   });
 
-  test("un fichier de secrets rangé dans l'état du runtime fait refuser de démarrer, sans laisser de journal", async (t) => {
+  test("un fichier de secrets rangé dans l'état du runtime fait refuser de démarrer, sans laisser de journal", { skip: posixOnly("writes the secrets file, mode 0o600, inside the state directory and expects the refusal to name its location; on Windows that mode keeps the ACL inherited from the temporary directory, so the runtime refuses the secrets as readable by others before it looks at where they lie") }, async (t) => {
     const repertoire = repertoireTemporaire(t);
     writeFileSync(join(repertoire, "secrets.env"), "CLE_API=une-valeur-de-dev\n", { mode: 0o600 });
     const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_SECRETS_FILE: join(repertoire, "secrets.env") });
@@ -700,7 +707,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     assert.equal(rienEcritParLeRuntime(repertoire), true);
   });
 
-  test("un répertoire d'Apps incomplet fait refuser de démarrer, fichier nommé, sans laisser de journal", async (t) => {
+  test("un répertoire d'Apps incomplet fait refuser de démarrer, fichier nommé, sans laisser de journal", { skip: posixOnly("removes manager.pem from a GitHub Apps directory and expects the refusal to name it; on Windows the runtime first reads cook.pem's ACL through PowerShell, and that read fails or outlasts the test there, so the refusal never names manager.pem") }, async (t) => {
     const repertoire = repertoireTemporaire(t);
     const apps = await fauxGitHubApps(t);
     rmSync(join(apps.repertoire, "manager.pem"));
@@ -711,7 +718,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     assert.equal(rienEcritParLeRuntime(repertoire), true);
   });
 
-  test("une identité par rôle, de bout en bout : le cook livre sans aucun jeton, la station pousse et ouvre la PR sous l'identité cook, la pass merge sous la sienne, et aucun jeton ne s'écrit nulle part", async (t) => {
+  test("une identité par rôle, de bout en bout : le cook livre sans aucun jeton, la station pousse et ouvre la PR sous l'identité cook, la pass merge sous la sienne, et aucun jeton ne s'écrit nulle part", { skip: posixOnly("one identity per role end to end: the cook delivers with no token, the PR is opened as cook and merged as pass, no token is written anywhere, then a SIGTERM stop expecting exit 0; on Windows SIGTERM kills the runtime before its handler runs, and the pass's last comment did not even come within the test's one-minute wait") }, async (t) => {
     const repertoire = repertoireTemporaire(t);
     const { origine, clone } = depotGit(t);
     mkdirSync(join(clone, ".claude/brigade"), { recursive: true });
@@ -864,7 +871,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     assert.match(porte, new RegExp(`^RestartPreventExitStatus=${REFUS}$`, "m"));
   });
 
-  test("désigné par BRIGADE_ARBITER_PORT, l'arbitre entend le projet dès le démarrage ; s'il s'en va, le runtime continue et l'écrit ; sans lui, rien n'en est dit qu'une ligne", async (t) => {
+  test("désigné par BRIGADE_ARBITER_PORT, l'arbitre entend le projet dès le démarrage ; s'il s'en va, le runtime continue et l'écrit ; sans lui, rien n'en est dit qu'une ligne", { skip: posixOnly("has the runtime heard by the arbiter of BRIGADE_ARBITER_PORT, then stops it with SIGTERM expecting exit 0 and its share handed back (presence `absent`); on Windows SIGTERM kills the runtime before its handler runs, so it exits with null and never tells the arbiter it left") }, async (t) => {
     const ouvert = ouvrirArbitre({ repertoire: repertoireTemporaire(t), plafond: 10 });
     const serveur = await servirArbitre(ouvert, 0);
     t.after(async () => {

@@ -6,7 +6,7 @@
 // démarrage.
 import assert from "node:assert/strict";
 import { existsSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import { test } from "node:test";
 import { attentesDuChef } from "../src/attend.ts";
 import { DECISIONS, decisionsPosees, OBLIGATOIRES, verifierDecision } from "../src/decisions.ts";
@@ -16,6 +16,7 @@ import { ouvrirJournal } from "../src/journal.ts";
 import { POSABLES, principal } from "../src/poser-decisions.ts";
 import { lireRail } from "../src/projections/rail.ts";
 import { appeler, BASE, DEPOT, depotGit, ENV_GIT, FAUX_CLAUDE, fauxGh, lancer, repertoireTemporaire } from "./outils.ts";
+import { posixOnly } from "./support/plateforme.ts";
 
 const INSTALLATION = join(import.meta.dirname, "../src/installation-cli.ts");
 const MAIN = join(import.meta.dirname, "../src/main.ts");
@@ -241,7 +242,7 @@ test("l'action ne lance aucun geste de box : ni `sudo`, ni `systemctl`, ni drop-
 
   const commande = lancer(t, INSTALLATION, ["decisions", ...RECLAMEES.flat()], {
     ...env(etat),
-    PATH: `${outils}:${process.env.PATH ?? ""}`,
+    PATH: `${outils}${delimiter}${process.env.PATH ?? ""}`,
     BRIGADE_SUDO_BIN: join(outils, "sudo"),
     BRIGADE_SYSTEMCTL_BIN: join(outils, "systemctl"),
     BRIGADE_MISE_EN_SERVICE_LIEN: join(outils, "absent"),
@@ -272,7 +273,7 @@ test("la commande du chef, en texte : l'étape, puis chaque décision avec sa qu
 // Le critère de bout en bout : un projet dont l'installation a posé toutes
 // ses décisions démarre sans aucune variable de décision dans son
 // environnement, et sa file n'en porte aucune.
-test("de bout en bout : toutes les décisions posées pendant l'installation, le runtime démarre et rien n'attend le chef", async (t) => {
+test("de bout en bout : toutes les décisions posées pendant l'installation, le runtime démarre et rien n'attend le chef", { skip: posixOnly("answers every decision through the installation step, starts the real runtime and expects nothing missing nor awaiting the chef, then a clean exit 0 on SIGTERM; on Windows kill('SIGTERM') ends the runtime without running its handler, so it exits with no code") }, async (t) => {
   const { clone } = depotGit(t);
   const gh = fauxGh(t);
   gh.issues([]);

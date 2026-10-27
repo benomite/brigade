@@ -2,7 +2,7 @@
 // et ce que le journal en garde. Les cooks sont des faux `claude`.
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { Plafonds } from "../src/events/guardrails.ts";
 import { brancherGardeFous, LancementRefuse, type Reglages } from "../src/garde-fous.ts";
@@ -10,6 +10,7 @@ import { ouvrirJournal } from "../src/journal.ts";
 import { cooksEnCours, etatDesGardeFous, mesuresDesCooksEnCours } from "../src/projections/guardrails.ts";
 import { demarrer } from "../src/runtime.ts";
 import { aArreter, ENV_ENFANT, faitInconnu, FAUX_CLAUDE, jusqua, mort, repertoireTemporaire, tuerLesRelais, vivant } from "./outils.ts";
+import { posixOnly } from "./support/plateforme.ts";
 
 // Le cook « bavard » rend un tour toutes les deux millisecondes, de vraie
 // horloge : ni les tours (200 s pour 100 000) ni la durée (une heure) ne sont
@@ -459,7 +460,7 @@ test("un cook relayé que personne ne reprend au démarrage est arrêté, et son
   assert.equal(seconde.runtime.reprendre(lance.run), null);
 });
 
-test("un cook relayé dont le relais est mort sans écrire de fin n'est pas un survivant : il est noté interrompu, et son groupe tué", async (t) => {
+test("un cook relayé dont le relais est mort sans écrire de fin n'est pas un survivant : il est noté interrompu, et son groupe tué", { skip: posixOnly("kills a relayed cook's relay with SIGKILL, reopens the kitchen and expects the cook noted interrupted, no survivor and its group killed; on Windows the fake claude the relay started under Git Bash outlives it and keeps files of the test directory open, so the directory cannot be removed") }, async (t) => {
   const premiere = cuisineRelayee(t);
   const lance = premiere.cook(7, "commite-puis-attend");
   await jusqua(() => existsSync(join(premiere.repertoire, "runs", `${lance.run}.cook.pid`)));
@@ -589,7 +590,7 @@ test("trois cooks signalés pendant un « stop » du chef : ni échec compté, n
   const { runtime, lances } = troisSignales(t, () => {});
   // Le « stop » est au journal avant que le runtime ne le lise : la sortie 143
   // arrive la première.
-  const journal = ouvrirJournal(runtime.journal.base.lire<{ file: string }>("PRAGMA database_list")[0]!.file.replace(/\/[^/]+$/, ""));
+  const journal = ouvrirJournal(dirname(runtime.journal.base.lire<{ file: string }>("PRAGMA database_list")[0]!.file));
   journal.ajouter({ project: "brigade", ticket: null, author: "chef", type: "kitchen.stopped", payload: {} });
   journal.fermer();
   const fins = await Promise.all(lances.map((lance) => lance.fin));

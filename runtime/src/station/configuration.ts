@@ -16,7 +16,7 @@
 // Tout le reste vient de la station : son environnement, que chaque projet
 // hérite, et ses répertoires, où chaque projet a sa place.
 import { readFileSync } from "node:fs";
-import { isAbsolute, join, resolve } from "node:path";
+import { isAbsolute, join, resolve, sep } from "node:path";
 import { LECTURES_INTERDITES } from "../bac-a-sable/configuration.ts";
 import { DECISIONS } from "../decisions.ts";
 import { avecLaBrancheDuDepot } from "../reglages-projet/en-vigueur.ts";
@@ -45,7 +45,7 @@ export const WORKTREES = "worktrees";
 export const ATELIER_SOUS_LE_COMPTE = join(".local", "share", "brigade", "station");
 
 // Vrai si `enfant` est `parent` ou se trouve sous lui.
-const sous = (parent: string, enfant: string) => enfant === parent || enfant.startsWith(`${parent}/`);
+const sous = (parent: string, enfant: string) => enfant === parent || enfant.startsWith(`${parent}${sep}`);
 
 export function atelierDeLaStation(racine: string, home: string | undefined): string {
   const station = resolve(racine);

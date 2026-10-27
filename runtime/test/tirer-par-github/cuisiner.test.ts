@@ -27,7 +27,7 @@ const rienNeReste = temporaireDuFichier();
 const [BOX, MAC] = ["box/claude", "mac/claude"];
 const GIST_MAC = "gistmac";
 const DISPONIBLE: BacASableDeLaStation = { available: true, version: "2.1.250", home: "/Users/chef", worktrees: "/Users/chef/brigade-cooks/brigade", caches: [] };
-const POSIX = { skip: posixOnly("the fake claude is a POSIX shell script") };
+const posix = (quoi: string) => ({ skip: posixOnly(`${quoi}; skipped because the fake claude is a bash script, though Windows launches it through Git Bash and no failure of it there is known`) });
 
 // GitHub, doublé : le gist du Mac et les issues du dépôt.
 function fauxGitHub() {
@@ -67,7 +67,7 @@ function fauxGitHub() {
 const lancerLeFaux = (scenario: string) => (mission: Mission, worktree: string, flux: string) =>
   superviser({ commande: FAUX_CLAUDE, args: mission.args, cwd: worktree, env: { ...process.env, FAUX_CLAUDE: scenario }, plafonds: mission.limits, graceMs: 2000, flux });
 
-describe("la station qui a rejoint la cuisine y cuit, par GitHub seulement", POSIX, () => {
+describe("la station qui a rejoint la cuisine y cuit, par GitHub seulement", posix("runs a full kitchen whose joined station claims a ticket through GitHub, runs the mission's cook on the fake claude, pushes its branch and delivers it to the main station's pass"), () => {
   test("elle réclame, la réclamation arrive au journal de la principale, qui lui prête le ticket ; elle en lance le cook, pousse sa branche et la rend — la pass de la principale la juge et la sert", async (t) => {
     const lieu = cuisine(t, { stations: lireStations({ BRIGADE_STATIONS: `${BOX}:1:code,${MAC}:1:chrome-connecté:distante+ensemble` }), presenceMs: 120_000, plafonds: { durationMs: 3_600_000, idleMs: 3_600_000 }, pass: true, scenario: "livre" });
     const { gh, journal, repertoire, runtime, heure, etat, types, dernier } = lieu;
@@ -163,7 +163,7 @@ const MISSION: Mission = {
   resumes: null,
 };
 
-test("le cook d'une mission, sur un vrai dépôt : son worktree part de la base, le cook y commite, sa branche est poussée sur l'origine et rendue avec son compte-rendu — puis le worktree est rangé", POSIX, async (t) => {
+test("le cook d'une mission, sur un vrai dépôt : son worktree part de la base, le cook y commite, sa branche est poussée sur l'origine et rendue avec son compte-rendu — puis le worktree est rangé", posix("cooks one mission on a real repository with the fake claude committing in its worktree, and expects the branch pushed to the origin, delivered with its report and the worktree removed"), async (t) => {
   const { origine, clone } = depotGit(t);
   const worktree = join(repertoireTemporaire(t), "worktrees", MISSION.run);
   const demandes: Demande[] = [];

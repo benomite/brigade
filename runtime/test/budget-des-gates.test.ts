@@ -13,7 +13,6 @@ import type { GitHub } from "../src/github.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { cuisine, fauxGitHub, issue } from "./aides/cuisine.ts";
 import { aArreter, appeler, jusqua, repertoireTemporaire } from "./outils.ts";
-import { posixOnly } from "./support/plateforme.ts";
 
 const PROJET = "espace";
 const HEURE = "2026-10-08T10:00:00Z";
@@ -260,7 +259,7 @@ describe("le ticket des gates hors budget", { concurrency: 8 }, () => {
     assert.deepEqual(gh.creations, [501]);
   });
 
-  test("la pass ouvre le ticket quand les gates qu'elle joue dépassent le budget du projet, une fois, et le dit", { skip: posixOnly("the gates are a shell script run by bash") }, async (t) => {
+  test("la pass ouvre le ticket quand les gates qu'elle joue dépassent le budget du projet, une fois, et le dit", async (t) => {
     const { journal, gh, gates, avertissements } = cuisine(t, { pass: true });
     poserDecision(journal, { projet: "brigade", nom: BUDGET_DUREE, valeur: "0.1", auteur: "chef" });
     gates.regler("pesant");

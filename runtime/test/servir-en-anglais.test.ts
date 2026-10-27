@@ -14,6 +14,7 @@ import { ouvrirServeurs, type Livraison } from "../src/servir.ts";
 import { STATION } from "./aides/cuisine.ts";
 import { sansMotFrancais } from "./aides/glossaire.ts";
 import { aArreter, ENV_ENFANT, jusqua, repertoireTemporaire } from "./outils.ts";
+import { posixOnly } from "./support/plateforme.ts";
 
 const declarer = (commande: string, ...chemins: string[]) => [`commande : ${commande}`, ...chemins.map((chemin) => `interface : ${chemin}`), ""].join("\n");
 
@@ -73,7 +74,7 @@ test("chaque motif que `service` donne d'un projet non servable est en anglais",
   sansMotFrancais(dits);
 });
 
-test("chaque message que `servir` envoie à journald, et chaque motif qu'il écrit au journal, est en anglais", async (t) => {
+test("chaque message que `servir` envoie à journald, et chaque motif qu'il écrit au journal, est en anglais", { skip: posixOnly("serves deliveries whose preview commands are POSIX shell lines (`exec sleep 30`, a line that writes to stderr and exits 3) and checks every journald warning and journal reason is in English; on Windows the sleeping servers still hold the test directory when it is removed, so the removal fails with EPERM") }, async (t) => {
   const { journal, serveurs, avertissements, ranges, livraison } = atelier(t);
 
   // Un projet qui ne déclare rien : un motif au journal, rien pour journald.

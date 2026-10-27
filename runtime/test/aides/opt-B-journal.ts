@@ -7,6 +7,10 @@
 // connexion-ci n'écrit jamais. Une écriture validée entre la lecture du
 // numéro et celle du journal ne fait que relire une fois de trop au sondage
 // suivant : rien de périmé n'est jamais rendu.
+//
+// Sous Windows, un fichier ouvert ne s'efface pas (EPERM) : une connexion
+// gardée empêcherait chaque test d'effacer son répertoire d'état à sa fin, bien
+// avant `fermer`. Là, chaque lecture ouvre le journal et le referme.
 import { type Journal, ouvrirJournal } from "../../src/journal.ts";
 
 export type Relecteur = {
@@ -17,10 +21,18 @@ export type Relecteur = {
   fermer(): void;
 };
 
-export function relecteur(): Relecteur {
+export function relecteur(garder = process.platform !== "win32"): Relecteur {
   const ouverts = new Map<string, { journal: Journal; lus: Map<string, { version: unknown; valeur: unknown }> }>();
   return {
     lire<T>(repertoire: string, cle: string, lire: (journal: Journal) => T): T {
+      if (!garder) {
+        const journal = ouvrirJournal(repertoire, { lectureSeule: true });
+        try {
+          return lire(journal);
+        } finally {
+          journal.fermer();
+        }
+      }
       let ouvert = ouverts.get(repertoire);
       if (ouvert === undefined) {
         ouvert = { journal: ouvrirJournal(repertoire, { lectureSeule: true }), lus: new Map() };

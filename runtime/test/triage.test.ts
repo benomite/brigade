@@ -22,7 +22,6 @@ import { DEFINITION, lireTriage, unePhrase } from "../src/triage/consigne.ts";
 import { ATTENTE_CI_MS, ouvrirTriage, RELANCE_DU_TRIAGE, RENVOIS_MAX } from "../src/triage/triage.ts";
 import { CALIBRE, chef, cuisine, fauxGitHub, issue, montre } from "./aides/cuisine.ts";
 import { aArreter, DEPOT, jusqua, repertoireTemporaire } from "./outils.ts";
-import { posixOnly } from "./support/plateforme.ts";
 
 const PROJET = "brigade";
 const STATION = "box/claude";
@@ -465,7 +464,7 @@ describe("ce que l'agent lit et ce qu'il répond", () => {
 
 describe("sur une cuisine complète", { concurrency: 4 }, () => {
   // L'agent de triage y est le faux `claude`, un script shell.
-  test("manager allumé : la carte attend l'agent de triage hors de TODO, puis y entre quand il la laisse passer", { skip: posixOnly("the fake claude is a POSIX shell script") }, async (t) => {
+  test("manager allumé : la carte attend l'agent de triage hors de TODO, puis y entre quand il la laisse passer", async (t) => {
     const c = cuisine(t, { manager: { triage: "triage-au-feu" }, issues: [issue(30, CALIBRE)] });
     chef(c.repertoire, "manager.enabled");
     await jusqua(() => managerAllume(c.journal.base));

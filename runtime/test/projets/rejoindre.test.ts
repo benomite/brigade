@@ -31,7 +31,7 @@ const BRIGADE: ProjetDemande = { nom: "brigade", depot: "benomite/brigade", base
 const BOX = { id: GIST_BOX, nom: "parade-box", sert: { brigade: "benomite/brigade" } };
 // Le Mac lui-même, tel que la lecture des gists appairés le rend aussi.
 const MAC = { id: GIST_MAC, nom: "mac" };
-const SANS_GH = { skip: posixOnly("le faux `gh` est un script bash") };
+const sansGh = (quoi: string) => ({ skip: posixOnly(`${quoi}; skipped because the Mac's gh is the fake gh, a bash script, though Windows runs it through Git Bash`) });
 
 // L'ordinateur ajouté : sa station, appairée par son gist, à qui l'app demande
 // brigade en principale — ce qu'une case cochée sur sa page écrit.
@@ -87,7 +87,7 @@ function leMac(t: TestContext, lire: () => LectureDesAppairees | Promise<Lecture
   return { racine, gh, gist, projets, suivi, lignes, tenues, aucuneCuisine };
 }
 
-test("ajouté à brigade, que la box sert déjà : le Mac en rejoint la cuisine — aucun journal, aucun calibrage, aucun clone, aucune ligne, rien sur GitHub —, et le publie pour la box", SANS_GH, async (t) => {
+test("ajouté à brigade, que la box sert déjà : le Mac en rejoint la cuisine — aucun journal, aucun calibrage, aucun clone, aucune ligne, rien sur GitHub —, et le publie pour la box", async (t) => {
   const mac = leMac(t, () => lectureDesAppairees(MAINTENANT, BOX, MAC));
   await mac.projets.relire();
 
@@ -122,7 +122,7 @@ test("ajouté à brigade, que la box sert déjà : le Mac en rejoint la cuisine 
   assert.deepEqual(mac.gh.appels(), []);
 });
 
-test("la box qui sert brigade ne se lit pas en ligne : l'ajout est refusé en une phrase — rien n'est créé, aucun appel à GitHub", SANS_GH, async (t) => {
+test("la box qui sert brigade ne se lit pas en ligne : l'ajout est refusé en une phrase — rien n'est créé, aucun appel à GitHub", async (t) => {
   const mac = leMac(t, () => lectureDesAppairees(MAINTENANT, { ...BOX, signe: 30 }, MAC));
   await mac.projets.relire();
 
@@ -142,7 +142,7 @@ test("la box qui sert brigade ne se lit pas en ligne : l'ajout est refusé en un
   assert.deepEqual(mac.tenues.at(-1), { rejointes: [], gist: GIST_MAC });
 });
 
-test("GitHub ne dit pas quelles stations servent quoi : l'ajout est refusé en une phrase, rien n'est créé, et il réessaie à la lecture suivante", SANS_GH, async (t) => {
+test("GitHub ne dit pas quelles stations servent quoi : l'ajout est refusé en une phrase, rien n'est créé, et il réessaie à la lecture suivante", async (t) => {
   let lue: () => LectureDesAppairees = () => {
     throw new Error("gh: could not resolve api.github.com.");
   };
@@ -159,7 +159,7 @@ test("GitHub ne dit pas quelles stations servent quoi : l'ajout est refusé en u
   assert.deepEqual(mac.suivi()[0]?.rejoindre, { issue: "rejointe", principale: "parade-box" });
 });
 
-test("le Mac n'est pas appairé : la box ne le verrait pas — refusé en une phrase, rien n'est créé", SANS_GH, async (t) => {
+test("le Mac n'est pas appairé : la box ne le verrait pas — refusé en une phrase, rien n'est créé", async (t) => {
   const mac = leMac(t, () => lectureDesAppairees(MAINTENANT, BOX), { appairee: false });
   await mac.projets.relire();
   mac.aucuneCuisine();
@@ -168,7 +168,7 @@ test("le Mac n'est pas appairé : la box ne le verrait pas — refusé en une ph
   assert.equal(mac.gist[FICHIER_REJOINTES], undefined);
 });
 
-test("aucune autre station ne sert le dépôt : l'ordinateur en devient la principale, comme avant — et son `gh` est bien celui qu'il appelle", SANS_GH, async (t) => {
+test("aucune autre station ne sert le dépôt : l'ordinateur en devient la principale, comme avant — et son `gh` est bien celui qu'il appelle", sansGh("expects the Mac to become the main station when no other serves the repository, its preparation starting with a `gh repo clone` through its own gh"), async (t) => {
   const mac = leMac(t, () => lectureDesAppairees(MAINTENANT, { ...BOX, sert: { autre: "benomite/autre" } }, MAC));
   await mac.projets.relire();
   // Le faux `gh` ne sait rien cloner : la préparation s'arrête là, mais elle a commencé.
@@ -180,7 +180,7 @@ test("aucune autre station ne sert le dépôt : l'ordinateur en devient la princ
 // Ce que « + station » écrit sur la page du projet (#1830) : la même machine, sans la dire principale, avec ce que le chef a coché.
 const AJOUTE: ProjetDemande = { ...BRIGADE, principale: false, base: null, manager: null, reviewer: null, fournit: ["navigateur-headless"] };
 
-test("ajouté depuis la page du projet (« + station »), le Mac a le même effet qu'une case cochée sur sa page : il rejoint la cuisine de la box, le publie et y cuit — sans second geste", SANS_GH, async (t) => {
+test("ajouté depuis la page du projet (« + station »), le Mac a le même effet qu'une case cochée sur sa page : il rejoint la cuisine de la box, le publie et y cuit — sans second geste", async (t) => {
   const mac = leMac(t, () => lectureDesAppairees(MAINTENANT, BOX, MAC), { projet: AJOUTE });
   await mac.projets.relire();
 
@@ -191,7 +191,7 @@ test("ajouté depuis la page du projet (« + station »), le Mac a le même effe
   assert.deepEqual(mac.tenues.at(-1), { rejointes: ["benomite/brigade parade-box 2"], gist: GIST_MAC });
 });
 
-test("ajouté depuis la page du projet alors qu'aucune station ne le sert encore : le Mac n'en ouvre aucune cuisine, il attend sa principale — et la rejoint quand elle le sert", SANS_GH, async (t) => {
+test("ajouté depuis la page du projet alors qu'aucune station ne le sert encore : le Mac n'en ouvre aucune cuisine, il attend sa principale — et la rejoint quand elle le sert", async (t) => {
   let lue = () => lectureDesAppairees(MAINTENANT, { ...BOX, sert: {} }, MAC);
   const mac = leMac(t, () => lue(), { projet: AJOUTE });
   await mac.projets.relire();

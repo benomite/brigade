@@ -115,7 +115,7 @@ const enAttente = async (lieu: ReturnType<typeof service>, ...numeros: number[])
   await jusqua(() => numeros.every((numero) => lieu.etat(numero) === "waiting"));
 };
 
-describe("une station secondaire tire son travail par GitHub, arbitrée par la principale", { concurrency: 4, skip: posixOnly("the kitchen runs the fake claude, a POSIX shell script") }, () => {
+describe("une station secondaire tire son travail par GitHub, arbitrée par la principale", { concurrency: 4, skip: posixOnly("runs a full kitchen on the fake claude where a second station claims, renews and delivers through its gist and the Kitchen board only, and loses its lease when silent; skipped because the fake claude is a bash script, though Windows launches it through Git Bash and no failure of these tests there is known") }, () => {
   test("sans ssh vers la box, elle obtient un ticket et son bail : sa demande posée dans son gist, la réponse lue au Kitchen board", async (t) => {
     const lieu = service(t, `${BOX}:1:code,${MAC}:1:code:distante+ensemble`);
     const { github, journal, etat, prises } = lieu;

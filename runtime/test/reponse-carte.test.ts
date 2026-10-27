@@ -18,7 +18,6 @@ import { repondreALaCarte, REPONSE_DU_CHEF } from "../src/reponse-carte.ts";
 import { RETENUE } from "../src/requalifier.ts";
 import { fauxGitHub, issue, montre } from "./aides/cuisine.ts";
 import { aArreter, appeler, DEPOT, fauxGh, repertoireTemporaire } from "./outils.ts";
-import { posixOnly } from "./support/plateforme.ts";
 
 const PROJET = "brigade";
 const STATION = "box/claude";
@@ -231,7 +230,7 @@ describe("`rail choose` et `rail answer`", () => {
     return { journal, gh, jouer };
   }
 
-  test("`choose` répond par le choix n, `answer` en mots tapés sans guillemets : la réponse part sur l'issue, et le prix est dit", { skip: posixOnly("the fake gh is a POSIX shell script") }, async (t) => {
+  test("`choose` répond par le choix n, `answer` en mots tapés sans guillemets : la réponse part sur l'issue, et le prix est dit", async (t) => {
     const { journal, gh, jouer } = cuisine(t);
     gh.repondre(COMMENTAIRES, { statut: 201, corps: {} });
 
@@ -248,7 +247,7 @@ describe("`rail choose` et `rail answer`", () => {
     assert.equal(journal.duTicket(30).findLast((e) => e.type === "todo.answered")?.payload.answer, "Un export Excel.");
   });
 
-  test("une demande mal formée est refusée en 2, une réponse impossible en 1, avant que rien ne parte", { skip: posixOnly("the fake gh is a POSIX shell script") }, async (t) => {
+  test("une demande mal formée est refusée en 2, une réponse impossible en 1, avant que rien ne parte", async (t) => {
     const { gh, jouer } = cuisine(t);
     for (const args of [["choose", "30"], ["choose", "30", "zéro"], ["choose", "30", "0"], ["choose", "30", "1", "2"], ["answer", "x", "oui"]]) {
       const commande = jouer(args);

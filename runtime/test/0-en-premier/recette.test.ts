@@ -36,6 +36,7 @@ import { ouvrirJournal } from "../../src/journal.ts";
 import { accepterSansBacASable } from "../../src/onboarding/attente.ts";
 import { FICHIER_PROJETS, FICHIER_SUIVI } from "../../src/projets/demande.ts";
 import { depotGit, ENV_GIT, FAUX_CLAUDE, git, jusqua, lancer, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
+import { posixOnly } from "../support/plateforme.ts";
 
 const rienNeReste = temporaireDuFichier();
 
@@ -50,7 +51,7 @@ const PARCOURS_MS = 60_000;
 const ECART_S = 5;
 const TICK_S = 5;
 
-test("ajouté depuis l'app, le projet est dans la liste de la station en moins de dix minutes, parcours compris ; retiré, il quitte sa configuration", { timeout: 300_000 }, async (t) => {
+test("ajouté depuis l'app, le projet est dans la liste de la station en moins de dix minutes, parcours compris ; retiré, il quitte sa configuration", { skip: posixOnly("plays the app's add-a-project journey against a real station process and measures the time until the project is listed, then withdraws it by SIGHUP and stops the station by SIGTERM expecting exit 0; Windows has no SIGHUP to send, SIGTERM kills the station there before its handler runs, and the journey up to the served project does not fit the five-minute test timeout there"), timeout: 300_000 }, async (t) => {
   const machine = repertoireTemporaire(t);
   const racine = join(machine, "station");
   const compte = join(machine, "compte");

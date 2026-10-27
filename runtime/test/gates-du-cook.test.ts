@@ -37,8 +37,8 @@ function cuisson(t: TestContext, avecGates = true) {
   return { clone, worktree, journal, jouer, passages };
 }
 
-describe("les gates du cook", { concurrency: 8, skip: posixOnly("the launcher is a bash script, and so are the gates it plays") }, () => {
-  test("le lanceur est posé dans le `.git` du clone, exécutable — sauf pour un projet sans gates, ou hors d'un dépôt git", (t) => {
+describe("les gates du cook", { concurrency: 8 }, () => {
+  test("le lanceur est posé dans le `.git` du clone, exécutable — sauf pour un projet sans gates, ou hors d'un dépôt git", { skip: posixOnly("places the launcher in the clone's .git and compares its path with the one the test builds; git hands back the clone's .git under its long path, not under the 8.3 short name of the Windows temporary directory the test built it from, so the two strings differ") }, (t) => {
     const { clone, worktree } = cuisson(t);
     const lanceur = poserLeLanceur(worktree);
 
@@ -54,7 +54,7 @@ describe("les gates du cook", { concurrency: 8, skip: posixOnly("the launcher is
     assert.equal(poserLeLanceur(sansGit), null);
   });
 
-  test("le lanceur joue le script du projet tel quel — sa sortie, son code de sortie — et son reçu porte l'arbre que le cook livrera, ce qui n'était pas commité compris, sans toucher à son index", (t) => {
+  test("le lanceur joue le script du projet tel quel — sa sortie, son code de sortie — et son reçu porte l'arbre que le cook livrera, ce qui n'était pas commité compris, sans toucher à son index", { skip: posixOnly("runs the launcher red then green on uncommitted work and checks its output, its exit codes and the tree its receipts name; the test starts the launcher, a `#!/usr/bin/env bash` file, directly with spawnSync, which Windows cannot execute, so both runs end with a null status") }, (t) => {
     const { worktree, jouer } = cuisson(t);
     const lanceur = poserLeLanceur(worktree)!;
     // Du travail non commité : un fichier suivi modifié, un fichier neuf.
@@ -81,7 +81,7 @@ describe("les gates du cook", { concurrency: 8, skip: posixOnly("the launcher is
     assert.deepEqual(new Set(recus.map((recu) => recu.tree)), new Set([git(worktree, "rev-parse", "HEAD^{tree}")]));
   });
 
-  test("à la fin du cook, chaque reçu devient un `gates.ran` du cook, avec son empreinte — que la pass reprend sur le même arbre — puis il est effacé", (t) => {
+  test("à la fin du cook, chaque reçu devient un `gates.ran` du cook, avec son empreinte — que la pass reprend sur le même arbre — puis il est effacé", { skip: posixOnly("turns a red and a green launcher receipt into the cook's `gates.ran` facts with their fingerprint, then deletes them; Windows cannot execute the launcher, a `#!/usr/bin/env bash` file the test starts directly with spawnSync, so no receipt is written and none is noted") }, (t) => {
     const { worktree, journal, jouer, passages } = cuisson(t);
     const lanceur = poserLeLanceur(worktree)!;
     jouer(lanceur, 1);
@@ -113,7 +113,7 @@ describe("les gates du cook", { concurrency: 8, skip: posixOnly("the launcher is
     assert.equal(passages().length, 2);
   });
 
-  test("un reçu illisible ne compte pas, et un nouveau cook dans le worktree repart sans les reçus du précédent", (t) => {
+  test("un reçu illisible ne compte pas, et un nouveau cook dans le worktree repart sans les reçus du précédent", { skip: posixOnly("appends an unreadable line to a launcher receipt and expects a newly placed launcher to drop the previous cook's receipts; Windows cannot execute the launcher the test starts directly with spawnSync, so the one receipt the test needs is never written") }, (t) => {
     const { worktree, journal, jouer, passages } = cuisson(t);
     const lanceur = poserLeLanceur(worktree)!;
     jouer(lanceur);

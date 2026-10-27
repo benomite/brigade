@@ -14,7 +14,6 @@ import { ticketDuRail } from "../src/projections/rail.ts";
 import { direRetenue, ouvrirRail, type Rail } from "../src/rail.ts";
 import { REMONTE } from "../src/reaction.ts";
 import { BAIL_MS, cuisine as cuisineComplete, issue } from "./aides/cuisine.ts";
-import { posixOnly } from "./support/plateforme.ts";
 import { aArreter, jusqua, repertoireTemporaire } from "./outils.ts";
 
 const MAINTENANT = "2026-10-21T22:00:00.000Z";
@@ -186,7 +185,7 @@ test("la file ne montre plus le ticket remonté ou 86 comme tenant sa zone", (t)
   }
 });
 
-describe("dans une cuisine complète", { skip: posixOnly("the kitchen runs the fake claude, a POSIX shell script") }, () => {
+describe("dans une cuisine complète", () => {
   test("la station lance le cook du ticket qui attendait la zone d'un ticket remonté ; relancé, le remonté ne cuit pas à côté", async (t) => {
     // Deux cooks de front : seule la zone retient le second ticket.
     const { repertoire, gh, journal, etat, lancements, dernier } = cuisineComplete(t, { cooks: 2, scenario: "muet", suite: ["livre"] });

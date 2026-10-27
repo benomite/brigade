@@ -21,6 +21,7 @@ import type { Runtime } from "../src/runtime.ts";
 import { sansMotFrancais } from "./aides/glossaire.ts";
 import { chef, cuisine } from "./aides/cuisine.ts";
 import { BASE, JOUR_HORLOGE, jusqua, repertoireTemporaire } from "./outils.ts";
+import { posixOnly } from "./support/plateforme.ts";
 
 // Le bloc `awaiting` d'une sortie de `status`, bords compris.
 const blocAttend = (lignes: string[]) => lignes.slice(lignes.findIndex((ligne) => ligne.startsWith("awaiting")), lignes.indexOf("end awaiting") + 1);
@@ -245,7 +246,7 @@ describe("le renommage dans la pause", { concurrency: 4 }, () => {
     assert.equal(attentesDuChef(lieu.journal.base, lireRail(lieu.journal.base))[0]?.quoi, "renommage");
   });
 
-  test("au-delà de sa limite, comptée sur l'horloge de la cuisine depuis le « oui », le renommage est abandonné : l'outil arrêté, rien de livré ni de mergé, la pause levée avant l'heure", async (t) => {
+  test("au-delà de sa limite, comptée sur l'horloge de la cuisine depuis le « oui », le renommage est abandonné : l'outil arrêté, rien de livré ni de mergé, la pause levée avant l'heure", { skip: posixOnly("runs a rename tool that writes `$$` to a file and sleeps, expects that pid alive until the kitchen's clock passes the rename limit, then dead and the pause released as a timeout; under Git Bash `$$` is an MSYS pid, not the Windows pid Node probes, so the tool reads as not running") }, async (t) => {
     const temoin = join(repertoireTemporaire(t), "pid");
     const lieu = await enPause(t, { outil: ["bloque", temoin] });
     const { accepter, premier, levee, gh, heure } = lieu;

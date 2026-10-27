@@ -26,7 +26,7 @@
 import { execFile } from "./sans-invite.ts";
 import { existsSync, lchownSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, rmdirSync, writeFileSync, type Stats } from "node:fs";
 import { createServer } from "node:net";
-import { dirname, join, normalize, sep } from "node:path";
+import { dirname, join, posix, sep } from "node:path";
 import { EFFORTS, MODELES } from "./calibrage.ts";
 import { poserDecision } from "./decisions.ts";
 import { cheminJournal, ouvrirJournal } from "./journal.ts";
@@ -144,12 +144,13 @@ const CONTROLE = /[\u0000-\u001f\u007f]/;
 export const usage = (motif: string, message: string) => new Refus(motif, CODES.usage, message);
 
 // Un chemin absolu, normalisé, sans `..`, fait de segments simples — ou le
-// refus, dit avec `quoi` pour sujet.
+// refus, dit avec `quoi` pour sujet. Il s'écrit dans une unité systemd : un
+// chemin POSIX, quelle que soit la machine qui le lit.
 function refusDeChemin(chemin: string, quoi: string, prefixe: string): Refus | null {
-  if (!chemin.startsWith(sep)) return usage(`${prefixe}-relatif`, `${quoi} : « ${chemin} » est un chemin relatif — attendu un chemin absolu`);
-  const segments = chemin.split(sep).slice(1);
+  if (!chemin.startsWith(posix.sep)) return usage(`${prefixe}-relatif`, `${quoi} : « ${chemin} » est un chemin relatif — attendu un chemin absolu`);
+  const segments = chemin.split(posix.sep).slice(1);
   if (segments.includes("..")) return usage(`${prefixe}-avec-points`, `${quoi} : « ${chemin} » contient \`..\` — attendu un chemin absolu, écrit sans détour`);
-  if (chemin === sep || normalize(chemin) !== chemin || chemin.endsWith(sep)) return usage(`${prefixe}-non-normalise`, `${quoi} : « ${chemin} » n'est pas normalisé — ni \`//\`, ni \`/./\`, ni barre finale`);
+  if (chemin === posix.sep || posix.normalize(chemin) !== chemin || chemin.endsWith(posix.sep)) return usage(`${prefixe}-non-normalise`, `${quoi} : « ${chemin} » n'est pas normalisé — ni \`//\`, ni \`/./\`, ni barre finale`);
   if (!segments.every((segment) => SEGMENT.test(segment))) {
     return usage(`${prefixe}-hors-motif`, `${quoi} : « ${chemin} » porte un segment hors motif — lettres, chiffres, \`.\`, \`_\` et \`-\`, sans point ni tiret en tête`);
   }

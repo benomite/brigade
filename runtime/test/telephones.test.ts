@@ -68,8 +68,14 @@ const json = (fin: Fin) => {
   return JSON.parse(fin.sortie) as Record<string, unknown>;
 };
 
-describe("les téléphones par le geste de la station", { concurrency: 4, skip: posixOnly("runs the station's gesture, a bash script that goes through sudo and systemctl") }, () => {
-  test("le chef que la règle sudoers nomme tire un code et son QR, lit son état, liste les téléphones appairés et en révoque un — dans le registre de la station", async (t) => {
+// Les deux tests lancent le geste de la station — deploy/brigade, un script
+// bash — tel quel par `spawn`, derrière de faux `sudo`, `systemctl` et `id`
+// écrits en `#!/bin/sh` : Windows n'exécute pas un script à shebang. Sautés
+// dès leur arrivée, ils n'ont jamais tourné sur le job Windows ; le même
+// geste lancé de la même façon par geste.test.ts y finit en `spawn
+// …\usr\lib\brigade-station\brigade ENOENT` (run 40076391873).
+describe("les téléphones par le geste de la station", { concurrency: 4 }, () => {
+  test("le chef que la règle sudoers nomme tire un code et son QR, lit son état, liste les téléphones appairés et en révoque un — dans le registre de la station", { skip: posixOnly("spawns deploy/brigade, the station's bash gesture, as a chef the sudoers rule names, to draw a code and its QR, read its status, list and revoke a phone; Node's spawn on Windows cannot launch that extensionless shebang script, nor the fake sudo, systemctl and id written as #!/bin/sh") }, async (t) => {
     const m = machine(t, { droit: true });
 
     const tire = json(await m.lancer(["code", "--url", "https://box.tail1234.ts.net"]));
@@ -92,7 +98,7 @@ describe("les téléphones par le geste de la station", { concurrency: 4, skip: 
     assert.equal(telephones.authentifier(jeton), null);
   });
 
-  test("qui n'a pas le droit du geste est refusé, pour chacune des quatre, et rien n'est tiré, lu ni révoqué", async (t) => {
+  test("qui n'a pas le droit du geste est refusé, pour chacune des quatre, et rien n'est tiré, lu ni révoqué", { skip: posixOnly("spawns deploy/brigade as a chef without the sudoers rule and expects exit code 68 for each of the four subcommands, nothing drawn, read or revoked; Node's spawn on Windows cannot launch the gesture, an extensionless bash script, nor its #!/bin/sh fake sudo") }, async (t) => {
     const m = machine(t, { droit: false });
 
     for (const args of [["code", "--url", "https://box.tail1234.ts.net"], ["status", "7KQ2-M9XD"], ["list"], ["revoke", "pixel-8"]]) {

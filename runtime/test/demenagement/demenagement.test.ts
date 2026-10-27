@@ -24,6 +24,7 @@ import { PROJECTIONS } from "../../src/projections.ts";
 import { prendreVerrou, type Verrou } from "../../src/verrou.ts";
 import { cuisine, fauxGitHub, issue, montre } from "../aides/cuisine.ts";
 import { aArreter, jusqua, photographier, repertoireTemporaire, temporaireDuFichier, vivant } from "../outils.ts";
+import { posixOnly } from "../support/plateforme.ts";
 
 const rienNeReste = temporaireDuFichier();
 
@@ -204,7 +205,7 @@ async function lireJusquA(stations: Station[], fait: () => boolean, ordre: Stati
 
 const sansDemenagements = (evenements: Evenement[]) => evenements.filter(({ type }) => type !== "kitchen.moved");
 
-test("la cuisine d'un projet ajouté depuis l'app va de la box à cet ordinateur, revient, puis va sur une autre station — sans retrait ni rajout, son histoire, ses tickets, ses grants et ses réglages intacts", async (t) => {
+test("la cuisine d'un projet ajouté depuis l'app va de la box à cet ordinateur, revient, puis va sur une autre station — sans retrait ni rajout, son histoire, ses tickets, ses grants et ses réglages intacts", { skip: posixOnly("moves a kitchen from the box to this computer, back to the box, then to a third station, and expects its history, tickets, grants and settings intact at each stop; the return sets the box's old state directory aside with a rename, which Windows refuses while a file under it is still open, so the move does not complete") }, async (t) => {
   const { leCompte, box, mac, serveur, stations } = await unProjetServiSurLaBox(t);
   const avant = etatDuProjet(box.etat());
 

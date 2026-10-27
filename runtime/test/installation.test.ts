@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { chmodSync, chownSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
+import { posixOnly } from "./support/plateforme.ts";
 import { empreinteDuCode, lireCodeEnService, noterCodeEnService } from "../src/code.ts";
 import { desinstaller, etapesAReprendre, InstallationRefusee, jugerReseau, jugerTemporaire, jugerUnites, LABELS, mesurerSetup, poserLabels, tenir, VARIABLES, verifier, jugerRenouvellement, type Constat } from "../src/installation.ts";
 import type { EtatDuRenouvellement } from "../src/sonde-renouvellement.ts";
@@ -94,6 +95,11 @@ function gabarit(porte: Porte): string {
     }
   }
   git(travail, "add", ".");
+  // Le droit d'exécution, tel que git le commite : sous Windows, git ne lit pas
+  // celui du disque (`core.fileMode` faux), et l'aurait commité en 100644.
+  for (const [chemin, fichier] of Object.entries(fichiers)) {
+    if (fichier !== null && "contenu" in fichier && fichier.executable) git(travail, "update-index", "--chmod=+x", chemin);
+  }
   git(travail, "commit", "-q", "-m", "installe brigade");
   git(travail, "push", "-q", origine, BASE);
   // Le clone réservé : posé avant l'installation, il ne connaît pas encore ce
@@ -111,8 +117,11 @@ function projet(t: TestContext, porte: Porte = {}) {
   const racine = repertoireTemporaire(t);
   cpSync(gabarit(porte), racine, { recursive: true });
   const [origine, clone] = [join(racine, "origine.git"), join(racine, "clone")];
+  // Écrite avec des barres obliques : dans la configuration de git, la
+  // contre-oblique d'un chemin de Windows serait un échappement, et le fichier
+  // illisible.
   const config = join(clone, ".git/config");
-  writeFileSync(config, readFileSync(config, "utf8").replaceAll(ORIGINE, origine));
+  writeFileSync(config, readFileSync(config, "utf8").replaceAll(ORIGINE, origine.replaceAll("\\", "/")));
 
   const etat = join(racine, "etat");
   mkdirSync(etat);
@@ -190,6 +199,22 @@ const manques = (constats: Constat[]) => constats.filter((constat) => constat.et
 // La ligne du renouvellement n'est pas de celles que ces tests regardent : elle a ses propres tests.
 const notes = (constats: Constat[]) => constats.filter((constat) => constat.etat === "note" && !constat.texte.startsWith("renewal")).map((constat) => constat.texte);
 const constates = (constats: Constat[]) => constats.filter((constat) => constat.etat === "ok").map((constat) => constat.texte);
+// Le réglage du geste d'installation tel que la vérification le juge : à root
+// seul, d'après le propriétaire et le mode que lui prête `lstat`. Windows
+// prête à tout fichier l'uid 0 et le mode 666, ouvert aux autres : le réglage
+// que pose un test y est toujours un manque. Les tests qui ne regardent pas ce
+// réglage l'écartent là (`verifierHorsModes`), ou, quand ils lisent la sortie
+// d'une commande, le retirent avant de la lancer (`sansReglageSousWindows`) —
+// absent, il n'est qu'une note. Ailleurs, rien n'est écarté.
+const SOUS_WINDOWS = process.platform === "win32";
+const duReglage = (constat: Constat) => /installation gesture|backups root|réglage du geste|`sauvegardes=` /.test(constat.texte);
+async function verifierHorsModes(env: NodeJS.ProcessEnv): Promise<Constat[]> {
+  const constats = await verifier(env);
+  return SOUS_WINDOWS ? constats.filter((constat) => !duReglage(constat)) : constats;
+}
+function sansReglageSousWindows(racine: string): void {
+  if (SOUS_WINDOWS) rmSync(join(racine, "installateur.conf"));
+}
 const sans = (env: Record<string, string>, ...variables: string[]) => Object.fromEntries(Object.entries(env).filter(([nom]) => !variables.includes(nom)));
 
 // Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
@@ -227,9 +252,9 @@ describe("les variables obligatoires", { concurrency: 8 }, () => {
 // Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
 describe("le réglage du geste d'installation", { concurrency: 8 }, () => {
   const sauvegardes = (racine: string) => join(racine, "sauvegardes");
-  const du_geste = (constats: Constat[]) => constats.filter((constat) => /installation gesture|backups root|réglage du geste|`sauvegardes=` /.test(constat.texte));
+  const du_geste = (constats: Constat[]) => constats.filter(duReglage);
 
-  test("une racine que root tient seul est constatée, avec ce qui a été lu", async (t) => {
+  test("une racine que root tient seul est constatée, avec ce qui a été lu", { skip: posixOnly("expects the gesture's settings file and backups root, held by the account that plays the test, to be judged root-only through their lstat owner and mode bits: Windows reports every file and directory as uid 0, mode 666, writable by others") }, async (t) => {
     const { env, racine } = projet(t);
 
     const constats = await verifier(env);
@@ -264,7 +289,7 @@ describe("le réglage du geste d'installation", { concurrency: 8 }, () => {
     assert.equal(dit?.geste?.includes(`sudo chown root:root ${sauvegardes(racine)} && sudo chmod go-w ${sauvegardes(racine)}`), true);
   });
 
-  test("une racine ouverte en écriture manque, avec le répertoire, son mode et la commande qui le ferme", async (t) => {
+  test("une racine ouverte en écriture manque, avec le répertoire, son mode et la commande qui le ferme", { skip: posixOnly("opens the backups root to group write (chmod 775) and expects the refusal to name its owner uid and mode 775: Windows has no uid (process.getuid is undefined) and its chmod keeps no group bits") }, async (t) => {
     const { env, racine } = projet(t);
     chmodSync(sauvegardes(racine), 0o775);
 
@@ -276,7 +301,7 @@ describe("le réglage du geste d'installation", { concurrency: 8 }, () => {
     assert.equal(dit?.geste?.includes(`sudo chown root:root ${sauvegardes(racine)} && sudo chmod go-w ${sauvegardes(racine)}`), true);
   });
 
-  test("un parent de la racine que root ne tient pas manque, et c'est lui qui est nommé", async (t) => {
+  test("un parent de la racine que root ne tient pas manque, et c'est lui qui est nommé", { skip: posixOnly("points the setting at a subdirectory of a group-writable backups root (chmod 775) and expects that parent named with its mode 775: Windows keeps no group bits, and its lstat reports the settings file itself as mode 666") }, async (t) => {
     const { env, racine } = projet(t);
     const profonde = join(sauvegardes(racine), "sous");
     mkdirSync(profonde);
@@ -291,7 +316,7 @@ describe("le réglage du geste d'installation", { concurrency: 8 }, () => {
     assert.ok(dit?.texte.includes("mode 775"));
   });
 
-  test("une racine absente manque, avec la commande qui la crée", async (t) => {
+  test("une racine absente manque, avec la commande qui la crée", { skip: posixOnly("removes the backups root and expects the gesture to say it does not exist: on Windows the check stops before, at the settings file that lstat reports as mode 666, writable by others") }, async (t) => {
     const { env, racine } = projet(t);
     rmSync(sauvegardes(racine), { recursive: true });
 
@@ -302,7 +327,7 @@ describe("le réglage du geste d'installation", { concurrency: 8 }, () => {
     assert.equal(dit?.geste?.includes(`sudo install -d ${sauvegardes(racine)}`), true);
   });
 
-  test("une racine qui est un lien manque", async (t) => {
+  test("une racine qui est un lien manque", { skip: posixOnly("replaces the backups root by a symbolic link and expects it refused as a link: on Windows the check stops before, at the settings file and test directory that lstat reports as mode 666") }, async (t) => {
     const { env, racine } = projet(t);
     rmSync(sauvegardes(racine), { recursive: true });
     mkdirSync(join(racine, "ailleurs"));
@@ -314,7 +339,7 @@ describe("le réglage du geste d'installation", { concurrency: 8 }, () => {
     assert.match(dit?.texte ?? "", /est un lien/);
   });
 
-  test("un réglage présent sans `sauvegardes=` ou qui ne se lit pas manque, avec les mots du geste", async (t) => {
+  test("un réglage présent sans `sauvegardes=` ou qui ne se lit pas manque, avec les mots du geste", { skip: posixOnly("rewrites the settings file without `sauvegardes=`, then with a relative root, and expects each refused in the gesture's words: on Windows that file, mode 666 to lstat, is refused first as writable by others") }, async (t) => {
     const { env, racine } = projet(t);
     writeFileSync(join(racine, "installateur.conf"), "ports=3128-3227\n");
     const [sans] = du_geste(await verifier(env));
@@ -342,7 +367,7 @@ describe("la vérification", { concurrency: 8 }, () => {
   test("un projet installé est prêt : rien ne manque", async (t) => {
     const { env } = projet(t);
 
-    const constats = await verifier(env);
+    const constats = await verifierHorsModes(env);
 
     assert.deepEqual(manques(constats), []);
     assert.deepEqual(notes(constats), []);
@@ -364,7 +389,7 @@ describe("la vérification", { concurrency: 8 }, () => {
   test("une variable de décision laissée au drop-in est dite : ignorée, avec le geste qui la pose puis retire la variable", async (t) => {
     const { env } = projet(t);
 
-    const constats = await verifier({ ...env, BRIGADE_STATIONS: "box/claude:99:code", BRIGADE_DRIFT_TICKET_TOKENS: "1" });
+    const constats = await verifierHorsModes({ ...env, BRIGADE_STATIONS: "box/claude:99:code", BRIGADE_DRIFT_TICKET_TOKENS: "1" });
 
     assert.deepEqual(manques(constats), []);
     const dites = constats.filter((constat) => constat.etat === "note" && /is still in the unit's environment/.test(constat.texte));
@@ -386,7 +411,7 @@ describe("la vérification", { concurrency: 8 }, () => {
     const { env, etat } = projet(t);
     sansDecision(etat, "BRIGADE_STATIONS");
 
-    const constats = await verifier(env);
+    const constats = await verifierHorsModes(env);
 
     assert.deepEqual(manques(constats), ["no station declared (BRIGADE_STATIONS is not set in the project's log): the runtime starts, but no cook would leave — tickets would stay queued"]);
     assert.match(constats.find((constat) => constat.etat === "manque")?.geste ?? "", /^déclarer une station par `brigade <projet> station stations box\/claude:30:code\+raisonnement`/);
@@ -395,12 +420,12 @@ describe("la vérification", { concurrency: 8 }, () => {
   test("les stations déclarées par l'étape d'installation, la vérification ne dit plus « aucune station » : le projet est prêt", async (t) => {
     const { env, etat } = projet(t);
     sansDecision(etat, "BRIGADE_STATIONS");
-    assert.equal(manques(await verifier(env)).length, 1);
+    assert.equal(manques(await verifierHorsModes(env)).length, 1);
 
     const declaration = appeler(declarerStations, ["box/claude:2:code+raisonnement"], env);
     assert.equal(await declaration.fin, 0, declaration.sortie());
 
-    const constats = await verifier(env);
+    const constats = await verifierHorsModes(env);
     assert.deepEqual(manques(constats), []);
     assert.equal(constats.some((constat) => /no station declared/.test(constat.texte)), false);
   });
@@ -409,21 +434,21 @@ describe("la vérification", { concurrency: 8 }, () => {
     const { env, etat } = projet(t);
     sansDecision(etat, "BRIGADE_MANAGER_MODEL", "BRIGADE_REVIEWER_EFFORT");
 
-    const avant = (await verifier(env)).filter((constat) => constat.etat === "manque");
+    const avant = (await verifierHorsModes(env)).filter((constat) => constat.etat === "manque");
     assert.deepEqual(avant.map((constat) => constat.texte.split(" ")[0]).sort(), ["BRIGADE_MANAGER_MODEL", "BRIGADE_REVIEWER_EFFORT"]);
     assert.match(avant.find((constat) => constat.texte.startsWith("BRIGADE_MANAGER_MODEL"))?.geste ?? "", /^set it with `brigade calculus installation decisions manager-modele <value>` — `brigade calculus installation decisions` gives the question, its options and their effect/);
 
     const reponse = appeler(poserDecisions, ["manager-modele", "sonnet", "reviewer-effort", "medium"], env);
     assert.equal(await reponse.fin, 0, reponse.sortie());
 
-    assert.deepEqual(manques(await verifier(env)), []);
+    assert.deepEqual(manques(await verifierHorsModes(env)), []);
   });
 
   test("une déclaration de stations mal écrite est dite avec le champ fautif, comme le runtime la refuserait", async (t) => {
     const { env, etat } = projet(t);
     decisionBrute(etat, "BRIGADE_STATIONS", "box/claude:beaucoup:code");
 
-    const constats = await verifier(env);
+    const constats = await verifierHorsModes(env);
 
     assert.deepEqual(manques(constats), [
       "chef's decision unreadable in the log — BRIGADE_STATIONS invalid: station no. 1 (“box/claude:beaucoup:code”) — cap: “beaucoup” is not an integer greater than zero. Expected `<machine>/<engine>:<cooks cap>:<capability>+<capability>[:distante[+ordinaires|+ensemble]]`, one station per entry, separated by commas (box/claude:30:code+raisonnement,box/playwright:2:navigateur-headless)",
@@ -445,7 +470,7 @@ describe("la vérification", { concurrency: 8 }, () => {
   test("un nom de projet que le runtime refuserait manque, avec ses mots", async (t) => {
     const { env } = projet(t);
 
-    const dits = manques(await verifier({ ...env, BRIGADE_PROJECT: "Calculus", FAUX_SYSTEMCTL_UNITES: "brigade@Calculus.service brigade-sauvegarde@Calculus.timer" }));
+    const dits = manques(await verifierHorsModes({ ...env, BRIGADE_PROJECT: "Calculus", FAUX_SYSTEMCTL_UNITES: "brigade@Calculus.service brigade-sauvegarde@Calculus.timer" }));
 
     assert.equal(dits.length, 1);
     assert.match(dits[0] ?? "", /invalid project name: “Calculus”/);
@@ -493,7 +518,7 @@ describe("la vérification", { concurrency: 8 }, () => {
     journal.ajouter({ project: PROJET, ticket: null, author: "chef", type: "kitchen.resumed", payload: {} });
     journal.fermer();
 
-    const constats = await verifier(env);
+    const constats = await verifierHorsModes(env);
 
     assert.deepEqual(manques(constats), []);
     assert.match(constates(constats).join("\n"), /Max session/);
@@ -511,7 +536,7 @@ describe("la vérification", { concurrency: 8 }, () => {
   test("un projet sans setup est prêt, et c'est dit : un worktree neuf y part tel quel", async (t) => {
     const { env } = projet(t, { setup: null });
 
-    const constats = await verifier(env);
+    const constats = await verifierHorsModes(env);
 
     assert.deepEqual(manques(constats), []);
     assert.match(notes(constats).join("\n"), /worktree-setup\.sh/);
@@ -532,7 +557,7 @@ describe("la vérification", { concurrency: 8 }, () => {
   test("les bindings que le runtime ne lit pas sont signalés sans rien retenir", async (t) => {
     const { env } = projet(t, { bindings: bindings([`- **Branche d'intégration** : \`${BASE}\``]) });
 
-    const constats = await verifier(env);
+    const constats = await verifierHorsModes(env);
 
     assert.deepEqual(manques(constats), []);
     const dits = notes(constats).join("\n");
@@ -579,7 +604,7 @@ describe("la vérification", { concurrency: 8 }, () => {
     const { env, gh } = projet(t);
     gh.repondre(LABELS_DU_DEPOT, { corps: LABELS.map(({ name }) => ({ name: name.toUpperCase() })) });
 
-    assert.deepEqual(manques(await verifier(env)), []);
+    assert.deepEqual(manques(await verifierHorsModes(env)), []);
     assert.deepEqual(await poserLabels(env), { crees: [], presents: LABELS.map(({ name }) => name) });
     assert.deepEqual(gh.appels().filter((appel) => appel.includes("POST")), []);
   });
@@ -590,13 +615,13 @@ describe("la vérification", { concurrency: 8 }, () => {
     gh.repondre(LABELS_DU_DEPOT, { corps: LABELS.slice(0, 3).map(({ name }) => ({ name })), suivant: suite });
     gh.repondre(suite, { corps: LABELS.slice(3).map(({ name }) => ({ name })) });
 
-    assert.deepEqual(manques(await verifier(env)), []);
+    assert.deepEqual(manques(await verifierHorsModes(env)), []);
   });
 
   test("sans systemd sur la machine, l'unité n'est pas vérifiée et c'est dit", async (t) => {
     const { env, racine } = projet(t);
 
-    const constats = await verifier({ ...env, BRIGADE_SYSTEMCTL_BIN: join(racine, "pas-de-systemctl") });
+    const constats = await verifierHorsModes({ ...env, BRIGADE_SYSTEMCTL_BIN: join(racine, "pas-de-systemctl") });
 
     assert.deepEqual(manques(constats), []);
     assert.match(notes(constats).join("\n"), /systemd/);
@@ -614,7 +639,7 @@ describe("la vérification", { concurrency: 8 }, () => {
     return { bin, env: { ...appel, PATH: `${bin}:${process.env.PATH}` } };
   }
 
-  test("un `claude` que le shell trouve mais pas l'unité manque : c'est le `PATH` de l'unité qui compte", async (t) => {
+  test("un `claude` que le shell trouve mais pas l'unité manque : c'est le `PATH` de l'unité qui compte", { skip: posixOnly("symlinks the bash fake claude into an account bin directory joined to PATH with “:” and expects only the unit's PATH to miss it: on Windows the PATH separator is “;”, so the shell does not find it either and the Max session reads as absent") }, async (t) => {
     const { env, racine } = projet(t);
     const compte = claudeDuCompte(racine, env);
 
@@ -627,7 +652,7 @@ describe("la vérification", { concurrency: 8 }, () => {
     assert.match(geste, new RegExp(`Environment=PATH=${compte.bin}:${racine}/ailleurs:/nulle/part`));
   });
 
-  test("un `claude` que le `PATH` de l'unité donne ne manque pas", async (t) => {
+  test("un `claude` que le `PATH` de l'unité donne ne manque pas", { skip: posixOnly("symlinks the bash fake claude into an account bin directory and expects a unit PATH that holds it, joined with “:”, to find it: on Windows the separator is “;”, and the Max session reads as absent") }, async (t) => {
     const { env, racine } = projet(t);
     const compte = claudeDuCompte(racine, env);
 
@@ -644,7 +669,7 @@ describe("la vérification", { concurrency: 8 }, () => {
     assert.match(manques(constats).join("\n"), /is not found in the `PATH` that the unit .* will give the runtime \(\/usr\/local\/sbin:\/usr\/local\/bin:\/usr\/sbin:\/usr\/bin, systemd's default: no `Environment=PATH=` in its drop-ins\)/);
   });
 
-  test("là où le shell trouve `claude` et pas le `PATH` de systemd, le geste est un lien, pas un drop-in de plus", async (t) => {
+  test("là où le shell trouve `claude` et pas le `PATH` de systemd, le geste est un lien, pas un drop-in de plus", { skip: posixOnly("expects a `sudo ln -sfn` into /usr/local/bin for a claude found only through the account's PATH, joined with “:”: on Windows that PATH does not find the symlinked bash fake, and the gesture becomes installing the binary") }, async (t) => {
     const { env, racine } = projet(t);
     // Sans `Environment=PATH=`, c'est le vrai `PATH` de systemd qui est fouillé.
     const compte = claudeDuCompte(racine, env, "claude-du-compte-seulement");
@@ -659,7 +684,7 @@ describe("la vérification", { concurrency: 8 }, () => {
     // Aucune identité, et `git` empêché d'en deviner une d'après le nom de la machine.
     const anonyme = { ...sans(env, "GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL"), GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: "user.useConfigOnly", GIT_CONFIG_VALUE_0: "true" };
 
-    const constats = await verifier(anonyme);
+    const constats = await verifierHorsModes(anonyme);
 
     assert.equal(manques(constats).length, 1);
     assert.match(manques(constats)[0] ?? "", /^this account has no git identity: a cook could commit nothing/);
@@ -672,7 +697,7 @@ describe("la vérification", { concurrency: 8 }, () => {
     // Sans le rôle d'administrateur, la protection se lit par la branche.
     gh.repondre(`repos/${DEPOT}/branches/${BASE}`, { corps: { name: BASE, protected: true } });
 
-    assert.deepEqual(manques(await verifier(env)), [`\`gh\` reads ${DEPOT} under this account, without the right to push there: no delivery would leave, no PR would be merged`]);
+    assert.deepEqual(manques(await verifierHorsModes(env)), [`\`gh\` reads ${DEPOT} under this account, without the right to push there: no delivery would leave, no PR would be merged`]);
   });
 
   test("une push protection qui n'est pas active est dite sans rien retenir, avec ce que GitHub en rend", async (t) => {
@@ -684,7 +709,7 @@ describe("la vérification", { concurrency: 8 }, () => {
     ] as const) {
       gh.repondre(`repos/${DEPOT}`, { corps });
 
-      const constats = await verifier(env);
+      const constats = await verifierHorsModes(env);
 
       assert.deepEqual(manques(constats), []);
       assert.deepEqual(notes(constats), [`GitHub's push protection is not observed on ${DEPOT} (GitHub says: ${lu}): the station remains the only barrier against a delivery that would carry credentials`]);
@@ -695,7 +720,7 @@ describe("la vérification", { concurrency: 8 }, () => {
     const { env, gh } = projet(t);
     gh.repondre(PROTECTION_DE_LA_BASE, { statut: 404, corps: { message: "Branch not protected" } });
 
-    const constats = await verifier(env);
+    const constats = await verifierHorsModes(env);
 
     assert.deepEqual(manques(constats), [`la branche d'intégration \`${BASE}\` n'est pas protégée sur GitHub : un push direct y entre sans passer par la pass`]);
     assert.equal(constats.find((constat) => constat.etat === "manque")?.geste, `\`brigade ${PROJET} installation protection poser\``);
@@ -705,7 +730,7 @@ describe("la vérification", { concurrency: 8 }, () => {
     const { env, gh } = projet(t);
     gh.repondre(PROTECTION_DE_LA_BASE, { corps: { required_pull_request_reviews: null, enforce_admins: { enabled: true } } });
 
-    const constats = await verifier(env);
+    const constats = await verifierHorsModes(env);
 
     assert.deepEqual(manques(constats), [`la branche d'intégration \`${BASE}\` est protégée sans PR obligatoire : la pass ne tient pas la branche`]);
     assert.match(constats.find((constat) => constat.etat === "manque")?.geste ?? "", /Settings → Branches/);
@@ -716,10 +741,10 @@ describe("la vérification", { concurrency: 8 }, () => {
     gh.repondre(`repos/${DEPOT}`, { corps: { ...DEPOT_LU, permissions: { admin: false, push: true, pull: true } } });
     gh.repondre(`repos/${DEPOT}/branches/${BASE}`, { corps: { name: BASE, protected: true } });
 
-    assert.deepEqual(manques(await verifier(env)), []);
+    assert.deepEqual(manques(await verifierHorsModes(env)), []);
 
     gh.repondre(`repos/${DEPOT}/branches/${BASE}`, { corps: { name: BASE, protected: false } });
-    const constats = await verifier(env);
+    const constats = await verifierHorsModes(env);
     assert.deepEqual(manques(constats), [`la branche d'intégration \`${BASE}\` n'est pas protégée sur GitHub : un push direct y entre sans passer par la pass`]);
     assert.match(constats.find((constat) => constat.etat === "manque")?.geste ?? "", new RegExp(`le rôle Admin sur ${DEPOT} .*, puis \`brigade ${PROJET} installation protection poser\`$`));
   });
@@ -727,12 +752,12 @@ describe("la vérification", { concurrency: 8 }, () => {
   test("un `claude` désigné par son chemin ne doit rien au `PATH` de l'unité", async (t) => {
     const { env } = projet(t);
 
-    const constats = await verifier({ ...env, FAUX_SYSTEMCTL_ENVIRONNEMENT: "PATH=/nulle/part" });
+    const constats = await verifierHorsModes({ ...env, FAUX_SYSTEMCTL_ENVIRONNEMENT: "PATH=/nulle/part" });
 
     assert.deepEqual(manques(constats), []);
   });
 
-  test("un répertoire temporaire de `claude` qui n'est pas au compte manque : chaque cook s'y refuserait", async (t) => {
+  test("un répertoire temporaire de `claude` qui n'est pas au compte manque : chaque cook s'y refuserait", { skip: posixOnly("points claude's temporary directory at a symlink to “/” and expects it refused because its owner uid is not process.getuid(): Windows has no uid, and lstat reports every owner as 0") }, async (t) => {
     const { env, racine } = projet(t);
     const uid = process.getuid?.();
     // Celui d'un autre : la racine du système, sous le nom que `claude` attend.
@@ -762,7 +787,7 @@ describe("la vérification", { concurrency: 8 }, () => {
   test("une sauvegarde qui n'est pas programmée est signalée sans rien retenir", async (t) => {
     const { env } = projet(t);
 
-    const constats = await verifier({ ...env, FAUX_SYSTEMCTL_UNITES: `brigade@${PROJET}.service` });
+    const constats = await verifierHorsModes({ ...env, FAUX_SYSTEMCTL_UNITES: `brigade@${PROJET}.service` });
 
     assert.deepEqual(manques(constats), []);
     assert.match(notes(constats).join("\n"), new RegExp(`brigade-sauvegarde@${PROJET}\\.timer`));
@@ -786,10 +811,10 @@ describe("« Vérifier » vert, « installation terminée »", { concurrency: 8 
   for (const { quoi, etape, casser } of BLOCAGES) {
     test(`${quoi} : la vérification est rouge, d'un seul manque, qui nomme l'étape « ${etape} »`, async (t) => {
       const lu = projet(t);
-      assert.deepEqual(manques(await verifier(lu.env)), []);
+      assert.deepEqual(manques(await verifierHorsModes(lu.env)), []);
       casser(lu);
 
-      const constats = await verifier(lu.env);
+      const constats = await verifierHorsModes(lu.env);
 
       assert.equal(manques(constats).length, 1, manques(constats).join("\n"));
       const manque = constats.find((constat) => constat.etat === "manque");
@@ -805,7 +830,7 @@ describe("« Vérifier » vert, « installation terminée »", { concurrency: 8 
     const { env, gh } = projet(t, { bindings: null, gates: null });
     gh.repondre(PROTECTION_DE_LA_BASE, { statut: 404, corps: { message: "Branch not protected" } });
 
-    const constats = await verifier(sans(env, "BRIGADE_PROJECT"));
+    const constats = await verifierHorsModes(sans(env, "BRIGADE_PROJECT"));
 
     const ids = ETAPES.map((connue) => connue.id);
     assert.ok(manques(constats).length >= 4);
@@ -820,7 +845,8 @@ describe("« Vérifier » vert, « installation terminée »", { concurrency: 8 
   });
 
   test("la commande la dit rouge, et nomme pour chaque manque l'étape à reprendre", async (t) => {
-    const { env, etat } = projet(t);
+    const { env, etat, racine } = projet(t);
+    sansReglageSousWindows(racine);
     sansDecision(etat, "BRIGADE_STATIONS");
 
     const commande = lancer(t, CLI, [], env);
@@ -831,7 +857,8 @@ describe("« Vérifier » vert, « installation terminée »", { concurrency: 8 
   });
 
   test("« installation terminée » n'est atteinte qu'avec une vérification verte : un manque la refuse, nomme son étape et la remet à faire", async (t) => {
-    const { env, etat } = projet(t);
+    const { env, etat, racine } = projet(t);
+    sansReglageSousWindows(racine);
     sansDecision(etat, "BRIGADE_STATIONS");
     // Le chef a tout noté fait, à la main, sauf la fin.
     for (const { id } of ETAPES.slice(0, -1)) assert.equal(await appeler(etapes, [id, "faite"], env).fin, 0);
@@ -868,7 +895,7 @@ describe("« Vérifier » vert, « installation terminée »", { concurrency: 8 
     }
   });
 
-  test("après « terminée », la liste des étapes n'en porte aucune à faire, et un cook part sur le premier ticket sans autre geste", async (t) => {
+  test("après « terminée », la liste des étapes n'en porte aucune à faire, et un cook part sur le premier ticket sans autre geste", { skip: posixOnly("marks the installation done, starts the real runtime, waits for its first cook and stops it by SIGTERM expecting exit 0: on Windows SIGTERM ends the runtime before its handler runs") }, async (t) => {
     const { env, etat, gh } = projet(t);
     gh.issues([issueGitHub(15, { labels: ["fire", "model:sonnet", "effort:low"] })]);
     // La machine du poste ne décide d'aucun test : une suite qui tourne à côté
@@ -930,7 +957,7 @@ describe("la mise à jour de la box", { concurrency: 8 }, () => {
     const { env, unites } = projet(t);
     writeFileSync(join(unites, "brigade@.service"), "[Service]\nExecStart=/usr/bin/env node src/main.ts\n");
 
-    const constats = await verifier(env);
+    const constats = await verifierHorsModes(env);
 
     const perimee = constats.find((constat) => constat.texte.startsWith("units out of date"));
     assert.equal(perimee?.etat, "note");
@@ -1043,7 +1070,8 @@ describe("la mise à jour de la box", { concurrency: 8 }, () => {
     assert.equal(jugerUnites({ ...lu, copies: [{ nom: "brigade@.service", identique: true }] }).etat, "ok");
     const perimees = jugerUnites({ ...lu, copies: [{ nom: "brigade@.service", identique: true }, { nom: "brigade-arbitre.service", identique: false }, { nom: "cloison.conf", identique: false }] });
     assert.match(perimees.texte, /^units out of date: brigade-arbitre\.service, cloison\.conf — /);
-    assert.match(perimees.geste ?? "", /\/etc\/systemd\/system\/brigade@boutique\.service\.d\/cloison\.conf/);
+    // Le chemin s'écrit avec le séparateur de la plateforme.
+    assert.ok((perimees.geste ?? "").includes(join(lu.posees, "brigade@boutique.service.d", "cloison.conf")), String(perimees.geste));
 
   });
 });
@@ -1098,7 +1126,7 @@ describe("les labels", { concurrency: 8 }, () => {
   });
 });
 
-test("un fichier de secrets que le runtime refuserait est un manque de la machine", async (t) => {
+test("un fichier de secrets que le runtime refuserait est un manque de la machine", { skip: posixOnly("writes a secrets file readable by others (mode 644) and expects the refusal's `chmod 600` gesture: on Windows the secrets file is judged by its ACL (src/droits.ts), and the refusal names the Administrators group instead") }, async (t) => {
   const { env, racine } = projet(t);
   writeFileSync(join(racine, "secrets.env"), "CLE_API=une-valeur-de-dev\n", { mode: 0o644 });
 
@@ -1109,7 +1137,7 @@ test("un fichier de secrets que le runtime refuserait est un manque de la machin
 describe("le coût du setup", { concurrency: 8 }, () => {
   const essais = (etat: string) => join(etat, "worktrees/.essais/installation");
 
-  test("le setup est joué une fois, à blanc, dans un worktree neuf de la base — retiré ensuite", async (t) => {
+  test("le setup est joué une fois, à blanc, dans un worktree neuf de la base — retiré ensuite", { skip: posixOnly("plays the bash fake setup (test/aides/faux-setup.sh) once in a fresh worktree of the base and checks the call it noted and the worktree removed: the measure weighs that worktree with `du -sk`, which is not in the PATH of Windows") }, async (t) => {
     const { env, clone, etat, origine } = projet(t);
 
     const mesure = await mesurerSetup(env);
@@ -1123,7 +1151,7 @@ describe("le coût du setup", { concurrency: 8 }, () => {
     assert.equal(git(clone, "worktree", "list").split("\n").length, 1);
   });
 
-  test("ce que le setup pose dans le worktree est pesé", async (t) => {
+  test("ce que le setup pose dans le worktree est pesé", { skip: posixOnly("plays a #!/usr/bin/env bash setup that writes 400 kB into the worktree and expects the weight before and after it, measured by `du -sk`: Windows has neither that shebang launch nor `du` in its PATH") }, async (t) => {
     const pose = '#!/usr/bin/env bash\nhead -c 400000 /dev/urandom > "$2/dependances.bin"\necho "export PRET=1"\n';
     const { env } = projet(t, { setup: { contenu: pose, executable: true } });
 
@@ -1133,7 +1161,7 @@ describe("le coût du setup", { concurrency: 8 }, () => {
     assert.ok(mesure.apresOctets - mesure.avantOctets >= 300_000, `${mesure.avantOctets} → ${mesure.apresOctets}`);
   });
 
-  test("un setup en échec est rendu avec ce qu'il a dit, et son worktree est retiré", async (t) => {
+  test("un setup en échec est rendu avec ce qu'il a dit, et son worktree est retiré", { skip: posixOnly("makes the bash fake setup fail and expects its output back and its worktree removed: before the setup, the measure weighs the worktree with `du -sk`, which is not in the PATH of Windows") }, async (t) => {
     const { env, etat } = projet(t);
     writeFileSync(env.FAUX_SETUP ?? "", "echec");
 
@@ -1144,7 +1172,7 @@ describe("le coût du setup", { concurrency: 8 }, () => {
     assert.equal(existsSync(essais(etat)), false);
   });
 
-  test("le setup à blanc reçoit les secrets que le dépôt déclare, et ce qu'il en dit est masqué", async (t) => {
+  test("le setup à blanc reçoit les secrets que le dépôt déclare, et ce qu'il en dit est masqué", { skip: posixOnly("plays a #!/usr/bin/env bash setup that echoes DATABASE_URL and expects it masked in the output: the measure first weighs the worktree with `du -sk`, which is not in the PATH of Windows") }, async (t) => {
     const dit = '#!/usr/bin/env bash\necho "base créée sur $DATABASE_URL" >&2\n';
     const { env, racine } = projet(t, { setup: { contenu: dit, executable: true }, secrets: "DATABASE_URL\n" });
     writeFileSync(join(racine, "secrets.env"), "DATABASE_URL=postgres://dev:mot-de-passe@localhost\n", { mode: 0o600 });
@@ -1155,7 +1183,7 @@ describe("le coût du setup", { concurrency: 8 }, () => {
     assert.equal(mesure.sortie, "base créée sur [secret:DATABASE_URL]\n");
   });
 
-  test("un secret déclaré que la machine ne détient pas : le setup n'est pas joué, comme la station ne lancerait aucun cook", async (t) => {
+  test("un secret déclaré que la machine ne détient pas : le setup n'est pas joué, comme la station ne lancerait aucun cook", { skip: posixOnly("declares a secret the machine lacks and expects the bash fake setup never called: the measure weighs the fresh worktree with `du -sk` before refusing, and Windows has no `du` in its PATH") }, async (t) => {
     const { env, etat } = projet(t, { secrets: "DATABASE_URL\n" });
 
     const mesure = await mesurerSetup(env);
@@ -1166,7 +1194,7 @@ describe("le coût du setup", { concurrency: 8 }, () => {
     assert.equal(existsSync(essais(etat)), false);
   });
 
-  test("le setup ne reçoit rien de l'état du runtime", async (t) => {
+  test("le setup ne reçoit rien de l'état du runtime", { skip: posixOnly("plays a #!/usr/bin/env bash setup that counts the BRIGADE_ variables it receives through `env | grep`: the measure first weighs the worktree with `du -sk`, which is not in the PATH of Windows") }, async (t) => {
     const temoin = '#!/usr/bin/env bash\nenv | grep -c "^BRIGADE_" > "$2/../../../brigade-vues"\n';
     const { env, etat } = projet(t, { setup: { contenu: temoin, executable: true } });
 
@@ -1175,7 +1203,7 @@ describe("le coût du setup", { concurrency: 8 }, () => {
     assert.equal(readFileSync(join(etat, "brigade-vues"), "utf8").trim(), "0");
   });
 
-  test("un projet sans setup n'a rien à mesurer que son worktree", async (t) => {
+  test("un projet sans setup n'a rien à mesurer que son worktree", { skip: posixOnly("measures a project without setup and expects the same weight before and after: that weight is taken by `du -sk`, which is not in the PATH of Windows") }, async (t) => {
     const { env } = projet(t, { setup: null });
 
     const mesure = await mesurerSetup(env);
@@ -1364,7 +1392,8 @@ describe("la commande du chef", { concurrency: 8 }, () => {
   };
 
   test("un projet prêt : elle le dit et sort en 0", async (t) => {
-    const { env } = projet(t);
+    const { env, racine } = projet(t);
+    sansReglageSousWindows(racine);
 
     const { code, sortie } = await commande(t, env);
 
@@ -1374,7 +1403,8 @@ describe("la commande du chef", { concurrency: 8 }, () => {
   });
 
   test("une box à mettre à jour : la dérive se lit avec son geste, et le projet reste prêt", async (t) => {
-    const { env, unites } = projet(t);
+    const { env, unites, racine } = projet(t);
+    sansReglageSousWindows(racine);
     writeFileSync(join(unites, "brigade@.service"), "[Service]\n");
 
     const { code, sortie } = await commande(t, env);
@@ -1385,7 +1415,8 @@ describe("la commande du chef", { concurrency: 8 }, () => {
   });
 
   test("un projet mal installé : chaque manque est nommé avec son geste, et elle sort en 1", async (t) => {
-    const { env, gh, etat } = projet(t, { gates: null });
+    const { env, gh, etat, racine } = projet(t, { gates: null });
+    sansReglageSousWindows(racine);
     gh.repondre(LABELS_DU_DEPOT, { corps: [] });
     sansDecision(etat, "BRIGADE_REVIEWER_MODEL");
 
@@ -1410,7 +1441,7 @@ describe("la commande du chef", { concurrency: 8 }, () => {
     assert.equal(code, 0);
   });
 
-  test("`setup` mesure le setup et dit si un worktree neuf par cook tient", async (t) => {
+  test("`setup` mesure le setup et dit si un worktree neuf par cook tient", { skip: posixOnly("runs the `setup 12` command, which plays the bash fake setup and weighs its worktree with `du -sk`, and expects the verdict at 12 cooks: Windows has no `du` in its PATH") }, async (t) => {
     const { env } = projet(t);
 
     const { code, sortie } = await commande(t, env, "setup", "12");
@@ -1421,7 +1452,7 @@ describe("la commande du chef", { concurrency: 8 }, () => {
     assert.equal(code, 0);
   });
 
-  test("`setup` sur un setup en échec sort en 1 avec ce qu'il a dit", async (t) => {
+  test("`setup` sur un setup en échec sort en 1 avec ce qu'il a dit", { skip: posixOnly("runs the `setup` command on a failing bash fake setup and expects exit 1 with its output: the command weighs the worktree with `du -sk` first, and Windows has no `du` in its PATH") }, async (t) => {
     const { env } = projet(t);
     writeFileSync(env.FAUX_SETUP ?? "", "echec");
 
@@ -1455,7 +1486,8 @@ describe("la commande du chef", { concurrency: 8 }, () => {
   };
 
   test("`--json` d'un projet prêt : le verdict « prêt », sans manque, la sortie brute du texte jointe", async (t) => {
-    const { env } = projet(t);
+    const { env, racine } = projet(t);
+    sansReglageSousWindows(racine);
 
     const texte = await commande(t, env);
     const { code, verdict } = await juger(t, env);
@@ -1467,7 +1499,8 @@ describe("la commande du chef", { concurrency: 8 }, () => {
   });
 
   test("`--json` d'un projet mal installé : « pas prêt », ses trois manques en mots simples, chacun avec qui le lève et comment", async (t) => {
-    const { env, gh, etat } = projet(t, { gates: null });
+    const { env, gh, etat, racine } = projet(t, { gates: null });
+    sansReglageSousWindows(racine);
     gh.repondre(LABELS_DU_DEPOT, { corps: [] });
     sansDecision(etat, "BRIGADE_REVIEWER_MODEL");
 
@@ -1487,7 +1520,7 @@ describe("la commande du chef", { concurrency: 8 }, () => {
     assert.equal(code, 1);
   });
 
-  test("une vérification qui plante sur /etc/sudoers.d (#654) : en texte, la ligne d'erreur ; en JSON, « pas allée au bout », la panne connue, rien à faire — pas « pas prêt »", async (t) => {
+  test("une vérification qui plante sur /etc/sudoers.d (#654) : en texte, la ligne d'erreur ; en JSON, « pas allée au bout », la panne connue, rien à faire — pas « pas prêt »", { skip: posixOnly("puts the gesture's setting under a directory this account cannot read (chmod 000) so that the check fails on EACCES: Windows keeps no POSIX permissions, and that directory stays readable") }, async (t) => {
     if (process.getuid?.() === 0) return t.skip("root lit un répertoire en 000 : rien ne plante");
     const { env, racine } = projet(t);
     // Le réglage du geste d'installation, sous un répertoire que ce compte ne lit pas — comme /etc/sudoers.d sur la box du chef.

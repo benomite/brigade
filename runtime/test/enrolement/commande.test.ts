@@ -12,6 +12,7 @@ import { DUREE_MS, ouvrirEnrolements, RECEPTEUR } from "../../src/enrolement/enr
 import { machineCourante, presenterLaMachine } from "../../src/enrolement/presentation.ts";
 import { ouvrirRegistre } from "../../src/stations-globales/registre.ts";
 import { BASE, ENV_ENFANT, ENV_GIT, git, repertoireTemporaire } from "../outils.ts";
+import { posixOnly } from "../support/plateforme.ts";
 
 const RACINE_DU_DEPOT = join(import.meta.dirname, "../../..");
 const FAUX_SSH = join(import.meta.dirname, "faux-ssh.sh");
@@ -52,7 +53,7 @@ function chef(t: TestContext, maintenant?: () => Date) {
   return { enrolements, registre, repertoire };
 }
 
-test("la commande lancée sur une machine de test la présente au registre du chef « en attente », avec ses capacités — et rien ne la sélectionne avant l'acceptation", async (t) => {
+test("la commande lancée sur une machine de test la présente au registre du chef « en attente », avec ses capacités — et rien ne la sélectionne avant l'acceptation", { skip: posixOnly("runs the whole enrolment command in `sh -c`, through deploy/brigade-enrolement and the fake ssh, into the chef's real registry, and expects the machine pending with its capabilities; preparer writes only absolute POSIX paths into the command, and on Windows the registry and the receiver are drive paths, so it refuses to prepare it") }, async (t) => {
   const { enrolements, registre } = chef(t);
   const machine = serveur(t);
   const { code, commande } = enrolements.preparer({ vers: "chef@box" });
@@ -81,7 +82,7 @@ test("la commande lancée sur une machine de test la présente au registre du ch
   assert.deepEqual(registre.utilisables(attendue.capacites), [acceptee]);
 });
 
-test("la commande porte le nom choisi dans la home : la machine se présente sous lui", async (t) => {
+test("la commande porte le nom choisi dans la home : la machine se présente sous lui", { skip: posixOnly("runs an enrolment command carrying --name in `sh -c` and expects the machine presented under that name; on Windows the receiver is a drive path, which preparer, writing only absolute POSIX paths into the command, refuses") }, async (t) => {
   const { enrolements, registre } = chef(t);
   const { commande } = enrolements.preparer({ vers: "chef@box", nom: "serveur-de-test" });
 
@@ -93,7 +94,7 @@ test("la commande porte le nom choisi dans la home : la machine se présente sou
   );
 });
 
-test("un code faux dans la commande est refusé : la machine n'apparaît pas au registre", async (t) => {
+test("un code faux dans la commande est refusé : la machine n'apparaît pas au registre", { skip: posixOnly("runs an enrolment command whose code was altered in `sh -c` and expects deploy/brigade-enrolement to answer `inconnu` with nothing registered; on Windows preparer refuses the receiver's drive path, since it writes only absolute POSIX paths into the command") }, async (t) => {
   const { enrolements, registre } = chef(t);
   const { code, commande } = enrolements.preparer({ vers: "chef@box", nom: "serveur-de-test" });
   const faux = code.startsWith("0") ? `1${code.slice(1)}` : `0${code.slice(1)}`;
@@ -106,7 +107,7 @@ test("un code faux dans la commande est refusé : la machine n'apparaît pas au 
   assert.deepEqual(registre.liste(), []);
 });
 
-test("une commande expirée est refusée : la machine n'apparaît pas au registre", async (t) => {
+test("une commande expirée est refusée : la machine n'apparaît pas au registre", { skip: posixOnly("runs an expired enrolment command in `sh -c` and expects deploy/brigade-enrolement to answer `expire` with nothing registered; preparer writes only absolute POSIX paths into the command, so on Windows it refuses the receiver's drive path") }, async (t) => {
   // Préparée il y a plus longtemps que son délai.
   const { enrolements, registre } = chef(t, () => new Date(Date.now() - DUREE_MS - 60_000));
   const { commande } = enrolements.preparer({ vers: "chef@box", nom: "serveur-de-test" });
@@ -118,7 +119,7 @@ test("une commande expirée est refusée : la machine n'apparaît pas au registr
   assert.deepEqual(registre.liste(), []);
 });
 
-test("une commande ne sert qu'une fois : relancée, ici ou sur une autre machine, elle est refusée et rien n'entre de plus au registre", async (t) => {
+test("une commande ne sert qu'une fois : relancée, ici ou sur une autre machine, elle est refusée et rien n'entre de plus au registre", { skip: posixOnly("runs the same enrolment command three times in `sh -c` from two fake homes and expects only the first to register the machine; on Windows the command cannot even be prepared, the receiver being a drive path where preparer accepts only absolute POSIX paths") }, async (t) => {
   const { enrolements, registre } = chef(t);
   const { commande } = enrolements.preparer({ vers: "chef@box", nom: "serveur-de-test" });
   assert.equal((await serveur(t).lancer(commande)).statut, 0);
@@ -134,7 +135,7 @@ test("une commande ne sert qu'une fois : relancée, ici ou sur une autre machine
   assert.deepEqual(registre.liste(), avant);
 });
 
-test("sans brigade sur la machine, la commande le clone d'abord, puis lance le geste du clone", async (t) => {
+test("sans brigade sur la machine, la commande le clone d'abord, puis lance le geste du clone", { skip: posixOnly("clones a file:// repository from the enrolment command in `sh -c`, then runs the clone's `#!/bin/sh` gesture; on Windows the repository URL is file:// followed by a drive path with backslashes, which preparer refuses to write into a POSIX shell command") }, async (t) => {
   // Un dépôt de brigade dont le geste ne fait que noter ce qu'il reçoit.
   const depot = repertoireTemporaire(t);
   git(depot, "init", "-q", `--initial-branch=${BASE}`);

@@ -7,6 +7,7 @@ import { describe, test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
 import { demarrer } from "../src/runtime.ts";
 import { FAUX_BWRAP, FAUX_CLAUDE, horloge, lancer, repertoireTemporaire } from "./outils.ts";
+import { posixOnly } from "./support/plateforme.ts";
 
 const CLOISON = join(import.meta.dirname, "../src/montrer-cloison.ts");
 
@@ -69,7 +70,7 @@ describe("la cloison vue par le chef", { concurrency: 8 }, () => {
     assert.match(sortie, /latest refusals: none/);
   });
 
-  test("éprouver lance de vraies sondes : une cloison qui ne masque rien est prise sur le fait", async (t) => {
+  test("éprouver lance de vraies sondes : une cloison qui ne masque rien est prise sur le fait", { skip: posixOnly("probes a partition made of the fake bwrap, which hides nothing, and expects `probe` to catch the visible state directory and writable Max credentials while launches, caches and the Max login hold; a partitioned launch is a bubblewrap command line for Linux, run by /bin/sh through `trap` and `env --default-signal`, and its probes check POSIX paths and permissions") }, async (t) => {
     const { repertoire, commande } = projet(t);
     const compte = join(repertoireTemporaire(t), "compte");
     mkdirSync(join(compte, ".claude"), { recursive: true });

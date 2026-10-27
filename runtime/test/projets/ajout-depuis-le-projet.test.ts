@@ -68,7 +68,7 @@ function fauxGitHub(gists: Map<string, Fichiers>) {
 
 test(
   "ajouté depuis la page du projet, le Mac en rejoint la cuisine et y cuit : le ticket que seul un Mac peut cuire part chez lui de lui-même, et la pass de la box le sert",
-  { skip: posixOnly("the fake claude is a POSIX shell script") },
+  { skip: posixOnly("runs the box's kitchen on the fake claude with a Mac added from the project's page, and expects the `macos` ticket to leave for the Mac by itself and the box's pass to serve it; skipped because the fake claude is a bash script, though Windows launches it through Git Bash and no failure of this test there is known") },
   async (t) => {
     const lieu = cuisine(t, { stations: lireStations({ BRIGADE_STATIONS: `${BOX}:1:code,${MAC}:1:macos:distante+ensemble` }), presenceMs: 120_000, plafonds: { durationMs: 3_600_000, idleMs: 3_600_000 }, pass: true, scenario: "livre" });
     const { gh, journal, repertoire, runtime, heure, etat, types } = lieu;

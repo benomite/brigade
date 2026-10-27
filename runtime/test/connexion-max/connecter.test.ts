@@ -4,12 +4,13 @@
 import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { userInfo } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { principal, type Machine } from "../../src/connexion-max/connecter-cli.ts";
 import { connecterMax, ConnexionNonFaite, extraireLeJeton, MasqueDuJeton, type Lancement } from "../../src/connexion-max/connecter.ts";
 import { configJeton } from "../../src/jeton-claude.ts";
 import { appeler, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
+import { posixOnly } from "../support/plateforme.ts";
 
 const rienNeReste = temporaireDuFichier();
 
@@ -54,7 +55,7 @@ function installation(t: TestContext, { setupEchoue = false, sansJeton = false, 
     creation: join(etc, "claude-token.cree"),
     environnement: join(etc, "jeton.env"),
     redemarrer: async () => ({ code: ++redemarrages && 0, sortie: "" }),
-    path: `${bin}:/usr/local/bin:/usr/bin:/bin`,
+    path: [bin, "/usr/local/bin", "/usr/bin", "/bin"].join(delimiter),
     lien: join(racine, "lien-claude"),
     installeur: "exit 1",
     home: async () => home,
@@ -67,7 +68,7 @@ function installation(t: TestContext, { setupEchoue = false, sansJeton = false, 
   return { racine, etc, machine, montre: () => montre, appels: () => lire(appels), environnements: () => lire(environnements) };
 }
 
-test("l'installation fait la connexion Max par `claude setup-token`, une fois, et range le jeton en 600 avec sa date à côté", async (t) => {
+test("l'installation fait la connexion Max par `claude setup-token`, une fois, et range le jeton en 600 avec sa date à côté", { skip: posixOnly("runs the Max-connection step against a fake `claude` whose setup-token prints a token, and expects one call and the token stored mode 600, accepted by the runtime; on Windows the step launches `claude` by its bare name, which Node's spawn looks up in the PATH only as .com or .exe, so the extensionless #!/bin/sh script the test puts there is not found and the step says `claude` cannot be launched") }, async (t) => {
   const { machine, appels } = installation(t);
   const etape = appeler((appel) => principal(appel, machine));
   assert.equal(await etape.fin, 0, etape.sortie());
@@ -84,7 +85,7 @@ test("l'installation fait la connexion Max par `claude setup-token`, une fois, e
   assert.equal(readFileSync(machine.environnement, "utf8"), `BRIGADE_CLAUDE_TOKEN_FILE=${machine.jeton}\n`);
 });
 
-test("la date de création est écrite à côté du jeton, sans le jeton", async (t) => {
+test("la date de création est écrite à côté du jeton, sans le jeton", { skip: posixOnly("runs the Max-connection step against a fake `claude` and expects the token's creation date written in a file of its own, without the token; on Windows the step launches `claude` by its bare name, which Node's spawn looks up in the PATH only as .com or .exe, so the extensionless #!/bin/sh script the test puts there is not found and the step says `claude` cannot be launched") }, async (t) => {
   const { machine } = installation(t);
   const avant = Date.now();
   const etape = appeler((appel) => principal(appel, machine));
@@ -95,7 +96,7 @@ test("la date de création est écrite à côté du jeton, sans le jeton", async
   assert.notEqual(machine.creation, machine.jeton);
 });
 
-test("le jeton n'est affiché dans aucune sortie de l'étape, réussie ou non", async (t) => {
+test("le jeton n'est affiché dans aucune sortie de l'étape, réussie ou non", { skip: posixOnly("runs the Max-connection step once successfully and once with the token's directory blocked by a file, and expects the token in neither output; on Windows the step launches `claude` by its bare name, which Node's spawn looks up in the PATH only as .com or .exe, so the extensionless #!/bin/sh script the test puts there is not found and the step says `claude` cannot be launched, so the successful run exits 1") }, async (t) => {
   const reussie = installation(t);
   const etape = appeler((appel) => principal(appel, reussie.machine));
   assert.equal(await etape.fin, 0);
@@ -110,7 +111,7 @@ test("le jeton n'est affiché dans aucune sortie de l'étape, réussie ou non", 
   assert.doesNotMatch(echec.sortie(), /sk-ant|secret/);
 });
 
-test("le chef voit l'interface de `setup-token` — le lien —, jamais le jeton", async (t) => {
+test("le chef voit l'interface de `setup-token` — le lien —, jamais le jeton", { skip: posixOnly("runs the Max-connection step and expects the chef to see setup-token's link and prompt but never the token; on Windows the step launches `claude` by its bare name, which Node's spawn looks up in the PATH only as .com or .exe, so the extensionless #!/bin/sh script the test puts there is not found and the step says `claude` cannot be launched") }, async (t) => {
   const { machine, montre } = installation(t);
   const etape = appeler((appel) => principal(appel, machine));
   assert.equal(await etape.fin, 0, etape.sortie());
@@ -120,7 +121,7 @@ test("le chef voit l'interface de `setup-token` — le lien —, jamais le jeton
   assert.doesNotMatch(etape.sortie(), /oat01|secret/);
 });
 
-test("un `setup-token` muet est arrêté, et l'étape le dit en une ligne avec le geste pour réessayer", async (t) => {
+test("un `setup-token` muet est arrêté, et l'étape le dit en une ligne avec le geste pour réessayer", { skip: posixOnly("runs the Max-connection step against a fake `claude` whose setup-token stays silent, and expects it stopped with a one-line message saying to retry; on Windows the step launches `claude` by its bare name, which Node's spawn looks up in the PATH only as .com or .exe, so the extensionless #!/bin/sh script the test puts there is not found and the step says `claude` cannot be launched instead of the silence") }, async (t) => {
   const { machine, etc } = installation(t, { muet: true });
   const etape = appeler((appel) => principal(appel, machine));
   assert.equal(await etape.fin, 1);
@@ -153,7 +154,7 @@ test("un jeton déjà rangé ne se refait pas", async (t) => {
   assert.equal(readFileSync(machine.jeton, "utf8"), "sk-ant-oat01-deja-la-et-bien-rangee\n");
 });
 
-test("un `setup-token` qui échoue est dit en une ligne, et rien n'est rangé", async (t) => {
+test("un `setup-token` qui échoue est dit en une ligne, et rien n'est rangé", { skip: posixOnly("runs the Max-connection step against a fake `claude` whose setup-token exits 3, and expects a one-line failure and nothing stored; on Windows the step launches `claude` by its bare name, which Node's spawn looks up in the PATH only as .com or .exe, so the extensionless #!/bin/sh script the test puts there is not found and the step says `claude` cannot be launched") }, async (t) => {
   const { machine, etc } = installation(t, { setupEchoue: true });
   const etape = appeler((appel) => principal(appel, machine));
   assert.equal(await etape.fin, 1);
@@ -161,7 +162,7 @@ test("un `setup-token` qui échoue est dit en une ligne, et rien n'est rangé", 
   assert.equal(existsSync(etc), false);
 });
 
-test("un `setup-token` sans jeton lisible : l'étape le dit, sans rien ranger", async (t) => {
+test("un `setup-token` sans jeton lisible : l'étape le dit, sans rien ranger", { skip: posixOnly("runs the Max-connection step against a fake `claude` whose setup-token prints no token, and expects the step to say so and store nothing; on Windows the step launches `claude` by its bare name, which Node's spawn looks up in the PATH only as .com or .exe, so the extensionless #!/bin/sh script the test puts there is not found and the step says `claude` cannot be launched") }, async (t) => {
   const { machine, etc } = installation(t, { sansJeton: true });
   const etape = appeler((appel) => principal(appel, machine));
   assert.equal(await etape.fin, 1);
@@ -177,7 +178,7 @@ test("ni root ni le compte de la station : l'étape refuse, sans rien lancer", a
   assert.deepEqual(appels(), []);
 });
 
-test("l'étape ne passe à `claude` aucune variable de jeton ou de clé : le jeton naît de `setup-token`", async (t) => {
+test("l'étape ne passe à `claude` aucune variable de jeton ou de clé : le jeton naît de `setup-token`", { skip: posixOnly("sets ANTHROPIC_API_KEY and CLAUDE_CODE_OAUTH_TOKEN in the environment and expects the fake `claude` of the Max-connection step to receive neither; on Windows the step launches `claude` by its bare name, which Node's spawn looks up in the PATH only as .com or .exe, so the extensionless #!/bin/sh script the test puts there is not found and the step says `claude` cannot be launched, so the fake never records its environment") }, async (t) => {
   const essai = installation(t);
   const avant = { ...process.env };
   Object.assign(process.env, { ANTHROPIC_API_KEY: "sk-ant-api-test", CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat-test" });
