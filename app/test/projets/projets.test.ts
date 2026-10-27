@@ -450,9 +450,10 @@ describe("l'ajout, la lecture et le retrait d'un projet, contre un GitHub de tes
     assert.equal((await lue())?.atteinte, undefined, "la principale n'en dit rien encore");
     const tenue = { nom: "macbook", station: "macbook/claude", gist: "g2", cooks: 3, fournit: ["code", "raisonnement", "macos"] };
     suivre("g1", [{ ...SERVI, secondaires: [{ ...tenue, atteinte: true, dit: "reached: it is online on GitHub" }] }]);
-    assert.deepEqual((await lue())?.atteinte, { oui: true, dit: "reached: it is online on GitHub" });
+    // Elle porte le nom sous lequel la principale la déclare : celui de sa ligne sur Cooks (#1786).
+    assert.deepEqual((await lue())?.atteinte, { oui: true, dit: "reached: it is online on GitHub", station: "macbook/claude" });
     suivre("g1", [{ ...SERVI, secondaires: [{ ...tenue, atteinte: false, dit: "not reached: it stopped at 2026-10-15T11:50:00.000Z" }] }]);
-    assert.deepEqual((await lue())?.atteinte, { oui: false, dit: "not reached: it stopped at 2026-10-15T11:50:00.000Z", pourquoi: "not reached", geste: "open Brigade on that computer" });
+    assert.deepEqual((await lue())?.atteinte, { oui: false, dit: "not reached: it stopped at 2026-10-15T11:50:00.000Z", station: "macbook/claude", pourquoi: "not reached", geste: "open Brigade on that computer" });
     // Le geste que la principale publie (#1758) est celui de la phrase.
     suivre("g1", [{ ...SERVI, secondaires: [{ ...tenue, atteinte: false, dit: "not reached: it stopped at 2026-10-15T11:50:00.000Z", raison: "arretee", geste: "start Brigade on that computer again" }] }]);
     assert.deepEqual([(await lue())?.atteinte?.pourquoi, (await lue())?.atteinte?.geste], ["not reached", "start Brigade on that computer again"]);

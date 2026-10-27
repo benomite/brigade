@@ -3115,7 +3115,7 @@ main > header,
   gap: 8px;
   min-width: 0;
 }
-#rail .station-declaree .ou {
+#rail :is(.station-declaree, .station-de-cuisson) .ou {
   padding: 0 6px;
   font-size: 11px;
   font-weight: 500;
@@ -3125,17 +3125,19 @@ main > header,
   border: 1px solid var(--trait);
   border-radius: var(--rayon-bouton);
 }
-#rail .station-declaree[data-ou="poste"] .ou {
+#rail .station-declaree[data-ou="poste"] .ou,
+#rail .station-de-cuisson .ou[data-ou="poste"] {
   color: var(--accent);
   border-color: var(--accent);
 }
-#rail .station-declaree[data-ou="ailleurs"] .ou {
+#rail .station-declaree[data-ou="ailleurs"] .ou,
+#rail .station-de-cuisson .ou[data-ou="ailleurs"] {
   border-style: dashed;
 }
-#rail .station-declaree .plafond {
+#rail :is(.station-declaree, .station-de-cuisson) .plafond {
   color: var(--texte);
 }
-#rail .station-declaree .capacites {
+#rail :is(.station-declaree, .station-de-cuisson) .capacites {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
@@ -3143,7 +3145,7 @@ main > header,
   padding: 0;
   list-style: none;
 }
-#rail .station-declaree .capacite {
+#rail :is(.station-declaree, .station-de-cuisson) .capacite {
   padding: 0 6px;
   font-size: 11px;
   line-height: 18px;
@@ -3151,7 +3153,7 @@ main > header,
   background: var(--case);
   border-radius: var(--rayon-bouton);
 }
-#rail .station-declaree .capacites.vide,
+#rail :is(.station-declaree, .station-de-cuisson) .capacites.vide,
 #rail .stations-declarees .vide {
   margin: 0;
   font-style: italic;
@@ -3160,7 +3162,7 @@ main > header,
 /* Une station s'édite (ticket 1510) : « edit » à droite de sa ligne, et sous elle, sur toute la largeur, son
    formulaire — son plafond, ses capacités en cases (celles de « + station », ticket 1307), ce poste qui la joue, puis
    « Save », recommandé, « Cancel » et, à l'écart, « Remove ». Ce que le dernier geste a rendu passe dessous. */
-#rail .station-declaree > .editer {
+#rail :is(.station-declaree, .fournit-de-station) > .editer {
   padding: 3px 12px;
   font-size: 12px;
   font-weight: 600;
@@ -3168,18 +3170,18 @@ main > header,
   border: 1px solid var(--trait-fort);
   border-radius: var(--rayon-bouton);
 }
-#rail .station-declaree > .editer[aria-expanded="true"] {
+#rail :is(.station-declaree, .fournit-de-station) > .editer[aria-expanded="true"] {
   color: var(--accent);
   border-color: var(--accent);
 }
-#rail .station-declaree .edition .gestes button:disabled {
+#rail :is(.station-declaree, .station-de-cuisson) .edition .gestes button:disabled {
   color: var(--discret);
   background: none;
   border-style: dashed;
   border-color: var(--trait-fort);
   cursor: default;
 }
-#rail .station-declaree .edition {
+#rail :is(.station-declaree, .station-de-cuisson) .edition {
   grid-column: 1 / -1;
   display: flex;
   flex-direction: column;
@@ -3190,13 +3192,13 @@ main > header,
   border: 1px solid var(--trait);
   border-radius: var(--rayon-carte);
 }
-#rail .station-declaree .edition .champ {
+#rail :is(.station-declaree, .station-de-cuisson) .edition .champ {
   display: flex;
   align-items: center;
   gap: 10px;
   font-weight: 600;
 }
-#rail .station-declaree .edition input[type="number"] {
+#rail :is(.station-declaree, .station-de-cuisson) .edition input[type="number"] {
   width: 8ch;
   padding: 5px 8px;
   font: inherit;
@@ -3206,22 +3208,22 @@ main > header,
   border: 1px solid var(--trait);
   border-radius: var(--rayon-bouton);
 }
-#rail .station-declaree .edition fieldset {
+#rail :is(.station-declaree, .station-de-cuisson) .edition fieldset {
   margin: 0;
   padding: 0;
   border: 0;
 }
-#rail .station-declaree .edition legend {
+#rail :is(.station-declaree, .station-de-cuisson) .edition legend {
   margin-bottom: 8px;
   padding: 0;
   font-weight: 600;
 }
-#rail .station-declaree .edition .capacites {
+#rail :is(.station-declaree, .station-de-cuisson) .edition .capacites {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 8px;
 }
-#rail .station-declaree .edition .capacite {
+#rail :is(.station-declaree, .station-de-cuisson) .edition .capacite {
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: center;
@@ -3235,48 +3237,48 @@ main > header,
   border-radius: var(--rayon-bouton);
   cursor: pointer;
 }
-#rail .station-declaree .edition .capacite:hover {
+#rail :is(.station-declaree, .station-de-cuisson) .edition .capacite:hover {
   border-color: var(--trait-fort);
 }
-#rail .station-declaree .edition .capacite input,
-#rail .station-declaree .edition .jouee input {
+#rail :is(.station-declaree, .station-de-cuisson) .edition .capacite input,
+#rail :is(.station-declaree, .station-de-cuisson) .edition .jouee input {
   margin: 0;
   accent-color: var(--accent);
 }
-#rail .station-declaree .edition .capacite small {
+#rail :is(.station-declaree, .station-de-cuisson) .edition .capacite small {
   grid-column: 2;
   font-size: 12px;
   color: var(--discret);
 }
-#rail .station-declaree .edition .jouee {
+#rail :is(.station-declaree, .station-de-cuisson) .edition .jouee {
   display: flex;
   align-items: center;
   gap: 8px;
   cursor: pointer;
 }
-#rail .station-declaree .edition .gestes {
+#rail :is(.station-declaree, .station-de-cuisson) .edition .gestes {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
-#rail .station-declaree .edition .gestes .retrait {
+#rail :is(.station-declaree, .station-de-cuisson) .edition .gestes .retrait {
   margin-left: auto;
 }
-#rail .station-declaree .edition .confirmation {
+#rail :is(.station-declaree, .station-de-cuisson) .edition .confirmation {
   flex-flow: row wrap;
   align-items: center;
   gap: 6px 8px;
   margin: 0;
 }
-#rail .station-declaree .edition .confirmation > p {
+#rail :is(.station-declaree, .station-de-cuisson) .edition .confirmation > p {
   flex: 1 1 100%;
 }
-#rail .station-declaree .edition .confirmation > p.prix {
+#rail :is(.station-declaree, .station-de-cuisson) .edition .confirmation > p.prix {
   color: var(--jaune);
 }
-#rail .station-declaree .edition .gestes button,
-#rail .station-declaree .edition .confirmation > button {
+#rail :is(.station-declaree, .station-de-cuisson) .edition .gestes button,
+#rail :is(.station-declaree, .station-de-cuisson) .edition .confirmation > button {
   padding: 3px 12px;
   font-size: 12px;
   font-weight: 600;
@@ -3284,16 +3286,16 @@ main > header,
   border: 1px solid var(--trait-fort);
   border-radius: var(--rayon-bouton);
 }
-#rail .station-declaree .edition button.recommande {
+#rail :is(.station-declaree, .station-de-cuisson) .edition button.recommande {
   border-color: var(--accent);
 }
-#rail .station-declaree .fait,
-#rail .station-declaree .edition .indisponible {
+#rail :is(.station-declaree, .station-de-cuisson) .fait,
+#rail :is(.station-declaree, .station-de-cuisson) .edition .indisponible {
   grid-column: 1 / -1;
   margin: 0;
   font-size: 12px;
 }
-#rail .station-declaree .fait {
+#rail :is(.station-declaree, .station-de-cuisson) .fait {
   color: var(--discret);
 }
 /* Les stations du projet, sous sa carte (ticket 1185) : une ligne chacune — son nom, son mot et ce qu'il veut dire,
@@ -3421,6 +3423,75 @@ main > header,
   margin: 0;
   font-size: 12px;
   color: var(--discret);
+}
+/* Chaque station du projet dit son rôle, si elle est atteinte, ce qu'elle fournit et, quand elle ne cuit pas, pourquoi
+   (ticket 1786) : la principale — le manager et la pass — en tête, son rôle à l'accent ; « move the kitchen » sur sa ligne.
+   Ce qu'elle fournit tient sur une ligne, « edit » au bout ; son formulaire s'ouvre dessous, sur toute la largeur. */
+#rail .station-de-cuisson .nom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+}
+#rail .station-de-cuisson .nom small {
+  margin-left: 0;
+}
+#rail .station-de-cuisson .nom .role {
+  padding: 0 6px;
+  font-weight: 600;
+  line-height: 16px;
+  white-space: nowrap;
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+}
+#rail .station-de-cuisson[data-role="principale"] .nom .role {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+#rail .station-de-cuisson :is(.retenue-de-cuisson, .principale-de-station, .fournit-de-station) {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 0;
+  font-size: 12px;
+}
+#rail .station-de-cuisson .retenue-de-cuisson .pourquoi {
+  font-weight: 600;
+  color: var(--jaune);
+}
+#rail .station-de-cuisson :is(.retenue-de-cuisson, .principale-de-station) button {
+  padding: 2px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon-bouton);
+}
+#rail .station-de-cuisson .principale-de-station button:disabled {
+  color: var(--discret);
+  border-style: dashed;
+  cursor: default;
+}
+#rail .station-de-cuisson .fournit-de-station .libelle {
+  color: var(--discret);
+}
+#rail .station-de-cuisson .fournit-de-station .pas-dit {
+  font-style: italic;
+  color: var(--discret);
+}
+#rail .station-de-cuisson .fournit-de-station > .editer {
+  padding: 2px 10px;
+}
+#rail .station-de-cuisson .ouvre-l-edition button {
+  padding: 2px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon-bouton);
 }
 /* Sous les stations, sur Cooks, le plafond de calibrage du projet (ticket 1284) : sa valeur, d'où elle vient, et son
    réglage — deux listes et un bouton, sur une ligne. */

@@ -6,7 +6,7 @@ import type { Ecran } from "./commun.ts";
 import { DEFAUTS } from "./ajouter-station.ts";
 import { ecran as declarees } from "./cooks-stations-declarees.ts";
 
-export const EDITER = { cliquer: '#declarees-du-projet li[data-station="atelier/claude"] > button.editer' };
+export const EDITER = { cliquer: '#cuisson-du-projet li[data-station="atelier/claude"] .fournit-de-station > button.editer' };
 
 export const ecran: Ecran = {
   dit: "L'onglet Cooks de « parade » : « edit » cliqué sur atelier/claude — son plafond, ses capacités en cases, « this workstation plays it », « Save », « Cancel » et « Remove »",
