@@ -1,14 +1,17 @@
 // Les gestes du chef postés en commentaires sur le tableau de la cuisine :
 // merger, renvoyer en cuisine, mettre de côté, répondre à une carte, faire
-// repartir un ticket de WAITING (« c'est arrivé »), trancher une correction ou
-// un profil proposés — sans lien direct avec la box. À chaque passage (au tick, après le
+// repartir un ticket de WAITING (« c'est arrivé »), commenter l'issue d'une
+// carte, demander au second, trancher une correction ou un profil proposés —
+// sans lien direct avec la box. À chaque passage (au tick, après le
 // rafraîchissement du tableau), la box lit les commentaires nouveaux du
 // tableau. Celui dont la première ligne est un geste (grammaire.ts) et dont
 // l'auteur est le compte du chef est joué par la même action que son geste
 // local (`rail merge`, `rail send-back`, `rail remove`, `rail answer`,
 // `rail choose` : geste-ticket.ts, reponse-carte.ts ; « c'est arrivé », qui
 // n'a pas d'autre geste que celui-ci et le téléphone : `renvoyerEnCuisine`,
-// attente.ts ; le « oui » ou le « non » à une correction ou à un profil
+// attente.ts ; le commentaire sur une issue et la demande au second, ceux de
+// la fiche d'une carte dans l'app : `pass -- <ticket> comment | ask`,
+// issue-ticket.ts ; le « oui » ou le « non » à une correction ou à un profil
 // proposés, qui n'ont pas d'autre geste : `trancherLaCorrection`,
 // correctif/decision.ts, et `trancherLeProfil`, profils/decision.ts ; les gestes de box —
 // plafond de cooks, stop, resume, rejeu de la base, grant, station — jouent
@@ -27,10 +30,13 @@
 // (`board.replied`).
 //
 // Le bloc machine du tableau porte les derniers gestes et leur état (`lus`),
-// pour que les apps disent au chef que le sien est pris en compte.
+// pour que les apps disent au chef que le sien est pris en compte. La demande
+// au second y est entière (`demande`) : le runtime ne tient aucun canal vers
+// le second — une session `claude` de l'app —, c'est l'app qui l'y écrit.
 import { renvoyerEnCuisine } from "../../attente.ts";
 import { trancherLaCorrection } from "../../correctif/decision.ts";
 import { mergerLaLivraison, renvoyerLaLivraison, retirerDuRail, type Resultat } from "../../geste-ticket.ts";
+import { commenterIssue, demanderAuSecond, type Demande } from "../../issue-ticket.ts";
 import type { GitHub } from "../../github.ts";
 import type { Journal } from "../../journal.ts";
 import { trancherLeProfil } from "../../profils/decision.ts";
@@ -55,6 +61,10 @@ export type OptionsDesGestes = {
   projet: string;
   // Le GitHub sous lequel les actions se jouent : celui qui merge et commente les tickets.
   github: GitHub;
+  // Le GitHub du compte de la box — celui du chef —, sous lequel part son
+  // commentaire sur une issue, comme `pass -- <ticket> comment` : ce sont ses
+  // mots, jamais ceux de l'App d'un rôle. Sans lui, celui des actions.
+  githubDuChef?: GitHub;
   // Le répertoire d'état de la box : les gestes qui n'existaient que sur elle
   // (tableau/gestes-boite/) jouent ses commandes locales sur son journal. Sans
   // lui, ils sont refusés.
@@ -85,7 +95,7 @@ const lien = (texte: string, url: string) => (url === "" ? texte : `[${texte}]($
 
 // La ligne que la box répond sous le geste. Elle ne commence jamais par
 // `/brigade` : sous le même compte que le chef, elle n'est pas un geste.
-export function direLaReponse(commentaire: Pick<CommentaireDuTableau, "url">, lecture: Geste | GesteDeBoite | { incompris: string }, resultat: Resultat | ResultatDeBoite | null): string {
+export function direLaReponse(commentaire: Pick<CommentaireDuTableau, "url">, lecture: Geste | GesteDeBoite | { incompris: string }, resultat: Resultat | Demande | ResultatDeBoite | null): string {
   if ("incompris" in lecture) {
     const grammaire = [...GRAMMAIRE, ...GRAMMAIRE_DE_BOITE].map((forme) => `\`${forme}\``).join(" · ");
     return `**Not understood** — ${lien("your gesture", commentaire.url)}: ${enMarkdown(uneLigne(lecture.incompris))}. Accepted, on the first line: ${grammaire}`;
@@ -96,12 +106,14 @@ export function direLaReponse(commentaire: Pick<CommentaireDuTableau, "url">, le
     return `**Not done** — ${nom}: ${enMarkdown(uneLigne(resultat !== null && "reason" in resultat ? resultat.reason : "nothing was played"))}`;
   }
   if (resultat === null || !resultat.done) return `**Not done** — ${nom}: ${enMarkdown(uneLigne(resultat?.done === false && "reason" in resultat ? resultat.reason : "nothing was played"))}`;
-  return `**Done** — ${nom} — cost: ${enMarkdown(uneLigne("price" in resultat ? resultat.price : ""))}`;
+  // La demande au second, telle que l'app l'écrira : une seule ligne déjà.
+  const demande = "request" in resultat && typeof resultat.request === "string" ? `: the request for the second is “${enMarkdown(uneLigne(resultat.request))}”` : "";
+  return `**Done** — ${nom}${demande} — cost: ${enMarkdown(uneLigne("price" in resultat ? resultat.price : ""))}`;
 }
 
 // Le geste, joué par l'action de son geste local. Ce qui lève — GitHub
 // injoignable, un refus de son API — est un refus, dit.
-async function jouer({ journal, github, projet, repoDir }: OptionsDesGestes, geste: Geste): Promise<Resultat> {
+async function jouer({ journal, github, githubDuChef, projet, repoDir }: OptionsDesGestes, geste: Geste): Promise<Resultat | Demande> {
   try {
     switch (geste.verbe) {
       case "merge":
@@ -116,6 +128,10 @@ async function jouer({ journal, github, projet, repoDir }: OptionsDesGestes, ges
         return await repondreALaCarte(journal, github, projet, geste.ticket, { choix: geste.choix });
       case "arrived":
         return renvoyerEnCuisine(journal, projet, geste.ticket);
+      case "comment":
+        return await commenterIssue(githubDuChef ?? github, geste.ticket, geste.texte);
+      case "ask":
+        return await demanderAuSecond(github, geste.ticket, geste.contexte);
       case "correction":
         return trancherLaCorrection(journal, projet, geste.proposition, geste.reponse);
       case "profile":
@@ -198,6 +214,7 @@ export function gestesDuTableau(options: OptionsDesGestes): GestesDuTableau {
             gesture: "incompris" in lecture ? null : "commande" in lecture ? (lecture.nom.split(" ")[0] ?? null) : lecture.verbe,
             done: resultat?.done === true,
             reply: reponse,
+            ...(resultat !== null && "request" in resultat && typeof resultat.request === "string" ? { request: resultat.request } : {}),
           },
           dedupKey: `board.gesture:${commentaire.id}`,
         });
@@ -217,6 +234,7 @@ export function gestesDuTableau(options: OptionsDesGestes): GestesDuTableau {
         etat: payload.done ? "pris" : "refuse",
         traiteLe: at,
         reponse: payload.reply,
+        ...(payload.request === undefined ? {} : { demande: payload.request }),
       }));
     },
   };

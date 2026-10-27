@@ -7,14 +7,17 @@
 //   /brigade answer #<ticket> <answer…>
 //   /brigade choose #<ticket> <choice number>
 //   /brigade arrived #<ticket>
+//   /brigade comment #<ticket> <comment…>
+//   /brigade ask #<ticket> [context…]
 //   /brigade correction yes|no <proposal>
 //   /brigade profile yes|no <proposal>
 //
 // Le `#` devant le numéro d'un ticket est facultatif. Une correction et un
 // profil proposés ne sont pas des tickets : leur numéro est celui que la file
 // leur donne (`corrections[].proposition`, `profils[].proposition`), sans `#`
-// — GitHub en ferait le lien d'une issue. La raison d'un renvoi et la réponse
-// à une carte vont jusqu'au bout du commentaire : la suite de la première
+// — GitHub en ferait le lien d'une issue. La raison d'un renvoi, la réponse
+// à une carte, le commentaire à poster sur une issue et le contexte d'une
+// demande au second vont jusqu'au bout du commentaire : la suite de la première
 // ligne, puis les lignes suivantes. Une première ligne qui ne commence pas par
 // `/brigade` n'est pas un geste : le commentaire est une conversation, la box
 // ne le lit pas. Le détail, avec un exemple par geste : docs/tableau-gestes.md.
@@ -24,7 +27,7 @@
 export const PREFIXE = "/brigade";
 
 // Les gestes, dans l'ordre où la grammaire les dit.
-export const VERBES = ["merge", "send-back", "set-aside", "answer", "choose", "arrived", "correction", "profile"] as const;
+export const VERBES = ["merge", "send-back", "set-aside", "answer", "choose", "arrived", "comment", "ask", "correction", "profile"] as const;
 export type Verbe = (typeof VERBES)[number];
 
 export type Geste =
@@ -32,6 +35,8 @@ export type Geste =
   | { verbe: "send-back"; ticket: number; raison: string | null }
   | { verbe: "answer"; ticket: number; reponse: string }
   | { verbe: "choose"; ticket: number; choix: number }
+  | { verbe: "comment"; ticket: number; texte: string }
+  | { verbe: "ask"; ticket: number; contexte: string | null }
   | { verbe: "correction" | "profile"; reponse: Reponse; proposition: number };
 
 // Les deux réponses du chef à une proposition de la file.
@@ -50,6 +55,8 @@ export const GRAMMAIRE = [
   `${PREFIXE} answer #<ticket> <answer>`,
   `${PREFIXE} choose #<ticket> <choice number>`,
   `${PREFIXE} arrived #<ticket>`,
+  `${PREFIXE} comment #<ticket> <comment>`,
+  `${PREFIXE} ask #<ticket> [context]`,
   `${PREFIXE} correction yes|no <proposal number>`,
   `${PREFIXE} profile yes|no <proposal number>`,
 ];
@@ -84,6 +91,11 @@ export function lireLeGeste(corps: string): Lecture {
     case "answer":
       if (texte === "") return { incompris: "answer needs the answer after the ticket number" };
       return { verbe: "answer", ticket: Number(ticket), reponse: texte };
+    case "comment":
+      if (texte === "") return { incompris: "comment needs the comment to post after the ticket number" };
+      return { verbe: "comment", ticket: Number(ticket), texte };
+    case "ask":
+      return { verbe: "ask", ticket: Number(ticket), contexte: texte === "" ? null : texte };
     case "choose": {
       const [choix, ...deTrop] = reste;
       if (choix === undefined || !ENTIER.test(choix) || deTrop.length > 0) return { incompris: "choose needs one choice number, from 1, after the ticket number" };

@@ -9,13 +9,15 @@
 // joué qu'une fois (la clé d'unicité du fait le garde). `board` : le numéro du
 // tableau qui le porte. `url` : l'adresse du commentaire. `writtenAt` : son
 // heure sur GitHub. `gesture` : le geste lu (`merge`, `send-back`, `set-aside`,
-// `answer`, `choose`, `arrived`, `correction`, `profile`, ou le premier mot d'un geste de box : `cooks`, `stop`, `resume`,
+// `answer`, `choose`, `arrived`, `comment`, `ask`, `correction`, `profile`, ou le premier mot d'un geste de box : `cooks`, `stop`, `resume`,
 // `base`, `grant`, `station`), nul s'il ne se comprend pas. `done` : joué, ou refusé —
-// incompris compris. `reply` : la ligne que la box répond sous lui.
+// incompris compris. `reply` : la ligne que la box répond sous lui. `request` :
+// la demande au second qu'un `ask` joué a composée, mot pour mot — absente de
+// tout autre geste.
 export type FaitGesteDuTableau =
   | {
       type: "board.gesture";
-      payload: { comment: number; board: number; url: string; author: string; writtenAt: string; gesture: string | null; done: boolean; reply: string };
+      payload: { comment: number; board: number; url: string; author: string; writtenAt: string; gesture: string | null; done: boolean; reply: string; request?: string };
     }
   // La réponse au geste `comment` est postée sous lui. Tant qu'elle ne l'est
   // pas — GitHub l'a refusée —, la box la reposte au passage suivant.

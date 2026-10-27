@@ -141,8 +141,8 @@ test("le tableau publié porte les cooks en cours — quel ticket, quel cook, su
 
 test("les champs publiés avant la vue du rail sont toujours là, inchangés : la vue du rail s'y ajoute sans changer la version", (t) => {
   const { etat, tableau, publie } = projet(t);
-  assert.deepEqual(Object.keys(publie), ["projet", "lu", "file", "bilans", "cuisine", "faits", "lignesDuRail"]);
-  const { faits: _faits, lignesDuRail: _lignes, ...avant } = tableau;
+  assert.deepEqual(Object.keys(publie), ["projet", "lu", "file", "bilans", "cuisine", "faits", "lignesDuRail", "fileDeStatus"]);
+  const { faits: _faits, lignesDuRail: _lignes, fileDeStatus: _file, ...avant } = tableau;
   const sansCartes = tableauDeLaCuisine(etat, LU_LE);
   assert.deepEqual(avant, { projet: sansCartes.projet, lu: sansCartes.lu, file: sansCartes.file, bilans: sansCartes.bilans, cuisine: sansCartes.cuisine });
   assert.ok(rendreLeTableau(tableau, GENERE_LE).includes('{"version":1,'));

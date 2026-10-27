@@ -227,6 +227,8 @@ try {
     repertoireEtat,
     repoDir: station.clone,
     github: ouvrirGitHub({ depot: rail.depot, bin: rail.gh, usage: "geste", ...roleDesGestes }),
+    // Le commentaire du chef sur une issue part sous le `gh` de la box, le sien.
+    githubDuChef: ouvrirGitHub({ depot: rail.depot, bin: rail.gh, usage: "geste" }),
   });
   runtime = brancherLeTableau(alertee, { client: tableau, depot: rail.depot, station: process.env.BRIGADE_STATION_DIR, gestes, mentions: mentionsDuTableau({ client: clientDesGestes, journal: alertee.journal, projet }) });
 } catch (erreur) {
