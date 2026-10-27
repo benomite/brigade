@@ -152,6 +152,10 @@ export type OptionsProjets = {
   // La plateforme de sa machine (`process.platform` par défaut) : un Mac fournit
   // `macos` à la cuisine qu'il rejoint (`rejoindre.ts`).
   plateforme?: string;
+  // Les cuisines qu'elle a rejointes, à chaque lecture, et son gist
+  // d'appairage, où elle pose ses demandes : la station y cuit
+  // (`tirer-par-github/cuisiner.ts`). Absent : elle n'y cuit pas.
+  surLesRejointes?: (rejointes: readonly CuisineRejointe[], gist: string) => void;
 };
 
 // Ce que l'app demande, tel qu'une lecture le rend : le gist où la station le
@@ -684,6 +688,7 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
       if (arrete) return;
       if (rejointesDoc !== rejointesPubliees && (await canal.ecrire(appairage, { [FICHIER_REJOINTES]: rejointesDoc })) !== "absent") rejointesPubliees = rejointesDoc;
       if (arrete) return;
+      options.surLesRejointes?.(rejointes, appairage);
     }
     // Le suivi ne se réécrit que s'il a changé : un gist n'est pas un journal.
     const compare = JSON.stringify({ suivi, onboarding });
