@@ -61,18 +61,18 @@ test("la forme d'une cuisine connue est figée, au caractère près : un champ r
   assert.equal(
     JSON.stringify(lire(`${JOUR_HORLOGE}T10:04:11.000Z`).forme),
     `{"etat":"ouverte","lu":"${JOUR_HORLOGE}T10:04:11.000Z","dernierTick":"${JOUR_HORLOGE}T10:00:15.000Z",` +
-      `"compteurs":{"rail":2,"auTravail":1,"aLaPass":1,"attend":1,"livres24h":1},` +
+      `"compteurs":{"rail":2,"auTravail":1,"aLaPass":1,"attend":0,"livres24h":1},` +
       `"dernierEvenement":{"seq":15,"at":"${JOUR_HORLOGE}T10:00:14.000Z","type":"ticket.served","ticket":19},` +
       `"rail":[` +
-      `{"ticket":14,"etat":"pris","titre":"Ticket 14","url":"https://exemple.test/14","depuis":"${JOUR_HORLOGE}T10:00:08.000Z","activite":{"fait":"la station prépare le poste du cook","cible":null,"depuis":"${JOUR_HORLOGE}T10:00:08.000Z"},"attente":null,"tiers":null,"revenu":null,"raison":null},` +
-      `{"ticket":15,"etat":"en pass","titre":"Ticket 15","url":"https://exemple.test/15","depuis":"${JOUR_HORLOGE}T10:00:10.000Z","activite":null,"attente":null,"tiers":null,"revenu":null,"raison":null},` +
-      `{"ticket":16,"etat":"en attente","titre":"Ticket 16","url":"https://exemple.test/16","depuis":"${JOUR_HORLOGE}T10:00:03.000Z","activite":null,"attente":null,"tiers":null,"revenu":null,"raison":null},` +
-      `{"ticket":17,"etat":"86","titre":"Ticket 17","url":"https://exemple.test/17","depuis":"${JOUR_HORLOGE}T10:00:11.000Z","activite":null,"attente":{"raison":"attend : quota du compte épuisé","colonne":"86","retour":"${JOUR_HORLOGE}T15:00:00.000Z"},"tiers":null,"revenu":null,"raison":null},` +
-      `{"ticket":19,"etat":"servi","titre":"Ticket 19","url":"https://exemple.test/19","depuis":"${JOUR_HORLOGE}T10:00:14.000Z","activite":null,"attente":null,"tiers":null,"revenu":null,"raison":null},` +
-      `{"ticket":18,"etat":"BLOQUÉ","titre":"Ticket 18","url":"https://exemple.test/18","depuis":"${JOUR_HORLOGE}T10:00:06.000Z","activite":null,"attente":null,"tiers":null,"revenu":null,"raison":null}],` +
+      `{"ticket":14,"etat":"pris","titre":"Ticket 14","url":"https://exemple.test/14","depuis":"${JOUR_HORLOGE}T10:00:08.000Z","activite":{"fait":"la station prépare le poste du cook","cible":null,"depuis":"${JOUR_HORLOGE}T10:00:08.000Z"},"attente":null,"tiers":null,"raison":null},` +
+      `{"ticket":15,"etat":"en pass","titre":"Ticket 15","url":"https://exemple.test/15","depuis":"${JOUR_HORLOGE}T10:00:10.000Z","activite":null,"attente":null,"tiers":null,"raison":null},` +
+      `{"ticket":16,"etat":"en attente","titre":"Ticket 16","url":"https://exemple.test/16","depuis":"${JOUR_HORLOGE}T10:00:03.000Z","activite":null,"attente":null,"tiers":null,"raison":null},` +
+      `{"ticket":17,"etat":"86","titre":"Ticket 17","url":"https://exemple.test/17","depuis":"${JOUR_HORLOGE}T10:00:11.000Z","activite":null,"attente":{"raison":"attend : quota du compte épuisé","colonne":"86","retour":"${JOUR_HORLOGE}T15:00:00.000Z"},"tiers":null,"raison":null},` +
+      `{"ticket":19,"etat":"servi","titre":"Ticket 19","url":"https://exemple.test/19","depuis":"${JOUR_HORLOGE}T10:00:14.000Z","activite":null,"attente":null,"tiers":null,"raison":null},` +
+      `{"ticket":18,"etat":"en attente","titre":"Ticket 18","url":"https://exemple.test/18","depuis":"${JOUR_HORLOGE}T10:00:06.000Z","activite":null,"attente":null,"tiers":null,"raison":null}],` +
       `"cooks":[],` +
-      `"attend":[{"ticket":18,"titre":"Ticket 18","url":"https://exemple.test/18","decision":{"quoi":"bloque","motif":null,"cause":null,"pr":null},` +
-      `"carte":{"type":"bloque","resume":"#18 waits for #12, which left the rail without being served.","question":null,"choix":[{"texte":"Take it off the rail","suite":"drop"}],"reponseLibre":true,"secondaire":{"action":"ask-second","texte":"ask the second"},"captures":null}}],` +
+      // #18 attend #12, parti l'issue ouverte : il l'attend sur le rail, et rien n'attend le chef (#1834).
+      `"attend":[],` +
       `"livres":[{"ticket":19,"titre":"Ticket 19","url":"https://exemple.test/19","livre":"${JOUR_HORLOGE}T10:00:14.000Z","station":"box/claude-opus","pr":null,"relecture":null}],` +
       `"urgence":null,"retenues":[],"stations":[]}`,
   );
@@ -168,16 +168,17 @@ test("un ticket mis de côté faute de station se lit en WAITING : ce qu'il atte
   assert.deepEqual([autre?.ticket, autre?.etat, autre?.attente?.colonne, autre?.tiers], [15, "86", "86", null]);
 });
 
-test("un ticket du rail qui attend garde l'adresse et le titre du rail, quel que soit le dépôt", (t) => {
+test("un ticket du rail qui en attend un autre, parti l'issue ouverte, n'attend pas le chef : il l'attend sur le rail (#1834)", (t) => {
   const { noter, journal } = cuisine(t);
   noter({ type: "ticket.arrived", payload: { title: "Ticket 18", priority: 1, createdAt: "2026-10-01T00:00:18Z", url: "https://exemple.test/18", card: { waitsFor: [12], zone: [], problems: [] } } }, 18, "github");
   const a = new Date(`${JOUR_HORLOGE}T10:04:11.000Z`);
 
   assert.deepEqual(faits(lireEtat(journal, a), a, "acme/brigade").attend.map(({ ticket }) => ticket), []);
   noter({ type: "ticket.left", payload: { reason: "unfired" } }, 12, "github");
+  assert.deepEqual(faits(lireEtat(journal, a), a, "acme/brigade").attend, []);
   assert.deepEqual(
-    faits(lireEtat(journal, a), a, "acme/brigade").attend.map(({ carte, ...attendu }) => ({ ...attendu, choix: carte.choix })),
-    [{ ticket: 18, titre: "Ticket 18", url: "https://exemple.test/18", decision: { quoi: "bloque", motif: null, cause: null, pr: null }, choix: [{ texte: "Take it off the rail", suite: "drop" }] }],
+    faits(lireEtat(journal, a), a, "acme/brigade").rail.map(({ ticket, etat, url }) => [ticket, etat, url]),
+    [[18, "en attente", "https://exemple.test/18"]],
   );
 });
 
@@ -193,10 +194,11 @@ test("la forme et le texte de `status` disent la même chose : le rail ticket pa
     forme.rail.map(({ ticket, etat, titre }) => [`#${ticket}`, enAnglais[etat] ?? etat, titre]),
     lignes.map((ligne) => ligne.trim().split("  ")).map((champs) => [champs[0], champs[1], champs.at(-1)]),
   );
-  assert.ok(texte.includes("rail       1 taken · 1 in pass · 1 queued · 1 BLOCKED · 1 86 · 1 served"));
+  assert.ok(texte.includes("rail       1 taken · 1 in pass · 2 queued · 1 86 · 1 served"));
   const { rail, auTravail, aLaPass, attend } = forme.compteurs;
   assert.deepEqual([auTravail, aLaPass, rail], [1, 1, 1 + 1]);
-  assert.ok(texte.some((ligne) => ligne.startsWith(`awaiting   ${attend} ${attend === 1 ? "decision awaits" : "decisions await"} the chef`)));
+  assert.equal(attend, 0);
+  assert.ok(texte.includes("awaiting   nothing awaits the chef"));
   const dernier = forme.dernierEvenement;
   assert.ok(dernier && texte.at(-1)?.startsWith(`  ${dernier.seq}  ${dernier.at}  brigade  #${dernier.ticket}  ${dernier.type}  `));
 });
@@ -552,7 +554,7 @@ test("la commande rend la forme sur une seule ligne de JSON, sans rien écrire a
   assert.deepEqual(forme.plafondDeCalibrage, { modele: "opus", effort: "high", parLeChef: { modele: false, effort: false } });
   // La commande lit à l'heure de la machine : le service de cette cuisine,
   // daté du jour de l'horloge des tests, a plus de 24 h.
-  assert.deepEqual(forme.compteurs, { rail: 2, auTravail: 1, aLaPass: 1, attend: 1, livres24h: 0 });
+  assert.deepEqual(forme.compteurs, { rail: 2, auTravail: 1, aLaPass: 1, attend: 0, livres24h: 0 });
   assert.deepEqual(forme.livres, []);
   assert.ok(Math.abs(Date.parse(forme.lu) - Date.now()) < 3_600_000);
   assert.deepEqual([journal.tout(), photographier(journal, PROJECTIONS)], avant);
