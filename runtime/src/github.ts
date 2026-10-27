@@ -269,6 +269,9 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
   // Cache, pas état : le perdre coûte une requête pleine, rien de plus. Un
   // ETag par liste sondée.
   const etags = new Map<string, string>();
+  // La dernière liste lue par chemin, sous son ETag : rendue sur un 304 tant
+  // qu'elle n'est pas confirmée.
+  const lues = new Map<string, { etag: string; issues: Issue[] }>();
 
   // Une réponse HTTP, quel que soit son statut. `gh` sort en erreur sur un 304
   // ou un 404 : c'est la réponse qui fait foi, pas le code de sortie.
@@ -355,12 +358,19 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
   // Une liste lue de sa première page à sa dernière, sous condition.
   const lireLaListe = async (chemin: string): Promise<Reponse[]> => feuilleter(await lireSousCondition([chemin], true), chemin);
 
-  // Une liste d'issues, sous l'ETag de sa dernière lecture confirmée.
+  // Une liste d'issues, toujours sous l'ETag de sa dernière lecture. Confirmée,
+  // un 304 dit « inchangé ». Non confirmée — le consommateur a encore à faire
+  // sur elle —, un 304 rend la liste gardée : le travail reste à refaire, mais
+  // GitHub ne compte pas l'appel, et la liste n'est pas relue en entier.
   const sonder = async <I extends Issue>(chemin: string, lireIssue: (brute: IssueBrute) => I): Promise<Sondage<I>> => {
-    const etag = etags.get(chemin);
-    const premiere = await appeler([...(etag ? ["-H", `If-None-Match: ${etag}`] : []), chemin]);
-    if (premiere.statut === 304) return { inchange: true };
+    const lue = lues.get(chemin) as { etag: string; issues: I[] } | undefined;
+    const premiere = await appeler([...(lue ? ["-H", `If-None-Match: ${lue.etag}`] : []), chemin]);
+    if (lue && premiere.statut === 304) {
+      if (etags.get(chemin) === lue.etag) return { inchange: true };
+      return { inchange: false, issues: lue.issues, confirmer: () => void etags.set(chemin, lue.etag) };
+    }
     etags.delete(chemin);
+    lues.delete(chemin);
     const pages = await feuilleter(premiere, chemin);
     const issues = pages
       .flatMap((page) => JSON.parse(page.corps) as IssueBrute[])
@@ -369,7 +379,8 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
     // Au-delà d'une page, un changement en page 2 ne se verrait pas dans
     // l'ETag de la première : le sondage reste alors inconditionnel.
     const empreinte = pages.length === 1 ? (premiere.entetes.get("etag") ?? null) : null;
-    return { inchange: false, issues, confirmer: () => void (empreinte === null ? etags.delete(chemin) : etags.set(chemin, empreinte)) };
+    if (empreinte !== null && empreinte !== "") lues.set(chemin, { etag: empreinte, issues });
+    return { inchange: false, issues, confirmer: () => void (empreinte === null || empreinte === "" ? etags.delete(chemin) : etags.set(chemin, empreinte)) };
   };
 
   const lireOuverte = (brute: IssueBrute): IssueOuverte => ({ ...lire(brute), body: brute.body ?? "", association: brute.author_association ?? "NONE" });
