@@ -12,6 +12,16 @@ You write a ticket and put the label `fire` on it. A **cook** (a `claude` sessio
 
 A desktop app shows all of it: your projects, the **rail** of tickets (queued, taken, in the pass, served), the cooks in flight, and a terminal where **the second** — your product assistant — helps you write and prioritize tickets. Everything the system knows lives in durable artifacts (issues, labels, branches, pull requests, a local journal), never in a session's memory: if a cook dies, the committed work survives and the next one picks up from there.
 
+### GitHub is all an app needs
+
+The apps — desktop and phone — need **only your GitHub account** to show and steer your kitchen: the rail, the kitchen's state, the cards that wait for you, and every gesture (merge, remove, answer a card, change a priority). The stations publish everything on a **Kitchen board** issue in each repository and read your gestures from GitHub. No app ever reaches a station by `ssh`.
+
+Three things are outside that rule, on purpose:
+
+- **Watching a cook live** in its terminal reaches the machine it runs on (desktop app only).
+- **The second** is a Claude session on your computer: it needs your Claude account too.
+- **Installing a station** happens once, on that machine, with your Claude Max session.
+
 ## Try it
 
 1. Download the app (macOS, Apple silicon, or Windows x64) or the station package (Debian/Ubuntu, with systemd) from the **[releases page](https://github.com/benomite/brigade/releases)**.
