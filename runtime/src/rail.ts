@@ -2,12 +2,12 @@
 // et le faire avancer jusqu'au service. Chaque geste vérifie puis écrit dans
 // une seule transaction d'écriture : deux gestes concurrents se suivent, ils ne
 // se croisent pas.
-import { BAIL_ECHU, FIN_DE_86, PAR_LE_CHEF, REVENU_D_ATTENTE, type AccesRefuse, type FaitRail } from "./events/rail.ts";
+import { BAIL_ECHU, FIN_DE_86, type AccesRefuse, type FaitRail } from "./events/rail.ts";
 import { fournitTout } from "./capacites.ts";
 import { illisible, requises } from "./fiche.ts";
 import type { Journal } from "./journal.ts";
 import { cooksEnCours } from "./projections/guardrails.ts";
-import { communsDuRail, lireRail, ticketDuRail, type Etat, type TicketRail } from "./projections/rail.ts";
+import { communsDuRail, lireRail, ticketDuRail, type Attendu, type Etat, type TicketRail } from "./projections/rail.ts";
 import { recouvrement } from "./zones.ts";
 
 // Le geste ne s'applique pas à l'état du rail : ticket absent, déjà pris, tenu
@@ -91,14 +91,14 @@ export function nomEtatEn(etat: Etat): string {
 }
 
 // Ce qui retient un ticket en attente : des tickets de sa fiche pas encore
-// servis (`attend`) ou, plus grave, dont l'un a été abandonné (`bloque`) —
-// celui-là ne partira pas sans un geste du chef. Ou, quand rien de cela ne le
+// servis (`attend`) — sur le rail, ou partis l'issue encore ouverte : il les
+// attend sur le rail, jamais dans TODO (#1834). Ou, quand rien de cela ne le
 // retient, sa zone (`zone`) : un ticket parti et pas encore servi en tient un
 // chemin.
-export function retenue(ticket: TicketRail): "attend" | "bloque" | "zone" | null {
+export function retenue(ticket: TicketRail): "attend" | "zone" | null {
   if (ticket.state !== "waiting") return null;
   if (ticket.awaits.length === 0) return ticket.held.length === 0 ? null : "zone";
-  return ticket.awaits.some((attendu) => attendu.left !== null) ? "bloque" : "attend";
+  return "attend";
 }
 
 export const BLOQUE = "BLOQUÉ";
@@ -110,12 +110,12 @@ const GELE = "bloqué";
 const DIT_GELE = "86 sans heure de retour, non jugé par la pass";
 
 // L'état d'un ticket tel que le rail le montre : en attente et bloqué sont le
-// même état au journal, pas le même à l'œil. Bloqué : un ticket qu'il attend a
-// été abandonné, ou gelé — 86 sans heure de retour, que la pass n'a pas jugé.
-// De même, WAITING est un 86 : celui d'un ticket en attente d'un tiers.
+// même état au journal, pas le même à l'œil. Bloqué : un ticket qu'il attend
+// est gelé — 86 sans heure de retour, que la pass n'a pas jugé. De même,
+// WAITING est un 86 : celui d'un ticket en attente d'un tiers.
 export function etatLu(ticket: TicketRail): string {
   if (ticket.waitingFor !== null) return EN_WAITING;
-  return retenue(ticket) === "bloque" || ticket.frozenBy.length > 0 ? BLOQUE : nomEtat(ticket.state);
+  return ticket.frozenBy.length > 0 ? BLOQUE : nomEtat(ticket.state);
 }
 
 export const BLOQUE_EN = "BLOCKED";
@@ -123,7 +123,7 @@ export const BLOQUE_EN = "BLOCKED";
 // L'état lu en anglais : le même que `etatLu`, mot pour mot traduit.
 export function etatLuEn(ticket: TicketRail): string {
   if (ticket.waitingFor !== null) return EN_WAITING;
-  return retenue(ticket) === "bloque" || ticket.frozenBy.length > 0 ? BLOQUE_EN : nomEtatEn(ticket.state);
+  return ticket.frozenBy.length > 0 ? BLOQUE_EN : nomEtatEn(ticket.state);
 }
 
 const ABANDONS: Record<string, string> = {
@@ -152,20 +152,18 @@ export function nomAbandonEn(motif: string): string {
 const GELE_EN = "blocked";
 const DIT_GELE_EN = "86 with no return time, not judged by the pass";
 
-const numeros = (tickets: { ticket: number }[]) => tickets.map(({ ticket }) => `#${ticket}`).join(", ");
+// Un ticket attendu parti du rail l'issue encore ouverte, en clair.
+const parti = (attendu: Attendu) => `#${attendu.ticket} (hors du rail, issue ouverte : ${nomAbandon(attendu.left?.reason ?? "")})`;
+const partiEn = (attendu: Attendu) => `#${attendu.ticket} (off the rail, issue still open: ${nomAbandonEn(attendu.left?.reason ?? "")})`;
 
 // Pourquoi un ticket en attente ne part pas, ou null si rien ne le retient.
 export function direRetenue(ticket: TicketRail): string | null {
   if (retenue(ticket) === null) return null;
-  const abandonnes = ticket.awaits.filter((attendu) => attendu.left !== null);
-  const enCours = ticket.awaits.filter((attendu) => attendu.left === null);
   const gele = (attendu: { ticket: number }) => ticket.frozenBy.includes(attendu.ticket);
-  const bloque = abandonnes.map((attendu) => `#${attendu.ticket} abandonné (${nomAbandon(attendu.left?.reason ?? "")})`).join(", ");
-  const attendus = enCours.filter((attendu) => !gele(attendu));
+  const attendus = ticket.awaits.filter((attendu) => !gele(attendu));
   return [
-    ...(abandonnes.length === 0 ? [] : [bloque]),
-    ...enCours.filter(gele).map((attendu) => `${GELE} par #${attendu.ticket} (${DIT_GELE})`),
-    ...(attendus.length === 0 ? [] : [`attend ${abandonnes.length === 0 ? "" : "aussi "}${numeros(attendus)}`]),
+    ...ticket.awaits.filter(gele).map((attendu) => `${GELE} par #${attendu.ticket} (${DIT_GELE})`),
+    ...(attendus.length === 0 ? [] : [`attend ${attendus.map((attendu) => (attendu.left === null ? `#${attendu.ticket}` : parti(attendu))).join(", ")}`]),
     ...ticket.held.map((tenant) => `zone tenue par #${tenant.ticket} (${tenant.path}${tenant.outside ? ", écrit hors de sa zone" : ""})`),
   ].join(" · ");
 }
@@ -173,17 +171,26 @@ export function direRetenue(ticket: TicketRail): string | null {
 // La même, en anglais : ce que dit la ligne du ticket dans `status`.
 export function direRetenueEn(ticket: TicketRail): string | null {
   if (retenue(ticket) === null) return null;
-  const abandonnes = ticket.awaits.filter((attendu) => attendu.left !== null);
-  const enCours = ticket.awaits.filter((attendu) => attendu.left === null);
   const gele = (attendu: { ticket: number }) => ticket.frozenBy.includes(attendu.ticket);
-  const bloque = abandonnes.map((attendu) => `#${attendu.ticket} dropped (${nomAbandonEn(attendu.left?.reason ?? "")})`).join(", ");
-  const attendus = enCours.filter((attendu) => !gele(attendu));
+  const attendus = ticket.awaits.filter((attendu) => !gele(attendu));
   return [
-    ...(abandonnes.length === 0 ? [] : [bloque]),
-    ...enCours.filter(gele).map((attendu) => `${GELE_EN} by #${attendu.ticket} (${DIT_GELE_EN})`),
-    ...(attendus.length === 0 ? [] : [`${abandonnes.length === 0 ? "" : "also "}awaiting ${numeros(attendus)}`]),
+    ...ticket.awaits.filter(gele).map((attendu) => `${GELE_EN} by #${attendu.ticket} (${DIT_GELE_EN})`),
+    ...(attendus.length === 0 ? [] : [`awaiting ${attendus.map((attendu) => (attendu.left === null ? `#${attendu.ticket}` : partiEn(attendu))).join(", ")}`]),
     ...ticket.held.map((tenant) => `zone held by #${tenant.ticket} (${tenant.path}${tenant.outside ? ", written outside its zone" : ""})`),
   ].join(" · ");
+}
+
+// Les attentes que la cuisine a levées d'elle-même : un ticket de la fiche
+// fermé sans avoir été servi n'est plus attendu, et le rail le dit (#1834).
+// Null s'il n'y en a pas.
+export function direAttentesLevees(ticket: TicketRail): string | null {
+  if (ticket.dropped.length === 0) return null;
+  return ticket.dropped.map(({ ticket: attendu, reason }) => `#${attendu} ${reason === "gone" ? "a disparu" : "a été fermé"} sans avoir été servi : il n'est plus attendu`).join(" · ");
+}
+
+export function direAttentesLeveesEn(ticket: TicketRail): string | null {
+  if (ticket.dropped.length === 0) return null;
+  return ticket.dropped.map(({ ticket: attendu, reason }) => `#${attendu} was ${reason === "gone" ? "deleted" : "closed"} without being served: no longer awaited`).join(" · ");
 }
 
 // Ce que la file montre d'un ticket que sa dernière livraison a fait écrire
@@ -256,20 +263,9 @@ export function ouvrirRail(journal: Journal, options: OptionsRail): Rail {
         } else if (ticket.state === "86" && ticket.until !== null && ticket.until <= instant) {
           noter(ticket.ticket, undefined, { type: "ticket.released", payload: { reason: FIN_DE_86, station: null } });
           rendus++;
-        } else if (ticket.state === "86" && ticket.reason === REVENU_D_ATTENTE && ticket.resumedBecause !== null && ticket.resumedBecause !== PAR_LE_CHEF) {
-          // Remis devant le chef par une ancienne version (« relance du 27/10 »,
-          // « nouveau sur l'issue ») sans qu'il l'ait fait : un ticket ne quitte
-          // WAITING que sur son geste. Il y retourne, pour ce qu'il attendait ;
-          // sa relance, déjà passée, se lit sur sa carte WAITING.
-          const [dernier] = base.lire<{ what: unknown; who: unknown; followUp: unknown }>(
-            "SELECT json_extract(payload, '$.what') AS what, json_extract(payload, '$.who') AS who, json_extract(payload, '$.followUp') AS followUp FROM events WHERE ticket = ? AND type = 'ticket.waiting' ORDER BY seq DESC LIMIT 1",
-            ticket.ticket,
-          );
-          if (typeof dernier?.what === "string" && typeof dernier.who === "string" && typeof dernier.followUp === "string") {
-            noter(ticket.ticket, undefined, { type: "ticket.waiting", payload: { what: dernier.what, who: dernier.who, followUp: dernier.followUp } });
-            rendus++;
-          }
         }
+        // Un ticket en WAITING dont la relance est atteinte y reste : la relance
+        // dit de relancer le tiers, pas de le rendre au chef (#1834).
       }
       return rendus;
     });

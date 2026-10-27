@@ -172,6 +172,9 @@ class HorsBranche extends Error {}
 const HEURE = 3_600_000;
 // Un quota épuisé qui ne dit pas quand il revient est retenté une heure après.
 const REPLI_QUOTA_MS = HEURE;
+// Un ticket que le modèle a refusé trois fois d'affilée est retenté un jour
+// après : la cuisine l'a mis de côté, elle l'y reprend seule (#1834).
+export const REPLI_REFUS_MS = 24 * HEURE;
 // Un worktree impossible à préparer (origine injoignable) : le ticket est
 // reproposé dix minutes plus tard, sans cook perdu.
 const REPLI_WORKTREE_MS = 600_000;
@@ -1585,19 +1588,20 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
         return;
       }
       // Le modèle a refusé de répondre : ni une panne ni un échec du cook. Le
-      // ticket repart, puis remonte au chef si le refus se répète — le
-      // relancer sans fin à l'identique n'y changerait rien.
+      // ticket repart, puis, si le refus se répète, est mis de côté un jour —
+      // le relancer sans fin à l'identique n'y changerait rien. Il n'attend pas
+      // le chef : il repart seul à son heure de retour (#1834).
       case "refused": {
         const refus = refusDAffilee(base, `${numero}-`);
         const remonte = refus >= REFUS_MAX;
         // Faux : le ticket a quitté la station pendant la cuisson, le rail n'a
         // pas bougé — le commentaire ne dit que ce qui a été fait.
         const tenu = base.transaction(() => {
-          const fait = geste(() => (remonte ? rail.quatreVingtSix(numero, { motif: REFUS, station }) : rail.rendre(numero, REFUS, station)));
+          const fait = geste(() => (remonte ? rail.quatreVingtSix(numero, { motif: REFUS, retour: new Date(maintenant().getTime() + REPLI_REFUS_MS), station }) : rail.rendre(numero, REFUS, station)));
           rapporter("refused", conclusion?.raison ?? null, null);
           return fait;
         });
-        if (tenu && remonte) avertir(`brigade : le modèle a refusé ${refus} fois d'affilée le ticket #${numero} — remonté au chef`);
+        if (tenu && remonte) avertir(`brigade : le modèle a refusé ${refus} fois d'affilée le ticket #${numero} — mis de côté un jour`);
         await commenter(
           numero,
           [
@@ -1607,7 +1611,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
             !tenu
               ? "La station ne tenait plus ce ticket quand son cook a fini : elle ne l'a ni rendu ni remonté, le rail le montre tel qu'il est."
               : remonte
-              ? `**Remonté au chef.** ${REFUS_MAX} refus d'affilée : le ticket est 86, aucun cook n'est relancé — le même ticket, relancé à l'identique, serait sans doute refusé encore. Reformule-le, ou change son calibrage ; retirer puis reposer \`fire\` le remet sur le rail.`
+              ? `**Mis de côté un jour.** ${REFUS_MAX} refus d'affilée : le ticket est 86, et un cook neuf le reprend dans un jour, seul — le même ticket, relancé à l'identique tout de suite, serait sans doute refusé encore. Le reformuler ou changer son calibrage d'ici là y aide ; retirer puis reposer \`fire\` le remet sur le rail sans attendre.`
               : "Le ticket est revenu en attente : un cook neuf le reprendra.",
             ...(compteRendu ? ["", ...rendu.publie] : []),
           ].join("\n"),

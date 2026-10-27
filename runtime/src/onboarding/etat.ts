@@ -16,7 +16,7 @@
 // (son suivi du projet, son clone) et du journal du projet (`lire.ts`). Les
 // phrases sont en anglais : c'est l'app qui les montre.
 import { CAUSES_DU_PROJET } from "../mise-de-cote.ts";
-import { ATTEND_UN_TIERS, REVENU_D_ATTENTE, SANS_STATION, STATION_ABSENTE } from "../events/rail.ts";
+import { ATTEND_UN_TIERS, SANS_STATION, STATION_ABSENTE } from "../events/rail.ts";
 import type { Phase } from "../projections/pass.ts";
 import type { Etat as EtatDuRail } from "../projections/rail.ts";
 import type { SuiviDuProjet } from "../projets/demande.ts";
@@ -132,7 +132,6 @@ const RAISONS: Record<string, string> = {
   "pass:unjudged": "the pass could not judge its delivery",
   "pass:still-red": "the pass still finds its delivery red",
   [ATTEND_UN_TIERS]: "it waits for a third party",
-  [REVENU_D_ATTENTE]: "it came back from waiting for a third party",
 };
 
 // Sans majuscule ni point : `raisonEnClair` en fait une phrase.

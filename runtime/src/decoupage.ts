@@ -21,7 +21,7 @@ import { bilanDEpique } from "./bilan-epique.ts";
 import { creationsAnnoncees, decoupageDe, epiqueServie, epiquesDecoupees, ticketDEpique, ticketsDEpique, type Decoupage, type TicketDEpique } from "./projections/splits.ts";
 import { communsDuRail, livresDepuis, sortDuTicket, ticketDuRail } from "./projections/rail.ts";
 import { capacitesFournies } from "./projections/stations.ts";
-import { direRetenue, nomAbandon, nomEtat, retenue } from "./rail.ts";
+import { direRetenue, nomAbandon, nomEtat } from "./rail.ts";
 
 // Ce qu'un jugement rend : sa réponse lue, ou ce qui la rend illisible. Null :
 // il n'a pas abouti, et reste à faire.
@@ -72,9 +72,7 @@ function ligne(journal: Journal, ticket: TicketDEpique): LigneDeListe {
           ? `WAITING — attend ${sur.waitingFor.who}`
           : sur.state === "86"
           ? `86 (${sur.reason})`
-          : retenue(sur) === "bloque"
-            ? `bloqué — ${direRetenue(sur)}`
-            : (direRetenue(sur) ?? nomEtat(sur.state));
+          : (direRetenue(sur) ?? nomEtat(sur.state));
     return { ticket: ticket.ticket, title, state: etat, served: sur.state === "served" };
   }
   const sort = sortDuTicket(base, ticket.ticket);

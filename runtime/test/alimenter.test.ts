@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { alimenter, avecRail, configRail, priorite } from "../src/alimenter.ts";
+import { attentesDuChef } from "../src/attend.ts";
 import { cestArrive, mettreEnAttente } from "../src/attente.ts";
-import { signalerBlocages } from "../src/dependances.ts";
+import { signalerAttentesLevees } from "../src/dependances.ts";
 import { MARQUEUR } from "../src/fiche.ts";
 import type { Commentaire, GitHub, Issue } from "../src/github.ts";
 import { ouvrirJournal, type Journal } from "../src/journal.ts";
-import { communsDuRail, lireRail } from "../src/projections/rail.ts";
-import { ouvrirRail } from "../src/rail.ts";
+import { communsDuRail, lireRail, type TicketRail } from "../src/projections/rail.ts";
+import { direRetenue, ouvrirRail } from "../src/rail.ts";
 import { ConfigInvalide, demarrer } from "../src/runtime.ts";
 import { DEPOT, jusqua, repertoireTemporaire } from "./outils.ts";
 
@@ -277,8 +278,12 @@ test("une fiche que le journal n'a pas, sur une issue déjà changée à cette d
   assert.equal(await alimenter(journal, gh.github, CIBLE), 0);
 });
 
-const attendus = (rail: { tickets(): ReturnType<typeof lireRail> }, numero: number) =>
-  rail.tickets().find(({ ticket }) => ticket === numero)?.awaits.map((attendu) => [attendu.ticket, attendu.left?.reason ?? null]);
+// Ce que le rail sait de chaque ticket que la fiche attend : encore attendu, et
+// parti ou non ; ou fermé sans avoir été servi, plus attendu (« levée », #1834).
+const attendus = (rail: { tickets(): ReturnType<typeof lireRail> }, numero: number) => {
+  const sur = rail.tickets().find(({ ticket }) => ticket === numero);
+  return sur && [...sur.awaits.map((attendu) => [attendu.ticket, attendu.left?.reason ?? null]), ...sur.dropped.map((leve) => [leve.ticket, leve.reason, "levée"])];
+};
 
 test("un cycle de dépendances est refusé à la lecture des fiches : chacun de ses tickets le porte, nommé en entier", async (t) => {
   const { journal, rail } = cuisine(t);
@@ -375,12 +380,12 @@ test("un ticket attendu, fermé sans être jamais entré sur le rail, est un aba
 
   assert.deepEqual(faits(journal), [[14, "ticket.arrived", "github"], [12, "ticket.left", "github"]]);
   assert.deepEqual(journal.duTicket(12)[0]?.payload, { reason: "closed" });
-  assert.deepEqual(attendus(rail, 14), [[12, "closed"]]);
+  assert.deepEqual(attendus(rail, 14), [[12, "closed", "levée"]]);
   // Plus rien à guetter : le sondage redevient conditionnel.
   assert.equal(gh.compte.confirmes, 1);
 });
 
-test("un ticket attendu, ouvert mais jamais entré sur le rail, est guetté à chaque sondage : fermé, il devient un abandon", async (t) => {
+test("un ticket attendu, ouvert mais jamais entré sur le rail, est guetté à chaque sondage : fermé, il n'est plus attendu", async (t) => {
   const { journal, rail } = cuisine(t);
   const gh = depot(issue(13, { labels: [] }), issue(14));
   gh.commenter(14, "2026-10-08T09:00:00Z", ficheDe("- attend : #13"));
@@ -393,7 +398,7 @@ test("un ticket attendu, ouvert mais jamais entré sur le rail, est guetté à c
   gh.poser(issue(13, { labels: [], state: "closed", updatedAt: "2026-10-08T11:00:00Z" }));
   assert.equal(await alimenter(journal, gh.github, CIBLE, fiches), 1);
 
-  assert.deepEqual([attendus(rail, 14), gh.compte.confirmes], [[[13, "closed"]], 1]);
+  assert.deepEqual([attendus(rail, 14), gh.compte.confirmes], [[[13, "closed", "levée"]], 1]);
 });
 
 test("un ticket attendu que le journal a servi, ou vu partir, ne se guette pas : le sondage reste conditionnel", async (t) => {
@@ -428,38 +433,42 @@ test("un ticket `hors-cuisine` n'entre pas sur le rail même avec `fire`, et en 
   assert.deepEqual(journal.duTicket(12).filter((e) => e.type === "ticket.left").map((e) => e.payload), [{ reason: "hors-cuisine" }]);
 });
 
-test("le chef est averti d'un ticket bloqué : un fait au journal et un commentaire sur l'issue, une fois par abandon", async (t) => {
+test("un ticket attendu fermé sans avoir été servi n'est plus attendu : l'issue le dit une fois, un fait au journal et un commentaire, et rien n'attend le chef", async (t) => {
   const { journal, rail } = cuisine(t);
   const gh = depot(issue(14), issue(15), issue(16));
   gh.commenter(14, "2026-10-08T09:00:00Z", ficheDe("- attend : #15, #16"));
   await alimenter(journal, gh.github, CIBLE);
-  assert.equal(await signalerBlocages(journal, gh.github, "brigade"), 0);
+  assert.equal(await signalerAttentesLevees(journal, gh.github, "brigade"), 0);
 
+  // `fire` retiré, l'issue encore ouverte : #14 l'attend toujours, sur le rail, et rien n'est dit.
   gh.poser(issue(15, { labels: [], updatedAt: "2026-10-08T11:00:00Z" }));
   await alimenter(journal, gh.github, CIBLE);
-  assert.equal(await signalerBlocages(journal, gh.github, "brigade"), 1);
-  assert.equal(await signalerBlocages(journal, gh.github, "brigade"), 0);
+  assert.equal(await signalerAttentesLevees(journal, gh.github, "brigade"), 0);
+  assert.deepEqual(attendus(rail, 14), [[15, "unfired"], [16, null]]);
+  assert.equal(direRetenue(rail.tickets()[0] as TicketRail), "attend #15 (hors du rail, issue ouverte : label `fire` retiré), #16");
+  assert.deepEqual(attentesDuChef(journal.base, rail.tickets()), []);
 
-  const bloque = journal.duTicket(14).at(-1);
-  assert.deepEqual([bloque?.type, bloque?.author, bloque?.payload], ["ticket.blocked", "runtime", { by: 15, reason: "unfired" }]);
+  // Fermée sans avoir été servie : l'attente est levée, une fois.
+  gh.poser(issue(15, { state: "closed", updatedAt: "2026-10-08T12:00:00Z" }));
+  await alimenter(journal, gh.github, CIBLE);
+  assert.equal(await signalerAttentesLevees(journal, gh.github, "brigade"), 1);
+  assert.equal(await signalerAttentesLevees(journal, gh.github, "brigade"), 0);
+  const leve = journal.duTicket(14).at(-1);
+  assert.deepEqual([leve?.type, leve?.author, leve?.payload], ["ticket.wait-dropped", "runtime", { by: 15, reason: "closed" }]);
   assert.equal(gh.postes.length, 1);
   assert.equal(gh.postes[0]?.[0], 14);
-  assert.match(gh.postes[0]?.[1] ?? "", /^\*\*Rail — ticket bloqué\.\*\* Il attend #15 \(label `fire` retiré\)/);
-  assert.match(gh.postes[0]?.[1] ?? "", /retirer son numéro de la ligne `attend` de la fiche/);
-  // Le blocage ne change pas l'état du ticket : il attend toujours, bloqué.
-  assert.deepEqual(rail.tickets().map((ticket) => [ticket.ticket, ticket.state]), [[14, "waiting"], [16, "waiting"]]);
+  assert.match(gh.postes[0]?.[1] ?? "", /^\*\*Rail — attente levée\.\*\* #15 a été fermé sans avoir été servi : il n'est plus attendu\./);
+  assert.deepEqual(attendus(rail, 14), [[16, null], [15, "closed", "levée"]]);
+  assert.deepEqual(attentesDuChef(journal.base, rail.tickets()), []);
 
-  // #15 revient, puis repart : c'est un autre abandon, donc un autre avertissement.
-  gh.poser(issue(15, { updatedAt: "2026-10-08T12:00:00Z" }));
+  // #16 fermée sans service à son tour : plus rien ne retient #14, il part.
+  gh.poser(issue(16, { state: "closed", updatedAt: "2026-10-08T13:00:00Z" }));
   await alimenter(journal, gh.github, CIBLE);
-  assert.equal(await signalerBlocages(journal, gh.github, "brigade"), 0);
-  gh.poser(issue(15, { state: "closed", updatedAt: "2026-10-08T13:00:00Z" }));
-  await alimenter(journal, gh.github, CIBLE);
-  assert.equal(await signalerBlocages(journal, gh.github, "brigade"), 1);
-  assert.match(gh.postes[1]?.[1] ?? "", /#15 \(issue fermée sans avoir été servie\)/);
+  assert.equal(await signalerAttentesLevees(journal, gh.github, "brigade"), 1);
+  assert.equal(rail.prendre("box/claude")?.ticket, 14);
 });
 
-test("un ticket attendu parti en laissant une livraison n'est pas dit abandonné avant que la pass ait relu sa PR : mergée, personne n'est bloqué", async (t) => {
+test("un ticket attendu parti en laissant une livraison n'est pas dit levé avant que la pass ait relu sa PR : mergée, il est servi", async (t) => {
   const { journal } = cuisine(t);
   const gh = depot(issue(14), issue(15), issue(16));
   gh.commenter(14, "2026-10-08T09:00:00Z", ficheDe("- attend : #15, #16"));
@@ -477,37 +486,22 @@ test("un ticket attendu parti en laissant une livraison n'est pas dit abandonné
   // Le chef merge la PR de #15 puis ferme l'issue : le sondage voit le départ avant la pass.
   gh.poser(issue(15, { state: "closed", updatedAt: "2026-10-08T11:00:00Z" }));
   await alimenter(journal, gh.github, CIBLE);
-  assert.equal(await signalerBlocages(journal, gh.github, "brigade"), 0);
+  assert.equal(await signalerAttentesLevees(journal, gh.github, "brigade"), 0);
   noter(15, "merge.done", { pr: quinze.pr, sha: "sha-15", by: "outside", reconciled: false, unverified: true });
   noter(15, "pass.abandoned", { branch: quinze.branch, pr: null });
-  assert.equal(await signalerBlocages(journal, gh.github, "brigade"), 0);
+  assert.equal(await signalerAttentesLevees(journal, gh.github, "brigade"), 0);
   assert.deepEqual(gh.postes, []);
 
-  // #16 part sans être mergé : l'abandon est dit dès que la pass a lâché sa livraison.
+  // #16 part sans être mergé : la levée est dite dès que la pass a lâché sa livraison.
   gh.poser(issue(16, { state: "closed", updatedAt: "2026-10-08T12:00:00Z" }));
   await alimenter(journal, gh.github, CIBLE);
-  assert.equal(await signalerBlocages(journal, gh.github, "brigade"), 0);
+  assert.equal(await signalerAttentesLevees(journal, gh.github, "brigade"), 0);
   noter(16, "pass.abandoned", { branch: seize.branch, pr: seize.pr });
-  assert.equal(await signalerBlocages(journal, gh.github, "brigade"), 1);
-  assert.match(gh.postes[0]?.[1] ?? "", /Il attend #16 \(issue fermée sans avoir été servie\)/);
+  assert.equal(await signalerAttentesLevees(journal, gh.github, "brigade"), 1);
+  assert.match(gh.postes[0]?.[1] ?? "", /#16 a été fermé sans avoir été servi : il n'est plus attendu/);
 });
 
-test("un ticket pris n'est pas signalé bloqué : il l'est s'il revient en attente", async (t) => {
-  const { journal, rail } = cuisine(t);
-  const gh = depot(issue(14), issue(15));
-  await alimenter(journal, gh.github, CIBLE);
-  assert.equal(rail.prendre("box/claude")?.ticket, 14);
-  // La fiche arrive après la prise : une dépendance ne reprend pas un ticket parti.
-  gh.commenter(14, "2026-10-08T11:00:00Z", ficheDe("- attend : #15"));
-  gh.poser(issue(15, { labels: [], updatedAt: "2026-10-08T11:00:00Z" }));
-  await alimenter(journal, gh.github, CIBLE);
-  assert.equal(await signalerBlocages(journal, gh.github, "brigade"), 0);
-
-  rail.rendre(14, "station-restarted", "box/claude");
-  assert.equal(await signalerBlocages(journal, gh.github, "brigade"), 1);
-});
-
-test("un commentaire de blocage qui ne part pas ne retient rien : le journal l'a, le runtime le dit", async (t) => {
+test("un commentaire d'attente levée qui ne part pas ne retient rien : le journal l'a, le runtime le dit", async (t) => {
   const { journal } = cuisine(t);
   const gh = depot(issue(12, { state: "closed" }), issue(14));
   gh.commenter(14, "2026-10-08T09:00:00Z", ficheDe("- attend : #12"));
@@ -515,9 +509,9 @@ test("un commentaire de blocage qui ne part pas ne retient rien : le journal l'a
   const erreurs = t.mock.method(console, "error", () => {});
   gh.refuserLesCommentaires(true);
 
-  assert.equal(await signalerBlocages(journal, gh.github, "brigade"), 1);
+  assert.equal(await signalerAttentesLevees(journal, gh.github, "brigade"), 1);
 
-  assert.equal(journal.duTicket(14).at(-1)?.type, "ticket.blocked");
+  assert.equal(journal.duTicket(14).at(-1)?.type, "ticket.wait-dropped");
   assert.match(String(erreurs.mock.calls[0]?.arguments[0]), /commentaire non posté sur le ticket #14 — gh api : HTTP 502/);
 });
 
@@ -763,22 +757,22 @@ test("au tick, un bail échu rend son ticket sans que personne ne le demande", a
   assert.deepEqual(runtime.journal.duTicket(14).map((e) => e.type), ["ticket.arrived", "ticket.taken", "ticket.released"]);
 });
 
-test("le runtime avertit de lui-même : un ticket attendu perd son label, celui qui l'attendait est commenté au sondage qui le voit", async (t) => {
+test("le runtime lève de lui-même l'attente d'un ticket fermé sans avoir été servi : celui qui l'attendait est commenté au sondage qui le voit, et part", async (t) => {
   const gh = depot(issue(14), issue(15));
   gh.commenter(15, "2026-10-08T09:00:00Z", ficheDe("- attend : #14"));
   const runtime = service(t, gh);
   await jusqua(() => runtime.rail.tickets().length === 2);
   assert.deepEqual(gh.postes, []);
 
+  // `fire` retiré : #15 attend toujours #14, sur le rail, et rien n'est dit.
   gh.poser(issue(14, { labels: [], updatedAt: "2026-10-08T11:00:00Z" }));
+  await jusqua(() => runtime.rail.tickets().length === 1);
+  assert.equal(runtime.rail.prendre("box/claude"), null);
 
+  gh.poser(issue(14, { labels: [], state: "closed", updatedAt: "2026-10-08T12:00:00Z" }));
   await jusqua(() => gh.postes.length === 1);
   assert.equal(gh.postes[0]?.[0], 15);
-  assert.equal(runtime.rail.prendre("box/claude"), null);
-  // Le label revient : plus rien ne bloque, sans geste de plus.
-  gh.poser(issue(14, { updatedAt: "2026-10-08T12:00:00Z" }));
-  await jusqua(() => runtime.rail.tickets().length === 2);
-  assert.equal(runtime.rail.prendre("box/claude")?.ticket, 14);
+  assert.equal(runtime.rail.prendre("box/claude")?.ticket, 15);
   assert.equal(gh.postes.length, 1);
 });
 
@@ -794,7 +788,7 @@ test("le runtime porte de lui-même sur l'issue la mise en WAITING que le chef a
 
   cestArrive(runtime.journal, "brigade", 14);
   await jusqua(() => gh.postes.length === 2);
-  assert.match(gh.postes[1]?.[1] ?? "", /^\*\*WAITING levé\*\*.*c'est arrivé : il repart en cuisine/);
+  assert.match(gh.postes[1]?.[1] ?? "", /^\*\*WAITING levé\*\*.*: il repart en cuisine\./);
   assert.equal(runtime.rail.prendre("box/claude")?.ticket, 14);
 });
 
