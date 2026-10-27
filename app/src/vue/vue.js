@@ -918,9 +918,9 @@ const lancementsDuCloser = new Map();
 const reponsesAuxCorrections = new Map();
 // La réponse du chef en route sur une carte de TODO (carte-todo.js), par projet et ticket
 // (`<projet>#<numéro>`), avec la question à laquelle elle répond. Absente : la carte attend. Répondue, la
-// carte quitte TODO aussitôt, et reste hors de la colonne tant que les faits lus portent cette question ;
-// la lecture qui ne la porte plus l'oublie.
-/** @type {Map<string, { question: string, etat: import("./carte-todo.js").Etat }>} */
+// carte quitte TODO aussitôt, et reste hors de la colonne tant que les faits lus portent cette question —
+// nulle sur une carte à un seul geste ; la lecture qui ne la porte plus l'oublie.
+/** @type {Map<string, { question: string | null, etat: import("./carte-todo.js").Etat }>} */
 const reponsesAuxCartes = new Map();
 // Ce que le chef a tapé dans le champ d'une carte de TODO, par projet et ticket : un rail redessiné le lui rend.
 /** @type {Map<string, string>} */
@@ -1081,8 +1081,9 @@ const commentaires = new Map();
 // Ce qu'il en est du dernier commentaire envoyé, par `<projet>#<ticket>` : en route, ou ce qui en est advenu.
 /** @type {Map<string, { envoi: true } | { rendu: import("../discussion.ts").Commente }>} */
 const envoisDeCommentaire = new Map();
-// Ce qu'il en est de la dernière demande au second faite depuis le champ de contexte, par
-// `<projet>#<ticket>` : en route, partie (la note du terminal), ou ce qui l'a empêchée.
+// Ce qu'il en est de la dernière demande au second faite depuis le champ de contexte de la fiche, ou
+// depuis la carte de TODO (carte-todo.js), par `<projet>#<ticket>` : en route, partie (la note du
+// terminal), ou ce qui l'a empêchée. La fiche et la carte la disent toutes deux.
 /** @type {Map<string, { envoi: true } | { parti: string } | { refus: string }>} */
 const demandesAuSecond = new Map();
 // Ce que la fiche dit de la vie du ticket vivant (histoire.ts, `situation`), par `<projet>#<ticket>`.
@@ -2885,7 +2886,9 @@ function poserBon(projet, carte, tonAttend, execution = true) {
   // Les captures d'un ticket d'interface livré restent sur sa carte : elles se lisent sans un clic. Celles
   // d'une carte de TODO se posent sous sa question.
   if (carte.captures !== undefined && carte.todo?.captures === undefined) bon.append(...poserCaptures(projet, ticket, carte.captures));
-  if (carte.ligne !== undefined) {
+  // Une carte de TODO qui dit ce qui se passe (carte-todo.js, son résumé) le dit en tête de sa carte : la phrase
+  // du bon ne le redit pas.
+  if (carte.ligne !== undefined && !(attendu && carte.todo?.resume !== undefined)) {
     const phrase = bloc("p", carte.ligne);
     phrase.className = "ligne-carte";
     bon.append(phrase);
@@ -3765,18 +3768,23 @@ async function envoyerCommentaire(projet, ticket) {
 
 // « ask the second », au clic : la box compose la demande avec le contexte du champ, et le process
 // principal l'écrit dans le second, sans Entrée. Le champ n'est pas vidé. Injoignable, rien n'est
-// écrit, et la fiche dit pourquoi.
-/** @param {Projet} projet @param {number} ticket */
-async function demanderAuSecond(projet, ticket) {
+// écrit, et la fiche dit pourquoi — la carte de TODO aussi. `contexte` : le champ d'où part la
+// demande — celui de la fiche par défaut, celui de la carte de TODO quand elle part de la carte.
+/** @param {Projet} projet @param {number} ticket @param {string} [contexte] */
+async function demanderAuSecond(projet, ticket, contexte = commentaires.get(`${projet.nom}#${ticket}`) ?? "") {
   const cle = `${projet.nom}#${ticket}`;
   const avant = demandesAuSecond.get(cle);
   if (avant !== undefined && "envoi" in avant) return;
+  const reposer = () => {
+    if (ficheDe(projet, ticket)) poserFiche();
+    if (courant?.nom === projet.nom) poserRail(projet);
+  };
   demandesAuSecond.set(cle, { envoi: true });
-  if (ficheDe(projet, ticket)) poserFiche();
+  reposer();
   /** @type {{ envoi: true } | { parti: string } | { refus: string }} */
   let dit;
   try {
-    const rendu = await brigade.demanderAuSecond(projet.nom, ticket, commentaires.get(cle) ?? "");
+    const rendu = await brigade.demanderAuSecond(projet.nom, ticket, contexte);
     if ("refus" in rendu) dit = { refus: rendu.refus };
     else {
       garder(projet.nom, rendu);
@@ -3787,7 +3795,7 @@ async function demanderAuSecond(projet, ticket) {
     dit = { refus: `nothing was written: ${erreur instanceof Error ? erreur.message : String(erreur)}` };
   }
   demandesAuSecond.set(cle, dit);
-  if (ficheDe(projet, ticket)) poserFiche();
+  reposer();
   montrer();
 }
 
@@ -4706,21 +4714,24 @@ function sansCartesRepondues(projet, colonnes) {
 }
 
 // La carte de TODO d'un ticket, dans l'état de sa réponse (carte-todo.js) : ses captures posées comme
-// celles d'une livraison, lues sans un clic.
+// celles d'une livraison, lues sans un clic. « Ask the second » y part avec ce que le chef a tapé dans
+// son champ, comme celui de la fiche part avec le sien.
 /** @param {Projet} projet @param {number} ticket @param {import("../carte-todo.ts").CarteDeTodo} todo */
 function poserLaCarteDeTodo(projet, ticket, todo) {
   const cle = `${projet.nom}#${ticket}`;
   const tenue = reponsesAuxCartes.get(cle);
   const etat = tenue !== undefined && tenue.question === todo.question ? tenue.etat : CARTE_AU_REPOS;
+  const second = demandesAuSecond.get(cle);
   return poserCarteDeTodo(
     document,
     ticket,
     todo,
     etat,
-    { captures: todo.captures === undefined ? [] : poserCaptures(projet, ticket, todo.captures), brouillon: brouillonsDeCartes.get(cle) ?? "", cle },
+    { captures: todo.captures === undefined ? [] : poserCaptures(projet, ticket, todo.captures), brouillon: brouillonsDeCartes.get(cle) ?? "", cle, ...(second === undefined ? {} : { second }) },
     {
       repondre: (reponse) => void repondreALaCarte(projet, ticket, reponse),
       ecrire: (texte) => void brouillonsDeCartes.set(cle, texte),
+      demander: () => void demanderAuSecond(projet, ticket, brouillonsDeCartes.get(cle) ?? ""),
     },
   );
 }

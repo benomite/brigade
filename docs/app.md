@@ -129,6 +129,13 @@ has no capture area. One click on a choice, or `send`, is the answer: it is post
 no confirmation; each choice's price (a merge, a cook relaunched)
 is on hover. Written, the card leaves TODO at once and `facts` is read again; refused, it stays with its gestures, and a
 line says why, the box's output on hover. The modules are `app/src/carte-todo.ts` and `app/src/vue/carte-todo.js`.
+**Every TODO card takes that one shape** (#1767, epic #1764, `runtime/src/carte-todo/forme.ts`): when `attend[].carte`
+carries `resume` — what happens, in two plain sentences at most —, it heads the card in place of the expected line, then
+the question, the captures, one button per choice and the free-text field. A card with a single gesture (merge a green
+delivery by hand) has a null question: it shows that one button, filled, and no question. Every card closes on `ask the
+second`, a small underlined word set back under the field, never one of its choices: it writes into the second a
+request about the ticket with what is typed in the card's field, as the sheet's does, and the card is answered from its
+choices without it.
 **The main screen keeps only three things: the alert band, the rail and the terminals**; there is
 nothing at the bottom of the window. The rest is behind a tab, at the top, next to the name of the
 project: **Settings** (the state of the project, the backup and its age, the settings, the

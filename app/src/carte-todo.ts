@@ -11,20 +11,24 @@
 import { capturesDeCarte, type CapturesDeCarte, type CapturesLues } from "./captures.ts";
 import { LONGUEUR_MAX } from "./discussion.ts";
 
-// La carte telle que `facts` la donne : sa sorte (`product`, `design`), sa question, ses choix —
-// chacun son texte et sa suite (`resume`, `merge`), dans l'ordre que `rail choose` numérote à partir
-// de 1 —, et ses captures, nulles sur une carte sans écran.
+// La carte telle que `facts` la donne : sa sorte (`product`, `design`), ce qui se passe en deux phrases
+// au plus (`resume`, la forme unique de l'épique #1764 : runtime/src/carte-todo/forme.ts — absent d'un
+// runtime d'avant elle), sa question, ses choix — chacun son texte et sa suite (`resume`, `merge`), dans
+// l'ordre que `rail choose` numérote à partir de 1 —, et ses captures, nulles sur une carte sans écran.
+// Une carte à un seul geste n'a rien à demander : sa question est nulle.
 export type ChoixLu = { texte: string; suite: string };
-export type CarteLue = { type: string; question: string; choix: ChoixLu[]; captures: CapturesLues | null };
+export type CarteLue = { type: string; resume?: string; question: string | null; choix: ChoixLu[]; captures: CapturesLues | null };
 
-// La carte telle que la vue la pose : sa sorte, sa question, ses choix — chacun avec son prix, qui
-// passe au survol —, le prix d'une réponse en texte libre, et ses captures, absentes sans écran.
+// La carte telle que la vue la pose : sa sorte, ce qui se passe, sa question — nulle sur une carte à un
+// seul geste —, ses choix — chacun avec son prix, qui passe au survol —, le prix d'une réponse en texte
+// libre, et ses captures, absentes sans écran.
 export type ChoixDeCarte = { texte: string; prix: string };
-export type CarteDeTodo = { sorte: string; question: string; choix: ChoixDeCarte[]; prixDuTexte: string; captures?: CapturesDeCarte };
+export type CarteDeTodo = { sorte: string; resume?: string; question: string | null; choix: ChoixDeCarte[]; prixDuTexte: string; captures?: CapturesDeCarte };
 
-// Ce que la vue envoie : la question qu'elle montre — rien ne part sur une carte qui a changé sous
-// les yeux du chef —, et le rang d'un choix, à partir de 1, ou le texte du chef.
-export type Reponse = { question: string } & ({ choix: number } | { texte: string });
+// Ce que la vue envoie : la question qu'elle montre — nulle sur une carte à un seul geste ; rien ne part
+// sur une carte qui a changé sous les yeux du chef —, et le rang d'un choix, à partir de 1, ou le texte
+// du chef.
+export type Reponse = { question: string | null } & ({ choix: number } | { texte: string });
 // Ce qu'il en est advenu : la réponse est écrite — `dit`, ce que la box en dit —, ou rien ne l'est, et
 // pourquoi, en une ligne, ce que la box a rendu au survol.
 export type Rendu = { repondue: true; dit: string } | { refus: string; detail: string };
@@ -53,23 +57,30 @@ function capturesLues(brutes: unknown): CapturesLues | null {
 }
 
 // La carte venue de la box — ou rien, si elle n'en a pas la forme : la carte du rail reste alors celle
-// d'un ticket qui t'attend, sans question ni choix. Un runtime d'avant ce champ n'en donne pas.
+// d'un ticket qui t'attend, sans question ni choix. Un runtime d'avant ce champ n'en donne pas. Une
+// carte sans question n'est lue que si elle n'offre qu'un geste : plusieurs choix sans question ne
+// disent pas ce qu'ils tranchent.
 export function carteLue(brute: unknown): CarteLue | undefined {
   const lue = objet(brute);
-  if (lue === undefined || !texte(lue.type) || !texte(lue.question) || lue.question.trim() === "" || !Array.isArray(lue.choix)) return undefined;
+  if (lue === undefined || !texte(lue.type) || !Array.isArray(lue.choix) || lue.choix.length === 0) return undefined;
+  const sansQuestion = lue.question === null || lue.question === undefined;
+  if (sansQuestion ? lue.choix.length !== 1 : !texte(lue.question) || lue.question.trim() === "") return undefined;
   const choix = lue.choix.flatMap((brut: unknown) => {
     const un = objet(brut);
     return un !== undefined && texte(un.texte) && texte(un.suite) ? [{ texte: un.texte, suite: un.suite }] : [];
   });
   // Un choix illisible décalerait les rangs que `rail choose` numérote : la carte n'est pas lue.
   if (choix.length !== lue.choix.length) return undefined;
-  return { type: lue.type, question: lue.question, choix, captures: lue.captures === null || lue.captures === undefined ? null : capturesLues(lue.captures) };
+  // Un résumé illisible ou vide n'est pas lu : la carte se pose sans lui.
+  const resume = texte(lue.resume) && lue.resume.trim() !== "" ? { resume: lue.resume } : {};
+  return { type: lue.type, ...resume, question: sansQuestion ? null : (lue.question as string), choix, captures: lue.captures === null || lue.captures === undefined ? null : capturesLues(lue.captures) };
 }
 
 // Ce que la carte du rail pose.
-export function carteDeTodo({ type, question, choix, captures }: CarteLue): CarteDeTodo {
+export function carteDeTodo({ type, resume, question, choix, captures }: CarteLue): CarteDeTodo {
   return {
     sorte: type,
+    ...(resume === undefined ? {} : { resume }),
     question,
     choix: choix.map(({ texte, suite }) => ({ texte, prix: PRIX_DE_SUITE[suite] ?? PRIX_DU_TEXTE })),
     prixDuTexte: PRIX_DU_TEXTE,
