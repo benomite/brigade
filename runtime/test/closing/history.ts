@@ -8,6 +8,13 @@ import { BASE, ENV_GIT } from "../outils.ts";
 // Ce qu'un commit change : le contenu d'un fichier, `null` s'il le retire, ou
 // un lien vers un fichier hors du dépôt.
 export type Fichiers = Record<string, string | null | { lien: string }>;
+
+// La cible d'un lien, telle que git la relit sur le disque. Git pour Windows
+// crée le lien avec des `\` mais le relit avec des `/` : une cible `D:\…`
+// commitée telle quelle diffère du lien extrait, et tout `git add --all` d'un
+// worktree — la récolte d'un closer qui n'a rien fait comprise — commite ce
+// lien réécrit, une ligne retirée et une ajoutée hors de toute zone.
+const cibleDuLien = (cible: string): string => cible.replaceAll("\\", "/");
 // Un merge de la branche d'intégration, ou un commit posé droit dessus.
 // `brouillon` : la branche mergée a d'abord écrit autre chose, qu'elle a
 // retiré avant son merge. `enRetard` : elle est partie avant l'étape
@@ -32,7 +39,7 @@ export function ecrireHistoire(clone: string, etapes: Etape[]): void {
     marque += 1;
     flux.push(`commit ${ref}\n`, `mark :${marque}\n`, `committer cook <cook@brigade.test> ${1_760_000_000 + marque * 60} +0000\n`, donnees(`étape ${marque}`));
     parents.forEach((parent, rang) => flux.push(`${rang === 0 ? "from" : "merge"} ${parent}\n`));
-    for (const [chemin, contenu] of Object.entries(fichiers)) flux.push(contenu === null ? `D ${chemin}\n` : typeof contenu === "string" ? `M 100644 inline ${chemin}\n${donnees(contenu)}` : `M 120000 inline ${chemin}\n${donnees(contenu.lien)}`);
+    for (const [chemin, contenu] of Object.entries(fichiers)) flux.push(contenu === null ? `D ${chemin}\n` : typeof contenu === "string" ? `M 100644 inline ${chemin}\n${donnees(contenu)}` : `M 120000 inline ${chemin}\n${donnees(cibleDuLien(contenu.lien))}`);
     return `:${marque}`;
   };
   for (const etape of etapes) {

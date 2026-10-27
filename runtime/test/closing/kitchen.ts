@@ -75,7 +75,11 @@ export function cuisineFermee(t: TestContext, options: Options = {}) {
   // Enregistré avant tout répertoire temporaire : le runtime doit être arrêté
   // avant qu'on retire son état.
   let aArreter: { arreter(signal: string): void } | undefined;
-  t.after(() => aArreter?.arreter("test"));
+  let dire: (() => void) | undefined;
+  t.after(() => {
+    dire?.();
+    aArreter?.arreter("test");
+  });
   const lieux: Lieux = options.lieux ?? { repertoire: repertoireTemporaire(t), ...depotGit(t), gh: fauxGitHub(...(options.issues ?? [])) };
   const { repertoire, origine, clone, gh } = lieux;
   if (!options.lieux) {
@@ -153,6 +157,25 @@ export function cuisineFermee(t: TestContext, options: Options = {}) {
   const types = (ticket?: number) => (ticket === undefined ? journal.tout() : journal.duTicket(ticket)).map((e) => e.type);
   // Le dernier fait de ce type que la fermeture a écrit.
   const dernier = <T extends FaitFermeture["type"]>(type: T) => journal.tout().findLast((e) => e.type === type)?.payload as Extract<FaitFermeture, { type: T }>["payload"] | undefined;
+  // Chaque passe finie, dans le journal du test : la zone qu'elle tenait, ce
+  // qu'un cook tenait alors, et les fichiers de sa branche que la fin a
+  // comparés à ces zones — de quoi lire un verdict de zone d'une plateforme
+  // qu'on n'a pas sous la main.
+  dire = () => {
+    let faits: ReturnType<typeof journal.tout>;
+    try {
+      faits = journal.tout();
+    } catch {
+      // Le test a déjà arrêté ce runtime : son journal est fermé.
+      return;
+    }
+    for (const fait of faits) {
+      if (fait.type !== "closing.ended") continue;
+      const { run, outcome, files, observed, limit, detail } = fait.payload as Extract<FaitFermeture, { type: "closing.ended" }>["payload"];
+      const depart = faits.find((e) => e.type === "closing.started" && (e.payload as { run: string }).run === run)?.payload as Extract<FaitFermeture, { type: "closing.started" }>["payload"] | undefined;
+      t.diagnostic(`closing pass ${run}: ${outcome} — zone ${JSON.stringify(depart?.zone ?? null)}, held ${JSON.stringify(depart?.held ?? null)}, files compared ${JSON.stringify(files ?? null)}${observed === undefined ? "" : `, observed ${observed} for a limit of ${limit}`}${detail === undefined ? "" : ` — ${detail}`}`);
+    }
+  };
   return {
     runtime,
     journal,

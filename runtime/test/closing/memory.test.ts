@@ -10,7 +10,6 @@ import { corpsDeLaPR, SANS_MOTIF } from "../../src/closing/brief.ts";
 import { candidats } from "../../src/closing/candidates.ts";
 import { CONTEXTE, empreinte, memoire, poserLaMemoire, retenir, trier } from "../../src/closing/memory.ts";
 import { aArreter, BASE, git, jusqua, repertoireTemporaire } from "../outils.ts";
-import { posixOnly } from "../support/plateforme.ts";
 import { ecrireHistoire } from "./history.ts";
 import { cuisineFermee, PROJET, RETIRER_M1 } from "./kitchen.ts";
 
@@ -133,7 +132,7 @@ test("la PR d'une passe dit combien de candidats ne lui ont pas été reproposé
 });
 
 describe("la mémoire, en cuisine", { concurrency: 4 }, () => {
-  test("après une passe livrée, la mémoire du projet contient ce que le closer a laissé — son lieu, son motif, l'empreinte de ses alentours —, et rien de ce qu'il a retiré", { skip: posixOnly("delivers a closing pass whose closer, the fake claude (a bash script), removes M1 on a real git repository and leaves M2, then reads the memory it left; on the Windows job (run 40525346451) the pass judged that closer's commit out of its zone: + 'zone' - 'delivered'") }, async (t) => {
+  test("après une passe livrée, la mémoire du projet contient ce que le closer a laissé — son lieu, son motif, l'empreinte de ses alentours —, et rien de ce qu'il a retiré", async (t) => {
     const { demander, fin, closer, runtime } = cuisineFermee(t);
     closer.gestes(RETIRER_M1);
     closer.message("<livrable>\nRetiré : M1.\nLAISSÉ D1 : les deux suites évoluent à part\n</livrable>\n");
@@ -150,7 +149,7 @@ describe("la mémoire, en cuisine", { concurrency: 4 }, () => {
     );
   });
 
-  test("à la passe suivante, ce qui a été laissé sans que le code autour change n'est pas reproposé ; ce dont le code autour a changé l'est, et son entrée est remplacée", { skip: posixOnly("runs two closing passes in a row on a real git repository through the fake claude (a bash script), the second one with nothing to remove; on the Windows job (run 40525346451) the pass judged that closer's commit out of its zone, even with no gesture: 'zone' !== 'nothing'") }, async (t) => {
+  test("à la passe suivante, ce qui a été laissé sans que le code autour change n'est pas reproposé ; ce dont le code autour a changé l'est, et son entrée est remplacée", async (t) => {
     const cuisine = cuisineFermee(t);
     const { demander, fin, closer, runtime, types, dernier, clone, avertissements } = cuisine;
     const lue = () => memoire(runtime.journal.base, "brigade");
@@ -204,7 +203,7 @@ describe("la mémoire, en cuisine", { concurrency: 4 }, () => {
     );
   });
 
-  test("ce qu'un autre projet a laissé, au même code, ne retient rien de ce qui est proposé à celui-ci", { skip: posixOnly("runs a closing pass for a second project on a real git repository, its closer the fake claude (a bash script) removing M1; on the Windows job (run 40525346451) the pass judged that closer's commit out of its zone: + 'zone' - 'delivered'") }, async (t) => {
+  test("ce qu'un autre projet a laissé, au même code, ne retient rien de ce qui est proposé à celui-ci", async (t) => {
     const { demander, fin, closer, runtime, dernier } = cuisineFermee(t);
     const tous = [...DU_PROJET.values()];
     retenir(runtime.journal.base, "autre", { run: "fermeture-autre", at: "2026-10-08T09:00:00.000Z", proposes: tous, laisses: tous.map(({ id, quoi }) => ({ id, what: quoi, reason: "pas sûr", before: false })) });
