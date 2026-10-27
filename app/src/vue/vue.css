@@ -663,6 +663,14 @@ main > header,
 #stations-du-projet .demenagement-dit.refus {
   color: var(--rouge-clair);
 }
+/* Une station du compte à qui le projet est choisi, et qui refuse de rejoindre sa cuisine (ticket 1790) : sous la ligne,
+   son nom et sa phrase, en rouge clair — la ligne, elle, ne change pas. */
+#stations-du-projet .ajout-refuse {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--rouge-clair);
+  overflow-wrap: anywhere;
+}
 /* Le parcours d'un projet neuf (ticket 1111), sous la ligne : en tête ce qu'on attend du chef, puis
    ses quatre étapes, une par ligne, chacune avec son état — la courante sous un trait de l'accent,
    comme dans l'installation guidée, celles à venir plus discrètes.
@@ -6679,6 +6687,19 @@ button.recommande {
   flex: none;
   margin: 0;
   accent-color: var(--accent);
+}
+/* Sous une case cochée, ce que la station en a fait (ticket 1790) : la cuisine qu'elle a rejointe, sa réponse attendue, ou
+   « refused » — et la phrase du refus sous les cases, en entier, en rouge clair. */
+#station .projets-de-la-station .capacite small {
+  min-width: 0;
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--discret);
+  overflow-wrap: anywhere;
+}
+#station .projets-de-la-station .capacite.refusee small,
+#station .projets-de-la-station p.refus {
+  color: var(--rouge-clair);
 }
 /* Sous les projets du chef, le champ qui cherche parmi les autres dépôts du compte (ticket 1780), et ce qu'il trouve :
    une rangée par dépôt, son nom et « add » — rien tant que le champ est vide. */

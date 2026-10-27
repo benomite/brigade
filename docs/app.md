@@ -1490,6 +1490,16 @@ the list of stations** (#1778), read each time the home opens — **one row per 
   station's gist (`brigade-selection.json`, the only file the app writes there; `app/src/stations-du-compte.ts`):
   it is what the app reads again at the next launch. While it is written, the boxes wait; refused by GitHub, one
   line says so under the boxes, the detail on hover, and nothing changes.
+- **A repository another station already serves** (#1790, epic #1785): the ticked station does not open a second
+  kitchen — it joins the one that runs, or refuses in one sentence (`runtime/src/projets/rejoindre.ts`), and says
+  which in its tracking (`brigade-projets-suivi.json` of the same gist, `rejoindre`). The app reads it there with the
+  account's stations (`avecLeursAjouts`, `app/src/stations-du-compte.ts`; one more read per station that has a
+  selection). Just ticked, the box says "asked: the station answers within a minute", and the account's stations are
+  read again every 15 s (8 times at most) until the station has answered. Joined, the box says "cooks in box's
+  kitchen", and the project's page lists the computer under "Its stations" and on its first line as one more cooking
+  station — the station that serves it stays the main one, and nothing says the kitchen runs on this computer.
+  Refused, the box says "refused" and the runtime's sentence is under the boxes, whole; the project's page keeps its
+  stations, with "<station> was not added: <sentence>" under its first line.
 - **An offline station stays editable**: one line says it serves these projects once it is back.
 - Under the list, with no heading, only what the reading of the account has to add. **No station at all**, neither
   paired nor registered: the sentence to install one on the machine that will cook, and the installation command of
@@ -1499,7 +1509,7 @@ the list of stations** (#1778), read each time the home opens — **one row per 
   detail on hover, the page that fixes it when there is one, and "read again". **Unreadable registrations**: one
   line, "1 more station cannot be read", the reasons on hover, and "read again".
 
-Screens: `docs/captures/1706/` (before the single list), `docs/captures/1778/` (the single list, before and after), `docs/captures/1780/` (your projects first, the others by search).
+Screens: `docs/captures/1706/` (before the single list), `docs/captures/1778/` (the single list, before and after), `docs/captures/1780/` (your projects first, the others by search), `docs/captures/1790/` (a computer added to a project another station serves: joined, or refused).
 
 ### This computer is a station; a phone is a workstation
 
