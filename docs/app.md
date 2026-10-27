@@ -881,9 +881,10 @@ CLOSER
   else on the home. Once paired, the station appears in the list and the field closes, with no
   message left on display; "cancel" closes it, empty.
 - **A station registered under your GitHub account** is in the same list (#1778): **each computer once**. A
-  paired machine is said by its presence only; a machine that is only registered has its own row, which opens on
-  the projects it serves, to tick (#1706, see "Your stations under your GitHub account, and the projects each
-  serves"). There is no second list, and no "Under your GitHub account" heading.
+  paired machine is said by its presence, the projects chosen for it under the account merged in, and "choose
+  projects" next to its row opens them, to tick; a machine that is only registered has its own row, which opens on
+  them (#1706, see "Your stations under your GitHub account, and the projects each serves"). There is no second
+  list, and no "Under your GitHub account" heading.
 - **The health row**, at the bottom, sums up the Max connection and the access to GitHub. All is well: green
   and discreet, `Max ✓ · GitHub ✓`. When one of the two is off, it says in one sentence what is
   wrong: `Max: token to redo within 20 d`, `Max: connection lost on Mac`,
@@ -1457,29 +1458,31 @@ account (`runtime/src/enregistrement-station/README.md`, #1705): no code to pair
 the list of stations** (#1778), read each time the home opens — **one row per computer**:
 
 ```
-● macbook-air-de-benoit  online · idle · runs no kitchen                            ›
-● nas                    online · no project chosen yet                             ›
-● parade-box             online · idle · brigade, calculus-workspace, espace, …     ›
+● macbook-air-de-benoit  online · idle · benomite/brigade        ›   choose projects  pair a phone
+● nas                    online · no project chosen yet           ›
+● parade-box             online · idle · brigade, calculus-workspace, espace, …     ›   choose projects  pair a phone
 ```
 
 - **A machine is recognized by its name**, which its registration shares with its presence (case aside). **A paired
-  machine is said by its presence alone** — online or not, what it does, the projects its configuration serves
-  (`app/src/accueil.ts`) —: its registration adds no row, so the two readings can never contradict each other. Two
-  registrations of the same name (a lost state directory leaves an old one) make one row: the online one, else the
-  last seen. The merge is `uneLigneParMachine` (`app/src/vue/stations-du-compte.js`).
+  machine that is also registered has one row**, computed in one place: its state and what it does come from its
+  presence (`app/src/accueil.ts`); the projects it serves are those of its presence, then those chosen for it in
+  its registration that its presence does not name yet — the station takes them in hand within 30 s
+  (`projetsServis`, `ligneFondue`). A machine serving a chosen project is therefore never said `runs no kitchen`
+  nor `not added to any project`. Two registrations of the same name (a lost state directory leaves an old one)
+  count as one: the online one, else the last seen. The merge is `uneLigneParMachine`
+  (`app/src/vue/stations-du-compte.js`).
 - **A machine that is only registered** has its row from its registration, in the order of the names: `online` or
   `offline` (the contract's freshness rule: a clean stop, or no sign of life for 4 min 30 s), then the projects it
   serves — `no project chosen yet`, `no project`, or the repositories themselves. Its platform, machine, version and
   last sign of life are on hover. Dot green and full when online, grey ring when not.
-- **A click on its line opens its projects**, "Projects it serves": your GitHub repositories (the list "add a
+- **A click on its line opens its projects** — for a paired machine, the whole row opens its station page, and the
+  **choose projects** button next to it opens them under the row (a second click closes them) —, "Projects it serves": your GitHub repositories (the list "add a
   project" reads), one checkbox each, ticked when the station serves it; a repository it serves that the list no
   longer names stays there, to be unticked. **Ticking or unticking writes at once** the whole selection into the
   station's gist (`brigade-selection.json`, the only file the app writes there; `app/src/stations-du-compte.ts`):
   it is what the app reads again at the next launch. While it is written, the boxes wait; refused by GitHub, one
   line says so under the boxes, the detail on hover, and nothing changes.
 - **An offline station stays editable**: one line says it serves these projects once it is back.
-- **A paired machine's selection is not shown on the home screen**: its row opens its station page. Choosing its
-  projects there is #1780.
 - Under the list, with no heading, only what the reading of the account has to add. **No station at all**, neither
   paired nor registered: the sentence to install one on the machine that will cook, and the installation command of
   each system (`docs/installation-station.md`), each with "copy", and "read again". **This computer signed in to no

@@ -8,6 +8,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { type Accueil, type LigneDeStation, ligneDeStation } from "../../src/accueil.ts";
+import { raisonDe } from "../../src/stations/raison.ts";
 import { echecDeGh } from "../../../runtime/src/appairage/stations-du-chef.ts";
 import * as contrat from "../../../runtime/src/enregistrement-station/contrat.ts";
 import { stationDuGist } from "../../../runtime/src/enregistrement-station/stations-du-compte.ts";
@@ -31,11 +32,14 @@ import {
   DEPOTS_ILLISIBLES,
   EN_SON_ABSENCE,
   ENVOI,
+  CHOISIR_SES_PROJETS,
   ILLISIBLES,
   INSTALLER,
   LECTURE_DES_DEPOTS,
   lectureDuCompte,
   ligneDeLEnregistree,
+  ligneFondue,
+  projetsServis,
   RELIRE,
   SANS_DEPOT,
   uneLigneParMachine,
@@ -106,9 +110,10 @@ describe("une ligne par machine : appairée, elle se dit par sa présence ; seul
   const appairee = (nom: string) => ({ nom });
   const noms = (lignes: ReturnType<typeof uneLigneParMachine<{ nom: string }>>) => lignes.map((ligne) => ("appairee" in ligne ? `appairée ${ligne.appairee.nom}` : `enregistrée ${ligne.enregistree.name}`));
 
-  test("une machine appairée et enregistrée ne fait qu'une ligne, celle de sa présence — même nommée dans une autre casse", () => {
+  test("une machine appairée et enregistrée ne fait qu'une ligne, celle de sa présence, son enregistrement avec elle — même nommée dans une autre casse", () => {
     assert.deepEqual(noms(uneLigneParMachine([appairee("box")], [BOX])), ["appairée box"]);
-    assert.deepEqual(noms(uneLigneParMachine([appairee("Box")], [BOX])), ["appairée Box"]);
+    assert.deepEqual(uneLigneParMachine([appairee("Box")], [BOX]), [{ appairee: appairee("Box"), enregistree: BOX }]);
+    assert.deepEqual(uneLigneParMachine([appairee("parade-box")], [BOX]), [{ enregistree: BOX }, { appairee: appairee("parade-box") }]);
   });
 
   test("une machine seulement enregistrée a sa ligne, glissée à son nom : les appairées gardent leur ordre", () => {
@@ -122,6 +127,46 @@ describe("une ligne par machine : appairée, elle se dit par sa présence ; seul
     const enLigne = lue("n3w", { [contrat.FICHIER_ENREGISTREMENT]: enregistrement("mac", "macos", "macOS 24.1.0", null) });
     assert.deepEqual(uneLigneParMachine([], [ancien, enLigne]), [{ enregistree: enLigne }]);
     assert.deepEqual(uneLigneParMachine([], [MAC, ancien]), [{ enregistree: MAC }]);
+  });
+});
+
+describe("appairée et enregistrée : ce qui lui est choisi se fond dans la ligne de sa présence", () => {
+  const enLigne = (projets: string[]): LigneDeStation => ligneDeStation(presence("f0b2", "macbook", projets), 0, false);
+  const choisie = (repositories: string[] | null): StationEnregistree => ({ ...BOX, name: "macbook", selection: repositories });
+
+  test("les projets servis : ceux de sa présence, puis ceux qui lui sont choisis et qu'elle ne nomme pas encore", () => {
+    assert.deepEqual(projetsServis([], ["acme/shop"]), ["acme/shop"]);
+    assert.deepEqual(projetsServis(["shop", "site"], ["acme/Shop", "acme/blog"]), ["shop", "site", "acme/blog"]);
+    assert.deepEqual(projetsServis(["shop"], null), ["shop"]);
+  });
+
+  test("sans cuisine dans sa présence mais un projet choisi : elle le sert — ni « runs no kitchen », ni « not added to any project »", () => {
+    const sans = enLigne([]);
+    assert.match(sans.dit, /runs no kitchen$/);
+    assert.equal(sans.raison?.cle, "sans-projet");
+    const fondue = ligneFondue(sans, [], choisie(["acme/shop"]));
+    assert.equal(fondue.dit, "online · idle · acme/shop");
+    assert.equal(fondue.raison, undefined);
+    assert.equal(fondue.note, undefined);
+    assert.equal(fondue.ton, sans.ton);
+  });
+
+  test("ce qu'elle sert déjà, rien de choisi, ou une ligne qui ne dit pas ses projets : la ligne reste celle de sa présence", () => {
+    const avec = enLigne(["shop"]);
+    assert.equal(ligneFondue(avec, ["shop"], choisie(["acme/shop"])), avec);
+    const sans = enLigne([]);
+    assert.equal(ligneFondue(sans, [], choisie(null)), sans);
+    assert.equal(ligneFondue(sans, [], undefined), sans);
+    assert.deepEqual(ligneFondue(avec, ["shop"], choisie(["acme/blog"])).dit, "online · idle · shop, acme/blog");
+    const illisible = { dit: "unreadable", raison: raisonDe("illisible", "macbook") };
+    assert.equal(ligneFondue(illisible, [], choisie(["acme/shop"])), illisible);
+  });
+
+  test("hors ligne, elle le reste, sa raison avec : seuls ses projets changent", () => {
+    const horsLigne = ligneDeStation({ ...presence("f0b2", "macbook", []), etat: "hors-ligne", dit: "offline for 12 min" }, 0, false);
+    const fondue = ligneFondue(horsLigne, [], choisie(["acme/shop"]));
+    assert.equal(fondue.dit, "offline for 12 min · acme/shop");
+    assert.equal(fondue.raison?.cle, "hors-ligne");
   });
 });
 
@@ -328,6 +373,30 @@ describe("la vue jouée : une seule liste de stations, une ligne par machine", (
     assert.deepEqual(section(vue).dessous("h3"), []);
     assert.doesNotMatch(vue.element("tous").textContent, /Under your GitHub account/);
     assert.deepEqual(section(vue).dessous("ul"), []);
+  });
+
+  test("une machine appairée sans cuisine, un projet choisi sous le compte : sa ligne dit qu'elle le sert, et « choose projects » ouvre ses cases", async () => {
+    const mac = lue("e1c3", { [contrat.FICHIER_ENREGISTREMENT]: enregistrement("macbook-air-de-benoit", "macos", "macOS 24.1.0", null), [contrat.FICHIER_SELECTION]: selection(["acme/shop"]) });
+    const { stations, accueil: lignes } = appairees(presence("f0b2", "macbook-air-de-benoit", []));
+    const vue = await jouerLaVue({ demarrage: () => demarrage(stations, lignes), espace: () => [], stationsDuCompte: () => ({ state: "listed", stations: [mac], unreadable: [] }), depotsDuChef: () => DEPOTS, choisirLesProjets: async (_id: string, depots: string[]) => ({ selection: depots }) });
+    const lus = await accueil(vue);
+    assert.deepEqual(nomsDe(vue), ["macbook-air-de-benoit"]);
+    assert.match(lus.ligne("macbook-air-de-benoit").textContent, /online · idle · acme\/shop/);
+    assert.doesNotMatch(section(vue).textContent, /runs no kitchen|not added to any project|no project chosen yet/);
+    assert.deepEqual(lus.cases(), [], "fermée, ses cases ne se montrent pas");
+    // Toute la ligne ouvre la page de la station ; ses cases s'ouvrent du bouton à côté.
+    lus.bouton(CHOISIR_SES_PROJETS).click();
+    await repos();
+    const ouverte = lecteurs(section(vue));
+    assert.equal(ouverte.bouton(CHOISIR_SES_PROJETS).ariaExpanded, "true");
+    assert.deepEqual(ouverte.cases().map(({ ariaLabel, checked }) => [ariaLabel, checked]), [["acme/shop", true], ["acme/site", false]]);
+    cocher(ouverte.caseDe("acme/site"), true);
+    await repos();
+    assert.deepEqual(vue.dernier("choisirLesProjets"), [mac.id, ["acme/shop", "acme/site"]]);
+    assert.match(lecteurs(section(vue)).ligne("macbook-air-de-benoit").textContent, /online · idle · acme\/shop, acme\/site/);
+    lecteurs(section(vue)).bouton(CHOISIR_SES_PROJETS).click();
+    await repos();
+    assert.deepEqual(lecteurs(section(vue)).cases(), [], "un autre clic referme ses cases");
   });
 
   test("cocher un projet l'écrit dans le gist de la station ; relancée, l'app le montre coché", async () => {

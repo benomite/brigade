@@ -1,8 +1,9 @@
 // @ts-check
 // Les stations enregistrées sous le compte GitHub du chef (ticket 1706, épique 1702), dans la liste des stations de
 // l'accueil : une machine s'y lit une fois (ticket 1778, épique 1777). Une machine appairée s'y dit par sa présence
-// (accueil.ts) ; son enregistrement ne pose pas de seconde ligne, ni de section à part — il n'est que la façon dont
-// la machine est arrivée (`uneLigneParMachine`). Une machine seulement enregistrée a sa ligne d'après son
+// (accueil.ts), à laquelle son enregistrement ajoute les projets choisis pour elle (`ligneFondue`) : il ne pose ni seconde
+// ligne, ni section à part — il n'est que la façon dont la machine est arrivée (`uneLigneParMachine`), et ce qui lui est
+// choisi ; ses cases s'ouvrent d'un bouton à côté de sa ligne. Une machine seulement enregistrée a sa ligne d'après son
 // enregistrement — sa pastille, son nom, en ligne ou non, les projets qu'elle sert — ; un clic l'ouvre sur les projets
 // du chef, à cocher : ceux qu'elle doit servir. Une case cochée ou décochée s'écrit aussitôt dans le gist de la station
 // (stations-du-compte.ts, selon le contrat de runtime/src/enregistrement-station/README.md) ; relue au lancement
@@ -59,6 +60,8 @@ export const COPIEE = "copied";
 export const EN_LIGNE = "online";
 export const HORS_LIGNE = "offline";
 export const PROJETS = "Projects it serves";
+// Le bouton à côté de la ligne d'une machine appairée et enregistrée, qui ouvre ses cases sous elle.
+export const CHOISIR_SES_PROJETS = "choose projects";
 export const LECTURE_DES_DEPOTS = "reading your repositories on GitHub…";
 export const DEPOTS_ILLISIBLES = "your repositories could not be read";
 export const SANS_DEPOT = "no repository on your GitHub account";
@@ -89,34 +92,73 @@ export function sertDit(selection) {
 
 // Une ligne par machine (ticket 1778) : les stations appairées, telles que l'accueil les dit, puis celles du compte qu'aucune
 // ne nomme, dans l'ordre des noms. Une machine se reconnaît à son nom — l'enregistrement porte « le même nom que sur sa
-// présence » (runtime/src/enregistrement-station/README.md), sans égard à la casse, comme un nom de machine. Appairée, elle
-// se dit par sa présence seule : son enregistrement ne pose rien. Deux enregistrements d'un même nom — un dossier d'état
-// perdu en laisse un ancien, hors ligne — ne font qu'une ligne : celui qui est en ligne, sinon le dernier vu.
+// présence » (runtime/src/enregistrement-station/README.md), sans égard à la casse, comme un nom de machine. Appairée, sa
+// ligne est celle de sa présence, et son enregistrement l'accompagne (`enregistree`) : ce qui lui est choisi s'y fond
+// (`ligneFondue`). Deux enregistrements d'un même nom — un dossier d'état perdu en laisse un ancien, hors ligne — n'en
+// font qu'un : celui qui est en ligne, sinon le dernier vu.
 /**
  * @template {{ nom: string }} A
  * @param {readonly A[]} appairees @param {readonly StationEnregistree[]} enregistrees
- * @returns {Array<{ appairee: A } | { enregistree: StationEnregistree }>}
+ * @returns {Array<{ appairee: A, enregistree?: StationEnregistree } | { enregistree: StationEnregistree }>}
  */
 export function uneLigneParMachine(appairees, enregistrees) {
   const cle = (/** @type {string} */ nom) => nom.toLowerCase();
-  const prises = new Set(appairees.map(({ nom }) => cle(nom)));
   /** @type {Map<string, StationEnregistree>} */
-  const seules = new Map();
+  const parNom = new Map();
   for (const station of enregistrees) {
     const nom = cle(station.name);
-    if (prises.has(nom)) continue;
-    const tenue = seules.get(nom);
-    if (tenue === undefined || (station.available && !tenue.available) || (station.available === tenue.available && station.lastSeen > tenue.lastSeen)) seules.set(nom, station);
+    const tenue = parNom.get(nom);
+    if (tenue === undefined || (station.available && !tenue.available) || (station.available === tenue.available && station.lastSeen > tenue.lastSeen)) parNom.set(nom, station);
   }
+  const prises = new Set(appairees.map(({ nom }) => cle(nom)));
   // Les appairées gardent l'ordre où l'accueil les dit (celui des noms) ; chaque autre se glisse à son nom.
-  const restantes = [...seules.values()].sort((a, b) => a.name.localeCompare(b.name));
-  /** @type {Array<{ appairee: A } | { enregistree: StationEnregistree }>} */
+  const restantes = [...parNom.values()].filter(({ name }) => !prises.has(cle(name))).sort((a, b) => a.name.localeCompare(b.name));
+  /** @type {Array<{ appairee: A, enregistree?: StationEnregistree } | { enregistree: StationEnregistree }>} */
   const lignes = [];
   for (const appairee of appairees) {
     while (restantes.length > 0 && (restantes[0]?.name ?? "").localeCompare(appairee.nom) < 0) lignes.push({ enregistree: /** @type {StationEnregistree} */ (restantes.shift()) });
-    lignes.push({ appairee });
+    const enregistree = parNom.get(cle(appairee.nom));
+    lignes.push(enregistree === undefined ? { appairee } : { appairee, enregistree });
   }
   return [...lignes, ...restantes.map((enregistree) => ({ enregistree }))];
+}
+
+// Le nom d'un dépôt choisi tel qu'une station nomme le projet qu'elle en fait : celui du dépôt, en minuscules
+// (runtime/src/projets-station/README.md, `nomDuDepot`).
+/** @param {string} depot */
+const nomDuChoisi = (depot) => (depot.split("/").pop() ?? depot).toLowerCase();
+
+// Les projets qu'une machine appairée et enregistrée sert, calculés en un seul endroit : ceux de sa présence — la
+// configuration qu'elle fait tourner —, puis ceux qui lui sont choisis dans son enregistrement et que sa présence ne nomme
+// pas encore (elle les prend en main dans les 30 s). Rien de choisi, ou rien encore : ceux de sa présence.
+/** @param {readonly string[]} projets @param {readonly string[] | null} selection */
+export function projetsServis(projets, selection) {
+  const tenus = new Set(projets.map((projet) => projet.toLowerCase()));
+  return [...projets, ...(selection ?? []).filter((depot) => !tenus.has(nomDuChoisi(depot)))];
+}
+
+// La ligne d'une machine appairée, ce que son enregistrement lui choisit fondu dedans : ses projets sont `projetsServis`.
+// Elle sert alors des projets : ni « runs no kitchen », ni la raison « not added to any project », ni la note qui dit
+// qu'attendre sans projet est normal. Son état reste celui de sa présence. Une ligne qui ne dit pas ses projets (illisible,
+// téléphone) est rendue telle quelle.
+/**
+ * @template {{ dit: string, raison?: { cle: string }, note?: string }} L
+ * @param {L} ligne @param {readonly string[]} projets — ceux de sa présence @param {StationEnregistree | undefined} enregistree
+ * @returns {L}
+ */
+export function ligneFondue(ligne, projets, enregistree) {
+  const servis = projetsServis(projets, enregistree?.selection ?? null);
+  if (servis.length === projets.length) return ligne;
+  const morceaux = ligne.dit.split(" · ");
+  const dits = projets.length === 0 ? ["runs no kitchen", "no project"] : [projets.join(", ")];
+  if (!dits.includes(morceaux.at(-1) ?? "")) return ligne;
+  const { raison, note, ...reste } = ligne;
+  return /** @type {L} */ ({
+    ...reste,
+    dit: [...morceaux.slice(0, -1), servis.join(", ")].join(" · "),
+    ...(raison === undefined || raison.cle === "sans-projet" ? {} : { raison }),
+    ...(note === undefined || projets.length === 0 ? {} : { note }),
+  });
 }
 
 // Les cases d'une station : les dépôts du chef, dans l'ordre où GitHub les rend, puis ceux qu'elle sert et qu'ils ne
@@ -184,7 +226,7 @@ function ligneDe(doc, station, ouverte, geste) {
 // Les cases d'une station ouverte : un dépôt par case, cochée s'il est dans sa sélection. Une écriture en route : les
 // cases attendent qu'elle ait répondu. Une écriture refusée le dit sous les cases, en une ligne.
 /** @param {Fabrique} doc @param {StationEnregistree} station @param {EtatDuCompte} etat @param {GestesDuCompte} geste */
-function projetsDe(doc, station, etat, geste) {
+export function projetsDe(doc, station, etat, geste) {
   const choix = cree(doc, "fieldset");
   choix.className = "projets-de-la-station";
   choix.ariaLabel = `${PROJETS}: ${station.name}`;
