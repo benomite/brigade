@@ -3038,12 +3038,16 @@ board the app cannot read), and the app then:
 - **keeps the last rail it read**, drawn whole — columns, cards, counts — and **dimmed**; the last facts and `status`
   are kept in the main process too (`faits.ts`, `tenirFaits`), so a card's sheet and its addresses still open;
 - says it with **one discreet sign** at the top of the rail, in place of the "up to date N min ago" note: `offline since
-  1:35 PM` — the time of the first reading of the series that did not reach GitHub. It **pulses slowly**: a reading
-  is pending, and no sentence says so;
+  1:35 PM` — the time of the first reading of the series that did not reach GitHub. The sign itself does not move;
 - puts **nothing in the band**: no "not verified" line, no "open Settings", no signal on the project's box in the bar
   (`alertes.ts`, `tenirBandes`); the project switch keeps the state last read. Upstream says nothing either;
 - with nothing read before (offline from the start), shows the sign alone — no "first read in progress", no error, no
   empty rail.
+
+**A reading under way shows as a slow pulse of the rail's top edge**, online or offline, with no sentence: from the
+moment the view asks for the facts — the first reading when the bar is laid, or a re-reading (*try again*, an action
+done, the network back) — until the main process answers it (`surFaits`). The 30-second readings the main process makes
+on its own do not pulse: the view does not ask for them.
 
 When the network comes back, the rail refreshes on its own: the next reading of the board (every 30 s) — or at once,
 when the system says the network is back — redraws it, and the sign goes away. Alarms then appear only for a real

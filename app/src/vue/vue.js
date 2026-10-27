@@ -991,6 +991,24 @@ const tenus = new Map();
 const horsLignes = new Map();
 const heureCourte = (/** @type {number | string} */ instant) => new Date(instant).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 let demandeFaits = 0;
+// Les projets dont une lecture des faits est partie de la vue — la première, ou une relecture — et n'a pas encore de
+// réponse : le haut de leur rail bat doucement, sans phrase, jusqu'à ce que `surFaits` la rende (ticket 1818).
+/** @type {Set<string>} */
+const enLecture = new Set();
+// Une lecture des faits demandée au process principal — `relire` : celle de la box, tout de suite ; sinon la première,
+// pour une barre posée. Tous les projets sont relus : chacun est en lecture jusqu'à sa réponse.
+function lireLesFaits(relire = true) {
+  for (const { nom } of configuration.projets) enLecture.add(nom);
+  if (relire) brigade.relireBox(demandeFaits);
+  else brigade.faits(++demandeFaits);
+  if (courant !== undefined && !rail.hidden) marquerLecture(courant);
+}
+// Le haut du rail du projet affiché bat tant que sa lecture est en cours : rien d'autre n'est reposé.
+/** @param {Projet} projet */
+function marquerLecture(projet) {
+  if (enLecture.has(projet.nom) && seLit(projet) && projet.sansStation !== true) rail.dataset.lecture = "";
+  else delete rail.dataset.lecture;
+}
 // Les clics sur le bouton d'une station qui attendent leur réponse, et ce que le dernier de chacune a rendu
 // (ticket 1185) — par projet et station.
 /** @type {Map<string, import("../cuisson.ts").GesteDeCuisson>} */
@@ -3076,7 +3094,7 @@ async function arriver(projet, ticket) {
     dite = { refus: SANS_ENVOI, detail: erreur instanceof Error ? erreur.message : String(erreur) };
   }
   arriveesDeCartes.set(cle, dite);
-  if ("fait" in dite) brigade.relireBox(demandeFaits);
+  if ("fait" in dite) lireLesFaits();
   poserRail(projet);
 }
 
@@ -3572,7 +3590,7 @@ async function jouerGesteDeFiche(projet, ticket, id, valeur) {
     else if ("fait" in rendu) {
       issuesDeFiches.set(cle, { fait: rendu.fait, detail: rendu.detail ?? "" });
       if (id === "priorite") prioritesChoisies.delete(cle);
-      brigade.relireBox(demandeFaits);
+      lireLesFaits();
     } else {
       garder(projet.nom, rendu);
       if (etroit()) issuesDeFiches.set(cle, { second: true });
@@ -4181,7 +4199,7 @@ function fraicheur(a) {
   dit.className = "fraicheur";
   return [dit];
 }
-// Le signe de l'app hors ligne (ticket 1818), à la place de toute erreur : il bat doucement, une lecture est en attente.
+// Le signe de l'app hors ligne (ticket 1818), à la place de toute erreur.
 /** @param {string} depuis */
 function signeHorsLigne(depuis) {
   const signe = bloc("p", `offline since ${heureCourte(depuis)}`);
@@ -4191,7 +4209,7 @@ function signeHorsLigne(depuis) {
 }
 // Le réseau revient : la lecture n'attend pas son tour.
 window.addEventListener?.("online", () => {
-  if (horsLignes.size > 0) brigade.relireBox(demandeFaits);
+  if (horsLignes.size > 0) lireLesFaits();
 });
 
 // La box d'un projet ne répond pas (alertes.ts, `injoignable`) : depuis quand, d'après la première
@@ -4543,7 +4561,7 @@ async function reglerPlafondDeCalibrage(projet, choix) {
   plafondsDits.set(projet, { dit: "fait" in rendu ? rendu.fait : rendu.refus, refus: !("fait" in rendu), detail: rendu.detail ?? "" });
   if ("fait" in rendu) {
     plafondsChoisis.delete(projet);
-    brigade.relireBox(demandeFaits);
+    lireLesFaits();
   }
   if (courant?.nom === projet) poserPlafondDeCalibrage(courant);
 }
@@ -4568,7 +4586,7 @@ async function cuire(projet, station, geste) {
   }
   cuissonsEnCours.delete(cle);
   cuissonsDites.set(cle, { dit: "fait" in rendu ? rendu.fait : rendu.refus, refus: !("fait" in rendu), detail: rendu.detail ?? "", etat });
-  if ("fait" in rendu) brigade.relireBox(demandeFaits);
+  if ("fait" in rendu) lireLesFaits();
   if (courant?.nom === projet) poserCuisson(courant);
 }
 
@@ -4629,6 +4647,7 @@ function poserRail(projet) {
   rail.ariaLabel = cuisine ? "The cooks" : "The rail";
   const horsLigne = horsLignes.get(projet.nom);
   delete rail.dataset.horsLigne;
+  marquerLecture(projet);
   arreterCuisine.hidden = true;
   // Plus de rail, plus de fiche par-dessus.
   if (rail.hidden && ouverte !== undefined) fermerFiche();
@@ -4871,7 +4890,7 @@ async function repondreALaCarte(projet, ticket, reponse) {
   const suite = apresLaCarte(reponse, rendu);
   if (suite.etape === "repondue") brouillonsDeCartes.delete(cle);
   poser(suite);
-  if (suite.etape === "repondue") brigade.relireBox(demandeFaits);
+  if (suite.etape === "repondue") lireLesFaits();
 }
 
 // Les corrections proposées des consignes du projet, chacune une carte de la file, au-dessus des
@@ -4926,7 +4945,7 @@ function gestesDeLaFile(projet, cartes, reponses, trancher) {
         }
         const suite = apresLaCorrection(reponse, rendu);
         poser(proposition, suite);
-        if (suite.etape === "postee") brigade.relireBox(demandeFaits);
+        if (suite.etape === "postee") lireLesFaits();
       },
     },
   };
@@ -6869,7 +6888,7 @@ async function confier() {
       };
       if (courant?.nom === projet.nom) poserStationsDuProjet();
       // Les blocs de Cooks viennent des faits de la box : relus tout de suite, la station neuve y paraît sans attendre.
-      brigade.relireBox(demandeFaits);
+      lireLesFaits();
     }
   } catch (erreur) {
     confianceRefusee.replaceChildren(bloc("p", `nothing was sent: ${erreur instanceof Error ? erreur.message : String(erreur)}`));
@@ -7090,7 +7109,7 @@ function poserControle(projet, alerte, endroit) {
     pose = ouverte === undefined ? [demande] : [demande, poserConfirmation(projet, ouverte, undefined, () => void demanderAlerte(alerte))];
   } else if ("relire" in appel) {
     // Réessayer maintenant : la box est relue tout de suite, au lieu d'attendre le tour des trente secondes.
-    pose = [bouton(mot, () => brigade.relireBox(demandeFaits))];
+    pose = [bouton(mot, () => lireLesFaits())];
   } else {
     const { onglet } = appel;
     pose = [bouton(mot, () => (laisse.get(projet.nom) === onglet ? undefined : activer(onglet)))];
@@ -7805,6 +7824,7 @@ brigade.surAmont((vu) => {
 });
 brigade.surFaits((recue) => {
   if (recue.demande !== demandeFaits) return;
+  enLecture.delete(recue.projet);
   // Une box pas jointe n'efface pas le rail : la dernière lecture reste, marquée (poserRail).
   const muette = !("tableau" in recue) && "atteinte" in recue && !recue.atteinte;
   if (muette) muets.set(recue.projet, muets.get(recue.projet) ?? recue.a);
@@ -8042,7 +8062,7 @@ function afficher() {
       return entree;
     }),
   );
-  brigade.faits(++demandeFaits);
+  lireLesFaits(false);
   if (configuration.refus !== undefined) {
     // Ce fichier-là ne se répare pas d'ici : l'app n'écrit pas dans ce qu'elle n'a pas compris.
     courant = undefined;

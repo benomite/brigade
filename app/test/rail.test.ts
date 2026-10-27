@@ -329,6 +329,28 @@ describe("hors ligne (#1818)", () => {
     assert.doesNotMatch(vue.element("rail").textContent, /facts: first read|not verified|not drawn|NOT READ|tried at/);
   });
 
+  test("une lecture en cours fait battre le haut du rail, sans phrase ; la réponse l'éteint ; hors ligne, rien ne bat sans lecture en cours", async () => {
+    const vue = await ouvrir();
+    const rail = vue.element("rail");
+    // La première lecture est partie avec la barre.
+    assert.equal(rail.dataset.lecture, "");
+    recevoir(vue, horsLigne());
+    assert.equal(rail.dataset.lecture, undefined);
+    assert.equal(signes(vue).length, 1);
+    // « try again » relit la box : le haut du rail bat jusqu'à la réponse.
+    const essai = { sujet: "injoignable", verifie: true, ton: "rouge", dit: "station unreachable since 13:35", geste: "try again", bouton: "try again", appel: { relire: true }, prix: "none" } as const;
+    vue.dire("surAlertes", { projet: PARADE, alertes: [essai], signal: { etat: "injoignable", dit: essai.dit } });
+    await repos();
+    const bouton = vue.element("alertes").dessous("button").find(({ textContent }) => textContent === "try again") ?? assert.fail("pas de « try again »");
+    bouton.click();
+    await repos();
+    assert.ok(vue.appels.some(({ geste }) => geste === "relireBox"));
+    assert.equal(rail.dataset.lecture, "");
+    assert.doesNotMatch(rail.textContent, /reading|in progress/);
+    recevoir(vue);
+    assert.equal(rail.dataset.lecture, undefined);
+  });
+
   test("une vraie panne, en ligne, se dit comme avant", async () => {
     const vue = await ouvrir();
     recevoir(vue, { projet: PARADE, demande: 0, a: A, titre: "NOT READ FROM THE KITCHEN BOARD", erreur: "The Kitchen board of benomite/parade (issue 7) cannot be read: no machine block.", atteinte: true, cas: null, duTableau: true });
