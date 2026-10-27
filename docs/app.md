@@ -1567,7 +1567,7 @@ cooks <projet> yet.` is followed by **"choose its machine"**. The choice opens b
 
 Once handed over, the page says **where it cooks** — `Cooks on <station>`, its other stations after it
 (`· macbook (second station)`) — and, under that line, `The first station keeps the manager and the pass;
-all the stations cook.` **"+ station"** opens the same card, about the added machine only (#1307):
+all the stations cook.` A station added from the app counts as a *second station* only once it serves the project (it has read the request and calls itself secondary); until then its line carries no rank but says where it is stuck in a few words — `not received by the station`, `waiting for your authorization on GitHub`, `refused`, `being prepared` — with `check again` (reads GitHub again) and, on hover, what to do (#1774). **"+ station"** opens the same card, about the added machine only (#1307):
 `Add a station to <projet>'s kitchen.`, with the same sentence, then one **machine** — this computer's
 station chosen at once when it does not cook the project yet, otherwise the first paired one — and, from
 the first render, what belongs to that machine: **cooks at once** (from its own cores, with its

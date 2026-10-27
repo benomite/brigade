@@ -5832,6 +5832,16 @@ function etatDeLaCuisine(etat, atteinte) {
   return { dit: "not read yet", ton: "gris" };
 }
 
+// Où une station ajoutée en plus de la principale en est bloquée, en une phrase, et ce que le chef y fait (au survol ;
+// le bouton « check again » relit GitHub).
+/** @param {import("../projets/projets.ts").StationDuProjet} station */
+function blocageDeLaStation(station) {
+  if (station.etat === "a-autoriser") return { pourquoi: "waiting for your authorization on GitHub", geste: "authorize the app on GitHub with the button beside it" };
+  if (station.etat === "refuse") return { pourquoi: "refused", geste: station.dit };
+  if (station.etat === "en-preparation") return { pourquoi: "being prepared", geste: "nothing to do: it is cloning the project" };
+  return { pourquoi: "not received by the station", geste: `open Brigade on ${station.nom}'s computer: it reads what this app asked within a minute; if it stays so, remove it from its page and add it again` };
+}
+
 // Les stations qui font la cuisine d'un projet de l'app : celles qui le servent — qu'il leur ait été
 // confié d'ici ou non, elles le publient (stations/document.ts) —, puis celles à qui l'app l'a demandé
 // et qui ne le servent pas encore. `demande` : l'app en a déjà demandé la cuisine — une station de plus
@@ -5843,10 +5853,16 @@ function cuisineDe(projet) {
   const demande = projetsVus?.projets.find(({ nom }) => nom === projet.nom);
   const servies = (stationsVues?.stations ?? []).filter(({ projets }) => projets.includes(projet.nom));
   const stations = [
-    ...servies.map(({ id, nom }) => ({ id, nom, principale: true, ...(muette ? { dit: "unreachable", ton: "rouge" } : etatDeLaCuisine("servi")), pourquoi: "", geste: "", survol: muette ? `${nom} does not answer: the app knows nothing of the kitchen right now` : `${nom} serves it: it runs its manager and its pass`, autoriser: /** @type {string[]} */ ([]) })),
+    ...servies.map(({ id, nom }) => ({ id, nom, principale: true, ...(muette ? { dit: "unreachable", ton: "rouge" } : etatDeLaCuisine("servi")), pourquoi: "", geste: "", survol: muette ? `${nom} does not answer: the app knows nothing of the kitchen right now` : `${nom} serves it: it runs its manager and its pass`, autoriser: /** @type {string[]} */ ([]), bloquee: false })),
     ...(demande?.stations ?? [])
       .filter(({ id }) => !servies.some((servie) => servie.id === id))
-      .map((station) => ({ id: station.id, nom: station.nom, principale: station.principale, ...etatDeLaCuisine(station.etat, station.atteinte), pourquoi: station.atteinte?.pourquoi ?? "", geste: station.atteinte?.geste ?? "", survol: station.atteinte === undefined ? station.dit : station.atteinte.dit.replace(/^(not )?reached: /, ""), autoriser: station.autoriser })),
+      .map((station) => {
+        // Une station ajoutée en plus de la principale ne sert le projet que lorsqu'elle l'a lu et s'en dit secondaire ;
+        // avant, elle est bloquée, et la ligne dit où.
+        const bloquee = !station.principale && station.etat !== "secondaire" && station.etat !== "servi";
+        const sans = bloquee ? blocageDeLaStation(station) : undefined;
+        return { id: station.id, nom: station.nom, principale: station.principale, ...etatDeLaCuisine(station.etat, station.atteinte), pourquoi: sans?.pourquoi ?? station.atteinte?.pourquoi ?? "", geste: sans?.geste ?? station.atteinte?.geste ?? "", survol: station.atteinte === undefined ? station.dit : station.atteinte.dit.replace(/^(not )?reached: /, ""), autoriser: station.autoriser, bloquee };
+      }),
   ];
   return { stations, demande: demande !== undefined, principale: stations.some(({ principale }) => principale) };
 }
@@ -6112,13 +6128,17 @@ function poserStationsDuProjet() {
     // Où il cuit, d'abord — « this Mac » pour la station de cet ordinateur —, puis ses renforts.
     const sienne = stations.find(({ id }) => id === ou?.id);
     const autres = stations.filter((station) => station !== sienne && !(enCours !== null && enCours.etape !== "refusee" && station.nom === enCours.vers));
-    const tete = ou === undefined ? [] : [stationNommee(sienne ?? { id: ou.id ?? "", nom: ou.nom, principale: true, dit: "served", ton: "vert", survol: "", pourquoi: "", geste: "", autoriser: [] }, ou.ici)];
+    const tete = ou === undefined ? [] : [stationNommee(sienne ?? { id: ou.id ?? "", nom: ou.nom, principale: true, dit: "served", ton: "vert", survol: "", pourquoi: "", geste: "", autoriser: [], bloquee: false }, ou.ici)];
     ligneDesStationsDuProjet.replaceChildren(
       bloc("span", ou === undefined ? "Cooked by " : "Cooks on "),
       ...tete,
       ...(ou?.ici === true ? [sArrete()] : []),
       ...(enCours !== null && enCours.etape !== "refusee" ? [enMouvement(enCours)] : []),
-      ...autres.flatMap((station, rang) => [...(rang === 0 && tete.length === 0 ? [] : [bloc("span", " · ")]), stationNommee(station, false, ou === undefined ? "" : `${["second", "third", "fourth", "fifth"][rang] ?? "another"} station`)]),
+      ...autres.flatMap((station, i) => {
+        // Le rang ne se compte que parmi celles qui servent le projet : une station bloquée n'en est pas une.
+        const rang = autres.slice(0, i).filter(({ bloquee }) => !bloquee).length;
+        return [...(i === 0 && tete.length === 0 ? [] : [bloc("span", " · ")]), stationNommee(station, false, ou === undefined || station.bloquee === true ? "" : `${["second", "third", "fourth", "fifth"][rang] ?? "another"} station`)];
+      }),
     );
   } else if (projet.box !== undefined) {
     // Écrit à la main avec « hote » : l'app le lit là, sans qu'aucune station appairée ne le publie.
