@@ -14,7 +14,7 @@ A desktop app shows all of it: your projects, the **rail** of tickets (queued, t
 
 ### GitHub is all an app needs
 
-The apps — desktop and phone — need **only your GitHub account** to show and steer your kitchen: the rail, the kitchen's state, the cards that wait for you, and every gesture (merge, remove, answer a card, change a priority). The stations publish everything on a **Kitchen board** issue in each repository and read your gestures from GitHub. No app ever reaches a station by `ssh`.
+The apps — desktop and phone — need **only your GitHub account** to show and steer your kitchen: the rail, the kitchen's state, the cards that wait for you, and every gesture (merge, remove, answer a card, change a priority). The stations publish everything on a **Kitchen board** issue in each repository and read your gestures from GitHub.
 
 Three things are outside that rule, on purpose:
 
@@ -27,7 +27,10 @@ Three things are outside that rule, on purpose:
 1. Download the app (macOS, Apple silicon, or Windows x64) or the station package (Debian/Ubuntu, with systemd) from the **[releases page](https://github.com/benomite/brigade/releases)**.
 2. Follow **[docs/installation.md](docs/installation.md)**: it takes you from nothing to a first ticket of your own project, cooked and delivered as a pull request. It assumes nothing but that page.
 
-You need a GitHub account with a repository you can push to (a throwaway one is fine for a first run), `git`, `gh` and `claude` installed, and a Claude Max subscription: the cooks run on your Max session, and an API key does not fit.
+You need two accounts:
+
+- a **GitHub account**, with a repository you can push to (a throwaway one is fine for a first run);
+- a **Claude account**: the cooks run on a Claude Max session, and an API key does not fit.
 
 ## Where to read next
 
