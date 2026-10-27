@@ -105,9 +105,10 @@ test("GitHub seul, aucune box jointe : la couche de données du rail rend les ti
     [17, "en pass"],
     [20, "en pass"],
   ]);
+  // #19 attend #21, fermé sans avoir été servi : la cuisine ne l'attend plus, il est sur le rail (#1834).
   assert.deepEqual(colonne("On the rail")?.slice(0, 2), [
     [30, "en attente"],
-    [25, "86"],
+    [19, "en attente"],
   ]);
   assert.deepEqual(colonne("WAITING"), [[35, "WAITING"]]);
   assert.deepEqual(colonne("Served")?.map(([ticket]) => ticket), [40, 41]);
@@ -123,16 +124,17 @@ test("GitHub seul, aucune box jointe : la couche de données du rail rend les ti
   ]);
 
   // Ce qui attend le chef : TODO, dans l'ordre du bloc `awaiting`, la carte de #24 avec sa question et ses choix. La
-  // remontée technique de #18 n'y est pas : elle est à la cuisine (#1826).
+  // remontée technique de #18 n'y est pas : elle est à la cuisine (#1826) ; ni #19, qui attendait un ticket fermé sans
+  // avoir été servi (#1834).
   const todo = tableau.rail.colonnes.find((c) => c.nom === "TODO")?.cartes ?? [];
-  assert.deepEqual(todo.map(({ ticket }) => ticket), [19, 24]);
+  assert.deepEqual(todo.map(({ ticket }) => ticket), [24]);
   assert.ok(todo.every(({ attendu }) => attendu));
   assert.ok(tableau.rail.attendLu !== undefined, "le bloc `awaiting` a été pris");
   const carte24 = todo.find(({ ticket }) => ticket === 24);
   assert.equal(carte24?.todo?.question, "One list per project, or one for all?");
   assert.deepEqual(carte24?.todo?.choix.map(({ texte }) => texte), ["One per project.", "One for all."]);
-  // Ce que le bloc dit de #19, mot pour mot, est sur sa carte.
-  assert.ok((todo.find(({ ticket }) => ticket === 19)?.attend ?? []).length > 0);
+  // Ce que le bloc dit de #24, mot pour mot, est sur sa carte.
+  assert.ok((carte24?.attend ?? []).length > 0);
 
   assert.deepEqual(lances, [], "aucun processus n'est parti");
 });

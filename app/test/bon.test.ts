@@ -47,13 +47,13 @@ const ticket = (numero: number, state: TicketRail["state"], reste: Partial<Ticke
   effort: null,
   card: null,
   awaits: [],
+  dropped: [],
   held: [],
   outOfZone: [],
   frozenBy: [],
   reason: null,
   until: null,
   waitingFor: null,
-  resumedBecause: null,
   ...reste,
 });
 
@@ -71,7 +71,7 @@ const RAIL: TicketRail[] = [
   ticket(21, "waiting", { priority: 2, since: ilYA(125), held: [{ ticket: 14, path: "app/src" }] }),
   // En attente : il en attend d'autres, et sa zone est tenue.
   ticket(22, "waiting", { since: ilYA(60 * 50), awaits: [{ ticket: 14, left: null }, { ticket: 15, left: null }], held: [{ ticket: 16, path: "runtime/src — vue" }] }),
-  // BLOQUÉ : ce qu'il attendait a été abandonné.
+  // En attente : ce qu'il attend a quitté le rail, l'issue encore ouverte — il l'attend toujours (#1834).
   ticket(23, "waiting", { since: ilYA(182), awaits: [{ ticket: 17, left: { reason: "unfired", seq: 4 } }] }),
   ticket(30, "pass", { since: ilYA(4), station: "box/claude" }),
   ticket(31, "served", { since: ilYA(60), station: "mac/claude" }),
@@ -150,12 +150,12 @@ describe("ce qu'un bon porte, tenu contre ce que le runtime écrit", () => {
     assert.deepEqual(dits(carteDe(lu, 16)), { "right now": "activity not given", "taken by": "box/claude", since: "1 h 30", lease: "STUCK: no progress since 35 min, lease expired since 5 min" });
   });
 
-  test("un ticket en attente : since when, et en clair ce qui le retient — une zone tenue, d'autres tickets, un abandon", () => {
+  test("un ticket en attente : since when, et en clair ce qui le retient — une zone tenue, d'autres tickets, un ticket parti l'issue ouverte", () => {
     assert.deepEqual(dits(carteDe(lu, 21)), { since: "2 h 05", "blocked by": "zone held by #14 (app/src)" });
     assert.equal(carteDe(lu, 21).sans, `${NON_COMMUNIQUE} : who holds it · its lease · what it burns`);
     // Un chemin qui porte lui-même un tiret long : tout ce que la ligne dit avant « since » est gardé.
     assert.deepEqual(dits(carteDe(lu, 22)), { since: "2 d", "blocked by": "awaiting #14, #15 · zone held by #16 (runtime/src — vue)" });
-    assert.deepEqual([carteDe(lu, 23).etat, dits(carteDe(lu, 23))], ["BLOQUÉ", { since: "3 h 02", "blocked by": "#17 dropped (label `fire` removed)" }]);
+    assert.deepEqual([carteDe(lu, 23).etat, dits(carteDe(lu, 23))], ["en attente", { since: "3 h 02", "blocked by": "awaiting #17 (off the rail, issue still open: label `fire` removed)" }]);
     // Rien ne le retient : la file ne dit pas what blocks it, et la carte l'écrit.
     assert.deepEqual(dits(carteDe(lu, 20)), { since: "3 min" });
     assert.equal(carteDe(lu, 20).sans, `${NON_COMMUNIQUE} : who holds it · its lease · what it burns · what blocks it`);
@@ -276,13 +276,14 @@ describe("où cuit chaque ticket en cours : box ou Mac", () => {
 
 describe("un ticket qui t'attend", () => {
   test("ce que le bloc `attend` dit de lui est what blocks it : la carte le porte à part, et n'écrit pas qu'il manque", () => {
-    const { rail: lu } = dessine({ ...ETAT, attend: [{ ticket: 23, title: "Ticket 23", since: ilYA(182), quoi: "bloque", abandonnes: [{ ticket: 17, reason: "unfired" }] }] });
+    // Un ticket qui en attend un autre n'attend jamais le chef (#1834) : c'est la PR fermée de #23 qui l'y met.
+    const { rail: lu } = dessine({ ...ETAT, attend: [{ ticket: 23, title: "Ticket 23", since: ilYA(182), quoi: "fermee", reason: "stopped", cause: null, pr: "https://github.com/benomite/brigade/pull/23" }] });
     const carte = carteDe(lu, 23);
 
     assert.deepEqual(lu.colonnes[3]?.cartes.map(({ ticket }) => ticket), [23]);
     assert.equal(carte.attendu, true);
-    assert.match(carte.attend[0] ?? "", /^for 3 h 02 {2}BLOCKED: #17 dropped \(label `fire` removed\) — to unblock: /);
-    assert.deepEqual(dits(carte), { since: "3 h 02", "blocked by": "#17 dropped (label `fire` removed)" });
+    assert.match(carte.attend[0] ?? "", /^for 3 h 02 {2}PR closed without merge: https:\/\/github\.com\/benomite\/brigade\/pull\/23 — to decide: /);
+    assert.deepEqual(dits(carte), { since: "3 h 02", "blocked by": "awaiting #17 (off the rail, issue still open: label `fire` removed)" });
     assert.equal(carte.sans, `${NON_COMMUNIQUE} : who holds it · its lease · what it burns`);
     // Et il n'est dans aucune autre colonne.
     assert.deepEqual(lu.colonnes.filter(({ cartes }) => cartes.some(({ ticket }) => ticket === 23)).map(({ nom }) => nom), ["TODO"]);
