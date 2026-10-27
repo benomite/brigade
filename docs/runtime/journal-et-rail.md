@@ -246,4 +246,5 @@ The old words (`poser`, `reprendre`, `--quoi`, `--de`) still answer.
   comment says where it went. What is set is written to the log (`waiting.marked`); if GitHub is
   unreachable, it is caught up at the next wake-up. The label is created by GitHub at its first
   setting if it does not exist.
-- The follow-up is today only a stated date: nothing brings the ticket back by itself when it passes.
+- The follow-up is only a stated date: nothing brings the ticket back by itself when it passes. The ticket stays in WAITING, with no card in TODO, and its WAITING card shows `follow-up date passed`. A ticket an older version had turned back to the chef on its follow-up date (or on a new comment) goes back to WAITING at the next tick, for what it waited for.
+- What a third party or a machine absent from the box holds — a capability no station provides (`no-station`), an absent remote station — does not wait for the chef either: it is not in the `awaiting` block nor in TODO; the rail line and `kitchen idle` say what it waits for.

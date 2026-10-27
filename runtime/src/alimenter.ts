@@ -2,7 +2,7 @@
 // qui portent le label et le rail devient des faits au journal. C'est un écart,
 // pas un flux — un sondage manqué se rattrape au suivant, sans rien rejouer.
 import { createHash } from "node:crypto";
-import { marquerAttentes, ramenerSurNouveau } from "./attente.ts";
+import { marquerAttentes } from "./attente.ts";
 import { calibrage } from "./calibrage.ts";
 import { cycles, direCycle, signalerBlocages } from "./dependances.ts";
 import { fiche, porteFiche, type Fiche } from "./fiche.ts";
@@ -368,7 +368,6 @@ export function avecRail(runtime: Runtime, options: OptionsRail): RuntimeAvecRai
     marquage = true;
     try {
       await marquerAttentes(journal, github, projet);
-      await ramenerSurNouveau(journal, github, projet);
     } catch (erreur) {
       echec("attentes non marquées sur GitHub", erreur);
     } finally {

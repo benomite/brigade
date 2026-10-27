@@ -313,23 +313,10 @@ export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new 
     ticket.state === "86" && ticket.until === null && deStation(ticket.reason) ? [{ ticket: ticket.ticket, title: ticket.title, since: ticket.since, quoi: "86", reason: ticket.reason }] : [],
   );
 
-  // Le motif du 86 porte ce qui manquait quand la station l'a écarté : c'est
-  // elle qui le relit, à chaque service, et rend le ticket dès que ça suffit.
-  // Le manager le reprend avant le chef (sans-capacite.ts) : il le réécrit, ou
-  // propose une carte `gesture` au triage. Le chef ne le voit tel quel que si le manager est
-  // éteint — personne d'autre ne le reprendrait.
-  const manager = managerAllume(base);
-  const sansStation = rail.flatMap((ticket): AttenteDeTicket[] => {
-    const manque = !manager && ticket.state === "86" && ticket.until === null ? manqueDuMotif(ticket.reason) : null;
-    return manque === null ? [] : [{ ticket: ticket.ticket, title: ticket.title, since: ticket.since, quoi: "capacite", manque }];
-  });
-
-  // De même : le motif nomme les stations absentes, et la station rend le
-  // ticket dès que l'une d'elles se manifeste.
-  const sansPresence = rail.flatMap((ticket): AttenteDeTicket[] => {
-    const stations = ticket.state === "86" && ticket.until === null ? absentesDuMotif(ticket.reason) : null;
-    return stations === null ? [] : [{ ticket: ticket.ticket, title: ticket.title, since: ticket.since, quoi: "absente", stations }];
-  });
+  // Un ticket que ni le chef ni la cuisine ne tiennent — une capacité qu'aucune
+  // station ne fournit, une station distante absente — n'est pas dans sa file :
+  // une machine absente n'est pas un choix. Il reste lisible sur le rail, en
+  // WAITING, avec ce qu'il attend (etat.ts, `attente`).
 
   // Elle sort de la file avec le « reprendre » du chef : c'est lui qui efface
   // la déconnexion.
@@ -385,7 +372,7 @@ export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new 
 
   // Ce qui attend un tiers n'attend pas le chef, quoi qu'il attendait avant.
   const enWaiting = (attente: Attente) => attente.ticket !== null && tickets.get(attente.ticket)?.waitingFor != null;
-  return [...disjoncteur, ...pause, ...renommage, ...baseRouge, ...setup, ...aside, ...connexions, ...session, ...jeton, ...fermeture, ...livraisons, ...bloques, ...repris, ...refuses, ...sansStation, ...sansPresence, ...attentesDuManager(base, tickets), ...cartes]
+  return [...disjoncteur, ...pause, ...renommage, ...baseRouge, ...setup, ...aside, ...connexions, ...session, ...jeton, ...fermeture, ...livraisons, ...bloques, ...repris, ...refuses, ...attentesDuManager(base, tickets), ...cartes]
     .filter((attente) => !enWaiting(attente))
     .sort((a, b) => a.since.localeCompare(b.since) || (a.ticket ?? 0) - (b.ticket ?? 0));
 }

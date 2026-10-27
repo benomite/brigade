@@ -816,8 +816,8 @@ export type Faits = {
   // son attente est une action que le chef ne fait pas par un bouton, brancher une
   // station ; `relance` est nulle — personne ne l'a posé, rien à reprendre ni à
   // renvoyer —, et `aLArrivee` dit qu'il repart seul ; `revenu` — pour un ticket revenu de WAITING dans TODO,
-  // pourquoi, dans les mots du runtime (« relance du 21/10 : pas de réponse »,
-  // « nouveau sur l'issue — de <qui> ») ; `null` pour tout autre, et pour celui que
+  // pourquoi, dans les mots du runtime — il ne s'en pose plus : seul un ticket
+  // remis devant le chef par un runtime d'avant en porte un, avant de retourner en WAITING ; `null` pour tout autre, et pour celui que
   // le chef a repris lui-même. `captures` : pour un ticket d'interface en pass
   // ou servi, l'écran avant et après de sa dernière livraison, et si elle les
   // porte tous (captures.ts, `CapturesVues`) — absent pour tout autre ticket.

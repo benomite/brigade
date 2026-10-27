@@ -14,7 +14,7 @@
 // Ce qui attend un tiers reste lisible sur l'issue, l'app fermée : le label
 // `waiting` tant qu'il attend, et un commentaire à chaque changement — qui,
 // quoi, jusqu'à quand ; puis qu'il n'attend plus, et pourquoi.
-import { NOUVEAU_SUR_L_ISSUE, PAR_LE_CHEF, REVENU_D_ATTENTE } from "./events/rail.ts";
+import { PAR_LE_CHEF, REVENU_D_ATTENTE } from "./events/rail.ts";
 import { geste } from "./geste.ts";
 import type { Resultat } from "./geste-ticket.ts";
 import type { GitHub } from "./github.ts";
@@ -176,36 +176,6 @@ export function direLevee(ticket: TicketRail | null, marque: { what: string; who
 // du chef qui colle une réponse n'en porte aucun.
 const DE_LA_BRIGADE_SUR_L_ISSUE = /^(<!-- brigade:|\*\*(WAITING|Rail|Cook|Station|Pass|Reviewer|Manager)\b)/;
 export const deLaBrigade = (corps: string): boolean => DE_LA_BRIGADE_SUR_L_ISSUE.test(corps) || DE_LA_BRIGADE.test(corps);
-
-// WAITING → TODO sur un nouveau commentaire : un ticket marqué (sa trace est
-// sur l'issue, avec le décompte des commentaires hors brigade qu'elle portait)
-// dont l'issue en porte davantage revient devant le chef, motif « nouveau sur
-// l'issue ». Un échec de GitHub se rattrape au réveil suivant. Rend le nombre
-// de tickets ramenés.
-export async function ramenerSurNouveau(journal: Journal, github: GitHub, projet: string): Promise<number> {
-  const entendus = commentairesEntendus(journal.base);
-  let ramenes = 0;
-  for (const lu of lireRail(journal.base)) {
-    const vus = entendus.get(lu.ticket);
-    if (lu.waitingFor === null || vus === undefined) continue;
-    try {
-      const autres = (await github.commentaires(lu.ticket)).filter((commentaire) => !deLaBrigade(commentaire.body));
-      if (autres.length <= vus) continue;
-      // De qui : les auteurs de ce qui est arrivé depuis la mise en attente.
-      const auteurs = [...new Set(autres.slice(vus).map((commentaire) => commentaire.author).filter((auteur) => auteur !== ""))];
-      const motif = auteurs.length === 0 ? NOUVEAU_SUR_L_ISSUE : `${NOUVEAU_SUR_L_ISSUE} — de ${auteurs.join(", ")}`;
-      journal.base.transaction(() => {
-        // Relu : le chef a pu le reprendre pendant que GitHub répondait.
-        if (ticketDuRail(journal.base, lu.ticket)?.waitingFor == null) return;
-        journal.ajouter({ project: projet, ticket: lu.ticket, author: "runtime", type: "ticket.resumed", payload: { to: "todo", why: motif } });
-        ramenes++;
-      });
-    } catch (erreur) {
-      console.error(`brigade : commentaires non lus sur le ticket #${lu.ticket} — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
-    }
-  }
-  return ramenes;
-}
 
 // Met l'issue de chaque ticket à jour de son attente : le label `waiting` et un
 // commentaire à l'entrée en WAITING et à chaque changement de ce qu'il attend,

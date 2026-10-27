@@ -147,11 +147,11 @@ describe("les capacités qu'un ticket demande", { concurrency: 8 }, () => {
 
     const lignes = decrireEtat(lireEtat(journal), heure.maintenant());
     const debut = lignes.findIndex((ligne) => ligne.startsWith("awaiting"));
-    assert.deepEqual(lignes.slice(debut, lignes.indexOf("end awaiting") + 1), [
-      "awaiting   1 decision awaits the chef — for 0 s",
-      "  #14  for 0 s  no station provides `chrome-connecté` — to provide: declare a station that provides it with `brigade <project> station stations <machine>/<engine>:<cook cap>:chrome-connecté`, or remove `chrome-connecté` from the `requiert` line of its card — it starts again on its own  Ticket 14",
-      "end awaiting",
-    ]);
+    // Une machine qui manque n'est pas une décision du chef : la file ne le porte pas, mais le dit.
+    assert.equal(lignes[debut], "awaiting   nothing awaits the chef");
+    assert.ok(lignes.slice(debut, lignes.indexOf("end awaiting")).every((ligne) => !ligne.startsWith("  #14 ")));
+    assert.ok(lignes.some((ligne) => ligne.includes("no station provides `chrome-connecté` (#14) — to unblock: attach a station that provides it")), lignes.join("\n"));
+
     // Et sur sa ligne du rail, sous le décompte.
     const rail = lignes.findIndex((ligne) => ligne.startsWith("rail"));
     assert.deepEqual(lignes.slice(rail, rail + 2), ["rail       1 86", "  #14  86  -  since 0 s (no-station: chrome-connecté), no return time  Ticket 14"]);
@@ -188,7 +188,7 @@ describe("les capacités qu'un ticket demande", { concurrency: 8 }, () => {
     assert.deepEqual(lancements(), []);
     assert.match(
       decrireEtat(lireEtat(journal), heure.maintenant()).join("\n"),
-      /^ {2}#14 {2}for 0 s {2}no station provides `code` and `navigateur-headless` together — to provide: declare a station that provides them together with `brigade <project> station stations <machine>\/<engine>:<cook cap>:code\+navigateur-headless`/m,
+      /no station provides `code` \+ `navigateur-headless` together \(#14\) — to unblock: attach a station that provides them/,
     );
   });
 
