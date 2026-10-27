@@ -111,7 +111,7 @@ const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
 const isoDe = (fichier: string) => new Date(Math.floor(statSync(fichier).mtimeMs / 1000) * 1000).toISOString().replace(".000Z", "Z");
 
 describe("le renouvellement de la session Max", { concurrency: 8 }, () => {
-  test("claude renouvelle : le passage consigne la date où il a réécrit ses identifiants, et la dit", { skip: posixOnly("runs deploy/brigade-renouvellement, a bash script that launches a fake claude and reads the credentials file with `stat`, which the Windows job could not run to the end; on the Windows job: The \"message\" argument must be one of type string or function. Received undefined") }, (t) => {
+  test("claude renouvelle : le passage consigne la date où il a réécrit ses identifiants, et la dit", { skip: posixOnly("runs the bash renewal script with a fake claude that rewrites the credentials and reports the session open, and checks renouvele is the file's mtime; Windows cannot execute the extensionless script, so no exit code or stderr comes back") }, (t) => {
     const b = box(t, { rafraichir: "renouvelle", statut: "ouverte" });
     const fin = b.passer();
     assert.equal(fin.code, REUSSI, fin.erreur);
@@ -124,7 +124,7 @@ describe("le renouvellement de la session Max", { concurrency: 8 }, () => {
     assert.match(fin.sortie, /session renouvelée : identifiants réécrits le /);
   });
 
-  test("rien à renouveler : le passage le consigne sans bruit, et ne demande rien de plus à claude", { skip: posixOnly("runs deploy/brigade-renouvellement, a bash script that launches a fake claude and reads the credentials file with `stat`, which the Windows job could not run to the end; on the Windows job: The \"message\" argument must be one of type string or function. Received undefined") }, (t) => {
+  test("rien à renouveler : le passage le consigne sans bruit, et ne demande rien de plus à claude", { skip: posixOnly("runs the bash renewal script with a fake claude that leaves the credentials untouched, and checks only `mcp list` is called and ecrits/verifie are recorded; Windows cannot execute the extensionless script, so the pass never runs") }, (t) => {
     const b = box(t, { rafraichir: "rien" });
     const ecrits = isoDe(b.identifiants);
     const fin = b.passer();
@@ -136,7 +136,7 @@ describe("le renouvellement de la session Max", { concurrency: 8 }, () => {
     assert.equal(fin.sortie, "");
   });
 
-  test("claude échoue : la date et la nature de l'échec sont consignées, et le passage sort en code non nul", { skip: posixOnly("runs deploy/brigade-renouvellement, a bash script that launches a fake claude and reads the credentials file with `stat`, which the Windows job could not run to the end; on the Windows job: null !== 1") }, (t) => {
+  test("claude échoue : la date et la nature de l'échec sont consignées, et le passage sort en code non nul", { skip: posixOnly("runs the bash renewal script with a fake claude whose `mcp list` exits 1, and checks claude-en-echec, its date and detail are recorded with exit code 1; Windows cannot execute the shebang script, so it returns no exit code") }, (t) => {
     const b = box(t, { rafraichir: { echoue: "connexion refusée par api.anthropic.com" } });
     const fin = b.passer();
     assert.equal(fin.code, ECHEC);
@@ -148,7 +148,7 @@ describe("le renouvellement de la session Max", { concurrency: 8 }, () => {
     assert.match(fin.erreur, /échec \(claude-en-echec\)/);
   });
 
-  test("Anthropic refuse le renouvellement : claude vide ses identifiants, le passage dit qu'il faut /login", { skip: posixOnly("runs deploy/brigade-renouvellement, a bash script that launches a fake claude and reads the credentials file with `stat`, which the Windows job could not run to the end; on the Windows job: null !== 1") }, (t) => {
+  test("Anthropic refuse le renouvellement : claude vide ses identifiants, le passage dit qu'il faut /login", { skip: posixOnly("runs the bash renewal script with a fake claude that empties the credentials and reports the session closed, expecting session-refusee and a /login hint; Windows cannot execute the shebang script, so it returns no exit code") }, (t) => {
     const b = box(t, { rafraichir: "vide", statut: "fermee" });
     const fin = b.passer();
     assert.equal(fin.code, ECHEC);
@@ -158,21 +158,21 @@ describe("le renouvellement de la session Max", { concurrency: 8 }, () => {
     assert.equal(b.consigne().renouvele, undefined);
   });
 
-  test("identifiants réécrits mais statut illisible : c'est un échec, pas un renouvellement", { skip: posixOnly("runs deploy/brigade-renouvellement, a bash script that launches a fake claude and reads the credentials file with `stat`, which the Windows job could not run to the end; on the Windows job: null !== 1") }, (t) => {
+  test("identifiants réécrits mais statut illisible : c'est un échec, pas un renouvellement", { skip: posixOnly("runs the bash renewal script with a fake claude that rewrites the credentials but answers `auth status` with non-JSON, expecting statut-illisible; Windows cannot execute the shebang script, so it returns no exit code") }, (t) => {
     const b = box(t, { rafraichir: "renouvelle", statut: "illisible" });
     assert.equal(b.passer().code, ECHEC);
     assert.equal(b.consigne().echec_nature, "statut-illisible");
     assert.equal(b.consigne().renouvele, undefined);
   });
 
-  test("aucune connexion Max sous le compte : l'échec est consigné sans lancer claude", { skip: posixOnly("runs deploy/brigade-renouvellement, a bash script that launches a fake claude and reads the credentials file with `stat`, which the Windows job could not run to the end; on the Windows job: null !== 1") }, (t) => {
+  test("aucune connexion Max sous le compte : l'échec est consigné sans lancer claude", { skip: posixOnly("runs the bash renewal script with no credentials file under HOME, and checks it records identifiants-absents without calling claude; Windows cannot execute the shebang script, so it returns no exit code") }, (t) => {
     const b = box(t, { connecte: false });
     assert.equal(b.passer().code, ECHEC);
     assert.deepEqual(b.appels(), []);
     assert.equal(b.consigne().echec_nature, "identifiants-absents");
   });
 
-  test("des identifiants plus vieux qu'un jeton ne vit, jamais réécrits : le renouvellement n'a pas eu lieu", { skip: posixOnly("runs deploy/brigade-renouvellement, a bash script that launches a fake claude and reads the credentials file with `stat`, which the Windows job could not run to the end; on the Windows job: null !== 1") }, (t) => {
+  test("des identifiants plus vieux qu'un jeton ne vit, jamais réécrits : le renouvellement n'a pas eu lieu", { skip: posixOnly("backdates the credentials nine hours and runs the bash renewal script, expecting non-renouvele, then success under a ten-hour BRIGADE_SESSION_LIFETIME; Windows cannot execute the shebang script, so no exit code comes back") }, (t) => {
     const b = box(t, { rafraichir: "rien" });
     poserIdentifiants(b.identifiants, 9 * 3600);
     assert.equal(b.passer().code, ECHEC);
@@ -181,13 +181,13 @@ describe("le renouvellement de la session Max", { concurrency: 8 }, () => {
     assert.equal(b.passer([], { BRIGADE_SESSION_LIFETIME: String(10 * 3600) }).code, REUSSI);
   });
 
-  test("un claude introuvable est un échec nommé", { skip: posixOnly("runs deploy/brigade-renouvellement, a bash script that launches a fake claude and reads the credentials file with `stat`, which the Windows job could not run to the end; on the Windows job: null !== 1") }, (t) => {
+  test("un claude introuvable est un échec nommé", { skip: posixOnly("points BRIGADE_CLAUDE_BIN at a missing command and runs the bash renewal script, expecting claude-introuvable from exit code 127 of env; Windows cannot execute the shebang script, so no exit code comes back") }, (t) => {
     const b = box(t);
     assert.equal(b.passer([], { BRIGADE_CLAUDE_BIN: "claude-qui-n-existe-pas" }).code, ECHEC);
     assert.equal(b.consigne().echec_nature, "claude-introuvable");
   });
 
-  test("un échec garde le dernier renouvellement, et un passage réussi garde le dernier échec", { skip: posixOnly("runs deploy/brigade-renouvellement, a bash script that launches a fake claude and reads the credentials file with `stat`, which the Windows job could not run to the end; on the Windows job: null !== 0") }, (t) => {
+  test("un échec garde le dernier renouvellement, et un passage réussi garde le dernier échec", { skip: posixOnly("runs the bash renewal script three times (renewal, missing claude, renewal) and checks each pass keeps the last renouvele or echec date; Windows cannot execute the shebang script, so the first pass returns no exit code") }, (t) => {
     const b = box(t, { rafraichir: "renouvelle" });
     assert.equal(b.passer().code, REUSSI);
     const renouvele = b.consigne().renouvele;
@@ -200,7 +200,7 @@ describe("le renouvellement de la session Max", { concurrency: 8 }, () => {
     assert.equal(b.consigne().echec_nature, "claude-introuvable");
   });
 
-  test("le fichier d'identifiants n'est jamais lu : illisible, il ne change rien, et rien de ce qu'il porte ne sort", { skip: posixOnly("runs deploy/brigade-renouvellement, a bash script that launches a fake claude and reads the credentials file with `stat`, which the Windows job could not run to the end; on the Windows job: Error: ENOENT: no such file or directory, open '<tmp>\\session\\renouvellement'") }, (t) => {
+  test("le fichier d'identifiants n'est jamais lu : illisible, il ne change rien, et rien de ce qu'il porte ne sort", { skip: posixOnly("makes the credentials mode 000 and runs the bash renewal script for three fake claude answers, checking the secret never leaks; mode 000 does not make a file unreadable on Windows, and the script cannot be executed there, so no state file exists") }, (t) => {
     for (const rafraichir of ["renouvelle", "rien", "vide"] as const) {
       const b = box(t, { rafraichir, statut: rafraichir === "vide" ? "fermee" : "ouverte" });
       const fin = b.passer();
@@ -209,7 +209,7 @@ describe("le renouvellement de la session Max", { concurrency: 8 }, () => {
     }
   });
 
-  test("claude part dans un environnement vidé : aucune clé ni aucun jeton du compte ne lui passe", { skip: posixOnly("runs deploy/brigade-renouvellement, a bash script that launches a fake claude and reads the credentials file with `stat`, which the Windows job could not run to the end; on the Windows job: The \"message\" argument must be one of type string or function. Received undefined") }, (t) => {
+  test("claude part dans un environnement vidé : aucune clé ni aucun jeton du compte ne lui passe", { skip: posixOnly("passes API key and OAuth token variables to the bash renewal script and checks the fake claude, which dumps its variable names, saw only HOME and PATH; Windows cannot execute the shebang script, so no exit code or stderr comes back") }, (t) => {
     const b = box(t, { rafraichir: "renouvelle" });
     const fin = b.passer([], { ANTHROPIC_API_KEY: "cle", ANTHROPIC_AUTH_TOKEN: "jeton", CLAUDE_CODE_OAUTH_TOKEN: "jeton", AUTRE: "x" });
     assert.equal(fin.code, REUSSI, fin.erreur);
@@ -219,13 +219,13 @@ describe("le renouvellement de la session Max", { concurrency: 8 }, () => {
     }
   });
 
-  test("le passage n'écrit que le fichier d'état", { skip: posixOnly("runs deploy/brigade-renouvellement, a bash script that launches a fake claude and reads the credentials file with `stat`, which the Windows job could not run to the end; on the Windows job: + [] - [ - 'renouvellement' - ]") }, (t) => {
+  test("le passage n'écrit que le fichier d'état", { skip: posixOnly("runs the bash renewal script with a renewing fake claude and checks the state directory then holds only the renouvellement file; Windows cannot execute the shebang script, so nothing at all is written there") }, (t) => {
     const b = box(t, { rafraichir: "renouvelle" });
     b.passer();
     assert.deepEqual(readdirSync(join(b.etat, "..")), ["renouvellement"]);
   });
 
-  test("l'essai dit ce qu'un passage ferait, sans identifiants réels, sans rien lancer ni écrire", { skip: posixOnly("runs deploy/brigade-renouvellement, a bash script that launches a fake claude and reads the credentials file with `stat`, which the Windows job could not run to the end; on the Windows job: The \"message\" argument must be one of type string or function. Received undefined") }, (t) => {
+  test("l'essai dit ce qu'un passage ferait, sans identifiants réels, sans rien lancer ni écrire", { skip: posixOnly("runs the bash renewal script with --essai, with and without credentials, and checks it launches and writes nothing and prints the claude path and HOME PATH; Windows cannot execute the shebang script, so there is no output") }, (t) => {
     for (const connecte of [true, false]) {
       const b = box(t, { connecte });
       const fin = b.passer(["--essai"]);
@@ -239,7 +239,7 @@ describe("le renouvellement de la session Max", { concurrency: 8 }, () => {
     }
   });
 
-  test("sans fichier d'état désigné, ou avec un argument inconnu, il refuse et ne lance rien", { skip: posixOnly("runs deploy/brigade-renouvellement, a bash script that launches a fake claude and reads the credentials file with `stat`, which the Windows job could not run to the end; on the Windows job: {\"BRIGADE_SESSION_STATE\":\"\"}") }, (t) => {
+  test("sans fichier d'état désigné, ou avec un argument inconnu, il refuse et ne lance rien", { skip: posixOnly("runs the bash renewal script with an empty or relative BRIGADE_SESSION_STATE, a non-numeric lifetime, then an unknown argument, expecting exit code 2 each time; Windows cannot execute the shebang script, so no exit code comes back") }, (t) => {
     const b = box(t);
     for (const [args, env] of [
       [[], { BRIGADE_SESSION_STATE: "" }],

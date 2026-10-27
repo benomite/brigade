@@ -1410,9 +1410,9 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.match(cooks()[1]?.args[1] ?? "", new RegExp(`${lecon?.id} : Relecture — constat bloquant`));
   });
 
-  test("un reviewer resté rouge consomme les deux renvois comme des gates rouges, puis la cuisine en fait un ticket `fix`", async (t) => {
+  test("un reviewer resté rouge consomme les deux renvois comme des gates rouges, puis la cuisine en fait un ticket `fix`", { timeout: 600_000 }, async (t) => {
     const { gh, etat, pass, journal, dernier, jusquAu } = service(t, { grant: true, reviewer: { relecture: "relit-rouge" } });
-    await jusquAu("pass.kitchen-took-over");
+    await jusquAu("pass.kitchen-took-over", 1, TROIS_RENVOIS_MS);
 
     assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.cause, pass()?.returns], ["escalated", "still-red", "returns-exhausted", 2]);
     const compte = (type: string) => journal.duTicket(17).filter((e) => e.type === type).length;

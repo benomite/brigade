@@ -103,7 +103,7 @@ function atelier(t: TestContext, options: { cloison?: boolean; graceMs?: number 
 }
 
 describe("les serveurs des worktrees", { concurrency: 8 }, () => {
-  test("une livraison qui touche l'interface lance la commande déclarée, depuis son worktree et sur son port ; une autre ne lance rien", { skip: posixOnly("starts preview servers whose commands are POSIX shell lines run by a kitchen of bash fakes; on Windows they kept the test directory open and its removal failed (EPERM); on the Windows job: Error: EPERM, Permission denied: '<tmp>'") }, async (t) => {
+  test("une livraison qui touche l'interface lance la commande déclarée, depuis son worktree et sur son port ; une autre ne lance rien", { skip: posixOnly("serves a delivery that touches the interface with a `bash -c` server left running in its worktree; servers are stopped by a signal to their process group, which Windows lacks, so it outlives the test and removing its directory fails (EPERM)") }, async (t) => {
     const { journal, serveurs, livraison, faits } = atelier(t);
 
     assert.equal(serveurs.servir(livraison(7, declarer(TOURNE, "app/src/vue"), ["docs/runtime.md", "app/src/vue.ts"])), false);
@@ -124,7 +124,7 @@ describe("les serveurs des worktrees", { concurrency: 8 }, () => {
     );
   });
 
-  test("pour un projet web, la page à ouvrir est le serveur du worktree suivi de la route de l'écran que le cook déclare — sans écran, aucune page", { skip: posixOnly("starts preview servers whose commands are POSIX shell lines run by a kitchen of bash fakes; on Windows they kept the test directory open and its removal failed (EPERM); on the Windows job: Error: EPERM, Permission denied: '<tmp>'") }, (t) => {
+  test("pour un projet web, la page à ouvrir est le serveur du worktree suivi de la route de l'écran que le cook déclare — sans écran, aucune page", { skip: posixOnly("serves two web deliveries, one naming a screen and one not, to read their pages; their `sleep` servers are stopped through a process-group signal Windows does not have, so they keep their worktrees open and removing the test directory fails (EPERM)") }, (t) => {
     const { journal, serveurs, livraison, faits } = atelier(t);
     const declaree = ["J'ai ajouté la page d'exemple.", "", "Écran : /exemple", "À regarder : la page dit bonjour"].join("\n");
 
@@ -149,7 +149,7 @@ describe("les serveurs des worktrees", { concurrency: 8 }, () => {
     assert.deepEqual(direEcran(null), []);
   });
 
-  test("un écran déduit des fichiers changés donne sa page ; un écran qui n'est pas une route n'en donne aucune, et le dit ; une déclaration d'écrans mal écrite se dit", { skip: posixOnly("starts preview servers whose commands are POSIX shell lines run by a kitchen of bash fakes; on Windows they kept the test directory open and its removal failed (EPERM) (this test uses POSIX signals); on the Windows job: Error: EPERM, Permission denied: '<tmp>'") }, (t) => {
+  test("un écran déduit des fichiers changés donne sa page ; un écran qui n'est pas une route n'en donne aucune, et le dit ; une déclaration d'écrans mal écrite se dit", { skip: posixOnly("serves a delivery whose screen is deduced from the project's screens file and one naming a screen that is not a route; Windows has no process group to signal, so both servers hold their worktrees past the test and its directory cannot be removed (EPERM)") }, (t) => {
     const { journal, serveurs, livraison, avertissements } = atelier(t);
     const deduite = livraison(7, declarer(TOURNE, "app"), ["app/rail/vue.ts"]);
     writeFileSync(join(deduite.worktree, DECLARATION_ECRANS), ["app/rail : /rail", "app/carte : la carte", "../ailleurs : /ailleurs", ""].join("\n"));
@@ -204,7 +204,7 @@ describe("les serveurs des worktrees", { concurrency: 8 }, () => {
     assert.deepEqual([serveurs.tenus(), faits("service.started")], [[], []]);
   });
 
-  test("deux worktrees ne se partagent pas un port : le second n'est pas servi, et c'est le setup qui est nommé", { skip: posixOnly("starts preview servers whose commands are POSIX shell lines run by a kitchen of bash fakes; on Windows they kept the test directory open and its removal failed (EPERM) (this test uses POSIX signals); on the Windows job: Error: EPERM, Permission denied: '<tmp>'") }, (t) => {
+  test("deux worktrees ne se partagent pas un port : le second n'est pas servi, et c'est le setup qui est nommé", { skip: posixOnly("serves ticket 7 on port 20007 and refuses ticket 8 asking for the same port; the server left running is stopped by a process-group signal, absent on Windows, so it keeps its worktree as working directory and removing the test directory fails (EPERM)") }, (t) => {
     const { serveurs, livraison, faits } = atelier(t);
     assert.equal(serveurs.servir(livraison(7, declarer(TOURNE, "app"), ["app/x"], 20007)), true);
 
@@ -227,7 +227,7 @@ describe("les serveurs des worktrees", { concurrency: 8 }, () => {
     assert.deepEqual(avertissements, ["brigade: the server of ticket #7 (worktrees/7-a, port 20007) stopped by itself — exit code 127\nvite: command not found"]);
   });
 
-  test("un serveur arrêté meurt avec tout ce qu'il a lancé ; sourd à SIGTERM, il est tué passé la grâce — et son worktree n'est rendu qu'ensuite", { skip: posixOnly("starts preview servers whose commands are POSIX shell lines, stopped by signals to their process group (none on Windows) (this test uses POSIX signals); on the Windows job: '7': [ 'served', + null") }, async (t) => {
+  test("un serveur arrêté meurt avec tout ce qu'il a lancé ; sourd à SIGTERM, il est tué passé la grâce — et son worktree n'est rendu qu'ensuite", { skip: posixOnly("stops a server that ignores SIGTERM through `trap` and expects SIGKILL after the grace, its child dead too; on Windows no signal reaches the process group, so the server only ends when its own command finishes and no SIGKILL is recorded") }, async (t) => {
     const { repertoire, journal, serveurs, ranges, livraison, faits } = atelier(t, { graceMs: 20 });
     const pret = join(repertoire, "pret");
     // Un serveur qui en lance un autre, et n'entend pas SIGTERM.
@@ -251,7 +251,7 @@ describe("les serveurs des worktrees", { concurrency: 8 }, () => {
     await serveurs.arreter(9, "retaken");
   });
 
-  test("le rangement d'un worktree arrête son serveur d'abord — et lui seul, sans que le serveur ne le range une seconde fois", { skip: posixOnly("starts preview servers whose commands are POSIX shell lines, stopped by signals to their process group (none on Windows); on the Windows job: false !== true") }, async (t) => {
+  test("le rangement d'un worktree arrête son serveur d'abord — et lui seul, sans que le serveur ne le range une seconde fois", { skip: posixOnly("has the worktree cleanup stop server 7 before removing its worktree while server 8 keeps running; the stop is a signal to the process group, which Windows lacks, so the cleanup waits until both `sleep` servers end on their own and server 8 is found dead") }, async (t) => {
     const { repertoire, journal, serveurs, ranges, avertissements, livraison, faits } = atelier(t);
     assert.equal(serveurs.servir(livraison(7, declarer(TOURNE, "app"), ["app/x"])), true);
     assert.equal(serveurs.servir(livraison(8, declarer(TOURNE, "app"), ["app/x"])), true);
@@ -289,7 +289,7 @@ describe("les serveurs des worktrees", { concurrency: 8 }, () => {
     assert.equal(retires.length, 2);
   });
 
-  test("un serveur dont le worktree a disparu est détecté et arrêté : il n'est plus listé, et le journal dit pourquoi", { skip: posixOnly("starts preview servers whose commands are POSIX shell lines run by a kitchen of bash fakes; on Windows they kept the test directory open and its removal failed (EPERM); on the Windows job: Error: EPERM, Permission denied: '<tmp>\\worktrees\\7-a'") }, async (t) => {
+  test("un serveur dont le worktree a disparu est détecté et arrêté : il n'est plus listé, et le journal dit pourquoi", { skip: posixOnly("deletes the worktree of a running server to see it detected as orphaned and stopped; on Windows the server's `sleep` still has that worktree as its working directory, so deleting it fails (EPERM)") }, async (t) => {
     const { repertoire, journal, serveurs, ranges, livraison, faits } = atelier(t);
     assert.equal(serveurs.servir(livraison(7, declarer(TOURNE, "app"), ["app/x"])), true);
     assert.equal(serveurs.servir(livraison(8, declarer(TOURNE, "app"), ["app/x"])), true);
@@ -373,7 +373,7 @@ describe("les serveurs des worktrees", { concurrency: 8 }, () => {
     assert.deepEqual([ranges, serveurs.tenus(), worktreesTenus(journal.base), faits("service.stopped")], [[7], [], [], []]);
   });
 
-  test("aucun serveur ne survit à son runtime : une vie qui commence n'en liste aucun, même si la précédente est morte sans l'écrire", { skip: posixOnly("starts preview servers whose commands are POSIX shell lines run by a kitchen of bash fakes; on Windows they kept the test directory open and its removal failed (EPERM) (this test uses a shell script of its own); on the Windows job: Error: EPERM, Permission denied: '<tmp>'") }, (t) => {
+  test("aucun serveur ne survit à son runtime : une vie qui commence n'en liste aucun, même si la précédente est morte sans l'écrire", { skip: posixOnly("serves one delivery, then checks that a new runtime.started fact lists no server; the server it launched is stopped only by a process-group signal, absent on Windows, so it holds its worktree and removing the test directory fails (EPERM)") }, (t) => {
     const { journal, serveurs, livraison } = atelier(t);
     assert.equal(serveurs.servir(livraison(7, declarer(TOURNE, "app"), ["app/x"])), true);
     assert.equal(serveursEnCours(journal.base).length, 1);
@@ -393,7 +393,7 @@ describe("les serveurs des worktrees", { concurrency: 8 }, () => {
     assert.deepEqual(worktreesTenus(journal.base), []);
   });
 
-  test("sous cloison, la commande de service part dans la même cloison que le setup et le cook : son worktree, et rien de plus", { skip: posixOnly("starts preview servers whose commands are POSIX shell lines run by a kitchen of bash fakes; on Windows they kept the test directory open and its removal failed (EPERM) (this test uses a shell script of its own); on the Windows job: Error: EPERM, Permission denied: '<tmp>'") }, async (t) => {
+  test("sous cloison, la commande de service part dans la même cloison que le setup et le cook : son worktree, et rien de plus", { skip: posixOnly("serves a delivery inside the sandbox, run by the bash bwrap fake, and checks the bwrap arguments it recorded; the server is stopped by a process-group signal Windows lacks, so it keeps its worktree open and removing it fails (EPERM)") }, async (t) => {
     const { serveurs, temoin, livraison } = atelier(t, { cloison: true });
     const servie = livraison(7, declarer(TOURNE, "app"), ["app/x"]);
 
@@ -473,7 +473,7 @@ const montrer = async (commande: typeof status, repertoire: string) => {
 };
 
 describe("la station sert une livraison d'interface", { concurrency: 8 }, () => {
-  test("une livraison qui touche l'interface est servie depuis le worktree de son cook, sur le port que son setup lui a attribué : une requête sur ce port y répond, et `station` comme `status` le listent", { skip: posixOnly("starts preview servers whose commands are POSIX shell lines, stopped by signals to their process group (none on Windows); on the Windows job: the awaited fact never came (condition never met)") }, async (t) => {
+  test("une livraison qui touche l'interface est servie depuis le worktree de son cook, sur le port que son setup lui a attribué : une requête sur ce port y répond, et `station` comme `status` le listent", { skip: posixOnly("has the full station serve a delivery from its cook's worktree on the setup's port, listed by station and status, then stops the runtime and waits for the server to die; its stop is a process-group signal, absent on Windows, so it never dies") }, async (t) => {
     await surPortsLibres(1, async ([port = 0]) => {
       await enCuisine(t, { lieux: projetServi(t, { interface: ["travail.txt"], ports: { 15: port } }), git: true }, async (lieu) => {
         const { repertoire, dernier, etat, types, avertissements } = lieu;
@@ -512,7 +512,7 @@ describe("la station sert une livraison d'interface", { concurrency: 8 }, () => 
     });
   });
 
-  test("pour un projet web, la page de la livraison est celle de l'écran que son cook déclare : le port de son worktree suivi de la route — `station` et `status` la montrent, et elle répond depuis ce worktree", { skip: posixOnly("starts preview servers whose commands are POSIX shell lines run by a kitchen of bash fakes; on Windows they kept the test directory open and its removal failed (EPERM); on the Windows job: Error: EPERM, Permission denied: '<tmp>'") }, async (t) => {
+  test("pour un projet web, la page de la livraison est celle de l'écran que son cook déclare : le port de son worktree suivi de la route — `station` et `status` la montrent, et elle répond depuis ce worktree", { skip: posixOnly("has the full station serve a web delivery whose cook declares the /exemple screen and checks that page in station and status; the server is stopped by a process-group signal Windows lacks, so it holds its worktree and removing the test directory fails (EPERM)") }, async (t) => {
     await surPortsLibres(1, async ([port = 0]) => {
       await enCuisine(t, { lieux: projetServi(t, { interface: ["travail.txt"], ports: { 15: port } }), git: true, scenario: "livre-un-ecran" }, async (lieu) => {
         const { repertoire, dernier } = lieu;
@@ -568,7 +568,7 @@ describe("la station sert une livraison d'interface", { concurrency: 8 }, () => 
     });
   });
 
-  test("deux worktrees servis en même temps écoutent sur deux ports sans se couper l'un l'autre ; le ticket servi éteint le sien, et lui seul", { skip: posixOnly("starts preview servers whose commands are POSIX shell lines, stopped by signals to their process group (none on Windows); on the Windows job: the awaited fact never came (condition never met)") }, async (t) => {
+  test("deux worktrees servis en même temps écoutent sur deux ports sans se couper l'un l'autre ; le ticket servi éteint le sien, et lui seul", { skip: posixOnly("serves two worktrees on two ports, then the pass serves ticket 15, whose server must stop before its worktree is removed; that stop is a signal to the process group, absent on Windows, so the worktree of ticket 15 is never removed") }, async (t) => {
     await surPortsLibres(2, async ([premier = 0, second = 0]) => {
       await enCuisine(t, { lieux: projetServi(t, { interface: ["travail.txt"], ports: { 15: premier, 16: second } }), git: true, cooks: 2 }, async (lieu) => {
         const { repertoire, dernier, types, runtime } = lieu;
@@ -646,7 +646,7 @@ describe("la station sert une livraison d'interface", { concurrency: 8 }, () => 
     });
   });
 
-  test("un worktree qui disparaît sous son serveur : le serveur est arrêté, plus rien n'écoute sur son port et ni `station` ni `status` ne le listent", { skip: posixOnly("starts preview servers whose commands are POSIX shell lines run by a kitchen of bash fakes; on Windows they kept the test directory open and its removal failed (EPERM); on the Windows job: Error: EPERM, Permission denied: '<tmp>\\worktrees\\15-cf58bf61'") }, async (t) => {
+  test("un worktree qui disparaît sous son serveur : le serveur est arrêté, plus rien n'écoute sur son port et ni `station` ni `status` ne le listent", { skip: posixOnly("deletes the worktree under a running full-station server to see that server stopped as orphaned; on Windows the server still has that worktree as its working directory, so deleting it fails (EPERM)") }, async (t) => {
     await surPortsLibres(1, async ([port = 0]) => {
       await enCuisine(t, { lieux: projetServi(t, { interface: ["travail.txt"], ports: { 15: port } }), git: true }, async (lieu) => {
         const { repertoire, dernier } = lieu;
@@ -665,7 +665,7 @@ describe("la station sert une livraison d'interface", { concurrency: 8 }, () => 
     });
   });
 
-  test("un worktree servi que le rattrapage range : son serveur s'arrête d'abord — `removed` —, plus rien n'écoute sur son port, ni `station` ni `status` ne le listent", { skip: posixOnly("starts preview servers whose commands are POSIX shell lines, stopped by signals to their process group (none on Windows); on the Windows job: the awaited fact never came (condition never met)") }, async (t) => {
+  test("un worktree servi que le rattrapage range : son serveur s'arrête d'abord — `removed` —, plus rien n'écoute sur son port, ni `station` ni `status` ne le listent", { skip: posixOnly("records a kept worktree for a served ticket so that the cleanup must stop its server before removing it; that stop is a process-group signal Windows does not have, so the server never stops and the worktree is never removed") }, async (t) => {
     await surPortsLibres(1, async ([port = 0]) => {
       await enCuisine(t, { lieux: projetServi(t, { interface: ["travail.txt"], ports: { 15: port } }), git: true }, async (lieu) => {
         const { repertoire, dernier, journal, types } = lieu;
@@ -696,7 +696,7 @@ describe("la station sert une livraison d'interface", { concurrency: 8 }, () => 
     });
   });
 
-  test("un cook qui reprend le ticket prend la place du serveur : l'ancien s'arrête et son worktree part avant que la branche ne soit reprise, et la nouvelle livraison est servie sur le même port", { skip: posixOnly("starts preview servers whose commands are POSIX shell lines, stopped by signals to their process group (none on Windows); on the Windows job: the awaited fact never came (condition never met)") }, async (t) => {
+  test("un cook qui reprend le ticket prend la place du serveur : l'ancien s'arrête et son worktree part avant que la branche ne soit reprise, et la nouvelle livraison est servie sur le même port", { skip: posixOnly("has the reviewer reject the first delivery so that the retaking cook must first stop the old server and remove its worktree; the stop is a signal to the process group, absent on Windows, so the old server never stops and the second delivery is never served") }, async (t) => {
     await surPortsLibres(1, async ([port = 0]) => {
       const lieux = projetServi(t, { interface: ["travail.txt"], ports: { 17: port }, gates: true });
       // Le reviewer refuse la première livraison, et laisse passer la seconde.
