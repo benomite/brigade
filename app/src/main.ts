@@ -31,6 +31,7 @@ import { ecrireAttente, GESTES_D_ATTENTE } from "./attente.ts";
 import { GESTES_DE_LA_CUISINE } from "./cuisine.ts";
 import { BANNIERE, COMMANDE, rangerLeRailPublie, tenirFaits, type RailDuProjetLu } from "./faits.ts";
 import { clientGitHub, parFetch } from "./tableau/client.ts";
+import { avecLesEnvois } from "./tableau/envois.ts";
 import { jetonDeGh } from "./tableau/jeton-gh.ts";
 import { lireLeTableauDuDepot } from "./tableau/lecture.ts";
 import { ouvrirVeilleDuTableau, tenirLecturesDuTableau } from "./tableau/rail.ts";
@@ -207,7 +208,13 @@ const terminaux = ouvrirTerminaux({
 // garde son écran (#1435) : son rail n'est pas lu ici.
 const appelerGitHub = clientGitHub({ jeton: jetonDeGh({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 10_000 }), envoyer: parFetch() });
 const depotDuProjet = async (projet: Projet) => projet.depot ?? (await depotDeLOrigine(process.env.BRIGADE_GIT_BIN || "git", projet.dossier)) ?? projet.nom;
-const tableaux = tenirLecturesDuTableau<Projet>({ lire: async (projet) => lireLeTableauDuDepot({ depot: await depotDuProjet(projet), appeler: appelerGitHub }), fraicheurMs: 15_000 });
+// Une carte de TODO à laquelle le chef a répondu se lit, avec lui, des commentaires du tableau (tableau/envois.ts, #1841) :
+// envoyée et en attente de la cuisine, jouée ou refusée — redémarrée, l'app relit les mêmes, et la carte le dit encore.
+const lireLeTableau = async (projet: Projet) => {
+  const lu = await lireLeTableauDuDepot({ depot: await depotDuProjet(projet), appeler: appelerGitHub });
+  return lu.lu ? avecLesEnvois(lu, appelerGitHub) : lu;
+};
+const tableaux = tenirLecturesDuTableau<Projet>({ lire: lireLeTableau, fraicheurMs: 15_000 });
 const railLisible = (projet: Projet) => cuisines.cuisineDe(projet) !== undefined;
 
 // Seul ce qui est affiché est lu — un projet, ou chacun dans « Tous les projets » : toutes

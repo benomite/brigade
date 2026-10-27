@@ -27,7 +27,8 @@ export const duTableau = (id: unknown): id is GesteDeFicheDuTableau => typeof id
 // Ce que la fiche reçoit (vue.js, `jouerGesteDeFiche`) : le geste posté, son commentaire au survol — ou pourquoi rien
 // n'est parti. Ce que la carte de TODO reçoit (carte-todo.ts, `Rendu`) : la réponse écrite, ou le refus.
 export type RenduDeFiche = { fait: string; detail: string } | { refus: string; detail: string };
-export type RenduDeCarte = { repondue: true; dit: string } | { refus: string; detail: string };
+// `commentaire` : celui que la réponse a posté sur le tableau, que la carte suit jusqu'à la réponse de la box (#1841).
+export type RenduDeCarte = { repondue: true; dit: string; commentaire: number } | { refus: string; detail: string };
 // Une réponse de carte déjà lue (carte-todo.ts, `reponseLue`) : le rang d'un choix, ou le texte du chef.
 export type ReponseLue = { ticket: number; choix: number } | { ticket: number; texte: string };
 
@@ -42,16 +43,17 @@ export function ticketsDuTableau(lu: Pick<TableauLu, "file" | "faits">): Set<num
   return new Set([...tickets(lu.faits?.rail), ...tickets(lu.faits?.attend), ...lu.file.flatMap(({ ticket }) => (ticket === null ? [] : [ticket]))]);
 }
 
-// L'état d'un geste posté, dit dans les mots de la fiche : posté, pris, refusé — ou pas parti.
-function ditDe(etat: EtatDuGeste): { fait: string; detail: string } | { refus: string; detail: string } {
+// L'état d'un geste posté, dit dans les mots de la fiche : posté, pris, refusé — ou pas parti. Posté, son commentaire.
+type Dit = { fait: string; detail: string; commentaire: number } | { refus: string; detail: string };
+function ditDe(etat: EtatDuGeste): Dit {
   if (etat.etat === "failed") return { refus: etat.raison, detail: "" };
-  if (etat.etat === "pending") return { fait: POSTE, detail: etat.commentaire.url ?? "" };
-  if (etat.etat === "taken") return { fait: `taken into account by the box: ${etat.reponse}`, detail: etat.commentaire.url ?? "" };
+  if (etat.etat === "pending") return { fait: POSTE, detail: etat.commentaire.url ?? "", commentaire: etat.commentaire.id };
+  if (etat.etat === "taken") return { fait: `taken into account by the box: ${etat.reponse}`, detail: etat.commentaire.url ?? "", commentaire: etat.commentaire.id };
   return { refus: `refused by the box: ${etat.reponse}`, detail: etat.commentaire.url ?? "" };
 }
 
 // Une décision postée sur le tableau de la dernière lecture, pour un ticket qu'il porte.
-async function poster(lu: TableauLu | undefined, decision: Exclude<DecisionDuChef, { proposition: number }>, client: ClientDesGestes): Promise<{ fait: string; detail: string } | { refus: string; detail: string }> {
+async function poster(lu: TableauLu | undefined, decision: Exclude<DecisionDuChef, { proposition: number }>, client: ClientDesGestes): Promise<Dit> {
   if (lu === undefined) return { refus: PAS_LU, detail: "" };
   if (!ticketsDuTableau(lu).has(decision.ticket)) return { refus: `nothing was posted: #${decision.ticket} is not on the latest Kitchen board read — read it again`, detail: "" };
   return ditDe(await gestesDuTableau({ depot: lu.depot, tableau: lu.numero, client }).envoyer(decision));
@@ -88,7 +90,8 @@ export async function reponseALaFile(lu: TableauLu | undefined, geste: "correcti
 // Un geste de la fiche que le tableau porte, posté pour ce ticket.
 async function decider(lu: TableauLu | undefined, id: GesteDeFicheDuTableau, ticket: unknown, client: ClientDesGestes): Promise<RenduDeFiche> {
   if (typeof ticket !== "number" || !Number.isSafeInteger(ticket) || ticket < 1) return { refus: "nothing was posted: the action names no ticket", detail: "" };
-  return poster(lu, { geste: GESTES_DE_FICHE[id], ticket }, client);
+  const dit = await poster(lu, { geste: GESTES_DE_FICHE[id], ticket }, client);
+  return "fait" in dit ? { fait: dit.fait, detail: dit.detail } : dit;
 }
 
 // Un geste de la fiche d'un ticket : posté sur le tableau s'il est de sa grammaire ; `horsDuTableau` sinon — l'appelant
@@ -105,5 +108,5 @@ export const arriveeDeCarte = (lu: TableauLu | undefined, ticket: unknown, clien
 export async function reponseDeCarte(lu: TableauLu | undefined, reponse: ReponseLue, client: ClientDesGestes): Promise<RenduDeCarte> {
   const decision: DecisionDuChef = "choix" in reponse ? { geste: "choose", ticket: reponse.ticket, choix: reponse.choix } : { geste: "answer", ticket: reponse.ticket, reponse: reponse.texte };
   const dit = await poster(lu, decision, client);
-  return "fait" in dit ? { repondue: true, dit: dit.fait } : dit;
+  return "fait" in dit ? { repondue: true, dit: dit.fait, commentaire: dit.commentaire } : dit;
 }
