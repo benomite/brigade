@@ -51,6 +51,14 @@ const enListe = (noms: readonly string[], liaison: string) => (noms.length <= 1 
 // Remettre sur le rail, ou en sortir : la question des tickets mis de côté.
 const remettreOuRetirer = (ticket: number, resume: string, remettre = REMETTRE) => ({ resume, question: `Put #${ticket} back on the rail, or take it off?`, choix: [remettre, RETIRER] });
 
+// Un texte libre du chef (ce qu'un ticket attendait, de qui) dans un résumé : sur une
+// ligne, sans mise en forme ni fin de phrase, borné — la règle des cartes l'exige.
+const MOTS_MAX = 120;
+function enMots(libre: string): string {
+  const mots = libre.replace(/[`*_\[\]()#>“”"]/g, "").replace(/(?<=[.!?…])\s+/g, ", ").replace(/\s+/g, " ").replace(/[.!?…,\s]+$/, "").trim();
+  return mots.length > MOTS_MAX ? `${mots.slice(0, MOTS_MAX - 1).trimEnd()}…` : mots;
+}
+
 // Ce que la carte d'une attente propose, avant la règle.
 function proposition(attente: AttenteDeTicket) {
   const { ticket } = attente;
@@ -134,6 +142,14 @@ function proposition(attente: AttenteDeTicket) {
         choix: [choix("Split it as you think best", "resume"), choix("Do not split it: make it a single ticket", "resume")],
       };
     case "repris":
+      if (attente.attendait !== null) {
+        const { what, who } = attente.attendait;
+        return {
+          resume: `#${ticket} was waiting for ${enMots(who)}: “${enMots(what)}”. It is back from WAITING, on its reminder date or because you took it back.`,
+          question: `Has what #${ticket} waited for arrived?`,
+          choix: [choix("It has arrived: send it back to the kitchen", "resume"), choix("Wait longer", "wait"), RETIRER],
+        };
+      }
       return remettreOuRetirer(ticket, `#${ticket} is back from WAITING, picked up again by you.`, choix("Send it back to the kitchen", "resume"));
     case "carte": {
       const { resume, question, choix: choisis, captures } = attente.carte;

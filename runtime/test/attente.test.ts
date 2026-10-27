@@ -5,8 +5,10 @@
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { principal } from "../src/attente-cli.ts";
-import { cestArrive, LABEL_WAITING, lireRelance, marquerAttentes, mettreEnAttente, PRIX_DE_L_ARRIVEE, ramenerSurNouveau, RELANCE_PAR_DEFAUT_MS, renvoyerEnCuisine, reprendre } from "../src/attente.ts";
+import { cestArrive, LABEL_WAITING, lireRelance, marquerAttentes, mettreEnAttente, PRIX_DE_L_ARRIVEE, RELANCE_PAR_DEFAUT_MS, renvoyerEnCuisine, reprendre } from "../src/attente.ts";
 import { attentesDuChef, decrireAttentes } from "../src/attend.ts";
+import { carteDuTicket } from "../src/carte-todo/cartes.ts";
+import { repondreALaCarte } from "../src/reponse-carte.ts";
 import { decrireEtat, faits, lireEtat } from "../src/etat.ts";
 import { ATTEND_UN_TIERS, REVENU_D_ATTENTE } from "../src/events/rail.ts";
 import { ouvrirJournal, type Journal } from "../src/journal.ts";
@@ -285,32 +287,49 @@ test("la relance atteinte ramène le ticket en TODO au prochain passage, avec «
   assert.equal(rail.relever(), 0);
 });
 
-test("un commentaire hors brigade avant la date ramène le ticket en TODO, « nouveau sur l'issue » ; ceux de la brigade, trace comprise, n'y font rien", async (t) => {
+test("une mise à jour de la box rejouée sur des tickets en WAITING n'en sort aucun ; un commentaire du client non plus — seuls un geste ou la date de relance", async (t) => {
+  const { repertoire, journal } = cuisine(t);
+  const gh = fauxGitHub(issue(8), issue(9));
+  for (const ticket of [8, 9]) poser(journal, ticket);
+  gh.repondre(8, "Une question d'avant l'attente");
+  attendre(journal, 8);
+  attendre(journal, 9, new Date("2026-10-30T09:00:00.000Z"));
+  await marquerAttentes(journal, gh.github, PROJET);
+  gh.repondre(8, "Voici la réponse du client : c'est validé.");
+
+  // La box mise à jour : le journal rouvert et rejoué de zéro, les mêmes
+  // réveils, bien avant toute date de relance.
+  const rouvert = ouvrirJournal(repertoire);
+  t.after(() => rouvert.fermer());
+  rouvert.reconstruire();
+  const railRouvert = ouvrirRail(rouvert, { projet: PROJET, dureeBailMs: 600_000, maintenant: () => MAINTENANT });
+  assert.equal(railRouvert.relever(), 0);
+  assert.equal(await marquerAttentes(rouvert, gh.github, PROJET), 0);
+  for (const ticket of [8, 9]) {
+    const lu = ticketDuRail(rouvert.base, ticket);
+    assert.equal(etatLu(lu as NonNullable<typeof lu>), "WAITING");
+    assert.equal(lu?.reason, ATTEND_UN_TIERS);
+  }
+  assert.deepEqual(todo(rouvert), []);
+});
+
+test("à la date de relance, le ticket revient avec une carte qui dit ce qu'il attendait et de qui, et propose d'attendre encore ou de dire que c'est arrivé", async (t) => {
   const { journal } = cuisine(t);
   const gh = fauxGitHub(issue(8));
   poser(journal, 8);
-  gh.repondre(8, "Une question d'avant l'attente");
-  attendre(journal, 8);
-  await marquerAttentes(journal, gh.github, PROJET);
-  assert.equal(gh.commentaires.length, 1);
-  assert.equal(await ramenerSurNouveau(journal, gh.github, PROJET), 0);
+  attendre(journal, 8, new Date("2026-10-15T09:00:00.000Z"));
+  const apres = ouvrirRail(journal, { projet: PROJET, dureeBailMs: 600_000, maintenant: () => new Date("2026-10-15T10:00:00.000Z") });
+  assert.equal(apres.relever(), 1);
+  const carte = carteDuTicket(journal.base, 8)?.carte;
+  assert.match(carte?.resume ?? "", /waiting for le client: “sa validation écrite du devis”/);
+  assert.deepEqual(carte?.choix.map(({ suite }) => suite), ["resume", "wait", "drop"]);
 
-  await gh.github.commenter(8, "**Rail — ticket bloqué.** autre chose de la brigade");
-  await gh.github.commenter(8, "<!-- brigade:manager -->\nnote");
-  assert.equal(await ramenerSurNouveau(journal, gh.github, PROJET), 0);
-  assert.notEqual(ticketDuRail(journal.base, 8)?.waitingFor, null);
-
-  gh.repondre(8, "Voici la réponse du client : c'est validé.");
-  assert.equal(await ramenerSurNouveau(journal, gh.github, PROJET), 1);
+  const reponse = await repondreALaCarte(journal, gh.github, PROJET, 8, { choix: 2 });
+  assert.equal(reponse.done, true);
   const lu = ticketDuRail(journal.base, 8);
-  assert.equal(lu?.waitingFor, null);
-  assert.equal(lu?.reason, REVENU_D_ATTENTE);
-  assert.match(lu?.resumedBecause ?? "", /^nouveau sur l'issue — de /);
-  assert.equal(revenu(journal, 8), lu?.resumedBecause);
-  assert.equal(await ramenerSurNouveau(journal, gh.github, PROJET), 0);
-  // L'issue le dit à son tour : label retiré, trace, sans qu'elle ne relance rien.
-  assert.equal(await marquerAttentes(journal, gh.github, PROJET), 1);
-  assert.equal(await ramenerSurNouveau(journal, gh.github, PROJET), 0);
+  assert.equal(lu?.reason, ATTEND_UN_TIERS);
+  assert.equal(lu?.waitingFor?.who, "le client");
+  assert.equal(lu?.waitingFor?.what, "sa validation écrite du devis");
 });
 
 test("la commande `waiting` : set, lister, resume, c'est arrivé — et ce qu'elle refuse", (t) => {

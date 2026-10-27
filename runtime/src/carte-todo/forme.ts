@@ -26,8 +26,9 @@ import type { CarteDeTodo, Choix, ChoixPropose } from "../carte-todo.ts";
 // Les gestes qu'un choix peut jouer : ceux que la réponse du chef sait faire
 // (reponse-carte.ts). `resume` : la cuisine reprend le ticket avec la réponse.
 // `merge` : la livraison verte qui attend est mergée. `drop` : le ticket sort
-// du rail — son label `fire` est retiré, il ne repart pas.
-export const GESTES = ["resume", "merge", "drop"] as const;
+// du rail — son label `fire` est retiré, il ne repart pas. `wait` : le ticket revenu de
+// WAITING y retourne, pour la même attente et une nouvelle relance.
+export const GESTES = ["resume", "merge", "drop", "wait"] as const;
 export type Geste = (typeof GESTES)[number];
 
 // Une seule question : elle finit par son « ? », et n'en porte pas d'autre.

@@ -132,7 +132,7 @@ describe("every kind of TODO card is built with the single shape", () => {
   });
 
   test("a free text of the kitchen — a cause, a reason, what a ticket waited for — never makes a summary fail", () => {
-    for (const n of [3, 9, 10, 27]) assert.doesNotMatch(carteDeLAttente(exemple(n)).resume, /`|\*\*|Twice|design review/);
+    for (const n of [3, 9, 10, 27]) assert.doesNotMatch(carteDeLAttente(exemple(n)).resume, /`|\*\*|Twice/);
   });
 });
 

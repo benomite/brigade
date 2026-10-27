@@ -98,10 +98,9 @@ export const ATTEND_UN_TIERS = "third-party";
 export const REVENU_D_ATTENTE = "third-party:resumed";
 // Ce qui fait sortir un ticket de WAITING, quand c'est le chef.
 export const PAR_LE_CHEF = "chef";
-// Ce qui le fait sortir seul : un commentaire qui n'est pas de la brigade…
-export const NOUVEAU_SUR_L_ISSUE = "nouveau sur l'issue";
-// … ou la date de relance atteinte, que le motif dit en JJ/MM (heure de la
-// box, comme la relance qu'on y a tapée).
+// Ce qui le fait sortir seul : la date de relance atteinte, rien d'autre — pas
+// un commentaire, pas une mise à jour de la box —, que le motif dit en JJ/MM
+// (heure de la box, comme la relance qu'on y a tapée).
 export function motifDeRelance(followUp: string): string {
   const date = new Date(followUp);
   const deux = (n: number) => String(n).padStart(2, "0");
