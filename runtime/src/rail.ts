@@ -2,7 +2,7 @@
 // et le faire avancer jusqu'au service. Chaque geste vérifie puis écrit dans
 // une seule transaction d'écriture : deux gestes concurrents se suivent, ils ne
 // se croisent pas.
-import { BAIL_ECHU, FIN_DE_86, motifDeRelance, type AccesRefuse, type FaitRail } from "./events/rail.ts";
+import { BAIL_ECHU, FIN_DE_86, PAR_LE_CHEF, REVENU_D_ATTENTE, type AccesRefuse, type FaitRail } from "./events/rail.ts";
 import { fournitTout } from "./capacites.ts";
 import { illisible, requises } from "./fiche.ts";
 import type { Journal } from "./journal.ts";
@@ -256,10 +256,19 @@ export function ouvrirRail(journal: Journal, options: OptionsRail): Rail {
         } else if (ticket.state === "86" && ticket.until !== null && ticket.until <= instant) {
           noter(ticket.ticket, undefined, { type: "ticket.released", payload: { reason: FIN_DE_86, station: null } });
           rendus++;
-        } else if (ticket.waitingFor !== null && Date.parse(ticket.waitingFor.followUp) <= Date.parse(instant)) {
-          // La relance est atteinte : le ticket revient devant le chef, motif dit.
-          noter(ticket.ticket, undefined, { type: "ticket.resumed", payload: { to: "todo", why: motifDeRelance(ticket.waitingFor.followUp) } });
-          rendus++;
+        } else if (ticket.state === "86" && ticket.reason === REVENU_D_ATTENTE && ticket.resumedBecause !== null && ticket.resumedBecause !== PAR_LE_CHEF) {
+          // Remis devant le chef par une ancienne version (« relance du 27/10 »,
+          // « nouveau sur l'issue ») sans qu'il l'ait fait : un ticket ne quitte
+          // WAITING que sur son geste. Il y retourne, pour ce qu'il attendait ;
+          // sa relance, déjà passée, se lit sur sa carte WAITING.
+          const [dernier] = base.lire<{ what: unknown; who: unknown; followUp: unknown }>(
+            "SELECT json_extract(payload, '$.what') AS what, json_extract(payload, '$.who') AS who, json_extract(payload, '$.followUp') AS followUp FROM events WHERE ticket = ? AND type = 'ticket.waiting' ORDER BY seq DESC LIMIT 1",
+            ticket.ticket,
+          );
+          if (typeof dernier?.what === "string" && typeof dernier.who === "string" && typeof dernier.followUp === "string") {
+            noter(ticket.ticket, undefined, { type: "ticket.waiting", payload: { what: dernier.what, who: dernier.who, followUp: dernier.followUp } });
+            rendus++;
+          }
         }
       }
       return rendus;

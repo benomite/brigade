@@ -10,7 +10,7 @@ Brigade V2 is released as tagged versions (`app-v1.0.0` and following). Each new
 
 ### Fixed
 
-- A ticket in WAITING leaves it only on a gesture or on its reminder date, no longer on a new comment; its card then says what it waited for and offers to wait longer (#1833)
+- A ticket in WAITING stays there when its follow-up date passes (its WAITING card shows it): it leaves only on the chef's gesture, never on a date, a new comment or a box update; those an older version turned back to TODO return to WAITING; a ticket waiting for a missing machine or station is no longer a TODO card (#1833)
 - Declare the report command in the commands table and its walkthrough (#1610)
 
 ## [app-v1.0.8] — 2026-10-23

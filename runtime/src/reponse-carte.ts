@@ -26,7 +26,6 @@
 // (`todo.answered`, `todo.left` pour une carte de la porte, et ce qui fait
 // avancer le ticket), en une transaction ; puis ce qui reste à faire sur
 // GitHub.
-import { mettreEnAttente } from "./attente.ts";
 import { cartesEnTodo, type Suite } from "./carte-todo.ts";
 import { carteDuTicket, type CarteDuTicket } from "./carte-todo/cartes.ts";
 import { mergerLaLivraison, retirerDuRail, type Resultat } from "./geste-ticket.ts";
@@ -67,7 +66,6 @@ type Avancee =
   | { comment: "retrait" }
   | { comment: "renvoi"; branche: string; pr: string | null }
   | { comment: "rail" }
-  | { comment: "attente"; quoi: string; qui: string }
   | { comment: "label" }
   | { comment: "rien" }
   | { refus: string };
@@ -106,11 +104,6 @@ export async function repondreALaCarte(journal: Journal, github: GitHub, projet:
     if (suite === "drop") {
       if (!sur) return { refus: `this choice takes #${ticket} off the rail, but it is not on the rail` };
       return { comment: "retrait" };
-    }
-    if (suite === "wait") {
-      const attendait = attente.quoi === "repris" ? attente.attendait : null;
-      if (sur?.state !== "86" || attendait === null) return { refus: `this choice puts #${ticket} back in WAITING, but it is not back from WAITING` };
-      return { comment: "attente", quoi: attendait.what, qui: attendait.who };
     }
     // Une livraison qui attend le chef : verte et retenue par la pass, ou
     // remontée et mise de côté.
@@ -159,7 +152,6 @@ export async function repondreALaCarte(journal: Journal, github: GitHub, projet:
       const livraison = passDuTicket(base, ticket);
       journal.ajouter({ ...commun, type: "pass.returned", payload: { n: (livraison?.returns ?? 0) + 1, findings: [pourLeCook(carte, texte)] } });
     }
-    if (avancee.comment === "attente") mettreEnAttente(journal, projet, ticket, { quoi: avancee.quoi, qui: avancee.qui });
     if (avancee.comment === "renvoi" || avancee.comment === "rail") journal.ajouter({ ...commun, type: "ticket.released", payload: { reason: REPONSE_DU_CHEF, station: ticketDuRail(base, ticket)?.station ?? null } });
   });
 
@@ -173,8 +165,6 @@ export async function repondreALaCarte(journal: Journal, github: GitHub, projet:
       return { done: true, price: `${ecrite}; the ticket leaves the rail and is not cooked — its issue stays open and loses its \`fire\` label, put it back to bring the ticket back on the rail` };
     case "renvoi":
       return { done: true, price: `${ecrite}; a cook is launched again on ${avancee.branche}, on the project's quota, and reads it in place of the findings${avancee.pr ? `; ${avancee.pr} stays open` : ""}` };
-    case "attente":
-      return { done: true, price: `${ecrite}; the ticket is back in WAITING for the same thing, with a new reminder in 7 days — it leaves only on your gesture or on that date` };
     case "rail":
       return { done: true, price: `${ecrite}; the ticket goes back to the rail, queued: a cook takes it up on the project's quota and reads your answer on the issue` };
     case "label":

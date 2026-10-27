@@ -121,14 +121,10 @@ test("un 86 qui revient seul à son heure peut encore cuire : pas de ligne", (t)
   assert.deepEqual(lire().bloc, ["awaiting   nothing awaits the chef", "end awaiting"]);
 });
 
-test("le manager éteint, le ticket sans station est lui-même une décision du chef : la file le dit avec son geste, et la ligne ne le redit pas", (t) => {
+test("le manager éteint, le ticket sans station n'est pas une décision du chef : la file ne le porte pas, il reste lisible sur le rail", (t) => {
   const { lire } = railDuChef(t, { manager: false });
-  const { bloc, tableau } = lire();
+  const { bloc } = lire();
 
-  assert.equal(bloc[0], "awaiting   2 decisions await the chef — the oldest for 59 min");
-  assert.deepEqual(
-    bloc.slice(1, -1).map((ligne) => ligne.slice(0, 6)),
-    ["  #12 ", "  #13 "],
-  );
-  assert.deepEqual(tableau.bilans, []);
+  assert.equal(bloc[0], "awaiting   nothing awaits the chef");
+  assert.ok(!bloc.some((ligne) => ligne.startsWith("  #12 ") || ligne.startsWith("  #13 ")));
 });

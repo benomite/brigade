@@ -179,7 +179,7 @@ test("une carte sans exactement une question et au moins un choix est refusée",
   assert.equal(raison({ choix: [{ texte: "A." }, { texte: "  " }] }), "choice 2 is empty or on several lines: each choice is one line");
   assert.equal(raison({ choix: [{ texte: "A\nand B." }] }), "choice 1 is empty or on several lines: each choice is one line");
   assert.equal(raison({ choix: [{ texte: "A." }, { texte: " A. " }] }), "choice 2 repeats another: each choice is a different way");
-  assert.equal(raison({ choix: [{ texte: "A.", suite: "close" }] }), "choice 1: unknown follow-up “close” — resume or merge or drop or wait");
+  assert.equal(raison({ choix: [{ texte: "A.", suite: "close" }] }), "choice 1: unknown follow-up “close” — resume or merge or drop");
   // La forme unique (carte-todo/forme.ts) : un seul choix est un seul geste, qui ne pose pas de question —
   // une carte de la porte, qui en pose une, offre au moins deux choix.
   assert.equal(raison({ choix: [{ texte: "Keep it as is." }] }), "a single gesture with a question: a card with one choice shows its button and asks nothing");
