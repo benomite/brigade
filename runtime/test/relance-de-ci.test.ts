@@ -173,10 +173,12 @@ describe("la pass relance une CI rouge sur des tests que la livraison ne touche 
     gh.ci.checks = [job(1, "green", "lint"), job(2)];
     gh.journauxDeCI.set("tests", JOURNAL_LINUX.replace("cuisson-de-bout-en-bout", "rail"));
     await jusquAu("pass.ci-rerun");
+    // Lu avant le merge : une fois servi, le ticket n'est plus en pass.
+    const sha = pass()?.sha;
     gh.ci.checks = [job(1, "green", "lint"), job(3)];
     await jusquAu("merge.done");
 
-    assert.deepEqual([compter("pass.ci-rerun"), compter("pass.returned"), compter("pass.escalated"), pass()?.returns], [1, 0, 0, 0]);
+    assert.deepEqual([compter("pass.ci-rerun"), compter("pass.returned"), compter("pass.escalated")], [1, 0, 0]);
     // Le ticket `fix` du test, ouvert sans geste du chef : il porte `fire` et son calibrage.
     const [fix] = gh.creations;
     assert.equal(gh.creations.length, 1);
@@ -186,7 +188,7 @@ describe("la pass relance une CI rouge sur des tests que la livraison ne touche 
     assert.match(gh.corpsDe(fix!), /delivery of #17 .* is red on `runtime\/test\/rail\.test\.ts`, a test that delivery does not touch/);
     assert.ok(gh.corpsDe(fix!).includes(job(2).url!) && gh.corpsDe(fix!).includes(job(3).url!));
     // La livraison est jugée sans ce job : verte, mergée.
-    assert.deepEqual(dernier("pass.ci-set-aside", 17), { sha: pass()?.sha, checks: [job(3)], fixes: [{ test: "runtime/test/rail.test.ts", issue: fix, reused: false }] });
+    assert.deepEqual(dernier("pass.ci-set-aside", 17), { sha, checks: [job(3)], fixes: [{ test: "runtime/test/rail.test.ts", issue: fix, reused: false }] });
     const verdict = dernier("pass.judged", 17) as { verdict: string; ci: { outcome: string }; findings: string[] } | undefined;
     assert.deepEqual([verdict?.verdict, verdict?.ci.outcome, verdict?.findings], ["green", "green", []]);
     assert.deepEqual(auChef(), []);

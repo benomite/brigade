@@ -106,9 +106,10 @@ function finDe(t: TestContext) {
       // passe après eux.
       t.after(() => {
         // Un cook qu'on vient de tuer peut encore finir d'écrire son flux : la
-        // suppression se reprend au lieu d'échouer sur un répertoire redevenu plein —
+        // suppression se reprend (jusqu'à cinq secondes : sous Windows, un process tué
+        // tient ses fichiers un moment, EPERM) au lieu d'échouer sur un répertoire redevenu plein —
         // un crochet de fin qui échoue ferait sauter les suivants.
-        for (const repertoire of courante.repertoires) rmSync(repertoire, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 });
+        for (const repertoire of courante.repertoires) rmSync(repertoire, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
       });
     });
   }
