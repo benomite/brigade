@@ -1,7 +1,6 @@
 // La principale relaie au journal du projet ce que ses stations secondaires
 // demandent sur GitHub (`demande.ts`) : elle lit le gist de chacune, et écrit
-// chaque demande neuve comme le geste `pull` l'écrirait (`remote.asked`,
-// `tirer.ts`), avec `via: "github"`. Le runtime du projet y répond comme à
+// chaque demande neuve (`remote.asked`) avec `via: "github"`. Le runtime du projet y répond comme à
 // toute station distante (`distantes.ts`) : une demande à la fois, sous les
 // mêmes règles — c'est ce qui fait qu'un ticket ne part qu'une fois, même
 // quand deux stations le réclament au même instant. Sa réponse se publie au
@@ -54,7 +53,7 @@ export async function relayerLesDemandes(options: OptionsDuRelais): Promise<Rela
   }
   const relayees: Relais["relayees"] = [];
   if (lues.length === 0) return { relayees, sansRuntime: false };
-  // Comme le geste `pull` : il n'ouvre pas de journal là où il n'y en a pas.
+  // Elle n'ouvre pas de journal là où il n'y en a pas.
   if (!existsSync(cheminJournal(repertoireEtat))) return { relayees, sansRuntime: true };
   const journal = ouvrirJournal(repertoireEtat, { maintenant: () => new Date((options.maintenant ?? Date.now)()) });
   try {

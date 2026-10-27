@@ -1,7 +1,6 @@
 // La demande qu'une station secondaire pose sur GitHub, dans le gist où elle
 // s'annonce déjà (`appairage/document.ts`) : s'annoncer, réclamer un ticket,
-// renouveler le bail de celui qu'elle cuit — ce que le geste `pull` demande par
-// ssh (`tirer.ts`), sans ssh —, puis rendre son travail : sa branche, poussée
+// renouveler le bail de celui qu'elle cuit, puis rendre son travail : sa branche, poussée
 // sur l'origine, que la principale rapatrie et fait juger par sa pass comme
 // celle de tout cook. La principale la lit dans les gists appairés du
 // compte et la relaie au journal du projet (`relayer.ts`) ; elle seule décide,
@@ -33,15 +32,15 @@ export const FORMAT = 1;
 // cessé d'attendre sa réponse (`demander.ts`, qui attend le double).
 export const FRAICHEUR_MS = 5 * 60_000;
 
-// Ce que le gist porte d'une demande : toutes celles de `pull`.
+// Ce que le gist porte d'une demande : toutes celles d'une station distante.
 export type DemandeParGitHub = Demande;
 export type DemandePosee = { id: string; depot: string; le: string; demande: DemandeParGitHub };
 
 const ID = /^[A-Za-z0-9-]{8,64}$/;
 const RUN = /^[A-Za-z0-9._-]{1,80}$/;
 const PREUVE_MAX = 200;
-// Bornés comme le geste `pull` les borne (`tirer.ts`) : le dernier message d'un
-// cook est gardé comme celui d'un cook de la box, un motif est court.
+// Le dernier message d'un cook est gardé comme celui d'un cook de la box, borné ;
+// un motif est court.
 const MESSAGE_MAX = 20_000;
 const RAISON_MAX = 200;
 
@@ -69,7 +68,7 @@ const compte = (valeur: unknown): valeur is number => Number.isSafeInteger(valeu
 const texteBorne = (valeur: unknown, max: number): string | null => (typeof valeur === "string" && valeur !== "" ? valeur.slice(0, max) : null);
 
 // Une demande lue, ou null si elle ne se lit pas : la principale ne relaie que
-// ce qu'elle comprend, et le runtime juge le reste comme une demande de `pull`.
+// ce qu'elle comprend, et le runtime juge le reste comme une demande de station distante.
 export function lireUneDemande(brut: string): DemandePosee | null {
   let lu: unknown;
   try {
