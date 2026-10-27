@@ -59,7 +59,7 @@ function cuisine(t: TestContext) {
   // aussi d'un journal d'alors. Ce que la pass écrit aujourd'hui est éprouvé
   // dans `pass.test.ts`.
   const retenir = (ticket: number, reason: string) => noter({ type: "pass.held", payload: { reason } } as never, ticket, "pass");
-  const remonter = (ticket: number, reason: "returns-exhausted" | "no-gates" | "manager-escalated" | "manager-split", motif = `pass:${reason}`) => {
+  const remonter = (ticket: number, reason: "returns-exhausted" | "no-gates" | "manager-escalated" | "manager-split" | "secrets-unavailable", motif = `pass:${reason}`) => {
     noter({ type: "pass.escalated", payload: { reason } } as never, ticket, "pass");
     noter({ type: "ticket.86", payload: { reason: motif, until: null } }, ticket);
   };
@@ -139,7 +139,7 @@ test("le chef lit en une commande ce qui l'attend, depuis quand, et le geste att
   retenir(17, "no-grant");
   a(`${JOUR_HORLOGE}T08:00:00.000Z`);
   livrer(18);
-  remonter(18, "returns-exhausted");
+  remonter(18, "secrets-unavailable");
   arriver(21);
   arriver(19, [21]);
   a(`${JOUR_HORLOGE}T09:50:00.000Z`);
@@ -154,7 +154,7 @@ test("le chef lit en une commande ce qui l'attend, depuis quand, et le geste att
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:00:00.000Z`), [
     "awaiting   5 decisions await the chef — the oldest for 3 d",
     `  #17  for 3 d  green delivery, not merged for lack of a \`merge\` grant — merge by hand: ${pr(17)} — or enable the grant, for the next ones: \`brigade <projet> grant enable merge\`  Ticket 17`,
-    `  #18  for 2 h 00  escalated by the pass, red (still-red: returns-exhausted) — to decide: merge ${pr(18)} by hand, or remove \`fire\` — \`brigade <projet> pass 18\`  Ticket 18`,
+    `  #18  for 2 h 00  escalated by the pass, which could not judge it (unjudged: secrets-unavailable) — to lift: what its issue says, then remove and set \`fire\` again; or merge ${pr(18)} by hand, or remove \`fire\` — \`brigade <projet> pass 18\`  Ticket 18`,
     "  #19  for 10 min  BLOCKED: #21 dropped (issue closed without being served) — to unblock: put #21 back on the rail, or remove it from the `attend` line of the card  Ticket 19",
     `  #20  for 2 min  green delivery that touches its judges — review and merge by hand: ${pr(20)}  Ticket 20`,
     `  #22  for 2 min  green delivery that touches what the project opens up (.claude/brigade/reseau) — review and merge by hand: ${pr(22)}  Ticket 22`,
@@ -180,8 +180,8 @@ test("une seule décision se dit au singulier, et le bloc se lit en tête, avant
   assert.ok(debut < lignes.findIndex((ligne) => ligne.startsWith("rail")));
 });
 
-test("une remontée du manager se distingue de celle de la pass ; sans PR, il n'y a rien à merger ; un ticket redécoupé n'attend personne", (t) => {
-  const { livrer, remonter, noter, arriver, bloc } = cuisine(t);
+test("une remontée technique n'attend pas le chef — du manager sans carte ou de la pass, avec ou sans PR — : sa ligne du rail dit que la cuisine la reprend ; un ticket redécoupé n'attend personne", (t) => {
+  const { livrer, remonter, noter, arriver, bloc, journal } = cuisine(t);
   livrer(17);
   remonter(17, "manager-escalated", "manager:escalated");
   // Sans PR : un ticket remonté avant d'avoir livré un diff.
@@ -193,11 +193,12 @@ test("une remontée du manager se distingue de celle de la pass ; sans PR, il n'
   livrer(19);
   remonter(19, "manager-split", "manager:split");
 
-  assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:00:00.000Z`), [
-    "awaiting   2 decisions await the chef — the oldest for 0 s",
-    `  #17  for 0 s  escalated by the manager, red — to decide: merge ${pr(17)} by hand, or remove \`fire\` — \`brigade <projet> pass 17\`  Ticket 17`,
-    "  #18  for 0 s  escalated by the pass, red (still-red: returns-exhausted) — to decide: remove `fire`, or close the issue — `brigade <projet> pass 18`  Ticket 18",
-  ]);
+  assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:00:00.000Z`), RIEN);
+  // Sur le rail, chacune dit ce que fait la cuisine — jamais un geste du chef.
+  const maintenant = new Date(`${JOUR_HORLOGE}T10:00:00.000Z`);
+  const lignes = decrireEtat(lireEtat(journal, maintenant), maintenant);
+  assert.match(lignes.find((ligne) => ligne.startsWith("  #17  ")) ?? "", /the kitchen takes it up \(manager-escalated\), not the chef/);
+  assert.match(lignes.find((ligne) => ligne.startsWith("  #18  ")) ?? "", /the kitchen takes it up \(returns-exhausted\), not the chef/);
 });
 
 // Ce que `faits` dit, pour un programme, de chaque décision qui attend le chef : sa sorte, son
@@ -208,7 +209,7 @@ test("`faits` donne la décision attendue de chaque ticket : sa sorte, son motif
   livrer(17);
   retenir(17, "no-grant");
   livrer(18);
-  remonter(18, "manager-escalated", "manager:escalated");
+  remonter(18, "secrets-unavailable");
   arriver(19);
   noter({ type: "ticket.86", payload: { reason: "refused", until: null } }, 19);
   arriver(21);
@@ -219,7 +220,7 @@ test("`faits` donne la décision attendue de chaque ticket : sa sorte, son motif
   const decisions = Object.fromEntries(faits(lireEtat(journal, maintenant), maintenant).attend.map(({ ticket, decision }) => [ticket, decision]));
   assert.deepEqual(decisions, {
     17: { quoi: "merge", motif: "no-grant", cause: null, pr: pr(17) },
-    18: { quoi: "remontee", motif: "still-red", cause: "manager-escalated", pr: pr(18) },
+    18: { quoi: "remontee", motif: "unjudged", cause: "secrets-unavailable", pr: pr(18) },
     19: { quoi: "86", motif: "refused", cause: null, pr: null },
     20: { quoi: "bloque", motif: null, cause: null, pr: null },
   });
@@ -285,23 +286,24 @@ test("un ticket remonté dont la pass a ouvert la PR elle-même : le geste nomme
   noter({ type: "cook.launched", payload: { run: "17-aa", limits: LIMITES, stream: "runs/17-aa.jsonl", branch: "cook/17-aa", worktree: "worktrees/17-aa" } }, 17);
   noter({ type: "cook.reported", payload: { run: "17-aa", ending: "done", reason: null, summary: null, branch: "cook/17-aa", pr: null } }, 17, `station:${STATION}`);
   noter({ type: "pass.pr-opened", payload: { pr: pr(17), number: 17, reconciled: false } }, 17, "pass");
-  remonter(17, "no-gates");
+  remonter(17, "secrets-unavailable");
 
   assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:00:00.000Z`), [
     "awaiting   1 decision awaits the chef — for 0 s",
-    `  #17  for 0 s  escalated by the pass, which could not judge it (unjudged: no-gates) — to lift: what its issue says, then remove and set \`fire\` again; or merge ${pr(17)} by hand, or remove \`fire\` — \`brigade <projet> pass 17\`  Ticket 17`,
+    `  #17  for 0 s  escalated by the pass, which could not judge it (unjudged: secrets-unavailable) — to lift: what its issue says, then remove and set \`fire\` again; or merge ${pr(17)} by hand, or remove \`fire\` — \`brigade <projet> pass 17\`  Ticket 17`,
   ]);
 });
 
-test("un ticket remonté pour le même test rouge deux fois : la carte dit une base instable et nomme le test, sans parler d'un ticket échoué", (t) => {
-  const { livrer, noter, bloc } = cuisine(t);
+test("un ticket remonté, dans un journal d'avant #1820, pour le même test rouge deux fois n'attend pas le chef : la cuisine le reprend, et sa ligne du rail nomme le test", (t) => {
+  const { livrer, noter, bloc, journal } = cuisine(t);
   livrer(17);
   noter({ type: "pass.escalated", payload: { reason: "unjudged", cause: "unstable-test: runtime/test/lectures-sous-condition.test.ts" } }, 17, "pass");
   noter({ type: "ticket.86", payload: { reason: "pass:unjudged", until: null } }, 17);
 
-  const carte = bloc(`${JOUR_HORLOGE}T10:00:00.000Z`).find((ligne) => ligne.includes("#17"));
-  assert.match(carte ?? "", /base unstable: delivery red on a test this change does not touch, twice \(runtime\/test\/lectures-sous-condition\.test\.ts\)/);
-  assert.doesNotMatch(carte ?? "", /could not judge it|failed/);
+  assert.deepEqual(bloc(`${JOUR_HORLOGE}T10:00:00.000Z`), RIEN);
+  const maintenant = new Date(`${JOUR_HORLOGE}T10:00:00.000Z`);
+  const ligne = decrireEtat(lireEtat(journal, maintenant), maintenant).find((ligne) => ligne.startsWith("  #17  "));
+  assert.match(ligne ?? "", /the kitchen takes it up \(unstable-test: runtime\/test\/lectures-sous-condition\.test\.ts\), not the chef/);
 });
 
 test("un retrait de fire que la cuisine n'a pas compté se dit sur la ligne de la remontée, avec le geste", (t) => {
@@ -310,7 +312,7 @@ test("un retrait de fire que la cuisine n'a pas compté se dit sur la ligne de l
   noter({ type: "cook.launched", payload: { run: "17-aa", limits: LIMITES, stream: "runs/17-aa.jsonl", branch: "cook/17-aa", worktree: "worktrees/17-aa" } }, 17);
   noter({ type: "cook.reported", payload: { run: "17-aa", ending: "done", reason: null, summary: null, branch: "cook/17-aa", pr: null } }, 17, `station:${STATION}`);
   noter({ type: "pass.pr-opened", payload: { pr: pr(17), number: 17, reconciled: false } }, 17, "pass");
-  remonter(17, "no-gates");
+  remonter(17, "secrets-unavailable");
   noter({ type: "ticket.fire-unseen", payload: { removedAt: "2026-10-21T09:00:00Z" } }, 17, "github");
 
   const ligne = bloc(`${JOUR_HORLOGE}T10:00:00.000Z`)[1] ?? "";
@@ -322,7 +324,7 @@ test("une remontée quitte la file quand le chef merge, sort le ticket du rail, 
   const attendus = () => bloc(`${JOUR_HORLOGE}T10:05:00.000Z`).slice(1).map((ligne) => ligne.trim().split("  ")[0]).filter((tete) => tete?.startsWith("#"));
   for (const ticket of [17, 18, 19]) {
     livrer(ticket);
-    remonter(ticket, "returns-exhausted");
+    remonter(ticket, "secrets-unavailable");
   }
   assert.deepEqual(attendus(), ["#17", "#18", "#19"]);
 

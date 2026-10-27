@@ -70,9 +70,11 @@ function cuisine(t: TestContext, ...issues: Issue[]) {
     prs.set(branch, { number: 100 + ticket, url: prDe(ticket), base: "v2", sha: `sha-${ticket}`, state: "open", merged: false, enRetard: false, mergeePar: null });
   };
   const arreter = (ticket: number) => journal.ajouter({ project: PROJET, ticket, author: "pass", type: "pass.held", payload: { reason: "no-grant" } });
+  // Une remontée que seul le chef lève — les secrets du projet manquent : une remontée technique
+  // est à la cuisine, elle n'attend pas le chef (#1826).
   const remonter = (ticket: number) => {
-    journal.ajouter({ project: PROJET, ticket, author: "pass", type: "pass.escalated", payload: { reason: "returns-exhausted" } } as never);
-    journal.ajouter({ project: PROJET, ticket, author: "runtime", type: "ticket.86", payload: { reason: "pass:returns-exhausted", until: null } });
+    journal.ajouter({ project: PROJET, ticket, author: "pass", type: "pass.escalated", payload: { reason: "unjudged", cause: "secrets-unavailable" } });
+    journal.ajouter({ project: PROJET, ticket, author: "runtime", type: "ticket.86", payload: { reason: "pass:unjudged", until: null } });
   };
   const repondre = (merge: Merge) => {
     reponseAuMerge = merge;
@@ -151,7 +153,7 @@ test("merger la livraison qui attend le chef la merge sur GitHub, à la tête qu
   const r = await mergerLaLivraison(journal, github, 7);
   assert.equal(r.done, true);
   assert.match(r.price, /merged into v2/);
-  // Remontée rouge, avec sa PR : la file dit « merger à la main », le geste le fait.
+  // Remontée au chef, avec sa PR : la file dit « merger à la main », le geste le fait.
   livrer(8);
   remonter(8);
   assert.equal((await mergerLaLivraison(journal, github, 8)).done, true);
@@ -197,7 +199,7 @@ test("renvoyer la livraison qui attend le chef la rend à un cook, sa raison en 
   assert.deepEqual(candidates(journal, 7), [["chef", { origin: "chef-correction", text: raison }]]);
   const [lecon] = carnetDuProjet(journal.base, PROJET).lecons;
   assert.deepEqual([lecon?.texte, lecon?.statut, lecon?.origin], [raison, "provisoire", { kind: "chef-correction", ticket: 7 }]);
-  // Remontée rouge, ses renvois épuisés : le chef lui en accorde un de plus.
+  // Remontée au chef : il la renvoie à un cook.
   livrer(8);
   remonter(8);
   assert.equal(renvoyerLaLivraison(journal, PROJET, 8, "Couvrir le cas d'erreur.").done, true);

@@ -7,7 +7,7 @@ import { describe, test, type TestContext } from "node:test";
 import { cartesEnTodo, entrerDansTodo, type Proposition } from "../src/carte-todo.ts";
 import { carteDuTicket } from "../src/carte-todo/cartes.ts";
 import type { Fait } from "../src/evenements.ts";
-import { DU_MANAGER, ENCORE_ROUGE } from "../src/events/pass.ts";
+import { DU_MANAGER, ENCORE_ROUGE, NON_JUGEE } from "../src/events/pass.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { principal as montrerRail } from "../src/montrer-rail.ts";
 import { passDuTicket } from "../src/projections/pass.ts";
@@ -172,11 +172,12 @@ describe("toute carte de TODO se répond, pas seulement celle de la porte", () =
     assert.equal(c.journal.duTicket(30).some((e) => e.type === "todo.left"), false);
   });
 
-  test("un rouge remonté par la pass : « Take it off the rail » sort le ticket du rail, la réponse écrite", async (t) => {
+  test("une remontée de la pass au chef : « Take it off the rail » sort le ticket du rail, la réponse écrite", async (t) => {
     const c = atelier(t);
     await c.livrer();
-    c.noter(30, { type: "pass.escalated", payload: { reason: ENCORE_ROUGE, cause: "returns-exhausted" } }, "pass");
-    c.rail.quatreVingtSix(30, { motif: REMONTE });
+    // Une remontée que seul le chef lève : une remontée technique est à la cuisine, sans carte (#1826).
+    c.noter(30, { type: "pass.escalated", payload: { reason: NON_JUGEE, cause: "secrets-unavailable" } }, "pass");
+    c.rail.quatreVingtSix(30, { motif: `pass:${NON_JUGEE}` });
 
     const resultat = await c.repondre({ choix: 3 });
 
@@ -188,11 +189,12 @@ describe("toute carte de TODO se répond, pas seulement celle de la porte", () =
     assert.deepEqual(c.journal.duTicket(30).findLast((e) => e.type === "todo.answered")?.payload.then, "drop");
   });
 
-  test("un rouge remonté avec sa PR : « Merge … as it is » la merge", async (t) => {
+  test("une remontée au chef avec sa PR : « Merge … as it is » la merge", async (t) => {
     const c = atelier(t);
     await c.livrer();
-    c.noter(30, { type: "pass.escalated", payload: { reason: ENCORE_ROUGE, cause: "returns-exhausted" } }, "pass");
-    c.rail.quatreVingtSix(30, { motif: REMONTE });
+    // Une remontée que seul le chef lève : une remontée technique est à la cuisine, sans carte (#1826).
+    c.noter(30, { type: "pass.escalated", payload: { reason: NON_JUGEE, cause: "secrets-unavailable" } }, "pass");
+    c.rail.quatreVingtSix(30, { motif: `pass:${NON_JUGEE}` });
 
     const resultat = await c.repondre({ choix: 2 });
 

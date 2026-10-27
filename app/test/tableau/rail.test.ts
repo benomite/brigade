@@ -122,16 +122,17 @@ test("GitHub seul, aucune box jointe : la couche de données du rail rend les ti
     [23, "box/claude"],
   ]);
 
-  // Ce qui attend le chef : TODO, dans l'ordre du bloc `awaiting`, la carte de #24 avec sa question et ses choix.
+  // Ce qui attend le chef : TODO, dans l'ordre du bloc `awaiting`, la carte de #24 avec sa question et ses choix. La
+  // remontée technique de #18 n'y est pas : elle est à la cuisine (#1826).
   const todo = tableau.rail.colonnes.find((c) => c.nom === "TODO")?.cartes ?? [];
-  assert.deepEqual(todo.map(({ ticket }) => ticket), [18, 19, 24]);
+  assert.deepEqual(todo.map(({ ticket }) => ticket), [19, 24]);
   assert.ok(todo.every(({ attendu }) => attendu));
   assert.ok(tableau.rail.attendLu !== undefined, "le bloc `awaiting` a été pris");
   const carte24 = todo.find(({ ticket }) => ticket === 24);
   assert.equal(carte24?.todo?.question, "One list per project, or one for all?");
   assert.deepEqual(carte24?.todo?.choix.map(({ texte }) => texte), ["One per project.", "One for all."]);
-  // Ce que le bloc dit de #18, mot pour mot, est sur sa carte.
-  assert.ok((todo.find(({ ticket }) => ticket === 18)?.attend ?? []).length > 0);
+  // Ce que le bloc dit de #19, mot pour mot, est sur sa carte.
+  assert.ok((todo.find(({ ticket }) => ticket === 19)?.attend ?? []).length > 0);
 
   assert.deepEqual(lances, [], "aucun processus n'est parti");
 });

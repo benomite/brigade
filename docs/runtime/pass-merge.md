@@ -88,7 +88,7 @@ npm --prefix runtime run pass -- 17 --relaunch  # relaunch the judgement of 17, 
 ```
 BASE RED since 2026-10-09T09:20:52.000Z (5d2e7b1) — after the merge of #17: nothing is judged or merged, deliveries wait
 #18  STOPPED — green, not merged (no-grant)  returns 0/2  since 2026-10-08T14:20:03.000Z  https://github.com/benomite/brigade/pull/53
-#20  ESCALATED TO THE CHEF (unjudged : ci-silent)  returns 0/2  since 2026-10-08T14:40:11.000Z  https://github.com/benomite/brigade/pull/55
+#20  ESCALATED (unjudged : ci-silent)  returns 0/2  since 2026-10-08T14:40:11.000Z  https://github.com/benomite/brigade/pull/55
 ```
 
 `run pass -- <ticket>` unrolls each fact: review, verdict (`verdict no. 412: GREEN — gates
@@ -155,7 +155,7 @@ the project's notebook cannot find it. `retro` is null as long as the ticket has
 | `pass.second-judged` | Stopped because it touches its judges, the delivery of the `run`, on this `sha`, was judged by the second judge — once: `verdict` (`not-weakened`, `weakened`, `cannot-establish`), `reason`; `judge`, `model`, `effort` — its run and its calibration, null if it was not launched; `reviewer` and `review` — the reviewer's calibration and the run of its review. `not-weakened`: it goes back toward the merge, like an ordinary green delivery; otherwise, a `gesture` card (`todo.entered`, author `pass`) is written with the verdict |
 | `pass.waiting` | Neither judged nor merged for now: `base-red`, `machine-saturated`, `gates-cut-saturated` (with the `sha` whose gates were cut). It goes on by itself |
 | `pass.returned`, `pass.deferred`, `pass.outdated` | Red: return `n` of 2, with the findings; the hand passes to the manager; GitHub required an up-to-date branch and refused the merge, `findings` goes back to the cook |
-| `pass.escalated` | Escalated to the chef: `reason` (`still-red`, `unjudged`, `manager-split`), `cause` |
+| `pass.escalated` | Escalated: `reason` (`still-red`, `unjudged`, `manager-split`), `cause` — the kitchen takes up a technical one (`pass.kitchen-took-over`), see `pass.md` |
 | `pass.pr-closed` | The PR was closed without a merge: the pass no longer judges, returns or merges this delivery. Written once |
 | `pass.abandoned` | The ticket left the rail without its delivery being merged: `branch`, `pr` (still open, or null), `merged`, `closed`. A merge intent in flight finds its end there |
 | `base.checked` | No ticket. The gates played on the base alone: `sha`, `outcome` (`green`, `red`, `skipped`), `gates`, `tickets`; on a `skipped`, `red` (the red that remains) and `reason` (the attempt did not run) |

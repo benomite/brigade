@@ -62,7 +62,7 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
     held: "STOPPED — green, not merged",
     returned: "red, returned to the cook",
     deferred: "red, with the manager",
-    escalated: "ESCALATED TO THE CHEF",
+    escalated: "ESCALATED",
     closed: "PR CLOSED WITHOUT MERGE",
   };
 
@@ -234,15 +234,28 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
         return [`${tete}gates played on the base alone (${sha.slice(0, 7)}): ${dit}`, ...echecs(gates)];
       }
       case "pass.returned": {
-        const { n } = evenement.payload;
+        const { n, kitchen } = evenement.payload;
+        if (kitchen === true) return [`${tete}sent back by the kitchen, using up no return: the findings go back to a cook`];
         return [`${tete}${n <= RENVOIS_MAX ? `return ${n}/${RENVOIS_MAX}` : `restart ${n - RENVOIS_MAX} decided by the manager`}: the findings go back to a cook`];
+      }
+      case "pass.kitchen-fix-opening":
+        return [`${tete}opening the kitchen's \`fix\` ticket on this escalation (${evenement.payload.cause})`];
+      case "pass.kitchen-took-over": {
+        const { cause, move, issue, reconciled } = evenement.payload;
+        const fait = {
+          return: "sent back once to a cook",
+          fix: `\`fix\` ticket #${issue ?? "?"} opened on its cause${reconciled === true ? " (found again by its marker)" : ""} — the ticket waits for it, set aside`,
+          resume: `its \`fix\` ticket #${issue ?? "?"} left the rail: sent back to a cook`,
+          none: "nothing left to try: the ticket stays set aside on the rail",
+        }[move];
+        return [`${tete}the kitchen takes up the escalation (${cause}), not the chef: ${fait}`];
       }
       case "pass.deferred":
         return [`${tete}red: the pass hands over to the manager`];
       case "manager.reacted":
         return [`${tete}the manager ${REACTIONS[evenement.payload.choice] ?? evenement.payload.choice} — ${evenement.payload.reason}`];
       case "pass.escalated":
-        return [`${tete}escalated to the chef: ${direMotif(motifDeRemontee(evenement.payload))}`];
+        return [`${tete}escalated: ${direMotif(motifDeRemontee(evenement.payload))}`];
       case "pass.pr-closed":
         return [`${tete}PR closed without merge (${evenement.payload.pr}): the pass follows this delivery only for a merge by hand — off the rail, not at all`];
       case "pass.abandoned":

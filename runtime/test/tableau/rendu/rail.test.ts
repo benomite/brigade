@@ -95,11 +95,11 @@ test("le tableau publié porte les cooks en cours — quel ticket, quel cook, su
   );
   assert.deepEqual(publies.stations.map(({ station, cuisson, cooks }) => ({ station, cuisson, cooks: cooks.map(({ ticket }) => ticket) })), [{ station: "box/claude", cuisson: "saturated", cooks: [31, 23] }]);
 
-  // Ce qui attend le chef : chaque ticket nommé, avec sa décision — la carte de #24 avec sa question et ses choix.
+  // Ce qui attend le chef : chaque ticket nommé, avec sa décision — la carte de #24 avec sa question et ses choix. La
+  // remontée technique de #18 n'y est pas : elle est à la cuisine (#1826).
   assert.deepEqual(
     publies.attend.map(({ ticket, decision }) => [ticket, decision.quoi]),
     [
-      [18, "remontee"],
       [19, "bloque"],
       [24, "carte"],
     ],
@@ -122,7 +122,6 @@ test("le tableau publié porte les cooks en cours — quel ticket, quel cook, su
   assert.deepEqual(
     publie.file.map(({ nom, quoi }) => [nom, quoi]),
     [
-      ["#18", "remontee"],
       ["#19", "bloque"],
       ["breaker", "disjoncteur"],
       ["setup", "setup"],

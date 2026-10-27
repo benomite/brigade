@@ -98,7 +98,7 @@ export const ROLES: readonly Role[] = [
       { type: "pass.served", dire: (_, n) => `served ${n}, which had no diff` },
       // Le manager, le triage et le chef écrivent aussi ces deux faits : seuls ceux de la pass sont son geste.
       { type: "pass.returned", filtre: "author = 'pass'", dire: (_, n) => `sent ${n} back to its cook` },
-      { type: "pass.escalated", filtre: "author = 'pass'", dire: (_, n) => `escalated ${n} to you` },
+      { type: "pass.escalated", filtre: "author = 'pass'", dire: (_, n) => `escalated ${n}` },
       { type: "pass.deferred", dire: (_, n) => `handed ${n} to the manager` },
     ],
   },

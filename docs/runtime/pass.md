@@ -17,7 +17,7 @@ this order:
 | failing jobs **red again after that rerun, on the same tests** the delivery does not touch — the base green, nothing else red | the test is unstable, and neither the ticket nor the chef has anything to do with it. **Each test goes to the kitchen as a `fix` ticket** (`runtime/src/test-instable.ts`): labels `fire`, `fix`, `prio:1`, `model:sonnet`, `effort:medium`, a body that names the test, the delivery, the jobs before and after the rerun, and the marker `<!-- brigade:test-instable <test> -->`. One ticket per test: the last one the pass opened for it is reused while it is open (`reused`). Its opening is announced first (`pass.test-fix-opening`): an answer lost on the way, it is found again by its marker instead of being opened twice; GitHub down, the pass comes back at the tick, with no verdict. Then **those jobs are set aside** (`pass.ci-set-aside`) and the delivery is judged without them: the CI reads `green` if nothing else is red, its red checks kept in the verdict. A comment on the issue says so (« Pass — CI mise de côté : test instable »). No send-back, no escalation, no card |
 | a failing job **a red verdict of this ticket already judged** — the same job, the same run: the cook sent back pushed nothing that reran it — and nothing else red (reviewer) | **a send-back never judges the same CI run twice**: the failed jobs are rerun first (`pass.ci-rerun`, `alreadyJudged`), whatever they say — no attribution needed. The next verdict reads the rerun. A job GitHub cannot rerun (not an Actions job, a refused rerun) stays a verdict |
 | a failing job, the branch **without the head of the base** | that CI did not judge what will be merged: **its red is not a verdict**. The cook is sent back with "bring yourself up to date with the base", the jobs named — not with "CI red". It uses up a send-back, like a conflict. In the log, the CI is "not read" (`skipped`), its checks kept |
-| jobs still running | no verdict: read again at each tick. Thirty minutes with no conclusion: escalated to the chef (`unjudged`, cause `ci-silent`). Unless the reviewer has a blocking finding: red right away, CI "not read" |
+| jobs still running | no verdict: read again at each tick. Thirty minutes with no conclusion: escalated (`unjudged`, cause `ci-silent`), and the kitchen takes it up. Unless the reviewer has a blocking finding: red right away, CI "not read" |
 | everything green | green — whether or not the branch has the head of the base: the merge is judged by the gates |
 | **no check at all** | neither green nor red: the verdict rests on the gates and the reviewer (`ci: none`). Unless the branch carries a workflow (`.github/workflows`) that triggers on PRs to the base (`pull_request` or `pull_request_target`, branch and path filters included): its checks are awaited. A workflow that only runs on push, on a schedule, on a tag or by hand holds nothing back: the PR is judged without CI. The workflows are read from the judged branch at each judgment, never kept: deleting the last PR workflow takes effect on the next one. While it waits, the pass logs the file it waits for (`pass.ci-awaited`), `pass` and `status` name it, and so does the `ci-silent` escalation |
 
@@ -211,7 +211,7 @@ and it is mandatory**: it rereads the delimited deliverable — that alone — a
 |---|---|
 | nothing blocking | the ticket is **served without a merge** (`pass.served`) and its issue closed — **with no grant**. The deliverable stays on the issue, in the cook's comment |
 | a blocking finding | red: it goes back to a cook, on the same branch, within the limit of two send-backs |
-| unreadable | asked of the reviewer again, twice at most; still unreadable, escalated to the chef (`unjudged`, cause `review-unreadable`) |
+| unreadable | asked of the reviewer again, twice at most; still unreadable, escalated (`unjudged`, cause `review-unreadable`), and the kitchen takes it up |
 | nothing — "stop", breaker, quota, connection | the ticket **waits in pass** |
 
 A cook with no commit **and** no delimited deliverable has delivered nothing — `no-commit` if it
@@ -293,11 +293,11 @@ changing the gesture is its `cause`; `pass` shows both, `(unjudged : ci-silent)`
 | `pass.held` | `no-grant` | green, no active grant (`expired`: it had lapsed on its own at that moment) | merge the PR by hand; or, for the next ones, `npm --prefix runtime run grant -- enable merge` |
 | `pass.held` | `review-required` | green, but it touches its judges (cause `judge-modified`) or what the project opens up to itself (cause `declaration-modified: <files>`). No grant makes it merge | reread it, then merge it by hand |
 | `pass.held` | `merge-refused` | green, and GitHub refused the merge (cause: what it said). Not retried | lift what it refuses, then merge by hand |
-| `pass.escalated` | `still-red` | red, and no one will fix it any more: send-backs used up (cause `returns-exhausted`), the manager escalates (cause `manager-escalated`), or it is the PR of a closing pass, off the rail, which no one picks up (cause `off-rail`) | decide: merge the PR by hand, or remove `fire` — with no PR, remove `fire` or close the issue |
-| `pass.escalated` | `unjudged` | the pass could not judge; the cause says what prevented it | lift what the issue says, then remove and put back `fire`; or merge by hand; or remove `fire` |
+| `pass.escalated` | `still-red` | red, and its send-backs will not fix it: send-backs used up (cause `returns-exhausted`), the manager escalates (cause `manager-escalated`), or it is the PR of a closing pass, off the rail, which no one picks up (cause `off-rail`) | none: the kitchen takes it up (below) — except the manager's escalation with a card, which is the card's question, and the off-rail PR: merge it by hand, or close it |
+| `pass.escalated` | `unjudged` | the pass could not judge; the cause says what prevented it | none: the kitchen takes it up (below) — except `secrets-unavailable`: set the secrets, then remove and put back `fire`; or merge by hand; or remove `fire` |
 | `pass.escalated` | `manager-split` | the manager cut the ticket up again: its sub-tickets carry the work | none |
 
-The causes of an `unjudged` — none uses up a send-back, a cook can do nothing about them:
+The causes of an `unjudged` — none uses up a send-back of the pass:
 
 | Cause | What prevented the judgement |
 |---|---|
@@ -311,6 +311,39 @@ The causes of an `unjudged` — none uses up a send-back, a cook can do nothing 
 
 An escalated ticket goes **86**, rail reason `pass:still-red` or `pass:unjudged`. A log from before
 this grouping can still be read: the old name (`judge-modified`, `ci-silent`…) becomes the cause.
+
+#### A technical escalation goes to the kitchen, not to the chef (#1826)
+
+The chef's queue holds only a product choice or a gesture only the chef can make. A delivery
+still red, or one the pass could not judge, is neither: it never enters `awaiting`. The pass takes
+it up itself, at the wake that follows the escalation (`runtime/src/remontee-a-la-cuisine.ts`):
+
+1. **send-back** — an `unjudged` delivery goes back **once** to a cook, on its branch, with what
+   prevented the judgement, using up none of the pass's send-backs (`pass.kitchen-took-over`
+   `return`, then `pass.returned` with `kitchen: true`). Not for a cause the cook cannot lift:
+   `wrong-base` (the station opens the PR), `no-gates` (a cook must not write its own judge),
+   `review-unsendable` (the reviewer's instructions are the runtime's) — those go straight to 2;
+2. **`fix` ticket** — still red, or unjudged again, the kitchen opens a `fix` ticket on the cause
+   (`sonnet` / `medium`, `prio:1`, as for an unstable test; its body carries
+   `<!-- brigade:remontee <n> -->`, so that a lost GitHub answer finds it again instead of opening
+   a second one). The ticket stays 86 on the rail, waiting for it (`fix`);
+3. **resume** — once that `fix` ticket leaves the rail (served, or removed), the delivery goes back
+   to a cook (`resume`), again with no send-back used up;
+4. **nothing more** — sent back and `fix` already tried, or the ticket is itself a correction the
+   kitchen opened (a `fix` of an escalation or of an unstable test, the base's repair): the kitchen
+   tries nothing more (`none`). The ticket stays 86 on the rail — still not in `awaiting`.
+
+At each step, the ticket's line on the rail (`status`, and the app's card) says what the kitchen
+does with it — "the kitchen takes it up (ci-silent), not the chef", "its `fix` ticket #501 is open,
+and it goes back to a cook once #501 is served", "has nothing left to try: it stays set aside" —
+never a gesture for the chef. Merging the PR by hand, or removing `fire`, still works as before.
+
+Only `secrets-unavailable` (the secret values are the chef's to set, no cook may see them), the
+manager's escalation with a card (the card is the product question), the off-rail PR of a closing
+pass (no ticket) and the abandoned code rename (its own failure line speaks for it) stay out of the
+kitchen. `CAUSES_DU_CHEF` and `QUI_ATTEND` (`runtime/src/attend.ts`) list what may still enter the
+chef's queue and why; `runtime/test/remontee-a-la-cuisine.test.ts` reads every escalation cause the
+runtime writes and fails on one nobody classified.
 
 **Without a grant, the stop comment says what the pass would have done** — « Sous grant, la pass
 aurait mergé <PR> sur `<base>` au commit `<sha>`, verdict n° <n> — une fois vérifié que `<base>`

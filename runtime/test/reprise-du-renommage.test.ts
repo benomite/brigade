@@ -12,7 +12,6 @@ import { dirname, join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { attentesDuChef } from "../src/attend.ts";
 import { ouvrirDepot, type Depot, type Transposition } from "../src/depot.ts";
-import { decrireEtat, lireEtat } from "../src/etat.ts";
 import { MARQUEUR, type Fiche } from "../src/fiche.ts";
 import { ouvrirJournal, type Journal } from "../src/journal.ts";
 import type { Pass } from "../src/pass.ts";
@@ -23,7 +22,6 @@ import { deplacementsDeLOutil, ficheSurLeNouvelArbre, INTRANSPOSABLE, traduireCh
 import { lireRail, ticketDuRail } from "../src/projections/rail.ts";
 import type { Runtime } from "../src/runtime.ts";
 import { chef, cuisine, issue } from "./aides/cuisine.ts";
-import { sansMotFrancais } from "./aides/glossaire.ts";
 import { BASE, depotGit, ENV_GIT, git, jusqua, repertoireTemporaire } from "./outils.ts";
 
 // La table de l'outil, en petit : un fichier renommé, un dossier renommé.
@@ -321,17 +319,14 @@ describe("la cuisine reprise après le renommage", () => {
     assert.equal(faits("rename.carried", 20).length, 0);
     assert.doesNotMatch((faits("merge.done", 20)[0]?.payload as { sha: string }).sha, /^porte-/);
 
-    // #19 : ne se porte pas ; remonté au chef, nommé dans la file avec la raison, rien de mergé.
-    await jusqua(() => faits("pass.escalated", 19).length === 1);
+    // #19 : ne se porte pas ; ce n'est pas un choix du chef : la cuisine le
+    // renvoie à un cook, avec la raison, et rien n'entre dans TODO.
+    await jusqua(() => faits("pass.kitchen-took-over", 19).length === 1);
     assert.equal((faits("pass.escalated", 19)[0]?.payload as { cause: string }).cause, INTRANSPOSABLE);
-    assert.equal(etat(19), "86");
+    assert.deepEqual(faits("pass.kitchen-took-over", 19)[0]?.payload, { cause: INTRANSPOSABLE, move: "return" });
+    assert.match(String((faits("pass.returned", 19).at(-1)?.payload as { findings: string[] }).findings[0]), /ne se porte pas sur l'arbre renommé : conflit sur `runtime\/src\/freeze\/pause\.ts`/);
     assert.equal(faits("merge.done", 19).length, 0);
-    const attente = attentesDuChef(journal.base, lireRail(journal.base)).find((a) => a.ticket === 19);
-    assert.equal(attente?.quoi, "remontee");
-    const statut = decrireEtat(lireEtat(journal, heure.maintenant()), heure.maintenant());
-    const ligne = statut.find((l) => l.startsWith("  #19 "));
-    assert.match(ligne ?? "", /held by the code rename and not resumed on the renamed tree: it was born before the code rename \(\w+\) and does not carry onto the renamed tree: conflict on `runtime\/src\/freeze\/pause\.ts`/);
-    sansMotFrancais([ligne ?? ""].map((l) => l.replace(/Ticket 19$/, "")));
+    assert.equal(attentesDuChef(journal.base, lireRail(journal.base)).find((a) => a.ticket === 19), undefined);
 
     // Et la cuisine prend et merge à nouveau, sans geste du chef. La fiche
     // d'un ticket écrite sur les anciens chemins se lit sur les nouveaux.

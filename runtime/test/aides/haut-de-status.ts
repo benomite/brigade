@@ -47,3 +47,25 @@ export function exemple(t: TestContext, repertoire?: string) {
   return journal;
 }
 
+
+// Ce que #1826 change à ce que l'état d'avant donnait : sa remontée de #18 (`returns-exhausted`)
+// est technique, elle n'attend plus le chef. Elle quitte `attend` — et `retenues`, où elle retenait
+// #33 —, et sa ligne du rail dit que la cuisine la reprend. Le reste est ce qu'il était.
+export const REMONTEE_D_AVANT = 18;
+export const RAISON_DE_LA_REMONTEE = "la cuisine le reprend (returns-exhausted), pas le chef";
+type FactsLus = {
+  compteurs: { attend: number };
+  rail: Array<{ ticket: number; attente?: { raison: string } | null }>;
+  attend: Array<{ ticket: number }>;
+  retenues?: Array<{ ticket: number }>;
+};
+export function depuis1826<F extends FactsLus>(avant: F): F {
+  const attend = avant.attend.filter(({ ticket }) => ticket !== REMONTEE_D_AVANT);
+  return {
+    ...avant,
+    compteurs: { ...avant.compteurs, attend: avant.compteurs.attend - (avant.attend.length - attend.length) },
+    rail: avant.rail.map((ticket) => (ticket.ticket === REMONTEE_D_AVANT && ticket.attente ? { ...ticket, attente: { ...ticket.attente, raison: RAISON_DE_LA_REMONTEE } } : ticket)),
+    attend,
+    ...(avant.retenues === undefined ? {} : { retenues: avant.retenues.filter(({ ticket }) => ticket !== REMONTEE_D_AVANT) }),
+  };
+}

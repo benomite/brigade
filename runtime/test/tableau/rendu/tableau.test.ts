@@ -34,7 +34,7 @@ test("le tableau montre chaque ligne de la file avec son geste, telle que `statu
   const { etat, status, tableau } = exemple(t);
   const lu = enClair(rendreLeTableau(tableau, GENERE_LE));
   const awaiting = status.slice(status.findIndex((ligne) => ligne.startsWith("awaiting ")) + 1, status.indexOf("end awaiting"));
-  assert.equal(etat.attend.length, 5);
+  assert.equal(etat.attend.length, 4);
   assert.equal(tableau.file.length, etat.attend.length);
   for (const [rang, ligne] of tableau.file.entries()) {
     const deStatus = awaiting[rang] ?? "";
@@ -44,12 +44,13 @@ test("le tableau montre chaque ligne de la file avec son geste, telle que `statu
     assert.ok(lu.includes(resserre(`${ligne.nom} · ${depuis}${ligne.titre === null ? "" : ` · ${ligne.titre}`}`)), `${ligne.nom} : sa tête`);
     assert.ok(lu.includes(resserre(ligne.ligne)), `${ligne.nom} : ce qui attend et son geste`);
   }
-  // Les gestes, dans leur code : `pass 18`, le disjoncteur à refermer.
-  assert.ok(lu.includes("`brigade <projet> pass 18`"));
+  // Les gestes, dans leur code : le disjoncteur à refermer. La remontée technique de #18 n'en porte plus : elle est
+  // à la cuisine (#1826).
+  assert.ok(!lu.includes("`brigade <projet> pass 18`"));
   assert.ok(lu.includes("`brigade <projet> guardrails resume`"));
   // Le bilan sans grant, qui n'est pas une décision, et la tête du bloc.
   assert.ok(lu.includes("without a grant, 1 green delivery stopped"));
-  assert.ok(lu.includes("Awaiting the chef — 5 decisions, the oldest for 2 h 04"));
+  assert.ok(lu.includes("Awaiting the chef — 4 decisions, the oldest for 14 min"));
 });
 
 test("le tableau montre l'état de la cuisine comme `status` l'écrit : cooks, machine, quota, base, alertes, plafonds", (t) => {
@@ -123,7 +124,7 @@ test("le corps finit par son bloc machine, versionné et daté, et le relire ren
     lu.tableau.file.map(({ nom, quoi, depuis }) => ({ nom, quoi, depuis })),
     etat.attend.map((attente) => ({ nom: attente.ticket === null ? lu.tableau.file.find(({ quoi }) => quoi === attente.quoi)?.nom : `#${attente.ticket}`, quoi: attente.quoi, depuis: attente.since })),
   );
-  assert.deepEqual(lu.tableau.file[0]?.decision, { quoi: "remontee", motif: "still-red", cause: "returns-exhausted", pr: "https://exemple.test/pull/18" });
+  assert.deepEqual(lu.tableau.file[0]?.decision, { quoi: "bloque", motif: null, cause: null, pr: null });
 });
 
 test("ce que le bloc porte ne ferme pas le commentaire, et se relit tel quel", (t) => {
