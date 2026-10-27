@@ -64,6 +64,28 @@ describe("la carte de TODO, lue dans `facts`", () => {
     assert.equal(carteLue({ ...DESIGN, captures: "two screens" })?.captures, null);
   });
 
+  test("dans la forme unique (épique #1764) : son résumé est lu ; une carte à un seul geste se lit sans question, plusieurs choix jamais", () => {
+    const resume = "The delivery of #31 is green. The grant does not let the pass merge it.";
+    const unGeste = { type: "product", resume, question: null, choix: [{ texte: "Merge the PR", suite: "merge" }], captures: null };
+    assert.deepEqual(carteLue(unGeste), unGeste);
+    assert.deepEqual(carteLue({ ...PRODUIT, resume }), { ...PRODUIT, resume });
+    const { question: _, ...sansQuestion } = unGeste;
+    assert.equal(carteLue(sansQuestion)?.question, null);
+    // Plusieurs choix sans question, aucun choix, ou un résumé qui n'est pas un texte : la carte se pose sans ce qui manque, ou pas du tout.
+    assert.equal(carteLue({ ...PRODUIT, question: null }), undefined);
+    assert.equal(carteLue({ ...unGeste, choix: [] }), undefined);
+    assert.ok(!("resume" in (carteLue({ ...PRODUIT, resume: 3 }) ?? {})));
+    assert.ok(!("resume" in (carteLue({ ...PRODUIT, resume: "  " }) ?? {})));
+    const posee = carteDeTodo(carteLue(unGeste) ?? assert.fail("carte illisible"));
+    assert.equal(posee.resume, resume);
+    assert.equal(posee.question, null);
+    assert.match(posee.choix[0]?.prix ?? "", /merged .* not undone/);
+    assert.ok(!("resume" in carteDeTodo(PRODUIT)));
+    // La réponse à une carte sans question porte une question nulle : la même que la carte.
+    assert.deepEqual(reponseLue(carteLue(unGeste), 31, { question: null, choix: 1 }), { ticket: 31, choix: 1 });
+    assert.deepEqual(reponseLue(carteLue(unGeste), 31, { question: "Merge it?", choix: 1 }), { refus: CHANGEE, detail: "" });
+  });
+
   test("rangée pour la carte du rail : chaque choix porte son prix, celui d'un merge dit qu'il ne se défait pas ; sans écran, aucune capture", () => {
     const design = carteDeTodo(DESIGN);
     assert.equal(design.sorte, "design");
