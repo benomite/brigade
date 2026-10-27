@@ -9,8 +9,9 @@ import { FINS_SANS_SUITE } from "../projections/rail.ts";
 import { HEURE_MS, JOUR_MS, TYPES_SERVIS } from "./comptes.ts";
 
 // Une heure de l'histogramme : son début (`at`, une heure pile UTC), les tickets servis — mergés, ou servis sans
-// diff (`TYPES_SERVIS` de comptes.ts), un ticket comptant pour un sur les 24 heures, dans celle où il l'est d'abord —, et les ratés — une pass revenue rouge, ou un cook fini sans suite (`FINS_SANS_SUITE` du rail :
-// échoué, garde-fou, arrêt), chacun comptant pour un.
+// diff (`TYPES_SERVIS` de comptes.ts), un ticket comptant pour un sur les 24 heures, dans celle où il l'est d'abord —,
+// et les ratés — une pass revenue rouge, ou un cook fini sans suite (`FINS_SANS_SUITE` du rail : échoué, garde-fou,
+// arrêt), chacun comptant pour un.
 export type HeureDeCadence = { at: string; served: number; failed: number };
 // Le temps d'ordinaire passé pris (`taken`) et en pass (`pass`), en secondes : la médiane des séjours finis dans la
 // fenêtre. Nulle tant qu'il y en a moins que `SEJOURS_MIN` — l'ordinaire ne se dit pas d'un ou deux.
