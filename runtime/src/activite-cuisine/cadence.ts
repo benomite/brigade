@@ -6,11 +6,12 @@
 // projection de plus, et l'histogramme est juste dès que l'app s'ouvre. Seuls comptent les faits du projet nommé.
 import type { Base } from "../base.ts";
 import { FINS_SANS_SUITE } from "../projections/rail.ts";
-import { HEURE_MS, JOUR_MS } from "./comptes.ts";
+import { HEURE_MS, JOUR_MS, TYPES_SERVIS } from "./comptes.ts";
 
 // Une heure de l'histogramme : son début (`at`, une heure pile UTC), les tickets servis — mergés, ou servis sans
-// diff, un ticket comptant pour un —, et les ratés — une pass revenue rouge, ou un cook fini sans suite (`FINS_SANS_SUITE` du rail :
-// échoué, garde-fou, arrêt), chacun comptant pour un.
+// diff (`TYPES_SERVIS` de comptes.ts), un ticket comptant pour un sur les 24 heures, dans celle où il l'est d'abord —,
+// et les ratés — une pass revenue rouge, ou un cook fini sans suite (`FINS_SANS_SUITE` du rail : échoué, garde-fou,
+// arrêt), chacun comptant pour un.
 export type HeureDeCadence = { at: string; served: number; failed: number };
 // Le temps d'ordinaire passé pris (`taken`) et en pass (`pass`), en secondes : la médiane des séjours finis dans la
 // fenêtre. Nulle tant qu'il y en a moins que `SEJOURS_MIN` — l'ordinaire ne se dit pas d'un ou deux.
@@ -21,8 +22,6 @@ export const HEURES = 24;
 // La fenêtre où se lisent les séjours, et ce qu'il en faut pour dire l'ordinaire.
 export const FENETRE_DES_SEJOURS_MS = 7 * JOUR_MS;
 export const SEJOURS_MIN = 3;
-
-const SERVIS = ["ticket.served", "merge.done"];
 
 type Ligne = { ticket: number; at: string; type: string; payload: string };
 
@@ -36,25 +35,29 @@ export function heuresDeLaCuisine(base: Base, projet: string, maintenant: Date):
   const lignes = base.lire<Ligne>(
     `SELECT ticket, at, type, payload FROM events
      WHERE project = ?1 AND ticket IS NOT NULL AND at >= ?2 AND at <= ?3
-       AND type IN ('ticket.served', 'merge.done', 'pass.judged', 'cook.exited')
+       AND type IN (SELECT value FROM json_each(?4) UNION VALUES ('pass.judged'), ('cook.exited'))
      ORDER BY seq`,
     projet,
     new Date(debut).toISOString(),
     maintenant.toISOString(),
+    JSON.stringify(TYPES_SERVIS),
   );
-  const servis = Array.from({ length: HEURES }, () => new Set<number>());
+  const servis = Array.from({ length: HEURES }, () => 0);
   const rates = Array.from({ length: HEURES }, () => 0);
+  // Mergé à 13 h 59, servi à 14 h 01 : un seul ticket, dans la barre de 13 h.
+  const dejaServis = new Set<number>();
   for (const { ticket, at, type, payload } of lignes) {
     const rang = Math.floor((Date.parse(at) - debut) / HEURE_MS);
     if (rang < 0 || rang >= HEURES) continue;
-    if (SERVIS.includes(type)) {
-      servis[rang]?.add(ticket);
+    if ((TYPES_SERVIS as readonly string[]).includes(type)) {
+      if (!dejaServis.has(ticket)) servis[rang] = (servis[rang] ?? 0) + 1;
+      dejaServis.add(ticket);
       continue;
     }
     const p = JSON.parse(payload) as Record<string, unknown>;
     if ((type === "pass.judged" && p.verdict === "red") || (type === "cook.exited" && FINS_SANS_SUITE.includes(p.outcome))) rates[rang] = (rates[rang] ?? 0) + 1;
   }
-  return servis.map((tickets, rang) => ({ at: new Date(debut + rang * HEURE_MS).toISOString(), served: tickets.size, failed: rates[rang] ?? 0 }));
+  return servis.map((served, rang) => ({ at: new Date(debut + rang * HEURE_MS).toISOString(), served, failed: rates[rang] ?? 0 }));
 }
 
 // Combien de temps chaque ticket est resté pris, puis en pass, séjour par séjour : le rail relu comme sa projection
