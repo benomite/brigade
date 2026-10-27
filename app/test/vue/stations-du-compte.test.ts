@@ -1,7 +1,8 @@
 // Les stations enregistrées sous le compte GitHub du chef (#1706, épique 1702), dans la liste des stations de l'accueil
 // (#1778, épique 1777) : une ligne par machine — une machine appairée se dit par sa présence, et son enregistrement ne
 // pose ni seconde ligne, ni section « Under your GitHub account » ; une machine seulement enregistrée a sa ligne, en
-// ligne ou non, avec les projets qu'elle sert ; ouverte, les projets du chef à cocher, chaque case écrite aussitôt ; sans
+// ligne ou non, avec les projets qu'elle sert ; ouverte, les projets du chef à cocher, chaque case écrite aussitôt, et les
+// autres dépôts du compte par la recherche seulement (#1780) — jamais leur liste entière ; sans
 // station, la commande qui en installe une. Les stations sont écrites par les fonctions mêmes du runtime (`stationDuGist`,
 // `echecDeGh`) : ce que la vue pose est ce qu'elle recevra. La vue jouée entière va jusqu'au gist : ce qui est coché est
 // écrit selon le contrat (stations-du-compte.ts), relu par le lecteur du runtime au lancement suivant, et coché encore.
@@ -27,11 +28,13 @@ import { choixDesProjets, type StationEnregistree, type StationsDuCompte } from 
 import type { StationVue, VuDesStations } from "../../src/stations/stations.ts";
 import {
   AUCUNE,
+  CHERCHER,
   COPIEE,
   COPIER,
   DEPOTS_ILLISIBLES,
   EN_SON_ABSENCE,
   ENVOI,
+  ET_ENCORE,
   ILLISIBLES,
   INSTALLER,
   LECTURE_DES_DEPOTS,
@@ -41,7 +44,13 @@ import {
   ligneFondue,
   projetsServis,
   RELIRE,
+  RIEN_NE_CORRESPOND,
   SANS_DEPOT,
+  SANS_PROJET,
+  TROUVES_AU_PLUS,
+  casesDe,
+  projetsDuChef,
+  trouvesDe,
   uneLigneParMachine,
   type EtatDuCompte,
   type GestesDuCompte,
@@ -68,6 +77,10 @@ const MAC = lue("d4e5f6", { [contrat.FICHIER_ENREGISTREMENT]: enregistrement("ma
 const LISTEES: StationsDuCompte = { state: "listed", stations: [BOX, MAC], unreadable: [] };
 const AUCUNE_LISTEE: StationsDuCompte = { state: "listed", stations: [], unreadable: [], reason: "No station is registered under this GitHub account yet: install brigade's station on a machine, and sign it in to this account." };
 const DEPOTS = { depots: [{ depot: "acme/shop", base: "main" }, { depot: "acme/site", base: "main" }] };
+// Ce que le compte d'un chef atteint d'ordinaire (#1780) : ses quelques projets, mêlés à trente et un dépôts — les siens qui
+// ne sont pas des projets, ceux de ses organisations, ceux des autres où il est invité —, dans l'ordre où GitHub les rend.
+const AUTRES = Array.from({ length: 31 }, (_, i) => ["acme/notes-", "friend/sandbox-", "asso/site-", "lea/chat-"][i % 4] + String(i).padStart(2, "0"));
+const DU_COMPTE = { depots: ["acme/shop", ...AUTRES.slice(0, 10), "acme/brigade", ...AUTRES.slice(10, 20), "acme/espace", ...AUTRES.slice(20), "acme/site", "acme/blog"].map((depot) => ({ depot, base: "main" })) };
 // Ce `gh` n'a pas de compte ; ou GitHub ne répond pas.
 const SANS_COMPTE = echecDeGh("gh", 30_000, { code: 4, message: "Command failed: gh api /gists" }, "To get started with GitHub CLI, please run:  gh auth login\n");
 const SANS_RESEAU = echecDeGh("gh", 30_000, { code: 1, message: "Command failed" }, "error connecting to api.github.com\ncheck your internet connection or https://githubstatus.com\n");
@@ -79,6 +92,8 @@ function unBloc({ ouverte, ...etat }: EtatDuCompte & { ouverte?: string }, vide 
   const gestes: GestesDuCompte = {
     ouvrirLaStation: (id) => void faits.push(`ouvrir ${id}`),
     choisir: (id, depots) => void faits.push(`choisir ${id} [${depots.join(", ")}]`),
+    chercher: (id, texte) => void faits.push(`chercher ${id} « ${texte} »`),
+    ajouter: (id, depot, depots) => void faits.push(`ajouter ${id} ${depot} [${depots.join(", ")}]`),
     relire: () => void faits.push("relire"),
     seConnecter: () => void faits.push("se connecter"),
     ouvrirLaPage: (url) => void faits.push(`page ${url}`),
@@ -98,9 +113,16 @@ function lecteurs(bloc: Faux) {
   const caseDe = (depot: string) => cases().find((entree) => entree.ariaLabel === depot) ?? assert.fail(`pas de case « ${depot} » : ${cases().map(({ ariaLabel }) => ariaLabel).join(", ")}`);
   const bouton = (texte: string) => bloc.dessous("button").find((candidat) => candidat.textContent === texte) ?? assert.fail(`pas de bouton « ${texte} » : ${bloc.dessous("button").map((b) => b.textContent).join(", ")}`);
   const textes = () => bloc.dessous("p").map((p) => p.textContent);
+  const champ = () => bloc.dessous("input").find((entree) => entree.type === "search") ?? assert.fail("pas de champ de recherche");
+  const trouves = () => bloc.dessous("button").filter(({ className }) => className === "trouve");
+  const taper = (texte: string) => {
+    const pose = champ();
+    pose.value = texte;
+    pose.declencher("input");
+  };
   const enEchec = () => bloc.dessous("p").filter((p) => p.className === "indisponible");
   const auSurvol = (pose: Faux) => pose.dessous("button").filter(({ className }) => className === "aide").map(({ ariaLabel }) => ariaLabel).join("\n");
-  return { ligne, cases, caseDe, bouton, textes, enEchec, auSurvol };
+  return { ligne, cases, caseDe, bouton, textes, enEchec, auSurvol, champ, trouves, taper };
 }
 const cocher = (coche: Faux, voulue: boolean) => {
   coche.checked = voulue;
@@ -222,29 +244,31 @@ describe("la ligne d'une station seulement enregistrée : en ligne ou non, et le
 });
 
 describe("la sélection : les projets du chef à cocher, chaque case écrite aussitôt", () => {
-  test("ouverte, une station montre les dépôts du chef, cochés s'il les lui a choisis", () => {
-    const { cases } = unBloc({ stations: LISTEES, ouverte: BOX.id, depots: DEPOTS });
+  // Les projets que la brigade connaît : l'un par son nom, l'autre par son dépôt.
+  const CONNUS = ["shop", "acme/site"];
+  test("ouverte, une station montre les projets du chef parmi les dépôts du compte, cochés s'il les lui a choisis", () => {
+    const { cases } = unBloc({ stations: LISTEES, ouverte: BOX.id, depots: DEPOTS, connus: CONNUS });
     assert.deepEqual(cases().map(({ ariaLabel, checked, disabled }) => [ariaLabel, checked, disabled]), [["acme/shop", true, false], ["acme/site", false, false]]);
   });
 
   test("cocher ou décocher envoie la sélection entière, dans l'ordre des cases", () => {
-    const coche = unBloc({ stations: LISTEES, ouverte: BOX.id, depots: DEPOTS });
+    const coche = unBloc({ stations: LISTEES, ouverte: BOX.id, depots: DEPOTS, connus: CONNUS });
     cocher(coche.caseDe("acme/site"), true);
-    const decoche = unBloc({ stations: LISTEES, ouverte: BOX.id, depots: DEPOTS });
+    const decoche = unBloc({ stations: LISTEES, ouverte: BOX.id, depots: DEPOTS, connus: CONNUS });
     cocher(decoche.caseDe("acme/shop"), false);
     assert.deepEqual([...coche.faits, ...decoche.faits], [`choisir ${BOX.id} [acme/shop, acme/site]`, `choisir ${BOX.id} []`]);
   });
 
   test("un dépôt qu'elle sert et que la liste du chef ne nomme plus garde sa case, cochée — et se décoche", () => {
     const ancienne = { ...BOX, selection: ["acme/old"] };
-    const { cases, caseDe, faits } = unBloc({ stations: { ...LISTEES, stations: [ancienne] }, ouverte: BOX.id, depots: DEPOTS });
+    const { cases, caseDe, faits } = unBloc({ stations: { ...LISTEES, stations: [ancienne] }, ouverte: BOX.id, depots: DEPOTS, connus: CONNUS });
     assert.deepEqual(cases().map(({ ariaLabel, checked }) => [ariaLabel, checked]), [["acme/shop", false], ["acme/site", false], ["acme/old", true]]);
     cocher(caseDe("acme/old"), false);
     assert.deepEqual(faits, [`choisir ${BOX.id} []`]);
   });
 
   test("une station hors ligne le dit, et ses cases restent à cocher", () => {
-    const { textes, cases, caseDe, faits } = unBloc({ stations: LISTEES, ouverte: MAC.id, depots: DEPOTS });
+    const { textes, cases, caseDe, faits } = unBloc({ stations: LISTEES, ouverte: MAC.id, depots: DEPOTS, connus: CONNUS });
     assert.ok(textes().includes(EN_SON_ABSENCE), textes().join(" | "));
     assert.deepEqual(cases().map(({ checked, disabled }) => [checked, disabled]), [[false, false], [false, false]]);
     cocher(caseDe("acme/site"), true);
@@ -252,10 +276,10 @@ describe("la sélection : les projets du chef à cocher, chaque case écrite aus
   });
 
   test("pendant l'écriture, les cases attendent ; refusée, la raison tient en une ligne, son détail au survol", () => {
-    const enRoute = unBloc({ stations: LISTEES, ouverte: BOX.id, depots: DEPOTS, envoi: BOX.id });
+    const enRoute = unBloc({ stations: LISTEES, ouverte: BOX.id, depots: DEPOTS, connus: CONNUS, envoi: BOX.id });
     assert.ok(enRoute.cases().every(({ disabled }) => disabled), "une case reste cliquable pendant l'écriture");
     assert.ok(enRoute.textes().includes(ENVOI));
-    const refusee = unBloc({ stations: LISTEES, ouverte: BOX.id, depots: DEPOTS, refus: { id: BOX.id, refus: "not saved: GitHub did not take the change", detail: "HTTP 502: Bad Gateway" } });
+    const refusee = unBloc({ stations: LISTEES, ouverte: BOX.id, depots: DEPOTS, connus: CONNUS, refus: { id: BOX.id, refus: "not saved: GitHub did not take the change", detail: "HTTP 502: Bad Gateway" } });
     const [ligne, ...autres] = refusee.enEchec();
     assert.ok(ligne !== undefined && autres.length === 0);
     assert.equal(ligne.dessous("span")[0]?.textContent, "not saved: GitHub did not take the change");
@@ -271,6 +295,98 @@ describe("la sélection : les projets du chef à cocher, chaque case écrite aus
     const illisibles = unBloc({ stations: LISTEES, ouverte: BOX.id, depots: { refus: "`gh` is not on this machine" } });
     assert.equal(illisibles.enEchec()[0]?.dessous("span")[0]?.textContent, DEPOTS_ILLISIBLES);
     assert.deepEqual(illisibles.cases().map(({ ariaLabel, checked }) => [ariaLabel, checked]), [["acme/shop", true]]);
+  });
+});
+
+describe("les projets du chef d'abord, les autres dépôts par la recherche (#1780)", () => {
+  // La box sert acme/shop ; la brigade connaît aussi brigade, par son nom, et acme/espace, par son dépôt.
+  const CONNUS = ["brigade", "acme/espace"];
+  const ouverte = (etat: EtatDuCompte = {}) => unBloc({ stations: LISTEES, ouverte: BOX.id, depots: DU_COMPTE, connus: CONNUS, ...etat });
+  const noms = (boutons: Faux[]) => boutons.map((bouton) => bouton.dessous("span")[0]?.textContent);
+
+  test("les projets du chef : les dépôts du compte que la brigade connaît, par leur dépôt ou leur nom, sans égard à la casse", () => {
+    const depots = ["acme/Shop", "friend/shop", "acme/site", "acme/blog", "lea/brigade"];
+    assert.deepEqual(projetsDuChef(depots, ["acme/shop", "Brigade"]), ["acme/Shop", "lea/brigade"]);
+    assert.deepEqual(casesDe(depots, ["acme/gone"], ["acme/site"]), ["acme/site", "acme/gone"], "ce qu'elle sert garde sa case, même hors du compte");
+    assert.deepEqual(trouvesDe(depots, ["acme/site"], "  "), [], "rien de tapé, rien de trouvé");
+    assert.deepEqual(trouvesDe(depots, ["acme/site"], "SI"), [], "une case prise ne se retrouve pas");
+    assert.deepEqual(trouvesDe(depots, ["acme/Shop"], "shop"), ["friend/shop"]);
+  });
+
+  test("36 dépôts atteints : avant toute recherche, seuls les projets du chef ont une case, et le champ qui cherche les autres", () => {
+    assert.ok(DU_COMPTE.depots.length >= 35);
+    const { cases, champ, trouves, bloc } = ouverte();
+    assert.deepEqual(cases().map(({ ariaLabel, checked }) => [ariaLabel, checked]), [["acme/shop", true], ["acme/brigade", false], ["acme/espace", false]]);
+    assert.equal(champ().ariaLabel, CHERCHER);
+    assert.equal(champ().value, "");
+    assert.deepEqual(trouves(), []);
+    assert.ok(!AUTRES.some((depot) => bloc.textContent.includes(depot)), "un autre dépôt se montre sans recherche");
+  });
+
+  test("taper montre les dépôts du compte qui le contiennent et ne sont pas encore des projets du chef — au plus huit, puis combien d'autres", () => {
+    const { taper, trouves, textes, faits, cases } = ouverte();
+    taper("Chat");
+    assert.deepEqual(noms(trouves()), AUTRES.filter((depot) => depot.startsWith("lea/chat-")));
+    assert.deepEqual(faits, [`chercher ${BOX.id} « Chat »`]);
+    taper("acme");
+    assert.deepEqual(noms(trouves()), [...AUTRES.filter((depot) => depot.startsWith("acme/")), "acme/site", "acme/blog"].slice(0, TROUVES_AU_PLUS));
+    assert.ok(!noms(trouves()).includes("acme/shop"), "un projet du chef se trouve aussi par la recherche");
+    assert.ok(textes().includes(ET_ENCORE(2)), textes().join(" | "));
+    assert.equal(cases().length, 3, "taper n'ajoute aucune case");
+    taper("zzz");
+    assert.deepEqual(trouves(), []);
+    assert.ok(textes().includes(RIEN_NE_CORRESPOND("zzz")));
+  });
+
+  test("le champ vidé, les autres dépôts se cachent de nouveau", () => {
+    const { taper, trouves, bloc } = ouverte();
+    taper("sandbox");
+    assert.equal(trouves().length, 8);
+    taper("");
+    assert.deepEqual(trouves(), []);
+    assert.ok(!AUTRES.some((depot) => bloc.textContent.includes(depot)));
+    assert.ok(bloc.dessous("div").some(({ className, hidden }) => className === "trouves" && hidden));
+  });
+
+  test("en choisir un l'ajoute à la station : sa sélection entière, le dépôt avec elle", () => {
+    const { taper, trouves, faits } = ouverte();
+    taper("blog");
+    const [blog, ...autres] = trouves();
+    assert.ok(blog !== undefined && autres.length === 0);
+    assert.equal(blog.ariaLabel, "add acme/blog");
+    blog.click();
+    assert.deepEqual(faits.at(-1), `ajouter ${BOX.id} acme/blog [acme/shop, acme/blog]`);
+  });
+
+  test("ajouté, il rejoint les projets du chef : sa case, cochée sur la station, à cocher sur les autres — et la recherche ne le propose plus", () => {
+    const choisie = { ...BOX, selection: ["acme/shop", "acme/blog"] };
+    const box = unBloc({ stations: { ...LISTEES, stations: [choisie, MAC] }, ouverte: BOX.id, depots: DU_COMPTE, connus: CONNUS, ajoutes: ["acme/blog"] });
+    assert.deepEqual(box.cases().map(({ ariaLabel, checked }) => [ariaLabel, checked]), [["acme/shop", true], ["acme/brigade", false], ["acme/espace", false], ["acme/blog", true]]);
+    box.taper("blog");
+    assert.deepEqual(box.trouves(), []);
+    const mac = unBloc({ stations: { ...LISTEES, stations: [choisie, MAC] }, ouverte: MAC.id, depots: DU_COMPTE, connus: CONNUS, ajoutes: ["acme/blog"] });
+    assert.deepEqual(mac.cases().map(({ ariaLabel, checked }) => [ariaLabel, checked]), [["acme/shop", false], ["acme/brigade", false], ["acme/espace", false], ["acme/blog", false]]);
+    // L'écriture refusée : il reste un projet du chef, sa case à cocher.
+    const refuse = ouverte({ ajoutes: ["acme/blog"] });
+    assert.equal(refuse.caseDe("acme/blog").checked, false);
+  });
+
+  test("la page redessinée rend ce qui était tapé, sur cette station seulement ; pendant l'écriture, ce qu'elle trouve attend", () => {
+    const tapee = ouverte({ recherche: { id: BOX.id, texte: "chat" } });
+    assert.equal(tapee.champ().value, "chat");
+    assert.equal(tapee.trouves().length, 7);
+    const ailleurs = ouverte({ recherche: { id: MAC.id, texte: "chat" } });
+    assert.equal(ailleurs.champ().value, "");
+    assert.deepEqual(ailleurs.trouves(), []);
+    const enRoute = ouverte({ recherche: { id: BOX.id, texte: "chat" }, envoi: BOX.id });
+    assert.ok(enRoute.trouves().every(({ disabled }) => disabled));
+  });
+
+  test("aucun projet du chef parmi les dépôts du compte : une ligne le dit, et le champ reste", () => {
+    const { textes, cases, champ } = unBloc({ stations: { ...LISTEES, stations: [MAC] }, ouverte: MAC.id, depots: DU_COMPTE });
+    assert.deepEqual(cases(), []);
+    assert.ok(textes().includes(SANS_PROJET));
+    assert.equal(champ().value, "");
   });
 });
 
@@ -391,11 +507,19 @@ describe("la vue jouée : une seule liste de stations, une ligne par machine", (
     await repos();
     const page = lecteurs(vue.element("station"));
     assert.ok(vue.element("station").textContent.includes("macbook-air-de-benoit"));
-    assert.deepEqual(page.cases().map(({ ariaLabel, checked }) => [ariaLabel, checked]), [["acme/shop", true], ["acme/site", false]]);
-    cocher(page.caseDe("acme/site"), true);
+    // Ses cases : les projets du chef — ce qui lui est choisi ; acme/site, que rien ne connaît, ne se montre qu'à la recherche.
+    assert.deepEqual(page.cases().map(({ ariaLabel, checked }) => [ariaLabel, checked]), [["acme/shop", true]]);
+    page.taper("site");
+    await repos();
+    const trouve = lecteurs(vue.element("station")).trouves();
+    assert.deepEqual(trouve.map(({ ariaLabel }) => ariaLabel), ["add acme/site"]);
+    trouve[0]?.click();
     await repos();
     assert.deepEqual(vue.dernier("choisirLesProjets"), [mac.id, ["acme/shop", "acme/site"]]);
-    assert.deepEqual(lecteurs(vue.element("station")).cases().map(({ ariaLabel, checked }) => [ariaLabel, checked]), [["acme/shop", true], ["acme/site", true]]);
+    const apres = lecteurs(vue.element("station"));
+    assert.deepEqual(apres.cases().map(({ ariaLabel, checked }) => [ariaLabel, checked]), [["acme/shop", true], ["acme/site", true]]);
+    assert.equal(apres.champ().value, "", "le champ se vide une fois le dépôt ajouté");
+    assert.deepEqual(apres.trouves(), []);
   });
 
   test("toute ligne ouvre la page de sa station : en ligne qui sert des projets, ou hors ligne qui n'en a aucun — aucune ne se déplie", async () => {
@@ -419,7 +543,7 @@ describe("la vue jouée : une seule liste de stations, une ligne par machine", (
     }
   });
 
-  test("cocher un projet l'écrit dans le gist de la station ; relancée, l'app le montre coché", async () => {
+  test("un dépôt ajouté par la recherche s'écrit dans le gist de la station ; relancée, l'app le montre coché, parmi les projets du chef", async () => {
     // Le gist de la box, tel que GitHub le garde : son enregistrement, puis ce que l'app y écrit.
     const gist: Record<string, string> = { [contrat.FICHIER_ENREGISTREMENT]: enregistrement("box", "linux", "Linux 6.1.0", null) };
     const ecrits: string[][] = [];
@@ -442,8 +566,11 @@ describe("la vue jouée : une seule liste de stations, une ligne par machine", (
     await repos();
     assert.ok(vue.appels.some(({ geste }) => geste === "depotsDuChef"), "les dépôts du chef ne sont pas lus");
     const ouvert = lecteurs(vue.element("station"));
-    assert.deepEqual(ouvert.cases().map(({ ariaLabel, checked }) => [ariaLabel, checked]), [["acme/shop", false], ["acme/site", false]]);
-    cocher(ouvert.caseDe("acme/site"), true);
+    // Aucun projet connu de la brigade parmi les dépôts du compte : aucune case, le champ seul.
+    assert.deepEqual(ouvert.cases(), []);
+    ouvert.taper("SITE");
+    await repos();
+    lecteurs(vue.element("station")).trouves()[0]?.click();
     await repos();
     assert.deepEqual(vue.dernier("choisirLesProjets"), [BOX.id, ["acme/site"]]);
     assert.deepEqual(ecrits, [[contrat.FICHIER_SELECTION]], "l'app écrit un autre fichier que la sélection");
@@ -459,7 +586,12 @@ describe("la vue jouée : une seule liste de stations, une ligne par machine", (
     relu.ligne("box").click();
     await repos();
     const rouvert = lecteurs(relancee.element("station"));
-    assert.deepEqual(rouvert.cases().map(({ ariaLabel, checked }) => [ariaLabel, checked]), [["acme/shop", false], ["acme/site", true]]);
+    assert.deepEqual(rouvert.cases().map(({ ariaLabel, checked }) => [ariaLabel, checked]), [["acme/site", true]]);
+    // Décoché, il reste un projet du chef le temps de la session : sa case ne disparaît pas sous le clic.
+    cocher(rouvert.caseDe("acme/site"), false);
+    await repos();
+    assert.deepEqual(relancee.dernier("choisirLesProjets"), [BOX.id, []]);
+    assert.deepEqual(lecteurs(relancee.element("station")).cases().map(({ ariaLabel, checked }) => [ariaLabel, checked]), [["acme/site", false]]);
   });
 
   test("sans aucune station, ni appairée ni sous le compte, l'accueil dit comment en installer une", async () => {

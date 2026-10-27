@@ -33,8 +33,8 @@ const DU_COMPTE: StationsDuCompte = { state: "listed", stations: [MAC_ENREGISTRE
 
 const DEPOTS = { depots: ["benomite/brigade", "benomite/parade", "benomite/cantine"].map((depot) => ({ depot, base: "main" })) };
 
-// `etapes` : ce que la capture clique avant de rendre l'écran.
-export function stationsDuChef(dit: string, etapes: Etape[] = []): Ecran {
+// `etapes` : ce que la capture clique avant de rendre l'écran. `depots` : les dépôts que le compte du chef atteint.
+export function stationsDuChef(dit: string, etapes: Etape[] = [], depots: { depots: Array<{ depot: string; base: string }> } = DEPOTS): Ecran {
   return {
     dit,
     largeur: 1440,
@@ -42,7 +42,7 @@ export function stationsDuChef(dit: string, etapes: Etape[] = []): Ecran {
     etapes,
     donnees: () => {
       const accueil: Accueil = { projets: [], stations: STATIONS.stations.map((station) => ligneDeStation(station, 0, false)), sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } };
-      return { maintenant: MAINTENANT, reponses: { demarrage: { ...demarrage(configuration(PROJETS)), stations: STATIONS, accueil }, stationsDuCompte: DU_COMPTE, depotsDuChef: DEPOTS }, envois: cuisine(RENDUS) };
+      return { maintenant: MAINTENANT, reponses: { demarrage: { ...demarrage(configuration(PROJETS)), stations: STATIONS, accueil }, stationsDuCompte: DU_COMPTE, depotsDuChef: depots }, envois: cuisine(RENDUS) };
     },
   };
 }
