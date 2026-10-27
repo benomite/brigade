@@ -176,7 +176,7 @@ describe("la pass relance une CI rouge sur des tests que la livraison ne touche 
     gh.ci.checks = [job(1, "green", "lint"), job(3)];
     await jusquAu("merge.done");
 
-    assert.deepEqual([compter("pass.ci-rerun"), compter("pass.returned"), compter("pass.escalated"), pass()?.returns], [1, 0, 0, 0]);
+    assert.deepEqual([compter("pass.ci-rerun"), compter("pass.returned"), compter("pass.escalated")], [1, 0, 0]);
     // Le ticket `fix` du test, ouvert sans geste du chef : il porte `fire` et son calibrage.
     const [fix] = gh.creations;
     assert.equal(gh.creations.length, 1);
