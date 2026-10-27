@@ -67,3 +67,6 @@ export function ligneLivree(quand: string, resume: string | undefined): LigneDeC
   const phrase = resume?.split(/(?<=[.!?])\s/)[0]?.trim();
   return phrase === undefined || phrase === "" ? { ligne: heure, repere: true } : { ligne: `${heure} · ${phrase}` };
 }
+
+// Une carte que l'app n'a pas su lire — la box en sait plus qu'elle : la forme est plus récente. Seule cette carte en pâtit.
+export const ligneIllisible = (): LigneDeCarte => ({ ligne: "the app could not read this card — update the app to fix it", signal: "unreadable" });

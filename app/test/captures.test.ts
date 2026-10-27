@@ -66,14 +66,15 @@ const cartes = (recue: Dessinable): Carte[] => ("tableau" in recue ? recue.table
 const carteDe = (numero: number, recue = tenir().recue) => cartes(recue).find(({ ticket }) => ticket === numero) ?? assert.fail(`pas de carte #${numero}`);
 
 describe("les captures d'une livraison d'interface, telles que la carte les reçoit", () => {
-  test("`facts` les donne par écran : la forme se lit, et un champ de travers la refuse entière", () => {
+  test("`facts` les donne par écran : la forme se lit, et un champ de travers ne gâte que sa carte", () => {
     const lus = comprendre(JSON.stringify(FAITS));
     assert.ok(!("informe" in lus));
     assert.deepEqual(lus.rail[0]?.captures, COMPLETES);
     assert.equal("captures" in (lus.rail[2] ?? {}), false);
     assert.deepEqual(lus.livres?.[0]?.captures?.ecrans[0]?.apres, null);
     const deTravers = { ...FAITS, rail: [{ ...FAITS.rail[0], captures: { complet: "oui", ecrans: [] } }] };
-    assert.deepEqual(comprendre(JSON.stringify(deTravers)), { informe: "“rail[0].captures.complet” is not a boolean" });
+    const mal = comprendre(JSON.stringify(deTravers));
+    assert.ok(!("informe" in mal) && mal.rail[0]?.illisible === "“rail[0].captures.complet” is not a boolean");
   });
 
   test("une livraison qui les porte toutes : chaque écran, avant puis après, sous sa légende — et rien ne la dit incomplète", () => {

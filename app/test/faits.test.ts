@@ -92,6 +92,13 @@ const ATTENDU = { attendu: SANS_DECISION } as const;
 const lue = (texte: string): Lecture => ({ projet: "brigade", demande: 4, a: "2026-10-12T10:04:12.000Z", sorties: [{ commande: "facts", texte }] });
 
 // Le refus, ou l'échec du test si la sortie a été prise pour la forme.
+// La raison pour laquelle un élément de liste n'a pas été lu : la forme est comprise, et sa carte seule est illisible.
+function illisible(texte: string): string {
+  const compris = comprendre(texte);
+  assert.ok(!("informe" in compris), `la forme entière est refusée : ${"informe" in compris ? compris.informe : ""}`);
+  const rendu = [...compris.rail, ...(compris.attend ?? []), ...(compris.livres ?? [])].find((lu) => lu.illisible !== undefined);
+  return rendu?.illisible ?? assert.fail(`aucun élément illisible : ${texte}`);
+}
 function informe(texte: string): string {
   const compris = comprendre(texte);
   assert.ok("informe" in compris, `pris pour la forme : ${texte}`);
@@ -140,7 +147,7 @@ describe("les faits que l'app dessine", () => {
 
     const sansDepot = { ...FAITS, attend: [{ ticket: 378, titre: "", url: null }] };
     assert.deepEqual(comprendre(rendus(sansDepot)), sansDepot);
-    assert.match(informe(rendus({ ...FAITS, attend: [{ ticket: 378, titre: "" }] })), /attend\[0\]\.url/);
+    assert.match(illisible(rendus({ ...FAITS, attend: [{ ticket: 378, titre: "" }] })), /attend\[0\]\.url/);
     assert.match(informe(rendus({ ...FAITS, attend: {} })), /attend/);
   });
 
@@ -191,9 +198,9 @@ describe("les faits que l'app dessine", () => {
     assert.deepEqual(comprendre(rendus(sansActivite)), sansActivite);
     // Une activité qui n'a pas sa forme refuse la forme entière : rien n'en est deviné.
     const avec = (activite: unknown) => rendus({ ...FAITS, rail: [{ ...pris, activite }] });
-    assert.match(informe(avec("lit")), /rail\[0\]\.activite/);
-    assert.match(informe(avec({ fait: "lit", cible: 3, depuis: "2026-10-12T10:01:11.000Z" })), /rail\[0\]\.activite\.cible/);
-    assert.match(informe(avec({ fait: "lit", cible: null, depuis: "tout à l'heure" })), /rail\[0\]\.activite\.depuis/);
+    assert.match(illisible(avec("lit")), /rail\[0\]\.activite/);
+    assert.match(illisible(avec({ fait: "lit", cible: 3, depuis: "2026-10-12T10:01:11.000Z" })), /rail\[0\]\.activite\.cible/);
+    assert.match(illisible(avec({ fait: "lit", cible: null, depuis: "tout à l'heure" })), /rail\[0\]\.activite\.depuis/);
   });
 
   test("la carte d'un ticket pris ou en pass dit ce que la cuisine en fait, depuis combien de temps à l'horloge de la box — et écrit qu'elle ne le sait pas plutôt que de se taire", () => {
@@ -688,9 +695,9 @@ describe("Livré, d'après `livres`", () => {
     const nuls = { ...FAITS, livres: [livre(378, "2026-10-12T10:00:00.000Z", { titre: "", url: null, station: null, pr: null })] };
     assert.deepEqual(comprendre(rendus(nuls)), nuls);
     assert.match(informe(rendus({ ...FAITS, livres: {} })), /livres/);
-    assert.match(informe(rendus({ ...FAITS, livres: [{ ...livre(30, "hier") }] })), /livres\[0\]\.livre/);
+    assert.match(illisible(rendus({ ...FAITS, livres: [{ ...livre(30, "hier") }] })), /livres\[0\]\.livre/);
     const { pr: _pr, ...sansPr } = livre(30, "2026-10-12T10:00:00.000Z");
-    assert.match(informe(rendus({ ...FAITS, livres: [sansPr] })), /livres\[0\]\.pr/);
+    assert.match(illisible(rendus({ ...FAITS, livres: [sansPr] })), /livres\[0\]\.pr/);
   });
 
   test("ses cartes sont celles de `livres`, dans son ordre — le plus récent en haut —, autant que `livrés 24 h` : partis du rail, ils y restent", () => {
@@ -796,11 +803,11 @@ describe("Livré, d'après `livres`", () => {
   test("une relecture qui n'a pas la forme refuse la forme entière : un résumé, des constats en liste, chacun avec sa gravité, son fichier ou rien, son texte", () => {
     const avec = (relecture: unknown) => rendus({ ...FAITS, livres: [livre(30, "2026-10-12T10:00:00.000Z", { relecture })] });
     assert.deepEqual(comprendre(avec({ resume: "R.", constats: [{ gravite: "inconnue", fichier: null, constat: "C." }] })), { ...FAITS, livres: [livre(30, "2026-10-12T10:00:00.000Z", { relecture: { resume: "R.", constats: [{ gravite: "inconnue", fichier: null, constat: "C." }] } })] });
-    assert.match(informe(avec("un texte")), /livres\[0\]\.relecture/);
-    assert.match(informe(avec({ constats: [] })), /livres\[0\]\.relecture\.resume/);
-    assert.match(informe(avec({ resume: "R." })), /livres\[0\]\.relecture\.constats/);
-    assert.match(informe(avec({ resume: "R.", constats: [{ gravite: "remarque", constat: "C." }] })), /livres\[0\]\.relecture\.constats\[0\]\.fichier/);
-    assert.match(informe(avec({ resume: "R.", constats: [{ gravite: "remarque", fichier: null }] })), /livres\[0\]\.relecture\.constats\[0\]\.constat/);
+    assert.match(illisible(avec("un texte")), /livres\[0\]\.relecture/);
+    assert.match(illisible(avec({ constats: [] })), /livres\[0\]\.relecture\.resume/);
+    assert.match(illisible(avec({ resume: "R." })), /livres\[0\]\.relecture\.constats/);
+    assert.match(illisible(avec({ resume: "R.", constats: [{ gravite: "remarque", constat: "C." }] })), /livres\[0\]\.relecture\.constats\[0\]\.fichier/);
+    assert.match(illisible(avec({ resume: "R.", constats: [{ gravite: "remarque", fichier: null }] })), /livres\[0\]\.relecture\.constats\[0\]\.constat/);
   });
 
   test("une PR dont l'adresse n'est pas en https ne s'ouvre pas : la carte le sait, le process principal ne la donne pas", () => {

@@ -2928,6 +2928,8 @@ therefore receives at most one connection per project it serves, not two.
 | ``THE BOX DID NOT RETURN THE SHAPE OF `facts` — tried …`` | the command succeeded, and its output is not the shape: not JSON, a missing field, a counter that is not a whole number | **the output, word for word**, then what is not the shape (`"compteurs.rail" is not a positive whole number`) |
 | `NOT REACHED — tried …` | nothing that proves the box was reached | the message from `ssh`, as is — the same as under `status`, where its pointers are given |
 
+An item of `rail`, `attend` or `livres` that the app cannot read — a value from a box newer than the app, such as a WAITING follow-up at `null` — does not refuse the shape: only its own card is spoiled. It stays in its column and says in one line that the app could not read it and that updating the app fixes it. The shape is refused only when the item has no ticket number, since there is then no card to draw.
+
 A missing field refuses the **whole** shape: the app completes nothing. An extra field is
 left aside.
 
