@@ -985,8 +985,9 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
     const niveauLu = prioLue === "-" ? null : /^prio:([0-9])$/.exec(prioLue ?? "")?.[1];
     const ecrite = connu === undefined ? undefined : ecrites?.(ticket, niveauLu === undefined || niveauLu === null ? niveauLu : Number(niveauLu));
     const prio = !enFile ? undefined : ecrite !== undefined ? (ecrite === null ? "-" : `prio:${ecrite}`) : prioLue;
-    // Dans Taken et Pass : depuis quand elle y est, et si c'est bien plus que d'ordinaire.
-    const age = connu === undefined || connu.illisible !== undefined ? undefined : anciennete(connu.etat, connu.depuis, faits.lu, faits.cadence?.medianSeconds);
+    // Dans Taken et Pass : depuis quand elle y est, et si c'est bien plus que d'ordinaire. Une carte qui t'attend est dans
+    // TODO, pas dans ces colonnes : elle n'en porte pas.
+    const age = connu === undefined || connu.illisible !== undefined || dit !== undefined ? undefined : anciennete(connu.etat, connu.depuis, faits.lu, faits.cadence?.medianSeconds);
     return {
       ticket,
       ...ligne,
