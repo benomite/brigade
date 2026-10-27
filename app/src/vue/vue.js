@@ -5857,7 +5857,7 @@ function cuisineDe(projet) {
     ...(demande?.stations ?? [])
       .filter(({ id }) => !servies.some((servie) => servie.id === id))
       .map((station) => {
-        // Une station ajoutée en plus de la principale ne sert le projet que lorsqu'elle l'a lu et s'en dit secondaire (#1774) ;
+        // Une station ajoutée en plus de la principale ne sert le projet que lorsqu'elle l'a lu et s'en dit secondaire ;
         // avant, elle est bloquée, et la ligne dit où.
         const bloquee = !station.principale && station.etat !== "secondaire" && station.etat !== "servi";
         const sans = bloquee ? blocageDeLaStation(station) : undefined;
@@ -6135,7 +6135,7 @@ function poserStationsDuProjet() {
       ...(ou?.ici === true ? [sArrete()] : []),
       ...(enCours !== null && enCours.etape !== "refusee" ? [enMouvement(enCours)] : []),
       ...autres.flatMap((station, i) => {
-        // Le rang ne se compte que parmi celles qui servent le projet : une station bloquée n'en est pas une (#1774).
+        // Le rang ne se compte que parmi celles qui servent le projet : une station bloquée n'en est pas une.
         const rang = autres.slice(0, i).filter(({ bloquee }) => !bloquee).length;
         return [...(i === 0 && tete.length === 0 ? [] : [bloc("span", " · ")]), stationNommee(station, false, ou === undefined || station.bloquee === true ? "" : `${["second", "third", "fourth", "fifth"][rang] ?? "another"} station`)];
       }),
