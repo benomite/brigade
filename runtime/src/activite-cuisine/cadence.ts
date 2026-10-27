@@ -5,11 +5,12 @@
 // Tout se relit du journal, à la lecture, comme les comptes de l'heure et du jour (comptes.ts) : aucune table ni
 // projection de plus, et l'histogramme est juste dès que l'app s'ouvre. Seuls comptent les faits du projet nommé.
 import type { Base } from "../base.ts";
+import { FINS_SANS_SUITE } from "../projections/rail.ts";
 import { HEURE_MS, JOUR_MS } from "./comptes.ts";
 
 // Une heure de l'histogramme : son début (`at`, une heure pile UTC), les tickets servis — mergés, ou servis sans
-// diff, un ticket comptant pour un —, et les ratés — une pass revenue rouge, ou un cook arrêté par un garde-fou, chacun
-// comptant pour un.
+// diff, un ticket comptant pour un —, et les ratés — une pass revenue rouge, ou un cook fini sans suite (`FINS_SANS_SUITE` du rail :
+// échoué, garde-fou, arrêt), chacun comptant pour un.
 export type HeureDeCadence = { at: string; served: number; failed: number };
 // Le temps d'ordinaire passé pris (`taken`) et en pass (`pass`), en secondes : la médiane des séjours finis dans la
 // fenêtre. Nulle tant qu'il y en a moins que `SEJOURS_MIN` — l'ordinaire ne se dit pas d'un ou deux.
@@ -51,13 +52,10 @@ export function heuresDeLaCuisine(base: Base, projet: string, maintenant: Date):
       continue;
     }
     const p = JSON.parse(payload) as Record<string, unknown>;
-    if ((type === "pass.judged" && p.verdict === "red") || (type === "cook.exited" && p.outcome === "guard")) rates[rang] = (rates[rang] ?? 0) + 1;
+    if ((type === "pass.judged" && p.verdict === "red") || (type === "cook.exited" && FINS_SANS_SUITE.includes(p.outcome))) rates[rang] = (rates[rang] ?? 0) + 1;
   }
   return servis.map((tickets, rang) => ({ at: new Date(debut + rang * HEURE_MS).toISOString(), served: tickets.size, failed: rates[rang] ?? 0 }));
 }
-
-// Les fins de cook après lesquelles un ticket pris retourne sur le rail (projections/rail.ts, `FINS_SANS_SUITE`).
-const FINS_SANS_SUITE: unknown[] = ["failed", "guard", "stop"];
 
 // Combien de temps chaque ticket est resté pris, puis en pass, séjour par séjour : le rail relu comme sa projection
 // le tient (projections/rail.ts), d'un changement d'état au suivant. Seuls comptent les séjours ouverts et fermés

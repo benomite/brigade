@@ -67,7 +67,7 @@ test("on compte des tickets servis : mergé puis servi, il compte pour un dans s
   assert.equal(heures()[23]?.served, 2);
 });
 
-test("un raté : une pass revenue rouge, ou un cook arrêté par un garde-fou — chacun compte, une pass verte ou un cook en échec ordinaire non", (t) => {
+test("un raté : une pass revenue rouge, ou un cook fini sans suite (échoué, garde-fou, arrêt) — chacun compte une fois, une pass verte non", (t) => {
   const { noter, heures } = cuisine(t);
   noter(15, 21, jugee("red"));
   noter(10, 21, jugee("red"));
@@ -78,7 +78,7 @@ test("un raté : une pass revenue rouge, ou un cook arrêté par un garde-fou �
   noter(70, 26, sortie("guard"));
 
   const lues = heures();
-  assert.deepEqual(lues[23], { at: "2026-10-21T12:00:00.000Z", served: 0, failed: 3 });
+  assert.deepEqual(lues[23], { at: "2026-10-21T12:00:00.000Z", served: 0, failed: 5 });
   assert.equal(lues[22]?.failed, 1);
 });
 
