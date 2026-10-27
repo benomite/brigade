@@ -49,12 +49,17 @@ function uneMachine(t: TestContext) {
 const plateforme = process.platform === "darwin" ? "macos" : process.platform === "win32" ? "windows" : process.platform;
 
 // Lit les stations du compte jusqu'à ce que l'une remplisse la condition : la station écrit de son
-// côté, sans rien dire au test. Le délai du test est la seule garde.
+// côté, sans rien dire au test. La garde est large (le délai du test est de 120 s) mais elle nomme
+// ce qu'elle a vu : une attente muette jusqu'au délai du test ne dit pas laquelle des écritures manque.
+const GARDE_MS = 90_000;
+
 async function attendreStation(stations: () => Promise<StationEnregistree[]>, condition: (station: StationEnregistree) => boolean, station: { process: { exitCode: number | null }; sortie: () => string }) {
+  const limite = Date.now() + GARDE_MS;
   for (;;) {
     const [lue] = await stations();
     if (lue !== undefined && condition(lue)) return lue;
     assert.equal(station.process.exitCode, null, station.sortie());
+    assert.ok(Date.now() < limite, `la station n'a pas écrit ce que le test attend : ${JSON.stringify(lue)}\n${station.sortie()}`);
     await new Promise((resoudre) => setTimeout(resoudre, 50));
   }
 }
