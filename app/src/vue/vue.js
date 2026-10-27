@@ -5239,7 +5239,7 @@ function poserInterrupteur() {
 // ligne chacun — son état en une phrase, l'heure de sa lecture et ce que le process principal en dit au survol
 // (retard.ts) —, et son seul geste quand il en a un. L'app en retard, ou à relancer : un bouton la met à jour et la
 // relance, sans terminal (rattrapage.ts). Le clone d'un projet en retard : la commande qui le met à jour est un bouton,
-// elle s'écrit dans un shell, et rien ne l'envoie. La case « T » de la barre le dit aussi, quel que soit l'écran.
+// elle s'écrit dans un shell, et rien ne l'envoie. La case du logo de la barre le dit aussi, quel que soit l'écran.
 function poserCode() {
   const entree = document.getElementById("entree-tous");
   if (entree !== null) {
@@ -7745,13 +7745,13 @@ function afficher() {
     ].join("\n");
     return montrer();
   }
-  const entree = icone("T", "All projects", ouvrirTous);
+  const entree = icone("", "All projects", ouvrirTous);
   entree.id = "entree-tous";
   const pied = icone("+", "Add a project", ouvrirAjout);
   pied.id = "entree-ajout";
   barre.prepend(entree);
   barre.append(pied);
-  // La case « T » est neuve : ce que la dernière lecture des clones en dit y est reposé.
+  // La case du logo est neuve : ce que la dernière lecture des clones en dit y est reposé.
   poserCode();
 
   const meme = configuration.projets.find((projet) => projet.nom === courant?.nom);
