@@ -25,11 +25,13 @@
 // bail —, elle le lit dans leur gist à chaque cadence et le relaie au journal du
 // projet, dont le runtime décide (`tirer-par-github/`).
 //
-// Un projet que l'app lui demande en principale, alors qu'une autre station
-// appairée du compte le sert déjà : elle n'en ouvre pas une seconde cuisine.
-// Elle rejoint celle qui tourne, comme une station de plus, en le publiant dans
-// son gist d'appairage. Ou elle refuse en une phrase, si elle ne peut pas la
-// rejoindre — et rien n'est créé (`rejoindre.ts`).
+// Un projet que l'app lui demande alors qu'une autre station appairée du
+// compte le sert déjà — coché sur la page de la station, ou ajouté depuis la
+// page du projet (« + station », une ligne qui ne la dit pas principale) : elle
+// n'en ouvre pas une seconde cuisine. Elle rejoint celle qui tourne, comme une
+// station de plus, en le publiant dans son gist d'appairage, et y cuit. Ou elle
+// refuse en une phrase, si elle ne peut pas la rejoindre — et rien n'est créé
+// (`rejoindre.ts`). Les deux gestes ont le même effet (#1830).
 //
 // Ce qu'elle en dit, projet par projet, elle l'écrit dans le même gist
 // (`brigade-projets-suivi.json`) : l'app le montre au chef — et, pour chacun,
@@ -418,13 +420,37 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
     // cuisine ne s'ouvre pas ici, rien ne s'en prépare (`rejoindre.ts`).
     const horsCuisine = new Set<string>();
     const rejointes: CuisineRejointe[] = [];
+    // Une autre station sert le projet : avant tout clone, toute décision, tout
+    // journal, elle en rejoint la cuisine, ou refuse en une phrase. Rend faux
+    // quand aucune ne le sert : rien n'en est dit.
+    const rejoindre = async (projet: ProjetDemande): Promise<boolean> => {
+      const issue = issueDeLAjout(await lireLesAppairees(), projet.depot, { nom: station, gist: gistAppaire(racine) });
+      if (issue.issue === "seule") return false;
+      horsCuisine.add(projet.nom);
+      if (issue.issue === "rejointe") {
+        const { nom: principale } = issue.principale;
+        const fournit = capacitesDe(projet.fournit, plateformeDe(options.plateforme ?? process.platform));
+        rejointes.push({ nom: projet.nom, depot: projet.depot, principale, cooks: projet.cooks, fournit });
+        direUneFois(`rejointe ${projet.nom} ${principale}`, `brigade : station — ${projet.nom} est déjà servi par ${principale} : elle en rejoint la cuisine comme une station de plus (${projet.cooks} cook(s) au plus, fournit : ${fournit.join(", ")}) — ${principale} garde son manager et sa pass, aucune cuisine ne s'ouvre ici`);
+        suivis.set(projet.nom, { ...suiviDu(projet, "secondaire", `joined the kitchen that ${principale} runs: it cooks there as one more station, and ${principale} keeps the manager and the pass`), cuitSur: principale, rejoindre: rejoindreDe(issue) });
+      } else {
+        direUneFois(`injoignable ${projet.nom} ${issue.phrase}`, `brigade : station — ${projet.nom} n'est pas servi ici, et aucune cuisine ne s'ouvre : ${issue.phrase}`);
+        suivis.set(projet.nom, { ...suiviDu(projet, "refuse", issue.phrase, [], "kitchen-not-joinable"), rejoindre: rejoindreDe(issue) });
+      }
+      return true;
+    };
     // Les projets à remettre : leur ligne quitte le bloc d'abord.
     const aRemettre: Array<{ projet: ProjetDemande; remise: NonNullable<ProjetDemande["remise"]> }> = [];
     for (const projet of demande.projets) {
       if (!projet.principale) {
         const remise = projet.remise ?? null;
         if (remise === null) {
-          suivis.set(projet.nom, suiviDu(projet, "secondaire", "not its main station: it runs neither its manager nor its pass"));
+          // Ajoutée au projet depuis sa page (« + station ») : elle en rejoint la
+          // cuisine, comme une case cochée sur la sienne (#1830). Tant qu'aucune
+          // station ne le sert, elle attend sa principale.
+          const rejointe = await rejoindre(projet);
+          if (arrete) return;
+          if (!rejointe) suivis.set(projet.nom, suiviDu(projet, "secondaire", "not its main station: it runs neither its manager nor its pass"));
           continue;
         }
         const bascule = { de: station, vers: remise.vers, demandeLe: remise.demandeLe };
@@ -521,24 +547,10 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
           suivis.set(projet.nom, { ...suiviDu(projet, "refuse", `it was handed over to ${ailleurs.to} (move asked on ${ailleurs.askedAt}) and cooks there: move it back to bring it here`, [], "handed-over-elsewhere"), cuitSur: ailleurs.to });
           continue;
         }
-        // Une autre station le sert déjà : avant tout clone, toute décision,
-        // tout journal, elle en rejoint la cuisine, ou refuse en une phrase.
-        const issue = issueDeLAjout(await lireLesAppairees(), projet.depot, { nom: station, gist: gistAppaire(racine) });
+        // Une autre station le sert déjà : elle en rejoint la cuisine, ou refuse.
+        const rejointe = await rejoindre(projet);
         if (arrete) return;
-        if (issue.issue !== "seule") {
-          horsCuisine.add(projet.nom);
-          if (issue.issue === "rejointe") {
-            const { nom: principale } = issue.principale;
-            const fournit = capacitesDe(projet.fournit, plateformeDe(options.plateforme ?? process.platform));
-            rejointes.push({ nom: projet.nom, depot: projet.depot, principale, cooks: projet.cooks, fournit });
-            direUneFois(`rejointe ${projet.nom} ${principale}`, `brigade : station — ${projet.nom} est déjà servi par ${principale} : elle en rejoint la cuisine comme une station de plus (${projet.cooks} cook(s) au plus, fournit : ${fournit.join(", ")}) — ${principale} garde son manager et sa pass, aucune cuisine ne s'ouvre ici`);
-            suivis.set(projet.nom, { ...suiviDu(projet, "secondaire", `joined the kitchen that ${principale} runs: it cooks there as one more station, and ${principale} keeps the manager and the pass`), cuitSur: principale, rejoindre: rejoindreDe(issue) });
-          } else {
-            direUneFois(`injoignable ${projet.nom} ${issue.phrase}`, `brigade : station — ${projet.nom} n'est pas servi ici, et aucune cuisine ne s'ouvre : ${issue.phrase}`);
-            suivis.set(projet.nom, { ...suiviDu(projet, "refuse", issue.phrase, [], "kitchen-not-joinable"), rejoindre: rejoindreDe(issue) });
-          }
-          continue;
-        }
+        if (rejointe) continue;
       }
       const prepare = await preparer(projet, recu);
       if (arrete) return;

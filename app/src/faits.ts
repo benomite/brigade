@@ -490,6 +490,10 @@ function comprendreStation(valeur: unknown, champ: string): StationDesFaits {
             return { ticket: entier(dit.ticket, `${lequel}.ticket`), titre: texte(dit.titre, `${lequel}.titre`), station: texte(dit.station, `${lequel}.station`) };
           }),
         }),
+    // Ce que la principale sait d'elle (#1830) : absent d'un runtime d'avant ces champs.
+    ...(lu.fournit === undefined ? {} : { fournit: (Array.isArray(lu.fournit) ? lu.fournit : refuser(`${champ}.fournit`, "a list")).map((capacite: unknown, rang) => texte(capacite, `${champ}.fournit[${rang}]`)) }),
+    ...(lu.presente === undefined ? {} : { presente: booleen(lu.presente, `${champ}.presente`) }),
+    ...(lu.vueLe === undefined ? {} : { vueLe: ouRien(lu.vueLe, `${champ}.vueLe`, heure) }),
   };
 }
 

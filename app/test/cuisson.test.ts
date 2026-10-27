@@ -6,7 +6,7 @@ import type { ExecFileException } from "node:child_process";
 import { describe, test } from "node:test";
 import type { Faits as FaitsDuRuntime } from "../../runtime/src/etat.ts";
 import type { Lu, Rendu } from "../src/box.ts";
-import { cuireSurLaStation, cuissonDe } from "../src/cuisson.ts";
+import { ABSENTE, cuireSurLaStation, cuissonDe } from "../src/cuisson.ts";
 import { tenirFaits, type Faits } from "../src/faits.ts";
 import type { StationDesFaits } from "../src/ordinaires.ts";
 
@@ -46,6 +46,31 @@ function lues(stations: DuRuntime[]) {
   assert.ok("tableau" in recue, "titre" in recue ? recue.titre : "");
   return { tenus, tableau: recue.tableau };
 }
+
+describe("une station distante que la principale ne voit pas (#1830)", () => {
+  test("absente, elle ne se lit jamais « cooking » : « not cooking », grise, son bouton d'arrêt gardé ; arrêtée, elle reste arrêtée ; présente, elle cuit — et ce qu'elle fournit, sa présence et sa dernière demande passent tels quels", () => {
+    const { tableau } = lues([
+      station("box/claude", { fournit: ["code"], presente: true, vueLe: null }),
+      station("mac/claude", { distante: true, fournit: ["code", "macos"], presente: false, vueLe: null }),
+      station("pc/claude", { distante: true, cuisson: "stopped", arreteeDepuis: "2026-10-20T10:01:11.000Z", presente: false, vueLe: "2026-10-20T09:00:00.000Z" }),
+      station("mini/claude", { distante: true, presente: true, vueLe: "2026-10-20T10:04:00.000Z" }),
+      // Un runtime d'avant ces champs : rien n'est dit de sa présence, son mot est pris tel quel.
+      station("vieux/claude", { distante: true }),
+    ]);
+    const lignes = tableau.stations?.lignes ?? assert.fail("pas de stations");
+    assert.deepEqual(
+      lignes.map(({ station: nom, etat, ton, geste, fournit, presente, vueLe }) => ({ nom, etat, ton, geste, fournit, presente, vueLe })),
+      [
+        { nom: "box/claude", etat: "cooking", ton: "vert", geste: "stop", fournit: ["code"], presente: true, vueLe: null },
+        { nom: "mac/claude", etat: ABSENTE.etat, ton: "gris", geste: "stop", fournit: ["code", "macos"], presente: false, vueLe: null },
+        { nom: "pc/claude", etat: "stopped", ton: "gris", geste: "start", fournit: undefined, presente: false, vueLe: "2026-10-20T09:00:00.000Z" },
+        { nom: "mini/claude", etat: "cooking", ton: "vert", geste: "stop", fournit: undefined, presente: true, vueLe: "2026-10-20T10:04:00.000Z" },
+        { nom: "vieux/claude", etat: "cooking", ton: "vert", geste: "stop", fournit: undefined, presente: undefined, vueLe: undefined },
+      ],
+    );
+    assert.match(lignes[1]?.survol ?? "", /does not see it: it takes no ticket until it shows itself/);
+  });
+});
 
 describe("les stations du projet, ligne par ligne", () => {
   test("chaque station dit son mot, ses cooks, et le geste de son bouton : stop quand elle cuit, start quand le chef l'a arrêtée", () => {

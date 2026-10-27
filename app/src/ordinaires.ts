@@ -23,6 +23,11 @@ export type StationDesFaits = {
   arreteeDepuis?: string | null;
   refus?: { code: string; message: string; action: string } | null;
   cooks?: { ticket: number; titre: string; station: string }[];
+  // Ce que la principale sait d'elle (#1830) : ce qu'elle déclare fournir, si elle la voit, et sa dernière demande —
+  // absents d'un runtime d'avant ces champs.
+  fournit?: string[];
+  presente?: boolean;
+  vueLe?: string | null;
 };
 
 // Ce poste en tête de phrase : « This Mac », « This PC ».

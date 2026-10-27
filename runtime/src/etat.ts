@@ -892,7 +892,12 @@ export type Faits = {
   // pourquoi), `stopped` (le chef l'a arrêtée — `arreteeDepuis` —, ou il a
   // arrêté toute la cuisine), `saturated` (sa machine n'en peut plus), sinon
   // `cooking`. `cooks` : ses cooks en cours, le plus ancien d'abord — arrêtée,
-  // ce sont ceux qui finissent.
+  // ce sont ceux qui finissent. Et ce que la principale sait d'elle (#1830) :
+  // `fournit`, ce qu'elle déclare fournir ; `presente`, si elle la voit — toujours
+  // vrai d'une station d'ici ; d'une distante, si elle s'est manifestée et ne
+  // s'est pas tue depuis (`presentSince`) — une distante absente ne prend aucun
+  // ticket, quel que soit son mot ; `vueLe`, sa dernière demande, nulle d'une
+  // station d'ici ou d'une distante qui ne s'est jamais manifestée.
   stations: Array<{
     station: string;
     distante: boolean;
@@ -906,6 +911,10 @@ export type Faits = {
     arreteeDepuis: string | null;
     refus: Refus | null;
     cooks: Array<{ ticket: number; titre: string; station: string }>;
+    // Toujours posés par `faits` ; facultatifs pour qui lit un runtime d'avant ces champs.
+    fournit?: string[];
+    presente?: boolean;
+    vueLe?: string | null;
   }>;
 };
 
@@ -1072,6 +1081,9 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limit
       cooks: etat.auxFourneaux.flatMap(({ station: sienne, ticket }) =>
         sienne !== station.station || ticket === null ? [] : [{ ticket, titre: titreDe(ticket), station: sienne }],
       ),
+      fournit: [...station.provides],
+      presente: !station.remote || station.presentSince !== null,
+      vueLe: station.remote ? station.seenAt : null,
     })),
   };
 }

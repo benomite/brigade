@@ -252,6 +252,9 @@ link (`runtime/src/projets/`).
   declared `distante+ensemble` and works through GitHub alone ("A second station of the project, which
   cooks alongside the first" in [`station-distante.md`](station-distante.md)): the main station declares
   a `secondaire` station that way when it reads its paired gist, and it takes its cooks from there.
+  The station itself joins the kitchen of the station that serves the project, as a ticked project
+  would (#1830): it publishes it in `brigade-cuisines-rejointes.json` and claims its tickets — or
+  refuses in one sentence when that station is not reached. While none serves it, it waits.
 
 ### The blocked access
 

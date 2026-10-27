@@ -78,19 +78,21 @@ test("la forme d'une cuisine connue est figée, au caractère près : un champ r
   );
 });
 
-test("les stations : une d'ici prend les tickets ordinaires ; une distante, selon le réglage du chef et le bac à sable de son poste — la forme est figée", (t) => {
+test("les stations : une d'ici prend les tickets ordinaires ; une distante, selon le réglage du chef et le bac à sable de son poste ; chacune dit ce qu'elle fournit, et si la principale la voit — la forme est figée", (t) => {
   const { noter, lire } = cuisine(t);
   demarrer(noter);
   noter({ type: "station.announced", payload: { station: "box/claude", engine: "claude", provides: ["code"], maxCooks: 2 } });
   noter({ type: "station.announced", payload: { station: "mac/claude", engine: "claude", provides: ["chrome-connecté"], maxCooks: 1, remote: true, ordinary: true } });
   noter({ type: "station.announced", payload: { station: "win/claude", engine: "claude", provides: ["obs"], maxCooks: 1, remote: true } });
   noter({ type: "station.sandbox", payload: { station: "mac/claude", available: false, reason: "Seatbelt est introuvable", version: null } }); // 10:00:04
+  // Le Mac s'est manifesté à la principale ; win ne l'a jamais fait.
+  noter({ type: "station.present", payload: { station: "mac/claude" } }); // 10:00:05
 
   assert.equal(
     JSON.stringify(lire(`${JOUR_HORLOGE}T10:04:11.000Z`).forme.stations),
-    `[{"station":"box/claude","distante":false,"plafond":2,"ordinaires":false,"ensemble":false,"bacASable":null,"prendOrdinaires":true,"cuisson":"cooking","arreteeDepuis":null,"refus":null,"cooks":[]},` +
-      `{"station":"mac/claude","distante":true,"plafond":1,"ordinaires":true,"ensemble":false,"bacASable":{"disponible":false,"raison":"Seatbelt est introuvable","version":null,"depuis":"${JOUR_HORLOGE}T10:00:04.000Z"},"prendOrdinaires":false,"cuisson":"cooking","arreteeDepuis":null,"refus":null,"cooks":[]},` +
-      `{"station":"win/claude","distante":true,"plafond":1,"ordinaires":false,"ensemble":false,"bacASable":null,"prendOrdinaires":false,"cuisson":"cooking","arreteeDepuis":null,"refus":null,"cooks":[]}]`,
+    `[{"station":"box/claude","distante":false,"plafond":2,"ordinaires":false,"ensemble":false,"bacASable":null,"prendOrdinaires":true,"cuisson":"cooking","arreteeDepuis":null,"refus":null,"cooks":[],"fournit":["code"],"presente":true,"vueLe":null},` +
+      `{"station":"mac/claude","distante":true,"plafond":1,"ordinaires":true,"ensemble":false,"bacASable":{"disponible":false,"raison":"Seatbelt est introuvable","version":null,"depuis":"${JOUR_HORLOGE}T10:00:04.000Z"},"prendOrdinaires":false,"cuisson":"cooking","arreteeDepuis":null,"refus":null,"cooks":[],"fournit":["chrome-connecté"],"presente":true,"vueLe":"${JOUR_HORLOGE}T10:00:05.000Z"},` +
+      `{"station":"win/claude","distante":true,"plafond":1,"ordinaires":false,"ensemble":false,"bacASable":null,"prendOrdinaires":false,"cuisson":"cooking","arreteeDepuis":null,"refus":null,"cooks":[],"fournit":["obs"],"presente":false,"vueLe":null}]`,
   );
   noter({ type: "station.sandbox", payload: { station: "mac/claude", available: true, reason: null, version: "2.1.250" } });
   assert.deepEqual(lire(`${JOUR_HORLOGE}T10:04:11.000Z`).forme.stations[1]?.prendOrdinaires, true);

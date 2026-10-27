@@ -15,6 +15,8 @@
 // pas encore. La principale — elle tient le manager et la pass — vient d'abord, marquée, avec le geste qui en change ;
 // chaque station dit si elle est atteinte, ce qu'elle fournit (le bloc « what each station provides » y est fondu, son
 // « edit » compris), ses cooks à la fois, et, quand elle ne peut pas cuire, pourquoi en une ligne.
+// Telle que la principale la voit (ticket 1830), quand `facts` le dit : atteinte ou absente — une distante qui ne s'est
+// pas manifestée à la principale est absente, et ne se lit jamais « reached · cooking » —, et ce qu'elle fournit.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js).
 
 import { boutonAction } from "./briques.js";
@@ -64,11 +66,20 @@ export const ROLES = {
   cuisson: { mot: "cooking station", survol: "it cooks the project's tickets beside the main station: it runs neither its manager nor its pass" },
 };
 // Atteinte ou non : ce que sa pastille dit. Une distante que rien ne dit atteinte ni perdue n'est pas dite verte.
-export const ATTEINTE = { oui: "reached", non: "not reached", inconnue: "no word" };
+export const ATTEINTE = { oui: "reached", non: "not reached", inconnue: "no word", absente: "absent" };
 export const ATTEINTE_INCONNUE = "the main station does not say whether it reaches this station: it says so of the stations added from the app";
 export const ATTEINTE_PRINCIPALE = "the app reads its kitchen: this page comes from it";
 // Une station déclarée qui ne s'est pas encore annoncée à la principale ne cuit pas.
 export const PAS_ANNONCEE = { pourquoi: "not signed in yet", geste: "the main station has not heard from it yet: it takes no ticket until it does" };
+// Ce que la principale dit de sa présence, au survol de sa pastille (ticket 1830).
+/** @param {string | null | undefined} vueLe */
+export const VUE_PAR_LA_PRINCIPALE = (vueLe) => `the main station hears from it${vueLe === null || vueLe === undefined ? "" : ` — its last request: ${vueLe}`}`;
+/** @param {string | null | undefined} vueLe */
+export const ABSENTE_POUR_LA_PRINCIPALE = (vueLe) =>
+  vueLe === null || vueLe === undefined ? "the main station has never heard from it: it takes no ticket until it does" : `the main station has not heard from it since ${vueLe}: it takes no ticket until it does`;
+// Une station que la principale a vue, et qui s'est tue depuis.
+/** @param {string} vueLe */
+export const TUE = (vueLe) => ({ pourquoi: `silent since ${vueLe}`, geste: "open Brigade on that computer: it takes tickets again once it asks the main station" });
 export const RELIRE = { libelle: "check again", survol: "reads GitHub again, to see whether the station has spoken" };
 // Ce qu'elle fournit : sa déclaration le dit ; une station que la principale ne déclare pas encore n'a rien dit.
 export const FOURNIT = "Provides";
@@ -217,10 +228,16 @@ export function stationsDuBloc(lignes, declarees = [], appairees = []) {
   return [...rangs.filter((rang) => rang.principale), ...rangs.filter((rang) => !rang.principale)];
 }
 
-// Si une station est atteinte : ce que l'app en sait par GitHub ; à défaut, la principale l'est — sa cuisine se lit —, et
-// d'une distante, rien ne le dit.
+// Si une station est atteinte : ce que la principale en dit dans `facts` — sa cuisine se lit, une distante s'y est
+// manifestée ou non ; à défaut, ce que l'app en sait par GitHub ; à défaut encore, la principale l'est, et d'une
+// distante, rien ne le dit.
 /** @param {StationDuBloc} rang @returns {{ mot: string, ton: string, survol: string }} */
-function atteinteDe({ principale, appairee }) {
+function atteinteDe({ principale, appairee, ligne }) {
+  if (ligne?.presente !== undefined) {
+    if (!ligne.distante) return { mot: ATTEINTE.oui, ton: "vert", survol: ATTEINTE_PRINCIPALE };
+    if (ligne.presente) return { mot: ATTEINTE.oui, ton: "vert", survol: VUE_PAR_LA_PRINCIPALE(ligne.vueLe) };
+    return { mot: ATTEINTE.absente, ton: "gris", survol: ABSENTE_POUR_LA_PRINCIPALE(ligne.vueLe) };
+  }
   if (appairee !== undefined) {
     const survol = [appairee.dit, appairee.survol].filter((ligne, i, lignes) => ligne !== "" && lignes.indexOf(ligne) === i).join("\n");
     if (appairee.ton === "vert") return { mot: ATTEINTE.oui, ton: "vert", survol };
@@ -237,6 +254,8 @@ function atteinteDe({ principale, appairee }) {
 function retenueDe({ ligne, appairee }) {
   if (appairee !== undefined && appairee.pourquoi !== "") return { pourquoi: appairee.pourquoi, geste: appairee.geste, parGitHub: true };
   if (ligne === undefined) return { ...PAS_ANNONCEE, parGitHub: false };
+  // Absente pour la principale : elle ne s'y est jamais manifestée, ou s'est tue depuis.
+  if (ligne.distante && ligne.presente === false) return { ...(ligne.vueLe === null || ligne.vueLe === undefined ? PAS_ANNONCEE : TUE(ligne.vueLe)), parGitHub: false };
   return undefined;
 }
 
@@ -284,6 +303,13 @@ function fournitDe(doc, rang, lieu, declarees) {
   const libelle = cree(doc, "span", FOURNIT);
   libelle.className = "libelle";
   ligne.append(libelle);
+  // Sans sa déclaration lue, ce que `facts` dit qu'elle fournit — la principale la déclare ainsi —, sans « edit ».
+  const dansLesFaits = rang.ligne?.fournit;
+  if (rang.declaree === undefined && dansLesFaits !== undefined) {
+    const [capacites] = ceQuElleFournit(doc, { nom: rang.nom, moteur: "", fournit: dansLesFaits, cooks: 0, distante: rang.ligne?.distante ?? !rang.principale }, { jouees: lieu.jouees, ici: lieu.ici });
+    ligne.append(capacites);
+    return [ligne];
+  }
   if (rang.declaree === undefined) {
     const rien = cree(doc, "span", FOURNIT_PAS_DIT);
     rien.className = "pas-dit";
