@@ -21,7 +21,7 @@ import { bilanDEpique } from "./bilan-epique.ts";
 import { creationsAnnoncees, decoupageDe, epiqueServie, epiquesDecoupees, ticketDEpique, ticketsDEpique, type Decoupage, type TicketDEpique } from "./projections/splits.ts";
 import { communsDuRail, livresDepuis, sortDuTicket, ticketDuRail } from "./projections/rail.ts";
 import { capacitesFournies } from "./projections/stations.ts";
-import { direRetenue, nomAbandon, nomEtat } from "./rail.ts";
+import { direAttentesLevees, direRetenue, nomAbandon, nomEtat } from "./rail.ts";
 
 // Ce qu'un jugement rend : sa réponse lue, ou ce qui la rend illisible. Null :
 // il n'a pas abouti, et reste à faire.
@@ -73,7 +73,9 @@ function ligne(journal: Journal, ticket: TicketDEpique): LigneDeListe {
           : sur.state === "86"
           ? `86 (${sur.reason})`
           : (direRetenue(sur) ?? nomEtat(sur.state));
-    return { ticket: ticket.ticket, title, state: etat, served: sur.state === "served" };
+    // Une attente que la cuisine a levée d'elle-même se dit aussi (#1834).
+    const levees = direAttentesLevees(sur);
+    return { ticket: ticket.ticket, title, state: levees === null ? etat : `${etat} — ${levees}`, served: sur.state === "served" };
   }
   const sort = sortDuTicket(base, ticket.ticket);
   if (sort?.outcome === "served") return { ticket: ticket.ticket, title, state: "servi", served: true };

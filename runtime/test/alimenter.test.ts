@@ -401,7 +401,7 @@ test("un ticket attendu, ouvert mais jamais entré sur le rail, est guetté à c
   assert.deepEqual([attendus(rail, 14), gh.compte.confirmes], [[[13, "closed", "levée"]], 1]);
 });
 
-test("un ticket attendu que le journal a servi, ou vu partir, ne se guette pas : le sondage reste conditionnel", async (t) => {
+test("un ticket attendu que le journal a servi ne se guette pas ; parti l'issue ouverte, il se guette jusqu'à sa fermeture (#1834)", async (t) => {
   const { journal, rail } = cuisine(t);
   const gh = depot(issue(12), issue(13));
   await alimenter(journal, gh.github, CIBLE);
@@ -418,8 +418,15 @@ test("un ticket attendu que le journal a servi, ou vu partir, ne se guette pas :
   assert.equal(await alimenter(journal, gh.github, CIBLE), 1);
 
   assert.deepEqual(attendus(rail, 14), [[13, "unfired"]]);
-  assert.equal(gh.compte.confirmes, avant + 1);
+  // #13 peut être fermé sans que la liste bouge : le sondage reste inconditionnel.
+  assert.equal(gh.compte.confirmes, avant);
   assert.deepEqual(journal.duTicket(12).map((e) => e.type).filter((type) => type === "ticket.left").length, 1);
+
+  // Fermé : l'attente tombe, et plus rien n'est à guetter.
+  gh.poser(issue(13, { labels: [], state: "closed", updatedAt: "2026-10-08T12:00:00Z" }));
+  assert.equal(await alimenter(journal, gh.github, CIBLE), 1);
+  assert.deepEqual(attendus(rail, 14), [[13, "closed", "levée"]]);
+  assert.equal(gh.compte.confirmes, avant + 1);
 });
 
 test("un ticket `hors-cuisine` n'entre pas sur le rail même avec `fire`, et en sort s'il y était", async (t) => {

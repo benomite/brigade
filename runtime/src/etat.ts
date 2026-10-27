@@ -474,7 +474,7 @@ function detail(ticket: TicketRail, maintenant: Date, depuis: Depuis, retenues: 
       if (reprise !== undefined) return `since ${depuis(ticket.since)} (${ticket.reason}) — ${direRepriseEn(reprise)}`;
       // Sans heure de retour, ce qui le remet seul sur le rail (#1834).
       const seul = ticket.until === null ? miseDeCoteDu(ticket.reason) : null;
-      return `since ${depuis(ticket.since)} (${ticket.reason}), ${retour}${seul === null ? "" : ` — back on its own: ${seul.retour}`}`;
+      return `since ${depuis(ticket.since)} (${ticket.reason}), ${retour}${seul === null ? "" : seul.retour.startsWith("never") ? ` — ${seul.retour}` : ` — back on its own ${seul.retour}`}`;
     }
   }
 }

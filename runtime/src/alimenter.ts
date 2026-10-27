@@ -134,7 +134,10 @@ export async function alimenter(
     if (!lisible(issue)) continue;
     const connue = fiches.get(issue.number);
     const relecture = connue?.updatedAt === issue.updatedAt;
-    if (relecture && connue.stable) continue;
+    // Stable à sa lecture, elle ne l'est plus si un ticket qu'elle attend a
+    // quitté le rail depuis, l'issue ouverte : seul GitHub en dira la fermeture.
+    const guettee = (connue?.fiche?.waitsFor ?? []).some((attendu) => !presentes.has(attendu) && aGuetter(sortDuTicket(journal.base, attendu)));
+    if (relecture && connue.stable && !guettee) continue;
     const lue = await lireFiche(journal, github, issue, presentes, relecture);
     fiches.set(issue.number, { updatedAt: issue.updatedAt, ...lue });
     // Ce qui la réparerait ne modifie pas cette issue, donc pas la liste : le

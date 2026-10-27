@@ -77,40 +77,35 @@ export function attenteDUneStation(motif: string | null): AttenteDUneStation | n
 // ticket dans TODO, et aucune carte ne demande de le remettre sur le rail ou de
 // l'en sortir : il reste sur le rail, avec sa raison (`direMiseDeCote`), et y
 // revient seul. `par` : qui le met de côté ; `retour` : ce qui le remet sur le
-// rail, sans personne ; `heure` : la mise de côté porte une heure de retour,
-// que le rail tient (`relever`). Les motifs qu'un préfixe ouvre
-// (`no-station: …`, `station-absent: …`) y sont par leur préfixe. Un test
-// confronte cette liste aux motifs que le runtime écrit.
+// rail, sans personne — la ligne du ticket dans `status` le dit tel quel ;
+// `heure` : la mise de côté porte une heure de retour, que le rail tient
+// (`relever`). Les motifs qu'un préfixe ouvre (`no-station: …`,
+// `station-absent: …`) y sont par leur préfixe. Un test confronte cette liste
+// aux motifs que le runtime écrit.
+//
+// Ce qui le remet, raison par raison : la station relit à chaque service le
+// calibrage, la fiche et ce que les stations fournissent (station.ts) ; une
+// station distante qui se manifeste rend ses tickets ; le rail rend à son
+// heure ce qui en porte une ; la cuisine reprend ce que la pass ou le manager
+// remonte (remontee-a-la-cuisine.ts) — sauf, faute de secrets que seul le chef
+// pose sur la machine, la remontée que `CAUSES_DU_CHEF` lui garde (#1826).
 export type MiseDeCote = { par: string; retour: string; heure?: true };
 export const MISES_DE_COTE: Readonly<Record<string, MiseDeCote>> = {
-  "no-calibration": {
-    par: "the station, when the issue carries no `model:` and `effort:`",
-    retour: "the calibration on the issue — the manager sets it on what it puts on the rail: the station rereads the labels at every service and puts the ticket back",
-  },
-  "unreadable-card": { par: "the station, when the ticket's card cannot be read", retour: "the card read again: the station rereads it at every service and puts the ticket back" },
-  refused: { par: "the station, after three refusals in a row by the model", retour: "its return time, a day later: a new cook tries again — sooner if `fire` is removed and set again", heure: true },
-  [SANS_STATION]: {
-    par: "the station, when no declared station provides what the card requires",
-    retour: "a station that provides it — declared, or the card no longer requiring it: the station rereads both at every service; the manager tries first to rewrite the ticket without it",
-  },
-  [STATION_ABSENTE]: { par: "the station, when only remote stations that have not shown up lately can cook it", retour: "one of those stations showing up: the station puts the ticket back at once" },
-  [ATTEND_UN_TIERS]: {
-    par: "the chef or the second (WAITING), never the kitchen",
-    retour: "`arrived`, on the Kitchen board, once what it waits for is there; its follow-up date leaves it in WAITING",
-  },
-  quota: { par: "the station, when the account's quota is used up", retour: "its return time: when the quota comes back, or an hour later", heure: true },
-  "setup-failed": { par: "the station, when the project's setup fails", retour: "its return time, or the integration branch moving", heure: true },
-  "worktree-failed": { par: "the station, when the worktree cannot be prepared", retour: "its return time, ten minutes later", heure: true },
-  "ticket-unreadable": { par: "the station, when the ticket cannot be read on GitHub", retour: "its return time, ten minutes later", heure: true },
-  "secrets-unavailable": { par: "the station, when the secrets the repository declares cannot be given", retour: "its return time, ten minutes later", heure: true },
-  "pass:unjudged": {
-    par: "the pass, when it could not judge the delivery",
-    retour:
-      "the kitchen taking it over (remontee-a-la-cuisine.ts): sent back to a cook, or waiting for its `fix` ticket, then sent back — but for secrets the repository declares and the machine does not have, which only the chef sets (`CAUSES_DU_CHEF`)",
-  },
-  "pass:still-red": { par: "the pass, when the delivery is still red after its returns", retour: "the kitchen taking it over (remontee-a-la-cuisine.ts): waiting for its `fix` ticket, then sent back to a cook" },
-  "manager:escalated": { par: "the manager, when the delivery is still red after its returns", retour: "the kitchen taking it over, like the pass's: its `fix` ticket served, it goes back to a cook" },
-  [REDECOUPE]: { par: "the manager, when it splits the ticket again", retour: "nothing: its sub-tickets carry the work, and it leaves the rail once they are served" },
+  "no-calibration": { par: "the station, when the issue carries no `model:` and `effort:`", retour: "once the issue carries `model:` and `effort:`" },
+  "unreadable-card": { par: "the station, when the ticket's card cannot be read", retour: "once its card reads" },
+  refused: { par: "the station, after three refusals in a row by the model", retour: "at its return time, a day later — a new cook tries again", heure: true },
+  [SANS_STATION]: { par: "the station, when no declared station provides what the card requires", retour: "once a station provides what its card requires" },
+  [STATION_ABSENTE]: { par: "the station, when only remote stations that have not shown up lately can cook it", retour: "once one of those stations shows up" },
+  [ATTEND_UN_TIERS]: { par: "the chef or the second (WAITING), never the kitchen", retour: "on `arrived`, once what it waits for is there — its follow-up date leaves it in WAITING" },
+  quota: { par: "the station, when the account's quota is used up", retour: "at its return time, when the quota comes back", heure: true },
+  "setup-failed": { par: "the station, when the project's setup fails", retour: "at its return time, or once the integration branch moves", heure: true },
+  "worktree-failed": { par: "the station, when the worktree cannot be prepared", retour: "at its return time, ten minutes later", heure: true },
+  "ticket-unreadable": { par: "the station, when the ticket cannot be read on GitHub", retour: "at its return time, ten minutes later", heure: true },
+  "secrets-unavailable": { par: "the station, when the secrets the repository declares cannot be given", retour: "at its return time, ten minutes later", heure: true },
+  "pass:unjudged": { par: "the pass, when it could not judge the delivery", retour: "once the kitchen takes it over: sent back to a cook, or after its `fix` ticket" },
+  "pass:still-red": { par: "the pass, when the delivery is still red after its returns", retour: "once the kitchen takes it over: back to a cook after its `fix` ticket" },
+  "manager:escalated": { par: "the manager, when the delivery is still red after its returns", retour: "once the kitchen takes it over: back to a cook after its `fix` ticket" },
+  [REDECOUPE]: { par: "the manager, when it splits the ticket again", retour: "never: its sub-tickets carry the work, and it leaves the rail once they are served" },
 };
 
 // La mise de côté d'un motif, par le motif lui-même ou par son préfixe. Nulle
@@ -126,6 +121,5 @@ export function miseDeCoteDu(motif: string | null): MiseDeCote | null {
 // arrive à l'autre (#1834) — `projections/rail.ts`, `attendus`.
 export const ATTENTE_D_UN_TICKET: MiseDeCote = {
   par: "the ticket's card (`attend : #12`), never the chef",
-  retour:
-    "the awaited ticket served; still open, even off the rail, it is awaited on the rail; closed without being served, or deleted, the kitchen drops that wait on its own, and says so on the rail and on the issue",
+  retour: "once the awaited ticket is served; still open, even off the rail, it is awaited on the rail; closed without being served, or deleted, the kitchen drops that wait on its own, and says so on the rail and on the issue",
 };
