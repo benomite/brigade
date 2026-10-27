@@ -249,9 +249,9 @@ link (`runtime/src/projets/`).
   block and no longer serves it. Its state and its clone stay on the machine.
 - **A station that is not the main one** of a project writes no line for it and says it
   `secondaire`. The project's kitchen lets a second station cook alongside the first once it is
-  declared `distante+ensemble` and pulls its work ("A second station of the project, which cooks
-  alongside the first" in [`station-distante.md`](station-distante.md)); a `secondaire` station,
-  paired only through its gist, is not declared that way and pulls nothing yet.
+  declared `distante+ensemble` and works through GitHub alone ("A second station of the project, which
+  cooks alongside the first" in [`station-distante.md`](station-distante.md)): the main station declares
+  a `secondaire` station that way when it reads its paired gist, and it takes its cooks from there.
 
 ### The blocked access
 
