@@ -53,15 +53,19 @@ test("un sondage confirmé devient conditionnel : tant que rien ne change, GitHu
   assert.deepEqual((await tickets(github)).issues.map((issue) => issue.number), [14, 15]);
 });
 
-test("un sondage non confirmé se redemande en entier", async (t) => {
+test("un sondage non confirmé se redemande sous condition : un 304 rend la liste gardée, à retraiter", async (t) => {
   const { gh, github } = sonde(t);
   gh.issues([issueGitHub(14)], '"v1"');
   (await tickets(github)).confirmer();
   gh.issues([issueGitHub(15)], '"v2"');
   await tickets(github);
-  gh.issues([issueGitHub(14)], '"v1"');
 
-  assert.deepEqual((await tickets(github)).issues.map((issue) => issue.number), [14]);
+  const relu = await tickets(github);
+  assert.deepEqual(relu.issues.map((issue) => issue.number), [15]);
+  assert.deepEqual(gh.appels().at(-1), ["api", "-i", "-H", 'If-None-Match: "v2"', CHEMIN_TICKETS]);
+
+  relu.confirmer();
+  assert.deepEqual(await github.tickets(), { inchange: true });
 });
 
 test("au-delà d'une page, toutes les pages sont lues et le sondage reste inconditionnel", async (t) => {
