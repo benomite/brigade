@@ -95,6 +95,11 @@ function gabarit(porte: Porte): string {
     }
   }
   git(travail, "add", ".");
+  // Le droit d'exécution, tel que git le commite : sous Windows, git ne lit pas
+  // celui du disque (`core.fileMode` faux), et l'aurait commité en 100644.
+  for (const [chemin, fichier] of Object.entries(fichiers)) {
+    if (fichier !== null && "contenu" in fichier && fichier.executable) git(travail, "update-index", "--chmod=+x", chemin);
+  }
   git(travail, "commit", "-q", "-m", "installe brigade");
   git(travail, "push", "-q", origine, BASE);
   // Le clone réservé : posé avant l'installation, il ne connaît pas encore ce
@@ -194,6 +199,22 @@ const manques = (constats: Constat[]) => constats.filter((constat) => constat.et
 // La ligne du renouvellement n'est pas de celles que ces tests regardent : elle a ses propres tests.
 const notes = (constats: Constat[]) => constats.filter((constat) => constat.etat === "note" && !constat.texte.startsWith("renewal")).map((constat) => constat.texte);
 const constates = (constats: Constat[]) => constats.filter((constat) => constat.etat === "ok").map((constat) => constat.texte);
+// Le réglage du geste d'installation tel que la vérification le juge : à root
+// seul, d'après le propriétaire et le mode que lui prête `lstat`. Windows
+// prête à tout fichier l'uid 0 et le mode 666, ouvert aux autres : le réglage
+// que pose un test y est toujours un manque. Les tests qui ne regardent pas ce
+// réglage l'écartent là (`verifierHorsModes`), ou, quand ils lisent la sortie
+// d'une commande, le retirent avant de la lancer (`sansReglageSousWindows`) —
+// absent, il n'est qu'une note. Ailleurs, rien n'est écarté.
+const SOUS_WINDOWS = process.platform === "win32";
+const duReglage = (constat: Constat) => /installation gesture|backups root|réglage du geste|`sauvegardes=` /.test(constat.texte);
+async function verifierHorsModes(env: NodeJS.ProcessEnv): Promise<Constat[]> {
+  const constats = await verifier(env);
+  return SOUS_WINDOWS ? constats.filter((constat) => !duReglage(constat)) : constats;
+}
+function sansReglageSousWindows(racine: string): void {
+  if (SOUS_WINDOWS) rmSync(join(racine, "installateur.conf"));
+}
 const sans = (env: Record<string, string>, ...variables: string[]) => Object.fromEntries(Object.entries(env).filter(([nom]) => !variables.includes(nom)));
 
 // Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
@@ -231,7 +252,7 @@ describe("les variables obligatoires", { concurrency: 8 }, () => {
 // Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
 describe("le réglage du geste d'installation", { concurrency: 8 }, () => {
   const sauvegardes = (racine: string) => join(racine, "sauvegardes");
-  const du_geste = (constats: Constat[]) => constats.filter((constat) => /installation gesture|backups root|réglage du geste|`sauvegardes=` /.test(constat.texte));
+  const du_geste = (constats: Constat[]) => constats.filter(duReglage);
 
   test("une racine que root tient seul est constatée, avec ce qui a été lu", { skip: posixOnly("expects the gesture's settings file and backups root, held by the account that plays the test, to be judged root-only through their lstat owner and mode bits: Windows reports every file and directory as uid 0, mode 666, writable by others") }, async (t) => {
     const { env, racine } = projet(t);
@@ -1116,7 +1137,7 @@ test("un fichier de secrets que le runtime refuserait est un manque de la machin
 describe("le coût du setup", { concurrency: 8 }, () => {
   const essais = (etat: string) => join(etat, "worktrees/.essais/installation");
 
-  test("le setup est joué une fois, à blanc, dans un worktree neuf de la base — retiré ensuite", { skip: posixOnly("weighs the worktree the setup prepares with `du -sk`, called by its bare name (src/installation.ts): Windows has no `du` in the PATH") }, async (t) => {
+  test("le setup est joué une fois, à blanc, dans un worktree neuf de la base — retiré ensuite", { skip: posixOnly("plays the bash fake setup (test/aides/faux-setup.sh) once in a fresh worktree of the base and checks the call it noted and the worktree removed: the measure weighs that worktree with `du -sk`, which is not in the PATH of Windows") }, async (t) => {
     const { env, clone, etat, origine } = projet(t);
 
     const mesure = await mesurerSetup(env);
@@ -1130,7 +1151,7 @@ describe("le coût du setup", { concurrency: 8 }, () => {
     assert.equal(git(clone, "worktree", "list").split("\n").length, 1);
   });
 
-  test("ce que le setup pose dans le worktree est pesé", { skip: posixOnly("weighs the worktree the setup prepares with `du -sk`, called by its bare name (src/installation.ts): Windows has no `du` in the PATH") }, async (t) => {
+  test("ce que le setup pose dans le worktree est pesé", { skip: posixOnly("plays a #!/usr/bin/env bash setup that writes 400 kB into the worktree and expects the weight before and after it, measured by `du -sk`: Windows has neither that shebang launch nor `du` in its PATH") }, async (t) => {
     const pose = '#!/usr/bin/env bash\nhead -c 400000 /dev/urandom > "$2/dependances.bin"\necho "export PRET=1"\n';
     const { env } = projet(t, { setup: { contenu: pose, executable: true } });
 
@@ -1140,7 +1161,7 @@ describe("le coût du setup", { concurrency: 8 }, () => {
     assert.ok(mesure.apresOctets - mesure.avantOctets >= 300_000, `${mesure.avantOctets} → ${mesure.apresOctets}`);
   });
 
-  test("un setup en échec est rendu avec ce qu'il a dit, et son worktree est retiré", { skip: posixOnly("weighs the worktree the setup prepares with `du -sk`, called by its bare name (src/installation.ts): Windows has no `du` in the PATH") }, async (t) => {
+  test("un setup en échec est rendu avec ce qu'il a dit, et son worktree est retiré", { skip: posixOnly("makes the bash fake setup fail and expects its output back and its worktree removed: before the setup, the measure weighs the worktree with `du -sk`, which is not in the PATH of Windows") }, async (t) => {
     const { env, etat } = projet(t);
     writeFileSync(env.FAUX_SETUP ?? "", "echec");
 
@@ -1151,7 +1172,7 @@ describe("le coût du setup", { concurrency: 8 }, () => {
     assert.equal(existsSync(essais(etat)), false);
   });
 
-  test("le setup à blanc reçoit les secrets que le dépôt déclare, et ce qu'il en dit est masqué", { skip: posixOnly("weighs the worktree the setup prepares with `du -sk`, called by its bare name (src/installation.ts): Windows has no `du` in the PATH") }, async (t) => {
+  test("le setup à blanc reçoit les secrets que le dépôt déclare, et ce qu'il en dit est masqué", { skip: posixOnly("plays a #!/usr/bin/env bash setup that echoes DATABASE_URL and expects it masked in the output: the measure first weighs the worktree with `du -sk`, which is not in the PATH of Windows") }, async (t) => {
     const dit = '#!/usr/bin/env bash\necho "base créée sur $DATABASE_URL" >&2\n';
     const { env, racine } = projet(t, { setup: { contenu: dit, executable: true }, secrets: "DATABASE_URL\n" });
     writeFileSync(join(racine, "secrets.env"), "DATABASE_URL=postgres://dev:mot-de-passe@localhost\n", { mode: 0o600 });
@@ -1162,7 +1183,7 @@ describe("le coût du setup", { concurrency: 8 }, () => {
     assert.equal(mesure.sortie, "base créée sur [secret:DATABASE_URL]\n");
   });
 
-  test("un secret déclaré que la machine ne détient pas : le setup n'est pas joué, comme la station ne lancerait aucun cook", { skip: posixOnly("weighs the worktree the setup prepares with `du -sk`, called by its bare name (src/installation.ts): Windows has no `du` in the PATH") }, async (t) => {
+  test("un secret déclaré que la machine ne détient pas : le setup n'est pas joué, comme la station ne lancerait aucun cook", { skip: posixOnly("declares a secret the machine lacks and expects the bash fake setup never called: the measure weighs the fresh worktree with `du -sk` before refusing, and Windows has no `du` in its PATH") }, async (t) => {
     const { env, etat } = projet(t, { secrets: "DATABASE_URL\n" });
 
     const mesure = await mesurerSetup(env);
@@ -1173,7 +1194,7 @@ describe("le coût du setup", { concurrency: 8 }, () => {
     assert.equal(existsSync(essais(etat)), false);
   });
 
-  test("le setup ne reçoit rien de l'état du runtime", { skip: posixOnly("weighs the worktree the setup prepares with `du -sk`, called by its bare name (src/installation.ts): Windows has no `du` in the PATH") }, async (t) => {
+  test("le setup ne reçoit rien de l'état du runtime", { skip: posixOnly("plays a #!/usr/bin/env bash setup that counts the BRIGADE_ variables it receives through `env | grep`: the measure first weighs the worktree with `du -sk`, which is not in the PATH of Windows") }, async (t) => {
     const temoin = '#!/usr/bin/env bash\nenv | grep -c "^BRIGADE_" > "$2/../../../brigade-vues"\n';
     const { env, etat } = projet(t, { setup: { contenu: temoin, executable: true } });
 
@@ -1182,7 +1203,7 @@ describe("le coût du setup", { concurrency: 8 }, () => {
     assert.equal(readFileSync(join(etat, "brigade-vues"), "utf8").trim(), "0");
   });
 
-  test("un projet sans setup n'a rien à mesurer que son worktree", { skip: posixOnly("weighs the worktree the setup prepares with `du -sk`, called by its bare name (src/installation.ts): Windows has no `du` in the PATH") }, async (t) => {
+  test("un projet sans setup n'a rien à mesurer que son worktree", { skip: posixOnly("measures a project without setup and expects the same weight before and after: that weight is taken by `du -sk`, which is not in the PATH of Windows") }, async (t) => {
     const { env } = projet(t, { setup: null });
 
     const mesure = await mesurerSetup(env);
@@ -1420,7 +1441,7 @@ describe("la commande du chef", { concurrency: 8 }, () => {
     assert.equal(code, 0);
   });
 
-  test("`setup` mesure le setup et dit si un worktree neuf par cook tient", { skip: posixOnly("weighs the worktree the setup prepares with `du -sk`, called by its bare name (src/installation.ts): Windows has no `du` in the PATH") }, async (t) => {
+  test("`setup` mesure le setup et dit si un worktree neuf par cook tient", { skip: posixOnly("runs the `setup 12` command, which plays the bash fake setup and weighs its worktree with `du -sk`, and expects the verdict at 12 cooks: Windows has no `du` in its PATH") }, async (t) => {
     const { env } = projet(t);
 
     const { code, sortie } = await commande(t, env, "setup", "12");
@@ -1431,7 +1452,7 @@ describe("la commande du chef", { concurrency: 8 }, () => {
     assert.equal(code, 0);
   });
 
-  test("`setup` sur un setup en échec sort en 1 avec ce qu'il a dit", { skip: posixOnly("weighs the worktree the setup prepares with `du -sk`, called by its bare name (src/installation.ts): Windows has no `du` in the PATH") }, async (t) => {
+  test("`setup` sur un setup en échec sort en 1 avec ce qu'il a dit", { skip: posixOnly("runs the `setup` command on a failing bash fake setup and expects exit 1 with its output: the command weighs the worktree with `du -sk` first, and Windows has no `du` in its PATH") }, async (t) => {
     const { env } = projet(t);
     writeFileSync(env.FAUX_SETUP ?? "", "echec");
 
