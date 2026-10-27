@@ -211,19 +211,23 @@ describe("la pass relance une CI rouge sur des tests que la livraison ne touche 
   test("le ticket `fix` du test déjà ouvert : une autre livraison rouge sur le même test le reprend, sans en ouvrir un second", async (t) => {
     const { gh, journal } = servir(t, { scenario: "bavard", suite: ["livre", "livre"], issues: [issue(17), issue(18)], cooks: 2 });
     const fait = (ticket: number, type: string) => journal.duTicket(ticket).findLast((e) => e.type === type)?.payload as { fixes: Array<{ issue: number; reused: boolean }> } | undefined;
+    // La pass juge une livraison à la fois, dans l'ordre où elles arrivent : l'une ou l'autre d'abord.
+    const relancee = (ticket?: number) => [17, 18].find((n) => n !== ticket && fait(n, "pass.ci-rerun") !== undefined);
     gh.ci.checks = [job(2)];
     gh.journauxDeCI.set("tests", JOURNAL_LINUX.replace("cuisson-de-bout-en-bout", "rail"));
-    await jusqua(() => fait(17, "pass.ci-rerun") !== undefined);
+    await jusqua(() => relancee() !== undefined);
+    const premiere = relancee()!;
     gh.ci.checks = [job(3)];
-    await jusqua(() => fait(17, "pass.ci-set-aside") !== undefined);
+    await jusqua(() => fait(premiere, "pass.ci-set-aside") !== undefined);
     const [fix] = gh.creations;
-    // Le ticket 18, jugé à son tour, rouge sur le même test, deux fois.
-    await jusqua(() => fait(18, "pass.ci-rerun") !== undefined);
+    // L'autre, jugée à son tour, rouge sur le même test, deux fois.
+    await jusqua(() => relancee(premiere) !== undefined);
+    const seconde = relancee(premiere)!;
     gh.ci.checks = [job(4)];
-    await jusqua(() => fait(18, "pass.ci-set-aside") !== undefined);
+    await jusqua(() => fait(seconde, "pass.ci-set-aside") !== undefined);
 
-    assert.deepEqual(fait(17, "pass.ci-set-aside")?.fixes.map(({ issue, reused }) => [issue, reused]), [[fix, false]]);
-    assert.deepEqual(fait(18, "pass.ci-set-aside")?.fixes.map(({ issue, reused }) => [issue, reused]), [[fix, true]]);
+    assert.deepEqual(fait(premiere, "pass.ci-set-aside")?.fixes.map(({ issue, reused }) => [issue, reused]), [[fix, false]]);
+    assert.deepEqual(fait(seconde, "pass.ci-set-aside")?.fixes.map(({ issue, reused }) => [issue, reused]), [[fix, true]]);
     assert.deepEqual(gh.creations, [fix]);
   });
 
