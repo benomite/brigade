@@ -34,7 +34,8 @@ test("le tableau montre chaque ligne de la file avec son geste, telle que `statu
   const { etat, status, tableau } = exemple(t);
   const lu = enClair(rendreLeTableau(tableau, GENERE_LE));
   const awaiting = status.slice(status.findIndex((ligne) => ligne.startsWith("awaiting ")) + 1, status.indexOf("end awaiting"));
-  assert.equal(etat.attend.length, 4);
+  // #19, qui attend #21 fermé sans avoir été servi, n'attend plus le chef (#1834).
+  assert.equal(etat.attend.length, 3);
   assert.equal(tableau.file.length, etat.attend.length);
   for (const [rang, ligne] of tableau.file.entries()) {
     const deStatus = awaiting[rang] ?? "";
@@ -50,7 +51,7 @@ test("le tableau montre chaque ligne de la file avec son geste, telle que `statu
   assert.ok(lu.includes("`brigade <projet> guardrails resume`"));
   // Le bilan sans grant, qui n'est pas une décision, et la tête du bloc.
   assert.ok(lu.includes("without a grant, 1 green delivery stopped"));
-  assert.ok(lu.includes("Awaiting the chef — 4 decisions, the oldest for 14 min"));
+  assert.ok(lu.includes("Awaiting the chef — 3 decisions, the oldest for 4 min"));
 });
 
 test("le tableau montre l'état de la cuisine comme `status` l'écrit : cooks, machine, quota, base, alertes, plafonds", (t) => {
@@ -124,7 +125,8 @@ test("le corps finit par son bloc machine, versionné et daté, et le relire ren
     lu.tableau.file.map(({ nom, quoi, depuis }) => ({ nom, quoi, depuis })),
     etat.attend.map((attente) => ({ nom: attente.ticket === null ? lu.tableau.file.find(({ quoi }) => quoi === attente.quoi)?.nom : `#${attente.ticket}`, quoi: attente.quoi, depuis: attente.since })),
   );
-  assert.deepEqual(lu.tableau.file[0]?.decision, { quoi: "bloque", motif: null, cause: null, pr: null });
+  // Le disjoncteur, en tête, ne porte pas de ticket : aucune décision de ticket.
+  assert.deepEqual(lu.tableau.file.map(({ quoi, decision }) => [quoi, decision]), [["disjoncteur", null], ["setup", null], ["connexion", null]]);
 });
 
 test("ce que le bloc porte ne ferme pas le commentaire, et se relit tel quel", (t) => {

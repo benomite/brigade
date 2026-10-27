@@ -46,7 +46,7 @@ describe("un ticket qui demande ce qu'aucune station ne fournit", { concurrency:
     await jusqua(() => c.faits("manager.capability-gestured").length === 1);
     await jusqua(() => c.gh.commentaires.some(([n, corps]) => n === 14 && /le ticket attend sur le rail/.test(corps)));
 
-    assert.deepEqual(c.faits("manager.capability-gestured")[0]?.payload.missing, ["chrome-connecté"]);
+    assert.deepEqual((c.faits("manager.capability-gestured")[0]?.payload as { missing?: string[] } | undefined)?.missing, ["chrome-connecté"]);
     const [, corps] = c.gh.commentaires.find(([n, texte]) => n === 14 && /le ticket attend sur le rail/.test(texte)) ?? [];
     assert.match(corps ?? "", /no station provides `chrome-connecté`/);
     assert.match(corps ?? "", /Il repart seul dès qu'une station le fournit — .*station stations <machine>\/<engine>:<cook cap>:chrome-connecté/);

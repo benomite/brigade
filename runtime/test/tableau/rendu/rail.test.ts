@@ -66,7 +66,8 @@ test("pour chaque ticket du rail, le tableau publié porte son état et ce que s
   assert.deepEqual([de(31)?.etat, de(31)?.activite?.fait, de(31)?.activite?.cible], ["pris", "lit", "runtime/src/etat.ts"]);
   assert.match(ligneDe(23)?.ligne ?? "", /by box\/claude since 5 min, STUCK: no progress since 5 min, lease 5 min left/);
   assert.equal(de(17)?.etat, "en pass");
-  assert.equal(de(19)?.etat, "BLOQUÉ");
+  // #19 attend #21, fermé sans avoir été servi : la cuisine ne l'attend plus, il est en attente (#1834).
+  assert.equal(de(19)?.etat, "en attente");
   assert.deepEqual(de(25)?.attente, { raison: "attend : quota du compte épuisé", colonne: "86", retour: "2026-10-12T15:00:00.000Z" });
   assert.deepEqual([de(35)?.tiers?.quoi, de(35)?.tiers?.qui], ["the customer's answer", "the customer"]);
   assert.equal(de(41)?.etat, "servi");
@@ -96,13 +97,11 @@ test("le tableau publié porte les cooks en cours — quel ticket, quel cook, su
   assert.deepEqual(publies.stations.map(({ station, cuisson, cooks }) => ({ station, cuisson, cooks: cooks.map(({ ticket }) => ticket) })), [{ station: "box/claude", cuisson: "saturated", cooks: [31, 23] }]);
 
   // Ce qui attend le chef : chaque ticket nommé, avec sa décision — la carte de #24 avec sa question et ses choix. La
-  // remontée technique de #18 n'y est pas : elle est à la cuisine (#1826).
+  // remontée technique de #18 n'y est pas : elle est à la cuisine (#1826) ; ni #19, qui attendait un ticket fermé
+  // sans avoir été servi (#1834).
   assert.deepEqual(
     publies.attend.map(({ ticket, decision }) => [ticket, decision.quoi]),
-    [
-      [19, "bloque"],
-      [24, "carte"],
-    ],
+    [[24, "carte"]],
   );
   const carte = publies.attend.find(({ ticket }) => ticket === 24)?.carte;
   assert.deepEqual(carte, {
@@ -122,7 +121,6 @@ test("le tableau publié porte les cooks en cours — quel ticket, quel cook, su
   assert.deepEqual(
     publie.file.map(({ nom, quoi }) => [nom, quoi]),
     [
-      ["#19", "bloque"],
       ["breaker", "disjoncteur"],
       ["setup", "setup"],
       ["box/claude", "connexion"],
