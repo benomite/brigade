@@ -1590,6 +1590,24 @@ function boutonDeCommande(texte, geste) {
 // Une entrée de la barre : deux caractères, et ce qu'ils désignent dit en entier
 // au survol et à qui ne voit pas l'écran.
 /** @param {string} signe @param {string} nom @param {() => void} geste */
+// Le logo de brigade (docs/logo/brigade-icone.svg), la queue : la page ne charge aucune image, il est dessiné ici.
+function logoDeBrigade() {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", "2 18 60 28");
+  svg.setAttribute("aria-hidden", "true");
+  for (const [balise, attributs] of /** @type {[string, Record<string, string>][]} */ ([
+    ["rect", { x: "2.5", y: "22", width: "14", height: "20", rx: "7", opacity: ".4" }],
+    ["rect", { x: "19.5", y: "22", width: "14", height: "20", rx: "7", opacity: ".7" }],
+    ["path", { d: "M43.5 22h4a14 10 0 0 1 0 20h-4a7 7 0 0 1-7-7v-6a7 7 0 0 1 7-7z" }],
+  ])) {
+    const forme = document.createElementNS(ns, balise);
+    for (const [nom, valeur] of Object.entries(attributs)) forme.setAttribute(nom, valeur);
+    svg.append(forme);
+  }
+  return svg;
+}
+
 function icone(signe, nom, geste) {
   const cree = bouton(signe, geste);
   cree.title = nom;
@@ -7747,6 +7765,7 @@ function afficher() {
   }
   const entree = icone("", "All projects", ouvrirTous);
   entree.id = "entree-tous";
+  entree.append(logoDeBrigade());
   const pied = icone("+", "Add a project", ouvrirAjout);
   pied.id = "entree-ajout";
   barre.prepend(entree);
