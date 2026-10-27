@@ -95,7 +95,11 @@ export type OptionsPublication = {
   avertir?: (ligne: string) => void;
 };
 
-export type Publication = { rafraichir(maintenant: Date): Promise<Rafraichissement> };
+export type Publication = {
+  rafraichir(maintenant: Date): Promise<Rafraichissement>;
+  // Le numéro du tableau que ce process a déjà trouvé ou créé, ou null.
+  connu(): number | null;
+};
 
 // Parmi les issues qui portent le label — que seul qui a la main sur le dépôt
 // pose —, celles que la box a écrites : leur bloc, ou à défaut leur titre, s'il
@@ -138,6 +142,7 @@ export function publierLeTableau(options: OptionsPublication): Publication {
   };
 
   return {
+    connu: () => numero,
     async rafraichir(maintenant) {
       const corps = masquer(rendreLeTableau(lire(maintenant), maintenant));
       const gestes: Geste[] = [];
@@ -225,7 +230,17 @@ export function brancherLeTableau<R extends Runtime>(runtime: R, options: Option
     if (enCours) return;
     enCours = true;
     try {
-      const { numero } = await publication.rafraichir(maintenant());
+      let numero: number;
+      try {
+        numero = (await publication.rafraichir(maintenant())).numero;
+      } catch (erreur) {
+        // Le rafraîchissement est de la cuisine : la pause de la box ou un quota
+        // bas le retient. Les gestes du chef ne le sont pas — ils se lisent sous
+        // le tableau déjà trouvé, puis l'erreur se dit comme avant.
+        const connu = publication.connu();
+        if (gestes !== undefined && connu !== null) await lireLesGestes(connu);
+        throw erreur;
+      }
       dernierEchec = null;
       if (gestes !== undefined) await lireLesGestes(numero);
       if (mentions !== undefined) await mentionnerLeChef(numero);
@@ -250,7 +265,9 @@ export function brancherLeTableau<R extends Runtime>(runtime: R, options: Option
       dernierEchecDesGestes = motif;
       return;
     }
-    if (lu) await publication.rafraichir(maintenant());
+    if (!lu) return;
+    // Le bloc dit l'état du geste ; si la cuisine est retenue, il le dira au rafraîchissement suivant.
+    await publication.rafraichir(maintenant()).catch(() => {});
   };
   // Les décisions entrées dans la file depuis le dernier passage ; ce qui
   // l'arrête se dit une fois, comme pour les gestes.

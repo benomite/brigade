@@ -3,12 +3,14 @@
 // réécrit. Par `gh api`, comme github.ts et le canal du gist
 // (appairage/canal.ts) : chaque appel prend le sien au compteur du quota réel
 // (limite-github.ts) avant de partir, sous l'usage de la cuisine — un quota bas
-// le retient, la limite de GitHub atteinte le suspend. Rien ici ne poste de
+// le retient, la limite de GitHub atteinte le suspend. Seul le repérage du
+// tableau (`auLabel`, `issue`) est un geste : il ouvre la lecture des gestes du
+// chef, que rien ne retient. Rien ici ne poste de
 // commentaire : éditer un corps ne notifie personne.
 import { decouper } from "../../github.ts";
 import { masquerIdentifiants } from "../../identifiants.ts";
 import { LECTURE_DU_TABLEAU } from "../budget/cout.ts";
-import { COMPTE_DE_LA_MACHINE, constaterLimite, limiteDuProcess, noterLesEntetes, prendreUnAppel, refusPourLimite, type Limite, type ReponseHttp } from "../../limite-github.ts";
+import { COMPTE_DE_LA_MACHINE, constaterLimite, limiteDuProcess, noterLesEntetes, prendreUnAppel, refusPourLimite, type Limite, type ReponseHttp, type Usage } from "../../limite-github.ts";
 import { execFile } from "../../sans-invite.ts";
 
 // Une issue telle que le tableau la lit.
@@ -69,12 +71,12 @@ export function clientGitHubDuTableau(options: OptionsClient): ClientDuTableau {
   // Une réponse HTTP, quel que soit son statut — comme `appeler` de github.ts.
   // `entree` part sur l'entrée de `gh` (`--input -`) : un corps de 64 Ko ne
   // tient pas toujours sur une ligne de commande. Ce qui part est masqué.
-  const appeler = async (brut: string[], entree?: unknown): Promise<ReponseHttp> => {
+  const appeler = async (brut: string[], entree?: unknown, usage: Usage = "cuisine"): Promise<ReponseHttp> => {
     const args = brut.map((arg) => masquerIdentifiants(arg).texte);
     const limite = options.limite ?? limiteDuProcess();
     let env: NodeJS.ProcessEnv | undefined;
     const environnement = async () => (env ??= options.jeton ? { ...process.env, GH_TOKEN: await options.jeton() } : undefined);
-    const appel = await prendreUnAppel(limite, { compte, etiquette: { projet: options.projet ?? (process.env.BRIGADE_PROJECT || depot), lecture: LECTURE_DU_TABLEAU }, gh: bin, env: environnement, maintenant: options.maintenant });
+    const appel = await prendreUnAppel(limite, { usage, compte, etiquette: { projet: options.projet ?? (process.env.BRIGADE_PROJECT || depot), lecture: LECTURE_DU_TABLEAU }, gh: bin, env: environnement, maintenant: options.maintenant });
     await environnement();
     return new Promise((resoudre, rejeter) => {
       const enfant = execFile(
@@ -105,9 +107,9 @@ export function clientGitHubDuTableau(options: OptionsClient): ClientDuTableau {
   // coûtent rien tant que rien n'a changé — GitHub répond 304, et ne compte pas
   // l'appel. Cache, pas état : le perdre coûte une lecture pleine.
   const lues = new Map<string, { etag: string; reponse: ReponseHttp }>();
-  const lire = async (chemin: string): Promise<ReponseHttp> => {
+  const lire = async (chemin: string, usage: Usage = "cuisine"): Promise<ReponseHttp> => {
     const gardee = lues.get(chemin);
-    const reponse = await appeler([...(gardee === undefined ? [] : ["-H", `If-None-Match: ${gardee.etag}`]), chemin]);
+    const reponse = await appeler([...(gardee === undefined ? [] : ["-H", `If-None-Match: ${gardee.etag}`]), chemin], undefined, usage);
     if (reponse.statut === 304 && gardee !== undefined) return gardee.reponse;
     const etag = reponse.entetes.get("etag");
     if (reponse.statut === 200 && etag) lues.set(chemin, { etag, reponse });
@@ -138,12 +140,12 @@ export function clientGitHubDuTableau(options: OptionsClient): ClientDuTableau {
     async auLabel(label) {
       // Un seul tableau par dépôt : une page suffit à le retrouver, même entouré d'anciens.
       const chemin = `repos/${depot}/issues?labels=${encodeURIComponent(label)}&state=all&per_page=100`;
-      const issues = JSON.parse(exiger(await lire(chemin), chemin).corps) as IssueBrute[];
+      const issues = JSON.parse(exiger(await lire(chemin, "geste"), chemin).corps) as IssueBrute[];
       return issues.filter((brute) => brute.pull_request === undefined).map(lireIssue);
     },
     async issue(numero) {
       const chemin = `repos/${depot}/issues/${numero}`;
-      const reponse = await lire(chemin);
+      const reponse = await lire(chemin, "geste");
       // 404 : supprimée ; 410 : supprimée, ou les issues du dépôt fermées ; 301 : transférée.
       if ([301, 404, 410].includes(reponse.statut)) return null;
       const brute = JSON.parse(exiger(reponse, chemin).corps) as IssueBrute;
