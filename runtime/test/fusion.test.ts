@@ -875,7 +875,7 @@ describe("la base elle-même, rouge ou mergée hors du runtime", { concurrency: 
       aLaMain: true, essais: { base: "rouge" }, depot: (depot) => ({ jeter: menageEnPanne(depot, () => lieu.essai("base")) }) });
     const { journal, avertissements, dernier } = lieu;
     // Le contrôle qui compte est celui d'après le merge de la livraison : un premier, joué avant lui, ne la nomme pas.
-    await jusqua(() => dernier("base.checked")?.tickets?.includes(17) === true);
+    await jusqua(() => (dernier("base.checked")?.tickets as number[] | undefined)?.includes(17) === true);
 
     assert.deepEqual([dernier("base.checked")?.outcome, dernier("base.checked")?.tickets, dernier("base.checked")?.reason], ["red", [17], undefined]);
     assert.deepEqual([etatDeLaBase(journal.base)?.outcome, etatDeLaBase(journal.base)?.reason], ["red", null]);
