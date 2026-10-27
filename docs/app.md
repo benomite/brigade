@@ -2848,6 +2848,9 @@ For a ticket in pass or served, `cooked by` is added: who cooked it is not who h
   how long it has been in that column (`12 min`, `3 h`, `2 d`), its exact age and the usual time on hover; a card there
   more than **twice the median** of the tickets that went through that column in the last 7 days turns its age red and
   takes a red edge. With fewer than three such tickets, nothing is usual yet: no card stands out, and the hover says why.
+  The age counts from the **first take**, across the relaunches that follow a stopped cook (#1839), and a ticket taken
+  more than once shows **one dot per attempt** next to it, the reason of each stop on hover (`stopped at the turn limit
+  (100)`). The card's activity line is in English (`faitEn`); a cook that is only thinking says `in the kitchen`.
   Everything is read in `facts` (`cadence`, and each rail ticket's `depuis`: `docs/runtime/etat-et-mesures.md`), never
   from the app's own memory: it is right as soon as the app opens. A runtime from before these fields draws neither.
 - **The triage, day by day (#1283)**: at the head of the rail, a compact block — `triage, day by day` — gives, for each of the last

@@ -82,6 +82,15 @@ describe("l'âge d'une carte de Taken et de Pass", () => {
 
   test("plus de deux fois la médiane de sa colonne : elle tranche — deux fois pile, pas encore", () => {
     assert.equal(anciennete("en pass", "2026-10-21T11:59:00.000Z", LU, CADENCE.medianSeconds)?.longue, true);
+    // Un ticket relancé : un point par essai, la raison de chaque arrêt au survol (#1839).
+    const essais = anciennete("pris", "2026-10-21T11:58:00.000Z", LU, CADENCE.medianSeconds, [
+      { at: "2026-10-21T11:58:00.000Z", stop: "stopped at the turn limit (100)" },
+      { at: "2026-10-21T12:10:00.000Z", stop: null },
+    ])?.essais;
+    assert.equal(essais?.length, 2);
+    assert.match(essais?.[0]?.dit ?? "", /attempt 1 of 2.*stopped at the turn limit \(100\)/);
+    assert.equal(essais?.[1]?.encours, true);
+    assert.equal(anciennete("pris", "2026-10-21T11:58:00.000Z", LU, CADENCE.medianSeconds, [{ at: "2026-10-21T11:58:00.000Z", stop: null }])?.essais, undefined);
     assert.equal(anciennete("en pass", "2026-10-21T11:59:00.000Z", LU, CADENCE.medianSeconds)?.dit, `in Pass for 21 min, since ${heureHM("2026-10-21T11:59:00.000Z")} — usually 10 min (the median of the last 7 days) — more than twice that`);
     assert.equal(anciennete("en pass", "2026-10-21T12:00:00.000Z", "2026-10-21T12:20:00.000Z", { taken: null, pass: 599 })?.longue, true);
     assert.equal(anciennete("en pass", "2026-10-21T12:00:00.000Z", "2026-10-21T12:20:00.000Z", { taken: null, pass: 600 })?.longue, false);

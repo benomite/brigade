@@ -27,9 +27,14 @@ export const BLOQUEE = "blocked";
 export const MISE_DE_COTE = "set aside";
 export const RELANCE_PASSEE = "follow-up date passed";
 
+// Le geste que la box dit en anglais quand le cook n'a rien dit de lisible encore (runtime/src/activite.ts).
+export const GESTE_SANS_SENS = "thinking";
+
 // Au travail ou en pass : le geste, ce qu'il vise, depuis combien de temps (`duree`, déjà écrite).
 // `activite` : nulle ou absente, la box ne dit pas ce qu'on en fait.
 export function ligneAuTravail(etat: "pris" | "en pass", activite: { fait: string; cible: string | null } | null | undefined, duree: string): LigneDeCarte {
+  // Un cook qui « réfléchit » ne dit rien au chef, et ses secondes encore moins : la ligne dit seulement où il est (#1839).
+  if (activite != null && activite.fait === GESTE_SANS_SENS) return { ligne: etat === "pris" ? TRAVAIL_SANS_DETAIL : PASS_SANS_DETAIL };
   if (activite == null) return { ligne: etat === "pris" ? TRAVAIL_SANS_DETAIL : PASS_SANS_DETAIL, repere: true };
   return { ligne: `${activite.cible === null ? activite.fait : `${activite.fait} ${activite.cible}`} · ${duree}` };
 }

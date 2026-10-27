@@ -53,7 +53,7 @@ const FAITS: Faits = {
   compteurs: { rail: 2, auTravail: 1, aLaPass: 1, attend: 1, livres24h: 3 },
   dernierEvenement: { seq: 812, at: "2026-10-12T10:03:58.000Z", type: "merge.done", ticket: 216 },
   rail: [
-    { ticket: 14, etat: "pris", titre: "Le journal en ajout seul", url: "https://github.com/benomite/brigade/issues/14", activite: { fait: "lit", cible: "runtime/src/etat.ts", depuis: "2026-10-12T10:01:11.000Z" }, attente: null },
+    { ticket: 14, etat: "pris", titre: "Le journal en ajout seul", url: "https://github.com/benomite/brigade/issues/14", activite: { fait: "lit", faitEn: "reading", cible: "runtime/src/etat.ts", depuis: "2026-10-12T10:01:11.000Z" }, attente: null },
     { ticket: 21, etat: "BLOQUÉ", titre: "L'export du journal", url: "https://github.com/benomite/brigade/issues/21", activite: null, attente: null },
   ],
   cooks: [{ ticket: 14, titre: "Le journal en ajout seul", station: "box/claude" }],
@@ -191,7 +191,7 @@ describe("les faits que l'app dessine", () => {
 
   test("ce que la cuisine fait d'un ticket se lit sous `rail[].activite` : un geste, ce qu'il vise ou rien, une heure — nulle, la box ne le sait pas ; absente, un runtime d'avant elle", () => {
     const [pris, bloque] = FAITS.rail;
-    assert.deepEqual(pris?.activite, { fait: "lit", cible: "runtime/src/etat.ts", depuis: "2026-10-12T10:01:11.000Z" });
+    assert.deepEqual(pris?.activite, { fait: "lit", faitEn: "reading", cible: "runtime/src/etat.ts", depuis: "2026-10-12T10:01:11.000Z" });
     assert.equal(bloque?.activite, null);
     // Un runtime d'avant ce champ : la forme reste comprise, sans lui.
     const sansActivite = { ...FAITS, rail: FAITS.rail.map(({ activite: _activite, ...ticket }) => ticket) };
@@ -254,7 +254,7 @@ describe("les faits que l'app dessine", () => {
                   attendu: false,
                   attend: [],
                   // Ce que la forme dit de lui : ce que son cook fait, sa station. Le reste est écrit comme manquant.
-                  ligne: "lit runtime/src/etat.ts · 3 min",
+                  ligne: "reading runtime/src/etat.ts · 3 min",
                   dit: [
                     { libelle: "right now", valeur: "lit runtime/src/etat.ts, for 3 min" },
                     { libelle: "taken by", valeur: "box/claude", exact: true },

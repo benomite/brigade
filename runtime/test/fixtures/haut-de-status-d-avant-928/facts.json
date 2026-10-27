@@ -36,6 +36,7 @@
       "depuis": "2026-10-09T10:00:00.000Z",
       "activite": {
         "fait": "arrêtée par la pass",
+        "faitEn": "held by the pass",
         "cible": null,
         "depuis": "2026-10-09T10:00:00.000Z"
       },
@@ -64,6 +65,7 @@
       "depuis": "2026-10-12T09:59:00.000Z",
       "activite": {
         "fait": "la station prépare le poste du cook",
+        "faitEn": "the station is setting up the cook's post",
         "cible": null,
         "depuis": "2026-10-12T09:59:00.000Z"
       },
@@ -112,6 +114,7 @@
       "depuis": "2026-10-12T09:58:00.000Z",
       "activite": {
         "fait": "arrêtée par la pass",
+        "faitEn": "held by the pass",
         "cible": null,
         "depuis": "2026-10-12T09:58:00.000Z"
       },

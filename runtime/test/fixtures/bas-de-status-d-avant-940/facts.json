@@ -60,6 +60,7 @@
       "depuis": "2026-10-12T09:59:00.000Z",
       "activite": {
         "fait": "démarre",
+        "faitEn": "starting",
         "cible": null,
         "depuis": "2026-10-12T10:02:00.000Z"
       },
@@ -144,6 +145,7 @@
       "depuis": "2026-10-12T10:02:00.000Z",
       "activite": {
         "fait": "lit",
+        "faitEn": "reading",
         "cible": "runtime/src/etat.ts",
         "depuis": "2026-10-12T10:02:00.000Z"
       },
@@ -262,6 +264,7 @@
       "depuis": "2026-10-12T10:02:00.000Z",
       "activite": {
         "fait": "la station prépare le poste du cook",
+        "faitEn": "the station is setting up the cook's post",
         "cible": null,
         "depuis": "2026-10-12T10:02:00.000Z"
       },

@@ -4192,6 +4192,22 @@ main > header,
   border: 1px solid var(--bon-trait);
   border-radius: 999px;
 }
+/* Un point par essai : creux pour un cook arrêté, plein pour celui qui tourne (ticket 1839). */
+#rail .bon .age .essais {
+  display: inline-flex;
+  gap: 3px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+#rail .bon .age .essai {
+  width: 6px;
+  height: 6px;
+  border: 1px solid var(--bon-discret);
+  border-radius: 999px;
+}
+#rail .bon .age .essai[data-encours] {
+  background: var(--bon-discret);
+}
 #rail .bon .age[data-longue] {
   color: var(--bon-encre);
   background: var(--rouge);

@@ -26,7 +26,7 @@ import { carteDeProfil, profilInforme, profilsLus, type CarteDeProfil, type Prof
 import { attenduDe, decisionLue, livraisonLue, teteDe, type Decision, type Livraison as LivraisonAttendue } from "./decision.ts";
 import { entete, type Entete } from "./fiche.ts";
 import { cuissonDe, type CuissonDuProjet } from "./cuisson.ts";
-import { anciennete, cadenceLue, histogramme, type Anciennete, type CadenceLue, type Histogramme } from "./cadence.ts";
+import { anciennete, cadenceLue, histogramme, type Anciennete, type CadenceLue, type EssaiLu, type Histogramme } from "./cadence.ts";
 import { plafondVu, type PlafondLu, type PlafondVu } from "./plafond-de-calibrage.ts";
 import { LABEL_RETENUE } from "./question.ts";
 import { carteDeTodo, carteLue, type CarteDeTodo, type CarteLue } from "./carte-todo.ts";
@@ -203,7 +203,7 @@ export type Relecture = { resume: string; constats: Constat[] };
 // Ce que la cuisine fait d'un ticket pris ou en pass : le geste, en mots du chef ;
 // ce qu'il vise — un fichier, une commande —, nul s'il ne vise rien ; l'heure où
 // elle s'y est mise, à l'horloge de la box.
-export type Activite = { fait: string; cible: string | null; depuis: string };
+export type Activite = { fait: string; faitEn?: string; cible: string | null; depuis: string };
 
 // Ce qu'un ticket mis de côté attend, comme le runtime le dit : `raison` en clair
 // (« attend : setup du projet impossible »), `colonne` : celle du rail où il est.
@@ -267,7 +267,7 @@ export type Faits = {
   // (`zone held by #12 (src)`, `machine saturated`) — nulle pour tout autre, absente d'un runtime d'avant ce champ.
   // `depuis` : l'heure de son entrée dans cet état — sa prise, son entrée en pass… (#1811) ; absent d'un runtime d'avant.
   // Le rail est dans l'ordre où il se sert : la priorité de l'issue, puis son âge.
-  rail: { ticket: number; etat: string; titre: string; url: string; depuis?: string; activite?: Activite | null; attente?: Attente | null; tiers?: Tiers | null; revenu?: string | null; raison?: string | null; captures?: CapturesLues; illisible?: string }[];
+  rail: { ticket: number; etat: string; titre: string; url: string; depuis?: string; essais?: EssaiLu[]; activite?: Activite | null; attente?: Attente | null; tiers?: Tiers | null; revenu?: string | null; raison?: string | null; captures?: CapturesLues; illisible?: string }[];
   cooks?: Cook[];
   attend?: Attendu[];
   livres?: Livre[];
@@ -501,7 +501,7 @@ function comprendreStation(valeur: unknown, champ: string): StationDesFaits {
 // Ce que la cuisine fait d'un ticket : un geste, ce qu'il vise ou rien, une heure.
 function comprendreActivite(valeur: unknown, champ: string): Activite {
   const lu = objet(valeur, champ);
-  return { fait: texte(lu.fait, `${champ}.fait`), cible: ouRien(lu.cible, `${champ}.cible`, texte), depuis: heure(lu.depuis, `${champ}.depuis`) };
+  return { fait: texte(lu.fait, `${champ}.fait`), ...(lu.faitEn === undefined ? {} : { faitEn: texte(lu.faitEn, `${champ}.faitEn`) }), cible: ouRien(lu.cible, `${champ}.cible`, texte), depuis: heure(lu.depuis, `${champ}.depuis`) };
 }
 
 // Ce que le reviewer a dit d'une livraison servie : son résumé, ses constats dans son ordre.
@@ -640,6 +640,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
           titre: texte(lu.titre, `${lequel}.titre`),
           url: texte(lu.url, `${lequel}.url`),
           ...(lu.depuis === undefined ? {} : { depuis: heure(lu.depuis, `${lequel}.depuis`) }),
+          ...(lu.essais === undefined ? {} : { essais: (Array.isArray(lu.essais) ? lu.essais : refuser(`${lequel}.essais`, "a list")).map((essai, i) => { const e = objet(essai, `${lequel}.essais[${i}]`); return { at: heure(e.at, `${lequel}.essais[${i}].at`), stop: ouRien(e.stop, `${lequel}.essais[${i}].stop`, texte) }; }) }),
           ...(lu.activite === undefined ? {} : { activite: ouRien(lu.activite, `${lequel}.activite`, comprendreActivite) }),
           ...(lu.attente === undefined ? {} : { attente: ouRien(lu.attente, `${lequel}.attente`, comprendreAttente) }),
           ...(lu.tiers === undefined ? {} : { tiers: ouRien(lu.tiers, `${lequel}.tiers`, comprendreTiers) }),
@@ -989,7 +990,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
         : connu?.attente != null
           ? ligneMiseDeCote(connu.attente.raison)
           : connu !== undefined && A_L_OUVRAGE.includes(connu.etat)
-            ? ligneAuTravail(connu.etat as "pris" | "en pass", connu.activite, connu.activite == null ? "" : duree(Date.parse(faits.lu) - Date.parse(connu.activite.depuis)))
+            ? ligneAuTravail(connu.etat as "pris" | "en pass", connu.activite?.faitEn === undefined ? null : { fait: connu.activite.faitEn, cible: connu.activite.cible }, connu.activite == null ? "" : duree(Date.parse(faits.lu) - Date.parse(connu.activite.depuis)))
             : connu?.etat === "servi"
               ? { ligne: "served", repere: true }
               : connu?.raison != null && EN_FILE.includes(connu.etat)
@@ -1005,7 +1006,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
     const prio = !enFile ? undefined : ecrite !== undefined ? (ecrite === null ? "-" : `prio:${ecrite}`) : prioLue;
     // Dans Taken et Pass : depuis quand elle y est, et si c'est bien plus que d'ordinaire. Une carte qui t'attend est dans
     // TODO, pas dans ces colonnes : elle n'en porte pas.
-    const age = connu === undefined || connu.illisible !== undefined || dit !== undefined ? undefined : anciennete(connu.etat, connu.depuis, faits.lu, faits.cadence?.medianSeconds);
+    const age = connu === undefined || connu.illisible !== undefined || dit !== undefined ? undefined : anciennete(connu.etat, connu.depuis, faits.lu, faits.cadence?.medianSeconds, connu.essais);
     return {
       ticket,
       ...ligne,

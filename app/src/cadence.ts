@@ -6,7 +6,8 @@
 //    voit, sans phrase. Au survol, ou au toucher sur le téléphone, une barre dit son heure et ses deux comptes ;
 //  - sur chaque carte de Taken et de Pass, depuis combien de temps elle y est : bien plus longtemps que d'ordinaire —
 //    plus de deux fois la médiane des tickets passés par cette colonne —, elle tranche par sa couleur. Son âge exact
-//    est au survol.
+//    est au survol. Relancé après l'arrêt de son cook, un ticket garde son âge de la première prise et montre un point
+//    par essai, la raison de chaque arrêt au survol (#1839).
 // Ce module calcule ce que la vue pose : la vue n'y compte rien.
 import { duree } from "./faits.ts";
 import { heureHM } from "./format.ts";
@@ -22,8 +23,10 @@ export type Barre = { debut: string; servis: number; rates: number; hautServis: 
 // L'histogramme : ses barres, et son nom pour qui ne voit pas l'écran.
 export type Histogramme = { barres: Barre[]; nom: string };
 // L'âge d'une carte de Taken ou de Pass : court, sur la carte ; exact, au survol ; `longue`, elle y est depuis plus de
-// deux fois l'ordinaire.
-export type Anciennete = { court: string; dit: string; longue: boolean };
+// deux fois l'ordinaire. `essais` : les prises du ticket dans la colonne, quand il y en a eu plus d'une (#1839) — un
+// point chacune, ce qui a arrêté les précédentes au survol (`dit`), `encours` pour celle qui tourne.
+export type EssaiLu = { at: string; stop: string | null };
+export type Anciennete = { court: string; dit: string; longue: boolean; essais?: { dit: string; encours: boolean }[] };
 
 export const HEURES = 24;
 // Une barre pleine compte au moins autant : une heure à un seul ticket ne se dessine pas comme un pic.
@@ -89,7 +92,7 @@ const COLONNES = { pris: { nom: "Taken", mediane: "taken" }, "en pass": { nom: "
 // L'âge d'une carte de Taken (`pris`) ou de Pass (`en pass`), entre deux heures de la box — son entrée dans la colonne,
 // la lecture. Rien pour un autre état, ni pour un ticket dont la box ne dit pas l'entrée. Sans médiane, la carte ne
 // tranche pas : la cuisine ne sait pas encore ce qui est ordinaire, et le survol le dit.
-export function anciennete(etat: string, depuis: string | undefined, lu: string, medianes: CadenceLue["medianSeconds"] | undefined): Anciennete | undefined {
+export function anciennete(etat: string, depuis: string | undefined, lu: string, medianes: CadenceLue["medianSeconds"] | undefined, essais?: EssaiLu[]): Anciennete | undefined {
   if (depuis === undefined || !(etat === "pris" || etat === "en pass")) return undefined;
   const colonne = COLONNES[etat];
   const age = Math.max(0, Date.parse(lu) - Date.parse(depuis));
@@ -99,5 +102,6 @@ export function anciennete(etat: string, depuis: string | undefined, lu: string,
     mediane === null
       ? "no usual time yet: too few tickets have left this column in the last 7 days"
       : `usually ${duree(mediane * 1000)} (the median of the last 7 days)${longue ? " — more than twice that" : ""}`;
-  return { court: dureeCourte(age), dit: `in ${colonne.nom} for ${duree(age)}, since ${heureHM(depuis)} — ${ordinaire}`, longue };
+  const points = essais === undefined || essais.length < 2 ? undefined : essais.map(({ at, stop }, rang) => ({ dit: `attempt ${rang + 1} of ${essais.length}, taken at ${heureHM(at)}${stop === null ? " — cooking now" : ` — ${stop}`}`, encours: stop === null }));
+  return { court: dureeCourte(age), dit: `in ${colonne.nom} for ${duree(age)}, since ${heureHM(depuis)} — ${ordinaire}`, longue, ...(points === undefined ? {} : { essais: points }) };
 }

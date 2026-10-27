@@ -16,9 +16,9 @@ const FAITS: Faits = {
   compteurs: { rail: 5, auTravail: 1, aLaPass: 1, attend: 1, livres24h: 1 },
   dernierEvenement: null,
   rail: [
-    { ticket: 1, etat: "pris", titre: "Au travail", url: url(1), activite: { fait: "écrit les tests", cible: null, depuis: "2026-10-12T09:52:11.000Z" }, attente: null },
+    { ticket: 1, etat: "pris", titre: "Au travail", url: url(1), activite: { fait: "écrit les tests", faitEn: "writing the tests", cible: null, depuis: "2026-10-12T09:52:11.000Z" }, attente: null },
     { ticket: 2, etat: "en attente", titre: "Prêt", url: url(2), activite: null, attente: null },
-    { ticket: 3, etat: "en pass", titre: "En pass", url: url(3), activite: { fait: "relecture en cours", cible: null, depuis: "2026-10-12T10:03:11.000Z" }, attente: null },
+    { ticket: 3, etat: "en pass", titre: "En pass", url: url(3), activite: { fait: "relecture en cours", faitEn: "review in progress", cible: null, depuis: "2026-10-12T10:03:11.000Z" }, attente: null },
     { ticket: 4, etat: "86", titre: "Mis de côté", url: url(4), activite: null, attente: { raison: "attend : setup du projet impossible", colonne: "en attente", retour: null } },
     { ticket: 5, etat: "WAITING", titre: "Chez un tiers", url: url(5), activite: null, attente: null, tiers: { quoi: "le devis", qui: "le client", depuis: "2026-10-11T10:04:11.000Z", relance: "2026-10-10T00:00:00.000Z", aLArrivee: "il repart en cuisine" } },
   ],
@@ -34,15 +34,17 @@ const phrase = ({ ligne, signal, repere }: Carte) => ({ ligne, ...(signal === un
 
 describe("la phrase de chaque état d'une carte (#622)", () => {
   test("au travail : ce que le cook fait, et depuis combien de temps", () => {
-    assert.deepEqual(phrase(de(FAITS, 1)), { ligne: "écrit les tests · 12 min" });
-    assert.deepEqual(ligneAuTravail("pris", { fait: "lit", cible: "runtime/src/etat.ts" }, "3 min"), { ligne: "lit runtime/src/etat.ts · 3 min" });
+    assert.deepEqual(phrase(de(FAITS, 1)), { ligne: "writing the tests · 12 min" });
+    assert.deepEqual(ligneAuTravail("pris", { fait: "reading", cible: "runtime/src/etat.ts" }, "3 min"), { ligne: "reading runtime/src/etat.ts · 3 min" });
     // La box ne sait pas ce qu'on en fait : deux mots, et le repère.
+    // « thinking · 2 s » ne dit rien au chef (#1839).
+    assert.deepEqual(ligneAuTravail("pris", { fait: "thinking", cible: null }, "2 s"), { ligne: TRAVAIL_SANS_DETAIL });
     assert.deepEqual(ligneAuTravail("pris", null, ""), { ligne: TRAVAIL_SANS_DETAIL, repere: true });
     assert.deepEqual(ligneAuTravail("pris", undefined, ""), { ligne: TRAVAIL_SANS_DETAIL, repere: true });
   });
 
   test("en pass : la relecture, et depuis quand ; sans activité, « review in progress »", () => {
-    assert.deepEqual(phrase(de(FAITS, 3)), { ligne: "relecture en cours · 1 min" });
+    assert.deepEqual(phrase(de(FAITS, 3)), { ligne: "review in progress · 1 min" });
     assert.deepEqual(ligneAuTravail("en pass", null, ""), { ligne: PASS_SANS_DETAIL, repere: true });
   });
 

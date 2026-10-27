@@ -4,6 +4,7 @@
 // ses projections — rien n'est calculé ni gardé ailleurs, et rien n'est écrit.
 import { direActiviteEn, type Activite } from "./activite.ts";
 import { activitesDuRail, type ActiviteDeTicket } from "./activites.ts";
+import { sejoursEnColonne, type SejourEnColonne } from "./sejour-en-colonne.ts";
 import { DIRE_GATES_COUPEES, DIRE_GATES_COUPEES_EN } from "./events/pass.ts";
 import { attenteDeLaCarte, carteDeLAttente, type CarteDuTicket } from "./carte-todo/cartes.ts";
 import { attentesDuChef, decisionDe, type Livraison, decrireAttentes, direAttente, direAttenteEn, nommerAttente, nommerEn, passageEnService, pauseDeLaCuisine, reposSansStation, type Attente, type Decision, type Passage, type PauseEnVigueur } from "./attend.ts";
@@ -98,6 +99,9 @@ export type EtatCuisine = {
   // Ce que la cuisine fait en ce moment de chaque ticket pris ou en pass — nul
   // quand le runtime ne le sait pas. Les autres tickets n'y sont pas.
   activites: Map<number, ActiviteDeTicket | null>;
+  // Depuis quand chaque ticket pris ou en pass est dans sa colonne, et ses essais (sejour-en-colonne.ts) : absent
+  // d'un état construit sans lui, la carte compte alors depuis la dernière prise.
+  sejours?: Map<number, SejourEnColonne>;
   // Ce que la cuisine fait de chaque ticket 86 sur une remontée technique
   // (remontee-a-la-cuisine.ts) : sa carte le dit. Absente d'un état construit
   // sans elle.
@@ -213,6 +217,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
     grants: ACTIONS.flatMap((action) => etatDuGrant(base, action, maintenant) ?? []),
     rail,
     activites: activitesDuRail(base, rail),
+    sejours: sejoursEnColonne(base, rail),
     reprises: reprisesDuRail(base, rail),
     captures: capturesDesLivraisons(journal, [...rail.filter(({ state }) => state === "pass" || state === "served").map(({ ticket }) => ticket), ...livres.map(({ ticket }) => ticket)]),
     attend,
@@ -1046,7 +1051,8 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limit
         etat: faute === null ? etatLu(ticket) : EN_WAITING,
         titre: ticket.title,
         url: ticket.url,
-        depuis: ticket.since,
+        depuis: etat.sejours?.get(ticket.ticket)?.depuis ?? ticket.since,
+        ...((etat.sejours?.get(ticket.ticket)?.essais.length ?? 0) > 1 ? { essais: etat.sejours?.get(ticket.ticket)?.essais } : {}),
         activite: etat.activites.get(ticket.ticket) ?? null,
         attente: ticket.state === "86" ? { raison: direRaisonDuRail(ticket.reason, etat.reprises?.get(ticket.ticket)), colonne: faute === null ? etatLu(ticket) : EN_WAITING, retour: ticket.until } : null,
         tiers:

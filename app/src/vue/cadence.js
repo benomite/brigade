@@ -57,5 +57,19 @@ export function poserAge(doc, age) {
   pose.title = age.dit;
   pose.ariaLabel = age.dit;
   if (age.longue) pose.dataset.longue = "";
+  // Un point par essai du ticket dans sa colonne, la raison de chaque arrêt au survol (ticket 1839).
+  if (age.essais !== undefined) {
+    const points = cree(doc, "span");
+    points.className = "essais";
+    for (const essai of age.essais) {
+      const point = cree(doc, "span");
+      point.className = "essai";
+      if (essai.encours) point.dataset.encours = "";
+      point.title = essai.dit;
+      point.ariaLabel = essai.dit;
+      points.append(point);
+    }
+    pose.append(points);
+  }
   return pose;
 }

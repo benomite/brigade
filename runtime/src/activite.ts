@@ -102,6 +102,11 @@ export function nommer({ doing, target }: Pick<Activite, "doing" | "target">): {
   return { fait: target === null && doing === "running" ? "lance une commande" : DIT[doing], cible: target };
 }
 
+// Le geste en mots d'anglais, et ce qu'il vise à part : ce que la carte du rail dit au chef.
+export function nommerEn({ doing, target }: Pick<Activite, "doing" | "target">): { fait: string; cible: string | null } {
+  return { fait: target === null && doing === "running" ? "running a command" : DIT_EN[doing], cible: target };
+}
+
 export function direActivite(activite: Pick<Activite, "doing" | "target">): string {
   const { fait, cible } = nommer(activite);
   return cible === null ? fait : `${fait} ${cible}`;
