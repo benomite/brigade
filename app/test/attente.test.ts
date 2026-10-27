@@ -194,7 +194,8 @@ describe("le rail en TODO et WAITING", () => {
     // La forme lit une relance nulle, et refuse celle qui n'est ni nulle ni une heure.
     const lu = comprendre(JSON.stringify({ ...faits, rail: [{ ...faits.rail[0] }] }));
     assert.ok(!("informe" in lu) && lu.rail[0]?.tiers?.relance === null);
-    assert.deepEqual(comprendre(JSON.stringify({ ...faits, rail: [{ ...faits.rail[0], tiers: { ...SANS_STATION, relance: 3 } }] })), { informe: "“rail[0].tiers.relance” is not a time" });
+    const mal = comprendre(JSON.stringify({ ...faits, rail: [{ ...faits.rail[0], tiers: { ...SANS_STATION, relance: 3 } }] }));
+    assert.ok(!("informe" in mal) && mal.rail[0]?.illisible === "“rail[0].tiers.relance” is not a time");
   });
 
   test("« waiting for… » est sur une carte de TODO que le runtime laisse attendre — pas sur un ticket en pass, ni hors du rail, ni hors de TODO", () => {
@@ -227,18 +228,23 @@ describe("le rail en TODO et WAITING", () => {
     // Le champ se lit dans la forme ; mal formé, il la refuse.
     const lu = comprendre(JSON.stringify({ ...FAITS, rail: [{ ...ticket(30, "86"), revenu: MOTIF }] }));
     assert.ok(!("informe" in lu) && lu.rail[0]?.revenu === MOTIF);
-    assert.deepEqual(comprendre(JSON.stringify({ ...FAITS, rail: [{ ...ticket(30, "86"), revenu: 3 }] })), { informe: "“rail[0].revenu” is not a string" });
+    const mal = comprendre(JSON.stringify({ ...FAITS, rail: [{ ...ticket(30, "86"), revenu: 3 }] }));
+    assert.ok(!("informe" in mal) && mal.rail[0]?.illisible === "“rail[0].revenu” is not a string");
   });
 
-  test("`tiers` se lit dans la forme : absent d'un runtime d'avant lui, nul pour un autre ticket — et une attente mal formée refuse la forme", () => {
+  test("`tiers` se lit dans la forme : absent d'un runtime d'avant lui, nul pour un autre ticket — et une attente mal formée ne gâte que sa carte", () => {
     const sortie = (rail: unknown[]) => JSON.stringify({ ...FAITS, rail });
     const lu = comprendre(sortie(FAITS.rail));
     assert.ok(!("informe" in lu));
     assert.deepEqual(lu.rail, FAITS.rail);
     const ancien = comprendre(sortie([{ ticket: 21, etat: "en attente", titre: "Ticket 21", url: "https://x/21" }]));
     assert.ok(!("informe" in ancien) && !("tiers" in (ancien.rail[0] ?? {})));
-    assert.deepEqual(comprendre(sortie([{ ...ticket(8, "WAITING"), tiers: { ...TIERS, relance: "demain" } }])), { informe: "“rail[0].tiers.relance” is not a time" });
-    assert.deepEqual(comprendre(sortie([{ ...ticket(8, "WAITING"), tiers: { ...TIERS, qui: 3 } }])), { informe: "“rail[0].tiers.qui” is not a string" });
+    const illisible = (brut: unknown[]) => {
+      const mal = comprendre(sortie(brut));
+      return "informe" in mal ? mal.informe : mal.rail[0]?.illisible;
+    };
+    assert.equal(illisible([{ ...ticket(8, "WAITING"), tiers: { ...TIERS, relance: "demain" } }]), "“rail[0].tiers.relance” is not a time");
+    assert.equal(illisible([{ ...ticket(8, "WAITING"), tiers: { ...TIERS, qui: 3 } }]), "“rail[0].tiers.qui” is not a string");
   });
 });
 

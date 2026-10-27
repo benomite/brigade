@@ -14,7 +14,7 @@
 import type { GesteDAttente } from "./attente.ts";
 import { ditDe, ticketsDe, type Montree } from "./attend.ts";
 import { lieuDe, lignesDuRail, porter, priorite, type Porte } from "./bon.ts";
-import { ligneAuTravail, ligneDeTete, ligneEnAttente, ligneEnWaiting, ligneLivree, ligneMiseDeCote, ligneQuiMAttend, ligneRepondue, type LigneDeCarte } from "./ligne-carte.ts";
+import { ligneAuTravail, ligneDeTete, ligneEnAttente, ligneEnWaiting, ligneIllisible, ligneLivree, ligneMiseDeCote, ligneQuiMAttend, ligneRepondue, type LigneDeCarte } from "./ligne-carte.ts";
 import type { StationDesFaits } from "./ordinaires.ts";
 import type { Echec, Lecture } from "./box.ts";
 import { capturesDeCarte, type CapturesDeCarte, type CapturesLues, type Moment } from "./captures.ts";
@@ -182,7 +182,7 @@ export function coutDesGatesLu(brut: unknown): CoutDesGates | undefined {
 // quand elle n'a rien consigné, et d'un runtime d'avant ce champ.
 // `carte` : pour une carte entrée par la porte de TODO, sa question, ses choix et ses captures
 // (carte-todo.ts) — absente pour toute autre entrée, et d'un runtime d'avant ce champ.
-export type Attendu = { ticket: number; titre: string; url: string | null; decision?: Decision; livraison?: LivraisonAttendue; carte?: CarteLue };
+export type Attendu = { ticket: number; titre: string; url: string | null; decision?: Decision; livraison?: LivraisonAttendue; carte?: CarteLue; illisible?: string };
 
 // Un ticket servi dans les 24 h avant la lecture, que la box garde après la
 // fermeture de son issue : `livre`, l'heure de son service ; `station`, celle qui
@@ -193,7 +193,7 @@ export type Attendu = { ticket: number; titre: string; url: string | null; decis
 // d'avant ce champ.
 // `captures` : pour un ticket d'interface, l'écran avant et après de sa livraison (captures.ts) —
 // absentes pour tout autre ticket, et d'un runtime d'avant ce champ.
-export type Livre = { ticket: number; titre: string; url: string | null; livre: string; station: string | null; pr: string | null; relecture?: Relecture | null; captures?: CapturesLues };
+export type Livre = { ticket: number; titre: string; url: string | null; livre: string; station: string | null; pr: string | null; relecture?: Relecture | null; captures?: CapturesLues; illisible?: string };
 // Le résumé du reviewer et ses constats, dans ses mots (runtime/src/reviewer.ts).
 export type Constat = { gravite: string; fichier: string | null; constat: string };
 export type Relecture = { resume: string; constats: Constat[] };
@@ -264,7 +264,7 @@ export type Faits = {
   // `raison` : pour le ticket en tête de la file seulement, s'il ne part pas, pourquoi, dans les mots du runtime
   // (`zone held by #12 (src)`, `machine saturated`) — nulle pour tout autre, absente d'un runtime d'avant ce champ.
   // Le rail est dans l'ordre où il se sert : la priorité de l'issue, puis son âge.
-  rail: { ticket: number; etat: string; titre: string; url: string; activite?: Activite | null; attente?: Attente | null; tiers?: Tiers | null; revenu?: string | null; raison?: string | null; captures?: CapturesLues }[];
+  rail: { ticket: number; etat: string; titre: string; url: string; activite?: Activite | null; attente?: Attente | null; tiers?: Tiers | null; revenu?: string | null; raison?: string | null; captures?: CapturesLues; illisible?: string }[];
   cooks?: Cook[];
   attend?: Attendu[];
   livres?: Livre[];
@@ -398,6 +398,21 @@ export type Tableau = {
 export type Dessinable = { projet: string; demande: number; a: string } & ({ tableau: Tableau } | { titre: string; informe: string; rendu: string } | ({ titre: string } & Echec));
 
 class Informe extends Error {}
+
+// Un élément d'une liste que l'app ne sait pas lire — une valeur d'une box plus récente — ne gâte que sa carte : son
+// numéro seul est exigé, car sans lui il n'y a pas de carte. `rendre` en lit la forme ; `sinon`, la carte qu'on en
+// dessine à la place, avec la raison de l'échec.
+export const ILLISIBLE_ETAT = "unreadable";
+const sansNumero = (lu: Record<string, unknown>, lequel: string) => ({ ticket: entier(lu.ticket, `${lequel}.ticket`), titre: typeof lu.titre === "string" ? lu.titre : "" });
+function sauf<T>(lu: Record<string, unknown>, lequel: string, rendre: () => T, sinon: (base: { ticket: number; titre: string }, raison: string) => T): T {
+  const base = sansNumero(lu, lequel);
+  try {
+    return rendre();
+  } catch (erreur) {
+    if (erreur instanceof Informe || estInforme(erreur) || reculInforme(erreur) || profilInforme(erreur) || apprentissageInforme(erreur)) return sinon(base, erreur.message);
+    throw erreur;
+  }
+}
 
 const refuser = (champ: string, attendu: string): never => {
   throw new Informe(`“${champ}” is not ${attendu}`);
@@ -606,7 +621,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
       rail: (Array.isArray(racine.rail) ? racine.rail : refuser("rail", "a list")).map((ticket: unknown, rang) => {
         const lequel = `rail[${rang}]`;
         const lu = objet(ticket, lequel);
-        return {
+        return sauf(lu, lequel, () => ({
           ticket: entier(lu.ticket, `${lequel}.ticket`),
           etat: texte(lu.etat, `${lequel}.etat`),
           titre: texte(lu.titre, `${lequel}.titre`),
@@ -617,7 +632,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
           ...(lu.revenu === undefined ? {} : { revenu: ouRien(lu.revenu, `${lequel}.revenu`, texte) }),
           ...(lu.raison === undefined ? {} : { raison: ouRien(lu.raison, `${lequel}.raison`, texte) }),
           ...(lu.captures === undefined ? {} : { captures: comprendreCaptures(lu.captures, `${lequel}.captures`) }),
-        };
+        }), ({ ticket, titre }, illisible) => ({ ticket, etat: ILLISIBLE_ETAT, titre, url: "", illisible }));
       }),
       ...(racine.cooks === undefined
         ? {}
@@ -634,10 +649,12 @@ export function comprendre(sortie: string): Faits | { informe: string } {
             attend: (Array.isArray(racine.attend) ? racine.attend : refuser("attend", "a list")).map((attendu: unknown, rang) => {
               const lequel = `attend[${rang}]`;
               const lu = objet(attendu, lequel);
+              return sauf<Attendu>(lu, lequel, () => {
               const decision = lu.decision === undefined ? undefined : (decisionLue(lu.decision) ?? refuser(`${lequel}.decision`, "a decision"));
               const livraison = lu.livraison === undefined ? undefined : livraisonLue(lu.livraison);
               const carte = lu.carte === undefined ? undefined : carteLue(lu.carte);
               return { ticket: entier(lu.ticket, `${lequel}.ticket`), titre: texte(lu.titre, `${lequel}.titre`), url: ouRien(lu.url, `${lequel}.url`, texte), ...(decision === undefined ? {} : { decision }), ...(livraison === undefined ? {} : { livraison }), ...(carte === undefined ? {} : { carte }) };
+              }, ({ ticket, titre }, illisible) => ({ ticket, titre, url: null, illisible }));
             }),
           }),
       ...(racine.livres === undefined
@@ -646,7 +663,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
             livres: (Array.isArray(racine.livres) ? racine.livres : refuser("livres", "a list")).map((livre: unknown, rang) => {
               const lequel = `livres[${rang}]`;
               const lu = objet(livre, lequel);
-              return {
+              return sauf<Livre>(lu, lequel, () => ({
                 ticket: entier(lu.ticket, `${lequel}.ticket`),
                 titre: texte(lu.titre, `${lequel}.titre`),
                 url: ouRien(lu.url, `${lequel}.url`, texte),
@@ -655,7 +672,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
                 pr: ouRien(lu.pr, `${lequel}.pr`, texte),
                 ...(lu.relecture === undefined ? {} : { relecture: ouRien(lu.relecture, `${lequel}.relecture`, comprendreRelecture) }),
                 ...(lu.captures === undefined ? {} : { captures: comprendreCaptures(lu.captures, `${lequel}.captures`) }),
-              };
+              }), ({ ticket, titre }, illisible) => ({ ticket, titre, url: null, livre: heure(racine.lu, "lu"), station: null, pr: null, illisible }));
             }),
           }),
       ...(racine.urgence === undefined ? {} : { urgence: ouRien(racine.urgence, "urgence", comprendreUrgence) }),
@@ -797,6 +814,7 @@ export const SANS_PRIO = "no prio";
 // jamais hors colonne. Un mot inconnu sans attente n'est d'aucune.
 function colonneDeFaits(connu: Faits["rail"][number] | undefined, etat: string | undefined): string | undefined {
   const parMot = (mot: string | undefined) => COLONNES_DE_FAITS.find(({ etats }) => (etats as readonly (string | undefined)[]).includes(mot))?.nom;
+  if (connu?.illisible !== undefined) return COLONNE_PAR_DEFAUT;
   if (connu?.attente == null) return parMot(etat);
   return parMot(connu.attente.colonne) ?? parMot(etat) ?? COLONNE_PAR_DEFAUT;
 }
@@ -936,7 +954,9 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
     });
     const retient = porte.dit.find(({ libelle }) => libelle === "blocked by")?.valeur;
     const ligne: LigneDeCarte =
-      dit !== undefined
+      connu?.illisible !== undefined || donne?.illisible !== undefined
+        ? ligneIllisible()
+        : dit !== undefined
         ? ligneQuiMAttend(attenduDe(donne?.decision).phrase)
         : connu?.attente != null
           ? ligneMiseDeCote(connu.attente.raison)
@@ -1043,13 +1063,13 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
   // rail s'il n'en a pas ; quand il a été livré, à l'horloge de la box ; qui l'a
   // cuisiné ; sa PR mergée ; ce qui a été livré, dans les mots de la relecture.
   // Ce que la file n'en dit pas est écrit.
-  const livre = ({ ticket, titre, url, livre: quand, station, pr, relecture, captures }: Livre): Carte => {
+  const livre = ({ ticket, titre, url, livre: quand, station, pr, relecture, captures, illisible }: Livre): Carte => {
     const connu = connus.get(ticket);
     const adresse = url ?? connu?.url;
     const nomme = titre === "" ? connu?.titre : titre;
     return {
       ticket,
-      ...ligneLivree(quand, relecture?.resume),
+      ...(illisible === undefined ? ligneLivree(quand, relecture?.resume) : ligneIllisible()),
       ...colore(TONS_DE_TICKET, "servi"),
       ...(nomme === undefined || nomme === "" ? {} : { titre: nomme }),
       ouvrable: adresse != null && ouvrable(adresse),
