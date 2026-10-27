@@ -60,7 +60,10 @@ kitchen`**, the very gesture at the top of the page: it opens the choice of the 
 hover, when the kitchen cannot move (a project not added from this app, no other station, a move under way). Each block
 says **whether the station is reached** — `reached` in green (the main station, whose kitchen the app reads; a station the
 main station says it reaches), `not reached` in grey, or `no word` in grey for a remote station nothing says anything of —,
-then its state, a word of `facts` (`cooking`, `stopped`, `saturated`, `refused`, #1183)
+**as the main station sees it** when `facts` says so (#1830, `presente`): a remote station that has not shown itself to the
+main station reads `absent` in grey (on hover: since when the main station has not heard from it), whatever the app reads
+of it on GitHub, and its state reads `not cooking` — never `reached · cooking`; once it has shown itself, `reached` (on
+hover, its last request) and `cooking`. Then its state, a word of `facts` (`cooking`, `stopped`, `saturated`, `refused`, #1183)
 and what it means (`by you, for 3 min · 1 cook finishing`, `its machine has no room`, the reason for a refusal),
 and, at the bottom of the block, **the cards of the tickets in flight on that station, and only those** — the very cards of
 the Rail kanban: a click (or Enter) opens the same sheet as the same card in Taken, its number opens the issue; a ticket
@@ -82,8 +85,10 @@ added from the app, where it is stuck — `not received by the station`, `waitin
 `refused`, `not reached` —, what you do about it on hover, `check again` (it rereads GitHub) and the authorization button
 it waits for. **In each block, what the station provides** (`Provides code raisonnement`, then `edit`, below) and **its
 cooks at once**: the cap its runtime gives, with `set the cap` (below); for a station whose runtime does not give it yet, the
-number it declares (`Cooks at once: 2`) and `set the cap`, which opens its form, in the block. A station the main station does
-not declare yet says `not declared on the main station yet`. On a narrow screen, the blocks are read-only: no `edit`, no
+number it declares (`Cooks at once: 2`) and `set the cap`, which opens its form, in the block. Without the declaration read, what it
+provides comes from `facts` (`fournit`, what the main station declares of it, #1830), with no `edit`; only a station the
+main station does not declare yet says `not declared on the main station yet`. An absent station says why: `not signed in
+yet`, or `silent since <time>`. On a narrow screen, the blocks are read-only: no `edit`, no
 `move the kitchen`, no `check again`. The block below, *what each station provides*, is no longer laid when the stations'
 blocks are: it is only the fallback while `facts` does not give the stations.
 **What each declared station provides** (#1509, epic #1506) — in its block since #1786, in a block of its own under the
@@ -1631,7 +1636,7 @@ station takes them from the first station, or from what the app asked before, or
 clone on this computer (its `origin`, and the branch its repository declares), and the calibration
 already requested. `Add <station> to the kitchen` with nothing touched adds it: its request carries its
 own cooks and its ticked capabilities (`fournit`), which the station declares in its own journal, never in
-the repository. The button is on the Cooks tab too (#1271): the same card, the same steps; once the request is written, the app re-reads the box at once, so the new station's block appears on the tab without reloading. **A value nobody says** — neither the first
+the repository. The button is on the Cooks tab too (#1271): the same card, the same steps; once the request is written, the app re-reads the box at once, so the new station's block appears on the tab without reloading. **It has the same effect as ticking the project on the station's page** (#1830): the station joins the kitchen that runs and takes the tickets it can cook — a ticket only that computer can cook leaves for it on its own; there is no second gesture (`runtime/src/projets/tenir.ts`, `rejoindre.ts`). **A value nobody says** — neither the first
 station nor the clone — is read in one sentence above the button; no field appears after the click.
 
 **The flow of a new project** (#1111), under that line, in place of the empty space: the four steps

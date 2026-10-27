@@ -8,8 +8,14 @@
 // Une station qui n'a ni l'une ni l'autre ne sert aucun projet de l'app, et le
 // dit au journal de service — de nouveau chaque heure tant que cela dure, pour
 // que le statut de son service le montre toujours.
+//
+// Un projet que le chef lui ajoute depuis la page du projet (« + station ») est
+// une ligne de la demande de son appairage qui ne la dit pas principale : elle
+// en rejoint la cuisine (`projets/rejoindre.ts`), sélection écrite ou non — la
+// sélection ne nomme que ce que sa page à elle coche (#1830).
 import type { Canal } from "../appairage/canal.ts";
 import { FICHIER_SELECTION, selectionLue } from "../enregistrement-station/contrat.ts";
+import type { ProjetDemande } from "../projets/demande.ts";
 import { demandeDeLAppairage, type DemandeLue } from "../projets/tenir.ts";
 import { lieuxDuProjet } from "../station/configuration.ts";
 import { baseDuClone, cooksDeLaMachine, demandeDeLaSelection } from "./selection.ts";
@@ -39,6 +45,12 @@ type Etat = { choisis: string[] } | "appairage" | "aucun";
 
 export const AUCUN_PROJET =
   "brigade : station — aucun projet n'est choisi pour elle dans l'app : elle n'en sert aucun. Coche ceux qu'elle doit servir dans l'app, connectée au même compte GitHub que cette machine";
+
+// Les projets ajoutés depuis la page d'un projet, dans ce que l'appairage
+// demande : ni principale, ni remise en cours — et pas déjà choisis.
+function ajoutesDepuisLeProjet(appairee: DemandeLue | null, choisis: readonly ProjetDemande[]): ProjetDemande[] {
+  return (appairee?.demande?.projets ?? []).filter((projet) => !projet.principale && (projet.remise ?? null) === null && !choisis.some(({ nom }) => nom === projet.nom));
+}
 
 export function sourceDesProjets(options: OptionsSource): () => Promise<DemandeLue | null> {
   const { racine, canal, env, dire } = options;
@@ -73,7 +85,10 @@ export function sourceDesProjets(options: OptionsSource): () => Promise<DemandeL
       // Illisible : `projets/tenir.ts` le dit, et n'en change rien.
       if (selection === null) return { gist, lus, fichier: FICHIER_SELECTION, brut, demande: null };
       signaler({ choisis: selection.repositories });
-      return { gist, lus, fichier: FICHIER_SELECTION, brut, demande: demandeDeLaSelection(selection, { cooks, base }) };
+      const demande = demandeDeLaSelection(selection, { cooks, base });
+      // GitHub en panne pour l'appairage : la sélection est servie, l'ajout attend la lecture suivante.
+      const ajoutes = ajoutesDepuisLeProjet(await appairage().catch(() => null), demande.projets);
+      return { gist, lus, fichier: FICHIER_SELECTION, brut, demande: ajoutes.length === 0 ? demande : { ...demande, projets: [...demande.projets, ...ajoutes] } };
     }
     const appairee = await appairage();
     if (appairee !== null) {

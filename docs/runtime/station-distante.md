@@ -254,6 +254,15 @@ sign of life (`CADENCE_DES_APPAIREES_MS`, `runtime/src/projets/secondaires.ts`).
   provides only what is detected there.
 - **It works through GitHub** like any second station (see above): it takes, renews and hands back
   through its gist, with the same rules. The main station keeps the manager and the pass.
+- **Adding it is the only gesture** (#1830). Whether the chef ticks the project on the station's own
+  page or adds the computer from the project's Cooks page ("+ station", a request line that does not
+  call it the main station), the station does the same thing: it joins the kitchen that runs
+  (`runtime/src/projets/rejoindre.ts`), publishes it in `brigade-cuisines-rejointes.json` of its paired
+  gist, and opens its claim loop (`runtime/src/tirer-par-github/cuisiner.ts`) — a ticket only it can
+  cook leaves for it at its first claim. A station that has a selection still reads, in its pairing
+  gist's request, the projects added from a project's page (`runtime/src/projets-station/source.ts`).
+  While no station serves the project yet, it opens no kitchen: it waits for its main station, and
+  joins it at the next reading.
 
 **What it says when it cannot cook yet.** A station installed from the app and cooking nothing yet says
 why in one short sentence, with the gesture to make, on its line of the home screen. The reasons are:

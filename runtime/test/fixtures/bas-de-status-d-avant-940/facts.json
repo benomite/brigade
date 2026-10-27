@@ -415,7 +415,12 @@
           "titre": "Ticket 23",
           "station": "box/claude"
         }
-      ]
+      ],
+      "fournit": [
+        "opus"
+      ],
+      "presente": true,
+      "vueLe": null
     }
   ]
 }

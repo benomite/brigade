@@ -4,13 +4,16 @@
 // prendraient le même ticket, ouvriraient deux PR et répondraient deux fois au
 // Kitchen board.
 //
-// Avant de rien préparer d'un projet dont l'app la dit principale — ni clone, ni
-// journal, ni décision, ni ligne —, la station regarde les stations appairées du
+// Avant de rien préparer d'un projet que l'app lui demande — qu'elle l'y dise
+// principale (une case cochée sur la page de la station) ou non (« + station »
+// sur la page du projet, #1830) : ni clone, ni journal, ni décision, ni ligne —,
+// la station regarde les stations appairées du
 // compte (`appairage/stations-du-chef.ts`, la lecture que `secondaires.ts` fait
 // déjà) : chacune publie, dans sa présence, les projets qu'elle sert et leur
 // dépôt. L'issue de l'ajout est l'une de trois :
 //   - `seule` : aucune autre station ne sert ce dépôt — elle en devient la
-//     principale, comme avant ;
+//     principale, comme avant ; une ligne qui ne la dit pas principale attend
+//     que la sienne le serve ;
 //   - `rejointe` : une autre station le sert et se lit en ligne — elle n'en
 //     ouvre pas la cuisine : elle publie dans son gist d'appairage
 //     (`FICHIER_REJOINTES`) qu'elle la rejoint, et la principale la déclare au

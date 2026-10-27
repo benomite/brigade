@@ -237,6 +237,25 @@ test("appairée par code et sans sélection, elle sert ce que l'app lui demande 
   assert.deepEqual(station.suivi()?.map(({ nom, etat }) => `${nom} ${etat}`), ["site servi"]);
 });
 
+test("sa sélection écrite, elle tient aussi les projets que le chef lui ajoute depuis la page d'un projet (« + station ») : la demande de son appairage les porte, sans la dire principale", async (t) => {
+  const station = uneStation(t, { appairee: true, declarent: ["acme/site"] });
+  station.choisir("acme/site");
+  const ajoute = { nom: "shop", depot: "acme/shop", base: null, principale: false, cooks: 2, fournit: ["macos"] };
+  // Une ligne principale de l'appairage reste ignorée : la sélection dit ce dont elle est la principale.
+  const autre = { nom: "blog", depot: "acme/blog", base: null, principale: true, cooks: 1 };
+  (station.gists[APPAIRAGE] as Fichiers)[FICHIER_PROJETS] = JSON.stringify({ brigade: "projets", format: 1, projets: [ajoute, autre] });
+  await station.projets.relire();
+  assert.equal(station.configuration(), `${DEBUT}\nsite acme/site\n${FIN}\n`);
+  assert.deepEqual(station.clones, ["acme/site"], "rien n'est cloné pour le projet ajouté : elle n'en ouvre pas la cuisine");
+  // Aucune station ne le sert encore ici : elle attend sa principale (`projets/rejoindre.ts`).
+  assert.deepEqual(station.suivi()?.map(({ nom, etat }) => `${nom} ${etat}`), ["site servi", "shop secondaire"]);
+
+  // Coché aussi sur sa page : la sélection le porte, une seule fois.
+  station.choisir("acme/site", "acme/shop");
+  await station.projets.relire();
+  assert.deepEqual(station.suivi()?.map(({ nom }) => nom), ["site", "shop"]);
+});
+
 test("deux dépôts choisis du même nom : le premier est servi, l'autre est dit une fois", async (t) => {
   const station = uneStation(t, { declarent: ["acme/site"] });
   station.choisir("acme/site", "autre/site");

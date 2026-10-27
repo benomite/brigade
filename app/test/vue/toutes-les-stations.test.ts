@@ -22,6 +22,7 @@ import type { Panne } from "../../src/pannes/pannes.ts";
 import { calibrageRecommande, EFFORTS, machineProposee, MODELES, type ProjetVu, type VuDesProjets } from "../../src/projets/projets.ts";
 import { lireStations, type Guide, type StationsLues } from "../../src/service.ts";
 import type { VuDesStations } from "../../src/stations/stations.ts";
+import { ABSENTE } from "../../src/cuisson.ts";
 import { ATTEINTE, CHANGER_LA_PRINCIPALE, FOURNIT_PAS_DIT, PAS_ANNONCEE, POSER_LE_PLAFOND, RELIRE, ROLES, stationsDuBloc } from "../../src/vue/stations-de-cuisson.js";
 import { TITRE as TITRE_DES_DECLAREES } from "../../src/vue/stations-declarees.js";
 import { type Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../aides/fausse-vue.ts";
@@ -113,8 +114,8 @@ const demarrage = (vu: VuDesProjets) => () => ({
   projetsDesStations: vu,
 });
 
-async function ouvrir(vu: VuDesProjets = vuDes(SUR_LA_BOX), stations: DuRuntime[] = STATIONS_DES_FAITS): Promise<Jouee> {
-  const vue = await jouerLaVue({ demarrage: demarrage(vu), espace: () => [], service: () => guide(DECLAREES), defautsDeStation: () => ({ refus: "pas ici" }) });
+async function ouvrir(vu: VuDesProjets = vuDes(SUR_LA_BOX), stations: DuRuntime[] = STATIONS_DES_FAITS, declarees: StationsLues = DECLAREES): Promise<Jouee> {
+  const vue = await jouerLaVue({ demarrage: demarrage(vu), espace: () => [], service: () => guide(declarees), defautsDeStation: () => ({ refus: "pas ici" }) });
   (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
   await repos();
   const recue = tenirFaits().recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify({ ...FAITS, stations }) }] });
@@ -192,6 +193,48 @@ describe("« Its stations » liste toutes les stations du projet (#1786)", () =>
     await repos();
     const champ = ligne(vue, "macbook/claude").dessous("input").find(({ ariaLabel }) => ariaLabel === "how many cooks macbook/claude runs at once") ?? assert.fail("pas de formulaire ouvert dans la ligne");
     assert.equal(champ.value, "2");
+  });
+});
+
+describe("« Its stations » dit chaque station telle que la principale la voit (#1830)", () => {
+  // mirrorscreen : la box déclare le Mac — distante+ensemble, macos, un navigateur — mais il ne s'est jamais manifesté à
+  // elle ; l'app, elle, le lit en ligne sur GitHub. Aucune déclaration lue par `installation stations --json`.
+  const SANS_DECLARATION = lireStations(JSON.stringify({ etape: { id: "stations", etat: "faite" }, proposees: [], absent: null, declarees: [] })) ?? assert.fail("la forme de `installation stations --json` n'est plus lue");
+  const LA_BOX = station("box/claude", { cooks: [COOK_14], fournit: ["code", "raisonnement"], presente: true, vueLe: null });
+  const LE_MAC = station("macbook/claude", { distante: true, ensemble: true, fournit: ["code", "raisonnement", "navigateur-headless", "macos"], presente: false, vueLe: null });
+  const pilule = (pose: Faux) => pose.dessous("span").find(({ className }) => className === "pilule")?.textContent;
+
+  test("absent pour la box, le Mac se lit « absent · not cooking » — jamais « reached · cooking », même en ligne sur GitHub —, et ce que chacune fournit vient de la box", async () => {
+    const vue = await ouvrir(vuDes(SUR_LA_BOX), [LA_BOX, LE_MAC], SANS_DECLARATION);
+    const mac = ligne(vue, "macbook/claude");
+    assert.deepEqual([atteinte(mac)?.textContent, atteinte(mac)?.dataset.ton, pilule(mac)], [ATTEINTE.absente, "gris", ABSENTE.etat]);
+    assert.match(atteinte(mac)?.title ?? "", /the main station has never heard from it/);
+    assert.equal(retenue(mac)?.textContent, PAS_ANNONCEE.pourquoi);
+    // Son geste reste : l'arrêter avant qu'il ne vienne.
+    assert.ok(mac.dessous("button").some(({ ariaLabel }) => ariaLabel === "stop cooking on macbook/claude"));
+    // La box, elle, est atteinte et cuit.
+    const box = ligne(vue, "box/claude");
+    assert.deepEqual([atteinte(box)?.textContent, pilule(box)], [ATTEINTE.oui, "cooking"]);
+    // Ce que chacune fournit : ce que la box déclare d'elle, lu dans `facts` — sans « edit », faute de déclaration lue.
+    assert.deepEqual([fournit(box)?.textContent, fournit(mac)?.textContent], ["Providescoderaisonnement", "Providescoderaisonnementnavigateur-headlessmacos"]);
+    // Le PC, que la box ne déclare pas, n'a rien dit.
+    assert.equal(fournit(ligne(vue, "pc"))?.textContent, `Provides${FOURNIT_PAS_DIT}`);
+  });
+
+  test("le Mac se manifeste à la box : il se lit atteint et cuit, sa dernière demande au survol, et ne dit plus pourquoi il ne cuit pas ; tu depuis, il le redit", async () => {
+    const vue = await ouvrir(vuDes(SUR_LA_BOX), [LA_BOX, { ...LE_MAC, presente: true, vueLe: "2026-10-27T10:03:00.000Z" }], SANS_DECLARATION);
+    const mac = ligne(vue, "macbook/claude");
+    assert.deepEqual([atteinte(mac)?.textContent, atteinte(mac)?.dataset.ton, pilule(mac)], [ATTEINTE.oui, "vert", "cooking"]);
+    assert.match(atteinte(mac)?.title ?? "", /its last request: 2026-10-27T10:03:00.000Z/);
+    assert.equal(retenue(mac), undefined);
+
+    const recue = tenirFaits().recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify({ ...FAITS, stations: [LA_BOX, { ...LE_MAC, vueLe: "2026-10-27T10:03:00.000Z" }] }) }] });
+    vue.dire("surFaits", { ...recue, demande: vue.dernier("faits")[0] as number });
+    await repos();
+    const tu = ligne(vue, "macbook/claude");
+    assert.deepEqual([atteinte(tu)?.textContent, pilule(tu)], [ATTEINTE.absente, ABSENTE.etat]);
+    assert.match(atteinte(tu)?.title ?? "", /has not heard from it since 2026-10-27T10:03:00.000Z/);
+    assert.equal(retenue(tu)?.textContent, "silent since 2026-10-27T10:03:00.000Z");
   });
 });
 

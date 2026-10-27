@@ -7,6 +7,8 @@
 // tourne. Arrêter ne coupe aucun cook : ceux qui tournent finissent, livrent ou rendent leur ticket au rail.
 // Ce qui demande un geste au chef — une station saturée, ou qui refuse le projet — tient en une ligne, que
 // l'onglet Rail pose avec de quoi ouvrir Cooks.
+// Une station distante que la principale ne voit pas (`presente`, #1830) ne cuit pas, quel que soit son mot : elle ne
+// prend aucun ticket tant qu'elle ne s'est pas manifestée. Sa ligne le dit — « not cooking » —, jamais « cooking ».
 import type { Lu, Rendu } from "./box.ts";
 import { duree, type Cook } from "./faits.ts";
 import type { StationDesFaits } from "./ordinaires.ts";
@@ -26,8 +28,9 @@ export const GESTES_DE_CUISSON: readonly GesteDeCuisson[] = ["start", "stop"];
 
 // Une station sur l'onglet Cooks : son nom ; distante ou de la box ; son mot, sa couleur ; ce qu'il veut dire
 // en quelques mots, et au survol ; ses cooks en cours ; le geste que son bouton fait — aucun quand ce n'est
-// pas d'elle que vient l'arrêt, qu'elle refuse le projet, ou que son runtime ne dit pas son état.
-export type LigneDeStation = { station: string; distante: boolean; etat: string; ton?: string; dit: string; survol: string; cooks: Cook[]; geste: GesteDeCuisson | null };
+// pas d'elle que vient l'arrêt, qu'elle refuse le projet, ou que son runtime ne dit pas son état. Et ce que la principale
+// sait d'elle, quand son runtime le dit : ce qu'elle fournit, si elle la voit, sa dernière demande.
+export type LigneDeStation = { station: string; distante: boolean; etat: string; ton?: string; dit: string; survol: string; cooks: Cook[]; geste: GesteDeCuisson | null; fournit?: string[]; presente?: boolean; vueLe?: string | null };
 // `alerte` : ce qui demande un geste au chef du côté des cooks, en une ligne — nulle quand rien ne le demande.
 export type CuissonDuProjet = { lignes: LigneDeStation[]; alerte: string | null };
 
@@ -36,13 +39,24 @@ const PAS_DIT_SURVOL = "this station's runtime does not say yet what it does wit
 
 const cooksDit = (nombre: number) => `${nombre} cook${nombre > 1 ? "s" : ""}`;
 
+// Le mot d'une station distante que la principale ne voit pas, à la place de « cooking ».
+export const ABSENTE = { etat: "not cooking", survol: "the main station does not see it: it takes no ticket until it shows itself — the tickets only it can cook wait for it, the others leave" };
+
 function ligneDe(station: StationDesFaits, cooks: readonly Cook[], lu: string): LigneDeStation {
   const siens = station.cooks ?? cooks.filter((cook) => cook.station === station.station);
-  const base = { station: station.station, distante: station.distante, cooks: siens };
+  const base = {
+    station: station.station,
+    distante: station.distante,
+    cooks: siens,
+    ...(station.fournit === undefined ? {} : { fournit: station.fournit }),
+    ...(station.presente === undefined ? {} : { presente: station.presente }),
+    ...(station.vueLe === undefined ? {} : { vueLe: station.vueLe }),
+  };
   const etat = station.cuisson;
   if (etat === undefined) return { ...base, etat: PAS_DIT, dit: "", survol: PAS_DIT_SURVOL, geste: null };
   const ton = TONS.get(etat);
   const colore = ton === undefined ? {} : { ton };
+  if (etat === "cooking" && station.distante && station.presente === false) return { ...base, ...ABSENTE, ton: "gris", dit: "", geste: "stop" };
   if (etat === "cooking") return { ...base, etat, ...colore, dit: "", survol: "it takes the project's tickets", geste: "stop" };
   if (etat === "saturated") return { ...base, etat, ...colore, dit: "its machine has no room", survol: "its machine has no room left: it takes no ticket until it has, its running cooks go on", geste: "stop" };
   if (etat === "refused") {
