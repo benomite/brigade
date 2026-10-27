@@ -50,7 +50,7 @@ import { arreteeDepuis, cookDeRun, cooksEnCoursDeStation, direDeconnexionEn, dir
 import { avecHorsZoneEn, BLOQUE, BLOQUE_EN, direRetenueEn, EN_WAITING, etatLu, etatLuEn, nomEtat, nomEtatEn } from "./rail.ts";
 import { PAR_LE_CHEF } from "./events/rail.ts";
 import { direAttenteDeTiersEn } from "./attente.ts";
-import { direMiseDeCote } from "./mise-de-cote.ts";
+import { attenteDUneStation, direMiseDeCote } from "./mise-de-cote.ts";
 import { GESTE_DE_STATION_A_CHAUD_EN } from "./stations-declarees.ts";
 import { prendLesOrdinaires } from "./bac-a-sable/ordinaires.ts";
 import type { Refus } from "./projets/refus.ts";
@@ -798,7 +798,10 @@ export type Faits = {
   // `tiers` : pour un ticket en WAITING, ce qu'il attend d'un tiers — `quoi`
   // dans les mots du chef, `qui`, `depuis` (sa mise en attente), `relance` (quand
   // y revenir) et `aLArrivee` (ce que « c'est arrivé » fera de lui) ; nul pour
-  // tout autre ticket ; `revenu` — pour un ticket revenu de WAITING dans TODO,
+  // tout autre ticket. Un ticket mis de côté faute de station y est aussi (1752) :
+  // son attente est une action que le chef ne fait pas par un bouton, brancher une
+  // station ; `relance` est nulle — personne ne l'a posé, rien à reprendre ni à
+  // renvoyer —, et `aLArrivee` dit qu'il repart seul ; `revenu` — pour un ticket revenu de WAITING dans TODO,
   // pourquoi, dans les mots du runtime (« relance du 21/10 : pas de réponse »,
   // « nouveau sur l'issue — de <qui> ») ; `null` pour tout autre, et pour celui que
   // le chef a repris lui-même. `captures` : pour un ticket d'interface en pass
@@ -811,7 +814,7 @@ export type Faits = {
     url: string;
     activite: ActiviteDeTicket | null;
     attente: { raison: string; colonne: string; retour: string | null } | null;
-    tiers: { quoi: string; qui: string; depuis: string; relance: string; aLArrivee: string } | null;
+    tiers: { quoi: string; qui: string; depuis: string; relance: string | null; aLArrivee: string } | null;
     revenu: string | null;
     // Pour le ticket en tête de la file seulement, s'il ne part pas : pourquoi
     // (`zone held by #12 (src)`, `machine saturated`). Nul pour tout autre, et
@@ -1013,18 +1016,27 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limit
       livres24h: etat.livres.length,
     },
     dernierEvenement: dernier ? { seq: dernier.seq, at: dernier.at, type: dernier.type, ticket: dernier.ticket } : null,
-    rail: etat.rail.map((ticket) => ({
-      ticket: ticket.ticket,
-      etat: etatLu(ticket),
-      titre: ticket.title,
-      url: ticket.url,
-      activite: etat.activites.get(ticket.ticket) ?? null,
-      attente: ticket.state === "86" ? { raison: direMiseDeCote(ticket.reason), colonne: etatLu(ticket), retour: ticket.until } : null,
-      tiers: ticket.waitingFor === null ? null : { quoi: ticket.waitingFor.what, qui: ticket.waitingFor.who, depuis: ticket.waitingFor.since, relance: ticket.waitingFor.followUp, aLArrivee: ticket.waitingFor.onArrival },
-      revenu: ticket.resumedBecause === null || ticket.resumedBecause === PAR_LE_CHEF ? null : ticket.resumedBecause,
-      raison: raisonDeTete(etat, ticket),
-      ...(ticket.state === "pass" || ticket.state === "served" ? captures(ticket.ticket) : {}),
-    })),
+    rail: etat.rail.map((ticket) => {
+      // Sans station, le ticket se lit en WAITING : ce qu'il attend est une action que le chef ne fait pas par un bouton.
+      const faute = ticket.state === "86" && ticket.waitingFor === null ? attenteDUneStation(ticket.reason) : null;
+      return {
+        ticket: ticket.ticket,
+        etat: faute === null ? etatLu(ticket) : EN_WAITING,
+        titre: ticket.title,
+        url: ticket.url,
+        activite: etat.activites.get(ticket.ticket) ?? null,
+        attente: ticket.state === "86" ? { raison: direMiseDeCote(ticket.reason), colonne: faute === null ? etatLu(ticket) : EN_WAITING, retour: ticket.until } : null,
+        tiers:
+          faute !== null
+            ? { ...faute, depuis: ticket.since, relance: null }
+            : ticket.waitingFor === null
+              ? null
+              : { quoi: ticket.waitingFor.what, qui: ticket.waitingFor.who, depuis: ticket.waitingFor.since, relance: ticket.waitingFor.followUp, aLArrivee: ticket.waitingFor.onArrival },
+        revenu: ticket.resumedBecause === null || ticket.resumedBecause === PAR_LE_CHEF ? null : ticket.resumedBecause,
+        raison: raisonDeTete(etat, ticket),
+        ...(ticket.state === "pass" || ticket.state === "served" ? captures(ticket.ticket) : {}),
+      };
+    }),
     // Une station ne lance un cook que pour un ticket.
     cooks: etat.auxFourneaux.flatMap(({ station, ticket }) =>
       ticket === null ? [] : [{ ticket, titre: titreDe(ticket), station }],

@@ -209,8 +209,9 @@ export type Attente = { raison: string; colonne: string; retour: string | null }
 
 // Ce qu'un ticket en WAITING attend d'un tiers, comme le runtime le donne : `quoi`, dans
 // les mots du chef ; `qui` ; `depuis`, sa mise en attente, et `relance`, quand y revenir,
-// à l'horloge de la box ; `aLArrivee`, ce que « c'est arrivé » fera de lui, en clair.
-export type Tiers = { quoi: string; qui: string; depuis: string; relance: string; aLArrivee: string };
+// à l'horloge de la box ; `aLArrivee`, ce que « c'est arrivé » fera de lui, en clair. Un ticket mis de côté faute de
+// station y est aussi : le chef n'a posé aucune attente, donc `relance` est nulle et la carte n'a rien à reprendre.
+export type Tiers = { quoi: string; qui: string; depuis: string; relance: string | null; aLArrivee: string };
 
 // Une décision du chef qui retient toute la cuisine, comme le runtime la donne
 // (runtime/src/etat.ts, `DecisionUrgente`) : `decision`, ce qui la nomme en tête
@@ -556,7 +557,7 @@ function comprendreTiers(brut: unknown, lequel: string): Tiers {
     quoi: texte(lu.quoi, `${lequel}.quoi`),
     qui: texte(lu.qui, `${lequel}.qui`),
     depuis: heure(lu.depuis, `${lequel}.depuis`),
-    relance: heure(lu.relance, `${lequel}.relance`),
+    relance: ouRien(lu.relance, `${lequel}.relance`, heure),
     aLArrivee: texte(lu.aLArrivee, `${lequel}.aLArrivee`),
   };
 }
@@ -1012,10 +1013,10 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
   const enAttente = (ticket: number): Carte => {
     const connu = connus.get(ticket) as Faits["rail"][number];
     const { tiers, url, titre } = connu;
-    const relance = tiers == null ? 0 : Date.parse(tiers.relance) - Date.parse(faits.lu);
+    const relance = tiers?.relance == null ? 0 : Date.parse(tiers.relance) - Date.parse(faits.lu);
     return {
       ticket,
-      ...ligneEnWaiting(tiers, relance < 0),
+      ...ligneEnWaiting(tiers, tiers?.relance != null && relance < 0),
       ...colore(TONS_DE_TICKET, connu.etat),
       ...(titre === "" ? {} : { titre }),
       ouvrable: ouvrable(url),
@@ -1028,12 +1029,13 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
               { libelle: "waiting for", valeur: tiers.quoi },
               { libelle: "from", valeur: tiers.qui },
               { libelle: "since", valeur: `${instant(tiers.depuis)} — ${avant(tiers.depuis, faits.lu)}` },
-              { libelle: "follow-up", valeur: `${instant(tiers.relance)} — ${relance >= 0 ? `in ${duree(relance)} from the reading` : `passed ${duree(-relance)} before the reading`}` },
+              ...(tiers.relance == null ? [] : [{ libelle: "follow-up", valeur: `${instant(tiers.relance)} — ${relance >= 0 ? `in ${duree(relance)} from the reading` : `passed ${duree(-relance)} before the reading`}` }]),
               { libelle: "on arrival", valeur: tiers.aLArrivee },
             ],
       ...(tiers == null ? { sans: TIERS_PAS_DONNE } : {}),
       fiche: entete({ titre, url, ...sur(connu), ...(lignes === undefined ? {} : { lignes: lignes.get(ticket) ?? [] }) }),
-      gestes: ["attente-reprendre", "attente-arrivee"],
+      // Sans relance, personne n'a posé l'attente : rien à reprendre ni à renvoyer, le ticket repart seul.
+      ...(tiers?.relance === null ? {} : { gestes: ["attente-reprendre" as const, "attente-arrivee" as const] }),
     };
   };
 

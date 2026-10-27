@@ -182,6 +182,21 @@ describe("le rail en TODO et WAITING", () => {
     assert.match(muette?.sans ?? "", /^not given — this station's runtime does not give in `facts` what it waits for/);
   });
 
+  // Un ticket mis de côté faute de station (1752) : le chef n'a posé aucune attente, le runtime la lit pour lui.
+  test("une carte de WAITING sans relance — un ticket sans station — dit ce qu'elle attend, sans relance ni geste : elle repart seule", () => {
+    const SANS_STATION = { quoi: "a station that provides chrome-connecté — attach one to the project", qui: "a human, the chef", depuis: "2026-10-12T10:04:20.000Z", relance: null, aLArrivee: "the ticket goes back on the rail by itself once a station provides it" };
+    const faits = { ...FAITS, rail: [ticket(22, "WAITING", { attente: { raison: "attend : un humain — aucune station ne fournit chrome-connecté", colonne: "WAITING", retour: null }, tiers: SANS_STATION })], attend: [] };
+    const [carte] = rail(faits).colonnes[4]?.cartes ?? [];
+    assert.deepEqual(carte?.dit?.map(({ libelle }) => libelle), ["waiting for", "from", "since", "on arrival"]);
+    assert.equal(carte?.ligne, "waiting for a station that provides chrome-connecté — attach one to the project · from a human, the chef");
+    assert.equal(carte?.gestes, undefined);
+    assert.equal(carte?.signal, undefined);
+    // La forme lit une relance nulle, et refuse celle qui n'est ni nulle ni une heure.
+    const lu = comprendre(JSON.stringify({ ...faits, rail: [{ ...faits.rail[0] }] }));
+    assert.ok(!("informe" in lu) && lu.rail[0]?.tiers?.relance === null);
+    assert.deepEqual(comprendre(JSON.stringify({ ...faits, rail: [{ ...faits.rail[0], tiers: { ...SANS_STATION, relance: 3 } }] })), { informe: "“rail[0].tiers.relance” is not a time" });
+  });
+
   test("« waiting for… » est sur une carte de TODO que le runtime laisse attendre — pas sur un ticket en pass, ni hors du rail, ni hors de TODO", () => {
     const todo = rail({ ...FAITS, attend: [...(FAITS.attend ?? []), { ticket: 99, titre: "", url: null }] }).colonnes[3]?.cartes ?? [];
     assert.deepEqual(
