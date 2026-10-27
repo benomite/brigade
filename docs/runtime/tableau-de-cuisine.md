@@ -41,7 +41,7 @@ The code is `runtime/src/tableau/`: `rendu/donnees.ts` builds the board from the
 | `file` | What awaits the chef, oldest first — one entry per line of the `awaiting` block of `status` (below) |
 | `bilans` | What the `awaiting` block says that is not a decision: the pause, the kitchen idle because the rest of the rail needs a human (`kitchen idle — …`, #1751: tickets set aside `no-station` and those held behind them, with the gesture — see `etat-et-mesures.md`), the no-grant summary, the version passed |
 | `cuisine` | The kitchen's state (below) |
-| `gestes` | The chef's latest gestures read under the board, oldest first; absent from a block written without them. An `ask` that was played carries `demande`: the request for the second, word for word ([`../tableau-gestes.md`](../tableau-gestes.md)) |
+| `gestes` | The chef's latest gestures read under the board, oldest first; absent from a block written without them. An `ask` that was played carries `demande`: the request for the second, word for word; when the box holds the project's second, also `second`: its answer, or why there is none ([`../tableau-gestes.md`](../tableau-gestes.md), "The second's answer") |
 | `faits` | **The rail view's facts** (#1693): the object of `facts`, see below |
 | `lignesDuRail` | **Each rail ticket's line of `status`** (#1693), see below |
 | `fileDeStatus` | **The project's queue, for the second** (#1843): the `awaiting` block of `status`, word for word, one line per entry, from its head line to `end awaiting`, both included — see below; absent from a block written before it |

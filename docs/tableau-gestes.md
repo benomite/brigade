@@ -24,7 +24,7 @@ word after it, then the ticket number. The `#` before the number is optional.
 | pick a card's choice | `/brigade choose #<ticket> <choice number>` | `rail choose <ticket> <n>`: the card's choice `n`, counted from 1 |
 | it arrived, back to the kitchen | `/brigade arrived #<ticket>` | no local gesture: the ticket leaves WAITING (or TODO, when it came back from WAITING) and goes back on the rail, queued, without going through TODO |
 | comment on a card's issue | `/brigade comment #<ticket> <comment>` | `pass <ticket> comment <comment>`: posts the comment on the ticket's issue, word for word, under the box's own `gh` account — the chef's, never a role's App |
-| ask the second | `/brigade ask #<ticket> [context]` | `pass <ticket> ask [context]`: composes the request for the second about the issue, with the context if any. Nothing is posted on the issue: the request is in the reply and in the board's machine block (`demande`, below), and the app writes it into the second, without Enter |
+| ask the second | `/brigade ask #<ticket> [context]` | `pass <ticket> ask [context]`: composes the request for the second about the issue, with the context if any. Nothing is posted on the issue: the request is in the reply and in the board's machine block (`demande`, below). When the box holds the project's second (`BRIGADE_SECOND_DIR`, see "The second's answer"), the request goes into the second's conversation, and its answer is posted under the gesture; otherwise the app writes the request into the second it holds, without Enter |
 | answer a proposed correction | `/brigade correction <yes \| no> <proposal>` | no local gesture: "yes" accepts the correction of the project's guidance, which leaves as a PR through the pass; "no" takes it out of the queue (`runtime/src/correctif/decision.ts`) |
 | answer a proposed cook profile | `/brigade profile <yes \| no> <proposal>` | no local gesture: "yes" writes the profile's definition in the project's clone on the box; "no" takes it out of the queue (`runtime/src/profils/decision.ts`) |
 
@@ -162,6 +162,25 @@ comment, and never starts with `/brigade`:
 If GitHub refuses the reply, the gesture is not played again. The box posts the reply again on the
 next pass, and says so once in its log.
 
+## The second's answer
+
+A box holds the project's second when the project's line on the station (or the runtime's
+environment) names the folder where the second runs, `BRIGADE_SECOND_DIR` — the one the paired
+phone already talks to (`runtime/src/telephone/second.ts`). There, an `ask` reaches the second
+itself (`runtime/src/tableau/gestes/second.ts`): the request is sent by `claude --continue -p` in
+that folder, so it joins the second's own conversation, the one the desktop and the phone read. Its
+answer can take minutes: the box does not wait for it. Its reply to the gesture says the request was
+sent; when the second has answered, the box posts a second comment under the gesture:
+
+- `**The second's answer** — [ask #123](…):` then, after a blank line, the answer as the second wrote
+  it, in markdown — with no mention of anyone;
+- `**The second did not answer** — [ask #123](…): …`, one line, when it could not be reached, failed
+  or did not answer within 15 minutes.
+
+The answer is written to the log (`board.second`) and carried by the board's machine block
+(`second`, below). If GitHub refuses the comment, the box posts it again on the next pass. One
+request at a time: the next one waits for the second's answer.
+
 ## Once, and only once
 
 Each gesture read is written to the log (`board.gesture`), under the GitHub id of its comment. That
@@ -179,6 +198,9 @@ time on GitHub), `geste` and `ticket` (null for a gesture not understood; `ticke
 `correction` and `profile`), `etat` (`pris`: run;
 `refuse`: refused or not understood), `traiteLe` (when the box read it) and `reponse` (the line it
 answered). An `ask` that was played also has `demande`: the request for the second, word for word, the
-one the app writes into the second. A gesture read makes the box rewrite the board at once, so an app sees it taken into
+one the app writes into the second. When the box holds the second, it also has `second`: `etat`
+`attendu` (the second is still answering), `repondu` with `reponse` (its answer, cut after 2,000
+characters, `coupee` saying so — the whole answer is in the comment under the gesture), or `echec`
+with `raison`. A gesture read makes the box rewrite the board at once, so an app sees it taken into
 account at the box's next read, within the minute. A block written before this field has no
 `gestes`.
