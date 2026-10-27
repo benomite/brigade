@@ -218,6 +218,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
       repertoireEtat,
       repoDir: station.clone,
       github: ouvrirGitHub({ depot: rail.depot, bin: rail.gh, usage: "geste", projet, ...(roles ? { jeton: roles.jeton("pass").frais, identite: () => roles.login("pass"), compte: "pass" } : {}) }),
+      // Le commentaire du chef sur une issue part sous le `gh` de la box, le sien.
+      githubDuChef: ouvrirGitHub({ depot: rail.depot, bin: rail.gh, usage: "geste", projet }),
       avertir: dire,
     });
     const mentions = mentionsDuTableau({ client: clientDesGestes, journal: connectee.journal, projet, avertir: dire });

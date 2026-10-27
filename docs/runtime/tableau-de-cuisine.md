@@ -41,9 +41,10 @@ The code is `runtime/src/tableau/`: `rendu/donnees.ts` builds the board from the
 | `file` | What awaits the chef, oldest first — one entry per line of the `awaiting` block of `status` (below) |
 | `bilans` | What the `awaiting` block says that is not a decision: the pause, the kitchen idle because the rest of the rail needs a human (`kitchen idle — …`, #1751: tickets set aside `no-station` and those held behind them, with the gesture — see `etat-et-mesures.md`), the no-grant summary, the version passed |
 | `cuisine` | The kitchen's state (below) |
-| `gestes` | The chef's latest gestures read under the board, oldest first; absent from a block written without them |
+| `gestes` | The chef's latest gestures read under the board, oldest first; absent from a block written without them. An `ask` that was played carries `demande`: the request for the second, word for word ([`../tableau-gestes.md`](../tableau-gestes.md)) |
 | `faits` | **The rail view's facts** (#1693): the object of `facts`, see below |
 | `lignesDuRail` | **Each rail ticket's line of `status`** (#1693), see below |
+| `fileDeStatus` | **The project's queue, for the second** (#1843): the `awaiting` block of `status`, word for word, one line per entry, from its head line to `end awaiting`, both included — see below; absent from a block written before it |
 | `distantes` | **What the box lent the remote stations, and its answers to the requests they made through GitHub** (#1793), see below; absent when no remote station holds a ticket or asked anything |
 | `resserre` | What the body had to remove from the block to fit in an issue, see below; absent when nothing was |
 
@@ -115,6 +116,18 @@ One entry per rail ticket, in the rail's order:
 
 Placed under a `rail` line, these lines are the `rail` block of `status`: an app that already reads
 that block for its cards (`app/src/bon.ts`) reads them unchanged.
+
+### `fileDeStatus` — the queue the second reads at opening
+
+The second reads the project's queue at the start of its session and after a compaction. It reads it
+from the board, with no ssh to the box: `laFileDuSecond(body)` in `runtime/src/tableau/rendu/bloc.ts`
+(which imports nothing) gives `{ lue: true, lu, texte }`. `texte` is the `awaiting` block of `status`
+word for word, edges included, then a blank line, then the kitchen's state of `cuisine.rubriques` in
+the form of `status` (the title on eleven columns, the following lines indented). `lu` is when the
+state was read: the durations in the lines count up to it. A body that cannot be read gives
+`{ lue: false, raison }`, one sentence. A block from a box older than this field is not read as an
+empty queue: the sentence says to update the box. `fileDeStatus` is never removed from a body that is
+too long.
 
 ### `distantes` — the main station's arbitration, for a second station with no ssh
 
