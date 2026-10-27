@@ -24,14 +24,13 @@ import { boutonDeLaPage, connexionDite, gestes, phraseEtDetail } from "./premier
 /** @typedef {import("./premier-lancement.js").EtatDuPremier["connexion"]} Connexion */
 
 // Ce que la vue tient du bloc. `stations` : absentes, leur lecture est en route. `depots` : les dépôts du chef, lus à
-// l'ouverture d'une première station. `ouverte` : la station dont les cases se montrent. `envoi` : la station dont la
+// l'ouverture de la page d'une station enregistrée. `envoi` : la station dont la
 // sélection s'écrit — ses cases attendent. `refus` : pourquoi la dernière écriture n'a pas eu lieu. `copiee` : la
 // commande d'installation que le bouton vient de copier. `connexion` : la connexion à GitHub lancée.
 /**
  * @typedef {{
  *   stations?: StationsDuCompte,
  *   depots?: { depots: DepotDuChef[] } | { refus: string },
- *   ouverte?: string,
  *   envoi?: string,
  *   refus?: { id: string, refus: string, detail?: string },
  *   copiee?: string,
@@ -40,8 +39,7 @@ import { boutonDeLaPage, connexionDite, gestes, phraseEtDetail } from "./premier
  */
 /**
  * @typedef {{
- *   ouvrir: (id: string) => void,
- *   fermer: () => void,
+ *   ouvrirLaStation: (id: string) => void,
  *   choisir: (id: string, depots: string[]) => void,
  *   relire: () => void,
  *   seConnecter: () => void,
@@ -60,8 +58,6 @@ export const COPIEE = "copied";
 export const EN_LIGNE = "online";
 export const HORS_LIGNE = "offline";
 export const PROJETS = "Projects it serves";
-// Le bouton à côté de la ligne d'une machine appairée et enregistrée, qui ouvre ses cases sous elle.
-export const CHOISIR_SES_PROJETS = "choose projects";
 export const LECTURE_DES_DEPOTS = "reading your repositories on GitHub…";
 export const DEPOTS_ILLISIBLES = "your repositories could not be read";
 export const SANS_DEPOT = "no repository on your GitHub account";
@@ -199,31 +195,33 @@ function pastilleDe(doc, disponible) {
 /** @param {string} instant */
 const vueDit = (instant) => `last sign of life ${instant.slice(0, 16).replace("T", " ")} UTC`;
 
-// La ligne d'une station : toute la ligne est le bouton qui l'ouvre, comme une ligne de l'accueil (vue.js,
-// `ligneDAccueil`) ; elle dit, comme elle, en ligne ou non, puis les projets qu'elle sert. Sa plateforme, sa machine, sa
-// version et son dernier signe de vie sont au survol.
-/** @param {Fabrique} doc @param {StationEnregistree} station @param {boolean} ouverte @param {GestesDuCompte} geste */
-function ligneDe(doc, station, ouverte, geste) {
+// Ce que la plateforme, la machine, la version et le dernier signe de vie d'une station disent d'elle, au survol.
+/** @param {StationEnregistree} station */
+export const detailsDe = (station) => [plateformeDite(station.platform), station.machine, `version ${station.version}`, vueDit(station.lastSeen)].filter((morceau) => morceau !== "").join(" · ");
+
+// La ligne d'une station : toute la ligne est le bouton qui ouvre sa page, comme une ligne de l'accueil (vue.js,
+// `ligneDAccueil`), avec la même flèche ; elle dit, comme elle, en ligne ou non, puis les projets qu'elle sert. Ses
+// détails sont au survol ; ses cases à cocher sont sur sa page.
+/** @param {Fabrique} doc @param {StationEnregistree} station @param {GestesDuCompte} geste */
+function ligneDe(doc, station, geste) {
   const dit = `${station.available ? EN_LIGNE : HORS_LIGNE} · ${sertDit(station.selection)}`;
   const ligne = cree(doc, "button");
   ligne.type = "button";
   ligne.className = "ligne";
-  ligne.title = [plateformeDite(station.platform), station.machine, `version ${station.version}`, vueDit(station.lastSeen)].filter((morceau) => morceau !== "").join(" · ");
+  ligne.title = detailsDe(station);
   ligne.ariaLabel = `${station.name} — ${dit}`;
-  ligne.ariaExpanded = ouverte ? "true" : "false";
+  ligne.dataset.station = station.id;
   const nom = cree(doc, "strong", station.name);
   nom.className = "mono";
-  // La flèche de l'accueil ; ouverte, elle pointe vers ses cases (vue.css).
-  const suite = cree(doc, "span");
+  const suite = cree(doc, "span", "›");
   suite.className = "ouvrir";
   suite.ariaHidden = "true";
-  suite.append(cree(doc, "span", "›"));
   ligne.append(pastilleDe(doc, station.available), nom, cree(doc, "span", dit), suite);
-  ligne.addEventListener("click", () => (ouverte ? geste.fermer() : geste.ouvrir(station.id)));
+  ligne.addEventListener("click", () => geste.ouvrirLaStation(station.id));
   return ligne;
 }
 
-// Les cases d'une station ouverte : un dépôt par case, cochée s'il est dans sa sélection. Une écriture en route : les
+// Les cases d'une station, sur sa page : un dépôt par case, cochée s'il est dans sa sélection. Une écriture en route : les
 // cases attendent qu'elle ait répondu. Une écriture refusée le dit sous les cases, en une ligne.
 /** @param {Fabrique} doc @param {StationEnregistree} station @param {EtatDuCompte} etat @param {GestesDuCompte} geste */
 export function projetsDe(doc, station, etat, geste) {
@@ -289,16 +287,10 @@ function commentInstaller(doc, etat, geste) {
   return [tete, ...lignes, gestes(doc, [boutonAction(doc, RELIRE, geste.relire)])];
 }
 
-// La ligne d'une station seulement enregistrée, dans la liste des stations de l'accueil — et, ouverte, ses cases dessous.
-/** @param {Fabrique} doc @param {StationEnregistree} station @param {EtatDuCompte} etat @param {GestesDuCompte} geste */
-export function ligneDeLEnregistree(doc, station, etat, geste) {
-  const ouverte = etat.ouverte === station.id;
-  const rang = cree(doc, "div");
-  rang.className = "enregistree";
-  rang.dataset.station = station.id;
-  rang.append(ligneDe(doc, station, ouverte, geste));
-  if (ouverte) rang.append(projetsDe(doc, station, etat, geste));
-  return rang;
+// La ligne d'une station seulement enregistrée, dans la liste des stations de l'accueil : un clic ouvre sa page.
+/** @param {Fabrique} doc @param {StationEnregistree} station @param {GestesDuCompte} geste */
+export function ligneDeLEnregistree(doc, station, geste) {
+  return ligneDe(doc, station, geste);
 }
 
 // Ce que la lecture du compte dit sous la liste des stations, d'après ce que la vue en tient : rien tant qu'elle est en

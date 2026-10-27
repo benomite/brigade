@@ -32,7 +32,7 @@ export const AUCUNE: StationsDuCompte = { state: "listed", stations: [], unreada
 const DEPOTS = { depots: ["benomite/brigade", "benomite/parade", "benomite/cantine", "benomite/site"].map((depot) => ({ depot, base: "main" })) };
 
 // La ligne d'une station, à cliquer pour l'ouvrir.
-export const ligne = (station: StationEnregistree): Etape => ({ cliquer: `#accueil-stations .enregistree[data-station="${station.id}"] button.ligne` });
+export const ligne = (station: StationEnregistree): Etape => ({ cliquer: `#accueil-stations .enregistree[data-station="${station.id}"] button.ligne, #accueil-stations button.ligne[data-station="${station.id}"]` });
 
 // « Tous les projets », tel que `tous-les-projets` le montre, et les stations du compte que la vue lit à l'ouverture.
 export function stationsDuCompte(dit: string, stations: StationsDuCompte, etapes: Etape[] = []): Ecran {

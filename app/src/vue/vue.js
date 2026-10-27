@@ -117,7 +117,7 @@ import { GATES_HORS_BUDGET, poserLeJourDesGates, poserLesGatesDeCooks } from "./
 import { AIDE as AIDE_DES_ROLES, poserLesRoles, resumeDesRoles, TITRE as TITRE_DES_ROLES } from "./roles-cuisine.js";
 import { apresLaDecision, phrase, poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
 import { poserPremierLancement } from "./premier-lancement.js";
-import { CHOISIR_SES_PROJETS, lectureDuCompte, ligneDeLEnregistree, ligneFondue, projetsDe as casesDeLEnregistree, uneLigneParMachine } from "./stations-du-compte.js";
+import { detailsDe, EN_LIGNE, HORS_LIGNE, lectureDuCompte, ligneDeLEnregistree, ligneFondue, projetsDe as casesDeLEnregistree, uneLigneParMachine } from "./stations-du-compte.js";
 import { poserRailPublie } from "./rail-publie.js";
 import { poserOutilsDuSecond } from "./outils-du-second.js";
 import { poserChoixDuSecond, reponseTapee, tenirLesChoix } from "./second/choix.js";
@@ -394,8 +394,8 @@ const appairageDit = document.createElement("p");
 appairageDit.ariaLive = "polite";
 formulaireDAppairage.append(codeTape, appairage, renoncerAppairage, appairageDit);
 // Les stations enregistrées sous le compte GitHub du chef (ticket 1706, stations-du-compte.js) : dans la liste des
-// stations, une ligne pour chaque machine qu'aucune station appairée ne nomme (ticket 1778), et, ouverte, les projets
-// qu'elle sert, à cocher ; sous la liste, ce que leur lecture a de plus à dire. Lues à chaque ouverture de l'accueil, ou
+// stations, une ligne pour chaque machine qu'aucune station appairée ne nomme (ticket 1778) — un clic ouvre sa page, où se
+// cochent les projets qu'elle sert ; sous la liste, ce que leur lecture a de plus à dire. Lues à chaque ouverture de l'accueil, ou
 // à la demande ; rien n'est posé avant la première réponse, ni sur un pont qui ne les lit pas.
 const blocDesEnregistrees = document.createElement("section");
 blocDesEnregistrees.className = "stations-du-compte";
@@ -409,17 +409,7 @@ let lectureDesEnregistrees = 0;
 let lectureDesDepotsEnregistrees = 0;
 /** @type {import("./stations-du-compte.js").GestesDuCompte} */
 const gestesDesEnregistrees = {
-  ouvrir: (id) => {
-    etatDesEnregistrees.ouverte = id;
-    delete etatDesEnregistrees.refus;
-    poserStationsDeLAccueil();
-    if (etatDesEnregistrees.depots === undefined && lectureDesDepotsEnregistrees === 0) void lireLesDepotsDesEnregistrees();
-  },
-  fermer: () => {
-    delete etatDesEnregistrees.ouverte;
-    delete etatDesEnregistrees.refus;
-    poserStationsDeLAccueil();
-  },
+  ouvrirLaStation: (id) => ouvrirStation(id),
   choisir: (id, depots) => void choisirPourUneEnregistree(id, depots),
   relire: () => {
     void lireLesEnregistrees();
@@ -454,6 +444,9 @@ pageDeStation.className = "carte";
 const enTeteDeStation = document.createElement("header");
 const pannesDeStation = document.createElement("div");
 pannesDeStation.ariaLive = "polite";
+const projetsChoisisDeStation = document.createElement("div");
+projetsChoisisDeStation.ariaLive = "polite";
+const titreDesProjets = bloc("h3", "Projects");
 const listeDesProjets = document.createElement("div");
 listeDesProjets.ariaLive = "polite";
 const ouvrirLeParcours = /** @type {HTMLButtonElement} */ (bloc("button", "+ add a project"));
@@ -524,7 +517,7 @@ const versionDeStation = document.createElement("p");
 versionDeStation.className = "version-de-station";
 const retraitDeStation = document.createElement("div");
 retraitDeStation.className = "retrait-de-station";
-pageDeStation.append(retourALAccueil, enTeteDeStation, plafondDeStation, versionDeStation, pannesDeStation, bloc("h3", "Projects"), listeDesProjets, ouvrirLeParcours, formulaireDAjout, ajoutDit, retraitDeStation);
+pageDeStation.append(retourALAccueil, enTeteDeStation, plafondDeStation, versionDeStation, pannesDeStation, titreDesProjets, listeDesProjets, ouvrirLeParcours, formulaireDAjout, ajoutDit, retraitDeStation, projetsChoisisDeStation);
 // « Pair a phone », ouvert du bouton d'une ligne de station de l'accueil (ticket 1598, telephones-de-station.js) : à la
 // place de l'accueil, comme la page d'une station — un code et son QR, puis les téléphones appairés. Le desktop seul.
 const pageDesTelephones = document.createElement("section");
@@ -5369,7 +5362,7 @@ function ligneDAccueil(nom, { ton, dit, survol, raison }, ouvrirLa) {
 // La ligne d'une station sur l'accueil : un clic l'ouvre ; à côté, « pair a phone » ouvre l'écran qui appaire un
 // téléphone à cette station (ticket 1598). Ni un téléphone, qui ne cuisine pas, ni l'app d'un téléphone n'en ont.
 // Une station aussi enregistrée sous le compte GitHub du chef (ticket 1778) : ce qui lui est choisi se fond dans sa ligne
-// (stations-du-compte.js, `ligneFondue`), et « choose projects » ouvre ses cases sous elle — un autre clic les referme.
+// (stations-du-compte.js, `ligneFondue`) ; ses cases à cocher sont sur la page de la station.
 /** @param {import("../accueil.ts").LigneDeStation} presence @param {import("../stations-du-compte.ts").StationEnregistree} [enregistree] */
 function ligneDeStationDeLAccueil(presence, enregistree) {
   const vue = stationsVues?.stations.find(({ id }) => id === presence.id);
@@ -5377,16 +5370,6 @@ function ligneDeStationDeLAccueil(presence, enregistree) {
   const ligne = ligneDAccueil(station.nom, station, () => ouvrirStation(station.id));
   const cuisine = vue?.cuisine !== false;
   const gestes = [];
-  const ouverte = enregistree !== undefined && etatDesEnregistrees.ouverte === enregistree.id;
-  if (enregistree !== undefined) {
-    const choisir = /** @type {HTMLButtonElement} */ (bloc("button", CHOISIR_SES_PROJETS));
-    choisir.type = "button";
-    choisir.className = "choisir-ses-projets";
-    choisir.ariaLabel = `${CHOISIR_SES_PROJETS} — ${station.nom}`;
-    choisir.ariaExpanded = ouverte ? "true" : "false";
-    choisir.addEventListener("click", () => (ouverte ? gestesDesEnregistrees.fermer() : gestesDesEnregistrees.ouvrir(enregistree.id)));
-    gestes.push(choisir);
-  }
   // Une station qui ne cuit pas encore : le bouton de sa raison, un geste que l'app fait (stations/raison.ts).
   if (station.raison !== undefined) {
     const { geste, libelle } = station.raison.bouton;
@@ -5419,12 +5402,7 @@ function ligneDeStationDeLAccueil(presence, enregistree) {
   aCote.className = "gestes-de-la-ligne";
   aCote.append(...gestes);
   rang.append(ligne, aCote);
-  if (enregistree === undefined) return rang;
-  const avecSesCases = document.createElement("div");
-  avecSesCases.className = "enregistree";
-  avecSesCases.dataset.station = enregistree.id;
-  avecSesCases.append(rang, ...(ouverte ? [casesDeLEnregistree(document, enregistree, etatDesEnregistrees, gestesDesEnregistrees)] : []));
-  return avecSesCases;
+  return rang;
 }
 
 // L'accueil : les projets dans l'ordre du fichier, puis les stations, puis la santé — tels que le
@@ -5509,7 +5487,21 @@ function poserApp() {
 function poserPageDeStation() {
   const station = stationsVues?.stations.find(({ id }) => id === stationOuverte);
   const ligne = accueilVu?.stations?.find(({ id }) => id === stationOuverte);
-  if (station === undefined) {
+  const enregistree = enregistreeOuverte();
+  if (enregistree !== undefined && etatDesEnregistrees.depots === undefined && lectureDesDepotsEnregistrees === 0) void lireLesDepotsDesEnregistrees();
+  if (station === undefined && enregistree !== undefined) {
+    // Une machine seulement enregistrée sous le compte du chef : ni pannes, ni plafond, ni retrait — que son état et ses projets.
+    const titre = bloc("h2", enregistree.name);
+    titre.className = "mono";
+    const phrase = enregistree.available ? EN_LIGNE : HORS_LIGNE;
+    const etatDit = bloc("span", phrase);
+    etatDit.className = "phrase";
+    enTeteDeStation.replaceChildren(titre, pastille(phrase, enregistree.available ? "vert" : "gris"), etatDit, survol(document, detailsDe(enregistree)));
+    pannesDeStation.replaceChildren();
+    plafondDeStation.replaceChildren();
+    versionDeStation.replaceChildren();
+    retraitDeStation.replaceChildren();
+  } else if (station === undefined) {
     enTeteDeStation.replaceChildren(bloc("p", stationsVues === undefined ? "reading your stations on GitHub…" : "this station is no longer paired with this app"));
     pannesDeStation.replaceChildren();
     plafondDeStation.replaceChildren();
@@ -5531,7 +5523,28 @@ function poserPageDeStation() {
     pannesDeStation.replaceChildren(...station.pannes.map((panne) => poserPanne(station.id, panne)));
     poserRetireLaStation(station);
   }
+  // Une machine seulement enregistrée n'a ni projet de l'app, ni parcours d'ajout : ses projets sont ses cases.
+  const seulementEnregistree = station === undefined && enregistree !== undefined;
+  titreDesProjets.hidden = seulementEnregistree;
+  if (seulementEnregistree) ouvrirLeParcours.hidden = true;
+  else if (parcours === undefined) ouvrirLeParcours.hidden = false;
+  poserLesProjetsChoisis();
   poserProjets();
+}
+
+// L'enregistrement de la station dont la page est ouverte : celui de la machine que la ligne de la liste a fondue avec sa
+// présence, ou, seulement enregistrée, celui qui porte cet id (stations-du-compte.js, `uneLigneParMachine`).
+function enregistreeOuverte() {
+  const lues = enregistreesAbsentes ? undefined : etatDesEnregistrees.stations;
+  if (lues?.state !== "listed") return undefined;
+  const ligne = uneLigneParMachine(accueilVu?.stations ?? [], lues.stations).find((une) => ("appairee" in une ? une.appairee.id : une.enregistree.id) === stationOuverte);
+  return ligne?.enregistree;
+}
+
+// Sur la page de la station enregistrée : les dépôts du chef à cocher, ce qu'elle sert — ce que sa ligne n'ouvre plus en place.
+function poserLesProjetsChoisis() {
+  const enregistree = enregistreeOuverte();
+  projetsChoisisDeStation.replaceChildren(...(enregistree === undefined ? [] : [casesDeLEnregistree(document, enregistree, etatDesEnregistrees, gestesDesEnregistrees)]));
 }
 
 // Le seul réglage que la page d'une station montre est son plafond de cooks, étiqueté ci-dessous : le dossier des
@@ -7089,7 +7102,7 @@ function poserStationsDeLAccueil() {
   const sansAucune = lues?.state === "listed" && lues.unreadable.length === 0;
   listeDesStations.replaceChildren(
     ...(lignes.length > 0
-      ? lignes.map((ligne) => ("appairee" in ligne ? ligneDeStationDeLAccueil(ligne.appairee, ligne.enregistree) : ligneDeLEnregistree(document, ligne.enregistree, etatDesEnregistrees, gestesDesEnregistrees)))
+      ? lignes.map((ligne) => ("appairee" in ligne ? ligneDeStationDeLAccueil(ligne.appairee, ligne.enregistree) : ligneDeLEnregistree(document, ligne.enregistree, gestesDesEnregistrees)))
       : enRoute
         ? [bloc("p", "your stations: first read on GitHub in progress…")]
         : sansAucune
@@ -7099,6 +7112,7 @@ function poserStationsDeLAccueil() {
   const dessous = enregistreesAbsentes ? [] : lectureDuCompte(document, etatDesEnregistrees, gestesDesEnregistrees, stations !== undefined && lignes.length === 0);
   blocDesEnregistrees.hidden = dessous.length === 0;
   blocDesEnregistrees.replaceChildren(...dessous);
+  if (stationOuverte !== undefined) poserLesProjetsChoisis();
 }
 
 // Les stations du compte, lues par le process principal (stations-du-compte.ts du runtime). Une relecture garde ce qui

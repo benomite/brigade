@@ -1760,7 +1760,7 @@ main > header,
 /* « pair a phone », au bout de la ligne d'une station sur l'accueil (ticket 1598) : discret, comme « + station ». Ses
    gestes sont posés par-dessus la ligne, à droite, côte à côte : elle garde toute sa largeur — sa flèche reste alignée
    sur les autres —, et son clic. À gauche de « pair a phone », le bouton de la raison d'une station qui ne cuit pas
-   encore (ticket 1758), et « choose projects » d'une station aussi enregistrée sous le compte (ticket 1778). */
+   encore (ticket 1758). */
 #accueil-stations .ligne-et-geste {
   position: relative;
 }
@@ -1773,16 +1773,11 @@ main > header,
   transform: translateY(-50%);
 }
 #accueil-stations .appairer-un-telephone,
-#accueil-stations .remede-de-station,
-#accueil-stations .choisir-ses-projets {
+#accueil-stations .remede-de-station {
   padding: 3px 10px;
   color: var(--discret);
   border: 1px solid var(--trait);
   border-radius: var(--rayon-bouton);
-}
-#accueil-stations .choisir-ses-projets[aria-expanded="true"] {
-  color: var(--texte);
-  border-color: var(--trait-fort);
 }
 /* L'écran « Pair a phone » : comme la page d'une station — le retour, le titre et son aide, ce qu'on attend du chef —,
    puis le QR à gauche, le code, ce qu'il vaut encore et l'adresse de la station à droite ; dessous, les téléphones
@@ -6639,11 +6634,7 @@ button.recommande {
 #accueil-stations .stations-du-compte .attendu .survol {
   margin-left: 6px;
 }
-#accueil-stations .enregistree .ligne[aria-expanded="true"] .ouvrir > span {
-  display: inline-block;
-  transform: rotate(90deg);
-}
-#accueil-stations .projets-de-la-station {
+#station .projets-de-la-station {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -6654,23 +6645,23 @@ button.recommande {
   border: 1px solid var(--trait);
   border-radius: var(--rayon-carte);
 }
-#accueil-stations .projets-de-la-station legend {
+#station .projets-de-la-station legend {
   float: left;
   padding: 0;
   font-weight: 600;
   color: var(--texte);
 }
-#accueil-stations .projets-de-la-station p {
+#station .projets-de-la-station p {
   margin: 0;
   font-size: 12px;
   color: var(--discret);
 }
-#accueil-stations .projets-de-la-station .capacites {
+#station .projets-de-la-station .capacites {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 6px;
 }
-#accueil-stations .projets-de-la-station .capacite {
+#station .projets-de-la-station .capacite {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -6681,10 +6672,10 @@ button.recommande {
   border-radius: var(--rayon-bouton);
   cursor: pointer;
 }
-#accueil-stations .projets-de-la-station .capacite:hover {
+#station .projets-de-la-station .capacite:hover {
   border-color: var(--trait-fort);
 }
-#accueil-stations .projets-de-la-station .capacite input {
+#station .projets-de-la-station .capacite input {
   flex: none;
   margin: 0;
   accent-color: var(--accent);
