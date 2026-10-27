@@ -4200,7 +4200,7 @@ function poserAmont(projet, { aucunTicket }, cartes) {
     const lecture = bloc("span", "upcoming: being read…");
     lecture.title = `first read of \`${commande}\` in progress`;
     tete.append(lecture);
-  } else {
+  } else if (!("nonPublie" in vu)) {
     const deplie = amontsDeplies.has(projet.nom);
     const nombre = bouton("compte" in vu ? `${vu.compte} upcoming` : "upcoming: not read", () => {
       if (amontsDeplies.has(projet.nom)) amontsDeplies.delete(projet.nom);
@@ -4218,7 +4218,7 @@ function poserAmont(projet, { aucunTicket }, cartes) {
     vide.className = "vide";
     tete.append(vide);
   }
-  if (vu === undefined || !amontsDeplies.has(projet.nom)) return [tete];
+  if (vu === undefined || "nonPublie" in vu || !amontsDeplies.has(projet.nom)) return [tete];
   return [tete, listeAmont(projet, vu, cartes)];
 }
 
@@ -4243,6 +4243,7 @@ function listeAmont(projet, vu, cartes) {
   const liste = document.createElement("section");
   liste.className = "amont-liste";
   liste.ariaLabel = "upcoming: the open issues not on the rail";
+  if ("nonPublie" in vu) return liste;
   if ("sans" in vu) {
     const dit = bloc("p", vu.sans);
     dit.className = "sans";

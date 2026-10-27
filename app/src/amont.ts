@@ -39,7 +39,8 @@ export type Issue = { ticket: number; titre: string; dit: string; ouvrable: bool
 export type Groupe = { etat: string; nom: string; issues: Issue[] };
 // Ce que la vue pose, sans rien calculer : le nombre et la liste — ou, `sans`, pourquoi rien n'est
 // compté. `vide` : ce qui se lit à la place du rail quand aucun ticket n'y est.
-export type Vu = { projet: string; demande: number; a: string; vide: string } & ({ compte: number; lu: string; groupes: Groupe[] } | { sans: string });
+// `nonPublie` : le tableau de la cuisine, lu frais, ne porte pas ce qui est à venir — rien n'est dit ni compté, pas même « pas lu ».
+export type Vu = { projet: string; demande: number; a: string; vide: string } & ({ compte: number; lu: string; groupes: Groupe[] } | { sans: string } | { nonPublie: true });
 
 class Informe extends Error {}
 const refuser = (champ: string, attendu: string): never => {
@@ -156,6 +157,8 @@ function direVide(compte: { issues: number; groupes: Groupe[] } | { sans: string
 // Ce qu'une lecture de `manager upstream` donne à poser, avec le dernier état du manager lu.
 export function voir(lecture: Lecture, manager?: VuManager): Vu {
   const { projet, demande, a } = lecture;
+  // Le tableau est frais et lisible, mais ne publie pas ce qui est à venir : la vue n'en dit rien (#1770).
+  if ("pasPublie" in lecture && lecture.pasPublie === true) return { projet, demande, a, nonPublie: true, vide: "nothing on the rail" };
   const amont = sortieDe(lecture);
   if (amont === undefined || "informe" in amont) {
     const sans = sansLecture(lecture, amont?.informe);

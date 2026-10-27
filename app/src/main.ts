@@ -346,8 +346,8 @@ const veilleDuManager = ouvrirVeilleDuTableau({
 });
 
 // Ce qui n'est pas encore sur le rail (amont.ts) : `manager upstream`, lu pour le projet affiché
-// seulement — son nombre se pose à côté de son rail. Le tableau de la cuisine ne le publie pas encore
-// (#1694) : la lecture le dit en une phrase, jamais « rien à venir », et aucune box n'est jointe pour lui.
+// seulement — son nombre se pose à côté de son rail. Le tableau de la cuisine ne le publie pas
+// (#1694) : la vue n'en dit rien (#1770), jamais « rien à venir », et aucune box n'est jointe pour lui.
 const amonts = tenirAmont();
 const veilleDeLAmont = ouvrirVeilleDuTableau({
   lire: tableaux.lire,

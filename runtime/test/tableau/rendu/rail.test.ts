@@ -239,3 +239,15 @@ test("la cuisine au repos faute de station : le tableau publié porte sa ligne d
   // Des tickets cuisent dans le projet d'exemple : pas de ligne.
   assert.ok(projet(t).publie.bilans.every((bilan) => !bilan.startsWith("kitchen idle")));
 });
+
+// L'app lit l'état du projet dans la rubrique `switch` du tableau et nulle part ailleurs (#1770) : elle y est toujours.
+test("la rubrique `switch` est sur le tableau, posée ou non dans le journal", (t) => {
+  const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: horloge("2026-10-12T09:00:00.000Z") });
+  aArreter(t, () => journal.fermer());
+  const sans = tableauDeLaCuisine(lireEtat(journal, LU_LE), LU_LE, { depot: DEPOT }).cuisine.rubriques.find(({ titre }) => titre === "switch");
+  assert.match(sans?.lignes[0] ?? "", /^ON — not set in the log yet/);
+  journal.ajouter({ project: "brigade", ticket: null, author: "chef", type: "project.switched-off", payload: {} });
+  const eteint = tableauDeLaCuisine(lireEtat(journal, LU_LE), LU_LE, { depot: DEPOT }).cuisine.rubriques.filter(({ titre }) => titre === "switch");
+  assert.equal(eteint.length, 1);
+  assert.match(eteint[0]?.lignes[0] ?? "", /^OFF since /);
+});
