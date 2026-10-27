@@ -31,6 +31,7 @@ export type FaitsDuTableau = Faits & { corrections?: CarteDeCorrection[]; profil
 export type OptionsDuTableau = {
   ageMaxSauvegardeMs?: number;
   limiteGithub?: number | null;
+  retenue?: number | null;
   appels?: Repartition | null;
   depot?: string;
   refus?: Refus | null;
@@ -118,11 +119,11 @@ export function lignesDuRail(etat: EtatCuisine, lignes: string[]): LigneDuRail[]
 export function tableauDeLaCuisine(
   etat: EtatCuisine,
   maintenant: Date,
-  { ageMaxSauvegardeMs = AGE_MAX_SAUVEGARDE_MS, limiteGithub = null, appels = null, depot, refus = null, corrections = [], profils = [] }: OptionsDuTableau = {},
+  { ageMaxSauvegardeMs = AGE_MAX_SAUVEGARDE_MS, limiteGithub = null, retenue = null, appels = null, depot, refus = null, corrections = [], profils = [] }: OptionsDuTableau = {},
 ): Tableau {
   const depuisEn = (instant: string) => dureeEn(maintenant.getTime() - Date.parse(instant));
   const { session, tick, gardeFous, base, reparation, urgence } = etat;
-  const status = decrireEtat(etat, maintenant, ageMaxSauvegardeMs, limiteGithub, appels);
+  const status = decrireEtat(etat, maintenant, ageMaxSauvegardeMs, limiteGithub, appels, retenue);
   const tenus = new Map(etat.rail.filter((ticket) => ticket.state === "taken").map((ticket) => [ticket.ticket, ticket]));
   const stationDe = new Map(etat.auxFourneaux.flatMap(({ station, ticket }) => (ticket === null ? [] : [[ticket, station] as const])));
   const bilans = [

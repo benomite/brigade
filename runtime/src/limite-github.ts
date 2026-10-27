@@ -7,10 +7,9 @@
 // (`appairage/canal.ts`) prennent un appel ici avant de lancer `gh`.
 //
 // Deux sortes d'appels. Ceux de la cuisine — sondages, pass, manager, signe de
-// vie — ralentissent à mesure que le quota réel baisse : au-dessus de la moitié,
-// rien ne les retient ; en dessous, ils se répartissent sur ce qui reste de la
-// fenêtre de GitHub ; à la réserve des gestes (un dixième du quota), ils
-// attendent la fin de la fenêtre, puis reprennent seuls. Ceux d'un geste du
+// vie — ne sont retenus qu'à la réserve des gestes (un dixième du quota) : au-dessus,
+// rien ne les retient ; à la réserve, ils attendent la fin de la fenêtre, puis
+// reprennent seuls. Ceux d'un geste du
 // chef — merge, retrait du rail, priorité, réponse à une carte, commentaire de
 // la pass — ne sont jamais retenus par la box : ils partent, et n'échouent que
 // si GitHub lui-même refuse.
@@ -49,10 +48,6 @@ export type Usage = "cuisine" | "geste";
 
 // La part du quota gardée pour les gestes du chef : la cuisine n'y touche pas.
 export const RESERVE_DES_GESTES = 0.1;
-// En dessous de cette part du quota, la cuisine ralentit.
-export const SEUIL_DE_RALENTI = 0.5;
-// Le pas sur lequel se mesure le débit de la cuisine, quand elle ralentit.
-export const PAS_DU_DEBIT_MS = 60_000;
 // Une décision prise sur un quota lu il y a plus longtemps se confirme d'abord
 // auprès de `gh api rate_limit` — au plus une fois par pas, par compte.
 export const RAFRAICHIR_MS = 60_000;
@@ -77,20 +72,17 @@ export class LimiteGitHubAtteinte extends Error {
   }
 }
 
-// Un appel de la cuisine retenu par la box : le quota réel de GitHub baisse, et
-// la cuisine ralentit — ou attend la fin de la fenêtre, la réserve des gestes
-// atteinte. Il ne part pas, et n'est pas compté ; il est réglé comme la limite
-// de GitHub : rien d'autre ne part avant `jusqua` pour qui l'attend.
+// Un appel de la cuisine retenu par la box : le quota réel de GitHub est à la
+// réserve des gestes, et la cuisine attend la fin de la fenêtre. Il ne part pas,
+// et n'est pas compté ; il est réglé comme la limite de GitHub : rien d'autre ne
+// part avant `jusqua` pour qui l'attend. Mais GitHub n'a rien refusé.
 export class CuisineRalentie extends LimiteGitHubAtteinte {
   readonly quota: Quota;
   constructor(quota: Quota, jusqua: number, libreDansMs: number) {
-    const secondes = Math.ceil(libreDansMs / 1000);
     super(
       jusqua,
       libreDansMs,
-      quota.restant <= reserveDes(quota.plafond)
-        ? `quota GitHub bas : ${quota.restant} appels restants sur ${quota.plafond}, gardés pour les gestes du chef — la cuisine attend la fin de la fenêtre, dans ${secondes} s`
-        : `quota GitHub entamé : ${quota.restant} appels restants sur ${quota.plafond} — la cuisine ralentit, son prochain appel part dans ${secondes} s`,
+      `quota GitHub bas : ${quota.restant} appels restants sur ${quota.plafond}, gardés pour les gestes du chef — la cuisine attend la fin de la fenêtre, dans ${Math.ceil(libreDansMs / 1000)} s`,
     );
     this.name = "CuisineRalentie";
     this.quota = quota;
@@ -187,22 +179,9 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
     return lu !== undefined && lu.reset > instant ? { restant: lu.restant, plafond: lu.plafond, reset: lu.reset, vu: lu.vu } : null;
   };
 
-  // Ce qui retient un appel de la cuisine, d'après le quota réel : l'instant
-  // où il pourra partir, ou null s'il part.
-  const retenue = (quota: Quota, instant: number): number | null => {
-    const reserve = reserveDes(quota.plafond);
-    if (quota.restant <= reserve) return quota.reset;
-    if (quota.restant > quota.plafond * SEUIL_DE_RALENTI) return null;
-    // Ce qui reste au-dessus de la réserve, réparti jusqu'à la fin de la
-    // fenêtre : tant d'appels par pas, ou un appel tous les tant de pas.
-    const aDepenser = quota.restant - reserve;
-    const duree = quota.reset - instant;
-    const pas = Math.max(PAS_DU_DEBIT_MS, Math.ceil(duree / aDepenser));
-    const permis = Math.max(1, Math.floor((aDepenser * pas) / duree));
-    const [recents] = base.lire<{ n: number; premier: number | null }>("SELECT count(*) AS n, min(instant) AS premier FROM appels WHERE instant > ?", instant - pas);
-    if ((recents?.n ?? 0) < permis) return null;
-    return (recents?.premier ?? instant) + pas;
-  };
+  // Ce qui retient un appel de la cuisine, d'après le quota réel : la fin de la
+  // fenêtre s'il est à la réserve des gestes, sinon rien — il part.
+  const retenue = (quota: Quota): number | null => (quota.restant <= reserveDes(quota.plafond) ? quota.reset : null);
 
   return {
     prendre(usage = "cuisine", compte = COMPTE_DE_LA_MACHINE, etiquette) {
@@ -215,7 +194,7 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
           const [pause] = base.lire<{ jusqua: number | null }>("SELECT max(jusqua) AS jusqua FROM pause");
           if (pause?.jusqua != null && pause.jusqua > instant) return { jusqua: pause.jusqua };
           const quota = quotaDe(compte, instant);
-          const jusqua = quota === null ? null : retenue(quota, instant);
+          const jusqua = quota === null ? null : retenue(quota);
           if (quota !== null && jusqua !== null) return { quota, jusqua };
         }
         return base.executer("INSERT INTO appels (instant, projet, lecture) VALUES (?, ?, ?)", instant, etiquette?.projet ?? PROJET_DE_LA_STATION, etiquette?.lecture ?? (usage === "geste" ? "gesture" : "other")).dernierId;
@@ -257,7 +236,7 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
     aConfirmer(compte = COMPTE_DE_LA_MACHINE) {
       const instant = maintenant();
       const quota = quotaDe(compte, instant);
-      return quota !== null && quota.restant <= quota.plafond * SEUIL_DE_RALENTI && instant - quota.vu > RAFRAICHIR_MS;
+      return quota !== null && quota.restant <= reserveDes(quota.plafond) && instant - quota.vu > RAFRAICHIR_MS;
     },
     appels() {
       const [compte] = base.lire<{ n: number }>("SELECT count(*) AS n FROM appels WHERE instant > ?", maintenant() - FENETRE_MS);
@@ -488,8 +467,34 @@ export function pauseDeLaStation(racine: string | undefined, maintenant: number)
   }
 }
 
+// Le quota que la box garde pour les gestes, tel que la station dont `racine` est
+// le répertoire l'a retenu : l'instant où la fenêtre de GitHub s'achève et où la
+// cuisine reprend (en millisecondes), ou null si aucun compte n'est à la réserve.
+// Lu sans rien écrire ni rien créer, comme `pauseDeLaStation`.
+export function retenueDeLaStation(racine: string | undefined, maintenant: number): number | null {
+  if (!racine) return null;
+  const fichier = join(racine, REPERTOIRE_COMPTEUR, FICHIER_COMPTEUR);
+  if (!existsSync(fichier)) return null;
+  let base: Base | undefined;
+  try {
+    base = new Base(fichier, { lectureSeule: true, attenteMs: 2000 });
+    const [retenue] = base.lire<{ reset: number | null }>("SELECT max(reset) AS reset FROM quota WHERE reset > ? AND restant <= (plafond + 9) / 10", maintenant);
+    return retenue?.reset ?? null;
+  } catch {
+    return null;
+  } finally {
+    base?.fermer();
+  }
+}
+
 // La ligne qui le dit, en une phrase, l'heure étant celle de ce process.
 export function direLaLimite(jusqua: number): string {
   const d = new Date(jusqua);
   return `GitHub is rate-limiting calls, back around ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+// La ligne de la retenue de la box, qui n'est pas un refus de GitHub.
+export function direLaRetenue(jusqua: number): string {
+  const d = new Date(jusqua);
+  return `the box holds its own calls to keep the reserve for your gestures, back around ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }

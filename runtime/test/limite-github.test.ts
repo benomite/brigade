@@ -1,6 +1,6 @@
 // Les appels de la box à GitHub, réglés sur le quota réel du compte : ce que
-// GitHub dit lui rester, la cuisine qui ralentit à mesure qu'il baisse et
-// attend la fin de la fenêtre à la réserve des gestes, les gestes du chef qu'aucun
+// GitHub dit lui rester, la cuisine qui attend la fin de la fenêtre à la
+// réserve des gestes, les gestes du chef qu'aucun
 // compte de la box ne retient, le compteur que la station et ses projets
 // tiennent ensemble, et la ligne horaire du journal de service. Contre des faux
 // `gh` qui disent le quota qu'on leur dicte : jamais le vrai GitHub.
@@ -128,44 +128,20 @@ test("sans quota dit par GitHub, ou avec un quota large, aucun compte de la box 
   }
 });
 
-test("à mesure que le quota réel baisse, la cuisine ralentit ; à la réserve des gestes, elle attend la fin de la fenêtre, puis reprend", (t) => {
+test("au-dessus de la réserve des gestes rien ne retient la cuisine ; à la réserve, elle attend la fin de la fenêtre, puis reprend", (t) => {
   const horloge = uneHorloge();
   const limite = ouvrirLimite({ maintenant: horloge.maintenant });
   t.after(() => limite.fermer());
   assert.equal(reserveDes(5000), 500);
 
-  // Combien d'appels partent dans la minute, à quota donné, depuis une minute calme.
-  const parMinute = (restant: number): number => {
+  // Quel que soit le quota au-dessus de la réserve, on s'arrête à 1 000 appels pour le dire.
+  for (const restant of [4000, 2400, 1100, 530]) {
     horloge.avancer(10 * MINUTE);
     limite.noter("gh", { restant, plafond: 5000, reset: horloge.maintenant() + 30 * MINUTE });
     let partis = 0;
-    while (tenter(limite)) partis++;
-    return partis;
-  };
-  // Au-dessus de la moitié, rien ne retient : on s'arrête à 1 000 pour le dire.
-  const libre = (() => {
-    horloge.avancer(10 * MINUTE);
-    limite.noter("gh", { restant: 2600, plafond: 5000, reset: horloge.maintenant() + 30 * MINUTE });
-    let partis = 0;
     while (partis < 1000 && tenter(limite)) partis++;
-    return partis;
-  })();
-  assert.equal(libre, 1000);
-  // En dessous, ce qui reste au-dessus de la réserve se répartit sur la fenêtre :
-  // 2 000 restants, 1 500 à dépenser en 30 minutes, 50 par minute ; puis de moins en moins.
-  const debits = [2000, 1100, 700, 530].map(parMinute);
-  assert.deepEqual(debits, [50, 20, 6, 1]);
-
-  // Une fois la minute passée, le débit revient : la cuisine n'est que ralentie.
-  horloge.avancer(10 * MINUTE);
-  limite.noter("gh", { restant: 2000, plafond: 5000, reset: horloge.maintenant() + 30 * MINUTE });
-  for (let i = 0; i < 50; i++) limite.prendre();
-  assert.throws(
-    () => limite.prendre(),
-    (erreur: unknown) => erreur instanceof CuisineRalentie && erreur instanceof LimiteGitHubAtteinte && erreur.libreDansMs === MINUTE && /quota GitHub entamé : 2000 appels restants sur 5000 — la cuisine ralentit, son prochain appel part dans 60 s/.test(erreur.message),
-  );
-  horloge.avancer(MINUTE);
-  assert.equal(tenter(limite), true);
+    assert.equal(partis, 1000, `${restant} restants sur 5 000`);
+  }
 
   // À la réserve, plus rien de la cuisine ne part avant la fin de la fenêtre.
   const reset = limite.quota()?.reset ?? 0;
@@ -238,7 +214,7 @@ test("la cuisine au sondage, contre un GitHub qui compte : 2 600 appels dans l'h
   assert.ok(limite.appels() > 2500);
 });
 
-test("contre un GitHub presque épuisé, les sondages ralentissent puis attendent avant que GitHub ne refuse, sans lancer `gh` ; la fenêtre passée, ils reprennent", async (t) => {
+test("contre un GitHub presque épuisé, les sondages partent jusqu'à la réserve puis attendent, avant que GitHub ne refuse, sans lancer `gh` ; la fenêtre passée, ils reprennent", async (t) => {
   const gh = unGitHubQuiCompte(t);
   const horloge = uneHorloge();
   const reset = DEPART + 10 * MINUTE;
@@ -265,9 +241,9 @@ test("contre un GitHub presque épuisé, les sondages ralentissent puis attenden
   assert.equal(gh.refus(), 0);
   assert.equal(gh.restant(), 500);
   assert.equal(partis.length, 40);
-  // Ralentis : bien moins qu'un sondage par tour, et de plus en plus espacés.
-  assert.ok(partis.length < (10 * MINUTE) / (5 * SECONDE) / 2);
-  assert.ok([...messages].some((message) => message.startsWith("quota GitHub entamé")));
+  // Aucun sondage retenu avant la réserve : un par tour jusqu'à elle.
+  assert.deepEqual(partis, Array.from({ length: 40 }, (_, i) => DEPART + (i + 1) * 5 * SECONDE));
+  assert.ok(![...messages].some((message) => message.startsWith("quota GitHub entamé")));
   assert.ok([...messages].some((message) => message.startsWith("quota GitHub bas : 500 appels restants sur 5000")));
   assert.ok(![...messages].some((message) => /budget GitHub épuisé/.test(message)));
   assert.equal(gh.appels().length, 40, "un sondage retenu ne lance pas `gh`");
@@ -340,11 +316,11 @@ test("une décision sur un quota bas lu depuis plus d'une minute se confirme aup
   assert.equal(gh.questionsDeQuota(), 2);
 });
 
-test("la station et trois projets, chacun dans son process, lisent le même quota et tiennent ensemble le même débit", async (t) => {
+test("la station et trois projets, chacun dans son process, lisent le même quota et tiennent ensemble le même compte", async (t) => {
   const racine = repertoireTemporaire(t);
   const instant = 1_000_000;
   const avant = limiteDeLaStation(racine, { maintenant: () => instant });
-  // 2 000 restants, 1 500 au-dessus de la réserve sur 30 minutes : 50 par minute, pour tous.
+  // 2 000 restants, au-dessus de la réserve : rien ne retient, et chaque appel est compté, quel que soit son process.
   avant.noter("gh", { restant: 2000, plafond: 5000, reset: instant + 30 * MINUTE });
   avant.fermer();
   const script = `
@@ -362,10 +338,13 @@ test("la station et trois projets, chacun dans son process, lisent le même quot
       execFile(process.execPath, ["--input-type=module", "-e", script], { timeout: 110_000 }, (erreur, sortie, erreurs) => (erreur ? rejeter(new Error(erreurs || erreur.message)) : resoudre(Number(sortie.trim())))),
     );
   const parProcess = await Promise.all(["station", "projet 1", "projet 2", "projet 3"].map(unProcess));
-  assert.equal(parProcess.reduce((somme, n) => somme + n, 0), 50, `comptés par process : ${parProcess.join(", ")}`);
+  assert.equal(parProcess.reduce((somme, n) => somme + n, 0), 120, `comptés par process : ${parProcess.join(", ")}`);
   const limite = limiteDeLaStation(racine, { maintenant: () => instant });
   aArreter(t, () => limite.fermer());
-  assert.equal(limite.appels(), 50);
+  assert.equal(limite.appels(), 120);
+  assert.equal(tenter(limite), true);
+  // Le quota que l'un a noté retient les autres : à la réserve, plus rien ne part.
+  limite.noter("gh", { restant: 500, plafond: 5000, reset: instant + 30 * MINUTE });
   assert.equal(tenter(limite), false);
 });
 
