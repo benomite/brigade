@@ -2587,6 +2587,40 @@ main > header,
   color: var(--texte);
   overflow-wrap: anywhere;
 }
+/* À côté, à quelle allure la cuisine sert (#1811) : vingt-quatre barres fines, une par heure, l'heure en cours à
+   droite, hautes d'une ligne. Chaque heure a sa case, à peine marquée, sur un trait de base : vide, elle se voit
+   vide. Les servis en vert en bas, les ratés en rouge dessus. Une barre dit son heure et ses comptes au survol. */
+#rail .amont .cadence {
+  display: inline-flex;
+  align-self: center;
+  align-items: stretch;
+  gap: 1px;
+  height: 24px;
+}
+#rail .amont .cadence > .survol {
+  align-items: stretch;
+}
+#rail .amont .cadence .barre {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  width: 5px;
+  padding: 0;
+  background: var(--case);
+  border-bottom: 1px solid var(--trait-fort);
+  border-radius: 0;
+}
+#rail .amont .cadence .barre[data-en-cours] {
+  border-bottom-color: var(--discret);
+}
+#rail .amont .cadence .servis {
+  flex: none;
+  background: var(--vert);
+}
+#rail .amont .cadence .rates {
+  flex: none;
+  background: var(--rouge);
+}
 /* La tête du rail, le manager éteint (#906) : une barre hachurée, à l'arrêt, sur toute la largeur — rien
    de neuf n'entre —, sa pastille grise et sa ligne courte. Elle se voit sans se lire. */
 #rail .arret-manager {
@@ -4082,6 +4116,26 @@ main > header,
 #rail .etat-ticket[data-forme="triangle"]::before {
   border-radius: 0;
   clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+/* Sur une carte de Taken ou de Pass, depuis combien de temps elle y est (#1811), au bout de sa ligne d'état ; l'âge
+   exact au survol. Bien plus longtemps que d'ordinaire, l'âge passe au rouge, et la carte porte un trait rouge à
+   gauche : elle se voit d'un coup d'œil dans sa colonne. */
+#rail .bon .age {
+  margin-left: auto;
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--bon-discret);
+  border: 1px solid var(--bon-trait);
+  border-radius: 999px;
+}
+#rail .bon .age[data-longue] {
+  color: var(--bon-encre);
+  background: var(--rouge);
+  border-color: var(--rouge);
+}
+#rail .bon[data-traine] {
+  border-left: 4px solid var(--rouge);
 }
 /* « t'attend » : la pilule du ticket qui attend le chef, à côté de son état. */
 #rail .etat-ticket.attendu {

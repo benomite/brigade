@@ -113,6 +113,7 @@ import { ligneDAlerte, poserLesStations as stationsDeCuisson } from "./stations-
 import { poserLesAppels } from "./appels-de-la-station.js";
 import { EXPLIQUE as AIDE_DU_PLAFOND, poserLePlafond as plafondDeCalibrage, resumeDuPlafond, TITRE as TITRE_DU_PLAFOND } from "./plafond-de-calibrage.js";
 import { poserLActivite } from "./activite-cuisine.js";
+import { poserAge, poserCadence } from "./cadence.js";
 import { GATES_HORS_BUDGET, poserLeJourDesGates, poserLesGatesDeCooks } from "./cout-des-gates.js";
 import { AIDE as AIDE_DES_ROLES, poserLesRoles, resumeDesRoles, TITRE as TITRE_DES_ROLES } from "./roles-cuisine.js";
 import { apresLaDecision, phrase, poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
@@ -2898,6 +2899,11 @@ function poserBon(projet, carte, tonAttend, execution = true) {
     if (forme !== undefined) pilule.dataset.forme = forme;
     tete.append(pilule);
   }
+  // Dans Taken et Pass : depuis quand la carte y est ; bien plus longtemps que d'ordinaire, elle tranche (ticket 1811).
+  if (carte.age !== undefined) {
+    tete.append(poserAge(document, carte.age));
+    if (carte.age.longue) bon.dataset.traine = "";
+  }
   bon.append(tete);
   // Sur le rail, en attente : sa priorité, sous son numéro
   if (carte.prio !== undefined) {
@@ -4239,11 +4245,13 @@ function poserArreter(projet, arretee) {
 // en fait. Tout est déjà dit par le process principal : la vue pose. Une lecture ratée ne donne
 // jamais de nombre : le bouton dit qu'elle n'a pas été lue, et la liste dépliée dit pourquoi.
 /** @param {Projet} projet @param {import("../faits.ts").Rail} lu @param {import("../faits.ts").Carte[]} cartes */
-function poserAmont(projet, { aucunTicket }, cartes) {
+function poserAmont(projet, { aucunTicket, cadence }, cartes) {
   const vu = amonts.get(projet.nom);
   const commande = geste(projet, "manager upstream");
   const tete = document.createElement("div");
   tete.className = "amont";
+  // Sur la même ligne, à quelle allure la cuisine sert : l'histogramme des 24 dernières heures (cadence.js, ticket 1811).
+  const graphe = poserCadence(document, cadence);
   // Le haut du rail reste léger (ticket 623) : la commande lue se dit au survol, pas en tête.
   if (vu === undefined) {
     const lecture = bloc("span", "upcoming: being read…");
@@ -4261,6 +4269,7 @@ function poserAmont(projet, { aucunTicket }, cartes) {
     nombre.title = "compte" in vu ? `the open issues that are not on the rail, and what happens to each — from \`${commande}\`, read at ${heureDe(vu.a)}` : vu.sans;
     tete.append(nombre);
   }
+  if (graphe !== null) tete.append(graphe);
   // Rien sur le rail : la phrase dit ce qui est en amont — elle ne laisse pas croire le projet fini.
   if (aucunTicket === true) {
     const vide = bloc("p", vu?.vide ?? "nothing on the rail — what is upcoming is being read…");

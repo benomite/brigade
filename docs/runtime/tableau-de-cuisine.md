@@ -90,7 +90,7 @@ machine's station included. An app reads it with the reader it already has for `
 |---|---|
 | `etat`, `lu`, `dernierTick`, `compteurs`, `dernierEvenement` | The project's state, its counters, the age of its last tick and event |
 | `limiteGithub` | When GitHub limits the account's calls, the instant it gives them back; absent otherwise |
-| `rail[]` | **Each ticket and its state**, in the rail's order: `ticket`, `etat` (the column), `titre`, `url`, `activite` (what its cook or the pass does right now), `attente` (set aside: why, which column, return), `tiers` (WAITING: what, from whom, follow-up), `revenu`, `raison` (head of the queue that does not leave), `captures` |
+| `rail[]` | **Each ticket and its state**, in the rail's order: `ticket`, `etat` (the column), `titre`, `url`, `depuis` (since when it is in that state), `activite` (what its cook or the pass does right now), `attente` (set aside: why, which column, return), `tiers` (WAITING: what, from whom, follow-up), `revenu`, `raison` (head of the queue that does not leave), `captures` |
 | `cooks[]` | **The cooks in progress**: `ticket`, `titre`, `station` — the cook's run is in `cuisine.cooks` |
 | `attend[]` | **What awaits the chef**, one entry per ticket: `ticket`, `titre`, `url`, `decision`, `livraison` (what the pass recorded), `carte` (a TODO card, with its `captures`) |
 | `livres[]` | The tickets served in the last 24 h: `livre`, `station`, `pr`, `relecture` |
@@ -99,8 +99,8 @@ machine's station included. An app reads it with the reader it already has for `
 | `corrections[]`, `profils[]` | The proposed corrections and profiles, TODO cards that belong to no ticket; absent when there are none |
 
 It does **not** hold what other screens read from `facts` — the calibration cap, the triage, the
-kitchen's activity and roles, the gates' cost, the corrections' effects, the lessons
-(`plafondDeCalibrage`, `triage`, `activiteCuisine`, `rolesCuisine`, `coutDesGates`, `reculs`,
+kitchen's activity, pace and roles, the gates' cost, the corrections' effects, the lessons
+(`plafondDeCalibrage`, `triage`, `activiteCuisine`, `cadence`, `rolesCuisine`, `coutDesGates`, `reculs`,
 `apprentissage`) — nor `appelsGithub`, which the `gh calls` section of `cuisine.rubriques` gives.
 
 ### `lignesDuRail[]` — each ticket's line of `status`
