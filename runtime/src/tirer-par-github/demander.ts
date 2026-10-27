@@ -4,6 +4,12 @@
 // réponse que la principale y publie (`tableau.ts`) — celle même que le geste
 // `pull` lui aurait rendue (`tirer.ts`).
 //
+// Rendre son travail ne demande rien de plus : la station pousse la branche de
+// sa mission sur l'origine, puis le dit (`deliver`) ; la principale la
+// rapatrie de là, ouvre sa PR, et sa pass la juge comme celle de tout cook.
+// Une station qui se tait n'a rien à rendre : son bail tombe chez la
+// principale, qui reprend le ticket (`distantes.ts`).
+//
 // Rien ici n'ouvre le journal du projet, ni ne joint la box : la station écrit
 // dans un gist et lit une issue, par le `gh` de sa machine (`canal.ts`,
 // `tableau/publication/client.ts`). C'est la principale qui lit sa demande, la

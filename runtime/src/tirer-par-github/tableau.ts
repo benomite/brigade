@@ -3,12 +3,14 @@
 // projet — c'est là qu'une station sans ssh vers la box lit ce qui lui revient.
 //
 // - `attributions` : chaque ticket qu'une station distante tient, son run et
-//   l'échéance de son bail. Un renouvellement accepté la fait avancer.
+//   l'échéance de son bail. Un renouvellement accepté la fait avancer ; une
+//   station qui se tait la laisse passer, et la principale l'en retire d'elle-
+//   même — le bail tombé, le ticket revient au rail (`distantes.ts`).
 // - `reponses` : la réponse du runtime à chaque demande posée par GitHub
 //   (`relayer.ts`) — la dernière de chaque créneau de chaque station
 //   (`demande.ts`), tant qu'elle a moins de `GARDE_MS`. Borné ainsi, le bloc ne
-//   grossit pas avec le temps : une station, une réclamation et un
-//   renouvellement par cook en vol au plus.
+//   grossit pas avec le temps : par station, une réclamation, et par cook un
+//   renouvellement et une livraison au plus.
 //
 // La mission d'une réclamation y est entière — la consigne du cook, son
 // calibrage, sa branche, ses plafonds, son bail —, sauf les arguments de
@@ -61,9 +63,9 @@ export function distantesDuTableau(base: Base, maintenant: Date): DistantesPubli
     for (const { payload } of demandees) {
       const repondue = repondues.get(payload.id);
       if (repondue === undefined) continue;
-      const run = payload.verb === "renew" && typeof payload.run === "string" ? payload.run : null;
+      const run = (payload.verb === "renew" || payload.verb === "deliver") && typeof payload.run === "string" ? payload.run : null;
       // Le créneau de la demande, comme le gist les sépare : la dernière remplace la précédente.
-      reponses.set(`${payload.station}\0${run === null ? "claim" : `renew.${run}`}`, { demande: payload.id, station: payload.station, geste: payload.verb, run, le: repondue.at, reponse: publier(repondue.reponse) });
+      reponses.set(`${payload.station}\0${run === null ? "claim" : `${payload.verb}.${run}`}`, { demande: payload.id, station: payload.station, geste: payload.verb, run, le: repondue.at, reponse: publier(repondue.reponse) });
     }
   }
   if (attributions.length === 0 && reponses.size === 0) return null;
