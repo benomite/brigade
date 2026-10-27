@@ -11,7 +11,7 @@ import { ouvrirJournal } from "../src/journal.ts";
 import { RENOMMAGE_ABANDONNE } from "../src/pause/pause.ts";
 import { INTRANSPOSABLE } from "../src/pause/reprise.ts";
 import { aLaCuisine, CAUSES_DE_LA_CUISINE, CAUSES_DU_CHEF, prochainCoup, REMONTEES_SANS_ENTREE, SANS_RENVOI } from "../src/remontee-a-la-cuisine.ts";
-import { repertoireTemporaire } from "./outils.ts";
+import { aArreter, repertoireTemporaire } from "./outils.ts";
 
 const SRC = join(import.meta.dirname, "..", "src");
 
@@ -83,7 +83,10 @@ test("chaque cause de remontée que le runtime écrit va à la cuisine, ou est n
     "une cause nouvelle : dire si la cuisine la reprend (CAUSES_DE_LA_CUISINE) ou pourquoi elle est au chef (CAUSES_DU_CHEF)",
   );
 
-  const { base } = ouvrirJournal(repertoireTemporaire(t));
+  const journal = ouvrirJournal(repertoireTemporaire(t));
+  // Fermé avant que son répertoire ne soit effacé : Windows refuse d'effacer une base ouverte.
+  aArreter(t, () => journal.fermer());
+  const { base } = journal;
   const motif = (cause: string) => (["returns-exhausted", DU_MANAGER].includes(cause) ? ENCORE_ROUGE : NON_JUGEE);
   for (const cause of Object.keys(CAUSES_DE_LA_CUISINE)) assert.equal(aLaCuisine(base, 17, motif(cause), cause), true, cause);
   assert.equal(aLaCuisine(base, 17, NON_JUGEE, "secrets-unavailable"), false);
