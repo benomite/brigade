@@ -8,6 +8,7 @@ import { dirname, join } from "node:path";
 import { decisionsPosees, poserDecision } from "../decisions.ts";
 import { configIdentites, ouvrirIdentites, ROLES } from "../identites.ts";
 import { ouvrirJournal } from "../journal.ts";
+import { plateformeDe } from "../enregistrement-station/contrat.ts";
 import { ligneDeGit } from "./acces.ts";
 import type { ProjetDemande } from "./demande.ts";
 
@@ -16,8 +17,9 @@ import type { ProjetDemande } from "./demande.ts";
 export const FOURNIT = "code+raisonnement";
 
 // Ce qu'une station déclarée par l'app fournit : son moteur, et ce que le chef
-// a coché pour sa machine — chaque capacité une fois.
-export const capacitesDe = (fournit: readonly string[] = []) => [...new Set([...FOURNIT.split("+"), ...fournit])];
+// a coché pour sa machine — chaque capacité une fois. Une machine Mac
+// (`plateforme`, telle que le contrat la dit : `macos`) fournit aussi `macos`.
+export const capacitesDe = (fournit: readonly string[] = [], plateforme?: string) => [...new Set([...FOURNIT.split("+"), ...fournit, ...(plateforme === "macos" ? ["macos"] : [])])];
 
 // La page GitHub où le chef installe une App sur ses dépôts, en un clic.
 export const pageDInstallation = (slug: string) => `https://github.com/apps/${encodeURIComponent(slug)}/installations/new`;
@@ -109,9 +111,9 @@ export const machineDe = (station: string) => station.toLowerCase().replace(/[^\
 // coder quand le chef l'a coché —, et le calibrage du manager et du reviewer
 // quand l'app les nomme. Sinon, c'est le dépôt du projet qui les porte
 // (`reglages-projet/en-vigueur.ts`) : rien n'en est posé sur la box.
-export function decisionsDe(projet: ProjetDemande, station: string): Record<string, string> {
+export function decisionsDe(projet: ProjetDemande, station: string, plateforme: string = process.platform): Record<string, string> {
   const calibrage = (prefixe: string, calibre: ProjetDemande["manager"]) => (calibre === null ? {} : { [`${prefixe}_MODEL`]: calibre.modele, [`${prefixe}_EFFORT`]: calibre.effort });
-  const fournit = capacitesDe(projet.fournit).join("+");
+  const fournit = capacitesDe(projet.fournit, plateformeDe(plateforme)).join("+");
   return {
     BRIGADE_STATIONS: `${machineDe(station)}/claude:${projet.cooks}:${fournit}`,
     ...calibrage("BRIGADE_MANAGER", projet.manager),

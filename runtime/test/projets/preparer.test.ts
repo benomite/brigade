@@ -83,7 +83,7 @@ test("après un clone en échec, le `gh` de la station dit son compte, le type d
 
 test("les décisions du parcours sont posées sous le nom du chef ; celles qu'il a changées depuis ne sont pas écrasées", (t) => {
   const etat = repertoireTemporaire(t);
-  assert.deepEqual(decisionsDe(SHOP, "Box du Salon"), {
+  assert.deepEqual(decisionsDe(SHOP, "Box du Salon", "linux"), {
     BRIGADE_STATIONS: "box-du-salon/claude:3:code+raisonnement",
     BRIGADE_MANAGER_MODEL: "sonnet",
     BRIGADE_MANAGER_EFFORT: "medium",
@@ -92,13 +92,13 @@ test("les décisions du parcours sont posées sous le nom du chef ; celles qu'il
   });
   assert.equal(machineDe("box"), "box");
   // Sans calibrage nommé par l'app, seule la station est posée : le dépôt du projet porte le reste.
-  assert.deepEqual(decisionsDe({ ...SHOP, manager: null, reviewer: null }, "box"), { BRIGADE_STATIONS: "box/claude:3:code+raisonnement" });
+  assert.deepEqual(decisionsDe({ ...SHOP, manager: null, reviewer: null }, "box", "linux"), { BRIGADE_STATIONS: "box/claude:3:code+raisonnement" });
   const journal = ouvrirJournal(etat);
   poserDecision(journal, { projet: "shop", nom: "BRIGADE_MANAGER_MODEL", valeur: "haiku", auteur: "chef" });
   journal.fermer();
 
-  assert.deepEqual(poserLesDecisions(etat, "shop", decisionsDe(SHOP, "box")), ["BRIGADE_STATIONS", "BRIGADE_MANAGER_EFFORT", "BRIGADE_REVIEWER_MODEL", "BRIGADE_REVIEWER_EFFORT"]);
-  assert.deepEqual(poserLesDecisions(etat, "shop", decisionsDe(SHOP, "box")), []);
+  assert.deepEqual(poserLesDecisions(etat, "shop", decisionsDe(SHOP, "box", "linux")), ["BRIGADE_STATIONS", "BRIGADE_MANAGER_EFFORT", "BRIGADE_REVIEWER_MODEL", "BRIGADE_REVIEWER_EFFORT"]);
+  assert.deepEqual(poserLesDecisions(etat, "shop", decisionsDe(SHOP, "box", "linux")), []);
   const relu = ouvrirJournal(etat, { lectureSeule: true });
   try {
     assert.equal(decisionsPosees(relu.base).BRIGADE_MANAGER_MODEL, "haiku");
@@ -108,3 +108,10 @@ test("les décisions du parcours sont posées sous le nom du chef ; celles qu'il
 });
 
 test("preparer.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);
+
+test("une station Mac annonce `macos` avec `code` et `raisonnement` ; les autres plateformes non", () => {
+  const station = (plateforme: string) => decisionsDe({ ...SHOP, manager: null, reviewer: null }, "mac", plateforme).BRIGADE_STATIONS;
+  assert.equal(station("darwin"), "mac/claude:3:code+raisonnement+macos");
+  assert.equal(station("linux"), "mac/claude:3:code+raisonnement");
+  assert.equal(station("win32"), "mac/claude:3:code+raisonnement");
+});

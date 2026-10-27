@@ -83,7 +83,7 @@ describe("adding a station with only what belongs to it", { concurrency: 4 }, ()
     // Telle que la station la lit dans son gist, puis la pose au journal du projet, chez elle.
     const lue = lireDemande(documentDeDemande([ajout.projet]));
     assert.deepEqual(lue, { projets: [ajout.projet], problemes: [] });
-    assert.deepEqual(decisionsDe(ajout.projet, "Mac du chef"), { BRIGADE_STATIONS: "mac-du-chef/claude:2:code+raisonnement+navigateur-headless+android" });
+    assert.deepEqual(decisionsDe(ajout.projet, "Mac du chef", "linux"), { BRIGADE_STATIONS: "mac-du-chef/claude:2:code+raisonnement+navigateur-headless+android" });
   });
 
   test("a repository without the settings file: the branch is the one its CLAUDE.md declares", async (t) => {
@@ -133,7 +133,7 @@ describe("adding a station with only what belongs to it", { concurrency: 4 }, ()
     assert.ok("projet" in ajout, JSON.stringify(ajout));
     // Ce que la station en fait : ses décisions, au journal du projet sous son répertoire.
     const etat = join(racine, "etat", "espace");
-    assert.deepEqual(poserLesDecisions(etat, "espace", decisionsDe(ajout.projet, "mac")), ["BRIGADE_STATIONS"]);
+    assert.deepEqual(poserLesDecisions(etat, "espace", decisionsDe(ajout.projet, "mac", "linux")), ["BRIGADE_STATIONS"]);
     const journal = ouvrirJournal(etat, { lectureSeule: true });
     try {
       assert.equal(decisionsPosees(journal.base).BRIGADE_STATIONS, "mac/claude:7:code+raisonnement+navigateur-headless+android");
