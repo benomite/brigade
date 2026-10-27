@@ -13,7 +13,7 @@ import { cartesEnTodo, entrerDansTodo, RESUME_D_AVANT } from "../../src/carte-to
 import { carteDeLAttente, type CarteDuTicket } from "../../src/carte-todo/cartes.ts";
 import { CarteRefusee, carteValide, DEMANDER_AU_SECOND, GESTES, validerCarte } from "../../src/carte-todo/forme.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
-import { repertoireTemporaire } from "../outils.ts";
+import { aArreter, repertoireTemporaire } from "../outils.ts";
 
 const DEPUIS = "2026-10-27T08:00:00.000Z";
 const ticket = (n: number) => ({ ticket: n, title: `Ticket ${n}`, since: DEPUIS });
@@ -195,7 +195,7 @@ describe("the four kinds the chef named", () => {
 describe("a card that fails the rule does not enter TODO", () => {
   function journal(t: TestContext) {
     const ouvert = ouvrirJournal(repertoireTemporaire(t));
-    t.after(() => ouvert.fermer());
+    aArreter(t, () => ouvert.fermer());
     return ouvert;
   }
   const PRODUIT = {
