@@ -18,6 +18,7 @@
 // reprise par toutes les veilles tant qu'elle est fraîche. Aucun import de box.ts : rien ici ne peut lancer `ssh`.
 import { setTimeout as attendre } from "node:timers/promises";
 import type { RubriqueDuTableau } from "../../../runtime/src/tableau/rendu/bloc.ts";
+import type { EnvoiDeCarte } from "./envois.ts";
 import type { LectureDuTableauDuDepot, TableauLu } from "./lecture.ts";
 
 // Les commandes que le tableau remplace, comme la veille des box les nomme (faits.ts, `COMMANDE` ; manager.ts ;
@@ -31,7 +32,9 @@ export const MANAGER = "manager";
 export type SortieDuTableau = { commande: string; texte: string };
 // `horsLigne` : GitHub n'a pas été joint (lecture.ts) — l'app est hors ligne, rien n'est en panne (#1818).
 export type EchecDuTableau = { erreur: string; atteinte: true; cas: null; duTableau: true; pasPublie?: true; horsLigne?: true };
-export type LectureDuRail = { projet: string; demande: number; a: string } & ({ sorties: SortieDuTableau[] } | EchecDuTableau);
+// `envois` : les réponses du chef aux cartes de TODO que le tableau montre (envois.ts) — absentes quand ses
+// commentaires n'ont pas été lus.
+export type LectureDuRail = { projet: string; demande: number; a: string } & ({ sorties: SortieDuTableau[]; envois?: EnvoiDeCarte[] } | EchecDuTableau);
 // Une commande demandée : son texte — ou ce qui le compose d'après les sorties d'avant (box.ts, `Commande`), que le
 // tableau ne lit pas.
 export type CommandeDemandee = string | ((...lues: never[]) => string);
@@ -136,7 +139,9 @@ export function lectureDuTableau(lu: LectureDuTableauDuDepot, projet: string, de
     if ("raison" in sortie) return echec(sortie.raison, sortie.pasPublie);
     sorties.push({ commande: commande as string, texte: sortie.texte });
   }
-  return { projet, demande, a: lu.luLe, sorties };
+  // Les réponses aux cartes de TODO, quand les commentaires du tableau ont été lus avec lui (envois.ts).
+  const envois = "envois" in lu && Array.isArray(lu.envois) ? { envois: lu.envois as EnvoiDeCarte[] } : {};
+  return { projet, demande, a: lu.luLe, sorties, ...envois };
 }
 
 // Les tableaux des projets, lus de GitHub : une seule lecture à la fois par projet, reprise par qui la demande tant

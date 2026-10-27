@@ -31,6 +31,7 @@ import { plafondVu, type PlafondLu, type PlafondVu } from "./plafond-de-calibrag
 import { LABEL_RETENUE } from "./question.ts";
 import { carteDeTodo, carteLue, type CarteDeTodo, type CarteLue } from "./carte-todo.ts";
 import type { Repondue } from "./repondues.ts";
+import type { EnvoiDeCarte } from "./tableau/envois.ts";
 import type { PrioriteMontree } from "./priorite.ts";
 import type { RailDuProjet } from "../../runtime/src/appairage/rail-du-projet.ts";
 
@@ -732,6 +733,13 @@ export function titreDEchec({ cas, atteinte, duTableau }: Echec, sansReponse = "
   return atteinte ? sansReponse : "NOT REACHED";
 }
 
+// Les réponses du chef aux cartes de TODO qu'une lecture du tableau de la cuisine porte (tableau/envois.ts), par
+// ticket — aucune d'une lecture qui ne les porte pas.
+function envoisDe(lecture: Lecture): ReadonlyMap<number, EnvoiDeCarte> | undefined {
+  if (!("envois" in lecture) || !Array.isArray(lecture.envois)) return undefined;
+  return new Map((lecture.envois as EnvoiDeCarte[]).map((envoi) => [envoi.ticket, envoi]));
+}
+
 // Une lecture de la veille, et ce qui s'en dessine. Sans faits, rien n'est
 // dessiné : le titre dit quel cas, et ce qui a été obtenu suit.
 function lire(lecture: Lecture, attend?: BlocLu, status?: StatusLu, repondues?: ReadonlyMap<number, Repondue>, ecrites?: PrioriteMontree): { faits?: Faits; recue: Dessinable } {
@@ -740,7 +748,7 @@ function lire(lecture: Lecture, attend?: BlocLu, status?: StatusLu, repondues?: 
   const rendu = lecture.sorties.find(({ commande }) => commande === COMMANDE)?.texte ?? "";
   const faits = comprendre(rendu);
   if ("informe" in faits) return { recue: { projet, demande, a, titre: "THE STATION DID NOT RETURN THE SHAPE OF `facts`", informe: faits.informe, rendu } };
-  return { faits, recue: { projet, demande, a, tableau: tableau(faits, attend, status, repondues, ecrites) } };
+  return { faits, recue: { projet, demande, a, tableau: tableau(faits, attend, status, repondues, ecrites, envoisDe(lecture)) } };
 }
 
 export const dessiner = (lecture: Lecture): Dessinable => lire(lecture).recue;
@@ -923,7 +931,9 @@ const RIEN_DE_LU = "not read: this station's runtime does not give `attend` in `
 // `status` : ce que la box en a rendu, d'où vient la ligne que chaque carte porte.
 // `ecrites` : la priorité que l'app vient d'écrire sur l'issue d'un ticket (priorite.ts), que sa carte et sa fiche
 // montrent tant que le tableau montre encore celle d'avant.
-export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues?: ReadonlyMap<number, Repondue>, ecrites?: PrioriteMontree): Rail {
+// `envois` : la dernière réponse du chef à chaque carte de TODO, que le tableau de la cuisine montre, et ce que la box en
+// a fait (tableau/envois.ts, #1841) — la carte la porte : envoyée et en attente de la cuisine, jouée, ou refusée.
+export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues?: ReadonlyMap<number, Repondue>, ecrites?: PrioriteMontree, envois?: ReadonlyMap<number, EnvoiDeCarte>): Rail {
   const lignes = status === undefined ? undefined : lignesDuRail(status.texte);
   const connus = new Map(faits.rail.map((connu) => [connu.ticket, connu]));
   // Où cuit chaque station : la box, ou le Mac (bon.ts) — rien, d'un runtime qui ne donne pas les stations.
@@ -1018,7 +1028,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
       // Dans TODO, un ticket du rail que la cuisine ne tient pas peut attendre un tiers.
       ...(dit !== undefined && connu !== undefined && POSABLES.includes(connu.etat) ? { gestes: ["attente-poser" as const] } : {}),
       ...(dit !== undefined && interroges.has(ticket) ? { question: true as const } : {}),
-      ...(dit !== undefined && donne?.carte !== undefined ? { todo: carteDeTodo(donne.carte) } : {}),
+      ...(dit !== undefined && donne?.carte !== undefined ? { todo: carteDeTodo(donne.carte, envois?.get(ticket)) } : {}),
       ...(prio === undefined ? {} : { prio: prio === "-" ? SANS_PRIO : prio }),
       ...(age === undefined ? {} : { age }),
     };
@@ -1161,7 +1171,7 @@ const COOKS_PAS_LUS = "cooks running: not read — this station's runtime does n
 // Les faits, tels que la vue les pose : la pastille, les cinq compteurs dans
 // l'ordre de la carte, les cooks en cours dans celui de la box, le dernier
 // événement, et le rail en six colonnes.
-export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues?: ReadonlyMap<number, Repondue>, ecrites?: PrioriteMontree): Tableau {
+export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues?: ReadonlyMap<number, Repondue>, ecrites?: PrioriteMontree, envois?: ReadonlyMap<number, EnvoiDeCarte>): Tableau {
   const { compteurs } = faits;
   return {
     ...colore(TONS_DE_PROJET, faits.etat),
@@ -1177,7 +1187,7 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu, repond
     cooks: { enCours: faits.cooks ?? [], vide: faits.cooks === undefined ? COOKS_PAS_LUS : AUCUN_COOK },
     evenement: evenement(faits),
     ...rienNeCuit(status),
-    rail: rail(faits, attend, status, repondues, ecrites),
+    rail: rail(faits, attend, status, repondues, ecrites, envois),
     ...(faits.stations === undefined ? {} : { stations: cuissonDe(faits.stations, faits.cooks, faits.lu) }),
     ...(faits.plafondDeCalibrage === undefined ? {} : { plafondDeCalibrage: plafondVu(faits.plafondDeCalibrage) }),
     ...(triageDe(faits.triage, faits.lu) === undefined ? {} : { triage: triageDe(faits.triage, faits.lu) }),

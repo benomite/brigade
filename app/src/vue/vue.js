@@ -102,7 +102,7 @@ import { apresRendu, lireLancement, poserLancement, REPOS } from "./closer/lance
 import { lireDerive, poserDerive } from "./closer/derive/derive.js";
 import { apresRendu as apresLaCorrection, poserCorrections, REPOS as CORRECTION_AU_REPOS } from "./correction/carte.js";
 import { poserProfils } from "./profil/carte.js";
-import { apresRendu as apresLaCarte, poserCarteDeTodo, REPOS as CARTE_AU_REPOS } from "./carte-todo.js";
+import { apresRendu as apresLaCarte, poserCarteDeTodo, REPOS as CARTE_AU_REPOS, vuDeLaCarte } from "./carte-todo.js";
 import { poserDepotRetenu } from "./onboarding/depot-retenu.js";
 import { poserBlocages } from "./projet/blocages.js";
 import { poserDelai } from "./projet/delai.js";
@@ -934,9 +934,10 @@ const lancementsDuCloser = new Map();
 /** @type {Map<string, import("./correction/carte.js").Etat>} */
 const reponsesAuxCorrections = new Map();
 // La réponse du chef en route sur une carte de TODO (carte-todo.js), par projet et ticket
-// (`<projet>#<numéro>`), avec la question à laquelle elle répond. Absente : la carte attend. Répondue, la
-// carte quitte TODO aussitôt, et reste hors de la colonne tant que les faits lus portent cette question —
-// nulle sur une carte à un seul geste ; la lecture qui ne la porte plus l'oublie.
+// (`<projet>#<numéro>`), avec la question à laquelle elle répond. Absente : la carte dit ce que le tableau
+// de la cuisine montre de sa dernière réponse. Postée, la carte reste, envoyée et en attente de la cuisine,
+// tant que les faits lus portent cette question — nulle sur une carte à un seul geste ; la lecture qui ne la
+// porte plus l'oublie. Ce n'est qu'un relais : ce que la carte dit après un redémarrage vient du tableau (ticket 1841).
 /** @type {Map<string, { question: string | null, etat: import("./carte-todo.js").Etat }>} */
 const reponsesAuxCartes = new Map();
 // Ce que le chef a tapé dans le champ d'une carte de TODO, par projet et ticket : un rail redessiné le lui rend.
@@ -2975,8 +2976,10 @@ function poserBon(projet, carte, tonAttend, execution = true) {
   // d'une carte de TODO se posent sous sa question.
   if (carte.captures !== undefined && carte.todo?.captures === undefined) bon.append(...poserCaptures(projet, ticket, carte.captures));
   // Une carte de TODO qui dit ce qui se passe (carte-todo.js, son résumé) le dit en tête de sa carte : la phrase
-  // du bon ne le redit pas.
-  if (carte.ligne !== undefined && !(attendu && carte.todo?.resume !== undefined)) {
+  // du bon ne le redit pas. Répondue — envoyée, ou jouée —, elle ne demande plus de répondre : la phrase se tait aussi.
+  const vuDeTodo = attendu && carte.todo !== undefined ? vuDeLaCarte(carte.todo, etatDeLaCarte(projet, ticket, carte.todo)).vu : undefined;
+  const todoRepondue = vuDeTodo === "attente" || vuDeTodo === "jouee";
+  if (carte.ligne !== undefined && !(attendu && carte.todo?.resume !== undefined) && !todoRepondue) {
     const phrase = bloc("p", carte.ligne);
     phrase.className = "ligne-carte";
     bon.append(phrase);
@@ -4700,7 +4703,8 @@ function poserRail(projet) {
     return poser(...marque, ...(sans === "" ? [] : [bloc("h3", sans)]));
   }
   const { hors } = tenu.tableau.rail;
-  const lues = sansCartesRepondues(projet, tenu.tableau.rail.colonnes);
+  const lues = tenu.tableau.rail.colonnes;
+  oublierLesReponsesPerimees(projet, lues);
   // La box ne répond pas : ce que ses colonnes contenaient n'est plus lu. Elles le disent, au lieu de montrer des « 0 ».
   const toutes = muet === undefined ? lues : lues.map((colonne) => ({ ...colonne, compte: "?", cartes: [], vide: "not known while the station is unreachable" }));
   // Le kanban est entier sur Rail, Taken et Pass compris ; Cooks n'en porte aucune colonne.
@@ -4828,21 +4832,23 @@ function rendreLeClavier(reprise) {
   if (repris !== undefined && reprise.debut !== null && reprise.fin !== null) repris.setSelectionRange?.(reprise.debut, reprise.fin);
 }
 
-// Une carte de TODO à laquelle le chef vient de répondre quitte sa colonne aussitôt, sans attendre la
-// lecture suivante, et le compte de la colonne avec elle. Une réponse que les faits lus ne portent plus —
-// la carte a quitté TODO, ou pose une autre question — est oubliée, et son brouillon avec.
+// Une carte de TODO à laquelle le chef vient de répondre reste dans sa colonne : elle dit sa réponse envoyée, en
+// attente de la cuisine (carte-todo.js). Une réponse que les faits lus ne portent plus — la carte a quitté TODO, ou
+// pose une autre question — est oubliée, et son brouillon avec.
 /** @param {Projet} projet @param {import("../faits.ts").Colonne[]} colonnes */
-function sansCartesRepondues(projet, colonnes) {
+function oublierLesReponsesPerimees(projet, colonnes) {
   const portees = new Map(colonnes.flatMap(({ cartes }) => cartes).flatMap(({ ticket, todo }) => (todo === undefined ? [] : [[`${projet.nom}#${ticket}`, todo.question]])));
   for (const tenues of [reponsesAuxCartes, brouillonsDeCartes]) {
     for (const cle of tenues.keys()) if (cle.startsWith(`${projet.nom}#`) && !portees.has(cle)) tenues.delete(cle);
   }
   for (const [cle, { question }] of reponsesAuxCartes) if (cle.startsWith(`${projet.nom}#`) && portees.get(cle) !== question) reponsesAuxCartes.delete(cle);
-  const repondue = (/** @type {import("../faits.ts").Carte} */ { ticket }) => reponsesAuxCartes.get(`${projet.nom}#${ticket}`)?.etat.etape === "repondue";
-  return colonnes.map((colonne) => {
-    const cartes = colonne.cartes.filter((carte) => !repondue(carte));
-    return cartes.length === colonne.cartes.length ? colonne : { ...colonne, cartes, compte: String(cartes.length) };
-  });
+}
+
+// Le geste en route d'ici sur la carte de TODO d'un ticket, pour la question qu'elle montre — au repos sinon.
+/** @param {Projet} projet @param {number} ticket @param {import("../carte-todo.ts").CarteDeTodo} todo */
+function etatDeLaCarte(projet, ticket, todo) {
+  const tenue = reponsesAuxCartes.get(`${projet.nom}#${ticket}`);
+  return tenue !== undefined && tenue.question === todo.question ? tenue.etat : CARTE_AU_REPOS;
 }
 
 // La carte de TODO d'un ticket, dans l'état de sa réponse (carte-todo.js) : ses captures posées comme
@@ -4851,8 +4857,7 @@ function sansCartesRepondues(projet, colonnes) {
 /** @param {Projet} projet @param {number} ticket @param {import("../carte-todo.ts").CarteDeTodo} todo */
 function poserLaCarteDeTodo(projet, ticket, todo) {
   const cle = `${projet.nom}#${ticket}`;
-  const tenue = reponsesAuxCartes.get(cle);
-  const etat = tenue !== undefined && tenue.question === todo.question ? tenue.etat : CARTE_AU_REPOS;
+  const etat = etatDeLaCarte(projet, ticket, todo);
   const second = demandesAuSecond.get(cle);
   return poserCarteDeTodo(
     document,
@@ -4869,7 +4874,8 @@ function poserLaCarteDeTodo(projet, ticket, todo) {
 }
 
 // La réponse du chef à une carte de TODO part par le process principal (carte-todo.ts) — une seule à la
-// fois. Écrite, la carte quitte TODO, et `facts` est relu tout de suite ; refusée, elle reste, et dit pourquoi.
+// fois. Postée, la carte dit qu'elle attend la cuisine, et le tableau est relu tout de suite ; refusée, elle
+// garde ses gestes, et dit pourquoi.
 /** @param {Projet} projet @param {number} ticket @param {import("../carte-todo.ts").Reponse} reponse */
 async function repondreALaCarte(projet, ticket, reponse) {
   const cle = `${projet.nom}#${ticket}`;
@@ -4888,9 +4894,9 @@ async function repondreALaCarte(projet, ticket, reponse) {
     rendu = { refus: "nothing was sent: the app could not ask the station", detail: erreur instanceof Error ? erreur.message : String(erreur) };
   }
   const suite = apresLaCarte(reponse, rendu);
-  if (suite.etape === "repondue") brouillonsDeCartes.delete(cle);
+  if (suite.etape === "postee") brouillonsDeCartes.delete(cle);
   poser(suite);
-  if (suite.etape === "repondue") lireLesFaits();
+  if (suite.etape === "postee") lireLesFaits();
 }
 
 // Les corrections proposées des consignes du projet, chacune une carte de la file, au-dessus des

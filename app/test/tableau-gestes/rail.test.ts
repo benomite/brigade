@@ -83,7 +83,8 @@ test("un choix sur la carte de TODO : `/brigade choose #<n> <rang>` est écrit",
   const lue = reponseLue(carte, 24, { question: carte.question, choix: 2 });
   assert.ok(!("refus" in lue));
   const { client, ecrits } = github();
-  assert.deepEqual(await reponseDeCarte(lu, lue, client), { repondue: true, dit: POSTE });
+  // Posté, son commentaire : la carte le suit jusqu'à la réponse de la box (#1841).
+  assert.deepEqual(await reponseDeCarte(lu, lue, client), { repondue: true, dit: POSTE, commentaire: 9001 });
   assert.deepEqual(ecrits, [{ adresse: COMMENTAIRES, corps: { body: "/brigade choose #24 2" } }]);
 });
 
@@ -93,7 +94,7 @@ test("un texte sur la carte de TODO : `/brigade answer #<n> <texte>` est écrit,
   const lue = reponseLue(carte, 24, { question: carte.question, texte: "  Neither: one per station,\r\nthen one for all.  " });
   assert.ok(!("refus" in lue));
   const { client, ecrits } = github();
-  assert.deepEqual(await reponseDeCarte(lu, lue, client), { repondue: true, dit: POSTE });
+  assert.deepEqual(await reponseDeCarte(lu, lue, client), { repondue: true, dit: POSTE, commentaire: 9001 });
   assert.deepEqual(ecrits, [{ adresse: COMMENTAIRES, corps: { body: "/brigade answer #24 Neither: one per station,\nthen one for all." } }]);
 });
 

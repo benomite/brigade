@@ -43,7 +43,7 @@ export const FACTS = {
   ],
 } as Faits;
 
-const STATUS = [
+export const STATUS = [
   "project    parade",
   "kitchen    open",
   "",

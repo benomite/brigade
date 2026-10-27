@@ -152,8 +152,24 @@ the runtime's order —, and a free-text field with its `send` button, inactive 
 before and after captures under the question, read without a click like those of a delivery; a card without a screen
 has no capture area. One click on a choice, or `send`, is the answer: it is posted once on the Kitchen board (#1694) —
 no confirmation; each choice's price (a merge, a cook relaunched)
-is on hover. Written, the card leaves TODO at once and `facts` is read again; refused, it stays with its gestures, and a
-line says why, the box's output on hover. The modules are `app/src/carte-todo.ts` and `app/src/vue/carte-todo.js`.
+is on hover. Refused before anything is posted, it stays with its gestures, and a line says why, the box's output on
+hover. Posted, the card stays where it is and says where the answer is (#1841, below). The modules are
+`app/src/carte-todo.ts` and `app/src/vue/carte-todo.js`.
+**A posted answer reads `sent, waiting for the kitchen` until the box replies** (#1841, epic #1838): the card recalls
+`your answer: “…”` — the choice's text, or what the chef wrote —, offers neither its choices nor its field, and says
+`sent, waiting for the kitchen` in a quiet line (what it means on hover), its left edge pulsing slowly like the rail's
+top edge during a reading (#1818). When the box has played it, the card says `played by the kitchen` (the box's line on
+hover) and its edge stops; it leaves TODO with the board that no longer carries it. When the box did not play it, the
+card says `not played by the kitchen: <reason>` in red, the box's line on hover, and gives its choices and field back.
+That state is **read from the Kitchen board, never from the app's memory** (`app/src/tableau/envois.ts`): with each
+board reading where a TODO card waits, the app also reads the board's comments written since the oldest such card
+entered TODO, finds the chef's last `/brigade choose` or `/brigade answer` for each card, and what the box did with it —
+the board's machine block (`tableau.gestes`), or, when the box holds its calls and does not rewrite the block, its reply
+comment under the gesture (`**Done**`, `**Not done**`, `**Not understood**`, linking the gesture; #1840). A gesture left
+unanswered while the box answered a later one was passed over (not the chef's account): it says nothing. So an app
+restarted while the answer still waits shows the card waiting again, never unanswered. Comments that cannot be read
+(no network, GitHub refusing) leave the card as the view last knew it. The reading costs one GitHub call per board
+reading, only while a TODO card waits. Captures: `docs/captures/1841/`.
 **Every TODO card takes that one shape** (#1767, epic #1764, `runtime/src/carte-todo/forme.ts`): when `attend[].carte`
 carries `resume` — what happens, in two plain sentences at most —, it heads the card in place of the expected line, then
 the question, the captures, one button per choice and the free-text field. A card with a single gesture (merge a green

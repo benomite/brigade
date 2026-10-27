@@ -3946,6 +3946,39 @@ main > header,
   font-size: 11px;
   color: var(--bon-discret);
 }
+/* Répondue (ticket 1841) : la réponse rappelée, à l'encre douce, puis où elle en est, à voix basse, le détail au survol.
+   Envoyée et en attente de la cuisine, le bord de la carte bat doucement, comme le haut du rail pendant une lecture
+   (ticket 1818) — sans autre phrase ; jouée, il s'éteint au trait. */
+#rail .bon .carte-todo p.reponse-envoyee {
+  padding-top: 0;
+  font-family: var(--police-interface);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--bon-encre);
+  border-top: 0;
+  overflow-wrap: break-word;
+}
+#rail .bon .carte-todo p.ou-en-est {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 0;
+  font-family: var(--police-interface);
+  font-size: 11px;
+  color: var(--bon-discret);
+  border-top: 0;
+}
+#rail .bon .carte-todo[data-envoi="attente"] {
+  animation: envoi-en-attente 1.6s ease-in-out infinite;
+}
+#rail .bon .carte-todo[data-envoi="jouee"] {
+  border-left-color: var(--bon-trait);
+}
+@keyframes envoi-en-attente {
+  50% {
+    border-left-color: var(--bon-trait);
+  }
+}
 #rail .bon .carte-todo p.refus {
   display: flex;
   align-items: center;
