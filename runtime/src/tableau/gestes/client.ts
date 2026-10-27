@@ -2,9 +2,9 @@
 // poste pour décider, la ligne que la box répond sous chacun, et le compte du
 // chef. Par `gh api`, comme le client du tableau (publication/client.ts) :
 // chaque appel prend le sien au compteur du quota réel (limite-github.ts)
-// avant de partir. La lecture des commentaires, chaque minute, est celle de la
-// cuisine ; la réponse et le compte du chef sont un geste du chef : un quota
-// bas ne les retient pas.
+// avant de partir. Lire les commentaires, y répondre et demander le compte du
+// chef sont ensemble le geste du chef : ni un quota bas ni la pause de la box
+// ne les retiennent, sans quoi un geste posté resterait sans réponse.
 import { decouper } from "../../github.ts";
 import { masquerIdentifiants } from "../../identifiants.ts";
 import { COMPTE_DE_LA_MACHINE, constaterLimite, lectureDe, limiteDuProcess, noterLesEntetes, prendreUnAppel, refusPourLimite, type Limite, type ReponseHttp, type Usage } from "../../limite-github.ts";
@@ -111,7 +111,7 @@ export function clientGitHubDesGestes(options: OptionsClient): ClientDesGestes {
     async commentaires(numero, depuis) {
       const chemin = `repos/${depot}/issues/${numero}/comments?per_page=100${depuis === null ? "" : `&since=${encodeURIComponent(depuis)}`}`;
       const gardee = lues.get(chemin);
-      const premiere = await appeler([...(gardee === undefined ? [] : ["-H", `If-None-Match: ${gardee.etag}`]), chemin], { usage: "cuisine" });
+      const premiere = await appeler([...(gardee === undefined ? [] : ["-H", `If-None-Match: ${gardee.etag}`]), chemin], { usage: "geste" });
       if (premiere.statut === 304 && gardee !== undefined) return gardee.commentaires;
       const commentaires = lirePage(exiger(premiere, chemin));
       // Au-delà d'une page, un commentaire de la page 2 ne se verrait pas dans
@@ -121,7 +121,7 @@ export function clientGitHubDesGestes(options: OptionsClient): ClientDesGestes {
       lues.delete(chemin);
       if (suivante === null && etag) lues.set(chemin, { etag, commentaires });
       while (suivante !== null) {
-        const page = exiger(await appeler([suivante], { usage: "cuisine" }), suivante);
+        const page = exiger(await appeler([suivante], { usage: "geste" }), suivante);
         commentaires.push(...lirePage(page));
         suivante = pageSuivante(page);
       }
