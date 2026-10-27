@@ -13,7 +13,9 @@ an identity (`<name>[bot]`) that the branch rules can name.
 
 The pass's token carries **no `actions` permission**: under these identities it neither reads a
 CI job's log nor reruns failed jobs, so a CI red on tests the delivery does not touch stays a
-verdict instead of being rerun once (`pass.md`). Under the machine's single account, it is rerun.
+verdict instead of being rerun once, set aside and sent to the kitchen as a `fix` ticket — and a
+CI run a red verdict already judged is judged again instead of being rerun (`pass.md`). Under the
+machine's single account, it is rerun.
 
 The **reviewer has no GitHub gesture**: it is a `claude` launched without a token in a throwaway
 worktree; its review is a fact of the log, which the pass publishes.
