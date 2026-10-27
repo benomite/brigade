@@ -6680,6 +6680,54 @@ button.recommande {
   margin: 0;
   accent-color: var(--accent);
 }
+/* Sous les projets du chef, le champ qui cherche parmi les autres dépôts du compte (ticket 1780), et ce qu'il trouve :
+   une rangée par dépôt, son nom et « add » — rien tant que le champ est vide. */
+#station .projets-de-la-station .recherche {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+#station .projets-de-la-station .recherche input[type="search"] {
+  max-width: 440px;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: var(--texte);
+  background: var(--fond);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+}
+#station .projets-de-la-station .recherche input[type="search"]::placeholder {
+  color: var(--discret);
+}
+#station .projets-de-la-station .trouves {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 440px;
+}
+#station .projets-de-la-station .trouve {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 12px;
+  font-size: 13px;
+  text-align: left;
+  background: var(--case);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+}
+#station .projets-de-la-station .trouve:hover:not(:disabled) {
+  border-color: var(--trait-fort);
+}
+#station .projets-de-la-station .trouve:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+#station .projets-de-la-station .trouve .ajouter {
+  flex: none;
+  color: var(--accent);
+}
 #accueil-stations .stations-du-compte .installer {
   display: flex;
   flex-wrap: wrap;

@@ -1477,9 +1477,16 @@ the list of stations** (#1778), read each time the home opens — **one row per 
   last sign of life are on hover. Dot green and full when online, grey ring when not.
 - **Every row does the same thing: a click anywhere on it (or Enter on the focused row) opens the station's page**
   (#1779) — paired or only registered, online or not, with the same `›` arrow, hover and focus. No row expands a block
-  in place. The page of a registered station carries "Projects it serves": your GitHub repositories (the list "add a
-  project" reads), one checkbox each, ticked when the station serves it; a repository it serves that the list no
-  longer names stays there, to be unticked. **Ticking or unticking writes at once** the whole selection into the
+  in place. The page of a registered station carries "Projects it serves": **your projects only** (#1780), one
+  checkbox each, ticked when the station serves it — the repositories your GitHub account reaches (the list "add a
+  project" reads) that the brigade already knows: a project of the app, a project a paired station serves, or a
+  repository chosen for any station under your account; a repository it serves that the list no longer names stays
+  there, to be unticked. **Any other repository is added by search, never shown as a list**: the field under the
+  boxes ("add another repository — type part of its name") shows, as you type, the reachable repositories whose
+  name contains what you typed and that have no box yet — eight at most, then "3 more — keep typing", or "no other
+  repository matches …"; emptied, it shows nothing again. "add" on one chooses it for the station (written like a
+  tick) and it joins your projects: a box on every station's page. A box you untick stays until the app closes; at
+  the next launch, your projects are again what the brigade knows. **Ticking or unticking writes at once** the whole selection into the
   station's gist (`brigade-selection.json`, the only file the app writes there; `app/src/stations-du-compte.ts`):
   it is what the app reads again at the next launch. While it is written, the boxes wait; refused by GitHub, one
   line says so under the boxes, the detail on hover, and nothing changes.
@@ -1492,7 +1499,7 @@ the list of stations** (#1778), read each time the home opens — **one row per 
   detail on hover, the page that fixes it when there is one, and "read again". **Unreadable registrations**: one
   line, "1 more station cannot be read", the reasons on hover, and "read again".
 
-Screens: `docs/captures/1706/` (before the single list), `docs/captures/1778/` (the single list, before and after).
+Screens: `docs/captures/1706/` (before the single list), `docs/captures/1778/` (the single list, before and after), `docs/captures/1780/` (your projects first, the others by search).
 
 ### This computer is a station; a phone is a workstation
 

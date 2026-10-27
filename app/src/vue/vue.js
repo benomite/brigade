@@ -410,7 +410,21 @@ let lectureDesDepotsEnregistrees = 0;
 /** @type {import("./stations-du-compte.js").GestesDuCompte} */
 const gestesDesEnregistrees = {
   ouvrirLaStation: (id) => ouvrirStation(id),
-  choisir: (id, depots) => void choisirPourUneEnregistree(id, depots),
+  // Une case décochée reste un projet du chef jusqu'à la fin de la session : sa case ne disparaît pas sous le clic.
+  choisir: (id, depots) => {
+    const lues = etatDesEnregistrees.stations;
+    const avant = lues?.state === "listed" ? (lues.stations.find((station) => station.id === id)?.selection ?? []) : [];
+    etatDesEnregistrees.ajoutes = [...new Set([...(etatDesEnregistrees.ajoutes ?? []), ...avant])];
+    void choisirPourUneEnregistree(id, depots);
+  },
+  // Ce que le chef tape : retenu, que la page redessinée le lui rende ; ce qu'il trouve se pose à sa place.
+  chercher: (id, texte) => void (etatDesEnregistrees.recherche = { id, texte }),
+  // Un dépôt trouvé : il rejoint les projets du chef, le champ se vide, et la sélection de la station s'écrit.
+  ajouter: (id, depot, depots) => {
+    etatDesEnregistrees.ajoutes = [...new Set([...(etatDesEnregistrees.ajoutes ?? []), depot])];
+    delete etatDesEnregistrees.recherche;
+    void choisirPourUneEnregistree(id, depots);
+  },
   relire: () => {
     void lireLesEnregistrees();
     if (etatDesEnregistrees.depots !== undefined && "refus" in etatDesEnregistrees.depots) void lireLesDepotsDesEnregistrees();
@@ -5541,10 +5555,25 @@ function enregistreeOuverte() {
   return ligne?.enregistree;
 }
 
-// Sur la page de la station enregistrée : les dépôts du chef à cocher, ce qu'elle sert — ce que sa ligne n'ouvre plus en place.
+// Sur la page de la station enregistrée : les projets du chef à cocher, ce qu'elle sert — ce que sa ligne n'ouvre plus en
+// place —, et la recherche parmi ses autres dépôts (ticket 1780). Les projets du chef sont ceux que la brigade connaît :
+// ceux de l'app, ceux que les stations appairées servent ou portent ; les stations du compte y ajoutent ce qui leur est
+// choisi (stations-du-compte.js). Le champ où le chef tapait garde le clavier, et son curseur, quand la page se redessine.
 function poserLesProjetsChoisis() {
   const enregistree = enregistreeOuverte();
+  if (etatDesEnregistrees.recherche !== undefined && etatDesEnregistrees.recherche.id !== stationOuverte) delete etatDesEnregistrees.recherche;
+  etatDesEnregistrees.connus = [
+    ...configuration.projets.map(({ nom, depot }) => depot ?? nom),
+    ...(projetsVus?.projets ?? []).map(({ nom, depot }) => (depot === "" ? nom : depot)),
+    ...(stationsVues?.stations ?? []).flatMap(({ projets }) => projets ?? []),
+  ];
+  const tape = /** @type {HTMLInputElement | null | undefined} */ (document.activeElement);
+  const reprise = tape?.dataset?.recherche === undefined ? undefined : { debut: tape.selectionStart, fin: tape.selectionEnd };
   projetsChoisisDeStation.replaceChildren(...(enregistree === undefined ? [] : [casesDeLEnregistree(document, enregistree, etatDesEnregistrees, gestesDesEnregistrees)]));
+  if (reprise === undefined) return;
+  const champ = /** @type {HTMLInputElement | null} */ (projetsChoisisDeStation.querySelector?.("input[type=search]") ?? null);
+  champ?.focus();
+  if (champ !== null && reprise.debut !== null && reprise.fin !== null) champ.setSelectionRange?.(reprise.debut, reprise.fin);
 }
 
 // Le seul réglage que la page d'une station montre est son plafond de cooks, étiqueté ci-dessous : le dossier des
