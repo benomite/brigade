@@ -880,9 +880,10 @@ CLOSER
 - **"+ station"**, under the list of stations, opens the pairing code field — nowhere
   else on the home. Once paired, the station appears in the list and the field closes, with no
   message left on display; "cancel" closes it, empty.
-- **"Under your GitHub account"**, under "+ station", lists the stations registered under your GitHub account,
-  available or not, and opens each on the projects it serves, to tick (#1706, see "Your stations under your GitHub
-  account, and the projects each serves").
+- **A station registered under your GitHub account** is in the same list (#1778): **each computer once**. A
+  paired machine is said by its presence only; a machine that is only registered has its own row, which opens on
+  the projects it serves, to tick (#1706, see "Your stations under your GitHub account, and the projects each
+  serves"). There is no second list, and no "Under your GitHub account" heading.
 - **The health row**, at the bottom, sums up the Max connection and the access to GitHub. All is well: green
   and discreet, `Max ✓ · GitHub ✓`. When one of the two is off, it says in one sentence what is
   wrong: `Max: token to redo within 20 d`, `Max: connection lost on Mac`,
@@ -1452,35 +1453,42 @@ publishes the reason key and the gesture (`raison`, `geste` of `secondaires` in 
 ### Your stations under your GitHub account, and the projects each serves (#1706)
 
 A station installed on one of your machines, its `gh` signed in to your GitHub account, registers itself under that
-account (`runtime/src/enregistrement-station/README.md`, #1705): no code to pair. **On the home screen, under "+ station",
-the block "Under your GitHub account" lists them**, read each time the home opens, with "read again":
+account (`runtime/src/enregistrement-station/README.md`, #1705): no code to pair. **On the home screen, they are in
+the list of stations** (#1778), read each time the home opens — **one row per computer**:
 
 ```
-Under your GitHub account  ?
-Open a station to choose the projects it serves.
-● parade-box  Linux · available · serves 2 projects              ›
-○ mac         macOS · unavailable · no project chosen yet        ›
-read again
+● macbook-air-de-benoit  online · idle · runs no kitchen                            ›
+● nas                    online · no project chosen yet                             ›
+● parade-box             online · idle · brigade, calculus-workspace, espace, …     ›
 ```
 
-- **One line per station**, in the reader's order: its name, its platform, `available` or `unavailable` (the
-  contract's freshness rule: a clean stop, or no sign of life for 4 min 30 s), and what it serves — `no project
-  chosen yet`, `serves no project`, `serves 2 projects`. Its machine, its version and its last sign of life are on
-  hover. Dot green and full when available, grey ring when not.
+- **A machine is recognized by its name**, which its registration shares with its presence (case aside). **A paired
+  machine is said by its presence alone** — online or not, what it does, the projects its configuration serves
+  (`app/src/accueil.ts`) —: its registration adds no row, so the two readings can never contradict each other. Two
+  registrations of the same name (a lost state directory leaves an old one) make one row: the online one, else the
+  last seen. The merge is `uneLigneParMachine` (`app/src/vue/stations-du-compte.js`).
+- **A machine that is only registered** has its row from its registration, in the order of the names: `online` or
+  `offline` (the contract's freshness rule: a clean stop, or no sign of life for 4 min 30 s), then the projects it
+  serves — `no project chosen yet`, `no project`, or the repositories themselves. Its platform, machine, version and
+  last sign of life are on hover. Dot green and full when online, grey ring when not.
 - **A click on its line opens its projects**, "Projects it serves": your GitHub repositories (the list "add a
   project" reads), one checkbox each, ticked when the station serves it; a repository it serves that the list no
   longer names stays there, to be unticked. **Ticking or unticking writes at once** the whole selection into the
   station's gist (`brigade-selection.json`, the only file the app writes there; `app/src/stations-du-compte.ts`):
   it is what the app reads again at the next launch. While it is written, the boxes wait; refused by GitHub, one
   line says so under the boxes, the detail on hover, and nothing changes.
-- **An unavailable station stays editable**: one line says it serves these projects once it is back.
-- **No station yet**: the block says to install one on the machine that will cook, and gives the installation
-  command of each system (`docs/installation-station.md`), each with "copy".
-- **This computer signed in to no account**: the reason and "Sign in to GitHub", the same as on the first launch;
-  signed in, the block reads again. **Any other failure** (no `gh`, no network, GitHub's limit): one line, "your
-  stations could not be read", the detail on hover, the page that fixes it when there is one, and "read again".
+- **An offline station stays editable**: one line says it serves these projects once it is back.
+- **A paired machine's selection is not shown on the home screen**: its row opens its station page. Choosing its
+  projects there is #1780.
+- Under the list, with no heading, only what the reading of the account has to add. **No station at all**, neither
+  paired nor registered: the sentence to install one on the machine that will cook, and the installation command of
+  each system (`docs/installation-station.md`), each with "copy", and "read again". **This computer signed in to no
+  account**: the reason and "Sign in to GitHub", the same as on the first launch; signed in, the list reads again.
+  **Any other failure** (no `gh`, no network, GitHub's limit): one line, "your stations could not be read", the
+  detail on hover, the page that fixes it when there is one, and "read again". **Unreadable registrations**: one
+  line, "1 more station cannot be read", the reasons on hover, and "read again".
 
-The station does not act on its selection yet (#1707). Screens: `docs/captures/1706/`.
+Screens: `docs/captures/1706/` (before the single list), `docs/captures/1778/` (the single list, before and after).
 
 ### This computer is a station; a phone is a workstation
 

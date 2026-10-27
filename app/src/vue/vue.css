@@ -6610,41 +6610,30 @@ button.recommande {
   display: none;
 }
 
-/* Les stations enregistrées sous le compte GitHub du chef (ticket 1706, stations-du-compte.js) : sous « + station »,
-   un titre discret, une ligne par station comme sur l'accueil, et ses projets à cocher dessous. */
+/* Les stations enregistrées sous le compte GitHub du chef (ticket 1706, stations-du-compte.js) : une machine que seul
+   son enregistrement fait connaître a sa ligne dans la liste des stations (ticket 1778), comme les autres, et ses projets
+   à cocher dessous. Sous la liste, sans titre, ce que leur lecture a de plus à dire. */
 #accueil-stations .stations-du-compte {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  margin-top: 6px;
-  padding-top: 6px;
-  border-top: 1px solid var(--trait-doux);
+  padding-top: 2px;
 }
-#accueil-stations .stations-du-compte h3 {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
-  padding: 4px 12px 0;
+#accueil-stations .stations-du-compte[hidden] {
+  display: none;
 }
 #accueil-stations .stations-du-compte > p {
   margin: 0;
   padding: 4px 12px;
   color: var(--texte-doux);
 }
-#accueil-stations .stations-du-compte > p.vide,
 #accueil-stations .stations-du-compte > p.indisponible {
   color: var(--discret);
 }
 #accueil-stations .stations-du-compte .attendu .survol {
   margin-left: 6px;
 }
-#accueil-stations .du-compte {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-#accueil-stations .du-compte .ligne[aria-expanded="true"] .ouvrir > span {
+#accueil-stations .enregistree .ligne[aria-expanded="true"] .ouvrir > span {
   display: inline-block;
   transform: rotate(90deg);
 }
