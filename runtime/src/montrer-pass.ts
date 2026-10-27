@@ -164,11 +164,24 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
         ];
       }
       case "pass.ci-rerun": {
-        const { sha, runs, checks, tests } = evenement.payload;
+        const { sha, runs, checks, tests, alreadyJudged } = evenement.payload;
+        const reruns = `run${runs.length > 1 ? "s" : ""} ${runs.join(", ")}`;
         return [
-          `${tete}CI red on ${sha.slice(0, 7)} only on tests the delivery does not touch: failed jobs rerun once (run${runs.length > 1 ? "s" : ""} ${runs.join(", ")}) — no return, no card`,
+          alreadyJudged
+            ? `${tete}CI red on ${sha.slice(0, 7)} in a run a red verdict already judged: failed jobs rerun (${reruns}) before judging again — a return never judges the same CI run twice`
+            : `${tete}CI red on ${sha.slice(0, 7)} only on tests the delivery does not touch: failed jobs rerun once (${reruns}) — no return, no card`,
           ...checks.map((check) => `      CI “${check.name}”: ${check.conclusion}${check.url ? ` — ${check.url}` : ""}`),
           ...tests.map((test) => `      failing test: ${test}`),
+        ];
+      }
+      case "pass.test-fix-opening":
+        return [`${tete}opening the \`fix\` ticket of the unstable test ${evenement.payload.test}`];
+      case "pass.ci-set-aside": {
+        const { sha, checks, fixes } = evenement.payload;
+        return [
+          `${tete}CI red on ${sha.slice(0, 7)} again after its rerun, on the same tests the delivery does not touch: set aside, the delivery is judged without it — no return, no card`,
+          ...checks.map((check) => `      CI “${check.name}”: ${check.conclusion}${check.url ? ` — ${check.url}` : ""}`),
+          ...fixes.map(({ test, issue, reused }) => `      unstable test: ${test} — \`fix\` ticket #${issue}${reused ? " (already open)" : ""}`),
         ];
       }
       case "pass.ci-awaited":

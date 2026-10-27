@@ -63,7 +63,6 @@ import {
   A_RELIRE,
   BASE_ROUGE,
   causeDeDeclarations,
-  causeDeTestInstable,
   DIRE_GATES_COUPEES,
   ENCORE_ROUGE,
   EN_PAUSE,
@@ -137,6 +136,7 @@ import { GesteRefuse, nomAbandon } from "./rail.ts";
 import { corpsDeReparation, echecsDesGates, LABELS_REPARATION, shaDeReparation, titreDeReparation } from "./reparation.ts";
 import { FICHIER as REGLAGES_DU_PROJET } from "./reglages-projet/reglages.ts";
 import { attribuer, testsEnEchec } from "./relance-de-ci.ts";
+import { corpsDeTestInstable, LABELS_TEST_INSTABLE, testDuTicket, titreDeTestInstable, type TestInstable } from "./test-instable.ts";
 import { DECLARATION_RESEAU } from "./reseau.ts";
 import { argumentsReviewer, CONSIGNE_MAX, consigneDeRelecture, DE_LA_BRIGADE, debutDeRelecture, diffCoupe, lireRelecture, REVIEWER, type ConfigReviewer } from "./reviewer.ts";
 import { calibrageDuSecondJuge, carteDuSecondJuge, consigneDuSecondJuge, debutDuSecondJugement, DIRE_VERDICT, lireSecondJugement, SECOND_JUGE } from "./second-juge.ts";
@@ -1566,41 +1566,14 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     return attribution.etranger ? attribution.tests : null;
   };
 
-  // La CI de la livraison est rouge de nouveau après sa relance, sur le même
-  // test qu'elle ne touche pas : c'est la base qui est instable, pas le ticket
-  // qui a échoué. Elle remonte au chef, sans renvoi, avec une carte qui le dit
-  // (`causeDeTestInstable`). Un autre test rouge, ou un rouge qui ne s'établit
-  // pas, laisse le rouge à la livraison. Rend vrai si elle a remonté.
-  const remonterLInstabilite = async (connu: PassDeTicket, ref: string, sha: string, rouges: Check[]): Promise<boolean> => {
-    const { ticket } = connu;
-    const relance = ciRelancee(ticket, sha);
-    if (relance === null) return false;
-    const tests = await testsEtrangers(connu, ref, rouges.map((check) => ({ check, job: jobDuCheck(check) })));
-    if (tests === null || tests.some((test) => !relance.payload.tests.includes(test))) return false;
-    if (arrete || !enPass(ticket)) return false;
-    await remonter(
-      connu,
-      causeDeTestInstable(tests),
-      `La base est instable : cette livraison est rouge sur un test que ce changement ne touche pas, deux fois — ${tests.map((test) => `\`${test}\``).join(", ")}, rouge aussi après la relance des jobs en échec. Ce n'est pas un ticket qui a échoué, et aucun cook n'y peut rien.`,
-    );
-    return true;
-  };
-
-  // Une CI rouge sur des tests que la livraison ne touche pas, et sur rien
-  // d'autre, ne fait pas un verdict : ses jobs en échec sont relancés, une fois
-  // par livraison — ni renvoi, ni carte (`relance-de-ci.ts`). Rend vrai si la
-  // relance est partie : la CI est alors attendue de nouveau. Tout ce qui ne
-  // s'établit pas — un check qui n'est pas un job de GitHub Actions, un journal
-  // illisible ou qui ne nomme aucun test, un test que la livraison touche —
-  // laisse le rouge à la livraison.
-  const relancerLaCI = async (connu: PassDeTicket, ref: string, sha: string, rouges: Check[]): Promise<boolean> => {
+  // Relance les jobs en échec de ces checks rouges, run par run : une relance
+  // refusée laisse ses jobs rouges, et ceux-là restent le verdict de la
+  // livraison. Rend vrai si une relance est partie : la CI est alors attendue
+  // de nouveau. Un check qui n'est pas un job de GitHub Actions ne se relance pas.
+  const relancer = async (connu: PassDeTicket, sha: string, rouges: Check[], tests: string[], dejaJuges: boolean): Promise<boolean> => {
     const { ticket, run } = connu;
-    if (ciRelancee(ticket, sha) !== null) return false;
     const jobs = rouges.map((check) => ({ check, job: jobDuCheck(check) }));
-    const etrangers = await testsEtrangers(connu, ref, jobs);
-    if (etrangers === null) return false;
-    // Run par run : une relance refusée laisse ses jobs rouges, et ceux-là
-    // restent le verdict de la livraison.
+    if (jobs.some(({ job }) => job === null)) return false;
     const relances: number[] = [];
     for (const runCI of new Set(jobs.map(({ job }) => job!.run))) {
       try {
@@ -1612,9 +1585,122 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     }
     if (relances.length === 0) return false;
     const checks = jobs.filter(({ job }) => relances.includes(job!.run)).map(({ check }) => check);
-    noter(ticket, { type: "pass.ci-rerun", payload: { run, sha, runs: relances, checks, tests: etrangers } });
-    avertir(`brigade : CI relancée sur le ticket #${ticket} (${court(sha)}) — rouge sur des tests que la livraison ne touche pas : ${etrangers.join(", ")}`);
+    noter(ticket, { type: "pass.ci-rerun", payload: { run, sha, runs: relances, checks, tests, ...(dejaJuges ? { alreadyJudged: true as const } : {}) } });
+    avertir(
+      dejaJuges
+        ? `brigade : CI relancée sur le ticket #${ticket} (${court(sha)}) — un verdict rouge a déjà jugé ce run, il ne le juge pas deux fois`
+        : `brigade : CI relancée sur le ticket #${ticket} (${court(sha)}) — rouge sur des tests que la livraison ne touche pas : ${tests.join(", ")}`,
+    );
     return true;
+  };
+
+  // Une CI rouge sur des tests que la livraison ne touche pas, et sur rien
+  // d'autre, ne fait pas un verdict : ses jobs en échec sont relancés, une fois
+  // par livraison — ni renvoi, ni carte (`relance-de-ci.ts`). Rend vrai si la
+  // relance est partie. Tout ce qui ne s'établit pas — un check qui n'est pas
+  // un job de GitHub Actions, un journal illisible ou qui ne nomme aucun test,
+  // un test que la livraison touche — laisse le rouge à la livraison.
+  const relancerLaCI = async (connu: PassDeTicket, ref: string, sha: string, rouges: Check[]): Promise<boolean> => {
+    if (ciRelancee(connu.ticket, sha) !== null) return false;
+    const etrangers = await testsEtrangers(connu, ref, rouges.map((check) => ({ check, job: jobDuCheck(check) })));
+    if (etrangers === null) return false;
+    return relancer(connu, sha, rouges, etrangers, false);
+  };
+
+  // Un renvoi ne juge jamais deux fois le même run de CI (#1820) : un job
+  // rouge qu'un verdict rouge de ce ticket portait déjà — le cook renvoyé n'a
+  // rien poussé qui le relance — est relancé avant d'être rejugé, quoi qu'il
+  // dise. Son rouge relancé, le verdict suivant lit un autre run. Rend vrai si
+  // la relance est partie.
+  const relancerUnRunDejaJuge = async (connu: PassDeTicket, sha: string, rouges: Check[]): Promise<boolean> => {
+    const juges = new Set(
+      journal
+        .duTicket(connu.ticket)
+        .flatMap((evenement) => (evenement.type === "pass.judged" && evenement.payload.verdict === "red" ? evenement.payload.ci.checks : []))
+        .filter((check) => check.outcome === "red" && check.url !== null)
+        .map((check) => check.url),
+    );
+    const dejaJuges = rouges.filter((check) => check.url !== null && juges.has(check.url));
+    if (dejaJuges.length === 0) return false;
+    return relancer(connu, sha, dejaJuges, [], true);
+  };
+
+  // Le ticket `fix` de ce test instable, ouvert ou retrouvé : le dernier que la
+  // pass a ouvert pour lui s'il est encore ouvert, sinon un neuf. Sa création
+  // est annoncée avant l'appel à GitHub : la réponse perdue, ou le runtime tué
+  // entre les deux, l'issue se retrouve par sa marque au lieu d'être ouverte
+  // deux fois. Lève si GitHub ne répond pas.
+  const ticketDuTestInstable = async (instable: TestInstable): Promise<{ test: string; issue: number; reused: boolean }> => {
+    const { test, ticket, sha } = instable;
+    const faits = base.lire<{ type: string; at: string; payload: string }>(
+      "SELECT type, at, payload FROM events WHERE type IN ('pass.test-fix-opening', 'pass.ci-set-aside') ORDER BY seq",
+    );
+    let annonce: string | null = null;
+    let connu: number | null = null;
+    for (const fait of faits) {
+      const payload = JSON.parse(fait.payload) as { test?: string; fixes?: Array<{ test: string; issue: number }> };
+      if (fait.type === "pass.test-fix-opening" && payload.test === test) annonce = fait.at;
+      const pour = payload.fixes?.find((fix) => fix.test === test);
+      if (pour !== undefined) {
+        annonce = null;
+        connu = pour.issue;
+      }
+    }
+    if (annonce !== null) {
+      const recentes = await github.issuesDepuis(new Date(Date.parse(annonce) - MARGE_MS).toISOString());
+      // La marque ne vaut que sur une issue de confiance : n'importe qui peut en ouvrir une qui la porte.
+      const retrouvee = recentes.find((issue) => DE_CONFIANCE.includes(issue.association) && issue.state === "open" && testDuTicket(issue.body) === test);
+      if (retrouvee !== undefined) return { test, issue: retrouvee.number, reused: false };
+    } else if (connu !== null && (await github.issue(connu))?.state === "open") {
+      return { test, issue: connu, reused: true };
+    }
+    if (annonce === null) noter(ticket, { type: "pass.test-fix-opening", payload: { test, sha } });
+    const issue = await github.creerIssue({ titre: titreDeTestInstable(instable), corps: corpsDeTestInstable(instable), labels: LABELS_TEST_INSTABLE });
+    avertir(`brigade : test instable \`${test}\` — rouge deux fois sur le ticket #${ticket}, qui ne le touche pas : ticket \`fix\` #${issue} ouvert, la livraison est jugée sans lui`);
+    return { test, issue, reused: false };
+  };
+
+  // La CI de la livraison est rouge de nouveau après sa relance, sur les mêmes
+  // tests qu'elle ne touche pas, la base verte : ce rouge n'est pas celui du
+  // ticket, et le chef n'y a rien à décider. Chaque test part à la cuisine en
+  // ticket `fix` (`test-instable.ts`), et ces jobs rouges sont mis de côté : la
+  // livraison est jugée sans eux — ni renvoi, ni carte (#1820). Rend les
+  // adresses des checks mis de côté ; null si les tickets n'ont pas pu être
+  // ouverts — la pass y revient au tick, sans verdict. Un autre test rouge, ou
+  // un rouge qui ne s'établit pas, n'est pas mis de côté. Mis de côté sur ce
+  // commit, il le reste ; sinon, `ouvrir` faux — un constat bloquant fait déjà
+  // le verdict —, rien n'est ouvert.
+  const mettreDeCote = async (connu: PassDeTicket, ref: string, pr: string, sha: string, rouges: Check[], ouvrir: boolean): Promise<Set<string | null> | null> => {
+    const { ticket } = connu;
+    const deja = journal.duTicket(ticket).findLast((evenement): evenement is Evenement<Extract<FaitPass, { type: "pass.ci-set-aside" }>> => evenement.type === "pass.ci-set-aside" && evenement.payload.sha === sha);
+    if (deja !== undefined) return new Set(deja.payload.checks.map((check) => check.url));
+    if (!ouvrir) return new Set();
+    const relance = ciRelancee(ticket, sha);
+    if (relance === null || relance.payload.tests.length === 0) return new Set();
+    const tests = await testsEtrangers(connu, ref, rouges.map((check) => ({ check, job: jobDuCheck(check) })));
+    if (tests === null || tests.some((test) => !relance.payload.tests.includes(test))) return new Set();
+    if (arrete || !enPass(ticket)) return null;
+    const fixes: Array<{ test: string; issue: number; reused: boolean }> = [];
+    try {
+      for (const test of tests) {
+        fixes.push(await ticketDuTestInstable({ test, base: options.base, ticket, pr, sha, avant: relance.payload.checks, apres: rouges }));
+        if (arrete) return null;
+      }
+    } catch (erreur) {
+      avertir(`brigade : test instable sur le ticket #${ticket} (${tests.join(", ")}), mais son ticket \`fix\` n'a pas pu être ouvert — ${message(erreur)}. La pass y revient au tick, sans verdict`);
+      return null;
+    }
+    if (!enPass(ticket)) return null;
+    noter(ticket, { type: "pass.ci-set-aside", payload: { sha, checks: rouges, fixes } });
+    await commenter(
+      ticket,
+      [
+        `**Pass — CI mise de côté : test instable.** \`${court(sha)}\` · ${pr}`,
+        "",
+        `La CI de cette livraison est rouge sur ${tests.map((test) => `\`${test}\``).join(", ")}, que ce changement ne touche pas, \`${options.base}\` verte — et rouge encore après la relance de ses jobs en échec. Ce rouge n'est pas celui de ce ticket : ${fixes.map(({ test, issue, reused }) => `\`${test}\` part à la cuisine en ticket \`fix\` #${issue}${reused ? ", déjà ouvert" : ""}`).join(" ; ")}. La livraison est jugée sans ces jobs : ni renvoi, ni carte.`,
+      ].join("\n"),
+    );
+    return new Set(rouges.map((check) => check.url));
   };
 
   // `poser` : fait le worktree jetable du jugement.
@@ -1829,12 +1915,17 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
           ci = { outcome: "skipped", checks };
           findings.push(findingDeCiDepassee(options.base, sha, retard, rouges));
         } else {
-          // Rouge seulement par sa CI, sur des tests qu'elle ne touche pas.
+          // Rouge seulement par sa CI, sur des tests qu'elle ne touche pas : relancée une fois.
           if (rouges.length > 0 && review.outcome !== "red" && (await relancerLaCI(connu, ref, sha, rouges))) return;
-          if (rouges.length > 0 && review.outcome !== "red" && (await remonterLInstabilite(connu, ref, sha, rouges))) return;
+          // Rouge encore après sa relance, sur les mêmes : mise de côté, son test à la cuisine.
+          const deCote = rouges.length > 0 ? await mettreDeCote(connu, ref, pr.url, sha, rouges, review.outcome !== "red") : new Set<string | null>();
+          if (deCote === null) return;
+          const retenus = rouges.filter((check) => !deCote.has(check.url));
+          // Un run qu'un verdict rouge a déjà jugé se relance avant d'être rejugé.
+          if (retenus.length > 0 && review.outcome !== "red" && (await relancerUnRunDejaJuge(connu, sha, retenus))) return;
           if (arrete || !enPass(ticket)) return;
-          ci = { outcome: checks.length === 0 ? "none" : rouges.length > 0 ? "red" : "green", checks };
-          findings.push(...rouges.map((check) => `CI rouge — job « ${check.name} » : ${check.conclusion}${check.url ? ` (${check.url})` : ""}.`));
+          ci = { outcome: checks.length === 0 ? "none" : retenus.length > 0 ? "red" : "green", checks };
+          findings.push(...retenus.map((check) => `CI rouge — job « ${check.name} » : ${check.conclusion}${check.url ? ` (${check.url})` : ""}.`));
         }
       }
       findings.push(...bloquants(review.findings).map(findingDuReviewer));

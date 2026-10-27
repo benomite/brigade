@@ -456,6 +456,10 @@ export const pass = definirProjection<Ecoutes>({
     // nothing in the pass's state: the delivery is still being judged, and the
     // pass reads the rerun in the log.
     "pass.ci-rerun": () => {},
+    // A CI red set aside, and the `fix` ticket of its unstable test, change
+    // nothing in the pass's state either: the verdict that follows says it.
+    "pass.test-fix-opening": () => {},
+    "pass.ci-set-aside": () => {},
     // Which workflow the pass waits on changes nothing in its state: `pass`
     // and `status` read it in the log.
     "pass.ci-awaited": () => {},

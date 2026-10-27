@@ -87,11 +87,11 @@ export const causeDeDeclarations = (fichiers: string[]) => `${PREFIXE_DECLARATIO
 // Les fichiers que nomme la cause d'un arrêt, si elle est de celles-là.
 export const declarationsDeLaCause = (cause: string | null) => (cause?.startsWith(PREFIXE_DECLARATIONS) ? cause.slice(PREFIXE_DECLARATIONS.length) : null);
 
-// La cause d'une remontée `unjudged` quand la CI de la livraison est rouge deux
-// fois, relancée entre-temps, sur le même test qu'elle ne touche pas : c'est la
-// base qui est instable, pas le ticket qui a échoué (`relance-de-ci.ts`).
+// La cause d'une remontée `unjudged` qu'écrivait la pass avant #1820, quand la
+// CI de la livraison était rouge deux fois, relancée entre-temps, sur le même
+// test qu'elle ne touche pas. Elle n'en écrit plus — ce test part à la cuisine
+// en ticket `fix` (`pass.ci-set-aside`) —, mais un journal d'avant la porte.
 const PREFIXE_TEST_INSTABLE = "unstable-test: ";
-export const causeDeTestInstable = (tests: string[]) => `${PREFIXE_TEST_INSTABLE}${tests.join(", ")}`;
 // Les tests que nomme la cause d'une remontée, si elle est de celles-là.
 export const testsInstablesDeLaCause = (cause: string | null) => (cause?.startsWith(PREFIXE_TEST_INSTABLE) ? cause.slice(PREFIXE_TEST_INSTABLE.length) : null);
 
@@ -229,7 +229,22 @@ export type FaitPass =
   // un verdict. `checks` : les jobs rouges relancés — tant qu'ils se lisent
   // encore, ils sont en cours. `tests` : les tests en échec, en chemins du
   // dépôt. Une fois par livraison : ni renvoi, ni carte, ni phase changée.
-  | { type: "pass.ci-rerun"; payload: { run: string; sha: string; runs: number[]; checks: Check[]; tests: string[] } }
+  // `alreadyJudged` : relancés parce qu'un verdict rouge les avait déjà jugés,
+  // quoi qu'ils disent — un renvoi ne juge jamais deux fois le même run de CI
+  // (#1820). `tests` est alors vide : rien n'a établi le rouge hors de la
+  // livraison. Une fois par run jugé.
+  | { type: "pass.ci-rerun"; payload: { run: string; sha: string; runs: number[]; checks: Check[]; tests: string[]; alreadyJudged?: true } }
+  // La pass va ouvrir le ticket `fix` du `test` instable, rouge deux fois sur le
+  // commit `sha` de la livraison (`test-instable.ts`). Écrit avant l'appel à
+  // GitHub : la réponse perdue, l'issue se retrouve par sa marque au lieu
+  // d'être ouverte deux fois.
+  | { type: "pass.test-fix-opening"; payload: { test: string; sha: string } }
+  // La CI du commit `sha` est restée rouge, après la relance de ses jobs en
+  // échec, sur les mêmes tests que la livraison ne touche pas, la base verte
+  // (#1820) : ses jobs rouges, `checks`, sont mis de côté, et la livraison est
+  // jugée sans eux. Chaque test part à la cuisine en ticket `fix` : `issue`,
+  // ouvert pour lui — ou déjà ouvert, `reused`. Ni renvoi, ni carte.
+  | { type: "pass.ci-set-aside"; payload: { sha: string; checks: Check[]; fixes: Array<{ test: string; issue: number; reused: boolean }> } }
   // La pass attend la CI du commit `sha` sans qu'aucun check n'existe : la
   // branche porte ces `workflows` (fichiers sous `.github/workflows`), qui se
   // lancent sur une PR vers la base. Une fois par commit ; c'est ce que

@@ -168,20 +168,86 @@ describe("la pass relance une CI rouge sur des tests que la livraison ne touche 
     );
   });
 
-  test("rouge de nouveau après la relance sur le même test : pas de seconde relance, ni renvoi — la pass remonte une base instable, et la carte nomme le test", async (t) => {
+  test("rouge de nouveau après la relance sur le même test : pas de seconde relance, ni renvoi, ni carte — le test part à la cuisine en ticket `fix`, et la livraison est jugée sans lui", async (t) => {
     const { gh, compter, jusquAu, dernier, auChef, pass } = servir(t, { scenario: "bavard", suite: ["livre"] });
+    gh.ci.checks = [job(1, "green", "lint"), job(2)];
+    gh.journauxDeCI.set("tests", JOURNAL_LINUX.replace("cuisson-de-bout-en-bout", "rail"));
+    await jusquAu("pass.ci-rerun");
+    gh.ci.checks = [job(1, "green", "lint"), job(3)];
+    await jusquAu("merge.done");
+
+    assert.deepEqual([compter("pass.ci-rerun"), compter("pass.returned"), compter("pass.escalated"), pass()?.returns], [1, 0, 0, 0]);
+    // Le ticket `fix` du test, ouvert sans geste du chef : il porte `fire` et son calibrage.
+    const [fix] = gh.creations;
+    assert.equal(gh.creations.length, 1);
+    assert.deepEqual(gh.lire(fix!)?.labels, ["fire", "fix", "prio:1", "model:sonnet", "effort:medium"]);
+    assert.equal(gh.lire(fix!)?.title, "Fix the unstable test `runtime/test/rail.test.ts`");
+    assert.match(gh.corpsDe(fix!), /^<!-- brigade:test-instable runtime\/test\/rail\.test\.ts -->/);
+    assert.match(gh.corpsDe(fix!), /delivery of #17 .* is red on `runtime\/test\/rail\.test\.ts`, a test that delivery does not touch/);
+    assert.ok(gh.corpsDe(fix!).includes(job(2).url!) && gh.corpsDe(fix!).includes(job(3).url!));
+    // La livraison est jugée sans ce job : verte, mergée.
+    assert.deepEqual(dernier("pass.ci-set-aside", 17), { sha: pass()?.sha, checks: [job(3)], fixes: [{ test: "runtime/test/rail.test.ts", issue: fix, reused: false }] });
+    const verdict = dernier("pass.judged", 17) as { verdict: string; ci: { outcome: string }; findings: string[] } | undefined;
+    assert.deepEqual([verdict?.verdict, verdict?.ci.outcome, verdict?.findings], ["green", "green", []]);
+    assert.deepEqual(auChef(), []);
+    const commentaire = gh.commentaires.map(([, corps]) => corps).find((corps) => corps.includes("CI mise de côté"));
+    assert.match(commentaire ?? "", new RegExp(`\`runtime/test/rail\\.test\\.ts\` part à la cuisine en ticket \`fix\` #${fix}`));
+  });
+
+  test("la réponse de GitHub perdue après la création du ticket `fix` : il se retrouve par sa marque, pas ouvert deux fois", async (t) => {
+    const { gh, jusquAu, dernier, compter } = servir(t, { scenario: "bavard", suite: ["livre"] });
     gh.ci.checks = [job(2)];
     gh.journauxDeCI.set("tests", JOURNAL_LINUX.replace("cuisson-de-bout-en-bout", "rail"));
     await jusquAu("pass.ci-rerun");
+    gh.pannes.apresCreation = true;
     gh.ci.checks = [job(3)];
-    await jusquAu("pass.escalated");
+    await jusquAu("pass.ci-set-aside");
 
-    assert.deepEqual([compter("pass.ci-rerun"), gh.relances.length, compter("pass.returned"), compter("pass.judged"), pass()?.returns], [1, 1, 0, 0, 0]);
-    assert.deepEqual(dernier("pass.escalated", 17), { reason: "unjudged", cause: "unstable-test: runtime/test/rail.test.ts" });
-    assert.deepEqual(auChef().filter((type) => type === "pass.escalated"), ["pass.escalated"]);
-    const commentaire = gh.commentaires.map(([, corps]) => corps).find((corps) => corps.includes("remontée au chef"));
-    assert.match(commentaire ?? "", /La base est instable : cette livraison est rouge sur un test que ce changement ne touche pas, deux fois — `runtime\/test\/rail\.test\.ts`/);
-    assert.ok(!gh.commentaires.some(([, corps]) => corps.includes("Pass — rouge")));
+    assert.equal(gh.creations.length, 1);
+    assert.equal(compter("pass.test-fix-opening"), 1);
+    assert.deepEqual(dernier("pass.ci-set-aside", 17)?.fixes, [{ test: "runtime/test/rail.test.ts", issue: gh.creations[0], reused: false }]);
+  });
+
+  test("le ticket `fix` du test déjà ouvert : une autre livraison rouge sur le même test le reprend, sans en ouvrir un second", async (t) => {
+    const { gh, journal } = servir(t, { scenario: "bavard", suite: ["livre", "livre"], issues: [issue(17), issue(18)], cooks: 2 });
+    const fait = (ticket: number, type: string) => journal.duTicket(ticket).findLast((e) => e.type === type)?.payload as { fixes: Array<{ issue: number; reused: boolean }> } | undefined;
+    // La pass juge une livraison à la fois, dans l'ordre où elles arrivent : l'une ou l'autre d'abord.
+    const relancee = (ticket?: number) => [17, 18].find((n) => n !== ticket && fait(n, "pass.ci-rerun") !== undefined);
+    gh.ci.checks = [job(2)];
+    gh.journauxDeCI.set("tests", JOURNAL_LINUX.replace("cuisson-de-bout-en-bout", "rail"));
+    await jusqua(() => relancee() !== undefined);
+    const premiere = relancee()!;
+    gh.ci.checks = [job(3)];
+    await jusqua(() => fait(premiere, "pass.ci-set-aside") !== undefined);
+    const [fix] = gh.creations;
+    // L'autre, jugée à son tour, rouge sur le même test, deux fois.
+    await jusqua(() => relancee(premiere) !== undefined);
+    const seconde = relancee(premiere)!;
+    gh.ci.checks = [job(4)];
+    await jusqua(() => fait(seconde, "pass.ci-set-aside") !== undefined);
+
+    assert.deepEqual(fait(premiere, "pass.ci-set-aside")?.fixes.map(({ issue, reused }) => [issue, reused]), [[fix, false]]);
+    assert.deepEqual(fait(seconde, "pass.ci-set-aside")?.fixes.map(({ issue, reused }) => [issue, reused]), [[fix, true]]);
+    assert.deepEqual(gh.creations, [fix]);
+  });
+
+  test("un run qu'un verdict rouge a déjà jugé est relancé avant d'être rejugé : un renvoi ne juge jamais deux fois le même run de CI", async (t) => {
+    const { gh, compter, jusquAu, dernier } = servir(t, { scenario: "bavard", suite: ["livre", "livre"] });
+    // Un journal illisible : rien n'établit que le rouge n'est pas celui de la livraison.
+    gh.ci.checks = [job(2)];
+    await jusquAu("pass.returned");
+    assert.deepEqual([compter("pass.ci-rerun"), gh.relances.length], [0, 0]);
+    // Le cook renvoyé n'a rien changé qui relance la CI : le même job rouge, déjà jugé.
+    await jusquAu("pass.ci-rerun");
+
+    assert.deepEqual(gh.relances, [RUN]);
+    assert.deepEqual(dernier("pass.ci-rerun", 17)?.checks, [job(2)]);
+    assert.equal(dernier("pass.ci-rerun", 17)?.alreadyJudged, true);
+    assert.equal(compter("pass.returned"), 1);
+    // Sa relance verte, la livraison est mergée.
+    gh.ci.checks = [job(3, "green")];
+    await jusquAu("merge.done");
+    assert.deepEqual([compter("pass.returned"), compter("pass.escalated"), gh.relances.length], [1, 0, 1]);
   });
 
   test("rouge après la relance sur un autre test, qui n'est pas touché non plus : la carte ne dit pas « deux fois », le rouge est un verdict comme avant", async (t) => {
