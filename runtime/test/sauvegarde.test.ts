@@ -12,6 +12,7 @@ import { demarrer } from "../src/runtime.ts";
 import { prendreInstantane, restaurer, sauvegarder, SauvegardeRefusee } from "../src/sauvegarde.ts";
 import { CALIBRE, chef, cuisine, issue } from "./aides/cuisine.ts";
 import { BASE, DEPOT, ENV_GIT, FAUX_CLAUDE, faitInconnu, fauxGh, git, horloge, jusqua, lancer, repertoireTemporaire } from "./outils.ts";
+import { posixOnly } from "./support/plateforme.ts";
 
 const SRC = join(import.meta.dirname, "../src");
 const [MAIN, SAUVEGARDER, RESTAURER] = ["main.ts", "sauvegarder.ts", "restaurer.ts"].map((fichier) => join(SRC, fichier)) as [string, string, string];
@@ -343,7 +344,7 @@ describe("sauvegarder et restaurer, en commandes", { concurrency: 8 }, () => {
     assert.equal((await commande(t, RESTAURER, {}, "quelque-part")).code, REFUS);
   });
 
-  test("restaurée sur une machine neuve, la sauvegarde d'un runtime en marche rend un runtime qui redémarre et relit ce qu'il avait servi", async (t) => {
+  test("restaurée sur une machine neuve, la sauvegarde d'un runtime en marche rend un runtime qui redémarre et relit ce qu'il avait servi", { skip: posixOnly("stops the restored runtime with SIGTERM: on Windows kill('SIGTERM') ends the process before its handler runs, so the job saw exit code null instead of 0") }, async (t) => {
     // Une cuisine sert un ticket sous grant `merge`, de la prise au merge.
     const ancienne = cuisine(t, { pass: true, issues: [issue(17, CALIBRE)] });
     chef(ancienne.repertoire, "grant.activated");

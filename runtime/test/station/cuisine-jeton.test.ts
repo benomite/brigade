@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
+import { ecrireSecret } from "../../src/droits.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { ouvrirCuisine } from "../../src/station/cuisine.ts";
 import { FAUX_CLAUDE, git, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
@@ -34,7 +35,8 @@ function ouvrir(t: TestContext, avecJeton: boolean) {
   journal.fermer();
   writeFileSync(join(session, "renouvellement"), "verifie=2026-10-08T10:00:00Z\necrits=2026-10-08T09:00:00Z\n");
   const jeton = join(racine, "claude-token");
-  writeFileSync(jeton, "x".repeat(60), { mode: 0o600 });
+  // Lisible du seul compte, sur toutes les plateformes : sous Windows, fermé par son ACL.
+  ecrireSecret(jeton, "x".repeat(60));
   writeFileSync(`${jeton}.cree`, "2026-10-01\n");
   const cuisine = ouvrirCuisine(
     {

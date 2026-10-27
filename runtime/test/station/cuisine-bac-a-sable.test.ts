@@ -11,6 +11,7 @@ import { ouvrirJournal } from "../../src/journal.ts";
 import { ConfigInvalide } from "../../src/runtime.ts";
 import { ouvrirCuisine } from "../../src/station/cuisine.ts";
 import { FAUX_CLAUDE, git, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
+import { posixOnly } from "../support/plateforme.ts";
 
 const rienNeReste = temporaireDuFichier();
 
@@ -65,7 +66,7 @@ function ouvrir(t: TestContext, sondes: Sondes) {
   }
 }
 
-test("sur un Mac qui a le bac à sable, la cuisine s'ouvre et dit que chaque `claude` y part", (t) => {
+test("sur un Mac qui a le bac à sable, la cuisine s'ouvre et dit que chaque `claude` y part", { skip: posixOnly("simulates a Mac whose station lives in the real temporary directory: the Seatbelt profile takes POSIX absolute paths only, and on Windows that directory is C:\\… (refused on the job)") }, (t) => {
   const { dits, erreur } = ouvrir(t, MAC);
   assert.equal(erreur, null);
   const ligne = dits.find((dit) => dit.startsWith("bac à sable — "));

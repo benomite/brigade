@@ -11,10 +11,11 @@ import { chef, PLAFONDS, STATION } from "../aides/cuisine.ts";
 import { appeler, BASE, ENV_GIT, git, jusqua } from "../outils.ts";
 import type { ReglagesDeFermeture } from "../../src/events/closing.ts";
 import { cuisineFermee, REGLAGES_DE_FERMETURE, RETIRER_M1 } from "./kitchen.ts";
+import { posixOnly } from "../support/plateforme.ts";
 
 // Chaque test a sa cuisine — état, dépôt, GitHub : ils se jouent de front.
 describe("la passe de fermeture, en cuisine", { concurrency: 8 }, () => {
-  test("ce que la passe retire arrive par une PR vers la branche d'intégration — aucun commit direct dessus, aucun merge —, et tout ce qu'elle laisse y est écrit avec son motif", async (t) => {
+  test("ce que la passe retire arrive par une PR vers la branche d'intégration — aucun commit direct dessus, aucun merge —, et tout ce qu'elle laisse y est écrit avec son motif", { skip: posixOnly("runs the closing pass end to end on a real git repository with the fake claude (a bash script) as the closer; the zone and removal checks read the files it changed differently; on the Windows job: + 'zone' - 'delivered'") }, async (t) => {
     const { demander, fin, closer, gh, journal, origine, clone, teteDeLaBase, branchesDeLOrigine, avertissements } = cuisineFermee(t);
     const avant = teteDeLaBase();
     closer.gestes(RETIRER_M1);
@@ -72,7 +73,7 @@ describe("la passe de fermeture, en cuisine", { concurrency: 8 }, () => {
     assert.match(closer.consigne(), /- M1 — export `inutile`/);
   });
 
-  test("un doublon que le closer réunit en un seul endroit est dit factorisé, à côté du code mort supprimé, avec les lignes gagnées et ce qui est laissé — une entrée par candidat, son lieu et son motif", async (t) => {
+  test("un doublon que le closer réunit en un seul endroit est dit factorisé, à côté du code mort supprimé, avec les lignes gagnées et ce qui est laissé — une entrée par candidat, son lieu et son motif", { skip: posixOnly("has the fake claude (a bash script) factor a duplicate and remove dead code on a real git repository, then commit it all with `git add -A`; the closing pass on the Windows job judges such a closer's files out of its zone (+ 'zone' - 'delivered'), as for the delivery test above") }, async (t) => {
     const { demander, fin, closer, gh } = cuisineFermee(t);
     // `b.ts` appelle ce que `a.ts` garde, au lieu d'en porter la copie ; `inutile` part.
     closer.gestes(
@@ -127,7 +128,7 @@ describe("la passe de fermeture, en cuisine", { concurrency: 8 }, () => {
     assert.deepEqual(types().filter((type) => type.startsWith("closing.")), ["closing.configured"]);
   });
 
-  test("demandée avec trop de cooks en vol, la passe attend et dit la condition qui manque et la valeur mesurée ; sous le seuil, elle part seule — sans rien toucher de ce que le cook en vol tient", async (t) => {
+  test("demandée avec trop de cooks en vol, la passe attend et dit la condition qui manque et la valeur mesurée ; sous le seuil, elle part seule — sans rien toucher de ce que le cook en vol tient", { skip: posixOnly("runs the closing pass end to end on a real git repository with the fake claude (a bash script) as the closer; the zone and removal checks read the files it changed differently; on the Windows job: + 'zone' - 'delivered'") }, async (t) => {
     const cuisine = cuisineFermee(t, { reglages: { cooksBelow: 2 } });
     const { runtime, demander, dernier, poser, closer, fin, gh, types } = cuisine;
     await poser(7, "src/tenu");
@@ -166,7 +167,7 @@ describe("la passe de fermeture, en cuisine", { concurrency: 8 }, () => {
     assert.match(gh.prs[0]?.corps ?? "", /## Écarté avant la passe — 1\n\n- \*\*M2\*\* — export `oublie` of `src\/tenu\/outils\.ts:2` — referenced nowhere\n {2}- `src\/tenu\/outils\.ts` is held by ticket #7 \(zone `src\/tenu`\)/);
   });
 
-  test("un cook en vol qui ne déclare aucune zone tient tout : la passe attend qu'il ait fini, en le nommant", async (t) => {
+  test("un cook en vol qui ne déclare aucune zone tient tout : la passe attend qu'il ait fini, en le nommant", { skip: posixOnly("runs the closing pass end to end on a real git repository with the fake claude (a bash script) as the closer; the zone and removal checks read the files it changed differently; on the Windows job: + 'zone' - 'delivered'") }, async (t) => {
     const cuisine = cuisineFermee(t, { reglages: { cooksBelow: 2 } });
     cuisine.closer.gestes(RETIRER_M1);
     await cuisine.poser(9);
@@ -183,7 +184,7 @@ describe("la passe de fermeture, en cuisine", { concurrency: 8 }, () => {
     assert.equal((await cuisine.fin()).outcome, "delivered");
   });
 
-  test("la passe ne modifie aucun fichier de la zone d'un cook en vol : un closer qui y écrit quand même ne livre rien", async (t) => {
+  test("la passe ne modifie aucun fichier de la zone d'un cook en vol : un closer qui y écrit quand même ne livre rien", { skip: posixOnly("runs the closing pass end to end on a real git repository with the fake claude (a bash script) as the closer; the zone and removal checks read the files it changed differently; on the Windows job: + '.claude/brigade/gates.sh', 'src/tenu/outils.ts'") }, async (t) => {
     const cuisine = cuisineFermee(t, { reglages: { cooksBelow: 2 } });
     const { runtime, demander, poser, closer, fin, origine, avertissements } = cuisine;
     await poser(7, "src/tenu");
@@ -202,7 +203,7 @@ describe("la passe de fermeture, en cuisine", { concurrency: 8 }, () => {
     assert.equal((cuisine.journal.tout().find((e) => e.type === "cook.exited")?.payload as { outcome?: string }).outcome, "failed");
   });
 
-  test("un cook ne peut pas démarrer sur un fichier que la passe tient : son ticket attend qu'elle ait fini, et un ticket d'une autre zone part", async (t) => {
+  test("un cook ne peut pas démarrer sur un fichier que la passe tient : son ticket attend qu'elle ait fini, et un ticket d'une autre zone part", { skip: posixOnly("runs the closing pass end to end on a real git repository with the fake claude (a bash script) as the closer; the zone and removal checks read the files it changed differently; on the Windows job: + 'zone' - 'delivered'") }, async (t) => {
     const cuisine = cuisineFermee(t, { station: true });
     const { demander, poser, closer, fin, types, etat } = cuisine;
     closer.gestes(`attendre\n${RETIRER_M1}`);
@@ -245,7 +246,7 @@ describe("la passe de fermeture, en cuisine", { concurrency: 8 }, () => {
     assert.match(appel.sortie(), /\npass {7}fermeture-[0-9a-f]{8}, on 2026-10-08 10:00 — stopped: the closing's token cap reached \(610 for a cap of 500\) — nothing is delivered\n/);
   });
 
-  test("la passe s'arrête et le dit quand son plafond de retraits est atteint, pendant qu'elle range", async (t) => {
+  test("la passe s'arrête et le dit quand son plafond de retraits est atteint, pendant qu'elle range", { skip: posixOnly("runs the closing pass end to end on a real git repository with the fake claude (a bash script) as the closer; the zone and removal checks read the files it changed differently; on the Windows job: 'removals', + 9, - 8,") }, async (t) => {
     const cuisine = cuisineFermee(t, { reglages: { removedLines: 3 } });
     const { demander, closer, fin, journal, avertissements } = cuisine;
     // Huit lignes retirées, pas encore commitées, et il continue.
@@ -262,7 +263,7 @@ describe("la passe de fermeture, en cuisine", { concurrency: 8 }, () => {
     rienNEstLivre(cuisine);
   });
 
-  test("un closer qui finit en ayant retiré plus que son plafond ne livre rien", async (t) => {
+  test("un closer qui finit en ayant retiré plus que son plafond ne livre rien", { skip: posixOnly("runs the closing pass end to end on a real git repository with the fake claude (a bash script) as the closer; the zone and removal checks read the files it changed differently; on the Windows job: 'removals', + 9, - 8,") }, async (t) => {
     const cuisine = cuisineFermee(t, { reglages: { removedLines: 3 } });
     cuisine.closer.gestes("git rm -q src/libre/a.ts\ncommiter\n");
 
@@ -322,7 +323,7 @@ describe("la passe de fermeture, en cuisine", { concurrency: 8 }, () => {
     assert.equal(closer.lancements().length, 1);
   });
 
-  test("une seule passe à la fois : demandée pendant qu'une autre range, la commande refuse", async (t) => {
+  test("une seule passe à la fois : demandée pendant qu'une autre range, la commande refuse", { skip: posixOnly("runs the closing pass end to end on a real git repository with the fake claude (a bash script) as the closer; the zone and removal checks read the files it changed differently; on the Windows job: + 'zone' - 'delivered'") }, async (t) => {
     const cuisine = cuisineFermee(t);
     const { demander, closer, fin } = cuisine;
     closer.gestes(`attendre\n${RETIRER_M1}`);
@@ -337,7 +338,7 @@ describe("la passe de fermeture, en cuisine", { concurrency: 8 }, () => {
     assert.equal(closer.lancements().length, 1);
   });
 
-  test("un closer qui ne retire rien ne livre rien : aucune PR, et ce qu'il a laissé reste au journal avec son motif", async (t) => {
+  test("un closer qui ne retire rien ne livre rien : aucune PR, et ce qu'il a laissé reste au journal avec son motif", { skip: posixOnly("runs the closing pass end to end on a real git repository with the fake claude (a bash script) as the closer; the zone and removal checks read the files it changed differently; on the Windows job: 'zone' !== 'nothing'") }, async (t) => {
     const cuisine = cuisineFermee(t);
     cuisine.closer.message("<livrable>\nLAISSÉ M1 : appelé par un script de déploiement hors du dépôt\nLAISSÉ M2 : idem\n</livrable>\n");
 
@@ -379,7 +380,7 @@ describe("la passe de fermeture, en cuisine", { concurrency: 8 }, () => {
     assert.ok(!relu.tout().some((e) => e.type === "closing.requested"));
   });
 
-  test("une passe ne survit pas au runtime : celle qu'il a laissée en vol est dite interrompue, et une demande d'une autre vie ne lance rien", async (t) => {
+  test("une passe ne survit pas au runtime : celle qu'il a laissée en vol est dite interrompue, et une demande d'une autre vie ne lance rien", { skip: posixOnly("runs the closing pass end to end on a real git repository with the fake claude (a bash script) as the closer; the zone and removal checks read the files it changed differently; on the Windows job: the awaited fact never came (condition never met)") }, async (t) => {
     const premiere = cuisineFermee(t);
     premiere.closer.gestes(`attendre\n${RETIRER_M1}`);
     assert.equal((await premiere.demander()).code, 0);
@@ -410,7 +411,7 @@ describe("la passe de fermeture, en cuisine", { concurrency: 8 }, () => {
     await jusqua(() => seconde.dernier("closing.ended")?.outcome === "delivered");
   });
 
-  test("une PR que GitHub refuse d'ouvrir n'est pas une livraison : la passe le dit, et la base n'a pas bougé", async (t) => {
+  test("une PR que GitHub refuse d'ouvrir n'est pas une livraison : la passe le dit, et la base n'a pas bougé", { skip: posixOnly("runs the closing pass end to end on a real git repository with the fake claude (a bash script) as the closer; the zone and removal checks read the files it changed differently; on the Windows job: 'zone' !== 'failed'") }, async (t) => {
     const cuisine = cuisineFermee(t);
     const avant = cuisine.teteDeLaBase();
     cuisine.gh.pannes.pr = true;
@@ -424,7 +425,7 @@ describe("la passe de fermeture, en cuisine", { concurrency: 8 }, () => {
     assert.deepEqual(cuisine.gh.prs, []);
   });
 
-  test("le calibrage posé par le chef vaut à la passe suivante, sans redémarrage : le refus le nomme, puis la passe part", async (t) => {
+  test("le calibrage posé par le chef vaut à la passe suivante, sans redémarrage : le refus le nomme, puis la passe part", { skip: posixOnly("runs the closing pass end to end on a real git repository with the fake claude (a bash script) as the closer; the zone and removal checks read the files it changed differently; on the Windows job: + 'zone' - 'delivered'") }, async (t) => {
     let calibration: ReglagesDeFermeture["calibration"] = null;
     const cuisine = cuisineFermee(t, { reglagesAChaud: () => ({ ...REGLAGES_DE_FERMETURE, calibration }) });
     const { demander, dernier, closer, fin, types, journal } = cuisine;

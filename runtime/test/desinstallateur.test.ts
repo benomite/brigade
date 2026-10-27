@@ -16,6 +16,7 @@ import { BOX } from "../src/installateur-cli.ts";
 import { prendreVerrou } from "../src/verrou.ts";
 import { boite, COMPTE, DEPLOIEMENT, PREMIER_PORT, type Boite, type Rendu } from "./aides/box.ts";
 import { BASE, git, lancer } from "./outils.ts";
+import { posixOnly } from "./support/plateforme.ts";
 
 const TIENT_VERROU = join(import.meta.dirname, "aides/tient-verrou.ts");
 const HISTOIRE = "l'histoire de la cuisine\n";
@@ -62,7 +63,7 @@ const sans = (photo: Record<string, string>, chemins: string[]) => Object.fromEn
 
 // Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
 describe("le plan d'une désinstallation", { concurrency: 8 }, () => {
-  test("`--plan` liste ce qui serait retiré — unités, drop-ins, clone, worktrees, versions, port — et ne modifie rien sur la box", async (t) => {
+  test("`--plan` liste ce qui serait retiré — unités, drop-ins, clone, worktrees, versions, port — et ne modifie rien sur la box", { skip: posixOnly("brigade-installer checks process.getuid() against root, and Windows has no uid (the job refused every gesture with sans-droit, 77); past it, the test box needs #!/bin/sh fakes of systemctl and getent and a root-only journal (lstat uid and mode bits); on the Windows job: brigade-installer : ce geste écrit des unités systemd : il se lance par `sudo brigade-installer …`, que sa règle sudoers donne au groupe `brigade-chef…") }, async (t) => {
     const b = await installee(t, "calculus", "boutique");
     servir(b);
     const [etat, avant, rang] = [join(b.etats, "calculus"), b.photo(), b.appels().length];
@@ -113,7 +114,7 @@ describe("le plan d'une désinstallation", { concurrency: 8 }, () => {
     assert.equal(lignes.at(-1), "Rien n'a changé sur la box. Pour le faire : `sudo brigade-installer uninstall calculus --confirmer calculus`");
   });
 
-  test("le journal du projet : gardé par défaut, retiré par `--supprimer-le-journal` — le plan le dit dans les deux cas, et ne change rien", async (t) => {
+  test("le journal du projet : gardé par défaut, retiré par `--supprimer-le-journal` — le plan le dit dans les deux cas, et ne change rien", { skip: posixOnly("brigade-installer checks process.getuid() against root, and Windows has no uid (the job refused every gesture with sans-droit, 77); past it, the test box needs #!/bin/sh fakes of systemctl and getent and a root-only journal (lstat uid and mode bits); on the Windows job: brigade-installer : ce geste écrit des unités systemd : il se lance par `sudo brigade-installer …`, que sa règle sudoers donne au groupe `brigade-chef…") }, async (t) => {
     const b = await installee(t);
     servir(b);
     const [etat, avant] = [join(b.etats, "calculus"), b.photo()];
@@ -131,7 +132,7 @@ describe("le plan d'une désinstallation", { concurrency: 8 }, () => {
     assert.deepEqual(b.photo(), avant);
   });
 
-  test("ce que le clone porte et que l'origine n'a pas est nommé, et le plan dit que la désinstallation refusera", async (t) => {
+  test("ce que le clone porte et que l'origine n'a pas est nommé, et le plan dit que la désinstallation refusera", { skip: posixOnly("brigade-installer checks process.getuid() against root, and Windows has no uid (the job refused every gesture with sans-droit, 77); past it, the test box needs #!/bin/sh fakes of systemctl and getent and a root-only journal (lstat uid and mode bits); on the Windows job: brigade-installer : ce geste écrit des unités systemd : il se lance par `sudo brigade-installer …`, que sa règle sudoers donne au groupe `brigade-chef…") }, async (t) => {
     const b = await installee(t);
     writeFileSync(join(b.etats, "calculus/depot/brouillon.txt"), "en cours\n");
     const avant = b.photo();
@@ -145,7 +146,7 @@ describe("le plan d'une désinstallation", { concurrency: 8 }, () => {
     assert.deepEqual(b.photo(), avant);
   });
 
-  test("un clone qui porte des centaines de fichiers jamais poussés : le plan en nomme deux cents, et compte le reste", async (t) => {
+  test("un clone qui porte des centaines de fichiers jamais poussés : le plan en nomme deux cents, et compte le reste", { skip: posixOnly("brigade-installer checks process.getuid() against root, and Windows has no uid (the job refused every gesture with sans-droit, 77); past it, the test box needs #!/bin/sh fakes of systemctl and getent and a root-only journal (lstat uid and mode bits); on the Windows job: brigade-installer : ce geste écrit des unités systemd : il se lance par `sudo brigade-installer …`, que sa règle sudoers donne au groupe `brigade-chef…") }, async (t) => {
     const b = await installee(t);
     for (let rang = 0; rang < 205; rang++) writeFileSync(join(b.etats, "calculus/depot", `brouillon-${String(rang).padStart(3, "0")}.txt`), "en cours\n");
 
@@ -158,7 +159,7 @@ describe("le plan d'une désinstallation", { concurrency: 8 }, () => {
     assert.equal(perdus[200], "… et 5 de plus");
   });
 
-  test("un runtime qui tourne : le plan dit qu'il sera arrêté, et que son clone ne s'inventorie qu'ensuite", async (t) => {
+  test("un runtime qui tourne : le plan dit qu'il sera arrêté, et que son clone ne s'inventorie qu'ensuite", { skip: posixOnly("brigade-installer checks process.getuid() against root, and Windows has no uid (the job refused every gesture with sans-droit, 77); past it, the test box needs #!/bin/sh fakes of systemctl and getent and a root-only journal (lstat uid and mode bits); on the Windows job: brigade-installer : ce geste écrit des unités systemd : il se lance par `sudo brigade-installer …`, que sa règle sudoers donne au groupe `brigade-chef…") }, async (t) => {
     const b = await installee(t);
     servir(b);
     b.demarrer("brigade@calculus.service");
@@ -177,7 +178,7 @@ describe("le plan d'une désinstallation", { concurrency: 8 }, () => {
 
 // Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
 describe("désinstaller un projet", { concurrency: 8 }, () => {
-  test("sans confirmation : rien n'est effacé, et le geste dit comment confirmer", async (t) => {
+  test("sans confirmation : rien n'est effacé, et le geste dit comment confirmer", { skip: posixOnly("brigade-installer checks process.getuid() against root, and Windows has no uid (the job refused every gesture with sans-droit, 77); past it, the test box needs #!/bin/sh fakes of systemctl and getent and a root-only journal (lstat uid and mode bits); on the Windows job: brigade-installer : ce geste écrit des unités systemd : il se lance par `sudo brigade-installer …`, que sa règle sudoers donne au groupe `brigade-chef…") }, async (t) => {
     const b = await installee(t);
     servir(b);
     const [avant, rang] = [b.photo(), b.appels().length];
@@ -200,7 +201,7 @@ describe("désinstaller un projet", { concurrency: 8 }, () => {
     assert.deepEqual(gestes(b, rang), []);
   });
 
-  test("confirmée par le nom du projet : elle retire ce que le plan listait, et rien d'autre — le journal reste, les autres projets aussi", async (t) => {
+  test("confirmée par le nom du projet : elle retire ce que le plan listait, et rien d'autre — le journal reste, les autres projets aussi", { skip: posixOnly("brigade-installer checks process.getuid() against root, and Windows has no uid (the job refused every gesture with sans-droit, 77); past it, the test box needs #!/bin/sh fakes of systemctl and getent and a root-only journal (lstat uid and mode bits); on the Windows job: brigade-installer : ce geste écrit des unités systemd : il se lance par `sudo brigade-installer …`, que sa règle sudoers donne au groupe `brigade-chef…") }, async (t) => {
     const b = await installee(t, "calculus", "boutique");
     servir(b);
     const etat = join(b.etats, "calculus");
@@ -230,7 +231,7 @@ describe("désinstaller un projet", { concurrency: 8 }, () => {
     assert.ok(existsSync(join(b.etats, "boutique/depot/.git")));
   });
 
-  test("le journal n'est supprimé qu'avec `--supprimer-le-journal` : l'état part alors avec le projet, pas ses sauvegardes", async (t) => {
+  test("le journal n'est supprimé qu'avec `--supprimer-le-journal` : l'état part alors avec le projet, pas ses sauvegardes", { skip: posixOnly("brigade-installer checks process.getuid() against root, and Windows has no uid (the job refused every gesture with sans-droit, 77); past it, the test box needs #!/bin/sh fakes of systemctl and getent and a root-only journal (lstat uid and mode bits); on the Windows job: brigade-installer : ce geste écrit des unités systemd : il se lance par `sudo brigade-installer …`, que sa règle sudoers donne au groupe `brigade-chef…") }, async (t) => {
     const b = await installee(t, "calculus", "boutique");
     servir(b);
     const etat = join(b.etats, "calculus");
@@ -247,7 +248,7 @@ describe("désinstaller un projet", { concurrency: 8 }, () => {
     assert.equal((b.journal().at(-1)?.payload as { journal: string }).journal, "removed");
   });
 
-  test("les ports du projet désinstallé redeviennent attribuables : le projet suivant reçoit le sien", async (t) => {
+  test("les ports du projet désinstallé redeviennent attribuables : le projet suivant reçoit le sien", { skip: posixOnly("brigade-installer checks process.getuid() against root, and Windows has no uid (the job refused every gesture with sans-droit, 77); past it, the test box needs #!/bin/sh fakes of systemctl and getent and a root-only journal (lstat uid and mode bits); on the Windows job: brigade-installer : ce geste écrit des unités systemd : il se lance par `sudo brigade-installer …`, que sa règle sudoers donne au groupe `brigade-chef…") }, async (t) => {
     const b = await installee(t, "calculus", "boutique");
     b.pousser("acme/atelier");
 
@@ -261,7 +262,7 @@ describe("désinstaller un projet", { concurrency: 8 }, () => {
     assert.deepEqual(suivant.json.ports, { porte: PREMIER_PORT, arbitre: null });
   });
 
-  test("un projet désinstallé se réinstalle sur son journal, et une désinstallation rejouée ne trouve plus rien", async (t) => {
+  test("un projet désinstallé se réinstalle sur son journal, et une désinstallation rejouée ne trouve plus rien", { skip: posixOnly("brigade-installer checks process.getuid() against root, and Windows has no uid (the job refused every gesture with sans-droit, 77); past it, the test box needs #!/bin/sh fakes of systemctl and getent and a root-only journal (lstat uid and mode bits); on the Windows job: brigade-installer : ce geste écrit des unités systemd : il se lance par `sudo brigade-installer …`, que sa règle sudoers donne au groupe `brigade-chef…") }, async (t) => {
     const b = await installee(t);
     servir(b);
     assert.equal((await b.geste(["uninstall", "calculus", "--confirmer", "calculus"])).code, 0);
@@ -283,7 +284,7 @@ describe("désinstaller un projet", { concurrency: 8 }, () => {
     assert.equal((await b.geste(["uninstall", "calculus", "--plan"])).code, CODES.inconnu);
   });
 
-  test("un runtime qui tourne est arrêté d'abord, puis son clone retiré", async (t) => {
+  test("un runtime qui tourne est arrêté d'abord, puis son clone retiré", { skip: posixOnly("brigade-installer checks process.getuid() against root, and Windows has no uid (the job refused every gesture with sans-droit, 77); past it, the test box needs #!/bin/sh fakes of systemctl and getent and a root-only journal (lstat uid and mode bits); on the Windows job: brigade-installer : ce geste écrit des unités systemd : il se lance par `sudo brigade-installer …`, que sa règle sudoers donne au groupe `brigade-chef…") }, async (t) => {
     const b = await installee(t);
     servir(b);
     b.demarrer("brigade@calculus.service");
@@ -316,7 +317,7 @@ describe("ce que la désinstallation refuse, sans rien modifier sur la box", { c
   }
   const FORMES = [["--plan"], [], ["--confirmer", "fantome"], ["--confirmer", "fantome", "--supprimer-le-journal"]];
 
-  test("un projet inconnu de la box : un message clair, sous toutes les formes de l'appel", async (t) => {
+  test("un projet inconnu de la box : un message clair, sous toutes les formes de l'appel", { skip: posixOnly("brigade-installer checks process.getuid() against root, and Windows has no uid (the job refused every gesture with sans-droit, 77); past it, the test box needs #!/bin/sh fakes of systemctl and getent and a root-only journal (lstat uid and mode bits); on the Windows job: brigade-installer : ce geste écrit des unités systemd : il se lance par `sudo brigade-installer …`, que sa règle sudoers donne au groupe `brigade-chef…") }, async (t) => {
     const b = await installee(t, "calculus", "boutique");
     for (const forme of FORMES) {
       await refuse(b, ["uninstall", "fantome", ...forme], "projet-inconnu", /le projet « fantome » n'est pas connu de cette box : ni drop-in sous .*, ni état sous .* — rien n'est fait, rien n'a changé\. Elle porte : boutique, calculus$/, CODES.inconnu);
@@ -325,7 +326,7 @@ describe("ce que la désinstallation refuse, sans rien modifier sur la box", { c
     await refuse(vide, ["uninstall", "calculus", "--plan"], "projet-inconnu", /Elle ne porte aucun projet$/, CODES.inconnu);
   });
 
-  test("tout ce qui n'est pas dans sa liste fermée : une option d'ailleurs, un chemin, une valeur en trop", async (t) => {
+  test("tout ce qui n'est pas dans sa liste fermée : une option d'ailleurs, un chemin, une valeur en trop", { skip: posixOnly("brigade-installer checks process.getuid() against root, and Windows has no uid (the job refused every gesture with sans-droit, 77); past it, the test box needs #!/bin/sh fakes of systemctl and getent and a root-only journal (lstat uid and mode bits) (this test uses uids); on the Windows job: brigade-installer : ce geste écrit des unités systemd : il se lance par `sudo brigade-installer …`, que sa règle sudoers donne au groupe `brigade-chef…") }, async (t) => {
     const b = await installee(t);
     servir(b);
     const appel = (...options: string[]) => ["uninstall", "calculus", ...options];
@@ -346,7 +347,7 @@ describe("ce que la désinstallation refuse, sans rien modifier sur la box", { c
     assert.deepEqual(lireRetrait(appel("--supprimer-le-journal", "--confirmer", "calculus")), { projet: "calculus", plan: false, confirmation: "calculus", journal: true });
   });
 
-  test("un clone qui porte ce que l'origine n'a pas retient la désinstallation confirmée — avec ou sans le journal", async (t) => {
+  test("un clone qui porte ce que l'origine n'a pas retient la désinstallation confirmée — avec ou sans le journal", { skip: posixOnly("brigade-installer checks process.getuid() against root, and Windows has no uid (the job refused every gesture with sans-droit, 77); past it, the test box needs #!/bin/sh fakes of systemctl and getent and a root-only journal (lstat uid and mode bits) (this test uses a shell script of its own, POSIX mode bits, uids); on the Windows job: brigade-installer : ce geste écrit des unités systemd : il se lance par `sudo brigade-installer …`, que sa règle sudoers donne au groupe `brigade-chef…") }, async (t) => {
     const b = await installee(t);
     servir(b);
     writeFileSync(join(b.etats, "calculus/worktrees/a/travail.txt"), "en cours\n");
@@ -355,7 +356,7 @@ describe("ce que la désinstallation refuse, sans rien modifier sur la box", { c
     }
   });
 
-  test("un clone qui contient l'état n'est jamais supprimé : la garantie du runtime retient le geste, plan compris", async (t) => {
+  test("un clone qui contient l'état n'est jamais supprimé : la garantie du runtime retient le geste, plan compris", { skip: posixOnly("brigade-installer checks process.getuid() against root, and Windows has no uid (the job refused every gesture with sans-droit, 77); past it, the test box needs #!/bin/sh fakes of systemctl and getent and a root-only journal (lstat uid and mode bits) (this test uses a shell script of its own, POSIX mode bits, uids); on the Windows job: brigade-installer : ce geste écrit des unités systemd : il se lance par `sudo brigade-installer …`, que sa règle sudoers donne au groupe `brigade-chef…") }, async (t) => {
     const b = await installee(t);
     const etat = join(b.etats, "calculus");
     writeFileSync(join(etat, "log.db"), HISTOIRE);
@@ -369,7 +370,7 @@ describe("ce que la désinstallation refuse, sans rien modifier sur la box", { c
     assert.equal(readFileSync(join(etat, "log.db"), "utf8"), HISTOIRE);
   });
 
-  test("un répertoire qui n'est pas un clone n'est pas pris pour le clone réservé", async (t) => {
+  test("un répertoire qui n'est pas un clone n'est pas pris pour le clone réservé", { skip: posixOnly("brigade-installer checks process.getuid() against root, and Windows has no uid (the job refused every gesture with sans-droit, 77); past it, the test box needs #!/bin/sh fakes of systemctl and getent and a root-only journal (lstat uid and mode bits) (this test uses a shell script of its own, POSIX mode bits, uids); on the Windows job: brigade-installer : ce geste écrit des unités systemd : il se lance par `sudo brigade-installer …`, que sa règle sudoers donne au groupe `brigade-chef…") }, async (t) => {
     const b = await installee(t);
     const depot = join(b.etats, "calculus/depot");
     rmSync(depot, { recursive: true });
@@ -378,7 +379,7 @@ describe("ce que la désinstallation refuse, sans rien modifier sur la box", { c
     await refuse(b, ["uninstall", "calculus", "--confirmer", "calculus"], "retenu-par-le-runtime", /is not a git clone: nothing is removed$/, CODES.retenu);
   });
 
-  test("ce que root retirerait lui-même et qui contient l'état du projet n'est jamais retiré", async (t) => {
+  test("ce que root retirerait lui-même et qui contient l'état du projet n'est jamais retiré", { skip: posixOnly("brigade-installer checks process.getuid() against root, and Windows has no uid (the job refused every gesture with sans-droit, 77); past it, the test box needs #!/bin/sh fakes of systemctl and getent and a root-only journal (lstat uid and mode bits) (this test uses a shell script of its own, POSIX mode bits, uids); on the Windows job: brigade-installer : ce geste écrit des unités systemd : il se lance par `sudo brigade-installer …`, que sa règle sudoers donne au groupe `brigade-chef…") }, async (t) => {
     const b = await installee(t);
     servir(b);
     const [avant, etat] = [b.photo(), join(b.etats, "calculus")];
@@ -392,7 +393,7 @@ describe("ce que la désinstallation refuse, sans rien modifier sur la box", { c
     assert.deepEqual(b.photo(), avant);
   });
 
-  test("un runtime lancé hors de systemd tient encore le projet : rien n'est retiré", async (t) => {
+  test("un runtime lancé hors de systemd tient encore le projet : rien n'est retiré", { skip: posixOnly("brigade-installer checks process.getuid() against root, and Windows has no uid (the job refused every gesture with sans-droit, 77); past it, the test box needs #!/bin/sh fakes of systemctl and getent and a root-only journal (lstat uid and mode bits) (this test uses a shell script of its own, POSIX mode bits, uids); on the Windows job: brigade-installer : ce geste écrit des unités systemd : il se lance par `sudo brigade-installer …`, que sa règle sudoers donne au groupe `brigade-chef…") }, async (t) => {
     const b = await installee(t);
     servir(b);
     // Dans son process à lui : relire `lock.db` d'ici, pour la photo, rendrait
@@ -405,7 +406,7 @@ describe("ce que la désinstallation refuse, sans rien modifier sur la box", { c
     await refuse(b, ["uninstall", "calculus"], "sans-confirmation", /se confirme en le nommant/, CODES.sansConfirmation);
   });
 
-  test("ce qui est au compte du service ne se lit ni ne se retire que sous lui : sans pouvoir prendre son uid, rien n'est fait", async (t) => {
+  test("ce qui est au compte du service ne se lit ni ne se retire que sous lui : sans pouvoir prendre son uid, rien n'est fait", { skip: posixOnly("brigade-installer checks process.getuid() against root, and Windows has no uid (the job refused every gesture with sans-droit, 77); past it, the test box needs #!/bin/sh fakes of systemctl and getent and a root-only journal (lstat uid and mode bits) (this test uses a shell script of its own, POSIX mode bits, uids); on the Windows job: brigade-installer : ce geste écrit des unités systemd : il se lance par `sudo brigade-installer …`, que sa règle sudoers donne au groupe `brigade-chef…") }, async (t) => {
     if (process.getuid?.() === 0) return t.skip("la suite est jouée en root : prendre l'uid d'un autre compte y réussit");
     const b = await installee(t);
     servir(b);
@@ -421,7 +422,7 @@ describe("ce que la désinstallation refuse, sans rien modifier sur la box", { c
     assert.deepEqual(b.photo(), avant);
   });
 
-  test("un drop-in qui est un lien, ou un projet que ses unités posent ailleurs : le geste ne suit aucun chemin", async (t) => {
+  test("un drop-in qui est un lien, ou un projet que ses unités posent ailleurs : le geste ne suit aucun chemin", { skip: posixOnly("brigade-installer checks process.getuid() against root, and Windows has no uid (the job refused every gesture with sans-droit, 77); past it, the test box needs #!/bin/sh fakes of systemctl and getent and a root-only journal (lstat uid and mode bits); on the Windows job: brigade-installer : ce geste écrit des unités systemd : il se lance par `sudo brigade-installer …`, que sa règle sudoers donne au groupe `brigade-chef…") }, async (t) => {
     const b = await installee(t);
     const ailleurs = join(b.racine, "ailleurs");
     mkdirSync(ailleurs);
@@ -437,7 +438,7 @@ describe("ce que la désinstallation refuse, sans rien modifier sur la box", { c
     assert.equal(readFileSync(join(ailleurs, "important.txt"), "utf8"), "à garder\n");
   });
 
-  test("un autre geste en cours : le plan aussi attend son tour", async (t) => {
+  test("un autre geste en cours : le plan aussi attend son tour", { skip: posixOnly("brigade-installer checks process.getuid() against root, and Windows has no uid (the job refused every gesture with sans-droit, 77); past it, the test box needs #!/bin/sh fakes of systemctl and getent and a root-only journal (lstat uid and mode bits); on the Windows job: brigade-installer : ce geste écrit des unités systemd : il se lance par `sudo brigade-installer …`, que sa règle sudoers donne au groupe `brigade-chef…") }, async (t) => {
     const b = await installee(t);
     const verrou = prendreVerrou(b.box.journal);
     t.after(() => verrou.relacher());
@@ -447,7 +448,7 @@ describe("ce que la désinstallation refuse, sans rien modifier sur la box", { c
 
 // Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
 describe("une désinstallation qui s'arrête en chemin", { concurrency: 8 }, () => {
-  test("le runtime arrêté, son clone porte ce que l'origine n'a pas : elle s'arrête là, dit ce qui est fait et ce qui reste, et se rejoue", async (t) => {
+  test("le runtime arrêté, son clone porte ce que l'origine n'a pas : elle s'arrête là, dit ce qui est fait et ce qui reste, et se rejoue", { skip: posixOnly("brigade-installer checks process.getuid() against root, and Windows has no uid (the job refused every gesture with sans-droit, 77); past it, the test box needs #!/bin/sh fakes of systemctl and getent and a root-only journal (lstat uid and mode bits); on the Windows job: brigade-installer : ce geste écrit des unités systemd : il se lance par `sudo brigade-installer …`, que sa règle sudoers donne au groupe `brigade-chef…") }, async (t) => {
     const b = await installee(t);
     servir(b);
     b.demarrer("brigade@calculus.service");
@@ -474,7 +475,7 @@ describe("une désinstallation qui s'arrête en chemin", { concurrency: 8 }, () 
     assert.ok(!existsSync(join(b.etats, "calculus/depot")));
   });
 
-  test("coupée avant son premier geste : rien n'est retiré", async (t) => {
+  test("coupée avant son premier geste : rien n'est retiré", { skip: posixOnly("brigade-installer checks process.getuid() against root, and Windows has no uid (the job refused every gesture with sans-droit, 77); past it, the test box needs #!/bin/sh fakes of systemctl and getent and a root-only journal (lstat uid and mode bits); on the Windows job: brigade-installer : ce geste écrit des unités systemd : il se lance par `sudo brigade-installer …`, que sa règle sudoers donne au groupe `brigade-chef…") }, async (t) => {
     const b = await installee(t);
     servir(b);
     const avant = b.photo();
@@ -492,7 +493,7 @@ describe("une désinstallation qui s'arrête en chemin", { concurrency: 8 }, () 
 
 // Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
 describe("le journal du geste, pour une désinstallation", { concurrency: 8 }, () => {
-  test("chaque appel — plan, refus, exécution — y ajoute qui, quand, quel projet et quoi", async (t) => {
+  test("chaque appel — plan, refus, exécution — y ajoute qui, quand, quel projet et quoi", { skip: posixOnly("brigade-installer checks process.getuid() against root, and Windows has no uid (the job refused every gesture with sans-droit, 77); past it, the test box needs #!/bin/sh fakes of systemctl and getent and a root-only journal (lstat uid and mode bits); on the Windows job: brigade-installer : ce geste écrit des unités systemd : il se lance par `sudo brigade-installer …`, que sa règle sudoers donne au groupe `brigade-chef…") }, async (t) => {
     const b = await installee(t);
     servir(b);
     b.demarrer("brigade@calculus.service");

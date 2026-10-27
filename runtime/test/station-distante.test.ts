@@ -7,6 +7,7 @@
 // test — et la station, jouée par le test, depuis sa propre connexion au
 // journal, comme le ferait son geste (`run tirer`).
 import assert from "node:assert/strict";
+import { basename } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { DELAI_DE_REPONSE_MS } from "../src/distantes.ts";
 import type { Demande, Mission, Reponse } from "../src/events/remote.ts";
@@ -294,7 +295,7 @@ describe("une station distante tire son travail", { concurrency: 8 }, () => {
     assert.deepEqual(mac.slice(mac.lastIndexOf("cook.exited")), box);
     assert.ok(box.includes("pass.judged") && box.includes("merge.done") && box.at(-1) === "ticket.served", box.join(" "));
     // Les mêmes gates : jouées une fois par livraison, dans le worktree jetable de son jugement.
-    assert.deepEqual(gates.appels().map((essai) => essai.slice(essai.lastIndexOf("/") + 1)).sort(), ["jugement-14", "jugement-16"]);
+    assert.deepEqual(gates.appels().map((essai) => basename(essai)).sort(), ["jugement-14", "jugement-16"]);
     // Le même reviewer : même binaire, même calibrage, mêmes arguments — seule sa consigne nomme le ticket.
     const lus = relectures();
     assert.equal(lus.length, 2);

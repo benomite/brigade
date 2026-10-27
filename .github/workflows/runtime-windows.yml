@@ -1,8 +1,9 @@
 # Joue la suite de tests du runtime sous Windows (#1242, épique #1241) : le filet de sécurité des
 # tickets de port de la station sur un PC. `npm test` suppose un shell POSIX : le job passe par
-# runtime/test/support/windows.ts, qui saute les fichiers de pas-encore-porte-sous-windows.json en
-# disant « pending Windows port » dans le journal. Les tests propres à Linux ou à macOS se sautent
-# eux-mêmes, avec leur raison (runtime/test/support/plateforme.ts).
+# runtime/test/support/windows.ts, qui joue tous les fichiers. Les tests propres à Linux ou à macOS se
+# sautent eux-mêmes, avec leur raison dans le journal (runtime/test/support/plateforme.ts). Entière, la
+# suite dépasse sous Windows l'heure d'un job (run 40080634237, annulé à 60 min) : elle se joue en
+# quatre parts, une par runner, qui ensemble couvrent chaque fichier une fois (`--part`).
 name: runtime-windows
 
 on:
@@ -21,8 +22,14 @@ concurrency:
 
 jobs:
   tests:
+    name: tests (${{ matrix.part }}/4)
     runs-on: windows-latest
     timeout-minutes: 60
+    strategy:
+      # Une part rouge n'arrête pas les autres : le job dit tout ce qui casse sous Windows, en un run.
+      fail-fast: false
+      matrix:
+        part: [1, 2, 3, 4]
     steps:
       # Git for Windows extrait en `\r\n` par défaut : les tests qui relisent une source ou une doc
       # du dépôt y attendent les `\n` du dépôt.
@@ -34,4 +41,4 @@ jobs:
           node-version: 26
       - name: Tests du runtime
         working-directory: runtime
-        run: node test/support/windows.ts
+        run: node test/support/windows.ts --part ${{ matrix.part }}/4

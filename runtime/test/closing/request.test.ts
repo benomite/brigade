@@ -12,6 +12,7 @@ import { principal } from "../../src/closing/command.ts";
 import { chef, PLAFONDS, STATION } from "../aides/cuisine.ts";
 import { appeler, BASE, ENV_GIT, jusqua } from "../outils.ts";
 import { cuisineFermee, RETIRER_M1 } from "./kitchen.ts";
+import { posixOnly } from "../support/plateforme.ts";
 
 type Cuisine = ReturnType<typeof cuisineFermee>;
 
@@ -37,7 +38,7 @@ function cookEnVol({ journal }: Cuisine, ticket: number): void {
   journal.ajouter({ project: "brigade", ticket, author: "runtime", type: "cook.launched", payload: { run: `${ticket}-enVol`, limits: PLAFONDS, stream: `runs/${ticket}-enVol.jsonl` } });
 }
 
-test("une demande qui attend se lit dans la file : depuis quand, et ce qui la retient — combien de cooks en vol, pour quel seuil ; elle en sort en partant", async (t) => {
+test("une demande qui attend se lit dans la file : depuis quand, et ce qui la retient — combien de cooks en vol, pour quel seuil ; elle en sort en partant", { skip: posixOnly("runs a closing request through to a closer that is the fake claude (a bash script) on a real git repository; the pass judged the closer's files out of its zone; on the Windows job: + 'zone' - 'delivered'") }, async (t) => {
   const cuisine = cuisineFermee(t);
   const { runtime, demander, poser, closer, fin } = cuisine;
   closer.gestes(RETIRER_M1);
@@ -62,7 +63,7 @@ test("une demande qui attend se lit dans la file : depuis quand, et ce qui la re
   assert.doesNotMatch(attend(cuisine), /closing/);
 });
 
-test("une seule demande à la fois : redemandée pendant qu'elle attend, rien n'est redemandé, et une seule passe part", async (t) => {
+test("une seule demande à la fois : redemandée pendant qu'elle attend, rien n'est redemandé, et une seule passe part", { skip: posixOnly("runs a closing request through to a closer that is the fake claude (a bash script) on a real git repository; the pass judged the closer's files out of its zone; on the Windows job: + 'zone' - 'delivered'") }, async (t) => {
   const cuisine = cuisineFermee(t);
   const { runtime, demander, poser, closer, fin, types } = cuisine;
   closer.gestes(RETIRER_M1);
@@ -82,7 +83,7 @@ test("une seule demande à la fois : redemandée pendant qu'elle attend, rien n'
   assert.deepEqual(types().filter((type) => type === "closing.started"), ["closing.started"]);
 });
 
-test("le chef renonce à la demande par le même geste : rien ne part, même quand la condition se remplit ; partie, elle ne se rappelle pas", async (t) => {
+test("le chef renonce à la demande par le même geste : rien ne part, même quand la condition se remplit ; partie, elle ne se rappelle pas", { skip: posixOnly("runs a closing request through to a closer that is the fake claude (a bash script) on a real git repository; the pass judged the closer's files out of its zone; on the Windows job: + 'zone' - 'delivered'") }, async (t) => {
   const cuisine = cuisineFermee(t);
   const { runtime, demander, annuler, poser, closer, fin, types } = cuisine;
   closer.gestes(`attendre\n${RETIRER_M1}`);

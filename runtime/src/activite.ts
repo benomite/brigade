@@ -2,7 +2,7 @@
 // nature de son dernier geste, et le fichier ou la commande qu'il vise. Rien
 // d'autre n'en sort — ni le code, ni ce que le modèle dit ou pense, ni ce
 // qu'une commande rend : le flux est lu ici pour être réduit à un mot.
-import { basename, isAbsolute, relative } from "node:path";
+import { basename, isAbsolute, relative, sep } from "node:path";
 
 // Les gestes, en mots de journal. Ce que chacun dit au chef est dans `DIT`.
 export const GESTES = [
@@ -125,12 +125,13 @@ function borner(cible: string): string | null {
   return propre.length > CIBLE_MAX ? `…${propre.slice(-(CIBLE_MAX - 1))}` : propre;
 }
 
-// Le chemin d'un fichier, relatif au worktree du cook quand il y est.
+// Le chemin d'un fichier, relatif au worktree du cook quand il y est — écrit
+// avec `/`, comme git l'écrit, sur toutes les plateformes.
 function chemin(valeur: unknown, cwd: string | undefined): string | null {
   if (typeof valeur !== "string" || valeur === "") return null;
   if (cwd !== undefined && isAbsolute(valeur)) {
     const dedans = relative(cwd, valeur);
-    if (dedans !== "" && !dedans.startsWith("..") && !isAbsolute(dedans)) return borner(dedans);
+    if (dedans !== "" && !dedans.startsWith("..") && !isAbsolute(dedans)) return borner(dedans.replaceAll(sep, "/"));
   }
   return borner(valeur);
 }
