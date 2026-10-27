@@ -101,8 +101,17 @@ export type CuisineDuTableau = {
 // `traiteLe` : l'heure où la box l'a lu. `reponse` : la ligne qu'elle a
 // répondue sous lui, en markdown. `demande` : pour un `ask` joué seulement, la
 // demande au second que la box a composée, mot pour mot — celle que l'app
-// écrit dans le second, sans Entrée.
-export type GesteDuTableau = { commentaire: number; url: string; le: string; geste: string | null; ticket: number | null; etat: "pris" | "refuse"; traiteLe: string; reponse: string; demande?: string };
+// écrit dans le second, sans Entrée, quand la box ne tient pas le second du
+// projet. `second` : quand elle le tient, la demande y est partie, et c'est ce
+// qu'il en est — `attendu`, il répond encore ; `repondu`, sa réponse
+// (`reponse`, en markdown, coupée au-delà de `REPONSE_DU_SECOND_AU_BLOC`
+// caractères — `coupee` le dit —, entière dans le commentaire posté sous le
+// geste) ; `echec`, et pourquoi (`raison`).
+export type SecondDuGeste = { etat: "attendu" } | { etat: "repondu"; reponse: string; coupee: boolean } | { etat: "echec"; raison: string };
+export type GesteDuTableau = { commentaire: number; url: string; le: string; geste: string | null; ticket: number | null; etat: "pris" | "refuse"; traiteLe: string; reponse: string; demande?: string; second?: SecondDuGeste };
+
+// La réponse du second que le bloc porte : au-delà, elle n'est entière que sous le geste.
+export const REPONSE_DU_SECOND_AU_BLOC = 2_000;
 
 // Ce que la vue du rail d'un projet dessine (#1693) : l'objet de `facts`, dans
 // sa forme et ses mots (etat.ts, `Faits` ; docs/runtime/etat-et-mesures.md,

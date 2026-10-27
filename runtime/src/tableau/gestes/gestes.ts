@@ -31,8 +31,10 @@
 //
 // Le bloc machine du tableau porte les derniers gestes et leur état (`lus`),
 // pour que les apps disent au chef que le sien est pris en compte. La demande
-// au second y est entière (`demande`) : le runtime ne tient aucun canal vers
-// le second — une session `claude` de l'app —, c'est l'app qui l'y écrit.
+// au second y est entière (`demande`). Quand la box tient le second du projet
+// (second.ts, `BRIGADE_SECOND_DIR`), la demande y part, et sa réponse est
+// postée sous le geste dès qu'il l'a donnée (`board.second`) — le bloc la porte
+// (`second`). Sinon, c'est l'app qui l'écrit dans le second qu'elle tient.
 import { renvoyerEnCuisine } from "../../attente.ts";
 import { trancherLaCorrection } from "../../correctif/decision.ts";
 import { mergerLaLivraison, renvoyerLaLivraison, retirerDuRail, type Resultat } from "../../geste-ticket.ts";
@@ -46,6 +48,8 @@ import { enMarkdown } from "../rendu/rendre.ts";
 import type { ClientDesGestes, CommentaireDuTableau } from "./client.ts";
 import { GRAMMAIRE, lireLeGeste, type Geste } from "./grammaire.ts";
 import { GRAMMAIRE_DE_BOITE, lireUnGesteDeBoite, type GesteDeBoite } from "../gestes-boite/grammaire.ts";
+import { REPONSE_DU_SECOND_AU_BLOC, type SecondDuGeste } from "../rendu/bloc.ts";
+import type { SecondDuTableau } from "./second.ts";
 import { jouerUnGesteDeBoite, type ResultatDeBoite } from "../gestes-boite/jouer.ts";
 
 // Les gestes que le bloc machine porte, les plus récents ; et ceux dont la
@@ -54,6 +58,19 @@ export const GESTES_AU_TABLEAU = 20;
 
 const AUTEUR = "chef";
 const RIEN_TOUCHE = "none: nothing was changed";
+const AU_SECOND = "one turn of the project's second, in its own conversation, on the Claude account where it runs — its answer is posted under this gesture as soon as it gives it";
+
+// Ce qu'un commentaire de GitHub porte au plus, et une marge.
+const COMMENTAIRE_MAX = 60_000;
+
+// Le corps posté sous le geste pour la réponse du second : elle ne commence
+// pas par `/brigade`, et ne mentionne personne (rendre.ts, le gluon).
+function direLeSecond(commentaire: Pick<CommentaireDuTableau, "url">, nom: string, reponse: { repondu: true; texte: string } | { repondu: false; raison: string }): string {
+  if (!reponse.repondu) return `**The second did not answer** — ${lien(nom, commentaire.url)}: ${enMarkdown(uneLigne(reponse.raison))}`;
+  const texte = reponse.texte.replaceAll("@", "@\u2060");
+  const coupe = texte.length > COMMENTAIRE_MAX ? `${texte.slice(0, COMMENTAIRE_MAX)}\n\n_… cut: the whole answer is in the second's conversation._` : texte;
+  return `**The second's answer** — ${lien(nom, commentaire.url)}:\n\n${coupe}`;
+}
 
 export type OptionsDesGestes = {
   client: ClientDesGestes;
@@ -72,6 +89,9 @@ export type OptionsDesGestes = {
   // Le clone du projet : le « oui » à un profil proposé y écrit sa définition.
   // Sans lui, ce « oui » est refusé.
   repoDir?: string;
+  // Le second du projet, quand cette box le tient (second.ts) : la demande
+  // d'un `ask` y part. Sans lui, elle n'est que publiée.
+  second?: SecondDuTableau | null;
   // Ce qui n'a pas pu se faire sans empêcher le reste : une réponse refusée.
   avertir?: (ligne: string) => void;
 };
@@ -113,7 +133,7 @@ export function direLaReponse(commentaire: Pick<CommentaireDuTableau, "url">, le
 
 // Le geste, joué par l'action de son geste local. Ce qui lève — GitHub
 // injoignable, un refus de son API — est un refus, dit.
-async function jouer({ journal, github, githubDuChef, projet, repoDir }: OptionsDesGestes, geste: Geste): Promise<Resultat | Demande> {
+async function jouer({ journal, github, githubDuChef, projet, repoDir, second }: OptionsDesGestes, geste: Geste): Promise<Resultat | Demande> {
   try {
     switch (geste.verbe) {
       case "merge":
@@ -130,8 +150,11 @@ async function jouer({ journal, github, githubDuChef, projet, repoDir }: Options
         return renvoyerEnCuisine(journal, projet, geste.ticket);
       case "comment":
         return await commenterIssue(githubDuChef ?? github, geste.ticket, geste.texte);
-      case "ask":
-        return await demanderAuSecond(github, geste.ticket, geste.contexte);
+      case "ask": {
+        const demande = await demanderAuSecond(github, geste.ticket, geste.contexte);
+        if (!demande.done || !second) return demande;
+        return { ...demande, price: AU_SECOND };
+      }
       case "correction":
         return trancherLaCorrection(journal, projet, geste.proposition, geste.reponse);
       case "profile":
@@ -156,31 +179,75 @@ export function gestesDuTableau(options: OptionsDesGestes): GestesDuTableau {
   let dernierRefus: string | null = null;
 
   const derniers = () => journal.duType("board.gesture", GESTES_AU_TABLEAU);
+  // Les réponses du second, par geste.
+  const duSecond = () => new Map(journal.duType("board.second", GESTES_AU_TABLEAU * 2).map((fait) => [fait.payload.comment, fait.payload]));
+  // Les demandes au second dont ce process attend la réponse.
+  const attendues = new Set<number>();
 
-  // Poste la réponse au geste `commentaire` sous le tableau, et le note. Rend
-  // faux si GitHub la refuse : elle repart au passage suivant.
-  const poster = async (numero: number, commentaire: number, reponse: string): Promise<boolean> => {
+  // Poste sous le tableau la réponse au geste `commentaire` — ou, `du second`,
+  // ce que le second en a dit —, et le note. Rend faux si GitHub la refuse :
+  // elle repart au passage suivant.
+  const poster = async (numero: number, commentaire: number, reponse: string, quoi: "board.replied" | "board.second-replied" = "board.replied"): Promise<boolean> => {
     try {
       await client.repondre(numero, reponse);
     } catch (erreur) {
       const motif = erreur instanceof Error ? erreur.message : String(erreur);
-      if (motif !== dernierRefus) avertir(`brigade : réponse au geste ${commentaire} du Kitchen board #${numero} non postée, reprise au passage suivant — ${motif}`);
+      if (motif !== dernierRefus) avertir(`brigade : réponse ${quoi === "board.replied" ? "au geste" : "du second au geste"} ${commentaire} du Kitchen board #${numero} non postée, reprise au passage suivant — ${motif}`);
       dernierRefus = motif;
       return false;
     }
     dernierRefus = null;
-    journal.ajouter({ project: projet, ticket: null, author: "runtime", type: "board.replied", payload: { comment: commentaire, board: numero }, dedupKey: `board.replied:${commentaire}` });
+    journal.ajouter({ project: projet, ticket: null, author: "runtime", type: quoi, payload: { comment: commentaire, board: numero }, dedupKey: `${quoi}:${commentaire}` });
     return true;
   };
 
   // Les réponses que GitHub a refusées, reprises sous le tableau d'aujourd'hui
-  // — chacune nomme son geste par son lien.
+  // — chacune nomme son geste par son lien. Celle du second vient après celle
+  // de la box à son geste.
   const reposter = async (numero: number) => {
     const repondus = new Set(journal.duType("board.replied", GESTES_AU_TABLEAU * 2).map((fait) => fait.payload.comment));
+    const secondsRepondus = new Set(journal.duType("board.second-replied", GESTES_AU_TABLEAU * 2).map((fait) => fait.payload.comment));
+    const seconds = duSecond();
     for (const fait of derniers()) {
-      if (repondus.has(fait.payload.comment)) continue;
-      if (!(await poster(numero, fait.payload.comment, fait.payload.reply))) return;
+      if (!repondus.has(fait.payload.comment) && !(await poster(numero, fait.payload.comment, fait.payload.reply))) return;
+      const sien = seconds.get(fait.payload.comment);
+      if (sien !== undefined && !secondsRepondus.has(fait.payload.comment) && !(await poster(numero, fait.payload.comment, sien.reply, "board.second-replied"))) return;
     }
+  };
+
+  // La demande d'un `ask`, partie dans le second : sa réponse, quand il la
+  // donne, s'écrit au journal et se poste sous le geste. Le tableau la porte au
+  // rafraîchissement suivant.
+  const attendreLeSecond = async (numero: number, commentaire: CommentaireDuTableau, nom: string, demande: string) => {
+    if (!options.second) return;
+    attendues.add(commentaire.id);
+    try {
+      const reponse = await options.second.demander(demande);
+      const reply = direLeSecond(commentaire, nom, reponse);
+      const ecrit = journal.ajouter({
+        project: projet,
+        ticket: null,
+        author: "runtime",
+        type: "board.second",
+        payload: { comment: commentaire.id, board: numero, answered: reponse.repondu, answer: reponse.repondu ? reponse.texte : null, reason: reponse.repondu ? null : reponse.raison, reply },
+        dedupKey: `board.second:${commentaire.id}`,
+      });
+      if (ecrit !== null) await poster(numero, commentaire.id, reply, "board.second-replied");
+    } catch (erreur) {
+      // Le runtime s'est arrêté pendant que le second répondait : le tableau le dira.
+      avertir(`brigade : réponse du second au geste ${commentaire.id} du Kitchen board #${numero} non notée — ${erreur instanceof Error ? erreur.message : String(erreur)}`);
+    } finally {
+      attendues.delete(commentaire.id);
+    }
+  };
+
+  // Ce qu'il en est de la demande d'un `ask` partie dans le second.
+  const etatDuSecond = (comment: number, seconds: ReturnType<typeof duSecond>): SecondDuGeste => {
+    const sien = seconds.get(comment);
+    if (sien === undefined) return attendues.has(comment) ? { etat: "attendu" } : { etat: "echec", raison: "the box stopped before the second answered: post the gesture again" };
+    if (!sien.answered || sien.answer === null) return { etat: "echec", raison: sien.reason ?? "the second did not answer" };
+    const coupee = sien.answer.length > REPONSE_DU_SECOND_AU_BLOC;
+    return { etat: "repondu", reponse: coupee ? `${sien.answer.slice(0, REPONSE_DU_SECOND_AU_BLOC)}…` : sien.answer, coupee };
   };
 
   return {
@@ -214,17 +281,23 @@ export function gestesDuTableau(options: OptionsDesGestes): GestesDuTableau {
             gesture: "incompris" in lecture ? null : "commande" in lecture ? (lecture.nom.split(" ")[0] ?? null) : lecture.verbe,
             done: resultat?.done === true,
             reply: reponse,
-            ...(resultat !== null && "request" in resultat && typeof resultat.request === "string" ? { request: resultat.request } : {}),
+            ...(resultat !== null && "request" in resultat && typeof resultat.request === "string" ? { request: resultat.request, ...(options.second ? { toSecond: true } : {}) } : {}),
           },
           dedupKey: `board.gesture:${commentaire.id}`,
         });
         if (ecrit === null) continue;
         lu = true;
+        const auSecond = options.second && resultat !== null && "request" in resultat && typeof resultat.request === "string" && "verbe" in lecture ? { nom: nommer(lecture), demande: resultat.request } : null;
+        // Attendue dès qu'elle est au journal : le tableau ne la dit pas perdue.
+        if (auSecond !== null) attendues.add(commentaire.id);
         await poster(numero, commentaire.id, reponse);
+        // La réponse du second peut prendre des minutes : le tableau n'attend pas.
+        if (auSecond !== null) void attendreLeSecond(numero, commentaire, auSecond.nom, auSecond.demande);
       }
       return lu;
     },
     lus() {
+      const seconds = duSecond();
       return derniers().map(({ ticket, at, payload }) => ({
         commentaire: payload.comment,
         url: payload.url,
@@ -235,6 +308,7 @@ export function gestesDuTableau(options: OptionsDesGestes): GestesDuTableau {
         traiteLe: at,
         reponse: payload.reply,
         ...(payload.request === undefined ? {} : { demande: payload.request }),
+        ...(payload.toSecond === true ? { second: etatDuSecond(payload.comment, seconds) } : {}),
       }));
     },
   };

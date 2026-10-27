@@ -50,6 +50,7 @@ import { clientGitHubDuTableau } from "../tableau/publication/client.ts";
 import { brancherLeTableau } from "../tableau/publication/publier.ts";
 import { clientGitHubDesGestes } from "../tableau/gestes/client.ts";
 import { gestesDuTableau } from "../tableau/gestes/gestes.ts";
+import { secondDuProjet } from "../tableau/gestes/second.ts";
 import { mentionsDuTableau } from "../tableau/mention/mention.ts";
 
 export type Cuisine = {
@@ -220,6 +221,9 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
       github: ouvrirGitHub({ depot: rail.depot, bin: rail.gh, usage: "geste", projet, ...(roles ? { jeton: roles.jeton("pass").frais, identite: () => roles.login("pass"), compte: "pass" } : {}) }),
       // Le commentaire du chef sur une issue part sous le `gh` de la box, le sien.
       githubDuChef: ouvrirGitHub({ depot: rail.depot, bin: rail.gh, usage: "geste", projet }),
+      // La demande d'un `ask` part dans le second du projet, quand sa ligne nomme son dossier (BRIGADE_SECOND_DIR),
+      // dans l'environnement où le téléphone le joint (telephone/second.ts).
+      second: secondDuProjet(envDuProjet),
       avertir: dire,
     });
     const mentions = mentionsDuTableau({ client: clientDesGestes, journal: connectee.journal, projet, avertir: dire });
