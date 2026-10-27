@@ -6756,3 +6756,128 @@ button.recommande {
 #tous .ligne span.pourquoi {
   color: var(--discret);
 }
+
+/* Une passe de dessin sur les stations (ticket 1781, épique 1777) — rien ne change de ce qu'elles font, seulement ce qu'on
+   en lit. Sur l'accueil : chaque ligne a les mêmes colonnes — pastille, nom, état, raison — et sa flèche et ses gestes
+   tombent au même endroit d'une ligne à l'autre ; les lignes sont séparées d'un trait fin, et celle qu'on survole montre
+   où elle mène. Une station hors ligne se tient en retrait. */
+#accueil-stations {
+  padding: 6px;
+}
+#accueil-stations .ligne {
+  align-items: center;
+  gap: 14px;
+  padding: 11px 14px;
+  cursor: pointer;
+}
+#accueil-stations .ligne strong {
+  flex: 0 0 13em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#accueil-stations .ligne span:not(.pastille):not(.ouvrir):not(.pourquoi) {
+  flex: 1 1 0;
+}
+#accueil-stations .ligne span.pourquoi {
+  flex: 0 1 16em;
+  font-size: 13px;
+}
+#accueil-stations .ligne span.ouvrir {
+  flex: none;
+  font-size: 16px;
+  line-height: 1;
+}
+#accueil-stations .ligne:hover .ouvrir {
+  color: var(--accent);
+}
+#accueil-stations .ligne:has(.pastille[data-forme="anneau"]) strong {
+  color: var(--texte-doux);
+}
+#accueil-stations > :is(.ligne, .ligne-et-geste) + :is(.ligne, .ligne-et-geste) {
+  border-top: 1px solid var(--trait-doux);
+}
+#accueil-stations .ligne-et-geste {
+  display: flex;
+  align-items: center;
+}
+#accueil-stations .ligne-et-geste > .ligne {
+  flex: 1 1 0;
+  min-width: 0;
+}
+#accueil-stations .gestes-de-la-ligne {
+  position: static;
+  flex: 0 0 19em;
+  justify-content: flex-end;
+  padding-right: 8px;
+  transform: none;
+}
+#accueil-stations .appairer-un-telephone:hover,
+#accueil-stations .remede-de-station:hover,
+#accueil-stations .ajout-de-station:hover {
+  color: var(--texte);
+  border-color: var(--trait-fort);
+}
+#accueil-stations .ajout-de-station {
+  margin: 8px 8px 4px;
+  padding: 4px 12px;
+}
+/* Sans station : la phrase se lit d'abord, les deux commandes sont deux cartes alignées sur les mêmes colonnes. */
+#accueil-stations .stations-du-compte {
+  gap: 8px;
+  padding: 10px 14px 6px;
+}
+#accueil-stations .stations-du-compte > p.attendu {
+  padding: 0 0 4px;
+  font-size: 15px;
+  color: var(--texte);
+}
+#accueil-stations .stations-du-compte .installer {
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 12px;
+  background: var(--fond);
+  border: 1px solid var(--trait-doux);
+  border-radius: var(--rayon-bouton);
+}
+#accueil-stations .stations-du-compte .installer > span:first-child {
+  flex: 0 0 11em;
+}
+#accueil-stations .stations-du-compte .installer code {
+  font-size: 12.5px;
+}
+#accueil-stations .stations-du-compte .gestes {
+  padding-left: 0;
+}
+/* La page d'une station, son choix de projets : l'en-tête serré — ses lignes vides ne laissent aucun creux —, les cases
+   sur une grille régulière, un nom long coupé là où il peut l'être, une case cochée qui se voit. */
+#station > :empty {
+  display: none;
+}
+#station header {
+  padding-bottom: 6px;
+}
+#station .projets-de-la-station {
+  margin: 8px 0 10px;
+  padding: 14px 16px;
+  gap: 12px;
+}
+#station .projets-de-la-station legend {
+  font-size: 14px;
+}
+#station .projets-de-la-station .capacites {
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 8px;
+}
+#station .projets-de-la-station .capacite {
+  padding: 9px 12px;
+  overflow-wrap: anywhere;
+}
+#station .projets-de-la-station .capacite:has(input:checked) {
+  border-color: var(--accent);
+}
+#station .projets-de-la-station .recherche {
+  padding-top: 10px;
+  border-top: 1px solid var(--trait-doux);
+}
