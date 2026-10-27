@@ -20,11 +20,13 @@ const MAINTENANT = new Date(`${JOUR_HORLOGE}T12:00:00.000Z`);
 
 const PRODUIT: Proposition = {
   type: "product",
+  resume: "The ticket adds a saved list. It can be kept per project or shared by all of them.",
   enonce: "One list per project, or one for all projects?",
   choix: [{ texte: "One list per project." }, { texte: "One list for all projects.", suite: "resume" }],
 };
 const DESIGN: Proposition = {
   type: "design",
+  resume: "The empty rail now says what to do next.",
   enonce: "Is the empty rail screen right?",
   choix: [
     { texte: "Yes, merge it.", suite: "merge" },
@@ -75,6 +77,7 @@ test("un choix de produit et une validation de design entrent dans TODO, avec le
       {
         ticket: 1,
         type: "product",
+        resume: PRODUIT.resume,
         question: "One list per project, or one for all projects?",
         choix: [
           { texte: "One list per project.", suite: "resume" },
@@ -85,6 +88,7 @@ test("un choix de produit et une validation de design entrent dans TODO, avec le
       {
         ticket: 2,
         type: "design",
+        resume: DESIGN.resume,
         question: "Is the empty rail screen right?",
         choix: [
           { texte: "Yes, merge it.", suite: "merge" },
@@ -175,11 +179,22 @@ test("une carte sans exactement une question et au moins un choix est refusée",
   assert.equal(raison({ choix: [{ texte: "A." }, { texte: "  " }] }), "choice 2 is empty or on several lines: each choice is one line");
   assert.equal(raison({ choix: [{ texte: "A\nand B." }] }), "choice 1 is empty or on several lines: each choice is one line");
   assert.equal(raison({ choix: [{ texte: "A." }, { texte: " A. " }] }), "choice 2 repeats another: each choice is a different way");
-  assert.equal(raison({ choix: [{ texte: "A.", suite: "close" }] }), "choice 1: unknown follow-up “close” — resume or merge");
-  // Un seul choix suffit : le chef peut toujours répondre en texte libre.
-  assert.deepEqual(jugerCarte({ ...PRODUIT, choix: [{ texte: "Keep it as is." }] }), {
+  assert.equal(raison({ choix: [{ texte: "A.", suite: "close" }] }), "choice 1: unknown follow-up “close” — resume or merge or drop");
+  // La forme unique (carte-todo/forme.ts) : un seul choix est un seul geste, qui ne pose pas de question —
+  // une carte de la porte, qui en pose une, offre au moins deux choix.
+  assert.equal(raison({ choix: [{ texte: "Keep it as is." }] }), "a single gesture with a question: a card with one choice shows its button and asks nothing");
+  assert.deepEqual(jugerCarte({ ...PRODUIT, choix: [{ texte: "Keep it as is." }, { texte: "Drop it.", suite: "drop" }] }), {
     admise: true,
-    carte: { type: "product", question: PRODUIT.enonce, choix: [{ texte: "Keep it as is.", suite: "resume" }], captures: null },
+    carte: {
+      type: "product",
+      resume: PRODUIT.resume,
+      question: PRODUIT.enonce,
+      choix: [
+        { texte: "Keep it as is.", suite: "resume" },
+        { texte: "Drop it.", suite: "drop" },
+      ],
+      captures: null,
+    },
   });
 });
 

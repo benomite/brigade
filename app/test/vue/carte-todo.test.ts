@@ -31,20 +31,26 @@ const CAPTURE = (moment: string) => `https://github.com/chef/parade/blob/5d41402
 // Les deux cartes telles que le runtime les donne dans `attend[].carte` : leur type est le sien.
 const DESIGN = {
   type: "design",
+  resume: "The SIRET field gets its error line.",
   question: "Does the SIRET field read as the mockup draws it?",
   choix: [
     { texte: "Yes, merge it as delivered.", suite: "merge" },
     { texte: "No: the error line goes under the field.", suite: "resume" },
   ],
+  reponseLibre: true,
+  secondaire: { action: "ask-second", texte: "ask the second" },
   captures: { complet: true, ecrans: [{ ecran: "formulaire", avant: CAPTURE("avant"), apres: CAPTURE("apres") }] },
 } satisfies CarteVue;
 const PRODUIT = {
   type: "product",
+  resume: "The ticket adds a journal export.",
   question: "One journal export per project, or a single one?",
   choix: [
     { texte: "One per project.", suite: "resume" },
     { texte: "A single export.", suite: "resume" },
   ],
+  reponseLibre: true,
+  secondaire: { action: "ask-second", texte: "ask the second" },
   captures: null,
 } satisfies CarteVue;
 

@@ -5,7 +5,9 @@ import type { Captures } from "../captures.ts";
 // what is asked of the chef — to enter, exactly one question. `capture`: the
 // screen a producer pointed at, for the triage to read. `choices`: the
 // choices proposed, each with what follows it (`then`); null when none.
-type Proposed = { kind: string | null; statement: string | null; capture: string | null; choices: Array<{ text: string | null; then: string | null }> | null };
+// `summary`: what happens, in at most two plain sentences — absent from a
+// proposal written before cards carried one.
+type Proposed = { kind: string | null; summary?: string | null; statement: string | null; capture: string | null; choices: Array<{ text: string | null; then: string | null }> | null };
 
 // The facts of the TODO gate (`carte-todo.ts`): what entered the chef's TODO
 // queue as a card, what was refused at its door, and why — and what the
@@ -13,13 +15,16 @@ type Proposed = { kind: string | null; statement: string | null; capture: string
 // the ticket in its envelope.
 export type FaitTodo =
   // The card passed the gate: it is in TODO, and replaces the one its ticket
-  // carried there before, if any. `kind`: `product` or `design`. `statement`:
-  // its one question. `choices`: at least one, each one line, and what
-  // follows it — `resume` (the kitchen takes the ticket up again with the
-  // answer) or `merge` (the green delivery waiting is merged). `captures`:
-  // the screens its ticket delivered, before and after — never null on a
-  // `design` card, null on a `product` card whose ticket delivered none.
-  | { type: "todo.entered"; payload: { kind: "product" | "design"; statement: string; choices: Array<{ text: string; then: "resume" | "merge" }>; captures: Captures | null } }
+  // carried there before, if any. `kind`: `product` or `design`. `summary`:
+  // what happens, in at most two plain sentences — absent from a card that
+  // entered before cards carried one. `statement`: its one question.
+  // `choices`: at least two, each one line, and what follows it — `resume`
+  // (the kitchen takes the ticket up again with the answer), `merge` (the
+  // green delivery waiting is merged) or `drop` (the ticket leaves the rail).
+  // `captures`: the screens its ticket delivered, before and after — never
+  // null on a `design` card, null on a `product` card whose ticket delivered
+  // none.
+  | { type: "todo.entered"; payload: { kind: "product" | "design"; summary?: string; statement: string; choices: Array<{ text: string; then: "resume" | "merge" | "drop" }>; captures: Captures | null } }
   // The card was refused at the gate: it is not in TODO, and goes back to
   // the triage (it is held). `reason`: why, in plain words.
   | { type: "todo.refused"; payload: Proposed & { reason: string } }
@@ -43,4 +48,4 @@ export type FaitTodo =
   // The chef answered the card in TODO (`reponse-carte.ts`): by one of its
   // choices (`choice`, its rank from 1) or in free text (`choice` null).
   // `answer`: what was written on the issue. `then`: what followed.
-  | { type: "todo.answered"; payload: { choice: number | null; answer: string; then: "resume" | "merge" } };
+  | { type: "todo.answered"; payload: { choice: number | null; answer: string; then: "resume" | "merge" | "drop" } };

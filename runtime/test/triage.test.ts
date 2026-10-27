@@ -29,10 +29,11 @@ const STATION = "box/claude";
 // Ce que la pass ou le manager proposent : une ligne, sans question ni choix —
 // la porte de TODO la renvoie au triage.
 const CARTE = { type: "product", enonce: "Choisir entre l'export CSV et l'export JSON." };
-// Une carte qui passe la porte : une question, ses choix.
-const COMPLETE = { type: "product", enonce: "Export CSV ou export JSON ?", choix: [{ texte: "L'export CSV." }, { texte: "L'export JSON." }] };
+// Une carte qui passe la porte : ce qui se passe, une question, ses choix.
+const RESUME = "The ticket adds an export. Its format decides what the user downloads.";
+const COMPLETE = { type: "product", resume: RESUME, enonce: "Export CSV ou export JSON ?", choix: [{ texte: "L'export CSV." }, { texte: "L'export JSON." }] };
 // La carte que l'agent écrit, quand il l'envoie en TODO.
-const ECRITE = { type: "produit", question: "Export CSV ou export JSON ?", choix: [{ texte: "L'export CSV.", suite: "reprendre" }, "L'export JSON."] };
+const ECRITE = { type: "produit", resume: RESUME, question: "Export CSV ou export JSON ?", choix: [{ texte: "L'export CSV.", suite: "reprendre" }, "L'export JSON."] };
 const FICHE = "<!-- brigade:fiche -->\n- attend : #29, #27\n- zone : src";
 
 // Ce que l'agent répond, pour chaque action.
@@ -372,7 +373,7 @@ describe("l'agent ne tranche pas : la carte va à la porte de TODO", () => {
   });
 
   test("une validation de design que l'agent envoie en TODO montre les captures que le ticket a livrées", async (t) => {
-    const c = atelier(t, [{ action: "todo", carte: { type: "design", question: "L'écran d'export est-il juste ?", choix: [{ texte: "Oui, merger.", suite: "merger" }, "Non."] }, motif: "Un écran." }]);
+    const c = atelier(t, [{ action: "todo", carte: { type: "design", resume: "The export screen now lists the formats.", question: "L'écran d'export est-il juste ?", choix: [{ texte: "Oui, merger.", suite: "merger" }, "Non."] }, motif: "Un écran." }]);
     c.livrer();
     const captures = { sha: "abc123", screens: [{ screen: "export", before: "docs/captures/30/export-avant.png", after: "docs/captures/30/export-apres.png" }] };
     c.noter(30, { type: "cook.reported", payload: { run: "cook-30", ending: "done", reason: null, summary: null, branch: "cook/30-x", pr: null, captures } }, `station:${STATION}`);
@@ -428,12 +429,17 @@ describe("ce que l'agent lit et ce qu'il répond", () => {
       valeur: {
         action: "through",
         motif: "Un choix de produit.",
-        carte: { type: "product", enonce: "Export CSV ou export JSON ?", choix: [{ texte: "L'export CSV.", suite: "resume" }, { texte: "L'export JSON.", suite: null }] },
+        carte: { type: "product", resume: RESUME, enonce: "Export CSV ou export JSON ?", choix: [{ texte: "L'export CSV.", suite: "resume" }, { texte: "L'export JSON.", suite: null }] },
       },
     });
     assert.deepEqual(lireTriage(JSON.stringify({ action: "todo", carte: { type: "gesture", question: 3, choix: "oui", suite: "x" } })), {
-      valeur: { action: "through", motif: null, carte: { type: "gesture", enonce: null, choix: null } },
+      valeur: { action: "through", motif: null, carte: { type: "gesture", resume: null, enonce: null, choix: null } },
     });
+    // `retirer` : le choix sort le ticket du rail.
+    assert.deepEqual((lireTriage(JSON.stringify({ action: "todo", carte: { ...ECRITE, choix: ["A.", { texte: "B.", suite: "retirer" }] } })) as { valeur: { carte: { choix: unknown } } }).valeur.carte.choix, [
+      { texte: "A.", suite: null },
+      { texte: "B.", suite: "drop" },
+    ]);
     assert.ok("illisible" in lireTriage(JSON.stringify({ action: "todo", carte: "Export CSV ?" })));
     assert.deepEqual(lireTriage(JSON.stringify(REPONSES.retirer)), { valeur: { action: "remove", phrase: REPONSES.retirer.phrase, motif: "Doublon." } });
     for (const illisible of [null, "", "rien", JSON.stringify({ action: "merger" }), JSON.stringify({ action: "retirer" }), JSON.stringify({ ...REPONSES.relancer, diagnostic: null }), JSON.stringify({ ...REPONSES.dependance, dependance: "x" })]) {

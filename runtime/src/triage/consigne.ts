@@ -73,6 +73,7 @@ export function consigneDeTriage(dossier: Dossier): string {
     `### La carte qui allait entrer en TODO`,
     "",
     `Ticket #${carte.ticket}, posée par \`${carte.auteur}\` — ${carte.type ?? "sans sorte"} : ${carte.enonce ?? "sans énoncé"}${carte.capture === null ? "" : ` (capture : ${carte.capture})`}`,
+    ...(carte.resume === null ? [] : [`Résumé : ${carte.resume}`]),
     ...(carte.choix === null ? [] : carte.choix.map(({ texte, suite }, rang) => `${rang + 1}. ${texte ?? "(vide)"}${suite ? ` — ${suite}` : ""}`)),
     ...(carte.refus === null
       ? []
@@ -128,14 +129,15 @@ export function consigneDeTriage(dossier: Dossier): string {
     "### La carte, pour `todo`",
     "",
     "```json",
-    '{"action": "todo", "carte": {"type": "produit", "question": "Une liste par projet, ou une seule pour tous ?", "choix": [{"texte": "Une liste par projet : chaque projet garde la sienne.", "suite": "reprendre"}, {"texte": "Une seule liste, pour tous les projets ensemble.", "suite": "reprendre"}]}, "motif": "pourquoi"}',
+    '{"action": "todo", "carte": {"type": "produit", "resume": "The ticket adds a saved list. It can be kept per project or shared by all of them.", "question": "Une liste par projet, ou une seule pour tous ?", "choix": [{"texte": "Une liste par projet : chaque projet garde la sienne.", "suite": "reprendre"}, {"texte": "Une seule liste, pour tous les projets ensemble.", "suite": "reprendre"}]}, "motif": "pourquoi"}',
     "```",
     "",
     "La porte de TODO n'admet que cette carte, et la refuse sinon — elle te revient alors, avec la raison :",
     "",
     "- `type` : `produit` (un choix qui change le produit) ou `design` (un écran à valider) — aucune autre sorte, pas de `gesture` ;",
+    "- `resume` : ce qui se passe, en anglais, en deux phrases simples au plus, sur une ligne, sans Markdown — ce que le chef lit avant la question ;",
     "- `question` : une seule, sur une ligne, qui finit par son seul « ? » ;",
-    "- `choix` : au moins un, chacun sur une ligne, tous différents. `suite` : `reprendre` — la cuisine reprend le ticket avec la réponse du chef —, ou `merger` — la livraison verte qui attend est mergée, pour valider un écran ou garder une voie déjà livrée. Le chef peut toujours répondre en texte libre : ne l'offre pas en choix ;",
+    "- `choix` : au moins deux, chacun sur une ligne, tous différents. `suite` : `reprendre` — la cuisine reprend le ticket avec la réponse du chef —, `merger` — la livraison verte qui attend est mergée, pour valider un écran ou garder une voie déjà livrée —, ou `retirer` — le ticket sort du rail. Le chef peut toujours répondre en texte libre, ou demander au second : ne les offre pas en choix ;",
     "- une carte `design` montre les captures avant et après que le cook a livrées pour le ticket : la cuisine les joint, tu ne les écris pas. Un ticket qui n'en a pas livré ne fait pas de carte `design`.",
     "",
     "Sans `carte`, c'est la carte telle qu'elle a été posée qui va à la porte.",
@@ -149,14 +151,14 @@ export const unePhrase = (texte: string) => !/[\r\n]/.test(texte) && texte.split
 // Les mots de l'agent, en français, et ceux de la porte. Un autre mot passe
 // tel quel : la porte dit pourquoi elle le refuse.
 const SORTES: Record<string, string> = { produit: "product", product: "product", design: "design" };
-const SUITES: Record<string, string> = { reprendre: "resume", resume: "resume", merger: "merge", merge: "merge" };
+const SUITES: Record<string, string> = { reprendre: "resume", resume: "resume", merger: "merge", merge: "merge", retirer: "drop", drop: "drop" };
 const texteOuRien = (valeur: unknown): string | null => (typeof valeur === "string" ? valeur : null);
 
 // La carte que l'agent écrit, telle quelle : rien n'y est encore jugé — c'est
 // la porte qui le fait. Null : ce n'est pas un objet.
 function lireCarteDuTriage(brute: unknown): Proposition | null {
   if (typeof brute !== "object" || brute === null || Array.isArray(brute)) return null;
-  const { type, question, choix } = brute as Record<string, unknown>;
+  const { type, resume, question, choix } = brute as Record<string, unknown>;
   const sorte = texteOuRien(type);
   const lus: ChoixPropose[] | null = Array.isArray(choix)
     ? choix.map((un: unknown) => {
@@ -166,7 +168,7 @@ function lireCarteDuTriage(brute: unknown): Proposition | null {
         return { texte: texteOuRien(texte), suite: dite === null ? null : (SUITES[dite.trim().toLowerCase()] ?? dite) };
       })
     : null;
-  return { type: sorte === null ? null : (SORTES[sorte.trim().toLowerCase()] ?? sorte), enonce: texteOuRien(question), choix: lus };
+  return { type: sorte === null ? null : (SORTES[sorte.trim().toLowerCase()] ?? sorte), resume: texteOuRien(resume), enonce: texteOuRien(question), choix: lus };
 }
 
 export function lireTriage(message: string | null): { valeur: DecisionDuTriage } | { illisible: string } {

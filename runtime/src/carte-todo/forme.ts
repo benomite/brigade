@@ -17,12 +17,21 @@
 // fait passer ici, et une carte incomplète est refusée avec sa raison en clair
 // — en anglais, comme les sorties du chef. Rien n'est repris d'un producteur
 // sans être vérifié : un choix sans geste est refusé, pas complété.
+//
+// La porte de TODO (carte-todo.ts) juge par cette règle : ce module n'en
+// importe que des types, pour qu'elle puisse l'importer sans cycle.
 import { capturesManquantes, type Captures } from "../captures.ts";
-import { SUITES, uneQuestion, type CarteDeTodo, type Choix, type ChoixPropose, type Suite } from "../carte-todo.ts";
+import type { CarteDeTodo, Choix, ChoixPropose } from "../carte-todo.ts";
 
-// Les gestes qu'un choix peut jouer : ceux que la réponse du chef sait faire.
-export const GESTES = SUITES;
-export type Geste = Suite;
+// Les gestes qu'un choix peut jouer : ceux que la réponse du chef sait faire
+// (reponse-carte.ts). `resume` : la cuisine reprend le ticket avec la réponse.
+// `merge` : la livraison verte qui attend est mergée. `drop` : le ticket sort
+// du rail — son label `fire` est retiré, il ne repart pas.
+export const GESTES = ["resume", "merge", "drop"] as const;
+export type Geste = (typeof GESTES)[number];
+
+// Une seule question : elle finit par son « ? », et n'en porte pas d'autre.
+export const uneQuestion = (texte: string) => texte.endsWith("?") && texte.indexOf("?") === texte.length - 1;
 
 // L'action secondaire de toute carte : demander au second, quand le chef ne
 // comprend pas la carte. Le mot est celui de l'app (« ask the second »).
@@ -107,7 +116,23 @@ export function validerCarte({ resume, question, choix, reponseLibre, captures }
   return { valide: true, carte: { resume: dit, question: lus.length > 1 ? demande : null, choix: lus, reponseLibre: reponseLibre ?? true, secondaire: DEMANDER_AU_SECOND, captures: montrees } };
 }
 
-// Une carte que la porte de #1281 a admise (carte-todo.ts, `jugerCarte`) dans
-// la forme unique : sa question, ses choix et ses captures, avec le résumé que
-// la porte ne lui demandait pas.
-export const carteDeLaPorte = ({ question, choix, captures }: CarteDeTodo, resume: string): Validation => validerCarte({ resume, question, choix, captures });
+// Une carte que la porte de TODO a admise (carte-todo.ts, `jugerCarte`) dans
+// la forme unique : son résumé, sa question, ses choix et ses captures.
+export const carteDeLaPorte = ({ resume, question, choix, captures }: CarteDeTodo): Validation => validerCarte({ resume, question, choix, captures });
+
+// Une carte qu'un producteur pose sans qu'elle tienne la règle : elle n'entre
+// pas, et l'erreur dit pourquoi.
+export class CarteRefusee extends Error {
+  constructor(raison: string) {
+    super(`TODO card refused: ${raison}`);
+    this.name = "CarteRefusee";
+  }
+}
+
+// La carte, validée — ou l'erreur qui la refuse : le chemin d'un producteur qui
+// compose sa carte lui-même, et n'a rien à faire d'un refus que le corriger.
+export function carteValide(proposition: CarteProposee): CarteTodo {
+  const validation = validerCarte(proposition);
+  if (!validation.valide) throw new CarteRefusee(validation.raison);
+  return validation.carte;
+}

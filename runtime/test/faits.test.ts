@@ -71,7 +71,8 @@ test("la forme d'une cuisine connue est figée, au caractère près : un champ r
       `{"ticket":19,"etat":"servi","titre":"Ticket 19","url":"https://exemple.test/19","activite":null,"attente":null,"tiers":null,"revenu":null,"raison":null},` +
       `{"ticket":18,"etat":"BLOQUÉ","titre":"Ticket 18","url":"https://exemple.test/18","activite":null,"attente":null,"tiers":null,"revenu":null,"raison":null}],` +
       `"cooks":[],` +
-      `"attend":[{"ticket":18,"titre":"Ticket 18","url":"https://exemple.test/18","decision":{"quoi":"bloque","motif":null,"cause":null,"pr":null}}],` +
+      `"attend":[{"ticket":18,"titre":"Ticket 18","url":"https://exemple.test/18","decision":{"quoi":"bloque","motif":null,"cause":null,"pr":null},` +
+      `"carte":{"type":"bloque","resume":"#18 waits for #12, which left the rail without being served.","question":null,"choix":[{"texte":"Take it off the rail","suite":"drop"}],"reponseLibre":true,"secondaire":{"action":"ask-second","texte":"ask the second"},"captures":null}}],` +
       `"livres":[{"ticket":19,"titre":"Ticket 19","url":"https://exemple.test/19","livre":"${JOUR_HORLOGE}T10:00:14.000Z","station":"box/claude-opus","pr":null,"relecture":null}],` +
       `"urgence":null,"retenues":[],"stations":[]}`,
   );
@@ -100,11 +101,21 @@ test("une issue qui attend sans être sur le rail a son adresse : celle que le d
   arriver(14, 1);
   noter({ type: "manager.set-aside", payload: { reason: "blocked-on-human", fired: false } }, 378, "manager");
   const a = new Date(`${JOUR_HORLOGE}T10:04:11.000Z`);
+  // Sa carte de TODO : un seul geste, la lui rendre avec la réponse du chef.
+  const carte = {
+    type: "ecartee",
+    resume: "#378 is held back by the blocked-on-human label. Your answer is written on the issue and the label removed, so the manager judges it again.",
+    question: null,
+    choix: [{ texte: "Hand it back to the manager with my answer", suite: "resume" }],
+    reponseLibre: true,
+    secondaire: { action: "ask-second", texte: "ask the second" },
+    captures: null,
+  };
 
-  assert.deepEqual(faits(lireEtat(journal, a), a, "acme/brigade").attend, [{ ticket: 378, titre: "", url: "https://github.com/acme/brigade/issues/378", decision: { quoi: "ecartee", motif: "blocked-on-human", cause: null, pr: null } }]);
-  assert.deepEqual(lire(`${JOUR_HORLOGE}T10:04:11.000Z`).forme.attend, [{ ticket: 378, titre: "", url: null, decision: { quoi: "ecartee", motif: "blocked-on-human", cause: null, pr: null } }]);
+  assert.deepEqual(faits(lireEtat(journal, a), a, "acme/brigade").attend, [{ ticket: 378, titre: "", url: "https://github.com/acme/brigade/issues/378", decision: { quoi: "ecartee", motif: "blocked-on-human", cause: null, pr: null }, carte }]);
+  assert.deepEqual(lire(`${JOUR_HORLOGE}T10:04:11.000Z`).forme.attend, [{ ticket: 378, titre: "", url: null, decision: { quoi: "ecartee", motif: "blocked-on-human", cause: null, pr: null }, carte }]);
   // Un nom de dépôt qui n'en est pas un ne donne rien : rien n'est composé de travers.
-  assert.deepEqual(faits(lireEtat(journal, a), a, "pas un dépôt").attend, [{ ticket: 378, titre: "", url: null, decision: { quoi: "ecartee", motif: "blocked-on-human", cause: null, pr: null } }]);
+  assert.deepEqual(faits(lireEtat(journal, a), a, "pas un dépôt").attend, [{ ticket: 378, titre: "", url: null, decision: { quoi: "ecartee", motif: "blocked-on-human", cause: null, pr: null }, carte }]);
 });
 
 test("un ticket d'interface en pass, puis livré, porte les captures de sa dernière livraison par leur adresse — un autre n'en porte aucune, et sans dépôt aucune ne se montre", (t) => {
@@ -162,7 +173,10 @@ test("un ticket du rail qui attend garde l'adresse et le titre du rail, quel que
 
   assert.deepEqual(faits(lireEtat(journal, a), a, "acme/brigade").attend.map(({ ticket }) => ticket), []);
   noter({ type: "ticket.left", payload: { reason: "unfired" } }, 12, "github");
-  assert.deepEqual(faits(lireEtat(journal, a), a, "acme/brigade").attend, [{ ticket: 18, titre: "Ticket 18", url: "https://exemple.test/18", decision: { quoi: "bloque", motif: null, cause: null, pr: null } }]);
+  assert.deepEqual(
+    faits(lireEtat(journal, a), a, "acme/brigade").attend.map(({ carte, ...attendu }) => ({ ...attendu, choix: carte.choix })),
+    [{ ticket: 18, titre: "Ticket 18", url: "https://exemple.test/18", decision: { quoi: "bloque", motif: null, cause: null, pr: null }, choix: [{ texte: "Take it off the rail", suite: "drop" }] }],
+  );
 });
 
 test("la forme et le texte de `status` disent la même chose : le rail ticket par ticket, son décompte, ce qui attend, le dernier événement", (t) => {

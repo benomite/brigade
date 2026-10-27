@@ -27,8 +27,14 @@
 // (`todo.held`), et c'est l'agent de triage qui la tranche ou la fait entrer
 // (`laisserEntrer`), telle qu'elle a été posée ou telle qu'il l'a réécrite.
 // Elle n'est pas dans TODO tant qu'il décide.
+//
+// La porte juge aussi par la forme unique de toute carte de TODO
+// (carte-todo/forme.ts, épique #1764) : une carte qui entre dit d'abord ce qui
+// se passe, en deux phrases simples au plus (`resume`) — sans lui, elle est
+// refusée comme une carte sans question.
 import type { Base } from "./base.ts";
 import { capturesManquantes, lireCaptures, type Captures } from "./captures.ts";
+import { GESTES, uneQuestion, validerCarte } from "./carte-todo/forme.ts";
 import type { Journal } from "./journal.ts";
 
 // Les deux sortes de cartes qui entrent dans TODO.
@@ -41,10 +47,11 @@ export type TypeDeCarte = (typeof TYPES_DE_CARTE)[number];
 export const TYPES_PROPOSES = [...TYPES_DE_CARTE, "gesture"] as const;
 export type TypePropose = (typeof TYPES_PROPOSES)[number];
 
-// Ce qui suit la réponse du chef (reponse-carte.ts). `resume` : la cuisine
-// reprend le ticket avec sa réponse. `merge` : la livraison verte qui attend
-// est mergée — valider un écran, garder une voie déjà livrée.
-export const SUITES = ["resume", "merge"] as const;
+// Ce qui suit la réponse du chef (reponse-carte.ts) : les gestes de la forme
+// unique. `resume` : la cuisine reprend le ticket avec sa réponse. `merge` : la
+// livraison verte qui attend est mergée — valider un écran, garder une voie
+// déjà livrée. `drop` : le ticket sort du rail.
+export const SUITES = GESTES;
 export type Suite = (typeof SUITES)[number];
 
 // Un choix de la carte : ce que le chef clique, en une ligne, et sa suite.
@@ -54,14 +61,19 @@ export type Choix = { texte: string; suite: Suite };
 // `enonce` : ce qui est demandé au chef — pour entrer, une seule question.
 // `choix` : ses choix, chacun avec sa suite (`resume` sans elle). `capture` :
 // l'écran qu'un producteur montre, que le triage lit — la carte, elle, montre
-// les captures livrées.
+// les captures livrées. `resume` : ce qui se passe, en deux phrases simples au
+// plus — ce que la carte dit avant sa question.
 export type ChoixPropose = { texte?: string | null; suite?: string | null };
-export type Proposition = { type?: string | null; enonce?: string | null; capture?: string | null; choix?: readonly ChoixPropose[] | null };
+export type Proposition = { type?: string | null; resume?: string | null; enonce?: string | null; capture?: string | null; choix?: readonly ChoixPropose[] | null };
 
 // Une carte qui a passé la porte. `captures` : celles de la livraison du
 // ticket, chaque écran avant et après — jamais nulles sur une carte `design`,
 // nulles sur une carte `product` dont le ticket n'a livré aucun écran.
-export type CarteDeTodo = { type: TypeDeCarte; question: string; choix: Choix[]; captures: Captures | null };
+export type CarteDeTodo = { type: TypeDeCarte; resume: string; question: string; choix: Choix[]; captures: Captures | null };
+
+// Le résumé d'une carte entrée avant qu'une carte en porte un (#1766) : le
+// journal la garde sans lui, elle se lit avec celui-ci.
+export const RESUME_D_AVANT = "A question awaits your answer before this ticket goes on.";
 
 export type Jugement = { admise: true; carte: CarteDeTodo } | { admise: false; raison: string };
 
@@ -73,14 +85,15 @@ const surPlusieursLignes = (texte: string) => /[\r\n]/.test(texte);
 const estType = (mot: string): mot is TypeDeCarte => (TYPES_DE_CARTE as readonly string[]).includes(mot);
 const estSuite = (mot: string): mot is Suite => (SUITES as readonly string[]).includes(mot);
 
-// Une seule question : elle finit par son « ? », et n'en porte pas d'autre.
-export const uneQuestion = (texte: string) => texte.endsWith("?") && texte.indexOf("?") === texte.length - 1;
+export { uneQuestion };
 
 // La porte : admise, la carte est rendue nettoyée (type en minuscules,
-// question et choix sans blancs autour) ; refusée, la raison en clair — en
-// anglais, c'est ce que disent les sorties du chef. `captures` : celles que le
-// ticket a livrées, nulles sans elles.
-export function jugerCarte({ type, enonce, choix }: Proposition, captures: Captures | null = null): Jugement {
+// résumé, question et choix sans blancs autour) ; refusée, la raison en clair
+// — en anglais, c'est ce que disent les sorties du chef. `captures` : celles
+// que le ticket a livrées, nulles sans elles. Ce que la porte a lu passe
+// ensuite la règle de la forme unique (carte-todo/forme.ts), qui refuse une
+// carte sans résumé, ou au résumé de plus de deux phrases.
+export function jugerCarte({ type, resume, enonce, choix }: Proposition, captures: Captures | null = null): Jugement {
   const mot = type?.trim().toLowerCase() ?? "";
   if (mot === "") return { admise: false, raison: "no kind: a TODO card is a product choice (product) or a design validation (design)" };
   if (!estType(mot)) return { admise: false, raison: `“${type?.trim()}” is not a TODO card: only a product choice (product) or a design validation (design) reaches the chef` };
@@ -104,7 +117,9 @@ export function jugerCarte({ type, enonce, choix }: Proposition, captures: Captu
     const manquantes = capturesManquantes(montrees.screens);
     if (manquantes !== null) return { admise: false, raison: `design card with incomplete captures (missing: ${manquantes}): each screen is shown before and after` };
   }
-  return { admise: true, carte: { type: mot, question, choix: lus, captures: montrees } };
+  const forme = validerCarte({ resume, question, choix: lus, captures: montrees });
+  if (!forme.valide) return { admise: false, raison: forme.raison };
+  return { admise: true, carte: { type: mot, resume: forme.carte.resume, question, choix: lus, captures: montrees } };
 }
 
 // Les captures que le ticket a livrées : celles de sa dernière livraison
@@ -134,10 +149,12 @@ export function brancherLeTriage(base: Base, retient: () => boolean): () => void
 const brut = (valeur: string | null | undefined) => (valeur === undefined || valeur === null || valeur.trim() === "" ? null : valeur);
 
 // La proposition telle que le journal la garde : ce qui a été proposé, tel
-// quel, nul quand il manque.
-function proposee({ type, enonce, capture, choix }: Proposition) {
+// quel, nul quand il manque — le résumé, absent.
+function proposee({ type, resume, enonce, capture, choix }: Proposition) {
+  const summary = brut(resume);
   return {
     kind: brut(type),
+    ...(summary === null ? {} : { summary }),
     statement: brut(enonce),
     capture: brut(capture),
     choices: choix ? choix.map(({ texte, suite }) => ({ text: brut(texte), then: brut(suite) })) : null,
@@ -145,8 +162,8 @@ function proposee({ type, enonce, capture, choix }: Proposition) {
 }
 
 // La carte admise entre dans TODO, au nom de celui qui l'a posée.
-function poserEnTodo(journal: Journal, projet: string, ticket: number, { type: kind, question: statement, choix, captures }: CarteDeTodo, auteur: string): void {
-  journal.ajouter({ project: projet, ticket, author: auteur, type: "todo.entered", payload: { kind, statement, choices: choix.map(({ texte, suite }) => ({ text: texte, then: suite })), captures } });
+function poserEnTodo(journal: Journal, projet: string, ticket: number, { type: kind, resume: summary, question: statement, choix, captures }: CarteDeTodo, auteur: string): void {
+  journal.ajouter({ project: projet, ticket, author: auteur, type: "todo.entered", payload: { kind, summary, statement, choices: choix.map(({ texte, suite }) => ({ text: texte, then: suite })), captures } });
 }
 
 // Le refus de la porte, au journal, avec ce qui a été proposé.
@@ -197,6 +214,7 @@ export function sortirDeTodo(journal: Journal, projet: string, ticket: number, p
 // en TODO et que la porte la lui a renvoyée.
 export type CarteRetenue = {
   type: string | null;
+  resume: string | null;
   enonce: string | null;
   capture: string | null;
   choix: ChoixPropose[] | null;
@@ -209,7 +227,7 @@ export type CarteRetenue = {
   renvois: number;
 };
 
-type PayloadPropose = { kind: string | null; statement: string | null; capture?: string | null; choices?: Array<{ text: string | null; then: string | null }> | null };
+type PayloadPropose = { kind: string | null; summary?: string | null; statement: string | null; capture?: string | null; choices?: Array<{ text: string | null; then: string | null }> | null };
 
 // Les cartes que le triage retient, dans l'ordre de leur entrée : ni entrées
 // dans TODO, ni tranchées, ni parties avec leur ticket.
@@ -227,7 +245,7 @@ export function cartesRetenues(base: Base): CarteRetenue[] {
     if (type === "todo.held") {
       cartes.delete(ticket);
       const choix = lu.choices ? lu.choices.map(({ text, then }) => ({ texte: text, suite: then })) : null;
-      cartes.set(ticket, { ticket, since: at, seq, auteur: author, type: lu.kind, enonce: lu.statement, capture: lu.capture ?? null, choix, until: null, refus: null, renvois: 0 });
+      cartes.set(ticket, { ticket, since: at, seq, auteur: author, type: lu.kind, resume: lu.summary ?? null, enonce: lu.statement, capture: lu.capture ?? null, choix, until: null, refus: null, renvois: 0 });
     } else if (type === "todo.refused") {
       if (retenue) retenue.refus = lu.reason ?? null;
     } else if (type === "todo.triaged" && lu.action === "wait") {
@@ -254,14 +272,15 @@ export function laisserEntrer(journal: Journal, projet: string, carte: CarteRete
 // Une carte dans TODO : son ticket, depuis quand elle y est.
 export type CarteEnTodo = CarteDeTodo & { ticket: number; since: string };
 
-type PayloadEntre = { kind: string; statement: string; choices?: Array<{ text: string; then: Suite }>; captures?: unknown };
+type PayloadEntre = { kind: string; summary?: string; statement: string; choices?: Array<{ text: string; then: Suite }>; captures?: unknown };
 
 // La carte telle que le journal la porte, ou null : une entrée d'avant les
 // deux sortes et leurs choix (`gesture`, une carte sans choix) ne pose aucune
-// question au chef, et ne se lit pas comme une carte.
-function lireCarte({ kind, statement, choices, captures }: PayloadEntre): CarteDeTodo | null {
+// question au chef, et ne se lit pas comme une carte. Une entrée d'avant le
+// résumé se lit avec `RESUME_D_AVANT`.
+function lireCarte({ kind, summary, statement, choices, captures }: PayloadEntre): CarteDeTodo | null {
   if (!estType(kind) || !choices || choices.length === 0) return null;
-  return { type: kind, question: statement, choix: choices.map(({ text, then }) => ({ texte: text, suite: then })), captures: captures == null ? null : lireCaptures(captures) };
+  return { type: kind, resume: summary ?? RESUME_D_AVANT, question: statement, choix: choices.map(({ text, then }) => ({ texte: text, suite: then })), captures: captures == null ? null : lireCaptures(captures) };
 }
 
 // Les cartes dans TODO, relues du journal, dans l'ordre de leur entrée. Seuls

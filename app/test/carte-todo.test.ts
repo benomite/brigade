@@ -13,20 +13,26 @@ const CAPTURE = (moment: string) => `https://github.com/chef/parade/blob/5d41402
 
 const DESIGN = {
   type: "design",
+  resume: "The SIRET field gets its error line.",
   question: "Does the SIRET field read as the mockup draws it?",
   choix: [
     { texte: "Yes, merge it as delivered.", suite: "merge" },
     { texte: "No: the error line goes under the field.", suite: "resume" },
   ],
+  reponseLibre: true,
+  secondaire: { action: "ask-second", texte: "ask the second" },
   captures: { complet: true, ecrans: [{ ecran: "formulaire", avant: CAPTURE("avant"), apres: CAPTURE("apres") }] },
 } satisfies CarteVue;
 const PRODUIT = {
   type: "product",
+  resume: "The ticket adds a journal export.",
   question: "One journal export per project, or a single one?",
   choix: [
     { texte: "One per project.", suite: "resume" },
     { texte: "A single export.", suite: "resume" },
   ],
+  reponseLibre: true,
+  secondaire: { action: "ask-second", texte: "ask the second" },
   captures: null,
 } satisfies CarteVue;
 
@@ -46,12 +52,16 @@ const FAITS = {
   ],
 };
 
+// Ce que l'app lit d'une carte : le résumé, la réponse libre et « ask the second » que le runtime
+// donne aussi (#1766) ne sont pas encore lus (#1767).
+const luParLApp = ({ type, question, choix, captures }: CarteVue) => ({ type, question, choix, captures });
+
 describe("la carte de TODO, lue dans `facts`", () => {
   test("`attend[].carte` est lue telle que le runtime la donne : sa sorte, sa question, ses choix, ses captures", () => {
     const lus = comprendre(JSON.stringify(FAITS));
     assert.ok(!("informe" in lus));
-    assert.deepEqual(lus.attend?.[0]?.carte, DESIGN);
-    assert.deepEqual(lus.attend?.[1]?.carte, PRODUIT);
+    assert.deepEqual(lus.attend?.[0]?.carte, luParLApp(DESIGN));
+    assert.deepEqual(lus.attend?.[1]?.carte, luParLApp(PRODUIT));
   });
 
   test("une carte qui n'en a pas la forme est laissée de côté — le reste de `facts` est lu", () => {
@@ -112,7 +122,7 @@ describe("la carte de TODO, lue dans `facts`", () => {
         [21, PRODUIT.question],
       ],
     );
-    assert.deepEqual(faits.carte("parade", 21), PRODUIT);
+    assert.deepEqual(faits.carte("parade", 21), luParLApp(PRODUIT));
     assert.equal(faits.carte("parade", 30), undefined);
     assert.equal(faits.capture("parade", 12, "formulaire", "apres"), CAPTURE("apres"));
   });
