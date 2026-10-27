@@ -415,6 +415,8 @@ corrected by hand like the rest. Most tickets ask for none.
   somewhere, never together), with no return time. **No cook is launched**, no worktree prepared;
   the other tickets leave, and it does not hold its zone. Its issue receives a comment that names
   what is missing and the declared stations.
+  The app reads it as a WAITING card — it awaits an action the chef does not do with a button — that says
+  what it waits for (`facts`: `rail[].tiers`, `relance` `null`); the ticket itself stays 86.
 - **The manager takes it up before the chef** (manager on). It rewrites or re-splits the ticket so
   that it no longer needs the capability: `manager.capability-resplit` in the log, the ticket
   leaves the rail (86 `manager:split`), its sub-tickets are born like an epic's, and nothing

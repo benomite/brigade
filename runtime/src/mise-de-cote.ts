@@ -1,6 +1,7 @@
 // Pourquoi un ticket est mis de côté (86), dit en clair : la raison que le chef
 // lit, et celle que l'app montre sous le ticket. Une cause qui se répète d'un
 // ticket à l'autre n'est pas celle d'un ticket : elle bloque le projet.
+import { manqueDuMotif } from "./capacites.ts";
 import { ATTEND_UN_TIERS, REVENU_D_ATTENTE, STATION_ABSENTE, SANS_STATION } from "./events/rail.ts";
 
 // Les causes qui, répétées à l'identique sur le projet, le bloquent : aucune
@@ -53,4 +54,20 @@ export function direMiseDeCote(motif: string | null): string {
   if (motif.startsWith(`${SANS_STATION}: `)) return `attend : un humain — aucune station ne fournit ${motif.slice(SANS_STATION.length + 2)} ; brancher une station qui le fournit, le ticket repart alors tout seul`;
   if (motif.startsWith(`${STATION_ABSENTE}: `)) return `attend : station absente (${motif.slice(STATION_ABSENTE.length + 2)})`;
   return `attend : mis de côté (${motif})`;
+}
+
+// Un ticket mis de côté faute de station attend une action que le chef ne fait pas par un bouton : brancher une
+// station au projet. Il se lit donc en WAITING (1752), avec ce qu'il attend dit en toutes lettres. Ce n'est pas
+// un WAITING que le chef a posé : le ticket reste 86 au rail, sans relance ni geste, et repart seul quand une
+// station fournit la capacité. Nul pour tout autre motif.
+export type AttenteDUneStation = { quoi: string; qui: string; aLArrivee: string };
+export function attenteDUneStation(motif: string | null): AttenteDUneStation | null {
+  const manque = manqueDuMotif(motif);
+  if (manque === null) return null;
+  const noms = manque.capacites.join(manque.ensemble ? " + " : ", ");
+  return {
+    quoi: `a station that provides ${noms}${manque.ensemble ? " together" : ""} — attach one to the project`,
+    qui: "a human, the chef",
+    aLArrivee: "the ticket goes back on the rail by itself once a station provides it",
+  };
 }

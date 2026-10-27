@@ -138,6 +138,23 @@ test("un ticket d'interface en pass, puis livré, porte les captures de sa derni
   assert.equal("captures" in (servis.find(({ ticket }) => ticket === 14) ?? {}), false);
 });
 
+test("un ticket mis de côté faute de station se lit en WAITING : ce qu'il attend, de qui, sans relance — un autre 86 reste 86", (t) => {
+  const { noter, arriver, journal, lire } = cuisine(t);
+  const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000, maintenant: () => new Date(`${JOUR_HORLOGE}T10:00:30.000Z`) });
+  arriver(14, 1);
+  arriver(15, 1);
+  rail.quatreVingtSix(14, { motif: "no-station: chrome-connecté" });
+  rail.quatreVingtSix(15, { motif: "quota" });
+  noter({ type: "runtime.ticked", payload: { intervalMs: 60_000 } });
+  const [sans, autre] = lire(`${JOUR_HORLOGE}T10:04:11.000Z`).forme.rail;
+  assert.deepEqual([sans?.ticket, sans?.etat, sans?.attente?.colonne, sans?.tiers?.relance], [14, "WAITING", "WAITING", null]);
+  assert.equal(sans?.tiers?.quoi, "a station that provides chrome-connecté — attach one to the project");
+  assert.equal(sans?.tiers?.qui, "a human, the chef");
+  assert.equal(sans?.tiers?.aLArrivee, "the ticket goes back on the rail by itself once a station provides it");
+  assert.match(sans?.attente?.raison ?? "", /humain/);
+  assert.deepEqual([autre?.ticket, autre?.etat, autre?.attente?.colonne, autre?.tiers], [15, "86", "86", null]);
+});
+
 test("un ticket du rail qui attend garde l'adresse et le titre du rail, quel que soit le dépôt", (t) => {
   const { noter, journal } = cuisine(t);
   noter({ type: "ticket.arrived", payload: { title: "Ticket 18", priority: 1, createdAt: "2026-10-01T00:00:18Z", url: "https://exemple.test/18", card: { waitsFor: [12], zone: [], problems: [] } } }, 18, "github");
