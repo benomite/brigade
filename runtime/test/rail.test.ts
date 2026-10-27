@@ -5,7 +5,7 @@ import { test, type TestContext } from "node:test";
 import { REDECOUPE } from "../src/events/rail.ts";
 import { ouvrirJournal, type Journal } from "../src/journal.ts";
 import { communsDuRail, ticketDuRail } from "../src/projections/rail.ts";
-import { direRetenue, etatLu, GesteRefuse, ouvrirRail, retenue } from "../src/rail.ts";
+import { direAttentesLevees, direAttentesLeveesEn, direRetenue, etatLu, GesteRefuse, ouvrirRail, retenue } from "../src/rail.ts";
 import { lancer, repertoireTemporaire } from "./outils.ts";
 
 const PRENEUR = join(import.meta.dirname, "aides/prend-tickets.ts");
@@ -58,6 +58,7 @@ test("un ticket arrivé est en attente sur le rail, avec ce que GitHub en dit", 
       effort: null,
       card: null,
       awaits: [],
+      dropped: [],
       held: [],
       outOfZone: [],
       frozenBy: [],
@@ -67,7 +68,6 @@ test("un ticket arrivé est en attente sur le rail, avec ce que GitHub en dit", 
       reason: null,
       until: null,
       waitingFor: null,
-      resumedBecause: null,
     },
   );
 });
@@ -497,6 +497,8 @@ const servir = (rail: ReturnType<typeof ouvrirRail>, ticket: number) => {
 };
 
 const attendus = (journal: Journal, ticket: number) => ticketDuRail(journal.base, ticket)?.awaits.map((attendu) => [attendu.ticket, attendu.left?.reason ?? null]);
+// Ceux que la cuisine n'attend plus : fermés sans avoir été servis, ou disparus (#1834).
+const leves = (journal: Journal, ticket: number) => ticketDuRail(journal.base, ticket)?.dropped.map((leve) => [leve.ticket, leve.reason]);
 
 test("un ticket qui en attend un autre n'est pas prêté avant que celui-ci soit servi, même s'il passe devant dans l'ordre", (t) => {
   const { journal, rail } = cuisine(t);
@@ -564,39 +566,46 @@ test("un ticket remonté au chef (86) puis mergé par lui est servi : le merge e
   assert.deepEqual(attendus(journal, 14), []);
 });
 
-test("un ticket attendu qui quitte le rail sans avoir été servi est abandonné : celui qui l'attendait est bloqué, avec le motif", (t) => {
+test("un ticket attendu qui quitte le rail sans avoir été servi : fermé, il n'est plus attendu ; l'issue ouverte, il l'est toujours, sur le rail (#1834)", (t) => {
   const { journal, rail } = cuisine(t);
   poserAvecFiche(journal, 14, [15, 16, 17]);
   for (const ticket of [15, 16, 17]) poser(journal, ticket);
   partir(journal, 15, "closed");
   partir(journal, 16, "unfired");
 
-  assert.deepEqual(attendus(journal, 14), [[15, "closed"], [16, "unfired"], [17, null]]);
-  assert.equal(retenue(ticketDuRail(journal.base, 14)!), "bloque");
+  assert.deepEqual(attendus(journal, 14), [[16, "unfired"], [17, null]]);
+  assert.deepEqual(leves(journal, 14), [[15, "closed"]]);
+  assert.equal(retenue(ticketDuRail(journal.base, 14)!), "attend");
   assert.equal(retenue(ticketDuRail(journal.base, 17)!), null);
   servir(rail, 17);
   assert.equal(rail.prendre("box/claude"), null);
+
+  // #16 fermée à son tour : plus rien ne retient #14.
+  partir(journal, 16, "closed");
+  assert.deepEqual([attendus(journal, 14), leves(journal, 14)], [[], [[15, "closed"], [16, "closed"]]]);
+  assert.equal(rail.prendre("box/claude")?.ticket, 14);
 });
 
-test("un ticket abandonné qui revient sur le rail n'est plus abandonné : celui qui l'attend l'attend de nouveau, puis part", (t) => {
+test("un ticket attendu qui revient sur le rail : celui qui l'attend l'attend toujours, puis part", (t) => {
   const { journal, rail } = cuisine(t);
   poserAvecFiche(journal, 14, [15]);
   poser(journal, 15);
   partir(journal, 15, "unfired");
-  assert.equal(retenue(ticketDuRail(journal.base, 14)!), "bloque");
+  assert.deepEqual(attendus(journal, 14), [[15, "unfired"]]);
 
   poser(journal, 15);
+  assert.deepEqual(attendus(journal, 14), [[15, null]]);
   assert.equal(retenue(ticketDuRail(journal.base, 14)!), "attend");
   servir(rail, 15);
   assert.equal(retenue(ticketDuRail(journal.base, 14)!), null);
   assert.equal(rail.prendre("box/claude")?.ticket, 14);
 });
 
-test("un ticket bloqué n'est rendu ni par le relevé des baux ni par celui des 86", (t) => {
+test("un ticket qui attend un ticket parti l'issue ouverte n'est rendu ni par le relevé des baux ni par celui des 86", (t) => {
   const { journal, rail, heure } = cuisine(t);
   poserAvecFiche(journal, 14, [15]);
   poser(journal, 15);
-  partir(journal, 15, "closed");
+  partir(journal, 15, "unfired");
 
   heure.avancer(10 * BAIL_MS);
   assert.equal(rail.relever(), 0);
@@ -624,10 +633,11 @@ test("les dépendances survivent au redémarrage : rejoué du journal, le rail a
   journal.reconstruire();
 
   assert.deepEqual(rail.tickets(), avant);
-  assert.deepEqual(attendus(journal, 14), [[16, "gone"], [17, null]]);
+  assert.deepEqual(attendus(journal, 14), [[17, null]]);
+  assert.deepEqual(leves(journal, 14), [[16, "gone"]]);
 });
 
-test("ce qui retient un ticket se dit en clair : ce qu'il attend, ou ce qui le bloque", (t) => {
+test("ce qui retient un ticket se dit en clair : ce qu'il attend, même hors du rail ; et l'attente que la cuisine a levée", (t) => {
   const { journal } = cuisine(t);
   poserAvecFiche(journal, 14, [15, 16]);
   poserAvecFiche(journal, 20, [15, 16, 17]);
@@ -639,11 +649,10 @@ test("ce qui retient un ticket se dit en clair : ce qu'il attend, ou ce qui le b
 
   partir(journal, 15, "closed");
   partir(journal, 17, "unfired");
-  assert.equal(etatLu(ticketDuRail(journal.base, 20)!), "BLOQUÉ");
-  assert.equal(
-    direRetenue(ticketDuRail(journal.base, 20)!),
-    "#15 abandonné (issue fermée sans avoir été servie), #17 abandonné (label `fire` retiré) · attend aussi #16",
-  );
+  assert.equal(etatLu(ticketDuRail(journal.base, 20)!), "en attente");
+  assert.equal(direRetenue(ticketDuRail(journal.base, 20)!), "attend #16, #17 (hors du rail, issue ouverte : label `fire` retiré)");
+  assert.equal(direAttentesLevees(ticketDuRail(journal.base, 20)!), "#15 a été fermé sans avoir été servi : il n'est plus attendu");
+  assert.equal(direAttentesLeveesEn(ticketDuRail(journal.base, 20)!), "#15 was closed without being served: no longer awaited");
 });
 
 // --- Les zones : deux tickets concurrents ne possèdent pas le même fichier.

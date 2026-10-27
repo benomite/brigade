@@ -2,7 +2,7 @@
 // lit, et celle que l'app montre sous le ticket. Une cause qui se répète d'un
 // ticket à l'autre n'est pas celle d'un ticket : elle bloque le projet.
 import { manqueDuMotif } from "./capacites.ts";
-import { ATTEND_UN_TIERS, REVENU_D_ATTENTE, STATION_ABSENTE, SANS_STATION } from "./events/rail.ts";
+import { ATTEND_UN_TIERS, REDECOUPE, STATION_ABSENTE, SANS_STATION } from "./events/rail.ts";
 
 // Les causes qui, répétées à l'identique sur le projet, le bloquent : aucune
 // ne dépend du ticket, donc les autres tickets échoueraient de la même façon.
@@ -33,17 +33,16 @@ export const CAUSES_DU_PROJET: Record<string, { texte: string; geste: string; te
 const RAISONS: Record<string, string> = {
   quota: "attend : quota du compte épuisé",
   disconnected: "attend : connexion Max expirée",
-  refused: "attend : le modèle a refusé de répondre",
+  refused: "attend : le modèle l'a refusé trois fois — un cook le reprend un jour plus tard",
   "setup-failed": "attend : setup du projet impossible",
   "worktree-failed": "attend : worktree impossible à préparer",
   "ticket-unreadable": "attend : ticket illisible sur GitHub",
   "secrets-unavailable": "attend : secrets du projet indisponibles",
-  "unreadable-card": "attend : fiche du ticket illisible",
-  "no-calibration": "attend : calibrage (modèle, effort) absent de l'issue",
+  "unreadable-card": "attend : fiche du ticket illisible — il repart seul dès qu'elle se lit",
+  "no-calibration": "attend : calibrage (modèle, effort) absent de l'issue — il repart seul dès qu'il y est",
   "pass:unjudged": "attend : la pass n'a pas pu le juger",
   "pass:still-red": "attend : la pass le trouve encore rouge",
   [ATTEND_UN_TIERS]: "attend : un tiers (WAITING)",
-  [REVENU_D_ATTENTE]: "attend : le chef — revenu de WAITING",
 };
 
 // La raison d'un ticket 86, en clair, à partir du motif écrit au rail.
@@ -52,7 +51,7 @@ export function direMiseDeCote(motif: string | null): string {
   const connue = RAISONS[motif];
   if (connue !== undefined) return connue;
   if (motif.startsWith(`${SANS_STATION}: `)) return `attend : un humain — aucune station ne fournit ${motif.slice(SANS_STATION.length + 2)} ; brancher une station qui le fournit, le ticket repart alors tout seul`;
-  if (motif.startsWith(`${STATION_ABSENTE}: `)) return `attend : station absente (${motif.slice(STATION_ABSENTE.length + 2)})`;
+  if (motif.startsWith(`${STATION_ABSENTE}: `)) return `attend : station absente (${motif.slice(STATION_ABSENTE.length + 2)}) — il repart seul dès qu'elle se manifeste`;
   return `attend : mis de côté (${motif})`;
 }
 
@@ -71,3 +70,56 @@ export function attenteDUneStation(motif: string | null): AttenteDUneStation | n
     aLArrivee: "the ticket goes back on the rail by itself once a station provides it",
   };
 }
+
+// Ce qui met un ticket de côté (86), qui le fait, et ce qui l'en sort seul
+// (#1834). Le chef n'a rien mis de côté : il ne sait pas mieux que la cuisine
+// quand la raison est tombée. Aucune de ces raisons ne fait donc entrer le
+// ticket dans TODO, et aucune carte ne demande de le remettre sur le rail ou de
+// l'en sortir : il reste sur le rail, avec sa raison (`direMiseDeCote`), et y
+// revient seul. `par` : qui le met de côté ; `retour` : ce qui le remet sur le
+// rail, sans personne — la ligne du ticket dans `status` le dit tel quel ;
+// `heure` : la mise de côté porte une heure de retour, que le rail tient
+// (`relever`). Les motifs qu'un préfixe ouvre (`no-station: …`,
+// `station-absent: …`) y sont par leur préfixe. Un test confronte cette liste
+// aux motifs que le runtime écrit.
+//
+// Ce qui le remet, raison par raison : la station relit à chaque service le
+// calibrage, la fiche et ce que les stations fournissent (station.ts) ; une
+// station distante qui se manifeste rend ses tickets ; le rail rend à son
+// heure ce qui en porte une ; la cuisine reprend ce que la pass ou le manager
+// remonte (remontee-a-la-cuisine.ts) — sauf, faute de secrets que seul le chef
+// pose sur la machine, la remontée que `CAUSES_DU_CHEF` lui garde (#1826).
+export type MiseDeCote = { par: string; retour: string; heure?: true };
+export const MISES_DE_COTE: Readonly<Record<string, MiseDeCote>> = {
+  "no-calibration": { par: "the station, when the issue carries no `model:` and `effort:`", retour: "once the issue carries `model:` and `effort:`" },
+  "unreadable-card": { par: "the station, when the ticket's card cannot be read", retour: "once its card reads" },
+  refused: { par: "the station, after three refusals in a row by the model", retour: "at its return time, a day later — a new cook tries again", heure: true },
+  [SANS_STATION]: { par: "the station, when no declared station provides what the card requires", retour: "once a station provides what its card requires" },
+  [STATION_ABSENTE]: { par: "the station, when only remote stations that have not shown up lately can cook it", retour: "once one of those stations shows up" },
+  [ATTEND_UN_TIERS]: { par: "the chef or the second (WAITING), never the kitchen", retour: "on `arrived`, once what it waits for is there — its follow-up date leaves it in WAITING" },
+  quota: { par: "the station, when the account's quota is used up", retour: "at its return time, when the quota comes back", heure: true },
+  "setup-failed": { par: "the station, when the project's setup fails", retour: "at its return time, or once the integration branch moves", heure: true },
+  "worktree-failed": { par: "the station, when the worktree cannot be prepared", retour: "at its return time, ten minutes later", heure: true },
+  "ticket-unreadable": { par: "the station, when the ticket cannot be read on GitHub", retour: "at its return time, ten minutes later", heure: true },
+  "secrets-unavailable": { par: "the station, when the secrets the repository declares cannot be given", retour: "at its return time, ten minutes later", heure: true },
+  "pass:unjudged": { par: "the pass, when it could not judge the delivery", retour: "once the kitchen takes it over: sent back to a cook, or after its `fix` ticket" },
+  "pass:still-red": { par: "the pass, when the delivery is still red after its returns", retour: "once the kitchen takes it over: back to a cook after its `fix` ticket" },
+  "manager:escalated": { par: "the manager, when the delivery is still red after its returns", retour: "once the kitchen takes it over: back to a cook after its `fix` ticket" },
+  [REDECOUPE]: { par: "the manager, when it splits the ticket again", retour: "never: its sub-tickets carry the work, and it leaves the rail once they are served" },
+};
+
+// La mise de côté d'un motif, par le motif lui-même ou par son préfixe. Nulle
+// pour un motif que la liste ne connaît pas.
+export function miseDeCoteDu(motif: string | null): MiseDeCote | null {
+  if (motif === null) return null;
+  const cle = Object.hasOwn(MISES_DE_COTE, motif) ? motif : (motif.split(": ")[0] ?? "");
+  return Object.hasOwn(MISES_DE_COTE, cle) ? (MISES_DE_COTE[cle] ?? null) : null;
+}
+
+// Ce qui retient un ticket sur le rail sans le mettre de côté : un ticket que
+// sa fiche attend (`attend : #12`). Il ne va pas non plus dans TODO, quoi qu'il
+// arrive à l'autre (#1834) — `projections/rail.ts`, `attendus`.
+export const ATTENTE_D_UN_TICKET: MiseDeCote = {
+  par: "the ticket's card (`attend : #12`), never the chef",
+  retour: "once the awaited ticket is served; still open, even off the rail, it is awaited on the rail; closed without being served, or deleted, the kitchen drops that wait on its own, and says so on the rail and on the issue",
+};

@@ -47,10 +47,9 @@ import { direCommentLeVoirEn, direEcranEn, direEtatDeServeurEn, direPageEn, dire
 import { lastBackup, type Backup } from "./projections/backups.ts";
 import { dernierTick, derniereSession, type SessionPassee, type Tick } from "./projections/sessions.ts";
 import { arreteeDepuis, cookDeRun, cooksEnCoursDeStation, direDeconnexionEn, direPlafondEn, direRetenueDeStationEn, etatStation, GESTE_DE_CONNEXION_TOMBEE_EN, plafondDeCooks, sansStationDepuis, miseDeCoteBloquee, setupBloque, stationsAnnoncees, type CookDeStation, type EtatStation, type MiseDeCoteBloquee, type SetupBloque } from "./projections/stations.ts";
-import { avecHorsZoneEn, BLOQUE, BLOQUE_EN, direRetenueEn, EN_WAITING, etatLu, etatLuEn, nomEtat, nomEtatEn } from "./rail.ts";
-import { PAR_LE_CHEF } from "./events/rail.ts";
+import { avecHorsZoneEn, BLOQUE, BLOQUE_EN, direAttentesLeveesEn, direRetenueEn, EN_WAITING, etatLu, etatLuEn, nomEtat, nomEtatEn } from "./rail.ts";
 import { direAttenteDeTiersEn } from "./attente.ts";
-import { attenteDUneStation, direMiseDeCote } from "./mise-de-cote.ts";
+import { attenteDUneStation, direMiseDeCote, miseDeCoteDu } from "./mise-de-cote.ts";
 import { direReprise, direRepriseEn, reprisesDuRail, type RepriseDuTicket } from "./remontee-a-la-cuisine.ts";
 import { GESTE_DE_STATION_A_CHAUD_EN } from "./stations-declarees.ts";
 import { prendLesOrdinaires } from "./bac-a-sable/ordinaires.ts";
@@ -455,7 +454,8 @@ function detail(ticket: TicketRail, maintenant: Date, depuis: Depuis, retenues: 
   switch (ticket.state) {
     case "waiting":
       // Rien ne le retient sur le rail : s'il ne part pas, c'est sa station.
-      return [...[direRetenueEn(ticket) ?? retenues].flat(), `since ${depuis(ticket.since)}`].join(" — ");
+      // Une attente que la cuisine a levée d'elle-même se dit aussi (#1834).
+      return [...[direRetenueEn(ticket) ?? retenues].flat(), ...[direAttentesLeveesEn(ticket) ?? []].flat(), `since ${depuis(ticket.since)}`].join(" — ");
     case "taken": {
       const bail = ticket.leaseUntil === null ? 0 : reste(ticket.leaseUntil);
       // Des deux durées d'un ticket pris, seule la seconde révèle un blocage.
@@ -472,7 +472,9 @@ function detail(ticket: TicketRail, maintenant: Date, depuis: Depuis, retenues: 
       const retour = ticket.until === null ? "no return time" : reste(ticket.until) >= 0 ? `back in ${dureeEn(reste(ticket.until))}` : "back at the next tick";
       // Une remontée technique : la carte dit ce que la cuisine en fait.
       if (reprise !== undefined) return `since ${depuis(ticket.since)} (${ticket.reason}) — ${direRepriseEn(reprise)}`;
-      return `since ${depuis(ticket.since)} (${ticket.reason}), ${retour}`;
+      // Sans heure de retour, ce qui le remet seul sur le rail (#1834).
+      const seul = ticket.until === null ? miseDeCoteDu(ticket.reason) : null;
+      return `since ${depuis(ticket.since)} (${ticket.reason}), ${retour}${seul === null ? "" : seul.retour.startsWith("never") ? ` — ${seul.retour}` : ` — back on its own ${seul.retour}`}`;
     }
   }
 }
@@ -815,10 +817,8 @@ export type Faits = {
   // tout autre ticket. Un ticket mis de côté faute de station y est aussi (1752) :
   // son attente est une action que le chef ne fait pas par un bouton, brancher une
   // station ; `relance` est nulle — personne ne l'a posé, rien à reprendre ni à
-  // renvoyer —, et `aLArrivee` dit qu'il repart seul ; `revenu` — pour un ticket revenu de WAITING dans TODO,
-  // pourquoi, dans les mots du runtime — il ne s'en pose plus : seul un ticket
-  // remis devant le chef par un runtime d'avant en porte un, avant de retourner en WAITING ; `null` pour tout autre, et pour celui que
-  // le chef a repris lui-même. `captures` : pour un ticket d'interface en pass
+  // renvoyer —, et `aLArrivee` dit qu'il repart seul. Aucun ticket ne revient de WAITING dans TODO
+  // (#1834) : `revenu`, qui en disait le motif, n'est plus donné. `captures` : pour un ticket d'interface en pass
   // ou servi, l'écran avant et après de sa dernière livraison, et si elle les
   // porte tous (captures.ts, `CapturesVues`) — absent pour tout autre ticket.
   rail: Array<{
@@ -831,7 +831,6 @@ export type Faits = {
     activite: ActiviteDeTicket | null;
     attente: { raison: string; colonne: string; retour: string | null } | null;
     tiers: { quoi: string; qui: string; depuis: string; relance: string | null; aLArrivee: string } | null;
-    revenu: string | null;
     // Pour le ticket en tête de la file seulement, s'il ne part pas : pourquoi
     // (`zone held by #12 (src)`, `machine saturated`). Nul pour tout autre, et
     // pour celui qui part. Le rail est dans l'ordre où il se sert.
@@ -952,14 +951,9 @@ export const CAUSES_D_URGENCE = {
   merge: "merge",
   remontee: "remontée",
   fermee: "PR fermée",
-  "86": "86",
-  capacite: "capacité",
-  absente: "station absente",
-  bloque: "bloqué",
   ecartee: "écartée",
   illisible: "illisible",
   question: "question",
-  repris: "repris",
   connexion: "connexion",
   session: "session",
   jeton: "jeton",
@@ -1061,7 +1055,6 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limit
             : ticket.waitingFor === null
               ? null
               : { quoi: ticket.waitingFor.what, qui: ticket.waitingFor.who, depuis: ticket.waitingFor.since, relance: ticket.waitingFor.followUp, aLArrivee: ticket.waitingFor.onArrival },
-        revenu: ticket.resumedBecause === null || ticket.resumedBecause === PAR_LE_CHEF ? null : ticket.resumedBecause,
         raison: raisonDeTete(etat, ticket),
         ...(ticket.state === "pass" || ticket.state === "served" ? captures(ticket.ticket) : {}),
       };

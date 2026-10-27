@@ -13,16 +13,17 @@
 // - `remontee`, un ticket rouge remonté par le manager ou la pass : le renvoyer
 //   à un cook, merger sa PR telle quelle s'il en a une, ou le sortir du rail ;
 // - `fermee`, une PR fermée sans merge : le recommencer, ou le sortir du rail ;
-// - `86`, `capacite`, `absente`, `repris` — mis de côté sans heure de retour,
-//   ou revenu de WAITING : le remettre sur le rail, ou l'en sortir ;
-// - `bloque`, qui attend un ticket parti sans être servi : un seul geste, le
-//   sortir du rail ;
 // - `ecartee`, `illisible` — une issue que le manager ne juge pas, ou qu'il n'a
 //   pas su lire : un seul geste, la lui rendre avec la réponse du chef ;
 // - `question`, la question du manager avant de découper une épique : la
 //   découper comme il l'entend, ou en faire un seul ticket ;
 // - `carte`, entrée par la porte de TODO (carte-todo.ts) : la sienne, telle
 //   qu'elle a été admise.
+//
+// Aucune carte ne demande au chef de remettre un ticket sur le rail ou de l'en
+// sortir quand c'est la cuisine qui l'a mis de côté (#1834) : un tel ticket
+// n'attend pas le chef, il reste sur le rail avec sa raison et repart seul
+// quand elle tombe (mise-de-cote.ts, `MISES_DE_COTE`).
 //
 // Rien n'y est complété : chaque carte passe la règle (`carteValide`), et une
 // carte qui ne la tient pas lève au lieu d'être montrée. Les textes n'y portent
@@ -41,15 +42,9 @@ export type CarteDuTicket = CarteTodo & { type: string };
 const choix = (texte: string, suite: Geste) => ({ texte, suite });
 const RENVOYER = choix("Send it back to a cook", "resume");
 const RETIRER = choix("Take it off the rail", "drop");
-const REMETTRE = choix("Put it back on the rail", "resume");
 const RENDRE_AU_MANAGER = choix("Hand it back to the manager with my answer", "resume");
 
 const laPr = (pr: string | null) => pr ?? "its delivery";
-const numeros = (tickets: readonly number[]) => tickets.map((ticket) => `#${ticket}`).join(", ");
-const enListe = (noms: readonly string[], liaison: string) => (noms.length <= 1 ? noms.join("") : `${noms.slice(0, -1).join(", ")} ${liaison} ${noms.at(-1)}`);
-
-// Remettre sur le rail, ou en sortir : la question des tickets mis de côté.
-const remettreOuRetirer = (ticket: number, resume: string, remettre = REMETTRE) => ({ resume, question: `Put #${ticket} back on the rail, or take it off?`, choix: [remettre, RETIRER] });
 
 // Ce que la carte d'une attente propose, avant la règle.
 function proposition(attente: AttenteDeTicket) {
@@ -99,24 +94,6 @@ function proposition(attente: AttenteDeTicket) {
         question: `Start #${ticket} over, or take it off the rail?`,
         choix: [choix("Start it over: a cook takes it up again", "resume"), RETIRER],
       };
-    case "86":
-      switch (attente.reason) {
-        case "no-calibration":
-          return remettreOuRetirer(ticket, `#${ticket} has no calibration: its issue carries no model and effort, so no cook leaves.`);
-        case "unreadable-card":
-          return remettreOuRetirer(ticket, `The card of #${ticket} does not read, so the station set it aside.`);
-        case "refused":
-          return remettreOuRetirer(ticket, `The model refused #${ticket} three times, so the station set it aside.`);
-      }
-      break;
-    case "capacite": {
-      const noms = enListe(attente.manque.capacites, attente.manque.ensemble ? "and" : "or");
-      return remettreOuRetirer(ticket, `#${ticket} needs ${noms}${attente.manque.ensemble ? " together" : ""}, and no station provides it.`);
-    }
-    case "absente":
-      return remettreOuRetirer(ticket, `Only ${enListe(attente.stations, "or")} can cook #${ticket}, and ${attente.stations.length > 1 ? "none of them has" : "it has not"} shown up lately.`);
-    case "bloque":
-      return { resume: `#${ticket} waits for ${numeros(attente.abandonnes.map(({ ticket: abandonne }) => abandonne))}, which left the rail without being served.`, question: null, choix: [RETIRER] };
     case "ecartee": {
       const retenue = attente.reason === "blocked-on-human" ? `#${ticket} is held back by the blocked-on-human label.` : `The manager set #${ticket} aside: its issue carries the ${attente.reason} label.`;
       return { resume: `${retenue} Your answer is written on the issue and the label removed, so the manager judges it again.`, question: null, choix: [RENDRE_AU_MANAGER] };
@@ -133,8 +110,6 @@ function proposition(attente: AttenteDeTicket) {
         question: `How does the manager split #${ticket}?`,
         choix: [choix("Split it as you think best", "resume"), choix("Do not split it: make it a single ticket", "resume")],
       };
-    case "repris":
-      return remettreOuRetirer(ticket, `#${ticket} is back from WAITING, picked up again by you.`, choix("Send it back to the kitchen", "resume"));
     case "carte": {
       const { resume, question, choix: choisis, captures } = attente.carte;
       // Entrée avant la forme unique avec un seul choix, que la porte admettait

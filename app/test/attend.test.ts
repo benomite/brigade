@@ -103,8 +103,7 @@ const DE_TICKET: Attente[] = [
   { ticket: 13, title: "Un motif que personne ne connaît", ...livraison, quoi: "merge", reason: "motif-neuf", expired: null },
   { ticket: 14, title: "La pass rouge", ...livraison, quoi: "remontee", reason: "still-red" },
   { ticket: 15, title: "La PR fermée", ...livraison, quoi: "fermee", reason: "no-grant" },
-  { ticket: 16, title: "Sans calibrage", since: DEPUIS, quoi: "86", reason: "no-calibration" },
-  { ticket: 21, title: "L'export du journal", since: DEPUIS, quoi: "bloque", abandonnes: [{ ticket: 17, reason: "label" }, { ticket: 18, reason: "closed" }] },
+  // Un ticket mis de côté par la cuisine, ou qui en attend un autre, n'attend jamais le chef (#1834) : aucune entrée.
   { ticket: 30, title: null, since: DEPUIS, quoi: "ecartee", reason: "question" },
   { ticket: 31, title: null, since: DEPUIS, quoi: "illisible", epique: true },
   { ticket: 32, title: null, since: DEPUIS, quoi: "question" },

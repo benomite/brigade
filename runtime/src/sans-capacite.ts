@@ -3,10 +3,10 @@
 // manager le reprend avant lui : il le réécrit ou le redécoupe pour qu'il
 // n'ait plus besoin de cette capacité — le découpage a souvent mal posé le
 // ticket. Les sous-tickets naissent ensuite comme ceux d'une épique, et le
-// ticket sort du rail (86 `manager:split`). Ce n'est que si la réécriture est
-// impossible que le chef est sollicité, par une carte `gesture` qui nomme
-// l'accès à donner et pourquoi — une proposition, que le triage lit d'abord :
-// seule une question et ses choix entrent dans TODO (carte-todo.ts).
+// ticket sort du rail (86 `manager:split`). Si la réécriture est impossible,
+// le ticket reste sur le rail, mis de côté, et son issue nomme l'accès à donner
+// et pourquoi : il n'entre pas dans TODO (#1834) — ce qu'une machine absente
+// retient attend sur le rail, et repart seul dès qu'une station le fournit.
 //
 // Rien n'est gardé en mémoire : l'issue de chaque ticket est au journal
 // (`manager.capability-resplit`, `manager.capability-gestured`), et ce qui
@@ -15,7 +15,7 @@
 // manque, il va droit à la carte.
 import { DE_CONFIANCE } from "./alimenter.ts";
 import { direManqueEn, gesteDeCapaciteEn, manqueDuMotif, type Manque } from "./capacites.ts";
-import { cartesEnTodo, entrerDansTodo, sortirDeTodo } from "./carte-todo.ts";
+import { cartesEnTodo, sortirDeTodo } from "./carte-todo.ts";
 import type { FaitManager } from "./events/manager.ts";
 import { REDECOUPE } from "./events/rail.ts";
 import type { GitHub, IssueOuverte } from "./github.ts";
@@ -49,12 +49,6 @@ const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message :
 const sur1Ligne = (texte: string) => texte.replace(/\s+/g, " ").trim();
 const noms = (manque: Manque) => manque.capacites.map((nom) => `\`${nom}\``).join(manque.ensemble ? " + " : ", ");
 
-// La carte que le chef lit : l'accès à donner, et pourquoi le ticket ne s'en
-// passe pas. Une seule ligne.
-export function enonceDeGeste(manque: Manque, pourquoi: string): string {
-  return sur1Ligne(`${direManqueEn(manque)} — to provide: ${gesteDeCapaciteEn(manque)}. The ticket cannot be rewritten without it: ${pourquoi}`);
-}
-
 export function ouvrirSansCapacite(atelier: AtelierSansCapacite) {
   const { journal, projet, rail, github, noter, avertir, arrete } = atelier;
   const { base } = journal;
@@ -75,18 +69,16 @@ export function ouvrirSansCapacite(atelier: AtelierSansCapacite) {
 
   const dejaTraite = (ticket: number) => journal.duTicket(ticket).some((evenement) => evenement.type === "manager.capability-resplit" || evenement.type === "manager.capability-gestured");
 
+  // La réécriture est impossible : le ticket attend sur le rail, et son issue
+  // dit l'accès qui le ferait partir. Rien n'entre dans TODO (#1834).
   const poserLaCarte = async (ticket: number, manque: Manque, pourquoi: string, run: string | null) => {
-    const enonce = enonceDeGeste(manque, pourquoi);
-    base.transaction(() => {
-      entrerDansTodo(journal, projet, ticket, { type: "gesture", enonce }, AUTEUR_DE_CARTE);
-      noter(ticket, { type: "manager.capability-gestured", payload: { missing: manque.capacites, reason: pourquoi } });
-    });
+    noter(ticket, { type: "manager.capability-gestured", payload: { missing: manque.capacites, reason: pourquoi } });
     await commenter(ticket, [
-      `**Manager — ${direManqueEn(manque)} : une carte est proposée au chef, que le triage lit d'abord.**`,
+      `**Manager — ${direManqueEn(manque)} : le ticket attend sur le rail.**`,
       "",
       `Ce ticket ne peut pas se passer de ${noms(manque)} : ${pourquoi}`,
       "",
-      `Geste attendu : ${gesteDeCapaciteEn(manque)}.`,
+      `Il repart seul dès qu'une station le fournit — ${gesteDeCapaciteEn(manque)}. Rien n'est demandé au chef dans TODO.`,
       "",
       atelier.signature(run, "Lu"),
     ]);
@@ -142,13 +134,12 @@ export function ouvrirSansCapacite(atelier: AtelierSansCapacite) {
 
   return {
     // Reprend chaque ticket 86 `no-station` que le manager n'a pas encore vu,
-    // et sort de TODO la carte d'un ticket qui n'est plus dans ce cas.
+    // et sort de TODO la carte qu'il y posait avant #1834 : ce ticket attend
+    // sur le rail, pas le chef.
     async traiter(): Promise<void> {
       for (const carte of cartesEnTodo(base)) {
         if (!journal.duTicket(carte.ticket).some((evenement) => evenement.type === "manager.capability-gestured")) continue;
-        const sur = rail.tickets().find((ticket) => ticket.ticket === carte.ticket);
-        if (sur && sur.state === "86" && manqueDuMotif(sur.reason) !== null) continue;
-        sortirDeTodo(journal, projet, carte.ticket, "the capability is provided, or the ticket left the rail", AUTEUR_DE_CARTE);
+        sortirDeTodo(journal, projet, carte.ticket, "a missing capability waits on the rail, not in TODO: the ticket starts again on its own once a station provides it", AUTEUR_DE_CARTE);
       }
       for (const ticket of rail.tickets()) {
         if (arrete() || atelier.eteint()) return;

@@ -69,3 +69,27 @@ export function depuis1826<F extends FactsLus>(avant: F): F {
     ...(avant.retenues === undefined ? {} : { retenues: avant.retenues.filter(({ ticket }) => ticket !== REMONTEE_D_AVANT) }),
   };
 }
+
+// Ce que #1834 change à ce que l'état d'avant donnait : un ticket que la cuisine a mis de côté, ou qui en
+// attend un autre parti sans être servi, n'attend jamais le chef — leurs entrées (`86`, `capacite`,
+// `absente`, `bloque`, `repris`) quittent `attend` et `retenues`, et le ticket qui en attendait un autre,
+// BLOQUÉ par ce départ, est en attente sur le rail. Le motif d'un retour de WAITING (`revenu`) n'est plus
+// donné. Le reste est ce qu'il était.
+export const SORTES_RETIREES_EN_1834 = ["86", "capacite", "absente", "bloque", "repris"];
+type FactsDAvant1834 = {
+  compteurs: { attend: number };
+  rail: Array<{ ticket: number; etat: string; revenu?: unknown }>;
+  attend: Array<{ ticket: number; decision?: { quoi: string } }>;
+  retenues?: Array<{ ticket: number }>;
+};
+export function depuis1834<F extends FactsDAvant1834>(avant: F): F {
+  const retires = new Map(avant.attend.filter(({ decision }) => SORTES_RETIREES_EN_1834.includes(decision?.quoi ?? "")).map(({ ticket, decision }) => [ticket, decision?.quoi]));
+  const attend = avant.attend.filter(({ ticket }) => !retires.has(ticket));
+  return {
+    ...avant,
+    compteurs: { ...avant.compteurs, attend: avant.compteurs.attend - retires.size },
+    rail: avant.rail.map(({ revenu: _revenu, ...ticket }) => (retires.get(ticket.ticket) === "bloque" && ticket.etat === "BLOQUÉ" ? { ...ticket, etat: "en attente" } : ticket)),
+    attend,
+    ...(avant.retenues === undefined ? {} : { retenues: avant.retenues.filter(({ ticket }) => !retires.has(ticket)) }),
+  };
+}

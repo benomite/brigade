@@ -1,27 +1,29 @@
 // WAITING : un ticket qui attend un tiers — la réponse d'un client, une
-// décision externe, une réunion —, et non le chef. Le chef l'y met, en disant
-// ce qu'il attend, de qui, et quand y revenir ; il l'en sort de deux façons :
-// « reprendre », il revient devant lui (TODO) ; « c'est arrivé », il repart en
-// cuisine sans repasser par TODO.
+// décision externe, une réunion —, et non le chef. Le chef (ou le second) l'y
+// met, en disant ce qu'il attend, de qui, et quand relancer ce tiers ; il l'en
+// sort de deux façons, et rien d'autre ne l'en sort (#1834) : « reprendre »,
+// il reprend l'état qu'il avait avant d'attendre ; « c'est arrivé », il repart
+// en cuisine. Ni l'un ni l'autre ne passe par TODO : aucune carte ne demande
+// au chef de remettre le ticket sur le rail. Sa date de relance atteinte, il
+// reste en WAITING.
 //
 // Le socle est le 86 sans heure de retour, que le rail connaît déjà (#422) :
-// la cuisine ne le prend pas, rien ne le fait repartir seul, et il survit au
-// redémarrage puisqu'il est au journal. WAITING l'étend d'un motif à lui
-// (`third-party`), de ce qu'il attend, et de l'état d'avant l'attente — celui
-// où « reprendre » le remet. Ce qui attend un tiers sort de la file du chef :
-// il n'a rien à trancher tant que rien n'est arrivé.
+// la cuisine ne le prend pas, et il survit au redémarrage puisqu'il est au
+// journal. WAITING l'étend d'un motif à lui (`third-party`), de ce qu'il
+// attend, et de l'état d'avant l'attente — celui où « reprendre » le remet. Ce
+// qui attend un tiers n'est pas dans la file du chef : il n'a rien à trancher
+// tant que rien n'est arrivé.
 //
 // Ce qui attend un tiers reste lisible sur l'issue, l'app fermée : le label
 // `waiting` tant qu'il attend, et un commentaire à chaque changement — qui,
 // quoi, jusqu'à quand ; puis qu'il n'attend plus, et pourquoi.
-import { PAR_LE_CHEF, REVENU_D_ATTENTE } from "./events/rail.ts";
+import { PAR_LE_CHEF } from "./events/rail.ts";
 import { geste } from "./geste.ts";
 import type { Resultat } from "./geste-ticket.ts";
 import type { GitHub } from "./github.ts";
 import { dateLocale, direInstant, direInstantEn, dureeTapee } from "./grant.ts";
 import type { Journal } from "./journal.ts";
-import { DE_LA_BRIGADE } from "./reviewer.ts";
-import { commentairesEntendus, direALArrivee, direALArriveeEn, lireRail, marquesDAttente, texteDeMarque, ticketDuRail, type AttenteDeTiers, type TicketRail } from "./projections/rail.ts";
+import { direALArrivee, direALArriveeEn, marquesDAttente, texteDeMarque, ticketDuRail, type AttenteDeTiers, type TicketRail } from "./projections/rail.ts";
 import { GesteRefuse, nomEtat, nomEtatEn } from "./rail.ts";
 
 // Le label qu'une issue porte tant que son ticket attend un tiers.
@@ -83,9 +85,10 @@ export function mettreEnAttente(journal: Journal, projet: string, ticket: number
   });
 }
 
-// WAITING → TODO : le ticket revient devant le chef, tout de suite — dans
-// l'état où il était avant d'attendre s'il était mis de côté, sinon mis de
-// côté pour lui.
+// « Reprendre » : le ticket n'attend plus, et reprend l'état qu'il avait avant
+// d'attendre — mis de côté pour son propre motif, qui le rend seul au rail une
+// fois levé ; sinon en attente sur le rail, où un cook le prend à son tour. Il
+// ne passe pas par TODO (#1834) : le chef qui le reprend sait ce qu'il en fait.
 export function reprendre(journal: Journal, projet: string, ticket: number): TicketRail {
   return journal.base.transaction(() => {
     exigerWaiting(journal, ticket);
@@ -95,13 +98,12 @@ export function reprendre(journal: Journal, projet: string, ticket: number): Tic
 }
 
 // « C'est arrivé, on repart » : le ticket repart en cuisine sans repasser par
-// TODO — de WAITING, ou revenu de WAITING devant le chef. Le chef le fait par
+// TODO, de WAITING. Le chef le fait par
 // le tableau de la cuisine (`/brigade arrived #<ticket>`, tableau/gestes/) ou
 // par son téléphone (telephone/gestes.ts) : tous deux jouent `renvoyerEnCuisine`.
 export function cestArrive(journal: Journal, projet: string, ticket: number): TicketRail {
   return journal.base.transaction(() => {
-    const trouve = ticketDuRail(journal.base, ticket);
-    if (!(trouve?.state === "86" && trouve.reason === REVENU_D_ATTENTE)) exigerWaiting(journal, ticket);
+    exigerWaiting(journal, ticket);
     journal.ajouter({ project: projet, ticket, author: AUTEUR, type: "ticket.resumed", payload: { to: "kitchen", why: PAR_LE_CHEF } });
     return ticketDuRail(journal.base, ticket) as TicketRail;
   });
@@ -111,8 +113,8 @@ export function cestArrive(journal: Journal, projet: string, ticket: number): Ti
 export const PRIX_DE_L_ARRIVEE = "it goes back on the rail and leaves WAITING: a cook takes it in turn and spends what a cook spends";
 
 // « C'est arrivé », joué comme un geste du rail : fait, avec son prix, ou
-// refusé — un ticket qui n'est pas sur le rail, qui n'attend pas un tiers et
-// n'en est pas revenu —, et rien n'est changé.
+// refusé — un ticket qui n'est pas sur le rail, ou qui n'attend pas un tiers —,
+// et rien n'est changé.
 export function renvoyerEnCuisine(journal: Journal, projet: string, ticket: number): Resultat {
   try {
     cestArrive(journal, projet, ticket);
@@ -154,7 +156,7 @@ export function direMarque(ticket: number, attente: AttenteDeTiers, miseAJour: b
     `- **relance** : ${direInstant(attente.followUp)}`,
     `- **à l'arrivée** : ${attente.onArrival}`,
     "",
-    `Tant qu'il porte le label \`${LABEL_WAITING}\`, la cuisine ne le prend pas. \`${geste(`waiting resume ${ticket}`)}\` le ramène dans TODO ; \`/brigade arrived #${ticket}\`, posté sur le tableau de la cuisine, le renvoie en cuisine.`,
+    `Tant qu'il porte le label \`${LABEL_WAITING}\`, la cuisine ne le prend pas, et sa relance ne l'en sort pas. \`/brigade arrived #${ticket}\`, posté sur le tableau de la cuisine, le renvoie en cuisine ; \`${geste(`waiting resume ${ticket}`)}\` lui rend l'état qu'il avait avant d'attendre.`,
   ].join("\n");
 }
 
@@ -164,18 +166,12 @@ export function direLevee(ticket: TicketRail | null, marque: { what: string; who
     ticket === null
       ? "il a quitté le rail"
       : ticket.state === "86"
-        ? "repris : il revient dans TODO, devant le chef"
+        ? `repris : il est de nouveau mis de côté pour son propre motif (${ticket.reason ?? "sans motif"}), et repart seul une fois celui-ci levé`
         : ticket.state === "waiting"
-          ? "c'est arrivé : il repart en cuisine"
+          ? "il repart en cuisine"
           : `il est ${nomEtat(ticket.state)}`;
   return `**WAITING levé** — n'attend plus ${marque.who} (« ${marque.what} ») : ${ou}. Le label \`${LABEL_WAITING}\` est retiré.`;
 }
-
-// Ce que la brigade écrit sur une issue : ses commentaires ne ramènent jamais
-// un ticket de WAITING. Reconnus à leur début, comme partout — un commentaire
-// du chef qui colle une réponse n'en porte aucun.
-const DE_LA_BRIGADE_SUR_L_ISSUE = /^(<!-- brigade:|\*\*(WAITING|Rail|Cook|Station|Pass|Reviewer|Manager)\b)/;
-export const deLaBrigade = (corps: string): boolean => DE_LA_BRIGADE_SUR_L_ISSUE.test(corps) || DE_LA_BRIGADE.test(corps);
 
 // Met l'issue de chaque ticket à jour de son attente : le label `waiting` et un
 // commentaire à l'entrée en WAITING et à chaque changement de ce qu'il attend,
@@ -197,15 +193,12 @@ export async function marquerAttentes(journal: Journal, github: GitHub, projet: 
         // le label suffit, rien ne se commente.
         if (surLeRail !== null) await github.commenter(ticket, direLevee(surLeRail, marked));
       }
-      // Ce que l'issue porte de hors brigade à cette pose — trace comprise,
-      // qui n'en est pas — est ce que le ticket a déjà entendu.
-      const heard = waiting !== null && marked === null ? (await github.commentaires(ticket)).filter((commentaire) => !deLaBrigade(commentaire.body)).length : undefined;
       journal.ajouter({
         project: projet,
         ticket,
         author: "runtime",
         type: "waiting.marked",
-        payload: { waiting: waiting === null ? null : { what: waiting.what, who: waiting.who, followUp: waiting.followUp }, ...(heard === undefined ? {} : { heard }) },
+        payload: { waiting: waiting === null ? null : { what: waiting.what, who: waiting.who, followUp: waiting.followUp } },
       });
       faites++;
     } catch (erreur) {

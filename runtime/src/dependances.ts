@@ -1,11 +1,12 @@
 // Les dépendances entre tickets, pour ce qui ne tient pas dans un geste du
-// rail : nommer un cycle au moment où une fiche le crée, et avertir le chef
-// qu'un ticket est bloqué par l'abandon de celui qu'il attendait.
+// rail : nommer un cycle au moment où une fiche le crée, et dire sur l'issue
+// d'un ticket que la cuisine n'attend plus celui que sa fiche nomme, fermé sans
+// avoir été servi (#1834).
 import type { GitHub } from "./github.ts";
 import type { Journal } from "./journal.ts";
 import { orphelines } from "./projections/pass.ts";
 import { lireRail } from "./projections/rail.ts";
-import { nomAbandon, retenue } from "./rail.ts";
+import { direAttentesLevees } from "./rail.ts";
 
 // Les cycles d'un graphe « attend ». Pour chaque ticket pris dans un cycle :
 // le plus court qui passe par lui, écrit à partir de son plus petit numéro —
@@ -40,40 +41,39 @@ export function direCycle(cycle: number[]): string {
   return `attend : cycle de dépendances — ${boucle} (chacun attend le suivant) : aucun ne partirait jamais, retirer une de ces attentes`;
 }
 
-// Avertit le chef des tickets en attente qu'un abandon vient de bloquer : un
-// fait au journal, puis un commentaire sur l'issue. Une fois par abandon — le
-// même ticket attendu, revenu sur le rail puis reparti, en vaut un second.
-// Un ticket parti en laissant une livraison que la pass n'a pas encore relue
-// sur GitHub n'est pas encore dit abandonné : mergée à la main juste avant,
-// elle le sert. Le sondage suivant le dira s'il l'est.
-// Rend le nombre de tickets signalés.
-export async function signalerBlocages(journal: Journal, github: GitHub, projet: string): Promise<number> {
+// Un ticket qui en attend un autre ne va jamais dans TODO, quoi qu'il arrive à
+// l'autre (#1834) : servi, l'attente tombe ; encore ouvert, même hors du rail,
+// il l'attend sur le rail ; fermé sans avoir été servi — ou disparu —, la
+// cuisine lève l'attente d'elle-même, le rail le dit, et l'issue du ticket
+// aussi : un fait au journal, puis un commentaire. Une fois par départ — le
+// même ticket attendu, revenu sur le rail puis reparti, en vaut un second. Un
+// ticket parti en laissant une livraison que la pass n'a pas encore relue sur
+// GitHub n'est pas encore dit : mergée à la main juste avant, elle le sert, et
+// le sondage suivant le dira. Rend le nombre de tickets dont l'issue est avertie.
+export async function signalerAttentesLevees(journal: Journal, github: GitHub, projet: string): Promise<number> {
   const nouveaux = journal.base.transaction(() => {
     const aRelire = new Set(orphelines(journal.base).map((orpheline) => orpheline.ticket));
     return lireRail(journal.base).flatMap((ticket) => {
-      if (retenue(ticket) !== "bloque") return [];
-      const abandons = ticket.awaits.filter(
-        ({ ticket: attendu, left }) =>
-          left !== null &&
+      const levees = ticket.dropped.filter(
+        ({ ticket: attendu, reason, seq }) =>
           !aRelire.has(attendu) &&
           journal.ajouter({
             project: projet,
             ticket: ticket.ticket,
             author: "runtime",
-            type: "ticket.blocked",
-            payload: { by: attendu, reason: left.reason },
-            dedupKey: `rail:blocked:${ticket.ticket}:${attendu}:${left.seq}`,
+            type: "ticket.wait-dropped",
+            payload: { by: attendu, reason },
+            dedupKey: `rail:wait-dropped:${ticket.ticket}:${attendu}:${seq}`,
           }) !== null,
       );
-      return abandons.length === 0 ? [] : [{ ticket: ticket.ticket, abandons }];
+      return levees.length === 0 ? [] : [{ ticket: ticket.ticket, dit: direAttentesLevees({ ...ticket, dropped: levees }) }];
     });
   });
-  for (const { ticket, abandons } of nouveaux) {
-    const liste = abandons.map(({ ticket: attendu, left }) => `#${attendu} (${nomAbandon(left?.reason ?? "")})`).join(", ");
+  for (const { ticket, dit } of nouveaux) {
     const corps = [
-      `**Rail — ticket bloqué.** Il attend ${liste}, qui a quitté le rail sans avoir été servi : aucune station ne le prendra tant que ça dure.`,
+      `**Rail — attente levée.** ${dit}.`,
       "",
-      "Pour le débloquer, au choix : remettre le ticket attendu sur le rail (issue ouverte, label `fire`) — celui-ci l'attendra de nouveau, et partira une fois l'autre servi ; ou retirer son numéro de la ligne `attend` de la fiche.",
+      "La cuisine l'a retiré d'elle-même de ce que ce ticket attend : rien n'est demandé au chef. Le ticket part à son tour, s'il n'attend rien d'autre.",
     ].join("\n");
     try {
       await github.commenter(ticket, corps);

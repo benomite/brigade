@@ -76,7 +76,7 @@ test("sous chaque ticket qui en porte une, sa fiche : ce qu'il attend, sa zone, 
   ]);
 });
 
-test("un ticket retenu dit pourquoi : ce qu'il attend encore, ou l'abandon qui le bloque — jamais un ticket déjà servi", async (t) => {
+test("un ticket retenu dit pourquoi : ce qu'il attend encore, et l'attente que la cuisine a levée — jamais un ticket déjà servi", async (t) => {
   const repertoire = repertoireTemporaire(t);
   const journal = ouvrirJournal(repertoire, { maintenant: horloge() });
   t.after(() => journal.fermer());
@@ -112,7 +112,7 @@ test("un ticket retenu dit pourquoi : ce qu'il attend encore, ou l'abandon qui l
     `#12  queued  -  since ${JOUR_HORLOGE}T10:00:01.000Z  Ticket 12`,
     `#14  queued  -  awaiting #12 — since ${JOUR_HORLOGE}T10:00:03.000Z  Ticket 14`,
     "     card — awaiting: #11, #12 · zone: none",
-    `#15  BLOCKED  -  #13 dropped (issue closed without being served) · also awaiting #12 — since ${JOUR_HORLOGE}T10:00:04.000Z  Ticket 15`,
+    `#15  queued  -  awaiting #12 — #13 was closed without being served: no longer awaited — since ${JOUR_HORLOGE}T10:00:04.000Z  Ticket 15`,
     "     card — awaiting: #11, #12, #13 · zone: none",
     `#16  queued  -  since ${JOUR_HORLOGE}T10:00:05.000Z  Ticket 16`,
     "     card — awaiting: #11 · zone: none",

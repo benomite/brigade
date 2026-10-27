@@ -127,7 +127,7 @@ test("sur un PC neuf, sans rien d'avant, le rail du projet a les mêmes tickets 
   const mac = await surLeMac(box.etat);
   assert.deepEqual(
     mac.map(({ ticket, state }) => [ticket, state]),
-    [[14, "pris"], [15, "en pass"], [16, "en attente"], [17, "86"], [19, "servi"], [18, "BLOQUÉ"]],
+    [[14, "pris"], [15, "en pass"], [16, "en attente"], [17, "86"], [19, "servi"], [18, "en attente"]],
   );
 
   // La commande, dans un process neuf : ni HOME, ni état, ni variable de brigade — rien que son `gh`.

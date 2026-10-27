@@ -13,7 +13,7 @@ import type { Base } from "../base.ts";
 import type { Evenement } from "../evenements.ts";
 import type { FaitGardeFous } from "../events/guardrails.ts";
 import { NON_JUGEE, type FaitPass, type Finding } from "../events/pass.ts";
-import { ATTEND_UN_TIERS, REVENU_D_ATTENTE, type FaitRail } from "../events/rail.ts";
+import { ATTEND_UN_TIERS, PAR_LE_CHEF, type FaitRail } from "../events/rail.ts";
 import type { FaitStation } from "../events/station.ts";
 import type { Fiche } from "../fiche.ts";
 import { bilanDEpique } from "../bilan-epique.ts";
@@ -25,8 +25,20 @@ import { decoupageDe } from "./splits.ts";
 export type Etat = "waiting" | "taken" | "pass" | "served" | "86";
 
 // A ticket the card says to await and which has not been served. `left`: it
-// left the rail without being so — dropped —, why, and by which event.
+// left the rail without being so, its issue still open — `fire` removed,
+// `hors-cuisine` set —, why, and by which event: the ticket still waits for
+// it, on the rail (#1834).
 export type Attendu = { ticket: number; left: { reason: string; seq: number } | null };
+
+// A ticket the card says to await, closed without being served (or gone): the
+// kitchen no longer awaits it, on its own, and the rail says so (#1834).
+// `reason`: why it left (`closed`, `gone`); `seq`: the event that says so.
+export type AttenteLevee = { ticket: number; reason: string; seq: number };
+
+// The reasons for which an awaited ticket that left the rail unserved is no
+// longer awaited: its issue is closed, or no longer exists. Any other — its
+// issue still open — keeps the wait.
+export const DEPARTS_QUI_LEVENT: readonly string[] = ["closed", "gone"];
 
 // What a WAITING ticket awaits from a third party: `what`, in the chef's words,
 // from whom (`who`), since when (`since`, its being put on hold — an update
@@ -74,9 +86,12 @@ export type TicketRail = {
   effort: string | null;
   // The card set on the issue, or null if it carries none.
   card: Fiche | null;
-  // Those of the tickets of its card that are not served. Empty: nothing
-  // holds it back.
+  // Those of the tickets of its card that are not served, and whose issue is
+  // still open. Empty: nothing holds it back.
   awaits: Attendu[];
+  // Those of the tickets of its card closed without being served: no longer
+  // awaited, and said on the rail.
+  dropped: AttenteLevee[];
   // Queued: those that hold a path of its zone. Empty: its zone is
   // free.
   held: Tenu[];
@@ -97,10 +112,6 @@ export type TicketRail = {
   until: string | null;
   // In WAITING — 86 awaiting a third party —, what it awaits. Null otherwise.
   waitingFor: AttenteDeTiers | null;
-  // Back from WAITING to TODO: why, in plain words ("follow-up of 21/10: no
-  // answer", "new on the issue", "chef"). Null otherwise, and as soon as
-  // the ticket changes state.
-  resumedBecause: string | null;
 };
 
 type Payload<T extends FaitRail["type"]> = Required<Extract<FaitRail, { type: T }>["payload"]>;
@@ -139,6 +150,7 @@ const FORMES: { [T in FaitRail["type"]]: { [C in keyof Payload<T>]: (valeur: unk
   "ticket.86": { reason: texte, until: texteOuRien, why: (valeur) => valeur === undefined || typeof valeur === "string", access: (valeur) => valeur === undefined || (typeof valeur === "object" && valeur !== null) },
   "ticket.fire-unseen": { removedAt: texte },
   "ticket.blocked": { by: Number.isSafeInteger, reason: texte },
+  "ticket.wait-dropped": { by: Number.isSafeInteger, reason: texte },
   "ticket.waiting": { what: texte, who: texte, followUp: texte },
   "ticket.resumed": { to: (valeur) => valeur === "todo" || valeur === "kitchen", why: texte },
   "waiting.marked": { waiting: (valeur) => valeur === null || marque(valeur), heard: (valeur) => valeur === undefined || Number.isSafeInteger(valeur) },
@@ -172,7 +184,6 @@ type Changement = { state: Etat; station?: string | null; leaseUntil?: string | 
 // party, which only `ticket.waiting` sets.
 function passer(base: Base, ticket: number, at: string, changement: Changement): void {
   base.executer("DELETE FROM rail_waiting WHERE ticket = ?", ticket);
-  base.executer("DELETE FROM rail_resumed WHERE ticket = ?", ticket);
   base.executer(
     "UPDATE rail SET state = ?, since = ?, station = ?, lease_until = ?, progressed_at = ?, reason = ?, until = ? WHERE ticket = ?",
     changement.state,
@@ -229,7 +240,7 @@ export const rail = definirProjection<
   | Extract<FaitStation, { type: "cook.out-of-zone" }>
 >({
   nom: "rail",
-  tables: ["rail", "rail_outcomes", "rail_commons", "rail_waiting", "rail_waiting_marks", "rail_waiting_heard", "rail_resumed", "rail_out_of_zone"],
+  tables: ["rail", "rail_outcomes", "rail_commons", "rail_waiting", "rail_waiting_marks", "rail_waiting_heard", "rail_out_of_zone"],
   schema: `
     CREATE TABLE IF NOT EXISTS rail (
       ticket      INTEGER PRIMARY KEY,
@@ -282,7 +293,8 @@ export const rail = definirProjection<
       mark   TEXT
     ) STRICT;
     -- How many non-brigade comments the issue carried when its wait was
-    -- marked: what is added afterwards brings the ticket back.
+    -- marked, as written before #1834: a comment no longer brings the
+    -- ticket out of WAITING, and nothing reads it.
     CREATE TABLE IF NOT EXISTS rail_waiting_heard (
       ticket INTEGER PRIMARY KEY,
       heard  INTEGER NOT NULL
@@ -292,11 +304,6 @@ export const rail = definirProjection<
     CREATE TABLE IF NOT EXISTS rail_fire_unseen (
       ticket     INTEGER PRIMARY KEY,
       removed_at TEXT NOT NULL
-    ) STRICT;
-    -- Why a ticket came back from WAITING to TODO.
-    CREATE TABLE IF NOT EXISTS rail_resumed (
-      ticket INTEGER PRIMARY KEY,
-      why    TEXT NOT NULL
     ) STRICT;
     -- The files a ticket's last delivery wrote outside the zone it had when
     -- taken, as the station found them.
@@ -386,6 +393,7 @@ export const rail = definirProjection<
       passer(base, ticket, at, { state: "86", reason: payload.reason, until: payload.until });
     }),
     "ticket.blocked": () => {},
+    "ticket.wait-dropped": () => {},
     // Only a queued ticket on the rail, or one set aside, awaits a third party:
     // taken, in pass or served, the kitchen holds it.
     "ticket.waiting": lisible("ticket.waiting", (base, ticket, { at, payload }) => {
@@ -409,24 +417,22 @@ export const rail = definirProjection<
         prior.prior_until,
       );
     }),
-    // Towards the chef: the state before the wait if it was set aside, otherwise
-    // set aside for him. Towards the kitchen: queued on the rail. A ticket
-    // turned back to the chef goes back to the kitchen in the same gesture.
+    // Out of WAITING, only on a gesture (#1834): `resume`, the ticket goes back
+    // to the state it had before the wait — set aside for its own reason, or
+    // queued on the rail; `arrived`, queued on the rail. Neither goes through
+    // the chef's TODO. A `todo` resume the runtime wrote by itself — a
+    // follow-up date, a new comment, before #1834 — is not a gesture: the
+    // ticket still waits, and a log replayed puts it back in WAITING.
     "ticket.resumed": lisible("ticket.resumed", (base, ticket, { at, payload }) => {
-      const [sur] = base.lire<{ reason: string | null }>("SELECT reason FROM rail WHERE ticket = ? AND state = '86'", ticket);
       const attente = base.lire<{ prior_state: string; prior_reason: string | null; prior_until: string | null }>(
         "SELECT prior_state, prior_reason, prior_until FROM rail_waiting WHERE ticket = ?",
         ticket,
       )[0];
-      if (sur === undefined) return;
-      if (payload.to === "kitchen") {
-        if (attente !== undefined || sur.reason === REVENU_D_ATTENTE) passer(base, ticket, at, { state: "waiting" });
-        return;
-      }
-      if (attente === undefined) return;
+      if (attente === undefined || base.lire("SELECT 1 FROM rail WHERE ticket = ? AND state = '86'", ticket).length === 0) return;
+      if (payload.to === "kitchen") return passer(base, ticket, at, { state: "waiting" });
+      if (payload.why !== PAR_LE_CHEF) return;
       if (attente.prior_state === "86" && attente.prior_reason !== null) passer(base, ticket, at, { state: "86", reason: attente.prior_reason, until: attente.prior_until });
-      else passer(base, ticket, at, { state: "86", reason: REVENU_D_ATTENTE });
-      base.executer("INSERT OR REPLACE INTO rail_resumed (ticket, why) VALUES (?, ?)", ticket, payload.why);
+      else passer(base, ticket, at, { state: "waiting" });
     }),
     "waiting.marked": lisible("waiting.marked", (base, ticket, { payload }) => {
       base.executer("INSERT OR REPLACE INTO rail_waiting_marks (ticket, mark) VALUES (?, ?)", ticket, payload.waiting === null ? null : JSON.stringify(marqueDe(payload.waiting)));
@@ -559,20 +565,30 @@ export function livresDepuis(base: Base, instant: string): Livre[] {
     });
 }
 
-function attendus(base: Base, card: Fiche | null): Attendu[] {
-  return (card?.waitsFor ?? []).flatMap((ticket) => {
+// What the card awaits, read against the fate of each awaited ticket: those
+// still awaited (`awaits`), and those closed without being served, no longer
+// awaited (`dropped`).
+function attendus(base: Base, card: Fiche | null): { awaits: Attendu[]; dropped: AttenteLevee[] } {
+  const awaits: Attendu[] = [];
+  const dropped: AttenteLevee[] = [];
+  for (const ticket of card?.waitsFor ?? []) {
     const sort = sortDuTicket(base, ticket);
-    if (sort?.outcome === "served") return [];
+    if (sort?.outcome === "served") continue;
     // Un ticket redécoupé qui a quitté le rail n'est pas abandonné : ses
     // morceaux le servent. Tous servis, il est livré ; sinon ils sont en route,
-    // et seul un morceau perdu le laisse bloquer ceux qui l'attendent.
+    // et seul un morceau perdu le laisse attendu comme parti.
     if (sort?.outcome === "left" && decoupageDe(base, ticket)?.state === "split") {
       const bilan = bilanDEpique(base, ticket);
-      if (bilan.toutServi) return [];
-      if (bilan.manquants.length === 0) return [{ ticket, left: null }];
+      if (bilan.toutServi) continue;
+      if (bilan.manquants.length === 0) {
+        awaits.push({ ticket, left: null });
+        continue;
+      }
     }
-    return [{ ticket, left: sort ? { reason: sort.reason ?? "", seq: sort.seq } : null }];
-  });
+    if (sort !== null && DEPARTS_QUI_LEVENT.includes(sort.reason ?? "")) dropped.push({ ticket, reason: sort.reason ?? "", seq: sort.seq });
+    else awaits.push({ ticket, left: sort ? { reason: sort.reason ?? "", seq: sort.seq } : null });
+  }
+  return { awaits, dropped };
 }
 
 // The project's common paths, as the log carries them.
@@ -664,27 +680,21 @@ function attentesDeTiers(base: Base): Map<number, AttenteDeTiers> {
   );
 }
 
-type Ligne = Omit<TicketRail, "card" | "awaits" | "held" | "outOfZone" | "frozenBy" | "waitingFor" | "resumedBecause"> & { card: string | null; delivery: string | null };
+type Ligne = Omit<TicketRail, "card" | "awaits" | "dropped" | "held" | "outOfZone" | "frozenBy" | "waitingFor"> & { card: string | null; delivery: string | null };
 function lire(base: Base, suite: string, ...parametres: number[]): TicketRail[] {
   const tenu = tenants(base);
   const geles = gelesDuRail(base);
   const tiers = attentesDeTiers(base);
   const dehors = horsZoneDuRail(base);
   const communs = dehors.size === 0 ? [] : communsDuRail(base);
-  const revenus = new Map(base.lire<{ ticket: number; why: string }>("SELECT ticket, why FROM rail_resumed").map(({ ticket, why }) => [ticket, why]));
   return base.lire<Ligne>(`SELECT ${COLONNES}, delivery FROM rail ${suite}`, ...parametres).map(({ delivery, ...ligne }) => {
     const card = lireFiche(ligne.card);
-    const awaits = attendus(base, card);
+    const { awaits, dropped } = attendus(base, card);
     const held = ligne.state === "waiting" ? tenu(ligne.ticket, card, delivery) : [];
     const frozenBy = ligne.state === "waiting" ? awaits.map((a) => a.ticket).filter((numero) => geles.has(numero)) : [];
     const outOfZone = card === null || card.problems.length > 0 ? [] : horsZone(card.zone, dehors.get(ligne.ticket) ?? [], communs);
-    return { ...ligne, card, awaits, held, outOfZone, frozenBy, waitingFor: tiers.get(ligne.ticket) ?? null, resumedBecause: revenus.get(ligne.ticket) ?? null };
+    return { ...ligne, card, awaits, dropped, held, outOfZone, frozenBy, waitingFor: tiers.get(ligne.ticket) ?? null };
   });
-}
-
-// How many non-brigade comments each marked wait saw when it was set.
-export function commentairesEntendus(base: Base): Map<number, number> {
-  return new Map(base.lire<{ ticket: number; heard: number }>("SELECT ticket, heard FROM rail_waiting_heard").map(({ ticket, heard }) => [ticket, heard]));
 }
 
 // What each ticket's issue says about its wait, as the runtime put it there,

@@ -30,9 +30,14 @@
 // pour tout le projet : sa cause en clair — l'hôte que la porte refuse, ou le
 // motif de l'échec — et le geste qui la lève. Il en sort quand la branche
 // d'intégration a bougé et que les setups reprennent.
-// Un ticket en WAITING n'y est pas : il attend un tiers, pas le chef. Repris
-// par le chef, il y revient — avec l'entrée qu'il avait avant d'attendre, ou,
-// s'il n'en avait pas, une à lui : ce qu'il attendait, et les gestes.
+// Un ticket que la cuisine a mis de côté n'y est pas (#1834) : qui l'a mis de
+// côté sait pourquoi, et l'en sort seul quand la raison tombe — son calibrage
+// posé, sa fiche lisible, une station qui fournit ce qu'il demande ou qui se
+// manifeste, son heure de retour. D'ici là, il est sur le rail avec sa raison
+// (mise-de-cote.ts, `MISES_DE_COTE`). Un ticket qui en attend un autre n'y est
+// pas non plus, quoi qu'il arrive à l'autre. Ni un ticket en WAITING : il
+// attend un tiers, pas le chef, et n'en sort que sur un geste — « resume », il
+// reprend son état d'avant ; « arrived », il repart en cuisine.
 // Une carte typée qui a passé la porte de TODO (carte-todo.ts) y est, avec sa
 // sorte, sa question et ses choix, tant qu'elle n'en est pas sortie.
 // La pause du renommage du code (pause/pause.ts) y entre par sa carte : la
@@ -44,14 +49,14 @@
 // pourquoi, jusqu'à ce que le chef l'ôte.
 import type { Base } from "./base.ts";
 import { geste } from "./geste.ts";
-import { absentesDuMotif, CLE_DES_CAPACITES, direManque, direManqueEn, direStationAbsente, direStationAbsenteEn, GESTE_DE_PRESENCE, GESTE_DE_PRESENCE_EN, gesteDeCapacite, gesteDeCapaciteEn, manqueDuMotif, type Manque } from "./capacites.ts";
+import { CLE_DES_CAPACITES, manqueDuMotif, type Manque } from "./capacites.ts";
 import { A_RELIRE, declarationsDeLaCause, DU_MANAGER, ENCORE_ROUGE, MERGE_REFUSE, NON_JUGEE, REDECOUPE, SANS_GRANT, testsInstablesDeLaCause } from "./events/pass.ts";
 import { REJOUER_LA_BASE } from "./dire-base.ts";
 import { demandeEnAttente, refus, reglagesEnVigueur, type Demande as DemandeDeFermeture, type Refus } from "./closing/condition.ts";
 import { direDemande as direDemandeDeFermeture, direDemandeEn as direDemandeDeFermetureEn } from "./closing/say.ts";
 import type { Ecart } from "./events/manager.ts";
 import { epiquesEnAttente } from "./projections/splits.ts";
-import { issuesEnAttente, managerAllume, plusUneEpiqueDepuis } from "./projections/manager.ts";
+import { issuesEnAttente, plusUneEpiqueDepuis } from "./projections/manager.ts";
 import { miseAJourDuJour } from "./mise-a-jour/relais.ts";
 import { etatDeLaBase, gatesDuRouge, lirePass, reparationDeLaBase, type EchecDeReparation, type PassDeTicket, type SansGrant } from "./projections/pass.ts";
 import { feuNonVu, type TicketRail } from "./projections/rail.ts";
@@ -59,12 +64,10 @@ import { alerteDeSession, type AlerteDeSession } from "./projections/renewal.ts"
 import { alerteDuJeton, type AlerteDuJeton } from "./projections/token.ts";
 import { direDeconnexion, direDeconnexionEn, etatStation, GESTE_DE_CONNEXION, GESTE_DE_CONNEXION_EN, GESTE_DE_CONNEXION_TOMBEE, GESTE_DE_CONNEXION_TOMBEE_EN, miseDeCoteBloquee, setupBloque, stationsDeconnectees, type MiseDeCoteBloquee, type SetupBloque } from "./projections/stations.ts";
 import { echecsDuDisjoncteur, etatDesGardeFous, type EchecDuDisjoncteur } from "./projections/guardrails.ts";
-import { nomAbandon, nomAbandonEn, retenue } from "./rail.ts";
 import { echecsDesGates } from "./reparation.ts";
 import { DECLARATION_RESEAU } from "./reseau.ts";
 import { SCRIPT_SETUP } from "./gates.ts";
 import { CAUSES_DU_PROJET } from "./mise-de-cote.ts";
-import { REVENU_D_ATTENTE } from "./events/rail.ts";
 import { cartesEnTodo, direCarte, direCarteEn, type CarteDeTodo } from "./carte-todo.ts";
 import { aLaCuisine } from "./remontee-a-la-cuisine.ts";
 import type { EnVol } from "./pause/evenements.ts";
@@ -106,26 +109,12 @@ export type AttenteDeTicket = { ticket: number; title: string | null; since: str
   // Une livraison dont la PR a été fermée sans merge : son ticket tient encore
   // sa place sur le rail. `reason` : ce qu'elle était — arrêtée, remontée.
   | { quoi: "fermee"; reason: string; cause: string | null; pr: string | null; livraison?: Livraison }
-  // Un ticket que sa station a déclaré 86 sans heure de retour.
-  | { quoi: "86"; reason: MotifDeStation }
-  // Un ticket 86 parce qu'il demande une capacité qu'aucune station déclarée
-  // ne fournit : aucun cook n'est parti.
-  | { quoi: "capacite"; manque: Manque }
-  // Un ticket 86 parce que seule une station distante absente peut le
-  // cuisiner : aucun cook n'est parti, et ce n'est pas une panne.
-  | { quoi: "absente"; stations: string[] }
-  // Un ticket en attente d'un autre qui a quitté le rail sans être servi.
-  | { quoi: "bloque"; abandonnes: { ticket: number; reason: string }[] }
   // Une issue que le manager ne juge pas tant qu'elle porte ce label du chef.
   | { quoi: "ecartee"; reason: EcartQuiAttend }
   // Une issue dont le jugement ne se lit pas — ou, épique, le découpage.
   | { quoi: "illisible"; epique: boolean }
   // Une épique sur laquelle le manager a posé une question avant de découper.
   | { quoi: "question" }
-  // Un ticket sorti de WAITING vers le chef, qui n'était pas mis de côté avant
-  // d'attendre. `attendait` : ce qu'il attendait, et de qui — nul si le journal
-  // ne le dit plus.
-  | { quoi: "repris"; attendait: { what: string; who: string } | null }
   // Une carte typée entrée par la porte de TODO : sa sorte, sa question, ses
   // choix, ses captures (carte-todo.ts).
   | { quoi: "carte"; carte: CarteDeTodo }
@@ -193,14 +182,9 @@ export const QUI_ATTEND: Record<Attente["quoi"], { sorte: SorteDAttente; pourquo
   merge: { sorte: "chef-gesture", pourquoi: "a green delivery the pass may not merge: granting `merge`, reviewing what touches the judges or the declarations, or lifting what GitHub refuses is the chef's" },
   remontee: { sorte: "chef-gesture", pourquoi: "only the causes `CAUSES_DU_CHEF` names: secrets only the chef sets, or the manager's product question — every other escalation goes to the kitchen" },
   fermee: { sorte: "chef-gesture", pourquoi: "its PR was closed without merge — the chef's refusal; taking the ticket off the rail is the chef's too" },
-  "86": { sorte: "chef-gesture", pourquoi: "the station set it aside on what the chef writes: the issue's calibration (the chef's quota), its card, or wording the model refuses" },
-  capacite: { sorte: "chef-gesture", pourquoi: "no station provides what it needs: attaching a machine is the chef's" },
-  absente: { sorte: "chef-gesture", pourquoi: "only an absent remote station can cook it: switching that machine on is the chef's" },
-  bloque: { sorte: "product", pourquoi: "a ticket it awaits left the rail unserved: going on without it, or not, is a product choice" },
   ecartee: { sorte: "chef-gesture", pourquoi: "it carries the chef's own label (`question`, `decision`, `blocked-on-human`)" },
   illisible: { sorte: "chef-gesture", pourquoi: "the manager cannot judge the issue as written: rewording it is the chef's, the manager judges it again when it changes" },
   question: { sorte: "product", pourquoi: "the manager's question on an epic, before cutting it up" },
-  repris: { sorte: "chef-gesture", pourquoi: "the chef took it back from WAITING" },
   carte: { sorte: "product", pourquoi: "a typed card that passed the TODO gate: a product choice or a design validation" },
   connexion: { sorte: "chef-gesture", pourquoi: "a station's Max connection is missing: only the chef logs in" },
   session: { sorte: "chef-gesture", pourquoi: "the Max session is about to fall: only the chef logs in" },
@@ -216,16 +200,6 @@ export const QUI_ATTEND: Record<Attente["quoi"], { sorte: SorteDAttente; pourquo
 
 export const REFERMER_LE_DISJONCTEUR = geste("guardrails resume");
 export const ACCORDER_LE_GRANT = geste("grant enable merge");
-
-// Les 86 que la station pose sans heure de retour, et ce qu'elle attend du chef
-// pour chacun. Les deux premiers reviennent en attente seuls, une fois corrigés.
-const GESTES_DE_STATION_EN = {
-  "no-calibration": "no calibration — to calibrate: set `model:` and `effort:` on the issue, it starts again on its own",
-  "unreadable-card": "unreadable card — to fix: the issue's card, it starts again on its own",
-  refused: "refused three times by the model — to decide: rephrase or recalibrate, then remove and set `fire` again; or remove `fire`",
-} as const;
-type MotifDeStation = keyof typeof GESTES_DE_STATION_EN;
-const deStation = (motif: string | null): motif is MotifDeStation => motif !== null && Object.hasOwn(GESTES_DE_STATION_EN, motif);
 
 // Les écarts qui attendent le chef, et ce qu'il a à faire de chacun. Les autres
 // — la roadmap, l'issue d'un inconnu — n'attendent personne.
@@ -263,7 +237,6 @@ function attentesDuManager(base: Base, tickets: Map<number, TicketRail>): Attent
 // `maintenant` : l'heure à laquelle l'échéance de la session se compte.
 export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new Date()): Attente[] {
   const tickets = new Map(rail.map((ticket) => [ticket.ticket, ticket]));
-  const instant = (seq: number) => base.lire<{ at: string }>("SELECT at FROM events WHERE seq = ?", seq)[0]?.at;
 
   // Le manager qui remonte un ticket rouge avec une carte : la carte parle au
   // chef, la remontée nue ferait doublon.
@@ -273,9 +246,6 @@ export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new 
     if (!ticket) return [];
     const livraison = livraisonDe(base, pass);
     const commun = { ticket: pass.ticket, title: ticket.title, since: pass.since, reason: pass.reason ?? "", cause: pass.cause, pr: pass.pr, ...(livraison === undefined ? {} : { livraison }) };
-    // Revenu de WAITING après avoir été rendu au rail, sa pass d'avant ne dit
-    // plus rien de lui : son entrée est celle du retour.
-    if (ticket.reason === REVENU_D_ATTENTE && pass.phase !== "held") return [];
     if (pass.phase === "held") return [{ ...commun, quoi: "merge", expired: pass.grantExpired }];
     // Rendu au rail par le chef, le ticket n'est plus 86 : sa pass garde sa
     // phase jusqu'au cook suivant, mais plus rien n'attend. Redécoupé, il
@@ -294,29 +264,6 @@ export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new 
     if (pass.phase === "closed" && (ticket.state === "pass" || ticket.state === "86") && pass.reason !== REDECOUPE) return [{ ...commun, quoi: "fermee" }];
     return [];
   });
-
-  const bloques = rail.flatMap((ticket): AttenteDeTicket[] => {
-    if (retenue(ticket) !== "bloque") return [];
-    const partis = ticket.awaits.flatMap(({ ticket: attendu, left }) => (left === null ? [] : [{ ticket: attendu, reason: left.reason, at: instant(left.seq) }]));
-    // Bloqué depuis le premier abandon — ou depuis qu'il attend, s'il est
-    // arrivé après. Les horodatages sont en ISO 8601 UTC : leur ordre est
-    // celui du temps.
-    const premier = partis.map(({ at }) => at ?? ticket.since).sort()[0] ?? ticket.since;
-    return [{ ticket: ticket.ticket, title: ticket.title, since: premier > ticket.since ? premier : ticket.since, quoi: "bloque", abandonnes: partis.map(({ ticket, reason }) => ({ ticket, reason })) }];
-  });
-
-  const repris = rail.flatMap((ticket): AttenteDeTicket[] =>
-    ticket.state === "86" && ticket.reason === REVENU_D_ATTENTE ? [{ ticket: ticket.ticket, title: ticket.title, since: ticket.since, quoi: "repris", attendait: derniereAttente(base, ticket.ticket) }] : [],
-  );
-
-  const refuses = rail.flatMap((ticket): AttenteDeTicket[] =>
-    ticket.state === "86" && ticket.until === null && deStation(ticket.reason) ? [{ ticket: ticket.ticket, title: ticket.title, since: ticket.since, quoi: "86", reason: ticket.reason }] : [],
-  );
-
-  // Un ticket que ni le chef ni la cuisine ne tiennent — une capacité qu'aucune
-  // station ne fournit, une station distante absente — n'est pas dans sa file :
-  // une machine absente n'est pas un choix. Il reste lisible sur le rail, en
-  // WAITING, avec ce qu'il attend (etat.ts, `attente`).
 
   // Elle sort de la file avec le « reprendre » du chef : c'est lui qui efface
   // la déconnexion.
@@ -372,7 +319,7 @@ export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new 
 
   // Ce qui attend un tiers n'attend pas le chef, quoi qu'il attendait avant.
   const enWaiting = (attente: Attente) => attente.ticket !== null && tickets.get(attente.ticket)?.waitingFor != null;
-  return [...disjoncteur, ...pause, ...renommage, ...baseRouge, ...setup, ...aside, ...connexions, ...session, ...jeton, ...fermeture, ...livraisons, ...bloques, ...repris, ...refuses, ...attentesDuManager(base, tickets), ...cartes]
+  return [...disjoncteur, ...pause, ...renommage, ...baseRouge, ...setup, ...aside, ...connexions, ...session, ...jeton, ...fermeture, ...livraisons, ...attentesDuManager(base, tickets), ...cartes]
     .filter((attente) => !enWaiting(attente))
     .sort((a, b) => a.since.localeCompare(b.since) || (a.ticket ?? 0) - (b.ticket ?? 0));
 }
@@ -437,10 +384,8 @@ export function direPauseEn({ since, minutes, finissent, retenus }: PauseEnVigue
 
 // La cuisine au repos parce que le reste du rail attend une capacité qu'aucune
 // station ne fournit : plus rien n'est pris ni en pass, aucun ticket en attente
-// ne peut partir, et des tickets sont mis de côté `no-station` sans être dans
-// la file — le manager allumé les reprend avant le chef (sans-capacite.ts), et
-// tant qu'il n'a rien posé, le bloc dirait « nothing awaits the chef » sans
-// plus. `sansStation` : ces tickets, chacun avec ce qui lui manque ;
+// ne peut partir, et des tickets sont mis de côté `no-station` — jamais dans
+// la file (#1834) : le bloc dirait « nothing awaits the chef » sans plus. `sansStation` : ces tickets, chacun avec ce qui lui manque ;
 // `derriere` : les tickets en attente que leur fiche retient derrière eux, en
 // suivant `awaits` de proche en proche — un ticket qui en attend un autre, sans
 // lien avec eux, n'y est pas. Ce n'est pas une décision : rien n'entre dans la
@@ -489,15 +434,6 @@ export function direReposSansStationEn({ sansStation, derriere }: ReposSansStati
   const enAttente = derriere.length === 0 ? "" : ` — waiting behind ${les}: ${numeros(derriere)}`;
   const aFaire = `attach a station that provides ${capacites}, or lower ${ceux} — remove ${capacites} from the \`${CLE_DES_CAPACITES}\` line of ${sa} — or close ${les}`;
   return `${CUISINE_AU_REPOS} — the rest of the rail needs a human: no station provides ${manques}${enAttente} — to unblock: ${aFaire}`;
-}
-
-// Ce que le ticket attendait d'un tiers, à sa dernière mise en attente.
-function derniereAttente(base: Base, ticket: number): { what: string; who: string } | null {
-  const [ligne] = base.lire<{ what: unknown; who: unknown }>(
-    "SELECT json_extract(payload, '$.what') AS what, json_extract(payload, '$.who') AS who FROM events WHERE ticket = ? AND type = 'ticket.waiting' ORDER BY seq DESC LIMIT 1",
-    ticket,
-  );
-  return typeof ligne?.what === "string" && typeof ligne.who === "string" ? { what: ligne.what, who: ligne.who } : null;
 }
 
 // Ce qui échoue sur la base rouge : ce que ses gates nommaient au dernier
@@ -615,17 +551,6 @@ export function direAttenteEn(attente: Attente): string {
     }
     case "fermee":
       return `PR closed without merge${attente.pr === null ? "" : `: ${attente.pr}`} — to decide: remove \`fire\`, or close the issue — \`${geste(`pass ${attente.ticket}`)}\``;
-    case "86":
-      return GESTES_DE_STATION_EN[attente.reason];
-    case "capacite":
-      return `${direManqueEn(attente.manque)} — to provide: ${gesteDeCapaciteEn(attente.manque)}`;
-    case "absente":
-      return `${direStationAbsenteEn(attente.stations)} — ${GESTE_DE_PRESENCE_EN}`;
-    case "bloque": {
-      const numeros = attente.abandonnes.map(({ ticket }) => `#${ticket}`).join(", ");
-      const abandons = attente.abandonnes.map(({ ticket, reason }) => `#${ticket} dropped (${nomAbandonEn(reason)})`).join(", ");
-      return `BLOCKED: ${abandons} — to unblock: put ${numeros} back on the rail, or remove ${attente.abandonnes.length > 1 ? "them" : "it"} from the \`attend\` line of the card`;
-    }
     case "ecartee":
       return GESTES_D_ECART_EN[attente.reason];
     case "illisible":
@@ -634,10 +559,6 @@ export function direAttenteEn(attente: Attente): string {
         : "manager's judgment unreadable — to redo: edit the issue, the manager judges it again; or set `fire`, `model:` and `effort:` by hand; or close the issue";
     case "question":
       return "manager's question before splitting the epic — to answer: on the issue, the manager reads it again and splits it; or close the issue";
-    case "repris": {
-      const attendait = attente.attendait === null ? "" : ` (it was waiting for ${attente.attendait.who}: “${attente.attendait.what}”)`;
-      return `back from WAITING, picked up again by the chef${attendait} — to decide: \`/brigade arrived #${attente.ticket}\` on the Kitchen board sends it back to the kitchen; \`${geste(`waiting set ${attente.ticket} --what <what it waits for> --from <who>`)}\` puts it back in WAITING; or remove \`fire\``;
-    }
     case "carte":
       return direCarteEn(attente.carte);
     case "fermeture":
@@ -679,7 +600,6 @@ export function decisionDe(attente: AttenteDeTicket): Decision {
     case "remontee":
     case "fermee":
       return { quoi, motif: attente.reason, cause: attente.cause, pr: attente.pr };
-    case "86":
     case "ecartee":
       return { quoi, motif: attente.reason, cause: null, pr: null };
     case "illisible":
@@ -803,14 +723,6 @@ export function decrireAttentes(attentes: Attente[], depuis: (instant: string) =
 // avec le ticket qui traduit la dernière d'entre elles ; le bloc `awaiting` dit
 // `direAttenteEn`.
 
-// Les 86 que la station pose sans heure de retour, et ce qu'elle attend du chef
-// pour chacun. Les deux premiers reviennent en attente seuls, une fois corrigés.
-const GESTES_DE_STATION = {
-  "no-calibration": "sans calibrage — à calibrer : poser `model:` et `effort:` sur l'issue, il repart seul",
-  "unreadable-card": "fiche illisible — à corriger : la fiche de l'issue, il repart seul",
-  refused: "refusé trois fois par le modèle — à trancher : reformuler ou recalibrer, puis retirer et reposer `fire` ; ou retirer `fire`",
-} as const;
-
 // Les écarts qui attendent le chef, et ce qu'il a à faire de chacun. Les autres
 // — la roadmap, l'issue d'un inconnu — n'attendent personne.
 const GESTES_D_ECART = {
@@ -915,17 +827,6 @@ export function direAttente(attente: Attente): string {
     }
     case "fermee":
       return `PR fermée sans merge${attente.pr === null ? "" : ` : ${attente.pr}`} — à trancher : retirer \`fire\`, ou fermer l'issue — \`${geste(`pass ${attente.ticket}`)}\``;
-    case "86":
-      return GESTES_DE_STATION[attente.reason];
-    case "capacite":
-      return `${direManque(attente.manque)} — à fournir : ${gesteDeCapacite(attente.manque)}`;
-    case "absente":
-      return `${direStationAbsente(attente.stations)} — ${GESTE_DE_PRESENCE}`;
-    case "bloque": {
-      const numeros = attente.abandonnes.map(({ ticket }) => `#${ticket}`).join(", ");
-      const abandons = attente.abandonnes.map(({ ticket, reason }) => `#${ticket} abandonné (${nomAbandon(reason)})`).join(", ");
-      return `BLOQUÉ : ${abandons} — à débloquer : remettre ${numeros} sur le rail, ou ${attente.abandonnes.length > 1 ? "les" : "le"} retirer de la ligne \`attend\` de la fiche`;
-    }
     case "ecartee":
       return GESTES_D_ECART[attente.reason];
     case "illisible":
@@ -934,10 +835,6 @@ export function direAttente(attente: Attente): string {
         : "jugement du manager illisible — à reprendre : modifier l'issue, il la rejuge ; ou poser `fire`, `model:` et `effort:` à la main ; ou fermer l'issue";
     case "question":
       return "question du manager avant de découper l'épique — à répondre : sur l'issue, il la relit et la découpe ; ou fermer l'issue";
-    case "repris": {
-      const attendait = attente.attendait === null ? "" : ` (il attendait ${attente.attendait.who} : « ${attente.attendait.what} »)`;
-      return `revenu de WAITING, repris par le chef${attendait} — à trancher : \`/brigade arrived #${attente.ticket}\` sur le tableau de la cuisine le renvoie en cuisine ; \`${geste(`waiting set ${attente.ticket} --what <ce qu'il attend> --from <qui>`)}\` le remet en attente ; ou retirer \`fire\``;
-    }
     case "carte":
       return direCarte(attente.carte);
     case "fermeture":

@@ -16,7 +16,7 @@ import { direSaturationEn } from "../src/machine.ts";
 import { etatLu, etatLuEn, nomEtat, nomEtatEn } from "../src/rail.ts";
 import { sansMotFrancais } from "./aides/glossaire.ts";
 import { exempleDuBas } from "./aides/bas-de-status.ts";
-import { depuis1826, ETAT_D_AVANT, etatDAvant, LU_LE } from "./aides/haut-de-status.ts";
+import { depuis1826, depuis1834, ETAT_D_AVANT, etatDAvant, LU_LE } from "./aides/haut-de-status.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { repertoireTemporaire } from "./outils.ts";
 
@@ -36,8 +36,20 @@ const railDe = (lignes: readonly string[]) =>
     .map((ligne) => ligne.trim().split("  "))
     .map((champs) => [champs[0], champs[1], champs.at(-1)]);
 
+// Ce que #1834 change aux lignes d'avant : #19 attendait #21, fermé sans avoir été servi — il n'était plus
+// BLOQUÉ, il est en attente, et sa ligne dit que la cuisine ne l'attend plus. Le compte du rail suit.
+function lignesDepuis1834(lignes: readonly string[]): string[] {
+  return lignes.map((ligne) =>
+    ligne.startsWith("  #19  BLOQUÉ  ")
+      ? ligne.replace("  #19  BLOQUÉ  ", "  #19  en attente  ")
+      : ligne.startsWith("rail ")
+        ? ligne.replace(/(\d+) en attente · (\d+) BLOQUÉ/, (_, attente: string, bloque: string) => `${Number(attente) + 1} en attente${bloque === "1" ? "" : ` · ${Number(bloque) - 1} BLOQUÉ`}`)
+        : ligne,
+  );
+}
+
 test("sur l'état d'avant, `status` montre les mêmes tickets, dans les mêmes états et le même ordre, et les mêmes comptes", (t) => {
-  const avant = readFileSync(join(ETAT_D_AVANT, "status-d-avant.txt"), "utf8").replace(/\n$/, "").split("\n");
+  const avant = lignesDepuis1834(readFileSync(join(ETAT_D_AVANT, "status-d-avant.txt"), "utf8").replace(/\n$/, "").split("\n"));
   const apres = decrireEtat(lireEtat(etatDAvant(t).journal, LU_LE), LU_LE);
 
   assert.deepEqual(
@@ -45,10 +57,10 @@ test("sur l'état d'avant, `status` montre les mêmes tickets, dans les mêmes �
     railDe(avant).map(([ticket, etat, titre]) => [ticket, EN_ANGLAIS[etat ?? ""], titre]),
   );
   assert.deepEqual(railDe(apres).map(([ticket]) => ticket), ["#17", "#19", "#23", "#25", "#18", "#20", "#24", "#26"]);
-  assert.equal(basDe(apres)[0], "rail       1 taken · 2 in pass · 2 queued · 1 BLOCKED · 2 86");
+  assert.equal(basDe(apres)[0], "rail       1 taken · 2 in pass · 3 queued · 2 86");
   assert.deepEqual(basDe(apres).slice(1, 9), [
     "  #17  in pass  prio:1  since 3 d, cooked by box/claude  Ticket 17",
-    "  #19  BLOCKED  prio:1  #21 dropped (issue closed without being served) — since 2 h 04  Ticket 19",
+    "  #19  queued  prio:1  #21 was closed without being served: no longer awaited — since 2 h 04  Ticket 19",
     "  #23  taken  prio:1  by box/claude since 5 min, STUCK: no progress since 5 min, lease 5 min left  Ticket 23",
     "  #25  86  prio:1  since 5 min (quota), back in 4 h 56  Ticket 25",
     // Remontée technique, elle est à la cuisine (#1826) : sa ligne le dit.
@@ -76,10 +88,10 @@ test("l'état d'exemple fait paraître chaque ligne du bas de `status`, et aucun
   const bas = basDe(sortie);
 
   assert.deepEqual(bas.slice(0, bas.indexOf("latest events")), [
-    "rail       3 taken · 2 in pass · 6 queued · 2 BLOCKED · 4 86 · 1 WAITING · 1 served",
+    "rail       3 taken · 2 in pass · 7 queued · 1 BLOCKED · 4 86 · 1 WAITING · 1 served",
     "  #30  queued  prio:0  machine saturated — withheld by box/claude (gradual ramp-up, cooks that have just left weigh in advance) — since 4 min  Réparer la base",
     "  #17  in pass  prio:1  since 3 d, cooked by box/claude  Ticket 17",
-    "  #19  BLOCKED  prio:1  #21 dropped (issue closed without being served) — since 2 h 04  Ticket 19",
+    "  #19  queued  prio:1  withheld by box/claude (gradual ramp-up, cooks that have just left weigh in advance) — #21 was closed without being served: no longer awaited — since 2 h 04  Ticket 19",
     "  #23  taken  prio:1  by box/claude since 5 min, STUCK: no progress since 5 min, lease 5 min left  Ticket 23",
     "  #25  86  prio:1  since 5 min (quota), back in 4 h 56  Ticket 25",
     // Remontée technique, elle est à la cuisine (#1826) : sa ligne le dit.
@@ -92,7 +104,7 @@ test("l'état d'exemple fait paraître chaque ligne du bas de `status`, et aucun
     "  #33  queued  -  awaiting #18 — since 2 min  Awaits a 86",
     "  #34  queued  -  awaiting #24 — since 2 min  Awaits another",
     "  #35  WAITING  -  awaiting the customer: “the customer's answer” — since 2 min, follow-up on 14 Oct 18:00 UTC — on arrival, it goes back to the kitchen, without going through TODO: it is put back on the rail, and a cook takes it in its turn  At the customer",
-    "  #36  86  -  since 2 min (pass:unjudged), no return time  Frozen",
+    "  #36  86  -  since 2 min (pass:unjudged), no return time — back on its own once the kitchen takes it over: sent back to a cook, or after its `fix` ticket  Frozen",
     "  #37  BLOCKED  -  blocked by #36 (86 with no return time, not judged by the pass) — since 2 min  Awaits the frozen",
     "  #38  86  -  since 2 min (quota), back at the next tick  Return passed",
     "  #39  taken  -  by box/claude since 2 min, STUCK: no progress since 2 min, lease expired since 4 min  Expired lease",
@@ -148,7 +160,7 @@ const chiffres = (ligne: string, francais = false) =>
   (sansSeparateurs(ligne, francais).match(/#\d+|\b[0-9a-f]{7}\b(?!-)|\bport \d+|\b\d+(?: h \d\d| min| [jd]\b| s\b)|\b\d+(?:\.\d+)?\b/g) ?? []).map((chiffre) => chiffre.replace(/ j$/, " d"));
 
 test("sur l'état d'exemple d'avant, chaque ligne du bas dit les mêmes tickets, ports, durées et nombres qu'avant — et la même ligne y répond, une à une", (t) => {
-  const avant = basDe(readFileSync(join(FIXTURE_940, "status-d-avant.txt"), "utf8").replace(/\n$/, "").split("\n"));
+  const avant = basDe(lignesDepuis1834(readFileSync(join(FIXTURE_940, "status-d-avant.txt"), "utf8").replace(/\n$/, "").split("\n")));
   const apres = basDe(decrireEtat(lireEtat(exempleDuBas(t), LU_LE), LU_LE));
   assert.equal(apres.length, avant.length);
   const titres: Array<[string, string]> = [
@@ -171,7 +183,7 @@ test("sur l'état d'exemple d'avant, chaque ligne du bas dit les mêmes tickets,
 });
 
 test("`facts` de l'état d'exemple est identique à ce qu'il était avant la traduction : mêmes clés, mêmes valeurs", (t) => {
-  const avant = depuis1826(JSON.parse(readFileSync(join(FIXTURE_940, "facts.json"), "utf8")));
+  const avant = depuis1834(depuis1826(JSON.parse(readFileSync(join(FIXTURE_940, "facts.json"), "utf8"))));
   assert.deepEqual(JSON.parse(JSON.stringify(faits(lireEtat(exempleDuBas(t), LU_LE), LU_LE))), avant);
 });
 

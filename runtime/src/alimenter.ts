@@ -4,13 +4,13 @@
 import { createHash } from "node:crypto";
 import { marquerAttentes } from "./attente.ts";
 import { calibrage } from "./calibrage.ts";
-import { cycles, direCycle, signalerBlocages } from "./dependances.ts";
+import { cycles, direCycle, signalerAttentesLevees } from "./dependances.ts";
 import { fiche, porteFiche, type Fiche } from "./fiche.ts";
 import { HORS_CUISINE, LABEL, ouvrirGitHub, type GitHub, type Issue } from "./github.ts";
 import { LimiteGitHubAtteinte } from "./limite-github.ts";
 import type { FaitRail } from "./events/rail.ts";
 import type { Journal } from "./journal.ts";
-import { communsDuRail, feuNonVu, lireRail, sortDuTicket, ticketDuRail } from "./projections/rail.ts";
+import { communsDuRail, DEPARTS_QUI_LEVENT, feuNonVu, lireRail, sortDuTicket, ticketDuRail } from "./projections/rail.ts";
 import { ouvrirRail, type Rail } from "./rail.ts";
 import { ConfigInvalide, type Runtime } from "./runtime.ts";
 import { refusEn } from "./zones.ts";
@@ -51,6 +51,10 @@ export type FichesLues = Map<number, { updatedAt: string; fiche: Fiche | null; s
 // publique, et une fiche dit quoi cuisiner.
 export const DE_CONFIANCE = ["OWNER", "MEMBER", "COLLABORATOR"];
 
+// Un ticket attendu dont seul GitHub dira la fermeture : le journal ne le sait
+// ni servi ni fermé — inconnu, ou parti du rail l'issue encore ouverte.
+const aGuetter = (sort: ReturnType<typeof sortDuTicket>) => sort === null || (sort.outcome === "left" && !DEPARTS_QUI_LEVENT.includes(sort.reason ?? ""));
+
 // Lit la fiche d'une issue dans ses commentaires, puis ce que seul GitHub
 // sait : si chaque ticket attendu existe, et — pour celui dont le journal ne
 // sait rien — s'il est fermé. `relecture` : l'issue n'a pas bougé depuis la
@@ -85,10 +89,11 @@ async function lireFiche(
         lue?.problems.push(`attend : #${attendu} ne désigne aucune issue du dépôt`);
       } else if (autre.pr) {
         lue?.problems.push(`attend : #${attendu} est une PR, pas un ticket`);
-      } else if (sortDuTicket(journal.base, attendu) === null) {
-        // Ni servie ni partie du rail : le journal n'en sait rien. Fermée, elle
-        // ne sera jamais servie — c'est un abandon, à écrire. Ouverte, elle
-        // peut le devenir sans que rien ne bouge sur le rail.
+      } else if (aGuetter(sortDuTicket(journal.base, attendu))) {
+        // Ni servie ni fermée au journal : jamais entrée sur le rail, ou partie
+        // l'issue encore ouverte (`fire` retiré, `hors-cuisine`). Fermée, elle
+        // ne sera jamais servie — l'attente tombe, à écrire (#1834). Ouverte,
+        // elle peut le devenir sans que rien ne bouge sur le rail.
         if (autre.state === "closed") fermees.push(autre);
         else stable = false;
       }
@@ -129,7 +134,10 @@ export async function alimenter(
     if (!lisible(issue)) continue;
     const connue = fiches.get(issue.number);
     const relecture = connue?.updatedAt === issue.updatedAt;
-    if (relecture && connue.stable) continue;
+    // Stable à sa lecture, elle ne l'est plus si un ticket qu'elle attend a
+    // quitté le rail depuis, l'issue ouverte : seul GitHub en dira la fermeture.
+    const guettee = (connue?.fiche?.waitsFor ?? []).some((attendu) => !presentes.has(attendu) && aGuetter(sortDuTicket(journal.base, attendu)));
+    if (relecture && connue.stable && !guettee) continue;
     const lue = await lireFiche(journal, github, issue, presentes, relecture);
     fiches.set(issue.number, { updatedAt: issue.updatedAt, ...lue });
     // Ce qui la réparerait ne modifie pas cette issue, donc pas la liste : le
@@ -244,11 +252,12 @@ export async function alimenter(
     for (const { ticket, reason, updatedAt } of departs) {
       if (ticketDuRail(journal.base, ticket)) nombre += noter(ticket, { type: "ticket.left", payload: { reason } }, updatedAt);
     }
-    // Une issue attendue, fermée sans être jamais entrée sur le rail : le
-    // journal l'apprend ici, une fois, et celui qui l'attend en est bloqué.
+    // Une issue attendue, fermée hors du rail — sans y être jamais entrée, ou
+    // après l'avoir quitté ouverte : le journal l'apprend ici, une fois, et
+    // celui qui l'attend ne l'attend plus (#1834).
     for (const { fermees = [] } of fiches.values()) {
       for (const fermee of fermees) {
-        if (ticketDuRail(journal.base, fermee.number) || sortDuTicket(journal.base, fermee.number)) continue;
+        if (ticketDuRail(journal.base, fermee.number) || !aGuetter(sortDuTicket(journal.base, fermee.number))) continue;
         nombre += noter(fermee.number, { type: "ticket.left", payload: { reason: "closed" } }, fermee.updatedAt);
       }
     }
@@ -346,8 +355,8 @@ export function avecRail(runtime: Runtime, options: OptionsRail): RuntimeAvecRai
     try {
       const ecrits = await alimenter(journal, github, { projet, depot: options.depot }, fiches, retraitsLus);
       if (ecrits > 0 && !arrete) for (const ecouter of [...ecouteurs]) ecouter();
-      // Un abandon n'arrive que par un sondage : c'est le moment d'en avertir.
-      if (!arrete) await signalerBlocages(journal, github, projet);
+      // Un départ n'arrive que par un sondage : c'est le moment de le dire.
+      if (!arrete) await signalerAttentesLevees(journal, github, projet);
       limiteDite = false;
     } catch (erreur) {
       // `gh` en panne (réseau, connexion expirée) : le rail reste tel quel, et

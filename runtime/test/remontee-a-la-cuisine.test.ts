@@ -16,21 +16,18 @@ import { aArreter, repertoireTemporaire } from "./outils.ts";
 const SRC = join(import.meta.dirname, "..", "src");
 
 test("chaque sorte d'entrée dans la file du chef est un choix de produit ou un geste que lui seul peut faire, et dit pourquoi", () => {
-  // La liste entière : une sorte ajoutée doit être lue ici, et classée.
+  // La liste entière : une sorte ajoutée doit être lue ici, et classée. Un
+  // ticket que la cuisine a mis de côté, ou qui en attend un autre, n'y a pas
+  // de sorte : il attend sur le rail, pas le chef (#1834).
   assert.deepEqual(
     Object.fromEntries(Object.entries(QUI_ATTEND).map(([quoi, { sorte }]) => [quoi, sorte])),
     {
       merge: "chef-gesture",
       remontee: "chef-gesture",
       fermee: "chef-gesture",
-      "86": "chef-gesture",
-      capacite: "chef-gesture",
-      absente: "chef-gesture",
-      bloque: "product",
       ecartee: "chef-gesture",
       illisible: "chef-gesture",
       question: "product",
-      repris: "chef-gesture",
       carte: "product",
       connexion: "chef-gesture",
       session: "chef-gesture",

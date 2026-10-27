@@ -463,14 +463,14 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     assert.equal(c.jugements().length, 1);
   });
 
-  test("le chef ferme un ticket du découpage : il ne renaît pas, et l'épique dit ce que ça bloque", async (t) => {
+  test("le chef ferme un ticket du découpage : il ne renaît pas, et l'épique dit que celui qui l'attendait ne l'attend plus", async (t) => {
     const c = brigade(t, { scenario: "muet", issues: [issue(30, ["epic"])] });
     epique(c);
     await c.decoupee(30);
 
     fermer(c, 502);
     await jusqua(() => /\| #502 \| [^|]+ \| abandonné \(issue fermée sans avoir été servie\) \|/.test(c.liste(30)));
-    await jusqua(() => /\| #503 \| [^|]+ \| bloqué — #502 abandonné/.test(c.liste(30)));
+    await jusqua(() => /\| #503 \| [^|]+ \| attend #501 — #502 a été fermé sans avoir été servi : il n'est plus attendu \|/.test(c.liste(30)));
     await c.laisserTourner();
 
     assert.deepEqual(c.gh.creations, [501, 502, 503]);

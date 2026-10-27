@@ -10,7 +10,7 @@ import { test } from "node:test";
 import { decrireEtat, faits, lireEtat } from "../src/etat.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { sansMotFrancais } from "./aides/glossaire.ts";
-import { depuis1826, ETAT_D_AVANT, etatDAvant, exemple, LU_LE, STATION } from "./aides/haut-de-status.ts";
+import { depuis1826, depuis1834, ETAT_D_AVANT, etatDAvant, exemple, LU_LE, STATION } from "./aides/haut-de-status.ts";
 import { repertoireTemporaire } from "./outils.ts";
 
 // Les lignes qui précèdent le bloc `attend` / `awaiting`, d'une sortie de `status`.
@@ -131,6 +131,6 @@ test("sur l'état d'exemple d'avant, chaque ligne du haut dit les mêmes tickets
 });
 
 test("`facts` de l'état d'exemple est identique à ce qu'il était avant la traduction : mêmes clés, mêmes valeurs", (t) => {
-  const avant = depuis1826(JSON.parse(readFileSync(join(FIXTURE_928, "facts.json"), "utf8")));
+  const avant = depuis1834(depuis1826(JSON.parse(readFileSync(join(FIXTURE_928, "facts.json"), "utf8"))));
   assert.deepEqual(JSON.parse(JSON.stringify(faits(lireEtat(exemple(t), LU_LE), LU_LE))), avant);
 });

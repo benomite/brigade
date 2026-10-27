@@ -191,7 +191,7 @@ describe("un geste du chef posté sous le tableau", () => {
     assert.match(a.tableau.reponses[1] ?? "", /^\*\*Done\*\* — \[choose #30\]/);
   });
 
-  test("`arrived` renvoie en cuisine un ticket de WAITING — et un ticket qui en est revenu dans TODO —, sans commande de la box ni GitHub", async (t) => {
+  test("`arrived` renvoie en cuisine un ticket de WAITING, sans commande de la box ni GitHub — repris, il y est déjà", async (t) => {
     const a = atelier(t);
     a.arriver();
     mettreEnAttente(a.journal, PROJET, 30, { quoi: "the client's go-ahead", qui: "the client" });
@@ -206,13 +206,13 @@ describe("un geste du chef posté sous le tableau", () => {
     assert.equal(a.tableau.reponses[0], `**Done** — [arrived #30](${geste.url}) — cost: ${PRIX_DE_L_ARRIVEE}`);
     assert.deepEqual(a.faits().map(({ ticket, payload }) => [ticket, payload.gesture, payload.done]), [[30, "arrived", true]]);
 
-    // Revenu de WAITING devant le chef (« resume »), il repart de TODO de même.
+    // Repris (« resume ») : il ne passe plus par TODO, il est déjà sur le rail (#1834) — `arrived` le dit, sans rien changer.
     mettreEnAttente(a.journal, PROJET, 30, { quoi: "the signed quote", qui: "the client" });
     reprendre(a.journal, PROJET, 30);
     a.tableau.poster("/brigade arrived 30");
     await a.gestes.traiter(TABLEAU);
     assert.deepEqual([ticketDuRail(a.journal.base, 30)?.state, ticketDuRail(a.journal.base, 30)?.reason], ["waiting", null]);
-    assert.match(a.tableau.reponses[1] ?? "", /^\*\*Done\*\* — \[arrived #30\]/);
+    assert.match(a.tableau.reponses[1] ?? "", /^\*\*Not done\*\* — \[arrived #30\]\(.*\): ticket 30 is not waiting for a third party — it is queued$/);
   });
 
   test("`arrived` sur un ticket qui n'attend pas de tiers est refusé, en une ligne, et rien ne change", async (t) => {

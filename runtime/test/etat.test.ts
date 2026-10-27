@@ -202,7 +202,7 @@ test("un bail échu se dit coincé et un 86 dont l'heure est passée se dit tel 
   ]);
 });
 
-test("un ticket qui en attend un autre le dit, et un ticket bloqué par un abandon se compte et se lit à part", (t) => {
+test("un ticket qui en attend un autre le dit, même parti du rail l'issue ouverte ; fermé sans service, il ne l'attend plus et le dit (#1834)", (t) => {
   const { journal, noter, arriver } = cuisine(t);
   const attendre = (ticket: number, waitsFor: number[]) =>
     noter(
@@ -221,14 +221,18 @@ test("un ticket qui en attend un autre le dit, et un ticket bloqué par un aband
 
   const lignes = decrire(journal, `${JOUR_HORLOGE}T10:04:10.000Z`);
 
-  // Le ticket bloqué attend le chef : le bloc `attend` passe avant le rail.
   const debut = lignes.findIndex((ligne) => ligne.startsWith("rail"));
   assert.deepEqual(lignes.slice(debut, debut + 4), [
-    "rail       2 queued · 1 BLOCKED",
+    "rail       3 queued",
     "  #14  queued  prio:1  since 4 min  Ticket 14",
     "  #16  queued  -  awaiting #14 — since 4 min  Ticket 16",
-    "  #17  BLOCKED  -  #15 dropped (label `fire` removed) · also awaiting #14 — since 4 min  Ticket 17",
+    "  #17  queued  -  awaiting #14, #15 (off the rail, issue still open: label `fire` removed) — since 4 min  Ticket 17",
   ]);
+
+  // L'issue de #15 fermée sans avoir été servie : #17 ne l'attend plus, et le dit.
+  noter({ type: "ticket.left", payload: { reason: "closed" } }, 15, "github");
+  const apres = decrire(journal, `${JOUR_HORLOGE}T10:04:10.000Z`);
+  assert.ok(apres.includes("  #17  queued  -  awaiting #14 — #15 was closed without being served: no longer awaited — since 4 min  Ticket 17"), apres.join("\n"));
 });
 
 test("un ticket pris dit depuis quand il n'a pas progressé, à côté du temps depuis la prise", (t) => {

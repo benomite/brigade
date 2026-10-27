@@ -39,29 +39,6 @@ const EXEMPLES = {
     { ...ticket(11), quoi: "remontee", reason: "unknown-reason", cause: null, pr: null },
   ],
   fermee: [{ ...ticket(12), quoi: "fermee", reason: "held", cause: null, pr: pr(12) }],
-  "86": [
-    { ...ticket(13), quoi: "86", reason: "no-calibration" },
-    { ...ticket(14), quoi: "86", reason: "unreadable-card" },
-    { ...ticket(15), quoi: "86", reason: "refused" },
-  ],
-  capacite: [
-    { ...ticket(16), quoi: "capacite", manque: { capacites: ["gpu"], ensemble: false } },
-    { ...ticket(17), quoi: "capacite", manque: { capacites: ["gpu", "macos"], ensemble: true } },
-  ],
-  absente: [
-    { ...ticket(18), quoi: "absente", stations: ["mac/claude"] },
-    { ...ticket(19), quoi: "absente", stations: ["mac/claude", "pc/codex"] },
-  ],
-  bloque: [
-    {
-      ...ticket(20),
-      quoi: "bloque",
-      abandonnes: [
-        { ticket: 30, reason: "closed" },
-        { ticket: 31, reason: "unfired" },
-      ],
-    },
-  ],
   ecartee: [
     { ...ticket(21), quoi: "ecartee", reason: "question" },
     { ...ticket(22), quoi: "ecartee", reason: "decision" },
@@ -72,10 +49,6 @@ const EXEMPLES = {
     { ...ticket(25), quoi: "illisible", epique: false },
   ],
   question: [{ ...ticket(26), quoi: "question" }],
-  repris: [
-    { ...ticket(27), quoi: "repris", attendait: { what: "the **design** review. Then more.", who: "the designer" } },
-    { ...ticket(28), quoi: "repris", attendait: null },
-  ],
   carte: [
     {
       ...ticket(29),
@@ -131,8 +104,18 @@ describe("every kind of TODO card is built with the single shape", () => {
     assert.equal(carteDeLAttente(exemple(6)).type, "remontee");
   });
 
-  test("a free text of the kitchen — a cause, a reason, what a ticket waited for — never makes a summary fail", () => {
-    for (const n of [3, 9, 10, 27]) assert.doesNotMatch(carteDeLAttente(exemple(n)).resume, /`|\*\*|Twice|design review/);
+  test("a free text of the kitchen — a cause, a reason — never makes a summary fail", () => {
+    for (const n of [3, 9, 10]) assert.doesNotMatch(carteDeLAttente(exemple(n)).resume, /`|\*\*|Twice/);
+  });
+
+  // Ce que la cuisine a mis de côté n'attend pas le chef (#1834) : il reste sur
+  // le rail avec sa raison, et y repart seul quand elle tombe.
+  test("no card asks the chef to put a ticket back on the rail", () => {
+    for (const attente of TOUTES) {
+      const carte = carteDeLAttente(attente);
+      assert.doesNotMatch(carte.question ?? "", /back on the rail/);
+      assert.ok(!carte.choix.some(({ texte }) => /back on the rail/.test(texte)));
+    }
   });
 });
 

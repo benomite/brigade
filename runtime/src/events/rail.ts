@@ -33,28 +33,34 @@ export type FaitRail =
   // l'accès de la station au dépôt, quand il est refusé (`projets/acces.ts`),
   // et le geste qui le lève. Absents pour tout autre motif.
   | { type: "ticket.86"; payload: { reason: string; until: string | null; why?: string; access?: AccesRefuse } }
-  // Le ticket attend `by`, qui a quitté le rail sans avoir été servi : personne
-  // ne le prendra tant que ça dure. Ce fait ne change pas le rail — le blocage
-  // s'y lit déjà —, il retient que le chef en a été averti.
+  // Le ticket attendait `by`, qui a quitté le rail sans avoir été servi.
+  // Écrit avant #1834, quand un tel départ le bloquait : il ne change rien au
+  // rail, et ne s'écrit plus.
   | { type: "ticket.blocked"; payload: { by: number; reason: string } }
+  // Le ticket attendait `by`, fermé sans avoir été servi (ou disparu) : la
+  // cuisine ne l'attend plus, d'elle-même (#1834). Ce fait ne change pas le
+  // rail — l'attente levée s'y lit déjà —, il retient que l'issue en a été
+  // avertie.
+  | { type: "ticket.wait-dropped"; payload: { by: number; reason: string } }
   // Le chef met le ticket en attente d'un tiers (WAITING) : ce qu'il attend,
   // dans ses mots, de qui, et la date à laquelle y revenir (`followUp`, un
   // instant ISO). Le ticket est mis de côté sans heure de retour : la cuisine ne
   // le prend pas. Redit d'un ticket qui attend déjà, il met à jour l'attente
   // sans en changer le début.
   | { type: "ticket.waiting"; payload: { what: string; who: string; followUp: string } }
-  // Le ticket sort de WAITING. `to` : `todo`, il revient devant le chef — dans
-  // l'état où il était avant d'attendre s'il était mis de côté, sinon mis de
-  // côté pour lui (motif `third-party:resumed`) ; `kitchen`, il repart en
-  // cuisine sans repasser devant le chef. `why` : ce qui l'a fait sortir
-  // (`chef`, le geste du chef ; ou, écrit par le runtime, le motif lisible :
-  // « relance du 21/10 : pas de réponse », « nouveau sur l'issue »).
+  // Le ticket sort de WAITING, sur un geste. `to` : `todo` (« resume »), il
+  // reprend l'état qu'il avait avant d'attendre — mis de côté pour son propre
+  // motif, ou en attente sur le rail ; `kitchen` (« arrived »), il repart en
+  // cuisine. Aucun des deux ne passe par TODO (#1834). `why` : ce qui l'a fait
+  // sortir — `chef`, le geste. Un `todo` que le runtime écrivait seul avant
+  // #1834 (« relance du 21/10 : pas de réponse », « nouveau sur l'issue »)
+  // n'est pas un geste : le rail le lit sans effet, le ticket attend toujours.
   | { type: "ticket.resumed"; payload: { to: "todo" | "kitchen"; why: string } }
   // L'issue du ticket dit ce que le rail sait de son attente : la marque posée
   // (label `waiting` et commentaire) pour cette attente-ci, ou retirée (`null`).
   // Ce fait retient seulement ce qui est déjà sur GitHub. `heard` : le nombre
-  // de commentaires hors brigade que l'issue portait alors — ce qui s'y ajoute
-  // ensuite ramène le ticket.
+  // de commentaires hors brigade que l'issue portait alors, écrit avant #1834,
+  // quand un commentaire de plus ramenait le ticket ; il ne s'écrit plus.
   | { type: "waiting.marked"; payload: { waiting: { what: string; who: string; followUp: string } | null; heard?: number } }
   // Le chef a retiré `fire` de l'issue puis l'a reposé, et la cuisine ne l'a
   // pas compté : le retrait précède la retenue du ticket (`removedAt`, l'instant
@@ -93,10 +99,7 @@ export const STATION_ABSENTE = "station-absent";
 // retour : seul un geste l'en sort. Jamais parti pour cette attente, il ne
 // tient de zone que s'il porte une livraison ouverte.
 export const ATTEND_UN_TIERS = "third-party";
-// Le motif du 86 d'un ticket sorti de WAITING vers le chef, quand il n'était
-// pas mis de côté avant d'attendre : il revient devant le chef, pas en cuisine.
-export const REVENU_D_ATTENTE = "third-party:resumed";
-// Ce qui fait sortir un ticket de WAITING, quand c'est le chef.
+// Ce qui fait sortir un ticket de WAITING : le geste du chef — « resume »,
+// « arrived ». Rien ne l'en sort seul : ni sa date de relance, ni un
+// commentaire sur son issue (#1834).
 export const PAR_LE_CHEF = "chef";
-// Rien d'autre que son geste ne le fait sortir : ni la date de relance (qui se lit sur sa
-// carte WAITING), ni un commentaire, ni une mise à jour de la box.
