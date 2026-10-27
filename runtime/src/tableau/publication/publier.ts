@@ -51,6 +51,12 @@ const LIGNE_DU_TICK = /^(?:last tick .* ago \(cadence: .*\)|no tick since startu
 // Ce qui part vers GitHub est masqué (identifiants.ts) : le corps se compare tel qu'il y est.
 const masquer = (corps: string) => masquerIdentifiants(corps).texte;
 
+// Les rubriques de `status` qui comptent les appels de la box à GitHub (etat.ts) : le compteur est celui de
+// la station, tous projets confondus, et le tableau s'y compte lui-même — ses lectures et ses écritures
+// le font bouger, d'un projet à l'autre, sans que rien n'ait changé dans la cuisine. Elles ne suffisent
+// pas à réécrire le corps ; `status`, lui, les dit toujours.
+const RUBRIQUES_DU_COMPTEUR = new Set(["gh calls", "board cost"]);
+
 // Ce que dit un corps écrit par la box, à l'heure près : son tableau, sans
 // l'heure de sa lecture ni les durées. Null pour un corps qui n'est pas le
 // rendu fidèle de son bloc — retouché à la main, ou d'un autre rendu : il est
@@ -61,7 +67,7 @@ export function contenuDuCorps(corps: string): string | null {
   const { tableau } = lu;
   // Le dernier tick du runtime bat chaque minute : il dit que la box vit, pas que
   // la cuisine a bougé — ni dans le bloc, ni dans la ligne de `status` qui le dit.
-  const rubriques = tableau.cuisine.rubriques.map((rubrique) => (rubrique.titre === "runtime" ? { ...rubrique, lignes: rubrique.lignes.map((ligne) => ligne.replace(LIGNE_DU_TICK, "…")) } : rubrique));
+  const rubriques = tableau.cuisine.rubriques.map((rubrique) => (rubrique.titre === "runtime" ? { ...rubrique, lignes: rubrique.lignes.map((ligne) => ligne.replace(LIGNE_DU_TICK, "…")) } : RUBRIQUES_DU_COMPTEUR.has(rubrique.titre) ? { ...rubrique, lignes: [] } : rubrique));
   const cuisine = { ...tableau.cuisine, runtime: { ...tableau.cuisine.runtime, dernierTick: null }, rubriques };
   // Les faits portent aussi l'heure de leur lecture, ce dernier tick, et le
   // dernier événement du journal : un événement qui ne change rien d'autre
