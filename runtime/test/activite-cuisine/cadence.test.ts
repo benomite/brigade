@@ -67,6 +67,18 @@ test("on compte des tickets servis : mergé puis servi, il compte pour un dans s
   assert.equal(heures()[23]?.served, 2);
 });
 
+test("mergé à la fin d'une heure, servi au début de la suivante : il compte pour un, dans l'heure où il l'est d'abord", (t) => {
+  const { noter, heures } = cuisine(t);
+  noter(22, 11, MERGE); // 11 h 58 : la barre d'avant
+  noter(19, 11, SERVI); // 12 h 01 : la barre en cours
+  noter(3 * 60, 12, MERGE); // 9 h 20
+  noter(60, 12, SERVI); // 11 h 20
+
+  const lues = heures();
+  assert.deepEqual([lues[20]?.served, lues[21]?.served, lues[22]?.served, lues[23]?.served], [1, 0, 1, 0]);
+  assert.equal(lues.reduce((somme, { served }) => somme + served, 0), 2);
+});
+
 test("un raté : une pass revenue rouge, ou un cook fini sans suite (échoué, garde-fou, arrêt) — chacun compte une fois, une pass verte non", (t) => {
   const { noter, heures } = cuisine(t);
   noter(15, 21, jugee("red"));

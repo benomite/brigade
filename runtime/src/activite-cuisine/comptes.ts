@@ -22,8 +22,10 @@ export const JOUR_MS = 24 * HEURE_MS;
 
 // Les faits que chaque compte lit, et ce qui en écarte un.
 type Lecture = { types: readonly string[]; sauf?: { motif: string } };
+// Ce qui sert un ticket : sa livraison mergée, ou son service sans diff. L'histogramme du rail (cadence.ts) le lit aussi.
+export const TYPES_SERVIS = ["ticket.served", "merge.done"] as const;
 const LECTURES: Record<keyof Comptes, Lecture> = {
-  served: { types: ["ticket.served", "merge.done"] },
+  served: { types: TYPES_SERVIS },
   sentBack: { types: ["pass.returned"] },
   escalated: { types: ["pass.escalated"], sauf: { motif: REDECOUPE } },
 };
