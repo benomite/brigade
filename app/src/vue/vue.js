@@ -1587,6 +1587,24 @@ function boutonDeCommande(texte, geste) {
   return cree;
 }
 
+// Le logo de brigade (docs/logo/brigade-icone.svg), la queue : la page ne charge aucune image, il est dessiné ici.
+function logoDeBrigade() {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", "2 18 60 28");
+  svg.setAttribute("aria-hidden", "true");
+  for (const [balise, attributs] of /** @type {[string, Record<string, string>][]} */ ([
+    ["rect", { x: "2.5", y: "22", width: "14", height: "20", rx: "7", opacity: ".4" }],
+    ["rect", { x: "19.5", y: "22", width: "14", height: "20", rx: "7", opacity: ".7" }],
+    ["path", { d: "M43.5 22h4a14 10 0 0 1 0 20h-4a7 7 0 0 1-7-7v-6a7 7 0 0 1 7-7z" }],
+  ])) {
+    const forme = document.createElementNS(ns, balise);
+    for (const [nom, valeur] of Object.entries(attributs)) forme.setAttribute(nom, valeur);
+    svg.append(forme);
+  }
+  return svg;
+}
+
 // Une entrée de la barre : deux caractères, et ce qu'ils désignent dit en entier
 // au survol et à qui ne voit pas l'écran.
 /** @param {string} signe @param {string} nom @param {() => void} geste */
@@ -5239,7 +5257,7 @@ function poserInterrupteur() {
 // ligne chacun — son état en une phrase, l'heure de sa lecture et ce que le process principal en dit au survol
 // (retard.ts) —, et son seul geste quand il en a un. L'app en retard, ou à relancer : un bouton la met à jour et la
 // relance, sans terminal (rattrapage.ts). Le clone d'un projet en retard : la commande qui le met à jour est un bouton,
-// elle s'écrit dans un shell, et rien ne l'envoie. La case « T » de la barre le dit aussi, quel que soit l'écran.
+// elle s'écrit dans un shell, et rien ne l'envoie. La case du logo de la barre le dit aussi, quel que soit l'écran.
 function poserCode() {
   const entree = document.getElementById("entree-tous");
   if (entree !== null) {
@@ -7745,13 +7763,14 @@ function afficher() {
     ].join("\n");
     return montrer();
   }
-  const entree = icone("T", "All projects", ouvrirTous);
+  const entree = icone("", "All projects", ouvrirTous);
   entree.id = "entree-tous";
+  entree.append(logoDeBrigade());
   const pied = icone("+", "Add a project", ouvrirAjout);
   pied.id = "entree-ajout";
   barre.prepend(entree);
   barre.append(pied);
-  // La case « T » est neuve : ce que la dernière lecture des clones en dit y est reposé.
+  // La case du logo est neuve : ce que la dernière lecture des clones en dit y est reposé.
   poserCode();
 
   const meme = configuration.projets.find((projet) => projet.nom === courant?.nom);

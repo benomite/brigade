@@ -211,7 +211,15 @@ pre.propos {
 #projets #entree-tous {
   border-radius: 50%;
 }
-/* La case « T » le dit aussi, quel que soit l'écran : le nom au survol dit quoi. */
+/* Pas de lettre : le logo de brigade, un svg peint de la couleur du texte de la case. */
+#projets #entree-tous svg {
+  display: block;
+  width: 20px;
+  height: 20px;
+  margin: auto;
+  fill: currentColor;
+}
+/* La case du logo le dit aussi, quel que soit l'écran : le nom au survol dit quoi. */
 #projets #entree-tous.perime {
   border-color: var(--jaune);
 }
