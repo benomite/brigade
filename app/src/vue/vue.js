@@ -2258,32 +2258,45 @@ function retenirDeclarees(guide) {
   const lues = guide?.controle?.stations;
   if (guide === undefined || lues === undefined) return;
   declarees.set(guide.projet, lues);
-  if (courant?.nom === guide.projet) poserDeclarees(courant);
+  if (courant?.nom === guide.projet) reposerLesStations(courant);
+}
+
+// Les stations déclarées se lisent dans « Its stations » quand il est posé (ticket 1786) : c'est lui qui se repose ; sinon,
+// leur bloc à elles.
+/** @param {Projet} projet */
+function reposerLesStations(projet) {
+  if (stationsPosees) poserCuisson(projet);
+  else poserDeclarees(projet);
 }
 
 // Ce que chaque station déclarée du projet fournit, et où elle tourne (stations-declarees.js) — et, ouvert sous l'une,
 // son formulaire (ticket 1510).
 /** @param {Projet} projet */
 function poserDeclarees(projet) {
+  declareesDuProjet.replaceChildren(poserLesDeclarees(document, { stations: declarees.get(projet.nom), ...lieuDesStations(projet) }));
+}
+
+// Où tournent les stations d'un projet, et de quoi éditer chacune — dans leur bloc, ou dans « Its stations » (ticket 1786).
+/** @param {Projet} projet @returns {import("./stations-de-cuisson.js").Lieu} */
+function lieuDesStations(projet) {
+  /** @type {import("./stations-declarees.js").Editer} */
   const editer = {
     ...(editee?.projet === projet.nom ? { editee: editee.edition } : {}),
     ...(derniereEditee?.projet === projet.nom ? { dernier: derniereEditee } : {}),
     ouvrir: (/** @type {string} */ nom) => void ouvrirLEdition(projet, nom),
     fermer: () => {
       editee = undefined;
-      poserDeclarees(projet);
+      reposerLesStations(projet);
     },
     sauver: () => void envoyerLEdition(projet, false),
     confirmer: (/** @type {boolean} */ oui) => {
       if (editee?.projet !== projet.nom) return;
       editee.edition.confirmer = oui;
-      poserDeclarees(projet);
+      reposerLesStations(projet);
     },
     retirer: () => void envoyerLEdition(projet, true),
   };
-  declareesDuProjet.replaceChildren(
-    poserLesDeclarees(document, { stations: declarees.get(projet.nom), jouees: projet.stations ?? [], ici: projet.ici === true, ...(projet.box === undefined ? {} : { hote: projet.box.hote }), projet: projet.nom, editer }),
-  );
+  return { jouees: projet.stations ?? [], ici: projet.ici === true, ...(projet.box === undefined ? {} : { hote: projet.box.hote }), projet: projet.nom, editer };
 }
 
 // Une station s'édite sous sa ligne (ticket 1510) : une à la fois. Ses cases sont celles qu'elle déclare, celles des
@@ -2302,11 +2315,11 @@ async function ouvrirLEdition(projet, nom, appelee) {
   const ouverte = { projet: projet.nom, edition: { nom, cooks: String(station.cooks), fournit: appelee === undefined || station.fournit.includes(appelee) ? [...station.fournit] : [...station.fournit, appelee], jouee: ouTourne(station, { jouees: projet.stations ?? [], ici: projet.ici === true }) === "poste", choix: choixDeCapacites(station, lues, [], appelee), confirmer: false, envoi: false } };
   editee = ouverte;
   derniereEditee = undefined;
-  poserDeclarees(projet);
+  reposerLesStations(projet);
   const defauts = await defautsDeCetOrdinateur(projet.nom);
   if (editee !== ouverte || "refus" in defauts) return;
   ouverte.edition.choix = choixDeCapacites(station, lues, defauts.capacites, appelee);
-  if (courant?.nom === projet.nom) poserDeclarees(courant);
+  if (courant?.nom === projet.nom) reposerLesStations(courant);
 }
 // « Save », ou « Remove » confirmé : le geste part, puis le formulaire se referme sur ce qu'il a rendu — ou reste
 // ouvert, le refus dedans. Les stations relues arrivent par `surGuide`.
@@ -2318,7 +2331,7 @@ async function envoyerLEdition(projet, retrait) {
   edition.envoi = true;
   edition.confirmer = false;
   edition.rendu = undefined;
-  poserDeclarees(projet);
+  reposerLesStations(projet);
   /** @type {import("../service.ts").StationVoulue} */
   const voulu = retrait ? { retiree: true } : { cooks: Number(edition.cooks), fournit: edition.fournit, jouee: edition.jouee };
   /** @type {import("../service.ts").StationChangee} */
@@ -2333,7 +2346,7 @@ async function envoyerLEdition(projet, retrait) {
     editee = undefined;
     derniereEditee = { projet: projet.nom, nom: edition.nom, fait: rendu.fait };
   } else edition.rendu = rendu;
-  if (courant?.nom === projet.nom) poserDeclarees(courant);
+  if (courant?.nom === projet.nom) reposerLesStations(courant);
 }
 
 // Un geste de l'installation a rendu un terminal — le second, pour la session d'init ; un
@@ -4340,6 +4353,24 @@ function poserCuisson(projet, posees = new Map()) {
     saisies: { lire: (station) => plafondsSaisis.get(cleDeCuisson(projet.nom, station)) ?? "", ecrire: (station, valeur) => void plafondsSaisis.set(cleDeCuisson(projet.nom, station), valeur) },
     regler: (station, valeur) => void reglerLePlafondDuProjet(projet.nom, station, valeur),
     tete: laCuisine,
+    // Toutes ses stations, chacune une fois (ticket 1786) : ce que la principale déclare, ce que l'app sait de chacune par
+    // GitHub, la principale d'abord et le geste qui en change. L'écran étroit les lit sans rien y régler (ticket 1186).
+    declarees: declarees.get(projet.nom)?.declarees ?? [],
+    appairees: appaireesDuProjet(projet),
+    ...(etroit()
+      ? { lieu: { ...lieuDesStations(projet), editer: undefined } }
+      : {
+          lieu: lieuDesStations(projet),
+          deplacer: {
+            ...demenagementOffert(projet),
+            ouvrir: () => {
+              ouvrirLeChoixDeMachine();
+              stationsDuProjet.scrollIntoView?.({ block: "nearest" });
+            },
+          },
+          relire: (/** @type {string} */ id) => brigade.panne(id, "relire-la-station"),
+          autoriser: (/** @type {string} */ url) => void brigade.autoriserSurGitHub(url),
+        }),
   });
   stationsPosees = pose !== null;
   cuissonDuProjet.replaceChildren(...(pose === null ? [] : [pose]));
@@ -4514,7 +4545,8 @@ async function reglerLePlafondDuProjet(projet, station, valeur) {
 function poserCuisineEtroite(projet, tenu) {
   if (projet.sansStation === true) return rail.replaceChildren(bloc("h3", STATION_ARRETEE));
   // Dans l'ordre de l'écran large (ticket 1456) : ses stations d'abord.
-  if (stationsPosees) return rail.replaceChildren(cuissonDuProjet, declareesDuProjet, activiteDuProjet, gatesDuProjet, rolesDuProjet, triageDuProjet, apprisDuProjet);
+  // Ce que chaque station fournit est dans sa ligne (ticket 1786).
+  if (stationsPosees) return rail.replaceChildren(cuissonDuProjet, activiteDuProjet, gatesDuProjet, rolesDuProjet, triageDuProjet, apprisDuProjet);
   const pourquoi = muets.has(projet.nom)
     ? "its stations: not known while the station is unreachable"
     : tenu === undefined
@@ -4568,7 +4600,8 @@ function poserRail(projet) {
   if (cuisine && etroit()) return poserCuisineEtroite(projet, tenu);
   // Sans stations lues — un runtime qui ne les donne pas, une box muette —, la carte du projet reste entière, en tête :
   // elle seule dit alors ses cooks en cours.
-  const deCooks = () => [...(stationsPosees ? [] : [carte]), cuissonDuProjet, servisSansCarte, pages, declareesDuProjet, activiteDuProjet, fiabilite, gatesDuProjet, closer, plafondDuProjet, rolesDuProjet, triageDuProjet, apprisDuProjet, lectureDeLaCuisine];
+  // Ses stations posées, ce que chacune fournit est dans sa ligne (ticket 1786) : leur bloc à elles ne se pose plus.
+  const deCooks = () => [...(stationsPosees ? [] : [carte]), cuissonDuProjet, servisSansCarte, pages, ...(stationsPosees ? [] : [declareesDuProjet]), activiteDuProjet, fiabilite, gatesDuProjet, closer, plafondDuProjet, rolesDuProjet, triageDuProjet, apprisDuProjet, lectureDeLaCuisine];
   /** @param {(HTMLElement | string)[]} poses */
   const poser = (...poses) => rail.replaceChildren(...(cuisine ? [...poses, ...deCooks()] : [...(alerteDeCuisine.hidden ? [] : [alerteDeCuisine]), ...poses]));
   // Cuisine d'un projet servi ici, station arrêtée : rien n'est lu, la page dit pourquoi en une ligne — sur l'un et
@@ -5879,7 +5912,7 @@ function cuisineDe(projet) {
         // avant, elle est bloquée, et la ligne dit où.
         const bloquee = !station.principale && station.etat !== "secondaire" && station.etat !== "servi";
         const sans = bloquee ? blocageDeLaStation(station) : undefined;
-        return { id: station.id, nom: station.nom, principale: station.principale, ...etatDeLaCuisine(station.etat, station.atteinte), pourquoi: sans?.pourquoi ?? station.atteinte?.pourquoi ?? "", geste: sans?.geste ?? station.atteinte?.geste ?? "", survol: station.atteinte === undefined ? station.dit : station.atteinte.dit.replace(/^(not )?reached: /, ""), autoriser: station.autoriser, bloquee };
+        return { id: station.id, nom: station.nom, ...(station.atteinte?.station === undefined ? {} : { station: station.atteinte.station }), principale: station.principale, ...etatDeLaCuisine(station.etat, station.atteinte), pourquoi: sans?.pourquoi ?? station.atteinte?.pourquoi ?? "", geste: sans?.geste ?? station.atteinte?.geste ?? "", survol: station.atteinte === undefined ? station.dit : station.atteinte.dit.replace(/^(not )?reached: /, ""), autoriser: station.autoriser, bloquee };
       }),
   ];
   return { stations, demande: demande !== undefined, principale: stations.some(({ principale }) => principale) };
@@ -5963,6 +5996,52 @@ function enMouvement(enCours) {
   return dit;
 }
 
+// Si la cuisine d'un projet peut déménager — et vers quelles stations —, ou pourquoi pas, en une phrase : un projet que l'app
+// a confié à une station, qui cuit sur l'une d'elles, sans déménagement accepté en route, et une autre station où aller.
+/**
+ * @param {Projet} projet @param {ReturnType<typeof ouCuit>} ou
+ * @param {import("../projets/projets.ts").DemenagementEnCours | null} enCours @param {boolean} lues
+ */
+function deplacementDe(projet, ou, enCours, lues) {
+  const confie = projetsVus?.projets.some(({ nom, stations }) => nom === projet.nom && stations.some(({ principale }) => principale)) ?? false;
+  const fige = enCours !== null && (enCours.etape === "acceptee" || enCours.etape === "remise");
+  const repris = enCours !== null && !fige;
+  const appairees = (stationsVues?.stations ?? []).filter(({ etat, cuisine }) => etat !== "illisible" && cuisine !== false);
+  const destinations = appairees.filter(({ id }) => id !== ou?.id || repris);
+  const pourquoiPas = !lues
+    ? "your stations are still being read on GitHub"
+    : !confie
+      ? `${projet.nom} was not added to a station from this app: the app does not move its kitchen`
+      : ou === undefined || ou.id === null
+        ? "the app does not know yet which station it cooks on"
+        : fige
+          ? "a move is already under way: it finishes first"
+          : destinations.length === 0
+            ? "no other station of yours can take it: pair another one first"
+            : "";
+  return { offert: pourquoiPas === "", pourquoiPas, destinations, fige, repris };
+}
+
+// Le changement de principale offert sur la ligne de la principale, dans « Its stations » (ticket 1786) : le même que
+// « move the kitchen », en tête de la page.
+/** @param {Projet} projet */
+function demenagementOffert(projet) {
+  const { stations } = cuisineDe(projet);
+  const enCours = projetsVus?.projets.find(({ nom }) => nom === projet.nom)?.demenagement ?? null;
+  const { offert, pourquoiPas } = deplacementDe(projet, ouCuit(projet, stations), enCours, stationsVues !== undefined && projetsVus !== undefined);
+  return { offert, pourquoiPas };
+}
+
+// Les stations du projet que l'app connaît par GitHub, telles que « Its stations » les reçoit (ticket 1786) : celle où il cuit
+// est sa principale ; les autres cuisent à côté.
+/** @param {Projet} projet @returns {import("./stations-de-cuisson.js").Appairee[]} */
+function appaireesDuProjet(projet) {
+  const { stations } = cuisineDe(projet);
+  const ou = ouCuit(projet, stations);
+  const principale = stations.find(({ id }) => ou !== undefined && id === ou.id) ?? stations.find(({ principale }) => principale);
+  return stations.map(({ bloquee, ...station }) => ({ ...station, principale: principale !== undefined && station.id === principale.id }));
+}
+
 // Le geste qui déménage la cuisine du projet affiché, et ce qu'il a rendu. Il n'est offert que pour un
 // projet que l'app a confié à une station, et qui cuit sur l'une d'elles : c'est de là qu'il part. Un
 // déménagement accepté va à son terme : rien d'autre ne se demande avant. Demandé ou refusé, il se
@@ -5973,12 +6052,7 @@ function enMouvement(enCours) {
  */
 function poserLeDemenagement(projet, ou, enCours, lues) {
   if (demenagement !== undefined && demenagement.projet !== projet.nom) fermerDemenagement();
-  const confie = projetsVus?.projets.some(({ nom, stations }) => nom === projet.nom && stations.some(({ principale }) => principale)) ?? false;
-  const fige = enCours !== null && (enCours.etape === "acceptee" || enCours.etape === "remise");
-  const repris = enCours !== null && !fige;
-  const appairees = (stationsVues?.stations ?? []).filter(({ etat, cuisine }) => etat !== "illisible" && cuisine !== false);
-  const destinations = appairees.filter(({ id }) => id !== ou?.id || repris);
-  const offert = lues && confie && ou !== undefined && ou.id !== null && !fige && destinations.length > 0;
+  const { offert, destinations } = deplacementDe(projet, ou, enCours, lues);
   ouvrirLeDemenagement.hidden = !offert || demenagement !== undefined || confiance !== undefined;
   if (!offert) fermerDemenagement();
 
@@ -7585,6 +7659,8 @@ brigade.surStations((vu) => {
   if (stationOuverte !== undefined) poserPageDeStation();
   poserChoixDesStations();
   poserStationsDuProjet();
+  // « Its stations » dit de chacune si elle est atteinte, et la principale si elle peut déménager (ticket 1786).
+  if (courant !== undefined) poserCuisson(courant);
 });
 // L'accueil redit : ses lignes remplacent celles d'avant, s'il est affiché — et l'en-tête de la page d'une station.
 brigade.surAccueil((vu) => {

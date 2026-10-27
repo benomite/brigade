@@ -130,9 +130,9 @@ describe("l'onglet Cooks : une ligne par station du projet", () => {
     assert.throws(() => vue.element("carte"), /aucun élément « carte »/);
     const cuisine = vue.element("rail").dessous("p").find(({ className }) => className === "etat-de-la-cuisine") ?? assert.fail("pas de ligne de la cuisine");
     assert.match(cuisine.textContent, /^kitchenouverte/);
-    // Les stations, dans l'ordre de `facts`.
-    assert.deepEqual(lignes(vue).map((li) => li.dataset.station), ["box/claude", "mac/claude", "atelier/claude"]);
-    assert.deepEqual(lignes(vue).map(etatDe), ["cooking", "stopped", "cooking"]);
+    // Les stations, dans l'ordre de `facts`, celles de la principale d'abord (#1786).
+    assert.deepEqual(lignes(vue).map((li) => li.dataset.station), ["box/claude", "atelier/claude", "mac/claude"]);
+    assert.deepEqual(lignes(vue).map(etatDe), ["cooking", "cooking", "stopped"]);
     assert.deepEqual(cooksDe(ligne(vue, "box/claude")), ["#14Le journal en ajout seul"]);
     assert.deepEqual(cooksDe(ligne(vue, "mac/claude")), ["#15La carte des desserts"]);
     assert.deepEqual(cooksDe(ligne(vue, "atelier/claude")), [AUCUN_COOK]);
@@ -140,7 +140,7 @@ describe("l'onglet Cooks : une ligne par station du projet", () => {
     assert.match(ligne(vue, "mac/claude").textContent, /remote/);
     assert.match(ligne(vue, "mac/claude").textContent, /by you, for 3 min · 1 cook finishing/);
     // Un bouton par ligne : arrêter celle qui cuit, relancer celle que le chef a arrêtée.
-    assert.deepEqual(lignes(vue).map((li) => boutonDe(li)?.textContent), ["stop cooking", "start cooking", "stop cooking"]);
+    assert.deepEqual(lignes(vue).map((li) => boutonDe(li)?.textContent), ["stop cooking", "stop cooking", "start cooking"]);
     // Ce qu'il fait est au survol ; arrêter ne coûte rien — pas d'icône de prix —, relancer dit son prix au survol.
     assert.match(boutonDe(ligne(vue, "box/claude"))?.title ?? "", /running cooks finish/);
     assert.equal(ligne(vue, "box/claude").dessous("button").some((bouton) => bouton.className === "aide"), false);
@@ -282,12 +282,12 @@ describe("l'onglet Cooks : un bloc par station, et les cartes de ses tickets en 
   test("les quatre états, un bloc chacun : son mot, son bouton tel qu'aujourd'hui, et les cartes de ses tickets en cours, rien d'autre", async () => {
     const { vue } = await ouvrir(QUATRE, FAITS_QUATRE);
     await ouvrirOnglet(vue, "Cooks");
-    // Exactement un bloc par station du projet, dans l'ordre de `facts`.
-    assert.deepEqual(lignes(vue).map((li) => li.dataset.station), ["box/claude", "mac/claude", "atelier/claude", "pc/claude"]);
-    assert.deepEqual(lignes(vue).map(etatDe), ["cooking", "stopped", "saturated", "refused"]);
-    assert.deepEqual(lignes(vue).map((li) => boutonDe(li)?.textContent), ["stop cooking", "start cooking", "stop cooking", undefined]);
+    // Exactement un bloc par station du projet, dans l'ordre de `facts`, celles de la principale d'abord (#1786).
+    assert.deepEqual(lignes(vue).map((li) => li.dataset.station), ["box/claude", "atelier/claude", "mac/claude", "pc/claude"]);
+    assert.deepEqual(lignes(vue).map(etatDe), ["cooking", "saturated", "stopped", "refused"]);
+    assert.deepEqual(lignes(vue).map((li) => boutonDe(li)?.textContent), ["stop cooking", "stop cooking", "start cooking", undefined]);
     // Chacun porte les cartes des tickets en cours sur sa station, et seulement celles-là : #21, sur le rail, n'est nulle part.
-    assert.deepEqual(lignes(vue).map(cooksDe), [["#14Le journal en ajout seul"], ["#15La carte des desserts"], ["#16Le menu du soir"], [AUCUN_COOK]]);
+    assert.deepEqual(lignes(vue).map(cooksDe), [["#14Le journal en ajout seul"], ["#16Le menu du soir"], ["#15La carte des desserts"], [AUCUN_COOK]]);
     assert.doesNotMatch(vue.element("rail").textContent, /#21/);
     // Ce sont les cartes du kanban : le même bon, l'état du ticket compris — #16, que le rail lu ne porte pas, n'a que
     // son numéro et son titre, et son numéro n'ouvre pas d'issue.

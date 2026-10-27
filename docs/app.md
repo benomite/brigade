@@ -51,7 +51,16 @@ back — gates over budget (`gates over budget — #31`, the ticket the kitchen 
 there (repository access, refusal) in that single line. Clicking it opens Cooks, scrolled to the gates block. Same data
 sources (`coutDesGates`, `triage`). Captures: `docs/captures/1457/`.
 **On Cooks, one block per station of the project** (#1185, #1270), at the top of the tab, wherever it runs — the box, the Mac,
-another computer (`remote`): its state, a word of `facts` (`cooking`, `stopped`, `saturated`, `refused`, #1183)
+another computer (`remote`). **Every station serving the project is there, each once** (#1786): the stations of `facts`, then
+those the main station declares that have not signed in to it yet, then those the app added to the project that the main
+station does not declare yet — a station of the app is recognised by the name the main station gives it (`macbook/claude`,
+published with whether it is reached), or else by its machine name. **The main station comes first**, tagged `main station`
+(on hover: it runs the manager and the pass); the others are `cooking station`. The main station's block carries **`move the
+kitchen`**, the very gesture at the top of the page: it opens the choice of the machine there; greyed, with the reason on
+hover, when the kitchen cannot move (a project not added from this app, no other station, a move under way). Each block
+says **whether the station is reached** — `reached` in green (the main station, whose kitchen the app reads; a station the
+main station says it reaches), `not reached` in grey, or `no word` in grey for a remote station nothing says anything of —,
+then its state, a word of `facts` (`cooking`, `stopped`, `saturated`, `refused`, #1183)
 and what it means (`by you, for 3 min · 1 cook finishing`, `its machine has no room`, the reason for a refusal),
 and, at the bottom of the block, **the cards of the tickets in flight on that station, and only those** — the very cards of
 the Rail kanban: a click (or Enter) opens the same sheet as the same card in Taken, its number opens the issue; a ticket
@@ -67,7 +76,18 @@ banner, the action for a refusal in the block under the stations line. **On Rail
 what, on the cooks' side, asks for your action — a saturated station, a station that refuses the project, repository access
 blocked —, all the causes on the same line, with `open Cooks`, which opens the Cooks tab; nothing shows it
 when nothing asks for it. The modules are `app/src/cuisson.ts` and `app/src/vue/stations-de-cuisson.js`.
-**Under the stations' blocks, what each declared station provides** (#1509, epic #1506): one row per station the project
+**A station that cannot cook says why in one line** (#1786, #1774), under its state: `not signed in yet` for a declared
+station that has not announced itself to the main station (on hover: it takes no ticket until it does); for a station
+added from the app, where it is stuck — `not received by the station`, `waiting for your authorization on GitHub`,
+`refused`, `not reached` —, what you do about it on hover, `check again` (it rereads GitHub) and the authorization button
+it waits for. **In each block, what the station provides** (`Provides code raisonnement`, then `edit`, below) and **its
+cooks at once**: the cap its runtime gives, with `set the cap` (below); for a station whose runtime does not give it yet, the
+number it declares (`Cooks at once: 2`) and `set the cap`, which opens its form, in the block. A station the main station does
+not declare yet says `not declared on the main station yet`. On a narrow screen, the blocks are read-only: no `edit`, no
+`move the kitchen`, no `check again`. The block below, *what each station provides*, is no longer laid when the stations'
+blocks are: it is only the fallback while `facts` does not give the stations.
+**What each declared station provides** (#1509, epic #1506) — in its block since #1786, in a block of its own under the
+stations otherwise: one row per station the project
 declares, in the order of its declaration — its name, where it runs, its cooks cap (`3 cooks at once`) and its capabilities
 (`code`, `raisonnement`, `navigateur-headless`…). Where it runs has three distinct words: `box station`; `this workstation`,
 a remote station this computer plays for the project (it is in the project's `stations` in `app.json` — or any station of a
@@ -76,7 +96,7 @@ come from `installation stations --json`, which the installation check reads (on
 the first read, one line says `not read yet`; a project that declares no station says `no station declared: no cook leaves
 for this project`, never a blank. On a narrow screen, the block sits under the stations' lines. The module is
 `app/src/vue/stations-declarees.js`.
-**Each row has `edit`** (#1510): under the row, its form — `Cooks at once`, prefilled; `What it provides`, one checkbox per
+**Each row has `edit`** (#1510) — so does each station's block (#1786): under the row, its form — `Cooks at once`, prefilled; `What it provides`, one checkbox per
 capability (the boxes of "+ station", #1307): the ones it declares, ticked, then what the other stations provide and what
 this computer can declare, unticked; and `this workstation plays it`, ticked when it does (absent when the project's
 kitchen runs here; greyed, with the reason on hover, for a project with no `hote` or a station that does not run

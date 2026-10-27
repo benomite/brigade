@@ -199,14 +199,33 @@ function ligneDe(doc, station, projet) {
   ligne.dataset.ou = ou;
   const nom = cree(doc, "strong", station.nom);
   nom.className = "mono";
-  const mot = cree(doc, "span", OU[ou]);
-  mot.className = "ou";
-  mot.title = survolDe(ou, station.distante, projet.hote);
   const qui = cree(doc, "span");
   qui.className = "qui";
-  qui.append(nom, mot);
+  qui.append(nom, motDuLieu(doc, station, projet));
   const plafond = cree(doc, "span", plafondDit(station.cooks));
   plafond.className = "plafond";
+  ligne.append(qui, plafond, ...ceQuElleFournit(doc, station, projet));
+  return ligne;
+}
+
+// Où tourne une station, en un mot — ce qu'il veut dire au survol.
+/** @param {Fabrique} doc @param {StationDeclaree} station @param {{ jouees: readonly string[], ici: boolean, hote?: string }} projet */
+export function motDuLieu(doc, station, projet) {
+  const ou = ouTourne(station, projet);
+  const mot = cree(doc, "span", OU[ou]);
+  mot.className = "ou";
+  mot.dataset.ou = ou;
+  mot.title = survolDe(ou, station.distante, projet.hote);
+  return mot;
+}
+
+// Ce qu'une station fournit — ses capacités en liste —, et, à éditer, « edit » et son formulaire ouvert sous elle, ou ce que
+// le dernier geste y a rendu. Le bloc de ses stations sur Cooks (stations-de-cuisson.js, ticket 1786) le pose dans la ligne de chacune.
+/**
+ * @param {Fabrique} doc @param {StationDeclaree} station
+ * @param {{ jouees: readonly string[], ici: boolean, hote?: string, projet?: string, seule?: boolean, editer?: Editer }} projet
+ */
+export function ceQuElleFournit(doc, station, projet) {
   const capacites = cree(doc, "ul");
   capacites.ariaLabel = `what ${station.nom} provides`;
   if (station.fournit.length === 0) {
@@ -222,9 +241,8 @@ function ligneDe(doc, station, projet) {
       }),
     );
   }
-  ligne.append(qui, plafond, capacites);
   const { editer } = projet;
-  if (editer === undefined) return ligne;
+  if (editer === undefined) return [capacites];
   const ouverte = editer.editee?.nom === station.nom ? editer.editee : undefined;
   const bouton = cree(doc, "button", EDITER);
   bouton.type = "button";
@@ -232,10 +250,9 @@ function ligneDe(doc, station, projet) {
   bouton.ariaLabel = `edit ${station.nom}`;
   bouton.ariaExpanded = ouverte === undefined ? "false" : "true";
   bouton.addEventListener("click", () => (ouverte === undefined ? editer.ouvrir(station.nom) : editer.fermer()));
-  ligne.append(bouton);
-  if (ouverte !== undefined) ligne.append(formulaireDe(doc, station, ouverte, editer, { ici: projet.ici, ...(projet.hote === undefined ? {} : { hote: projet.hote }), seule: projet.seule === true, ...(projet.projet === undefined ? {} : { projet: projet.projet }) }));
-  else if (editer.dernier?.nom === station.nom) ligne.append(uneLigneFaite(doc, editer.dernier.fait));
-  return ligne;
+  if (ouverte !== undefined) return [capacites, bouton, formulaireDe(doc, station, ouverte, editer, { ici: projet.ici, ...(projet.hote === undefined ? {} : { hote: projet.hote }), seule: projet.seule === true, ...(projet.projet === undefined ? {} : { projet: projet.projet }) })];
+  if (editer.dernier?.nom === station.nom) return [capacites, bouton, uneLigneFaite(doc, editer.dernier.fait)];
+  return [capacites, bouton];
 }
 
 // Le bloc : son titre, puis une ligne par station déclarée — ou la ligne qui dit qu'il n'y en a aucune, ou qu'elles ne
