@@ -55,7 +55,8 @@ test("sur l'état d'avant, le bloc `awaiting` nomme les mêmes décisions que le
   const a = decisions(bloc(apres, (ligne) => ligne.startsWith("awaiting"), "end awaiting"), /^awaiting +(\d+) decisions? awaits? the chef/, /^ {2}(\S+) {2}for /);
   assert.deepEqual(d, { nombre: 4, nommees: ["#17", "#18", "#19", "#20"] });
   // Sauf #18, remonté sur une cause technique (`returns-exhausted`) : il est à la cuisine, plus au chef (#1826).
-  assert.deepEqual(a, { nombre: 3, nommees: ["#17", "#19", "#20"] });
+  // Sauf #19 aussi, qui attendait #21 fermé sans avoir été servi : la cuisine ne l'attend plus, d'elle-même (#1834).
+  assert.deepEqual(a, { nombre: 2, nommees: ["#17", "#20"] });
 
   // Le bord : une seule ligne qui commence par `awaiting`, une seule qui vaut
   // `end awaiting`, et plus rien de l'ancien.
@@ -93,32 +94,6 @@ const EXEMPLES = {
     { ...ticket(10), quoi: "remontee", reason: "unknown-reason", cause: null, pr: null },
   ],
   fermee: [{ ...ticket(11), quoi: "fermee", reason: "held", cause: null, pr: pr(11) }],
-  "86": [
-    { ...ticket(12), quoi: "86", reason: "no-calibration" },
-    { ...ticket(13), quoi: "86", reason: "unreadable-card" },
-    { ...ticket(14), quoi: "86", reason: "refused" },
-  ],
-  capacite: [
-    { ...ticket(15), quoi: "capacite", manque: { capacites: ["gpu"], ensemble: false } },
-    { ...ticket(16), quoi: "capacite", manque: { capacites: ["gpu", "macos"], ensemble: true } },
-    { ...ticket(17), quoi: "capacite", manque: { capacites: ["gpu", "macos"], ensemble: false } },
-  ],
-  absente: [
-    { ...ticket(18), quoi: "absente", stations: ["mac/claude"] },
-    { ...ticket(19), quoi: "absente", stations: ["mac/claude", "pc/codex"] },
-  ],
-  bloque: [
-    { ...ticket(20), quoi: "bloque", abandonnes: [{ ticket: 30, reason: "closed" }] },
-    {
-      ...ticket(21),
-      quoi: "bloque",
-      abandonnes: [
-        { ticket: 31, reason: "unfired" },
-        { ticket: 32, reason: "gone" },
-        { ticket: 33, reason: "hors-cuisine" },
-      ],
-    },
-  ],
   ecartee: [
     { ...ticket(22), quoi: "ecartee", reason: "question" },
     { ...ticket(23), quoi: "ecartee", reason: "decision" },
@@ -129,10 +104,6 @@ const EXEMPLES = {
     { ...ticket(26), quoi: "illisible", epique: false },
   ],
   question: [{ ...ticket(27), quoi: "question" }],
-  repris: [
-    { ...ticket(28), quoi: "repris", attendait: { what: "the design review", who: "the designer" } },
-    { ...ticket(29), quoi: "repris", attendait: null },
-  ],
   carte: [
     {
       ...ticket(46),

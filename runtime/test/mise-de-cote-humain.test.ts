@@ -23,7 +23,7 @@ test("les autres raisons gardent leur texte", () => {
   assert.equal(direMiseDeCote(null), "attend : mis de côté, sans motif");
   assert.equal(direMiseDeCote("quota"), "attend : quota du compte épuisé");
   assert.equal(direMiseDeCote("pass:still-red"), "attend : la pass le trouve encore rouge");
-  assert.equal(direMiseDeCote("station-absent: m1"), "attend : station absente (m1)");
+  assert.equal(direMiseDeCote("station-absent: m1"), "attend : station absente (m1) — il repart seul dès qu'elle se manifeste");
   assert.equal(direMiseDeCote("autre"), "attend : mis de côté (autre)");
 });
 

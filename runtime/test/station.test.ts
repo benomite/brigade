@@ -17,7 +17,7 @@ import { worktreesGardes } from "../src/projections/cleanup.ts";
 import { lireRail, ticketDuRail } from "../src/projections/rail.ts";
 import { etatStation, miseDeCoteBloquee } from "../src/projections/stations.ts";
 import { echecDuWorktree } from "../src/echec-du-worktree.ts";
-import { configStation } from "../src/station.ts";
+import { configStation, REPLI_REFUS_MS } from "../src/station.ts";
 import { BAIL_MS, CALIBRE, chef, controlerBase, cuisine, fauxGitHub, issue, MACHINE_CALME, MACHINE_VASTE, montre, PLAFONDS, plafonner, STATION } from "./aides/cuisine.ts";
 import { depotQuiRefuse } from "./aides/depot-qui-refuse.ts";
 import { BASE, commiter, DEPOT, depotGit, git, jusqua, mort, repertoireTemporaire, tuerLesRelais } from "./outils.ts";
@@ -793,16 +793,20 @@ describe("la station", { concurrency: 8 }, () => {
     assert.match(gh.commentaires[1]?.[1] ?? "", /essai 2\/3/);
   });
 
-  test("un ticket que le modèle refuse trois fois d'affilée n'est pas relancé sans fin : il remonte au chef, 86, avec le motif", async (t) => {
+  test("un ticket que le modèle refuse trois fois d'affilée n'est pas relancé sans fin : il est mis de côté un jour, 86, avec le motif — sans rien demander au chef (#1834)", async (t) => {
     const { gh, journal, etat, dernier, types, avertissements } = cuisine(t, { scenario: "refuse", seuilDisjoncteur: 1, issues: [issue(15)] });
     await jusqua(() => etat(15) === "86" && gh.commentaires.length === 3);
     await new Promise((resoudre) => setTimeout(resoudre, 80));
 
     assert.equal(types(15).filter((type) => type === "cook.launched").length, 3);
-    assert.deepEqual(dernier("ticket.86", 15), { reason: "refused", until: null });
+    // Son heure de retour, un jour après : la cuisine l'y reprend seule.
+    const mis = journal.duTicket(15).filter((e) => e.type === "ticket.86").at(-1);
+    assert.equal(dernier("ticket.86", 15)?.reason, "refused");
+    assert.ok(Math.abs(Date.parse(String(dernier("ticket.86", 15)?.until)) - Date.parse(mis?.at ?? "") - REPLI_REFUS_MS) < 60_000);
+    assert.deepEqual(attentesDuChef(journal.base, lireRail(journal.base)), []);
     assert.deepEqual([etatDesGardeFous(journal.base).failures, types().includes("breaker.opened")], [0, false]);
-    assert.match(gh.commentaires[2]?.[1] ?? "", /essai 3\/3[\s\S]*\*\*Remonté au chef\.\*\* 3 refus d'affilée : le ticket est 86/);
-    assert.match(avertissements.join("\n"), /le modèle a refusé 3 fois d'affilée le ticket #15 — remonté au chef/);
+    assert.match(gh.commentaires[2]?.[1] ?? "", /essai 3\/3[\s\S]*\*\*Mis de côté un jour\.\*\* 3 refus d'affilée : le ticket est 86, et un cook neuf le reprend dans un jour, seul/);
+    assert.match(avertissements.join("\n"), /le modèle a refusé 3 fois d'affilée le ticket #15 — mis de côté un jour/);
   });
 
   test("un cook refusé dont le ticket a quitté la station pendant la cuisson : le commentaire ne prétend ni l'avoir rendu ni l'avoir remonté", async (t) => {
@@ -820,7 +824,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.deepEqual([etat(15), dernier("ticket.86", 15)?.reason, dernier("ticket.released", 15)], ["86", "ailleurs", undefined]);
     assert.equal(dernier("cook.reported", 15)?.ending, "refused");
     assert.match(gh.commentaires[0]?.[1] ?? "", /refusé par le modèle, essai 1\/3[\s\S]*ne tenait plus ce ticket/);
-    assert.doesNotMatch(gh.commentaires[0]?.[1] ?? "", /revenu en attente|Remonté au chef/);
+    assert.doesNotMatch(gh.commentaires[0]?.[1] ?? "", /revenu en attente|Mis de côté un jour/);
   });
 
   test("un cook qui a commité avant le refus du modèle a livré : son travail est récolté", async (t) => {
