@@ -1757,26 +1757,32 @@ main > header,
   padding-top: 8px;
   border-top: 1px solid var(--trait);
 }
-/* « pair a phone », au bout de la ligne d'une station sur l'accueil (ticket 1598) : discret, comme « + station ». Il
-   est posé par-dessus la ligne, à droite : elle garde toute sa largeur — sa flèche reste alignée sur les autres —, et son
-   clic. */
+/* « pair a phone », au bout de la ligne d'une station sur l'accueil (ticket 1598) : discret, comme « + station ». Ses
+   gestes sont posés par-dessus la ligne, à droite, côte à côte : elle garde toute sa largeur — sa flèche reste alignée
+   sur les autres —, et son clic. À gauche de « pair a phone », le bouton de la raison d'une station qui ne cuit pas
+   encore (ticket 1758), et « choose projects » d'une station aussi enregistrée sous le compte (ticket 1778). */
 #accueil-stations .ligne-et-geste {
   position: relative;
 }
-#accueil-stations .appairer-un-telephone,
-#accueil-stations .remede-de-station {
+#accueil-stations .gestes-de-la-ligne {
   position: absolute;
   top: 50%;
   right: 8px;
+  display: flex;
+  gap: 8px;
   transform: translateY(-50%);
+}
+#accueil-stations .appairer-un-telephone,
+#accueil-stations .remede-de-station,
+#accueil-stations .choisir-ses-projets {
   padding: 3px 10px;
   color: var(--discret);
   border: 1px solid var(--trait);
   border-radius: var(--rayon-bouton);
 }
-/* Le bouton de la raison d'une station qui ne cuit pas encore (ticket 1758) : à gauche de « pair a phone ». */
-#accueil-stations .remede-de-station {
-  right: 120px;
+#accueil-stations .choisir-ses-projets[aria-expanded="true"] {
+  color: var(--texte);
+  border-color: var(--trait-fort);
 }
 /* L'écran « Pair a phone » : comme la page d'une station — le retour, le titre et son aide, ce qu'on attend du chef —,
    puis le QR à gauche, le code, ce qu'il vaut encore et l'adresse de la station à droite ; dessous, les téléphones
@@ -6610,41 +6616,30 @@ button.recommande {
   display: none;
 }
 
-/* Les stations enregistrées sous le compte GitHub du chef (ticket 1706, stations-du-compte.js) : sous « + station »,
-   un titre discret, une ligne par station comme sur l'accueil, et ses projets à cocher dessous. */
+/* Les stations enregistrées sous le compte GitHub du chef (ticket 1706, stations-du-compte.js) : une machine que seul
+   son enregistrement fait connaître a sa ligne dans la liste des stations (ticket 1778), comme les autres, et ses projets
+   à cocher dessous. Sous la liste, sans titre, ce que leur lecture a de plus à dire. */
 #accueil-stations .stations-du-compte {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  margin-top: 6px;
-  padding-top: 6px;
-  border-top: 1px solid var(--trait-doux);
+  padding-top: 2px;
 }
-#accueil-stations .stations-du-compte h3 {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
-  padding: 4px 12px 0;
+#accueil-stations .stations-du-compte[hidden] {
+  display: none;
 }
 #accueil-stations .stations-du-compte > p {
   margin: 0;
   padding: 4px 12px;
   color: var(--texte-doux);
 }
-#accueil-stations .stations-du-compte > p.vide,
 #accueil-stations .stations-du-compte > p.indisponible {
   color: var(--discret);
 }
 #accueil-stations .stations-du-compte .attendu .survol {
   margin-left: 6px;
 }
-#accueil-stations .du-compte {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-#accueil-stations .du-compte .ligne[aria-expanded="true"] .ouvrir > span {
+#accueil-stations .enregistree .ligne[aria-expanded="true"] .ouvrir > span {
   display: inline-block;
   transform: rotate(90deg);
 }

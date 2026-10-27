@@ -1,14 +1,18 @@
 // @ts-check
-// Les stations enregistrées sous le compte GitHub du chef (ticket 1706, épique 1702), sur l'accueil, sous ses stations.
-// Une ligne par station — sa pastille, son nom, sa plateforme, disponible ou non, ce qu'elle sert — ; un clic l'ouvre
-// sur les projets du chef, à cocher : ceux qu'elle doit servir. Une case cochée ou décochée s'écrit aussitôt dans le
-// gist de la station (stations-du-compte.ts, selon le contrat de runtime/src/enregistrement-station/README.md) ; relue
-// au lancement suivant, la sélection est celle qui a été écrite. Une station indisponible se dit telle, et ses cases
-// restent à cocher : elle sert ce qui est choisi à son retour.
-// Sans station, le bloc dit comment en installer une : la commande d'installation, que copie un bouton. Une connexion
-// à GitHub qui manque est le bouton du premier lancement (premier-lancement.js) ; une lecture qui échoue tient en une
-// ligne, son détail au survol.
-// Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend un élément.
+// Les stations enregistrées sous le compte GitHub du chef (ticket 1706, épique 1702), dans la liste des stations de
+// l'accueil : une machine s'y lit une fois (ticket 1778, épique 1777). Une machine appairée s'y dit par sa présence
+// (accueil.ts), à laquelle son enregistrement ajoute les projets choisis pour elle (`ligneFondue`) : il ne pose ni seconde
+// ligne, ni section à part — il n'est que la façon dont la machine est arrivée (`uneLigneParMachine`), et ce qui lui est
+// choisi ; ses cases s'ouvrent d'un bouton à côté de sa ligne. Une machine seulement enregistrée a sa ligne d'après son
+// enregistrement — sa pastille, son nom, en ligne ou non, les projets qu'elle sert — ; un clic l'ouvre sur les projets
+// du chef, à cocher : ceux qu'elle doit servir. Une case cochée ou décochée s'écrit aussitôt dans le gist de la station
+// (stations-du-compte.ts, selon le contrat de runtime/src/enregistrement-station/README.md) ; relue au lancement
+// suivant, la sélection est celle qui a été écrite. Une station hors ligne se dit telle, et ses cases restent à cocher :
+// elle sert ce qui est choisi à son retour.
+// Sous la liste, ce que la lecture du compte a de plus à dire (`lectureDuCompte`) : sans aucune station, la commande
+// d'installation, que copie un bouton ; une connexion à GitHub qui manque, le bouton du premier lancement
+// (premier-lancement.js) ; une lecture qui échoue, une ligne, son détail au survol.
+// Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
 import { boutonAction, caseACocher, lectureIndisponible, survol } from "./briques.js";
 import { boutonDeLaPage, connexionDite, gestes, phraseEtDetail } from "./premier-lancement.js";
@@ -46,24 +50,23 @@ import { boutonDeLaPage, connexionDite, gestes, phraseEtDetail } from "./premier
  * }} GestesDuCompte
  */
 
-export const TITRE = "Under your GitHub account";
-export const AIDE = "A station installed on one of your machines, and signed in to your GitHub account, registers itself there. Open one to choose the projects it serves.";
-export const LECTURE = "reading the stations registered under your GitHub account…";
-export const CHOISIR = "Open a station to choose the projects it serves.";
-export const AUCUNE = "No station under your GitHub account yet: install one on the machine that will cook.";
+export const AUCUNE = "No station yet: install one on the machine that will cook.";
 export const AUCUNE_AIDE = "The installer asks that machine to sign in to GitHub: sign it in to this same account, and the station appears here within a minute.";
 export const ILLISIBLES = "your stations could not be read";
 export const RELIRE = "read again";
 export const COPIER = "copy";
 export const COPIEE = "copied";
-export const DISPONIBLE = "available";
-export const INDISPONIBLE = "unavailable";
+// Les mots de l'état d'une machine, ceux de sa ligne quand elle est appairée (stations/stations.ts, `etatDe`).
+export const EN_LIGNE = "online";
+export const HORS_LIGNE = "offline";
 export const PROJETS = "Projects it serves";
+// Le bouton à côté de la ligne d'une machine appairée et enregistrée, qui ouvre ses cases sous elle.
+export const CHOISIR_SES_PROJETS = "choose projects";
 export const LECTURE_DES_DEPOTS = "reading your repositories on GitHub…";
 export const DEPOTS_ILLISIBLES = "your repositories could not be read";
 export const SANS_DEPOT = "no repository on your GitHub account";
 export const ENVOI = "saving…";
-export const EN_SON_ABSENCE = "it is unavailable: it serves these projects once it is back";
+export const EN_SON_ABSENCE = "it is offline: it serves these projects once it is back";
 
 // La commande d'installation d'une station, selon le système de la machine qui cuit (docs/installation-station.md).
 /** @type {readonly { systeme: string, commande: string }[]} */
@@ -78,12 +81,84 @@ const PLATEFORMES = { linux: "Linux", macos: "macOS", windows: "Windows" };
 /** @param {string} plateforme */
 export const plateformeDite = (plateforme) => PLATEFORMES[plateforme] ?? plateforme;
 
-// Ce qu'une station sert, en mots : rien encore choisi, rien, ou combien de projets.
+// Ce qu'une station sert, en mots : rien encore choisi, rien, ou les projets eux-mêmes — comme la ligne d'une station
+// appairée les nomme.
 /** @param {readonly string[] | null} selection */
 export function sertDit(selection) {
   if (selection === null) return "no project chosen yet";
-  if (selection.length === 0) return "serves no project";
-  return `serves ${selection.length} project${selection.length > 1 ? "s" : ""}`;
+  if (selection.length === 0) return "no project";
+  return selection.join(", ");
+}
+
+// Une ligne par machine (ticket 1778) : les stations appairées, telles que l'accueil les dit, puis celles du compte qu'aucune
+// ne nomme, dans l'ordre des noms. Une machine se reconnaît à son nom — l'enregistrement porte « le même nom que sur sa
+// présence » (runtime/src/enregistrement-station/README.md), sans égard à la casse, comme un nom de machine. Appairée, sa
+// ligne est celle de sa présence, et son enregistrement l'accompagne (`enregistree`) : ce qui lui est choisi s'y fond
+// (`ligneFondue`). Deux enregistrements d'un même nom — un dossier d'état perdu en laisse un ancien, hors ligne — n'en
+// font qu'un : celui qui est en ligne, sinon le dernier vu.
+/**
+ * @template {{ nom: string }} A
+ * @param {readonly A[]} appairees @param {readonly StationEnregistree[]} enregistrees
+ * @returns {Array<{ appairee: A, enregistree?: StationEnregistree } | { enregistree: StationEnregistree }>}
+ */
+export function uneLigneParMachine(appairees, enregistrees) {
+  const cle = (/** @type {string} */ nom) => nom.toLowerCase();
+  /** @type {Map<string, StationEnregistree>} */
+  const parNom = new Map();
+  for (const station of enregistrees) {
+    const nom = cle(station.name);
+    const tenue = parNom.get(nom);
+    if (tenue === undefined || (station.available && !tenue.available) || (station.available === tenue.available && station.lastSeen > tenue.lastSeen)) parNom.set(nom, station);
+  }
+  const prises = new Set(appairees.map(({ nom }) => cle(nom)));
+  // Les appairées gardent l'ordre où l'accueil les dit (celui des noms) ; chaque autre se glisse à son nom.
+  const restantes = [...parNom.values()].filter(({ name }) => !prises.has(cle(name))).sort((a, b) => a.name.localeCompare(b.name));
+  /** @type {Array<{ appairee: A, enregistree?: StationEnregistree } | { enregistree: StationEnregistree }>} */
+  const lignes = [];
+  for (const appairee of appairees) {
+    while (restantes.length > 0 && (restantes[0]?.name ?? "").localeCompare(appairee.nom) < 0) lignes.push({ enregistree: /** @type {StationEnregistree} */ (restantes.shift()) });
+    const enregistree = parNom.get(cle(appairee.nom));
+    lignes.push(enregistree === undefined ? { appairee } : { appairee, enregistree });
+  }
+  return [...lignes, ...restantes.map((enregistree) => ({ enregistree }))];
+}
+
+// Le nom d'un dépôt choisi tel qu'une station nomme le projet qu'elle en fait : celui du dépôt, en minuscules
+// (runtime/src/projets-station/README.md, `nomDuDepot`).
+/** @param {string} depot */
+const nomDuChoisi = (depot) => (depot.split("/").pop() ?? depot).toLowerCase();
+
+// Les projets qu'une machine appairée et enregistrée sert, calculés en un seul endroit : ceux de sa présence — la
+// configuration qu'elle fait tourner —, puis ceux qui lui sont choisis dans son enregistrement et que sa présence ne nomme
+// pas encore (elle les prend en main dans les 30 s). Rien de choisi, ou rien encore : ceux de sa présence.
+/** @param {readonly string[]} projets @param {readonly string[] | null} selection */
+export function projetsServis(projets, selection) {
+  const tenus = new Set(projets.map((projet) => projet.toLowerCase()));
+  return [...projets, ...(selection ?? []).filter((depot) => !tenus.has(nomDuChoisi(depot)))];
+}
+
+// La ligne d'une machine appairée, ce que son enregistrement lui choisit fondu dedans : ses projets sont `projetsServis`.
+// Elle sert alors des projets : ni « runs no kitchen », ni la raison « not added to any project », ni la note qui dit
+// qu'attendre sans projet est normal. Son état reste celui de sa présence. Une ligne qui ne dit pas ses projets (illisible,
+// téléphone) est rendue telle quelle.
+/**
+ * @template {{ dit: string, raison?: { cle: string }, note?: string }} L
+ * @param {L} ligne @param {readonly string[]} projets — ceux de sa présence @param {StationEnregistree | undefined} enregistree
+ * @returns {L}
+ */
+export function ligneFondue(ligne, projets, enregistree) {
+  const servis = projetsServis(projets, enregistree?.selection ?? null);
+  if (servis.length === projets.length) return ligne;
+  const morceaux = ligne.dit.split(" · ");
+  const dits = projets.length === 0 ? ["runs no kitchen", "no project"] : [projets.join(", ")];
+  if (!dits.includes(morceaux.at(-1) ?? "")) return ligne;
+  const { raison, note, ...reste } = ligne;
+  return /** @type {L} */ ({
+    ...reste,
+    dit: [...morceaux.slice(0, -1), servis.join(", ")].join(" · "),
+    ...(raison === undefined || raison.cle === "sans-projet" ? {} : { raison }),
+    ...(note === undefined || projets.length === 0 ? {} : { note }),
+  });
 }
 
 // Les cases d'une station : les dépôts du chef, dans l'ordre où GitHub les rend, puis ceux qu'elle sert et qu'ils ne
@@ -116,7 +191,7 @@ function pastilleDe(doc, disponible) {
   pose.className = "pastille";
   pose.dataset.ton = disponible ? "vert" : "gris";
   pose.dataset.forme = disponible ? "disque" : "anneau";
-  pose.title = disponible ? DISPONIBLE : INDISPONIBLE;
+  pose.title = disponible ? EN_LIGNE : HORS_LIGNE;
   return pose;
 }
 
@@ -125,14 +200,15 @@ function pastilleDe(doc, disponible) {
 const vueDit = (instant) => `last sign of life ${instant.slice(0, 16).replace("T", " ")} UTC`;
 
 // La ligne d'une station : toute la ligne est le bouton qui l'ouvre, comme une ligne de l'accueil (vue.js,
-// `ligneDAccueil`). Sa machine, sa version et son dernier signe de vie sont au survol.
+// `ligneDAccueil`) ; elle dit, comme elle, en ligne ou non, puis les projets qu'elle sert. Sa plateforme, sa machine, sa
+// version et son dernier signe de vie sont au survol.
 /** @param {Fabrique} doc @param {StationEnregistree} station @param {boolean} ouverte @param {GestesDuCompte} geste */
 function ligneDe(doc, station, ouverte, geste) {
-  const dit = `${plateformeDite(station.platform)} · ${station.available ? DISPONIBLE : INDISPONIBLE} · ${sertDit(station.selection)}`;
+  const dit = `${station.available ? EN_LIGNE : HORS_LIGNE} · ${sertDit(station.selection)}`;
   const ligne = cree(doc, "button");
   ligne.type = "button";
   ligne.className = "ligne";
-  ligne.title = [station.machine, `version ${station.version}`, vueDit(station.lastSeen)].filter((morceau) => morceau !== "").join(" · ");
+  ligne.title = [plateformeDite(station.platform), station.machine, `version ${station.version}`, vueDit(station.lastSeen)].filter((morceau) => morceau !== "").join(" · ");
   ligne.ariaLabel = `${station.name} — ${dit}`;
   ligne.ariaExpanded = ouverte ? "true" : "false";
   const nom = cree(doc, "strong", station.name);
@@ -150,7 +226,7 @@ function ligneDe(doc, station, ouverte, geste) {
 // Les cases d'une station ouverte : un dépôt par case, cochée s'il est dans sa sélection. Une écriture en route : les
 // cases attendent qu'elle ait répondu. Une écriture refusée le dit sous les cases, en une ligne.
 /** @param {Fabrique} doc @param {StationEnregistree} station @param {EtatDuCompte} etat @param {GestesDuCompte} geste */
-function projetsDe(doc, station, etat, geste) {
+export function projetsDe(doc, station, etat, geste) {
   const choix = cree(doc, "fieldset");
   choix.className = "projets-de-la-station";
   choix.ariaLabel = `${PROJETS}: ${station.name}`;
@@ -213,60 +289,43 @@ function commentInstaller(doc, etat, geste) {
   return [tete, ...lignes, gestes(doc, [boutonAction(doc, RELIRE, geste.relire)])];
 }
 
-// Le bloc entier, d'après ce que la vue tient : son titre, puis ce que la lecture du compte a rendu.
-/** @param {Fabrique} doc @param {EtatDuCompte} etat @param {GestesDuCompte} geste */
-export function poserStationsDuCompte(doc, etat, geste) {
-  const racine = cree(doc, "section");
-  racine.className = "stations-du-compte";
-  racine.ariaLabel = TITRE;
-  const titre = cree(doc, "h3", TITRE);
-  titre.append(survol(doc, AIDE));
-  racine.append(titre);
+// La ligne d'une station seulement enregistrée, dans la liste des stations de l'accueil — et, ouverte, ses cases dessous.
+/** @param {Fabrique} doc @param {StationEnregistree} station @param {EtatDuCompte} etat @param {GestesDuCompte} geste */
+export function ligneDeLEnregistree(doc, station, etat, geste) {
+  const ouverte = etat.ouverte === station.id;
+  const rang = cree(doc, "div");
+  rang.className = "enregistree";
+  rang.dataset.station = station.id;
+  rang.append(ligneDe(doc, station, ouverte, geste));
+  if (ouverte) rang.append(projetsDe(doc, station, etat, geste));
+  return rang;
+}
+
+// Ce que la lecture du compte dit sous la liste des stations, d'après ce que la vue en tient : rien tant qu'elle est en
+// route ou que tout est listé ; la connexion qui manque, la lecture qui échoue, les enregistrements illisibles ; et,
+// `vide` — la liste n'a aucune station —, comment en installer une. Aucun titre : ce n'est pas une seconde liste.
+/** @param {Fabrique} doc @param {EtatDuCompte} etat @param {GestesDuCompte} geste @param {boolean} vide */
+export function lectureDuCompte(doc, etat, geste, vide) {
   const { stations } = etat;
-  if (stations === undefined) {
-    const lecture = cree(doc, "p", LECTURE);
-    lecture.className = "vide";
-    racine.append(lecture);
-    return racine;
-  }
+  if (stations === undefined) return [];
   if (stations.state === "sign-in-required") {
     const tete = phraseEtDetail(doc, "p", stations.reason, undefined);
     tete.className = "attendu";
-    racine.append(tete, ...connexionDite(doc, etat.connexion, stations.action.label, geste));
-    return racine;
+    return [tete, ...connexionDite(doc, etat.connexion, stations.action.label, geste)];
   }
   if (stations.state === "unavailable") {
     const lien = stations.link;
-    racine.append(
+    return [
       lectureIndisponible(doc, ILLISIBLES, [stations.reason, stations.detail ?? ""].filter((morceau) => morceau.trim() !== "").join("\n")),
       gestes(doc, [...(lien === undefined ? [] : [boutonAction(doc, boutonDeLaPage(lien), () => geste.ouvrirLaPage(lien), { recommande: true })]), boutonAction(doc, RELIRE, geste.relire, { recommande: lien === undefined })]),
-    );
-    return racine;
+    ];
   }
-  if (stations.stations.length === 0 && stations.unreadable.length === 0) {
-    racine.append(...commentInstaller(doc, etat, geste));
-    return racine;
-  }
-  if (stations.stations.length > 0) {
-    const tete = cree(doc, "p", CHOISIR);
-    tete.className = "attendu";
-    racine.append(tete);
-  }
-  const liste = cree(doc, "ul");
-  liste.className = "du-compte";
-  for (const station of stations.stations) {
-    const ouverte = etat.ouverte === station.id;
-    const rang = cree(doc, "li");
-    rang.dataset.station = station.id;
-    rang.append(ligneDe(doc, station, ouverte, geste));
-    if (ouverte) rang.append(projetsDe(doc, station, etat, geste));
-    liste.append(rang);
-  }
-  if (stations.stations.length > 0) racine.append(liste);
   if (stations.unreadable.length > 0) {
     const combien = stations.unreadable.length;
-    racine.append(lectureIndisponible(doc, `${combien} more station${combien > 1 ? "s" : ""} cannot be read`, stations.unreadable.map(({ id, reason }) => `${id}: ${reason}`).join("\n")));
+    return [
+      lectureIndisponible(doc, `${combien} more station${combien > 1 ? "s" : ""} cannot be read`, stations.unreadable.map(({ id, reason }) => `${id}: ${reason}`).join("\n")),
+      gestes(doc, [boutonAction(doc, RELIRE, geste.relire)]),
+    ];
   }
-  racine.append(gestes(doc, [boutonAction(doc, RELIRE, geste.relire)]));
-  return racine;
+  return vide ? commentInstaller(doc, etat, geste) : [];
 }
