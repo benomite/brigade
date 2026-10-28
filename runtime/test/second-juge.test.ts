@@ -60,6 +60,15 @@ test("sa réponse se lit en l'un des trois verdicts, avec sa raison ; le reste e
   assert.deepEqual(lireSecondJugement('{"verdict":"weakened"}'), { illisible: "raison absente" });
 });
 
+// Ce que la carte du chef dit de la livraison (#1877) : en anglais, en quelques mots, à la suite de « it ».
+test("il dit aussi ce que la PR change dans ses juges, pour la carte du chef — lu s'il le donne, sur une ligne ; sans lui, le verdict se lit quand même", () => {
+  const consigne = consigneDuSecondJuge({ depot: "d", base: "v2", pr: 1, ticket: { number: 1, title: "t", body: "" }, juges: [], diff: { fichiers: ["a"], texte: "" } });
+  assert.match(consigne, /"change": "runs the Windows tests on v2 too"/);
+  assert.match(consigne, /`change` est lu par le chef sur sa carte[^\n]*quel que soit ton verdict\. En anglais, en mots simples[^\n]*qui suivent « it »[^\n]*sans backticks\./);
+  assert.deepEqual(lireSecondJugement('{"verdict":"weakened","raison":"Un test est sauté.","change":" skips one\\n flaky test "}'), { verdict: "weakened", raison: "Un test est sauté.", change: "skips one flaky test" });
+  assert.deepEqual(lireSecondJugement('{"verdict":"weakened","raison":"Un test est sauté.","change":42}'), { verdict: "weakened", raison: "Un test est sauté." });
+});
+
 test("la carte du second juge : trois lignes — ce qui est affaibli, où, le geste —, portées bout à bout sur une seule", () => {
   const carte = carteDuSecondJuge({
     verdict: "weakened",

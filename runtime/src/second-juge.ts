@@ -58,6 +58,9 @@ export type SecondJugement = {
   diff: { fichiers: string[]; texte: string };
 };
 
+// L'exemple de `change` que sa consigne lui donne.
+const EXEMPLE_DE_CHANGEMENT = "runs the Windows tests on v2 too";
+
 export function consigneDuSecondJuge(mission: SecondJugement): string {
   const { depot, base, pr, ticket, juges, diff } = mission;
   const [non, oui, incertain] = VERDICTS_DU_SECOND_JUGE.map((verdict) => `\`${DIRE_VERDICT[verdict]}\``);
@@ -82,10 +85,12 @@ export function consigneDuSecondJuge(mission: SecondJugement): string {
     "Un seul objet JSON, et rien après lui :",
     "",
     "```json",
-    `{"verdict": "${DIRE_VERDICT.weakened}", "raison": "ce qui est affaibli, où, et pourquoi c'en est un — en trois phrases au plus"}`,
+    `{"verdict": "${DIRE_VERDICT.weakened}", "raison": "ce qui est affaibli, où, et pourquoi c'en est un — en trois phrases au plus", "change": "${EXEMPLE_DE_CHANGEMENT}"}`,
     "```",
     "",
     `\`verdict\` vaut ${non} si tu as établi qu'aucun contrôle n'est affaibli, ${oui} si au moins un l'est, ${incertain} si tu ne peux établir ni l'un ni l'autre — ce que tu ne vois pas, ce qui dépend de ce que tu ne peux pas lire. Dans le doute, c'est ${incertain}, jamais ${non}. \`raison\` est lue par le chef, sur la PR : en français, précise — le fichier, la ligne, ce qui a changé.`,
+    "",
+    `\`change\` est lu par le chef sur sa carte, qui dit « The delivery changes how deliveries are checked: it … » : ce que la PR change dans ce qui juge les livraisons, quel que soit ton verdict. En anglais, en mots simples qu'un non-développeur comprend, et qui suivent « it » — par exemple \`runs the Windows tests on v2 too\`, ou \`skips 5 Windows-only flaky tests, listed in #1850\`. Une seule phrase, sans point final, sans code, sans nom de fichier ni de commande, sans backticks.`,
     "",
     "## La PR",
     "",
@@ -130,8 +135,10 @@ function objet(texte: string): Record<string, unknown> | null {
 const LUS = new Map<string, VerdictDuSecondJuge>(VERDICTS_DU_SECOND_JUGE.map((verdict) => [DIRE_VERDICT[verdict], verdict]));
 
 // Lit le verdict dans le dernier message du second juge. Rien n'y est deviné :
-// un verdict inconnu, une raison absente — la réponse est illisible.
-export function lireSecondJugement(message: string | null): { verdict: VerdictDuSecondJuge; raison: string } | { illisible: string } {
+// un verdict inconnu, une raison absente — la réponse est illisible. `change`,
+// ce qu'elle change dit pour le chef, n'est lu que s'il l'a donné, sur une
+// ligne : sans lui, la carte le dit en mots fixes (carte-todo/cartes.ts).
+export function lireSecondJugement(message: string | null): { verdict: VerdictDuSecondJuge; raison: string; change?: string } | { illisible: string } {
   if (message === null || message.trim() === "") return { illisible: "aucune réponse" };
   const lu = objet(message);
   if (!lu) return { illisible: "aucun objet JSON dans la réponse" };
@@ -139,7 +146,8 @@ export function lireSecondJugement(message: string | null): { verdict: VerdictDu
   if (!verdict) return { illisible: `verdict inconnu : ${JSON.stringify(lu.verdict)} — attendu ${VERDICTS_DU_SECOND_JUGE.map((v) => DIRE_VERDICT[v]).join(", ")}` };
   const raison = typeof lu.raison === "string" ? lu.raison.trim() : "";
   if (raison === "") return { illisible: "raison absente" };
-  return { verdict, raison };
+  const change = typeof lu.change === "string" ? lu.change.replace(/\s+/g, " ").trim() : "";
+  return { verdict, raison, ...(change === "" ? {} : { change }) };
 }
 
 // La carte `gesture` d'une livraison que le second juge n'a pas établie non

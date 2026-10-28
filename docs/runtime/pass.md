@@ -180,8 +180,12 @@ second time**, only once per delivery, by a judge **independent of the reviewer*
 
 It answers `not weakened`, `weakened` or `cannot establish`, with its reason — when in doubt,
 `cannot establish`. An answer that cannot be read, or a refusal by the model, counts as
-`cannot establish`. The verdict is in the log (`pass.second-judged`: its run, its calibration, the
-reviewer's and the run of its review, the verdict, the reason) and **as a comment on the PR**
+`cannot establish`. Whatever its verdict, it also says **what the delivery changes in its judges,
+for the chef's card** (`change`): a few plain English words that follow "it" — `runs the Windows
+tests on v2 too`, `skips 5 Windows-only flaky tests, listed in #1850` —, with no code and no file
+name. It is optional: without it, the verdict still reads. The verdict is in the log
+(`pass.second-judged`: its run, its calibration, the reviewer's and the run of its review, the
+verdict, the reason, the change) and **as a comment on the PR**
 (« Second juge — … », written in French by the runtime until it is translated). Then:
 
 - **`not weakened`**: the delivery goes back to the path of an ordinary delivery — under the
@@ -194,6 +198,28 @@ reviewer's and the run of its review, the verdict, the reason) and **as a commen
   its judges, or close it. The issue comment shows these three lines; the card, which the TODO
   check takes on a single line only, carries them end to end. It leaves TODO when the chef decides:
   PR merged (ticket served) or closed.
+
+**The merge card of a delivery to review** (#1877). A green delivery stopped at `review-required`
+reaches the chef only once it is reviewed from end to end, and only if the kitchen has nothing left
+to do with it (`runtime/src/attend.ts`). It stays in the kitchen, out of `attend`:
+
+- while it touches its judges and its second judge has not judged it — this delivery, its run and
+  its commit;
+- when the second judge established it `not weakened` and it touches no declaration: the pass takes
+  it back as an ordinary delivery;
+- while the second judge's `gesture` card waits for the triage, which reads it first: it relaunches
+  the cook, or lets the card through. Once the triage let it through — or with no triage, when the
+  TODO gate refuses it at once —, the delivery awaits the chef: nothing is hidden from them for lack
+  of a decision.
+
+A delivery whose review found something blocking never gets there: its verdict is red, and it goes
+back to a cook. The card says, in two plain sentences, what the delivery changes and what its review
+found — "The delivery of #1859 changes how deliveries are checked: it runs the Windows tests on v2
+too. Its review found nothing blocking, but it loosens a check, which only you can accept." What it
+changes is the second judge's `change`, if it reads as plain words; otherwise, fixed words name
+what it touches (the CI, the gates, the hosts its cooks may reach, the secrets they receive, the
+project settings). It has **one button, "Merge"** — the merge is the chef's gesture, never the
+pass's —, besides "ask the second" and the free answer.
 
 The verdict holds for the delivery — its run, its commit: judged again by the pass because the base
 moved, it does not go before the second judge again. A delivery that also touches `reseau` or

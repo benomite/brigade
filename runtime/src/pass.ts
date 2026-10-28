@@ -1105,7 +1105,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     const verdictDeLaPass = journal.duTicket(ticket).findLast((evenement) => evenement.type === "pass.judged" && evenement.payload.run === run && evenement.payload.sha === sha);
     const juges = verdictDeLaPass?.type === "pass.judged" ? (verdictDeLaPass.payload.judges ?? []) : [];
 
-    const rendre = async (verdict: VerdictDuSecondJuge, reason: string, lance: { judge: string; model: string; effort: string } | null, masques = 0) => {
+    const rendre = async (verdict: VerdictDuSecondJuge, reason: string, lance: { judge: string; model: string; effort: string } | null, masques = 0, change?: string) => {
       // Le ticket a pu quitter le rail, ou la livraison changer, pendant qu'il jugeait.
       const actuel = passDuTicket(base, ticket);
       if (arrete || !enPass(ticket) || actuel?.run !== run || actuel.sha !== sha || actuel.phase !== "held" || secondJugement(ticket, run, sha) !== null) return;
@@ -1113,7 +1113,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       // la livraison sans que le chef en soit saisi.
       const carte = verdict === "not-weakened" ? null : carteDuSecondJuge({ verdict, raison: reason, juges, pr });
       const posee = base.transaction(() => {
-        noter(ticket, { type: "pass.second-judged", payload: { run, sha, judge: lance?.judge ?? null, model: lance?.model ?? null, effort: lance?.effort ?? null, reviewer, review, verdict, reason } });
+        noter(ticket, { type: "pass.second-judged", payload: { run, sha, judge: lance?.judge ?? null, model: lance?.model ?? null, effort: lance?.effort ?? null, reviewer, review, verdict, reason, ...(change === undefined ? {} : { change }) } });
         // Une proposition `gesture` : elle va au triage, qui la tranche ou
         // l'écrit en question pour le chef (carte-todo.ts).
         if (carte !== null) entrerDansTodo(journal, projet, ticket, { type: "gesture", enonce: carte.enonce }, AUTEUR);
@@ -1236,7 +1236,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       }
       const lu = lireSecondJugement(flux.message);
       if ("illisible" in lu) return await rendre("cannot-establish", `Sa réponse ne se lit pas (${lu.illisible}). Son flux brut est dans \`runs/${judge}.jsonl\`.`, fait, fin.masques);
-      return await rendre(lu.verdict, lu.raison, fait, fin.masques);
+      return await rendre(lu.verdict, lu.raison, fait, fin.masques, lu.change);
     } finally {
       if (!arrete) {
         try {

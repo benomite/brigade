@@ -7,9 +7,10 @@
 // demande rien.
 //
 // Les sortes, et ce que leurs choix jouent (reponse-carte.ts) :
-// - `merge`, une livraison verte que la pass ne merge pas : faute de grant, un
-//   seul geste, la merger ; à relire ou refusée par GitHub, la merger, la
-//   renvoyer à un cook, ou sortir le ticket du rail ;
+// - `merge`, une livraison verte que la pass ne merge pas : faute de grant, ou
+//   à relire — elle change ses juges ou ce que le projet s'ouvre —, un seul
+//   geste, la merger ; refusée par GitHub, la merger, la renvoyer à un cook, ou
+//   sortir le ticket du rail ;
 // - `remontee`, un ticket rouge remonté par le manager ou la pass : le renvoyer
 //   à un cook, merger sa PR telle quelle s'il en a une, ou le sortir du rail ;
 // - `fermee`, une PR fermée sans merge : le recommencer, ou le sortir du rail ;
@@ -28,11 +29,17 @@
 // Rien n'y est complété : chaque carte passe la règle (`carteValide`), et une
 // carte qui ne la tient pas lève au lieu d'être montrée. Les textes n'y portent
 // que des mots fixes, des numéros et des adresses : un motif ou une cause en
-// texte libre reste dans la ligne du bloc `awaiting`, que la fiche montre.
+// texte libre reste dans la ligne du bloc `awaiting`, que la fiche montre. Une
+// seule exception : ce que le second juge écrit pour la carte d'une livraison à
+// relire (`change`), qui n'y entre que s'il en tient la règle — sinon, des mots
+// fixes le remplacent.
 import { attentesDuChef, type Attente, type AttenteDeTicket } from "../attend.ts";
 import type { Base } from "../base.ts";
-import { A_RELIRE, DU_MANAGER, ENCORE_ROUGE, MERGE_REFUSE, NON_JUGEE, SANS_GRANT, testsInstablesDeLaCause } from "../events/pass.ts";
+import { A_RELIRE, declarationsDeLaCause, DU_MANAGER, ENCORE_ROUGE, MERGE_REFUSE, NON_JUGEE, SANS_GRANT, testsInstablesDeLaCause } from "../events/pass.ts";
+import { REGLAGES_DU_PROJET } from "../mode-auto.ts";
 import { lireRail } from "../projections/rail.ts";
+import { DECLARATION_RESEAU } from "../reseau.ts";
+import { DECLARATION as DECLARATION_SECRETS } from "../secrets.ts";
 import { carteValide, validerCarte, type CarteTodo, type Geste } from "./forme.ts";
 
 // La carte d'un ticket, et sa sorte : celle d'une carte de la porte (`product`,
@@ -45,6 +52,68 @@ const RETIRER = choix("Take it off the rail", "drop");
 const RENDRE_AU_MANAGER = choix("Hand it back to the manager with my answer", "resume");
 
 const laPr = (pr: string | null) => pr ?? "its delivery";
+
+// Une livraison à relire (#1877) : ce qu'elle change, dit au chef en mots
+// simples, puis ce que sa relecture en a trouvé — rien de bloquant : une
+// livraison qui a un bloquant repart à la cuisine, sans carte. Un seul bouton,
+// la merger : c'est le geste du chef, que la pass ne fait jamais à sa place.
+type AttenteAMerger = Extract<AttenteDeTicket, { quoi: "merge" }>;
+
+// Ce que chaque déclaration ouvre, et ce que chaque juge vérifie.
+const DECLARATIONS_DITES: Record<string, string> = {
+  [DECLARATION_RESEAU]: "the hosts its cooks may reach",
+  [REGLAGES_DU_PROJET]: "the project settings its cooks run with",
+  [DECLARATION_SECRETS]: "the secrets its cooks receive",
+};
+const JUGES_DITS: Array<[string, string]> = [
+  [".github/workflows/", "the CI that checks every delivery"],
+  [".claude/brigade/", "the gates every delivery must pass"],
+];
+const CE_QUI_JUGE = "how deliveries are checked";
+// Ce que le second juge en dit tient en quelques mots : au-delà, la carte le
+// dit en mots fixes.
+const CHANGEMENT_MAX = 160;
+
+const enUneListe = (mots: string[]) => (mots.length <= 1 ? mots.join("") : `${mots.slice(0, -1).join(", ")} and ${mots.at(-1)}`);
+
+// Ce que dit le second juge, prêt à suivre « it » : sans son « it », sans point final.
+function changementDit(change: string | null | undefined): string | null {
+  const dit = change?.replace(/\s+/g, " ").trim().replace(/^it\s+/i, "").replace(/[.\s]+$/, "") ?? "";
+  if (dit === "" || dit.length > CHANGEMENT_MAX) return null;
+  return /^[A-Z][a-z]/.test(dit) ? `${dit[0]?.toLowerCase()}${dit.slice(1)}` : dit;
+}
+
+// Ce que sa relecture en a trouvé, selon son second juge — sans lui, elle ne
+// touche qu'à ses déclarations.
+const RIEN_DE_BLOQUANT = "Its review found nothing blocking, and only you can merge it.";
+const RELU = {
+  sans: RIEN_DE_BLOQUANT,
+  "not-weakened": RIEN_DE_BLOQUANT,
+  weakened: "Its review found nothing blocking, but it loosens a check, which only you can accept.",
+  "cannot-establish": "Its review found nothing blocking, but no one could tell whether it loosens a check.",
+} as const;
+
+function carteARelire(attente: AttenteAMerger) {
+  const { ticket, second } = attente;
+  const declarations = (declarationsDeLaCause(attente.cause) ?? "").split(", ").filter((fichier) => fichier !== "");
+  const ouvre = [...new Set(declarations.map((fichier) => DECLARATIONS_DITES[fichier] ?? "what the project opens up"))];
+  // Ses juges : ceux que la pass a consignés, sinon ce que dit le motif.
+  const fichiers = (attente.livraison?.juges ?? []).map(({ fichier }) => fichier);
+  const juges = [...new Set(fichiers.flatMap((fichier) => JUGES_DITS.filter(([prefixe]) => fichier.startsWith(prefixe)).map(([, dit]) => dit)))];
+  const touchesLesJuges = second !== undefined || declarations.length === 0;
+  const relu = RELU[second?.verdict ?? "sans"];
+  const merger = [choix("Merge", "merge")];
+  const resume = (ceQuiChange: string[]) => `The delivery of #${ticket} changes ${enUneListe(ceQuiChange)}. ${relu}`;
+
+  // Ce que le second juge en a dit, s'il l'a dit en mots simples.
+  const change = changementDit(second?.change);
+  if (change !== null) {
+    const proposee = { resume: resume([...ouvre, `${CE_QUI_JUGE}: it ${change}`]), question: null, choix: merger };
+    if (validerCarte(proposee).valide) return proposee;
+  }
+  const verifie = touchesLesJuges ? (juges.length > 0 ? juges : [CE_QUI_JUGE]) : [];
+  return { resume: resume([...ouvre, ...verifie]), question: null, choix: merger };
+}
 
 // Ce que la carte d'une attente propose, avant la règle.
 function proposition(attente: AttenteDeTicket) {
@@ -60,11 +129,7 @@ function proposition(attente: AttenteDeTicket) {
             choix: [merger],
           };
         case A_RELIRE:
-          return {
-            resume: `The delivery of #${ticket} is green, and it changes its own judges or what the project opens up. The pass leaves that merge to you, once reviewed.`,
-            question: `Merge this delivery of #${ticket}?`,
-            choix: [merger, RENVOYER, RETIRER],
-          };
+          return carteARelire(attente);
         case MERGE_REFUSE:
           return {
             resume: `The delivery of #${ticket} is green, but GitHub refused to merge it. What GitHub refuses must be lifted before a merge goes.`,

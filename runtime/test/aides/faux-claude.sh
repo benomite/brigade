@@ -727,6 +727,13 @@ FIN
 {"verdict":"cannot establish","raison":"Le workflow appelle un script qui n'est pas dans le dépôt : ce qu'il vérifie ne se lit pas."}
 FIN
       ;;
+    # Le même verdict, avec ce qu'elle change dit pour la carte du chef (#1877).
+    juge-affaibli-dit)
+      assistant
+      resultat <<'FIN'
+{"verdict":"weakened","raison":"`.claude/brigade/gates.sh` ne fait plus échouer les tests du runtime : leur code de sortie est avalé par `|| true`.","change":"It no longer fails when the runtime tests fail."}
+FIN
+      ;;
     # Les mêmes, qui prennent leur temps : le chef a le temps d'agir avant la
     # décision, le découpage, la relecture.
     juge-ticket-lent | decoupe-tickets-lent | relit-vert-lent)

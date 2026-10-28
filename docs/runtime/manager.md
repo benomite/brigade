@@ -390,9 +390,10 @@ from what it waits for when no card of the gate stands for it: a green delivery 
 merge, an escalation that stays the chef's (`secrets-unavailable`), a PR closed without a merge, a ticket set
 aside (86, a missing capability, an absent station, back from WAITING), a ticket blocked by one that
 left the rail, an issue the manager set aside or could not read, the manager's question before
-splitting an epic. A card with a single gesture — merging a green delivery without a grant, taking a
-blocked ticket off the rail, handing an issue back to the manager — shows that one button and asks no
-question. Every card offers the free answer, and "ask the second" beside its choices, never among
+splitting an epic. A card with a single gesture — merging a green delivery without a grant, or one to
+review that changes its judges or what the project opens up (its card says what it changes, in plain
+words: `pass.md`, "The merge card of a delivery to review"), taking a blocked ticket off the rail,
+handing an issue back to the manager — shows that one button and asks no question. Every card offers the free answer, and "ask the second" beside its choices, never among
 them. A card that does not hold the shape is never shown half-built: the runtime raises.
 
 `facts` gives each card in `attend[].carte`: `type` (`product` or `design` for a card of the gate,

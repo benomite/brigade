@@ -50,7 +50,7 @@
 import type { Base } from "./base.ts";
 import { geste } from "./geste.ts";
 import { CLE_DES_CAPACITES, manqueDuMotif, type Manque } from "./capacites.ts";
-import { A_RELIRE, declarationsDeLaCause, DU_MANAGER, ENCORE_ROUGE, MERGE_REFUSE, NON_JUGEE, REDECOUPE, SANS_GRANT, testsInstablesDeLaCause } from "./events/pass.ts";
+import { A_RELIRE, declarationsDeLaCause, DU_MANAGER, ENCORE_ROUGE, MERGE_REFUSE, NON_JUGEE, REDECOUPE, SANS_GRANT, testsInstablesDeLaCause, type VerdictDuSecondJuge } from "./events/pass.ts";
 import { REJOUER_LA_BASE } from "./dire-base.ts";
 import { demandeEnAttente, refus, reglagesEnVigueur, type Demande as DemandeDeFermeture, type Refus } from "./closing/condition.ts";
 import { direDemande as direDemandeDeFermeture, direDemandeEn as direDemandeDeFermetureEn } from "./closing/say.ts";
@@ -68,7 +68,7 @@ import { echecsDesGates } from "./reparation.ts";
 import { DECLARATION_RESEAU } from "./reseau.ts";
 import { SCRIPT_SETUP } from "./gates.ts";
 import { CAUSES_DU_PROJET } from "./mise-de-cote.ts";
-import { cartesEnTodo, direCarte, direCarteEn, type CarteDeTodo } from "./carte-todo.ts";
+import { cartesEnTodo, cartesRetenues, direCarte, direCarteEn, type CarteDeTodo, type CarteRetenue } from "./carte-todo.ts";
 import { aLaCuisine } from "./remontee-a-la-cuisine.ts";
 import type { EnVol } from "./pause/evenements.ts";
 import { echecDuRenommage, EN_PAUSE_POUR_LE_RENOMMAGE, NON, OUI, pauseAccordee, pauseEnCours, ticketsEnVol } from "./pause/pause.ts";
@@ -95,13 +95,52 @@ function livraisonDe(base: Base, pass: PassDeTicket): Livraison | undefined {
   return Object.keys(livraison).length === 0 ? undefined : livraison;
 }
 
+// Ce que le second juge a dit d'une livraison qui touche à ses juges : son
+// verdict, et ce qu'elle y change, en quelques mots pour le chef — nul s'il ne
+// l'a pas dit.
+export type SecondJugementLu = { verdict: VerdictDuSecondJuge; change: string | null };
+
+// Le jugement du second juge sur cette livraison — son run, son commit —, nul
+// tant qu'il n'est pas rendu. `seq` : son jugement, au journal.
+function secondJugementDe(base: Base, pass: PassDeTicket): (SecondJugementLu & { seq: number }) | null {
+  const jugements = base.lire<{ seq: number; payload: string }>("SELECT seq, payload FROM events WHERE ticket = ? AND type = 'pass.second-judged' ORDER BY seq DESC", pass.ticket);
+  for (const { seq, payload } of jugements) {
+    const lu = JSON.parse(payload) as { run?: unknown; sha?: unknown; verdict?: VerdictDuSecondJuge; change?: unknown };
+    if (lu.run !== pass.run || lu.sha !== pass.sha || lu.verdict === undefined) continue;
+    return { verdict: lu.verdict, change: typeof lu.change === "string" && lu.change.trim() !== "" ? lu.change.trim() : null, seq };
+  }
+  return null;
+}
+
+// Une livraison verte à relire n'attend le chef qu'une fois relue de bout en
+// bout, quand la cuisine n'a plus rien à en faire (#1877) : sa carte dit ce
+// que la relecture en a trouvé, et que rien n'y est bloquant. Rend ce que son
+// second juge en a dit (nul sans second juge : elle ne touche qu'à ses
+// déclarations), ou `false` — elle est encore à la cuisine :
+// - elle touche à ses juges, et son second juge ne l'a pas encore jugée ;
+// - il l'a établie non affaiblie, et rien d'autre ne la retient : la pass la
+//   reprend comme une livraison ordinaire (`aReprendre`, pass.ts) ;
+// - la carte de son second juge attend le triage, qui la lit d'abord : il
+//   relance le cook, ou la laisse aller au chef. Une fois qu'il l'a laissée
+//   passer — ou sans triage, quand la porte la refuse aussitôt —, la livraison
+//   attend le chef : rien ne lui est caché faute de pouvoir décider.
+function relueDeBoutEnBout(base: Base, pass: PassDeTicket, auTriage: () => CarteRetenue[]): SecondJugementLu | null | false {
+  if (pass.reason !== A_RELIRE || !pass.judgeModified) return null;
+  const second = secondJugementDe(base, pass);
+  if (second === null) return false;
+  if (second.verdict === "not-weakened" && declarationsDeLaCause(pass.cause) === null) return false;
+  if (auTriage().some((carte) => carte.ticket === pass.ticket && carte.seq > second.seq && carte.refus === null)) return false;
+  return { verdict: second.verdict, change: second.change };
+}
+
 // `title` : nul pour une issue qui n'est pas sur le rail — le journal ne
 // connaît pas son titre.
 export type AttenteDeTicket = { ticket: number; title: string | null; since: string } & (
   // Une livraison verte que la pass ne merge pas elle-même. `reason` : le
   // motif, `cause` : ce qui le précise. `expired` : faute d'un grant qui
-  // s'était éteint seul à cet instant.
-  | { quoi: "merge"; reason: string; cause: string | null; pr: string | null; expired: string | null; livraison?: Livraison }
+  // s'était éteint seul à cet instant. `second` : à relire, ce que son second
+  // juge en a dit, quand elle touche à ses juges.
+  | { quoi: "merge"; reason: string; cause: string | null; pr: string | null; expired: string | null; livraison?: Livraison; second?: SecondJugementLu }
   // Un ticket que la pass ou le manager a remonté : il est 86, sans retour.
   // `why` : pourquoi sa livraison ne se porte pas sur l'arbre d'un renommage
   // du code mergé, quand c'est ce qui l'a remonté (pause/reprise.ts).
@@ -241,12 +280,18 @@ export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new 
   // Le manager qui remonte un ticket rouge avec une carte : la carte parle au
   // chef, la remontée nue ferait doublon.
   const avecCarte = new Set(cartesEnTodo(base).map((carte) => carte.ticket));
+  let retenues: CarteRetenue[] | undefined;
+  const auTriage = () => (retenues ??= cartesRetenues(base));
   const livraisons = lirePass(base).flatMap((pass): AttenteDeTicket[] => {
     const ticket = tickets.get(pass.ticket);
     if (!ticket) return [];
     const livraison = livraisonDe(base, pass);
     const commun = { ticket: pass.ticket, title: ticket.title, since: pass.since, reason: pass.reason ?? "", cause: pass.cause, pr: pass.pr, ...(livraison === undefined ? {} : { livraison }) };
-    if (pass.phase === "held") return [{ ...commun, quoi: "merge", expired: pass.grantExpired }];
+    if (pass.phase === "held") {
+      const second = relueDeBoutEnBout(base, pass, auTriage);
+      if (second === false) return [];
+      return [{ ...commun, quoi: "merge", expired: pass.grantExpired, ...(second === null ? {} : { second }) }];
+    }
     // Rendu au rail par le chef, le ticket n'est plus 86 : sa pass garde sa
     // phase jusqu'au cook suivant, mais plus rien n'attend. Redécoupé, il
     // n'attend personne : ses sous-tickets portent le travail.
