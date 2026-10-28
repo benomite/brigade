@@ -83,6 +83,35 @@ export type Supervise = {
 
 const nombre = (valeur: unknown) => (typeof valeur === "number" ? valeur : 0);
 
+// Un tour = un message de l'assistant. `claude` livre un même message en
+// plusieurs lignes (une par bloc de contenu) qui répètent son usage : on le
+// reconnaît à son identifiant, et seul son dernier usage compte.
+function compteurDesTours() {
+  let turns = 0;
+  let tokens = 0;
+  const usages = new Map<string, number>();
+  return {
+    compter(ligne: string) {
+      let evenement;
+      try {
+        evenement = JSON.parse(ligne);
+      } catch {
+        return;
+      }
+      if (evenement?.type !== "assistant") return;
+      const message = evenement.message ?? {};
+      const id = typeof message.id === "string" ? message.id : `sans-id-${usages.size}`;
+      // Les lectures de cache ne comptent pas : elles gonflent le total d'un
+      // ordre de grandeur sans refléter le travail du cook.
+      const usage = nombre(message.usage?.input_tokens) + nombre(message.usage?.output_tokens) + nombre(message.usage?.cache_creation_input_tokens);
+      if (!usages.has(id)) turns += 1;
+      tokens += usage - (usages.get(id) ?? 0);
+      usages.set(id, usage);
+    },
+    mesure: (): { turns: number; tokens: number } => ({ turns, tokens }),
+  };
+}
+
 export function superviser(options: OptionsSupervision): Supervise {
   const { plafonds } = options;
   const debut = performance.now();
@@ -160,29 +189,7 @@ export function superviser(options: OptionsSupervision): Supervise {
     }
   };
 
-  // Un tour = un message de l'assistant. `claude` livre un même message en
-  // plusieurs lignes (une par bloc de contenu) qui répètent son usage : on le
-  // reconnaît à son identifiant, et seul son dernier usage compte.
-  let turns = 0;
-  let tokens = 0;
-  const usages = new Map<string, number>();
-  const compter = (ligne: string) => {
-    let evenement;
-    try {
-      evenement = JSON.parse(ligne);
-    } catch {
-      return;
-    }
-    if (evenement?.type !== "assistant") return;
-    const message = evenement.message ?? {};
-    const id = typeof message.id === "string" ? message.id : `sans-id-${usages.size}`;
-    // Les lectures de cache ne comptent pas : elles gonflent le total d'un
-    // ordre de grandeur sans refléter le travail du cook.
-    const usage = nombre(message.usage?.input_tokens) + nombre(message.usage?.output_tokens) + nombre(message.usage?.cache_creation_input_tokens);
-    if (!usages.has(id)) turns += 1;
-    tokens += usage - (usages.get(id) ?? 0);
-    usages.set(id, usage);
-  };
+  const compteur = compteurDesTours();
 
   const duree = setTimeout(
     () => arreter({ reason: "duration", limit: plafonds.durationMs, observed: ecoule() }),
@@ -212,9 +219,9 @@ export function superviser(options: OptionsSupervision): Supervise {
   });
   lignes.on("line", (ligne) => {
     veiller();
-    compter(ligne);
+    compteur.compter(ligne);
     lecteur.lire(ligne);
-    const depasse = depassement(plafonds, { turns, tokens });
+    const depasse = depassement(plafonds, compteur.mesure());
     if (depasse) arreter(depasse);
   });
 
@@ -237,7 +244,7 @@ export function superviser(options: OptionsSupervision): Supervise {
       let filet: NodeJS.Timeout | undefined;
       const rendre = () => {
         clearTimeout(filet);
-        resoudre({ code, signal, turns, tokens, durationMs: ecoule(), arret, erreur, ...(masques === 0 ? {} : { masques }) });
+        resoudre({ code, signal, ...compteur.mesure(), durationMs: ecoule(), arret, erreur, ...(masques === 0 ? {} : { masques }) });
       };
       const unDeMoins = () => {
         attendus -= 1;
@@ -267,7 +274,7 @@ export function superviser(options: OptionsSupervision): Supervise {
 
   return {
     pid: enfant.pid,
-    mesure: () => ({ turns, tokens }),
+    mesure: compteur.mesure,
     activite: () => lecteur.activite(),
     arreter: (motif = { reason: "stop", limit: null, observed: null }) => arreter(motif),
     abandonner() {
@@ -475,24 +482,7 @@ function suivre(
     }
   };
 
-  let turns = 0;
-  let tokens = 0;
-  const usages = new Map<string, number>();
-  const compter = (ligne: string) => {
-    let evenement;
-    try {
-      evenement = JSON.parse(ligne);
-    } catch {
-      return;
-    }
-    if (evenement?.type !== "assistant") return;
-    const message = evenement.message ?? {};
-    const id = typeof message.id === "string" ? message.id : `sans-id-${usages.size}`;
-    const usage = nombre(message.usage?.input_tokens) + nombre(message.usage?.output_tokens) + nombre(message.usage?.cache_creation_input_tokens);
-    if (!usages.has(id)) turns += 1;
-    tokens += usage - (usages.get(id) ?? 0);
-    usages.set(id, usage);
-  };
+  const compteur = compteurDesTours();
   // Le flux est déjà masqué : le lecteur n'a rien de plus à cacher.
   const lecteur = lecteurDActivite();
 
@@ -513,9 +503,9 @@ function suivre(
   const decodeur = new TextDecoder();
   const traiter = (ligne: string) => {
     veiller();
-    compter(ligne);
+    compteur.compter(ligne);
     lecteur.lire(ligne);
-    const depasse = depassement(plafonds, { turns, tokens });
+    const depasse = depassement(plafonds, compteur.mesure());
     if (depasse) arreter(depasse);
   };
   const lire = (jusquAuBout: boolean) => {
@@ -559,8 +549,7 @@ function suivre(
     resoudre({
       code: lue.code,
       signal: lue.signal,
-      turns,
-      tokens,
+      ...compteur.mesure(),
       durationMs: ecoule(),
       arret,
       erreur: lue.erreur,
@@ -588,7 +577,7 @@ function suivre(
 
   return {
     pid: relais.pid ?? undefined,
-    mesure: () => ({ turns, tokens }),
+    mesure: compteur.mesure,
     activite: () => lecteur.activite(),
     arreter: (motif = { reason: "stop", limit: null, observed: null }) => arreter(motif),
     // Le runtime s'en va : un cook relayé ne meurt pas avec lui. Le suivi
@@ -601,7 +590,7 @@ function suivre(
       clearTimeout(duree);
       clearTimeout(inactivite);
       clearInterval(lecture);
-      resoudre({ code: null, signal: null, turns, tokens, durationMs: ecoule(), arret, erreur: null });
+      resoudre({ code: null, signal: null, ...compteur.mesure(), durationMs: ecoule(), arret, erreur: null });
     },
     regarder,
     fin,
