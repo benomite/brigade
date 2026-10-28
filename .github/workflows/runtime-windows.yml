@@ -48,6 +48,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 26
+      # Le bash de Git for Windows cherche /tmp et s'en plaint sur sa sortie d'erreur (« bash.exe: warning:
+      # could not find /tmp, please create! ») : les tests de la pass, qui comparent la queue des gates
+      # telle quelle, y lisent cette ligne. On crée ce /tmp avant de jouer quoi que ce soit.
+      - name: Créer le /tmp de Git Bash
+        shell: bash
+        run: mkdir -p /tmp
       - name: Tests du runtime
         working-directory: runtime
         run: node test/support/windows.ts --part ${{ matrix.part }}/4

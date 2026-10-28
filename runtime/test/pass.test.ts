@@ -80,10 +80,7 @@ describe("la pass", { concurrency: 8 }, () => {
     await jusquAu("worktree.removed");
     assert.deepEqual([existsSync(join(repertoire, "worktrees", run)), existsSync(essai)], [false, false]);
     const verdict = dernier("pass.judged", 17);
-    // Sous Windows, le bash des runners se plaint parfois de l'absence de /tmp sur sa sortie d'erreur :
-    // ce bruit n'est pas ce que les fausses gates ont dit.
-    const queue = (verdict?.gates as { tail?: string } | undefined)?.tail?.replace(/^bash\.exe: warning: .*\n/gm, "");
-    assert.deepEqual({ ...verdict, gates: { ...(verdict?.gates as object), tail: queue } }, {
+    assert.deepEqual(verdict, {
       run,
       pr: PR,
       number: 101,
