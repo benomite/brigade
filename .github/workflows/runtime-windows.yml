@@ -9,8 +9,8 @@
 #   gh api repos/<dépôt>/check-runs/<job>/annotations
 name: runtime-windows
 
-# Joué aussi sur la base v2, à chaque merge qui touche le runtime : un rouge Windows y est vu au merge
-# qui l'a causé, pas à la prochaine PR.
+# Joué aussi sur la base v2, à chaque push, sans condition de chemin : chaque commit de la base a son
+# statut Windows, et un rouge y est vu au merge qui l'a causé, pas à la prochaine PR.
 on:
   pull_request:
     paths:
@@ -18,17 +18,15 @@ on:
       - ".github/workflows/runtime-windows.yml"
   push:
     branches: [v2]
-    paths:
-      - "runtime/**"
-      - ".github/workflows/runtime-windows.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: runtime-windows-${{ github.ref }}
-  # Une PR remplacée par un nouveau push est annulée ; un run de la base ne l'est jamais par le merge suivant.
+  group: runtime-windows-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  # Une PR remplacée par un nouveau push est annulée ; un run de la base ne l'est jamais par le merge suivant (un groupe par commit,
+  # sinon GitHub écarte le run en attente quand un autre arrive).
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
