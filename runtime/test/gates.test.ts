@@ -291,7 +291,7 @@ describe("les gates", { concurrency: 8 }, () => {
     assert.deepEqual([gates.outcome, gates.code, gates.tail], ["green", 0, "gates : VERT"]);
   });
 
-  test("des gates vertes qui laissent un process en arrière-plan sont vertes dès leur fin, et ne le laissent pas vivre", async (t) => {
+  test("des gates vertes qui laissent un process en arrière-plan sont vertes dès leur fin, et ne le laissent pas vivre", { skip: posixOnly("plays gates that leave `sleep 30 &` behind and expects its pid, read from `$!`, to die; under Git Bash on Windows `$!` is an MSYS pid, not a Windows one, and the runtime cannot kill the group (negative pid), so process.kill(pid, 0) never says ESRCH (run 40749181406)") }, async (t) => {
     const racine = worktree(t, { gates: 'sleep 30 & echo "pid=$!"; echo "gates : VERT"' });
 
     const debut = Date.now();
