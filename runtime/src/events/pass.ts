@@ -246,6 +246,10 @@ export type FaitPass =
   // jugée sans eux. Chaque test part à la cuisine en ticket `fix` : `issue`,
   // ouvert pour lui — ou déjà ouvert, `reused`. Ni renvoi, ni carte.
   | { type: "pass.ci-set-aside"; payload: { sha: string; checks: Check[]; fixes: Array<{ test: string; issue: number; reused: boolean }> } }
+  // Les jobs rouges de la CI du commit `sha` qui n'ont jamais été verts sur la
+  // base, `base` (#1860) : ils sont dits, pas jugés — la livraison est jugée sans
+  // eux. Une fois la base verte sur le job, son rouge se juge de nouveau.
+  | { type: "pass.ci-excused"; payload: { sha: string; base: string; checks: Check[] } }
   // La pass va ouvrir le ticket `fix` d'une remontée technique du ticket
   // (`remontee-a-la-cuisine.ts`, #1826) : `cause`, celle de la remontée. Écrit
   // avant l'appel à GitHub, comme celui d'un test instable.

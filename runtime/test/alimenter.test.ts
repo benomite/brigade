@@ -71,6 +71,7 @@ function depot(...issues: Issue[]) {
     prDeBranche: async () => null,
     prQuiFerme: async () => null,
     ci: async () => [],
+    ciDeLaBase: async () => [],
     diff: async () => "",
     journalDuCheck: async () => null,
     relancerLesEchecs: async () => {},

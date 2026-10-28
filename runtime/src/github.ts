@@ -98,6 +98,9 @@ export type GitHub = {
   prDeBranche(branche: string): Promise<PR | null>;
   // Les checks du commit : ses *check runs* et ses statuts.
   ci(sha: string): Promise<Check[]>;
+  // Les checks des derniers commits de la branche d'intégration, mis bout à
+  // bout : de quoi dire quel job y a déjà été vu vert.
+  ciDeLaBase(branche: string): Promise<Check[]>;
   // Le diff d'une PR, tel que GitHub le rend.
   diff(numero: number): Promise<string>;
   // Le journal du job d'un check de GitHub Actions, ou null si le check n'en
@@ -149,6 +152,9 @@ export type OptionsGitHub = {
   // En millisecondes ; par défaut, l'horloge du système. Les tests y mettent la leur.
   maintenant?: () => number;
 };
+
+// Combien de commits de la base la pass relit pour savoir si un job y a été vert.
+const COMMITS_DE_LA_BASE = 10;
 
 type Reponse = { statut: number; entetes: Map<string, string>; corps: string };
 
@@ -497,6 +503,11 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
           return { name: statut.context, outcome, conclusion: statut.state, url: statut.target_url ?? null };
         }),
       ];
+    },
+    async ciDeLaBase(branche) {
+      const chemin = `repos/${depot}/commits?sha=${encodeURIComponent(branche)}&per_page=${COMMITS_DE_LA_BASE}`;
+      const commits = JSON.parse(exiger(await lireSousCondition([chemin]), chemin).corps) as Array<{ sha: string }>;
+      return (await Promise.all(commits.map(({ sha }) => this.ci(sha)))).flat();
     },
     async diff(numero) {
       const chemin = `repos/${depot}/pulls/${numero}`;

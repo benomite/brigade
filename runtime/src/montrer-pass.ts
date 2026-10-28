@@ -184,6 +184,13 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
           ...fixes.map(({ test, issue, reused }) => `      unstable test: ${test} — \`fix\` ticket #${issue}${reused ? " (already open)" : ""}`),
         ];
       }
+      case "pass.ci-excused": {
+        const { sha, base, checks } = evenement.payload;
+        return [
+          `${tete}CI red on ${sha.slice(0, 7)} in jobs never green on ${base}: reported, not judged — no return, no card`,
+          ...checks.map((check) => `      CI “${check.name}”: ${check.conclusion}${check.url ? ` — ${check.url}` : ""} — not been green on ${base}`),
+        ];
+      }
       case "pass.ci-awaited":
         return [`${tete}no check yet on ${evenement.payload.sha.slice(0, 7)}: waiting for the CI of ${evenement.payload.workflows.join(", ")} (runs on PRs to the base)`];
       case "pass.second-judged": {
