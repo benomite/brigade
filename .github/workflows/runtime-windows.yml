@@ -7,6 +7,8 @@
 # finit par ses échecs, ses tests sautés et ses comptes en annotations du check, lisibles par l'API de
 # GitHub sans le journal du job (runtime/test/support/annotations.ts) :
 #   gh api repos/<dépôt>/check-runs/<job>/annotations
+# Le job tourne aussi à chaque push sur `v2`, sans condition de chemin : la base a ainsi un statut
+# Windows pour chacun de ses commits (#1859).
 name: runtime-windows
 
 on:
@@ -14,14 +16,19 @@ on:
     paths:
       - "runtime/**"
       - ".github/workflows/runtime-windows.yml"
+  push:
+    branches:
+      - v2
   workflow_dispatch:
 
 permissions:
   contents: read
 
+# Une PR remplace son run en cours. Un push sur la base a son groupe par commit et n'est jamais annulé :
+# avec un groupe par ref, GitHub écarterait le run en attente et un commit de `v2` resterait sans statut.
 concurrency:
-  group: runtime-windows-${{ github.ref }}
-  cancel-in-progress: true
+  group: runtime-windows-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   tests:
