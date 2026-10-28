@@ -151,7 +151,7 @@ import { compteRetenu, cookDeRun, refusDAffilee, stationsAnnoncees } from "./pro
 import { GesteRefuse, nomAbandon } from "./rail.ts";
 import { corpsDeReparation, echecsDesGates, LABELS_REPARATION, shaDeReparation, titreDeReparation } from "./reparation.ts";
 import { FICHIER as REGLAGES_DU_PROJET } from "./reglages-projet/reglages.ts";
-import { attribuer, testsEnEchec } from "./relance-de-ci.ts";
+import { attribuer, echecsDuJournal, testsEnEchec } from "./relance-de-ci.ts";
 import { CALIBRAGE_TEST_INSTABLE, corpsDeTestInstable, LABELS_TEST_INSTABLE, PRIO_TEST_INSTABLE, testDuTicket, titreDeTestInstable, type TestInstable } from "./test-instable.ts";
 import { DECLARATION_RESEAU } from "./reseau.ts";
 import { argumentsReviewer, CONSIGNE_MAX, consigneDeRelecture, DE_LA_BRIGADE, debutDeRelecture, diffCoupe, lireRelecture, REVIEWER, type ConfigReviewer } from "./reviewer.ts";
@@ -2062,7 +2062,14 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
           if (retenus.length > 0 && review.outcome !== "red" && (await relancerUnRunDejaJuge(connu, sha, retenus))) return;
           if (arrete || !enPass(ticket)) return;
           ci = { outcome: checks.length === 0 ? "none" : retenus.length > 0 ? "red" : "green", checks };
-          findings.push(...retenus.map((check) => `CI rouge — job « ${check.name} » : ${check.conclusion}${check.url ? ` (${check.url})` : ""}.`));
+          // Le lien ne suffit pas : le cook lit ici les tests en échec et leurs erreurs.
+          for (const check of retenus) {
+            const lu = await github.journalDuCheck(check).catch(() => null);
+            const echecs = lu === null ? [] : echecsDuJournal(lu);
+            const detail = echecs.length === 0 ? "" : ` Tests en échec : ${echecs.map(({ test, lignes }) => `« ${test} »${lignes.length > 0 ? ` — ${lignes.join(" / ")}` : ""}`).join(" ; ")}.`;
+            findings.push(`CI rouge — job « ${check.name} » : ${check.conclusion}${check.url ? ` (${check.url})` : ""}.${detail}`);
+          }
+          if (arrete || !enPass(ticket)) return;
         }
       }
       findings.push(...bloquants(review.findings).map(findingDuReviewer));

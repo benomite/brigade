@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { describe, test, type TestContext } from "node:test";
 import type { Check } from "../src/events/pass.ts";
-import { attribuer, testsEnEchec, type Lecture } from "../src/relance-de-ci.ts";
+import { attribuer, echecsDuJournal, testsEnEchec, type Lecture } from "../src/relance-de-ci.ts";
 import { principal as montrerPass } from "../src/montrer-pass.ts";
 import { passDuTicket } from "../src/projections/pass.ts";
 import { chef, cuisine, issue, type Options } from "./aides/cuisine.ts";
@@ -262,7 +262,7 @@ describe("la pass relance une CI rouge sur des tests que la livraison ne touche 
     await jusquAu("pass.returned");
 
     assert.deepEqual([compter("pass.ci-rerun"), gh.relances.length, compter("pass.escalated")], [1, 1, 0]);
-    assert.deepEqual(dernier("pass.returned", 17)?.findings, [`CI rouge — job « tests » : failure (${job(3).url}).`]);
+    assert.deepEqual(dernier("pass.returned", 17)?.findings, [`CI rouge — job « tests » : failure (${job(3).url}). Tests en échec : « la station prépare le worktree ».`]);
   });
 
   const commeAvant: Array<[string, Partial<Options> & { changes?: string[] }, (gh: ReturnType<typeof servir>["gh"]) => void]> = [
@@ -287,7 +287,10 @@ describe("la pass relance une CI rouge sur des tests que la livraison ne touche 
       await jusquAu("pass.returned");
 
       assert.deepEqual([compter("pass.ci-rerun"), gh.relances.length, dernier("pass.judged", 17)?.verdict], [0, 0, "red"]);
-      assert.deepEqual(dernier("pass.returned", 17)?.findings, [`CI rouge — job « tests » : failure (${gh.ci.checks[0]?.url}).`]);
+      // Le lien d'abord ; les tests en échec que le journal nomme, s'il en nomme, s'y ajoutent (ticket 1867).
+      const findings = (dernier("pass.returned", 17)?.findings ?? []) as string[];
+      assert.equal(findings.length, 1);
+      assert.ok(String(findings[0]).startsWith(`CI rouge — job « tests » : failure (${gh.ci.checks[0]?.url}).`));
     });
   }
 
@@ -298,5 +301,23 @@ describe("la pass relance une CI rouge sur des tests que la livraison ne touche 
     await jusquAu("pass.returned");
 
     assert.deepEqual([compter("pass.ci-rerun"), gh.relances.length], [0, 0]);
+  });
+});
+
+describe("le journal d'un job rouge nomme ses tests en échec avec leurs erreurs (#1867)", () => {
+  const JOURNAL = [
+    "2026-10-28T01:00:00.0000000Z ✖ un setup ne laisse rien tourner derrière lui (120.5ms)",
+    "2026-10-28T01:00:00.0000001Z   AssertionError: condition jamais remplie",
+    "2026-10-28T01:00:00.0000002Z     at test/pass.test.ts:10:3",
+    "2026-10-28T01:00:00.0000003Z ✔ un test vert (1ms)",
+    "2026-10-28T01:00:01.0000000Z ✖ failing tests:",
+    "2026-10-28T01:00:01.0000001Z ✖ un setup ne laisse rien tourner derrière lui (120.5ms)",
+  ].join("\n");
+
+  test("chaque test en échec est cité une fois, avec les lignes d'erreur qui le suivent", () => {
+    assert.deepEqual(echecsDuJournal(JOURNAL), [
+      { test: "un setup ne laisse rien tourner derrière lui", lignes: ["AssertionError: condition jamais remplie", "at test/pass.test.ts:10:3"] },
+    ]);
+    assert.deepEqual(echecsDuJournal("src/pass.ts(12,3): error TS2322"), []);
   });
 });
