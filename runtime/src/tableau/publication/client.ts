@@ -62,6 +62,37 @@ type ReponseGraphQL<D> = { data?: D; errors?: Array<{ message?: string }> };
 const LIRE_EPINGLE = "query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { issue(number: $number) { id isPinned } } }";
 const EPINGLER = "mutation($id: ID!) { pinIssue(input: { issueId: $id }) { issue { isPinned } } }";
 
+// `gh api -i` lancé sous un appel déjà pris au compteur (`prendreUnAppel`) : sa
+// réponse HTTP, quel que soit son statut — aussi pour le client des gestes
+// (gestes/client.ts). Ses entêtes sont notées au compte, un 304 lui rend
+// l'appel, la limite de GitHub atteinte est constatée. `args` part déjà masqué ;
+// `entree`, masquée ici.
+export function lancerGhApi(
+  appel: number,
+  args: string[],
+  entree: unknown,
+  { bin, env, limite, compte, delaiMs, maintenant }: { bin: string; env: NodeJS.ProcessEnv | undefined; limite: Limite; compte: string; delaiMs?: number; maintenant?: () => number },
+): Promise<ReponseHttp> {
+  return new Promise((resoudre, rejeter) => {
+    const enfant = execFile(
+      bin,
+      ["api", "-i", ...(entree === undefined ? [] : ["--input", "-"]), ...args],
+      { maxBuffer: 16 * 1024 * 1024, timeout: delaiMs ?? 30_000, env },
+      (erreur, stdout, stderr) => {
+        const reponse = decouper(stdout);
+        if (reponse) noterLesEntetes(limite, compte, reponse.entetes);
+        if (reponse?.statut === 304) limite.rendre(appel);
+        if (reponse && refusPourLimite(reponse)) constaterLimite(limite, reponse, { gh: bin, env, maintenant }).then(rejeter, rejeter);
+        else if (reponse) resoudre(reponse);
+        else rejeter(new Error(`gh api ${args.at(-1)} : ${stderr.trim() || erreur?.message || "réponse illisible"}`));
+      },
+    );
+    // Un `gh` absent ferme son entrée avant qu'on y écrive : l'erreur est celle de son lancement.
+    enfant.stdin?.on("error", () => {});
+    enfant.stdin?.end(entree === undefined ? "" : masquerIdentifiants(JSON.stringify(entree)).texte);
+  });
+}
+
 export function clientGitHubDuTableau(options: OptionsClient): ClientDuTableau {
   const { depot } = options;
   const bin = options.bin ?? "gh";
@@ -78,24 +109,7 @@ export function clientGitHubDuTableau(options: OptionsClient): ClientDuTableau {
     const environnement = async () => (env ??= options.jeton ? { ...process.env, GH_TOKEN: await options.jeton() } : undefined);
     const appel = await prendreUnAppel(limite, { usage, compte, etiquette: { projet: options.projet ?? (process.env.BRIGADE_PROJECT || depot), lecture: LECTURE_DU_TABLEAU }, gh: bin, env: environnement, maintenant: options.maintenant });
     await environnement();
-    return new Promise((resoudre, rejeter) => {
-      const enfant = execFile(
-        bin,
-        ["api", "-i", ...(entree === undefined ? [] : ["--input", "-"]), ...args],
-        { maxBuffer: 16 * 1024 * 1024, timeout: options.delaiMs ?? 30_000, env },
-        (erreur, stdout, stderr) => {
-          const reponse = decouper(stdout);
-          if (reponse) noterLesEntetes(limite, compte, reponse.entetes);
-          if (reponse?.statut === 304) limite.rendre(appel);
-          if (reponse && refusPourLimite(reponse)) constaterLimite(limite, reponse, { gh: bin, env, maintenant: options.maintenant }).then(rejeter, rejeter);
-          else if (reponse) resoudre(reponse);
-          else rejeter(new Error(`gh api ${args.at(-1)} : ${stderr.trim() || erreur?.message || "réponse illisible"}`));
-        },
-      );
-      // Un `gh` absent ferme son entrée avant qu'on y écrive : l'erreur est celle de son lancement.
-      enfant.stdin?.on("error", () => {});
-      enfant.stdin?.end(entree === undefined ? "" : masquerIdentifiants(JSON.stringify(entree)).texte);
-    });
+    return lancerGhApi(appel, args, entree, { bin, env, limite, compte, delaiMs: options.delaiMs, maintenant: options.maintenant });
   };
 
   const exiger = (reponse: ReponseHttp, chemin: string, attendu = 200): ReponseHttp => {
