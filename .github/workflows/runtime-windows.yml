@@ -42,6 +42,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 26
+      # Le bash de Git écrit « could not find /tmp, please create! » dans la sortie des gates quand
+      # `/tmp` manque, et casse les tests qui en comparent la fin (pass.test.ts, run 40751190357).
+      - name: Créer /tmp pour le bash de Git
+        shell: bash
+        run: mkdir -p /tmp
       - name: Tests du runtime
         working-directory: runtime
         run: node test/support/windows.ts --part ${{ matrix.part }}/4
