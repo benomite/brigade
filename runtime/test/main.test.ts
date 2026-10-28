@@ -71,6 +71,33 @@ function cloneInerte(): string {
 const lecteur = relecteur();
 after(() => lecteur.fermer());
 
+// Un projet dont les gates sont sur la base, donc dans le worktree du cook ; son
+// issue 15 en feu, dont la livraison ouvre la PR 40, sans CI, que GitHub merge ;
+// et le grant de merge donné par le chef avant que le runtime ne démarre.
+function livraisonSousGrant(t: TestContext, repertoire: string) {
+  const { origine, clone } = depotGit(t);
+  mkdirSync(join(clone, ".claude/brigade"), { recursive: true });
+  writeFileSync(join(clone, ".claude/brigade/gates.sh"), '#!/usr/bin/env bash\ntest -f "$1/travail.txt" && echo "gates : VERT"\n');
+  chmodSync(join(clone, ".claude/brigade/gates.sh"), 0o755);
+  git(clone, "add", ".");
+  git(clone, "commit", "-q", "-m", "les gates du projet");
+  git(clone, "push", "-q", "origin", BASE);
+  const pr = { number: 40, html_url: `https://github.com/${DEPOT}/pull/40`, state: "open", merged: false, mergeable: true, base: { ref: BASE }, head: { sha: "tete" } };
+  const gh = fauxGh(t);
+  gh.issues([issueGitHub(15, { labels: ["fire", "model:sonnet", "effort:low"] })]);
+  gh.repondre(`repos/${DEPOT}/pulls`, { statut: 201, corps: pr });
+  gh.repondre(`repos/${DEPOT}/issues/15/comments`, { statut: 201, corps: { id: 1 } });
+  gh.repondre(`repos/${DEPOT}/pulls?head=acme:cook/*`, { corps: [pr] });
+  gh.repondre(`repos/${DEPOT}/pulls/40`, { corps: pr });
+  gh.repondre(`repos/${DEPOT}/commits/*/check-runs?per_page=100`, { corps: { check_runs: [] } });
+  gh.repondre(`repos/${DEPOT}/commits/*/status?per_page=100`, { corps: { statuses: [] } });
+  gh.repondre(`repos/${DEPOT}/pulls/40/merge`, { corps: { merged: true } });
+  const avant = ouvrirJournal(repertoire);
+  avant.ajouter({ project: "brigade", ticket: null, author: "chef", type: "grant.activated", payload: { action: "merge" } });
+  avant.fermer();
+  return { origine, clone, gh };
+}
+
 function relire(repertoire: string) {
   // Les décisions du chef sont posées avant le démarrage : elles ne sont pas
   // ce que le runtime écrit.
@@ -498,28 +525,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
 
     test("sous grant, la livraison d'un cook est jugée par les gates du projet, mergée sur le commit jugé, et son issue fermée", { skip: posixOnly("under grant, lets the real runtime judge a cook's delivery with the project's gates, merge it on the judged commit and close the issue, then stops it with SIGTERM expecting exit 0; on Windows SIGTERM kills the runtime before its handler runs, and the closing PATCH did not even come within the test's one-minute wait") }, async (t) => {
       const repertoire = repertoireTemporaire(t);
-      const { origine, clone } = depotGit(t);
-      // Le projet a des gates : elles sont sur la base, donc dans le worktree du cook.
-      mkdirSync(join(clone, ".claude/brigade"), { recursive: true });
-      writeFileSync(join(clone, ".claude/brigade/gates.sh"), '#!/usr/bin/env bash\ntest -f "$1/travail.txt" && echo "gates : VERT"\n');
-      chmodSync(join(clone, ".claude/brigade/gates.sh"), 0o755);
-      git(clone, "add", ".");
-      git(clone, "commit", "-q", "-m", "les gates du projet");
-      git(clone, "push", "-q", "origin", BASE);
-      const pr = { number: 40, html_url: `https://github.com/${DEPOT}/pull/40`, state: "open", merged: false, mergeable: true, base: { ref: BASE }, head: { sha: "tete" } };
-      const gh = fauxGh(t);
-      gh.issues([issueGitHub(15, { labels: ["fire", "model:sonnet", "effort:low"] })]);
-      gh.repondre(`repos/${DEPOT}/pulls`, { statut: 201, corps: pr });
-      gh.repondre(`repos/${DEPOT}/issues/15/comments`, { statut: 201, corps: { id: 1 } });
-      gh.repondre(`repos/${DEPOT}/pulls?head=acme:cook/*`, { corps: [pr] });
-      gh.repondre(`repos/${DEPOT}/pulls/40`, { corps: pr });
-      gh.repondre(`repos/${DEPOT}/commits/*/check-runs?per_page=100`, { corps: { check_runs: [] } });
-      gh.repondre(`repos/${DEPOT}/commits/*/status?per_page=100`, { corps: { statuses: [] } });
-      gh.repondre(`repos/${DEPOT}/pulls/40/merge`, { corps: { merged: true } });
-      // Le chef a donné le grant avant que le runtime ne démarre.
-      const avant = ouvrirJournal(repertoire);
-      avant.ajouter({ project: "brigade", ticket: null, author: "chef", type: "grant.activated", payload: { action: "merge" } });
-      avant.fermer();
+      const { origine, clone, gh } = livraisonSousGrant(t, repertoire);
       // Le cook et le reviewer sont le même binaire : le premier lancé livre, le second relit.
       const suite = join(repertoire, "suite.txt");
       ecrireSuite(suite, ["livre"]);
@@ -582,26 +588,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
   test("un runtime remplacé pendant qu'un cook tourne : le cook lui survit, le runtime suivant le reprend sans le relancer, et sa livraison est jugée et mergée", { skip: posixOnly("replaces the runtime by SIGTERM while a cook runs, expecting exit 0, the cook alive, resumed by the next runtime, judged and merged; on Windows SIGTERM kills the runtime before its handler runs, so the first exit code is already null") }, async (t) => {
     const repertoire = repertoireTemporaire(t);
     aArreter(t, () => tuerLesRelais(repertoire));
-    const { origine, clone } = depotGit(t);
-    mkdirSync(join(clone, ".claude/brigade"), { recursive: true });
-    writeFileSync(join(clone, ".claude/brigade/gates.sh"), '#!/usr/bin/env bash\ntest -f "$1/travail.txt" && echo "gates : VERT"\n');
-    chmodSync(join(clone, ".claude/brigade/gates.sh"), 0o755);
-    git(clone, "add", ".");
-    git(clone, "commit", "-q", "-m", "les gates du projet");
-    git(clone, "push", "-q", "origin", BASE);
-    const pr = { number: 40, html_url: `https://github.com/${DEPOT}/pull/40`, state: "open", merged: false, mergeable: true, base: { ref: BASE }, head: { sha: "tete" } };
-    const gh = fauxGh(t);
-    gh.issues([issueGitHub(15, { labels: ["fire", "model:sonnet", "effort:low"] })]);
-    gh.repondre(`repos/${DEPOT}/pulls`, { statut: 201, corps: pr });
-    gh.repondre(`repos/${DEPOT}/issues/15/comments`, { statut: 201, corps: { id: 1 } });
-    gh.repondre(`repos/${DEPOT}/pulls?head=acme:cook/*`, { corps: [pr] });
-    gh.repondre(`repos/${DEPOT}/pulls/40`, { corps: pr });
-    gh.repondre(`repos/${DEPOT}/commits/*/check-runs?per_page=100`, { corps: { check_runs: [] } });
-    gh.repondre(`repos/${DEPOT}/commits/*/status?per_page=100`, { corps: { statuses: [] } });
-    gh.repondre(`repos/${DEPOT}/pulls/40/merge`, { corps: { merged: true } });
-    const avant = ouvrirJournal(repertoire);
-    avant.ajouter({ project: "brigade", ticket: null, author: "chef", type: "grant.activated", payload: { action: "merge" } });
-    avant.fermer();
+    const { origine, clone, gh } = livraisonSousGrant(t, repertoire);
     // Le cook commite, puis attend qu'on le laisse conclure ; le reviewer relit vert.
     const suite = join(repertoire, "suite.txt");
     ecrireSuite(suite, ["commite-puis-attend"]);
