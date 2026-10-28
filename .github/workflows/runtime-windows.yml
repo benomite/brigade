@@ -9,8 +9,15 @@
 #   gh api repos/<dépôt>/check-runs/<job>/annotations
 name: runtime-windows
 
+# Joué aussi sur la base v2, à chaque merge qui touche le runtime : un rouge Windows y est vu au merge
+# qui l'a causé, pas à la prochaine PR.
 on:
   pull_request:
+    paths:
+      - "runtime/**"
+      - ".github/workflows/runtime-windows.yml"
+  push:
+    branches: [v2]
     paths:
       - "runtime/**"
       - ".github/workflows/runtime-windows.yml"
@@ -21,7 +28,8 @@ permissions:
 
 concurrency:
   group: runtime-windows-${{ github.ref }}
-  cancel-in-progress: true
+  # Une PR remplacée par un nouveau push est annulée ; un run de la base ne l'est jamais par le merge suivant.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   tests:
