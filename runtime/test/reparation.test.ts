@@ -114,7 +114,7 @@ describe("une base rouge : rejeu automatique, puis ticket de réparation", { con
     assert.equal(dernier("base.checked")?.outcome, "red");
   });
 
-  test("le ticket de réparation passe devant tous les tickets en attente et part dans une station alors que la base est encore rouge, sans commande du chef — puis il est jugé et mergé malgré elle, et la cuisine repart", { skip: posixOnly("waits for a process or timing fact that the Windows runner does not meet in time (a `jusqua` that never completes there); cause not traced, listed in #1868") }, async (t) => {
+  test("le ticket de réparation passe devant tous les tickets en attente et part dans une station alors que la base est encore rouge, sans commande du chef — puis il est jugé et mergé malgré elle, et la cuisine repart", { skip: posixOnly("waits with a `jusqua` that never completes on the Windows runner (`Error: condition jamais remplie` at reparation.test.ts:142, run 40568364843, 3/4); cause not traced; listed in #1868") }, async (t) => {
     const { journal, gh, base, essais, dernier, jusquAu, laisserTourner, lance, rougir, runtime } = service(t, { essais: { base: "rouge" } });
     rougir();
     // Des tickets attendent, dont un en `prio:1` : la base rouge les retient tous.
@@ -151,7 +151,7 @@ describe("une base rouge : rejeu automatique, puis ticket de réparation", { con
     assert.deepEqual(gh.creations, [501]);
   });
 
-  test("une réparation mergée qui laisse la base rouge met une ligne dans le bloc `awaiting` ; la base revenue au vert, la ligne en sort et la cuisine relance seule les tickets retenus", { skip: posixOnly("waits for a process or timing fact that the Windows runner does not meet in time (a `jusqua` that never completes there); cause not traced, listed in #1868") }, async (t) => {
+  test("une réparation mergée qui laisse la base rouge met une ligne dans le bloc `awaiting` ; la base revenue au vert, la ligne en sort et la cuisine relance seule les tickets retenus", { skip: posixOnly("waits with a `jusqua` that never completes on the Windows runner (`Error: condition jamais remplie` at reparation.test.ts:165, run 40568364843, 3/4); cause not traced; listed in #1868") }, async (t) => {
     const { journal, gh, base, essais, dernier, jusquAu, laisserTourner, lance, rougir } = service(t, { essais: { base: "rouge" } });
     const ligneDeLaBase = () => {
       const lignes = decrireEtat(lireEtat(journal, new Date()), new Date());
@@ -217,7 +217,7 @@ describe("une base rouge : rejeu automatique, puis ticket de réparation", { con
     return lignes.slice(lignes.findIndex((ligne) => ligne.startsWith("awaiting")), lignes.indexOf("end awaiting")).filter((ligne) => ligne.startsWith("  base  "));
   };
 
-  test("une réparation fermée par la PR mergée qui corrige la base n'a pas « quitté le rail sans être servie » : elle est servie, la base est contrôlée sur la tête où le merge l'a laissée, et verte, la cuisine repart seule", { skip: posixOnly("waits for a process or timing fact that the Windows runner does not meet in time (a `jusqua` that never completes there); cause not traced, listed in #1868") }, async (t) => {
+  test("une réparation fermée par la PR mergée qui corrige la base n'a pas « quitté le rail sans être servie » : elle est servie, la base est contrôlée sur la tête où le merge l'a laissée, et verte, la cuisine repart seule", { skip: posixOnly("waits with a `jusqua` that never completes on the Windows runner (`Error: condition jamais remplie` at reparation.test.ts:239, run 40568364843, 3/4); cause not traced; listed in #1868") }, async (t) => {
     const { journal, gh, base, essais, jusquAu, laisserTourner, lance, rougir } = service(t, { essais: { base: "rouge" }, scenario: "attend" });
     rougir();
     gh.poser(issue(18));

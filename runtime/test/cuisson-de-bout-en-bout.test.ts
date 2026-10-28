@@ -128,7 +128,7 @@ describe("un projet servi de bout en bout, sur cette plateforme", () => {
     assert.deepEqual(worktreesDuClone(clone), []);
   });
 
-  test("arrêté, le cook ne laisse aucun process — ni lui, ni son enfant, ni son petit-enfant —, son worktree est rangé, et le cook suivant en reçoit un neuf", { skip: posixOnly("waits for a process or timing fact that the Windows runner does not meet in time (a `jusqua` that never completes there); cause not traced, listed in #1868") }, async (t) => {
+  test("arrêté, le cook ne laisse aucun process — ni lui, ni son enfant, ni son petit-enfant —, son worktree est rangé, et le cook suivant en reçoit un neuf", { skip: posixOnly("`lancements()` reads a launch file while it is being written: `SyntaxError: Unexpected end of JSON input` at cuisson-de-bout-en-bout.test.ts:53 called from the `jusqua` at :147 (run 40568273071, 4/4); cause not traced; listed in #1868") }, async (t) => {
     const { repertoire, clone, dernier, pidsDeLArbre, runs, lancements } = cuisineDeBoutEnBout(t, "attend");
     await jusqua(() => pidsDeLArbre().length === 3);
     const arbre = pidsDeLArbre();
