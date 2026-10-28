@@ -390,6 +390,15 @@ describe("une livraison se juge fusionnée avec la base", { concurrency: 8 }, ()
     assert.deepEqual(verdicts()[0]?.ci, { outcome: "red", checks: gh.ci.checks });
   });
 
+  test("une CI rouge dont le journal nomme un test en échec : le finding porte le nom du test et son erreur, pas le seul lien (ticket 1867)", async (t) => {
+    const { gh, dernier, jusquAu } = service(t, { scenario: "bavard", suite: ["livre"], depot: () => ({ avance: () => 0 }) });
+    gh.ci.checks = [{ name: "lint", outcome: "red", conclusion: "failure", url: "https://ci/2" }];
+    gh.journauxDeCI.set("lint", ["2026-10-28T01:00:00.0000000Z ✖ un setup ne laisse rien tourner derrière lui (120.5ms)", "2026-10-28T01:00:00.0000001Z   Error: condition jamais remplie"].join("\n"));
+    await jusquAu("pass.returned");
+
+    assert.deepEqual(dernier("pass.returned", 17)?.findings, ["CI rouge — job « lint » : failure (https://ci/2). Tests en échec : « un setup ne laisse rien tourner derrière lui » — Error: condition jamais remplie."]);
+  });
+
   test("une CI verte sur une branche qui n'a pas la tête de la base reste verte : les gates jouées sur la fusion jugent la fusion, et aucun cook ne repart", async (t) => {
     const { gh, cooks, verdicts, jusquAu } = service(t);
     gh.ci.checks = [{ name: "tests", outcome: "green", conclusion: "success", url: null }];

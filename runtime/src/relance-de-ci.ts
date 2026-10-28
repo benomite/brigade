@@ -52,6 +52,38 @@ export function testsEnEchec(journal: string): string[] | null {
   return nommes.size === 0 ? null : [...nommes];
 }
 
+const HORODATAGE = /^\d{4}-\d\d-\d\dT[\d:.]+Z ?/;
+const TEST_EN_ECHEC_NOMME = /^✖ (.+?)(?: \(\d+(?:\.\d+)?ms\))?$/;
+const MAX_TESTS = 8;
+const MAX_LIGNES = 6;
+const MAX_LARGEUR = 300;
+
+// Les tests qu'un journal de job dit en échec, avec leurs lignes d'erreur —
+// ce que le cook renvoyé lit au lieu de chercher le journal lui-même (#1867).
+// Chaque test est cité une fois, ses lignes d'erreur sont celles, indentées,
+// qui suivent son `✖` ; le plus informatif des deux passages du reporter est gardé.
+// Vide : le journal ne nomme aucun test (un lint, un contrôle de types).
+export function echecsDuJournal(journal: string): Array<{ test: string; lignes: string[] }> {
+  const echecs = new Map<string, string[]>();
+  let courant: string[] | null = null;
+  for (const brute of journal.split(/\r?\n/)) {
+    const ligne = brute.replace(COULEURS, "").replace(HORODATAGE, "").trimEnd();
+    const nom = TEST_EN_ECHEC_NOMME.exec(ligne)?.[1];
+    if (nom !== undefined) {
+      courant = null;
+      if (/^failing tests:?$/.test(nom)) continue;
+      const lignes = echecs.get(nom) ?? [];
+      echecs.set(nom, lignes);
+      courant = lignes;
+    } else if (courant !== null && /^\s+\S/.test(ligne)) {
+      if (courant.length < MAX_LIGNES) courant.push(ligne.trim().slice(0, MAX_LARGEUR));
+    } else {
+      courant = null;
+    }
+  }
+  return [...echecs].slice(0, MAX_TESTS).map(([test, lignes]) => ({ test, lignes }));
+}
+
 // Ce que la pass lit de la livraison pour attribuer un rouge.
 export type Lecture = {
   // Les fichiers qu'elle change par rapport à la base.
