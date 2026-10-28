@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { posixOnly } from "./support/plateforme.ts";
+import { PID_DU_DERNIER, posixOnly } from "./support/plateforme.ts";
 import type { Cloison } from "../src/cloison.ts";
 import { aDesGates, jouerGates, jouerGatesMesurees, jouerSetup } from "../src/gates.ts";
 import { JETON_MASQUE } from "../src/identifiants.ts";
@@ -291,8 +291,8 @@ describe("les gates", { concurrency: 8 }, () => {
     assert.deepEqual([gates.outcome, gates.code, gates.tail], ["green", 0, "gates : VERT"]);
   });
 
-  test("des gates vertes qui laissent un process en arrière-plan sont vertes dès leur fin, et ne le laissent pas vivre", { skip: posixOnly("plays gates that leave `sleep 30 &` behind and expects its pid, read from `$!`, to die; under Git Bash on Windows `$!` is an MSYS pid, not a Windows one, and the runtime cannot kill the group (negative pid), so process.kill(pid, 0) never says ESRCH (run 40749181406)") }, async (t) => {
-    const racine = worktree(t, { gates: 'sleep 30 & echo "pid=$!"; echo "gates : VERT"' });
+  test("des gates vertes qui laissent un process en arrière-plan sont vertes dès leur fin, et ne le laissent pas vivre", async (t) => {
+    const racine = worktree(t, { gates: `sleep 30 & echo "pid=${PID_DU_DERNIER}"; echo "gates : VERT"` });
 
     const debut = Date.now();
     const gates = await jouer(racine);
@@ -402,8 +402,8 @@ describe("le setup du worktree", { concurrency: 8 }, () => {
     assert.ok(Date.now() - debut < SANS_ATTENDRE_LE_SLEEP_MS);
   });
 
-  test("un setup ne laisse rien tourner derrière lui", { skip: posixOnly("plays a setup that leaves `sleep 30 &` behind and expects its pid, read from `$!`, to die; under Git Bash on Windows `$!` is an MSYS pid, not a Windows one, so process.kill(pid, 0) never says ESRCH (run 40755829033)") }, async (t) => {
-    const racine = worktree(t, { setup: 'sleep 30 >/dev/null 2>&1 & echo "pid=$!" >&2; echo "export PRET=1"' });
+  test("un setup ne laisse rien tourner derrière lui", async (t) => {
+    const racine = worktree(t, { setup: `sleep 30 >/dev/null 2>&1 & echo "pid=${PID_DU_DERNIER}" >&2; echo "export PRET=1"` });
 
     const debut = Date.now();
     const setup = await preparer(racine);

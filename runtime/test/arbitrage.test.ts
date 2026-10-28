@@ -13,16 +13,14 @@ import { chef, cuisine, issue, MACHINE_CALME, MACHINE_VASTE, plafonner, STATION 
 import { jusqua, repertoireTemporaire } from "./outils.ts";
 import { posixOnly } from "./support/plateforme.ts";
 
-// Les gardes du test de la machine saturée (voir plus bas) : élargies sous
-// Windows seulement. Ailleurs, celles de la base — 120 s pour le test
-// (`--test-timeout`) et 60 s pour chaque fait attendu (`jusqua`).
-const SOUS_WINDOWS = process.platform === "win32";
-const SATUREE_TEST_MS = SOUS_WINDOWS ? 600_000 : 120_000;
-// Sauté sous Windows : la dernière attente (le premier projet retrouve sa part, un 3e lancement) n'aboutit
-// pas, même après 300 s, sur le runner — runs 40562604249, 40560597796 et 40751190357 —, alors que le test
-// passe ailleurs. La cause n'est pas tracée : le journal des jobs est refusé depuis la station.
+// Sauté sous Windows : la dernière attente du test de la machine saturée (le premier projet retrouve sa
+// part, un 3e lancement) n'aboutit pas, même après 300 s, sur le runner — runs 40562604249, 40560597796
+// et 40751190357 —, alors que le test passe ailleurs. Lue côté station (placeEnMain, redire) et côté
+// arbitre (partager, encore), rien n'y dépend de la plateforme : la cause n'est pas tracée, faute de
+// journal de job lisible depuis la station.
 const windowsSauteLaSaturee = posixOnly("two kitchens of thirty cooks; its last wait, for the first project's third launch, times out on the Windows runner in 3 of the last runs (cause not traced)");
-const SATUREE_MS = SOUS_WINDOWS ? 300_000 : 60_000;
+const SATUREE_TEST_MS = 120_000;
+const SATUREE_MS = 60_000;
 
 // Un arbitre sur son port, et de quoi le couper puis le rendre : coupé, tout
 // échange est refusé comme le serait une connexion.
@@ -156,13 +154,6 @@ describe("l'arbitrage entre projets", { concurrency: 8 }, () => {
     await jusqua(() => second.projet("brigade")?.presence === "absent");
   });
 
-  // Deux cuisines de trente cooks et sept faits attendus l'un après l'autre :
-  // quelques secondes sous Linux, mais 104 s puis plus de 120 s sur le runner
-  // Windows, où chaque process coûte cher. Sous Windows seulement, ses gardes
-  // sont plus larges — celle du test et celle de chaque fait attendu : elles ne
-  // servent qu'à ce qu'un test bloqué finisse par le dire. Sous Linux et macOS,
-  // elles restent celles de la base, pour qu'un départ du second retardé d'une
-  // minute y fasse encore rougir le test.
   test("deux projets, un plafond haut, la machine saturée par le premier : le second finit par partir", { timeout: SATUREE_TEST_MS, skip: windowsSauteLaSaturee }, async (t) => {
     const { joint, ouvert, projet } = await arbitre(t, 50);
     // Le premier projet remplit la machine de ses cooks.

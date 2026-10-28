@@ -28,3 +28,8 @@ export function windowsOnly(raison: string, courante: Plateforme = process.platf
 export function posixOnly(raison: string, courante: Plateforme = process.platform): string | false {
   return seulementSur(["linux", "darwin"], raison, courante);
 }
+
+// Dans un script bash : le pid du dernier process lancé en arrière-plan, tel que Node le connaît.
+// Sous Git Bash (MSYS), `$!` est un pid MSYS, que `process.kill` ne reconnaît pas : `/proc/$!/winpid`
+// donne le pid Windows. Ailleurs ce fichier n'existe pas, et `$!` est déjà le bon pid.
+export const PID_DU_DERNIER = "$(cat /proc/$!/winpid 2>/dev/null || echo $!)";

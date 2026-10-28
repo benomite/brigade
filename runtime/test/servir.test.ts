@@ -20,7 +20,7 @@ import { ouvrirServeurs, type Livraison } from "../src/servir.ts";
 import { principal as status } from "../src/status.ts";
 import { cuisine, fauxGitHub, issue, montre, STATION, type Lieux, type Options } from "./aides/cuisine.ts";
 import { aArreter, appeler, BASE, depotGit, ENV_ENFANT, FAUX_BWRAP, git, jusqua, lancementsDuFauxBwrap, mort, portsFermesALInstant, repertoireTemporaire, vivant } from "./outils.ts";
-import { posixOnly } from "./support/plateforme.ts";
+import { PID_DU_DERNIER, posixOnly } from "./support/plateforme.ts";
 
 const FAUX_SERVICE = join(import.meta.dirname, "aides/faux-service.ts");
 const FAUSSES_GATES = join(import.meta.dirname, "aides/fausses-gates.sh");
@@ -231,7 +231,7 @@ describe("les serveurs des worktrees", { concurrency: 8 }, () => {
     const { repertoire, journal, serveurs, ranges, livraison, faits } = atelier(t, { graceMs: 20 });
     const pret = join(repertoire, "pret");
     // Un serveur qui en lance un autre, et n'entend pas SIGTERM.
-    const sourd = `trap "" TERM; sleep 30 & echo $! > "${pret}.enfant"; : > "${pret}"; wait`;
+    const sourd = `trap "" TERM; sleep 30 & echo ${PID_DU_DERNIER} > "${pret}.enfant"; : > "${pret}"; wait`;
     assert.equal(serveurs.servir(livraison(7, declarer(sourd, "app"), ["app/x"])), true);
     assert.equal(serveurs.servir(livraison(8, declarer(TOURNE, "app"), ["app/x"])), true);
     await jusqua(() => existsSync(pret));
