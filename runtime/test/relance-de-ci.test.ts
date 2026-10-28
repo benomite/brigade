@@ -288,7 +288,7 @@ describe("la pass relance une CI rouge sur des tests que la livraison ne touche 
 
       assert.deepEqual([compter("pass.ci-rerun"), gh.relances.length, dernier("pass.judged", 17)?.verdict], [0, 0, "red"]);
       // Le lien d'abord ; les tests en échec que le journal nomme, s'il en nomme, s'y ajoutent (ticket 1867).
-      const findings = dernier("pass.returned", 17)?.findings ?? [];
+      const findings = (dernier("pass.returned", 17)?.findings ?? []) as string[];
       assert.equal(findings.length, 1);
       assert.ok(String(findings[0]).startsWith(`CI rouge — job « tests » : failure (${gh.ci.checks[0]?.url}).`));
     });
