@@ -38,6 +38,11 @@ jobs:
       # du dépôt y attendent les `\n` du dépôt.
       - name: Garder les fins de ligne du dépôt
         run: git config --global core.autocrlf false
+      # Le bash de Git écrit « could not find /tmp, please create! » sur sa sortie d'erreur quand ce
+      # dossier manque : les gates d'un test le lisent dans leur sortie (run 40751190357, pass.test.ts).
+      - name: Créer le /tmp du bash de Git
+        shell: bash
+        run: mkdir -p /tmp
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
