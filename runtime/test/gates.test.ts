@@ -402,7 +402,7 @@ describe("le setup du worktree", { concurrency: 8 }, () => {
     assert.ok(Date.now() - debut < SANS_ATTENDRE_LE_SLEEP_MS);
   });
 
-  test("un setup ne laisse rien tourner derrière lui", async (t) => {
+  test("un setup ne laisse rien tourner derrière lui", { skip: posixOnly("plays a setup that leaves `sleep 30 &` behind and expects its pid, read from `$!`, to die; under Git Bash on Windows `$!` is an MSYS pid, not a Windows one, so process.kill(pid, 0) never says ESRCH (run 40755829033)") }, async (t) => {
     const racine = worktree(t, { setup: 'sleep 30 >/dev/null 2>&1 & echo "pid=$!" >&2; echo "export PRET=1"' });
 
     const debut = Date.now();
