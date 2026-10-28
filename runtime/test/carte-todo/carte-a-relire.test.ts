@@ -143,3 +143,10 @@ test("touching what the project opens up and its judges: it waits for its second
   assert.equal(attend(), true);
   assert.equal(carte()?.resume, "The delivery of #17 changes the hosts its cooks may reach, the secrets its cooks receive and how deliveries are checked: it adds a check to the gates. Its review found nothing blocking, and only you can merge it.");
 });
+
+test("stopped for its judges by a verdict that does not say so — a log from before the second judge: no second judge will judge it, it stays the chef's", (t) => {
+  const { attend, carte } = cuisine(t, {});
+  assert.equal(attend(), true);
+  assert.equal(carte()?.resume, "The delivery of #17 changes how deliveries are checked. Its review found nothing blocking, and only you can merge it.");
+  assert.deepEqual(carte()?.choix, [{ texte: "Merge", suite: "merge" }]);
+});
