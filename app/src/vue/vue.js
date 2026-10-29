@@ -2945,7 +2945,7 @@ function poserBon(projet, carte, tonAttend, execution = true) {
   if (carte.age !== undefined) {
     tete.append(poserAge(document, carte.age));
     if (carte.age.longue) bon.dataset.traine = "";
-    // Plus d'un essai depuis la première prise : un point par essai, à côté de l'âge (#1895).
+    // Plus d'un essai depuis la première prise : un point par essai, à côté de l'âge (ticket 1895).
     if (carte.essais !== undefined) tete.append(poserEssais(document, carte.essais));
   }
   bon.append(tete);

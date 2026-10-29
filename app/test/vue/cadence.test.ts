@@ -153,7 +153,7 @@ describe("les essais d'une carte, un point chacun", () => {
     essai("2026-10-21T11:47:10.000Z", "2026-10-21T12:02:00.000Z", "idle"),
     essai("2026-10-21T12:02:10.000Z", null, null),
   ];
-  const faits = (rail: unknown[]) => ({ ...FAITS, rail });
+  const faits = (rail: unknown[]) => ({ ...FAITS, rail, cadence: { ...CADENCE, medianSeconds: { taken: 1200, pass: 600 } } });
   const points = (pose: Faux | undefined) => pose?.dessous("span").filter((posee) => posee.className === "essai") ?? [];
 
   test("un ticket pris depuis cinquante minutes sur trois essais : `50 min` et la couleur lente, trois points", async () => {
