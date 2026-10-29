@@ -207,11 +207,49 @@ prendre_le_tour() {
     sleep 0.5
   done
 }
-# Quitter, interrompu ou non, rend le tour. (Un SIGKILL ne passe pas ici : c'est
-# la reprise du verrou mort, plus haut, qui le rend.)
-trap rendre_le_tour EXIT
-trap 'rendre_le_tour; exit 130' INT
-trap 'rendre_le_tour; exit 143' TERM
+# Le répertoire temporaire des suites, en mémoire quand le poste en a une
+# (#1915). Les tests écrivent sans cesse sur le disque, et rien de ce qu'ils
+# écrivent n'a à survivre au passage : chaque fait que leur journal valide est
+# un `fsync` (`synchronous = FULL`, `journal.ts`), dans un process qui
+# l'attend, et chaque dépôt d'essai est une rafale d'écritures. Sur un disque
+# que d'autres travaux occupent, cette attente est de l'horloge que le
+# processeur ne voit pas : un quart de celle de `reaction.test.ts`. Un tmpfs
+# ne fait rien attendre. Il lui faut de la place libre (`TEMPORAIRE_MIN_MO`,
+# en Mo) : un `/dev/shm` de conteneur, souvent 64 Mo, se remplirait en cours
+# de suite. Sans tmpfs (macOS, Windows), rien ne change. Le cache de
+# compilation de Node, lui, reste où il était : il sert d'un passage à l'autre.
+TEMPORAIRE=""
+TEMPORAIRE_MIN_MO=2048
+temporaire_des_tests() {
+  local LIBRE
+  [ -d /dev/shm ] && [ -w /dev/shm ] && [ "$(stat -f -c %T /dev/shm 2>/dev/null)" = tmpfs ] || return 0
+  LIBRE="$(df -Pk /dev/shm 2>/dev/null | awk 'NR == 2 { print int($4 / 1024) }')"
+  [ -n "$LIBRE" ] && [ "$LIBRE" -ge "$TEMPORAIRE_MIN_MO" ] || return 0
+  # Celui d'un passage tué sans préavis reste en mémoire : le suivant le range,
+  # dès que le pid qui le nomme est mort — ou au bout d'un jour, ce pid repris
+  # par un autre process.
+  local VIEUX PID
+  for VIEUX in /dev/shm/brigade-gates-*.*; do
+    [ -d "$VIEUX" ] && [ -O "$VIEUX" ] || continue
+    PID="${VIEUX#/dev/shm/brigade-gates-}"
+    PID="${PID%%.*}"
+    if ! kill -0 "$PID" 2>/dev/null || [ -n "$(find "$VIEUX" -maxdepth 0 -mmin +1440 2>/dev/null)" ]; then
+      rm -rf "$VIEUX"
+    fi
+  done
+  TEMPORAIRE="$(mktemp -d "/dev/shm/brigade-gates-$$.XXXXXX" 2>/dev/null)" || TEMPORAIRE=""
+}
+# Quitter, interrompu ou non, rend le tour et range le répertoire temporaire.
+# (Un SIGKILL ne passe pas ici : c'est la reprise du verrou mort, plus haut,
+# qui rend le tour, et le passage suivant qui range.)
+quitter() {
+  rendre_le_tour
+  [ -z "$TEMPORAIRE" ] || rm -rf "$TEMPORAIRE"
+  TEMPORAIRE=""
+}
+trap quitter EXIT
+trap 'quitter; exit 130' INT
+trap 'quitter; exit 143' TERM
 
 # 7. Les zones à suite de tests — le runtime, puis l'app : tests, puis contrôle
 # de types. Une seule ligne FAIL par étape ; le détail part sur stderr, sans
@@ -219,6 +257,38 @@ trap 'rendre_le_tour; exit 143' TERM
 # Usage : suite <dossier> <« du runtime »> <« runtime absent »> <du-runtime>
 NB_TESTS=""
 MS_TESTS=""
+# Le contrôle de types d'une zone ne doit rien à ses tests, ni à ceux de
+# l'autre zone : ceux des deux zones partent ensemble, dès le tour pris. Parti
+# avec les tests de l'app, celui de l'app tenait seul les gates après eux —
+# quelques secondes de tests, puis le double à attendre ses types (#1915).
+# Son verdict n'est lu qu'après celui des tests de sa zone (`suite`) : l'ordre
+# des lignes FAIL ne dépend pas de qui finit le premier.
+# TypeScript 7 (tsgo) est natif et parallèle : sur tous les cœurs, il brûle
+# trois fois plus de processeur que d'horloge, sur une box que les tests
+# occupent déjà. Deux fils et un ramasse-miettes moins pressé
+# (`GOMAXPROCS=2 GOGC=200`) : 13,3 s de processeur au lieu de 18,7 pour le
+# runtime, à mémoire égale (1,1 Go), et son horloge reste sous celle des
+# tests (#1635).
+# Il ne part que pour une zone dont `suite` joue les tests : les autres
+# conditions de `suite` (dépendances absentes) laissent `tsc` absent, et le
+# contrôle ne part pas.
+# Usage : types_partir <dossier> <règle de sélection>. Pose `TYPES_<dossier>`
+# — vide sans contrôle à jouer, « injouable » sans `tsc`, sinon le fichier de
+# sa sortie — et `PID_TYPES_<dossier>`.
+types_partir() {
+  local ZONE="$1" REGLE="$2" SORTIE
+  printf -v "TYPES_$ZONE" '%s' ""
+  [ -f "$ZONE/package.json" ] && [ "$REGLE" != rien ] && command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1 || return 0
+  node -e 'process.exit(require(process.argv[1]).scripts?.typecheck ? 0 : 1)' "$PWD/$ZONE/package.json" 2>/dev/null || return 0
+  if [ -x "$ZONE/node_modules/.bin/tsc" ]; then
+    SORTIE="$(mktemp)"
+    GOMAXPROCS=2 GOGC=200 npm --prefix "$ZONE" run typecheck >"$SORTIE" 2>&1 &
+    printf -v "PID_TYPES_$ZONE" '%s' "$!"
+    printf -v "TYPES_$ZONE" '%s' "$SORTIE"
+  else
+    printf -v "TYPES_$ZONE" '%s' injouable
+  fi
+}
 suite() {
   local ZONE="$1" DE="$2" ABSENTE="$3" JOURNAL_DE="$4" REGLE="$5"
   local TYPES PID_TYPES JOURNAUX JOURNAL DELAI ARRETES TESTS PID_TESTS APRES TIREE PID_GARDE NB MS FICHIERS="" COMMANDE="" MOTIF
@@ -254,25 +324,11 @@ suite() {
           else ok "tests $DE : $(set -- $FICHIERS; echo $#) fichiers touchés par ce changement — la suite entière tourne sur la base"; fi ;;
       esac ;;
   esac
-  # Le contrôle de types part en même temps que les tests : il ne leur doit
-  # rien. Son verdict n'est lu qu'après celui des tests — l'ordre des lignes
-  # FAIL ne dépend pas de qui finit le premier.
-  # TypeScript 7 (tsgo) est natif et parallèle : sur tous les cœurs, il brûle
-  # trois fois plus de processeur que d'horloge, sur une box que les tests
-  # occupent déjà. Deux fils et un ramasse-miettes moins pressé
-  # (`GOMAXPROCS=2 GOGC=200`) : 13,3 s de processeur au lieu de 18,7 pour le
-  # runtime, à mémoire égale (1,1 Go), et son horloge reste sous celle des
-  # tests (#1635).
-  TYPES=""
-  if node -e 'process.exit(require(process.argv[1]).scripts?.typecheck ? 0 : 1)' "$PWD/$ZONE/package.json" 2>/dev/null; then
-    if [ -x "$ZONE/node_modules/.bin/tsc" ]; then
-      TYPES="$(mktemp)"
-      GOMAXPROCS=2 GOGC=200 npm --prefix "$ZONE" run typecheck >"$TYPES" 2>&1 &
-      PID_TYPES=$!
-    else
-      TYPES="injouable"
-    fi
-  fi
+  # Le contrôle de types est parti au début du tour (`types_partir`).
+  TYPES="TYPES_$ZONE"
+  TYPES="${!TYPES:-}"
+  PID_TYPES="PID_TYPES_$ZONE"
+  PID_TYPES="${!PID_TYPES:-}"
   # Les tests créent chacun leur répertoire temporaire : l'état d'un runtime
   # lancé à la main dans ce worktree ne doit jamais leur parvenir.
   # Leur sortie entière est gardée quand ils échouent : un échec intermittent ne
@@ -299,9 +355,9 @@ suite() {
       set -m
       if [ -n "$FICHIERS" ]; then
         # Le script `test` de la zone, ses fichiers à la place de son motif.
-        ( cd "$ZONE" && exec env -u BRIGADE_STATE_DIR -u BRIGADE_PORT sh -c "$COMMANDE" ) </dev/null >"$JOURNAL" 2>&1 &
+        ( cd "$ZONE" && exec env "${ENV_TESTS[@]}" sh -c "$COMMANDE" ) </dev/null >"$JOURNAL" 2>&1 &
       else
-        env -u BRIGADE_STATE_DIR -u BRIGADE_PORT npm --prefix "$ZONE" test </dev/null >"$JOURNAL" 2>&1 &
+        env "${ENV_TESTS[@]}" npm --prefix "$ZONE" test </dev/null >"$JOURNAL" 2>&1 &
       fi
       PID_TESTS=$!
       set +m
@@ -326,8 +382,8 @@ suite() {
       # leur groupe.
       trap 'kill -KILL -- "-$PID_TESTS" 2>/dev/null; kill "$PID_GARDE" 2>/dev/null; exit 130' INT TERM
       wait "$PID_TESTS" 2>/dev/null && TESTS=verts || TESTS=rouges
-      trap 'rendre_le_tour; exit 130' INT
-      trap 'rendre_le_tour; exit 143' TERM
+      trap 'quitter; exit 130' INT
+      trap 'quitter; exit 143' TERM
       kill "$PID_GARDE" 2>/dev/null
       wait "$PID_GARDE" 2>/dev/null
       if [ -e "$TIREE" ]; then rm -f "$TIREE"; ARRETES=1; fi
@@ -398,10 +454,18 @@ DEBUT_ATTENTE=$SECONDS
 prendre_le_tour
 ATTENTE=$((SECONDS - DEBUT_ATTENTE))
 DEBUT_EXECUTION=$SECONDS
+types_partir runtime "$SELECTION_runtime"
+types_partir app "$SELECTION_app"
+# Les tests ne reçoivent ni l'état ni le port d'un runtime lancé à la main dans
+# ce worktree, et écrivent dans le répertoire temporaire des suites quand le
+# poste en a un en mémoire — leur cache de compilation gardé à sa place.
+temporaire_des_tests
+ENV_TESTS=(-u BRIGADE_STATE_DIR -u BRIGADE_PORT)
+[ -z "$TEMPORAIRE" ] || ENV_TESTS+=("NODE_COMPILE_CACHE=${NODE_COMPILE_CACHE:-${TMPDIR:-/tmp}/brigade-runtime-compile-cache}" "TMPDIR=$TEMPORAIRE")
 suite runtime "du runtime" "runtime absent" du-runtime "$SELECTION_runtime"
 suite app "de l'app" "app absente" de-l-app "$SELECTION_app"
 EXECUTION=$((SECONDS - DEBUT_EXECUTION))
-rendre_le_tour
+quitter
 ok "tour des tests : $ATTENTE s à attendre son tour, $EXECUTION s d'exécution (la garde de ${BRIGADE_GATES_DELAI_TESTS:-300} s ne compte que l'exécution)"
 # Une suite rouge n'a pas de relevé : la somme des autres passerait pour le
 # total, et le relevé montrerait une chute au lieu d'une absence.
