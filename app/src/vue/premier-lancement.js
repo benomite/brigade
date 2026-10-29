@@ -48,11 +48,11 @@ import { phrase } from "./onboarding/parcours.js";
 export const COMPTE = "Your GitHub account";
 export const COMPTE_EXEMPLE = "your-github-login";
 export const PROJET = "The project to work on";
-export const PROJET_EXEMPLE = "owner/repo, or the path of a folder on this computer";
+export const PROJET_EXEMPLE = "owner/repo";
 export const OUVRIR_CE_PROJET = "open this project";
-export const PROJET_MANQUE = "Type the project to work on: its GitHub repository, `owner/repo`, or the path of its folder.";
+export const PROJET_MANQUE = "Type the project to work on: its GitHub repository, `owner/repo`.";
 export const COMPTE_MANQUE = "Type your GitHub account too, or the project as `owner/repo`: a name alone does not say whose it is.";
-export const PROJET_ILLISIBLE = "This is neither a GitHub repository, `owner/repo`, nor the path of a folder.";
+export const PROJET_ILLISIBLE = "This is not a GitHub repository, `owner/repo`.";
 export const LECTURE = "Reading the stations you have paired, on GitHub…";
 /** @param {string} poste */
 export const OUVRIR_UN_PROJET = (poste) => `Open one of your projects on ${poste}: one click, no folder to choose.`;

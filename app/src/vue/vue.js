@@ -2092,7 +2092,7 @@ const inconnu = (nom) =>
 // Ce que l'app dit quand le geste a refusé celui qui le lance. Elle nomme où
 // est écrit le geste qui donne ce droit, et ne le rejoue pas : il se joue sur la box.
 const SANS_DROIT = [
-  "The station was reached, and its step refused the account your `ssh` reaches it with: what it said about it is above.",
+  "The station was reached, and its step refused your account: what it said about it is above.",
   "This is neither a failure nor a runtime to update: it is a right this account lacks.",
   "",
   "It is given on the station, by someone who has `sudo` there — the app does not do it for you:",
@@ -2123,11 +2123,11 @@ const NODE_INAPTE = [
 // Ce que l'app dit sous le message de `ssh`, quel qu'il soit : elle ne le lit
 // pas, elle nomme où chacune de ses phrases est expliquée.
 const SSH_EN_ECHEC = [
-  "`ssh` did not open a session on the station, and said why: its message is above. The app does not read it.",
+  "The app could not open a session on the station, and the reason is above. The app does not read it.",
   "What each of its sentences means, and the step that answers it:",
   "(docs/installer.md, section 2, “Joindre”)",
   "",
-  "If it says your key was refused (`Permission denied`), the station answers and it is access you lack. It is given on the station:",
+  "If it says your access was refused, the station answers and it is access you lack. It is given on the station:",
   "(docs/installer.md, “Ajouter un humain”)",
 ].join("\n");
 
@@ -6423,7 +6423,7 @@ function poserStationsDuProjet() {
     // Écrit à la main avec « hote » : l'app le lit là, sans qu'aucune station appairée ne le publie.
     const appele = bloc("strong", projet.box.hote);
     appele.className = "mono";
-    appele.title = `named by “hote” in ${configuration.chemin}: the app reads it there, and no paired station publishes it`;
+    appele.title = `named in ${configuration.chemin}: the app reads it there, and no paired station publishes it`;
     ligneDesStationsDuProjet.replaceChildren(bloc("span", "Cooks on "), appele);
   } else {
     sensDesStations.hidden = stations.length === 0;
@@ -7208,7 +7208,7 @@ function attendre(projet, tete, corps) {
       lectureIndisponible(
         document,
         `“${projet.nom}” does not say where its station is: nothing is read`,
-        `It lacks “hote”, in ${configuration.chemin}: the name your \`ssh\` reaches your station by. The app re-reads this file as soon as it changes.`,
+        `Its station is not named in ${configuration.chemin}. The app re-reads this file as soon as it changes.`,
       ),
     );
   } else {
