@@ -3,7 +3,7 @@
 // une seule transaction d'écriture : deux gestes concurrents se suivent, ils ne
 // se croisent pas.
 import { BAIL_ECHU, FIN_DE_86, type AccesRefuse, type FaitRail } from "./events/rail.ts";
-import { fournitTout } from "./capacites.ts";
+import { fournitTout, manqueDuTicket } from "./capacites.ts";
 import { illisible, requises } from "./fiche.ts";
 import type { Journal } from "./journal.ts";
 import { cooksEnCours } from "./projections/guardrails.ts";
@@ -102,9 +102,14 @@ export function retenue(ticket: TicketRail): "attend" | "zone" | null {
 }
 
 export const BLOQUE = "BLOQUÉ";
-// Un ticket en attente d'un tiers : 86 sans heure de retour, que seul un geste
-// du chef en sort.
+// Un ticket que quelque chose hors de la cuisine retient (#1924) : un tiers —
+// 86 sans heure de retour, que seul un geste du chef en sort —, ou une station
+// qu'aucune ne remplace — 86 `no-station: …`, qui revient seul sur le rail dès
+// qu'une station fournit ce que sa fiche demande.
 export const EN_WAITING = "WAITING";
+
+// En WAITING : il attend un tiers, ou une station qui fournisse ce qu'il demande.
+const enWaiting = (ticket: TicketRail) => ticket.waitingFor !== null || manqueDuTicket(ticket) !== null;
 
 const GELE = "bloqué";
 const DIT_GELE = "86 sans heure de retour, non jugé par la pass";
@@ -112,9 +117,11 @@ const DIT_GELE = "86 sans heure de retour, non jugé par la pass";
 // L'état d'un ticket tel que le rail le montre : en attente et bloqué sont le
 // même état au journal, pas le même à l'œil. Bloqué : un ticket qu'il attend
 // est gelé — 86 sans heure de retour, que la pass n'a pas jugé. De même,
-// WAITING est un 86 : celui d'un ticket en attente d'un tiers.
+// WAITING est un 86 : celui d'un ticket en attente d'un tiers, ou d'une
+// station qu'aucune ne remplace. Il n'est plus du rail : la cuisine ne peut pas
+// le prendre.
 export function etatLu(ticket: TicketRail): string {
-  if (ticket.waitingFor !== null) return EN_WAITING;
+  if (enWaiting(ticket)) return EN_WAITING;
   return ticket.frozenBy.length > 0 ? BLOQUE : nomEtat(ticket.state);
 }
 
@@ -122,7 +129,7 @@ export const BLOQUE_EN = "BLOCKED";
 
 // L'état lu en anglais : le même que `etatLu`, mot pour mot traduit.
 export function etatLuEn(ticket: TicketRail): string {
-  if (ticket.waitingFor !== null) return EN_WAITING;
+  if (enWaiting(ticket)) return EN_WAITING;
   return ticket.frozenBy.length > 0 ? BLOQUE_EN : nomEtatEn(ticket.state);
 }
 

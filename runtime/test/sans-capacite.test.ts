@@ -1,6 +1,6 @@
 // Un ticket qui demande une capacité qu'aucune station ne fournit n'arrive pas
 // au chef : le manager le réécrit ou le redécoupe d'abord ; si c'est
-// impossible, le ticket attend sur le rail, et son issue dit l'accès qui le
+// impossible, le ticket attend en WAITING, et son issue dit l'accès qui le
 // ferait partir — rien n'entre dans TODO (#1834). Sur une cuisine complète.
 import assert from "node:assert/strict";
 import { describe, test, type TestContext } from "node:test";
@@ -41,15 +41,15 @@ describe("un ticket qui demande ce qu'aucune station ne fournit", { concurrency:
     assert.ok(c.gh.commentaires.some(([n, corps]) => n === 14 && corps.includes(MARQUEUR_MANAGER) && /redécoupé/.test(corps)));
   });
 
-  test("la réécriture est impossible : le ticket attend sur le rail, 86, et son issue nomme l'accès à donner et la raison — aucune carte dans TODO (#1834)", async (t) => {
+  test("la réécriture est impossible : le ticket attend en WAITING, 86, et son issue nomme l'accès à donner et la raison — aucune carte dans TODO (#1834)", async (t) => {
     const c = brigade(t, "chrome-connecté", "decoupe-question");
     await jusqua(() => c.faits("manager.capability-gestured").length === 1);
-    await jusqua(() => c.gh.commentaires.some(([n, corps]) => n === 14 && /le ticket attend sur le rail/.test(corps)));
+    await jusqua(() => c.gh.commentaires.some(([n, corps]) => n === 14 && /le ticket attend en WAITING a station that provides `chrome-connecté`/.test(corps)));
 
     assert.deepEqual((c.faits("manager.capability-gestured")[0]?.payload as { missing?: string[] } | undefined)?.missing, ["chrome-connecté"]);
-    const [, corps] = c.gh.commentaires.find(([n, texte]) => n === 14 && /le ticket attend sur le rail/.test(texte)) ?? [];
+    const [, corps] = c.gh.commentaires.find(([n, texte]) => n === 14 && /le ticket attend en WAITING/.test(texte)) ?? [];
     assert.match(corps ?? "", /no station provides `chrome-connecté`/);
-    assert.match(corps ?? "", /Il repart seul dès qu'une station le fournit — .*station stations <machine>\/<engine>:<cook cap>:chrome-connecté/);
+    assert.match(corps ?? "", /Il revient seul sur le rail dès qu'une station le fournit — .*station stations <machine>\/<engine>:<cook cap>:chrome-connecté/);
     assert.match(corps ?? "", /Rien n'est demandé au chef dans TODO\./);
     assert.equal(c.faits("manager.capability-resplit").length, 0);
     assert.deepEqual([c.gh.creations, c.etat(14), c.dernier("ticket.86", 14)?.reason], [[], "86", "no-station: chrome-connecté"]);

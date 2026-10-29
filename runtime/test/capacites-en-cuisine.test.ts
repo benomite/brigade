@@ -7,14 +7,14 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { ouvrirArbitre, servirArbitre } from "../src/arbitre.ts";
 import { joindreArbitre } from "../src/arbitrage.ts";
-import { decrireEtat, lireEtat } from "../src/etat.ts";
+import { decrireEtat, faits, lireEtat } from "../src/etat.ts";
 import { MARQUEUR, porteFiche } from "../src/fiche.ts";
 import { ACTIONS, JAMAIS_ACCORDEES, jamaisAccordee } from "../src/grant.ts";
 import { principal as grant } from "../src/grant-cli.ts";
 import { etatDuGrant } from "../src/projections/pass.ts";
 import { etatStation } from "../src/projections/stations.ts";
 import { lireStations } from "../src/stations-declarees.ts";
-import { cuisine, issue, type Lieux } from "./aides/cuisine.ts";
+import { cuisine, decider, issue, type Lieux } from "./aides/cuisine.ts";
 import { appeler, jusqua, repertoireTemporaire } from "./outils.ts";
 
 const stations = (declaration: string) => lireStations({ BRIGADE_STATIONS: declaration });
@@ -152,9 +152,47 @@ describe("les capacités qu'un ticket demande", { concurrency: 8 }, () => {
     assert.ok(lignes.slice(debut, lignes.indexOf("end awaiting")).every((ligne) => !ligne.startsWith("  #14 ")));
     assert.ok(lignes.some((ligne) => ligne.includes("no station provides `chrome-connecté` (#14) — to unblock: attach a station that provides it")), lignes.join("\n"));
 
-    // Et sur sa ligne du rail, sous le décompte.
+    // Et sur sa ligne, sous le décompte : en WAITING, avec ce qu'il attend (#1925).
     const rail = lignes.findIndex((ligne) => ligne.startsWith("rail"));
-    assert.deepEqual(lignes.slice(rail, rail + 2), ["rail       1 86", "  #14  86  -  since 0 s (no-station: chrome-connecté), no return time — back on its own once a station provides what its card requires  Ticket 14"]);
+    assert.deepEqual(lignes.slice(rail, rail + 2), [
+      "rail       1 WAITING",
+      "  #14  WAITING  -  awaiting a station that provides `chrome-connecté` — since 0 s, back on the rail on its own once a station provides what its card requires  Ticket 14",
+    ]);
+  });
+
+  test("aucune station ne fournit `macos` : le ticket quitte le rail pour WAITING et dit ce qu'il attend ; une station qui le fournit déclarée, il revient seul sur le rail et sa raison tombe — celui qu'une station sert n'est jamais mis de côté (#1925)", async (t) => {
+    const { repertoire, gh, journal, etat, types, lancements, heure } = cuisine(t, { decisions: true, stations: DEUX, scenario: "muet" });
+    poser(gh, 14, "- requiert : macos");
+    poser(gh, 15, "- requiert : code");
+    await jusqua(() => etat(14) === "86" && lancements().length === 1);
+    const lire = () => {
+      const lu = lireEtat(journal);
+      const lignes = decrireEtat(lu, heure.maintenant());
+      return { ligne: lignes.find((ligne) => ligne.startsWith("  #14 ")) ?? "", carte: faits(lu, heure.maintenant()).rail.find(({ ticket }) => ticket === 14), compteurs: faits(lu, heure.maintenant()).compteurs };
+    };
+
+    // Mis de côté par le runtime seul, sans aucun geste : il n'est plus du rail, il est en WAITING, et dit ce qu'il attend.
+    assert.equal(journal.duTicket(14).find((e) => e.type === "ticket.86")?.author, "runtime");
+    const parque = lire();
+    assert.match(parque.ligne, /^ {2}#14 {2}WAITING {2}- {2}awaiting a station that provides `macos` — since /);
+    assert.deepEqual([parque.carte?.etat, parque.carte?.attente?.colonne], ["WAITING", "WAITING"]);
+    assert.match(parque.carte?.tiers?.quoi ?? "", /^a station that provides `macos` — /);
+    assert.equal(parque.compteurs.rail, 0);
+    // Celui qu'une station déclarée sert part, sans jamais être mis de côté.
+    assert.equal(etat(15), "taken");
+    assert.equal(types(15).includes("ticket.86"), false);
+
+    // Le chef déclare une station qui fournit `macos`, sans redémarrer : le ticket revient seul sur le rail, et part chez elle.
+    decider(repertoire, "BRIGADE_STATIONS", "box/claude:2:code+raisonnement,box/playwright:2:navigateur-headless,mac/claude:1:macos");
+    await jusqua(() => etat(14) === "taken");
+
+    assert.equal(journal.duTicket(14).findLast((e) => e.type === "ticket.released")?.payload.reason, "capabilities-reread");
+    assert.equal(journal.duTicket(14).find((e) => e.type === "ticket.taken")?.author, "station:mac/claude");
+    const revenu = lire();
+    assert.doesNotMatch(revenu.ligne, /WAITING|awaiting a station/);
+    assert.deepEqual([revenu.carte?.etat, revenu.carte?.attente, revenu.carte?.tiers], ["pris", null, null]);
+    // Le ticket servi par une station n'a jamais été mis de côté, même après le retour de l'autre.
+    assert.equal(types(15).includes("ticket.86"), false);
   });
 
   test("les tickets du même lot qui ne demandent rien partent normalement pendant qu'un autre est 86 — même sur sa zone", async (t) => {

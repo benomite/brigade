@@ -161,7 +161,7 @@ test("un ticket mis de côté faute de station se lit en WAITING : ce qu'il atte
   noter({ type: "runtime.ticked", payload: { intervalMs: 60_000 } });
   const [sans, autre] = lire(`${JOUR_HORLOGE}T10:04:11.000Z`).forme.rail;
   assert.deepEqual([sans?.ticket, sans?.etat, sans?.attente?.colonne, sans?.tiers?.relance], [14, "WAITING", "WAITING", null]);
-  assert.equal(sans?.tiers?.quoi, "a station that provides chrome-connecté — attach one to the project");
+  assert.equal(sans?.tiers?.quoi, "a station that provides `chrome-connecté` — attach one to the project");
   assert.equal(sans?.tiers?.qui, "a human, the chef");
   assert.equal(sans?.tiers?.aLArrivee, "the ticket goes back on the rail by itself once a station provides it");
   assert.match(sans?.attente?.raison ?? "", /humain/);

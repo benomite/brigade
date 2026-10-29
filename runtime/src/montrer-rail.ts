@@ -24,12 +24,13 @@
 import { configRail } from "./alimenter.ts";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { direAttenteDeTiersEn } from "./attente.ts";
-import { CLE_DES_CAPACITES } from "./capacites.ts";
+import { CLE_DES_CAPACITES, manqueDuTicket } from "./capacites.ts";
 import { corrigerLaLivraison, mergerLaLivraison, renvoyerLaLivraison, retirerDuRail } from "./geste-ticket.ts";
 import { ouvrirGitHub } from "./github.ts";
 import { repondreALaCarte } from "./reponse-carte.ts";
 import { ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
+import { direAttenteDUneStationEn } from "./mise-de-cote.ts";
 import { communsDuRail, lireRail, type TicketRail } from "./projections/rail.ts";
 import { etatStation, plafondDeCooks, stationsAnnoncees } from "./projections/stations.ts";
 import { avecHorsZoneEn, direAttentesLeveesEn, direRetenueEn, etatLuEn, retenue } from "./rail.ts";
@@ -150,9 +151,13 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
       case "pass":
       case "served":
         return `since ${ticket.since}, cooked by ${ticket.station}`;
-      case "86":
+      case "86": {
         if (ticket.waitingFor !== null) return direAttenteDeTiersEn(ticket.waitingFor, (instant) => instant);
+        // Faute de station, en WAITING : ce qu'il attend (#1925).
+        const manque = manqueDuTicket(ticket);
+        if (manque !== null) return direAttenteDUneStationEn(manque, ticket.since);
         return `since ${ticket.since} (${ticket.reason}), ${ticket.until ? `back at ${ticket.until}` : "no return time"}`;
+      }
     }
   }
 

@@ -5,7 +5,7 @@ import { test, type TestContext } from "node:test";
 import { REDECOUPE } from "../src/events/rail.ts";
 import { ouvrirJournal, type Journal } from "../src/journal.ts";
 import { communsDuRail, ticketDuRail } from "../src/projections/rail.ts";
-import { direAttentesLevees, direAttentesLeveesEn, direRetenue, etatLu, GesteRefuse, ouvrirRail, retenue } from "../src/rail.ts";
+import { direAttentesLevees, direAttentesLeveesEn, direRetenue, etatLu, etatLuEn, GesteRefuse, ouvrirRail, retenue } from "../src/rail.ts";
 import { lancer, repertoireTemporaire } from "./outils.ts";
 
 const PRENEUR = join(import.meta.dirname, "aides/prend-tickets.ts");
@@ -653,6 +653,27 @@ test("ce qui retient un ticket se dit en clair : ce qu'il attend, même hors du 
   assert.equal(direRetenue(ticketDuRail(journal.base, 20)!), "attend #16, #17 (hors du rail, issue ouverte : label `fire` retiré)");
   assert.equal(direAttentesLevees(ticketDuRail(journal.base, 20)!), "#15 a été fermé sans avoir été servi : il n'est plus attendu");
   assert.equal(direAttentesLeveesEn(ticketDuRail(journal.base, 20)!), "#15 was closed without being served: no longer awaited");
+});
+
+test("un ticket qu'aucune station ne peut cuisiner se lit en WAITING, pas sur le rail ; un autre 86, ou le même rendu, garde son état (#1925)", (t) => {
+  const { journal, rail, heure } = cuisine(t);
+  for (const ticket of [14, 15, 16]) poser(journal, ticket);
+  rail.quatreVingtSix(14, { motif: "no-station: macos" });
+  rail.quatreVingtSix(15, { motif: "quota", retour: new Date(heure.maintenant().getTime() + BAIL_MS) });
+  rail.quatreVingtSix(16, { motif: "unreadable-card" });
+
+  const lus = () => [14, 15, 16].map((ticket) => [etatLu(ticketDuRail(journal.base, ticket)!), etatLuEn(ticketDuRail(journal.base, ticket)!)]);
+  assert.deepEqual(lus(), [
+    ["WAITING", "WAITING"],
+    ["86", "86"],
+    ["86", "86"],
+  ]);
+  // Il ne part pas : aucune station ne le prend.
+  assert.equal(rail.prendre("box/claude"), null);
+
+  // Rendu au rail, il n'attend plus rien.
+  rail.rendre(14, "capabilities-reread");
+  assert.deepEqual(lus()[0], ["en attente", "queued"]);
 });
 
 // --- Les zones : deux tickets concurrents ne possèdent pas le même fichier.
