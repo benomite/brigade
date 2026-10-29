@@ -547,6 +547,12 @@ export function vivant(pid: number | undefined): boolean {
   }
 }
 
+// Le pid du dernier process lancé en arrière-plan (`$!`), à écrire dans un script
+// bash que joue le runtime. Sous Git Bash, `$!` est un pid MSYS, que Node ne
+// connaît pas : le pid Windows du même process est dans `/proc/$!/winpid`. Ailleurs
+// ce fichier n'existe pas et `$!` est déjà le bon pid.
+export const PID_DU_FOND = '$(cat /proc/$!/winpid 2>/dev/null || echo $!)';
+
 // Attend la mort d'un process : un signal envoyé n'est pas un process mort, il
 // meurt un instant plus tard.
 export async function mort(pid: number): Promise<void> {

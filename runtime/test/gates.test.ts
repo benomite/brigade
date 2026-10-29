@@ -10,7 +10,7 @@ import type { Cloison } from "../src/cloison.ts";
 import { aDesGates, jouerGates, jouerGatesMesurees, jouerSetup } from "../src/gates.ts";
 import { JETON_MASQUE } from "../src/identifiants.ts";
 import { environnementClaude, FICHIER_DU_JETON } from "../src/jeton-claude.ts";
-import { ENV_ENFANT, mort, repertoireTemporaire } from "./outils.ts";
+import { ENV_ENFANT, mort, PID_DU_FOND, repertoireTemporaire } from "./outils.ts";
 
 // Les scripts d'essai lancent un `sleep 30` : s'il tenait ce qu'on attend, rien
 // ne reviendrait avant trente secondes. La borne dit « bien avant », pas « vite » :
@@ -291,8 +291,8 @@ describe("les gates", { concurrency: 8 }, () => {
     assert.deepEqual([gates.outcome, gates.code, gates.tail], ["green", 0, "gates : VERT"]);
   });
 
-  test("des gates vertes qui laissent un process en arrière-plan sont vertes dès leur fin, et ne le laissent pas vivre", { skip: posixOnly("waits for the death of a background pid read with `$!` and never sees it (`Error: condition jamais remplie` in `mort`, runs 40755829033 and 40749181406); probably an MSYS pid that process.kill cannot find under Git Bash, not proven; listed in #1868") }, async (t) => {
-    const racine = worktree(t, { gates: 'sleep 30 & echo "pid=$!"; echo "gates : VERT"' });
+  test("des gates vertes qui laissent un process en arrière-plan sont vertes dès leur fin, et ne le laissent pas vivre", async (t) => {
+    const racine = worktree(t, { gates: `sleep 30 & echo "pid=${PID_DU_FOND}"; echo "gates : VERT"` });
 
     const debut = Date.now();
     const gates = await jouer(racine);
@@ -402,8 +402,8 @@ describe("le setup du worktree", { concurrency: 8 }, () => {
     assert.ok(Date.now() - debut < SANS_ATTENDRE_LE_SLEEP_MS);
   });
 
-  test("un setup ne laisse rien tourner derrière lui", { skip: posixOnly("waits for the death of a background pid read with `$!` and never sees it (`Error: condition jamais remplie` in `mort`, runs 40755829033 and 40749181406); probably an MSYS pid that process.kill cannot find under Git Bash, not proven; listed in #1868") }, async (t) => {
-    const racine = worktree(t, { setup: 'sleep 30 >/dev/null 2>&1 & echo "pid=$!" >&2; echo "export PRET=1"' });
+  test("un setup ne laisse rien tourner derrière lui", async (t) => {
+    const racine = worktree(t, { setup: `sleep 30 >/dev/null 2>&1 & echo "pid=${PID_DU_FOND}" >&2; echo "export PRET=1"` });
 
     const debut = Date.now();
     const setup = await preparer(racine);
