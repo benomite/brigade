@@ -60,6 +60,39 @@ export function attendentUneCapaciteOuUnTiers(rail: TicketRail[]): Set<number> {
   return legitimes;
 }
 
+// La racine d'une chaîne d'attente (#1902) : le ticket qu'attend, de proche en
+// proche, une carte qui en attend d'autres — celui qui n'attend plus personne
+// sur le rail, ou qui n'y est pas. `left` : parti du rail l'issue ouverte, sa
+// raison (`unfired`…), nulle sinon ; `onRail` : il y est. `awaitedBy` : les
+// cartes qui l'attendent, dans l'ordre donné.
+export type RacineDAttente = { ticket: number; left: string | null; onRail: boolean; awaitedBy: number[] };
+
+// Les racines des chaînes d'attente de ces cartes, dans l'ordre où elles
+// apparaissent. Une carte qui n'attend aucun ticket n'est dans aucune chaîne ;
+// un cycle n'a pas de racine — sa fiche le dit déjà.
+export function racinesDesAttentes(rail: TicketRail[], cartes: number[]): RacineDAttente[] {
+  const parNumero = new Map(rail.map((ticket) => [ticket.ticket, ticket]));
+  const attend = (ticket: TicketRail | undefined): ticket is TicketRail => ticket !== undefined && ticket.state === "waiting" && ticket.awaits.length > 0;
+  const racines = new Map<number, RacineDAttente>();
+  const remonter = (ticket: TicketRail, vus: Set<number>): Array<Omit<RacineDAttente, "awaitedBy">> =>
+    ticket.awaits.flatMap(({ ticket: numero, left }) => {
+      if (left !== null) return [{ ticket: numero, left: left.reason, onRail: false }];
+      const sur = parNumero.get(numero);
+      if (!attend(sur)) return [{ ticket: numero, left: null, onRail: sur !== undefined }];
+      return vus.has(numero) ? [] : remonter(sur, new Set([...vus, numero]));
+    });
+  for (const carte of cartes) {
+    const sur = parNumero.get(carte);
+    if (!attend(sur)) continue;
+    for (const racine of remonter(sur, new Set([carte]))) {
+      const connue = racines.get(racine.ticket) ?? { ...racine, awaitedBy: [] };
+      if (!connue.awaitedBy.includes(carte)) connue.awaitedBy.push(carte);
+      racines.set(racine.ticket, connue);
+    }
+  }
+  return [...racines.values()];
+}
+
 // La panne à `maintenant`, ou null quand l'une des quatre conditions manque.
 export function cuisineOisive(lu: CeQueLitLaPanne, maintenant: Date): CuisineOisive | null {
   if (eteint(lu) || lu.cooks.length > 0) return null;

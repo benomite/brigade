@@ -16,7 +16,7 @@ import { RELEVE } from "./events/guardrails.ts";
 import { PART_SANS_PROGRES } from "./events/station.ts";
 import { BATTEMENT } from "./events/runtime.ts";
 import { direBaseRevenueVerteEn, direControleRetenuEn, suiteDeBaseRougeEn } from "./dire-base.ts";
-import { cuisineOisive, type CuisineOisive } from "./cuisine-oisive.ts";
+import { cuisineOisive, racinesDesAttentes, type CuisineOisive, type RacineDAttente } from "./cuisine-oisive.ts";
 import { requises } from "./fiche.ts";
 import { ACTIONS, bientotEteint, direExtinctionEn, direResteEn } from "./grant.ts";
 import type { Journal } from "./journal.ts";
@@ -50,10 +50,11 @@ import { direCommentLeVoirEn, direEcranEn, direEtatDeServeurEn, direPageEn, dire
 import { lastBackup, type Backup } from "./projections/backups.ts";
 import { dernierTick, derniereSession, type SessionPassee, type Tick } from "./projections/sessions.ts";
 import { arreteeDepuis, cookDeRun, cooksEnCoursDeStation, direDeconnexionEn, direPlafondEn, direRetenueDeStationEn, etatStation, GESTE_DE_CONNEXION_TOMBEE_EN, plafondDeCooks, sansStationDepuis, miseDeCoteBloquee, setupBloque, stationsAnnoncees, type CookDeStation, type EtatStation, type MiseDeCoteBloquee, type SetupBloque } from "./projections/stations.ts";
-import { avecHorsZoneEn, BLOQUE, BLOQUE_EN, direAttentesLeveesEn, direRetenueEn, EN_WAITING, etatLu, etatLuEn, nomEtat, nomEtatEn } from "./rail.ts";
+import { avecHorsZoneEn, BLOQUE, BLOQUE_EN, direAttentesLeveesEn, direRetenueEn, EN_WAITING, etatLu, etatLuEn, nomAbandonEn, nomEtat, nomEtatEn } from "./rail.ts";
 import { direAttenteDeTiersEn } from "./attente.ts";
 import { attenteDUneStation, direMiseDeCote, miseDeCoteDu } from "./mise-de-cote.ts";
 import { direReprise, direRepriseEn, reprisesDuRail, type RepriseDuTicket } from "./remontee-a-la-cuisine.ts";
+import { aSortirAvec, direSortieAvecEn, type AbandonEnChaine } from "./abandon-en-chaine.ts";
 import { GESTE_DE_STATION_A_CHAUD_EN } from "./stations-declarees.ts";
 import { prendLesOrdinaires } from "./bac-a-sable/ordinaires.ts";
 import type { Refus } from "./projets/refus.ts";
@@ -105,6 +106,10 @@ export type EtatCuisine = {
   // (remontee-a-la-cuisine.ts) : sa carte le dit. Absente d'un état construit
   // sans elle.
   reprises?: Map<number, RepriseDuTicket>;
+  // Les tickets qui sortent du rail avec un ticket que la cuisine abandonne,
+  // et qu'ils attendent (abandon-en-chaine.ts) : leur carte dit lequel, et la
+  // même cause. Absente d'un état construit sans elle.
+  sortiesAvec?: Map<number, AbandonEnChaine>;
   // Le séjour de chaque ticket pris dans sa colonne, depuis sa première prise à travers les relances (#1893).
   // Absent d'un état construit sans lui : la carte garde alors `since`.
   sejours?: Map<number, Sejour>;
@@ -230,6 +235,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
     rail,
     activites: activitesDuRail(base, rail),
     reprises: reprisesDuRail(base, rail),
+    sortiesAvec: aSortirAvec(base, rail),
     sejours: sejoursEnColonne(base, rail.filter(({ state }) => state === "taken").map(({ ticket }) => ticket)),
     captures: capturesDesLivraisons(journal, [...rail.filter(({ state }) => state === "pass" || state === "served").map(({ ticket }) => ticket), ...livres.map(({ ticket }) => ticket)]),
     attend,
@@ -411,11 +417,20 @@ function decrireRienNeCuit({ base, reparation }: EtatCuisine, depuis: Depuis): s
 // La panne d'une cuisine oisive, des cartes sur le rail (cuisine-oisive.ts) : sous
 // l'urgence et `nothing cooks`, au-dessus de tout le reste — ce n'est pas normal, et
 // aucune autre ligne ne le dit. Sa cause, s'il y en a une, est dans l'en-tête ou
-// dans le bloc `awaiting`. Rien à dire sinon.
+// dans le bloc `awaiting`. Chaque chaîne d'attente y nomme sa racine (#1902) :
+// les cartes qui l'attendent, puis elle, et où elle en est. Rien à dire sinon.
 export const PANNE = "fault";
-function decrirePanne({ oisive }: EtatCuisine, depuis: Depuis): string[] {
+function decrirePanne({ oisive, rail }: EtatCuisine, depuis: Depuis): string[] {
   if (oisive == null) return [];
-  return [ligne(PANNE, `IDLE KITCHEN for ${depuis(oisive.depuis)} — no cook has run, with ${compteEn(oisive.cartes.length, "card")} on the rail: ${oisive.cartes.map((ticket) => `#${ticket}`).join(", ")}`)];
+  const ouEnEst = ({ ticket, left }: RacineDAttente) => {
+    if (left !== null) return `off the rail, issue still open: ${nomAbandonEn(left)}`;
+    const sur = rail.find((carte) => carte.ticket === ticket);
+    return sur === undefined ? "not on the rail" : etatLuEn(sur);
+  };
+  const racines = racinesDesAttentes(rail, oisive.cartes);
+  const dire = (racine: RacineDAttente) => `${racine.awaitedBy.map((carte) => `#${carte}`).join(", ")} → #${racine.ticket} (${ouEnEst(racine)})`;
+  const chaines = racines.length === 0 ? "" : ` — wait chain${racines.length === 1 ? "" : "s"}: ${racines.map(dire).join(" · ")}`;
+  return [ligne(PANNE, `IDLE KITCHEN for ${depuis(oisive.depuis)} — no cook has run, with ${compteEn(oisive.cartes.length, "card")} on the rail: ${oisive.cartes.map((ticket) => `#${ticket}`).join(", ")}${chaines}`)];
 }
 
 // Sous grant, du code est mergé sans le chef : il le lit sans le demander, avec
@@ -474,8 +489,10 @@ export function raisonDeTete(etat: EtatCuisine, ticket: TicketRail): string | nu
 
 // Ce que l'état a à dire de plus que son nom : qui, depuis quand, jusqu'à quand.
 // `retenues` : ce qui retient chaque station de prendre un ticket qui pourrait partir.
-function detail(ticket: TicketRail, maintenant: Date, depuis: Depuis, retenues: string[], reprise?: RepriseDuTicket): string {
+function detail(ticket: TicketRail, maintenant: Date, depuis: Depuis, retenues: string[], reprise?: RepriseDuTicket, sortie?: AbandonEnChaine): string {
   const reste = (instant: string) => Date.parse(instant) - maintenant.getTime();
+  // Il sort du rail avec le ticket abandonné qu'il attend : la carte dit lequel (#1902).
+  if (sortie !== undefined && (ticket.state === "waiting" || ticket.state === "86")) return `since ${depuis(ticket.since)} — ${direSortieAvecEn(sortie)}`;
   switch (ticket.state) {
     case "waiting":
       // Rien ne le retient sur le rail : s'il ne part pas, c'est sa station.
@@ -766,7 +783,7 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
         `  #${ticket.ticket}`,
         etatLuEn(ticket),
         ticket.priority === null ? "-" : `prio:${ticket.priority}`,
-        avecHorsZoneEn(detail(ticket, maintenant, depuisEn, retenuesDe(ticket), etat.reprises?.get(ticket.ticket)) + direAttenteDeCharge(etat.activites.get(ticket.ticket)), ticket),
+        avecHorsZoneEn(detail(ticket, maintenant, depuisEn, retenuesDe(ticket), etat.reprises?.get(ticket.ticket), etat.sortiesAvec?.get(ticket.ticket)) + direAttenteDeCharge(etat.activites.get(ticket.ticket)), ticket),
         ticket.title,
       ].join("  "),
     ),

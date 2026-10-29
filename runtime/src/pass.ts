@@ -147,6 +147,7 @@ import {
   LABELS_DU_FIX,
   prochainCoup,
   raisonDAbandon,
+  reessaiPermis,
   repriseDeLaRemontee,
   SANS_RENVOI,
   ticketDeLaMarque,
@@ -765,6 +766,10 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       // Un calibrage incomplet : le chef est en train d'y toucher, la cuisine
       // attend qu'il ait fini avant de juger que rien ne peut monter.
       if (pose === null && !Object.hasOwn(SANS_RENVOI, cause)) return false;
+      // Avant d'abandonner, un essai de plus, une fois, si la base a bougé
+      // depuis son dernier rouge (#1902).
+      const merges = reessaiPermis(base, ticket);
+      if (merges !== null) return renvoyerDeLaCuisine(connu, remontee, "retry", null, null, merges);
       return abandonnerALaCuisine(connu, remontee, raisonDAbandon(cause, pose, plafond));
     }
     // Le `fix` de la cuisine a quitté le rail — servi, ou retiré : la livraison
@@ -784,28 +789,38 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
 
   // Renvoie la livraison à un cook, sur sa branche, sans consommer de renvoi.
   // `montee` : le calibrage que la cuisine a monté, quand c'est lui que le
-  // renvoi suit.
-  const renvoyerDeLaCuisine = async (connu: PassDeTicket, remontee: Remontee, coup: "return" | "resume", issue: number | null, montee: { from: Calibrage; to: Calibrage } | null = null): Promise<boolean> => {
+  // renvoi suit. `merges` : ceux qui ont atterri sur la base depuis le dernier
+  // rouge, quand c'est le réessai d'avant l'abandon.
+  const renvoyerDeLaCuisine = async (
+    connu: PassDeTicket,
+    remontee: Remontee,
+    coup: "return" | "resume" | "retry",
+    issue: number | null,
+    montee: { from: Calibrage; to: Calibrage } | null = null,
+    merges: number | null = null,
+  ): Promise<boolean> => {
     const { ticket } = connu;
     const cause = remontee.cause ?? remontee.reason;
-    const findings = constatsDuRenvoi(remontee, coup, issue, remontee.reason === ENCORE_ROUGE ? connu.findings : [], montee);
+    const findings = constatsDuRenvoi(remontee, coup, issue, remontee.reason === ENCORE_ROUGE ? connu.findings : [], montee, merges);
     const fait = base.transaction(() => {
       const frais = passDuTicket(base, ticket);
       if (frais?.phase !== "escalated" || ticketDuRail(base, ticket)?.state !== "86") return false;
-      noter(ticket, { type: "pass.kitchen-took-over", payload: { cause, move: coup, ...(issue === null ? {} : { issue }) } });
+      noter(ticket, { type: "pass.kitchen-took-over", payload: { cause, move: coup, ...(issue === null ? {} : { issue }), ...(merges === null ? {} : { merges }) } });
       noter(ticket, { type: "pass.returned", payload: { n: frais.returns, findings, kitchen: true } });
       rail.rendre(ticket, PASS_ROUGE);
       return true;
     });
     if (!fait) return false;
-    const apres = issue !== null ? `, après son \`fix\` #${issue}` : montee !== null ? `, en ${montee.to.model} / ${montee.to.effort}` : "";
+    const apres = issue !== null ? `, après son \`fix\` #${issue}` : montee !== null ? `, en ${montee.to.model} / ${montee.to.effort}` : coup === "retry" ? ", un essai de plus avant l'abandon" : "";
     avertir(`brigade : la cuisine renvoie le ticket #${ticket} à un cook (${cause}${apres}) — pas de carte pour le chef`);
     const titre =
       coup === "return"
         ? `**Cuisine — renvoi après une livraison non jugée (\`${cause}\`).**`
-        : montee !== null
-          ? `**Cuisine — calibrage \`${montee.to.model}\` / \`${montee.to.effort}\` lu par le rail : renvoi.**`
-          : `**Cuisine — \`fix\` #${issue} sorti du rail : renvoi.**`;
+        : coup === "retry"
+          ? `**Cuisine — un essai de plus depuis la base du moment, avant l'abandon (\`${cause}\`).**`
+          : montee !== null
+            ? `**Cuisine — calibrage \`${montee.to.model}\` / \`${montee.to.effort}\` lu par le rail : renvoi.**`
+            : `**Cuisine — \`fix\` #${issue} sorti du rail : renvoi.**`;
     await commenter(
       ticket,
       [
@@ -880,6 +895,8 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
           `**Pourquoi.** ${raison.charAt(0).toUpperCase()}${raison.slice(1)}.`,
           "",
           `Plutôt que de le laisser de côté sur le rail, la cuisine retire son label \`${LABEL}\` : il sort du rail, et aucun cook n'y repart. Son issue reste ouverte, et il n'entre pas dans TODO — ce n'est pas un choix de produit. Remettre \`${LABEL}\` le ramène sur le rail${connu.pr ? " ; mergée à la main, sa PR le sert" : ""}.`,
+          "",
+          `Les tickets qui l'attendent, directement ou de proche en proche, sortent du rail avec lui, pour la même raison : chacun le dit sur son issue. Ils y reviennent d'eux-mêmes quand \`${LABEL}\` revient sur celui-ci — c'est le seul chemin du retour.`,
         ].join("\n"),
       );
     } catch (erreur) {

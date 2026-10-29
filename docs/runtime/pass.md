@@ -361,9 +361,18 @@ it up itself, at the wake that follows the escalation (`runtime/src/remontee-a-l
    issue — effort first, then model — within the project's ceiling and **never above `high`**
    (`raise`, with `from` and `to`); once the rail reads it, the delivery goes back to a cook
    (`resume`), using up no send-back. Escalated again, it climbs one more notch;
-5. **drop** — nothing left to raise, or a cause no cook lifts (`SANS_RENVOI`, its `fix` tried): the
+5. **retry** (#1902) — about to drop it, the kitchen first sends the delivery back **once** more to
+   a cook, from the current base, if at least one merge landed on the base (`merge.done`) after the
+   ticket's last red verdict: what failed it may have changed (`retry`, with `merges`, then
+   `pass.returned` with `kitchen: true`; comment « Cuisine — un essai de plus depuis la base du
+   moment, avant l'abandon »). Once per ticket, like the send-back and the `fix`; a ticket never
+   judged red, or with no merge since, is not retried;
+6. **drop** — nothing left to raise, or a cause no cook lifts (`SANS_RENVOI`, its `fix` tried): the
    kitchen posts the reason on the issue (« Cuisine — ticket abandonné »), then removes `fire`
    (`drop`, with its `reason`). The issue stays open; putting `fire` back brings the ticket back.
+   Every ticket that awaits it, step by step, leaves the rail with it, with the same reason and a
+   comment naming it, and follows it back when `fire` returns to it (see "A ticket can wait for another" in
+   [`journal-et-rail.md`](journal-et-rail.md)).
 
 A `none` ("nothing more") written before #1861 is not final: the kitchen takes that escalation up
 again. A ticket in WAITING, or set aside for a capability no station provides, keeps its wait.

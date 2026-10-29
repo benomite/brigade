@@ -260,14 +260,26 @@ export type FaitPass =
   // `reconciled` —, le ticket l'attend, 86 ; `raise`, son calibrage monté de
   // `from` à `to` sur l'issue, le ticket 86 attend que le rail le lise ;
   // `resume`, ce `fix` sorti du rail ou ce calibrage lu, la livraison renvoyée
-  // à un cook ; `drop`, rien ne pouvant plus monter, le ticket abandonné —
-  // `reason` dite sur l'issue, `fire` retiré (#1861). `none` ne s'écrit plus :
+  // à un cook ; `retry`, sur le point d'être abandonnée, la livraison renvoyée
+  // une fois de plus à un cook, `merges` ayant atterri sur la base depuis son
+  // dernier verdict rouge (#1902) ; `drop`, rien ne pouvant plus monter, le
+  // ticket abandonné — `reason` dite sur l'issue, `fire` retiré (#1861) —, et
+  // ceux qui l'attendent avec lui (`ticket.dropped-with`). `none` ne s'écrit plus :
   // d'un journal d'avant, il n'est pas final, la cuisine reprend la remontée.
-  // Jamais de carte. Un `return` ou un `resume` est suivi du `pass.returned`
+  // Jamais de carte. Un `return`, un `resume` ou un `retry` est suivi du `pass.returned`
   // qui le fait, sans consommer de renvoi.
   | {
       type: "pass.kitchen-took-over";
-      payload: { cause: string; move: "return" | "fix" | "resume" | "raise" | "drop" | "none"; issue?: number; reconciled?: boolean; from?: { model: string; effort: string }; to?: { model: string; effort: string }; reason?: string };
+      payload: {
+        cause: string;
+        move: "return" | "fix" | "resume" | "raise" | "retry" | "drop" | "none";
+        issue?: number;
+        reconciled?: boolean;
+        from?: { model: string; effort: string };
+        to?: { model: string; effort: string };
+        reason?: string;
+        merges?: number;
+      };
     }
   // La pass attend la CI du commit `sha` sans qu'aucun check n'existe : la
   // branche porte ces `workflows` (fichiers sous `.github/workflows`), qui se

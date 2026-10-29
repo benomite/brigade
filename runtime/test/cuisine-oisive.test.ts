@@ -144,7 +144,31 @@ test("toutes les cartes attendent une capacité ou un tiers — WAITING, mises d
   c.arriver(12, [7, 13]);
   const apres = c.lire(60);
   assert.deepEqual(apres.panne, { depuis: `${JOUR_HORLOGE}T10:00:00.000Z`, cartes: [12, 13] });
-  assert.match(apres.texte, /^fault {6}IDLE KITCHEN for 1 h 00 — no cook has run, with 2 cards on the rail: #12, #13$/m);
+  // #12 attend : la ligne nomme la racine de chacune de ses attentes (#1902).
+  assert.match(apres.texte, /^fault {6}IDLE KITCHEN for 1 h 00 — no cook has run, with 2 cards on the rail: #12, #13 — wait chains: #12 → #7 \(WAITING\) · #12 → #13 \(86\)$/m);
+});
+
+test("des cartes qui s'attendent de proche en proche : la ligne `fault` nomme la racine de leur chaîne, et où elle en est (#1902)", (t) => {
+  const c = cuisine(t);
+  c.noter({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
+  // Le cas du 29 octobre : #43 hors du rail, `fire` retiré ; #44 et #45 l'attendent, #46 et #47 attendent #44 et #45.
+  c.arriver(43);
+  c.arriver(44, [43]);
+  c.arriver(45, [43]);
+  c.arriver(46, [44, 45]);
+  c.arriver(47, [46]);
+  c.noter({ type: "ticket.left", payload: { reason: "unfired" } }, 43, "github");
+  // #50 attend #49, jamais entré sur le rail ; #48 n'attend personne.
+  c.arriver(48);
+  c.arriver(50, [49]);
+
+  const { texte, panne } = c.lire(30);
+  // La forme de `facts` ne change pas.
+  assert.deepEqual(panne, { depuis: `${JOUR_HORLOGE}T10:00:00.000Z`, cartes: [44, 45, 46, 47, 48, 50] });
+  assert.match(
+    texte,
+    /^fault {6}IDLE KITCHEN for 30 min — no cook has run, with 6 cards on the rail: #44, #45, #46, #47, #48, #50 — wait chains: #44, #45, #46, #47 → #43 \(off the rail, issue still open: label `fire` removed\) · #50 → #49 \(not on the rail\)$/m,
+  );
 });
 
 test("un rail vide n'est pas en panne, même sans cook depuis des heures", (t) => {

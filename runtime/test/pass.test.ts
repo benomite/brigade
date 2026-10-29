@@ -889,6 +889,65 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.deepEqual(attentesDuChef(journal.base, lireRail(journal.base)).filter((attente) => attente.ticket === 17), []);
   });
 
+  test("au moment d'abandonner un ticket, la cuisine le réessaie une fois si un merge a atterri sur la base depuis son dernier rouge ; abandonné ensuite, ceux qui l'attendent sortent du rail avec lui, et le suivent quand `fire` lui revient (#1902)", { timeout: 600_000 }, async (t) => {
+    const { gh, journal, dernier, compter } = service(t, {
+      grant: true,
+      gates: "rouge",
+      seuilDisjoncteur: 100,
+      issues: [issue(17, ["fire", "model:opus", "effort:high"]), issue(18), issue(19)],
+    });
+    // #18 attend #17, #19 attend #18 : ni l'un ni l'autre ne part tant que #17 n'est pas servi.
+    gh.ficher(18, "2026-10-08T09:00:00Z", [MARQUEUR, "- attend : #17"].join("\n"));
+    gh.ficher(19, "2026-10-08T09:00:00Z", [MARQUEUR, "- attend : #18"].join("\n"));
+    const pas = () => journal.duTicket(17).filter((e) => e.type === "pass.kitchen-took-over").length;
+    // Rouge après ses renvois : un ticket `fix` sur sa cause, et #17 l'attend, 86.
+    await jusqua(() => pas() >= 1, TROIS_RENVOIS_MS);
+    assert.deepEqual(dernier("pass.kitchen-took-over", 17), { cause: "returns-exhausted", move: "fix", issue: 501, reconciled: false });
+    // Pendant qu'il attend, une autre livraison est mergée sur la base, et sa PR vise désormais `main` : la cuisine n'y peut plus rien.
+    journal.ajouter({ project: "brigade", ticket: 99, author: "pass", type: "merge.done", payload: { pr: `https://github.com/${DEPOT}/pull/199`, sha: "autre", by: "pass", reconciled: false } });
+    const lecture = gh.github.prDeBranche;
+    gh.github.prDeBranche = async (branche) => {
+      const pr = await lecture(branche);
+      return pr && { ...pr, base: "main" };
+    };
+    gh.poser({ ...issue(501, []), state: "closed" });
+    journal.ajouter({ project: "brigade", ticket: 501, author: "github", type: "ticket.left", payload: { reason: "closed" } });
+
+    // Repris, non jugé sur une cause qu'aucun cook ne lève, au plus haut calibrage : la cuisine l'abandonnerait.
+    // Un merge a atterri depuis son dernier rouge : elle le réessaie une fois, depuis la base du moment.
+    await jusqua(() => pas() >= 3, TROIS_RENVOIS_MS);
+    assert.deepEqual(dernier("pass.kitchen-took-over", 17), { cause: "wrong-base", move: "retry", merges: 1 });
+    const renvoi = dernier("pass.returned", 17);
+    assert.deepEqual([renvoi?.n, renvoi?.kitchen], [2, true]);
+    assert.match(String((renvoi?.findings as string[])[0]), /Mais un merge a atterri sur la base depuis son dernier verdict rouge[\s\S]*Elle te revient une dernière fois, depuis la base du moment/);
+    await jusqua(() => gh.commentaires.some(([numero, corps]) => numero === 17 && corps.startsWith("**Cuisine — un essai de plus depuis la base du moment, avant l'abandon (`wrong-base`).**")));
+
+    // Non jugé de nouveau : le réessai est fait, elle l'abandonne.
+    await jusqua(() => pas() >= 4, TROIS_RENVOIS_MS);
+    assert.deepEqual([dernier("pass.kitchen-took-over", 17)?.move, compter("pass.kitchen-fix-opening")], ["drop", 1]);
+    await jusqua(() => gh.commentaires.some(([numero, corps]) => numero === 17 && /^\*\*Cuisine — ticket abandonné \(`wrong-base`\)\.\*\*[\s\S]*sortent du rail avec lui/.test(corps)));
+
+    // #18 et #19 sortent du rail avec lui : `fire` retiré, un commentaire qui nomme #17.
+    await jusqua(() => [18, 19].every((numero) => journal.duTicket(numero).some((e) => e.type === "ticket.left")));
+    assert.deepEqual(gh.delabellisations.filter(([numero]) => numero === 18 || numero === 19), [
+      [18, "fire"],
+      [19, "fire"],
+    ]);
+    for (const numero of [18, 19]) {
+      assert.deepEqual(dernier("ticket.dropped-with", numero)?.root, 17);
+      assert.ok(gh.commentaires.some(([sur, corps]) => sur === numero && corps.startsWith("**Cuisine — ticket abandonné avec #17 (`wrong-base`).**")));
+    }
+    assert.equal(journal.duTicket(17).filter((e) => e.type === "cook.launched").length, 5);
+
+    // Le chef remet `fire` sur #17 : #18 et #19 le suivent d'eux-mêmes.
+    gh.poser(issue(17, ["fire", "model:opus", "effort:high"], { updatedAt: "2026-10-08T12:00:00Z" }));
+    await jusqua(() => [18, 19].every((numero) => journal.duTicket(numero).filter((e) => e.type === "ticket.arrived").length === 2), TROIS_RENVOIS_MS);
+    assert.deepEqual(gh.labellisations.filter(([numero]) => numero === 18 || numero === 19), [
+      [18, ["fire"]],
+      [19, ["fire"]],
+    ]);
+  });
+
   test("un ticket en attente d'un tiers ou d'une capacité garde son attente : la cuisine ne le relance ni ne l'abandonne", async (t) => {
     const { gh, journal, etat, dernier, compter, jusquAu, laisserTourner } = service(t, { grant: true });
     // Un ticket qui demande ce qu'aucune station ne fournit : mis de côté, faute de station.
