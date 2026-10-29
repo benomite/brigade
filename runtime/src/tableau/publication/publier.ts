@@ -29,6 +29,7 @@ import { cartesDeProfil } from "../../profils/cartes.ts";
 import type { Journal } from "../../journal.ts";
 import type { Runtime } from "../../runtime.ts";
 import { distantesDuTableau } from "../../tirer-par-github/tableau.ts";
+import { activitesDesCooks } from "../activites/activites.ts";
 import { lireLeTableau, OUVERTURE_DU_BLOC, type Tableau } from "../rendu/bloc.ts";
 import { tableauDeLaCuisine } from "../rendu/donnees.ts";
 import type { GestesDuTableau } from "../gestes/gestes.ts";
@@ -192,8 +193,9 @@ export type OptionsDuBranchement = Omit<OptionsPublication, "lire"> & {
 // Le tableau lu par défaut : l'état du journal, comme `status` le lit, et les
 // faits comme `facts` les rend — l'adresse des issues par le dépôt du tableau,
 // le refus de la station de cette machine, les corrections et les profils
-// proposés —, les gestes du chef lus sous lui, et ce que la box a prêté aux
-// stations distantes et répondu à leurs demandes par GitHub (`tirer-par-github/`).
+// proposés —, les gestes du chef lus sous lui, ce que la box a prêté aux
+// stations distantes et répondu à leurs demandes par GitHub (`tirer-par-github/`),
+// et ce que fait chaque cook (`activites/`).
 export function tableauDuJournal(journal: Journal, projet: string, instant: Date, options: { depot: string; station?: string; gestes?: GestesDuTableau }): Tableau {
   const { depot, station, gestes } = options;
   const tableau = tableauDeLaCuisine(lireEtat(journal, instant), instant, {
@@ -206,7 +208,7 @@ export function tableauDuJournal(journal: Journal, projet: string, instant: Date
     profils: cartesDeProfil(journal, depot),
   });
   const distantes = distantesDuTableau(journal.base, instant);
-  return { ...tableau, ...(gestes === undefined ? {} : { gestes: gestes.lus() }), ...(distantes === null ? {} : { distantes }) };
+  return { ...tableau, ...(gestes === undefined ? {} : { gestes: gestes.lus() }), ...(distantes === null ? {} : { distantes }), activites: activitesDesCooks(journal.base, instant) };
 }
 
 // Branche le tableau au runtime : un rafraîchissement d'emblée, puis à chaque

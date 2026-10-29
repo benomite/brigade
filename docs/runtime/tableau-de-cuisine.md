@@ -46,6 +46,7 @@ The code is `runtime/src/tableau/`: `rendu/donnees.ts` builds the board from the
 | `lignesDuRail` | **Each rail ticket's line of `status`** (#1693), see below |
 | `fileDeStatus` | **The project's queue, for the second** (#1843): the `awaiting` block of `status`, word for word, one line per entry, from its head line to `end awaiting`, both included — see below; absent from a block written before it |
 | `distantes` | **What the box lent the remote stations, and its answers to the requests they made through GitHub** (#1793), see below; absent when no remote station holds a ticket or asked anything |
+| `activites` | **What each cook of the project is doing** (#1844), see below; empty when no cook runs or finished lately, absent from a block written before it |
 | `resserre` | What the body had to remove from the block to fit in an issue, see below; absent when nothing was |
 
 `faits` and `lignesDuRail` are absent from a block written before #1693: the reader then draws
@@ -154,16 +155,49 @@ stations claim it at the same moment. The answer is published here
 `distantes` is never removed from a body that is too long: it is the arbitration itself, and it is
 bounded — one claim per station, and one renewal and one delivery per cook.
 
+### `activites` — what each cook is doing, for an app with no ssh
+
+What an app shows of a cook instead of its terminal, read from GitHub alone:
+`lesActivitesDesCooks(body)` in `runtime/src/tableau/rendu/bloc.ts` (which imports nothing) gives
+`{ lues: true, lu, activites }`; a body that cannot be read gives `{ lues: false, raison }`, one
+sentence — a block from a box older than this field is not read as "no cook": the sentence says to
+update the box. The box builds it from the log (`runtime/src/tableau/activites/activites.ts`): each
+cook's reading, written at every tick (`cook.progressed`, see [`garde-fous.md`](garde-fous.md),
+"What a cook is doing right now"), so the record follows the cook at the board's pace and the body is
+rewritten when it changes.
+
+One entry per ticket — its latest cook, while it runs, then for **two hours** after its end (the ten
+most recent finished ones at most), in launch order. A pass review and a manager judgement cook no
+ticket: they are not there.
+
+| Field | What it holds |
+|---|---|
+| `ticket`, `titre` | The ticket, and its title on the rail (`null` once it left it) |
+| `run`, `station` | The cook, and the station that launched it |
+| `lanceLe` | When it left |
+| `finiLe`, `fin` | When it ended and how (`ok`, `failed`, `guard`, `stop`, `neutral`, `refused`, `interrupted`); both `null` while it runs |
+| `maintenant` | What it is doing right now, a step (below); `null` once finished, or when its reading does not say — a remote station's cook: nothing is invented |
+| `etapes` | Its latest steps, oldest first, eight at most — the last one is `maintenant` while it runs. A reading that repeats the same gesture on the same target since the same time is not a new step |
+| `tours`, `tokens` | Its latest reading, or its end |
+| `pr` | The PR of its delivery as soon as the log knows it: `numero` (`null` if its address does not say) and `url`. A cook sent back by the pass on the same branch has its ticket's PR from its start; a first cook has it from its delivery, or from the PR the pass opens. `null` without one |
+
+A step is `fait` (the gesture in the chef's words, French), `faitEn` (the same in English), `cible`
+(the file or command it aims at, never what is inside, `null` without one) and `depuis` (when it
+started on it) — the shape of `faits.rail[].activite`.
+
+The board publishes no page of a worktree: since #1844 the box serves none.
+
 ### `resserre` — when the body is too long for GitHub
 
 GitHub refuses an issue body over 65,536 characters. Too long, the body first shortens its readable
 part (the queue's names, the first line of each section). Still too long, it removes from the block,
 in this order, until it fits — each step that had something to remove is named in `resserre`:
 
-1. `faits.livres.relecture` — the reviews of the served tickets;
-2. `faits.attend.livraison` — what the pass recorded of the deliveries that wait;
-3. `faits.corrections.diff` — the proposed corrections' diffs;
-4. `faits`, `lignesDuRail` — the rail view's facts and lines, whole.
+1. `activites.etapes` — each cook's past steps: what it does right now stays;
+2. `faits.livres.relecture` — the reviews of the served tickets;
+3. `faits.attend.livraison` — what the pass recorded of the deliveries that wait;
+4. `faits.corrections.diff` — the proposed corrections' diffs;
+5. `faits`, `lignesDuRail` — the rail view's facts and lines, whole.
 
 A removed field is **absent**, not `null`: `null` keeps its own meaning (no readable review, for
 instance). What awaits the chef (`file`) and the kitchen's state (`cuisine`) are never removed. An

@@ -81,11 +81,17 @@ const sansLeChamp = (liste: unknown, champ: string): unknown =>
 const dansLesFaits = (tableau: Tableau, liste: string, champ: string): Tableau =>
   tableau.faits === undefined || !(liste in tableau.faits) ? tableau : { ...tableau, faits: { ...tableau.faits, [liste]: sansLeChamp(tableau.faits[liste], champ) } };
 
+// Les étapes passées de chaque cook : ce qu'il fait en ce moment reste.
+const sansLesEtapesPassees = (tableau: Tableau): Tableau =>
+  tableau.activites === undefined ? tableau : { ...tableau, activites: tableau.activites.map((activite) => ({ ...activite, etapes: activite.maintenant === null ? [] : [activite.maintenant] })) };
+
 // Ce qu'un corps encore trop long retire du bloc, dans cet ordre, jusqu'à tenir :
-// le plus lourd et le moins utile au rail d'abord — le texte des relectures des
-// livrés, les livraisons qui attendent, les diffs des corrections —, puis les
-// faits et les lignes du rail entiers. Ce que dit l'état, lui, n'est jamais retiré.
+// le plus lourd et le moins utile au rail d'abord — les étapes passées des
+// cooks, le texte des relectures des livrés, les livraisons qui attendent, les
+// diffs des corrections —, puis les faits et les lignes du rail entiers. Ce que
+// dit l'état, lui, n'est jamais retiré, ni ce que fait chaque cook en ce moment.
 const RESSERREMENTS: Array<{ quoi: Resserre[]; retirer(tableau: Tableau): Tableau }> = [
+  { quoi: ["activites.etapes"], retirer: sansLesEtapesPassees },
   { quoi: ["faits.livres.relecture"], retirer: (tableau) => dansLesFaits(tableau, "livres", "relecture") },
   { quoi: ["faits.attend.livraison"], retirer: (tableau) => dansLesFaits(tableau, "attend", "livraison") },
   { quoi: ["faits.corrections.diff"], retirer: (tableau) => dansLesFaits(tableau, "corrections", "diff") },
