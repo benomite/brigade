@@ -656,21 +656,21 @@ function auTravail(t: TestContext) {
 test("la carte d'un ticket pris dit ce que son cook fait en ce moment, et depuis quand : la station prépare son poste, il démarre, il lit, il écrit — puis elle livre", (t) => {
   const { noter, lancer, activite, lire, ticket } = auTravail(t);
   assert.equal(ticket()?.state, "taken");
-  assert.deepEqual(activite(), { fait: "la station prépare le poste du cook", cible: null, depuis: `${JOUR_HORLOGE}T10:00:02.000Z` });
+  assert.deepEqual(activite(), { fait: "la station prépare le poste du cook", faitEn: "the station is setting up the cook's post", cible: null, depuis: `${JOUR_HORLOGE}T10:00:02.000Z` });
 
   lancer("14-a"); // 10:00:03
-  assert.deepEqual(activite(), { fait: "démarre", cible: null, depuis: `${JOUR_HORLOGE}T10:00:03.000Z` });
+  assert.deepEqual(activite(), { fait: "démarre", faitEn: "starting", cible: null, depuis: `${JOUR_HORLOGE}T10:00:03.000Z` });
 
   noter({ type: "cook.progressed", payload: { run: "14-a", turns: 3, tokens: 300, activity: { doing: "reading", target: "runtime/src/etat.ts", since: `${JOUR_HORLOGE}T10:00:03.500Z` } } }, 14);
-  assert.deepEqual(activite(), { fait: "lit", cible: "runtime/src/etat.ts", depuis: `${JOUR_HORLOGE}T10:00:03.500Z` });
+  assert.deepEqual(activite(), { fait: "lit", faitEn: "reading", cible: "runtime/src/etat.ts", depuis: `${JOUR_HORLOGE}T10:00:03.500Z` });
   noter({ type: "cook.progressed", payload: { run: "14-a", turns: 9, tokens: 900, activity: { doing: "fixing-tests", target: "app/src/bon.ts", since: `${JOUR_HORLOGE}T10:00:04.500Z` } } }, 14);
-  assert.deepEqual(activite(), { fait: "tests rouges, corrige", cible: "app/src/bon.ts", depuis: `${JOUR_HORLOGE}T10:00:04.500Z` });
+  assert.deepEqual(activite(), { fait: "tests rouges, corrige", faitEn: "tests red, fixing", cible: "app/src/bon.ts", depuis: `${JOUR_HORLOGE}T10:00:04.500Z` });
   // `status` le dit aussi, sur la ligne du cook : là où il en est, depuis quand.
   assert.ok(lire(`${JOUR_HORLOGE}T10:10:00.000Z`).texte.some((ligne) => ligne.startsWith("  #14  14-a  ") && ligne.endsWith("right now: tests red, fixing app/src/bon.ts, since 9 min")));
 
   noter({ type: "cook.exited", payload: { run: "14-a", outcome: "ok", code: 0, signal: null, turns: 10, tokens: 1000, durationMs: 1 } }, 14);
   assert.equal(ticket()?.state, "taken");
-  assert.deepEqual(activite(), { fait: "la station livre son travail", cible: null, depuis: `${JOUR_HORLOGE}T10:00:06.000Z` });
+  assert.deepEqual(activite(), { fait: "la station livre son travail", faitEn: "the station is delivering the work", cible: null, depuis: `${JOUR_HORLOGE}T10:00:06.000Z` });
 });
 
 test("un cook dont le relevé ne dit pas ce qu'il fait — une station distante — n'a pas d'activité : la forme le dit nulle, sans rien inventer", (t) => {
@@ -685,16 +685,16 @@ test("la carte d'un ticket en pass dit où en est la pass : gates, relecture, ju
   lancer("14-a"); // 10:00:03
   noter({ type: "cook.reported", payload: { run: "14-a", ending: "done", reason: null, summary: null, branch: "cook/14-a", pr: null } }, 14); // 10:00:04
   rail.envoyerEnPass(14, "box/claude"); // 10:00:05
-  assert.deepEqual(activite(), { fait: "attend la pass", cible: null, depuis: `${JOUR_HORLOGE}T10:00:04.000Z` });
+  assert.deepEqual(activite(), { fait: "attend la pass", faitEn: "waiting for the pass", cible: null, depuis: `${JOUR_HORLOGE}T10:00:04.000Z` });
 
   noter({ type: "pass.started", payload: { run: "14-a", pr: "https://exemple.test/pr/1", number: 1, sha: "abc" } }, 14); // 10:00:06
-  assert.deepEqual(activite(), { fait: "gates en cours", cible: null, depuis: `${JOUR_HORLOGE}T10:00:06.000Z` });
+  assert.deepEqual(activite(), { fait: "gates en cours", faitEn: "running the gates", cible: null, depuis: `${JOUR_HORLOGE}T10:00:06.000Z` });
 
   lancer("review-14-x", "reviewer", null); // 10:00:07
-  assert.deepEqual(activite(), { fait: "relecture en cours", cible: null, depuis: `${JOUR_HORLOGE}T10:00:07.000Z` });
+  assert.deepEqual(activite(), { fait: "relecture en cours", faitEn: "review in progress", cible: null, depuis: `${JOUR_HORLOGE}T10:00:07.000Z` });
   // La relecture d'un autre ticket n'est pas la sienne.
   lancer("review-140-y", "reviewer", null);
-  assert.deepEqual(activite(), { fait: "relecture en cours", cible: null, depuis: `${JOUR_HORLOGE}T10:00:07.000Z` });
+  assert.deepEqual(activite(), { fait: "relecture en cours", faitEn: "review in progress", cible: null, depuis: `${JOUR_HORLOGE}T10:00:07.000Z` });
 
   noter({ type: "cook.exited", payload: { run: "review-14-x", outcome: "ok", code: 0, signal: null, turns: 1, tokens: 1, durationMs: 1 } }); // 10:00:09
   noter({ type: "pass.reviewed", payload: { run: "14-a", sha: "abc", review: "review-14-x", outcome: "green", summary: null, findings: [], reason: null, truncated: false } }, 14);
