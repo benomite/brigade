@@ -147,7 +147,7 @@ describe("l'arbitrage entre projets", { concurrency: 8 }, () => {
 
   // Deux cuisines de trente cooks et sept faits attendus l'un après l'autre : sauté sous Windows,
   // où le dernier fait ne vient pas (raison dite par le saut).
-  test("deux projets, un plafond haut, la machine saturée par le premier : le second finit par partir", { skip: posixOnly("the last wait, for the first project to get its 3rd launch back after the second one left, never completes on the Windows runner even with a 300 s guard (runs 40562604249, 40560597796, 40751190357); cause not traced, listed in #1868") }, async (t) => {
+  test("deux projets, un plafond haut, la machine saturée par le premier : le second finit par partir", { skip: posixOnly("the last wait, for the first project to get its 3rd launch back after the second one left, never completes on the Windows runner even with a 300 s guard (runs 40562604249, 40560597796, 40751190357, all before #1884 and #1886 cut the Windows suite to two files, then one, at a time); cause not traced: nothing in arbitre.ts, arbitrage.ts or station.ts depends on the platform, and the test passes 8 times side by side on Linux; if it fails again, the wait dumps the arbiter and the first project's journal; listed in #1868") }, async (t) => {
     const { joint, ouvert, projet } = await arbitre(t, 50);
     // Le premier projet remplit la machine de ses cooks.
     const premier = cuisine(t, { projet: "compta", arbitre: joint, cooks: 30, entrees: 30, scenario: "muet", issues: [issue(11), issue(12)] });
@@ -172,7 +172,11 @@ describe("l'arbitrage entre projets", { concurrency: 8 }, () => {
     await jusqua(() => second.lancements().length === 1);
     assert.equal(second.etat(21), "taken");
     // Plus personne n'attend la machine : le premier retrouve sa part du compte.
-    await jusqua(() => premier.lancements().length === 3);
+    // Si cette attente échoue, l'erreur dit où l'arbitre et le premier projet en sont.
+    const etatDuMoment = () => JSON.stringify({ arbitre: ouvert.etat(), lancesParLePremier: lances(premier.journal), retenue: premier.dernier("station.held"), types: premier.types().slice(-15) });
+    await jusqua(() => premier.lancements().length === 3).catch((erreur) => {
+      throw new Error(`${erreur.message} — ${etatDuMoment()}`);
+    });
     await jusqua(() => ouvert.etat().cooks === 4);
     assert.deepEqual(ouvert.etat().saturePar, []);
   });
