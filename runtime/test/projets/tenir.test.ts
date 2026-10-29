@@ -75,6 +75,7 @@ function uneStation(t: TestContext, options: { appairee?: boolean; remote?: (clo
       .map((ligne) => ligne.split(/\s+/)[0] ?? "")
       .filter((nom) => !refuses.has(nom));
   };
+  const configuration = () => (existsSync(join(racine, "projets")) ? readFileSync(join(racine, "projets"), "utf8") : "");
   const lignes: string[] = [];
   const autorisations = new Map<string, Autorisation>();
   const clones: string[] = [];
@@ -90,7 +91,7 @@ function uneStation(t: TestContext, options: { appairee?: boolean; remote?: (clo
     canal,
     station: "box",
     env: remote === undefined ? {} : { ...ENV_GIT, HOME: repertoireTemporaire(t), GIT_SSL_NO_VERIFY: "1" },
-    servis: { projets: servis, refus: (nom) => refuses.get(nom) ?? null },
+    servis: { projets: servis, depots: () => Object.fromEntries(configuration().split("\n").filter((ligne) => ligne.trim() !== "" && !ligne.startsWith("#") && !ligne.startsWith(DEBUT) && !ligne.startsWith(FIN)).map((ligne) => ligne.split(/\s+/)).filter(([nom]) => servis().includes(nom ?? "")).map(([nom, depot]) => [nom, depot])), refus: (nom) => refuses.get(nom) ?? null },
     apresEcriture: () => void relectures++,
     dire: (ligne) => lignes.push(ligne),
     // Le minuteur ne bat pas pendant un test : c'est lui qui bat la mesure.
@@ -121,7 +122,6 @@ function uneStation(t: TestContext, options: { appairee?: boolean; remote?: (clo
   const demander = (...demandes: object[]) => void (fichiers[FICHIER_PROJETS] = JSON.stringify({ brigade: "projets", format: 1, projets: demandes }));
   const suivi = () => (JSON.parse(fichiers[FICHIER_SUIVI] ?? "null") as { projets: SuiviDuProjet[] } | null)?.projets;
   const onboarding = () => (JSON.parse(fichiers[FICHIER_SUIVI] ?? "null") as { onboarding?: Record<string, Onboarding> } | null)?.onboarding;
-  const configuration = () => (existsSync(join(racine, "projets")) ? readFileSync(join(racine, "projets"), "utf8") : "");
   const ecrireTelQuel = (texte: string) => void (fichiers[FICHIER_PROJETS] = texte);
   return { racine, origine, projets, demander, ecrireTelQuel, suivi, onboarding, configuration, lignes, ecritures, autorisations, clones, refuses, relectures: () => relectures, echouerLeClone: (erreur: Error | null) => (clonage = erreur), enqueteDuGh: (lue: Enquete) => (enquete = lue), preparations, echouerLaPreparation: (erreur: Error | null) => (preparation = erreur) };
 }
@@ -283,6 +283,44 @@ test("un ordinateur ajouté au projet alors qu'elle le servait, qui en a rejoint
     );
   } finally {
     relu.fermer();
+  }
+});
+
+test("la même jonction pour tous les projets qu'elle sert : un projet de sa configuration, écrit à la main et que l'app ne lui demande pas, voit la station rejointe comme celui que l'app lui demande (#1923)", async (t) => {
+  const MAINTENANT = Date.parse("2026-10-15T12:02:00Z");
+  const rejointe = (nom: string, depot: string) => ({ nom, depot, principale: "box", cooks: 1, fournit: ["code", "raisonnement", "macos"] });
+  const gistmac: Fichiers = { [FICHIER_REJOINTES]: documentDesRejointes([rejointe("shop", "acme/shop"), rejointe("brigade", "acme/brigade")]) };
+  const station = uneStation(t, { appairees: async () => lectureDesAppairees(MAINTENANT, { id: GIST, nom: "box", sert: { shop: "acme/shop", brigade: "acme/brigade" } }, { id: "gistmac", nom: "mac", fichiers: gistmac }), gists: { gistmac } });
+  // `shop` vient de l'app ; `brigade` est une ligne de la configuration, écrite à la main.
+  // Sa cuisine a ouvert son journal en démarrant.
+  mkdirSync(join(station.racine, "etat/brigade"), { recursive: true });
+  writeFileSync(join(station.racine, "projets"), "brigade acme/brigade main\n");
+  station.demander(SHOP);
+  await station.projets.relire();
+
+  for (const nom of ["shop", "brigade"]) {
+    const journal = ouvrirJournal(join(station.racine, "etat", nom), { lectureSeule: true });
+    try {
+      assert.equal(decisionsPosees(journal.base).BRIGADE_STATIONS?.split(",").includes("mac/claude:1:code+raisonnement+macos:distante+ensemble"), true, nom);
+    } finally {
+      journal.fermer();
+    }
+  }
+});
+
+test("la même jonction quand l'app ne lui demande rien : la station rejointe d'un projet qu'elle sert est déclarée (#1923)", async (t) => {
+  const MAINTENANT = Date.parse("2026-10-15T12:02:00Z");
+  const gistmac: Fichiers = { [FICHIER_REJOINTES]: documentDesRejointes([{ nom: "brigade", depot: "acme/brigade", principale: "box", cooks: 1, fournit: ["code", "raisonnement", "macos"] }]) };
+  const station = uneStation(t, { appairees: async () => lectureDesAppairees(MAINTENANT, { id: GIST, nom: "box", sert: { brigade: "acme/brigade" } }, { id: "gistmac", nom: "mac", fichiers: gistmac }), gists: { gistmac } });
+  writeFileSync(join(station.racine, "projets"), "brigade acme/brigade main\n");
+  // Sa cuisine a ouvert son journal en démarrant.
+  mkdirSync(join(station.racine, "etat/brigade"), { recursive: true });
+  await station.projets.relire();
+  const journal = ouvrirJournal(join(station.racine, "etat/brigade"), { lectureSeule: true });
+  try {
+    assert.equal(decisionsPosees(journal.base).BRIGADE_STATIONS, "mac/claude:1:code+raisonnement+macos:distante+ensemble");
+  } finally {
+    journal.fermer();
   }
 });
 

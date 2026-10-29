@@ -16,6 +16,8 @@ import { RELEVE } from "./events/guardrails.ts";
 import { PART_SANS_PROGRES } from "./events/station.ts";
 import { BATTEMENT } from "./events/runtime.ts";
 import { direBaseRevenueVerteEn, direControleRetenuEn, suiteDeBaseRougeEn } from "./dire-base.ts";
+import { blocagesDuJournal } from "./installation/blocages/blocages.ts";
+import { PREFIXE_DE_LA_REJOINTE } from "./projets/secondaires.ts";
 import { cuisineOisive, racinesDesAttentes, type CuisineOisive, type RacineDAttente } from "./cuisine-oisive.ts";
 import { requises } from "./fiche.ts";
 import { ACTIONS, bientotEteint, direExtinctionEn, direResteEn } from "./grant.ts";
@@ -187,6 +189,8 @@ export type EtatCuisine = {
   // 30 min, sans que le projet soit éteint ni que toutes attendent une capacité
   // ou un tiers — une panne (cuisine-oisive.ts). Absente d'un état construit sans elle.
   oisive?: CuisineOisive | null;
+  // Les stations qui ont rejoint la cuisine sans que le projet puisse les déclarer : pourquoi, en une phrase chacune.
+  rejointesRefusees?: string[];
   evenements: Evenement[];
 };
 
@@ -255,6 +259,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
     livres,
     coincees: livraisonsCoincees(base, maintenant),
     oisive: cuisineOisive({ session, gardeFous, interrupteur, stations, arretees, rail, cooks, livres, finDuDernierCook: finDuDernierCook(base) }, maintenant),
+    rejointesRefusees: blocagesDuJournal(base).flatMap(({ id, message }) => (id.startsWith(PREFIXE_DE_LA_REJOINTE) ? [message] : [])),
     evenements: journal.derniers(EVENEMENTS_MONTRES, RESUMES),
   };
 }
@@ -730,7 +735,7 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     decrireSauvegarde(etat, maintenant, ageMaxSauvegardeMs),
     "",
     // Avant le rail : « est-ce qu'on m'attend ? » se lit sans le parcourir.
-    ...decrireAttentes(etat.attend, depuisEn, etat.sansGrant, etat.passage, etat.pause, reposSansStation(etat.rail, etat.attend)),
+    ...decrireAttentes(etat.attend, depuisEn, etat.sansGrant, etat.passage, etat.pause, reposSansStation(etat.rail, etat.attend, etat.rejointesRefusees)),
     ...decrireCoincees(etat, depuisEn),
     ligne("rail", decompte.length === 0 ? "empty" : decompte.join(" · ")),
     ...etat.rail.map((ticket) =>

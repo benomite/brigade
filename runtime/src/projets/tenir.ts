@@ -88,7 +88,7 @@ import { REMEDES, type Registre } from "../remedes/registre.ts";
 import { relayerLesDemandes } from "../tirer-par-github/relayer.ts";
 import { plateformeDe } from "../enregistrement-station/contrat.ts";
 import { documentDesRejointes, FICHIER_REJOINTES, issueDeLAjout, rejoindreDe, type CuisineRejointe } from "./rejoindre.ts";
-import { CADENCE_DES_APPAIREES_MS, declarerLesSecondaires, injoignables, secondairesDuProjet, type LectureDesAppairees, type StationSecondaire } from "./secondaires.ts";
+import { blocageDeLaRejointe, CADENCE_DES_APPAIREES_MS, declarerLesSecondaires, idDeLaRejointe, injoignables, secondairesDuProjet, type LectureDesAppairees, type StationSecondaire } from "./secondaires.ts";
 
 // Entre deux lectures de ce que l'app demande.
 export const CADENCE_MS = 30_000;
@@ -96,6 +96,8 @@ export const CADENCE_MS = 30_000;
 // Ce que la station sert, tel que ce module le lit.
 export type ServiParLaStation = {
   projets(): string[];
+  // Le dépôt de chaque projet servi, par son nom — ce que la station sert sans que l'app le lui demande (une ligne écrite à la main) y est aussi.
+  depots?(): Record<string, string>;
   // Pourquoi la station refuse ce projet, ou null.
   refus(nom: string): string | null;
   // La cause de ce refus (`refus.ts`) ; absente, « unexpected ».
@@ -280,7 +282,7 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
   };
   // Déclare au journal du projet celles que l'app lui appaire, et rend ce que
   // son suivi en dit.
-  const tenirLesSecondaires = (projet: ProjetDemande, lue: LectureDesAppairees | { panne: string }): StationSecondaire[] => {
+  const tenirLesSecondaires = (projet: { nom: string; depot: string }, lue: LectureDesAppairees | { panne: string }): StationSecondaire[] => {
     const trouvees = "panne" in lue ? { illisible: lue.panne } : secondairesDuProjet(lue, projet.depot, { nom: station, gist: gistAppaire(racine) });
     if ("illisible" in trouvees) return injoignables(secondairesConnues.get(projet.nom) ?? [], trouvees.illisible);
     secondairesConnues.set(projet.nom, trouvees);
@@ -290,7 +292,17 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
         const tenue = trouvees.find((une) => une.station === nom);
         dire(`brigade : station — ${projet.nom} : ${nom} déclarée au journal, appairée par l'app en plus de ${station} — ${tenue?.cooks ?? "?"} cook(s) au plus, fournit : ${tenue?.fournit.join(", ") ?? "?"} ; elle tire son travail`);
       }
-      for (const { station: nom, raison } of refusees) direUneFois(`secondaire refusee ${projet.nom} ${nom} ${raison}`, `brigade : station — ${projet.nom} : ${nom}, appairée par l'app, n'est pas déclarée — ${raison}`);
+      for (const { station: nom, raison } of refusees) {
+        direUneFois(`secondaire refusee ${projet.nom} ${nom} ${raison}`, `brigade : station — ${projet.nom} : ${nom}, appairée par l'app, n'est pas déclarée — ${raison}`);
+      }
+      // Le journal du projet le garde : `status` le dit, sous la cuisine au
+      // repos, tant que la station n'est pas déclarée.
+      const auteur = { projet: projet.nom, auteur: "station" };
+      for (const secondaire of trouvees) {
+        const refus = refusees.find(({ station: nom }) => nom === secondaire.station);
+        if (refus === undefined) leverBlocageDans(etatDe(projet.nom), auteur, idDeLaRejointe(secondaire.station));
+        else poserBlocageDans(etatDe(projet.nom), auteur, blocageDeLaRejointe(secondaire.station, refus.raison));
+      }
     } catch (erreur) {
       direUneFois(`secondaires ${projet.nom} ${message(erreur)}`, `brigade : station — ${projet.nom} : les stations que l'app lui appaire ne sont pas déclarées au journal, la station réessaie : ${message(erreur)}`);
     }
@@ -301,6 +313,33 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
       dire(`brigade : station — ${projet.nom} : ${secondaire.station} ${secondaire.atteinte ? "atteinte" : "pas atteinte"} (${secondaire.dit})`);
     }
     return trouvees;
+  };
+
+  // Ce que les stations secondaires d'un projet demandent par GitHub, relayé à son journal.
+  const relayerLesSecondaires = async (projet: { nom: string; depot: string }) => {
+    const secondaires = secondairesConnues.get(projet.nom) ?? [];
+    if (secondaires.length === 0) return;
+    try {
+      const { relayees } = await relayerLesDemandes({ repertoireEtat: etatDe(projet.nom), depot: projet.depot, secondaires, lire: (id) => canal.lire(id), maintenant });
+      for (const { station: nom, verb } of relayees) dire(`brigade : station — ${projet.nom} : ${nom} demande par GitHub (${verb}), relayé au journal du projet`);
+    } catch (erreur) {
+      direUneFois(`relais ${projet.nom} ${message(erreur)}`, `brigade : station — ${projet.nom} : ce que ses stations secondaires demandent par GitHub n'est pas relayé, la station réessaie : ${message(erreur)}`);
+    }
+  };
+  // Les projets dont la station est la principale par l'app, à la dernière lecture : le reste de ce qu'elle sert
+  // (une ligne écrite à la main, ou l'app muette) passe par `lesServisSansDemande`, la même jonction.
+  let tenusParLaDemande = new Set<string>();
+  const lesServisSansDemande = async () => {
+    const depots = servis.depots?.() ?? {};
+    const projets = servis.projets().flatMap((nom) => (tenusParLaDemande.has(nom) || depots[nom] === undefined ? [] : [{ nom, depot: depots[nom]! }]));
+    if (projets.length === 0) return;
+    const lue = await lireLesAppairees();
+    if (lue === null || arrete) return;
+    for (const projet of projets) {
+      tenirLesSecondaires(projet, lue);
+      await relayerLesSecondaires(projet);
+      if (arrete) return;
+    }
   };
 
   // Le projet, sa branche d'intégration résolue par son clone ; null si ni son
@@ -637,6 +676,7 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
     // suivi, atteintes ou non (`secondaires.ts`). Sans un tel projet, les gists
     // du compte ne sont pas lus.
     const principaux = [...suivi.entries()].filter(([rang, dit]) => demande.projets[rang]!.principale && dit.etat === "servi");
+    tenusParLaDemande = new Set(principaux.map(([rang]) => demande.projets[rang]!.nom));
     const lesAppairees = principaux.length === 0 ? null : await lireLesAppairees();
     if (arrete) return;
     if (lesAppairees !== null) {
@@ -648,15 +688,7 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
       // un bail —, relayé au journal du projet à chaque lecture : son runtime en
       // décide, et publie sa réponse au Kitchen board (`tirer-par-github/`).
       for (const [rang] of principaux) {
-        const projet = demande.projets[rang]!;
-        const secondaires = secondairesConnues.get(projet.nom) ?? [];
-        if (secondaires.length === 0) continue;
-        try {
-          const { relayees } = await relayerLesDemandes({ repertoireEtat: etatDe(projet.nom), depot: projet.depot, secondaires, lire: (id) => canal.lire(id), maintenant });
-          for (const { station: nom, verb } of relayees) dire(`brigade : station — ${projet.nom} : ${nom} demande par GitHub (${verb}), relayé au journal du projet`);
-        } catch (erreur) {
-          direUneFois(`relais ${projet.nom} ${message(erreur)}`, `brigade : station — ${projet.nom} : ce que ses stations secondaires demandent par GitHub n'est pas relayé, la station réessaie : ${message(erreur)}`);
-        }
+        await relayerLesSecondaires(demande.projets[rang]!);
         if (arrete) return;
       }
     }
@@ -740,6 +772,7 @@ export function tenirProjetsDeLApp(options: OptionsProjets): ProjetsDeLApp {
       enCours = true;
       try {
         await cycle();
+        await lesServisSansDemande();
         await servirLesRemedes();
         if (panne !== null) dire("brigade : station — GitHub répond de nouveau : elle relit les projets que l'app lui demande");
         panne = null;

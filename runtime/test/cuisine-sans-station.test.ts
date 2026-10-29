@@ -7,7 +7,9 @@
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import { decrireEtat, faits, lireEtat } from "../src/etat.ts";
+import { leverBlocage, poserBlocage } from "../src/installation/blocages/blocages.ts";
 import { ouvrirJournal } from "../src/journal.ts";
+import { blocageDeLaRejointe, idDeLaRejointe } from "../src/projets/secondaires.ts";
 import { ouvrirRail } from "../src/rail.ts";
 import { tableauDeLaCuisine } from "../src/tableau/rendu/donnees.ts";
 import { aArreter, horloge, JOUR_HORLOGE, repertoireTemporaire } from "./outils.ts";
@@ -127,4 +129,17 @@ test("le manager éteint, le ticket sans station n'est pas une décision du chef
 
   assert.equal(bloc[0], "awaiting   nothing awaits the chef");
   assert.ok(!bloc.some((ligne) => ligne.startsWith("  #12 ") || ligne.startsWith("  #13 ")));
+});
+
+test("une station qui a rejoint la cuisine sans que le projet puisse la déclarer (#1923) : la ligne du repos le dit, avec pourquoi, en une ligne — levé, elle n'en dit plus rien", (t) => {
+  const { journal, lire } = railDuChef(t);
+  poserBlocage(journal, { projet: "brigade", auteur: "station" }, blocageDeLaRejointe("mac/claude", "unknown station: “mac/claude” — the project declares none"));
+  const { bloc, tableau } = lire();
+
+  const ligne = "kitchen idle — the rest of the rail needs a human: no station provides `macos` (#12); `enregistrement-ecran` (#13) — waiting behind them: #15, #16 — mac/claude joined this kitchen but is not declared, so no ticket can go to it: unknown station: “mac/claude” — the project declares none — to unblock: attach a station that provides them, or lower those tickets — remove them from the `requiert` line of their cards — or close them";
+  assert.deepEqual(bloc, ["awaiting   nothing awaits the chef", `  ${ligne}`, "end awaiting"]);
+  assert.ok(tableau.bilans.includes(ligne));
+
+  leverBlocage(journal, { projet: "brigade", auteur: "station" }, idDeLaRejointe("mac/claude"));
+  assert.deepEqual(lire().bloc, ["awaiting   nothing awaits the chef", `  ${LIGNE_DU_CHEF}`, "end awaiting"]);
 });
