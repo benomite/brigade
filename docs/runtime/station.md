@@ -420,6 +420,9 @@ corrected by hand like the rest. Most tickets ask for none.
   (`facts`: `rail[].tiers`, `relance` `null`); the ticket itself stays 86 in the log (#1925). Once a
   declared station provides it — read live from the chef's decisions, no restart —, the next service
   puts it back on the rail (`ticket.released`, `capabilities-reread`), and the waiting reason is gone.
+  The tickets that wait for it, directly or step by step, are in WAITING with it, each naming the
+  one it waits for; they come back to the rail with it, unless another ticket in WAITING still holds
+  them (#1926).
 - **The manager takes it up before the chef** (manager on). It rewrites or re-splits the ticket so
   that it no longer needs the capability: `manager.capability-resplit` in the log, the ticket
   leaves the rail (86 `manager:split`), its sub-tickets are born like an epic's, and nothing

@@ -10,6 +10,7 @@
 // table the log fills. A ticket that is awaited therefore need not be on the
 // rail for it to be known whether it was served.
 import type { Base } from "../base.ts";
+import { manqueDuTicket } from "../capacites.ts";
 import type { Evenement } from "../evenements.ts";
 import type { FaitGardeFous } from "../events/guardrails.ts";
 import { NON_JUGEE, type FaitPass, type Finding } from "../events/pass.ts";
@@ -66,6 +67,13 @@ export function direALArriveeEn(delivery: string | null): string {
 // the other ticket wrote outside its own zone — its card does not claim it.
 export type Tenu = { ticket: number; path: string; outside?: true };
 
+// A ticket of its card that is in WAITING (#1926): on the rail, 86 awaiting a
+// third party or a station that provides what it requires — or queued and
+// itself waiting for such a ticket, from one to the next. `roots`: in the
+// latter case, the tickets in WAITING on their own at the end of its chains;
+// empty when it is in WAITING on its own.
+export type AttenduEnWaiting = { ticket: number; roots: number[] };
+
 export type TicketRail = {
   ticket: number;
   title: string;
@@ -107,6 +115,10 @@ export type TicketRail = {
   // it back, only what is said about it. Never among `held`: a ticket 86
   // holds no zone.
   frozenBy: number[];
+  // Queued: those, among `awaits`, that are in WAITING. Not empty, it is in
+  // WAITING too — a ticket on the rail waits only for tickets on the rail —,
+  // and comes back to the rail on its own once none of them is (#1926).
+  waitingOn: AttenduEnWaiting[];
   // Reason and return time of an 86.
   reason: string | null;
   until: string | null;
@@ -684,20 +696,54 @@ function attentesDeTiers(base: Base): Map<number, AttenteDeTiers> {
   );
 }
 
-type Ligne = Omit<TicketRail, "card" | "awaits" | "dropped" | "held" | "outOfZone" | "frozenBy" | "waitingFor"> & { card: string | null; delivery: string | null };
+// The tickets of the rail in WAITING (#1926), each with the roots of its
+// chains: those in WAITING on their own — 86 awaiting a third party, or a
+// station that provides what they require (#1925) —, then, from one to the
+// next, the queued tickets whose card awaits one of them. A cycle with no such
+// ticket in it stays out: its card already says so. Nothing is written: a root
+// back on the rail takes its dependents back with it, unless another ticket in
+// WAITING still holds them.
+function enWaitingDuRail(base: Base, tiers: ReadonlyMap<number, AttenteDeTiers>): Map<number, number[]> {
+  const lignes = base.lire<{ ticket: number; state: Etat; until: string | null; reason: string | null; card: string | null }>("SELECT ticket, state, until, reason, card FROM rail");
+  const racines = new Map<number, number[]>(lignes.flatMap((ligne) => (tiers.has(ligne.ticket) || manqueDuTicket(ligne) !== null ? [[ligne.ticket, []]] : [])));
+  const enWaiting = new Map(racines);
+  const attendants = lignes.flatMap(({ ticket, state, card }) => (state === "waiting" && !racines.has(ticket) ? [{ ticket, waitsFor: lireFiche(card)?.waitsFor ?? [] }] : [])).filter(({ waitsFor }) => waitsFor.length > 0);
+  for (let change = true; change; ) {
+    change = false;
+    for (const { ticket, waitsFor } of attendants) {
+      const tenus = waitsFor.filter((attendu) => enWaiting.has(attendu));
+      if (tenus.length === 0) continue;
+      const roots = [...new Set(tenus.flatMap((attendu) => (racines.has(attendu) ? [attendu] : (enWaiting.get(attendu) ?? []))))].sort((a, b) => a - b);
+      if (enWaiting.get(ticket)?.join() === roots.join()) continue;
+      enWaiting.set(ticket, roots);
+      change = true;
+    }
+  }
+  return enWaiting;
+}
+
+type Ligne = Omit<TicketRail, "card" | "awaits" | "dropped" | "held" | "outOfZone" | "frozenBy" | "waitingOn" | "waitingFor"> & { card: string | null; delivery: string | null };
 function lire(base: Base, suite: string, ...parametres: number[]): TicketRail[] {
   const tenu = tenants(base);
   const geles = gelesDuRail(base);
   const tiers = attentesDeTiers(base);
   const dehors = horsZoneDuRail(base);
   const communs = dehors.size === 0 ? [] : communsDuRail(base);
+  // Read only when a queued ticket awaits one on the rail.
+  let enWaiting: Map<number, number[]> | undefined;
   return base.lire<Ligne>(`SELECT ${COLONNES}, delivery FROM rail ${suite}`, ...parametres).map(({ delivery, ...ligne }) => {
     const card = lireFiche(ligne.card);
     const { awaits, dropped } = attendus(base, card);
     const held = ligne.state === "waiting" ? tenu(ligne.ticket, card, delivery) : [];
     const frozenBy = ligne.state === "waiting" ? awaits.map((a) => a.ticket).filter((numero) => geles.has(numero)) : [];
+    const surLeRail = ligne.state === "waiting" ? awaits.filter((attendu) => attendu.left === null) : [];
+    if (surLeRail.length > 0) enWaiting ??= enWaitingDuRail(base, tiers);
+    const waitingOn = surLeRail.flatMap(({ ticket }) => {
+      const roots = enWaiting?.get(ticket);
+      return roots === undefined ? [] : [{ ticket, roots }];
+    });
     const outOfZone = card === null || card.problems.length > 0 ? [] : horsZone(card.zone, dehors.get(ligne.ticket) ?? [], communs);
-    return { ...ligne, card, awaits, dropped, held, outOfZone, frozenBy, waitingFor: tiers.get(ligne.ticket) ?? null };
+    return { ...ligne, card, awaits, dropped, held, outOfZone, frozenBy, waitingOn, waitingFor: tiers.get(ligne.ticket) ?? null };
   });
 }
 

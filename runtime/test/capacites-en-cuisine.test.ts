@@ -12,6 +12,7 @@ import { MARQUEUR, porteFiche } from "../src/fiche.ts";
 import { ACTIONS, JAMAIS_ACCORDEES, jamaisAccordee } from "../src/grant.ts";
 import { principal as grant } from "../src/grant-cli.ts";
 import { etatDuGrant } from "../src/projections/pass.ts";
+import { lireRail } from "../src/projections/rail.ts";
 import { etatStation } from "../src/projections/stations.ts";
 import { lireStations } from "../src/stations-declarees.ts";
 import { cuisine, decider, issue, type Lieux } from "./aides/cuisine.ts";
@@ -193,6 +194,61 @@ describe("les capacités qu'un ticket demande", { concurrency: 8 }, () => {
     assert.deepEqual([revenu.carte?.etat, revenu.carte?.attente, revenu.carte?.tiers], ["pris", null, null]);
     // Le ticket servi par une station n'a jamais été mis de côté, même après le retour de l'autre.
     assert.equal(types(15).includes("ticket.86"), false);
+  });
+
+  test("une chaîne de trois tickets derrière un ticket qu'aucune station ne peut cuisiner : les trois sont en WAITING, chacun nomme celui qu'il attend, aucun ticket du rail n'en attend un ; la station déclarée, ils reviennent tous seuls sur le rail (#1926)", async (t) => {
+    const { repertoire, gh, journal, etat, types, lancements, heure } = cuisine(t, { decisions: true, stations: DEUX, scenario: "muet" });
+    poser(gh, 14, "- requiert : macos");
+    poser(gh, 15, "- attend : #14");
+    poser(gh, 16, "- attend : #15");
+    poser(gh, 17, "- requiert : code");
+    await jusqua(() => etat(14) === "86" && lancements().length === 1);
+    const lire = () => {
+      const lu = lireEtat(journal);
+      const lignes = decrireEtat(lu, heure.maintenant());
+      const vus = faits(lu, heure.maintenant());
+      return { ligne: (ticket: number) => lignes.find((ligne) => ligne.startsWith(`  #${ticket} `)) ?? "", carte: (ticket: number) => vus.rail.find((carte) => carte.ticket === ticket), compteurs: vus.compteurs, rail: vus.rail };
+    };
+    // Aucune carte qui se lit sur le rail — en attente ou bloquée — n'attend un ticket en WAITING.
+    const aucunSurLeRailNAttendUnWaiting = (rail: ReturnType<typeof lire>["rail"]) => {
+      const enWaiting = new Set(rail.filter((carte) => carte.etat === "WAITING").map((carte) => carte.ticket));
+      for (const ticket of lireRail(journal.base)) {
+        const carte = rail.find((vue) => vue.ticket === ticket.ticket);
+        if (carte?.etat === "WAITING") continue;
+        assert.deepEqual(ticket.awaits.filter((attendu) => enWaiting.has(attendu.ticket)), [], `#${ticket.ticket} (${carte?.etat}) attend un ticket en WAITING`);
+      }
+    };
+
+    // Au cycle suivant, sans aucun geste : #14 en WAITING faute de station, #15 et #16 derrière lui, chacun nommant celui qu'il attend.
+    const parque = lire();
+    assert.match(parque.ligne(14), /^ {2}#14 {2}WAITING {2}- {2}awaiting a station that provides `macos` — /);
+    assert.match(parque.ligne(15), /^ {2}#15 {2}WAITING {2}- {2}waits for #14 \(WAITING\) — back on the rail on its own once it waits for no ticket in WAITING — since /);
+    assert.match(parque.ligne(16), /^ {2}#16 {2}WAITING {2}- {2}waits for #15 \(WAITING, behind #14\) — back on the rail on its own once it waits for no ticket in WAITING — since /);
+    assert.deepEqual([14, 15, 16].map((ticket) => [parque.carte(ticket)?.etat, parque.carte(ticket)?.attente?.colonne]), [
+      ["WAITING", "WAITING"],
+      ["WAITING", "WAITING"],
+      ["WAITING", "WAITING"],
+    ]);
+    assert.match(parque.carte(15)?.attente?.raison ?? "", /^attend : #14 \(WAITING\) — /);
+    assert.match(parque.carte(16)?.attente?.raison ?? "", /^attend : #15 \(WAITING, derrière #14\) — /);
+    // Plus aucun d'eux n'est compté sur le rail ; #17, que rien ne retient, est parti.
+    assert.equal(parque.compteurs.rail, 0);
+    assert.equal(etat(17), "taken");
+    aucunSurLeRailNAttendUnWaiting(parque.rail);
+    // Le runtime n'a rien écrit pour eux : ils se lisent en WAITING de ce qu'ils attendent.
+    assert.deepEqual([types(15).includes("ticket.86"), types(16).includes("ticket.86")], [false, false]);
+
+    // Le chef déclare une station qui fournit `macos` : #14 revient et part chez elle, #15 et #16 reviennent sur le rail avec lui.
+    decider(repertoire, "BRIGADE_STATIONS", "box/claude:2:code+raisonnement,box/playwright:2:navigateur-headless,mac/claude:1:macos");
+    await jusqua(() => etat(14) === "taken");
+    const revenu = lire();
+    for (const ticket of [15, 16]) {
+      assert.deepEqual([revenu.carte(ticket)?.etat, revenu.carte(ticket)?.attente], ["en attente", null], `#${ticket}`);
+      assert.doesNotMatch(revenu.ligne(ticket), /WAITING/);
+    }
+    assert.match(revenu.ligne(15), /^ {2}#15 {2}queued {2}- {2}awaiting #14 — since /);
+    assert.equal(revenu.compteurs.rail, 2);
+    aucunSurLeRailNAttendUnWaiting(revenu.rail);
   });
 
   test("les tickets du même lot qui ne demandent rien partent normalement pendant qu'un autre est 86 — même sur sa zone", async (t) => {

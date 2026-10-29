@@ -51,7 +51,7 @@ import { lireRail, livresDepuis, type Etat as EtatTicket, type Livre, type Ticke
 import { lastBackup, type Backup } from "./projections/backups.ts";
 import { dernierTick, derniereSession, type SessionPassee, type Tick } from "./projections/sessions.ts";
 import { arreteeDepuis, cookDeRun, cooksEnCoursDeStation, direDeconnexionEn, direPlafondEn, direRetenueDeStationEn, etatStation, GESTE_DE_CONNEXION_TOMBEE_EN, plafondDeCooks, sansStationDepuis, miseDeCoteBloquee, setupBloque, stationsAnnoncees, type CookDeStation, type EtatStation, type MiseDeCoteBloquee, type SetupBloque } from "./projections/stations.ts";
-import { avecHorsZoneEn, BLOQUE, BLOQUE_EN, direAttentesLeveesEn, direRetenueEn, EN_WAITING, etatLu, etatLuEn, nomAbandonEn, nomEtat, nomEtatEn } from "./rail.ts";
+import { avecHorsZoneEn, BLOQUE, BLOQUE_EN, direAttenteDUnWaiting, direAttentesLeveesEn, direRetenueEn, EN_WAITING, etatLu, etatLuEn, nomAbandonEn, nomEtat, nomEtatEn, RETOUR_DERRIERE_UN_WAITING_EN } from "./rail.ts";
 import { direAttenteDeTiersEn } from "./attente.ts";
 import { attenteDUneStation, direAttenteDUneStationEn, direMiseDeCote, miseDeCoteDu } from "./mise-de-cote.ts";
 import { direReprise, direRepriseEn, reprisesDuRail, type RepriseDuTicket } from "./remontee-a-la-cuisine.ts";
@@ -463,9 +463,10 @@ export function coince(ticket: TicketRail, maintenant: Date): boolean {
 }
 
 // Le ticket en tête de la file : le premier en attente dans l'ordre de service
-// du rail — celui que `prendre` donnerait en premier.
+// du rail — celui que `prendre` donnerait en premier. Un ticket en WAITING
+// derrière un autre n'est plus du rail (#1926) : il n'en est pas la tête.
 function enTete(rail: TicketRail[]): TicketRail | undefined {
-  return rail.find((ticket) => ticket.state === "waiting");
+  return rail.find((ticket) => ticket.state === "waiting" && ticket.waitingOn.length === 0);
 }
 
 // Pourquoi le ticket en tête de la file ne part pas : ce qui le retient sur le
@@ -490,7 +491,13 @@ function detail(ticket: TicketRail, maintenant: Date, depuis: Depuis, retenues: 
     case "waiting":
       // Rien ne le retient sur le rail : s'il ne part pas, c'est sa station.
       // Une attente que la cuisine a levée d'elle-même se dit aussi (#1834).
-      return [...[direRetenueEn(ticket) ?? retenues].flat(), ...[direAttentesLeveesEn(ticket) ?? []].flat(), `since ${depuis(ticket.since)}`].join(" — ");
+      // En WAITING derrière un ticket qui y est, ce qui l'en sort seul (#1926).
+      return [
+        ...[direRetenueEn(ticket) ?? retenues].flat(),
+        ...(ticket.waitingOn.length === 0 ? [] : [RETOUR_DERRIERE_UN_WAITING_EN]),
+        ...[direAttentesLeveesEn(ticket) ?? []].flat(),
+        `since ${depuis(ticket.since)}`,
+      ].join(" — ");
     case "taken": {
       const bail = ticket.leaseUntil === null ? 0 : reste(ticket.leaseUntil);
       // Des deux durées d'un ticket pris, seule la seconde révèle un blocage.
@@ -1056,6 +1063,8 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limit
     rail: etat.rail.map((ticket) => {
       // Sans station, le ticket se lit en WAITING (etatLu) : ce qu'il attend est une action que le chef ne fait pas par un bouton.
       const faute = ticket.state === "86" && ticket.waitingFor === null ? attenteDUneStation(ticket.reason) : null;
+      // En WAITING derrière un ticket qui y est, sa carte dit lequel (#1926).
+      const derriere = direAttenteDUnWaiting(ticket);
       return {
         ticket: ticket.ticket,
         etat: etatLu(ticket),
@@ -1064,7 +1073,12 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limit
         depuis: etat.sejours?.get(ticket.ticket)?.depuis ?? ticket.since,
         ...(etat.sejours?.has(ticket.ticket) ? { essais: etat.sejours.get(ticket.ticket)?.essais } : {}),
         activite: etat.activites.get(ticket.ticket) ?? null,
-        attente: ticket.state === "86" ? { raison: direRaisonDuRail(ticket.reason, etat.reprises?.get(ticket.ticket)), colonne: etatLu(ticket), retour: ticket.until } : null,
+        attente:
+          ticket.state === "86"
+            ? { raison: direRaisonDuRail(ticket.reason, etat.reprises?.get(ticket.ticket)), colonne: etatLu(ticket), retour: ticket.until }
+            : derriere === null
+              ? null
+              : { raison: derriere, colonne: EN_WAITING, retour: null },
         tiers:
           faute !== null
             ? { ...faute, depuis: ticket.since, relance: null }
