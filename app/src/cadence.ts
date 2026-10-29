@@ -25,6 +25,12 @@ export type Histogramme = { barres: Barre[]; nom: string };
 // deux fois l'ordinaire.
 export type Anciennete = { court: string; dit: string; longue: boolean };
 
+// Un essai du séjour d'un ticket pris, tel que le runtime le donne (#1893) : sa prise, la fin de son cook (nulle tant
+// qu'il tourne), pourquoi il s'est arrêté (nul pour l'essai courant).
+export type EssaiLu = { depuis: string; jusqua: string | null; arret: string | null; enCours: boolean };
+// Un point de la carte, un par essai : `enCours`, le dernier, celui qui cuit ; `dit`, ce qu'il dit au survol.
+export type Point = { enCours: boolean; dit: string };
+
 export const HEURES = 24;
 // Une barre pleine compte au moins autant : une heure à un seul ticket ne se dessine pas comme un pic.
 export const ECHELLE_MIN = 4;
@@ -100,4 +106,31 @@ export function anciennete(etat: string, depuis: string | undefined, lu: string,
       ? "no usual time yet: too few tickets have left this column in the last 7 days"
       : `usually ${duree(mediane * 1000)} (the median of the last 7 days)${longue ? " — more than twice that" : ""}`;
   return { court: dureeCourte(age), dit: `in ${colonne.nom} for ${duree(age)}, since ${heureHM(depuis)} — ${ordinaire}`, longue };
+}
+
+// Le champ `essais` d'un ticket du rail (#1893), le plus ancien d'abord.
+export function essaisLus(brut: unknown, champ: string): EssaiLu[] {
+  if (!Array.isArray(brut)) throw new Error(`${champ}: expected a list`);
+  return brut.map((essai: unknown, rang) => {
+    const lu = (typeof essai === "object" && essai !== null ? essai : {}) as Record<string, unknown>;
+    const { depuis, jusqua, arret, enCours } = lu;
+    const heure = (valeur: unknown) => typeof valeur === "string" && !Number.isNaN(Date.parse(valeur));
+    if (!heure(depuis) || !(jusqua === null || heure(jusqua)) || !(arret === null || typeof arret === "string") || typeof enCours !== "boolean") {
+      throw new Error(`${champ}[${rang}]: expected an attempt`);
+    }
+    return { depuis: depuis as string, jusqua: jusqua as string | null, arret: arret as string | null, enCours };
+  });
+}
+
+// Les points d'une carte : un par essai, dès qu'il y en a plus d'un — un seul essai n'en montre aucun. Un essai fini dit,
+// au survol, son rang, combien de temps il a cuit et pourquoi il s'est arrêté (le mot du runtime : `turns`, `idle`,
+// `failed`, `interrupted`…) ; le courant dit qu'il cuit.
+export function points(essais: EssaiLu[] | undefined): Point[] | undefined {
+  if (essais === undefined || essais.length < 2) return undefined;
+  return essais.map((essai, rang) => {
+    const nom = `attempt ${rang + 1} of ${essais.length}`;
+    if (essai.enCours || essai.jusqua === null) return { enCours: true, dit: `${nom} — cooking now` };
+    const cuit = duree(Math.max(0, Date.parse(essai.jusqua) - Date.parse(essai.depuis)));
+    return { enCours: false, dit: `${nom} — stopped after ${cuit}: ${essai.arret ?? "unknown reason"}` };
+  });
 }
