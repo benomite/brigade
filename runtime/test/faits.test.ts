@@ -64,7 +64,7 @@ test("la forme d'une cuisine connue est figée, au caractère près : un champ r
       `"compteurs":{"rail":2,"auTravail":1,"aLaPass":1,"attend":0,"livres24h":1},` +
       `"dernierEvenement":{"seq":15,"at":"${JOUR_HORLOGE}T10:00:14.000Z","type":"ticket.served","ticket":19},` +
       `"rail":[` +
-      `{"ticket":14,"etat":"pris","titre":"Ticket 14","url":"https://exemple.test/14","depuis":"${JOUR_HORLOGE}T10:00:08.000Z","activite":{"fait":"la station prépare le poste du cook","cible":null,"depuis":"${JOUR_HORLOGE}T10:00:08.000Z"},"attente":null,"tiers":null,"raison":null},` +
+      `{"ticket":14,"etat":"pris","titre":"Ticket 14","url":"https://exemple.test/14","depuis":"${JOUR_HORLOGE}T10:00:08.000Z","essais":[{"depuis":"${JOUR_HORLOGE}T10:00:08.000Z","jusqua":null,"arret":null,"enCours":true}],"activite":{"fait":"la station prépare le poste du cook","cible":null,"depuis":"${JOUR_HORLOGE}T10:00:08.000Z"},"attente":null,"tiers":null,"raison":null},` +
       `{"ticket":15,"etat":"en pass","titre":"Ticket 15","url":"https://exemple.test/15","depuis":"${JOUR_HORLOGE}T10:00:10.000Z","activite":null,"attente":null,"tiers":null,"raison":null},` +
       `{"ticket":16,"etat":"en attente","titre":"Ticket 16","url":"https://exemple.test/16","depuis":"${JOUR_HORLOGE}T10:00:03.000Z","activite":null,"attente":null,"tiers":null,"raison":null},` +
       `{"ticket":17,"etat":"86","titre":"Ticket 17","url":"https://exemple.test/17","depuis":"${JOUR_HORLOGE}T10:00:11.000Z","activite":null,"attente":{"raison":"attend : quota du compte épuisé","colonne":"86","retour":"${JOUR_HORLOGE}T15:00:00.000Z"},"tiers":null,"raison":null},` +
