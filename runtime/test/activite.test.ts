@@ -74,10 +74,11 @@ describe("lire ce que fait un cook", () => {
     assert.deepEqual(nomme(), { fait: "écrit", faitEn: "writing", cible: "app/src/bon.ts" });
     lire(f.outil("Bash", { command: "$(echo rm) -rf /" }).ligne);
     assert.deepEqual(nomme(), { fait: "lance une commande", faitEn: "running a command", cible: null });
-    lire(f.outil("Read", { file_path: `${WT}/runtime/src/etat.ts` }).ligne);
+    const lecture = f.outil("Read", { file_path: `${WT}/runtime/src/etat.ts` });
+    lire(lecture.ligne);
     assert.deepEqual(nomme(), { fait: "lit", faitEn: "reading", cible: "runtime/src/etat.ts" });
     assert.equal(direActiviteEn(activite() ?? assert.fail("pas d'activité")), "reading runtime/src/etat.ts");
-    lire(f.pense());
+    lire(f.rendu(lecture.id, "contenu"));
     assert.deepEqual(nomme(), { fait: "réfléchit", faitEn: "thinking", cible: null });
   });
 

@@ -61,10 +61,10 @@ const FAITS: Faits = {
   compteurs: { rail: 2, auTravail: 1, aLaPass: 1, attend: 1, livres24h: 1 },
   dernierEvenement: null,
   rail: [
-    { ticket: 14, etat: "pris", titre: "Le journal en ajout seul", url: "https://github.com/benomite/brigade/issues/14", activite: { fait: "écrit", cible: "app/src/bon.ts", depuis: "2026-10-13T10:02:11.000Z" } },
+    { ticket: 14, etat: "pris", titre: "Le journal en ajout seul", url: "https://github.com/benomite/brigade/issues/14", activite: { fait: "écrit", faitEn: "writing", cible: "app/src/bon.ts", depuis: "2026-10-13T10:02:11.000Z" } },
     { ticket: 21, etat: "en attente", titre: "L'export du journal", url: "https://github.com/benomite/brigade/issues/21", activite: null },
     { ticket: 22, etat: "en attente", titre: "Un ticket libre", url: "https://github.com/benomite/brigade/issues/22", activite: null },
-    { ticket: 30, etat: "en pass", titre: "La pass verte", url: "https://github.com/benomite/brigade/issues/30", activite: { fait: "gates en cours", cible: null, depuis: "2026-10-13T10:03:41.000Z" } },
+    { ticket: 30, etat: "en pass", titre: "La pass verte", url: "https://github.com/benomite/brigade/issues/30", activite: { fait: "gates en cours", faitEn: "running the gates", cible: null, depuis: "2026-10-13T10:03:41.000Z" } },
     { ticket: 31, etat: "servi", titre: "Servi hier", url: "https://github.com/benomite/brigade/issues/31", activite: null },
     { ticket: 12, etat: "en pass", titre: "Validation SIRET", url: "https://github.com/benomite/brigade/issues/12", activite: null },
   ],
@@ -365,9 +365,11 @@ describe("une carte porte ce que la file dit", () => {
     recevoir(vue);
 
     // Sur la carte : une ligne, rien de ce qui ne change pas ce que le chef fait.
-    assert.equal(ligneDe(bonDe(vue, 14)), "écrit app/src/bon.ts · 2 min");
-    assert.equal(ligneDe(bonDe(vue, 30)), "gates en cours · 30 s");
+    assert.equal(ligneDe(bonDe(vue, 14)), "writing app/src/bon.ts · 2 min");
+    assert.equal(ligneDe(bonDe(vue, 30)), "running the gates · 30 s");
     assert.ok((ligneDe(bonDe(vue, 12)) ?? "") !== "");
+    // Aucune carte ne dit « thinking » suivi d'une durée, ni le français du geste.
+    for (const bon of bons(vue.element("rail"))) assert.doesNotMatch(ligneDe(bon) ?? "", /thinking|réfléchit/);
     for (const bon of bons(vue.element("rail"))) {
       assert.deepEqual(portes(bon), [], bon.textContent);
       assert.doesNotMatch(bon.textContent, /lease|bail|\b86\b|not given|taken by/);

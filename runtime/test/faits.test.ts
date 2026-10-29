@@ -64,7 +64,7 @@ test("la forme d'une cuisine connue est figée, au caractère près : un champ r
       `"compteurs":{"rail":2,"auTravail":1,"aLaPass":1,"attend":0,"livres24h":1},` +
       `"dernierEvenement":{"seq":15,"at":"${JOUR_HORLOGE}T10:00:14.000Z","type":"ticket.served","ticket":19},` +
       `"rail":[` +
-      `{"ticket":14,"etat":"pris","titre":"Ticket 14","url":"https://exemple.test/14","depuis":"${JOUR_HORLOGE}T10:00:08.000Z","essais":[{"depuis":"${JOUR_HORLOGE}T10:00:08.000Z","jusqua":null,"arret":null,"enCours":true}],"activite":{"fait":"la station prépare le poste du cook","cible":null,"depuis":"${JOUR_HORLOGE}T10:00:08.000Z"},"attente":null,"tiers":null,"raison":null},` +
+      `{"ticket":14,"etat":"pris","titre":"Ticket 14","url":"https://exemple.test/14","depuis":"${JOUR_HORLOGE}T10:00:08.000Z","essais":[{"depuis":"${JOUR_HORLOGE}T10:00:08.000Z","jusqua":null,"arret":null,"enCours":true}],"activite":{"fait":"la station prépare le poste du cook","faitEn":"the station is setting up the cook's post","cible":null,"depuis":"${JOUR_HORLOGE}T10:00:08.000Z"},"attente":null,"tiers":null,"raison":null},` +
       `{"ticket":15,"etat":"en pass","titre":"Ticket 15","url":"https://exemple.test/15","depuis":"${JOUR_HORLOGE}T10:00:10.000Z","activite":null,"attente":null,"tiers":null,"raison":null},` +
       `{"ticket":16,"etat":"en attente","titre":"Ticket 16","url":"https://exemple.test/16","depuis":"${JOUR_HORLOGE}T10:00:03.000Z","activite":null,"attente":null,"tiers":null,"raison":null},` +
       `{"ticket":17,"etat":"86","titre":"Ticket 17","url":"https://exemple.test/17","depuis":"${JOUR_HORLOGE}T10:00:11.000Z","activite":null,"attente":{"raison":"attend : quota du compte épuisé","colonne":"86","retour":"${JOUR_HORLOGE}T15:00:00.000Z"},"tiers":null,"raison":null},` +
@@ -698,7 +698,7 @@ test("la carte d'un ticket en pass dit où en est la pass : gates, relecture, ju
 
   noter({ type: "cook.exited", payload: { run: "review-14-x", outcome: "ok", code: 0, signal: null, turns: 1, tokens: 1, durationMs: 1 } }); // 10:00:09
   noter({ type: "pass.reviewed", payload: { run: "14-a", sha: "abc", review: "review-14-x", outcome: "green", summary: null, findings: [], reason: null, truncated: false } }, 14);
-  assert.deepEqual(activite(), { fait: "jugement en cours", cible: null, depuis: `${JOUR_HORLOGE}T10:00:09.000Z` });
+  assert.deepEqual(activite(), { fait: "jugement en cours", faitEn: "judging", cible: null, depuis: `${JOUR_HORLOGE}T10:00:09.000Z` });
 
   const gates = { outcome: "green" as const, code: 0, failures: [], tail: "" };
   noter(
