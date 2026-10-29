@@ -2815,6 +2815,14 @@ For a ticket in pass or served, `cooked by` is added: who cooked it is not who h
     "no question".
   - **"ask the second" stays on the sheet**, under the question, for those that deserve an
     explanation: it writes the same request as before.
+- **An idle kitchen with cards on the rail is a fault** (#1863, `panneDe` in `app/src/faits.ts`). When `facts` carries
+  `cuisineOisive` (#1862, `docs/runtime/etat-et-mesures.md`) — cards on the rail, no cook for 30 min, the project on,
+  not every card waiting for a capability or a third party —, the head of the rail opens with a **red fault bar**,
+  above everything else: a `FAULT` mark and `Kitchen idle for 42 min with 3 cards on the rail`, the duration counted
+  between two times of the box (the last mark, the reading). On hover, the tickets that should cook and where the
+  cause is read (the alerts, what awaits you). It is gone at the first reading of `facts` that no longer carries it;
+  without it — or from a runtime from before this field — the head of the rail is exactly what it was. A box that
+  does not answer shows none: its last reading is no longer new.
 - **What is not on the rail yet** (`app/src/amont.ts`, #697). An empty rail does not
   mean a finished project: at the head of the rail, a number — `23 upcoming` — counts the open issues of the
   repository that the rail does not carry. It comes from `ssh <host> brigade <name> manager upstream`

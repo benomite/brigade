@@ -4337,6 +4337,22 @@ function poserAmont(projet, { aucunTicket, cadence }, cartes) {
   return [tete, listeAmont(projet, vu, cartes)];
 }
 
+// La tête du rail, la cuisine oisive avec des cartes dessus (ticket 1863) : une panne, en rouge, au-dessus de tout le
+// reste — depuis combien de temps, et combien de cartes, d'une ligne ; les tickets et ce qu'en faire au survol. Elle
+// part dès que `facts` ne la porte plus.
+/** @param {import("../faits.ts").Tableau} tableau @returns {HTMLElement[]} */
+function panneDuRail({ panne }) {
+  if (panne === undefined) return [];
+  const ligne = document.createElement("p");
+  ligne.className = "panne-du-rail";
+  ligne.role = "alert";
+  ligne.title = panne.survol;
+  const marque = bloc("span", "FAULT");
+  marque.className = "marque";
+  ligne.append(marque, bloc("strong", panne.dit));
+  return [ligne];
+}
+
 // La tête du rail, le projet éteint (tickets 906, 1406) : marquée à l'arrêt, d'une ligne courte — rien de
 // neuf n'est pris, découpé ni mergé. Les cooks en cours finissent. Allumé, pas encore lu ou pas lu,
 // rien : l'interrupteur, en tête de l'espace, dit ce qu'il en est.
@@ -4789,6 +4805,7 @@ function poserRail(projet) {
     ...(cuisine
       ? []
       : [
+          ...panneDuRail(tenu.tableau),
           ...teteDuRail(projet),
           ...poserAmont(projet, tenu.tableau.rail, lesCartes),
           ...poserLesCorrections(projet, tenu.tableau.rail.corrections),

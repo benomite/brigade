@@ -2651,6 +2651,32 @@ main > header,
   flex: none;
   background: var(--rouge);
 }
+/* La tête du rail, la cuisine oisive avec des cartes dessus (#1863) : une panne — rouge, épaisse, sur le fond chaud de
+   ce qui attend le chef, marquée FAULT comme l'urgence l'est URGENT. Elle se voit avant les colonnes. */
+#rail .panne-du-rail {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 16px 0;
+  padding: 8px 12px;
+  background: var(--attend);
+  border: 1px solid var(--rouge);
+  border-left-width: 6px;
+  border-radius: var(--rayon-bouton);
+}
+#rail .panne-du-rail strong {
+  color: var(--rouge-clair);
+}
+#rail .panne-du-rail .marque {
+  flex: none;
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--fond);
+  background: var(--rouge);
+  border-radius: 3px;
+}
 /* La tête du rail, le manager éteint (#906) : une barre hachurée, à l'arrêt, sur toute la largeur — rien
    de neuf n'entre —, sa pastille grise et sa ligne courte. Elle se voit sans se lire. */
 #rail .arret-manager {

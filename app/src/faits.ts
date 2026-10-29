@@ -233,6 +233,9 @@ export type Retenue = DecisionUrgente & { retenus: number[] };
 // L'alerte d'urgence émise (runtime/src/etat.ts, `AlerteExposee`) : sa ligne, sa
 // première émission, la dernière, rappel compris, et le nombre de rappels.
 export type AlerteUrgence = { libelle: string; emiseLe: string; derniereLe: string; rappels: number };
+// La cuisine oisive (runtime/src/cuisine-oisive.ts, `CuisineOisive`) : `depuis`, le dernier repère d'où l'oisiveté se
+// compte, à l'horloge de la box ; `cartes`, les tickets qui devraient cuire, dans l'ordre du rail.
+export type CuisineOisive = { depuis: string; cartes: number[] };
 
 // Les appels de la box à GitHub sur la dernière heure : le total, et ce qui en a fait le plus (nul quand rien n'a été appelé).
 export type AppelsGithub = { total: number; topProject: { name: string; calls: number } | null; topKind: { name: string; calls: number } | null };
@@ -275,6 +278,9 @@ export type Faits = {
   // Les décisions du chef qui retiennent des tickets sans arrêter la cuisine : absent, c'est un
   // runtime d'avant ce champ.
   retenues?: Retenue[];
+  // La cuisine oisive, des cartes sur le rail (runtime/src/cuisine-oisive.ts, #1862) : la ligne `fault` de `status`.
+  // Nulle quand la panne ne tient pas ; absent d'un runtime d'avant ce champ.
+  cuisineOisive?: CuisineOisive | null;
   // Les stations que le projet déclare et ce qu'elles font des tickets ordinaires (ordinaires.ts) ; absent d'un runtime d'avant ce champ.
   stations?: StationDesFaits[];
   // Le plafond de calibrage du manager, et si le chef l'a posé (plafond-de-calibrage.ts) ; absent d'un runtime
@@ -365,6 +371,8 @@ export type Rail = { colonnes: Colonne[]; hors: Carte[]; aucunTicket?: true; att
 export type BlocLu = { bloc: string; a: string };
 // Ce que `status` a rendu pour un projet, son bloc `attend` mis à part, et l'heure de sa lecture.
 export type StatusLu = { texte: string; a: string };
+// La panne que la tête du rail pose en rouge : sa ligne, et son survol.
+export type Panne = { dit: string; survol: string };
 // `vide` : ce qui se lit à la place des cooks quand il n'y en a pas à poser.
 export type Tableau = {
   etat: string;
@@ -377,6 +385,9 @@ export type Tableau = {
   // La ligne « nothing cooks: base red since …, repair #N in progress » (« rien ne cuit : base rouge depuis …, réparation #N en cours » avant #928) que `status` écrit
   // en tête, mot pour mot — absente quand `status` n'est pas lu ou ne la porte pas.
   rienNeCuit?: string;
+  // La panne d'une cuisine oisive, des cartes sur le rail (#1863) : la tête du rail la pose en rouge — `dit`, sa
+  // ligne ; `survol`, ce qu'elle sait de plus. Absente quand `facts` ne la porte pas.
+  panne?: Panne;
   rail: Rail;
   // Ce que chaque station du projet en fait, ses cooks et son geste, et la ligne d'alerte de l'onglet Rail
   // (cuisson.ts) — absent d'un runtime qui ne donne pas les stations.
@@ -548,6 +559,13 @@ function comprendreRetenue(valeur: unknown, champ: string): Retenue {
   return { ...comprendreDecision(lu, champ), retenus: retenus.map((ticket: unknown, rang: number) => entier(ticket, `${champ}.retenus[${rang}]`)) };
 }
 
+// La cuisine oisive : depuis quand, et les cartes qui devraient cuire.
+function comprendreCuisineOisive(valeur: unknown, champ: string): CuisineOisive {
+  const lu = objet(valeur, champ);
+  const cartes = Array.isArray(lu.cartes) ? lu.cartes : refuser(`${champ}.cartes`, "a list");
+  return { depuis: heure(lu.depuis, `${champ}.depuis`), cartes: cartes.map((ticket: unknown, rang: number) => entier(ticket, `${champ}.cartes[${rang}]`)) };
+}
+
 // L'alerte émise pour l'urgence : sa ligne, ses deux heures, ses rappels.
 function comprendreAlerteUrgence(valeur: unknown, champ: string): AlerteUrgence {
   const lu = objet(valeur, champ);
@@ -592,7 +610,7 @@ function comprendreTiers(brut: unknown, lequel: string): Tiers {
 
 // La sortie de `faits`, champ pour champ — ou en quoi elle n'est pas la forme.
 // Rien n'y est complété : un champ qui manque refuse la forme entière — sauf
-// `cooks`, `attend`, `livres`, `urgence` et l'`activite`,
+// `cooks`, `attend`, `livres`, `urgence`, `cuisineOisive` et l'`activite`,
 // l'`attente` et les `tiers` d'un ticket, qu'un runtime d'avant eux ne rend pas,
 // et qui manquent alors ici aussi — et `corrections`, `reculs` et `profils`, absents quand il n'y en a aucun,
 // comme `apprentissage` quand le projet n'a ni leçon ni profil.
@@ -690,6 +708,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
             }),
           }),
       ...(racine.urgence === undefined ? {} : { urgence: ouRien(racine.urgence, "urgence", comprendreUrgence) }),
+      ...(racine.cuisineOisive === undefined ? {} : { cuisineOisive: ouRien(racine.cuisineOisive, "cuisineOisive", comprendreCuisineOisive) }),
       ...(racine.retenues === undefined ? {} : { retenues: (Array.isArray(racine.retenues) ? racine.retenues : refuser("retenues", "a list")).map((r: unknown, rang: number) => comprendreRetenue(r, `retenues[${rang}]`)) }),
       ...(racine.stations === undefined
         ? {}
@@ -1165,6 +1184,21 @@ function rienNeCuit(status?: StatusLu): { rienNeCuit?: string } {
   return ligne === undefined ? {} : { rienNeCuit: ligne };
 }
 
+// La cuisine oisive, des cartes sur le rail (#1863) : depuis combien de temps, et combien de cartes — la durée se
+// compte entre deux heures de la box, le dernier repère et la lecture.
+export function panneDe({ cuisineOisive, lu }: Faits): { panne?: Panne } {
+  if (cuisineOisive == null) return {};
+  const { depuis, cartes } = cuisineOisive;
+  const pendant = duree(Date.parse(lu) - Date.parse(depuis));
+  const nombre = `${cartes.length} ${cartes.length === 1 ? "card" : "cards"}`;
+  return {
+    panne: {
+      dit: `Kitchen idle for ${pendant} with ${nombre} on the rail`,
+      survol: `No cook has run for ${pendant}, though the project is on and ${cartes.map((ticket) => `#${ticket}`).join(", ")} ${cartes.length === 1 ? "waits" : "wait"} to be cooked. This is not normal: the cause, when there is one, is in the alerts or in what awaits you.`,
+    },
+  };
+}
+
 const AUCUN_COOK = "no cook running";
 const COOKS_PAS_LUS = "cooks running: not read — this station's runtime does not give them in `facts` yet. This is not “no cook”: `ssh <hote> brigade <nom> station` shows them";
 
@@ -1187,6 +1221,7 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu, repond
     cooks: { enCours: faits.cooks ?? [], vide: faits.cooks === undefined ? COOKS_PAS_LUS : AUCUN_COOK },
     evenement: evenement(faits),
     ...rienNeCuit(status),
+    ...panneDe(faits),
     rail: rail(faits, attend, status, repondues, ecrites, envois),
     ...(faits.stations === undefined ? {} : { stations: cuissonDe(faits.stations, faits.cooks, faits.lu) }),
     ...(faits.plafondDeCalibrage === undefined ? {} : { plafondDeCalibrage: plafondVu(faits.plafondDeCalibrage) }),
