@@ -44,7 +44,7 @@ export async function lireLaStation({ repondre, connus }: { repondre: (chemin: s
       return rendu;
     },
     // La vue écarte ce qui ne répond pas à sa dernière demande : le faux pont y met la sienne.
-    dire: ((sur: string, ...args: unknown[]) => void envois.push({ sur, args, ...(sur === "surFaits" ? { demande: "faits" as const } : sur === "surLecture" ? { demande: "vue" as const } : {}) })) as Parameters<typeof ouvrirLaLecture>[0]["dire"],
+    dire: ((sur: string, ...args: unknown[]) => void envois.push({ sur, args, ...(sur === "surFaits" ? { demande: "faits" as const } : {}) })) as Parameters<typeof ouvrirLaLecture>[0]["dire"],
   });
   const demarrage = { ...demarrageDuTelephone({ appaire: true, station: STATION, adresse: ADRESSE }), configuration: lecture.configuration(), telephone: lecture.telephone() };
   const pendant = async (lire: () => Promise<void>) => {

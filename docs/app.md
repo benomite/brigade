@@ -6,8 +6,8 @@ second runs. You no longer open a terminal, you no longer move into a folder.
 **In the middle of the space, two tabs, Rail and Cooks** (#1184), next to the project name, only one shown at a
 time: **Rail** says where the project stands and what you have to decide — what awaits you and its action, the
 whole kanban in its order — On the rail, Taken, Pass, TODO, WAITING and what is served — with nothing about
-execution; **Cooks** says what is running — the project's stations and their cooks in flight, the delivery servers
-with their worktree and their port, its tickets and its gates, and, folded, its calibration ceiling, its roles, what
+execution; **Cooks** says what is running — the project's stations and their cooks in flight, its tickets and its
+gates, and, folded, its calibration ceiling, its roles, what
 its cooks learned and the raw reading of `station` (the machine and its saturation, the quota). One click switches from one to the other; **the app reopens each project on the
 last tab you opened in it**, even after you quit it — a project never opened opens on Rail. **On the right, the
 terminals, permanently**: the second, and beside it, at the same level, the shells you open — nothing you look at
@@ -16,7 +16,7 @@ in the middle hides them, and switching tabs neither cuts nor empties the conver
 — the stations' block, headed by the kitchen's line (its state in a pill and its latest event; the project tile is
 folded into it, and is shown whole above the stations only when they are not read), each station with its state, its
 reason and its cooks' cards, a stuck cook's card saying `STUCK: no progress since 31 min`; on a 1366×768 laptop
-screen, all of it is visible without scrolling. Then the pages served, the project's tickets, **the reliability of its
+screen, all of it is visible without scrolling. Then the project's tickets, **the reliability of its
 cooks**, its gates and **its closer** — these two were the Settings pages Reliability and Closer until #1699 (see "The
 cooks' reliability, on Cooks" and "The closer, on Cooks"). Then, **folded
 behind a single line each and closed by default**: the calibration ceiling (`opus / high · default`), the kitchen roles
@@ -24,7 +24,8 @@ behind a single line each and closed by default**: the calibration ceiling (`opu
 `station`. A click on the line opens it; the app keeps it open from one reading to the next. **A block with nothing to
 say is a single line**, never a table of zeros: tickets (`nothing served, sent back or escalated in the last day`),
 gates (`no run in the last 24 h · budget of one run: …`), lessons (`nothing yet on this project: no lesson, no
-profile`); the delivery servers' section is not laid when nothing is served. The cap on cooks is set on each station's
+profile`). **No page of a worktree opens from the app** (#1846): you follow what a cook does on its ticket's sheet,
+then its PR, and you try the built app once it is merged. The cap on cooks is set on each station's
 line; the raw reading no longer carries the button that wrote `station cooks` into the second.
 **Under the stations, the project's tickets in the last hour and the last day** (#1272): how many were
 `served`, `sent back` to a cook and `escalated` to you, in a small table — one row per window, `last hour` then `last day`.
@@ -141,7 +142,7 @@ module is `app/src/vue/roles-cuisine.js`.
 tap switches from one to the other, and switching tabs neither cuts nor empties the conversation. The projects bar
 moves to the top. **Cooks is read-only there**: the stations' lines, their state and their cooks — one line each, not
 their cards —, and on each one its
-only button, `stop cooking` or `start cooking` — no project tile, no Taken and Pass, no delivery servers, no stations
+only button, `stop cooking` or `start cooking` — no project tile, no Taken and Pass, no stations
 line to set up (`+ station`, `move the kitchen`, the sandbox), no reading of `station` and its cap: cooks are set up
 where there is a computer. Rail shows the same columns and cards as on a wide screen, `open Cooks` line included, but
 **stacked, full width, with TODO — what waits for you — first** (#1163): the page scrolls down, never sideways. A
@@ -2529,8 +2530,8 @@ from the rail.
 tab is shown below it** — the second, a shell, the output of a command. **Five columns**, one
 ticket per card: what is going to happen (On the rail), what is happening (Taken, Pass), what you
 have to do (Awaiting you), what is done (Served). **The columns are shared between the project's two tabs**
-(#1184, then #1269): the kanban stays whole on Rail, Taken and Pass included, and Cooks shows no column; on Rail, the card of a served page
-carries only its screen and its action, its worktree and its port are on Cooks. The spec is
+(#1184, then #1269): the kanban stays whole on Rail, Taken and Pass included, and Cooks shows no column. No card
+opens a served worktree page (#1846). The spec is
 `docs/superpowers/specs/2026-10-13-app-poste-de-travail-design.md`; the visual language remains that
 of `docs/maquettes/app/Brigade.dc.html`.
 
@@ -2580,6 +2581,18 @@ in `docs/runtime/garde-fous.md`) first:
 | `blocks` | in plain words, what holds it: `zone held by #14 (app/src)`, `awaiting #12, #13`, `#17 dropped (…)`, `no station declared` | its line under `rail`, in `status` |
 
 For a ticket in pass or served, `cooked by` is added: who cooked it is not who holds it.
+
+**Under it, `its cook`: what the ticket's cook is doing, as its station publishes it** (#1846, `app/src/vue/activite-du-cook.js`)
+— in place of the cook's terminal, which the app does not follow. The station writes each cook's activity into the
+project's Kitchen board (#1844, `activites`); the app reads it on GitHub with this computer's GitHub account alone —
+no `ssh`, no box reached (`app/src/tableau/lecture.ts`, `activitesPubliees`) — every 30 seconds with the board, and an
+open sheet follows it without a gesture. While the cook runs: a `cooking` pill, since when, its station, its turns and
+its tokens; `now` and what it is doing (`writing app/src/bon.ts · for 2 min`); then its earlier steps with their time.
+Finished: how it ended (`finished`, `failed`, `stopped by a guardrail`…), when and after how long, its last steps, and
+`open PR #40`, which opens its PR in the browser — or `it opened no PR`. The last line dates what it shows by the
+box's reading, where it comes from in its hover. A ticket with no published cook has no section; a board written by
+a box that does not publish its cooks' activity yet says `its cook's activity unavailable`, why in its hover. With the
+section laid, `right now` is not repeated under it.
 
 - **What the queue does not say is not displayed** (#747) — neither the card nor the sheet writes "not given
   by the queue: …" in place of a piece of information: a missing thing has no line. Nor "nobody",

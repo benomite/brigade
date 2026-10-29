@@ -4,7 +4,7 @@
 // vue.css, que peau.test.ts lit à part.
 //   const vue = await jouerLaVue({ demarrage: () => …, espace: () => [second] });
 //   vue.element("projets").children[1]?.click();   // un clic du chef
-//   vue.dire("surLecture", lecture, pages);          // ce que le process principal envoie
+//   vue.dire("surFaits", recue);                     // ce que le process principal envoie
 //   await repos();                                   // ce que la vue en fait, promesses comprises
 import { readFileSync } from "node:fs";
 import { join } from "node:path";

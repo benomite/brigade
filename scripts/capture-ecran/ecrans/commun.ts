@@ -105,7 +105,7 @@ export function cuisine(rendus: Record<string, Rendu>, ecrites?: (projet: string
   const statusLu = (projet: string, sorties: Record<string, string>): Envoi[] => {
     const montree = mettreAPart(lecture(projet, sorties));
     const redessine = faits.attendre(montree);
-    return [{ sur: "surLecture", args: [montree, undefined], demande: "vue" }, ...(redessine === undefined ? [] : [dessine(redessine)]), alertes(bandes.status(montree))];
+    return [...(redessine === undefined ? [] : [dessine(redessine)]), alertes(bandes.status(montree))];
   };
   const envoisDesFaits: Envoi[] = [
     ...bandes.ouvrir(projets).map(alertes),

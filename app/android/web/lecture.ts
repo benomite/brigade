@@ -29,7 +29,7 @@
 // téléphone. Ce qui ne se lit pas, ou ne part pas, se dit en une phrase, ce que la station ou le réseau en a dit au survol.
 import { tenirAccueil, type Accueil } from "../../src/accueil.ts";
 import { tenirBandes, type Bande } from "../../src/alertes.ts";
-import { mettreAPart, type Montree } from "../../src/attend.ts";
+import { mettreAPart } from "../../src/attend.ts";
 import { pourLaBarre, type Affichee } from "../../src/barre.ts";
 import type { Echec, Lecture } from "../../src/box.ts";
 import type { Projet } from "../../src/config.ts";
@@ -53,7 +53,6 @@ export type ListeLue = { a: string; lue: true } | ({ a: string; lue: false } & M
 export type Dire = {
   (canal: "surConfiguration", configuration: Affichee, fermes: number[]): void;
   (canal: "surFaits", recue: Dessinable): void;
-  (canal: "surLecture", montree: Montree, servies: undefined): void;
   (canal: "surAlertes", bande: Bande): void;
   (canal: "surAccueil", accueil: Accueil): void;
   (canal: "surTelephone", telephone: { appaire: true; station: string; adresse: string; liste?: ListeLue }): void;
@@ -237,7 +236,6 @@ export function ouvrirLaLecture(options: Options) {
     }
     if (!vus.includes(projet)) return;
     const montree = mettreAPart("sorties" in file ? { projet, demande: demandeVue, a, sorties: [{ commande: "status", texte: file.sorties.status }] } : { projet, demande: demandeVue, a, ...file });
-    dire("surLecture", montree, undefined);
     const redessine = faits.attendre(montree);
     if (redessine !== undefined) dire("surFaits", redessine);
     dire("surAlertes", bandes.status(montree));

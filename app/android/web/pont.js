@@ -25,7 +25,7 @@
 //     par l'appareil photo du téléphone plutôt que par l'app (Pont.java, `lien`).
 // Et, appairé, les projets de la station et la file de chacun (le ticket 1414) : `faits`, `tous`, `regarder` et
 // `relireBox` lisent son guichet (`GET /projects`, `GET /projects/<nom>/queue`) avec le jeton gardé, et ce qui en sort
-// arrive à la vue par ses abonnements (`surConfiguration`, `surFaits`, `surLecture`, `surAlertes`, `surAccueil`,
+// arrive à la vue par ses abonnements (`surConfiguration`, `surFaits`, `surAlertes`, `surAccueil`,
 // `surTelephone`) — tel que le process principal du desktop l'enverrait, calculé par les mêmes modules d'app/src/
 // (app/android/web/lecture.ts, que la construction pose dans www/android/lecture.js, chargé à la première lecture).
 // Les projets de la dernière liste lue sont gardés : relancée, l'app les montre avant de relire. `oublierLeTelephone`

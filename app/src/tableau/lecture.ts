@@ -9,7 +9,7 @@
 // Ce qui ne se lit pas le dit, jamais une file vide : GitHub qui ne répond pas ou refuse, le dépôt sans tableau, le
 // tableau sans bloc ou d'une version que l'app ne lit pas — chaque fois un échec, et sa raison en une phrase, que l'app
 // montre telle quelle.
-import { lireLeTableau, OUVERTURE_DU_BLOC, type CuisineDuTableau, type FaitsPublies, type GesteDuTableau, type LigneDeLaFile, type LigneDuRail, type Resserre } from "../../../runtime/src/tableau/rendu/bloc.ts";
+import { lesActivitesDesCooks, lireLeTableau, OUVERTURE_DU_BLOC, type ActiviteDuCook, type CuisineDuTableau, type FaitsPublies, type GesteDuTableau, type LigneDeLaFile, type LigneDuRail, type Resserre } from "../../../runtime/src/tableau/rendu/bloc.ts";
 import type { AppelGitHub, ReponseGitHub } from "./client.ts";
 
 // Le label par lequel la box retrouve son tableau dans le dépôt (runtime/src/tableau/publication/publier.ts,
@@ -49,6 +49,9 @@ export type TableauLu = {
   // L'heure où la box a lu l'état qu'elle publie (`tableau.lu`) : les durées que ses lignes disent se comptent jusqu'à elle.
   etatLuLe?: string;
   resserre?: Resserre[];
+  // Ce que fait chaque cook du projet (#1844), lu par le lecteur que le runtime partage (`lesActivitesDesCooks`) : ce
+  // que la fiche d'un ticket montre de son cook (#1846). Absent d'un bloc écrit par une box qui ne le publie pas encore.
+  activites?: ActiviteDuCook[];
 };
 // `horsLigne` : GitHub n'a pas été joint du tout — pas de réseau, une seule cause (#1818). Ce n'est pas une panne : la vue
 // garde le dernier rail lu, et le dit hors ligne. Un GitHub joint qui refuse, ou un tableau illisible, en est une.
@@ -116,9 +119,11 @@ export async function lireLeTableauDuDepot({ depot, appeler, maintenant = () => 
   const issue = leTableau(reponse.data as IssueBrute[]);
   if (issue === undefined) return echec(`There is no open Kitchen board in ${depot}: the box serving it has not published one yet, or it was closed.`);
   const numero = Number(issue.number);
-  const lecture = lireLeTableau(typeof issue.body === "string" ? issue.body : "");
+  const corps = typeof issue.body === "string" ? issue.body : "";
+  const lecture = lireLeTableau(corps);
   if (!lecture.lu) return echec(`The Kitchen board of ${depot} (issue ${numero}) cannot be read: ${lecture.raison}.`);
   const { genereLe, tableau } = lecture;
+  const activites = lesActivitesDesCooks(corps);
   return {
     lu: true,
     depot,
@@ -138,5 +143,14 @@ export async function lireLeTableauDuDepot({ depot, appeler, maintenant = () => 
     ...(Array.isArray(tableau.lignesDuRail) ? { lignesDuRail: tableau.lignesDuRail } : {}),
     etatLuLe: tableau.lu,
     ...(Array.isArray(tableau.resserre) ? { resserre: tableau.resserre } : {}),
+    ...(activites.lues ? { activites: activites.activites } : {}),
   };
+}
+
+// Ce que la vue reçoit de l'activité des cooks d'un projet, à chaque lecture de son tableau (#1846,
+// vue/activite-du-cook.js) : l'heure de la lecture de l'état par la box, et ce que fait chaque cook — ou, d'un tableau
+// écrit par une box qui ne le publie pas encore, pourquoi il ne se lit pas, en une phrase.
+export type ActivitesPubliees = { projet: string; lu: string; activites: ActiviteDuCook[] } | { projet: string; sans: string };
+export function activitesPubliees(projet: string, lu: TableauLu): ActivitesPubliees {
+  return lu.activites === undefined ? { projet, sans: "the Kitchen board was written by a box that does not publish its cooks' activity yet: update the box" } : { projet, lu: lu.etatLuLe ?? lu.genereLe, activites: lu.activites };
 }

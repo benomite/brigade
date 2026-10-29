@@ -43,13 +43,8 @@
 // L'installation guidée et la vérification de l'installation ne sont plus dans la vue (ticket 1700) : l'app n'a besoin
 // que d'une connexion GitHub. Le retrait du projet est une ligne de Settings, sous toi : le retirer de l'app, qui
 // n'envoie rien à sa station, après un « yes » — ce qui se refuse et ce qui s'en dit se décident dans retrait.ts.
-// Et, sur la carte de chaque ticket dont `status` montre un serveur, l'écran à regarder — la phrase
-// du cook, et la mention quand l'écran est déduit plutôt que déclaré — puis sa page : un geste
-// direct, qui ouvre l'écran dans le navigateur du poste, posé seulement s'il y a une page à voir —
-// ou ce qui se lit à sa place. Une app qui ne s'ouvre pas dans un navigateur n'a pas de geste : sa
-// carte dit comment voir l'écran. Sous l'état, ce qui
-// empêche les pages d'être servies. La vue ne montre aucune page et ne recueille aucun avis ;
-// quel port, quelle adresse, et pourquoi pas, se décident dans page.ts.
+// La page d'un worktree servi n'est plus nulle part dans l'app (ticket 1846) : le chef suit ce que fait le cook, sur la
+// fiche de son ticket (activite-du-cook.js), et sa PR, et essaie l'app construite une fois mergée.
 // En tête de l'espace, la bande d'alertes : est-ce que ça peut tourner ? La cuisine, le grant —
 // une alerte par chose à faire, et
 // une ligne « non vérifié » pour chaque état que la box ne dit pas. Vide, elle ne prend aucune
@@ -113,6 +108,7 @@ import { ligneDAlerte, poserLesStations as stationsDeCuisson } from "./stations-
 import { poserLesAppels } from "./appels-de-la-station.js";
 import { EXPLIQUE as AIDE_DU_PLAFOND, poserLePlafond as plafondDeCalibrage, resumeDuPlafond, TITRE as TITRE_DU_PLAFOND } from "./plafond-de-calibrage.js";
 import { poserLActivite } from "./activite-cuisine.js";
+import { cookDuTicket, poserLActiviteDuCook } from "./activite-du-cook.js";
 import { poserAge, poserCadence, poserEssais } from "./cadence.js";
 import { GATES_HORS_BUDGET, poserLeJourDesGates, poserLesGatesDeCooks } from "./cout-des-gates.js";
 import { AIDE as AIDE_DES_ROLES, poserLesRoles, resumeDesRoles, TITRE as TITRE_DES_ROLES } from "./roles-cuisine.js";
@@ -136,7 +132,6 @@ const dateHeure = (/** @type {number | string | Date} */ instant) => new Date(in
 /** @typedef {import("../box.ts").Lecture} Lecture */
 /** @typedef {import("../faits.ts").Dessinable} Dessinable */
 /** @typedef {import("../alertes.ts").Alerte} Alerte */
-/** @typedef {import("../page.ts").Pages} Pages */
 /** @typedef {import("../grants.ts").Vu} VuDesGrants */
 /** @typedef {import("../fiabilite.ts").Vu} VuDeLaFiabilite */
 // Ce que `onglets.ts` nomme : le journal, et l'onglet Paramètres, qui n'a pas de commande à lui.
@@ -223,13 +218,6 @@ const lectureOnglet = element("lecture-onglet");
 const gestesOnglet = element("gestes-onglet");
 const interrupteurProjet = element("interrupteur-projet");
 const arreterCuisine = element("arreter-cuisine");
-// Les serveurs de livraison du projet — ce que `status` en montre — sont sur l'onglet Cooks (ticket 1184), sous ses
-// colonnes : poserRail les y pose.
-const pages = document.createElement("section");
-pages.id = "pages";
-pages.ariaLabel = "The pages served";
-pages.ariaLive = "polite";
-pages.hidden = true;
 const note = element("note");
 const ongletsTerminaux = element("terminaux");
 const fermerShell = element("fermer-shell");
@@ -298,9 +286,6 @@ declareesDuProjet.id = "declarees-du-projet";
 // (service.ts, `controle.stations`) : gardées d'un guide à l'autre, jusqu'à la lecture suivante.
 /** @type {Map<string, import("../service.ts").StationsLues>} */
 const declarees = new Map();
-// Les pages servies dont le ticket n'a pas de carte ici, sous les stations (ticket 1456). poserRail les pose.
-const servisSansCarte = document.createElement("div");
-servisSansCarte.id = "servis-sans-carte";
 // Les blocs repliés que le chef a ouverts, par projet (`<projet>#<bloc>`) : reposés à chaque lecture, ils restent
 // ouverts ; fermés à la première.
 /** @type {Set<string>} */
@@ -1055,10 +1040,10 @@ let gesteDeLUrgence;
 // Dans la barre, la pastille de chaque projet qui a une box.
 /** @type {Map<string, HTMLElement>} */
 const pastilles = new Map();
-// Les pages servies de chaque projet, telles que sa dernière lecture de `status` les rend (page.ts) :
-// chacune se pose sur la carte de son ticket.
-/** @type {Map<string, Pages>} */
-const pagesServies = new Map();
+// Ce que fait chaque cook de chaque projet, tel que la dernière lecture de son tableau le publie (activite-du-cook.js) :
+// la fiche d'un ticket en pose son cook.
+/** @type {Map<string, import("./activite-du-cook.js").Publiees>} */
+const activitesPubliees = new Map();
 // Les cartes de Livré dont le chef a déplié les remarques, par projet et ticket : le rail se
 // redessine à chaque lecture, et ce qu'il lit ne se replie pas sous ses yeux.
 /** @type {Set<string>} */
@@ -2882,17 +2867,16 @@ function coinceDit({ dit }) {
 // qui se passe et, au plus, une ligne de signal (ligne-carte.ts) ; un petit repère quand la file ne
 // dit pas tout. Ce que la file dit du ticket en plus est dans sa fiche (`poserDetailsDeFiche`). Dans
 // T'attend, la phrase est ce qu'on attend du chef, et son geste — une demande au second — est sur la
-// fiche. Dans Livré, la phrase porte l'heure et le résumé ; ses captures restent sur la carte. Et la
-// page du ticket, quand `status` en montre une servie, avec son geste direct.
-// Tout est déjà rangé par le process principal (faits.ts, bon.ts, page.ts) : la vue pose. Le
+// fiche. Dans Livré, la phrase porte l'heure et le résumé ; ses captures restent sur la carte.
+// Tout est déjà rangé par le process principal (faits.ts, bon.ts) : la vue pose. Le
 // numéro s'ouvre sur l'issue : l'adresse reste au process principal, la vue nomme le ticket.
-/** @param {Projet} projet @param {import("../faits.ts").Carte} carte @param {string | undefined} [tonAttend] le ton de T'attend, quand le bon y est posé @param {boolean} [execution] sa page servie dit son worktree et son port — sur Cooks ; sur Rail, seulement l'écran et son geste (ticket 1184) */
-function poserBon(projet, carte, tonAttend, execution = true) {
+/** @param {Projet} projet @param {import("../faits.ts").Carte} carte @param {string | undefined} [tonAttend] le ton de T'attend, quand le bon y est posé */
+function poserBon(projet, carte, tonAttend) {
   const { ticket, etat, ton, titre, ouvrable, attendu, attend, pr } = carte;
   const bon = document.createElement("li");
   bon.className = "bon";
   // Un clic sur la carte, quelle que soit sa colonne, ouvre sa fiche par-dessus le rail. Ce qui s'y
-  // clique déjà — son numéro, sa PR, ses remarques, sa page servie — garde son geste ; un texte
+  // clique déjà — son numéro, sa PR, ses remarques — garde son geste ; un texte
   // qu'on y sélectionne pour le recopier n'ouvre rien. Au clavier, Entrée ou Espace sur la carte.
   bon.tabIndex = 0;
   bon.addEventListener("click", (evenement) => {
@@ -3004,8 +2988,6 @@ function poserBon(projet, carte, tonAttend, execution = true) {
   }
   if (pr === false) bon.append(bloc("small", "merged PR: the address the station returned is not https, the app does not open it"));
   bon.append(...poserGestesDAttente(projet, carte));
-  bon.append(...(pagesServies.get(projet.nom)?.pages ?? []).filter((page) => page.ticket === ticket).map((page) => poserServie(projet, page, false, execution)));
-  bon.append(...(pagesServies.get(projet.nom)?.aLancer ?? []).filter((tenue) => tenue.ticket === ticket).map((tenue) => poserALancer(projet, tenue, false, execution)));
   return bon;
 }
 
@@ -3401,7 +3383,10 @@ function poserFiche() {
       : attendu === undefined
         ? []
         : [Object.assign(bloc("p", attendu), { className: "attendu" })];
-  panneau.append(tete, ...attente, ...(nomme === undefined ? [] : [nomme]), lignes, ...poserDetailsDeFiche(projet, carte), ...poserHistoire(projet, ticket, carte));
+  // Son cook, tel que sa station le publie (ticket 1846) : ce qu'il fait, ses derniers gestes, sa fin et sa PR. Posé, il
+  // dit ce qu'il fait en ce moment : l'histoire ne le redit pas.
+  const cook = poserLActiviteDuCook(document, { publiees: activitesPubliees.get(projet.nom), ticket, pastille, ouvrirPr: () => void ouvrirPrDuCook(projet, ticket) });
+  panneau.append(tete, ...attente, ...(nomme === undefined ? [] : [nomme]), lignes, ...poserDetailsDeFiche(projet, carte), ...(cook === null ? [] : [cook]), ...poserHistoire(projet, ticket, carte, cook !== null));
   fiche.replaceChildren(panneau);
   // Un ticket qui t'attend : la question que son issue pose, s'il en pose une — lue à l'ouverture.
   // Répondue, sa carte attend le manager dans WAITING : la fiche la garde, et ce qui y a été répondu.
@@ -3602,12 +3587,12 @@ async function jouerGesteDeFiche(projet, ticket, id, valeur) {
 // Ce que la fiche dit de la vie du ticket : ce que son cook fait en ce moment ou ce qui le bloque,
 // puis son histoire — chaque étape avec son heure, la relecture en vert ou rouge avec son résumé —
 // et son coût. Rien n'est posé qui n'a pas eu lieu ; ce que la box ne communique pas est écrit.
-/** @param {Projet} projet @param {number} ticket @param {import("../faits.ts").Carte} carte */
-function poserHistoire(projet, ticket, carte) {
+/** @param {Projet} projet @param {number} ticket @param {import("../faits.ts").Carte} carte @param {boolean} [cookPose] la section de son cook est posée au-dessus : elle dit déjà ce qu'il fait */
+function poserHistoire(projet, ticket, carte, cookPose = false) {
   /** @type {HTMLElement[]} */
   const posees = [];
   const dite = situations.get(`${projet.nom}#${ticket}`);
-  if (dite !== undefined) {
+  if (dite !== undefined && !(cookPose && dite.libelle !== "blocked")) {
     const section = document.createElement("section");
     section.className = "situation";
     section.append(bloc("h4", dite.libelle === "blocked" ? "what blocks it" : "right now"), ...dite.lignes.map((ligne) => bloc("p", ligne)));
@@ -4428,7 +4413,7 @@ function poserCuisson(projet, posees = new Map()) {
       : {
           carte: (/** @type {import("../faits.ts").Cook} */ cook) => {
             const carte = carteDuCook(projet.nom, cook);
-            const bon = poserBon(projet, carte, undefined, true);
+            const bon = poserBon(projet, carte, undefined);
             posees.set(carte, bon);
             return bon;
           },
@@ -4646,8 +4631,7 @@ function poserCuisineEtroite(projet, tenu) {
 // tel que le process principal l'a rangé (faits.ts) : la vue pose, colonne par
 // colonne, au centre de l'espace, partagé entre ses deux onglets (ticket 1184). Rail : ce qui t'attend
 // — la file, ce qui est en amont —, puis toutes les colonnes, Taken et Pass compris, sans rien
-// d'exécution sur leurs cartes. Cooks : la carte du projet et ses cooks en cours, les
-// pages servies — leur worktree, leur port —, et la lecture de `station`. Un projet sans box n'en a
+// d'exécution sur leurs cartes. Cooks : la carte du projet et ses cooks en cours, et la lecture de `station`. Un projet sans box n'en a
 // pas : rien n'est lu de lui. Sans faits, il dit pourquoi il n'est pas dessiné : la carte du panneau
 // dit ce qui a été obtenu.
 /** @param {Projet} projet */
@@ -4672,7 +4656,7 @@ function poserRail(projet) {
     return rail.replaceChildren(bloc("h3", "the rail is not read: no station is known to serve this project yet — it appears as soon as one does"));
   }
   // Sur Cooks, dans l'ordre de sa revue (docs/revue-page-cooks.md, ticket 1456) : ses stations et leurs cooks en tête —
-  // la ligne de sa cuisine dedans —, les pages servies sans carte et ses serveurs de livraison sous elles, ce que chaque
+  // la ligne de sa cuisine dedans —, ce que chaque
   // station déclarée fournit (ticket 1509), puis ses tickets et la fiabilité de ses cooks, ses gates et son closer
   // (ticket 1699 : ils étaient sous Settings), et en bas, repliés, son plafond de calibrage,
   // ses rôles, ce que ses cooks ont appris et la lecture de `station`. La carte du projet n'y est que quand ses stations ne se lisent pas : elle dit pourquoi, ou
@@ -4682,14 +4666,13 @@ function poserRail(projet) {
   // le clavier.
   /** @type {Map<import("../faits.ts").Carte, HTMLElement>} */
   const posees = new Map();
-  servisSansCarte.replaceChildren();
   poserCuisson(projet, posees);
   poserDeclarees(projet);
   if (cuisine && etroit()) return poserCuisineEtroite(projet, tenu);
   // Sans stations lues — un runtime qui ne les donne pas, une box muette —, la carte du projet reste entière, en tête :
   // elle seule dit alors ses cooks en cours.
   // Ses stations posées, ce que chacune fournit est dans sa ligne (ticket 1786) : leur bloc à elles ne se pose plus.
-  const deCooks = () => [...(stationsPosees ? [] : [carte]), cuissonDuProjet, servisSansCarte, pages, ...(stationsPosees ? [] : [declareesDuProjet]), activiteDuProjet, fiabilite, gatesDuProjet, closer, plafondDuProjet, rolesDuProjet, triageDuProjet, apprisDuProjet, lectureDeLaCuisine];
+  const deCooks = () => [...(stationsPosees ? [] : [carte]), cuissonDuProjet, ...(stationsPosees ? [] : [declareesDuProjet]), activiteDuProjet, fiabilite, gatesDuProjet, closer, plafondDuProjet, rolesDuProjet, triageDuProjet, apprisDuProjet, lectureDeLaCuisine];
   /** @param {(HTMLElement | string)[]} poses */
   const poser = (...poses) => rail.replaceChildren(...(cuisine ? [...poses, ...deCooks()] : [...(alerteDeCuisine.hidden ? [] : [alerteDeCuisine]), ...poses]));
   // Cuisine d'un projet servi ici, station arrêtée : rien n'est lu, la page dit pourquoi en une ligne — sur l'un et
@@ -4726,7 +4709,7 @@ function poserRail(projet) {
     const liste = document.createElement("ol");
     liste.append(
       ...cartes.map((carte) => {
-        const bon = poserBon(projet, carte, ton, cuisine);
+        const bon = poserBon(projet, carte, ton);
         posees.set(carte, bon);
         return bon;
       }),
@@ -4754,33 +4737,10 @@ function poserRail(projet) {
       return colonne;
     }),
   );
-  // Rien d'autre n'est lu à neuf : ni ce qui est en amont, ni les corrections, ni les pages servies.
+  // Rien d'autre n'est lu à neuf : ni ce qui est en amont, ni les corrections.
   if (muet !== undefined) return poser(...marque, ...(cuisine ? [] : [grille]));
   // La cuisine, en marche ou à l'arrêt, est une ligne de Settings (ticket 1700).
   poserArreter(projet, tenu.tableau.arretee);
-  // Les serveurs sont sur Cooks : la page dont le ticket n'y a pas de carte — dans le bloc de sa station — se pose
-  // à part, juste sous les stations, son worktree et son port compris. Sur Rail, sa carte n'en porte que l'écran et le
-  // geste.
-  const cartes = new Set([...colonnes.flatMap(({ cartes: siennes }) => siennes), ...posees.keys()].map(({ ticket }) => ticket));
-  const sansCarte = !cuisine
-    ? []
-    : [
-        ...(pagesServies.get(projet.nom)?.pages ?? []).filter(({ ticket }) => !cartes.has(ticket)).map((page) => () => poserServie(projet, page, true)),
-        ...(pagesServies.get(projet.nom)?.aLancer ?? []).filter(({ ticket }) => !cartes.has(ticket)).map((tenue) => () => poserALancer(projet, tenue, true)),
-      ];
-  /** @param {(() => HTMLElement)[]} poses */
-  const servis = (poses) => {
-    const liste = document.createElement("ol");
-    liste.append(
-      ...poses.map((poser) => {
-        const bon = document.createElement("li");
-        bon.className = "bon";
-        bon.append(poser());
-        return bon;
-      }),
-    );
-    return liste;
-  };
   // La fiche ouverte suit la lecture : elle dit ce que la dernière dit de son ticket.
   if (ouverte !== undefined) suivreFiche(lesCartes, posees);
   // Un formulaire « waiting for… » dont le ticket n'est plus dans TODO se referme : il n'a plus de carte où se poser.
@@ -4807,7 +4767,6 @@ function poserRail(projet) {
     ...(cuisine ? [] : [grille]),
     ...(cuisine || hors.length === 0 ? [] : [bloc("h3", "outside the columns — their state is none of the six, and nothing says they await you"), bons(hors)]),
   );
-  servisSansCarte.replaceChildren(...(sansCarte.length === 0 ? [] : [bloc("h3", `served, without a card here — ${geste(projet, "status")} shows their server`), servis(sansCarte)]));
   rendreLeClavier(reprise);
   if (!cuisine) placerLaRangee(projet, grille, defile);
 }
@@ -4965,107 +4924,6 @@ function gestesDeLaFile(projet, cartes, reponses, trancher) {
       },
     },
   };
-}
-
-// L'écran à regarder d'une livraison, tel que `status` le dit : l'écran, la phrase du cook — celle
-// qu'on montre —, et, s'il est déduit des fichiers touchés, la mention qui le dit, mot pour mot.
-// Jamais une liste de fichiers. Rien sans écran.
-/** @param {import("../page.ts").Ecran | null} ecran @returns {HTMLElement[]} */
-function poserEcran(ecran) {
-  if (ecran === null) return [];
-  const nom = document.createElement("p");
-  nom.className = "ecran";
-  nom.append("screen to look at: ", exact("span", ecran.nom));
-  const phrase = ecran.phrase === null ? [] : [bloc("p", ecran.phrase)];
-  phrase.forEach((posee) => (posee.className = "phrase"));
-  const deduit = ecran.deduit === null ? [] : [bloc("small", ecran.deduit)];
-  deduit.forEach((posee) => (posee.className = "deduit"));
-  return [nom, ...phrase, ...deduit];
-}
-
-// Une page servie : le worktree, son port, l'état de son serveur, l'écran à regarder, et son geste —
-// un seul, direct, qui ouvre l'écran dans le navigateur du poste. Sans page à voir, pas de geste :
-// ce que `status` écrit à sa place se lit dessous. Un geste qui n'est pas posé dit pourquoi, dessous.
-// Elle se pose sur la carte de son ticket ; `ticket` : sans carte, elle le nomme elle-même. `execution` faux —
-// sur l'onglet Rail (ticket 1184) — : ni worktree, ni port, ni état du serveur, seulement le geste et l'écran. Tout
-// est déjà décidé dans le process principal (page.ts) : la vue pose.
-/** @param {Projet} projet @param {import("../page.ts").Page} page @param {boolean} [ticket] @param {boolean} [execution] */
-function poserServie(projet, { ticket: numero, worktree, port, etat, route, sansPage, ecran, raison, enCours, dit }, ticket = false, execution = true) {
-  const page = document.createElement("div");
-  page.className = "servie";
-  const tete = document.createElement("div");
-  // Le worktree et son port se recopient : eux seuls sont en monospace, la phrase reste la même.
-  const servi = document.createElement("span");
-  servi.append(exact("span", worktree), " · port ", exact("span", String(port)), ` · ${etat}`);
-  tete.append(...(ticket ? [exact("strong", `#${numero}`)] : []), ...(execution ? [servi] : []));
-  if (route !== null) {
-    const ouvre = bouton(enCours ? "opening…" : "see it in my browser", () => {
-      ouvre.disabled = true;
-      ouvre.textContent = "opening…";
-      void ouvrirPage(projet, worktree);
-    });
-    ouvre.disabled = raison !== undefined || enCours;
-    ouvre.dataset.geste = "direct";
-    tete.append(ouvre);
-  }
-  page.append(tete, ...poserEcran(ecran));
-  if (route === null && sansPage !== undefined) page.append(bloc("p", surMesure(projet, sansPage)));
-  if (raison !== undefined) page.append(bloc("p", surMesure(projet, raison)));
-  if (dit !== undefined) {
-    const rendu = propos(dit.texte);
-    rendu.dataset.ouverte = String(dit.ouverte);
-    page.append(rendu);
-  }
-  return page;
-}
-
-// Une livraison d'une app qui ne s'ouvre pas dans un navigateur : son worktree, l'écran à regarder,
-// et comment le voir, tel que `status` le dit — aucun geste, aucune page. Elle se pose sur la carte
-// de son ticket ; `ticket` : sans carte, elle le nomme elle-même. `execution` faux — sur Rail — : sans son worktree.
-/** @param {Projet} projet @param {import("../page.ts").ALancer} tenue @param {boolean} [ticket] @param {boolean} [execution] */
-function poserALancer(projet, { ticket: numero, worktree, commentLeVoir, ecran }, ticket = false, execution = true) {
-  const tenue = document.createElement("div");
-  tenue.className = "servie";
-  const tete = document.createElement("div");
-  const tenu = document.createElement("span");
-  tenu.append(exact("span", worktree), " · no page in a browser");
-  tete.append(...(ticket ? [exact("strong", `#${numero}`)] : []), ...(execution ? [tenu] : []));
-  const comment = document.createElement("p");
-  comment.className = "comment";
-  comment.append("how to see it: ", commentLeVoir);
-  tenue.append(tete, ...poserEcran(ecran), comment);
-  return tenue;
-}
-
-// Les pages servies du projet affiché, sur l'onglet Cooks : ce que `status` montre de ses serveurs — ou
-// ce qui se lit à sa place. Le geste de chaque page n'est pas ici : il est sur la carte de son
-// ticket. Tout est déjà décidé dans le process principal (page.ts) : la vue pose. Rien de servi, et rien qui l'empêche
-// ni de refusé : la section n'est pas posée (ticket 1456) — les stations disent déjà qu'aucun cook ne sert rien.
-/** @param {Projet} projet @param {Pages | undefined} servies */
-function poserPages(projet, servies) {
-  pages.hidden = servies === undefined || [servies.pages, servies.aLancer, servies.illisibles, servies.empeche].every((liste) => liste.length === 0) && servies.refus === undefined;
-  if (pages.hidden || servies === undefined) return pages.replaceChildren();
-  /** @param {string} texte */
-  const alerte = (texte) => {
-    const dite = bloc("p", surMesure(projet, texte));
-    dite.className = "refus";
-    return dite;
-  };
-  const n = servies.pages.length;
-  pages.replaceChildren(
-    ditEtAide("h3", "look at a delivery in your browser", `the servers ${geste(projet, "status")} shows`),
-    ...(servies.refus === undefined ? [] : [alerte(servies.refus)]),
-    ...(n === 0 ? [] : [ditEtAide("p", `${n} page${n > 1 ? "s" : ""} served (${servies.pages.map(({ ticket }) => `#${ticket}`).join(", ")})`, "each opens from its ticket's card")]),
-    ...(servies.aLancer.length === 0
-      ? []
-      : [ditEtAide("p", `${servies.aLancer.length} deliver${servies.aLancer.length > 1 ? "ies" : "y"} of an app that does not open in a browser (${servies.aLancer.map(({ ticket }) => `#${ticket}`).join(", ")})`, "its ticket's card says how to see it")]),
-    ...(servies.vide === undefined ? [] : [bloc("p", surMesure(projet, servies.vide))]),
-    ...(n > 0 && servies.illisibles.length > 0 ? [bloc("p", "under `serveurs`, what the app could not read — no action:")] : []),
-    ...servies.illisibles.map((ligne) => bloc("pre", ligne)),
-    ...(n > 0 && servies.empeche.length > 0 ? [bloc("p", "what keeps this project from being served, from the same read:")] : []),
-    ...servies.empeche.map((ligne) => bloc("pre", ligne)),
-    ...(servies.rappel === undefined ? [] : [bloc("small", servies.rappel)]),
-  );
 }
 
 // Un instant que la box a écrit, à l'heure de ce poste — tel quel, s'il n'en est pas un.
@@ -5299,28 +5157,16 @@ function poserGrants() {
   poserLesGroupes();
 }
 
-// Le geste : le process principal amène le port du worktree sur ce poste et ouvre le
-// navigateur. Ce qu'il en advient revient posé — le chef a pu changer d'espace entre-temps.
-/** @param {Projet} projet @param {string} worktree */
-async function ouvrirPage(projet, worktree) {
-  const rendues = await brigade.ouvrirPage(projet.nom, worktree);
-  if (rendues !== undefined) servir(projet, rendues);
-}
-
-// Les pages d'un projet, telles qu'elles viennent d'être rendues : sous l'état, et sur les cartes
-// du rail — si c'est le projet affiché. Rien : celles d'avant ne valent plus.
-/** @param {Projet} projet @param {Pages | undefined} rendues */
-function servir(projet, rendues) {
-  if (rendues === undefined) pagesServies.delete(projet.nom);
-  else pagesServies.set(projet.nom, rendues);
-  if (courant?.nom !== projet.nom) return;
-  poserPages(projet, rendues);
-  poserRail(projet);
-}
-
 /** @param {Projet} projet @param {number} ticket */
 async function ouvrirIssue(projet, ticket) {
   nonEcrit = (await brigade.ouvrirIssue(projet.nom, ticket)) ? "" : `issue #${ticket} was not opened: it is no longer in the latest facts read, its address is not https, or the workstation could not open it`;
+  montrer();
+}
+
+// La PR du cook d'un ticket, depuis sa fiche (ticket 1846) : son adresse reste au process principal, comme celle de l'issue.
+/** @param {Projet} projet @param {number} ticket */
+async function ouvrirPrDuCook(projet, ticket) {
+  nonEcrit = (await brigade.ouvrirPrDuCook(projet.nom, ticket)) ? "" : `the PR of #${ticket}'s cook was not opened: the latest Kitchen board read no longer gives it, its address is not https, or the workstation could not open it`;
   montrer();
 }
 
@@ -7737,8 +7583,6 @@ async function ouvrir(projet) {
   // Dès maintenant : la carte et la bannière du projet quitté ne restent pas sur celui-ci
   // pendant que son espace s'ouvre.
   dessiner();
-  // Ni ses pages servies : celles de ce projet viennent avec sa première lecture.
-  servir(projet, undefined);
   // Les stations que sa box déclare viennent avec la lecture de son installation (service.ts).
   void lireService(projet);
   // Ni sa ligne de retrait : elle nomme son projet.
@@ -7791,11 +7635,20 @@ brigade.surEtat((terminal) => {
   }
   montrer();
 });
-// Dans l'espace du projet, les serveurs que ce `status` montre viennent avec sa lecture, et leur geste.
-brigade.surLecture((recue, servies) => {
-  // Demandée par un écran quitté depuis, elle était déjà en route : elle n'est pas pour celui-ci.
-  if (recue.demande !== demande) return;
-  if (recue.projet === courant?.nom && courant.sansStation !== true) servir(courant, servies);
+// Ce que fait chaque cook d'un projet, à chaque lecture de son tableau (ticket 1846) : la fiche ouverte sur l'un de ses
+// tickets suit son cook — reposée seulement si ce qu'elle en dit a changé.
+brigade.surActivites((publiees) => {
+  const avant = activitesPubliees.get(publiees.projet);
+  activitesPubliees.set(publiees.projet, publiees);
+  if (ouverte === undefined || ouverte.projet.nom !== publiees.projet) return;
+  const { ticket } = ouverte.carte;
+  /** @param {import("./activite-du-cook.js").Publiees | undefined} lues */
+  const dit = (lues) => {
+    if (lues === undefined || "sans" in lues) return JSON.stringify(lues);
+    const cook = cookDuTicket(lues, ticket);
+    return JSON.stringify(cook === undefined ? null : [lues.lu, cook]);
+  };
+  if (dit(avant) !== dit(publiees)) poserFiche();
 });
 // Les faits d'un projet : ils remplacent ceux d'avant, partout où ils se dessinent —
 // sa pastille dans la barre, et son espace s'il est affiché — sa ligne de l'accueil vient par `surAccueil`.
