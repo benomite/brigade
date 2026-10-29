@@ -202,6 +202,8 @@ test("la relecture d'une PR d'interface liste les trois violations de #830, dema
   assert.match(consigne, /"regle": "erreur-brute"/);
   // Seule la zone du ticket bloque ; le préexistant est une remarque, avec un ticket proposé.
   assert.match(consigne, /à l'identique, existait avant ce ticket[^]*jamais un constat `bloquant`/);
+  // Un texte de doublure qui change ne fait pas de la partie une partie changée par le ticket (#1920).
+  assert.match(consigne, /Un texte qui change entre les deux captures ne suffit pas[^]*`app\/src\/vue\/`[^]*c'est une `remarque`/);
   assert.match(consigne, /constat `remarque`[^]*propose d'en ouvrir un à part/);
   // Un ticket qui n'est pas d'interface n'en entend pas parler.
   for (const captures of [undefined, null]) assert.doesNotMatch(consigneDeRelecture({ ...MISSION, captures }), /#830|## Les captures/);
