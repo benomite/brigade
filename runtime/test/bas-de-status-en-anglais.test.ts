@@ -47,12 +47,18 @@ function lignesDepuis1834(lignes: readonly string[]): string[] {
 }
 
 // Depuis #1844, la box ne sert plus la page d'aucun worktree : le bas d'avant perd ses rubriques `serveurs`,
-// `à lancer` et `service`, et la ligne vide qui les fermait.
+// `à lancer` et `service`, et la ligne vide qui les fermait. L'état d'exemple n'écrit plus les huit événements
+// `service.*` qui les faisaient paraître : chaque événement écrit après eux a un numéro de huit de moins.
+const SERVICE_RETIRE = 8;
 function lignesDepuis1844(lignes: readonly string[]): string[] {
   const debut = lignes.findIndex((ligne) => ligne.startsWith("serveurs "));
   const service = lignes.findIndex((ligne) => ligne.startsWith("service "));
-  return debut === -1 || service === -1 ? [...lignes] : [...lignes.slice(0, debut), ...lignes.slice(service + 2)];
+  const sans = debut === -1 || service === -1 ? [...lignes] : [...lignes.slice(0, debut), ...lignes.slice(service + 2)];
+  const evenements = sans.indexOf("derniers événements");
+  return sans.map((ligne, rang) => (rang <= evenements ? ligne : ligne.replace(/^ {2}(\d+) {2}/, (_, seq: string) => `  ${Number(seq) - SERVICE_RETIRE}  `)));
 }
+const depuis1844 = <F extends { dernierEvenement: { seq: number } | null }>(avant: F): F =>
+  avant.dernierEvenement === null ? avant : { ...avant, dernierEvenement: { ...avant.dernierEvenement, seq: avant.dernierEvenement.seq - SERVICE_RETIRE } };
 
 test("sur l'état d'avant, `status` montre les mêmes tickets, dans les mêmes états et le même ordre, et les mêmes comptes", (t) => {
   const avant = lignesDepuis1834(readFileSync(join(ETAT_D_AVANT, "status-d-avant.txt"), "utf8").replace(/\n$/, "").split("\n"));
@@ -173,7 +179,7 @@ test("sur l'état d'exemple d'avant, chaque ligne du bas dit les mêmes tickets,
 });
 
 test("`facts` de l'état d'exemple est identique à ce qu'il était avant la traduction : mêmes clés, mêmes valeurs", (t) => {
-  const avant = depuis1894(depuis1893(depuis1862(depuis1834(depuis1826(JSON.parse(readFileSync(join(FIXTURE_940, "facts.json"), "utf8")))))));
+  const avant = depuis1844(depuis1894(depuis1893(depuis1862(depuis1834(depuis1826(JSON.parse(readFileSync(join(FIXTURE_940, "facts.json"), "utf8"))))))));
   assert.deepEqual(JSON.parse(JSON.stringify(faits(lireEtat(exempleDuBas(t), LU_LE), LU_LE))), avant);
 });
 
