@@ -375,7 +375,7 @@ test("le pont appairé lit les projets de sa station et leur file au guichet, av
   vm.runInNewContext(script, { window, URL }, { importModuleDynamically: vm.constants.USE_MAIN_CONTEXT_DEFAULT_LOADER });
   const pont = window.brigade as Record<string, (...args: unknown[]) => unknown>;
   const recus: Record<string, unknown[][]> = {};
-  for (const canal of ["surConfiguration", "surFaits", "surTelephone", "surAccueil", "surAlertes", "surLecture"]) pont[canal]!((...args: unknown[]) => void (recus[canal] ??= []).push(JSON.parse(JSON.stringify(args))));
+  for (const canal of ["surConfiguration", "surFaits", "surTelephone", "surAccueil", "surAlertes"]) pont[canal]!((...args: unknown[]) => void (recus[canal] ??= []).push(JSON.parse(JSON.stringify(args))));
   // Relancée, l'app s'ouvre sur les projets de la dernière liste lue, avant toute lecture.
   const demarrage = JSON.parse(JSON.stringify(await pont.demarrage!()));
   assert.deepEqual(demarrage.configuration.projets.map(({ nom }: { nom: string }) => nom), ["parade"]);
@@ -394,7 +394,8 @@ test("le pont appairé lit les projets de sa station et leur file au guichet, av
   const dessines = (recus.surFaits ?? []).map(([recue]) => recue as { projet: string; demande: number; tableau?: unknown });
   assert.deepEqual([...new Set(dessines.filter(({ demande }) => demande === 1).map(({ projet }) => projet))].sort(), ["cantine", "parade"]);
   assert.ok(dessines.every((recue) => "tableau" in recue));
-  assert.ok((recus.surLecture ?? []).some(([montree]) => (montree as { projet: string; demande: number }).demande === 2));
+  // Pour « tous », le `status` des projets est lu : la bande dit ce qu'elle en a lu.
+  assert.ok((recus.surAlertes ?? []).some(([bande]) => (bande as { alertes: { pourquoi?: string }[] }).alertes.some(({ pourquoi }) => /`status`/.test(pourquoi ?? ""))));
   assert.equal((recus.surTelephone?.at(-1)?.[0] as { liste?: { lue: boolean } }).liste?.lue, true);
   // Oublié, l'appairage s'efface — le jeton et la liste — et le lancement suivant ouvre l'écran qui relie le téléphone.
   await pont.oublierLeTelephone!();

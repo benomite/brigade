@@ -146,3 +146,11 @@ export async function lireLeTableauDuDepot({ depot, appeler, maintenant = () => 
     ...(activites.lues ? { activites: activites.activites } : {}),
   };
 }
+
+// Ce que la vue reçoit de l'activité des cooks d'un projet, à chaque lecture de son tableau (#1846,
+// vue/activite-du-cook.js) : l'heure de la lecture de l'état par la box, et ce que fait chaque cook — ou, d'un tableau
+// écrit par une box qui ne le publie pas encore, pourquoi il ne se lit pas, en une phrase.
+export type ActivitesPubliees = { projet: string; lu: string; activites: ActiviteDuCook[] } | { projet: string; sans: string };
+export function activitesPubliees(projet: string, lu: TableauLu): ActivitesPubliees {
+  return lu.activites === undefined ? { projet, sans: "the Kitchen board was written by a box that does not publish its cooks' activity yet: update the box" } : { projet, lu: lu.etatLuLe ?? lu.genereLe, activites: lu.activites };
+}

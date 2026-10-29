@@ -34,7 +34,7 @@ import { BANNIERE, COMMANDE, rangerLeRailPublie, tenirFaits, type RailDuProjetLu
 import { clientGitHub, parFetch } from "./tableau/client.ts";
 import { avecLesEnvois } from "./tableau/envois.ts";
 import { jetonDeGh } from "./tableau/jeton-gh.ts";
-import { lireLeTableauDuDepot, type TableauLu } from "./tableau/lecture.ts";
+import { activitesPubliees, lireLeTableauDuDepot } from "./tableau/lecture.ts";
 import { lectureDuTableau, ouvrirVeilleDuTableau, tenirLecturesDuTableau } from "./tableau/rail.ts";
 import { arriveeDeCarte, gesteDeFiche as gesteDeFicheAuTableau, jouerAuTableau, reponseALaFile, reponseDeCarte as reponseDeCarteAuTableau } from "./tableau-gestes/rail.ts";
 import type { DecisionDuChef } from "./tableau-gestes/gestes.ts";
@@ -218,11 +218,6 @@ const lireLeTableau = async (projet: Projet) => {
   return lu.lu ? avecLesEnvois(lu, appelerGitHub) : lu;
 };
 const tableaux = tenirLecturesDuTableau<Projet>({ lire: lireLeTableau, fraicheurMs: 15_000 });
-// Ce que fait chaque cook d'un projet, tel que son tableau le publie (#1846) : à la place de son terminal, que l'app ne
-// suit pas, la vue en pose le cook d'un ticket sur sa fiche (vue/activite-du-cook.js) — avec GitHub seul, sans `ssh`. Un
-// tableau d'une box qui ne le publie pas encore le dit en une phrase.
-const activitesDuTableau = (projet: string, lu: TableauLu) =>
-  lu.activites === undefined ? { projet, sans: "the Kitchen board was written by a box that does not publish its cooks' activity yet: update the box" } : { projet, lu: lu.etatLuLe ?? lu.genereLe, activites: lu.activites };
 const railLisible = (projet: Projet) => cuisines.cuisineDe(projet) !== undefined;
 
 // Seul ce qui est affiché est lu — un projet, ou chacun dans « Tous les projets » : toutes
@@ -334,9 +329,10 @@ const veilleDesFaits = ouvrirVeilleDuTableau({
   lisible: railLisible,
   surLecture: (lecture) => {
     dire("faits", faits.recevoir(lecture));
-    // Ce que fait chaque cook du projet, publié sur le même tableau (#1846) : la fiche d'un ticket suit son cook.
+    // Ce que fait chaque cook du projet, publié sur le même tableau (#1846) — avec GitHub seul, sans `ssh` : à la place
+    // de son terminal, que l'app ne suit pas, la fiche d'un ticket suit son cook (vue/activite-du-cook.js).
     const tableau = tableaux.dernier(lecture.projet);
-    if (!("erreur" in lecture) && tableau !== undefined) dire("activites", activitesDuTableau(lecture.projet, tableau));
+    if (!("erreur" in lecture) && tableau !== undefined) dire("activites", activitesPubliees(lecture.projet, tableau));
     direLaBande(bandes.faits(lecture));
     direLAccueil(accueil.faits(lecture));
     // Une annonce d'urgence que le runtime vient de faire se dit au système.
