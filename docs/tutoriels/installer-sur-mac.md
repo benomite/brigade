@@ -7,12 +7,15 @@ the **station** of your Mac. It stops there: your first ticket is the job of
 those of [`docs/glossary.md`](../glossary.md).
 
 > **What was checked, and what was not.** On a Mac with Apple silicon (M-series) running
-> macOS 26.6, the release `app-v1.0.62` was downloaded, its `.dmg` opened, and the app inside it
-> inspected (architecture, signature, Gatekeeper verdict). The Mac was **not a clean one**: `git`,
-> `gh` and `claude` were already installed there, and the app was not dragged into Applications. So
-> the steps that depend on a bare machine (installing the tools) and the screens of the first launch
-> are written from [`docs/installation.md`](../installation.md) and the release notes, not from a
-> recorded run. If a screen differs from what is written here, trust the screen and open an issue on
+> macOS 26.6, the release `app-v1.0.62` was downloaded (step 4: `Brigade-1.0.62-mac-arm64.dmg`,
+> about 195 MB), its `.dmg` opened and found to hold **Brigade** next to the **Applications**
+> shortcut (step 5, copied to a scratch folder rather than to Applications), and the app inside it
+> inspected: arm64, ad hoc signature, and Gatekeeper answers `rejected` (step 6). The Mac was **not a
+> clean one**: `git`, `gh` and `claude` were already installed there, and nobody opened the app
+> through the Gatekeeper dialogs. So the steps that depend on a bare machine (1 to 3, installing the
+> tools) and the screens of the first launch (6 and 7) are written from
+> [`docs/installation.md`](../installation.md) and the release notes, not from a recorded run from a
+> clean state. If a screen differs from what is written here, trust the screen and open an issue on
 > [benomite/brigade](https://github.com/benomite/brigade).
 
 ## Prerequisites
