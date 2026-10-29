@@ -2,7 +2,7 @@
 // qu'il vise — jamais ce qu'il y a dedans.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { direActivite, lecteurDActivite } from "../src/activite.ts";
+import { direActivite, direActiviteEn, lecteurDActivite, nommer } from "../src/activite.ts";
 import { horloge } from "./outils.ts";
 
 const WT = "/srv/etat/worktrees/564-2bf903fa";
@@ -64,6 +64,22 @@ describe("lire ce que fait un cook", () => {
     assert.equal(dit(), "utilise l'outil mcp__github__list_issues");
     lire(f.fin());
     assert.equal(dit(), "rend son travail");
+  });
+
+  test("chaque geste a sa forme anglaise (faitEn), née de la même règle que le français : écrire, lancer une commande, lire, réfléchir", () => {
+    const f = flux();
+    const { lire, activite } = lecteur();
+    const nomme = () => nommer(activite() ?? assert.fail("pas d'activité"));
+    lire(f.outil("Edit", { file_path: `${WT}/app/src/bon.ts` }).ligne);
+    assert.deepEqual(nomme(), { fait: "écrit", faitEn: "writing", cible: "app/src/bon.ts" });
+    lire(f.outil("Bash", { command: "$(echo rm) -rf /" }).ligne);
+    assert.deepEqual(nomme(), { fait: "lance une commande", faitEn: "running a command", cible: null });
+    lire(f.outil("Read", { file_path: `${WT}/runtime/src/etat.ts` }).ligne);
+    assert.deepEqual(nomme(), { fait: "lit", faitEn: "reading", cible: "runtime/src/etat.ts" });
+    assert.equal(direActiviteEn(activite() ?? assert.fail("pas d'activité")), "reading runtime/src/etat.ts");
+    const seul = lecteur();
+    seul.lire(f.pense());
+    assert.deepEqual(nommer(seul.activite() ?? assert.fail("pas d'activité")), { fait: "réfléchit", faitEn: "thinking", cible: null });
   });
 
   test("un fichier hors du worktree garde son chemin entier", () => {

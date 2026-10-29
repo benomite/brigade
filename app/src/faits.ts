@@ -203,7 +203,8 @@ export type Relecture = { resume: string; constats: Constat[] };
 // Ce que la cuisine fait d'un ticket pris ou en pass : le geste, en mots du chef ;
 // ce qu'il vise — un fichier, une commande —, nul s'il ne vise rien ; l'heure où
 // elle s'y est mise, à l'horloge de la box.
-export type Activite = { fait: string; cible: string | null; depuis: string };
+// `faitEn` : le même geste en anglais, celui de la carte ; absent d'un runtime d'avant ce champ.
+export type Activite = { fait: string; faitEn?: string; cible: string | null; depuis: string };
 
 // Ce qu'un ticket mis de côté attend, comme le runtime le dit : `raison` en clair
 // (« attend : setup du projet impossible »), `colonne` : celle du rail où il est.
@@ -512,7 +513,7 @@ function comprendreStation(valeur: unknown, champ: string): StationDesFaits {
 // Ce que la cuisine fait d'un ticket : un geste, ce qu'il vise ou rien, une heure.
 function comprendreActivite(valeur: unknown, champ: string): Activite {
   const lu = objet(valeur, champ);
-  return { fait: texte(lu.fait, `${champ}.fait`), cible: ouRien(lu.cible, `${champ}.cible`, texte), depuis: heure(lu.depuis, `${champ}.depuis`) };
+  return { fait: texte(lu.fait, `${champ}.fait`), ...(lu.faitEn === undefined ? {} : { faitEn: texte(lu.faitEn, `${champ}.faitEn`) }), cible: ouRien(lu.cible, `${champ}.cible`, texte), depuis: heure(lu.depuis, `${champ}.depuis`) };
 }
 
 // Ce que le reviewer a dit d'une livraison servie : son résumé, ses constats dans son ordre.

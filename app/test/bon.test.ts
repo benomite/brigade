@@ -90,10 +90,10 @@ const ETAT: EtatCuisine = {
   rail: RAIL,
   // Ce que la cuisine fait de chacun, tel que le runtime le lit au journal : #16 n'en dit rien.
   activites: new Map([
-    [14, { fait: "lit", cible: "runtime/src/etat.ts", depuis: ilYA(2) }],
-    [15, { fait: "lance les tests", cible: null, depuis: ilYA(20) }],
+    [14, { fait: "lit", faitEn: "reading", cible: "runtime/src/etat.ts", depuis: ilYA(2) }],
+    [15, { fait: "lance les tests", faitEn: "running the tests", cible: null, depuis: ilYA(20) }],
     [16, null],
-    [30, { fait: "relecture en cours", cible: null, depuis: ilYA(1) }],
+    [30, { fait: "relecture en cours", faitEn: "review in progress", cible: null, depuis: ilYA(1) }],
   ]),
   auxFourneaux: [
     { station: "box/claude", ticket: 14 },

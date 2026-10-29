@@ -4,7 +4,7 @@
 // tient, son bail, ce qu'il brûle, ce que la file ne dit pas — est dans la fiche. Rien n'est
 // inventé : quand le fait manque, la phrase de l'état le dit en deux mots et `repere` s'allume.
 //
-//   au travail   `<fait> <cible> · <durée>`           (« writes the tests · 12 min »)
+//   au travail   `<fait> <cible> · <durée>`           (« writing app/src/bon.ts · 12 min » ; qui ne fait que réfléchir : « in the kitchen »)
 //   en pass      la même, sinon « review in progress »
 //   en attente   `after #a, #b` ; ou ce qui le retient ; sinon « ready, waits for a place in the kitchen »
 //   en tête      en tête de la file sans partir : `does not leave: <raison du runtime>` (ticket 1347)
@@ -27,11 +27,19 @@ export const BLOQUEE = "blocked";
 export const MISE_DE_COTE = "set aside";
 export const RELANCE_PASSEE = "follow-up date passed";
 
-// Au travail ou en pass : le geste, ce qu'il vise, depuis combien de temps (`duree`, déjà écrite).
-// `activite` : nulle ou absente, la box ne dit pas ce qu'on en fait.
-export function ligneAuTravail(etat: "pris" | "en pass", activite: { fait: string; cible: string | null } | null | undefined, duree: string): LigneDeCarte {
-  if (activite == null) return { ligne: etat === "pris" ? TRAVAIL_SANS_DETAIL : PASS_SANS_DETAIL, repere: true };
-  return { ligne: `${activite.cible === null ? activite.fait : `${activite.fait} ${activite.cible}`} · ${duree}` };
+// Le geste d'un cook qui ne fait que réfléchir, tel que le runtime le dit en anglais : la carte n'en dit
+// rien de plus que « in the kitchen », sans durée.
+const SEULEMENT_REFLECHIT = "thinking";
+
+// Au travail ou en pass : le geste en anglais (`faitEn`), ce qu'il vise, depuis combien de temps (`duree`,
+// déjà écrite). `activite` : nulle ou absente, la box ne dit pas ce qu'on en fait ; sans `faitEn` (un runtime
+// d'avant ce champ), la carte ne dit pas le geste, jamais son français.
+export function ligneAuTravail(etat: "pris" | "en pass", activite: { faitEn?: string; cible: string | null } | null | undefined, duree: string): LigneDeCarte {
+  const sansDetail = etat === "pris" ? TRAVAIL_SANS_DETAIL : PASS_SANS_DETAIL;
+  if (activite == null) return { ligne: sansDetail, repere: true };
+  if (activite.faitEn === undefined) return { ligne: sansDetail, repere: true };
+  if (activite.faitEn === SEULEMENT_REFLECHIT) return { ligne: TRAVAIL_SANS_DETAIL };
+  return { ligne: `${activite.cible === null ? activite.faitEn : `${activite.faitEn} ${activite.cible}`} · ${duree}` };
 }
 
 // Sur le rail, rien ne le tient : ce qui le retient s'il y en a, sinon il attend sa place.

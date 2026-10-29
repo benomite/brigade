@@ -95,22 +95,24 @@ const DIT_EN: Record<Geste, string> = {
 
 export const estGeste = (valeur: unknown): valeur is Geste => typeof valeur === "string" && (GESTES as readonly string[]).includes(valeur);
 
-// Le geste en clair : « lit runtime/src/etat.ts », « lance les tests ».
-// Le geste en mots, et ce qu'il vise à part. Une commande dont rien ne se
-// montre reste une commande.
-export function nommer({ doing, target }: Pick<Activite, "doing" | "target">): { fait: string; cible: string | null } {
-  return { fait: target === null && doing === "running" ? "lance une commande" : DIT[doing], cible: target };
+// Le geste en mots, dans les deux langues, et ce qu'il vise à part. Une commande
+// dont rien ne se montre reste une commande. Une seule règle de nommage : les
+// deux formes en sortent.
+export function nommer({ doing, target }: Pick<Activite, "doing" | "target">): { fait: string; faitEn: string; cible: string | null } {
+  const sansCible = target === null && doing === "running";
+  return { fait: sansCible ? "lance une commande" : DIT[doing], faitEn: sansCible ? "running a command" : DIT_EN[doing], cible: target };
 }
 
+// Le geste en clair : « lit runtime/src/etat.ts », « lance les tests ».
 export function direActivite(activite: Pick<Activite, "doing" | "target">): string {
   const { fait, cible } = nommer(activite);
   return cible === null ? fait : `${fait} ${cible}`;
 }
 
 // Le geste en clair, en anglais : « reading runtime/src/etat.ts », « running the tests ».
-export function direActiviteEn({ doing, target }: Pick<Activite, "doing" | "target">): string {
-  const fait = target === null && doing === "running" ? "running a command" : DIT_EN[doing];
-  return target === null ? fait : `${fait} ${target}`;
+export function direActiviteEn(activite: Pick<Activite, "doing" | "target">): string {
+  const { faitEn, cible } = nommer(activite);
+  return cible === null ? faitEn : `${faitEn} ${cible}`;
 }
 
 // Ce qu'une cible peut faire de long : au-delà, seule sa fin est gardée — c'est

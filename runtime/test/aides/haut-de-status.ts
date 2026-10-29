@@ -125,3 +125,17 @@ export const depuis1893 = <F extends { rail: Array<{ etat: string; depuis: strin
   ...avant,
   rail: avant.rail.map((carte) => (carte.etat === "pris" ? { ...carte, essais: [{ depuis: carte.depuis, jusqua: null, arret: null, enCours: true }] } : carte)),
 });
+
+// Ce que #1894 ajoute à la forme : l'activité d'un ticket dit aussi son geste en anglais (`faitEn`).
+const EN_ANGLAIS: Record<string, string> = {
+  "démarre": "starting",
+  lit: "reading",
+  "arrêtée par la pass": "held by the pass",
+  "la station prépare le poste du cook": "the station is setting up the cook's post",
+};
+export const depuis1894 = <F extends { rail: Array<{ activite?: { fait: string } | null }> }>(avant: F): F => ({
+  ...avant,
+  rail: avant.rail.map((carte) =>
+    carte.activite == null ? carte : { ...carte, activite: { ...carte.activite, faitEn: EN_ANGLAIS[carte.activite.fait] ?? carte.activite.fait } },
+  ),
+});
