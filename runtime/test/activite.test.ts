@@ -74,12 +74,12 @@ describe("lire ce que fait un cook", () => {
     assert.deepEqual(nomme(), { fait: "écrit", faitEn: "writing", cible: "app/src/bon.ts" });
     lire(f.outil("Bash", { command: "$(echo rm) -rf /" }).ligne);
     assert.deepEqual(nomme(), { fait: "lance une commande", faitEn: "running a command", cible: null });
-    const lecture = f.outil("Read", { file_path: `${WT}/runtime/src/etat.ts` });
-    lire(lecture.ligne);
+    lire(f.outil("Read", { file_path: `${WT}/runtime/src/etat.ts` }).ligne);
     assert.deepEqual(nomme(), { fait: "lit", faitEn: "reading", cible: "runtime/src/etat.ts" });
     assert.equal(direActiviteEn(activite() ?? assert.fail("pas d'activité")), "reading runtime/src/etat.ts");
-    lire(f.rendu(lecture.id, "contenu"));
-    assert.deepEqual(nomme(), { fait: "réfléchit", faitEn: "thinking", cible: null });
+    const seul = lecteur();
+    seul.lire(f.pense());
+    assert.deepEqual(nommer(seul.activite() ?? assert.fail("pas d'activité")), { fait: "réfléchit", faitEn: "thinking", cible: null });
   });
 
   test("un fichier hors du worktree garde son chemin entier", () => {
