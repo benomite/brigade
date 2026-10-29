@@ -11,7 +11,6 @@ import { etatStation } from "../src/projections/stations.ts";
 import { connexionRefusee } from "./aides/connexion-refusee.ts";
 import { chef, cuisine, issue, MACHINE_CALME, MACHINE_VASTE, plafonner, STATION } from "./aides/cuisine.ts";
 import { jusqua, repertoireTemporaire } from "./outils.ts";
-import { posixOnly } from "./support/plateforme.ts";
 
 // Un arbitre sur son port, et de quoi le couper puis le rendre : coupé, tout
 // échange est refusé comme le serait une connexion.
@@ -145,17 +144,23 @@ describe("l'arbitrage entre projets", { concurrency: 8 }, () => {
     await jusqua(() => second.projet("brigade")?.presence === "absent");
   });
 
-  // Deux cuisines de trente cooks et sept faits attendus l'un après l'autre : sauté sous Windows,
-  // où le dernier fait ne vient pas (raison dite par le saut).
-  test("deux projets, un plafond haut, la machine saturée par le premier : le second finit par partir", { skip: posixOnly("the last wait, for the first project to get its 3rd launch back after the second one left, never completes on the Windows runner even with a 300 s guard (runs 40562604249, 40560597796, 40751190357, all before #1884 and #1886 cut the Windows suite to two files, then one, at a time); cause not traced: nothing in arbitre.ts, arbitrage.ts or station.ts depends on the platform, and the test passes 8 times side by side on Linux; if it fails again, the wait dumps the arbiter and the first project's journal; listed in #1868") }, async (t) => {
+  // Deux cuisines de trente cooks et sept faits attendus l'un après l'autre : leurs
+  // cooks doivent tourner jusqu'au bout. Un cook « muet » sort seul au bout de 30 s,
+  // sans résultat : sur le runner Windows, où le test passe la minute, ceux du premier
+  // projet échouaient et repartaient, son compte dépassait trois lancements et son
+  // disjoncteur, ouvert au troisième échec, l'y figeait (#1871). Les cooks attendent
+  // donc le test, jusqu'au filet de deux minutes du faux `claude`, et leurs plafonds
+  // de durée et d'inactivité sont de deux minutes aussi.
+  test("deux projets, un plafond haut, la machine saturée par le premier : le second finit par partir", async (t) => {
+    const plafonds = { durationMs: 120_000, idleMs: 120_000 };
     const { joint, ouvert, projet } = await arbitre(t, 50);
     // Le premier projet remplit la machine de ses cooks.
-    const premier = cuisine(t, { projet: "compta", arbitre: joint, cooks: 30, entrees: 30, scenario: "muet", issues: [issue(11), issue(12)] });
+    const premier = cuisine(t, { projet: "compta", arbitre: joint, cooks: 30, entrees: 30, scenario: "attend", plafonds, issues: [issue(11), issue(12)] });
     await jusqua(() => premier.lancements().length === 2 && projet("compta")?.cooks === 2);
 
     // Le second a un ticket, et sa station se retient : la machine n'en peut plus.
     let machine: Machine = { ...MACHINE_CALME, charge: 16.2 };
-    const second = cuisine(t, { projet: "brigade", arbitre: joint, cooks: 30, scenario: "muet", machine: () => machine, issues: [issue(21)] });
+    const second = cuisine(t, { projet: "brigade", arbitre: joint, cooks: 30, scenario: "attend", plafonds, machine: () => machine, issues: [issue(21)] });
     await jusqua(() => ouvert.etat().saturePar.includes("brigade"));
     assert.deepEqual(second.dernier("station.held"), { station: STATION, reason: "machine" });
 
@@ -172,11 +177,7 @@ describe("l'arbitrage entre projets", { concurrency: 8 }, () => {
     await jusqua(() => second.lancements().length === 1);
     assert.equal(second.etat(21), "taken");
     // Plus personne n'attend la machine : le premier retrouve sa part du compte.
-    // Si cette attente échoue, l'erreur dit où l'arbitre et le premier projet en sont.
-    const etatDuMoment = () => JSON.stringify({ arbitre: ouvert.etat(), lancesParLePremier: lances(premier.journal), retenue: premier.dernier("station.held"), types: premier.types().slice(-15) });
-    await jusqua(() => premier.lancements().length === 3).catch((erreur) => {
-      throw new Error(`${erreur.message} — ${etatDuMoment()}`);
-    });
+    await jusqua(() => premier.lancements().length === 3);
     await jusqua(() => ouvert.etat().cooks === 4);
     assert.deepEqual(ouvert.etat().saturePar, []);
   });
