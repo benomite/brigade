@@ -2,6 +2,7 @@
 // box et le suivi du fichier des projets.
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { setTimeout as attendre } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 import { app, BrowserWindow, dialog, ipcMain, Notification, powerMonitor, shell } from "electron";
 import { tenirAccueil, type Accueil } from "./accueil.ts";
@@ -14,7 +15,7 @@ import { reglerLePlafond } from "./plafond.ts";
 import { cibleDeLaStation, DELAI_S, etatDuCode, revoquerUnTelephone, telephonesAppaires, tirerUnCode } from "./telephones-de-station.ts";
 import { pourLaBarre } from "./barre.ts";
 import { BOUTONS, ecritPar, ecritPourLeCloser, REGLER_LE_CLOSER } from "./boutons.ts";
-import { lancerGeste, lancerLa, ouvrirVeille, type Lu, type Servi } from "./box.ts";
+import { lancerLa, ouvrirVeille, type Lu } from "./box.ts";
 import { agirSurLeCloser } from "./closer-lancement.ts";
 import { reponseLue } from "./carte-todo.ts";
 import { situationDe } from "./histoire.ts";
@@ -34,8 +35,9 @@ import { clientGitHub, parFetch } from "./tableau/client.ts";
 import { avecLesEnvois } from "./tableau/envois.ts";
 import { jetonDeGh } from "./tableau/jeton-gh.ts";
 import { lireLeTableauDuDepot } from "./tableau/lecture.ts";
-import { ouvrirVeilleDuTableau, tenirLecturesDuTableau } from "./tableau/rail.ts";
-import { arriveeDeCarte, gesteDeFiche as gesteDeFicheAuTableau, reponseALaFile, reponseDeCarte as reponseDeCarteAuTableau } from "./tableau-gestes/rail.ts";
+import { lectureDuTableau, ouvrirVeilleDuTableau, tenirLecturesDuTableau } from "./tableau/rail.ts";
+import { arriveeDeCarte, gesteDeFiche as gesteDeFicheAuTableau, jouerAuTableau, reponseALaFile, reponseDeCarte as reponseDeCarteAuTableau } from "./tableau-gestes/rail.ts";
+import type { DecisionDuChef } from "./tableau-gestes/gestes.ts";
 import { clientDesGestesGitHub, posterParFetch } from "./tableau-gestes/github.ts";
 import { demandeDe, demandeDeLAlerte, demandeSurLeTicket, noteDeLaDemande } from "./demande.ts";
 import { CONFIRMES, DIRECTS, ecrireGeste, GRANTS } from "./gestes.ts";
@@ -191,6 +193,8 @@ const terminaux = ouvrirTerminaux({
   // Jamais posée hors des essais, comme pour la veille.
   ssh: process.env.BRIGADE_SSH_BIN || "ssh",
   node: emplacements.node,
+  // La file que le second lit à son ouverture vient du tableau de la cuisine, par le `gh` du poste (second/file.ts).
+  gh: process.env.BRIGADE_GH_BIN || "gh",
   // La même doublure que le runtime : jamais posée hors des essais.
   claude: process.env.BRIGADE_CLAUDE_BIN || "claude",
   shell: shellIci.commande,
@@ -922,14 +926,18 @@ ipcMain.handle("lireHistoire", async (_, nom: unknown, ticket: unknown) => {
 // L'issue d'un ticket et sa discussion, sur la fiche de toute carte : lues de GitHub par le `gh` du poste
 // (fiche-github.ts), le markdown rendu. Les adresses qu'elle montre sont gardées ici : un clic de la vue n'ouvre
 // que l'une d'elles, jamais une adresse qu'elle aurait composée.
-// Le commentaire du chef part par `pass <ticket> comment <texte>`, au clic : la vue nomme le
-// projet, le ticket et le texte ; la commande se compose ici.
+// Le commentaire du chef part par `/brigade comment #<ticket> <texte>` sur le tableau de la cuisine, au clic : la vue
+// nomme le projet, le ticket et le texte ; le geste se compose ici (discussion.ts).
 const liensLus = new Map<string, readonly string[]>();
-// Elles prennent leur tour dans le passage du projet : une connexion à la fois, comme les veilles.
-const lancerSurLaBox = (servi: Servi, commande: string) => {
-  const rendu = (passage.get(servi.nom) ?? Promise.resolve()).then(() => lancerGeste({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 30_000, connexionS: 10 }, servi, commande));
-  passage.set(servi.nom, rendu);
-  return rendu;
+// Les gestes qui partaient par `ssh` sur la box (#1845) — le commentaire, la demande au second, le plafond, la cuisine
+// d'une station — sont postés sur le dernier tableau lu du projet par l'accès GitHub de ce poste, comme ceux du rail, et
+// suivis jusqu'à ce que la box y ait répondu : elle lit le tableau à chaque tick, une fois la minute. Deux minutes et
+// demie au plus, une relecture toutes les cinq secondes ; joué ou refusé, le tableau est relu de GitHub au prochain coup.
+const ATTENTE_DE_LA_BOX = { essais: 30, dormir: () => attendre(5_000) };
+const auTableau = (nom: string) => async (decision: DecisionDuChef) => {
+  const etat = await jouerAuTableau(tableaux.dernier(nom), decision, clientDesGestes, ATTENTE_DE_LA_BOX);
+  if (etat.etat === "taken" || etat.etat === "refused") tableaux.oublier();
+  return etat;
 };
 ipcMain.handle("lireDiscussion", async (_, nom: unknown, ticket: unknown) => {
   const vise = connu(nom);
@@ -940,15 +948,18 @@ ipcMain.handle("lireDiscussion", async (_, nom: unknown, ticket: unknown) => {
 });
 ipcMain.handle("commenter", (_, nom: unknown, ticket: unknown, texte: unknown) => {
   const vise = connu(nom);
-  return vise === undefined ? { poste: false, refus: `nothing was posted: “${String(nom)}” is no longer in the projects file` } : commenter(lancerSurLaBox, vise, ticket, texte, 30_000);
+  return vise === undefined ? { poste: false, refus: `nothing was posted: “${String(nom)}” is no longer in the projects file` } : commenter(auTableau(vise.nom), vise, ticket, texte);
 });
-// « ask the second », au clic : la box compose la demande — l'issue et le contexte du champ —, et
-// l'app l'écrit dans le second sans Entrée (comme `demander`) ; injoignable, rien n'est écrit.
+// « ask the second », au clic : `/brigade ask #<ticket> [contexte]` part sur le tableau, la box compose la demande —
+// l'issue et le contexte du champ — et la rend dans son bloc machine ; l'app l'écrit dans le second sans Entrée (comme
+// `demander`). Quand la box tient le second du projet, c'est elle qui la lui envoie : rien n'est écrit ici, et la fiche
+// dit où vient sa réponse. Pas jouée, rien n'est écrit.
 ipcMain.handle("demanderAuSecond", async (_, nom: unknown, ticket: unknown, contexte: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return { refus: parti(nom).refus };
-  const composee = await demanderAuSecond(lancerSurLaBox, vise, ticket, contexte, 30_000);
-  return "refus" in composee ? composee : terminaux.inscrire(vise, composee.demande, noteDeLaDemande);
+  const composee = await demanderAuSecond(auTableau(vise.nom), vise, ticket, contexte);
+  if ("refus" in composee) return composee;
+  return "auSecond" in composee ? { refus: composee.auSecond } : terminaux.inscrire(vise, composee.demande, noteDeLaDemande);
 });
 ipcMain.handle("ouvrirLien", (_, nom: unknown, ticket: unknown, url: unknown) => {
   if (typeof url !== "string" || !(liensLus.get(`${String(nom)}#${String(ticket)}`) ?? []).includes(url) || !/^https?:$/.test(URL.parse(url)?.protocol ?? "")) return false;
@@ -1203,25 +1214,25 @@ const clientDesGestes = clientDesGestesGitHub({ jeton: jetonDeGh({ gh: ghIci, de
 // Les labels `prio:` d'une issue, lus et changés depuis une fiche (priorite.ts), avec le même jeton.
 const clientDesLabels = clientDeLaPriorite({ jeton: jetonDeGh({ gh: ghIci, delaiMs: 10_000 }), appeler: appelerGitHub, envoyer: envoyerParFetch() });
 // Le plafond de cooks d'une station, réglé depuis sa page : la vue nomme la station et la valeur — un nombre,
-// 0 ou `auto` —, la commande `station cooks <valeur>` part sur la box de chaque projet dont le `status` lu
-// nomme cette station (plafond.ts). Réglé, ce `status` est relu aussitôt : la page dit le plafond neuf, et ce qu'il remplace.
-// Depuis la ligne de station d'un projet (ticket 1292), `projet` borne le réglage à la box de ce projet.
+// 0 ou `auto` —, le geste `/brigade cooks <valeur>` part sur le tableau de chaque projet dont le `status` lu
+// nomme cette station (plafond.ts). Réglé, ce tableau est relu aussitôt : la page dit le plafond neuf, et ce qu'il remplace.
+// Depuis la ligne de station d'un projet (ticket 1292), `projet` borne le réglage au tableau de ce projet.
 ipcMain.handle("reglerLePlafond", async (_, station: unknown, valeur: unknown, projet?: unknown) => {
-  const cibles = typeof station === "string" ? accueil.projetsDe(station).filter((nom) => projet === undefined || nom === projet).flatMap((nom) => { const vise = connu(nom); return vise?.box === undefined ? [] : [{ nom: vise.nom, box: vise.box }]; }) : [];
-  const rendu = await reglerLePlafond(cibles, valeur, lancerSurLaBox);
+  const cibles = typeof station === "string" ? accueil.projetsDe(station).filter((nom) => (projet === undefined || nom === projet) && connu(nom) !== undefined) : [];
+  const rendu = await reglerLePlafond(cibles, valeur, (nom, decision) => auTableau(nom)(decision));
   if ("fait" in rendu) {
-    for (const servi of cibles) {
-      const lu = await lancerSurLaBox(servi, "status");
-      if (lu.erreur === null) direLAccueil(accueil.status(mettreAPart({ projet: servi.nom, demande: 0, a: new Date().toISOString(), sorties: [{ commande: "status", texte: lu.sortie }] })));
+    for (const nom of cibles) {
+      const vise = connu(nom);
+      if (vise !== undefined) direLAccueil(accueil.status(mettreAPart(lectureDuTableau(await tableaux.lire(vise), vise.nom, 0, ["status"]))));
     }
   }
   return rendu;
 });
 // Le bouton d'une panne, sur la ligne d'une station : rend ce qu'il a fait, ou pourquoi rien.
 ipcMain.handle("panne", (_, id: unknown, cle: unknown) => jouerPanne(gestesDesPannes, id, cle));
-// Le bouton d'une station sur l'onglet Cooks (#1185) : `station stop|start <station>` part là où la cuisine du projet
-// tourne — sa box, ou cet ordinateur —, par le passage du projet comme les veilles. La station doit être l'une de celles
-// que ses derniers `facts` donnent (cuisson.ts). La vue relit la box quand il est fait : la ligne dit son état neuf.
+// Le bouton d'une station sur l'onglet Cooks (#1185) : `/brigade station stop|start <station>` part sur le tableau de la
+// cuisine du projet, que sa box ou cet ordinateur joue à son tick (#1845). La station doit être l'une de celles que ses
+// derniers `facts` donnent (cuisson.ts). La vue relit le tableau quand il est fait : la ligne dit son état neuf.
 // Une commande du runtime, lancée là où la cuisine d'un projet tourne, par son passage comme les veilles.
 const lancerSurLaCuisine = (lu: Lu, commande: string) => {
   // Jamais posée hors des essais, comme pour la veille.
@@ -1232,8 +1243,7 @@ const lancerSurLaCuisine = (lu: Lu, commande: string) => {
 ipcMain.handle("cuireSurLaStation", (_, nom: unknown, station: unknown, geste: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return parti(nom);
-  const cuisine = cuisines.cuisineDe(vise);
-  return cuireSurLaStation(vise.nom, cuisine === undefined ? undefined : { nom: vise.nom, cuisine }, faits.stations(vise.nom), station, geste, lancerSurLaCuisine);
+  return cuireSurLaStation(vise.nom, faits.stations(vise.nom), station, geste, auTableau(vise.nom));
 });
 // Le plafond de calibrage du projet, réglé depuis son onglet Cooks (ticket 1284) : `station ceiling-modele|ceiling-effort`,
 // ou leur retrait, part là où sa cuisine tourne (plafond-de-calibrage.ts). La vue relit la box quand il est fait.

@@ -19,7 +19,7 @@ import { lieuDe } from "./machines.ts";
 import { ICI, SANS_SESSION } from "./plateforme.ts";
 import { detruire as detruireSession, joindre as joindreMachine, nomDeSession, rattachement, type Cible, type Session } from "./persistance.ts";
 import { crochetsDesTours, DIT, PREUVE, reglages, suivreSaisie, type Saisie, type Tours } from "./saisie.ts";
-import { crochetsDeLaFile } from "./second/file.ts";
+import { crochetsDeLaFile } from "./second/crochet-de-la-file.ts";
 import { crochetsDuRefus } from "./second/refus.ts";
 import { argumentsDuSecond, reglagesDuSecond, type Crochets } from "./second/lancement.ts";
 import type { Rappel, Souvenir, Souvenirs } from "./souvenirs.ts";
@@ -90,8 +90,8 @@ const manquants = (tools: readonly OutilVu[]): OutilManquant[] =>
 type Attente = { essais: number; sonde?: true; annuler?: () => void };
 type Tenu = Terminal & {
   dossier: string;
-  // Le projet tel que la file se lit : son nom, et sa box.
-  cible: { nom: string; hote?: string };
+  // Le projet tel que la file se lit : son nom, et son dépôt GitHub quand le fichier des projets le donne.
+  cible: { nom: string; depot?: string };
   colonnes: number;
   lignes: number;
   lances: number;
@@ -138,6 +138,8 @@ export function ouvrirTerminaux(options: {
   ssh?: string;
   // Le `node` qui joue le crochet de la file du second (second/file.ts). Sans lui, le second n'a pas ce crochet.
   node?: string;
+  // Le `gh` par lequel ce crochet lit la file sur le tableau de la cuisine — jamais posé hors des essais.
+  gh?: string;
   // Le compte qu'une machine donne au chef, pour le bandeau d'un shell. Par défaut : celui de ce
   // poste, ou celui que `ssh -G` résout pour l'hôte.
   compte?(cible: Cible): string;
@@ -185,7 +187,7 @@ export function ouvrirTerminaux(options: {
   const de = (projet: string) => [...tenus.values()].filter((tenu) => tenu.projet === projet);
 
   function tenir(projet: Projet, genre: Terminal["genre"], titre: string): Tenu {
-    const tenu: Tenu = { id: ++dernier, projet: projet.nom, genre, titre, note: "", arrete: false, dossier: projet.dossier, cible: { nom: projet.nom, ...(projet.box === undefined ? {} : { hote: projet.box.hote }) }, colonnes: 80, lignes: 24, lances: 0 };
+    const tenu: Tenu = { id: ++dernier, projet: projet.nom, genre, titre, note: "", arrete: false, dossier: projet.dossier, cible: { nom: projet.nom, ...(projet.depot === undefined ? {} : { depot: projet.depot }) }, colonnes: 80, lignes: 24, lances: 0 };
     tenus.set(tenu.id, tenu);
     return tenu;
   }
@@ -277,8 +279,9 @@ export function ouvrirTerminaux(options: {
   // d'un second : la note le dit. Il n'y en a pas — ou `claude` n'a pas su le
   // reprendre — quand `claude --continue` sort en erreur : une session neuve
   // part alors, une seule fois, avec le rôle, et sa note le dit.
-  // La file du projet, lue à chaque début de session et après chaque compaction (second/file.ts).
-  const laFile = (tenu: Tenu): Crochets => (options.node === undefined ? {} : crochetsDeLaFile({ node: options.node, ssh: options.ssh ?? "ssh", cible: tenu.cible }));
+  // La file du projet, lue à chaque début de session et après chaque compaction (second/file.ts, déclaré par
+  // second/crochet-de-la-file.ts).
+  const laFile = (tenu: Tenu): Crochets => (options.node === undefined ? {} : crochetsDeLaFile({ node: options.node, gh: options.gh ?? "gh", cible: tenu.cible }));
 
   // Ce que le second ne fait jamais — merger, lire les secrets du chef — refusé avant l'appel (second/refus.ts).
   const lesRefus = (): Crochets => (options.node === undefined ? {} : crochetsDuRefus({ node: options.node }));

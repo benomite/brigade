@@ -1,13 +1,18 @@
 // L'issue d'un ticket et sa discussion, sur sa fiche — quelle que soit sa carte : ce que le runtime
 // en dit par `pass <ticket> issue` (runtime/src/issue-ticket.ts) — le corps, puis les commentaires
 // du plus ancien au plus récent, chacun avec son auteur et sa date —, le markdown rendu (markdown.ts).
-// Et le commentaire que le chef y ajoute : `pass <ticket> comment <texte>`, sur la box du projet,
-// au clic et seulement au clic. Aucun LLM, aucune reformulation : le texte part tel qu'il est
-// écrit, sous le `gh` du compte du service de la box. La commande se compose ici, jamais dans la vue.
+// Et le commentaire que le chef y ajoute, et la demande au second : postés sur le tableau de la cuisine
+// du projet (`/brigade comment #<ticket> <texte>`, `/brigade ask #<ticket> [contexte]`,
+// docs/tableau-gestes.md, #1845), au clic et seulement au clic — ni `ssh`, ni box jointe. La box les
+// joue à son tick, comme `pass <ticket> comment` et `pass <ticket> ask` : le commentaire part sous le
+// `gh` de son compte, celui du chef ; la demande, elle la compose et la rend dans le bloc machine du
+// tableau. Aucun LLM, aucune reformulation : le texte part tel qu'il est écrit. Le geste se compose
+// ici, jamais dans la vue.
 import { echecDe, type Rendu, type Servi } from "./box.ts";
 import type { Projet } from "./config.ts";
 import { instant } from "./histoire.ts";
 import { liensDe, rendre, type Bloc } from "./markdown.ts";
+import { ditParLaBox, enSuite, type DecisionDuChef, type EtatDuGeste } from "./tableau-gestes/gestes.ts";
 
 // Un message de l'issue, dit : qui l'a écrit, quand (l'heure de GitHub), et son texte rendu.
 // `corps` : c'est le corps de l'issue, le premier message — pas un commentaire.
@@ -16,20 +21,12 @@ export type MessageDit = { auteur: string; at: string; blocs: Bloc[]; corps?: tr
 // qu'un clic peut y ouvrir — ou pourquoi on n'en lit rien.
 export type Discussion = { titre: string; ouverte: boolean; messages: MessageDit[]; liens: string[] } | { sans: string };
 // Ce qu'il est advenu d'un commentaire : posté — `prix` : ce que la box dit qu'il coûte —, ou pourquoi
-// il ne l'est pas. `peutEtre` : rien ne dit qu'il ne l'est pas — `ssh` arrêté en route, ou GitHub qui
-// n'a pas confirmé : la discussion se relit avant d'écrire de nouveau.
+// il ne l'est pas. `peutEtre` : rien ne dit qu'il ne l'est pas — posté sur le tableau sans que la box
+// l'ait encore joué : la discussion se relit avant d'écrire de nouveau.
 export type Commente = { poste: true; prix: string } | { poste: false; refus: string; peutEtre?: true };
 
-// Les deux commandes, telles qu'elles partent après `brigade <projet>`.
+// La lecture, telle qu'elle part après `brigade <projet>`.
 export const lecture = (ticket: number) => `pass ${ticket} issue`;
-export const ecriture = (ticket: number, texte: string) => `pass ${ticket} comment ${citer(texte)}`;
-// La troisième : la demande au second, composée par la box — l'issue (numéro, titre) et le contexte
-// saisi, ou l'issue seule quand il est vide. Rien n'y est posté ni écrit : l'app l'inscrit.
-export const demande = (ticket: number, contexte: string) => (contexte === "" ? `pass ${ticket} ask` : `pass ${ticket} ask ${citer(contexte)}`);
-
-// Le texte tel que le shell de la box le rendra à la commande : en un seul argument, sans rien en
-// exécuter — retours à la ligne compris.
-export const citer = (texte: string) => `'${texte.replaceAll("'", `'\\''`)}'`;
 
 // GitHub refuse un commentaire plus long.
 export const LONGUEUR_MAX = 65_536;
@@ -76,27 +73,13 @@ export function discussionDe({ lance, erreur, sortie, erreurs }: Rendu, delaiMs:
   return { titre: title, ouverte: state !== "closed", messages, liens: [...new Set(messages.flatMap(({ blocs }) => liensDe(blocs)))] };
 }
 
-// Ce que `pass <ticket> comment <texte>` a rendu : `done`, et ce que la box dit du geste.
-export function commenteDe({ lance, erreur, sortie, erreurs }: Rendu, delaiMs: number): Commente {
-  const lu = json(sortie);
-  if (objet(lu) && lu.done === true) return { poste: true, prix: texte(lu.price) ? lu.price : "not communicated" };
-  if (objet(lu) && lu.done === false) return { poste: false, refus: `nothing was posted: ${texte(lu.reason) ? lu.reason : "the station does not say why"}` };
-  if (erreur === null) return { poste: false, refus: "not confirmed: the station did not say whether the comment was posted — the discussion is read again, check it before posting again", peutEtre: true };
-  return { poste: false, refus: `not confirmed — it may have been posted: the discussion is read again, check it before posting again.\n${echecDe({ lance, erreur, sortie, erreurs }, delaiMs).erreur}`, peutEtre: true };
-}
+// Ce que la demande au second est devenue : celle que l'app écrit dans le second, sans Entrée ; ou,
+// quand la box tient le second du projet, qu'elle la lui a envoyée (`auSecond`) — sa réponse vient sous
+// le geste, sur le tableau ; ou pourquoi il n'y en a pas.
+export type Demandee = { demande: string } | { auSecond: string } | { refus: string };
 
-// Ce que `pass <ticket> ask` a rendu : la demande à écrire dans le second, ou pourquoi il n'y en a pas.
-export type Demandee = { demande: string } | { refus: string };
-
-// Ce que `pass <ticket> ask` a rendu, en mots de la fiche : `done`, et la demande ; sinon la raison
-// de la box, ou ce que `ssh` a dit — la box n'a rien composé, rien n'est écrit.
-export function demandeRendue({ lance, erreur, sortie, erreurs }: Rendu, delaiMs: number): Demandee {
-  const lu = json(sortie);
-  if (objet(lu) && lu.done === true && texte(lu.request) && lu.request.trim() !== "") return { demande: lu.request };
-  if (objet(lu) && lu.done === false) return { refus: `nothing was written: ${texte(lu.reason) ? lu.reason : "the station does not say why"}` };
-  if (erreur === null) return { refus: "nothing was written: the station did not return the request in the expected shape" };
-  return { refus: `nothing was written: the second's request was not composed — ${echecDe({ lance, erreur, sortie, erreurs }, delaiMs).erreur}` };
-}
+// Ce qui poste une décision sur le tableau de ce projet et la suit jusqu'à la réponse de la box (main.ts).
+export type AuTableau = (decision: DecisionDuChef) => Promise<EtatDuGeste>;
 
 // Ce qui lance une commande sur la box du projet, et ce qu'elle a rendu (box.ts, `lancerGeste`).
 export type Lancer = (servi: Servi, commande: string) => Promise<Rendu>;
@@ -108,28 +91,36 @@ export async function lireDiscussion(lancer: Lancer, projet: Projet, ticket: unk
   return discussionDe(await lancer({ nom: projet.nom, box: projet.box }, lecture(ticket)), delaiMs);
 }
 
-// Le commentaire du chef, posté sur l'issue de ce ticket par la box de ce projet. Rien ne part d'un
-// texte vide, ni d'un projet qui n'a pas de box ou qui ne s'ouvre pas.
-export async function commenter(lancer: Lancer, projet: Projet, ticket: unknown, saisi: unknown, delaiMs: number): Promise<Commente> {
+// Le commentaire du chef, posté sur l'issue de ce ticket par la box de ce projet, depuis son tableau.
+// Rien ne part d'un texte vide, ni d'un projet qui ne s'ouvre pas.
+export async function commenter(auTableau: AuTableau, projet: Projet, ticket: unknown, saisi: unknown): Promise<Commente> {
   if (!numero(ticket)) return { poste: false, refus: "nothing was posted: the sheet names no ticket" };
   if (!texte(saisi) || saisi.trim() === "") return { poste: false, refus: "nothing was posted: the comment is empty — write something to post" };
   if (saisi.includes("\0")) return { poste: false, refus: "nothing was posted: the comment carries a NUL character" };
   if (saisi.trim().length > LONGUEUR_MAX) return { poste: false, refus: `nothing was posted: GitHub refuses a comment longer than ${LONGUEUR_MAX} characters — this one has ${saisi.trim().length}` };
-  if (projet.box === undefined) return { poste: false, refus: `nothing was posted: “${projet.nom}” has no station — there is no command to run` };
   if (projet.refus !== undefined) return { poste: false, refus: `nothing was posted: “${projet.nom}” does not open — ${projet.refus}` };
   // Les retours à la ligne du poste sont ceux de GitHub : `\n`.
-  return commenteDe(await lancer({ nom: projet.nom, box: projet.box }, ecriture(ticket, saisi.trim().replace(/\r\n?/g, "\n"))), delaiMs);
+  const etat = await auTableau({ geste: "comment", ticket, commentaire: saisi.trim().replace(/\r\n?/g, "\n") });
+  if (etat.etat === "failed") return { poste: false, refus: `nothing was posted: ${enSuite(etat.raison)}` };
+  if (etat.etat === "taken") return { poste: true, prix: ditParLaBox(etat.reponse).prix || "not communicated" };
+  if (etat.etat === "refused") return { poste: false, refus: `nothing was posted: ${ditParLaBox(etat.reponse).dit || "the box does not say why"}` };
+  return { poste: false, refus: "not posted yet: it is on the Kitchen board, and the box posts it on the issue at its next tick — the discussion is read again, check it before posting again", peutEtre: true };
 }
 
-// La demande au second pour ce ticket, composée par la box de ce projet d'après le contexte saisi. Un
-// contexte vide est permis : la demande nomme l'issue seule. Rien n'est composé d'un projet qui n'a pas
-// de box ou qui ne s'ouvre pas ; et rien n'est écrit ici : c'est l'appelant qui inscrit la demande.
-export async function demanderAuSecond(lancer: Lancer, projet: Projet, ticket: unknown, contexte: unknown, delaiMs: number): Promise<Demandee> {
+// La demande au second pour ce ticket, composée par la box de ce projet d'après le contexte saisi, depuis
+// son tableau. Un contexte vide est permis : la demande nomme l'issue seule. Rien n'est composé d'un projet
+// qui ne s'ouvre pas ; et rien n'est écrit ici : c'est l'appelant qui inscrit la demande.
+export async function demanderAuSecond(auTableau: AuTableau, projet: Projet, ticket: unknown, contexte: unknown): Promise<Demandee> {
   if (!numero(ticket)) return { refus: "nothing was written: the sheet names no ticket" };
   if (contexte !== undefined && !texte(contexte)) return { refus: "nothing was written: the context is not a text" };
   const saisi = (contexte ?? "").trim();
   if (saisi.includes("\0")) return { refus: "nothing was written: the context carries a NUL character" };
-  if (projet.box === undefined) return { refus: `nothing was written: “${projet.nom}” has no station — there is no command to run` };
   if (projet.refus !== undefined) return { refus: `nothing was written: “${projet.nom}” does not open — ${projet.refus}` };
-  return demandeRendue(await lancer({ nom: projet.nom, box: projet.box }, demande(ticket, saisi.replace(/\r\n?/g, "\n"))), delaiMs);
+  const etat = await auTableau({ geste: "ask", ticket, contexte: saisi.replace(/\r\n?/g, "\n") });
+  if (etat.etat === "failed") return { refus: `nothing was written: ${enSuite(etat.raison)}` };
+  if (etat.etat === "pending") return { refus: "nothing was written: the request is posted on the Kitchen board, and the box has not composed it yet — it does at its next tick" };
+  if (etat.etat === "refused") return { refus: `nothing was written: ${ditParLaBox(etat.reponse).dit || "the box does not say why"}` };
+  if (etat.lu.second !== undefined) return { auSecond: "the box holds the project's second and sent it the request: its answer comes under your gesture, on the Kitchen board" };
+  const demande = etat.lu.demande ?? "";
+  return demande.trim() === "" ? { refus: "nothing was written: the box did not return the request in the expected shape" } : { demande };
 }

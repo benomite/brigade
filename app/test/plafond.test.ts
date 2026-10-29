@@ -1,5 +1,6 @@
 // Le plafond de cooks et la retenue d'une station, lus dans le `status` que le runtime écrit (plafond.ts), posés sur
-// la ligne de sa station par l'accueil, et réglés par la commande `station cooks <N>` de chaque box qui le dit.
+// la ligne de sa station par l'accueil, et réglés par le geste `/brigade cooks <N>` posté sur le tableau de chaque
+// projet qui le dit (#1845).
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -9,9 +10,9 @@ import { decrireEtat, lireEtat } from "../../runtime/src/etat.ts";
 import { ouvrirJournal } from "../../runtime/src/journal.ts";
 import type { EtatStation } from "../../runtime/src/projections/stations.ts";
 import { tenirAccueil } from "../src/accueil.ts";
-import type { Rendu, Servi } from "../src/box.ts";
 import { plafondsDe, reglerLePlafond, retenuesDe } from "../src/plafond.ts";
 import type { StationVue } from "../src/stations/stations.ts";
+import type { DecisionDuChef, EtatDuGeste } from "../src/tableau-gestes/gestes.ts";
 
 const A = "2026-10-16T12:00:00.000Z";
 
@@ -95,34 +96,54 @@ describe("l'accueil pose le plafond et la retenue sur la ligne de leur station",
   });
 });
 
-describe("régler le plafond : `station cooks <valeur>` sur la box de chaque projet qui nomme la station", () => {
-  const servi = (nom: string): Servi => ({ nom, box: { hote: `${nom}-box` } as Servi["box"] });
-  const rendu = (champs: Partial<Rendu> = {}): Rendu => ({ lance: "$ ssh box", erreur: null, sortie: "", erreurs: "", ...champs });
+describe("régler le plafond : `/brigade cooks <valeur>` sur le tableau de chaque projet qui nomme la station", () => {
+  const COMMENTAIRE = { id: 7001, url: "https://github.com/chef/a/issues/9#issuecomment-7001" };
+  // Le tableau de chaque projet, doublé : la box y répond comme `etats` le dit pour ce projet — jouée par défaut.
+  const tableaux = (etats: Record<string, "refused" | "pending" | "failed"> = {}) => {
+    const postees: string[] = [];
+    const auTableau = async (projet: string, decision: DecisionDuChef): Promise<EtatDuGeste> => {
+      postees.push(`${projet}: ${decision.geste === "cooks" ? decision.plafond : "?"}`);
+      const etat = etats[projet] ?? "taken";
+      if (etat === "failed") return { etat, raison: "The Kitchen board of this project has not been read yet — read it again." };
+      if (etat === "pending") return { etat, commentaire: COMMENTAIRE };
+      const reponse = etat === "taken" ? "**Done** — [cooks 5](…): box/claude: 5 at most — set by you — cost: none: only the log is written" : "**Not done** — [cooks 5](…): boom";
+      return { etat, commentaire: COMMENTAIRE, reponse, lu: { commentaire: COMMENTAIRE.id, url: COMMENTAIRE.url, le: A, geste: "cooks", ticket: null, etat: etat === "taken" ? "pris" : "refuse", traiteLe: A, reponse } };
+    };
+    return { postees, auTableau };
+  };
 
   test("un nombre, zéro ou `auto` partent ; rien d'autre", async () => {
-    const lancees: string[] = [];
-    const lancer = async (_: Servi, commande: string) => (lancees.push(commande), rendu());
-    assert.deepEqual(await reglerLePlafond([servi("a"), servi("b")], "5", lancer), { fait: "the cap is 5" });
-    assert.deepEqual(await reglerLePlafond([servi("a")], "0", lancer), { fait: "the cap is lifted: no limit" });
-    assert.deepEqual(await reglerLePlafond([servi("a")], "auto", lancer), { fait: "the cap is back to the default" });
-    assert.deepEqual(lancees, ["station cooks 5", "station cooks 5", "station cooks 0", "station cooks auto"]);
+    const { postees, auTableau } = tableaux();
+    assert.deepEqual(await reglerLePlafond(["a", "b"], "5", auTableau), { fait: "the cap is 5" });
+    assert.deepEqual(await reglerLePlafond(["a"], "0", auTableau), { fait: "the cap is lifted: no limit" });
+    assert.deepEqual(await reglerLePlafond(["a"], "auto", auTableau), { fait: "the cap is back to the default" });
+    assert.deepEqual(postees, ["a: 5", "b: 5", "a: 0", "a: auto"]);
     for (const mauvais of ["-1", "3; rm -rf", "", "05", "1.5", 3, undefined]) {
-      assert.ok("refus" in (await reglerLePlafond([servi("a")], mauvais, lancer)), String(mauvais));
+      assert.ok("refus" in (await reglerLePlafond(["a"], mauvais, auTableau)), String(mauvais));
     }
-    assert.equal(lancees.length, 4, "une valeur refusée n'envoie rien");
+    assert.equal(postees.length, 4, "une valeur refusée ne poste rien");
   });
 
-  test("sans projet qui nomme la station, rien n'est envoyé", async () => {
-    const lancer = async () => assert.fail("rien ne devait partir");
-    assert.match(("refus" in (await reglerLePlafond([], "5", lancer)) ? (await reglerLePlafond([], "5", lancer) as { refus: string }).refus : ""), /no project the app reads/);
+  test("sans projet qui nomme la station, rien n'est posté", async () => {
+    const auTableau = async () => assert.fail("rien ne devait partir");
+    const rendu = await reglerLePlafond([], "5", auTableau);
+    assert.match("refus" in rendu ? rendu.refus : "", /no project the app reads/);
   });
 
-  test("une box qui refuse : une ligne, la commande ssh seulement dans le détail", async () => {
-    const lancer = async (cible: Servi) => (cible.nom === "b" ? rendu({ erreur: new Error("exit") as Rendu["erreur"], erreurs: "boom\n" }) : rendu());
-    const sorti = await reglerLePlafond([servi("a"), servi("b")], "5", lancer);
+  test("une box qui refuse : une ligne, ce qu'elle a répondu et le geste dans le détail", async () => {
+    const sorti = await reglerLePlafond(["a", "b"], "5", tableaux({ b: "refused" }).auTableau);
     assert.ok("refus" in sorti);
     assert.equal(sorti.refus, "the cap was not changed for b: its box did not take it; already changed for a");
-    assert.doesNotMatch(sorti.refus, /ssh/);
-    assert.match(sorti.detail ?? "", /ssh box/);
+    assert.equal(sorti.detail, `boom\n${COMMENTAIRE.url}`);
+  });
+
+  test("un tableau pas lu : rien n'est posté pour ce projet, et la phrase le dit", async () => {
+    const sorti = await reglerLePlafond(["a"], "5", tableaux({ a: "failed" }).auTableau);
+    assert.deepEqual(sorti, { refus: "the cap was not changed for a: the Kitchen board of this project has not been read yet — read it again" });
+  });
+
+  test("une box qui n'a pas encore lu le geste : il est posté, elle le joue à son tick, et la phrase le dit", async () => {
+    const sorti = await reglerLePlafond(["a", "b"], "5", tableaux({ b: "pending" }).auTableau);
+    assert.deepEqual(sorti, { fait: "the cap is 5 once played: posted on the Kitchen board, the box of b plays it at its next tick — already changed for a" });
   });
 });

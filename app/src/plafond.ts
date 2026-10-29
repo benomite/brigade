@@ -8,8 +8,10 @@
 //              at least 3,205 MB (default: 10% of the machine's 32,050 MB): box takes no more tickets as long as it lasts
 //
 // Le réglage vaut pour toutes les stations du projet dont la box le reçoit (c'est la portée de la commande) :
-// il part donc vers chaque projet dont le `status` lu nomme la station.
-import type { Rendu, Servi } from "./box.ts";
+// il part donc vers chaque projet dont le `status` lu nomme la station. Il part sur le tableau de la cuisine de chaque
+// projet (`/brigade cooks <N | auto>`, docs/tableau-gestes.md, #1845) : ni `ssh`, ni box jointe — la box le joue à son
+// tick, et c'est sa réponse sous le geste qui dit s'il est fait.
+import { ditParLaBox, enSuite, type DecisionDuChef, type EtatDuGeste } from "./tableau-gestes/gestes.ts";
 
 // `dit` : le plafond comme la box l'écrit — `3 at most — 8 cores`, `no limit — declared`,
 // `5 at most — set by you, replaces 3 (8 cores)`. `parLeChef` : il a été réglé, et `remplace` dit ce qu'il remplace.
@@ -56,19 +58,25 @@ export const VALEUR_DU_PLAFOND = /^(?:0|[1-9][0-9]{0,5}|auto)$/;
 
 export type RenduDuReglage = { fait: string } | { refus: string; detail?: string };
 
-// Règle le plafond sur la box de chaque projet qui nomme la station, l'un après l'autre. La première box qui
-// refuse arrête le tour : ce qui a été réglé avant elle est dit.
-export async function reglerLePlafond(cibles: readonly Servi[], valeur: unknown, lancer: (servi: Servi, commande: string) => Promise<Rendu>): Promise<RenduDuReglage> {
+// Ce qui poste une décision sur le tableau de ce projet et la suit jusqu'à la réponse de la box (main.ts).
+export type AuTableau = (projet: string, decision: DecisionDuChef) => Promise<EtatDuGeste>;
+
+// Règle le plafond sur la box de chaque projet qui nomme la station, l'un après l'autre, par son tableau. La première
+// box qui refuse arrête le tour : ce qui a été réglé avant elle est dit. Une box qui n'a pas encore lu le geste à la fin
+// de l'attente ne l'arrête pas : il est posté, elle le jouera à son tick, et la phrase le dit.
+export async function reglerLePlafond(cibles: readonly string[], valeur: unknown, auTableau: AuTableau): Promise<RenduDuReglage> {
   if (typeof valeur !== "string" || !VALEUR_DU_PLAFOND.test(valeur)) return { refus: "nothing was changed: the cap is a number of cooks — 0 for no limit — or “auto”" };
   if (cibles.length === 0) return { refus: "nothing was changed: no project the app reads says this station's cap" };
   const faits: string[] = [];
-  for (const servi of cibles) {
-    const rendu = await lancer(servi, `station cooks ${valeur}`);
-    if (rendu.erreur !== null) {
-      const deja = faits.length === 0 ? "" : `; already changed for ${faits.join(", ")}`;
-      return { refus: `the cap was not changed for ${servi.nom}: its box did not take it${deja}`, detail: `${rendu.lance}\n${rendu.erreurs}${rendu.sortie}`.trim() };
-    }
-    faits.push(servi.nom);
+  const postes: string[] = [];
+  for (const projet of cibles) {
+    const etat = await auTableau(projet, { geste: "cooks", plafond: valeur });
+    const deja = faits.length === 0 ? "" : `; already changed for ${faits.join(", ")}`;
+    if (etat.etat === "failed") return { refus: `the cap was not changed for ${projet}: ${enSuite(etat.raison)}${deja}` };
+    if (etat.etat === "refused") return { refus: `the cap was not changed for ${projet}: its box did not take it${deja}`, detail: `${ditParLaBox(etat.reponse).dit}\n${etat.commentaire.url ?? ""}`.trim() };
+    (etat.etat === "pending" ? postes : faits).push(projet);
   }
-  return { fait: valeur === "auto" ? "the cap is back to the default" : valeur === "0" ? "the cap is lifted: no limit" : `the cap is ${valeur}` };
+  const fait = valeur === "auto" ? "the cap is back to the default" : valeur === "0" ? "the cap is lifted: no limit" : `the cap is ${valeur}`;
+  if (postes.length === 0) return { fait };
+  return { fait: `${fait} once played: posted on the Kitchen board, the box of ${postes.join(", ")} plays it at its next tick${faits.length === 0 ? "" : ` — already changed for ${faits.join(", ")}`}` };
 }

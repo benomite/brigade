@@ -3,15 +3,16 @@
 // ou l'arrête. Tout vient de `facts`, champ `stations` (runtime/src/etat.ts, `cuisson`, #1183) : un mot
 // lu, que l'app ne déduit jamais. Le geste est la commande du runtime, `station stop|start <station>`
 // (docs/runtime/station.md, « Lancer et arrêter la cuisine, station par station ») : la même pour une
-// station de la box, pour le Mac et pour toute station distante — elle part là où la cuisine du projet
-// tourne. Arrêter ne coupe aucun cook : ceux qui tournent finissent, livrent ou rendent leur ticket au rail.
+// station de la box, pour le Mac et pour toute station distante — elle part sur le tableau de la cuisine du projet
+// (`/brigade station stop|start <station>`, docs/tableau-gestes.md, #1845), que la box joue à son tick : ni `ssh`, ni
+// box jointe. Arrêter ne coupe aucun cook : ceux qui tournent finissent, livrent ou rendent leur ticket au rail.
 // Ce qui demande un geste au chef — une station saturée, ou qui refuse le projet — tient en une ligne, que
 // l'onglet Rail pose avec de quoi ouvrir Cooks.
 // Une station distante que la principale ne voit pas (`presente`, #1830) ne cuit pas, quel que soit son mot : elle ne
 // prend aucun ticket tant qu'elle ne s'est pas manifestée. Sa ligne le dit — « not cooking » —, jamais « cooking ».
-import type { Lu, Rendu } from "./box.ts";
 import { duree, type Cook } from "./faits.ts";
 import type { StationDesFaits } from "./ordinaires.ts";
+import { ditParLaBox, enSuite, type DecisionDuChef, type EtatDuGeste } from "./tableau-gestes/gestes.ts";
 
 // Les mots de `cuisson`, et la couleur de chacun. Un mot inconnu se dit tel quel, sans couleur ni geste.
 const TONS = new Map([
@@ -96,26 +97,27 @@ const NOM = /^[A-Za-z0-9@._:/-]+$/;
 
 export type RenduDeCuisson = { fait: string; detail?: string } | { refus: string; detail?: string };
 
-// Lance ou arrête la cuisine du projet sur une de ses stations, là où sa cuisine tourne (`lu`). La station
-// doit être l'une de celles que les derniers `facts` du projet donnent : la vue nomme la station et le geste,
-// jamais une commande. Ce que le runtime a répondu se lit au survol ; à l'écran, une phrase.
+// Lance ou arrête la cuisine du projet sur une de ses stations, par le tableau de sa cuisine (`auTableau` : le geste
+// posté sur le dernier tableau lu du projet, suivi jusqu'à la réponse de la box). La station doit être l'une de celles
+// que les derniers `facts` du projet donnent : la vue nomme la station et le geste, jamais une commande. Ce que la box a
+// répondu se lit au survol, avec l'adresse du geste ; à l'écran, une phrase.
 export async function cuireSurLaStation(
   projet: string,
-  lu: Lu | undefined,
   stations: readonly StationDesFaits[] | undefined,
   station: unknown,
   geste: unknown,
-  lancer: (lu: Lu, commande: string) => Promise<Rendu>,
+  auTableau: (decision: DecisionDuChef) => Promise<EtatDuGeste>,
 ): Promise<RenduDeCuisson> {
   if (geste !== "start" && geste !== "stop") return { refus: `nothing was sent: “${String(geste)}” is neither start nor stop` };
-  if (lu === undefined) return { refus: `nothing was sent: “${projet}” has no station — there is no command to run` };
   if (stations === undefined) return { refus: `nothing was sent: ${projet}'s stations are not read yet` };
   if (typeof station !== "string" || !NOM.test(station) || !stations.some((declaree) => declaree.station === station)) {
     return { refus: `nothing was sent: “${String(station)}” is not one of ${projet}'s stations` };
   }
-  const rendu = await lancer(lu, `station ${geste} ${station}`);
-  const detail = `${rendu.lance}\n${rendu.erreurs}${rendu.sortie}`.trim();
-  if (rendu.erreur !== null) return { refus: `${station} did not ${geste}: the runtime did not take it — nothing was changed`, detail };
+  const etat = await auTableau({ geste: "station", action: geste, station });
+  if (etat.etat === "failed") return { refus: `nothing was sent: ${enSuite(etat.raison)}` };
+  const detail = `${etat.etat === "pending" ? "" : ditParLaBox(etat.reponse).dit}\n${etat.commentaire.url ?? ""}`.trim();
+  if (etat.etat === "refused") return { refus: `${station} did not ${geste}: the box did not take it — nothing was changed`, detail };
+  if (etat.etat === "pending") return { fait: `posted on the Kitchen board: ${station} ${geste === "stop" ? "stops" : "starts"} cooking ${projet} at the box's next tick`, detail };
   return {
     fait: geste === "stop" ? `${station} stops cooking ${projet}: it takes no more tickets, its running cooks finish` : `${station} cooks ${projet} again: it takes its tickets at the runtime's next read`,
     detail,
