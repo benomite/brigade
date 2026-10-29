@@ -13,7 +13,6 @@ import type { Issue } from "../src/github.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { etatDeLaBase, pass, reparationDeLaBase, reparationEnCours } from "../src/projections/pass.ts";
 import { lireRail, rail } from "../src/projections/rail.ts";
-import { posixOnly } from "./support/plateforme.ts";
 import { chef, controlerBase, cuisine, issue } from "./aides/cuisine.ts";
 import { BASE, horloge, jusqua, repertoireTemporaire } from "./outils.ts";
 
@@ -22,7 +21,7 @@ type Scenario = "vert" | "rouge";
 // Une cuisine sous grant dont la base est celle du test (`base.tete`), et dont
 // les gates de la base seule jouent `essais.base` — vertes, sauf scénario.
 // `avantEssai` : ce qu'un essai de la base attend avant de jouer ses gates.
-function service(t: TestContext, options: { issues?: Issue[]; scenario?: string; essais?: Record<string, Scenario>; avantEssai?: (nom: string) => Promise<void> } = {}) {
+function service(t: TestContext, options: { issues?: Issue[]; scenario?: string; essais?: Record<string, Scenario>; avantEssai?: (nom: string) => Promise<void>; avantFusion?: () => Promise<void> } = {}) {
   const base = { tete: "base-1" };
   const essais: Record<string, Scenario> = { ...options.essais };
   const lieu = cuisine(t, {
@@ -32,6 +31,10 @@ function service(t: TestContext, options: { issues?: Issue[]; scenario?: string;
     depot: (depot) => ({
       ...depot,
       rapatrier: async () => base.tete,
+      async fusionner(nom, tete, sha) {
+        await options.avantFusion?.();
+        return depot.fusionner(nom, tete, sha);
+      },
       async essayer(nom) {
         await options.avantEssai?.(nom);
         const essai = await depot.essayer(nom);
@@ -43,7 +46,15 @@ function service(t: TestContext, options: { issues?: Issue[]; scenario?: string;
   chef(lieu.repertoire, "grant.activated");
   const { journal } = lieu;
   const compter = (type: string) => journal.tout().filter((e) => e.type === type).length;
-  const jusquAu = (type: string, combien = 1) => jusqua(() => compter(type) >= combien);
+  // Une attente qui n'aboutit pas dit où en était la cuisine : ce que le journal a vu passer, et ce que le runtime a dit tout haut.
+  const erreurs: string[] = [];
+  t.mock.method(console, "error", (...args: unknown[]) => void erreurs.push(args.map(String).join(" ")));
+  const jusquAu = (type: string, combien = 1) =>
+    jusqua(() => compter(type) >= combien).catch((erreur: unknown) => {
+      const faits = journal.tout();
+      const recents = faits.filter((e) => e.type !== "runtime.ticked").slice(-15).map((e) => `${e.type}#${e.ticket ?? "-"}`);
+      throw new Error(`${erreur instanceof Error ? erreur.message : String(erreur)} — attendu ${combien} × ${type}, vus ${compter(type)} (${faits.length} faits) ; derniers : ${recents.join(", ")} ; avertissements : ${lieu.avertissements.slice(-5).join(" | ")} ; erreurs : ${erreurs.slice(-5).join(" | ")}`);
+    });
   const laisserTourner = () => jusquAu("runtime.ticked", compter("runtime.ticked") + 5);
   const lance = (ticket: number) => lieu.dernier("cook.launched", ticket) !== undefined;
   // La pass vient de voir la base rouge, sur sa tête : ce qu'un contrôle joué aurait écrit.
@@ -114,13 +125,16 @@ describe("une base rouge : rejeu automatique, puis ticket de réparation", { con
     assert.equal(dernier("base.checked")?.outcome, "red");
   });
 
-  test("le ticket de réparation passe devant tous les tickets en attente et part dans une station alors que la base est encore rouge, sans commande du chef — puis il est jugé et mergé malgré elle, et la cuisine repart", { skip: posixOnly("waits with a `jusqua` that never completes on the Windows runner (`Error: condition jamais remplie` at reparation.test.ts:142, run 40568364843, 3/4); cause not traced; listed in #1868") }, async (t) => {
-    const { journal, gh, base, essais, dernier, jusquAu, laisserTourner, lance, rougir, runtime } = service(t, { essais: { base: "rouge" } });
+  test("le ticket de réparation passe devant tous les tickets en attente et part dans une station alors que la base est encore rouge, sans commande du chef — puis il est jugé et mergé malgré elle, et la cuisine repart", async (t) => {
+    // Le jugement de la livraison attend que le test ait vu le ticket sur le rail et parti : le cook, fini, ne le quitte pas avant.
+    let juger = () => {};
+    const attendu = new Promise<void>((resoudre) => (juger = resoudre));
+    const { journal, gh, base, essais, dernier, jusquAu, laisserTourner, lance, rougir, runtime } = service(t, { essais: { base: "rouge" }, avantFusion: () => attendu });
     rougir();
     // Des tickets attendent, dont un en `prio:1` : la base rouge les retient tous.
     gh.poser(issue(17, ["fire", "model:sonnet", "effort:low", "prio:1"]));
     gh.poser(issue(18));
-    await jusqua(() => runtime.rail.tickets().length === 2 && dernier("station.held")?.reason === "base");
+    await jusqua(() => [17, 18].every((numero) => runtime.rail.tickets().some((ticket) => ticket.ticket === numero)) && dernier("station.held")?.reason === "base");
 
     await jusquAu("base.repair-opened");
     // Sur le rail, il passe devant : `prio:0`.
@@ -135,6 +149,7 @@ describe("une base rouge : rejeu automatique, puis ticket de réparation", { con
     assert.equal(etatDeLaBase(journal.base)?.outcome, "red");
     assert.equal(journal.tout().some((e) => ["kitchen.resumed", "base.recheck-requested"].includes(e.type) && e.author === "chef"), false);
     assert.deepEqual([lance(17), lance(18)], [false, false]);
+    juger();
 
     // Sa livraison est jugée fusionnée avec la base rouge, verte, et mergée sous grant.
     await jusqua(() => dernier("merge.done", 501) !== undefined);
@@ -151,7 +166,7 @@ describe("une base rouge : rejeu automatique, puis ticket de réparation", { con
     assert.deepEqual(gh.creations, [501]);
   });
 
-  test("une réparation mergée qui laisse la base rouge met une ligne dans le bloc `awaiting` ; la base revenue au vert, la ligne en sort et la cuisine relance seule les tickets retenus", { skip: posixOnly("waits with a `jusqua` that never completes on the Windows runner (`Error: condition jamais remplie` at reparation.test.ts:165, run 40568364843, 3/4); cause not traced; listed in #1868") }, async (t) => {
+  test("une réparation mergée qui laisse la base rouge met une ligne dans le bloc `awaiting` ; la base revenue au vert, la ligne en sort et la cuisine relance seule les tickets retenus", async (t) => {
     const { journal, gh, base, essais, dernier, jusquAu, laisserTourner, lance, rougir } = service(t, { essais: { base: "rouge" } });
     const ligneDeLaBase = () => {
       const lignes = decrireEtat(lireEtat(journal, new Date()), new Date());
@@ -217,7 +232,7 @@ describe("une base rouge : rejeu automatique, puis ticket de réparation", { con
     return lignes.slice(lignes.findIndex((ligne) => ligne.startsWith("awaiting")), lignes.indexOf("end awaiting")).filter((ligne) => ligne.startsWith("  base  "));
   };
 
-  test("une réparation fermée par la PR mergée qui corrige la base n'a pas « quitté le rail sans être servie » : elle est servie, la base est contrôlée sur la tête où le merge l'a laissée, et verte, la cuisine repart seule", { skip: posixOnly("waits with a `jusqua` that never completes on the Windows runner (`Error: condition jamais remplie` at reparation.test.ts:239, run 40568364843, 3/4); cause not traced; listed in #1868") }, async (t) => {
+  test("une réparation fermée par la PR mergée qui corrige la base n'a pas « quitté le rail sans être servie » : elle est servie, la base est contrôlée sur la tête où le merge l'a laissée, et verte, la cuisine repart seule", async (t) => {
     const { journal, gh, base, essais, jusquAu, laisserTourner, lance, rougir } = service(t, { essais: { base: "rouge" }, scenario: "attend" });
     rougir();
     gh.poser(issue(18));
