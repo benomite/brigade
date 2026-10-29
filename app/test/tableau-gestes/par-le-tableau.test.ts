@@ -1,12 +1,9 @@
-// Le critère du ticket 1845 : sans `ssh` — aucun dans le PATH, aucun `hote` au projet —, régler le plafond, arrêter et
-// relancer une station, commenter depuis une carte et demander au second aboutissent, et l'app dit ce qu'il en est ; le
+// Le critère du ticket 1845 : régler le plafond, arrêter et relancer une station, commenter depuis une carte et demander au second aboutissent, et l'app dit ce qu'il en est ; le
 // second lit la file du projet à son ouverture. Chaque geste est joué par le module que le process principal appelle
 // pour lui (main.ts) ; il part sur le tableau de la cuisine, et c'est une vraie box qui le joue : le runtime, son tick
-// et ses gestes du tableau branchés comme runtime/src/main.ts les branche (runtime/test/tableau/gestes/sans-ssh.test.ts).
+// et ses gestes du tableau branchés comme runtime/src/main.ts les branche.
 // Entre les deux, GitHub est une doublure : les commentaires sous le tableau et son corps, que la box réécrit.
 import assert from "node:assert/strict";
-import { chmodSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import type { Fait } from "../../../runtime/src/evenements.ts";
 import { demanderAuSecond as composerLaDemande } from "../../../runtime/src/issue-ticket.ts";
@@ -34,26 +31,8 @@ const STATION = "box/claude";
 const NUMERO = 1;
 const CHEF = "acme";
 const MINUTE = 60_000;
-// Le projet tel que le fichier des projets le déclare : ni `hote`, ni box.
+// Le projet tel que le fichier des projets le déclare.
 const DECLARE = { nom: PROJET, dossier: "/projets/brigade" };
-
-// Ni `ssh` dans le PATH, ni `hote` : le `ssh` que l'app lancerait (`BRIGADE_SSH_BIN`) note chaque appel et échoue.
-function sansSsh(t: TestContext): () => boolean {
-  const dossier = repertoireTemporaire(t);
-  const vide = join(dossier, "rien");
-  mkdirSync(vide);
-  const appels = join(dossier, "appels-ssh");
-  const ssh = join(dossier, process.platform === "win32" ? "ssh.cmd" : "ssh");
-  writeFileSync(ssh, process.platform === "win32" ? `@echo %* >> "${appels}"\r\n@exit /b 255\r\n` : `#!/bin/sh\necho "$@" >> '${appels}'\nexit 255\n`);
-  chmodSync(ssh, 0o755);
-  const avant = { PATH: process.env.PATH, BRIGADE_SSH_BIN: process.env.BRIGADE_SSH_BIN };
-  process.env.PATH = vide;
-  process.env.BRIGADE_SSH_BIN = ssh;
-  t.after(() => {
-    for (const [cle, valeur] of Object.entries(avant)) valeur === undefined ? delete process.env[cle] : (process.env[cle] = valeur);
-  });
-  return () => existsSync(appels);
-}
 
 // La box du projet, son tableau sur GitHub, et l'app qui y poste ses gestes et les suit. `second` : le second du projet,
 // quand la box le tient.
@@ -142,20 +121,17 @@ async function cuisine(t: TestContext, { second = null }: { second?: SecondDuTab
   return { auTableau, appeler, postes, compte, gh, laStation, stations: () => (bloc().faits?.stations ?? []) as StationDesFaits[] };
 }
 
-describe("sans ssh, les gestes qui passaient par la box partent par le tableau de la cuisine, et l'app dit ce qu'il en est", () => {
+describe("les gestes de la box partent par le tableau de la cuisine, et l'app dit ce qu'il en est", () => {
   test("régler le plafond de cooks : `/brigade cooks 3`, joué par la box — l'app dit le plafond neuf, le tableau aussi", async (t) => {
-    const sshAppele = sansSsh(t);
     const c = await cuisine(t);
     assert.equal(c.laStation().plafond, 2);
     const rendu = await reglerLePlafond([PROJET], "3", (_projet, decision) => c.auTableau(decision));
     assert.deepEqual(rendu, { fait: "the cap is 3" });
     assert.deepEqual(c.postes, ["/brigade cooks 3"]);
     assert.equal(c.laStation().plafond, 3);
-    assert.equal(sshAppele(), false, "aucun ssh n'est lancé");
   });
 
   test("arrêter puis relancer une station : `/brigade station stop|start`, joué par la box — la ligne dit ce qui est fait", async (t) => {
-    const sshAppele = sansSsh(t);
     const c = await cuisine(t);
     assert.equal(c.laStation().cuisson, "cooking");
     const arretee = await cuireSurLaStation(PROJET, c.stations(), STATION, "stop", c.auTableau);
@@ -167,11 +143,9 @@ describe("sans ssh, les gestes qui passaient par la box partent par le tableau d
     assert.equal(relancee.fait, `${STATION} cooks ${PROJET} again: it takes its tickets at the runtime's next read`);
     assert.equal(c.laStation().cuisson, "cooking");
     assert.deepEqual(c.postes, [`/brigade station stop ${STATION}`, `/brigade station start ${STATION}`]);
-    assert.equal(sshAppele(), false, "aucun ssh n'est lancé");
   });
 
   test("commenter depuis une carte : la box poste le commentaire sur l'issue, mot pour mot, sous le compte du chef — l'app dit ce qu'il coûte", async (t) => {
-    const sshAppele = sansSsh(t);
     const c = await cuisine(t);
     const rendu = await commenter(c.auTableau, DECLARE, 30, "  The CSV export misses the header row.\r\n\r\nSee the attached file.  ");
     assert.ok(rendu.poste, JSON.stringify(rendu));
@@ -180,11 +154,9 @@ describe("sans ssh, les gestes qui passaient par la box partent par le tableau d
     assert.deepEqual(c.gh.commentaires, []);
     const refuse = await commenter(c.auTableau, DECLARE, 99, "Hello");
     assert.deepEqual(refuse, { poste: false, refus: "nothing was posted: #99 has no GitHub issue: it does not exist, or is gone" });
-    assert.equal(sshAppele(), false, "aucun ssh n'est lancé");
   });
 
   test("demander au second : la box compose la demande et la publie — l'app la reçoit, telle qu'elle l'écrira dans le second", async (t) => {
-    const sshAppele = sansSsh(t);
     const c = await cuisine(t);
     const attendue = await composerLaDemande(fauxGitHub(issue(30)).github, 30, "the export is slow\non big files");
     assert.ok(attendue.done);
@@ -193,24 +165,20 @@ describe("sans ssh, les gestes qui passaient par la box partent par le tableau d
     assert.deepEqual([c.gh.commentaires, c.compte.commentaires], [[], []], "rien n'est posté sur l'issue");
     const absente = await demanderAuSecond(c.auTableau, DECLARE, 99, "");
     assert.ok("refus" in absente && absente.refus.startsWith("nothing was written: #99 has no GitHub issue"), JSON.stringify(absente));
-    assert.equal(sshAppele(), false, "aucun ssh n'est lancé");
   });
 
   test("demander au second, quand la box le tient : elle le lui envoie, et l'app dit où vient sa réponse", async (t) => {
-    sansSsh(t);
     const c = await cuisine(t, { second: { demander: async () => ({ repondu: true, texte: "It is the CSV writer." }) } });
     const rendu = await demanderAuSecond(c.auTableau, DECLARE, 30, "");
     assert.ok("auSecond" in rendu, JSON.stringify(rendu));
   });
 
   test("à son ouverture, le second lit la file du projet sur le tableau : le bloc `awaiting` que la box publie, mot pour mot", async (t) => {
-    const sshAppele = sansSsh(t);
     const c = await cuisine(t);
     const lue = await lireLaFile(c.appeler, DEPOT);
     assert.ok(lue.lue, JSON.stringify(lue));
     const contexte = contexteDeLaFile({ nom: PROJET, depot: DEPOT }, lue);
     assert.match(contexte, /\n\nawaiting {3}nothing awaits the chef\nend awaiting\n\nproject {4}brigade\n/);
     assert.doesNotMatch(contexte, /file non lue/);
-    assert.equal(sshAppele(), false, "aucun ssh n'est lancé");
   });
 });

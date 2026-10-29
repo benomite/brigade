@@ -1,9 +1,7 @@
 // Un projet qui cuit sur cet ordinateur (#1122) : la station de ce poste le sert — il a sa ligne
-// dans sa configuration —, et l'app le lit ici, par le geste de cette station, sans `ssh` ni
-// `hote`, au même rythme qu'une box. Le lieu vivant l'emporte sur `app.json` : une cuisine qui
-// passe de la box à cet ordinateur, ou l'inverse, est lue à sa nouvelle place dès la lecture
-// suivante. Les faux `ssh` de ces tests posent une marque s'ils sont lancés : aucun test n'attend
-// une durée — il attend une lecture.
+// dans sa configuration —, et l'app le lit ici, par le geste de cette station, à la cadence de la
+// veille. Le lieu vivant est celui de la station, jamais `app.json` : une cuisine qui arrive sur
+// cet ordinateur est lue dès la lecture suivante. Aucun test n'attend une durée — il attend une lecture.
 import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -19,21 +17,18 @@ import { SANS_POSIX } from "./aides/posix.ts";
 const RUNTIME = join(import.meta.dirname, "../../runtime");
 
 // Un poste d'essai : le répertoire de sa station, un faux `node` qui joue son geste — il note ce
-// qu'il a reçu et répond comme le runtime —, et un faux `ssh` qui laisse sa marque s'il est lancé.
+// qu'il a reçu et répond comme le runtime —, ce qu'il rend est ce que le vrai geste rendrait.
 function essai(t: TestContext, { intervalleMs = 3_600_000 } = {}) {
   const racine = mkdtempSync(join(tmpdir(), "brigade-app-ici-"));
   const station = join(racine, "station");
   const node = join(racine, "node");
-  const ssh = join(racine, "ssh");
   writeFileSync(
     node,
     `#!/bin/sh\nprintf '%s|%s|%s\\n' "$PWD" "$BRIGADE_STATION_DIR" "$*" >> '${racine}/node-lance'\nshift\nprintf 'projet     %s\\nici        %s\\n' "$1" "$2"\n`,
   );
-  writeFileSync(ssh, `#!/bin/sh\nprintf '%s\\n' "$*" >> '${racine}/ssh-lance'\ncase "$*" in *" status") printf 'projet     sur la box\\n' ;; esac\n`);
   chmodSync(node, 0o755);
-  chmodSync(ssh, 0o755);
   const locale: Locale = { node, runtime: join(racine, "runtime"), racine: station, env: { PATH: process.env.PATH } };
-  // Le geste se lance depuis le dossier du runtime, comme celui d'une box.
+  // Le geste se lance depuis le dossier du runtime.
   mkdirSync(locale.runtime);
   // Les lignes de la configuration de la station, telles qu'elle les écrit : aucune, sans fichier.
   const servir = (...lignes: string[]) => {
@@ -48,10 +43,8 @@ function essai(t: TestContext, { intervalleMs = 3_600_000 } = {}) {
   const lectures: Lecture[] = [];
   let attendue: (() => void) | undefined;
   const veille = ouvrirVeille({
-    ssh,
     intervalleMs,
     delaiMs: 60_000,
-    connexionS: 10,
     cuisine: cuisines.cuisineDe,
     surLecture(lecture) {
       lectures.push(lecture);
@@ -90,24 +83,23 @@ describe("où cuit un projet : la configuration de la station de cet ordinateur"
     assert.deepEqual(servisPar(racine), ["mirrorlab", "espace"]);
   });
 
-  test("le lieu vivant l'emporte : servi ici, il se lit ici même avec un « hote » ; sinon sur sa box ; sans « hote », nulle part", (t) => {
+  test("le lieu vivant est celui de la station : servi ici, un projet se lit ici ; sinon, nulle part", (t) => {
     const { servir, cuisines, locale } = essai(t);
-    const avecBox = { nom: "espace", box: { hote: "box" } };
-    const sansBox = { nom: "mirrorlab" };
-    assert.deepEqual(cuisines.cuisineDe(avecBox), { hote: "box" });
-    assert.equal(cuisines.cuisineDe(sansBox), undefined);
+    const espace = { nom: "espace" };
+    const mirrorlab = { nom: "mirrorlab" };
+    assert.equal(cuisines.cuisineDe(espace), undefined);
+    assert.equal(cuisines.cuisineDe(mirrorlab), undefined);
     servir("mirrorlab BOBL-tech/mirrorlab main", "espace benomite/espace main");
-    assert.deepEqual(cuisines.cuisineDe(avecBox), { locale });
-    assert.deepEqual(cuisines.cuisineDe(sansBox), { locale });
+    assert.deepEqual(cuisines.cuisineDe(espace), { locale });
+    assert.deepEqual(cuisines.cuisineDe(mirrorlab), { locale });
     assert.equal(cuisines.ici("mirrorlab"), true);
     assert.equal(cuisines.ici("cantine"), false);
   });
 
-  test("une app qui n'est pas une station ne lit rien ici : chaque projet reste sur sa box", (t) => {
+  test("une app qui n'est pas une station ne lit rien ici : aucun projet n'y est lu", (t) => {
     const { servir } = essai(t);
     servir("espace benomite/espace main");
     const poste = tenirCuisinesIci({ locale: undefined });
-    assert.deepEqual(poste.cuisineDe({ nom: "espace", box: { hote: "box" } }), { hote: "box" });
     assert.equal(poste.cuisineDe({ nom: "espace" }), undefined);
     assert.equal(poste.ici("espace"), false);
   });
@@ -129,8 +121,8 @@ describe("où cuit un projet : la configuration de la station de cet ordinateur"
   });
 });
 
-describe("un projet qui cuit ici se lit sans ssh, comme une box", () => {
-  test("sans « hote », sa lecture part par le geste de la station de ce poste — dans le dossier du runtime, avec son répertoire — et aucun ssh n'est lancé", { skip: SANS_POSIX }, async (t) => {
+describe("un projet qui cuit ici se lit par le geste de la station de ce poste", () => {
+  test("sa lecture part par le geste de la station de ce poste — dans le dossier du runtime, avec son répertoire", { skip: SANS_POSIX }, async (t) => {
     const { veille, jusqua, lu, servir, locale } = essai(t);
     servir("mirrorlab BOBL-tech/mirrorlab main");
     veille.regarder([{ nom: "mirrorlab", dossier: "/projets/mirrorlab" }], ["status", "station"], 3);
@@ -145,55 +137,36 @@ describe("un projet qui cuit ici se lit sans ssh, comme une box", () => {
     );
     assert.equal(texte(lecture), "projet     mirrorlab\nici        status\nprojet     mirrorlab\nici        station\n");
     assert.equal(lu("node-lance"), [`${locale.runtime}|${locale.racine}|${join(locale.runtime, GESTE)} mirrorlab status`, `${locale.runtime}|${locale.racine}|${join(locale.runtime, GESTE)} mirrorlab station`, ""].join("\n"));
-    assert.equal(lu("ssh-lance"), "", "aucun ssh pour un projet qui cuit ici");
   });
 
-  test("il se relit au rythme de la veille, comme une box — et jamais par ssh", { skip: SANS_POSIX }, async (t) => {
-    const { veille, jusqua, lu, servir, lectures } = essai(t, { intervalleMs: 5 });
+  test("il se relit au rythme de la veille", { skip: SANS_POSIX }, async (t) => {
+    const { veille, jusqua, servir, lectures } = essai(t, { intervalleMs: 5 });
     servir("mirrorlab BOBL-tech/mirrorlab main");
     veille.regarder([{ nom: "mirrorlab", dossier: "/projets/mirrorlab" }], ["status"], 1);
     await jusqua(() => lectures.length >= 3);
     assert.ok(lectures.every((lecture) => "sorties" in lecture));
-    assert.equal(lu("ssh-lance"), "", "aucun ssh pour un projet qui cuit ici");
   });
 
-  test("sa cuisine passe de la box à cet ordinateur, puis y revient : la lecture suivante suit, sans que rien ne change du projet déclaré", { skip: SANS_POSIX }, async (t) => {
-    const { veille, jusqua, lu, servir, lectures } = essai(t, { intervalleMs: 5 });
-    // Le même projet, tel que `app.json` le déclare d'un bout à l'autre : avec son « hote ».
-    const espace = { nom: "espace", dossier: "/projets/espace", box: { hote: "box" } };
-    veille.regarder([espace], ["status"], 1);
-
-    await jusqua((lecture) => texte(lecture) === "projet     sur la box\n");
-    assert.match(lu("ssh-lance"), /-- box brigade espace status/);
+  test("sa cuisine arrive sur cet ordinateur : rien n'est lu d'elle avant, la lecture suivante la lit ici", { skip: SANS_POSIX }, async (t) => {
+    const { veille, jusqua, lu, servir } = essai(t, { intervalleMs: 5 });
+    veille.regarder([{ nom: "espace", dossier: "/projets/espace" }], ["status"], 1);
     assert.equal(lu("node-lance"), "");
 
-    // La box → cet ordinateur.
     servir("espace benomite/espace main");
     const ici = await jusqua((lecture) => texte(lecture).startsWith("projet     espace\n"));
-    const sshAvant = lu("ssh-lance");
-    // La lecture d'après est encore ici : la box n'est plus jointe.
-    await jusqua((lecture) => lectures.indexOf(lecture) > lectures.indexOf(ici) && texte(lecture).startsWith("projet     espace\n"));
-    assert.equal(lu("ssh-lance"), sshAvant, "plus aucun ssh tant qu'il cuit ici");
-
-    // Cet ordinateur → la box.
-    servir();
-    const retour = await jusqua((lecture) => lectures.indexOf(lecture) > lectures.indexOf(ici) && texte(lecture) === "projet     sur la box\n");
-    assert.ok(lectures.indexOf(retour) > lectures.indexOf(ici));
-    assert.ok(lu("ssh-lance").length > sshAvant.length, "de nouveau lu par ssh sur sa box");
+    assert.equal(ici.projet, "espace");
+    assert.match(lu("node-lance"), /espace status/);
   });
 
-  test("le vrai geste de la station : lancé ici, un projet qu'elle ne sert pas est refusé par son code — atteinte, et le cas dit, sans ssh", async (t) => {
+  test("le vrai geste de la station : lancé ici, un projet qu'elle ne sert pas est refusé par son code — atteinte, et le cas dit", async (t) => {
     const racine = mkdtempSync(join(tmpdir(), "brigade-app-geste-"));
     t.after(() => rmSync(racine, { recursive: true, force: true }));
     writeFileSync(join(racine, "projets"), "autre benomite/autre main\n");
-    const ssh = join(racine, "ssh");
-    writeFileSync(ssh, `#!/bin/sh\ntouch '${racine}/ssh-lance'\nexit 255\n`);
-    chmodSync(ssh, 0o755);
     const locale: Locale = { node: process.execPath, runtime: RUNTIME, racine, env: { PATH: process.env.PATH, HOME: racine, ...CACHE_DE_COMPILATION } };
     let recue: ((lecture: Lecture) => void) | undefined;
     const lue = new Promise<Lecture>((resoudre) => (recue = resoudre));
     // Ce que la station sert est lu en vrai : ici, elle croit servir « mirrorlab », sa configuration dit le contraire.
-    const veille = ouvrirVeille({ ssh, intervalleMs: 3_600_000, delaiMs: 60_000, connexionS: 10, cuisine: () => ({ locale }), surLecture: (lecture) => recue?.(lecture) });
+    const veille = ouvrirVeille({ intervalleMs: 3_600_000, delaiMs: 60_000, cuisine: () => ({ locale }), surLecture: (lecture) => recue?.(lecture) });
     t.after(() => veille.fermer());
     veille.regarder([{ nom: "mirrorlab", dossier: "/projets/mirrorlab" }], ["status"], 1);
 
@@ -203,7 +176,6 @@ describe("un projet qui cuit ici se lit sans ssh, comme une box", () => {
     assert.equal(lecture.cas, "projet-inconnu");
     assert.match(lecture.erreur, /« mirrorlab » n'a pas de ligne dans sa configuration/);
     assert.match(lecture.erreur, /→ exit code 65$/);
-    assert.equal(existsSync(join(racine, "ssh-lance")), false, "aucun ssh");
   });
 
   test("les mots d'une commande sont ceux qu'un shell donnerait au geste", () => {
@@ -214,13 +186,12 @@ describe("un projet qui cuit ici se lit sans ssh, comme une box", () => {
 });
 
 describe("ce que la vue en reçoit", () => {
-  test("la barre marque `ici` le projet qui cuit sur cet ordinateur — jamais celui que l'app a désinstallé", () => {
+  test("la barre marque `ici` le projet qui cuit sur cet ordinateur, et seul celui-là est lu par les pages de l'app", () => {
     const configuration = {
       chemin: "/tmp/app.json",
       projets: [
         { nom: "mirrorlab", dossier: "/p/m" },
-        { nom: "espace", dossier: "/p/e", box: { hote: "box" } },
-        { nom: "parti", dossier: "/p/p", desinstalle: { hote: "box", a: "2026-10-20T10:00:00Z", titre: "uninstalled", lignes: [] } },
+        { nom: "espace", dossier: "/p/e" },
       ],
     };
     const ici = (nom: string) => nom !== "espace";
@@ -230,12 +201,11 @@ describe("ce que la vue en reçoit", () => {
       [
         ["mirrorlab", true],
         ["espace", undefined],
-        ["parti", undefined],
       ],
     );
     assert.deepEqual(
       projetsLus(COUTS, undefined, vus).map(({ nom }) => nom),
-      ["mirrorlab", "espace"],
+      ["mirrorlab"],
     );
   });
 });

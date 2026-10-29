@@ -12,7 +12,6 @@ import { describe, test } from "node:test";
 import type { CarteVue } from "../../../runtime/src/etat.ts";
 import { ALLUMAGE } from "../../src/allumage.ts";
 import { pourLaBarre } from "../../src/barre.ts";
-import { BOUTONS } from "../../src/boutons.ts";
 import { carteDeTodo, carteLue, type Rendu } from "../../src/carte-todo.ts";
 import { EXEMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
@@ -92,12 +91,11 @@ const FORME = {
 };
 
 const demarrage = () => ({
-  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade", box: { hote: "box" } }], hotes: ["box"] }),
+  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }, () => true),
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  boutons: BOUTONS,
   gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
@@ -257,7 +255,7 @@ describe("la carte de TODO, sur le rail du projet", () => {
   });
 
   test("refusée, la carte reste dans TODO avec ses gestes, et dit pourquoi en une ligne — le détail au survol", async () => {
-    const detail = "$ ssh -o BatchMode=yes -- box brigade parade rail choose 21 1\n#21 is not touched: a cook is working on #21\n→ exit code 1";
+    const detail = "$ node geste.ts parade rail choose 21 1\n#21 is not touched: a cook is working on #21\n→ exit code 1";
     const vue = await ouvrir({ repondreCarte: () => ({ refus: "nothing was recorded — #21 is not touched: a cook is working on #21", detail }) });
     recevoir(vue);
     choix(carte(vue, 21))[0]?.click();

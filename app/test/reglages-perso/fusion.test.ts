@@ -48,7 +48,7 @@ describe("rejouer : ce que le gist porte après un changement fait ici", () => {
   });
 
   test("aucune clé de l'appareil ne sort, même d'un fichier qui en porte", () => {
-    const ici = { hotes: ["box.lan"], projets: [{ nom: "cuisine", dossier: "/Users/chef/cuisine", hote: "box.lan", stations: ["mac/claude"], ordinaires: true, limiteCooks: 2, couleurs: { onglet: "#f2994a" } }] };
+    const ici = { projets: [{ nom: "cuisine", dossier: "/Users/chef/cuisine", ordinaires: true, limiteCooks: 2, couleurs: { onglet: "#f2994a" } }] };
     assert.deepEqual(rejouer({}, undefined, ici), { projets: [{ nom: "cuisine", couleurs: { onglet: "#f2994a" } }] });
     assert.deepEqual(rejouer({}, { projets: [] }, ici), { projets: [{ nom: "cuisine", couleurs: { onglet: "#f2994a" } }] });
   });
@@ -56,10 +56,9 @@ describe("rejouer : ce que le gist porte après un changement fait ici", () => {
 
 describe("poser : le fichier de l'app avec les préférences du gist", () => {
   const FICHIER = {
-    hotes: ["box.lan"],
     affichage: { densite: "aeree" },
     projets: [
-      { nom: "cuisine", dossier: "/Users/chef/cuisine", hote: "box.lan", couleurs: { onglet: "#000000" }, ordinaires: true },
+      { nom: "cuisine", dossier: "/Users/chef/cuisine", couleurs: { onglet: "#000000" }, ordinaires: true },
       { nom: "ici-seulement", dossier: "/Users/chef/ici", couleurs: { onglet: "#111111" } },
       { nom: "salle", dossier: "/Users/chef/salle" },
     ],
@@ -68,32 +67,29 @@ describe("poser : le fichier de l'app avec les préférences du gist", () => {
   test("les préférences du gist, les clés de l'appareil du fichier, chaque clé à sa place", () => {
     const pose = poser(FICHIER, { affichage: { densite: "serree" }, projets: [{ nom: "salle", couleurs: { onglet: "#4caf50" } }, { nom: "cuisine", couleurs: { onglet: "#f2994a" } }, { nom: "ailleurs" }] });
     assert.deepEqual(pose, {
-      hotes: ["box.lan"],
       affichage: { densite: "serree" },
       projets: [
         { nom: "salle", dossier: "/Users/chef/salle", couleurs: { onglet: "#4caf50" } },
         { nom: "ici-seulement", dossier: "/Users/chef/ici", couleurs: { onglet: "#111111" } },
-        { nom: "cuisine", dossier: "/Users/chef/cuisine", hote: "box.lan", couleurs: { onglet: "#f2994a" }, ordinaires: true },
+        { nom: "cuisine", dossier: "/Users/chef/cuisine", couleurs: { onglet: "#f2994a" }, ordinaires: true },
       ],
     });
-    assert.deepEqual(Object.keys((pose.projets as object[])[2]!), ["nom", "dossier", "hote", "couleurs", "ordinaires"]);
+    assert.deepEqual(Object.keys((pose.projets as object[])[2]!), ["nom", "dossier", "couleurs", "ordinaires"]);
     // Le fichier lu n'est pas touché.
     assert.deepEqual(FICHIER.projets[0]!.couleurs, { onglet: "#000000" });
   });
 
   test("une préférence que le gist n'a plus quitte le fichier ; les clés de l'appareil restent", () => {
     // Un gist sans projets ne dit rien des projets : ils restent tels quels.
-    assert.deepEqual(poser(FICHIER, {}), { hotes: FICHIER.hotes, projets: FICHIER.projets });
+    assert.deepEqual(poser(FICHIER, {}), { projets: FICHIER.projets });
     const pose = poser(FICHIER, { projets: [{ nom: "cuisine" }] });
     assert.equal("affichage" in pose, false);
-    assert.deepEqual(pose.hotes, ["box.lan"]);
-    assert.deepEqual((pose.projets as object[])[0], { nom: "cuisine", dossier: "/Users/chef/cuisine", hote: "box.lan", ordinaires: true });
+    assert.deepEqual((pose.projets as object[])[0], { nom: "cuisine", dossier: "/Users/chef/cuisine", ordinaires: true });
   });
 
-  test("le dossier ou l'hôte écrits dans le gist ne remplacent pas ceux du fichier", () => {
-    const pose = poser(FICHIER, { hotes: ["autre.lan"], projets: [{ nom: "cuisine", dossier: "/ailleurs", hote: "autre.lan" }] } as never);
-    assert.deepEqual(pose.hotes, ["box.lan"]);
-    assert.deepEqual((pose.projets as object[])[0], { nom: "cuisine", dossier: "/Users/chef/cuisine", hote: "box.lan", ordinaires: true });
+  test("le dossier écrit dans le gist ne remplace pas celui du fichier", () => {
+    const pose = poser(FICHIER, { projets: [{ nom: "cuisine", dossier: "/ailleurs" }] } as never);
+    assert.deepEqual((pose.projets as object[])[0], { nom: "cuisine", dossier: "/Users/chef/cuisine", ordinaires: true });
   });
 });
 

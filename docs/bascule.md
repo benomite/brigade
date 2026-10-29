@@ -71,8 +71,8 @@ tickets compared before and after (`runtime/test/bascule/machine.test.ts`).
 
 ## The brigade command
 
-`/usr/local/bin/brigade` stays: it is how the app reads and drives the box's projects, over
-`ssh` — `brigade <project> <command> [arguments…]`, as before. The switchover points it at the
+`/usr/local/bin/brigade` stays: it is how the chef drives the box's projects, over
+`ssh` — `brigade <project> <command> [arguments…]`, as before (the desktop app does not use it: it runs no `ssh`). The switchover points it at the
 package's command, `/usr/lib/brigade-station/brigade`, and keeps the sudoers rule that gives it
 to humans ([`installer.md`](installer.md), "Add a human"). It runs the command under the
 account and in the environment of `brigade-station.service`, with what the station gives the

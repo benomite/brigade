@@ -51,30 +51,25 @@ describe("la configuration de l'app", () => {
     ]);
   });
 
-  test("un projet dit où est sa box par son seul hôte ssh — les autres n'en ont pas", (t) => {
-    const { racine, chemin } = configuration(t, {
-      projets: [
-        { nom: "servi", dossier: "~", hote: "box" },
-        { nom: "local", dossier: "~" },
-      ],
+  describe("les clés d'un fichier d'avant #1847, ignorées sans refus", () => {
+    test("« hote » (clé héritée) sur un projet, et « hotes » (clé héritée) et « stations » (clé héritée) à côté : le fichier est lu, ces clés ne sont pas reprises", (t) => {
+      const { racine, chemin } = configuration(t, {
+        hotes: ["box", "chef@autre-box"],
+        projets: [
+          { nom: "servi", dossier: "~", hote: "box", stations: ["mac/claude"] },
+          { nom: "local", dossier: "~" },
+        ],
+      });
+
+      assert.deepEqual(lireConfiguration(chemin, racine), { chemin, projets: [{ nom: "servi", dossier: racine }, { nom: "local", dossier: racine }] });
     });
 
-    assert.deepEqual(lireConfiguration(chemin, racine).projets, [
-      { nom: "servi", dossier: racine, box: { hote: "box" } },
-      { nom: "local", dossier: racine },
-    ]);
-  });
+    test("une clé héritée de n'importe quelle forme (« hote » vide, « hotes » qui n'est pas une liste) ne refuse plus le fichier", (t) => {
+      const { racine, chemin } = configuration(t, { hotes: "box", projets: [{ nom: "a", dossier: "~", hote: 22 }, { nom: "b", dossier: "~", hote: " " }] });
 
-  describe("les hôtes d'un fichier d'avant #983, toujours lus", () => {
-    test("une liste d'hôtes, chacun le nom par lequel ssh joint sa machine — dans l'ordre du fichier, et rien d'autre", (t) => {
-      const { racine, chemin } = configuration(t, { hotes: ["box", "chef@autre-box"], projets: [{ nom: "servi", dossier: "~", hote: "box" }] });
-
-      assert.deepEqual(lireConfiguration(chemin, racine), { chemin, projets: [{ nom: "servi", dossier: racine, box: { hote: "box" } }], hotes: ["box", "chef@autre-box"] });
-    });
-
-    test("un hôte écrit deux fois n'en fait qu'un, et une liste vide n'est pas un refus", (t) => {
-      assert.deepEqual(lireConfiguration(configuration(t, { hotes: ["box", "box"], projets: [] }).chemin).hotes, ["box"]);
-      assert.deepEqual(lireConfiguration(configuration(t, { hotes: [], projets: [] }).chemin).hotes, []);
+      const lu = lireConfiguration(chemin, racine);
+      assert.equal(lu.refus, undefined);
+      assert.deepEqual(lu.projets, [{ nom: "a", dossier: racine }, { nom: "b", dossier: racine }]);
     });
   });
 
@@ -88,7 +83,7 @@ describe("la configuration de l'app", () => {
       ]);
     });
 
-    test("ajoutés depuis l'app, ils s'écrivent avec le projet, sans hôte", (t) => {
+    test("ajoutés depuis l'app, ils s'écrivent avec le projet", (t) => {
       const racine = repertoire(t);
       const { chemin } = configuration(t, { projets: [] });
 
@@ -113,9 +108,8 @@ describe("la configuration de l'app", () => {
 
     assert.deepEqual(Object.keys(projet ?? {}), ["nom", "dossier", "depot", "base"]);
     for (const valeur of Object.values(projet ?? {})) assert.match(valeur, /^<.+>$/);
-    // Ni hôte ni station : un projet s'écrit sans dire qui fait sa cuisine (#983).
-    assert.equal((JSON.parse(EXEMPLE) as { hotes?: unknown }).hotes, undefined);
-    assert.doesNotMatch(EXEMPLE, /\bbox|ssh|\bstation/i);
+    // Aucune station : un projet s'écrit sans dire qui fait sa cuisine (#983).
+    assert.doesNotMatch(EXEMPLE, /\bbox|\bstation/i);
   });
 
   test("sans fichier, aucun projet — et la raison est dite", (t) => {
@@ -137,15 +131,10 @@ describe("la configuration de l'app", () => {
     ["un projet au nom vide", { projets: [{ nom: " ", dossier: "/tmp" }] }, /^project #1: “nom” is missing$/],
     ["un projet sans dossier", { projets: [{ nom: "a", dossier: "/tmp" }, { nom: "b" }] }, /^project #2 \(b\): “dossier” is missing$/],
     ["un dossier relatif", { projets: [{ nom: "a", dossier: "Dev/a" }] }, /^project #1 \(a\): “dossier” must be an absolute path, or start with ~\/$/],
-    ["un hôte qui n'est pas un texte", { projets: [{ nom: "a", dossier: "/tmp", hote: 22 }] }, /^project #1 \(a\): “hote” must be a non-empty string$/],
-    ["un hôte vide", { projets: [{ nom: "a", dossier: "/tmp", hote: " " }] }, /^project #1 \(a\): “hote” must be a non-empty string$/],
     // Le fichier d'avant : il n'est ni lu comme avant, ni ignoré.
-    ["un projet qui porte encore « commande »", { projets: [{ nom: "a", dossier: "/tmp" }, { nom: "b", dossier: "/tmp", hote: "box", commande: "sudo -u brigade npm" }] }, /^project #2 \(b\): “commande” is no longer read — remove it: the app runs the station's action \(`ssh <hote> brigade b <commande>`\), “hote” is all it needs$/],
-    ["une « commande » sans hôte", { projets: [{ nom: "a", dossier: "/tmp", commande: "" }] }, /^project #1 \(a\): “commande” is no longer read — remove it/],
+    ["un projet qui porte encore « commande »", { projets: [{ nom: "a", dossier: "/tmp" }, { nom: "b", dossier: "/tmp", commande: "sudo -u brigade npm" }] }, /^project #2 \(b\): “commande” is no longer read — remove it: the app sends the station's actions through the project's Kitchen board$/],
+    ["une « commande » seule", { projets: [{ nom: "a", dossier: "/tmp", commande: "" }] }, /^project #1 \(a\): “commande” is no longer read — remove it/],
     ["deux projets du même nom", { projets: [{ nom: "a", dossier: "/tmp" }, { nom: "a", dossier: "/var" }] }, /^two projects are named “a”$/],
-    ["autre chose qu'une liste d'hôtes", { hotes: "box", projets: [] }, /^“hotes” must be a list$/],
-    ["un hôte qui n'est pas un texte", { hotes: ["box", { hote: "autre" }], projets: [] }, /^host #2: must be a non-empty string — the name your ssh uses to reach a station$/],
-    ["un hôte vide", { hotes: [" "], projets: [] }, /^host #1: must be a non-empty string/],
   ];
   for (const [quoi, contenu, refus] of REFUSES) {
     test(`${quoi} : le fichier est refusé en entier, avec sa raison`, (t) => {
@@ -182,22 +171,22 @@ describe("la configuration de l'app", () => {
   });
 
   describe("un projet ajouté depuis l'app", () => {
-    test("il s'écrit à la suite des autres, dans la forme que le chef écrit à la main — sans « hote » s'il n'en a pas", (t) => {
+    test("il s'écrit à la suite des autres, dans la forme que le chef écrit à la main", (t) => {
       const racine = repertoire(t);
       const chemin = join(racine, "app.json");
       creerConfiguration(chemin);
 
-      assert.equal(ajouterProjet(chemin, { nom: " brigade ", dossier: racine, hote: " box " }), undefined);
-      assert.equal(ajouterProjet(chemin, { nom: "parade", dossier: racine, hote: " " }), undefined);
+      assert.equal(ajouterProjet(chemin, { nom: " brigade ", dossier: racine }), undefined);
+      assert.equal(ajouterProjet(chemin, { nom: "parade", dossier: racine }), undefined);
 
       assert.deepEqual(JSON.parse(readFileSync(chemin, "utf8")), {
         projets: [
-          { nom: "brigade", dossier: racine, hote: "box" },
+          { nom: "brigade", dossier: racine },
           { nom: "parade", dossier: racine },
         ],
       });
       assert.deepEqual(lireConfiguration(chemin).projets, [
-        { nom: "brigade", dossier: racine, box: { hote: "box" } },
+        { nom: "brigade", dossier: racine },
         { nom: "parade", dossier: racine },
       ]);
     });
@@ -235,7 +224,7 @@ describe("la configuration de l'app", () => {
       assert.equal(readFileSync(chemin, "utf8"), "{ projets: ");
     });
 
-    const AJOUTS_REFUSES: [string, { nom: string; dossier: string; hote?: string }, RegExp][] = [
+    const AJOUTS_REFUSES: [string, { nom: string; dossier: string }, RegExp][] = [
       ["sans nom", { nom: " ", dossier: "/" }, /^project #2: “nom” is missing$/],
       ["sans dossier", { nom: "b", dossier: "" }, /^project #2 \(b\): “dossier” is missing$/],
       ["du nom d'un autre", { nom: "a", dossier: "/" }, /^two projects are named “a”$/],
@@ -263,15 +252,13 @@ describe("la configuration de l'app", () => {
   });
 
   describe("un projet retiré depuis l'app", () => {
-    test("sa ligne quitte le fichier, et elle seule : les autres projets, les box déclarées et ce que l'app n'y lit pas restent", (t) => {
-      const { chemin } = configuration(t, { note: "à moi", hotes: ["box"], projets: [{ nom: "a", dossier: "~/Dev/a", hote: "box", couleur: "rouge" }, { nom: "b", dossier: "/b", hote: "box" }, { nom: "c", dossier: "/c" }] });
+    test("sa ligne quitte le fichier, et elle seule : les autres projets, ce que l'app n'y lit pas restent", (t) => {
+      const { chemin } = configuration(t, { note: "à moi", projets: [{ nom: "a", dossier: "~/Dev/a", couleur: "rouge" }, { nom: "b", dossier: "/b" }, { nom: "c", dossier: "/c" }] });
 
       assert.equal(retirerProjet(chemin, "b"), undefined);
 
-      assert.deepEqual(JSON.parse(readFileSync(chemin, "utf8")), { note: "à moi", hotes: ["box"], projets: [{ nom: "a", dossier: "~/Dev/a", hote: "box", couleur: "rouge" }, { nom: "c", dossier: "/c" }] });
-      // L'hôte reste déclaré, même si plus aucun projet ne le nomme.
+      assert.deepEqual(JSON.parse(readFileSync(chemin, "utf8")), { note: "à moi", projets: [{ nom: "a", dossier: "~/Dev/a", couleur: "rouge" }, { nom: "c", dossier: "/c" }] });
       assert.equal(retirerProjet(chemin, "a"), undefined);
-      assert.deepEqual(lireConfiguration(chemin).hotes, ["box"]);
     });
 
     test("un projet dont le dossier n'est plus là se retire comme un autre", (t) => {
@@ -317,11 +304,11 @@ describe("la configuration de l'app", () => {
     });
 
     test("chaque projet garde sa ligne entière, et le reste du fichier ne bouge pas — ce que l'app n'y lit pas compris", (t) => {
-      const { chemin } = configuration(t, { note: "à moi", hotes: ["box"], projets: [{ nom: "a", dossier: "~/Dev/a", hote: "box", couleur: "rouge" }, { nom: "b", dossier: "/b", couleurs: { onglet: "#a98cf2" } }] });
+      const { chemin } = configuration(t, { note: "à moi", projets: [{ nom: "a", dossier: "~/Dev/a", couleur: "rouge" }, { nom: "b", dossier: "/b", couleurs: { onglet: "#a98cf2" } }] });
 
       assert.equal(rangerProjet(chemin, "b", 0), undefined);
 
-      assert.deepEqual(JSON.parse(readFileSync(chemin, "utf8")), { note: "à moi", hotes: ["box"], projets: [{ nom: "b", dossier: "/b", couleurs: { onglet: "#a98cf2" } }, { nom: "a", dossier: "~/Dev/a", hote: "box", couleur: "rouge" }] });
+      assert.deepEqual(JSON.parse(readFileSync(chemin, "utf8")), { note: "à moi", projets: [{ nom: "b", dossier: "/b", couleurs: { onglet: "#a98cf2" } }, { nom: "a", dossier: "~/Dev/a", couleur: "rouge" }] });
     });
 
     test("un projet lâché à sa propre place ne réécrit pas le fichier", (t) => {

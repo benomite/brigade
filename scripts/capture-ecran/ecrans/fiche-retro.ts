@@ -59,7 +59,7 @@ export const ecran: Ecran = {
         situation: situationDe(carte),
         gestesDeFiche: gestesDeCarte(carte),
         lireHistoire: histoireDe(JSON.stringify(PASS)),
-        lireDiscussion: discussionDe({ lance: "ssh box brigade parade pass 9 issue", erreur: null, sortie: JSON.stringify(ISSUE), erreurs: "" }, 30_000),
+        lireDiscussion: discussionDe({ lance: "station parade pass 9 issue", erreur: null, sortie: JSON.stringify(ISSUE), erreurs: "" }, 30_000),
       },
       envois: cuisine(RENDUS),
     };

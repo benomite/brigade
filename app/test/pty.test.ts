@@ -110,14 +110,14 @@ describe("le second sur un vrai pty", { skip: SAUTE, concurrency: 8 }, () => {
     assert.ok(second);
     await jusqua(() => sortie(second.id).includes("sur un terminal"), () => sortie(second.id));
 
-    terminaux.inscrire(projet, "!ssh box brigade essai garde-fous stop");
+    terminaux.inscrire(projet, "!brigade essai garde-fous stop");
     // Le curseur est après : ce que le chef tape s'y ajoute, et c'est son Entrée qui envoie.
     terminaux.ecrire(second.id, " # relu\r");
-    await jusqua(() => sortie(second.id).includes("reçu : !ssh"), () => sortie(second.id));
+    await jusqua(() => sortie(second.id).includes("reçu : !brigade"), () => sortie(second.id));
 
     // Le rôle, lu au démarrage avec `--continue`, puis une seule ligne, et entière : rien d'autre n'était parti avant.
     assert.deepEqual(sortie(second.id).match(/rôle : [^\r\n]*/g), [`rôle : ${PREMIERE_LIGNE_DU_ROLE}`]);
-    assert.deepEqual(sortie(second.id).match(/reçu : [^\r\n]*/g), ["reçu : !ssh box brigade essai garde-fous stop # relu"]);
+    assert.deepEqual(sortie(second.id).match(/reçu : [^\r\n]*/g), ["reçu : !brigade essai garde-fous stop # relu"]);
   });
 
   test("le second quitté est dit arrêté ; une touche le relance, et il reprend le fil qu'il avait laissé", { skip: SANS_POSIX }, async (t) => {

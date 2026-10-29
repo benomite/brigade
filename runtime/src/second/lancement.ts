@@ -15,7 +15,7 @@
 // Le plan rend toujours l'un de deux états, et ne lève pas :
 //   - `ready` : `launch` — `command`, `args`, `verbatim`, `folder` et `env`, ce
 //     qu'il faut ajouter à l'environnement du chef. Un outil qui manque sans
-//     empêcher le second de partir (`gh`, `ssh`, et `git` hors de Windows) est
+//     empêcher le second de partir (`gh`, et `git` hors de Windows) est
 //     dit dans `missing`, avec `reason` : le second part, et le dit ;
 //   - `cannot-start` : `cause` (stable : `tools-missing` — `claude`, ou sous
 //     Windows `git`, manque —, `git-bash-missing`, `folder-missing`, `invalid`,
@@ -34,8 +34,7 @@
 //   node runtime/src/second/lancement.ts <dossier du projet> [-- <arguments de claude>…]
 //
 // qui rend le plan en une ligne JSON — code 0 quand le second peut partir, 1
-// sinon. `BRIGADE_CLAUDE_BIN` (et `BRIGADE_GH_BIN`, `BRIGADE_GIT_BIN`,
-// `BRIGADE_SSH_BIN`) nomment les programmes des outils.
+// sinon. `BRIGADE_CLAUDE_BIN` (et `BRIGADE_GH_BIN`, `BRIGADE_GIT_BIN`) nomment les programmes des outils.
 import { statSync } from "node:fs";
 import { constants } from "node:os";
 import { resolve, win32 } from "node:path";

@@ -11,7 +11,6 @@ import { describe, test } from "node:test";
 import type { Faits as FaitsDuRuntime } from "../../runtime/src/etat.ts";
 import { ALLUMAGE } from "../src/allumage.ts";
 import { pourLaBarre } from "../src/barre.ts";
-import { BOUTONS } from "../src/boutons.ts";
 import { EXEMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
@@ -28,14 +27,13 @@ import { type Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "./aides/
 const A = "2026-10-20T10:04:12.000Z";
 const PARADE = "parade";
 const SECOND: Terminal = { id: 1, projet: PARADE, genre: "second", titre: "second · claude", note: "fil repris", arrete: false };
-const PROJETS = [{ nom: PARADE, dossier: "/tmp/parade", box: { hote: "box" } }];
+const PROJETS = [{ nom: PARADE, dossier: "/tmp/parade" }];
 const demarrage = () => ({
-  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: PROJETS, hotes: ["box"] }),
+  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: PROJETS }, () => true),
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  boutons: BOUTONS,
   gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
@@ -241,12 +239,12 @@ describe("l'onglet Cooks : une ligne par station du projet", () => {
     const relectures = vue.appels.filter(({ geste }) => geste === "relireBox").length;
     boutonDe(ligne(vue, "atelier/claude"))?.click();
     await repos();
-    reponses[0]?.rendre({ refus: "atelier/claude did not stop: the runtime did not take it — nothing was changed", detail: "$ ssh box brigade parade station stop atelier/claude\nbrigade : unknown station" });
+    reponses[0]?.rendre({ refus: "atelier/claude did not stop: the runtime did not take it — nothing was changed", detail: "$ node geste.ts parade station stop atelier/claude\nbrigade : unknown station" });
     await repos();
     const dit = ligne(vue, "atelier/claude").dessous("p").find((p) => p.className === "dit refus") ?? assert.fail("pas de ligne de refus");
     assert.equal(dit.textContent, "atelier/claude did not stop: the runtime did not take it — nothing was changed");
     assert.match(dit.title, /unknown station/);
-    assert.doesNotMatch(ligne(vue, "atelier/claude").textContent, /ssh|brigade :/);
+    assert.doesNotMatch(ligne(vue, "atelier/claude").textContent, /node geste|brigade :/);
     assert.equal(vue.appels.filter(({ geste }) => geste === "relireBox").length, relectures);
     assert.equal(boutonDe(ligne(vue, "atelier/claude"))?.textContent, "stop cooking");
     assert.equal(boutonDe(ligne(vue, "atelier/claude"))?.disabled, false);
@@ -299,7 +297,7 @@ describe("l'onglet Cooks : un bloc par station, et les cartes de ses tickets en 
     // Aucune sortie brute de commande dans un bloc : ni `pre`, ni ligne lancée, ni code de sortie.
     for (const bloc of lignes(vue)) {
       assert.deepEqual(bloc.dessous("pre"), []);
-      assert.doesNotMatch(bloc.textContent, /\$ |ssh |stderr|stdout|exit code|brigade :/);
+      assert.doesNotMatch(bloc.textContent, /\$ |stderr|stdout|exit code|brigade :/);
     }
   });
 

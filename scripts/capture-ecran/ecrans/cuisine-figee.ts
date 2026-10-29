@@ -6,8 +6,8 @@ import type { Faits } from "../../../app/src/faits.ts";
 import type { Rendu } from "./commun.ts";
 
 export const PROJETS: Projet[] = [
-  { nom: "parade", dossier: "/Users/chef/code/parade", box: { hote: "box" }, couleurs: { onglet: "#f2994a", accent: "#f2994a" } },
-  { nom: "cantine", dossier: "/Users/chef/code/cantine", box: { hote: "box" }, couleurs: { onglet: "#4fc7b5", accent: "#4fc7b5" } },
+  { nom: "parade", dossier: "/Users/chef/code/parade", couleurs: { onglet: "#f2994a", accent: "#f2994a" } },
+  { nom: "cantine", dossier: "/Users/chef/code/cantine", couleurs: { onglet: "#4fc7b5", accent: "#4fc7b5" } },
 ];
 
 const issue = (ticket: number) => `https://github.com/chef/parade/issues/${ticket}`;

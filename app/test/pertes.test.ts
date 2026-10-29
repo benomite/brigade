@@ -22,13 +22,14 @@ import { ouvrirJournal } from "../../runtime/src/journal.ts";
 import { principal as manager } from "../../runtime/src/manager-cli.ts";
 import { ECHECS_POUR_ALERTER, signalDe, tenirBandes, type Alerte, type Bande } from "../src/alertes.ts";
 import { mettreAPart } from "../src/attend.ts";
-import type { Lecture, Rendu } from "../src/box.ts";
+import type { Cuisine, Lecture, Rendu } from "../src/box.ts";
 import type { Projet } from "../src/config.ts";
 import { verdictDesConstats, verdictDeLaPanne } from "../../runtime/src/verdict.ts";
 import { COMMANDES, JUGEMENT, tenirServices, type Guide } from "../src/service.ts";
 import { ouvrirTerminaux } from "../src/terminaux.ts";
 
-const PARADE: Projet = { nom: "parade", dossier: "/projets/parade", box: { hote: "box" } };
+const CUISINE: Cuisine = { locale: { node: process.execPath, runtime: "/tmp/runtime", racine: "/tmp/station", env: {} } };
+const PARADE: Projet = { nom: "parade", dossier: "/projets/parade" };
 const FAUX_CLAUDE = join(import.meta.dirname, "aides/faux-claude.sh");
 const STATION = "box/claude";
 
@@ -97,7 +98,7 @@ function boxInstallee(t: TestContext, { terminee = true } = {}) {
       code = erreur.code;
     }
     const erreur = code === 0 ? null : Object.assign(new Error(`Command failed: ${commande}`), { code, killed: false, cmd: commande });
-    return { lance: `$ ssh box brigade parade ${commande}`, erreur, sortie: sortie.map((ligne) => `${ligne}\n`).join(""), erreurs: "" };
+    return { lance: `$ brigade parade ${commande}`, erreur, sortie: sortie.map((ligne) => `${ligne}\n`).join(""), erreurs: "" };
   }
   return { reglage, appels, lancer };
 }
@@ -112,6 +113,7 @@ function app(box: ReturnType<typeof boxInstallee>) {
   let bande: Bande | undefined;
   const services = tenirServices({
     delaiMs: 60_000,
+    cuisine: () => CUISINE,
     lancer: box.lancer,
     session: terminaux.session,
     shell: terminaux.shell,

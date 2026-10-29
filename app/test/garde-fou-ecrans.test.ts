@@ -8,7 +8,6 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../src/allumage.ts";
 import { pourLaBarre } from "../src/barre.ts";
-import { BOUTONS } from "../src/boutons.ts";
 import { EXEMPLE, type Projet } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
@@ -24,28 +23,27 @@ import { tenirBandes, type Alerte } from "../src/alertes.ts";
 import type { Terminal } from "../src/terminaux.ts";
 import { Faux, type Jouee, jouerLaVue, type Reponses, ouvrirLecture, ouvrirLesCouts, repos } from "./aides/fausse-vue.ts";
 
-const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", box: { hote: "box" } };
+const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade" };
 const A = "2026-10-16T10:00:00.000Z";
 const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "second · claude", note: "", arrete: false };
 const SHELL: Terminal = { id: 2, projet: "parade", genre: "shell", titre: "shell 1", note: "", arrete: false, bandeau: "box parade-box · debian — not reachable" };
 
 // Ce qu'une panne laisse derrière elle, et qui n'a sa place qu'au survol.
-const DETAIL = "ssh: connect to host box port 22: Connection refused";
+const DETAIL = "connect to host box port 22: Connection refused";
 const BRUT = `usage: brigade <projet> station\n${DETAIL}\n→ code de sortie 255`;
-const PAS_JOINT = { projet: "parade", demande: 1, a: A, erreur: `$ ssh box brigade parade facts\n${BRUT}`, atteinte: false, cas: "ssh-en-echec" } as const;
+const PAS_JOINT = { projet: "parade", demande: 1, a: A, erreur: `$ brigade parade facts\n${BRUT}`, atteinte: false, cas: null } as const;
 
 // Les travers : une commande qui se recopie, un mode d'emploi, un code de sortie.
-const TRAVERS = /ssh\b|brigade\s*<|brigade\s+[a-z0-9-]+\s+(?:station|manager|status|facts|pass|grant|rail|log|installation)\b|usage\s*:|exit code|code de sortie/i;
+const TRAVERS = /brigade\s*<|brigade\s+[a-z0-9-]+\s+(?:station|manager|status|facts|pass|grant|rail|log|installation)\b|usage\s*:|exit code|code de sortie/i;
 // Une phrase de prix écrite à plat. Les éléments se concatènent sans blanc : aucune de ces deux règles n'ancre son début sur une limite de mot.
 const PRIX = /costs?\s*:|prix\s*:|price\s*:/i;
 
 const demarrage = () => ({
-  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE], hotes: ["box"] }),
+  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE] }, () => true),
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  boutons: BOUTONS,
   gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
@@ -104,7 +102,7 @@ type Ecran = {
 // L'accueil : « Tous les projets », devant une box qui ne répond pas. Depuis #870, il ne pose plus de
 // lecture en échec à part : la box injoignable se dit sur la ligne du projet, que le process principal
 // calcule (accueil.ts) et redit par `surAccueil`.
-const PARADE_A_L_ACCUEIL: ProjetDeLAccueil = { nom: "parade", box: true, desinstalle: false };
+const PARADE_A_L_ACCUEIL: ProjetDeLAccueil = { nom: "parade", servi: true };
 async function accueil(): Promise<Joue> {
   const vue = await ouvrir({}, false);
   vue.dire("surFaits", { ...PAS_JOINT, titre: "facts: the box did not answer", demande: vue.dernier("faits")[0] as number });
@@ -163,7 +161,7 @@ async function cooks(): Promise<Joue> {
   const vue = await ouvrir();
   await ouvrirLecture(vue, "Cooks");
   const numero = (vue.dernier("onglet") as [string, string, number])[2];
-  vue.dire("surContenu", { projet: "parade", demande: numero, a: A, erreur: BRUT, atteinte: false, cas: "ssh-en-echec" }, undefined, undefined);
+  vue.dire("surContenu", { projet: "parade", demande: numero, a: A, erreur: BRUT, atteinte: false, cas: null }, undefined, undefined);
   await repos();
   // L'onglet Cooks (#1184) : sa lecture de `station` est posée au centre, sous ses colonnes.
   return { vue, racine: ecran(vue, "rail", ...LECTURE) };
@@ -175,7 +173,7 @@ async function settings(): Promise<Joue> {
   await ouvrirLecture(vue, "Settings");
   const numero = (vue.dernier("onglet") as [string, string, number])[2];
   const sans = { projet: "parade", demande: numero, a: A, sans: BRUT };
-  vue.dire("surContenu", { projet: "parade", demande: numero, a: A, erreur: BRUT, atteinte: false, cas: "ssh-en-echec" }, undefined, sans);
+  vue.dire("surContenu", { projet: "parade", demande: numero, a: A, erreur: BRUT, atteinte: false, cas: null }, undefined, sans);
   await repos();
   return { vue, racine: ecran(vue, ...LECTURE) };
 }
@@ -185,13 +183,13 @@ async function couts(): Promise<Joue> {
   const vue = await ouvrir({}, false);
   const page = await ouvrirLesCouts(vue);
   const numero = (vue.dernier("onglet") as [undefined, string, number])[2];
-  vue.dire("surContenu", { projet: "parade", demande: numero, a: A, erreur: BRUT, atteinte: false, cas: "ssh-en-echec" }, undefined, undefined);
+  vue.dire("surContenu", { projet: "parade", demande: numero, a: A, erreur: BRUT, atteinte: false, cas: null }, undefined, undefined);
   await repos();
   return { vue, racine: page };
 }
 
 // Ce que pose une page ouverte par-dessus le rail : la lecture relayée, Settings et ses grants.
-const LECTURE = ["lu-onglet", "gestes-onglet", "lecture-onglet", "etat", "grants"];
+const LECTURE = ["lu-onglet", "lecture-onglet", "etat", "grants"];
 
 // Le bandeau du second : le shell dit où il est, son bandeau ne porte ni commande ni code.
 async function second(): Promise<Joue> {

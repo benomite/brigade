@@ -10,7 +10,6 @@ import { describe, test } from "node:test";
 import type { Lu, Rendu } from "../src/box.ts";
 import { ALLUMAGE } from "../src/allumage.ts";
 import { pourLaBarre } from "../src/barre.ts";
-import { BOUTONS } from "../src/boutons.ts";
 import { EXEMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
@@ -25,7 +24,7 @@ import { BOUTON, TITRE } from "../src/vue/projet/reglages.js";
 import { type Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "./aides/fausse-vue.ts";
 
 const PARADE = "parade";
-const BOX: Lu = { nom: PARADE, cuisine: { hote: "box" } } as unknown as Lu;
+const BOX: Lu = { nom: PARADE, cuisine: { locale: { node: "node", runtime: "/runtime", racine: "/station", env: {} } } };
 // Ce que `setting` rend, mot pour mot (runtime/src/reglage-cli.ts).
 const SORTIE = JSON.stringify({
   file: ".claude/brigade/projet.json",
@@ -42,7 +41,7 @@ const SORTIE = JSON.stringify({
 });
 const PR = "https://github.com/benomite/parade/pull/51";
 const rendu = (sortie: string, code: number | null = null, erreurs = ""): Rendu => ({
-  lance: "$ ssh -o BatchMode=yes -- box brigade parade setting",
+  lance: "$ node geste.ts parade setting",
   erreur: code === null ? null : (Object.assign(new Error(`exit ${code}`), { code }) as ExecFileException),
   sortie,
   erreurs,
@@ -125,12 +124,11 @@ describe("ce que `setting` rend, et ce que la proposition envoie", () => {
 
 const SECOND: Terminal = { id: 1, projet: PARADE, genre: "second", titre: "second · claude", note: "fil repris", arrete: false };
 const demarrage = () => ({
-  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade", box: { hote: "box" } }], hotes: ["box"] }),
+  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }, () => true),
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  boutons: BOUTONS,
   gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
@@ -224,7 +222,7 @@ describe("Settings : les réglages du projet, chacun changé par une PR", () => 
     proposer(branche).click();
     await repos();
     assert.deepEqual(propositions[0]?.choix, { cle: "branche", valeur: "/home/chef/parade" });
-    propositions[0]?.rendre({ refus: "This value does not belong in the project's repository: its value is a path on a machine.", detail: "$ ssh box brigade parade setting branch /home/chef/parade" });
+    propositions[0]?.rendre({ refus: "This value does not belong in the project's repository: its value is a path on a machine.", detail: "$ node geste.ts parade setting branch /home/chef/parade" });
     await repos();
     const apres = rangee(vue, "branche");
     assert.equal(dit(apres)?.className, "dit refus");
@@ -236,7 +234,7 @@ describe("Settings : les réglages du projet, chacun changé par une PR", () => 
   });
 
   test("une lecture ratée tient en une ligne, son détail au survol ; un projet que rien ne lit n'a pas la section", async () => {
-    const { vue } = await ouvrir({ sans: "settings unavailable", detail: "$ ssh box brigade parade setting\nexit 255" });
+    const { vue } = await ouvrir({ sans: "settings unavailable", detail: "$ node geste.ts parade setting\nexit 255" });
     const pose = section(vue);
     assert.equal(pose.dessous("p").find((p) => p.className === "indisponible")?.children[0]?.textContent, "settings unavailable");
     assert.equal(pose.dessous("select").length, 0);

@@ -2,7 +2,7 @@
 
 Rend un écran de l'app dans un navigateur sans tête et l'écrit dans un PNG. La vue est celle du
 dépôt (`app/src/vue/`, telle quelle) ; ce qu'elle affiche vient de **données figées**. Ni `claude`,
-ni box, ni `ssh`, ni `gh`, ni réseau : un cook la lance dans son worktree, avant et après sa
+ni box, ni `gh`, ni réseau : un cook la lance dans son worktree, avant et après sa
 modification, et regarde les deux images.
 
 ## La ligne
@@ -76,7 +76,7 @@ compare que deux captures du même navigateur.
 | `espace-projet-gestes` | Le même (#1695), la fiche de #12 ouverte dans la colonne TODO : sa livraison verte attend un merge faute de grant, la décision est connue — la fiche offre « merge the PR » en premier, puis l'issue, le second et la priorité |
 | `fiche-priorite`, `fiche-priorite-echec` | L'espace de `parade`, la fiche de #22 (`prio:2`, dans la file) ouverte, `1` choisi et « change the priority » cliqué (#1739) : l'app a changé le label `prio:` de l'issue sur GitHub, sans la box — la fiche le dit et montre `prio:1` ; puis GitHub refuse, la fiche garde `prio:2` et dit pourquoi en une ligne, la réponse de GitHub au survol |
 | `espace-projet-cuisine-oisive` | L'espace de `parade`, sa cuisine oisive depuis 42 min avec trois cartes sur le rail (#1863) : `facts` porte `cuisineOisive`, la tête du rail pose la panne en rouge, marquée `FAULT` |
-| `espace-projet-ici` | L'espace de `parade` quand sa cuisine tourne sur ce Mac, sans `hote` dans le fichier des projets (#1122) : lu ici, sans `ssh`, son rail, sa file et ses cartes comme pour une box |
+| `espace-projet-ici` | L'espace de `parade` quand sa cuisine tourne sur ce Mac (#1122) : son rail, sa file et ses cartes comme pour une box |
 | `espace-projet-station-arretee` | L'espace de `parade`, cuisant sur ce Mac, la station de ce Mac arrêtée (#1124) : une seule ligne, `this computer's station is not running`, à la place du rail |
 | `demenager-choix` | L'espace de `parade`, qui cuit sur sa box (#1095) : `Cooks on box`, « move the kitchen » cliqué — le choix de la machine où l'emmener (ce Mac) et son prix en une ligne |
 | `demenager-sur-ce-mac` | Le même, `parade` cuisant sur ce Mac : `Cooks on this Mac`, sa cuisine qui s'arrête avec l'app, et le choix ouvert — la box, recommandée, pour l'y ramener |
@@ -113,11 +113,11 @@ compare que deux captures du même navigateur.
 | `cooks-page`, `cooks-page-vide`, `cooks-page-roles-ouverts` | L'onglet Cooks de `parade` entier, dans l'ordre de sa revue (#1456) : sur un portable 1366×768, ses stations et leurs cooks d'abord (#14 `STUCK`), puis ses tickets et ses gates, et ses blocs repliés fermés ; puis sans rien à dire (tickets, gates et leçons en une ligne chacun) ; puis ses rôles ouverts d'un clic sur leur ligne |
 | `file-gates`, `file-gates-sous-budget` | La file de `parade` et ses gates face à leur budget (#1318) : en tête, le dernier passage hors du budget par défaut, marqué « over budget », et la ligne qui dit que la cuisine a ouvert #31 seule, son numéro ouvrant sa fiche — puis sous un budget posé par le chef, sans marque ni ticket |
 | `cooks-roles` | L'onglet Cooks de `parade` (#1274) : sous ses stations et son plafond, les rôles de sa cuisine — manager, pass, reviewer, second juge (`no action yet`), triage, closer —, chacun avec ce qu'il fait et sa dernière action datée |
-| `cooks-stations-declarees`, `cooks-stations-declarees-vide` | L'onglet Cooks de `parade` (#1509) : ce que chaque station déclarée fournit — son plafond de cooks, ses capacités, et où elle tourne (`box station`, `this workstation` pour mac/claude que ce poste joue, `remote` pour pc/claude) —, dans la ligne de chacune sous « Its stations » depuis #1786 ; puis sa box ne déclarant aucune station, la ligne qui le dit |
+| `cooks-stations-declarees`, `cooks-stations-declarees-vide` | L'onglet Cooks de `parade` (#1509) : ce que chaque station déclarée fournit — son plafond de cooks, ses capacités, et où elle tourne (`box station` pour box/claude et atelier/claude, `remote` pour mac/claude et pc/claude) —, dans la ligne de chacune sous « Its stations » depuis #1786 ; puis sa box ne déclarant aucune station, la ligne qui le dit |
 | `cooks-toutes-les-stations` | L'onglet Cooks de `parade`, cuisant sur la box (#1786) : toutes ses stations dans « Its stations », chacune une fois — la box, sa principale, marquée, avec « move the kitchen » ; ce Mac ajouté, atteint, qui cuit #15 ; un PC ajouté, pas atteint, jamais annoncé, et pourquoi en une ligne avec « check again » —, et pour chacune ce qu'elle fournit, ses cooks à la fois et « set the cap » |
-| `cooks-station-edition`, `cooks-station-retrait` | Le même onglet (#1510), « edit » cliqué sur atelier/claude, dans sa ligne de « Its stations » (#1786) : son formulaire — son plafond, ses capacités en cases, `this workstation plays it`, « Save », « Cancel » et « Remove » ; puis « Remove » cliqué, la confirmation et son prix en une ligne |
+| `cooks-station-edition`, `cooks-station-retrait` | Le même onglet (#1510), « edit » cliqué sur atelier/claude, dans sa ligne de « Its stations » (#1786) : son formulaire — son plafond, ses capacités en cases, « Save », « Cancel » et « Remove » ; puis « Remove » cliqué, la confirmation et son prix en une ligne |
 | `cooks-station-atteinte`, `cooks-station-pas-atteinte` | L'onglet Cooks de `parade`, cuisant sur la box, ce Mac ajouté à sa cuisine (#1757) : la box le dit atteint, sa pastille verte (« reached » au survol) ; puis pas atteint, sa pastille grise et pourquoi au survol |
-| `cooks-station-appelee` | L'onglet Cooks de `parade` à qui manque un navigateur, « Cook it on a station that has it » cliqué sur sa carte (#1511) : le formulaire de pc/claude, la station que ce poste joue, avec `navigateur-headless` déjà coché |
+| `cooks-station-appelee` | L'onglet Cooks de `parade` à qui manque un navigateur, « Cook it on a station that has it » cliqué sur sa carte (#1511) : le formulaire de pc/claude, la station de ce poste, avec `navigateur-headless` déjà coché |
 | `correction` | La file de `parade` quand une cause de ratage revient (#999) : au-dessus des colonnes, la carte d'une correction proposée de son `CLAUDE.md` — ce qu'on attend du chef, la cause, ses trois tickets, le diff, son coût, « yes, open it as a PR » et « no » |
 | `correction-oui`, `correction-refus` | La même, « yes » cliqué (#1741) : la réponse est postée sur le tableau de la cuisine, sans la box — la carte reste, ses réponses inactives, et une ligne le dit, le commentaire au survol — puis GitHub refuse le commentaire : la carte reste, et une ligne le dit, la réponse de GitHub au survol |
 | `profil`, `profil-oui` | La file de `parade` avec un profil de cook proposé pour `app/src/vue` (#1053) : son nom, le domaine, les chiffres et ses six tickets, ce qu'il contiendrait, « yes » et « no » — puis « yes » cliqué (#1741) : posté sur le tableau de la cuisine, la carte le dit comme celle d'une correction |
@@ -190,7 +190,7 @@ Tous en 1440 × 900, sauf ceux du téléphone et `couleurs`. `--liste` donne la 
   résolution de nom (`--no-proxy-server`, `--host-resolver-rules=MAP * ~NOTFOUND`).
 
 Les tests le montrent : deux captures vers deux chemins donnent deux PNG identiques à l'octet, avec
-des doublures de `claude`, `ssh` et `gh` en tête du PATH qui ne sont jamais lancées ; chaque écran se
+des doublures de `claude` et `gh` en tête du PATH qui ne sont jamais lancées ; chaque écran se
 rend sans accroc ; et, là où `unshare -rn` coupe le réseau sans être root, la capture sans aucun
 réseau est la même. **Les gates ne jouent pas ces tests** (elles jouent ceux du runtime et de l'app) :
 `npm --prefix scripts/capture-ecran test` se lance à la main.

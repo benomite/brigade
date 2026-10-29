@@ -5,6 +5,7 @@
 // le navigateur (#620). Et, sur un ticket qui t'attend, ceux qui tranchent la décision (#832).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
+import type { Cuisine } from "../src/box.ts";
 import type { Projet } from "../src/config.ts";
 import { demandeSurLeTicket, REFUS_CONTROLE_TICKET } from "../src/demande.ts";
 import { tenirFaits, type Faits } from "../src/faits.ts";
@@ -13,7 +14,9 @@ import { ACTIONS, type Actions, type CarteDeFiche, gestesDeCarte, gestesDeLaFich
 import { PRIORITES } from "../src/priorite.ts";
 import type { Terminal } from "../src/terminaux.ts";
 
-const PARADE: Projet = { nom: "parade", dossier: "/projets/parade", box: { hote: "box" } };
+const CUISINE: Cuisine = { locale: { node: "node", runtime: "/runtime", racine: "/station", env: {} } };
+const PARADE: Projet = { nom: "parade", dossier: "/projets/parade" };
+const ecrit = (suite: string) => `!(cd '/runtime' && BRIGADE_STATION_DIR='/station' node src/station/geste.ts parade ${suite})`;
 const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "second · claude", note: "", arrete: false };
 
 // Les actions qui attendent leur épique, branchées pour l'essai.
@@ -124,38 +127,38 @@ describe("jouer un geste de la fiche", () => {
     return { envoyes, terminaux: { envoyer: async (_: Projet, commande: string) => (envoyes.push(commande), SECOND) } };
   };
 
-  test("retirer du rail et merger partent dans le second, sous les commandes de la box (#637)", async () => {
+  test("retirer du rail et merger partent dans le second, par le geste de la station (#637)", async () => {
     const { terminaux, envoyes } = registre();
-    assert.equal(await jouerGesteDeFiche(terminaux, PARADE, "retirer", 21, undefined), SECOND);
-    assert.equal(await jouerGesteDeFiche(terminaux, PARADE, "merger", 21, undefined), SECOND);
-    assert.deepEqual(envoyes, ["!ssh box brigade parade rail remove 21", "!ssh box brigade parade rail merge 21"]);
+    assert.equal(await jouerGesteDeFiche(terminaux, PARADE, "retirer", 21, undefined, undefined, CUISINE), SECOND);
+    assert.equal(await jouerGesteDeFiche(terminaux, PARADE, "merger", 21, undefined, undefined, CUISINE), SECOND);
+    assert.deepEqual(envoyes, [ecrit("rail remove 21"), ecrit("rail merge 21")]);
   });
 
-  test("renvoyer en cuisine n'est pas une commande de la box : l'app le poste sur le tableau de la cuisine (#1740) — rien ne part dans le second", () => {
+  test("renvoyer en cuisine n'est pas une commande de la station : l'app le poste sur le tableau de la cuisine (#1740) — rien ne part dans le second", () => {
     const { terminaux, envoyes } = registre();
     assert.deepEqual(ACTIONS.cuisine, { app: true });
-    assert.deepEqual(jouerGesteDeFiche(terminaux, PARADE, "cuisine", 21, undefined), { refus: "nothing is sent: “cuisine” is not an action of the station that this app can run" });
+    assert.deepEqual(jouerGesteDeFiche(terminaux, PARADE, "cuisine", 21, undefined, undefined, CUISINE), { refus: "nothing is sent: “cuisine” is not an action of the station that this app can run" });
     assert.deepEqual(envoyes, []);
   });
 
-  test("changer la priorité n'est pas une commande de la box : l'app la joue elle-même, sur GitHub (#1739) — rien ne part dans le second", () => {
+  test("changer la priorité n'est pas une commande de la station : l'app la joue elle-même, sur GitHub (#1739) — rien ne part dans le second", () => {
     const { terminaux, envoyes } = registre();
     assert.deepEqual(ACTIONS.priorite, { app: true });
     for (const valeur of ["2", "none"]) {
-      assert.deepEqual(jouerGesteDeFiche(terminaux, PARADE, "priorite", 21, valeur), { refus: "nothing is sent: “priorite” is not an action of the station that this app can run" }, valeur);
+      assert.deepEqual(jouerGesteDeFiche(terminaux, PARADE, "priorite", 21, valeur, undefined, CUISINE), { refus: "nothing is sent: “priorite” is not an action of the station that this app can run" }, valeur);
     }
     assert.deepEqual(envoyes, []);
     assert.ok(!Object.values(ACTIONS).some((action) => "box" in action && /priority/.test(action.box(21, "2"))), "aucune commande de la box ne change la priorité");
   });
 
-  test("une action qui n'est pas branchée ne part pas — ni la commande d'une file, ni un projet sans box, ni un ticket qui n'en est pas un", () => {
+  test("une action qui n'est pas branchée ne part pas — ni la commande d'une file, ni une cuisine qui ne tourne nulle part, ni un ticket qui n'en est pas un", () => {
     const { terminaux, envoyes } = registre();
     for (const id of ["waiting", "navigateur", "issue", "priorite", "file", "inconnu", "toString"]) {
-      assert.deepEqual(jouerGesteDeFiche(terminaux, PARADE, id, 21, "2"), { refus: `nothing is sent: “${id}” is not an action of the station that this app can run` }, id);
+      assert.deepEqual(jouerGesteDeFiche(terminaux, PARADE, id, 21, "2", undefined, CUISINE), { refus: `nothing is sent: “${id}” is not an action of the station that this app can run` }, id);
     }
-    assert.deepEqual(jouerGesteDeFiche(terminaux, { nom: "parade", dossier: "/p" }, "retirer", 21, undefined), { refus: "nothing is sent: “parade” has no station — there is no command to run" });
-    assert.deepEqual(jouerGesteDeFiche(terminaux, PARADE, "retirer", "21", undefined), { refus: "nothing is sent: the action names no ticket" });
-    assert.deepEqual(jouerGesteDeFiche(terminaux, { ...PARADE, refus: "illisible" }, "retirer", 21, undefined), { refus: "nothing is sent: “parade” does not open — illisible" });
+    assert.deepEqual(jouerGesteDeFiche(terminaux, PARADE, "retirer", 21, undefined, undefined, undefined), { refus: "nothing is sent: “parade” has no station — there is no command to run" });
+    assert.deepEqual(jouerGesteDeFiche(terminaux, PARADE, "retirer", "21", undefined, undefined, CUISINE), { refus: "nothing is sent: the action names no ticket" });
+    assert.deepEqual(jouerGesteDeFiche(terminaux, { ...PARADE, refus: "illisible" }, "retirer", 21, undefined, undefined, CUISINE), { refus: "nothing is sent: “parade” does not open — illisible" });
     assert.deepEqual(envoyes, []);
   });
 });

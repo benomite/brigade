@@ -162,7 +162,7 @@ describe("le fichier des projets, suivi", () => {
     writeFileSync(chemin, JSON.stringify({ projets: [projet("a"), projet("b"), projet("c")] }));
     suivie.relire();
 
-    writeFileSync(chemin, JSON.stringify({ projets: [{ nom: "b", dossier: join(racine, "c") }, { ...projet("c"), hote: "box" }] }));
+    writeFileSync(chemin, JSON.stringify({ projets: [{ nom: "b", dossier: join(racine, "c") }, projet("c")] }));
     suivie.relire();
 
     assert.deepEqual(dits.at(-1)?.partis, ["a", "b"]);
@@ -213,14 +213,14 @@ describe("le fichier des projets, suivi", () => {
 
   test("un projet retiré depuis l'app quitte la liste aussitôt, et il est dit parti — les autres non, et le fichier n'a plus sa ligne", (t) => {
     const { chemin, suivie, dits, projet, noms } = suivi(t, { projets: [] });
-    writeFileSync(chemin, JSON.stringify({ hotes: ["box"], projets: [{ ...projet("a"), hote: "box" }, projet("b")] }));
+    writeFileSync(chemin, JSON.stringify({ projets: [projet("a"), projet("b")] }));
     suivie.relire();
 
     assert.equal(suivie.retirer("a"), undefined);
 
     assert.deepEqual(noms(), ["b"]);
     assert.deepEqual(dits.at(-1)?.partis, ["a"]);
-    assert.deepEqual(JSON.parse(readFileSync(chemin, "utf8")), { hotes: ["box"], projets: [projet("b")] });
+    assert.deepEqual(JSON.parse(readFileSync(chemin, "utf8")), { projets: [projet("b")] });
   });
 
   test("un retrait refusé dit pourquoi, et ne change rien : un nom inconnu, ou un fichier que l'app n'a pas pu relire", (t) => {

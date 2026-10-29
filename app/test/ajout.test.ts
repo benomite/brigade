@@ -1,5 +1,5 @@
 // Ajouter un projet à l'app (#983) : son dossier, son dépôt et sa branche d'intégration, rien
-// d'autre — ni station, ni machine, ni nom `ssh`. Ce que l'écran refuse, ce qui s'écrit dans le
+// d'autre — ni station, ni machine. Ce que l'écran refuse, ce qui s'écrit dans le
 // vrai fichier des projets, et ce que le clone choisi propose, lu par le vrai `git`. Aucune
 // machine n'est jointe : l'ajout n'a même pas de quoi en joindre une.
 import assert from "node:assert/strict";
@@ -34,7 +34,7 @@ function essai(t: TestContext, contenu: unknown = { projets: [] }) {
 
 describe("ce que l'écran d'ajout demande", () => {
   test("trois champs, et rien d'autre : le dossier, le dépôt, la branche — ce que la vue envoie de plus n'est pas lu", () => {
-    assert.deepEqual(lireSaisie({ ...SAISIE, hote: "parade", stations: ["g1"], sauvegardes: "/srv" }), SAISIE);
+    assert.deepEqual(lireSaisie({ ...SAISIE, machine: "parade", stations: ["g1"], sauvegardes: "/srv" }), SAISIE);
     assert.deepEqual(lireSaisie({ dossier: "  /a  ", depot: 3, base: null }), { dossier: "/a", depot: "", base: "" });
   });
 
@@ -51,14 +51,14 @@ describe("ce que l'écran d'ajout demande", () => {
     assert.match(refusDeSaisie({ ...SAISIE, base: "main branch" }).base ?? "", /is not a branch name/);
   });
 
-  test("aucun mot de l'écran ne parle d'une box, d'une machine ou de `ssh`", () => {
+  test("aucun mot de l'écran ne parle d'une box ou d'une machine", () => {
     const dits = [...Object.values(refusDeSaisie(lireSaisie({}))), ...Object.values(refusDeSaisie({ ...SAISIE, depot: "x", base: "a b" }))].join("\n");
-    assert.doesNotMatch(dits, /\bbox|machine|ssh|\bstation/i);
+    assert.doesNotMatch(dits, /\bbox|machine|\bstation/i);
   });
 });
 
 describe("ajouter un projet à l'app", () => {
-  test("ajouté, il est écrit dans le fichier avec son dépôt et sa branche, sous le nom de son dépôt — sans hôte ni station", (t) => {
+  test("ajouté, il est écrit dans le fichier avec son dépôt et sa branche, sous le nom de son dépôt — sans station", (t) => {
     const { ajouter, declares, chemin, saisie } = essai(t);
 
     assert.deepEqual(ajouter({ ...saisie, depot: "chef/Calculus" }), { etat: "ajoute", nom: "calculus" });
@@ -66,8 +66,7 @@ describe("ajouter un projet à l'app", () => {
     const [lu] = lireConfiguration(chemin).projets;
     assert.equal(lu?.depot, "chef/Calculus");
     assert.equal(lu?.base, "main");
-    assert.equal(lu?.box, undefined, "un projet ajouté n'a pas d'hôte : l'app ne joint aucune machine pour lui");
-    assert.equal(lu?.stations, undefined);
+    assert.deepEqual(Object.keys(lu ?? {}).sort(), ["base", "depot", "dossier", "nom"], "un projet ajouté n'écrit rien d'autre que son dossier, son dépôt et sa branche");
   });
 
   test("un champ qui manque : rien n'est écrit, et chaque champ dit pourquoi", (t) => {

@@ -2,7 +2,7 @@
 // runtime/test/tableau/rendu/rail.test.ts : l'état d'exemple du bas de `status`, une carte de TODO posée sur #24 par-dessus.
 // `propositions` : le tableau porte aussi, dans sa file, une correction et un profil proposés (#1741), que la box y
 // publie comme sa publication les publie (runtime/src/tableau/publication/publier.ts).
-// Avec lui, ce que la box rendait par `ssh` du même état, au même instant — `facts` et `status` —, pour comparer le rail
+// Avec lui, ce que la station rend du même état, au même instant — `facts` et `status` —, pour comparer le rail
 // que l'app en dessine. Et l'issue du tableau telle que l'API de GitHub la liste : GitHub est une doublure, aucun réseau.
 import assert from "node:assert/strict";
 import type { TestContext } from "node:test";
@@ -80,7 +80,7 @@ export function projetPublie(t: TestContext, { propositions = false }: { proposi
     etat,
     proposees,
     corps,
-    // Ce que la box rendait par `ssh`, du même état, au même instant.
+    // Ce que la station rend, du même état, au même instant.
     facts: JSON.stringify(faits(etat, LU_LE, DEPOT)),
     status: decrireEtat(etat, LU_LE).join("\n"),
     issue: { number: NUMERO, title: "Kitchen board", body: corps, html_url: `https://github.com/${DEPOT}/issues/${NUMERO}`, labels: [{ name: "kitchen-board" }] },

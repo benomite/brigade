@@ -9,7 +9,6 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../../src/allumage.ts";
 import { pourLaBarre } from "../../src/barre.ts";
-import { BOUTONS } from "../../src/boutons.ts";
 import { EXEMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
@@ -124,12 +123,11 @@ describe("ce que l'écran lit et dit", () => {
 
 // Le démarrage que le pont de l'app Android rend : les constantes de l'app, aucun projet, et l'appairage.
 const demarrage = (telephone: Telephone | null) => () => ({
-  configuration: pourLaBarre({ chemin: "no projects file on this phone", projets: [], hotes: [] }),
+  configuration: pourLaBarre({ chemin: "no projects file on this phone", projets: [] }),
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  boutons: BOUTONS,
   gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },

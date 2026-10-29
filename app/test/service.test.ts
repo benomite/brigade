@@ -3,8 +3,8 @@
 // et la reprise après fermeture. Les commandes `installation etapes`, `stations`,
 // `protection` et `decisions` sont celles du runtime, jouées dans ce process sur un vrai
 // journal : seuls `installation` — la vérification, qui interroge la machine — et GitHub
-// sont simulés. La vérification seule se joue aussi contre un faux `ssh` écrit par chaque
-// test, les terminaux contre de faux pty : ni réseau, ni box, ni `claude`. Aucun test
+// sont simulés. La vérification seule se joue aussi contre un faux `node` écrit par chaque
+// test, les terminaux contre de faux pty : ni réseau, ni `claude`. Aucun test
 // n'attend une durée — une action rend la main quand elle a fini.
 import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -23,8 +23,7 @@ import { commande as protection, type ClientGitHub } from "../../runtime/src/pro
 import { verdictDeLaPanne, verdictDesConstats } from "../../runtime/src/verdict.ts";
 import { ALLUMAGE } from "../src/allumage.ts";
 import { pourLaBarre } from "../src/barre.ts";
-import { BOUTONS } from "../src/boutons.ts";
-import { lancerGeste, mots, type Reglages, type Rendu, type Servi } from "../src/box.ts";
+import { type Cuisine, GESTE, lancerLa, type Lu, mots, type Reglages, type Rendu } from "../src/box.ts";
 import { EXEMPLE, lireConfiguration, type Projet } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
@@ -39,9 +38,8 @@ import { jouerLaVue, ouvrirOnglet, repos, type Faux } from "./aides/fausse-vue.t
 import { SANS_POSIX } from "./aides/posix.ts";
 
 const RACINE = join(import.meta.dirname, "../..");
-const CALCULUS: Projet = { nom: "calculus", dossier: "/projets/calculus", box: { hote: "box" } };
-const PARADE: Projet = { nom: "parade", dossier: "/projets/parade", box: { hote: "box" } };
-const OPTIONS = "-o BatchMode=yes -o ConnectTimeout=10";
+const CALCULUS: Projet = { nom: "calculus", dossier: "/projets/calculus" };
+const PARADE: Projet = { nom: "parade", dossier: "/projets/parade" };
 
 // Ce que `installation` écrit de ses constats, ligne à ligne, dans la forme de
 // runtime/src/installation-cli.ts (`ecrire`) — le test « le runtime écrit ses manques dans la
@@ -103,7 +101,7 @@ function rendue(verification: Constat[] | Error, json: boolean): { code: number;
   return json ? { code, sortie: JSON.stringify(verdict), erreurs: "" } : { code, sortie: verdict.brut.slice(0, -1), erreurs: "" };
 }
 
-// Ce que le faux ssh écrit, tel quel, sur sa sortie standard.
+// Ce que le faux `node` écrit, tel quel, sur sa sortie standard.
 const dit = (texte: string) => `cat <<'FIN'\n${texte}\nFIN`;
 const NOTE = `echo "$*" >>"$D/appels"`;
 
@@ -128,52 +126,57 @@ function fauxTerminaux() {
   return { terminaux, terminal };
 }
 
-// Un essai de la vérification seule : un faux `ssh` — un script sh, où `$D` est le répertoire du test.
+// Un essai de la vérification seule : un faux `node` — un script sh, où `$D` est le répertoire du test —
+// que la station de cet ordinateur lance à la place du vrai. `appel` : la ligne qu'il doit recevoir.
 function essai(t: TestContext, corps: string) {
   const racine = mkdtempSync(join(tmpdir(), "brigade-app-service-"));
   t.after(() => rmSync(racine, { recursive: true, force: true }));
-  const ssh = join(racine, "ssh");
-  writeFileSync(ssh, `#!/bin/sh\nD='${racine}'\n${corps}\n`);
-  chmodSync(ssh, 0o755);
-  const reglages = { ssh, delaiMs: 60_000, connexionS: 10 };
+  const node = join(racine, "node");
+  writeFileSync(node, `#!/bin/sh\nD='${racine}'\n${corps}\n`);
+  chmodSync(node, 0o755);
+  const reglages: Reglages = { delaiMs: 60_000 };
+  const cuisine: Cuisine = { locale: { node, runtime: racine, racine, env: {} } };
   const lu = (nom: string) => (existsSync(join(racine, nom)) ? readFileSync(join(racine, nom), "utf8") : "");
-  return { racine, reglages, lu };
+  const appel = (suite: string) => `${join(racine, GESTE)} ${suite}\n`;
+  return { racine, reglages, cuisine, node, lu, appel };
 }
 
+// La station de cet ordinateur, telle que les services la lisent : rien n'y est lancé par ces tests.
+const CUISINE: Cuisine = { locale: { node: "node", runtime: "/runtime", racine: "/station", env: {} } };
 const refus = (rendu: Terminal | { refus: string }): string => ("refus" in rendu ? rendu.refus : "");
 
-// `installation`, lancée sur la box par le geste, comme l'écran la lance — et ce que son rendu prouve.
-const verifier = async (reglages: Reglages, servi: Servi) => verdictDe(await lancerGeste(reglages, servi, VERIFICATION), servi.nom, reglages.delaiMs);
+// `installation`, lancée par la station de cet ordinateur, comme l'écran la lance — et ce que son rendu prouve.
+const verifier = async (reglages: Reglages, lu: Lu) => verdictDe(await lancerLa(reglages, lu, VERIFICATION), lu.nom, reglages.delaiMs);
 // `installation --json`, lancée comme « Vérifier » la lance — et le verdict que l'écran en lit.
-const juger = async (reglages: Reglages, servi: Servi) => jugementDe(await lancerGeste(reglages, servi, JUGEMENT), reglages.delaiMs);
+const juger = async (reglages: Reglages, lu: Lu) => jugementDe(await lancerLa(reglages, lu, JUGEMENT), reglages.delaiMs);
 
-describe("le contrôle d'un projet installé : `installation`, en texte, lancée une fois sur la box du projet", () => {
-  test("ce qui part est le geste de la box, comme la veille le lance — `brigade <nom> installation`, sans terminal ni rien de plus", { skip: SANS_POSIX }, async (t) => {
-    const { reglages, lu } = essai(t, `${NOTE}\n${dit(PRET)}`);
+describe("le contrôle d'un projet installé : `installation`, en texte, lancée une fois par la station de cet ordinateur", () => {
+  test("ce qui part est le geste de la station, comme la veille le lance — `installation`, sans terminal ni rien de plus", { skip: SANS_POSIX }, async (t) => {
+    const { reglages, cuisine, lu, appel } = essai(t, `${NOTE}\n${dit(PRET)}`);
 
-    await verifier(reglages, { nom: "calculus", box: { hote: "chef@box" } });
+    await verifier(reglages, { nom: "calculus", cuisine });
 
-    assert.equal(lu("appels"), `${OPTIONS} -- chef@box brigade calculus installation\n`);
+    assert.equal(lu("appels"), appel("calculus installation"));
   });
 
   test("sortie en 0 avec sa ligne de verdict : prêt — et ce qu'elle a écrit est rendu en entier, `à savoir` compris", { skip: SANS_POSIX }, async (t) => {
-    const { reglages } = essai(t, dit(PRET));
+    const { reglages, cuisine, node, appel } = essai(t, dit(PRET));
 
-    const rendu = await verifier(reglages, { nom: "calculus", box: { hote: "box" } });
+    const rendu = await verifier(reglages, { nom: "calculus", cuisine });
 
     assert.equal(rendu.etat, "pret");
-    assert.equal("obtenu" in rendu && rendu.obtenu, `$ ${reglages.ssh} ${OPTIONS} -- box brigade calculus installation\n${PRET}\n\n→ exit code 0`);
+    assert.equal("obtenu" in rendu && rendu.obtenu, `$ ${node} ${appel("calculus installation").trimEnd()}\n${PRET}\n\n→ exit code 0`);
     assert.ok(!Number.isNaN(Date.parse(rendu.a)));
   });
 
   test("sortie en 1 : incomplète — chaque point qui manque est rendu avec la flèche de ce qui reste à faire, mot pour mot", { skip: SANS_POSIX }, async (t) => {
-    const { reglages } = essai(t, `${dit(INCOMPLET)}\nexit 1`);
+    const { reglages, cuisine, node, appel } = essai(t, `${dit(INCOMPLET)}\nexit 1`);
 
-    const rendu = await verifier(reglages, { nom: "calculus", box: { hote: "box" } });
+    const rendu = await verifier(reglages, { nom: "calculus", cuisine });
 
     assert.equal(rendu.etat, "incomplete");
     const obtenu = "obtenu" in rendu ? rendu.obtenu : "";
-    assert.equal(obtenu, `$ ${reglages.ssh} ${OPTIONS} -- box brigade calculus installation\n${INCOMPLET}\n\n→ exit code 1`);
+    assert.equal(obtenu, `$ ${node} ${appel("calculus installation").trimEnd()}\n${INCOMPLET}\n\n→ exit code 1`);
     // Les deux manques, chacun suivi de son geste.
     const lignes = obtenu.split("\n");
     for (const manque of lignes.filter((ligne) => ligne.includes("MISSING"))) assert.match(lignes[lignes.indexOf(manque) + 1] ?? "", /^ +→ /);
@@ -181,19 +184,19 @@ describe("le contrôle d'un projet installé : `installation`, en texte, lancée
   });
 
   test("sortie en 2 : la commande a été lancée et a refusé son environnement — pas prêt, et ce qu'elle a dit sur sa sortie d'erreur est rendu", { skip: SANS_POSIX }, async (t) => {
-    const { reglages } = essai(t, `echo 'brigade : BRIGADE_MAX_TURNS : « beaucoup » n'"'"'est pas un entier' >&2\nexit 2`);
+    const { reglages, cuisine } = essai(t, `echo 'brigade : BRIGADE_MAX_TURNS : « beaucoup » n'"'"'est pas un entier' >&2\nexit 2`);
 
-    const rendu = await verifier(reglages, { nom: "calculus", box: { hote: "box" } });
+    const rendu = await verifier(reglages, { nom: "calculus", cuisine });
 
     assert.equal(rendu.etat, "incomplete");
     assert.match("obtenu" in rendu ? rendu.obtenu : "", /BRIGADE_MAX_TURNS : « beaucoup » n'est pas un entier\n\n→ exit code 2$/);
   });
 
   test("un 0 sans la ligne de verdict n'est pas un « prêt » : une commande forcée qui remplace celle de l'app, un autre projet", { skip: SANS_POSIX }, async (t) => {
-    for (const sortie of ["Bienvenue sur la box.", PRET.replace("“calculus”", "“parade”"), INCOMPLET, ""]) {
-      const { reglages } = essai(t, dit(sortie));
+    for (const sortie of ["Bienvenue.", PRET.replace("“calculus”", "“parade”"), INCOMPLET, ""]) {
+      const { reglages, cuisine } = essai(t, dit(sortie));
 
-      const rendu = await verifier(reglages, { nom: "calculus", box: { hote: "box" } });
+      const rendu = await verifier(reglages, { nom: "calculus", cuisine });
 
       assert.equal(rendu.etat, "illisible", sortie);
       assert.ok("obtenu" in rendu && rendu.obtenu.includes(sortie));
@@ -207,19 +210,18 @@ describe("le contrôle d'un projet installé : `installation`, en texte, lancée
     assert.ok(PRET.includes("brigade : project “calculus” : ready"));
   });
 
-  const ECHECS: [number, string, boolean][] = [
-    [255, "ssh-en-echec", false],
+  const ECHECS: [number, string | null, boolean][] = [
     [65, "projet-inconnu", true],
     [68, "sans-droit", true],
     [69, "commande-manque", true],
     [70, "node-inapte", true],
-    [127, "commande-manque", true],
+    [127, null, true],
   ];
   for (const [code, cas, atteinte] of ECHECS) {
-    test(`sortie en ${code} : aucun verdict — le cas que ce code prouve (${cas}), et ce que la box a rendu`, { skip: SANS_POSIX }, async (t) => {
-      const { reglages } = essai(t, `echo 'ce que la box en dit' >&2\nexit ${code}`);
+    test(`sortie en ${code} : aucun verdict — le cas que ce code prouve (${cas}), et ce que la station a rendu`, { skip: SANS_POSIX }, async (t) => {
+      const { reglages, cuisine } = essai(t, `echo 'ce que la box en dit' >&2\nexit ${code}`);
 
-      const rendu = await verifier(reglages, { nom: "calculus", box: { hote: "box" } });
+      const rendu = await verifier(reglages, { nom: "calculus", cuisine });
 
       assert.equal(rendu.etat, "sans-verdict");
       assert.deepEqual("cas" in rendu && [rendu.cas, rendu.atteinte], [cas, atteinte]);
@@ -227,56 +229,56 @@ describe("le contrôle d'un projet installé : `installation`, en texte, lancée
     });
   }
 
-  test("un code qui ne dit aucun cas, sur une box jointe : aucun verdict, et rien n'en est déduit", { skip: SANS_POSIX }, async (t) => {
-    const { reglages } = essai(t, "echo 'brigade : « installation » n'\"'\"'est pas une commande du runtime' >&2\nexit 66");
+  test("un code qui ne dit aucun cas, sur une station jointe : aucun verdict, et rien n'en est déduit", { skip: SANS_POSIX }, async (t) => {
+    const { reglages, cuisine } = essai(t, "echo 'brigade : « installation » n'\"'\"'est pas une commande du runtime' >&2\nexit 66");
 
-    const rendu = await verifier(reglages, { nom: "calculus", box: { hote: "box" } });
+    const rendu = await verifier(reglages, { nom: "calculus", cuisine });
 
     assert.equal(rendu.etat, "sans-verdict");
     assert.deepEqual("cas" in rendu && [rendu.cas, rendu.atteinte], [null, true]);
   });
 
-  test("un `ssh` qui ne se lance pas : aucun verdict, et la box n'est pas dite jointe", async (t) => {
-    const { reglages, racine } = essai(t, "");
+  test("un `node` qui ne se lance pas : aucun verdict, et la station n'est pas dite jointe", async (t) => {
+    const { reglages, racine, cuisine } = essai(t, "");
 
-    const rendu = await verifier({ ...reglages, ssh: join(racine, "absent") }, { nom: "calculus", box: { hote: "box" } });
+    const rendu = await verifier(reglages, { nom: "calculus", cuisine: { locale: { ...cuisine.locale, node: join(racine, "absent") } } });
 
     assert.equal(rendu.etat, "sans-verdict");
     assert.deepEqual("cas" in rendu && [rendu.cas, rendu.atteinte], [null, false]);
   });
 });
 
-// « Vérifier », sur l'écran : `installation --json`, que le faux ssh rend comme le runtime l'écrit.
+// « Vérifier », sur l'écran : `installation --json`, que le faux `node` rend comme le runtime l'écrit.
 const juge = (verification: Constat[] | Error) => {
   const { code, sortie } = rendue(verification, true);
   return `${dit(sortie)}\nexit ${code}`;
 };
 
 describe("« Vérifier » : `installation --json`, et le verdict que l'écran en lit", () => {
-  test("ce qui part est le geste de la box — `brigade <nom> installation --json`, sans terminal ni rien de plus", { skip: SANS_POSIX }, async (t) => {
-    const { reglages, lu } = essai(t, `${NOTE}\n${juge(PRETS)}`);
+  test("ce qui part est le geste de la station — `installation --json`, sans terminal ni rien de plus", { skip: SANS_POSIX }, async (t) => {
+    const { reglages, cuisine, lu, appel } = essai(t, `${NOTE}\n${juge(PRETS)}`);
 
-    await juger(reglages, { nom: "calculus", box: { hote: "chef@box" } });
+    await juger(reglages, { nom: "calculus", cuisine });
 
-    assert.equal(lu("appels"), `${OPTIONS} -- chef@box brigade calculus installation --json\n`);
+    assert.equal(lu("appels"), appel("calculus installation --json"));
   });
 
   test("prêt : le verdict en une phrase, aucun manque, la ligne `à savoir` à part — et ce que l'app a obtenu porte la sortie brute, intacte, à la place de son objet", { skip: SANS_POSIX }, async (t) => {
-    const { reglages } = essai(t, juge(PRETS));
+    const { reglages, cuisine, node, appel } = essai(t, juge(PRETS));
 
-    const rendu = await juger(reglages, { nom: "calculus", box: { hote: "box" } });
+    const rendu = await juger(reglages, { nom: "calculus", cuisine });
 
     assert.ok(rendu.etat === "jugee" && rendu.jugement.verdict === "pret");
     assert.match(rendu.jugement.phrase, /^prêt/);
     assert.deepEqual(rendu.jugement.aSavoir, [{ texte: PRETS[2]?.texte, geste: PRETS[2]?.geste }]);
     assert.equal(rendu.jugement.brut, PRET);
-    assert.equal(rendu.obtenu, `$ ${reglages.ssh} ${OPTIONS} -- box brigade calculus installation --json\n${PRET}\n→ exit code 0`);
+    assert.equal(rendu.obtenu, `$ ${node} ${appel("calculus installation --json").trimEnd()}\n${PRET}\n→ exit code 0`);
   });
 
   test("pas prêt : autant de manques que la vérification en constate, chacun en mots simples avec qui le lève — les lignes `à savoir` n'en sont pas", { skip: SANS_POSIX }, async (t) => {
-    const { reglages } = essai(t, juge(QUATRE));
+    const { reglages, cuisine } = essai(t, juge(QUATRE));
 
-    const rendu = await juger(reglages, { nom: "calculus", box: { hote: "box" } });
+    const rendu = await juger(reglages, { nom: "calculus", cuisine });
 
     assert.ok(rendu.etat === "jugee" && rendu.jugement.verdict === "pas-pret");
     assert.equal(rendu.jugement.phrase, "pas prêt : 4 choses à faire");
@@ -294,9 +296,9 @@ describe("« Vérifier » : `installation --json`, et le verdict que l'écran en
   });
 
   test("plantée sur /etc/sudoers.d : la vérification n'est pas allée au bout — la panne connue #654, rien n'est constaté du projet, et sa ligne d'erreur est la sortie brute", { skip: SANS_POSIX }, async (t) => {
-    const { reglages } = essai(t, juge(EACCES));
+    const { reglages, cuisine } = essai(t, juge(EACCES));
 
-    const rendu = await juger(reglages, { nom: "calculus", box: { hote: "box" } });
+    const rendu = await juger(reglages, { nom: "calculus", cuisine });
 
     assert.ok(rendu.etat === "jugee" && rendu.jugement.verdict === "plantee");
     assert.equal(rendu.jugement.panne.connue?.issue, 654);
@@ -308,28 +310,28 @@ describe("« Vérifier » : `installation --json`, et le verdict que l'écran en
   test("un runtime d'avant le verdict, une commande forcée, un verdict que son code dément : rien n'est lu, et ce que la box a rendu est gardé", { skip: SANS_POSIX }, async (t) => {
     const cas = [
       "echo 'brigade : usage : … installation -- [labels | setup [<cooks>] | uninstall [--confirm]]' >&2\nexit 2",
-      dit("Bienvenue sur la box."),
+      dit("Bienvenue."),
       dit(PRET),
       `${dit(rendue(QUATRE, true).sortie)}\nexit 0`,
       `${dit(rendue(PRETS, true).sortie)}\nexit 1`,
     ];
     for (const corps of cas) {
-      const { reglages } = essai(t, corps);
+      const { reglages, cuisine } = essai(t, corps);
 
-      const rendu = await juger(reglages, { nom: "calculus", box: { hote: "box" } });
+      const rendu = await juger(reglages, { nom: "calculus", cuisine });
 
       assert.equal(rendu.etat, "illisible", corps);
       assert.match("obtenu" in rendu ? rendu.obtenu : "", /\n→ exit code [012]$/);
     }
   });
 
-  test("rien n'est venu d'elle : aucun verdict — le cas de la veille", { skip: SANS_POSIX }, async (t) => {
-    const { reglages } = essai(t, "echo 'ssh: connect to host box port 22: Connection refused' >&2\nexit 255");
+  test("rien n'est venu d'elle : aucun verdict — la station dont le `node` ne se lance pas", async (t) => {
+    const { reglages, racine, cuisine } = essai(t, "");
 
-    const rendu = await juger(reglages, { nom: "calculus", box: { hote: "box" } });
+    const rendu = await juger(reglages, { nom: "calculus", cuisine: { locale: { ...cuisine.locale, node: join(racine, "absent") } } });
 
     assert.ok(rendu.etat === "sans-verdict");
-    assert.equal(rendu.cas, "ssh-en-echec");
+    assert.deepEqual([rendu.cas, rendu.atteinte], [null, false]);
   });
 
   test("le verdict se lit dans la forme où le runtime l'écrit ; une forme qu'il ne connaît pas n'est pas lue", () => {
@@ -344,31 +346,13 @@ describe("« Vérifier » : `installation --json`, et le verdict que l'écran en
 });
 
 describe("ce que « Démarrer » écrit", () => {
-  test("le geste que la box nomme en fin d'installation — porté par un `ssh` qui a un terminal", () => {
+  test("rien : la station de cet ordinateur tourne avec l'app, aucun service n'est à démarrer", () => {
     const installateur = readFileSync(join(RACINE, "runtime/src/installateur.ts"), "utf8");
     assert.ok(installateur.includes("sudo systemctl enable --now ${unites.runtime}"), "le geste d'installation ne nomme plus ce geste");
 
-    assert.deepEqual(commandeDeDemarrage(CALCULUS), { commande: "ssh -t box sudo systemctl enable --now brigade@calculus.service" });
-  });
-
-  test("rien de ce qui s'écrit ne porte de quoi l'envoyer, et un hôte que le shell du poste découperait s'écrit cité", () => {
-    assert.deepEqual(commandeDeDemarrage({ ...CALCULUS, box: { hote: "chef@box.exemple:22" } }), { commande: "ssh -t chef@box.exemple:22 sudo systemctl enable --now brigade@calculus.service" });
-    assert.deepEqual(commandeDeDemarrage({ ...CALCULUS, box: { hote: "box; rm -rf ~" } }), { commande: "ssh -t 'box; rm -rf ~' sudo systemctl enable --now brigade@calculus.service" });
-  });
-
-  test("rien n'est écrit pour un hôte que `ssh` lirait comme une option, ou qui porte de quoi envoyer la commande", () => {
-    for (const hote of ["-oProxyCommand=sh", "--"]) assert.match(refus(commandeDeDemarrage({ ...CALCULUS, box: { hote } }) as { refus: string }), /^nothing is written: “hote” starts with a dash/);
-    for (const hote of ["box\rrm -rf ~", "box\n", "bo\x1bx"]) assert.match(refus(commandeDeDemarrage({ ...CALCULUS, box: { hote } }) as { refus: string }), /^nothing is written: “hote” has a control character/);
-  });
-
-  test("rien n'est écrit pour un nom qui n'est celui d'aucune instance : la box le refuserait, et son unité ne se nomme pas", () => {
-    for (const nom of ["Calculus", "mon projet", "calculus; reboot", "-calculus", "calculus\r"]) {
-      assert.match(refus(commandeDeDemarrage({ ...CALCULUS, nom }) as { refus: string }), /^nothing is written: /, nom);
+    for (const nom of ["calculus", "Calculus", "mon projet", "calculus; reboot", "-calculus", "calculus\r"]) {
+      assert.match(refus(commandeDeDemarrage({ ...CALCULUS, nom }) as { refus: string }), /^nothing is written: .*there is no service to start/, nom);
     }
-  });
-
-  test("un projet sans box n'a rien à démarrer", () => {
-    assert.match(refus(commandeDeDemarrage({ nom: "calculus", dossier: "/p" }) as { refus: string }), /does not say where its station is/);
   });
 });
 
@@ -497,7 +481,7 @@ function boxSimulee(t: TestContext, reglage: { admin?: boolean; calibrage?: bool
       code = erreur.code;
     }
     const echec = code === 0 ? null : Object.assign(new Error(`Command failed: ${commande}`), { code, killed: false, cmd: commande });
-    return { lance: `$ ssh ${OPTIONS} -- box brigade calculus ${commande}`, erreur: echec, sortie: sortie.map((ligne) => `${ligne}\n`).join(""), erreurs: erreurs.map((ligne) => `${ligne}\n`).join("") };
+    return { lance: `$ brigade calculus ${commande}`, erreur: echec, sortie: sortie.map((ligne) => `${ligne}\n`).join(""), erreurs: erreurs.map((ligne) => `${ligne}\n`).join("") };
   }
   // Ce que le journal porte, relu par la commande du runtime — pas par l'app.
   const etapesAuJournal = async () => {
@@ -512,7 +496,7 @@ function boxSimulee(t: TestContext, reglage: { admin?: boolean; calibrage?: bool
 function app(box: ReturnType<typeof boxSimulee>) {
   const { terminaux, terminal } = fauxTerminaux();
   const pousses: Guide[] = [];
-  const services = tenirServices({ delaiMs: 60_000, lancer: box.lancer, session: terminaux.session, shell: terminaux.shell, surGuide: (guide) => void pousses.push(guide) });
+  const services = tenirServices({ delaiMs: 60_000, cuisine: () => CUISINE, lancer: box.lancer, session: terminaux.session, shell: terminaux.shell, surGuide: (guide) => void pousses.push(guide) });
   return { services, terminal, pousses };
 }
 
@@ -570,13 +554,12 @@ describe("l'installation guidée : toutes les étapes, d'emblée", () => {
     assert.equal(etats(lu).verification, "waiting");
     assert.deepEqual(lu.etapes.find(({ id }) => id === "verification")?.manques, [{ texte: GESTE_TROP_VIEUX, geste: GESTE_A_NIVEAU, etape: "verification" }]);
     assert.equal(lu.etapes.find(({ id }) => id === "stations")?.manques.length, 1);
-    // Ce que le chef aura à faire lui-même est aussi dit d'avance : la session d'init, et le démarrage du service, un geste `root`.
+    // Ce que le chef aura à faire lui-même est aussi dit d'avance : la session d'init, et le geste `sudo` que la station demande.
     assert.deepEqual(
       lu.annonces.liste.map(({ titre, geste: commande }) => [titre, commande]),
       [
         ["2. Amorcer le dépôt", null],
         ["On the station, by someone with `sudo` there", GESTE_A_NIVEAU],
-        ["7. Démarrer la cuisine", "ssh -t box sudo systemctl enable --now brigade@calculus.service"],
       ],
     );
   });
@@ -745,14 +728,13 @@ describe("chaque geste est un bouton ou une réponse", () => {
 });
 
 describe("de « Ajouter le projet » à « installation terminée »", () => {
-  test("bout en bout par des boutons et des réponses : rien n'est à coller dans un terminal, sauf le démarrage du service, annoncé dès l'ouverture et écrit par l'app", async (t) => {
+  test("bout en bout par des boutons et des réponses : rien n'est à coller dans un terminal, et « Démarrer » n'écrit rien — la station de cet ordinateur tourne avec l'app", async (t) => {
     const box = boxSimulee(t);
     const { services, terminal } = app(box);
-    // L'écran d'ajout vient d'installer le projet sur sa box.
+    // L'écran d'ajout vient d'installer le projet sur sa station.
     services.suivre(CALCULUS);
     const ouvert = await guide(services);
-    const annonce = ouvert.annonces.liste.find(({ titre }) => titre === "7. Démarrer la cuisine")?.geste;
-    assert.equal(annonce, "ssh -t box sudo systemctl enable --now brigade@calculus.service");
+    assert.ok(!ouvert.annonces.liste.some(({ titre }) => titre === "7. Démarrer la cuisine"));
 
     services.amorcer(CALCULUS);
     await services.direMerge(CALCULUS, true);
@@ -763,53 +745,15 @@ describe("de « Ajouter le projet » à « installation terminée »", () => {
       assert.ok(detail?.etat === "lu" && detail.id === "decisions");
       assert.equal(await services.passerDecisions(CALCULUS), undefined);
     }
-    assert.equal((await guide(services)).courante, "demarrage");
-
-    const shell = await services.demarrer(CALCULUS);
-
-    assert.ok(!("refus" in shell) && shell.genre === "shell");
-    const fini = await guide(services);
-    assert.equal(fini.courante, null);
-    assert.ok(fini.etapes.every(({ etat }) => etat === "done"));
-    assert.equal(fini.titre, "Installation — finished: the 7 steps are done");
-    assert.deepEqual(fini.annonces.liste, []);
-    assert.equal((await box.etapesAuJournal())?.courante, null);
-    // Ce que l'app a mis dans un terminal : la session d'init, et le démarrage — écrit, pas envoyé.
-    assert.deepEqual(terminal(), [
-      { lance: `claude ${INIT} /projets/calculus`, ecrits: [] },
-      { lance: "/bin/zsh -l /projets/calculus", ecrits: [annonce] },
-    ]);
-    // Chaque commande partie vers la box est une commande du runtime, sous `installation`.
-    assert.ok(box.appels.every((commande) => commande === "installation" || commande.startsWith("installation ")), box.appels.join("\n"));
-  });
-
-  test("« Démarrer » sur une box qui n'est pas verte : rien n'est terminé, rien n'est écrit, et les étapes à reprendre le redisent", async (t) => {
-    let vert = true;
-    const box = boxSimulee(t, { verification: () => (vert ? PRETS : SANS_GESTES) });
-    const { services, terminal } = app(box);
-    services.suivre(CALCULUS);
-    await guide(services);
-    for (const etape of ["init", "stations", "protection", "decisions"]) await box.lancer({ nom: "calculus" }, `installation etapes ${etape} faite`);
-    assert.equal((await guide(services)).courante, "demarrage");
-
-    vert = false;
-    const rendu = await services.demarrer(CALCULUS);
-
-    assert.match(refus(rendu), /^Nothing is written: the station did not say everything is green/);
-    assert.deepEqual(terminal(), []);
     const lu = await guide(services);
-    assert.equal(lu.fait?.ok, false);
-    assert.equal(lu.courante, "verification");
-  });
+    assert.equal(lu.courante, "demarrage");
+    assert.match(refus(lu.demarrage as { refus: string }), /^nothing is written: .*there is no service to start/);
 
-  test("« Démarrer » n'écrit rien avant la dernière étape", async (t) => {
-    const box = boxSimulee(t);
-    const { services, terminal } = app(box);
-    await guide(services);
-
-    assert.match(refus(await services.demarrer(CALCULUS)), /not at its last step/);
-    assert.ok(!box.appels.includes("installation etapes demarrage faite"));
-    assert.deepEqual(terminal(), []);
+    assert.match(refus(await services.demarrer(CALCULUS)), /^nothing is written: .*there is no service to start/);
+    // Ce que l'app a mis dans un terminal : la session d'init, et rien d'autre.
+    assert.deepEqual(terminal(), [{ lance: `claude ${INIT} /projets/calculus`, ecrits: [] }]);
+    // Chaque commande partie vers la station est une commande du runtime, sous `installation`.
+    assert.ok(box.appels.every((commande) => commande === "installation" || commande.startsWith("installation ")), box.appels.join("\n"));
   });
 });
 
@@ -842,8 +786,8 @@ describe("ce que la box ne rend pas", () => {
   test("une box pas jointe : aucune étape n'est inventée, ce que l'app a obtenu est montré avec son cas", async (t) => {
     const { services } = (() => {
       const { terminaux } = fauxTerminaux();
-      const lancer = async (): Promise<Rendu> => ({ lance: "$ ssh box", erreur: Object.assign(new Error("ssh"), { code: 255, killed: false, cmd: "ssh" }), sortie: "", erreurs: "ssh: connect to host box port 22: Connection refused\n" });
-      return { services: tenirServices({ delaiMs: 60_000, lancer, session: terminaux.session, shell: terminaux.shell, surGuide: () => {} }) };
+      const lancer = async (): Promise<Rendu> => ({ lance: "$ node", erreur: Object.assign(new Error("spawn node ENOENT"), { code: "ENOENT", killed: false, cmd: "node" }), sortie: "", erreurs: "spawn node ENOENT\n" });
+      return { services: tenirServices({ delaiMs: 60_000, cuisine: () => CUISINE, lancer, session: terminaux.session, shell: terminaux.shell, surGuide: () => {} }) };
     })();
 
     const lu = await guide(services);
@@ -856,8 +800,8 @@ describe("ce que la box ne rend pas", () => {
 
   test("un runtime d'avant les étapes : ce qu'il a rendu est montré, et ce qui l'explique", async (t) => {
     const { terminaux } = fauxTerminaux();
-    const lancer = async (): Promise<Rendu> => ({ lance: "$ ssh box", erreur: Object.assign(new Error("usage"), { code: 2, killed: false, cmd: "ssh" }), sortie: "", erreurs: "brigade : usage : … installation -- [labels | setup [<cooks>] | desinstaller [--confirmer]]\n" });
-    const services = tenirServices({ delaiMs: 60_000, lancer, session: terminaux.session, shell: terminaux.shell, surGuide: () => {} });
+    const lancer = async (): Promise<Rendu> => ({ lance: "$ node", erreur: Object.assign(new Error("usage"), { code: 2, killed: false, cmd: "node" }), sortie: "", erreurs: "brigade : usage : … installation -- [labels | setup [<cooks>] | desinstaller [--confirmer]]\n" });
+    const services = tenirServices({ delaiMs: 60_000, cuisine: () => CUISINE, lancer, session: terminaux.session, shell: terminaux.shell, surGuide: () => {} });
 
     const lu = await guide(services);
 
@@ -866,21 +810,20 @@ describe("ce que la box ne rend pas", () => {
     assert.match(lu.lecture.lignes.join("\n"), /predates this step/);
   });
 
-  test("un projet sans box n'a pas d'installation : rien à lire, rien à faire, rien à démarrer", async (t) => {
+  test("un projet dont la station de cet ordinateur ne se lit pas n'a pas d'installation : rien à lire, rien à faire", async (t) => {
     const box = boxSimulee(t);
-    const { services, terminal } = app(box);
-    const sansBox: Projet = { nom: "calculus", dossier: "/projets/calculus" };
+    const { terminaux, terminal } = fauxTerminaux();
+    const services = tenirServices({ delaiMs: 60_000, cuisine: () => undefined, lancer: box.lancer, session: terminaux.session, shell: terminaux.shell, surGuide: () => {} });
 
-    assert.equal(await services.guide(sansBox), undefined);
-    assert.match((await services.direMerge(sansBox, true))?.refus ?? "", /does not say where its station is/);
-    assert.match((await services.verifier(sansBox))?.refus ?? "", /does not say where its station is/);
-    assert.match(refus(services.amorcer(sansBox)), /does not say where its station is/);
-    assert.match(refus(await services.demarrer(sansBox)), /does not say where its station is/);
+    assert.equal(await services.guide(CALCULUS), undefined);
+    assert.match((await services.direMerge(CALCULUS, true))?.refus ?? "", /does not say where its station is/);
+    assert.match((await services.verifier(CALCULUS))?.refus ?? "", /does not say where its station is/);
+    assert.match(refus(services.amorcer(CALCULUS)), /does not say where its station is/);
     assert.deepEqual(box.appels, []);
     assert.deepEqual(terminal(), []);
   });
 
-  test("un projet dont le dossier n'est pas là n'a pas de terminal : ni session, ni shell — sa box, elle, s'installe", async (t) => {
+  test("un projet dont le dossier n'est pas là n'a pas de terminal : ni session, ni shell — sa station, elle, s'installe", async (t) => {
     const box = boxSimulee(t);
     const { services, terminal } = app(box);
     const refuse: Projet = { ...CALCULUS, refus: "dossier introuvable : /projets/calculus" };
@@ -888,18 +831,16 @@ describe("ce que la box ne rend pas", () => {
     assert.equal(refus(services.amorcer(refuse)), "“calculus” does not open: dossier introuvable : /projets/calculus");
     assert.equal(await services.direMerge(refuse, true), undefined);
     assert.equal(etats(await guide(services, refuse)).init, "done");
-    assert.equal(refus(await services.demarrer(refuse)), "“calculus” does not open: dossier introuvable : /projets/calculus");
     assert.deepEqual(terminal(), []);
   });
 
-  test("chaque projet a son installation, et un projet qui change de box repart de ce que dit la nouvelle", async (t) => {
+  test("chaque projet a son installation, et un projet oublié repart de ce que dit la station", async (t) => {
     const box = boxSimulee(t);
     const { services } = app(box);
     services.suivre(CALCULUS);
     await guide(services);
 
     assert.equal((await guide(services, PARADE)).lecture.etat, "echec");
-    assert.equal((await guide(services, { ...CALCULUS, box: { hote: "autre-box" } })).deplie, true);
     services.oublier("calculus");
     assert.equal((await guide(services)).deplie, true);
   });
@@ -924,7 +865,7 @@ describe("ce que l'app lit du runtime : ses formes, telles qu'il les écrit", ()
 
   test("une forme que l'app ne connaît pas n'est pas lue : rien n'en est déduit", () => {
     for (const lire of [lireEtapes, lireStations, lireProtection, lireCourante]) {
-      for (const sortie of ["", "Bienvenue sur la box.", "{}", '{"etapes":"non","courante":null}', "[1,2]"]) assert.equal(lire(sortie), undefined, sortie);
+      for (const sortie of ["", "Bienvenue.", "{}", '{"etapes":"non","courante":null}', "[1,2]"]) assert.equal(lire(sortie), undefined, sortie);
     }
     assert.equal(lireEtapes('{"courante":"ailleurs","etapes":[]}'), undefined);
   });
@@ -935,12 +876,11 @@ describe("l'écran, tel que la vue le pose", () => {
   async function ouvrirLEcran(lu: Guide) {
     const vue = await jouerLaVue({
       demarrage: () => ({
-        configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [CALCULUS], hotes: ["box"] }),
+        configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [CALCULUS] }, () => true),
         palette: PALETTE,
         exemple: EXEMPLE,
         onglets: ONGLETS,
         rubriques: RUBRIQUES,
-        boutons: BOUTONS,
         gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
         banniere: BANNIERE,
         calibrage: { modeles: MODELES, efforts: EFFORTS },
@@ -1001,10 +941,10 @@ describe("un projet installé n'affiche jamais l'écran d'installation", () => {
     const { terminaux } = fauxTerminaux();
     const etat = { muette: false };
     const lancer = async (_servi: unknown, commande: string): Promise<Rendu> => {
-      if (etat.muette) return { lance: "$ ssh box", erreur: Object.assign(new Error("ssh"), { code: 255, killed: false, cmd: "ssh" }), sortie: "", erreurs: "ssh: connect to host box port 22: Connection refused\n" };
-      return { lance: `$ ssh box ${commande}`, erreur: null, sortie: commande === COMMANDES.etapes ? `${finies}\n` : "", erreurs: "" };
+      if (etat.muette) return { lance: "$ node", erreur: Object.assign(new Error("spawn node ENOENT"), { code: "ENOENT", killed: false, cmd: "node" }), sortie: "", erreurs: "spawn node ENOENT\n" };
+      return { lance: `$ node ${commande}`, erreur: null, sortie: commande === COMMANDES.etapes ? `${finies}\n` : "", erreurs: "" };
     };
-    const services = tenirServices({ delaiMs: 60_000, lancer, session: terminaux.session, shell: terminaux.shell, surGuide: () => {} });
+    const services = tenirServices({ delaiMs: 60_000, cuisine: () => CUISINE, lancer, session: terminaux.session, shell: terminaux.shell, surGuide: () => {} });
     return { services, etat };
   }
 
@@ -1029,10 +969,10 @@ describe("un projet installé n'affiche jamais l'écran d'installation", () => {
   });
 });
 
-// L'onglet Cooks (#1510, épique #1506) : une station déclarée s'édite sous sa ligne — son plafond, ses capacités, ce poste
-// qui la joue — ou se retire, après confirmation. Tout est vrai sauf la box : la vue telle qu'elle est, l'installation
+// L'onglet Cooks (#1510, épique #1506) : une station déclarée s'édite sous sa ligne — son plafond, ses capacités
+// — ou se retire, après confirmation. Tout est vrai sauf la box : la vue telle qu'elle est, l'installation
 // de l'app (service.ts), les commandes `installation stations` du runtime sur un vrai journal, et le fichier des
-// projets écrit par l'opération du runtime (`jouerIci`), relu par l'app comme main.ts le relit.
+// projets écrit par l'opération du runtime (`une-station.ts`), relu par l'app comme main.ts le relit.
 describe("l'onglet Cooks : une station déclarée, changée seule", () => {
   const DEFAUTS = {
     cooks: 4,
@@ -1062,21 +1002,20 @@ describe("l'onglet Cooks : une station déclarée, changée seule", () => {
     const dossier = mkdtempSync(join(tmpdir(), "brigade-app-station-editee-"));
     t.after(() => rmSync(dossier, { recursive: true, force: true }));
     const fichier = join(dossier, "app.json");
-    writeFileSync(fichier, `${JSON.stringify({ projets: [{ nom: "calculus", dossier, hote: "box" }] }, null, 2)}\n`);
+    writeFileSync(fichier, `${JSON.stringify({ projets: [{ nom: "calculus", dossier }] }, null, 2)}\n`);
     const projet = () => lireConfiguration(fichier).projets[0] ?? assert.fail(`${fichier} ne se lit plus`);
-    const { jouerIci, nePlusJouerIci } = await import("../../runtime/src/une-station.ts");
     let vue: Awaited<ReturnType<typeof jouerLaVue>> | undefined;
     const services = tenirServices({
       delaiMs: 60_000,
+      cuisine: () => CUISINE,
       lancer: box.lancer,
       session: fauxTerminaux().terminaux.session,
       shell: fauxTerminaux().terminaux.shell,
       surGuide: (guide) => vue?.dire("surGuide", guide),
-      jouerIci: async (nom, station, jouer) => (jouer ? jouerIci : nePlusJouerIci)(fichier, nom, station),
     });
     await services.guide(projet());
     await services.controler(projet(), true);
-    const configuration = () => pourLaBarre(lireConfiguration(fichier));
+    const configuration = () => pourLaBarre(lireConfiguration(fichier), () => true, () => true);
     const envois: Promise<unknown>[] = [];
     vue = await jouerLaVue({
       demarrage: () => ({
@@ -1085,7 +1024,6 @@ describe("l'onglet Cooks : une station déclarée, changée seule", () => {
         exemple: EXEMPLE,
         onglets: ONGLETS,
         rubriques: RUBRIQUES,
-        boutons: BOUTONS,
         gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
         banniere: BANNIERE,
         calibrage: { modeles: MODELES, efforts: EFFORTS },
@@ -1181,18 +1119,6 @@ describe("l'onglet Cooks : une station déclarée, changée seule", () => {
     assert.deepEqual(sans(await declaree(), editee), sans(auJournal, editee));
     assert.match(ligne(vue, editee).dessous("p").at(-1)?.textContent ?? "", /saved; the other stations are unchanged/);
 
-    // La jouer ici : le fichier des projets la porte, sans qu'on y touche, et sa ligne dit ce poste.
-    forme = await editer(vue, editee);
-    cocher(forme, "this workstation plays it", true);
-    bouton(forme, "Save").click();
-    await fini();
-    assert.deepEqual(projet().stations, [editee]);
-    assert.equal((await declaree()).find(({ nom }) => nom === editee)?.distante, true);
-    const jouees = lues(vue);
-    assert.equal(jouees.find(({ nom }) => nom === editee)?.ou, "this workstation");
-    assert.deepEqual(sans(jouees, editee), sans(avant, editee));
-    assert.deepEqual(sans(await declaree(), editee), sans(auJournal, editee));
-
     // La retirer : rien ne part avant la confirmation.
     forme = await editer(vue, editee);
     bouton(forme, "Remove").click();
@@ -1205,11 +1131,9 @@ describe("l'onglet Cooks : une station déclarée, changée seule", () => {
     await fini();
     assert.deepEqual(lues(vue), sans(avant, editee));
     assert.deepEqual(await declaree(), sans(auJournal, editee));
-    // Ce poste ne la joue plus.
-    assert.equal(projet().stations, undefined);
   }
 
-  test("trois stations : régler l'une, la faire jouer par ce poste, la retirer — les deux autres restent identiques", async (t) => {
+  test("trois stations : régler l'une, la retirer — les deux autres restent identiques", async (t) => {
     await parcours(t, "box/claude:3:code+raisonnement,mac/claude:1:navigateur-headless+chrome-connecté:distante,atelier/claude:2:code", "atelier/claude");
   });
 

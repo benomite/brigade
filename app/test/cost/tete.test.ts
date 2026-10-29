@@ -6,7 +6,6 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../../src/allumage.ts";
 import { pourLaBarre } from "../../src/barre.ts";
-import { BOUTONS } from "../../src/boutons.ts";
 import { EXEMPLE, type Projet } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
@@ -36,7 +35,7 @@ const station = (cinq: string, vingtQuatre: string) =>
     `  seuil-ticket        non posée — 5 h : ${n("999 999")} tokens n'est pas une fenêtre`,
   ].join("\n");
 const lu = (projet: string, texte: string) => ({ projet, demande: 0, a: A, sorties: [{ commande: "station", texte }] });
-const injoignable = (projet: string) => ({ projet, demande: 0, a: A, erreur: "ssh: connect to host box port 22: Connection refused", atteinte: false, cas: "ssh-en-echec" });
+const injoignable = (projet: string) => ({ projet, demande: 0, a: A, erreur: "spawn node ENOENT", atteinte: false, cas: null });
 
 const PARADE_LU = station(`6 lancements, dont 2 relectures · 214 tours · ${n("1 284 530")} tokens`, `19 lancements · 802 tours · ${n("4 912 044")} tokens`);
 const CANTINE_LU = station(`1 lancement · 3 tours · ${n("320 000")} tokens`, "rien");
@@ -133,8 +132,8 @@ describe("la tête posée", () => {
     const [cinq] = blocs(tete(new Map<string, unknown>([["parade", lu("parade", PARADE_LU)], ["cantine", injoignable("cantine")]])));
     assert.equal(cinq?.dessous("p")[0]?.textContent, "≥ 1,284,530");
     assert.deepEqual(cinq?.dessous("li").map((ligne) => ligne.children.slice(1).map(({ textContent }) => textContent)), [["parade", "1,284,530", ""], ["cantine", NON_COMMUNIQUE, ""]]);
-    // Rien de ce que `ssh` a répondu n'est écrit.
-    assert.doesNotMatch(tete(new Map([["cantine", injoignable("cantine")]])).textContent, /ssh|refused/);
+    // Rien de ce que le lancement a répondu n'est écrit.
+    assert.doesNotMatch(tete(new Map([["cantine", injoignable("cantine")]])).textContent, /ENOENT|spawn/);
   });
 
   test("aucune phrase d'explication : des libellés courts, des chiffres, et une seule ligne pour le quota", () => {
@@ -152,19 +151,18 @@ describe("la tête posée", () => {
 });
 
 describe("la page des coûts de l'app, dans la vue (#1022)", () => {
-  const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", box: { hote: "box" }, couleurs: { onglet: "#f2994a", accent: "#f2994a" } };
-  const CANTINE: Projet = { nom: "cantine", dossier: "/tmp/cantine", box: { hote: "box" } };
+  const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", couleurs: { onglet: "#f2994a", accent: "#f2994a" } };
+  const CANTINE: Projet = { nom: "cantine", dossier: "/tmp/cantine" };
   const LOCAL: Projet = { nom: "local", dossier: "/tmp/local" };
 
   async function ouvrirLaPage(): Promise<Jouee> {
     const vue = await jouerLaVue({
       demarrage: () => ({
-        configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE, CANTINE, LOCAL], hotes: ["box"] }),
+        configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE, CANTINE, LOCAL] }, (projet) => projet.nom !== "local"),
         palette: PALETTE,
         exemple: EXEMPLE,
         onglets: ONGLETS,
         rubriques: RUBRIQUES,
-        boutons: BOUTONS,
         gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
         banniere: BANNIERE,
         calibrage: { modeles: MODELES, efforts: EFFORTS },
@@ -196,7 +194,7 @@ describe("la page des coûts de l'app, dans la vue (#1022)", () => {
     await repos();
     const totaux = cout.dessous("p").filter(({ className }) => className.startsWith("total")).map(({ textContent }) => textContent);
     assert.deepEqual(totaux, ["1,604,530", "4,912,044", NON_COMMUNIQUE]);
-    // Un projet sans box n'a rien lancé : il n'a pas de ligne.
+    // Un projet que la station ne lit pas n'a rien lancé : il n'a pas de ligne.
     assert.doesNotMatch(cout.textContent, /local/);
     // Le quota du compte renvoie à `/usage`.
     assert.match(cout.textContent, /Max account quota: \/usage/);

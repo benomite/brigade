@@ -24,12 +24,12 @@ const unePhrase = (texte: string) => {
   assert.doesNotMatch(texte, /\.\s+[A-Z]/, texte);
 };
 
-test("les quatre outils dans le PATH : le second a tout ce qu'il lui faut, chacun avec son chemin", () => {
+test("les trois outils dans le PATH : le second a tout ce qu'il lui faut, chacun avec son chemin", () => {
   const etat = verifierLesOutils({
     plateforme: "linux",
     env: { PATH: "/usr/local/bin:/usr/bin" },
     maison: "/home/chef",
-    existe: fichiers("/usr/local/bin/claude", "/usr/bin/gh", "/usr/bin/git", "/usr/bin/ssh", "/usr/bin/claude"),
+    existe: fichiers("/usr/local/bin/claude", "/usr/bin/gh", "/usr/bin/git", "/usr/bin/claude"),
   });
   assert.deepEqual(etat, {
     state: "ready",
@@ -37,12 +37,11 @@ test("les quatre outils dans le PATH : le second a tout ce qu'il lui faut, chacu
       { tool: "claude", present: true, path: "/usr/local/bin/claude" },
       { tool: "gh", present: true, path: "/usr/bin/gh" },
       { tool: "git", present: true, path: "/usr/bin/git" },
-      { tool: "ssh", present: true, path: "/usr/bin/ssh" },
     ],
   });
 });
 
-test("sous Windows, il manque gh et ssh : la vérification les nomme, et dit pour chacun en une phrase comment l'obtenir", () => {
+test("sous Windows, il manque gh : la vérification le nomme, et dit en une phrase comment l'obtenir", () => {
   const etat = verifierLesOutils({
     plateforme: "win32",
     // Un environnement de Windows copié dans un objet : son PATH s'écrit `Path`.
@@ -52,14 +51,12 @@ test("sous Windows, il manque gh et ssh : la vérification les nomme, et dit pou
   });
   assert.equal(etat.state, "missing");
   assert.ok(etat.state === "missing");
-  assert.deepEqual(etat.missing, ["gh", "ssh"]);
-  assert.equal(etat.reason, "The second needs `gh` and `ssh`, and this PC does not have them.");
+  assert.deepEqual(etat.missing, ["gh"]);
+  assert.equal(etat.reason, "The second needs `gh`, and this PC does not have it.");
   const gh = manquant(etat.tools, "gh");
   assert.match(gh.install, /winget install --id GitHub\.cli/);
   assert.match(gh.reason, /^`gh` is not installed on this PC/);
-  const ssh = manquant(etat.tools, "ssh");
-  assert.match(ssh.install, /OpenSSH/);
-  for (const vu of [gh, ssh]) {
+  for (const vu of [gh]) {
     unePhrase(vu.install);
     unePhrase(vu.reason);
     assert.match(vu.link, /^https:\/\//);
@@ -86,9 +83,9 @@ test("sous Windows, `claude` est le lanceur `.cmd` d'npm, jamais le fichier sans
 test("un `claude` installé hors du PATH manque, et la vérification dit où il est et quel dossier ajouter au PATH", () => {
   const etat = verifierLesOutils({
     plateforme: "win32",
-    env: { PATH: "C:\\Program Files\\Git\\cmd;C:\\Program Files\\GitHub CLI;C:\\Windows\\System32\\OpenSSH" },
+    env: { PATH: "C:\\Program Files\\Git\\cmd;C:\\Program Files\\GitHub CLI" },
     maison: "C:\\Users\\chef",
-    existe: fichiers("C:\\Users\\chef\\.local\\bin\\claude.exe", "C:\\Program Files\\Git\\cmd\\git.exe", "C:\\Program Files\\GitHub CLI\\gh.exe", "C:\\Windows\\System32\\OpenSSH\\ssh.exe"),
+    existe: fichiers("C:\\Users\\chef\\.local\\bin\\claude.exe", "C:\\Program Files\\Git\\cmd\\git.exe", "C:\\Program Files\\GitHub CLI\\gh.exe"),
   });
   assert.ok(etat.state === "missing");
   assert.deepEqual(etat.missing, ["claude"]);
@@ -99,17 +96,17 @@ test("un `claude` installé hors du PATH manque, et la vérification dit où il 
   unePhrase(claude.reason);
 });
 
-test("rien d'installé : chaque plateforme dit, pour chacun des quatre, une phrase qui l'obtient et la page qui l'explique", () => {
+test("rien d'installé : chaque plateforme dit, pour chacun des trois, une phrase qui l'obtient et la page qui l'explique", () => {
   const attendu: Record<string, RegExp[]> = {
-    win32: [/install\.ps1/, /winget install --id GitHub\.cli/, /winget install --id Git\.Git/, /Add-WindowsCapability/],
-    darwin: [/install\.sh/, /brew install gh/, /xcode-select --install/, /brew install openssh/],
-    linux: [/install\.sh/, /apt install gh/, /apt install git/, /apt install openssh-client/],
+    win32: [/install\.ps1/, /winget install --id GitHub\.cli/, /winget install --id Git\.Git/],
+    darwin: [/install\.sh/, /brew install gh/, /xcode-select --install/],
+    linux: [/install\.sh/, /apt install gh/, /apt install git/],
   };
   for (const [plateforme, motifs] of Object.entries(attendu)) {
     const etat = verifierLesOutils({ plateforme: plateforme as NodeJS.Platform, env: { PATH: "" }, maison: "/nulle-part", existe: () => false });
     assert.ok(etat.state === "missing", plateforme);
     assert.deepEqual(etat.missing, [...OUTILS], plateforme);
-    assert.match(etat.reason, /`claude`, `gh`, `git` and `ssh`/);
+    assert.match(etat.reason, /`claude`, `gh` and `git`/);
     OUTILS.forEach((outil, i) => {
       const vu = manquant(etat.tools, outil);
       assert.match(vu.install, motifs[i] as RegExp, `${plateforme} ${outil}`);
@@ -122,7 +119,7 @@ test("rien d'installé : chaque plateforme dit, pour chacun des quatre, une phra
 });
 
 test("un programme nommé par son chemin tient lieu de l'outil : présent s'il est là, sinon il manque en le disant", () => {
-  const options = { plateforme: "linux" as const, env: { PATH: "/usr/bin" }, maison: "/home/chef", existe: fichiers("/usr/bin/gh", "/usr/bin/git", "/usr/bin/ssh", "/opt/faux/claude") };
+  const options = { plateforme: "linux" as const, env: { PATH: "/usr/bin" }, maison: "/home/chef", existe: fichiers("/usr/bin/gh", "/usr/bin/git", "/opt/faux/claude") };
   const lu = verifierLesOutils({ ...options, programmes: { claude: "/opt/faux/claude" } });
   assert.deepEqual(lu.tools[0], { tool: "claude", present: true, path: "/opt/faux/claude" });
   const absent = verifierLesOutils({ ...options, programmes: { claude: "/opt/absent/claude" } });
@@ -141,7 +138,7 @@ const poserDesOutils = (dossier: string, outils: readonly Outil[]) => {
 
 test("la commande, sur un PATH où `git` manque : une ligne JSON qui le nomme, code 1 — et code 0 quand il y est", async (t) => {
   const dossier = repertoireTemporaire(t);
-  poserDesOutils(dossier, ["claude", "gh", "ssh"]);
+  poserDesOutils(dossier, ["claude", "gh"]);
   const lignes: string[] = [];
   const appel = (env: Record<string, string>) => ({ args: [], env: { ...env, PATHEXT: ".COM;.EXE;.BAT;.CMD" }, dire: (ligne: string) => lignes.push(ligne), redire: () => {} });
   const sortie = await Promise.resolve()

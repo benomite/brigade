@@ -41,7 +41,7 @@ const PERDUE = document({ connexionMax: { etat: "perdue", depuis: il_y_a(12 * MI
 const COMMANDES = [
   /`/,
   /\$ /,
-  /(^|\s)(sudo|systemctl|journalctl|apt|apt-get|dpkg|ssh|gh|npm|node|git|curl|bash|sh|runuser|brigade)\s/i,
+  /(^|\s)(sudo|systemctl|journalctl|apt|apt-get|dpkg|gh|npm|node|git|curl|bash|sh|runuser|brigade)\s/i,
   /\bclaude\s+(auth|\/login|login|-p)\b/i,
   /\/login\b/,
   /(^|\s)--?[a-z]/,

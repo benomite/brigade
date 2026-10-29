@@ -20,7 +20,6 @@ import { mettreAPart } from "../src/attend.ts";
 import type { Lecture } from "../src/box.ts";
 import { ALLUMAGE } from "../src/allumage.ts";
 import { pourLaBarre } from "../src/barre.ts";
-import { BOUTONS } from "../src/boutons.ts";
 import { EXEMPLE, type Projet } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { confirmationDe, type Lus } from "../src/confirmation.ts";
@@ -34,9 +33,11 @@ import { jouerLaVue, repos, type Reponses } from "./aides/fausse-vue.ts";
 
 const JOUR = "2026-10-13";
 const lecture = (commande: string, texte: string): Lecture => ({ projet: "parade", demande: 1, a: `${JOUR}T10:00:01.000Z`, sorties: [{ commande, texte }] });
+const CUISINE = { locale: { node: "node", runtime: "/tmp/runtime", racine: "/tmp/station", env: {} } };
+
 // La box a répondu, la commande a échoué : une lecture ratée, pas une box muette (#728).
-const RATEE: Lecture = { projet: "parade", demande: 1, a: `${JOUR}T10:00:01.000Z`, erreur: "$ ssh box brigade parade facts\nnpm error Missing script: facts\n\n→ code de sortie 1", atteinte: true, cas: null };
-const PAS_JOINT: Lecture = { projet: "parade", demande: 1, a: `${JOUR}T10:00:01.000Z`, erreur: "$ ssh box brigade parade facts\nssh: connect to host box port 22: Connection refused\n\n→ code de sortie 255", atteinte: false, cas: "ssh-en-echec" };
+const RATEE: Lecture = { projet: "parade", demande: 1, a: `${JOUR}T10:00:01.000Z`, erreur: "$ station parade facts\nnpm error Missing script: facts\n\n→ code de sortie 1", atteinte: true, cas: null };
+const PAS_JOINT: Lecture = { projet: "parade", demande: 1, a: `${JOUR}T10:00:01.000Z`, erreur: "$ station parade facts\nconnection refused\n\n→ code de sortie 255", atteinte: false, cas: null };
 
 // Une cuisine dont le test tient l'horloge, et ce que la box en rend : `faits`, `status` et
 // `manager`, écrits par le runtime. `bande` : ce que l'app en dessine, lu comme le process
@@ -301,16 +302,15 @@ describe("le grant : sans rien à dire, éteint seul, non dit", () => {
 });
 
 describe("la bande, à l'écran", () => {
-  const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", box: { hote: "box" } };
+  const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade" };
   const ouvrir = async (plus: Reponses = {}) => {
     const vue = await jouerLaVue({
       ...plus,
       demarrage: () => ({
-        configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE], hotes: ["box"] }),
+        configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE] }, () => true),
         palette: PALETTE,
         exemple: EXEMPLE,
         onglets: ONGLETS, rubriques: RUBRIQUES,
-        boutons: BOUTONS,
         gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
         banniere: BANNIERE,
         calibrage: { modeles: MODELES, efforts: EFFORTS },
@@ -329,7 +329,7 @@ describe("la bande, à l'écran", () => {
       const faits = comprendre(rendre("10:00:00").faits);
       return "informe" in faits ? { sans: faits.informe } : { faits, a: `${JOUR}T10:00:01.000Z` };
     };
-    const vue = await ouvrir({ confirmer: (_, id, grant) => confirmationDe(id, PARADE, lus(), grant) });
+    const vue = await ouvrir({ confirmer: (_, id, grant) => confirmationDe(id, PARADE, lus(), grant, CUISINE) });
     const bande = vue.element("alertes");
 
     vue.dire("surAlertes", { projet: "parade", alertes: [] });
@@ -417,16 +417,15 @@ describe("la bande, à l'écran", () => {
 });
 
 describe("le signal d'un projet sur sa case de la barre", () => {
-  const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", box: { hote: "box" } };
-  const AUTRE: Projet = { nom: "baloo", dossier: "/tmp/baloo", box: { hote: "box" } };
+  const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade" };
+  const AUTRE: Projet = { nom: "baloo", dossier: "/tmp/baloo" };
   const ouvrir = () =>
     jouerLaVue({
       demarrage: () => ({
-        configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE, AUTRE], hotes: ["box"] }),
+        configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE, AUTRE] }, () => true),
         palette: PALETTE,
         exemple: EXEMPLE,
         onglets: ONGLETS, rubriques: RUBRIQUES,
-        boutons: BOUTONS,
         gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
         banniere: BANNIERE,
         calibrage: { modeles: MODELES, efforts: EFFORTS },

@@ -6,7 +6,6 @@ import { test } from "node:test";
 import type { Accueil } from "../../src/accueil.ts";
 import { ALLUMAGE } from "../../src/allumage.ts";
 import { pourLaBarre } from "../../src/barre.ts";
-import { BOUTONS } from "../../src/boutons.ts";
 import { EXEMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
@@ -27,12 +26,11 @@ const BOX: StationVue = { id: "g1", nom: "box", machine: "Linux 6.1.0", etat: "e
 const ACCUEIL: Accueil = { projets: [], stations: [{ id: "g1", nom: "box", ton: "rouge", dit: "online · Max connection lost · update failed · no project", phrase: "online · no cook running", survol: "Linux 6.1.0 · version 1.4.0" }], sante: { ton: "rouge", dit: "Max: connection lost on box  ·  GitHub ✓", survol: "" } };
 
 const demarrage = (stations: VuDesStations) => ({
-  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade", box: { hote: "box" } }], hotes: ["box"] }),
+  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }] }, () => true),
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  boutons: BOUTONS,
   gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
@@ -105,7 +103,7 @@ async function pageDe(station: StationVue, phrase: string) {
 
 // Rien de la page ne tient du texte brut : ni commande, ni code de sortie.
 const sansTexteBrut = (page: Faux) => {
-  for (const motif of [/`/, /\$ /, /\bssh\b/, /\bsudo\b/, /\bclaude\b/, /\/login/, /exit code/i, /Error:/]) assert.doesNotMatch(page.textContent, motif);
+  for (const motif of [/`/, /\$ /, /\bsudo\b/, /\bclaude\b/, /\/login/, /exit code/i, /Error:/]) assert.doesNotMatch(page.textContent, motif);
 };
 const boutonsDePanne = (page: Faux) => lignes(page).flatMap((ligne) => ligne.dessous("button").filter(({ className }) => className !== "aide"));
 

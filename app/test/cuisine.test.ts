@@ -8,18 +8,21 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
+import { GESTE, type Cuisine } from "../src/box.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
 import { CONFIRMES, DIRECTS, ecrireGeste, GESTES, SANS_OUI } from "../src/gestes.ts";
 import { DIT } from "../src/saisie.ts";
 import { ouvrirTerminaux } from "../src/terminaux.ts";
 
 const RACINE = join(import.meta.dirname, "../..");
-const PARADE = { nom: "parade", dossier: "/projets/parade", box: { hote: "box" } };
+const PARADE = { nom: "parade", dossier: "/projets/parade" };
+const CUISINE: Cuisine = { locale: { node: "/usr/bin/node", runtime: "/r/runtime", racine: "/r/station", env: {} } };
+const EN_POSTE = (suite: string) => `(cd '/r/runtime' && BRIGADE_STATION_DIR='/r/station' '/usr/bin/node' ${GESTE} parade ${suite})`;
 
 const ATTENDUES: Record<string, string> = {
-  reprendre: "ssh box brigade parade guardrails resume",
-  stop: "ssh box brigade parade guardrails stop",
-  installation: "ssh box brigade parade installation",
+  reprendre: EN_POSTE("guardrails resume"),
+  stop: EN_POSTE("guardrails stop"),
+  installation: EN_POSTE("installation"),
 };
 
 describe("les gestes de la cuisine et de l'installation", () => {
@@ -53,9 +56,9 @@ describe("les gestes de la cuisine et de l'installation", () => {
       terminaux.espace(PARADE);
 
       // Sans « oui », un geste confirmé ne touche pas au second.
-      if (CONFIRMES.includes(id)) assert.deepEqual(ecrireGeste(terminaux, id, PARADE), { refus: SANS_OUI }, id);
+      if (CONFIRMES.includes(id)) assert.deepEqual(ecrireGeste(terminaux, id, PARADE, undefined, undefined, CUISINE), { refus: SANS_OUI }, id);
 
-      const rendu = await ecrireGeste(terminaux, id, PARADE, undefined, true);
+      const rendu = await ecrireGeste(terminaux, id, PARADE, undefined, true, CUISINE);
 
       // Le second vient d'être lancé : il n'est pas dit libre. Rien n'est écrit — ni dans sa saisie, ni dans un shell.
       assert.deepEqual(rendu, { refus: `${DIT.demarre} — the command did not go, and nothing is written: \`!${ATTENDUES[id]}\`` }, id);

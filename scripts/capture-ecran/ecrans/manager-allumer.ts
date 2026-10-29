@@ -3,7 +3,7 @@
 // rend ici : 23 issues ouvertes, dont 2 portent `blocked-on-human`.
 import { backlogDe, dire } from "../../../app/src/allumage.ts";
 import { confirmationDe } from "../../../app/src/confirmation.ts";
-import { configuration, cuisine, demarrage, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
+import { configuration, CUISINE, cuisine, demarrage, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
 import { MANAGER_ETEINT, PROJETS, RENDUS } from "./cuisine-figee.ts";
 
 const PARADE = RENDUS.parade as Rendu;
@@ -24,7 +24,7 @@ export const ecran: Ecran = {
       reponses: {
         demarrage: demarrage(configuration(PROJETS)),
         espace: [],
-        confirmer: confirmationDe("manager-allumer", parade, { faits: PARADE.facts, a: MAINTENANT }),
+        confirmer: confirmationDe("manager-allumer", parade, { faits: PARADE.facts, a: MAINTENANT }, undefined, CUISINE),
         compter: { projet: "parade", a: MAINTENANT, ...backlog, dit: dire(backlog) },
       },
       envois: cuisine({ ...RENDUS, parade: { ...PARADE, manager: MANAGER_ETEINT } }),

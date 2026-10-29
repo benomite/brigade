@@ -201,12 +201,12 @@ function graphe(entree: string): string[] {
   return [...vus].map((chemin) => (chemin.startsWith(RACINE) ? relative(RACINE, chemin).split("\\").join("/") : chemin)).sort();
 }
 
-test("la lecture du tableau ne joint ni box ni station : ses modules n'importent que le lecteur du runtime, et aucun ne lance `ssh`", () => {
+test("la lecture du tableau ne joint ni box ni station : ses modules n'importent que le lecteur du runtime,", () => {
   assert.deepEqual(graphe("app/src/tableau/lecture.ts"), ["app/src/tableau/client.ts", "app/src/tableau/lecture.ts", "runtime/src/tableau/rendu/bloc.ts"]);
   // Le jeton du desktop : `gh auth token`, et rien d'autre.
   assert.deepEqual(graphe("app/src/tableau/jeton-gh.ts"), ["app/src/tableau/jeton-gh.ts", "node:child_process"]);
   for (const module of ["app/src/tableau/lecture.ts", "app/src/tableau/client.ts", "app/src/tableau/jeton-gh.ts", "runtime/src/tableau/rendu/bloc.ts"]) {
     const code = readFileSync(join(RACINE, module), "utf8").replace(/^\s*\/\/.*$/gm, "");
-    assert.doesNotMatch(code, /ssh|BRIGADE_SSH_BIN|box\.ts|stations\//i, `${module} n'appelle aucun code ssh`);
+    assert.doesNotMatch(code, /box\.ts|stations\//i, `${module} ne joint ni box ni station`);
   }
 });

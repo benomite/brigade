@@ -114,12 +114,12 @@ describe("le registre des terminaux", () => {
     const second = un(terminaux.espace(BRIGADE));
     terminaux.shell(BRIGADE);
 
-    const dit = terminaux.inscrire(BRIGADE, "!ssh box brigade brigade garde-fous stop");
+    const dit = terminaux.inscrire(BRIGADE, "!station brigade garde-fous stop");
 
     // Dans le second, pas dans le shell ouvert à côté — et ni `\r` ni `\n` : c'est le chef qui fait Entrée.
-    assert.deepEqual([lance(0).ecrits, lance(1).ecrits], [["!ssh box brigade brigade garde-fous stop"], []]);
+    assert.deepEqual([lance(0).ecrits, lance(1).ecrits], [["!station brigade garde-fous stop"], []]);
     assert.deepEqual([dit.id, dit.arrete], [second.id, false]);
-    assert.equal(dit.note, "written into the second, without Enter: `!ssh box brigade brigade garde-fous stop` — at `claude`'s prompt, it waits for yours, after your typing if you were typing. On any other screen (a choice to make, vim mode), these characters are keystrokes: look at the second before confirming");
+    assert.equal(dit.note, "written into the second, without Enter: `!station brigade garde-fous stop` — at `claude`'s prompt, it waits for yours, after your typing if you were typing. On any other screen (a choice to make, vim mode), these characters are keystrokes: look at the second before confirming");
     // L'espace rouvert dit la même chose ; rien n'est annoncé à part, la vue a reçu la réponse.
     assert.deepEqual(terminaux.espace(BRIGADE)[0], dit);
     assert.deepEqual(etats, []);
@@ -130,7 +130,7 @@ describe("le registre des terminaux", () => {
     const second = un(terminaux.espace(BRIGADE));
     lance(0).surFin(0);
 
-    const dit = terminaux.inscrire(BRIGADE, "!ssh box brigade brigade garde-fous stop");
+    const dit = terminaux.inscrire(BRIGADE, "!station brigade garde-fous stop");
 
     assert.deepEqual(commandes(), [`claude --continue ${LE_ROLE} /projets/brigade`, `claude --continue ${LE_ROLE} /projets/brigade`]);
     assert.deepEqual(lance(1).ecrits, []);
@@ -138,14 +138,14 @@ describe("le registre des terminaux", () => {
     assert.equal(dit.note, "the second was not running: launched (`claude --continue`, with the second's role in its system prompt) — the command is not written into a second that is starting, click again when it is ready");
 
     // Le second clic, lui, écrit.
-    terminaux.inscrire(BRIGADE, "!ssh box brigade brigade garde-fous stop");
-    assert.deepEqual(lance(1).ecrits, ["!ssh box brigade brigade garde-fous stop"]);
+    terminaux.inscrire(BRIGADE, "!station brigade garde-fous stop");
+    assert.deepEqual(lance(1).ecrits, ["!station brigade garde-fous stop"]);
   });
 
   test("un espace jamais ouvert n'a pas de second : le bouton l'ouvre d'abord, de la même façon", () => {
     const { terminaux, lance, commandes } = registre();
 
-    const dit = terminaux.inscrire(BRIGADE, "!ssh box brigade brigade garde-fous stop");
+    const dit = terminaux.inscrire(BRIGADE, "!station brigade garde-fous stop");
 
     assert.deepEqual(commandes(), [`claude --continue ${LE_ROLE} /projets/brigade`]);
     assert.deepEqual(lance(0).ecrits, []);
@@ -157,9 +157,9 @@ describe("le registre des terminaux", () => {
     const { terminaux, lance } = registre();
     terminaux.espace(BRIGADE);
 
-    for (const piege of ["!ssh box\rbrigade brigade status", "!ssh 'bo\nx' brigade brigade status", "!ssh box\x03 brigade"]) {
+    for (const piege of ["!station\rbrigade status", "!station 'bo\nx' brigade status", "!station\x03 brigade"]) {
       const dit = terminaux.inscrire(BRIGADE, piege);
-      assert.equal(dit.note, "nothing is written: the command carries a control character, and a line break would have sent it — check “nom” and “hote” of this project in the projects file");
+      assert.equal(dit.note, "nothing is written: the command carries a control character, and a line break would have sent it — check “nom” of this project in the projects file");
     }
     assert.deepEqual(lance(0).ecrits, []);
   });
@@ -343,21 +343,21 @@ describe("ce que la mise en service demande au registre", () => {
     const { terminaux, lance, commandes } = registre();
     terminaux.espace(BRIGADE);
 
-    const shell = terminaux.shell(BRIGADE, "ssh -t box sudo systemctl enable --now brigade@brigade.service");
+    const shell = terminaux.shell(BRIGADE, "sudo systemctl enable --now brigade@brigade.service");
 
     assert.equal(commandes().at(-1), "/bin/zsh -l /projets/brigade");
     // Dans ce shell, pas dans le second — et ni `\r` ni `\n`.
-    assert.deepEqual([lance(0).ecrits, lance(1).ecrits], [[], ["ssh -t box sudo systemctl enable --now brigade@brigade.service"]]);
+    assert.deepEqual([lance(0).ecrits, lance(1).ecrits], [[], ["sudo systemctl enable --now brigade@brigade.service"]]);
     assert.deepEqual([shell.genre, shell.titre], ["shell", "shell 1"]);
-    assert.equal(shell.note, "written into this shell, without Enter: `ssh -t box sudo systemctl enable --now brigade@brigade.service` — yours is what sends it. A real terminal: what the command asks for — a password — is typed here");
+    assert.equal(shell.note, "written into this shell, without Enter: `sudo systemctl enable --now brigade@brigade.service` — yours is what sends it. A real terminal: what the command asks for — a password — is typed here");
   });
 
   test("une commande qui porterait de quoi partir seule n'est pas écrite dans le shell, et sa note le dit", () => {
     const { terminaux, lance } = registre();
 
-    for (const piege of ["ssh -t box\rreboot", "ssh -t 'bo\nx'", "ssh\x03"]) {
+    for (const piege of ["sudo\rreboot", "sudo 'bo\nx'", "sudo\x03"]) {
       const shell = terminaux.shell(BRIGADE, piege);
-      assert.equal(shell.note, "nothing is written: the command carries a control character, and a line break would have sent it — check “nom” and “hote” of this project in the projects file");
+      assert.equal(shell.note, "nothing is written: the command carries a control character, and a line break would have sent it — check “nom” of this project in the projects file");
     }
     assert.deepEqual([lance(0).ecrits, lance(1).ecrits, lance(2).ecrits], [[], [], []]);
   });
@@ -370,8 +370,8 @@ describe("ce que la mise en service demande au registre", () => {
 const REPOS = "\x1b]0;✳ Claude Code\x07";
 const TRAVAIL = "\x1b]0;◐ Claude Code\x07";
 const MODE_SHELL =
-  "\x1b[?25l\x1b[H\r\x1b[36B\x1b[38;5;211m────────\r\x1b[1B!\xa0\x1b[39mssh\x1b[7Gbox\x1b[11Gbrigade\x1b[19Gbrigade\x1b[27Ginstallation\r\x1b[1B\x1b[38;5;211m────────\r\x1b[2C\x1b[1B! for shell mode\x1b[39m\x1b[K\x1b[40;1H\x1b[38;51H\x1b[?25h";
-const INSTALLATION = "!ssh box brigade brigade installation";
+  "\x1b[?25l\x1b[H\r\x1b[36B\x1b[38;5;211m────────\r\x1b[1B!\xa0\x1b[39mstation\x1b[11Gbrigade\x1b[19Ginstallation\r\x1b[1B\x1b[38;5;211m────────\r\x1b[2C\x1b[1B! for shell mode\x1b[39m\x1b[K\x1b[40;1H\x1b[38;51H\x1b[?25h";
+const INSTALLATION = "!station brigade installation";
 const PAS_PARTIE = ` — the command did not go, and nothing is written: \`${INSTALLATION}\``;
 
 // Un registre dont chaque second dit ses tours à l'app. `tours` : ce que le second du rang donné a dit.
@@ -556,7 +556,7 @@ describe("un geste direct part vraiment dans le second, et dit quand il ne peut 
 
     const rendu = terminaux.envoyer(BRIGADE, INSTALLATION);
     // Il redessine sa saisie sans passer en mode shell : la commande s'est écrite à la suite d'autre chose.
-    pty.surSortie("\x1b[?25l❯\xa0!ssh\x1b[8Gbox\x1b[?25h");
+    pty.surSortie("\x1b[?25l❯\xa0!station\x1b[12Gbrigade\x1b[?25h");
     t.mock.timers.tick(4_999);
     assert.deepEqual(pty.ecrits, [INSTALLATION]);
     t.mock.timers.tick(1);
@@ -610,8 +610,8 @@ describe("un geste direct part vraiment dans le second, et dit quand il ne peut 
   test("une commande qui porterait de quoi partir seule n'est ni écrite ni envoyée", async () => {
     const { terminaux, pty } = secondLibre();
 
-    for (const piege of ["!ssh box\rreboot", "!ssh 'bo\nx'", "!ssh\x03", `${INSTALLATION}\r`]) {
-      assert.deepEqual(await terminaux.envoyer(BRIGADE, piege), { refus: "nothing is written: the command carries a control character, and a line break would have sent it — check “nom” and “hote” of this project in the projects file" });
+    for (const piege of ["!station\rreboot", "!station 'bo\nx'", "!station\x03", `${INSTALLATION}\r`]) {
+      assert.deepEqual(await terminaux.envoyer(BRIGADE, piege), { refus: "nothing is written: the command carries a control character, and a line break would have sent it — check “nom” of this project in the projects file" });
     }
     assert.deepEqual(pty.ecrits, []);
   });
@@ -640,16 +640,14 @@ describe("un geste direct part vraiment dans le second, et dit quand il ne peut 
 });
 
 describe("le second reste local, sans multiplexeur, et sa conversation reprend à la réouverture", () => {
-  // Un registre comme l'app en ouvre un à chaque lancement : un `ssh` posé, et des shells persistants
-  // sur la box dont l'app se souvient — tout ce qui pourrait attirer le second ailleurs.
-  const BOX = { lieu: "box", nom: "parade-box", hote: "parade-box" } as const;
-  const SOUVENIRS = { parade: { dernier: 1, shells: [{ rang: 1, session: "brigade-parade-1", cible: BOX }] } };
+  // Un registre comme l'app en ouvre un à chaque lancement : des shells persistants
+  // dont l'app se souvient — tout ce qui pourrait attirer le second ailleurs.
+  const SOUVENIRS = { parade: { dernier: 1, shells: [{ rang: 1, session: "brigade-parade-1", cible: { lieu: "poste" } as const }] } };
   function lancement() {
     const lances: Lancement[] = [];
     const terminaux = ouvrirTerminaux({
       claude: "claude",
       shell: "/bin/zsh",
-      ssh: "ssh",
       souvenirs: { lire: () => SOUVENIRS, ecrire: () => undefined },
       ouvrirPty(l) {
         lances.push(l);
@@ -660,9 +658,9 @@ describe("le second reste local, sans multiplexeur, et sa conversation reprend �
     });
     return { terminaux, lances };
   }
-  const MOTS_DE_MULTIPLEXEUR = /tmux|screen|ssh|attach-session|new-session/;
+  const MOTS_DE_MULTIPLEXEUR = /tmux|screen|attach-session|new-session/;
 
-  test("la commande de lancement du second est `claude --continue` sur le rôle, dans le dossier du projet : ni tmux, ni screen, ni connexion distante", () => {
+  test("la commande de lancement du second est `claude --continue` sur le rôle, dans le dossier du projet : ni tmux, ni screen", () => {
     const { terminaux, lances } = lancement();
 
     terminaux.espace(PARADE);
@@ -672,8 +670,8 @@ describe("le second reste local, sans multiplexeur, et sa conversation reprend �
     assert.deepEqual([second.commande, ...second.args], ["claude", "--continue", ...ROLE]);
     assert.equal(second.dossier, "/projets/parade");
     assert.doesNotMatch([second.commande, ...second.args].join(" "), MOTS_DE_MULTIPLEXEUR);
-    // Le shell persistant de la box, lui, passe bien par ssh : la différence est voulue.
-    assert.match([shells[0]?.commande, ...(shells[0]?.args ?? [])].join(" "), /ssh/);
+    // Le shell persistant dont l'app se souvient, lui, se rattache par un shell : la différence est voulue.
+    assert.equal(shells[0]?.commande, "/bin/sh");
   });
 
   test("son relancement — touche après un arrêt, ou session neuve faute de fil — reste local lui aussi, sans multiplexeur", () => {
@@ -704,7 +702,7 @@ describe("le second reste local, sans multiplexeur, et sa conversation reprend �
 
   test("le second n'est pas une machine de « + shell » : seules les cibles de shells y sont proposées", async () => {
     const { machinesDe } = await import("../src/machines.ts");
-    const machines = machinesDe({ box: { hote: "parade-box" }, stations: ["studio/claude"] }, [{ nom: "studio/claude", distante: true }]);
+    const machines = machinesDe();
 
     assert.ok(machines.length > 0);
     for (const { id, titre } of machines) assert.doesNotMatch(`${id} ${titre}`, /second/i);

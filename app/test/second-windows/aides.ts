@@ -1,7 +1,7 @@
 // Ce que les tests du second sous Windows partagent : les commandes que le second y publie, et ce qui se voit sous le
 // terminal. Un second sous Windows tourne dans un terminal ConPTY, dont Entrée est `\r` — jamais `\r\n`, qui serait deux
-// Entrées —, et ses commandes passent par le `bash` de Git ou PowerShell : guillemets, espaces doublés, `!` et lignes
-// `ssh … brigade …` y doivent arriver à l'octet près.
+// Entrées —, et ses commandes passent par le `bash` de Git ou PowerShell : guillemets, espaces doublés, `!` et la ligne
+// du geste de la station y doivent arriver à l'octet près.
 import assert from "node:assert/strict";
 import type { Proposition } from "../../src/second/propositions.ts";
 import { Faux, type Jouee, repos } from "../aides/fausse-vue.ts";
@@ -15,9 +15,9 @@ export const choix = (id: string, choices: { value: string; label: string }[]): 
 // Ce que le chef doit pouvoir lancer depuis Windows : des guillemets doubles et simples, des espaces doublés, `!` (le
 // `!` du second, et l'expansion d'historique de bash), `&&`, `%VAR%` (cmd), `$HOME`, un `\` de chemin Windows.
 export const AVEC_GUILLEMETS = `! gh pr comment 1480 --body "it's  green!  see 'C:\\Users\\chef\\parade' and %USERPROFILE% — \$HOME stays" && echo done!`;
-// Une ligne `ssh … brigade …`, telle que le second la publie pour la box.
-export const LIGNE_SSH = `ssh box "cd ~/parade && brigade parade pass 1480 --merge --comment 'ok!  merged'"`;
-export const SSH_SOUS_BANG = `! ${LIGNE_SSH}`;
+// Une ligne du geste de la station, telle que le second la publie : un sous-shell, des apostrophes, un commentaire à espaces doublés.
+export const LIGNE_STATION = `(cd '/runtime' && BRIGADE_STATION_DIR='/station' node src/station/geste.ts parade pass 1480 --merge --comment 'ok!  merged')`;
+export const STATION_SOUS_BANG = `! ${LIGNE_STATION}`;
 export const MERGER = geste("g-1", "! gh pr merge 1480 --merge");
 export const CHOIX = choix("c-1", [
   { value: "A", label: "Merge it now" },

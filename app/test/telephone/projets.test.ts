@@ -11,7 +11,6 @@ import type { Faits as FaitsDuRuntime } from "../../../runtime/src/etat.ts";
 import { INTERVALLE_MS, ouvrirLaLecture, type ProjetDuGuichet, type Reponse } from "../../android/web/lecture.ts";
 import { ALLUMAGE } from "../../src/allumage.ts";
 import { mettreAPart } from "../../src/attend.ts";
-import { BOUTONS } from "../../src/boutons.ts";
 import type { Lecture } from "../../src/box.ts";
 import { EXEMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
@@ -83,7 +82,6 @@ const CONSTANTES = {
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  boutons: BOUTONS,
   gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
@@ -157,10 +155,10 @@ describe("les projets de la station sur le téléphone appairé", () => {
     assert.deepEqual(demandes, ["/projects", "/projects/parade/queue", "/projects/cantine/queue"]);
     assert.deepEqual(gardes, [PROJETS]);
     assert.deepEqual(
-      lecture.configuration().projets.map(({ nom, depot, box }) => ({ nom, depot, box })),
+      lecture.configuration().projets.map(({ nom, depot }) => ({ nom, depot })),
       [
-        { nom: "parade", depot: "chef/parade", box: { hote: STATION } },
-        { nom: "cantine", depot: "chef/cantine", box: { hote: STATION } },
+        { nom: "parade", depot: "chef/parade" },
+        { nom: "cantine", depot: "chef/cantine" },
       ],
     );
 

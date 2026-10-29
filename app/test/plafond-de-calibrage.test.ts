@@ -8,7 +8,6 @@ import { describe, test } from "node:test";
 import type { Lu, Rendu } from "../src/box.ts";
 import { ALLUMAGE } from "../src/allumage.ts";
 import { pourLaBarre } from "../src/barre.ts";
-import { BOUTONS } from "../src/boutons.ts";
 import { EXEMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
@@ -25,14 +24,13 @@ import { type Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "./aides/
 const A = "2026-10-21T10:04:12.000Z";
 const PARADE = "parade";
 const SECOND: Terminal = { id: 1, projet: PARADE, genre: "second", titre: "second · claude", note: "fil repris", arrete: false };
-const PROJETS = [{ nom: PARADE, dossier: "/tmp/parade", box: { hote: "box" } }];
+const PROJETS = [{ nom: PARADE, dossier: "/tmp/parade" }];
 const demarrage = () => ({
-  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: PROJETS, hotes: ["box"] }),
+  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: PROJETS }, () => true),
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  boutons: BOUTONS,
   gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
@@ -81,50 +79,50 @@ describe("ce que `facts` dit du plafond", () => {
   });
 });
 
-describe("le geste part là où la cuisine tourne", () => {
-  const BOX: Lu = { nom: PARADE, cuisine: { box: { hote: "box" } } } as unknown as Lu;
+describe("le geste part par la station de ce poste", () => {
+  const ICI: Lu = { nom: PARADE, cuisine: { locale: { node: "node", runtime: "/runtime", racine: "/station", env: {} } } };
   const lances: string[] = [];
   const reussi = async (_: Lu, commande: string): Promise<Rendu> => {
     lances.push(commande);
-    return { lance: `$ ssh box brigade parade ${commande}`, erreur: null, sortie: "", erreurs: `brigade : ${commande.split(" ")[1]}: set\n` };
+    return { lance: `$ brigade parade ${commande}`, erreur: null, sortie: "", erreurs: `brigade : ${commande.split(" ")[1]}: set\n` };
   };
 
   test("un modèle et un effort : les deux décisions partent, l'une après l'autre", async () => {
     lances.length = 0;
-    const rendu = await reglerLePlafond(PARADE, BOX, DEFAUT, { modele: "sonnet", effort: "xhigh" }, reussi);
+    const rendu = await reglerLePlafond(PARADE, ICI, DEFAUT, { modele: "sonnet", effort: "xhigh" }, reussi);
     assert.deepEqual(lances, ["station ceiling-modele sonnet", "station ceiling-effort xhigh"]);
-    assert.deepEqual(rendu, { fait: "the ceiling is sonnet / xhigh: the manager reads it at its next reaction, no restart", detail: "$ ssh box brigade parade station ceiling-modele sonnet\nbrigade : ceiling-modele: set\n$ ssh box brigade parade station ceiling-effort xhigh\nbrigade : ceiling-effort: set" });
+    assert.deepEqual(rendu, { fait: "the ceiling is sonnet / xhigh: the manager reads it at its next reaction, no restart", detail: "$ brigade parade station ceiling-modele sonnet\nbrigade : ceiling-modele: set\n$ brigade parade station ceiling-effort xhigh\nbrigade : ceiling-effort: set" });
   });
 
   test("seule la dimension qui change part ; le défaut choisi tel quel se pose, c'est ta décision", async () => {
     lances.length = 0;
-    await reglerLePlafond(PARADE, BOX, POSE, { modele: "sonnet", effort: "high" }, reussi);
+    await reglerLePlafond(PARADE, ICI, POSE, { modele: "sonnet", effort: "high" }, reussi);
     assert.deepEqual(lances, ["station ceiling-effort high"]);
     lances.length = 0;
-    await reglerLePlafond(PARADE, BOX, DEFAUT, { modele: "opus", effort: "high" }, reussi);
+    await reglerLePlafond(PARADE, ICI, DEFAUT, { modele: "opus", effort: "high" }, reussi);
     assert.deepEqual(lances, ["station ceiling-modele opus", "station ceiling-effort high"]);
   });
 
   test("le retour au défaut retire ce que le chef a posé, et rien d'autre", async () => {
     lances.length = 0;
-    const rendu = await reglerLePlafond(PARADE, BOX, { ...POSE, parLeChef: { modele: false, effort: true } }, "defaut", reussi);
+    const rendu = await reglerLePlafond(PARADE, ICI, { ...POSE, parLeChef: { modele: false, effort: true } }, "defaut", reussi);
     assert.deepEqual(lances, ["station remove ceiling-effort"]);
     assert.match("fait" in rendu ? rendu.fait : "", /^the ceiling is back to the default/);
   });
 
   test("rien ne part pour une valeur inconnue, un plafond déjà en vigueur, un projet sans station ou pas encore lu", async () => {
     lances.length = 0;
-    assert.match((await reglerLePlafond(PARADE, BOX, DEFAUT, { modele: "gpt", effort: "high" }, reussi) as { refus: string }).refus, /takes a model \(opus, sonnet, haiku\) and an effort/);
-    assert.match((await reglerLePlafond(PARADE, BOX, POSE, { modele: "sonnet", effort: "medium" }, reussi) as { refus: string }).refus, /already sonnet \/ medium, set by you/);
-    assert.match((await reglerLePlafond(PARADE, BOX, DEFAUT, "defaut", reussi) as { refus: string }).refus, /already the default/);
+    assert.match((await reglerLePlafond(PARADE, ICI, DEFAUT, { modele: "gpt", effort: "high" }, reussi) as { refus: string }).refus, /takes a model \(opus, sonnet, haiku\) and an effort/);
+    assert.match((await reglerLePlafond(PARADE, ICI, POSE, { modele: "sonnet", effort: "medium" }, reussi) as { refus: string }).refus, /already sonnet \/ medium, set by you/);
+    assert.match((await reglerLePlafond(PARADE, ICI, DEFAUT, "defaut", reussi) as { refus: string }).refus, /already the default/);
     assert.match((await reglerLePlafond(PARADE, undefined, DEFAUT, "defaut", reussi) as { refus: string }).refus, /has no station/);
-    assert.match((await reglerLePlafond(PARADE, BOX, undefined, "defaut", reussi) as { refus: string }).refus, /not read yet/);
+    assert.match((await reglerLePlafond(PARADE, ICI, undefined, "defaut", reussi) as { refus: string }).refus, /not read yet/);
     assert.deepEqual(lances, []);
   });
 
   test("le runtime refuse : rien n'est dit fait, et ce qu'il a répondu est au survol", async () => {
-    const refuse = async (): Promise<Rendu> => ({ lance: "$ ssh box brigade parade station ceiling-modele sonnet", erreur: Object.assign(new Error("exit 2"), { code: 2 }) as ExecFileException, sortie: "", erreurs: "brigade : ceiling-modele refused\n" });
-    const rendu = await reglerLePlafond(PARADE, BOX, DEFAUT, { modele: "sonnet", effort: "high" }, refuse);
+    const refuse = async (): Promise<Rendu> => ({ lance: "$ brigade parade station ceiling-modele sonnet", erreur: Object.assign(new Error("exit 2"), { code: 2 }) as ExecFileException, sortie: "", erreurs: "brigade : ceiling-modele refused\n" });
+    const rendu = await reglerLePlafond(PARADE, ICI, DEFAUT, { modele: "sonnet", effort: "high" }, refuse);
     assert.ok("refus" in rendu);
     assert.equal(rendu.refus, "the ceiling was not changed: the runtime did not take it — nothing was changed");
     assert.match(rendu.detail ?? "", /ceiling-modele refused/);
@@ -200,7 +198,7 @@ describe("l'onglet Cooks : le plafond de calibrage du projet", () => {
     const enCours = bouton(section(vue) ?? assert.fail(), BOUTONS_DU_PLAFOND.regler.enCours) ?? assert.fail("le bouton ne dit pas qu'il s'y met");
     assert.equal(enCours.disabled, true);
     const relectures = vue.appels.filter(({ geste }) => geste === "relireBox").length;
-    reponses[0]?.rendre({ fait: "the ceiling is sonnet / medium: the manager reads it at its next reaction, no restart", detail: "$ ssh box brigade parade station ceiling-modele sonnet" });
+    reponses[0]?.rendre({ fait: "the ceiling is sonnet / medium: the manager reads it at its next reaction, no restart", detail: "$ brigade parade station ceiling-modele sonnet" });
     await repos();
     assert.equal(vue.appels.filter(({ geste }) => geste === "relireBox").length, relectures + 1);
     assert.match(section(vue)?.textContent ?? "", /the ceiling is sonnet \/ medium/);

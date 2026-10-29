@@ -18,7 +18,6 @@ import { ALLUMAGE } from "../src/allumage.ts";
 import { mettreAPart } from "../src/attend.ts";
 import { pourLaBarre } from "../src/barre.ts";
 import type { Lecture } from "../src/box.ts";
-import { BOUTONS } from "../src/boutons.ts";
 import { EXEMPLE, type Projet } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
@@ -295,17 +294,16 @@ describe("l'app fermée, puis rouverte", () => {
 });
 
 describe("le clic, dans la vue", () => {
-  const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", box: { hote: "box" } };
-  const BALOO: Projet = { nom: "baloo", dossier: "/tmp/baloo", box: { hote: "box" } };
+  const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade" };
+  const BALOO: Projet = { nom: "baloo", dossier: "/tmp/baloo" };
   const ouvrir = () =>
     jouerLaVue({
       demarrage: () => ({
-        configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE, BALOO], hotes: ["box"] }),
+        configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE, BALOO] }, () => true),
         palette: PALETTE,
         exemple: EXEMPLE,
         onglets: ONGLETS,
         rubriques: RUBRIQUES,
-        boutons: BOUTONS,
         gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
         banniere: BANNIERE,
         calibrage: { modeles: MODELES, efforts: EFFORTS },

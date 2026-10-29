@@ -10,7 +10,6 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../../src/allumage.ts";
 import { pourLaBarre } from "../../src/barre.ts";
-import { BOUTONS } from "../../src/boutons.ts";
 import { EXEMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
@@ -27,20 +26,19 @@ import { type Faux, FauxEcran, type Jouee, jouerLaVue, type Reponses, repos } fr
 const PARADE = "parade";
 const CANTINE = "cantine";
 const PROJETS = [
-  { nom: PARADE, dossier: "/tmp/parade", box: { hote: "box" } },
-  { nom: CANTINE, dossier: "/tmp/cantine", box: { hote: "box" } },
+  { nom: PARADE, dossier: "/tmp/parade" },
+  { nom: CANTINE, dossier: "/tmp/cantine" },
 ];
 const TELEPHONE = { appaire: true as const, station: "box", adresse: "http://192.168.1.20:7010" };
 
 // Le démarrage tel que le pont de l'app Android le rend (app/android/web/pont.js) : les constantes de l'app, le
 // téléphone appairé — `telephone` absent, c'est le desktop —, et les projets que sa station sert.
 const demarrage = (telephone: typeof TELEPHONE | undefined) => () => ({
-  configuration: pourLaBarre({ chemin: "no projects file on this phone", projets: PROJETS, hotes: ["box"] }),
+  configuration: pourLaBarre({ chemin: "no projects file on this phone", projets: PROJETS }, () => true),
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  boutons: BOUTONS,
   gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },

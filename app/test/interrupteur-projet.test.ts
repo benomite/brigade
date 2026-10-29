@@ -18,7 +18,6 @@ import { principal as manager } from "../../runtime/src/manager-cli.ts";
 import { MANAGER_ETEINT, tenirBandes, type Bande } from "../src/alertes.ts";
 import { ALLUMAGE, AVERTISSEMENT, dire } from "../src/allumage.ts";
 import { pourLaBarre } from "../src/barre.ts";
-import { BOUTONS } from "../src/boutons.ts";
 import type { Lecture } from "../src/box.ts";
 import { EXEMPLE, type Projet } from "../src/config.ts";
 import { confirmationDe } from "../src/confirmation.ts";
@@ -31,8 +30,9 @@ import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { type Faux, type Jouee, jouerLaVue, type Reponses, repos } from "./aides/fausse-vue.ts";
 
+const CUISINE = { locale: { node: "node", runtime: "/tmp/runtime", racine: "/tmp/station", env: {} } };
 const A = "2026-10-13T10:00:01.000Z";
-const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", box: { hote: "box" } };
+const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade" };
 const lecture = (commande: string, texte: string): Lecture => ({ projet: "parade", demande: 1, a: A, sorties: [{ commande, texte }] });
 
 // `manager`, jouée sur un journal où le chef a allumé, ou éteint, le projet à 9 h 25 : sa sortie, telle quelle.
@@ -75,12 +75,11 @@ const FAITS: Faits = {
 async function ouvrir(reponses: Reponses = {}): Promise<Jouee> {
   const vue = await jouerLaVue({
     demarrage: () => ({
-      configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE], hotes: ["box"] }),
+      configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE] }, () => true),
       palette: PALETTE,
       exemple: EXEMPLE,
       onglets: ONGLETS,
       rubriques: RUBRIQUES,
-      boutons: BOUTONS,
       gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
       banniere: BANNIERE,
       calibrage: { modeles: MODELES, efforts: EFFORTS },
@@ -220,7 +219,7 @@ describe("l'interrupteur, en tête de l'espace", () => {
   test("éteint, un clic ouvre la confirmation : une phrase dit ce qu'il va juger, avec le nombre réel d'issues ouvertes — rien ne part avant le « oui »", async (t) => {
     const backlog = { ouvertes: 23, retenues: 0 };
     const vue = await ouvrir({
-      confirmer: (_, id, grant) => confirmationDe(id, PARADE, { sans: "pas lus" }, grant),
+      confirmer: (_, id, grant) => confirmationDe(id, PARADE, { sans: "pas lus" }, grant, CUISINE),
       compter: () => ({ projet: "parade", a: A, ...backlog, dit: dire(backlog) }),
       geste: () => undefined,
     });

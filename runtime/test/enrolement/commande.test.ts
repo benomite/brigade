@@ -28,7 +28,11 @@ function serveur(t: TestContext, { installee = true } = {}) {
     symlinkSync(RACINE_DU_DEPOT, join(home, ".local/share/brigade"));
   }
   const temoin = join(home, "ssh");
-  const env = { ...ENV_GIT, ...ENV_ENFANT, HOME: home, BRIGADE_SSH_BIN: FAUX_SSH, FAUX_SSH_TEMOIN: temoin };
+  // Le faux `ssh` est celui que la commande trouve en tête du PATH : rien d'autre ne le désigne.
+  const bin = join(home, "bin");
+  mkdirSync(bin, { recursive: true });
+  symlinkSync(FAUX_SSH, join(bin, "ssh"));
+  const env = { ...ENV_GIT, ...ENV_ENFANT, HOME: home, PATH: `${bin}:${ENV_ENFANT.PATH ?? process.env.PATH ?? ""}`, FAUX_SSH_TEMOIN: temoin };
   return {
     home,
     joints: () => readFileSync(temoin, "utf8").split("\n").filter(Boolean),

@@ -6,7 +6,6 @@ import { describe, test } from "node:test";
 import { ALLUMAGE } from "../../../src/allumage.ts";
 import { pourLaBarre } from "../../../src/barre.ts";
 import type { Lecture } from "../../../src/box.ts";
-import { BOUTONS } from "../../../src/boutons.ts";
 import type { Rendu } from "../../../src/closer-lancement.ts";
 import { EXEMPLE } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/couleurs.ts";
@@ -65,12 +64,11 @@ const lecture = (objet: unknown, demande: number): Lecture => ({ projet: "parade
 async function ouvrir(closer: (action: string) => Rendu | undefined) {
   const vue = await jouerLaVue({
     demarrage: () => ({
-      configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade", box: { hote: "box" } }], hotes: ["box"] }),
+      configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }] }, () => true),
       palette: PALETTE,
       exemple: EXEMPLE,
       onglets: ONGLETS,
       rubriques: RUBRIQUES,
-      boutons: BOUTONS,
       gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
       banniere: BANNIERE,
       calibrage: { modeles: MODELES, efforts: EFFORTS },

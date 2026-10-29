@@ -18,7 +18,6 @@ import { appeler, DEPOT, fauxGh, issueGitHub } from "../../runtime/test/outils.t
 import { ALLUMAGE } from "../src/allumage.ts";
 import { COMMANDE, comprendre, GROUPES, grouper, tenirAmont, voir, type Vu } from "../src/amont.ts";
 import type { Lecture } from "../src/box.ts";
-import { BOUTONS } from "../src/boutons.ts";
 import { EXEMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
@@ -165,7 +164,7 @@ describe("ce qui n'est pas encore sur le rail, lu dans la sortie de `manager ups
   });
 
   test("une lecture ratée ne donne jamais de nombre, et dit pourquoi — ce n'est pas « rien à venir »", () => {
-    const echec = (erreur: string, atteinte: boolean, cas: null | "ssh-en-echec" = null): Lecture => ({ projet: PARADE, demande: 3, a: A, erreur, atteinte, cas });
+    const echec = (erreur: string, atteinte: boolean, cas: null = null): Lecture => ({ projet: PARADE, demande: 3, a: A, erreur, atteinte, cas });
     const sans = (vu: Vu) => {
       assert.ok(!("compte" in vu), "un nombre a été donné");
       assert.ok("sans" in vu, "la lecture ratée doit dire pourquoi");
@@ -175,9 +174,9 @@ describe("ce qui n'est pas encore sur le rail, lu dans la sortie de `manager ups
     };
 
     // Un runtime d'avant `upstream` la refuse : code 2.
-    assert.match(sans(voir(echec("$ ssh box brigade parade manager upstream\nusage : …\n→ exit code 2", true))), /refused `manager upstream` \(code 2\) — .*update brigade on the station/);
-    assert.match(sans(voir(echec("$ ssh …\nbrigade : … n'a pas été lu\n→ exit code 1", true))), /read neither GitHub nor its log \(code 1\)/);
-    assert.match(sans(voir(echec("$ ssh …\nssh: connect to host box port 22: Connection refused\n→ exit code 255", false, "ssh-en-echec"))), /: NOT REACHED\./);
+    assert.match(sans(voir(echec("$ brigade parade manager upstream\nusage : …\n→ exit code 2", true))), /refused `manager upstream` \(code 2\) — .*update brigade on the station/);
+    assert.match(sans(voir(echec("$ …\nbrigade : … n'a pas été lu\n→ exit code 1", true))), /read neither GitHub nor its log \(code 1\)/);
+    assert.match(sans(voir(echec("$ …\nconnection refused\n→ exit code 255", false, null))), /: NOT REACHED\./);
     // Une sortie qui n'a pas la forme : ni complétée, ni comptée.
     assert.match(sans(voir(lecture(""))), /the command returned nothing/);
     assert.match(sans(voir(lecture("12 issues"))), /it is not JSON/);
@@ -217,12 +216,11 @@ describe("ce qui n'est pas encore sur le rail, lu dans la sortie de `manager ups
 // La vue jouée : un projet, sa box, son rail.
 const SECOND: Terminal = { id: 1, projet: PARADE, genre: "second", titre: "second · claude", note: "session neuve", arrete: false };
 const demarrage = () => ({
-  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade", box: { hote: "box" } }], hotes: ["box"] }),
+  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }, () => true),
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  boutons: BOUTONS,
   gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
@@ -329,7 +327,7 @@ describe("dans l'espace du projet, ce qui est à venir se lit à côté du rail"
   test("une lecture ratée : le bouton dit qu'elle n'a pas été lue, la liste dépliée dit pourquoi — aucun nombre", async () => {
     const vue = await ouvrir();
     recevoirFaits(vue, FAITS);
-    vue.dire("surAmont", voir({ projet: PARADE, demande: 3, a: A, erreur: "$ ssh …\nusage : …\n→ exit code 2", atteinte: true, cas: null }));
+    vue.dire("surAmont", voir({ projet: PARADE, demande: 3, a: A, erreur: "$ …\nusage : …\n→ exit code 2", atteinte: true, cas: null }));
 
     assert.equal(nombre(vue).textContent, "upcoming: not read");
     nombre(vue).click();

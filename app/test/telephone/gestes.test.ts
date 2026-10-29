@@ -10,7 +10,6 @@ import { describe, test } from "node:test";
 import type { Faits as FaitsDuRuntime } from "../../../runtime/src/etat.ts";
 import { ALLUMAGE } from "../../src/allumage.ts";
 import { pourLaBarre } from "../../src/barre.ts";
-import { BOUTONS } from "../../src/boutons.ts";
 import { EXEMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
 import type { RenduDeCuisson } from "../../src/cuisson.ts";
@@ -25,19 +24,18 @@ import { type Faux, FauxEcran, type Jouee, jouerLaVue, type Reponses, repos } fr
 
 const A = "2026-10-21T10:04:12.000Z";
 const PARADE = "parade";
-const PROJETS = [{ nom: PARADE, dossier: "/tmp/parade", box: { hote: "box" } }];
+const PROJETS = [{ nom: PARADE, dossier: "/tmp/parade" }];
 const issue = (ticket: number) => `https://github.com/chef/parade/issues/${ticket}`;
 const PR_12 = "https://github.com/chef/parade/pull/40";
 
 // Le démarrage tel que le pont de l'app Android le rend (app/android/web/pont.js) : les constantes de l'app, le
 // téléphone appairé, ni code ni stations lus — et le projet que sa station sert.
 const demarrage = () => ({
-  configuration: pourLaBarre({ chemin: "no projects file on this phone", projets: PROJETS, hotes: ["box"] }),
+  configuration: pourLaBarre({ chemin: "no projects file on this phone", projets: PROJETS }, () => true),
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  boutons: BOUTONS,
   gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },

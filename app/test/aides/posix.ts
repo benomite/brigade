@@ -3,7 +3,7 @@
 // Ailleurs, chacune vaut `false` : le test se joue.
 const SOUS_WINDOWS = process.platform === "win32";
 
-// Les doublures que l'app lance à la place de ses vrais programmes — un faux `ssh`, un faux
+// Les doublures que l'app lance à la place de ses vrais programmes — un faux
 // `claude`, un faux `gh`, un faux shell de connexion — sont des scripts POSIX : un `#!/bin/sh` rendu
 // exécutable, ou un `.ts` lancé par son shebang. Windows ne lance aucun script par son chemin — il
 // lui faut un vrai `.exe` —, et n'a pas de `/bin/sh`.

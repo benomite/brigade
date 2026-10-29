@@ -9,9 +9,9 @@ import { configuration, cuisine, demarrage, type Ecran, type Envoi, MAINTENANT }
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
 const AUTRES: Projet[] = [
-  { nom: "brigade", dossier: "/Users/chef/code/brigade", box: { hote: "box" }, couleurs: { onglet: "#7fb2f0", accent: "#7fb2f0" } },
-  { nom: "atelier", dossier: "/Users/chef/code/atelier", box: { hote: "box" }, couleurs: { onglet: "#c792ea", accent: "#c792ea" } },
-  { nom: "espace", dossier: "/Users/chef/code/espace", box: { hote: "box" }, couleurs: { onglet: "#e9c46a", accent: "#e9c46a" } },
+  { nom: "brigade", dossier: "/Users/chef/code/brigade", couleurs: { onglet: "#7fb2f0", accent: "#7fb2f0" } },
+  { nom: "atelier", dossier: "/Users/chef/code/atelier", couleurs: { onglet: "#c792ea", accent: "#c792ea" } },
+  { nom: "espace", dossier: "/Users/chef/code/espace", couleurs: { onglet: "#e9c46a", accent: "#e9c46a" } },
 ];
 const TOUS = [...AUTRES.slice(0, 1), ...PROJETS, ...AUTRES.slice(1)];
 

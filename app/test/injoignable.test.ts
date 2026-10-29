@@ -7,8 +7,8 @@ import { causeDuSilence, LECTURES_POUR_INJOIGNABLE, signalDe, tenirBandes } from
 import type { Lecture } from "../src/box.ts";
 import { ticketsDe } from "../src/feu.ts";
 
-const ssh = (message: string, a: string): Lecture => ({ projet: "parade", demande: 1, a, erreur: `$ ssh box brigade parade facts\n${message}\n→ exit code 255`, atteinte: false, cas: "ssh-en-echec" });
-const SILENCE = "ssh: connect to host box port 22: Connection timed out during banner exchange";
+const muette = (message: string, a: string): Lecture => ({ projet: "parade", demande: 1, a, erreur: `$ brigade parade facts\n${message}\n→ exit code 1`, atteinte: false, cas: null });
+const SILENCE = "connect to host box port 22: Connection timed out during banner exchange";
 const MANAGER_OK: Lecture = { projet: "parade", demande: 1, a: "2026-10-15T10:00:00.000Z", sorties: [{ commande: "manager", texte: "manager    ALLUMÉ\n" }] };
 
 describe("box injoignable (#728)", () => {
@@ -16,12 +16,12 @@ describe("box injoignable (#728)", () => {
     const bandes = tenirBandes();
     bandes.ouvrir(["parade"]);
     assert.equal(LECTURES_POUR_INJOIGNABLE, 2);
-    const premiere = bandes.faits(ssh(SILENCE, "2026-10-15T10:00:00.000Z"));
+    const premiere = bandes.faits(muette(SILENCE, "2026-10-15T10:00:00.000Z"));
     assert.ok(premiere.alertes.every(({ sujet }) => sujet !== "injoignable"));
     // Le manager et `status` ratés dans la même minute ne comptent pas pour des lectures de plus.
-    bandes.manager(ssh(SILENCE, "2026-10-15T10:00:01.000Z"));
-    assert.ok(bandes.status({ projet: "parade", demande: 1, a: "2026-10-15T10:00:02.000Z", erreur: "$ ssh box\n→ exit code 255", atteinte: false, cas: "ssh-en-echec" }).alertes.every(({ sujet }) => sujet !== "injoignable"));
-    const bande = bandes.faits(ssh(SILENCE, "2026-10-15T10:01:30.000Z"));
+    bandes.manager(muette(SILENCE, "2026-10-15T10:00:01.000Z"));
+    assert.ok(bandes.status({ projet: "parade", demande: 1, a: "2026-10-15T10:00:02.000Z", erreur: "$ brigade parade status\n→ exit code 1", atteinte: false, cas: null }).alertes.every(({ sujet }) => sujet !== "injoignable"));
+    const bande = bandes.faits(muette(SILENCE, "2026-10-15T10:01:30.000Z"));
     assert.equal(bande.alertes.length, 1);
     const [ligne] = bande.alertes;
     assert.equal(ligne?.sujet, "injoignable");
@@ -36,17 +36,17 @@ describe("box injoignable (#728)", () => {
 
   test("elle disparaît dès que la box répond, et le compte repart de zéro", () => {
     const bandes = tenirBandes();
-    bandes.faits(ssh(SILENCE, "2026-10-15T10:00:00.000Z"));
-    assert.equal(bandes.faits(ssh(SILENCE, "2026-10-15T10:00:30.000Z")).signal?.etat, "injoignable");
+    bandes.faits(muette(SILENCE, "2026-10-15T10:00:00.000Z"));
+    assert.equal(bandes.faits(muette(SILENCE, "2026-10-15T10:00:30.000Z")).signal?.etat, "injoignable");
     // Une lecture du manager qui aboutit : la box répond.
     assert.ok(bandes.manager(MANAGER_OK).alertes.every(({ sujet }) => sujet !== "injoignable"));
-    assert.ok(bandes.faits(ssh(SILENCE, "2026-10-15T10:01:00.000Z")).alertes.every(({ sujet }) => sujet !== "injoignable"));
+    assert.ok(bandes.faits(muette(SILENCE, "2026-10-15T10:01:00.000Z")).alertes.every(({ sujet }) => sujet !== "injoignable"));
   });
 
   test("la cause se dit en mots simples", () => {
     assert.match(causeDuSilence(SILENCE), /^no answer/);
-    assert.match(causeDuSilence("ssh: connect to host box port 22: Connection refused"), /^connection refused/);
-    assert.match(causeDuSilence("ssh: Could not resolve hostname box: Name or service not known"), /^address not found/);
+    assert.match(causeDuSilence("connect to host box port 22: Connection refused"), /^connection refused/);
+    assert.match(causeDuSilence("Could not resolve hostname box: Name or service not known"), /^address not found/);
   });
 
   test("le signal de la pastille dit « injoignable », avant tout autre", () => {

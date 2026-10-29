@@ -18,7 +18,6 @@ import { ouvrirGuichet } from "../../../runtime/src/telephone/guichet.ts";
 import { secondsDeLaStation } from "../../../runtime/src/telephone/second.ts";
 import { ouvrirLaLecture, PAS_DE_LA_REPONSE_MS, type ProjetDuGuichet, type Reponse } from "../../android/web/lecture.ts";
 import { ALLUMAGE } from "../../src/allumage.ts";
-import { BOUTONS } from "../../src/boutons.ts";
 import { EXEMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
@@ -94,7 +93,6 @@ const CONSTANTES = {
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  boutons: BOUTONS,
   gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
@@ -357,8 +355,8 @@ async function stationReelle(t: TestContext) {
   mkdirSync(join(racine, "telephones"));
   writeFileSync(join(racine, "faux-claude.cjs"), FAUX_CLAUDE);
   writeFileSync(join(outils, "claude"), `#!/bin/sh\nexec "${process.execPath}" "${join(racine, "faux-claude.cjs")}" "$@"\n`);
-  for (const outil of ["gh", "git", "ssh"]) writeFileSync(join(outils, outil), "#!/bin/sh\n");
-  for (const outil of ["claude", "gh", "git", "ssh"]) chmodSync(join(outils, outil), 0o755);
+  for (const outil of ["gh", "git"]) writeFileSync(join(outils, outil), "#!/bin/sh\n");
+  for (const outil of ["claude", "gh", "git"]) chmodSync(join(outils, outil), 0o755);
   writeFileSync(join(racine, CONFIGURATION), `parade   chef/parade   main BRIGADE_SECOND_DIR=${dossier}\n`);
   // Ce que le second du desktop a déjà dit dans cette session, tapé dans son terminal.
   const transcripts = join(claude, "projects", realpathSync(dossier).replace(/[^a-zA-Z0-9]/g, "-"));

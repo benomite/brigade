@@ -10,7 +10,6 @@ import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { ALLUMAGE } from "../src/allumage.ts";
 import { pourLaBarre } from "../src/barre.ts";
-import { BOUTONS } from "../src/boutons.ts";
 import { changerOrdinaires, EXEMPLE, lireConfiguration, type Projet } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
@@ -33,57 +32,54 @@ function fichier(t: TestContext, contenu: unknown): { racine: string; chemin: st
 }
 const lu = (chemin: string) => JSON.parse(readFileSync(chemin, "utf8")) as { projets: Record<string, unknown>[] };
 
-const MAC = { stations: ["mac/claude"] };
+const MAC = {};
 const station = (bacASable: StationDesFaits["bacASable"]): StationDesFaits => ({ station: "mac/claude", distante: true, plafond: 2, ordinaires: true, bacASable, prendOrdinaires: bacASable?.disponible === true });
 const INDISPONIBLE = { disponible: false, raison: "Seatbelt (/usr/bin/sandbox-exec) is missing", version: null, depuis: "2026-10-16T10:00:00Z" };
 const EXPLICATION = explication("this Mac");
 const DISPONIBLE = { disponible: true, raison: null, version: "2.1.0", depuis: "2026-10-16T10:00:00Z" };
 
 describe("le bloc des tickets ordinaires", () => {
-  test("il existe pour un Mac qui joue une station du projet, avec son réglage et la ligne d'explication", () => {
-    assert.deepEqual(blocDesOrdinaires({ ...MAC }, "darwin", undefined), { reglable: true, actif: false, limite: null, explication: EXPLICATION });
-    assert.deepEqual(blocDesOrdinaires({ ...MAC, ordinaires: true, limiteCooks: 3 }, "darwin", [station(DISPONIBLE)]), { reglable: true, actif: true, limite: 3, explication: EXPLICATION });
+  test("il existe pour un Mac dont la station cuit le projet, avec son réglage et la ligne d'explication", () => {
+    assert.deepEqual(blocDesOrdinaires({ ...MAC }, "darwin", undefined, true), { reglable: true, actif: false, limite: null, explication: EXPLICATION });
+    assert.deepEqual(blocDesOrdinaires({ ...MAC, ordinaires: true, limiteCooks: 3 }, "darwin", [station(DISPONIBLE)], true), { reglable: true, actif: true, limite: 3, explication: EXPLICATION });
     assert.equal(EXPLICATION, "Cooks on this Mac run in Claude Code's sandbox: they write only in their own worktree, and reach only the network hosts on the project's list.");
   });
 
   test("hors d'un Mac, il n'est pas réglable : il dit, au nom de ce poste, qu'il ne prend aucun ticket ordinaire, et pourquoi — option cochée ou non", () => {
     for (const ordinaires of [true, false]) {
-      assert.deepEqual(blocDesOrdinaires({ ...MAC, ordinaires, limiteCooks: 2 }, "win32", [station(DISPONIBLE)]), {
+      assert.deepEqual(blocDesOrdinaires({ ...MAC, ordinaires, limiteCooks: 2 }, "win32", [station(DISPONIBLE)], true), {
         reglable: false,
         actif: false,
         limite: null,
         explication: "This PC takes no ordinary ticket: a cook of an ordinary ticket runs only in Claude Code's sandbox, which the station sets up only on macOS.",
       });
     }
-    assert.equal(blocDesOrdinaires({ ...MAC }, "linux", undefined)?.explication, sansBacASable("this computer"));
+    assert.equal(blocDesOrdinaires({ ...MAC }, "linux", undefined, true)?.explication, sansBacASable("this computer"));
     assert.match(sansBacASable("this computer"), /^This computer takes no ordinary ticket/);
   });
 
-  test("il n'existe pas pour un projet dont ce poste ne joue aucune station, quelle que soit la plateforme", () => {
+  test("il n'existe pas pour un projet que la station de ce poste ne cuit pas, quelle que soit la plateforme", () => {
     for (const plateforme of ["darwin", "win32", "linux"]) {
-      assert.equal(blocDesOrdinaires({}, plateforme, undefined), undefined, plateforme);
-      assert.equal(blocDesOrdinaires({ stations: [] }, plateforme, undefined), undefined, plateforme);
+      assert.equal(blocDesOrdinaires({}, plateforme, undefined, false), undefined, plateforme);
     }
   });
 
   test("bac à sable indisponible : le message dit que le Mac ne prend pas de ticket ordinaire, avec la raison — option cochée ou non", () => {
     for (const ordinaires of [true, false]) {
-      const bloc = blocDesOrdinaires({ ...MAC, ordinaires }, "darwin", [station(INDISPONIBLE)]);
+      const bloc = blocDesOrdinaires({ ...MAC, ordinaires }, "darwin", [station(INDISPONIBLE)], true);
       assert.equal(bloc?.indisponible, "The sandbox is unavailable on this Mac — Seatbelt (/usr/bin/sandbox-exec) is missing. This Mac takes no ordinary ticket.");
     }
-    assert.equal(blocDesOrdinaires({ ...MAC }, "darwin", [station(DISPONIBLE)])?.indisponible, undefined);
+    assert.equal(blocDesOrdinaires({ ...MAC }, "darwin", [station(DISPONIBLE)], true)?.indisponible, undefined);
     // Elle n'en a rien dit : l'app ne devine pas.
-    assert.equal(blocDesOrdinaires({ ...MAC }, "darwin", [station(null)])?.indisponible, undefined);
-    // Une autre station que celles que ce poste joue ne parle pas pour lui.
-    assert.equal(blocDesOrdinaires({ stations: ["atelier/claude"] }, "darwin", [station(INDISPONIBLE)])?.indisponible, undefined);
+    assert.equal(blocDesOrdinaires({ ...MAC }, "darwin", [station(null)], true)?.indisponible, undefined);
   });
 });
 
 describe("les tickets ordinaires dans le fichier des projets", () => {
   test("le réglage s'écrit, se relit à la lecture suivante, et rien d'autre du fichier ne bouge", (t) => {
-    const { racine, chemin } = fichier(t, { note: "à moi", projets: [{ nom: "a", dossier: "/", hote: "box", stations: ["mac/claude"] }, { nom: "b", dossier: "/" }] });
+    const { racine, chemin } = fichier(t, { note: "à moi", projets: [{ nom: "a", dossier: "/" }, { nom: "b", dossier: "/" }] });
     assert.equal(changerOrdinaires(chemin, "a", true, 3, racine), undefined);
-    assert.deepEqual(lu(chemin).projets[0], { nom: "a", dossier: "/", hote: "box", stations: ["mac/claude"], ordinaires: true, limiteCooks: 3 });
+    assert.deepEqual(lu(chemin).projets[0], { nom: "a", dossier: "/", ordinaires: true, limiteCooks: 3 });
     assert.deepEqual(lu(chemin).projets[1], { nom: "b", dossier: "/" });
     const relu = lireConfiguration(chemin).projets[0];
     assert.equal(relu?.ordinaires, true);
@@ -91,7 +87,7 @@ describe("les tickets ordinaires dans le fichier des projets", () => {
 
     // Sans limite : celle qui était écrite s'en va.
     assert.equal(changerOrdinaires(chemin, "a", false, null, racine), undefined);
-    assert.deepEqual(lu(chemin).projets[0], { nom: "a", dossier: "/", hote: "box", stations: ["mac/claude"], ordinaires: false });
+    assert.deepEqual(lu(chemin).projets[0], { nom: "a", dossier: "/", ordinaires: false });
   });
 
   test("une valeur qui n'en est pas une, ou un projet absent, n'écrit rien — et le dit", (t) => {
@@ -122,19 +118,18 @@ describe("les tickets ordinaires dans le fichier des projets", () => {
 });
 
 describe("les tickets ordinaires dans la vue", () => {
-  const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", box: { hote: "box" }, stations: ["mac/claude"] };
+  const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade" };
   const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "second · claude", note: "", arrete: false };
 
   const jouer = (projet: Projet, bloc: ReturnType<typeof blocDesOrdinaires>, regler: (...args: unknown[]) => string | undefined = () => undefined, poste?: { nom: string; mac: boolean }) =>
     jouerLaVue({
       demarrage: () => ({
         ...(poste === undefined ? {} : { poste }),
-        configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [projet], hotes: ["box"] }),
+        configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [projet] }, () => true, () => true),
         palette: PALETTE,
         exemple: EXEMPLE,
         onglets: ONGLETS,
         rubriques: RUBRIQUES,
-        boutons: BOUTONS,
         gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
         banniere: BANNIERE,
         calibrage: { modeles: MODELES, efforts: EFFORTS },
@@ -156,7 +151,7 @@ describe("les tickets ordinaires dans la vue", () => {
   const refus = (bloc: Faux) => bloc.dessous("p").filter(({ className }) => className === "dit refus").map(({ textContent }) => textContent);
 
   test("dans Settings, sous cette machine : deux lignes — les prendre, et combien de cooks à la fois —, l'explication au survol", async () => {
-    const vue = await jouer(PARADE, blocDesOrdinaires({ ...PARADE, ordinaires: true, limiteCooks: 2 }, "darwin", undefined));
+    const vue = await jouer(PARADE, blocDesOrdinaires({ ...PARADE, ordinaires: true, limiteCooks: 2 }, "darwin", undefined, true));
     await ouvrir(vue);
     const bloc = vue.element("ordinaires");
     assert.equal(bloc.hidden, false);
@@ -173,7 +168,7 @@ describe("les tickets ordinaires dans la vue", () => {
   });
 
   test("régler l'option ou la limite l'envoie au process principal, qui l'écrit", async () => {
-    const vue = await jouer(PARADE, blocDesOrdinaires(PARADE, "darwin", undefined));
+    const vue = await jouer(PARADE, blocDesOrdinaires(PARADE, "darwin", undefined, true));
     await ouvrir(vue);
     const [option, limite] = champs(vue.element("ordinaires"));
     assert.equal(option?.checked, false);
@@ -190,7 +185,7 @@ describe("les tickets ordinaires dans la vue", () => {
   });
 
   test("un réglage refusé dit pourquoi, sous sa ligne", async () => {
-    const vue = await jouer(PARADE, blocDesOrdinaires(PARADE, "darwin", undefined), () => "nothing was written: EACCES");
+    const vue = await jouer(PARADE, blocDesOrdinaires(PARADE, "darwin", undefined, true), () => "nothing was written: EACCES");
     await ouvrir(vue);
     const [option] = champs(vue.element("ordinaires"));
     if (option === undefined) return assert.fail("pas de case");
@@ -200,7 +195,7 @@ describe("les tickets ordinaires dans la vue", () => {
   });
 
   test("bac à sable indisponible : le message est à côté de l'option, avec la raison, et dit que le Mac ne prend pas de ticket ordinaire", async () => {
-    const vue = await jouer(PARADE, blocDesOrdinaires({ ...PARADE, ordinaires: true }, "darwin", [station(INDISPONIBLE)]));
+    const vue = await jouer(PARADE, blocDesOrdinaires({ ...PARADE, ordinaires: true }, "darwin", [station(INDISPONIBLE)], true));
     await ouvrir(vue);
     const dits = refus(vue.element("ordinaires"));
     assert.equal(dits.length, 1);
@@ -208,7 +203,7 @@ describe("les tickets ordinaires dans la vue", () => {
   });
 
   test("sous Windows, rien ne se règle : ni option ni limite, ni ligne qui l'explique", async () => {
-    const vue = await jouer(PARADE, blocDesOrdinaires({ ...PARADE, ordinaires: true }, "win32", undefined), undefined, { nom: "this PC", mac: false });
+    const vue = await jouer(PARADE, blocDesOrdinaires({ ...PARADE, ordinaires: true }, "win32", undefined, true), undefined, { nom: "this PC", mac: false });
     await ouvrir(vue);
     const bloc = vue.element("ordinaires");
     assert.equal(bloc.hidden, true);
@@ -216,8 +211,8 @@ describe("les tickets ordinaires dans la vue", () => {
     assert.ok(!vue.element("reglages-machine").dessous("div").some(({ dataset }) => dataset.cle === "ordinaires"));
   });
 
-  test("sans station du projet sur ce poste, rien n'est posé : pas d'option", async () => {
-    const vue = await jouer({ ...PARADE, stations: [] }, blocDesOrdinaires({ ...PARADE, stations: [] }, "win32", undefined));
+  test("projet que la station de ce poste ne cuit pas, rien n'est posé : pas d'option", async () => {
+    const vue = await jouer(PARADE, blocDesOrdinaires(PARADE, "win32", undefined, false));
     await ouvrir(vue);
     assert.equal(vue.element("ordinaires").hidden, true);
     assert.equal(champs(vue.element("ordinaires")).length, 0);

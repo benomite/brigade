@@ -8,7 +8,6 @@ import { describe, test } from "node:test";
 import { ALLUMAGE } from "../../../src/allumage.ts";
 import { pourLaBarre } from "../../../src/barre.ts";
 import type { Lecture } from "../../../src/box.ts";
-import { BOUTONS } from "../../../src/boutons.ts";
 import type { Rendu } from "../../../src/closer-lancement.ts";
 import { EXEMPLE } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/couleurs.ts";
@@ -172,9 +171,9 @@ describe("la place du lancement, lue seule", () => {
     const etats: [unknown, Etat][] = [
       ...Object.values(DEMANDES).map((demande): [unknown, Etat] => [demande, REPOS]),
       [DEMANDES.none, { etape: "confirmer", apercu: APERCU }],
-      [DEMANDES.none, { etape: "refus", dit: "the station could not be asked — not reached", detail: "$ ssh -o BatchMode=yes -- box brigade parade closing preview --json\n→ exit code 255" }],
+      [DEMANDES.none, { etape: "refus", dit: "the station could not be asked — not reached", detail: "$ brigade parade closing preview --json\n→ exit code 1" }],
     ];
-    for (const [demande, etape] of etats) assert.doesNotMatch(poser(demande, etape).textContent, /ssh|brigade|exit code|`/);
+    for (const [demande, etape] of etats) assert.doesNotMatch(poser(demande, etape).textContent, /brigade|exit code|`/);
   });
 });
 
@@ -188,7 +187,7 @@ describe("ce que la box a rendu, et l'étape qui suit", () => {
   });
 
   test("ce qui n'a rien écrit reste un refus, en une ligne, le détail à part", () => {
-    assert.deepEqual(apresRendu("apercu", { refus: "the station could not be asked — not reached", detail: "→ exit code 255" }), { etape: "refus", dit: "the station could not be asked — not reached", detail: "→ exit code 255" });
+    assert.deepEqual(apresRendu("apercu", { refus: "the station could not be asked — not reached", detail: "→ exit code 1" }), { etape: "refus", dit: "the station could not be asked — not reached", detail: "→ exit code 1" });
     const impossible = apresRendu("lancer", { demandee: { outcome: "impossible", text: "no runtime is running on this project: the closing pass is not requested — nothing would start it" } });
     assert.deepEqual(impossible, { etape: "refus", dit: "the cleanup was not requested — no runtime is running on this project: the closing pass is not requested", detail: "no runtime is running on this project: the closing pass is not requested — nothing would start it" });
   });
@@ -201,12 +200,11 @@ const lecture = (objet: unknown, demande: number): Lecture => ({ projet: "parade
 async function ouvrir(closer: (action: string) => Rendu | undefined) {
   const vue = await jouerLaVue({
     demarrage: () => ({
-      configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade", box: { hote: "box" } }], hotes: ["box"] }),
+      configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }] }, () => true),
       palette: PALETTE,
       exemple: EXEMPLE,
       onglets: ONGLETS,
       rubriques: RUBRIQUES,
-      boutons: BOUTONS,
       gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
       banniere: BANNIERE,
       calibrage: { modeles: MODELES, efforts: EFFORTS },
@@ -283,13 +281,13 @@ describe("le lancement, dans la partie closer du projet", () => {
   });
 
   test("une box qui ne répond pas à l'aperçu : une ligne, son détail au survol, et le bouton reste", async () => {
-    const { dire, place, cliquer } = await ouvrir(() => ({ refus: "the station could not be asked — not reached", detail: "$ ssh box\n→ exit code 255" }));
+    const { dire, place, cliquer } = await ouvrir(() => ({ refus: "the station could not be asked — not reached", detail: "$ brigade parade closing preview\n→ exit code 1" }));
     await dire(DEMANDES.none);
     await cliquer(LANCER);
     assert.deepEqual(place().dessous("section"), []);
     const ligne = place().dessous("p").find(({ className }) => className === "etat indisponible") ?? assert.fail("pas de ligne");
     assert.equal(ligne.children[0]?.textContent, "the station could not be asked — not reached");
-    assert.doesNotMatch(place().textContent, /ssh|exit code/);
+    assert.doesNotMatch(place().textContent, /exit code/);
     assert.ok(place().dessous("button").some(({ textContent }) => textContent === LANCER));
   });
 

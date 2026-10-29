@@ -8,7 +8,6 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../../../src/allumage.ts";
 import { pourLaBarre } from "../../../src/barre.ts";
-import { BOUTONS } from "../../../src/boutons.ts";
 import { EXEMPLE, type Projet } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../../src/cuisine.ts";
@@ -25,8 +24,8 @@ import { Faux, type Jouee, jouerLaVue, repos } from "../../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
 
-const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", box: { hote: "box" } };
-const FANFARE: Projet = { nom: "fanfare", dossier: "/tmp/fanfare", box: { hote: "box" } };
+const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade" };
+const FANFARE: Projet = { nom: "fanfare", dossier: "/tmp/fanfare" };
 const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "second · claude", note: "fil repris", arrete: false };
 const AUTRE: Terminal = { id: 7, projet: "fanfare", genre: "second", titre: "second · claude", note: "session neuve", arrete: false };
 const SHELL: Terminal = { id: 2, projet: "parade", genre: "shell", titre: "shell 1", note: "", arrete: false };
@@ -37,7 +36,7 @@ const geste = (id: string, command: string): Geste => ({ kind: "gesture", comman
 const MERGER = geste("g-1", "! gh pr merge 1480 --merge");
 // Une commande longue, avec ce qu'une commande porte : des espaces doublés, des guillemets, `$`, `&&`, un espace en tête
 // et en queue. Elle se lit entière, à l'octet près.
-const LONGUE = ` ! ssh box "cd ~/parade  &&  brigade parade pass 1480 --merge --delete-branch --comment 'approved by the chef after the review of #1482, \$HOME kept as is'" ${"--and-a-flag-that-goes-on ".repeat(6)}`;
+const LONGUE = ` ! sh -c "cd ~/parade  &&  brigade parade pass 1480 --merge --delete-branch --comment 'approved by the chef after the review of #1482, \$HOME kept as is'" ${"--and-a-flag-that-goes-on ".repeat(6)}`;
 const PASSER = geste("g-2", LONGUE);
 const CHOIX: Proposition = { kind: "choices", choices: [{ value: "A", label: "Merge it now" }, { value: "B", label: "Wait" }], id: "c-1", at: "2026-10-23T10:00:00.000Z" };
 
@@ -131,12 +130,11 @@ describe("le module : un bouton qui porte la commande, et sa confirmation", () =
 async function ouvrir(): Promise<Jouee> {
   const vue = await jouerLaVue({
     demarrage: () => ({
-      configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE, FANFARE], hotes: ["box"] }),
+      configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE, FANFARE] }, () => true),
       palette: PALETTE,
       exemple: EXEMPLE,
       onglets: ONGLETS,
       rubriques: RUBRIQUES,
-      boutons: BOUTONS,
       gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
       banniere: BANNIERE,
       calibrage: { modeles: MODELES, efforts: EFFORTS },

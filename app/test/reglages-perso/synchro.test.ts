@@ -16,7 +16,7 @@ import { SANS_POSIX } from "../aides/posix.ts";
 import { repondre } from "../stations/faux-gh-gists.ts";
 
 type Gist = { id: string; public: boolean; files: Record<string, { content: string }> };
-type Declare = { nom: string; dossier?: string; hote?: string; couleurs?: { onglet?: string; accent?: string }; [cle: string]: unknown };
+type Declare = { nom: string; dossier?: string; couleurs?: { onglet?: string; accent?: string }; [cle: string]: unknown };
 
 const PROJET_JSON = `${JSON.stringify({ version: 1, integrationBranch: "v2" }, null, 2)}\n`;
 
@@ -105,7 +105,7 @@ const SALLE = { nom: "salle", couleurs: { onglet: "#7f9cf5", accent: "#7f9cf5" }
 describe("les préférences du chef le suivent d'un appareil à l'autre", { skip: SANS_POSIX }, () => {
   test("une couleur changée sur un appareil se lit sur l'autre à sa lecture suivante, sans rien recopier", async (t) => {
     const compte = unCompte(t);
-    const mac = unAppareil(t, compte, [{ ...CUISINE, hote: "box.lan" }, SALLE]);
+    const mac = unAppareil(t, compte, [CUISINE, SALLE]);
     const portable = unAppareil(t, compte, [{ nom: "cuisine", couleurs: { onglet: "#4caf50", accent: "#4caf50" } }, { nom: "salle" }]);
     await mac.preferences.tirer();
     await portable.preferences.tirer();
@@ -216,30 +216,27 @@ describe("les préférences du chef le suivent d'un appareil à l'autre", { skip
 });
 
 describe("ce qui reste sur l'appareil", { skip: SANS_POSIX }, () => {
-  test("le dossier d'un projet et son hôte ssh ne sont pas dans le gist, et se lisent toujours dans le fichier de l'app", async (t) => {
+  test("le dossier d'un projet n'est pas dans le gist, et se lit toujours dans le fichier de l'app", async (t) => {
     const compte = unCompte(t);
-    const mac = unAppareil(t, compte, [{ ...CUISINE, hote: "box-du-mac.lan", stations: ["mac/claude"] }, SALLE], { hotes: ["box-du-mac.lan"] });
-    const portable = unAppareil(t, compte, [{ nom: "cuisine", hote: "box-du-portable.lan" }, { nom: "salle" }]);
+    const mac = unAppareil(t, compte, [CUISINE, SALLE]);
+    const portable = unAppareil(t, compte, [{ nom: "cuisine" }, { nom: "salle" }]);
     await mac.preferences.tirer();
     mac.suivi.changerCouleur("cuisine", "accent", "#e85d75");
     mac.suivi.ranger("salle", 0);
     await mac.preferences.calme();
     await portable.preferences.tirer();
 
-    // Le gist, après les écritures : aucun dossier, aucun hôte, ni leur clé ni leur valeur.
+    // Le gist, après les écritures : aucun dossier, ni sa clé ni sa valeur.
     for (const envoye of [compte.contenu(), ...compte.envoyes]) {
-      for (const interdit of [mac.racine, portable.racine, "box-du-mac.lan", "box-du-portable.lan"]) assert.ok(!envoye.includes(interdit), `${interdit} left the device: ${envoye}`);
-      assert.doesNotMatch(envoye, /"(dossier|hotes?|stations)"/);
+      for (const interdit of [mac.racine, portable.racine]) assert.ok(!envoye.includes(interdit), `${interdit} left the device: ${envoye}`);
+      assert.doesNotMatch(envoye, /"dossier"/);
     }
     assert.ok(compte.envoyes.length >= 2, "the gist was written");
-    // Chacun lit son dossier et son hôte dans son propre fichier.
-    for (const [appareil, hote] of [[mac, "box-du-mac.lan"], [portable, "box-du-portable.lan"]] as const) {
+    // Chacun lit son dossier dans son propre fichier.
+    for (const appareil of [mac, portable]) {
       const cuisine = appareil.projets().find(({ nom }) => nom === "cuisine")!;
       assert.equal(cuisine.dossier, appareil.dossierDe("cuisine"));
-      assert.deepEqual(cuisine.box, { hote });
-      assert.equal(appareil.fichier().projets.find(({ nom }) => nom === "cuisine")!.hote, hote);
     }
-    assert.deepEqual(mac.fichier().hotes, ["box-du-mac.lan"]);
     assert.deepEqual(portable.couleursDe("cuisine"), { onglet: "#f2994a", accent: "#e85d75" });
   });
 

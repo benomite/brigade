@@ -371,7 +371,7 @@ const sansBox = (nom: string) => `“${nom}” does not say where its station is
 
 // Ce que « Démarrer » écrit pour ce projet : rien. La station de cet ordinateur tourne avec l'app, aucun
 // service n'y est à démarrer.
-export function commandeDeDemarrage(_projet: Projet, _ici = false): { refus: string } {
+export function commandeDeDemarrage(_projet: Projet): { refus: string } {
   return { refus: "nothing is written: this computer's station runs with the app — there is no service to start" };
 }
 
@@ -760,7 +760,7 @@ export function tenirServices(options: {
     });
     const faites = etapes.filter(({ etat }) => etat === "done").length;
     const courante = etapes.find((etape) => etape.courante);
-    const demarrage = commandeDeDemarrage(projet, tenu.lieu === ICI);
+    const demarrage = commandeDeDemarrage(projet);
     const titre =
       tenu.lecture.etat === "en-cours"
         ? `Installation — ${tenu.lecture.titre}`

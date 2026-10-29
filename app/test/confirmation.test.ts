@@ -1,16 +1,18 @@
-// Ce qu'un geste confirmé dit avant de partir : son prix, en clair, tiré de ce que la box a déjà
+// Ce qu'un geste confirmé dit avant de partir : son prix, en clair, tiré de ce que la station a déjà
 // dit — les cooks en cours, le rail. Ce qui n'est
 // pas lu se dit tel, jamais « aucun cook en vol ». Un geste direct n'a rien à confirmer ; un geste
 // qui n'écrirait rien refuse à la place. Rien ne part d'ici : confirmation.ts dit, il ne lance rien.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { AVERTISSEMENT as ALLUMER } from "../src/allumage.ts";
+import type { Cuisine } from "../src/box.ts";
 import type { Projet } from "../src/config.ts";
 import { confirmationDe, type Confirmation, type Lus } from "../src/confirmation.ts";
 import type { Faits } from "../src/faits.ts";
 import { CONFIRMES, DIRECTS } from "../src/gestes.ts";
 
-const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", box: { hote: "box" } };
+const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade" };
+const CUISINE: Cuisine = { locale: { node: "node", runtime: "/runtime", racine: "/station", env: {} } };
 const LU = "2026-10-13T10:00:00.000Z";
 
 const faits = (plus: Partial<Faits> = {}): Faits => ({
@@ -33,12 +35,12 @@ function confirmee(rendu: ReturnType<typeof confirmationDe>): Confirmation {
 
 describe("seul un geste confirmé a une confirmation", () => {
   test("un geste direct, ou que le socle ne connaît pas, n'en a pas : rien n'est à confirmer", () => {
-    for (const id of [...DIRECTS, "inconnu", 3, undefined]) assert.equal(confirmationDe(id, PARADE, lus()), undefined, String(id));
+    for (const id of [...DIRECTS, "inconnu", 3, undefined]) assert.equal(confirmationDe(id, PARADE, lus(), undefined, CUISINE), undefined, String(id));
   });
 
   test("chaque geste confirmé du socle en a une — ou un refus qui dit pourquoi il ne s'offre pas — avec au moins un « oui » et un « non »", () => {
     for (const id of CONFIRMES) {
-      const rendu = confirmationDe(id, PARADE, lus({ cooks: [{ ticket: 14, titre: "x", station: "box/claude" }] }), "merge");
+      const rendu = confirmationDe(id, PARADE, lus({ cooks: [{ ticket: 14, titre: "x", station: "box/claude" }] }), "merge", CUISINE);
       assert.ok(rendu !== undefined, id);
       if ("refus" in rendu) continue;
       assert.notEqual(rendu.titre.trim(), "", id);
@@ -48,15 +50,15 @@ describe("seul un geste confirmé a une confirmation", () => {
     }
   });
 
-  test("un geste qui n'écrirait rien n'a rien à confirmer : un projet sans box n'en a pas, un grant que la doc ne nomme pas refuse", () => {
-    assert.equal(confirmationDe("stop", { nom: "parade", dossier: "/tmp/parade" }, lus()), undefined);
-    assert.ok("refus" in (confirmationDe("grant-activer", PARADE, lus(), "deploy") ?? {}));
+  test("un geste qui n'écrirait rien n'a rien à confirmer : un projet dont la cuisine ne tourne pas ici n'en a pas, un grant que la doc ne nomme pas refuse", () => {
+    assert.equal(confirmationDe("stop", PARADE, lus(), undefined, undefined), undefined);
+    assert.ok("refus" in (confirmationDe("grant-activer", PARADE, lus(), "deploy", CUISINE) ?? {}));
   });
 });
 
 describe("arrêter la cuisine dit les cooks en vol", () => {
   test("les cooks que `faits` donne sont nommés, ce qu'ils ont dépensé est dit manquant, avec l'heure de la lecture", () => {
-    const rendu = confirmee(confirmationDe("stop", PARADE, lus({ cooks: [{ ticket: 14, titre: "x", station: "box/claude" }] })));
+    const rendu = confirmee(confirmationDe("stop", PARADE, lus({ cooks: [{ ticket: 14, titre: "x", station: "box/claude" }] }), undefined, CUISINE));
 
     assert.equal(rendu.titre, "stop the kitchen");
     assert.match(rendu.prix[0] ?? "", /stopped within the second, and nothing is harvested/);
@@ -67,30 +69,30 @@ describe("arrêter la cuisine dit les cooks en vol", () => {
 
   test("ce qui n'est pas lu se dit tel, jamais « aucun cook en vol »", () => {
     for (const lu of [PAS_LUS, lus()]) {
-      const rendu = confirmee(confirmationDe("stop", PARADE, lu));
+      const rendu = confirmee(confirmationDe("stop", PARADE, lu, undefined, CUISINE));
       assert.ok(rendu.prix.some((ligne) => /not read.*This is not “no cook in flight”/.test(ligne)), JSON.stringify(rendu.prix));
     }
-    assert.equal(confirmee(confirmationDe("stop", PARADE, PAS_LUS)).lu, undefined);
+    assert.equal(confirmee(confirmationDe("stop", PARADE, PAS_LUS, undefined, CUISINE)).lu, undefined);
   });
 });
 
 describe("reprendre, accorder, révoquer, allumer : chacun dit ce qu'il engage", () => {
   test("reprendre : les tickets repartent sur ton quota, et combien sont sur le rail", () => {
-    const rendu = confirmee(confirmationDe("reprendre", PARADE, lus()));
+    const rendu = confirmee(confirmationDe("reprendre", PARADE, lus(), undefined, CUISINE));
     assert.match(rendu.prix[0] ?? "", /queued tickets start again right away, on your quota/);
     assert.ok(rendu.prix.includes("4 tickets on the rail at this reading."));
   });
 
   test("accorder le grant : une pass verte sera mergée sans toi ; le révoquer : plus rien ne l'est", () => {
-    const accorder = confirmee(confirmationDe("grant-activer", PARADE, PAS_LUS, "merge"));
+    const accorder = confirmee(confirmationDe("grant-activer", PARADE, PAS_LUS, "merge", CUISINE));
     assert.match(accorder.prix[0] ?? "", /^A green pass will be merged without you/);
     assert.deepEqual(accorder.choix.map(({ id }) => id), ["grant-activer"]);
-    const revoquer = confirmee(confirmationDe("grant-revoquer", PARADE, PAS_LUS, "merge"));
+    const revoquer = confirmee(confirmationDe("grant-revoquer", PARADE, PAS_LUS, "merge", CUISINE));
     assert.match(revoquer.prix[0] ?? "", /^Nothing is merged without you any more/);
   });
 
-  test("allumer le projet : l'avertissement de la doc, et ses deux nombres à demander à la box", () => {
-    const rendu = confirmee(confirmationDe("projet-allumer", PARADE, PAS_LUS));
+  test("allumer le projet : l'avertissement de la doc, et ses deux nombres à demander à la station", () => {
+    const rendu = confirmee(confirmationDe("projet-allumer", PARADE, PAS_LUS, undefined, CUISINE));
     assert.deepEqual(rendu.prix, [ALLUMER]);
     assert.equal(rendu.chiffrer, true);
   });

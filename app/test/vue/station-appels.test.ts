@@ -7,7 +7,6 @@ import type { Accueil, LigneDeStation } from "../../src/accueil.ts";
 import { tenirAccueil } from "../../src/accueil.ts";
 import { ALLUMAGE } from "../../src/allumage.ts";
 import { pourLaBarre } from "../../src/barre.ts";
-import { BOUTONS } from "../../src/boutons.ts";
 import { EXEMPLE, type Projet } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
@@ -48,7 +47,7 @@ describe("la lecture des faits", () => {
 describe("l'accueil range les appels sous la station qui les rend", () => {
   const STATION: StationVue = { id: "g1", nom: "box", machine: "Linux", etat: "en-ligne", ligne: "online", pannes: [], dit: "online", version: "1.4.0", projets: ["parade"], max: null };
   const lire = (appelsGithub: object | undefined) => {
-    const accueil = tenirAccueil({ projets: () => [{ nom: "parade", box: true, desinstalle: false }], maintenant: () => Date.parse(A) });
+    const accueil = tenirAccueil({ projets: () => [{ nom: "parade", servi: true }], maintenant: () => Date.parse(A) });
     accueil.stations({ a: A, stations: [STATION] });
     accueil.faits({ projet: "parade", demande: 1, a: A, sorties: [{ commande: "facts", texte: faitsJson(appelsGithub === undefined ? {} : { appelsGithub }) }] });
     accueil.status({ projet: "parade", demande: 1, a: A, attend: undefined, sorties: [{ commande: "status", texte: "head\n\ncooks      none running — box: 3 at most — 8 cores\n" }] });
@@ -97,7 +96,6 @@ describe("sur la page de la station", () => {
       exemple: EXEMPLE,
       onglets: ONGLETS,
       rubriques: RUBRIQUES,
-      boutons: BOUTONS,
       gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
       banniere: BANNIERE,
       calibrage: { modeles: MODELES, efforts: EFFORTS },

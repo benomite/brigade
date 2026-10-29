@@ -6,7 +6,6 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../../src/allumage.ts";
 import { pourLaBarre } from "../../src/barre.ts";
-import { BOUTONS } from "../../src/boutons.ts";
 import { EXEMPLE, type Projet } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
@@ -80,7 +79,7 @@ describe("les tickets les plus chers", () => {
 
   test("une box injoignable ou sans cook ne donne aucun ticket", () => {
     const lectures = new Map<string, any>([
-      ["parade", { projet: "parade", demande: 0, a: A, erreur: "ssh: refused", atteinte: false, cas: "ssh-en-echec" }],
+      ["parade", { projet: "parade", demande: 0, a: A, erreur: "spawn node ENOENT", atteinte: false, cas: null }],
       ["cantine", lu("cantine", station())],
     ]);
     assert.deepEqual(plusChers([PARADE, CANTINE], lectures), []);
@@ -101,17 +100,16 @@ describe("les tickets les plus chers", () => {
 });
 
 describe("la page des coûts de l'app jouée (#1022)", () => {
-  const PROJET: Projet = { nom: "parade", dossier: "/tmp/parade", box: { hote: "box" } };
+  const PROJET: Projet = { nom: "parade", dossier: "/tmp/parade" };
 
   async function ouvrirLaPage(): Promise<Jouee> {
     const vue = await jouerLaVue({
       demarrage: () => ({
-        configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PROJET], hotes: ["box"] }),
+        configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PROJET] }, () => true),
         palette: PALETTE,
         exemple: EXEMPLE,
         onglets: ONGLETS,
         rubriques: RUBRIQUES,
-        boutons: BOUTONS,
         gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
         banniere: BANNIERE,
         calibrage: { modeles: MODELES, efforts: EFFORTS },

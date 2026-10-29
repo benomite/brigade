@@ -1,7 +1,7 @@
 // La vue du rail d'un projet, nourrie de GitHub seul (app/src/tableau/rail.ts, #1694) : le tableau de la cuisine que la
-// box publie donne ce que le rail lisait par `ssh` — ses tickets et leur état, les cooks en cours, les cartes, ce qui
+// box publie donne ce que le rail lisait de la station — ses tickets et leur état, les cooks en cours, les cartes, ce qui
 // attend le chef —, sous la forme que ce qui le dessine reçoit déjà (faits.ts, attend.ts, bon.ts, manager.ts, amont.ts).
-// GitHub est une doublure ; tout lancement de processus — un `ssh` d'abord — fait échouer le test.
+// GitHub est une doublure ; tout lancement de processus — le geste de la station d'abord — fait échouer le test.
 import assert from "node:assert/strict";
 import childProcess from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -15,7 +15,7 @@ import { tableauDeLaCuisine } from "../../../runtime/src/tableau/rendu/donnees.t
 import { rendreLeTableau } from "../../../runtime/src/tableau/rendu/rendre.ts";
 import { aArreter, horloge, repertoireTemporaire } from "../../../runtime/test/outils.ts";
 import { mettreAPart, ticketsDe } from "../../src/attend.ts";
-import { lancerGeste } from "../../src/box.ts";
+import { lancerLa } from "../../src/box.ts";
 import { lignesDuRail } from "../../src/bon.ts";
 import { comprendre, rail, tenirFaits, titreDEchec, type Dessinable } from "../../src/faits.ts";
 import { voir as voirAmont } from "../../src/amont.ts";
@@ -27,7 +27,7 @@ import { DEPOT, GENERE_LE, githubDuTableau, LU_LE, projetPublie } from "./projet
 const LU_PAR_L_APP = new Date("2026-10-12T10:05:00.000Z");
 const PROJET = { nom: "brigade" };
 
-// Aucun processus ne part pendant le test : `ssh` ni rien d'autre. Chaque tentative est notée, et échoue.
+// Aucun processus ne part pendant le test. Chaque tentative est notée, et échoue.
 function sansProcessus(t: TestContext): string[] {
   const lances: string[] = [];
   const module = childProcess as unknown as Record<string, (...args: unknown[]) => unknown>;
@@ -70,11 +70,12 @@ async function lireParLesVeilles(appeler: Parameters<typeof lireLeTableauDuDepot
   return { status: lectures.get("status") as LectureDuRail, facts: lectures.get("facts") as LectureDuRail, tableaux };
 }
 
-test("la garde prend un `ssh` lancé par le chemin des box : c'est elle qui ferait échouer le rail s'il en lançait un", async (t) => {
+test("la garde prend le geste de la station lancé par le chemin des veilles : c'est elle qui ferait échouer le rail s'il en lançait un", async (t) => {
   const lances = sansProcessus(t);
-  await assert.rejects(lancerGeste({ ssh: "ssh", delaiMs: 1_000, connexionS: 1 }, { nom: "brigade", box: { hote: "box" } }, "facts"), /no process may be launched to draw the rail: ssh/);
+  const locale = { node: "/usr/bin/fausse-node", runtime: "/tmp/runtime", racine: "/tmp/station", env: {} };
+  await assert.rejects(lancerLa({ delaiMs: 1_000 }, { nom: "brigade", cuisine: { locale } }, "facts"), /no process may be launched to draw the rail: \/usr\/bin\/fausse-node/);
   assert.equal(lances.length, 1);
-  assert.match(lances[0] ?? "", /^ssh .* box brigade brigade facts$/);
+  assert.match(lances[0] ?? "", /^\/usr\/bin\/fausse-node \/tmp\/runtime\/.* brigade facts$/);
 });
 
 test("GitHub seul, aucune box jointe : la couche de données du rail rend les tickets et leur état, les cooks en cours, les cartes et ce qui attend le chef", async (t) => {
@@ -139,25 +140,25 @@ test("GitHub seul, aucune box jointe : la couche de données du rail rend les ti
   assert.deepEqual(lances, [], "aucun processus n'est parti");
 });
 
-test("le rail tiré du tableau est celui que la box rendait par `ssh`, du même état au même instant", async (t) => {
+test("le rail tiré du tableau est celui que la station rendait, du même état au même instant", async (t) => {
   sansProcessus(t);
   const { corps, facts, status } = projetPublie(t);
   const publie = await lu(corps);
   const parLeTableau = lectureDuTableau(publie, "brigade", 1, ["facts", "status"]);
   const montree = mettreAPart({ projet: "brigade", demande: 1, a: LU_LE.toISOString(), sorties: [{ commande: "status", texte: sortie(parLeTableau, "status") }] });
-  const parSsh = mettreAPart({ projet: "brigade", demande: 1, a: LU_LE.toISOString(), sorties: [{ commande: "status", texte: status }] });
-  assert.ok(!("erreur" in montree) && !("erreur" in parSsh));
+  const parLaStation = mettreAPart({ projet: "brigade", demande: 1, a: LU_LE.toISOString(), sorties: [{ commande: "status", texte: status }] });
+  assert.ok(!("erreur" in montree) && !("erreur" in parLaStation));
   // Le bloc `awaiting`, mot pour mot.
-  assert.equal(montree.attend, parSsh.attend);
+  assert.equal(montree.attend, parLaStation.attend);
   // Les lignes du rail, mot pour mot.
-  assert.deepEqual(lignesDuRail(montree.sorties[0]?.texte ?? ""), lignesDuRail(parSsh.sorties[0]?.texte ?? ""));
+  assert.deepEqual(lignesDuRail(montree.sorties[0]?.texte ?? ""), lignesDuRail(parLaStation.sorties[0]?.texte ?? ""));
   // Le rail entier — colonnes, cartes, ce qu'elles disent.
   const deux = (faits: string, m: typeof montree) => {
     const lus = comprendre(faits);
     assert.ok(!("informe" in lus), "informe" in lus ? lus.informe : "");
     return rail(lus, { bloc: m.attend ?? "", a: m.a }, { texte: m.sorties[0]?.texte ?? "", a: m.a });
   };
-  assert.deepEqual(deux(sortie(parLeTableau, "facts"), montree), deux(facts, parSsh));
+  assert.deepEqual(deux(sortie(parLeTableau, "facts"), montree), deux(facts, parLaStation));
 });
 
 test("la sortie de `status` refaite du tableau : ses rubriques, le bloc `awaiting` de la file juste avant la ligne `rail`, et sous elle la ligne de chaque ticket", async (t) => {
@@ -212,9 +213,9 @@ test("la cuisine au repos faute de station : le bloc `awaiting` refait du tablea
   assert.deepEqual(lignes.slice(tete, tete + 3), ["awaiting   nothing awaits the chef", ligne, "end awaiting"]);
   // Mot pour mot le bloc que la box écrit ; et le ticket qui en attend un autre, sans lien, n'y est pas nommé.
   const montree = mettreAPart({ projet: "brigade", demande: 1, a: LU_LE.toISOString(), sorties: [{ commande: "status", texte }] });
-  const parSsh = mettreAPart({ projet: "brigade", demande: 1, a: LU_LE.toISOString(), sorties: [{ commande: "status", texte: status }] });
-  assert.ok(!("erreur" in montree) && !("erreur" in parSsh));
-  assert.equal(montree.attend, parSsh.attend);
+  const parLaStation = mettreAPart({ projet: "brigade", demande: 1, a: LU_LE.toISOString(), sorties: [{ commande: "status", texte: status }] });
+  assert.ok(!("erreur" in montree) && !("erreur" in parLaStation));
+  assert.equal(montree.attend, parLaStation.attend);
   assert.doesNotMatch(montree.attend ?? "", /#17/);
   // Pas une décision : la file du tableau est vide, et le bloc ne nomme aucun ticket en tête de ligne.
   assert.deepEqual(publie.file, []);
@@ -349,26 +350,22 @@ function graphe(entree: string): string[] {
   return [...vus].map((chemin) => (chemin.startsWith(RACINE) ? relative(RACINE, chemin).split("\\").join("/") : chemin)).sort();
 }
 
-test("aucun chemin qui dessine le rail n'ouvre `ssh` : ses veilles lisent le tableau, et `ssh` reste au terminal vivant d'un cook", () => {
+test("aucun chemin qui dessine le rail ne lance de processus : ses veilles lisent le tableau", () => {
   // La couche de données du rail et ses gestes n'importent rien qui lance un processus.
   for (const module of ["app/src/tableau/rail.ts", "app/src/tableau-gestes/rail.ts"]) {
     const importes = graphe(module);
     assert.ok(!importes.includes("node:child_process"), `${module} : ${importes.join(", ")}`);
     assert.ok(!importes.some((chemin) => /app\/src\/(box|terminaux|pty)\.ts$/.test(chemin)), `${module} : ${importes.join(", ")}`);
-    assert.doesNotMatch(readFileSync(join(RACINE, module), "utf8").replace(/^\s*\/\/.*$/gm, ""), /BRIGADE_SSH_BIN|\bssh\b/, `${module} n'appelle aucun code ssh`);
   }
   // Dans le process principal, les quatre veilles qui dessinent le rail — `status`, les faits, le manager, l'amont —
-  // sont celles du tableau : aucune ne reçoit de `ssh`.
+  // sont celles du tableau : aucune ne lance de processus.
   const main = readFileSync(join(RACINE, "app/src/main.ts"), "utf8");
   for (const veille of ["veille", "veilleDesFaits", "veilleDuManager", "veilleDeLAmont"]) {
     const declaration = new RegExp(`^const ${veille} = (\\w+)\\(\\{([\\s\\S]*?)^\\}\\);`, "m").exec(main);
     assert.equal(declaration?.[1], "ouvrirVeilleDuTableau", veille);
-    assert.doesNotMatch(declaration?.[2] ?? "", /\bssh\b/, veille);
   }
   // Les gestes du rail que le tableau porte — merger, retirer, répondre à une carte — partent sur le tableau.
   assert.match(main, /ipcMain\.handle\("gesteDeFiche"[\s\S]*?gesteDeFicheAuTableau\(tableaux\.dernier/);
   assert.match(main, /ipcMain\.handle\("repondreCarte"[\s\S]*?reponseDeCarteAuTableau\(tableaux\.dernier[\s\S]*?\}\);/);
-  assert.doesNotMatch(/ipcMain\.handle\("repondreCarte"[\s\S]*?\n\}\);/.exec(main)?.[0] ?? "", /\bssh\b|passage/);
-  // Le terminal vivant d'un cook, lui, garde son `ssh` : un geste explicite, à part.
-  assert.match(main, /const terminaux = ouvrirTerminaux\(\{[\s\S]*?ssh: process\.env\.BRIGADE_SSH_BIN \|\| "ssh"/);
+  assert.doesNotMatch(/ipcMain\.handle\("repondreCarte"[\s\S]*?\n\}\);/.exec(main)?.[0] ?? "", /passage/);
 });

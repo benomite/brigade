@@ -16,7 +16,7 @@ import type { Fait } from "../../runtime/src/evenements.ts";
 import { principal } from "../../runtime/src/grant-cli.ts";
 import { JAMAIS_ACCORDEES } from "../../runtime/src/grant.ts";
 import { ouvrirJournal } from "../../runtime/src/journal.ts";
-import type { Lecture } from "../src/box.ts";
+import { GESTE, type Cuisine, type Lecture } from "../src/box.ts";
 import { CONFIRMES, ecrireGeste, GESTES, GRANTS, SANS_OUI } from "../src/gestes.ts";
 import { DIT } from "../src/saisie.ts";
 import { COMMANDE, GESTES_DES_GRANTS, grantsDe, voir, type Grants } from "../src/grants.ts";
@@ -24,7 +24,8 @@ import { commandeDe, ONGLETS } from "../src/onglets.ts";
 import { ouvrirTerminaux } from "../src/terminaux.ts";
 
 const RACINE = join(import.meta.dirname, "../..");
-const PARADE = { nom: "parade", dossier: "/projets/parade", box: { hote: "box" } };
+const PARADE = { nom: "parade", dossier: "/projets/parade" };
+const CUISINE: Cuisine = { locale: { node: "node", runtime: "/runtime", racine: "/station", env: {} } };
 // L'heure à laquelle `grant` est jouée, sauf mention : celle de la box, en UTC.
 const A_16H30 = "2026-10-13T16:30:00.000Z";
 
@@ -473,7 +474,7 @@ describe("ce que l'onglet Grants pose au-dessus du texte", () => {
   });
 
   test("une lecture ratée ne dit rien des grants : ni actif, ni absent — ce que l'app a obtenu se lit dessous", () => {
-    const vu = voir({ projet: "parade", demande: 4, a: "2026-10-13T16:30:02.000Z", erreur: "$ ssh … box brigade parade grant\n→ code de sortie 255", atteinte: false, cas: "ssh-en-echec" });
+    const vu = voir({ projet: "parade", demande: 4, a: "2026-10-13T16:30:02.000Z", erreur: "$ brigade parade grant\n→ code de sortie 1", atteinte: false, cas: null });
 
     assert.deepEqual(vu, { projet: "parade", demande: 4, a: "2026-10-13T16:30:02.000Z", sans: "the grants' state was not read: what the app got in its place is below. This is not “no active grant”" });
   });
@@ -525,9 +526,9 @@ describe("l'onglet Grants et les deux gestes de chaque grant", () => {
 
     for (const { id } of GESTES_DES_GRANTS) {
       assert.ok(CONFIRMES.includes(id), id);
-      assert.deepEqual(ecrireGeste(terminaux, id, PARADE, "merge"), { refus: SANS_OUI });
+      assert.deepEqual(ecrireGeste(terminaux, id, PARADE, "merge", undefined, CUISINE), { refus: SANS_OUI });
     }
-    const rendus = await Promise.all(GESTES_DES_GRANTS.map(({ id }) => ecrireGeste(terminaux, id, PARADE, "merge", true)));
+    const rendus = await Promise.all(GESTES_DES_GRANTS.map(({ id }) => ecrireGeste(terminaux, id, PARADE, "merge", true, CUISINE)));
 
     // Le second vient d'être lancé, il n'est pas dit libre : rien n'est écrit, et le refus dit ce qui serait parti.
     assert.deepEqual(ecrits, [[]]);
@@ -535,7 +536,7 @@ describe("l'onglet Grants et les deux gestes de chaque grant", () => {
     assert.ok(doc.includes("`brigade <projet> grant [enable merge ["), "docs/runtime/, « Piloter », ne cite plus la commande du grant");
     for (const [rang, mot] of ["enable", "revoke"].entries()) {
       assert.ok(doc.includes(`npm --prefix runtime run grant -- ${mot} merge`), `docs/runtime/, « Le grant \`merge\` », ne cite plus \`grant -- ${mot} merge\``);
-      assert.deepEqual(rendus[rang], { refus: `${DIT.demarre} — the command did not go, and nothing is written: \`!ssh box brigade parade grant ${mot} merge\`` });
+      assert.deepEqual(rendus[rang], { refus: `${DIT.demarre} — the command did not go, and nothing is written: \`!(cd '/runtime' && BRIGADE_STATION_DIR='/station' node ${GESTE} parade grant ${mot} merge)\`` });
     }
   });
 

@@ -17,7 +17,7 @@ import type { StationVue, VuDesStations } from "../src/stations/stations.ts";
 
 const A = "2026-10-16T12:00:00.000Z";
 const MAINTENANT = Date.parse(A);
-const PROJET: ProjetDeLAccueil = { nom: "brigade", box: true, desinstalle: false };
+const PROJET: ProjetDeLAccueil = { nom: "brigade", servi: true };
 
 const desFaits = (champs: Partial<Faits> = {}, compteurs: Partial<Faits["compteurs"]> = {}): Faits => ({
   etat: "ouverte",
@@ -55,7 +55,7 @@ const BASE_ROUGE_EN_FRANCAIS = [
 
 // Rien de ce qui se lit sur l'accueil n'est une commande, ni le texte brut d'une erreur.
 const sansRienDeBrut = (texte: string) => {
-  assert.doesNotMatch(texte, /\b(ssh|brigade|gh|git|sudo|systemctl|claude)\s+\S/, texte);
+  assert.doesNotMatch(texte, /\b(brigade|gh|git|sudo|systemctl|claude)\s+\S/, texte);
   assert.doesNotMatch(texte, /api\.github\.com|HTTP \d{3}|exit code|`/, texte);
 };
 
@@ -104,9 +104,8 @@ describe("la ligne d'un projet : sa pastille, et ce qui bloque, ce qui attend le
     assert.equal(ligneDeProjet(PROJET, lus(desFaits({ urgence }, { attend: 1 })), undefined).dit, "1 decision awaits you — nothing cooks until then");
   });
 
-  test("rien de lu n'est dit sain : gris, sans box, désinstallé, pas encore lu, ou une box qui ne répond pas comme l'app l'attend", () => {
-    assert.equal(ligneDeProjet({ ...PROJET, box: false }, undefined, undefined).ton, "gris");
-    assert.equal(ligneDeProjet({ ...PROJET, desinstalle: true }, lus(desFaits()), undefined).ton, "gris");
+  test("rien de lu n'est dit sain : gris, sans station, pas encore lu, ou une lecture que l'app ne comprend pas", () => {
+    assert.equal(ligneDeProjet({ ...PROJET, servi: false }, undefined, undefined).ton, "gris");
     assert.deepEqual(ligneDeProjet(PROJET, undefined, undefined).dit, "first read in progress…");
     assert.equal(ligneDeProjet(PROJET, { a: A, illisible: true }, undefined).ton, "gris");
   });
@@ -282,7 +281,7 @@ describe("la ligne de santé : Max et GitHub, verte et discrète quand tout va, 
 
 describe("l'accueil tenu : chaque lecture rend l'accueil à redessiner, rien quand il ne change pas", () => {
   test("`faits`, `status` et les stations se combinent : les cooks de chaque projet comptent pour leur station", () => {
-    const accueil = tenirAccueil({ projets: () => [PROJET, { nom: "espace", box: true, desinstalle: false }], maintenant: () => MAINTENANT });
+    const accueil = tenirAccueil({ projets: () => [PROJET, { nom: "espace", servi: true }], maintenant: () => MAINTENANT });
     const faits = (projet: string, champs: Partial<Faits>, compteurs: Partial<Faits["compteurs"]> = {}) => ({ projet, demande: 1, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(desFaits(champs, compteurs)) }] });
     assert.ok(accueil.faits(faits("brigade", { cooks: [cook(867)] })));
     assert.equal(accueil.faits(faits("brigade", { cooks: [cook(867)] })), undefined, "rien n'a changé");
@@ -296,8 +295,8 @@ describe("l'accueil tenu : chaque lecture rend l'accueil à redessiner, rien qua
     const horsLigne = { projet: "espace", demande: 1, a: A, erreur: "GitHub could not be reached to read the Kitchen board of acme/espace: fetch failed.", atteinte: true, cas: null, duTableau: true, horsLigne: true } as const;
     assert.equal(accueil.faits(horsLigne), undefined);
     assert.equal(accueil.status(horsLigne), undefined);
-    // Une box qui n'est pas jointe se dit injoignable — rien de ce que `ssh` a écrit.
-    const injoignable = accueil.faits({ projet: "brigade", demande: 1, a: A, erreur: "$ ssh -o BatchMode=yes box brigade brigade facts\nssh: connect to host box port 22: Connection refused\n→ exit code 255", atteinte: false, cas: "ssh-en-echec" });
+    // Une box qui n'est pas jointe se dit injoignable — rien du brut de l'erreur.
+    const injoignable = accueil.faits({ projet: "brigade", demande: 1, a: A, erreur: "$ brigade brigade facts\nconnect to host box port 22: Connection refused\n→ exit code 255", atteinte: false, cas: null });
     assert.deepEqual(injoignable?.projets[0], ligneDeProjet(PROJET, { a: A, injoignable: true }, undefined));
     for (const ligne of [...(injoignable?.projets ?? []), ...(injoignable?.stations ?? []), injoignable?.sante]) sansRienDeBrut(`${ligne?.dit}\n${ligne?.survol}`);
   });

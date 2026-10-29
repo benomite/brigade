@@ -29,17 +29,16 @@ const NPM = "C:\\Users\\chef\\AppData\\Roaming\\npm";
 const GIT = "C:\\Program Files\\Git\\cmd\\git.exe";
 const BASH = "C:\\Program Files\\Git\\bin\\bash.exe";
 const GH = "C:\\Program Files\\GitHub CLI\\gh.exe";
-const SSH = "C:\\Windows\\System32\\OpenSSH\\ssh.exe";
 const SOUS_WINDOWS = {
   plateforme: "win32" as const,
-  env: { Path: `${NPM};C:\\Program Files\\Git\\cmd;C:\\Program Files\\GitHub CLI;C:\\Windows\\System32\\OpenSSH`, PATHEXT: ".COM;.EXE;.BAT;.CMD", ComSpec: "C:\\Windows\\system32\\cmd.exe" },
+  env: { Path: `${NPM};C:\\Program Files\\Git\\cmd;C:\\Program Files\\GitHub CLI`, PATHEXT: ".COM;.EXE;.BAT;.CMD", ComSpec: "C:\\Windows\\system32\\cmd.exe" },
   maison: "C:\\Users\\chef",
 };
 
 test("sous Linux, le second se lance par le `claude` du PATH, ses arguments tels quels, dans le dossier du projet", (t) => {
   const dossier = repertoireTemporaire(t);
   const plan = pret(
-    planDuSecond({ plateforme: "linux", env: { PATH: "/usr/bin" }, maison: "/home/chef", existe: fichiers("/usr/bin/claude", "/usr/bin/gh", "/usr/bin/git", "/usr/bin/ssh"), folder: dossier, args: ["--continue", "/brigade:po"] }),
+    planDuSecond({ plateforme: "linux", env: { PATH: "/usr/bin" }, maison: "/home/chef", existe: fichiers("/usr/bin/claude", "/usr/bin/gh", "/usr/bin/git"), folder: dossier, args: ["--continue", "/brigade:po"] }),
   );
   assert.deepEqual(plan.launch, { command: "/usr/bin/claude", args: ["--continue", "/brigade:po"], verbatim: false, folder: dossier, env: {} });
   assert.deepEqual(plan.missing, []);
@@ -49,7 +48,7 @@ test("sous Linux, le second se lance par le `claude` du PATH, ses arguments tels
 test("sous Windows, un `claude` installé par npm part par `cmd.exe`, sa ligne écrite pour lui, avec le Git Bash du `git` du PATH", (t) => {
   const dossier = repertoireTemporaire(t);
   // npm pose à côté du `.cmd` un `claude` sans extension, que Windows ne sait pas lancer.
-  const plan = pret(planDuSecond({ ...SOUS_WINDOWS, existe: fichiers(`${NPM}\\claude`, `${NPM}\\claude.cmd`, GIT, BASH, GH, SSH), folder: dossier, args: ["--continue", "/brigade:po"] }));
+  const plan = pret(planDuSecond({ ...SOUS_WINDOWS, existe: fichiers(`${NPM}\\claude`, `${NPM}\\claude.cmd`, GIT, BASH, GH), folder: dossier, args: ["--continue", "/brigade:po"] }));
   assert.deepEqual(plan.launch, {
     command: "C:\\Windows\\system32\\cmd.exe",
     args: ["/d", "/s", "/c", `"${ligneDeCmd(`${NPM}\\claude.cmd`, ["--continue", "/brigade:po"])}"`],
@@ -63,12 +62,12 @@ test("sous Windows, le `claude.exe` de l'installateur part tel quel, et un CLAUD
   const dossier = repertoireTemporaire(t);
   const exe = "C:\\Users\\chef\\.local\\bin\\claude.exe";
   const env = { ...SOUS_WINDOWS.env, Path: `C:\\Users\\chef\\.local\\bin;${SOUS_WINDOWS.env.Path}`, CLAUDE_CODE_GIT_BASH_PATH: "D:\\Git\\bin\\bash.exe" };
-  const plan = pret(planDuSecond({ ...SOUS_WINDOWS, env, existe: fichiers(exe, GIT, GH, SSH, "D:\\Git\\bin\\bash.exe"), folder: dossier, args: ["/brigade:po"] }));
+  const plan = pret(planDuSecond({ ...SOUS_WINDOWS, env, existe: fichiers(exe, GIT, GH, "D:\\Git\\bin\\bash.exe"), folder: dossier, args: ["/brigade:po"] }));
   assert.deepEqual(plan.launch, { command: exe, args: ["/brigade:po"], verbatim: false, folder: dossier, env: {} });
 });
 
 test("sous Windows sans `git`, le second ne part pas : Claude Code y exige le Git Bash, et la phrase dit comment l'obtenir", (t) => {
-  const plan = refuse(planDuSecond({ ...SOUS_WINDOWS, existe: fichiers(`${NPM}\\claude.cmd`, GH, SSH), folder: repertoireTemporaire(t) }));
+  const plan = refuse(planDuSecond({ ...SOUS_WINDOWS, existe: fichiers(`${NPM}\\claude.cmd`, GH), folder: repertoireTemporaire(t) }));
   assert.equal(plan.cause, "tools-missing");
   assert.equal(plan.reason, "The second cannot start: `git` is missing on this PC.");
   const git = plan.tools?.find(({ tool }) => tool === "git");
@@ -79,18 +78,18 @@ test("sous Windows sans `git`, le second ne part pas : Claude Code y exige le Gi
 test("sous Windows, un `git` sans son Git Bash, ou un CLAUDE_CODE_GIT_BASH_PATH qui ne mène à rien : le second ne part pas, et le dit", (t) => {
   const dossier = repertoireTemporaire(t);
   const ailleurs = "D:\\outils\\git\\cmd";
-  const env = { Path: `${NPM};${ailleurs};C:\\Program Files\\GitHub CLI;C:\\Windows\\System32\\OpenSSH`, PATHEXT: ".EXE;.CMD" };
-  const sansBash = refuse(planDuSecond({ ...SOUS_WINDOWS, env, existe: fichiers(`${NPM}\\claude.cmd`, `${ailleurs}\\git.exe`, GH, SSH), folder: dossier }));
+  const env = { Path: `${NPM};${ailleurs};C:\\Program Files\\GitHub CLI`, PATHEXT: ".EXE;.CMD" };
+  const sansBash = refuse(planDuSecond({ ...SOUS_WINDOWS, env, existe: fichiers(`${NPM}\\claude.cmd`, `${ailleurs}\\git.exe`, GH), folder: dossier }));
   assert.equal(sansBash.cause, "git-bash-missing");
   assert.match(sansBash.reason, /Claude Code runs its commands in Git Bash, and the git of this PC \(D:\\outils\\git\\cmd\\git\.exe\) comes without it/);
 
-  const nomme = refuse(planDuSecond({ ...SOUS_WINDOWS, env: { ...env, CLAUDE_CODE_GIT_BASH_PATH: "E:\\absent\\bash.exe" }, existe: fichiers(`${NPM}\\claude.cmd`, `${ailleurs}\\git.exe`, GH, SSH), folder: dossier }));
+  const nomme = refuse(planDuSecond({ ...SOUS_WINDOWS, env: { ...env, CLAUDE_CODE_GIT_BASH_PATH: "E:\\absent\\bash.exe" }, existe: fichiers(`${NPM}\\claude.cmd`, `${ailleurs}\\git.exe`, GH), folder: dossier }));
   assert.equal(nomme.cause, "git-bash-missing");
   assert.match(nomme.reason, /CLAUDE_CODE_GIT_BASH_PATH names E:\\absent\\bash\.exe, which does not exist on this PC/);
 });
 
 test("sans `claude`, le second ne part pas, et la phrase le nomme", (t) => {
-  const plan = refuse(planDuSecond({ plateforme: "linux", env: { PATH: "/usr/bin" }, maison: "/home/chef", existe: fichiers("/usr/bin/gh", "/usr/bin/git", "/usr/bin/ssh"), folder: repertoireTemporaire(t) }));
+  const plan = refuse(planDuSecond({ plateforme: "linux", env: { PATH: "/usr/bin" }, maison: "/home/chef", existe: fichiers("/usr/bin/gh", "/usr/bin/git"), folder: repertoireTemporaire(t) }));
   assert.equal(plan.cause, "tools-missing");
   assert.equal(plan.reason, "The second cannot start: `claude` is missing on this computer.");
   const claude = plan.tools?.find(({ tool }) => tool === "claude");
@@ -98,23 +97,23 @@ test("sans `claude`, le second ne part pas, et la phrase le nomme", (t) => {
   assert.match(claude.install, /install\.sh/);
 });
 
-test("sans `gh` ni `ssh`, le second part quand même — et dit ce qui échouera tant qu'ils manquent", (t) => {
+test("sans `gh`, le second part quand même — et dit ce qui échouera tant qu'il manque", (t) => {
   const plan = pret(planDuSecond({ plateforme: "darwin", env: { PATH: "/usr/bin" }, maison: "/Users/chef", existe: fichiers("/usr/bin/claude", "/usr/bin/git"), folder: repertoireTemporaire(t) }));
-  assert.deepEqual(plan.missing, ["gh", "ssh"]);
-  assert.equal(plan.reason, "The second starts, but `gh` and `ssh` are missing on this Mac, and what needs them will fail until they are installed.");
+  assert.deepEqual(plan.missing, ["gh"]);
+  assert.equal(plan.reason, "The second starts, but `gh` is missing on this Mac, and what needs it will fail until it is installed.");
   assert.deepEqual(
     plan.tools.filter((vu) => !vu.present).map((vu) => vu.tool),
-    ["gh", "ssh"],
+    ["gh"],
   );
 });
 
 test("un dossier de projet qui n'existe pas, un argument que `cmd.exe` couperait : le second ne part pas, et la phrase dit pourquoi", (t) => {
   const dossier = join(repertoireTemporaire(t), "absent");
-  const absent = refuse(planDuSecond({ plateforme: "linux", env: { PATH: "/usr/bin" }, maison: "/home/chef", existe: fichiers("/usr/bin/claude", "/usr/bin/gh", "/usr/bin/git", "/usr/bin/ssh"), folder: dossier }));
+  const absent = refuse(planDuSecond({ plateforme: "linux", env: { PATH: "/usr/bin" }, maison: "/home/chef", existe: fichiers("/usr/bin/claude", "/usr/bin/gh", "/usr/bin/git"), folder: dossier }));
   assert.equal(absent.cause, "folder-missing");
   assert.equal(absent.reason, `The second cannot start: the project's folder ${dossier} does not exist on this computer.`);
 
-  const coupe = refuse(planDuSecond({ ...SOUS_WINDOWS, existe: fichiers(`${NPM}\\claude.cmd`, GIT, BASH, GH, SSH), folder: repertoireTemporaire(t), args: ["first line\nsecond line"] }));
+  const coupe = refuse(planDuSecond({ ...SOUS_WINDOWS, existe: fichiers(`${NPM}\\claude.cmd`, GIT, BASH, GH), folder: repertoireTemporaire(t), args: ["first line\nsecond line"] }));
   assert.equal(coupe.cause, "invalid");
   assert.match(coupe.reason, /cmd\.exe cuts its line at the first line break/);
 });
@@ -124,7 +123,7 @@ test("un lancement que le système refuse : le démarrage le dit en une phrase, 
     plateforme: "linux",
     env: { PATH: "/usr/bin" },
     maison: "/home/chef",
-    existe: fichiers("/usr/bin/claude", "/usr/bin/gh", "/usr/bin/git", "/usr/bin/ssh"),
+    existe: fichiers("/usr/bin/claude", "/usr/bin/gh", "/usr/bin/git"),
     folder: repertoireTemporaire(t),
     ouvrir: () => Promise.reject(Object.assign(new Error("spawn /usr/bin/claude ENOENT"), { code: "ENOENT" })),
   });
@@ -175,19 +174,19 @@ function poserLeSecond(t: TestContext): { projet: string; env: Record<string, st
   writeFileSync(script, FAUX_SECOND);
   if (process.platform === "win32") {
     writeFileSync(join(outils, "claude.cmd"), `@"${process.execPath}" "${script}" %*\r\n`);
-    for (const outil of ["gh", "git", "ssh"]) writeFileSync(join(outils, `${outil}.cmd`), "@echo off\r\n");
+    for (const outil of ["gh", "git"]) writeFileSync(join(outils, `${outil}.cmd`), "@echo off\r\n");
     // Ce que Claude Code exigerait ; la doublure n'en fait rien.
     env.CLAUDE_CODE_GIT_BASH_PATH = join(outils, "bash.exe");
     writeFileSync(env.CLAUDE_CODE_GIT_BASH_PATH, "");
   } else {
     writeFileSync(join(outils, "claude"), `#!/bin/sh\nexec "${process.execPath}" "${script}" "$@"\n`);
-    for (const outil of ["gh", "git", "ssh"]) writeFileSync(join(outils, outil), "#!/bin/sh\n");
-    for (const outil of ["claude", "gh", "git", "ssh"]) chmodSync(join(outils, outil), 0o755);
+    for (const outil of ["gh", "git"]) writeFileSync(join(outils, outil), "#!/bin/sh\n");
+    for (const outil of ["claude", "gh", "git"]) chmodSync(join(outils, outil), 0o755);
   }
   return { projet, env };
 }
 
-test("les quatre outils là, le second démarre sur cette machine — sous Windows par son lanceur `.cmd` —, reçoit une commande et rend sa sortie, puis dit sa fin", async (t) => {
+test("les trois outils là, le second démarre sur cette machine — sous Windows par son lanceur `.cmd` —, reçoit une commande et rend sa sortie, puis dit sa fin", async (t) => {
   const { projet, env } = poserLeSecond(t);
   const demarre = await demarrerLeSecond({ folder: projet, env });
   assert.equal(demarre.state, "started", JSON.stringify(demarre));

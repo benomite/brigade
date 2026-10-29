@@ -21,7 +21,7 @@ export const ecran: Ecran = {
       proposerUnReglage: {
         // La phrase du runtime telle que le process principal la rend à la vue.
         refus: phraseDuRuntime("`integrationBranch` does not belong in the project's repository: its value is a path on a machine. A machine's paths stay in that station's settings, never in git."),
-        detail: "$ ssh -o BatchMode=yes -- box brigade parade setting branch /home/chef/parade",
+        detail: "$ station setting branch /home/chef/parade",
       },
     },
     envois: cuisine(RENDUS),

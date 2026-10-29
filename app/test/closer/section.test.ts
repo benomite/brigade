@@ -8,7 +8,6 @@ import { describe, test } from "node:test";
 import { ALLUMAGE } from "../../src/allumage.ts";
 import { pourLaBarre } from "../../src/barre.ts";
 import type { Lecture } from "../../src/box.ts";
-import { BOUTONS } from "../../src/boutons.ts";
 import { EXEMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
@@ -200,9 +199,9 @@ describe("la partie closer, sans closer réglé", () => {
     assert.equal(bouton.className, "recommande");
     assert.deepEqual(chiffres(racine), []);
     for (const absent of [MERGES, RATIO, DOUBLONS, MORTS]) assert.doesNotMatch(racine.textContent, new RegExp(absent));
-    // Aucune commande à recopier : ni `ssh`, ni `station`, ni bloc de code.
+    // Aucune commande à recopier : ni `station`, ni bloc de code.
     assert.deepEqual(racine.dessous("code"), []);
-    assert.doesNotMatch(racine.textContent, /ssh|brigade|station|closer-/);
+    assert.doesNotMatch(racine.textContent, /brigade|station|closer-/);
     // Ni liste, ni places pour le lancement ou le bilan : il n'y a pas de closer à lancer.
     assert.deepEqual(racine.dessous("button").filter(({ className }) => className === "deplier"), []);
     assert.deepEqual(racine.dessous("div").filter(({ className }) => /^closer-(lancement|bilan)$/.test(className)), []);
@@ -263,12 +262,11 @@ describe("la partie closer, sur l'onglet Cooks du projet (#1699)", () => {
   async function ouvrir() {
     const vue = await jouerLaVue({
       demarrage: () => ({
-        configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade", box: { hote: "box" } }], hotes: ["box"] }),
+        configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }] }, () => true),
         palette: PALETTE,
         exemple: EXEMPLE,
         onglets: ONGLETS,
         rubriques: RUBRIQUES,
-        boutons: BOUTONS,
         gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
         banniere: BANNIERE,
         calibrage: { modeles: MODELES, efforts: EFFORTS },
@@ -320,7 +318,7 @@ describe("la partie closer, sur l'onglet Cooks du projet (#1699)", () => {
     const page = vue.element("closer-du-projet");
     assert.match(page.textContent, new RegExp(SANS_CLOSER.replace(".", "\\.")));
     assert.deepEqual(chiffres(page), []);
-    assert.doesNotMatch(page.textContent, /ssh|closer-modele/);
+    assert.doesNotMatch(page.textContent, /closer-modele/);
 
     choisir(reglage(page).modele, "sonnet");
     // Relue entre les deux choix : le modèle reste choisi.
@@ -349,7 +347,7 @@ describe("la partie closer, sur l'onglet Cooks du projet (#1699)", () => {
 
   test("une lecture de Cooks ratée : sa ligne le dit, une fois — la section ne le redit pas", async () => {
     const { vue, demande } = await ouvrir();
-    vue.dire("surContenu", { projet: "parade", demande, a: A, erreur: "ssh: connect to host box port 22: Connection refused", atteinte: false, cas: "ssh-en-echec" }, undefined, undefined);
+    vue.dire("surContenu", { projet: "parade", demande, a: A, erreur: "connection refused", atteinte: false, cas: null }, undefined, undefined);
     await repos();
     assert.equal(vue.element("closer-du-projet").children.length, 0);
   });

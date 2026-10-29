@@ -4,7 +4,7 @@ import { blocDesOrdinaires } from "../../../app/src/ordinaires.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
-const PARADE = { ...PROJETS[0]!, stations: ["pc"], ordinaires: true, limiteCooks: 2 };
+const PARADE = { ...PROJETS[0]!, ordinaires: true, limiteCooks: 2 };
 const STATIONS = [{ station: "pc", distante: false, plafond: 2, ordinaires: true, bacASable: null, prendOrdinaires: false }];
 
 export const ecran: Ecran = {
@@ -17,7 +17,7 @@ export const ecran: Ecran = {
     reponses: {
       demarrage: { ...demarrage(configuration([PARADE, ...PROJETS.slice(1)])), poste: { nom: "this PC", mac: false } },
       espace: [],
-      ordinaires: blocDesOrdinaires(PARADE, "win32", STATIONS),
+      ordinaires: blocDesOrdinaires(PARADE, "win32", STATIONS, true),
     },
     envois: cuisine(RENDUS),
   }),

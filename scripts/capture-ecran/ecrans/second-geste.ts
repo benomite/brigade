@@ -8,7 +8,7 @@ import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
 const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "second · claude", note: "fil repris : la session d'hier", arrete: false };
 // Une commande longue, telle que le second la publie : elle se lit en entier sur le bouton et dans la confirmation.
-export const COMMANDE = '! ssh box "cd ~/parade && brigade parade pass 1480 --merge --delete-branch --comment \'approved by the chef after the review of #1482\'"';
+export const COMMANDE = "! (cd ~/brigade/runtime && node src/geste.ts parade pass 1480 --merge --delete-branch --comment 'approved by the chef after the review of #1482')";
 // Ce que le second affiche : ce qu'il propose, tel qu'il l'écrit, et `claude` qui attend.
 const ECRAN_DU_SECOND = [
   "\x1b[1msecond · parade\x1b[0m",
