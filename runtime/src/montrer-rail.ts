@@ -33,7 +33,7 @@ import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { direAttenteDUneStationEn } from "./mise-de-cote.ts";
 import { communsDuRail, lireRail, type TicketRail } from "./projections/rail.ts";
 import { etatStation, plafondDeCooks, stationsAnnoncees } from "./projections/stations.ts";
-import { avecHorsZoneEn, direAttentesLeveesEn, direRetenueEn, etatLuEn, retenue } from "./rail.ts";
+import { avecHorsZoneEn, direAttentesLeveesEn, direRetenueEn, etatLuEn, retenue, RETOUR_DERRIERE_UN_WAITING_EN } from "./rail.ts";
 import { direHorsBudget, horsBudgetSansTicket } from "./budget-des-gates.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
@@ -144,7 +144,9 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
               ? "cap reached"
               : direRetenueEn(ticket);
         // Une attente que la cuisine a levée d'elle-même se dit aussi (#1834).
-        return [...[raison ?? []].flat(), ...[direAttentesLeveesEn(ticket) ?? []].flat(), `since ${ticket.since}`].join(" — ");
+        // En WAITING derrière un ticket qui y est, ce qui l'en sort seul (#1926).
+        const retour = ticket.waitingOn.length === 0 ? [] : [RETOUR_DERRIERE_UN_WAITING_EN];
+        return [...[raison ?? []].flat(), ...retour, ...[direAttentesLeveesEn(ticket) ?? []].flat(), `since ${ticket.since}`].join(" — ");
       }
       case "taken":
         return `by ${ticket.station} since ${ticket.since}, last progress ${ticket.progressedAt}, lease until ${ticket.leaseUntil}`;

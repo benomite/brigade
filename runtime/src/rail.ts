@@ -7,7 +7,7 @@ import { fournitTout, manqueDuTicket } from "./capacites.ts";
 import { illisible, requises } from "./fiche.ts";
 import type { Journal } from "./journal.ts";
 import { cooksEnCours } from "./projections/guardrails.ts";
-import { communsDuRail, lireRail, ticketDuRail, type Attendu, type Etat, type TicketRail } from "./projections/rail.ts";
+import { communsDuRail, lireRail, ticketDuRail, type Attendu, type AttenduEnWaiting, type Etat, type TicketRail } from "./projections/rail.ts";
 import { recouvrement } from "./zones.ts";
 
 // Le geste ne s'applique pas à l'état du rail : ticket absent, déjà pris, tenu
@@ -105,11 +105,15 @@ export const BLOQUE = "BLOQUÉ";
 // Un ticket que quelque chose hors de la cuisine retient (#1924) : un tiers —
 // 86 sans heure de retour, que seul un geste du chef en sort —, ou une station
 // qu'aucune ne remplace — 86 `no-station: …`, qui revient seul sur le rail dès
-// qu'une station fournit ce que sa fiche demande.
+// qu'une station fournit ce que sa fiche demande. Ou un ticket en WAITING que
+// sa fiche attend, de proche en proche (#1926) : un ticket du rail n'attend
+// que des tickets du rail, et il y revient seul dès qu'il n'en attend plus
+// aucun en WAITING.
 export const EN_WAITING = "WAITING";
 
-// En WAITING : il attend un tiers, ou une station qui fournisse ce qu'il demande.
-const enWaiting = (ticket: TicketRail) => ticket.waitingFor !== null || manqueDuTicket(ticket) !== null;
+// En WAITING : il attend un tiers, une station qui fournisse ce qu'il demande,
+// ou un ticket en WAITING.
+const enWaiting = (ticket: TicketRail) => ticket.waitingFor !== null || manqueDuTicket(ticket) !== null || ticket.waitingOn.length > 0;
 
 const GELE = "bloqué";
 const DIT_GELE = "86 sans heure de retour, non jugé par la pass";
@@ -163,12 +167,32 @@ const DIT_GELE_EN = "86 with no return time, not judged by the pass";
 const parti = (attendu: Attendu) => `#${attendu.ticket} (hors du rail, issue ouverte : ${nomAbandon(attendu.left?.reason ?? "")})`;
 const partiEn = (attendu: Attendu) => `#${attendu.ticket} (off the rail, issue still open: ${nomAbandonEn(attendu.left?.reason ?? "")})`;
 
+// Un ticket attendu en WAITING, et, s'il n'y est pas de lui-même, les tickets
+// en WAITING d'eux-mêmes au bout de sa chaîne (#1926).
+const numeros = (tickets: readonly number[]) => tickets.map((ticket) => `#${ticket}`).join(", ");
+const enWaitingFr = ({ ticket, roots }: AttenduEnWaiting) => `#${ticket} (${EN_WAITING}${roots.length === 0 ? "" : `, derrière ${numeros(roots)}`})`;
+const enWaitingEn = ({ ticket, roots }: AttenduEnWaiting) => `#${ticket} (${EN_WAITING}${roots.length === 0 ? "" : `, behind ${numeros(roots)}`})`;
+
+// Ce qui ramène seul sur le rail un ticket en WAITING derrière un autre.
+export const RETOUR_DERRIERE_UN_WAITING = "il revient seul sur le rail dès qu'il n'attend plus aucun ticket en WAITING";
+export const RETOUR_DERRIERE_UN_WAITING_EN = "back on the rail on its own once it waits for no ticket in WAITING";
+
+// Pourquoi un ticket attend en WAITING derrière d'autres tickets : ceux qu'il
+// attend et qui y sont, nommés (#1926). Null s'il n'en attend aucun.
+export function direAttenteDUnWaiting(ticket: TicketRail): string | null {
+  return ticket.waitingOn.length === 0 ? null : `attend : ${ticket.waitingOn.map(enWaitingFr).join(", ")} — ${RETOUR_DERRIERE_UN_WAITING}`;
+}
+
 // Pourquoi un ticket en attente ne part pas, ou null si rien ne le retient.
+// Un ticket en WAITING qu'il attend se dit d'abord : c'est lui qui le sort du
+// rail.
 export function direRetenue(ticket: TicketRail): string | null {
   if (retenue(ticket) === null) return null;
   const gele = (attendu: { ticket: number }) => ticket.frozenBy.includes(attendu.ticket);
-  const attendus = ticket.awaits.filter((attendu) => !gele(attendu));
+  const enWaitingDe = (attendu: { ticket: number }) => ticket.waitingOn.some((tenu) => tenu.ticket === attendu.ticket);
+  const attendus = ticket.awaits.filter((attendu) => !gele(attendu) && !enWaitingDe(attendu));
   return [
+    ...(ticket.waitingOn.length === 0 ? [] : [`attend ${ticket.waitingOn.map(enWaitingFr).join(", ")}`]),
     ...ticket.awaits.filter(gele).map((attendu) => `${GELE} par #${attendu.ticket} (${DIT_GELE})`),
     ...(attendus.length === 0 ? [] : [`attend ${attendus.map((attendu) => (attendu.left === null ? `#${attendu.ticket}` : parti(attendu))).join(", ")}`]),
     ...ticket.held.map((tenant) => `zone tenue par #${tenant.ticket} (${tenant.path}${tenant.outside ? ", écrit hors de sa zone" : ""})`),
@@ -179,8 +203,10 @@ export function direRetenue(ticket: TicketRail): string | null {
 export function direRetenueEn(ticket: TicketRail): string | null {
   if (retenue(ticket) === null) return null;
   const gele = (attendu: { ticket: number }) => ticket.frozenBy.includes(attendu.ticket);
-  const attendus = ticket.awaits.filter((attendu) => !gele(attendu));
+  const enWaitingDe = (attendu: { ticket: number }) => ticket.waitingOn.some((tenu) => tenu.ticket === attendu.ticket);
+  const attendus = ticket.awaits.filter((attendu) => !gele(attendu) && !enWaitingDe(attendu));
   return [
+    ...(ticket.waitingOn.length === 0 ? [] : [`waits for ${ticket.waitingOn.map(enWaitingEn).join(", ")}`]),
     ...ticket.awaits.filter(gele).map((attendu) => `${GELE_EN} by #${attendu.ticket} (${DIT_GELE_EN})`),
     ...(attendus.length === 0 ? [] : [`awaiting ${attendus.map((attendu) => (attendu.left === null ? `#${attendu.ticket}` : partiEn(attendu))).join(", ")}`]),
     ...ticket.held.map((tenant) => `zone held by #${tenant.ticket} (${tenant.path}${tenant.outside ? ", written outside its zone" : ""})`),

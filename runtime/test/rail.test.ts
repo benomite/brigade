@@ -5,7 +5,8 @@ import { test, type TestContext } from "node:test";
 import { REDECOUPE } from "../src/events/rail.ts";
 import { ouvrirJournal, type Journal } from "../src/journal.ts";
 import { communsDuRail, ticketDuRail } from "../src/projections/rail.ts";
-import { direAttentesLevees, direAttentesLeveesEn, direRetenue, etatLu, etatLuEn, GesteRefuse, ouvrirRail, retenue } from "../src/rail.ts";
+import { cestArrive, mettreEnAttente } from "../src/attente.ts";
+import { direAttenteDUnWaiting, direAttentesLevees, direAttentesLeveesEn, direRetenue, direRetenueEn, etatLu, etatLuEn, GesteRefuse, ouvrirRail, retenue } from "../src/rail.ts";
 import { lancer, repertoireTemporaire } from "./outils.ts";
 
 const PRENEUR = join(import.meta.dirname, "aides/prend-tickets.ts");
@@ -62,6 +63,7 @@ test("un ticket arrivé est en attente sur le rail, avec ce que GitHub en dit", 
       held: [],
       outOfZone: [],
       frozenBy: [],
+      waitingOn: [],
       station: null,
       leaseUntil: null,
       progressedAt: null,
@@ -674,6 +676,94 @@ test("un ticket qu'aucune station ne peut cuisiner se lit en WAITING, pas sur le
   // Rendu au rail, il n'attend plus rien.
   rail.rendre(14, "capabilities-reread");
   assert.deepEqual(lus()[0], ["en attente", "queued"]);
+});
+
+// Un ticket du rail n'attend que des tickets du rail (#1926) : aucun ticket qui
+// s'y lit — en attente ou bloqué — n'en attend un en WAITING.
+const aucunSurLeRailNAttendUnWaiting = (journal: Journal) => {
+  const rail = new Map(ouvrirRail(journal, { projet: "brigade", dureeBailMs: BAIL_MS }).tickets().map((ticket) => [ticket.ticket, ticket]));
+  for (const ticket of rail.values()) {
+    if (etatLu(ticket) === "WAITING") continue;
+    const enWaiting = ticket.awaits.filter((attendu) => rail.get(attendu.ticket) !== undefined && etatLu(rail.get(attendu.ticket)!) === "WAITING");
+    assert.deepEqual(enWaiting, [], `#${ticket.ticket} (${etatLu(ticket)}) attend un ticket en WAITING`);
+  }
+};
+
+test("un ticket qui attend, de proche en proche, un ticket en WAITING y est aussi, et nomme celui qu'il attend ; celui qui n'attend que des tickets du rail y reste (#1926)", (t) => {
+  const { journal, rail } = cuisine(t);
+  // #14 attend #15, qui attend #16, qu'aucune station ne peut cuisiner. #17 attend #18, sur le rail.
+  poserAvecFiche(journal, 14, [15]);
+  poserAvecFiche(journal, 15, [16]);
+  poser(journal, 16);
+  poserAvecFiche(journal, 17, [18]);
+  poser(journal, 18);
+  rail.quatreVingtSix(16, { motif: "no-station: macos" });
+
+  const lus = () => [14, 15, 16, 17, 18].map((ticket) => etatLu(ticketDuRail(journal.base, ticket)!));
+  assert.deepEqual(lus(), ["WAITING", "WAITING", "WAITING", "en attente", "en attente"]);
+  assert.deepEqual([14, 15, 16].map((ticket) => etatLuEn(ticketDuRail(journal.base, ticket)!)), ["WAITING", "WAITING", "WAITING"]);
+  assert.deepEqual(ticketDuRail(journal.base, 15)?.waitingOn, [{ ticket: 16, roots: [] }]);
+  assert.deepEqual(ticketDuRail(journal.base, 14)?.waitingOn, [{ ticket: 15, roots: [16] }]);
+  assert.deepEqual(ticketDuRail(journal.base, 17)?.waitingOn, []);
+  // Sa raison nomme le ticket en WAITING qu'il attend, et celui qui, au bout de la chaîne, y est de lui-même.
+  assert.equal(direRetenueEn(ticketDuRail(journal.base, 15)!), "waits for #16 (WAITING)");
+  assert.equal(direRetenueEn(ticketDuRail(journal.base, 14)!), "waits for #15 (WAITING, behind #16)");
+  assert.equal(direRetenue(ticketDuRail(journal.base, 14)!), "attend #15 (WAITING, derrière #16)");
+  assert.equal(direAttenteDUnWaiting(ticketDuRail(journal.base, 14)!), "attend : #15 (WAITING, derrière #16) — il revient seul sur le rail dès qu'il n'attend plus aucun ticket en WAITING");
+  assert.equal(direAttenteDUnWaiting(ticketDuRail(journal.base, 17)!), null);
+  assert.equal(direRetenueEn(ticketDuRail(journal.base, 17)!), "awaiting #18");
+  aucunSurLeRailNAttendUnWaiting(journal);
+  // Rien d'écrit au journal pour eux : la règle se lit du rail.
+  assert.deepEqual(types(journal, 14), ["ticket.arrived"]);
+  assert.deepEqual(types(journal, 15), ["ticket.arrived"]);
+
+  // #16 revient sur le rail : ceux qui l'attendaient y reviennent avec lui.
+  rail.rendre(16, "capabilities-reread");
+  assert.deepEqual(lus(), ["en attente", "en attente", "en attente", "en attente", "en attente"]);
+  assert.deepEqual(ticketDuRail(journal.base, 14)?.waitingOn, []);
+  assert.equal(direRetenueEn(ticketDuRail(journal.base, 14)!), "awaiting #15");
+  aucunSurLeRailNAttendUnWaiting(journal);
+});
+
+test("un ticket qui attend deux tickets en WAITING n'en revient que quand aucun ne l'y tient plus — un tiers comme une station (#1926)", (t) => {
+  const { journal, rail, heure } = cuisine(t);
+  poserAvecFiche(journal, 20, [21, 22, 23]);
+  for (const ticket of [21, 22, 23]) poser(journal, ticket);
+  rail.quatreVingtSix(21, { motif: "no-station: macos" });
+  mettreEnAttente(journal, "brigade", 22, { quoi: "sa signature", qui: "le client" }, heure.maintenant());
+
+  const vingt = () => ticketDuRail(journal.base, 20)!;
+  assert.equal(etatLu(vingt()), "WAITING");
+  // Les deux qui l'y tiennent sont nommés ; #23, sur le rail, reste attendu.
+  assert.equal(direRetenueEn(vingt()), "waits for #21 (WAITING), #22 (WAITING) · awaiting #23");
+  aucunSurLeRailNAttendUnWaiting(journal);
+
+  // #21 revient : #22 le tient encore en WAITING, et lui seul est nommé.
+  rail.rendre(21, "capabilities-reread");
+  assert.equal(etatLu(vingt()), "WAITING");
+  assert.equal(direRetenueEn(vingt()), "waits for #22 (WAITING) · awaiting #21, #23");
+  aucunSurLeRailNAttendUnWaiting(journal);
+
+  // Ce qu'attendait #22 est arrivé : plus rien ne le tient, il revient sur le rail.
+  cestArrive(journal, "brigade", 22);
+  assert.equal(etatLu(vingt()), "en attente");
+  assert.deepEqual(vingt().waitingOn, []);
+  assert.equal(direRetenueEn(vingt()), "awaiting #21, #22, #23");
+  aucunSurLeRailNAttendUnWaiting(journal);
+});
+
+test("un cycle de tickets en attente sans ticket en WAITING n'entre pas en WAITING ; avec un, toute la boucle y entre (#1926)", (t) => {
+  const { journal, rail } = cuisine(t);
+  poserAvecFiche(journal, 30, [31]);
+  poserAvecFiche(journal, 31, [30, 32]);
+  poser(journal, 32);
+  assert.deepEqual([30, 31].map((ticket) => etatLu(ticketDuRail(journal.base, ticket)!)), ["en attente", "en attente"]);
+
+  rail.quatreVingtSix(32, { motif: "no-station: macos" });
+  assert.deepEqual([30, 31].map((ticket) => etatLu(ticketDuRail(journal.base, ticket)!)), ["WAITING", "WAITING"]);
+  assert.deepEqual(ticketDuRail(journal.base, 30)?.waitingOn, [{ ticket: 31, roots: [32] }]);
+  assert.deepEqual(ticketDuRail(journal.base, 31)?.waitingOn, [{ ticket: 30, roots: [32] }, { ticket: 32, roots: [] }]);
+  aucunSurLeRailNAttendUnWaiting(journal);
 });
 
 // --- Les zones : deux tickets concurrents ne possèdent pas le même fichier.
