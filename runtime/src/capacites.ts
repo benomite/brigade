@@ -93,6 +93,19 @@ export function direManque({ capacites, ensemble }: Manque): string {
   return ensemble ? `aucune station ne fournit à la fois ${nommer(capacites, "et")}` : `aucune station ne fournit ${nommer(capacites, "ni")}`;
 }
 
+// Ce qu'attend, en WAITING, un ticket qu'aucune station ne peut cuisiner :
+// « a station that provides `macos` ». Une seule station doit tout fournir :
+// deux capacités qui manquent chacune se disent ensemble, comme leur réunion.
+export function attenduEn({ capacites, ensemble }: Manque): string {
+  return `a station that provides ${nommer(capacites, "and")}${ensemble ? " together" : ""}`;
+}
+
+// Le manque d'un ticket que le rail lit en WAITING faute de station : 86 sans
+// heure de retour, au motif `no-station: …`. Null pour tout autre ticket.
+export function manqueDuTicket({ state, until, reason }: { state: string; until: string | null; reason: string | null }): Manque | null {
+  return state === "86" && until === null ? manqueDuMotif(reason) : null;
+}
+
 // Ce qui manque, en anglais, pour le bloc `awaiting`.
 export function direManqueEn({ capacites, ensemble }: Manque): string {
   return ensemble ? `no station provides ${nommer(capacites, "and")} together` : `no station provides ${nommer(capacites, "or")}`;

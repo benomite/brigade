@@ -216,7 +216,7 @@ test("un journal d'avant le rail dit aussi de redémarrer le runtime", async (t)
   assert.doesNotMatch(commande.sortie(), /at .*\.ts/);
 });
 
-test("la fiche d'un ticket qui demande une capacité la montre, et son 86 dit laquelle manque", async (t) => {
+test("la fiche d'un ticket qui demande une capacité la montre ; sans station qui la fournisse, il est en WAITING et dit laquelle il attend (#1925)", async (t) => {
   const repertoire = repertoireTemporaire(t);
   const journal = ouvrirJournal(repertoire, { maintenant: horloge() });
   t.after(() => journal.fermer());
@@ -239,7 +239,7 @@ test("la fiche d'un ticket qui demande une capacité la montre, et son 86 dit la
   assert.deepEqual(commande.sortie().trimEnd().split("\n"), [
     `#14  queued  -  since ${JOUR_HORLOGE}T10:00:00.000Z  Ticket 14`,
     "     card — awaiting: nothing · zone: e2e/ · `requiert`: navigateur-headless, code",
-    `#15  86  -  since ${JOUR_HORLOGE}T10:00:02.000Z (no-station: chrome-connecté), no return time  Ticket 15`,
+    `#15  WAITING  -  awaiting a station that provides \`chrome-connecté\` — since ${JOUR_HORLOGE}T10:00:02.000Z, back on the rail on its own once a station provides what its card requires  Ticket 15`,
     "     card — awaiting: nothing · zone: e2e/ · `requiert`: chrome-connecté",
   ]);
 });

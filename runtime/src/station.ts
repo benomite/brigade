@@ -53,7 +53,7 @@ import { carnetDonne, carnetDuProfil, profilPrefere, profilsOccupes, type Carnet
 import { extraireRetro } from "./apprentissage/retro.ts";
 import { CARNET_PATH } from "./carnet/carnet.ts";
 import { capturesLivrees, direCaptures, estDInterface, zoneALaPrise as zonePrise, type Captures } from "./captures.ts";
-import { absentesDuMotif, CLE_DES_CAPACITES, direManque, direStationAbsente, fournitTout, gesteDeCapacite, manque, manqueDuMotif, motifSansStation, motifStationAbsente } from "./capacites.ts";
+import { absentesDuMotif, attenduEn, CLE_DES_CAPACITES, direManque, direStationAbsente, fournitTout, gesteDeCapacite, manque, manqueDuMotif, motifSansStation, motifStationAbsente } from "./capacites.ts";
 import { environnementClaude } from "./jeton-claude.ts";
 import { argumentsClaude, consigne, consigneDeSuite, direRefus, environnementCook, lireFlux, REFUS_MAX, ticketRemis, verdict, VARIABLES_DE_CLE, VARIABLES_DE_JETON, type Lecture, type Session, type SetupEnEchec } from "./claude.ts";
 import { preparationEnAttente } from "./preparation-depot/attendre.ts";
@@ -1037,9 +1037,9 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
   };
 
   // Un ticket qui demande ce qu'aucune station déclarée ne fournit ne part
-  // pas : il est 86 sur le rail, sans qu'aucune station ne le prenne ni
-  // qu'aucun cook ne soit lancé, et son issue dit ce qui manque et le geste qui
-  // le fournirait. Les autres partent : lui ne tient ni place ni zone. Sans
+  // pas : il est 86 — le rail le lit en WAITING (#1925) —, sans qu'aucune
+  // station ne le prenne ni qu'aucun cook ne soit lancé, et son issue dit ce
+  // qui manque, ce qu'il attend et le geste qui le fournirait. Les autres partent : lui ne tient ni place ni zone. Sans
   // heure de retour — les stations ne changent qu'au redémarrage, la fiche
   // qu'au sondage, et `rendreLesCorriges` le rend dès que l'un des deux suffit.
   // Un ticket dont la cuisine n'est pas défaite attend qu'elle le soit.
@@ -1059,7 +1059,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
             ? "Ce projet ne déclare aucune station."
             : `Stations déclarées : ${toutes.map((declaree) => `\`${declaree.nom}\` (${declaree.fournit.join(", ")})`).join(" ; ")}.`,
           "",
-          `Pour qu'il parte : ${gesteDeCapacite(absent)}. Le ticket est 86, et les autres partent sans lui. Une capacité dit ce que la machine sait faire : en demander une, ou la déclarer, n'autorise rien.`,
+          `Pour qu'il parte : ${gesteDeCapacite(absent)}. Le ticket passe en WAITING — il attend ${attenduEn(absent)} —, et les autres partent sans lui. Une capacité dit ce que la machine sait faire : en demander une, ou la déclarer, n'autorise rien.`,
         ].join("\n"),
       );
     }

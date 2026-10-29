@@ -1,7 +1,7 @@
 // Pourquoi un ticket est mis de côté (86), dit en clair : la raison que le chef
 // lit, et celle que l'app montre sous le ticket. Une cause qui se répète d'un
 // ticket à l'autre n'est pas celle d'un ticket : elle bloque le projet.
-import { manqueDuMotif } from "./capacites.ts";
+import { attenduEn, manqueDuMotif, type Manque } from "./capacites.ts";
 import { ATTEND_UN_TIERS, REDECOUPE, STATION_ABSENTE, SANS_STATION } from "./events/rail.ts";
 
 // Les causes qui, répétées à l'identique sur le projet, le bloquent : aucune
@@ -56,19 +56,27 @@ export function direMiseDeCote(motif: string | null): string {
 }
 
 // Un ticket mis de côté faute de station attend une action que le chef ne fait pas par un bouton : brancher une
-// station au projet. Il se lit donc en WAITING (1752), avec ce qu'il attend dit en toutes lettres. Ce n'est pas
-// un WAITING que le chef a posé : le ticket reste 86 au rail, sans relance ni geste, et repart seul quand une
-// station fournit la capacité. Nul pour tout autre motif.
+// station au projet. Il se lit donc en WAITING (1752, #1925), avec ce qu'il attend dit en toutes lettres — « a
+// station that provides `macos` ». Ce n'est pas un WAITING que le chef a posé : le ticket reste 86 au journal,
+// sans relance ni geste, et repart seul quand une station fournit la capacité. Nul pour tout autre motif.
 export type AttenteDUneStation = { quoi: string; qui: string; aLArrivee: string };
 export function attenteDUneStation(motif: string | null): AttenteDUneStation | null {
   const manque = manqueDuMotif(motif);
   if (manque === null) return null;
-  const noms = manque.capacites.join(manque.ensemble ? " + " : ", ");
   return {
-    quoi: `a station that provides ${noms}${manque.ensemble ? " together" : ""} — attach one to the project`,
+    quoi: `${attenduEn(manque)} — attach one to the project`,
     qui: "a human, the chef",
     aLArrivee: "the ticket goes back on the rail by itself once a station provides it",
   };
+}
+
+// Ce qui ramène seul sur le rail un ticket en WAITING faute de station.
+const RETOUR_D_UNE_STATION = "once a station provides what its card requires";
+
+// Sa ligne sur le rail, en anglais : ce qu'il attend, depuis quand, et ce qui
+// l'en sort seul (#1925). `depuis` : déjà dit, une durée ou un instant.
+export function direAttenteDUneStationEn(manque: Manque, depuis: string): string {
+  return `awaiting ${attenduEn(manque)} — since ${depuis}, back on the rail on its own ${RETOUR_D_UNE_STATION}`;
 }
 
 // Ce qui met un ticket de côté (86), qui le fait, et ce qui l'en sort seul
@@ -94,7 +102,7 @@ export const MISES_DE_COTE: Readonly<Record<string, MiseDeCote>> = {
   "no-calibration": { par: "the station, when the issue carries no `model:` and `effort:`", retour: "once the issue carries `model:` and `effort:`" },
   "unreadable-card": { par: "the station, when the ticket's card cannot be read", retour: "once its card reads" },
   refused: { par: "the station, after three refusals in a row by the model", retour: "at its return time, a day later — a new cook tries again", heure: true },
-  [SANS_STATION]: { par: "the station, when no declared station provides what the card requires", retour: "once a station provides what its card requires" },
+  [SANS_STATION]: { par: "the station, when no declared station provides what the card requires", retour: RETOUR_D_UNE_STATION },
   [STATION_ABSENTE]: { par: "the station, when only remote stations that have not shown up lately can cook it", retour: "once one of those stations shows up" },
   [ATTEND_UN_TIERS]: { par: "the chef or the second (WAITING), never the kitchen", retour: "on `arrived`, once what it waits for is there — its follow-up date leaves it in WAITING" },
   quota: { par: "the station, when the account's quota is used up", retour: "at its return time, when the quota comes back", heure: true },

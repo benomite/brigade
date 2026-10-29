@@ -30,12 +30,12 @@ test("les autres raisons gardent leur texte", () => {
 test("sans station, le ticket attend une action que le chef ne fait pas par un bouton : il se lit en WAITING, avec ce qu'il attend", () => {
   const une = attenteDUneStation("no-station: chrome-connecté");
   assert.deepEqual(une, {
-    quoi: "a station that provides chrome-connecté — attach one to the project",
+    quoi: "a station that provides `chrome-connecté` — attach one to the project",
     qui: "a human, the chef",
     aLArrivee: "the ticket goes back on the rail by itself once a station provides it",
   });
-  assert.match(attenteDUneStation("no-station: code, navigateur")?.quoi ?? "", /^a station that provides code, navigateur — /);
-  assert.match(attenteDUneStation("no-station: code + navigateur")?.quoi ?? "", /^a station that provides code \+ navigateur together — /);
+  assert.match(attenteDUneStation("no-station: code, navigateur")?.quoi ?? "", /^a station that provides `code` and `navigateur` — /);
+  assert.match(attenteDUneStation("no-station: code + navigateur")?.quoi ?? "", /^a station that provides `code` and `navigateur` together — /);
 });
 
 test("les autres motifs n'attendent pas une station : rien à lire en WAITING", () => {

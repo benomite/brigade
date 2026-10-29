@@ -2,7 +2,7 @@
 // qui manque quand aucune ne suffit, et ce que le chef en lit.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { capacite, direManque, fournitTout, gesteDeCapacite, manque, manqueDuMotif, motifSansStation } from "../src/capacites.ts";
+import { attenduEn, capacite, direManque, fournitTout, gesteDeCapacite, manque, manqueDuMotif, manqueDuTicket, motifSansStation } from "../src/capacites.ts";
 
 const CLAUDE = ["code", "raisonnement"];
 const PLAYWRIGHT = ["navigateur-headless"];
@@ -39,6 +39,19 @@ test("le motif du 86 nomme ce qui manque, et se relit tel quel", () => {
     assert.deepEqual(manqueDuMotif(motif), dit);
   }
   for (const autre of [null, "quota", "no-calibration", "no-station", "no-stationnement: x"]) assert.equal(manqueDuMotif(autre), null, String(autre));
+});
+
+test("en WAITING, le ticket dit ce qu'il attend : une station qui fournit ce qui manque — une seule, qui fournisse tout (#1925)", () => {
+  assert.equal(attenduEn({ capacites: ["macos"], ensemble: false }), "a station that provides `macos`");
+  assert.equal(attenduEn({ capacites: ["macos", "gpu"], ensemble: false }), "a station that provides `macos` and `gpu`");
+  assert.equal(attenduEn({ capacites: ["code", "navigateur-headless"], ensemble: true }), "a station that provides `code` and `navigateur-headless` together");
+});
+
+test("seul un 86 sans heure de retour, au motif `no-station`, attend une station", () => {
+  assert.deepEqual(manqueDuTicket({ state: "86", until: null, reason: "no-station: macos" }), { capacites: ["macos"], ensemble: false });
+  assert.equal(manqueDuTicket({ state: "86", until: null, reason: "quota" }), null);
+  assert.equal(manqueDuTicket({ state: "86", until: "2026-10-08T10:00:00.000Z", reason: "no-station: macos" }), null);
+  assert.equal(manqueDuTicket({ state: "waiting", until: null, reason: "no-station: macos" }), null);
 });
 
 test("le chef lit ce qui manque et le geste qui le fournirait", () => {
