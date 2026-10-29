@@ -16,7 +16,7 @@ import { direSaturationEn } from "../src/machine.ts";
 import { etatLu, etatLuEn, nomEtat, nomEtatEn } from "../src/rail.ts";
 import { sansMotFrancais } from "./aides/glossaire.ts";
 import { exempleDuBas } from "./aides/bas-de-status.ts";
-import { depuis1826, depuis1834, depuis1862, ETAT_D_AVANT, etatDAvant, LU_LE } from "./aides/haut-de-status.ts";
+import { depuis1826, depuis1834, depuis1862, depuis1893, ETAT_D_AVANT, etatDAvant, LU_LE } from "./aides/haut-de-status.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { repertoireTemporaire } from "./outils.ts";
 
@@ -183,7 +183,7 @@ test("sur l'état d'exemple d'avant, chaque ligne du bas dit les mêmes tickets,
 });
 
 test("`facts` de l'état d'exemple est identique à ce qu'il était avant la traduction : mêmes clés, mêmes valeurs", (t) => {
-  const avant = depuis1862(depuis1834(depuis1826(JSON.parse(readFileSync(join(FIXTURE_940, "facts.json"), "utf8")))));
+  const avant = depuis1893(depuis1862(depuis1834(depuis1826(JSON.parse(readFileSync(join(FIXTURE_940, "facts.json"), "utf8"))))));
   assert.deepEqual(JSON.parse(JSON.stringify(faits(lireEtat(exempleDuBas(t), LU_LE), LU_LE))), avant);
 });
 

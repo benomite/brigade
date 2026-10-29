@@ -4,6 +4,7 @@
 // ses projections — rien n'est calculé ni gardé ailleurs, et rien n'est écrit.
 import { direActiviteEn, type Activite } from "./activite.ts";
 import { activitesDuRail, type ActiviteDeTicket } from "./activites.ts";
+import { sejoursEnColonne, type Essai, type Sejour } from "./sejour-en-colonne.ts";
 import { DIRE_GATES_COUPEES, DIRE_GATES_COUPEES_EN } from "./events/pass.ts";
 import { attenteDeLaCarte, carteDeLAttente, type CarteDuTicket } from "./carte-todo/cartes.ts";
 import { attentesDuChef, decisionDe, type Livraison, decrireAttentes, direAttente, direAttenteEn, nommerAttente, nommerEn, passageEnService, pauseDeLaCuisine, reposSansStation, type Attente, type Decision, type Passage, type PauseEnVigueur } from "./attend.ts";
@@ -104,6 +105,9 @@ export type EtatCuisine = {
   // (remontee-a-la-cuisine.ts) : sa carte le dit. Absente d'un état construit
   // sans elle.
   reprises?: Map<number, RepriseDuTicket>;
+  // Le séjour de chaque ticket pris dans sa colonne, depuis sa première prise à travers les relances (#1893).
+  // Absent d'un état construit sans lui : la carte garde alors `since`.
+  sejours?: Map<number, Sejour>;
   // Les captures de la dernière livraison de chaque ticket d'interface en
   // pass ou servi dans les 24 h (captures.ts). Un ticket qui n'y est pas n'en
   // a pas : il n'est pas d'interface, ou il n'a rien livré.
@@ -226,6 +230,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
     rail,
     activites: activitesDuRail(base, rail),
     reprises: reprisesDuRail(base, rail),
+    sejours: sejoursEnColonne(base, rail.filter(({ state }) => state === "taken").map(({ ticket }) => ticket)),
     captures: capturesDesLivraisons(journal, [...rail.filter(({ state }) => state === "pass" || state === "served").map(({ ticket }) => ticket), ...livres.map(({ ticket }) => ticket)]),
     attend,
     urgence: gardeFous.stoppedAt === null ? urgenceDuChef(base, rail, attend, stations) : null,
@@ -847,8 +852,11 @@ export type Faits = {
     etat: string;
     titre: string;
     url: string;
-    // Depuis quand il est dans cet état : sa prise, son entrée en pass… (#1811).
+    // Depuis quand il est dans cet état : sa prise, son entrée en pass… (#1811). Pour un ticket pris, le début
+    // de son séjour : sa première prise, à travers les relances qui suivent la fin d'un cook (#1893).
     depuis: string;
+    // Pour un ticket pris seulement : ses essais, du plus ancien au courant (sejour-en-colonne.ts).
+    essais?: Essai[];
     activite: ActiviteDeTicket | null;
     attente: { raison: string; colonne: string; retour: string | null } | null;
     tiers: { quoi: string; qui: string; depuis: string; relance: string | null; aLArrivee: string } | null;
@@ -1073,7 +1081,8 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limit
         etat: faute === null ? etatLu(ticket) : EN_WAITING,
         titre: ticket.title,
         url: ticket.url,
-        depuis: ticket.since,
+        depuis: etat.sejours?.get(ticket.ticket)?.depuis ?? ticket.since,
+        ...(etat.sejours?.has(ticket.ticket) ? { essais: etat.sejours.get(ticket.ticket)?.essais } : {}),
         activite: etat.activites.get(ticket.ticket) ?? null,
         attente: ticket.state === "86" ? { raison: direRaisonDuRail(ticket.reason, etat.reprises?.get(ticket.ticket)), colonne: faute === null ? etatLu(ticket) : EN_WAITING, retour: ticket.until } : null,
         tiers:
