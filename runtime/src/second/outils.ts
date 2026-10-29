@@ -49,8 +49,8 @@ export type OptionsDesOutils = {
   // Un fichier que ce compte peut lancer est-il à ce chemin ?
   existe?: (chemin: string) => boolean;
   // Le programme qui tient lieu d'un outil : un nom cherché dans le PATH, ou un
-  // chemin — ce que nomment `BRIGADE_CLAUDE_BIN`, `BRIGADE_GH_BIN`,
-  // `BRIGADE_GIT_BIN` et `BRIGADE_SSH_BIN`. Par défaut, le nom de l'outil.
+  // chemin — ce que nomment `BRIGADE_CLAUDE_BIN`, `BRIGADE_GH_BIN` et
+  // `BRIGADE_GIT_BIN`. Par défaut, le nom de l'outil.
   programmes?: Partial<Record<Outil, string>>;
 };
 
