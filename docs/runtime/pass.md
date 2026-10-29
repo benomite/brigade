@@ -356,14 +356,23 @@ it up itself, at the wake that follows the escalation (`runtime/src/remontee-a-l
    a second one). The ticket stays 86 on the rail, waiting for it (`fix`);
 3. **resume** — once that `fix` ticket leaves the rail (served, or removed), the delivery goes back
    to a cook (`resume`), again with no send-back used up;
-4. **nothing more** — sent back and `fix` already tried, or the ticket is itself a correction the
-   kitchen opened (a `fix` of an escalation or of an unstable test, the base's repair): the kitchen
-   tries nothing more (`none`). The ticket stays 86 on the rail — still not in `awaiting`.
+4. **raise** (#1861) — sent back and `fix` already tried, or the ticket is itself a correction the
+   kitchen opened: it is never left set aside. The kitchen raises its calibration one notch on the
+   issue — effort first, then model — within the project's ceiling and **never above `high`**
+   (`raise`, with `from` and `to`); once the rail reads it, the delivery goes back to a cook
+   (`resume`), using up no send-back. Escalated again, it climbs one more notch;
+5. **drop** — nothing left to raise, or a cause no cook lifts (`SANS_RENVOI`, its `fix` tried): the
+   kitchen posts the reason on the issue (« Cuisine — ticket abandonné »), then removes `fire`
+   (`drop`, with its `reason`). The issue stays open; putting `fire` back brings the ticket back.
+
+A `none` ("nothing more") written before #1861 is not final: the kitchen takes that escalation up
+again. A ticket in WAITING, or set aside for a capability no station provides, keeps its wait.
 
 At each step, the ticket's line on the rail (`status`, and the app's card) says what the kitchen
 does with it — "the kitchen takes it up (ci-silent), not the chef", "its `fix` ticket #501 is open,
-and it goes back to a cook once #501 is served", "has nothing left to try: it stays set aside" —
-never a gesture for the chef. Merging the PR by hand, or removing `fire`, still works as before.
+and it goes back to a cook once #501 is served", "raised its calibration … from sonnet / low to
+sonnet / medium: it goes back to a cook once the rail reads it" — never a gesture for the chef.
+Merging the PR by hand, or removing `fire`, still works as before.
 
 Only `secrets-unavailable` (the secret values are the chef's to set, no cook may see them), the
 manager's escalation with a card (the card is the product question), the off-rail PR of a closing

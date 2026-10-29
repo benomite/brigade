@@ -10,7 +10,23 @@ import { DU_MANAGER, ENCORE_ROUGE, HORS_RAIL, NON_JUGEE } from "../src/events/pa
 import { ouvrirJournal } from "../src/journal.ts";
 import { RENOMMAGE_ABANDONNE } from "../src/pause/pause.ts";
 import { INTRANSPOSABLE } from "../src/pause/reprise.ts";
-import { aLaCuisine, CAUSES_DE_LA_CUISINE, CAUSES_DU_CHEF, prochainCoup, REMONTEES_SANS_ENTREE, SANS_RENVOI } from "../src/remontee-a-la-cuisine.ts";
+import {
+  aLaCuisine,
+  calibrageAuDessus,
+  CAUSES_DE_LA_CUISINE,
+  CAUSES_DU_CHEF,
+  dejaTente,
+  derniereRemontee,
+  direReprise,
+  direRepriseEn,
+  fixPermis,
+  prochainCoup,
+  raisonDAbandon,
+  REMONTEES_SANS_ENTREE,
+  repriseDeLaRemontee,
+  repriseDuTicket,
+  SANS_RENVOI,
+} from "../src/remontee-a-la-cuisine.ts";
 import { aArreter, repertoireTemporaire } from "./outils.ts";
 
 const SRC = join(import.meta.dirname, "..", "src");
@@ -93,14 +109,70 @@ test("chaque cause de remontée que le runtime écrit va à la cuisine, ou est n
   assert.equal(aLaCuisine(base, 17, NON_JUGEE, "cause-neuve"), true);
 });
 
-test("la cuisine renvoie une fois ce qui n'a pas été jugé, ouvre un ticket `fix` sur ce qui reste rouge ou revient, puis n'essaie plus rien", () => {
+test("la cuisine renvoie une fois ce qui n'a pas été jugé, ouvre un ticket `fix` sur ce qui reste rouge ou revient, puis monte le calibrage d'un cran — jamais « rien de plus »", () => {
   const rien = { renvoye: false, fixe: false };
-  assert.equal(prochainCoup({ reason: NON_JUGEE, cause: "ci-silent" }, rien, true), "return");
-  assert.equal(prochainCoup({ reason: NON_JUGEE, cause: "ci-silent" }, { renvoye: true, fixe: false }, true), "fix");
-  assert.equal(prochainCoup({ reason: ENCORE_ROUGE, cause: "returns-exhausted" }, rien, true), "fix");
-  // Ce que le cook ne lève pas va droit au `fix`.
-  for (const cause of Object.keys(SANS_RENVOI)) assert.equal(prochainCoup({ reason: NON_JUGEE, cause }, rien, true), "fix", cause);
-  assert.equal(prochainCoup({ reason: NON_JUGEE, cause: "ci-silent" }, { renvoye: true, fixe: true }, true), "none");
-  // Un ticket qui est lui-même une correction de la cuisine n'en ouvre pas une de plus.
-  assert.equal(prochainCoup({ reason: ENCORE_ROUGE, cause: "returns-exhausted" }, rien, false), "none");
+  const tout = { renvoye: true, fixe: true };
+  for (const peutMonter of [true, false]) {
+    assert.equal(prochainCoup({ reason: NON_JUGEE, cause: "ci-silent" }, rien, true, peutMonter), "return");
+    assert.equal(prochainCoup({ reason: NON_JUGEE, cause: "ci-silent" }, { renvoye: true, fixe: false }, true, peutMonter), "fix");
+    assert.equal(prochainCoup({ reason: ENCORE_ROUGE, cause: "returns-exhausted" }, rien, true, peutMonter), "fix");
+    // Ce que le cook ne lève pas va droit au `fix`.
+    for (const cause of Object.keys(SANS_RENVOI)) assert.equal(prochainCoup({ reason: NON_JUGEE, cause }, rien, true, peutMonter), "fix", cause);
+  }
+  // Ses tentatives épuisées, un ticket sous le plafond repart un cran plus haut, il n'est pas mis de côté.
+  assert.equal(prochainCoup({ reason: NON_JUGEE, cause: "ci-silent" }, tout, true, true), "raise");
+  assert.equal(prochainCoup({ reason: ENCORE_ROUGE, cause: "returns-exhausted" }, { renvoye: false, fixe: true }, true, true), "raise");
+  // Un ticket qui est lui-même une correction de la cuisine n'en ouvre pas une de plus : il monte.
+  assert.equal(prochainCoup({ reason: ENCORE_ROUGE, cause: "returns-exhausted" }, rien, false, true), "raise");
+  // Au plus haut calibrage permis, il est abandonné ; de même pour une cause qu'aucun cook ne lève.
+  assert.equal(prochainCoup({ reason: NON_JUGEE, cause: "ci-silent" }, tout, true, false), "drop");
+  assert.equal(prochainCoup({ reason: ENCORE_ROUGE, cause: "returns-exhausted" }, rien, false, false), "drop");
+  for (const cause of Object.keys(SANS_RENVOI)) assert.equal(prochainCoup({ reason: NON_JUGEE, cause }, { renvoye: false, fixe: true }, true, true), "drop", cause);
+});
+
+test("la cuisine monte d'un cran — l'effort, puis le modèle —, dans la limite du plafond du projet, et ne pose jamais `xhigh` ni `max`", () => {
+  const plafond = { model: "opus", effort: "high" };
+  assert.deepEqual(calibrageAuDessus({ model: "sonnet", effort: "low" }, plafond), { model: "sonnet", effort: "medium" });
+  assert.deepEqual(calibrageAuDessus({ model: "sonnet", effort: "high" }, plafond), { model: "opus", effort: "high" });
+  assert.deepEqual(calibrageAuDessus({ model: "haiku", effort: "high" }, plafond), { model: "sonnet", effort: "high" });
+  // Au plus haut calibrage permis : rien ne monte.
+  assert.equal(calibrageAuDessus({ model: "opus", effort: "high" }, plafond), null);
+  // Un plafond plus haut que `high` n'y change rien : la cuisine s'arrête à `high`.
+  for (const effort of ["xhigh", "max"]) assert.equal(calibrageAuDessus({ model: "opus", effort: "high" }, { model: "opus", effort }), null, effort);
+  assert.deepEqual(calibrageAuDessus({ model: "sonnet", effort: "medium" }, { model: "opus", effort: "max" }), { model: "sonnet", effort: "high" });
+  // Un effort que le chef a posé au-dessus de `high` ne repart pas tel quel sous un modèle plus haut.
+  assert.equal(calibrageAuDessus({ model: "sonnet", effort: "xhigh" }, { model: "opus", effort: "max" }), null);
+  // Le plafond du projet est la limite : plus bas que le défaut, il arrête la montée plus tôt.
+  assert.equal(calibrageAuDessus({ model: "sonnet", effort: "medium" }, { model: "sonnet", effort: "medium" }), null);
+  // Ce qui ne monte plus a sa raison, que l'issue lira.
+  assert.match(raisonDAbandon("ci-silent", { model: "opus", effort: "high" }, plafond), /^son calibrage \(`opus` \/ `high`\) est déjà au plus haut que la cuisine pose/);
+  for (const cause of Object.keys(SANS_RENVOI)) assert.match(raisonDAbandon(cause, null, plafond), new RegExp(`^sa cause \\(\`${cause}\`\\) n'est pas au cook`), cause);
+});
+
+test("une remontée qu'un runtime d'avant #1861 a laissée « sans suite » (`none`) n'est plus finale : la cuisine la reprend", (t) => {
+  const journal = ouvrirJournal(repertoireTemporaire(t));
+  aArreter(t, () => journal.fermer());
+  const ajouter = (type: string, payload: Record<string, unknown>) => journal.ajouter({ project: "brigade", ticket: 17, author: "pass", type, payload } as unknown as Parameters<typeof journal.ajouter>[0]);
+  ajouter("pass.escalated", { reason: ENCORE_ROUGE, cause: "returns-exhausted" });
+  ajouter("pass.kitchen-took-over", { cause: "returns-exhausted", move: "fix", issue: 501 });
+  ajouter("pass.kitchen-took-over", { cause: "returns-exhausted", move: "none" });
+  const remontee = derniereRemontee(journal.base, 17);
+  assert.ok(remontee !== null);
+  // Le `none` n'est pas un pas : la remontée attend encore le sien, la montée ou l'abandon.
+  assert.equal(repriseDeLaRemontee(journal.base, 17, remontee), null);
+  const reprise = repriseDuTicket(journal.base, 17);
+  assert.ok(reprise !== null);
+  assert.equal(direRepriseEn(reprise), "the kitchen takes it up (returns-exhausted), not the chef");
+  assert.equal(direReprise(reprise), "la cuisine le reprend (returns-exhausted), pas le chef");
+  assert.equal(prochainCoup(remontee, dejaTente(journal.base, 17), fixPermis(journal.base, 17), true), "raise");
+});
+
+test("plus aucun code du runtime n'écrit qu'il n'y a « plus rien à essayer »", () => {
+  const fichiers = readdirSync(SRC, { recursive: true, encoding: "utf8" }).filter((chemin) => chemin.endsWith(".ts"));
+  const disent = fichiers.filter((fichier) => /nothing left to try|plus rien à essayer/i.test(readFileSync(join(SRC, fichier), "utf8")));
+  assert.deepEqual(disent, []);
+  // La cuisine n'écrit plus de `none` : chaque pas qu'elle note en est un autre.
+  const notes = fichiers.flatMap((fichier) => [...readFileSync(join(SRC, fichier), "utf8").matchAll(/"pass\.kitchen-took-over", payload: \{[^}]*move: "([a-z]+)"/g)].map(([, coup]) => coup));
+  assert.ok(notes.length > 0);
+  assert.ok(!notes.includes("none"), notes.join(", "));
 });

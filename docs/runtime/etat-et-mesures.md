@@ -55,7 +55,8 @@ Closing a PR without merging it is only half a decision: the entry does not leav
 Only a product choice or a gesture only you can make enters it (#1826): a delivery still red, or
 one the pass could not judge for a technical cause (`ci-silent`, `review-unreadable`,
 `worktree-lost`…), stays on the rail, 86, and its line says what the kitchen does with it — sent
-back to a cook, a `fix` ticket open on its cause, or nothing left to try (`pass.md`, "A technical
+back to a cook, a `fix` ticket open on its cause, its calibration raised one notch — or, nothing
+left to raise, dropped off the rail with the reason on its issue (`pass.md`, "A technical
 escalation goes to the kitchen").
 
 | Entry | The gesture | What removes it |

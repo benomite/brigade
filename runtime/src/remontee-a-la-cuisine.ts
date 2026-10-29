@@ -11,8 +11,14 @@
 //   un ticket `fix` sur la cause, et le ticket attend sur le rail, 86, que ce
 //   `fix` soit servi — il repart alors chez un cook, sur sa livraison
 //   (**reprise**) ;
-// - **rien de plus** : renvoyé et `fix` déjà tentés, le ticket reste 86 sur le
-//   rail, et sa carte dit que la cuisine n'a plus rien à essayer.
+// - **montée** : renvoyé et `fix` déjà tentés — ou le ticket est lui-même une
+//   correction de la cuisine —, il n'est jamais laissé de côté (#1861) : la
+//   cuisine monte son calibrage d'un cran, dans la limite du plafond du projet
+//   et jamais au-delà de `high`, puis il repart chez un cook dès que le rail a
+//   lu ce calibrage (**reprise**) ;
+// - **abandon** : rien ne peut plus monter, ou la cause n'est pas au cook
+//   (`SANS_RENVOI`) : la cuisine le retire du rail — son label `fire` s'en va,
+//   son issue reste ouverte — et dit pourquoi sur l'issue.
 //
 // À chaque pas, le ticket reste sur le rail, et sa carte dit ce que fait la
 // cuisine (`direReprise`) : rien n'en entre dans TODO. Seules restent au chef
@@ -20,11 +26,13 @@
 //
 // Rien n'est tenu ici : tout se relit du journal (`pass.kitchen-took-over`).
 import type { Base } from "./base.ts";
+import { EFFORTS, type Calibrage } from "./calibrage.ts";
 import { cartesEnTodo } from "./carte-todo.ts";
 import { DU_MANAGER, ENCORE_ROUGE, HORS_RAIL, motifDeRemontee, NON_JUGEE, REDECOUPE } from "./events/pass.ts";
 import { LABEL } from "./github.ts";
 import { RENOMMAGE_ABANDONNE } from "./pause/pause.ts";
 import { reactionDe } from "./projections/reactions.ts";
+import { monter, type Plafond } from "./reagir.ts";
 import { CALIBRAGE_TEST_INSTABLE, PRIO_TEST_INSTABLE } from "./test-instable.ts";
 
 // Les causes de remontée qui restent au chef, et pourquoi chacune est un choix
@@ -62,9 +70,12 @@ export const CAUSES_DE_LA_CUISINE: Readonly<Record<string, string>> = {
 };
 
 // Ce que la cuisine a fait d'une remontée. `return` : renvoyée à un cook ;
-// `fix` : un ticket `fix` ouvert, le ticket 86 l'attend ; `resume` : ce `fix`
-// servi, renvoyée à un cook ; `none` : plus rien à essayer.
-export type Coup = "return" | "fix" | "resume" | "none";
+// `fix` : un ticket `fix` ouvert, le ticket 86 l'attend ; `raise` : son
+// calibrage monté d'un cran, le ticket 86 attend que le rail le lise ;
+// `resume` : ce `fix` servi, ou ce calibrage lu, renvoyée à un cook ; `drop` :
+// retiré du rail, avec sa raison. `none` ne s'écrit plus : d'un journal d'avant
+// #1861, il n'est pas final — la cuisine reprend la remontée où il l'a laissée.
+export type Coup = "return" | "fix" | "resume" | "raise" | "drop" | "none";
 
 export type Remontee = { seq: number; reason: string; cause: string | null; why: string | null };
 
@@ -89,20 +100,38 @@ export function aLaCuisine(base: Base, ticket: number, reason: string, cause: st
   return true;
 }
 
-export type Reprise = { cause: string; coup: Coup; issue: number | null; seq: number; at: string };
+// `from`, `to` : le calibrage d'une montée (`raise`) ; `reason` : celle d'un
+// abandon (`drop`).
+export type Reprise = { cause: string; coup: Coup; issue: number | null; from: Calibrage | null; to: Calibrage | null; reason: string | null; seq: number; at: string };
+
+const calibrageLu = (valeur: unknown): Calibrage | null => {
+  const lu = valeur as { model?: unknown; effort?: unknown } | null | undefined;
+  return typeof lu?.model === "string" && typeof lu.effort === "string" ? { model: lu.model, effort: lu.effort } : null;
+};
 
 const lirePrises = (base: Base, ticket: number): Reprise[] =>
   base
     .lire<{ seq: number; at: string; payload: string }>("SELECT seq, at, payload FROM events WHERE ticket = ? AND type = 'pass.kitchen-took-over' ORDER BY seq", ticket)
     .map(({ seq, at, payload }) => {
-      const lu = JSON.parse(payload) as { cause?: unknown; move?: unknown; issue?: unknown };
-      return { cause: typeof lu.cause === "string" ? lu.cause : "", coup: lu.move as Coup, issue: typeof lu.issue === "number" ? lu.issue : null, seq, at };
+      const lu = JSON.parse(payload) as { cause?: unknown; move?: unknown; issue?: unknown; from?: unknown; to?: unknown; reason?: unknown };
+      return {
+        cause: typeof lu.cause === "string" ? lu.cause : "",
+        coup: lu.move as Coup,
+        issue: typeof lu.issue === "number" ? lu.issue : null,
+        from: calibrageLu(lu.from),
+        to: calibrageLu(lu.to),
+        reason: typeof lu.reason === "string" && lu.reason !== "" ? lu.reason : null,
+        seq,
+        at,
+      };
     });
 
 // Ce que la cuisine a fait de la remontée en cours du ticket : son dernier pas
-// depuis elle, ou null s'il n'y en a aucun encore.
+// depuis elle, ou null s'il n'y en a aucun encore. Un `none` d'avant #1861
+// n'en est pas un : la remontée attend encore son pas.
 export function repriseDeLaRemontee(base: Base, ticket: number, remontee: Remontee): Reprise | null {
-  return lirePrises(base, ticket).findLast(({ seq }) => seq > remontee.seq) ?? null;
+  const prise = lirePrises(base, ticket).findLast(({ seq }) => seq > remontee.seq) ?? null;
+  return prise?.coup === "none" ? null : prise;
 }
 
 // Les causes d'un `unjudged` qu'un renvoi ne lèverait pas : le cook n'y peut
@@ -118,12 +147,40 @@ export const SANS_RENVOI: Readonly<Record<string, string>> = {
 // Le pas suivant de la cuisine sur une remontée qu'elle n'a pas encore prise,
 // d'après ce qu'elle a déjà tenté sur ce ticket. `fixPermis` : faux pour un
 // ticket qui est lui-même la correction de la cuisine ou la réparation de la
-// base — un `fix` de plus ne partirait pas, ou n'en finirait pas.
-export function prochainCoup(remontee: { reason: string; cause: string | null }, deja: { renvoye: boolean; fixe: boolean }, fixPermis: boolean): Exclude<Coup, "resume"> {
+// base — un `fix` de plus ne partirait pas, ou n'en finirait pas. `peutMonter` :
+// son calibrage a un cran au-dessus (`calibrageAuDessus`). Il n'y a jamais
+// « rien de plus » : ce qui ne peut ni repartir ni monter est abandonné.
+export function prochainCoup(remontee: { reason: string; cause: string | null }, deja: { renvoye: boolean; fixe: boolean }, fixPermis: boolean, peutMonter: boolean): Exclude<Coup, "resume" | "none"> {
   const { reason, cause } = remontee;
-  if (reason === NON_JUGEE && !deja.renvoye && !deja.fixe && !(cause !== null && Object.hasOwn(SANS_RENVOI, cause))) return "return";
+  const pasAuCook = cause !== null && Object.hasOwn(SANS_RENVOI, cause);
+  if (reason === NON_JUGEE && !deja.renvoye && !deja.fixe && !pasAuCook) return "return";
   if (!deja.fixe && fixPermis) return "fix";
-  return "none";
+  // Un cook mieux calibré ne lèverait pas plus une cause qui n'est pas la sienne.
+  if (peutMonter && !pasAuCook) return "raise";
+  return "drop";
+}
+
+// L'effort le plus haut que la cuisine pose : `xhigh` et `max` coûtent trop
+// cher pour être posés sans le chef, comme au manager (`juger.ts`).
+export const EFFORT_MAX_DE_LA_CUISINE = "high";
+const rangDEffort = (effort: string) => EFFORTS.indexOf(effort as (typeof EFFORTS)[number]);
+
+// Le calibrage un cran au-dessus de celui du ticket — l'effort d'abord, puis le
+// modèle (`monter`) —, dans la limite du plafond du projet et jamais au-delà de
+// `high`. Null : rien ne peut monter.
+export function calibrageAuDessus(pose: Calibrage, plafond: Plafond): Calibrage | null {
+  const effort = rangDEffort(plafond.effort) > rangDEffort(EFFORT_MAX_DE_LA_CUISINE) ? EFFORT_MAX_DE_LA_CUISINE : plafond.effort;
+  const cible = monter(pose, { model: plafond.model, effort }, { model: true, effort: true });
+  // Un effort que le chef a posé au-dessus de `high` ne se garde pas en montant le modèle.
+  return cible === null || rangDEffort(cible.effort) > rangDEffort(EFFORT_MAX_DE_LA_CUISINE) ? null : cible;
+}
+
+// Pourquoi la cuisine abandonne un ticket, telle que son issue le lit.
+export function raisonDAbandon(cause: string, pose: Calibrage | null, plafond: Plafond): string {
+  const pasAuCook = SANS_RENVOI[cause];
+  if (pasAuCook !== undefined) return `sa cause (\`${cause}\`) n'est pas au cook (${pasAuCook}) : ni un renvoi ni un calibrage plus haut ne la lèveraient, et le ticket \`fix\` que la cuisine pouvait ouvrir sur elle l'a été, ou ce ticket en est un`;
+  const limite = `le plafond du projet (\`${plafond.model}\` / \`${plafond.effort}\`), et jamais au-delà de \`${EFFORT_MAX_DE_LA_CUISINE}\``;
+  return `son calibrage (${pose === null ? "?" : `\`${pose.model}\` / \`${pose.effort}\``}) est déjà au plus haut que la cuisine pose — ${limite} —, et ce qu'elle pouvait tenter avant (renvoi, ticket \`fix\`, calibrage monté) n'a pas suffi`;
 }
 
 // Ce que la cuisine a déjà tenté sur ce ticket, toutes remontées confondues.
@@ -170,16 +227,19 @@ export function reprisesDuRail(base: Base, rail: ReadonlyArray<{ ticket: number;
 
 // Ce que la carte du ticket dit de la cuisine, en anglais (`status`) puis en
 // français (l'app) : ce qu'elle fait, jamais un geste du chef à faire.
+const dit = (calibrage: Calibrage | null) => (calibrage === null ? "?" : `${calibrage.model} / ${calibrage.effort}`);
 export function direRepriseEn({ cause, reprise }: RepriseDuTicket): string {
   if (reprise === null) return `the kitchen takes it up (${cause}), not the chef`;
   if (reprise.coup === "fix") return `the kitchen took it up (${cause}): its \`fix\` ticket #${reprise.issue} is open, and it goes back to a cook once #${reprise.issue} is served`;
-  if (reprise.coup === "none") return `the kitchen took it up (${cause}) and has nothing left to try: it stays set aside`;
+  if (reprise.coup === "raise") return `the kitchen raised its calibration (${cause}) from ${dit(reprise.from)} to ${dit(reprise.to)}: it goes back to a cook once the rail reads it`;
+  if (reprise.coup === "drop") return `the kitchen drops it (${cause}): it leaves the rail, the reason is on its issue`;
   return `the kitchen sent it back to a cook (${cause})`;
 }
 export function direReprise({ cause, reprise }: RepriseDuTicket): string {
   if (reprise === null) return `la cuisine le reprend (${cause}), pas le chef`;
   if (reprise.coup === "fix") return `la cuisine l'a repris (${cause}) : son ticket \`fix\` #${reprise.issue} est ouvert, il repart chez un cook une fois #${reprise.issue} servi`;
-  if (reprise.coup === "none") return `la cuisine l'a repris (${cause}) et n'a plus rien à essayer : il reste de côté`;
+  if (reprise.coup === "raise") return `la cuisine a monté son calibrage (${cause}) de ${dit(reprise.from)} à ${dit(reprise.to)} : il repart chez un cook dès que le rail l'a lu`;
+  if (reprise.coup === "drop") return `la cuisine l'abandonne (${cause}) : il sort du rail, la raison est sur son issue`;
   return `la cuisine l'a renvoyé à un cook (${cause})`;
 }
 
@@ -236,9 +296,17 @@ export function corpsDuFix(fix: FixDeRemontee): string {
 }
 
 // Ce qui repart au cook : pourquoi la cuisine le lui renvoie, en français
-// comme tout ce qui va au cook.
-export function constatsDuRenvoi(remontee: Remontee, coup: "return" | "resume", issue: number | null, constats: string[]): string[] {
+// comme tout ce qui va au cook. `montee` : le calibrage que la cuisine a
+// monté, quand c'est lui que le renvoi suit.
+export function constatsDuRenvoi(remontee: Remontee, coup: "return" | "resume", issue: number | null, constats: string[], montee: { from: Calibrage; to: Calibrage } | null = null): string[] {
   const cause = remontee.cause ?? remontee.reason;
+  if (coup === "resume" && montee !== null) {
+    return [
+      `Cette livraison est restée bloquée (\`${remontee.reason}\` : \`${cause}\`) après ce que la cuisine avait déjà tenté : plutôt que de la laisser de côté, elle te revient un cran plus haut, en \`${montee.to.model}\` / \`${montee.to.effort}\` au lieu de \`${montee.from.model}\` / \`${montee.from.effort}\`. Mets ta branche à jour de la base, lève ce qui la bloque, et livre de nouveau.`,
+      ...(remontee.reason === NON_JUGEE && remontee.why !== null ? [`Ce qui a empêché le jugement : ${remontee.why}`] : []),
+      ...constats,
+    ];
+  }
   if (coup === "resume") {
     return [
       `Le ticket \`fix\` #${issue}, ouvert par la cuisine sur ce qui bloquait cette livraison (\`${cause}\`), est servi : la livraison te revient. Mets ta branche à jour de la base, vérifie qu'elle tient, et livre de nouveau.`,
