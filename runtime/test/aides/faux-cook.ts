@@ -13,12 +13,12 @@
 //     tuer le cook seul suffirait à tout tuer. Sous macOS et Linux, chacun reste
 //     dans le groupe du cook.
 // FAUX_COOK_TEMOIN : un répertoire, qui existe. Chaque lancement y écrit
-//   `<pid>.json` : ses arguments, son répertoire, et le fichier `LISEZMOI` de
+//   `<pid>.json` (écrit d'un bloc) : ses arguments, son répertoire, et le fichier `LISEZMOI` de
 //   son dépôt tel qu'il est extrait.
 // FAUX_COOK_PIDS : un répertoire, qui existe, où chaque étage de l'arbre
 //   (« attend ») écrit son pid.
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const dire = (objet: unknown) => process.stdout.write(`${JSON.stringify(objet)}\n`);
@@ -42,14 +42,17 @@ if (premier === "--etage") {
 } else {
   const temoin = process.env.FAUX_COOK_TEMOIN;
   if (temoin) {
+    // Écrit à côté puis renommé : un test qui lit le répertoire n'y voit jamais un fichier à moitié écrit.
+    const ecrit = join(temoin, `${process.pid}.json.tmp`);
     writeFileSync(
-      join(temoin, `${process.pid}.json`),
+      ecrit,
       JSON.stringify({
         args: process.argv.slice(2),
         cwd: process.cwd(),
         lisezmoi: existsSync("LISEZMOI") ? readFileSync("LISEZMOI", "utf8") : null,
       }),
     );
+    renameSync(ecrit, join(temoin, `${process.pid}.json`));
   }
   dire({ type: "system", subtype: "init", cwd: process.cwd() });
   const scenario = process.env.FAUX_COOK ?? "";
