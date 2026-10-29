@@ -329,8 +329,8 @@ const veilleDesFaits = ouvrirVeilleDuTableau({
   lisible: railLisible,
   surLecture: (lecture) => {
     dire("faits", faits.recevoir(lecture));
-    // Ce que fait chaque cook du projet, publié sur le même tableau (#1846) — avec GitHub seul, sans `ssh` : à la place
-    // de son terminal, que l'app ne suit pas, la fiche d'un ticket suit son cook (vue/activite-du-cook.js).
+    // Ce que fait chaque cook du projet, publié sur le même tableau (#1846) — lu avec GitHub seul, sans joindre la box :
+    // à la place de son terminal, que l'app ne suit pas, la fiche d'un ticket suit son cook (vue/activite-du-cook.js).
     const tableau = tableaux.dernier(lecture.projet);
     if (!("erreur" in lecture) && tableau !== undefined) dire("activites", activitesPubliees(lecture.projet, tableau));
     direLaBande(bandes.faits(lecture));
