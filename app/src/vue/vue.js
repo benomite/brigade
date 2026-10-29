@@ -113,7 +113,7 @@ import { ligneDAlerte, poserLesStations as stationsDeCuisson } from "./stations-
 import { poserLesAppels } from "./appels-de-la-station.js";
 import { EXPLIQUE as AIDE_DU_PLAFOND, poserLePlafond as plafondDeCalibrage, resumeDuPlafond, TITRE as TITRE_DU_PLAFOND } from "./plafond-de-calibrage.js";
 import { poserLActivite } from "./activite-cuisine.js";
-import { poserAge, poserCadence } from "./cadence.js";
+import { poserAge, poserCadence, poserEssais } from "./cadence.js";
 import { GATES_HORS_BUDGET, poserLeJourDesGates, poserLesGatesDeCooks } from "./cout-des-gates.js";
 import { AIDE as AIDE_DES_ROLES, poserLesRoles, resumeDesRoles, TITRE as TITRE_DES_ROLES } from "./roles-cuisine.js";
 import { apresLaDecision, phrase, poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
@@ -2945,6 +2945,8 @@ function poserBon(projet, carte, tonAttend, execution = true) {
   if (carte.age !== undefined) {
     tete.append(poserAge(document, carte.age));
     if (carte.age.longue) bon.dataset.traine = "";
+    // Plus d'un essai depuis la première prise : un point par essai, à côté de l'âge (#1895).
+    if (carte.essais !== undefined) tete.append(poserEssais(document, carte.essais));
   }
   bon.append(tete);
   // Sur le rail, en attente : sa priorité, sous son numéro

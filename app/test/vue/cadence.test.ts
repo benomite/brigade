@@ -15,7 +15,7 @@ import { CONFIRMES, DIRECTS, GRANTS } from "../../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../../src/grants.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
-import { poserAge, poserCadence } from "../../src/vue/cadence.js";
+import { poserAge, poserCadence, poserEssais } from "../../src/vue/cadence.js";
 import { Faux, type Jouee, jouerLaVue, ouvrirOnglet, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-10-21T12:20:01.000Z";
@@ -146,6 +146,57 @@ describe("l'âge des cartes de Taken et de Pass", () => {
   });
 });
 
+describe("les essais d'une carte, un point chacun", () => {
+  const essai = (depuis: string, jusqua: string | null, arret: string | null) => ({ depuis, jusqua, arret, enCours: jusqua === null });
+  const TROIS = [
+    essai("2026-10-21T11:30:00.000Z", "2026-10-21T11:47:00.000Z", "turns"),
+    essai("2026-10-21T11:47:10.000Z", "2026-10-21T12:02:00.000Z", "idle"),
+    essai("2026-10-21T12:02:10.000Z", null, null),
+  ];
+  const faits = (rail: unknown[]) => ({ ...FAITS, rail });
+  const points = (pose: Faux | undefined) => pose?.dessous("span").filter((posee) => posee.className === "essai") ?? [];
+
+  test("un ticket pris depuis cinquante minutes sur trois essais : `50 min` et la couleur lente, trois points", async () => {
+    const vue = await ouvrir();
+    recevoir(vue, faits([{ ticket: 34, etat: "pris", titre: "Ticket 34", url: "https://exemple.test/34", depuis: "2026-10-21T11:30:00.000Z", essais: TROIS, activite: null }]));
+    await ouvrirOnglet(vue, "Rail");
+    const carte = bon(vue, 34) ?? assert.fail("pas de carte #34");
+    assert.equal(age(carte)?.textContent, "50 min");
+    assert.equal(age(carte)?.dataset.longue, "");
+    const ronds = points(carte);
+    assert.equal(ronds.length, 3);
+    assert.deepEqual(ronds.map((rond) => rond.dataset.enCours), [undefined, undefined, ""]);
+    assert.equal(ronds[0]?.title, "attempt 1 of 3 — stopped after 17 min: turns");
+    assert.equal(ronds[1]?.title, "attempt 2 of 3 — stopped after 14 min 50: idle");
+    assert.equal(ronds[2]?.title, "attempt 3 of 3 — cooking now");
+  });
+
+  test("un seul essai : aucun point, mais l'âge", async () => {
+    const vue = await ouvrir();
+    recevoir(vue, faits([{ ticket: 35, etat: "pris", titre: "Ticket 35", url: "https://exemple.test/35", depuis: "2026-10-21T12:05:00.000Z", essais: [essai("2026-10-21T12:05:00.000Z", null, null)], activite: null }]));
+    await ouvrirOnglet(vue, "Rail");
+    const carte = bon(vue, 35) ?? assert.fail("pas de carte #35");
+    assert.equal(age(carte)?.textContent, "15 min");
+    assert.equal(points(carte).length, 0);
+  });
+
+  test("la même chose sur une carte de Pass", async () => {
+    const vue = await ouvrir();
+    recevoir(vue, faits([{ ticket: 36, etat: "en pass", titre: "Ticket 36", url: "https://exemple.test/36", depuis: "2026-10-21T12:15:00.000Z", essais: TROIS.slice(0, 2).map((e, i) => (i === 1 ? { ...e, enCours: true, jusqua: null, arret: null } : e)), activite: null }]));
+    await ouvrirOnglet(vue, "Rail");
+    const carte = bon(vue, 36) ?? assert.fail("pas de carte #36");
+    assert.equal(age(carte)?.textContent, "5 min");
+    assert.equal(points(carte).length, 2);
+  });
+
+  test("un runtime d'avant `essais` : l'âge seul", async () => {
+    const vue = await ouvrir();
+    recevoir(vue);
+    await ouvrirOnglet(vue, "Rail");
+    assert.equal(points(bon(vue, 15)).length, 0);
+  });
+});
+
 test("le module se lit seul, sur un faux document", () => {
   const doc = { createElement: (balise: string) => new Faux(balise) };
   assert.equal(poserCadence(doc as never, undefined), null);
@@ -153,4 +204,6 @@ test("le module se lit seul, sur un faux document", () => {
   assert.equal(pose.dessous("button").length, HEURES);
   const posee = poserAge(doc as never, { court: "3 h", dit: "in Taken for 3 h 02", longue: true }) as Faux;
   assert.deepEqual([posee.textContent, posee.title, posee.dataset.longue], ["3 h", "in Taken for 3 h 02", ""]);
+  const essais = poserEssais(doc as never, [{ enCours: false, dit: "attempt 1 of 2 — stopped after 3 min: turns" }, { enCours: true, dit: "attempt 2 of 2 — cooking now" }]) as Faux;
+  assert.deepEqual(essais.dessous("span").map((rond) => rond.title), ["attempt 1 of 2 — stopped after 3 min: turns", "attempt 2 of 2 — cooking now"]);
 });

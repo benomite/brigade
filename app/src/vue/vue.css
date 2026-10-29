@@ -4223,6 +4223,24 @@ main > header,
   background: var(--rouge);
   border-color: var(--rouge);
 }
+/* Les essais de la cuisine sur un ticket (#1895), à droite de l'âge : un point par essai ; les finis creux, le courant
+   plein. La raison de l'arrêt est au survol du point. */
+#rail .bon .essais {
+  display: inline-flex;
+  gap: 3px;
+  margin-left: 4px;
+  align-items: center;
+}
+#rail .bon .essai {
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid var(--bon-discret);
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+#rail .bon .essai[data-en-cours] {
+  background: var(--bon-discret);
+}
 #rail .bon[data-traine] {
   border-left: 4px solid var(--rouge);
 }
