@@ -16,12 +16,12 @@ import { ecrireAtomique, type ConsigneDuRelais, type FinDuRelais } from "./relai
 
 export type Arret = { reason: MotifArret; limit: number | null; observed: number | null };
 
-// Ce qu'un cook a consommé qui se compte : ses tours et ses jetons. Rend le
-// plafond qu'il dépasse, ou null. Le même jugement pour tous les cooks — celui
+// Ce qu'un cook a consommé qui se compte : ses jetons. Rend le plafond qu'il
+// dépasse, ou null. Les tours ne sont pas bornés : les jetons et la durée
+// bornent un cook. Le même jugement pour tous les cooks — celui
 // que le superviseur lit dans son flux, celui dont une station distante
 // rapporte la mesure.
-export function depassement(plafonds: Plafonds, mesure: { turns: number; tokens: number }): Arret | null {
-  if (mesure.turns > plafonds.turns) return { reason: "turns", limit: plafonds.turns, observed: mesure.turns };
+export function depassement(plafonds: Plafonds, mesure: { tokens: number }): Arret | null {
   if (mesure.tokens > plafonds.tokens) return { reason: "tokens", limit: plafonds.tokens, observed: mesure.tokens };
   return null;
 }
@@ -214,7 +214,7 @@ export function superviser(options: OptionsSupervision): Supervise {
     veiller();
     compter(ligne);
     lecteur.lire(ligne);
-    const depasse = depassement(plafonds, { turns, tokens });
+    const depasse = depassement(plafonds, { tokens });
     if (depasse) arreter(depasse);
   });
 
@@ -515,7 +515,7 @@ function suivre(
     veiller();
     compter(ligne);
     lecteur.lire(ligne);
-    const depasse = depassement(plafonds, { turns, tokens });
+    const depasse = depassement(plafonds, { tokens });
     if (depasse) arreter(depasse);
   };
   const lire = (jusquAuBout: boolean) => {

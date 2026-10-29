@@ -209,7 +209,7 @@ function auxFourneaux(t: TestContext) {
   const { noter, arriver } = c;
   const lancerCook = (station: string, ticket: number, run: string) =>
     noter(
-      { type: "cook.launched", payload: { run, limits: { turns: 1, durationMs: 1, tokens: 1, idleMs: 1 }, stream: `runs/${run}.jsonl`, station, model: "sonnet", effort: "low", branch: `cook/${run}`, worktree: `worktrees/${run}` } },
+      { type: "cook.launched", payload: { run, limits: { durationMs: 1, tokens: 1, idleMs: 1 }, stream: `runs/${run}.jsonl`, station, model: "sonnet", effort: "low", branch: `cook/${run}`, worktree: `worktrees/${run}` } },
       ticket,
     );
   demarrer(noter);
@@ -276,7 +276,7 @@ test("l'état du projet est un mot d'une liste fermée, et chacun se lit aussi e
   assert.match(tete(), /^runtime    never started$/m);
 
   demarrer(noter);
-  noter({ type: "guard.configured", payload: { limits: { turns: 1, durationMs: 1, tokens: 1, idleMs: 1 }, breakerThreshold: 1 } });
+  noter({ type: "guard.configured", payload: { limits: { durationMs: 1, tokens: 1, idleMs: 1 }, breakerThreshold: 1 } });
   assert.equal(lire(a).forme.etat, "ouverte");
   assert.match(tete(), /^runtime    running according to the log/m);
   assert.match(tete(), /^kitchen    open · breaker closed/m);
@@ -647,7 +647,7 @@ function auTravail(t: TestContext) {
   rail.prendre("box/claude"); // 10:00:02
   const ticket = () => lireEtat(journal, new Date(`${JOUR_HORLOGE}T10:10:00.000Z`)).rail.find((surLeRail) => surLeRail.ticket === 14);
   const lancer = (run: string, station = "box/claude", numero: number | null = 14) =>
-    noter({ type: "cook.launched", payload: { run, limits: { turns: 1, durationMs: 1, tokens: 1, idleMs: 1 }, stream: `runs/${run}.jsonl`, station } }, numero);
+    noter({ type: "cook.launched", payload: { run, limits: { durationMs: 1, tokens: 1, idleMs: 1 }, stream: `runs/${run}.jsonl`, station } }, numero);
   const activite = (a = `${JOUR_HORLOGE}T10:10:00.000Z`) => lire(a).forme.rail.find((surLeRail) => surLeRail.ticket === 14)?.activite;
   const { lire } = c;
   return { ...c, rail, ticket, lancer, activite };

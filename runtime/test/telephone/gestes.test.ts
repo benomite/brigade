@@ -28,7 +28,7 @@ import { aArreter, DEPOT, ENV_ENFANT, fauxGh, horloge, repertoireTemporaire } fr
 const RUNTIME = join(import.meta.dirname, "..", "..");
 const ISSUE = (numero: number) => `repos/${DEPOT}/issues/${numero}`;
 const PULLS = `repos/${DEPOT}/pulls`;
-const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
+const LIMITES = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
 
 type Reponse = { statut: number; entetes: Headers; corps: Record<string, unknown> };
 

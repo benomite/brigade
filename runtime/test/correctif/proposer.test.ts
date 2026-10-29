@@ -19,7 +19,7 @@ import { appeler, BASE, depotGit, ENV_ENFANT, ENV_GIT, git, JOUR_HORLOGE, repert
 
 const PROJET = "brigade";
 const DEPOT = "acme/brigade";
-const PLAFONDS: Plafonds = { turns: 100, durationMs: 3_600_000, tokens: 1_000_000, idleMs: 60_000 };
+const PLAFONDS: Plafonds = { durationMs: 3_600_000, tokens: 1_000_000, idleMs: 60_000 };
 const REGLAGES: Reglages = { plafonds: PLAFONDS, seuilDisjoncteur: 3, graceMs: 2000 };
 
 // Les fichiers du projet à sa base : ses consignes, et ce qui n'en est pas.

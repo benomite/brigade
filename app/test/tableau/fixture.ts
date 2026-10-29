@@ -40,7 +40,7 @@ export const TABLEAU: Tableau = {
     urgence: null,
     cooks: [{ ticket: 31, run: "31-aa", station: "box/claude", modele: "opus", effort: "high", lanceLe: "2026-10-23T09:50:00.000Z", coince: false, tours: 12, tokens: 40_000 }],
     stations: [{ station: "box/claude", distante: false, plafond: 2, satureeDepuis: null, saturation: [], retenueDepuis: null, deconnecteeDepuis: null, quotaJusqua: null }],
-    plafonds: { tours: 200, tokens: 2_000_000, dureeMs: 3_600_000, inactiviteMs: 600_000 },
+    plafonds: { tokens: 2_000_000, dureeMs: 3_600_000, inactiviteMs: 600_000 },
     consommation: { enCours: { runs: 1, reviews: 0, judgments: 0, turns: 12, tokens: 40_000 }, fenetres: [{ heures: 24, runs: 4, reviews: 2, judgments: 1, turns: 80, tokens: 300_000 }] },
     rubriques: [
       { titre: "project", lignes: ["parade (chef/parade) · open"] },

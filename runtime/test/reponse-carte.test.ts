@@ -42,7 +42,7 @@ function atelier(t: TestContext) {
   const livrer = async () => {
     arriver();
     rail.prendre(STATION);
-    noter(30, { type: "cook.launched", payload: { run: "cook-30", limits: { turns: 1, durationMs: 1, tokens: 1, idleMs: 1 }, stream: "runs/cook-30.jsonl", station: STATION, branch: BRANCHE, worktree: "worktrees/30-x" } }, `station:${STATION}`);
+    noter(30, { type: "cook.launched", payload: { run: "cook-30", limits: { durationMs: 1, tokens: 1, idleMs: 1 }, stream: "runs/cook-30.jsonl", station: STATION, branch: BRANCHE, worktree: "worktrees/30-x" } }, `station:${STATION}`);
     rail.envoyerEnPass(30, STATION);
     const pr = await gh.github.ouvrirPR({ branche: BRANCHE, base: "v2", titre: "#30", corps: "" });
     noter(30, { type: "pass.started", payload: { run: "cook-30", pr, number: 101, sha: "abc123" } }, "pass");

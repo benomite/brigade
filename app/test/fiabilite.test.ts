@@ -61,7 +61,7 @@ const merge = (rang: number, perdus: number | null): Delivery => ({
 
 // Un parcours : `essais` lancements, le dernier livré, les autres ratés pour la cause que leurs signaux disent.
 const relecture: Signaux = { ...SANS_SIGNAUX, jugement: { noDiff: false, conflit: false, gates: { outcome: "green", failures: [] }, review: { outcome: "red", blocking: 1 } } };
-const plafond: Signaux = { ...SANS_SIGNAUX, arret: "turns" };
+const plafond: Signaux = { ...SANS_SIGNAUX, arret: "duration" };
 const types: Signaux = { ...SANS_SIGNAUX, jugement: { noDiff: false, conflit: false, gates: { outcome: "red", failures: ["FAIL  contrôle de types de l'app en échec"] }, review: { outcome: "skipped", blocking: 0 } } };
 const essai = (outcome: string | null, signaux: Signaux = SANS_SIGNAUX): Essai => ({ run: "r", at: A, outcome, verdict: null, signaux });
 const parcours = (ticket: number, rates: Signaux[], merge = true): Parcours => ({
@@ -162,7 +162,7 @@ describe("ce que `measures` écrit, lu par l'app", () => {
       [
         { titre: "blocking review", essais: 5, pourcent: 50, tickets: [957, 955, 953] },
         { titre: "red gates: type check", essais: 1, pourcent: 10, tickets: [954] },
-        { titre: "cap on turns or duration", essais: 2, pourcent: 20, tickets: [956, 952] },
+        { titre: "cap on duration", essais: 2, pourcent: 20, tickets: [956, 952] },
         { titre: "other", essais: 2, pourcent: 20, tickets: [958] },
       ],
     );
@@ -198,7 +198,7 @@ describe("la page : ce que l'app en pose", () => {
         rates: 10,
         causes: [
           { titre: "blocking review", essais: 5, pourcent: 50, tickets: [957, 955, 953] },
-          { titre: "cap on turns or duration", essais: 2, pourcent: 20, tickets: [956, 952] },
+          { titre: "cap on duration", essais: 2, pourcent: 20, tickets: [956, 952] },
           { titre: "other", essais: 2, pourcent: 20, tickets: [958] },
         ],
       },
@@ -297,7 +297,7 @@ describe("la fiabilité des cooks, posée par la vue", () => {
     const lignes = causes.dessous("li");
     assert.deepEqual(lignes.map((li) => li.children.slice(0, 3).map(({ textContent }) => textContent)), [
       ["blocking review", "5 attempts", "50%"],
-      ["cap on turns or duration", "2 attempts", "20%"],
+      ["cap on duration", "2 attempts", "20%"],
       ["other", "2 attempts", "20%"],
     ]);
     const boutons = causes.dessous("button");

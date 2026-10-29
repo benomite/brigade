@@ -33,7 +33,7 @@ import { arreterLArbre, enGroupe } from "./plateforme.ts";
 // --- Ce que la box répond. La forme est la sienne (`runtime/src/events/remote.ts`) :
 // le runner n'en lit que ce qu'il lui faut.
 
-export type Plafonds = { turns: number; durationMs: number; tokens: number; idleMs: number };
+export type Plafonds = { durationMs: number; tokens: number; idleMs: number };
 
 // Ce que la box remet avec un ticket : de quoi lancer le même cook qu'elle.
 export type Mission = {

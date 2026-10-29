@@ -81,7 +81,7 @@ test("préparation à relire : livrée à la pass, sa PR est lue du journal ; la
   projet.noter({ type: "ticket.taken", payload: { station: "macbook", leaseUntil: "2026-10-20T11:30:00.000Z" } });
   projet.noter({
     type: "cook.launched",
-    payload: { run: "run-1", limits: { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 }, stream: "runs/run-1.jsonl", station: "macbook", model: "opus", effort: "high", branch: "cook/433", worktree: "worktrees/433" },
+    payload: { run: "run-1", limits: { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 }, stream: "runs/run-1.jsonl", station: "macbook", model: "opus", effort: "high", branch: "cook/433", worktree: "worktrees/433" },
   });
   projet.noter({ type: "ticket.passing", payload: { station: "macbook" } });
   projet.noter({ type: "pass.started", payload: { run: "run-1", pr, number: 434, sha: "abc" } });
@@ -122,7 +122,7 @@ test("le setup du projet échoue au départ du cook de préparation : la page du
   const partir = (run: string) =>
     projet.noter({
       type: "cook.launched",
-      payload: { run, limits: { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 }, stream: `runs/${run}.jsonl`, station: "macbook", model: "opus", effort: "high", branch: "cook/433", worktree: "worktrees/433" },
+      payload: { run, limits: { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 }, stream: `runs/${run}.jsonl`, station: "macbook", model: "opus", effort: "high", branch: "cook/433", worktree: "worktrees/433" },
     });
   const dit = () => projet.onboarding().etapes.find(({ etape }) => etape === "preparation")?.dit;
   projet.arriver();

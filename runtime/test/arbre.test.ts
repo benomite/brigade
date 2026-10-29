@@ -13,7 +13,7 @@ import { aArreter, ENV_ENFANT, jusqua, mort, repertoireTemporaire, temporaireDuF
 
 const rienNeReste = temporaireDuFichier();
 
-const LARGES: Plafonds = { turns: 1000, durationMs: 300_000, tokens: 1_000_000, idleMs: 300_000 };
+const LARGES: Plafonds = { durationMs: 300_000, tokens: 1_000_000, idleMs: 300_000 };
 
 // Un étage de l'arbre : il écrit son pid dans `dossier`, lance l'étage suivant
 // s'il en reste, et vit. La racine dit une ligne sur son flux ; en mode `sort`,

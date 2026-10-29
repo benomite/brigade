@@ -12,7 +12,7 @@ import { ouvrirRail } from "../src/rail.ts";
 import { aArreter, JOUR_HORLOGE, repertoireTemporaire } from "./outils.ts";
 
 const STATION = "box/claude";
-const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
+const LIMITES = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
 const a = (heure: string) => `${JOUR_HORLOGE}T${heure}.000Z`;
 
 // Un journal dont le test tient l'heure : chaque fait s'écrit à celle qu'il a posée.

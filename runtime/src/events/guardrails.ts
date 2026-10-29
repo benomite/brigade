@@ -4,13 +4,13 @@
 import type { Activite } from "../activite.ts";
 
 // What a cook cannot exceed, whatever its ticket.
-export type Plafonds = { turns: number; durationMs: number; tokens: number; idleMs: number };
+export type Plafonds = { durationMs: number; tokens: number; idleMs: number };
 
 // Why a guardrail stopped a cook. `stop`: the chef's command. `lease`: the
 // lease on its ticket lapsed, for lack of progress in its worktree — its
 // station says so, not the supervisor. `removals`: the closing pass removed
 // more lines than its cap — the pass itself says so.
-export type MotifArret = "turns" | "duration" | "tokens" | "idle" | "lease" | "removals" | "stop";
+export type MotifArret = "duration" | "tokens" | "idle" | "lease" | "removals" | "stop";
 
 // How a cook ended, from the breaker's point of view: `failed` and `guard` are
 // failures, `ok` resets the counter to zero, `stop`, `neutral` (the 86, which

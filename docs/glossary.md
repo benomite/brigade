@@ -43,7 +43,7 @@ Related terms built on « cuisine »:
 | French | English | Object | Where |
 |---|---|---|---|
 | `garde-fous` | `guardrails` | The caps, the chef's `stop` and the breaker of a project | box, app, code, doc |
-| `plafond` | `cap` | A limit (turns, tokens, duration, cooks…) | box, app, code, doc |
+| `plafond` | `cap` | A limit (tokens, duration, cooks…) | box, app, code, doc |
 | `disjoncteur` | `breaker` | Stops the kitchen after repeated failures; `OUVERT` → `OPEN`, `fermé` → `closed` | box, app, doc |
 | `journal` | `log` | The project's append-only record of events (the app tab is already `Log`) | box, app, code, doc |
 | `installation` | `installation` | The check that a project is ready to be served, and its setup/uninstall | box, app, doc |
@@ -94,7 +94,7 @@ Commands are run as `brigade <project> <command>` on the box (`npm --prefix runt
 
 | French | English | What it does | Options and subcommands |
 |---|---|---|---|
-| `garde-fous` | `guardrails` | Show and set the caps | `stop` → `stop`; `reprendre` → `resume`; `turns`, `tokens`, `duration`, `idle`, `lease`, `removals` keep their names |
+| `garde-fous` | `guardrails` | Show and set the caps | `stop` → `stop`; `reprendre` → `resume`; `tokens`, `duration`, `idle`, `lease`, `removals` keep their names |
 | `journal` | `log` | Read the log | `--derniers <N>` → `--last <N>`; `--ticks` → `--ticks`; `<ticket>` unchanged |
 | `base` | `base` | Show the integration base; replay its gates when red | `rejouer` → `replay` |
 | `installation` | `installation` | Check that a project is ready to be served | `labels` → `labels`; `setup` → `setup`; `desinstaller` → `uninstall`; `--confirmer` → `--confirm` |

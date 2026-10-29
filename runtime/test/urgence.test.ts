@@ -9,7 +9,7 @@ import { ouvrirJournal } from "../src/journal.ts";
 import { sansMotFrancais } from "./aides/glossaire.ts";
 import { JOUR_HORLOGE, jourDecale, repertoireTemporaire } from "./outils.ts";
 
-const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
+const LIMITES = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
 const STATION = "box/claude";
 const pr = (ticket: number) => `https://exemple.test/pull/${ticket}`;
 const heure = (h: string) => `${JOUR_HORLOGE}T${h}.000Z`;

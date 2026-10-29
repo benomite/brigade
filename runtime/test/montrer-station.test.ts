@@ -9,7 +9,7 @@ import { appeler, horloge, JOUR_HORLOGE, lancer, repertoireTemporaire } from "./
 
 const MONTRER = join(import.meta.dirname, "../src/montrer-station.ts");
 const STATION = "box/claude";
-const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
+const LIMITES = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
 
 function cuisine(t: TestContext) {
   const repertoire = repertoireTemporaire(t);

@@ -231,8 +231,8 @@ describe("la passe de fermeture, en cuisine", { concurrency: 8 }, () => {
     assert.equal((await demander()).code, 0);
     const passe = await fin();
     assert.deepEqual([passe.outcome, passe.observed, passe.limit], ["tokens", 610, 500]);
-    const lancement = journal.tout().find((e) => e.type === "cook.launched")?.payload as { limits: { tokens: number; turns: number } };
-    assert.deepEqual([lancement.limits.tokens, lancement.limits.turns], [500, PLAFONDS.turns]);
+    const lancement = journal.tout().find((e) => e.type === "cook.launched")?.payload as { limits: { tokens: number; turns?: number } };
+    assert.deepEqual([lancement.limits.tokens, lancement.limits.turns], [500, undefined]);
     assert.deepEqual(
       journal.tout().flatMap((e) => (e.type === "guard.tripped" ? [[e.payload.reason, e.payload.limit, e.payload.observed]] : [])),
       [["tokens", 500, 610]],

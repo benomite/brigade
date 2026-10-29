@@ -105,7 +105,7 @@ test("le tableau montre l'état de la cuisine comme `status` l'écrit : cooks, m
   assert.deepEqual(cuisine.stations.map(({ station, plafond, saturation }) => ({ station, plafond, saturation })), [{ station: "box/claude", plafond: 2, saturation: ["cpu"] }]);
   assert.ok(cuisine.stations[0]?.deconnecteeDepuis !== null);
   assert.deepEqual([cuisine.base?.resultat, cuisine.base?.sha, cuisine.base?.reparation], ["red", "abc1234def", 30]);
-  assert.deepEqual(cuisine.plafonds, { tours: 100, tokens: 2_000_000, dureeMs: 3_600_000, inactiviteMs: 600_000 });
+  assert.deepEqual(cuisine.plafonds, { tokens: 2_000_000, dureeMs: 3_600_000, inactiviteMs: 600_000 });
   assert.equal(cuisine.disjoncteur.seuil, 3);
   assert.equal(cuisine.consommation.fenetres[0]?.heures, 5);
   assert.equal(cuisine.consommation.enCours.tokens, 184_000);

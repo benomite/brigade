@@ -18,8 +18,8 @@ const CAS: Array<[Cause, Signaux]> = [
   ["gates-app", gatesRouges("FAIL  tests de l'app en échec — rejoue : npm --prefix app test")],
   ["gates-types", gatesRouges("FAIL  contrôle de types du runtime en échec — rejoue : npm --prefix runtime run typecheck")],
   ["conflit", signaux({ jugement: jugement({ conflit: true }) })],
-  ["plafond", signaux({ arret: "turns" })],
   ["plafond", signaux({ arret: "duration" })],
+  ["plafond", signaux({ arret: "duration", panne: true })],
   ["panne", signaux({ panne: true })],
   ["panne", signaux({ fin: "disconnected" })],
   ["criteres", signaux({ textes: ["Les critères contradictoires du ticket m'empêchent de livrer."] })],
@@ -80,13 +80,13 @@ test("sans essai raté, rien n'est classé et toutes les parts sont nulles", () 
 });
 
 test("la sortie dit chaque cause, son nombre, sa part et ses tickets ; les parts arrondies font 100 %", () => {
-  const trois = [1, 2, 3].map((t) => abandonne(t, essai(t, signaux({ arret: "turns" }))));
+  const trois = [1, 2, 3].map((t) => abandonne(t, essai(t, signaux({ arret: "duration" }))));
   const dit = decrireCauses(mesurerCauses(trois));
   assert.equal(dit.length, 1 + 9);
   assert.equal(dit[0], "failures   3 failed attempts (not ending in a merge), each under one cause");
-  assert.ok(dit.includes("           cap on turns or duration: 3 (100%) — #3, #2, #1"));
+  assert.ok(dit.includes("           cap on duration: 3 (100%) — #3, #2, #1"));
   assert.ok(dit.includes("           other: 0 (0%)"));
-  const tiers = mesurerCauses([1, 2, 3].map((t) => abandonne(t, essai(t, [signaux({ arret: "turns" }), signaux({ panne: true }), SANS_SIGNAUX][t - 1]!))));
+  const tiers = mesurerCauses([1, 2, 3].map((t) => abandonne(t, essai(t, [signaux({ arret: "duration" }), signaux({ panne: true }), SANS_SIGNAUX][t - 1]!))));
   assert.deepEqual(tiers.lignes.map((l) => l.pourcent).reduce((a, b) => a + b, 0), 100);
 });
 
@@ -94,12 +94,12 @@ test("le journal est lu : l'arrêt, la panne, le jugement et le texte du cook se
   const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: horloge() });
   t.after(() => journal.fermer());
   const noter = (ticket: number, fait: Parameters<typeof journal.ajouter>[0] extends infer F ? Omit<F & object, "project" | "ticket" | "author"> : never) => journal.ajouter({ project: "brigade", ticket, author: "runtime", ...(fait as object) } as never);
-  const limites = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
+  const limites = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
   const lancer = (run: string) => noter(7, { type: "cook.launched", payload: { run, limits: limites, stream: `runs/${run}.jsonl`, station: "box/claude" } });
   const sortir = (run: string, outcome: string) => noter(7, { type: "cook.exited", payload: { run, outcome, code: 1, signal: null, turns: 1, tokens: 1, durationMs: 1 } });
   noter(7, { type: "ticket.taken", payload: { station: "box/claude", leaseUntil: JOUR_HORLOGE } });
   lancer("a");
-  noter(7, { type: "guard.tripped", payload: { run: "a", reason: "turns", limit: 100, observed: 100 } });
+  noter(7, { type: "guard.tripped", payload: { run: "a", reason: "duration", limit: 3_600_000, observed: 3_600_001 } });
   sortir("a", "guard");
   lancer("b");
   noter(7, { type: "cook.reported", payload: { run: "b", ending: "failed", reason: "ticket incomplet", summary: null, branch: "x", pr: null } });

@@ -175,7 +175,7 @@ export function tableauDeLaCuisine(
       deconnecteeDepuis: station.disconnectedAt,
       quotaJusqua: station.quotaUntil,
     })),
-    plafonds: gardeFous.limits === null ? null : { tours: gardeFous.limits.turns, tokens: gardeFous.limits.tokens, dureeMs: gardeFous.limits.durationMs, inactiviteMs: gardeFous.limits.idleMs },
+    plafonds: gardeFous.limits === null ? null : { tokens: gardeFous.limits.tokens, dureeMs: gardeFous.limits.durationMs, inactiviteMs: gardeFous.limits.idleMs },
     consommation: {
       enCours: { ...etat.consommation.enCours },
       fenetres: etat.consommation.fenetres.map((fenetre) => ({ ...fenetre })),

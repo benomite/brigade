@@ -106,7 +106,7 @@ test("déménagé, le worktree d'un cook d'une vie précédente se range sans ge
     type: "cook.launched",
     payload: {
       run: RUN,
-      limits: { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 },
+      limits: { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 },
       stream: `runs/${RUN}.jsonl`,
       station: "mac/claude",
       model: "sonnet",

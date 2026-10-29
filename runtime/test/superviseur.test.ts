@@ -20,7 +20,7 @@ const GROUPE = posixOnly("a node grandchild spawned detached leaves its cook's p
 // 1, et Node ne rapporte aucun signal pour un enfant tué par un autre que lui.
 const tuePar = (signal: NodeJS.Signals) => (process.platform === "win32" ? { code: 1, signal: null } : { code: null, signal });
 
-const LARGES: Plafonds = { turns: 1000, durationMs: 60_000, tokens: 1_000_000, idleMs: 60_000 };
+const LARGES: Plafonds = { durationMs: 60_000, tokens: 1_000_000, idleMs: 60_000 };
 
 function cook(t: TestContext, scenario: string, plafonds: Partial<Plafonds> = {}, graceMs = 2000) {
   const flux = join(repertoireTemporaire(t), "run.jsonl");
@@ -221,20 +221,14 @@ describe("superviser", { concurrency: true }, () => {
     assert.deepEqual([resultat.turns, resultat.tokens], [1, 7]);
   });
 
-  test("un cook qui dépasse son plafond de tours est arrêté, avec le motif", async (t) => {
-    const { fin, arrets } = cook(t, "bavard", { turns: 3 });
+  test("un cook qui dépasse son plafond de tokens est arrêté, avec le motif", async (t) => {
+    const { fin, arrets } = cook(t, "bavard", { tokens: 25 });
 
     const resultat = await fin;
 
-    assert.deepEqual(resultat.arret, { reason: "turns", limit: 3, observed: 4 });
+    assert.deepEqual(resultat.arret, { reason: "tokens", limit: 25, observed: 30 });
     assert.deepEqual(arrets, [resultat.arret]);
     assert.deepEqual({ code: resultat.code, signal: resultat.signal }, tuePar("SIGTERM"));
-  });
-
-  test("un cook qui dépasse son plafond de tokens est arrêté, avec le motif", async (t) => {
-    const resultat = await cook(t, "bavard", { tokens: 25 }).fin;
-
-    assert.deepEqual(resultat.arret, { reason: "tokens", limit: 25, observed: 30 });
   });
 
   test("un cook qui dépasse son plafond de durée est arrêté, même s'il produit", async (t) => {
@@ -301,7 +295,7 @@ describe("superviser", { concurrency: true }, () => {
       commande: FAUX_CLAUDE,
       args: [],
       env: { ...ENV_ENFANT, FAUX_CLAUDE: "bavard" },
-      plafonds: { ...LARGES, turns: 1 },
+      plafonds: { ...LARGES, tokens: 5 },
       graceMs: 2000,
       flux,
       surArret: () => {
@@ -321,7 +315,7 @@ describe("superviser", { concurrency: true }, () => {
       commande: FAUX_CLAUDE,
       args: [],
       env: { ...ENV_ENFANT, FAUX_CLAUDE: "bavard" },
-      plafonds: { ...LARGES, turns: 1 },
+      plafonds: { ...LARGES, tokens: 5 },
       graceMs: 2000,
       flux,
       surArret: () => {
@@ -332,7 +326,7 @@ describe("superviser", { concurrency: true }, () => {
 
     const resultat = await supervise.fin;
 
-    assert.equal(resultat.arret?.reason, "turns");
+    assert.equal(resultat.arret?.reason, "tokens");
     assert.deepEqual({ code: resultat.code, signal: resultat.signal }, tuePar("SIGTERM"));
   });
 
@@ -344,7 +338,7 @@ describe("superviser", { concurrency: true }, () => {
       commande: FAUX_CLAUDE,
       args: [],
       env: { ...ENV_ENFANT, FAUX_CLAUDE: "bavard" },
-      plafonds: { ...LARGES, turns: 3, idleMs: FILET_MS },
+      plafonds: { ...LARGES, tokens: 25, idleMs: FILET_MS },
       graceMs: 2000,
       flux,
     });
@@ -352,7 +346,7 @@ describe("superviser", { concurrency: true }, () => {
 
     const resultat = await supervise.fin;
 
-    assert.deepEqual(resultat.arret, { reason: "turns", limit: 3, observed: 4 });
+    assert.deepEqual(resultat.arret, { reason: "tokens", limit: 25, observed: 30 });
   });
 
   test("une sortie d'erreur qui ne peut pas s'écrire ne bloque pas le cook", async (t) => {
@@ -417,23 +411,23 @@ describe("superviser, à l'horloge du test", () => {
     assert.deepEqual([resultat.arret?.reason, resultat.turns], ["idle", 1]);
   });
 
-  test("un cook qui produit n'est pas pris pour un inactif", { skip: posixOnly("wakes the fake claude scenario au-signal with SIGUSR1 after each turn and expects the idle timer reset each time, the cook reaching its turn cap; Node on Windows has no SIGUSR1, so process.kill throws") }, async (t) => {
+  test("un cook qui produit n'est pas pris pour un inactif", { skip: posixOnly("wakes the fake claude scenario au-signal with SIGUSR1 after each turn and expects the idle timer reset each time, the cook reaching its token cap; Node on Windows has no SIGUSR1, so process.kill throws") }, async (t) => {
     t.mock.timers.enable({ apis: ["setTimeout"] });
-    const { fin, mesure, pid } = cook(t, "au-signal", { idleMs: 1000, turns: 3 });
+    const { fin, mesure, pid } = cook(t, "au-signal", { idleMs: 1000, tokens: 29 });
     assert.ok(pid);
     let fini = false;
     void fin.then(() => (fini = true));
 
     // Presque tout le délai s'écoule après chaque tour, trois fois de suite :
     // près de trois délais en tout, et seul un tour qui relance la veille
-    // explique que le cook aille jusqu'à son plafond.
+    // explique que le cook aille jusqu'à son plafond de tokens.
     for (let tour = 1; tour <= 3; tour += 1) {
       while (!fini && mesure().turns < tour) await souffler();
       t.mock.timers.tick(999);
       if (!fini) process.kill(pid, "SIGUSR1");
     }
 
-    assert.equal((await fin).arret?.reason, "turns");
+    assert.equal((await fin).arret?.reason, "tokens");
   });
 });
 

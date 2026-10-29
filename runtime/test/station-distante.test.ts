@@ -173,15 +173,15 @@ describe("une station distante tire son travail", { concurrency: 8 }, () => {
     assert.equal(compter("ticket.renewed"), 1);
   });
 
-  test("les plafonds des garde-fous sont ceux d'un cook de la box : le plafond de tours l'arrête sur ce que sa station rapporte, l'échec compte pour le disjoncteur, et chaque étape est au journal", async (t) => {
-    const { gh, journal, etat, tirer, reclamer, jusquAu, dernier, types, lancements } = service(t, { plafonds: { turns: 5 }, seuilDisjoncteur: 1 });
+  test("les plafonds des garde-fous sont ceux d'un cook de la box : le plafond de jetons l'arrête sur ce que sa station rapporte, sans ouvrir le disjoncteur, et chaque étape est au journal", async (t) => {
+    const { gh, journal, etat, tirer, reclamer, jusquAu, dernier, types, lancements } = service(t, { plafonds: { tokens: 55 }, seuilDisjoncteur: 1 });
     poser(gh, 14, "- requiert : code");
     poser(gh, 16, "- requiert : chrome-connecté");
     await jusqua(() => lancements().length === 1 && etat(16) === "86");
     await tirer({ verb: "announce" });
     const { run, limits } = await reclamer();
     // Les mêmes valeurs que le cook lancé sur la box, dans la même cuisine.
-    assert.deepEqual(limits, { ...PLAFONDS, turns: 5 });
+    assert.deepEqual(limits, { ...PLAFONDS, tokens: 55 });
     assert.deepEqual(dernier("cook.launched", 16)?.limits, dernier("cook.launched", 14)?.limits);
 
     assert.equal((await tirer({ verb: "renew", run, proof: "e1", turns: 5, tokens: 50 })).ok, true);
@@ -189,19 +189,16 @@ describe("une station distante tire son travail", { concurrency: 8 }, () => {
     await jusqua(() => journal.duTicket(16).some((e) => e.type === "cook.progressed" && e.payload.turns === 5 && e.payload.tokens === 50));
 
     const depasse = await tirer({ verb: "renew", run, proof: "e2", turns: 6, tokens: 60 });
-    assert.deepEqual([depasse.ok, !depasse.ok && depasse.refusal, !depasse.ok && depasse.stop], [false, "stopped", "turns"]);
-    await jusquAu("breaker.opened");
-    assert.deepEqual(dernier("guard.tripped", 16), { run, reason: "turns", limit: 5, observed: 6 });
+    assert.deepEqual([depasse.ok, !depasse.ok && depasse.refusal, !depasse.ok && depasse.stop], [false, "stopped", "tokens"]);
+    await jusquAu("cook.exited");
+    assert.deepEqual(dernier("guard.tripped", 16), { run, reason: "tokens", limit: 55, observed: 60 });
     const fin = dernier("cook.exited", 16);
     assert.deepEqual([fin?.outcome, fin?.turns, fin?.tokens], ["guard", 6, 60]);
     // Le plafond dépassé n'a pas renouvelé le bail.
     assert.equal(journal.duTicket(16).filter((e) => e.type === "ticket.renewed").length, 1);
-    // Un échec d'affilée, au seuil : le disjoncteur s'ouvre, et retient la
-    // station distante comme il retient celle d'ici.
-    assert.notEqual(etatDesGardeFous(journal.base).breakerOpenedAt, null);
-    await jusqua(() => etat(16) === "waiting");
-    assert.deepEqual(await tirer({ verb: "claim" }), { ok: true, verb: "claim", mission: null, held: "breaker" });
-    assert.equal(etatStation(journal.base, MAC)?.heldReason, "breaker");
+    // Un cook arrêté par un plafond n'est pas une cuisine cassée : le
+    // disjoncteur reste fermé, au seuil d'un échec.
+    assert.equal(etatDesGardeFous(journal.base).breakerOpenedAt, null);
 
     // Chaque étape de ce cook est au journal, sur son ticket.
     const etapes = types(16).filter((type) => !/^(ticket\.(arrived|changed)|cook\.(progressed|stalled))$/.test(type));
@@ -218,7 +215,7 @@ describe("une station distante tire son travail", { concurrency: 8 }, () => {
     assert.deepEqual(etapes.slice(etapes.lastIndexOf("ticket.taken"), etapes.indexOf("remote.answered")), ["ticket.taken", "cook.launched"]);
     // Et chaque demande de la station, avec sa réponse.
     const echanges = journal.tout().flatMap((e) => (e.type === "remote.asked" || e.type === "remote.answered" ? [`${e.type}:${e.payload.verb}`] : []));
-    assert.deepEqual(echanges, ["announce", "claim", "renew", "renew", "claim"].flatMap((geste) => [`remote.asked:${geste}`, `remote.answered:${geste}`]));
+    assert.deepEqual(echanges, ["announce", "claim", "renew", "renew"].flatMap((geste) => [`remote.asked:${geste}`, `remote.answered:${geste}`]));
   });
 
   test("le plafond de jetons l'arrête de même, sur ce que sa station rapporte", async (t) => {

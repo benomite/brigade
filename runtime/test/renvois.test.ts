@@ -10,7 +10,7 @@ import { parcoursDesTickets } from "../src/parcours-des-tickets.ts";
 import { decrireRenvois, derivePremierCoup, DERNIERS_PAR_DEFAUT, direDerivePremierCoupEn, mesurerRenvois, type Parcours } from "../src/renvois.ts";
 import { horloge, JOUR_HORLOGE, lancer, repertoireTemporaire } from "./outils.ts";
 
-const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
+const LIMITES = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
 const MESURES = join(import.meta.dirname, "../src/montrer-mesures.ts");
 
 const a = (heure: string) => `${JOUR_HORLOGE}T${heure}:00.000Z`;

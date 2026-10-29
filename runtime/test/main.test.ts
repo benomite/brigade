@@ -223,23 +223,23 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     assert.deepEqual([rangement?.removed, rangement?.kept, rangement?.keepMs], [1, 1, 7 * 24 * 3_600_000]);
   });
 
-  test("le runtime démarre avec ses garde-fous : les plafonds réglés par l'environnement sont au journal", { skip: posixOnly("starts the runtime with BRIGADE_MAX_TURNS=40 and reads the ceilings of its guard.configured fact; on Windows the runtime, killed at the end of the test, leaves its children (Git Bash running the fake gh, git) alive in the test's state directory, whose removal then fails (EPERM)") }, async (t) => {
+  test("le runtime démarre avec ses garde-fous : les plafonds réglés par l'environnement sont au journal", { skip: posixOnly("starts the runtime with BRIGADE_MAX_TOKENS=2000000 and reads the ceilings of its guard.configured fact; on Windows the runtime, killed at the end of the test, leaves its children (Git Bash running the fake gh, git) alive in the test's state directory, whose removal then fails (EPERM)") }, async (t) => {
     const repertoire = repertoireTemporaire(t);
-    const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_MAX_TURNS: "40" });
+    const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_MAX_TOKENS: "2000000" });
     await runtime.attendre("démarré");
 
     assert.deepEqual(relire(repertoire).find((e) => e.type === "guard.configured")?.payload, {
-      limits: { turns: 40, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 },
+      limits: { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 },
       breakerThreshold: 3,
     });
   });
 
   test("un plafond illisible est un refus de démarrer, avant d'avoir rien écrit", async (t) => {
     const repertoire = join(repertoireTemporaire(t), "etat");
-    const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_MAX_TURNS: "beaucoup" });
+    const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_MAX_TOKENS: "beaucoup" });
 
     assert.equal(await runtime.fin, REFUS);
-    assert.match(runtime.sortie(), /refus de démarrer.*BRIGADE_MAX_TURNS/);
+    assert.match(runtime.sortie(), /refus de démarrer.*BRIGADE_MAX_TOKENS/);
     assert.equal(existsSync(repertoire), false);
   });
 

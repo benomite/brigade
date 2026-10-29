@@ -37,7 +37,6 @@ const minutes = (env: NodeJS.ProcessEnv, variable: string, defaut: number) =>
 export function lireReglages(env: NodeJS.ProcessEnv): Reglages {
   return {
     plafonds: {
-      turns: entier(env, "BRIGADE_MAX_TURNS", 100),
       durationMs: minutes(env, "BRIGADE_MAX_MINUTES", 60),
       tokens: entier(env, "BRIGADE_MAX_TOKENS", 2_000_000),
       idleMs: minutes(env, "BRIGADE_IDLE_MINUTES", 10),

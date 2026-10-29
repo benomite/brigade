@@ -7,14 +7,12 @@ import { depassement, type Arret } from "../src/superviseur.ts";
 import { superviserADistance } from "../src/superviseur-distant.ts";
 
 // Des plafonds qu'aucun test n'atteint par l'horloge, sauf celui qu'il règle.
-const LARGES: Plafonds = { turns: 10, tokens: 1000, durationMs: 600_000, idleMs: 600_000 };
+const LARGES: Plafonds = { tokens: 1000, durationMs: 600_000, idleMs: 600_000 };
 
 describe("superviser à distance", { concurrency: true }, () => {
-  test("le jugement des tours et des jetons est celui du superviseur de la box : au plafond rien, au-delà l'arrêt — les tours d'abord", () => {
-    assert.equal(depassement(LARGES, { turns: 10, tokens: 1000 }), null);
-    assert.deepEqual(depassement(LARGES, { turns: 11, tokens: 1000 }), { reason: "turns", limit: 10, observed: 11 });
-    assert.deepEqual(depassement(LARGES, { turns: 10, tokens: 1001 }), { reason: "tokens", limit: 1000, observed: 1001 });
-    assert.deepEqual(depassement(LARGES, { turns: 11, tokens: 1001 })?.reason, "turns");
+  test("le jugement des jetons est celui du superviseur de la box : au plafond rien, au-delà l'arrêt — et les tours ne comptent pas", () => {
+    assert.equal(depassement(LARGES, { tokens: 1000 }), null);
+    assert.deepEqual(depassement(LARGES, { tokens: 1001 }), { reason: "tokens", limit: 1000, observed: 1001 });
   });
 
   test("une mesure sous les plafonds ne l'arrête pas, et sa fin rendue porte ce qu'il a consommé", async () => {
@@ -35,10 +33,13 @@ describe("superviser à distance", { concurrency: true }, () => {
   test("une mesure au-delà d'un plafond l'arrête sur-le-champ : le motif est dit avant sa fin, et il n'y a personne à attendre", async () => {
     const arrets: Arret[] = [];
     const cook = superviserADistance({ plafonds: LARGES, surArret: (arret) => void arrets.push(arret) });
-    cook.mesurer({ turns: 11, tokens: 50 });
-    assert.deepEqual(arrets, [{ reason: "turns", limit: 10, observed: 11 }]);
+    // Mille tours ne l'arrêtent pas : seuls les jetons et la durée bornent un cook.
+    cook.mesurer({ turns: 1000, tokens: 50 });
+    assert.deepEqual(arrets, []);
+    cook.mesurer({ turns: 1001, tokens: 1001 });
+    assert.deepEqual(arrets, [{ reason: "tokens", limit: 1000, observed: 1001 }]);
     const fin = await cook.fin;
-    assert.deepEqual([fin.code, fin.turns, fin.arret?.reason], [null, 11, "turns"]);
+    assert.deepEqual([fin.code, fin.turns, fin.arret?.reason], [null, 1001, "tokens"]);
     // Ce que sa station rendrait ensuite n'y change rien.
     cook.rendre(0);
     assert.equal((await cook.fin).code, null);

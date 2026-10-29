@@ -31,7 +31,7 @@ test("la séquence de #1834 : le séjour part de la première prise, trois essai
   const { noter, arriver, prendre, finir, carte } = cuisine(t);
   arriver("16:30:00");
   prendre("16:34:00");
-  noter("16:50:00", { type: "guard.tripped", payload: { run: "r1", reason: "turns", limit: 100, observed: 100 } });
+  noter("16:50:00", { type: "guard.tripped", payload: { run: "r1", reason: "tokens", limit: 2_000_000, observed: 2_000_001 } });
   finir("16:51:00", "r1", "guard");
   prendre("16:52:00");
   finir("17:06:00", "r2", "failed");
@@ -41,7 +41,7 @@ test("la séquence de #1834 : le séjour part de la première prise, trois essai
   assert.equal(ticket?.etat, "pris");
   assert.equal(ticket?.depuis, `${JOUR_HORLOGE}T16:34:00.000Z`);
   assert.deepEqual(ticket?.essais, [
-    { depuis: `${JOUR_HORLOGE}T16:34:00.000Z`, jusqua: `${JOUR_HORLOGE}T16:51:00.000Z`, arret: "turns", enCours: false },
+    { depuis: `${JOUR_HORLOGE}T16:34:00.000Z`, jusqua: `${JOUR_HORLOGE}T16:51:00.000Z`, arret: "tokens", enCours: false },
     { depuis: `${JOUR_HORLOGE}T16:52:00.000Z`, jusqua: `${JOUR_HORLOGE}T17:06:00.000Z`, arret: "failed", enCours: false },
     { depuis: `${JOUR_HORLOGE}T17:07:00.000Z`, jusqua: null, arret: null, enCours: true },
   ]);

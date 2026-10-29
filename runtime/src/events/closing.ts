@@ -40,12 +40,12 @@ export const MOTIFS_D_ATTENTE: readonly MotifDAttente[] = ["deploying", "cooks",
 export const SANS_ISSUE_MS = 2 * 60 * 60 * 1000;
 
 // How a pass ended. `delivered`: what it removed is in a PR. `nothing`: it
-// removed nothing. `tokens`, `removals`, `idle`, `duration`, `turns`: a
+// removed nothing. `tokens`, `removals`, `idle`, `duration`: a
 // guardrail stopped it. `stop`: the chef. `breaker`: the breaker opened while
 // it was tidying. `zone`: it wrote outside what it held, or in what a cook
 // holds — nothing is delivered. `failed`: its cook failed, or its delivery
 // could not go out. `interrupted`: the runtime died while it was tidying.
-export type FinDePasse = "delivered" | "nothing" | "tokens" | "removals" | "idle" | "duration" | "turns" | "stop" | "breaker" | "zone" | "failed" | "interrupted";
+export type FinDePasse = "delivered" | "nothing" | "tokens" | "removals" | "idle" | "duration" | "stop" | "breaker" | "zone" | "failed" | "interrupted";
 
 // A candidate from the observation that the pass did not remove: which, and
 // why. `before`: set aside before it started — a cook held it, or the pass

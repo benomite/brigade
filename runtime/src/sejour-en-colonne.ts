@@ -1,5 +1,5 @@
 // Le séjour d'un ticket pris dans sa colonne, lu du journal (#1893). `since` du rail repart à chaque
-// `ticket.taken` : un cook arrêté (garde-fou des 100 tours, échec, redémarrage du runtime) puis relancé
+// `ticket.taken` : un cook arrêté (garde-fou, échec, redémarrage du runtime) puis relancé
 // remettait l'âge de la carte à zéro. Le séjour, lui, commence à la première prise qui est entrée dans la
 // colonne et court à travers les relances qui suivent la fin d'un cook (`cook.exited`, `cook.interrupted`) ;
 // il recommence quand le ticket a quitté la colonne — pass, 86, WAITING, servi, parti — puis y est rentré.
@@ -9,7 +9,7 @@
 import type { Base } from "./base.ts";
 
 // `depuis` : la prise. `jusqua` : la fin du cook, nulle tant qu'il tourne. `arret` : pourquoi il s'est arrêté —
-// le motif du garde-fou quand il en a posé un (`turns`, `idle`…), sinon l'issue du cook (`failed`, `ok`…), la
+// le motif du garde-fou quand il en a posé un (`duration`, `idle`…), sinon l'issue du cook (`failed`, `ok`…), la
 // cause de son arrêt par la cuisine (`stop`, `move`) ou `interrupted` (le cook est mort avec le runtime) ; nul
 // pour l'essai en cours. `enCours` : c'est le cook courant.
 export type Essai = { depuis: string; jusqua: string | null; arret: string | null; enCours: boolean };

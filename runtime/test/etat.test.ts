@@ -7,7 +7,7 @@ import { ouvrirJournal } from "../src/journal.ts";
 import { ouvrirRail } from "../src/rail.ts";
 import { faitInconnu, horloge, jourDecale, JOUR_HORLOGE, jusqua, repertoireTemporaire } from "./outils.ts";
 
-const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
+const LIMITES = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
 
 function cuisine(t: TestContext) {
   const repertoire = repertoireTemporaire(t);
@@ -66,7 +66,7 @@ test("le chef voit le runtime et son dernier tick, les tickets par état, les co
     "  #18  queued  -  since 4 min  Ticket 18",
     "",
     "cooks      2 running",
-    "  #14  14-3f9a01bc  4 min of 1 h 00 · 12 turns of 100 · 184,000 tokens of 2,000,000 (reading 3 min ago) · no progress since 4 min",
+    "  #14  14-3f9a01bc  4 min of 1 h 00 · 12 turns · 184,000 tokens of 2,000,000 (reading 3 min ago) · no progress since 4 min",
     "  #16  16-aa  3 min of 1 h 00 · turns and tokens: no reading yet",
     "",
     "consumed   in flight: 2 launches · 12 turns · 184,000 tokens",
@@ -76,7 +76,7 @@ test("le chef voit le runtime et son dernier tick, les tickets par état, les co
     "",
     "latest events",
     `  1  ${JOUR_HORLOGE}T10:00:00.000Z  brigade  -  runtime.started  runtime  {"pid":4211,"host":"box","node":"v26"}`,
-    `  2  ${JOUR_HORLOGE}T10:00:01.000Z  brigade  -  guard.configured  runtime  {"limits":{"turns":100,"durationMs":3600000,"tokens":2000000,"idleMs":600000},"breakerThreshold":3}`,
+    `  2  ${JOUR_HORLOGE}T10:00:01.000Z  brigade  -  guard.configured  runtime  {"limits":{"durationMs":3600000,"tokens":2000000,"idleMs":600000},"breakerThreshold":3}`,
     `  3  ${JOUR_HORLOGE}T10:00:02.000Z  brigade  #14  ticket.arrived  github  {"title":"Ticket 14","priority":1,"createdAt":"2026-10-01T00:00:14Z","url":"https://exemple.test/14"}`,
     `  4  ${JOUR_HORLOGE}T10:00:03.000Z  brigade  #15  ticket.arrived  github  {"title":"Ticket 15","priority":1,"createdAt":"2026-10-01T00:00:15Z","url":"https://exemple.test/15"}`,
     `  5  ${JOUR_HORLOGE}T10:00:04.000Z  brigade  #16  ticket.arrived  github  {"title":"Ticket 16","priority":2,"createdAt":"2026-10-01T00:00:16Z","url":"https://exemple.test/16"}`,
@@ -86,8 +86,8 @@ test("le chef voit le runtime et son dernier tick, les tickets par état, les co
     `  9  ${JOUR_HORLOGE}T10:00:08.000Z  brigade  #15  ticket.taken  station:box/claude-sonnet  {"station":"box/claude-sonnet","leaseUntil":"${JOUR_HORLOGE}T10:10:30.000Z"}`,
     `  10  ${JOUR_HORLOGE}T10:00:09.000Z  brigade  #15  ticket.passing  station:box/claude-sonnet  {"station":"box/claude-sonnet"}`,
     `  11  ${JOUR_HORLOGE}T10:00:10.000Z  brigade  #17  ticket.86  runtime  {"reason":"quota","until":"${JOUR_HORLOGE}T15:00:00.000Z"}`,
-    `  12  ${JOUR_HORLOGE}T10:00:11.000Z  brigade  #14  cook.launched  runtime  {"run":"14-3f9a01bc","limits":{"turns":100,"durationMs":3600000,"tokens":2000000,"idleMs":600000},"stream":"runs/14-3f9a01bc.jsonl"}`,
-    `  13  ${JOUR_HORLOGE}T10:00:12.000Z  brigade  #16  cook.launched  runtime  {"run":"16-aa","limits":{"turns":100,"durationMs":3600000,"tokens":2000000,"idleMs":600000},"stream":"runs/16-aa.jsonl"}`,
+    `  12  ${JOUR_HORLOGE}T10:00:11.000Z  brigade  #14  cook.launched  runtime  {"run":"14-3f9a01bc","limits":{"durationMs":3600000,"tokens":2000000,"idleMs":600000},"stream":"runs/14-3f9a01bc.jsonl"}`,
+    `  13  ${JOUR_HORLOGE}T10:00:12.000Z  brigade  #16  cook.launched  runtime  {"run":"16-aa","limits":{"durationMs":3600000,"tokens":2000000,"idleMs":600000},"stream":"runs/16-aa.jsonl"}`,
   ]);
 });
 
@@ -321,7 +321,7 @@ test("à plusieurs cooks, le chef lit le plafond et, par cook, son ticket, son c
   // Huit cœurs : trois cooks au plus, pas les trente qu'elle déclare.
   assert.deepEqual(lignes.slice(lignes.indexOf("cooks      3 running — box/claude: 3 at most — 8 cores"), lignes.indexOf("consumed   in flight: 3 launches, of which 1 judgment · 12 turns · 184,000 tokens") - 1), [
     "cooks      3 running — box/claude: 3 at most — 8 cores",
-    "  #14  14-aa  opus / high  cook/14-aa in worktrees/14-aa  4 min of 1 h 00 · 12 turns of 100 · 184,000 tokens of 2,000,000 (reading 4 min ago) · no progress since 4 min",
+    "  #14  14-aa  opus / high  cook/14-aa in worktrees/14-aa  4 min of 1 h 00 · 12 turns · 184,000 tokens of 2,000,000 (reading 4 min ago) · no progress since 4 min",
     "  #15  15-bb  sonnet / high  cook/15-bb in worktrees/15-bb  4 min of 1 h 00 · turns and tokens: no reading yet · no progress since 4 min",
     "  manager  juge-9-cc  haiku / high  4 min of 1 h 00 · turns and tokens: no reading yet",
   ]);

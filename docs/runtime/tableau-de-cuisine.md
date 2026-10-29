@@ -77,7 +77,7 @@ without them, as it does for a runtime that does not give a field.
 | `urgence` | Nothing cooks and everything awaits the chef: `depuis`, `retenus`, `decisions` (the `nom` of the lines holding them); `null` otherwise |
 | `cooks[]` | **The cooks in progress**: `ticket` (`null` for a manager or a judge), `run` (the cook), `station`, `modele`, `effort`, `lanceLe`, `coince`, `tours`, `tokens` |
 | `stations[]` | `station`, `distante`, `plafond`, `satureeDepuis`, `saturation`, `retenueDepuis`, `deconnecteeDepuis`, `quotaJusqua` |
-| `plafonds` | A cook's caps: `tours`, `tokens`, `dureeMs`, `inactiviteMs`; `null` until a runtime set them |
+| `plafonds` | A cook's caps: `tokens`, `dureeMs`, `inactiviteMs`; `null` until a runtime set them |
 | `consommation` | `enCours`, and `fenetres` by sliding window (`heures`): `runs`, `reviews`, `judgments`, `turns`, `tokens` |
 | `rubriques[]` | The state as `status` writes it, section by section: `titre` and `lignes`. Without what only the box can read (worktrees, transcripts, the latest events); `rail` gives only its count — the tickets are in `faits` and `lignesDuRail`. The `switch` section is always there (#1770): the project switch, `ON …` or `OFF …`; while no runtime has set it in the log, `ON — not set in the log yet`, because nothing holds the kitchen. The board does not carry what is upcoming (`manager upstream`): an app shows no count rather than a guess |
 

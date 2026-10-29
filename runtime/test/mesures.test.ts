@@ -13,7 +13,7 @@ import { decrireReleve, direJauge, franchis, jauger, SANS_SEUIL, trancher } from
 import { mergedDeliveries, seuilsEnVigueur, signalements, type Delivery } from "../src/projections/measures.ts";
 import { appeler, horloge, JOUR_HORLOGE, lancer, repertoireTemporaire } from "./outils.ts";
 
-const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
+const LIMITES = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
 const MESURES = join(import.meta.dirname, "../src/montrer-mesures.ts");
 
 type Cuisson = { tours: number; ms: number; modele?: string; effort?: string; station?: string; outcome?: "ok" | "failed" };

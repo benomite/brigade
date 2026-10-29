@@ -86,7 +86,7 @@ export type CuisineDuTableau = {
     quotaJusqua: string | null;
   }>;
   // Les plafonds d'un cook (garde-fous), nuls tant qu'aucun runtime ne les a posés.
-  plafonds: { tours: number; tokens: number; dureeMs: number; inactiviteMs: number } | null;
+  plafonds: { tokens: number; dureeMs: number; inactiviteMs: number } | null;
   // Ce que les cooks ont consommé : ceux qui tournent, puis par fenêtre glissante.
   consommation: { enCours: ConsommationDuTableau; fenetres: Array<{ heures: number } & ConsommationDuTableau> };
   // L'état tel que `status` l'écrit, rubrique par rubrique.

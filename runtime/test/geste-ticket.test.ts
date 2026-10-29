@@ -82,7 +82,7 @@ function cuisine(t: TestContext, ...issues: Issue[]) {
   return { journal, github, ecrits, etat, prendre, livrer, arreter, remonter, prs, repondre };
 }
 
-const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
+const LIMITES = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
 const prDe = (ticket: number) => `https://github.com/${DEPOT}/pull/${100 + ticket}`;
 
 test("retirer un ticket en attente le fait disparaître du rail, et dit son prix", async (t) => {

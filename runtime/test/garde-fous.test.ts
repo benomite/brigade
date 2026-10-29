@@ -15,7 +15,7 @@ import { posixOnly } from "./support/plateforme.ts";
 // Le cook « bavard » rend un tour toutes les deux millisecondes, de vraie
 // horloge : ni les tours (200 s pour 100 000) ni la durée (une heure) ne sont
 // atteints pendant un test. Celui qui éprouve un plafond règle le sien.
-const PLAFONDS: Plafonds = { turns: 100_000, durationMs: 3_600_000, tokens: 1_000_000, idleMs: 60_000 };
+const PLAFONDS: Plafonds = { durationMs: 3_600_000, tokens: 1_000_000, idleMs: 60_000 };
 const REGLAGES: Reglages = { plafonds: PLAFONDS, seuilDisjoncteur: 3, graceMs: 2000 };
 
 function cuisine(t: TestContext, reglages: Partial<Reglages> = {}, repertoire = repertoireTemporaire(t)) {
@@ -98,7 +98,7 @@ test("le lancement porte au journal ce que la station dit du cook : son nom de r
 });
 
 test("un cook arrêté par un garde-fou, mais que son lanceur juge livré, est une réussite : le motif reste au journal", async (t) => {
-  const { runtime, faits } = cuisine(t, { plafonds: { ...PLAFONDS, turns: 3 } });
+  const { runtime, faits } = cuisine(t, { plafonds: { ...PLAFONDS, tokens: 25 } });
   const juges: Array<string | undefined> = [];
 
   const fin = await runtime.lancer({
@@ -110,13 +110,13 @@ test("un cook arrêté par un garde-fou, mais que son lanceur juge livré, est u
   }).fin;
 
   assert.equal(fin.outcome, "ok");
-  assert.deepEqual(juges, ["turns"]);
+  assert.deepEqual(juges, ["tokens"]);
   assert.deepEqual(faits(7), ["cook.launched", "guard.tripped", "cook.exited"]);
   assert.equal(etatDesGardeFous(runtime.journal.base).failures, 0);
 });
 
-test("un cook arrêté par un garde-fou et que son lanceur ne juge pas livré reste un arrêt par garde-fou", async (t) => {
-  const { runtime } = cuisine(t, { plafonds: { ...PLAFONDS, turns: 3 } });
+test("un cook arrêté par un garde-fou et que son lanceur ne juge pas livré reste un arrêt par garde-fou, qui ne compte pas pour le disjoncteur", async (t) => {
+  const { runtime } = cuisine(t, { plafonds: { ...PLAFONDS, tokens: 25 } });
 
   const fin = await runtime.lancer({
     ticket: 7,
@@ -127,7 +127,7 @@ test("un cook arrêté par un garde-fou et que son lanceur ne juge pas livré re
   }).fin;
 
   assert.equal(fin.outcome, "guard");
-  assert.equal(etatDesGardeFous(runtime.journal.base).failures, 1);
+  assert.equal(etatDesGardeFous(runtime.journal.base).failures, 0);
 });
 
 test("le « stop » du chef ne se juge pas", async (t) => {
@@ -166,7 +166,7 @@ test("deux cooks d'un même ticket ont deux runs distincts", async (t) => {
 });
 
 test("un cook qui dépasse son plafond est arrêté, et le motif est au journal de son ticket avant sa fin", async (t) => {
-  const { runtime, cook } = cuisine(t, { plafonds: { ...PLAFONDS, turns: 3 } });
+  const { runtime, cook } = cuisine(t, { plafonds: { ...PLAFONDS, tokens: 25 } });
 
   const lance = cook(7, "bavard");
   const fin = await lance.fin;
@@ -176,7 +176,7 @@ test("un cook qui dépasse son plafond est arrêté, et le motif est au journal 
     runtime.journal.duTicket(7).map((e) => [e.type, e.type === "guard.tripped" ? e.payload : null]),
     [
       ["cook.launched", null],
-      ["guard.tripped", { run: lance.run, reason: "turns", limit: 3, observed: 4 }],
+      ["guard.tripped", { run: lance.run, reason: "tokens", limit: 25, observed: 30 }],
       ["cook.exited", null],
     ],
   );
@@ -504,7 +504,7 @@ test("un cook relayé repris pendant que la cuisine est arrêtée s'arrête auss
 });
 
 test("ce qu'un cook relayé dit est masqué avant d'être écrit — les secrets qu'il reçoit et la forme des identifiants de Claude —, et ses plafonds tiennent", async (t) => {
-  const { cook, flux, repertoire } = cuisineRelayee(t, repertoireTemporaire(t), { plafonds: { ...PLAFONDS, turns: 5 } });
+  const { cook, flux, repertoire } = cuisineRelayee(t, repertoireTemporaire(t), { plafonds: { ...PLAFONDS, tokens: 45 } });
   const CLE_API = "une-valeur-secrete-assez-longue";
   const revele = cook(7, "livre-et-revele", { CLE_API });
   const fin = await revele.fin;
@@ -519,13 +519,13 @@ test("ce qu'un cook relayé dit est masqué avant d'être écrit — les secrets
 
   const bavard = cook(9, "bavard");
   const arrete = await bavard.fin;
-  assert.deepEqual([arrete.outcome, arrete.arret?.reason], ["guard", "turns"]);
+  assert.deepEqual([arrete.outcome, arrete.arret?.reason], ["guard", "tokens"]);
   assert.ok(existsSync(join(repertoire, "runs", `${bavard.run}.fin.json`)));
 });
 
 test("à chaque tick, un cook en cours laisse au journal de son ticket ce qu'il a consommé et ce qu'il fait ; fini, il n'en laisse plus", async (t) => {
   const runtime = brancherGardeFous(
-    { ...REGLAGES, plafonds: { ...PLAFONDS, turns: 40 } },
+    { ...REGLAGES, plafonds: { ...PLAFONDS, tokens: 400 } },
     demarrer({ repertoireEtat: repertoireTemporaire(t), projet: "brigade", intervalleVeilleMs: 60_000, intervalleTickMs: 5 }),
   );
   t.after(() => runtime.arreter("test"));
@@ -555,21 +555,21 @@ test("un runtime arrêté ne lance plus rien", (t) => {
   assert.throws(() => runtime.lancer({ ticket: 7, commande: FAUX_CLAUDE, args: [] }), /arrêté/);
 });
 
-test("une relance du manager jugée rouge compte au disjoncteur, et l'ouvre au seuil : plus aucun cook n'est lancé", async (t) => {
+test("une relance du manager jugée rouge ne compte pas au disjoncteur : une livraison rouge n'est pas une cuisine cassée", async (t) => {
   const { runtime, cook, faits } = cuisine(t, { seuilDisjoncteur: 2 });
   const relance = (scenario: string) =>
     runtime.lancer({ ticket: 17, contexte: { relaunch: true }, commande: FAUX_CLAUDE, args: [], env: { ...ENV_ENFANT, FAUX_CLAUDE: scenario } });
 
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < 3; i++) {
     // Le cook livre : sa fin ne dit rien, c'est la pass qui juge.
     const lance = relance("fini");
     assert.equal((await lance.fin).outcome, "ok");
     runtime.jugerRelance(17, lance.run, "red");
   }
 
-  assert.equal(etatDesGardeFous(runtime.journal.base).failures, 2);
-  assert.deepEqual(faits().filter((type) => type === "breaker.opened"), ["breaker.opened"]);
-  assert.throws(() => cook(18, "fini"), LancementRefuse);
+  assert.equal(etatDesGardeFous(runtime.journal.base).failures, 0);
+  assert.deepEqual(faits().filter((type) => type === "breaker.opened"), []);
+  assert.doesNotThrow(() => cook(18, "fini"));
 });
 
 // Un cook signalé de l'extérieur (SIGTERM, 143) pendant que brigade demandait

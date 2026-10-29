@@ -25,7 +25,7 @@ function histoire(t: TestContext) {
   const refuser = (ticket: number) => noter({ type: "merge.failed", payload: { pr: PR, sha: `sha-${ticket}`, reason: "refusé" } }, ticket, "pass");
   // Un cook parti sur le ticket : sa livraison a une branche, que la pass peut lâcher.
   const cuisiner = (ticket: number) =>
-    noter({ type: "cook.launched", payload: { run: `r${ticket}`, limits: { turns: 1, durationMs: 1, tokens: 1, idleMs: 1 }, stream: `runs/r${ticket}.jsonl`, branch: `cook/${ticket}`, worktree: `worktrees/${ticket}` } }, ticket, "runtime");
+    noter({ type: "cook.launched", payload: { run: `r${ticket}`, limits: { durationMs: 1, tokens: 1, idleMs: 1 }, stream: `runs/r${ticket}.jsonl`, branch: `cook/${ticket}`, worktree: `worktrees/${ticket}` } }, ticket, "runtime");
   const grant = (heure = "10:30:00") => etatDuGrant(journal.base, "merge", a(heure));
   return { journal, base: journal.base, noter, cuisiner, vouloir, merger, refuser, grant };
 }
@@ -214,7 +214,7 @@ describe("le grant au journal", () => {
 
   test("une livraison arrêtée après l'extinction garde l'instant où le grant s'est éteint", (t) => {
     const { base, noter } = histoire(t);
-    noter({ type: "cook.launched", payload: { run: "a", limits: { turns: 1, durationMs: 1, tokens: 1, idleMs: 1 }, stream: "runs/a.jsonl", branch: "cook/a", worktree: "worktrees/a" } }, 17, "runtime");
+    noter({ type: "cook.launched", payload: { run: "a", limits: { durationMs: 1, tokens: 1, idleMs: 1 }, stream: "runs/a.jsonl", branch: "cook/a", worktree: "worktrees/a" } }, 17, "runtime");
     noter({ type: "pass.held", payload: { reason: "no-grant", expired: iso("12:00:00") } }, 17, "pass");
     assert.deepEqual([passDuTicket(base, 17)?.reason, passDuTicket(base, 17)?.grantExpired], ["no-grant", iso("12:00:00")]);
 
@@ -307,7 +307,7 @@ describe("les gestes du chef sur le grant", () => {
   function chef(t: TestContext) {
     const lieu = histoire(t);
     // Le journal n'est pas vide : un runtime y a démarré.
-    lieu.noter({ type: "cook.launched", payload: { run: "z", limits: { turns: 1, durationMs: 1, tokens: 1, idleMs: 1 }, stream: "runs/z.jsonl", branch: "cook/z", worktree: "worktrees/z" } }, 99, "runtime");
+    lieu.noter({ type: "cook.launched", payload: { run: "z", limits: { durationMs: 1, tokens: 1, idleMs: 1 }, stream: "runs/z.jsonl", branch: "cook/z", worktree: "worktrees/z" } }, 99, "runtime");
     const commander = (commande: Commande, heure: Date, ...args: string[]) => commanderGrant(lieu.journal, commande, "merge", lireEcheance(args, heure), heure, duree);
     const refus = (commande: Commande, heure: Date, ...args: string[]) => {
       try {

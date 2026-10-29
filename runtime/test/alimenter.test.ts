@@ -484,7 +484,7 @@ test("un ticket attendu parti en laissant une livraison n'est pas dit levé avan
   const noter = (ticket: number, type: string, payload: Record<string, unknown>) => journal.ajouter({ project: "brigade", ticket, author: "pass", type, payload } as Parameters<Journal["ajouter"]>[0]);
   const livrer = (ticket: number) => {
     const [run, branch, pr] = [`run-${ticket}`, `cook/${ticket}`, `https://github.com/${DEPOT}/pull/${ticket + 100}`];
-    noter(ticket, "cook.launched", { run, limits: { turns: 1, durationMs: 1, tokens: 1, idleMs: 1 }, stream: `runs/${run}.jsonl`, branch, worktree: `worktrees/${run}` });
+    noter(ticket, "cook.launched", { run, limits: { durationMs: 1, tokens: 1, idleMs: 1 }, stream: `runs/${run}.jsonl`, branch, worktree: `worktrees/${run}` });
     noter(ticket, "cook.reported", { run, ending: "done", reason: null, summary: null, branch, pr });
     return { branch, pr };
   };

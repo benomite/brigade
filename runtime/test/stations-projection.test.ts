@@ -8,7 +8,7 @@ import { compteRetenu, consommationDesCooks, cooksDeStation, direPlafondEn, etat
 import { faitInconnu, horloge, JOUR_HORLOGE, repertoireTemporaire } from "./outils.ts";
 
 const STATION = "box/claude";
-const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
+const LIMITES = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
 const ANNONCE = { station: STATION, engine: "claude", provides: ["code"], maxCooks: 1 };
 
 function cuisine(t: TestContext) {

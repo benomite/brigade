@@ -59,7 +59,6 @@ const FINS_DE_PASSE: Record<string, (removed: number) => string> = {
   removals: () => "stopped a cleanup at its removed-lines cap",
   idle: () => "stopped a cleanup that went idle",
   duration: () => "stopped a cleanup at its duration cap",
-  turns: () => "stopped a cleanup at its turns cap",
   stop: () => "stopped a cleanup on your stop",
   breaker: () => "stopped a cleanup: the breaker opened",
   zone: () => "stopped a cleanup that wrote outside its zone",

@@ -127,7 +127,7 @@ test("l'état d'exemple fait paraître chaque ligne du bas de `status`, et aucun
     "           box/claude WITHHOLDING for 2 min — gradual ramp-up, cooks that have just left weigh in advance: the servable tickets wait",
     "           ARBITER UNREACHABLE for 2 min — connection refused: box/claude launches only one cook at a time, with no arbitration, until it is back",
     "  #23  STUCK  23-bb  sonnet / medium  2 min of 1 h 00 · turns and tokens: no reading yet · no progress since 5 min",
-    "  #31  31-aa  opus / high  cook/31-aa in worktrees/31-aa  2 min of 1 h 00 · 12 turns of 100 · 184,000 tokens of 2,000,000 (reading 2 min ago) · no progress since 2 min · right now: reading runtime/src/etat.ts, since 2 min",
+    "  #31  31-aa  opus / high  cook/31-aa in worktrees/31-aa  2 min of 1 h 00 · 12 turns · 184,000 tokens of 2,000,000 (reading 2 min ago) · no progress since 2 min · right now: reading runtime/src/etat.ts, since 2 min",
     "  manager  juge-9-cc  haiku / low  2 min of 1 h 00 · turns and tokens: no reading yet",
     "",
     "worktrees  3 not cleaned up after their cook — nothing in them is touched, the runtime comes back to them at every tick",
@@ -174,8 +174,9 @@ test("sur l'état d'exemple d'avant, chaque ligne du bas dit les mêmes tickets,
   });
   // Les nombres, durées et tickets d'une ligne sont ceux de la ligne d'avant (hors événements, qui sont les mêmes mot pour mot).
   const finRail = avant.indexOf("derniers événements");
-  avant.slice(0, finRail).forEach((ligne, rang) => assert.deepEqual(chiffres(apres[rang] ?? ""), chiffres(ligne, true), `${ligne}\n→ ${apres[rang]}`));
-  assert.deepEqual(apres.slice(apres.indexOf("latest events") + 1), avant.slice(finRail + 1));
+  // Le plafond de tours n'existe plus (ticket 1906) : « 12 tours sur 100 » d'avant se lit « 12 tours ».
+  avant.slice(0, finRail).forEach((ligne, rang) => assert.deepEqual(chiffres(apres[rang] ?? ""), chiffres(ligne.replace(/ tours sur 100\b/, " tours"), true), `${ligne}\n→ ${apres[rang]}`));
+  assert.deepEqual(apres.slice(apres.indexOf("latest events") + 1), avant.slice(finRail + 1).map((ligne) => ligne.replace('"limits":{"turns":100,', '"limits":{')));
 });
 
 test("`facts` de l'état d'exemple est identique à ce qu'il était avant la traduction : mêmes clés, mêmes valeurs", (t) => {

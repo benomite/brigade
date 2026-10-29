@@ -152,8 +152,6 @@ export function direFin({ outcome, observed, limit, pr, removedLines, files, kep
       return `arrêtée : inactive (rien produit depuis ${mesure(duree)}) — ${rienDeLivre}`;
     case "duration":
       return `arrêtée : plafond de durée atteint (${mesure(duree)}) — ${rienDeLivre}`;
-    case "turns":
-      return `arrêtée : plafond de tours atteint (${mesure(nombre)}) — ${rienDeLivre}`;
     case "stop":
       return `arrêtée par le « stop » du chef — ${rienDeLivre}`;
     case "breaker":
@@ -184,8 +182,6 @@ export function direFinEn({ outcome, observed, limit, pr, removedLines, files, k
       return `stopped: idle (nothing produced for ${mesure(duree)}) — ${nothingDelivered}`;
     case "duration":
       return `stopped: duration cap reached (${mesure(duree)}) — ${nothingDelivered}`;
-    case "turns":
-      return `stopped: turn cap reached (${mesure(nombre)}) — ${nothingDelivered}`;
     case "stop":
       return `stopped by the chef's “stop” — ${nothingDelivered}`;
     case "breaker":

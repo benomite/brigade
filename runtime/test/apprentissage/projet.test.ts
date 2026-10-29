@@ -27,7 +27,7 @@ function projet(t: TestContext, { garni = true } = {}) {
     ] });
     saveDefinition(depot, { name: "app-src-vue", zone: "app/src/vue", perimeter: ["app/src/vue"], skills: [], accepted: "2026-10-19", tickets: [3, 4], notebook: { lessons: [{ id: "L-001", text: "peau mince", state: "promoted", entered: "2026-10-02", retros: ["#3"], origin: { kind: "chef-correction", ticket: 3 } }] } });
     // Deux cooks ont reçu la leçon provisoire, un seul la promue ; un troisième n'en a reçu aucune.
-    for (const [run, lessons] of [["a", ["L1", "L-001"]], ["b", ["L1"]], ["c", []]] as const) journal.ajouter({ project: "p", ticket: null, author: "station", type: "cook.launched", payload: { run, limits: { turns: 1, durationMs: 1, tokens: 1, idleMs: 1 }, stream: `runs/${run}.jsonl`, lessons: [...lessons] } });
+    for (const [run, lessons] of [["a", ["L1", "L-001"]], ["b", ["L1"]], ["c", []]] as const) journal.ajouter({ project: "p", ticket: null, author: "station", type: "cook.launched", payload: { run, limits: { durationMs: 1, tokens: 1, idleMs: 1 }, stream: `runs/${run}.jsonl`, lessons: [...lessons] } });
   }
   return { etat, depot, journal };
 }

@@ -10,7 +10,7 @@ import { decrireReleve, trancher } from "../src/mesures.ts";
 import { mergedDeliveries, type CookMesure, type Delivery } from "../src/projections/measures.ts";
 import { horloge, JOUR_HORLOGE, repertoireTemporaire } from "./outils.ts";
 
-const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
+const LIMITES = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
 
 function cuisine(t: TestContext) {
   const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: horloge() });

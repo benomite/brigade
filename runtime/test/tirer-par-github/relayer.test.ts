@@ -96,7 +96,7 @@ test("le tableau publie la dernière réponse de chaque créneau, tant qu'elle a
   Object.assign(gists.get("gistmac")!, poserLaDemande(posee()));
   await relayer();
   const args = ["-p", "La consigne", "--model", "opus"];
-  const mission = { ticket: 17, title: "T", run: "17-a", branch: "cook/17-a", base: "v2", repository: DEPOT, model: "opus", effort: "high", prompt: "La consigne", args, limits: { turns: 1, tokens: 1, durationMs: 1, idleMs: 1 }, leaseMs: 1, leaseUntil: "2026-10-27T10:30:00.000Z", resumes: null };
+  const mission = { ticket: 17, title: "T", run: "17-a", branch: "cook/17-a", base: "v2", repository: DEPOT, model: "opus", effort: "high", prompt: "La consigne", args, limits: { tokens: 1, durationMs: 1, idleMs: 1 }, leaseMs: 1, leaseUntil: "2026-10-27T10:30:00.000Z", resumes: null };
   journal.ajouter({ project: "app", ticket: 17, author: "runtime", type: "remote.answered", payload: { id: ID, station: MAC, ok: true, verb: "claim", mission, held: null } });
   const maintenant = new Date(INSTANT);
   const distantes = distantesDuTableau(journal.base, maintenant);
