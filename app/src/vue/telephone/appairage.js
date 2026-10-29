@@ -75,7 +75,7 @@ export function adresseDuGuichet(tapee) {
 // Ce que l'écran écrit d'une adresse — dans le champ, dans ses lignes : sans son protocole quand on le
 // retrouve sans lui (`192.168.1.20:7010`, `box.tail1234.ts.net`), entière sinon.
 /** @param {string} adresse */
-const hoteDe = (adresse) => {
+const machineDe = (adresse) => {
   const court = adresse.replace(/^https?:\/\//, "");
   return adresseDuGuichet(court) === adresse ? court : adresse;
 };
@@ -84,14 +84,14 @@ const hoteDe = (adresse) => {
 // (100.64.0.0/10) ?
 /** @param {string} adresse */
 export function parLeTailnet(adresse) {
-  let hote;
+  let machine;
   try {
-    hote = new URL(adresse).hostname;
+    machine = new URL(adresse).hostname;
   } catch {
     return false;
   }
-  const [, second] = /^100\.(\d+)\.\d+\.\d+$/.exec(hote) ?? [];
-  return TAILNET.test(hote) || (second !== undefined && Number(second) >= 64 && Number(second) <= 127);
+  const [, second] = /^100\.(\d+)\.\d+\.\d+$/.exec(machine) ?? [];
+  return TAILNET.test(machine) || (second !== undefined && Number(second) >= 64 && Number(second) <= 127);
 }
 
 // Ce que le téléphone dit de lui en s'appairant, lu dans le user agent de sa WebView
@@ -128,11 +128,11 @@ export function issueDe(reponse, adresse) {
   if (reason === "expire") return { etat: "code", ligne: "This code has expired: ask your station for a new one.", detail: said };
   if (reason === "utilise") return { etat: "code", ligne: "This code was already used: ask your station for a new one.", detail: said };
   if (reason === "essais") return { etat: "code", ligne: "Too many wrong codes: wait a few minutes, then try again.", detail: said };
-  const hote = hoteDe(adresse);
-  if (reason === "injoignable" && parLeTailnet(adresse)) return { etat: "injoignable", ligne: `This phone cannot reach ${hote} on your tailnet.`, detail: `${said} — check that the Tailscale app is on, on this phone, signed in to your account, and that the station's machine is on.` };
-  if (reason === "injoignable") return { etat: "injoignable", ligne: `This phone cannot reach your station at ${hote}.`, detail: `${said} — on the station's network, check that it is running; from any other network, scan its QR once its phone desk is on your tailnet.` };
-  if (reason === "sans-guichet") return { etat: "injoignable", ligne: `${hote} answers, but the station's phone desk behind it does not.`, detail: `${said} — check that the station is running there, with its phone desk on.` };
-  if (reason === "inattendu") return { etat: "injoignable", ligne: `What answers at ${hote} is not a station's phone desk.`, detail: said };
+  const machine = machineDe(adresse);
+  if (reason === "injoignable" && parLeTailnet(adresse)) return { etat: "injoignable", ligne: `This phone cannot reach ${machine} on your tailnet.`, detail: `${said} — check that the Tailscale app is on, on this phone, signed in to your account, and that the station's machine is on.` };
+  if (reason === "injoignable") return { etat: "injoignable", ligne: `This phone cannot reach your station at ${machine}.`, detail: `${said} — on the station's network, check that it is running; from any other network, scan its QR once its phone desk is on your tailnet.` };
+  if (reason === "sans-guichet") return { etat: "injoignable", ligne: `${machine} answers, but the station's phone desk behind it does not.`, detail: `${said} — check that the station is running there, with its phone desk on.` };
+  if (reason === "inattendu") return { etat: "injoignable", ligne: `What answers at ${machine} is not a station's phone desk.`, detail: said };
   return { etat: "refuse", ligne: "The station refused to pair this phone.", detail: said };
 }
 
@@ -219,7 +219,7 @@ export function tenirAppairage(lieu, doc, { pont, userAgent, apres }) {
     occuper(true);
     const attente = doc.createElement("p");
     attente.className = "attente";
-    attente.textContent = `Waiting for your station at ${hoteDe(joint)}…`;
+    attente.textContent = `Waiting for your station at ${machineDe(joint)}…`;
     dire(attente);
     const { nom, machine } = presentationDuTelephone(userAgent);
     /** @param {string} sous */
@@ -265,7 +265,7 @@ export function tenirAppairage(lieu, doc, { pont, userAgent, apres }) {
     const lu = lireLeQr(lecture.lu);
     if (lu === null) return void dire(lectureIndisponible(doc, "This QR is not a pairing code from a station.", lecture.lu));
     code.saisie.value = lu.code;
-    if (lu.adresse !== null) adresse.saisie.value = hoteDe(lu.adresse);
+    if (lu.adresse !== null) adresse.saisie.value = machineDe(lu.adresse);
     await envoyer();
   }
   // Un lien qui arrive pendant un envoi est laissé — la station n'a pas encore répondu au premier — : il se rescanne.

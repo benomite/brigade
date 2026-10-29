@@ -164,12 +164,6 @@ pre.propos {
   background: none;
   border: 1px dashed var(--trait-fort);
 }
-/* Désinstallé de sa box par l'app : encore là, plus pilotable. */
-#projets button.desinstalle {
-  color: var(--discret);
-  background: none;
-  border: 1px dotted var(--trait-fort);
-}
 #projets button[aria-current="true"] {
   color: var(--fond);
   background: var(--accent);
@@ -179,7 +173,7 @@ pre.propos {
   background: var(--teinte);
   border-color: var(--teinte);
 }
-#projets button:is(.refuse, .desinstalle)[aria-current="true"] {
+#projets button.refuse[aria-current="true"] {
   border-color: var(--fond);
 }
 /* Une case qu'on range : elle s'efface à demi tant qu'elle glisse, et un trait d'accent, dans
@@ -1953,11 +1947,6 @@ main > header,
 [data-etat="en-cours"] {
   color: var(--discret);
 }
-/* Ni une panne ni un refus : l'app l'a désinstallé de sa box, et n'en lit plus rien. */
-[data-etat="desinstalle"] {
-  color: var(--bleu);
-  border-left: 4px dotted var(--bleu);
-}
 /* Le code de l'app, et les clones de brigade parmi les projets, sous cette machine dans Settings : à jour, une
    ligne discrète ; en retard sur son origine — ou à relancer —, en alerte ; pas lu, en alerte : ce n'est pas
    « à jour ». */
@@ -3300,8 +3289,7 @@ main > header,
 #rail :is(.station-declaree, .station-de-cuisson) .edition .capacite:hover {
   border-color: var(--trait-fort);
 }
-#rail :is(.station-declaree, .station-de-cuisson) .edition .capacite input,
-#rail :is(.station-declaree, .station-de-cuisson) .edition .jouee input {
+#rail :is(.station-declaree, .station-de-cuisson) .edition .capacite input {
   margin: 0;
   accent-color: var(--accent);
 }
@@ -3309,12 +3297,6 @@ main > header,
   grid-column: 2;
   font-size: 12px;
   color: var(--discret);
-}
-#rail :is(.station-declaree, .station-de-cuisson) .edition .jouee {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
 }
 #rail :is(.station-declaree, .station-de-cuisson) .edition .gestes {
   display: flex;
@@ -6566,9 +6548,12 @@ button.recommande {
   font-weight: 600;
   overflow-wrap: anywhere;
 }
-/* Le geste que le second nomme (ticket 1521) : sous le terminal, à la place des choix, un bouton qui montre la commande
-   exacte, entière — ses espaces gardés, une commande longue passe à la ligne, rien n'est coupé ni caché. Le clic ouvre
-   dessous la confirmation commune, qui la redit entière avant « run it ». */
+/* Le geste que le second nomme (ticket 1521) : sous le terminal, à la place des choix, un bouton dit en mots ; la commande
+   exacte, entière — ses espaces gardés, une commande longue passe à la ligne, rien n'est coupé —, est au survol du bouton
+   et dans l'aide repliée de la confirmation commune que le clic ouvre, avant « run it ». */
+.geste-du-second > .survol {
+  display: block;
+}
 .geste-du-second button.geste {
   display: block;
   width: 100%;
@@ -6603,6 +6588,13 @@ button.recommande {
 }
 .geste-du-second .confirmation > p.titre {
   font-weight: 600;
+}
+.geste-du-second .replie > summary {
+  cursor: pointer;
+}
+.geste-du-second .replie > summary .resume {
+  margin-left: 8px;
+  color: var(--discret);
 }
 .geste-du-second .confirmation > button {
   align-self: flex-start;

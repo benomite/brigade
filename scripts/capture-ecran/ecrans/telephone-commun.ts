@@ -15,7 +15,7 @@ export const QR_TAILNET = `brigade://pair?code=7KQ2-M9XD&url=${encodeURIComponen
 
 // `telephone` : l'appairage que le pont lit au lancement — aucun, sur une installation neuve.
 export function demarrageDuTelephone(telephone: { appaire: false } | { appaire: true; station: string; adresse: string } = { appaire: false }) {
-  const tout = demarrage(configuration([], []));
+  const tout = demarrage(configuration([]));
   return {
     ...tout,
     configuration: { ...tout.configuration, chemin: "no projects file on this phone" },

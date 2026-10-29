@@ -1,6 +1,6 @@
 // Ajouter un projet à l'app, puis confier sa cuisine à une station depuis sa page (#983), la vue
 // jouée. L'écran d'ajout ne demande que le dossier, le dépôt et la branche : ni station, ni machine,
-// ni nom `ssh`, et rien d'autre que le fichier des projets n'est appelé. La page du projet dit en
+// ni autre machine, et rien d'autre que le fichier des projets n'est appelé. La page du projet dit en
 // une phrase qu'aucune station ne fait sa cuisine, et offre le geste qui la lui confie ; une fois
 // confiée, elle nomme ses stations, et permet d'en ajouter une autre. Le choix (#1107) dit en une
 // phrase ce que le chef fait, propose la machine toujours allumée, puis des renforts facultatifs, et
@@ -13,7 +13,6 @@ import { test } from "node:test";
 import type { Accueil } from "../../src/accueil.ts";
 import { ALLUMAGE } from "../../src/allumage.ts";
 import { pourLaBarre } from "../../src/barre.ts";
-import { BOUTONS } from "../../src/boutons.ts";
 import { EXEMPLE, type Projet } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
@@ -58,7 +57,6 @@ const demarrage = (projets: Projet[], projetsDesStations: VuDesProjets | undefin
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  boutons: BOUTONS,
   gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
@@ -109,19 +107,19 @@ async function laPage(projetsDesStations: VuDesProjets | undefined, projet: Proj
   return { jouee, bloc: jouee.element("stations-du-projet") };
 }
 
-test("l'écran d'ajout ne demande que le dossier, le dépôt et la branche : ni station, ni machine, ni nom `ssh`", async () => {
+test("l'écran d'ajout ne demande que le dossier, le dépôt et la branche : ni station, ni machine", async () => {
   const jouee = await jouerLaVue({ demarrage: () => demarrage([], SANS_PROJET), espace: () => [] });
   const formulaire = jouee.element("formulaire");
   // Sans projet, l'app s'ouvre sur les stations du chef (#1434) : l'ajout par un dossier est au « + » de la barre.
   (jouee.poses().find((pose) => pose.id === "entree-ajout") ?? assert.fail("pas de « + »")).click();
   await repos();
   assert.equal(jouee.element("ajout").hidden, false);
-  for (const parti of ["hote", "box", "declarer", "nom", "sauvegardes", "manager-modele", "reviewer-effort"]) assert.throws(() => jouee.element(parti), new RegExp(`aucun élément « ${parti} »`), parti);
+  for (const parti of ["box", "declarer", "nom", "sauvegardes", "manager-modele", "reviewer-effort"]) assert.throws(() => jouee.element(parti), new RegExp(`aucun élément « ${parti} »`), parti);
   // Ce qui se saisit dans l'écran, tel que la page le pose.
   const page = readFileSync(join(import.meta.dirname, "../../src/vue/index.html"), "utf8");
   const ecran = page.slice(page.indexOf('<form id="formulaire"'), page.indexOf("</form>"));
   assert.deepEqual([...ecran.matchAll(/<(?:input|select|textarea)\b[^>]*\bid="([^"]+)"/g)].map(([, id]) => id), ["depot", "base"]);
-  assert.doesNotMatch(ecran, /\bbox|\bssh\b|machine/i);
+  assert.doesNotMatch(ecran, /\bbox|machine/i);
   assert.equal(formulaire.hidden, false);
   assert.match(ecran, /<button type="submit" id="ajouter">Add to the app<\/button>/);
 });

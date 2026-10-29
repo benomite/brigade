@@ -10,7 +10,6 @@ import { join } from "node:path";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../src/allumage.ts";
 import { pourLaBarre } from "../src/barre.ts";
-import { BOUTONS } from "../src/boutons.ts";
 import type { Lecture } from "../src/box.ts";
 import { EXEMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
@@ -221,11 +220,10 @@ const PARADE = "parade";
 
 const SECOND: Terminal = { id: 1, projet: PARADE, genre: "second", titre: "second · claude", note: "session neuve", arrete: false };
 const demarrage = () => ({
-  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade", box: { hote: "box" } }], hotes: ["box"] }),
+  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }, () => true),
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS, rubriques: RUBRIQUES,
-  boutons: BOUTONS,
   gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
@@ -477,7 +475,7 @@ describe("le monospace est une information, pas un style", () => {
     for (const parti of ["https://github.com/benomite/brigade/pull/231", "9691d64"]) assert.deepEqual(portant(settings, parti), [], parti);
   });
 
-  test("le nom du projet, qui est son identifiant sur la box, et la commande qu'un bouton écrira", async () => {
+  test("le nom du projet, qui est son identifiant sur la box, et les contrôles de réglage", async () => {
     const [nom] = (await toutPose("Rail")).filter((pose) => pose.id === "espace");
     assert.ok(nom !== undefined && mono(nom) && nom.textContent === PARADE);
 
@@ -486,7 +484,6 @@ describe("le monospace est une information, pas un style", () => {
     const poses = await toutPose("Settings", GRANTS_VUS);
     const boutons = poses.filter((pose) => pose.balise === "button" && pose.parentElement?.className === "champ");
     assert.ok(boutons.length > 0 && boutons.every((pose) => !mono(pose)), "un contrôle de réglage est en monospace");
-    for (const { commande } of BOUTONS) assert.ok(!poses.some((pose) => pose.textContent.includes(commande.trim())), commande);
   });
 
   test("ce qui se lit ne l'est pas : un titre, un mot d'état, un libellé, ce que l'app dit elle-même", async () => {

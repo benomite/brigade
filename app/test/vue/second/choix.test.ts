@@ -7,7 +7,6 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../../../src/allumage.ts";
 import { pourLaBarre } from "../../../src/barre.ts";
-import { BOUTONS } from "../../../src/boutons.ts";
 import { EXEMPLE, type Projet } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../../src/cuisine.ts";
@@ -23,8 +22,8 @@ import { Faux, type Jouee, jouerLaVue, type Reponses, repos } from "../../aides/
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
 
-const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", box: { hote: "box" } };
-const FANFARE: Projet = { nom: "fanfare", dossier: "/tmp/fanfare", box: { hote: "box" } };
+const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade" };
+const FANFARE: Projet = { nom: "fanfare", dossier: "/tmp/fanfare" };
 const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "second · claude", note: "fil repris", arrete: false };
 const AUTRE: Terminal = { id: 7, projet: "fanfare", genre: "second", titre: "second · claude", note: "session neuve", arrete: false };
 const SHELL: Terminal = { id: 2, projet: "parade", genre: "shell", titre: "shell 1", note: "", arrete: false };
@@ -98,12 +97,11 @@ describe("le module : un bouton par choix", () => {
 async function ouvrir(reponses: Reponses = {}): Promise<Jouee> {
   const vue = await jouerLaVue({
     demarrage: () => ({
-      configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE, FANFARE], hotes: ["box"] }),
+      configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE, FANFARE] }, () => true),
       palette: PALETTE,
       exemple: EXEMPLE,
       onglets: ONGLETS,
       rubriques: RUBRIQUES,
-      boutons: BOUTONS,
       gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
       banniere: BANNIERE,
       calibrage: { modeles: MODELES, efforts: EFFORTS },

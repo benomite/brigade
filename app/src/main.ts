@@ -14,7 +14,7 @@ import { mettreAPart } from "./attend.ts";
 import { reglerLePlafond } from "./plafond.ts";
 import { cibleDeLaStation, DELAI_S, etatDuCode, revoquerUnTelephone, telephonesAppaires, tirerUnCode } from "./telephones-de-station.ts";
 import { pourLaBarre } from "./barre.ts";
-import { BOUTONS, ecritPar, ecritPourLeCloser, REGLER_LE_CLOSER } from "./boutons.ts";
+import { ecritPourLeCloser, REGLER_LE_CLOSER } from "./boutons.ts";
 import { lancerLa, ouvrirVeille, type Lu } from "./box.ts";
 import { agirSurLeCloser } from "./closer-lancement.ts";
 import { reponseLue } from "./carte-todo.ts";
@@ -59,11 +59,11 @@ import { jouerPanne } from "./pannes/gestes.ts";
 import { gistLocal, tenirLogin } from "./pannes/login.ts";
 import { demenageurDuRuntime } from "./projets/demenagement.ts";
 import { depotsDuChef } from "./projets/github.ts";
-import { EFFORTS, hoteDeLaStation, MODELES, tenirProjets, type DefautsDeLaMachine, type VuDesProjets } from "./projets/projets.ts";
+import { EFFORTS, MODELES, serviAilleurs, tenirProjets, type DefautsDeLaMachine, type VuDesProjets } from "./projets/projets.ts";
 import { memoireDansFichier, tenirNotifications } from "./notification.ts";
 import { tenirCuisinesIci } from "./poste/cuisine-ici.ts";
 import { estUnMac, nomDuPoste, persistantSur, shellDuPoste } from "./plateforme.ts";
-import { cuisinesIci, roleDe } from "./poste/role.ts";
+import { roleDe } from "./poste/role.ts";
 import { ceQueFournitCetOrdinateur } from "./stations/fournit.ts";
 import { tenirStationLocale } from "./poste/station.ts";
 import { ouvrirPty } from "./pty.ts";
@@ -76,8 +76,7 @@ import { tenirRepondues } from "./repondues.ts";
 import { APP, tenirRetards } from "./retard.ts";
 import { ouvrirTours } from "./saisie.ts";
 import { type Propositions, type ReponseDuChef, tenirLesPropositions } from "./second/propositions.ts";
-import { DELAIS, lancerRetrait, tenirRetraits } from "./retrait.ts";
-import { ouvrirRunner } from "./runner.ts";
+import { tenirRetraits } from "./retrait.ts";
 import { tenirServices } from "./service.ts";
 import { souvenirsDansFichier } from "./souvenirs.ts";
 import { githubDesStations } from "./stations/github.ts";
@@ -108,7 +107,7 @@ const role = roleDe({ plateforme, runtime: emplacements.runtime, env: process.en
 // Le répertoire de la station de cet ordinateur : `station/`, à côté du fichier des projets.
 const racineDeLaStation = process.env.BRIGADE_STATION_DIR || join(dirname(cheminConfiguration()), "station");
 // Où cuit chaque projet (poste/cuisine-ici.ts) : un projet que la station de cet ordinateur sert
-// se lit ici, par son geste, sans `ssh` — même s'il déclare un `hote` ; les autres, sur leur box.
+// se lit ici, par son geste ; les autres sont lus du tableau de leur cuisine sur GitHub.
 // C'est relu à chaque lecture : une cuisine qui change de place est lue à la nouvelle dès la
 // suivante, et la vue le sait aussitôt.
 const cuisines = tenirCuisinesIci({
@@ -118,8 +117,8 @@ const cuisines = tenirCuisinesIci({
     direLAccueil(accueil.relire());
   },
 });
-// Un projet dont quelque chose se lit — sa box, ou cet ordinateur —, et qui n'est pas désinstallé.
-const lisible = ({ nom, box, desinstalle }: Projet) => desinstalle === undefined && (box !== undefined || cuisines.ici(nom));
+// Un projet dont quelque chose se lit : une station le sert, sur cet ordinateur ou ailleurs.
+const lisible = ({ nom }: Projet) => cuisines.ici(nom) || serviAilleurs(dernierVuDesProjets, nom);
 
 let fenetre: BrowserWindow | undefined;
 const dire = (canal: string, ...faits: unknown[]) => {
@@ -189,8 +188,6 @@ const terminaux = ouvrirTerminaux({
   tours: tours.de,
   planDuSecond: (dossier, args) => planifier?.(dossier, args) ?? { state: "ready", launch: { command: process.env.BRIGADE_CLAUDE_BIN || "claude", args: [...args], verbatim: false, folder: dossier, env: {} }, missing: [], tools: [] },
   souvenirs: souvenirsDansFichier(join(dirname(cheminConfiguration()), "shells.json")),
-  // Jamais posée hors des essais, comme pour la veille.
-  ssh: process.env.BRIGADE_SSH_BIN || "ssh",
   node: emplacements.node,
   // La file que le second lit à son ouverture vient du tableau de la cuisine, par le `gh` du poste (second/file.ts).
   gh: process.env.BRIGADE_GH_BIN || "gh",
@@ -205,7 +202,7 @@ const terminaux = ouvrirTerminaux({
 
 // La vue du rail d'un projet — ses colonnes, ses cartes, sa file TODO, l'état de sa cuisine, sa bande — se lit du
 // tableau de la cuisine que sa box publie sur GitHub (#1694, tableau/rail.ts), avec le jeton du `gh` de ce poste : ni
-// `ssh`, ni tailnet, ni box jointe. Les veilles du rail, des faits, du manager et de l'amont lisent toutes ce même
+// tailnet, ni box jointe. Les veilles du rail, des faits, du manager et de l'amont lisent toutes ce même
 // tableau, une lecture à la fois par projet, reprise par chacune tant qu'elle a moins de quinze secondes. Le dépôt d'un
 // projet est son `depot`, ou celui de l'`origin` de son dossier. Un projet que ni sa box ni cet ordinateur ne servent
 // garde son écran (#1435) : son rail n'est pas lu ici.
@@ -224,8 +221,7 @@ const railLisible = (projet: Projet) => cuisines.cuisineDe(projet) !== undefined
 // les trente secondes, sur le tableau de la cuisine. Ce qui attend le chef en est mis à
 // part ici, avant la vue.
 // Les veilles des onglets (Cooks, Settings) et les gestes qui partent sur la box se partagent le
-// passage de chaque projet : à eux tous, un projet n'ouvre qu'une connexion à la fois — sshd refuse
-// au hasard ce qui arrive de front.
+// passage de chaque projet : à eux tous, un projet ne lance qu'une commande à la fois.
 const passage = new Map<string, Promise<unknown>>();
 const veille = ouvrirVeilleDuTableau({
   lire: tableaux.lire,
@@ -255,10 +251,8 @@ const veille = ouvrirVeilleDuTableau({
 // `ongletLu` : l'onglet que la veille lit, et sa demande.
 let ongletLu: { id: unknown; demande: number } | undefined;
 const veilleDOnglet = ouvrirVeille({
-  ssh: process.env.BRIGADE_SSH_BIN || "ssh",
   intervalleMs: 30_000,
   delaiMs: 30_000,
-  connexionS: 10,
   passage,
   cuisine: cuisines.cuisineDe,
   surLecture: (lecture) => {
@@ -284,7 +278,7 @@ const faits = tenirFaits(
 );
 // L'accueil (accueil.ts) : une ligne par projet, une par station, et la ligne de santé — redessiné à
 // chaque lecture qui le change, de `faits`, de `status` ou des stations sur GitHub.
-const accueil = tenirAccueil({ locale: () => (stationLocale === undefined ? null : gistLocal(racineDeLaStation)), projets: () => projets().map((projet) => ({ nom: projet.nom, box: lisible(projet), desinstalle: projet.desinstalle !== undefined })) });
+const accueil = tenirAccueil({ locale: () => (stationLocale === undefined ? null : gistLocal(racineDeLaStation)), projets: () => projets().map((projet) => ({ nom: projet.nom, servi: lisible(projet) })) });
 function direLAccueil(vu: Accueil | undefined): void {
   if (vu !== undefined) dire("accueil", vu);
 }
@@ -383,7 +377,7 @@ function regarder(vus: Parameters<typeof veille.regarder>[0], commandes: readonl
 
 // L'installation guidée d'un projet (service.ts) : ses étapes, lues et faites par les
 // commandes `installation` du runtime de sa box, lancées une à une par le passage du projet
-// comme les veilles — ou par la station de cet ordinateur, sans `ssh`, quand c'est elle qui fait
+// comme les veilles — par la station de cet ordinateur, quand c'est elle qui fait
 // tourner sa cuisine. Chacune a deux minutes : la vérification joint l'origine du dépôt et
 // GitHub, la protection aussi. Sa session s'ouvre dans le second, son démarrage s'écrit dans
 // un shell. Chaque installation qui change est poussée à la vue — et à la bande d'alertes du
@@ -392,8 +386,7 @@ function regarder(vus: Parameters<typeof veille.regarder>[0], commandes: readonl
 const services = tenirServices({
   delaiMs: 120_000,
   lancer: (lu, commande) => {
-    // Jamais posée hors des essais, comme pour la veille.
-    const rendu = (passage.get(lu.nom) ?? Promise.resolve()).then(() => lancerLa({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 120_000, connexionS: 10 }, lu, commande));
+    const rendu = (passage.get(lu.nom) ?? Promise.resolve()).then(() => lancerLa({ delaiMs: 120_000 }, lu, commande));
     passage.set(lu.nom, rendu);
     return rendu;
   },
@@ -405,12 +398,6 @@ const services = tenirServices({
     dire("alertes", bandes.controle(guide.projet, guide.controle));
   },
   controleMs: 60_000,
-  // Une station que ce poste joue, ou cesse de jouer (#1510) : l'opération du runtime l'écrit dans le fichier des
-  // projets, que l'app relit — son runner la joue alors (runtime/src/une-station.ts).
-  jouerIci: async (nom, station, jouer) => {
-    const { jouerIci, nePlusJouerIci } = (await import(pathToFileURL(join(emplacements.runtime, "src", "une-station.ts")).href)) as typeof import("../../runtime/src/une-station.ts");
-    return (jouer ? jouerIci : nePlusJouerIci)(cheminConfiguration(), nom, station);
-  },
 });
 // Ce qu'un projet installé a perdu — une station, un geste de box — se relit pour chacun,
 // quel que soit l'écran : sa pastille dans la barre le dit aussi. Toutes les cinq minutes, et
@@ -421,49 +408,10 @@ const controlerTout = () => {
 };
 const controles = setInterval(controlerTout, CONTROLE_MS);
 
-// Le runner : ce poste joue les stations que ses projets lui confient (runner.ts) — celles
-// que leur box déclare `distante`. Il s'annonce, réclame, renouvelle et rend par le geste
-// `pull` de la box, par le passage du projet comme les veilles ; un `ssh` a quarante-cinq
-// secondes, plus que les trente que le geste laisse au runtime pour répondre. Rien n'arrive
-// ici : toutes ses connexions partent du poste. Ses cooks tournent dans des worktrees du
-// dossier du projet, posés à côté du fichier des projets ; ce qu'il dit de lui s'écrit dans
-// le terminal qui a lancé l'app — et la box le montre, sur la ligne `présence` de `station`.
-const runner = ouvrirRunner({
-  // Jamais posées hors des essais, comme pour la veille.
-  ssh: process.env.BRIGADE_SSH_BIN || "ssh",
-  claude: process.env.BRIGADE_CLAUDE_BIN || "claude",
-  git: "git",
-  worktrees: join(dirname(cheminConfiguration()), "stations"),
-  env: process.env,
-  delaiMs: 45_000,
-  connexionS: 10,
-  gitMs: 120_000,
-  passage,
-  surEtat: ({ projet, station, dit }) => console.error(`brigade: station ${station} of “${projet}” — ${dit}`),
-});
-
-// Retirer un projet : de l'app, ou de sa box — deux gestes (retrait.ts). Le premier
-// n'écrit que le fichier des projets. Le second lance le geste de désinstallation de la
-// box, par le passage du projet comme les veilles : son plan, qui ne retire rien, puis
-// l'exécution, refusée tant que le chef n'a pas confirmé en nommant le projet. Désinstallé,
-// le projet se montre sans sa box, et sa mise en service ne vaut plus rien.
+// Retirer un projet de l'app (retrait.ts) : n'écrit que le fichier des projets — rien ne part vers sa station.
 const retraits = tenirRetraits({
   chemin: cheminConfiguration(),
   retirer: (nom) => suivi.retirer(nom),
-  lancer: (servi, demande) => {
-    // Jamais posée hors des essais, comme pour la veille.
-    const rendu = (passage.get(servi.nom) ?? Promise.resolve()).then(() => lancerRetrait({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: demande.plan ? DELAIS.planMs : DELAIS.executionMs, connexionS: 10 }, servi, demande));
-    passage.set(servi.nom, rendu);
-    return rendu;
-  },
-  surDesinstalle: (nom) => {
-    services.oublier(nom);
-    // La veille de `status` tient encore sa box, quel que soit l'écran : elle est reposée sans lui.
-    voir();
-    // Et le runner ne joue plus rien pour lui : ses cooks sont arrêtés.
-    runner.servir(cuisinesIci(role, projets()));
-    dire("configuration", affichee(), []);
-  },
 });
 // Ce que le second de chaque projet propose au chef (second/propositions.ts, #1520) : le canal du runtime
 // (runtime/src/second-propositions/canal.ts, #1519), chargé une fois de celui qui est à côté de l'app. Tant qu'il ne
@@ -487,16 +435,12 @@ const preferences = tenirPreferences({
 
 // Le fichier des projets : créé s'il manque, relu dès qu'il change. Un projet
 // qui a quitté la liste — ou changé de dossier — perd ses terminaux et sa mise
-// en service ; les autres n'en savent rien. Celui qui a quitté la liste n'a plus
-// rien de tenu de son retrait non plus.
+// en service ; les autres n'en savent rien.
 const suivi = suivreConfiguration({
   chemin: cheminConfiguration(),
   surChangement: (configuration, partis) => {
     partis.forEach(services.oublier);
-    partis.filter((nom) => !configuration.projets.some((reste) => reste.nom === nom)).forEach(retraits.oublier);
     dire("configuration", affichee(), partis.flatMap((nom) => terminaux.quitter(nom)));
-    // Les stations que le poste joue sont celles du fichier tel qu'il est maintenant.
-    runner.servir(cuisinesIci(role, projets()));
     // Un clone de brigade a pu entrer dans la liste, ou en sortir.
     void retards.relire(true);
     // L'accueil a une ligne par projet du fichier, tel qu'il est maintenant.
@@ -517,20 +461,14 @@ function colorer(): void {
   const refus = suivi.colorer();
   if (refus !== undefined) console.error(`brigade: the project colors could not be written — ${refus}`);
 }
-// Les projets tels que l'app les montre, et les lit : celui qu'elle a désinstallé de sa
-// box n'en a plus (retrait.ts) — ni veille, ni bouton, ni mise en service ne l'y cherchent.
-// Un projet que le fichier ne dit pas hébergé (ajouté depuis l'app) est lu sur la machine de la station qui le sert.
+// Les projets tels que l'app les montre, et les lit : ceux du fichier. Un projet qu'une station sert ailleurs que
+// sur cet ordinateur est lu du tableau de sa cuisine sur GitHub.
 let dernierVuDesProjets: VuDesProjets | undefined;
-const avecSaBox = (projet: Projet): Projet => {
-  if (projet.box !== undefined || projet.desinstalle !== undefined) return projet;
-  const hote = hoteDeLaStation(dernierVuDesProjets, projet.nom);
-  return hote === undefined ? projet : { ...projet, box: { hote } };
-};
-const projets = () => suivi.configuration().projets.map(avecSaBox).map(retraits.vu);
-const affichee = () => pourLaBarre(suivi.configuration(), (projet) => retraits.vu(avecSaBox(projet)), cuisines.ici, () => stationLocale?.tourne() === true);
-// Un projet du fichier, qu'il s'ouvre ou non : sa box se lit, et se vérifie, sans son dossier.
+const projets = () => suivi.configuration().projets;
+const affichee = () => pourLaBarre(suivi.configuration(), lisible, cuisines.ici, () => stationLocale?.tourne() === true);
+// Un projet du fichier, qu'il s'ouvre ou non : sa cuisine se lit, et se vérifie, sans son dossier.
 const connu = (nom: unknown) => projets().find((candidat) => candidat.nom === nom);
-// Le même, tel que le fichier le déclare : c'est avec sa box qu'il se retire, et se désinstalle.
+// Le même, tel que le fichier le déclare.
 const declare = (nom: unknown) => suivi.configuration().projets.find((candidat) => candidat.nom === nom);
 
 // Le code de l'app vient d'un clone, et rien d'autre ne le surveille : son retard sur son
@@ -548,7 +486,7 @@ const retards = tenirRetards({
 });
 // Les projets de ses stations, sous elles : ceux qu'il leur a ajoutés depuis l'app, écrits et relus
 // dans le gist de chacune (projets/projets.ts) — relus à chaque lecture des stations.
-let hotesLus = "";
+let servisLus = "";
 const projetsDesStations = tenirProjets({
   github: githubDesStations({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 30_000 }),
   stations: () => stations.vu()?.stations,
@@ -586,10 +524,10 @@ const projetsDesStations = tenirProjets({
     dernierVuDesProjets = vu;
     dire("projetsDesStations", vu);
     direLAccueil(accueil.projetsDesStations(vu));
-    // Une station vient de dire qu'elle sert un projet de l'app : sa box se lit, et la vue le sait aussitôt.
-    const hotes = JSON.stringify(vu.projets.map(({ nom }) => hoteDeLaStation(vu, nom) ?? ""));
-    if (hotes === hotesLus) return;
-    hotesLus = hotes;
+    // Une station vient de dire qu'elle sert un projet de l'app : son rail se lit, et la vue le sait aussitôt.
+    const servis = JSON.stringify(vu.projets.map(({ nom }) => serviAilleurs(vu, nom)));
+    if (servis === servisLus) return;
+    servisLus = servis;
     dire("configuration", affichee(), []);
     voir();
   },
@@ -679,7 +617,7 @@ function projet(nom: unknown): Projet {
   return trouve;
 }
 
-ipcMain.handle("demarrage", () => ({ poste: { nom: nomDuPoste(plateforme), mac: estUnMac(plateforme) }, configuration: affichee(), palette: PALETTE, exemple: EXEMPLE, onglets: ONGLETS, rubriques: RUBRIQUES, boutons: BOUTONS, gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES, attente: GESTES_D_ATTENTE }, banniere: BANNIERE, calibrage: { modeles: MODELES, efforts: EFFORTS }, code: retards.vu(), stations: stations.vu(), projetsDesStations: projetsDesStations.vu(), accueil: accueil.vu(), miseAJour: miseAJour.vu() }));
+ipcMain.handle("demarrage", () => ({ poste: { nom: nomDuPoste(plateforme), mac: estUnMac(plateforme) }, configuration: affichee(), palette: PALETTE, exemple: EXEMPLE, onglets: ONGLETS, rubriques: RUBRIQUES, gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES, attente: GESTES_D_ATTENTE }, banniere: BANNIERE, calibrage: { modeles: MODELES, efforts: EFFORTS }, code: retards.vu(), stations: stations.vu(), projetsDesStations: projetsDesStations.vu(), accueil: accueil.vu(), miseAJour: miseAJour.vu() }));
 // Ajouter un projet : son dossier se choisit, il ne se tape pas. Le reste se
 // décide hors de la vue — elle reçoit ce qu'il en est advenu, et pourquoi.
 ipcMain.handle("choisirDossier", async () => {
@@ -703,11 +641,11 @@ ipcMain.handle("colorer", (_, nom: unknown, role: unknown, couleur: unknown) => 
   return "refus" in voulue ? voulue.refus : suivi.changerCouleur(vise.nom, voulue.role, voulue.valeur);
 });
 // Les tickets ordinaires de cet ordinateur (ordinaires.ts) : le bloc que la vue pose pour un projet —
-// rien, quand ce poste ne joue aucune station du projet ; hors d'un Mac, pourquoi il n'en prend pas —, et le réglage, que la vue nomme et que le fichier écrit.
+// rien, quand le projet ne cuit pas sur ce poste ; hors d'un Mac, pourquoi il n'en prend pas —, et le réglage, que la vue nomme et que le fichier écrit.
 // Écrit, il arrive par `surConfiguration`. Le réglage rend la raison, s'il ne l'a pas été.
 ipcMain.handle("ordinaires", (_, nom: unknown) => {
   const vise = declare(nom);
-  return vise === undefined ? undefined : blocDesOrdinaires(vise, plateforme, faits.stations(vise.nom));
+  return vise === undefined ? undefined : blocDesOrdinaires(vise, plateforme, faits.stations(vise.nom), cuisines.ici(vise.nom));
 });
 ipcMain.handle("reglerOrdinaires", (_, nom: unknown, actif: unknown, limite: unknown) => {
   const vise = declare(nom);
@@ -772,11 +710,8 @@ ipcMain.handle("demarrer", (_, nom: unknown) => {
   const vise = connu(nom);
   return vise === undefined ? parti(nom) : services.demarrer(vise);
 });
-// Retirer un projet : la vue nomme le projet et le geste, ce qu'il en advient se décide
-// dans retrait.ts. « Retirer de l'app » n'écrit que le fichier des projets — rien ne part
-// vers la box. Les trois autres sont le geste de box : la case du journal, décochée
-// d'office ; le plan, qui ne retire rien ; la désinstallation, refusée sans plan et sans
-// le nom du projet, écrit par le chef.
+// Retirer un projet : la vue nomme le projet, ce qu'il en advient se décide dans retrait.ts. « Retirer de l'app »
+// n'écrit que le fichier des projets — rien ne part vers sa station.
 ipcMain.handle("retrait", (_, nom: unknown) => {
   const vise = declare(nom);
   return vise === undefined ? undefined : retraits.etat(vise);
@@ -785,29 +720,9 @@ ipcMain.handle("retirerDeLApp", (_, nom: unknown) => {
   const vise = declare(nom);
   return vise === undefined ? parti(nom) : retraits.retirerDeLApp(vise);
 });
-ipcMain.handle("direJournal", (_, nom: unknown, coche: unknown) => {
-  const vise = declare(nom);
-  return vise === undefined ? undefined : retraits.direJournal(vise, coche === true);
-});
-// La box met son temps à répondre, et le fichier a pu changer entre-temps : ce qui est
-// rendu à la vue est le retrait du projet tel qu'il est déclaré à la réponse — rien, s'il n'y est plus.
-const apres = async (nom: unknown, demande: Promise<unknown>) => {
-  await demande;
-  const vise = declare(nom);
-  return vise === undefined ? undefined : retraits.etat(vise);
-};
-ipcMain.handle("planifier", (_, nom: unknown) => {
-  const vise = declare(nom);
-  return vise === undefined ? undefined : apres(nom, retraits.planifier(vise));
-});
-ipcMain.handle("desinstaller", (_, nom: unknown, confirmation: unknown) => {
-  const vise = declare(nom);
-  return vise === undefined ? undefined : apres(nom, retraits.desinstaller(vise, confirmation));
-});
 ipcMain.handle("espace", (_, nom: unknown) => terminaux.espace(projet(nom)));
-// « + shell » : les machines où ouvrir un shell persistant (machines.ts) — ce poste, la box, et les
-// stations que le dernier contrôle de la box a lues. La vue n'en reçoit que l'identifiant et le titre.
-const machinesDuProjet = (vise: Projet) => machinesDe(vise, services.controleDe(vise.nom)?.stations?.declarees);
+// « + shell » : les machines où ouvrir un shell (machines.ts) — ce poste. La vue n'en reçoit que l'identifiant et le titre.
+const machinesDuProjet = (vise: Projet) => machinesDe();
 ipcMain.handle("machines", (_, nom: unknown) => machinesDuProjet(projet(nom)).map(({ id, titre }) => ({ id, titre })));
 // La vue rend la machine choisie, par son identifiant : le shell s'y ouvre dans une session neuve,
 // que l'app retient. Une machine qui n'est plus proposée n'ouvre rien.
@@ -818,14 +733,14 @@ ipcMain.handle("shell", (_, nom: unknown, machine: unknown) => {
 });
 // Fermer un shell pour de bon : il quitte l'espace, et sa session est détruite sur sa machine.
 ipcMain.handle("fermerShell", (_, id: unknown) => (typeof id === "number" ? terminaux.fermerShell(id) : { refus: "nothing was closed: no shell is named" }));
-// Un bouton : sa commande est écrite dans le second du projet, et rien ne l'envoie — le chef la
-// complète. La vue nomme le bouton ; ce qui s'écrit se décide ici (boutons.ts) — ou pourquoi
-// rien ne l'est. Rien, pour un projet sans box. Régler le closer s'écrit avec ses deux valeurs, le
-// modèle et l'effort que le chef a choisis sur la partie closer de la page.
+// Régler le closer : sa commande est écrite dans le second du projet, et rien ne l'envoie — le chef fait Entrée.
+// La vue nomme le bouton ; ce qui s'écrit se décide ici (boutons.ts) — ou pourquoi rien ne l'est. Rien, pour un
+// projet dont la cuisine n'est pas sur cet ordinateur. Le modèle et l'effort sont ceux que le chef a choisis sur la
+// partie closer de la page.
 ipcMain.handle("inscrire", (_, nom: unknown, id: unknown, valeurs: unknown) => {
   const vise = projet(nom);
   const [modele, effort] = Array.isArray(valeurs) ? valeurs : [];
-  const ecrit = id === REGLER_LE_CLOSER ? ecritPourLeCloser(vise, modele, effort) : ecritPar(id, vise);
+  const ecrit = id === REGLER_LE_CLOSER ? ecritPourLeCloser(cuisines.cuisineDe(vise), vise, modele, effort) : undefined;
   return ecrit === undefined || "refus" in ecrit ? ecrit : terminaux.inscrire(vise, ecrit.commande);
 });
 // Une carte de T'attend : une demande en prose est écrite dans le second, qui est affiché, et rien
@@ -852,7 +767,7 @@ ipcMain.handle("gestesDeFiche", (_, carte: unknown) => gestesDeCarte(carte));
 // fait, le rail montre aussitôt la nouvelle priorité, jusqu'à ce que le tableau la montre. Merger la
 // livraison, retirer le ticket du rail et renvoyer en cuisine un ticket revenu de WAITING s'écrivent
 // sur le tableau de la cuisine du projet (#1694, #1740, tableau-gestes/rail.ts), en commentaire, par le
-// même jeton — ni `ssh` ni second : la box les joue à son tick suivant, et le rail, relu du tableau, le
+// même jeton — ni second : la box les joue à son tick suivant, et le rail, relu du tableau, le
 // montre. Les autres — que la grammaire du tableau ne connaît pas — sont une action de box, qui part
 // dans le second comme un geste du socle. La vue
 // nomme le geste, le ticket et la valeur ; ce qui part se compose ici, jamais dans la vue.
@@ -899,7 +814,6 @@ ipcMain.handle("lireQuestion", (_, nom: unknown, ticket: unknown) => {
   const vise = connu(nom);
   if (vise === undefined || faits.attendu(vise.nom, ticket) === undefined) return undefined;
   const adresse = faits.adresse(vise.nom, ticket);
-  // Jamais posée hors des essais, comme BRIGADE_SSH_BIN.
   return adresse === undefined ? { a: new Date().toISOString(), sans: "the station gave no https address for this issue: the app has nothing to read" } : lireQuestion(reglagesGh(), adresse).then((lue) => retenirLue(vise.nom, ticket, lue));
 });
 // L'histoire d'un ticket, sur sa fiche : lue de GitHub par le `gh` du poste (fiche-github.ts), jamais de la
@@ -915,7 +829,7 @@ ipcMain.handle("lireHistoire", async (_, nom: unknown, ticket: unknown) => {
 // Le commentaire du chef part par `/brigade comment #<ticket> <texte>` sur le tableau de la cuisine, au clic : la vue
 // nomme le projet, le ticket et le texte ; le geste se compose ici (discussion.ts).
 const liensLus = new Map<string, readonly string[]>();
-// Les gestes qui partaient par `ssh` sur la box (#1845) — le commentaire, la demande au second, le plafond, la cuisine
+// Les gestes qui partaient sur la box (#1845) — le commentaire, la demande au second, le plafond, la cuisine
 // d'une station — sont postés sur le dernier tableau lu du projet par l'accès GitHub de ce poste, comme ceux du rail, et
 // suivis jusqu'à ce que la box y ait répondu : elle lit le tableau à chaque tick, une fois la minute. Deux minutes et
 // demie au plus, une relecture toutes les cinq secondes ; joué ou refusé, le tableau est relu de GitHub au prochain coup.
@@ -1026,7 +940,7 @@ ipcMain.handle("geste", (_, nom: unknown, id: unknown, grant: unknown, oui: unkn
 ipcMain.handle("attente", async (_, nom: unknown, id: unknown, ticket: unknown, saisie: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return parti(nom);
-  if (id !== "attente-arrivee") return ecrireAttente(terminaux, id, vise, ticket, saisie, undefined, cuisines.cuisineDe(vise));
+  if (id !== "attente-arrivee") return ecrireAttente(terminaux, id, vise, ticket, saisie, new Date(), cuisines.cuisineDe(vise));
   const rendu = await arriveeDeCarte(tableaux.dernier(vise.nom), ticket, clientDesGestes);
   if ("fait" in rendu) tableaux.oublier();
   return rendu;
@@ -1088,8 +1002,8 @@ ipcMain.handle("autoriserSurGitHub", (_, url: unknown) => {
 // « Retirer la station » : son appairage quitte son gist, elle disparaît de l'accueil.
 ipcMain.handle("retirerLaStation", (_, id: unknown) => stations.retirer(id));
 // « Pair a phone », sur la ligne d'une station de l'accueil (#1598) : tirer un code et ce que son QR porte, dire où en
-// est ce code, lister les téléphones appairés à la station, en révoquer un — `phones …` sur la station, par `ssh` sur sa
-// machine ou ici, sans `ssh`, pour celle de cet ordinateur (telephones-de-station.ts). La vue nomme la station par son
+// est ce code, lister les téléphones appairés à la station, en révoquer un — `phones …` sur la station, sur la
+// station de cet ordinateur (telephones-de-station.ts). La vue nomme la station par son
 // gist ; la commande se compose ici, et ce qui revient à l'écran n'en dit rien.
 const cibleDuTelephone = (id: unknown) =>
   cibleDeLaStation(
@@ -1097,7 +1011,7 @@ const cibleDuTelephone = (id: unknown) =>
     { gist: stationLocale === undefined ? null : gistLocal(racineDeLaStation), locale: role.role === "station" ? { node: emplacements.node, runtime: emplacements.runtime, racine: racineDeLaStation, env: process.env } : undefined },
   );
 const nomDeLaStation = (id: unknown) => stations.vu()?.stations.find((station) => station.id === id)?.nom ?? "this station";
-const lancerLesTelephones = (lu: Lu, commande: string) => lancerLa({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: DELAI_S * 1000, connexionS: 10 }, lu, commande);
+const lancerLesTelephones = (lu: Lu, commande: string) => lancerLa({ delaiMs: DELAI_S * 1000 }, lu, commande);
 ipcMain.handle("tirerUnCodeDeTelephone", (_, id: unknown) => tirerUnCode(lancerLesTelephones, cibleDuTelephone(id), nomDeLaStation(id)));
 ipcMain.handle("etatDuCodeDeTelephone", (_, id: unknown, code: unknown) => etatDuCode(lancerLesTelephones, cibleDuTelephone(id), nomDeLaStation(id), code));
 ipcMain.handle("telephonesDeLaStation", (_, id: unknown) => telephonesAppaires(lancerLesTelephones, cibleDuTelephone(id), nomDeLaStation(id)));
@@ -1221,8 +1135,7 @@ ipcMain.handle("panne", (_, id: unknown, cle: unknown) => jouerPanne(gestesDesPa
 // derniers `facts` donnent (cuisson.ts). La vue relit le tableau quand il est fait : la ligne dit son état neuf.
 // Une commande du runtime, lancée là où la cuisine d'un projet tourne, par son passage comme les veilles.
 const lancerSurLaCuisine = (lu: Lu, commande: string) => {
-  // Jamais posée hors des essais, comme pour la veille.
-  const rendu = (passage.get(lu.nom) ?? Promise.resolve()).then(() => lancerLa({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 30_000, connexionS: 10 }, lu, commande));
+  const rendu = (passage.get(lu.nom) ?? Promise.resolve()).then(() => lancerLa({ delaiMs: 30_000 }, lu, commande));
   passage.set(lu.nom, rendu);
   return rendu;
 };
@@ -1256,7 +1169,7 @@ ipcMain.handle("reglagesDuProjet", (_, nom: unknown) => {
 ipcMain.handle("proposerUnReglage", async (_, nom: unknown, choix: unknown) => {
   const { vise, lu } = cuisineDuProjet(nom);
   if (vise === undefined) return parti(nom);
-  const rendu = await proposerLeReglage(vise.nom, lu, choix, (lu, commande) => lancerLa({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 150_000, connexionS: 10 }, lu, commande));
+  const rendu = await proposerLeReglage(vise.nom, lu, choix, (lu, commande) => lancerLa({ delaiMs: 150_000 }, lu, commande));
   if ("pr" in rendu) propositionsDeReglage.add(rendu.pr);
   return rendu;
 });
@@ -1302,40 +1215,39 @@ ipcMain.handle("refuserVersion", async (_, version: unknown) => {
 ipcMain.handle("mettreAJour", (_, clone: unknown) =>
   retards.ecrire(
     {
-      shell: (hote, ecrit) => {
-        terminaux.espace(hote);
-        return terminaux.shell(hote, ecrit);
+      shell: (concerne, ecrit) => {
+        terminaux.espace(concerne);
+        return terminaux.shell(concerne, ecrit);
       },
     },
     clone,
   ),
 );
 // Ce qu'engage l'allumage du manager, chiffré (allumage.ts) : `manager backlog`, lancée une fois
-// sur la box, par le passage du projet comme les veilles. La vue le demande quand la confirmation
+// sur la station de cet ordinateur, par le passage du projet comme les veilles. La vue le demande quand la confirmation
 // d'« allumer » s'ouvre : cette lecture ne retient pas le « oui », et n'écrit rien.
 ipcMain.handle("compter", (_, nom: unknown) => {
-  const vise = connu(nom);
-  if (vise?.box === undefined) return undefined;
-  const servi = { nom: vise.nom, box: vise.box };
-  // Jamais posée hors des essais, comme pour la veille.
-  const rendu = (passage.get(servi.nom) ?? Promise.resolve()).then(() => compter({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 30_000, connexionS: 10 }, servi));
+  const { lu } = cuisineDuProjet(nom);
+  if (lu === undefined) return undefined;
+  const servi = lu;
+  const rendu = (passage.get(servi.nom) ?? Promise.resolve()).then(() => compter({ delaiMs: 30_000 }, servi));
   passage.set(servi.nom, rendu);
   return rendu;
 });
 // Lancer un nettoyage depuis la partie closer (closer-lancement.ts) : l'aperçu, la demande — au seul
-// « oui » du chef, `oui` à `true` —, son annulation, lancés une fois sur la box par le passage du
+// « oui » du chef, `oui` à `true` —, son annulation, lancés une fois sur la station de cet ordinateur par le passage du
 // projet, comme `manager backlog` : la lecture de l'onglet qui suit le geste le voit.
 ipcMain.handle("closer", (_, nom: unknown, action: unknown, oui: unknown) => {
-  const vise = connu(nom);
-  if (vise?.box === undefined) return undefined;
-  const servi = { nom: vise.nom, box: vise.box };
-  const rendu = (passage.get(servi.nom) ?? Promise.resolve()).then(() => agirSurLeCloser({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 30_000, connexionS: 10 }, servi, action, oui));
+  const { lu } = cuisineDuProjet(nom);
+  if (lu === undefined) return undefined;
+  const servi = lu;
+  const rendu = (passage.get(servi.nom) ?? Promise.resolve()).then(() => agirSurLeCloser({ delaiMs: 30_000 }, servi, action, oui));
   passage.set(servi.nom, rendu);
   return rendu;
 });
 // Le « yes » ou le « no » du chef sur une correction proposée (correction.ts), pour une proposition que la
 // dernière lecture du tableau de la cuisine du projet porte : écrit sur ce tableau (#1741,
-// tableau-gestes/rail.ts), en commentaire `correction`, par le jeton du `gh` de ce poste — ni `ssh` ni box
+// tableau-gestes/rail.ts), en commentaire `correction`, par le jeton du `gh` de ce poste — sans box
 // jointe. La box le tranche à son tick suivant ; le tableau relu le montre : tranchée, la proposition n'y
 // est plus.
 ipcMain.handle("corriger", async (_, nom: unknown, proposition: unknown, reponse: unknown) => {
@@ -1348,7 +1260,7 @@ ipcMain.handle("corriger", async (_, nom: unknown, proposition: unknown, reponse
 // La réponse du chef à une carte de TODO (carte-todo.ts) : un choix, d'un clic, ou son texte, pour la carte
 // que ses derniers faits lus portent — écrite sur le tableau de la cuisine du projet (#1694,
 // tableau-gestes/rail.ts), en commentaire `choose` ou `answer`, par le jeton du `gh` de ce poste : ni
-// `ssh` ni box jointe. La box la joue à son tick suivant — `rail choose` ou `rail answer` l'écrit sur
+// box jointe. La box la joue à son tick suivant — `rail choose` ou `rail answer` l'écrit sur
 // l'issue, sort la carte de TODO et fait avancer le ticket.
 ipcMain.handle("repondreCarte", async (_, nom: unknown, ticket: unknown, reponse: unknown) => {
   const vise = connu(nom);
@@ -1361,7 +1273,7 @@ ipcMain.handle("repondreCarte", async (_, nom: unknown, ticket: unknown, reponse
 });
 // Le « yes » ou le « no » du chef sur un profil de cook proposé (profil.ts), par le même chemin : écrit sur
 // le tableau de la cuisine du projet, en commentaire `profile`, pour une proposition que sa dernière lecture
-// porte — ni `ssh` ni box jointe.
+// porte — sans box jointe.
 ipcMain.handle("trancherLeProfil", async (_, nom: unknown, proposition: unknown, reponse: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return undefined;
@@ -1430,7 +1342,6 @@ const adressesDeFeu = new Map<string, Map<number, string>>();
 ipcMain.handle("lireFeu", async (_, nom: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return undefined;
-  // Jamais posée hors des essais, comme BRIGADE_SSH_BIN.
   const feu = await lireFeu({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 30_000 }, vise.dossier);
   if ("tickets" in feu) adressesDeFeu.set(String(nom), new Map(feu.tickets.flatMap(({ ticket, url }) => (url === undefined ? [] : [[ticket, url] as const]))));
   return feu;
@@ -1499,8 +1410,6 @@ app.on("will-quit", () => {
   clearInterval(verificationsDeVersion);
   stations.fermer();
   clearInterval(controles);
-  // Les cooks du poste ne survivent pas à l'app : fermée, sa station est absente.
-  void runner.fermer();
   // La station de l'ordinateur s'arrête avec l'app, et écrit sur GitHub l'heure de son arrêt.
   void stationLocale?.arreter();
 });
@@ -1554,10 +1463,5 @@ void app.whenReady().then(() => {
   // Les préférences du chef : lues dans son gist — qui en prend celles du fichier, s'il n'en a encore
   // aucune —, puis relues chaque minute. Celles du gist l'emportent sur les couleurs tout juste tirées.
   preferences.demarrer();
-  // L'app est lancée : ses stations se manifestent.
-  runner.servir(cuisinesIci(role, projets()));
-  // Le poste se réveille : chaque shell distant se rattache à sa session, sans attendre que `ssh`
-  // découvre que sa connexion d'avant le sommeil est morte.
-  powerMonitor.on("resume", () => terminaux.reveiller());
   return fenetre.loadFile(join(import.meta.dirname, "vue/index.html"));
 });

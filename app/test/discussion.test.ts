@@ -1,23 +1,18 @@
 // L'issue d'un ticket et sa discussion, sur la fiche de toute carte (#684) : le corps puis les
 // commentaires dans l'ordre, chacun avec son auteur et sa date, le markdown rendu ; et le
 // commentaire du chef, posté sur l'issue par la box (`/brigade comment #<ticket> <texte>` sur le
-// tableau de la cuisine, #1845) — au clic, et seulement au clic. La lecture par la box est jouée contre
-// un faux `ssh` qui lance la commande dans un vrai `sh`, comme la box ; le commentaire et la demande au
-// second, contre un tableau doublé, que la box lit avec sa grammaire ; la vue, telle qu'elle est,
+// tableau de la cuisine, #1845) — au clic, et seulement au clic. Le commentaire et la demande au
+// second sont joués contre un tableau doublé, que la box lit avec sa grammaire ; la vue, telle qu'elle est,
 // devant un faux document.
 import assert from "node:assert/strict";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { describe, test, type TestContext } from "node:test";
+import { describe, test } from "node:test";
 import { ALLUMAGE } from "../src/allumage.ts";
 import { pourLaBarre } from "../src/barre.ts";
-import { BOUTONS } from "../src/boutons.ts";
-import { lancerGeste, type Rendu } from "../src/box.ts";
+import type { Rendu } from "../src/box.ts";
 import { EXEMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
-import { commenter, demanderAuSecond, discussionDe, lireDiscussion, type AuTableau, type Commente, type Discussion, type Lancer } from "../src/discussion.ts";
+import { commenter, demanderAuSecond, discussionDe, type AuTableau, type Commente, type Discussion } from "../src/discussion.ts";
 import { mettreAPart } from "../src/attend.ts";
 import { BANNIERE, tenirFaits, type Faits } from "../src/faits.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
@@ -33,10 +28,9 @@ import { jouerAuTableau } from "../src/tableau-gestes/rail.ts";
 import { lireLeGeste } from "../../runtime/src/tableau/gestes/grammaire.ts";
 import type { GesteDuTableau } from "../../runtime/src/tableau/rendu/bloc.ts";
 import { carteDuTicket, type Faux, type Jouee, jouerLaVue, type Reponses, repos } from "./aides/fausse-vue.ts";
-import { SANS_POSIX } from "./aides/posix.ts";
 
 const PARADE = "parade";
-const PROJET = { nom: PARADE, dossier: "/tmp/parade", box: { hote: "box" } };
+const PROJET = { nom: PARADE, dossier: "/tmp/parade" };
 const DELAI = 60_000;
 
 // Ce que `pass 21 issue` rend (runtime/src/issue-ticket.ts) : le corps, puis les commentaires du plus ancien au plus récent.
@@ -56,8 +50,8 @@ const ISSUE = {
   },
 };
 const lu = (sortie: unknown, code = 0): Rendu => ({
-  lance: "$ ssh -o BatchMode=yes -o ConnectTimeout=10 -- box brigade parade pass 21 issue",
-  erreur: code === 0 ? null : Object.assign(new Error("Command failed"), { code, killed: false, cmd: "ssh" }),
+  lance: "$ brigade parade pass 21 issue",
+  erreur: code === 0 ? null : Object.assign(new Error("Command failed"), { code, killed: false, cmd: "brigade" }),
   sortie: typeof sortie === "string" ? sortie : `${JSON.stringify(sortie)}\n`,
   erreurs: "",
 });
@@ -91,10 +85,10 @@ describe("la discussion de l'issue, telle que `pass <ticket> issue` la rend", ()
     assert.deepEqual(discussionDe(lu({ found: false, reason: "#21 is a pull request, not an issue" }, 1), DELAI), { sans: "no issue to read: #21 is a pull request, not an issue" });
   });
 
-  test("une panne, une box pas jointe ou un runtime qui ne connaît pas `issue` : la fiche dit ce qui a été lancé et rendu", () => {
+  test("une panne, une station muette ou un runtime qui ne connaît pas `issue` : la fiche dit ce qui a été lancé et rendu", () => {
     const panne = discussionDe({ ...lu("", 1), erreurs: "brigade : l'issue de #21 n'a pas été lue — gh: HTTP 502\n" }, DELAI);
     assert.ok("sans" in panne);
-    assert.match(panne.sans, /^not read: \$ ssh .* pass 21 issue\nbrigade : l'issue de #21 n'a pas été lue — gh: HTTP 502\n\n→ exit code 1$/);
+    assert.match(panne.sans, /^not read: \$ brigade parade pass 21 issue\nbrigade : l'issue de #21 n'a pas été lue — gh: HTTP 502\n\n→ exit code 1$/);
     assert.ok("sans" in discussionDe(lu("usage : …", 2), DELAI));
   });
 
@@ -169,7 +163,7 @@ describe("le commentaire du chef part sur le tableau, et la box le poste sur l'i
     assert.deepEqual(postes, []);
   });
 
-  test("un projet sans `hote` commente quand même : seul le tableau compte", async () => {
+  test("un projet sans rien d'autre que son dossier commente quand même : seul le tableau compte", async () => {
     const { postes, auTableau } = tableau(() => ({ etat: "pris", reponse: `**Done** — [comment #21](…) — cost: ${PRIX}` }));
     assert.deepEqual(await commenter(auTableau, { nom: PARADE, dossier: "/tmp/parade" }, 21, "du contexte"), { poste: true, prix: PRIX });
     assert.deepEqual(postes, ["/brigade comment #21 du contexte"]);
@@ -181,51 +175,16 @@ describe("le commentaire du chef part sur le tableau, et la box le poste sur l'i
   });
 });
 
-// Un faux `ssh` qui lance la commande distante dans un vrai `sh`, avec un faux geste `brigade` qui
-// écrit ses arguments, un par un, et rend ce que le test lui donne.
-function box(t: TestContext, reponse: unknown, code = 0) {
-  const racine = mkdtempSync(join(tmpdir(), "brigade-app-discussion-"));
-  t.after(() => rmSync(racine, { recursive: true, force: true }));
-  mkdirSync(join(racine, "bin"));
-  const ssh = join(racine, "ssh");
-  writeFileSync(ssh, `#!/bin/sh\nwhile [ "$1" != "--" ]; do shift; done\nshift\nprintf '%s\\n' "$2" >> '${racine}/lancees'\nPATH='${racine}/bin':"$PATH" exec sh -c "$2"\n`);
-  writeFileSync(join(racine, "bin/brigade"), `#!/bin/sh\nnode -e 'console.log(JSON.stringify(process.argv.slice(1)))' -- "$@" >> '${racine}/recus'\ncat '${racine}/reponse'\nexit ${code}\n`);
-  writeFileSync(join(racine, "reponse"), `${JSON.stringify(reponse)}\n`);
-  chmodSync(ssh, 0o755);
-  chmodSync(join(racine, "bin/brigade"), 0o755);
-  const lancer: Lancer = (servi, commande) => lancerGeste({ ssh, delaiMs: DELAI, connexionS: 10 }, servi, commande);
-  const lire = (nom: string) => (existsSync(join(racine, nom)) ? readFileSync(join(racine, nom), "utf8") : "");
-  // Ce que le geste a reçu sur la box, chaque appel ses arguments.
-  const recus = () => lire("recus").split("\n").filter(Boolean).map((ligne) => JSON.parse(ligne) as string[]);
-  return { lancer, recus, lancees: () => lire("lancees") };
-}
-
-describe("lire l'issue sur la box du projet", () => {
-  test("la lecture lance `brigade <projet> pass <ticket> issue`, et rien d'autre : aucune écriture", { skip: SANS_POSIX }, async (t) => {
-    const { lancer, recus } = box(t, ISSUE);
-    const discussion = await lireDiscussion(lancer, PROJET, 21, DELAI);
-    assert.ok(!("sans" in discussion) && discussion.messages.length === 4);
-    assert.deepEqual(recus(), [[PARADE, "pass", "21", "issue"]]);
-  });
-
-  test("un projet sans box : rien n'est lancé", async (t) => {
-    const { lancer, lancees } = box(t, ISSUE);
-    assert.deepEqual(await lireDiscussion(lancer, { nom: PARADE, dossier: "/tmp/parade" }, 21, DELAI), { sans: "no station for this project: the app has nothing to read" });
-    assert.equal(lancees(), "");
-  });
-});
-
 // La vue, jouée telle qu'elle est.
 const SECOND: Terminal = { id: 1, projet: PARADE, genre: "second", titre: "second · claude", note: "session neuve", arrete: false };
 // Ce que `inscrire` rend d'une demande écrite : le second la porte, la note la dit.
 const SECOND_ECRIT: Terminal = { ...SECOND, note: "demande écrite dans le second — appuie sur Entrée pour l'envoyer", demandeEcrite: true };
 const demarrage = () => ({
-  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PROJET], hotes: ["box"] }),
+  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PROJET] }, () => true),
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  boutons: BOUTONS,
   gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
@@ -462,12 +421,12 @@ describe("la fiche : le bouton « ask the second » et la question d'une carte A
   });
 
   test("le second injoignable : l'erreur s'affiche, le texte reste, rien n'est dit parti", async () => {
-    const vue = await ouvrir({ lireDiscussion: () => lue(), demanderAuSecond: () => ({ refus: "nothing was written: the second's request was not composed — ssh: Connection refused" }) });
+    const vue = await ouvrir({ lireDiscussion: () => lue(), demanderAuSecond: () => ({ refus: "nothing was written: the second's request was not composed — the board did not answer" }) });
     await ouvrirFiche(vue, 21);
     ecrire(vue, "du contexte");
     demandeAuSecond(vue).click();
     await repos();
-    assert.equal(discussion(vue).dessous("p").find((p) => p.className === "refus")?.textContent, "nothing was written: the second's request was not composed — ssh: Connection refused");
+    assert.equal(discussion(vue).dessous("p").find((p) => p.className === "refus")?.textContent, "nothing was written: the second's request was not composed — the board did not answer");
     assert.ok(!discussion(vue).dessous("p").some((p) => p.className === "postee"));
     assert.equal(champ(vue).value, "du contexte");
   });

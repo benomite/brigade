@@ -1,6 +1,6 @@
 // Changer la priorité d'un ticket du rail, depuis sa fiche (#1739) : la priorité est le label `prio:<n>` de son issue,
 // et l'app le remplace elle-même sur GitHub — l'ancien retiré, le nouveau posé —, par l'API REST et le jeton du `gh` de
-// ce poste. Ni box, ni `ssh`, ni second, ni tableau de la cuisine : il suffit que l'app soit connectée à GitHub.
+// ce poste. Ni box, ni second, ni tableau de la cuisine : il suffit que l'app soit connectée à GitHub.
 //
 // La box le lit à son sondage suivant et range le ticket ; d'ici là, le tableau qu'elle publie montre encore l'ancienne
 // priorité — et, box injoignable, il la montre tant qu'elle l'est. Le rail montre donc celle que l'app vient d'écrire

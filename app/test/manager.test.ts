@@ -16,7 +16,7 @@ import { describe, test, type TestContext } from "node:test";
 import type { Fait } from "../../runtime/src/evenements.ts";
 import { ouvrirJournal } from "../../runtime/src/journal.ts";
 import { principal } from "../../runtime/src/manager-cli.ts";
-import type { Lecture } from "../src/box.ts";
+import { GESTE, type Lecture } from "../src/box.ts";
 import { CONFIRMES, DIRECTS, ecrireGeste, GESTES, SANS_OUI } from "../src/gestes.ts";
 import { COMMANDE, managerDe, voir, type Manager } from "../src/manager.ts";
 import { commandeDe, ONGLETS } from "../src/onglets.ts";
@@ -24,7 +24,8 @@ import { DIT } from "../src/saisie.ts";
 import { ouvrirTerminaux } from "../src/terminaux.ts";
 
 const RACINE = join(import.meta.dirname, "../..");
-const PARADE = { nom: "parade", dossier: "/projets/parade", box: { hote: "box" } };
+const PARADE = { nom: "parade", dossier: "/projets/parade" };
+const CUISINE = { locale: { node: "node", runtime: "/tmp/runtime", racine: "/tmp/station", env: {} } };
 
 // Un journal, et `manager` jouée dessus comme le geste de la box la joue : sa sortie, telle quelle.
 // Chaque fait y est écrit une minute après le précédent, à partir de 9 h 01.
@@ -269,7 +270,7 @@ describe("ce que l'app pose de la lecture du manager — l'amont la lit (amont.t
   });
 
   test("une lecture ratée ne dit rien du manager : ni allumé, ni éteint — ce que l'app a obtenu se lit dessous", () => {
-    const vu = voir({ projet: "parade", demande: 4, a: "2026-10-13T10:00:00.000Z", erreur: "$ ssh -- box brigade parade manager\n→ code de sortie 255", atteinte: false, cas: "ssh-en-echec" });
+    const vu = voir({ projet: "parade", demande: 4, a: "2026-10-13T10:00:00.000Z", erreur: "$ node geste.ts manager\n→ code de sortie 1", atteinte: false, cas: null });
 
     assert.deepEqual(vu, { projet: "parade", demande: 4, a: "2026-10-13T10:00:00.000Z", sans: "the manager's state was not read: what the app got in its place is below. This is not “off”" });
   });
@@ -324,13 +325,13 @@ describe("la lecture du manager et ses deux gestes", () => {
     terminaux.espace(PARADE);
 
     assert.deepEqual(["projet-allumer", "projet-eteindre"].map((id) => (CONFIRMES.includes(id) ? "confirmé" : DIRECTS.includes(id) ? "direct" : "?")), ["confirmé", "direct"]);
-    assert.deepEqual(ecrireGeste(terminaux, "projet-allumer", PARADE), { refus: SANS_OUI });
+    assert.deepEqual(ecrireGeste(terminaux, "projet-allumer", PARADE, undefined, false, CUISINE), { refus: SANS_OUI });
 
-    const [allumer, eteindre] = await Promise.all([ecrireGeste(terminaux, "projet-allumer", PARADE, undefined, true), ecrireGeste(terminaux, "projet-eteindre", PARADE)]);
+    const [allumer, eteindre] = await Promise.all([ecrireGeste(terminaux, "projet-allumer", PARADE, undefined, true, CUISINE), ecrireGeste(terminaux, "projet-eteindre", PARADE, undefined, false, CUISINE)]);
 
     // Le second vient d'être lancé, il n'est pas dit libre : rien n'est écrit, et le refus le dit — avec la commande de la doc.
-    assert.deepEqual(allumer, { refus: `${DIT.demarre} — the command did not go, and nothing is written: \`!ssh box brigade parade switch on\`` });
-    assert.deepEqual(eteindre, { refus: `${DIT.demarre} — the command did not go, and nothing is written: \`!ssh box brigade parade switch off\`` });
+    assert.deepEqual(allumer, { refus: `${DIT.demarre} — the command did not go, and nothing is written: \`!(cd '/tmp/runtime' && BRIGADE_STATION_DIR='/tmp/station' node ${GESTE} parade switch on)\`` });
+    assert.deepEqual(eteindre, { refus: `${DIT.demarre} — the command did not go, and nothing is written: \`!(cd '/tmp/runtime' && BRIGADE_STATION_DIR='/tmp/station' node ${GESTE} parade switch off)\`` });
     assert.deepEqual(ecrits, [[]]);
     // La doc cite la commande deux fois : sur la box (« Driving it »), dans sa forme de poste — ce qui part —, et dans le dépôt (« The project switch »).
     assert.ok(doc.includes("`brigade <projet> switch [on \\| off]`"), "docs/runtime/, « Driving it », ne cite plus la commande de l'interrupteur");

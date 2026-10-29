@@ -1,4 +1,4 @@
-// Les shells persistants : ce que la couche lance, sur ce poste ou par `ssh`, et ce
+// Les shells persistants : ce que la couche lance sur ce poste, et ce
 // que la session devient. Les commandes se lisent ; la persistance s'éprouve sur un
 // vrai multiplexeur — `tmux`, ou `screen` à défaut, celui qui est installé —, sur un
 // vrai terminal. Chaque test a son répertoire, où vivent les sockets de ses
@@ -13,7 +13,6 @@ import { describe, test, type TestContext } from "node:test";
 import {
   destruction,
   detruire,
-  joindre,
   nomDeSession,
   NOM_DE_SESSION,
   rattachement,
@@ -22,8 +21,6 @@ import {
   SANS_MULTIPLEXEUR,
   scriptDeDestruction,
   scriptDeRattachement,
-  sonde,
-  VIGILANCE_SSH,
   type Cible,
   type Commande,
   type Session,
@@ -32,7 +29,6 @@ import { ouvrirPty, ptyDisponible } from "../src/pty.ts";
 import { SANS_POSIX } from "./aides/posix.ts";
 
 const POSTE: Cible = { lieu: "poste" };
-const BOX: Cible = { lieu: "box", nom: "parade-box", hote: "parade-box" };
 const AIDE_PTY = join(import.meta.dirname, "aides/pty.py");
 
 // Attend un fait. Le délai n'est qu'une garde, pour qu'un test cassé finisse par le dire.
@@ -65,73 +61,21 @@ describe("le nom d'une session", () => {
 });
 
 describe("la commande d'un shell persistant", () => {
-  const session: Session = { nom: "brigade-parade-1", cible: BOX };
-
   test("sur le poste, `sh` lit le script : il crée la session ou s'y rattache", () => {
     const { commande, args } = rattachement({ nom: "brigade-parade-1", cible: POSTE });
     assert.equal(commande, "/bin/sh");
     assert.deepEqual(args, ["-c", scriptDeRattachement("brigade-parade-1")]);
   });
 
-  test("vers la box, `ssh` joint `hote` tel que le chef l'a déclaré, et le compte est celui que son `ssh` lui donne — jamais celui du service", () => {
-    const { commande, args } = rattachement(session, "/usr/bin/ssh");
-    assert.equal(commande, "/usr/bin/ssh");
-    assert.deepEqual(args, ["-t", ...VIGILANCE_SSH, "--", "parade-box", `sh -c '${scriptDeRattachement("brigade-parade-1")}'`]);
-
-    // Une destination qui nomme son compte le garde : rien ne s'y ajoute ni ne s'y substitue.
-    const avecCompte = rattachement({ ...session, cible: { lieu: "box", nom: "parade-box", hote: "debian@parade-box" } });
-    assert.equal(avecCompte.args.at(-2), "debian@parade-box");
-    assert.equal(avecCompte.args.filter((arg) => arg.includes("@")).length, 1);
-
-    for (const { args: lus } of [rattachement(session), destruction(session), rattachement({ ...session, cible: { lieu: "station", nom: "mac", hote: "mac.local" } })]) {
-      const options = lus.slice(0, lus.indexOf("--"));
-      // Ni `-l <compte>`, ni `-o User=…` : le compte n'est jamais choisi par l'app.
-      assert.ok(!options.includes("-l"), lus.join(" "));
-      assert.ok(!options.some((option) => /^user=/i.test(option)), lus.join(" "));
-      // Et une fois sur la box, rien ne change de compte.
-      const distante = lus.at(-1) ?? "";
-      assert.doesNotMatch(distante, /\b(sudo|su|runuser|doas|pkexec|machinectl)\b/);
-      assert.doesNotMatch(distante, /\bbrigade@/);
-    }
-  });
-
-  test("une connexion morte se lâche au lieu d'attendre : dix secondes pour joindre, trente sans réponse d'une connexion établie", () => {
-    assert.deepEqual(VIGILANCE_SSH, ["-o", "ConnectTimeout=10", "-o", "ServerAliveInterval=10", "-o", "ServerAliveCountMax=3"]);
-  });
-
-  test("la sonde demande à la machine si elle répond, sans terminal, sans rien demander au chef, et n'y lance rien", () => {
-    assert.deepEqual(sonde(BOX, "/usr/bin/ssh"), { commande: "/usr/bin/ssh", args: ["-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "--", "parade-box", "true"] });
-    assert.deepEqual(sonde(POSTE), { commande: "/bin/sh", args: ["-c", "true"] });
-  });
-
-  test("une machine qui ne répond pas : la sonde rend ce que `ssh` en a dit, sans exception", { skip: SANS_POSIX }, async () => {
-    assert.deepEqual(await joindre(POSTE), { joint: true });
-    const rendu = await joindre(BOX, { ssh: "/nonexistent/ssh" });
-    assert.ok("erreur" in rendu && rendu.erreur.length > 0, JSON.stringify(rendu));
+  test("la destruction passe aussi par `sh`, sans terminal", () => {
+    const { commande, args } = destruction({ nom: "brigade-parade-1", cible: POSTE });
+    assert.equal(commande, "/bin/sh");
+    assert.deepEqual(args, ["-c", scriptDeDestruction("brigade-parade-1")]);
   });
 
   test("le script se porte entre apostrophes par n'importe quel shell de connexion : il n'en contient aucune", () => {
     assert.ok(!scriptDeRattachement("brigade-parade-1").includes("'"));
     assert.ok(!scriptDeDestruction("brigade-parade-1").includes("'"));
-  });
-
-  test("la destruction vers la box ne demande rien : sans terminal, `ssh` échoue plutôt que d'attendre un mot de passe", () => {
-    assert.deepEqual(destruction(session, "ssh", 7).args, ["-o", "BatchMode=yes", "-o", "ConnectTimeout=7", "--", "parade-box", `sh -c '${scriptDeDestruction("brigade-parade-1")}'`]);
-  });
-
-  test("par un faux `ssh` qui joue la ligne reçue comme le shell de la box : le compte n'est pas changé, et la ligne se lit entière", { skip: SANS_POSIX }, (t) => {
-    const racine = mkdtempSync(join(tmpdir(), "brigade-app-persistance-"));
-    t.after(() => rmSync(racine, { recursive: true, force: true }));
-    // Il note ses arguments, puis joue le dernier sous le compte qui l'a lancé — celui du chef.
-    const ssh = join(racine, "ssh");
-    writeFileSync(ssh, `#!/bin/sh\nprintf '%s\\n' "$@" > '${racine}/appel'\nfor dernier; do :; done\nexec /bin/sh -c "$dernier"\n`);
-    chmodSync(ssh, 0o755);
-    symlinkSync("/bin/sh", join(racine, "sh"));
-    // Aucun multiplexeur dans son `PATH` : la destruction n'a rien à détruire, et le dit par son code.
-    const { commande, args } = destruction(session, ssh);
-    execFileSync(commande, args, { env: { PATH: racine, HOME: racine } });
-    assert.deepEqual(readFileSync(join(racine, "appel"), "utf8").trimEnd().split("\n").slice(0, 5), ["-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "--"]);
-    assert.equal(readFileSync(join(racine, "appel"), "utf8").split("\n")[5], "parade-box");
   });
 });
 

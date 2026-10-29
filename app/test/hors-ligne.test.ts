@@ -67,10 +67,10 @@ describe("la bande, hors ligne (#1818)", () => {
     assert.equal(revenue.horsLigne, undefined);
   });
 
-  test("un `ssh` en échec ne dit rien du réseau : l'app reste hors ligne", () => {
+  test("une lecture qui n'a pas atteint la station ne dit rien du réseau : l'app reste hors ligne", () => {
     const bandes = tenirBandes({ minimum: 0 });
     tour(bandes, () => horsLigne(1));
-    const bande = bandes.manager({ projet: PARADE, demande: 1, a: a(2), erreur: "$ ssh box brigade parade manager\nssh: connect to host box port 22: Network is unreachable\n→ exit code 255", atteinte: false, cas: "ssh-en-echec" });
+    const bande = bandes.manager({ projet: PARADE, demande: 1, a: a(2), erreur: "$ brigade parade manager\nconnect to host box port 22: Network is unreachable\n→ exit code 255", atteinte: false, cas: null });
     assert.equal(bande.horsLigne, a(1));
     assert.deepEqual(bande.alertes, []);
   });

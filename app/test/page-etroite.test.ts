@@ -9,7 +9,6 @@ import { describe, test } from "node:test";
 import type { Faits as FaitsDuRuntime } from "../../runtime/src/etat.ts";
 import { ALLUMAGE } from "../src/allumage.ts";
 import { pourLaBarre } from "../src/barre.ts";
-import { BOUTONS } from "../src/boutons.ts";
 import { EXEMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
@@ -26,14 +25,13 @@ import { FauxEcran, FauxStockage, type Faux, type Jouee, jouerLaVue, repos } fro
 const A = "2026-10-20T10:04:12.000Z";
 const PARADE = "parade";
 const SECOND: Terminal = { id: 1, projet: PARADE, genre: "second", titre: "second · claude", note: "fil repris", arrete: false };
-const PROJETS = [{ nom: PARADE, dossier: "/tmp/parade", box: { hote: "box" } }];
+const PROJETS = [{ nom: PARADE, dossier: "/tmp/parade" }];
 const demarrage = () => ({
-  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: PROJETS, hotes: ["box"] }),
+  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: PROJETS }, () => true),
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  boutons: BOUTONS,
   gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },

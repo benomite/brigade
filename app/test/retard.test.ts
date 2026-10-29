@@ -63,7 +63,7 @@ function releve(dossier: string): string[] {
   });
 }
 
-const PARADE = (dossier: string, nom = "parade"): Projet => ({ nom, dossier, box: { hote: "box" } });
+const PARADE = (dossier: string, nom = "parade"): Projet => ({ nom, dossier });
 
 // Un registre qui relève ce qu'on lui fait ouvrir, sans rien lancer.
 function registre() {
@@ -196,7 +196,7 @@ describe("le retard d'un clone sur son origine", () => {
 
   test("ce que `git` dit d'une origine est redit sans le jeton de son adresse", () => {
     assert.equal(sansJeton("fatal: unable to access 'https://chef:ghp_secret@github.com/chef/brigade.git/': Could not resolve host"), "fatal: unable to access 'https://…@github.com/chef/brigade.git/': Could not resolve host");
-    assert.equal(sansJeton("ssh: Could not resolve hostname github.com"), "ssh: Could not resolve hostname github.com");
+    assert.equal(sansJeton("fatal: Could not resolve hostname github.com"), "fatal: Could not resolve hostname github.com");
   });
 
   test("deux adresses d'un même dépôt GitHub sont la même origine — pas deux dépôts voisins", () => {

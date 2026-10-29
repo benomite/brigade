@@ -14,7 +14,6 @@ import { issueDeLAjout, rejoindreDe } from "../../../runtime/src/projets/rejoind
 import { type Accueil, type LigneDeStation, ligneDeStation } from "../../src/accueil.ts";
 import { ALLUMAGE } from "../../src/allumage.ts";
 import { pourLaBarre } from "../../src/barre.ts";
-import { BOUTONS } from "../../src/boutons.ts";
 import { EXEMPLE, type Projet } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
@@ -105,18 +104,17 @@ describe("l'app lit, dans le gist de chaque station, ce qu'elle a fait des dép�
 });
 
 // La vue jouée : brigade, projet de l'app, cuit sur parade-box ; le Mac est la station de cet ordinateur.
-const BRIGADE: Projet = { nom: "brigade", dossier: "/tmp/brigade", depot: DEPOT, base: "v2", box: { hote: "parade-box" } };
+const BRIGADE: Projet = { nom: "brigade", dossier: "/tmp/brigade", depot: DEPOT, base: "v2" };
 const presence = (id: string, nom: string, machine: string, projets: string[]): StationVue => ({ id, nom, machine, etat: "en-ligne", ligne: "", pannes: [], dit: "online", version: "1.4.0", projets, max: null });
 const APPAIREES = [presence("f0a1", "parade-box", "Debian 12", ["brigade"]), presence("f0b2", "macbook", "macOS 25.0.0", [])];
 const STATIONS: VuDesStations = { a: VU, stations: APPAIREES };
 const ACCUEIL: Accueil = { projets: [], stations: APPAIREES.map((station): LigneDeStation => ligneDeStation(station, 0, false)), sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } };
 const demarrage = () => ({
-  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [BRIGADE], hotes: ["parade-box"] }),
+  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [BRIGADE] }, () => true),
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  boutons: BOUTONS,
   gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },

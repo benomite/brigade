@@ -169,12 +169,8 @@ The app reads each of these forms in both languages, whole: a line that mixes th
 | `Tous les projets` | `All projects` | The overview screen (see §1) |
 | `Ajouter un projet` | `Add a project` | Add form |
 | `Son dossier sur ce poste` | `Its folder on this workstation` | Add form |
-| `Son nom` / `Son dépôt GitHub` / `Sa box` | `Its name` / `Its GitHub repository` / `Its box` | Add form |
-| `Déclarer une box` / `Déclarer` | `Declare a box` / `Declare` | Add form |
+| `Son dépôt GitHub` / `Sa branche d'intégration` | `Its GitHub repository` / `Its integration branch` | Add form |
 | `Choisir…` | `Choose…` | Add form |
-| `Le calibrage du manager et du reviewer` | `The manager and reviewer calibration` | Add form |
-| `La destination de ses sauvegardes` | `Where its backups go` | Add form |
-| `Installer sur la box, et ajouter` | `Install on the box, and add` | Add form button |
 | `Sur le rail` | `On the rail` | Rail column (`queued`, `BLOCKED`) |
 | `Au travail` | `Taken` | Rail column |
 | `Pass` | `Pass` | Rail column |

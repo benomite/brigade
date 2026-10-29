@@ -9,7 +9,6 @@ import { describe, test } from "node:test";
 import { ALLUMAGE } from "../../../src/allumage.ts";
 import { pourLaBarre } from "../../../src/barre.ts";
 import type { Lecture } from "../../../src/box.ts";
-import { BOUTONS } from "../../../src/boutons.ts";
 import { EXEMPLE, type Projet } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../../src/cuisine.ts";
@@ -157,11 +156,11 @@ describe("la page des ratios, posée seule", () => {
   });
 
   test("une branche illisible, ou une lecture ratée : la ligne le dit en une ligne, le détail au survol", () => {
-    const page = poser(new Map([["parade", lecture("parade", ILLISIBLE_LU)], ["cantine", { projet: "cantine", demande: 0, a: A, erreur: "ssh: connect to host box port 22: Connection refused", atteinte: false, cas: "ssh-en-echec" } as Lecture]]));
+    const page = poser(new Map([["parade", lecture("parade", ILLISIBLE_LU)], ["cantine", { projet: "cantine", demande: 0, a: A, erreur: "connect to host box port 22: Connection refused", atteinte: false, cas: null } as Lecture]]));
     const [parade, cantine] = lignes(page);
     assert.equal(parade?.dessous("p").find(({ className }) => className === "indisponible")?.dessous("span")[0]?.textContent, BRANCHE_ILLISIBLE);
     assert.equal(cantine?.dessous("p").find(({ className }) => className === "indisponible")?.dessous("span")[0]?.textContent, ILLISIBLE);
-    assert.doesNotMatch(page.textContent, /ssh|fatal/);
+    assert.doesNotMatch(page.textContent, /fatal/);
   });
 
   test("rien de lu : « reading… » ; un projet pas encore lu le dit sous les autres", () => {
@@ -186,17 +185,16 @@ describe("la page des ratios, posée seule", () => {
 });
 
 describe("la page des ratios, dans la vue jouée", () => {
-  const PROJETS: Projet[] = ["brigade", "parade", "espace"].map((nom) => ({ nom, dossier: `/tmp/${nom}`, box: { hote: "box" } }));
+  const PROJETS: Projet[] = ["brigade", "parade", "espace"].map((nom) => ({ nom, dossier: `/tmp/${nom}` }));
 
-  test("l'accueil l'ouvre ; elle lit `closing --json` sur la box de chaque projet, et ne montre que ceux qui ont un closer", async () => {
+  test("l'accueil l'ouvre ; elle lit `closing --json` pour chaque projet, et ne montre que ceux qui ont un closer", async () => {
     const vue = await jouerLaVue({
       demarrage: () => ({
-        configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: PROJETS, hotes: ["box"] }),
+        configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: PROJETS }, () => true),
         palette: PALETTE,
         exemple: EXEMPLE,
         onglets: ONGLETS,
         rubriques: RUBRIQUES,
-        boutons: BOUTONS,
         gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
         banniere: BANNIERE,
         calibrage: { modeles: MODELES, efforts: EFFORTS },

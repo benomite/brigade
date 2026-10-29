@@ -8,7 +8,6 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../../../src/allumage.ts";
 import { pourLaBarre } from "../../../src/barre.ts";
-import { BOUTONS } from "../../../src/boutons.ts";
 import { EXEMPLE, type Projet } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../../src/cuisine.ts";
@@ -20,13 +19,13 @@ import { EFFORTS, MODELES } from "../../../src/projets/projets.ts";
 import type { Proposition } from "../../../src/second/propositions.ts";
 import type { Terminal } from "../../../src/terminaux.ts";
 import { tenirLesChoix } from "../../../src/vue/second/choix.js";
-import { AIDE, ANNULER, ATTENDU, LANCER, poserGesteDuSecond, TITRE } from "../../../src/vue/second/geste.js";
+import { AIDE, ANNULER, ATTENDU, BOUTON, LANCER, poserGesteDuSecond, TITRE, VOIR } from "../../../src/vue/second/geste.js";
 import { Faux, type Jouee, jouerLaVue, repos } from "../../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
 
-const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", box: { hote: "box" } };
-const FANFARE: Projet = { nom: "fanfare", dossier: "/tmp/fanfare", box: { hote: "box" } };
+const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade" };
+const FANFARE: Projet = { nom: "fanfare", dossier: "/tmp/fanfare" };
 const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "second · claude", note: "fil repris", arrete: false };
 const AUTRE: Terminal = { id: 7, projet: "fanfare", genre: "second", titre: "second · claude", note: "session neuve", arrete: false };
 const SHELL: Terminal = { id: 2, projet: "parade", genre: "shell", titre: "shell 1", note: "", arrete: false };
@@ -37,7 +36,7 @@ const geste = (id: string, command: string): Geste => ({ kind: "gesture", comman
 const MERGER = geste("g-1", "! gh pr merge 1480 --merge");
 // Une commande longue, avec ce qu'une commande porte : des espaces doublés, des guillemets, `$`, `&&`, un espace en tête
 // et en queue. Elle se lit entière, à l'octet près.
-const LONGUE = ` ! ssh box "cd ~/parade  &&  brigade parade pass 1480 --merge --delete-branch --comment 'approved by the chef after the review of #1482, \$HOME kept as is'" ${"--and-a-flag-that-goes-on ".repeat(6)}`;
+const LONGUE = ` ! sh -c "cd ~/parade  &&  brigade parade pass 1480 --merge --delete-branch --comment 'approved by the chef after the review of #1482, \$HOME kept as is'" ${"--and-a-flag-that-goes-on ".repeat(6)}`;
 const PASSER = geste("g-2", LONGUE);
 const CHOIX: Proposition = { kind: "choices", choices: [{ value: "A", label: "Merge it now" }, { value: "B", label: "Wait" }], id: "c-1", at: "2026-10-23T10:00:00.000Z" };
 
@@ -58,19 +57,22 @@ describe("le module : un bouton qui porte la commande, et sa confirmation", () =
     const aide = pose.dessous("button").filter((b) => b.className === "aide");
     assert.equal(aide.length, 1);
     assert.equal(aide[0]?.ariaLabel, AIDE);
-    assert.equal(bouton(pose).textContent, "! gh pr merge 1480 --merge");
+    // Le bouton parle au chef ; la commande exacte n'est nulle part à l'écran, elle est au survol du bouton.
+    assert.equal(bouton(pose).textContent, BOUTON);
+    assert.equal(bouton(pose).ariaLabel, "! gh pr merge 1480 --merge");
+    assert.deepEqual(commandes(pose), []);
     assert.equal(bouton(pose).ariaExpanded, "false");
     assert.equal(confirmation(pose), undefined);
     bouton(pose).click();
     assert.deepEqual(appels, ["basculer"]);
   });
 
-  test("une commande longue se lit entière, à l'octet près — espaces, guillemets, `$` —, sur le bouton comme dans la confirmation", () => {
+  test("une commande longue se lit entière, à l'octet près — espaces, guillemets, `$` —, au survol du bouton et dans l'aide repliée de la confirmation", () => {
     const pose: Faux = poserGesteDuSecond(doc, PASSER, { ouverte: true, basculer: () => {}, annuler: () => {}, lancer: () => {} });
-    assert.equal(bouton(pose).textContent, LONGUE);
-    assert.deepEqual(commandes(pose), [LONGUE, LONGUE]);
+    assert.equal(bouton(pose).ariaLabel, LONGUE);
+    assert.deepEqual(commandes(pose), [LONGUE]);
     // Elle ne passe à la ligne qu'entre ses mots : chacun d'un tenant, aucun n'est coupé ni réécrit.
-    const mots = (bouton(pose).dessous("span").find((span) => span.className === "commande mono") ?? assert.fail("pas de commande")).children.map((mot) => mot.textContent);
+    const mots = (pose.dessous("p").find((p) => p.className === "commande mono") ?? assert.fail("pas de commande")).children.map((mot) => mot.textContent);
     assert.deepEqual(mots, LONGUE.split(/ +/).filter((mot) => mot !== ""));
   });
 
@@ -79,10 +81,12 @@ describe("le module : un bouton qui porte la commande, et sa confirmation", () =
     const pose: Faux = poserGesteDuSecond(doc, MERGER, { ouverte: true, basculer: () => appels.push("basculer"), annuler: () => appels.push("annuler"), lancer: () => appels.push("lancer") });
     const ouverte = confirmation(pose) ?? assert.fail("pas de confirmation");
     assert.equal(bouton(pose).ariaExpanded, "true");
+    // Sous sa question, la commande est dans une aide repliée — fermée —, puis les deux réponses.
     assert.deepEqual(
-      ouverte.children.map((pose) => pose.textContent),
-      [TITRE, "! gh pr merge 1480 --merge", LANCER, ANNULER],
+      ouverte.children.map((pose) => pose.className === "replie" ? pose.dessous("summary")[0]?.textContent.startsWith(VOIR) : pose.textContent),
+      [TITRE, true, LANCER, ANNULER],
     );
+    assert.deepEqual(commandes(pose), ["! gh pr merge 1480 --merge"]);
     assert.equal(reponse(pose, LANCER).className, "recommande");
     // Rien ne coûte : pas de ligne de prix.
     assert.equal(ouverte.dessous("p").some((p) => p.className === "prix"), false);
@@ -131,12 +135,11 @@ describe("le module : un bouton qui porte la commande, et sa confirmation", () =
 async function ouvrir(): Promise<Jouee> {
   const vue = await jouerLaVue({
     demarrage: () => ({
-      configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE, FANFARE], hotes: ["box"] }),
+      configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE, FANFARE] }, () => true),
       palette: PALETTE,
       exemple: EXEMPLE,
       onglets: ONGLETS,
       rubriques: RUBRIQUES,
-      boutons: BOUTONS,
       gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
       banniere: BANNIERE,
       calibrage: { modeles: MODELES, efforts: EFFORTS },
@@ -157,6 +160,8 @@ const entrer = async (vue: Jouee, rang: number) => {
 const sous = (vue: Jouee) => vue.element("choix-du-second");
 // Ce qui se voit sous le terminal : la commande du bouton, et celle de la confirmation si elle est ouverte.
 const vu = (vue: Jouee) => (sous(vue).hidden ? [] : commandes(sous(vue)));
+// La commande que le bouton propose, au survol — rien quand aucun bouton n'est là.
+const proposee = (vue: Jouee) => (sous(vue).hidden ? [] : [leBouton(sous(vue))?.ariaLabel].filter((commande) => commande !== undefined));
 const ecrits = (vue: Jouee) => vue.appels.filter(({ geste }) => geste === "ecrire").map(({ args }) => args);
 const reponses = (vue: Jouee) => vue.appels.filter(({ geste }) => geste === "repondreAuSecond").map(({ args }) => args);
 const publier = async (vue: Jouee, projet: string, proposition: Proposition | null) => {
@@ -170,12 +175,15 @@ const cliquer = async (pose: Faux) => {
 const terminal = (vue: Jouee) => vue.xterms[0] ?? assert.fail("pas de terminal");
 
 describe("dans l'onglet du second", () => {
-  test("le second nomme un geste : un bouton sous le terminal porte la commande exacte, entière même longue, et rien n'est lancé", async () => {
+  test("le second nomme un geste : un bouton sous le terminal, en mots — la commande exacte, entière même longue, est à son survol —, et rien n'est lancé", async () => {
     const vue = await ouvrir();
     assert.equal(sous(vue).hidden, true);
     await publier(vue, "parade", PASSER);
     assert.equal(sous(vue).hidden, false);
-    assert.deepEqual(vu(vue), [LONGUE]);
+    // Aucune ligne de commande à l'écran : un bouton en mots, la commande au survol.
+    assert.deepEqual(vu(vue), []);
+    assert.equal(bouton(sous(vue)).textContent, BOUTON);
+    assert.equal(bouton(sous(vue)).ariaLabel, LONGUE);
     assert.equal(sous(vue).children[0]?.dessous("p")[0]?.textContent.startsWith(ATTENDU), true);
     assert.deepEqual(ecrits(vue), []);
     assert.deepEqual(reponses(vue), []);
@@ -187,12 +195,12 @@ describe("dans l'onglet du second", () => {
     const focalise = terminal(vue).focalise;
     const sortie = [...terminal(vue).ecrits];
     await cliquer(bouton(sous(vue)));
-    assert.deepEqual(vu(vue), [LONGUE, LONGUE]);
+    assert.deepEqual(vu(vue), [LONGUE]);
     assert.equal((confirmation(sous(vue)) ?? assert.fail("pas de confirmation")).dessous("p")[0]?.textContent, TITRE);
     await cliquer(reponse(sous(vue), ANNULER));
     // La confirmation se referme ; le geste reste proposé, le chef peut y revenir.
     assert.equal(confirmation(sous(vue)), undefined);
-    assert.deepEqual(vu(vue), [LONGUE]);
+    assert.deepEqual(vu(vue), []);
     assert.deepEqual(ecrits(vue), []);
     assert.deepEqual(reponses(vue), []);
     assert.equal(terminal(vue).focalise, focalise);
@@ -232,7 +240,8 @@ describe("dans l'onglet du second", () => {
     const ancien = reponse(sous(vue), LANCER);
     // Une proposition nouvelle : son bouton remplace l'autre, sans confirmation ouverte.
     await publier(vue, "parade", PASSER);
-    assert.deepEqual(vu(vue), [LONGUE]);
+    assert.deepEqual(vu(vue), []);
+    assert.equal(bouton(sous(vue)).ariaLabel, LONGUE);
     assert.equal(confirmation(sous(vue)), undefined);
     await cliquer(ancien);
     assert.deepEqual(ecrits(vue), []);
@@ -280,11 +289,11 @@ describe("dans l'onglet du second", () => {
     await publier(vue, "parade", MERGER);
     terminal(vue).taper("not now");
     await repos();
-    assert.deepEqual(vu(vue), [MERGER.command]);
+    assert.deepEqual(proposee(vue), [MERGER.command]);
     terminal(vue).taper("\r");
     await repos();
     assert.deepEqual(reponses(vue), [["parade", { id: "g-1", by: "text" }]]);
-    assert.deepEqual(vu(vue), []);
+    assert.deepEqual(proposee(vue), []);
     // Le terminal n'a reçu que ce que le chef a tapé.
     assert.deepEqual(ecrits(vue), [[1, "not now"], [1, "\r"]]);
   });
@@ -299,13 +308,13 @@ describe("dans l'onglet du second", () => {
     assert.deepEqual(vu(vue), []);
     (vue.element("terminaux").children.find((pose) => pose.textContent === "second · claude") ?? assert.fail("pas d'onglet du second")).click();
     await repos();
-    assert.deepEqual(vu(vue), [LONGUE]);
+    assert.deepEqual(proposee(vue), [LONGUE]);
     vue.dire("surEtat", { ...SECOND, arrete: true, note: "the second stopped (code 0) — a keypress restarts it" });
     await repos();
     assert.deepEqual(vu(vue), []);
     vue.dire("surEtat", SECOND);
     await repos();
     await entrer(vue, 2);
-    assert.deepEqual(vu(vue), [MERGER.command]);
+    assert.deepEqual(proposee(vue), [MERGER.command]);
   });
 });

@@ -2,7 +2,7 @@
 // l'avertissement de docs/runtime/manager.md, « Le manager », mot pour mot, et deux
 // nombres — les issues ouvertes du projet, et celles qui portent
 // `blocked-on-human`. Les nombres viennent de la box, par le geste qui existe
-// (`ssh <hote> brigade <nom> manager backlog`, box.ts) : une commande du runtime
+// (`brigade <nom> manager backlog`, box.ts) : une commande du runtime
 // qui lit GitHub et n'écrit rien (runtime/src/manager-cli.ts). L'app ne joint
 // pas GitHub elle-même, et ne demande rien de plus à la box.
 // Rien n'y est deviné : une sortie sans la ligne `backlog`, une box pas jointe,
@@ -12,7 +12,7 @@
 // nombres, demandés à la box dès qu'elle s'ouvre (confirmation.ts) — rien ne part
 // avant le « oui » du chef, et ce « oui » n'attend pas les nombres. Ce module
 // n'écrit dans aucun terminal.
-import { echecDe, lancerGeste, type Reglages, type Servi } from "./box.ts";
+import { echecDe, lancerLa, type Lu, type Reglages } from "./box.ts";
 import { titreDEchec } from "./faits.ts";
 
 // Le geste du socle (gestes.ts) qui engage, et la lecture qui le chiffre.
@@ -75,9 +75,9 @@ const PAS_AUCUNE = "This is not “no issue”: look at the backlog yourself bef
 // Lance `manager backlog` sur la box du projet, une fois, et dit ce qu'il en est advenu. Jamais
 // d'exception. Ses codes sont ceux d'une commande du runtime : 0, les nombres ; 1, GitHub n'a
 // pas été lu ; 2, elle a été refusée — par un runtime d'avant elle, qui ne connaît pas `backlog`.
-// Tout autre vient du geste, ou de `ssh`.
-export async function compter(reglages: Reglages, servi: Servi): Promise<Compte> {
-  const rendu = await lancerGeste(reglages, servi, COMMANDE);
+// Tout autre vient du geste.
+export async function compter(reglages: Reglages, servi: Lu): Promise<Compte> {
+  const rendu = await lancerLa(reglages, servi, COMMANDE);
   const [projet, a] = [servi.nom, new Date().toISOString()];
   const { erreur } = rendu;
   if (erreur === null) {

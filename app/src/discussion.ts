@@ -3,12 +3,12 @@
 // du plus ancien au plus récent, chacun avec son auteur et sa date —, le markdown rendu (markdown.ts).
 // Et le commentaire que le chef y ajoute, et la demande au second : postés sur le tableau de la cuisine
 // du projet (`/brigade comment #<ticket> <texte>`, `/brigade ask #<ticket> [contexte]`,
-// docs/tableau-gestes.md, #1845), au clic et seulement au clic — ni `ssh`, ni box jointe. La box les
+// docs/tableau-gestes.md, #1845), au clic et seulement au clic. La box les
 // joue à son tick, comme `pass <ticket> comment` et `pass <ticket> ask` : le commentaire part sous le
 // `gh` de son compte, celui du chef ; la demande, elle la compose et la rend dans le bloc machine du
 // tableau. Aucun LLM, aucune reformulation : le texte part tel qu'il est écrit. Le geste se compose
 // ici, jamais dans la vue.
-import { echecDe, type Rendu, type Servi } from "./box.ts";
+import { echecDe, type Rendu } from "./box.ts";
 import type { Projet } from "./config.ts";
 import { instant } from "./histoire.ts";
 import { liensDe, rendre, type Bloc } from "./markdown.ts";
@@ -24,9 +24,6 @@ export type Discussion = { titre: string; ouverte: boolean; messages: MessageDit
 // il ne l'est pas. `peutEtre` : rien ne dit qu'il ne l'est pas — posté sur le tableau sans que la box
 // l'ait encore joué : la discussion se relit avant d'écrire de nouveau.
 export type Commente = { poste: true; prix: string } | { poste: false; refus: string; peutEtre?: true };
-
-// La lecture, telle qu'elle part après `brigade <projet>`.
-export const lecture = (ticket: number) => `pass ${ticket} issue`;
 
 // GitHub refuse un commentaire plus long.
 export const LONGUEUR_MAX = 65_536;
@@ -80,16 +77,6 @@ export type Demandee = { demande: string } | { auSecond: string } | { refus: str
 
 // Ce qui poste une décision sur le tableau de ce projet et la suit jusqu'à la réponse de la box (main.ts).
 export type AuTableau = (decision: DecisionDuChef) => Promise<EtatDuGeste>;
-
-// Ce qui lance une commande sur la box du projet, et ce qu'elle a rendu (box.ts, `lancerGeste`).
-export type Lancer = (servi: Servi, commande: string) => Promise<Rendu>;
-
-// La discussion de ce ticket, lue sur la box de ce projet.
-export async function lireDiscussion(lancer: Lancer, projet: Projet, ticket: unknown, delaiMs: number): Promise<Discussion> {
-  if (projet.box === undefined) return { sans: "no station for this project: the app has nothing to read" };
-  if (!numero(ticket)) return { sans: "not read: the sheet names no ticket" };
-  return discussionDe(await lancer({ nom: projet.nom, box: projet.box }, lecture(ticket)), delaiMs);
-}
 
 // Le commentaire du chef, posté sur l'issue de ce ticket par la box de ce projet, depuis son tableau.
 // Rien ne part d'un texte vide, ni d'un projet qui ne s'ouvre pas.

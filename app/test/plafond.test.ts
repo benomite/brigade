@@ -82,7 +82,7 @@ describe("l'accueil pose le plafond et la retenue sur la ligne de leur station",
   const vue = (nom: string): StationVue => ({ id: "g1", nom, machine: "Linux", ton: "vert", dit: "online", pannes: [], etat: "en-ligne", version: "1.4.0", projets: ["brigade"], max: null, versionDit: "", ligne: "" }) as unknown as StationVue;
 
   test("la page peut régler une station dont un projet lu dit le plafond — et seulement celle-là", () => {
-    const accueil = tenirAccueil({ projets: () => [{ nom: "brigade", box: true, desinstalle: false }], maintenant: () => Date.parse(A) });
+    const accueil = tenirAccueil({ projets: () => [{ nom: "brigade", servi: true }], maintenant: () => Date.parse(A) });
     accueil.stations({ a: A, stations: [vue("box"), vue("autre")] });
     const vu = accueil.status({ projet: "brigade", demande: 1, a: A, attend: undefined, sorties: [{ commande: "status", texte: statusDe([station("box", SATUREE)]) }] });
     const [box, autre] = vu?.stations ?? [];

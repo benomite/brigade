@@ -6,8 +6,7 @@ import { tenirBandes } from "../../../app/src/alertes.ts";
 import { ALLUMAGE } from "../../../app/src/allumage.ts";
 import { mettreAPart } from "../../../app/src/attend.ts";
 import { pourLaBarre } from "../../../app/src/barre.ts";
-import { BOUTONS } from "../../../app/src/boutons.ts";
-import type { Lecture } from "../../../app/src/box.ts";
+import type { Cuisine, Lecture } from "../../../app/src/box.ts";
 import { type Configuration, EXEMPLE, type Projet } from "../../../app/src/config.ts";
 import { PALETTE } from "../../../app/src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../../app/src/cuisine.ts";
@@ -52,29 +51,32 @@ export type Ecran = {
   donnees(): Donnees;
 };
 
+// La cuisine que lit l'app : la station de cet ordinateur.
+export const CUISINE: Cuisine = { locale: { node: "node", runtime: "/Users/chef/brigade/runtime", racine: "/Users/chef/.brigade/station", env: {} } };
+
 // L'heure de toutes les captures : la vue la lit pour l'âge d'une lecture, les heures affichées.
 export const MAINTENANT = "2026-10-13T10:04:12.000Z";
 
 // Le fichier des projets que la vue reçoit, tel que barre.ts le rend.
-export const configuration = (projets: Projet[], hotes: string[] = ["box"]): Configuration => ({ chemin: "/Users/chef/.config/brigade/app.json", projets, hotes });
+export const configuration = (projets: Projet[]): Configuration => ({ chemin: "/Users/chef/.config/brigade/app.json", projets });
 
 // L'état des clones, des stations et de leurs projets, tel qu'une lecture à l'heure le rend :
 // tout est à jour, une station en ligne qui sert les deux projets.
 const CODE: VuDuCode = { a: MAINTENANT, clones: [{ id: "app", etat: "a-jour", tete: "this app's code: up to date with origin/v2", lignes: [] }] };
 const STATIONS: VuDesStations = { a: MAINTENANT, stations: [{ id: "box", nom: "box", machine: "Debian 12 · 8 cores", etat: "en-ligne", ligne: "online · 2 projects: parade, cantine", pannes: [], dit: "online", version: "", projets: ["parade", "cantine"], max: null }] };
-const PROJETS_DES_STATIONS: VuDesProjets = { a: MAINTENANT, projets: [], recommandee: null, avertissements: {} };
+const PROJETS_DES_STATIONS: VuDesProjets = { a: MAINTENANT, projets: [], recommandee: null, avertissements: {}, machines: {}, calibrage: { manager: { modele: "opus", effort: "high" }, reviewer: { modele: "opus", effort: "high" }, dit: "" } };
 
 // La réponse de `demarrage`, comme main.ts la rend : les listes de l'app sont celles de son code.
 // `ici` : les projets dont la cuisine tourne sur cet ordinateur (poste/cuisine-ici.ts).
 // `tourne` : la station de cet ordinateur tourne-t-elle ? Sinon, ceux de `ici` n'ont rien à lire.
-export function demarrage(projets: Configuration, ici: (nom: string) => boolean = () => false, tourne = true) {
+// `servi` : les projets qu'une station sert, dont le rail se lit — tous, par défaut.
+export function demarrage(projets: Configuration, ici: (nom: string) => boolean = () => false, tourne = true, servi: (projet: Projet) => boolean = () => true) {
   return {
-    configuration: pourLaBarre(projets, undefined, ici, () => tourne),
+    configuration: pourLaBarre(projets, servi, ici, () => tourne),
     palette: PALETTE,
     exemple: EXEMPLE,
     onglets: ONGLETS,
     rubriques: RUBRIQUES,
-    boutons: BOUTONS,
     gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES, attente: GESTES_D_ATTENTE },
     banniere: BANNIERE,
     calibrage: { modeles: MODELES, efforts: EFFORTS },

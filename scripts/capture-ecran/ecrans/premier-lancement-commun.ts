@@ -51,7 +51,7 @@ export function premierLancement(dit: string, stations: StationsDuChef, etapes: 
     etapes,
     donnees: () => ({
       maintenant: MAINTENANT,
-      reponses: { demarrage: { ...demarrage(configuration([], [])), poste: { nom: "this PC", mac: false } }, stationsDuChef: stations, ...reponses },
+      reponses: { demarrage: { ...demarrage(configuration([])), poste: { nom: "this PC", mac: false } }, stationsDuChef: stations, ...reponses },
       envois: {},
     }),
   };

@@ -147,13 +147,13 @@ describe("la table : sept rangées, trois positions, celle en vigueur pressée",
 
   test("une table illisible tient en une ligne, son détail au survol", async () => {
     const { racine } = await monter({
-      lire: () => Promise.reject(new Error("ssh: connect to host box port 22: Connection refused")),
+      lire: () => Promise.reject(new Error("connect ECONNREFUSED 127.0.0.1:7010")),
       poserRangee: () => assert.fail("rien ne se pose"),
       appliquerProfil: () => assert.fail("rien ne s'applique"),
     });
     const indisponible = section(racine).dessous("p").find((p) => p.className === "indisponible") ?? assert.fail("aucune ligne");
     assert.equal(indisponible.children[0]?.textContent, "the autonomy table is unavailable");
-    assert.equal(indisponible.dessous("button")[0]?.ariaLabel, "ssh: connect to host box port 22: Connection refused");
+    assert.equal(indisponible.dessous("button")[0]?.ariaLabel, "connect ECONNREFUSED 127.0.0.1:7010");
     assert.equal(rangeesDe(racine).length, 0);
   });
 });
@@ -217,12 +217,12 @@ describe("changer une rangée", () => {
 
   test("un clic refusé se dit en une ligne sous la table, le détail au survol ; la table reste celle qui est écrite", async (t) => {
     const { api, positions } = projet(t);
-    const { racine } = await monter({ ...api, poserRangee: () => Promise.reject(new Error("exit 255: ssh: Could not resolve hostname box")) });
+    const { racine } = await monter({ ...api, poserRangee: () => Promise.reject(new Error("exit 255: could not read the answer")) });
 
     await cliquer(racine, "dependencies", "brigade-decides");
     const refus = section(racine).dessous("p").find((p) => p.className === "dit refus") ?? assert.fail("aucun refus");
     assert.equal(refus.children[0]?.textContent, "nothing was changed: the answer could not be read");
-    assert.equal(refus.dessous("button")[0]?.ariaLabel, "exit 255: ssh: Could not resolve hostname box");
+    assert.equal(refus.dessous("button")[0]?.ariaLabel, "exit 255: could not read the answer");
     assert.deepEqual(positionsVues(racine), positions());
   });
 });

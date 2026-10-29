@@ -76,6 +76,6 @@ test("`receive` sans présentation, ou un geste mal écrit, est refusé sans rie
     ["present", "ABCDE-FGHJK", "--to", "chef@box", "--receiver", "relatif", "--registry", "/s"],
     ["present", "ABCDE-FGHJK", "--to", "chef@box", "--receiver", "/r"],
   ]) {
-    assert.equal((await lancer(args, { HOME: repertoire, BRIGADE_SSH_BIN: "/bin/false" })).statut, 64, args.join(" "));
+    assert.equal((await lancer(args, { HOME: repertoire })).statut, 64, args.join(" "));
   }
 });

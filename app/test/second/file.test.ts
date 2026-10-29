@@ -1,6 +1,6 @@
 // La file du projet lue pour le second par un crochet SessionStart : déclaré dans les seuls réglages de l'onglet
 // Second, joué à la main il rend le contexte que `claude` attend, et une file illisible est dite sans bloquer. La file
-// vient du tableau de la cuisine que la box publie sur GitHub, lu par le `gh` du poste (#1845) : ni `ssh` ni `hote`.
+// vient du tableau de la cuisine que la box publie sur GitHub, lu par le `gh` du poste (#1845) : aucune commande lancée sur une autre machine.
 import assert from "node:assert/strict";
 import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -24,7 +24,7 @@ function dossier(t: TestContext): string {
 }
 
 // Un faux `gh` : il écrit ce qu'il a reçu, rend `sortie` et `erreur`, et sort avec `code`. Seul dans le PATH du crochet :
-// ni `ssh`, ni `git` — il lit ses fichiers par `/bin/cat`.
+// ni `git` — il lit ses fichiers par `/bin/cat`.
 function fauxGh(t: TestContext, code: number, sortie: string, erreur = ""): string {
   const d = dossier(t);
   writeFileSync(join(d, "sortie"), sortie);
@@ -87,7 +87,7 @@ describe("le crochet de la file, dans les réglages du second", () => {
   });
 });
 
-describe("la file lue sur le tableau de la cuisine, sans ssh", () => {
+describe("la file lue sur le tableau de la cuisine, sans autre machine", () => {
   test("le bloc `awaiting` que la box publie, mot pour mot, puis l'état de la cuisine — et l'heure de l'état qu'elle a lu", async (t) => {
     const publie = projetPublie(t);
     const { appeler, chemins } = githubDuTableau(publie.corps);
@@ -126,7 +126,7 @@ describe("la file lue sur le tableau de la cuisine, sans ssh", () => {
 });
 
 describe("le crochet joué à la main", () => {
-  test("il lit le tableau par le `gh` du poste, et rend la file au format du contexte additionnel — aucun ssh dans son PATH", { skip: SANS_SH }, (t) => {
+  test("il lit le tableau par le `gh` du poste, et rend la file au format du contexte additionnel — rien d'autre que `gh` dans son PATH", { skip: SANS_SH }, (t) => {
     const publie = projetPublie(t);
     const gh = fauxGh(t, 0, JSON.stringify([publie.issue]));
     const r = jouer(t, gh, "brigade", DEPOT);

@@ -71,8 +71,8 @@ the Rail kanban: a click (or Enter) opens the same sheet as the same card in Tak
 the rail read does not carry has a card with its number and its title (`no cook running` when there is none). Nothing in a
 block is command output. Each block has **a single button**: `stop cooking` when it cooks (saturated included), `start cooking`
 when you have stopped it. It posts `/brigade station stop|start <station>` on the project's Kitchen board (#1845,
-`docs/tableau-gestes.md`) with this computer's `gh` — no `ssh`, no `hote` —, which the project's runtime plays at its
-next tick, wherever it runs (its box, or this Mac). The block says `stopping…` until the box has answered under the
+`docs/tableau-gestes.md`) with this computer's `gh`, which the project's runtime plays at its
+next tick, wherever it runs (another computer, or this one). The block says `stopping…` until the box has answered under the
 gesture (the board is read again every five seconds, two and a half minutes at most), then rereads the board: the
 line takes the new state without reloading the page. A box that has not read it by then leaves the line saying it is
 posted, and plays it at its next tick. Stopping cuts nothing: the cook in flight finishes — served, or its ticket goes
@@ -99,22 +99,17 @@ blocks are: it is only the fallback while `facts` does not give the stations.
 stations otherwise: one row per station the project
 declares, in the order of its declaration — its name, where it runs, its cooks cap (`3 cooks at once`) and its capabilities
 (`code`, `raisonnement`, `navigateur-headless`…). Where it runs has three distinct words: `box station`; `this workstation`,
-a remote station this computer plays for the project (it is in the project's `stations` in `app.json` — or any station of a
-project whose kitchen runs here); and `remote`, a station another workstation plays. What each means is on hover. The rows
+a station of a project whose kitchen runs here; and `remote`, a station another workstation plays (this computer does not
+play it). What each means is on hover. The rows
 come from `installation stations --json`, which the installation check reads (on opening, then every five minutes): before
 the first read, one line says `not read yet`; a project that declares no station says `no station declared: no cook leaves
 for this project`, never a blank. On a narrow screen, the block sits under the stations' lines. The module is
 `app/src/vue/stations-declarees.js`.
 **Each row has `edit`** (#1510) — so does each station's block (#1786): under the row, its form — `Cooks at once`, prefilled; `What it provides`, one checkbox per
 capability (the boxes of "+ station", #1307): the ones it declares, ticked, then what the other stations provide and what
-this computer can declare, unticked; and `this workstation plays it`, ticked when it does (absent when the project's
-kitchen runs here; greyed, with the reason on hover, for a project with no `hote` or a station that does not run
-`claude`). `Save`, recommended, changes that station only, by the runtime's single-station commands run on its box
-(`installation stations set`, and `remote` when it becomes played here): the others stay as the box wrote them. Played
-here, it is also written in the project's `stations` in `app.json` by the runtime's `jouerIci` (`runtime/src/une-station.ts`)
-— the app re-reads the file and its runner plays it, with no hand edit; unticked, it leaves that list. `Remove` asks first,
-its price in one line, then runs `installation stations remove` (and the station leaves `app.json` if this workstation played
-it); the project's only station cannot be removed. Then the stations are read again, and the rows follow; one line under
+this computer can declare, unticked. `Save`, recommended, changes that station only, by the runtime's single-station commands run through the project's
+station (`installation stations set`): the others stay as it wrote them. `Remove` asks first,
+its price in one line, then runs `installation stations remove`; the project's only station cannot be removed. Then the stations are read again, and the rows follow; one line under
 the row says what was done, or, in the form, why nothing was (the station's answer on hover). It is the same on a
 Windows workstation (`pc/claude`). The operation is `changerUneStation` in `app/src/service.ts`.
 **Under the stations, the project's calibration ceiling** (#1284): how far the manager raises the model and the effort of a
@@ -223,7 +218,7 @@ a few words, and one click opens it — you do not act there, you look, then go 
 (the explanation of a tab, what a step of the installation is for and what happens if you skip it live
 on hover of a "?" icon), each action is a button that says its word — an action that writes the start of a
 command into the second is named ("Extend a grant…"), the command is written nowhere —,
-a read that fails fits on one line (the `ssh` text, the retry and the exit code on hover), and a
+a read that fails fits on one line (the cause, the retry and the exit code on hover), and a
 confirmation of a costly action says its price in one line, the rest and its source on hover.
 **The log is no longer on screen**: it is breakdown tooling, opened by the
 "log" action, at the head of the space. And at the head of the bar, the **All projects** screen: your projects and your
@@ -251,12 +246,9 @@ the installation.** Those **go**: their command is sent into the second, and its
 read in its thread, without you copying anything. And when the second is not free, they do not go
 silently: the app says why, and that nothing went (see "A direct action really goes out — or says why it does not").
 
-**Only one thing goes from the app to the box without passing through your terminal: adding a project.**
-The add screen runs the box's installation action for you — no command to paste,
-no port to choose (see "From the app"). What remains afterwards — priming the repo, merging,
-checking, starting — is followed in the project's space: the app opens the session there, checks for
-you, and **writes the start only if the box says the project is ready** (see "After the add: the
-commissioning").
+**Adding a project is declaring it in the app** (see "From the app"). What remains afterwards — priming the repo,
+merging, checking — is followed in the project's space: the app opens the session there and checks for you (see
+"After the add: the commissioning").
 
 ## The app is not the kitchen
 
@@ -264,11 +256,9 @@ commissioning").
 **The app is the window on the Mac**: it reads, it displays, it writes commands into a
 terminal. Closing it stops nothing on the box, and stopping a project's kitchen does not close the app.
 
-**One exception, and you declare it: the stations your workstation plays.** A ticket may ask for what
-only your Mac provides — your signed-in Chrome. The kitchen stays on the box, with its rail, its
-guardrails and its pass; but the cook of that ticket runs at your place, launched by the app, as long as it
-is open (see "The workstation is a station"). A project that declares no station launches
-nothing on your workstation.
+**The app runs one station: this computer's.** It reads and drives, through it, the projects that cook on this
+computer; for the others, it reads the Kitchen board on GitHub and posts gestures there. It launches no `ssh`, opens
+no shell on another machine, and plays no station for a project's box.
 
 Three words look alike, and do not mean the same thing:
 
@@ -283,11 +273,11 @@ that is the project's kitchen, the state — not the screen.
 
 ## Telling where your projects are
 
-A single file, outside the repo: `~/.config/brigade/app.json`. Your boxes, declared once, and a
-name and a folder per project — with, for a project served by a box, which one. **You do not have to
-write it to begin**: the app creates it, and you declare a box and add a project in it from
-the app. The runtime creates it too, on its first start (`{ "projets": [], "hotes": [] }`: no host, no
-path), and adds the keys a file lacks without changing any value it has (`runtime/src/app-par-defaut.ts`).
+A single file, outside the repo: `~/.config/brigade/app.json`. A name and a folder per project (and the repository
+and branch it follows). **You do not have to write it to begin**: the app creates it, and you add a project in
+it from the app. The runtime creates it too, on its first start (`{ "projets": [] }`: no path), and adds the keys a
+file lacks without changing any value it has (`runtime/src/app-par-defaut.ts`). Where a project cooks is not in this
+file: it is read from the Kitchen board on GitHub and from the stations you paired.
 
 ### On a new computer: your stations and their projects (#1434)
 
@@ -359,7 +349,7 @@ still show something, always:
   tool by name, with `how to get <tool>`, which opens the page that explains it: the button carries
   the gesture, no command is written out to copy. Why the second needs the tool, and the runtime's
   sentence on how to get it, are in the `?` hover. `try again` checks the tools again and starts the
-  second when they are there. When it starts but a tool is missing (`gh`, `ssh`), the terminal is
+  second when they are there. When it starts but a tool is missing (`gh`, `git`), the terminal is
   there, and above it the sentence that says what will fail, then the tool and its button. Any other
   failure — the project's folder missing, a launch refused — is said in the note's one sentence,
   with `try again`.
@@ -372,14 +362,14 @@ second in `app/src/terminaux.ts`. Captures: `docs/captures/1435/`.*
 
 A project has one view: the rail view, with its columns, its ticket cards, its TODO and its
 gestures. Since #1694 it is fed from the project's Kitchen board on GitHub (read with the token of
-this computer's `gh`), with no `ssh` and no box reachable; the app only has to be connected to
+this computer's `gh`), with no other machine to reach; the app only has to be connected to
 GitHub. The screen #1588 added for a board read from GitHub — a TODO column and the raw `status`
 sections, with `use the direct link` and its own decision buttons (#1590) — is gone, and so are its
 bridge calls (`tableauDuProjet`, `ouvrirDuTableau`, `gesteAuTableau`) on the desktop and the phone.
 The gestures of the rail view that the board's grammar knows (`docs/tableau-gestes.md`) are posted
 on the board from the card or the sheet: `merge the PR`, `remove from the rail`, a TODO card's
 choice or text, `back to the kitchen` after WAITING (#1740, below), and the "yes" or "no" on a proposed
-correction or cook profile (#1741, below). A project that neither a box nor this computer serves keeps the published rail
+correction or cook profile (#1741, below). A project that no station serves on this computer keeps the published rail
 above (#1435). Captures: `docs/captures/1695/` — `espace-projet-avant.png` (the screen removed) and
 `espace-projet-apres.png` (the rail view of the same project), and `espace-projet-gestes-apres.png` (the
 sheet of a TODO ticket whose decision is known, offering its gestures, `merge the PR` first).
@@ -390,7 +380,7 @@ A ticket's priority is the `prio:<n>` label of its issue on GitHub. On the sheet
 offers `1` to `9` (`1` is served first) and `none`; nothing is chosen in advance, and the button stays inactive until a
 value is. A click and **the app replaces the label itself on GitHub** (`app/src/priorite.ts`), with the token of this
 computer's `gh`: it reads the issue, puts the new `prio:` label, then removes every other one (`none` removes them all
-and puts none). No box, no `ssh`, no Kitchen board, no second: the gesture works with the box unreachable. It costs
+and puts none). No Kitchen board, no second: the gesture works with the project's kitchen unreachable. It costs
 nothing, and asks for no confirmation.
 
 - **Done**: the sheet says `priority changed on GitHub: #22 now carries prio:1 — the box reorders the rail when it reads
@@ -413,7 +403,7 @@ The box has no command for it: the label is read like any other (`docs/runtime/j
 `it arrived, back to the kitchen`, on a WAITING card, and `back to the kitchen`, on the sheet of a ticket back from
 WAITING into TODO (recommended there, confirmed with its cost), are one gesture: the app posts `/brigade arrived #<n>` on
 the project's Kitchen board (`app/src/tableau-gestes/rail.ts`, `docs/tableau-gestes.md`), with the token of this
-computer's `gh`. No `ssh`, no second, no box command: the gesture works with the box unreachable, and the box plays it
+computer's `gh`. No second, no command: the gesture works with the kitchen unreachable, and the project's runtime plays it
 at its next tick — the ticket leaves WAITING (or TODO) and goes back on the rail, queued, without going through TODO.
 
 - **Posted**: the card says `posted on the Kitchen board — the box plays it at its next tick and answers under it` under
@@ -458,11 +448,12 @@ project, in the main process). Captures: `docs/captures/1520/`.*
 
 When what you have to do is a command — a merge, a pass on the box —, the second publishes it as a gesture through
 the same channel. Under its terminal, one line says `The second asks you to run a command` (how it works is in its
-`?` hover), then **one button that shows the exact command, in full**: nothing shortened, rewritten or hidden — a long
-command wraps between its words, its spaces and quotes kept as published.
+`?` hover), then **one button, `Run the second's command…`**, in plain words: no command line is written on the screen. The
+exact command, in full, is read on hovering the button, and again in the confirmation: nothing shortened or rewritten
+— a long command wraps between its words, its spaces and quotes kept as published.
 
 - **A click opens a confirmation**, under the button: `Run this command in the second's terminal, in your name?`,
-  the same full command again, then `run it` and `cancel`. Nothing runs yet; a second click on the button closes it.
+  a folded `the exact command` line that opens on the full command, then `run it` and `cancel`. Nothing runs yet; a second click on the button closes it.
 - **`cancel` runs nothing**: the confirmation closes, nothing is typed into the terminal, and the button stays — the
   gesture is still proposed.
 - **`run it` types the command into the second's terminal**, exactly as published, then Enter — as if you had typed
@@ -482,161 +473,67 @@ command wraps between its words, its spaces and quotes kept as published.
 ### From the app
 
 Once the file has a project, adding another is the **+**, at the foot of the bar, which opens
-**Add a project**.
-
-**Adding a project is installing it on its box** — a single screen, on a box already prepared:
+**Add a project**. Adding a project is **declaring it in the app**: its folder, its repository and its branch, and
+nothing else. No station is asked and no machine is reached; the project enters the projects file, has its tab and
+its line on "All projects", and that is all. Entrusting its kitchen to a station is another gesture, from the project's
+page, when you decide it (see "Add a project to your stations, without a terminal").
 
 | What you give | How |
 |---|---|
 | **Its folder on this workstation** | `Choose…` opens the Mac's folder picker: it is not typed |
-| **Its name** | proposed from the folder, as long as you have not typed another. It is also that of its instance on the box (see below) |
-| **Its GitHub repository** | `<owner>/<name>`: it is the one the box clones. The app reads it from the origin of the chosen folder (`git remote get-url origin`) and proposes it; correct it if it is not the right one. With no readable github.com origin, the field tells you so and stays to be written |
-| **Its box** | to choose among those you declared. Only one declared: it is already chosen |
-| **The manager and reviewer calibration** | a model (`opus`, `sonnet`, `haiku`) and an effort (`low`, `medium`, `high`, `xhigh`, `max`) for each: it is your quota. **A starting value is proposed**, with its provenance — you keep it or you change it |
-| **Where its backups go** | a directory **on the box**, specific to this project, as an absolute path — under the root the box allows. **Proposed: `<root>/<name>`**, the root being the one the box accepts |
+| **Its GitHub repository** | `<owner>/<name>`, with no address and no `.git`. The app reads it from the origin of the chosen folder (`git remote get-url origin`) and proposes it; correct it if it is not the right one. With no readable github.com origin, the field tells you so and stays to be written |
+| **Its integration branch** | the branch the kitchen delivers to. The app reads the one the clone's origin points to (`git rev-parse --abbrev-ref origin/HEAD`) and proposes it; without one, the field says so and stays to be written |
 
-**What is proposed is seen as such, and says where it comes from.** A prefilled field carries, under
-it, `Proposed, not chosen — <provenance>`; the line disappears as soon as you touch the field — what
-goes to the box is then what you chose.
+The project's name is taken from its repository. **Nothing is guessed, and nothing goes while a field is missing**: a
+missing or malformed field is flagged with its reason, and nothing is written. A project the file would refuse —
+`Not added — two projects are called "brigade"`, `folder not found: …` — is refused with its reason on screen.
 
-| Field | Proposed value | Provenance said on screen |
-|---|---|---|
-| Calibration | that of the last project you added from the app (the app keeps it, with the project, in `calibrage`) | `what "<project>" runs on, the last project you added here` |
-| Calibration, lacking such a project | `sonnet/medium`, the value measured on brigade's box | `the value measured on brigade's box, lacking another project added here…` |
-| Backups | `<root>/<name>`, which follows the name as long as you have not touched the field | `the root that "<box>" accepts (<root>, read from /etc/brigade-installer.conf), then the project name` |
-
-**The root is not guessed: it is read.** When a box is chosen, the app reads
-`/etc/brigade-installer.conf` on it, through `ssh` (`cat`, this file is readable by all) and
-takes the `sauvegardes=` line from it. Box not reached, or setting without a root: the field stays empty, and
-says why. **The root keeps its absence of a default**: it is set once on the box,
-and the app never chooses a disk.
-
-**A box is declared once, not per project.** Under the list, `Declare a box` takes a name —
-the one by which your `ssh` reaches it, what you type after `ssh` — and writes it into `hotes`. Nothing
-is reached at that moment: it is a name. A second box asks for nothing more than a second name.
-A file written before this list has nothing to rewrite in it: the box your projects already name
-(`hote`) is proposed too.
-
-**Nothing goes while a field is missing.** A field that can be deduced does not start empty, but you
-can empty it: `Install on the box, and add` with an empty calibration or destination
-reaches no one, the field is flagged, with its reason (`The manager's model has no default:
-it is your quota, choose it.`), and the screen says `Nothing went to the box`. **The runtime, for its part,
-always refuses to start without its five variables** (`docs/runtime/exploitation.md`, "Cinq variables, aucun défaut"): the proposed value is
-written in the drop-in as a chosen value.
-
-**The name is that of the instance** (`brigade@<name>.service`), and the screen refuses it **as the box
-would refuse it, before calling it**: lowercase letters, digits and hyphens, no leading hyphen, 63
-characters at most. The field says so as you type, with the reason (`The box refuses this name — it
-contains "C"…`). The app corrects nothing: you choose another name.
-
-**What goes to the box** — and you have nothing to paste: the app runs, through `ssh`, the
-installation action (`docs/installer.md`, "The installer command"):
-
-```
-ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> sudo -n /usr/local/bin/brigade-installer install <nom> --depot <propriétaire>/<nom> --sauvegardes <chemin> --manager-modele <modèle> --manager-effort <effort> --reviewer-modele <modèle> --reviewer-effort <effort>
-```
-
-**No port is asked or sent**: the box assigns that of the project's door, reads that of
-its arbiter, and returns them. The integration branch is not asked either: the box takes the
-default branch of the origin, and the screen says which. The clone happens on the box and can
-take a few minutes; the app waits up to a quarter of an hour.
-
-**Installed, the project is declared in the app** with its `hote`, after the
-others, and the screen stays to show you what the box returned:
-
-```
-"calculus" is installed on the box "box", and declared in the app.
-Ports assigned by the box — door: 3129 · arbiter: 4100.
-Integration branch: `main`, read by the box from the repo's origin.
-Backups: /srv/sauvegardes/calculus, on the box.
-The box says: the project's runtime is not started: check first (`brigade calculus installation`), then `sudo systemctl enable --now brigade@calculus.service`
-```
-
-The installation does not start the runtime. Under what the box returned, the screen says what remains —
-priming the repo, merging, checking, starting — and carries the action that opens the next step: `Open
-the space of "calculus" and run /brigade:init there` (see "After the add: the commissioning").
-
-**As long as the box has not installed the project, nothing is declared in the app.** What the app
-got is shown as is — the line launched, what the box wrote, the exit code — and below it
-what there is to do:
-
-| What the screen says | What happened | What to do, and where |
-|---|---|---|
-| `The box "…" was not reached` | `ssh` opened no session (code 255), or could not be launched | `docs/installer.md`, "Reach the box" — and "Add a human" if your key is refused |
-| `… was reached, and the installation action did not answer there` | the box answers, but `brigade-installer` is not in place there — a box prepared before it —, or its sudoers rule does not give it to your account | **the app does not prepare a box**: `docs/installer.md`, "Prepare the box" — "The installer command", on the box, by someone who has `sudo` there |
-| `… refused to install "…" (<reason>)` | the action answered, and says no: its sentence is shown word for word — a destination outside the allowed root, a setting missing from the box, an installation begun and undone | what its sentence names; when it is the box that is not ready, "Prepare the box" |
-| `"…" is already installed on the box "…"` | the box changed nothing: neither calibration nor backups | if it is only missing from the app, the button `Declare it in the app, as it is on the box` writes it into the file — **a second action, yours**, which sends nothing to the box |
-| `… did not finish answering` | `ssh` was stopped at the end of the quarter hour: the app does not know where the box was | replay the add — a box that had finished will say the project is already installed, changing nothing there |
-
-What you entered stays on screen after a refusal: you replay the add without retyping anything.
-
-A project the file would refuse — `Not added — two projects are called "brigade"`, `folder
-not found: …` — is refused **before** the box: nothing is installed there for a project the app could not
-declare.
-
-- **The app writes only the project added** — then its two colors, drawn for it (see "The
-  colors of a project"). What else you put in the file stays there — but
-  it is rewritten in full, indented by two spaces: a layout of your own does not survive it.
+- **The app writes only the project added** — then its two colors, drawn for it (see "A project's colors"). What else
+  you put in the file stays there — but it is rewritten in full, indented by two spaces: a layout of your own does not
+  survive it.
 - **It does not write into a file it did not understand**: `Not added — the app does not write
   into a file it did not understand — unreadable JSON: …`. That one is repaired by hand.
-- **Renaming a project is done in the file**, not in the app. Removing it is done from
-  the app, and it is two actions: "Removing a project: from the app, or from its box", further down. Removing
-  it from the file by hand removes nothing from the box either.
-- **A project without a box is not added from the screen**: it is written by hand, without `hote`.
+- **Renaming a project is done in the file**, not in the app. Removing it is done from the app
+  ("Removing a project from the app", below); removing it from the file by hand removes nothing from its station either.
 
 ### After the add: the commissioning
 
-Installed, a project is not yet served. Four actions remain, **in this order**, and the app skips
-none. They are in the project's space, at the head of the panel, under **Commissioning** —
-unfolded by itself for a project you have just added, folded to one line for
-the others. A project without `hote` and without a kitchen on this workstation has none.
+A project added is not yet served. The steps that remain are in the project's space, at the head of the panel, under
+**Installation** — unfolded by itself for a project you have just added, folded to one line for the others. The steps
+are the runtime's (`installation etapes`), read through the project's station, which is the one of this computer; their
+state is kept in the project's log, so closing the app and opening it again finds the same steps done. Four actions
+matter, **in this order**, and the app skips none:
 
 | | The action | What the app does | What stays with you |
 |---|---|---|---|
 | 1 | **Prime the repo** — `Run /brigade:init in the second` | opens the space's second on the session: `claude /brigade:init`, a fresh conversation in the project folder | the session itself: it is a Claude Code conversation, not a command, the app does not play it for you |
-| 2 | **Merge** — the box `The result of /brigade:init is merged on the integration branch` | says it, in so many words: `The result of /brigade:init must be merged on the integration branch before going on` | merge, then tick: **the app does not know whether it is done, you are the one who says so** |
-| 3 | **Check** | runs `installation` on the project's box, for you, and displays **everything** it returned | settle what it names, and check again |
-| 4 | **Start** | opens a shell in the space and **writes** the start there, without sending it | your Enter — and your password, if `sudo` wants one |
+| 2 | **Merge** — the box `The result of /brigade:init is merged on the integration branch` | says it, in so many words | merge, then tick: **the app does not know whether it is done, you are the one who says so** |
+| 3 | **Check** | runs `installation` through the project's station, for you, and displays **everything** it returned | settle what it names, and check again |
+| 4 | **Start** | writes nothing: this computer's station runs with the app, there is no service to start | — |
 
-**Three states, and starting is possible only in the last:**
-
-| The state | What is seen | `Check` | `Start` |
-|---|---|---|---|
-| **init is not said merged** — the start, always | the box is not ticked | inactive: `No check: the result of /brigade:init is not said merged…` | inactive: `No start: the result of /brigade:init is not said merged.` |
-| **the check is incomplete** — said merged, and `installation` does not say, or not yet, the project ready | `NOT READY`, or nothing yet, or what the app got instead | active | inactive, with its reason: `the box has not yet checked this project`, `the check is running`, `installation does not say the project ready — what is missing is named above…`, `installation did not return its verdict…` |
-| **everything is ready** — `installation` exited with `0` | `READY — checked at 14:32:07` | active | **active** |
-
-An inactive button has its reason written below. And it is not just a greyed-out button: the main
-process refuses likewise — nothing goes to the box while the box is not ticked, and nothing is
-written in any terminal until `installation` has said the project ready.
+**Three states**, and the check is possible only once init is said merged: **init is not said merged** (`Check` is
+inactive: `No check: the result of /brigade:init is not said merged…`); **the check is incomplete** (`NOT READY`, or
+nothing yet, or what the app got instead); **everything is ready** (`installation` exited with `0`: `READY — checked
+at 14:32:07`). An inactive button has its reason written below, and the main process refuses likewise.
 
 **`/brigade:init` — the app puts you there.** If the space's second is not running, it is launched on the
 session, and the line under the right-hand tabs says so (``session launched on `/brigade:init`: `claude
-/brigade:init`, a fresh conversation in this folder``). If it is already running — you had opened
-the space —, it is not replaced: `/brigade:init` is written there, without Enter, as by a button.
-The session can be replayed without harm. The brigade plugin is needed on your workstation: without it, it is `claude`
-that says it does not know the command, in the terminal.
+/brigade:init`, a fresh conversation in this folder``). If it is already running, it is not replaced:
+`/brigade:init` is written there, without Enter, as by a button. The session can be replayed without harm. The
+brigade plugin is needed on your workstation: without it, it is `claude` that says it does not know the command.
 
-**Merging is you.** The box sees of the repo only what its origin carries: as long as the result
-of init is not on the integration branch, it can serve nothing. A repo **already primed
-and merged** does not have to replay the session: tick the box, and check. Unticking the box takes you back to the
-start, and drops the previous verdict. **Ticking without having merged starts nothing**: it is
-`installation` that reads the integration branch on the origin, and it will say so (`MISSING`, "In the
-repo").
+**Merging is you.** The station sees of the repo only what its origin carries: as long as the result of init is not
+on the integration branch, it can serve nothing. A repo **already primed and merged** does not have to replay the
+session: tick the box, and check. **Ticking without having merged starts nothing**: it is `installation` that reads
+the integration branch on the origin, and it will say so (`MISSING`, "In the repo").
 
-**Check runs the command that exists**, the same one the bar runs for `status`:
-
-```
-ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> brigade <nom> installation
-```
-
-It launches neither a cook nor a setup, consumes no quota, and can be replayed as often as you like
-(`docs/installer.md`, "Check that the project is ready"). The app waits for its answer two minutes at
-most, and displays **everything it returned, word for word** — the line launched, the output, the code:
+**Check runs the command that exists**, the same one the bar runs for `status`: `brigade <name> installation`, through
+this computer's station. It launches neither a cook nor a setup, consumes no quota, and can be replayed as often as
+you like (`docs/installer.md`, "Check that the project is ready"). The app waits for its answer two minutes at most,
+and displays **everything it returned, word for word**:
 
 ```
 NOT READY — checked at 14:32:07
-$ ssh -o BatchMode=yes -o ConnectTimeout=10 -- box brigade calculus installation
 
 Dans le dépôt
   MANQUE    `.claude/brigade/gates.sh` n'est pas exécutable : la pass le lance tel quel
@@ -651,116 +548,30 @@ brigade : projet « calculus » : 2 manques : aucun cook ne doit être lancé ta
 → exit code 1
 ```
 
-**Each point that is not ready is a `MANQUE` line, and the arrow below says what remains to be
-done for it**: it is `installation` that names them, the app translates none of them and removes none. It
-adds below what the box cannot say from here — how "the same command" is typed from
-your workstation (`ssh box brigade calculus installation`, followed by what the arrow names), and that a
-missing item "In the repo" is a result of init that is not, or not entirely, on the integration
-branch. A `to know` line holds nothing back.
+**Each point that is not ready is a `MANQUE` line, and the arrow below says what remains to be done for it**: it is
+`installation` that names them, the app translates none of them and removes none. A check replayed **removes the
+earlier "ready"** until it has answered.
 
-| What the app says | What happened | `Start` |
-|---|---|---|
-| `READY` | `installation` exited with `0`, with its verdict line (`brigade : projet « <nom> » : prêt…`) | active |
-| `NOT READY` | it was run, and something is missing (code `1`), or it refused its environment (code `2`): its output names it | inactive |
-| `NO VERDICT` | a code `0` **without** the verdict line: it is not `installation` that answered — an account locked into a forced command, for example | inactive |
-| `NOT REACHED`, `REACHED, BUT UNKNOWN TO THE BOX`, `REACHED, BUT WITHOUT THE RIGHT TO THE ACTION`… | the command did not return its verdict: the same cases, the same words and the same pointers as under `status` ("What the box says of the project") | inactive |
+| What the app says | What happened |
+|---|---|
+| `READY` | `installation` exited with `0`, with its verdict line (`brigade : projet « <nom> » : prêt…`) |
+| `NOT READY` | it was run, and something is missing (code `1`), or it refused its environment (code `2`): its output names it |
+| `NO VERDICT` | a code `0` **without** the verdict line: it is not `installation` that answered |
+| `NOT REACHED`, `REACHED, BUT UNKNOWN TO THE STATION`… | the command did not return its verdict: the same cases and words as under `status` ("What the station says of the project") |
 
-A check replayed **removes the earlier "ready"** until it has answered: nothing
-starts on a verdict that is being redone.
+- **A project whose folder is not there** has neither a second nor a shell: the start says `"…" does not open: folder not found: …`.
+- **The commissioning is kept only while the app is open.** Relaunched, the app takes it back at the start, folded:
+  unfold it, tick the box again, check — the station says everything again.
 
-**Start writes, it does not send** — like the buttons, but **in a shell**, not in the second:
+### Removing a project from the app
 
-```
-ssh -t <hote> sudo systemctl enable --now brigade@<nom>.service
-```
-
-It is the action of `docs/installer.md`, "Serve the first ticket", the one the box names at the end
-of the installation. **Starting a service is a `root` action**, and neither of the box's two actions
-gives it without a password: the app therefore does not run it. It opens one more shell in the space
-(`shell 1`), writes the command there, and shows it to you, on the right; the line under the right-hand tabs says ``written in this
-shell, without Enter: `ssh -t box sudo systemctl enable --now brigade@calculus.service` — yours is
-the one that sends it…``. A shell is a real terminal: `ssh -t` carries there the password that
-`sudo` asks you for on the box — which the second's `!` would not do. After that, the first ticket is
-served without a `merge` grant, and the first backup is launched by hand: it is still
-`docs/installer.md`, "Serve the first ticket".
-
-- **Nothing is written for a `nom` that is the name of no instance, nor for a `hote` that starts
-  with a hyphen or carries a control character**: the button stays inactive, and says why.
-- **A project whose folder is not there** has neither a second nor a shell: its box is checked all the same,
-  and the start says `"…" does not open: folder not found: …`.
-- **The commissioning is kept only while the app is open.** Relaunched, the app takes it back at the
-  start, folded: unfold it, tick the box again, check — the box says everything again. A project that changes
-  `hote`, or that leaves the file, starts over likewise: its "ready" was that of another box.
-- **The app does not know whether the runtime started**: that is your Enter. The project's pill will say so at
-  the next read — `off` as long as it is not running.
-### Removing a project: from the app, or from its box
-
-**Since #1700, the app's view offers only one of the two: Remove from the app.** It is the `in your app` line of
-Settings' `you` group — its value `in the bar`, its one control `Remove from the app…`, which asks for a `yes, remove
-"<name>" from the app` before anything happens: a project is not removed by a stray click. Uninstalling a project
-from its station is no longer in the view — installing and uninstalling a station is a separate topic (#1536) —; what
-follows about it describes what `retrait.ts` still holds, not a screen.
-
-**Remove from the app** takes a single click. The project's open terminals are stopped, its folder
-is not touched, and a notice says so again over the screen: `"calculus" is removed from the app.` —
-`Nothing was sent to the box "box": the project is still installed there, and its log was not
-touched.` To uninstall it afterwards, you have to declare it again (the **+** already finds it
-installed, and offers to declare it as it is), or do it on the box, by hand.
-
-**Uninstall from the box** takes two steps, and the app skips neither:
-
-1. **`See what the box would remove`** runs `uninstall <name> --plan`. The box answers, and
-   **removes nothing**. What it wrote is shown as is — `uninstalling "calculus" would remove
-   from this box:`, then one line per thing removed, then `Kept:`. **The app has no deletion
-   rule of its own**: it adds nothing to this plan and removes nothing from it. Below, a single
-   sentence is its own, read from the object of the action: where the log is — kept, or among what
-   would be removed.
-2. **You type the project's name**, then `Uninstall from the box`. The button stays inactive until
-   the box has returned its plan, and says why. A name that is missing, incomplete or in another
-   case: `NOTHING WAS SENT TO THE BOX`, with what you typed and what was expected. The right name:
-   the app runs `uninstall <name> --confirm <name>`, and shows what the box says it removed.
-
-**The log survives, unless you ask.** The box `Also delete the project's log on the box` is
-**unticked** by default, and its warning is written below it before anyone touches it: ticked,
-the app adds `--delete-the-log` to the action, and there is no way back. Without it, the option is
-never sent, and the screen says so afterwards: `The project's log still exists on the box:
-/var/lib/brigade/calculus.` **The plan is only valid for the setting it was requested with**:
-ticking or unticking the box drops it, and the uninstall becomes inactive again until the next
-plan — you never confirm a plan that does not say what is going to go. **The name you typed is
-likewise only valid in front of the plan on display**: a plan requested again, or dropped, empties
-the field. And **a plan is good for one use only**: as soon as the box may have changed — it
-removed, started, or did not answer —, the next uninstall asks for a new one. Only a refusal that
-comes before its first action lets it stand.
-
-| What the screen says | What happened | What to do |
-|---|---|---|
-| `STATION "box" HAS DRAWN UP ITS UNINSTALL PLAN — nothing is removed yet` | the box returned its plan; the app says what it reads of it (the log) | check the log line, then type the project's name |
-| `UNINSTALLED FROM THE BOX "box"` | the box removed what it lists | nothing — or remove it from the app, with the other action |
-| `THE BOX "box" REFUSED (…) — nothing is removed` | the action said no before removing anything: a clone that carries what the origin does not have, a project it does not know, another action in progress | its sentence is above, word for word; sort it out, then replay |
-| `THE UNINSTALL STOPPED HALFWAY…` | it had started: the box says what is done and what remains | ask for the plan again — it says what is left to remove |
-| `THE BOX "box" COULD NOT BE REACHED — nothing is removed` | at the plan, `ssh` exited with an error: a plan removes nothing, reached or not | `docs/installer.md`, "Reach the box" |
-| `` `ssh` FAILED WITHOUT THE ANSWER OF THE BOX "box" `` | at the uninstall, `ssh` exited with an error: session never opened, or lost on the way — its code does not tell them apart, and the box may have started | ask for the plan again: the app says neither "nothing is removed" nor "uninstalled" |
-| `… ITS ACTION DID NOT RETURN ITS PLAN` | the box answers, the action does not: it is not installed there, or not in a version that uninstalls | `docs/installer.md`, "Prepare the box" — "The installer command" |
-| `THE BOX "box" DID NOT FINISH ANSWERING` | `ssh` was stopped at the time limit (three minutes for the plan, a quarter of an hour for the rest) | ask for the plan again: the app does not call a project uninstalled when its box has not answered |
-
-**Once uninstalled, the project can no longer be driven from the app, and the app says so.** It
-stays in the bar, with no dot and dashed; its row in "All projects" says so greyed out
-(`uninstalled from its box: nothing is read`), and its panel and tabs show `UNINSTALLED FROM THE BOX "box" — can no longer be driven from the app`, in place of
-what the box said about it. **The app no longer reads its box** — no `status`, no `facts`, no tab —,
-its buttons and its commissioning are no longer offered: this is not `REACHED, BUT CAN NO LONGER BE DRIVEN`,
-which would mean a runtime to upgrade. Its second and its shells, on the other hand, stay: they run on
-your workstation.
-
-- **An uninstalled project stays in the app** until you remove it from it: that is the other action.
-- **As long as the box has not answered about an uninstall in progress**, "Remove from the app"
-  refuses: once removed, the project would have no space left in which to read what it answers.
-- **The uninstall can be replayed**: log kept, you can tick the option and start again — the
-  plan, then the confirmation. If this second time does not succeed, the project is still said to be
-  uninstalled, and the app says it no longer knows where its log stands: the box's plan will tell.
-- **Nothing is kept from one launch of the app to the next.** Relaunched, the app reads the box
-  again, which itself answers `project unknown on this box`: the panel then says `REACHED, BUT UNKNOWN TO THE BOX`,
-  and reminds you that this is what to expect of an uninstalled project.
-- **A project without a box** has only the first action: there is nothing to uninstall, and the block says so.
+The `in your app` line of Settings' `you` group has its value `in the bar` and its one control `Remove from the
+app…`, which asks for a `yes, remove "<name>" from the app` before anything happens: a project is not removed by a
+stray click. It takes the project off the bar and out of the projects file, and nothing else: its open terminals are
+stopped, its folder is not touched, nothing is sent to its station — the project stays installed there, its log
+intact — and a notice says so over the screen: `"calculus" is removed from the app.` Uninstalling a project from a
+station is not done from the app: it is done on the station itself (`docs/installer.md`, "Uninstall"). To bring the
+project back, add it again with the **+**.
 
 ### By hand
 
@@ -768,25 +579,13 @@ The file stays yours, and you can do anything in it:
 
 ```json
 {
-  "hotes": ["<the name by which your ssh reaches your box>"],
   "projets": [
-    {
-      "nom": "brigade",
-      "dossier": "~/Dev/brigade",
-      "hote": "<the name by which your ssh reaches your box>",
-      "stations": ["mac/claude"]
-    },
+    { "nom": "brigade", "dossier": "~/Dev/brigade", "depot": "benomite/brigade", "base": "main" },
     { "nom": "parade", "dossier": "/Users/chef/Dev/parade", "couleurs": { "onglet": "#a98cf2", "accent": "#4fc7b5" } }
   ]
 }
 ```
 
-- `hotes` is the list of your boxes, and **each one is only a name**: the one by which **your**
-  `ssh` reaches it. It is what the add screen offers; one more box is one more name. It is
-  optional: a file that does not carry it is read as before, and the boxes its projects
-  name are offered all the same. A name written twice counts once; anything other than a
-  list of non-empty strings refuses the file (`"hotes" must be a list`, `host no. 2: must
-  be a non-empty string…`).
 - `dossier` is an absolute path, or starts with `~/`.
 - `couleurs`: **the project's tab color and accent color** (see "A project's colors"), each
   written `#rrggbb`. You do not have to write it: **the app draws it and writes it itself**
@@ -794,17 +593,11 @@ The file stays yours, and you can do anything in it:
   existed, or as soon as a project written by hand enters the file. If only one of the two is written,
   the other is drawn. Anything other than a `#rrggbb` color refuses the file (`project no. 1 (parade):
   "couleurs": "onglet" must be a color written `#rrggbb` — "rouge" is not one`).
-- `hote` is optional, and it is all a project says about its box: the name by which **your**
-  `ssh` reaches it. What is written between `< >` above is to be replaced — see "What the box says
-  about the project". A project written by hand without `hote` has its terminal, and the app reads nothing of its box: it reads one only if `hote` names it. A project that cooks on this workstation, on the other hand, is read and driven locally, with no `ssh` and no `hote` (see "Where a project cooks").
-- **`nom` is also the project's name on the box**: it is what the app gives to the box's action
-  (the box's action: `ssh <hote> brigade <nom> status` from your workstation), hence the name of the instance `brigade@<nom>.service`. There is no
-  second name to declare: a served project is called the same in the app and on its box.
-- `stations` is optional: **the stations this workstation plays for the project**, under the name its
-  box gives them in its stations (`station stations`), where they are declared `remote` (see "The workstation is
-  a station"). Without it, the app launches no cook. A station is played against a box
-  (`"stations" without "hote"` refuses the file), is written `<machine>/<engine>`, and the workstation
-  launches only one engine: `mac/codex` is refused (`it launches only `claude``).
+- `nom` is the project's name; a served project is called the same in the app and on its station.
+- `depot` and `base` are the project's GitHub repository (`<owner>/<name>`) and its integration branch.
+- **Legacy keys are ignored.** A file written by an older version may still carry keys naming an ssh host, a list of boxes or played stations: it is
+  read without error, those keys are left alone and nothing is done with them — where a project cooks is read from the
+  Kitchen board and from your paired stations.
 - **`commande` is no longer read.** A file that still carries it is refused, saying so:
   `project no. 1 (brigade): "commande" is no longer read — remove it: …`.
 - The bar follows the file's order. **Rearranging the icons in the bar** (see "The icon bar") changes
@@ -828,8 +621,7 @@ create (`this file could not be created: …`).
 
 | What changed | What the app does |
 |---|---|
-| One more project, a `hote` added or removed, one more box in `hotes`, the order | The bar and "All projects" follow. Open terminals are not touched; the screen on display stays the same, its box reading starts over |
-| A station added to `stations`, or removed; the `hote` or the `dossier` of a project that plays one | One more station announces itself to the box, within the minute. **A removed station is left, and its cook in progress is killed**: nothing is returned, its lease expires by itself on the box (see "The workstation is a station") |
+| One more project, or the order | The bar and "All projects" follow. Open terminals are not touched; the screen on display stays the same, its reading starts over |
 | A project removed, renamed, or whose `dossier` changed | **Its terminals are stopped** — second and shells: they were running in a folder that is no longer its own. The conversation stays with `claude`: on the first click, the second picks the thread up in the new folder. If it was the screen on display and the project is gone, you return to "All projects" |
 | The file is no longer readable — an editor mid-write, an extra comma, the file deleted | **Nothing disappears**: the earlier projects stay, their terminals run. A banner, at the bottom of the window, gives the path and the reason; it goes away at the first successful reread |
 
@@ -839,7 +631,7 @@ create (`this file could not be created: …`).
 Your projects are the earlier ones, and nothing is closed. The app rereads it as soon as it changes.
 ```
 
-As long as the banner is there, **the `+` writes nothing, and installs nothing** — no project, no box: `Not
+As long as the banner is there, **the `+` writes nothing** — no project: `Not
 added — the app does not write into a file it could not reread — …`. Writing over it would lose the projects it
 still displays. A file deleted while the app is open is therefore not recreated behind your
 back: put it back, or relaunch the app, which creates it empty.
@@ -850,7 +642,7 @@ repairing is enough, no relaunch.
 
 A project whose folder is not there (disk unplugged, folder moved) **stays in the
 bar**, greyed out, its icon dashed: on click, the app says `folder not found: …` instead of opening
-a terminal. Its box, on the other hand, is read: the panel and the content tabs answer. The other
+a terminal. Its project is read all the same: the panel and the content tabs answer. The other
 projects are not affected.
 
 ## All projects at a glance
@@ -885,9 +677,9 @@ CLOSER
   going on: `nothing cooking, nothing waits for you`. When the reliability of its cooks has drifted, it ends
   with one word, `drifting`, and hovering says why (#987, see "The cooks' reliability, on Cooks").
 - **A project's dot** is **red** when it is blocked — base red, kitchen stopped or
-  held, runtime off, box unreachable —, **yellow** when a decision awaits you, **green**
-  otherwise. **Grey** as long as nothing is read from it, or when nothing can be: a project without a box, or
-  uninstalled from its own. Not read is never green.
+  held, runtime off, station unreachable —, **yellow** when a decision awaits you, **green**
+  otherwise. **Grey** as long as nothing is read from it, or when nothing can be: a project that no station serves
+  on this computer. Not read is never green.
 - **One row per paired station**: its name, its dot, its state (`online`, or
   `offline for 12 min`), what it is doing — its cooks in progress, `saturated`, `update failed`,
   `Max connection lost`, or `idle` — and the projects it carries. Its machine (system, kernel) and its
@@ -1288,11 +1080,11 @@ the button opens, in place of the home, the screen **"Pair a phone with box"**, 
   be off, or offline.*, *box refused: this computer is not allowed to manage its phones.*, *box cannot pair phones
   yet: its version is too old.* — with what to check on hover, and **"try again"**; the list says *paired phones
   unavailable* the same way.
-- **No command anywhere**, not even on hover: no terminal, no `ssh`, no `sudo` to type or read. Behind the screen, the
+- **No command anywhere**, not even on hover: no terminal, no `sudo` to type or read. Behind the screen, the
   app runs the station's command `phones code | status <code> | list | revoke <phone>` (`runtime/src/telephones.ts`,
-  #1596) — on the station's machine through `ssh`, or here, without `ssh`, for this computer's station — in the name of
+  #1596) — here, for this computer's station — in the name of
   the first project the station carries; a station that carries none yet says so. The station's own rule is what lets
-  this computer in. The module is `app/src/telephones-de-station.ts`, the screen `app/src/vue/telephones-de-station.js`;
+  this computer in. A station that is not this computer's is refused in a sentence ("… can only pair phones from the computer it runs on"). The module is `app/src/telephones-de-station.ts`, the screen `app/src/vue/telephones-de-station.js`;
   captures in `docs/captures/1598/`.
 
 ### Reaching a station from any network: your tailnet (#1408)
@@ -1379,7 +1171,7 @@ one sentence (#877); below, its faults with their button, the projects the app a
 Under the header (#1081): the station's cap on cooks and where it comes from (`3 at most — 8 cores`, read from
 `status`), what holds tickets back when it is saturated (memory, processor, value and threshold), a field
 and "set the cap" to set it, "back to the default" to remove it. The setting posts `/brigade cooks <N|0|auto>` on the
-Kitchen board of every project that names the station (#1845, no `ssh`), and waits for its box to answer under it —
+Kitchen board of every project that names the station (#1845), and waits for its box to answer under it —
 it applies to all the stations of those projects. Done, the board is read again and the page says the new cap; a box
 that has not read it within two and a half minutes plays it at its next tick, and the sentence says it is posted.
 #1292: the same cap is on each station's line in the Cooks tab, **for that project alone** — `Cooks at once: 3 at most — 8 cores`,
@@ -1572,8 +1364,7 @@ GitHub. Only the installation differs: a package on a server, the app here (`app
   `node` of its package, never those of the machine (`app/src/emplacements.ts`).
 
 **On a phone, the app is a workstation**: it drives, it does not cook. Its station is not started there,
-and no project cooks there — neither its own, nor the stations its projects hand to the
-workstation ("The workstation is a station"). This is the only place where the platform matters
+and no project cooks there — neither its own, nor any other station's. This is the only place where the platform matters
 (`app/src/poste/role.ts`); everything else is the same code. The app of a computer is also a
 workstation, and says so at launch, when the runtime is not next to it, or with
 `BRIGADE_APP_STATION=0`.
@@ -1766,17 +1557,16 @@ decision is recorded; the station then republishes the state that says it for go
   `Cooks on parade-box` for a project on its box; **`Cooks on this Mac · its kitchen stops when you
   close the app`** for a project that this computer's station serves — the sentence is never
   said of another station. The station's name is on hover over "this Mac".
-- **Read and driven here, with no `ssh` and no `hote`.** A project that cooks on this computer is read and driven
-  by this workstation's station: its rail, its queue and its cards come from it, not from a box, and
-  the app launches no `ssh` for it. It therefore needs no `hote`: a project written by hand
-  without `hote` is read here as soon as its kitchen runs on this Mac. The source follows the kitchen: when
+- **Read and driven here.** A project that cooks on this computer is read and driven
+  by this workstation's station: its rail, its queue and its cards come from it, and the gestures go through the
+  local station's own gesture. The source follows the kitchen: when
   it moves — to this Mac, or off it —, the reading changes source with it, without
   restarting the app, and the line always says where the project cooks at that moment.
 - **This computer's station stopped: a line, not an empty page** (#1124). A project that cooks
   here has nothing to read while this computer's station is not running (refused, stopped, between
   its death and its restart): **`this computer's station is not running`** takes the place of the rail, the
   queue and the cards, and that is all. As soon as the station runs, the line gives way to the rail at
-  the next read, without restarting the app. A project served by a box never carries it.
+  the next read, without restarting the app. A project served by another station never carries it.
 - **"move the kitchen"**, next to "+ station", is the only gesture: it opens under the line the
   choice of the machine to take it to — `Move <projet>'s kitchen from <station> to:` —, one button per
   other paired station (`this Mac` for this computer's station), the one the app recommends
@@ -1797,49 +1587,38 @@ decision is recorded; the station then republishes the state that says it for go
   `keep it on parade-box`, which takes the request back. GitHub unreachable, or a runtime that does not
   start, are stated in one line, their detail on hover: nothing fails silently.
 - **The gesture is offered only for a project handed over from the app**, that cooks on one of your paired
-  stations: it is the app's request that the operation rewrites. A project written by hand with
-  `hote`, or served by a station without the app having asked it, has none — the operation would
+  stations: it is the app's request that the operation rewrites. A project served by a station without the app having asked it, has none — the operation would
   refuse it (`add it rather than move it`). An app with no runtime next to it (a phone) launches
   none, and says so.
 - **What it keeps from the runtime**: a move in progress is written in each station's request
   (`remise`, `reprise`); the app re-reads them and rewrites them as they are when it rewrites those
   requests (handing over, removing another project), otherwise it would be no more than a change of
   main station.
-## A box reading: seven states
+## A station reading: seven states
 
-At the top of a project's space panel, the reading of its box is in **one of seven states**, which do not look alike:
+At the top of a project's space panel, the reading of its station is in **one of seven states**, which do not look alike.
+The reading goes through the gesture of the station that cooks the project on this computer (no other machine is
+reached by the app); a project cooked elsewhere is read from the Kitchen board, which has its own failure line
+("A box that does not return its facts"):
 
 | On screen | What the app got | What it shows below |
 |---|---|---|
 | `drivable — read at 14:32:07` | the commands succeeded | their outputs. **A project where nothing is happening is here**: a quiet `status`, not an error |
-| `REACHED, BUT NO LONGER DRIVABLE — attempt at …`, in yellow, dotted line | `ssh` reached the box, and a command failed there (a code other than 255) or returned nothing within thirty seconds (`ssh`, connected, stopped at the timeout) | the command that ran, what it wrote, its code — then **the action**: update the runtime on its box (`docs/runtime/exploitation.md`, "Piloter") |
-| `REACHED, BUT UNKNOWN TO THE BOX — attempt at …`, in yellow, solid line | `ssh` reached the box, and its action refused the project (code 65): it serves no project under that name | **what the action said about it**, as is — then the name the app gave it, and where it comes from (`nom`, in `app.json`) |
-| `REACHED, BUT WITHOUT THE ACTION'S RIGHT — attempt at …`, in yellow, solid line | `ssh` reached the box, and its action refused your account (code 68): it is not among those who may run it | **what the action said about it**, as is — then where the action that grants this right is written, on the box (`docs/installer.md`, "Add a human") |
-| `REACHED, BUT A COMMAND IS MISSING ON THE BOX — attempt at …`, in yellow, solid line | `ssh` reached the box, and a command was not found there: the box's shell says so (code 127), or the action, for `sudo` (code 69) | **what the box said about it**, as is — then where these commands go (`docs/installer.md`, "Prepare the box") |
-| `REACHED, BUT THE BOX'S NODE DOES NOT SUIT THE RUNTIME — attempt at …`, in yellow, solid line | `ssh` reached the box, and its action refused to start the runtime (code 70): `node` does not start there in the unit's environment, or is not the required version | **what the action said about it**, as is — then where `node` goes (`docs/installer.md`, "Prepare the box"). No runtime update: it is not the runtime that is old |
-| `NOT REACHED — attempt at …`, in red, solid line | nothing proves the box was reached: `ssh` itself failed (code 255), could not be launched, or was stopped at the timeout without saying how far it had gone | **`ssh`'s message**, as is, and its code — then where its sentences are explained (`docs/installer.md`, "Reach the box"), and where access is given when it is your key it refuses ("Add a human"). Or the timeout, stated by the app, with no pointer |
+| `REACHED, BUT NO LONGER DRIVABLE — attempt at …`, in yellow, dotted line | the station's gesture ran, and a command failed there or returned nothing within thirty seconds (stopped at the timeout) | the command that ran, what it wrote, its code — then **the action**: update the runtime (`docs/runtime/exploitation.md`, "Piloter") |
+| `REACHED, BUT UNKNOWN TO THE STATION — attempt at …`, in yellow, solid line | the gesture refused the project (code 65): the station serves no project under that name | **what the gesture said about it**, as is — then the name the app gave it, and where it comes from (`nom`, in `app.json`) |
+| `REACHED, BUT WITHOUT THE RIGHT TO THE ACTION — attempt at …`, in yellow, solid line | the gesture refused your account (code 68) | **what the gesture said about it**, as is |
+| `REACHED, BUT A COMMAND IS MISSING ON THE STATION — attempt at …`, in yellow, solid line | the gesture says a command is missing (code 69) | **what it said about it**, as is — then where these commands go (`docs/installer.md`, "Prepare the box") |
+| `REACHED, BUT THE STATION'S NODE DOES NOT SUIT THE RUNTIME — attempt at …`, in yellow, solid line | the gesture refused to start the runtime (code 70): `node` does not start there, or is not the required version | **what the gesture said about it**, as is. No runtime update: it is not the runtime that is old |
+| `NOT REACHED — attempt at …`, in red, solid line | nothing proves the station was reached: the command could not be launched, or was stopped at the timeout without saying how far it had gone | the message, as is, and its code. Or the timeout, stated by the app, with no pointer |
 
 - **The app reports, it does not guess.** "No longer drivable" does not say *why* the command
   failed: a runtime too old for what it is asked is the expected case, and the update advice is
-  given only there. What it got is in front of you. **The exit code only picks the header and the
-  pointer**: 65, the project is unknown to the box; 68, you lack the action's right; 69 or 127, a
-  command is missing on the box; 70, the box's `node` does not suit the runtime; any other code that comes from it, no longer
-  drivable. The text below is never translated.
-- **A reader without access reads it as such**, in two forms the app does not mistake for an
-  outage. *Reached, without the action's right*: a state of its own (68). *Key refused*: `ssh` exits
-  with 255, as for a box that cannot be found, and **only its message tells them apart** — the app
-  does not read it. So it stays at `NOT REACHED`, shows what `ssh` wrote, and names where to read
-  it. In both cases it says where the action that gives access is written, and does not replay it:
-  it is played on the box.
-- **"A command is missing" does not say which.** 127 is the box shell's code for any command not
-  found: the action not installed (`brigade: command not found`) is the expected case, and
-  it is the box that names it, above.
-- **Code 255 is `ssh`'s.** A remote command that itself exited with 255 would be read as "not
-  reached".
+  given only there. What it got is in front of you. **The exit code only picks the header**: 65, the project is
+  unknown to the station; 68, you lack the right; 69, a command is missing; 70, the station's `node` does not suit the
+  runtime; any other code that comes from it, no longer drivable. The text below is never translated.
 - **A silent project does not hold back the others**: each project is read for itself, every
   thirty seconds, and carries its own time.
-- A project with no `hote` and no kitchen on this workstation has its panel too: `no reading`, and what it lacks — `hote`, the name
-  by which your `ssh` reaches your box. No block to paste.
+- A project that no station serves on this computer has its panel too: `no reading`, and what it lacks. No block to paste.
 - A reading's commands go out **one after the other**, and the first one that fails is the
   error shown: each screen says what *its* commands returned.
 
@@ -1857,7 +1636,7 @@ On the left, a column of tiles, Slack or Discord style:
   the left of the tabs.
 - **Two projects can carry the same monogram** (`parade`, `partage`: `PA`). The app does not
   tell them apart: the name does, and the bar's order, which is your file's.
-- **At each tile's corner, a dot: the project's kitchen state, read on its box** — not
+- **At each tile's corner, a dot: the project's kitchen state, as its station reports it** — not
   deduced. Green, `open`; yellow, `held`; red, `stopped` or `off`. The word is read on
   hover, after the name (`parade — stopped`). It is re-read every thirty seconds, for all
   projects, whatever the screen.
@@ -1869,7 +1648,7 @@ On the left, a column of tiles, Slack or Discord style:
 - **A dot without a color is not a state**: empty, it is a word the app does not know
   (read on hover, as is); a `!`, the app
   read no fact from this project, and hovering says why (`no fact read — NOT REACHED`). A
-  project with no `hote` and no kitchen on this workstation has no dot.
+  project that no station serves on this computer has no dot.
 - **No counter in the bar**: the numbers are in the project's tile.
 - **Tiles are rearranged by dragging them.** Take a project's tile and drag it in the bar:
   it fades by half, and **an accent line says where it will land** — before the hovered tile if
@@ -1910,12 +1689,12 @@ start yourself in the same folder is a plain Claude Code session, not a second.
 
 **The queue is read for the second, at each start.** The launch settings carry a `SessionStart` hook
 (`startup`, `resume`, `compact`): it runs `app/src/second/file.ts`, which reads the project's Kitchen board on
-GitHub fresh, with this computer's `gh` (`gh api`, #1845) — no `ssh`, no `hote` —, and returns to Claude Code as
+GitHub fresh, with this computer's `gh` (`gh api`, #1845), and returns to Claude Code as
 additional context the queue the box publishes there (`fileDeStatus`, `docs/runtime/tableau-de-cuisine.md`): the
 `awaiting` block of `status` word for word, then the kitchen's state in the form of `status`. So the second sees
 the queue after a start, a resume or a compaction without thinking of it. The repository is the project's `depot`,
 or the GitHub `origin` of the session's folder. A queue that cannot be read (no repository known, GitHub not
-reached or refusing, no board, a box that does not publish the queue yet) is said in that context, in one line
+reached or refusing, no board, a project whose runtime does not publish the queue yet) is said in that context, in one line
 starting `file non lue :`, and the hook still exits 0: it never blocks the session. By hand, in the project's
 folder: `node app/src/second/file.ts <name> [<owner>/<repo> [gh]]`.
 
@@ -1944,26 +1723,17 @@ open, the rail stays where it is; if a shell was shown on the right, the second 
 so that you see what was written there.
 
 **Each shell carries a banner, at the top of its terminal: where it is, with which account** —
-`box parade-box · debian`, `this Mac · benoit`. For a remote machine, the account is the one
-your `ssh` gives its name (`ssh -G`, nothing is reached); if it does not say, the banner writes
-`account set by ssh`. Its color is the project's tab color: changing space changes it.
+`this Mac · benoit`. Its color is the project's tab color: changing space changes it.
 
 **A session that does not have the role is not called Second.** When the app opens a session on
 another command (`/brigade:init`, to prime the repo), the second's tab is called **Claude**;
 it becomes **Second** again if you relaunch it with one key, which launches it with the second's role.
 
-- **`+ shell`** asks you **on which machine** to open a shell: **this workstation** (`this Mac`), the project's
-  **box** (`box <hote>`), and **each station its box declares** (`station studio/claude`).
-  A station the box runs at home is on the box, one your workstation plays is your
-  workstation: they are named on their machine's line. The others — `remote` stations
-  played by another machine — are reached by `ssh <machine>`, the machine being what precedes
-  the slash in their name: it is under this name that your `ssh` must know it. The stations are those
-  of the box's last check (every five minutes): before it, only this workstation and the box
-  are offered. A project with no box has only this workstation: nothing to choose, the shell opens there.
+- **`+ shell`** opens a shell on **this workstation** (`this Mac`): the app opens no shell on any other machine and
+  asks nothing. Where a project cooks elsewhere, you work on that machine yourself.
 - This shell is **persistent**: it lives in a `tmux` session (or `screen`, where `tmux` is missing)
-  on the chosen machine, under your account — on a remote machine, the one your `ssh` gives
-  it. It opens **on the right, next to the second**: it has its tab (`shell 1`, `shell 2 ·
-  parade-box`…) and is shown in place of the second, which does not stop for all that. **A shell never
+  on this workstation, under your account. It opens **on the right, next to the second**: it has its tab (`shell 1`,
+  `shell 2`…) and is shown in place of the second, which does not stop for all that. **A shell never
   replaces the second**: a click on the second's tab brings it back, with its conversation; a
   click on a shell's tab shows it again, as you left it. The terminal shown takes the
   keyboard. As many shells as you want.
@@ -1972,33 +1742,9 @@ it becomes **Second** again if you relaunch it with one key, which launches it w
   still running, and what it had displayed is there. The app remembers them in `shells.json`, next to the
   projects file.
 - **`close shell 1`**, at the end of the row, closes the shown shell **for good**: its tab
-  goes away, its session is destroyed on its machine, and it does not come back. If the machine does not answer,
-  the shell is closed anyway, and the line under the tabs says its session stays there. A shell
+  goes away, its session is destroyed, and it does not come back. A shell
   you leave (`exit`) also closes its tab, and the second takes its place back.
-- **A machine that is no longer reachable does not make its shell disappear.** Network lost,
-  machine off, workstation asleep: when the connection drops — `ssh` gives up on a machine that does not
-  answer at opening after ten seconds, and on an established connection that stops answering
-  after thirty —, the shell stays in place, and its terminal says so, in yellow:
-  ``[brigade] box parade-box is not reachable — session `brigade-parade-1` stays there, and this
-  shell reattaches to it by itself as soon as the machine answers (a keypress tries now)``. Its
-  banner says so too (`box parade-box · debian — not reachable`). **Its session holds, over there**:
-  the app does not destroy it, and remembers it.
-  - **It reconnects by itself.** The app asks the machine whether it answers — `ssh -o BatchMode=yes
-    -o ConnectTimeout=10 -- <hote> true`, which launches nothing and asks nothing —, after 2 s,
-    then 5, 10, 20, and every 30 s as long as it does not answer; the line under the tabs says
-    where it stands, with what `ssh` answered (`attempt 3: ssh: connect to host parade-box port
-    22: Network is unreachable`). As soon as it answers, the shell reattaches to its session (`answers
-    again — reattaching…`): the command you had launched there is still running, and what it
-    displayed is there.
-  - **A keypress tries right away**, without waiting for the next probe: it is the reattachment
-    itself, in the terminal — an `ssh` that wants a password asks you for it there. The keypress
-    itself is not sent. Still unreachable, the terminal says so again, and the app resumes its probes.
-  - **When the workstation wakes**, each remote shell reattaches to its session at once (`this Mac woke
-    up — reattaching…`), without waiting for `ssh` to find out that the connection from before the sleep is
-    dead. If the network has not come back yet, the terminal says the machine is unreachable, and the
-    reconnection happens by itself when it returns.
-  - A machine that rebooted no longer has the session: the reattachment opens a new, empty one.
-    This workstation's shells and the second have no connection to lose: none of this touches them.
+  A shell remembered in `shells.json` that is not a shell of this workstation (written by an older version) is dropped.
 - The shell that an action opens to write its command in (a `sudo systemctl …`, a `git pull`) is,
   for its part, a login shell of this workstation, in the project's folder: it ends with the app.
 - **Changing project interrupts nothing.** Each space keeps its terminals, their content, the
@@ -2048,8 +1794,7 @@ your Mac, and your PC shows it at its next read: **when the app starts, each tim
 window, and every minute**. Nothing to copy, and the screens are the same: they still read `app.json`,
 which each read brings up to date (`app/src/reglages-perso/`, on the module of #1676).
 
-- **What stays on the device never goes to the gist**: a project's folder (`dossier`), its ssh host
-  (`hote`), the boxes you declared (`hotes`), the stations this computer plays and its ordinary-ticket
+- **What stays on the device never goes to the gist**: a project's folder (`dossier`) and its ordinary-ticket
   settings. Each device reads them in its own `app.json`.
 - **A read takes what changed on the other devices, a change made here wins over it**: the app writes
   to the gist only what you changed on this device since its last read, so two devices that each
@@ -2137,11 +1882,11 @@ scrolled where it was. The alert band, above, stays visible: no page covers it, 
 Two **content readings** remain, plus the one Settings makes. A reading relays **as text, word for word,** the output of
 a runtime command (`docs/runtime/exploitation.md`, "Piloter"):
 
-| Reading | The command the app runs on the box | What you read there |
+| Reading | The command the app runs through the project's station | What you read there |
 |---|---|---|
-| **Cooks** | `ssh <hote> brigade <nom> station`, then `ssh <hote> brigade <nom> measures --last <window> --by 1`, then `ssh <hote> brigade <nom> closing --json` | the station: the cooks, the machine, the quota — on the Cooks tab, not under Settings —, with **the reliability of the project's cooks** (see "The cooks' reliability, on Cooks") and **its closer** (see "The closer, on Cooks") as sections of that tab (#1699) |
-| **Grants** | `ssh <hote> brigade <nom> grant` | nothing as text: Settings lays one line per grant from it (above) |
-| **Log** | `ssh <hote> brigade <nom> log --last 200` | the end of the log: the last 200 events, not the whole log — the line under the tabs says so |
+| **Cooks** | `brigade <nom> station`, then `brigade <nom> measures --last <window> --by 1`, then `brigade <nom> closing --json` | the station: the cooks, the machine, the quota — on the Cooks tab, not under Settings —, with **the reliability of the project's cooks** (see "The cooks' reliability, on Cooks") and **its closer** (see "The closer, on Cooks") as sections of that tab (#1699) |
+| **Grants** | `brigade <nom> grant` | nothing as text: Settings lays one line per grant from it (above) |
+| **Log** | `brigade <nom> log --last 200` | the end of the log: the last 200 events, not the whole log — the line under the tabs says so |
 
 - **Only the displayed reading is read**: its command goes out when you open it, then every thirty
   seconds as long as it is on screen. Changing it, closing it or leaving the space stops its
@@ -2151,8 +1896,8 @@ a runtime command (`docs/runtime/exploitation.md`, "Piloter"):
 - **A reading has its own time** (`read at 14:32:07`) and, if it fails, its error, in one line, its detail on hover.
   **A command that fails takes nothing away from the rest** — a runtime too old for `log` leaves the rail readable.
 - A runtime that does not yet know `--last` returns its usage as an error: it is read like any failing command.
-- Under the tabs, the line says what you are reading: ``the output of `ssh <hote> brigade <nom> log --last 200`, as
-  the box renders it — re-read alone every thirty seconds, as long as this tab is displayed``.
+- Under the tabs, the line says what you are reading: ``the output of `brigade <nom> log --last 200`, as
+  the station renders it — re-read alone every thirty seconds, as long as this tab is displayed``.
 - The space gives you back the tab where you left it.
 
 ### The cooks' reliability, on Cooks
@@ -2256,8 +2001,8 @@ Until #1699 it was the page **Settings → Closer**; `closing --json` now goes o
   (those the station accepts), and **"Set the closer…"**, the recommended button, acts only once both are
   chosen — one without the other makes the start be refused (`docs/runtime/fermeture.md`). Like the
   action buttons ("Buttons write, they do not send"), it **writes into the second, without
-  sending**, the doc's two actions on one line — `!ssh <hote> brigade <nom> station closer-modele
-  <model> && ssh <hote> brigade <nom> station closer-effort <effort>` — : the chef hits Enter. What it
+  sending**, the doc's two actions on one line — `!(cd <runtime> && BRIGADE_STATION_DIR=<dir> node …/geste.ts <nom> station closer-modele
+  <model> && … station closer-effort <effort>)` — : the chef hits Enter. What it
   writes, and the accepted values, are on hover; no command is displayed. The choice holds across
   re-readings. What is written is composed in the main process (`app/src/boutons.ts`, `ecritPourLeCloser`),
   which refuses a value outside the lists. **No figure.**
@@ -2318,8 +2063,7 @@ Cooks tab's output (`app/src/vue/closer/section.js`); the raw object is not show
 
 *Ticket: #1700.* **Is a grant active, and until when?** It is the heaviest authorization in the system — under a
 `merge` grant, code written by a cook lands on the integration branch without you (`docs/runtime/pass-merge.md`, "Le
-grant `merge`") —, and it is read in Settings' **project** group, **one line per grant** the doc names, from `ssh
-<host> brigade <name> grant`, read while Settings is shown (`grants.ts`):
+grant `merge`") —, and it is read in Settings' **project** group, **one line per grant** the doc names, from `brigade <name> grant`, read while Settings is shown (`grants.ts`):
 
 - **its value**: its state in one word with its pill — `ACTIVE` (green), `LAPSED` (yellow), `REVOKED` or `ABSENT`
   (grey) —, and, when it has an expiry, **the remaining time** the box counted at the time of the read (`6 h left`).
@@ -2343,32 +2087,33 @@ click — in front of any other screen, read "The limit" below.
 
 **A button that stops says what it stops.** `guardrails stop` exists only in a project's
 panel, and stops only **that project's kitchen**: the command it writes names it
-(`!ssh <host> brigade <name> guardrails stop`), and you read it before sending it. It does not close the app, and
+(`!(cd <runtime> && BRIGADE_STATION_DIR=<dir> node …/geste.ts <name> guardrails stop)`), and you read it before sending it. It does not close the app, and
 touches no other project. **No button stops all projects**: "All projects" has
 none.
 
 | Where | The button | What it writes into the second |
 |---|---|---|
-| the state panel, under the time of the read | `guardrails stop` | `!ssh <host> brigade <name> guardrails stop` |
-| | `guardrails resume` | `!ssh <host> brigade <name> guardrails resume` |
+| the state panel, under the time of the read | `guardrails stop` | `!(cd <runtime> && BRIGADE_STATION_DIR=<dir> node …/geste.ts <name> guardrails stop)` |
+| | `guardrails resume` | `!(cd <runtime> && BRIGADE_STATION_DIR=<dir> node …/geste.ts <name> guardrails resume)` |
 
-- **It is the doc's command, word for word**: the form of `docs/runtime/exploitation.md`, "Piloter",
-  from your workstation (`ssh <box> brigade <project> <command>`), with your `host` and your `name`. The `!`
+- **It is the doc's command, word for word**: `brigade <project> <command>` of `docs/runtime/exploitation.md`, "Piloter",
+  in its station form for this computer — the gesture of the local station, run from the runtime's folder with the
+  station's directory (`(cd <runtime> && BRIGADE_STATION_DIR=<dir> node …/geste.ts <project> <command>)`). The `!`
   in front is the one that runs a command on the Mac from a `claude` session. It stays in the
   second's history, and can be replayed by hand identically.
 - **The app writes no Enter**: what is written carries no carriage return or line feed.
-  A command that would carry one — a `name` or a `host` that contains one — **is not written**,
+  A command that would carry one — a `name` that contains one — **is not written**,
   and the line under the right-hand tabs says so.
 - **The limit: the app does not see what `claude` displays.** It writes the command's
   characters, and the screen of the moment receives them. In front of the prompt, they land there. In front of
   **a dialog with numbered choices** (a tool permission, folder trust), they are
-  keys: a digit in your `host` or your `name` (`box2`, an IP, `project-1`) can choose
+  keys: a digit in your `name` or in a path (`project-1`) can choose
   an option there. In **vim mode, outside insert**, letters are editing commands. The app can
   neither know it nor prevent it: click a button only when the second is at its prompt, and
   look at it before confirming.
 - **The command waits for you in the second, on the right** — the center does not change —, and the line under
   its title says what just happened:
-  ``written in the second, without Enter: `!ssh box brigade parade guardrails stop` — in front of the `claude` prompt, it waits for yours, after your typing if you were typing. In front of any other screen (a choice to make, vim mode), these characters are keys: look at the second before confirming``.
+  ``written in the second, without Enter: `!(cd /Users/chef/brigade/runtime && BRIGADE_STATION_DIR=… node …/geste.ts parade guardrails stop)` — in front of the `claude` prompt, it waits for yours, after your typing if you were typing. In front of any other screen (a choice to make, vim mode), these characters are keys: look at the second before confirming``.
 - **If you were typing**, the app does not know: it does not read your terminal. It writes
   **after** your typing, erasing nothing, and says so (above). Same for two
   clicks in a row: the second command is written after the first. Erase the line (`Ctrl+U`), and
@@ -2376,19 +2121,16 @@ none.
 - **If the second is not running** — you left `claude` — the button **starts it first**, and
   writes nothing: a starting `claude` would take the command for keys. The line says
   ``the second was not running: launched (`claude --continue`, with the second's role in its system prompt) — the command is not written into a second that is starting, click again when it is ready``.
-- **Always in the second, never in a shell** opened beside it. Two exceptions, and each
-  opens its own shell: `Start`, which needs a real terminal ("After adding: going live"), and the project switch's `on`.
-- **A `host` that starts with a dash** (`-box`) has no command written: in the doc's
-  form, `ssh` would read it as an option. The button writes nothing, and the line under the right-hand tabs
-  says why — reading the box, for its part, does not suffer.
+- **Always in the second, never in a shell** opened beside it. One exception, which
+  opens its own shell: the project switch's `on`.
 - **A button that could write nothing says so** under the right-hand tabs: `nothing is written: …`
   — for example when the project has just left the file.
-- A project **without `host`** and without a kitchen on this workstation has no button: there is no command to write. A project whose
+- A project whose kitchen does not run on this workstation has no button: there is no command to write. A project whose
   folder is not there has no second: its column says why (`folder not found: …`).
 - **Only these buttons exist**, each where what it changes is read — and, apart, the project switch. The
   rest of "Piloter" (`manager return`, `base replay`…) is typed. "All projects" has
   none. Going live with a project just added has its own, apart: `installation`
-  is run for you there, and `Start` writes into a shell.
+  is run for you there.
 - **The stop banner carries `guardrails resume`**: the same button, the same written command,
   set where the stop is read ("What is drawn", "The stop banner").
 
@@ -2413,12 +2155,12 @@ from the `claude` session —, **its output is read in its thread**, on the righ
 changing. The line under the second's title says what went out:
 
 ```
-sent into the second: `!ssh box brigade parade switch off` — `claude` went into shell mode, the app pressed Enter. Its output is read in its thread, and the second reads it too
+sent into the second: `!(cd /Users/chef/brigade/runtime && BRIGADE_STATION_DIR=… node …/geste.ts parade switch off)` — `claude` went into shell mode, the app pressed Enter. Its output is read in its thread, and the second reads it too
 ```
 
 | The direct action | Where | What goes out |
 |---|---|---|
-| `project off` | the project switch, at the head of the space | `!ssh <host> brigade <name> switch off` |
+| `project off` | the project switch, at the head of the space | `!(cd <runtime> && BRIGADE_STATION_DIR=<dir> node …/geste.ts <name> switch off)` |
 
 **The other actions stay written** — stopping and resuming the kitchen, enabling and revoking a
 grant: they destroy or commit, and are read before they go. **Turning on the
@@ -2454,13 +2196,13 @@ alone in its input, at its prompt. **Only then** does it press Enter. With no pr
 five seconds — or if you type in the meantime —, it does not press Enter, and says so:
 
 ```
-written in the second, but not sent: `!ssh box brigade parade installation` — `claude` did not show itself in shell mode ("! for shell mode"), so the app did not press Enter. Its input was not empty, or it was showing something other than its prompt: look at the second, and erase what is written there
+written in the second, but not sent: `!(cd /Users/chef/brigade/runtime && BRIGADE_STATION_DIR=… node …/geste.ts parade installation)` — `claude` did not show itself in shell mode ("! for shell mode"), so the app did not press Enter. Its input was not empty, or it was showing something other than its prompt: look at the second, and erase what is written there
 ```
 
 ### When it does not go out, it says so
 
 **Nothing is written into a second that is not called free**, and the line under the right-hand tabs says
-why — always followed by ``— the command did not go out, and nothing is written: `!ssh …` ``:
+why — always followed by ``— the command did not go out, and nothing is written: `!(cd … geste.ts …)` ``:
 
 | What the line says | What is happening | What to do |
 |---|---|---|
@@ -2488,9 +2230,9 @@ why — always followed by ``— the command did not go out, and nothing is writ
 
 Four things, and only them, because they are a **table of states**: the bar's pill,
 the project tile, the rail, the stop banner. The app draws them from no sentence: it
-runs `ssh <host> brigade <name> facts`, the command by which the runtime gives its facts as facts
+reads `brigade <name> facts`, the command by which the runtime gives its facts as facts
 (`docs/runtime/etat-et-mesures.md`, "Les faits, pour un programme") — a state is **a word read**, a counter **a
-number read**. For all projects that have a `host`, every thirty seconds, whatever the
+number read**. For all projects whose kitchen runs on this computer, every thirty seconds, whatever the
 screen.
 
 ### The project tile
@@ -2585,7 +2327,7 @@ For a ticket in pass or served, `cooked by` is added: who cooked it is not who h
 **Under it, `its cook`: what the ticket's cook is doing, as its station publishes it** (#1846, `app/src/vue/activite-du-cook.js`)
 — in place of the cook's terminal, which the app does not follow. The station writes each cook's activity into the
 project's Kitchen board (#1844, `activites`); the app reads it on GitHub with this computer's GitHub account alone —
-no `ssh`, no box reached (`app/src/tableau/lecture.ts`, `activitesPubliees`) — every 30 seconds with the board, and an
+no other machine reached (`app/src/tableau/lecture.ts`, `activitesPubliees`) — every 30 seconds with the board, and an
 open sheet follows it without a gesture. While the cook runs: a `cooking` pill, since when, its station, its turns and
 its tokens; `now` and what it is doing (`writing app/src/bon.ts · for 2 min`); then its earlier steps with their time.
 Finished: how it ended (`finished`, `failed`, `stopped by a guardrail`…), when and after how long, its last steps, and
@@ -2606,12 +2348,12 @@ section laid, `right now` is not repeated under it.
   `retro unavailable`, its why on hover — never an empty section.
 - **A rail card's history and discussion come from GitHub, not from the box** (#1735): the sheet reads the ticket's
   issue (body and comments) and the PRs that close it with the `gh` of this computer, on the project's repository —
-  no `ssh`, so the sheet opens with the box off. The history is what GitHub keeps: `arrived` (the issue's creation),
+  so the sheet opens with the project's station off. The history is what GitHub keeps: `arrived` (the issue's creation),
   `delivered` and `merged` for each PR, or `closed without a merge`. What only the box's journal carries — the cook's
   tokens and time, the attempts, the retro — says `not communicated`, never a made-up value (so the retro section
   above reads `retro not communicated` there). An issue absent from GitHub is one sentence: `<repo>#<n> is not on
   GitHub: there is nothing to read`. Posting a comment and "ask the second" go through the Kitchen board (#1845,
-  `docs/tableau-gestes.md`), with this computer's `gh` — no `ssh`, no `hote`: `/brigade comment #<n> <text>`, which
+  `docs/tableau-gestes.md`), with this computer's `gh`: `/brigade comment #<n> <text>`, which
   the box posts on the issue under its own `gh` account and answers with its cost (`comment posted on #<n> — …`);
   `/brigade ask #<n> [context]`, whose request the box composes and publishes in the board's machine block, and the
   app writes it into the second, without Enter. When the box holds the project's second, it sends it the request
@@ -2741,7 +2483,7 @@ section laid, `right now` is not repeated under it.
   stops for lack of a grant. They stay in the block, on the right. The `awaiting you` counter of the project
   tile counts the decisions, the column counts its cards: a disconnected station makes the difference.
 - **Awaiting you may not be read**, and the column says so (`?`, `not read: this box's runtime
-  does not give `attend` in `facts`, and the `awaiting` block of `ssh <host> brigade <name> status` was
+  does not give `attend` in `facts`, and the `awaiting` block of `brigade <name> status` was
   not taken for this project`): a runtime from before `attend` in `facts`, whose `status` is not
   read yet, is failed, or has no edge. It is not "nothing awaits you" — the tickets then stay
   in the column of their state word. The column never says by itself that nothing awaits
@@ -2853,7 +2595,7 @@ section laid, `right now` is not repeated under it.
   does not answer shows none: its last reading is no longer new.
 - **What is not on the rail yet** (`app/src/amont.ts`, #697). An empty rail does not
   mean a finished project: at the head of the rail, a number — `23 upcoming` — counts the open issues of the
-  repository that the rail does not carry. It comes from `ssh <host> brigade <name> manager upstream`
+  repository that the rail does not carry. It comes from `brigade <name> manager upstream`
   (`docs/runtime/manager.md`, "En amont du rail"), read **for the displayed project only**, once a
   minute: the box reads GitHub each time. A click expands the list, **grouped by what is
   happening to them**, in the box's words:
@@ -2909,7 +2651,7 @@ section laid, `right now` is not repeated under it.
   runtime from before that field.
 - **The columns fit in the window at its opening size**; narrower, they scroll.
   The rail and what the displayed tab shows below it share the height, half and half; the
-  rail scrolls within its own. A project with no `host` and no kitchen on this workstation has no rail — nothing is read from it — and
+  rail scrolls within its own. A project that no station serves on this computer has no rail — nothing is read from it — and
   its terminal takes the full height.
 
 ### A proposed correction of the project's guidance (#999)
@@ -2952,8 +2694,8 @@ this proposal cost 18,342 tokens · proposed 10/13/2026, 9:58:40 AM
   on your quota. The action goes out right away: the whole card is what you have to read before.
 - **The answer is posted on the project's Kitchen board** (#1741, `app/src/tableau-gestes/rail.ts`,
   `docs/tableau-gestes.md`), with the token of this computer's `gh`: `/brigade correction yes <proposal>` or
-  `/brigade correction no <proposal>`, once, for a proposal the latest board read carries. No `ssh`, no second, no
-  box command: the gesture works with the box unreachable, and the box plays it at its next tick
+  `/brigade correction no <proposal>`, once, for a proposal the latest board read carries. No second, no
+  command: the gesture works with the kitchen unreachable, and the runtime plays it at its next tick
   (`runtime/src/correctif/decision.ts`).
 - **Posted**: both buttons stay inactive, and a line under them says `your “yes”: posted on the Kitchen board — the box
   plays it at its next tick and answers under it`, the comment's address on hover — the same words as the other
@@ -3004,8 +2746,8 @@ proposed 10/13/2026, 9:41:05 AM
   on hover), its perimeter, and its starting notebook, lesson by lesson with the retros that carry it.
 - **"yes, create the profile"**, recommended, and **"no"**; what each does is in its hover.
   The answer is posted like that of a correction, on the project's Kitchen board (#1741): `/brigade profile yes
-  <proposal>` or `/brigade profile no <proposal>`, once, for a proposal the latest board read carries — no `ssh`, no
-  box command, the box unreachable included. Posted, the card says so under its two inactive buttons, the comment's
+  <proposal>` or `/brigade profile no <proposal>`, once, for a proposal the latest board read carries — no
+  command, the kitchen unreachable included. Posted, the card says so under its two inactive buttons, the comment's
   address on hover, and leaves the queue with the first board read that no longer carries it; not posted, the card
   stays and a line says why, what GitHub answered on hover. The box plays it at its next tick
   (`runtime/src/profils/decision.ts`): the "yes" writes the profile's definition in the project's clone on the box,
@@ -3026,7 +2768,7 @@ included, until "resume".
 write the restart in the second, without sending:  [guardrails resume]
 ```
 
-- **The button writes the restart, it does not restart**: `!ssh <host> brigade <name> guardrails resume`
+- **The button writes the restart, it does not restart**: `!(cd <runtime> && BRIGADE_STATION_DIR=<dir> node …/geste.ts <name> guardrails resume)`
   in the second, without Enter — everything that "Buttons write, they do not send" says holds
   here.
 - **It leaves by itself** at the first reading that no longer says `stopped`: thirty seconds at
@@ -3049,16 +2791,16 @@ line that says the case and points to the panel. And **`status` stays readable b
 failure removes nothing from the rest.
 
 **Separately, but not abreast**: `facts`, `status` and a tab's command are three readings,
-and for the same project they go **one after the other** — a project opens only one `ssh`
-connection at a time, whatever the number of readings waiting for it. In "All projects", a box
-therefore receives at most one connection per project it serves, not two.
+and for the same project they go **one after the other** — a project runs only one command
+at a time, whatever the number of readings waiting for it. In "All projects", a station
+therefore runs at most one command per project it serves, not two.
 
 | On screen | What the app obtained | What it shows below |
 |---|---|---|
-| ``REACHED, BUT `facts` DID NOT ANSWER — tried …`` | `ssh` reached the box, and the command failed there without its code saying a case. **A runtime from before `facts` is the expected case** | the command launched, what it wrote, its code — then the action: update the runtime on its box (`docs/runtime/exploitation.md`, "Piloter") |
-| `REACHED, BUT UNKNOWN TO THE BOX`, `… WITHOUT THE RIGHT TO THE ACTION`, `… A COMMAND IS MISSING ON THE BOX`, `… THE BOX'S NODE DOES NOT SUIT THE RUNTIME` | the box's action refused (codes 65, 68, 69 or 127, 70): **the same case as under `status`**, with the same words | what the box said of it, as is — then **the pointer for that case**, the one from the table of "A box reading: seven states". No runtime update: it is not the runtime that is old |
+| ``REACHED, BUT `facts` DID NOT ANSWER — tried …`` | the station's gesture ran, and the command failed there without its code saying a case. **A runtime from before `facts` is the expected case** | the command launched, what it wrote, its code — then the action: update the runtime on its box (`docs/runtime/exploitation.md`, "Piloter") |
+| `REACHED, BUT UNKNOWN TO THE BOX`, `… WITHOUT THE RIGHT TO THE ACTION`, `… A COMMAND IS MISSING ON THE BOX`, `… THE BOX'S NODE DOES NOT SUIT THE RUNTIME` | the station's gesture refused (codes 65, 68, 69, 70): **the same case as under `status`**, with the same words | what the box said of it, as is — then **the pointer for that case**, the one from the table of "A station reading: seven states". No runtime update: it is not the runtime that is old |
 | ``THE BOX DID NOT RETURN THE SHAPE OF `facts` — tried …`` | the command succeeded, and its output is not the shape: not JSON, a missing field, a counter that is not a whole number | **the output, word for word**, then what is not the shape (`"compteurs.rail" is not a positive whole number`) |
-| `NOT REACHED — tried …` | nothing that proves the box was reached | the message from `ssh`, as is — the same as under `status`, where its pointers are given |
+| `NOT REACHED — tried …` | nothing that proves the box was reached | the message, as is — the same as under `status`, where its pointers are given |
 
 An item of `rail`, `attend` or `livres` that the app cannot read — a value from a box newer than the app, such as a WAITING follow-up at `null` — does not refuse the shape: only its own card is spoiled. It stays in its column and says in one line that the app could not read it and that updating the app fixes it. The shape is refused only when the item has no ticket number, since there is then no card to draw.
 
@@ -3077,7 +2819,7 @@ not reached, not the command failing —, **the band says only one line**:
 **The project page says it only once (#1078)**, at the top, with what the chef can do about it, in
 plain words under the line: check that the machine is on and reachable, restart it if it no longer
 answers, then "try again" (its button rereads the box right away). The cause in plain words
-(no answer, connection refused, address not found — said from what `ssh` wrote) is
+(no answer, connection refused, address not found — said from what the command wrote) is
 behind "detail". The line goes away as soon as a reading succeeds, without restarting the app. A single
 failed reading does not set it.
 
@@ -3115,7 +2857,7 @@ on its own do not pulse: the view does not ask for them.
 
 When the network comes back, the rail refreshes on its own: the next reading of the board (every 30 s) — or at once,
 when the system says the network is back — redraws it, and the sign goes away. Alarms then appear only for a real
-fault: a board that cannot be read, or GitHub refusing, is said as before, after the same two readings. A failed `ssh`
+fault: a board that cannot be read, or GitHub refusing, is said as before, after the same two readings. A failed local command
 says nothing about the network: it neither sets nor lifts the offline state.
 
 ### What is not drawn, and will not be here
@@ -3131,7 +2873,7 @@ says nothing about the network: it neither sets nor lifts the offline state.
 ## What the box says about the project
 
 To the right of the terminal, without typing anything, and whatever the tab: the project tile, then
-**what awaits you, set apart**, then the output of `ssh <hote> brigade <nom> status`, **word for
+**what awaits you, set apart**, then the output of `brigade <nom> status`, **word for
 word**. (Grants have their own tab.) The app reads nothing in it and says nothing of it again — if
 a command's wording changes, what you see changes with it. It cuts out only one thing, by its
 edge: the `awaiting` block.
@@ -3143,7 +2885,7 @@ wrote it, from its `awaiting` line to its `end awaiting` line. You no longer hav
 the output.
 
 ```
-what awaits you — the `awaiting` block of `ssh <hote> brigade <nom> status`
+what awaits you — the `awaiting` block of `brigade <nom> status`
 awaiting   2 decisions await the chef — the oldest since 2 d
   #12  since 2 d  green delivery, not merged for lack of a `merge` grant — merge by hand: …
   #21  since 3 h 02  BLOCKED: #17 dropped (label `fire` removed) — to unblock: …
@@ -3175,7 +2917,7 @@ end awaiting
   yellow:
 
   ```
-  Nothing could be set apart: the output of `ssh <hote> brigade <nom> status` does not have the block the app knows how to take — a single line that starts with `awaiting`, a single `end awaiting` line.
+  Nothing could be set apart: the output of `brigade <nom> status` does not have the block the app knows how to take — a single line that starts with `awaiting`, a single `end awaiting` line.
   This is not "nothing awaits you": what awaits you, if anything, is in the output below, whole.
   ```
 
@@ -3200,45 +2942,31 @@ The app **never says "nothing awaits you" itself**: a calm screen is an `awaitin
 
 The head lines of `status` that the app reads (`kitchen`, `connection`, `setup`, `base`, `grant`, and `nothing cooks:`) have been in English since #928; it also reads them in their French form (`cuisine`, `connexion`, `ROUGE`, `ACTIF`, `rien ne cuit :`…), for a box whose runtime is not up to date.
 
-**Say where the box is.** A single field on the project, in `app.json`:
+**Nothing to declare.** The app reads a project's `status` through the gesture of the station that cooks it on this
+computer: `brigade <nom> status` and, for the content tab displayed, `rail`, `station`, `grant` or `log`
+(`docs/runtime/exploitation.md`, "Piloter"). The gesture is run from the runtime's folder with the station's directory
+(`BRIGADE_STATION_DIR`), by the `node` that plays the station: the account, the installation and the environment are
+read there. No other machine is reached. A project whose kitchen does not run on this computer is not read this way:
+the app says so in place of the state, and its rail, its cooks and its queue come from the Kitchen board on GitHub
+(`docs/runtime/tableau-de-cuisine.md`).
 
-- `hote`: the name by which **your** `ssh` reaches your box — a name from your `~/.ssh/config`, or
-  `account@machine`. There is no value to copy: it is what you type after `ssh`.
+**What the app displays can be copied.** Every action the app names — in a tab line, a failure title, a panel — is
+`brigade <nom> <command>`: the form of the doc, with the project's `nom`. What the buttons write into the second is its
+station form for this computer (see "Buttons write, they do not send").
 
-**What the app displays can be copied.** Every action the app names — in a tab line, a failure
-title, a panel, what the buttons write — is the *workstation action*,
-`ssh <hote> brigade <nom> <command>`, with your `hote` and the project's `nom`: it is what you type
-on your Mac. `brigade <nom> <command>` alone is the *box action*, the one of the box itself
-(`docs/runtime/exploitation.md`, "Piloter"): typed on the Mac, it returns `command not found`, and
-the app puts nothing on your workstation to avoid that. Under the project name, `<hote>` and `<nom>`
-are to be replaced by the two fields of your file.
-
-You no longer dictate any command. The app runs **the box action**, reached by `ssh`: `ssh <hote>
-brigade <nom> status` — and, for the content tab displayed, `ssh <hote> brigade <nom> rail`,
-`station`, `grant` or `log` (`docs/runtime/exploitation.md`, "Piloter"): the account, the
-installation and the environment are read on the box, in the project's unit. The action must
-therefore be placed there, and allowed to your account without a password (`docs/installer.md`,
-"Prepare the box").
-
-**The name sent to the action is the project's `nom` in `app.json`**, as is. If the box serves no
-project under that name, the action refuses it and the app displays it — `REACHED, BUT UNKNOWN TO
-THE BOX`, with what it said about it:
+**The name sent to the gesture is the project's `nom` in `app.json`**, as is. If the station serves no project under
+that name, the gesture refuses it and the app displays it — `REACHED, BUT UNKNOWN TO THE STATION`, with what it said
+about it:
 
 ```
-$ ssh -o BatchMode=yes -o ConnectTimeout=10 -- box brigade parade status
-brigade: unknown project on this box — "parade" has no drop-in (`sudo systemctl edit brigade@<project>.service`, docs/installer.md)
+$ brigade parade status
+brigade: unknown project on this station — "parade" has no drop-in
 
 → exit code 65
 ```
 
-The action accepts only lowercase letters, digits and hyphens: a `nom` written otherwise
+The gesture accepts only lowercase letters, digits and hyphens: a `nom` written otherwise
 (`Parade`, `mon projet`) reaches it whole, quoted, and it says it is unknown.
-
-The app runs `ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> 'brigade <nom> status'`: your
-key, your ssh configuration, no port or API. `BatchMode`: `ssh` cannot ask you anything from the
-app — a key that demands its passphrase must be in your agent. `ConnectTimeout`: a silent box is
-reported by `ssh` after ten seconds, in its own words. A project with no `hote` and no kitchen on
-this workstation is not read, and the app says so in place of the state.
 
 **It refreshes by itself**, every thirty seconds, for what is displayed and nothing else — the
 project, or each one in "All projects"; switching project reads the new one right away. **A read is
@@ -3247,66 +2975,35 @@ open a space, is not shown there — and the reverse. At the top of the panel, *
 and the time of the last read** (`pilotable — read at 14:32:07`): these are the only facts the app
 adds. The durations displayed below are those `status` was counting at that time.
 
-**When the box is not read, it is an error, and it takes all the room.** The header changes to
+**When the station is not read, it is an error, and it takes all the room.** The header changes to
 `NOT REACHED — tried at 14:32:37, the next follows by itself`, to `REACHED, BUT NO LONGER
-PILOTABLE — …` or to `REACHED, BUT UNKNOWN TO THE BOX — …`, `REACHED, BUT WITHOUT THE ACTION'S
-RIGHT — …` or `REACHED, BUT A COMMAND IS MISSING ON THE BOX — …` (the states of "A box read: seven
+PILOTABLE — …` or to `REACHED, BUT UNKNOWN TO THE STATION — …`, `REACHED, BUT WITHOUT THE RIGHT TO THE ACTION — …`
+or `REACHED, BUT A COMMAND IS MISSING ON THE STATION — …` (the states of "A station reading: seven
 states", said the same here), and below there is only what the app obtained — the command run, what
-it or `ssh` wrote, and the exit code — then, when the code allows it, where the action that answers
-it is written.
+it wrote, and the exit code.
 
 ```
-$ ssh -o BatchMode=yes -o ConnectTimeout=10 -- box brigade brigade status
-ssh: connect to host box port 22: Operation timed out
-
-→ exit code 255
-
-`ssh` did not open a session on the box, and it said why: its message is above. The app does not read it.
-What each of its sentences means, and the action that answers it:
-(docs/installer.md, "Reach the box")
-
-If it says your key was refused (`Permission denied`), the box answers and what you lack is access. It is given on the box:
-(docs/installer.md, "Add a human")
-```
-
-A reader whom the box reaches but to whom the action was not given reads this, under `REACHED, BUT
-WITHOUT THE ACTION'S RIGHT`:
-
-```
-$ ssh -o BatchMode=yes -o ConnectTimeout=10 -- box brigade brigade status
-brigade: "lecteur" has no right to run the action on this box — without a terminal, `sudo` does not give it to them under the account "brigade" without a password (docs/installer.md, "Add a human")
+brigade: "lecteur" has no right to run the action — …
 
 → exit code 68
 
-The box was reached, and its action refused the account through which your `ssh` reaches it: what it said about it is above.
+The station was reached, and its gesture refused the account: what it said about it is above.
 This is neither an outage nor a runtime to update: it is a right that this account lacks.
-
-It is given on the box, by someone who has `sudo` there — the app does not do it for you:
-(docs/installer.md, "Add a human")
 ```
 
 - **Nothing is kept from the previous read**: no stale state beside the error. A micro-outage
   therefore replaces the screen with an error, until the next read.
-- **The app does not guess the cause.** A 255 code comes from `ssh`: not reached. Any other code
-  comes from the box, whose message is displayed (`brigade: …`): 65, the action does not know the
-  project; 68, it refuses you; 69 or 127, a command is missing on the box; 70, its `node` does not
-  suit the runtime; any other, reached, but no longer pilotable.
+- **The app does not guess the cause.** The exit code comes from the gesture: 65, it does not know the
+  project; 68, it refuses you; 69, a command is missing; 70, its `node` does not suit the
+  runtime; any other, reached, but no longer pilotable.
 - The panel and the content tab displayed are each read on their own: the error of one is shown in
   its own place, taking nothing from the other.
-- An `ssh` that returned nothing in thirty seconds is stopped, and the app says what it knows of it:
-  - `→ no answer in 30 s: ssh stopped` — `ssh` was connected (it then exits by itself, with 255)
-    and it is the command that returned nothing: "reached, but no longer pilotable".
-  - `→ no answer in 30 s: ssh stopped, without having said whether it had reached the box` — `ssh`
-    died of a signal, with no code: nothing says how far it had gone. Its ten seconds to reach the
-    box (`ConnectTimeout`) do not cover what follows the connection: an ssh agent waiting for a
-    confirmation (Touch ID, 1Password, `ssh-add -c`) holds it without limit. The app does not know
-    where it stood: it displays it "not reached", without the runtime update action — nothing says
-    there is a runtime to restart — and without a pointer to the docs: `ssh` wrote nothing that can
-    be read there.
+- A command that returned nothing in thirty seconds is stopped, and the app says so:
+  `→ no answer in 30 s: the command was stopped`. Nothing says how far it had gone, so it is displayed
+  "not reached", without the runtime update action.
 
 The log is read in `latest events`, refreshed with the rest, and, for its end (the last 200
-events), in the **Log** tab. To follow it live: `ssh <hote> brigade <nom> status -- --follow`, in a
-shell of the space.
+events), in the **Log** tab.
 
 ## The skin
 
@@ -3332,157 +3029,40 @@ The app has one visual language, and only one: the mockup's (`docs/maquettes/app
   and for what the box returned. **Monospace is information, not a style**: a button is in
   monospace if what it displays is the command it will write, and what the app says itself, even on
   several lines, is in Archivo.
-- **What the box returned is in a frame of its own**, dark, in monospace: a command's output, the
-  `ssh` message, what the installation action answered. **Word for word**: its whitespace and its
+- **What the station returned is in a frame of its own**, dark, in monospace: a command's output, the
+  error message, what the installation action answered. **Word for word**: its whitespace and its
   lines are its own, a line that is too long wraps to the next, nothing is cut, hidden or rewritten.
   What the app says about it is below, outside the frame: its words are not confused with the box's.
   Nothing is cut anywhere in the app: the title of a ticket on the line of a running cook wraps, like
   the rest. The window does not shrink below 640 px wide (half its opening); below 1280, the tabs
   and the rail columns scroll, nothing overlaps.
 
-## The workstation is a station
+## This computer is a station
 
-A ticket can ask for a capability the box does not have — `chrome-connecté`, your browser, with
-your sessions. The project then declares on its box a station that provides it and that **does not
-run on the box**: `mac/claude:1:chrome-connecté:distante` (`docs/runtime/station-distante.md`, "Une
-station distante tire son travail"). **The app plays it**, for the projects that ask it to:
+The app runs this computer's station (see "This computer is a station; a phone is a workstation"), and a project that
+cooks here is read and driven through it. **The app does not play a station for another machine**: a workstation no
+longer plays a remote station of a project's box, pulls no ticket from it and launches no cook for it. A ticket that
+asks for what only a given computer provides (`chrome-connecté`, your signed-in browser) is cooked by a station that
+runs on that computer and provides it (`docs/runtime/station-distante.md`).
 
-```json
-{ "nom": "brigade", "dossier": "~/Dev/brigade", "hote": "ma-box", "stations": ["mac/claude"] }
-```
-
-As long as the app is open, it does for each station what the box expects of it, through the box
-action and nothing else (`ssh <hote> brigade <nom> pull <station> …`):
-
-| What it does | When | What goes to the box |
-|---|---|---|
-| **announce** itself | at launch, then every thirty seconds while all its cooks are taken | `pull mac/claude announce` |
-| **claim** a ticket | every thirty seconds while it has room left | `pull mac/claude claim` |
-| **cook** | at each ticket received: a worktree in the project folder, on the branch the box names, and `claude` in it, with the arguments the box handed over | nothing |
-| **renew** its lease | every thirty seconds per cook | `pull mac/claude renew <run> [--proof <fingerprint>] --turns <n> --tokens <n>` |
-| **return** | when the cook is done: its branch pushed to the origin, then its last message to the box | `git push` to the origin; `pull mac/claude return <run> --end livre\|echec …` |
-
-The pace is thirty seconds, less if the box announces a shorter presence delay or lease.
-
-**Everything leaves your workstation, nothing arrives there.** The app listens on no port for this
-work and opens no server; it tells the box neither its name nor its address, and opens no port
-forwarding: one outgoing `ssh` per request, one `git` to the origin, and `claude`. The box, for its
-part, has no path to your Mac (`runtime/test/architecture.test.ts`). On the app side,
-`app/test/runner.test.ts` holds it: what the runner imports, the three programs it launches, and
-each line passed to `ssh` during a full service.
-
-**With the app closed, the station is absent — and this is not an outage.** Past the box's presence
-delay (two minutes by default), the tickets that only it can cook are `86`, "station absent", and
-`status` says so; the others go out on the box as before. Reopen the app: they restart by
-themselves, at its first request. There is nothing to do on the box, and the app does nothing
-special when closing.
-
-**Ordinary tickets, from the project's settings (#852).** In Settings › General of a project for
-which this workstation plays a station (`stations`), the block is titled with this workstation's
-name — "Ordinary tickets on this Mac", "Ordinary tickets on this PC" under Windows (#1154). On a Mac,
-it carries the "Take the ordinary tickets too" option and the "Cooks at once" field, this Mac's
-cooks cap. A single line, beside it, says what that implies: `Cooks on this Mac run in Claude Code's
-sandbox: they write only in their own worktree, and reach only the network hosts on the project's
-list.` Both values are written in the projects file (`"ordinaires": true`, `"limiteCooks": 2`) and
-re-read at each opening; a value badly written by hand makes the file refused. **Outside a Mac — a
-PC under Windows, a desktop Linux —, the block has no option and no field: its single line says why**
-— `This PC takes no ordinary ticket: a cook of an ordinary ticket runs only in Claude Code's sandbox,
-which the station sets up only on macOS.` The runtime sets up the sandbox of a local kitchen only on
-macOS (`runtime/src/bac-a-sable/local.ts`), and a remote station without a sandbox takes no ordinary
-ticket: the app says so rather than hiding the setting. **With no station played, the block does
-not exist.** The sandbox state is read in `facts` (`stations` field,
+**Ordinary tickets, from the project's settings (#852).** In Settings of a project whose kitchen cooks on this computer,
+the block is titled with this computer's name — "Ordinary tickets on this Mac", "Ordinary tickets on this PC" under
+Windows (#1154). On a Mac, it carries the "Take the ordinary tickets too" option and the "Cooks at once" field, this
+Mac's cooks cap. A single line, beside it, says what that implies: `Cooks on this Mac run in Claude Code's sandbox: they
+write only in their own worktree, and reach only the network hosts on the project's list.` Both values are written in
+the projects file (`"ordinaires": true`, `"limiteCooks": 2`) and re-read at each opening; a value badly written by hand
+makes the file refused. **Outside a Mac — a PC under Windows, a desktop Linux —, the block has no option and no field:
+its single line says why** — `This PC takes no ordinary ticket: a cook of an ordinary ticket runs only in Claude Code's
+sandbox, which the station sets up only on macOS.` The runtime sets up the sandbox of a local kitchen only on macOS
+(`runtime/src/bac-a-sable/local.ts`): the app says so rather than hiding the setting. **When the project does not
+cook here, the block does not exist.** The sandbox state is read in `facts` (`stations` field,
 [docs/runtime/](runtime/station-distante.md), "Les tickets ordinaires sur le poste du chef"): when the
 station says it is unavailable, the block writes it beside the option, with the reason the station
-gives, and specifies that this Mac takes no ordinary ticket. As long as it has said nothing, the app
-guesses nothing. The block sets what the app keeps; the box's `distante+ordinaires` declaration
-remains the chef's.
+gives. As long as it has said nothing, the app guesses nothing.
 
-**Where each ticket cooks (#853).** The box sends an ordinary ticket to the Mac only when it is
-saturated (`docs/runtime/station-distante.md`, same section). On the rail, the card of a running
-ticket therefore says, under "taken by", **"cooks on: box"** or **"cooks on: Mac"** — Mac for a
-remote station, according to the `stations` field of `facts`. A station that `facts` does not give
-— a runtime from before this field — makes it say nothing: the app does not guess from its name.
-
-**A cook on your workstation is not a privileged cook.** What the box holds for its own, it holds
-for this one, and the app bypasses nothing:
-
-- **The same arguments.** `claude` is launched with those the box handed over, as they are: same
-  instruction, same calibration, same forbidden tools (neither `git push` nor `gh pr merge`).
-- **No extra grant.** Its environment is that of the terminal that launched the app, sorted as the
-  box sorts that of its own: without the `BRIGADE_…` variables, without anything that diverts
-  `claude` from its connection (`ANTHROPIC_API_KEY`…), without automatic memory. The app adds no
-  token, no project secret, no grant — the box hands over none. What your workstation can otherwise
-  do (your `gh`, your browser) is yours: this is why the ticket comes here.
-- **The same lease, on proof of work.** At each renewal the app sends what the cook has consumed,
-  and the fingerprint of its worktree **if it has changed since it entered it**: an intact worktree
-  is presented as proof of nothing. The box renews only on a fingerprint that has changed;
-  otherwise the lease lapses at its expiry, and the cook is stopped.
-- **The same caps.** Turns, tokens, duration, idleness: the box judges them on what the app
-  reports and on its own clock. As soon as it answers `stopped` — a cap, the lease, your "stop", a
-  runtime restart —, the app stops its cook (`SIGTERM`, then `SIGKILL` five seconds later) and
-  returns nothing: the box would receive nothing more from it.
-- **A silent box does not leave a cook unguarded.** If no renewal has been accepted for the length
-  of the lease — the box no longer answers, or refuses —, the app stops the cook by itself.
-- **The same log.** The taking, the launch, the reading, the end and the report of the cook are
-  written by the box, in its log, as for a cook of its own (`cook.launched` carries `remote: true`);
-  each request of the app is there too, with its answer.
-- **The same pass.** The cook does not push: the app pushes its branch to the origin, and the box
-  fetches it from there — same gates, same reviewer, same `merge` grant, same sendbacks. A sendback
-  from the pass returns to the same branch, as the origin carries it.
-
-**What a cook from here delivers** is judged in its worktree, as on the box:
-
-| It concluded, and… | What the app does | What the box keeps of it |
-|---|---|---|
-| its branch carries commits | what lies uncommitted is committed in its place, the branch is pushed, `return --end livre` | `done`: PR, report, pass |
-| no commit, intact worktree | nothing is pushed, `return --end livre` with its last message | `done`, `no-diff`, if it delimited a deliverable; otherwise `no-deliverable` |
-| no commit, files written | `return --end echec --reason no-commit` | `failed` |
-| it left its branch | `return --end echec --reason off-branch` | `failed` |
-| it did not conclude (exit code, quota, lost session, model refusal) | `return --end echec`, with the reason | `failed` |
-
-**What this writes in the project folder.** The folder is your clone: the app adds a worktree per
-cook to it, outside the folder (`~/.config/brigade/stations/<project>/<run>`), and its branch
-`cook/<run>`. What it fetches from the origin goes into separate references
-(`refs/brigade/origine/…`): **your branch, your tracking branches and your tags do not move.** Once
-the cook is done, the worktree is removed; the branch goes too, unless it carries what is not on the
-origin — a failed or stopped cook that had committed, or left files: they are committed on it, and
-the branch **stays in your clone**, never pushed. The app says so, and it is up to you to delete it.
-The folder must therefore be a clone of the repository, whose `origin` is the origin the box
-serves, and your workstation must be able to push to it.
-
-**Where to read it.** On the box: `station` shows the presence of `mac/claude` on its `presence`
-line (Cooks tab), and `status` the tickets that await it (the project's panel). On your
-workstation: the app writes in the terminal that launched it what each station does, one line per
-change.
-
-```
-brigade: station mac/claude of "brigade" — present — provides chrome-connecté
-brigade: station mac/claude of "brigade" — cooks ticket #16 (16-9f494a1d)
-brigade: station mac/claude of "brigade" — ticket #16 returned: done
-brigade: station mac/claude of "brigade" — refused by the box — the project declares no station mac/claude: …
-```
-
-A station the box refuses — it does not declare it, or not as `distante` — asks again every five
-minutes, launching nothing.
-
-**What is not guaranteed.**
-
-- **Closing the app kills its cooks**, returning nothing: the ticket stays taken until its lease
-  expires, then goes back to the rail (`guard.tripped`, `reason: lease`) — a failure counted by the
-  breaker, as for any cook whose lease lapses. The worktree stays, and is removed at the next
-  launch; what the cook had committed stays on its branch, in your clone.
-- **An app killed outright** (not closed) can leave a `claude` running: nothing watches it any
-  more. Its worktree is removed at the next launch.
-- **The project's worktree setup is not played** (`.claude/brigade/worktree-setup.sh`): on the box,
-  the station plays it before the cook; here, it is up to the cook to run it if it needs it.
-- **A failed cook from here delivers nothing**, even if it had committed: on the box, its commits go
-  to the pass anyway ("harvested"); here they stay on its branch, at your place.
-- **The exhausted quota of your workstation is a failure** for the box, not an `86` with a return
-  time: the `pull` action can only say "delivered" or "failure".
-- **The cook's raw stream is not kept** on your workstation: the box receives only its last
-  message, and what it consumed.
-- **Two apps open on the same projects file** play the same station twice, and each removes at
-  launch the worktrees the other laid.
+**Where each ticket cooks (#853).** On the rail, the card of a running ticket says, under "taken by", **"cooks on: box"**
+or **"cooks on: Mac"**, according to the `stations` field of `facts`. A station that `facts` does not give — a runtime
+from before this field — makes it say nothing: the app does not guess from its name.
 
 ## Thread resumed, or new session: the app says so
 
@@ -3507,10 +3087,10 @@ Worth knowing:
 ## Closing the app
 
 Closing the window quits the app, and quitting **stops all its terminals** — seconds and shells — and
-the box reads in progress. Shells opened with `+ shell` only detach from it: their sessions hold,
-and they come back on the first click on their project (see above). **And the cooks of its
-stations**: once closed, the app plays none of them any more, and the box reports them absent (see
-"The workstation is a station"). Conversations, for their part, are kept by `claude`: on reopening,
+the readings in progress. Shells opened with `+ shell` only detach from it: their sessions hold,
+and they come back on the first click on their project (see above). **And this computer's station**: it runs with the
+app, so a project that cooks here stops cooking when the app closes (see "This computer is a station; a phone is a
+workstation"). Conversations, for their part, are kept by `claude`: on reopening,
 the first click on a project resumes its thread, and the line under the right-hand tabs tells you
 whether that worked.
 
@@ -3609,7 +3189,6 @@ access.
 | Tests and type check on Windows | the `app-windows` workflow (`.github/workflows/app-windows.yml`), on every PR that touches `app/`: a test that cannot run there is skipped with its reason, taken from `app/test/aides/posix.ts` — POSIX stand-ins, the box's code, the Mac and Android packages, a link to a missing file |
 | Build the `.dmg` (on a Mac) | `npm --prefix app run dist` → `app/packaging/construit/` ([`app/packaging/README.md`](../app/packaging/README.md)) |
 | Launch without consuming quota | `BRIGADE_CLAUDE_BIN="$PWD/app/test/aides/faux-claude.sh" BRIGADE_APP_CONFIG=<trial file> npm --prefix app start` |
-| … and without a box | add `BRIGADE_SSH_BIN=<a script that prints a status output>` — and, to see what gets drawn, the example in `docs/runtime/etat-et-mesures.md` when its arguments end with `facts` |
 | … and without your machine becoming a station | add `BRIGADE_APP_STATION=0` |
 
 **The open app is a station** (see "This computer is a station; a phone is a workstation"): it creates its gist on your GitHub
@@ -3617,21 +3196,11 @@ account through your `gh`, and cooks the projects of its `station/projets`.
 `BRIGADE_APP_STATION=0` prevents that; `BRIGADE_APP_CONFIG` also moves its directory, next to the
 trial file.
 
-**A project that declares `stations` launches real cooks on your workstation** as soon as the app is
-open and its box has a ticket for them — on your quota, with no permission prompt, in a worktree of
-its folder. To try it without a box or quota: no `stations` in the trial file, or the two stand-ins
-above.
+**A project whose kitchen cooks on this computer launches real cooks** as soon as the app is open and the Kitchen
+board has a ticket for it — on your quota, with no permission prompt, in a worktree of its folder. To try it without a
+quota: use the stand-in `claude` above, and a trial file whose projects have no station on this computer.
 
-**Without `BRIGADE_SSH_BIN`, adding a project really installs**: the add screen runs the real
-installation action on the chosen box. To try it without a box, the fake `ssh` returns the action's
-object when its line carries `brigade-installer` (a line `{"ok":true,"ports":{"porte":3129,"arbitre":null},…}`).
-For the go-live: the output of `installation` when its arguments end with `installation` — with, for
-a "ready", the line `brigade : projet « <nom> » : prêt` and a code 0. The fake `claude` says
-`reçu : /brigade:init` when it is opened on the session.
-**And "Uninstall from the box" really uninstalls**: to try it without a box, the fake `ssh` returns,
-when its line carries `uninstall`, the action's sentences on its error output and its object on its
-standard output — `{"ok":true,"action":"uninstall","fait":"plan","projet":"<nom>",…}` for
-`--plan`, `"fait":"desinstalle"` for `--confirm`.
+The fake `claude` says `reçu : /brigade:init` when it is opened on the session.
 
 - **No build.** The main process is TypeScript run as is by Electron (its Node strips the types, like
   the runtime's); the view is JavaScript checked by `tsc` (`// @ts-check`), which imports xterm.js
@@ -3648,20 +3217,15 @@ standard output — `{"ok":true,"action":"uninstall","fait":"plan","projet":"<no
   goes out bare.
 - **No test launches Electron.** What can be proven lives in twenty modules run by
   `node --test`: `config.ts` (the projects file: reading it, creating it, adding a project to it,
-  moving one to another place in it, declaring a box in it — and the boxes the add screen offers),
+  moving one to another place in it — a legacy key naming a host, boxes or played stations is read and ignored),
   `nom.ts` (the shape of the name, held against the rule of the installation action: the test calls
-  `lireDemande` of `runtime/src/installateur.ts`), `installation.ts` (adding a project: the fields
-  with no default, what goes to the box — read back by the same `lireDemande` —, and what the app
-  does with each answer, against a fake `ssh` and the real projects file), `service.ts` (the
-  go-live: its three states — init not merged, check incomplete, all ready —, what `Check` launches
-  and what it does with each exit code, against a fake `ssh`; and that `Start` writes nothing into
-  any terminal as long as the box does not say the project is ready, on the registry and fake ptys —
-  the verdict line is compared with `runtime/src/installation-cli.ts`, the startup with
-  `docs/installer.md`), `retrait.ts` (removing a project: that "Remove this project from the app"
-  launches no `ssh` and leaves the box's log as it is; that the uninstall goes out neither without
-  the box's plan, nor without the project's name, nor with the log option if it is not ticked —
-  against a fake `ssh` standing in for a box, whose sentences are those of `direDesinstallation` and
-  whose arguments are read back by `lireRetrait`, from `runtime/src/desinstallateur.ts`),
+  `lireDemande` of `runtime/src/installateur.ts`), `ajout.ts` (adding a project: the fields
+  with no default, the repository and the branch read from the chosen clone, and the project written to the real projects file),
+  `service.ts` (the
+  commissioning: its states — init not merged, check incomplete, all ready —, what `Check` launches
+  and what it does with each exit code, through the local station's gesture; and that `Start` writes nothing —
+  the verdict line is compared with `runtime/src/installation-cli.ts`), `retrait.ts` (removing a project:
+  that "Remove this project from the app" only takes the project out of the projects file and sends nothing to its station),
   `suivi.ts` (the same file read again when it changes, on real files and the system's real
   watch), `lancement.ts` (what `start` sets up before Electron — the commands are collected there,
   not run), `terminaux.ts` (the registry: what is launched, kept, relaunched, and what the app says
@@ -3669,16 +3233,16 @@ standard output — `{"ok":true,"action":"uninstall","fait":"plan","projet":"<no
   refusal says so; a filled-in prompt is not sent), `saisie.ts` (what the app knows of the second's
   input: its turns — the hooks played by a real `sh` —, its title, the chef's typing, the proof of
   shell mode; the signs are those recorded on the real `claude`, replayed without launching any),
-  `pty.ts` (the real pty, against a fake `claude`), `box.ts` (the box watch and its states, against a
-  fake `ssh` that each test writes: no network, no box), `attend.ts` (the `awaiting` block taken by
+  `pty.ts` (the real pty, against a fake `claude`), `box.ts` (the station watch and its states, against a
+  stand-in gesture that each test writes: no network), `attend.ts` (the `awaiting` block taken by
   its edge, on outputs copied from the runtime; and the number at the head of a line, on the block
   the runtime itself writes — the test calls `decrireAttentes` of `runtime/src/attend.ts`),
   `barre.ts` (a project's monogram), `couleurs.ts` (a project's colors: drawn without duplicates as
   long as the palette is not exhausted, written to the file — and only those that are missing —,
   changed one by one; in the played view, the tinted tile, the space's accent, the choice under
   Settings; none is a state color), `onglets.ts` (the five content tabs: each relays a script that
-  exists in `runtime/package.json`, and only what is displayed is read), `boutons.ts` (what each
-  button writes, compared with "Piloter" in `docs/runtime/exploitation.md` — and, in the registry
+  exists in `runtime/package.json`, and only what is displayed is read), `boutons.ts` (what the
+  closer button writes, compared with "Piloter" in `docs/runtime/exploitation.md` — and, in the registry
   and on the real pty, that nothing is sent), `gestes.ts` (the actions that are written into a shell
   of the space, and the two that go into the second: each command compared, character for
   character, with "Piloter", that nothing sends a written action, and that no action exposes a
@@ -3688,7 +3252,7 @@ standard output — `{"ok":true,"action":"uninstall","fait":"plan","projet":"<no
   never read as "off"), `allumage.ts` (what turning it on commits: its warning compared with that of
   `docs/runtime/manager.md`, and the two numbers read on a known backlog — the line is written by
   `manager backlog` of `runtime/src/manager-cli.ts` itself, in front of a fake `gh`, then returned
-  by a fake `ssh`; a box not reached, a runtime from before the command or an output without the
+  by a stand-in gesture; a station not reached, a runtime from before the command or an output without the
   line never give "0"), `amont.ts` (what is not yet on the rail: the output written by
   `manager upstream` of `runtime/src/manager-cli.ts` itself, on a real log and in front of a fake
   `gh`, counted and sorted into groups without adding anything to it; what does not have the shape,
@@ -3711,14 +3275,6 @@ standard output — `{"ok":true,"action":"uninstall","fait":"plan","projet":"<no
   move and says why — commits of its own, change that would be overwritten, silent origin; at
   opening, before the dependencies, which are set up again if the new version changes them; on click,
   a single relaunch, through `npm start`),
-  `runner.ts` (the workstation plays a station, end to end against a test box: the tests'
-  kitchen of the runtime — rail, guardrails, stations, pass —, on a real git repo, reached by a fake
-  `ssh` that launches the real `runtime/src/tirer-cli.ts` in its process, and a fake `claude` to
-  cook; the ticket goes out, its delivery passes the pass, its path in the log is that of a box cook;
-  app stopped it is `86`, relaunched it goes out again; the lease renews only on a worktree that
-  has moved, and lapses otherwise; each line passed to `ssh` is compared with the shape of the
-  `pull` command — and, piece by piece, the reading of the stream against `superviser` and
-  `lireFlux` of the runtime, the cook's environment against its `environnementCook`).
   `main.ts` and the view only wire things up; they are verified by launching the app. **The skin,
   though, is proven without launching it** (`peau.test.ts`): `vue.js` is played there as it is in
   front of a fake document (`app/test/aides/fausse-vue.ts` — just what the view touches of it, and a
@@ -3737,10 +3293,9 @@ standard output — `{"ok":true,"action":"uninstall","fait":"plan","projet":"<no
   **`npm start` updates the clone** if it follows an origin branch that has moved on — a dev
   worktree on a branch that follows nothing is not touched (`start` says so, and the app says
   `pas lu`).
-- **`BRIGADE_CLAUDE_BIN`** replaces `claude`, as for the runtime; **`BRIGADE_SSH_BIN`**
-  replaces `ssh`; **`BRIGADE_GH_BIN`** replaces the `gh` that reads and answers an issue's question
+- **`BRIGADE_CLAUDE_BIN`** replaces `claude`, as for the runtime; **`BRIGADE_GH_BIN`** replaces the `gh` that reads and answers an issue's question
   ("The question awaiting you"); **`BRIGADE_APP_CONFIG`** replaces the path of the projects file.
-  None of the four has to be set for real use.
+  None of the three has to be set for real use.
 - **node-pty** is the only native module. It ships compiled for macOS and goes through N-API: the
   same binary serves Node (the tests) and Electron (the app), nothing is recompiled. On Linux it
   does not ship compiled: the tests on a real pty are **skipped there, and say so**; the registry and
@@ -3761,30 +3316,19 @@ cache (`~/Library/Caches/electron`) weighs 129 MB, once.
 
 ## What the app does not do yet
 
-- Show in the window the stations the workstation plays, and their cooks: that is in the terminal
-  that launched the app, and on the `présence` line of `station`. Nor declare them from a screen:
-  `stations` is written in the file.
-- Play the worktree setup before a workstation cook, keep its raw stream, or resume a cook after a
-  closing: "The workstation is a station", "What is not guaranteed".
-- Play a station on an engine other than `claude`.
 - Prepare a box, or put the installation action on it: that is once per box, on it, by hand
   (`docs/installer.md`, "Prepare the box"). The app says what to do and where, it does not do it.
-- Start the runtime for you: that is a `root` action, which no box action gives without a password.
-  The app writes the command into a shell, and writes it only if `installation` says the project is
-  ready; the Enter is yours.
+- Start a service for you: this computer's station runs with the app, and a station on another machine is started
+  on that machine.
 - Know whether the result of `/brigade:init` is merged, or whether the session succeeded: you say
   so, and `installation` verifies it on the origin.
 - Fix what `installation` names — create the labels, protect the branch: it shows the arrow, the
   action is typed (`docs/installer.md`, "Check that the project is ready").
 - Keep a go-live from one launch to the next: it starts over from the beginning, and the box says
   everything again.
-- Keep from one launch to the next that a project was uninstalled from its box: relaunched, the app
-  reads the box again, which says it is unknown.
-- Remove what the uninstall leaves on the box — the project's backups, the unit templates, the
-  action: `docs/installer.md`, "Uninstall".
+- Uninstall a project from a station: that is done on the station itself (`docs/installer.md`, "Uninstall").
 - Ask for the integration branch: the box takes the origin's default branch. A project for which
   that is not the right one is installed by hand, or fixed in its drop-in.
-- Add from the screen a project with no box, or served from your workstation.
 - A numeric gauge of the quota or the machine: the runtime says `disponible` and `tient`, not a
   level. If it is missing, it is up to the runtime to say it.
 - Say *why* a kitchen is held, or what a ticket is awaiting, other than as text: the shape of

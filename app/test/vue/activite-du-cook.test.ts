@@ -1,6 +1,6 @@
 // Ce que fait le cook d'un ticket, sur sa fiche (#1846) : à la place de son terminal, ce que sa station publie sur le
 // tableau de la cuisine. Le tableau est écrit par le runtime lui-même (rendreLeTableau), lu de GitHub par une doublure
-// de l'API — aucun `ssh`, aucune box jointe —, rangé par lecture.ts comme le process principal le range, puis la vue
+// de l'API — aucune station jointe —, rangé par lecture.ts comme le process principal le range, puis la vue
 // jouée telle qu'elle est, devant un faux document (aides/fausse-vue.ts). Tant qu'il tourne, la fiche suit son cook à
 // chaque lecture ; fini, elle le dit et ouvre sa PR. Aucune page de worktree ne s'y ouvre.
 import assert from "node:assert/strict";
@@ -9,7 +9,6 @@ import type { ActiviteDuCook, EtapeDuCook } from "../../../runtime/src/tableau/r
 import { rendreLeTableau } from "../../../runtime/src/tableau/rendu/rendre.ts";
 import { ALLUMAGE } from "../../src/allumage.ts";
 import { pourLaBarre } from "../../src/barre.ts";
-import { BOUTONS } from "../../src/boutons.ts";
 import { EXEMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
@@ -28,12 +27,11 @@ const A = "2026-10-23T10:04:30.000Z";
 const PR = "https://github.com/chef/parade/pull/40";
 
 const demarrage = () => ({
-  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade", box: { hote: "box" } }], hotes: ["box"] }),
+  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }, () => true),
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  boutons: BOUTONS,
   gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
@@ -169,7 +167,7 @@ describe("la fiche d'un ticket suit son cook, tel que sa station le publie", () 
     vue.dire("surActivites", publiees);
     await repos();
     assert.match(dite(vue).textContent, new RegExp(INDISPONIBLE));
-    assert.doesNotMatch(dite(vue).textContent, /ssh|exit code/);
+    assert.doesNotMatch(dite(vue).textContent, /exit code/);
   });
 
   test("un ticket dont aucun cook n'est publié n'a pas de section ; aucune page de worktree ne s'ouvre de la fiche", async () => {

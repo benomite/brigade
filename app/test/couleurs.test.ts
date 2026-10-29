@@ -11,7 +11,6 @@ import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { ALLUMAGE } from "../src/allumage.ts";
 import { pourLaBarre } from "../src/barre.ts";
-import { BOUTONS } from "../src/boutons.ts";
 import { ajouterProjet, changerCouleur, colorerProjets, EXEMPLE, lireConfiguration, type Projet } from "../src/config.ts";
 import { choix, couleursLues, DISTINCTES, ecart, ecartLab, ETATS, PALETTE, PROCHES, proches, ROLES, tirer } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
@@ -165,12 +164,12 @@ describe("les couleurs dans le fichier des projets", () => {
   });
 
   test("les projets déclarés avant les couleurs en reçoivent, une chacun, toutes différentes — et le reste du fichier ne bouge pas", (t) => {
-    const { racine, chemin } = fichier(t, { note: "à moi", hotes: ["box"], projets: [{ nom: "a", dossier: "/", hote: "box" }, { nom: "b", dossier: "/" }, { nom: "c", dossier: "/", couleurs: { onglet: VALEURS[0], inconnue: "gardée" } }] });
+    const { racine, chemin } = fichier(t, { note: "à moi", projets: [{ nom: "a", dossier: "/" }, { nom: "b", dossier: "/" }, { nom: "c", dossier: "/", couleurs: { onglet: VALEURS[0], inconnue: "gardée" } }] });
 
     assert.equal(colorerProjets(chemin, racine, toujours(0)), undefined);
 
     const ecrit = lu(chemin);
-    assert.deepEqual({ ...ecrit, projets: ecrit.projets.map(({ couleurs, ...reste }) => reste) }, { note: "à moi", hotes: ["box"], projets: [{ nom: "a", dossier: "/", hote: "box" }, { nom: "b", dossier: "/" }, { nom: "c", dossier: "/" }] });
+    assert.deepEqual({ ...ecrit, projets: ecrit.projets.map(({ couleurs, ...reste }) => reste) }, { note: "à moi", projets: [{ nom: "a", dossier: "/" }, { nom: "b", dossier: "/" }, { nom: "c", dossier: "/" }] });
     // Celle qui y était n'a pas changé, ni ce que l'app n'y lit pas.
     assert.equal(ecrit.projets[2]?.couleurs?.onglet, VALEURS[0]);
     assert.equal(ecrit.projets[2]?.couleurs?.inconnue, "gardée");
@@ -279,20 +278,19 @@ describe("les couleurs dans le fichier des projets", () => {
 });
 
 describe("les couleurs dans la vue", () => {
-  const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", box: { hote: "box" }, couleurs: { onglet: "#a98cf2", accent: "#25c0c5" } };
-  const FANFARE: Projet = { nom: "fanfare", dossier: "/tmp/fanfare", box: { hote: "box" }, couleurs: { onglet: "#f28cbf", accent: "#d9b98a" } };
+  const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", couleurs: { onglet: "#a98cf2", accent: "#25c0c5" } };
+  const FANFARE: Projet = { nom: "fanfare", dossier: "/tmp/fanfare", couleurs: { onglet: "#f28cbf", accent: "#d9b98a" } };
   const NUE: Projet = { nom: "nue", dossier: "/tmp/nue" };
   const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "second · claude", note: "", arrete: false };
 
   const jouer = (projets: Projet[], colorer?: (projet: string, role: string, couleur: string) => string | undefined) =>
     jouerLaVue({
       demarrage: () => ({
-        configuration: pourLaBarre({ chemin: "/tmp/app.json", projets, hotes: ["box"] }),
+        configuration: pourLaBarre({ chemin: "/tmp/app.json", projets }, () => true),
         palette: PALETTE,
         exemple: EXEMPLE,
         onglets: ONGLETS,
         rubriques: RUBRIQUES,
-        boutons: BOUTONS,
         gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
         banniere: BANNIERE,
         calibrage: { modeles: MODELES, efforts: EFFORTS },
@@ -359,7 +357,7 @@ describe("les couleurs dans la vue", () => {
 
     // Le fichier l'a pris : la case et l'espace changent tout de suite.
     const repeinte = { ...PARADE, couleurs: { onglet: "#f28cbf", accent: "#f2994a" } };
-    vue.dire("surConfiguration", pourLaBarre({ chemin: "/tmp/app.json", projets: [repeinte, FANFARE], hotes: ["box"] }), []);
+    vue.dire("surConfiguration", pourLaBarre({ chemin: "/tmp/app.json", projets: [repeinte, FANFARE] }, () => true), []);
     await repos();
     assert.equal(caseDe(vue, 1).style.getPropertyValue("--teinte"), "#f28cbf");
     assert.equal(accent(), "#f2994a");
@@ -424,7 +422,7 @@ describe("les couleurs dans la vue", () => {
     assert.equal(caseDe(vue, 1).style.getPropertyValue("--teinte"), "#70c08c");
 
     // Une teinte de la palette choisie à sa place : plus rien à dire.
-    vue.dire("surConfiguration", pourLaBarre({ chemin: "/tmp/app.json", projets: [{ ...proche, couleurs: { onglet: "#a98cf2", accent: "#f08dbe" } }, FANFARE], hotes: ["box"] }), []);
+    vue.dire("surConfiguration", pourLaBarre({ chemin: "/tmp/app.json", projets: [{ ...proche, couleurs: { onglet: "#a98cf2", accent: "#f08dbe" } }, FANFARE] }, () => true), []);
     await repos();
     assert.deepEqual(dits(vue), ["accent, in the space: close to the tab of fanfare — kept anyway"]);
   });

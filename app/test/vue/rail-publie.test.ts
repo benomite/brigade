@@ -9,7 +9,6 @@ import { connexionGitHub } from "../../../runtime/src/appairage/stations-du-chef
 import type { RailDuProjet } from "../../../runtime/src/appairage/rail-du-projet.ts";
 import { ALLUMAGE } from "../../src/allumage.ts";
 import { pourLaBarre } from "../../src/barre.ts";
-import { BOUTONS } from "../../src/boutons.ts";
 import { EXEMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
@@ -195,12 +194,11 @@ describe("le second qui ne part pas, ou part sans tous ses outils", () => {
 
 // La vue entière, pour un projet ouvert depuis le premier lancement : ni box, ni station sur cet ordinateur.
 const demarrage = () => ({
-  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }], hotes: [] }),
+  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }),
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  boutons: BOUTONS,
   gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },

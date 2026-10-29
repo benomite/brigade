@@ -48,7 +48,7 @@ import { ceQuElleFournit, motDuLieu } from "./stations-declarees.js";
 /**
  * Où tournent les stations du projet, et de quoi éditer chacune (stations-declarees.js) : les stations que ce poste joue,
  * sa cuisine qui tourne ici, sa box, son nom.
- * @typedef {{ jouees: readonly string[], ici: boolean, hote?: string, projet?: string, editer?: Editer }} Lieu
+ * @typedef {{ ici: boolean, projet?: string, editer?: Editer }} Lieu
  */
 // Ce que le dernier réglage du plafond a rendu pour une station : la phrase, refusée ou non, et son détail au survol.
 /** @typedef {{ dit: string, refus: boolean, detail: string }} DitDuPlafond */
@@ -306,7 +306,7 @@ function fournitDe(doc, rang, lieu, declarees) {
   // Sans sa déclaration lue, ce que `facts` dit qu'elle fournit — la principale la déclare ainsi —, sans « edit ».
   const dansLesFaits = rang.ligne?.fournit;
   if (rang.declaree === undefined && dansLesFaits !== undefined) {
-    const [capacites] = ceQuElleFournit(doc, { nom: rang.nom, moteur: "", fournit: dansLesFaits, cooks: 0, distante: rang.ligne?.distante ?? !rang.principale }, { jouees: lieu.jouees, ici: lieu.ici });
+    const [capacites] = ceQuElleFournit(doc, { nom: rang.nom, moteur: "", fournit: dansLesFaits, cooks: 0, distante: rang.ligne?.distante ?? !rang.principale }, { ici: lieu.ici });
     ligne.append(capacites);
     return [ligne];
   }

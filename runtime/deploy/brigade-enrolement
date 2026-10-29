@@ -24,8 +24,7 @@
 #
 #   brigade-enrolement receive [--registry <répertoire>]   (lancé par `present`)
 #
-# BRIGADE_SSH_BIN remplace `ssh`, comme pour l'app : un test joue
-# l'enrôlement sans réseau.
+# Un test joue l'enrôlement sans réseau avec un faux `ssh` en tête du PATH.
 #
 # Codes de sortie : ceux du runtime (0 servi, 1 refusé, 2 mal écrit), sauf
 #   64  le geste est mal écrit
@@ -116,4 +115,4 @@ esac
 
 node_apte
 demande="$(node "$CLI" present "$code" "${presentation[@]}")" || exit $?
-printf '%s\n' "$demande" | "${BRIGADE_SSH_BIN:-ssh}" -- "$vers" "'$recepteur' receive --registry '$registre'"
+printf '%s\n' "$demande" | ssh -- "$vers" "'$recepteur' receive --registry '$registre'"

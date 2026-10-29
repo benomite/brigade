@@ -15,9 +15,8 @@ describe("app.json par défaut", () => {
     assert.deepEqual(lu, { chemin, fait: "cree" });
     const texte = readFileSync(chemin, "utf8");
     assert.deepEqual(JSON.parse(texte), APP_PAR_DEFAUT);
-    // Ni hôte, ni ssh, ni chemin absolu : rien d'une machine.
-    assert.doesNotMatch(texte, /ssh|\/home\/|\/Users\/|\/var\/|[A-Z]:\\/i);
-    assert.deepEqual((JSON.parse(texte) as { projets: unknown[]; hotes: unknown[] }).hotes, []);
+    // Aucun chemin absolu : rien d'une machine.
+    assert.doesNotMatch(texte, /\/home\/|\/Users\/|\/var\/|[A-Z]:\\/i);
     assert.deepEqual((JSON.parse(texte) as { projets: unknown[] }).projets, []);
   });
 
@@ -32,10 +31,10 @@ describe("app.json par défaut", () => {
 
   test("un fichier auquel il manque des clés les reçoit, et garde toutes les valeurs du chef", (t) => {
     const chemin = join(repertoireTemporaire(t), "app.json");
-    writeFileSync(chemin, JSON.stringify({ projets: [{ nom: "a", dossier: "/x", hote: "box" }], reglage: { inconnu: true } }));
+    writeFileSync(chemin, JSON.stringify({ reglage: { inconnu: true }, couleurs: ["#123456"] }));
 
     assert.deepEqual(assurerLApp(chemin), { chemin, fait: "complete" });
-    assert.deepEqual(JSON.parse(readFileSync(chemin, "utf8")), { projets: [{ nom: "a", dossier: "/x", hote: "box" }], reglage: { inconnu: true }, hotes: [] });
+    assert.deepEqual(JSON.parse(readFileSync(chemin, "utf8")), { reglage: { inconnu: true }, couleurs: ["#123456"], projets: [] });
   });
 
   test("un fichier que le runtime ne comprend pas n'est jamais réécrit, et le dit", (t) => {

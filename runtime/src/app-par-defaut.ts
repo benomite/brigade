@@ -1,5 +1,5 @@
 // Le fichier de l'app (`app.json`) existe dès le premier lancement du runtime :
-// neutre, sans hôte, sans ssh, sans chemin de personne — ce que l'app écrit
+// neutre, sans chemin de personne — ce que l'app écrit
 // elle-même à son premier lancement (app/src/config.ts, `creerConfiguration`).
 // Un fichier déjà là ne perd jamais une valeur : on n'y ajoute que les clés
 // qui lui manquent, et un fichier complet n'est pas touché.
@@ -7,7 +7,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 // Les clés que l'app lit, et leur valeur quand le chef n'en a pas posé.
-export const APP_PAR_DEFAUT: Readonly<Record<string, unknown>> = { projets: [], hotes: [] };
+export const APP_PAR_DEFAUT: Readonly<Record<string, unknown>> = { projets: [] };
 
 export type AppAssuree = { chemin: string; fait: "cree" | "complete" | "intact" } | { chemin: string; refus: string };
 

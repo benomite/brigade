@@ -33,7 +33,7 @@ describe("la barre d'icônes", () => {
       chemin: "/chef/app.json",
       nonRelu: "JSON illisible",
       projets: [
-        { nom: "brigade", dossier: "/projets/brigade", box: { hote: "box" } },
+        { nom: "brigade", dossier: "/projets/brigade" },
         { nom: "brigade-site", dossier: "/absent", refus: "dossier introuvable : /absent" },
       ],
     };
@@ -42,7 +42,7 @@ describe("la barre d'icônes", () => {
       chemin: "/chef/app.json",
       nonRelu: "JSON illisible",
       projets: [
-        { nom: "brigade", dossier: "/projets/brigade", box: { hote: "box" }, monogramme: "BR" },
+        { nom: "brigade", dossier: "/projets/brigade", monogramme: "BR" },
         { nom: "brigade-site", dossier: "/absent", refus: "dossier introuvable : /absent", monogramme: "BS" },
       ],
     });
@@ -50,13 +50,12 @@ describe("la barre d'icônes", () => {
   });
 
   test("un projet que l'app montre sans sa station garde son monogramme", () => {
-    const desinstalle = { hote: "box", a: "2026-10-12T10:04:12.000Z", titre: "DÉSINSTALLÉ DE LA BOX « box » — plus pilotable depuis l'app", lignes: [] };
-    const configuration = { chemin: "/chef/app.json", projets: [{ nom: "brigade", dossier: "/projets/brigade", box: { hote: "box" } }, { nom: "parade", dossier: "/projets/parade" }] };
+    const configuration = { chemin: "/chef/app.json", projets: [{ nom: "brigade", dossier: "/projets/brigade" }, { nom: "parade", dossier: "/projets/parade" }] };
 
-    const affichee = pourLaBarre(configuration, (projet) => (projet.box === undefined ? projet : { nom: projet.nom, dossier: projet.dossier, desinstalle }));
+    const affichee = pourLaBarre(configuration, (projet) => projet.nom === "brigade");
 
     assert.deepEqual(affichee.projets, [
-      { nom: "brigade", dossier: "/projets/brigade", desinstalle, monogramme: "BR" },
+      { nom: "brigade", dossier: "/projets/brigade", servi: true, monogramme: "BR" },
       { nom: "parade", dossier: "/projets/parade", monogramme: "PA" },
     ]);
   });

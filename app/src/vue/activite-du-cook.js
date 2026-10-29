@@ -1,7 +1,7 @@
 // @ts-check
 // Ce que fait le cook d'un ticket, sur sa fiche (ticket 1846) : à la place de son terminal, que l'app ne suit pas, ce
 // que sa station publie sur le tableau de la cuisine (`activites`, runtime/src/tableau/activites/activites.ts) et que le
-// process principal lit sur GitHub, sans `ssh` (tableau/lecture.ts). Tant qu'il tourne : sa pilule `cooking`, sa
+// process principal lit sur GitHub, (tableau/lecture.ts). Tant qu'il tourne : sa pilule `cooking`, sa
 // station, depuis quand, ses tours et ses tokens ; ce qu'il fait en ce moment ; ses derniers gestes. Fini : comment il a
 // fini et quand, et sa PR, qu'un bouton ouvre. La fiche se repose à chaque lecture du tableau : ce qu'elle montre suit le
 // cook. Ce qu'elle montre est daté par la lecture de la box — ses durées se comptent jusqu'à elle, comme `status`.
@@ -25,7 +25,7 @@ export const EN_COURS = "cooking";
 export const SANS_PR = "it opened no PR";
 export const INDISPONIBLE = "its cook's activity unavailable";
 // D'où vient ce que la section dit, au survol de sa dernière ligne.
-export const SOURCE = "What the cook's station publishes on the project's Kitchen board, read on GitHub with this computer's GitHub account — no ssh. It is read again with the board, every 30 seconds, and this sheet follows it.";
+export const SOURCE = "What the cook's station publishes on the project's Kitchen board, read on GitHub with this computer's GitHub account — nothing else. It is read again with the board, every 30 seconds, and this sheet follows it.";
 
 // Comment un cook a fini (`fin`, runtime/src/tableau/rendu/bloc.ts), en mots, et la couleur de sa pilule. Un mot qui n'y
 // est pas se dit tel quel, pilule grise.

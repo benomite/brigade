@@ -2,7 +2,7 @@
 // de la session et après chaque compaction, `claude` joue ce module, qui lit la file que la box du projet publie sur
 // son tableau de la cuisine (« Kitchen board », runtime/src/tableau/rendu/bloc.ts, `laFileDuSecond`, #1843) et la rend
 // comme contexte additionnel — le second la voit sans y penser (role.md, « On opening »). Rien que GitHub, par le `gh`
-// du poste (#1845) : ni `ssh`, ni `hote`, ni box jointe.
+// du poste (#1845) : sans box jointe.
 //
 // Le crochet n'est que dans les réglages du lancement de l'onglet Second (lancement.ts, `--settings`), qui le déclarent
 // par crochet-de-la-file.ts : aucun fichier du projet ne le porte, une session `claude` ordinaire du même dossier ne le

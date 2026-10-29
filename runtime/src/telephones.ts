@@ -5,8 +5,7 @@
 // que la station lance aussi en direct.
 //
 // C'est par elle que l'app de l'ordinateur appaire un téléphone sans terminal
-// ni `sudo` à taper : elle la lance par `ssh`, comme ses autres lectures de la
-// box, et le geste de la station (`deploy/brigade`) ne la laisse partir que
+// ni `sudo` à taper : elle la lance par le geste de la station, qui (`deploy/brigade`) ne la laisse partir que
 // pour celui que sa règle sudoers nomme — tout autre est refusé avant que rien
 // ne soit lu ni écrit. Le registre est celui de l'unité de la station, celui
 // où son guichet reçoit le téléphone : le projet nommé ne sert qu'au geste.

@@ -7,7 +7,6 @@ import { test } from "node:test";
 import type { Accueil } from "../../src/accueil.ts";
 import { ALLUMAGE } from "../../src/allumage.ts";
 import { pourLaBarre } from "../../src/barre.ts";
-import { BOUTONS } from "../../src/boutons.ts";
 import { EXEMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
@@ -52,12 +51,11 @@ const PARADE: VuDesProjets = {
 };
 
 const demarrage = (projetsDesStations?: VuDesProjets) => ({
-  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "ancien", dossier: "/tmp/ancien", box: { hote: "box" } }], hotes: ["box"] }),
+  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "ancien", dossier: "/tmp/ancien" }] }, () => true),
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  boutons: BOUTONS,
   gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },

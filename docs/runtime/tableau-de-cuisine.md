@@ -6,7 +6,7 @@ issue, labelled `kitchen-board` and `hors-cuisine` (how and when it is refreshed
 posted under it: [`../tableau-gestes.md`](../tableau-gestes.md)). This page is the contract an app
 relies on to read it: the body's two parts, then the machine block, field by field. Since #1693 the
 block carries everything the project's **rail view** draws — its columns, its ticket cards, its TODO
-and the kitchen's state — so an app connected to GitHub draws that view with no ssh to the box.
+and the kitchen's state — so an app connected to GitHub draws that view from GitHub alone.
 
 The code is `runtime/src/tableau/`: `rendu/donnees.ts` builds the board from the log,
 `rendu/rendre.ts` writes the body, `rendu/bloc.ts` writes and reads the block — an app imports
@@ -121,7 +121,7 @@ that block for its cards (`app/src/bon.ts`) reads them unchanged.
 ### `fileDeStatus` — the queue the second reads at opening
 
 The second reads the project's queue at the start of its session and after a compaction. It reads it
-from the board, with no ssh to the box: `laFileDuSecond(body)` in `runtime/src/tableau/rendu/bloc.ts`
+from the board, from GitHub alone: `laFileDuSecond(body)` in `runtime/src/tableau/rendu/bloc.ts`
 (which imports nothing) gives `{ lue: true, lu, texte }`. `texte` is the `awaiting` block of `status`
 word for word, edges included, then a blank line, then the kitchen's state of `cuisine.rubriques` in
 the form of `status` (the title on eleven columns, the following lines indented). `lu` is when the
@@ -155,7 +155,7 @@ stations claim it at the same moment. The answer is published here
 `distantes` is never removed from a body that is too long: it is the arbitration itself, and it is
 bounded — one claim per station, and one renewal and one delivery per cook.
 
-### `activites` — what each cook is doing, for an app with no ssh
+### `activites` — what each cook is doing, for an app connected to GitHub
 
 What an app shows of a cook instead of its terminal, read from GitHub alone:
 `lesActivitesDesCooks(body)` in `runtime/src/tableau/rendu/bloc.ts` (which imports nothing) gives

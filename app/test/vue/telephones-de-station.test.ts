@@ -1,7 +1,7 @@
 // L'écran « Pair a phone » d'une station (#1598) : un code neuf, son QR et le temps qu'il vaut encore, qui décompte ;
 // expiré ou servi, il le dit, et « new code » en montre un neuf d'un clic ; les téléphones appairés, chacun avec
 // « revoke » — révoqué, il quitte la liste ; une station injoignable dit pourquoi à la place du code. Nulle part, ni au
-// survol, une commande, `ssh` ou `sudo`. L'écran est joué devant un faux document, son horloge tenue par le test.
+// survol, une commande ou `sudo`. L'écran est joué devant un faux document, son horloge tenue par le test.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import type { CodeTire, RenduDeLaListe, RenduDeLaRevocation, RenduDeLEtat, RenduDuCode } from "../../src/telephones-de-station.ts";
@@ -76,7 +76,7 @@ function toutCeQuiSeLit(racine: Faux): string {
   for (const declencheur of survols) declencheur.declencher("mouseleave");
   return lu;
 }
-const SANS_COMMANDE = /\bssh\b|\bsudo\b|\$ |\bphones (code|status|list|revoke)\b|--/i;
+const SANS_COMMANDE = /\bsudo\b|\$ |\bphones (code|status|list|revoke)\b|--/i;
 
 describe("un code valable", () => {
   test("l'écran s'ouvre sur un code neuf, son QR, l'adresse de la station et le temps qui reste", async () => {
@@ -292,7 +292,7 @@ describe("une station injoignable, ou qui refuse", () => {
   });
 });
 
-test("nulle part sur l'écran, ni au survol, une commande, ssh ou sudo — dans aucun état", async () => {
+test("nulle part sur l'écran, ni au survol, une commande ou sudo — dans aucun état", async () => {
   const INJOIGNABLE = { refus: "box did not answer: it may be off, or offline.", detail: "The app got no answer from box within 30 s." };
   const etats: Faux[] = [];
   const valable = joue({});

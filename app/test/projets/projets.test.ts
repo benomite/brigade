@@ -477,6 +477,6 @@ describe("l'ajout, la lecture et le retrait d'un projet, contre un GitHub de tes
 test("l'app ne joint aucune station : ce module ne parle qu'au `gh` du poste", () => {
   for (const fichier of ["projets.ts", "github.ts", "demande.ts"]) {
     const source = readFileSync(join(SOURCES, fichier), "utf8");
-    assert.doesNotMatch(source, /node:(net|http|https|dgram|tls)|fetch\(|WebSocket|\bssh\b/, fichier);
+    assert.doesNotMatch(source, /node:(net|http|https|dgram|tls)|fetch\(|WebSocket/, fichier);
   }
 });

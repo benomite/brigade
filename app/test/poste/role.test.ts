@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { cuisinesIci, PRINCIPAL, roleDe, TELEPHONES } from "../../src/poste/role.ts";
+import { PRINCIPAL, roleDe, TELEPHONES } from "../../src/poste/role.ts";
 
 const RUNTIME = join(import.meta.dirname, "../../../runtime");
 
@@ -14,14 +14,11 @@ test("sur un ordinateur — Mac, Windows, Linux de bureau —, l'app est une sta
   }
 });
 
-test("sur un téléphone, l'app est un poste : elle pilote, elle ne cuit pas — aucun projet n'y cuit", () => {
+test("sur un téléphone, l'app est un poste : elle pilote, elle ne cuit pas", () => {
   for (const plateforme of TELEPHONES) {
     const role = roleDe({ plateforme, runtime: RUNTIME, env: {} });
     assert.deepEqual(role, { role: "poste", pourquoi: "a phone pilots, it does not cook" }, plateforme);
-    assert.deepEqual(cuisinesIci(role, ["brigade", "espace"]), []);
   }
-  const station = roleDe({ plateforme: "darwin", runtime: RUNTIME, env: {} });
-  assert.deepEqual(cuisinesIci(station, ["brigade", "espace"]), ["brigade", "espace"]);
 });
 
 test("sans runtime à côté d'elle, ou avec BRIGADE_APP_STATION=0, l'app d'un ordinateur est un poste, et dit pourquoi", () => {

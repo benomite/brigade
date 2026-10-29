@@ -16,7 +16,6 @@ import { alertes, entreeDeSetup, tenirBandes, type Alerte, type Bande } from "..
 import { ALLUMAGE } from "../src/allumage.ts";
 import { mettreAPart } from "../src/attend.ts";
 import { pourLaBarre } from "../src/barre.ts";
-import { BOUTONS } from "../src/boutons.ts";
 import type { Lecture } from "../src/box.ts";
 import { EXEMPLE, type Projet } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
@@ -33,7 +32,7 @@ const STATION = "box/claude";
 const lecture = (commande: string, texte: string): Lecture => ({ projet: "parade", demande: 1, a: `${JOUR}T10:00:01.000Z`, sorties: [{ commande, texte }] });
 
 // Ce que le runtime écrit de l'entrée, après sa tête et son « depuis » (runtime/test/attend.test.ts).
-const HOTE_REFUSE =
+const REFUS_RESEAU =
   "setup impossible: the door refuses `cdn.sheetjs.com` (`.claude/brigade/worktree-setup.sh`, code de sortie 1, twice identically) — to declare in the project's `.claude/brigade/reseau`, one line per host, then merge into the integration branch; setups start again on their own as soon as the integration branch moves; until then, none is launched, for any ticket";
 const SETUP_A_CORRIGER =
   "setup impossible: `.claude/brigade/worktree-setup.sh` fails twice identically (code de sortie 1) — what it said is on #15 — to fix: the project's setup, then merge into the integration branch; setups start again on their own as soon as the integration branch moves; until then, none is launched, for any ticket";
@@ -103,7 +102,7 @@ describe("le setup du projet bloqué, dans la bande d'alertes", () => {
     assert.equal(ligne.verifie, true);
     assert.equal(ligne.ton, "rouge");
     assert.equal(ligne.dit, "project setup impossible: no worktree is set up, no cook goes, for any ticket");
-    assert.equal(ligne.releve, HOTE_REFUSE);
+    assert.equal(ligne.releve, REFUS_RESEAU);
     assert.equal(ligne.pourquoi, undefined);
     assert.match(ligne.geste, /`\.claude\/brigade\/reseau`.*merge on the integration branch/);
     // Le geste se joue dans le dépôt du projet, hors de l'app : une demande au second.
@@ -136,7 +135,7 @@ describe("le setup du projet bloqué, dans la bande d'alertes", () => {
     assert.equal(revenue.signal, undefined);
 
     bloquer(["cdn.sheetjs.com:443"]);
-    assert.equal(laLigne(bande().alertes).releve, HOTE_REFUSE);
+    assert.equal(laLigne(bande().alertes).releve, REFUS_RESEAU);
   });
 
   test("une station distante cuisine encore : la cuisine est ouverte, la ligne le dit, moins grave — et la pastille est en alerte", (t) => {
@@ -161,7 +160,7 @@ describe("le setup du projet bloqué, dans la bande d'alertes", () => {
     const manager = { allume: true, mot: "ALLUMÉ", dit: "" };
 
     // `status` entier, son bloc à sa place.
-    assert.equal(laLigne(alertes({ projet: "parade", faits, status: rendu.status, manager })).releve, HOTE_REFUSE);
+    assert.equal(laLigne(alertes({ projet: "parade", faits, status: rendu.status, manager })).releve, REFUS_RESEAU);
 
     // `status` sans son bloc, et rien à côté : la tête, et ce qui manque.
     const montree = mettreAPart(lecture("status", rendu.status));
@@ -190,17 +189,16 @@ describe("le setup du projet bloqué, dans la bande d'alertes", () => {
 });
 
 describe("le setup du projet bloqué, à l'écran", () => {
-  const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", box: { hote: "box" } };
-  const AUTRE: Projet = { nom: "baloo", dossier: "/tmp/baloo", box: { hote: "box" } };
+  const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade" };
+  const AUTRE: Projet = { nom: "baloo", dossier: "/tmp/baloo" };
   const ouvrir = () =>
     jouerLaVue({
       demarrage: () => ({
-        configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE, AUTRE], hotes: ["box"] }),
+        configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE, AUTRE] }, () => true),
         palette: PALETTE,
         exemple: EXEMPLE,
         onglets: ONGLETS,
         rubriques: RUBRIQUES,
-        boutons: BOUTONS,
         gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
         banniere: BANNIERE,
         calibrage: { modeles: MODELES, efforts: EFFORTS },
@@ -234,7 +232,7 @@ describe("le setup du projet bloqué, à l'écran", () => {
     assert.deepEqual(ligne?.dessous("pre"), []);
     (ligne?.dessous("button").find((pose) => pose.className === "detail") ?? assert.fail("pas de « detail »")).click();
     const depliee = alertesDeLaVue.children[1] ?? assert.fail("plus de ligne");
-    assert.deepEqual(depliee.dessous("pre").map(({ textContent }) => textContent), [HOTE_REFUSE]);
+    assert.deepEqual(depliee.dessous("pre").map(({ textContent }) => textContent), [REFUS_RESEAU]);
 
     // Débloqué : la bande se vide et se cache ; revenu sur « Tous les projets », la case n'a pas de pastille.
     debloquer();

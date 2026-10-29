@@ -1,6 +1,6 @@
 // Lancer un nettoyage depuis la partie closer de la page d'un projet (#991, épique 986) : les trois
 // gestes que le runtime offre à l'app (runtime/src/fermeture-action/action.ts), lancés une fois sur
-// la box du projet, par `ssh`, comme `manager backlog` (allumage.ts) — l'app n'en double aucun :
+// la station de cet ordinateur, comme `manager backlog` (allumage.ts) — l'app n'en double aucun :
 //   apercu   `closing preview --json`          ce qu'un nettoyage coûte, ce que le closer va faire — rien n'est écrit
 //   lancer   `closing write --json --confirm`  la demande, au « oui » du chef — sans ce « oui », rien ne part
 //   annuler  `closing cancel --json`           retire la demande qui attend, avant qu'elle parte
@@ -8,7 +8,7 @@
 // tel quel à la vue (vue/closer/lancement/lancement.js), qui le dit. Une box pas jointe, un runtime
 // qui ne connaît pas le geste, une sortie sans objet : une ligne, et ce que l'app a obtenu, pour le
 // survol. Jamais d'exception.
-import { lancerGeste, echecDe, type Reglages, type Servi } from "./box.ts";
+import { echecDe, lancerLa, type Lu, type Reglages } from "./box.ts";
 import { titreDEchec } from "./faits.ts";
 
 export const ACTIONS = {
@@ -74,11 +74,11 @@ function reponseDe(action: Action, sortie: string): Rendu | undefined {
 
 // Le geste, sur la box du projet. `action` vient de la vue : un nom qu'elle ne connaît pas ne lance
 // rien. Le lancement ne part qu'avec `oui` à `true` — la vue ne le passe qu'au « oui » du chef.
-export async function agirSurLeCloser(reglages: Reglages, servi: Servi, action: unknown, oui?: unknown): Promise<Rendu | undefined> {
+export async function agirSurLeCloser(reglages: Reglages, servi: Lu, action: unknown, oui?: unknown): Promise<Rendu | undefined> {
   if (typeof action !== "string" || !Object.hasOwn(ACTIONS, action)) return undefined;
   const voulue = action as Action;
   if (voulue === "lancer" && oui !== true) return { refus: SANS_OUI, detail: "" };
-  const rendu = await lancerGeste(reglages, servi, ACTIONS[voulue]);
+  const rendu = await lancerLa(reglages, servi, ACTIONS[voulue]);
   const { erreur } = rendu;
   // 1 : refusé ou impossible — la réponse est sur la sortie, comme en 0.
   if (erreur === null || (erreur.killed !== true && erreur.code === 1)) {

@@ -1,4 +1,4 @@
-// L'histoire et la discussion d'une carte du rail, lues de GitHub par le `gh` du poste (#1735) : jamais de `ssh`.
+// L'histoire et la discussion d'une carte du rail, lues de GitHub par le `gh` du poste (#1735) : jamais d'autre commande que `gh`.
 // Contre un faux `gh` en shell, un par test : ni réseau, ni GitHub, ni box.
 import assert from "node:assert/strict";
 import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";

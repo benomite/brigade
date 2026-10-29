@@ -59,8 +59,8 @@ const surLeRail = (lus: Lus): string[] => ("sans" in lus ? [] : [`${nombre(lus.f
 
 // Ce que ce geste confirmé dira avant de partir, pour ce projet — ou pourquoi il ne s'offre
 // pas. Rien pour un geste qui ne se confirme pas, ou que le socle ne connaît pas. `cuisine` : là
-// où celle du projet tourne à cet instant — sa box, ou cet ordinateur, où le geste part sans `ssh`.
-export function confirmationDe(id: unknown, projet: Projet, lus: Lus, grant?: unknown, cuisine: Cuisine | undefined = projet.box): Confirmation | { refus: string } | undefined {
+// où celle du projet tourne à cet instant — cet ordinateur.
+export function confirmationDe(id: unknown, projet: Projet, lus: Lus, grant: unknown, cuisine: Cuisine | undefined): Confirmation | { refus: string } | undefined {
   if (typeof id !== "string" || !CONFIRMES.includes(id)) return undefined;
   // Un geste qui n'écrirait rien n'a rien à confirmer : son refus se dit à la place.
   const ecrit = commandeDuGeste(id, projet, grant, cuisine);

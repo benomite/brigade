@@ -10,7 +10,6 @@ import type { Faits as FaitsDuRuntime } from "../../../runtime/src/etat.ts";
 import type { Accueil } from "../../src/accueil.ts";
 import { ALLUMAGE } from "../../src/allumage.ts";
 import { pourLaBarre } from "../../src/barre.ts";
-import { BOUTONS } from "../../src/boutons.ts";
 import { EXEMPLE, type Projet } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
@@ -92,19 +91,18 @@ const guide = (stations: StationsLues): Guide => ({
   etapes: [],
   courante: null,
   annonces: { etat: "lues", liste: [] },
-  demarrage: { commande: "ssh -t box sudo systemctl enable --now brigade@parade.service" },
+  demarrage: { refus: "nothing to start: the station runs with the app" },
   termine: true,
   controle: { a: A, stations },
 });
 
-const PROJET: Projet = { nom: PARADE, dossier: "/tmp/parade", box: { hote: "box" }, depot: "benomite/parade", base: "main" };
+const PROJET: Projet = { nom: PARADE, dossier: "/tmp/parade", depot: "benomite/parade", base: "main" };
 const demarrage = (vu: VuDesProjets) => () => ({
-  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PROJET], hotes: ["box"] }),
+  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PROJET] }, () => true),
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  boutons: BOUTONS,
   gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },

@@ -51,7 +51,7 @@ for (const [decision, attendu] of CAS) {
   });
 }
 
-// Ce qui partait par `ssh` sur la box (#1845) et ne porte pas de ticket : la box le lit avec sa grammaire des gestes de box.
+// Ce qui part par le tableau (#1845) sans porter de ticket : la box le lit avec sa grammaire des gestes de box.
 const DE_BOITE: Array<[DecisionDuChef, string, string]> = [
   [{ geste: "cooks", plafond: "4" }, "/brigade cooks 4", "cooks 4"],
   [{ geste: "cooks", plafond: "0" }, "/brigade cooks 0", "cooks 0"],
@@ -166,7 +166,7 @@ test("une décision sans sens n'est pas postée", async () => {
   assert.deepEqual(postes, []);
 });
 
-test("le module ne lance aucun ssh ni aucun processus", () => {
+test("le module ne lance aucun processus", () => {
   const code = readFileSync(new URL("../../src/tableau-gestes/gestes.ts", import.meta.url), "utf8").split("\n").filter((l) => !l.trimStart().startsWith("//")).join("\n");
-  assert.doesNotMatch(code, /child_process|spawn|exec|ssh/i);
+  assert.doesNotMatch(code, /child_process|spawn|exec/i);
 });

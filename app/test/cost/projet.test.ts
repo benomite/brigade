@@ -8,7 +8,6 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../../src/allumage.ts";
 import { pourLaBarre } from "../../src/barre.ts";
-import { BOUTONS } from "../../src/boutons.ts";
 import { EXEMPLE, type Projet } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
@@ -21,8 +20,8 @@ import { type Jouee, jouerLaVue, ouvrirLecture, repos } from "../aides/fausse-vu
 
 const A = "2026-10-17T10:00:00.000Z";
 const n = (chiffres: string) => chiffres.replaceAll(" ", " ");
-const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", box: { hote: "box" } };
-const CANTINE: Projet = { nom: "cantine", dossier: "/tmp/cantine", box: { hote: "box" } };
+const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade" };
+const CANTINE: Projet = { nom: "cantine", dossier: "/tmp/cantine" };
 
 // Un cook de « derniers cooks », mot pour mot (runtime/src/montrer-station.ts).
 const cook = (ticket: number, fin: string, tokens: string) =>
@@ -54,12 +53,11 @@ const lu = (projet: string, texte: string, demande: number) => ({
 async function ouvrirCooks(): Promise<Jouee> {
   const vue = await jouerLaVue({
     demarrage: () => ({
-      configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE, CANTINE], hotes: ["box"] }),
+      configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE, CANTINE] }, () => true),
       palette: PALETTE,
       exemple: EXEMPLE,
       onglets: ONGLETS,
       rubriques: RUBRIQUES,
-      boutons: BOUTONS,
       gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
       banniere: BANNIERE,
       calibrage: { modeles: MODELES, efforts: EFFORTS },

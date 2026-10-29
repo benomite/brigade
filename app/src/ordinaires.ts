@@ -48,13 +48,13 @@ export const sansBacASable = (poste: string): string =>
 // ne peut pas prendre de ticket ordinaire, la vue ne pose que l'explication, qui dit pourquoi.
 export type Bloc = { reglable: boolean; actif: boolean; limite: number | null; explication: string; indisponible?: string };
 
-// Le bloc d'un projet, ou rien : il n'existe que pour un projet dont ce poste joue une station. Sur
+// Le bloc d'un projet, ou rien : il n'existe que pour un projet qui cuit sur ce poste. Sur
 // un Mac, l'option ; ailleurs, la raison pour laquelle ce poste n'en prend pas.
-export function blocDesOrdinaires(projet: Pick<Projet, "stations" | "ordinaires" | "limiteCooks">, plateforme: string, stations: readonly StationDesFaits[] | undefined): Bloc | undefined {
-  if (projet.stations === undefined || projet.stations.length === 0) return undefined;
+export function blocDesOrdinaires(projet: Pick<Projet, "ordinaires" | "limiteCooks">, plateforme: string, stations: readonly StationDesFaits[] | undefined, ici: boolean): Bloc | undefined {
+  if (!ici) return undefined;
   const poste = nomDuPoste(plateforme);
   if (!estUnMac(plateforme)) return { reglable: false, actif: false, limite: null, explication: sansBacASable(poste) };
-  const sans = stations?.find(({ station, bacASable }) => projet.stations?.includes(station) === true && bacASable?.disponible === false);
+  const sans = stations?.find(({ bacASable }) => bacASable?.disponible === false);
   return {
     reglable: true,
     actif: projet.ordinaires === true,

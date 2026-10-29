@@ -1,11 +1,11 @@
 // L'onglet Cooks de « parade » à qui manque un navigateur pour ses tests, « Cook it on a station that has it » cliqué sur
-// sa carte (#1511, épique #1506) : le formulaire de pc/claude, la station que ce poste joue, s'ouvre sous sa ligne avec
+// sa carte (#1511, épique #1506) : le formulaire de pc/claude, la station de ce poste, s'ouvre sous sa ligne avec
 // `navigateur-headless` déjà coché, en plus de code et raisonnement qu'elle fournissait. Rien n'est écrit tant que le chef
 // n'a pas cliqué sur « Save ».
 import type { Blocage, Choix } from "../../../app/src/projets/demande.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
 import { DEFAUTS } from "./ajouter-station.ts";
-import { DECLAREES, guide } from "./cooks-stations-declarees.ts";
+import { DECLAREES as TOUTES, guide } from "./cooks-stations-declarees.ts";
 import { donnees, SUR_LA_BOX } from "./cuisine-demenagee.ts";
 import { FACTS } from "./cooks-stations.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
@@ -24,8 +24,8 @@ const NAVIGATEUR: Choix = {
 };
 const BLOCAGES: Blocage[] = [{ id: NAVIGATEUR.id, message: NAVIGATEUR.message, cause: NAVIGATEUR.cause, action: "choose-need" }];
 
-// Ce poste joue pc/claude, qui ne fournit pas de navigateur.
-const AVEC_PC = PROJETS.map((projet) => (projet.nom === "parade" ? { ...projet, stations: ["pc/claude"] } : projet));
+// La cuisine de parade tourne sur ce poste, que sert pc/claude, qui ne fournit pas de navigateur : les autres stations sont ailleurs.
+const DECLAREES = { ...TOUTES, declarees: TOUTES.declarees.map((station) => ({ ...station, distante: station.nom !== "pc/claude" })) };
 const PARADE = RENDUS.parade as Rendu;
 
 export const ecran: Ecran = {
@@ -42,7 +42,7 @@ export const ecran: Ecran = {
     const lues = base.reponses.demarrage as Record<string, unknown>;
     return {
       maintenant: MAINTENANT,
-      reponses: { ...base.reponses, demarrage: { ...demarrage(configuration(AVEC_PC)), stations: lues.stations, projetsDesStations: lues.projetsDesStations }, espace: [], service: guide(DECLAREES), defautsDeStation: DEFAUTS },
+      reponses: { ...base.reponses, demarrage: { ...demarrage(configuration(PROJETS), (nom) => nom === "parade"), stations: lues.stations, projetsDesStations: lues.projetsDesStations }, espace: [], service: guide(DECLAREES), defautsDeStation: DEFAUTS },
       envois: cuisine({ ...RENDUS, parade: { ...PARADE, facts: FACTS } }),
     };
   },

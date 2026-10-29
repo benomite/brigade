@@ -33,7 +33,7 @@ const secondDe = (terminaux: Terminal[]) => terminaux.find(({ genre }) => genre 
 
 describe("l'onglet Second dit pourquoi le second ne part pas, et ce qui lui manque", () => {
   test("sans `claude` : rien n'est lancé, la note dit pourquoi, chaque outil absent est nommé avec ce qui l'obtient", () => {
-    const { terminaux, lances } = registre(fichiers("/usr/bin/git", "/usr/bin/ssh"));
+    const { terminaux, lances } = registre(fichiers("/usr/bin/git"));
     const second = secondDe(terminaux.espace(PROJET));
 
     assert.equal(lances.length, 0);
@@ -55,7 +55,7 @@ describe("l'onglet Second dit pourquoi le second ne part pas, et ce qui lui manq
     const second = secondDe(terminaux.espace(PROJET));
     assert.ok(second.empeche !== undefined);
 
-    plan.existe = fichiers("/usr/bin/claude", "/usr/bin/gh", "/usr/bin/git", "/usr/bin/ssh");
+    plan.existe = fichiers("/usr/bin/claude", "/usr/bin/gh", "/usr/bin/git");
     terminaux.ecrire(second.id, "");
 
     assert.equal(lances.length, 1);
@@ -68,7 +68,7 @@ describe("l'onglet Second dit pourquoi le second ne part pas, et ce qui lui manq
   });
 
   test("sans `gh` : le second part, et dit à côté ce qui échouera, avec ce qui obtient `gh`", () => {
-    const { terminaux, lances } = registre(fichiers("/usr/bin/claude", "/usr/bin/git", "/usr/bin/ssh"));
+    const { terminaux, lances } = registre(fichiers("/usr/bin/claude", "/usr/bin/git"));
     const second = secondDe(terminaux.espace(PROJET));
 
     assert.equal(lances.length, 1);
@@ -78,7 +78,7 @@ describe("l'onglet Second dit pourquoi le second ne part pas, et ce qui lui manq
   });
 
   test("un lancement refusé — le pty ne s'ouvre pas — se dit en une phrase : jamais un onglet muet", () => {
-    const { terminaux } = registre(fichiers("/usr/bin/claude", "/usr/bin/gh", "/usr/bin/git", "/usr/bin/ssh"), () => {
+    const { terminaux } = registre(fichiers("/usr/bin/claude", "/usr/bin/gh", "/usr/bin/git"), () => {
       throw new Error("posix_spawnp failed.");
     });
     const second = secondDe(terminaux.espace(PROJET));

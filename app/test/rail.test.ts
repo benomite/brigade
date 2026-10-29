@@ -11,7 +11,6 @@ import { describe, test } from "node:test";
 import { ALLUMAGE } from "../src/allumage.ts";
 import { mettreAPart } from "../src/attend.ts";
 import { pourLaBarre } from "../src/barre.ts";
-import { BOUTONS } from "../src/boutons.ts";
 import { EXEMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
@@ -32,12 +31,11 @@ const A = "2026-10-13T10:04:12.000Z";
 const PARADE = "parade";
 const SECOND: Terminal = { id: 1, projet: PARADE, genre: "second", titre: "second · claude", note: "session neuve", arrete: false };
 const SHELL: Terminal = { id: 2, projet: PARADE, genre: "shell", titre: "shell 1", note: "", arrete: false };
-const demarrage = (projets: Parameters<typeof pourLaBarre>[0]["projets"] = [{ nom: PARADE, dossier: "/tmp/parade", box: { hote: "box" } }], ici?: (nom: string) => boolean) => ({
-  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets, hotes: ["box"] }, undefined, ici),
+const demarrage = (projets: Parameters<typeof pourLaBarre>[0]["projets"] = [{ nom: PARADE, dossier: "/tmp/parade" }], ici?: (nom: string) => boolean, servi: (projet: unknown) => boolean = () => true) => ({
+  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets }, servi, ici),
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS, rubriques: RUBRIQUES,
-  boutons: BOUTONS,
   gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
@@ -207,19 +205,19 @@ describe("le rail occupe le centre de l'écran principal", () => {
     assert.deepEqual(cinq(), [["On the rail", "0"], ["Taken", "0"], ["Pass", "0"], ["TODO", "0"], ["WAITING", "0"], ["Served", "0"]]);
   });
 
-  test("avant la première lecture il le dit ; un projet sans box n'en a pas — rien n'est lu de lui", async () => {
+  test("avant la première lecture il le dit ; un projet qu'aucune station ne sert n'en a pas — rien n'est lu de lui", async () => {
     const vue = await ouvrir();
     assert.equal(vue.element("rail").hidden, false);
     assert.match(vue.element("rail").textContent, /^the rail: first read of the station's “facts” step in progress…$/);
     assert.deepEqual(colonnes(vue), []);
 
-    const sansBox = await jouerLaVue({ demarrage: () => demarrage([{ nom: PARADE, dossier: "/tmp/parade" }]), espace: () => [SECOND] });
-    (sansBox.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
+    const sansStation = await jouerLaVue({ demarrage: () => demarrage([{ nom: PARADE, dossier: "/tmp/parade" }], undefined, () => false), espace: () => [SECOND] });
+    (sansStation.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
     await repos();
     // Rien n'est lu, mais la page ne reste pas vide : elle dit pourquoi (ticket 1405).
-    assert.equal(sansBox.element("rail").hidden, false);
-    assert.match(sansBox.element("rail").textContent, /^the rail is not read: no station is known to serve this project yet/);
-    assert.deepEqual(colonnes(sansBox), []);
+    assert.equal(sansStation.element("rail").hidden, false);
+    assert.match(sansStation.element("rail").textContent, /^the rail is not read: no station is known to serve this project yet/);
+    assert.deepEqual(colonnes(sansStation), []);
   });
 
   test("un projet qui cuit sur cet ordinateur (#1122) a son rail, lu ici, comme une box", async () => {
@@ -227,7 +225,7 @@ describe("le rail occupe le centre de l'écran principal", () => {
     (ici.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
     await repos();
     assert.equal(ici.element("rail").hidden, false);
-    // La lecture est celle du geste de sa station, ici : aucune commande `ssh` n'est dite.
+    // La lecture est celle du geste de sa station, ici : aucune commande n'est dite.
     assert.match(ici.element("rail").textContent, /^the rail: first read of the station's “facts” step in progress…$/);
     recevoir(ici);
     assert.deepEqual(
@@ -247,7 +245,7 @@ describe("le rail occupe le centre de l'écran principal", () => {
 
   test("une box pas jointe (#728) : sans lecture antérieure, le rail ne montre que les tickets lus sur GitHub, sans colonne vide", async () => {
     const vue = await ouvrir();
-    recevoir(vue, { projet: PARADE, demande: 0, a: A, titre: "PAS JOINT", erreur: "ssh: connect to host box port 22: Connection refused", atteinte: false, cas: null });
+    recevoir(vue, { projet: PARADE, demande: 0, a: A, titre: "PAS JOINT", erreur: "the station did not answer", atteinte: false, cas: null });
 
     assert.equal(vue.element("rail").hidden, false);
     assert.match(vue.element("rail").textContent, /^the tickets in the kitchen according to GitHub/);
@@ -262,7 +260,7 @@ describe("une box pas jointe, après une lecture (#1078)", () => {
   test("les colonnes disent qu'elles ne sont pas connues, au lieu de « 0 » ; la liste de GitHub est repliée ; la box revenue, tout redevient normal", async () => {
     const vue = await ouvrir();
     recevoir(vue);
-    recevoir(vue, { projet: PARADE, demande: 0, a: A, titre: "PAS JOINT", erreur: "ssh: connect to host box port 22: Connection refused", atteinte: false, cas: null });
+    recevoir(vue, { projet: PARADE, demande: 0, a: A, titre: "PAS JOINT", erreur: "the station did not answer", atteinte: false, cas: null });
 
     const rail = vue.element("rail");
     assert.deepEqual(comptes(vue), ["?", "?", "?", "?", "?", "?"]);
@@ -1182,8 +1180,8 @@ describe("la fiche d'une carte qui t'attend : l'attendu en tête, ses gestes en 
   const RENONCE = `  #12  depuis 40 min  remontée par le manager, rouge — à trancher : merger ${PR} à la main, ou retirer \`fire\` — \`brigade parade pass 12\``;
   const AVEC_RENONCE = STATUS.replace(/attend {5}1 décision[^]*?fin attend/, `attend     1 décision attend le chef depuis 40 min\n${RENONCE}\nfin attend`);
   const DECIDE: Faits = { ...FAITS, rail: FAITS.rail.map((ticket) => (ticket.ticket === 12 ? { ...ticket, etat: "86" } : ticket)), attend: [{ ticket: 12, titre: "Validation SIRET", url: "https://github.com/benomite/brigade/issues/12", decision: { quoi: "remontee", motif: "still-red", cause: "manager-escalated", pr: PR } }] };
-  // Ce que la box rend quand elle ne sait pas lire : `ssh`, son usage, son code de sortie.
-  const PANNE = "not read: $ ssh -o BatchMode=yes box brigade parade pass 12 --json\nusage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run pass -- [<ticket> [--json]]\n→ exit code 2";
+  // Ce que la station rend quand elle ne sait pas lire : la commande lancée, son usage, son code de sortie.
+  const PANNE = "not read: $ node src/station/geste.ts parade pass 12 --json\nusage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run pass -- [<ticket> [--json]]\n→ exit code 2";
   const ouvrirLaCarte = async (reponses: Reponses = {}) => {
     const vue = await ouvrir({ gesteDeFiche: () => ({ ...SECOND, note: "commande envoyée dans le second" }), ...reponses });
     recevoir(vue, dessinable(DECIDE, AVEC_RENONCE.replace("#12  en pass  -  depuis 2 j, cuisiné par mac/claude", "#12  86  -  depuis 40 min (pass:returns-exhausted), sans heure de retour")));
@@ -1205,7 +1203,7 @@ describe("la fiche d'une carte qui t'attend : l'attendu en tête, ses gestes en 
     assert.doesNotMatch(visible(vue), /remontée|à trancher|depuis 40 min/);
   });
 
-  test("chaque geste attendu est un bouton — merger, retirer du rail —, le recommandé distingué ; aucune commande `ssh` ni `brigade` n'est à recopier ni à envoyer", async () => {
+  test("chaque geste attendu est un bouton — merger, retirer du rail —, le recommandé distingué ; aucune commande `brigade` n'est à recopier ni à envoyer", async () => {
     const vue = await ouvrirLaCarte();
     assert.deepEqual(gestesDeLaFicheOuverte(vue).map(([id, libelle]) => [id, libelle]), [
       ["merger", "merge the PR"],
@@ -1216,7 +1214,7 @@ describe("la fiche d'une carte qui t'attend : l'attendu en tête, ses gestes en 
     ]);
     assert.equal(gesteDeLaFiche(vue, "merger").className, "recommande");
     assert.deepEqual(boutonsDeLaFiche(vue).filter((pose) => pose.className.split(" ").includes("recommande")).map((pose) => pose.textContent), ["merge the PR"]);
-    assert.doesNotMatch(visible(vue), /ssh |brigade parade/);
+    assert.doesNotMatch(visible(vue), /brigade parade|geste\.ts/);
     assert.equal(fiche(vue).dessous("button").filter((pose) => pose.className === "mono").length, 0);
   });
 
@@ -1234,11 +1232,11 @@ describe("la fiche d'une carte qui t'attend : l'attendu en tête, ses gestes en 
     assert.deepEqual(vue.dernier("gesteDeFiche"), [PARADE, "merger", 12, undefined]);
   });
 
-  test("l'historique et la discussion qui ne se lisent pas tiennent chacun en une ligne : `ssh`, son usage et son code de sortie ne se lisent qu'au survol", async () => {
+  test("l'historique et la discussion qui ne se lisent pas tiennent chacun en une ligne : la commande lancée, son usage et son code de sortie ne se lisent qu'au survol", async () => {
     const vue = await ouvrirLaCarte({ lireHistoire: () => ({ sans: PANNE }), lireDiscussion: () => ({ sans: PANNE.replace("--json", "issue") }) });
     const indisponibles = fiche(vue).dessous("p").filter((pose) => pose.className === "indisponible");
     assert.deepEqual(indisponibles.map((ligne) => ligne.children[0]?.textContent), ["history unavailable", "discussion unavailable"]);
-    assert.doesNotMatch(visible(vue), /ssh|usage|exit code/);
+    assert.doesNotMatch(visible(vue), /geste\.ts|usage|exit code/);
     aides(indisponibles[0] ?? assert.fail("pas d'historique"))[0]?.declencher("mouseenter");
     assert.ok(visible(vue).includes(PANNE), "le détail, au survol");
   });
@@ -1250,6 +1248,6 @@ describe("la fiche d'une carte qui t'attend : l'attendu en tête, ses gestes en 
     const panneau = fiche(vue).children[0] ?? assert.fail("pas de panneau");
     assert.equal(panneau.children[1]?.textContent, "This ticket waits for your decision — its issue says which.");
     assert.deepEqual(gestesDeLaFicheOuverte(vue).map(([id]) => id), ["issue", "second", "priorite"]);
-    assert.doesNotMatch(visible(vue), /ssh |brigade parade|remontée/);
+    assert.doesNotMatch(visible(vue), /brigade parade|remontée/);
   });
 });

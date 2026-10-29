@@ -6,15 +6,15 @@ than on the runtime's machine — `mac/claude`, with the chef's connected Chrome
 itself `distante` (the setting word stays French until the runtime is translated), and **it is the
 one that comes**: it announces itself, claims a ticket, renews its lease, hands back its delivery.
 A second station of the project does so **through GitHub alone** — no ssh, no host, no key — as
-described under "A second station of the project" below. This chapter describes the box side; the
-program that plays the station on the workstation (the app's runner) lives in `app/`.
+described under "A second station of the project" below. This chapter describes the box side. The desktop app no longer plays a remote station for a project's box: the program that plays
+such a station is a station running on that computer.
 
 ```bash
 brigade <project> station stations box/claude:30:code,mac/claude:1:chrome-connecté:distante
 ```
 
 **The box's gesture, for a remote station that is not a second station**, launched by the station from
-its workstation — `ssh <host> brigade <name> pull <station> <request>`. A second station of the project
+its workstation — `brigade <name> pull <station> <request>`, reached by the chef's own means (the desktop app does not do it). A second station of the project
 never uses it: it asks through its gist (see below). The gesture opens no connection: it writes the
 request to the project's log (`remote.asked`), the running runtime reads it when it wakes (within a
 second) and answers the same way (`remote.answered`). It returns the answer as **JSON, on one line**,
@@ -97,7 +97,7 @@ not a privileged cook:
   the pass comes first: its branch is that of the delivery. When it wakes, the station learns at its
   next request that its cook is stopped (`stopped`, `lease`); what it would deliver is no longer
   received, and the ticket, which the box may have taken up again, never has more than one cook at a
-  time. The runner only pushes at delivery: a cook lost before it delivered has, today, left nothing
+  time. A remote station only pushes at delivery: a cook lost before it delivered has, today, left nothing
   on the origin.
 
 **Presence: a remote station that has not shown up recently is absent.** Any request shows it. Past
@@ -134,7 +134,7 @@ brigade <project> station stations box/claude:30:code,mac/claude:2:chrome-connec
 
 **An ordinary ticket only leaves there inside Claude Code's sandbox** (`runtime/src/bac-a-sable/`).
 The station says so at each `announce` and `claim`, by `--sandbox <json>`: the object that the
-probe returns, played on its workstation by its app —
+probe returns, played on its workstation by the station —
 `node runtime/src/bac-a-sable/sonder.ts <worktrees> [<cache>…]`, where `<worktrees>` is the
 directory where the workstation puts the worktrees of the project's cooks. When available, it carries
 the version of its `claude`, the account's directory, that directory and the project's caches; when
@@ -467,7 +467,7 @@ there that opens a connection is an architecture decision, not an import.
 
 **What is not guaranteed.** The proof of work is what the station says of its worktree: the box does
 not see it, it can only note that a fingerprint has changed — like the measure of turns and tokens,
-it is worth the trust placed in the workstation's runner, no more. A remote cook stopped by a
+it is worth the trust placed in the workstation's station, no more. A remote cook stopped by a
 guardrail delivers nothing, even if it had committed: nothing is harvested from a workstation the
 box does not reach. And the shape of Claude's credentials recognised in a remote delivery holds it
 back from the pass, but its branch **is already on the origin** — the station pushed it there: the

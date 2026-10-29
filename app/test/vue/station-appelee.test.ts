@@ -10,7 +10,6 @@ import { choixPour } from "../../../runtime/src/installation/besoins/besoins.ts"
 import type { Accueil } from "../../src/accueil.ts";
 import { ALLUMAGE } from "../../src/allumage.ts";
 import { pourLaBarre } from "../../src/barre.ts";
-import { BOUTONS } from "../../src/boutons.ts";
 import { EXEMPLE, type Projet } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
@@ -29,8 +28,8 @@ import { Faux, jouerLaVue, repos } from "../aides/fausse-vue.ts";
 const A = "2026-10-23T10:04:12.000Z";
 const BOX = { id: "g1", nom: "box", machine: "Linux 6.1.0", coeurs: 8, etat: "en-ligne", ligne: "online · version 1.4.0 · no project", pannes: [] as Panne[], dit: "online", version: "1.4.0", projets: [] as string[], max: null } as const;
 const ACCUEIL: Accueil = { projets: [], stations: [], sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } };
-// Ce poste joue pc/claude, qui ne fournit que du code.
-const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", depot: "benomite/parade", base: "main", box: { hote: "parade-box" }, stations: ["pc/claude"] };
+// La cuisine de ce poste tourne avec pc/claude, qui ne fournit que du code.
+const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", depot: "benomite/parade", base: "main" };
 
 const DECLAREES =
   lireStations(
@@ -39,8 +38,8 @@ const DECLAREES =
       proposees: [],
       absent: null,
       declarees: [
-        { nom: "box/claude", moteur: "claude", fournit: ["code", "raisonnement"], cooks: 3, distante: false },
-        { nom: "pc/claude", moteur: "claude", fournit: ["code"], cooks: 2, distante: true },
+        { nom: "box/claude", moteur: "claude", fournit: ["code", "raisonnement"], cooks: 3, distante: true },
+        { nom: "pc/claude", moteur: "claude", fournit: ["code"], cooks: 2, distante: false },
       ],
     }),
   ) ?? assert.fail("la forme de `installation stations --json` n'est plus lue");
@@ -52,7 +51,7 @@ const guide = (stations: typeof DECLAREES | undefined): Guide => ({
   etapes: [],
   courante: null,
   annonces: { etat: "lues", liste: [] },
-  demarrage: { commande: "ssh -t parade-box sudo systemctl enable --now brigade@parade.service" },
+  demarrage: { refus: "nothing to start: the station of this computer runs with the app" },
   termine: true,
   ...(stations === undefined ? {} : { controle: { a: A, stations } }),
 });
@@ -80,12 +79,11 @@ async function laPage(choix: object[], stations: typeof DECLAREES | null = DECLA
   const envoyes: unknown[][] = [];
   const jouee = await jouerLaVue({
     demarrage: () => ({
-      configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE], hotes: ["parade-box"] }),
+      configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE] }, () => true, () => true),
       palette: PALETTE,
       exemple: EXEMPLE,
       onglets: ONGLETS,
       rubriques: RUBRIQUES,
-      boutons: BOUTONS,
       gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
       banniere: BANNIERE,
       calibrage: { modeles: MODELES, efforts: EFFORTS },
@@ -113,7 +111,7 @@ const cliquerSurAilleurs = async (jouee: Awaited<ReturnType<typeof laPage>>["jou
   for (let tour = 0; tour < 5; tour++) await repos();
 };
 const formulaire = (jouee: Awaited<ReturnType<typeof laPage>>["jouee"]) => jouee.element("rail").dessous("div").find(({ className }) => className === "edition");
-const cochees = (forme: Faux) => forme.dessous("input").filter(({ type, checked, ariaLabel }) => type === "checkbox" && checked && !ariaLabel.startsWith("this workstation")).map(({ ariaLabel }) => ariaLabel);
+const cochees = (forme: Faux) => forme.dessous("input").filter(({ type, checked, ariaLabel }) => type === "checkbox" && checked).map(({ ariaLabel }) => ariaLabel);
 
 describe("« Cook it on a station that has it » ouvre le formulaire de la station de ce poste", () => {
   test("un navigateur qui manque : le formulaire de pc/claude, navigateur-headless coché en plus de code, et rien n'est écrit", async () => {

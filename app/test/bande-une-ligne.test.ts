@@ -10,9 +10,9 @@ import { tenirBandes, type Bande } from "../src/alertes.ts";
 import { ALLUMAGE } from "../src/allumage.ts";
 import { mettreAPart } from "../src/attend.ts";
 import { pourLaBarre } from "../src/barre.ts";
-import { BOUTONS } from "../src/boutons.ts";
 import type { Lecture } from "../src/box.ts";
 import { EXEMPLE, type Projet } from "../src/config.ts";
+import type { Cuisine } from "../src/box.ts";
 import { confirmationDe } from "../src/confirmation.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
@@ -24,7 +24,8 @@ import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { type Faux, type Jouee, jouerLaVue, type Reponses, repos } from "./aides/fausse-vue.ts";
 
 const A = "2026-10-13T10:00:01.000Z";
-const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", box: { hote: "box" } };
+const CUISINE: Cuisine = { locale: { node: "node", runtime: "/runtime", racine: "/station", env: {} } };
+const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade" };
 const lecture = (commande: string, texte: string): Lecture => ({ projet: "parade", demande: 1, a: A, sorties: [{ commande, texte }] });
 
 // Les lignes de tête de `status` (runtime/src/etat.ts, `decrireEtat`), mot pour mot.
@@ -63,19 +64,18 @@ function bandeLue(status?: string, etat: Faits["etat"] = "retenue"): Bande {
 async function ouvrir(reponses: Reponses = {}): Promise<Jouee> {
   const vue = await jouerLaVue({
     demarrage: () => ({
-      configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE], hotes: ["box"] }),
+      configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE] }, () => true),
       palette: PALETTE,
       exemple: EXEMPLE,
       onglets: ONGLETS,
       rubriques: RUBRIQUES,
-      boutons: BOUTONS,
       gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
       banniere: BANNIERE,
       calibrage: { modeles: MODELES, efforts: EFFORTS },
       code: undefined,
     }),
     espace: () => [],
-    confirmer: (_, id, grant) => confirmationDe(id, PARADE, { sans: "pas lus" }, grant),
+    confirmer: (_, id, grant) => confirmationDe(id, PARADE, { sans: "pas lus" }, grant, CUISINE),
     geste: () => undefined,
     ...reponses,
   });

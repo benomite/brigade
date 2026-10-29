@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { DESCRIPTION, FICHIER_PREFERENCES, gistDesPreferences } from "../../src/reglages-perso/gist.ts";
-import { CLES_DE_L_APPAREIL, CLES_DU_PROJET_SUR_L_APPAREIL, personnelles } from "../../src/reglages-perso/partage.ts";
+import { CLES_DU_PROJET_SUR_L_APPAREIL, personnelles } from "../../src/reglages-perso/partage.ts";
 import { reglagesPerso } from "../../src/reglages-perso/reglages-perso.ts";
 import { ghDuRepertoire } from "../aides/gh-du-repertoire.ts";
 import { SANS_POSIX } from "../aides/posix.ts";
@@ -17,13 +17,11 @@ type Gist = { id: string; description: string; public: boolean; files: Record<st
 
 const SOURCES = join(import.meta.dirname, "../../src/reglages-perso");
 const DOSSIER = "/Users/chef/code/cuisine-secrete";
-const HOTE = "box-du-sous-sol.lan";
 
-// Un fichier de l'app tel que le chef l'a sur son Mac : un projet avec ses couleurs, son dossier et sa box.
+// Un fichier de l'app tel que le chef l'a sur son Mac : un projet avec ses couleurs, son dossier et ses réglages d'appareil.
 const APP_JSON = {
-  hotes: [HOTE],
   projets: [
-    { nom: "cuisine", dossier: DOSSIER, hote: HOTE, depot: "chef/cuisine", base: "v2", couleurs: { onglet: "#f2994a", accent: "#ad7142" }, stations: ["mac/claude"], ordinaires: true, limiteCooks: 2 },
+    { nom: "cuisine", dossier: DOSSIER, depot: "chef/cuisine", base: "v2", couleurs: { onglet: "#f2994a", accent: "#ad7142" }, stations: ["mac/claude"], ordinaires: true, limiteCooks: 2 },
     { nom: "salle", dossier: "/Users/chef/code/salle", couleurs: { onglet: "#7f9cf5", accent: "#7f9cf5" } },
   ],
 };
@@ -58,9 +56,8 @@ function unAppJson(t: TestContext, contenu: unknown = APP_JSON): string {
 const desPreferences = (github: { gh: string }, appJson: string) => reglagesPerso({ gist: gistDesPreferences({ gh: github.gh, delaiMs: 30_000 }), appJson });
 
 describe("la frontière entre le personnel et l'appareil", () => {
-  test("une liste explicite : le dossier d'un projet et son hôte ssh en sont, ses couleurs non", () => {
-    for (const cle of ["dossier", "hote"]) assert.ok(CLES_DU_PROJET_SUR_L_APPAREIL.includes(cle), cle);
-    assert.ok(CLES_DE_L_APPAREIL.includes("hotes"));
+  test("une liste explicite : le dossier d'un projet et ses réglages d'appareil en sont, ses couleurs non", () => {
+    for (const cle of ["dossier", "stations", "ordinaires", "limiteCooks"]) assert.ok(CLES_DU_PROJET_SUR_L_APPAREIL.includes(cle), cle);
     assert.ok(!CLES_DU_PROJET_SUR_L_APPAREIL.includes("couleurs"));
   });
 
@@ -121,11 +118,11 @@ describe("le gist des préférences", () => {
       ],
       affichage: { densite: "serree" },
     });
-    // Le dossier d'un projet, son hôte ssh : ni la clé, ni la valeur, dans aucune entrée de `gh`.
+    // Le dossier d'un projet : ni la clé, ni la valeur, dans aucune entrée de `gh`.
     assert.equal(github.envoyes.length, 2);
     for (const envoye of github.envoyes) {
-      for (const interdit of [DOSSIER, "/Users/chef/code/salle", HOTE]) assert.ok(!envoye.includes(interdit), `${interdit} left the device: ${envoye}`);
-      assert.doesNotMatch(envoye, /\b(dossier|hotes?|stations|ordinaires|limiteCooks)\b/, "no device-bound key in the payload");
+      for (const interdit of [DOSSIER, "/Users/chef/code/salle"]) assert.ok(!envoye.includes(interdit), `${interdit} left the device: ${envoye}`);
+      assert.doesNotMatch(envoye, /\b(dossier|stations|ordinaires|limiteCooks)\b/, "no device-bound key in the payload");
     }
   });
 
@@ -152,11 +149,11 @@ describe("le gist des préférences", () => {
     assert.equal(autres.length, 0);
     assert.equal(amorce!.public, false);
     assert.deepEqual(github.preferences(amorce!), attendues);
-    for (const envoye of github.envoyes) for (const interdit of [DOSSIER, HOTE]) assert.ok(!envoye.includes(interdit), `${interdit} left the device`);
+    for (const envoye of github.envoyes) for (const interdit of [DOSSIER]) assert.ok(!envoye.includes(interdit), `${interdit} left the device`);
 
     // Les clés de l'appareil sont toujours dans le fichier de l'app : il n'a pas bougé.
     assert.equal(readFileSync(appJson, "utf8"), avant);
-    assert.deepEqual((JSON.parse(readFileSync(appJson, "utf8")) as typeof APP_JSON).projets.map(({ dossier, hote }) => ({ dossier, hote })), [{ dossier: DOSSIER, hote: HOTE }, { dossier: "/Users/chef/code/salle", hote: undefined }]);
+    assert.deepEqual((JSON.parse(readFileSync(appJson, "utf8")) as typeof APP_JSON).projets.map(({ dossier }) => dossier), [DOSSIER, "/Users/chef/code/salle"]);
 
     // Le gist amorcé, la lecture suivante le lit lui, sans le réécrire.
     const appelsAvant = github.appels().length;

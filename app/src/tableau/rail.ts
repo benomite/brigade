@@ -1,9 +1,9 @@
 // La vue du rail d'un projet, nourrie de GitHub seul (#1694, épique #1692) : ses colonnes, ses cartes, sa file TODO et
 // l'état de sa cuisine se tirent du tableau de la cuisine (« Kitchen board ») que la box publie dans le dépôt du projet
-// (docs/runtime/tableau-de-cuisine.md), lu par lecture.ts. Ni `ssh`, ni tailnet, ni box jointe : il suffit que l'app
+// (docs/runtime/tableau-de-cuisine.md), lu par lecture.ts. Ni tailnet, ni box jointe : il suffit que l'app
 // soit connectée à GitHub.
 //
-// Ce module rend ce que le rail lisait jusqu'ici par `ssh` sur la box, sous la même forme — une lecture de la veille
+// Ce module rend ce que le rail lisait jusqu'ici sur la box, sous la même forme — une lecture de la veille
 // (box.ts, `Lecture`) dont chaque sortie est celle de la commande qu'elle remplace — pour que ce qui la reçoit (faits.ts,
 // attend.ts, bon.ts, alertes.ts, accueil.ts, amont.ts) dessine le même rail sans rien changer :
 //   - `facts`   l'objet `faits` du bloc, celui que `facts` rend, mot pour mot ;
@@ -15,7 +15,7 @@
 //
 // La veille du tableau (`ouvrirVeilleDuTableau`) a l'usage de celle des box : ce qui est affiché, et les commandes à y
 // lire. Ses lectures passent par `tenirLecturesDuTableau`, qui ne demande à GitHub qu'une lecture à la fois par projet,
-// reprise par toutes les veilles tant qu'elle est fraîche. Aucun import de box.ts : rien ici ne peut lancer `ssh`.
+// reprise par toutes les veilles tant qu'elle est fraîche. Aucun import de box.ts : rien ici ne peut lancer de commande.
 import { setTimeout as attendre } from "node:timers/promises";
 import type { RubriqueDuTableau } from "../../../runtime/src/tableau/rendu/bloc.ts";
 import type { EnvoiDeCarte } from "./envois.ts";
@@ -28,7 +28,7 @@ export const STATUS = "status";
 export const MANAGER = "manager";
 
 // Une lecture, de la forme de celle de la veille des box (box.ts, `Lecture`) : des sorties, ou l'échec de la lecture du
-// tableau — `duTableau` la distingue d'un `ssh` en échec, et `erreur` est sa raison en une phrase.
+// tableau — `duTableau` la distingue d'une commande en échec, et `erreur` est sa raison en une phrase.
 export type SortieDuTableau = { commande: string; texte: string };
 // `horsLigne` : GitHub n'a pas été joint (lecture.ts) — l'app est hors ligne, rien n'est en panne (#1818).
 export type EchecDuTableau = { erreur: string; atteinte: true; cas: null; duTableau: true; pasPublie?: true; horsLigne?: true };
@@ -174,7 +174,7 @@ export function tenirLecturesDuTableau<P extends { nom: string }>(options: { lir
 }
 
 // La veille du rail sur le tableau : l'usage de celle des box (box.ts, `ouvrirVeille`) — ce qui est affiché, les
-// commandes à y lire, la demande à laquelle chaque lecture répond — sans `ssh`. Chaque projet est lu tout de suite,
+// commandes à y lire, la demande à laquelle chaque lecture répond. Chaque projet est lu tout de suite,
 // puis à chaque intervalle. `lisible` : un projet dont la vue lit le rail (absent : tous).
 export function ouvrirVeilleDuTableau<P extends { nom: string }>(options: {
   lire: (projet: P) => Promise<LectureDuTableauDuDepot>;

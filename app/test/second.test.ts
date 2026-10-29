@@ -9,7 +9,6 @@ import { join } from "node:path";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../src/allumage.ts";
 import { pourLaBarre } from "../src/barre.ts";
-import { BOUTONS } from "../src/boutons.ts";
 import { EXEMPLE, type Projet } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { confirmationDe } from "../src/confirmation.ts";
@@ -23,8 +22,9 @@ import type { Terminal } from "../src/terminaux.ts";
 import { type Faux, type Jouee, jouerLaVue, type Reponses, ouvrirLecture, repos } from "./aides/fausse-vue.ts";
 
 const VUE = join(import.meta.dirname, "../src/vue");
-const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", box: { hote: "box" } };
-const FANFARE: Projet = { nom: "fanfare", dossier: "/tmp/fanfare", box: { hote: "box" } };
+const CUISINE = { locale: { node: "node", runtime: "/tmp/runtime", racine: "/tmp/station", env: {} } };
+const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade" };
+const FANFARE: Projet = { nom: "fanfare", dossier: "/tmp/fanfare" };
 const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "second · claude", note: "fil repris", arrete: false };
 const AUTRE: Terminal = { id: 7, projet: "fanfare", genre: "second", titre: "second · claude", note: "session neuve", arrete: false };
 const SHELL: Terminal = { id: 2, projet: "parade", genre: "shell", titre: "shell 1", note: "", arrete: false };
@@ -33,11 +33,10 @@ async function ouvrir(reponses: Reponses = {}, projets: Projet[] = [PARADE, FANF
   const vue = await jouerLaVue({
     demarrage: () => ({
       ...(poste === undefined ? {} : { poste }),
-      configuration: pourLaBarre({ chemin: "/tmp/app.json", projets, hotes: ["box"] }),
+      configuration: pourLaBarre({ chemin: "/tmp/app.json", projets }, () => true),
       palette: PALETTE,
       exemple: EXEMPLE,
       onglets: ONGLETS, rubriques: RUBRIQUES,
-      boutons: BOUTONS,
       gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
       banniere: BANNIERE,
       calibrage: { modeles: MODELES, efforts: EFFORTS },
@@ -352,7 +351,7 @@ describe("à droite, les shells à côté du second : un shell ne remplace jamai
   });
 
   test("une session qui n'a pas pu être détruite : la note du terminal dit où elle reste", async () => {
-    const refus = "shell 1 · parade-box is closed, but its session `brigade-parade-1` could not be destroyed on box parade-box: it is no longer listed, and stays there until it is destroyed — ssh: connect to host parade-box port 22: Connection refused";
+    const refus = "shell 1 · parade-box is closed, but its session `brigade-parade-1` could not be destroyed: it is no longer listed, and stays there until it is destroyed";
     const vue = await ouvrir({ fermerShell: () => ({ refus }) });
     await cliquer(vue, vue.element("terminaux"), "+ shell");
     vue.element("fermer-shell").click();
@@ -374,8 +373,8 @@ describe("à droite, les shells à côté du second : un shell ne remplace jamai
   });
 
   test("un geste qui part dans le second le montre, si un shell le cachait — la note est la sienne", async () => {
-    const ecrit = { ...SECOND, note: "parti dans le second : `!ssh box brigade parade grant enable merge`" };
-    const vue = await ouvrir({ confirmer: (_, id, grant) => confirmationDe(id, PARADE, { sans: "pas lus" }, grant), geste: () => ecrit });
+    const ecrit = { ...SECOND, note: "parti dans le second : `!station parade grant enable merge`" };
+    const vue = await ouvrir({ confirmer: (_, id, grant) => confirmationDe(id, PARADE, { sans: "pas lus" }, grant, CUISINE), geste: () => ecrit });
     await avecLesGrants(vue);
     await cliquer(vue, vue.element("terminaux"), "+ shell");
     assert.deepEqual(montre(vue), ["shell 1"]);
@@ -399,8 +398,8 @@ describe("à droite, les shells à côté du second : un shell ne remplace jamai
 
 describe("un clic à gauche écrit dans le second sans que le centre change", () => {
   test("un geste confirmé ouvre sa confirmation sur place, et ne part qu'à son « oui » — dans le second, sans que le centre change", async () => {
-    const parti = { ...SECOND, note: "parti dans le second : `!ssh box brigade parade grant enable merge`" };
-    const vue = await ouvrir({ confirmer: (_, id, grant) => confirmationDe(id, PARADE, { sans: "pas lus" }, grant), geste: () => parti });
+    const parti = { ...SECOND, note: "parti dans le second : `!station parade grant enable merge`" };
+    const vue = await ouvrir({ confirmer: (_, id, grant) => confirmationDe(id, PARADE, { sans: "pas lus" }, grant, CUISINE), geste: () => parti });
     await avecLesGrants(vue);
 
     // L'interrupteur de la ligne du grant (#1700) : son clic ouvre la confirmation, sous la ligne.

@@ -156,9 +156,9 @@ function conversationDe(corps: Record<string, unknown> | undefined): Conversatio
   };
 }
 
-// Un projet de la station, tel que la barre le reçoit : son nom, son dépôt, et sa station en guise de box — ce qui se lit.
+// Un projet de la station, tel que la barre le reçoit : son nom, son dépôt — ce qui se lit.
 // Aucun dossier : rien n'est ouvert sur le téléphone.
-const projetDe = (station: string, { name, repository }: ProjetDuGuichet): Projet => ({ nom: name, dossier: "", depot: repository, box: { hote: station } });
+const projetDe = ({ name, repository }: ProjetDuGuichet): Projet => ({ nom: name, dossier: "", depot: repository });
 
 export function ouvrirLaLecture(options: Options) {
   const { requete, station, adresse, dire } = options;
@@ -172,14 +172,14 @@ export function ouvrirLaLecture(options: Options) {
   const faits = tenirFaits();
   const bandes = tenirBandes({ maintenant: () => maintenant().getTime() });
   let projets: ProjetDuGuichet[] = [...(options.connus ?? [])];
-  const accueil = tenirAccueil({ projets: () => projets.map(({ name }) => ({ nom: name, box: true, desinstalle: false })), maintenant: () => maintenant().getTime() });
+  const accueil = tenirAccueil({ projets: () => projets.map(({ name }) => ({ nom: name, servi: true })), maintenant: () => maintenant().getTime() });
   let liste: ListeLue | undefined;
   // Les demandes de la vue : celle des faits (la barre), celle de l'écran affiché, et les projets dont il lit `status`.
   let demandeFaits: number | undefined;
   let demandeVue = 0;
   let vus: string[] = [];
 
-  const configuration = (): Affichee => pourLaBarre({ chemin: `${adresse} — the phone desk of ${station}`, projets: projets.map((projet) => projetDe(station, projet)), hotes: [station] });
+  const configuration = (): Affichee => pourLaBarre({ chemin: `${adresse} — the phone desk of ${station}`, projets: projets.map((projet) => projetDe(projet)) }, () => true);
   const telephone = () => ({ appaire: true as const, station, adresse, ...(liste === undefined ? {} : { liste }) });
   const direLAccueil = (vu: Accueil | undefined) => {
     if (vu !== undefined) dire("surAccueil", vu);

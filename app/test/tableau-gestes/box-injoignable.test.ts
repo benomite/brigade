@@ -1,12 +1,8 @@
-// Le critère de l'épique 1736 : chaque geste que la vue du rail offre encore se fait la box injoignable. Changer la
-// priorité, renvoyer en cuisine (la fiche d'un ticket revenu de WAITING, la carte de WAITING), répondre à une correction
-// et à un profil proposés, merger, retirer du rail, choisir et répondre sur une carte de TODO : chacun est joué ici par
-// le module que le process principal appelle pour lui (main.ts), la box injoignable — un `ssh` qui note chaque appel et
-// échoue comme une box qui ne répond pas (`BRIGADE_SSH_BIN`, celui que l'app lance) —, et GitHub en doublure. Chacun
-// aboutit, et aucun `ssh` n'est lancé.
+// Le critère de l'épique 1736 : chaque geste que la vue du rail offre encore se fait par GitHub seul, la box ne répondant
+// pas. Changer la priorité, renvoyer en cuisine (la fiche d'un ticket revenu de WAITING, la carte de WAITING), répondre à
+// une correction et à un profil proposés, merger, retirer du rail, choisir et répondre sur une carte de TODO : chacun est
+// joué ici par le module que le process principal appelle pour lui (main.ts), avec GitHub en doublure. Chacun aboutit.
 import assert from "node:assert/strict";
-import { chmodSync, existsSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
 import { test } from "node:test";
 import { reponseLue, type CarteLue } from "../../src/carte-todo.ts";
 import { ACTIONS } from "../../src/gestes-fiche.ts";
@@ -17,20 +13,8 @@ import { arriveeDeCarte, GESTES_DE_FICHE, gesteDeFiche, reponseALaFile, reponseD
 import { repertoireTemporaire } from "../../../runtime/test/outils.ts";
 import { DEPOT, githubDuTableau, NUMERO, projetPublie } from "../tableau/projet-publie.ts";
 
-const SANS_POSIX = process.platform === "win32" ? "le faux ssh est un script shell" : false;
-
-test("la box injoignable, chaque geste que la vue du rail offre encore aboutit — par GitHub seul, sans un `ssh`", { skip: SANS_POSIX }, async (t) => {
-  // La box injoignable : le `ssh` que l'app lancerait note son appel et échoue comme ssh sur une box qui ne répond pas.
-  const dossier = repertoireTemporaire(t);
-  const appels = join(dossier, "appels-ssh");
-  const ssh = join(dossier, "ssh");
-  writeFileSync(ssh, `#!/bin/sh\necho "$@" >> '${appels}'\necho "ssh: connect to host box port 22: Connection timed out" >&2\nexit 255\n`);
-  chmodSync(ssh, 0o755);
-  const avant = process.env.BRIGADE_SSH_BIN;
-  process.env.BRIGADE_SSH_BIN = ssh;
-  t.after(() => (avant === undefined ? delete process.env.BRIGADE_SSH_BIN : (process.env.BRIGADE_SSH_BIN = avant)));
-
-  // Le tableau de la cuisine, lu sur GitHub — ce que la box y a publié avant de devenir injoignable.
+test("la box muette, chaque geste que la vue du rail offre encore aboutit — par GitHub seul", async (t) => {
+  // Le tableau de la cuisine, lu sur GitHub — ce que la box y a publié avant de devenir muette.
   const publie = projetPublie(t, { propositions: true });
   const lu = await lireLeTableauDuDepot({ depot: DEPOT, appeler: githubDuTableau(publie.corps).appeler });
   assert.ok(lu.lu && publie.proposees !== null);
@@ -87,7 +71,6 @@ test("la box injoignable, chaque geste que la vue du rail offre encore aboutit �
     "/brigade answer #24 One for all.",
   ]);
   assert.deepEqual(labels, [`POST /repos/${DEPOT}/issues/22/labels`, `DELETE /repos/${DEPOT}/issues/22/labels/prio%3A2`]);
-  assert.equal(existsSync(appels), false, "aucun ssh n'est lancé");
 
   // Et aucun geste de la fiche ne retombe sur la box : ceux qui avaient une commande de box sont tous sur le tableau.
   const versLaBox = Object.entries(ACTIONS).flatMap(([id, branchement]) => ("box" in branchement ? [id] : []));

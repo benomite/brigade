@@ -7,7 +7,7 @@
 // un code vide —, ce qu'il faut vérifier au survol.
 //
 // Tout passe par le process principal (telephones-de-station.ts), qui lance la commande de la station : l'écran
-// n'en montre aucune, ni `ssh`, ni `sudo`, pas même au survol.
+// n'en montre aucune, ni `sudo`, pas même au survol.
 //
 // `tenirLesTelephones` garde l'état de l'écran et ses gestes ; `poserLesTelephones` le dessine. Ni l'un ni l'autre ne touche
 // `document` ni l'horloge : la vue leur donne une fabrique (briques.js), l'heure, et bat la seconde (`battre`).

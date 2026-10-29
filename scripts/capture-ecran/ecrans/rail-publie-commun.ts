@@ -54,7 +54,7 @@ export const SANS_GH: RailDuProjetLu =
 // Ce PC : le PATH de Windows, et les seuls programmes que `existe` y trouve.
 const PC = (presents: readonly string[], folder = DOSSIER): OptionsDuSecond => ({
   plateforme: "win32",
-  env: { PATH: "C:\\Windows\\System32;C:\\Windows\\System32\\OpenSSH;C:\\Program Files\\Git\\cmd", PATHEXT: ".COM;.EXE;.BAT;.CMD" },
+  env: { PATH: "C:\\Windows\\System32;C:\\Program Files\\Git\\cmd", PATHEXT: ".COM;.EXE;.BAT;.CMD" },
   maison: "C:\\Users\\chef",
   existe: (chemin) => presents.some((nom) => chemin.toLowerCase().endsWith(`\\${nom}.exe`)),
   folder,
@@ -69,7 +69,7 @@ const dit = (reason: string, tools: NonNullable<Extract<ReturnType<typeof planDu
 const SECOND: Terminal = { id: 1, projet: PROJET, genre: "second", titre: "second · claude", note: "new session", arrete: false };
 // Ni `claude`, ni `git`, ni `gh` sur ce PC : le second ne part pas.
 export function secondEmpeche(): Terminal {
-  const plan = planDuSecond(PC(["ssh"]));
+  const plan = planDuSecond(PC([]));
   if (plan.state !== "cannot-start") throw new Error("le second part sans claude");
   return { ...SECOND, arrete: true, note: plan.reason, empeche: dit(plan.reason, plan.tools) };
 }
@@ -81,7 +81,7 @@ export function secondSansDossier(): Terminal {
 }
 // Il part, mais sans `gh` : ce qui en a besoin échouera, et la colonne le dit au-dessus du terminal.
 export function secondSansGh(): Terminal {
-  const plan = planDuSecond({ ...PC(["claude", "git", "ssh"], import.meta.dirname), plateforme: "linux", env: { PATH: "/usr/bin" }, maison: "/home/chef", existe: (chemin) => ["/usr/bin/claude", "/usr/bin/git", "/usr/bin/ssh"].includes(chemin) });
+  const plan = planDuSecond({ ...PC(["claude", "git"], import.meta.dirname), plateforme: "linux", env: { PATH: "/usr/bin" }, maison: "/home/chef", existe: (chemin) => ["/usr/bin/claude", "/usr/bin/git"].includes(chemin) });
   if (plan.state !== "ready") throw new Error(`le second ne part pas : ${plan.reason}`);
   return { ...SECOND, manque: dit(plan.reason ?? "", plan.tools) };
 }
@@ -97,7 +97,7 @@ export function espaceDuPC(dit: string, rail: RailDuProjetLu | { __enAttente: tr
     donnees: () => ({
       maintenant: MAINTENANT,
       reponses: {
-        demarrage: { ...demarrage(configuration([{ nom: PROJET, dossier: DOSSIER, depot: "benomite/parade" }], [])), poste: { nom: "this PC", mac: false } },
+        demarrage: { ...demarrage(configuration([{ nom: PROJET, dossier: DOSSIER, depot: "benomite/parade" }]), undefined, undefined, () => false), poste: { nom: "this PC", mac: false } },
         espace: [second],
         railDuProjet: rail,
       },

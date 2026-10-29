@@ -36,7 +36,7 @@ describe("le survol", () => {
 
 describe("la lecture indisponible", () => {
   test("une ligne courte en clair ; le détail technique n'est dans le texte visible que survolé", () => {
-    const detail = "ssh: connect to host box port 22: Connection refused";
+    const detail = "connect to host box port 22: Connection refused";
     const lecture = lectureIndisponible(doc, "historique indisponible", detail) as Faux;
     assert.equal(lecture.children[0]?.textContent, "historique indisponible");
     assert.equal(lecture.textContent.includes("Connection refused"), false);

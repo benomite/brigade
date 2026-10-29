@@ -738,7 +738,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
 // `status` (vue.js, `rendre`), avec les mêmes mots — le code de sortie le
 // choisit. Sans cas, sur une box jointe, c'est `faits` qui n'a pas répondu : un
 // runtime d'avant cette commande.
-const TITRES: Readonly<Record<Exclude<Echec["cas"], null | "ssh-en-echec">, string>> = {
+const TITRES: Readonly<Record<Exclude<Echec["cas"], null>, string>> = {
   "projet-inconnu": "REACHED, BUT UNKNOWN TO THE STATION",
   "sans-droit": "REACHED, BUT WITHOUT THE RIGHT TO THE ACTION",
   "commande-manque": "REACHED, BUT A COMMAND IS MISSING ON THE STATION",
@@ -752,7 +752,7 @@ export const estHorsLigne = (lecture: object): boolean => "horsLigne" in lecture
 export function titreDEchec({ cas, atteinte, duTableau }: Echec, sansReponse = "REACHED, BUT `facts` DID NOT ANSWER"): string {
   // Lue du tableau de la cuisine (#1694) : aucune station n'a été jointe, c'est GitHub ou le tableau qui n'a pas dit.
   if (duTableau === true) return "NOT READ FROM THE KITCHEN BOARD";
-  if (cas !== null && cas !== "ssh-en-echec") return TITRES[cas];
+  if (cas !== null) return TITRES[cas];
   return atteinte ? sansReponse : "NOT REACHED";
 }
 
@@ -930,7 +930,7 @@ const livraison = (relecture: Relecture | null | undefined): Livraison =>
 // connexion, la base — attend aussi, et n'a pas de carte. C'est le bloc qui le dit.
 const AUCUN_NUMERO = "no ticket at the head of a line of the `attend` block";
 const AUCUN_ATTENDU = "no ticket in `attend`, according to `facts`";
-const RIEN_DE_LU = "not read: this station's runtime does not give `attend` in `facts`, and the `attend` block of `ssh <hote> brigade <nom> status` was not taken for this project. This is not “nothing awaits you” — the tickets stay in their columns";
+const RIEN_DE_LU = "not read: this station's runtime does not give `attend` in `facts`, and the `attend` block of the station's “status” step was not taken for this project. This is not “nothing awaits you” — the tickets stay in their columns";
 
 // Le rail en six colonnes. Un ticket qui attend une décision du chef est dans
 // TODO, et là seulement : c'est l'information qui décide d'un geste. Il y est
@@ -1206,7 +1206,7 @@ export function panneDe({ cuisineOisive, lu }: Faits): { panne?: Panne } {
 }
 
 const AUCUN_COOK = "no cook running";
-const COOKS_PAS_LUS = "cooks running: not read — this station's runtime does not give them in `facts` yet. This is not “no cook”: `ssh <hote> brigade <nom> station` shows them";
+const COOKS_PAS_LUS = "cooks running: not read — this station's runtime does not give them in `facts` yet. This is not “no cook”: the station's “station” step shows them";
 
 // Les faits, tels que la vue les pose : la pastille, les cinq compteurs dans
 // l'ordre de la carte, les cooks en cours dans celui de la box, le dernier

@@ -204,7 +204,7 @@ describe("les stations lues sur un GitHub de test", { concurrency: 7 }, () => {
     for (const appel of github.appels()) assert.match(appel, /^api (-X PATCH )?\/gists(\/[a-z0-9]+|\?per_page=100&page=\d+)( --input -)?$/);
     for (const nom of readdirSync(SOURCES)) {
       const source = readFileSync(join(SOURCES, nom), "utf8");
-      for (const interdit of [/node:(net|http|https|dgram|tls)\b/, /\bfetch\(/, /\bWebSocket\b/, /\bssh\b/]) assert.doesNotMatch(source, interdit, `${nom} : ${interdit}`);
+      for (const interdit of [/node:(net|http|https|dgram|tls)\b/, /\bfetch\(/, /\bWebSocket\b/]) assert.doesNotMatch(source, interdit, `${nom} : ${interdit}`);
     }
   });
 });

@@ -7,7 +7,6 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../../src/allumage.ts";
 import { pourLaBarre } from "../../src/barre.ts";
-import { BOUTONS } from "../../src/boutons.ts";
 import { EXEMPLE, type Projet } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
@@ -35,7 +34,7 @@ const FAITS: Faits = {
 };
 
 // Ce que `installation stations --json` rend (runtime/src/declarer-stations.ts, `faitsDesStations`), lu par l'app
-// telle qu'elle est : une station de la box, une que ce poste joue, une qu'un autre poste joue.
+// telle qu'elle est : une station de la box, deux d'autres postes.
 const DECLAREES =
   lireStations(
     JSON.stringify({
@@ -58,21 +57,19 @@ const guide = (stations: StationsLues | undefined): Guide => ({
   etapes: [],
   courante: null,
   annonces: { etat: "lues", liste: [] },
-  demarrage: { commande: "ssh -t box sudo systemctl enable --now brigade@parade.service" },
+  demarrage: { refus: "nothing to start: the station of this computer runs with the app" },
   termine: true,
   ...(stations === undefined ? {} : { controle: { a: A, stations } }),
 });
 
-// Ce poste joue mac/claude pour parade.
-const PROJET: Projet = { nom: PARADE, dossier: "/tmp/parade", box: { hote: "parade-box" }, stations: ["mac/claude"] };
+const PROJET: Projet = { nom: PARADE, dossier: "/tmp/parade" };
 
 const demarrage = (projet: Projet) => () => ({
-  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [projet], hotes: ["parade-box"] }),
+  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [projet] }, () => true),
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  boutons: BOUTONS,
   gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
@@ -103,23 +100,23 @@ const lu = (pose: Faux) =>
   });
 
 describe("ce que chaque station déclarée fournit, sur l'onglet Cooks", () => {
-  test("une station de la box et une que ce poste joue : leur plafond, leurs capacités, et deux mots distincts pour où elles tournent", async () => {
+  test("une station de la box et deux d'autres postes : leur plafond, leurs capacités, et des mots distincts pour où elles tournent", async () => {
     const vue = await ouvrir(DECLAREES);
     const pose = bloc(vue) ?? assert.fail("pas de stations déclarées sur Cooks");
     assert.equal(pose.dessous("h4")[0]?.textContent?.startsWith(TITRE), true);
     assert.deepEqual(lu(pose), [
       { nom: "box/claude", ou: "box station", plafond: "3 cooks at once", capacites: ["code", "raisonnement"] },
-      { nom: "mac/claude", ou: "this workstation", plafond: "1 cook at once", capacites: ["navigateur-headless", "chrome-connecté"] },
+      { nom: "mac/claude", ou: "remote", plafond: "1 cook at once", capacites: ["navigateur-headless", "chrome-connecté"] },
       { nom: "pc/claude", ou: "remote", plafond: "2 cooks at once", capacites: ["code"] },
     ]);
     // Les mots sont distincts, et la peau les distingue aussi.
     assert.equal(new Set(Object.values(OU)).size, 3);
     const lignes = pose.dessous("li").filter(({ className }) => className === "station-declaree");
-    assert.deepEqual(lignes.map(({ dataset }) => dataset.ou), ["box", "poste", "ailleurs"]);
+    assert.deepEqual(lignes.map(({ dataset }) => dataset.ou), ["box", "ailleurs", "ailleurs"]);
     // Le survol dit où : la box par le nom que le chef lui connaît, ce poste qui tire son travail de la box.
     const survols = lignes.map((ligne) => ligne.dessous("span").find(({ className }) => className === "ou")?.title ?? "");
     assert.match(survols[0] ?? "", /^it runs on the project.s main station$/);
-    assert.match(survols[1] ?? "", /this computer plays it/);
+    assert.match(survols[1] ?? "", /another workstation/);
     assert.match(survols[2] ?? "", /another workstation/);
     // Sous les stations, au-dessus des tickets de l'heure.
     const ids = vue.element("rail").children.map(({ id }) => id);
@@ -146,27 +143,17 @@ describe("ce que chaque station déclarée fournit, sur l'onglet Cooks", () => {
     assert.equal(lu(bloc(vue) ?? assert.fail("plus de bloc")).length, 3);
   });
 
-  test("un poste Windows : pc/claude joué ici est « this workstation », mac/claude devient « remote »", async () => {
-    const vue = await ouvrir(DECLAREES, { ...PROJET, stations: ["pc/claude"] });
-    assert.deepEqual(lu(bloc(vue) ?? assert.fail("rien sur Cooks")).map(({ nom, ou }) => [nom, ou]), [
-      ["box/claude", "box station"],
-      ["mac/claude", "remote"],
-      ["pc/claude", "this workstation"],
-    ]);
-  });
-
   test("le module se lit seul, sur un faux document", () => {
     const doc = { createElement: (balise: string) => new Faux(balise) };
-    const pose = poserLesDeclarees(doc as never, { stations: DECLAREES, jouees: ["mac/claude"], hote: "parade-box" }) as unknown as Faux;
+    const pose = poserLesDeclarees(doc as never, { stations: DECLAREES }) as unknown as Faux;
     assert.deepEqual(lu(pose).map(({ plafond }) => plafond), [plafondDit(3), plafondDit(1), plafondDit(2)]);
     // Une station sans capacité le dit.
     const sans = poserLesDeclarees(doc as never, { stations: { ...DECLAREES, declarees: [{ nom: "box/claude", moteur: "claude", fournit: [], cooks: 1, distante: false }] } }) as unknown as Faux;
     assert.deepEqual(lu(sans)[0]?.capacites, ["provides nothing"]);
     // La cuisine tourne sur ce poste : ses stations de la box tournent ici.
     const [box, mac] = DECLAREES.declarees;
-    assert.equal(ouTourne(box ?? assert.fail(), { jouees: [], ici: true }), "poste");
-    assert.equal(ouTourne(box ?? assert.fail(), { jouees: [], ici: false }), "box");
-    assert.equal(ouTourne(mac ?? assert.fail(), { jouees: [], ici: false }), "ailleurs");
-    assert.equal(ouTourne(mac ?? assert.fail(), { jouees: ["mac/claude"], ici: false }), "poste");
+    assert.equal(ouTourne(box ?? assert.fail(), { ici: true }), "poste");
+    assert.equal(ouTourne(box ?? assert.fail(), { ici: false }), "box");
+    assert.equal(ouTourne(mac ?? assert.fail(), { ici: false }), "ailleurs");
   });
 });

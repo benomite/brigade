@@ -6,7 +6,6 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../../src/allumage.ts";
 import { pourLaBarre } from "../../src/barre.ts";
-import { BOUTONS } from "../../src/boutons.ts";
 import { EXEMPLE, type Projet } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
@@ -18,9 +17,9 @@ import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import type { Terminal } from "../../src/terminaux.ts";
 import { ANNULER, LANCER } from "../../src/vue/second/geste.js";
 import { type Jouee, jouerLaVue, repos } from "../aides/fausse-vue.ts";
-import { AVEC_GUILLEMETS, bouton, CHOIX, choix, cliquer, commandes, confirmation, ecrits, geste, LIGNE_SSH, MERGER, publier, reponse, reponses, SSH_SOUS_BANG, sous } from "./aides.ts";
+import { AVEC_GUILLEMETS, bouton, CHOIX, choix, cliquer, commandes, confirmation, ecrits, geste, LIGNE_STATION, MERGER, publier, reponse, reponses, STATION_SOUS_BANG, sous } from "./aides.ts";
 
-const PARADE: Projet = { nom: "parade", dossier: "C:\\Users\\chef\\parade", box: { hote: "box" } };
+const PARADE: Projet = { nom: "parade", dossier: "C:\\Users\\chef\\parade" };
 const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "second · claude", note: "new session", arrete: false };
 const SHELL: Terminal = { id: 2, projet: "parade", genre: "shell", titre: "PowerShell 1", note: "", arrete: false };
 const ENTREE = "\r";
@@ -28,12 +27,11 @@ const ENTREE = "\r";
 async function ouvrir(): Promise<Jouee> {
   const vue = await jouerLaVue({
     demarrage: () => ({
-      configuration: pourLaBarre({ chemin: "C:\\Users\\chef\\AppData\\Roaming\\brigade\\app.json", projets: [PARADE], hotes: ["box"] }),
+      configuration: pourLaBarre({ chemin: "C:\\Users\\chef\\AppData\\Roaming\\brigade\\app.json", projets: [PARADE] }, () => true),
       palette: PALETTE,
       exemple: EXEMPLE,
       onglets: ONGLETS,
       rubriques: RUBRIQUES,
-      boutons: BOUTONS,
       gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
       banniere: BANNIERE,
       calibrage: { modeles: MODELES, efforts: EFFORTS },
@@ -127,8 +125,8 @@ describe("sous Windows : le geste que le second nomme", () => {
     assert.equal(sous(vue).hidden, true);
   });
 
-  test("une ligne `ssh … brigade …` — nue ou sous le `!` du second — part telle que publiée, ses guillemets intacts", async () => {
-    for (const [rang, ligne] of [LIGNE_SSH, SSH_SOUS_BANG].entries()) {
+  test("une ligne du geste de la station — nue ou sous le `!` du second — part telle que publiée, ses guillemets intacts", async () => {
+    for (const [rang, ligne] of [LIGNE_STATION, STATION_SOUS_BANG].entries()) {
       const vue = await ouvrir();
       await publier(vue, "parade", geste(`g-s${rang}`, ligne));
       assert.deepEqual(commandes(sous(vue)), [ligne]);
@@ -169,9 +167,9 @@ describe("sous Windows : le geste que le second nomme", () => {
     await publier(vue, "parade", MERGER);
     await cliquer(bouton(sous(vue), "geste"));
     const ancien = reponse(sous(vue), LANCER);
-    await publier(vue, "parade", geste("g-2", SSH_SOUS_BANG));
+    await publier(vue, "parade", geste("g-2", STATION_SOUS_BANG));
     assert.equal(confirmation(sous(vue)), undefined);
-    assert.deepEqual(commandes(sous(vue)), [SSH_SOUS_BANG]);
+    assert.deepEqual(commandes(sous(vue)), [STATION_SOUS_BANG]);
     await cliquer(ancien);
     assert.deepEqual(ecrits(vue), []);
     // Des choix à la place, puis rien : plus de geste.

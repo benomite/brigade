@@ -10,7 +10,6 @@ import { blocage as duRuntime } from "../../../../runtime/src/installation/bloca
 import type { Accueil } from "../../../src/accueil.ts";
 import { ALLUMAGE } from "../../../src/allumage.ts";
 import { pourLaBarre } from "../../../src/barre.ts";
-import { BOUTONS } from "../../../src/boutons.ts";
 import { EXEMPLE, type Projet } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../../src/cuisine.ts";
@@ -174,12 +173,11 @@ describe("sur la page du projet", () => {
     return { a: A, projets: [projet], recommandee: "g1", avertissements: {}, machines: { g1: machineProposee(BOX), g2: machineProposee(MAC) }, calibrage: calibrageRecommande([]) };
   };
   const demarrage = (projetsDesStations: VuDesProjets) => ({
-    configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE] }),
+    configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE] }, () => true),
     palette: PALETTE,
     exemple: EXEMPLE,
     onglets: ONGLETS,
     rubriques: RUBRIQUES,
-    boutons: BOUTONS,
     gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
     banniere: BANNIERE,
     calibrage: { modeles: MODELES, efforts: EFFORTS },

@@ -1,6 +1,6 @@
 // @ts-check
 // Ce que l'onglet Second dit quand le second ne part pas, ou part sans tous ses outils (ticket 1435, épique 1427) : le
-// runtime vérifie claude, gh, git et ssh avant de le lancer (ticket 1433), et l'app relaie ce qu'il en dit
+// runtime vérifie claude, gh et git avant de le lancer (ticket 1433), et l'app relaie ce qu'il en dit
 // (terminaux.ts, `empeche` et `manque`). Sa raison, en une phrase, est la note du second ; ici, sous elle, chaque outil
 // qui manque, nommé, et le bouton de sa page, qui porte le geste. Pourquoi le second en a besoin et la phrase qui dit
 // comment l'obtenir sont au survol : jamais une commande à recopier à plat (règles du ticket 830). Un second empêché a son

@@ -170,10 +170,10 @@ follow you from one device to another".
 | Setting | Key in `app.json` | Why it stays |
 |---|---|---|
 | A project's folder on this machine | `projets[].dossier` | a path that exists on this machine only |
-| A project's ssh host | `projets[].hote` | the name this machine's `ssh` knows the box by |
-| The boxes you declared | `hotes` | the ssh hosts this machine reaches |
-| The stations this machine plays for a project | `projets[].stations` | what this machine takes on |
 | Ordinary tickets and the cook limit of this machine's station | `projets[].ordinaires`, `projets[].limiteCooks` | decisions this machine makes for itself (§2) |
+
+The app no longer reads or writes any key naming an ssh host, a list of boxes or the stations this machine plays: a file
+written by an older version that still carries them is read without error, and those keys are ignored.
 
 **A collaborator never sees your preferences.** Someone who shares a project and clones its
 repository runs the app with their own `app.json` and reads their own gist: your colors, your order

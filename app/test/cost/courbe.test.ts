@@ -6,7 +6,6 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { ALLUMAGE } from "../../src/allumage.ts";
 import { pourLaBarre } from "../../src/barre.ts";
-import { BOUTONS } from "../../src/boutons.ts";
 import { EXEMPLE, type Projet } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
@@ -39,7 +38,7 @@ const station = (jours: string[] = []) =>
     "  seuil-ticket        non posée — 2026-10-01 : 9 tokens n'est pas un jour du bloc",
   ].join("\n");
 const lu = (projet: string, texte: string) => ({ projet, demande: 0, a: A, sorties: [{ commande: "station", texte }] });
-const injoignable = (projet: string) => ({ projet, demande: 0, a: A, erreur: "ssh: connect to host box port 22: Connection refused", atteinte: false, cas: "ssh-en-echec" });
+const injoignable = (projet: string) => ({ projet, demande: 0, a: A, erreur: "connection refused", atteinte: false, cas: null });
 
 const PARADE_JOURS = station([`2026-10-14 : 6 lancements · 214 tours · ${n("1 284 530")} tokens`, "2026-10-15 : rien", `2026-10-16 : 19 lancements, dont 5 relectures · 802 tours · ${n("4 912 044")} tokens`]);
 const CANTINE_JOURS = station([`2026-10-15 : 1 lancement · 1 tour · 1 token`, `2026-10-16 : 2 lancements · 61 tours · ${n("318 772")} tokens`]);
@@ -139,7 +138,7 @@ describe("la courbe posée", () => {
     const pose = poser(new Map<string, unknown>([["parade", lu("parade", PARADE_JOURS)], ["cantine", injoignable("cantine")]]));
     assert.equal(pose.dessous("path").length, 2);
     assert.deepEqual(legende(pose), [["parade"], ["cantine", NON_COMMUNIQUE]]);
-    assert.doesNotMatch(pose.textContent, /ssh|refused/);
+    assert.doesNotMatch(pose.textContent, /refused/);
   });
 
   test("aucune box ne communique sa série : la zone dit « not communicated », et rien n'est tracé", () => {
@@ -163,18 +162,17 @@ describe("la courbe posée", () => {
 });
 
 describe("la courbe, sur la page des coûts de l'app", () => {
-  const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", box: { hote: "box" }, couleurs: { onglet: "#f2994a", accent: "#f2994a" } };
-  const CANTINE: Projet = { nom: "cantine", dossier: "/tmp/cantine", box: { hote: "box" } };
+  const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", couleurs: { onglet: "#f2994a", accent: "#f2994a" } };
+  const CANTINE: Projet = { nom: "cantine", dossier: "/tmp/cantine" };
 
   async function ouvrirLaPage(): Promise<Jouee> {
     const vue = await jouerLaVue({
       demarrage: () => ({
-        configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE, CANTINE], hotes: ["box"] }),
+        configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE, CANTINE] }, () => true),
         palette: PALETTE,
         exemple: EXEMPLE,
         onglets: ONGLETS,
         rubriques: RUBRIQUES,
-        boutons: BOUTONS,
         gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
         banniere: BANNIERE,
         calibrage: { modeles: MODELES, efforts: EFFORTS },

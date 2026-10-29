@@ -1,19 +1,22 @@
 // @ts-check
 // Le geste que le second nomme, sous son terminal (ticket 1521, épique 1518) : quand ce que le chef doit faire est une
 // commande — merger, lancer une pass —, le second la publie par son canal (runtime/src/second-propositions/), et
-// l'onglet du second la montre sur un bouton, à la place des choix (second/choix.js) : la commande exacte, entière, ni
-// coupée, ni rognée, ni cachée. Un clic ouvre une confirmation qui la redit entière ; « run it » la tape dans le
+// l'onglet du second la montre sur un bouton, à la place des choix (second/choix.js) : un bouton dit dans les mots du
+// chef, jamais la ligne de commande à l'écran. La commande exacte, entière, ni coupée ni rognée, se lit au survol du
+// bouton, puis dans l'aide repliée de la confirmation qu'un clic ouvre ; « run it » la tape dans le
 // terminal du second, puis Entrée, comme le chef l'aurait tapée, et « cancel » ne fait rien. Le second ne lance
 // jamais rien : seul le « run it » du chef écrit dans le terminal. Lancé, ou le second passé à autre chose, le bouton
 // part. Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
-import { confirmationDeGeste, survol } from "../briques.js";
+import { confirmationDeGeste, replie, survol } from "../briques.js";
 
 /** @typedef {import("../briques.js").Fabrique} Fabrique */
 /** @typedef {import("./choix.js").Geste} Geste */
 
 export const ATTENDU = "The second asks you to run a command";
-export const AIDE = "a click shows the command again: it runs in the second's terminal, in your name, only once you confirm — you can also type it there yourself";
+export const AIDE = "a click asks you to confirm: the command runs in the second's terminal, in your name, only once you do — hover the button to read it";
+export const BOUTON = "Run the second's command…";
+export const VOIR = "the exact command";
 export const TITRE = "Run this command in the second's terminal, in your name?";
 export const LANCER = "run it";
 export const ANNULER = "cancel";
@@ -58,15 +61,15 @@ export function poserGesteDuSecond(doc, proposition, { ouverte, basculer, annule
   const bouton = cree(doc, "button");
   bouton.type = "button";
   bouton.className = "geste";
-  bouton.title = "shows the command again first: nothing runs before your “run it”";
   bouton.ariaExpanded = String(ouverte);
-  bouton.append(commandeEntiere(doc, "span", proposition.command));
+  bouton.textContent = BOUTON;
   bouton.addEventListener("click", basculer);
-  racine.append(attendu, bouton);
+  // La commande exacte, entière, au survol du bouton : nothing runs before the chef's “run it”.
+  racine.append(attendu, survol(doc, proposition.command, bouton));
   if (ouverte) {
     const confirmation = confirmationDeGeste(doc, { titre: TITRE, oui: LANCER, non: ANNULER }, { oui: lancer, non: annuler });
-    // La commande redite entière, sous la question, avant « run it ».
-    confirmation.children[0]?.after(commandeEntiere(doc, "p", proposition.command));
+    // La commande redite entière, dans une aide repliée sous la question, avant « run it ».
+    confirmation.children[0]?.after(replie(doc, { titre: VOIR, resume: "what runs, word for word" }, [commandeEntiere(doc, "p", proposition.command)]));
     racine.append(confirmation);
   }
   return racine;

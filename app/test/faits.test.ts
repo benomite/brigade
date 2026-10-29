@@ -12,7 +12,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
-import type { Lecture } from "../src/box.ts";
+import { GESTE, type Lecture } from "../src/box.ts";
 import { mettreAPart } from "../src/attend.ts";
 import { SANS_DECISION } from "../src/decision.ts";
 import { heureHM } from "../src/format.ts";
@@ -315,7 +315,7 @@ describe("les faits que l'app dessine", () => {
   });
 
   test("une commande en échec — un runtime d'avant `faits` — reste l'échec que la veille a rendu, sous un titre qui dit que la box a été jointe", () => {
-    const echec: Lecture = { projet: "brigade", demande: 4, a: "2026-10-12T10:04:12.000Z", erreur: '$ ssh … brigade brigade facts\nnpm error Missing script: "facts"\n→ code de sortie 1', atteinte: true, cas: null };
+    const echec: Lecture = { projet: "brigade", demande: 4, a: "2026-10-12T10:04:12.000Z", erreur: '$ node … geste.ts brigade facts\nnpm error Missing script: "facts"\n→ code de sortie 1', atteinte: true, cas: null };
 
     assert.deepEqual(dessiner(echec), { ...echec, titre: "REACHED, BUT `facts` DID NOT ANSWER" });
   });
@@ -335,13 +335,12 @@ describe("les faits que l'app dessine", () => {
       // Les mots de l'en-tête que `rendre` pose sous `status`.
       assert.ok(vue.includes(`\`${titre} — tried at `), `« ${titre} » n'est plus l'en-tête de la vue`);
     }
-    assert.equal(titreDEchec({ erreur: "…", atteinte: false, cas: "ssh-en-echec" }), "NOT REACHED");
     assert.equal(titreDEchec({ erreur: "…", atteinte: false, cas: null }), "NOT REACHED");
     assert.ok(vue.includes("`NOT REACHED — tried at "));
   });
 
-  test("une box pas jointe est dite pas jointe, avec ce que `ssh` a rendu", () => {
-    const echec: Lecture = { projet: "brigade", demande: 4, a: "2026-10-12T10:04:12.000Z", erreur: "ssh: connect to host box port 22: Operation timed out\n→ code de sortie 255", atteinte: false, cas: "ssh-en-echec" };
+  test("une station pas jointe est dite pas jointe, avec ce que son lancement a rendu", () => {
+    const echec: Lecture = { projet: "brigade", demande: 4, a: "2026-10-12T10:04:12.000Z", erreur: "spawn node ENOENT", atteinte: false, cas: null };
 
     assert.deepEqual(dessiner(echec), { ...echec, titre: "NOT REACHED" });
   });
@@ -409,7 +408,7 @@ describe("la carte de projet", () => {
     assert.ok("tableau" in recue);
     const { rail: sansEux, ...reste } = recue.tableau;
     const { rail: avecEux, ...attendu } = tableau(FAITS);
-    assert.deepEqual(reste, { ...attendu, cooks: { enCours: [], vide: "cooks running: not read — this station's runtime does not give them in `facts` yet. This is not “no cook”: `ssh <hote> brigade <nom> station` shows them" } });
+    assert.deepEqual(reste, { ...attendu, cooks: { enCours: [], vide: "cooks running: not read — this station's runtime does not give them in `facts` yet. This is not “no cook”: the station's “station” step shows them" } });
     // Sa carte du rail non plus ne dit pas qui le tient : c'est écrit, pas mis à « personne ».
     assert.deepEqual(rangs(sansEux), rangs(avecEux));
     assert.deepEqual(cartes(sansEux).find(({ ticket }) => ticket === 14)?.dit.map(({ libelle }) => libelle), ["right now"]);
@@ -454,7 +453,7 @@ describe("un ticket s'ouvre sur son issue", () => {
 
   test("seule une adresse https s'ouvre : ce que la box rend n'est pas lancé comme un fichier ou un programme", () => {
     const tenus = tenirFaits();
-    const urls = ["file:///etc/passwd", "javascript:alert(1)", "http://github.com/benomite/brigade/issues/3", "ssh://box", "", "pas une adresse", "/Applications/Calculator.app"];
+    const urls = ["file:///etc/passwd", "javascript:alert(1)", "http://github.com/benomite/brigade/issues/3", "ftp://box", "", "pas une adresse", "/Applications/Calculator.app"];
     tenus.recevoir(lue(rendus({ ...SANS_LIVRES, rail: urls.map((url, rang) => ({ ticket: rang, etat: "pris", titre: "", url })) })));
 
     for (const rang of urls.keys()) assert.equal(tenus.adresse("brigade", rang), undefined, String(urls[rang]));
@@ -867,7 +866,7 @@ describe("le bloc `attend` tenu à côté des faits", () => {
     assert.deepEqual(recue.tableau.rail.colonnes[1]?.cartes[0]?.dit.map(({ libelle, valeur }) => [libelle, valeur]).slice(1, 4), [["taken by", "box/claude"], ["since", "12 min"], ["lease", "bail encore 18 min"]]);
     // Des faits relus ensuite se dessinent avec lui ; raté, il n'en reste rien.
     assert.deepEqual(tenus.recevoir(lue(rendus({ ...SANS_LIVRES, rail: RAIL }))), recue);
-    const apres = tenus.attendre(mettreAPart({ projet: "brigade", demande: 9, a: BLOC.a, erreur: "ssh: connect to host box port 22: Connection refused", atteinte: false, cas: null }));
+    const apres = tenus.attendre(mettreAPart({ projet: "brigade", demande: 9, a: BLOC.a, erreur: "spawn node ENOENT", atteinte: false, cas: null }));
     assert.deepEqual(apres, dessiner(lue(rendus({ ...SANS_LIVRES, rail: RAIL }))));
     // Et un projet dont `status` n'est plus lu le lâche, comme son bloc.
     tenus.attendre(mettreAPart(status(texte)));
@@ -883,7 +882,7 @@ describe("le bloc `attend` tenu à côté des faits", () => {
   });
 
   test("un `status` raté, ou sans bord, retire le bloc d'avant : sur une box qui ne donne pas `attend` dans `faits`, T'attend n'est plus lue, et les tickets retournent dans leurs colonnes", () => {
-    for (const sans of [status("cuisine    ouverte\n"), { projet: "brigade", demande: 9, a: BLOC.a, erreur: "ssh: connect to host box port 22: Connection refused", atteinte: false, cas: null }] satisfies Lecture[]) {
+    for (const sans of [status("cuisine    ouverte\n"), { projet: "brigade", demande: 9, a: BLOC.a, erreur: "spawn node ENOENT", atteinte: false, cas: null }] satisfies Lecture[]) {
       const tenus = tenirFaits();
       tenus.recevoir(lue(rendus({ ...SANS_ATTEND_NI_LIVRES, rail: RAIL })));
       tenus.attendre(mettreAPart(status(BLOC.bloc)));
@@ -932,10 +931,11 @@ describe("la bannière d'arrêt", () => {
   });
 
   test("son geste est celui du socle qui la relance — la commande de la doc, confirmée avant de partir", () => {
-    const ecrit = commandeDuGeste(BANNIERE.bouton, { nom: "parade", dossier: "/projets/parade", box: { hote: "box" } });
+    const cuisine = { locale: { node: "node", runtime: "/runtime", racine: "/station", env: {} } };
+    const ecrit = commandeDuGeste(BANNIERE.bouton, { nom: "parade", dossier: "/projets/parade" }, undefined, cuisine);
 
     assert.ok(CONFIRMES.includes(BANNIERE.bouton));
-    assert.deepEqual(ecrit, { commande: "ssh box brigade parade guardrails resume" });
+    assert.deepEqual(ecrit, { commande: `(cd '/runtime' && BRIGADE_STATION_DIR='/station' node ${GESTE} parade guardrails resume)` });
   });
 
   test("ce qu'elle dit de l'arrêt est ce que docs/runtime/ en dit", () => {

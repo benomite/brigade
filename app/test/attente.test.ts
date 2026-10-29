@@ -16,7 +16,7 @@ import { ALLUMAGE } from "../src/allumage.ts";
 import { commandeDAttente, ecrireAttente, GESTES_D_ATTENTE, relanceProposee } from "../src/attente.ts";
 import { mettreAPart } from "../src/attend.ts";
 import { pourLaBarre } from "../src/barre.ts";
-import { BOUTONS } from "../src/boutons.ts";
+import { GESTE, type Cuisine } from "../src/box.ts";
 import { EXEMPLE, type Projet } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
@@ -29,27 +29,27 @@ import type { Terminal } from "../src/terminaux.ts";
 import { type Faux, type Jouee, jouerLaVue, type Reponses, repos } from "./aides/fausse-vue.ts";
 
 const RACINE = join(import.meta.dirname, "../..");
-const PARADE: Projet = { nom: "parade", dossier: "/projets/parade", box: { hote: "box" } };
+const PARADE: Projet = { nom: "parade", dossier: "/projets/parade" };
 // Le jour du poste, fixé : la relance se borne d'après lui.
+const CUISINE: Cuisine = { locale: { node: "node", runtime: "/runtime", racine: "/station", env: {} } };
 const AUJOURDHUI = new Date(2026, 9, 15, 14, 30);
 
 // Ce que le shell lit d'une ligne : ses mots, un par un — joué par un vrai `sh`, qui n'exécute rien d'autre que `printf`.
 const mots = (ligne: string): string[] => execFileSync("sh", ["-c", `printf '%s\\0' ${ligne}`], { encoding: "utf8" }).split("\0").slice(0, -1);
-// Ce que la box reçoit d'une commande de poste : le shell du Mac la découpe pour `ssh`, qui joint ce
-// qui suit l'hôte par des espaces ; le shell de la box le découpe à son tour (docs/runtime/, « Piloter »).
-function recuParLaBox(commande: string): string[] {
-  const [ssh, hote, ...suite] = mots(commande);
-  assert.deepEqual([ssh, hote], ["ssh", "box"]);
-  return mots(suite.join(" "));
+// Ce que le geste de la station reçoit d'une commande de poste : le shell du Mac la découpe, une seule fois.
+const DEBUT = `(cd '/runtime' && BRIGADE_STATION_DIR='/station' node ${GESTE} `;
+function recuParLeGeste(commande: string): string[] {
+  assert.ok(commande.startsWith(DEBUT) && commande.endsWith(")"), commande);
+  return mots(commande.slice(DEBUT.length, -1));
 }
 
 function ecrite(id: string, ticket: unknown, saisie?: unknown, projet: Projet = PARADE): string {
-  const ecrit = commandeDAttente(id, projet, ticket, saisie, AUJOURDHUI);
+  const ecrit = commandeDAttente(id, projet, ticket, saisie, AUJOURDHUI, CUISINE);
   assert.ok(ecrit !== undefined && "commande" in ecrit, `rien n'est écrit par « ${id} » : ${JSON.stringify(ecrit)}`);
   return ecrit.commande;
 }
 const refus = (id: string, ticket: unknown, saisie?: unknown) => {
-  const ecrit = commandeDAttente(id, PARADE, ticket, saisie, AUJOURDHUI);
+  const ecrit = commandeDAttente(id, PARADE, ticket, saisie, AUJOURDHUI, CUISINE);
   assert.ok(ecrit !== undefined && "refus" in ecrit, `« ${id} » écrit quelque chose : ${JSON.stringify(ecrit)}`);
   return ecrit.refus;
 };
@@ -78,17 +78,17 @@ describe("les gestes de WAITING écrivent la commande `waiting` du runtime — s
   });
 
   test("« resume » écrit la commande de poste, au caractère près, pour le ticket nommé ; « it arrived » n'en écrit aucune : il part sur le tableau de la cuisine (#1740)", () => {
-    assert.equal(ecrite("attente-reprendre", 8), "ssh box brigade parade waiting resume 8");
-    assert.equal(commandeDAttente("attente-arrivee", PARADE, 8), undefined);
+    assert.equal(ecrite("attente-reprendre", 8), `${DEBUT}parade waiting resume 8)`);
+    assert.equal(commandeDAttente("attente-arrivee", PARADE, 8, undefined, AUJOURDHUI, CUISINE), undefined);
   });
 
-  test("« waiting for… » écrit ce que le chef a rempli : la box reçoit chaque champ entier, en un argument, sans rien en exécuter", () => {
+  test("« waiting for… » écrit ce que le chef a rempli : le geste reçoit chaque champ entier, en un argument, sans rien en exécuter", () => {
     const saisie = { quoi: "  sa validation écrite du devis  ", qui: "le client", relance: "2026-10-22" };
-    assert.deepEqual(recuParLaBox(ecrite("attente-poser", 8, saisie)), ["brigade", "parade", "waiting", "set", "8", "--what", "sa validation écrite du devis", "--from", "le client", "--remind", "2026-10-22"]);
+    assert.deepEqual(recuParLeGeste(ecrite("attente-poser", 8, saisie)), ["parade", "waiting", "set", "8", "--what", "sa validation écrite du devis", "--from", "le client", "--remind", "2026-10-22"]);
 
     // Ce qu'un shell lirait autrement : des apostrophes, des guillemets, `$(…)`, `;`, des étoiles, un tiret en tête.
     for (const texte of ["l'accord d'Anne", `"le" devis`, "$(reboot)", "`id`; sudo reboot", "* et ?", "--remind demain", "a\\b & c | d > e"]) {
-      assert.deepEqual(recuParLaBox(ecrite("attente-poser", 12, { quoi: texte, qui: texte, relance: "2026-11-01" })).slice(5), ["--what", texte, "--from", texte, "--remind", "2026-11-01"], texte);
+      assert.deepEqual(recuParLeGeste(ecrite("attente-poser", 12, { quoi: texte, qui: texte, relance: "2026-11-01" })).slice(4), ["--what", texte, "--from", texte, "--remind", "2026-11-01"], texte);
     }
   });
 
@@ -101,9 +101,9 @@ describe("les gestes de WAITING écrivent la commande `waiting` du runtime — s
     for (const relance of ["2026-10-15", "2026-10-01"]) assert.match(refus("attente-poser", 8, { ...plein, relance }), /is not after today/, relance);
     assert.match(refus("attente-poser", 8, { ...plein, quoi: "une ligne\npuis une autre" }), /control character/);
     for (const ticket of [0, -3, 1.5, "8", null, undefined]) assert.match(refus("attente-reprendre", ticket), /names no ticket/, String(ticket));
-    // Un geste inconnu, ou un projet sans box : rien à écrire.
-    assert.equal(commandeDAttente("waiting set 8", PARADE, 8), undefined);
-    assert.equal(commandeDAttente("attente-reprendre", { nom: "seul", dossier: "/tmp" }, 8), undefined);
+    // Un geste inconnu, ou une cuisine qui n'est pas dite : rien à écrire.
+    assert.equal(commandeDAttente("waiting set 8", PARADE, 8, undefined, AUJOURDHUI, CUISINE), undefined);
+    assert.equal(commandeDAttente("attente-reprendre", PARADE, 8, undefined, AUJOURDHUI, undefined), undefined);
   });
 
   test("le geste part dans le second, préfixé du `!` qui le lance — ou dit pourquoi rien n'est parti", async () => {
@@ -111,10 +111,10 @@ describe("les gestes de WAITING écrivent la commande `waiting` du runtime — s
     const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "second", note: "", arrete: false };
     const terminaux = { envoyer: (_: Projet, commande: string) => (envoyes.push(commande), Promise.resolve(SECOND)) };
 
-    assert.deepEqual(await ecrireAttente(terminaux, "attente-reprendre", PARADE, 8), SECOND);
-    assert.deepEqual(envoyes, ["!ssh box brigade parade waiting resume 8"]);
-    assert.deepEqual(ecrireAttente(terminaux, "attente-poser", PARADE, 8, { quoi: "", qui: "x", relance: "2026-10-22" }, AUJOURDHUI), { refus: "nothing is written: say what it waits for, in your words" });
-    assert.match((ecrireAttente(terminaux, "attente-reprendre", { ...PARADE, refus: "illisible" }, 8) as { refus: string }).refus, /does not open — illisible/);
+    assert.deepEqual(await ecrireAttente(terminaux, "attente-reprendre", PARADE, 8, undefined, AUJOURDHUI, CUISINE), SECOND);
+    assert.deepEqual(envoyes, [`!${DEBUT}parade waiting resume 8)`]);
+    assert.deepEqual(ecrireAttente(terminaux, "attente-poser", PARADE, 8, { quoi: "", qui: "x", relance: "2026-10-22" }, AUJOURDHUI, CUISINE), { refus: "nothing is written: say what it waits for, in your words" });
+    assert.match((ecrireAttente(terminaux, "attente-reprendre", { ...PARADE, refus: "illisible" }, 8, undefined, AUJOURDHUI, CUISINE) as { refus: string }).refus, /does not open — illisible/);
     assert.equal(envoyes.length, 1);
   });
 });
@@ -250,12 +250,11 @@ describe("le rail en TODO et WAITING", () => {
 
 const A = "2026-10-15T10:04:20.000Z";
 const demarrage = () => ({
-  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade", box: { hote: "box" } }], hotes: ["box"] }),
+  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }] }, () => true),
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  boutons: BOUTONS,
   gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES, attente: GESTES_D_ATTENTE },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },

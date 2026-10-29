@@ -1,6 +1,6 @@
 // Les téléphones d'une station, côté process principal (#1598) : la station visée — ici, ou par sa machine —, la
 // commande `phones …` que l'app y lance, ce qu'elle en lit, et ce qu'un échec dit à l'écran — en une ligne et son
-// survol, sans jamais une commande, ni `ssh`, ni `sudo`.
+// survol, sans jamais une commande, ni `sudo`.
 import assert from "node:assert/strict";
 import type { ExecFileException } from "node:child_process";
 import { describe, test } from "node:test";
@@ -11,15 +11,15 @@ import { cibleDeLaStation, etatDuCode, refusDe, revoquerUnTelephone, telephonesA
 const BOX: StationVue = { id: "g1", nom: "box", machine: "Debian 12", etat: "en-ligne", ligne: "online", pannes: [], dit: "online", version: "1.6.0", projets: ["parade", "cantine"], max: null };
 const LOCALE: Locale = { node: "/usr/bin/node", runtime: "/opt/brigade/runtime", racine: "/home/chef/.config/brigade/station", env: {} };
 const AILLEURS = { gist: "g9", locale: LOCALE };
-const CIBLE: Cible = { lu: { nom: "parade", cuisine: { hote: "box" } } };
+const CIBLE: Cible = { lu: { nom: "parade", cuisine: { locale: LOCALE } } };
 
-// Ce que la station rendrait : sa sortie, ou son code de sortie — `ssh` qui n'a pas joint (255), le geste qui refuse (68)…
-const sortie = (texte: string): Rendu => ({ lance: "$ ssh -- box brigade parade phones code", erreur: null, sortie: texte, erreurs: "" });
+// Ce que la station rendrait : sa sortie, ou son code de sortie — le geste qui refuse (68)…
+const sortie = (texte: string): Rendu => ({ lance: "$ node geste.ts parade phones code", erreur: null, sortie: texte, erreurs: "" });
 const echec = (code: number | string | undefined, killed = false): Rendu => ({
-  lance: "$ ssh -o BatchMode=yes -- box brigade parade phones code",
+  lance: "$ node geste.ts parade phones code",
   erreur: Object.assign(new Error("Command failed"), { code, killed }) as ExecFileException,
   sortie: "",
-  erreurs: "ssh: connect to host box port 22: Connection refused\nsudo: a password is required\n",
+  erreurs: "geste: cannot read the station\nsudo: a password is required\n",
 });
 function lanceur(rendu: Rendu) {
   const lancees: { lu: Lu; commande: string }[] = [];
@@ -33,19 +33,23 @@ function lanceur(rendu: Rendu) {
 }
 
 // Rien de ce que l'écran montre — ni la ligne, ni son survol — ne dit une commande.
-const COMMANDE = /\bssh\b|\bsudo\b|\$ |brigade [a-z]+ phones|--/i;
+const COMMANDE = /\bsudo\b|\$ |brigade [a-z]+ phones|--/i;
 function sansCommande(refus: Refus) {
   assert.doesNotMatch(refus.refus, COMMANDE);
   assert.doesNotMatch(refus.detail, COMMANDE);
 }
 
 describe("la station visée", () => {
-  test("une station d'ailleurs se joint par sa machine, au nom du premier projet qu'elle porte", () => {
-    assert.deepEqual(cibleDeLaStation(BOX, AILLEURS), { lu: { nom: "parade", cuisine: { hote: "box" } } });
-    assert.deepEqual(cibleDeLaStation({ ...BOX, nom: "atelier/claude" }, AILLEURS), { lu: { nom: "parade", cuisine: { hote: "atelier" } } });
+  test("une station d'une autre machine ne se joint pas d'ici : rien ne part, une ligne dit d'ouvrir l'app sur son ordinateur", () => {
+    const cible = cibleDeLaStation(BOX, AILLEURS);
+    assert.ok("refus" in cible);
+    assert.equal(cible.refus, "box can only pair phones from the computer it runs on.");
+    sansCommande(cible);
+    // Sans station locale connue, aucune ne se lance non plus.
+    assert.ok("refus" in cibleDeLaStation(BOX, { gist: "g1", locale: undefined }));
   });
 
-  test("la station de cet ordinateur se lance ici, sans ssh", () => {
+  test("la station de cet ordinateur se lance ici", () => {
     assert.deepEqual(cibleDeLaStation(BOX, { gist: "g1", locale: LOCALE }), { lu: { nom: "parade", cuisine: { locale: LOCALE } } });
   });
 
@@ -63,7 +67,7 @@ describe("un code neuf", () => {
     const qr = "brigade://pair?code=7KQ2-M9XD&url=https%3A%2F%2Fbox.tail1234.ts.net";
     const { lancer, lancees } = lanceur(sortie(JSON.stringify({ code: "7KQ2-M9XD", expiresAt: "2026-10-24T12:15:00.000Z", qr, url: "https://box.tail1234.ts.net" })));
     assert.deepEqual(await tirerUnCode(lancer, CIBLE, "box"), { tire: { code: "7KQ2-M9XD", expireLe: "2026-10-24T12:15:00.000Z", qr, adresse: "https://box.tail1234.ts.net" } });
-    assert.deepEqual(lancees, [{ lu: { nom: "parade", cuisine: { hote: "box" } }, commande: "phones code" }]);
+    assert.deepEqual(lancees, [{ lu: { nom: "parade", cuisine: { locale: LOCALE } }, commande: "phones code" }]);
   });
 
   test("une station qui ne connaît aucune adresse : le QR ne porte que le code", async () => {
@@ -91,9 +95,8 @@ describe("un code neuf", () => {
 
 describe("une station injoignable, ou qui refuse : une ligne à la place du code, jamais la commande ni sa sortie", () => {
   const cas: [string, Rendu, RegExp][] = [
-    ["ssh n'a pas joint la machine", echec(255), /^box did not answer: it may be off, or offline\.$/],
-    ["arrêté par le délai", echec(undefined, true), /^box did not answer/],
-    ["ssh introuvable", echec("ENOENT"), /^box did not answer/],
+    ["arrêté par le délai", echec(undefined, true), /^box did not answer: it may be off, or offline\.$/],
+    ["le node de la station ne se lance pas", echec("ENOENT"), /^box did not answer/],
     ["la station refuse cet ordinateur", echec(68), /^box refused: this computer is not allowed to manage its phones\.$/],
     ["la commande manque à la station", echec(127), /^box cannot pair phones yet: its version is too old\.$/],
     ["le projet n'y est plus", echec(65), /^box no longer carries the project/],
@@ -108,10 +111,10 @@ describe("une station injoignable, ou qui refuse : une ligne à la place du code
       sansCommande(refus);
     });
 
-  test("ici, un code 255 n'est pas celui d'un ssh", () => {
+  test("un code 255 est un refus comme un autre, et l'absence de réponse se dit sans code", () => {
     const erreur = Object.assign(new Error("x"), { code: 255 }) as ExecFileException;
-    assert.match(refusDe("macbook", erreur, true).refus, /^macbook refused the request/);
-    assert.match(refusDe("macbook", Object.assign(new Error("x"), { killed: true }) as ExecFileException, true).detail, /^This computer's station did not answer/);
+    assert.match(refusDe("macbook", erreur).refus, /^macbook refused the request/);
+    assert.match(refusDe("macbook", Object.assign(new Error("x"), { killed: true }) as ExecFileException).detail, /^This computer's station did not answer/);
   });
 });
 

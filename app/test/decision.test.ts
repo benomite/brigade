@@ -57,7 +57,7 @@ describe("l'attendu d'une décision", () => {
       for (const motif of motifs) {
         for (const pr of [null, PR]) {
           const { phrase } = attenduDe(decision(quoi, { motif, pr }));
-          assert.doesNotMatch(phrase, /`|ssh |brigade |https?:|à trancher|remontée/, `${quoi} ${motif} ${pr}`);
+          assert.doesNotMatch(phrase, /`|brigade |https?:|à trancher|remontée/, `${quoi} ${motif} ${pr}`);
           assert.match(phrase, /^[A-Z].*\.$/, `${quoi} ${motif}`);
         }
       }

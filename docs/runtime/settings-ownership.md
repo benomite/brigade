@@ -107,7 +107,6 @@ These are the `BRIGADE_*` variables the runtime reads from the service environme
 | `BRIGADE_CLAUDE_BIN` | The `claude` program the station runs (its **engine**) | station | What is installed on the machine |
 | `BRIGADE_GH_BIN` | The `gh` program | station | What is installed on the machine |
 | `BRIGADE_GIT_BIN` | The `git` program | station | What is installed on the machine |
-| `BRIGADE_SSH_BIN` | The `ssh` program | station | What is installed on the machine |
 | `BRIGADE_SYSTEMCTL_BIN` | The `systemctl` program | station | What is installed on the machine |
 | `BRIGADE_TAILSCALE_BIN` | The `tailscale` program | station | What is installed on the machine |
 | `BRIGADE_SANDBOX_BIN` | The sandbox program (bwrap) | station | What is installed on the machine |

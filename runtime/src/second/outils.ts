@@ -1,5 +1,5 @@
 // Les outils dont le second a besoin sur l'ordinateur du chef (#1433) : `claude`
-// — le second est une session de Claude Code —, `gh`, `git` et `ssh`, que ses
+// — le second est une session de Claude Code —, `gh` et `git`, que ses
 // commandes et l'app lancent par leur nom. Sur un PC neuf, il en manque souvent
 // un, et l'onglet du second ne doit pas rester vide sans dire lequel.
 //
@@ -13,7 +13,7 @@
 // là, avec le dossier à ajouter au PATH.
 //
 // La vérification rend toujours l'un de deux états, et ne lève pas :
-//   - `ready` : les quatre sont là — `tools`, chacun son `tool` et son `path` ;
+//   - `ready` : les trois sont là — `tools`, chacun son `tool` et son `path` ;
 //   - `missing` : `missing`, les noms de ceux qui manquent, `reason`, une phrase
 //     qui les nomme, et dans `tools`, pour chacun d'eux, `reason` — pourquoi le
 //     second en a besoin —, `install`, une phrase qui dit comment l'obtenir sur
@@ -24,15 +24,15 @@
 //
 //   node runtime/src/second/outils.ts
 //
-// qui rend cet état en une ligne JSON — code 0 quand les quatre sont là, 1 sinon.
-// `BRIGADE_CLAUDE_BIN`, `BRIGADE_GH_BIN`, `BRIGADE_GIT_BIN` et `BRIGADE_SSH_BIN`
+// qui rend cet état en une ligne JSON — code 0 quand les trois sont là, 1 sinon.
+// `BRIGADE_CLAUDE_BIN`, `BRIGADE_GH_BIN` et `BRIGADE_GIT_BIN`
 // nomment les programmes qui en tiennent lieu.
 import { accessSync, constants, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { posix, win32 } from "node:path";
 import { enProcess, Sortie, type Appel } from "../appel.ts";
 
-export const OUTILS = ["claude", "gh", "git", "ssh"] as const;
+export const OUTILS = ["claude", "gh", "git"] as const;
 export type Outil = (typeof OUTILS)[number];
 
 export type OutilVu =
@@ -49,8 +49,8 @@ export type OptionsDesOutils = {
   // Un fichier que ce compte peut lancer est-il à ce chemin ?
   existe?: (chemin: string) => boolean;
   // Le programme qui tient lieu d'un outil : un nom cherché dans le PATH, ou un
-  // chemin — ce que nomment `BRIGADE_CLAUDE_BIN`, `BRIGADE_GH_BIN`,
-  // `BRIGADE_GIT_BIN` et `BRIGADE_SSH_BIN`. Par défaut, le nom de l'outil.
+  // chemin — ce que nomment `BRIGADE_CLAUDE_BIN`, `BRIGADE_GH_BIN` et
+  // `BRIGADE_GIT_BIN`. Par défaut, le nom de l'outil.
   programmes?: Partial<Record<Outil, string>>;
 };
 
@@ -119,7 +119,6 @@ function ouLInstallateurLePose(outil: Outil, plateforme: NodeJS.Platform, env: R
       claude: [win32.join(maison, ".local", "bin", "claude.exe"), ...sous("APPDATA", "npm", "claude.cmd")],
       gh: [...sous("ProgramFiles", "GitHub CLI", "gh.exe"), ...sous("LOCALAPPDATA", "Programs", "GitHub CLI", "gh.exe")],
       git: [...sous("ProgramFiles", "Git", "cmd", "git.exe"), ...sous("LOCALAPPDATA", "Programs", "Git", "cmd", "git.exe")],
-      ssh: sous("SystemRoot", "System32", "OpenSSH", "ssh.exe"),
     };
     return parOutil[outil];
   }
@@ -133,7 +132,6 @@ function besoin(outil: Outil, plateforme: NodeJS.Platform): string {
     claude: "the second is a Claude Code session",
     gh: "brigade reads your stations, their rails and your repositories on GitHub through it",
     git: plateforme === "win32" ? "a project's local copy is a git clone, and Claude Code runs its commands in the Git Bash that comes with Git for Windows" : "a project's local copy is a git clone",
-    ssh: "the shells and the rail of a project that cooks on a box reach that box through it",
   };
   return parOutil[outil];
 }
@@ -147,10 +145,6 @@ function commentLObtenir(outil: Outil, plateforme: NodeJS.Platform): { install: 
       claude: { install: `Install Claude Code by running \`irm https://claude.ai/install.ps1 | iex\` in PowerShell, ${RELANCER}.`, link: "https://code.claude.com/docs/en/setup" },
       gh: { install: `Install the GitHub CLI by running \`winget install --id GitHub.cli\` in a terminal, ${RELANCER}.`, link: "https://cli.github.com" },
       git: { install: `Install Git for Windows, which brings Git Bash, by running \`winget install --id Git.Git\` in a terminal, ${RELANCER}.`, link: "https://git-scm.com/download/win" },
-      ssh: {
-        install: `Turn on the OpenSSH client in Settings › System › Optional features, or run \`Add-WindowsCapability -Online -Name OpenSSH.Client~~~~0.0.1.0\` in an administrator PowerShell, ${RELANCER}.`,
-        link: "https://learn.microsoft.com/windows-server/administration/openssh/openssh_install_firstuse",
-      },
     };
     return parOutil[outil];
   }
@@ -159,7 +153,6 @@ function commentLObtenir(outil: Outil, plateforme: NodeJS.Platform): { install: 
       claude: { install: `Install Claude Code by running \`curl -fsSL https://claude.ai/install.sh | bash\` in a terminal, ${RELANCER}.`, link: "https://code.claude.com/docs/en/setup" },
       gh: { install: `Install the GitHub CLI by running \`brew install gh\` in a terminal, ${RELANCER}.`, link: "https://cli.github.com" },
       git: { install: `Install git with Apple's command line tools by running \`xcode-select --install\` in a terminal, ${RELANCER}.`, link: "https://git-scm.com/download/mac" },
-      ssh: { install: `Install the OpenSSH client by running \`brew install openssh\` in a terminal, ${RELANCER}.`, link: "https://www.openssh.com" },
     };
     return parOutil[outil];
   }
@@ -167,7 +160,6 @@ function commentLObtenir(outil: Outil, plateforme: NodeJS.Platform): { install: 
     claude: { install: `Install Claude Code by running \`curl -fsSL https://claude.ai/install.sh | bash\` in a terminal, ${RELANCER}.`, link: "https://code.claude.com/docs/en/setup" },
     gh: { install: `Install the GitHub CLI with your distribution's package manager (\`sudo apt install gh\` on Debian or Ubuntu), ${RELANCER}.`, link: "https://github.com/cli/cli#installation" },
     git: { install: `Install git with your distribution's package manager (\`sudo apt install git\` on Debian or Ubuntu), ${RELANCER}.`, link: "https://git-scm.com/download/linux" },
-    ssh: { install: `Install the OpenSSH client with your distribution's package manager (\`sudo apt install openssh-client\` on Debian or Ubuntu), ${RELANCER}.`, link: "https://www.openssh.com" },
   };
   return parOutil[outil];
 }
@@ -175,7 +167,7 @@ function commentLObtenir(outil: Outil, plateforme: NodeJS.Platform): { install: 
 // Le nom de cet ordinateur, tel que les phrases le disent.
 export const poste = (plateforme: NodeJS.Platform): string => (plateforme === "win32" ? "this PC" : plateforme === "darwin" ? "this Mac" : "this computer");
 
-// Une liste de noms, dite en anglais : « gh », « gh and ssh », « gh, git and ssh ».
+// Une liste de noms, dite en anglais : « gh », « gh and git », « claude, gh and git ».
 export const enListe = (noms: readonly string[]): string => (noms.length <= 1 ? (noms[0] ?? "") : `${noms.slice(0, -1).join(", ")} and ${noms.at(-1)}`);
 
 // Ce que cet ordinateur dit d'un outil.
@@ -208,7 +200,7 @@ export function voirLOutil(outil: Outil, options: OptionsDesOutils = {}): OutilV
   return { tool: outil, present: false, reason: `\`${outil}\` is not installed on ${ici}, and ${besoin(outil, plateforme)}.`, install, link };
 }
 
-// Les quatre outils du second, vus d'ici. Ne lève pas.
+// Les trois outils du second, vus d'ici. Ne lève pas.
 export function verifierLesOutils(options: OptionsDesOutils = {}): OutilsDuSecond {
   const plateforme = options.plateforme ?? process.platform;
   const tools = OUTILS.map((outil) => voirLOutil(outil, options));

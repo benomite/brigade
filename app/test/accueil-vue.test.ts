@@ -8,7 +8,6 @@ import { test } from "node:test";
 import { tenirAccueil, type Accueil } from "../src/accueil.ts";
 import { ALLUMAGE } from "../src/allumage.ts";
 import { pourLaBarre } from "../src/barre.ts";
-import { BOUTONS } from "../src/boutons.ts";
 import { EXEMPLE, type Projet } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
@@ -23,9 +22,9 @@ import { type Faux, jouerLaVue, repos } from "./aides/fausse-vue.ts";
 
 const A = "2026-10-16T12:00:00.000Z";
 const PROJETS: Projet[] = [
-  { nom: "brigade", dossier: "/tmp/brigade", box: { hote: "box" } },
-  { nom: "espace", dossier: "/tmp/espace", box: { hote: "box" } },
-  { nom: "calculus", dossier: "/tmp/calculus", box: { hote: "box" } },
+  { nom: "brigade", dossier: "/tmp/brigade" },
+  { nom: "espace", dossier: "/tmp/espace" },
+  { nom: "calculus", dossier: "/tmp/calculus" },
 ];
 const ACCUEIL: Accueil = {
   projets: [
@@ -40,12 +39,11 @@ const ACCUEIL: Accueil = {
 const CODE: VuDuCode = { a: A, clones: [{ id: "app", etat: "en-retard", tete: "this app's code is 3 commits behind origin/v2", lignes: ["the app relaunches on the new version"], commande: "git -C /tmp/brigade pull" }], alerte: "this app's code is 3 commits behind" } as unknown as VuDuCode;
 
 const demarrage = (accueil: Accueil | undefined = ACCUEIL, code: VuDuCode | undefined = CODE, stations?: VuDesStations) => ({
-  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: PROJETS, hotes: ["box"] }),
+  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: PROJETS }, () => true),
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  boutons: BOUTONS,
   gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
@@ -86,17 +84,17 @@ test("un clic n'importe où sur la ligne ouvre le projet ; la ligne ne porte auc
   assert.equal(vue.element("tous").hidden, true);
 });
 
-test("une box injoignable se dit en une ligne, rouge : ni `ssh`, ni code de sortie, ni ce que la box a écrit", async () => {
+test("une station injoignable se dit en une ligne, rouge : ni code de sortie, ni ce que la station a écrit", async () => {
   const { vue, projets } = await lAccueil({ ...ACCUEIL, projets: [] });
-  const accueil = tenirAccueil({ projets: () => PROJETS.map(({ nom }) => ({ nom, box: true, desinstalle: false })) });
-  const vu = accueil.faits({ projet: "brigade", demande: 1, a: A, erreur: "$ ssh -o BatchMode=yes box brigade brigade facts\nssh: connect to host box port 22: Connection refused\n→ exit code 255", atteinte: false, cas: "ssh-en-echec" }) ?? assert.fail("rien à redessiner");
+  const accueil = tenirAccueil({ projets: () => PROJETS.map(({ nom }) => ({ nom, servi: true })) });
+  const vu = accueil.faits({ projet: "brigade", demande: 1, a: A, erreur: "$ node geste.ts brigade facts\nspawn node ENOENT\n→ exit code 255", atteinte: false, cas: null }) ?? assert.fail("rien à redessiner");
   vue.dire("surAccueil", vu);
   await repos();
   const [brigade, espace] = lesLignes(projets());
   assert.equal(brigade?.children[0]?.dataset.ton, "rouge");
   assert.equal(brigade?.children[2]?.textContent, "station unreachable");
   assert.equal(espace?.children[2]?.textContent, "first read in progress…");
-  for (const texte of [visible(vue.element("tous")), ...vue.element("tous").dessous("button").map(({ title }) => title)]) assert.doesNotMatch(texte, /ssh|exit code|Connection refused|port 22/);
+  for (const texte of [visible(vue.element("tous")), ...vue.element("tous").dessous("button").map(({ title }) => title)]) assert.doesNotMatch(texte, /exit code|ENOENT|spawn/);
 });
 
 test("en bas, la ligne de santé : verte et discrète quand tout va, une phrase quand Max ou GitHub cloche", async () => {
@@ -119,7 +117,7 @@ test("ce qui a quitté l'accueil n'y est plus : le code de l'app, les blocs par 
   for (const parti of [/commits behind/, /what the station said/, /Projects on your stations/, /add a project/, /what awaits you/, /served 24 h|at pass|awaiting you/, /read at/]) assert.doesNotMatch(texte, parti);
   assert.deepEqual(tous.dessous("article"), []);
   assert.deepEqual(tous.dessous("pre"), []);
-  assert.doesNotMatch(texte, /\b(brigade|gh|git|ssh)\s+(-|\S+\s)/);
+  assert.doesNotMatch(texte, /\b(brigade|gh|git)\s+(-|\S+\s)/);
   // Le seul champ de l'accueil est celui du code d'appairage, replié sous « + station ».
   assert.ok(tous.dessous("input").every((champ) => champ.parentElement?.hidden === true));
   // Le code de l'app est dans Settings, sous cette machine (#1700), et au survol de « T ».

@@ -136,7 +136,7 @@ export function gestesDeCarte(carte: unknown, actions: Actions = ACTIONS): Propo
 // Ce que joue un geste de la fiche que l'app ne joue pas dans la vue — une commande de la box —, ou
 // pourquoi rien ne part. Elle part au clic — confirmé d'abord s'il coûte —, comme un geste direct
 // du socle (gestes.ts), et sa sortie se lit dans le second. `cuisine` : là où celle du projet
-// tourne à cet instant — sa box, ou cet ordinateur, où elle part sans `ssh`.
+// tourne à cet instant — sa box, ou cet ordinateur, où elle part.
 type Registre = { envoyer(projet: Projet, commande: string): Promise<Terminal | { refus: string }> };
 export function jouerGesteDeFiche(
   terminaux: Registre,
@@ -145,7 +145,7 @@ export function jouerGesteDeFiche(
   ticket: unknown,
   valeur: unknown,
   actions: Actions = ACTIONS,
-  cuisine: Cuisine | undefined = projet.box,
+  cuisine: Cuisine | undefined,
 ): { refus: string } | Promise<Terminal | { refus: string }> {
   if (typeof ticket !== "number" || !Number.isSafeInteger(ticket) || ticket < 1) return { refus: "nothing is sent: the action names no ticket" };
   if (cuisine === undefined) return { refus: `nothing is sent: “${projet.nom}” has no station — there is no command to run` };

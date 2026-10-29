@@ -5,7 +5,7 @@
 // `measures` et les lignes `drift` sont écrites par les fonctions mêmes du runtime : l'app lit ce
 // que la box écrit, pas une copie de sa forme.
 import assert from "node:assert/strict";
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test } from "node:test";
@@ -19,7 +19,6 @@ import type { Faits } from "../src/faits.ts";
 import { causesDe, COMMANDES, deriveDe, perdusDe, reglagesDe, renvoisDe, voir, type Vu } from "../src/fiabilite.ts";
 import { ALLUMAGE } from "../src/allumage.ts";
 import { pourLaBarre } from "../src/barre.ts";
-import { BOUTONS } from "../src/boutons.ts";
 import { EXEMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
@@ -127,20 +126,23 @@ describe("les réglages du chef, lus dans `station`", () => {
 
   test("la veille compose la commande d'après la sortie lue juste avant, dans la même lecture", { skip: SANS_POSIX }, async (t) => {
     const racine = mkdtempSync(join(tmpdir(), "brigade-app-fiabilite-"));
-    const ssh = join(racine, "ssh");
-    writeFileSync(ssh, `#!/bin/sh\necho "$*" >>'${racine}/appels'\ncase "$*" in *station) printf '%s\\n' "chef's decisions      x" "  fenetre-renvois     6";; *) echo "sortie de $*";; esac\n`);
-    chmodSync(ssh, 0o755);
+    const node = join(racine, "node");
+    const runtime = join(racine, "runtime");
+    mkdirSync(runtime, { recursive: true });
+    // Le faux geste de station : il note ce qu'il reçoit (après le script et le projet), et répond à `station`.
+    writeFileSync(node, `#!/bin/sh\nshift 2\necho "parade $*" >>'${racine}/appels'\ncase "$*" in station) printf '%s\\n' "chef's decisions      x" "  fenetre-renvois     6";; *) echo "sortie de $*";; esac\n`);
+    chmodSync(node, 0o755);
     const { promise, resolve } = Promise.withResolvers<Lecture>();
-    const veille = ouvrirVeille({ ssh, intervalleMs: 3_600_000, delaiMs: 60_000, connexionS: 10, surLecture: resolve });
+    const veille = ouvrirVeille({ intervalleMs: 3_600_000, delaiMs: 60_000, cuisine: () => ({ locale: { node, runtime, racine, env: {} } }), surLecture: resolve });
     t.after(() => {
       veille.fermer();
       rmSync(racine, { recursive: true, force: true });
     });
-    veille.regarder([{ nom: "parade", dossier: racine, box: { hote: "box" } }], COMMANDES, 1);
+    veille.regarder([{ nom: "parade", dossier: racine }], COMMANDES, 1);
     const lecture = await promise;
     assert.ok("sorties" in lecture);
     assert.deepEqual(lecture.sorties.map(({ commande }) => commande), ["station", "measures --last 6 --by 1"]);
-    assert.match(readFileSync(join(racine, "appels"), "utf8"), /brigade parade measures --last 6 --by 1$/m);
+    assert.match(readFileSync(join(racine, "appels"), "utf8"), /^parade measures --last 6 --by 1$/m);
   });
 });
 
@@ -227,8 +229,8 @@ describe("la page : ce que l'app en pose", () => {
     assert.ok("mesure" in mesuree(station({ "fenetre-renvois": "8" }), mesures({ merges: TREIZE, tickets: DIX.slice(0, 8), n: 8 })));
   });
 
-  test("une lecture ratée, ou une box dont `measures` ne compte pas les renvois, le dit — rien n'est mesuré", () => {
-    assert.ok("sans" in voir({ projet: "parade", demande: 7, a: A, erreur: "ssh: refused", atteinte: false, cas: "ssh-en-echec" }));
+  test("une lecture ratée, ou une station dont `measures` ne compte pas les renvois, le dit — rien n'est mesuré", () => {
+    assert.ok("sans" in voir({ projet: "parade", demande: 7, a: A, erreur: "refused", atteinte: false, cas: null }));
     assert.ok("sans" in voir(lue([{ commande: "station", texte: station() }])));
     const ancien = mesuree(station(), decrireReleve({ projet: "parade", livraisons: TREIZE, seuils: null }, 1).join("\n"));
     assert.ok("sans" in ancien && /do not count retries/.test(ancien.sans));
@@ -251,7 +253,7 @@ describe("la dérive, dans `status`, et l'accueil", () => {
 
   const FAITS: Faits = { etat: "ouverte", lu: A, dernierTick: A, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, dernierEvenement: null, rail: [], cooks: [] };
   const lus: FaitsLus = { a: A, faits: FAITS };
-  const PROJET = { nom: "parade", box: true, desinstalle: false };
+  const PROJET = { nom: "parade", servi: true };
 
   test("la ligne d'un projet dont la fiabilité a dérivé le dit d'un mot, et le détail au survol ; sa pastille ne change pas", () => {
     const ligne = ligneDeProjet(PROJET, lus, { texte: ["project    parade", PREMIER_COUP_DERIVE].join("\n") });
@@ -338,12 +340,11 @@ describe("la fiabilité des cooks, sur l'onglet Cooks du projet (#1699)", () => 
   async function ouvrir() {
     const vue = await jouerLaVue({
       demarrage: () => ({
-        configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade", box: { hote: "box" } }], hotes: ["box"] }),
+        configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }] }, () => true),
         palette: PALETTE,
         exemple: EXEMPLE,
         onglets: ONGLETS,
         rubriques: RUBRIQUES,
-        boutons: BOUTONS,
         gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
         banniere: BANNIERE,
         calibrage: { modeles: MODELES, efforts: EFFORTS },
@@ -375,7 +376,7 @@ describe("la fiabilité des cooks, sur l'onglet Cooks du projet (#1699)", () => 
     await repos();
     assert.match(section.textContent, /delivered on the first try/);
     // Rien de technique à plat : ni commande, ni mode d'emploi.
-    assert.doesNotMatch(section.textContent, /ssh|brigade parade|usage|`/);
+    assert.doesNotMatch(section.textContent, /brigade parade|usage|`/);
     // Ce que le projet a coûté n'y est pas porté : la page des coûts de l'app le dit, projet par projet.
     assert.doesNotMatch(section.textContent, /cost of this project|most expensive/);
 
@@ -389,7 +390,7 @@ describe("la fiabilité des cooks, sur l'onglet Cooks du projet (#1699)", () => 
   test("une lecture de Cooks ratée : sa ligne le dit, une fois — la section ne le redit pas", async () => {
     const vue = await ouvrir();
     const demande = (vue.dernier("onglet") as [string, string, number])[2];
-    const ratee = { projet: "parade", demande, a: A, erreur: "ssh: connect to host box port 22: Connection refused", atteinte: false, cas: "ssh-en-echec" } as Lecture;
+    const ratee = { projet: "parade", demande, a: A, erreur: "connect to host box port 22: Connection refused", atteinte: false, cas: null } as Lecture;
     vue.dire("surContenu", ratee, undefined, undefined, { ...voir(ratee), demande });
     await repos();
     assert.equal(vue.element("fiabilite-du-projet").children.length, 0);

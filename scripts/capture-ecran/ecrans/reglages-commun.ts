@@ -5,7 +5,7 @@
 import type { Lecture } from "../../../app/src/box.ts";
 import { voir as voirGrants } from "../../../app/src/grants.ts";
 import { blocDesOrdinaires } from "../../../app/src/ordinaires.ts";
-import { DESINSTALLER, RETIRER } from "../../../app/src/retrait.ts";
+import { RETIRER } from "../../../app/src/retrait.ts";
 import { configuration, cuisine, demarrage, type Donnees, type Envoi, type Etape, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 import { LUS } from "./reglages-du-projet.ts";
@@ -43,7 +43,7 @@ export const OUVRIR: Etape[] = [{ cliquer: '#projets > button[title^="parade —
 
 export function donnees(poste: Poste): Donnees {
   const machine = poste === "pc" ? "pc" : "mac";
-  const parade = { ...PROJETS[0]!, stations: [machine], ordinaires: true, limiteCooks: 2 };
+  const parade = { ...PROJETS[0]!, ordinaires: true, limiteCooks: 2 };
   const stations = [{ station: machine, distante: false, plafond: 2, ordinaires: true, bacASable: null, prendOrdinaires: false }];
   const pose = demarrage(configuration([parade, ...PROJETS.slice(1)]));
   return {
@@ -52,9 +52,9 @@ export function donnees(poste: Poste): Donnees {
       demarrage: poste === "pc" ? { ...pose, poste: { nom: "this PC", mac: false } } : pose,
       espace: [],
       reglagesDuProjet: LUS,
-      ordinaires: blocDesOrdinaires(parade, poste === "pc" ? "win32" : "darwin", stations),
+      ordinaires: blocDesOrdinaires(parade, poste === "pc" ? "win32" : "darwin", stations, true),
       // Ses gestes de retrait, tels que retrait.ts les rend : Settings n'en garde que le premier, une ligne de toi.
-      retrait: { projet: "parade", titre: "Remove “parade”", retirer: { libelle: RETIRER, lignes: ["“parade” leaves the app: its tab, its colors.", "Nothing is sent to its station."] }, desinstaller: { libelle: DESINSTALLER, lignes: [] } },
+      retrait: { projet: "parade", titre: "Remove “parade”", retirer: { libelle: RETIRER, lignes: ["“parade” leaves the app: its tab, its colors.", "Nothing is sent to its station."] } },
     },
     envois: {
       ...cuisine(RENDUS),

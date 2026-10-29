@@ -7,7 +7,6 @@ import { describe, test } from "node:test";
 import type { HistoireDuTicket, RetroDuTicket } from "../../runtime/src/histoire-ticket.ts";
 import { ALLUMAGE } from "../src/allumage.ts";
 import { pourLaBarre } from "../src/barre.ts";
-import { BOUTONS } from "../src/boutons.ts";
 import { EXEMPLE, type Projet } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
@@ -23,17 +22,16 @@ import type { Terminal } from "../src/terminaux.ts";
 import { DIT_PROVISOIRE, PROVISOIRE } from "../src/vue/apprentissage.js";
 import { type Faux, jouerLaVue, repos } from "./aides/fausse-vue.ts";
 
-const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade", box: { hote: "box" } };
+const PARADE: Projet = { nom: "parade", dossier: "/tmp/parade" };
 const A = "2026-10-16T10:00:00.000Z";
 const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "second · claude", note: "", arrete: false };
 
 const demarrage = () => ({
-  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE], hotes: ["box"] }),
+  configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [PARADE] }, () => true),
   palette: PALETTE,
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  boutons: BOUTONS,
   gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },

@@ -1,5 +1,5 @@
 // La capture d'un écran, jouée pour de bon : la commande lancée comme un cook la lance, un vrai
-// navigateur sans tête, un vrai PNG. Ni `claude` ni `ssh` ni `gh` ne sont lancés — des doublures
+// navigateur sans tête, un vrai PNG. Ni `claude` ni `gh` ne sont lancés — des doublures
 // en tête du PATH le diraient —, et rien ne sort de la machine : la commande refuse ce que la page
 // demanderait au réseau, et, là où l'on peut couper le réseau sans être root, elle tourne sans.
 import assert from "node:assert/strict";
@@ -17,16 +17,16 @@ const COMMANDE = join(import.meta.dirname, "..", "capture.ts");
 // Le navigateur du paquet n'est livré que pour Linux x64 : ailleurs, BRIGADE_CAPTURE_CHROME en désigne un.
 const SANS_NAVIGATEUR = (process.platform !== "linux" || process.arch !== "x64") && !process.env.BRIGADE_CAPTURE_CHROME ? "pas de navigateur ici : BRIGADE_CAPTURE_CHROME=<un Chrome>" : false;
 
-// Des doublures de `claude`, `ssh` et `gh` : lancée, chacune écrit son nom dans la marque, et échoue.
+// Des doublures de `claude` et `gh` : lancée, chacune écrit son nom dans la marque, et échoue.
 function doublures(): { env: NodeJS.ProcessEnv; marque: string; dossier: string } {
   const dossier = mkdtempSync(join(tmpdir(), "capture-ecran-test-"));
   const marque = join(dossier, "lances");
-  for (const nom of ["claude", "ssh", "gh"]) {
+  for (const nom of ["claude", "gh"]) {
     const chemin = join(dossier, nom);
     writeFileSync(chemin, `#!/bin/sh\necho "${nom} $*" >> '${marque}'\nexit 1\n`);
     chmodSync(chemin, 0o755);
   }
-  return { env: { ...process.env, PATH: `${dossier}:${process.env.PATH ?? ""}`, BRIGADE_CLAUDE_BIN: join(dossier, "claude"), BRIGADE_SSH_BIN: join(dossier, "ssh") }, marque, dossier };
+  return { env: { ...process.env, PATH: `${dossier}:${process.env.PATH ?? ""}`, BRIGADE_CLAUDE_BIN: join(dossier, "claude") }, marque, dossier };
 }
 
 // La signature d'un PNG, et la largeur et la hauteur de son en-tête.
@@ -38,7 +38,7 @@ function png(fichier: string): { octets: Buffer; largeur: number; hauteur: numbe
 }
 
 describe("capturer un écran de l'app", { skip: SANS_NAVIGATEUR }, () => {
-  test("deux captures vers deux chemins : deux PNG lisibles, identiques à l'octet, et ni claude, ni ssh, ni gh lancés", async () => {
+  test("deux captures vers deux chemins : deux PNG lisibles, identiques à l'octet, et ni claude, ni gh lancés", async () => {
     const { env, marque, dossier } = doublures();
     const avant = join(dossier, "avant", "rail.png");
     const apres = join(dossier, "apres.png");
