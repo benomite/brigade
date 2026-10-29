@@ -321,3 +321,45 @@ describe("le journal d'un job rouge nomme ses tests en échec avec leurs erreurs
     assert.deepEqual(echecsDuJournal("src/pass.ts(12,3): error TS2322"), []);
   });
 });
+
+describe("un job jamais vert sur la base est dit, pas jugé (#1860)", { concurrency: 4 }, () => {
+  const windows = (n: number) => job(n, "red", "runtime-windows");
+  const verteSurLaBase = (nom: string) => job(900, "green", nom);
+
+  test("seul rouge d'un job sans exécution verte sur la base : la livraison n'est pas bloquée, le rouge est dit en information", async (t) => {
+    const { gh, compter, jusquAu, dernier, auChef } = servir(t, { scenario: "bavard", suite: ["livre"] });
+    gh.ci.checks = [job(1, "green", "lint"), windows(2)];
+    gh.ci.base = [verteSurLaBase("lint")];
+    await jusquAu("merge.done");
+
+    assert.deepEqual([dernier("pass.judged", 17)?.verdict, compter("pass.returned"), compter("pass.ci-rerun"), gh.relances.length, gh.merges.length, auChef()], ["green", 0, 0, 0, 1, []]);
+    assert.deepEqual((dernier("pass.ci-excused", 17) as { checks: Check[] } | undefined)?.checks, [windows(2)]);
+    const ligne = gh.commentaires.map(([, corps]) => corps).find((corps) => corps.includes("CI rouge signalée"));
+    assert.match(ligne ?? "", /Job « runtime-windows » : failure .* — ce job n'a pas été vert sur `[^`]+` \(not been green on the base\)/);
+  });
+
+  test("le même job, une fois la base verte sur lui : son rouge bloque comme avant", async (t) => {
+    const { gh, compter, jusquAu, dernier } = servir(t, { scenario: "bavard", suite: ["livre"] });
+    gh.ci.checks = [windows(2)];
+    gh.ci.base = [verteSurLaBase("runtime-windows")];
+    await jusquAu("pass.returned");
+
+    assert.deepEqual([compter("pass.ci-excused"), dernier("pass.judged", 17)?.verdict], [0, "red"]);
+    const findings = (dernier("pass.returned", 17)?.findings ?? []) as string[];
+    assert.equal(findings.length, 1);
+    assert.ok(findings[0]!.startsWith(`CI rouge — job « runtime-windows » : failure (${windows(2).url}).`));
+  });
+
+  test("deux jobs rouges, la base verte sur l'un : seul le job jamais vert est excusé", async (t) => {
+    const { gh, compter, jusquAu, dernier } = servir(t, { scenario: "bavard", suite: ["livre"] });
+    gh.ci.checks = [windows(2), job(3)];
+    gh.ci.base = [verteSurLaBase("tests")];
+    await jusquAu("pass.returned");
+
+    assert.deepEqual((dernier("pass.ci-excused", 17) as { checks: Check[] } | undefined)?.checks, [windows(2)]);
+    assert.equal(compter("pass.ci-excused"), 1);
+    const findings = (dernier("pass.returned", 17)?.findings ?? []) as string[];
+    assert.equal(findings.length, 1);
+    assert.ok(findings[0]!.startsWith(`CI rouge — job « tests » : failure (${job(3).url}).`));
+  });
+});

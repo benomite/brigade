@@ -373,6 +373,9 @@ function findingDesGates(gates: Gates, delaiMs: number, sur = ""): string {
   ].join("\n");
 }
 
+// La ligne d'un job rouge excusé : son nom, et qu'il n'a pas été vert sur la base.
+export const direLeJobExcuse = (check: Check, base: string) => `Job « ${check.name} » : ${check.conclusion}${check.url ? ` (${check.url})` : ""} — ce job n'a pas été vert sur \`${base}\` (not been green on the base) : signalé, pas jugé.`;
+
 function resume(gates: Gates, ci: CI, review: Review): string {
   const dites = { green: "vertes", red: "rouges", timeout: "arrêtées au plafond", skipped: "non jouées" }[gates.outcome];
   const lue = {
@@ -1840,6 +1843,37 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     return new Set(rouges.map((check) => check.url));
   };
 
+  // Les jobs rouges de la CI que la base n'a jamais montrés verts (#1860) : un
+  // job qui n'a pas fait ses preuves sur la base ne juge pas une livraison, son
+  // rouge se dit. Vert une fois sur les derniers commits de la base, son rouge
+  // se juge comme celui d'un autre. Une base illisible n'excuse rien. Rend les
+  // adresses des checks excusés ; la première fois sur ce commit, l'écrit au
+  // journal et le dit sur l'issue.
+  const excuserLesJobsSansVert = async (connu: PassDeTicket, pr: string, sha: string, rouges: Check[]): Promise<Set<string | null>> => {
+    const { ticket } = connu;
+    const vus = await github.ciDeLaBase(options.base).catch(() => null);
+    if (vus === null || arrete) return new Set();
+    const verts = new Set(vus.filter((check) => check.outcome === "green").map((check) => check.name));
+    const excuses = rouges.filter((check) => !verts.has(check.name));
+    if (excuses.length === 0 || !enPass(ticket)) return new Set();
+    const adresses = (checks: Check[]) => checks.map((check) => check.url).join("\n");
+    const deja = journal.duTicket(ticket).findLast((evenement) => evenement.type === "pass.ci-excused" && evenement.payload.sha === sha);
+    if (deja?.type !== "pass.ci-excused" || adresses(deja.payload.checks) !== adresses(excuses)) {
+      noter(ticket, { type: "pass.ci-excused", payload: { sha, base: options.base, checks: excuses } });
+      await commenter(
+        ticket,
+        [
+          `**Pass — CI rouge signalée, non jugée.** \`${court(sha)}\` · ${pr}`,
+          "",
+          ...excuses.map((check) => `- ${direLeJobExcuse(check, options.base)}`),
+          "",
+          `Ce rouge est dit, pas jugé : la livraison est jugée sans lui — ni renvoi, ni carte. Dès que \`${options.base}\` aura une exécution verte de ce job, son rouge se jugera comme celui de tout autre.`,
+        ].join("\n"),
+      );
+    }
+    return new Set(excuses.map((check) => check.url));
+  };
+
   // `poser` : fait le worktree jetable du jugement.
   const jugerLivraison = async (connu: PassDeTicket, branch: string, poser: <T>(faire: (nom: string) => Promise<T>) => Promise<T>) => {
     const { ticket, run } = connu;
@@ -2052,12 +2086,16 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
           ci = { outcome: "skipped", checks };
           findings.push(findingDeCiDepassee(options.base, sha, retard, rouges));
         } else {
+          // Un job jamais vert sur la base : son rouge est dit, pas jugé.
+          const excuses = rouges.length > 0 ? await excuserLesJobsSansVert(connu, pr.url, sha, rouges) : new Set<string | null>();
+          if (arrete || !enPass(ticket)) return;
+          const jugees = rouges.filter((check) => !excuses.has(check.url));
           // Rouge seulement par sa CI, sur des tests qu'elle ne touche pas : relancée une fois.
-          if (rouges.length > 0 && review.outcome !== "red" && (await relancerLaCI(connu, ref, sha, rouges))) return;
+          if (jugees.length > 0 && review.outcome !== "red" && (await relancerLaCI(connu, ref, sha, jugees))) return;
           // Rouge encore après sa relance, sur les mêmes : mise de côté, son test à la cuisine.
-          const deCote = rouges.length > 0 ? await mettreDeCote(connu, ref, pr.url, sha, rouges, review.outcome !== "red") : new Set<string | null>();
+          const deCote = jugees.length > 0 ? await mettreDeCote(connu, ref, pr.url, sha, jugees, review.outcome !== "red") : new Set<string | null>();
           if (deCote === null) return;
-          const retenus = rouges.filter((check) => !deCote.has(check.url));
+          const retenus = jugees.filter((check) => !deCote.has(check.url));
           // Un run qu'un verdict rouge a déjà jugé se relance avant d'être rejugé.
           if (retenus.length > 0 && review.outcome !== "red" && (await relancerUnRunDejaJuge(connu, sha, retenus))) return;
           if (arrete || !enPass(ticket)) return;

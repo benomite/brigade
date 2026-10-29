@@ -460,6 +460,7 @@ export const pass = definirProjection<Ecoutes>({
     // nothing in the pass's state either: the verdict that follows says it.
     "pass.test-fix-opening": () => {},
     "pass.ci-set-aside": () => {},
+    "pass.ci-excused": () => {},
     // The kitchen taking up an escalation changes nothing in the pass's state
     // by itself: the `pass.returned` that sends it back to a cook does, and the
     // rail and `status` read the rest in the log (`remontee-a-la-cuisine.ts`).

@@ -93,7 +93,9 @@ export function fauxGitHub(...issues: Issue[]) {
   const ouvertes = new Map<string, PR>();
   // Ce que la CI répond, et ce que GitHub fait d'une demande de merge : il
   // merge, refuse (avec ce motif), ou tombe en panne — avant ou après avoir mergé.
-  const ci: { checks: Check[] } = { checks: [] };
+  // `base` : ce que la CI a dit des derniers commits de la base. Sans rien dit,
+  // la base est verte sur chaque job de la livraison.
+  const ci: { checks: Check[]; base: Check[] | null } = { checks: [], base: null };
   // Le diff de chaque PR, et le journal de chaque check, tels que GitHub les rend.
   const diffs = new Map<number, string>();
   const journauxDeCI = new Map<string, string>();
@@ -202,6 +204,9 @@ export function fauxGitHub(...issues: Issue[]) {
     },
     async ci() {
       return ci.checks;
+    },
+    async ciDeLaBase() {
+      return ci.base ?? ci.checks.map((check): Check => ({ ...check, outcome: "green", conclusion: "success" }));
     },
     diff: async (numero) => diffs.get(numero) ?? "",
     journalDuCheck: async (check) => journauxDeCI.get(check.name) ?? null,
