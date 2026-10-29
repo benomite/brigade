@@ -23,7 +23,7 @@ word after it, then the ticket number. The `#` before the number is optional.
 | answer a card | `/brigade answer #<ticket> <answer>` | `rail answer <ticket> <answer>`: your own words, written on the ticket's issue |
 | pick a card's choice | `/brigade choose #<ticket> <choice number>` | `rail choose <ticket> <n>`: the card's choice `n`, counted from 1 |
 | it arrived, back to the kitchen | `/brigade arrived #<ticket>` | no local gesture: the ticket leaves WAITING (or TODO, when it came back from WAITING) and goes back on the rail, queued, without going through TODO |
-| comment on a card's issue | `/brigade comment #<ticket> <comment>` | `pass <ticket> comment <comment>`: posts the comment on the ticket's issue, word for word, under the box's own `gh` account — the chef's, never a role's App |
+| comment on a card's issue | `/brigade comment #<ticket> <comment>` | `pass <ticket> comment <comment>`: posts the comment on the ticket's issue, word for word (its edges trimmed), under the box's own `gh` account — the chef's, never a role's App |
 | ask the second | `/brigade ask #<ticket> [context]` | `pass <ticket> ask [context]`: composes the request for the second about the issue, with the context if any. Nothing is posted on the issue: the request is in the reply and in the board's machine block (`demande`, below). When the box holds the project's second (`BRIGADE_SECOND_DIR`, see "The second's answer"), the request goes into the second's conversation, and its answer is posted under the gesture; otherwise the app writes the request into the second it holds, without Enter |
 | answer a proposed correction | `/brigade correction <yes \| no> <proposal>` | no local gesture: "yes" accepts the correction of the project's guidance, which leaves as a PR through the pass; "no" takes it out of the queue (`runtime/src/correctif/decision.ts`) |
 | answer a proposed cook profile | `/brigade profile <yes \| no> <proposal>` | no local gesture: "yes" writes the profile's definition in the project's clone on the box; "no" takes it out of the queue (`runtime/src/profils/decision.ts`) |
@@ -141,8 +141,8 @@ is answered.
 
 The actions run under the pass's identity when the roles have their own Apps
 (`BRIGADE_GITHUB_APPS_DIR`), otherwise under the box's `gh`. A `comment` is the chef's own words: it
-is always posted under the box's `gh`, as `pass <ticket> comment` posts it. Their calls are a chef's gesture, so a
-low GitHub quota does not hold them. The comments are read, and the replies posted, under the
+is always posted under the box's `gh`, as `pass <ticket> comment` posts it. Their calls are a chef's
+gesture, so a low GitHub quota does not hold them. The comments are read, and the replies posted, under the
 manager's identity, like the board itself.
 
 ## The reply
@@ -173,7 +173,8 @@ answer can take minutes: the box does not wait for it. Its reply to the gesture 
 sent; when the second has answered, the box posts a second comment under the gesture:
 
 - `**The second's answer** — [ask #123](…):` then, after a blank line, the answer as the second wrote
-  it, in markdown — with no mention of anyone;
+  it, in markdown — with no mention of anyone. The whole answer is public to whoever reads the board's
+  repository;
 - `**The second did not answer** — [ask #123](…): …`, one line, when it could not be reached, failed
   or did not answer within 15 minutes.
 
