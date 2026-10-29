@@ -1729,7 +1729,10 @@ describe("la station", { concurrency: 8 }, () => {
     await jusqua(() => types().includes("setup.blocked"));
 
     const bloque = journal.tout().findLast((e) => e.type === "setup.blocked");
-    assert.deepEqual(bloque?.payload, { station: STATION, why: "code de sortie 1", hosts: ["registry.npmjs.org:443"], base: "base-0", output: "npm error network request to https://registry.npmjs.org/ failed" });
+    // Sous Windows, le bash de Git qui joue le faux setup peut dire en tête de
+    // sortie qu'il ne trouve pas son /tmp : ce n'est pas ce que le setup dit.
+    const sortie = (bloque?.payload as { output?: string } | undefined)?.output?.replace(/^(bash\.exe: warning: could not find \/tmp, please create!\n)+/, "");
+    assert.deepEqual({ ...bloque?.payload, output: sortie }, { station: STATION, why: "code de sortie 1", hosts: ["registry.npmjs.org:443"], base: "base-0", output: "npm error network request to https://registry.npmjs.org/ failed" });
     assert.equal(setup.appels().length, 2);
     await jusqua(() => etatStation(journal.base, STATION)?.heldReason === "setup");
     // Le chef l'apprend dans sa file, une fois pour le projet : trois tickets retenus, une entrée.
