@@ -15,7 +15,7 @@ import { ouvrirJournal } from "../../src/journal.ts";
 import { lireRail } from "../../src/projections/rail.ts";
 import { jourDecale, repertoireTemporaire } from "../outils.ts";
 
-const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
+const LIMITES = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
 const STATION = "box/claude";
 const PR = "https://exemple.test/pull/17";
 const GATES: Gates = { outcome: "green", code: 0, failures: [], tail: "" };

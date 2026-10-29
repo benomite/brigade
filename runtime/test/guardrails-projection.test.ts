@@ -5,16 +5,16 @@ import { ouvrirJournal } from "../src/journal.ts";
 import { arretsRecents, consommation, cooksEnCours, etatDesGardeFous } from "../src/projections/guardrails.ts";
 import { horloge, repertoireTemporaire, JOUR_HORLOGE } from "./outils.ts";
 
-const PLAFONDS: Plafonds = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
+const PLAFONDS: Plafonds = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
 
 function cuisine(t: TestContext) {
   const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: horloge() });
   t.after(() => journal.fermer());
   const noter = (fait: FaitGardeFous, ticket: number | null = null, author = "runtime") =>
     journal.ajouter({ project: "brigade", ticket, author, ...fait });
-  const lancer = (run: string, ticket: number) =>
+  const lancer = (run: string, ticket: number | null) =>
     noter({ type: "cook.launched", payload: { run, limits: PLAFONDS, stream: `runs/${run}.jsonl` } }, ticket);
-  const finir = (run: string, ticket: number, outcome: Issue) =>
+  const finir = (run: string, ticket: number | null, outcome: Issue) =>
     noter({ type: "cook.exited", payload: { run, outcome, code: outcome === "ok" ? 0 : 1, signal: null, turns: 3, tokens: 40, durationMs: 5 } }, ticket);
   return { journal, base: journal.base, noter, lancer, finir };
 }
@@ -62,21 +62,33 @@ test("un cook interrompu par la mort du runtime n'est plus en cours", (t) => {
   assert.deepEqual(cooksEnCours(base), []);
 });
 
-test("les échecs d'affilée se comptent : garde-fou et erreur comptent, une réussite remet à zéro", (t) => {
+test("les échecs d'affilée se comptent : seule l'erreur compte — pas un cook arrêté par un garde-fou —, une réussite remet à zéro", (t) => {
   const { base, lancer, finir } = cuisine(t);
   const echecs = () => etatDesGardeFous(base).failures;
   for (const [run, issue, attendu] of [
     ["a", "failed", 1],
-    ["b", "guard", 2],
-    ["c", "stop", 2],
-    ["d", "neutral", 2],
-    ["e", "ok", 0],
-    ["f", "guard", 1],
+    ["b", "guard", 1],
+    ["c", "stop", 1],
+    ["d", "neutral", 1],
+    ["e", "failed", 2],
+    ["f", "ok", 0],
+    ["g", "guard", 0],
+    ["h", "failed", 1],
   ] as const) {
     lancer(run, 7);
     finir(run, 7, issue);
     assert.equal(echecs(), attendu, `après ${issue}`);
   }
+});
+
+test("un lancement hors ticket (jugement, relecture) arrêté par un garde-fou compte encore : rien d'autre ne borne ses reprises", (t) => {
+  const { base, lancer, finir } = cuisine(t);
+  lancer("juge-30-a", null);
+  finir("juge-30-a", null, "guard");
+  assert.equal(etatDesGardeFous(base).failures, 1);
+  lancer("17-a", 17);
+  finir("17-a", 17, "guard");
+  assert.equal(etatDesGardeFous(base).failures, 1);
 });
 
 test("une interruption par redémarrage n'est pas un échec", (t) => {
@@ -116,7 +128,7 @@ test("« resume » ne touche pas aux réglages", (t) => {
 test("chaque arrêt par garde-fou se retrouve avec son ticket et son motif, le plus récent d'abord", (t) => {
   const { base, noter, lancer, finir } = cuisine(t);
   lancer("a", 7);
-  noter({ type: "guard.tripped", payload: { run: "a", reason: "turns", limit: 100, observed: 101 } }, 7);
+  noter({ type: "guard.tripped", payload: { run: "a", reason: "tokens", limit: 2_000_000, observed: 2_000_001 } }, 7);
   finir("a", 7, "guard");
   lancer("b", 8);
   finir("b", 8, "ok");
@@ -125,7 +137,7 @@ test("chaque arrêt par garde-fou se retrouve avec son ticket et son motif, le p
 
   assert.deepEqual(arretsRecents(base, 10), [
     { run: "c", ticket: 9, at: `${JOUR_HORLOGE}T10:00:06.000Z`, reason: "stop", limit: null, observed: null },
-    { run: "a", ticket: 7, at: `${JOUR_HORLOGE}T10:00:01.000Z`, reason: "turns", limit: 100, observed: 101 },
+    { run: "a", ticket: 7, at: `${JOUR_HORLOGE}T10:00:01.000Z`, reason: "tokens", limit: 2_000_000, observed: 2_000_001 },
   ]);
   assert.equal(arretsRecents(base, 1).length, 1);
 });
@@ -138,15 +150,16 @@ test("le cook d'une relance du manager qui livre ne remet pas les échecs à zé
   finir("17-b", 17, "ok");
   assert.equal(etatDesGardeFous(base).failures, 1);
 
+  // Livrée rouge, elle ne dit pas que la cuisine est cassée : elle ne compte pas.
   noter({ type: "relaunch.judged", payload: { run: "17-b", verdict: "red" } }, 17);
-  assert.equal(etatDesGardeFous(base).failures, 2);
+  assert.equal(etatDesGardeFous(base).failures, 1);
 });
 
 test("une relance du manager que la pass juge verte remet les échecs à zéro, et un cook de relance qui échoue compte comme un autre", (t) => {
   const { base, noter, finir } = cuisine(t);
   const relancer = (run: string) => noter({ type: "cook.launched", payload: { run, limits: PLAFONDS, stream: `runs/${run}.jsonl`, relaunch: true } }, 17);
   relancer("17-a");
-  finir("17-a", 17, "guard");
+  finir("17-a", 17, "failed");
   relancer("17-b");
   finir("17-b", 17, "failed");
   assert.equal(etatDesGardeFous(base).failures, 2);
@@ -163,7 +176,7 @@ test("à plusieurs cooks, « d'affilée » se compte dans l'ordre des lancements
   for (const run of ["vieux", "a", "b", "c"]) lancer(run, 7);
 
   finir("a", 7, "failed");
-  finir("b", 7, "guard");
+  finir("b", 7, "failed");
   // Le vieux cook était parti avant eux : sa réussite ne dit rien des suivants.
   finir("vieux", 7, "ok");
   assert.equal(echecs(), 2);

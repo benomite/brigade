@@ -13,7 +13,7 @@ import { appeler, ENV_ENFANT, faitInconnu, FAUX_CLAUDE, lancer, photographier, r
 import { posixOnly } from "./support/plateforme.ts";
 
 const STATUS = join(import.meta.dirname, "../src/status.ts");
-const PLAFONDS: Plafonds = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
+const PLAFONDS: Plafonds = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
 
 // Un runtime qui tourne, un ticket sur le rail et son cook en cours.
 function cuisine(t: TestContext) {
@@ -50,7 +50,7 @@ test("pendant qu'un cook tourne, la commande répond et montre le runtime, le ra
   assert.match(sortie, /^rail       1 queued$/m);
   assert.match(sortie, /^  #7  queued  prio:1  since \d+ s  Le ticket sept$/m);
   assert.match(sortie, /^cooks      1 running$/m);
-  assert.match(sortie, new RegExp(`^  #7  ${cook.run}  \\d+ s of 1 h 00 · 1 turn of 100 · 10 tokens of 2,000,000 \\(reading \\d+ s ago\\)$`, "m"));
+  assert.match(sortie, new RegExp(`^  #7  ${cook.run}  \\d+ s of 1 h 00 · 1 turn · 10 tokens of 2,000,000 \\(reading \\d+ s ago\\)$`, "m"));
   assert.match(sortie, /^  \d+  \S+  brigade  #7  cook\.launched  runtime  /m);
   assert.doesNotMatch(sortie, /runtime\.ticked|cook\.progressed/);
 });

@@ -12,7 +12,7 @@ import { appeler, JOUR_HORLOGE, repertoireTemporaire } from "./outils.ts";
 
 const MINUTE_MS = 60_000;
 const DEBUT = Date.parse(`${JOUR_HORLOGE}T10:00:00.000Z`);
-const PLAFONDS = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
+const PLAFONDS = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
 const FAUTE = /^fault {6}IDLE KITCHEN/m;
 
 // Un journal dont l'horloge se règle à la minute près : `a(m)` pose l'instant

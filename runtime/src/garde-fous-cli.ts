@@ -40,7 +40,6 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
 
   function decrirePlafonds(plafonds: Plafonds): string {
     return [
-      `${nombre(plafonds.turns)} turns`,
       duree(plafonds.durationMs),
       `${nombre(plafonds.tokens)} tokens`,
       `idle ${duree(plafonds.idleMs)}`,
@@ -52,8 +51,6 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
     const mesure = (unite: (valeur: number) => string) =>
       `${observed === null ? "?" : unite(observed)} for ${limit === null ? "?" : unite(limit)}`;
     switch (arret.reason) {
-      case "turns":
-        return `turns cap exceeded: ${mesure(nombre)}`;
       case "tokens":
         return `tokens cap exceeded: ${mesure(nombre)}`;
       case "duration":

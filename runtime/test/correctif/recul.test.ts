@@ -26,10 +26,10 @@ function prendre(journal: Journal, ticket: number): void {
   noter(journal, ticket, { type: "ticket.taken", payload: { station: "box/claude", leaseUntil: JOUR_HORLOGE } });
 }
 // Un essai de `ticket` : raté pour un ticket incomplet (`criteres`), pour le
-// plafond de tours (`plafond`), ou livré (`ok`).
+// plafond de jetons ou de durée (`plafond`), ou livré (`ok`).
 function essayer(journal: Journal, ticket: number, issue: "criteres" | "plafond" | "ok"): void {
   const run = `run-${++runs}`;
-  noter(journal, ticket, { type: "cook.launched", payload: { run, limits: { turns: 100, durationMs: 3_600_000, tokens: 1_000_000, idleMs: 60_000 }, stream: `runs/${run}.jsonl`, station: "box/claude" } });
+  noter(journal, ticket, { type: "cook.launched", payload: { run, limits: { durationMs: 3_600_000, tokens: 1_000_000, idleMs: 60_000 }, stream: `runs/${run}.jsonl`, station: "box/claude" } });
   if (issue === "criteres") noter(journal, ticket, { type: "cook.reported", payload: { run, ending: "failed", reason: "ticket incomplet", summary: null, branch: "x", pr: null } });
   if (issue === "plafond") noter(journal, ticket, { type: "guard.tripped", payload: { run, reason: "turns", limit: 100, observed: 100 } });
   noter(journal, ticket, { type: "cook.exited", payload: { run, outcome: issue === "ok" ? "ok" : issue === "plafond" ? "guard" : "failed", code: issue === "ok" ? 0 : 1, signal: null, turns: 1, tokens: 1, durationMs: 1 } });

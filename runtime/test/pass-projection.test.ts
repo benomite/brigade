@@ -18,7 +18,7 @@ function histoire(t: TestContext) {
   t.after(() => journal.fermer());
   const noter = (fait: Fait, ticket: number | null = 17, author = "pass") => journal.ajouter({ project: "brigade", ticket, author, ...fait });
   const lancer = (run: string, branche = run) =>
-    noter({ type: "cook.launched", payload: { run, limits: { turns: 1, durationMs: 1, tokens: 1, idleMs: 1 }, stream: `runs/${run}.jsonl`, branch: `cook/${branche}`, worktree: `worktrees/${branche}` } });
+    noter({ type: "cook.launched", payload: { run, limits: { durationMs: 1, tokens: 1, idleMs: 1 }, stream: `runs/${run}.jsonl`, branch: `cook/${branche}`, worktree: `worktrees/${branche}` } });
   const livrer = (run: string, branche = run) => {
     lancer(run, branche);
     noter({ type: "cook.reported", payload: { run, ending: "done", reason: null, summary: null, branch: `cook/${branche}`, pr: PR } });
@@ -316,7 +316,7 @@ test("un ticket qui quitte le rail avec une livraison non mergée la laisse orph
   assert.deepEqual(orphelines(base), [{ ticket: 17, branch: "cook/a", pr: PR, verdict: "green", reason: "closed", seq: depart?.seq }]);
 
   // Livrée sans être jugée : son verdict n'est pas celui d'une autre livraison.
-  noter({ type: "cook.launched", payload: { run: "b", limits: { turns: 1, durationMs: 1, tokens: 1, idleMs: 1 }, stream: "runs/b.jsonl", branch: "cook/b", worktree: "worktrees/b" } }, 18);
+  noter({ type: "cook.launched", payload: { run: "b", limits: { durationMs: 1, tokens: 1, idleMs: 1 }, stream: "runs/b.jsonl", branch: "cook/b", worktree: "worktrees/b" } }, 18);
   noter({ type: "cook.reported", payload: { run: "b", ending: "done", reason: null, summary: null, branch: "cook/b", pr: PR } }, 18);
   partir(18, "unfired");
   assert.deepEqual(orphelines(base).map((o) => [o.ticket, o.verdict, o.reason]), [[17, "green", "closed"], [18, null, "unfired"]]);

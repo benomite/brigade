@@ -25,7 +25,7 @@ export function servir(journal: Journal, { ticket, zone, essais = 1, merge = tru
   noter({ type: "ticket.taken", payload: { station: "box/claude", leaseUntil: JOUR_HORLOGE } });
   for (let i = 0; i < essais; i++) {
     const run = `run-${++runs}`;
-    noter({ type: "cook.launched", payload: { run, limits: { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 }, stream: `runs/${run}.jsonl`, station: "box/claude" } });
+    noter({ type: "cook.launched", payload: { run, limits: { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 }, stream: `runs/${run}.jsonl`, station: "box/claude" } });
     noter({ type: "cook.exited", payload: { run, outcome: i === essais - 1 ? "ok" : "failed", code: i === essais - 1 ? 0 : 1, signal: null, turns: 1, tokens: 1, durationMs: 1 } });
   }
   if (merge) noter({ type: "merge.done", payload: { pr: `https://github.com/acme/brigade/pull/${ticket}`, sha: null, by: "pass", reconciled: false } });

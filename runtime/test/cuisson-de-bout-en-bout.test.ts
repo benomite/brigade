@@ -113,7 +113,7 @@ describe("un projet servi de bout en bout, sur cette plateforme", () => {
     assert.match(String(head), /^[0-9a-f]{40}$/);
     assert.deepEqual(lancement, {
       run,
-      limits: { turns: 100_000, durationMs: 60_000, tokens: 1_000_000, idleMs: 60_000 },
+      limits: { durationMs: 60_000, tokens: 1_000_000, idleMs: 60_000 },
       stream: `runs/${run}.jsonl`,
       station: "box/claude",
       model: "sonnet",

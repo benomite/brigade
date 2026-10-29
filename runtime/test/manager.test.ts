@@ -639,7 +639,7 @@ describe("le manager", { concurrency: 8 }, () => {
   });
 
   test("un jugement arrêté par un garde-fou n'épingle rien non plus", async (t) => {
-    const { journal, faits, dits } = brigade(t, { plafonds: { turns: 3 }, seuilDisjoncteur: 1, manager: { jugement: "bavard" }, issues: [issue(30, [])] });
+    const { journal, faits, dits } = brigade(t, { plafonds: { tokens: 25 }, seuilDisjoncteur: 1, manager: { jugement: "bavard" }, issues: [issue(30, [])] });
     await jusqua(() => journal.tout().some((e) => e.type === "breaker.opened"));
 
     assert.equal(journal.tout().find((e) => e.type === "cook.exited")?.payload.outcome, "guard");

@@ -33,7 +33,7 @@ export const CAUSES = [
   { cle: "gates-app", titre: "red gates: app tests" },
   { cle: "gates-types", titre: "red gates: type check" },
   { cle: "conflit", titre: "conflict with the base" },
-  { cle: "plafond", titre: "cap on turns or duration" },
+  { cle: "plafond", titre: "cap on duration" },
   { cle: "panne", titre: "station outage" },
   { cle: "criteres", titre: "contradictory criteria or incomplete ticket" },
   { cle: "autre", titre: "other" },
@@ -61,7 +61,7 @@ export function classerEssai(signaux: Signaux): Cause {
     if (jugement.gates.outcome === "red" || jugement.gates.outcome === "timeout") return causeDesGates(jugement.gates.failures);
     if (jugement.review.outcome === "red" && jugement.review.blocking > 0) return "relecture";
   }
-  if (signaux.arret === "turns" || signaux.arret === "duration") return "plafond";
+  if (signaux.arret === "duration") return "plafond";
   if (signaux.panne || signaux.fin === "disconnected") return "panne";
   return "autre";
 }

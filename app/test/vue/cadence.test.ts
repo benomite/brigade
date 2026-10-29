@@ -149,7 +149,7 @@ describe("l'âge des cartes de Taken et de Pass", () => {
 describe("les essais d'une carte, un point chacun", () => {
   const essai = (depuis: string, jusqua: string | null, arret: string | null) => ({ depuis, jusqua, arret, enCours: jusqua === null });
   const TROIS = [
-    essai("2026-10-21T11:30:00.000Z", "2026-10-21T11:47:00.000Z", "turns"),
+    essai("2026-10-21T11:30:00.000Z", "2026-10-21T11:47:00.000Z", "tokens"),
     essai("2026-10-21T11:47:10.000Z", "2026-10-21T12:02:00.000Z", "idle"),
     essai("2026-10-21T12:02:10.000Z", null, null),
   ];
@@ -166,7 +166,7 @@ describe("les essais d'une carte, un point chacun", () => {
     const ronds = points(carte);
     assert.equal(ronds.length, 3);
     assert.deepEqual(ronds.map((rond) => rond.dataset.enCours), [undefined, undefined, ""]);
-    assert.equal(ronds[0]?.title, "attempt 1 of 3 — stopped after 17 min: turns");
+    assert.equal(ronds[0]?.title, "attempt 1 of 3 — stopped after 17 min: tokens");
     assert.equal(ronds[1]?.title, "attempt 2 of 3 — stopped after 14 min: idle");
     assert.equal(ronds[2]?.title, "attempt 3 of 3 — cooking now");
   });

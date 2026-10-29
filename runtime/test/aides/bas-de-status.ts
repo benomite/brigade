@@ -5,7 +5,7 @@ import type { TestContext } from "node:test";
 import type { Fait } from "../../src/evenements.ts";
 import { etatDAvant, exemple, STATION } from "./haut-de-status.ts";
 
-const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
+const LIMITES = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
 const SEUILS = { tests: 500, testsSeconds: null, gatesSeconds: null, contextKb: null, repoMb: null, merges: null, growthPercent: null };
 
 // Ajoute à l'état d'exemple du haut ce qui fait paraître le bas : à utiliser sur le journal de `exemple(t)`

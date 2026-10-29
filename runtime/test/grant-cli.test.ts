@@ -40,7 +40,7 @@ function cuisine(t: TestContext) {
   // Par son fichier, dans son propre process : comme `npm run` la lance.
   const lancee = (cli: Cli, ...args: string[]) => rendre(lancer(t, cli.fichier, args, { BRIGADE_STATE_DIR: repertoire }));
   const livrer = (run: string) => {
-    noter({ type: "cook.launched", payload: { run, limits: { turns: 1, durationMs: 1, tokens: 1, idleMs: 1 }, stream: `runs/${run}.jsonl`, branch: "cook/a", worktree: "worktrees/a" } }, 17, "runtime");
+    noter({ type: "cook.launched", payload: { run, limits: { durationMs: 1, tokens: 1, idleMs: 1 }, stream: `runs/${run}.jsonl`, branch: "cook/a", worktree: "worktrees/a" } }, 17, "runtime");
     noter({ type: "cook.reported", payload: { run, ending: "done", reason: null, summary: null, branch: "cook/a", pr: PR } }, 17, "station:box/claude");
   };
   const juger = (run: string, verdict: "green" | "red") => {
@@ -495,7 +495,7 @@ describe("les commandes du grant et de la pass", { concurrency: 8 }, () => {
     noter({ type: "grant.used", payload: { action: "merge", pr: PR, number: 40, sha: "abcdef0a", base: "v2", verdict: 1 } });
     noter({ type: "merge.done", payload: { pr: PR, sha: "abcdef0a", by: "pass", reconciled: false } });
     noter({ type: "base.checked", payload: { sha: "ba5e0004ffff", outcome: "red", gates: gates("red"), tickets: [17] } }, null);
-    noter({ type: "cook.launched", payload: { run: "b", limits: { turns: 1, durationMs: 1, tokens: 1, idleMs: 1 }, stream: "runs/b.jsonl", branch: "cook/b", worktree: "worktrees/b" } }, 18, "runtime");
+    noter({ type: "cook.launched", payload: { run: "b", limits: { durationMs: 1, tokens: 1, idleMs: 1 }, stream: "runs/b.jsonl", branch: "cook/b", worktree: "worktrees/b" } }, 18, "runtime");
     noter({ type: "pass.waiting", payload: { reason: "base-red" } }, 18);
     noter({ type: "merge.done", payload: { pr: PR, sha: "abcdef0c", by: "outside", reconciled: false, unverified: true } }, 19);
 

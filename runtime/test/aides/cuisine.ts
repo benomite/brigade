@@ -34,11 +34,11 @@ const FAUX_SETUP = join(import.meta.dirname, "faux-setup.sh");
 export type ScenarioSetup = "exporte" | "jeton" | "attend" | "echec" | "autre" | "refuse" | "lent" | "derive" | "manque" | "postgres";
 
 // Le cook « bavard » rend un tour toutes les deux millisecondes, de vraie
-// horloge : un plafond de tours qu'il atteindrait pendant un test ferait
-// course avec ce que le test attend. Tours et jetons (dix par tour) ne sont
+// horloge : un plafond de jetons qu'il atteindrait pendant un test ferait
+// course avec ce que le test attend. Les jetons (dix par tour) ne sont
 // donc atteints qu'après 200 s — plus que les deux minutes laissées à un
 // test. Celui qui éprouve un plafond règle le sien.
-export const PLAFONDS: Plafonds = { turns: 100_000, durationMs: 60_000, tokens: 1_000_000, idleMs: 60_000 };
+export const PLAFONDS: Plafonds = { durationMs: 60_000, tokens: 1_000_000, idleMs: 60_000 };
 export const REGLAGES: Reglages = { plafonds: PLAFONDS, seuilDisjoncteur: 3, graceMs: 2000 };
 export const BAIL_MS = 600_000;
 export const CALIBRE = ["fire", "model:sonnet", "effort:low"];

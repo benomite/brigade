@@ -16,10 +16,10 @@ import { appeler, ENV_ENFANT, FAUX_CLAUDE, horloge, JOUR_HORLOGE, lancer, repert
 const CLI = join(import.meta.dirname, "../src/garde-fous-cli.ts");
 
 // Le cook « bavard » rend un tour toutes les deux millisecondes, de vraie
-// horloge : le plafond de tours n'est atteint qu'après 200 s. Celui qui
+// horloge : le plafond de jetons n'est atteint qu'après 200 s. Celui qui
 // éprouve un plafond règle le sien.
 const REGLAGES: Reglages = {
-  plafonds: { turns: 100_000, durationMs: 60 * 60_000, tokens: 2_000_000, idleMs: 10 * 60_000 },
+  plafonds: { durationMs: 60 * 60_000, tokens: 2_000_000, idleMs: 10 * 60_000 },
   seuilDisjoncteur: 3,
   graceMs: 2000,
 };
@@ -47,7 +47,7 @@ test("sans argument, le chef voit les plafonds, la cuisine ouverte, le disjoncte
   const { code, sortie } = await commande();
 
   assert.equal(code, 0);
-  assert.match(sortie, /caps per ticket\s+100,000 turns · 60 min · 2,000,000 tokens · idle 10 min/);
+  assert.match(sortie, /caps per ticket\s+60 min · 2,000,000 tokens · idle 10 min/);
   assert.match(sortie, /kitchen\s+open/);
   assert.match(sortie, /breaker\s+closed — 0 failure in a row, opens at 3/);
   assert.match(sortie, /cooks running\s+none/);
@@ -82,7 +82,7 @@ test("un jugement du manager en cours se lit comme tel : il ne tient aucun ticke
 });
 
 test("un jugement du manager arrêté par un garde-fou se lit comme tel dans les derniers arrêts", async (t) => {
-  const { runtime, commande } = cuisine(t, { plafonds: { ...REGLAGES.plafonds, turns: 2 } });
+  const { runtime, commande } = cuisine(t, { plafonds: { ...REGLAGES.plafonds, tokens: 15 } });
   const lance = runtime.lancer({ ticket: null, run: "juge-30-abcd", commande: FAUX_CLAUDE, args: [], env: { ...ENV_ENFANT, FAUX_CLAUDE: "bavard" } });
   await lance.fin;
 
@@ -157,16 +157,19 @@ test("« resume » quand rien n'est arrêté ne s'écrit pas", async (t) => {
 });
 
 test("le chef voit le disjoncteur ouvert et pourquoi chaque ticket s'est arrêté ; « resume » le referme", async (t) => {
-  const { cook, commande } = cuisine(t, { seuilDisjoncteur: 2, plafonds: { ...REGLAGES.plafonds, turns: 3 } });
+  const { cook, commande } = cuisine(t, { seuilDisjoncteur: 2, plafonds: { ...REGLAGES.plafonds, tokens: 25 } });
   const tours = cook(7, "bavard");
   await tours.fin;
   await cook(8, "echec").fin;
+  // Le cook arrêté par son plafond ne compte pas : c'est le second échec qui ouvre.
+  assert.match((await commande()).sortie, /breaker\s+closed — 1 failure/);
+  await cook(9, "echec").fin;
 
   const { sortie } = await commande();
 
   assert.match(sortie, new RegExp(`breaker\\s+OPEN since ${JOUR_HORLOGE}T.* after 2 failures in a row — no more cooks are launched; \`resume\` to close it`));
-  assert.match(sortie, new RegExp(`#7\\s+${tours.run}\\s+turns cap exceeded: 4 for 3`));
-  assert.throws(() => cook(9, "fini"), /disjoncteur/);
+  assert.match(sortie, new RegExp(`#7\\s+${tours.run}\\s+tokens cap exceeded: 30 for 25`));
+  assert.throws(() => cook(10, "fini"), /disjoncteur/);
 
   assert.match((await commande("resume")).sortie, /breaker closed/);
   assert.match((await commande()).sortie, /breaker\s+closed — 0 failure/);
@@ -236,7 +239,7 @@ test("une commande inconnue est refusée avec l'usage, sans rien écrire", async
 });
 
 test("`stop`, `resume`, l'état et chacun de leurs refus ne portent aucun mot français du glossaire", async (t) => {
-  const { cook, commande } = cuisine(t, { seuilDisjoncteur: 2, plafonds: { ...REGLAGES.plafonds, turns: 3 } });
+  const { cook, commande } = cuisine(t, { seuilDisjoncteur: 2, plafonds: { ...REGLAGES.plafonds, tokens: 25 } });
   const lignes = async (...args: string[]) => (await commande(...args)).sortie.trimEnd().split("\n");
 
   sansMotFrancais(await lignes("resume"));

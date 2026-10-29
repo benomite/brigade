@@ -410,13 +410,13 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal(lancements().length, 2);
   });
 
-  test("un cook qui meurt et un cook qui dépasse un plafond n'emportent pas les autres : leurs tickets repartent, les autres continuent", { skip: posixOnly("launches four cooks, one failing and one over its turn ceiling, and expects both tickets relaunched while the other two cooks run on; on Windows the cooks only ended `failed`, never by the turn guard, and the six launches never came: the kitchen runs there far slower than the 30 s its silent fake cooks (a Git Bash `sleep`) live") }, async (t) => {
+  test("un cook qui meurt et un cook qui dépasse un plafond n'emportent pas les autres : leurs tickets repartent, les autres continuent", { skip: posixOnly("launches four cooks, one failing and one over its token ceiling, and expects both tickets relaunched while the other two cooks run on; on Windows the cooks only ended `failed`, never by the token guard, and the six launches never came: the kitchen runs there far slower than the 30 s its silent fake cooks (a Git Bash `sleep`) live") }, async (t) => {
     const { journal, etat, lancements } = cuisine(t, {
       cooks: 4,
       machine: () => MACHINE_VASTE,
       scenario: "muet",
       suite: ["echec", "bavard"],
-      plafonds: { turns: 5 },
+      plafonds: { tokens: 50 },
       issues: [14, 15, 16, 17].map((numero) => issue(numero)),
     });
     // Quatre cooks, puis un neuf pour chacun des deux tickets rendus.
@@ -1081,7 +1081,7 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal(etat(15), "waiting");
   });
 
-  test("un cook vivant qui ne touche à rien ne renouvelle pas son bail : à l'échéance il est arrêté, et son ticket revient en attente", async (t) => {
+  test("un cook vivant qui ne touche à rien ne renouvelle pas son bail : à l'échéance il est arrêté, sans compter au disjoncteur", async (t) => {
     const { gh, heure, journal, etat, dernier, lancements, types, avertissements } = cuisine(t, { scenario: "bavard", seuilDisjoncteur: 1, issues: [issue(15)] });
     await jusqua(() => lancements().length === 1);
 
@@ -1110,10 +1110,11 @@ describe("la station", { concurrency: 8 }, () => {
     assert.deepEqual([dernier("cook.reported", 15)?.ending, dernier("cook.reported", 15)?.reason], ["failed", "guard:lease"]);
     assert.match(gh.commentaires[0]?.[1] ?? "", /échoué.*Aucun progrès dans son worktree depuis 10 min/s);
     // Le rail n'a pas rendu le ticket dans le dos de la station : c'est la fin
-    // du cook qui le remet en attente, et elle compte au disjoncteur.
+    // du cook qui le rend. Un bail perdu n'est pas une cuisine cassée : il ne
+    // compte pas au disjoncteur.
     assert.equal(types(15).includes("ticket.released"), false);
-    assert.equal(etat(15), "waiting");
-    assert.equal(etatDesGardeFous(journal.base).failures, 1);
+    assert.equal(etatDesGardeFous(journal.base).failures, 0);
+    assert.equal(etatDesGardeFous(journal.base).breakerOpenedAt, null);
   });
 
   test("un fichier touché dans le worktree renouvelle le bail, et l'échéance repart de là", { skip: posixOnly("touches a file in the cook's worktree and expects the lease renewed, then lost one full lease later; the file is written under the worktree path the fake claude (a bash script) reports as Git Bash writes it (/c/Users/...), which node resolves on the current drive, where that directory does not exist") }, async (t) => {

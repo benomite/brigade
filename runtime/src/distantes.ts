@@ -243,7 +243,7 @@ export function ouvrirDistantes(cuisine: Cuisine): Distantes {
     return connu.reason ?? connu.ending ?? "stopped";
   };
   const ARRETS: Record<string, string> = {
-    turns: "turns cap exceeded",
+    turns: "turns cap exceeded", // a log from before the cap was dropped
     tokens: "tokens cap exceeded",
     duration: "duration cap exceeded",
     idle: "nothing from it since the idle cap",

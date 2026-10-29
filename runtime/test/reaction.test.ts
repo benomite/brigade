@@ -288,7 +288,7 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     assert.equal(c.charges("pass.kitchen-took-over", 17)[0]?.issue, 501);
   });
 
-  test("le disjoncteur garde le dernier mot : des relances du manager restées rouges l'ouvrent, et il remonte sans plus rien relancer ni juger", PLUSIEURS_TOURS, async (t) => {
+  test("des relances du manager restées rouges n'ouvrent pas le disjoncteur : il monte tant qu'il lui reste de quoi monter", PLUSIEURS_TOURS, async (t) => {
     const c = echec(t, {
       seuilDisjoncteur: 2,
       issues: [issue(30, [])],
@@ -296,16 +296,14 @@ describe("le manager réagit à un échec", { concurrency: 8 }, () => {
     });
     await c.jusquAu("pass.escalated", 30);
 
-    // Les deux relances décidées par le manager sont marquées, et jugées rouges.
-    assert.deepEqual(c.charges("cook.launched", 30).filter((lance) => lance.station === STATION).map((lance) => lance.relaunch === true), [false, false, false, true, true]);
-    assert.deepEqual(c.charges("relaunch.judged", 30).map((juge) => juge.verdict), ["red", "red"]);
-    assert.notEqual(etatDesGardeFous(c.journal.base).breakerOpenedAt, null);
-    // Il lui restait de quoi monter — `opus` —, et il ne l'a pas fait.
-    assert.deepEqual(c.calibrages(30), ["haiku/low", "haiku/low", "haiku/medium", "haiku/high", "sonnet/high"]);
+    // Trois relances décidées par le manager, marquées et jugées rouges : le disjoncteur reste fermé.
+    assert.deepEqual(c.charges("cook.launched", 30).filter((lance) => lance.station === STATION).map((lance) => lance.relaunch === true), [false, false, false, true, true, true]);
+    assert.deepEqual(c.charges("relaunch.judged", 30).map((juge) => juge.verdict), ["red", "red", "red"]);
+    assert.equal(etatDesGardeFous(c.journal.base).breakerOpenedAt, null);
+    // Il est monté jusqu'à son plafond — `opus` —, puis a remonté le ticket.
+    assert.deepEqual(c.calibrages(30), ["haiku/low", "haiku/low", "haiku/medium", "haiku/high", "sonnet/high", "opus/high"]);
     const reaction = c.charges("manager.reacted", 30).at(-1);
-    assert.deepEqual([reaction?.choice, reaction?.run], ["escalate", null]);
-    assert.match(String(reaction?.reason), /disjoncteur/);
-    assert.equal(c.jugements().length, 3);
+    assert.equal(reaction?.choice, "escalate");
     assert.deepEqual([c.ticket(30)?.state, c.ticket(30)?.reason], ["86", "manager:escalated"]);
   });
 

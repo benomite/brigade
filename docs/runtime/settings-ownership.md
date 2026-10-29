@@ -54,7 +54,6 @@ These are the `BRIGADE_*` variables the runtime reads from the service environme
 
 | Setting | What it sets | Belongs to | Reason | Moved by |
 |---|---|---|---|---|
-| `BRIGADE_MAX_TURNS` | Cap on a cook's turns (100) | project | What a ticket may cost is the project's decision | [#1668](https://github.com/benomite/brigade/issues/1668) |
 | `BRIGADE_MAX_MINUTES` | Cap on a cook's duration (60) | project | Same | [#1668](https://github.com/benomite/brigade/issues/1668) |
 | `BRIGADE_MAX_TOKENS` | Cap on a cook's tokens (2,000,000) | project | Same | [#1668](https://github.com/benomite/brigade/issues/1668) |
 | `BRIGADE_IDLE_MINUTES` | Idle delay after which a cook is stopped (10) | project | Same family of caps | [#1668](https://github.com/benomite/brigade/issues/1668) |

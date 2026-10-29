@@ -46,7 +46,8 @@ const modifierEtat = (base: Base, affectation: string, ...parametres: Array<stri
 // cooks the endings interleave: "consecutive" is therefore counted in launch
 // order. A success only clears the failures of cooks launched before it — an
 // old cook that ends well says nothing about those that left after it.
-// A failure judged before the last "resume" no longer counts.
+// A failure judged before the last "resume" no longer counts. Only a broken
+// kitchen is a failure: a ticket's cook stopped by a cap or delivered red is not.
 const juger = (base: Base, run: string, verdict: "good" | "bad", seq: number) => {
   base.executer("UPDATE cook_runs SET judgment = ?, judged_seq = ? WHERE run = ?", verdict, seq, run);
   modifierEtat(
@@ -169,7 +170,12 @@ export const gardeFous = definirProjection<FaitGardeFous>({
       // Une relance du manager qui livre n'a encore rien réussi : la pass le dira.
       const relance = base.lire<{ relaunch: number }>("SELECT relaunch FROM cook_runs WHERE run = ?", run)[0]?.relaunch === 1;
       if (outcome === "ok" && !relance) juger(base, run, "good", evenement.seq);
-      if (outcome === "failed" || outcome === "guard") juger(base, run, "bad", evenement.seq);
+      // Un cook de ticket arrêté par un garde-fou (plafond, inactivité, bail
+      // perdu) ou livré rouge ne dit pas que la cuisine est cassée : il ne
+      // compte pas. Un lancement hors ticket (jugement du manager, relecture) que
+      // son garde-fou arrête compte encore : rien d'autre ne borne ses reprises.
+      const duTicket = base.lire<{ ticket: number | null }>("SELECT ticket FROM cook_runs WHERE run = ?", run)[0]?.ticket != null;
+      if (outcome === "failed" || (outcome === "guard" && !duTicket)) juger(base, run, "bad", evenement.seq);
     },
     "cook.interrupted": (base, evenement) => {
       base.executer(
@@ -185,7 +191,7 @@ export const gardeFous = definirProjection<FaitGardeFous>({
       base.executer("UPDATE cook_runs SET resumed_seq = ? WHERE run = ?", evenement.seq, evenement.payload.run);
     },
     "relaunch.judged": (base, evenement) => {
-      juger(base, evenement.payload.run, evenement.payload.verdict === "green" ? "good" : "bad", evenement.seq);
+      if (evenement.payload.verdict === "green") juger(base, evenement.payload.run, "good", evenement.seq);
     },
     "breaker.opened": (base, evenement) => modifierEtat(base, "breaker_opened_at = ?", evenement.at),
     "kitchen.stopped": (base, evenement) => modifierEtat(base, "stopped_at = ?", evenement.at),

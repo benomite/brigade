@@ -238,7 +238,7 @@ test("un bail échu ne rend pas un ticket dont le cook tourne encore : c'est sa 
   const { journal, rail, heure } = cuisine(t);
   poser(journal, 14);
   rail.prendre("box/claude");
-  const plafonds = { turns: 1, durationMs: 1, tokens: 1, idleMs: 1 };
+  const plafonds = { durationMs: 1, tokens: 1, idleMs: 1 };
   journal.ajouter({ project: "brigade", ticket: 14, author: "runtime", type: "cook.launched", payload: { run: "14-abc", limits: plafonds, stream: "runs/14-abc.jsonl" } });
 
   heure.avancer(BAIL_MS);

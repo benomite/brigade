@@ -96,7 +96,7 @@ function atelier(t: TestContext, reponses: Array<unknown | Promise<unknown>>) {
   const livrer = () => {
     arriver();
     rail.prendre(STATION);
-    noter(30, { type: "cook.launched", payload: { run: "cook-30", limits: { turns: 1, durationMs: 1, tokens: 1, idleMs: 1 }, stream: "runs/cook-30.jsonl", station: STATION, branch: "cook/30-x", worktree: "worktrees/30-x" } }, `station:${STATION}`);
+    noter(30, { type: "cook.launched", payload: { run: "cook-30", limits: { durationMs: 1, tokens: 1, idleMs: 1 }, stream: "runs/cook-30.jsonl", station: STATION, branch: "cook/30-x", worktree: "worktrees/30-x" } }, `station:${STATION}`);
     rail.envoyerEnPass(30, STATION);
     noter(30, { type: "pass.started", payload: { run: "cook-30", pr: `https://github.com/${DEPOT}/pull/101`, number: 101, sha: "abc123" } }, "pass");
   };

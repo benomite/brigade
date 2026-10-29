@@ -27,8 +27,8 @@ function rater(journal: Journal, ticket: number, raison: Raison): void {
   const noter = (fait: object) => journal.ajouter({ project: PROJET, ticket, author: "runtime", ...fait } as never);
   if (!journal.duTicket(ticket).some((e) => e.type === "ticket.taken")) noter({ type: "ticket.taken", payload: { station: "box/claude", leaseUntil: JOUR_HORLOGE } });
   const run = `run-${++runs}`;
-  noter({ type: "cook.launched", payload: { run, limits: { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 }, stream: `runs/${run}.jsonl`, station: "box/claude" } });
-  if (raison === "plafond") noter({ type: "guard.tripped", payload: { run, reason: "turns", limit: 100, observed: 100 } });
+  noter({ type: "cook.launched", payload: { run, limits: { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 }, stream: `runs/${run}.jsonl`, station: "box/claude" } });
+  if (raison === "plafond") noter({ type: "guard.tripped", payload: { run, reason: "duration", limit: 3_600_000, observed: 3_600_001 } });
   if (raison === "criteres") noter({ type: "cook.reported", payload: { run, ending: "failed", reason: "ticket incomplet", summary: null, branch: "x", pr: null } });
   if (raison === "panne") noter({ type: "cook.reported", payload: { run, ending: "disconnected", reason: null, summary: null, branch: "x", pr: null } });
   noter({ type: "cook.exited", payload: { run, outcome: raison === "plafond" ? "guard" : "failed", code: 1, signal: null, turns: 1, tokens: 1, durationMs: 1 } });
@@ -57,7 +57,7 @@ test("trois tickets récents ratés pour la même cause : un candidat, qui dit l
 
   const ecrits = detecter(journal, PROJET, PAR_DEFAUT);
   assert.equal(ecrits.length, 1);
-  assert.deepEqual(poses(journal), [{ cause: "plafond", title: "cap on turns or duration", tickets: [11, 13, 15], failures: 4, threshold: 3, window: 20, ticket: null, project: PROJET }]);
+  assert.deepEqual(poses(journal), [{ cause: "plafond", title: "cap on duration", tickets: [11, 13, 15], failures: 4, threshold: 3, window: 20, ticket: null, project: PROJET }]);
 });
 
 test("deux tickets seulement ratés pour la même cause : aucun candidat", (t) => {
@@ -131,7 +131,7 @@ test("un ticket mergé au second essai compte pour la cause de son premier, celu
   rater(journal, 13, "panne");
   // Son second essai aboutit, puis il est mergé.
   const noter = (fait: object) => journal.ajouter({ project: PROJET, ticket: 13, author: "runtime", ...fait } as never);
-  noter({ type: "cook.launched", payload: { run: "reussi", limits: { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 }, stream: "runs/reussi.jsonl", station: "box/claude" } });
+  noter({ type: "cook.launched", payload: { run: "reussi", limits: { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 }, stream: "runs/reussi.jsonl", station: "box/claude" } });
   noter({ type: "cook.exited", payload: { run: "reussi", outcome: "ok", code: 0, signal: null, turns: 1, tokens: 1, durationMs: 1 } });
   noter({ type: "merge.done", payload: { pr: "p", sha: "s" } });
   assert.deepEqual(parcoursDesTickets(journal.base).map(({ ticket, end, attempts }) => [ticket, end?.kind ?? null, attempts.length]), [[11, null, 1], [12, null, 1], [13, "merged", 2]]);

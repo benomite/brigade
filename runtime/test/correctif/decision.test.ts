@@ -45,7 +45,7 @@ function rater(journal: Journal, ticket: number): void {
   const noter = (fait: object) => journal.ajouter({ project: PROJET, ticket, author: "runtime", ...fait } as never);
   if (!journal.duTicket(ticket).some((e) => e.type === "ticket.taken")) noter({ type: "ticket.taken", payload: { station: "box/claude", leaseUntil: JOUR_HORLOGE } });
   const run = `run-${++runs}`;
-  noter({ type: "cook.launched", payload: { run, limits: { turns: 100, durationMs: 3_600_000, tokens: 1_000_000, idleMs: 60_000 }, stream: `runs/${run}.jsonl`, station: "box/claude" } });
+  noter({ type: "cook.launched", payload: { run, limits: { durationMs: 3_600_000, tokens: 1_000_000, idleMs: 60_000 }, stream: `runs/${run}.jsonl`, station: "box/claude" } });
   noter({ type: "cook.reported", payload: { run, ending: "failed", reason: `ticket incomplet : le critère ${ticket} contredit le précédent`, summary: null, branch: "x", pr: null } });
   noter({ type: "cook.exited", payload: { run, outcome: "failed", code: 1, signal: null, turns: 1, tokens: 1, durationMs: 1 } });
 }

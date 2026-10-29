@@ -459,11 +459,11 @@ describe("la vérification", { concurrency: 8 }, () => {
     const { env, etat } = projet(t);
     decisionBrute(etat, "BRIGADE_MANAGER_MODEL", "gpt");
 
-    const constats = await verifier({ ...env, BRIGADE_MAX_TURNS: "beaucoup", ANTHROPIC_API_KEY: "sk-x" });
+    const constats = await verifier({ ...env, BRIGADE_MAX_TOKENS: "beaucoup", ANTHROPIC_API_KEY: "sk-x" });
 
     const dits = manques(constats).join("\n");
     assert.match(dits, /BRIGADE_MANAGER_MODEL invalid/);
-    assert.match(dits, /invalid BRIGADE_MAX_TURNS/);
+    assert.match(dits, /invalid BRIGADE_MAX_TOKENS/);
     assert.match(dits, /ANTHROPIC_API_KEY est défini/);
   });
 

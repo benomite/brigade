@@ -17,7 +17,7 @@ import { chef, cuisine, issue } from "./aides/cuisine.ts";
 import { appeler, JOUR_HORLOGE, jourDecale, jusqua, repertoireTemporaire } from "./outils.ts";
 
 const STATION = "box/claude";
-const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
+const LIMITES = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
 
 // Le bloc `awaiting` d'une sortie de `status`, bords compris.
 const blocAttend = (lignes: string[]) => lignes.slice(lignes.findIndex((ligne) => ligne.startsWith("awaiting")), lignes.indexOf("end awaiting") + 1);

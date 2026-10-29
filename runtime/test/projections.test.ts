@@ -67,7 +67,7 @@ function raconterLUrgence(journal: Journal): void {
 // déclarés puis changés ; un franchissement signalé puis levé, un autre resté.
 function raconterLaDerive(journal: Journal): void {
   const noter = (fait: Fait, ticket: number | null = null) => journal.ajouter({ project: "brigade", ticket, author: "runtime", ...fait });
-  const limits = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
+  const limits = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
   const seuils = { tests: 500, testsSeconds: null, gatesSeconds: null, contextKb: null, repoMb: null, merges: null, growthPercent: null };
   noter({ type: "cook.launched", payload: { run: "m", limits, stream: "runs/m.jsonl", station: "box/claude", model: "opus", effort: "high" } }, 40);
   noter({ type: "cook.exited", payload: { run: "m", outcome: "ok", code: 0, signal: null, turns: 31, tokens: 9000, durationMs: 216_000 } }, 40);
@@ -155,7 +155,7 @@ function raconterLeManager(journal: Journal): void {
 // Le grant donné puis repris ; un ticket jugé rouge, renvoyé, puis vert et
 // mergé sous grant ; un autre vert sans grant, arrêté ; un troisième remonté.
 function raconterLaPass(journal: Journal): void {
-  const limits = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
+  const limits = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
   const noter = (fait: Fait, ticket: number | null = null, author = "pass") => journal.ajouter({ project: "brigade", ticket, author, ...fait });
   const livrer = (run: string, ticket: number, branche = run) => {
     const payload = { run, limits, stream: `runs/${run}.jsonl`, station: "box/claude", model: "sonnet", effort: "low", branch: `cook/${branche}`, worktree: `worktrees/${branche}` };
@@ -210,7 +210,7 @@ function raconterLaPass(journal: Journal): void {
 // sa connexion, puis que le chef fait reprendre.
 function raconterLaStation(journal: Journal): void {
   const station = "box/claude";
-  const limits = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
+  const limits = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
   const noter = (fait: Fait, ticket: number | null = null, author = `station:${station}`) =>
     journal.ajouter({ project: "brigade", ticket, author, ...fait });
   const lancer = (run: string, ticket: number) =>
@@ -314,12 +314,12 @@ function raconterLeRail(journal: Journal): void {
 // Un cook arrêté par un plafond, un autre mort avec le runtime, le disjoncteur
 // qui s'ouvre, puis le chef qui arrête et reprend.
 function raconterLesGardeFous(journal: Journal): void {
-  const limits = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
+  const limits = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
   const noter = (fait: FaitGardeFous, ticket: number | null = null, author = "runtime") =>
     journal.ajouter({ project: "brigade", ticket, author, ...fait });
   noter({ type: "guard.configured", payload: { limits, breakerThreshold: 1 } });
   noter({ type: "cook.launched", payload: { run: "a", limits, stream: "runs/a.jsonl" } }, 7);
-  noter({ type: "guard.tripped", payload: { run: "a", reason: "turns", limit: 100, observed: 101 } }, 7);
+  noter({ type: "guard.tripped", payload: { run: "a", reason: "tokens", limit: 2_000_000, observed: 2_000_001 } }, 7);
   noter({ type: "cook.exited", payload: { run: "a", outcome: "guard", code: null, signal: "SIGTERM", turns: 101, tokens: 900, durationMs: 40 } }, 7);
   noter({ type: "breaker.opened", payload: { failures: 1, threshold: 1 } });
   noter({ type: "kitchen.stopped", payload: {} }, null, "chef");
@@ -467,7 +467,7 @@ test("seul le dernier tick est gardé, avec son heure et la cadence attendue", (
 test("un cook en cours porte son dernier relevé ; fini, il n'en a plus", (t) => {
   const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: horloge() });
   t.after(() => journal.fermer());
-  const limits = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
+  const limits = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
   const noter = (fait: FaitGardeFous) => journal.ajouter({ project: "brigade", ticket: 7, author: "runtime", ...fait });
   noter({ type: "cook.launched", payload: { run: "a", limits, stream: "runs/a.jsonl" } });
   noter({ type: "cook.launched", payload: { run: "b", limits, stream: "runs/b.jsonl" } });
@@ -487,7 +487,7 @@ test("un cook en cours porte son dernier relevé ; fini, il n'en a plus", (t) =>
 test("ce que fait un cook se garde au relevé qui le dit : un relevé muet laisse le précédent, une forme inconnue ne s'écrit pas", (t) => {
   const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: horloge() });
   t.after(() => journal.fermer());
-  const limits = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
+  const limits = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
   const noter = (fait: FaitGardeFous, ticket: number | null = 7) => journal.ajouter({ project: "brigade", ticket, author: "runtime", ...fait });
   noter({ type: "cook.launched", payload: { run: "a", limits, stream: "runs/a.jsonl", station: "box/claude" } });
   assert.deepEqual([...activitesDesCooksEnCours(journal.base)], []);

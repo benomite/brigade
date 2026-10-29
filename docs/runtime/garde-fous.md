@@ -2,9 +2,9 @@
 
 | Guardrail | What happens |
 |---|---|
-| Cap on turns, duration, tokens | A cook that goes over one is stopped. Tokens count input, output and cache writes — not cache reads |
+| Cap on duration, tokens | A cook that goes over one is stopped. Tokens count input, output and cache writes — not cache reads. **There is no cap on turns**: a long ticket takes the turns it needs, and these two caps bound what it spends |
 | Idle | A cook that has produced nothing since the idle delay is stopped |
-| Breaker | After N failures in a row, no more cooks are launched. A failure: a stop by cap, idleness or lapsed lease, or a cook that exited in error — **without having committed anything**; or a relaunch decided by the manager whose delivery is judged red (`relaunch.judged`). Not counted: the "stop", an exhausted quota, an expired Max connection, a model refusal, a runtime restart |
+| Breaker | After N failures in a row, no more cooks are launched. A failure is a sign that the kitchen is broken: a cook that exited in error or could not be launched. Not counted: a ticket's cook stopped by a guardrail (a cap, idleness, a lapsed lease) — a launch off any ticket, a manager judgement or a review, still counts when a guardrail stops it, nothing else bounds its retries —, a cook whose delivery is judged red — a relaunch decided by the manager whose delivery is red (`relaunch.judged`) counts for nothing, its green one still clears the counter —, the "stop", an exhausted quota, an expired Max connection, a model refusal, a runtime restart |
 | "stop" | Every running cook is stopped within the second, and none is launched any more |
 
 Stopping a cook: `SIGTERM` to its process group, then `SIGKILL` ten seconds later. On Windows, which
@@ -122,7 +122,7 @@ Every stop is in the ticket's log: `npm --prefix runtime run log -- <ticket>`.
 |---|---|
 | `cook.launched` | A cook leaves, with its calibration (`model`, `effort`), its station, its branch, its caps and its raw stream (`runs/<run>.jsonl` in the state directory; its error output in `.stderr`) |
 | `cook.progressed` | The cook's reading at each tick: `turns` and `tokens`, and `activity` — what it is doing right now (see "What a cook is doing right now") |
-| `guard.tripped` | A guardrail stops it. `reason`: `turns`, `duration`, `tokens`, `idle`, `lease` or `stop`; `limit` and `observed` |
+| `guard.tripped` | A guardrail stops it. `reason`: `duration`, `tokens`, `idle`, `lease` or `stop`; `limit` and `observed` |
 | `cook.exited` | The process is dead. `outcome`: `ok`, `failed`, `guard`, `stop`, `neutral` or `refused`; exit code, turns, tokens; `credentialsMasked`: how many times the shape of Claude's credentials was masked in its stream and its error output (see "Not published in what a cook says, either", in [`identites-et-secrets.md`](identites-et-secrets.md)) |
 | `cook.interrupted` | The runtime stopped while the cook was running: it died with it |
 | `breaker.opened`, `kitchen.stopped`, `kitchen.resumed` | The breaker opens; "stop", "resume" (off any ticket) |
@@ -168,7 +168,6 @@ makes the runtime **refuse to start**.
 
 | Variable | Default | Role |
 |---|---|---|
-| `BRIGADE_MAX_TURNS` | 100 | Turns per cook |
 | `BRIGADE_MAX_MINUTES` | 60 | Duration of a cook |
 | `BRIGADE_MAX_TOKENS` | 2,000,000 | Tokens per cook |
 | `BRIGADE_IDLE_MINUTES` | 10 | Silence tolerated before concluding idleness |

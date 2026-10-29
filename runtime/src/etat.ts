@@ -528,7 +528,7 @@ const direAttenteDeCharge = (activite: ActiviteDeTicket | null | undefined) =>
 function decrireCook(cook: EtatCuisine["cooks"][number], ticket: TicketRail | undefined, maintenant: Date, depuis: Depuis): string {
   const { limits, mesure, station } = cook;
   const consomme = mesure
-    ? `${compteEn(mesure.turns, "turn")} of ${nombreEn(limits.turns)} · ${compteEn(mesure.tokens, "token")} of ${nombreEn(limits.tokens)} (reading ${depuis(mesure.at)} ago)`
+    ? `${compteEn(mesure.turns, "turn")} · ${compteEn(mesure.tokens, "token")} of ${nombreEn(limits.tokens)} (reading ${depuis(mesure.at)} ago)`
     : "turns and tokens: no reading yet";
   const budget = [
     `${depuis(cook.launchedAt)} of ${dureeEn(limits.durationMs)}`,

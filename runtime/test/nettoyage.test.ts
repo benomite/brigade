@@ -11,7 +11,7 @@ import { ouvrirNettoyage } from "../src/nettoyage.ts";
 import { worktreesGardes } from "../src/projections/cleanup.ts";
 import { horloge, repertoireTemporaire } from "./outils.ts";
 
-const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
+const LIMITES = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
 const STATION = "box/claude";
 
 function cuisine(t: TestContext) {

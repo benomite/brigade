@@ -11,7 +11,7 @@ import { configTranscripts, ouvrirNettoyage } from "../src/nettoyage.ts";
 import { rangementDesTranscripts } from "../src/projections/cleanup.ts";
 import { JOUR_HORLOGE, repertoireTemporaire } from "./outils.ts";
 
-const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
+const LIMITES = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
 const HEURE = 3_600_000;
 const JOUR = 24 * HEURE;
 const DEPART = Date.parse(`${JOUR_HORLOGE}T10:00:00.000Z`);
