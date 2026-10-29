@@ -705,5 +705,5 @@ test("la carte d'un ticket en pass dit où en est la pass : gates, relecture, ju
     { type: "pass.judged", payload: { run: "14-a", pr: "https://exemple.test/pr/1", number: 1, sha: "abc", verdict: "green", gates, ci: { outcome: "none", checks: [] }, findings: [], judgeModified: false, review: { outcome: "green", run: "review-14-x", summary: null, findings: [] }, noDiff: false } },
     14,
   ); // 10:00:11
-  assert.deepEqual(activite(), { fait: "jugée verte, la pass décide", cible: null, depuis: `${JOUR_HORLOGE}T10:00:11.000Z` });
+  assert.deepEqual(activite(), { fait: "jugée verte, la pass décide", faitEn: "judged green, the pass decides", cible: null, depuis: `${JOUR_HORLOGE}T10:00:11.000Z` });
 });
