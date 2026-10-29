@@ -210,7 +210,7 @@ describe("le rail occupe le centre de l'écran principal", () => {
   test("avant la première lecture il le dit ; un projet sans box n'en a pas — rien n'est lu de lui", async () => {
     const vue = await ouvrir();
     assert.equal(vue.element("rail").hidden, false);
-    assert.match(vue.element("rail").textContent, /^the rail: first read of `ssh box brigade parade facts` in progress…$/);
+    assert.match(vue.element("rail").textContent, /^the rail: first read of the station's “facts” step in progress…$/);
     assert.deepEqual(colonnes(vue), []);
 
     const sansBox = await jouerLaVue({ demarrage: () => demarrage([{ nom: PARADE, dossier: "/tmp/parade" }]), espace: () => [SECOND] });
@@ -222,13 +222,13 @@ describe("le rail occupe le centre de l'écran principal", () => {
     assert.deepEqual(colonnes(sansBox), []);
   });
 
-  test("un projet qui cuit sur cet ordinateur (#1122) a son rail, sans « hote » : lu ici, sans ssh, comme une box", async () => {
+  test("un projet qui cuit sur cet ordinateur (#1122) a son rail, lu ici, comme une box", async () => {
     const ici = await jouerLaVue({ demarrage: () => demarrage([{ nom: PARADE, dossier: "/tmp/parade" }], (nom) => nom === PARADE), espace: () => [SECOND] });
     (ici.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
     await repos();
     assert.equal(ici.element("rail").hidden, false);
     // La lecture est celle du geste de sa station, ici : aucune commande `ssh` n'est dite.
-    assert.match(ici.element("rail").textContent, /^the rail: first read of `brigade parade facts` in progress…$/);
+    assert.match(ici.element("rail").textContent, /^the rail: first read of the station's “facts” step in progress…$/);
     recevoir(ici);
     assert.deepEqual(
       colonnes(ici).map((colonne) => colonne.children[0]?.children[0]?.textContent),

@@ -187,28 +187,19 @@ const rangees = new Map();
 
 const brigade = window.brigade;
 
-// Le geste de poste d'un projet, tel que les boutons l'écrivent (boutons.ts) :
-// `ssh <hote> brigade <nom> <commande>`, avec son hôte et son nom — ce qui
-// s'affiche se recopie. Le renderer ne charge pas boutons.ts : les deux citations
-// y sont reprises, au mot près. Un projet sans box n'a pas d'hôte : le geste
-// générique reste, c'est ce que son panneau dit qu'il manque. Un projet qui cuit
-// sur cet ordinateur (`ici`) est lu par le geste de sa station, ici, sans `ssh` :
-// `brigade <nom> <commande>`, ce que `ssh` aurait lancé sur une box.
-/** @param {string} texte */
-const mot = (texte) => (/^[A-Za-z0-9@._:-]+$/.test(texte) ? texte : `'${texte.replaceAll("'", `'\\''`)}'`);
-/** @param {string} nom */
-const cite = (nom) => (/^[a-z0-9-]+$/.test(nom) ? nom : `'${nom.replaceAll("'", `'\\''`)}'`);
-/** @param {Projet} projet @param {string} commande */
-const geste = (projet, commande) => `${projet.ici === true ? "" : `ssh ${projet.box === undefined ? "<hote>" : mot(projet.box.hote)} `}brigade ${mot(cite(projet.nom))} ${commande}`;
-// Ce qui se lit d'un projet : sa box, jointe par `ssh` — ou cet ordinateur, quand c'est sa station
-// qui fait tourner sa cuisine (`ici`, poste/cuisine-ici.ts) : il se lit alors sans `ssh` ni `hote`.
+// Le geste d'un projet, tel que la vue le nomme : par son nom d'étape entre guillemets, « status » —
+// jamais par la commande qui le lance, qui ne s'affiche pas (le chef le joue par son bouton).
+/** @param {Projet} _projet @param {string} commande */
+const geste = (_projet, commande) => `the station's “${commande.split(" ").filter((m, i, tous) => !tous.slice(0, i + 1).some((t) => /^[-<]/.test(t))).join(" ")}” step`;
+// Ce qui se lit d'un projet : sa box — ou cet ordinateur, quand c'est sa station
+// qui fait tourner sa cuisine (`ici`, poste/cuisine-ici.ts).
 // Tant que la station de cet ordinateur ne tourne pas (`sansStation`), rien n'en est lu : la page
 // ne dit que cela, en une ligne (attendre).
 /** @param {Projet} projet */
 const seLit = (projet) => (projet.box !== undefined || projet.ici === true) && projet.sansStation !== true;
 // Le geste que faits.ts écrit, n'ayant pas le projet : la vue le pose sur le sien.
 /** @param {Projet} projet @param {string} texte */
-const surMesure = (projet, texte) => texte.replaceAll("ssh <hote> brigade <nom> ", `${geste(projet, "")}`);
+const surMesure = (projet, texte) => texte.replace(/`?ssh <hote> brigade <nom> ([a-z-]+)`?/g, (_, etape) => geste(projet, etape));
 /** @param {string} nom */
 const projetDe = (nom) => configuration.projets.find((projet) => projet.nom === nom);
 
@@ -1419,8 +1410,8 @@ function montrer() {
     suivie === undefined || courant === undefined || courant.desinstalle !== undefined
       ? ""
       : suivie.id === CUISINE
-        ? `the output of \`${geste(courant, "station")}\`, as the station returns it; the reliability of the cooks from the chef's window and thresholds it gives, then \`${geste(courant, "measures --last <window> --by 1")}\`; the closer from \`${geste(courant, "closing --json")}\` — re-read on their own every thirty seconds, while this tab is shown`
-        : `the output of \`${geste(courant, suivie.commande)}\`, as the station returns it${suivie.precision === undefined ? "" : ` (${suivie.precision})`} — re-read on its own every thirty seconds, while this tab is shown`;
+        ? `the output of ${geste(courant, "station")}, as the station returns it; the reliability of the cooks from the chef's window and thresholds it gives, then ${geste(courant, "measures --last <window> --by 1")}; the closer from ${geste(courant, "closing --json")} — re-read on their own every thirty seconds, while this tab is shown`
+        : `the output of ${geste(courant, suivie.commande)}, as the station returns it${suivie.precision === undefined ? "" : ` (${suivie.precision})`} — re-read on its own every thirty seconds, while this tab is shown`;
   // Sur Cooks, elle est en tête de sa lecture, sous les colonnes : la ligne du haut n'a rien à dire.
   const surCuisine = cuisineMontree();
   const resumeDeLaCuisine = bloc("span", "its machine, its quota, as the station returns them");
@@ -1826,14 +1817,14 @@ function poserConfirmation(projet, { rendu, compte }, grant, partir) {
   if (rendu.chiffrer === true && ALLUMAGE !== undefined) {
     const nombres = bloc("p", compte === undefined ? ALLUMAGE.enCours : compte === null ? ALLUMAGE.parti : "sans" in compte ? "the count could not be read" : compte.dit);
     nombres.className = "nombres";
-    const lu = compte === undefined || compte === null ? "" : `according to \`${geste(projet, ALLUMAGE.commande)}\`, run for you on opening — read at ${heureDe(compte.a)}`;
+    const lu = compte === undefined || compte === null ? "" : `according to ${geste(projet, ALLUMAGE.commande)}, run for you on opening — read at ${heureDe(compte.a)}`;
     const raison = compte === undefined || compte === null || !("sans" in compte) ? "" : [compte.sans, compte.obtenu].filter((texte) => texte !== "").join("\n");
     const aide = [...rendu.prix, lu, raison].filter((texte) => texte !== "").join("\n");
     if (aide !== "") nombres.append(survol(document, aide));
     confirmation.append(nombres);
   } else {
     const [prix = "", ...suite] = rendu.prix;
-    const source = rendu.lu === undefined ? [] : [`according to \`${geste(projet, "facts")}\`, read at ${heureDe(rendu.lu)}`];
+    const source = rendu.lu === undefined ? [] : [`according to ${geste(projet, "facts")}, read at ${heureDe(rendu.lu)}`];
     const ligne = bloc("p", prix);
     ligne.className = "prix";
     const detail = [...suite, ...source].join("\n");
@@ -2109,7 +2100,7 @@ const commandeManque = (projet) => [
   "Both are installed on the station, when preparing it:",
   "(docs/installer.md, section 3, “Préparer”)",
   "",
-  `On your workstation, \`brigade\` alone does not exist, and need not: the step is typed there like this, as the app writes it — \`${geste(projet, "status")}\`, for example.`,
+  `The app plays this step for you: there is nothing to type on your workstation.`,
 ].join("\n");
 
 // Ce que l'app dit quand le geste a refusé le `node` de la box (code 70).
@@ -2135,7 +2126,7 @@ const SSH_EN_ECHEC = [
 // Elle ne sait pas si quelque chose attend : elle ne dit donc pas que rien n'attend.
 /** @param {Projet} projet */
 const sansBord = (projet) => [
-  `Nothing could be set apart: the output of \`${geste(projet, "status")}\` lacks the block the app can take — a single line starting with \`attend\`, a single \`fin attend\` line.`,
+  `Nothing could be set apart: the output of ${geste(projet, "status")} lacks the block the app can take — a single line starting with \`attend\`, a single \`fin attend\` line.`,
   "This is not “nothing awaits you”: what awaits you, if anything, is in the output below, in full.",
 ].join("\n");
 
@@ -2147,7 +2138,7 @@ function aPart(projet, attend, accueil = false) {
   cree.className = "attend";
   cree.dataset.pris = String(attend !== undefined);
   if (accueil) cree.append(bloc("h3", "what awaits you"), attend === undefined ? lectureIndisponible(document, "what awaits you could not be set apart", sansBord(projet)) : bloc("pre", attend));
-  else cree.append(bloc("h3", `what awaits you — the \`attend\` block of \`${geste(projet, "status")}\``), attend === undefined ? propos(sansBord(projet)) : bloc("pre", attend));
+  else cree.append(bloc("h3", `what awaits you — the \`attend\` block of ${geste(projet, "status")}`), attend === undefined ? propos(sansBord(projet)) : bloc("pre", attend));
   return cree;
 }
 
@@ -2709,7 +2700,7 @@ async function retirerDeLApp(projet) {
 /** @param {Projet} projet */
 const sansForme = (projet) => [
   "The app draws nothing of this project: no color pill, no counters, no rail. A number it has not read is not a zero.",
-  `What the station returned is above, as is. What \`${geste(projet, "status")}\` says about the project can still be read, below.`,
+  `What the station returned is above, as is. What ${geste(projet, "status")} says about the project can still be read, below.`,
 ].join("\n");
 // Quand la box, jointe, n'a pas répondu à `faits` sans que son code dise pourquoi :
 // un runtime d'avant cette commande est le cas attendu.
@@ -2719,7 +2710,7 @@ const SANS_REPONSE = [
 ].join("\n");
 // Sous toute lecture de `faits` en échec.
 /** @param {Projet} projet */
-const sansDessin = (projet) => `The app draws nothing of this project: no color pill, no counters, no rail. What \`${geste(projet, "status")}\` got is read below.`;
+const sansDessin = (projet) => `The app draws nothing of this project: no color pill, no counters, no rail. What ${geste(projet, "status")} got is read below.`;
 
 // La forme d'un ton : la couleur ne porte jamais seule l'information. Un disque plein, un
 // losange, un carré, un anneau creux, un triangle — distincts en niveaux de gris. C'est le ton
@@ -2919,7 +2910,7 @@ function poserBon(projet, carte, tonAttend, execution = true) {
   numero.title = ouvrable
     ? `open issue #${ticket} in the browser`
     : etat === undefined
-      ? `this ticket is not on the rail that \`${geste(projet, "facts")}\` returns: the app does not have its address`
+      ? `this ticket is not on the rail that ${geste(projet, "facts")} returns: the app does not have its address`
       : "the address the station returned for this ticket is not https: the app does not open it";
   const tete = document.createElement("div");
   tete.append(numero);
@@ -4314,7 +4305,7 @@ function poserAmont(projet, { aucunTicket, cadence }, cartes) {
   // Le haut du rail reste léger (ticket 623) : la commande lue se dit au survol, pas en tête.
   if (vu === undefined) {
     const lecture = bloc("span", "upcoming: being read…");
-    lecture.title = `first read of \`${commande}\` in progress`;
+    lecture.title = `first read of ${commande} in progress`;
     tete.append(lecture);
   } else if (!("nonPublie" in vu)) {
     const deplie = amontsDeplies.has(projet.nom);
@@ -4708,7 +4699,7 @@ function poserRail(projet) {
   // Hors ligne sans rien de lu avant : le signe seul, sans erreur ni rail vide (ticket 1818).
   if (horsLigne !== undefined && (tenu === undefined || !("tableau" in tenu))) return poser(signeHorsLigne(horsLigne));
   // Ce que dit le rail qui n'est pas lu : la carte du projet le dit déjà, sur Cooks.
-  if (tenu === undefined && muet === undefined) return poser(...(cuisine ? [] : [bloc("h3", `the rail: first read of \`${geste(projet, "facts")}\` in progress…`)]));
+  if (tenu === undefined && muet === undefined) return poser(...(cuisine ? [] : [bloc("h3", `the rail: first read of ${geste(projet, "facts")} in progress…`)]));
   // La box ne répond pas : rien de ce que dit le rail n'est lu à neuf. Il garde sa dernière lecture,
   // marquée, et les tickets `fire` que GitHub dit encore passent au-dessus (feu.ts).
   // Le téléphone ne lit pas GitHub : rien n'y passe au-dessus.
@@ -4816,7 +4807,7 @@ function poserRail(projet) {
     ...(cuisine ? [] : [grille]),
     ...(cuisine || hors.length === 0 ? [] : [bloc("h3", "outside the columns — their state is none of the six, and nothing says they await you"), bons(hors)]),
   );
-  servisSansCarte.replaceChildren(...(sansCarte.length === 0 ? [] : [bloc("h3", `served, without a card here — \`${geste(projet, "status")}\` shows their server`), servis(sansCarte)]));
+  servisSansCarte.replaceChildren(...(sansCarte.length === 0 ? [] : [bloc("h3", `served, without a card here — ${geste(projet, "status")} shows their server`), servis(sansCarte)]));
   rendreLeClavier(reprise);
   if (!cuisine) placerLaRangee(projet, grille, defile);
 }
@@ -5062,7 +5053,7 @@ function poserPages(projet, servies) {
   };
   const n = servies.pages.length;
   pages.replaceChildren(
-    ditEtAide("h3", "look at a delivery in your browser", `the servers \`${geste(projet, "status")}\` shows`),
+    ditEtAide("h3", "look at a delivery in your browser", `the servers ${geste(projet, "status")} shows`),
     ...(servies.refus === undefined ? [] : [alerte(servies.refus)]),
     ...(n === 0 ? [] : [ditEtAide("p", `${n} page${n > 1 ? "s" : ""} served (${servies.pages.map(({ ticket }) => `#${ticket}`).join(", ")})`, "each opens from its ticket's card")]),
     ...(servies.aLancer.length === 0
@@ -6421,8 +6412,7 @@ function poserStationsDuProjet() {
     );
   } else if (projet.box !== undefined) {
     // Écrit à la main avec « hote » : l'app le lit là, sans qu'aucune station appairée ne le publie.
-    const appele = bloc("strong", projet.box.hote);
-    appele.className = "mono";
+    const appele = bloc("strong", "its station");
     appele.title = `named in ${configuration.chemin}: the app reads it there, and no paired station publishes it`;
     ligneDesStationsDuProjet.replaceChildren(bloc("span", "Cooks on "), appele);
   } else {
