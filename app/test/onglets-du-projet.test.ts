@@ -1,5 +1,5 @@
 // La page d'un projet en deux onglets (#1184) : Rail — ce qui t'attend, le kanban entier, Taken et Pass compris — et
-// Cooks — ce qui tourne : la carte du projet et ses cooks, les serveurs de livraison, les stations, la
+// Cooks — ce qui tourne : la carte du projet et ses cooks, les stations, la
 // lecture de `station` (plafond, saturation, consommation). Un seul est montré au centre ; le second reste à droite,
 // le même, quel que soit l'onglet. L'app rouvre un projet sur le dernier onglet que le chef y a ouvert.
 // La vue est jouée telle qu'elle est, devant un faux document (aides/fausse-vue.ts).
@@ -16,7 +16,6 @@ import { BANNIERE, tenirFaits, type Dessinable, type Faits } from "../src/faits.
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
 import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
-import type { Pages } from "../src/page.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import type { Terminal } from "../src/terminaux.ts";
 import { FauxStockage, type Faux, type Jouee, jouerLaVue, ouvrirLecture, ouvrirOnglet, repos } from "./aides/fausse-vue.ts";
@@ -72,17 +71,6 @@ const STATUS = [
   "rail       2 en attente · 1 pris · 2 en pass · 1 servi",
   "",
 ].join("\n");
-// Deux serveurs de livraison : celui de #31, servi — sa carte est sur Rail —, et celui de #30, à la pass — sur Cooks.
-const PAGES: Pages = {
-  projet: PARADE,
-  pages: [
-    { ticket: 31, worktree: "31-5be0c1d2", port: 20031, etat: "sert", route: "/", ecran: null, enCours: false },
-    { ticket: 30, worktree: "30-9a8b7c6d", port: 20030, etat: "sert", route: "/", ecran: null, enCours: false },
-  ],
-  aLancer: [],
-  illisibles: [],
-  empeche: [],
-};
 // Ce que `station` rend : le plafond de cooks, la machine et sa saturation, le quota consommé.
 const STATION = "cooks      1 running — box: 3 at most — 8 cores\nmachine    saturée · charge 7.9\nquota      62 % consommé\n";
 
@@ -100,12 +88,11 @@ async function entrer(vue: Jouee, nom: string): Promise<void> {
   (vue.element("projets").children.at(PROJETS.findIndex((projet) => projet.nom === nom) + 1) ?? assert.fail(`pas de case pour ${nom}`)).click();
   await repos();
 }
-// L'espace de parade, ses faits, son `status` et ses serveurs lus.
+// L'espace de parade, ses faits lus.
 async function ouvrir(stockage?: FauxStockage): Promise<Jouee> {
   const vue = await jouer(stockage);
   await entrer(vue, PARADE);
   vue.dire("surFaits", { ...dessinable(), demande: vue.dernier("faits")[0] as number });
-  vue.dire("surLecture", { projet: PARADE, demande: vue.dernier("regarder")[1] as number, a: A, attend: undefined, sorties: [{ commande: "status", texte: STATUS }] }, PAGES);
   await repos();
   return vue;
 }
@@ -172,20 +159,21 @@ describe("ce que chaque onglet montre", () => {
     const vue = await ouvrir();
 
     assert.deepEqual(colonnes(vue), ["On the rail", "Taken", "Pass", "TODO", "WAITING", "Served"]);
-    // Le rail dans son ordre ; #12, qui t'attend, avec son geste ; #31, servi, avec celui qui ouvre son écran.
+    // Le rail dans son ordre ; #12, qui t'attend, avec son geste ; #31, servi, sans geste qui ouvre une page de son
+    // worktree (#1846) : l'app n'en ouvre aucune.
     assert.deepEqual(cartes(vue), ["#21", "#22", "#14", "#30", "#12", "#31"]);
     assert.ok(carteDe(vue, 12).dessous("button").length > 0, "ce qui t'attend n'a pas de geste");
-    assert.ok(carteDe(vue, 31).dessous("button").some((bouton) => bouton.textContent === "see it in my browser"));
-    // Rien d'exécution : ni worktree ni port, ni la carte du projet, ni `station`.
-    assert.doesNotMatch(centre(vue).textContent, /31-5be0c1d2|20031|30-9a8b7c6d|cap of cooks|saturée|consommé/);
-    for (const id of ["carte", "pages", "lu-cuisine", "lecture-cuisine"]) assert.equal(pose(vue, id), false, id);
+    assert.ok(!carteDe(vue, 31).dessous("button").some((bouton) => /browser/.test(bouton.textContent)));
+    // Rien d'exécution : ni la carte du projet, ni `station`.
+    assert.doesNotMatch(centre(vue).textContent, /cap of cooks|saturée|consommé/);
+    for (const id of ["carte", "lu-cuisine", "lecture-cuisine"]) assert.equal(pose(vue, id), false, id);
     // Les stations du projet, quand il cuit quelque part, sont sur Cooks.
     assert.equal(vue.element("stations-du-projet").hidden, true);
     // Et rien n'est lu de `station` tant que Rail est montré.
     assert.notDeepEqual(vue.appels.findLast(({ geste }) => geste === "onglet")?.args.slice(0, 2), [PARADE, "cooks"]);
   });
 
-  test("Cooks : le projet et ses cooks en cours, aucune colonne du kanban, les serveurs de livraison, les stations, le plafond, la saturation, la consommation", async () => {
+  test("Cooks : le projet et ses cooks en cours, aucune colonne du kanban, aucune page servie, les stations, le plafond, la saturation, la consommation", async () => {
     const vue = await ouvrir();
     await ouvrirOnglet(vue, "Cooks");
     lireStation(vue);
@@ -196,12 +184,10 @@ describe("ce que chaque onglet montre", () => {
     // cook en cours et sa station (#1456 : avec des stations, elle est fondue dans leur bloc).
     assert.equal(pose(vue, "carte"), true);
     assert.match(vue.element("carte").textContent, /box\/claude/);
-    // Le worktree et le port de chaque serveur, sans carte de colonne.
+    // Aucune carte de colonne, et aucune page de worktree à ouvrir (#1846).
     assert.deepEqual(cartes(vue), []);
-    assert.match(centre(vue).textContent, /30-9a8b7c6d · port 20030 · sert/);
-    assert.equal(pose(vue, "pages"), true);
-    // Le serveur de #31, dont la carte est sur Rail, est ici aussi — son worktree et son port compris.
-    assert.match(centre(vue).textContent, /31-5be0c1d2 · port 20031 · sert/);
+    assert.ok(!centre(vue).dessous("button").some((bouton) => /browser/.test(bouton.textContent)));
+    assert.doesNotMatch(centre(vue).textContent, /port \d/);
     // La lecture de `station`, en bas, repliée derrière sa ligne et fermée (#1456) : aucun bloc de sortie brute, et plus
     // le bouton qui écrivait le plafond de cooks dans le second — il se règle sur la ligne de sa station.
     assert.equal(pose(vue, "lecture-cuisine"), true);

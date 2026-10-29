@@ -92,7 +92,6 @@ pre.propos {
 /* Une carte : le cadre de tout ce qui se lit d'un bloc. */
 .carte,
 #etat > .groupe,
-#pages,
 #tous .liste,
 #formulaire,
 #stations-du-projet .confiance {
@@ -102,10 +101,9 @@ pre.propos {
 }
 /* Un bouton de geste : il écrit, ou il demande — le même partout. Inactif, il est en pointillé,
    et sa raison se lit dessous. `:where` : la règle ne pèse rien, chaque bloc la précise. */
-:where(.gestes, .alerte > .ligne, #retrait, #pages, #formulaire, #avis, #accueil-app) button,
+:where(.gestes, .alerte > .ligne, #retrait, #formulaire, #avis, #accueil-app) button,
 #fiche button,
-#rail .pr,
-#rail .servie button {
+#rail .pr {
   padding: 3px 10px;
   font-size: 12px;
   font-weight: 600;
@@ -114,14 +112,12 @@ pre.propos {
   border: 1px solid var(--trait);
   border-radius: var(--rayon-bouton);
 }
-:where(.gestes, .alerte > .ligne, #retrait, #pages, #formulaire, #avis, #accueil-app) button:hover:not(:disabled),
+:where(.gestes, .alerte > .ligne, #retrait, #formulaire, #avis, #accueil-app) button:hover:not(:disabled),
 #fiche button:hover,
-#rail .pr:hover,
-#rail .servie button:hover:not(:disabled) {
+#rail .pr:hover {
   border-color: var(--trait-fort);
 }
-:where(.gestes, .alerte > .ligne, #retrait, #pages, #formulaire, #avis, #accueil-app) button:disabled,
-#rail .servie button:disabled {
+:where(.gestes, .alerte > .ligne, #retrait, #formulaire, #avis, #accueil-app) button:disabled {
   color: var(--discret);
   background: none;
   border-style: dashed;
@@ -2130,27 +2126,6 @@ main > header,
 .gestes button.mono {
   font-weight: 500;
 }
-/* Les pages servies, sous l'état : ce que `status` montre de ses serveurs, et ce qui les empêche.
-   Leur geste n'est pas ici : il est sur la carte de chaque ticket servi. Rien ne s'y valide. */
-#pages {
-  padding: 12px 16px;
-}
-#pages h3 {
-  margin: 0 0 6px;
-  color: var(--discret);
-}
-#pages p,
-#pages small {
-  display: block;
-  margin: 4px 0 0;
-  color: var(--discret);
-}
-#pages .refus {
-  color: var(--jaune);
-}
-#pages pre {
-  margin: 4px 0 0;
-}
 /* Settings (ticket 1700) : trois groupes, un par niveau — le projet, cette machine, toi —, chacun une carte sous son
    titre, le mot du niveau. Dedans, chaque réglage est une ligne, la même pour tous : son nom, sa valeur en vigueur, son
    contrôle — puis, sous la valeur, ce que le contrôle a ouvert ou rendu. Les réglages du projet dans son dépôt gardent
@@ -2982,12 +2957,6 @@ main > header,
 #rail > .etat-de-la-cuisine {
   margin: 12px 16px 0;
 }
-#servis-sans-carte:empty {
-  display: none;
-}
-#rail > #pages {
-  margin: 12px 16px 0;
-}
 /* Un bloc replié derrière une ligne, fermé par défaut : son titre, puis ce qu'il contient en quelques mots — l'ouvrir
    montre le reste. Un bloc qui n'a rien à dire tient sur une ligne de la même forme, sans rien à ouvrir. */
 #rail .replie,
@@ -3786,32 +3755,6 @@ main > header,
 #rail .bon small.repere {
   font-style: normal;
 }
-/* La page d'un ticket servi, sur sa carte : son worktree, son port, l'état de son serveur, et son
-   seul geste — l'ouvrir dans le navigateur du poste. Ce que le dernier a donné se lit dessous. */
-#rail .servie {
-  flex-direction: column;
-  align-items: stretch;
-  padding-top: 4px;
-  font-size: 11px;
-  border-top: 1px dashed var(--bon-trait);
-}
-#rail .servie span {
-  color: var(--bon-discret);
-}
-#rail .servie [data-ouverte="true"] {
-  color: var(--vert);
-}
-#rail .servie [data-ouverte="false"] {
-  color: var(--jaune);
-}
-/* L'écran à regarder, sur la même carte : la phrase du cook se lit d'abord ; un écran déduit des
-   fichiers touchés, et pas déclaré, le dit dessous. */
-#rail .servie .phrase {
-  color: var(--texte);
-}
-#rail .servie .deduit {
-  color: var(--jaune);
-}
 /* Ce que la file dit du ticket : un libellé, sa valeur — un fait par ligne. */
 #rail .porte {
   display: flex;
@@ -4399,6 +4342,39 @@ main > header,
   grid-column: 1 / -1;
   margin: 0;
   color: var(--discret);
+}
+/* Le cook du ticket, tel que sa station le publie sur le tableau de la cuisine (ticket 1846) : sa pilule et sa ligne de
+   tête, ce qu'il fait en ce moment, ses derniers gestes chacun avec son heure, sa PR, et d'où vient ce qui est dit. */
+#fiche .activite-du-cook {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+#fiche .activite-du-cook > p {
+  margin: 0;
+}
+#fiche .activite-du-cook .etat,
+#fiche .activite-du-cook .maintenant {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+#fiche .activite-du-cook small {
+  color: var(--discret);
+}
+#fiche .activite-du-cook .etapes {
+  align-self: stretch;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+#fiche .activite-du-cook .etapes li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  gap: 2px 16px;
+  color: var(--texte-doux);
 }
 /* La rétro du ticket servi : ses leçons, chacune sa pastille « provisional » comme dans ce que les
    cooks ont appris, son id et son texte ; puis ce que son cook a écrit, tel quel. */

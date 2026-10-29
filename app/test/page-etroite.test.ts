@@ -252,7 +252,6 @@ describe("l'onglet Cooks d'un écran étroit, en lecture seule", () => {
     assert.equal(dansLeRail(vue, "lecture-cuisine"), false);
     assert.equal(dansLeRail(vue, "gestes-cuisine"), false);
     assert.notEqual(lecture(vue), "cooks");
-    vue.dire("surLecture", { projet: PARADE, demande: 0, a: A, attend: undefined, sorties: [{ commande: "station", texte: STATION }] }, { projet: PARADE, pages: [], aLancer: [], illisibles: [], empeche: [] });
     await repos();
     const texte = vue.element("rail").textContent;
     for (const reglage of [/cap/i, /at most/, /quota/, /sandbox/i, /\+ station/, /move the kitchen/, /Set the cooks/, /ordinary/i]) assert.doesNotMatch(texte, reglage);

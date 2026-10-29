@@ -34,7 +34,7 @@ import { BANNIERE, COMMANDE, rangerLeRailPublie, tenirFaits, type RailDuProjetLu
 import { clientGitHub, parFetch } from "./tableau/client.ts";
 import { avecLesEnvois } from "./tableau/envois.ts";
 import { jetonDeGh } from "./tableau/jeton-gh.ts";
-import { lireLeTableauDuDepot } from "./tableau/lecture.ts";
+import { lireLeTableauDuDepot, type TableauLu } from "./tableau/lecture.ts";
 import { lectureDuTableau, ouvrirVeilleDuTableau, tenirLecturesDuTableau } from "./tableau/rail.ts";
 import { arriveeDeCarte, gesteDeFiche as gesteDeFicheAuTableau, jouerAuTableau, reponseALaFile, reponseDeCarte as reponseDeCarteAuTableau } from "./tableau-gestes/rail.ts";
 import type { DecisionDuChef } from "./tableau-gestes/gestes.ts";
@@ -55,7 +55,6 @@ import { installeurDuPoste } from "./mise-a-jour/installation.ts";
 import { COMMANDE as COMMANDE_MANAGER, voir as voirManager } from "./manager.ts";
 import { machineChoisie, machinesDe } from "./machines.ts";
 import { commandesDe, CUISINE, ONGLETS, projetsLus, RUBRIQUES } from "./onglets.ts";
-import { ouvrirTransfert, tenirPages } from "./page.ts";
 import { jouerPanne } from "./pannes/gestes.ts";
 import { gistLocal, tenirLogin } from "./pannes/login.ts";
 import { demenageurDuRuntime } from "./projets/demenagement.ts";
@@ -219,6 +218,11 @@ const lireLeTableau = async (projet: Projet) => {
   return lu.lu ? avecLesEnvois(lu, appelerGitHub) : lu;
 };
 const tableaux = tenirLecturesDuTableau<Projet>({ lire: lireLeTableau, fraicheurMs: 15_000 });
+// Ce que fait chaque cook d'un projet, tel que son tableau le publie (#1846) : à la place de son terminal, que l'app ne
+// suit pas, la vue en pose le cook d'un ticket sur sa fiche (vue/activite-du-cook.js) — avec GitHub seul, sans `ssh`. Un
+// tableau d'une box qui ne le publie pas encore le dit en une phrase.
+const activitesDuTableau = (projet: string, lu: TableauLu) =>
+  lu.activites === undefined ? { projet, sans: "the Kitchen board was written by a box that does not publish its cooks' activity yet: update the box" } : { projet, lu: lu.etatLuLe ?? lu.genereLe, activites: lu.activites };
 const railLisible = (projet: Projet) => cuisines.cuisineDe(projet) !== undefined;
 
 // Seul ce qui est affiché est lu — un projet, ou chacun dans « Tous les projets » : toutes
@@ -234,8 +238,6 @@ const veille = ouvrirVeilleDuTableau({
   lisible: railLisible,
   surLecture: (lecture) => {
     const montree = mettreAPart(lecture);
-    // Les serveurs que ce `status` montre : un transfert dont le serveur n'y est plus est fermé.
-    dire("lecture", montree, pages.recevoir(montree));
     // Le rail se dessine aussi de ce `status` : son bloc dit en mots ce qui attend le chef, et sa
     // ligne `rail` ce que chaque carte porte du ticket.
     const redessine = faits.attendre(montree);
@@ -332,6 +334,9 @@ const veilleDesFaits = ouvrirVeilleDuTableau({
   lisible: railLisible,
   surLecture: (lecture) => {
     dire("faits", faits.recevoir(lecture));
+    // Ce que fait chaque cook du projet, publié sur le même tableau (#1846) : la fiche d'un ticket suit son cook.
+    const tableau = tableaux.dernier(lecture.projet);
+    if (!("erreur" in lecture) && tableau !== undefined) dire("activites", activitesDuTableau(lecture.projet, tableau));
     direLaBande(bandes.faits(lecture));
     direLAccueil(accueil.faits(lecture));
     // Une annonce d'urgence que le runtime vient de faire se dit au système.
@@ -365,19 +370,6 @@ const veilleDeLAmont = ouvrirVeilleDuTableau({
   intervalleMs: 60_000,
   lisible: railLisible,
   surLecture: (lecture) => dire("amont", amonts.recevoir(lecture)),
-});
-
-// La page d'un worktree servi, dans le navigateur du poste (page.ts) : le port que `status`
-// montre est amené ici par un transfert de port de `ssh` — par le passage du projet, le temps
-// qu'il s'ouvre, et trente secondes au plus —, puis l'adresse locale est ouverte comme une issue.
-const pages = tenirPages({
-  transferer: (servi, port, signal) => {
-    // Jamais posée hors des essais, comme pour la veille.
-    const rendu = (passage.get(servi.nom) ?? Promise.resolve()).then(() => ouvrirTransfert({ ssh: process.env.BRIGADE_SSH_BIN || "ssh", delaiMs: 30_000, connexionS: 10 }, servi, port, signal));
-    passage.set(servi.nom, rendu);
-    return rendu;
-  },
-  ouvrir: (url) => shell.openExternal(url),
 });
 
 // La veille de `status` change de projets : le bloc `attend` de ceux qu'elle ne lit plus est
@@ -470,7 +462,6 @@ const retraits = tenirRetraits({
   },
   surDesinstalle: (nom) => {
     services.oublier(nom);
-    pages.oublier(nom);
     // La veille de `status` tient encore sa box, quel que soit l'écran : elle est reposée sans lui.
     voir();
     // Et le runner ne joue plus rien pour lui : ses cooks sont arrêtés.
@@ -499,14 +490,13 @@ const preferences = tenirPreferences({
 });
 
 // Le fichier des projets : créé s'il manque, relu dès qu'il change. Un projet
-// qui a quitté la liste — ou changé de dossier — perd ses terminaux, sa mise
-// en service et ses transferts de port ; les autres n'en savent rien. Celui qui a quitté la liste n'a plus
+// qui a quitté la liste — ou changé de dossier — perd ses terminaux et sa mise
+// en service ; les autres n'en savent rien. Celui qui a quitté la liste n'a plus
 // rien de tenu de son retrait non plus.
 const suivi = suivreConfiguration({
   chemin: cheminConfiguration(),
   surChangement: (configuration, partis) => {
     partis.forEach(services.oublier);
-    partis.forEach(pages.oublier);
     partis.filter((nom) => !configuration.projets.some((reste) => reste.nom === nom)).forEach(retraits.oublier);
     dire("configuration", affichee(), partis.flatMap((nom) => terminaux.quitter(nom)));
     // Les stations que le poste joue sont celles du fichier tel qu'il est maintenant.
@@ -1472,11 +1462,16 @@ ipcMain.handle("ouvrirPr", (_, nom: unknown, ticket: unknown) => {
     () => false,
   );
 });
-// La page d'un worktree servi s'ouvre dans le navigateur du poste : la vue nomme le projet et le
-// worktree, le port est celui que la box a montré (page.ts). Rien, pour un projet sans box.
-ipcMain.handle("ouvrirPage", (_, nom: unknown, worktree: unknown) => {
-  const vise = connu(nom);
-  return vise === undefined ? undefined : pages.ouvrir(vise, worktree);
+// La PR du cook d'un ticket s'ouvre depuis sa fiche (#1846) : la vue nomme le projet et le ticket, l'adresse est celle
+// que la dernière lecture de son tableau publie pour son cook. Rend si elle a été ouverte.
+ipcMain.handle("ouvrirPrDuCook", (_, nom: unknown, ticket: unknown) => {
+  const adresse = tableaux.dernier(nom)?.activites?.find((activite) => activite.ticket === ticket)?.pr?.url;
+  return adresse === undefined || URL.parse(adresse)?.protocol !== "https:"
+    ? false
+    : shell.openExternal(adresse).then(
+        () => true,
+        () => false,
+      );
 });
 ipcMain.on("ecrire", (_, id: number, donnees: string) => terminaux.ecrire(id, donnees));
 ipcMain.handle("propositionsDuSecond", () => propositionsDuSecond?.vu() ?? {});
@@ -1503,7 +1498,6 @@ app.on("will-quit", () => {
   veilleDesFaits.fermer();
   veilleDuManager.fermer();
   veilleDeLAmont.fermer();
-  pages.fermer();
   retards.fermer();
   miseAJour.fermer();
   clearInterval(verificationsDeVersion);

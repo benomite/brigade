@@ -7,7 +7,6 @@ import { describe, test } from "node:test";
 import { ALLUMAGE } from "../src/allumage.ts";
 import { pourLaBarre } from "../src/barre.ts";
 import { BOUTONS } from "../src/boutons.ts";
-import type { Montree } from "../src/attend.ts";
 import { EXEMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
@@ -72,18 +71,6 @@ describe("la page d'un projet qui cuit ici, station arrêtée", () => {
     assert.equal(centre(vue).textContent, LIGNE);
     assert.equal(centre(vue).children.length, 1);
     assert.ok(!vue.poses().some(({ id }) => id === "lu-cuisine" || id === "lecture-cuisine"));
-  });
-
-  test("une lecture qui arrive quand même ne remplace pas la ligne", async () => {
-    const vue = await ouvrir(false, 1);
-    const lecture: Montree = { projet: "parade", demande: vue.dernier("regarder")[1] as number, a: "2026-10-20T10:00:00.000Z", sorties: [{ commande: "status", texte: "parade : rien" }], attend: undefined };
-
-    vue.dire("surLecture", lecture, { projet: "parade", pages: [], aLancer: [], illisibles: [], empeche: [] });
-    await repos();
-
-    assert.equal(centre(vue).textContent, LIGNE);
-    // Ni ailleurs : ce que `status` a rendu ne se lit nulle part sur la page.
-    assert.ok(!vue.poses().some(({ textContent }) => textContent.includes("parade : rien")));
   });
 
   test("la station démarre : la configuration reposée enlève la ligne, et le rail reprend sa place — l'app n'est pas relancée", async () => {

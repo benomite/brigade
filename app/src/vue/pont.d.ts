@@ -3,7 +3,6 @@ import type { Accueil } from "../accueil.ts";
 import type { Bande } from "../alertes.ts";
 import type { ALLUMAGE, Compte } from "../allumage.ts";
 import type { Vu as VuAmont } from "../amont.ts";
-import type { Montree } from "../attend.ts";
 import type { Affichee } from "../barre.ts";
 import type { Bouton } from "../boutons.ts";
 import type { Lecture } from "../box.ts";
@@ -20,7 +19,6 @@ import type { Issue, Lu, Saisie } from "../ajout.ts";
 import type { Vu } from "../manager.ts";
 import type { Onglet, Rubrique } from "../onglets.ts";
 import type { Bloc } from "../ordinaires.ts";
-import type { Pages } from "../page.ts";
 import type { RenduDePanne } from "../pannes/gestes.ts";
 import type { EtatDeMiseAJour } from "../mise-a-jour/etat.ts";
 import type { UpdateOffer } from "../mise-a-jour/android.ts";
@@ -379,11 +377,10 @@ export type Pont = {
   // a rendue pour elle n'est pas en https, il n'est plus dans les derniers faits lus, ou le poste
   // n'a pas pu l'ouvrir.
   ouvrirPr(projet: string, ticket: number): Promise<boolean>;
-  // La page d'un worktree servi, ouverte dans le navigateur du poste : la vue nomme le projet et
-  // le worktree, le port est celui que `status` a montré pour lui (page.ts). Rend les pages du
-  // projet telles qu'elles en sortent — ce que le geste a donné, ou pourquoi rien n'est parti.
-  // Rien, pour un projet sans box ou qui a quitté le fichier.
-  ouvrirPage(projet: string, worktree: string): Promise<Pages | undefined>;
+  // La PR du cook d'un ticket, ouverte dans le navigateur (activite-du-cook.js, ticket 1846) : l'adresse est celle que la
+  // dernière lecture du tableau de la cuisine publie pour son cook. Faux : elle ne la publie plus, elle n'est pas en https,
+  // ou le poste n'a pas pu l'ouvrir.
+  ouvrirPrDuCook(projet: string, ticket: number): Promise<boolean>;
   ecrire(id: number, donnees: string): void;
   redimensionner(id: number, colonnes: number, lignes: number): void;
   // Ce que le second de chaque projet propose au chef, par son canal (second/propositions.ts, ticket 1520) : la proposition en
@@ -395,8 +392,9 @@ export type Pont = {
   surProposition?(recevoir: (projet: string, proposition: import("../second/propositions.ts").Proposition | null) => void): void;
   surSortie(recevoir: (id: number, donnees: string) => void): void;
   surEtat(recevoir: (terminal: Terminal) => void): void;
-  // `servies` : les serveurs que le `status` de cette lecture montre, et le geste de chacun (page.ts).
-  surLecture(recevoir: (lecture: Montree, servies: Pages) => void): void;
+  // Ce que fait chaque cook d'un projet, à chaque lecture de son tableau de la cuisine (ticket 1846) — ou pourquoi
+  // il ne se lit pas : la fiche d'un ticket en pose son cook (activite-du-cook.js).
+  surActivites(recevoir: (publiees: import("./activite-du-cook.js").Publiees) => void): void;
   // Ce que la commande de l'onglet affiché a rendu, mot pour mot. `manager` : dans l'onglet
   // Manager, ce qui se pose au-dessus — l'état du manager, lu dans cette sortie (manager.ts).
   // `grants` : dans l'onglet Grants, de même — l'état des grants (grants.ts). `fiabilite` : dans
