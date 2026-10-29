@@ -12,44 +12,29 @@ You write a ticket and put the label `fire` on it. A **cook** (a `claude` sessio
 
 A desktop app shows all of it: your projects, the **rail** of tickets (queued, taken, in the pass, served), the cooks in flight, and a terminal where **the second** — your product assistant — helps you write and prioritize tickets. Everything the system knows lives in durable artifacts (issues, labels, branches, pull requests, a local journal), never in a session's memory: if a cook dies, the committed work survives and the next one picks up from there.
 
-### GitHub is all an app needs
-
-The apps — desktop and phone — need **only your GitHub account** to show and steer your kitchen: the rail, the kitchen's state, the cards that wait for you, and every gesture (merge, remove, answer a card, change a priority). The stations publish everything on a **Kitchen board** issue in each repository and read your gestures from GitHub.
-
-Three things are outside that rule, on purpose:
-
-- **Watching a cook live** in its terminal reaches the machine it runs on (desktop app only).
-- **The second** is a Claude session on your computer: it needs your Claude account too.
-- **Installing a station** happens once, on that machine, with your Claude Max session.
-
 ## Try it
-
-1. Download the app (macOS, Apple silicon, or Windows x64) or the station package (Debian/Ubuntu, with systemd) from the **[releases page](https://github.com/benomite/brigade/releases)**.
-2. Follow **[docs/installation.md](docs/installation.md)**: it takes you from nothing to a first ticket of your own project, cooked and delivered as a pull request. It assumes nothing but that page.
 
 You need two accounts:
 
 - a **GitHub account**, with a repository you can push to (a throwaway one is fine for a first run);
 - a **Claude account**: the cooks run on a Claude Max session, and an API key does not fit.
 
+From download to a first pull request:
+
+1. **Download the app** (macOS, Apple silicon, or Windows x64) from the **[releases page](https://github.com/benomite/brigade/releases)** and open it.
+2. **Sign in with GitHub**: on its first screen, the app offers a button that opens the GitHub page and shows you a code to type there.
+3. **Sign in with Claude**: if the app says the Claude connection is missing, click its **log in** button and sign in with your Max account in the browser.
+4. **Pick your repository**: type it as `owner/repo` and click **open this project**. The app clones it, prepares it with a ticket of its own, and tells you when it is ready.
+5. **Cook a first ticket**: on GitHub, open an issue in that repository and put the label `fire` on it. A cook takes it, opens a pull request, and the pass judges it and merges it.
+
+The app does not ask you to type a command or to edit a file. Every screen of this path is described in **[docs/installation.md](docs/installation.md)**.
+
 ## Where to read next
 
 - [`docs/installation.md`](docs/installation.md) — install and cook your first ticket.
-- [`docs/installer.md`](docs/installer.md) — install a station in one command.
 - [`docs/app.md`](docs/app.md) — the app, screen by screen.
 - [`docs/runtime/README.md`](docs/runtime/README.md) — the runtime (station, rail, pass): index of its pages.
 - [`docs/glossary.md`](docs/glossary.md) — the word for each object of the product (*cook*, *rail*, *station*, *pass*, *served*…).
-
-## Using the V1 plugin
-
-Brigade began as a Claude Code plugin with slash-command roles. That plugin is no longer published from the default branch, but it remains available at the tag **`v1-final`**:
-
-```bash
-claude plugin marketplace add benomite/brigade@v1-final
-cd <your project> && claude plugin install brigade@brigade --scope project
-```
-
-Then restart your session and run `/brigade:init`. V1 is kept as it was and receives no new features. Its history is in the [changelog](CHANGELOG.md#v1-history-tag-v1-final).
 
 ## Contributing and project files
 
