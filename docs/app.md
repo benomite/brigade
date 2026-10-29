@@ -285,7 +285,8 @@ that is the project's kitchen, the state — not the screen.
 A single file, outside the repo: `~/.config/brigade/app.json`. Your boxes, declared once, and a
 name and a folder per project — with, for a project served by a box, which one. **You do not have to
 write it to begin**: the app creates it, and you declare a box and add a project in it from
-the app.
+the app. The runtime creates it too, on its first start (`{ "projets": [], "hotes": [] }`: no host, no
+path), and adds the keys a file lacks without changing any value it has (`runtime/src/app-par-defaut.ts`).
 
 ### On a new computer: your stations and their projects (#1434)
 

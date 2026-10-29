@@ -184,6 +184,16 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     assert.deepEqual(relire(repertoire).map((e) => e.type), ["runtime.started", "project.switched-on", "grant.activated", "guard.configured", "station.announced", "drift.configured", "session.observed", "isolation.configured"]);
   });
 
+  test("sur un dossier de configuration vide, le runtime crée app.json et démarre sans qu'on l'édite", async (t) => {
+    const repertoire = repertoireTemporaire(t);
+    const app = join(repertoireTemporaire(t), "config/app.json");
+    const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_APP_CONFIG: app });
+    await runtime.attendre("démarré");
+
+    assert.deepEqual(JSON.parse(readFileSync(app, "utf8")), { projets: [], hotes: [] });
+    assert.match(runtime.sortie(), /app\.json created with the default settings/);
+  });
+
   test("sans cloison ni porte, le runtime le dit au démarrage et l'écrit : les projets se voient", async (t) => {
     const runtime = await runtimeParDefaut(t);
 
