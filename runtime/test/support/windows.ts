@@ -41,15 +41,18 @@ if (import.meta.main) {
   const joues = demande === -1 ? tous : part(tous, process.argv[demande + 1] ?? "");
   console.log(demande === -1 ? `${tous.length} test files played` : `part ${process.argv[demande + 1]}: ${joues.length} of the ${tous.length} test files played`);
   const gitCore = spawnSync("git", ["--exec-path"], { encoding: "utf8" }).stdout?.trim();
-  // Trois fichiers de front, pas cinq comme `npm test` : sous Windows chaque doublure en bash passe par
+  // Deux fichiers de front, pas cinq comme `npm test` : sous Windows chaque doublure en bash passe par
   // le bash de Git, et chaque process coûte cher. À cinq, sur les quatre cœurs du runner, des tests qui
   // passent d'ordinaire (une pass en 18 s, une passe de fermeture en 40 s) y dépassaient leur garde.
+  // À trois, le rouge restait : d'un run à l'autre, sur la base comme sur les PR (#1884), d'autres tests
+  // de pass.test.ts, fusion.test.ts ou station.test.ts attendaient en vain (« condition jamais remplie »,
+  // 120 s), jamais les mêmes, et le même commit repassait vert. La charge, pas un test, était la cause.
   // Le rapport lisible par le journal, et ses échecs, ses sauts et ses comptes en annotations du check
   // (annotations.ts), écrites une fois la suite finie.
   const rapport = mkdtempSync(join(tmpdir(), "brigade-annotations-"));
   const annotations = join(rapport, "annotations.txt");
   const reporters = ["--test-reporter=spec", "--test-reporter-destination=stdout", `--test-reporter=${pathToFileURL(join(import.meta.dirname, "annotations.ts")).href}`, `--test-reporter-destination=${annotations}`];
-  const r = spawnSync(process.execPath, ["--test", "--test-concurrency=3", "--test-force-exit", "--test-timeout=120000", ...reporters, ...joues], {
+  const r = spawnSync(process.execPath, ["--test", "--test-concurrency=2", "--test-force-exit", "--test-timeout=120000", ...reporters, ...joues], {
     cwd: join(RACINE_TESTS, ".."),
     stdio: "inherit",
     env: environnement(process.env, gitCore),
