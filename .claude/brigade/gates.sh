@@ -136,6 +136,7 @@ fi
 # ceux-là — leur fermeture d'imports et de fichiers cités contient un fichier
 # modifié (`tests-touches.mjs`). Sur la base elle-même le diff est vide : tout
 # se joue, et c'est là que se rattrape un test touché sans que rien ne le dise.
+# Un commit vide au-delà de la base, lui, ne touche rien (#1889).
 # `BRIGADE_GATES_TOUT=1` joue tout ; une sélection qui n'aboutit pas aussi.
 # Hors CI — la station qui cuisine, le poste du dev —, seuls les tests proches
 # du changement se jouent (`--proches`) : la suite touchée tourne sur GitHub

@@ -221,3 +221,44 @@ describe("un test de la base", () => {
     assert.deepEqual(choisir(racine, []), ["runtime tout", "app tout"]);
   });
 });
+
+describe("un changement au diff vide (#1889)", () => {
+  const IDENTITE = ["-c", "user.name=essai", "-c", "user.email=essai@example.com"];
+
+  test("un commit vide au-delà de la base ne touche rien : la suite entière n'y tourne pas, elle tourne sur la base", (t) => {
+    const { racine, git } = depot(t, { claude: true });
+    git("switch", "-q", "-c", "ticket");
+    git(...IDENTITE, "commit", "-q", "--allow-empty", "-m", "rien à changer");
+    assert.deepEqual(choisir(racine, [], "--proches"), ["runtime rien", "app rien"]);
+    assert.deepEqual(choisir(racine, []), ["runtime rien", "app rien"]);
+  });
+
+  test("sa fusion avec une base qui a avancé, telle que la pass la juge, non plus", (t) => {
+    const { racine, git } = depot(t, { claude: true });
+    git("switch", "-q", "-c", "ticket");
+    git(...IDENTITE, "commit", "-q", "--allow-empty", "-m", "rien à changer");
+    git("switch", "-q", "essai");
+    ecrire(racine, "runtime/src/a.ts", "export const a = 2;\n");
+    git(...IDENTITE, "commit", "-q", "-am", "la base avance");
+    git("switch", "-q", "--detach", "essai");
+    git(...IDENTITE, "merge", "-q", "--no-ff", "--no-edit", "ticket");
+    assert.deepEqual(choisir(racine, [], "--proches"), ["runtime rien", "app rien"]);
+  });
+
+  test("sur la base elle-même, ou en retard sur elle, tout se joue", (t) => {
+    const { racine, git } = depot(t, { claude: true });
+    assert.deepEqual(choisir(racine, [], "--proches"), ["runtime tout", "app tout"]);
+    const avant = git("rev-parse", "HEAD");
+    ecrire(racine, "runtime/src/a.ts", "export const a = 2;\n");
+    git(...IDENTITE, "commit", "-q", "-am", "la base avance");
+    git("switch", "-q", "--detach", avant);
+    assert.deepEqual(choisir(racine, [], "--proches"), ["runtime tout", "app tout"]);
+  });
+
+  test("une souche donnée qui n'est pas un ancêtre de la tête, le doute joue tout", (t) => {
+    const { racine, git } = depot(t);
+    git(...IDENTITE, "commit", "-q", "--allow-empty", "-m", "rien à changer");
+    assert.deepEqual(choisir(racine, [], "--souche", "0000000000000000000000000000000000000000"), ["runtime tout", "app tout"]);
+    assert.deepEqual(choisir(racine, []), ["runtime tout", "app tout"]);
+  });
+});
