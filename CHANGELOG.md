@@ -6,6 +6,7 @@ Brigade V2 is released as tagged versions (`app-v1.0.0` and following). Each new
 
 ### Changed
 
+- The rail view no longer shows the 86 "no return time" state nor the `kitchen idle — the rest of the rail needs a human` line; a rail that holds only WAITING cards reads as empty (`empty rail`, `rail: empty — 2 WAITING, normal`) and reports no fault, while cards a cook could take with no cook running stay the `fault` (#1927)
 - A cook has no turn cap any more (`BRIGADE_MAX_TURNS` is gone): tokens and duration bound it. The breaker counts only the failures that say the kitchen is broken — a ticket's cook stopped by a cap, or delivered red, no longer counts (#1906)
 - The second's choices and gesture buttons, played on the Windows path (#1614)
 

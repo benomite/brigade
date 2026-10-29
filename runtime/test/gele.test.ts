@@ -57,7 +57,7 @@ test("un ticket qui attend un ticket gelé se lit bloqué par lui, dans l'état"
   geler(rail, 10);
 
   assert.equal(lu(journal, 11), "BLOQUÉ");
-  assert.match(ligne(journal, 11), /BLOCKED.*blocked by #10 \(86 with no return time, not judged by the pass\)/);
+  assert.match(ligne(journal, 11), /BLOCKED.*blocked by #10 \(set aside \(86\) by the pass, not judged\)/);
   assert.doesNotMatch(ligne(journal, 11), /awaiting #10/);
   assert.deepEqual(ticketDuRail(journal.base, 11)?.frozenBy, [10]);
   // La décision d'ordonnancement est la même : il ne part pas.

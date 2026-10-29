@@ -213,10 +213,9 @@ test("en dernier recours, le corps retire les faits et les lignes du rail entier
   assert.equal(rendreLeTableau(lu.tableau, GENERE_LE), corps);
 });
 
-// Le reste du rail attend une capacité qu'aucune station ne fournit (#1751) : #12 mis de côté `no-station`, le
-// manager allumé, #15 qui l'attend. Rien ne cuit : la ligne de la cuisine au repos est un bilan du tableau, pas une
-// décision de sa file — et dans le projet d'exemple, où des tickets cuisent, elle n'y est pas.
-test("la cuisine au repos faute de station : le tableau publié porte sa ligne dans `bilans`, relue telle quelle, et sa file reste vide", (t) => {
+// Le reste du rail attend une capacité qu'aucune station ne fournit : #12 mis de côté `no-station`, #15 qui l'attend.
+// Ils se lisent en WAITING (#1925, #1926) ; la ligne « kitchen idle » (#1751) n'existe plus, sur aucun bilan du tableau.
+test("la cuisine au repos faute de station : le tableau publié ne porte plus de bilan « kitchen idle », et sa file reste vide", (t) => {
   const journal = ouvrirJournal(repertoireTemporaire(t), { maintenant: horloge("2026-10-12T09:00:00.000Z") });
   aArreter(t, () => journal.fermer());
   journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "project.switched-on", payload: { cause: "default" } });
@@ -230,14 +229,9 @@ test("la cuisine au repos faute de station : le tableau publié porte sa ligne d
   const lu = lireLeTableau(corps);
   assert.ok(lu.lu, lu.lu ? "" : lu.raison);
 
-  const ligne =
-    "kitchen idle — the rest of the rail needs a human: no station provides `macos` (#12) — waiting behind it: #15 — to unblock: attach a station that provides it, or lower this ticket — remove it from the `requiert` line of its card — or close it";
-  assert.deepEqual(lu.tableau.bilans, [ligne]);
+  assert.deepEqual(lu.tableau.bilans, []);
   assert.deepEqual(lu.tableau.file, []);
-  // La même ligne que `status`, sous sa tête.
-  assert.ok(decrireEtat(etat, LU_LE).includes(`  ${ligne}`));
-  // Des tickets cuisent dans le projet d'exemple : pas de ligne.
-  assert.ok(projet(t).publie.bilans.every((bilan) => !bilan.startsWith("kitchen idle")));
+  assert.ok(decrireEtat(etat, LU_LE).every((ligne) => !ligne.includes("kitchen idle")));
 });
 
 // L'app lit l'état du projet dans la rubrique `switch` du tableau et nulle part ailleurs (#1770) : elle y est toujours.

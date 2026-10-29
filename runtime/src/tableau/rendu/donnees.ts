@@ -7,7 +7,7 @@
 // Avec eux, ce que la vue du rail d'un projet dessine (#1693) : les faits que
 // `facts` rend (etat.ts, `faits`), et la ligne de chaque ticket sous la ligne
 // `rail` de `status`, avec sa priorité.
-import { direPauseEn, direReposSansStationEn, direSansGrantEn, decisionDe, nommerEn, direAttenteEn, TETE_AWAITING, FIN_AWAITING, reposSansStation, type Attente } from "../../attend.ts";
+import { direPauseEn, direSansGrantEn, decisionDe, nommerEn, direAttenteEn, TETE_AWAITING, FIN_AWAITING, type Attente } from "../../attend.ts";
 import type { CarteDeCorrection } from "../../correctif/cartes.ts";
 import { AGE_MAX_SAUVEGARDE_MS, coince, decrireEtat, dureeEn, faits, type EtatCuisine, type Faits } from "../../etat.ts";
 import type { Repartition } from "../../limite-github.ts";
@@ -137,7 +137,6 @@ export function tableauDeLaCuisine(
   const stationDe = new Map(etat.auxFourneaux.flatMap(({ station, ticket }) => (ticket === null ? [] : [[ticket, station] as const])));
   const bilans = [
     ...(etat.pause === null ? [] : [direPauseEn(etat.pause, depuisEn)]),
-    ...[reposSansStation(etat.rail, etat.attend, etat.rejointesRefusees)].flatMap((repos) => (repos === null ? [] : [direReposSansStationEn(repos)])),
     ...[direSansGrantEn(etat.sansGrant)].flatMap((bilan) => (bilan === null ? [] : [bilan])),
     ...(etat.passage === null ? [] : [etat.passage.ligne]),
   ];

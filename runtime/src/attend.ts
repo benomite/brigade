@@ -49,7 +49,6 @@
 // pourquoi, jusqu'à ce que le chef l'ôte.
 import type { Base } from "./base.ts";
 import { geste } from "./geste.ts";
-import { CLE_DES_CAPACITES, manqueDuMotif, type Manque } from "./capacites.ts";
 import { A_RELIRE, declarationsDeLaCause, DU_MANAGER, ENCORE_ROUGE, MERGE_REFUSE, NON_JUGEE, REDECOUPE, SANS_GRANT, testsInstablesDeLaCause, type VerdictDuSecondJuge } from "./events/pass.ts";
 import { REJOUER_LA_BASE } from "./dire-base.ts";
 import { demandeEnAttente, refus, reglagesEnVigueur, type Demande as DemandeDeFermeture, type Refus } from "./closing/condition.ts";
@@ -427,63 +426,6 @@ export function direPauseEn({ since, minutes, finissent, retenus }: PauseEnVigue
   return `${EN_PAUSE_POUR_LE_RENOMMAGE} — for ${depuis(since)}, expected about ${minutes} min — finishing their work: ${numeros(finissent)} · held: ${numeros(retenus)} — to end it now: \`${REFUSER_LA_PAUSE}\``;
 }
 
-// La cuisine au repos parce que le reste du rail attend une capacité qu'aucune
-// station ne fournit : plus rien n'est pris ni en pass, aucun ticket en attente
-// ne peut partir, et des tickets sont mis de côté `no-station` — jamais dans
-// la file (#1834) : le bloc dirait « nothing awaits the chef » sans plus. `sansStation` : ces tickets, chacun avec ce qui lui manque ;
-// `derriere` : les tickets en attente que leur fiche retient derrière eux, en
-// suivant `awaits` de proche en proche — un ticket qui en attend un autre, sans
-// lien avec eux, n'y est pas. Ce n'est pas une décision : rien n'entre dans la
-// file, et la tête du bloc ne change pas. Nul dès qu'un ticket peut encore cuire.
-// `rejointes` : les stations qui ont rejoint la cuisine sans que le projet puisse
-// les déclarer (`projets/secondaires.ts`), pourquoi — la raison qu'aucune station ne fournit la capacité.
-export type ReposSansStation = { sansStation: Array<{ ticket: number; manque: Manque }>; derriere: number[]; rejointes: string[] };
-
-export function reposSansStation(rail: readonly TicketRail[], attentes: readonly Attente[], rejointes: readonly string[] = []): ReposSansStation | null {
-  // Peut encore cuire : un ticket pris ou en pass, un ticket en attente que sa
-  // fiche ne retient pas, ou un 86 qui revient seul à son heure.
-  const cuit = rail.some(({ state, awaits, until }) => state === "taken" || state === "pass" || (state === "waiting" && awaits.length === 0) || (state === "86" && until !== null));
-  if (cuit) return null;
-  const dansLaFile = new Set(attentes.flatMap(({ ticket }) => (ticket === null ? [] : [ticket])));
-  const sansStation = rail.flatMap(({ ticket, state, until, reason }) => {
-    const manque = state === "86" && until === null ? manqueDuMotif(reason) : null;
-    return manque === null || dansLaFile.has(ticket) ? [] : [{ ticket, manque }];
-  });
-  if (sansStation.length === 0) return null;
-  const retenus = new Set(sansStation.map(({ ticket }) => ticket));
-  for (let encore = true; encore; ) {
-    encore = false;
-    for (const { ticket, state, awaits } of rail) {
-      if (state !== "waiting" || retenus.has(ticket) || !awaits.some(({ ticket: attendu, left }) => left === null && retenus.has(attendu))) continue;
-      retenus.add(ticket);
-      encore = true;
-    }
-  }
-  const derriere = rail.flatMap(({ ticket, state }) => (state === "waiting" && retenus.has(ticket) && !dansLaFile.has(ticket) ? [ticket] : []));
-  return { sansStation, derriere, rejointes: [...rejointes] };
-}
-
-// Sa ligne dans le bloc `awaiting`, une seule, qui commence par ce que fait la
-// cuisine : ce qui manque et les tickets qui le demandent, ceux qui attendent
-// derrière eux, puis le geste.
-const CUISINE_AU_REPOS = "kitchen idle";
-export function direReposSansStationEn({ sansStation, derriere, rejointes }: ReposSansStation): string {
-  const numeros = (tickets: readonly number[]) => tickets.map((ticket) => `#${ticket}`).join(", ");
-  const parManque = new Map<string, number[]>();
-  for (const { ticket, manque } of sansStation) {
-    const noms = manque.capacites.map((nom) => `\`${nom}\``);
-    const dit = manque.ensemble ? `${noms.join(" + ")} together` : noms.join(", ");
-    parManque.set(dit, [...(parManque.get(dit) ?? []), ticket]);
-  }
-  const manques = [...parManque].map(([dit, tickets]) => `${dit} (${numeros(tickets)})`).join("; ");
-  const capacites = new Set(sansStation.flatMap(({ manque }) => manque.capacites)).size > 1 ? "them" : "it";
-  const [ceux, sa, les] = sansStation.length > 1 ? ["those tickets", "their cards", "them"] : ["this ticket", "its card", "it"];
-  const enAttente = derriere.length === 0 ? "" : ` — waiting behind ${les}: ${numeros(derriere)}`;
-  const aFaire = `attach a station that provides ${capacites}, or lower ${ceux} — remove ${capacites} from the \`${CLE_DES_CAPACITES}\` line of ${sa} — or close ${les}`;
-  const jointes = rejointes.length === 0 ? "" : ` — ${rejointes.join(" ; ")}`;
-  return `${CUISINE_AU_REPOS} — the rest of the rail needs a human: no station provides ${manques}${enAttente}${jointes} — to unblock: ${aFaire}`;
-}
-
 // Ce qui échoue sur la base rouge : ce que ses gates nommaient au dernier
 // contrôle joué — à défaut, ce que la réparation avait reçu à son ouverture.
 function echecsDuRouge(base: Base, aLOuverture: string[]): string[] {
@@ -740,22 +682,18 @@ export const nommerEn = (attente: Attente): string => (attente.ticket === null ?
 // là, entre les mêmes bords : la file vide, il le dit — un silence ne se
 // distinguerait pas d'une lecture ratée —, et ne porte rien d'autre que la
 // version passée en service. Ni l'un ni l'autre ne compte pour une décision.
-// La cuisine au repos faute de station (`reposSansStation`) non plus : sa
-// ligne vient sous la tête, après la pause.
 // `depuis` : la durée écoulée depuis un instant, en anglais (`3 d`, `2 h 04`).
-export function decrireAttentes(attentes: Attente[], depuis: (instant: string) => string, sansGrant: SansGrant | null = null, passage: Passage | null = null, pause: PauseEnVigueur | null = null, repos: ReposSansStation | null = null): string[] {
+export function decrireAttentes(attentes: Attente[], depuis: (instant: string) => string, sansGrant: SansGrant | null = null, passage: Passage | null = null, pause: PauseEnVigueur | null = null): string[] {
   const [premiere] = attentes;
   const passee = passage === null ? [] : [`  ${passage.ligne}`];
   // La pause acceptée n'est pas une décision : sa ligne vient sous la tête,
   // et ne compte pas.
   const enPause = pause === null ? [] : [`  ${direPauseEn(pause, depuis)}`];
-  const auRepos = repos === null ? [] : [`  ${direReposSansStationEn(repos)}`];
-  if (premiere === undefined) return [`${TETE_AWAITING.padEnd(11)}nothing awaits the chef`, ...enPause, ...auRepos, ...passee, FIN_AWAITING, ""];
+  if (premiere === undefined) return [`${TETE_AWAITING.padEnd(11)}nothing awaits the chef`, ...enPause, ...passee, FIN_AWAITING, ""];
   const tete = attentes.length === 1 ? `1 decision awaits the chef — for ${depuis(premiere.since)}` : `${attentes.length} decisions await the chef — the oldest for ${depuis(premiere.since)}`;
   return [
     `${TETE_AWAITING.padEnd(11)}${tete}`,
     ...enPause,
-    ...auRepos,
     ...attentes.map((attente) => `  ${nommerEn(attente)}  for ${depuis(attente.since)}  ${direAttenteEn(attente)}${attente.title === null ? "" : `  ${attente.title}`}`),
     ...[sansGrant === null ? null : direSansGrantEn(sansGrant)].flatMap((bilan) => (bilan === null ? [] : [`  ${bilan}`])),
     ...passee,

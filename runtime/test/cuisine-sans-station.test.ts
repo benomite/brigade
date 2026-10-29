@@ -1,15 +1,13 @@
-// La cuisine au repos parce que le reste du rail attend une capacité qu'aucune station ne fournit (#1751) : rien de pris
-// ni en pass, aucun ticket en attente qui puisse partir, des tickets mis de côté `no-station` que le manager allumé
-// reprend avant le chef — le bloc `awaiting` de `status` disait « nothing awaits the chef », sans plus. Il le dit
-// toujours, et une ligne sous sa tête nomme ce qui manque, les tickets qui le demandent, ceux qui attendent derrière eux,
-// et le geste. Le tableau de la cuisine la porte dans ses `bilans`, d'où l'app refait le bloc. Ce n'est pas une
-// décision : la file ne change pas. Bâti d'un vrai journal et d'un vrai rail, lu par `lireEtat` et `decrireEtat`.
+// Le rail ne porte que ce que la cuisine peut cuire (#1925, #1926, #1927) : des cartes qui attendent une station sont
+// en WAITING, un rail qui n'en porte que de celles-là est vide pour la cuisine, et ce n'est pas une panne. La ligne
+// « kitchen idle — the rest of the rail needs a human » (#1751) n'existe plus, ni dans `status`, ni sur le tableau.
+// Bâti d'un vrai journal et d'un vrai rail, lu par `lireEtat` et `decrireEtat`.
 import assert from "node:assert/strict";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { decrireEtat, faits, lireEtat } from "../src/etat.ts";
-import { leverBlocage, poserBlocage } from "../src/installation/blocages/blocages.ts";
 import { ouvrirJournal } from "../src/journal.ts";
-import { blocageDeLaRejointe, idDeLaRejointe } from "../src/projets/secondaires.ts";
 import { ouvrirRail } from "../src/rail.ts";
 import { tableauDeLaCuisine } from "../src/tableau/rendu/donnees.ts";
 import { aArreter, horloge, JOUR_HORLOGE, repertoireTemporaire } from "./outils.ts";
@@ -60,86 +58,51 @@ function railDuChef(t: TestContext, options?: { manager?: boolean }) {
   return c;
 }
 
-const LIGNE_DU_CHEF =
-  "kitchen idle — the rest of the rail needs a human: no station provides `macos` (#12); `enregistrement-ecran` (#13) — waiting behind them: #15, #16 — to unblock: attach a station that provides them, or lower those tickets — remove them from the `requiert` line of their cards — or close them";
+const SANS_LA_LIGNE = /kitchen idle|needs a human/;
 
-test("rien ne peut plus cuire, le reste du rail mis de côté faute de station : sous « nothing awaits the chef », une ligne nomme ce qui manque, les tickets retenus et le geste — sans compter pour une décision", (t) => {
+test("le cas du chef : plus aucune ligne « kitchen idle », ni dans le bloc `awaiting`, ni sur le tableau, ni dans la file", (t) => {
   const { lire } = railDuChef(t);
   const { etat, bloc, tableau } = lire();
 
-  assert.deepEqual(bloc, ["awaiting   nothing awaits the chef", `  ${LIGNE_DU_CHEF}`, "end awaiting"]);
-  // La file ne change pas : aucune décision, ni dans l'état, ni dans les faits, ni sur le tableau.
+  // La file ne change pas : aucune décision, et aucun bilan sur le tableau.
+  assert.deepEqual(bloc, ["awaiting   nothing awaits the chef", "end awaiting"]);
+  assert.deepEqual(tableau.bilans, []);
   assert.deepEqual(etat.attend, []);
   assert.equal(faits(etat, MAINTENANT).compteurs.attend, 0);
-  assert.deepEqual(tableau.file, []);
-  // Le tableau porte la même ligne, d'où l'app refait le bloc.
-  assert.deepEqual(tableau.bilans, [LIGNE_DU_CHEF]);
+  assert.doesNotMatch(decrireEtat(etat, MAINTENANT).join("\n"), SANS_LA_LIGNE);
 });
 
-test("un ticket qui en attend un autre sans lien avec une capacité manquante n'est pas nommé parmi les retenus", (t) => {
-  const { lire } = railDuChef(t);
-  const [, ligne] = lire().bloc;
+test("un rail qui ne porte que des cartes en WAITING : `status` le dit vide, normal, et sans ligne `fault`", (t) => {
+  const { journal, arriver, rail } = cuisine(t);
+  arriver(12, { requires: ["macos"] });
+  arriver(15, { waitsFor: [12] });
+  rail.quatreVingtSix(12, { motif: "no-station: macos" });
+  const tard = new Date(MAINTENANT.getTime() + 6 * 3_600_000);
 
-  assert.match(ligne ?? "", /waiting behind them: #15, #16 —/);
-  assert.doesNotMatch(ligne ?? "", /#17|#20/);
+  for (const quand of [MAINTENANT, tard]) {
+    const etat = lireEtat(journal, quand);
+    const texte = decrireEtat(etat, quand).join("\n");
+    assert.match(texte, /^rail {7}empty — 2 WAITING, normal: nothing on it for a cook$/m);
+    assert.doesNotMatch(texte, /^fault /m);
+    assert.doesNotMatch(texte, SANS_LA_LIGNE);
+    assert.equal(faits(etat, quand).cuisineOisive, null);
+  }
 });
 
-test("un seul ticket, à qui manque une réunion de capacités : la ligne la dit ensemble, et le geste au singulier du ticket", (t) => {
-  const { arriver, rail, lire } = cuisine(t);
-  arriver(12, { requires: ["macos", "enregistrement-ecran"] });
-  rail.quatreVingtSix(12, { motif: "no-station: macos + enregistrement-ecran" });
-
-  assert.deepEqual(lire().bloc, [
-    "awaiting   nothing awaits the chef",
-    "  kitchen idle — the rest of the rail needs a human: no station provides `macos` + `enregistrement-ecran` together (#12) — to unblock: attach a station that provides them, or lower this ticket — remove them from the `requiert` line of its card — or close it",
-    "end awaiting",
-  ]);
-});
-
-test("dès qu'un ticket peut encore cuire — en attente sans rien qui le retienne, pris, en pass — ni `status` ni le tableau ne disent la ligne", (t) => {
-  const { arriver, rail, lire } = railDuChef(t);
-  const sansLaLigne = (quand: string) => {
-    const { bloc, tableau } = lire();
-    assert.deepEqual(bloc, ["awaiting   nothing awaits the chef", "end awaiting"], quand);
-    assert.deepEqual(tableau.bilans, [], quand);
-  };
-
+test("dès qu'une carte peut cuire, le rail n'est plus dit vide", (t) => {
+  const { journal, arriver, rail } = cuisine(t);
+  arriver(12, { requires: ["macos"] });
+  rail.quatreVingtSix(12, { motif: "no-station: macos" });
   arriver(18);
-  sansLaLigne("#18 en attente, libre");
-  assert.equal(rail.prendre("box/claude")?.ticket, 18);
-  sansLaLigne("#18 pris");
-  rail.envoyerEnPass(18, "box/claude");
-  sansLaLigne("#18 en pass");
-  // Servi, il ne cuit plus : la cuisine est de nouveau au repos.
-  rail.servir(18);
-  assert.deepEqual(lire().tableau.bilans, [LIGNE_DU_CHEF]);
+
+  const texte = decrireEtat(lireEtat(journal, MAINTENANT), MAINTENANT).join("\n");
+  assert.match(texte, /^rail {7}1 queued · 1 WAITING$/m);
 });
 
-test("un 86 qui revient seul à son heure peut encore cuire : pas de ligne", (t) => {
-  const { arriver, rail, lire } = railDuChef(t);
-  arriver(18);
-  rail.quatreVingtSix(18, { motif: "quota", retour: new Date(`${JOUR_HORLOGE}T15:00:00.000Z`) });
-
-  assert.deepEqual(lire().bloc, ["awaiting   nothing awaits the chef", "end awaiting"]);
-});
-
-test("le manager éteint, le ticket sans station n'est pas une décision du chef : la file ne le porte pas, il reste lisible sur le rail", (t) => {
-  const { lire } = railDuChef(t, { manager: false });
-  const { bloc } = lire();
-
-  assert.equal(bloc[0], "awaiting   nothing awaits the chef");
-  assert.ok(!bloc.some((ligne) => ligne.startsWith("  #12 ") || ligne.startsWith("  #13 ")));
-});
-
-test("une station qui a rejoint la cuisine sans que le projet puisse la déclarer (#1923) : la ligne du repos le dit, avec pourquoi, en une ligne — levé, elle n'en dit plus rien", (t) => {
-  const { journal, lire } = railDuChef(t);
-  poserBlocage(journal, { projet: "brigade", auteur: "station" }, blocageDeLaRejointe("mac/claude", "unknown station: “mac/claude” — the project declares none"));
-  const { bloc, tableau } = lire();
-
-  const ligne = "kitchen idle — the rest of the rail needs a human: no station provides `macos` (#12); `enregistrement-ecran` (#13) — waiting behind them: #15, #16 — mac/claude joined this kitchen but is not declared, so no ticket can go to it: unknown station: “mac/claude” — the project declares none — to unblock: attach a station that provides them, or lower those tickets — remove them from the `requiert` line of their cards — or close them";
-  assert.deepEqual(bloc, ["awaiting   nothing awaits the chef", `  ${ligne}`, "end awaiting"]);
-  assert.ok(tableau.bilans.includes(ligne));
-
-  leverBlocage(journal, { projet: "brigade", auteur: "station" }, idDeLaRejointe("mac/claude"));
-  assert.deepEqual(lire().bloc, ["awaiting   nothing awaits the chef", `  ${LIGNE_DU_CHEF}`, "end awaiting"]);
+test("les sources du runtime ne portent plus ni l'état « no return time » ni la ligne « kitchen idle … needs a human »", () => {
+  const src = join(import.meta.dirname, "../src");
+  const trouves = (readdirSync(src, { recursive: true, encoding: "utf8" }) as string[])
+    .filter((chemin) => chemin.endsWith(".ts"))
+    .filter((chemin) => /no return time|the rest of the rail needs a human/.test(readFileSync(join(src, chemin), "utf8")));
+  assert.deepEqual(trouves, []);
 });

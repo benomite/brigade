@@ -92,27 +92,7 @@ awaiting   nothing awaits the chef
 end awaiting
 ```
 
-**When the kitchen is idle because the rest of the rail needs a human** (#1751), the block says
-so on one line under its head, which still reads `nothing awaits the chef` — the line is not a
-decision, and nothing counts it:
-
-```
-awaiting   nothing awaits the chef
-  kitchen idle — the rest of the rail needs a human: no station provides `macos` (#12); `enregistrement-ecran` (#13) — waiting behind them: #15, #16 — to unblock: attach a station that provides them, or lower those tickets — remove them from the `requiert` line of their cards — or close them
-end awaiting
-```
-
-It is there when no ticket is taken or in pass, no queued ticket can leave — each awaits a
-ticket of its card —, no 86 has a return time, and at least one ticket is set aside
-`no-station: …` without being in the queue itself: the manager on takes such a ticket back
-before you (`runtime/src/sans-capacite.ts` — a re-split, or a `gesture` card, which then enters
-the queue and leaves the line). It names the missing capabilities with the tickets that ask for
-them, then the queued tickets their cards hold behind them, following `awaits` from ticket to
-ticket: a ticket that awaits an unrelated one is not named. The gesture: attach a station that
-provides what is missing, or lower those tickets (the `requiert` line of their card), or close
-them. As soon as one ticket can cook, the line goes. Manager off, each such ticket is already an
-entry of the queue, with its gesture: the line does not repeat it. The app redraws it from the
-board's `bilans` (`docs/runtime/tableau-de-cuisine.md`).
+**An empty rail, and a rail with no cook** (#1927). The rail holds only what the kitchen can cook: a ticket that awaits a station, a third party or a WAITING ticket reads WAITING. A rail that carries only WAITING cards is empty for the kitchen, and that is normal: `status` says `rail       empty — 2 WAITING, normal: nothing on it for a cook`, `rail` says `empty rail — only WAITING cards, …: normal, no fault`, and no `fault` line follows. Cards that a cook could take, with no cook running for 30 min, are a fault (the `fault` line, below); with a cook running, no fault. The former `kitchen idle — the rest of the rail needs a human` line (#1751) is gone.
 
 It starts at the **only line of the output that starts with `awaiting`** and ends at the **only
 line that is exactly `end awaiting`**, bounds included; everything it carries between the two is
@@ -121,7 +101,7 @@ role under two names) — takes it by these two lines, without reading anything 
 recognizing a turn of phrase. **One single thing is read in it besides, and the app reads it** to sort its rail: the
 ticket number **at the head** of an entry — two spaces, `#`, digits, two spaces (`  #12  for 2 d  …`). This
 head does not change without the app changing (`docs/app.md`, "The rail"); an entry
-that carries a station, `session`, `token`, `closing`, `base`, `setup`, `aside` or `breaker`, the tally of stops for lack of a grant and the `kitchen idle` line have none. The edge holds for the state itself: under `--follow`, the events
+that carries a station, `session`, `token`, `closing`, `base`, `setup`, `aside` or `breaker`, the tally of stops for lack of a grant has none. The edge holds for the state itself: under `--follow`, the events
 appended afterwards are not part of it.
 
 **The block is in English** (#927), its edge, its count and each of its lines, in the words

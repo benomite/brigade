@@ -267,8 +267,7 @@ sign of life (`CADENCE_DES_APPAIREES_MS`, `runtime/src/projets/secondaires.ts`).
   each project it serves — those the app asked for, and those a line of its configuration written by
   hand serves (`brigade` on the box) — through the same code (`runtime/src/projets/secondaires.ts`),
   at most every five minutes, even when the app asks it nothing. A joined station the project cannot
-  declare is raised as a blocker of the project's journal (`joined-station:<station>`), and the
-  `kitchen idle` line of `status` says why; the blocker is lifted once the station is declared.
+  declare is raised as a blocker of the project's journal (`joined-station:<station>`); the blocker is lifted once the station is declared.
 
 **What it says when it cannot cook yet.** A station installed from the app and cooking nothing yet says
 why in one short sentence, with the gesture to make, on its line of the home screen. The reasons are:

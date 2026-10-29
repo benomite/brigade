@@ -110,7 +110,7 @@ export type TicketRail = {
   // writes none of them, or its card is amended to claim them.
   outOfZone: string[];
   // Queued: those, among `awaits`, that are frozen — 86 that the pass could
-  // not judge, with no return time: nothing will make them leave without the
+  // not judge, without a return time: nothing will make them leave without the
   // chef. This ticket will not leave before them. Does not change what holds
   // it back, only what is said about it. Never among `held`: a ticket 86
   // holds no zone.
@@ -672,7 +672,7 @@ function horsZoneDuRail(base: Base): Map<number, string[]> {
   return dehors;
 }
 
-// The frozen tickets: 86 with no return time, for a delivery the pass could
+// The frozen tickets: set aside by the pass, for a delivery the pass could
 // not judge and which is not on the base. Judged, given back, removed from the
 // rail or merged, a ticket stops being so.
 function gelesDuRail(base: Base): Set<number> {

@@ -7,7 +7,7 @@ import { activitesDuRail, type ActiviteDeTicket } from "./activites.ts";
 import { sejoursEnColonne, type Essai, type Sejour } from "./sejour-en-colonne.ts";
 import { DIRE_GATES_COUPEES, DIRE_GATES_COUPEES_EN } from "./events/pass.ts";
 import { attenteDeLaCarte, carteDeLAttente, type CarteDuTicket } from "./carte-todo/cartes.ts";
-import { attentesDuChef, decisionDe, type Livraison, decrireAttentes, direAttente, direAttenteEn, nommerAttente, nommerEn, passageEnService, pauseDeLaCuisine, reposSansStation, type Attente, type Decision, type Passage, type PauseEnVigueur } from "./attend.ts";
+import { attentesDuChef, decisionDe, type Livraison, decrireAttentes, direAttente, direAttenteEn, nommerAttente, nommerEn, passageEnService, pauseDeLaCuisine, type Attente, type Decision, type Passage, type PauseEnVigueur } from "./attend.ts";
 import { geste } from "./geste.ts";
 import { fournitTout, manqueDuTicket } from "./capacites.ts";
 import { capturesManquantes, capturesVues, lireCaptures, type Captures, type CapturesVues } from "./captures.ts";
@@ -511,7 +511,7 @@ function detail(ticket: TicketRail, maintenant: Date, depuis: Depuis, retenues: 
       return `since ${depuis(ticket.since)}, cooked by ${ticket.station}`;
     case "86": {
       if (ticket.waitingFor !== null) return direAttenteDeTiersEn(ticket.waitingFor, depuis);
-      const retour = ticket.until === null ? "no return time" : reste(ticket.until) >= 0 ? `back in ${dureeEn(reste(ticket.until))}` : "back at the next tick";
+      const retour = ticket.until === null ? "" : `, ${reste(ticket.until) >= 0 ? `back in ${dureeEn(reste(ticket.until))}` : "back at the next tick"}`;
       // Une remontée technique : la carte dit ce que la cuisine en fait.
       if (reprise !== undefined) return `since ${depuis(ticket.since)} (${ticket.reason}) — ${direRepriseEn(reprise)}`;
       // Faute de station, il est en WAITING : ce qu'il attend, et ce qui l'en
@@ -520,7 +520,7 @@ function detail(ticket: TicketRail, maintenant: Date, depuis: Depuis, retenues: 
       if (manque !== null) return direAttenteDUneStationEn(manque, depuis(ticket.since));
       // Sans heure de retour, ce qui le remet seul sur le rail (#1834).
       const seul = ticket.until === null ? miseDeCoteDu(ticket.reason) : null;
-      return `since ${depuis(ticket.since)} (${ticket.reason}), ${retour}${seul === null ? "" : seul.retour.startsWith("never") ? ` — ${seul.retour}` : ` — back on its own ${seul.retour}`}`;
+      return `since ${depuis(ticket.since)} (${ticket.reason})${retour}${seul === null ? "" : seul.retour.startsWith("never") ? ` — ${seul.retour}` : ` — back on its own ${seul.retour}`}`;
     }
   }
 }
@@ -709,6 +709,9 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
   const decompte = ORDRE.map((nom) => [nom, lusEn(etat.rail, nom)] as const)
     .filter(([, combien]) => combien > 0)
     .map(([nom, combien]) => `${combien} ${nom}`);
+  // Un rail qui ne porte que des cartes en WAITING est vide pour la cuisine :
+  // elles attendent un tiers ou une station, ce n'est pas une panne (#1927).
+  const toutEnWaiting = etat.rail.length > 0 && etat.rail.every((ticket) => etatLuEn(ticket) === EN_WAITING);
   const cooks = trierCooks(etat, maintenant);
   // Ce qui retient un ticket que rien ne retient sur le rail : les stations
   // qui pourraient le cuisiner — celles qui fournissent ce qu'il demande — et
@@ -746,9 +749,9 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     decrireSauvegarde(etat, maintenant, ageMaxSauvegardeMs),
     "",
     // Avant le rail : « est-ce qu'on m'attend ? » se lit sans le parcourir.
-    ...decrireAttentes(etat.attend, depuisEn, etat.sansGrant, etat.passage, etat.pause, reposSansStation(etat.rail, etat.attend, etat.rejointesRefusees)),
+    ...decrireAttentes(etat.attend, depuisEn, etat.sansGrant, etat.passage, etat.pause),
     ...decrireCoincees(etat, depuisEn),
-    ligne("rail", decompte.length === 0 ? "empty" : decompte.join(" · ")),
+    ligne("rail", decompte.length === 0 ? "empty" : toutEnWaiting ? `empty — ${decompte.join(" · ")}, normal: nothing on it for a cook` : decompte.join(" · ")),
     ...etat.rail.map((ticket) =>
       [
         `  #${ticket.ticket}`,
