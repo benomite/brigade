@@ -257,11 +257,18 @@ export type FaitPass =
   // La cuisine reprend une remontée technique, au lieu de la poser devant le
   // chef (#1826). `move` : `return`, la livraison renvoyée une fois à un cook ;
   // `fix`, le ticket `fix` `issue` ouvert sur sa cause — retrouvé par sa marque,
-  // `reconciled` —, le ticket l'attend, 86 ; `resume`, ce `fix` sorti du rail,
-  // la livraison renvoyée à un cook ; `none`, plus rien à essayer, le ticket
-  // reste 86 sur le rail. Jamais de carte. Un `return` ou un `resume` est suivi
-  // du `pass.returned` qui le fait, sans consommer de renvoi.
-  | { type: "pass.kitchen-took-over"; payload: { cause: string; move: "return" | "fix" | "resume" | "none"; issue?: number; reconciled?: boolean } }
+  // `reconciled` —, le ticket l'attend, 86 ; `raise`, son calibrage monté de
+  // `from` à `to` sur l'issue, le ticket 86 attend que le rail le lise ;
+  // `resume`, ce `fix` sorti du rail ou ce calibrage lu, la livraison renvoyée
+  // à un cook ; `drop`, rien ne pouvant plus monter, le ticket abandonné —
+  // `reason` dite sur l'issue, `fire` retiré (#1861). `none` ne s'écrit plus :
+  // d'un journal d'avant, il n'est pas final, la cuisine reprend la remontée.
+  // Jamais de carte. Un `return` ou un `resume` est suivi du `pass.returned`
+  // qui le fait, sans consommer de renvoi.
+  | {
+      type: "pass.kitchen-took-over";
+      payload: { cause: string; move: "return" | "fix" | "resume" | "raise" | "drop" | "none"; issue?: number; reconciled?: boolean; from?: { model: string; effort: string }; to?: { model: string; effort: string }; reason?: string };
+    }
   // La pass attend la CI du commit `sha` sans qu'aucun check n'existe : la
   // branche porte ces `workflows` (fichiers sous `.github/workflows`), qui se
   // lancent sur une PR vers la base. Une fois par commit ; c'est ce que

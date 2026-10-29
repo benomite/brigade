@@ -248,12 +248,15 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
       case "pass.kitchen-fix-opening":
         return [`${tete}opening the kitchen's \`fix\` ticket on this escalation (${evenement.payload.cause})`];
       case "pass.kitchen-took-over": {
-        const { cause, move, issue, reconciled } = evenement.payload;
+        const { cause, move, issue, reconciled, from, to, reason } = evenement.payload;
+        const dit = (calibrage: { model: string; effort: string } | undefined) => (calibrage === undefined ? "?" : `${calibrage.model} / ${calibrage.effort}`);
         const fait = {
           return: "sent back once to a cook",
           fix: `\`fix\` ticket #${issue ?? "?"} opened on its cause${reconciled === true ? " (found again by its marker)" : ""} — the ticket waits for it, set aside`,
-          resume: `its \`fix\` ticket #${issue ?? "?"} left the rail: sent back to a cook`,
-          none: "nothing left to try: the ticket stays set aside on the rail",
+          resume: issue === undefined ? "its raised calibration read by the rail: sent back to a cook" : `its \`fix\` ticket #${issue} left the rail: sent back to a cook`,
+          raise: `calibration raised from ${dit(from)} to ${dit(to)} — the ticket goes back to a cook once the rail reads it`,
+          drop: `dropped, \`fire\` removed — ${reason ?? "the reason is on its issue"}`,
+          none: "set aside by a runtime from before #1861: the kitchen takes the escalation up again",
         }[move];
         return [`${tete}the kitchen takes up the escalation (${cause}), not the chef: ${fait}`];
       }

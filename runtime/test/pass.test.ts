@@ -18,7 +18,9 @@ import { cartesEnTodo, cartesRetenues } from "../src/carte-todo.ts";
 import { carteDuTicket } from "../src/carte-todo/cartes.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
 import { lireRail } from "../src/projections/rail.ts";
-import { sortDuTicket } from "../src/projections/rail.ts";
+import { sortDuTicket, ticketDuRail } from "../src/projections/rail.ts";
+import { mettreEnAttente } from "../src/attente.ts";
+import { MARQUEUR } from "../src/fiche.ts";
 import { CALIBRE, chef, cuisine, fauxGitHub, issue, montre, STATION, type Options } from "./aides/cuisine.ts";
 import { partagee } from "./aides/opt-C-partage.ts";
 import { BASE, commiter, DEPOT, depotGit, git, jusqua, repertoireTemporaire } from "./outils.ts";
@@ -787,7 +789,7 @@ describe("la pass", { concurrency: 8 }, () => {
     await jusqua(() => gh.commentaires.some(([, corps]) => /non jugée \(`unjudged` : wrong-base\) : la cuisine la reprend\.\*\*[^\n]*vise `main`/.test(corps)));
   });
 
-  test("le ticket `fix` de la cuisine sorti du rail, la livraison repart chez un cook ; non jugée de nouveau, la cuisine n'a plus rien à essayer : le ticket reste de côté sur le rail, jamais dans TODO", async (t) => {
+  test("le ticket `fix` de la cuisine sorti du rail, la livraison repart chez un cook ; non jugée de nouveau sur une cause qu'aucun cook ne lève, la cuisine abandonne le ticket et dit pourquoi sur l'issue : il sort du rail, jamais dans TODO ni laissé de côté", async (t) => {
     const { gh, journal, etat, dernier, compter, jusquAu } = service(t, { grant: true });
     const lecture = gh.github.prDeBranche;
     gh.github.prDeBranche = async (branche) => {
@@ -809,13 +811,112 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.deepEqual([renvoi?.n, renvoi?.kitchen], [0, true]);
     assert.match(String((renvoi?.findings as string[])[0]), /Le ticket `fix` #501, ouvert par la cuisine .* est servi : la livraison te revient/);
 
-    // Rien n'a changé : de nouveau non jugée, la cuisine a déjà tout tenté.
+    // Rien n'a changé : de nouveau non jugée. Un cook mieux calibré n'y pourrait
+    // rien — la PR, c'est la station qui l'ouvre : la cuisine ne monte pas, elle
+    // abandonne le ticket, et dit pourquoi.
     await jusquAu("pass.kitchen-took-over", 3);
-    assert.deepEqual(dernier("pass.kitchen-took-over", 17), { cause: "wrong-base", move: "none" });
+    const abandon = dernier("pass.kitchen-took-over", 17);
+    assert.deepEqual([abandon?.cause, abandon?.move], ["wrong-base", "drop"]);
+    assert.match(String(abandon?.reason), /^sa cause \(`wrong-base`\) n'est pas au cook/);
     assert.equal(compter("pass.kitchen-fix-opening"), 1);
-    assert.equal(etat(17), "86");
+    assert.deepEqual(gh.labellisations.filter(([numero]) => numero === 17), []);
+    const motif = () => gh.commentaires.find(([numero, corps]) => numero === 17 && corps.startsWith("**Cuisine — ticket abandonné (`wrong-base`).**"))?.[1] ?? "";
+    await jusqua(() => motif() !== "");
+    assert.match(motif(), /\*\*Pourquoi\.\*\* Sa cause \(`wrong-base`\) n'est pas au cook \(the station opens the PR, not the cook\)/);
+    assert.doesNotMatch(motif(), /nothing left to try|plus rien à essayer/);
+    // Son label `fire` retiré, il sort du rail : ni 86 sans suite, ni dans TODO, et son issue reste ouverte.
+    await jusqua(() => journal.duTicket(17).some((e) => e.type === "ticket.left"));
+    assert.deepEqual(gh.delabellisations.filter(([numero]) => numero === 17), [[17, "fire"]]);
+    assert.notEqual(etat(17), "86");
+    assert.equal(gh.lire(17)?.state, "open");
     assert.deepEqual(attentesDuChef(journal.base, lireRail(journal.base)).filter((attente) => attente.ticket === 17), []);
-    await jusqua(() => gh.commentaires.some(([, corps]) => /^\*\*Cuisine — plus rien à essayer \(`wrong-base`\)\.\*\*/.test(corps)));
+  });
+
+  test("ses tentatives épuisées, un ticket sous le plafond repart un cran plus haut au lieu d'être mis de côté ; au plus haut calibrage permis, la cuisine l'abandonne en disant pourquoi sur l'issue", { timeout: 600_000 }, async (t) => {
+    // Le reviewer ne rend jamais rien de lisible : chaque livraison remonte, non jugée.
+    const { gh, journal, etat, dernier, compter, cooks } = service(t, {
+      grant: true,
+      seuilDisjoncteur: 100,
+      issues: [issue(17, ["fire", "model:opus", "effort:medium"])],
+      reviewer: { relecture: "relit-illisible" },
+    });
+    // Les pas de la cuisine sur ce ticket-là : son ticket `fix` a les siens.
+    const jusquAu = (type: string, combien: number, delaiMs: number) => jusqua(() => journal.duTicket(17).filter((e) => e.type === type).length >= combien, delaiMs);
+    // Renvoyée une fois, puis un ticket `fix` sur sa cause.
+    await jusquAu("pass.kitchen-took-over", 2, TROIS_RENVOIS_MS);
+    assert.deepEqual(dernier("pass.kitchen-took-over", 17), { cause: "review-unreadable", move: "fix", issue: 501, reconciled: false });
+    // Le `fix` est fermé : il quitte le rail.
+    gh.poser({ ...issue(501, []), state: "closed" });
+    journal.ajouter({ project: "brigade", ticket: 501, author: "github", type: "ticket.left", payload: { reason: "closed" } });
+    await jusquAu("pass.kitchen-took-over", 3, TROIS_RENVOIS_MS);
+    assert.deepEqual(dernier("pass.kitchen-took-over", 17), { cause: "review-unreadable", move: "resume", issue: 501 });
+
+    // Renvoyée et corrigée, elle remonte encore : la cuisine ne la laisse pas de côté, elle monte l'effort d'un cran.
+    await jusquAu("pass.kitchen-took-over", 4, TROIS_RENVOIS_MS);
+    assert.deepEqual(dernier("pass.kitchen-took-over", 17), { cause: "review-unreadable", move: "raise", from: { model: "opus", effort: "medium" }, to: { model: "opus", effort: "high" } });
+    assert.deepEqual(gh.lire(17)?.labels, ["fire", "model:opus", "effort:high"]);
+    await jusqua(() => gh.commentaires.some(([numero, corps]) => numero === 17 && corps.startsWith("**Cuisine — calibrage monté de `opus` / `medium` à `opus` / `high` (`review-unreadable`).**")));
+    // Le rail lit le nouveau calibrage : la livraison repart chez un cook, à ce calibrage, sans consommer de renvoi.
+    await jusquAu("pass.kitchen-took-over", 5, TROIS_RENVOIS_MS);
+    assert.deepEqual(dernier("pass.kitchen-took-over", 17), { cause: "review-unreadable", move: "resume" });
+    const renvoi = dernier("pass.returned", 17);
+    assert.deepEqual([renvoi?.n, renvoi?.kitchen], [0, true]);
+    assert.match(String((renvoi?.findings as string[])[0]), /elle te revient un cran plus haut, en `opus` \/ `high` au lieu de `opus` \/ `medium`/);
+    await jusqua(() => journal.duTicket(17).filter((e) => e.type === "cook.launched").length === 4);
+    assert.deepEqual(
+      journal
+        .duTicket(17)
+        .filter((e) => e.type === "cook.launched")
+        .map((e) => [e.payload.model, e.payload.effort]),
+      [["opus", "medium"], ["opus", "medium"], ["opus", "medium"], ["opus", "high"]],
+    );
+    // Le faux `claude` note son lancement de lui-même, un peu après le fait.
+    await jusqua(() => cooks().length >= 4);
+
+    // De nouveau non jugée, au plus haut calibrage que la cuisine pose : elle l'abandonne, avec sa raison sur l'issue.
+    await jusquAu("pass.kitchen-took-over", 6, TROIS_RENVOIS_MS);
+    const abandon = dernier("pass.kitchen-took-over", 17);
+    assert.deepEqual([abandon?.cause, abandon?.move], ["review-unreadable", "drop"]);
+    assert.match(String(abandon?.reason), /^son calibrage \(`opus` \/ `high`\) est déjà au plus haut que la cuisine pose/);
+    const motif = () => gh.commentaires.find(([numero, corps]) => numero === 17 && corps.startsWith("**Cuisine — ticket abandonné (`review-unreadable`).**"))?.[1] ?? "";
+    await jusqua(() => motif() !== "");
+    assert.match(motif(), /\*\*Pourquoi\.\*\* Son calibrage \(`opus` \/ `high`\) est déjà au plus haut que la cuisine pose — le plafond du projet \(`opus` \/ `high`\), et jamais au-delà de `high`/);
+    await jusqua(() => journal.duTicket(17).some((e) => e.type === "ticket.left"));
+    assert.notEqual(etat(17), "86");
+    // Jamais `xhigh` ni `max`, et un seul ticket `fix` : la montée n'en ouvre pas d'autre.
+    assert.ok(!gh.labellisations.some(([, labels]) => labels.some((label) => /^effort:(xhigh|max)$/.test(label))));
+    assert.equal(compter("pass.kitchen-fix-opening"), 1);
+    assert.deepEqual(attentesDuChef(journal.base, lireRail(journal.base)).filter((attente) => attente.ticket === 17), []);
+  });
+
+  test("un ticket en attente d'un tiers ou d'une capacité garde son attente : la cuisine ne le relance ni ne l'abandonne", async (t) => {
+    const { gh, journal, etat, dernier, compter, jusquAu, laisserTourner } = service(t, { grant: true });
+    // Un ticket qui demande ce qu'aucune station ne fournit : mis de côté, faute de station.
+    gh.ficher(18, "2026-10-08T09:00:00Z", [MARQUEUR, "- requiert : ios"].join("\n"));
+    gh.poser(issue(18));
+    const lecture = gh.github.prDeBranche;
+    gh.github.prDeBranche = async (branche) => {
+      const pr = await lecture(branche);
+      return pr && { ...pr, base: "main" };
+    };
+    await jusquAu("pass.kitchen-took-over");
+    assert.deepEqual(dernier("pass.kitchen-took-over", 17), { cause: "wrong-base", move: "fix", issue: 501, reconciled: false });
+    // Le chef le met en attente d'un tiers : son `fix` servi, la cuisine ne le reprend pas pour autant.
+    mettreEnAttente(journal, "brigade", 17, { quoi: "la base de la PR", qui: "l'équipe de la CI" });
+    journal.ajouter({ project: "brigade", ticket: 501, author: "github", type: "ticket.left", payload: { reason: "closed" } });
+    await jusqua(() => journal.duTicket(18).some((e) => e.type === "ticket.86"));
+    await laisserTourner();
+    // Les pas de la cuisine sur ce ticket-là : son ticket `fix` a les siens.
+    assert.equal(journal.duTicket(17).filter((e) => e.type === "pass.kitchen-took-over").length, 1);
+    assert.equal(etat(17), "86");
+    assert.notEqual(ticketDuRail(journal.base, 17)?.waitingFor, null);
+    assert.match(String(dernier("ticket.86", 18)?.reason), /^no-station/);
+    assert.equal(etat(18), "86");
+    // Ni relancé plus haut, ni abandonné : aucun calibrage posé, aucun `fire` retiré, sur l'un ou l'autre.
+    const lesDeux = ([numero]: [number, unknown]) => numero === 17 || numero === 18;
+    assert.deepEqual(gh.labellisations.filter(lesDeux).flatMap(([, labels]) => labels).filter((label) => /^(model|effort):/.test(label)), []);
+    assert.deepEqual(gh.delabellisations.filter(lesDeux).filter(([, label]) => label === "fire" || /^(model|effort):/.test(label)), []);
+    assert.deepEqual([gh.lire(17)?.labels.includes("fire"), gh.lire(18)?.labels.includes("fire")], [true, true]);
   });
 
   test("un projet sans gates n'est pas jugé vert : la cuisine en fait un ticket `fix`, sans renvoyer au cook ses propres gates à écrire", async (t) => {
