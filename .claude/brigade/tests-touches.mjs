@@ -17,6 +17,10 @@
 // Tout jouer quand le doute est permis : aucun fichier modifié (la base
 // elle-même), un fichier qui règle toute une suite (package.json, tsconfig, le
 // setup), ou une erreur ici — les gates jouent alors la suite entière.
+// Aucun fichier modifié au-delà de la souche, en revanche, n'est pas la base :
+// c'est un changement au diff vide — un commit vide, que la pass juge fusionné
+// avec la base, au même arbre qu'elle. Il ne touche rien, et n'y joue pas la
+// suite entière, qui tourne sur la base (#1889).
 // Un package.json de zone dont seuls les scripts ont changé, hors `test` qui
 // règle la suite, ne règle rien d'entier — une commande ajoutée ne rejoue pas
 // les deux suites (#1611) : il touche les tests qui lisent un package.json.
@@ -75,6 +79,25 @@ function seulsSesScripts(chemin) {
   } catch {
     return false;
   }
+}
+// La tête au-delà de la souche — `--souche`, sinon celle des gates —, qui en
+// descend sans l'être. Le doute — pas de dépôt, pas de souche, une souche
+// inconnue ou qui n'est pas son ancêtre — la tient pour la base.
+function auDelaDeLaSouche() {
+  const de = souche ?? soucheDesGates();
+  if (!de) return false;
+  try {
+    const tete = git("rev-parse", "HEAD").trim();
+    const depart = git("rev-parse", "--verify", `${de}^{commit}`).trim();
+    git("merge-base", "--is-ancestor", depart, tete);
+    return depart !== tete;
+  } catch {
+    return false;
+  }
+}
+if (modifies.length === 0 && auDelaDeLaSouche()) {
+  for (const zone of ZONES) console.log(`${zone} rien`);
+  process.exit(0);
 }
 const scriptsSeuls = new Set(modifies.filter(seulsSesScripts));
 if (modifies.length === 0 || modifies.some((f) => !scriptsSeuls.has(f) && GLOBAUX.some((g) => g.test(f)))) {
