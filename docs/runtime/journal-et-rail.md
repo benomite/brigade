@@ -57,7 +57,7 @@ says so and what to do (remove `fire`, set it again now).
 | State | Meaning |
 |---|---|
 | **queued** | on the rail, to be taken — or held back: its line says by what |
-| **BLOCKED** | waiting for a **dropped** ticket, or a **frozen** one (86 with no return time, which the pass could not judge): it will not leave without an action from you |
+| **BLOCKED** | waiting for a **dropped** ticket, or a **frozen** one (set aside (86) by the pass, which could not judge it): it will not leave without an action from you |
 | **taken** | lent to a station, under a lease |
 | **in pass** | the cook has finished; the pass is judging — or stopped, green, without merging |
 | **served** | merged. The pass closes its issue: it leaves the rail at the next poll |
@@ -79,7 +79,7 @@ read in French by the runtime today, and stays French until the runtime renames 
 |---|---|---|
 | `queued … awaiting #12, #13` | #12 and #13 are not served yet | nothing: once the last is served, it leaves by itself |
 | `BLOCKED … #12 dropped (…)` | #12 left the rail **without having been served** | put #12 back on the rail (open issue, `fire`), or remove its number from the `attend` line |
-| `BLOCKED … blocked by #12 (86 with no return time, not judged by the pass)` | #12 is 86 with no return; this ticket waits for it (`attend`) — never for its zone: a ticket 86 holds none | settle #12: it is judged, given back or withdrawn, and this ticket leaves by itself |
+| `BLOCKED … blocked by #12 (set aside (86) by the pass, not judged)` | #12 is 86 with no return; this ticket waits for it (`attend`) — never for its zone: a ticket 86 holds none | settle #12: it is judged, given back or withdrawn, and this ticket leaves by itself |
 
 - **Served means its delivery is merged** — by the pass or by you, including on a ticket escalated
   to 86. An issue closed by hand, or delivered by a PR the runtime did not open, is not served: it
@@ -261,4 +261,4 @@ The old words (`poser`, `reprendre`, `--quoi`, `--de`) still answer.
   unreachable, it is caught up at the next wake-up. The label is created by GitHub at its first
   setting if it does not exist.
 - The follow-up is only a stated date: nothing brings the ticket back by itself when it passes. The ticket stays in WAITING, with no card in TODO, and its WAITING card shows `follow-up date passed`. A ticket an older version had turned back to the chef on its follow-up date (or on a new comment) goes back to WAITING at the next tick, for what it waited for.
-- What a third party or a machine absent from the box holds — a capability no station provides (`no-station`), an absent remote station — does not wait for the chef either: it is not in the `awaiting` block nor in TODO; the rail line and `kitchen idle` say what it waits for.
+- What a third party or a machine absent from the box holds — a capability no station provides (`no-station`), an absent remote station — does not wait for the chef either: it is not in the `awaiting` block nor in TODO; the rail line says what it waits for.

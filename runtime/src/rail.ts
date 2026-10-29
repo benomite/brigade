@@ -161,7 +161,7 @@ export function nomAbandonEn(motif: string): string {
 }
 
 const GELE_EN = "blocked";
-const DIT_GELE_EN = "86 with no return time, not judged by the pass";
+const DIT_GELE_EN = "set aside (86) by the pass, not judged";
 
 // Un ticket attendu parti du rail l'issue encore ouverte, en clair.
 const parti = (attendu: Attendu) => `#${attendu.ticket} (hors du rail, issue ouverte : ${nomAbandon(attendu.left?.reason ?? "")})`;

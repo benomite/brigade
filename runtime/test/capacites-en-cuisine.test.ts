@@ -151,12 +151,12 @@ describe("les capacités qu'un ticket demande", { concurrency: 8 }, () => {
     // Une machine qui manque n'est pas une décision du chef : la file ne le porte pas, mais le dit.
     assert.equal(lignes[debut], "awaiting   nothing awaits the chef");
     assert.ok(lignes.slice(debut, lignes.indexOf("end awaiting")).every((ligne) => !ligne.startsWith("  #14 ")));
-    assert.ok(lignes.some((ligne) => ligne.includes("no station provides `chrome-connecté` (#14) — to unblock: attach a station that provides it")), lignes.join("\n"));
+    assert.ok(lignes.every((ligne) => !ligne.includes("kitchen idle")), lignes.join("\n"));
 
     // Et sur sa ligne, sous le décompte : en WAITING, avec ce qu'il attend (#1925).
     const rail = lignes.findIndex((ligne) => ligne.startsWith("rail"));
     assert.deepEqual(lignes.slice(rail, rail + 2), [
-      "rail       1 WAITING",
+      "rail       empty — 1 WAITING, normal: nothing on it for a cook",
       "  #14  WAITING  -  awaiting a station that provides `chrome-connecté` — since 0 s, back on the rail on its own once a station provides what its card requires  Ticket 14",
     ]);
   });
@@ -282,7 +282,7 @@ describe("les capacités qu'un ticket demande", { concurrency: 8 }, () => {
     assert.deepEqual(lancements(), []);
     assert.match(
       decrireEtat(lireEtat(journal), heure.maintenant()).join("\n"),
-      /no station provides `code` \+ `navigateur-headless` together \(#14\) — to unblock: attach a station that provides them/,
+      /awaiting a station that provides `code` and `navigateur-headless` together/,
     );
   });
 

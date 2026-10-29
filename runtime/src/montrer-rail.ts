@@ -33,7 +33,7 @@ import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { direAttenteDUneStationEn } from "./mise-de-cote.ts";
 import { communsDuRail, lireRail, type TicketRail } from "./projections/rail.ts";
 import { etatStation, plafondDeCooks, stationsAnnoncees } from "./projections/stations.ts";
-import { avecHorsZoneEn, direAttentesLeveesEn, direRetenueEn, etatLuEn, retenue, RETOUR_DERRIERE_UN_WAITING_EN } from "./rail.ts";
+import { avecHorsZoneEn, direAttentesLeveesEn, direRetenueEn, EN_WAITING, etatLuEn, retenue, RETOUR_DERRIERE_UN_WAITING_EN } from "./rail.ts";
 import { direHorsBudget, horsBudgetSansTicket } from "./budget-des-gates.ts";
 import { ConfigInvalide } from "./runtime.ts";
 
@@ -158,7 +158,7 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
         // Faute de station, en WAITING : ce qu'il attend (#1925).
         const manque = manqueDuTicket(ticket);
         if (manque !== null) return direAttenteDUneStationEn(manque, ticket.since);
-        return `since ${ticket.since} (${ticket.reason}), ${ticket.until ? `back at ${ticket.until}` : "no return time"}`;
+        return `since ${ticket.since} (${ticket.reason})${ticket.until ? `, back at ${ticket.until}` : ""}`;
       }
     }
   }
@@ -209,7 +209,9 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
     const projet = env.BRIGADE_PROJECT || journal.base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project || "";
     const horsBudget = projet === "" ? null : horsBudgetSansTicket(journal.base, projet);
     if (horsBudget !== null) dire(direHorsBudget(horsBudget));
+    // Des cartes en WAITING seules sur le rail : il est vide pour la cuisine, et ce n'est pas une panne (#1927).
     if (tickets.length === 0) dire("empty rail");
+    else if (tickets.every((ticket) => etatLuEn(ticket) === EN_WAITING)) dire("empty rail — only WAITING cards, which wait for a third party or a station: normal, no fault");
     for (const ticket of tickets) dire([formater(ticket, cap, enCuisine), ...fiche(ticket)].join("\n"));
   } catch (erreur) {
     // En lecture seule, rien ne crée le rail d'un journal écrit par un runtime

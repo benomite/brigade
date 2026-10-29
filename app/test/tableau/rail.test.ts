@@ -201,23 +201,19 @@ function railSansStation(t: TestContext, { libre = false }: { libre?: boolean } 
   return { corps: rendreLeTableau(tableauDeLaCuisine(etat, LU_LE, { depot: DEPOT }), GENERE_LE), status: decrireEtat(etat, LU_LE).join("\n") };
 }
 
-test("la cuisine au repos faute de station : le bloc `awaiting` refait du tableau porte la ligne de `status`, sous « nothing awaits the chef », sans qu'elle compte pour une décision", async (t) => {
+test("la cuisine au repos faute de station : le bloc `awaiting` refait du tableau ne porte plus de ligne « kitchen idle », comme celui de `status`", async (t) => {
   const { corps, status } = railSansStation(t);
   const publie = await lu(corps);
   const texte = statusDuTableau(publie);
 
-  const ligne =
-    "  kitchen idle — the rest of the rail needs a human: no station provides `macos` (#12) — waiting behind it: #15 — to unblock: attach a station that provides it, or lower this ticket — remove it from the `requiert` line of its card — or close it";
-  const lignes = texte.split("\n");
-  const tete = lignes.indexOf("awaiting   nothing awaits the chef");
-  assert.deepEqual(lignes.slice(tete, tete + 3), ["awaiting   nothing awaits the chef", ligne, "end awaiting"]);
-  // Mot pour mot le bloc que la box écrit ; et le ticket qui en attend un autre, sans lien, n'y est pas nommé.
+  assert.match(texte, /^awaiting {3}nothing awaits the chef\nend awaiting$/m);
+  assert.doesNotMatch(texte, /kitchen idle|needs a human/);
+  assert.doesNotMatch(status, /kitchen idle|needs a human/);
+  // Mot pour mot le bloc que la box écrit ; la file du tableau est vide.
   const montree = mettreAPart({ projet: "brigade", demande: 1, a: LU_LE.toISOString(), sorties: [{ commande: "status", texte }] });
   const parLaStation = mettreAPart({ projet: "brigade", demande: 1, a: LU_LE.toISOString(), sorties: [{ commande: "status", texte: status }] });
   assert.ok(!("erreur" in montree) && !("erreur" in parLaStation));
   assert.equal(montree.attend, parLaStation.attend);
-  assert.doesNotMatch(montree.attend ?? "", /#17/);
-  // Pas une décision : la file du tableau est vide, et le bloc ne nomme aucun ticket en tête de ligne.
   assert.deepEqual(publie.file, []);
   assert.deepEqual(ticketsDe(montree.attend ?? ""), []);
 });
