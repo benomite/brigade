@@ -16,7 +16,7 @@ import { ALLUMAGE } from "../src/allumage.ts";
 import { commandeDAttente, ecrireAttente, GESTES_D_ATTENTE, relanceProposee } from "../src/attente.ts";
 import { mettreAPart } from "../src/attend.ts";
 import { pourLaBarre } from "../src/barre.ts";
-import type { Cuisine } from "../src/box.ts";
+import { GESTE, type Cuisine } from "../src/box.ts";
 import { EXEMPLE, type Projet } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
@@ -37,7 +37,7 @@ const AUJOURDHUI = new Date(2026, 9, 15, 14, 30);
 // Ce que le shell lit d'une ligne : ses mots, un par un — joué par un vrai `sh`, qui n'exécute rien d'autre que `printf`.
 const mots = (ligne: string): string[] => execFileSync("sh", ["-c", `printf '%s\\0' ${ligne}`], { encoding: "utf8" }).split("\0").slice(0, -1);
 // Ce que le geste de la station reçoit d'une commande de poste : le shell du Mac la découpe, une seule fois.
-const DEBUT = "(cd '/runtime' && BRIGADE_STATION_DIR='/station' node src/station/geste.ts ";
+const DEBUT = `(cd '/runtime' && BRIGADE_STATION_DIR='/station' node ${GESTE} `;
 function recuParLeGeste(commande: string): string[] {
   assert.ok(commande.startsWith(DEBUT) && commande.endsWith(")"), commande);
   return mots(commande.slice(DEBUT.length, -1));

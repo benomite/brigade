@@ -12,7 +12,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
-import type { Lecture } from "../src/box.ts";
+import { GESTE, type Lecture } from "../src/box.ts";
 import { mettreAPart } from "../src/attend.ts";
 import { SANS_DECISION } from "../src/decision.ts";
 import { heureHM } from "../src/format.ts";
@@ -935,7 +935,7 @@ describe("la bannière d'arrêt", () => {
     const ecrit = commandeDuGeste(BANNIERE.bouton, { nom: "parade", dossier: "/projets/parade" }, undefined, cuisine);
 
     assert.ok(CONFIRMES.includes(BANNIERE.bouton));
-    assert.deepEqual(ecrit, { commande: "(cd '/runtime' && BRIGADE_STATION_DIR='/station' node src/station/geste.ts parade guardrails resume)" });
+    assert.deepEqual(ecrit, { commande: `(cd '/runtime' && BRIGADE_STATION_DIR='/station' node ${GESTE} parade guardrails resume)` });
   });
 
   test("ce qu'elle dit de l'arrêt est ce que docs/runtime/ en dit", () => {

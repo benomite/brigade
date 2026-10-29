@@ -190,7 +190,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     const runtime = lancer(t, MAIN, [], { ...environnement(t, repertoire), BRIGADE_APP_CONFIG: app });
     await runtime.attendre("démarré");
 
-    assert.deepEqual(JSON.parse(readFileSync(app, "utf8")), { projets: [], hotes: [] });
+    assert.deepEqual(JSON.parse(readFileSync(app, "utf8")), { projets: [] });
     assert.match(runtime.sortie(), /app\.json created with the default settings/);
   });
 

@@ -5,7 +5,7 @@
 // le navigateur (#620). Et, sur un ticket qui t'attend, ceux qui tranchent la décision (#832).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import type { Cuisine } from "../src/box.ts";
+import { GESTE, type Cuisine } from "../src/box.ts";
 import type { Projet } from "../src/config.ts";
 import { demandeSurLeTicket, REFUS_CONTROLE_TICKET } from "../src/demande.ts";
 import { tenirFaits, type Faits } from "../src/faits.ts";
@@ -16,7 +16,7 @@ import type { Terminal } from "../src/terminaux.ts";
 
 const CUISINE: Cuisine = { locale: { node: "node", runtime: "/runtime", racine: "/station", env: {} } };
 const PARADE: Projet = { nom: "parade", dossier: "/projets/parade" };
-const ecrit = (suite: string) => `!(cd '/runtime' && BRIGADE_STATION_DIR='/station' node src/station/geste.ts parade ${suite})`;
+const ecrit = (suite: string) => `!(cd '/runtime' && BRIGADE_STATION_DIR='/station' node ${GESTE} parade ${suite})`;
 const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "second · claude", note: "", arrete: false };
 
 // Les actions qui attendent leur épique, branchées pour l'essai.

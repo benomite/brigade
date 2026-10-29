@@ -17,7 +17,7 @@ import { principal } from "../../runtime/src/manager-cli.ts";
 import { ALLUMAGE, AVERTISSEMENT, backlogDe, COMMANDE, compter, GESTE } from "../src/allumage.ts";
 import { confirmationDe } from "../src/confirmation.ts";
 import { ecrireGeste, GESTES, SANS_OUI } from "../src/gestes.ts";
-import type { Cuisine, Lu } from "../src/box.ts";
+import { GESTE as GESTE_DE_LA_STATION, type Cuisine, type Lu } from "../src/box.ts";
 import { ouvrirTerminaux } from "../src/terminaux.ts";
 import { SANS_POSIX } from "./aides/posix.ts";
 
@@ -243,7 +243,8 @@ describe("le geste « allumer », avec son avertissement", () => {
     // Avec son « oui » : le second vient de démarrer, il n'est pas dit libre — rien n'est écrit, et aucun shell ne s'ouvre.
     const rendu = await ecrireGeste(terminaux, ALLUMAGE.geste, PARADE, undefined, true, cuisine);
     assert.ok(rendu !== undefined && "refus" in rendu);
-    assert.match(rendu.refus, /the command did not go, and nothing is written: `!\(cd '.*' && BRIGADE_STATION_DIR='.*' '.*' src\/station\/geste\.ts parade switch on\)`$/);
+    const geste = GESTE_DE_LA_STATION.replace(/[\\/.]/g, "\\$&");
+    assert.match(rendu.refus, new RegExp(`the command did not go, and nothing is written: \`!\\(cd '.*' && BRIGADE_STATION_DIR='.*' '.*' ${geste} parade switch on\\)\`$`));
     assert.deepEqual(ecrits, [[]]);
     assert.equal(appels(), "");
   });

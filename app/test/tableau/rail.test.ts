@@ -15,7 +15,7 @@ import { tableauDeLaCuisine } from "../../../runtime/src/tableau/rendu/donnees.t
 import { rendreLeTableau } from "../../../runtime/src/tableau/rendu/rendre.ts";
 import { aArreter, horloge, repertoireTemporaire } from "../../../runtime/test/outils.ts";
 import { mettreAPart, ticketsDe } from "../../src/attend.ts";
-import { lancerLa } from "../../src/box.ts";
+import { GESTE, lancerLa } from "../../src/box.ts";
 import { lignesDuRail } from "../../src/bon.ts";
 import { comprendre, rail, tenirFaits, titreDEchec, type Dessinable } from "../../src/faits.ts";
 import { voir as voirAmont } from "../../src/amont.ts";
@@ -75,7 +75,7 @@ test("la garde prend le geste de la station lancé par le chemin des veilles : c
   const locale = { node: "/usr/bin/fausse-node", runtime: "/tmp/runtime", racine: "/tmp/station", env: {} };
   await assert.rejects(lancerLa({ delaiMs: 1_000 }, { nom: "brigade", cuisine: { locale } }, "facts"), /no process may be launched to draw the rail: \/usr\/bin\/fausse-node/);
   assert.equal(lances.length, 1);
-  assert.match(lances[0] ?? "", /^\/usr\/bin\/fausse-node \/tmp\/runtime\/.* brigade facts$/);
+  assert.match(lances[0] ?? "", new RegExp(`^/usr/bin/fausse-node ${join("/tmp/runtime", GESTE).replace(/[\\/.]/g, "\\$&")} brigade facts$`));
 });
 
 test("GitHub seul, aucune box jointe : la couche de données du rail rend les tickets et leur état, les cooks en cours, les cartes et ce qui attend le chef", async (t) => {

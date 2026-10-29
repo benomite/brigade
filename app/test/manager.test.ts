@@ -16,7 +16,7 @@ import { describe, test, type TestContext } from "node:test";
 import type { Fait } from "../../runtime/src/evenements.ts";
 import { ouvrirJournal } from "../../runtime/src/journal.ts";
 import { principal } from "../../runtime/src/manager-cli.ts";
-import type { Lecture } from "../src/box.ts";
+import { GESTE, type Lecture } from "../src/box.ts";
 import { CONFIRMES, DIRECTS, ecrireGeste, GESTES, SANS_OUI } from "../src/gestes.ts";
 import { COMMANDE, managerDe, voir, type Manager } from "../src/manager.ts";
 import { commandeDe, ONGLETS } from "../src/onglets.ts";
@@ -330,8 +330,8 @@ describe("la lecture du manager et ses deux gestes", () => {
     const [allumer, eteindre] = await Promise.all([ecrireGeste(terminaux, "projet-allumer", PARADE, undefined, true, CUISINE), ecrireGeste(terminaux, "projet-eteindre", PARADE, undefined, false, CUISINE)]);
 
     // Le second vient d'être lancé, il n'est pas dit libre : rien n'est écrit, et le refus le dit — avec la commande de la doc.
-    assert.deepEqual(allumer, { refus: `${DIT.demarre} — the command did not go, and nothing is written: \`!(cd '/tmp/runtime' && BRIGADE_STATION_DIR='/tmp/station' node src/station/geste.ts parade switch on)\`` });
-    assert.deepEqual(eteindre, { refus: `${DIT.demarre} — the command did not go, and nothing is written: \`!(cd '/tmp/runtime' && BRIGADE_STATION_DIR='/tmp/station' node src/station/geste.ts parade switch off)\`` });
+    assert.deepEqual(allumer, { refus: `${DIT.demarre} — the command did not go, and nothing is written: \`!(cd '/tmp/runtime' && BRIGADE_STATION_DIR='/tmp/station' node ${GESTE} parade switch on)\`` });
+    assert.deepEqual(eteindre, { refus: `${DIT.demarre} — the command did not go, and nothing is written: \`!(cd '/tmp/runtime' && BRIGADE_STATION_DIR='/tmp/station' node ${GESTE} parade switch off)\`` });
     assert.deepEqual(ecrits, [[]]);
     // La doc cite la commande deux fois : sur la box (« Driving it »), dans sa forme de poste — ce qui part —, et dans le dépôt (« The project switch »).
     assert.ok(doc.includes("`brigade <projet> switch [on \\| off]`"), "docs/runtime/, « Driving it », ne cite plus la commande de l'interrupteur");
