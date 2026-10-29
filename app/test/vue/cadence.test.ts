@@ -167,7 +167,7 @@ describe("les essais d'une carte, un point chacun", () => {
     assert.equal(ronds.length, 3);
     assert.deepEqual(ronds.map((rond) => rond.dataset.enCours), [undefined, undefined, ""]);
     assert.equal(ronds[0]?.title, "attempt 1 of 3 — stopped after 17 min: turns");
-    assert.equal(ronds[1]?.title, "attempt 2 of 3 — stopped after 14 min 50: idle");
+    assert.equal(ronds[1]?.title, "attempt 2 of 3 — stopped after 14 min: idle");
     assert.equal(ronds[2]?.title, "attempt 3 of 3 — cooking now");
   });
 
