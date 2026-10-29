@@ -9,7 +9,7 @@
 //
 // Le réglage vaut pour toutes les stations du projet dont la box le reçoit (c'est la portée de la commande) :
 // il part donc vers chaque projet dont le `status` lu nomme la station. Il part sur le tableau de la cuisine de chaque
-// projet (`/brigade cooks <N | auto>`, docs/tableau-gestes.md, #1845) : ni `ssh`, ni box jointe — la box le joue à son
+// projet (`/brigade cooks <N | auto>`, docs/tableau-gestes.md, #1845) : sans box jointe — la box le joue à son
 // tick, et c'est sa réponse sous le geste qui dit s'il est fait.
 import { ditParLaBox, enSuite, type DecisionDuChef, type EtatDuGeste } from "./tableau-gestes/gestes.ts";
 

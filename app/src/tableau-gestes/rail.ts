@@ -1,6 +1,6 @@
 // Les gestes de la vue du rail d'un projet, écrits sur son tableau de la cuisine (#1694) : ceux que la grammaire des
 // gestes du tableau connaît (docs/tableau-gestes.md, #1584) partent en commentaire sur l'issue du tableau, par l'accès
-// GitHub de l'app (gestes.ts) — ni `ssh`, ni second, ni box jointe. La box les joue à son tick suivant et répond sous
+// GitHub de l'app (gestes.ts) — ni second, ni box jointe. La box les joue à son tick suivant et répond sous
 // eux ; le rail, relu du tableau, montre ce qu'elle en a fait.
 //   - la fiche d'un ticket : « merge the PR » (`merger`) → `/brigade merge #<n>`, « remove from the rail » (`retirer`)
 //     → `/brigade set-aside #<n>`, « back to the kitchen » (`cuisine`, un ticket revenu de WAITING) → `/brigade arrived
@@ -111,7 +111,7 @@ export async function reponseDeCarte(lu: TableauLu | undefined, reponse: Reponse
   return "fait" in dit ? { repondue: true, dit: dit.fait, commentaire: dit.commentaire } : dit;
 }
 
-// Un geste qui partait par `ssh` sur la box (#1845) — le plafond, la cuisine d'une station, le commentaire d'une carte,
+// Un geste qui partait sur la box (#1845) — le plafond, la cuisine d'une station, le commentaire d'une carte,
 // la demande au second —, posté sur le dernier tableau lu du projet et suivi jusqu'à ce que la box l'ait joué ou
 // refusé, le temps de l'attente. Rien ne part sans tableau lu. Les écrans le disent dans leurs mots (plafond.ts,
 // cuisson.ts, discussion.ts).

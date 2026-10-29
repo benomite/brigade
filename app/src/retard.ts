@@ -51,7 +51,7 @@ type Rendu = { sortie: string } | { dit: string };
 // Une commande de `git` dans un dossier. Jamais d'exception, et jamais de question — ni au
 // terminal, ni par une fenêtre (`GIT_ASKPASS` vide, `SSH_ASKPASS_REQUIRE`) : la lecture part
 // à chaque retour à la fenêtre, et une origine qui demande un mot de passe est une origine qui
-// n'a pas répondu. Ce que le trousseau ou l'agent `ssh` du poste savent déjà sert tel quel.
+// n'a pas répondu. Ce que le trousseau du poste sait déjà sert tel quel.
 export function git(reglages: Reglages, dossier: string, args: readonly string[], signal?: AbortSignal, env: NodeJS.ProcessEnv = {}): Promise<Rendu> {
   return new Promise((resoudre) => {
     execFile(reglages.git, ["-C", dossier, ...args], { windowsHide: true, timeout: reglages.delaiMs, maxBuffer: 1024 * 1024, signal, env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_ASKPASS: "", SSH_ASKPASS_REQUIRE: "never", GIT_OPTIONAL_LOCKS: "0", ...env } }, (erreur, sortie, erreurs) => {

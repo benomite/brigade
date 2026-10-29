@@ -2,13 +2,13 @@
 // dans la grammaire de docs/tableau-gestes.md : la box les lit à son tick et y répond d'une ligne. Ce module compose le
 // commentaire, le poste par l'accès GitHub de l'app (ce que la plateforme donne : `ClientDesGestes`), puis suit le geste :
 // `pending` tant que ni la réponse de la box ni le bloc machine ne le disent pris en compte, puis `taken` ou `refused`,
-// avec la ligne de la box. Aucun écran ici, et aucune box jointe : ni ssh ni lien direct, rien que GitHub.
+// avec la ligne de la box. Aucun écran ici, et aucune box jointe : ni lien direct, rien que GitHub.
 import { lireLeTableau, type GesteDuTableau } from "../../../runtime/src/tableau/rendu/bloc.ts";
 
 // Les quatre décisions du chef, plus le choix d'une carte (`choose`, que la grammaire connaît aussi) et « c'est arrivé »
 // (`arrived`), qui renvoie en cuisine un ticket de WAITING, ou revenu de WAITING ; et le « yes » ou le « no » à une
 // correction ou à un profil proposés de la file (`correction`, `profile`), qui portent le numéro de leur proposition, pas
-// un ticket. Et ce qui partait par `ssh` sur la box (#1845) : le commentaire du chef sur l'issue d'une carte (`comment`),
+// un ticket. Et ce qui partait sur la box (#1845) : le commentaire du chef sur l'issue d'une carte (`comment`),
 // la demande au second (`ask`, son contexte facultatif), le plafond de cooks (`cooks`, un nombre ou `auto`) et la cuisine
 // d'une station, arrêtée ou relancée (`station`) — ces deux-là sans ticket.
 export type DecisionDuChef =

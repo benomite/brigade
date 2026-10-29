@@ -9,7 +9,7 @@
 //     par fichier — ses lignes ajoutées et retirées comptées et dites à part —, et ce qu'elle a coûté ;
 //   - ce que la vue reçoit du geste du chef (`Rendu`). Le geste ne passe pas par la box : il est posté
 //     sur le tableau de la cuisine du projet, `/brigade correction yes|no <proposition>`
-//     (tableau-gestes/rail.ts, `reponseALaFile`, #1741), par l'accès GitHub de l'app — ni `ssh` ni box
+//     (tableau-gestes/rail.ts, `reponseALaFile`, #1741), par l'accès GitHub de l'app — sans box
 //     jointe. La box le joue à son tick suivant ; c'est le runtime qui tranche
 //     (runtime/src/correctif/decision.ts).
 

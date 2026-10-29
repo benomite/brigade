@@ -38,7 +38,3 @@ export function roleDe(options: OptionsRole): Role {
   if (!existe(principal)) return { role: "poste", pourquoi: `no station runtime beside the app (${principal})` };
   return { role: "station", principal };
 }
-
-// Les projets que l'app fait cuire ici : ceux qu'on lui donne sur une station, aucun sur un
-// poste — un téléphone ne propose jamais de cuire.
-export const cuisinesIci = <T>(role: Role, projets: readonly T[]): T[] => (role.role === "station" ? [...projets] : []);

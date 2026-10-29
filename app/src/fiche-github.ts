@@ -1,5 +1,5 @@
 // L'histoire et la discussion d'une carte du rail, sur sa fiche, lues de GitHub — jamais de la box (#1735). Le `gh` du
-// poste lit l'issue du ticket dans le dépôt du projet, et les PR qui la ferment : aucun `ssh`, la fiche s'ouvre box éteinte.
+// poste lit l'issue du ticket dans le dépôt du projet, et les PR qui la ferment : la fiche s'ouvre box éteinte.
 // Ce que GitHub ne porte pas — les tokens et la durée des cooks, la rétro, le verdict de la relecture — est écrit
 // « not communicated », jamais inventé. Une issue absente de GitHub se dit en une phrase.
 import { echec, lancer, type Reglages } from "./question.ts";

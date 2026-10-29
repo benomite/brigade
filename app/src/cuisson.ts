@@ -4,7 +4,7 @@
 // lu, que l'app ne déduit jamais. Le geste est la commande du runtime, `station stop|start <station>`
 // (docs/runtime/station.md, « Lancer et arrêter la cuisine, station par station ») : la même pour une
 // station de la box, pour le Mac et pour toute station distante — elle part sur le tableau de la cuisine du projet
-// (`/brigade station stop|start <station>`, docs/tableau-gestes.md, #1845), que la box joue à son tick : ni `ssh`, ni
+// (`/brigade station stop|start <station>`, docs/tableau-gestes.md, #1845), que la box joue à son tick : sans
 // box jointe. Arrêter ne coupe aucun cook : ceux qui tournent finissent, livrent ou rendent leur ticket au rail.
 // Ce qui demande un geste au chef — une station saturée, ou qui refuse le projet — tient en une ligne, que
 // l'onglet Rail pose avec de quoi ouvrir Cooks.

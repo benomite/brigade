@@ -20,11 +20,9 @@ const texte = (lu: unknown): lu is string => typeof lu === "string" && lu !== ""
 const rang = (lu: unknown): lu is number => typeof lu === "number" && Number.isInteger(lu) && lu > 0;
 
 function cibleLue(lu: unknown): Cible | undefined {
-  const { lieu, nom, hote } = (lu ?? {}) as { lieu?: unknown; nom?: unknown; hote?: unknown };
-  if (lieu === "poste") return { lieu };
-  // Un hôte qui commence par un tiret serait lu par `ssh` comme une option.
-  if ((lieu === "box" || lieu === "station") && texte(nom) && texte(hote) && !hote.startsWith("-")) return { lieu, nom, hote };
-  return undefined;
+  // Un shell d'une machine distante, tel que l'app d'avant le retirait, ne se lit plus : il n'est pas rattaché.
+  const { lieu } = (lu ?? {}) as { lieu?: unknown };
+  return lieu === "poste" ? { lieu } : undefined;
 }
 
 // Le rappel tel qu'il est écrit, sans ce qui ne s'y lit pas.

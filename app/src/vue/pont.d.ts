@@ -4,7 +4,6 @@ import type { Bande } from "../alertes.ts";
 import type { ALLUMAGE, Compte } from "../allumage.ts";
 import type { Vu as VuAmont } from "../amont.ts";
 import type { Affichee } from "../barre.ts";
-import type { Bouton } from "../boutons.ts";
 import type { Lecture } from "../box.ts";
 import type { PALETTE, Role } from "../couleurs.ts";
 import type { GESTES_DE_LA_CUISINE } from "../cuisine.ts";
@@ -38,7 +37,7 @@ import type { Choix, StationsDuCompte } from "../stations-du-compte.ts";
 
 export type Pont = {
   // `poste` : le nom que l'écran donne à cet ordinateur (« this Mac », « this PC »), et s'il est un Mac — les raccourcis du terminal en dépendent.
-  demarrage(): Promise<{ poste?: { nom: string; mac: boolean }; configuration: Affichee; palette: typeof PALETTE; exemple: string; onglets: readonly Onglet[]; rubriques: readonly Rubrique[]; boutons: readonly Bouton[]; gestes: { allumage: typeof ALLUMAGE; cuisine: typeof GESTES_DE_LA_CUISINE; grants: { gestes: typeof GESTES_DES_GRANTS; nommes: typeof GRANTS }; directs: typeof DIRECTS; confirmes: typeof CONFIRMES; attente?: typeof GESTES_D_ATTENTE }; banniere: typeof BANNIERE; calibrage: { modeles: typeof MODELES; efforts: typeof EFFORTS }; code: VuDuCode | undefined; stations?: VuDesStations; projetsDesStations?: VuDesProjets; accueil?: Accueil; miseAJour?: EtatDeMiseAJour; telephone?: Telephone }>;
+  demarrage(): Promise<{ poste?: { nom: string; mac: boolean }; configuration: Affichee; palette: typeof PALETTE; exemple: string; onglets: readonly Onglet[]; rubriques: readonly Rubrique[]; gestes: { allumage: typeof ALLUMAGE; cuisine: typeof GESTES_DE_LA_CUISINE; grants: { gestes: typeof GESTES_DES_GRANTS; nommes: typeof GRANTS }; directs: typeof DIRECTS; confirmes: typeof CONFIRMES; attente?: typeof GESTES_D_ATTENTE }; banniere: typeof BANNIERE; calibrage: { modeles: typeof MODELES; efforts: typeof EFFORTS }; code: VuDuCode | undefined; stations?: VuDesStations; projetsDesStations?: VuDesProjets; accueil?: Accueil; miseAJour?: EtatDeMiseAJour; telephone?: Telephone }>;
   // Le dossier que le chef a choisi — rien, s'il a renoncé.
   choisirDossier(): Promise<string | undefined>;
   // Le dépôt GitHub et la branche d'intégration du dossier choisi, lus dans son clone — ou pourquoi ils restent à écrire.
@@ -112,7 +111,7 @@ export type Pont = {
   // chef la complète. Rend le second, dont la note dit ce qui a été écrit — ou pourquoi rien ne
   // l'a été, sans toucher au second. Rien, pour un projet sans box. `valeurs` : celles que le geste
   // attend de la page — le modèle et l'effort du closer, pour « regler-closer » (boutons.ts).
-  inscrire(projet: string, bouton: string, valeurs?: readonly string[]): Promise<Terminal | { refus: string } | undefined>;
+  inscrire(projet: string, bouton: string, valeurs: readonly string[]): Promise<Terminal | { refus: string } | undefined>;
   // Une carte de T'attend (demande.ts) : une demande en prose est écrite dans le second, sans Entrée,
   // et le second est affiché. La vue nomme le projet et le ticket ; la phrase vient de ce que le bloc
   // `attend` en dit. Rien pour un ticket que le bloc ne nomme pas.

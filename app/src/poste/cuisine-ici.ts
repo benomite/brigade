@@ -1,21 +1,19 @@
-// Où tourne la cuisine d'un projet : sur sa box, ou sur cet ordinateur. Ce n'est pas `app.json`
+// Où tourne la cuisine d'un projet : sur cet ordinateur, ou nulle part. Ce n'est pas `app.json`
 // qui le dit, c'est la station de cet ordinateur : un projet qu'elle sert a sa ligne dans sa
 // configuration (`<BRIGADE_STATION_DIR>/projets`, une ligne par projet — runtime/src/station/
 // configuration.ts), qu'il y ait été ajouté depuis l'app ou écrit à la main. Une station qui n'en
 // est pas la principale ne lui écrit aucune ligne.
 //
-// - **Le lieu vivant l'emporte.** Un projet que la station de cet ordinateur sert se lit ici, par
-//   son geste, sans `ssh` — même s'il déclare un `hote`. Sinon, il se lit sur sa box, s'il en
-//   déclare une ; sans `hote`, rien n'est lu de lui.
+// - **Un projet que la station de cet ordinateur sert se lit ici**, par son geste. Les autres
+//   se lisent du tableau de leur cuisine sur GitHub, et ne portent aucune cuisine ici.
 // - **Relu à chaque lecture.** La configuration de la station se relit chaque fois qu'on demande
-//   où est un projet : une cuisine qui passe de la box à cet ordinateur, ou l'inverse, est lue à
+//   où est un projet : une cuisine qui arrive sur cet ordinateur, ou le quitte, est lue à
 //   sa nouvelle place dès la lecture suivante, sans que rien ne change dans `app.json`.
 // - **Une app qui n'est pas une station** (un téléphone, `BRIGADE_APP_STATION=0`, pas de runtime
 //   à côté d'elle) ne lit rien ici : rien n'y cuit.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Cuisine, Locale } from "../box.ts";
-import type { Box } from "../config.ts";
 
 // Le fichier des projets d'une station, sous son répertoire — celui que lit son geste.
 export const CONFIGURATION = "projets";
@@ -41,8 +39,8 @@ export function servisPar(racine: string): string[] {
 }
 
 export type CuisinesIci = {
-  // Là où se lit la cuisine de ce projet, à cet instant : cet ordinateur, sa box, ou nulle part.
-  cuisineDe(projet: { nom: string; box?: Box }): Cuisine | undefined;
+  // Là où se lit la cuisine de ce projet, à cet instant : cet ordinateur, ou nulle part.
+  cuisineDe(projet: { nom: string }): Cuisine | undefined;
   // Ce projet cuit-il sur cet ordinateur, à cet instant ?
   ici(nom: string): boolean;
 };
@@ -66,8 +64,8 @@ export function tenirCuisinesIci(options: {
     return connus;
   };
   return {
-    cuisineDe({ nom, box }) {
-      return locale !== undefined && relire().includes(nom) ? { locale } : box;
+    cuisineDe({ nom }) {
+      return locale !== undefined && relire().includes(nom) ? { locale } : undefined;
     },
     ici: (nom) => locale !== undefined && relire().includes(nom),
   };

@@ -659,11 +659,11 @@ export function signalDe(bande: readonly Alerte[]): Signal | undefined {
 // pourquoi, et ce que le chef peut y faire. Elle sort dès que la box répond.
 export const LECTURES_POUR_INJOIGNABLE = 2;
 
-// La cause d'un `ssh` pas arrivé, en mots simples — d'après ce qu'il a écrit, jamais redit tel quel.
+// La cause d'une station pas arrivée, en mots simples — d'après ce qu'elle a écrit, jamais redit tel quel.
 export function causeDuSilence(erreur: string): string {
-  if (/could not resolve hostname|name or service not known|no address associated|nodename nor servname/i.test(erreur)) return "address not found — the name your `ssh` uses for this station resolves to nothing";
-  if (/connection refused/i.test(erreur)) return "connection refused — the machine answers, but nothing accepts `ssh` there";
-  return "no answer — the machine does not reply to `ssh`";
+  if (/could not resolve hostname|name or service not known|no address associated|nodename nor servname/i.test(erreur)) return "address not found — the name of this station resolves to nothing";
+  if (/connection refused/i.test(erreur)) return "connection refused — the machine answers, but nothing accepts the connection there";
+  return "no answer — the machine does not reply";
 }
 
 type SansReponse = { depuis: string; a: string; lectures: number; cause: string };
@@ -751,7 +751,7 @@ export function tenirBandes({ maintenant = Date.now, etablir = LECTURES_POUR_ETA
   // L'app hors ligne pour un projet : depuis la première lecture de la série qui n'a pas joint GitHub.
   const horsLigne = new Map<string, string>();
   // Une lecture hors ligne le note, et ne change rien de ce qui était lu ; une lecture qui a joint GitHub le lève — pas
-  // un `ssh` en échec, qui ne dit rien du réseau.
+  // une commande en échec, qui ne dit rien du réseau.
   const hors = (lecture: Lecture): boolean => {
     if (!estHorsLigne(lecture)) {
       if (!("erreur" in lecture) || lecture.duTableau === true) horsLigne.delete(lecture.projet);

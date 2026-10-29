@@ -329,14 +329,12 @@ export function cuitSurDe(dits: readonly Dit[], locale: string | null): CuitSur 
   return { id: station?.id ?? null, nom: nomme, ici: station !== undefined && station.id === locale };
 }
 
-// L'hôte par lequel se lit le rail d'un projet que le fichier des projets ne dit pas hébergé : celui
-// que la station qui le sert donne (`<machine>/<moteur>` : la machine). Un projet ajouté depuis l'app n'a pas
-// d'`hote` dans le fichier (ajout.ts) — sans cela, son rail ne serait lu nulle part dès que son parcours
-// disparaît (#1405). Rien, quand aucune station ne le sert, ou que c'est celle de cet ordinateur.
-export function hoteDeLaStation(vu: Pick<VuDesProjets, "projets"> | undefined, nom: string): string | undefined {
+// Le rail d'un projet que le fichier des projets ne dit pas cuit sur cet ordinateur se lit du tableau de sa
+// cuisine : il se lit dès qu'une station le sert, ailleurs que sur cet ordinateur. Faux, quand aucune station ne
+// le sert, ou que c'est celle de cet ordinateur.
+export function serviAilleurs(vu: Pick<VuDesProjets, "projets"> | undefined, nom: string): boolean {
   const cuit = vu?.projets.find((projet) => projet.nom === nom)?.cuitSur;
-  if (cuit === undefined || cuit === null || cuit.ici) return undefined;
-  return machineDuNom(cuit.nom);
+  return cuit !== undefined && cuit !== null && !cuit.ici;
 }
 
 // La machine d'une station, par son nom — `<machine>/<moteur>` : la machine —, telle que le réseau du chef la nomme.

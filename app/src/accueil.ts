@@ -44,8 +44,8 @@ export type Sante = { ton: Ton; dit: string; survol: string };
 export type PlafondsDeStation = { plafond: PlafondVu; retenue?: RetenueVue };
 export type Accueil = { projets: LigneDeProjet[]; stations?: LigneDeStation[]; sante: Sante; plafonds?: Record<string, Record<string, PlafondsDeStation>> };
 
-// Un projet du fichier, tel que l'accueil le nomme : sans box, ou désinstallé de la sienne, rien n'en est lu.
-export type ProjetDeLAccueil = { nom: string; box: boolean; desinstalle: boolean };
+// Un projet du fichier, tel que l'accueil le nomme : `servi` faux, aucune station ne le sert, et rien n'en est lu.
+export type ProjetDeLAccueil = { nom: string; servi: boolean };
 // Ce que la dernière lecture de `faits` a donné d'un projet : ses faits, une box qui n'a pas été
 // jointe, ou une box jointe qui n'a pas rendu ce que l'app lit.
 export type FaitsLus = { a: string } & ({ faits: Faits } | { injoignable: true } | { illisible: true });
@@ -122,8 +122,7 @@ function cuit(faits: Faits, repare: number | undefined): string[] {
 
 export function ligneDeProjet(projet: ProjetDeLAccueil, lu: FaitsLus | undefined, status: StatusLu | undefined): LigneDeProjet {
   const { nom } = projet;
-  if (projet.desinstalle) return { nom, ton: "gris", dit: "uninstalled from its station: nothing is read", survol: "the app uninstalled it from its station — open it to remove it from the app" };
-  if (!projet.box) return { nom, ton: "gris", dit: "no station: nothing is read", survol: "its entry in the projects file does not say where its station is — open it to see what is missing" };
+  if (!projet.servi) return { nom, ton: "gris", dit: "no station: nothing is read", survol: "no station serves this project yet — open it to see what is missing" };
   if (lu === undefined) return { nom, ton: "gris", dit: "first read in progress…", survol: "the app reads every project's station every 30 s" };
   if ("injoignable" in lu) return { nom, ton: "rouge", dit: "station unreachable", survol: `its station did not answer at ${heure(lu.a)} — the app tries again every 30 s; open it to see why` };
   if ("illisible" in lu) return { nom, ton: "gris", dit: "not read: its station does not answer as the app expects", survol: `tried at ${heure(lu.a)} — open it to see what its station returned` };

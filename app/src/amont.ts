@@ -120,7 +120,7 @@ const sortieDe = (lecture: Lecture) => ("erreur" in lecture ? undefined : compre
 // Pourquoi la lecture ne compte rien : une sortie qui n'a pas la forme, ou l'échec de la veille.
 // Les codes sont ceux d'une commande du runtime : 1, GitHub ou le journal n'a pas été lu ; 2, elle
 // a été refusée — par un runtime d'avant elle, qui ne connaît pas `upstream`. Tout autre vient du
-// geste, ou de `ssh`. Le code, c'est l'app qui l'a écrit, au bout de ce que `ssh` a rendu (box.ts).
+// geste. Le code, c'est l'app qui l'a écrit, au bout de ce que la commande a rendu (box.ts).
 function sansLecture(lecture: Lecture, informe: string | undefined): string {
   if (!("erreur" in lecture)) return `${PAS_LU} in what the station returned: ${informe ?? "it has no output"}. ${PAS_RIEN}`;
   const code = Number(/→ exit code (\d+)$/.exec(lecture.erreur)?.[1]);

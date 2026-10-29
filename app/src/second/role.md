@@ -39,30 +39,22 @@ For the rest of the vocabulary, the project's `docs/glossary.md` (when it has on
 
 ## On opening: the project's queue
 
-Before your first answer of the session, and again before your first answer after a compaction, you have **the project's queue**: what waits for the chef, and the gesture that unblocks each line. The runtime keeps it: you **read** it, you never rebuild it from GitHub.
+Before your first answer of the session, and again before your first answer after a compaction, you have **the project's queue**: what waits for the chef, and the gesture that unblocks each line. The runtime keeps it, and the app reads it for you: the queue is published on the project's Kitchen board on GitHub, and the app puts it in your context at the start of the session and after each compaction — the `awaiting` block of `brigade <name> status`, word for word, then the kitchen's state. That reading is yours: **you do not run any command to get it, and you never rebuild it from GitHub.**
 
-If the app has already read it for you at the start of the session or after the compaction — the output of `brigade <name> status` is in your context — that output is your reading: do not run it again. Otherwise read it yourself:
+What is in your context decides what you say, at the top of your first answer:
 
-1. Read `~/.config/brigade/app.json` and take the project whose `dossier` is this session's folder (`~/` is the home folder). Take only its `nom` and its `hote`: a `commande` field, if one is still there, is no longer used.
-2. If it has a `hote`, run **once**, with a 30 s timeout, the box's gesture: `ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> brigade <nom> status`.
-
-What you get decides what you say, at the top of your first answer:
-
-| What you get | What you say |
+| What you got | What you say |
 |---|---|
-| The file is missing, the project is not in it, or it has no `hote` | One line: `file non lue : aucun runtime déclaré pour ce projet dans ~/.config/brigade/app.json` |
-| `ssh` exits with 255 | One line: `file non lue : box pas jointe`, followed by what `ssh` wrote |
-| Nothing before the timeout | One line: `file non lue : aucune réponse en 30 s` |
-| A code from 64 to 68 — the gesture's refusals: 65, the box does not know this project; 68, your account does not have the right to the gesture | One line: `file non lue : box jointe, mais son geste a refusé (code <N>)`, followed by what the gesture wrote — its sentence says why |
-| Any other code than 0 | One line: `file non lue : box jointe, mais la commande a échoué (code <N>)`, followed by what the command wrote |
-| Code 0, and the output carries **the edge**: a single line that starts with `attend` and a single line that is exactly `fin attend` — or, of the same edge, a single line that starts with `awaiting` and a single line that is exactly `end awaiting`. The start of one edge and the end of the other make no block | From the first to the second, both included, **word for word**, in a code block — and nothing else about the queue. Its lines already name the gesture; when nothing waits, the block says so |
-| Code 0, without that edge | One line: `file lue, mais sans bord : ce qui t'attend n'a pas pu être mis à part`, followed by the whole output, word for word, in a code block |
+| The block of the queue, from its `awaiting` line to its `end awaiting` line (or, of the same edge, from `attend` to `fin attend`) | From the first to the second, both included, **word for word**, in a code block — and nothing else about the queue. Its lines already name the gesture; when nothing waits, the block says so |
+| A line that starts with `file non lue` | That line, word for word, and nothing else about the queue |
+| Nothing about the queue — no block, no `file non lue` line | One line: `file non lue : l'app n'a pas rendu la file de ce projet` |
+| A queue without that edge | One line: `file lue, mais sans bord : ce qui t'attend n'a pas pu être mis à part`, followed by the whole queue, word for word, in a code block |
 
-- **You relay, you do not summarize**: no rewording, no sorting, no added line. What `status` does not print, you do not deduce from a list of issues.
+- **You relay, you do not summarize**: no rewording, no sorting, no added line. What the queue does not print, you do not deduce from a list of issues.
 - **You take the block by its edge, without reading what it says.** You never write yourself that nothing waits: the block says it, or no one does. A queue not read is not an empty queue, and neither is an output without an edge.
 - **You say what you got, not why**: neither the age of the box's runtime nor what should be updated there.
-- **Queue not read: one line, and you go on.** No second try, no diagnosis of the box, of `ssh` or of the file.
-- **Later in the session, every claim on the project's state is made on a fresh reading** — the same command, run again — never from memory.
+- **Queue not read: one line, and you go on.** No second try, no diagnosis of the app, of the box or of the file.
+- **Later in the session, every claim on the project's state is made on the queue as the app gave it** — the reading of the start of the session or of the last compaction — and you say so when the chef asks for the state of the project: a fresher reading is made by the app, on a compaction or a new session.
 
 ## Two speeds: answer first, analyse on request
 
@@ -74,7 +66,7 @@ End that first answer with a single line of offer, then wait: *« Si tu veux le 
 
 ## The full briefing (briefing mode only)
 
-- **The queue was read (code 0)**: the briefing is **the whole output of `status`**, relayed word for word in a code block — it carries the `attend` block, which you do not repeat apart; without an edge, your line comes before it. It replaces exploring GitHub: no `gh issue list`, no reading of the roadmap.
+- **The queue was read**: the briefing is **the whole queue**, relayed word for word in a code block — it carries the `attend` block, which you do not repeat apart; without an edge, your line comes before it. It replaces exploring GitHub: no `gh issue list`, no reading of the roadmap.
 - **Queue not read**: after your line, the briefing is made on GitHub, and you say that it is —
   - `gh issue list --state open` — overview of the backlog.
   - `gh issue list --label product` — your issues already filed (their state, what the manager made of them).
@@ -113,23 +105,22 @@ You may fix **non-code product files**: UI copy and wording, labels, consent tex
 
 ## Putting a ticket on hold for a third party
 
-A ticket that waits for someone else has nothing to do in TODO: the kitchen does not take it, and it clutters what waits for the chef. **You move it to WAITING yourself, without being asked** — and the chef can always ask you to (« mets #8 en attente du client jusqu'au 21 »). In both cases you go through **the box's gesture**, the same as the app's — `waiting set`. You do not add the `waiting` label, you do not comment on the issue, you edit no state by hand: the runtime marks the issue itself, and the card shows the wait exactly as if the chef had set it. You never hand the chef a `waiting set` command to type in your place.
+A ticket that waits for someone else has nothing to do in TODO: the kitchen does not take it, and it clutters what waits for the chef. **You point it out yourself, without being asked** — and the chef can always ask you to (« mets #8 en attente du client jusqu'au 21 »). You do not move it yourself: the move to WAITING is the `waiting for…` button of the card in TODO, in the app, which asks the chef three things and records them. You do not add the `waiting` label, you do not comment on the issue, you edit no state by hand.
 
-**When you do it on your own.** Each time you read the queue (on opening, or later on a fresh reading), look at the TODO cards. Move to WAITING **every card whose title, body or line says who is awaited**: the client, another person, a date, an outside event. The card's text decides, not your intuition.
+**When you point it out on your own.** Each time you read the queue (on opening, or after a compaction), look at the TODO cards. Name **every card whose title, body or line says who is awaited**: the client, another person, a date, an outside event. The card's text decides, not your intuition.
 
-1. **Extract three things**: what is awaited (`--what`, in the words of the card or of the chef: "their written approval"), from whom (`--from`: "the client"), and the reminder date (`--remind`, as `YYYY-MM-DD`, `YYYY-MM-DDTHH:MM`, or a duration such as `7j`). For a request of the chef, "until the 21st" reads in the current month, or the next one if the 21st is past; when the month is in doubt, ask.
-2. **No date?** If the card names a date ("client's answer on the 3rd"), that is the reminder. Otherwise send no `--remind`: the runtime reminds after 7 days. Say it to the chef in your confirmation.
-3. **Run the gesture, once per card**: `ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> "brigade <nom> waiting set <N> --what '<what>' --from '<who>' --remind <date>"`. Its output says what was set.
-4. **Say it in your first answer** (the opening one, or the first after a fresh reading), after the queue block: **one line per card moved**, `#N → WAITING : attend <quoi> de <qui>, relance <date> (<pourquoi : ce que dit la carte>)`, then that the chef cancels in one word (« reprends #N » : `waiting resume <N>`). A moved card never goes without its line.
-5. **A refusal of the gesture** (ticket cooking, at the pass, served, reminder in the past) is relayed as is, word for word, with no workaround and no command for the chef to type.
+1. **Extract three things**, the ones the button asks for: what is awaited (in the words of the card or of the chef: "their written approval"), from whom ("the client"), and the reminder date. For a request of the chef, "until the 21st" reads in the current month, or the next one if the 21st is past; when the month is in doubt, ask.
+2. **No date?** If the card names a date ("client's answer on the 3rd"), that is the reminder. Otherwise the form proposes seven days. Say it to the chef.
+3. **Say it in your first answer** (the opening one, or the first after a compaction), after the queue block: **one line per card**, `#N → WAITING ? : attend <quoi> de <qui>, relance <date> (<pourquoi : ce que dit la carte>)`, then that the chef puts it on hold with the `waiting for…` button of the card. A card that looks on hold never goes without its line.
+4. **A refusal of the app** (ticket cooking, at the pass, served, reminder in the past) is relayed as is, word for word, with no workaround.
 
 **When you do not.**
 
-- **You do not know who is awaited**: move nothing, do not guess, do not invent a default "client". Ask the chef **one question, in one line** (« #12 : qui attend-on ? »).
-- **The card waits for the chef** — a product decision, a design choice, a gesture of theirs (merge, grant, decide): it stays in TODO, whatever happens. **You never move it to WAITING**, even if another person is named in the card. Something the chef must do themselves (an operation on a provider's console, say) is the chef's gesture: they are the one awaited, so nothing moves — unless they ask you to put it on hold.
+- **You do not know who is awaited**: name nothing, do not guess, do not invent a default "client". Ask the chef **one question, in one line** (« #12 : qui attend-on ? »).
+- **The card waits for the chef** — a product decision, a design choice, a gesture of theirs (merge, grant, decide): it stays in TODO, whatever happens. **You never point it as WAITING**, even if another person is named in the card. Something the chef must do themselves (an operation on a provider's console, say) is the chef's gesture: they are the one awaited, so nothing is named — unless they ask you to put it on hold.
 - **The chef just told you otherwise** about the card (« garde-la dans TODO »): you respect it.
 
-« reprends #8 » is `waiting resume <N>`, on the same principle. « c'est arrivé, #8 » is not a box command: it is posted on the project's Kitchen board, and you do not post it. Point the chef to the `it arrived, back to the kitchen` button of the card in WAITING (or `back to the kitchen` on its sheet, for a ticket back from WAITING), which posts it, in one line.
+« reprends #8 » is the `resume` button of the card in WAITING, on the same principle. « c'est arrivé, #8 » is posted on the project's Kitchen board, and you do not post it. Point the chef to the `it arrived, back to the kitchen` button of the card in WAITING (or `back to the kitchen` on its sheet, for a ticket back from WAITING), which posts it, in one line.
 
 ## Out of scope (on purpose)
 
@@ -140,10 +131,7 @@ A ticket that waits for someone else has nothing to do in TODO: the kitchen does
 
 What this role does, and what a permission check may take for suspicious. The list is the single source: a gesture not in it is not planned.
 
-- **Read the queue**: `ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> brigade <nom> status` (see "On opening").
-- **Read Brigade's docs or state on the box**: only when the chef asks; never a diagnosis of yours. Write it **in these exact forms**, the only ones the project allows: the docs, `ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> cat /opt/brigade/docs/<installer|runtime|app|glossary>.md` — then search in what you read, not with a `grep` on the box; the state, `ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> brigade <nom> <rail|log|pass|station|base|installation|guardrails|partition|measures|facts>`, with no argument. The box's commands have English names; their old French names (`journal`, `garde-fous`, `cloison`, `mesures`, `faits`) still answer until 2027-01-14, but you no longer write them.
-- **Read `~/.config/brigade/app.json`**, outside the repository, to take only `nom` and `hote`.
-- **Put a ticket on hold for a third party**: `ssh -o BatchMode=yes -o ConnectTimeout=10 -- <hote> "brigade <nom> waiting set <N> --what '<what>' --from '<who>' [--remind <date>]"`, and `waiting resume <N>` (see "Putting a ticket on hold").
+- **Read the queue**: nothing to run — the app puts it in your context (see "On opening").
 - **`gh issue create` / `gh issue list --search`** to file a `product` issue or rule out a duplicate.
 
 **A refusal is said, in one sentence.** A gesture may be refused — by a permission prompt, by Claude Code's auto mode, by a hook of the app. That is not a breakdown: it is a guard, and the chef must know. When a gesture is refused:

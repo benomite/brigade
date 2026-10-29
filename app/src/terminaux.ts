@@ -8,16 +8,10 @@
 // rattaché à sa session. Seule sa fermeture par le chef la détruit. Le shell qu'un geste ouvre
 // pour y écrire sa commande, lui, est un shell de ce poste qui finit avec l'app — comme, sous
 // Windows, celui que « + shell » ouvre sur ce poste : il n'y a pas de session où le tenir.
-//
-// Un shell sur une machine distante dont la connexion lâche (réseau perdu, machine éteinte, poste
-// endormi) ne quitte pas l'espace : son terminal dit que la machine n'est pas joignable, et l'app la
-// sonde jusqu'à ce qu'elle réponde, puis le rattache à sa session — qui a tenu, là-bas, avec sa
-// commande en cours. Au réveil du poste, chaque shell distant se rattache aussitôt.
 import { compteDe, texteBandeau } from "./bandeau.ts";
 import type { Projet } from "./config.ts";
-import { lieuDe } from "./machines.ts";
 import { ICI, SANS_SESSION } from "./plateforme.ts";
-import { detruire as detruireSession, joindre as joindreMachine, nomDeSession, rattachement, type Cible, type Session } from "./persistance.ts";
+import { detruire as detruireSession, nomDeSession, rattachement, type Cible, type Session } from "./persistance.ts";
 import { crochetsDesTours, DIT, PREUVE, reglages, suivreSaisie, type Saisie, type Tours } from "./saisie.ts";
 import { crochetsDeLaFile } from "./second/crochet-de-la-file.ts";
 import { crochetsDuRefus } from "./second/refus.ts";
@@ -84,10 +78,7 @@ const manquants = (tools: readonly OutilVu[]): OutilManquant[] =>
 // `persistant` : la session d'un shell persistant, et son rang dans le projet.
 // `lances` : le numéro du dernier lancement — la fin d'un pty que l'app a remplacé ne dit plus rien.
 // `ici` : le bandeau d'un shell persistant tel qu'il est quand sa machine répond.
-// `attente` : un shell distant dont la machine ne répond pas — combien de fois elle a été sondée, et
-// la reprise prévue, qu'on annule.
-// `sonde` : une sonde est partie, et n'a pas répondu — une seule à la fois.
-type Attente = { essais: number; sonde?: true; annuler?: () => void };
+// `ici` : le bandeau d'un shell persistant.
 type Tenu = Terminal & {
   dossier: string;
   // Le projet tel que la file se lit : son nom, et son dépôt GitHub quand le fichier des projets le donne.
@@ -99,22 +90,13 @@ type Tenu = Terminal & {
   saisie?: Saisie;
   persistant?: { rang: number; session: Session };
   ici?: string;
-  attente?: Attente;
 };
-
-// Les délais entre deux sondes d'une machine qui ne répond pas : vite d'abord, puis toutes les
-// trente secondes, tant qu'elle ne répond pas.
-export const REPRISES_MS = [2_000, 5_000, 10_000, 20_000, 30_000] as const;
-
-// Ce que le terminal d'un shell dit de sa machine — écrit dans son terminal, à la suite de ce
-// qu'il montrait : c'est là que le chef regarde.
-const ligne = (texte: string) => `\r\n\x1b[1;33m[brigade] ${texte}\x1b[0m\r\n`;
 
 // Ce qui ne s'écrit jamais dans un terminal à la place du chef : un retour à la
 // ligne enverrait la commande, et tout autre caractère de contrôle y est une touche.
 // Qui prépare une commande (gestes.ts) la refuse par la même règle, avant d'ouvrir un shell.
 export const CONTROLE = /[\x00-\x1f\x7f]/;
-export const SANS_ECRIRE = "nothing is written: the command carries a control character, and a line break would have sent it — check “nom” and “hote” of this project in the projects file";
+export const SANS_ECRIRE = "nothing is written: the command carries a control character, and a line break would have sent it — check “nom” of this project in the projects file";
 
 export function ouvrirTerminaux(options: {
   ouvrirPty(lancement: Lancement): Pty;
@@ -134,21 +116,14 @@ export function ouvrirTerminaux(options: {
   delaiPreuveMs?: number;
   // Ce que l'app se rappelle des shells persistants. Sans lui, aucun ne revient à la réouverture.
   souvenirs?: Souvenirs;
-  // Le `ssh` qui joint une machine distante — jamais posé hors des essais.
-  ssh?: string;
   // Le `node` qui joue le crochet de la file du second (second/file.ts). Sans lui, le second n'a pas ce crochet.
   node?: string;
   // Le `gh` par lequel ce crochet lit la file sur le tableau de la cuisine — jamais posé hors des essais.
   gh?: string;
-  // Le compte qu'une machine donne au chef, pour le bandeau d'un shell. Par défaut : celui de ce
-  // poste, ou celui que `ssh -G` résout pour l'hôte.
+  // Le compte de ce poste, pour le bandeau d'un shell. Par défaut : celui de la session ouverte.
   compte?(cible: Cible): string;
   // Détruit la session d'un shell fermé pour de bon (persistance.ts).
   detruire?(session: Session): Promise<{ detruite: true } | { erreur: string }>;
-  // Sonde une machine qui ne répondait plus (persistance.ts). Par défaut : `ssh -o BatchMode=yes … true`.
-  joindre?(cible: Cible): Promise<{ joint: true } | { erreur: string }>;
-  // Ce qui fait attendre une reprise : `setTimeout`, hors des essais. Rend ce qui l'annule.
-  plusTard?(faire: () => void, ms: number): () => void;
   // Le plan du second, tel que le runtime le fait (runtime/src/second/lancement.ts, #1433) : ce qui lance `claude`
   // sur ce poste — son chemin, et sous Windows ce qui le lance —, ou pourquoi il ne part pas. Sans lui, `claude` est
   // lancé par son nom.
@@ -162,14 +137,7 @@ export function ouvrirTerminaux(options: {
   let dernier = 0;
   let ferme = false;
 
-  const detruire = options.detruire ?? ((session: Session) => detruireSession(session, options.ssh === undefined ? {} : { ssh: options.ssh }));
-  const joindre = options.joindre ?? ((cible: Cible) => joindreMachine(cible, options.ssh === undefined ? {} : { ssh: options.ssh }));
-  const plusTard =
-    options.plusTard ??
-    ((faire: () => void, ms: number) => {
-      const minuteur = setTimeout(faire, ms);
-      return () => clearTimeout(minuteur);
-    });
+  const detruire = options.detruire ?? ((session: Session) => detruireSession(session));
 
   const montre = ({ id, projet, genre, titre, note, arrete, bandeau, demandeEcrite, nonParti, empeche, manque }: Tenu): Terminal => ({
     id,
@@ -421,20 +389,18 @@ export function ouvrirTerminaux(options: {
     options.souvenirs.ecrire(tout);
   }
 
-  const titreDe = (rang: number, cible: Cible) => (cible.lieu === "poste" ? `shell ${rang}` : `shell ${rang} · ${cible.nom}`);
-  const ouEst = (cible: Cible, dossier: string) => (cible.lieu === "poste" ? `${ICI}, in ${dossier}` : `${lieuDe(cible)} (\`ssh ${cible.hote}\`, with the account your ssh gives it)`);
+  const titreDe = (rang: number) => `shell ${rang}`;
+  const ouEst = (dossier: string) => `${ICI}, in ${dossier}`;
 
   // Lance le shell dans sa session — la même commande la crée ou s'y rattache. Il finit quand sa
-  // session finit (le chef y a tapé `exit`) : il quitte l'espace, et l'app l'oublie. Sauf quand
-  // c'est `ssh` qui a lâché (255) : la session tient sans doute toujours, là-bas — le shell reste
-  // dans l'espace, dit que sa machine n'est pas joignable, et s'y rattache dès qu'elle répond.
+  // session finit (le chef y a tapé `exit`) : il quitte l'espace, et l'app l'oublie.
   function rattacher(projet: Projet, persistant: NonNullable<Tenu["persistant"]>, comment: string): Tenu {
     const { session } = persistant;
-    const tenu = tenir(projet, "shell", titreDe(persistant.rang, session.cible));
+    const tenu = tenir(projet, "shell", titreDe(persistant.rang));
     tenu.persistant = persistant;
-    tenu.ici = texteBandeau(session.cible, (options.compte ?? ((cible) => compteDe(cible, options.ssh)))(session.cible));
+    tenu.ici = texteBandeau(session.cible, (options.compte ?? compteDe)(session.cible));
     tenu.bandeau = tenu.ici;
-    tenu.note = `${comment} on ${ouEst(session.cible, projet.dossier)} — session \`${session.nom}\`: closing the app only detaches from it, closing this shell destroys it`;
+    tenu.note = `${comment} on ${ouEst(projet.dossier)} — session \`${session.nom}\`: closing the app only detaches from it, closing this shell destroys it`;
     attacher(tenu);
     return tenu;
   }
@@ -443,98 +409,16 @@ export function ouvrirTerminaux(options: {
     const persistant = tenu.persistant;
     if (persistant === undefined) return;
     const { rang, session } = persistant;
-    const { commande, args } = rattachement(session, options.ssh);
-    lancer(tenu, commande, args, (code) => {
-      if (session.cible.lieu !== "poste" && code === 255) return perdre(tenu);
+    const { commande, args } = rattachement(session);
+    lancer(tenu, commande, args, () => {
       tenu.arrete = true;
       tenus.delete(tenu.id);
       oublier(tenu.projet, rang);
     });
   }
 
-  const distante = (tenu: Tenu): tenu is Tenu & { persistant: { session: { cible: Exclude<Cible, { lieu: "poste" }> } } } =>
-    tenu.persistant !== undefined && tenu.persistant.session.cible.lieu !== "poste";
-
-  // Ce que la note d'un shell en attente dit : la machine, la session qui l'attend là-bas, et ce
-  // qui le rattachera — l'app, d'elle-même, ou une touche du chef, tout de suite.
-  function noteDAttente(tenu: Tenu, dit: string): string {
-    const session = tenu.persistant?.session;
-    if (session === undefined) return dit;
-    return `${dit} — its session \`${session.nom}\` stays there: this shell reattaches to it by itself as soon as the machine answers, a keypress tries now`;
-  }
-
-  const injoignable = (session: Session) =>
-    `${lieuDe(session.cible)} is not reachable — session \`${session.nom}\` stays there, and this shell reattaches to it by itself as soon as the machine answers (a keypress tries now)`;
-
-  // La connexion d'un shell distant a lâché : il reste là, le dit, et attend que sa machine réponde.
-  function perdre(tenu: Tenu): void {
-    const session = tenu.persistant?.session;
-    if (session === undefined) return;
-    attendre(tenu, { essais: 0 });
-    tenu.bandeau = `${tenu.ici} — not reachable`;
-    tenu.note = noteDAttente(tenu, `${lieuDe(session.cible)} is not reachable`);
-    options.surSortie(tenu.id, ligne(injoignable(session)));
-    prevoir(tenu);
-  }
-
-  function attendre(tenu: Tenu, attente: Attente): void {
-    tenu.attente?.annuler?.();
-    tenu.attente = attente;
-  }
-
-  // La sonde suivante, après le délai qui revient à ce rang d'essai.
-  function prevoir(tenu: Tenu): void {
-    const attente = tenu.attente;
-    if (attente === undefined) return;
-    const ms = REPRISES_MS[Math.min(attente.essais, REPRISES_MS.length - 1)] ?? 30_000;
-    attente.annuler = plusTard(() => void sonder(tenu, attente), ms);
-  }
-
-  const enAttente = (tenu: Tenu, attente: Attente) => !ferme && tenus.get(tenu.id) === tenu && tenu.attente === attente;
-
-  // Sonde la machine : elle répond, le shell s'y rattache ; sinon, la note dit ce que `ssh` a
-  // dit, et la sonde suivante est prévue.
-  async function sonder(tenu: Tenu, attente: Attente): Promise<void> {
-    const session = tenu.persistant?.session;
-    if (session === undefined || !enAttente(tenu, attente) || attente.sonde) return;
-    attente.annuler?.();
-    attente.annuler = undefined;
-    attente.sonde = true;
-    attente.essais += 1;
-    const rendu = await joindre(session.cible);
-    delete attente.sonde;
-    if (!enAttente(tenu, attente)) return;
-    if ("joint" in rendu) {
-      reprendre(tenu, `${lieuDe(session.cible)} answers again — reattaching to session \`${session.nom}\``);
-      return;
-    }
-    // Au réveil du poste, c'est la première sonde qui apprend que la machine ne répond pas : le terminal le dit alors.
-    if (tenu.bandeau === tenu.ici) {
-      tenu.bandeau = `${tenu.ici} — not reachable`;
-      options.surSortie(tenu.id, ligne(injoignable(session)));
-    }
-    tenu.note = noteDAttente(tenu, `${lieuDe(session.cible)} is not reachable (attempt ${attente.essais}: ${rendu.erreur})`);
-    options.surEtat(montre(tenu));
-    prevoir(tenu);
-  }
-
-  // Le shell se rattache à sa session : la même commande qu'à son ouverture.
-  function reprendre(tenu: Tenu, dit: string): void {
-    const session = tenu.persistant?.session;
-    if (session === undefined) return;
-    tenu.attente?.annuler?.();
-    tenu.attente = undefined;
-    tenu.bandeau = tenu.ici;
-    tenu.note = `persistent shell, reattached on ${ouEst(session.cible, tenu.dossier)} — session \`${session.nom}\`: closing the app only detaches from it, closing this shell destroys it`;
-    options.surSortie(tenu.id, ligne(dit));
-    attacher(tenu);
-    options.surEtat(montre(tenu));
-  }
-
-  // Le pty d'un terminal s'arrête, et ce qu'il prévoyait avec : une reprise ne partira plus.
+  // Le pty d'un terminal s'arrête.
   function arreter(tenu: Tenu): void {
-    tenu.attente?.annuler?.();
-    tenu.attente = undefined;
     tenu.saisie?.renoncer();
     tenu.pty?.tuer();
   }
@@ -542,7 +426,7 @@ export function ouvrirTerminaux(options: {
   // Les shells dont l'app se souvient pour ce projet, rattachés à leur session, dans l'ordre de leurs rangs.
   function revenir(projet: Projet): void {
     const souvenus = [...(rappel()[projet.nom]?.shells ?? [])].sort((a, b) => a.rang - b.rang);
-    for (const { rang, session, cible } of souvenus) if (cible.lieu !== "poste" || persistantIci) rattacher(projet, { rang, session: { nom: session, cible } }, "persistent shell, reattached");
+    for (const { rang, session, cible } of souvenus) if (persistantIci) rattacher(projet, { rang, session: { nom: session, cible } }, "persistent shell, reattached");
   }
 
   return {
@@ -567,7 +451,7 @@ export function ouvrirTerminaux(options: {
       // Sans session sur ce poste (Windows) : un shell qui finit avec son terminal, sous le même bandeau qu'ailleurs.
       if (cible.lieu === "poste" && !persistantIci) {
         const tenu = shellIci(projet, `shell on ${ICI}, in ${projet.dossier} — ${SANS_SESSION}`);
-        tenu.bandeau = texteBandeau(cible, (options.compte ?? ((machine) => compteDe(machine, options.ssh)))(cible));
+        tenu.bandeau = texteBandeau(cible, (options.compte ?? compteDe)(cible));
         return montre(tenu);
       }
       const rang = rangNeuf(projet.nom);
@@ -591,7 +475,7 @@ export function ouvrirTerminaux(options: {
       oublier(tenu.projet, rang);
       const detruite = await detruire(session);
       if ("detruite" in detruite) return { ferme: true };
-      return { refus: `${tenu.titre} is closed, but its session \`${session.nom}\` could not be destroyed on ${lieuDe(session.cible)}: it is no longer listed, and stays there until it is destroyed — ${detruite.erreur}` };
+      return { refus: `${tenu.titre} is closed, but its session \`${session.nom}\` could not be destroyed on ${ICI}: it is no longer listed, and stays there until it is destroyed — ${detruite.erreur}` };
     },
 
     // `ecrit` : une commande à écrire dans ce shell, sans rien qui l'envoie — pour un
@@ -635,11 +519,6 @@ export function ouvrirTerminaux(options: {
           tenu.note = "";
           options.surEtat(montre(tenu));
         }
-      } else if (tenu.attente !== undefined && tenu.persistant !== undefined) {
-        // Une touche dans un shell qui attend sa machine : il essaie tout de suite, sans la sonde —
-        // c'est `ssh`, dans le terminal, qui demande un mot de passe s'il en faut un. La touche,
-        // elle, ne part pas : elle n'irait nulle part.
-        reprendre(tenu, `trying ${lieuDe(tenu.persistant.session.cible)} now — reattaching to session \`${tenu.persistant.session.nom}\``);
       } else if (tenu.genre === "second") {
         lancerSecond(tenu, true);
         options.surEtat(montre(tenu));
@@ -666,33 +545,6 @@ export function ouvrirTerminaux(options: {
         arreter(tenu);
         return tenu.id;
       });
-    },
-
-    // Le poste se réveille : la connexion de chaque shell distant est peut-être morte sans que
-    // `ssh` le sache encore. Chacun est rattaché à sa session tout de suite — celui qui tournait
-    // quitte sa connexion pour une neuve, celui qui attendait sa machine la sonde sans attendre.
-    // Rien ne se perd : la session est là-bas, et le rattachement la retrouve telle qu'elle est.
-    // Les shells de ce poste et le second, eux, n'ont pas de connexion à refaire.
-    reveiller(): void {
-      if (ferme) return;
-      for (const tenu of [...tenus.values()].filter(distante)) {
-        const { session } = tenu.persistant;
-        if (tenu.attente !== undefined) {
-          void sonder(tenu, tenu.attente);
-          continue;
-        }
-        if (tenu.pty === undefined) continue;
-        // Le pty d'avant ne dira plus rien : sa fin est celle d'une connexion que l'app a quittée.
-        tenu.lances += 1;
-        tenu.pty.tuer();
-        tenu.pty = undefined;
-        const attente: Attente = { essais: 0 };
-        attendre(tenu, attente);
-        tenu.note = noteDAttente(tenu, `${ICI} woke up: reattaching to ${lieuDe(session.cible)}`);
-        options.surSortie(tenu.id, ligne(`${ICI} woke up — reattaching to session \`${session.nom}\` on ${lieuDe(session.cible)}`));
-        options.surEtat(montre(tenu));
-        void sonder(tenu, attente);
-      }
     },
 
     fermer(): void {
