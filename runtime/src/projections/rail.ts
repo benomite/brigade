@@ -151,6 +151,8 @@ const FORMES: { [T in FaitRail["type"]]: { [C in keyof Payload<T>]: (valeur: unk
   "ticket.fire-unseen": { removedAt: texte },
   "ticket.blocked": { by: Number.isSafeInteger, reason: texte },
   "ticket.wait-dropped": { by: Number.isSafeInteger, reason: texte },
+  "ticket.dropped-with": { root: Number.isSafeInteger, cause: texte, reason: texte },
+  "ticket.back-with": { root: Number.isSafeInteger, refired: (valeur) => typeof valeur === "boolean" },
   "ticket.waiting": { what: texte, who: texte, followUp: texte },
   "ticket.resumed": { to: (valeur) => valeur === "todo" || valeur === "kitchen", why: texte },
   "waiting.marked": { waiting: (valeur) => valeur === null || marque(valeur), heard: (valeur) => valeur === undefined || Number.isSafeInteger(valeur) },
@@ -394,6 +396,8 @@ export const rail = definirProjection<
     }),
     "ticket.blocked": () => {},
     "ticket.wait-dropped": () => {},
+    "ticket.dropped-with": () => {},
+    "ticket.back-with": () => {},
     // Only a queued ticket on the rail, or one set aside, awaits a third party:
     // taken, in pass or served, the kitchen holds it.
     "ticket.waiting": lisible("ticket.waiting", (base, ticket, { at, payload }) => {

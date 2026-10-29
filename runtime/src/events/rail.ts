@@ -42,6 +42,17 @@ export type FaitRail =
   // rail — l'attente levée s'y lit déjà —, il retient que l'issue en a été
   // avertie.
   | { type: "ticket.wait-dropped"; payload: { by: number; reason: string } }
+  // La cuisine a abandonné `root`, que ce ticket attend, directement ou de
+  // proche en proche : il sort du rail avec lui (#1902) — son label `fire`
+  // retiré, la même `cause` et la même `reason` sur sa carte, et un
+  // commentaire sur son issue qui nomme `root`. Écrit une fois le commentaire
+  // posé, avant le retrait du label ; ne change pas le rail : le sondage l'en
+  // sort.
+  | { type: "ticket.dropped-with"; payload: { root: number; cause: string; reason: string } }
+  // `root` est revenu sur le rail : ce ticket, sorti avec lui, le suit —
+  // `refired`, son label `fire` reposé ; faux, son issue était fermée ou
+  // disparue, rien n'a été reposé. Ne change pas le rail : le sondage l'y ramène.
+  | { type: "ticket.back-with"; payload: { root: number; refired: boolean } }
   // Le chef met le ticket en attente d'un tiers (WAITING) : ce qu'il attend,
   // dans ses mots, de qui, et la date à laquelle y revenir (`followUp`, un
   // instant ISO). Le ticket est mis de côté sans heure de retour : la cuisine ne

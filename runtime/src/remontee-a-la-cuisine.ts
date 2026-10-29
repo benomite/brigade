@@ -16,9 +16,14 @@
 //   cuisine monte son calibrage d'un cran, dans la limite du plafond du projet
 //   et jamais au-delà de `high`, puis il repart chez un cook dès que le rail a
 //   lu ce calibrage (**reprise**) ;
+// - **réessai** (#1902) : avant d'abandonner, la cuisine le renvoie une fois de
+//   plus chez un cook, depuis la base du moment, si au moins un merge a
+//   atterri sur la base depuis son dernier verdict rouge — ce qui l'a fait
+//   échouer a pu changer ;
 // - **abandon** : rien ne peut plus monter, ou la cause n'est pas au cook
 //   (`SANS_RENVOI`) : la cuisine le retire du rail — son label `fire` s'en va,
-//   son issue reste ouverte — et dit pourquoi sur l'issue.
+//   son issue reste ouverte — et dit pourquoi sur l'issue. Les tickets qui
+//   l'attendent sortent du rail avec lui (`abandon-en-chaine.ts`).
 //
 // À chaque pas, le ticket reste sur le rail, et sa carte dit ce que fait la
 // cuisine (`direReprise`) : rien n'en entre dans TODO. Seules restent au chef
@@ -72,10 +77,12 @@ export const CAUSES_DE_LA_CUISINE: Readonly<Record<string, string>> = {
 // Ce que la cuisine a fait d'une remontée. `return` : renvoyée à un cook ;
 // `fix` : un ticket `fix` ouvert, le ticket 86 l'attend ; `raise` : son
 // calibrage monté d'un cran, le ticket 86 attend que le rail le lise ;
-// `resume` : ce `fix` servi, ou ce calibrage lu, renvoyée à un cook ; `drop` :
-// retiré du rail, avec sa raison. `none` ne s'écrit plus : d'un journal d'avant
-// #1861, il n'est pas final — la cuisine reprend la remontée où il l'a laissée.
-export type Coup = "return" | "fix" | "resume" | "raise" | "drop" | "none";
+// `resume` : ce `fix` servi, ou ce calibrage lu, renvoyée à un cook ; `retry` :
+// sur le point d'être abandonnée, renvoyée une fois de plus à un cook, la base
+// ayant bougé depuis son dernier rouge ; `drop` : retiré du rail, avec sa
+// raison. `none` ne s'écrit plus : d'un journal d'avant #1861, il n'est pas
+// final — la cuisine reprend la remontée où il l'a laissée.
+export type Coup = "return" | "fix" | "resume" | "raise" | "retry" | "drop" | "none";
 
 export type Remontee = { seq: number; reason: string; cause: string | null; why: string | null };
 
@@ -101,8 +108,9 @@ export function aLaCuisine(base: Base, ticket: number, reason: string, cause: st
 }
 
 // `from`, `to` : le calibrage d'une montée (`raise`) ; `reason` : celle d'un
-// abandon (`drop`).
-export type Reprise = { cause: string; coup: Coup; issue: number | null; from: Calibrage | null; to: Calibrage | null; reason: string | null; seq: number; at: string };
+// abandon (`drop`) ; `merges` : ceux qui ont atterri sur la base depuis le
+// dernier rouge, pour un réessai (`retry`).
+export type Reprise = { cause: string; coup: Coup; issue: number | null; from: Calibrage | null; to: Calibrage | null; reason: string | null; merges: number | null; seq: number; at: string };
 
 const calibrageLu = (valeur: unknown): Calibrage | null => {
   const lu = valeur as { model?: unknown; effort?: unknown } | null | undefined;
@@ -113,7 +121,7 @@ const lirePrises = (base: Base, ticket: number): Reprise[] =>
   base
     .lire<{ seq: number; at: string; payload: string }>("SELECT seq, at, payload FROM events WHERE ticket = ? AND type = 'pass.kitchen-took-over' ORDER BY seq", ticket)
     .map(({ seq, at, payload }) => {
-      const lu = JSON.parse(payload) as { cause?: unknown; move?: unknown; issue?: unknown; from?: unknown; to?: unknown; reason?: unknown };
+      const lu = JSON.parse(payload) as { cause?: unknown; move?: unknown; issue?: unknown; from?: unknown; to?: unknown; reason?: unknown; merges?: unknown };
       return {
         cause: typeof lu.cause === "string" ? lu.cause : "",
         coup: lu.move as Coup,
@@ -121,6 +129,7 @@ const lirePrises = (base: Base, ticket: number): Reprise[] =>
         from: calibrageLu(lu.from),
         to: calibrageLu(lu.to),
         reason: typeof lu.reason === "string" && lu.reason !== "" ? lu.reason : null,
+        merges: typeof lu.merges === "number" ? lu.merges : null,
         seq,
         at,
       };
@@ -189,6 +198,21 @@ export function dejaTente(base: Base, ticket: number): { renvoye: boolean; fixe:
   return { renvoye: prises.some(({ coup }) => coup === "return"), fixe: prises.some(({ coup }) => coup === "fix") };
 }
 
+// Le réessai unique avant l'abandon (#1902) : le nombre de merges qui ont
+// atterri sur la base depuis le dernier verdict rouge du ticket, ou null s'il
+// n'y a rien à réessayer — aucun verdict rouge, aucun merge depuis, ou le
+// réessai déjà fait. Une fois par ticket, toutes remontées confondues, comme le
+// renvoi et le `fix` : un ticket que le chef ramène sur le rail ne le rouvre
+// pas. Un merge est un `merge.done`, celui d'une livraison de la pass comme
+// celui fait à la main.
+export function reessaiPermis(base: Base, ticket: number): number | null {
+  if (lirePrises(base, ticket).some(({ coup }) => coup === "retry")) return null;
+  const [rouge] = base.lire<{ seq: number }>("SELECT seq FROM events WHERE ticket = ? AND type = 'pass.judged' AND json_extract(payload, '$.verdict') = 'red' ORDER BY seq DESC LIMIT 1", ticket);
+  if (rouge === undefined) return null;
+  const [{ merges } = { merges: 0 }] = base.lire<{ merges: number }>("SELECT count(*) AS merges FROM events WHERE type = 'merge.done' AND seq > ?", rouge.seq);
+  return merges > 0 ? merges : null;
+}
+
 // Un ticket que la cuisine a ouvert elle-même — la correction d'une remontée,
 // d'un test instable, ou la réparation de la base — n'en ouvre pas d'autre.
 export function fixPermis(base: Base, ticket: number): boolean {
@@ -232,6 +256,7 @@ export function direRepriseEn({ cause, reprise }: RepriseDuTicket): string {
   if (reprise === null) return `the kitchen takes it up (${cause}), not the chef`;
   if (reprise.coup === "fix") return `the kitchen took it up (${cause}): its \`fix\` ticket #${reprise.issue} is open, and it goes back to a cook once #${reprise.issue} is served`;
   if (reprise.coup === "raise") return `the kitchen raised its calibration (${cause}) from ${dit(reprise.from)} to ${dit(reprise.to)}: it goes back to a cook once the rail reads it`;
+  if (reprise.coup === "retry") return `the kitchen gives it one more try from the current base (${cause}) before dropping it`;
   if (reprise.coup === "drop") return `the kitchen drops it (${cause}): it leaves the rail, the reason is on its issue`;
   return `the kitchen sent it back to a cook (${cause})`;
 }
@@ -239,6 +264,7 @@ export function direReprise({ cause, reprise }: RepriseDuTicket): string {
   if (reprise === null) return `la cuisine le reprend (${cause}), pas le chef`;
   if (reprise.coup === "fix") return `la cuisine l'a repris (${cause}) : son ticket \`fix\` #${reprise.issue} est ouvert, il repart chez un cook une fois #${reprise.issue} servi`;
   if (reprise.coup === "raise") return `la cuisine a monté son calibrage (${cause}) de ${dit(reprise.from)} à ${dit(reprise.to)} : il repart chez un cook dès que le rail l'a lu`;
+  if (reprise.coup === "retry") return `la cuisine lui donne un essai de plus depuis la base du moment (${cause}) avant de l'abandonner`;
   if (reprise.coup === "drop") return `la cuisine l'abandonne (${cause}) : il sort du rail, la raison est sur son issue`;
   return `la cuisine l'a renvoyé à un cook (${cause})`;
 }
@@ -297,9 +323,24 @@ export function corpsDuFix(fix: FixDeRemontee): string {
 
 // Ce qui repart au cook : pourquoi la cuisine le lui renvoie, en français
 // comme tout ce qui va au cook. `montee` : le calibrage que la cuisine a
-// monté, quand c'est lui que le renvoi suit.
-export function constatsDuRenvoi(remontee: Remontee, coup: "return" | "resume", issue: number | null, constats: string[], montee: { from: Calibrage; to: Calibrage } | null = null): string[] {
+// monté, quand c'est lui que le renvoi suit. `merges` : ceux qui ont atterri
+// sur la base depuis le dernier rouge, quand c'est un réessai.
+export function constatsDuRenvoi(
+  remontee: Remontee,
+  coup: "return" | "resume" | "retry",
+  issue: number | null,
+  constats: string[],
+  montee: { from: Calibrage; to: Calibrage } | null = null,
+  merges: number | null = null,
+): string[] {
   const cause = remontee.cause ?? remontee.reason;
+  if (coup === "retry") {
+    return [
+      `Cette livraison est restée bloquée (\`${remontee.reason}\` : \`${cause}\`) après tout ce que la cuisine pouvait tenter, et elle allait l'abandonner. Mais ${merges === 1 ? "un merge a atterri" : `${merges ?? "des"} merges ont atterri`} sur la base depuis son dernier verdict rouge : ce qui la faisait échouer a pu changer. Elle te revient une dernière fois, depuis la base du moment. Mets ta branche à jour de la base, vérifie qu'elle tient, et livre de nouveau ; bloquée encore, la cuisine l'abandonnera.`,
+      ...(remontee.reason === NON_JUGEE && remontee.why !== null ? [`Ce qui a empêché le jugement : ${remontee.why}`] : []),
+      ...constats,
+    ];
+  }
   if (coup === "resume" && montee !== null) {
     return [
       `Cette livraison est restée bloquée (\`${remontee.reason}\` : \`${cause}\`) après ce que la cuisine avait déjà tenté : plutôt que de la laisser de côté, elle te revient un cran plus haut, en \`${montee.to.model}\` / \`${montee.to.effort}\` au lieu de \`${montee.from.model}\` / \`${montee.from.effort}\`. Mets ta branche à jour de la base, lève ce qui la bloque, et livre de nouveau.`,

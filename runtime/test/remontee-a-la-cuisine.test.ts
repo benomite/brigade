@@ -22,6 +22,7 @@ import {
   fixPermis,
   prochainCoup,
   raisonDAbandon,
+  reessaiPermis,
   REMONTEES_SANS_ENTREE,
   repriseDeLaRemontee,
   repriseDuTicket,
@@ -165,6 +166,36 @@ test("une remontée qu'un runtime d'avant #1861 a laissée « sans suite » (`no
   assert.equal(direRepriseEn(reprise), "the kitchen takes it up (returns-exhausted), not the chef");
   assert.equal(direReprise(reprise), "la cuisine le reprend (returns-exhausted), pas le chef");
   assert.equal(prochainCoup(remontee, dejaTente(journal.base, 17), fixPermis(journal.base, 17), true), "raise");
+});
+
+test("avant d'abandonner, la cuisine réessaie une fois un ticket depuis la base du moment, s'il y a eu au moins un merge sur la base depuis son dernier verdict rouge (#1902)", (t) => {
+  const journal = ouvrirJournal(repertoireTemporaire(t));
+  aArreter(t, () => journal.fermer());
+  const ajouter = (ticket: number, type: string, payload: Record<string, unknown>) =>
+    journal.ajouter({ project: "brigade", ticket, author: "pass", type, payload } as unknown as Parameters<typeof journal.ajouter>[0]);
+  const juger = (verdict: "green" | "red") => ajouter(17, "pass.judged", { run: "r", pr: null, number: null, sha: "s", verdict, findings: [] });
+  const merger = (ticket: number) => ajouter(ticket, "merge.done", { pr: `https://github.com/o/d/pull/${ticket}`, sha: "m", by: "pass", reconciled: false });
+
+  // Jamais jugé rouge : il n'y a pas de dernier rouge d'où compter.
+  merger(30);
+  assert.equal(reessaiPermis(journal.base, 17), null);
+  // Un merge avant le dernier rouge ne compte pas : ce rouge l'a vu.
+  juger("red");
+  assert.equal(reessaiPermis(journal.base, 17), null);
+  // Un verdict vert depuis ne déplace pas le dernier rouge.
+  juger("green");
+  merger(31);
+  merger(32);
+  assert.equal(reessaiPermis(journal.base, 17), 2);
+  // Une fois, toutes remontées confondues : le réessai fait, il n'y en a plus.
+  ajouter(17, "pass.escalated", { reason: ENCORE_ROUGE, cause: "returns-exhausted" });
+  ajouter(17, "pass.kitchen-took-over", { cause: "returns-exhausted", move: "retry", merges: 2 });
+  juger("red");
+  merger(33);
+  assert.equal(reessaiPermis(journal.base, 17), null);
+  const reprise = repriseDuTicket(journal.base, 17);
+  assert.equal(reprise?.reprise?.coup, "retry");
+  assert.equal(reprise?.reprise?.merges, 2);
 });
 
 test("plus aucun code du runtime n'écrit qu'il n'y a « plus rien à essayer »", () => {

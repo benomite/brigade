@@ -2,6 +2,7 @@
 // qui portent le label et le rail devient des faits au journal. C'est un écart,
 // pas un flux — un sondage manqué se rattrape au suivant, sans rien rejouer.
 import { createHash } from "node:crypto";
+import { abandonnerEnChaine } from "./abandon-en-chaine.ts";
 import { marquerAttentes } from "./attente.ts";
 import { calibrage } from "./calibrage.ts";
 import { cycles, direCycle, signalerAttentesLevees } from "./dependances.ts";
@@ -357,6 +358,8 @@ export function avecRail(runtime: Runtime, options: OptionsRail): RuntimeAvecRai
       if (ecrits > 0 && !arrete) for (const ecouter of [...ecouteurs]) ecouter();
       // Un départ n'arrive que par un sondage : c'est le moment de le dire.
       if (!arrete) await signalerAttentesLevees(journal, github, projet);
+      // De même, la racine d'une attente abandonnée part, puis revient, par un sondage.
+      if (!arrete) await abandonnerEnChaine(journal, github, projet);
       limiteDite = false;
     } catch (erreur) {
       // `gh` en panne (réseau, connexion expirée) : le rail reste tel quel, et

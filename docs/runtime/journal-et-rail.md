@@ -93,6 +93,20 @@ read in French by the runtime today, and stays French until the runtime renames 
   unreadable, the cycle named; they come back by themselves once a wait is removed.
 - An awaited ticket that is open, without `fire`, can be waited for. A dependency set on a ticket
   already taken or in pass will only play if it comes back to queued.
+- **A ticket the kitchen drops takes its waiters with it** (#1902, `runtime/src/abandon-en-chaine.ts`).
+  When the pass's kitchen drops a ticket (`pass.kitchen-took-over` `drop`, see
+  [`pass.md`](pass.md)), every ticket that awaits it, directly or step by step, and is queued or 86,
+  leaves the rail with it: after the next poll, a comment "Cuisine — ticket abandonné avec #N" names
+  the root ticket and gives the same reason, `ticket.dropped-with` (`root`, `cause`, `reason`) is
+  written, then its `fire` label is removed. Until the poll takes it off, its rail line says
+  `the kitchen drops it with #N (<cause>), which it awaits`. One rule, no exception: **putting `fire`
+  back on the root is the only way back**, and the tickets that left with it follow it on their own —
+  once the root is on the rail again, the kitchen sets `fire` back on each of them that left because
+  of it and is still open (`ticket.back-with`, `refired`; a comment "Cuisine — #N est revenu sur le
+  rail"). One that comes back alone while its root stays dropped, still awaiting it, leaves again. A
+  ticket taken or in pass is not touched: it is judged once back in queue. A ticket you take off the
+  rail yourself takes no one with it — its waiters wait on the rail, and the idle-kitchen `fault`
+  line names it as the root of their wait chain.
 
 The comment "Rail — ticket bloqué" is written on the issue in French; it stays French until the
 runtime is translated.
@@ -190,7 +204,7 @@ answer" in [`manager.md`](manager.md).
 The rail's facts: `ticket.arrived`, `ticket.changed`, `ticket.left` (in the name of `github`; also
 for an awaited issue, closed without having come onto the rail), `ticket.taken`, `ticket.renewed`,
 `ticket.released`, `ticket.passing`, `ticket.served`, `ticket.86`, `ticket.blocked`,
-`ticket.waiting`, `ticket.resumed` (in the name of `chef`), `ticket.fire-unseen` (a removal of `fire` not counted as the gesture), `waiting.marked`, `rail.commons`.
+`ticket.waiting`, `ticket.resumed` (in the name of `chef`), `ticket.fire-unseen` (a removal of `fire` not counted as the gesture), `waiting.marked`, `ticket.dropped-with` and `ticket.back-with` (a ticket that leaves the rail with the dropped ticket it awaits, then follows it back), `rail.commons`.
 
 ### A ticket waits for a third party: WAITING
 
