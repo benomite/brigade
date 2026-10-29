@@ -15,6 +15,7 @@ import { RELEVE } from "./events/guardrails.ts";
 import { PART_SANS_PROGRES } from "./events/station.ts";
 import { BATTEMENT } from "./events/runtime.ts";
 import { direBaseRevenueVerteEn, direControleRetenuEn, suiteDeBaseRougeEn } from "./dire-base.ts";
+import { cuisineOisive, type CuisineOisive } from "./cuisine-oisive.ts";
 import { requises } from "./fiche.ts";
 import { ACTIONS, bientotEteint, direExtinctionEn, direResteEn } from "./grant.ts";
 import type { Journal } from "./journal.ts";
@@ -29,6 +30,7 @@ import {
   consommation,
   cooksEnCours,
   etatDesGardeFous,
+  finDuDernierCook,
   mesuresDesCooksEnCours,
   type Consommation,
   type CookEnCours,
@@ -181,6 +183,10 @@ export type EtatCuisine = {
   // Les livraisons en pass, à juger, sans pass depuis plus de 15 min
   // (`file-de-la-pass.ts`) : le chef relance leur jugement.
   coincees: Array<{ ticket: number; since: string }>;
+  // Non nulle : des cartes sont sur le rail et la cuisine n'a rien cuit depuis
+  // 30 min, sans que le projet soit éteint ni que toutes attendent une capacité
+  // ou un tiers — une panne (cuisine-oisive.ts). Absente d'un état construit sans elle.
+  oisive?: CuisineOisive | null;
   evenements: Evenement[];
 };
 
@@ -200,6 +206,12 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
   const gardeFous = etatDesGardeFous(base);
   const attend = attentesDuChef(base, rail, maintenant);
   const livres = livresDepuis(base, new Date(maintenant.getTime() - 24 * HEURE_MS).toISOString());
+  const interrupteur = etatDeLInterrupteur(base);
+  const arretees = new Map(annoncees.flatMap((station) => {
+    const depuis = arreteeDepuis(base, station);
+    return depuis === null ? [] : [[station, depuis] as const];
+  }));
+  const cooks = cooksEnCours(base).map((cook) => ({ ...cook, mesure: mesures.get(cook.run) ?? null, station: cookDeRun(base, cook.run), activite: activites.get(cook.run) ?? null }));
   return {
     dernierSeq,
     projet: base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project ?? null,
@@ -222,17 +234,14 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
     sansGrant: bilanSansGrant(base),
     passage: passageEnService(base, maintenant),
     pause: pauseDeLaCuisine(base, rail),
-    interrupteur: etatDeLInterrupteur(base),
+    interrupteur,
     stations,
     sansStation: sansStationDepuis(base),
     setup: setupBloque(base),
     miseDeCote: miseDeCoteBloquee(base),
-    cooks: cooksEnCours(base).map((cook) => ({ ...cook, mesure: mesures.get(cook.run) ?? null, station: cookDeRun(base, cook.run), activite: activites.get(cook.run) ?? null })),
+    cooks,
     auxFourneaux: annoncees.flatMap((station) => cooksEnCoursDeStation(base, station).map(({ ticket }) => ({ station, ticket }))),
-    arretees: new Map(annoncees.flatMap((station) => {
-      const depuis = arreteeDepuis(base, station);
-      return depuis === null ? [] : [[station, depuis] as const];
-    })),
+    arretees,
     serveurs: serveursEnCours(base),
     aLancer: worktreesTenus(base),
     sansService: servicesIndisponibles(base),
@@ -246,6 +255,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
     derivePremierCoup: derivePremierCoup(parcoursDesTickets(base), seuilsEnVigueur(base) ?? SANS_SEUIL),
     livres,
     coincees: livraisonsCoincees(base, maintenant),
+    oisive: cuisineOisive({ session, gardeFous, interrupteur, stations, arretees, rail, cooks, livres, finDuDernierCook: finDuDernierCook(base) }, maintenant),
     evenements: journal.derniers(EVENEMENTS_MONTRES, RESUMES),
   };
 }
@@ -391,6 +401,16 @@ export const RIEN_NE_CUIT = "nothing cooks: ";
 function decrireRienNeCuit({ base, reparation }: EtatCuisine, depuis: Depuis): string[] {
   if (base?.outcome !== "red" || reparation === null || reparation.etat === "echouee" || reparation.redSince !== base.redSince) return [];
   return [`${RIEN_NE_CUIT}base red since ${depuis(base.redSince ?? base.at)} ago, repair #${reparation.ticket} in progress`];
+}
+
+// La panne d'une cuisine oisive, des cartes sur le rail (cuisine-oisive.ts) : sous
+// l'urgence et `nothing cooks`, au-dessus de tout le reste — ce n'est pas normal, et
+// aucune autre ligne ne le dit. Sa cause, s'il y en a une, est dans l'en-tête ou
+// dans le bloc `awaiting`. Rien à dire sinon.
+export const PANNE = "fault";
+function decrirePanne({ oisive }: EtatCuisine, depuis: Depuis): string[] {
+  if (oisive == null) return [];
+  return [ligne(PANNE, `IDLE KITCHEN for ${depuis(oisive.depuis)} — no cook has run, with ${compteEn(oisive.cartes.length, "card")} on the rail: ${oisive.cartes.map((ticket) => `#${ticket}`).join(", ")}`)];
 }
 
 // Sous grant, du code est mergé sans le chef : il le lit sans le demander, avec
@@ -711,6 +731,7 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
   return [
     ...decrireUrgence(etat, depuisEn),
     ...decrireRienNeCuit(etat, depuisEn),
+    ...decrirePanne(etat, depuisEn),
     ligne("project", etat.projet ?? "unknown — empty log"),
     // Quand GitHub limite les appels du compte : une ligne, et l'heure de reprise.
     ...(limiteGithub === null ? [] : [ligne("github", direLaLimite(limiteGithub))]),
@@ -886,6 +907,12 @@ export type Faits = {
   // autres tickets sont servis. Vide sinon, et vide aussi à l'arrêt total
   // (c'est `urgence`).
   retenues: Array<DecisionUrgente & { retenus: number[] }>;
+  // La panne d'une cuisine oisive, des cartes sur le rail (cuisine-oisive.ts) : la
+  // ligne `fault` de `status`. `depuis` : le dernier repère d'où l'oisiveté se compte
+  // — la fin du dernier cook, le démarrage du runtime, le dernier service,
+  // l'interrupteur rallumé ; sa durée est l'écart à `lu`. `cartes` : les tickets qui
+  // devraient cuire, dans l'ordre du rail. Nulle sinon.
+  cuisineOisive: CuisineOisive | null;
   // Les stations que le projet déclare, dans l'ordre de leur nom, et ce
   // qu'elles font des tickets ordinaires — ceux qui ne demandent rien.
   // `distante` : elle tire son travail depuis le poste du chef. `plafond` : ses
@@ -1072,6 +1099,7 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limit
     livres: etat.livres.map(({ ticket, title, url, servedAt, station, pr, review }) => ({ ticket, titre: title, url: url ?? adresse(ticket), livre: servedAt, station, pr, relecture: relectureLivree(review), ...captures(ticket) })),
     urgence: faitsDUrgence(etat.urgence, etat.alerteUrgence, adresse),
     retenues: etat.retenues.map(({ attente, retenus }) => ({ ...decisionUrgente(attente, adresse), retenus })),
+    cuisineOisive: etat.oisive ?? null,
     stations: etat.stations.map((station) => ({
       station: station.station,
       distante: station.remote,
