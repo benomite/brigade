@@ -118,7 +118,7 @@ describe("ce que chaque station déclarée fournit, sur l'onglet Cooks", () => {
     assert.deepEqual(lignes.map(({ dataset }) => dataset.ou), ["box", "poste", "ailleurs"]);
     // Le survol dit où : la box par le nom que le chef lui connaît, ce poste qui tire son travail de la box.
     const survols = lignes.map((ligne) => ligne.dessous("span").find(({ className }) => className === "ou")?.title ?? "");
-    assert.match(survols[0] ?? "", /main station, parade-box/);
+    assert.match(survols[0] ?? "", /^it runs on the project.s main station$/);
     assert.match(survols[1] ?? "", /this computer plays it/);
     assert.match(survols[2] ?? "", /another workstation/);
     // Sous les stations, au-dessus des tickets de l'heure.

@@ -263,7 +263,7 @@ describe("dans l'espace du projet, ce qui est à venir se lit à côté du rail"
     recevoirFaits(vue, FAITS);
     // Avant la première lecture : rien de technique en tête du rail (#623), et aucun nombre.
     assert.equal(tete(vue).textContent, "upcoming: being read…");
-    assert.match(tete(vue).children[0]?.title ?? "", /ssh box brigade parade manager upstream/);
+    assert.match(tete(vue).children[0]?.title ?? "", /the station's “manager upstream” step/);
 
     vue.dire("surAmont", tenirAmont().recevoir(lecture(sortie)));
 

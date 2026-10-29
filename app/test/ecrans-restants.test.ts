@@ -63,7 +63,7 @@ describe("l'onglet Cooks (#1184) : la lecture de `station`, des gestes en bouton
     assert.equal(vue.element("note").textContent, "");
     const tete = vue.element("rail").dessous("summary").find(({ textContent }) => textContent.startsWith("the station, raw reading")) ?? assert.fail("pas de ligne de la lecture");
     assert.equal(tete.textContent, "the station, raw readingits machine, its quota, as the station returns them");
-    assert.match(tete.title, /^the output of `ssh box brigade parade station`/);
+    assert.match(tete.title, /^the output of the station's “station” step/);
     assert.doesNotMatch(aPlat(tete), TECHNIQUE);
     // Le plafond de cooks se règle sur la ligne de sa station : la lecture n'a plus de bouton qui en écrit la commande.
     assert.throws(() => vue.element("gestes-cuisine"));

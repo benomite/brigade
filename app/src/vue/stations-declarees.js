@@ -70,9 +70,9 @@ export function ouTourne(station, { jouees, ici }) {
   return jouees.includes(station.nom) ? "poste" : "ailleurs";
 }
 
-/** @param {Ou} ou @param {boolean} distante @param {string | undefined} hote */
-function survolDe(ou, distante, hote) {
-  if (ou === "box") return hote === undefined ? "it runs on the project's main station" : `it runs on the project's main station, ${hote}`;
+/** @param {Ou} ou @param {boolean} distante */
+function survolDe(ou, distante) {
+  if (ou === "box") return "it runs on the project's main station";
   if (ou === "ailleurs") return "remote: another workstation plays it and pulls its work from the main station — this computer does not";
   return distante ? "remote: this computer plays it for the project, and pulls its work from the main station" : "the project's kitchen runs on this computer: this station runs with it";
 }
@@ -215,7 +215,7 @@ export function motDuLieu(doc, station, projet) {
   const mot = cree(doc, "span", OU[ou]);
   mot.className = "ou";
   mot.dataset.ou = ou;
-  mot.title = survolDe(ou, station.distante, projet.hote);
+  mot.title = survolDe(ou, station.distante);
   return mot;
 }
 
