@@ -225,9 +225,19 @@ temporaire_des_tests() {
   [ -d /dev/shm ] && [ -w /dev/shm ] && [ "$(stat -f -c %T /dev/shm 2>/dev/null)" = tmpfs ] || return 0
   LIBRE="$(df -Pk /dev/shm 2>/dev/null | awk 'NR == 2 { print int($4 / 1024) }')"
   [ -n "$LIBRE" ] && [ "$LIBRE" -ge "$TEMPORAIRE_MIN_MO" ] || return 0
-  # Celui d'un passage tué sans préavis reste en mémoire : le suivant le range.
-  find /dev/shm -maxdepth 1 -name 'brigade-gates-*' -user "$(id -u)" -mmin +1440 -exec rm -rf {} + 2>/dev/null
-  TEMPORAIRE="$(mktemp -d /dev/shm/brigade-gates-XXXXXX 2>/dev/null)" || TEMPORAIRE=""
+  # Celui d'un passage tué sans préavis reste en mémoire : le suivant le range,
+  # dès que le pid qui le nomme est mort — ou au bout d'un jour, ce pid repris
+  # par un autre process.
+  local VIEUX PID
+  for VIEUX in /dev/shm/brigade-gates-*.*; do
+    [ -d "$VIEUX" ] && [ -O "$VIEUX" ] || continue
+    PID="${VIEUX#/dev/shm/brigade-gates-}"
+    PID="${PID%%.*}"
+    if ! kill -0 "$PID" 2>/dev/null || [ -n "$(find "$VIEUX" -maxdepth 0 -mmin +1440 2>/dev/null)" ]; then
+      rm -rf "$VIEUX"
+    fi
+  done
+  TEMPORAIRE="$(mktemp -d "/dev/shm/brigade-gates-$$.XXXXXX" 2>/dev/null)" || TEMPORAIRE=""
 }
 # Quitter, interrompu ou non, rend le tour et range le répertoire temporaire.
 # (Un SIGKILL ne passe pas ici : c'est la reprise du verrou mort, plus haut,
