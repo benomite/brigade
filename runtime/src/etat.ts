@@ -1,6 +1,6 @@
 // L'état de la cuisine tel que le chef le lit : le runtime et son dernier tick,
 // la dernière sauvegarde, ce qui l'attend, le rail, les cooks en cours et ce
-// qu'ils ont consommé, les serveurs allumés, les derniers événements. Tout vient du journal et de
+// qu'ils ont consommé, les derniers événements. Tout vient du journal et de
 // ses projections — rien n'est calculé ni gardé ailleurs, et rien n'est écrit.
 import { direActiviteEn, type Activite } from "./activite.ts";
 import { activitesDuRail, type ActiviteDeTicket } from "./activites.ts";
@@ -46,7 +46,6 @@ import { etatDeLInterrupteur, type EtatInterrupteur } from "./projections/switch
 import { bilanSansGrant, controleRetenu, etatDeLaBase, etatDuGrant, reparationDeLaBase, type ControleRetenu, type EtatDeLaBase, type Grant, type ReparationDeLaBase, type SansGrant } from "./projections/pass.ts";
 import { direMotifDeGardeEn, rangementDesTranscripts, worktreesGardes, type RangementDeTranscripts, type WorktreeGarde } from "./projections/cleanup.ts";
 import { lireRail, livresDepuis, type Etat as EtatTicket, type Livre, type TicketRail } from "./projections/rail.ts";
-import { direCommentLeVoirEn, direEcranEn, direEtatDeServeurEn, direPageEn, direServiceIndisponible, serveursEnCours, servicesIndisponibles, worktreesTenus, type Serveur, type ServiceIndisponible, type WorktreeTenu } from "./projections/service.ts";
 import { lastBackup, type Backup } from "./projections/backups.ts";
 import { dernierTick, derniereSession, type SessionPassee, type Tick } from "./projections/sessions.ts";
 import { arreteeDepuis, cookDeRun, cooksEnCoursDeStation, direDeconnexionEn, direPlafondEn, direRetenueDeStationEn, etatStation, GESTE_DE_CONNEXION_TOMBEE_EN, plafondDeCooks, sansStationDepuis, miseDeCoteBloquee, setupBloque, stationsAnnoncees, type CookDeStation, type EtatStation, type MiseDeCoteBloquee, type SetupBloque } from "./projections/stations.ts";
@@ -168,14 +167,6 @@ export type EtatCuisine = {
   auxFourneaux: Array<{ station: string; ticket: number | null }>;
   // Les stations où le chef a arrêté la cuisine du projet, et depuis quand.
   arretees: Map<string, string>;
-  // Les serveurs qui tournent : une livraison d'interface, servie depuis son
-  // worktree sur le port de ce worktree.
-  serveurs: Serveur[];
-  // Les worktrees tenus pour une app qui ne s'ouvre pas dans un navigateur :
-  // aucun serveur, l'app se lance dessus.
-  aLancer: WorktreeTenu[];
-  // Ce qui empêche le projet d'être servi — rien, le plus souvent.
-  sansService: ServiceIndisponible[];
   // Ce que l'ensemble des cooks a consommé : ceux qui tournent, puis, par
   // fenêtre glissante, ceux qui tournent et ceux qui ont fini dedans.
   // Les worktrees que le nettoyage a gardés après leur ticket.
@@ -253,9 +244,6 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
     cooks,
     auxFourneaux: annoncees.flatMap((station) => cooksEnCoursDeStation(base, station).map(({ ticket }) => ({ station, ticket }))),
     arretees,
-    serveurs: serveursEnCours(base),
-    aLancer: worktreesTenus(base),
-    sansService: servicesIndisponibles(base),
     worktrees: worktreesGardes(base),
     transcripts: rangementDesTranscripts(base),
     consommation: {
@@ -622,39 +610,6 @@ function decrireArbitrage({ stations }: EtatCuisine, depuis: Depuis): string[] {
   );
 }
 
-// Ce qui est allumé : chaque serveur avec son worktree, son port et son état.
-// Un runtime qui s'arrête éteint ses serveurs et l'écrit ; mort sans préavis,
-// il les laisse sans fin au journal jusqu'au démarrage suivant. Et le projet qui ne peut pas être servi le dit ici, sans
-// qu'aucun serveur ne soit lancé. Une app qui ne s'ouvre pas dans un navigateur
-// n'a pas de serveur : le worktree de sa livraison est tenu, et sa ligne dit
-// comment la voir. Sous chacun, plus en retrait, l'écran à regarder de sa
-// livraison et sa phrase (`direEcranEn`). Rien à dire quand il n'y a rien de tout cela.
-const sousLaLigne = (lignes: string[]) => lignes.map((dite) => `    ${dite}`);
-function decrireServeurs({ serveurs, aLancer, sansService, session }: EtatCuisine, depuis: Depuis): string[] {
-  if (serveurs.length === 0 && aLancer.length === 0 && sansService.length === 0) return [];
-  const mort = session?.endedAt !== null;
-  const compte = compteEn(serveurs.length, "server");
-  return [
-    ...(serveurs.length === 0
-      ? []
-      : [
-          ligne("servers", mort ? `${compte} with no end in the log — their runtime stopped without turning them off` : `${compte} — an interface delivery, served from its worktree on the port of that worktree`),
-          ...serveurs.flatMap((serveur) => [
-            `  #${serveur.ticket}  ${serveur.worktree}  port ${serveur.port}  ${direEtatDeServeurEn(serveur.state)} since ${depuis(serveur.since)}  ${serveur.branch}  ${direPageEn(serveur)}`,
-            ...sousLaLigne(direEcranEn(serveur.ecran)),
-          ]),
-        ]),
-    ...(aLancer.length === 0
-      ? []
-      : [
-          ligne("to launch", `${aLancer.length} — the worktree of a delivery of an app that does not open in a browser, held so that it can be launched there: no page`),
-          ...aLancer.flatMap((tenu) => [`  #${tenu.ticket}  ${tenu.worktree}  held since ${depuis(tenu.since)}  ${tenu.branch}  ${direCommentLeVoirEn(tenu)}`, ...sousLaLigne(direEcranEn(tenu.ecran))]),
-        ]),
-    ...sansService.map((indisponible) => ligne("service", `${direServiceIndisponible(indisponible)} — since ${depuis(indisponible.since)} ago on ${indisponible.station}`)),
-    "",
-  ];
-}
-
 // Les worktrees que le runtime n'a pas pu ranger à la fin de leur cook, et
 // pourquoi : c'est ici que ça se retrouve. Rien à dire quand il n'y en a pas.
 function decrireWorktrees({ worktrees }: EtatCuisine, depuis: Depuis): string[] {
@@ -800,7 +755,6 @@ export function decrireEtat(etat: EtatCuisine, maintenant: Date, ageMaxSauvegard
     ...decrireArbitrage(etat, depuisEn),
     ...cooks.map(({ cook, ticket }) => decrireCook(cook, ticket, maintenant, depuisEn)),
     "",
-    ...decrireServeurs(etat, depuisEn),
     ...decrireWorktrees(etat, depuisEn),
     ...decrireConsommation(etat),
     // Absent quand rien n'est franchi : le bloc n'apparaît que pour être lu.

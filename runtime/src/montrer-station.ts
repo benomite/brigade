@@ -1,7 +1,6 @@
 // La station vue et réglée par le chef, depuis son propre process :
 //   npm --prefix runtime run station                 ce qu'elle fournit, ce qui l'empêche de servir, et ses cooks —
-//                                                    chacun avec son calibrage et ce qu'il a consommé —, les serveurs
-//                                                    qu'elle fait tourner pour qu'on regarde une livraison d'interface,
+//                                                    chacun avec son calibrage et ce qu'il a consommé —,
 //                                                    puis ce que tous les lancements ont consommé ensemble : ce que le
 //                                                    chef paie ; enfin les décisions du chef, posées ou non
 //   npm --prefix runtime run station -- cooks <N>    règle le plafond de cooks simultanés ; 0 : pas de limite ;
@@ -39,7 +38,6 @@ import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { direConsommationEn, NOTE_CONSOMMATION_EN } from "./etat.ts";
 import { direSaturationsEn } from "./machine.ts";
 import { consommation, etatDesGardeFous } from "./projections/guardrails.ts";
-import { direCommentLeVoirEn, direEtatDeServeurEn, direPageEn, direServiceIndisponible, serveursEnCours, servicesIndisponibles, worktreesTenus } from "./projections/service.ts";
 import { direPlafondDeCalibrageEn, PLAFOND_PAR_DEFAUT, plafondDuProjet } from "./reagir.ts";
 import { reglagesPourMontrer, variablesDuDepot } from "./reglages-projet/en-vigueur.ts";
 import { FICHIER } from "./reglages-projet/reglages.ts";
@@ -346,21 +344,6 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
     const enCours = cooksEnCoursDeStation(base, station);
     ligne("cooks running", enCours.length === 0 ? "none" : String(enCours.length));
     for (const cook of enCours) dire(`  #${cook.ticket}  ${cook.run}  ${calibrage(cook)}  launched on ${cook.launchedAt}  ${cook.branch}`);
-    // Ce qui est allumé : une livraison d'interface servie depuis son worktree,
-    // sur le port de ce worktree. Sans serveur, il n'y a rien à lister.
-    const serveurs = serveursEnCours(base, station);
-    ligne("servers", serveurs.length === 0 ? "none" : `${serveurs.length} — each serves an interface delivery from its worktree, on that worktree's port`);
-    for (const serveur of serveurs) {
-      dire(`  #${serveur.ticket}  ${serveur.worktree}  port ${serveur.port}  ${direEtatDeServeurEn(serveur.state)} since ${serveur.since}  ${serveur.branch}  ${direPageEn(serveur)}`);
-    }
-    // Une app qui ne s'ouvre pas dans un navigateur n'a pas de serveur : le
-    // worktree de sa livraison est tenu, et la ligne dit comment la voir.
-    // Rien à dire quand il n'y en a pas.
-    const aLancer = worktreesTenus(base, station);
-    if (aLancer.length > 0) ligne("to launch", `${aLancer.length} — each holds the worktree of a delivery of an app that does not open in a browser: no page, the app is launched on it`);
-    for (const tenu of aLancer) dire(`  #${tenu.ticket}  ${tenu.worktree}  held since ${tenu.since}  ${tenu.branch}  ${direCommentLeVoirEn(tenu)}`);
-    // Rien à dire d'un projet qui se sert.
-    for (const indisponible of servicesIndisponibles(base, station)) ligne("service", `${direServiceIndisponible(indisponible)} — since ${indisponible.since}`);
     const finis = cooksDeStation(base, station, COOKS_MONTRES + enCours.length)
       .filter((cook) => cook.endedAt !== null)
       .slice(0, COOKS_MONTRES);

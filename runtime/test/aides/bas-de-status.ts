@@ -1,9 +1,8 @@
 // L'état d'exemple du bas de `status` (#940) : celui du haut (`exemple`, test/aides/haut-de-status.ts)
-// et, par-dessus, tout ce que le rail, les cooks, ce qu'ils ont consommé, les serveurs, les worktrees,
+// et, par-dessus, tout ce que le rail, les cooks, ce qu'ils ont consommé, les worktrees,
 // la dérive et les transcripts peuvent dire. Chaque ligne du bas de `status` y paraît au moins une fois.
 import type { TestContext } from "node:test";
 import type { Fait } from "../../src/evenements.ts";
-import type { EcranDuServeur } from "../../src/events/service.ts";
 import { etatDAvant, exemple, STATION } from "./haut-de-status.ts";
 
 const LIMITES = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
@@ -60,23 +59,6 @@ export function ajouterLeBas(journal: ReturnType<typeof etatDAvant>["journal"]):
   noter({ type: "station.saturated", payload: { station: STATION, resource: "cpu", observed: 16.24, limit: 15 } });
   noter({ type: "station.held", payload: { station: STATION, reason: "ramp" } }, null, station);
   noter({ type: "station.unarbitrated", payload: { station: STATION, reason: "connection refused" } }, null, station);
-
-  // Les serveurs : l'un écoute sur un écran déclaré, un autre démarre sur un écran déduit, un troisième sans écran,
-  // une app à lancer avec son écran, et un projet qui ne peut pas être servi.
-  const lance = (ticket: number, screen: EcranDuServeur | null) => ({
-    station: STATION, run: `${ticket}-s`, worktree: `worktrees/${ticket}-s`, branch: `cook/${ticket}-s`, port: 20000 + ticket, pid: 4000 + ticket, screen,
-  });
-  noter({ type: "service.started", payload: lance(20, { name: "/map", sentence: "the button is blue", source: "declare" }) }, 20, station);
-  noter({ type: "service.listening", payload: { worktree: "worktrees/20-s", port: 20020 } }, 20, station);
-  noter({ type: "service.started", payload: lance(17, { name: "/rail", sentence: null, source: "deduit" }) }, 17, station);
-  noter({ type: "service.started", payload: lance(18, { name: "dashboard", sentence: null, source: "declare" }) }, 18, station);
-  noter({ type: "service.started", payload: lance(19, null) }, 19, station);
-  const tient = (ticket: number, screen: EcranDuServeur | null) => ({
-    station: STATION, run: `${ticket}-h`, worktree: `worktrees/${ticket}-h`, branch: `cook/${ticket}-h`, launch: "npm --prefix app start", how: screen === null ? null : `pas de page dans un navigateur : lancer l'app sur le worktree de la livraison, \`cd '/var/lib/brigade/etat/worktrees/${ticket}-h' && npm --prefix app start\`, puis y ouvrir l'écran « ${screen.name} »${screen.sentence === null ? "" : ` — à regarder : ${screen.sentence}`}`, screen,
-  });
-  noter({ type: "service.held", payload: tient(24, { name: "the map", sentence: "the menu opens", source: "declare" }) }, 24, station);
-  noter({ type: "service.held", payload: tient(26, null) }, 26, station);
-  noter({ type: "service.unavailable", payload: { station: STATION, declared: false, why: "the project does not say how it is served", delivery: 50 } }, null, station);
 
   // Les worktrees que le nettoyage n'a pas pu ranger, et le dernier rangement des transcripts.
   noter({ type: "worktree.kept", payload: { worktree: "worktrees/21-n", branch: "cook/21-n", reason: "failed", detail: "git worktree: fatal: lock held" } }, 21, "nettoyage");

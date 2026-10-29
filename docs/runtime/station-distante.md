@@ -336,7 +336,7 @@ is never one, and its partition (`bwrap`) guards it.
   `bac à sable — chaque \`claude\` de la cuisine (cook, closer, reviewer, manager) part dans celui de Claude Code (claude 2.1.300) : …`.
   Both sentences stay French until the runtime is translated (`runtime/src/bac-a-sable/local.ts`).
 - **What it does not keep**: what the runtime itself launches outside `claude` — the worktree's
-  setup, the gates, a delivery's servers. Those are the repository's scripts, not the model.
+  setup, the gates. Those are the repository's scripts, not the model.
 
 **Is the sandbox usable on this Mac?** The check says so, before cooking a project there:
 
@@ -459,8 +459,8 @@ and its cooks leave from the station that serves the project, under that name; a
 station stations …`, "Declaring the stations", [`station.md`](station.md)).
 
 **The only direction is station → box, and it is guarded.** A declaration carries no address; in
-`runtime/src`, only seven modules touch the network, none toward a station (the arbiter and a
-delivery's server on `127.0.0.1`, the door and its probe, GitHub's API); no program that reaches
+`runtime/src`, only seven modules touch the network, none toward a station (the arbiter on
+`127.0.0.1`, the door and its probe, GitHub's API); no program that reaches
 another machine is launched there by its name; and a complete turn of a remote station opens no
 connection from the box. All four are checked in `runtime/test/architecture.test.ts`: adding a module
 there that opens a connection is an architecture decision, not an import.

@@ -17,7 +17,7 @@ Today the "station" gestures write a decision to the project's **log** (`decisio
 
 | Gesture | What it sets | Belongs to | Reason | Moved by |
 |---|---|---|---|---|
-| `station` (no argument) | Shows the cap, the cooks, the servers, what was consumed, the decisions | station | Read-only view of the machine | — |
+| `station` (no argument) | Shows the cap, the cooks, what was consumed, the decisions | station | Read-only view of the machine | — |
 | `cooks <N>` | The cap of simultaneous cooks of every station (0: no limit) | station | Capacity: it follows the machine's cores | — |
 | `cooks auto` | Withdraws that cap; the default derived from the cores returns | station | Capacity | — |
 | `stop <station>` / `start <station>` | Stops or restarts the project's cooking on one station | station | An operation on a running machine, not a decision carried by the project | — |

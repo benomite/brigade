@@ -130,8 +130,6 @@ export type Cuisine = {
   // Un ticket non calibré, ou dont la fiche ne se lit pas, ne lance aucun cook.
   refuser: (station: string, ticket: TicketRail) => Promise<void>;
   refuserLaFiche: (station: string, ticket: TicketRail) => Promise<void>;
-  // Le serveur d'une livraison précédente tient sa branche : il s'arrête.
-  liberer: (ticket: number) => Promise<void>;
   // Raconte la fin d'un cook : au rail, au journal, puis sur le ticket.
   conclure: (station: string, ticket: TicketRail, calibrage: Calibrage, run: string, branche: string, fin: FinGardee, conclusion: Conclusion | null, reprise: { n: number; pr: string | null } | null) => Promise<void>;
   // Une cuisine est défaite, ou une station revient : le service repasse.
@@ -443,7 +441,6 @@ export function ouvrirDistantes(cuisine: Cuisine): Distantes {
       cuisine.direLeCarnet(nom, numero, run, carnet);
       const cook: EnCours = { station: nom, ticket, calibrage, lance, branche, reprise: repris && { n: repris.returns, pr: repris.pr }, vue: null, progres: maintenant().getTime(), signale: false, livre: false, rendu };
       cooks.set(run, cook);
-      void cuisine.liberer(numero);
       void finir(run, cook);
       const mission = { ticket: numero, titre: ticket.title, depot: cuisine.depotGitHub, base: cuisine.base, lecons, carnet };
       const prompt = repris

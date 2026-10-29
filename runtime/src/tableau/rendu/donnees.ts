@@ -40,10 +40,9 @@ export type OptionsDuTableau = {
 };
 
 // Les rubriques de `status` que le tableau ne porte pas : ce qui ne se lit que
-// sur la box — les serveurs et leurs adresses en 127.0.0.1, les worktrees, les
-// transcripts. Le rail ne s'y lit que par son décompte : ses tickets sont les
+// sur la box — les worktrees, les transcripts. Le rail ne s'y lit que par son décompte : ses tickets sont les
 // issues du dépôt.
-const SUR_LA_BOX_SEULEMENT = new Set(["servers", "to launch", "service", "worktrees", "claude"]);
+const SUR_LA_BOX_SEULEMENT = new Set(["worktrees", "claude"]);
 const DECOMPTE_SEUL = new Set(["rail"]);
 const TITRE = 11;
 const DERNIERS_EVENEMENTS = "latest events";
