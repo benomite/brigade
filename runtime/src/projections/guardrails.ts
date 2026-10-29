@@ -242,6 +242,12 @@ export function cooksEnCours(base: Base): CookEnCours[] {
     .map((ligne) => ({ ...ligne, limits: JSON.parse(ligne.limits) }));
 }
 
+// La fin du dernier cook, quel qu'il soit — relectures de la pass comprises :
+// nulle tant qu'aucun n'a fini (cuisine-oisive.ts).
+export function finDuDernierCook(base: Base): string | null {
+  return base.lire<{ at: string | null }>("SELECT max(ended_at) AS at FROM cook_runs")[0]?.at ?? null;
+}
+
 // Le dernier relevé de chaque cook en cours qui en a un.
 export function mesuresDesCooksEnCours(base: Base): Mesure[] {
   return base.lire<Mesure>(

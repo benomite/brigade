@@ -114,3 +114,7 @@ export function depuis1877<F extends FactsDAvant1877>(avant: F): F {
     ),
   };
 }
+
+// Ce que #1862 ajoute à la forme : la panne d'une cuisine oisive, des cartes sur le rail
+// (`cuisineOisive`) — nulle dans les états d'exemple, dont des cartes sont au travail.
+export const depuis1862 = <F extends object>(avant: F): F & { cuisineOisive: null } => ({ ...avant, cuisineOisive: null });
