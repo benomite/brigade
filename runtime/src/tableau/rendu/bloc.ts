@@ -96,11 +96,22 @@ export type CuisineDuTableau = {
 // Un geste du chef posté en commentaire sur le tableau (tableau/gestes/), tel
 // que la box l'a pris. `commentaire` : l'id GitHub du commentaire ; `url` : son
 // adresse ; `le` : son heure sur GitHub. `geste` (`merge`, `send-back`,
-// `set-aside`, `answer`, `choose`, `arrived`, `correction`, `profile`) et `ticket` : ce qu'il demande — nuls pour
+// `set-aside`, `answer`, `choose`, `arrived`, `comment`, `ask`, `correction`, `profile`) et `ticket` : ce qu'il demande — nuls pour
 // un geste incompris ; le ticket, nul aussi pour une correction ou un profil. `etat` : `pris`, joué ; `refuse`, refusé ou incompris.
 // `traiteLe` : l'heure où la box l'a lu. `reponse` : la ligne qu'elle a
-// répondue sous lui, en markdown.
-export type GesteDuTableau = { commentaire: number; url: string; le: string; geste: string | null; ticket: number | null; etat: "pris" | "refuse"; traiteLe: string; reponse: string };
+// répondue sous lui, en markdown. `demande` : pour un `ask` joué seulement, la
+// demande au second que la box a composée, mot pour mot — celle que l'app
+// écrit dans le second, sans Entrée, quand la box ne tient pas le second du
+// projet. `second` : quand elle le tient, la demande y est partie, et c'est ce
+// qu'il en est — `attendu`, il répond encore ; `repondu`, sa réponse
+// (`reponse`, en markdown, coupée au-delà de `REPONSE_DU_SECOND_AU_BLOC`
+// caractères — `coupee` le dit —, entière dans le commentaire posté sous le
+// geste) ; `echec`, et pourquoi (`raison`).
+export type SecondDuGeste = { etat: "attendu" } | { etat: "repondu"; reponse: string; coupee: boolean } | { etat: "echec"; raison: string };
+export type GesteDuTableau = { commentaire: number; url: string; le: string; geste: string | null; ticket: number | null; etat: "pris" | "refuse"; traiteLe: string; reponse: string; demande?: string; second?: SecondDuGeste };
+
+// La réponse du second que le bloc porte : au-delà, elle n'est entière que sous le geste.
+export const REPONSE_DU_SECOND_AU_BLOC = 2_000;
 
 // Ce que la vue du rail d'un projet dessine (#1693) : l'objet de `facts`, dans
 // sa forme et ses mots (etat.ts, `Faits` ; docs/runtime/etat-et-mesures.md,
@@ -143,6 +154,9 @@ export type Resserre = "faits.livres.relecture" | "faits.attend.livraison" | "fa
 // `gestes` : les derniers gestes du chef lus sur le tableau, le plus ancien
 // d'abord — absent d'un bloc écrit sans eux. `faits` et `lignesDuRail` : ce que
 // la vue du rail dessine — absents d'un bloc écrit avant eux (#1693).
+// `fileDeStatus` : le bloc `awaiting` de `status`, mot pour mot, de sa ligne de
+// tête à `end awaiting` comprises — ce que le second relaie à son ouverture,
+// lu ici sans ssh (`laFileDuSecond`) ; absent d'un bloc écrit avant lui.
 // `resserre` : ce que le corps a dû retirer du bloc pour tenir dans une issue —
 // absent quand rien ne l'a été. `distantes` : ce que la box a prêté aux
 // stations distantes et répondu à leurs demandes par GitHub — absent quand
@@ -156,6 +170,7 @@ export type Tableau = {
   gestes?: GesteDuTableau[];
   faits?: FaitsPublies;
   lignesDuRail?: LigneDuRail[];
+  fileDeStatus?: string[];
   distantes?: DistantesPubliees;
   resserre?: Resserre[];
 };
@@ -199,4 +214,30 @@ export function lireLeTableau(corps: string): LectureDuTableau {
     return { lu: false, raison: "the board's machine block carries neither the queue nor the kitchen's state" };
   }
   return { lu: true, version, genereLe, tableau: tableau as Tableau };
+}
+
+// Ce que le second lit à son ouverture, à la place de `brigade <nom> status`
+// joué par ssh : la file du projet, telle que la box l'a publiée dans le corps
+// du tableau. `texte` : le bloc `awaiting` de `status`, mot pour mot, bords
+// compris, puis l'état de la cuisine que le tableau porte, rubrique par
+// rubrique dans la forme de `status` — le titre sur onze colonnes, les lignes
+// suivantes en retrait. `lu` : l'heure de la lecture de l'état — les durées
+// que les lignes disent se comptent jusqu'à elle. Ce qui ne se lit pas est dit
+// en une phrase, comme `lireLeTableau` le dit.
+export type FileDuSecond = { lue: true; lu: string; texte: string } | { lue: false; raison: string };
+
+export function laFileDuSecond(corps: string): FileDuSecond {
+  const lu = lireLeTableau(corps);
+  if (!lu.lu) return { lue: false, raison: lu.raison };
+  const { fileDeStatus, cuisine } = lu.tableau;
+  if (!Array.isArray(fileDeStatus) || fileDeStatus.some((ligne) => typeof ligne !== "string")) {
+    return { lue: false, raison: "the board was written by a box that does not publish the project's queue yet: update the box" };
+  }
+  // Un bloc `awaiting` que la box n'a pas trouvé dans `status` n'est pas une file vide.
+  if (fileDeStatus.length === 0) return { lue: false, raison: "the box found no awaiting block in its status: the project's queue is not known" };
+  const etat = (Array.isArray(cuisine.rubriques) ? cuisine.rubriques : []).flatMap(({ titre, lignes }) => {
+    const [premiere = "", ...suite] = lignes;
+    return [titre === "" ? premiere : `${titre.padEnd(10)} ${premiere}`, ...suite.map((ligne) => `  ${ligne}`)];
+  });
+  return { lue: true, lu: lu.tableau.lu, texte: [...fileDeStatus, "", ...etat].join("\n") };
 }

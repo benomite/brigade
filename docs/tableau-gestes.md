@@ -23,12 +23,15 @@ word after it, then the ticket number. The `#` before the number is optional.
 | answer a card | `/brigade answer #<ticket> <answer>` | `rail answer <ticket> <answer>`: your own words, written on the ticket's issue |
 | pick a card's choice | `/brigade choose #<ticket> <choice number>` | `rail choose <ticket> <n>`: the card's choice `n`, counted from 1 |
 | it arrived, back to the kitchen | `/brigade arrived #<ticket>` | no local gesture: the ticket leaves WAITING (or TODO, when it came back from WAITING) and goes back on the rail, queued, without going through TODO |
+| comment on a card's issue | `/brigade comment #<ticket> <comment>` | `pass <ticket> comment <comment>`: posts the comment on the ticket's issue, word for word (its edges trimmed), under the box's own `gh` account — the chef's, never a role's App |
+| ask the second | `/brigade ask #<ticket> [context]` | `pass <ticket> ask [context]`: composes the request for the second about the issue, with the context if any. Nothing is posted on the issue: the request is in the reply and in the board's machine block (`demande`, below). When the box holds the project's second (`BRIGADE_SECOND_DIR`, see "The second's answer"), the request goes into the second's conversation, and its answer is posted under the gesture; otherwise the app writes the request into the second it holds, without Enter |
 | answer a proposed correction | `/brigade correction <yes \| no> <proposal>` | no local gesture: "yes" accepts the correction of the project's guidance, which leaves as a PR through the pass; "no" takes it out of the queue (`runtime/src/correctif/decision.ts`) |
 | answer a proposed cook profile | `/brigade profile <yes \| no> <proposal>` | no local gesture: "yes" writes the profile's definition in the project's clone on the box; "no" takes it out of the queue (`runtime/src/profils/decision.ts`) |
 
-The reason of a `send-back` and the answer of an `answer` run to the end of the comment: the rest of
-the first line, then the next lines. `merge`, `set-aside` and `arrived` take nothing after the number, and
-`choose` takes one number.
+The reason of a `send-back`, the answer of an `answer`, the comment of a `comment` and the context of
+an `ask` run to the end of the comment: the rest of the first line, then the next lines. The request
+an `ask` composes is one line: the context's line breaks become spaces. `merge`, `set-aside` and
+`arrived` take nothing after the number, and `choose` takes one number.
 
 A proposed correction and a proposed cook profile are not tickets. Their number is the `proposition`
 the board's machine block gives them (`faits.corrections`, `faits.profils`), written **without `#`**:
@@ -93,6 +96,16 @@ Pick the second choice of the TODO card of #123:
 /brigade choose #123 2
 ```
 
+Post a comment on the issue of #123, and ask the second about it:
+
+```
+/brigade comment #123 The export misses the header row.
+See the attached file.
+/brigade ask #123 the export is slow on big files
+```
+
+(Each gesture is its own comment.)
+
 Accept the proposed correction 412 of the project's guidance, and decline the proposed cook
 profile 377:
 
@@ -127,8 +140,9 @@ a role's GitHub App. A gesture written by anyone else is ignored silently: nothi
 is answered.
 
 The actions run under the pass's identity when the roles have their own Apps
-(`BRIGADE_GITHUB_APPS_DIR`), otherwise under the box's `gh`. Their calls are a chef's gesture, so a
-low GitHub quota does not hold them. The comments are read, and the replies posted, under the
+(`BRIGADE_GITHUB_APPS_DIR`), otherwise under the box's `gh`. A `comment` is the chef's own words: it
+is always posted under the box's `gh`, as `pass <ticket> comment` posts it. Their calls are a chef's
+gesture, so a low GitHub quota does not hold them. The comments are read, and the replies posted, under the
 manager's identity, like the board itself.
 
 ## The reply
@@ -137,7 +151,8 @@ The box answers each gesture of the chef with one comment of one line. It links 
 comment, and never starts with `/brigade`:
 
 - `**Done** — [merge #123](…) — cost: …`: the action ran, and its cost is the one the local gesture
-  states;
+  states; an `ask` adds the request it composed: `**Done** — [ask #123](…): the request for the second
+  is “…” — cost: …`;
 - `**Not done** — [merge #123](…): …`: the action refused, for the reason the local gesture gives
   (no delivery waits to be merged, a ticket in progress, GitHub refused…), and nothing changed;
 - `**Not understood** — [your gesture](…): unknown gesture “mergee”. Accepted, on the first line: …`:
@@ -146,6 +161,26 @@ comment, and never starts with `/brigade`:
 
 If GitHub refuses the reply, the gesture is not played again. The box posts the reply again on the
 next pass, and says so once in its log.
+
+## The second's answer
+
+A box holds the project's second when the project's line on the station (or the runtime's
+environment) names the folder where the second runs, `BRIGADE_SECOND_DIR` — the one the paired
+phone already talks to (`runtime/src/telephone/second.ts`). There, an `ask` reaches the second
+itself (`runtime/src/tableau/gestes/second.ts`): the request is sent by `claude --continue -p` in
+that folder, so it joins the second's own conversation, the one the desktop and the phone read. Its
+answer can take minutes: the box does not wait for it. Its reply to the gesture says the request was
+sent; when the second has answered, the box posts a second comment under the gesture:
+
+- `**The second's answer** — [ask #123](…):` then, after a blank line, the answer as the second wrote
+  it, in markdown — with no mention of anyone. The whole answer is public to whoever reads the board's
+  repository;
+- `**The second did not answer** — [ask #123](…): …`, one line, when it could not be reached, failed
+  or did not answer within 15 minutes.
+
+The answer is written to the log (`board.second`) and carried by the board's machine block
+(`second`, below). If GitHub refuses the comment, the box posts it again on the next pass. One
+request at a time: the next one waits for the second's answer.
 
 ## Once, and only once
 
@@ -163,6 +198,10 @@ oldest first, in `tableau.gestes`. Each one has `commentaire` (the comment's id)
 time on GitHub), `geste` and `ticket` (null for a gesture not understood; `ticket` is null too for
 `correction` and `profile`), `etat` (`pris`: run;
 `refuse`: refused or not understood), `traiteLe` (when the box read it) and `reponse` (the line it
-answered). A gesture read makes the box rewrite the board at once, so an app sees it taken into
+answered). An `ask` that was played also has `demande`: the request for the second, word for word, the
+one the app writes into the second. When the box holds the second, it also has `second`: `etat`
+`attendu` (the second is still answering), `repondu` with `reponse` (its answer, cut after 2,000
+characters, `coupee` saying so — the whole answer is in the comment under the gesture), or `echec`
+with `raison`. A gesture read makes the box rewrite the board at once, so an app sees it taken into
 account at the box's next read, within the minute. A block written before this field has no
 `gestes`.

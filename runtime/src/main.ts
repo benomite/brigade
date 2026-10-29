@@ -40,6 +40,7 @@ import { clientGitHubDuTableau } from "./tableau/publication/client.ts";
 import { brancherLeTableau } from "./tableau/publication/publier.ts";
 import { clientGitHubDesGestes } from "./tableau/gestes/client.ts";
 import { gestesDuTableau } from "./tableau/gestes/gestes.ts";
+import { secondDuProjet } from "./tableau/gestes/second.ts";
 import { mentionsDuTableau } from "./tableau/mention/mention.ts";
 import { ouvrirGitHub } from "./github.ts";
 import { direValeursManquantes, valeursManquantes } from "./valeurs-a-donner.ts";
@@ -227,6 +228,10 @@ try {
     repertoireEtat,
     repoDir: station.clone,
     github: ouvrirGitHub({ depot: rail.depot, bin: rail.gh, usage: "geste", ...roleDesGestes }),
+    // Le commentaire du chef sur une issue part sous le `gh` de la box, le sien.
+    githubDuChef: ouvrirGitHub({ depot: rail.depot, bin: rail.gh, usage: "geste" }),
+    // La demande d'un `ask` part dans le second du projet, quand cette box le tient (BRIGADE_SECOND_DIR).
+    second: secondDuProjet(process.env),
   });
   runtime = brancherLeTableau(alertee, { client: tableau, depot: rail.depot, station: process.env.BRIGADE_STATION_DIR, gestes, mentions: mentionsDuTableau({ client: clientDesGestes, journal: alertee.journal, projet }) });
 } catch (erreur) {
