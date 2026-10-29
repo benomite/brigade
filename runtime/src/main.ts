@@ -1,6 +1,7 @@
 // Point d'entrée du runtime : `npm --prefix runtime start`, ou l'unité systemd.
 // Tout vient de l'environnement — aucun chemin d'état, aucun projet par défaut.
 import { brancherAlerteUrgence } from "./alerte-urgence.ts";
+import { assurerLApp, cheminDeLApp, direLApp } from "./app-par-defaut.ts";
 import { avecRail, configRail } from "./alimenter.ts";
 import { configArbitrage, joindreArbitre } from "./arbitrage.ts";
 import { sessionClaude } from "./claude.ts";
@@ -132,6 +133,11 @@ try {
   const depot = depotDeStation(repertoireEtat, station, identites?.jeton("cook"), () => republierReseau());
   const githubs = ouvrirGitHubs({ depot: rail.depot, bin: rail.gh, identites });
   socle = demarrer({ repertoireEtat, projet });
+  // Le fichier de l'app, créé neutre s'il manque et complété de ce qui lui manque : le chef
+  // n'en écrit aucun à la main. Un échec se dit, et le runtime démarre.
+  const fichierDeLApp = cheminDeLApp(process.env);
+  const dit = fichierDeLApp === undefined ? undefined : direLApp(assurerLApp(fichierDeLApp));
+  if (dit !== undefined) console.error(`brigade : ${dit}`);
   // L'interrupteur du projet, posé avant que rien ne parte : allumé par défaut,
   // repris des anciens interrupteurs sur un journal d'avant (interrupteur.ts).
   const pose = etablirLInterrupteur(socle.journal, projet, new Date());
