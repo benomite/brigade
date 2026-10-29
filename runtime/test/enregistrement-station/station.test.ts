@@ -52,6 +52,21 @@ const plateforme = process.platform === "darwin" ? "macos" : process.platform ==
 // côté, sans rien dire au test. La garde est large (le délai du test est de 120 s) mais elle nomme
 // ce qu'elle a vu : une attente muette jusqu'au délai du test ne dit pas laquelle des écritures manque.
 const GARDE_MS = 90_000;
+// Les attentes d'avant : sous Windows (job « tests (4/4) », runs 40777165597 et 40773811989), ce test restait muet
+// jusqu'à ses 120 s, sans dire laquelle de ses attentes ne venait pas. Chacune nomme maintenant ce qu'elle attendait.
+const ATTENTE_MS = 60_000;
+
+async function avecGarde<T>(attente: Promise<T>, quoi: string, station: { sortie: () => string }): Promise<T> {
+  let minuteur: NodeJS.Timeout | undefined;
+  const garde = new Promise<never>((_, rejeter) => {
+    minuteur = setTimeout(() => rejeter(new Error(`${quoi} : rien en ${ATTENTE_MS / 1000} s\n${station.sortie()}`)), ATTENTE_MS);
+  });
+  try {
+    return await Promise.race([attente, garde]);
+  } finally {
+    clearTimeout(minuteur);
+  }
+}
 
 async function attendreStation(stations: () => Promise<StationEnregistree[]>, condition: (station: StationEnregistree) => boolean, station: { process: { exitCode: number | null }; sortie: () => string }) {
   const limite = Date.now() + GARDE_MS;
@@ -64,11 +79,11 @@ async function attendreStation(stations: () => Promise<StationEnregistree[]>, co
   }
 }
 
-test("démarrée, la station est enregistrée sous le compte sans aucune commande ; redémarrée, elle rafraîchit le même gist", async (t) => {
+test("démarrée, la station est enregistrée sous le compte sans aucune commande ; redémarrée, elle rafraîchit le même gist", { timeout: 300_000 }, async (t) => {
   const { racine, env, stations } = uneMachine(t);
 
   const premiere = lancer(t, STATION, [], env);
-  await premiere.attendre("station enregistrée sous le compte GitHub de sa machine");
+  await avecGarde(premiere.attendre("station enregistrée sous le compte GitHub de sa machine"), "la première station ne dit pas qu'elle est enregistrée", premiere);
   const [enregistree, ...autres] = await stations();
   assert.deepEqual(autres, []);
   assert.ok(enregistree);
@@ -82,10 +97,10 @@ test("démarrée, la station est enregistrée sous le compte sans aucune command
 
   // Tuée net — sur toute plateforme : elle n'écrit rien de son arrêt.
   premiere.process.kill("SIGKILL");
-  await premiere.fin;
+  await avecGarde(premiere.fin, "la première station tuée ne ferme pas ses tuyaux", premiere);
 
   const seconde = lancer(t, STATION, [], env);
-  await seconde.attendre("station démarrée");
+  await avecGarde(seconde.attendre("station démarrée"), "la seconde station ne dit pas qu'elle a démarré", seconde);
   // Elle ne s'annonce pas de nouveau : elle reprend son gist, et le rafraîchit.
   const reprise = await attendreStation(stations, (station) => station.lastSeen !== enregistree.lastSeen, seconde);
   assert.equal(reprise.id, enregistree.id);
