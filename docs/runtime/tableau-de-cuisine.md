@@ -126,8 +126,9 @@ word for word, edges included, then a blank line, then the kitchen's state of `c
 the form of `status` (the title on eleven columns, the following lines indented). `lu` is when the
 state was read: the durations in the lines count up to it. A body that cannot be read gives
 `{ lue: false, raison }`, one sentence. A block from a box older than this field is not read as an
-empty queue: the sentence says to update the box. `fileDeStatus` is never removed from a body that is
-too long.
+empty queue: the sentence says to update the box. Neither is an empty `fileDeStatus`, written when the
+box found no `awaiting` block in its `status`: the sentence says the queue is not known.
+`fileDeStatus` is never removed from a body that is too long.
 
 ### `distantes` — the main station's arbitration, for a second station with no ssh
 

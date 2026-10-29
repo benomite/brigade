@@ -233,6 +233,8 @@ export function laFileDuSecond(corps: string): FileDuSecond {
   if (!Array.isArray(fileDeStatus) || fileDeStatus.some((ligne) => typeof ligne !== "string")) {
     return { lue: false, raison: "the board was written by a box that does not publish the project's queue yet: update the box" };
   }
+  // Un bloc `awaiting` que la box n'a pas trouvé dans `status` n'est pas une file vide.
+  if (fileDeStatus.length === 0) return { lue: false, raison: "the box found no awaiting block in its status: the project's queue is not known" };
   const etat = (Array.isArray(cuisine.rubriques) ? cuisine.rubriques : []).flatMap(({ titre, lignes }) => {
     const [premiere = "", ...suite] = lignes;
     return [titre === "" ? premiere : `${titre.padEnd(10)} ${premiere}`, ...suite.map((ligne) => `  ${ligne}`)];

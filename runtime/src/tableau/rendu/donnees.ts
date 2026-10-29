@@ -117,7 +117,8 @@ export function lignesDuRail(etat: EtatCuisine, lignes: string[]): LigneDuRail[]
 
 // Le bloc `awaiting` de `status`, mot pour mot, de sa ligne de tête à
 // `end awaiting` comprises : la file que le second lit à son ouverture
-// (bloc.ts, `laFileDuSecond`). Il est toujours là (attend.ts, `decrireAttentes`).
+// (bloc.ts, `laFileDuSecond`). Il est toujours là (attend.ts, `decrireAttentes`) ;
+// introuvable, il est vide, et `laFileDuSecond` le dit au lieu d'une file vide.
 export function fileDeStatus(lignes: string[]): string[] {
   const tete = lignes.findIndex((ligne) => ligne.startsWith(`${TETE_AWAITING} `));
   const fin = tete === -1 ? -1 : lignes.indexOf(FIN_AWAITING, tete);

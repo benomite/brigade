@@ -35,8 +35,9 @@ const MINUTE = 60_000;
 // La box d'un projet, son tableau publié et les gestes qu'elle y lit, branchés
 // comme main.ts les branche. `gh` : le GitHub des actions ; `compte` : celui
 // du `gh` de la box, le compte du chef. `second` : le second du projet, quand
-// la box le tient.
-async function box(t: TestContext, { second = null }: { second?: SecondDuTableau | null } = {}) {
+// la box le tient. `refuser` : GitHub refuse de poster sous le tableau le
+// texte qu'il désigne.
+async function box(t: TestContext, { second = null, refuser = () => false }: { second?: SecondDuTableau | null; refuser?: (texte: string) => boolean } = {}) {
   t.mock.timers.enable({ apis: ["setInterval"] });
   let instant = Date.parse("2026-10-08T10:00:00.000Z");
   const maintenant = () => new Date(instant);
@@ -76,6 +77,7 @@ async function box(t: TestContext, { second = null }: { second?: SecondDuTableau
       return commentaires.filter((commentaire) => depuis === null || commentaire.le >= depuis).map((commentaire) => ({ ...commentaire }));
     },
     async repondre(_numero, texte) {
+      if (refuser(texte)) throw new Error("HTTP 502: Bad Gateway");
       reponses.push(texte);
       ajouter(texte);
     },
@@ -110,7 +112,7 @@ async function box(t: TestContext, { second = null }: { second?: SecondDuTableau
     assert.doesNotMatch(reponse, /\n/, "une ligne");
     return { commentaire, reponse, tableau: bloc() };
   };
-  return { repertoire, noter, gh, compte, avertis, bloc, tick, poster, reponses, corps: () => corps };
+  return { repertoire, journal: runtime.journal, noter, gh, compte, avertis, bloc, tick, poster, reponses, corps: () => corps };
 }
 
 // La doublure de `claude -p` du second : son lancement et ce qu'elle a lu sur
@@ -318,6 +320,33 @@ describe("ce que l'app faisait par ssh se joue depuis le tableau de la cuisine",
     assert.deepEqual(c.bloc().gestes?.at(-1)?.second, { etat: "repondu", reponse: `${long.slice(0, REPONSE_DU_SECOND_AU_BLOC)}…`, coupee: true });
   });
 
+  test("une réponse du second que GitHub refuse est reprise au passage suivant, une fois", async (t) => {
+    let refusees = 0;
+    const prompt: SecondDuTableau = { demander: async () => ({ repondu: true, texte: "It is the CSV writer." }) };
+    const b = await box(t, { second: prompt, refuser: (texte) => texte.startsWith("**The second's answer**") && refusees++ === 0 });
+    const { commentaire } = await b.poster("/brigade ask #30");
+    await jusqua(() => b.avertis.some((ligne) => ligne.includes(`réponse du second au geste ${commentaire.id}`)));
+    assert.equal(b.reponses.length, 1, "seule la réponse de la box est postée");
+    b.tick();
+    await jusqua(() => b.reponses.length === 2);
+    assert.equal(b.reponses[1], `**The second's answer** — [ask #30](${commentaire.url}):\n\nIt is the CSV writer.`);
+    await jusqua(() => b.bloc().gestes?.at(-1)?.second?.etat === "repondu");
+    // Notée postée : le passage suivant ne la reposte pas.
+    await b.poster("/brigade cooks 3");
+    assert.equal(b.reponses.filter((reponse) => reponse.startsWith("**The second's answer**")).length, 1);
+    assert.equal(refusees, 2);
+  });
+
+  test("une demande au second qu'une box arrêtée n'a pas vu répondre est dite perdue, pas attendue", async (t) => {
+    const muet: SecondDuTableau = { demander: () => new Promise(() => {}) };
+    const b = await box(t, { second: muet });
+    const { tableau } = await b.poster("/brigade ask #30");
+    assert.deepEqual(tableau.gestes?.at(-1)?.second, { etat: "attendu" });
+    // La box redémarre : le process qui attendait le second n'est plus là.
+    const apres = gestesDuTableau({ client: { commentaires: async () => [], repondre: async () => {}, compteDuChef: async () => CHEF }, journal: b.journal, projet: PROJET, github: b.gh.github });
+    assert.deepEqual(apres.lus().at(-1)?.second, { etat: "echec", raison: "the box stopped before the second answered: post the gesture again" });
+  });
+
   test("la file du projet est publiée dans le tableau : le second la lit sans ssh, le bloc `awaiting` de `status` mot pour mot", async (t) => {
     const b = await box(t);
     const vide = laFileDuSecond(b.corps());
@@ -346,6 +375,9 @@ describe("ce que l'app faisait par ssh se joue depuis le tableau de la cuisine",
     const lue = laFileDuSecond(ecrireLeBloc(avant, new Date("2026-10-08T10:00:00.000Z")));
     assert.deepEqual(lue, { lue: false, raison: "the board was written by a box that does not publish the project's queue yet: update the box" });
     assert.equal(laFileDuSecond("no block here").lue, false);
+    // Un bloc `awaiting` que la box n'a pas trouvé n'est pas une file vide.
+    const sansAwaiting = laFileDuSecond(ecrireLeBloc({ ...avant, fileDeStatus: [] } as Tableau, new Date("2026-10-08T10:00:00.000Z")));
+    assert.deepEqual(sansAwaiting, { lue: false, raison: "the box found no awaiting block in its status: the project's queue is not known" });
   });
 });
 

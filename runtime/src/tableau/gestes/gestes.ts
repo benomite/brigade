@@ -210,7 +210,8 @@ export function gestesDuTableau(options: OptionsDesGestes): GestesDuTableau {
     const seconds = duSecond();
     for (const fait of derniers()) {
       if (!repondus.has(fait.payload.comment) && !(await poster(numero, fait.payload.comment, fait.payload.reply))) return;
-      const sien = seconds.get(fait.payload.comment);
+      // Celle qu'`attendreLeSecond` poste encore n'est pas reprise : elle partirait deux fois.
+      const sien = attendues.has(fait.payload.comment) ? undefined : seconds.get(fait.payload.comment);
       if (sien !== undefined && !secondsRepondus.has(fait.payload.comment) && !(await poster(numero, fait.payload.comment, sien.reply, "board.second-replied"))) return;
     }
   };
