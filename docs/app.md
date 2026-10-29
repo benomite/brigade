@@ -69,9 +69,12 @@ and, at the bottom of the block, **the cards of the tickets in flight on that st
 the Rail kanban: a click (or Enter) opens the same sheet as the same card in Taken, its number opens the issue; a ticket
 the rail read does not carry has a card with its number and its title (`no cook running` when there is none). Nothing in a
 block is command output. Each block has **a single button**: `stop cooking` when it cooks (saturated included), `start cooking`
-when you have stopped it. It plays `station stop|start <station>` where the project's kitchen runs — its box by
-`ssh`, or this Mac —, says `stopping…` until the runtime has answered, then rereads the box: the line takes
-the new state without reloading the page. Stopping cuts nothing: the cook in flight finishes — served, or its ticket goes
+when you have stopped it. It posts `/brigade station stop|start <station>` on the project's Kitchen board (#1845,
+`docs/tableau-gestes.md`) with this computer's `gh` — no `ssh`, no `hote` —, which the project's runtime plays at its
+next tick, wherever it runs (its box, or this Mac). The block says `stopping…` until the box has answered under the
+gesture (the board is read again every five seconds, two and a half minutes at most), then rereads the board: the
+line takes the new state without reloading the page. A box that has not read it by then leaves the line saying it is
+posted, and plays it at its next tick. Stopping cuts nothing: the cook in flight finishes — served, or its ticket goes
 back to the rail — and the line stays at `stopped`. What it does is on hover over the button; restarting says its price
 on hover, stopping has none. Refused by the runtime, a line says so under the station, its output on hover. A station
 stopped by your "stop" of the whole kitchen, or that refuses the project, has no button: the resume is on the
@@ -807,11 +810,10 @@ The file stays yours, and you can do anything in it:
 - **The app rereads this file as soon as it changes** — and every time you come back to its window. The
   bar and "All projects" follow; nothing has to be relaunched (see "When the file changes").
 - **The second reads the same file.** The second is the PO role: the session the Second tab
-  opens in a project's `dossier` takes `nom` and `hote` from it, and runs once on opening the same action as the app:
-  `ssh … <hote> brigade <nom> status`. It relays what awaits you, word for word. A `nom` the
-  box does not know is refused by the action, and the second says so in one line; a project
-  with no `hote` and no kitchen on this workstation has no queue to read, and it says so the same way. There is no other place to
-  declare the box.
+  opens in a project's `dossier` takes `nom` (and `depot`, when there is one) from it, and reads on opening the
+  project's queue as its box publishes it on the Kitchen board, with this computer's `gh` (#1845, see "The queue is
+  read for the second, at each start"). It relays what awaits you, word for word. A board that cannot be read is
+  said in one line, never as an empty queue.
 
 If the file is refused at launch, the app shows no project: it shows the
 file's path, the reason (`unreadable JSON`, `project no. 2 (parade): "dossier" missing`,
@@ -1374,8 +1376,10 @@ one sentence (#877); below, its faults with their button, the projects the app a
 "add a project" flow (see "Add a project to your stations, without a terminal").
 Under the header (#1081): the station's cap on cooks and where it comes from (`3 at most — 8 cores`, read from
 `status`), what holds tickets back when it is saturated (memory, processor, value and threshold), a field
-and "set the cap" to set it, "back to the default" to remove it. The setting runs `station cooks <N|0|auto>`
-on the box of every project that names the station — it applies to all the stations of those projects.
+and "set the cap" to set it, "back to the default" to remove it. The setting posts `/brigade cooks <N|0|auto>` on the
+Kitchen board of every project that names the station (#1845, no `ssh`), and waits for its box to answer under it —
+it applies to all the stations of those projects. Done, the board is read again and the page says the new cap; a box
+that has not read it within two and a half minutes plays it at its next tick, and the sentence says it is posted.
 #1292: the same cap is on each station's line in the Cooks tab, **for that project alone** — `Cooks at once: 3 at most — 8 cores`,
 a field and "set the cap", and "back to the default" when the chef set it. The setting goes to the box of that project only
 (`reglerLePlafond(station, valeur, projet)`). When the station is saturated, one sentence says what holds it (`Saturated on CPU —
@@ -1903,12 +1907,15 @@ writes nothing into the project's `.claude/`, nor into any file another session 
 start yourself in the same folder is a plain Claude Code session, not a second.
 
 **The queue is read for the second, at each start.** The launch settings carry a `SessionStart` hook
-(`startup`, `resume`, `compact`): it runs `app/src/second/file.ts`, which reads
-`ssh <hote> brigade <name> status` fresh and returns it to Claude Code as additional context, so the
-second sees the queue after a start, a resume or a compaction without thinking of it. A queue that
-cannot be read (box not reached, gesture refused, no answer in 30 s, no box declared) is said in that
-context, in the words of the role, and the hook still exits 0: it never blocks the session. By hand:
-`node app/src/second/file.ts <name> <host> [ssh]`.
+(`startup`, `resume`, `compact`): it runs `app/src/second/file.ts`, which reads the project's Kitchen board on
+GitHub fresh, with this computer's `gh` (`gh api`, #1845) — no `ssh`, no `hote` —, and returns to Claude Code as
+additional context the queue the box publishes there (`fileDeStatus`, `docs/runtime/tableau-de-cuisine.md`): the
+`awaiting` block of `status` word for word, then the kitchen's state in the form of `status`. So the second sees
+the queue after a start, a resume or a compaction without thinking of it. The repository is the project's `depot`,
+or the GitHub `origin` of the session's folder. A queue that cannot be read (no repository known, GitHub not
+reached or refusing, no board, a box that does not publish the queue yet) is said in that context, in one line
+starting `file non lue :`, and the hook still exits 0: it never blocks the session. By hand, in the project's
+folder: `node app/src/second/file.ts <name> [<owner>/<repo> [gh]]`.
 
 **The second's hard limits are held by a hook, not only by its role.** The launch settings carry a
 `PreToolUse` hook on `Bash`, `Read` and `Grep` that runs `app/src/second/refus.ts`. It denies any
@@ -2589,7 +2596,14 @@ For a ticket in pass or served, `cooked by` is added: who cooked it is not who h
   `delivered` and `merged` for each PR, or `closed without a merge`. What only the box's journal carries — the cook's
   tokens and time, the attempts, the retro — says `not communicated`, never a made-up value (so the retro section
   above reads `retro not communicated` there). An issue absent from GitHub is one sentence: `<repo>#<n> is not on
-  GitHub: there is nothing to read`. Posting a comment and "ask the second" still go through the box.
+  GitHub: there is nothing to read`. Posting a comment and "ask the second" go through the Kitchen board (#1845,
+  `docs/tableau-gestes.md`), with this computer's `gh` — no `ssh`, no `hote`: `/brigade comment #<n> <text>`, which
+  the box posts on the issue under its own `gh` account and answers with its cost (`comment posted on #<n> — …`);
+  `/brigade ask #<n> [context]`, whose request the box composes and publishes in the board's machine block, and the
+  app writes it into the second, without Enter. When the box holds the project's second, it sends it the request
+  itself: nothing is written here, and the sheet says its answer comes under the gesture on the board. The app reads
+  the board again every five seconds until the box has answered, two and a half minutes at most; a gesture the box
+  has not read by then is said posted, not done — the discussion is read again before you post the same comment.
 - **A served interface ticket shows its screenshots, without a click** (#842): for each screen
   changed, the before screenshot and the after screenshot side by side, each under its caption (`fiche — before`,
   `fiche — after`), on its card in Pass as in Served. They come from `captures`, in `facts`,

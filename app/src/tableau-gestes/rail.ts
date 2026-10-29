@@ -17,7 +17,7 @@
 // pour une proposition qu'elle ne porte pas, ni sans tableau lu : chaque fois une phrase, et rien n'est posté.
 import type { Rendu as RenduDeProposition } from "../correction.ts";
 import type { TableauLu } from "../tableau/lecture.ts";
-import { gestesDuTableau, type ClientDesGestes, type DecisionDuChef, type EtatDuGeste } from "./gestes.ts";
+import { gestesDuTableau, jusquALaBox, type Attente, type ClientDesGestes, type DecisionDuChef, type EtatDuGeste } from "./gestes.ts";
 
 // Les gestes de la fiche que le tableau porte, et celui de sa grammaire que chacun écrit.
 export const GESTES_DE_FICHE = { merger: "merge", retirer: "set-aside", cuisine: "arrived" } as const satisfies Readonly<Record<string, DecisionDuChef["geste"]>>;
@@ -53,7 +53,7 @@ function ditDe(etat: EtatDuGeste): Dit {
 }
 
 // Une décision postée sur le tableau de la dernière lecture, pour un ticket qu'il porte.
-async function poster(lu: TableauLu | undefined, decision: Exclude<DecisionDuChef, { proposition: number }>, client: ClientDesGestes): Promise<Dit> {
+async function poster(lu: TableauLu | undefined, decision: Extract<DecisionDuChef, { ticket: number }>, client: ClientDesGestes): Promise<Dit> {
   if (lu === undefined) return { refus: PAS_LU, detail: "" };
   if (!ticketsDuTableau(lu).has(decision.ticket)) return { refus: `nothing was posted: #${decision.ticket} is not on the latest Kitchen board read — read it again`, detail: "" };
   return ditDe(await gestesDuTableau({ depot: lu.depot, tableau: lu.numero, client }).envoyer(decision));
@@ -109,4 +109,14 @@ export async function reponseDeCarte(lu: TableauLu | undefined, reponse: Reponse
   const decision: DecisionDuChef = "choix" in reponse ? { geste: "choose", ticket: reponse.ticket, choix: reponse.choix } : { geste: "answer", ticket: reponse.ticket, reponse: reponse.texte };
   const dit = await poster(lu, decision, client);
   return "fait" in dit ? { repondue: true, dit: dit.fait, commentaire: dit.commentaire } : dit;
+}
+
+// Un geste qui partait par `ssh` sur la box (#1845) — le plafond, la cuisine d'une station, le commentaire d'une carte,
+// la demande au second —, posté sur le dernier tableau lu du projet et suivi jusqu'à ce que la box l'ait joué ou
+// refusé, le temps de l'attente. Rien ne part sans tableau lu. Les écrans le disent dans leurs mots (plafond.ts,
+// cuisson.ts, discussion.ts).
+export async function jouerAuTableau(lu: TableauLu | undefined, decision: DecisionDuChef, client: ClientDesGestes, attente: Attente): Promise<EtatDuGeste> {
+  if (lu === undefined) return { etat: "failed", raison: "The Kitchen board of this project has not been read yet — read it again." };
+  const gestes = gestesDuTableau({ depot: lu.depot, tableau: lu.numero, client });
+  return jusquALaBox(gestes, await gestes.envoyer(decision), attente);
 }

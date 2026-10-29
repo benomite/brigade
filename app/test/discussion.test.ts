@@ -1,8 +1,10 @@
 // L'issue d'un ticket et sa discussion, sur la fiche de toute carte (#684) : le corps puis les
 // commentaires dans l'ordre, chacun avec son auteur et sa date, le markdown rendu ; et le
-// commentaire du chef, posté sur l'issue par la box (`pass <ticket> comment <texte>`, #683) — au
-// clic, et seulement au clic. Le process principal est joué contre un faux `ssh` qui lance la
-// commande dans un vrai `sh`, comme la box ; la vue, telle qu'elle est, devant un faux document.
+// commentaire du chef, posté sur l'issue par la box (`/brigade comment #<ticket> <texte>` sur le
+// tableau de la cuisine, #1845) — au clic, et seulement au clic. La lecture par la box est jouée contre
+// un faux `ssh` qui lance la commande dans un vrai `sh`, comme la box ; le commentaire et la demande au
+// second, contre un tableau doublé, que la box lit avec sa grammaire ; la vue, telle qu'elle est,
+// devant un faux document.
 import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -15,7 +17,7 @@ import { lancerGeste, type Rendu } from "../src/box.ts";
 import { EXEMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
-import { commenter, commenteDe, demanderAuSecond, demandeRendue, discussionDe, lireDiscussion, type Commente, type Discussion, type Lancer } from "../src/discussion.ts";
+import { commenter, demanderAuSecond, discussionDe, lireDiscussion, type AuTableau, type Commente, type Discussion, type Lancer } from "../src/discussion.ts";
 import { mettreAPart } from "../src/attend.ts";
 import { BANNIERE, tenirFaits, type Faits } from "../src/faits.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
@@ -25,6 +27,11 @@ import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import type { Lue } from "../src/question.ts";
 import type { Terminal } from "../src/terminaux.ts";
+import type { TableauLu } from "../src/tableau/lecture.ts";
+import type { ClientDesGestes } from "../src/tableau-gestes/gestes.ts";
+import { jouerAuTableau } from "../src/tableau-gestes/rail.ts";
+import { lireLeGeste } from "../../runtime/src/tableau/gestes/grammaire.ts";
+import type { GesteDuTableau } from "../../runtime/src/tableau/rendu/bloc.ts";
 import { carteDuTicket, type Faux, type Jouee, jouerLaVue, type Reponses, repos } from "./aides/fausse-vue.ts";
 import { SANS_POSIX } from "./aides/posix.ts";
 
@@ -98,20 +105,79 @@ describe("la discussion de l'issue, telle que `pass <ticket> issue` la rend", ()
   });
 });
 
-describe("ce que `pass <ticket> comment <texte>` a rendu", () => {
-  test("posté : la box dit ce qu'il coûte", () => {
-    assert.deepEqual(commenteDe(lu({ done: true, price: "a comment is posted on issue #21" }), DELAI), { poste: true, prix: "a comment is posted on issue #21" });
+// Le tableau de la cuisine du projet, doublé : ce que l'app y poste est noté, et la box le lit avec sa grammaire
+// (runtime/src/tableau/gestes/grammaire.ts) ; `repondre` dit ce qu'elle en fait — le geste tel que son bloc machine
+// le porte, ou rien tant qu'elle ne l'a pas lu. Le geste est suivi le temps d'une relecture.
+type Joue = Pick<GesteDuTableau, "etat" | "reponse"> & Partial<Pick<GesteDuTableau, "demande" | "second">>;
+function tableau(repondre: (lu: ReturnType<typeof lireLeGeste>) => Joue | null) {
+  const postes: string[] = [];
+  const lus = new Map<number, GesteDuTableau>();
+  const client: ClientDesGestes = {
+    poster: async (_depot, _numero, corps) => {
+      postes.push(corps);
+      const id = 7000 + postes.length;
+      const joue = repondre(lireLeGeste(corps));
+      if (joue !== null) lus.set(id, { commentaire: id, url: `https://github.com/chef/parade/issues/9#issuecomment-${id}`, le: FAITS.lu, geste: null, ticket: 21, traiteLe: FAITS.lu, ...joue });
+      return { id, url: `https://github.com/chef/parade/issues/9#issuecomment-${id}` };
+    },
+    gestesDuTableau: async () => [...lus.values()],
+  };
+  const lu = { lu: true, depot: "chef/parade", numero: 9 } as TableauLu;
+  const auTableau: AuTableau = (decision) => jouerAuTableau(lu, decision, client, { essais: 1, dormir: async () => {} });
+  return { postes, auTableau };
+}
+const PRIX = "a comment is posted on issue #21, under the box's own gh account, not a role's App: it is public on GitHub";
+
+describe("le commentaire du chef part sur le tableau, et la box le poste sur l'issue (#1845)", () => {
+  test("le texte part tel qu'il est écrit, ses bords retirés : guillemets, retours à la ligne et `$(…)` compris — la box le lit mot pour mot, et dit ce qu'il coûte", async () => {
+    const lus: unknown[] = [];
+    const { postes, auTableau } = tableau((geste) => (lus.push(geste), { etat: "pris", reponse: `**Done** — [comment #21](…) — cost: ${PRIX}` }));
+    const texte = "  Contexte : l'export doit *aussi* sortir en JSON.\n\n- \"guillemets\" et 'apostrophes'\n- $(touch /tmp/pas-ca) `whoami` ; rm -rf ~\r\nfin  ";
+    const rendu = await commenter(auTableau, PROJET, 21, texte);
+    assert.deepEqual(rendu, { poste: true, prix: PRIX });
+    assert.equal(postes.length, 1);
+    assert.deepEqual(lus, [{ verbe: "comment", ticket: 21, texte: "Contexte : l'export doit *aussi* sortir en JSON.\n\n- \"guillemets\" et 'apostrophes'\n- $(touch /tmp/pas-ca) `whoami` ; rm -rf ~\nfin" }]);
   });
 
-  test("refusé par la box : rien n'est posté, et sa raison est dite", () => {
-    assert.deepEqual(commenteDe(lu({ done: false, reason: "#21 has no GitHub issue: it does not exist, or is gone", price: "none: nothing was posted" }, 1), DELAI), { poste: false, refus: "nothing was posted: #21 has no GitHub issue: it does not exist, or is gone" });
+  test("un refus de la box est rendu tel qu'elle le dit", async () => {
+    const { auTableau } = tableau(() => ({ etat: "refuse", reponse: "**Not done** — [comment #21](https://github.com/chef/parade/issues/9#issuecomment-7001): #21 is a pull request, not an issue" }));
+    assert.deepEqual(await commenter(auTableau, PROJET, 21, "du contexte"), { poste: false, refus: "nothing was posted: #21 is a pull request, not an issue" });
   });
 
-  test("une panne ou un `ssh` arrêté : rien ne dit qu'il n'est pas parti — la fiche relit la discussion avant qu'on réécrive", () => {
-    const rendu = commenteDe({ ...lu("", 1), erreurs: "brigade : GitHub n'a pas confirmé le commentaire sur #21\n" }, DELAI);
-    assert.equal(rendu.poste, false);
-    assert.ok(!rendu.poste && rendu.peutEtre === true && rendu.refus.startsWith("not confirmed — it may have been posted"));
-    assert.ok(!rendu.poste && rendu.refus.includes("GitHub n'a pas confirmé le commentaire sur #21"));
+  test("la box ne l'a pas encore lu : il est sur le tableau — la fiche relit la discussion avant qu'on réécrive", async () => {
+    const { postes, auTableau } = tableau(() => null);
+    const rendu = await commenter(auTableau, PROJET, 21, "du contexte");
+    assert.equal(postes.length, 1);
+    assert.ok(!rendu.poste && rendu.peutEtre === true && rendu.refus.startsWith("not posted yet: it is on the Kitchen board"));
+  });
+
+  test("rien ne part d'un texte vide, d'un projet qui ne s'ouvre pas, ni sans ticket : rien n'est posté", async () => {
+    const { postes, auTableau } = tableau(() => assert.fail("rien ne devait partir"));
+    for (const [projet, ticket, texte] of [
+      [PROJET, 21, ""],
+      [PROJET, 21, "  \n\t "],
+      [PROJET, 21, undefined],
+      [PROJET, 21, "a\0b"],
+      [PROJET, 21, "x".repeat(65_537)],
+      [PROJET, "21", "du contexte"],
+      [PROJET, 0, "du contexte"],
+      [{ ...PROJET, refus: "illisible" }, 21, "du contexte"],
+    ] as const) {
+      const rendu = await commenter(auTableau, projet, ticket, texte);
+      assert.ok(!rendu.poste && rendu.refus.startsWith("nothing was posted: "), JSON.stringify([ticket, texte?.slice(0, 20)]));
+    }
+    assert.deepEqual(postes, []);
+  });
+
+  test("un projet sans `hote` commente quand même : seul le tableau compte", async () => {
+    const { postes, auTableau } = tableau(() => ({ etat: "pris", reponse: `**Done** — [comment #21](…) — cost: ${PRIX}` }));
+    assert.deepEqual(await commenter(auTableau, { nom: PARADE, dossier: "/tmp/parade" }, 21, "du contexte"), { poste: true, prix: PRIX });
+    assert.deepEqual(postes, ["/brigade comment #21 du contexte"]);
+  });
+
+  test("le tableau pas lu, ou GitHub qui refuse : rien n'est posté, la raison est dite", async () => {
+    const pasLu = await commenter((decision) => jouerAuTableau(undefined, decision, { poster: async () => assert.fail(), gestesDuTableau: async () => [] }, { essais: 0, dormir: async () => {} }), PROJET, 21, "x");
+    assert.deepEqual(pasLu, { poste: false, refus: "nothing was posted: the Kitchen board of this project has not been read yet — read it again" });
   });
 });
 
@@ -134,7 +200,7 @@ function box(t: TestContext, reponse: unknown, code = 0) {
   return { lancer, recus, lancees: () => lire("lancees") };
 }
 
-describe("lire l'issue et commenter, sur la box du projet", () => {
+describe("lire l'issue sur la box du projet", () => {
   test("la lecture lance `brigade <projet> pass <ticket> issue`, et rien d'autre : aucune écriture", { skip: SANS_POSIX }, async (t) => {
     const { lancer, recus } = box(t, ISSUE);
     const discussion = await lireDiscussion(lancer, PROJET, 21, DELAI);
@@ -142,36 +208,8 @@ describe("lire l'issue et commenter, sur la box du projet", () => {
     assert.deepEqual(recus(), [[PARADE, "pass", "21", "issue"]]);
   });
 
-  test("le commentaire arrive sur la box en un seul argument, tel qu'il est écrit : guillemets, retours à la ligne et `$(…)` compris, rien n'est exécuté", { skip: SANS_POSIX }, async (t) => {
-    const { lancer, recus } = box(t, { done: true, price: "a comment is posted on issue #21" });
-    const texte = "  Contexte : l'export doit *aussi* sortir en JSON.\n\n- \"guillemets\" et 'apostrophes'\n- $(touch /tmp/pas-ca) `whoami` ; rm -rf ~\r\nfin  ";
-    const rendu = await commenter(lancer, PROJET, 21, texte, DELAI);
-    assert.deepEqual(rendu, { poste: true, prix: "a comment is posted on issue #21" });
-    assert.deepEqual(recus(), [[PARADE, "pass", "21", "comment", "Contexte : l'export doit *aussi* sortir en JSON.\n\n- \"guillemets\" et 'apostrophes'\n- $(touch /tmp/pas-ca) `whoami` ; rm -rf ~\nfin"]]);
-  });
-
-  test("un refus de la box est rendu tel qu'elle le dit", { skip: SANS_POSIX }, async (t) => {
-    const { lancer } = box(t, { done: false, reason: "#21 is a pull request, not an issue", price: "none: nothing was posted" }, 1);
-    assert.deepEqual(await commenter(lancer, PROJET, 21, "du contexte", DELAI), { poste: false, refus: "nothing was posted: #21 is a pull request, not an issue" });
-  });
-
-  test("rien ne part d'un texte vide, d'un projet sans box ou qui ne s'ouvre pas, ni sans ticket : la box n'est pas jointe", async (t) => {
-    const { lancer, lancees } = box(t, { done: true, price: "" });
-    for (const [projet, ticket, texte] of [
-      [PROJET, 21, ""],
-      [PROJET, 21, "  \n\t "],
-      [PROJET, 21, undefined],
-      [PROJET, 21, "a\0b"],
-      [PROJET, 21, "x".repeat(65_537)],
-      [PROJET, "21", "du contexte"],
-      [PROJET, 0, "du contexte"],
-      [{ nom: PARADE, dossier: "/tmp/parade" }, 21, "du contexte"],
-      [{ ...PROJET, refus: "illisible" }, 21, "du contexte"],
-    ] as const) {
-      const rendu = await commenter(lancer, projet, ticket, texte, DELAI);
-      assert.ok(!rendu.poste && rendu.refus.startsWith("nothing was posted: "), JSON.stringify([ticket, texte?.slice(0, 20)]));
-    }
-    assert.equal(lancees(), "");
+  test("un projet sans box : rien n'est lancé", async (t) => {
+    const { lancer, lancees } = box(t, ISSUE);
     assert.deepEqual(await lireDiscussion(lancer, { nom: PARADE, dossier: "/tmp/parade" }, 21, DELAI), { sans: "no station for this project: the app has nothing to read" });
     assert.equal(lancees(), "");
   });
@@ -348,43 +386,51 @@ describe("la fiche de toute carte montre l'issue et sa discussion (#684)", () =>
   });
 });
 
-// « ask the second » (#686) : la box compose la demande (`pass <ticket> ask [<texte>]`, #685), l'app
-// l'écrit dans le second sans Entrée — au clic, et seulement au clic.
-const DEMANDE = { done: true, request: "Je te demande à propos de l'issue #21 (« L'export du journal »). Voici le contexte que je viens d'écrire : « le CSV d'abord ».", price: "none: nothing is posted" };
+// « ask the second » (#686) : la box compose la demande (`/brigade ask #<ticket> [<texte>]` sur le tableau, #1845),
+// l'app l'écrit dans le second sans Entrée — au clic, et seulement au clic.
+const DEMANDE = "Je te demande à propos de l'issue #21 (« L'export du journal »). Voici le contexte que je viens d'écrire : « le CSV d'abord ».";
+const DEMANDEE: Joue = { etat: "pris", reponse: `**Done** — [ask #21](…): the request for the second is “${DEMANDE}” — cost: none`, demande: DEMANDE };
 
-describe("demander au second depuis la fiche, sur la box du projet (#686)", () => {
-  test("`pass <ticket> ask <contexte>` : le contexte arrive en un seul argument, tel qu'il est écrit ; la demande est rendue", { skip: SANS_POSIX }, async (t) => {
-    const { lancer, recus } = box(t, DEMANDE);
-    const rendu = await demanderAuSecond(lancer, PROJET, 21, "  le CSV d'abord\n$(touch /tmp/pas-ca)  ", DELAI);
-    assert.deepEqual(rendu, { demande: DEMANDE.request });
-    assert.deepEqual(recus(), [[PARADE, "pass", "21", "ask", "le CSV d'abord\n$(touch /tmp/pas-ca)"]]);
+describe("demander au second depuis la fiche, par le tableau (#686, #1845)", () => {
+  test("`/brigade ask #<ticket> <contexte>` : le contexte part tel qu'il est écrit, la box le lit mot pour mot ; la demande qu'elle a composée est rendue", async () => {
+    const lus: unknown[] = [];
+    const { auTableau } = tableau((geste) => (lus.push(geste), DEMANDEE));
+    const rendu = await demanderAuSecond(auTableau, PROJET, 21, "  le CSV d'abord\n$(touch /tmp/pas-ca)  ");
+    assert.deepEqual(rendu, { demande: DEMANDE });
+    assert.deepEqual(lus, [{ verbe: "ask", ticket: 21, contexte: "le CSV d'abord\n$(touch /tmp/pas-ca)" }]);
   });
 
-  test("un contexte vide est permis : `pass <ticket> ask`, sans argument", { skip: SANS_POSIX }, async (t) => {
-    const { lancer, recus } = box(t, DEMANDE);
-    assert.deepEqual(await demanderAuSecond(lancer, PROJET, 21, "  ", DELAI), { demande: DEMANDE.request });
-    assert.deepEqual(recus(), [[PARADE, "pass", "21", "ask"]]);
+  test("un contexte vide est permis : `/brigade ask #<ticket>`, sans rien après", async () => {
+    const { postes, auTableau } = tableau(() => DEMANDEE);
+    assert.deepEqual(await demanderAuSecond(auTableau, PROJET, 21, "  "), { demande: DEMANDE });
+    assert.deepEqual(postes, ["/brigade ask #21"]);
   });
 
-  test("une box qui refuse, ou injoignable : rien n'est écrit, et l'erreur est dite", { skip: SANS_POSIX }, async (t) => {
-    const refus = box(t, { done: false, reason: "#21 has no GitHub issue", price: "none: nothing was written to the second" }, 1);
-    assert.deepEqual(await demanderAuSecond(refus.lancer, PROJET, 21, "x", DELAI), { refus: "nothing was written: #21 has no GitHub issue" });
-    const injoignable = demandeRendue({ lance: "$ ssh -- box brigade parade pass 21 ask", erreur: Object.assign(new Error("Command failed"), { code: 255, killed: false, cmd: "ssh" }), sortie: "", erreurs: "ssh: connect to host box: Connection refused" }, DELAI);
-    assert.ok("refus" in injoignable && injoignable.refus.startsWith("nothing was written: ") && injoignable.refus.includes("Connection refused"));
+  test("la box tient le second du projet : elle lui a envoyé la demande, rien n'est à écrire ici", async () => {
+    const { auTableau } = tableau(() => ({ ...DEMANDEE, second: { etat: "attendu" } }));
+    const rendu = await demanderAuSecond(auTableau, PROJET, 21, "x");
+    assert.ok("auSecond" in rendu && /its answer comes under your gesture, on the Kitchen board/.test(rendu.auSecond));
   });
 
-  test("ni ticket, ni box, ni projet qui s'ouvre : la box n'est pas jointe", async (t) => {
-    const { lancer, lancees } = box(t, DEMANDE);
+  test("une box qui refuse, ou qui ne l'a pas encore lue : rien n'est écrit, et pourquoi est dit", async () => {
+    const refus = tableau(() => ({ etat: "refuse", reponse: "**Not done** — [ask #21](…): #21 has no GitHub issue" }));
+    assert.deepEqual(await demanderAuSecond(refus.auTableau, PROJET, 21, "x"), { refus: "nothing was written: #21 has no GitHub issue" });
+    const muette = tableau(() => null);
+    const rendu = await demanderAuSecond(muette.auTableau, PROJET, 21, "x");
+    assert.ok("refus" in rendu && rendu.refus.startsWith("nothing was written: the request is posted on the Kitchen board"));
+  });
+
+  test("ni ticket, ni projet qui s'ouvre : rien n'est posté", async () => {
+    const { postes, auTableau } = tableau(() => assert.fail("rien ne devait partir"));
     for (const [projet, ticket] of [
       [PROJET, "21"],
       [PROJET, 0],
-      [{ nom: PARADE, dossier: "/tmp/parade" }, 21],
       [{ ...PROJET, refus: "illisible" }, 21],
     ] as const) {
-      const rendu = await demanderAuSecond(lancer, projet, ticket, "x", DELAI);
+      const rendu = await demanderAuSecond(auTableau, projet, ticket, "x");
       assert.ok("refus" in rendu && rendu.refus.startsWith("nothing was written: "));
     }
-    assert.equal(lancees(), "");
+    assert.deepEqual(postes, []);
   });
 });
 

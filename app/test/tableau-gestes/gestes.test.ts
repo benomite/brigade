@@ -3,9 +3,10 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { lireUnGesteDeBoite } from "../../../runtime/src/tableau/gestes-boite/grammaire.ts";
 import { lireLeGeste } from "../../../runtime/src/tableau/gestes/grammaire.ts";
 import type { GesteDuTableau } from "../../../runtime/src/tableau/rendu/bloc.ts";
-import { corpsDuGeste, gestesDuTableau, type ClientDesGestes, type DecisionDuChef } from "../../src/tableau-gestes/gestes.ts";
+import { corpsDuGeste, ditParLaBox, gestesDuTableau, jusquALaBox, type ClientDesGestes, type DecisionDuChef } from "../../src/tableau-gestes/gestes.ts";
 
 function doublure(options: { echecs?: number } = {}) {
   const postes: string[] = [];
@@ -33,6 +34,9 @@ const CAS: Array<[DecisionDuChef, string]> = [
   [{ geste: "answer", ticket: 123, reponse: "Neither: an Excel export,\non top of the CSV." }, "/brigade answer #123 Neither: an Excel export,\non top of the CSV."],
   [{ geste: "choose", ticket: 123, choix: 2 }, "/brigade choose #123 2"],
   [{ geste: "arrived", ticket: 123 }, "/brigade arrived #123"],
+  [{ geste: "comment", ticket: 123, commentaire: "  The export misses the header row.\nSee the attached file. " }, "/brigade comment #123 The export misses the header row.\nSee the attached file."],
+  [{ geste: "ask", ticket: 123, contexte: "the export is slow on big files" }, "/brigade ask #123 the export is slow on big files"],
+  [{ geste: "ask", ticket: 123 }, "/brigade ask #123"],
 ];
 
 for (const [decision, attendu] of CAS) {
@@ -46,6 +50,61 @@ for (const [decision, attendu] of CAS) {
     assert.ok(lu !== null && "verbe" in lu && lu.verbe === decision.geste && "ticket" in lu && lu.ticket === 123);
   });
 }
+
+// Ce qui partait par `ssh` sur la box (#1845) et ne porte pas de ticket : la box le lit avec sa grammaire des gestes de box.
+const DE_BOITE: Array<[DecisionDuChef, string, string]> = [
+  [{ geste: "cooks", plafond: "4" }, "/brigade cooks 4", "cooks 4"],
+  [{ geste: "cooks", plafond: "0" }, "/brigade cooks 0", "cooks 0"],
+  [{ geste: "cooks", plafond: "auto" }, "/brigade cooks auto", "cooks auto"],
+  [{ geste: "station", action: "stop", station: "box/claude" }, "/brigade station stop box/claude", "station stop box/claude"],
+  [{ geste: "station", action: "start", station: "mac/claude" }, "/brigade station start mac/claude", "station start mac/claude"],
+];
+for (const [decision, attendu, nom] of DE_BOITE) {
+  test(`« ${attendu} » est le geste de box que la box lit`, () => {
+    assert.equal(corpsDuGeste(decision), attendu);
+    const lu = lireUnGesteDeBoite(attendu);
+    assert.ok(lu !== null && "nom" in lu && lu.nom === nom, JSON.stringify(lu));
+  });
+}
+
+test("un plafond, une station ou un commentaire sans sens ne sont pas postés", async () => {
+  const { client, postes } = doublure();
+  const gestes = gestesDuTableau({ depot: "chef/parade", tableau: 9, client });
+  for (const decision of [{ geste: "cooks", plafond: "05" }, { geste: "cooks", plafond: "many" }, { geste: "station", action: "stop", station: "box claude" }, { geste: "station", action: "pause", station: "box/claude" }, { geste: "comment", ticket: 5, commentaire: " \n " }] as DecisionDuChef[]) {
+    assert.equal((await gestes.envoyer(decision)).etat, "failed", JSON.stringify(decision));
+  }
+  assert.deepEqual(postes, []);
+});
+
+test("ce que la box a répondu, en clair : ce qu'elle dit, et ce que ça coûte", () => {
+  assert.deepEqual(ditParLaBox("**Done** — [cooks 4](https://github.com/chef/parade/issues/9#issuecomment-1): box/claude: 4 at most — set by you — cost: none: only the log is written"), { dit: "box/claude: 4 at most — set by you", prix: "none: only the log is written" });
+  assert.deepEqual(ditParLaBox("**Done** — [comment #21](https://github.com/x) — cost: a comment is posted on issue #21"), { dit: "", prix: "a comment is posted on issue #21" });
+  assert.deepEqual(ditParLaBox("**Not done** — [comment #99](https://github.com/x): #99 has no GitHub issue: it does not exist, or is gone"), { dit: "#99 has no GitHub issue: it does not exist, or is gone", prix: "" });
+  assert.deepEqual(ditParLaBox("**Not done** — [station stop a\\_b](u): unknown station `a_b`, \\*none\\* \u2060"), { dit: "unknown station `a_b`, *none*", prix: "" });
+});
+
+test("un geste suivi jusqu'à la box : relu après chaque attente, rendu dès qu'elle l'a joué — ou encore pending à la fin", async () => {
+  const { client, pose } = doublure();
+  const gestes = gestesDuTableau({ depot: "chef/parade", tableau: 9, client });
+  const envoye = await gestes.envoyer({ geste: "cooks", plafond: "4" });
+  if (envoye.etat !== "pending") return assert.fail();
+  let dormi = 0;
+  const joue = await jusquALaBox(gestes, envoye, {
+    essais: 5,
+    dormir: async () => {
+      dormi++;
+      if (dormi === 2) pose([geste(envoye.commentaire.id, "pris", "**Done** — [cooks 4](…): 4 at most — cost: none")]);
+    },
+  });
+  assert.equal(joue.etat, "taken");
+  assert.equal(dormi, 2);
+  pose([]);
+  const encore = await jusquALaBox(gestes, envoye, { essais: 3, dormir: async () => void dormi++ });
+  assert.equal(encore.etat, "pending");
+  assert.equal(dormi, 5);
+  const echoue = { etat: "failed" as const, raison: "x" };
+  assert.equal(await jusquALaBox(gestes, echoue, { essais: 3, dormir: async () => assert.fail("rien à attendre") }), echoue);
+});
 
 test("send-back sans raison ne porte que le ticket", () => {
   assert.equal(corpsDuGeste({ geste: "send-back", ticket: 7 }), "/brigade send-back #7");
@@ -61,7 +120,7 @@ test("un geste posté est pending, puis taken avec la réponse de la box", async
   pose([geste(999, "pris", "**Done** — merge #123")]);
   assert.equal((await gestes.suivre(posteur.commentaire)).etat, "pending");
   pose([geste(posteur.commentaire.id, "pris", "**Done** — merge #123 — cost: 0")]);
-  assert.deepEqual(await gestes.suivre(posteur.commentaire), { etat: "taken", commentaire: posteur.commentaire, reponse: "**Done** — merge #123 — cost: 0" });
+  assert.deepEqual(await gestes.suivre(posteur.commentaire), { etat: "taken", commentaire: posteur.commentaire, reponse: "**Done** — merge #123 — cost: 0", lu: geste(posteur.commentaire.id, "pris", "**Done** — merge #123 — cost: 0") });
 });
 
 test("un geste que la box refuse est refused avec sa ligne", async () => {
