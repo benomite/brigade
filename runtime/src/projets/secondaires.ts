@@ -22,6 +22,7 @@
 // phrase, en anglais — c'est l'app qui la montre : arrêtée, muette depuis son
 // dernier signe de vie, ou GitHub qui n'a pas pu être lu.
 import type { StationsDuChef } from "../appairage/stations-du-chef.ts";
+import type { NouveauBlocage } from "../installation/blocages/blocages.ts";
 import { ouvrirJournal } from "../journal.ts";
 import { ConfigInvalide } from "../runtime.ts";
 import type { StationDeclaree } from "../stations-declarees.ts";
@@ -146,3 +147,12 @@ export function declarerLesSecondaires(repertoireEtat: string, projet: string, s
   }
   return { ecrites, refusees };
 }
+
+// Une station rejointe que le projet ne déclare pas : le blocage de son journal
+// (`installation/blocages/`), que `status` dit en une ligne. Levé dès qu'elle l'est.
+export const PREFIXE_DE_LA_REJOINTE = "joined-station:";
+export const idDeLaRejointe = (station: string) => `${PREFIXE_DE_LA_REJOINTE}${station.toLowerCase().replace(/[^a-z0-9.:_-]/g, "-")}`.slice(0, 80);
+export const blocageDeLaRejointe = (station: string, raison: string): NouveauBlocage => {
+  const premiere = (raison.split(/\r?\n/)[0] ?? "").trim().replace(/[.\s]+$/, "");
+  return { id: idDeLaRejointe(station), message: `${station} joined this kitchen but is not declared, so no ticket can go to it: ${premiere}`, cause: premiere === "" ? "the project refuses its declaration" : premiere, detail: raison };
+};

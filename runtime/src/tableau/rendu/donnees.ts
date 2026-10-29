@@ -137,7 +137,7 @@ export function tableauDeLaCuisine(
   const stationDe = new Map(etat.auxFourneaux.flatMap(({ station, ticket }) => (ticket === null ? [] : [[ticket, station] as const])));
   const bilans = [
     ...(etat.pause === null ? [] : [direPauseEn(etat.pause, depuisEn)]),
-    ...[reposSansStation(etat.rail, etat.attend)].flatMap((repos) => (repos === null ? [] : [direReposSansStationEn(repos)])),
+    ...[reposSansStation(etat.rail, etat.attend, etat.rejointesRefusees)].flatMap((repos) => (repos === null ? [] : [direReposSansStationEn(repos)])),
     ...[direSansGrantEn(etat.sansGrant)].flatMap((bilan) => (bilan === null ? [] : [bilan])),
     ...(etat.passage === null ? [] : [etat.passage.ligne]),
   ];

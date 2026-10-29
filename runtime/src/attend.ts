@@ -435,9 +435,11 @@ export function direPauseEn({ since, minutes, finissent, retenus }: PauseEnVigue
 // suivant `awaits` de proche en proche — un ticket qui en attend un autre, sans
 // lien avec eux, n'y est pas. Ce n'est pas une décision : rien n'entre dans la
 // file, et la tête du bloc ne change pas. Nul dès qu'un ticket peut encore cuire.
-export type ReposSansStation = { sansStation: Array<{ ticket: number; manque: Manque }>; derriere: number[] };
+// `rejointes` : les stations qui ont rejoint la cuisine sans que le projet puisse
+// les déclarer (`projets/secondaires.ts`), pourquoi — la raison qu'aucune station ne fournit la capacité.
+export type ReposSansStation = { sansStation: Array<{ ticket: number; manque: Manque }>; derriere: number[]; rejointes: string[] };
 
-export function reposSansStation(rail: readonly TicketRail[], attentes: readonly Attente[]): ReposSansStation | null {
+export function reposSansStation(rail: readonly TicketRail[], attentes: readonly Attente[], rejointes: readonly string[] = []): ReposSansStation | null {
   // Peut encore cuire : un ticket pris ou en pass, un ticket en attente que sa
   // fiche ne retient pas, ou un 86 qui revient seul à son heure.
   const cuit = rail.some(({ state, awaits, until }) => state === "taken" || state === "pass" || (state === "waiting" && awaits.length === 0) || (state === "86" && until !== null));
@@ -458,14 +460,14 @@ export function reposSansStation(rail: readonly TicketRail[], attentes: readonly
     }
   }
   const derriere = rail.flatMap(({ ticket, state }) => (state === "waiting" && retenus.has(ticket) && !dansLaFile.has(ticket) ? [ticket] : []));
-  return { sansStation, derriere };
+  return { sansStation, derriere, rejointes: [...rejointes] };
 }
 
 // Sa ligne dans le bloc `awaiting`, une seule, qui commence par ce que fait la
 // cuisine : ce qui manque et les tickets qui le demandent, ceux qui attendent
 // derrière eux, puis le geste.
 const CUISINE_AU_REPOS = "kitchen idle";
-export function direReposSansStationEn({ sansStation, derriere }: ReposSansStation): string {
+export function direReposSansStationEn({ sansStation, derriere, rejointes }: ReposSansStation): string {
   const numeros = (tickets: readonly number[]) => tickets.map((ticket) => `#${ticket}`).join(", ");
   const parManque = new Map<string, number[]>();
   for (const { ticket, manque } of sansStation) {
@@ -478,7 +480,8 @@ export function direReposSansStationEn({ sansStation, derriere }: ReposSansStati
   const [ceux, sa, les] = sansStation.length > 1 ? ["those tickets", "their cards", "them"] : ["this ticket", "its card", "it"];
   const enAttente = derriere.length === 0 ? "" : ` — waiting behind ${les}: ${numeros(derriere)}`;
   const aFaire = `attach a station that provides ${capacites}, or lower ${ceux} — remove ${capacites} from the \`${CLE_DES_CAPACITES}\` line of ${sa} — or close ${les}`;
-  return `${CUISINE_AU_REPOS} — the rest of the rail needs a human: no station provides ${manques}${enAttente} — to unblock: ${aFaire}`;
+  const jointes = rejointes.length === 0 ? "" : ` — ${rejointes.join(" ; ")}`;
+  return `${CUISINE_AU_REPOS} — the rest of the rail needs a human: no station provides ${manques}${enAttente}${jointes} — to unblock: ${aFaire}`;
 }
 
 // Ce qui échoue sur la base rouge : ce que ses gates nommaient au dernier
