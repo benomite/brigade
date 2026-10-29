@@ -309,6 +309,9 @@ export type FaitPass =
   // n'est plus fort que celui du reviewer, ou sa fusion ne se fait plus.
   // `reviewer` : le calibrage du premier reviewer à cet instant, et `review`
   // le run de sa relecture — ce qui dit qu'il en est distinct et plus faible.
+  // `change` : ce que la livraison change dans ses juges, en quelques mots
+  // simples pour le chef (« runs the Windows tests on v2 too ») — absent s'il
+  // ne l'a pas dit, ou d'un journal d'avant (#1877).
   | {
       type: "pass.second-judged";
       payload: {
@@ -321,6 +324,7 @@ export type FaitPass =
         review: string | null;
         verdict: VerdictDuSecondJuge;
         reason: string;
+        change?: string;
       };
     }
   // L'intention de merger, écrite avant l'appel à GitHub : c'est l'usage du

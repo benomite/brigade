@@ -15,6 +15,7 @@ import { configPass, consigneDeRenvoi, plafondADire } from "../src/pass.ts";
 import { bilanSansGrant, etatDuGrant, passDuTicket, usagesDuGrant } from "../src/projections/pass.ts";
 import { CONSIGNE_MAX } from "../src/reviewer.ts";
 import { cartesEnTodo, cartesRetenues } from "../src/carte-todo.ts";
+import { carteDuTicket } from "../src/carte-todo/cartes.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
 import { lireRail } from "../src/projections/rail.ts";
 import { sortDuTicket } from "../src/projections/rail.ts";
@@ -898,13 +899,16 @@ describe("la pass", { concurrency: 8 }, () => {
 
     assert.equal(dernier("pass.judged", 17)?.judgeModified, true);
     assert.deepEqual(dernier("pass.judged", 17)?.judges, [{ file: ".claude/brigade/gates.sh", added: 5, removed: 2 }]);
-    // Ce que le chef lit sur la carte : le résumé de la relecture, les juges avec leurs lignes — pas travail.txt.
-    const attente = attentesDuChef(journal.base, lireRail(journal.base)).find((a) => a.ticket === 17);
-    assert.deepEqual(attente?.quoi === "merge" ? attente.livraison : undefined, { resume: "Le diff fait ce que le ticket demande.", juges: [{ fichier: ".claude/brigade/gates.sh", ajoutees: 5, retirees: 2 }] });
     assert.equal(dernier("pass.judged", 17)?.verdict, "green");
     assert.deepEqual([pass()?.phase, pass()?.reason, pass()?.cause], ["held", "review-required", "judge-modified"]);
     assert.deepEqual(gh.merges, []);
     await jusqua(() => gh.commentaires.some(([, corps]) => /touche à ce qui la juge/.test(corps)));
+    // Une fois son second juge rendu, et sa carte passée par la porte, elle attend le chef (#1877).
+    // Ce qu'il lit sur sa fiche : le résumé de la relecture, les juges avec leurs lignes — pas travail.txt.
+    await jusquAu("todo.refused");
+    const attente = attentesDuChef(journal.base, lireRail(journal.base)).find((a) => a.ticket === 17);
+    assert.deepEqual(attente?.quoi === "merge" ? attente.livraison : undefined, { resume: "Le diff fait ce que le ticket demande.", juges: [{ fichier: ".claude/brigade/gates.sh", ajoutees: 5, retirees: 2 }] });
+    assert.deepEqual(gh.merges, []);
   });
 
   // Une livraison qui touche à ses gates, sous grant : ce qui la fait passer devant le second juge.
@@ -1044,8 +1048,24 @@ describe("la pass", { concurrency: 8 }, () => {
       );
       // Une seule proposition, même quand la pass repasse.
       assert.equal(compter("todo.held"), 1);
+      // Refusée par la porte, sans triage pour la trancher : la livraison attend le chef, sur une carte
+      // qui dit en mots simples ce qu'elle change, et un seul bouton (#1877).
+      const vue = carteDuTicket(journal.base, 17)?.carte;
+      assert.match(vue?.resume ?? "", /^The delivery of #17 changes the gates every delivery must pass\. Its review found nothing blocking, but /);
+      assert.deepEqual([vue?.question, vue?.choix], [null, [{ texte: "Merge", suite: "merge" }]]);
     });
   }
+
+  test("ce que le second juge dit qu'elle change s'écrit avec son verdict, et la carte du chef le dit (#1877)", async (t) => {
+    const { journal, dernier, jusquAu } = service(t, toucheSesGates(["relit-vert", "juge-affaibli-dit"]));
+    await jusquAu("todo.held");
+
+    assert.equal(dernier("pass.second-judged", 17)?.change, "It no longer fails when the runtime tests fail.");
+    assert.equal(
+      carteDuTicket(journal.base, 17)?.carte.resume,
+      "The delivery of #17 changes how deliveries are checked: it no longer fails when the runtime tests fail. Its review found nothing blocking, but it loosens a check, which only you can accept.",
+    );
+  });
 
   test("une livraison qui ne touche pas à ses juges ne passe devant aucun second juge", async (t) => {
     const { gh, journal, compter, jusquAu, laisserTourner, relectures } = service(t, { grant: true });

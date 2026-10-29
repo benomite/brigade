@@ -93,3 +93,24 @@ export function depuis1834<F extends FactsDAvant1834>(avant: F): F {
     ...(avant.retenues === undefined ? {} : { retenues: avant.retenues.filter(({ ticket }) => !retires.has(ticket)) }),
   };
 }
+
+// Ce que #1877 change à ce que l'état d'avant donnait : la carte d'une livraison à relire dit en mots
+// simples ce qu'elle change et ce que sa relecture a trouvé, avec un seul bouton, « Merge ». Celle de
+// l'état d'avant touche à ses juges sans verdict consigné : aucun second juge ne la jugera, elle reste au
+// chef, et sa carte le dit en mots fixes. Le reste est ce qu'il était.
+type CarteDAvant = { resume: string; question: string | null; choix: Array<{ texte: string; suite: string }> };
+type FactsDAvant1877 = { attend: Array<{ ticket: number; decision?: { quoi: string; motif: string | null; cause: string | null }; carte?: CarteDAvant }> };
+export function depuis1877<F extends FactsDAvant1877>(avant: F): F {
+  const aRelire = (decision: FactsDAvant1877["attend"][number]["decision"]) => decision?.quoi === "merge" && decision.motif === "review-required" && decision.cause === "judge-modified";
+  return {
+    ...avant,
+    attend: avant.attend.map((entree) =>
+      aRelire(entree.decision) && entree.carte
+        ? {
+            ...entree,
+            carte: { ...entree.carte, resume: `The delivery of #${entree.ticket} changes how deliveries are checked. Its review found nothing blocking, and only you can merge it.`, question: null, choix: [{ texte: "Merge", suite: "merge" }] },
+          }
+        : entree,
+    ),
+  };
+}
