@@ -118,3 +118,10 @@ export function depuis1877<F extends FactsDAvant1877>(avant: F): F {
 // Ce que #1862 ajoute à la forme : la panne d'une cuisine oisive, des cartes sur le rail
 // (`cuisineOisive`) — nulle dans les états d'exemple, dont des cartes sont au travail.
 export const depuis1862 = <F extends object>(avant: F): F & { cuisineOisive: null } => ({ ...avant, cuisineOisive: null });
+
+// Ce que #1893 ajoute à la forme : les essais d'un ticket pris. Dans les états d'exemple, chaque ticket pris
+// l'est une fois, son cook en cours : un seul essai, parti à sa prise.
+export const depuis1893 = <F extends { rail: Array<{ etat: string; depuis: string }> }>(avant: F): F => ({
+  ...avant,
+  rail: avant.rail.map((carte) => (carte.etat === "pris" ? { ...carte, essais: [{ depuis: carte.depuis, jusqua: null, arret: null, enCours: true }] } : carte)),
+});
