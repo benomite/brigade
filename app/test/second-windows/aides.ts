@@ -38,4 +38,9 @@ export const cliquer = async (pose: Faux) => {
 export const bouton = (ou: Faux, classe: string, ok: (pose: Faux) => boolean = () => true) => ou.dessous("button").find((pose) => pose.className === classe && ok(pose)) ?? assert.fail(`pas de bouton « ${classe} »`);
 export const confirmation = (ou: Faux) => ou.dessous("section").find((pose) => pose.className === "confirmation");
 export const reponse = (ou: Faux, libelle: string) => (confirmation(ou) ?? assert.fail("pas de confirmation")).dessous("button").find((pose) => pose.textContent === libelle) ?? assert.fail(`pas de « ${libelle} »`);
-export const commandes = (ou: Faux) => [...ou.descendants()].filter((pose) => pose.className === "commande mono").map((pose) => pose.textContent);
+// Les commandes que le geste porte : celle du bouton, qui n'est qu'à son survol, puis celle que la confirmation redit
+// dans son aide repliée — jamais une ligne de commande à l'écran tant que rien n'est ouvert.
+export const commandes = (ou: Faux) => [
+  ...ou.dessous("button").filter((pose) => pose.className === "geste").map((pose) => pose.ariaLabel),
+  ...[...ou.descendants()].filter((pose) => pose.className === "commande mono").map((pose) => pose.textContent),
+];

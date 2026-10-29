@@ -448,11 +448,12 @@ project, in the main process). Captures: `docs/captures/1520/`.*
 
 When what you have to do is a command — a merge, a pass on the box —, the second publishes it as a gesture through
 the same channel. Under its terminal, one line says `The second asks you to run a command` (how it works is in its
-`?` hover), then **one button that shows the exact command, in full**: nothing shortened, rewritten or hidden — a long
-command wraps between its words, its spaces and quotes kept as published.
+`?` hover), then **one button, `Run the second's command…`**, in plain words: no command line is written on the screen. The
+exact command, in full, is read on hovering the button, and again in the confirmation: nothing shortened or rewritten
+— a long command wraps between its words, its spaces and quotes kept as published.
 
 - **A click opens a confirmation**, under the button: `Run this command in the second's terminal, in your name?`,
-  the same full command again, then `run it` and `cancel`. Nothing runs yet; a second click on the button closes it.
+  a folded `the exact command` line that opens on the full command, then `run it` and `cancel`. Nothing runs yet; a second click on the button closes it.
 - **`cancel` runs nothing**: the confirmation closes, nothing is typed into the terminal, and the button stays — the
   gesture is still proposed.
 - **`run it` types the command into the second's terminal**, exactly as published, then Enter — as if you had typed

@@ -6548,9 +6548,12 @@ button.recommande {
   font-weight: 600;
   overflow-wrap: anywhere;
 }
-/* Le geste que le second nomme (ticket 1521) : sous le terminal, à la place des choix, un bouton qui montre la commande
-   exacte, entière — ses espaces gardés, une commande longue passe à la ligne, rien n'est coupé ni caché. Le clic ouvre
-   dessous la confirmation commune, qui la redit entière avant « run it ». */
+/* Le geste que le second nomme (ticket 1521) : sous le terminal, à la place des choix, un bouton dit en mots ; la commande
+   exacte, entière — ses espaces gardés, une commande longue passe à la ligne, rien n'est coupé —, est au survol du bouton
+   et dans l'aide repliée de la confirmation commune que le clic ouvre, avant « run it ». */
+.geste-du-second > .survol {
+  display: block;
+}
 .geste-du-second button.geste {
   display: block;
   width: 100%;
@@ -6585,6 +6588,13 @@ button.recommande {
 }
 .geste-du-second .confirmation > p.titre {
   font-weight: 600;
+}
+.geste-du-second .replie > summary {
+  cursor: pointer;
+}
+.geste-du-second .replie > summary .resume {
+  margin-left: 8px;
+  color: var(--discret);
 }
 .geste-du-second .confirmation > button {
   align-self: flex-start;
