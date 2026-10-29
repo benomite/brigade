@@ -21,7 +21,7 @@ are in the specs, [`superpowers/specs/`](../superpowers/specs/) — here, only t
 | [`station-distante.md`](station-distante.md) | A remote station pulls its work, ordinary tickets on the chef's workstation |
 | [`station-cook.md`](station-cook.md) | File zones, what a cook loads, the harvest, the model's refusals, quota, the Max connection, seeing the station |
 | [`station-machine.md`](station-machine.md) | One station per machine (GitHub presence, pairing), the GitHub call budget, adding a project from the app |
-| [`station-navigateur.md`](station-navigateur.md) | Looking at an interface delivery in the browser |
+| [`station-navigateur.md`](station-navigateur.md) | Why the box no longer serves an interface delivery's page, and how to look at one now |
 | [`manager.md`](manager.md) | The manager and the tickets of the epic |
 | [`pass.md`](pass.md) | The pass: review, reviewer, decision, green once merged |
 | [`pass-merge.md`](pass-merge.md) | The `merge` grant, seeing the pass, what is left after a cook, what the pass does not guarantee |

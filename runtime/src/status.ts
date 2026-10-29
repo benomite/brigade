@@ -1,5 +1,5 @@
 // L'état de la cuisine, en lecture seule :
-//   npm --prefix runtime run status                          la photo : runtime, ce qui attend le chef, rail, cooks, serveurs, derniers événements
+//   npm --prefix runtime run status                          la photo : runtime, ce qui attend le chef, rail, cooks, derniers événements
 //   npm --prefix runtime run status -- --follow [<ticket>]   la photo, puis le journal en direct, jusqu'à Ctrl-C
 // `--days <N>` : la période des cartes entrées dans TODO, par type — product,
 // design, gesture —, comptée en jours jusqu'à maintenant (7 par défaut).

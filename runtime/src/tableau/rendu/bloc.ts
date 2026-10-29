@@ -143,10 +143,43 @@ export type AttributionPubliee = { ticket: number; station: string; run: string 
 export type ReponsePubliee = { demande: string; station: string; geste: string; run: string | null; le: string; reponse: { ok: boolean; [champ: string]: unknown } };
 export type DistantesPubliees = { attributions: AttributionPubliee[]; reponses: ReponsePubliee[] };
 
+// Ce que fait chaque cook du projet, publié pour une app qui n'a que GitHub
+// (#1844) : à la place du terminal du cook, qu'elle suivait par ssh. Une entrée
+// par ticket, son dernier cook — celui qui tourne, ou celui qui a fini depuis
+// moins de deux heures (tableau/activites/activites.ts). Une étape : un geste
+// du cook, tel que son relevé le dit au journal — `fait`, en mots du chef ;
+// `faitEn`, le même en anglais ; `cible`, le fichier ou la commande qu'il vise,
+// jamais ce qu'il y a dedans ; `depuis`, l'heure où il s'y est mis.
+export type EtapeDuCook = { fait: string; faitEn: string; cible: string | null; depuis: string };
+// `run` : le cook. `lanceLe` : son départ. `finiLe` : sa fin, nulle tant qu'il
+// tourne ; `fin` : comment il a fini (`ok`, `failed`, `guard`, `stop`,
+// `neutral`, `refused`, `interrupted`), nulle de même. `maintenant` : ce qu'il
+// fait, nul quand il a fini ou que son relevé ne le dit pas (une station
+// distante). `etapes` : ses derniers gestes, le plus ancien d'abord — le
+// dernier est `maintenant` tant qu'il tourne. `tours`, `tokens` : son dernier
+// relevé, ou sa fin. `pr` : la PR de sa livraison, dès que le journal la
+// connaît — celle du ticket qu'un cook renvoyé reprend, ou celle que sa
+// livraison ouvre ; nulle sans elle. `numero` : nul si son adresse ne le dit pas.
+export type ActiviteDuCook = {
+  ticket: number;
+  titre: string | null;
+  run: string;
+  station: string | null;
+  lanceLe: string;
+  finiLe: string | null;
+  fin: string | null;
+  maintenant: EtapeDuCook | null;
+  etapes: EtapeDuCook[];
+  tours: number | null;
+  tokens: number | null;
+  pr: { numero: number | null; url: string } | null;
+};
+
 // Ce qu'un corps trop long pour GitHub a retiré du bloc, dans l'ordre où il l'a
-// retiré (rendre.ts) : les relectures des livrés, les livraisons qui attendent,
-// les diffs des corrections, puis les faits et les lignes du rail entiers.
-export type Resserre = "faits.livres.relecture" | "faits.attend.livraison" | "faits.corrections.diff" | "faits" | "lignesDuRail";
+// retiré (rendre.ts) : les étapes passées des cooks, les relectures des livrés,
+// les livraisons qui attendent, les diffs des corrections, puis les faits et
+// les lignes du rail entiers.
+export type Resserre = "activites.etapes" | "faits.livres.relecture" | "faits.attend.livraison" | "faits.corrections.diff" | "faits" | "lignesDuRail";
 
 // `lu` : l'heure de la lecture de l'état — les durées que les lignes disent se
 // comptent jusqu'à elle. `bilans` : ce que le bloc `awaiting` de `status` dit
@@ -160,7 +193,10 @@ export type Resserre = "faits.livres.relecture" | "faits.attend.livraison" | "fa
 // `resserre` : ce que le corps a dû retirer du bloc pour tenir dans une issue —
 // absent quand rien ne l'a été. `distantes` : ce que la box a prêté aux
 // stations distantes et répondu à leurs demandes par GitHub — absent quand
-// aucune ne tient de ticket ni n'a rien demandé.
+// aucune ne tient de ticket ni n'a rien demandé. `activites` : ce que fait
+// chaque cook du projet (#1844), lu ici sans ssh (`lesActivitesDesCooks`) —
+// vide quand aucun ne tourne ni n'a fini depuis peu, absent d'un bloc écrit
+// avant lui.
 export type Tableau = {
   projet: string | null;
   lu: string;
@@ -172,6 +208,7 @@ export type Tableau = {
   lignesDuRail?: LigneDuRail[];
   fileDeStatus?: string[];
   distantes?: DistantesPubliees;
+  activites?: ActiviteDuCook[];
   resserre?: Resserre[];
 };
 
@@ -240,4 +277,22 @@ export function laFileDuSecond(corps: string): FileDuSecond {
     return [titre === "" ? premiere : `${titre.padEnd(10)} ${premiere}`, ...suite.map((ligne) => `  ${ligne}`)];
   });
   return { lue: true, lu: lu.tableau.lu, texte: [...fileDeStatus, "", ...etat].join("\n") };
+}
+
+// Ce que fait chaque cook du projet, lu dans le corps du tableau : ce qu'une
+// app montre d'un cook à la place de son terminal, avec GitHub seul (#1844).
+// `lu` : l'heure de la lecture de l'état — ce qui y dure se compte jusqu'à
+// elle. Un bloc d'une box d'avant cette publication n'est pas « aucun cook » :
+// la phrase dit de mettre la box à jour. Ce qui ne se lit pas est dit en une
+// phrase, comme `lireLeTableau` le dit.
+export type ActivitesDesCooks = { lues: true; lu: string; activites: ActiviteDuCook[] } | { lues: false; raison: string };
+
+export function lesActivitesDesCooks(corps: string): ActivitesDesCooks {
+  const lu = lireLeTableau(corps);
+  if (!lu.lu) return { lues: false, raison: lu.raison };
+  const { activites } = lu.tableau;
+  if (!Array.isArray(activites) || activites.some((activite) => !estObjet(activite) || typeof activite.ticket !== "number" || typeof activite.run !== "string")) {
+    return { lues: false, raison: "the board was written by a box that does not publish its cooks' activity yet: update the box" };
+  }
+  return { lues: true, lu: lu.tableau.lu, activites };
 }

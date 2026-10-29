@@ -1,4 +1,4 @@
-// Le bas de `status` est en anglais (#940) : `project`, `github`, `rail`, `cooks`, `consumed`, `servers`, `to launch`, `worktrees`,
+// Le bas de `status` est en anglais (#940) : `project`, `github`, `rail`, `cooks`, `consumed`, `worktrees`,
 // `drift`, les transcripts et `latest events`. Vérifié de trois façons : l'état de la box écrit avant la traduction
 // (test/fixtures/etat-d-avant-927/) montre les mêmes tickets, dans les mêmes états et le même ordre, sans qu'on
 // l'édite ; un état d'exemple qui fait paraître chaque ligne ne laisse passer aucun mot de la colonne « français » du
@@ -7,8 +7,6 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { direCommentLeVoirEn } from "../src/projections/service.ts";
-import { commentLeVoir } from "../src/ecran.ts";
 import { decrireEtat, faits, lireEtat } from "../src/etat.ts";
 import { direJaugeEn } from "../src/mesures.ts";
 import { SANS_SEUIL } from "../src/mesures.ts";
@@ -47,6 +45,20 @@ function lignesDepuis1834(lignes: readonly string[]): string[] {
         : ligne,
   );
 }
+
+// Depuis #1844, la box ne sert plus la page d'aucun worktree : le bas d'avant perd ses rubriques `serveurs`,
+// `à lancer` et `service`, et la ligne vide qui les fermait. L'état d'exemple n'écrit plus les huit événements
+// `service.*` qui les faisaient paraître : chaque événement écrit après eux a un numéro de huit de moins.
+const SERVICE_RETIRE = 8;
+function lignesDepuis1844(lignes: readonly string[]): string[] {
+  const debut = lignes.findIndex((ligne) => ligne.startsWith("serveurs "));
+  const service = lignes.findIndex((ligne) => ligne.startsWith("service "));
+  const sans = debut === -1 || service === -1 ? [...lignes] : [...lignes.slice(0, debut), ...lignes.slice(service + 2)];
+  const evenements = sans.indexOf("derniers événements");
+  return sans.map((ligne, rang) => (rang <= evenements ? ligne : ligne.replace(/^ {2}(\d+) {2}/, (_, seq: string) => `  ${Number(seq) - SERVICE_RETIRE}  `)));
+}
+const depuis1844 = <F extends { dernierEvenement: { seq: number } | null }>(avant: F): F =>
+  avant.dernierEvenement === null ? avant : { ...avant, dernierEvenement: { ...avant.dernierEvenement, seq: avant.dernierEvenement.seq - SERVICE_RETIRE } };
 
 test("sur l'état d'avant, `status` montre les mêmes tickets, dans les mêmes états et le même ordre, et les mêmes comptes", (t) => {
   const avant = lignesDepuis1834(readFileSync(join(ETAT_D_AVANT, "status-d-avant.txt"), "utf8").replace(/\n$/, "").split("\n"));
@@ -118,22 +130,6 @@ test("l'état d'exemple fait paraître chaque ligne du bas de `status`, et aucun
     "  #31  31-aa  opus / high  cook/31-aa in worktrees/31-aa  2 min of 1 h 00 · 12 turns of 100 · 184,000 tokens of 2,000,000 (reading 2 min ago) · no progress since 2 min · right now: reading runtime/src/etat.ts, since 2 min",
     "  manager  juge-9-cc  haiku / low  2 min of 1 h 00 · turns and tokens: no reading yet",
     "",
-    "servers    4 servers — an interface delivery, served from its worktree on the port of that worktree",
-    "  #17  worktrees/17-s  port 20017  starting since 2 min  cook/17-s  http://127.0.0.1:20017/rail",
-    "    screen: /rail (screen deduced from the touched files, not declared by the cook)",
-    "  #18  worktrees/18-s  port 20018  starting since 2 min  cook/18-s  no page to open: the screen “dashboard” is not a route",
-    "    screen: dashboard (declared by the cook)",
-    "  #19  worktrees/19-s  port 20019  starting since 2 min  cook/19-s  no page to open: the delivery names no screen, and touches none that the project declares",
-    "  #20  worktrees/20-s  port 20020  listening since 2 min  cook/20-s  http://127.0.0.1:20020/map",
-    "    screen: /map (declared by the cook)",
-    "    to look at: the button is blue",
-    "to launch  2 — the worktree of a delivery of an app that does not open in a browser, held so that it can be launched there: no page",
-    "  #24  worktrees/24-h  held since 2 min  cook/24-h  no page in a browser: launch the app on the delivery's worktree, `cd '/var/lib/brigade/etat/worktrees/24-h' && npm --prefix app start`, then open the screen “the map” there — to look at: the menu opens",
-    "    screen: the map (declared by the cook)",
-    "    to look at: the menu opens",
-    "  #26  worktrees/26-h  held since 2 min  cook/26-h  nothing to look at: the delivery names no screen, and touches none that the project declares",
-    "service    NOT DECLARED — the project does not say how it is served (delivery of ticket #50); no server is launched — since 2 min ago on box/claude",
-    "",
     "worktrees  3 not cleaned up after their cook — nothing in them is touched, the runtime comes back to them at every tick",
     "  #21  worktrees/21-n  cook/21-n  cleanup failed since 2 min — git worktree: fatal: lock held",
     "  #22  worktrees/22-n  cook/22-n  PR still open since 2 min — cook/22-n",
@@ -160,11 +156,11 @@ const chiffres = (ligne: string, francais = false) =>
   (sansSeparateurs(ligne, francais).match(/#\d+|\b[0-9a-f]{7}\b(?!-)|\bport \d+|\b\d+(?: h \d\d| min| [jd]\b| s\b)|\b\d+(?:\.\d+)?\b/g) ?? []).map((chiffre) => chiffre.replace(/ j$/, " d"));
 
 test("sur l'état d'exemple d'avant, chaque ligne du bas dit les mêmes tickets, ports, durées et nombres qu'avant — et la même ligne y répond, une à une", (t) => {
-  const avant = basDe(lignesDepuis1834(readFileSync(join(FIXTURE_940, "status-d-avant.txt"), "utf8").replace(/\n$/, "").split("\n")));
+  const avant = basDe(lignesDepuis1844(lignesDepuis1834(readFileSync(join(FIXTURE_940, "status-d-avant.txt"), "utf8").replace(/\n$/, "").split("\n"))));
   const apres = basDe(decrireEtat(lireEtat(exempleDuBas(t), LU_LE), LU_LE));
   assert.equal(apres.length, avant.length);
   const titres: Array<[string, string]> = [
-    ["rail", "rail"], ["cooks", "cooks"], ["consommé", "consumed"], ["serveurs", "servers"], ["à lancer", "to launch"], ["service", "service"],
+    ["rail", "rail"], ["cooks", "cooks"], ["consommé", "consumed"],
     ["worktrees", "worktrees"], ["dérive", "drift"], ["claude", "claude"], ["derniers événements", "latest events"],
   ];
   avant.forEach((ligne, rang) => {
@@ -183,7 +179,7 @@ test("sur l'état d'exemple d'avant, chaque ligne du bas dit les mêmes tickets,
 });
 
 test("`facts` de l'état d'exemple est identique à ce qu'il était avant la traduction : mêmes clés, mêmes valeurs", (t) => {
-  const avant = depuis1894(depuis1893(depuis1862(depuis1834(depuis1826(JSON.parse(readFileSync(join(FIXTURE_940, "facts.json"), "utf8")))))));
+  const avant = depuis1844(depuis1894(depuis1893(depuis1862(depuis1834(depuis1826(JSON.parse(readFileSync(join(FIXTURE_940, "facts.json"), "utf8"))))))));
   assert.deepEqual(JSON.parse(JSON.stringify(faits(lireEtat(exempleDuBas(t), LU_LE), LU_LE))), avant);
 });
 
@@ -193,18 +189,6 @@ test("l'état lu en anglais est celui que `facts` dit en français, mot pour mot
   assert.deepEqual((["waiting", "taken", "pass", "served", "86"] as const).map((etat) => [nomEtat(etat), nomEtatEn(etat)]), [
     ["en attente", "queued"], ["pris", "taken"], ["en pass", "in pass"], ["servi", "served"], ["86", "86"],
   ]);
-});
-
-test("comment voir l'écran d'une app à lancer : la phrase du journal, en français, est dite en anglais depuis sa commande et son écran", () => {
-  const ecran = { ecran: "/map", phrase: "the menu opens", source: "declare" as const };
-  const commentLeVoirFr = commentLeVoir({ worktree: "/tmp/wt/1-h", lancement: "npm --prefix app start", ecran });
-  assert.equal(
-    direCommentLeVoirEn({ commentLeVoir: commentLeVoirFr, ecran }),
-    "no page in a browser: launch the app on the delivery's worktree, `cd '/tmp/wt/1-h' && npm --prefix app start`, then open the screen “/map” there — to look at: the menu opens",
-  );
-  assert.equal(direCommentLeVoirEn({ commentLeVoir: null, ecran: null }), "nothing to look at: the delivery names no screen, and touches none that the project declares");
-  // Une phrase qui n'a pas la forme du runtime reste telle qu'elle est.
-  assert.equal(direCommentLeVoirEn({ commentLeVoir: "autre chose", ecran }), "autre chose");
 });
 
 test("une saturation et une dérive se disent en anglais, nombres compris", () => {
