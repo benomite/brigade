@@ -51,7 +51,15 @@ function cuisineDeBoutEnBout(t: TestContext, scenario: "livre" | "attend") {
     sansGates: true,
     env: { FAUX_COOK: scenario, FAUX_COOK_TEMOIN: temoin, FAUX_COOK_PIDS: pids, GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: "core.autocrlf", GIT_CONFIG_VALUE_0: "true" },
   });
-  const lancements = (): Lancement[] => readdirSync(temoin).map((nom) => JSON.parse(readFileSync(join(temoin, nom), "utf8")) as Lancement);
+  // Un témoin encore en cours d'écriture (vide ou coupé) n'est pas encore un lancement : le prochain tour de l'attente le relit entier.
+  const lancements = (): Lancement[] =>
+    readdirSync(temoin).flatMap((nom) => {
+      try {
+        return [JSON.parse(readFileSync(join(temoin, nom), "utf8")) as Lancement];
+      } catch {
+        return [];
+      }
+    });
   const pidsDeLArbre = () => readdirSync(pids).map((nom) => Number(nom.replace(/\.pid$/, "")));
   // Le run d'un lancement : le worktree que le journal lui donne.
   const runs = () => lieu.journal.duTicket(14).flatMap((e) => (e.type === "cook.launched" ? [String(e.payload.worktree).replace(/^worktrees\//, "")] : []));
