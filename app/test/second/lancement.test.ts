@@ -59,7 +59,7 @@ describe("le rôle du second, livré avec l'app", () => {
     assert.equal(relative(SRC, ROLE_DU_SECOND), join("second", "role.md"));
     const texte = readFileSync(ROLE_DU_SECOND, "utf8");
     // Les règles du rôle : la file lue à l'ouverture, pas de code, pas de merge, pas de secrets, et le relais d'un refus.
-    for (const regle of ["brigade <nom> status", "you write no application code", "You never merge a pull request", "`.env.local`", "BRIGADE_CLAUDE_TOKEN_FILE", "A refusal is said, in one sentence", "waiting set"]) {
+    for (const regle of ["brigade <name> status", "you write no application code", "You never merge a pull request", "`.env.local`", "BRIGADE_CLAUDE_TOKEN_FILE", "A refusal is said, in one sentence", "waiting for…"]) {
       assert.ok(texte.includes(regle), regle);
     }
     // Rien qui renvoie au skill du plugin : ni `/brigade:po`, ni `$ARGUMENTS`, ni le workflow que le skill Codex relit.
