@@ -2593,30 +2593,36 @@ section laid, `right now` is not repeated under it.
   cause is read (the alerts, what awaits you). It is gone at the first reading of `facts` that no longer carries it;
   without it — or from a runtime from before this field — the head of the rail is exactly what it was. A box that
   does not answer shows none: its last reading is no longer new.
-- **What is not on the rail yet** (`app/src/amont.ts`, #697). An empty rail does not
-  mean a finished project: at the head of the rail, a number — `23 upcoming` — counts the open issues of the
-  repository that the rail does not carry. It comes from `brigade <name> manager upstream`
-  (`docs/runtime/manager.md`, "En amont du rail"), read **for the displayed project only**, once a
-  minute: the box reads GitHub each time. A click expands the list, **grouped by what is
-  happening to them**, in the box's words:
-  - `not yet read by the manager`; `epic, not yet split`; `awaiting your answer — it is also in
-    TODO`; `set aside by the manager` (with its reason in one line); `off the rail — still
-    open` (`fire` removed, or `served-elsewhere` set);
-  - then three passages, when there are any: `on its way to the rail` (it carries `fire`, or the
-    manager put it there), `epic split — its tickets carry the work`, `served — its issue is still open`.
+- **What is left before the rail** (`app/src/amont.ts`, `app/src/vue/avant-le-rail.js`, #1836). An empty rail does
+  not mean a finished project. At the head of the rail, next to the 24-hour histogram, a **small stacked bar** shows
+  the open issues of the repository that are not on the rail yet. It comes from the Kitchen board, like the rest of the
+  rail view (`avantLeRail`, `docs/runtime/tableau-de-cuisine.md`): with only a GitHub connection, the bar and its
+  column are right. The box files each issue in one of five states, and the bar draws them in this order, one part
+  each, its length in proportion to its count:
+  - **not read yet** (grey): no calibration and no decision of the manager;
+  - **refused as incomplete** (red): the manager refused it as an incomplete ticket — the second must rewrite it;
+  - **epic, not split yet** (blue): it carries `epic`, or the manager judged it one, or its split is under way;
+  - **ready, not fired** (green): calibrated (`model:`, `effort:`), or put on the rail by the manager, without `fire`;
+  - **set aside** (hatched): it carries `hors-cuisine`, or the manager left it to the chef (a question, a decision
+    issue, `blocked-on-human`…).
 
-  Each issue carries its number, its title and what the box says of it, word for word. **A click opens it
-  on its sheet**, over the rail — its title, its priority (the `prio:` the box gives), the link
-  to the issue; that of its Awaiting you card, if it has one. **Nothing on the rail** — no
-  card outside Served —, the rail says so in plain words: `nothing on the rail, nothing upcoming` when
-  there is nothing upstream either; otherwise how many are upcoming, group by group, and what the manager
-  does with them, according to its state read (`manager`): on, it reads them at every wake-up; off, it reads
-  none and nothing new comes in; not read, the app says so instead of guessing. **The app deduces
-  nothing there**: it counts what the box lists and files each issue under the word it carries.
-  A failed reading — box not reached, GitHub not read by the box, a runtime from before `upstream`
-  ("update brigade on the box") — never gives a number: the button says `upcoming: not read`,
-  the expanded list says why, and it is not "nothing upcoming".
-- **How fast tickets are being served (#1811, `app/src/cadence.ts`)**: on the same line as `23 upcoming`, a small
+  An issue served and still open, a split epic whose tickets carry the work, and an issue that carries `fire` are not
+  counted: they are not before the rail any more. **The bar has no text**: on hover, on the keyboard or on a tap, it
+  says its counts — `7 issues before the rail — 2 not read yet · 1 refused as incomplete · …`. **A click unfolds the
+  Backlog column**, to the left of "On the rail", and the row scrolls back to show it; a second click on the bar, or
+  `fold` in the column's title, folds it again — a new reading does not fold it. The column holds **the rail's
+  cards**, grouped by state in the bar's order, each group sorted by `prio:` (none last, the oldest first): the
+  number opens the issue on GitHub, the card says in one line what holds it, and a click opens its sheet over the
+  rail — its title, its priority, the link to the issue. **Nothing on the rail** — no card outside Served —, the rail
+  says so in plain words: `nothing on the rail, nothing before it` when there is nothing before it either; otherwise
+  how many issues, state by state, and what the manager does with them, according to its state read (`manager`): on,
+  it reads them at every wake-up; off, it reads none and nothing new comes in; not read, the app says so instead of
+  guessing. **The app deduces nothing there**: it counts what the board lists and files each issue under the word it
+  carries. A board that is fresh but does not carry the list (a box from before #1836, or one that has not read the
+  open issues yet) shows no bar at all — never "not read". A board that had to leave the list out to fit in an issue,
+  or a list that cannot be read, gives an empty bar outlined in dashes: its hover and the unfolded column say why, and
+  it is not "nothing before the rail".
+- **How fast tickets are being served (#1811, `app/src/cadence.ts`)**: on the same line as the bar of what is before the rail, a small
   histogram of the last 24 hours — one line high, one thin bar per hour, the hour in progress on the right. Each bar is
   stacked: the tickets **served** in that hour in green at the bottom, the **failed** ones in red on top (a pass that came
   back red, or a cook a guardrail stopped). An hour with nothing is an empty slot on a faint baseline: a run of empty
@@ -2645,7 +2651,7 @@ section laid, `right now` is not repeated under it.
   `CPU 990 s / 400 s (default)`. A budget you have not set is the default, and says `(default)`. When the runtime judges
   the run over budget, the block takes a red edge and the mark `over budget`; when the kitchen opened a ticket on its own
   to bring the gates back under it, a line says `the kitchen opened #31 on its own to bring the gates back under budget`,
-  and the number opens that ticket's sheet — with its title and its issue when the rail or what is upcoming carries it.
+  and the number opens that ticket's sheet — with its title and its issue when the rail or what is before it carries it.
   No run yet: `–` against the budget, and `no run yet`. A run cut before its end has its CPU `not measured`. Everything is
   read in `facts` (`coutDesGates`, `docs/runtime/etat-et-mesures.md`): the app judges nothing, and draws nothing from a
   runtime from before that field.

@@ -245,3 +245,29 @@ test("la rubrique `switch` est sur le tableau, posée ou non dans le journal", (
   assert.equal(eteint.length, 1);
   assert.match(eteint[0]?.lignes[0] ?? "", /^OFF since /);
 });
+
+test("ce qui est avant le rail (#1836) se resserre avant les faits : ce qui retient chaque issue d'abord, puis les issues entières", (t) => {
+  const { tableau } = projet(t);
+  const issue = (ticket: number, dit: string) => ({ ticket, titre: `Ticket ${ticket}`, priorite: null, etat: "non-lue", dit });
+  // Ce qui retient chaque issue, seul, fait déborder : il part, les issues restent avec leur état.
+  const longues = { ...tableau, avantLeRail: { lu: LU_LE.toISOString(), issues: Array.from({ length: 40 }, (_, rang) => issue(100 + rang, "d".repeat(2_000))) } };
+  const corps = rendreLeTableau(longues, GENERE_LE);
+  assert.ok(corps.length <= LONGUEUR_MAX_DU_CORPS, `${corps.length}`);
+  const lu = lireLeTableau(corps);
+  assert.ok(lu.lu);
+  assert.deepEqual(lu.tableau.resserre, ["faits.livres.relecture", "faits.corrections.diff", "avantLeRail.dit"]);
+  assert.deepEqual(lu.tableau.avantLeRail?.issues.map(({ ticket, etat, dit }) => [ticket, etat, dit]), longues.avantLeRail.issues.map(({ ticket }) => [ticket, "non-lue", ""]));
+  assert.deepEqual(lu.tableau.faits, (() => {
+    const lesFaits = tableau.faits as FaitsDuTableau;
+    return { ...lesFaits, livres: lesFaits.livres.map(({ relecture: _r, ...livre }) => livre), corrections: lesFaits.corrections?.map(({ diff: _d, ...correction }) => correction) };
+  })());
+  assert.equal(rendreLeTableau(lu.tableau, GENERE_LE), corps);
+
+  // Leurs titres même débordent : les issues partent entières, le rail reste.
+  const titrees = { ...tableau, avantLeRail: { lu: LU_LE.toISOString(), issues: Array.from({ length: 40 }, (_, rang) => ({ ...issue(100 + rang, ""), titre: "t".repeat(2_000) })) } };
+  const sans = lireLeTableau(rendreLeTableau(titrees, GENERE_LE));
+  assert.ok(sans.lu);
+  assert.deepEqual(sans.tableau.resserre, ["faits.livres.relecture", "faits.corrections.diff", "avantLeRail"]);
+  assert.equal(sans.tableau.avantLeRail, undefined);
+  assert.notEqual(sans.tableau.faits, undefined);
+});

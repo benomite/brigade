@@ -407,7 +407,7 @@ export type Pont = {
   // Le chef a cliqué la notification de l'urgence d'un projet (notification.ts) : la fenêtre est
   // déjà au premier plan, le projet s'ouvre sur sa ligne d'urgence et son geste.
   surUrgence(recevoir: (projet: string) => void): void;
-  // Ce qui n'est pas encore sur le rail du projet affiché (amont.ts) : son nombre et sa liste, ou
+  // Ce qui est avant le rail du projet affiché (amont.ts) : ses issues par état — la barre et la colonne Backlog —, ou
   // pourquoi rien n'est compté — et ce qui se lit à la place du rail quand il est vide.
   surAmont(recevoir: (vu: VuAmont) => void): void;
   // L'installation d'un projet a changé : une lecture de la box, une action partie ou revenue.

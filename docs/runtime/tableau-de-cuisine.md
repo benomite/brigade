@@ -47,6 +47,7 @@ The code is `runtime/src/tableau/`: `rendu/donnees.ts` builds the board from the
 | `fileDeStatus` | **The project's queue, for the second** (#1843): the `awaiting` block of `status`, word for word, one line per entry, from its head line to `end awaiting`, both included — see below; absent from a block written before it |
 | `distantes` | **What the box lent the remote stations, and its answers to the requests they made through GitHub** (#1793), see below; absent when no remote station holds a ticket or asked anything |
 | `activites` | **What each cook of the project is doing** (#1844), see below; empty when no cook runs or finished lately, absent from a block written before it |
+| `avantLeRail` | **What is before the rail** (#1836): the open issues the rail does not carry yet, each in one of five states, see below; absent from a block written before it, or while the box has not read the open issues yet |
 | `resserre` | What the body had to remove from the block to fit in an issue, see below; absent when nothing was |
 
 `faits` and `lignesDuRail` are absent from a block written before #1693: the reader then draws
@@ -79,7 +80,7 @@ without them, as it does for a runtime that does not give a field.
 | `stations[]` | `station`, `distante`, `plafond`, `satureeDepuis`, `saturation`, `retenueDepuis`, `deconnecteeDepuis`, `quotaJusqua` |
 | `plafonds` | A cook's caps: `tokens`, `dureeMs`, `inactiviteMs`; `null` until a runtime set them |
 | `consommation` | `enCours`, and `fenetres` by sliding window (`heures`): `runs`, `reviews`, `judgments`, `turns`, `tokens` |
-| `rubriques[]` | The state as `status` writes it, section by section: `titre` and `lignes`. Without what only the box can read (worktrees, transcripts, the latest events); `rail` gives only its count — the tickets are in `faits` and `lignesDuRail`. The `switch` section is always there (#1770): the project switch, `ON …` or `OFF …`; while no runtime has set it in the log, `ON — not set in the log yet`, because nothing holds the kitchen. The board does not carry what is upcoming (`manager upstream`): an app shows no count rather than a guess |
+| `rubriques[]` | The state as `status` writes it, section by section: `titre` and `lignes`. Without what only the box can read (worktrees, transcripts, the latest events); `rail` gives only its count — the tickets are in `faits` and `lignesDuRail`. The `switch` section is always there (#1770): the project switch, `ON …` or `OFF …`; while no runtime has set it in the log, `ON — not set in the log yet`, because nothing holds the kitchen. What is before the rail is in `avantLeRail`, not here |
 
 ### `faits` — what the rail view draws
 
@@ -188,6 +189,39 @@ started on it) — the shape of `faits.rail[].activite`.
 The board publishes no page of a worktree, and the box serves none (#1844): an app follows a cook
 here and through its PR.
 
+### `avantLeRail` — what is left before the rail
+
+What the project still has to do once the rail is empty (#1836): the rail view draws it as a stacked bar
+next to its 24-hour histogram, unfolding into a Backlog column. Before each refresh, the box reads the
+repository's **open issues** again, under their ETag — unchanged, GitHub answers 304 and counts nothing —, with
+a GitHub of its own (the manager's poll is not shared: a poll confirmed here would hide a change from it). A
+reading that fails is said once in the service log, and the board keeps the last list read, with its time; never
+read, `avantLeRail` is absent.
+
+`{ lu, issues }`: `lu` is when the box read the open issues. `issues`: every open issue of the repository that
+the rail does not carry and that is not on its way to it, PRs left out, in the order the manager reads them —
+`prio:1` first, none last, the oldest first at equal priority. Each: `ticket`, `titre`, `priorite` (its `prio:`,
+`null` without one), `etat` and `dit` — what holds it, in one line, the words of `manager upstream`
+([`manager.md`](manager.md), "Upstream of the rail") or, for the two cases where those say nothing of it, its
+own. The address of the issue is `https://github.com/<repository>/issues/<ticket>`.
+
+Not listed: an issue served and still open, a split epic whose tickets carry the work, an issue that carries
+`fire` (the rail takes it at its next poll). `etat` is one word of a closed list, in the order the view
+draws them — the first that holds, in this order of precedence:
+
+| Precedence | `etat` | The issue… | Read from |
+|---|---|---|---|
+| 1 | `mise-de-cote` | **is set aside**: it carries `hors-cuisine` — the chef said this kitchen does not serve it | its labels |
+| 2 | `epique` | **is an epic, not split yet**: it carries `epic`, the manager judged it one, or its split is in progress or awaits an answer | its labels, the log |
+| 3 | `incomplete` | **was refused as incomplete**: the manager's last decision refused it as an incomplete ticket — the second must rewrite it | the manager's decisions |
+| 3 | `mise-de-cote` | was refused as a question or a decision issue: the manager leaves it to the chef | the manager's decisions |
+| 4 | `prete` | **is ready, not fired**: calibrated (`model:` and `effort:`), put on the rail by the manager, born of a split, or off the rail — and no `fire` | its labels, the log |
+| 5 | `mise-de-cote` | was set aside by the manager's code: `blocked-on-human`, `question`, the roadmap, an untrusted author… | the manager's decisions |
+| 6 | `non-lue` | **was not read yet**: no calibration and no decision of the manager, or its judgment could not be read | the log |
+
+The view orders the five states as the chef's list does: `non-lue`, `incomplete`, `epique`, `prete`,
+`mise-de-cote`. The code is `avantLeRail` in `runtime/src/amont.ts`.
+
 ### `resserre` — when the body is too long for GitHub
 
 GitHub refuses an issue body over 65,536 characters. Too long, the body first shortens its readable
@@ -198,16 +232,19 @@ in this order, until it fits — each step that had something to remove is named
 2. `faits.livres.relecture` — the reviews of the served tickets;
 3. `faits.attend.livraison` — what the pass recorded of the deliveries that wait;
 4. `faits.corrections.diff` — the proposed corrections' diffs;
-5. `faits`, `lignesDuRail` — the rail view's facts and lines, whole.
+5. `avantLeRail.dit` — what holds each issue before the rail: each `dit` becomes `""`, the issues and their state stay;
+6. `avantLeRail` — the issues before the rail, whole;
+7. `faits`, `lignesDuRail` — the rail view's facts and lines, whole.
 
 A removed field is **absent**, not `null`: `null` keeps its own meaning (no readable review, for
 instance). What awaits the chef (`file`) and the kitchen's state (`cuisine`) are never removed. An
 app that finds `faits` named in `resserre` says the rail could not be published, rather than an
-empty rail.
+empty rail; one that finds `avantLeRail` there says what is before the rail could not be published, rather
+than "nothing".
 
 ## What changes the body
 
-The box rewrites the body only when what it says changes. The reading time (`lu`, `faits.lu`), the
+The box rewrites the body only when what it says changes. The reading time (`lu`, `faits.lu`, `avantLeRail.lu`), the
 runtime's last tick (`cuisine.runtime.dernierTick`, `faits.dernierTick`, its line in `rubriques`),
 the log's last event (`faits.dernierEvenement`) and the durations the lines give ("for 4 min") are
 not a change: an event that changes nothing else does not rewrite the body, and `faits.dernierEvenement`

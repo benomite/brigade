@@ -108,6 +108,7 @@ import { poserLesAppels } from "./appels-de-la-station.js";
 import { EXPLIQUE as AIDE_DU_PLAFOND, poserLePlafond as plafondDeCalibrage, resumeDuPlafond, TITRE as TITRE_DU_PLAFOND } from "./plafond-de-calibrage.js";
 import { poserLActivite } from "./activite-cuisine.js";
 import { cookDuTicket, poserLActiviteDuCook } from "./activite-du-cook.js";
+import { poserBarre } from "./avant-le-rail.js";
 import { poserAge, poserCadence, poserEssais } from "./cadence.js";
 import { GATES_HORS_BUDGET, poserLeJourDesGates, poserLesGatesDeCooks } from "./cout-des-gates.js";
 import { AIDE as AIDE_DES_ROLES, poserLesRoles, resumeDesRoles, TITRE as TITRE_DES_ROLES } from "./roles-cuisine.js";
@@ -1040,13 +1041,16 @@ const activitesPubliees = new Map();
 // redessine à chaque lecture, et ce qu'il lit ne se replie pas sous ses yeux.
 /** @type {Set<string>} */
 const remarquesDepliees = new Set();
-// Ce qui n'est pas encore sur le rail, par projet, tel que le process principal l'a rangé (amont.ts) :
-// la dernière lecture de `manager upstream` du projet affiché.
+// Ce qui est avant le rail, par projet, tel que le process principal l'a rangé (amont.ts) : la dernière lecture que le
+// tableau de la cuisine en donne, pour le projet affiché.
 /** @type {Map<string, import("../amont.ts").Vu>} */
 const amonts = new Map();
-// Les projets dont le chef a déplié la liste de ce qui est à venir : une lecture neuve ne la replie pas.
+// Les projets dont le chef a déplié la colonne Backlog : une lecture neuve ne la replie pas.
 /** @type {Set<string>} */
 const amontsDeplies = new Set();
+// La barre de ce qui est avant le rail, telle que la dernière tête du rail l'a posée.
+/** @type {HTMLElement | undefined} */
+let barreDuRail;
 // La fiche ouverte par-dessus le rail : son projet, la carte cliquée — telle que la dernière lecture
 // la donne —, et son bon, qui reprend le clavier quand elle se ferme. Aucune : le rail est seul.
 /** @type {{ projet: Projet, carte: import("../faits.ts").Carte, retour: HTMLElement } | undefined} */
@@ -4236,44 +4240,42 @@ function poserArreter(projet, arretee) {
   poserLesGroupes();
 }
 
-// En tête du rail, ce qui n'est pas encore dessus (amont.ts) : un nombre — « 23 upcoming » — qui
-// déplie la liste, et, quand aucun ticket n'est sur le rail, ce qui est en amont et ce que le manager
-// en fait. Tout est déjà dit par le process principal : la vue pose. Une lecture ratée ne donne
-// jamais de nombre : le bouton dit qu'elle n'a pas été lue, et la liste dépliée dit pourquoi.
-/** @param {Projet} projet @param {import("../faits.ts").Rail} lu @param {import("../faits.ts").Carte[]} cartes */
-function poserAmont(projet, { aucunTicket, cadence }, cartes) {
+// En tête du rail, ce qui est avant lui (amont.ts, ticket 1836) : une petite barre empilée, une part par état, les
+// comptes au survol (avant-le-rail.js), à côté de l'histogramme des 24 heures ; un clic déplie la colonne Backlog, un
+// autre la replie. Quand aucun ticket n'est sur le rail, une phrase dit ce qui est avant lui et ce que le manager en
+// fait. Tout est déjà dit par le process principal : la vue pose.
+/** @param {Projet} projet @param {import("../faits.ts").Rail} lu */
+function poserAmont(projet, { aucunTicket, cadence }) {
   const vu = amonts.get(projet.nom);
-  const commande = geste(projet, "manager upstream");
   const tete = document.createElement("div");
   tete.className = "amont";
+  const barre = poserBarre(document, vu, {
+    deplie: amontsDeplies.has(projet.nom),
+    basculer: () => {
+      const deplier = !amontsDeplies.has(projet.nom);
+      if (deplier) amontsDeplies.add(projet.nom);
+      else amontsDeplies.delete(projet.nom);
+      poserRail(projet);
+      // Redessinée, la barre garde le clavier — et sa bulle reste ouverte, comme au toucher.
+      barreDuRail?.focus?.();
+      // Dépliée, la colonne est à gauche de « On the rail » : la rangée revient à son début pour la montrer.
+      const rangee = rangees.get(projet.nom);
+      if (deplier && rangee !== undefined) rangee.scrollLeft = 0;
+    },
+  });
+  // La bulle du survol enveloppe la barre : c'est son bouton qui prend le clavier.
+  barreDuRail = /** @type {HTMLElement | undefined} */ (barre?.children[0]);
+  if (barre !== null) tete.append(barre);
   // Sur la même ligne, à quelle allure la cuisine sert : l'histogramme des 24 dernières heures (cadence.js, ticket 1811).
   const graphe = poserCadence(document, cadence);
-  // Le haut du rail reste léger (ticket 623) : la commande lue se dit au survol, pas en tête.
-  if (vu === undefined) {
-    const lecture = bloc("span", "upcoming: being read…");
-    lecture.title = `first read of ${commande} in progress`;
-    tete.append(lecture);
-  } else if (!("nonPublie" in vu)) {
-    const deplie = amontsDeplies.has(projet.nom);
-    const nombre = bouton("compte" in vu ? `${vu.compte} upcoming` : "upcoming: not read", () => {
-      if (amontsDeplies.has(projet.nom)) amontsDeplies.delete(projet.nom);
-      else amontsDeplies.add(projet.nom);
-      poserRail(projet);
-    });
-    nombre.className = "nombre";
-    nombre.ariaExpanded = String(deplie);
-    nombre.title = "compte" in vu ? `the open issues that are not on the rail, and what happens to each — from \`${commande}\`, read at ${heureDe(vu.a)}` : vu.sans;
-    tete.append(nombre);
-  }
   if (graphe !== null) tete.append(graphe);
-  // Rien sur le rail : la phrase dit ce qui est en amont — elle ne laisse pas croire le projet fini.
+  // Rien sur le rail : la phrase dit ce qui est avant lui — elle ne laisse pas croire le projet fini.
   if (aucunTicket === true) {
-    const vide = bloc("p", vu?.vide ?? "nothing on the rail — what is upcoming is being read…");
+    const vide = bloc("p", vu?.vide ?? "nothing on the rail — what is before it is being read…");
     vide.className = "vide";
     tete.append(vide);
   }
-  if (vu === undefined || "nonPublie" in vu || !amontsDeplies.has(projet.nom)) return [tete];
-  return [tete, listeAmont(projet, vu, cartes)];
+  return [tete];
 }
 
 // La tête du rail, la cuisine oisive avec des cartes dessus (ticket 1863) : une panne, en rouge, au-dessus de tout le
@@ -4306,45 +4308,47 @@ function teteDuRail(projet) {
   return [tete];
 }
 
-// La liste dépliée : chaque issue sous ce qui lui arrive, son numéro, son titre, ce que la box en dit.
-// Un clic ouvre sa fiche par-dessus le rail — celle de sa carte, si elle en a une dans TODO.
-/** @param {Projet} projet @param {import("../amont.ts").Vu} vu @param {import("../faits.ts").Carte[]} cartes */
-function listeAmont(projet, vu, cartes) {
-  const liste = document.createElement("section");
-  liste.className = "amont-liste";
-  liste.ariaLabel = "upcoming: the open issues not on the rail";
-  if ("nonPublie" in vu) return liste;
+// La colonne Backlog, dépliée par la barre, à gauche de « On the rail » : les cartes du rail, groupées par état dans
+// l'ordre de la barre, chacune triée par `prio:` — son numéro ouvre son issue, sa ligne dit ce qui la retient, un clic
+// ouvre sa fiche. Une lecture ratée y dit pourquoi, jamais « rien ».
+/** @param {Projet} projet @param {(cartes: import("../faits.ts").Carte[]) => HTMLElement} bons */
+function colonneBacklog(projet, bons) {
+  const vu = amonts.get(projet.nom);
+  if (vu === undefined || "nonPublie" in vu || !amontsDeplies.has(projet.nom)) return [];
+  const colonne = document.createElement("section");
+  colonne.className = "colonne backlog";
+  colonne.ariaLabel = "Backlog: the open issues before the rail";
+  colonne.dataset.ton = "gris";
+  const forme = formeDe("gris");
+  if (forme !== undefined) colonne.dataset.forme = forme;
+  const tete = document.createElement("h4");
+  const replier = bouton("fold", () => {
+    amontsDeplies.delete(projet.nom);
+    poserRail(projet);
+  });
+  replier.className = "replier";
+  replier.title = "fold the Backlog column";
+  const compte = bloc("span", "compte" in vu ? String(vu.compte) : "?");
+  compte.className = "compte";
+  tete.append(bloc("span", "Backlog"), compte, replier);
+  colonne.append(tete);
   if ("sans" in vu) {
     const dit = bloc("p", vu.sans);
     dit.className = "sans";
-    liste.append(dit);
-    return liste;
+    colonne.append(dit);
+    return [colonne];
   }
-  if (vu.groupes.length === 0) liste.append(bloc("p", "nothing upcoming: every open issue of the repository is on the rail"));
+  if (vu.groupes.length === 0) colonne.append(bloc("p", "nothing before the rail: every open issue of the repository is on it"));
   for (const { etat, nom, issues } of vu.groupes) {
     const groupe = document.createElement("section");
+    groupe.className = "groupe";
     groupe.dataset.etat = etat;
-    const titre = document.createElement("h4");
+    const titre = document.createElement("h5");
     titre.append(bloc("span", nom), bloc("span", String(issues.length)));
-    const lignes = document.createElement("ol");
-    lignes.append(
-      ...issues.map((issue) => {
-        const ligne = document.createElement("li");
-        ligne.className = "bon";
-        const carte = cartes.find(({ ticket }) => ticket === issue.ticket) ?? { ticket: issue.ticket, titre: issue.titre, ouvrable: issue.ouvrable, attendu: false, attend: [], dit: [], fiche: issue.fiche };
-        const ouvrir = bouton("", () => ouvrirFiche(projet, carte, ouvrir));
-        ouvrir.title = `open the sheet of #${issue.ticket}`;
-        ouvrir.append(exact("span", `#${issue.ticket}`), bloc("span", issue.titre));
-        const dit = bloc("small", issue.dit);
-        dit.title = issue.dit;
-        ligne.append(ouvrir, dit);
-        return ligne;
-      }),
-    );
-    groupe.append(titre, lignes);
-    liste.append(groupe);
+    groupe.append(titre, bons(issues.map(({ carte }) => carte)));
+    colonne.append(groupe);
   }
-  return liste;
+  return [colonne];
 }
 
 // La ligne de la lecture brute de `station`, repliée en bas de Cooks.
@@ -4698,12 +4702,16 @@ function poserRail(projet) {
       return colonne;
     }),
   );
-  // Rien d'autre n'est lu à neuf : ni ce qui est en amont, ni les corrections.
+  // Rien d'autre n'est lu à neuf : ni ce qui est avant le rail, ni les corrections.
   if (muet !== undefined) return poser(...marque, ...(cuisine ? [] : [grille]));
+  // Dépliée par la barre, la colonne Backlog vient en premier, à gauche de « On the rail ».
+  if (!cuisine) grille.prepend(...colonneBacklog(projet, bons));
   // La cuisine, en marche ou à l'arrêt, est une ligne de Settings (ticket 1700).
   poserArreter(projet, tenu.tableau.arretee);
   // La fiche ouverte suit la lecture : elle dit ce que la dernière dit de son ticket.
-  if (ouverte !== undefined) suivreFiche(lesCartes, posees);
+  // Celle d'une issue avant le rail suit aussi ce qu'en dit la dernière lecture.
+  const avant = amonts.get(projet.nom);
+  if (ouverte !== undefined) suivreFiche([...lesCartes, ...(avant !== undefined && "groupes" in avant ? avant.groupes.flatMap(({ issues }) => issues.map(({ carte }) => carte)) : [])], posees);
   // Un formulaire « waiting for… » dont le ticket n'est plus dans TODO se referme : il n'a plus de carte où se poser.
   for (const cle of formulairesDAttente.keys()) {
     const [nom, numero] = cle.split("#");
@@ -4721,7 +4729,7 @@ function poserRail(projet) {
       : [
           ...panneDuRail(tenu.tableau),
           ...teteDuRail(projet),
-          ...poserAmont(projet, tenu.tableau.rail, lesCartes),
+          ...poserAmont(projet, tenu.tableau.rail),
           ...poserLesCorrections(projet, tenu.tableau.rail.corrections),
           ...poserLesProfils(projet, tenu.tableau.rail.profils),
         ]),
@@ -4975,7 +4983,7 @@ function ouvrirFicheDeCout(nom, ticket, retour) {
   const enAmont = amont === undefined || !("groupes" in amont) ? undefined : amont.groupes.flatMap(({ issues }) => issues).find((issue) => issue.ticket === ticket);
   const carte =
     carteSurLeRail(nom, ticket) ??
-    (enAmont === undefined ? undefined : { ticket, titre: enAmont.titre, ouvrable: enAmont.ouvrable, attendu: false, attend: [], dit: [], fiche: enAmont.fiche }) ??
+    enAmont?.carte ??
     { ticket, ouvrable: false, attendu: false, attend: [], dit: [], fiche: { titre: sans, priorite: sans, issue: sans } };
   ouvrirFiche(projet, carte, retour);
 }

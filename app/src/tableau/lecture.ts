@@ -9,7 +9,7 @@
 // Ce qui ne se lit pas le dit, jamais une file vide : GitHub qui ne répond pas ou refuse, le dépôt sans tableau, le
 // tableau sans bloc ou d'une version que l'app ne lit pas — chaque fois un échec, et sa raison en une phrase, que l'app
 // montre telle quelle.
-import { lesActivitesDesCooks, lireLeTableau, OUVERTURE_DU_BLOC, type ActiviteDuCook, type CuisineDuTableau, type FaitsPublies, type GesteDuTableau, type LigneDeLaFile, type LigneDuRail, type Resserre } from "../../../runtime/src/tableau/rendu/bloc.ts";
+import { lesActivitesDesCooks, lireLeTableau, OUVERTURE_DU_BLOC, type ActiviteDuCook, type AvantLeRailPublie, type CuisineDuTableau, type FaitsPublies, type GesteDuTableau, type LigneDeLaFile, type LigneDuRail, type Resserre } from "../../../runtime/src/tableau/rendu/bloc.ts";
 import type { AppelGitHub, ReponseGitHub } from "./client.ts";
 
 // Le label par lequel la box retrouve son tableau dans le dépôt (runtime/src/tableau/publication/publier.ts,
@@ -52,6 +52,9 @@ export type TableauLu = {
   // Ce que fait chaque cook du projet (#1844), lu par le lecteur que le runtime partage (`lesActivitesDesCooks`) : ce
   // que la fiche d'un ticket montre de son cook (#1846). Absent d'un bloc écrit par une box qui ne le publie pas encore.
   activites?: ActiviteDuCook[];
+  // Ce qui est avant le rail (#1836) : les issues ouvertes que le rail ne porte pas encore, chacune dans son état — la
+  // barre de la vue du rail et sa colonne Backlog (amont.ts). Absent d'un bloc qui ne le porte pas.
+  avantLeRail?: AvantLeRailPublie;
 };
 // `horsLigne` : GitHub n'a pas été joint du tout — pas de réseau, une seule cause (#1818). Ce n'est pas une panne : la vue
 // garde le dernier rail lu, et le dit hors ligne. Un GitHub joint qui refuse, ou un tableau illisible, en est une.
@@ -144,6 +147,7 @@ export async function lireLeTableauDuDepot({ depot, appeler, maintenant = () => 
     etatLuLe: tableau.lu,
     ...(Array.isArray(tableau.resserre) ? { resserre: tableau.resserre } : {}),
     ...(activites.lues ? { activites: activites.activites } : {}),
+    ...(typeof tableau.avantLeRail === "object" && tableau.avantLeRail !== null && Array.isArray(tableau.avantLeRail.issues) ? { avantLeRail: tableau.avantLeRail } : {}),
   };
 }
 

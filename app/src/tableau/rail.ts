@@ -9,9 +9,12 @@
 //   - `facts`   l'objet `faits` du bloc, celui que `facts` rend, mot pour mot ;
 //   - `status`  ses rubriques, le bloc `awaiting` refait de la file, et la ligne `rail` suivie de la ligne de chaque
 //               ticket (`lignesDuRail`) — ce que `status` écrit, sans ce qui ne se lit que sur la box ;
-//   - `manager` la ligne de l'interrupteur du projet (`switch` de `status`), que le manager suit (#1406).
-// Ce que le tableau ne porte pas (`manager upstream`, une commande composée d'après d'autres sorties) n'est pas lu :
-// la lecture échoue en `pasPublie`, et la vue n'en dit rien — ni nombre, ni « pas lu » (#1770), jamais un rail vide.
+//   - `manager` la ligne de l'interrupteur du projet (`switch` de `status`), que le manager suit (#1406) ;
+//   - `manager upstream` ce qui est avant le rail (`avantLeRail`, #1836), dans la forme de la sortie de la commande —
+//               chaque issue dans l'un des cinq états que le tableau publie, son adresse déduite du dépôt.
+// Ce que le tableau ne porte pas (ce qui est avant le rail, d'une box d'avant lui ; une commande composée d'après
+// d'autres sorties) n'est pas lu : la lecture échoue en `pasPublie`, et la vue n'en dit rien — ni nombre, ni « pas lu »
+// (#1770), jamais un rail vide.
 //
 // La veille du tableau (`ouvrirVeilleDuTableau`) a l'usage de celle des box : ce qui est affiché, et les commandes à y
 // lire. Ses lectures passent par `tenirLecturesDuTableau`, qui ne demande à GitHub qu'une lecture à la fois par projet,
@@ -26,6 +29,7 @@ import type { LectureDuTableauDuDepot, TableauLu } from "./lecture.ts";
 export const FAITS = "facts";
 export const STATUS = "status";
 export const MANAGER = "manager";
+export const AMONT = "manager upstream";
 
 // Une lecture, de la forme de celle de la veille des box (box.ts, `Lecture`) : des sorties, ou l'échec de la lecture du
 // tableau — `duTableau` la distingue d'une commande en échec, et `erreur` est sa raison en une phrase.
@@ -111,6 +115,14 @@ export function managerDuTableau(lu: Pick<TableauLu, "cuisine">): string | undef
   return interrupteur === undefined ? undefined : `${ligne(MANAGER, interrupteur)}\n`;
 }
 
+// La sortie de `manager upstream` que le tableau porte (amont.ts, `comprendre`) : l'heure où la box a lu les issues
+// ouvertes, le dépôt, et chaque issue avant le rail avec l'adresse de son issue. Rien, quand le tableau ne la porte pas.
+export function amontDuTableau(lu: Pick<TableauLu, "depot" | "avantLeRail">): string | undefined {
+  if (lu.avantLeRail === undefined) return undefined;
+  const { lu: luLe, issues } = lu.avantLeRail;
+  return JSON.stringify({ lu: luLe, depot: lu.depot, issues: issues.map((issue) => ({ ...issue, url: `https://github.com/${lu.depot}/issues/${issue.ticket}` })) });
+}
+
 // La sortie d'une commande demandée, tirée du tableau — ou pourquoi elle ne s'en tire pas, en une phrase.
 export function sortieDuTableau(lu: TableauLu, commande: CommandeDemandee): { texte: string } | { raison: string; pasPublie?: true } {
   const ou = `the Kitchen board of ${lu.depot} (issue ${lu.numero})`;
@@ -123,6 +135,11 @@ export function sortieDuTableau(lu: TableauLu, commande: CommandeDemandee): { te
   if (commande === MANAGER) {
     const texte = managerDuTableau(lu);
     return texte === undefined ? { raison: `The project switch is not on ${ou}: the box that serves it does not publish it yet.` } : { texte };
+  }
+  if (commande === AMONT) {
+    if (lu.resserre?.includes("avantLeRail") === true) return { raison: `What is before the rail is not on ${ou}: the board was too long for GitHub, and the box had to leave it out` };
+    const texte = amontDuTableau(lu);
+    if (texte !== undefined) return { texte };
   }
   const nom = typeof commande === "string" ? `\`${commande}\`` : "this reading";
   return { raison: `${nom.charAt(0).toUpperCase()}${nom.slice(1)} is not on ${ou}: the box does not publish it there.`, pasPublie: true };

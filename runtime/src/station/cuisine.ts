@@ -47,7 +47,7 @@ import { brancherStation, configStation } from "../station.ts";
 import { direStations } from "../stations-declarees.ts";
 import { ouvrirGitHub } from "../github.ts";
 import { clientGitHubDuTableau } from "../tableau/publication/client.ts";
-import { brancherLeTableau } from "../tableau/publication/publier.ts";
+import { brancherLeTableau, ouvertesDuDepot } from "../tableau/publication/publier.ts";
 import { clientGitHubDesGestes } from "../tableau/gestes/client.ts";
 import { gestesDuTableau } from "../tableau/gestes/gestes.ts";
 import { secondDuProjet } from "../tableau/gestes/second.ts";
@@ -227,7 +227,9 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
       avertir: dire,
     });
     const mentions = mentionsDuTableau({ client: clientDesGestes, journal: connectee.journal, projet, avertir: dire });
-    ouverte = brancherLeTableau(connectee, { client: tableau, depot: rail.depot, station: envProjet.BRIGADE_STATION_DIR, gestes, mentions, dire, avertir: dire });
+    // Ce qui est avant le rail se relit sous la même identité, par un GitHub qui n'est qu'au tableau (#1836).
+    const ouvertes = ouvertesDuDepot(ouvrirGitHub({ depot: rail.depot, bin: rail.gh, projet, ...(roles ? { jeton: roles.jeton("manager").frais, identite: () => roles.login("manager"), compte: "manager" } : {}) }));
+    ouverte = brancherLeTableau(connectee, { client: tableau, depot: rail.depot, station: envProjet.BRIGADE_STATION_DIR, gestes, mentions, dire, avertir: dire, ouvertes });
   } catch (erreur) {
     identites?.fermer();
     try {
