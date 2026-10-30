@@ -14,11 +14,10 @@ contribute and the release notes — go back to the [repository root](../README.
 
 - [Tutorial: install brigade on a Mac](tutoriels/installer-sur-mac.md) — from a Mac with nothing on
   it to the app installed and the station of your Mac running.
-- [Install brigade and cook your first ticket](installation.md) — the whole path for Mac, Windows
-  and Linux, from the download to the first merged pull request.
-- [Install a station on a server](installation-station.md) — a station on a Linux server (or on a
-  Mac or Windows PC), installed once per machine. There is no separate Linux tutorial: this guide
-  covers the Linux install.
+- [Install brigade and cook your first ticket](installation.md) — the whole path for Mac and
+  Windows, from the download to the first merged pull request. Linux is not covered there.
+- [Install a station on a server](installation-station.md) — a station on a Debian server (with
+  systemd), installed once per machine. There is no separate Linux tutorial.
 - [Install a station](installer.md) — the walkthrough of the station installation, with its
   checks.
 
