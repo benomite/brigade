@@ -91,13 +91,14 @@ function cree(doc, balise, texte) {
 const quand = (/** @type {string} */ instant) => (Number.isNaN(Date.parse(instant)) ? instant : new Date(instant).toLocaleString("en-US"));
 const s = (/** @type {number} */ combien) => (combien > 1 ? "s" : "");
 
-// Les tickets que la cause a fait rater : chacun son numéro, en monospace, qui ouvre son issue d'un
-// clic — ou, sans adresse que l'app puisse ouvrir, posé seul.
-/** @param {Fabrique} doc @param {Carte["tickets"]} tickets @param {(ticket: number) => void} ouvrir */
-function tickets(doc, tickets, ouvrir) {
+// Des tickets sous leur libellé — ici, ceux que la cause a fait rater ; sur la carte d'un profil, ceux
+// de son domaine : chacun son numéro, en monospace, qui ouvre son issue d'un clic — ou, sans adresse
+// que l'app puisse ouvrir, posé seul.
+/** @param {Fabrique} doc @param {string} libelle @param {Carte["tickets"]} tickets @param {(ticket: number) => void} ouvrir */
+export function ligneDeTickets(doc, libelle, tickets, ouvrir) {
   const ligne = cree(doc, "p");
   ligne.className = "tickets";
-  ligne.append(cree(doc, "span", RATES));
+  ligne.append(cree(doc, "span", libelle));
   for (const { ticket, ouvrable } of tickets) {
     if (!ouvrable) {
       const seul = cree(doc, "span", `#${ticket}`);
@@ -167,7 +168,7 @@ export function poserCorrection(doc, carte, etat, gestes) {
   const titre = cree(doc, "strong", carte.titre);
   tete.append(pilule, titre);
 
-  const corps = [attendu, tete, tickets(doc, carte.tickets, gestes.ouvrir)];
+  const corps = [attendu, tete, ligneDeTickets(doc, RATES, carte.tickets, gestes.ouvrir)];
   if (carte.motif !== null) {
     const motif = cree(doc, "p", carte.motif);
     motif.className = "motif";
