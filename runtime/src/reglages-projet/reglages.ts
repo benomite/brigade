@@ -19,6 +19,7 @@ import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { EFFORTS, MODELES, type Calibrage } from "../calibrage.ts";
 import { execFile } from "../sans-invite.ts";
+import { refusEn } from "../zones.ts";
 import { nomPrive, valeurPrivee, type Prive } from "./prive.ts";
 
 export const FICHIER = ".claude/brigade/projet.json";
@@ -43,8 +44,10 @@ export type ReglagesDuCloser = { calibration?: Calibrage; cooksBelow?: number; m
 // lecteur du runtime refuserait (`derive.ts`, `correctif/reglages.ts`,
 // `profils/reglages.ts`). Chacune est facultative : celle que le fichier tait
 // reste celle de la box, ou son défaut.
-export type SeuilDuProjet = { variable: string; entier: boolean; min: number; max?: number };
+// `zero` : un entier qui peut valoir zéro (un plafond à zéro, un écart nul).
+export type SeuilDuProjet = { variable: string; entier: boolean; min: number; max?: number; zero?: boolean };
 const seuil = (variable: string, entier = false, min = 0, max?: number): SeuilDuProjet => ({ variable, entier, min, ...(max === undefined ? {} : { max }) });
+const entierOuZero = (variable: string): SeuilDuProjet => ({ variable, entier: true, min: 0, zero: true });
 export const SEUILS_DU_PROJET = {
   drift: {
     contextKb: seuil("BRIGADE_DRIFT_CONTEXT_KB"),
@@ -75,6 +78,23 @@ export const SEUILS_DU_PROJET = {
     timeoutSeconds: seuil("BRIGADE_GATES_TIMEOUT_SECONDS", true, 1),
     ciWaitSeconds: seuil("BRIGADE_CI_WAIT_SECONDS", true, 1),
   },
+  // La règle du rail et le carnet de leçons du projet (#1673) : le bail d'un
+  // ticket pris, l'issue de feuille de route que lit le manager, et la
+  // politique du carnet — combien de leçons reçoit un cook, combien de rétros
+  // promeuvent une leçon, au bout de combien de tickets elle expire, et
+  // l'écart qu'un renvoi ou une correction du chef y met. Les chemins communs
+  // du rail sont une liste : `commonPaths`, hors de ces familles.
+  rail: {
+    leaseSeconds: seuil("BRIGADE_LEASE_SECONDS", true, 1),
+    roadmapIssue: seuil("BRIGADE_ROADMAP_ISSUE", true, 1),
+  },
+  lessons: {
+    injected: entierOuZero("BRIGADE_INJECTED_LESSONS"),
+    promotionRetros: seuil("BRIGADE_PROMOTION_RETROS", true, 1),
+    provisionalExpiryTickets: seuil("BRIGADE_PROVISIONAL_EXPIRY_TICKETS", true, 1),
+    promotedExpiryTickets: seuil("BRIGADE_PROMOTED_EXPIRY_TICKETS", true, 1),
+    sendbackPromotionGap: entierOuZero("BRIGADE_SENDBACK_PROMOTION_GAP"),
+  },
   profile: {
     window: seuil("BRIGADE_PROFILE_WINDOW", true, 1),
     minTickets: seuil("BRIGADE_PROFILE_MIN_TICKETS", true, 1),
@@ -91,6 +111,9 @@ export type ReglagesProjet = SeuilsDuProjet & {
   defaultCalibrations?: Partial<Record<Role, Calibrage>>;
   calibrationCeiling?: Calibrage;
   closer?: ReglagesDuCloser;
+  // Les chemins que le rail traite comme communs à tous les tickets
+  // (`BRIGADE_COMMON_PATHS`) : relatifs à la racine du dépôt.
+  commonPaths?: string[];
 };
 
 // D'où vient ce qu'on a lu : le fichier, la ligne du `CLAUDE.md`, ou rien.
@@ -105,6 +128,7 @@ export type ReglagesLus = {
   defaultCalibrations: Partial<Record<Role, Calibrage>>;
   calibrationCeiling: Calibrage | null;
   closer: ReglagesDuCloser;
+  commonPaths?: string[];
 } & SeuilsDuProjet;
 
 // Pourquoi un réglage est refusé : il est à la machine ou au chef, ou il n'est
@@ -128,7 +152,7 @@ export class ReglageRefuse extends Error {
 const BRANCHE = /^(?!-)(?!.*\.\.)(?!.*\/\/)(?!.*@\{)(?!.*\.lock(?:\/|$))[A-Za-z0-9._/-]+(?<![/.])$/;
 const brancheValide = (branche: string) => BRANCHE.test(branche) && !branche.startsWith("/") && !branche.split("/").some((morceau) => morceau.startsWith("."));
 
-const CLES = ["version", "integrationBranch", "defaultCalibrations", "calibrationCeiling", "closer", ...FAMILLES_DE_SEUILS];
+const CLES = ["version", "integrationBranch", "defaultCalibrations", "calibrationCeiling", "closer", "commonPaths", ...FAMILLES_DE_SEUILS];
 const CLES_DE_CALIBRAGE = ["model", "effort"];
 
 const estObjet = (valeur: unknown): valeur is Record<string, unknown> => typeof valeur === "object" && valeur !== null && !Array.isArray(valeur);
@@ -139,7 +163,9 @@ const estObjet = (valeur: unknown): valeur is Record<string, unknown> => typeof 
 // plafond de consommation, pas un jeton. Ces chemins exacts, et eux seuls :
 // le même nom ailleurs reste refusé.
 // `drift.ticketTokens` et `drift.lostTokens` sont des seuils de coût.
-const NOMS_DU_PROJET = new Set(["closer.cooksBelow", "closer.maxTokens", "drift.ticketTokens", "drift.lostTokens"]);
+// `commonPaths` dit des chemins du dépôt (relatifs, vérifiés à l'écriture),
+// pas ceux d'une machine.
+const NOMS_DU_PROJET = new Set(["commonPaths", "closer.cooksBelow", "closer.maxTokens", "drift.ticketTokens", "drift.lostTokens"]);
 
 // Passe tout ce qu'on veut écrire au crible de `prive.ts`, clés et valeurs, à
 // toute profondeur — y compris ce qui n'est pas un réglage du projet : c'est
@@ -204,16 +230,30 @@ function seuilsDe(famille: FamilleDeSeuils, valeur: unknown): Record<string, num
   const inconnue = Object.keys(valeur).find((nom) => connus[nom] === undefined);
   if (inconnue !== undefined) throw invalide(`${famille}.${inconnue}`, `is not a ${famille} threshold: expected ${noms}`);
   const seuils: Record<string, number> = {};
-  for (const [nom, { entier, min, max }] of Object.entries(connus)) {
+  for (const [nom, { entier, min, max, zero }] of Object.entries(connus)) {
     const nombre = valeur[nom];
     if (nombre === undefined) continue;
     const borne = max === undefined ? "" : `, ${max} at most`;
-    const attendu = entier ? (min > 1 ? `an integer of ${min} or more` : "an integer greater than zero") : `a number greater than zero${borne}`;
-    const bon = typeof nombre === "number" && Number.isFinite(nombre) && (entier ? Number.isSafeInteger(nombre) && nombre >= Math.max(min, 1) : nombre > min) && (max === undefined || nombre <= max);
+    const attendu = entier ? (zero ? "an integer, zero or more" : min > 1 ? `an integer of ${min} or more` : "an integer greater than zero") : `a number greater than zero${borne}`;
+    const bon = typeof nombre === "number" && Number.isFinite(nombre) && (entier ? Number.isSafeInteger(nombre) && nombre >= (zero ? 0 : Math.max(min, 1)) : nombre > min) && (max === undefined || nombre <= max);
     if (!bon) throw invalide(`${famille}.${nom}`, `must be ${attendu}`);
     seuils[nom] = nombre;
   }
   return seuils;
+}
+
+// Les chemins communs du rail, ou un refus qui dit lequel : une liste de
+// chemins relatifs à la racine du dépôt, sans virgule (la variable de la box
+// les sépare par des virgules), et que le rail accepte (`zones.ts`).
+function cheminsCommunsDe(valeur: unknown): string[] {
+  if (!Array.isArray(valeur)) throw invalide("commonPaths", "must be a list of paths relative to the repository's root");
+  return valeur.map((chemin, i) => {
+    const cle = `commonPaths.${i}`;
+    if (typeof chemin !== "string" || chemin.trim() === "" || chemin.includes(",")) throw invalide(cle, "must be a path relative to the repository's root, without a comma");
+    const pourquoi = refusEn(chemin.trim());
+    if (pourquoi !== null) throw invalide(cle, `“${chemin}” ${pourquoi}`);
+    return chemin.trim();
+  });
 }
 
 // Les réglages valides tirés d'un objet quelconque, ou un refus qui dit
@@ -247,6 +287,10 @@ function valider(objet: unknown, version: boolean): ReglagesProjet {
     const lus = closerDe(closer);
     if (Object.keys(lus).length > 0) reglages.closer = lus;
   }
+  if (objet.commonPaths !== undefined) {
+    const communs = cheminsCommunsDe(objet.commonPaths);
+    if (communs.length > 0) reglages.commonPaths = communs;
+  }
   for (const famille of FAMILLES_DE_SEUILS) {
     if (objet[famille] === undefined) continue;
     const lus = seuilsDe(famille, objet[famille]);
@@ -265,7 +309,7 @@ export function validerReglagesProjet(reglages: unknown): ReglagesProjet {
 // ligne. Les mêmes réglages donnent les mêmes octets.
 export function texteDuFichier(reglages: ReglagesProjet): string {
   const calibrage = ({ model, effort }: Calibrage) => ({ model, effort });
-  const { integrationBranch, defaultCalibrations, calibrationCeiling, closer } = reglages;
+  const { integrationBranch, defaultCalibrations, calibrationCeiling, closer, commonPaths } = reglages;
   const duCloser = CLES_DU_CLOSER.flatMap((nom) => {
     const pose = closer?.[nom];
     if (pose === undefined) return [];
@@ -287,6 +331,7 @@ export function texteDuFichier(reglages: ReglagesProjet): string {
       ...(roles.length === 0 ? {} : { defaultCalibrations: Object.fromEntries(roles) }),
       ...(calibrationCeiling === undefined ? {} : { calibrationCeiling: calibrage(calibrationCeiling) }),
       ...(duCloser.length === 0 ? {} : { closer: Object.fromEntries(duCloser) }),
+      ...(commonPaths === undefined || commonPaths.length === 0 ? {} : { commonPaths }),
       ...Object.fromEntries(desSeuils),
     },
     null,
@@ -379,6 +424,7 @@ export async function lireReglagesProjet(clone: string): Promise<ReglagesLus> {
     defaultCalibrations: reglages.defaultCalibrations ?? {},
     calibrationCeiling: reglages.calibrationCeiling ?? null,
     closer: reglages.closer ?? {},
+    ...(reglages.commonPaths === undefined ? {} : { commonPaths: reglages.commonPaths }),
     ...seuilsDuProjet(reglages),
   };
 }

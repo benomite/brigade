@@ -29,6 +29,8 @@ The file is versioned with the code. Its fields:
 | `calibrationCeiling` | the ceiling of calibration for the whole project; it replaces the ceiling set on the box | `{ "model", "effort" }` (optional) |
 | `closer` | the settings of the project's closer — the closing pass that writes ([`runtime/fermeture.md`](runtime/fermeture.md)); each one it sets replaces the box's | an object of the keys below, each optional (optional) |
 | `drift`, `correction`, `profile`, `gates` | the project's thresholds and the gates' limits (#1672): what is too expensive or too drifted, when a correction repeats, when a cook profile is worth proposing, how long and how costly its gates and CI may be; each one it sets replaces the box's | objects of the keys below, each optional (optional) |
+| `commonPaths` | the paths the rail treats as common to all tickets (#1673); it replaces the box's `BRIGADE_COMMON_PATHS` | a list of paths relative to the repository's root, no pattern, no comma (optional) |
+| `rail`, `lessons` | the project's rail rule and notebook policy (#1673): the lease on a taken ticket, the roadmap issue the manager reads, and how many lessons a cook receives, when one is promoted or expires; each one it sets replaces the box's | objects of the keys below, each optional (optional) |
 
 The `closer` keys, each one in place of a setting the box held (`brigade <projet> station <gesture>`):
 
@@ -65,6 +67,13 @@ The thresholds, each one in place of a variable of the box (the four cost ones a
 | `gates.baseProcessorBudgetSeconds` | processor budget of the full run on the base | integer > 0 | `budget-base-cpu` |
 | `gates.timeoutSeconds` | how long the pass waits for the gates before stopping them | integer > 0 | `BRIGADE_GATES_TIMEOUT_SECONDS` |
 | `gates.ciWaitSeconds` | how long the pass waits for a CI that does not conclude | integer > 0 | `BRIGADE_CI_WAIT_SECONDS` |
+| `rail.leaseSeconds` | the lease on a taken ticket, in seconds (default 1800) | integer > 0 | `BRIGADE_LEASE_SECONDS` |
+| `rail.roadmapIssue` | the number of the roadmap issue the manager reads | integer > 0 | `BRIGADE_ROADMAP_ISSUE` |
+| `lessons.injected` | how many provisional lessons a cook receives (default 20; 0: none) | integer ≥ 0 | `BRIGADE_INJECTED_LESSONS` |
+| `lessons.promotionRetros` | independent retros needed before a lesson is promoted (default 3) | integer > 0 | `BRIGADE_PROMOTION_RETROS` |
+| `lessons.provisionalExpiryTickets` | tickets after which a provisional lesson expires (default 20) | integer > 0 | `BRIGADE_PROVISIONAL_EXPIRY_TICKETS` |
+| `lessons.promotedExpiryTickets` | tickets after which a promoted lesson expires (default 20) | integer > 0 | `BRIGADE_PROMOTED_EXPIRY_TICKETS` |
+| `lessons.sendbackPromotionGap` | the gap a send-back or a chef's correction takes off the retros needed (default 1; 0: none) | integer ≥ 0 | `BRIGADE_SENDBACK_PROMOTION_GAP` |
 
 These names are the project's settings, not what the writer's sieve looks for: `closer.cooksBelow`
 is not a machine's cook count, `closer.maxTokens` is not a token. Elsewhere in the file, the same
@@ -129,6 +138,10 @@ branch takes effect at the next fetch, with no restart and no `sudo`.
   each use, and the `budget-*` gestures keep working on a box with no file; `gates.timeoutSeconds` and
   `gates.ciWaitSeconds` are read when the kitchen opens, so a change reaches them at the station's next
   start.
+- **The rail and the notebook** (`rail`, `lessons`, `commonPaths`, #1673): the same rule, one by one — a key
+  the file sets wins over the box's variable, which wins over the runtime's default. They are read when
+  the kitchen opens, so a change reaches them at the station's next start. A box whose project has no
+  file keeps its variables exactly as before.
 - **A file that is not project settings** (unknown key, wrong value, a secret in it) is **refused**:
   the kitchen does not open, and it says why. It does not fall back to the box's values, which the
   file would replace.

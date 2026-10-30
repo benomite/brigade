@@ -91,7 +91,6 @@ try {
   // elle.
   porte = configReseau(process.env);
   if (porte !== null) passerParLaPorte(porte);
-  const rail = configRail(process.env);
   const reglages = lireReglages(process.env);
   // Les décisions du chef — stations, seuils de coût, calibrage du manager, du
   // reviewer et du closer — n'ont pour support que le journal : lues dès le démarrage, puis
@@ -105,6 +104,9 @@ try {
   const duDepot = lireLeDepot(process.env);
   for (const ligne of duDepot.dits) console.error(`brigade : ${ligne}`);
   const decide = environnementDecide(duDepot.env, decisionsAuDemarrage(repertoireEtat), duDepot.reglages);
+  // Le bail, les chemins communs et la politique du carnet : ceux du dépôt
+  // d'abord, puis ceux de la box.
+  const rail = configRail(decide);
   const station = configStation(decide);
   supportDesDecisions({ repertoireEtat, clone: station.clone });
   ({ stations } = station);
@@ -115,10 +117,10 @@ try {
   // relit ensuite à chaque réveil.
   lireSeuils(decide);
   // Les seuils des leçons : un réglage de l'unité du projet, lu une fois.
-  const seuilsDesLecons = lireSeuilsDesLecons(process.env);
+  const seuilsDesLecons = lireSeuilsDesLecons(decide);
   // Combien de leçons provisoires reçoit le cook d'un ticket : un réglage de
   // l'unité du projet, lu une fois.
-  const leconsInjectees = lirePlafondDesLecons(process.env);
+  const leconsInjectees = lirePlafondDesLecons(decide);
   configFermeture(decide);
   arbitre = configArbitrage(process.env);
   secrets = configSecrets(process.env, { repertoireEtat, clone: station.clone });

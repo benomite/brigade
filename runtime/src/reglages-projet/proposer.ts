@@ -105,6 +105,8 @@ export function changementsDits(avant: ReglagesProjet, apres: ReglagesProjet): s
     const [de, vers] = [avant.closer?.[nom], apres.closer?.[nom]];
     if (de !== vers) dits.push(`closer's \`${nom}\`: ${de ?? "none"} → ${vers ?? "none"}`);
   }
+  const [communsAvant, communsApres] = [(avant.commonPaths ?? []).join(", "), (apres.commonPaths ?? []).join(", ")];
+  if (communsAvant !== communsApres) dits.push(`common paths: ${communsAvant || "none"} → ${communsApres || "none"}`);
   for (const famille of FAMILLES_DE_SEUILS) {
     const de: Record<string, number | undefined> = avant[famille] ?? {};
     const vers: Record<string, number | undefined> = apres[famille] ?? {};
@@ -164,6 +166,7 @@ export async function proposerUnReglage(changement: unknown, options: OptionsDeP
       ...(Object.keys(lus.defaultCalibrations).length === 0 ? {} : { defaultCalibrations: lus.defaultCalibrations }),
       ...(lus.calibrationCeiling === null ? {} : { calibrationCeiling: lus.calibrationCeiling }),
       ...(Object.keys(lus.closer).length === 0 ? {} : { closer: lus.closer }),
+      ...(lus.commonPaths === undefined ? {} : { commonPaths: lus.commonPaths }),
       ...seuilsDuProjet(lus),
     };
     apres = validerReglagesProjet(appliquerLeChangement(avant, changement));
