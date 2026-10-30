@@ -118,7 +118,8 @@ export function variablesDesGatesDuDepot(reglages: ReglagesProjet | null): Recor
 
 // Les variables de décision que les réglages du dépôt remplacent : le
 // calibrage du manager et du reviewer, les réglages du closer et les seuils de
-// dérive, de correction et de profil, un par un —
+// dérive, de correction et de profil, le bail et les chemins communs du rail,
+// la feuille de route du manager et la politique du carnet, un par un —
 // celui que le fichier tait reste celui de la box. Le plafond de calibrage
 // n'y est pas : d'où il vient se dit (`plafondDuProjet`, `reagir.ts`).
 export function variablesDuDepot(reglages: ReglagesProjet | null): Record<string, string> {
@@ -134,6 +135,7 @@ export function variablesDuDepot(reglages: ReglagesProjet | null): Record<string
     ...nombre("BRIGADE_CLOSING_MAX_TOKENS", closer.maxTokens),
     ...nombre("BRIGADE_CLOSING_MAX_REMOVED_LINES", closer.maxRemovedLines),
     ...seuilsDuDepot(reglages),
+    ...(reglages?.commonPaths === undefined ? {} : { BRIGADE_COMMON_PATHS: reglages.commonPaths.join(",") }),
   };
 }
 
@@ -154,7 +156,7 @@ export function direReglagesDuDepot(branche: BrancheDuProjet, reglages: Reglages
 
 // Les seuils que le fichier fixe, nommés ; ce qu'il tait est celui de la box.
 function direSeuils(reglages: ReglagesProjet): string {
-  const noms = FAMILLES_DE_SEUILS.flatMap((famille) => Object.entries(reglages[famille] ?? {}).map(([nom]) => `${famille}.${nom}`));
+  const noms = [...FAMILLES_DE_SEUILS.flatMap((famille) => Object.entries(reglages[famille] ?? {}).map(([nom]) => `${famille}.${nom}`)), ...(reglages.commonPaths === undefined ? [] : ["commonPaths"])];
   return noms.length === 0 ? "" : `, thresholds ${noms.join(" ")}`;
 }
 

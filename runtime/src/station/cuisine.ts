@@ -101,10 +101,10 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
   // plafond : ils passent avant ceux de la box, et se relisent à chaque usage.
   const duDepot = lireLeDepot(envDuProjet);
   const envProjet: NodeJS.ProcessEnv = porte === null ? { ...duDepot.env } : { ...duDepot.env, ...variablesDeRelais(porte) };
-  const rail = configRail(envProjet);
   const reglages = lireReglages(envProjet);
   for (const nom of decisionsDansLEnvironnement(envProjet)) dire(direDecisionIgnoree(nom, projet));
   const decide = environnementDecide(envProjet, decisionsAuDemarrage(repertoireEtat), duDepot.reglages);
+  const rail = configRail(decide);
   const station = configStation(decide);
   if (!existsSync(station.clone)) throw new ConfigInvalide(`le clone du projet (${station.clone}) n'existe pas`, "clone-missing");
   supportDesDecisions({ repertoireEtat, clone: station.clone });
@@ -170,7 +170,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     // Sur une station sans bac à sable, rien ne part avant que le chef ait
     // choisi — pas même ce ticket : la retenue est la plus extérieure.
     const garde = retenirSansDecision(attendreLaPreparation(brancherGardeFous(reglages, avecRail(socle, { ...rail, github: githubs.rail })), { repertoireEtat, dire }), { repertoireEtat, station: identiteDeLaStation(envProjet).nom, dire });
-    const pass = brancherPass(garde, { ...delais, repertoireEtat, depot, github: githubs.pass, env, secrets, cloison, bacASable, sansIdentite: identites !== null, base: station.base, reviewer, decisions, depotGitHub: rail.depot, bin: station.bin, seuils: station.seuils, ...(envProjet.BRIGADE_STATION_DIR ? { etageCommun: { racine: envProjet.BRIGADE_STATION_DIR, expiration: lireSeuilsDesLecons(envProjet).expirationPromue } } : {}) });
+    const pass = brancherPass(garde, { ...delais, repertoireEtat, depot, github: githubs.pass, env, secrets, cloison, bacASable, sansIdentite: identites !== null, base: station.base, reviewer, decisions, depotGitHub: rail.depot, bin: station.bin, seuils: station.seuils, ...(envProjet.BRIGADE_STATION_DIR ? { etageCommun: { racine: envProjet.BRIGADE_STATION_DIR, expiration: lireSeuilsDesLecons(decide).expirationPromue } } : {}) });
     const fermee = brancherFermeture(pass, { reglages: decisions.fermeture, repertoireEtat, depot, clone: station.clone, base: station.base, github: githubs.station, depotGitHub: rail.depot, bin: station.bin, env, cloison, bacASable });
     const servie = brancherStation(fermee, {
       stations,
