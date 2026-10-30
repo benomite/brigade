@@ -34,7 +34,7 @@
 // La barre est faite d'icônes : « Tous les projets » en tête — l'accueil, la vue d'ensemble de
 // brigade : une ligne par projet, une par station, et la ligne de santé, dites par le process
 // principal (accueil.ts) ; on n'y agit pas, un clic sur une ligne ouvre sa page, et « Cost » celle
-// des coûts de tous les projets (ticket 1022) —, un monogramme par projet, et
+// des coûts de tous les projets (ticket 1022) —, le nom de chaque projet, et
 // en pied le « + » : l'écran d'ajout, où un projet s'installe sur sa box et se déclare
 // dans l'app d'un seul geste. Ce qui manque à un champ, ce qui part vers la box et ce
 // qu'elle en a rendu se décident dans le process principal (installation.ts) : la vue
@@ -7859,7 +7859,12 @@ function afficher() {
   signalees.clear();
   barre.replaceChildren(
     ...configuration.projets.map((projet) => {
-      const entree = icone(projet.monogramme, projet.nom, () => void ouvrir(projet));
+      const entree = icone("", projet.nom, () => void ouvrir(projet));
+      // Son nom en entier, coupé d'une ellipse s'il dépasse la case (le survol le dit en entier).
+      const nom = document.createElement("span");
+      nom.className = "nom-de-case";
+      nom.textContent = projet.nom;
+      entree.append(nom);
       rendreRangeable(entree, projet);
       entree.classList.toggle("refuse", projet.refus !== undefined);
       // Sa couleur d'onglet : la case la porte, qu'elle soit choisie ou non.

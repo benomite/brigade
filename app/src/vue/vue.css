@@ -153,6 +153,20 @@ pre.propos {
   border: 1px solid transparent;
   border-radius: 12px;
 }
+/* Le nom d'un projet dans sa case : petit, sur au plus deux lignes, coupé d'une ellipse à la fin. La largeur
+   de la barre ne bouge pas ; le nom entier est au survol. */
+#projets .nom-de-case {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  padding: 0 2px;
+  font-size: 10px;
+  line-height: 12px;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
 /* Un projet a sa couleur d'onglet (couleurs.ts) : sa case la porte, choisie ou non — sa lettre
    et son trait, puis, choisie, son fond. */
 #projets button.teinte {
@@ -248,7 +262,7 @@ main > header,
 #second > header {
   border-top: 3px solid var(--accent);
 }
-/* Le nom du projet, en entier : la barre n'en montre que le monogramme. */
+/* Le nom du projet, en entier : la barre en montre le début sur deux lignes, coupé d'une ellipse. */
 #espace {
   color: var(--accent);
   flex: 0 1 auto;
