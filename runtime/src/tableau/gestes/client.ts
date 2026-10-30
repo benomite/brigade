@@ -5,10 +5,9 @@
 // avant de partir. Lire les commentaires, y répondre et demander le compte du
 // chef sont ensemble le geste du chef : ni un quota bas ni la pause de la box
 // ne les retiennent, sans quoi un geste posté resterait sans réponse.
-import { decouper } from "../../github.ts";
 import { masquerIdentifiants } from "../../identifiants.ts";
-import { COMPTE_DE_LA_MACHINE, constaterLimite, lectureDe, limiteDuProcess, noterLesEntetes, prendreUnAppel, refusPourLimite, type Limite, type ReponseHttp, type Usage } from "../../limite-github.ts";
-import { execFile } from "../../sans-invite.ts";
+import { COMPTE_DE_LA_MACHINE, lectureDe, limiteDuProcess, prendreUnAppel, type Limite, type ReponseHttp, type Usage } from "../../limite-github.ts";
+import { lancerGhApi } from "../publication/client.ts";
 
 // Un commentaire du tableau. `id` : celui de GitHub, croissant d'un commentaire
 // au suivant. `le` : son heure de création.
@@ -66,23 +65,7 @@ export function clientGitHubDesGestes(options: OptionsClient): ClientDesGestes {
       maintenant: options.maintenant,
     });
     await environnement();
-    return new Promise((resoudre, rejeter) => {
-      const enfant = execFile(
-        bin,
-        ["api", "-i", ...(entree === undefined ? [] : ["--input", "-"]), ...args],
-        { maxBuffer: 16 * 1024 * 1024, timeout: options.delaiMs ?? 30_000, env },
-        (erreur, stdout, stderr) => {
-          const reponse = decouper(stdout);
-          if (reponse) noterLesEntetes(limite, compte, reponse.entetes);
-          if (reponse?.statut === 304) limite.rendre(appel);
-          if (reponse && refusPourLimite(reponse)) constaterLimite(limite, reponse, { gh: bin, env, maintenant: options.maintenant }).then(rejeter, rejeter);
-          else if (reponse) resoudre(reponse);
-          else rejeter(new Error(`gh api ${args.at(-1)} : ${stderr.trim() || erreur?.message || "réponse illisible"}`));
-        },
-      );
-      enfant.stdin?.on("error", () => {});
-      enfant.stdin?.end(entree === undefined ? "" : masquerIdentifiants(JSON.stringify(entree)).texte);
-    });
+    return lancerGhApi(args, entree, { bin, delaiMs: options.delaiMs, env, limite, compte, appel, maintenant: options.maintenant });
   };
 
   const exiger = (reponse: ReponseHttp, chemin: string, attendu = 200): ReponseHttp => {
