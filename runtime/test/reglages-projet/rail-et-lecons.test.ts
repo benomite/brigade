@@ -29,10 +29,11 @@ function refus(reglages: unknown): ReglageRefuse {
   assert.fail(`accepté : ${JSON.stringify(reglages)}`);
 }
 
+// Le calibrage du manager est une décision du chef : il vient du journal, non de la box.
+const CALIBRAGE = { BRIGADE_MANAGER_MODEL: "sonnet", BRIGADE_MANAGER_EFFORT: "low" } as never;
+
 const BOX = {
   BRIGADE_GITHUB_REPO: "o/r",
-  BRIGADE_MANAGER_MODEL: "sonnet",
-  BRIGADE_MANAGER_EFFORT: "low",
   BRIGADE_LEASE_SECONDS: "111",
   BRIGADE_COMMON_PATHS: "scripts",
   BRIGADE_ROADMAP_ISSUE: "7",
@@ -75,27 +76,27 @@ test("a proposed change sets, replaces or withdraws them", () => {
 });
 
 test("what the repository sets wins over the box, setting by setting; without it the box stands, and without both the default", () => {
-  const sans = environnementDecide(BOX, {}, null);
+  const sans = environnementDecide(BOX, CALIBRAGE, null);
   assert.equal(configRail(sans).dureeBailMs, 111_000);
   assert.deepEqual(configRail(sans).communs, ["scripts"]);
   assert.equal(configManager(sans).roadmap, 7);
   assert.equal(lirePlafondDesLecons(sans), 5);
   assert.deepEqual(lireSeuils(sans), { promotion: 2, expirationPromue: 12, expirationProvisoire: 11, ecartRenvoi: 3 });
 
-  const avec = environnementDecide(BOX, {}, COMPLET);
+  const avec = environnementDecide(BOX, CALIBRAGE, COMPLET);
   assert.equal(configRail(avec).dureeBailMs, 900_000);
   assert.deepEqual(configRail(avec).communs, ["docs", "CHANGELOG.md"]);
   assert.equal(configManager(avec).roadmap, 42);
   assert.equal(lirePlafondDesLecons(avec), 0);
   assert.deepEqual(lireSeuils(avec), { promotion: 4, expirationPromue: 40, expirationProvisoire: 30, ecartRenvoi: 0 });
 
-  const partiel = environnementDecide(BOX, {}, { integrationBranch: "v2", rail: { leaseSeconds: 900 } });
+  const partiel = environnementDecide(BOX, CALIBRAGE, { integrationBranch: "v2", rail: { leaseSeconds: 900 } });
   assert.equal(configRail(partiel).dureeBailMs, 900_000);
   assert.deepEqual(configRail(partiel).communs, ["scripts"], "a setting the file leaves out stays the box's");
   assert.equal(lireSeuils(partiel).promotion, 2);
 
   const nue = environnementDecide({ BRIGADE_GITHUB_REPO: "o/r" }, {}, null);
   assert.equal(configRail(nue).dureeBailMs, 1_800_000);
-  assert.equal(configManager({ ...nue, BRIGADE_MANAGER_MODEL: "sonnet", BRIGADE_MANAGER_EFFORT: "low" }).roadmap, null);
+  assert.equal(configManager(environnementDecide({ BRIGADE_GITHUB_REPO: "o/r" }, CALIBRAGE, null)).roadmap, null);
   assert.equal(lirePlafondDesLecons(nue), 20);
 });
