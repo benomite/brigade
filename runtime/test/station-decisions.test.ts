@@ -64,7 +64,7 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
     const avant = (await station()).sortie;
     for (const [geste, decision] of GESTES) {
       const defaut = DEFAUTS[decision];
-      assert.match(avant, new RegExp(defaut === undefined ? String.raw`^  ${geste} +not set — ${decision} is only read from the log$` : String.raw`^  ${geste} +not set — the default, ${defaut}$`, "m"));
+      assert.match(avant, new RegExp(defaut === undefined ? String.raw`^  ${geste} +not set — ${decision} is only read from the log$` : String.raw`^  ${geste} +not set — the default, ${defaut}(?: — source: default)?$`, "m"));
     }
 
     for (const [geste, decision, premiere, seconde] of GESTES) {
@@ -72,7 +72,7 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
       assert.equal(pose.code, 0, pose.sortie);
       assert.equal(
         pose.sortie,
-        `brigade : ${geste}: ${premiere} (was: not set) — read by the runtime at its next read, without a restart; no running cook is stopped (no runtime is running: the decision will hold at its next start)\n`,
+        `brigade : ${geste}: ${premiere} (was: not set) — read by the runtime at its next read, without a restart; no running cook is stopped (no runtime is running: the decision will hold at its next start)${geste.startsWith("ceiling-") ? "\nsource: box" : ""}\n`,
       );
       const reprise = await station(geste, seconde);
       assert.equal(reprise.code, 0, reprise.sortie);
@@ -89,7 +89,7 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
     );
     const apres = (await station()).sortie;
     assert.match(apres, /^chef's decisions +`station -- <geste> <valeur>` to set one, `station -- help` for the settings$/m);
-    for (const [geste, , , seconde] of GESTES) assert.match(apres, new RegExp(String.raw`^  ${geste} +${seconde.replaceAll("+", "\\+")}$`, "m"));
+    for (const [geste, , , seconde] of GESTES) assert.match(apres, new RegExp(String.raw`^  ${geste} +${seconde.replaceAll("+", "\\+")}(?: — source: box)?$`, "m"));
   });
 
   test("reposer la valeur déjà posée n'écrit rien ; une valeur entourée d'espaces est posée sans eux", async (t) => {
@@ -225,7 +225,7 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
     for (const [geste, valeur] of Object.entries(valeurs)) {
       const pose = lancer(t, MONTRER, [geste, valeur], { BRIGADE_STATE_DIR: repertoire });
       assert.equal(await pose.fin, 0, pose.sortie());
-      assert.match(pose.sortie(), /no running cook is stopped\n$/);
+      assert.match(pose.sortie(), /no running cook is stopped\n(source: box\n)?$/);
     }
     // Le runtime l'a lue sans redémarrer : sa station s'annonce de nouveau, à deux cooks.
     const annonces = () => journal.tout().flatMap((e) => (e.type === "station.announced" ? [e.payload.maxCooks] : []));
