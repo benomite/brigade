@@ -11,7 +11,7 @@ describe("le bandeau d'un shell", () => {
   });
 
   test("le terminal d'un shell porte son bandeau : le poste, puis son compte", () => {
-    const projet = { nom: "p", dossier: "/tmp", monogramme: "P" } as never;
+    const projet = { nom: "p", dossier: "/tmp" } as never;
     const terminaux = ouvrirTerminaux({
       ouvrirPty: () => ({ ecrire() {}, redimensionner() {}, tuer() {} }) as never,
       claude: "claude",

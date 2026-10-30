@@ -1,34 +1,26 @@
-// La barre d'icônes : un monogramme par projet, tiré de son nom et de lui seul.
+// La barre d'icônes : le nom de chaque projet, tel que déclaré.
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { monogramme, pourLaBarre } from "../src/barre.ts";
+import { pourLaBarre } from "../src/barre.ts";
 
 describe("la barre d'icônes", () => {
-  test("un nom d'un seul mot : ses deux premières lettres, en capitales", () => {
-    assert.equal(monogramme("brigade"), "BR");
-    assert.equal(monogramme("Parade"), "PA");
+  test("deux noms proches restent deux noms entiers : la barre ne les ramène pas à un signe commun", () => {
+    const configuration = { chemin: "/chef/app.json", projets: [{ nom: "mirrorscreen", dossier: "/p/a" }, { nom: "mirrorlab", dossier: "/p/b" }] };
+
+    assert.deepEqual(pourLaBarre(configuration).projets.map(({ nom }) => nom), ["mirrorscreen", "mirrorlab"]);
   });
 
-  test("un nom de plusieurs mots : l'initiale des deux premiers, quel que soit ce qui les sépare", () => {
-    assert.equal(monogramme("brigade-site"), "BS");
-    assert.equal(monogramme("mon projet perso"), "MP");
-    assert.equal(monogramme("baloo_app"), "BA");
-    assert.equal(monogramme("  -tutos.sgdf"), "TS");
+  test("la case coupe un nom trop long d'une ellipse, sans élargir la barre, et le survol le dit en entier", () => {
+    const css = readFileSync(new URL("../src/vue/vue.css", import.meta.url), "utf8");
+    const vue = readFileSync(new URL("../src/vue/vue.js", import.meta.url), "utf8");
+
+    assert.match(css, /#projets \.nom-de-case \{[^}]*-webkit-line-clamp: 2;[^}]*overflow: hidden;/);
+    assert.match(css, /#projets \{\s*flex: 0 0 64px;/);
+    assert.match(vue, /cree\.title = nom;/);
   });
 
-  test("un nom d'un seul caractère, des chiffres, des accents : ce que le nom porte, rien d'inventé", () => {
-    assert.equal(monogramme("x"), "X");
-    assert.equal(monogramme("42"), "42");
-    assert.equal(monogramme("v2-école"), "VÉ");
-    assert.equal(monogramme("école"), "ÉC");
-  });
-
-  test("un nom sans lettre ni chiffre garde ses deux premiers caractères", () => {
-    assert.equal(monogramme("--"), "--");
-    assert.equal(monogramme("…"), "…");
-  });
-
-  test("chaque projet du fichier reçoit le sien — le reste de ce que le fichier dit passe tel quel", () => {
+  test("chaque projet du fichier garde son nom — le reste de ce que le fichier dit passe tel quel", () => {
     const configuration = {
       chemin: "/chef/app.json",
       nonRelu: "JSON illisible",
@@ -42,21 +34,21 @@ describe("la barre d'icônes", () => {
       chemin: "/chef/app.json",
       nonRelu: "JSON illisible",
       projets: [
-        { nom: "brigade", dossier: "/projets/brigade", monogramme: "BR" },
-        { nom: "brigade-site", dossier: "/absent", refus: "dossier introuvable : /absent", monogramme: "BS" },
+        { nom: "brigade", dossier: "/projets/brigade" },
+        { nom: "brigade-site", dossier: "/absent", refus: "dossier introuvable : /absent" },
       ],
     });
     assert.deepEqual(pourLaBarre({ chemin: "/chef/app.json", projets: [], refus: "ce fichier n'existe pas" }), { chemin: "/chef/app.json", projets: [], refus: "ce fichier n'existe pas" });
   });
 
-  test("un projet que l'app montre sans sa station garde son monogramme", () => {
+  test("un projet que l'app montre sans sa station garde son nom", () => {
     const configuration = { chemin: "/chef/app.json", projets: [{ nom: "brigade", dossier: "/projets/brigade" }, { nom: "parade", dossier: "/projets/parade" }] };
 
     const affichee = pourLaBarre(configuration, (projet) => projet.nom === "brigade");
 
     assert.deepEqual(affichee.projets, [
-      { nom: "brigade", dossier: "/projets/brigade", servi: true, monogramme: "BR" },
-      { nom: "parade", dossier: "/projets/parade", monogramme: "PA" },
+      { nom: "brigade", dossier: "/projets/brigade", servi: true },
+      { nom: "parade", dossier: "/projets/parade" },
     ]);
   });
 });
