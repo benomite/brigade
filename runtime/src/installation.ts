@@ -77,6 +77,9 @@ export type Constat = { ou: "machine" | "depot" | "github"; etat: "ok" | "manque
 // Les étapes de l'installation que l'app fait elle-même, d'un bouton
 // (app/src/service.ts : `amorcer`, `declarerStations`, `proteger`, `repondre`) :
 // un manque qui s'y lève y renvoie, sans commande à taper.
+// L'unité unique que pose le paquet brigade-station, à la place de celle de chaque projet.
+const UNITE_DE_LA_STATION = "brigade-station.service";
+
 export const ACTIONS_DE_L_APP = ["init", "stations", "protection", "decisions"] as const;
 export type ActionDeLApp = (typeof ACTIONS_DE_L_APP)[number];
 // Qui lève un manque, et comment : le chef, d'un bouton de l'app ou par la
@@ -680,7 +683,12 @@ export async function verifier(env: NodeJS.ProcessEnv, systemd: Systemd = system
   let tmpPrive = false;
   const installee = await lancer(systemctl, ["cat", unite], { env });
   if (installee.introuvable) noter("machine", "note", `no systemd on this machine: the unit ${unite} is not checked`);
-  else if (installee.code !== 0) {
+  else if (installee.code !== 0 && (await lancer(systemctl, ["cat", UNITE_DE_LA_STATION], { env })).code === 0) {
+    // Une box de station : le paquet pose une seule unité pour tous les projets,
+    // et aucune par projet. Ses copies et son `PATH` sont ceux du paquet.
+    tmpPrive = true;
+    noter("machine", "ok", `service unit: ${UNITE_DE_LA_STATION} (the station package serves this project: no per-project unit ${unite} needed)`);
+  } else if (installee.code !== 0) {
     noter("machine", "manque", `the unit ${unite} is not installed`, `\`sudo cp runtime/deploy/brigade@.service /etc/systemd/system/ && sudo systemctl daemon-reload\` — ${DOC}`, "ajout", {
       simple: "the project's service is not installed on the box",
       remede: parLeChef(`sudo cp ${join(dirname(SOURCES), "deploy/brigade@.service")} /etc/systemd/system/ && sudo systemctl daemon-reload`),
