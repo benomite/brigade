@@ -1715,8 +1715,8 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal(journal.duTicket(15).filter((e) => e.type === "ticket.86").length, 2);
     // La ligne de la file du chef dit le code de sortie et ce que le setup a imprimé.
     const ligne = attentesDuChef(journal.base, lireRail(journal.base)).find(({ quoi }) => quoi === "setup");
-    assert.match(direAttente(ligne!), /code de sortie 1 : npm ci a échoué\)/);
-    assert.match(direAttenteEn(ligne!), /code de sortie 1 : npm ci a échoué\)/);
+    assert.match(direAttente(ligne!), /code de sortie 1 : (?:bash\.exe: warning: could not find \/tmp, please create! ⏎ )*npm ci a échoué\)/);
+    assert.match(direAttenteEn(ligne!), /code de sortie 1 : (?:bash\.exe: warning: could not find \/tmp, please create! ⏎ )*npm ci a échoué\)/);
     const corps = gh.commentaires[1]?.[1] ?? "";
     assert.match(corps, /Setup du projet bloqué[\s\S]*code de sortie 1[\s\S]*`v2` ne bouge pas[\s\S]*`\.claude\/brigade\/reseau`/);
     assert.doesNotMatch(corps, /npm ci a échoué/);
