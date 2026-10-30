@@ -10,7 +10,7 @@
 import { createHash } from "node:crypto";
 import { DE_CONFIANCE } from "./alimenter.ts";
 import { LABEL_COOK_DESIGN } from "./calibrage.ts";
-import { consigneDeDecoupage, corpsDuTicket, empreinteDEpique, ficheDuTicket, lireDecoupage, marqueDe, MARQUEUR_QUESTION, neDUnDecoupage, separer, type Decoupe } from "./decouper.ts";
+import { consigneDeDecoupage, corpsDuTicket, defautsDeDecoupage, empreinteDEpique, ficheDuTicket, lireDecoupage, marqueDe, MARQUEUR_QUESTION, neDUnDecoupage, separer, type Decoupe } from "./decouper.ts";
 import { avecListe, epiqueDe, reference, rendreListe, type LigneDeListe } from "./epique.ts";
 import type { FaitManager } from "./events/manager.ts";
 import { porteFiche } from "./fiche.ts";
@@ -87,6 +87,27 @@ function ligne(journal: Journal, ticket: TicketDEpique): LigneDeListe {
 export function ouvrirDecoupage(atelier: Atelier) {
   const { journal, github, noter, avertir, arrete } = atelier;
   const { base } = journal;
+
+  // Demande le découpage ; s'il rend des tickets que le code refuse (zone
+  // d'un dossier de produit entier, attente entre zones disjointes), le
+  // refait une fois en disant pourquoi. Le second rendu fait foi : s'il a
+  // encore des défauts, on le garde et on l'avertit — `separer` tient seul le
+  // recouvrement, et le chef relit le découpage.
+  const demanderDecoupage = async (sujet: { numero: number; prefixe: string; nom: string }, mission: Parameters<typeof consigneDeDecoupage>[0]): Promise<Reponse<Decoupe> | null> => {
+    const communs = communsDuRail(base);
+    const reponse = await atelier.demander(sujet, consigneDeDecoupage(mission), lireDecoupage);
+    if (!reponse || "illisible" in reponse || reponse.valeur.quoi !== "tickets") return reponse;
+    const defauts = defautsDeDecoupage(reponse.valeur.tickets, communs);
+    if (defauts.length === 0 || arrete() || atelier.eteint()) return reponse;
+    const refus = `Ton découpage précédent est refusé par le code, à refaire une seule fois :\n${defauts.map((defaut) => `- ${defaut}`).join("\n")}`;
+    const seconde = await atelier.demander(sujet, consigneDeDecoupage({ ...mission, commentaires: [...mission.commentaires, refus] }), lireDecoupage);
+    if (!seconde) return reponse;
+    if (!("illisible" in seconde) && seconde.valeur.quoi === "tickets") {
+      const restes = defautsDeDecoupage(seconde.valeur.tickets, communs);
+      if (restes.length > 0) avertir(`brigade : découpage de #${sujet.numero} refait, mais il garde ${restes.length} défaut${restes.length > 1 ? "s" : ""} — ${restes.join(" ; ")}`);
+    }
+    return seconde;
+  };
 
   const dire = (epic: IssueOuverte, connu: Decoupage): string => {
     switch (connu.state) {
@@ -243,8 +264,7 @@ export function ouvrirDecoupage(atelier: Atelier) {
           } catch (erreur) {
             avertir(`brigade : plan du dépôt illisible, l'épique #${epic.number} est découpée sans lui — ${message(erreur)}`);
           }
-          const consigne = consigneDeDecoupage({ depot: atelier.depotGitHub, issue: epic, commentaires: echanges, fichiers, communs: communsDuRail(base), capacites: capacitesFournies(base) });
-          const reponse = await atelier.demander({ numero: epic.number, prefixe: "decoupe", nom: "découpage" }, consigne, lireDecoupage);
+          const reponse = await demanderDecoupage({ numero: epic.number, prefixe: "decoupe", nom: "découpage" }, { depot: atelier.depotGitHub, issue: epic, commentaires: echanges, fichiers, communs: communsDuRail(base), capacites: capacitesFournies(base) });
           if (!reponse) return false;
           retenir(epic.number, etat, reponse);
           connu = decoupageDe(base, epic.number);
@@ -291,8 +311,7 @@ export function ouvrirDecoupage(atelier: Atelier) {
       } catch (erreur) {
         avertir(`brigade : plan du dépôt illisible, le ticket #${ticket.number} est redécoupé sans lui — ${message(erreur)}`);
       }
-      const consigne = consigneDeDecoupage({ depot: atelier.depotGitHub, issue: ticket, commentaires: [...commentaires, echec], fichiers, communs: communsDuRail(base), capacites: capacitesFournies(base) });
-      const reponse = await atelier.demander({ numero: ticket.number, prefixe: "decoupe", nom: "redécoupage" }, consigne, lireDecoupage);
+      const reponse = await demanderDecoupage({ numero: ticket.number, prefixe: "decoupe", nom: "redécoupage" }, { depot: atelier.depotGitHub, issue: ticket, commentaires: [...commentaires, echec], fichiers, communs: communsDuRail(base), capacites: capacitesFournies(base) });
       if (!reponse) return null;
       if ("illisible" in reponse) return { impossible: reponse.illisible };
       const { valeur } = reponse;

@@ -28,7 +28,7 @@ function natureDuRefus(chemin: string): "hors-depot" | "motif" | null {
   return MOTIF.test(chemin) ? "motif" : null;
 }
 
-const segments = (chemin: string) => chemin.split("/").filter((segment) => segment !== "" && segment !== ".");
+export const segments = (chemin: string) => chemin.split("/").filter((segment) => segment !== "" && segment !== ".");
 
 // Vrai si le chemin `zone` possède `chemin` : c'est lui, ou un dossier qui le
 // contient. Par segments entiers — `runtime/src` ne possède pas `runtime/src2`.
