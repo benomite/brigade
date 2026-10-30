@@ -476,6 +476,15 @@ describe("la vérification", { concurrency: 8 }, () => {
     assert.match(dits[0] ?? "", /invalid project name: “Calculus”/);
   });
 
+  test("sur une box de station, brigade-station.service tient lieu de l'unité par projet : elle ne manque pas", async (t) => {
+    const { env } = projet(t);
+
+    const constats = await verifier({ ...env, FAUX_SYSTEMCTL_UNITES: "brigade-station.service" });
+
+    assert.doesNotMatch(manques(constats).join("\n"), new RegExp(`brigade@${PROJET}\\.service|is not installed`));
+    assert.ok(constates(constats).some((texte) => texte.startsWith("service unit: brigade-station.service")));
+  });
+
   test("ce qui manque au dépôt, à GitHub et à la machine est dit dans le même passage", async (t) => {
     const { env, gh } = projet(t, { gates: null, bindings: null });
     gh.repondre(LABELS_DU_DEPOT, { corps: [{ name: "fire" }, { name: "bug" }] });
