@@ -1707,12 +1707,16 @@ describe("la station", { concurrency: 8 }, () => {
     heure.avancer(600_000);
     await jusqua(() => gh.commentaires.length === 2);
 
-    assert.deepEqual(dernier("setup.blocked", 15), { station: STATION, why: "code de sortie 1", hosts: [], base: "base-0", output: "npm ci a échoué" });
+    // Sous Windows, le bash de Git qui joue le faux setup peut dire en tête de
+    // sortie qu'il ne trouve pas son /tmp : ce n'est pas ce que le setup dit (#1941).
+    const bloque = dernier("setup.blocked", 15) as { output?: string } | undefined;
+    const sortie = bloque?.output?.replace(/^(bash\.exe: warning: could not find \/tmp, please create!\n)+/, "");
+    assert.deepEqual({ ...bloque, output: sortie }, { station: STATION, why: "code de sortie 1", hosts: [], base: "base-0", output: "npm ci a échoué" });
     assert.equal(journal.duTicket(15).filter((e) => e.type === "ticket.86").length, 2);
     // La ligne de la file du chef dit le code de sortie et ce que le setup a imprimé.
     const ligne = attentesDuChef(journal.base, lireRail(journal.base)).find(({ quoi }) => quoi === "setup");
-    assert.match(direAttente(ligne!), /code de sortie 1 : npm ci a échoué\)/);
-    assert.match(direAttenteEn(ligne!), /code de sortie 1 : npm ci a échoué\)/);
+    assert.match(direAttente(ligne!), /code de sortie 1 : (?:bash\.exe: warning: could not find \/tmp, please create! ⏎ )*npm ci a échoué\)/);
+    assert.match(direAttenteEn(ligne!), /code de sortie 1 : (?:bash\.exe: warning: could not find \/tmp, please create! ⏎ )*npm ci a échoué\)/);
     const corps = gh.commentaires[1]?.[1] ?? "";
     assert.match(corps, /Setup du projet bloqué[\s\S]*code de sortie 1[\s\S]*`v2` ne bouge pas[\s\S]*`\.claude\/brigade\/reseau`/);
     assert.doesNotMatch(corps, /npm ci a échoué/);
