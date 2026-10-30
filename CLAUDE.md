@@ -5,7 +5,7 @@ The section title and the bold labels of the bindings below stay in French on pu
 - **Language** : code, docs and issues are in English. The conversation with the chef is in French, and so is every dialogue with the agents. The word for each object is in `docs/glossary.md`.
 - **Acteurs** : the chef, the second (local) and the kitchen (runtime, manager, cooks, pass)
 - **Interface** : all interface work is carried by the kitchen's design cook (#837)
-- **Branche d'intégration** : `v2`
+- **Branche d'intégration** : `main`
 - **Worktrees** : `<parent of the repo>/brigade-wt/<n>-<slug>` — a sibling of the repo, the parent is computed (`dirname "$(git rev-parse --show-toplevel)"`)
 - **Setup worktree** : `.claude/brigade/worktree-setup.sh <n> <WT>`
 - **Gates** : `.claude/brigade/gates.sh <WT>`, then `/code-review`
