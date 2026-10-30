@@ -38,7 +38,7 @@ import { lireLesProfils } from "./profils/preference.ts";
 import { brancherStation, configStation, depotDeStation } from "./station.ts";
 import { direStations, type StationDeclaree } from "./stations-declarees.ts";
 import { clientGitHubDuTableau } from "./tableau/publication/client.ts";
-import { brancherLeTableau } from "./tableau/publication/publier.ts";
+import { brancherLeTableau, ouvertesDuDepot } from "./tableau/publication/publier.ts";
 import { clientGitHubDesGestes } from "./tableau/gestes/client.ts";
 import { gestesDuTableau } from "./tableau/gestes/gestes.ts";
 import { secondDuProjet } from "./tableau/gestes/second.ts";
@@ -241,7 +241,9 @@ try {
     // La demande d'un `ask` part dans le second du projet, quand cette box le tient (BRIGADE_SECOND_DIR).
     second: secondDuProjet(process.env),
   });
-  runtime = brancherLeTableau(alertee, { client: tableau, depot: rail.depot, station: process.env.BRIGADE_STATION_DIR, gestes, mentions: mentionsDuTableau({ client: clientDesGestes, journal: alertee.journal, projet }) });
+  // Ce qui est avant le rail se relit sous la même identité, par un GitHub qui n'est qu'au tableau (#1836).
+  const ouvertes = ouvertesDuDepot(ouvrirGitHub({ depot: rail.depot, bin: rail.gh, ...(roles ? { jeton: roles.jeton("manager").frais, identite: () => roles.login("manager"), compte: "manager" } : {}) }));
+  runtime = brancherLeTableau(alertee, { client: tableau, depot: rail.depot, station: process.env.BRIGADE_STATION_DIR, gestes, mentions: mentionsDuTableau({ client: clientDesGestes, journal: alertee.journal, projet }), ouvertes });
 } catch (erreur) {
   if (erreur instanceof ConfigInvalide || erreur instanceof DejaEnCours) refuser(erreur.message);
   throw erreur;

@@ -103,3 +103,54 @@ export function enAmont(base: Base, ouvertes: readonly Issue[]): IssueAmont[] {
     .sort((a, b) => (priorite(a.labels) ?? 10) - (priorite(b.labels) ?? 10) || a.createdAt.localeCompare(b.createdAt) || a.number - b.number)
     .map((issue) => ({ ticket: issue.number, titre: issue.title, url: issue.url, priorite: priorite(issue.labels), ...etatDe(base, issue, attentes) }));
 }
+
+// Avant le rail (#1836) : ce qu'il reste à faire au projet, tel que la barre de
+// la vue du rail le compte et que sa colonne Backlog le range. Les issues
+// ouvertes que le rail ne porte pas et qui n'y sont pas en route — ni servies,
+// ni portées par les tickets de leur découpage, ni déjà lancées (`fire` posé :
+// le rail la prend à son prochain sondage) —, chacune dans un seul de cinq
+// états, dans l'ordre où la vue les pose :
+//   `non-lue`      le manager ne l'a pas jugée — ni calibrage (`model:`, `effort:`), ni décision
+//   `incomplete`   le manager l'a refusée : un ticket incomplet, que le second doit réécrire
+//   `epique`       une épique pas encore découpée — `epic` posé, jugée telle, ou son découpage en cours
+//   `prete`        calibrée (`model:` et `effort:`, ou mise sur le rail par le manager), sans `fire`
+//   `mise-de-cote` hors de la cuisine : `hors-cuisine` posé, ou retenue par le manager pour le chef
+//                  (une question, une issue de décision, `blocked-on-human`, la roadmap…)
+// `hors-cuisine` l'emporte sur tout le reste, comme pour le manager : le chef a
+// dit que la cuisine ne la sert pas. Puis l'épique, le refus, le calibrage, la
+// mise de côté par le manager ; sans rien de cela, elle n'est pas lue.
+// `dit` : ce qui la retient, en une ligne — celle de `enAmont`.
+export const ETATS_AVANT_LE_RAIL = ["non-lue", "incomplete", "epique", "prete", "mise-de-cote"] as const;
+export type EtatAvantLeRail = (typeof ETATS_AVANT_LE_RAIL)[number];
+export type IssueAvantLeRail = { ticket: number; titre: string; priorite: number | null; etat: EtatAvantLeRail; dit: string };
+
+const calibree = (labels: readonly string[]) => labels.some((label) => label.startsWith("model:")) && labels.some((label) => label.startsWith("effort:"));
+
+// L'état avant le rail d'une issue hors du rail, et ce qui la retient — ou null si elle n'est plus à faire avant lui.
+function avantDe(base: Base, issue: Issue, amont: IssueAmont): { etat: EtatAvantLeRail; dit: string } | null {
+  const { number: ticket, labels } = issue;
+  const { dit } = amont;
+  if (amont.etat === "servie" || amont.etat === "decoupee") return null;
+  if (amont.etat === "en-route" && labels.includes(LABEL)) return null;
+  if (labels.includes(HORS_CUISINE)) return { etat: "mise-de-cote", dit: `it carries \`${HORS_CUISINE}\`: this kitchen does not serve it` };
+  const decision = issueDuManager(base, ticket);
+  const decoupage = decoupageDe(base, ticket);
+  const jugeeEpique = decision?.decision === "refused" && decision.kind === ("epic" satisfies Nature);
+  if (amont.etat === "epique" || labels.includes(LABEL_EPIQUE) || jugeeEpique || (decoupage !== null && decoupage.state !== "skipped")) return { etat: "epique", dit };
+  if (decision?.decision === "refused") return { etat: decision.kind === ("question" satisfies Nature) || decision.kind === ("decision" satisfies Nature) ? "mise-de-cote" : "incomplete", dit };
+  if (amont.etat === "en-route" || amont.etat === "sortie" || decision?.decision === "fire") return { etat: "prete", dit };
+  if (calibree(labels)) return { etat: "prete", dit: `calibrated (${labels.filter((label) => label.startsWith("model:") || label.startsWith("effort:")).join(", ")}), without \`fire\`: the rail takes it once \`fire\` is set` };
+  if (decision?.decision === "aside") return { etat: "mise-de-cote", dit };
+  return { etat: "non-lue", dit };
+}
+
+// Ce qui est avant le rail, dans l'ordre où le manager lit les issues (`enAmont`) :
+// `prio:1` d'abord, sans priorité en dernier ; à priorité égale, la plus ancienne.
+export function avantLeRail(base: Base, ouvertes: readonly Issue[]): IssueAvantLeRail[] {
+  const parNumero = new Map(ouvertes.map((issue) => [issue.number, issue]));
+  return enAmont(base, ouvertes).flatMap((amont) => {
+    const issue = parNumero.get(amont.ticket);
+    const avant = issue === undefined ? null : avantDe(base, issue, amont);
+    return avant === null ? [] : [{ ticket: amont.ticket, titre: amont.titre, priorite: amont.priorite, ...avant }];
+  });
+}

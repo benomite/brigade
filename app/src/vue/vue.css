@@ -2566,9 +2566,8 @@ main > header,
   font-size: 11px;
   color: var(--discret);
 }
-/* En tête du rail, ce qui n'est pas encore dessus : un nombre, en bouton, qui déplie la liste ; et,
-   quand aucun ticket n'est sur le rail, ce qui est en amont, dit en clair — un rail vide n'est pas
-   un projet fini. */
+/* En tête du rail, ce qui est avant lui (#1836) : une petite barre empilée, qui déplie la colonne Backlog ; et, quand
+   aucun ticket n'est sur le rail, ce qui est avant lui, dit en clair — un rail vide n'est pas un projet fini. */
 #rail .amont {
   display: flex;
   flex-wrap: wrap;
@@ -2578,16 +2577,54 @@ main > header,
   font-size: 12px;
   color: var(--discret);
 }
-#rail .amont .nombre {
-  padding: 3px 10px;
-  font-weight: 600;
-  color: var(--texte);
-  background: var(--bouton);
-  border: 1px solid var(--trait);
-  border-radius: var(--rayon-bouton);
+/* La barre : de largeur fixe, haute de quelques pixels, une part par état — sa longueur, la part de son compte dans le
+   total (avant-le-rail.js). Sans un mot : les comptes sont au survol. Chaque état a sa couleur, lisible sur le sombre ;
+   la mise de côté est hachurée, à part des quatre autres. Une lecture ratée la laisse vide, en pointillé. */
+#rail .amont > .survol {
+  align-self: center;
 }
-#rail .amont .nombre:hover {
-  border-color: var(--trait-fort);
+#rail .amont .avant-le-rail {
+  display: flex;
+  gap: 1px;
+  width: 120px;
+  height: 12px;
+  padding: 0;
+  background: var(--case);
+  border: 1px solid var(--trait-fort);
+  border-radius: 3px;
+}
+#rail .amont .avant-le-rail:hover,
+#rail .amont .avant-le-rail[aria-expanded="true"] {
+  border-color: var(--discret);
+}
+#rail .amont .avant-le-rail[data-sans] {
+  border-style: dashed;
+}
+#rail .amont .avant-le-rail .part {
+  flex-basis: 0;
+  flex-shrink: 1;
+  min-width: 2px;
+}
+#rail .avant-le-rail .part[data-etat="non-lue"],
+#rail .backlog .groupe[data-etat="non-lue"] h5 span:first-child::before {
+  background: var(--gris);
+}
+#rail .avant-le-rail .part[data-etat="incomplete"],
+#rail .backlog .groupe[data-etat="incomplete"] h5 span:first-child::before {
+  background: var(--rouge);
+}
+#rail .avant-le-rail .part[data-etat="epique"],
+#rail .backlog .groupe[data-etat="epique"] h5 span:first-child::before {
+  background: var(--bleu);
+}
+#rail .avant-le-rail .part[data-etat="prete"],
+#rail .backlog .groupe[data-etat="prete"] h5 span:first-child::before {
+  background: var(--vert);
+}
+#rail .avant-le-rail .part[data-etat="mise-de-cote"],
+#rail .backlog .groupe[data-etat="mise-de-cote"] h5 span:first-child::before {
+  background: var(--case);
+  background-image: repeating-linear-gradient(135deg, var(--discret) 0 2px, transparent 2px 4px);
 }
 #rail .amont .vide {
   flex-basis: 100%;
@@ -2669,37 +2706,50 @@ main > header,
   border: 1px dashed var(--trait-fort);
   border-radius: var(--rayon-bouton);
 }
-/* La liste dépliée : un cadre par ce qui arrive aux issues, côte à côte tant qu'ils tiennent, puis
-   à la ligne. Chaque issue est un bon : son numéro, son titre, ce que la box en dit, entier. */
-#rail .amont-liste {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 8px;
-  padding: 8px 16px 0;
+/* La colonne Backlog, dépliée par la barre, à gauche de « On the rail » : une colonne du rail, ses cartes groupées par
+   état, chaque groupe sous un titre marqué de la couleur de sa part de barre. Son titre porte le geste qui la replie. */
+#rail .colonne.backlog h4 .compte {
+  margin-left: auto;
 }
-#rail .amont-liste > section {
-  min-width: 0;
-  padding: 8px;
-  background: var(--bandeau);
-  border: 1px solid var(--trait-doux);
-  border-radius: var(--rayon-carte);
-}
-#rail .amont-liste h4 span:first-child::before {
-  display: none;
-}
-#rail .amont-liste .bon button {
-  display: flex;
-  gap: 8px;
-  align-items: baseline;
-  padding: 0;
-  font-weight: 600;
-  text-align: left;
-  overflow-wrap: anywhere;
-}
-#rail .amont-liste .bon small {
+#rail .colonne.backlog h4 .replier {
+  padding: 0 8px;
   font-size: 11px;
-  line-height: 1.5;
-  color: var(--bon-discret);
+  font-weight: 600;
+  color: var(--discret);
+  background: var(--bouton);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bouton);
+}
+#rail .colonne.backlog h4 .replier:hover {
+  color: var(--texte);
+  border-color: var(--trait-fort);
+}
+#rail .backlog .groupe + .groupe {
+  margin-top: 14px;
+}
+#rail .backlog h5 {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--texte-doux);
+}
+#rail .backlog h5 span:first-child::before {
+  content: "";
+  display: inline-block;
+  width: 10px;
+  height: 6px;
+  margin-right: 8px;
+  border-radius: 1px;
+}
+#rail .backlog h5 span:last-child {
+  font-weight: 400;
+  color: var(--discret);
+}
+#rail .backlog > p.sans {
   overflow-wrap: anywhere;
 }
 /* L'arrêt de la cuisine, la ligne de la cuisine dans Settings : son bouton prend la forme d'un arrêt — un carré

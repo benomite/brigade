@@ -19,9 +19,15 @@
 //
 // Rien n'y poste de commentaire, et le corps ne mentionne personne (rendre.ts) :
 // un rafraîchissement ne notifie aucun compte.
+//
+// Avant chaque rafraîchissement, la box relit les issues ouvertes du dépôt —
+// sous leur ETag : inchangées, GitHub répond 304 et ne compte rien — pour
+// publier ce qui est avant le rail (#1836, amont.ts). Une lecture qui échoue
+// garde la dernière, avec son heure ; jamais lue, le bloc n'en dit rien.
+import { avantLeRail } from "../../amont.ts";
 import { cartesDeCorrection } from "../../correctif/cartes.ts";
 import { lireEtat } from "../../etat.ts";
-import { HORS_CUISINE } from "../../github.ts";
+import { HORS_CUISINE, type Issue, type Sondage } from "../../github.ts";
 import { masquerIdentifiants } from "../../identifiants.ts";
 import { appelsDeLaStation, pauseDeLaStation, retenueDeLaStation } from "../../limite-github.ts";
 import { refusDuProjet } from "../../mise-a-jour/en-service.ts";
@@ -77,7 +83,9 @@ export function contenuDuCorps(corps: string): string | null {
   // (un garde-fou réglé, une station réannoncée) ne réécrit pas le corps — le
   // prochain changement publie le dernier du moment.
   const faits = tableau.faits === undefined ? {} : { faits: { ...tableau.faits, lu: "", dernierTick: null, dernierEvenement: null } };
-  return JSON.stringify({ ...tableau, lu: "", cuisine, ...faits }).replace(DUREE, "…");
+  // Les issues ouvertes se relisent à chaque tick : l'heure de leur lecture ne dit pas qu'elles ont changé.
+  const avant = tableau.avantLeRail === undefined ? {} : { avantLeRail: { ...tableau.avantLeRail, lu: "" } };
+  return JSON.stringify({ ...tableau, lu: "", cuisine, ...faits, ...avant }).replace(DUREE, "…");
 }
 
 // Ce qu'un rafraîchissement a fait sur GitHub, dans l'ordre.
@@ -188,7 +196,30 @@ export type OptionsDuBranchement = Omit<OptionsPublication, "lire"> & {
   // La mention du chef sous le tableau (tableau/mention/), pour chaque décision
   // qui entre dans sa file : après chaque rafraîchissement, jamais à sa place.
   mentions?: MentionsDuTableau;
+  // Les issues ouvertes du dépôt, PR comprises (`ouvertesDuDepot`) : relues
+  // avant chaque rafraîchissement, de quoi publier ce qui est avant le rail.
+  ouvertes?: () => Promise<Issue[]>;
 };
+
+// Les issues ouvertes que le tableau a lues, et quand.
+export type OuvertesLues = { lu: string; issues: readonly Issue[] };
+
+// Les issues ouvertes du dépôt, lues sous leur ETag par un GitHub qui n'est qu'au
+// tableau : un 304 rend la dernière liste lue, sans rien compter. Le GitHub du
+// manager ne sert pas : un sondage confirmé ici lui cacherait un changement.
+export function ouvertesDuDepot(github: { ouvertes(): Promise<Sondage> }): () => Promise<Issue[]> {
+  let derniere: Issue[] | null = null;
+  return async () => {
+    const sondage = await github.ouvertes();
+    if (sondage.inchange) {
+      if (derniere !== null) return derniere;
+      throw new Error("GitHub answered “unchanged” to a first reading of the open issues");
+    }
+    sondage.confirmer();
+    derniere = sondage.issues;
+    return derniere;
+  };
+}
 
 // Le tableau lu par défaut : l'état du journal, comme `status` le lit, et les
 // faits comme `facts` les rend — l'adresse des issues par le dépôt du tableau,
@@ -196,8 +227,8 @@ export type OptionsDuBranchement = Omit<OptionsPublication, "lire"> & {
 // proposés —, les gestes du chef lus sous lui, ce que la box a prêté aux
 // stations distantes et répondu à leurs demandes par GitHub (`tirer-par-github/`),
 // et ce que fait chaque cook (`activites/`).
-export function tableauDuJournal(journal: Journal, projet: string, instant: Date, options: { depot: string; station?: string; gestes?: GestesDuTableau }): Tableau {
-  const { depot, station, gestes } = options;
+export function tableauDuJournal(journal: Journal, projet: string, instant: Date, options: { depot: string; station?: string; gestes?: GestesDuTableau; ouvertes?: OuvertesLues | null }): Tableau {
+  const { depot, station, gestes, ouvertes } = options;
   const tableau = tableauDeLaCuisine(lireEtat(journal, instant), instant, {
     limiteGithub: pauseDeLaStation(station, instant.getTime()),
     retenue: retenueDeLaStation(station, instant.getTime()),
@@ -208,7 +239,8 @@ export function tableauDuJournal(journal: Journal, projet: string, instant: Date
     profils: cartesDeProfil(journal, depot),
   });
   const distantes = distantesDuTableau(journal.base, instant);
-  return { ...tableau, ...(gestes === undefined ? {} : { gestes: gestes.lus() }), ...(distantes === null ? {} : { distantes }), activites: activitesDesCooks(journal.base, instant) };
+  const avant = ouvertes === undefined || ouvertes === null ? {} : { avantLeRail: { lu: ouvertes.lu, issues: avantLeRail(journal.base, ouvertes.issues) } };
+  return { ...tableau, ...(gestes === undefined ? {} : { gestes: gestes.lus() }), ...(distantes === null ? {} : { distantes }), activites: activitesDesCooks(journal.base, instant), ...avant };
 }
 
 // Branche le tableau au runtime : un rafraîchissement d'emblée, puis à chaque
@@ -216,22 +248,39 @@ export function tableauDuJournal(journal: Journal, projet: string, instant: Date
 // ce qui l'arrête — GitHub injoignable, son quota retenu — se dit une fois,
 // jusqu'à ce qu'il passe ou qu'autre chose l'arrête : il se retente au tick suivant.
 // Après lui, les gestes du chef se lisent sous le tableau qu'il a trouvé ; un
-// geste lu le rafraîchit aussitôt, pour que le bloc dise son état.
+// geste lu le rafraîchit aussitôt, pour que le bloc dise son état. Avant lui,
+// les issues ouvertes se relisent : ce qui l'en empêche se dit aussi une fois,
+// et le tableau garde ce qu'il en avait lu.
 export function brancherLeTableau<R extends Runtime>(runtime: R, options: OptionsDuBranchement): R {
   const maintenant = options.maintenant ?? (() => new Date());
   const { station } = options;
   const { gestes, mentions } = options;
-  const lire = options.lire ?? ((instant: Date) => tableauDuJournal(runtime.journal, runtime.projet, instant, { depot: options.depot, station, gestes }));
+  let ouvertes: OuvertesLues | null = null;
+  const lire = options.lire ?? ((instant: Date) => tableauDuJournal(runtime.journal, runtime.projet, instant, { depot: options.depot, station, gestes, ouvertes }));
   const avertir = options.avertir ?? ((ligne: string) => console.error(ligne));
   const publication = publierLeTableau({ ...options, lire, avertir });
   let enCours = false;
   let dernierEchec: string | null = null;
   let dernierEchecDesGestes: string | null = null;
   let dernierEchecDesMentions: string | null = null;
+  let dernierEchecDesOuvertes: string | null = null;
+  const lireLesOuvertes = async () => {
+    if (options.ouvertes === undefined) return;
+    try {
+      const issues = await options.ouvertes();
+      ouvertes = { lu: maintenant().toISOString(), issues };
+      dernierEchecDesOuvertes = null;
+    } catch (erreur) {
+      const motif = erreur instanceof Error ? erreur.message : String(erreur);
+      if (motif !== dernierEchecDesOuvertes) avertir(`brigade : issues ouvertes de ${options.depot} non relues pour le Kitchen board — ${motif}`);
+      dernierEchecDesOuvertes = motif;
+    }
+  };
   const passer = async () => {
     if (enCours) return;
     enCours = true;
     try {
+      await lireLesOuvertes();
       let numero: number;
       try {
         numero = (await publication.rafraichir(maintenant())).numero;

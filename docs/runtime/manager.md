@@ -53,8 +53,9 @@ tab"). GitHub not reached, the command exits with `1` and says so, with no numbe
 **An empty rail does not mean a finished project.** The rail carries only what has `fire`; upstream
 are the issues the manager has not read yet, the epics not split yet, those it
 set aside, those waiting for your answer, those that left the rail. `manager -- upstream`
-lists them all, for a program — the app draws from it the "N upcoming" number next to the rail
-(`docs/app.md`, "The rail"):
+lists them all, for a program. The app does not run it: the Kitchen board publishes the same issues,
+in the five states its rail view draws — `avantLeRail`, [`tableau-de-cuisine.md`](tableau-de-cuisine.md)
+(#1836):
 
 ```json
 {"lu":"2026-10-15T09:12:03.000Z","depot":"benomite/brigade","issues":[{"ticket":16,"titre":"…","url":"https://github.com/benomite/brigade/issues/16","priorite":1,"etat":"epique","dit":"it carries `epic`: not split yet"}]}

@@ -85,16 +85,23 @@ const dansLesFaits = (tableau: Tableau, liste: string, champ: string): Tableau =
 const sansLesEtapesPassees = (tableau: Tableau): Tableau =>
   tableau.activites === undefined ? tableau : { ...tableau, activites: tableau.activites.map((activite) => ({ ...activite, etapes: activite.maintenant === null ? [] : [activite.maintenant] })) };
 
+// Ce qui retient chaque issue avant le rail : leur nombre et leur état restent.
+const sansCeQuiRetient = (tableau: Tableau): Tableau =>
+  tableau.avantLeRail === undefined ? tableau : { ...tableau, avantLeRail: { ...tableau.avantLeRail, issues: tableau.avantLeRail.issues.map((issue) => ({ ...issue, dit: "" })) } };
+
 // Ce qu'un corps encore trop long retire du bloc, dans cet ordre, jusqu'à tenir :
 // le plus lourd et le moins utile au rail d'abord — les étapes passées des
 // cooks, le texte des relectures des livrés, les livraisons qui attendent, les
-// diffs des corrections —, puis les faits et les lignes du rail entiers. Ce que
-// dit l'état, lui, n'est jamais retiré, ni ce que fait chaque cook en ce moment.
+// diffs des corrections —, puis ce qui retient chaque issue avant le rail, ces
+// issues, et enfin les faits et les lignes du rail entiers. Ce que dit l'état,
+// lui, n'est jamais retiré, ni ce que fait chaque cook en ce moment.
 const RESSERREMENTS: Array<{ quoi: Resserre[]; retirer(tableau: Tableau): Tableau }> = [
   { quoi: ["activites.etapes"], retirer: sansLesEtapesPassees },
   { quoi: ["faits.livres.relecture"], retirer: (tableau) => dansLesFaits(tableau, "livres", "relecture") },
   { quoi: ["faits.attend.livraison"], retirer: (tableau) => dansLesFaits(tableau, "attend", "livraison") },
   { quoi: ["faits.corrections.diff"], retirer: (tableau) => dansLesFaits(tableau, "corrections", "diff") },
+  { quoi: ["avantLeRail.dit"], retirer: sansCeQuiRetient },
+  { quoi: ["avantLeRail"], retirer: ({ avantLeRail: _avant, ...reste }) => reste },
   { quoi: ["faits", "lignesDuRail"], retirer: ({ faits: _faits, lignesDuRail: _lignes, ...reste }) => reste },
 ];
 

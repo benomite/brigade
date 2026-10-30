@@ -13,7 +13,8 @@ import { lireLeTableau, type Tableau } from "../../../src/tableau/rendu/bloc.ts"
 import { tableauDeLaCuisine, type FaitsDuTableau } from "../../../src/tableau/rendu/donnees.ts";
 import { rendreLeTableau, TITRE_DU_TABLEAU } from "../../../src/tableau/rendu/rendre.ts";
 import type { ClientDuTableau, IssueDuTableau } from "../../../src/tableau/publication/client.ts";
-import { brancherLeTableau, contenuDuCorps, LABEL_DU_TABLEAU, publierLeTableau, VERIFIER_L_EPINGLE_MS } from "../../../src/tableau/publication/publier.ts";
+import type { Issue, Sondage } from "../../../src/github.ts";
+import { brancherLeTableau, contenuDuCorps, LABEL_DU_TABLEAU, ouvertesDuDepot, publierLeTableau, VERIFIER_L_EPINGLE_MS } from "../../../src/tableau/publication/publier.ts";
 import { LU_LE } from "../../aides/haut-de-status.ts";
 import { copieDeLExempleDuBas } from "../../aides/opt-A-etat.ts";
 import { aArreter, jusqua, repertoireTemporaire } from "../../outils.ts";
@@ -355,4 +356,113 @@ test("le compteur d'appels à GitHub, que le tableau fait bouger lui-même, ne r
     await tableau.rafraichir(apres(minutes));
   }
   assert.equal(ecritures.length, publie, "aucune écriture, donc aucun appel d'écriture au compteur");
+});
+
+// Ce qui est avant le rail (#1836) : avant chaque rafraîchissement, la box relit les issues ouvertes du dépôt, et le
+// bloc les porte, rangées dans leurs cinq états.
+const ouverte = (number: number, labels: string[] = []): Issue => ({
+  number,
+  title: `Ticket ${number}`,
+  labels,
+  state: "open",
+  createdAt: `2026-10-01T00:00:${String(number).padStart(2, "0")}Z`,
+  updatedAt: "2026-10-02T00:00:00Z",
+  url: `https://github.com/${DEPOT}/issues/${number}`,
+});
+
+test("branché au runtime : le tableau porte ce qui est avant le rail ; une relecture qui ne change rien n'écrit rien, une issue de plus réécrit le corps", async (t) => {
+  t.mock.timers.enable({ apis: ["setInterval"] });
+  let instant = Date.parse("2026-10-08T10:00:00.000Z");
+  const maintenant = () => new Date(instant);
+  const runtime = demarrer({ repertoireEtat: repertoireTemporaire(t), projet: "brigade", maintenant });
+  aArreter(t, () => runtime.arreter("SIGTERM"));
+  const { client, issues, ecritures } = fauxClient();
+  let lues = [ouverte(3, ["epic"]), ouverte(4, ["model:opus", "effort:high", "prio:1"]), ouverte(5, ["hors-cuisine"])];
+  let relectures = 0;
+  const ouvertes = async () => {
+    relectures++;
+    return lues;
+  };
+  brancherLeTableau(runtime, { client, depot: DEPOT, maintenant, dire: () => {}, avertir: () => {}, ouvertes });
+  await jusqua(() => ecritures.length === 2);
+  const publie = lireLeTableau(issues.get(1)?.corps ?? "");
+  assert.ok(publie.lu);
+  assert.deepEqual(publie.tableau.avantLeRail, {
+    lu: "2026-10-08T10:00:00.000Z",
+    issues: [
+      { ticket: 4, titre: "Ticket 4", priorite: 1, etat: "prete", dit: "calibrated (model:opus, effort:high), without `fire`: the rail takes it once `fire` is set" },
+      { ticket: 3, titre: "Ticket 3", priorite: null, etat: "epique", dit: "it carries `epic`: not split yet" },
+      { ticket: 5, titre: "Ticket 5", priorite: null, etat: "mise-de-cote", dit: "it carries `hors-cuisine`: this kitchen does not serve it" },
+    ],
+  });
+
+  // Relues une minute plus tard, les mêmes : l'heure de la lecture seule a changé, rien ne s'écrit.
+  instant += MINUTE;
+  t.mock.timers.tick(MINUTE);
+  await jusqua(() => relectures === 2);
+  await new Promise((resoudre) => setImmediate(resoudre));
+  assert.equal(ecritures.length, 2);
+
+  // Une issue ouverte de plus : le corps la porte au tick qui suit.
+  lues = [...lues, ouverte(6)];
+  instant += MINUTE;
+  t.mock.timers.tick(MINUTE);
+  await jusqua(() => ecritures.length === 3);
+  const relu = lireLeTableau(issues.get(1)?.corps ?? "");
+  assert.ok(relu.lu);
+  assert.deepEqual(relu.tableau.avantLeRail?.issues.map(({ ticket, etat }) => [ticket, etat]), [[4, "prete"], [3, "epique"], [5, "mise-de-cote"], [6, "non-lue"]]);
+  assert.equal(relu.tableau.avantLeRail?.lu, "2026-10-08T10:02:00.000Z");
+});
+
+test("branché au runtime : des issues ouvertes jamais lues, le bloc n'en dit rien ; une relecture ratée se dit une fois et garde la dernière lue", async (t) => {
+  t.mock.timers.enable({ apis: ["setInterval"] });
+  let instant = Date.parse("2026-10-08T10:00:00.000Z");
+  const maintenant = () => new Date(instant);
+  const runtime = demarrer({ repertoireEtat: repertoireTemporaire(t), projet: "brigade", maintenant });
+  aArreter(t, () => runtime.arreter("SIGTERM"));
+  const { client, issues, ecritures, lectures } = fauxClient();
+  let panne = true;
+  const ouvertes = async () => {
+    if (panne) throw new Error("gh api : connexion impossible");
+    return [ouverte(3)];
+  };
+  const avertis: string[] = [];
+  brancherLeTableau(runtime, { client, depot: DEPOT, maintenant, dire: () => {}, avertir: (ligne) => avertis.push(ligne), ouvertes });
+  await jusqua(() => ecritures.length === 2);
+  const sans = lireLeTableau(issues.get(1)?.corps ?? "");
+  assert.ok(sans.lu);
+  assert.equal(sans.tableau.avantLeRail, undefined);
+  assert.deepEqual(avertis, [`brigade : issues ouvertes de ${DEPOT} non relues pour le Kitchen board — gh api : connexion impossible`]);
+
+  // GitHub revient : la liste est publiée.
+  panne = false;
+  instant += MINUTE;
+  t.mock.timers.tick(MINUTE);
+  await jusqua(() => ecritures.length === 3);
+
+  // Il repart : la panne se dit une fois, et le tableau garde ce qu'il avait lu.
+  panne = true;
+  for (let tick = 1; tick <= 2; tick++) {
+    const lu = lectures.length;
+    instant += MINUTE;
+    t.mock.timers.tick(MINUTE);
+    await jusqua(() => lectures.length > lu);
+    await new Promise((resoudre) => setImmediate(resoudre));
+  }
+  assert.equal(avertis.length, 2);
+  assert.equal(ecritures.length, 3);
+  const garde = lireLeTableau(issues.get(1)?.corps ?? "");
+  assert.ok(garde.lu);
+  assert.deepEqual(garde.tableau.avantLeRail?.issues.map(({ ticket }) => ticket), [3]);
+});
+
+test("les issues ouvertes se relisent sous leur ETag : « inchangé » rend la dernière liste lue, jamais une liste vide", async () => {
+  const reponses: Array<Sondage<Issue>> = [];
+  let confirmees = 0;
+  const lire = ouvertesDuDepot({ ouvertes: async () => reponses.shift() ?? { inchange: true } });
+  await assert.rejects(lire(), /unchanged/);
+  reponses.push({ inchange: false, issues: [ouverte(3)], confirmer: () => void confirmees++ });
+  assert.deepEqual((await lire()).map(({ number }) => number), [3]);
+  assert.equal(confirmees, 1);
+  assert.deepEqual((await lire()).map(({ number }) => number), [3]);
 });

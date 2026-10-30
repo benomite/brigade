@@ -175,11 +175,23 @@ export type ActiviteDuCook = {
   pr: { numero: number | null; url: string } | null;
 };
 
+// Ce qui est avant le rail (#1836) : les issues ouvertes du dépôt que le rail
+// ne porte pas et qui n'y sont pas en route, publiées pour une app qui n'a que
+// GitHub — la barre de la vue du rail et sa colonne Backlog. `lu` : l'heure où
+// la box a lu les issues ouvertes sur GitHub. Chaque issue : son numéro, son
+// titre, sa priorité (`prio:`, nulle sans), son état — un mot d'une liste
+// fermée, dans l'ordre où la vue les pose : `non-lue`, `incomplete`, `epique`,
+// `prete`, `mise-de-cote` (amont.ts, `ETATS_AVANT_LE_RAIL`) — et, en une ligne,
+// ce qui la retient (`dit`). L'adresse de l'issue se déduit du dépôt.
+export type IssueAvantLeRailPubliee = { ticket: number; titre: string; priorite: number | null; etat: string; dit: string };
+export type AvantLeRailPublie = { lu: string; issues: IssueAvantLeRailPubliee[] };
+
 // Ce qu'un corps trop long pour GitHub a retiré du bloc, dans l'ordre où il l'a
 // retiré (rendre.ts) : les étapes passées des cooks, les relectures des livrés,
-// les livraisons qui attendent, les diffs des corrections, puis les faits et
-// les lignes du rail entiers.
-export type Resserre = "activites.etapes" | "faits.livres.relecture" | "faits.attend.livraison" | "faits.corrections.diff" | "faits" | "lignesDuRail";
+// les livraisons qui attendent, les diffs des corrections, ce qui retient
+// chaque issue avant le rail, puis ces issues, et enfin les faits et les lignes
+// du rail entiers.
+export type Resserre = "activites.etapes" | "faits.livres.relecture" | "faits.attend.livraison" | "faits.corrections.diff" | "avantLeRail.dit" | "avantLeRail" | "faits" | "lignesDuRail";
 
 // `lu` : l'heure de la lecture de l'état — les durées que les lignes disent se
 // comptent jusqu'à elle. `bilans` : ce que le bloc `awaiting` de `status` dit
@@ -196,7 +208,8 @@ export type Resserre = "activites.etapes" | "faits.livres.relecture" | "faits.at
 // aucune ne tient de ticket ni n'a rien demandé. `activites` : ce que fait
 // chaque cook du projet (#1844), lu ici sans ssh (`lesActivitesDesCooks`) —
 // vide quand aucun ne tourne ni n'a fini depuis peu, absent d'un bloc écrit
-// avant lui.
+// avant lui. `avantLeRail` : ce qui est avant le rail (#1836) — absent d'un
+// bloc écrit avant lui, ou tant que la box n'a pas lu les issues ouvertes.
 export type Tableau = {
   projet: string | null;
   lu: string;
@@ -209,6 +222,7 @@ export type Tableau = {
   fileDeStatus?: string[];
   distantes?: DistantesPubliees;
   activites?: ActiviteDuCook[];
+  avantLeRail?: AvantLeRailPublie;
   resserre?: Resserre[];
 };
 

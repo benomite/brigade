@@ -1,10 +1,10 @@
 // @ts-check
-// En tête du rail, sur la ligne de « upcoming » (ticket 1811) : à quelle allure la cuisine sert. Un petit histogramme
-// des 24 dernières heures, haut d'une ligne, une barre fine par heure, l'heure en cours à droite — les servis en vert en
-// bas, les ratés en rouge dessus. Une heure sans rien est une case vide sur un trait de base : une suite de cases vides
-// se voit d'un coup d'œil, sans phrase. Le seul texte : au survol d'une barre, ou au toucher sur le téléphone, son heure
-// et ses deux comptes. Et, sur une carte de Taken ou de Pass, son âge — qui tranche par sa couleur quand elle y est
-// depuis bien plus longtemps que d'ordinaire. Tout est calculé par cadence.ts : la vue pose.
+// En tête du rail, à côté de la barre de ce qui est avant lui (tickets 1811, 1836) : à quelle allure la cuisine sert.
+// Un petit histogramme des 24 dernières heures, haut d'une ligne, une barre fine par heure, l'heure en cours à droite —
+// les servis en vert en bas, les ratés en rouge dessus. Une heure sans rien est une case vide sur un trait de base : une
+// suite de cases vides se voit d'un coup d'œil, sans phrase. Le seul texte : au survol d'une barre, ou au toucher sur le
+// téléphone, son heure et ses deux comptes. Et, sur une carte de Taken ou de Pass, son âge — qui tranche par sa couleur
+// quand elle y est depuis bien plus longtemps que d'ordinaire. Tout est calculé par cadence.ts : la vue pose.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend un élément.
 
 import { survol } from "./briques.js";
