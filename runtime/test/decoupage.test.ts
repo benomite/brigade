@@ -67,8 +67,8 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     const fiches = [501, 502, 503].map((numero) => fiche(c.gh.commentaires.filter(([n]) => n === numero).map(([, texte]) => texte)));
     assert.deepEqual(fiches, [
       { waitsFor: [], zone: ["runtime/src/rail.ts"], problems: [] },
-      { waitsFor: [501], zone: ["runtime/src/pass.ts"], problems: [] },
-      { waitsFor: [501, 502], zone: ["docs/runtime.md"], problems: [] },
+      { waitsFor: [501], zone: ["runtime/src/pass.ts", "runtime/src/rail.ts"], problems: [] },
+      { waitsFor: [501, 502], zone: ["docs/runtime.md", "runtime/src/pass.ts", "runtime/src/rail.ts"], problems: [] },
     ]);
   });
 
@@ -193,7 +193,7 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
     assert.match(dit, /épique découpée en 3 tickets/);
     assert.match(dit, /Pourquoi ces tickets\.\*\* Un livrable par module touché\./);
     assert.match(dit, /Pourquoi cet ordre\.\*\* Le rail d'abord/);
-    assert.match(dit, /\| #502 \| La pass lit le compte \| #501 \| `runtime\/src\/pass\.ts` \| `sonnet` \/ `medium` \|/);
+    assert.match(dit, /\| #502 \| La pass lit le compte \| #501 \| `runtime\/src\/pass\.ts`, `runtime\/src\/rail\.ts` \| `sonnet` \/ `medium` \|/);
     assert.match(dit, /Le manager ne redécoupe jamais une épique\./);
     assert.match(dit, /Découpé par le manager en `sonnet` \/ `medium` · 1 tour/);
     assert.equal(c.dits(30).length, 1);
