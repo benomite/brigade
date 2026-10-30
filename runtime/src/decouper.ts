@@ -8,7 +8,7 @@ import { capacite, CAPACITE, CLE_DES_CAPACITES, FORME_DE_CAPACITE } from "./capa
 import { lignesHorsCode, reference, sansListe } from "./epique.ts";
 import type { TicketPrevu } from "./events/manager.ts";
 import { fiche, MARQUEUR } from "./fiche.ts";
-import { recouvrement } from "./zones.ts";
+import { recouvrement, segments } from "./zones.ts";
 import { COMMENTAIRES_MAX, CORPS_MAX, couper, CRITERE_DE_FORME, EFFORTS_DU_MANAGER, empreinte, objet, parmi, phrase, type IssueAJuger } from "./juger.ts";
 
 // Au-delà, ce n'est plus un découpage qu'un humain relit d'un coup d'œil :
@@ -86,6 +86,7 @@ export function consigneDeDecoupage(mission: { depot: string; issue: IssueAJuger
     "- Les tickets sont dans l'ordre où ils se cuisinent. `attend` nomme, par leur rang dans ta liste (1 pour le premier), ceux qui doivent être servis avant : seulement des rangs plus petits que le sien, et seulement quand c'est nécessaire — deux tickets qui ne s'attendent pas peuvent être cuisinés en même temps.",
     "- `zone` : les chemins du dépôt que le ticket possède — des fichiers ou des dossiers, relatifs à sa racine, pris dans le plan ci-dessous ou à créer. Un dossier possède tout ce qu'il contient ; jamais de motif (`*`).",
     "- **Un fichier, un propriétaire** : deux tickets qui ne s'attendent pas, même indirectement, n'ont aucun chemin en commun — ni le même, ni un dossier et un fichier qu'il contient. Découpe pour que les zones soient disjointes. Quand deux tickets doivent vraiment toucher au même fichier, le second attend le premier (`attend`) : sinon c'est le code qui posera cette dépendance à ta place, et le dira au chef.",
+    "- **Des zones étroites** : une zone nomme les fichiers, ou à la rigueur le sous-dossier, que le ticket change — jamais un dossier de produit entier (`runtime/`, `app/`, `docs/`), qui interdit à tout autre ticket de cuire à côté. Et `attend` ne lie que des tickets dont les zones se recouvrent, ou qui ne peuvent vraiment pas partir ensemble : deux tickets aux zones disjointes cuisent en même temps. Un découpage qui y contrevient est refusé et refait une fois.",
     ...(communs.length === 0
       ? []
       : [`- Ces chemins n'appartiennent à aucun ticket, presque tous y touchent : ${communs.map((chemin) => `\`${chemin}\``).join(", ")}. Ne les mets dans aucune zone ; un ticket y écrit sans les posséder.`]),
@@ -268,6 +269,32 @@ export function separer(tickets: TicketPrevu[], communs: string[] = []): TicketP
     if (overlaps.length === 0) return prevu;
     return { ...prevu, waitsFor: [...prevu.waitsFor, ...overlaps.map(({ index }) => index)].sort((a, b) => a - b), overlaps };
   });
+}
+
+// Les dossiers de produit : une zone qui en nomme un tout entier ne laisse
+// aucun autre ticket cuire à côté.
+export const DOSSIERS_DE_PRODUIT = ["runtime", "app", "docs"];
+
+// Ce qui fait refuser un découpage, ou rien : une zone qui est un dossier de
+// produit entier, et deux tickets aux zones disjointes que `attend` lie quand
+// même. Les dépendances que `separer` pose pour des zones qui se recouvrent
+// ne comptent pas : elles ont leur recouvrement. Sans E/S : ce que le code
+// vérifie du découpage, pas ce que le LLM en dit.
+export function defautsDeDecoupage(tickets: TicketPrevu[], communs: string[] = []): string[] {
+  const defauts: string[] = [];
+  for (const [i, prevu] of tickets.entries()) {
+    for (const chemin of prevu.zone) {
+      const entier = segments(chemin).join("/");
+      if (DOSSIERS_DE_PRODUIT.includes(entier)) defauts.push(`ticket ${i + 1} : sa zone est le dossier entier \`${entier}/\` — nomme les fichiers ou sous-dossiers qu'il change vraiment`);
+    }
+    for (const rang of prevu.waitsFor) {
+      const autre = tickets[rang - 1];
+      if (autre && recouvrement(prevu.zone, autre.zone, communs) === null) {
+        defauts.push(`ticket ${i + 1} attend le ticket ${rang}, mais leurs zones sont disjointes — ils peuvent cuire en même temps : retire cette attente`);
+      }
+    }
+  }
+  return defauts;
 }
 
 // Le corps du ticket : d'où il vient, ce que le cook doit savoir, ce qu'on
