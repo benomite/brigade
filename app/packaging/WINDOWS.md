@@ -10,7 +10,7 @@ try it.
 The installer is **not signed** (#1157). The installed app **updates itself** from the `app-v<version>`
 releases that carry this installer and its `latest.yml` (#1156, [`docs/app.md`](../../docs/app.md),
 "Updating it"). The [`publier-app`](../../.github/workflows/publier-app.yml) workflow builds and
-attaches both on every merge on `v2` that changes the app, next to the Mac's files
+attaches both on every merge on `main` that changes the app, next to the Mac's files
 ([`README.md`](README.md), "Publier").
 
 ## Build

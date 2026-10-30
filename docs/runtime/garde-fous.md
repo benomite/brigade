@@ -61,7 +61,7 @@ npm --prefix runtime run guardrails -- pause no    # "no": the slip leaves the q
 
 **The rename itself** (`runtime/src/pause/renommage.ts`) starts on your "yes", and on that alone:
 
-1. The runtime prepares a branch on the head of `v2`, which it has just fetched, runs
+1. The runtime prepares a branch on the head of `main`, which it has just fetched, runs
    `scripts/rename-code/rename.sh --apply` (#1039) there after the worktree setup, commits the
    renamed tree, pushes it and opens its PR.
 2. It hands the PR to the pass, off the rail, like the notebook's delivery. It is judged like any
@@ -78,7 +78,7 @@ from before the rename; they are picked up on the new tree, through the moves th
   it in the log, and each re-read of a card translates it the same way. The issue's card stays as
   you wrote it.
 - **Their branch** is carried onto the new tree by the pass, before judging it: one more commit,
-  which merges the renamed `v2` and moves there what the delivery had written. It is pushed, then
+  which merges the integration branch and moves there what the delivery had written. It is pushed, then
   judged like any delivery, and the issue says so. The same goes for a cook that left before the
   pause and delivers after it.
 - **A delivery that touched no moved file** is judged as it is.
@@ -88,7 +88,7 @@ from before the rename; they are picked up on the new tree, through the moves th
   comes back (`pass.md`, "A technical escalation goes to the kitchen").
 
 On failure, **nothing is merged**, and the pause is lifted with no action from you. The possible
-failures: the tool, the setup, red gates, a conflict with `v2`, a pass that does not judge or stops
+failures: the tool, the setup, red gates, a conflict with `main`, a pass that does not judge or stops
 before the merge, a closed PR. The queue then keeps a slip, `rename`, which says why and names the
 PR left open. `pause no` removes it once read.
 

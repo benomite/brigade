@@ -8,7 +8,7 @@ Fait descendre la version publiée du plugin dans tous les projets du poste. Ges
 
 **Ce qu'il ne fait pas.**
 
-- Il ne publie rien : la publication, c'est le merge sur `main` (voir plus bas). Il ne lit que le `plugin.json` du marketplace, jamais `v2`.
+- Il ne publie rien : la publication, c'est le merge sur `main` (voir plus bas). Il ne lit que le `plugin.json` du marketplace.
 - Il saute les installations déjà à cette version (« déjà en X »). Le piège : un rôle modifié sans bump de `version` donne « déjà à jour » partout, alors que le rôle installé est plus vieux. Pas de bump, pas de mise à jour.
 - Il ne réécrit ni les miroirs Codex, ni les bindings, ni les settings des projets.
 - Il ne change rien à chaud : la mise à jour ne s'applique qu'au redémarrage des sessions.
@@ -21,16 +21,10 @@ Fait descendre la version publiée du plugin dans tous les projets du poste. Ges
 
 ## Publier une évolution du plugin V1
 
-Le marketplace installe le plugin **depuis `main`**. Les rôles se développent sur `v2` (la branche d'intégration) : un rôle modifié sur `v2` n'atteint donc aucun projet tant que la zone plugin n'est pas passée sur `main`. Ce chemin existe parce que, sans lui, `v2` portait des rôles que le plugin publié ne portait pas, et `main` un numéro de version plus haut que `v2`.
-
-**La règle de version : `v2` et `main` portent le même `version` dans `.claude-plugin/plugin.json`.** Quiconque publie le bumpe, **sur `main` d'abord** (c'est la publication), puis pose le même numéro sur `v2`. Le numéro se choisit au-dessus du plus haut des deux : lis-les tous les deux avant de bumper.
+Le marketplace installe le plugin **depuis `main`**, qui est aussi la branche d'intégration : il n'y a qu'un chemin. Un rôle modifié (`commands/`, `agents/`, `codex/skills/`, `evals/`) arrive sur `main` par une PR ordinaire, mais n'atteint les projets installés que lorsque `version` change dans `.claude-plugin/plugin.json` : sans bump, `scripts/update-partout.sh` répond « déjà à jour ».
 
 Le geste :
 
-1. **Lire l'écart.** `git fetch`, puis `git diff origin/main origin/v2 -- commands agents codex evals .claude-plugin`. Lire aussi `git log origin/v2..origin/main` : ce que `main` porte et que `v2` n'a jamais reçu (une correction née sur `main`) est **à ne pas écraser**.
-2. **Choisir les chemins un par un**, jamais la zone entière : `git checkout origin/v2 -- <chemin>…`. Poser un dossier entier efface ce que `main` seul portait. Un fichier modifié des deux côtés se fusionne à la main.
-3. **PR vers `main`**, branche tirée de `origin/main` : les chemins choisis, le bump de `version`. Dire dans la PR quelles gates ont été jouées — `main` n'a ni `runtime/` ni `app/`, ses gates ne sont pas celles de `v2`. Le merge de cette PR **est** la publication.
-4. **PR vers `v2`** : le même numéro de version, et ce que `main` portait de plus s'il y a lieu. Ne pas fusionner `v2` dans `main` : `v2` porte `runtime/` et `app/`, qui ne se publient pas.
-5. **`scripts/update-partout.sh`**, au chef, sur son poste, puis redémarrer les sessions, `/brigade:sync` là où il y a un miroir Codex, `/brigade:init` si les bindings ou settings doivent suivre (le « quand » de chacun est ci-dessus).
-
-Un ticket qui demande deux PR sur deux bases ne se sert pas depuis la station d'une box : elle travaille contre `BRIGADE_BASE_BRANCH` (`v2`) et ne livre pas vers `main`.
+1. **Bumper `version`** dans `.claude-plugin/plugin.json`, dans la même PR que le changement du rôle (et de son miroir Codex).
+2. **PR vers `main`**, branche tirée de `origin/main`. Dire dans la PR quelles gates ont été jouées. Le merge de cette PR **est** la publication.
+3. **`scripts/update-partout.sh`**, au chef, sur son poste, puis redémarrer les sessions, `/brigade:sync` là où il y a un miroir Codex, `/brigade:init` si les bindings ou settings doivent suivre (le « quand » de chacun est ci-dessus).

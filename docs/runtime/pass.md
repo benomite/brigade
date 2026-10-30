@@ -328,7 +328,7 @@ The causes of an `unjudged` — none uses up a send-back of the pass:
 
 | Cause | What prevented the judgement |
 |---|---|
-| `wrong-base` | the PR does not target the integration branch (a PR to `main` when the base is `v2`) |
+| `wrong-base` | the PR does not target the integration branch (a PR that does not aim at `main`) |
 | `no-gates` | the project has no `gates.sh` once the branch is merged: without gates, "green" would mean no one looked |
 | `worktree-lost` | the station's clone no longer knows the branch, or the merge fails without being a conflict (git down). The pass does not recreate the branch; what the cook pushed stays on the origin |
 | `ci-silent` | thirty minutes of CI with no conclusion |

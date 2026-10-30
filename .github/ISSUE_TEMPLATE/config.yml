@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Install guide
-    url: https://github.com/benomite/brigade/blob/v2/docs/installer.md
+    url: https://github.com/benomite/brigade/blob/main/docs/installer.md
     about: Check the install guide before reporting an installation problem.
   - name: Contribution guide
-    url: https://github.com/benomite/brigade/blob/v2/CONTRIBUTING.md
+    url: https://github.com/benomite/brigade/blob/main/CONTRIBUTING.md
     about: How to report a problem, propose a change and open a pull request.

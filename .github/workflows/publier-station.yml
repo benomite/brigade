@@ -1,4 +1,4 @@
-# Publie la station : à chaque merge sur la branche d'intégration (`main` après le passage, `v2` avant) qui change ce que le paquet porte
+# Publie la station : à chaque merge sur la branche d'intégration qui change ce que le paquet porte
 # (le runtime livré et `runtime/paquet/`), une release `station-<version>` avec
 # `installer-station.sh` (runtime/deploy/, la commande d'installation sous Linux et macOS),
 # `installer-station.ps1` (runtime/deploy/windows/, celle de Windows),
@@ -12,7 +12,7 @@ name: publier-station
 
 on:
   push:
-    branches: [main, v2]
+    branches: [main]
     paths:
       - "runtime/src/**"
       - "runtime/package.json"

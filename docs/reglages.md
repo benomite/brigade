@@ -87,7 +87,7 @@ Example:
 ```json
 {
   "version": 1,
-  "integrationBranch": "v2",
+  "integrationBranch": "main",
   "defaultCalibrations": {
     "manager": { "model": "sonnet", "effort": "medium" }
   },

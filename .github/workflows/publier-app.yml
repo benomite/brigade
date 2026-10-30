@@ -1,4 +1,4 @@
-# Publie l'app : à chaque merge sur la branche d'intégration (`main` après le passage, `v2` avant) qui change l'app, une release `app-v<version>` avec ce que
+# Publie l'app : à chaque merge sur la branche d'intégration qui change l'app, une release `app-v<version>` avec ce que
 # les apps installées lisent et téléchargent (app/src/mise-a-jour/flux.ts) — pour le Mac
 # `Brigade-<version>-arm64.dmg` et `latest-mac.yml`, pour Windows `Brigade-<version>-x64-setup.exe`
 # et `latest.yml`, tous à la racine de la release. Personne ne pose de tag : ce workflow crée le
@@ -28,7 +28,7 @@ name: publier-app
 
 on:
   push:
-    branches: [main, v2]
+    branches: [main]
   workflow_dispatch:
 
 # Deux publications ne se doublent pas : chacune lit les tags que la précédente a posés.
@@ -41,8 +41,8 @@ permissions:
 
 jobs:
   decider:
-    # Seule la branche d'intégration se publie (`main` après le passage, `v2` avant), même lancé à la main.
-    if: github.ref_name == 'main' || github.ref_name == 'v2'
+    # Seule la branche d'intégration se publie, même lancé à la main.
+    if: github.ref_name == 'main'
     runs-on: ubuntu-latest
     outputs:
       changed: ${{ steps.decision.outputs.changed }}
