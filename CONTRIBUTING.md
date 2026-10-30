@@ -4,7 +4,7 @@ Thanks for your interest. The code, the docs and the issues are in English; [`do
 
 ## Report a problem
 
-Open an issue with the [bug report form](.github/ISSUE_TEMPLATE/bug_report.yml). It asks for your operating system, the brigade version, and what you expected versus what happened. Before that, check the [install guide](docs/installer.md) (the Mac app has its own, [`docs/installation-mac.md`](docs/installation-mac.md)): most first-run problems are a missing prerequisite.
+Open an issue with the [bug report form](.github/ISSUE_TEMPLATE/bug_report.yml). It asks for your operating system, the brigade version, and what you expected versus what happened. Before that, check the [install guide](docs/installer.md) (the Mac app has its own, [`docs/tutoriels/installer-sur-mac.md`](docs/tutoriels/installer-sur-mac.md)): most first-run problems are a missing prerequisite.
 
 ## Propose a change
 
