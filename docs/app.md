@@ -813,16 +813,16 @@ The code lives in `app/src/vue/closer/tendance/tendance.js`. Capture: `docs/capt
 hover of the T icon** —, a line says where the code the app runs on stands — that of the clone you launched it from —, with the time of its reading:
 
 ```
-this app's code is up to date with origin/v2 — read at 14:32:07, reread when you come back to the window
+this app's code is up to date with origin/main — read at 14:32:07, reread when you come back to the window
 ```
 
 When its clone is behind the origin branch it follows, it says so as an alert, with
 the number of commits, and what that means:
 
 ```
-THIS APP'S CODE IS 39 COMMITS BEHIND origin/v2 — read at 14:32:07, reread when you come back to the window
+THIS APP'S CODE IS 39 COMMITS BEHIND origin/main — read at 14:32:07, reread when you come back to the window
   What this app shows may be out of date: what has been delivered since is not in it — a screen, an action, a reading.
-  Its clone: /Users/chef/dev/brigade, on branch v2.
+  Its clone: /Users/chef/dev/brigade, on branch main.
   One click updates it and relaunches it on the new version — no terminal, nothing to copy. Without a click, it moves to the new version at its next opening.
   It is also the clone of the project "brigade": its second reads the same code there.
 [update and relaunch the app]
@@ -830,8 +830,8 @@ THIS APP'S CODE IS 39 COMMITS BEHIND origin/v2 — read at 14:32:07, reread when
 
 | On screen | What the app read | What it offers |
 |---|---|---|
-| `this app's code is up to date with origin/v2`, discreet | its clone has all the commits of the branch it follows | nothing |
-| `THIS APP'S CODE IS 39 COMMITS BEHIND origin/v2`, in yellow, solid line | the origin has 39 commits its clone does not — the same number as `git status` after a `git fetch` | **a button**, "update and relaunch the app" — or, if its clone has commits of its own, the command `git -C <its clone> pull` to write in a shell |
+| `this app's code is up to date with origin/main`, discreet | its clone has all the commits of the branch it follows | nothing |
+| `THIS APP'S CODE IS 39 COMMITS BEHIND origin/main`, in yellow, solid line | the origin has 39 commits its clone does not — the same number as `git status` after a `git fetch` | **a button**, "update and relaunch the app" — or, if its clone has commits of its own, the command `git -C <its clone> pull` to write in a shell |
 | `THIS APP IS RUNNING ON OLDER CODE THAN ITS CLONE'S`, in yellow, solid line | its clone is no longer on the commit of its launch: it was updated while it was running | **a button**, "relaunch the app": it only changes code at its launch |
 | `the lag of this app's code behind its origin was not read`, in yellow, dashed line | the origin did not answer, the clone is on no branch, its branch follows nothing — or the app is not launched from a clone | the reason, with what `git` said about it. **Not read is never "up to date"** |
 | nothing | **the installed app** (the `.dmg`) has no clone: nothing is read of its code, nor of the brigade clones among the projects — they are recognized by the origin of its own | nothing here: it updates itself on published versions ("Launching the app", *Its update*) |
@@ -857,11 +857,11 @@ THIS APP'S CODE IS 39 COMMITS BEHIND origin/v2 — read at 14:32:07, reread when
   whose folder is a clone of the same origin as the app's. If it is the same clone, it
   is named under the app's line (`It is also the clone of the project "brigade"`); if it is
   another, it has its own line, its number and its button: `THE CLONE OF "brigade" IS 12 COMMITS
-  BEHIND origin/v2`. The other projects' clones are not read: their lag is
+  BEHIND origin/main`. The other projects' clones are not read: their lag is
   the business of their repository.
 - **The bar's T icon turns yellow** as long as one of these clones is behind or the app is
   to be relaunched: whatever the screen on display, its hover says what (`All projects — this app's code
-  is 39 commits behind origin/v2`).
+  is 39 commits behind origin/main`).
 - **Nothing is watched continuously**: one reading at launch, one each time you come back to the
   window, one when the projects file changes. In between, the time shown is that of the
   last reading — an app left in the foreground for a whole hour does not reread.
@@ -3109,7 +3109,7 @@ Two ways: **installed**, from a `.dmg` for Apple Silicon, or **from a clone of t
 It carries its station's runtime and the `node` that plays it: no clone, no `node`, no `npm` on the
 machine. It reads `~/.config/brigade/` as it is — your projects and settings are those of the repo's
 app —, takes the `PATH` of your login shell (to find `claude` and `gh`), and does not update through
-`git`: it keeps itself up to date from the published versions (below). Every merge on `v2` that
+`git`: it keeps itself up to date from the published versions (below). Every merge on `main` that
 changes the app publishes an `app-v<version>` release with the Mac and Windows installers, built by
 the `publier-app` workflow; nobody pushes a tag. Until signing lands (#1441), the published `.dmg` is
 only ad hoc signed, like one you build yourself: copied from another Mac, macOS asks for "Open
@@ -3174,7 +3174,7 @@ brigade : je pose Electron — téléchargé la première fois sur ce poste, 311
 - **First of all, `start` moves to the new version.** If the origin branch this clone follows has
   moved on, the clone moves with it (fast-forward only), then the dependencies are set up again if it
   changes them, and the app opens on the new version:
-  `brigade: the app is updated — 5 commits from origin/v2 (3ba369f → e5123e1), in /Users/chef/dev/brigade. It opens on the new version.`
+  `brigade: the app is updated — 5 commits from origin/main (3ba369f → e5123e1), in /Users/chef/dev/brigade. It opens on the new version.`
   Already up to date, nothing is said. A silent origin (after a minute), a branch that follows
   nothing, a clone with commits of its own or changes that would be overwritten: the clone does not
   move, the reason is given, and the app opens on the code it has — a failed update never stops it

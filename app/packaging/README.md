@@ -43,7 +43,7 @@ Codes de sortie : 0 construit, 1 la construction a échoué, 2 refus — rien n'
 
 Le workflow [`publier-app`](../../.github/workflows/publier-app.yml) publie l'app tout seul, comme
 [`publier-station`](../../.github/workflows/publier-station.yml) publie la station : **à chaque merge
-sur `v2` qui change l'app**, une release `app-v<version>`. Personne ne pose de tag.
+sur `main` qui change l'app**, une release `app-v<version>`. Personne ne pose de tag.
 
 1. Le job `decider` prend les fichiers changés depuis le dernier tag `app-v*` (sans tag encore, ceux
    du push) et les passe à [`scripts/app-release/decider.ts`](../../scripts/app-release/README.md),
@@ -87,7 +87,7 @@ C'est le seul chemin de publication : un tag `app-v*` poussé à la main ne publ
 base du merge suivant — pousser `app-v1.1.0` fait publier `app-v1.1.1` au prochain merge qui change
 l'app : c'est ainsi qu'on monte une version mineure ou majeure. Les publications passent une à une
 (`concurrency`) ; un run annulé ou échoué ne perd rien, puisque le suivant compare au dernier tag
-publié. `workflow_dispatch` rejoue la décision à la main, sur `v2` seulement.
+publié. `workflow_dispatch` rejoue la décision à la main, sur `main` seulement.
 
 ### Signer, notariser
 

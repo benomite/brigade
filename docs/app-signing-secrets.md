@@ -1,7 +1,7 @@
 # App signing secrets
 
 The [`publier-app`](../.github/workflows/publier-app.yml) workflow publishes an `app-v<version>`
-release on every merge on `v2` that changes the app ([`app/packaging/README.md`](../app/packaging/README.md),
+release on every merge on `main` that changes the app ([`app/packaging/README.md`](../app/packaging/README.md),
 "Publier"). It only ships signed apps: the Mac `.dmg` is signed with a Developer ID certificate,
 notarized by Apple and stapled, so it opens with no Apple warning, and the Windows installer is
 signed with a code signing certificate. Installed apps update themselves to every release, so a

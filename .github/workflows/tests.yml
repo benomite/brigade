@@ -1,14 +1,14 @@
 # Les gates entières, sur GitHub Actions (#1004) : la station qui cuisine ne joue que les tests
 # proches d'un changement (`tests-touches.mjs --proches`) ; ici, sur une PR, se jouent tous ceux
-# qu'il touche, et sur `v2` après un merge, la suite entière (le diff y est vide). La pass attend ce
+# qu'il touche, et sur `main` après un merge, la suite entière (le diff y est vide). La pass attend ce
 # check avant de merger. Le dépôt est public : les runners de GitHub n'y coûtent rien.
 name: tests
 
 on:
   pull_request:
-    branches: [main, v2]
+    branches: [main]
   push:
-    branches: [main, v2]
+    branches: [main]
   workflow_dispatch:
 
 permissions:

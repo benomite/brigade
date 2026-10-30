@@ -7,7 +7,7 @@ Endosse l'agent de triage de la brigade (`agents/triage.md`). Il n'y a ni dépô
 ni `CLAUDE.md` à lire : réponds directement, à partir de ce qui suit, qui est
 tout ce que tu as lu de la carte.
 
-Projet `parade`, branche d'intégration `v2`. La carte est sur le point d'entrer
+Projet `parade`, branche d'intégration `main`. La carte est sur le point d'entrer
 en TODO :
 
 - Issue #310 « Que montre le rail d'un ticket abandonné ? » — le ticket demande

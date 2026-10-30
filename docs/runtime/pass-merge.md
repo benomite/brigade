@@ -16,7 +16,7 @@ npm --prefix runtime run grant -- revoke merge
 - **Absent by default**, and **not retroactive**: enabling it holds for the deliveries that
   follow; the ones the pass has already stopped, you merge by hand.
 - **Every use is logged** (`grant.used`: ticket, PR, commit, verdict): that is the answer to
-  "why is this code on `v2`?" — `grant` lists the uses, `pass -- <ticket>` the verdict.
+  "why is this code on `main`?" — `grant` lists the uses, `pass -- <ticket>` the verdict.
 - **The merge is written in two steps**: the intent (`grant.used`) before the call to GitHub, the
   result after (`merge.done`, `merge.failed`). A runtime that died in between rereads the PR on
   restart. GitHub accepts the merge only if the branch is still on the commit that was judged; a

@@ -11,7 +11,7 @@ Open an issue with the [bug report form](.github/ISSUE_TEMPLATE/bug_report.yml).
 - A new idea: open an issue with the [feature request form](.github/ISSUE_TEMPLATE/feature_request.yml) and wait for feedback before writing a lot of code.
 - A small fix (typo, doc, obvious bug): a pull request directly is fine.
 
-The repository's integration branch is `v2`. Read [`CLAUDE.md`](CLAUDE.md) for the zones of the repo (`runtime/`, `app/`, the V1 plugin, `docs/`): a change belongs to one zone and should not write in another.
+The repository's integration branch is `main`. Read [`CLAUDE.md`](CLAUDE.md) for the zones of the repo (`runtime/`, `app/`, the V1 plugin, `docs/`): a change belongs to one zone and should not write in another.
 
 ## Run the tests locally
 
@@ -31,7 +31,7 @@ Tests use a fake `claude` and no network, so they cost no quota. Do not start th
 
 ## What a pull request looks like
 
-- Targets `v2`, from a branch of your own.
+- Targets `main`, from a branch of your own.
 - Does one thing, and links the issue it serves (`Closes #123`).
 - Includes tests for the behavior it changes; tests never depend on timing.
 - Updates the doc under `docs/` when it changes a behavior. A change to a role in `commands/` is carried into its mirror under `codex/skills/`.
