@@ -575,9 +575,12 @@ test("le plafond de calibrage se règle d'un geste de `station`, sans redémarra
   };
 
   assert.match(await station(), /^calibration ceiling +opus \/ high — default — `station -- ceiling-modele <model>`/m);
-  assert.match(await station(), /^  ceiling-modele +not set — the default, opus$/m);
+  assert.match(await station(), /^  ceiling-modele +not set — the default, opus — source: default$/m);
 
-  assert.match(await station("ceiling-modele", "sonnet"), /^brigade : ceiling-modele: sonnet \(was: not set\) — read by the runtime at its next read, without a restart/);
+  const posee = await station("ceiling-modele", "sonnet");
+  assert.match(posee, /^brigade : ceiling-modele: sonnet \(was: not set\) — read by the runtime at its next read, without a restart/);
+  assert.match(posee, /^source: box$/m);
+  assert.match(await station(), /^  ceiling-modele +sonnet — source: box$/m);
   assert.deepEqual(await lire(), { modele: "sonnet", effort: "high", parLeChef: { modele: true, effort: false } });
   assert.match(await station(), /^calibration ceiling +sonnet \(set by you\) \/ high \(default\)/m);
 
@@ -586,7 +589,9 @@ test("le plafond de calibrage se règle d'un geste de `station`, sans redémarra
   assert.match(await station(), /^calibration ceiling +sonnet \/ max — set by you, replaces the default opus \/ high/m);
 
   // Retiré, c'est le défaut qui revient.
-  assert.match(await station("remove", "ceiling-modele"), /^brigade : ceiling-modele: withdrawn \(was: sonnet\) — back to the default, opus/);
+  const retiree = await station("remove", "ceiling-modele");
+  assert.match(retiree, /^brigade : ceiling-modele: withdrawn \(was: sonnet\) — back to the default, opus/);
+  assert.match(retiree, /^source: default$/m);
   assert.deepEqual(await lire(), { modele: "opus", effort: "max", parLeChef: { modele: false, effort: true } });
 
   // Une valeur que le runtime ne lirait pas est refusée, et rien n'est écrit.
@@ -616,9 +621,9 @@ test("le plafond et le calibrage que porte le dépôt du projet passent avant ce
   assert.match(await station(), /^  manager-modele +opus — from the project's repository \(\.claude\/brigade\/projet\.json\)$/m);
 
   // Posé sur la box, il est écrit — et dit ignoré tant que le dépôt le porte.
-  assert.match(await station("ceiling-modele", "opus"), /^brigade : ceiling-modele: opus \(was: not set\) — read by the runtime.*\nbut the project's repository sets it \(\.claude\/brigade\/projet\.json: sonnet\): this decision is ignored while it does$/m);
+  assert.match(await station("ceiling-modele", "opus"), /^brigade : ceiling-modele: opus \(was: not set\) — read by the runtime.*\nbut the project's repository sets it \(\.claude\/brigade\/projet\.json: sonnet\): this decision is ignored while it does\nsource: project decisions$/m);
   assert.deepEqual(await lire(), { modele: "sonnet", effort: "low", parLeChef: { modele: false, effort: false }, depuisLeDepot: true });
-  assert.match(await station(), /^  ceiling-modele +sonnet — from the project's repository \(\.claude\/brigade\/projet\.json\); set on the box: opus, ignored$/m);
+  assert.match(await station(), /^  ceiling-modele +sonnet — from the project's repository \(\.claude\/brigade\/projet\.json\); set on the box: opus, ignored — source: project decisions$/m);
 });
 
 test("la commande refuse un argument, un répertoire d'état absent ou sans journal, en le disant", async (t) => {

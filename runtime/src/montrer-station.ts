@@ -228,9 +228,9 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
       if (!(erreur instanceof ConfigInvalide)) throw erreur;
       echouer(2, `${nom} refused, nothing is written — ${erreur.message}\nusage: \`station -- ${geste(nom)}\` — ${attendu}`);
     }
-    if (fait?.type !== "decision.set") return `${nom}: already set — ${valeur.trim()}; nothing is written${remplaceeParLeDepot(decision)}`;
+    if (fait?.type !== "decision.set") return `${nom}: already set — ${valeur.trim()}; nothing is written${remplaceeParLeDepot(decision)}${sourceDuPlafond(decision, true)}`;
     const { value, previous } = fait.payload;
-    return `${nom}: ${value} (was: ${previous ?? "not set"}) — ${LU}${sansRuntime(journal)}${remplaceeParLeDepot(decision)}`;
+    return `${nom}: ${value} (was: ${previous ?? "not set"}) — ${LU}${sansRuntime(journal)}${remplaceeParLeDepot(decision)}${sourceDuPlafond(decision, true)}`;
   }
 
   // Ce que le dépôt du projet fixe à la place des décisions de la box : le
@@ -246,6 +246,14 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
     return valeur === undefined ? "" : `\nbut the project's repository sets it (${FICHIER}: ${valeur}): this decision is ignored while it does`;
   };
 
+  // D'où vient la valeur en vigueur d'une dimension du plafond : les décisions
+  // du projet (son dépôt), sinon la box, sinon le défaut. Rien pour les autres
+  // décisions.
+  const sourceDuPlafond = (decision: string, surLaBox: boolean): string => {
+    if (decision !== "BRIGADE_CEILING_MODEL" && decision !== "BRIGADE_CEILING_EFFORT") return "";
+    return `\nsource: ${duDepot()[decision] !== undefined ? "project decisions" : surLaBox ? "box" : "default"}`;
+  };
+
   // Retire la décision du chef : le journal n'en porte plus rien, et aucune
   // variable d'environnement n'y supplée.
   function retirer(journal: Journal, nom: string): string {
@@ -253,7 +261,7 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
     const fait = retirerDecision(journal, { projet: projetDuJournal(journal), nom: decision, auteur: AUTEUR });
     if (fait?.type !== "decision.withdrawn") return `${nom}: not set, nothing is written`;
     const defaut = DEFAUTS[decision];
-    if (defaut !== undefined) return `${nom}: withdrawn (was: ${fait.payload.previous}) — back to the default, ${defaut}: ${LU}${sansRuntime(journal)}`;
+    if (defaut !== undefined) return `${nom}: withdrawn (was: ${fait.payload.previous}) — back to the default, ${defaut}: ${LU}${sansRuntime(journal)}${sourceDuPlafond(decision, false)}`;
     return `${nom}: withdrawn (was: ${fait.payload.previous}) — it is no longer decided: the runtime keeps to what it read, no running cook is stopped; ${decision} is only read from the log${sansRuntime(journal)}`;
   }
 
@@ -268,10 +276,11 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
       const defaut = DEFAUTS[decision];
       const duDepotPose = depot[decision];
       if (duDepotPose !== undefined) {
-        dire(`  ${nom.padEnd(20)}${duDepotPose} — from the project's repository (${FICHIER})${posee === undefined ? "" : `; set on the box: ${posee}, ignored`}`);
+        dire(`  ${nom.padEnd(20)}${duDepotPose} — from the project's repository (${FICHIER})${posee === undefined ? "" : `; set on the box: ${posee}, ignored`}${sourceDuPlafond(decision, true).replace("\n", " — ")}`);
         continue;
       }
-      dire(`  ${nom.padEnd(20)}${posee ?? (defaut === undefined ? `not set — ${decision} is only read from the log` : `not set — the default, ${defaut}`)}`);
+      const source = sourceDuPlafond(decision, posee !== undefined).replace("\n", " — ");
+      dire(`  ${nom.padEnd(20)}${posee ?? (defaut === undefined ? `not set — ${decision} is only read from the log` : `not set — the default, ${defaut}`)}${source}`);
     }
     // Jusqu'où le manager monte un ticket rouge : porté par le dépôt, ou
     // chaque dimension, posée ou par défaut.
