@@ -16,8 +16,6 @@ contribute and the release notes — go back to the [repository root](../README.
   it to the app installed and the station of your Mac running.
 - [Install brigade and cook your first ticket](installation.md) — the whole path for Mac, Windows
   and Linux, from the download to the first merged pull request.
-- [Install the app on your Mac](installation-mac.md) — the app as a window on your Mac: opening it,
-  your projects, updates.
 - [Install a station on a server](installation-station.md) — a station on a Linux server (or on a
   Mac or Windows PC), installed once per machine. There is no separate Linux tutorial: this guide
   covers the Linux install.
