@@ -8,21 +8,22 @@ LinkedIn posts have no title field: the first line below is the hook.
 
 ## Body
 
-What if a solo developer ran a project like a restaurant kitchen?
+98 of the last 100 pull requests merged into my open-source project were written by AI agents. For each one, an automated pass decided whether it merged, not me.
 
-That is the question behind Brigade, an open-source project I've been building.
+Here is how that works, and why I trust it.
 
-The setup is simple:
-→ The backlog on GitHub is the only place work is coordinated. Nothing lives in an AI session's memory, so if a machine dies, the work survives.
-→ I write tickets with precise, observable acceptance criteria.
-→ A kitchen, running on a box, serves them: each ticket goes to a cook (an AI coding agent) in its own worktree.
-→ Nothing merges without passing the pass: the repo's gates (tests, type check) and an independent review.
-→ Guardrails cap what the kitchen can spend, and I can stop it with one command.
+The project is called Brigade, and it is organised like a restaurant kitchen:
+→ I write tickets on GitHub, with acceptance criteria anyone can check. GitHub is the only place where work is coordinated, so nothing lives in an AI session's memory.
+→ A cook (an AI coding agent) takes each ticket in its own isolated copy of the code and opens a pull request.
+→ Nothing merges without going through the pass: the project's tests and an independent review. A failed delivery goes back to the kitchen, not to me.
+→ Guardrails cap time, cost and parallel work, and one gesture stops the whole kitchen.
 
-The part I care about most is what reaches me. Not a stream of chat, but a short list of what is awaiting my decision.
+What reaches me is a short list of what only I can decide. Everything else gets handled without me.
 
-It's young, and I'm looking for feedback from people who manage engineering work, with or without agents: where would you want a human gate in a loop like this?
+Getting started takes an app (Mac or Windows), a GitHub account and a Claude account. No server and no setup files.
 
-The code and docs are public: https://github.com/benomite/brigade
+It's young, and I'd love feedback from people who manage engineering work, with or without agents: where would you put a human gate in a loop like this?
+
+Code and docs: https://github.com/benomite/brigade
 
 #OpenSource #AIAgents #SoftwareEngineering #ClaudeCode

@@ -23,19 +23,28 @@ Date of the reading attempt: **2026-10-23**, from the station's shell with `curl
 
 Whoever has an unrestricted network can redo it in a minute: fetch the same URLs with a plain GET and a descriptive User-Agent, then fill the "Rules" lines below with what the pages say, citing the URL and the date.
 
+A second attempt on **2026-11-01**, from the chef's workstation (`curl` on `old.reddit.com/r/ClaudeAI/about/rules.json`, then an HTTP fetch tool), was refused too: Reddit answers no rules to an unauthenticated tool. The chef reads them in a browser.
+
+## Before launching (not posting before these are done)
+
+The posts were rewritten on 2026-11-01 for the current product: an app for Mac or Windows, a GitHub account and a Claude account, no server and no ssh. Two things must be true before posting, because a reader who fails their first install will not come back:
+
+1. **A stranger walked the install path end to end** (#1912): a machine that never saw brigade, accounts that are not the chef's, only the README and the app.
+2. **The demo video exists** (#1550), and the posts link to it, or embed it where the place allows a video.
+
 ## Places, in posting order
 
 ### 1. r/ClaudeAI — post file: [`post-reddit-ClaudeAI.md`](post-reddit-ClaudeAI.md)
 
 - **Why first**: Brigade is built on Claude Code (cooks are real `claude` sessions); this is the community closest to the product, and the one where a technical, honest write-up is most likely to be on topic.
-- **Angle**: the *how*, not the pitch. One chef, a backlog on GitHub, and a kitchen on a box that serves tickets with cooks while the chef is away — with a pass (a reviewer plus the gates) that judges every delivery before it merges. Ask for feedback on the model, not for stars.
+- **Angle**: the *how*, not the pitch. Download an app, sign in with GitHub and Claude, put `fire` on an issue: a cook opens the PR, and a pass (the gates plus a reviewer) judges it before it merges. Ask for feedback on the model, not for stars.
 - **Rules**: rules not verified, chef to read the page before posting. Pages: the two `r/ClaudeAI` URLs above (not read on 2026-10-23), plus the Reddit self-promotion page (not read on 2026-10-23).
 - **Compliance of the post**: rules not verified — no compliance claim can be made. The post is written to be easy to adapt (no more than one link, no sales language), but the chef checks it against the pages first.
 
 ### 2. LinkedIn — post file: [`post-linkedin.md`](post-linkedin.md)
 
 - **Why second**: after the technical audience has had a chance to point out errors, the same story goes to a professional audience, told as a work-organisation story rather than a tooling one.
-- **Angle**: how a solo chef runs a project with a kitchen of agents — the backlog is the only place work is coordinated, nothing lives in a session's memory, and the chef decides only what the kitchen puts under `awaiting`.
+- **Angle**: a work-organisation story. 98 of the last 100 merged PRs were cooked by agents and judged by the pass; the backlog is the only place work is coordinated, and the chef decides only what the kitchen puts under `awaiting`. Posted about a week after Reddit, once the technical audience has had its say.
 - **Rules**: rules not verified, chef to read the page before posting. Page: https://www.linkedin.com/legal/professional-community-policies (not read on 2026-10-23).
 - **Compliance of the post**: rules not verified — no compliance claim can be made.
 
