@@ -107,6 +107,7 @@ export function changementsDits(avant: ReglagesProjet, apres: ReglagesProjet): s
   }
   const [communsAvant, communsApres] = [(avant.commonPaths ?? []).join(", "), (apres.commonPaths ?? []).join(", ")];
   if (communsAvant !== communsApres) dits.push(`common paths: ${communsAvant || "none"} → ${communsApres || "none"}`);
+  if (avant.chef !== apres.chef) dits.push(`chef: ${avant.chef === undefined ? "none" : `\`${avant.chef}\``} → ${apres.chef === undefined ? "none" : `\`${apres.chef}\``}`);
   for (const famille of FAMILLES_DE_SEUILS) {
     const de: Record<string, number | undefined> = avant[famille] ?? {};
     const vers: Record<string, number | undefined> = apres[famille] ?? {};

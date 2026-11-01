@@ -114,6 +114,10 @@ export type ReglagesProjet = SeuilsDuProjet & {
   // Les chemins que le rail traite comme communs à tous les tickets
   // (`BRIGADE_COMMON_PATHS`) : relatifs à la racine du dépôt.
   commonPaths?: string[];
+  // Le compte GitHub du chef (#1954) : ce qui distingue ses issues de celles
+  // que d'autres ouvrent sur le dépôt, auxquelles le rôle produit répond
+  // (`produit/externes/`).
+  chef?: string;
 };
 
 // D'où vient ce qu'on a lu : le fichier, la ligne du `CLAUDE.md`, ou rien.
@@ -129,6 +133,7 @@ export type ReglagesLus = {
   calibrationCeiling: Calibrage | null;
   closer: ReglagesDuCloser;
   commonPaths?: string[];
+  chef?: string;
 } & SeuilsDuProjet;
 
 // Pourquoi un réglage est refusé : il est à la machine ou au chef, ou il n'est
@@ -152,8 +157,12 @@ export class ReglageRefuse extends Error {
 const BRANCHE = /^(?!-)(?!.*\.\.)(?!.*\/\/)(?!.*@\{)(?!.*\.lock(?:\/|$))[A-Za-z0-9._/-]+(?<![/.])$/;
 const brancheValide = (branche: string) => BRANCHE.test(branche) && !branche.startsWith("/") && !branche.split("/").some((morceau) => morceau.startsWith("."));
 
-const CLES = ["version", "integrationBranch", "defaultCalibrations", "calibrationCeiling", "closer", "commonPaths", ...FAMILLES_DE_SEUILS];
+const CLES = ["version", "integrationBranch", "defaultCalibrations", "calibrationCeiling", "closer", "commonPaths", "chef", ...FAMILLES_DE_SEUILS];
 const CLES_DE_CALIBRAGE = ["model", "effort"];
+
+// Un compte GitHub tel que GitHub en accepte : lettres, chiffres et tirets
+// isolés, 39 caractères au plus, sans tiret au bord.
+export const LOGIN = /^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$/;
 
 const estObjet = (valeur: unknown): valeur is Record<string, unknown> => typeof valeur === "object" && valeur !== null && !Array.isArray(valeur);
 
@@ -291,6 +300,10 @@ function valider(objet: unknown, version: boolean): ReglagesProjet {
     const communs = cheminsCommunsDe(objet.commonPaths);
     if (communs.length > 0) reglages.commonPaths = communs;
   }
+  if (objet.chef !== undefined) {
+    if (typeof objet.chef !== "string" || !LOGIN.test(objet.chef)) throw invalide("chef", "must be the chef's GitHub login");
+    reglages.chef = objet.chef;
+  }
   for (const famille of FAMILLES_DE_SEUILS) {
     if (objet[famille] === undefined) continue;
     const lus = seuilsDe(famille, objet[famille]);
@@ -309,7 +322,7 @@ export function validerReglagesProjet(reglages: unknown): ReglagesProjet {
 // ligne. Les mêmes réglages donnent les mêmes octets.
 export function texteDuFichier(reglages: ReglagesProjet): string {
   const calibrage = ({ model, effort }: Calibrage) => ({ model, effort });
-  const { integrationBranch, defaultCalibrations, calibrationCeiling, closer, commonPaths } = reglages;
+  const { integrationBranch, defaultCalibrations, calibrationCeiling, closer, commonPaths, chef } = reglages;
   const duCloser = CLES_DU_CLOSER.flatMap((nom) => {
     const pose = closer?.[nom];
     if (pose === undefined) return [];
@@ -332,6 +345,7 @@ export function texteDuFichier(reglages: ReglagesProjet): string {
       ...(calibrationCeiling === undefined ? {} : { calibrationCeiling: calibrage(calibrationCeiling) }),
       ...(duCloser.length === 0 ? {} : { closer: Object.fromEntries(duCloser) }),
       ...(commonPaths === undefined || commonPaths.length === 0 ? {} : { commonPaths }),
+      ...(chef === undefined ? {} : { chef }),
       ...Object.fromEntries(desSeuils),
     },
     null,
@@ -425,6 +439,7 @@ export async function lireReglagesProjet(clone: string): Promise<ReglagesLus> {
     calibrationCeiling: reglages.calibrationCeiling ?? null,
     closer: reglages.closer ?? {},
     ...(reglages.commonPaths === undefined ? {} : { commonPaths: reglages.commonPaths }),
+    ...(reglages.chef === undefined ? {} : { chef: reglages.chef }),
     ...seuilsDuProjet(reglages),
   };
 }
