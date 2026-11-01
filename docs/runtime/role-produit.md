@@ -67,8 +67,10 @@ single signal (one refusal, one `86`) is not enough unless it blocks a user.
 The chef steers the role by opening an issue labelled `direction`. Its body states the direction in
 plain words (for example: *focus on onboarding this month*).
 
-- **`until: YYYY-MM-DD`** (optional, in the body): the direction holds up to that date, included.
-  Without it, the direction holds until the chef closes the issue.
+- Only an issue **opened by the chef** counts as a direction; the chef is the account the project's
+  settings name. Its body is the direction; the chef's comments on it extend it.
+- **`until: YYYY-MM-DD`** (optional, a line in the body): the direction holds up to that date,
+  included, and ends the day after. Without it, the direction holds until the chef closes the issue.
 - A direction changes what the role files next: at equal usage, what serves it comes first, and what
   contradicts it is not filed. It does not reopen a session.
 - A comment from the chef on a direction issue is read with it.
@@ -99,6 +101,7 @@ See [The project switch](exploitation.md) for what `off` stops and what it leave
 The words follow [the glossary](../glossary.md): `second`, `rail`, `pass`, `TODO`, `fire`, `86`,
 `drift`, `guardrails`, `cap`, `status`, `switch`, and the label names above.
 
-<!-- Status: the usage digest (#1953), the wake when the rail empties with its cap and its switch
-(#1955), and the directions the role reads (#1956) are in progress. Until they land, the cap, the
-switch and the status line described here are the target, not yet what the box runs. -->
+<!-- Status: the directions the role reads are on main (#1956). The usage digest (#1953) and the wake
+when the rail empties, with its cap, its switch and its status line (#1955), are still in progress.
+Until they land, the cap, the switch and the status line described here are the target, not yet
+what the box runs. -->
