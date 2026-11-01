@@ -62,6 +62,27 @@ export function activiteCuisineLue(brut: unknown): ActiviteCuisine | undefined {
   return lastHour === undefined || lastDay === undefined ? undefined : { lastHour, lastDay };
 }
 
+// Ce que la cuisine fait tourner en ce moment hors des cooks de ticket (runtime/src/agents-en-cours.ts, #1971) : son rôle
+// (`pass`, `manager`, `triage`, `closer`), la station qui le fait tourner — nulle quand le runtime ne la nomme pas —, son
+// ticket — nul pour le closer —, ce qu'il fait, en anglais, et depuis quand.
+export type AgentLu = { role: string; station: string | null; ticket: number | null; fait: string; depuis: string };
+
+// Le champ `agents` d'un `facts` : un agent qui n'a pas cette forme n'est pas lu, ni une liste qui n'en est pas une — le
+// bloc des stations se dessine sans, comme pour un runtime d'avant ce champ.
+export function agentsLus(brut: unknown): AgentLu[] | undefined {
+  if (!Array.isArray(brut)) return undefined;
+  const texte = (valeur: unknown): valeur is string => typeof valeur === "string" && valeur.length > 0;
+  return brut.flatMap((un: unknown) => {
+    if (typeof un !== "object" || un === null) return [];
+    const { role, station, ticket, fait, depuis } = un as Record<string, unknown>;
+    const numero = ticket === null || (typeof ticket === "number" && Number.isSafeInteger(ticket) && ticket > 0);
+    const ou = station === null || texte(station);
+    return texte(role) && ou && numero && texte(fait) && texte(depuis) && !Number.isNaN(Date.parse(depuis))
+      ? [{ role, station: station as string | null, ticket: ticket as number | null, fait, depuis }]
+      : [];
+  });
+}
+
 // Un rôle de la cuisine du projet (runtime/src/roles-cuisine/roles.ts, ticket 1274) : son nom, la ligne qui dit ce qu'il
 // fait, et sa dernière action sur le projet — une courte phrase, son ticket et son heure —, nulle s'il n'a rien fait.
 export type ActionDeRole = { what: string; ticket: number | null; at: string };
@@ -286,6 +307,9 @@ export type Faits = {
   cuisineOisive?: CuisineOisive | null;
   // Les stations que le projet déclare et ce qu'elles font des tickets ordinaires (ordinaires.ts) ; absent d'un runtime d'avant ce champ.
   stations?: StationDesFaits[];
+  // Ce qui tourne hors des cooks de ticket — la pass, le manager, le triage, le closer (#1971) ; absent d'un runtime
+  // d'avant ce champ.
+  agents?: AgentLu[];
   // Le plafond de calibrage du manager, et si le chef l'a posé (plafond-de-calibrage.ts) ; absent d'un runtime
   // d'avant ce champ.
   plafondDeCalibrage?: PlafondLu;
@@ -723,6 +747,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
       ...(racine.stations === undefined
         ? {}
         : { stations: (Array.isArray(racine.stations) ? racine.stations : refuser("stations", "a list")).map((station: unknown, rang) => comprendreStation(station, `stations[${rang}]`)) }),
+      ...(agentsLus(racine.agents) === undefined ? {} : { agents: agentsLus(racine.agents) }),
       ...(racine.plafondDeCalibrage === undefined ? {} : { plafondDeCalibrage: plafondLu(racine.plafondDeCalibrage) }),
       ...(triageLu(racine.triage) === undefined ? {} : { triage: triageLu(racine.triage) }),
       ...(activiteCuisineLue(racine.activiteCuisine) === undefined ? {} : { activiteCuisine: activiteCuisineLue(racine.activiteCuisine) }),
@@ -1244,7 +1269,7 @@ export function tableau(faits: Faits, attend?: BlocLu, status?: StatusLu, repond
     ...rienNeCuit(status),
     ...panneDe(faits),
     rail: rail(faits, attend, status, repondues, ecrites, envois),
-    ...(faits.stations === undefined ? {} : { stations: cuissonDe(faits.stations, faits.cooks, faits.lu) }),
+    ...(faits.stations === undefined ? {} : { stations: cuissonDe(faits.stations, faits.cooks, faits.lu, faits.agents, faits.rail) }),
     ...(faits.plafondDeCalibrage === undefined ? {} : { plafondDeCalibrage: plafondVu(faits.plafondDeCalibrage) }),
     ...(triageDe(faits.triage, faits.lu) === undefined ? {} : { triage: triageDe(faits.triage, faits.lu) }),
     ...(faits.activiteCuisine === undefined ? {} : { activiteCuisine: faits.activiteCuisine }),

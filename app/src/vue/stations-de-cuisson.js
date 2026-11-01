@@ -17,6 +17,10 @@
 // « edit » compris), ses cooks à la fois, et, quand elle ne peut pas cuire, pourquoi en une ligne.
 // Telle que la principale la voit (ticket 1830), quand `facts` le dit : atteinte ou absente — une distante qui ne s'est
 // pas manifestée à la principale est absente, et ne se lit jamais « reached · cooking » —, et ce qu'elle fournit.
+// Et ce que chaque station fait tourner à côté de ses cooks (ticket 1971) — la pass qui juge une livraison, le manager
+// qui juge ou découpe une issue, le triage, le closer qui nettoie le projet : une carte chacun, avant celles des cooks, qui
+// dit son rôle, sa station, son ticket, ce qu'il fait et depuis quand ; une ligne chacun sur l'écran étroit. Une station
+// qui ne fait rien tourner le dit en une ligne ; une qui ne fait que juger ne se dit pas sans cook.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js).
 
 import { boutonAction } from "./briques.js";
@@ -26,6 +30,7 @@ import { ceQuElleFournit, motDuLieu } from "./stations-declarees.js";
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../cuisson.ts").LigneDeStation} Ligne */
 /** @typedef {import("../faits.ts").Cook} Cook */
+/** @typedef {import("../cuisson.ts").AgentDeStation} Agent */
 /** @typedef {import("../cuisson.ts").GesteDeCuisson} Geste */
 /** @typedef {import("../projets/demande.ts").AccesBloque} Acces */
 /** @typedef {import("../projets/demande.ts").Refus} Refus */
@@ -57,7 +62,16 @@ import { ceQuElleFournit, motDuLieu } from "./stations-declarees.js";
 /** @typedef {{ dit: string, refus: boolean, detail: string, etat: string }} Dit */
 
 export const TITRE = "Its stations";
-export const AUCUN_COOK = "no cook running";
+export const RIEN_NE_TOURNE = "nothing running";
+// Ce que la cuisine fait tourner hors des cooks de ticket (ticket 1971) : le mot de chaque rôle sur sa carte, et ce qu'il
+// est, au survol. Un rôle que l'app ne connaît pas se dit tel quel, sans survol.
+/** @type {Readonly<Record<string, string>>} */
+export const ROLES_EN_COURS = {
+  pass: "the pass judges a delivery: its gates, its CI and the reviewer's review, then merges it or sends it back",
+  manager: "the manager judges the project's issues, puts the ready ones on the rail, splits epics, and decides what follows a red ticket",
+  triage: "the triage takes up a card that would go to you, and settles it when it can",
+  closer: "the closer cleans the project up when you ask it to, and delivers what it removes as a PR",
+};
 export const OUVRIR_COOKS = "open Cooks";
 
 // Le rôle d'une station (ticket 1786) : la principale tient le manager et la pass, les autres cuisent à côté. Au survol.
@@ -109,14 +123,43 @@ function cree(doc, balise, texte) {
   return pose;
 }
 
-// Les cooks en cours d'une station, une ligne chacun : son ticket et son titre (l'écran étroit).
-/** @param {Fabrique} doc @param {readonly Cook[]} siens */
-function lignesDeCooks(doc, siens) {
+// Ce qu'un agent fait, et depuis quand : la durée à la lecture, l'heure au survol.
+/** @param {Fabrique} doc @param {Agent} agent */
+function ceQuIlFait(doc, { fait, pour, depuis }) {
+  const dit = cree(doc, "span", `${fait} · for ${pour}`);
+  dit.className = "agent-fait";
+  dit.title = `since ${depuis}`;
+  return dit;
+}
+
+// Son rôle, au mot de sa carte, et ce qu'il est au survol.
+/** @param {Fabrique} doc @param {string} role */
+function motDuRole(doc, role) {
+  const mot = cree(doc, "strong", role);
+  mot.className = "agent-role";
+  const survol = Object.hasOwn(ROLES_EN_COURS, role) ? ROLES_EN_COURS[role] : undefined;
+  if (survol !== undefined) mot.title = survol;
+  return mot;
+}
+
+// Les cooks en cours d'une station, une ligne chacun : son ticket et son titre (l'écran étroit) — après ce qu'elle fait
+// tourner d'autre, une ligne chacun : son rôle, son ticket, ce qu'il fait.
+/** @param {Fabrique} doc @param {readonly Cook[]} siens @param {readonly Agent[]} agents */
+function lignesDeCooks(doc, siens, agents) {
   const cooks = cree(doc, "ul");
-  cooks.className = siens.length === 0 ? "cooks vide" : "cooks";
+  cooks.className = siens.length === 0 && agents.length === 0 ? "cooks vide" : "cooks";
   cooks.append(
-    ...(siens.length === 0
-      ? [cree(doc, "li", AUCUN_COOK)]
+    ...agents.map((agent) => {
+      const ligne = cree(doc, "li");
+      ligne.className = "agent";
+      ligne.dataset.role = agent.role;
+      const numero = agent.ticket === null ? [] : [cree(doc, "strong", `#${agent.ticket}`)];
+      for (const fort of numero) fort.className = "mono";
+      ligne.append(motDuRole(doc, agent.role), ...numero, ceQuIlFait(doc, agent));
+      return ligne;
+    }),
+    ...(siens.length === 0 && agents.length === 0
+      ? [cree(doc, "li", RIEN_NE_TOURNE)]
       : siens.map(({ ticket, titre }) => {
           const cook = cree(doc, "li");
           const numero = cree(doc, "strong", `#${ticket}`);
@@ -130,18 +173,46 @@ function lignesDeCooks(doc, siens) {
   return cooks;
 }
 
-// Les cooks en cours d'une station, la carte de son ticket chacun, telle que `carte` la pose.
-/** @param {Fabrique} doc @param {string} station @param {readonly Cook[]} siens @param {(cook: Cook) => any} carte */
-function cartesDeCooks(doc, station, siens, carte) {
-  if (siens.length === 0) {
-    const vide = cree(doc, "p", AUCUN_COOK);
+// La carte de ce qu'une station fait tourner hors de ses cooks : son rôle et sa station, comme les cartes du rail
+// l'étiquettent — le nom court, le nom entier au survol —, son ticket et son titre, ce qu'il fait et depuis quand.
+/** @param {Fabrique} doc @param {string} station @param {Agent} agent */
+function carteDAgent(doc, station, agent) {
+  const carte = cree(doc, "li");
+  carte.className = "carte-agent";
+  carte.dataset.role = agent.role;
+  const tete = cree(doc, "p");
+  tete.className = "agent-tete";
+  const etiquette = cree(doc, "span", station.split("/")[0]);
+  etiquette.className = "etiquette-de-station mono";
+  etiquette.title = station;
+  tete.append(motDuRole(doc, agent.role), etiquette);
+  carte.append(tete);
+  if (agent.ticket !== null) {
+    const sujet = cree(doc, "p");
+    sujet.className = "agent-ticket";
+    const numero = cree(doc, "strong", `#${agent.ticket}`);
+    numero.className = "mono";
+    sujet.append(numero, ...(agent.titre === "" ? [] : [cree(doc, "span", agent.titre)]));
+    if (agent.titre !== "") sujet.title = agent.titre;
+    carte.append(sujet);
+  }
+  carte.append(ceQuIlFait(doc, agent));
+  return carte;
+}
+
+// Les cooks en cours d'une station, la carte de son ticket chacun, telle que `carte` la pose — après la carte de chaque
+// agent qu'elle fait tourner d'autre. Rien du tout : une ligne le dit.
+/** @param {Fabrique} doc @param {string} station @param {readonly Cook[]} siens @param {readonly Agent[]} agents @param {(cook: Cook) => any} carte */
+function cartesDeCooks(doc, station, siens, agents, carte) {
+  if (siens.length === 0 && agents.length === 0) {
+    const vide = cree(doc, "p", RIEN_NE_TOURNE);
     vide.className = "aucun-cook";
     return vide;
   }
   const cartes = cree(doc, "ol");
   cartes.className = "cartes";
-  cartes.ariaLabel = `tickets in progress on ${station}`;
-  cartes.append(...siens.map(carte));
+  cartes.ariaLabel = `in progress on ${station}`;
+  cartes.append(...agents.map((agent) => carteDAgent(doc, station, agent)), ...siens.map(carte));
   return cartes;
 }
 
@@ -411,8 +482,9 @@ export function poserLesStations(doc, { lignes, enCours, dits, jouer, pastille, 
         pilule.title = ligne.survol;
         etat.append(pilule, ...(ligne.dit === "" ? [] : [cree(doc, "small", ligne.dit)]));
       }
-      // Ses cooks en cours : arrêtée, ce sont ceux qui finissent. Leurs cartes ferment le bloc, sous son geste.
-      const cooks = carte === undefined ? lignesDeCooks(doc, ligne?.cooks ?? []) : cartesDeCooks(doc, rang.nom, ligne?.cooks ?? [], carte);
+      // Ses cooks en cours : arrêtée, ce sont ceux qui finissent — et ce qu'elle fait tourner d'autre. Leurs cartes ferment
+      // le bloc, sous son geste.
+      const cooks = carte === undefined ? lignesDeCooks(doc, ligne?.cooks ?? [], ligne?.agents ?? []) : cartesDeCooks(doc, rang.nom, ligne?.cooks ?? [], ligne?.agents ?? [], carte);
       pose.append(nom, etat, ...(carte === undefined ? [cooks] : []));
       // Le geste : un seul bouton, et seulement quand c'est d'elle que l'arrêt vient ou s'en va.
       if (ligne !== undefined && ligne.geste !== null) {

@@ -28,6 +28,10 @@ const PHASES: Partial<Record<PassDeTicket["phase"], [string, string]>> = {
   escalated: ["remontée au chef", "escalated to the chef"],
 };
 
+// Ce que la pass fait elle-même d'une livraison, en anglais : elle y travaille — ses gates, la relecture, le jugement,
+// le merge. Les autres phases attendent (la pass, la CI coupée, le chef) : la pass n'y tourne pas (#1971).
+export const PASS_A_L_OUVRAGE: ReadonlySet<string> = new Set(["running the gates", "review in progress", "judging", "merging"]);
+
 // `fait` : la phrase en français et en anglais, dans cet ordre.
 const activite = (fait: [string, string], depuis: string, cible: string | null = null): ActiviteDeTicket => ({ fait: fait[0], faitEn: fait[1], cible, depuis });
 

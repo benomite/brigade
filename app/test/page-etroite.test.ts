@@ -19,7 +19,7 @@ import { GESTES_DES_GRANTS } from "../src/grants.ts";
 import { ONGLETS, RUBRIQUES } from "../src/onglets.ts";
 import { EFFORTS, MODELES } from "../src/projets/projets.ts";
 import type { Terminal } from "../src/terminaux.ts";
-import { AUCUN_COOK, BOUTONS as BOUTONS_DE_CUISSON } from "../src/vue/stations-de-cuisson.js";
+import { RIEN_NE_TOURNE, BOUTONS as BOUTONS_DE_CUISSON } from "../src/vue/stations-de-cuisson.js";
 import { FauxEcran, FauxStockage, type Faux, type Jouee, jouerLaVue, repos } from "./aides/fausse-vue.ts";
 
 const A = "2026-10-20T10:04:12.000Z";
@@ -226,7 +226,7 @@ describe("l'onglet Cooks d'un écran étroit, en lecture seule", () => {
     assert.deepEqual(lignes(vue).map(etatDe), ["cooking", "saturated", "stopped"]);
     assert.deepEqual(cooksDe(ligne(vue, "box/claude")), ["#14Le journal en ajout seul"]);
     assert.deepEqual(cooksDe(ligne(vue, "mac/claude")), ["#15La carte des desserts"]);
-    assert.deepEqual(cooksDe(ligne(vue, "atelier/claude")), [AUCUN_COOK]);
+    assert.deepEqual(cooksDe(ligne(vue, "atelier/claude")), [RIEN_NE_TOURNE]);
     // Tout ce qui se clique dans l'onglet : un bouton par station, rien d'autre.
     assert.deepEqual(gestes(vue.element("rail")).map((bouton) => bouton.ariaLabel), ["stop cooking on box/claude", "stop cooking on atelier/claude", "start cooking on mac/claude"]);
     assert.deepEqual(lignes(vue).map((li) => gestes(li).length), [1, 1, 1]);

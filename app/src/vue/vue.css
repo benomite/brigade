@@ -3581,6 +3581,56 @@ main > header,
   font-size: 12px;
   color: var(--discret);
 }
+/* Ce que la station fait tourner hors de ses cooks (ticket 1971) — la pass, le manager, le triage, le closer : une carte
+   chacun, avant celles des cooks. Pas du papier comme le bon d'un cook : le sombre de la cuisine, un trait pointillé et,
+   à gauche, la teinte de son rôle — d'un regard, une pass n'est pas un cook. Son rôle, l'étiquette de sa station, son
+   ticket, ce qu'il fait et depuis quand ; rien n'est coupé, ce qui est long passe à la ligne. */
+#rail .station-de-cuisson .carte-agent {
+  display: flex;
+  flex: 0 1 260px;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 8px;
+  background: var(--bandeau);
+  border: 1px dashed var(--trait-fort);
+  border-left: 3px solid var(--jaune);
+  border-radius: var(--rayon-bon);
+}
+#rail .station-de-cuisson .carte-agent[data-role="manager"],
+#rail .station-de-cuisson .carte-agent[data-role="triage"] {
+  border-left-color: var(--bleu);
+}
+#rail .station-de-cuisson .carte-agent[data-role="closer"] {
+  border-left-color: var(--gris);
+}
+#rail .station-de-cuisson .carte-agent > p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  min-width: 0;
+  margin: 0;
+}
+#rail .station-de-cuisson :is(.carte-agent, .agent) .agent-role {
+  font-size: 11px;
+  font-weight: 600;
+}
+#rail .station-de-cuisson .carte-agent .etiquette-de-station {
+  padding: 0 6px;
+  font-size: 11px;
+  color: var(--discret);
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-bon);
+}
+#rail .station-de-cuisson .carte-agent .agent-ticket {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+#rail .station-de-cuisson :is(.carte-agent, .agent) .agent-fait {
+  font-size: 12px;
+  color: var(--discret);
+}
 /* Chaque station du projet dit son rôle, si elle est atteinte, ce qu'elle fournit et, quand elle ne cuit pas, pourquoi
    (ticket 1786) : la principale — le manager et la pass — en tête, son rôle à l'accent ; « move the kitchen » sur sa ligne.
    Ce qu'elle fournit tient sur une ligne, « edit » au bout ; son formulaire s'ouvre dessous, sur toute la largeur. */
