@@ -116,8 +116,20 @@ function instant(valeur: string, nom: string): string {
   return new Date(ms).toISOString();
 }
 
+// Une fois qu'un échec s'est vu sur un ticket : de quoi le compter avec les
+// autres, sur ce projet (`repeatedFailures`) ou d'un projet à l'autre de la box
+// (`box.ts`). `evidence` : sa PR et sa ligne du journal, sans l'issue du
+// ticket, que le regroupement ajoute.
+export type OccurrenceDEchec = { signature: string; source: EchecQuiRevient["source"]; title: string; ticket: number; example: string | null; evidence: Preuve[] };
+
 // Le digest, lu du journal du projet.
-export function digestDUsage(base: Base, { project, repository, period }: OptionsDuDigest): DigestDUsage {
+export function digestDUsage(base: Base, options: OptionsDuDigest): DigestDUsage {
+  return usageDuJournal(base, options).digest;
+}
+
+// Le digest, et chaque échec vu dans la période, avant que le seuil ne garde
+// ceux qui reviennent.
+export function usageDuJournal(base: Base, { project, repository, period }: OptionsDuDigest): { digest: DigestDUsage; occurrences: OccurrenceDEchec[] } {
   if (project === "") throw new Error("project: empty");
   if (!DEPOT.test(repository)) throw new Error(`repository: expected <owner>/<name>, got ${repository}`);
   const periode = { from: instant(period.from, "from"), to: instant(period.to, "to") };
@@ -145,8 +157,9 @@ export function digestDUsage(base: Base, { project, repository, period }: Option
     ({ p }) => p.run as string,
   );
   const prDuRun = (run: string) => texte(parRun.get(run)?.findLast(({ type }) => type === "pass.judged")?.p.pr);
+  const occurrences = occurrencesDesEchecs(parcours, parRun, prDuRun, lire(["worktree.kept", "ticket.86"]), dedans, { pr, ligne });
 
-  return {
+  const digest: DigestDUsage = {
     project,
     repository,
     period: periode,
@@ -190,8 +203,9 @@ export function digestDUsage(base: Base, { project, repository, period }: Option
         : [],
     ),
     setAside: misesDeCote(lire(["ticket.86"]), dedans, { issue, ligne }),
-    repeatedFailures: echecsQuiReviennent(parcours, parRun, prDuRun, lire(["worktree.kept", "ticket.86"]), dedans, { issue, pr, ligne }),
+    repeatedFailures: echecsQuiReviennent(occurrences, issue),
   };
+  return { digest, occurrences };
 }
 
 // Le même, lu du répertoire d'état du projet, en lecture seule.
@@ -292,17 +306,15 @@ const MISES_DE_COTE_DU_PROJET: Record<string, string> = {
   ...Object.fromEntries(Object.entries(CAUSES_DU_PROJET).map(([motif, { text }]) => [motif, text])),
 };
 
-type Occurrence = { signature: string; source: EchecQuiRevient["source"]; title: string; ticket: number; example: string | null; evidence: Preuve[] };
-
-function echecsQuiReviennent(
+function occurrencesDesEchecs(
   parcours: Parcours[],
   parRun: Map<string, Lu[]>,
   prDuRun: (run: string) => string | null,
   lus: Lu[],
   dedans: (at: string) => boolean,
-  { issue, pr, ligne }: Citer,
-): EchecQuiRevient[] {
-  const occurrences: Occurrence[] = [];
+  { pr, ligne }: Omit<Citer, "issue">,
+): OccurrenceDEchec[] {
+  const occurrences: OccurrenceDEchec[] = [];
   // Les essais ratés, chacun à l'heure du fait qui le prouve.
   for (const un of parcours) {
     essaisRates([un]).forEach((_, i) => {
@@ -327,11 +339,16 @@ function echecsQuiReviennent(
       occurrences.push({ signature: `set-aside: ${reason}`, source: "set-aside", title: titre, ticket: lu.ticket, example: texte(lu.p.why), evidence: [ligne(lu)] });
     }
   }
+  return occurrences;
+}
+
+// Les échecs vus sur au moins `SEUIL_DE_RECURRENCE` tickets, un élément par signature.
+function echecsQuiReviennent(occurrences: OccurrenceDEchec[], issue: (ticket: number) => Preuve): EchecQuiRevient[] {
   return [...Map.groupBy(occurrences, ({ signature }) => signature).values()]
     .flatMap((siennes): EchecQuiRevient[] => {
       const tickets = [...new Set(siennes.map(({ ticket }) => ticket))];
       if (tickets.length < SEUIL_DE_RECURRENCE) return [];
-      const [premiere] = siennes as [Occurrence];
+      const [premiere] = siennes as [OccurrenceDEchec];
       const example = siennes.findLast((o) => o.example !== null)?.example ?? null;
       const preuves = [...tickets.map(issue), ...siennes.flatMap(({ evidence }) => evidence)];
       return [
