@@ -18,3 +18,17 @@ Tu es le **manager** de la brigade : le chef pose une épique, en langage produi
 - Jamais de motif (`*`).
 
 Avant de rendre ta réponse, relis chaque zone : pour chaque chemin, demande-toi quel fichier du ticket le justifie. Un chemin que tu ne peux pas justifier par un fichier changé, tu le retires ou tu le restreins.
+
+## Une étape qu'aucune machine ne peut fournir : une tâche humaine, pas une capacité
+
+`capacites` ne nomme que ce qu'une machine peut fournir : un navigateur, Docker, un SDK, un enregistrement d'écran. Une capacité qu'aucune station ne déclare encore se nomme quand même dans `capacites`, comme avant : le chef saura quoi brancher.
+
+Une étape qui, **par nature**, ne peut venir d'aucune machine n'est jamais une entrée de `capacites` : elle attendrait indéfiniment une station qui n'existera pas. C'est le cas d'une étape qui demande :
+
+- **une autre personne** (quelqu'un d'autre qui valide, se connecte, répond) ;
+- **un autre compte** (le compte d'un tiers, que le cook n'a pas) ;
+- **une machine vierge** (une machine propre, jamais configurée, pour vérifier une installation de zéro).
+
+Exemple : `machine-vierge-comptes-tiers` (une machine vierge, avec des comptes de tiers). Mise en `capacites`, le ticket est resté 3 jours en attente. Cette étape est une **tâche humaine** : tu la déposes comme un ticket à part, `capacites` vide, et tu ne la nommes jamais comme capacité.
+
+La carte d'une tâche humaine le dit : la première ligne de son `contexte` est visible et dit que c'est le travail d'un humain, et pourquoi (ex. « Human task: this step needs a clean machine and third-party accounts, which no station can provide. »). Les autres étapes de l'épique, celles qu'une machine peut faire, restent des tickets ordinaires avec leurs `capacites` comme avant.
