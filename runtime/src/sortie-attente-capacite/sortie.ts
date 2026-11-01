@@ -148,11 +148,12 @@ export function tachesHumaines(base: Base): Map<number, TacheHumaine> {
 // personne d'autre ne sort de TODO (sans-capacite.ts).
 export const confieAUnHumain = (journal: Journal, ticket: number): boolean => journal.duTicket(ticket).some(({ type }) => type === "capability.human-job");
 
-// Le champ de `facts` d'une entrée de TODO : `tache`, présent sur celle d'une
-// tâche confiée à un humain seulement.
-export const tacheDuTicket = (taches: ReadonlyMap<number, TacheHumaine> | undefined, ticket: number): { tache?: TacheHumaine } => {
+// Les champs de `facts` d'une entrée de TODO : `tache`, présent sur celle d'une
+// tâche confiée à un humain seulement — et son `titre`, que le rail, qu'elle a
+// quitté, ne donne plus.
+export const tacheDuTicket = (taches: ReadonlyMap<number, TacheHumaine> | undefined, ticket: number): { tache?: TacheHumaine; titre?: string } => {
   const tache = taches?.get(ticket);
-  return tache === undefined ? {} : { tache };
+  return tache === undefined ? {} : { tache, titre: tache.title };
 };
 
 function entrer(journal: Journal, projet: string, ticket: number, tache: TacheHumaine): void {

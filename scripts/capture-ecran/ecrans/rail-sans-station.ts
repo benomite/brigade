@@ -1,10 +1,14 @@
 // Le rail de « parade » avec #22 mis de côté faute de station (1752) : ce qu'il attend est une action que le chef ne fait
 // pas par un bouton, brancher une station — sa carte est dans WAITING et dit ce qui est attendu, de qui, et qu'il repart
 // seul. Les textes sont ceux que la box écrit (`direMiseDeCote`, `attenteDUneStation`), pas des textes recopiés.
+// Depuis #1958, la box dit aussi ce que sa carte demande (`requiert`) : la carte porte ses deux sorties, « Give it to a
+// station » — les stations du projet lues par le contrôle de l'installation — et « It's a human's job ».
 import type { Faits } from "../../../app/src/faits.ts";
 import { attenteDUneStation, direMiseDeCote } from "../../../runtime/src/mise-de-cote.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
+import { guide } from "./cooks-stations-declarees.ts";
+import type { StationsLues } from "../../../app/src/service.ts";
 
 const PARADE = RENDUS.parade as Rendu;
 const ISSUE = (ticket: number) => `https://github.com/chef/parade/issues/${ticket}`;
@@ -24,12 +28,23 @@ export const FACTS = {
       activite: null,
       attente: { raison: direMiseDeCote(MOTIF), colonne: "WAITING", retour: null },
       tiers: { ...(attenteDUneStation(MOTIF) as NonNullable<ReturnType<typeof attenteDUneStation>>), depuis: "2026-10-13T09:04:12.000Z", relance: null },
+      requiert: ["chrome-connecté"],
     },
     ...APRES,
   ],
 } as Faits;
 
-const STATUS = [
+// Les stations du projet : aucune ne fournit `chrome-connecté`.
+export const DECLAREES: StationsLues = {
+  proposees: [{ nom: "box/claude", moteur: "claude", fournit: ["code", "raisonnement"] }],
+  absent: null,
+  declarees: [
+    { nom: "box/claude", moteur: "claude", fournit: ["code", "raisonnement"], cooks: 3, distante: false },
+    { nom: "mac/claude", moteur: "claude", fournit: ["navigateur-headless", "macos"], cooks: 1, distante: true },
+  ],
+};
+
+export const STATUS = [
   "project    parade",
   "kitchen    open",
   "",
@@ -50,7 +65,7 @@ export const ecran: Ecran = {
   etapes: [{ cliquer: '#projets > button[title^="parade — "]' }],
   donnees: () => ({
     maintenant: MAINTENANT,
-    reponses: { demarrage: demarrage(configuration(PROJETS)), espace: [] },
+    reponses: { demarrage: demarrage(configuration(PROJETS)), espace: [], service: guide(DECLAREES) },
     envois: cuisine({ ...RENDUS, parade: { ...PARADE, facts: FACTS, status: STATUS } }),
   }),
 };

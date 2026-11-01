@@ -120,6 +120,7 @@ import { poserOutilsDuSecond } from "./outils-du-second.js";
 import { poserChoixDuSecond, reponseTapee, tenirLesChoix } from "./second/choix.js";
 import { AUCUNE_STATION, aucuneStationNeSert } from "./cooks/sans-station.js";
 import { poserGesteDuSecond } from "./second/geste.js";
+import { tenirLesSorties } from "./attente-capacite/sorties.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
 // et ne peut pas importer du TypeScript — la locale est la même, anglaise.
@@ -284,6 +285,8 @@ declareesDuProjet.id = "declarees-du-projet";
 // (service.ts, `controle.stations`) : gardées d'un guide à l'autre, jusqu'à la lecture suivante.
 /** @type {Map<string, import("../service.ts").StationsLues>} */
 const declarees = new Map();
+// Les deux sorties d'une carte en WAITING faute de capacité, et la tâche qu'elle devient dans TODO (#1958).
+const sortiesDeCapacite = tenirLesSorties({ doc: document, pont: brigade, stations: (nom) => declarees.get(nom), reposer: (nom) => void (courant?.nom === nom && poserRail(courant)), relire: () => lireLesFaits() });
 // Les blocs repliés que le chef a ouverts, par projet (`<projet>#<bloc>`) : reposés à chaque lecture, ils restent
 // ouverts ; fermés à la première.
 /** @type {Set<string>} */
@@ -2989,7 +2992,7 @@ function poserBon(projet, carte, tonAttend) {
     bon.append(ouvre);
   }
   if (pr === false) bon.append(bloc("small", "merged PR: the address the station returned is not https, the app does not open it"));
-  bon.append(...poserGestesDAttente(projet, carte));
+  bon.append(...poserGestesDAttente(projet, carte), ...sortiesDeCapacite.poser(projet, carte));
   return bon;
 }
 

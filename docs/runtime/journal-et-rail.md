@@ -201,6 +201,27 @@ them; `answer`, in your own words, typed without quotes. In the same call, the a
 the issue, the card leaves TODO and the ticket moves on — see "What enters TODO, and how you
 answer" in [`manager.md`](manager.md).
 
+### Handing a ticket to a human
+
+```bash
+npm --prefix runtime run rail -- human <ticket> [who…]
+```
+
+For a ticket in WAITING because no station provides what its `requiert` line asks (#1958): no station
+will provide it, it is a human's job. The issue loses `fire` and takes `hors-cuisine` — no kitchen
+takes it again —, the ticket leaves the rail (`ticket.left`, reason `hors-cuisine`), and its task
+enters TODO, in the name of `chef`: `capability.human-job` (to whom — `chef` without a name —, what
+no station provides, the title, the context and the acceptance criteria read from its issue) and a
+`product` card, `What became of this task?` — `It is done`, `It will not be done`, or your own
+words; the answer is written on the issue and the card leaves TODO, nothing else moves. It does not
+go through the triage: it is your own gesture, not a producer's proposal. `facts` gives the task in
+the TODO entry (`attend[].tache`). Played again on a ticket whose task is in TODO, it hands the task
+to someone else. Any other ticket is refused, and nothing is touched.
+
+The other way out of that WAITING is to give the capability to a station
+(`installation stations set`): `facts` gives, on such a WAITING card only, `requiert` — every
+capability its card asks for, the ones the chosen station must provide.
+
 The rail's facts: `ticket.arrived`, `ticket.changed`, `ticket.left` (in the name of `github`; also
 for an awaited issue, closed without having come onto the rail), `ticket.taken`, `ticket.renewed`,
 `ticket.released`, `ticket.passing`, `ticket.served`, `ticket.86`, `ticket.blocked`,

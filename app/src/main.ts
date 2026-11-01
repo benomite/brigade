@@ -26,6 +26,7 @@ import { cheminConfiguration, EXEMPLE, type Projet } from "./config.ts";
 import { confirmationDe } from "./confirmation.ts";
 import { cuireSurLaStation } from "./cuisson.ts";
 import { reglerLePlafond as reglerLePlafondDeCalibrage } from "./plafond-de-calibrage.ts";
+import { confierAUnHumain } from "./vue/attente-capacite/geste.ts";
 import { lireLesReglages, proposerLeReglage } from "./reglages-du-projet.ts";
 import { choix, entieres, PALETTE } from "./couleurs.ts";
 import { blocDesOrdinaires } from "./ordinaires.ts";
@@ -1154,6 +1155,11 @@ ipcMain.handle("cuireSurLaStation", (_, nom: unknown, station: unknown, geste: u
 });
 // Le plafond de calibrage du projet, réglé depuis son onglet Cooks (ticket 1284) : `station ceiling-modele|ceiling-effort`,
 // ou leur retrait, part là où sa cuisine tourne (plafond-de-calibrage.ts). La vue relit la box quand il est fait.
+// « It's a human's job » et « reassign » (#1958) : `rail human`, là où la cuisine du projet tourne (vue/attente-capacite/).
+ipcMain.handle("confierAUnHumain", (_, nom: unknown, ticket: unknown, qui: unknown) => {
+  const { vise, lu } = cuisineDuProjet(nom);
+  return vise === undefined ? parti(nom) : confierAUnHumain(vise.nom, lu, ticket, qui, lancerSurLaCuisine);
+});
 ipcMain.handle("reglerLePlafondDeCalibrage", (_, nom: unknown, choix: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return parti(nom);
