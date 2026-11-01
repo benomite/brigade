@@ -269,10 +269,11 @@ export type Faits = {
   // dernière livraison (captures.ts) — absentes pour tout autre ticket.
   // `raison` : pour le ticket en tête de la file seulement, s'il ne part pas, pourquoi, dans les mots du runtime
   // (`zone held by #12 (src)`, `machine saturated`) — nulle pour tout autre, absente d'un runtime d'avant ce champ.
+  // `station` : d'un ticket pris ou en pass, la station qui le cuisine ; `requires` : les capacités que sa fiche demande (#1967).
   // `depuis` : l'heure de son entrée dans cet état — sa prise, son entrée en pass… (#1811) ; absent d'un runtime d'avant.
   // `essais` : d'un ticket pris, ses essais depuis sa première prise, le plus ancien d'abord (#1893) ; absent pour tout autre.
   // Le rail est dans l'ordre où il se sert : la priorité de l'issue, puis son âge.
-  rail: { ticket: number; etat: string; titre: string; url: string; depuis?: string; essais?: EssaiLu[]; activite?: Activite | null; attente?: Attente | null; tiers?: Tiers | null; revenu?: string | null; raison?: string | null; captures?: CapturesLues; illisible?: string }[];
+  rail: { ticket: number; etat: string; titre: string; url: string; depuis?: string; essais?: EssaiLu[]; activite?: Activite | null; attente?: Attente | null; tiers?: Tiers | null; revenu?: string | null; raison?: string | null; captures?: CapturesLues; station?: string; requires?: string[]; illisible?: string }[];
   cooks?: Cook[];
   attend?: Attendu[];
   livres?: Livre[];
@@ -348,7 +349,7 @@ export type Faits = {
 // `essais` : un point par essai de la cuisine sur ce ticket (cadence.ts), dès qu'il y en a plus d'un (#1895).
 // Et ce qu'elle dit, elle, en deux lignes (ligne-carte.ts) : `ligne`, ce qui se passe ; `signal`, ce qui demande
 // l'attention ; `repere`, la file ne dit pas tout — le détail est dans la fiche, avec `dit` et `sans`.
-export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraison?: Livraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[]; question?: true; todo?: CarteDeTodo; repondue?: { par: string; a: string }; prio?: string; age?: Anciennete; essais?: Point[] } & Porte;
+export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraison?: Livraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[]; question?: true; todo?: CarteDeTodo; repondue?: { par: string; a: string }; prio?: string; age?: Anciennete; essais?: Point[]; station?: string; requiert?: string[] } & Porte;
 // Ce qui a été livré, sur une carte de Livré : le résumé de la relecture, mot pour
 // mot, et ses constats sous leur nombre dit en clair (`remarques`) — ou, sans
 // relecture, pourquoi elle n'est pas là. Rien n'est mis à sa place.
@@ -1057,6 +1058,8 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
       ...(dit !== undefined && donne?.carte !== undefined ? { todo: carteDeTodo(donne.carte, envois?.get(ticket)) } : {}),
       ...(prio === undefined ? {} : { prio: prio === "-" ? SANS_PRIO : prio }),
       ...(age === undefined ? {} : { age }),
+      ...(connu?.station === undefined || dit !== undefined || faits.stations?.length === 1 ? {} : { station: connu.station }),
+      ...(connu?.requires === undefined || connu.requires.length === 0 ? {} : { requiert: connu.requires }),
     };
   };
 

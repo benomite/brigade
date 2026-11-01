@@ -7148,3 +7148,15 @@ button.recommande {
   padding-top: 10px;
   border-top: 1px solid var(--trait-doux);
 }
+/* Sur une carte, la station qui la cuisine (Taken, Pass) et les capacités que sa fiche demande (#1967) : deux
+   étiquettes de même forme, la capacité en pointillé pour ne pas se lire comme une station. */
+#rail .bon .etiquette {
+  padding: 0 6px;
+  border: 1px solid var(--bon-discret);
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--bon-discret);
+}
+#rail .bon .etiquette.capacite-du-bon {
+  border-style: dashed;
+}

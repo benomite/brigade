@@ -291,7 +291,7 @@ describe("l'onglet Cooks : un bloc par station, et les cartes de ses tickets en 
     // son numéro et son titre, et son numéro n'ouvre pas d'issue.
     const quatorze = carteDe(ligne(vue, "box/claude"), 14);
     assert.equal((quatorze as Faux & { tabIndex?: number }).tabIndex, 0);
-    assert.equal(quatorze.children[0]?.children[1]?.textContent, "pris");
+    assert.equal(quatorze.children[0]?.children[1]?.textContent, "taken");
     assert.equal(quatorze.children[0]?.children[0]?.balise, "button");
     assert.equal(carteDe(ligne(vue, "atelier/claude"), 16).children[0]?.children[0]?.balise, "span");
     // Aucune sortie brute de commande dans un bloc : ni `pre`, ni ligne lancée, ni code de sortie.

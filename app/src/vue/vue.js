@@ -2902,12 +2902,27 @@ function poserBon(projet, carte, tonAttend) {
   tete.append(numero);
   if (etat !== undefined) {
     // Un mot du runtime que le chef ne lit pas se dit en mots simples : « 86 » est un ticket mis de côté.
-    const mot = bloc("span", etat === "86" ? "set aside" : etat);
+    const mot = bloc("span", etat === "86" ? "set aside" : etat === "pris" ? "taken" : etat);
     mot.className = "etat-ticket";
     if (ton !== undefined) mot.dataset.ton = ton;
     const forme = formeDe(ton);
     if (forme !== undefined) mot.dataset.forme = forme;
     tete.append(mot);
+  }
+  // Dans Taken et Pass : la station qui cuisine le ticket, son nom court (avant le « / » du cook), le nom entier au
+  // survol (faits.ts la tait quand le projet n'a qu'une station). Et, sur toute carte, une étiquette par capacité que sa fiche demande
+  // (ticket 1967).
+  if (carte.station !== undefined) {
+    const station = bloc("span", carte.station.split("/")[0] ?? carte.station);
+    station.className = "etiquette station-du-bon mono";
+    station.title = `cooked by ${carte.station}`;
+    tete.append(station);
+  }
+  for (const capacite of carte.requiert ?? []) {
+    const requiert = bloc("span", capacite);
+    requiert.className = "etiquette capacite-du-bon mono";
+    requiert.title = `requires ${capacite}: only a station that provides it can cook this ticket`;
+    tete.append(requiert);
   }
   // Dans T'attend : la pilule le dit en mots, pour qui ne lit pas la couleur de la colonne.
   if (attendu) {

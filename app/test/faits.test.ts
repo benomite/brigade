@@ -947,3 +947,30 @@ describe("la bannière d'arrêt", () => {
     ]);
   });
 });
+
+describe("la station et les capacités sur la carte (#1967)", () => {
+  const rails = [
+    { ...ticket(14, "pris"), station: "box/claude" },
+    { ...ticket(15, "en pass"), station: "macbook/claude", requires: ["browser", "docker"] },
+    { ...ticket(16, "en attente"), requires: ["postgres"] },
+    ticket(17, "en attente"),
+  ];
+  const carte = (faits: Faits, numero: number) => cartes(rail(faits)).find(({ ticket }) => ticket === numero);
+  const station = (nom: string) => ({ station: nom, cooks: 1, fournit: [], saturee: false }) as unknown as NonNullable<Faits["stations"]>[number];
+
+  test("avec plusieurs stations, Taken et Pass nomment la leur ; chaque carte nomme ses capacités", () => {
+    const faits = { ...FAITS, rail: rails, stations: [station("box"), station("macbook")] };
+    assert.equal(carte(faits, 14)?.station, "box/claude");
+    assert.equal(carte(faits, 15)?.station, "macbook/claude");
+    assert.deepEqual(carte(faits, 15)?.requiert, ["browser", "docker"]);
+    assert.deepEqual(carte(faits, 16)?.requiert, ["postgres"]);
+    assert.equal(carte(faits, 16)?.station, undefined);
+    assert.equal(carte(faits, 17)?.requiert, undefined);
+  });
+
+  test("avec une seule station, l'étiquette de station est tue ; celle des capacités reste", () => {
+    const faits = { ...FAITS, rail: rails, stations: [station("box")] };
+    assert.equal(carte(faits, 14)?.station, undefined);
+    assert.deepEqual(carte(faits, 15)?.requiert, ["browser", "docker"]);
+  });
+});

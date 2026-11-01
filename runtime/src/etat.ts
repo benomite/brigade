@@ -855,6 +855,10 @@ export type Faits = {
     // pour celui qui part. Le rail est dans l'ordre où il se sert.
     raison: string | null;
     captures?: CapturesVues;
+    // `station` : pour un ticket pris ou en pass, la station qui le cuisine ou l'a cuisiné (#1967) ; absente pour tout autre.
+    // `requires` : les capacités que sa fiche demande, absentes d'une fiche qui n'en demande aucune.
+    station?: string;
+    requires?: string[];
   }>;
   // Les cooks en cours, comme `station` les montre. Le titre est celui du rail :
   // vide si le ticket l'a quitté pendant la cuisson.
@@ -1089,6 +1093,8 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limit
               ? null
               : { quoi: ticket.waitingFor.what, qui: ticket.waitingFor.who, depuis: ticket.waitingFor.since, relance: ticket.waitingFor.followUp, aLArrivee: ticket.waitingFor.onArrival },
         raison: raisonDeTete(etat, ticket),
+        ...((ticket.state === "taken" || ticket.state === "pass") && ticket.station ? { station: ticket.station } : {}),
+        ...(ticket.card?.requires?.length ? { requires: ticket.card.requires } : {}),
         ...(ticket.state === "pass" || ticket.state === "served" ? captures(ticket.ticket) : {}),
       };
     }),

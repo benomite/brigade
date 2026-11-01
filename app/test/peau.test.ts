@@ -490,7 +490,7 @@ describe("le monospace est une information, pas un style", () => {
   test("ce qui se lit ne l'est pas : un titre, un mot d'état, un libellé, ce que l'app dit elle-même", async () => {
     const poses = [...(await toutPose("Settings", GRANTS_VUS)), ...(await toutPose("Rail"))];
 
-    for (const lu of ["Formulaire devis multi-étapes", "Validation SIRET", "pris", "en attente", "un mot inconnu", "ouverte", "ACTIF", "grant merge", "Sur le rail", "T'attend", "au travail", "Rail", "Settings", "second · claude"]) {
+    for (const lu of ["Formulaire devis multi-étapes", "Validation SIRET", "taken", "en attente", "un mot inconnu", "ouverte", "ACTIF", "grant merge", "Sur le rail", "T'attend", "au travail", "Rail", "Settings", "second · claude"]) {
       const trouves = portant(poses, lu);
       assert.ok(trouves.length > 0, `« ${lu} » n'est posé nulle part`);
       for (const pose of trouves) assert.ok(!mono(pose) && pose.balise !== "pre" && pose.balise !== "code", `« ${lu} » est en monospace`);

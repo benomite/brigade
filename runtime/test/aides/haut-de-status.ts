@@ -139,3 +139,8 @@ export const depuis1894 = <F extends { rail: Array<{ activite?: { fait: string }
     carte.activite == null ? carte : { ...carte, activite: { ...carte.activite, faitEn: EN_ANGLAIS[carte.activite.fait] ?? carte.activite.fait } },
   ),
 });
+// #1967 : un ticket pris ou en pass nomme sa station (celle des états d'exemple, `box/claude`).
+export const depuis1967 = <F extends { rail: Array<{ etat: string }> }>(avant: F): F => ({
+  ...avant,
+  rail: avant.rail.map((carte) => (carte.etat === "pris" || carte.etat === "en pass" ? { ...carte, station: "box/claude" } : carte)),
+});
