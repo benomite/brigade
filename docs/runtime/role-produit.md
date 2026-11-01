@@ -1,15 +1,13 @@
-# The product role
+# Waking the second
 
-The product role is the second's way to write what the project does next, from its usage. When the
-rail empties, the kitchen can wake the **second** on its own: the same role and the same definition
-as when the chef opens the Second tab (`agents/product.md`). The second reads the project's usage
-and files prioritized `product` issues, each one with the evidence that justifies it. The chef
-comes by from time to time with directions; the rest is the kitchen's.
+When the rail empties, the kitchen can wake the **second** on its own, to write what the project does
+next, from its usage: the same definition as when the chef opens the Second tab (`agents/product.md`).
+The second reads the project's usage and files prioritized `product` issues, each one with the
+evidence that justifies it. The chef comes by from time to time with directions; the rest is the
+kitchen's.
 
-It applies to **any project brigade serves**: the role reads that project's log, its repository and
+It applies to **any project brigade serves**: the second reads that project's log, its repository and
 its issues, and files into that project's repository. Nothing is specific to brigade's own repository.
-
-The role is the second, not a new one: no new role appears in the docs or the glossary.
 
 > **Status: this is the target, not yet what the box runs.** The directions the second reads are on
 > `main` (#1956). The usage digest (#1953), and the wake when the rail empties with its daily cap, its
@@ -32,7 +30,7 @@ again, even when it is worded differently.
 
 ## What it files
 
-Each `product` issue the role files is a product *what*: the need, from the user's point of view,
+Each `product` issue the second files is a product *what*: the need, from the user's point of view,
 with the usage that founds it. It never says *how*.
 
 Every issue carries, without exception:
@@ -51,7 +49,7 @@ Every issue carries, without exception:
 An issue missing one of these is not filed. There is no file pointer, no implementation hint and no
 zone in it: the manager qualifies it.
 
-A pass with nothing to file is a good answer. The role does not invent a need to fill its cap, and a
+A pass with nothing to file is a good answer. The second does not invent a need to fill its cap, and a
 single signal (one refusal, one `86`) is not enough unless it blocks a user.
 
 ## Its limits
@@ -64,40 +62,39 @@ single signal (one refusal, one `86`) is not enough unless it blocks a user.
 - **Anything that changes the product's direction, or needs the chef, goes to TODO, not to the
   rail.** That covers a need that contradicts a direction, opens a new one, removes or changes what
   a user already has, or assumes a decision only the chef can make (a cost, a third party, a choice
-  between two paths). The role files no issue for it: it puts one card in TODO with one question and
+  between two paths). The second files no issue for it: it puts one card in TODO with one question and
   its choices, each path in one sentence with what the user gets from it.
 
 ## Giving a direction
 
-The chef steers the role by opening an issue labelled `direction`. Its body states the direction in
+The chef steers the second by opening an issue labelled `direction`. Its body states the direction in
 plain words (for example: *focus on onboarding this month*).
 
 - Only an issue **opened by the chef** counts as a direction; the chef is the account the project's
   settings name. Its body is the direction; the chef's comments on it extend it.
 - **`until: YYYY-MM-DD`** (optional, a line in the body): the direction holds up to that date,
   included, and ends the day after. Without it, the direction holds until the chef closes the issue.
-- A direction changes what the role files next: at equal usage, what serves it comes first, and what
-  contradicts it is not filed. It does not reopen a session.
+- A direction changes what the second files next: at equal usage, what serves it comes first, and what
+  contradicts it is not filed.
 - A comment from the chef on a direction issue is read with it.
 
 ## Turning it off and on
 
-The product role runs inside the project's kitchen, so it stops with the project's switch:
+The second's wake runs inside the project's kitchen, so it stops with the project's switch:
 
 ```bash
-npm --prefix runtime run switch -- off   # nothing new is filed by the role
-npm --prefix runtime run switch -- on    # the role may run again when the rail empties
+npm --prefix runtime run switch -- off   # nothing new is filed by the second
+npm --prefix runtime run switch -- on    # the second may run again when the rail empties
 ```
 
 See [The project switch](exploitation.md) for what `off` stops and what it leaves running.
 
 ## The daily cap and the status line
 
-- **The cap**: the role files at most **3 issues a day** by default. This is a [cap](../glossary.md)
-  (`plafond`) that stops the role from flooding the backlog. It is shown with the project's
+- **The cap**: the second files at most **3 issues a day** by default. This is a [cap](../glossary.md)
+  (`plafond`) that stops the second from flooding the backlog. It is shown with the project's
   [guardrails](garde-fous.md).
-- **The status line**: `status` shows how many issues the role filed, and when it last ran. Read it
-  there to see, at a glance, what the role filed while the chef was away.
+- **The status line**: `status` shows how many issues the second filed, and when it last ran. Read it
+  there to see, at a glance, what the second filed while the chef was away.
 - **Recognizing its issues**: the chef finds them by the `filed-by:product` label, and by the first
   line of their body, which names the usage behind each one.
-
