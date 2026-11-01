@@ -32,7 +32,7 @@ import { brancherManager, configManager } from "../manager.ts";
 import { brancherCadence } from "../produit/cadence/brancher.ts";
 import { brancherMiseAJour } from "../mise-a-jour/relais.ts";
 import { brancherPass, configPass } from "../pass.ts";
-import { identiteDeLaStation } from "../appairage/presence.ts";
+import { nomDeclare } from "./nom.ts";
 import { railDuJournal } from "../appairage/rail-du-journal.ts";
 import type { TicketPublie } from "../appairage/rail-publie.ts";
 import { retenirSansDecision } from "../onboarding/attente.ts";
@@ -170,7 +170,7 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     // transmet pas la restriction d'une prise.
     // Sur une station sans bac à sable, rien ne part avant que le chef ait
     // choisi — pas même ce ticket : la retenue est la plus extérieure.
-    const garde = retenirSansDecision(attendreLaPreparation(brancherGardeFous(reglages, avecRail(socle, { ...rail, github: githubs.rail })), { repertoireEtat, dire }), { repertoireEtat, station: identiteDeLaStation(envProjet).nom, dire });
+    const garde = retenirSansDecision(attendreLaPreparation(brancherGardeFous(reglages, avecRail(socle, { ...rail, github: githubs.rail })), { repertoireEtat, dire }), { repertoireEtat, station: nomDeclare(envProjet), dire });
     const pass = brancherPass(garde, { ...delais, repertoireEtat, depot, github: githubs.pass, env, secrets, cloison, bacASable, sansIdentite: identites !== null, base: station.base, reviewer, decisions, depotGitHub: rail.depot, bin: station.bin, seuils: station.seuils, ...(envProjet.BRIGADE_STATION_DIR ? { etageCommun: { racine: envProjet.BRIGADE_STATION_DIR, expiration: lireSeuilsDesLecons(decide).expirationPromue } } : {}) });
     const fermee = brancherFermeture(pass, { reglages: decisions.fermeture, repertoireEtat, depot, clone: station.clone, base: station.base, github: githubs.station, depotGitHub: rail.depot, bin: station.bin, env, cloison, bacASable });
     const servie = brancherStation(fermee, {

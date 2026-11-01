@@ -54,8 +54,8 @@ what the other wrote.
 
 - `brigade`: always `station-registration`. `format`: `1`. A reader skips, as unreadable, a format
   higher than the one it knows.
-- `name`: the station's name. It is `BRIGADE_STATION_NOM`, or else the machine's host name, the same
-  name as on its presence.
+- `name`: the station's name. It is `BRIGADE_STATION_NOM`, or else the name it kept from the machine's
+  host name on its first start (`station/nom.ts`), the same name as on its presence.
 - `platform`: `linux`, `macos` or `windows`. On any other system, Node's raw `process.platform`.
 - `machine`: the system and its release, as a list shows them (`Linux 6.1.0`, `macOS 24.1.0`,
   `Windows 10.0.26100`).
