@@ -669,6 +669,8 @@ export function comprendre(sortie: string): Faits | { informe: string } {
           ...(lu.revenu === undefined ? {} : { revenu: ouRien(lu.revenu, `${lequel}.revenu`, texte) }),
           ...(lu.raison === undefined ? {} : { raison: ouRien(lu.raison, `${lequel}.raison`, texte) }),
           ...(lu.captures === undefined ? {} : { captures: comprendreCaptures(lu.captures, `${lequel}.captures`) }),
+          ...(lu.station === undefined ? {} : { station: texte(lu.station, `${lequel}.station`) }),
+          ...(lu.requires === undefined ? {} : { requires: (Array.isArray(lu.requires) ? lu.requires : refuser(`${lequel}.requires`, "a list")).map((capacite: unknown, i) => texte(capacite, `${lequel}.requires[${i}]`)) }),
         }), ({ ticket, titre }, illisible) => ({ ticket, etat: ILLISIBLE_ETAT, titre, url: "", illisible }));
       }),
       ...(racine.cooks === undefined

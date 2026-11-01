@@ -974,3 +974,26 @@ describe("la station et les capacités sur la carte (#1967)", () => {
     assert.deepEqual(carte(faits, 15)?.requiert, ["browser", "docker"]);
   });
 });
+
+describe("la station et les capacités, lues du JSON de `facts` (#1967)", () => {
+  const brut = (ticketLu: object) => rendus({ ...FAITS, rail: [ticketLu], stations: [] });
+  const lu = (texte: string) => {
+    const compris = comprendre(texte);
+    assert.ok(!("informe" in compris), "informe" in compris ? compris.informe : "");
+    return compris;
+  };
+
+  test("le parseur garde `station` et `requires`, et la carte les porte", () => {
+    const compris = lu(brut({ ...ticket(14, "pris"), station: "box/claude", requires: ["browser", "docker"] }));
+    assert.equal(compris.rail[0]?.station, "box/claude");
+    assert.deepEqual(compris.rail[0]?.requires, ["browser", "docker"]);
+    const carte = cartes(rail(compris)).find(({ ticket }) => ticket === 14);
+    assert.equal(carte?.station, "box/claude");
+    assert.deepEqual(carte?.requiert, ["browser", "docker"]);
+  });
+
+  test("un `requires` qui n'est pas une liste de textes rend la carte illisible", () => {
+    assert.match(illisible(brut({ ...ticket(14, "pris"), requires: "browser" })), /requires/);
+    assert.match(illisible(brut({ ...ticket(14, "pris"), requires: [3] })), /requires/);
+  });
+});
