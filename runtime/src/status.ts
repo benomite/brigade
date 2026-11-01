@@ -16,6 +16,7 @@ import { AGE_MAX_SAUVEGARDE_MS, decrireEtat, lireEtat, suivre } from "./etat.ts"
 import { ouvrirJournal, type Journal } from "./journal.ts";
 import { appelsDeLaStation, pauseDeLaStation, retenueDeLaStation } from "./limite-github.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
+import { direCadence } from "./produit/cadence/statut.ts";
 
 const USAGE = "usage : BRIGADE_STATE_DIR=<répertoire d'état> npm --prefix runtime run status -- [--days <N>] [--follow [<numéro de ticket>]]";
 
@@ -124,6 +125,7 @@ function photographier(journal: Journal, env: Record<string, string | undefined>
   }
   const lignes = decrireEtat(etat, maintenant, ageMaxSauvegardeMs, pauseDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), appelsDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()), retenueDeLaStation(env.BRIGADE_STATION_DIR, maintenant.getTime()));
   lignes.push("", direEntreesEn(entreesParType(journal.base, new Date(maintenant.getTime() - jours * 86_400_000), maintenant), jours));
+  lignes.push(direCadence(journal.base, maintenant));
   return { lignes, dernierSeq: etat.dernierSeq };
 }
 
