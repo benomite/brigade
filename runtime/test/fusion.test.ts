@@ -642,6 +642,7 @@ describe("la base elle-même, rouge ou mergée hors du runtime", { concurrency: 
     const controle = journal.tout().find((e) => e.type === "base.checked")?.payload;
     assert.deepEqual([controle?.outcome, controle?.tickets, (controle?.gates as { failures: string[] }).failures], ["red", [17], ["FAIL  tests du projet en échec"]]);
     assert.match(avertissements.join("\n"), /v2 est ROUGE \(base-1 — merges à vérifier : #17\) — jugements et merges sont suspendus/);
+    assert.match(avertissements.join("\n"), /v2 rouge après un seul merge, sans jugement en parallèle : #17 \(merge n°1/);
     await jusqua(() => /est rouge après merge/.test(commentaires()));
     assert.match(commentaires(), /\*\*Pass — `v2` est rouge après merge\.\*\* `base-1`[\s\S]*Ce merge s'est fait hors du runtime[\s\S]*FAIL {2}tests du projet en échec[\s\S]*ne juge ni ne merge plus rien/);
 
