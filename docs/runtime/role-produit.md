@@ -11,6 +11,11 @@ its issues, and files into that project's repository. Nothing is specific to bri
 
 The role is the second, not a new one: no new role appears in the docs or the glossary.
 
+> **Status: this is the target, not yet what the box runs.** The directions the second reads are on
+> `main` (#1956). The usage digest (#1953), and the wake when the rail empties with its daily cap, its
+> switch and its `status` line (#1955), are still in progress. Until #1953 and #1955 are served, the
+> cap, the switch and the status line below are not verified against the code.
+
 ## What it reads
 
 The second reads three sources, and does not propose anything on one of them alone when the others
@@ -96,12 +101,3 @@ See [The project switch](exploitation.md) for what `off` stops and what it leave
 - **Recognizing its issues**: the chef finds them by the `filed-by:product` label, and by the first
   line of their body, which names the usage behind each one.
 
-## Vocabulary
-
-The words follow [the glossary](../glossary.md): `second`, `rail`, `pass`, `TODO`, `fire`, `86`,
-`drift`, `guardrails`, `cap`, `status`, `switch`, and the label names above.
-
-<!-- Status: the directions the role reads are on main (#1956). The usage digest (#1953) and the wake
-when the rail empties, with its cap, its switch and its status line (#1955), are still in progress.
-Until they land, the cap, the switch and the status line described here are the target, not yet
-what the box runs. -->
