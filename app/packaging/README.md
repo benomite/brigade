@@ -55,7 +55,7 @@ sur `main` qui change l'app**, une release `app-v<version>`. Personne ne pose de
    n'est posé : chemin **non signé**. Sinon : chemin **signé**, et `verifier-secrets` refuse qu'il en
    manque un (rien n'est construit, la PR mergée reçoit un commentaire qui le nomme, le run finit
    rouge).
-3. Les jobs `mac` (runner macOS), `windows` (runner Windows) et, sur le chemin non signé seulement,
+3. Les jobs `mac` (runner `macos-15`, arm64 ; `macos-14` est retiré depuis le 2 novembre 2026, #2013), `windows` (runner Windows) et, sur le chemin non signé seulement,
    `android` (runner Linux) construisent, chacun avec la commande de son poste et cette version :
    `npm --prefix app run dist -- --version <v>`, `node app/packaging/windows.ts --version <v>` et
    `node app/packaging/android.ts --version <v>`. Ce sont les mêmes jobs des deux chemins : seules
@@ -71,6 +71,10 @@ sur `main` qui change l'app**, une release `app-v<version>`. Personne ne pose de
    Pour voir ces notes sans rien publier : `node scripts/app-release/paquets.ts notes --produit app
    --version 1.0.3` (ou `--produit station`). Rien n'est publié si une construction échoue. La release n'est pas marquée « latest » :
    celle-là reste à la station, que `releases/latest/download/installer-station.sh` trouve.
+5. Le job `alerter` joue quand une construction ou `publier` échoue ou est annulée : il ouvre une issue
+   `publier-app: <tag> was not published…` (ou commente celle qui est déjà ouverte), avec le lien du run
+   et les jobs en cause. Si les annotations du job parlent d'une image de runner retirée ou en
+   « brownout », le titre le dit : il faut alors changer le `runs-on` du job.
 
 | | Chemin signé | Chemin non signé |
 | --- | --- | --- |
