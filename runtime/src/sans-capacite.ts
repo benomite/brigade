@@ -24,6 +24,7 @@ import type { Journal } from "./journal.ts";
 import { MARQUEUR_MANAGER } from "./juger.ts";
 import { ticketDEpique } from "./projections/splits.ts";
 import type { Rail } from "./rail.ts";
+import { confieAUnHumain } from "./sortie-attente-capacite/sortie.ts";
 
 export const AUTEUR_DE_CARTE = "manager";
 
@@ -139,7 +140,8 @@ export function ouvrirSansCapacite(atelier: AtelierSansCapacite) {
     // en WAITING, pas le chef.
     async traiter(): Promise<void> {
       for (const carte of cartesEnTodo(base)) {
-        if (!journal.duTicket(carte.ticket).some((evenement) => evenement.type === "manager.capability-gestured")) continue;
+        // Confié à un humain par le chef (#1958), sa carte est la tâche : elle reste.
+        if (!journal.duTicket(carte.ticket).some((evenement) => evenement.type === "manager.capability-gestured") || confieAUnHumain(journal, carte.ticket)) continue;
         sortirDeTodo(journal, projet, carte.ticket, "a missing capability waits on the rail, not in TODO: the ticket starts again on its own once a station provides it", AUTEUR_DE_CARTE);
       }
       for (const ticket of rail.tickets()) {
