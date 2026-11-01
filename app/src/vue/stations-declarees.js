@@ -5,13 +5,15 @@
 // (« this workstation » : la cuisine du projet y tourne) ; sur un autre poste (« remote »). Un projet qui ne déclare aucune station le dit en une ligne, jamais par un blanc ; une déclaration
 // pas encore lue aussi.
 // Chaque ligne s'édite (ticket 1510) : « edit » ouvre sous elle son formulaire — son plafond, ses capacités en cases
-// (celles de « + station », ticket 1307), cochées comme elle les déclare —, avec
+// (celles de « + station », ticket 1307), cochées comme elle les déclare, et un champ pour en ajouter une hors de ces
+// cases (ticket 1959, capacite-libre/) —, avec
 // « Save » et « Remove », qui demande confirmation. Le geste ne change qu'elle (service.ts, `changerUneStation`).
 // La déclaration vient de `installation stations --json`, que le contrôle de l'installation lit (service.ts) : la vue la
 // pose, elle n'en déduit rien d'autre.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend un élément.
 
 import { boutonAction, caseACocher, confirmationDeGeste, lectureIndisponible, survol } from "./briques.js";
+import { casesDuFormulaire, champDeCapaciteLibre } from "./capacite-libre/capacite-libre.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../service.ts").StationsLues} StationsLues */
@@ -123,16 +125,15 @@ function formulaireDe(doc, station, editee, editer, { seule, projet }) {
   plafond.append(cree(doc, "span", PLAFOND), cooks);
   const cases = cree(doc, "div");
   cases.className = "capacites";
-  cases.append(
-    ...editee.choix.map(({ capacite, dite }) =>
-      caseACocher(doc, { nom: capacite, dit: dite, cochee: editee.fournit.includes(capacite), mono: true }, (cochee) => {
-        editee.fournit = cochee ? [...editee.fournit.filter((tenue) => tenue !== capacite), capacite] : editee.fournit.filter((tenue) => tenue !== capacite);
-      }),
-    ),
-  );
+  const uneCase = (/** @type {{ capacite: string, dite: string }} */ { capacite, dite }) =>
+    caseACocher(doc, { nom: capacite, dit: dite, cochee: editee.fournit.includes(capacite), mono: true }, (cochee) => {
+      editee.fournit = cochee ? [...editee.fournit.filter((tenue) => tenue !== capacite), capacite] : editee.fournit.filter((tenue) => tenue !== capacite);
+    });
+  cases.append(...casesDuFormulaire(editee).map(uneCase));
   const capacites = cree(doc, "fieldset");
   capacites.className = "capacites-de-station";
-  capacites.append(cree(doc, "legend", FOURNIT), cases);
+  // Une capacité hors de ces cases, tapée par le chef (ticket 1959).
+  capacites.append(cree(doc, "legend", FOURNIT), cases, champDeCapaciteLibre(doc, editee, station.nom, (choix) => cases.append(uneCase(choix))));
   forme.append(plafond, capacites);
   const gestes = cree(doc, "div");
   gestes.className = "gestes";
