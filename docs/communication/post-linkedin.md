@@ -2,9 +2,7 @@
 
 Status: **rules not verified, chef to read the page before posting** (see [`plan-lancement.md`](plan-lancement.md)). Nothing is posted from this repository.
 
-## Title
-
-LinkedIn posts have no title field: the first line below is the hook.
+LinkedIn has no title field: the first line is the hook.
 
 ## Body
 
@@ -15,12 +13,12 @@ Here is how that works, and why I trust it.
 The project is called Brigade, and it is organised like a restaurant kitchen:
 → I write tickets on GitHub, with acceptance criteria anyone can check. GitHub is the only place where work is coordinated, so nothing lives in an AI session's memory.
 → A cook (an AI coding agent) takes each ticket in its own isolated copy of the code and opens a pull request.
-→ Nothing merges without going through the pass: the project's tests and an independent review. A failed delivery goes back to the kitchen, not to me.
+→ Nothing merges without the pass: the project's tests and an independent review. A failed delivery goes back to the kitchen, not to me.
 → Guardrails cap time, cost and parallel work, and one gesture stops the whole kitchen.
 
-What reaches me is a short list of what only I can decide. Everything else gets handled without me.
+What reaches me is a short list of what only I can decide.
 
-Getting started takes an app (Mac or Windows), a GitHub account and a Claude account. No server and no setup files.
+Getting started takes an app (Mac or Windows), a GitHub account and a Claude account. No server, no setup files.
 
 It's young, and I'd love feedback from people who manage engineering work, with or without agents: where would you put a human gate in a loop like this?
 

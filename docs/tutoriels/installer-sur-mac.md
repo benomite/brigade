@@ -1,124 +1,70 @@
 # Tutorial: install brigade on a Mac
 
-This guide takes you from a Mac with nothing on it to the brigade app installed, opened, and running
-the **station** of your Mac. It stops there: your first ticket is the job of
-[`premier-projet.md`](premier-projet.md). Brigade lives in
-[benomite/brigade](https://github.com/benomite/brigade); the words (*station*, *cook*, *rail*…) are
-those of [`docs/glossary.md`](../glossary.md).
+This guide takes you from a bare Mac to the brigade app installed, opened and ready to run the **station** of your Mac. Your first ticket is the job of [`premier-projet.md`](premier-projet.md). Words (*station*, *cook*, *rail*…) are those of [`docs/glossary.md`](../glossary.md).
 
-> **What was checked, and what was not.** On a Mac with Apple silicon (M-series) running
-> macOS 26.6, the release `app-v1.0.62` was downloaded (step 4: `Brigade-1.0.62-mac-arm64.dmg`,
-> about 195 MB), its `.dmg` opened and found to hold **Brigade** next to the **Applications**
-> shortcut (step 5, copied to a scratch folder rather than to Applications), and the app inside it
-> inspected: arm64, ad hoc signature, and Gatekeeper answers `rejected` (step 6). The Mac was **not a
-> clean one**: `git`, `gh` and `claude` were already installed there, and nobody opened the app
-> through the Gatekeeper dialogs. So the steps that depend on a bare machine (1 to 3, installing the
-> tools) and the screens of the first launch (6 and 7) are written from
-> [`docs/installation.md`](../installation.md) and the release notes, not from a recorded run from a
-> clean state. If a screen differs from what is written here, trust the screen and open an issue on
-> [benomite/brigade](https://github.com/benomite/brigade).
+> **What was checked.** On an Apple-silicon Mac running macOS 26.6, release `app-v1.0.62` was downloaded (`Brigade-1.0.62-mac-arm64.dmg`, about 195 MB), its `.dmg` found to hold **Brigade** and the **Applications** shortcut, and the app inspected: arm64, ad hoc signature, Gatekeeper `rejected`. That Mac was **not clean** (`git`, `gh`, `claude` were there) and nobody went through the Gatekeeper dialogs. Steps 1–3 and the first-launch screens (6, 7) come from [`docs/installation.md`](../installation.md) and the release notes. If a screen differs, trust the screen and open an issue on [benomite/brigade](https://github.com/benomite/brigade).
 
 ## Prerequisites
 
-- A **Mac with Apple silicon** (M1 or newer). Intel Macs are not covered.
-- A **GitHub account**, and a **Claude Max subscription**: every cook runs on your Max quota. An API
-  key does not fit — the station refuses to start if `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN`
-  is set in its environment.
-- Three tools the app calls, found through the `PATH` of your login shell: `git`, `gh` (the GitHub
-  CLI) and `claude` (Claude Code). The next section installs them if you lack them.
-- You do **not** need `node` or `npm`: the app carries its own.
+- A **Mac with Apple silicon** (M1 or newer). Intel is not covered.
+- A **GitHub account** and a **Claude Max subscription**: cooks run on your Max quota. An API key does not fit — the station refuses to start if `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` is set.
+- `git`, `gh` (GitHub CLI) and `claude` (Claude Code), found through your login shell's `PATH`. No `node` or `npm` needed: the app carries its own.
 
 ## Steps
 
-### 1. Check which tools you already have
+### 1. Check your tools
 
-Open **Terminal** (Spotlight: `Terminal`) and run:
+In **Terminal**, run `git --version; gh --version; claude --version`.
 
-```sh
-git --version; gh --version; claude --version
-```
+**You see**: one version line per tool. A `command not found` names a tool to install.
 
-**You see**: one version line per tool. A `command not found` (or, for `git`, the macOS offer to
-install the command line developer tools) names a tool to install in the next step.
+### 2. Install the missing ones
 
-### 2. Install the missing tools
+- `git`: `xcode-select --install`, or <https://git-scm.com/downloads>.
+- `gh`: <https://cli.github.com>.
+- `claude`: as Claude Code's own documentation says. Then reopen Terminal.
 
-- `git`: run `xcode-select --install` and accept the dialog, or download it from
-  <https://git-scm.com/downloads>.
-- `gh`: download it from <https://cli.github.com>.
-- `claude`: install Claude Code as its own documentation says, then reopen Terminal.
+**You see**: step 1 now prints three versions.
 
-**You see**: the command of step 1 now prints three version lines.
+### 3. Log in
 
-### 3. Log in to GitHub and to Claude
+Run `gh auth login`, then `claude` (use your **Max** account), and leave it with `/exit`.
 
-```sh
-gh auth login
-claude
-```
-
-Follow each login in your browser; for Claude, use your **Max** account. Leave `claude` with `/exit`.
-
-**You see**: `gh auth status` says you are logged in, and `claude auth status` answers
-`"loggedIn": true`.
+**You see**: `gh auth status` says logged in, and `claude auth status` answers `"loggedIn": true`.
 
 ### 4. Download the app
 
-Open the **[releases page](https://github.com/benomite/brigade/releases)**. Take the most recent
-release named **“Brigade `<version>`”** (tag `app-v<version>`) — not a “Station” release, even if it
-carries the “Latest” mark. Download **`Brigade-<version>-mac-arm64.dmg`** from its files.
+On the **[releases page](https://github.com/benomite/brigade/releases)**, take the latest release named **“Brigade `<version>`”** (tag `app-v<version>`) — not a “Station” release, even marked “Latest” — and download **`Brigade-<version>-mac-arm64.dmg`**.
 
-**You see**: a file of about 190 MB in your `Downloads` folder.
+**You see**: a file of about 190 MB in `Downloads`.
 
-### 5. Install the app
+### 5. Install it
 
-Open the `.dmg`, then drag **Brigade** onto the **Applications** shortcut shown in the same window.
-Eject the disk image.
-
-**You see**: **Brigade** in your **Applications** folder.
+Open the `.dmg`, drag **Brigade** onto **Applications**, eject the image.
 
 ### 6. Open it the first time
 
-The build is **unsigned** (signed ad hoc, no Apple developer identity): Gatekeeper rejects it, which
-was confirmed on macOS 26.6 (`spctl` answers `rejected`). To open it:
+The build is **unsigned** and Gatekeeper rejects it. Right-click **Brigade** in Applications, choose **Open**, then **Open** again. On **macOS 15 and later**, also go to **System Settings > Privacy & Security**, click **Open Anyway** next to the message about Brigade, and confirm.
 
-1. In **Applications**, right-click **Brigade**, choose **Open**, then **Open** again.
-2. On **macOS 15 and later** that is not enough: open **System Settings > Privacy & Security**,
-   scroll to the message about Brigade and click **Open Anyway**, then confirm.
+**You see**: the Brigade window, on a first-run screen asking for your GitHub account and the project. Afterwards the app opens normally.
 
-**You see**: the Brigade window. With no project yet, it opens on a first-run screen asking for
-your GitHub account and the project to work on. Opened this way once, the app opens normally
-afterwards.
+### 7. If a tool is reported missing
 
-### 7. Reopen it if it says a tool is missing
+For `The GitHub CLI (gh) is not installed…` or `Git is not installed…`, install it (step 2), then **quit and reopen Brigade**: it reads the `PATH` at launch.
 
-If the screen says `The GitHub CLI (gh) is not installed on this computer…` or `Git is not
-installed…`, install the tool (step 2) and **quit and reopen Brigade**: it reads your login shell's
-`PATH` when it launches.
+## What you get
 
-## What you get at the end
+- `Brigade.app` in `/Applications`; settings and projects live in `~/.config/brigade/`.
+- **No daemon.** Once a project is added and started, this Mac plays a **station** — only while the app is open, under your `gh` and `claude`.
+- Nothing else: no `node`, no service.
 
-- **The app**, `Brigade.app`, in `/Applications`, open on its first-run screen. Its settings and
-  projects live in `~/.config/brigade/`, outside the app.
-- **No daemon.** Once you add a project and start its kitchen, this Mac plays a **station** — but only
-  while the app is open: close the app and the cooks stop. It works under your account, with your
-  `gh` and your `claude`.
-- Nothing else is installed: no `node`, no service, no background process.
-
-To check it:
-
-- `ls -d /Applications/Brigade.app` prints the path.
-- The Brigade window is open and shows the first-run screen (or, once you have a project, its
-  icon bar).
-- `gh auth status` and `claude auth status` both say you are logged in.
+To check: `ls -d /Applications/Brigade.app`, the window shows the first-run screen, and `gh auth status` and `claude auth status` both say logged in.
 
 ## Next
 
 - [`premier-projet.md`](premier-projet.md): add a project and cook its first ticket.
-- [`docs/installation.md`](../installation.md): the same path with the Windows variant and a
-  troubleshooting section.
+- [`docs/installation.md`](../installation.md): the Windows variant and troubleshooting.
 
 ## Updating
 
-The unsigned app does not update itself. To update, download the new `.dmg` and drag **Brigade**
-over the old one in Applications.
+The app does not update itself: download the new `.dmg` and drag **Brigade** over the old one.
