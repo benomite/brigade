@@ -256,7 +256,7 @@ describe("les faits que l'app dessine", () => {
                   // Ce que la forme dit de lui : ce que son cook fait, sa station. Le reste est écrit comme manquant.
                   ligne: "reading runtime/src/etat.ts · 3 min",
                   dit: [
-                    { libelle: "right now", valeur: "lit runtime/src/etat.ts, for 3 min" },
+                    { libelle: "right now", valeur: "reading runtime/src/etat.ts, for 3 min" },
                     { libelle: "taken by", valeur: "box/claude", exact: true },
                   ],
                   sans: "not given by `facts`, and the `rail` line of `status` was not read : since when · its lease · what it burns · what blocks it",
