@@ -29,6 +29,7 @@ import { configFermeture } from "../closing/settings.ts";
 import { brancherGardeFous, lireReglages } from "../garde-fous.ts";
 import { configIdentites, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentites, ROLES, type Identites } from "../identites.ts";
 import { brancherManager, configManager } from "../manager.ts";
+import { brancherCadence } from "../produit/cadence/brancher.ts";
 import { brancherMiseAJour } from "../mise-a-jour/relais.ts";
 import { brancherPass, configPass } from "../pass.ts";
 import { identiteDeLaStation } from "../appairage/presence.ts";
@@ -199,7 +200,10 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
       commun: () => leconsDeLEtageCommun(envProjet.BRIGADE_STATION_DIR),
     });
     brancherDerive(socle, decisions.seuils, dire);
-    const dirige = brancherManager(servie, { ...manager, decisions, repertoireEtat, github: githubs.manager, env, cloison, bacASable, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers });
+    const manage = brancherManager(servie, { ...manager, decisions, repertoireEtat, github: githubs.manager, env, cloison, bacASable, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers });
+    // Le rôle produit, que le rail vide réveille quand le chef l'a allumé : sous l'identité du manager, par un GitHub à lui.
+    const sesRoles = identites;
+    const dirige = brancherCadence(manage, { github: ouvrirGitHub({ depot: rail.depot, bin: rail.gh, projet, ...(sesRoles ? { jeton: sesRoles.jeton("manager").frais, identite: () => sesRoles.login("manager"), compte: "manager" } : {}) }), depotGitHub: rail.depot, repertoireEtat, bin: station.bin, calibrage: decisions.manager, env, cloison, bacASable, avertir: dire });
     // Ce que la mise à jour de la station a donné, recopié au journal du
     // projet : la file le dit.
     const suivie = brancherMiseAJour(brancherAlerteUrgence(brancherJeton(brancherSession(dirige, session, undefined, jeton), jeton)), envProjet.BRIGADE_MISE_A_JOUR_DIR || null, dire);

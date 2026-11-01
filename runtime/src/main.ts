@@ -17,6 +17,7 @@ import { brancherGardeFous, lireReglages } from "./garde-fous.ts";
 import { configIdentites, environnementSansGitHub, ouvrirGitHubs, ouvrirIdentites, ROLES, type Identites } from "./identites.ts";
 import { etablirLInterrupteur } from "./interrupteur.ts";
 import { brancherManager, configManager } from "./manager.ts";
+import { brancherCadence } from "./produit/cadence/brancher.ts";
 import { brancherPass, configPass } from "./pass.ts";
 import { plafondDuProjet } from "./reagir.ts";
 import { lireLeDepot, variablesDesGatesDuDepot } from "./reglages-projet/en-vigueur.ts";
@@ -209,7 +210,10 @@ try {
   // et rien ne dépend de lui pour servir ce qui est déjà sur le rail.
   // La dérive ne lance rien et ne retient rien : elle lit ce que les autres ont écrit.
   brancherDerive(socle, decisions.seuils);
-  const dirige = brancherManager(servie, { ...manager, decisions, repertoireEtat, github: githubs.manager, env, cloison, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers });
+  const manage = brancherManager(servie, { ...manager, decisions, repertoireEtat, github: githubs.manager, env, cloison, depotGitHub: rail.depot, bin: station.bin, fichiers: depot.fichiers });
+  // Le rôle produit, que le rail vide réveille quand le chef l'a allumé : sous l'identité du manager, par un GitHub à lui.
+  const sesRoles = identites;
+  const dirige = brancherCadence(manage, { github: ouvrirGitHub({ depot: rail.depot, bin: rail.gh, ...(sesRoles ? { jeton: sesRoles.jeton("manager").frais, identite: () => sesRoles.login("manager"), compte: "manager" } : {}) }), depotGitHub: rail.depot, repertoireEtat, bin: station.bin, calibrage: decisions.manager, env, cloison });
   // La session Max ne lance rien et ne retient rien : son échéance se lit du
   // fichier d'état du renouvellement, jamais des identifiants, et la file la dit.
   // Avec un jeton longue durée, il n'y a plus de renouvellement à suivre.
