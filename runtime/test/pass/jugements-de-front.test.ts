@@ -136,7 +136,10 @@ describe("des livraisons jugées de front", { concurrency: 3 }, () => {
     const [attend] = [14, 15, 16].filter((numero) => !jugees.includes(numero));
     assert.equal(jugees.length, 2);
     assert.equal(phase(attend!), "delivered");
-    assert.match(await pass(String(attend)), new RegExp(`^#${attend} {2}delivered, waiting for its turn — #${jugees[0]}, #${jugees[1]} are in their pass, next in line — waiting for a free slot: 2 judgements at once at most`));
+    // Celles dans leur pass sont nommées dans l'ordre de leur livraison.
+    const ditDeLaTroisieme = await pass(String(attend));
+    assert.match(ditDeLaTroisieme, new RegExp(`^#${attend} {2}delivered, waiting for its turn — #\\d+, #\\d+ are in their pass, next in line — waiting for a free slot: 2 judgements at once at most`));
+    assert.deepEqual([...(ditDeLaTroisieme.match(/— (#\d+), (#\d+) are/) ?? [])].slice(1).sort(), jugees.map((numero) => `#${numero}`).sort());
 
     liberer(jugees[0]!);
     await jusqua(() => premier(attend!, "pass.started") !== undefined);
