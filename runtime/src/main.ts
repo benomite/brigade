@@ -19,6 +19,10 @@ import { etablirLInterrupteur } from "./interrupteur.ts";
 import { brancherManager, configManager } from "./manager.ts";
 import { brancherPass, configPass } from "./pass.ts";
 import { plafondDuProjet } from "./reagir.ts";
+import { brancherCadence } from "./produit/cadence/cadence.ts";
+import { deposesLe, lecteurDesOuvertes } from "./produit/cadence/lectures.ts";
+import { configCadence } from "./produit/cadence/reglages.ts";
+import { lanceurDuRole } from "./produit/cadence/role.ts";
 import { lireLeDepot, variablesDesGatesDuDepot } from "./reglages-projet/en-vigueur.ts";
 import { CARNET_PATH } from "./carnet/carnet.ts";
 import { brancherCarnet } from "./promotion/livrer.ts";
@@ -122,6 +126,8 @@ try {
   // l'unité du projet, lu une fois.
   const leconsInjectees = lirePlafondDesLecons(decide);
   configFermeture(decide);
+  // The product role's daily cap and interval: a setting of the project's unit.
+  const cadence = configCadence(decide);
   arbitre = configArbitrage(process.env);
   secrets = configSecrets(process.env, { repertoireEtat, clone: station.clone });
   jeton = configJeton(process.env, { repertoireEtat, clone: station.clone });
@@ -213,7 +219,14 @@ try {
   // La session Max ne lance rien et ne retient rien : son échéance se lit du
   // fichier d'état du renouvellement, jamais des identifiants, et la file la dit.
   // Avec un jeton longue durée, il n'y a plus de renouvellement à suivre.
-  const suivie = brancherSession(dirige, session, undefined, jeton);
+  // The product role, woken by the kitchen when the rail empties (#1955): a
+  // judgement under the manager's identity and calibration, within its daily cap.
+  const commeManager = identites;
+  const githubDuProduit = ouvrirGitHub({ depot: rail.depot, bin: rail.gh, ...(commeManager ? { jeton: commeManager.jeton("manager").frais, identite: () => commeManager.login("manager"), compte: "manager" } : {}) });
+  const lecteur = lecteurDesOuvertes(githubDuProduit);
+  const lancerLeRole = lanceurDuRole(dirige, { github: githubDuProduit, depotGitHub: rail.depot, repertoireEtat, bin: station.bin, calibrage: () => decisions.manager(), ouvertes: lecteur.ouvertes, env, cloison });
+  const produit = brancherCadence(dirige, { ...cadence, lancer: lancerLeRole, deposesLe: (jour) => deposesLe(githubDuProduit, jour), enRetard: lecteur.enRetard });
+  const suivie = brancherSession(produit, session, undefined, jeton);
   // De même pour le jeton longue durée : son échéance se lit de la date de sa
   // création, rangée à côté de lui, jamais du jeton.
   const datee = brancherJeton(suivie, jeton);
