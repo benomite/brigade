@@ -283,7 +283,7 @@ export type Pont = {
   // retenue. Elle s'écrit dans la demande de la principale, qui la pose à son journal. Rend ce qui est fait, ou pourquoi rien.
   choisirUneIssue(nom: string, choix: string, issue: string): Promise<Choisi>;
   // « It's a human's job », sur la carte d'un ticket en WAITING faute de capacité, et « reassign » sur sa tâche dans TODO
-  // (#1958) : `rail human <ticket> [qui]` part là où la cuisine du projet tourne (attente-capacite/geste.ts).
+  // (ticket 1958) : `rail human <ticket> [qui]` part là où la cuisine du projet tourne (attente-capacite/geste.ts).
   confierAUnHumain(nom: string, ticket: number, qui?: string): Promise<RenduDuGesteHumain>;
   // Ouvre dans le navigateur une page où autoriser brigade sur GitHub — une de celles qu'une station a publiées —,
   // ou une page que le parcours d'un projet neuf montre (ticket 1111) : son geste, son ticket de préparation, sa PR.

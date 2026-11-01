@@ -1,5 +1,5 @@
 // Ce que `facts` dit d'un ticket en WAITING faute de capacité, et de sa tâche quand le chef l'a confié à un humain
-// (runtime/src/sortie-attente-capacite/, #1958), tel que l'app le lit (faits.ts) — rien n'y est cru sur parole :
+// (runtime/src/sortie-attente-capacite/, ticket 1958), tel que l'app le lit (faits.ts) — rien n'y est cru sur parole :
 //   - `requiert`, sur une carte du rail : toutes les capacités que sa ligne `requiert` demande — la station à qui le
 //     chef le donne doit les fournir toutes ;
 //   - `tache`, sur une entrée de TODO : à qui elle revient, ce qu'aucune station ne fournit, et le titre, le contexte

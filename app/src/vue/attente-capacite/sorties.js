@@ -1,5 +1,5 @@
 // @ts-check
-// Les deux sorties d'une carte en WAITING faute de capacité (#1958, épique #1950) — celle qui attend « a station that
+// Les deux sorties d'une carte en WAITING faute de capacité (ticket 1958, épique 1950) — celle qui attend « a station that
 // provides `macos` » —, et la tâche qu'elle devient dans TODO quand le chef la confie à un humain.
 //
 // Sur la carte de WAITING, deux boutons, et seulement sur celle-là (`requiert`, que `facts` ne donne qu'à elle) :

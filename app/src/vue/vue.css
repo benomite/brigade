@@ -4826,7 +4826,7 @@ main > header,
 #rail .bon p.arrivee.refus {
   color: var(--rouge);
 }
-/* Les deux sorties d'une carte en WAITING faute de capacité (#1958) : « Give it to a station », plein d'accent — le
+/* Les deux sorties d'une carte en WAITING faute de capacité (ticket 1958) : « Give it to a station », plein d'accent — le
    recommandé —, et « It's a human's job », au trait. Ouverte, la première montre les stations du projet, une ligne
    chacune avec ce qu'elle fournit, puis sa confirmation ; la seconde, sa confirmation seule. Ce qui est fait se dit
    dessous, à voix basse ; un refus, en rouge, le détail au survol. */
@@ -4909,7 +4909,7 @@ main > header,
   color: var(--rouge);
   border-top: 0;
 }
-/* La tâche d'un ticket confié à un humain, sur sa carte de TODO (#1958) : bordée d'accent comme la carte — c'est à
+/* La tâche d'un ticket confié à un humain, sur sa carte de TODO (ticket 1958) : bordée d'accent comme la carte — c'est à
    toi —, à qui elle revient, dans un champ, avec « reassign » ; puis ce que sa carte disait : son titre, ce qu'aucune
    station ne fournit, son contexte, ses critères d'acceptation. */
 #rail .bon .tache-humaine {

@@ -1,4 +1,4 @@
-// « It is a human's job », sur la carte d'un ticket en WAITING faute de capacité (#1958), et « reassign », sur sa
+// « It is a human's job », sur la carte d'un ticket en WAITING faute de capacité (ticket 1958), et « reassign », sur sa
 // tâche dans TODO : la commande du runtime `rail human <ticket> [qui]` (runtime/src/sortie-attente-capacite/), lancée
 // là où la cuisine du projet tourne, comme le plafond de calibrage (plafond-de-calibrage.ts). Le runtime sort le
 // ticket du rail et pose sa tâche dans TODO — ou la donne à quelqu'un d'autre —, et dit ce qu'il a fait.

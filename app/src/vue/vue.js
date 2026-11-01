@@ -285,7 +285,7 @@ declareesDuProjet.id = "declarees-du-projet";
 // (service.ts, `controle.stations`) : gardées d'un guide à l'autre, jusqu'à la lecture suivante.
 /** @type {Map<string, import("../service.ts").StationsLues>} */
 const declarees = new Map();
-// Les deux sorties d'une carte en WAITING faute de capacité, et la tâche qu'elle devient dans TODO (#1958).
+// Les deux sorties d'une carte en WAITING faute de capacité, et la tâche qu'elle devient dans TODO (ticket 1958).
 const sortiesDeCapacite = tenirLesSorties({ doc: document, pont: brigade, stations: (nom) => declarees.get(nom), reposer: (nom) => void (courant?.nom === nom && poserRail(courant)), relire: () => lireLesFaits() });
 // Les blocs repliés que le chef a ouverts, par projet (`<projet>#<bloc>`) : reposés à chaque lecture, ils restent
 // ouverts ; fermés à la première.
