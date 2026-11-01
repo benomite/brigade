@@ -26,6 +26,7 @@ import type { NouveauBlocage } from "../installation/blocages/blocages.ts";
 import { ouvrirJournal } from "../journal.ts";
 import { ConfigInvalide } from "../runtime.ts";
 import type { StationDeclaree } from "../stations-declarees.ts";
+import { retirerLesDoublons } from "../station-doublon/retirer.ts";
 import { tenirUneStation } from "../une-station.ts";
 import { FICHIER_PROJETS, lireDemande } from "./demande.ts";
 import { capacitesDe, machineDe } from "./preparer.ts";
@@ -142,6 +143,8 @@ export function declarerLesSecondaires(repertoireEtat: string, projet: string, s
         refusees.push({ station: secondaire.station, raison: erreur.message });
       }
     }
+    // Une secondaire atteinte qui est le même ordinateur qu'une déclarée absente la remplace (`station-doublon/`).
+    retirerLesDoublons(journal, { projet, presentes: secondaires.filter((secondaire) => secondaire.atteinte).map((secondaire) => secondaire.station), auteur });
   } finally {
     journal.fermer();
   }
