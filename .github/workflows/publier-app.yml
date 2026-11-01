@@ -24,6 +24,9 @@
 # Le job `verifier-secrets` les vérifie avant toute construction : s'il en manque un (mais pas tous),
 # rien n'est construit ni publié, la PR mergée reçoit un commentaire d'une phrase qui le nomme et dit
 # où l'ajouter, et le run finit rouge. Un merge qui ne change pas l'app ne les lit pas.
+# Le job `alerter` (#2013) ouvre une issue quand une construction ou la publication échoue ou est
+# annulée, et la titre autrement quand GitHub a retiré l'image d'un runner : le chef le voit sans
+# ouvrir Actions.
 name: publier-app
 
 on:
@@ -213,7 +216,8 @@ jobs:
   mac:
     needs: [decider, detecter-secrets, verifier-secrets]
     if: needs.decider.outputs.changed == 'true'
-    runs-on: macos-14
+    # macos-14 est retiré le 2 novembre 2026 (#2013) ; macos-15 est arm64, comme le .dmg publié.
+    runs-on: macos-15
     timeout-minutes: 90
     env:
       TAG: ${{ needs.decider.outputs.tag }}
@@ -511,3 +515,59 @@ jobs:
               --latest=false
           fi
           echo "$resume" >> "$GITHUB_STEP_SUMMARY"
+
+  alerter:
+    # Une construction ou la publication a échoué ou a été annulée : une issue le dit au chef, hors
+    # d'Actions. Un échec qui dure commente l'issue ouverte au lieu d'en ouvrir une autre.
+    needs: [decider, mac, windows, android, publier]
+    if: >-
+      always() && needs.decider.outputs.changed == 'true'
+      && (contains(fromJSON('["failure","cancelled"]'), needs.mac.result)
+      || contains(fromJSON('["failure","cancelled"]'), needs.windows.result)
+      || contains(fromJSON('["failure","cancelled"]'), needs.android.result)
+      || contains(fromJSON('["failure","cancelled"]'), needs.publier.result))
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      checks: read
+      contents: read
+      issues: write
+    env:
+      TAG: ${{ needs.decider.outputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RUN_ID: ${{ github.run_id }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Signaler l'échec au chef
+        run: |
+          set -euo pipefail
+          # Les jobs en échec ou annulés, et ce que GitHub en dit dans leurs annotations.
+          jobs=$(gh api "repos/$GH_REPO/actions/runs/$RUN_ID/jobs?per_page=100" \
+            --jq '.jobs[] | select(.conclusion == "failure" or .conclusion == "cancelled") | [.name, .conclusion, .check_run_url] | @tsv')
+          liste=""
+          retire=false
+          while IFS=$'\t' read -r nom conclusion url; do
+            [ -n "$nom" ] || continue
+            liste="$liste- \`$nom\`: $conclusion"$'\n'
+            if gh api "$url/annotations" --jq '.[].message' 2>/dev/null | grep -qiE 'runner image|brownout|retired'; then
+              retire=true
+              liste="$liste  - GitHub says the runner image of this job is retired or in brownout."$'\n'
+            fi
+          done <<< "$jobs"
+          if [ "$retire" = true ]; then
+            titre="publier-app: $TAG was not published, GitHub retired a runner image"
+            conseil="Change the \`runs-on\` of the failing job in \`.github/workflows/publier-app.yml\` to a runner image that is still supported (https://github.com/actions/runner-images)."
+          else
+            titre="publier-app: $TAG was not published, a build failed"
+            conseil="Open the run to read the failing step."
+          fi
+          corps=$(printf 'The run %s did not publish %s.\n\n%s\n%s\n\nNo app reaches a user until a run publishes it.' "$RUN_URL" "$TAG" "$liste" "$conseil")
+          ouverte=$(gh issue list --state open --search 'publier-app: in:title' --json number,title --jq '[.[] | select(.title | startswith("publier-app: "))][0].number // empty')
+          if [ -n "$ouverte" ]; then
+            gh issue comment "$ouverte" --body "$corps"
+            echo "Reported on #$ouverte." >> "$GITHUB_STEP_SUMMARY"
+          else
+            gh issue create --title "$titre" --body "$corps"
+            echo "Issue opened: $titre" >> "$GITHUB_STEP_SUMMARY"
+          fi
