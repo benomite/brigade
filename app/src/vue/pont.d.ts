@@ -49,6 +49,9 @@ export type Pont = {
   // une couleur libre `#rrggbb` (couleurs.ts). Rend la raison, si elle ne l'a pas été. Écrite, elle
   // arrive par `surConfiguration`.
   colorer(projet: string, role: Role, couleur: string): Promise<string | undefined>;
+  // Change le sigle d'un projet, celui de sa case dans la barre (sigle.ts) — `null` le rend à celui que l'app tire
+  // de son nom. Rend la raison, s'il ne l'a pas été. Écrit, il arrive par `surConfiguration`.
+  changerSigle(projet: string, sigle: string | null): Promise<string | undefined>;
   // Le bloc « tickets ordinaires » de cet ordinateur pour un projet (ordinaires.ts) — rien, quand l'option n'existe pas ici.
   ordinaires(projet: string): Promise<Bloc | undefined>;
   // Règle l'option et la limite de cooks de cet ordinateur (`null` : aucune). Rend la raison, si rien n'a été écrit.

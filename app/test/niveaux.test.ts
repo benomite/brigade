@@ -34,10 +34,10 @@ describe("le niveau de chaque réglage montré", () => {
     assert.deepEqual(Object.values(NIVEAUX_DITS).map(({ libelle }) => libelle), ["project", "this machine", "you"]);
   });
 
-  test("branche, calibrages, plafond et closer sont du projet ; cooks, dossier et capacités de la machine ; couleurs de toi", () => {
+  test("branche, calibrages, plafond et closer sont du projet ; cooks, dossier et capacités de la machine ; couleurs et sigle de toi", () => {
     for (const cle of ["depot", "branche", "manager", "reviewer", "plafond", "calibrage", "closer", "closer-cooks", "closer-tokens", "closer-lines"]) assert.equal(NIVEAUX[cle], "project", cle);
     for (const cle of ["cooks", "dossier", "capacites", "ordinaires"]) assert.equal(NIVEAUX[cle], "machine", cle);
-    for (const cle of ["couleurs"]) assert.equal(NIVEAUX[cle], "you", cle);
+    for (const cle of ["couleurs", "sigle"]) assert.equal(NIVEAUX[cle], "you", cle);
   });
 
   test("un réglage que la table ne connaît pas ne se rend pas", () => {

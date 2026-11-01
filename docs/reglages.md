@@ -174,7 +174,8 @@ follow you from one device to another".
 
 | Setting | Key in `app.json` | Note |
 |---|---|---|
-| The colors of a project (tab and accent) | `projets[].couleurs` | the only `you` setting the Settings screen shows (`app/src/vue/niveaux.js`) |
+| The colors of a project (tab and accent) | `projets[].couleurs` | shown under `you` in the Settings screen (`app/src/vue/niveaux.js`) |
+| The short label of a project's tile in the bar | `projets[].sigle` | shown under `you` in the Settings screen; absent, the app derives one from the names (`app/src/sigle.ts`) |
 | The order of your projects in the bar | the order of `projets` | set by arranging the bar; the order of two devices is merged, not overwritten |
 | Display preferences | none yet | the app has none today (no theme, density or font size); one added later follows you by default |
 | Any other personal key | any key not listed below | follows you by default |

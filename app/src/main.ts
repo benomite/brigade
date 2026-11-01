@@ -640,6 +640,13 @@ ipcMain.handle("colorer", (_, nom: unknown, role: unknown, couleur: unknown) => 
   const voulue = choix(role, couleur);
   return "refus" in voulue ? voulue.refus : suivi.changerCouleur(vise.nom, voulue.role, voulue.valeur);
 });
+// Le sigle d'un projet, celui de sa case dans la barre (sigle.ts) : la vue nomme le projet et le sigle que le
+// chef a écrit — `null`, il le rend à celui que l'app tire de son nom. Écrit, il arrive par `surConfiguration`.
+// Rend la raison, s'il ne l'a pas été.
+ipcMain.handle("changerSigle", (_, nom: unknown, sigle: unknown) => {
+  const vise = declare(nom);
+  return vise === undefined ? parti(nom).refus : suivi.changerSigle(vise.nom, sigle);
+});
 // Les tickets ordinaires de cet ordinateur (ordinaires.ts) : le bloc que la vue pose pour un projet —
 // rien, quand le projet ne cuit pas sur ce poste ; hors d'un Mac, pourquoi il n'en prend pas —, et le réglage, que la vue nomme et que le fichier écrit.
 // Écrit, il arrive par `surConfiguration`. Le réglage rend la raison, s'il ne l'a pas été.

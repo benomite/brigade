@@ -844,8 +844,8 @@ describe("Livré garde ce que la cuisine a servi", () => {
     const css = readFileSync(join(VUE, "vue.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
     const corps = /(?:^|})\s*#rail \.bon p\.livraison\s*\{([^}]*)\}/.exec(css)?.[1] ?? assert.fail("pas de règle pour le résumé");
     assert.doesNotMatch(corps, /overflow:\s*hidden|text-overflow|line-clamp|max-height|white-space:\s*nowrap/);
-    // Hors le nom d'un projet dans la barre (#1512), seul à être coupé d'une ellipse.
-    assert.doesNotMatch(css.replace(/#projets \.nom-de-case\s*\{[^}]*\}/, ""), /text-overflow|line-clamp/);
+    // Nulle part dans la peau : pas même dans la barre, où le sigle d'un projet tient entier dans sa case (#1983).
+    assert.doesNotMatch(css, /text-overflow|line-clamp/);
   });
 
   test("rien de servi en 24 h : la colonne le dit", async () => {

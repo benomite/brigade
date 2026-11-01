@@ -600,6 +600,10 @@ The file stays yours, and you can do anything in it:
   the other is drawn. Anything other than a `#rrggbb` color refuses the file (`project no. 1 (parade):
   "couleurs": "onglet" must be a color written `#rrggbb` — "rouge" is not one`).
 - `nom` is the project's name; a served project is called the same in the app and on its station.
+- `sigle`: **the short label of the project's tile in the bar** (see "The icon bar"), 3 characters at most, no space
+  (`"LAB"`). You do not have to write it: absent, the app derives one from the names. It is set from the project's
+  Settings, under `you`. A label longer than 3 characters refuses the file (`project no. 1 (mirrorlab): "sigle" is
+  4 characters long: 3 at most`).
 - `depot` and `base` are the project's GitHub repository (`<owner>/<name>`) and its integration branch.
 - **Legacy keys are ignored.** A file written by an older version may still carry keys naming an ssh host, a list of boxes or played stations: it is
   read without error, those keys are left alone and nothing is done with them — where a project cooks is read from the
@@ -1635,13 +1639,21 @@ On the left, a column of tiles, Slack or Discord style:
 | Tile | What it is |
 |---|---|
 | **T**, round, at the top | the "All projects" screen. **In yellow**: the app's code, or a brigade clone among your projects, is behind its origin — hovering says which, and by how much |
-| one **monogram** per project, in the file's order | its space. Two characters drawn from the `nom`: the initials of its first two words (`brigade-site` → `BS`), or its first two letters if it has only one (`brigade` → `BR`) |
+| one **short label** per project, in the file's order | its space. At most 3 characters, large, on one line, never cut (`app/src/sigle.ts`) — see below |
 | **+**, dotted, at the bottom | add a project |
 
 - **The full name is read on hover** over the tile, and **at the top of the space** once inside, to
   the left of the tabs.
-- **Two projects can carry the same monogram** (`parade`, `partage`: `PA`). The app does not
-  tell them apart: the name does, and the bar's order, which is your file's.
+- **The label is derived from the names, and no two projects ever carry the same one** (#1983). A
+  name of several words gives its initials, three at most (`brigade-site` → `BS`, `my-kitchen-2` → `MK2`); a
+  single word gives its first letter and the letter where it parts from the names that start like it —
+  `mirrorscreen` and `mirrorlab` read `MS` and `ML` — or its second letter when no other name starts like it
+  (`brigade` → `BR`). Should two names still want the same label, the one first in alphabetical order keeps it
+  and the other takes its next free one. Rearranging the bar never changes a label.
+- **You can write your own label** for a project in its Settings, under `you` ("label, in the bar"): 3 characters at
+  most, written to `sigle` in the projects file, and the tile follows at once. Emptied, or with "back to its name",
+  the tile goes back to the derived label. A label another project already carries as yours is refused, saying
+  whose; the derived labels step aside from yours. Like the colors, it follows you from one device to another.
 - **At each tile's corner, a dot: the project's kitchen state, as its station reports it** — not
   deduced. Green, `open`; yellow, `held`; red, `stopped` or `off`. The word is read on
   hover, after the name (`parade — stopped`). It is re-read every thirty seconds, for all
@@ -3249,7 +3261,7 @@ The fake `claude` says `reçu : /brigade:init` when it is opened on the session.
   stand-in gesture that each test writes: no network), `attend.ts` (the `awaiting` block taken by
   its edge, on outputs copied from the runtime; and the number at the head of a line, on the block
   the runtime itself writes — the test calls `decrireAttentes` of `runtime/src/attend.ts`),
-  `barre.ts` (a project's monogram), `couleurs.ts` (a project's colors: drawn without duplicates as
+  `sigle.ts` (a project's short label: unique among the projects, 3 characters at most, the one written by the chef first; in the played view, the tile, the full name on hover and in the space's header, the row under Settings), `couleurs.ts` (a project's colors: drawn without duplicates as
   long as the palette is not exhausted, written to the file — and only those that are missing —,
   changed one by one; in the played view, the tinted tile, the space's accent, the choice under
   Settings; none is a state color), `onglets.ts` (the five content tabs: each relays a script that

@@ -244,6 +244,7 @@ const videProjet = element("vide-project");
 const videMachine = element("vide-machine");
 const retrait = element("retrait");
 const couleurs = element("couleurs");
+const sigle = element("sigle");
 const ordinaires = element("ordinaires");
 const reglagesDuProjet = element("reglages-du-projet");
 const avis = element("avis");
@@ -1143,6 +1144,8 @@ let retraitDeLApp = "";
 let nonRetire = { projet: "", refus: "" };
 // Pourquoi la dernière couleur choisie n'a pas été écrite, et pour quel projet — rien, si elle l'a été.
 let couleurRefusee = { projet: "", refus: "" };
+// Pourquoi le dernier sigle écrit ne l'a pas été, et pour quel projet — rien, s'il l'a été.
+let sigleRefuse = { projet: "", refus: "" };
 // Ce que la dernière lecture des clones donne à poser (retard.ts). Indéfini : pas encore lus.
 /** @type {VuDuCode | undefined} */
 let codeVu;
@@ -2475,6 +2478,39 @@ function poserCouleurs(projet) {
     return pose;
   };
   couleurs.replaceChildren(rangee("onglet", "tab, in the bar"), rangee("accent", "accent, in the space"), ...refusDeReglage(couleurRefusee.refus));
+}
+
+// Le sigle du projet, dans le groupe de toi de Settings (ticket 1983) : celui que sa case écrit — tiré de son nom, ou
+// le tien —, et le champ où l'écrire. Écrit, il part dès que le champ change ; vidé, ou par « back to its name », la
+// case reprend celui que l'app tire de son nom. Refusé, la raison se lit sous la ligne.
+/** @param {Projet} projet */
+function poserSigle(projet) {
+  if (sigleRefuse.projet !== projet.nom) sigleRefuse = { projet: "", refus: "" };
+  sigle.hidden = false;
+  const champ = document.createElement("input");
+  champ.className = "mono";
+  champ.value = projet.sigle ?? "";
+  champ.placeholder = projet.etiquette;
+  champ.autocomplete = "off";
+  champ.spellcheck = false;
+  champ.title = champ.ariaLabel = "your label for its tile: 3 characters at most — empty, the app derives one from its name";
+  champ.addEventListener("change", () => void siglerProjet(projet, champ.value.trim() === "" ? null : champ.value));
+  const controle = projet.sigle === undefined ? [champ] : [champ, bouton("back to its name", () => void siglerProjet(projet, null))];
+  const vaut = bloc("span", projet.etiquette);
+  vaut.className = "mono";
+  const pose = rangeeDeReglage("label, in the bar", [vaut, ` · ${projet.sigle === undefined ? "from its name" : "yours"}`], controle, refusDeReglage(sigleRefuse.refus));
+  pose.dataset.cle = "sigle";
+  pose.firstElementChild?.append(niveauDe(document, "sigle"));
+  sigle.replaceChildren(pose);
+}
+
+// Un sigle écrit : le process principal l'écrit dans le fichier des projets, et il revient par `surConfiguration` — la
+// case le prend alors. `null` : le sigle écrit est retiré. Refusé, la raison se lit dessous.
+/** @param {Projet} projet @param {string | null} voulu */
+async function siglerProjet(projet, voulu) {
+  const refus = await brigade.changerSigle(projet.nom, voulu);
+  sigleRefuse = { projet: projet.nom, refus: refus ?? "" };
+  if (courant?.nom === projet.nom) poserSigle(courant);
 }
 
 // Une couleur choisie : le process principal l'écrit dans le fichier des projets, et elle revient
@@ -7570,6 +7606,7 @@ async function ouvrir(projet) {
   // Ni sa ligne de retrait : elle nomme son projet.
   retrait.hidden = true;
   void lireRetrait(projet);
+  poserSigle(projet);
   poserCouleurs(projet);
   void poserOrdinaires(projet);
   poserLesReglagesDuProjet(projet);
@@ -7891,11 +7928,11 @@ function afficher() {
   barre.replaceChildren(
     ...configuration.projets.map((projet) => {
       const entree = icone("", projet.nom, () => void ouvrir(projet));
-      // Son nom en entier, coupé d'une ellipse s'il dépasse la case (le survol le dit en entier).
-      const nom = document.createElement("span");
-      nom.className = "nom-de-case";
-      nom.textContent = projet.nom;
-      entree.append(nom);
+      // Son sigle, en grand, sur une ligne (sigle.ts) : le survol de la case dit son nom en entier.
+      const etiquette = document.createElement("span");
+      etiquette.className = "sigle-de-case";
+      etiquette.textContent = projet.etiquette;
+      entree.append(etiquette);
       rendreRangeable(entree, projet);
       entree.classList.toggle("refuse", projet.refus !== undefined);
       // Sa couleur d'onglet : la case la porte, qu'elle soit choisie ou non.

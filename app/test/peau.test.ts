@@ -305,10 +305,9 @@ describe("le texte relayé de la box s'affiche à l'identique, sans troncature n
     }
     assert.ok(vus >= 8, `${vus} règles seulement portent sur un \`pre\``);
 
-    // Rien ne se coupe dans toute la peau : pas même le titre d'un ticket, sur la ligne d'un cook.
-    // Une seule exception, tranchée par le chef (#1512) : le nom d'un projet dans sa case de la barre, coupé d'une
-    // ellipse, son nom entier au survol.
-    const coupe = feuille.filter(({ selecteurs }) => !(selecteurs.length === 1 && selecteurs[0] === "#projets .nom-de-case")).filter(({ declarations }) => declarations.has("text-overflow") || declarations.get("overflow") === "hidden" || declarations.has("-webkit-line-clamp") || declarations.has("text-transform"));
+    // Rien ne se coupe dans toute la peau : pas même le titre d'un ticket, sur la ligne d'un cook — ni le sigle d'un
+    // projet dans sa case de la barre (#1983), qui y tient entier.
+    const coupe = feuille.filter(({ declarations }) => declarations.has("text-overflow") || declarations.get("overflow") === "hidden" || declarations.has("-webkit-line-clamp") || declarations.has("text-transform"));
     assert.deepEqual(coupe.map(({ selecteurs }) => selecteurs), []);
   });
 
