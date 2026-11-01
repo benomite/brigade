@@ -193,7 +193,7 @@ brigade: Android app built — app/packaging/construit/Brigade-0.20261020.150000
 | Node, et son `npm` | 26 au moins (`engines` de l'app) | celui qui lance la commande |
 | un JDK | 21 (de 21 à 24 : Capacitor 8 compile en Java 21, Gradle 8.14 ne tourne pas au-delà de 24) | `$JAVA_HOME/bin/java`, sinon le `java` du PATH |
 | le SDK Android | sa plateforme **android-36** (`sdkmanager "platforms;android-36"`) ; les build-tools qu'Android Gradle Plugin réclame sont posés par lui si les licences sont acceptées (`sdkmanager --licenses`) | `$ANDROID_HOME`, sinon `$ANDROID_SDK_ROOT` |
-| le réseau | le registre npm, `services.gradle.org` (Gradle, au premier lancement), Google Maven et Maven Central (les dépendances de Gradle) | — |
+| le réseau | le registre npm, `services.gradle.org` (Gradle, au premier lancement), Google Maven, le miroir de Maven Central de Google et Maven Central (les dépendances de Gradle) | — |
 
 Ils sont vérifiés **avant tout** : s'il en manque, la commande s'arrête (code 2), sans rien écrire,
 en les nommant tous, chacun avec de quoi le poser :

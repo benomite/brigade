@@ -2,9 +2,12 @@
 // épinglées : Android Gradle Plugin ici, Gradle dans gradle/wrapper/, les SDK et AndroidX dans
 // variables.gradle, Capacitor dans ../package.json et son verrou.
 
+// Maven Central répond 403 aux runners de GitHub quand il limite leur adresse (#2025) : le miroir de
+// Google passe en premier — un artefact qu'il n'a pas (404) se cherche ensuite sur Maven Central.
 buildscript {
     repositories {
         google()
+        maven { url 'https://maven-central.storage-download.googleapis.com/maven2/' }
         mavenCentral()
     }
     dependencies {
@@ -17,6 +20,7 @@ apply from: "variables.gradle"
 allprojects {
     repositories {
         google()
+        maven { url 'https://maven-central.storage-download.googleapis.com/maven2/' }
         mavenCentral()
     }
 }
