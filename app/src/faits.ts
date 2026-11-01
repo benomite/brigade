@@ -836,7 +836,8 @@ export function direEnCeMoment({ etat, activite }: Faits["rail"][number], lu: st
   if (!A_L_OUVRAGE.includes(etat)) return undefined;
   if (activite === undefined) return ACTIVITE_PAS_DONNEE;
   if (activite === null) return ACTIVITE_NON_COMMUNIQUEE;
-  const { fait, cible, depuis } = activite;
+  const { fait: dit, faitEn, cible, depuis } = activite;
+  const fait = faitEn ?? dit;
   return `${cible === null ? fait : `${fait} ${cible}`}, for ${duree(Date.parse(lu) - Date.parse(depuis))}`;
 }
 

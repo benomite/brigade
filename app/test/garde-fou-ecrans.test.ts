@@ -329,13 +329,13 @@ describe("en attente de décision, chaque geste attendu est un bouton, pas du te
     const proposes = gestesDeCarte(carte);
     assert.ok(proposes.some(({ id }) => id === "merger"), "la décision attendue est de merger : le geste manque à la table");
     const boutonsDeLaFiche = boutons(racine).map(({ textContent }) => textContent);
-    for (const { libelle } of proposes) assert.ok(boutonsDeLaFiche.includes(libelle), `« ${libelle} » n'est pas un bouton de la fiche`);
+    for (const { libelle, id } of proposes.filter(({ id }) => id !== "priorite")) assert.ok(boutonsDeLaFiche.includes(libelle), `« ${libelle} » n'est pas un bouton de la fiche`);
     const [premier] = proposes;
     assert.equal(premier?.recommande, true);
     const gestes = racine.dessous("section").find(({ className }) => className === "gestes-fiche") ?? assert.fail("pas de gestes sur la fiche");
     assert.equal(boutons(gestes)[0]?.textContent, premier?.libelle);
     // Aucun geste n'est une ligne de texte : chaque ligne de geste porte son bouton.
-    for (const ligne of gestes.dessous("li")) assert.ok(boutons(ligne).length > 0, `le geste « ${ligne.dataset.geste} » n'est pas un bouton`);
+    for (const ligne of gestes.dessous("li")) assert.ok(boutons(ligne).length > 0 || ligne.dessous("select").length > 0, `le geste « ${ligne.dataset.geste} » n'est pas un bouton`);
   });
 
 });

@@ -3264,11 +3264,16 @@ function suivreFiche(cartes, posees) {
 function poserDetailsDeFiche(projet, carte) {
   const { ticket, livraison, dit } = carte;
   const pose = [];
-  if (dit.length > 0) {
+  // Rien n'est dit deux fois : « right now » est dans sa section, et la station où il cuit s'ajoute à qui le tient.
+  const cuit = dit.find(({ libelle }) => libelle === "cooks on");
+  const dits = dit
+    .filter(({ libelle }) => libelle !== "right now" && libelle !== "cooks on")
+    .map((fait) => (fait.libelle === "taken by" && cuit !== undefined ? { ...fait, valeur: `${fait.valeur} · ${cuit.valeur}` } : fait));
+  if (dits.length > 0) {
     const porte = document.createElement("ul");
     porte.className = "porte";
     porte.append(
-      ...dit.map(({ libelle, valeur, exact: recopie }) => {
+      ...dits.map(({ libelle, valeur, exact: recopie }) => {
         const fait = document.createElement("li");
         fait.append(bloc("span", libelle), recopie ? exact("strong", valeur) : bloc("strong", valeur));
         return fait;
@@ -3284,6 +3289,8 @@ function poserDetailsDeFiche(projet, carte) {
   details.append(...pose);
   return [details];
 }
+
+const issuesOuvertes = new Set();
 
 function poserFiche() {
   fiche.hidden = ouverte === undefined;
@@ -3313,8 +3320,11 @@ function poserFiche() {
     return pose;
   };
   const lignes = document.createElement("dl");
+  // La priorité se lit et se change dans la barre des gestes, quand elle y est : une seule fois.
+  const proposes = gestesDeFiches.get(`${projet.nom}#${ticket}`);
+  const changeable = Array.isArray(proposes) && proposes.some(({ id }) => id === "priorite");
   lignes.append(
-    rang("priority", dite(priorite)),
+    ...(changeable ? [] : [rang("priority", dite(priorite))]),
     // L'issue et la PR qui s'ouvrent sont des gestes, posés plus bas avec leur prix ; ici, seulement
     // ce qui ne s'ouvre pas, et pourquoi. Une PR que la box ne donne pas (ticket pas servi) n'a pas de
     // ligne : ce qui n'existe pas encore n'est pas affiché.
@@ -3351,7 +3361,10 @@ function poserFiche() {
   // Son cook, tel que sa station le publie (ticket 1846) : ce qu'il fait, ses derniers gestes, sa fin et sa PR. Posé, il
   // dit ce qu'il fait en ce moment : l'histoire ne le redit pas.
   const cook = poserLActiviteDuCook(document, { publiees: activitesPubliees.get(projet.nom), ticket, pastille, ouvrirPr: () => void ouvrirPrDuCook(projet, ticket) });
-  panneau.append(tete, ...attente, ...(nomme === undefined ? [] : [nomme]), lignes, ...poserDetailsDeFiche(projet, carte), ...(cook === null ? [] : [cook]), ...poserHistoire(projet, ticket, carte, cook !== null));
+  // Dans l'ordre où le chef lit : ce qu'est le ticket, où il en est, ce qu'on attend de lui, ce qu'il peut
+  // faire, l'issue (repliée) — puis seulement ce que la cuisine en dit.
+  panneau.append(tete, ...attente, ...(nomme === undefined ? [] : [nomme]), ...(lignes.children.length > 0 ? [lignes] : []), ...poserDetailsDeFiche(projet, carte));
+  const suite = [...(cook === null ? [] : [cook]), ...poserHistoire(projet, ticket, carte, cook !== null)];
   fiche.replaceChildren(panneau);
   // Un ticket qui t'attend : la question que son issue pose, s'il en pose une — lue à l'ouverture.
   // Répondue, sa carte attend le manager dans WAITING : la fiche la garde, et ce qui y a été répondu.
@@ -3369,7 +3382,19 @@ function poserFiche() {
       panneau.append(gestes);
     }
   }
-  panneau.append(poserGestesDeFiche(projet, carte), poserDiscussion(projet, ticket));
+  panneau.append(poserGestesDeFiche(projet, carte), repliee(projet, ticket), ...suite);
+}
+
+// L'issue et sa discussion, repliées d'un clic sous les gestes ; ouvertes, elles le restent quand la fiche est reposée.
+/** @param {Projet} projet @param {number} ticket */
+function repliee(projet, ticket) {
+  const cle = `${projet.nom}#${ticket}`;
+  const pli = document.createElement("details");
+  pli.className = "issue-repliee";
+  pli.open = issuesOuvertes.has(cle);
+  pli.addEventListener("toggle", () => void (pli.open ? issuesOuvertes.add(cle) : issuesOuvertes.delete(cle)));
+  pli.append(bloc("summary", "the issue and its discussion"), poserDiscussion(projet, ticket));
+  return pli;
 }
 
 // Les gestes de la fiche : ceux qu'il est possible de faire sur ce ticket à cet instant, et seulement
@@ -3380,12 +3405,13 @@ function poserFiche() {
 // part pas se dit sous la liste. Le rail et la fiche suivent la lecture suivante de la box.
 /** @param {Projet} projet @param {import("../faits.ts").Carte} carte */
 function poserGestesDeFiche(projet, carte) {
+  const lue = carte.fiche.priorite;
+  const prioriteCourante = "valeur" in lue ? /^prio:([0-9])$/.exec(lue.valeur)?.[1] : undefined;
   const { ticket } = carte;
   const cle = `${projet.nom}#${ticket}`;
   const section = document.createElement("section");
   section.className = "gestes-fiche";
   section.ariaLabel = `what you can do on #${ticket}`;
-  section.append(bloc("h4", "what you can do"));
   const proposes = gestesDeFiches.get(cle);
   if (proposes === undefined) {
     section.append(bloc("p", "reading what can be done…"));
@@ -3400,7 +3426,7 @@ function poserGestesDeFiche(projet, carte) {
   for (const propose of proposes) {
     const ligne = document.createElement("li");
     ligne.dataset.geste = propose.id;
-    ligne.append(...poserGesteDeFiche(projet, ticket, propose, issue !== undefined && "envoi" in issue));
+    ligne.append(...poserGesteDeFiche(projet, ticket, propose, issue !== undefined && "envoi" in issue, prioriteCourante));
     liste.append(ligne);
   }
   section.append(liste);
@@ -3436,8 +3462,8 @@ function poserGestesDeFiche(projet, carte) {
 
 // Ce qu'un geste de la fiche pose : son bouton — recommandé s'il l'est, son prix au survol — et,
 // pour la priorité, de quoi la choisir avant. `occupe` : un geste de la fiche attend sa réponse — aucun ne part.
-/** @param {Projet} projet @param {number} ticket @param {import("../gestes-fiche.ts").Propose} propose @param {boolean} occupe @returns {HTMLElement[]} */
-function poserGesteDeFiche(projet, ticket, propose, occupe) {
+/** @param {Projet} projet @param {number} ticket @param {import("../gestes-fiche.ts").Propose} propose @param {boolean} occupe @param {string} [courante] la priorité du ticket, `1` à `9` @returns {HTMLElement[]} */
+function poserGesteDeFiche(projet, ticket, propose, occupe, courante) {
   const { id, libelle, prix, recommande, valeurs } = propose;
   const cle = `${projet.nom}#${ticket}`;
   /** @param {() => void} geste @param {string} [aide] */
@@ -3469,23 +3495,16 @@ function poserGesteDeFiche(projet, ticket, propose, occupe) {
         if (ficheDe(projet, ticket)) poserFiche();
       };
       if (valeurs === undefined) return [action(jouer)];
-      // Une valeur à choisir d'abord : rien n'est choisi d'avance, et rien ne part sans elle.
+      // La priorité se change d'un geste : choisir une valeur la joue, sans second bouton.
       const choix = /** @type {HTMLSelectElement} */ (document.createElement("select"));
       choix.ariaLabel = libelle;
-      choix.append(new Option("choose…", ""), ...valeurs.map((valeur) => new Option(valeur, valeur)));
-      choix.value = prioritesChoisies.get(cle) ?? "";
-      const joue = action(() => {
-        const valeur = prioritesChoisies.get(cle);
-        if (valeur !== undefined) void jouerGesteDeFiche(projet, ticket, id, valeur);
-      });
-      const cible = joue.children[0];
-      cible.disabled = occupe || choix.value === "";
-      choix.addEventListener("change", () => {
-        if (choix.value === "") prioritesChoisies.delete(cle);
-        else prioritesChoisies.set(cle, choix.value);
-        cible.disabled = occupe || choix.value === "";
-      });
-      return [choix, joue];
+      choix.className = "priorite";
+      choix.title = `${libelle} — choosing a value changes the \`prio:\` label of issue #${ticket}`;
+      choix.append(...valeurs.map((valeur) => new Option(`priority ${valeur}`, valeur)));
+      choix.value = courante ?? "none";
+      choix.disabled = occupe;
+      choix.addEventListener("change", () => void jouerGesteDeFiche(projet, ticket, id, choix.value));
+      return [choix];
     }
   }
 }
@@ -3589,15 +3608,20 @@ function poserHistoire(projet, ticket, carte, cookPose = false) {
       return pose;
     };
     cout.append(rangCout("tokens", histoire.cout.tokens), rangCout("duration", histoire.cout.duree), rangCout("attempts", histoire.cout.essais));
-    section.append(liste, bloc("h4", "cost"), cout);
-    if (histoire.cout.minimum) {
+    const { tokens, duree, essais } = histoire.cout;
+    const connu = [tokens, duree, essais].some((valeur) => valeur !== "not communicated");
+    section.append(liste);
+    // Un coût que la box ne communique pas n'est pas écrit : ni titre, ni trois lignes vides.
+    if (connu) section.append(bloc("h4", "cost"), cout);
+    if (connu && histoire.cout.minimum) {
       const note = bloc("p", "at least: a cook has not declared what it spent");
       note.className = "sans";
       section.append(note);
     }
   }
   posees.push(section);
-  if (histoire !== undefined && !("sans" in histoire)) posees.push(poserRetro(ticket, histoire.retro));
+  // Une rétro que la box ne rend pas n'est pas écrite : une section en échec n'apprend rien au chef.
+  if (histoire !== undefined && !("sans" in histoire) && !("sans" in histoire.retro)) posees.push(poserRetro(ticket, histoire.retro));
   return posees;
 }
 
@@ -3681,7 +3705,6 @@ function poserDiscussion(projet, ticket) {
   const section = document.createElement("section");
   section.className = "discussion";
   section.ariaLabel = `issue #${ticket} and its discussion`;
-  section.append(bloc("h4", "the issue and its discussion"));
   const lue = discussions.get(cle);
   if (lue === undefined) {
     section.append(bloc("p", `reading issue #${ticket}…`));

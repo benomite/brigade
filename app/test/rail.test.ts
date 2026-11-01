@@ -374,17 +374,17 @@ describe("une carte porte ce que la file dit", () => {
     }
     // Le détail est dans la fiche.
     assert.deepEqual(portes(detailsDe(vue, 14) ?? assert.fail("pas de détail")), [
-      ["right now", "écrit app/src/bon.ts, for 2 min"],
       ["taken by", "box/claude"],
       ["since", "12 min"],
       ["lease", "sans progrès depuis 3 min, bail encore 27 min"],
     ]);
     assert.deepEqual(portes(detailsDe(vue, 21) ?? assert.fail("pas de détail")), [["since", "2 h 05"], ["blocked by", "zone tenue par #14 (app/src)"]]);
-    assert.deepEqual(portes(detailsDe(vue, 30) ?? assert.fail("pas de détail"))[0], ["right now", "gates en cours, for 30 s"]);
-    assert.deepEqual(portes(detailsDe(vue, 12) ?? assert.fail("pas de détail"))[0], ["right now", "activity not given"]);
+    assert.deepEqual(portes(detailsDe(vue, 30) ?? assert.fail("pas de détail"))[0], ["since", "4 min"]);
+    // « right now » est dans sa section : la liste ne le redit pas.
+    assert.deepEqual((detailsDe(vue, 12) === undefined ? [] : portes(detailsDe(vue, 12) ?? assert.fail("pas de détail"))).filter(([libelle]) => libelle === "right now"), []);
     // Ce qui se recopie — une station — est en monospace ; une durée se lit.
     bonDe(vue, 14).click();
-    const [, tient, depuis] = (detailsDe(vue, 14) ?? assert.fail("pas de détail")).dessous("ul")[0]?.children ?? [];
+    const [tient, depuis] = (detailsDe(vue, 14) ?? assert.fail("pas de détail")).dessous("ul")[0]?.children ?? [];
     assert.deepEqual([tient?.children[1]?.className, depuis?.children[1]?.className], ["mono", ""]);
   });
 
@@ -404,7 +404,7 @@ describe("une carte porte ce que la file dit", () => {
     const vue = await ouvrir();
     recevoir(vue, dessinable(FAITS, PAS_LU));
 
-    assert.deepEqual(portes(detailsDe(vue, 14) ?? assert.fail("pas de détail")).map(([libelle]) => libelle), ["right now", "taken by"]);
+    assert.deepEqual(portes(detailsDe(vue, 14) ?? assert.fail("pas de détail")).map(([libelle]) => libelle), ["taken by"]);
     assert.deepEqual(sans(bonDe(vue, 14)), []);
   });
 
@@ -954,9 +954,10 @@ describe("un clic sur une carte ouvre sa fiche par-dessus le rail (#635)", () =>
     await repos();
     assert.equal(fiche(vue).dessous("h3")[0]?.textContent, TITRE);
     // L'issue qui s'ouvre est un geste de la fiche, avec son prix (#639) : l'en-tête n'a plus de ligne pour elle.
-    assert.deepEqual(lignesDeFiche(vue), [["priority", "prio:1"]], "pas de PR donnée : pas de ligne PR");
-    // La priorité se recopie : en monospace ; le numéro aussi.
-    assert.equal(valeurDeFiche(vue, "priority").className, "mono");
+    // La priorité est dans la barre des gestes, une seule fois : aucune ligne ne la redit, ni PR sans PR donnée.
+    assert.deepEqual(lignesDeFiche(vue), [], "pas de PR donnée : pas de ligne PR");
+    assert.equal(fiche(vue).dessous("select")[0]?.value, "1");
+    // Le numéro se recopie : en monospace.
     assert.equal(fiche(vue).dessous("header")[0]?.children[0]?.className, "mono");
     // Le lien de l'issue nomme le projet et le ticket : l'adresse reste au process principal.
     gesteDeLaFiche(vue, "issue").click();
@@ -982,7 +983,7 @@ describe("un clic sur une carte ouvre sa fiche par-dessus le rail (#635)", () =>
     bonDe(vue, 188).click();
     await repos();
     assert.equal(valeurDeFiche(vue, "PR").textContent, "none — served without a merge");
-    assert.deepEqual(boutonsDeLaFiche(vue).map((pose) => pose.textContent), ["close", "open the issue", "ask the second", "change the priority"]);
+    assert.deepEqual(boutonsDeLaFiche(vue).map((pose) => pose.textContent), ["close", "open the issue", "ask the second"]);
 
     // Et la peau ne coupe pas le titre : aucune ligne bornée, aucun point de suspension.
     const css = readFileSync(join(VUE, "vue.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
@@ -1060,7 +1061,7 @@ describe("la fiche propose les gestes possibles à cet instant, et seulement ceu
       assert.deepEqual(gestesDeLaFicheOuverte(vue), [
         ["issue", "open the issue", undefined],
         ["second", "ask the second", undefined],
-        ["priorite", "change the priority", undefined],
+        ["priorite", undefined, undefined],
       ], `#${numero}`);
       assert.doesNotMatch(fiche(vue).textContent, /cost:/, `#${numero}`);
       fermer(vue);
@@ -1099,14 +1100,10 @@ describe("la fiche propose les gestes possibles à cet instant, et seulement ceu
     recevoir(vue);
     await ouvrirFiche(vue, 21);
     const choix = fiche(vue).dessous("select")[0] ?? assert.fail("pas de choix de priorité");
-    const changer = gesteDeLaFiche(vue, "priorite");
-    // Rien n'est choisi d'avance, et rien ne part sans un choix.
-    assert.equal(choix.value, "");
-    assert.equal(changer.disabled, true);
+    // Changer la priorité est un seul geste : choisir une valeur la joue, sans second bouton.
+    assert.equal(fiche(vue).dessous("button").filter((pose) => pose.textContent === "change the priority").length, 0);
     choix.value = "2";
     choix.declencher("change");
-    assert.equal(changer.disabled, false);
-    changer.click();
     await repos();
     assert.deepEqual(vue.dernier("gesteDeFiche"), [PARADE, "priorite", 21, "2"]);
     assert.equal(vue.element("note-second").textContent, "commande envoyée dans le second");
@@ -1137,7 +1134,7 @@ describe("la fiche propose les gestes possibles à cet instant, et seulement ceu
     assert.equal(fiche(vue).hidden, false);
     assert.equal(vue.appels.filter(({ geste }) => geste === "gestesDeFiche").length, lectures + 1);
     assert.deepEqual(gestesDeLaFicheOuverte(vue).map(([id]) => id), ["issue", "second", "priorite"]);
-    assert.equal(valeurDeFiche(vue, "priority").textContent, "prio:2");
+    assert.equal(fiche(vue).dessous("select")[0]?.value, "2");
     // Pris, il est dans Taken, sur Rail.
     assert.ok(colonnes(vue).find((colonne) => colonne.textContent.startsWith("Taken"))?.textContent.includes("#21"));
   });
@@ -1147,7 +1144,6 @@ describe("la fiche propose les gestes possibles à cet instant, et seulement ceu
     recevoir(vue);
     await ouvrirFiche(vue, 21);
     choisir(vue, "2");
-    gesteDeLaFiche(vue, "priorite").click();
     await repos();
     assert.equal(fiche(vue).dessous("p").find((pose) => pose.className === "refus")?.textContent, "nothing is sent: “parade” does not open — illisible");
   });
@@ -1211,7 +1207,7 @@ describe("la fiche d'une carte qui t'attend : l'attendu en tête, ses gestes en 
       ["retirer", "remove from the rail"],
       ["issue", "open the issue"],
       ["second", "ask the second"],
-      ["priorite", "change the priority"],
+      ["priorite", undefined],
     ]);
     assert.equal(gesteDeLaFiche(vue, "merger").className, "recommande");
     assert.deepEqual(boutonsDeLaFiche(vue).filter((pose) => pose.className.split(" ").includes("recommande")).map((pose) => pose.textContent), ["merge the PR"]);
@@ -1236,9 +1232,9 @@ describe("la fiche d'une carte qui t'attend : l'attendu en tête, ses gestes en 
   test("l'historique et la discussion qui ne se lisent pas tiennent chacun en une ligne : la commande lancée, son usage et son code de sortie ne se lisent qu'au survol", async () => {
     const vue = await ouvrirLaCarte({ lireHistoire: () => ({ sans: PANNE }), lireDiscussion: () => ({ sans: PANNE.replace("--json", "issue") }) });
     const indisponibles = fiche(vue).dessous("p").filter((pose) => pose.className === "indisponible");
-    assert.deepEqual(indisponibles.map((ligne) => ligne.children[0]?.textContent), ["history unavailable", "discussion unavailable"]);
+    assert.deepEqual(indisponibles.map((ligne) => ligne.children[0]?.textContent), ["discussion unavailable", "history unavailable"]);
     assert.doesNotMatch(visible(vue), /geste\.ts|usage|exit code/);
-    aides(indisponibles[0] ?? assert.fail("pas d'historique"))[0]?.declencher("mouseenter");
+    aides(indisponibles[1] ?? assert.fail("pas d'historique"))[0]?.declencher("mouseenter");
     assert.ok(visible(vue).includes(PANNE), "le détail, au survol");
   });
 

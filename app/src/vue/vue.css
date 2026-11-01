@@ -4470,7 +4470,8 @@ main > header,
 }
 #fiche .gestes-fiche ul {
   display: flex;
-  flex-direction: column;
+  flex-flow: row wrap;
+  align-items: center;
   gap: 6px;
   margin: 0;
   padding: 0;
@@ -4481,6 +4482,17 @@ main > header,
   flex-wrap: wrap;
   align-items: baseline;
   gap: 6px;
+}
+/* L'issue, repliée d'un clic sous les gestes : son titre est celui du pli. */
+#fiche details.issue-repliee > summary {
+  cursor: pointer;
+  color: var(--texte-doux);
+}
+#fiche details.issue-repliee > .discussion > h4 {
+  display: none;
+}
+#fiche select.priorite {
+  max-width: 100%;
 }
 #fiche .prix {
   color: var(--discret);

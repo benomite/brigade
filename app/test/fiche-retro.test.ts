@@ -131,10 +131,7 @@ describe("la rétro sur la fiche d'un ticket", () => {
     assert.deepEqual(section.children.map(({ textContent }) => textContent), ["retro", "served, but its cook wrote no retro"]);
   });
 
-  test("une box d'avant la rétro sur la fiche : une ligne courte, le pourquoi au survol", async () => {
-    const section = (await retroSurLaFiche(undefined)) ?? assert.fail("pas de section retro sur la fiche");
-    const ligne = section.children[1] ?? assert.fail("rien sous le titre");
-    assert.equal(ligne.className, "indisponible");
-    assert.equal(ligne.children[0]?.textContent, "retro unavailable");
+  test("une box d'avant la rétro sur la fiche : aucune section, rien n'est écrit à la place", async () => {
+    assert.equal(await retroSurLaFiche(undefined), undefined);
   });
 });
