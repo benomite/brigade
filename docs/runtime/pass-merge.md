@@ -96,12 +96,41 @@ green (code 0) · CI no check · reviewer nothing blocking`, then `judged: 77c01
 the base 4be1f07`), return, grant use, merge and the GitHub identity that made it. Both
 commands never write, and answer while the runtime is running.
 
+### Deliveries judged in parallel
+
+The pass does not judge every delivery in a single line. It goes by **zone** (the files and folders
+a ticket owns, from its card):
+
+- **Disjoint zones are judged in parallel.** Two deliveries whose zones do not overlap are in pass
+  at the same time, each with its own verdict, and neither waits for the other.
+- **Overlapping zones wait for each other.** A delivery whose zone shares a file or a folder with
+  one already in pass waits, in the order they were delivered, until that one is judged. `pass`
+  names the delivery it is waiting for.
+- **A delivery with no declared zone, or that wrote outside its zone, is judged alone.** Nothing is
+  judged beside it: it starts once the deliveries already in pass are judged, and the ones after it
+  wait for its verdict.
+- **The number of judgments in pass at once is capped** by a guardrail (see
+  [`garde-fous.md`](garde-fous.md)). Past the cap, a delivery that is otherwise free waits its turn,
+  in delivery order.
+
+A green delivery is merged on its own verdict, whatever runs beside it, so two parallel merges
+can land one after the other on the integration branch.
+
+#### The safety net behind parallel merges
+
+Parallel judgment is safe because the integration branch is checked after each merge. After every
+merge, CI replays the base: its gates are played on the base alone, as on any delivery. **A red base
+stops the kitchen**: nothing is taken, judged or merged until the base is green again or the chef has
+had it replayed and repaired. The log of the red names the parallel merges that preceded it, so the
+chef can see which of them to look at first.
+
 #### Relaunching a stuck delivery
 
-The pass judges one delivery at a time, in the order they were delivered: a delivery that arrives
-while another is in its pass reads `delivered, waiting for its turn — #17 is in its pass, next in
-line`. A delivery is **stuck** when it is in pass, delivered and never judged since, and **no pass
-is active** — nothing is being judged or merged ahead of it. The running pass takes such a delivery
+The pass judges deliveries in the order they were delivered, except where they run in parallel (see
+above): a delivery that must wait for another, because its zone overlaps or the cap is reached, reads
+`delivered, waiting for its turn — #17 is in its pass, next in line`. A delivery is **stuck** when it
+is in pass, delivered and never judged since, and **nothing is being judged or merged that it waits
+for** — no pass is holding it back. The running pass takes such a delivery
 within the second; one that stays there has been forgotten. `status` flags it after **15 minutes**
 from its delivery (`COINCEE_APRES_MS`, in `file-de-la-pass.ts`): see the `stuck` block in
 [`etat-et-mesures.md`](etat-et-mesures.md).
