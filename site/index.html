@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>brigade — a team of AI agents that works your GitHub tickets</title>
+  <meta name="description" content="You write a ticket and put the label fire on it. A cook takes it, opens a pull request, and the pass judges it and merges it.">
+  <link rel="icon" href="logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <img src="logo.svg" alt="brigade">
+  <h1>A team of AI agents that works your GitHub tickets</h1>
+  <p class="lead">You write a ticket and put the label <code>fire</code> on it. A cook takes it, opens a pull request, and the pass judges it and merges it. You decide what matters; brigade does the cooking.</p>
+</header>
+<main>
+  <section id="problem">
+    <h2>The problem</h2>
+    <p>Your backlog is full of tickets that are clear enough to do, and you have no time to do them. Handing them to an AI assistant one at a time means sitting next to it, re-explaining the context, and reviewing whatever it produces on faith.</p>
+    <p>Brigade takes that work off your hands without taking the decision away from you: tickets are worked in parallel, each in its own git worktree, and nothing is merged before it has been judged.</p>
+  </section>
+
+  <section id="how">
+    <h2>How it works</h2>
+    <p>Three actors share the kitchen. Everything the system knows lives in issues, labels, branches and pull requests, never in a session's memory: if a cook dies, the committed work survives and the next one picks up from there.</p>
+    <div class="roles">
+      <div class="role">
+        <h3>The chef — you</h3>
+        <p>You write the tickets and put <code>fire</code> on the ones to cook. You keep the final say.</p>
+      </div>
+      <div class="role">
+        <h3>The second — your product assistant</h3>
+        <p>A terminal in the desktop app where the second helps you write and prioritize tickets.</p>
+      </div>
+      <div class="role">
+        <h3>The kitchen — the cooks and the pass</h3>
+        <p>A cook (a <code>claude</code> session) takes a ticket in its own worktree, implements it and opens a pull request. The pass judges that pull request — gates, CI, an independent review — and merges it.</p>
+      </div>
+    </div>
+    <p style="margin-top:1rem">The desktop app shows all of it: your projects, the rail of tickets (queued, taken, in the pass, served) and the cooks in flight.</p>
+  </section>
+
+  <section id="demo">
+    <h2>See it work</h2>
+    <div class="demo">
+      <strong>Demo video coming soon</strong>
+      <p>A short walk-through from a ticket to a merged pull request.</p>
+    </div>
+  </section>
+
+  <section id="install">
+    <h2>Install it</h2>
+    <p>You need a GitHub account with a repository you can push to (a throwaway one is fine), and a Claude Max subscription: the cooks run on your Max session, and an API key does not fit.</p>
+    <ol>
+      <li><strong>Download the app</strong> (macOS on Apple silicon, or Windows x64) from the <a href="https://github.com/benomite/brigade/releases">releases page</a> and open it.</li>
+      <li><strong>Sign in with GitHub</strong>: the app shows a code to type on the GitHub page it opens.</li>
+      <li><strong>Sign in with Claude</strong> with your Max account, if the app says the connection is missing.</li>
+      <li><strong>Pick your repository</strong>, typed as <code>owner/repo</code>, and click <em>open this project</em>.</li>
+      <li><strong>Cook a first ticket</strong>: open an issue in that repository and put the label <code>fire</code> on it.</li>
+    </ol>
+    <p>The app does not ask you to type a command or edit a file.</p>
+  </section>
+
+  <section id="read">
+    <h2>Read more</h2>
+    <ul class="links">
+      <li><a href="https://github.com/benomite/brigade/blob/main/docs/tutoriels/installer-sur-mac.md">Tutorial: install brigade on a Mac</a></li>
+      <li><a href="https://github.com/benomite/brigade/blob/main/docs/tutoriels/premier-projet.md">Tutorial: add a first project and cook its first ticket</a></li>
+      <li><a href="https://github.com/benomite/brigade/blob/main/docs/installation.md">Install brigade and cook your first ticket</a> (Mac and Windows, step by step)</li>
+      <li><a href="https://github.com/benomite/brigade/blob/main/docs/index.md">The documentation index</a></li>
+      <li><a href="https://github.com/benomite/brigade">The repository, benomite/brigade</a></li>
+    </ul>
+  </section>
+</main>
+<footer>brigade is open source (MIT) — <a href="https://github.com/benomite/brigade">benomite/brigade</a></footer>
+</body>
+</html>

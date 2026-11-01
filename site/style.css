@@ -1,0 +1,28 @@
+:root { --fg: #1c1b1a; --muted: #5d5a56; --bg: #fbfaf8; --card: #fff; --line: #e3dfd9; --accent: #b4441c; }
+@media (prefers-color-scheme: dark) {
+  :root { --fg: #f0ede8; --muted: #a8a39b; --bg: #161514; --card: #201f1d; --line: #35332f; --accent: #f08a5d; }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; font: 17px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--fg); background: var(--bg); overflow-wrap: break-word; }
+main, header, footer { max-width: 46rem; margin: 0 auto; padding: 0 1.25rem; }
+header { padding-top: 2.5rem; padding-bottom: 1rem; }
+header img { height: 40px; width: auto; max-width: 100%; }
+h1 { font-size: 2rem; line-height: 1.2; margin: 1rem 0 .5rem; }
+h2 { font-size: 1.45rem; line-height: 1.25; margin: 0 0 .75rem; }
+h3 { font-size: 1.05rem; margin: 0 0 .25rem; }
+section { padding: 2rem 0; border-top: 1px solid var(--line); }
+a { color: var(--accent); }
+p { margin: 0 0 1rem; }
+.lead { font-size: 1.15rem; color: var(--muted); }
+.roles { display: grid; gap: 1rem; }
+.role { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 1rem 1.1rem; }
+.role p { margin: 0; color: var(--muted); }
+.demo { border: 2px dashed var(--line); border-radius: 10px; padding: 2.5rem 1rem; text-align: center; background: var(--card); }
+.demo strong { display: block; font-size: 1.2rem; margin-bottom: .25rem; }
+.demo p { margin: 0; color: var(--muted); }
+ol { padding-left: 1.4rem; }
+li { margin-bottom: .5rem; }
+code { font: .9em ui-monospace, Menlo, Consolas, monospace; background: var(--card); border: 1px solid var(--line); border-radius: 4px; padding: .05em .3em; }
+ul.links { padding-left: 1.2rem; }
+footer { padding-top: 1.5rem; padding-bottom: 3rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .95rem; }
