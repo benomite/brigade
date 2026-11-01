@@ -43,9 +43,16 @@ each one quoted below stays French until the runtime is translated.
   `<BRIGADE_STATION_DIR>/appairage.json`. **A deleted gist** on GitHub resets it to zero: a fresh
   gist, a fresh code, a pairing to redo. **GitHub silent**: the outage is said once, its end too,
   and it retries every minute.
+- Its name is taken from the machine's host name on its first start — first label only (no `.home`
+  or `.local`), lowercase, and without the trailing number macOS appends after a name conflict
+  (`MacBook-Air-de-Benoit-2.local`, `macbook-air-de-benoit4.home` → `macbook-air-de-benoit`) —, then
+  kept in `<BRIGADE_STATION_DIR>/nom-de-la-station.json` and never recomputed: the host name can
+  change, the station stays the same. Only an explicit rename changes it:
+  `BRIGADE_STATION_DIR=<dir> node runtime/src/station/renommer.ts <name>`, then restart the station.
+  It keeps its gists, so it replaces the old station on the home instead of appearing next to it.
 
 Three settings, all optional: `BRIGADE_GH_BIN` (the machine's `gh`, `gh` by default),
-`BRIGADE_STATION_NOM` (its name on the home — by default, the machine's), and
+`BRIGADE_STATION_NOM` (its name on the home — by default, the one it kept, see below), and
 `BRIGADE_STATION_VERSION` (the version it announces — set by its package; by default, the
 fingerprint of its code, `code 1a2b3c4d5e6f`). These variable names stay French until the runtime is
 translated. Two more are for a test station only, in whole seconds: `BRIGADE_STATION_ECART_S` (the

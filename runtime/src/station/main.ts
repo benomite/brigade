@@ -35,6 +35,7 @@ import { gestesDeLaStation } from "../telephone/gestes.ts";
 import { projetsDeLaStation } from "../telephone/projets.ts";
 import { secondsDeLaStation } from "../telephone/second.ts";
 import { CONFIGURATION, lieuxDuProjet, worktreesDeLaStation } from "./configuration.ts";
+import { nomDeLaStation } from "./nom.ts";
 import { attendrePorteDeLaStation, configPortes, lirePortes, VARIABLE_PORTES } from "./portes.ts";
 import { nommer, ouvrirStation, projetEnCours } from "./station.ts";
 
@@ -86,6 +87,10 @@ if (ecartS !== undefined && !/^[1-9]\d*$/.test(ecartS)) refuser(`BRIGADE_STATION
 const tickS = process.env.BRIGADE_STATION_TICK_S;
 if (tickS !== undefined && !/^[1-9]\d*$/.test(tickS)) refuser(`BRIGADE_STATION_TICK_S=${tickS} — attendu un nombre entier de secondes`);
 mkdirSync(racine, { recursive: true });
+// Son nom, retenu à son premier démarrage — avant qu'aucun projet ne s'ouvre,
+// qui le relit (`cuisine.ts`) : la machine renommée par macOS reste la même
+// station (nom.ts).
+const nomRetenu = nomDeLaStation(racine, process.env);
 
 const dire = (ligne: string) => console.log(ligne);
 // Sous les portes de la station, son unité ne joint que la boucle locale :
@@ -127,7 +132,7 @@ const station = ouvrirStation({ racine, env: process.env, dire, connexion, porte
 // pannes y vont aussi : sa mise à jour, que son unité lui fait lire
 // (`BRIGADE_MISE_A_JOUR_DIR`), et sa connexion Max (appairage/etats.ts).
 const canal = canalGitHub({ gh: process.env.BRIGADE_GH_BIN || "gh" });
-const identite = identiteDeLaStation(process.env);
+const identite = identiteDeLaStation({ ...process.env, BRIGADE_STATION_NOM: nomRetenu });
 const dossierMiseAJour = process.env.BRIGADE_MISE_A_JOUR_DIR || null;
 const presence = tenirPresence({
   racine,
