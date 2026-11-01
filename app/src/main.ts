@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { setTimeout as attendre } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 import { app, BrowserWindow, dialog, ipcMain, Notification, powerMonitor, shell } from "electron";
+import { poserLIconeDuDock } from "./icone-du-dock.ts";
 import { tenirAccueil, type Accueil } from "./accueil.ts";
 import { tenirBandes } from "./alertes.ts";
 import { lireFeu } from "./feu.ts";
@@ -1445,7 +1446,8 @@ void app.whenReady().then(() => {
   // `Brigade.ico` posé à côté de l'exécutable une fois installée.
   const icone = join(import.meta.dirname, "..", "packaging", "icones", "Brigade-1024.png");
   const iconeWindows = app.isPackaged ? join(dirname(process.execPath), "Brigade.ico") : icone;
-  if (estUnMac(plateforme) && !app.isPackaged) app.dock?.setIcon(icone);
+  // Sans garde sur `isPackaged` seul : le .dmg n'est pas reconnu empaqueté et ne livre pas ce fichier.
+  if (estUnMac(plateforme) && !app.isPackaged) poserLIconeDuDock(icone, (chemin) => app.dock?.setIcon(chemin));
   fenetre = new BrowserWindow({
     ...(plateforme === "win32" ? { icon: iconeWindows } : {}),
     width: 1280,
@@ -1471,4 +1473,8 @@ void app.whenReady().then(() => {
   // aucune —, puis relues chaque minute. Celles du gist l'emportent sur les couleurs tout juste tirées.
   preferences.demarrer();
   return fenetre.loadFile(join(import.meta.dirname, "vue/index.html"));
+}).catch((erreur: unknown) => {
+  // Un démarrage qui échoue ne reste pas muet : le chef voit pourquoi aucune fenêtre ne s'ouvre.
+  dialog.showErrorBox("brigade could not start", erreur instanceof Error ? (erreur.stack ?? erreur.message) : String(erreur));
+  app.quit();
 });
