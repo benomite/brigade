@@ -9,6 +9,7 @@ import { homedir } from "node:os";
 import { dirname, isAbsolute, join, sep } from "node:path";
 import { ordinairesLus } from "./ordinaires.ts";
 import { couleursLues, entieres, estCouleur, ROLES, tirer, type Couleurs, type Role } from "./couleurs.ts";
+import { refusDuSigle } from "./sigle.ts";
 import { memes, poser } from "./reglages-perso/fusion.ts";
 import { personnelles, type Preferences } from "./reglages-perso/partage.ts";
 
@@ -20,9 +21,10 @@ export type CalibrageDuProjet = { manager: { modele: string; effort: string }; r
 // ensuite pour le projet suivant. Absent d'un projet écrit à la main : l'app n'en sait rien.
 // `couleurs` : celles de son onglet et de son accent, telles que le fichier les écrit — une qui
 // manque y est tirée, puis écrite (`colorerProjets`).
+// `sigle` : celui que le chef a écrit pour sa case de la barre (sigle.ts) — absent, l'app en tire un de son nom.
 // `depot`, `base` : son dépôt GitHub et sa branche d'intégration, posés à son ajout depuis l'app
 // (ajout.ts) — c'est d'eux que se confie sa cuisine à une station. Absents d'un projet écrit à la main.
-export type Projet = { nom: string; dossier: string; depot?: string; base?: string; refus?: string; calibrage?: CalibrageDuProjet; couleurs?: Couleurs; ordinaires?: boolean; limiteCooks?: number };
+export type Projet = { nom: string; dossier: string; depot?: string; base?: string; refus?: string; calibrage?: CalibrageDuProjet; couleurs?: Couleurs; sigle?: string; ordinaires?: boolean; limiteCooks?: number };
 // `refus` : le fichier entier n'a pas pu être lu — aucun projet, et la raison.
 // `nonRelu` : il a changé depuis, et sa relecture a été refusée — les projets
 // sont ceux d'avant, et la raison est celle du fichier tel qu'il est.
@@ -82,12 +84,15 @@ function comprendre(chemin: string, texte: string, maison: string): Configuratio
     const calibrage = calibrageLu((declare as { calibrage?: unknown }).calibrage);
     const couleurs = couleursLues((declare as { couleurs?: unknown }).couleurs);
     if (typeof couleurs === "string") return refuse(`${lequel}: ${couleurs}`);
+    const { sigle } = declare as { sigle?: unknown };
+    const sigleRefuse = sigle === undefined ? undefined : refusDuSigle(sigle);
+    if (sigleRefuse !== undefined) return refuse(`${lequel}: ${sigleRefuse}`);
     const ordinaires = ordinairesLus(declare as { ordinaires?: unknown; limiteCooks?: unknown });
     if (typeof ordinaires === "string") return refuse(`${lequel}: ${ordinaires}`);
     const { depot, base } = declare as { depot?: unknown; base?: unknown };
     if (depot !== undefined && (typeof depot !== "string" || depot.trim() === "")) return refuse(`${lequel}: “depot” must be a non-empty string — its GitHub repository, \`<owner>/<name>\``);
     if (base !== undefined && (typeof base !== "string" || base.trim() === "")) return refuse(`${lequel}: “base” must be a non-empty string — its integration branch`);
-    projets.push({ nom, dossier: absolu, ...(depot === undefined ? {} : { depot }), ...(base === undefined ? {} : { base }), ...ordinaires, ...(calibrage === undefined ? {} : { calibrage }), ...(refus === undefined ? {} : { refus }), ...(couleurs === undefined ? {} : { couleurs }) });
+    projets.push({ nom, dossier: absolu, ...(depot === undefined ? {} : { depot }), ...(base === undefined ? {} : { base }), ...ordinaires, ...(calibrage === undefined ? {} : { calibrage }), ...(refus === undefined ? {} : { refus }), ...(couleurs === undefined ? {} : { couleurs }), ...(typeof sigle === "string" ? { sigle: sigle.trim() } : {}) });
   }
   return { chemin, projets };
 }
@@ -236,6 +241,31 @@ export function changerCouleur(chemin: string, nom: string, role: Role, couleur:
   const declare = ouvert.contenu.projets.find((candidat) => (candidat as { nom?: unknown } | null)?.nom === nom) as { couleurs?: Couleurs } | undefined;
   if (declare === undefined) return `“${nom}” is not in this file: nothing was changed there`;
   declare.couleurs = { ...declare.couleurs, [role]: couleur.toLowerCase() };
+  return reecrire(chemin, ecrit(ouvert.contenu));
+}
+
+// Change le sigle d'un projet, celui de sa case dans la barre (sigle.ts) : `null` le retire, et l'app en tire
+// un de son nom. Un sigle qu'un autre projet porte déjà, écrit par le chef, est refusé — deux cases ne se
+// lisent pas pareil. Rien d'autre du fichier ne change. Rend la raison, s'il ne l'a pas été.
+export function changerSigle(chemin: string, nom: string, sigle: unknown, maison = homedir()): string | undefined {
+  if (sigle !== null) {
+    const refus = refusDuSigle(sigle);
+    if (refus !== undefined) return `nothing was written: ${refus}`;
+  }
+  const ouvert = relu(chemin, maison);
+  if ("refus" in ouvert) return ouvert.refus;
+  const declare = ouvert.contenu.projets.find((candidat) => (candidat as { nom?: unknown } | null)?.nom === nom) as { sigle?: string } | undefined;
+  if (declare === undefined) return `“${nom}” is not in this file: nothing was changed there`;
+  if (sigle === null) {
+    if (declare.sigle === undefined) return undefined;
+    delete declare.sigle;
+    return reecrire(chemin, ecrit(ouvert.contenu));
+  }
+  const voulu = (sigle as string).trim();
+  const autre = ouvert.lue.projets.find((projet) => projet.nom !== nom && projet.sigle?.toUpperCase() === voulu.toUpperCase());
+  if (autre !== undefined) return `nothing was written: “${autre.sigle}” is already the label of ${autre.nom}`;
+  if (declare.sigle === voulu) return undefined;
+  declare.sigle = voulu;
   return reecrire(chemin, ecrit(ouvert.contenu));
 }
 

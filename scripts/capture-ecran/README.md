@@ -84,6 +84,8 @@ compare que deux captures du même navigateur.
 | `stations-avec-telephone` | « Tous les projets » avec un téléphone appairé (#1162) : sa ligne dit `does not cook` |
 | `telephones-de-station`, `telephones-de-station-expire`, `telephones-de-station-injoignable`, `telephones-de-station-revoquer` | « Pair a phone with box », ouvert du bouton « pair a phone » de la ligne de la box (#1598) : un code valable, son QR dessiné par l'app et le temps qui reste ; le code expiré et « new code » ; la box injoignable, une ligne à la place du code ; « revoke » cliqué, sa confirmation et son prix |
 | `demenager-choix-telephone` | Le choix du déménagement de `parade`, avec ce téléphone appairé (#1162) : il n'y est pas offert |
+| `barre-des-projets` | « Tous les projets » avec les cinq projets du chef — brigade, mirrorscreen, mirrorlab, escale, calculus-workspace (#1983) : chaque case écrit le sigle de son projet, en grand, sur une ligne — `MS` et `ML` pour les deux qui commencent pareil |
+| `barre-sigle-reglage`, `barre-sigle-ecrit` | Les réglages de `mirrorlab`, parmi les cinq projets du chef (#1983) : sous toi, la ligne de son sigle — tiré de son nom, et le champ pour écrire le sien —, puis le même avec `LAB` écrit par le chef : la case l'écrit, la ligne le dit « yours », avec « back to its name ». En 1440 × 1040 |
 | `couleurs` | La palette entière (#1106) : un projet par teinte dans la barre, chacun la portant en onglet et en accent, et les couleurs de `parade` sous Settings — ses deux rangées de pastilles, « other… » pour une couleur libre, et son accent dans l'espace. En 1440 × 1040, pour que la barre tienne entière |
 | `couleurs-libre` | Les mêmes réglages, l'onglet de `parade` choisi libre près du vert d'état et son accent près de l'onglet de `cantine` (#1106) : gardés, pressés au bout de leur rangée, et une ligne sous chacun dit de quoi il est proche |
 | `ajout` | « Add a project », ouvert par le `+` de la barre : le formulaire, la box déclarée choisie, le calibrage proposé |
@@ -160,7 +162,7 @@ compare que deux captures du même navigateur.
 | `telephone-relance` | L'app Android relancée, le téléphone déjà appairé : « Tous les projets », sans écran d'appairage |
 | `telephone-nouvelle-version` | Le même, quand une version plus haute est publiée (#1528), en 412 × 915 : le bandeau en tête et son lien Download vers l'.apk, sans ligne de premier lancement |
 
-Tous en 1440 × 900, sauf ceux du téléphone et `couleurs`. `--liste` donne la liste à jour.
+Tous en 1440 × 900, sauf ceux du téléphone, `couleurs` et ceux du sigle sous Settings. `--liste` donne la liste à jour.
 
 ## Ce qui est figé
 

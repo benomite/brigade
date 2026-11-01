@@ -35,9 +35,11 @@ export const NIVEAUX = {
   dossier: "machine",
   capacites: "machine",
   ordinaires: "machine",
-  // Toi : les couleurs de chaque projet. L'app n'a aucune autre préférence d'affichage (ni thème, ni densité, ni
-  // taille de police) : quand elle en aura une, sa ligne se posera ici, « you », avec son étiquette.
+  // Toi : les couleurs de chaque projet, et le sigle de sa case dans la barre. L'app n'a aucune autre préférence
+  // d'affichage (ni thème, ni densité, ni taille de police) : quand elle en aura une, sa ligne se posera ici, « you »,
+  // avec son étiquette.
   couleurs: "you",
+  sigle: "you",
 };
 
 // L'étiquette d'un réglage, à poser à côté de lui.

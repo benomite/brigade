@@ -9,6 +9,7 @@ const pont = {
   lireClone: (dossier) => ipcRenderer.invoke("lireClone", dossier),
   ajouter: (saisie) => ipcRenderer.invoke("ajouter", saisie),
   colorer: (projet, role, couleur) => ipcRenderer.invoke("colorer", projet, role, couleur),
+  changerSigle: (projet, sigle) => ipcRenderer.invoke("changerSigle", projet, sigle),
   ordinaires: (projet) => ipcRenderer.invoke("ordinaires", projet),
   reglerOrdinaires: (projet, actif, limite) => ipcRenderer.invoke("reglerOrdinaires", projet, actif, limite),
   ranger: (projet, rang) => ipcRenderer.invoke("ranger", projet, rang),
