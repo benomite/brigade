@@ -125,9 +125,10 @@ describe("le rail vide réveille le rôle", () => {
   test("après un passage, il ne repart qu'une fois l'écart passé", async (t) => {
     const k = cuisine(t);
     await jusqua(() => k.lancements() === 1);
+    // Le lancement précède la réponse du rôle : on attend l'avertissement, pas un nombre de ticks.
+    await jusqua(() => k.avertissements.includes("brigade : product role filed nothing — rien de neuf."));
     await k.laisserPasser();
     assert.equal(k.lancements(), 1);
-    assert.ok(k.avertissements.includes("brigade : product role filed nothing — rien de neuf."), k.avertissements.join("\n"));
     k.heure.avancer(ECART_MIN_MS);
     await jusqua(() => k.lancements() === 2);
   });
