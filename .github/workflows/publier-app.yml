@@ -439,11 +439,11 @@ jobs:
         run: |
           set -euo pipefail
           # Un 403 de Maven Central (limite par adresse du runner, #2025) passe souvent au second essai.
-          for essai in 1 2 3; do
+          for essai in 1 2 3 4; do
             node app/packaging/android.ts --version "${TAG#app-v}" --sortie "$RUNNER_TEMP/dist" && break
-            [ "$essai" -lt 3 ] || exit 1
-            echo "::warning::The Android build failed (attempt $essai of 3), trying again."
-            sleep $((essai * 30))
+            [ "$essai" -lt 4 ] || exit 1
+            echo "::warning::The Android build failed (attempt $essai of 4), trying again."
+            sleep $((30 * 2 ** (essai - 1)))
           done
           test -f "$RUNNER_TEMP/dist/Brigade-${TAG#app-v}.apk"
       - uses: actions/upload-artifact@v4
