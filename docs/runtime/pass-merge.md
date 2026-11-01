@@ -221,6 +221,15 @@ not deliver, the station harvests"); otherwise it stays on the local branch, **n
 To find the work of a failed cook — the branch name is in the issue comment:
 `git -C <clone> log --stat <base>..cook/<run>`.
 
+**A worktree whose cook rewrote its `.git` file** (or the `commondir` it names) no longer points
+to its repository in the clone: the runtime runs no `git` in it — it would read as a configuration
+what the cook put there. It is **abandoned** instead: nothing in it is committed, the directory is
+removed, and the local branch stays as the clone has it — what the cook committed there, and what
+the station pushed, is untouched. **What leaves with it is said**: every path that differs from the
+branch, at the end of its cook (`journalctl`) and in the log (`worktree.removed`, `abandoned`).
+Those that an earlier runtime kept for this reason (`cleanup failed`, "no longer points to its
+repository" in `status`) go at the next tick.
+
 **What cannot be tidied is said, and nothing in it is touched** (`worktree.kept`; `journalctl`,
 `status`): a worktree that is no longer on its branch, that is no longer a worktree, a `git` that
 fails. The runtime retries at every tick. To lift it, read `detail`: `git switch cook/<run>`
@@ -228,7 +237,10 @@ or `git rebase --abort` in the worktree; otherwise `git -C <clone> worktree remo
 <worktree>`. While it lasts, a return onto its branch waits ten minutes (`worktree-failed`).
 
 In the log: `worktree.removed` (`worktree`, `branch`, `harvest` — the commit of what lay around,
-or `null`), `worktree.kept` (`reason`, `detail`; written once), `branch.removed`.
+or `null`; for an abandoned worktree, `abandoned`: `detail` — which file was rewritten —,
+`against` — the branch, or the base if the clone no longer has it —, `dropped` — the first hundred
+paths, prefixed `M` modified, `D` deleted, `T` type changed, `?` new, a whole new directory ending
+in `/` — and `total`), `worktree.kept` (`reason`, `detail`; written once), `branch.removed`.
 
 **Prune nothing in the station's clone** (`git fetch --prune`): "absent from the origin" is
 read there without network, and a branch merged by *squash* would be kept wrongly. Only the worktrees
