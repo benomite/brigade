@@ -43,7 +43,7 @@ test("au branchement, les réglages en vigueur sont journalisés : le chef peut 
 
   assert.deepEqual(
     runtime.journal.tout().map((e) => [e.type, e.author, e.payload]).at(-1),
-    ["guard.configured", "runtime", { limits: PLAFONDS, breakerThreshold: 4 }],
+    ["guard.configured", "runtime", { limits: PLAFONDS, breakerThreshold: 4, judgements: 3 }],
   );
 });
 

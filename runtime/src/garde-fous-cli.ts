@@ -16,7 +16,7 @@ import type { Plafonds } from "./events/guardrails.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { echecDuRenommage, EN_PAUSE_POUR_LE_RENOMMAGE, LIMITE_DU_RENOMMAGE_MS, NON, OUI, pauseEnCours, repondre, type Reponse } from "./pause/pause.ts";
-import { arretsRecents, cooksEnCours, etatDesGardeFous, type Arret } from "./projections/guardrails.ts";
+import { arretsRecents, cooksEnCours, etatDesGardeFous, plafondDesJugements, type Arret } from "./projections/guardrails.ts";
 import { alerteDeSession } from "./projections/renewal.ts";
 import { sessionEnCours } from "./projections/sessions.ts";
 import { stationsDeconnectees } from "./projections/stations.ts";
@@ -70,6 +70,16 @@ export function principal({ args: tapes, env, dire, redire }: Appel): void {
     const { base } = journal;
     const etat = etatDesGardeFous(base);
     ligne("caps per ticket", etat.limits ? decrirePlafonds(etat.limits) : "unknown — the runtime has not started with its guardrails yet");
+    // Un journal d'avant ce plafond ne le dit pas : la pass y jugeait une livraison à la fois.
+    const jugements = plafondDesJugements(base);
+    ligne(
+      "pass judgements",
+      jugements !== null
+        ? `${jugements} at once at most — deliveries whose zones do not overlap are judged side by side (BRIGADE_MAX_JUDGEMENTS)`
+        : etat.limits
+          ? "1 at once — set by a runtime from before this cap; it is written at its next start"
+          : "unknown — the runtime has not started with its guardrails yet",
+    );
     const pause = pauseEnCours(base);
     ligne(
       "kitchen",

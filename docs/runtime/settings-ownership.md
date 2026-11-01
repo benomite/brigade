@@ -134,6 +134,7 @@ These are the `BRIGADE_*` variables the runtime reads from the service environme
 | `BRIGADE_MIN_FREE_DISK_MB` | Free disk below which the machine takes no cook | station | The machine's capacity |
 | `BRIGADE_MIN_FREE_MEMORY_MB` | Free memory below which the machine takes no cook | station | The machine's capacity |
 | `BRIGADE_MAX_SETUPS` | Cooks entering a worktree setup at a time | station | The machine's capacity |
+| `BRIGADE_MAX_JUDGEMENTS` | Deliveries the pass judges at once, their zones not overlapping (3) | station | The machine's capacity: their gates run side by side on it |
 | `BRIGADE_ARBITER_MAX_COOKS` | Cooks the arbiter lets all projects run together | station | It splits one machine between projects |
 | `BRIGADE_ARBITER_PORT` | Port of the arbiter | station | A port of a machine |
 | `BRIGADE_ARBITER_STATE_DIR` | State directory of the arbiter | station | A path of a machine |

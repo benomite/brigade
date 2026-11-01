@@ -270,6 +270,7 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
     assert.deepEqual(relire(repertoire).find((e) => e.type === "guard.configured")?.payload, {
       limits: { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 },
       breakerThreshold: 3,
+      judgements: 3,
     });
   });
 

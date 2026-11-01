@@ -62,8 +62,9 @@ export type ContexteCook = {
 
 export type FaitGardeFous =
   // The settings in force, written when they change: this is where the chef
-  // reads the caps.
-  | { type: "guard.configured"; payload: { limits: Plafonds; breakerThreshold: number } }
+  // reads the caps. `judgements`: how many deliveries the pass judges at once
+  // — absent from a log written before it existed.
+  | { type: "guard.configured"; payload: { limits: Plafonds; breakerThreshold: number; judgements?: number } }
   // The intent: written before the subprocess exists. `stream` is the path of
   // the raw stream, relative to the state directory. The rest comes from the
   // launching station: its name, the cook's calibration, its branch, its

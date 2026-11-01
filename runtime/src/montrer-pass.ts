@@ -22,7 +22,7 @@ import { direSansGrantEn } from "./attend.ts";
 import { workflowsAttendus } from "./activites.ts";
 import type { Base } from "./base.ts";
 import type { Evenement } from "./evenements.ts";
-import { relancerLeJugement, tourAttendu } from "./file-de-la-pass.ts";
+import { direPourquoi, direTenants, relancerLeJugement, tourAttendu, type Tour } from "./file-de-la-pass.ts";
 import type { Resultat } from "./geste-ticket.ts";
 import type { ChoixDeReaction } from "./events/manager.ts";
 import { DIRE_GATES_COUPEES_EN, GATES_COUPEES, motifDArret, motifDeRemontee, type CI, type Finding, type Gates, type Review } from "./events/pass.ts";
@@ -72,9 +72,9 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
     return relances <= 0 ? `returns ${pass.returns}/${RENVOIS_MAX}` : `returns ${RENVOIS_MAX}/${RENVOIS_MAX}, ${relances} restart${relances > 1 ? "s" : ""} by the manager`;
   };
 
-  // Livrée, elle attend son tour : une autre livraison est dans sa pass.
-  const direTour = (tour: { tenant: number; devant: number }) =>
-    `delivered, waiting for its turn — #${tour.tenant} is in its pass, ${tour.devant === 0 ? "next in line" : `${tour.devant} ahead of it`}`;
+  // Livrée, elle attend son tour : d'autres livraisons sont dans leur pass, et
+  // ce qui la retient — une zone commune, une livraison jugée seule, une place.
+  const direTour = (tour: Tour) => `delivered, waiting for its turn — ${direTenants(tour)} — ${direPourquoi(tour)}`;
 
   // Une livraison jugée qui attend la CI dit quels workflows elle attend.
   const attendus = (base: Base, pass: PassDeTicket) => {

@@ -216,6 +216,13 @@ export function etatDesGardeFous(base: Base): EtatGardeFous {
   return { ...ligne, limits: ligne.limits === null ? null : JSON.parse(ligne.limits) };
 }
 
+// The cap on the judgements the pass runs at once, as the latest
+// `guard.configured` set it; null before a runtime wrote it.
+export function plafondDesJugements(base: Base): number | null {
+  const [ligne] = base.lire<{ judgements: unknown }>("SELECT json_extract(payload, '$.judgements') AS judgements FROM events WHERE type = 'guard.configured' ORDER BY seq DESC LIMIT 1");
+  return typeof ligne?.judgements === "number" ? ligne.judgements : null;
+}
+
 // A failure that counts for the breaker: the cook, its ticket, how it
 // ended. `code`: that of its exit, null if it died from a signal or a
 // guardrail.

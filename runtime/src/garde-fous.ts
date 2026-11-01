@@ -8,8 +8,8 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname, join, posix } from "node:path";
 import type { ContexteCook, FaitGardeFous, Issue, Plafonds } from "./events/guardrails.ts";
-import type { Reglages } from "./plafonds.ts";
-import { cooksEnCours, etatDesGardeFous } from "./projections/guardrails.ts";
+import { JUGEMENTS_PAR_DEFAUT, type Reglages } from "./plafonds.ts";
+import { cooksEnCours, etatDesGardeFous, plafondDesJugements } from "./projections/guardrails.ts";
 import type { Runtime } from "./runtime.ts";
 import { arreterParLeRelais, relaisASuivre, superviser, superviserParRelais, suivreLeRelais, type Arret, type Fin, type Supervise } from "./superviseur.ts";
 import { superviserADistance, type Mesure } from "./superviseur-distant.ts";
@@ -171,8 +171,8 @@ export function brancherGardeFous<R extends Runtime>(reglages: Reglages, runtime
       // Un « stop » d'avant ce démarrage ne vise aucun cook d'aujourd'hui.
       journal.consommer(CONSOMMATEUR, () => {});
       const etat = etatDesGardeFous(base);
-      const enVigueur = { limits: reglages.plafonds, breakerThreshold: reglages.seuilDisjoncteur };
-      const connus = { limits: etat.limits, breakerThreshold: etat.breakerThreshold };
+      const enVigueur = { limits: reglages.plafonds, breakerThreshold: reglages.seuilDisjoncteur, judgements: reglages.jugements ?? JUGEMENTS_PAR_DEFAUT };
+      const connus = { limits: etat.limits, breakerThreshold: etat.breakerThreshold, judgements: plafondDesJugements(base) };
       if (JSON.stringify(connus) !== JSON.stringify(enVigueur)) noter(null, { type: "guard.configured", payload: enVigueur });
     });
   } catch (erreur) {

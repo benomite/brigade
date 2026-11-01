@@ -31,7 +31,7 @@ npm --prefix runtime run guardrails -- resume   # reopens the kitchen, closes th
 ```
 
 "stop" and "resume" are written to the log in the name of the `chef`; the runtime sees them within a
-second. The state shows `caps per ticket`, `kitchen`, `breaker`, `cooks running` and `latest guardrail stops`.
+second. The state shows `caps per ticket`, `pass judgements` (the cap on judgements at once: `3 at once at most — deliveries whose zones do not overlap are judged side by side (BRIGADE_MAX_JUDGEMENTS)`), `kitchen`, `breaker`, `cooks running` and `latest guardrail stops`.
 
 What `guardrails` writes — state, `stop`, `resume`, refusals, errors — is **in English** (words from `docs/glossary.md`): `kitchen already stopped since …`, `nothing to resume: the kitchen is open and the breaker closed`. `reprendre` still answers, saying `resume` (until 2027-01-14).
 
@@ -172,3 +172,4 @@ makes the runtime **refuse to start**.
 | `BRIGADE_MAX_TOKENS` | 2,000,000 | Tokens per cook |
 | `BRIGADE_IDLE_MINUTES` | 10 | Silence tolerated before concluding idleness |
 | `BRIGADE_BREAKER_FAILURES` | 3 | Failures in a row that open the breaker |
+| `BRIGADE_MAX_JUDGEMENTS` | 3 | Deliveries the pass judges at once — those whose zones do not overlap ("Several deliveries judged at once" in [`pass-merge.md`](pass-merge.md)). 1: one at a time, as before |

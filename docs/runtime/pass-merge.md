@@ -98,39 +98,46 @@ commands never write, and answer while the runtime is running.
 
 ### Deliveries judged in parallel
 
-The pass does not judge every delivery in a single line. It goes by **zone** (the files and folders
-a ticket owns, from its card):
+The pass takes deliveries in the order they were delivered, and judges **several at once when their
+zones do not overlap** — the zones the manager gives each ticket, the `zone` line of its card
+(`runtime/src/file-de-la-pass.ts`). A path overlaps another if they are equal or if one is a folder
+containing the other; the project's common paths count for no one, as on the rail. How many are
+judged at once is capped by a guardrail, `BRIGADE_MAX_JUDGEMENTS` (3 by default; see
+[`garde-fous.md`](garde-fous.md)). A delivery holds its place from the moment the pass takes it to
+the end of its merge — gates, review, CI wait, merge in flight.
 
-- **Disjoint zones are judged in parallel.** Two deliveries whose zones do not overlap are in pass
-  at the same time, each with its own verdict, and neither waits for the other.
-- **Overlapping zones wait for each other.** A delivery whose zone shares a file or a folder with
-  one already in pass waits, in the order they were delivered, until that one is judged. `pass`
-  names the delivery it is waiting for.
-- **A delivery with no declared zone, or that wrote outside its zone, is judged alone.** Nothing is
-  judged beside it: it starts once the deliveries already in pass are judged, and the ones after it
-  wait for its verdict.
-- **The number of judgments in pass at once is capped** by a guardrail (see
-  [`garde-fous.md`](garde-fous.md)). Past the cap, a delivery that is otherwise free waits its turn,
-  in delivery order.
+| The delivery | What it waits for |
+|---|---|
+| its zone overlaps that of a delivery in its pass, or of one ahead of it in line | that one: `waiting for #17: their zones overlap on runtime/src/rail` |
+| **no zone** — no card, an unreadable card, off the rail — or **it wrote outside its zone** (`cook.out-of-zone`) | it is **judged alone**: it starts only once no other is in its pass, and nothing starts while it is; nothing overtakes it while it waits |
+| the cap is reached | a free slot: `waiting for a free slot: 3 judgements at once at most` |
 
-A green delivery is merged on its own verdict, whatever runs beside it, so two parallel merges
-can land one after the other on the integration branch.
+A delivery that waits keeps its place: nothing on its zone overtakes it, and nothing at all if it is
+judged alone. A delivery whose judgement cannot start — GitHub failing, a PR that does not open —
+does not hold the queue: it goes behind the others until its judgement starts. With
+`BRIGADE_MAX_JUDGEMENTS=1`, the pass judges one delivery at a time, in delivery order, as before.
+
+`pass` names, for a delivery that waits, those in their pass, its place in line, and what holds it:
+
+```
+#18  delivered, waiting for its turn — #17, #19 are in their pass, next in line — waiting for #17: their zones overlap on runtime/src/rail  returns 0/2  since …
+#20  delivered, waiting for its turn — #17, #19 are in their pass, 1 ahead of it — judged alone: it declares no zone  returns 0/2  since …
+```
 
 #### The safety net behind parallel merges
 
-Parallel judgment is safe because the integration branch is checked after each merge. After every
-merge, CI replays the base: its gates are played on the base alone, as on any delivery. **A red base
-stops the kitchen**: nothing is taken, judged or merged until the base is green again or the chef has
-had it replayed and repaired. The log of the red names the parallel merges that preceded it, so the
-chef can see which of them to look at first.
+A green delivery is merged on its own verdict, whatever runs beside it. Merges still go one at a
+time, and a delivery judged on a base that moved since — another one, judged at the same time, was
+merged first — is **judged again** on the new base before it is merged (see "Green means green once
+merged" in [`pass.md`](pass.md)). After every merge, CI replays the base: its gates are played on
+the base alone, as on any delivery. **A red base stops the kitchen**: nothing is taken, judged or
+merged until the base is green again or the chef has had it replayed and repaired. The log of the
+red names the parallel merges that preceded it, so the chef can see which of them to look at first.
 
 #### Relaunching a stuck delivery
 
-The pass judges deliveries in the order they were delivered, except where they run in parallel (see
-above): a delivery that must wait for another, because its zone overlaps or the cap is reached, reads
-`delivered, waiting for its turn — #17 is in its pass, next in line`. A delivery is **stuck** when it
-is in pass, delivered and never judged since, and **nothing is being judged or merged that it waits
-for** — no pass is holding it back. The running pass takes such a delivery
+A delivery is **stuck** when it is in pass, delivered and never judged since, and **nothing in its
+pass holds it back** — no pass is active, or none it waits for. The running pass takes such a delivery
 within the second; one that stays there has been forgotten. `status` flags it after **15 minutes**
 from its delivery (`COINCEE_APRES_MS`, in `file-de-la-pass.ts`): see the `stuck` block in
 [`etat-et-mesures.md`](etat-et-mesures.md).
@@ -148,7 +155,7 @@ It refuses, exits with 1, says why, and writes nothing, for a delivery that is n
 | The card | The refusal |
 |---|---|
 | being judged, or its merge in flight | `#17 already has an active pass: it is being judged since … — nothing to relaunch` |
-| waiting for its turn behind another | `#18 is waiting for its turn — #17 is in its pass, next in line: it is not stuck, the pass judges it after` |
+| waiting for its turn behind others | `#18 is waiting for its turn — #17 is in its pass, next in line: it is not stuck, the pass judges it after` (`#17, #19 are in their pass` when several are) |
 | queued for a reason (`base-red`, `machine-saturated`, …) | `#18 is queued (base-red): it is not stuck, the pass takes it up on its own once that is lifted` |
 | judged, merged or served | `#17 is already judged green: there is no judgement to relaunch` — or `already merged`, `already served`, `already judged red, and returned to a cook`, … |
 | being cooked, never delivered, off the rail | `#17 is being cooked: there is no delivery to judge yet`, `#17 has never been through the pass: …`, `#17 left the rail: …` |
