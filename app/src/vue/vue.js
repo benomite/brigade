@@ -118,6 +118,7 @@ import { ajoutsDuProjet as ajoutsDesEnregistrees, detailsDe, EN_LIGNE, HORS_LIGN
 import { poserRailPublie } from "./rail-publie.js";
 import { poserOutilsDuSecond } from "./outils-du-second.js";
 import { poserChoixDuSecond, reponseTapee, tenirLesChoix } from "./second/choix.js";
+import { AUCUNE_STATION, aucuneStationNeSert } from "./cooks/sans-station.js";
 import { poserGesteDuSecond } from "./second/geste.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
@@ -4674,10 +4675,10 @@ function poserRail(projet) {
   if (rail.hidden) return rail.replaceChildren();
   // Ni box ni station sur cet ordinateur : rien n'en est lu, et la page ne reste pas vide — elle dit pourquoi (ticket 1405).
   // Sur Rail, celui que sa station publie sur GitHub, s'il y en a une (ticket 1435) : ses tickets, ou pourquoi il ne se lit pas.
-  if (!seLit(projet) && projet.sansStation !== true) {
+  if (!seLit(projet) && projet.sansStation !== true && (!cuisine || aucuneStationNeSert(projet, cuisineDe(projet).stations))) {
     const publie = railsPublies.get(projet.nom);
     if (!cuisine && publie !== undefined && !publie.sansReponse) return rail.replaceChildren(...poserRailPublie(document, { ...publie, connexion: premier.connexion }, gestesDuRailPublie(projet)));
-    return rail.replaceChildren(bloc("h3", "the rail is not read: no station is known to serve this project yet — it appears as soon as one does"));
+    return rail.replaceChildren(bloc("h3", AUCUNE_STATION));
   }
   // Sur Cooks, dans l'ordre de sa revue (docs/revue-page-cooks.md, ticket 1456) : ses stations et leurs cooks en tête —
   // la ligne de sa cuisine dedans —, ce que chaque
