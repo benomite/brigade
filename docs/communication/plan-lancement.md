@@ -2,58 +2,46 @@
 
 Nothing in this folder posts anything. The chef reads, edits and posts personally, by hand. No file here holds a command, script or API call that publishes.
 
-Terms follow [`docs/glossary.md`](../glossary.md). The product is described from [`README.md`](../../README.md), [`CHANGELOG.md`](../../CHANGELOG.md) and [`docs/`](../README.md) (`docs/runtime/`, `docs/app.md`).
+Terms follow [`docs/glossary.md`](../glossary.md); the product is described by [`README.md`](../../README.md) and [`docs/`](../README.md).
 
-## How the rules were read
+## Rules: not read
 
-Date of the reading attempt: **2026-10-23**, from the station's shell with `curl` (descriptive User-Agent `brigade-launch-prep/1.0 (+https://github.com/benomite/brigade; reading public rules)`) and then with an HTTP fetch tool.
+On 2026-10-23 the station tried to read the rules pages with `curl` and an HTTP fetch tool; the network refused every host (proxy `403`). On 2026-11-01 a second attempt from the chef's workstation (`old.reddit.com/r/ClaudeAI/about/rules.json`) was refused too: Reddit answers no rules to an unauthenticated tool. So this plan records **no rule**, and none is reconstructed from memory: the chef reads each page in a browser before posting.
 
-**No page could be read.** The station's network allows no outbound connection to these hosts: `curl` ended at the proxy with `CONNECT tunnel failed, response 403` (the proxy answers `x-brigade-refus` for the host), and the fetch tool answered `unable to fetch from www.reddit.com` / `proxy refused the connection`. So this plan records **no rule** for any place. Rules are not reconstructed from memory: for each place below, the chef reads the page before posting.
+- https://www.reddit.com/r/ClaudeAI/about/rules.json and `about.json`
+- https://www.reddit.com/r/LocalLLaMA/about/rules.json and `about.json`
+- https://support.reddithelp.com/hc/en-us/articles/360043504051-Spam (self-promotion)
+- https://www.redditinc.com/policies/reddit-rules
+- https://support.reddithelp.com/hc/en-us/articles/205926439-Reddiquette
+- https://www.linkedin.com/legal/professional-community-policies
 
-| URL | Read? | Date of the attempt |
-|---|---|---|
-| https://www.reddit.com/r/ClaudeAI/about/rules.json | not read — proxy refused (403) | 2026-10-23 |
-| https://www.reddit.com/r/ClaudeAI/about.json | not read — proxy refused (403) | 2026-10-23 |
-| https://www.reddit.com/r/LocalLLaMA/about/rules.json | not read — proxy refused (403) | 2026-10-23 |
-| https://www.reddit.com/r/LocalLLaMA/about.json | not read — proxy refused (403) | 2026-10-23 |
-| https://support.reddithelp.com/hc/en-us/articles/360043504051-Spam (Reddit's self-promotion / spam help page) | not read — proxy refused (403) | 2026-10-23 |
-| https://www.redditinc.com/policies/reddit-rules (Reddit Rules) | not read — proxy refused (403) | 2026-10-23 |
-| https://support.reddithelp.com/hc/en-us/articles/205926439-Reddiquette | not read — proxy refused (403) | 2026-10-23 |
-| https://www.linkedin.com/legal/professional-community-policies | not read — proxy refused (403) | 2026-10-23 |
+## Before launching
 
-Whoever has an unrestricted network can redo it in a minute: fetch the same URLs with a plain GET and a descriptive User-Agent, then fill the "Rules" lines below with what the pages say, citing the URL and the date.
-
-A second attempt on **2026-11-01**, from the chef's workstation (`curl` on `old.reddit.com/r/ClaudeAI/about/rules.json`, then an HTTP fetch tool), was refused too: Reddit answers no rules to an unauthenticated tool. The chef reads them in a browser.
-
-## Before launching (not posting before these are done)
-
-The posts were rewritten on 2026-11-01 for the current product: an app for Mac or Windows, a GitHub account and a Claude account, no server and no ssh. Two things must be true before posting, because a reader who fails their first install will not come back:
+The posts were rewritten on 2026-11-01 for the current product: an app for Mac or Windows, a GitHub account and a Claude account, no server and no ssh. Do not post before both are true, because a reader who fails their first install will not come back:
 
 1. **A stranger walked the install path end to end** (#1912): a machine that never saw brigade, accounts that are not the chef's, only the README and the app.
-2. **The demo video exists** (#1550), and the posts link to it, or embed it where the place allows a video.
+2. **The demo video exists** (#1550), and the posts link to it, or embed it where the place allows.
 
 ## Places, in posting order
 
-### 1. r/ClaudeAI — post file: [`post-reddit-ClaudeAI.md`](post-reddit-ClaudeAI.md)
+### 1. r/ClaudeAI — [`post-reddit-ClaudeAI.md`](post-reddit-ClaudeAI.md)
 
-- **Why first**: Brigade is built on Claude Code (cooks are real `claude` sessions); this is the community closest to the product, and the one where a technical, honest write-up is most likely to be on topic.
-- **Angle**: the *how*, not the pitch. Download an app, sign in with GitHub and Claude, put `fire` on an issue: a cook opens the PR, and a pass (the gates plus a reviewer) judges it before it merges. Ask for feedback on the model, not for stars.
-- **Rules**: rules not verified, chef to read the page before posting. Pages: the two `r/ClaudeAI` URLs above (not read on 2026-10-23), plus the Reddit self-promotion page (not read on 2026-10-23).
-- **Compliance of the post**: rules not verified — no compliance claim can be made. The post is written to be easy to adapt (no more than one link, no sales language), but the chef checks it against the pages first.
+- **Why first**: cooks are real `claude` sessions, so this is the community closest to the product, where a technical, honest write-up is most on topic.
+- **Angle**: the *how*, not the pitch. Download an app, sign in, put `fire` on an issue: a cook opens the PR and the pass judges it before it merges. Ask for feedback on the model, not for stars.
+- **Compliance**: not verified. One link, no sales language, but the chef checks it against the pages first.
 
-### 2. LinkedIn — post file: [`post-linkedin.md`](post-linkedin.md)
+### 2. LinkedIn — [`post-linkedin.md`](post-linkedin.md)
 
-- **Why second**: after the technical audience has had a chance to point out errors, the same story goes to a professional audience, told as a work-organisation story rather than a tooling one.
-- **Angle**: a work-organisation story. 98 of the last 100 merged PRs were cooked by agents and judged by the pass; the backlog is the only place work is coordinated, and the chef decides only what the kitchen puts under `awaiting`. Posted about a week after Reddit, once the technical audience has had its say.
-- **Rules**: rules not verified, chef to read the page before posting. Page: https://www.linkedin.com/legal/professional-community-policies (not read on 2026-10-23).
-- **Compliance of the post**: rules not verified — no compliance claim can be made.
+- **Why second**: about a week after Reddit, once the technical audience has had its say; the same story told as a work-organisation one.
+- **Angle**: 98 of the last 100 merged PRs were cooked by agents and judged by the pass; the backlog is the only place work is coordinated, and the chef decides only what sits under `awaiting`.
+- **Compliance**: not verified.
 
-### Considered and not retained
+### Not retained
 
-- **r/LocalLLaMA** (rules URLs above, not read on 2026-10-23): not retained for a reason of fit, not of rules. Brigade drives Claude through Claude Code, not local models, so the post would be off topic for a community about local models. If the chef disagrees, this place needs its own post file and its rules read first: rules not verified.
+- **r/LocalLLaMA**: off topic, since Brigade drives Claude through Claude Code, not local models. Retaining it needs its own post file and its rules read first.
 
 ## Before posting (chef)
 
-1. Read each page listed for the place; copy the relevant rules here with the URL and the date.
-2. Check the post file against them; edit the post if one rule is not met (for example a required flair, a disclosure of affiliation, or a ban on links).
+1. Read each page; copy the relevant rules here.
+2. Edit the post if a rule is not met (flair, affiliation disclosure, link ban).
 3. Post by hand. Answer comments yourself.
