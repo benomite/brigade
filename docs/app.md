@@ -107,7 +107,13 @@ for this project`, never a blank. On a narrow screen, the block sits under the s
 `app/src/vue/stations-declarees.js`.
 **Each row has `edit`** (#1510) — so does each station's block (#1786): under the row, its form — `Cooks at once`, prefilled; `What it provides`, one checkbox per
 capability (the boxes of "+ station", #1307): the ones it declares, ticked, then what the other stations provide and what
-this computer can declare, unticked. `Save`, recommended, changes that station only, by the runtime's single-station commands run through the project's
+this computer can declare, unticked. Under the boxes (#1959), a field and `Add` take a capability that no box offers — the one a
+ticket in WAITING awaits (``awaiting a station that provides `<capability>` ``): its name is typed (trimmed, inner spaces turned into
+hyphens, the backquotes of a name copied from a card dropped), and it becomes a ticked box of the form; an empty name, one the
+runtime would not read, or one already in the form is refused in one line under the field, and nothing is added. Once saved, the
+station provides it, the other stations' forms offer it, and the ticket that awaited it goes back on the rail on its own. The rule
+for the typed name is `runtime/src/capacite-libre/`; the view applies the same one (`app/src/vue/capacite-libre/`), a test keeps
+them identical. `Save`, recommended, changes that station only, by the runtime's single-station commands run through the project's
 station (`installation stations set`): the others stay as it wrote them. `Remove` asks first,
 its price in one line, then runs `installation stations remove`; the project's only station cannot be removed. Then the stations are read again, and the rows follow; one line under
 the row says what was done, or, in the form, why nothing was (the station's answer on hover). It is the same on a
