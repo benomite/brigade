@@ -144,4 +144,20 @@ jobs:
           commande="$(node -e 'console.log(require(process.argv[1]).scripts.test)' "$PWD/$ZONE/package.json")"
           case "$commande" in *"$motif"*) ;; *) echo "le script test de $ZONE n'a plus son motif $motif" >&2; exit 1 ;; esac
           echo "part $PART/$OF : $(set -- $fichiers; echo $#) fichiers"
-          cd "$ZONE" && exec sh -c "${commande/"$motif"/$fichiers}"
+          # L'environnement que `gates.sh` donne à ses suites, celui où elles étaient vertes sur `main` :
+          # pas d'entrée, pas de proxy de Node, ni les variables de ce job ; le répertoire temporaire en
+          # mémoire, le cache de compilation à sa place.
+          export NODE_COMPILE_CACHE="${NODE_COMPILE_CACHE:-${TMPDIR:-/tmp}/brigade-runtime-compile-cache}"
+          unset NODE_USE_ENV_PROXY ZONE PART OF EVENEMENT
+          if [ -w /dev/shm ]; then export TMPDIR="$(mktemp -d /dev/shm/brigade-tests.XXXXXX)"; trap 'rm -rf "$TMPDIR"' EXIT; fi
+          # Les tests en échec, par leur nom et leur erreur, deviennent une annotation du check : elle se
+          # lit par l'API (`gh api repos/<dépôt>/check-runs/<job>/annotations`), sans le journal du job.
+          journal="${RUNNER_TEMP:-/tmp}/tests.log"
+          code=0
+          (cd "${{ matrix.zone }}" && exec sh -c "${commande/"$motif"/$fichiers}") </dev/null 2>&1 | tee "$journal" || code=$?
+          if [ "$code" -ne 0 ]; then
+            if grep -q '^✖ failing tests:' "$journal"; then echecs="$(sed -n '/^✖ failing tests:/,$p' "$journal" | grep -v '^ *at ' | head -60)"
+            else echecs="$(tail -40 "$journal")"; fi
+            echo "::error title=tests ${{ matrix.zone }} (${{ matrix.part }}/${{ matrix.of }})::$(printf '%s\n' "$echecs" | awk '{ gsub(/%/, "%25"); gsub(/\r/, ""); printf "%s%%0A", $0 }')"
+          fi
+          exit "$code"
