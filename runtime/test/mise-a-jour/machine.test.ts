@@ -97,7 +97,10 @@ async function enService(machine: Machine, version: string): Promise<number> {
   return pid;
 }
 
-describe("la mise à jour de la station, sur une installation de test", { skip: sansDpkgDeb }, () => {
+// Chaque test a sa machine — racine, systemd, station, projet : ils se jouent
+// de front. Un à un, ils tenaient le fichier une minute et demie, le plus long
+// de la suite (#2085).
+describe("la mise à jour de la station, sur une installation de test", { skip: sansDpkgDeb, concurrency: 8 }, () => {
   let dossier = "";
   // Le paquet construit depuis ce dépôt, et ce qu'on en tire pour chaque version.
   let premier = "";

@@ -89,17 +89,17 @@ function uneStation(t: TestContext, etags: boolean) {
 
   // Ce qu'un tick relit de GitHub, projet par projet : le sondage des tickets
   // et celui du manager, puis, pour chaque ticket du rail, son issue, ses
-  // commentaires et sa PR ; et le gist de la station.
+  // commentaires et sa PR ; et le gist de la station. Les lectures d'un tick
+  // partent de front : chacune est un process de la doublure, et une à une,
+  // les soixante ticks d'une heure tenaient le fichier plus d'une minute
+  // (#2085). Ce qui se compte ne dépend pas de leur ordre — chaque ressource a
+  // son ETag.
   const tick = async () => {
     await Promise.all(
       Object.entries(PROJETS).map(async ([projet, tickets]) => {
         const github = githubs[projet]!;
-        for (const sondage of [await github.tickets(), await github.ouvertes()]) if (!sondage.inchange) sondage.confirmer();
-        for (const ticket of tickets) {
-          await github.issue(ticket);
-          await github.commentaires(ticket);
-          await github.prDeBranche(`cook/${ticket}`);
-        }
+        for (const sondage of await Promise.all([github.tickets(), github.ouvertes()])) if (!sondage.inchange) sondage.confirmer();
+        await Promise.all(tickets.flatMap((ticket) => [github.issue(ticket), github.commentaires(ticket), github.prDeBranche(`cook/${ticket}`)]));
       }),
     );
     for (let i = 0; i < LECTURES_DU_GIST_PAR_TICK; i++) await canal.lire(GIST);
