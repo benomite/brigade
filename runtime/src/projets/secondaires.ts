@@ -143,8 +143,10 @@ export function declarerLesSecondaires(repertoireEtat: string, projet: string, s
         refusees.push({ station: secondaire.station, raison: erreur.message });
       }
     }
-    // Une secondaire atteinte qui est le même ordinateur qu'une déclarée absente la remplace (`station-doublon/`).
-    retirerLesDoublons(journal, { projet, presentes: secondaires.filter((secondaire) => secondaire.atteinte).map((secondaire) => secondaire.station), auteur });
+    // Une secondaire atteinte qui est le même ordinateur qu'une déclarée absente la remplace (`station-doublon/`) —
+    // si elle est déclarée : une refusée ne remplace rien, l'ancienne reste.
+    const presentes = secondaires.filter((secondaire) => secondaire.atteinte && !refusees.some((refusee) => refusee.station === secondaire.station)).map((secondaire) => secondaire.station);
+    retirerLesDoublons(journal, { projet, presentes, auteur });
   } finally {
     journal.fermer();
   }

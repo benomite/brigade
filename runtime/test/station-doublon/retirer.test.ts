@@ -58,6 +58,15 @@ test("l'ancienne station absente et la nouvelle présente : status n'en liste qu
   assert.deepEqual(stations(etat), ["box/claude", "macbook-air-de-benoit4/claude"]);
 });
 
+test("la nouvelle station refusée : l'ancienne, absente, reste déclarée", (t) => {
+  const etat = declarer(t, ["macbook-air-de-benoit"]);
+  // Un plafond de zéro cook : le runtime ne la lirait pas, rien n'en est écrit.
+  const { ecrites, refusees } = declarerLesSecondaires(etat, PROJET, [{ ...secondaire("macbook-air-de-benoit4", true), cooks: 0 }]);
+  assert.deepEqual(ecrites, []);
+  assert.deepEqual(refusees.map((refusee) => refusee.station), ["macbook-air-de-benoit4/claude"]);
+  assert.deepEqual(stations(etat), ["box/claude", "macbook-air-de-benoit/claude"]);
+});
+
 test("deux stations présentes, box-a et box-a2 : les deux restent déclarées", (t) => {
   const etat = declarer(t, ["box-a"]);
   declarerLesSecondaires(etat, PROJET, [secondaire("box-a", true), secondaire("box-a2", true)]);
