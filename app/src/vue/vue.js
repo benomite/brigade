@@ -110,6 +110,7 @@ import { poserLActivite } from "./activite-cuisine.js";
 import { cookDuTicket, poserLActiviteDuCook } from "./activite-du-cook.js";
 import { poserBarre } from "./avant-le-rail.js";
 import { poserAge, poserCadence, poserEssais } from "./cadence.js";
+import { poserEtiquettes } from "./etiquettes-de-bon.js";
 import { GATES_HORS_BUDGET, poserLeJourDesGates, poserLesGatesDeCooks } from "./cout-des-gates.js";
 import { AIDE as AIDE_DES_ROLES, poserLesRoles, resumeDesRoles, TITRE as TITRE_DES_ROLES } from "./roles-cuisine.js";
 import { apresLaDecision, phrase, poserParcours as parcoursDOnboarding } from "./onboarding/parcours.js";
@@ -2883,8 +2884,8 @@ function coinceDit({ dit }) {
 // fiche. Dans Livré, la phrase porte l'heure et le résumé ; ses captures restent sur la carte.
 // Tout est déjà rangé par le process principal (faits.ts, bon.ts) : la vue pose. Le
 // numéro s'ouvre sur l'issue : l'adresse reste au process principal, la vue nomme le ticket.
-/** @param {Projet} projet @param {import("../faits.ts").Carte} carte @param {string | undefined} [tonAttend] le ton de T'attend, quand le bon y est posé */
-function poserBon(projet, carte, tonAttend) {
+/** @param {Projet} projet @param {import("../faits.ts").Carte} carte @param {string | undefined} [tonAttend] le ton de T'attend, quand le bon y est posé @param {boolean} [avecStation] la station s'étiquette (Taken et Pass d'un projet à plusieurs stations ; jamais sur Cooks, où son bloc la nomme) */
+function poserBon(projet, carte, tonAttend, avecStation = false) {
   const { ticket, etat, ton, titre, ouvrable, attendu, attend, pr } = carte;
   const bon = document.createElement("li");
   bon.className = "bon";
@@ -2937,6 +2938,8 @@ function poserBon(projet, carte, tonAttend) {
     if (carte.essais !== undefined) tete.append(poserEssais(document, carte.essais));
   }
   bon.append(tete);
+  const etiquettes = poserEtiquettes(document, carte, avecStation);
+  if (etiquettes !== null) bon.append(etiquettes);
   // Sur le rail, en attente : sa priorité, sous son numéro
   if (carte.prio !== undefined) {
     const prio = bloc("span", carte.prio);
@@ -4751,12 +4754,12 @@ function poserRail(projet) {
   // Toutes les cartes lues, quel que soit l'onglet : la fiche ouverte et ce qui est en amont les suivent.
   const lesCartes = [...toutes.flatMap(({ cartes: siennes }) => siennes), ...hors];
   const heure = heureDe(tenu.a);
-  /** @param {import("../faits.ts").Carte[]} cartes @param {string} [ton] */
-  const bons = (cartes, ton) => {
+  /** @param {import("../faits.ts").Carte[]} cartes @param {string} [ton] @param {boolean} [avecStation] */
+  const bons = (cartes, ton, avecStation = false) => {
     const liste = document.createElement("ol");
     liste.append(
       ...cartes.map((carte) => {
-        const bon = poserBon(projet, carte, ton);
+        const bon = poserBon(projet, carte, ton, avecStation);
         posees.set(carte, bon);
         return bon;
       }),
@@ -4780,7 +4783,7 @@ function poserRail(projet) {
       const tete = document.createElement("h4");
       tete.append(bloc("span", nom), bloc("span", compte));
       colonne.append(tete);
-      colonne.append(cartes.length === 0 ? bloc("p", vide) : bons(cartes, ton));
+      colonne.append(cartes.length === 0 ? bloc("p", vide) : bons(cartes, ton, tenu.tableau.rail.plusieursStations === true && (nom === "Taken" || nom === "Pass")));
       return colonne;
     }),
   );

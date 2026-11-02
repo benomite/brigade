@@ -3886,6 +3886,25 @@ main > header,
   border-top: 1px dashed var(--bon-trait);
   white-space: pre-wrap;
 }
+/* Les étiquettes d'une carte (ticket 2039) : la station qui la sert (Taken et Pass, plusieurs stations), en trait plein ;
+   une par capacité que son ticket demande, en tireté. Posées partout où `poserBon` pose une carte, pas seulement sur le rail. */
+.bon .etiquettes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+.bon .etiquette {
+  padding: 0 6px;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--bon-discret);
+  border: 1px solid var(--bon-trait);
+  border-radius: 8px;
+}
+.bon .etiquette-capacite {
+  border-style: dashed;
+}
 /* Les deux lignes d'une carte : ce qui se passe, puis — rarement — ce qui demande l'attention. */
 #rail .bon p.ligne-carte,
 #rail .bon p.signal {
