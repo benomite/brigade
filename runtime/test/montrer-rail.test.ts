@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { carnetDuProjet } from "../src/apprentissage/provisoires.ts";
-import { ouvrirJournal } from "../src/journal.ts";
+import { ouvrirJournal, type Journal } from "../src/journal.ts";
 import { principal as montrerRail } from "../src/montrer-rail.ts";
 import { lireRail, ticketDuRail } from "../src/projections/rail.ts";
 import { ouvrirRail } from "../src/rail.ts";
@@ -216,19 +216,22 @@ test("un journal d'avant le rail dit aussi de redémarrer le runtime", async (t)
   assert.doesNotMatch(commande.sortie(), /at .*\.ts/);
 });
 
+// Un ticket qui arrive avec sa fiche, et les capacités qu'il demande.
+const arriverDemandant = (journal: Journal, ticket: number, zone: string[], requires: string[]) =>
+  journal.ajouter({
+    project: "brigade",
+    ticket,
+    author: "github",
+    type: "ticket.arrived",
+    payload: { title: `Ticket ${ticket}`, priority: null, createdAt: `2026-10-01T00:00:${ticket}Z`, url: `https://exemple.test/${ticket}`, card: { waitsFor: [], zone, problems: [], requires } },
+  });
+
 test("un rail qui ne porte que des cartes en WAITING se dit vide, sans panne ; une carte qui peut cuire n'est plus dite vide (#1927)", async (t) => {
   const repertoire = repertoireTemporaire(t);
   const journal = ouvrirJournal(repertoire, { maintenant: horloge() });
   t.after(() => journal.fermer());
   const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000 });
-  const arriver = (ticket: number, requires: string[]) =>
-    journal.ajouter({
-      project: "brigade",
-      ticket,
-      author: "github",
-      type: "ticket.arrived",
-      payload: { title: `Ticket ${ticket}`, priority: null, createdAt: `2026-10-01T00:00:${ticket}Z`, url: `https://exemple.test/${ticket}`, card: { waitsFor: [], zone: [`zone/${ticket}/`], problems: [], requires } },
-    });
+  const arriver = (ticket: number, requires: string[]) => arriverDemandant(journal, ticket, [`zone/${ticket}/`], requires);
   arriver(15, ["chrome-connecté"]);
   rail.quatreVingtSix(15, { motif: "no-station: chrome-connecté" });
 
@@ -249,14 +252,7 @@ test("la fiche d'un ticket qui demande une capacité la montre ; sans station qu
   const journal = ouvrirJournal(repertoire, { maintenant: horloge() });
   t.after(() => journal.fermer());
   const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000 });
-  const arriver = (ticket: number, requires: string[]) =>
-    journal.ajouter({
-      project: "brigade",
-      ticket,
-      author: "github",
-      type: "ticket.arrived",
-      payload: { title: `Ticket ${ticket}`, priority: null, createdAt: `2026-10-01T00:00:${ticket}Z`, url: `https://exemple.test/${ticket}`, card: { waitsFor: [], zone: ["e2e/"], problems: [], requires } },
-    });
+  const arriver = (ticket: number, requires: string[]) => arriverDemandant(journal, ticket, ["e2e/"], requires);
   arriver(14, ["navigateur-headless", "code"]);
   arriver(15, ["chrome-connecté"]);
   rail.quatreVingtSix(15, { motif: "no-station: chrome-connecté" });
