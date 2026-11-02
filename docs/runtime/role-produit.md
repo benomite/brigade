@@ -28,7 +28,7 @@ are there.
 
 | Source | What it holds |
 |---|---|
-| The **usage digest** | What the kitchen measures: the **drift** (tickets served on the first try or not), the pass's refusals, the cooks stopped by a **guardrail**, the tickets set aside (`86`) and why, and the failures that repeat from one ticket to the next (the same failure on several tickets, a cleanup that keeps failing). On brigade's own project, the digest also names the other projects the same box serves, each finding tagged with its project. |
+| The **usage digest** | What the kitchen measures: the share of tickets served on the first try, the pass's refusals, the cooks stopped by a **guardrail**, the tickets set aside (`86`) and why, and the failures that repeat from one ticket to the next (the same failure on several tickets, a cleanup that keeps failing). On brigade's own project, the digest also names the other projects the same box serves, each finding tagged with its project. |
 | **Issues opened by people other than the chef** | The feedback of those who use the project, on its repository. |
 | **The chef's directions** | Open issues labelled `direction`, and the chef's comments on them. See [Giving a direction](#giving-a-direction). |
 
