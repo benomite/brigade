@@ -54,7 +54,9 @@ describe("la commande manager", { concurrency: 8 }, () => {
     assert.equal(eteindre.code, 1);
     assert.match(eteindre.sortie, /`brigade <projet> switch off`\. Nothing is written/);
     assert.deepEqual(commandes(), []);
-    assert.equal(journal.tout().length, avant);
+    // Le battement du runtime n'est pas la commande : deux Node lancés coup sur
+    // coup passent la minute d'un tick sur une machine chargée (Windows).
+    assert.deepEqual(journal.tout().slice(avant).filter((e) => e.type !== "runtime.ticked").map((e) => e.type), []);
   });
 
   test("la ligne `manager` suit l'interrupteur du projet, dès qu'il est posé — l'ancien interrupteur n'y compte plus", async (t) => {

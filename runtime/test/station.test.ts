@@ -10,7 +10,7 @@ import { VARIABLES_DE_JETON } from "../src/claude.ts";
 import type { Depot } from "../src/depot.ts";
 import type { GitHub } from "../src/github.ts";
 import { MARQUEUR, porteFiche } from "../src/fiche.ts";
-import { ouvrirJournal } from "../src/journal.ts";
+import { ouvrirJournal, type Journal } from "../src/journal.ts";
 import type { Machine } from "../src/machine.ts";
 import { cooksEnCours, etatDesGardeFous } from "../src/projections/guardrails.ts";
 import { worktreesGardes } from "../src/projections/cleanup.ts";
@@ -29,6 +29,17 @@ const baseMobile = () => {
   const base = { tete: "base-0", relue: 0 };
   return { base, depot: (depot: Depot): Depot => ({ ...depot, rapatrier: async () => (base.relue++, base.tete), vue: () => base.tete }) };
 };
+
+// Ce que le journal a vu de chaque ticket, avec la raison, l'issue ou l'erreur
+// des faits qui en portent : sous Windows, la CI ne laisse lire que l'annotation
+// d'un échec, et un ticket rendu après son lancement doit y dire pourquoi.
+function recit(journal: Journal, tickets: number[]): string {
+  const dire = ({ type, payload }: { type: string; payload: Record<string, unknown> }) => {
+    const motif = [payload.reason, payload.outcome, payload.error].filter((mot) => mot !== undefined && mot !== null);
+    return motif.length === 0 ? type : `${type}(${motif.map(String).join(", ")})`;
+  };
+  return tickets.map((ticket) => `#${ticket} : ${journal.duTicket(ticket).map(dire).join(", ")}`).join(" ; ");
+}
 
 // Chaque test a ses lieux — répertoire d'état, dépôt, GitHub : ils se jouent de front.
 describe("la station", { concurrency: 8 }, () => {
@@ -358,9 +369,11 @@ describe("la station", { concurrency: 8 }, () => {
     await jusqua(() => lancements().length === 3);
     await new Promise((resoudre) => setTimeout(resoudre, 80));
 
-    assert.deepEqual([etat(14), etat(15), etat(16), etat(17)], ["taken", "taken", "taken", "waiting"]);
+    const etats = [etat(14), etat(15), etat(16), etat(17)];
+    assert.deepEqual(etats, ["taken", "taken", "taken", "waiting"], `${JSON.stringify(etats)} — ${recit(journal, [14, 15, 16, 17])}`);
     const lances = journal.tout().filter((e) => e.type === "cook.launched");
-    assert.deepEqual(lances.map((e) => e.ticket).sort(), [14, 15, 16]);
+    const tickets = lances.map((e) => e.ticket).sort();
+    assert.deepEqual(tickets, [14, 15, 16], `${JSON.stringify(tickets)} — ${recit(journal, [14, 15, 16, 17])}`);
     for (const { ticket, payload } of lances) {
       assert.match(String(payload.run), new RegExp(`^${ticket}-`));
       assert.deepEqual([payload.branch, payload.worktree], [`cook/${payload.run}`, `worktrees/${payload.run}`]);
@@ -519,7 +532,8 @@ describe("la station", { concurrency: 8 }, () => {
     gh.poser(issue(16));
     await jusqua(() => dernier("station.saturated")?.resource === "disk");
     await new Promise((resoudre) => setTimeout(resoudre, 80));
-    assert.deepEqual([etat(15), etat(16), lancements().length], ["taken", "waiting", 1]);
+    const vus = [etat(15), etat(16), lancements().length];
+    assert.deepEqual(vus, ["taken", "waiting", 1], `${JSON.stringify(vus)} — ${recit(journal, [15, 16])}`);
     assert.equal(types(15).some((type) => type === "guard.tripped" || type === "cook.exited"), false);
   });
 
@@ -585,7 +599,8 @@ describe("la station", { concurrency: 8 }, () => {
     await jusqua(() => dernier("station.held") !== undefined);
     await new Promise((resoudre) => setTimeout(resoudre, 80));
 
-    assert.deepEqual([etat(15), etat(16), lancements().length], ["taken", "waiting", 1]);
+    const vus = [etat(15), etat(16), lancements().length];
+    assert.deepEqual(vus, ["taken", "waiting", 1], `${JSON.stringify(vus)} — ${recit(journal, [15, 16])}`);
     assert.deepEqual(journal.tout().filter((e) => e.type === "station.held").map((e) => e.payload), [{ station: STATION, reason: "base" }]);
     assert.equal(etatStation(journal.base, STATION)?.heldReason, "base");
     // Le cook parti avant le rouge continue : la retenue n'arrête personne.
@@ -633,7 +648,8 @@ describe("la station", { concurrency: 8 }, () => {
     await jusqua(() => lancements().length === 4);
     await new Promise((resoudre) => setTimeout(resoudre, 80));
 
-    assert.equal(numeros.filter((numero) => etat(numero) === "taken").length, 4);
+    const pris = numeros.filter((numero) => etat(numero) === "taken");
+    assert.equal(pris.length, 4, `${pris.length} pris — ${recit(journal, numeros.filter((numero) => types(numero).includes("cook.launched")))}`);
     assert.equal(lancements().length, 4);
     // Ce n'est pas une saturation : la machine respire, la station attend de le voir.
     assert.equal(types().includes("station.saturated"), false);
@@ -1288,7 +1304,7 @@ describe("la station", { concurrency: 8 }, () => {
     // Le relais et son cook ne survivent qu'à l'arrêt du runtime : tués, il
     // n'y a plus rien à reprendre.
     const relais = Number(JSON.parse(readFileSync(join(premiere.repertoire, "runs", `${run}.relais.json`), "utf8")).pid);
-    tuerLesRelais(premiere.repertoire);
+    await tuerLesRelais(premiere.repertoire);
     await mort(relais);
 
     const seconde = cuisine(t, { scenario: "livre", lieux: premiere.lieux });
@@ -2046,7 +2062,7 @@ describe("la station", { concurrency: 8 }, () => {
     // suivant le reprendrait, et n'en verrait la fin qu'au filet de trente
     // secondes du faux `claude`.
     const [relais, cook] = [Number(JSON.parse(readFileSync(pidDe("relais.json"), "utf8")).pid), Number(readFileSync(pidDe("cook.pid"), "utf8"))];
-    tuerLesRelais(premiere.repertoire);
+    await tuerLesRelais(premiere.repertoire);
     await Promise.all([mort(relais), mort(cook)]);
 
     const { clone, repertoire, journal, types } = cuisine(t, { lieux: premiere.lieux, git: true, scenario: "bavard" });
