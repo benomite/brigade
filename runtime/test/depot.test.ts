@@ -5,7 +5,7 @@ import { appendFileSync, chmodSync, cpSync, existsSync, mkdirSync, readFileSync,
 import { basename, dirname, join, relative } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { posixOnly } from "./support/plateforme.ts";
-import { environnementReseau, lireALaBase, ouvrirDepot } from "../src/depot.ts";
+import { environnementReseau, lireALaBase, ouvrirDepot, WorktreeDetourne } from "../src/depot.ts";
 import { identifiantsLivres } from "../src/identifiants.ts";
 import { ConfigInvalide } from "../src/runtime.ts";
 import { BASE, commiter, depotGit, ENV_GIT, git, repertoireTemporaire } from "./outils.ts";
@@ -775,6 +775,7 @@ describe("le dépôt de la station", { concurrency: 8 }, () => {
     await assert.rejects(depot.ranger(join(worktrees, "15-abc"), "cook/15-abc"), /n'est plus un worktree git, et qui n'est pas vide/);
     assert.equal(existsSync(join(worktrees, "15-abc", "reste.txt")), true);
     await assert.rejects(depot.ranger(clone, BASE), /hors du répertoire des worktrees/);
+    await assert.rejects(depot.abandonner(clone, BASE), /hors du répertoire des worktrees/);
     assert.equal(existsSync(join(clone, "LISEZMOI")), true);
     // Un retrait à moitié fait : le répertoire est resté, vide. Il part.
     mkdirSync(join(worktrees, "16-def"));
@@ -906,8 +907,8 @@ describe("un worktree que son cook a détourné", { concurrency: 8 }, () => {
     assert.equal(depot.intact(worktree), true);
   });
 
-  test("son fichier `.git` réécrit vers un dépôt à lui : rien de ce dépôt n'est lu, ni au tick ni à la récolte, et le refus nomme le fichier", async (t) => {
-    const { depot, worktree, branche } = await cookAuTravail(t);
+  test("son fichier `.git` réécrit vers un dépôt à lui : rien de ce dépôt n'est lu, ni au tick ni à la récolte, le refus nomme le fichier, et l'abandon dit ce qui part", async (t) => {
+    const { clone, depot, worktree, branche } = await cookAuTravail(t);
     const { racine, planter, execute } = piege(t);
     git(racine, "init", "-q", "a-lui");
     planter(join(racine, "a-lui/.git/config"), worktree);
@@ -927,6 +928,15 @@ describe("un worktree que son cook a détourné", { concurrency: 8 }, () => {
     assert.equal(execute(), false);
     // Rien n'est perdu : le worktree reste, avec ce que le cook y a laissé.
     assert.equal(readFileSync(join(worktree, "brouillon.txt"), "utf8"), "jamais commité\n");
+
+    // Abandonné : il part sans que rien de son dépôt ne soit lu, et ce qu'il
+    // portait de plus que sa branche est dit. La branche n'a pas bougé.
+    const tete = depot.tete(branche);
+    assert.deepEqual(await depot.abandonner(worktree, branche), { contre: branche, abandonnes: ["M travail.txt", "? .gitattributes", "? brouillon.txt"], total: 3 });
+    assert.equal(execute(), false);
+    assert.equal(existsSync(worktree), false);
+    assert.equal(depot.tete(branche), tete);
+    assert.doesNotMatch(git(clone, "worktree", "list", "--porcelain"), /15-abc/);
   });
 
   test("son `.git` remplacé par un dépôt entier : le worktree n'est plus celui du clone, et rien de ce dépôt n'est lu", async (t) => {
@@ -934,14 +944,20 @@ describe("un worktree que son cook a détourné", { concurrency: 8 }, () => {
     const { planter, execute } = piege(t);
     rmSync(join(worktree, ".git"));
     git(worktree, "init", "-q");
+    // Ce que ce dépôt-là commite n'est pas sur la branche.
+    git(worktree, "add", "brouillon.txt");
+    git(worktree, "-c", "user.name=cook", "-c", "user.email=cook@localhost", "commit", "-q", "-m", "ailleurs");
     planter(join(worktree, ".git/config"), worktree);
 
     const refus = /ne désigne plus son dépôt dans le clone/;
     assert.throws(() => depot.empreinte(worktree), refus);
     assert.throws(() => depot.recolter(worktree, branche), refus);
-    await assert.rejects(depot.ranger(worktree, branche), refus);
+    await assert.rejects(depot.ranger(worktree, branche), (erreur) => erreur instanceof WorktreeDetourne && refus.test(erreur.message));
 
+    // Ce que ce dépôt-là a commité part, dit, comme ce qui ne l'est nulle part.
+    assert.deepEqual(await depot.abandonner(worktree, branche), { contre: branche, abandonnes: ["M travail.txt", "? .gitattributes", "? brouillon.txt"], total: 3 });
     assert.equal(execute(), false);
+    assert.equal(existsSync(worktree), false);
   });
 
   test("le `commondir` de son répertoire d'administration réécrit : ni la configuration ni les références de ce qu'il désigne ne sont lues, et le refus nomme le fichier", async (t) => {
@@ -967,6 +983,12 @@ describe("un worktree que son cook a détourné", { concurrency: 8 }, () => {
     assert.equal(depot.tete(branche), tete);
     assert.equal(git(join(racine, "commun"), "rev-parse", branche), tete);
     assert.equal(readFileSync(join(worktree, "brouillon.txt"), "utf8"), "jamais commité\n");
+
+    assert.deepEqual(await depot.abandonner(worktree, branche), { contre: branche, abandonnes: ["M travail.txt", "? .gitattributes", "? brouillon.txt"], total: 3 });
+    assert.equal(execute(), false);
+    assert.equal(existsSync(worktree), false);
+    assert.equal(depot.tete(branche), tete);
+    assert.doesNotMatch(git(clone, "worktree", "list", "--porcelain"), /15-abc/);
   });
 
   test("le `gitdir` de son répertoire d'administration réécrit vers un dépôt à lui : rien n'en est lu, la récolte se fait, et le rangement qui échoue le dit", async (t) => {

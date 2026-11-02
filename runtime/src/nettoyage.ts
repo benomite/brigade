@@ -7,6 +7,11 @@
 // `status`. Il ne connaît que les worktrees que le journal raconte : aucun
 // autre n'est touché.
 //
+// Un worktree dont le cook a réécrit le fichier `.git` ne désigne plus son
+// dépôt : rien n'y est commité, `git` n'y est pas lancé. Il part quand même,
+// abandonné — ce qu'il portait de plus que sa branche est dit au journal,
+// chemin par chemin, et la branche reste telle que le clone la porte.
+//
 // La branche locale, elle, part une fois le ticket servi ou sorti du rail, si
 // tous ses commits sont sur l'origine. Sinon elle reste, sans bruit.
 //
@@ -15,7 +20,7 @@
 // ils vont sous le `~/.claude` du compte, qui n'est pas au runtime : rien n'y
 // est touché.
 import { join } from "node:path";
-import { worktreeDuJournal, type Depot } from "./depot.ts";
+import { WorktreeDetourne, worktreeDuJournal, type Abandon, type Depot } from "./depot.ts";
 import type { FaitNettoyage } from "./events/cleanup.ts";
 import type { Journal } from "./journal.ts";
 import { lire } from "./plafonds.ts";
@@ -46,7 +51,7 @@ export type OptionsNettoyage = {
   // Le répertoire des worktrees du projet, où le journal les nomme
   // `worktrees/<run>` (`worktreeDuJournal`). Par défaut, sous l'état.
   worktrees?: string;
-  depot: Pick<Depot, "ranger" | "elaguer">;
+  depot: Pick<Depot, "ranger" | "abandonner" | "elaguer">;
   avertir: (message: string) => void;
   // Vrai dès que le runtime s'arrête : le nettoyage ne commence plus rien.
   arrete?: () => boolean;
@@ -86,10 +91,27 @@ export function ouvrirNettoyage(options: OptionsNettoyage): Nettoyage {
   const garde = (worktree: string) => base.lire<{ n: number }>("SELECT count(*) AS n FROM worktree_fates WHERE worktree = ? AND state = 'kept' AND reason = 'failed'", worktree)[0]?.n === 1;
 
   const ranger = async (ticket: number, worktree: string, branch: string) => {
+    const chemin = worktreeDuJournal({ repertoireEtat: options.repertoireEtat, worktrees: options.worktrees ?? join(options.repertoireEtat, "worktrees") }, worktree);
     let harvest: string | null;
     try {
-      harvest = await depot.ranger(worktreeDuJournal({ repertoireEtat: options.repertoireEtat, worktrees: options.worktrees ?? join(options.repertoireEtat, "worktrees") }, worktree), branch);
+      harvest = await depot.ranger(chemin, branch);
     } catch (erreur) {
+      if (erreur instanceof WorktreeDetourne) {
+        let abandon: Abandon;
+        try {
+          abandon = await depot.abandonner(chemin, branch);
+        } catch (echec) {
+          if (garde(worktree)) return;
+          noter(ticket, { type: "worktree.kept", payload: { worktree, branch, reason: "failed", detail: `${message(erreur)} ; et il n'a pas pu être abandonné — ${message(echec)}` } });
+          avertir(`brigade : worktree du ticket #${ticket} non rangé (${worktree}, branche ${branch}) — ${message(erreur)} ; et il n'a pas pu être abandonné — ${message(echec)}`);
+          return;
+        }
+        const { contre, abandonnes, total } = abandon;
+        noter(ticket, { type: "worktree.removed", payload: { worktree, branch, harvest: null, abandoned: { detail: message(erreur), against: contre, dropped: abandonnes, total } } });
+        const liste = total === 0 ? "rien de plus que sa branche" : `${total} chemin${total > 1 ? "s" : ""} différent${total > 1 ? "s" : ""} de \`${contre}\` : ${abandonnes.slice(0, 10).join(", ")}${total > 10 ? `, et ${total - 10} autre${total > 11 ? "s" : ""} (au journal)` : ""}`;
+        avertir(`brigade : worktree du ticket #${ticket} abandonné (${worktree}, branche ${branch}) — ${message(erreur)} ; parti avec lui, jamais commité : ${liste}`);
+        return;
+      }
       // Le journal ne répète pas : un worktree déjà gardé l'est encore.
       if (garde(worktree)) return;
       noter(ticket, { type: "worktree.kept", payload: { worktree, branch, reason: "failed", detail: message(erreur) } });

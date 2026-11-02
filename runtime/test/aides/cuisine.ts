@@ -367,6 +367,10 @@ export function fauxDepot(racine: string, gates: boolean, setup = false, declara
       quitter(worktree, nom);
       return recolte;
     },
+    // Le faux dépôt ne détourne aucun worktree : rien ne s'y abandonne.
+    async abandonner(worktree) {
+      throw new Error(`« ${worktree} » : le faux dépôt n'abandonne rien`);
+    },
     async elaguer(nom) {
       rangees.delete(nom);
       return true;

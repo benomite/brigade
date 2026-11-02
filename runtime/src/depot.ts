@@ -43,6 +43,12 @@ export type Depot = {
   // récolte, ou null. Un worktree déjà absent n'est pas un échec ; ce qui ne
   // peut être ni commité ni retiré lève, et rien n'est touché.
   ranger(worktree: string, branche: string): Promise<string | null>;
+  // Retire le worktree d'un cook qui ne désigne plus son dépôt dans le clone
+  // (`WorktreeDetourne`) : `git` n'y est pas lancé, rien de ce qui y
+  // traîne n'est commité, la branche reste telle que le clone la porte. Rend
+  // ce qui part avec lui — ce que le worktree porte de plus que la branche.
+  // Lève si cela ne se dit pas : rien n'est alors retiré.
+  abandonner(worktree: string, branche: string): Promise<Abandon>;
   // Supprime la branche locale d'un cook, à condition que tous ses commits
   // soient sur l'origine. Rend vrai si elle n'est plus là, faux si elle reste.
   // La branche distante n'est jamais touchée.
@@ -230,13 +236,27 @@ export function worktreesDuProjet(env: NodeJS.ProcessEnv, repertoireEtat: string
 // relit tel quel une fois qu'ils sont dans l'atelier. Tout autre chemin se lit
 // relatif au répertoire d'état. Il s'écrit avec `/` sur toutes les stations,
 // Windows compris : le journal dit la même chose d'une station à l'autre. Un
-// journal qu'une station Windows a écrit avec `\` se relit aussi.
+// journal qu'une station Windows a écrit avec `` se relit aussi.
 export const worktreeAuJournal = (run: string) => posix.join("worktrees", run);
 export function worktreeDuJournal(lieux: { repertoireEtat: string; worktrees: string }, auJournal: string): string {
   const [premier, ...suite] = auJournal.split(/[\\/]/);
   if (premier === "worktrees" && suite.length > 0) return join(lieux.worktrees, ...suite);
   return resolve(lieux.repertoireEtat, auJournal);
 }
+
+// Un worktree dont le cook a réécrit le fichier `.git`, ou le `commondir`
+// qu'il nomme : il ne désigne plus son dépôt dans le clone, et aucun `git`
+// n'y est lancé. Il ne se range pas, il s'abandonne (`abandonner`).
+export class WorktreeDetourne extends Error {}
+
+// Ce qui part avec un worktree abandonné : chaque chemin qu'il porte autrement
+// que la branche, précédé de ce qui lui est arrivé — `M` modifié, `D`
+// retiré, `T` changé de type, `?` neuf (un répertoire neuf tout entier :
+// son nom, terminé par `/`). Les `MAX_ABANDONNES` premiers ; `total` les
+// compte tous. `contre` : ce contre quoi ils se lisent — la branche, ou la base
+// si le clone ne l'a plus.
+export type Abandon = { contre: string; abandonnes: string[]; total: number };
+const MAX_ABANDONNES = 100;
 
 const DELAI_MS = 120_000;
 // Où vivent les worktrees jetables, sous celui des cooks : un nom qu'aucun run
@@ -354,7 +374,7 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
   // d'administration du worktree, sous le `.git` du clone.
   const administration = (worktree: string): string => {
     const refuser = (quoi: string): never => {
-      throw new Error(`« ${worktree} » ne désigne plus son dépôt dans le clone (${quoi}) : \`git\` n'y est pas lancé, il lirait comme une configuration ce que le cook a mis à la place`);
+      throw new WorktreeDetourne(`« ${worktree} » ne désigne plus son dépôt dans le clone (${quoi}) : \`git\` n'y est pas lancé, il lirait comme une configuration ce que le cook a mis à la place`);
     };
     if (!existsSync(worktree)) throw new Error(`« ${worktree} » n'existe pas : ce n'est le worktree de personne`);
     const designe = /^gitdir: (.+)$/.exec(uneLigne(join(worktree, ".git")) ?? "")?.[1];
@@ -681,6 +701,35 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
         rmSync(worktree, { recursive: true, force: true });
         await gitAsync("worktree", "prune");
         return null;
+      }),
+    abandonner: (worktree, branche) =>
+      aSonTour(async () => {
+        duCook(worktree);
+        const arbre = resolve(worktree);
+        // Ce qui part se lit sans rien de ce que le cook a écrit pour désigner
+        // un dépôt : le `.git` du clone imposé, et un index à part, chargé de
+        // la branche. Le worktree n'y est qu'un répertoire de fichiers, ses
+        // `.gitignore` compris ; les sous-modules ne sont pas descendus.
+        const contre = git("branch", "--list", branche) === "" ? `origin/${base}` : branche;
+        mkdirSync(essais, { recursive: true });
+        const index = join(essais, `${basename(arbre)}.abandon.index`);
+        const sur = (...args: string[]) =>
+          execFileSync("git", [...SANS_COMMANDE, `--git-dir=${commun}`, `--work-tree=${arbre}`, ...args], { ...reglages, env: { ...envGit, GIT_INDEX_FILE: index }, maxBuffer: Infinity, stdio: ["ignore", "pipe", "pipe"] });
+        const tous: string[] = [];
+        try {
+          sur("read-tree", contre);
+          sur("update-index", "-q", "--ignore-submodules", "--refresh");
+          const changes = sur("diff-files", "--name-status", "-z", "--no-renames", "--ignore-submodules=all").split("\0");
+          for (let i = 0; i + 1 < changes.length; i += 2) tous.push(`${changes[i]} ${changes[i + 1]}`);
+          for (const neuf of sur("ls-files", "--others", "--exclude-standard", "--directory", "--no-empty-directory", "-z").split("\0").filter(Boolean)) tous.push(`? ${neuf}`);
+        } catch (erreur) {
+          throw motif("lecture de ce que le worktree abandonné emporte", erreur);
+        } finally {
+          rmSync(index, { force: true });
+        }
+        rmSync(arbre, { recursive: true, force: true });
+        await gitAsync("worktree", "prune");
+        return { contre, abandonnes: tous.slice(0, MAX_ABANDONNES), total: tous.length };
       }),
     elaguer: (branche) =>
       aSonTour(async () => {

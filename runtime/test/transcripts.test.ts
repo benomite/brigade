@@ -30,7 +30,7 @@ function cuisine(t: TestContext, options: { cloisonne?: boolean } = {}) {
     journal,
     projet: "brigade",
     repertoireEtat: repertoire,
-    depot: { ranger: async () => null, elaguer: async () => true },
+    depot: { ranger: async () => null, abandonner: async () => ({ contre: "", abandonnes: [], total: 0 }), elaguer: async () => true },
     avertir: (message) => void avertissements.push(message),
     transcripts: options.cloisonne === false ? null : { claude, gardeMs: GARDE_MS },
     maintenant,
@@ -261,7 +261,7 @@ test("un projet qui a été cloisonné puis redémarre sans cloison n'a plus de 
   assert.notEqual(rangementDesTranscripts(journal.base), null);
 
   const sansCloison = () =>
-    ouvrirNettoyage({ journal, projet: "brigade", repertoireEtat: repertoire, depot: { ranger: async () => null, elaguer: async () => true }, avertir: () => {}, transcripts: null });
+    ouvrirNettoyage({ journal, projet: "brigade", repertoireEtat: repertoire, depot: { ranger: async () => null, abandonner: async () => ({ contre: "", abandonnes: [], total: 0 }), elaguer: async () => true }, avertir: () => {}, transcripts: null });
   sansCloison();
   assert.equal(rangementDesTranscripts(journal.base), null);
   assert.equal(journal.duType("transcripts.released", 100).length, 1);

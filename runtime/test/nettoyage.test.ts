@@ -5,6 +5,7 @@
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
+import { WorktreeDetourne, type Abandon } from "../src/depot.ts";
 import type { Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { ouvrirNettoyage } from "../src/nettoyage.ts";
@@ -56,6 +57,9 @@ function cuisine(t: TestContext) {
   // panne, ou rien — il part. Et d'une branche : vrai, elle est partie.
   const recoltes = new Map<string, string | Error>();
   const ranges: Array<[string, string]> = [];
+  // Ce qu'emporte un worktree détourné qu'on abandonne, ou la panne qui l'en empêche.
+  const abandons = new Map<string, Abandon | Error>();
+  const abandonnes: Array<[string, string]> = [];
   const pousses = new Map<string, boolean | Error>();
   const elaguees: string[] = [];
   const avertissements: string[] = [];
@@ -69,6 +73,12 @@ function cuisine(t: TestContext) {
         const recolte = recoltes.get(branche.slice("cook/".length)) ?? null;
         if (recolte instanceof Error) throw recolte;
         return recolte;
+      },
+      async abandonner(worktree, branche) {
+        abandonnes.push([worktree, branche]);
+        const abandon = abandons.get(branche.slice("cook/".length)) ?? { contre: branche, abandonnes: [], total: 0 };
+        if (abandon instanceof Error) throw abandon;
+        return abandon;
       },
       async elaguer(branche) {
         elaguees.push(branche);
@@ -85,7 +95,7 @@ function cuisine(t: TestContext) {
       .filter((e) => e.type.startsWith("worktree.") || e.type.startsWith("branch."))
       .map((e) => [e.type, e.payload]);
   const chemin = (run: string) => join(repertoire, "worktrees", run);
-  return { journal, noter, demarrer, arriver, lancer, sortir, interrompre, reprendre, raconter, finir, cuisiner, servir, partir, recoltes, ranges, pousses, elaguees, avertissements, nettoyage, faits, chemin };
+  return { journal, noter, demarrer, arriver, lancer, sortir, interrompre, reprendre, raconter, finir, cuisiner, servir, partir, recoltes, ranges, abandons, abandonnes, pousses, elaguees, avertissements, nettoyage, faits, chemin };
 }
 
 const retire = (run: string, harvest: string | null = null) => ["worktree.removed", { worktree: `worktrees/${run}`, branch: `cook/${run}`, harvest }];
@@ -126,6 +136,52 @@ test("un worktree qui ne se range pas est gardé et dit une fois ; le rattrapage
   recoltes.delete("17-aaa");
   await nettoyage.rattraper();
   assert.deepEqual(faits(17).at(-1), retire("17-aaa"));
+  assert.deepEqual(worktreesGardes(journal.base), []);
+});
+
+test("un worktree dont le cook a réécrit le `.git` ne se range pas : il est abandonné, sa branche reste, et le journal dit ce qui part avec lui", async (t) => {
+  const { cuisiner, recoltes, abandons, abandonnes, nettoyage, faits, journal, avertissements, chemin } = cuisine(t);
+  cuisiner(17, "17-aaa");
+  const refus = "« 17-aaa » ne désigne plus son dépôt dans le clone (fichier `.git` réécrit) : `git` n'y est pas lancé";
+  recoltes.set("17-aaa", new WorktreeDetourne(refus));
+  const emportes = Array.from({ length: 12 }, (_, i) => `? brouillon-${i}.txt`);
+  abandons.set("17-aaa", { contre: "cook/17-aaa", abandonnes: ["M README.md", ...emportes], total: 13 });
+
+  await nettoyage.ranger(17, "worktrees/17-aaa", "cook/17-aaa");
+
+  assert.deepEqual(abandonnes, [[chemin("17-aaa"), "cook/17-aaa"]]);
+  assert.deepEqual(faits(17), [
+    ["worktree.removed", { worktree: "worktrees/17-aaa", branch: "cook/17-aaa", harvest: null, abandoned: { detail: refus, against: "cook/17-aaa", dropped: ["M README.md", ...emportes], total: 13 } }],
+  ]);
+  assert.deepEqual(worktreesGardes(journal.base), []);
+  assert.equal(avertissements.length, 1);
+  assert.match(String(avertissements[0]), /worktree du ticket #17 abandonné \(worktrees\/17-aaa, branche cook\/17-aaa\) — .*fichier `\.git` réécrit.* ; parti avec lui, jamais commité : 13 chemins différents de `cook\/17-aaa` : M README\.md, \? brouillon-0\.txt, .*, et 3 autres \(au journal\)$/);
+});
+
+test("les worktrees détournés qu'une version d'avant #1951 a gardés partent au rattrapage, et quittent `status` ; celui qui ne s'abandonne pas reste gardé, dit une fois", async (t) => {
+  const { noter, demarrer, cuisiner, recoltes, abandons, abandonnes, nettoyage, faits, journal, avertissements } = cuisine(t);
+  const refus = (run: string) => `« ${run} » ne désigne plus son dépôt dans le clone (fichier \`.git\` réécrit) : \`git\` n'y est pas lancé`;
+  for (const [ticket, run] of [[17, "17-aaa"], [18, "18-aaa"]] as const) {
+    cuisiner(ticket, run);
+    noter(ticket, { type: "worktree.kept", payload: { worktree: `worktrees/${run}`, branch: `cook/${run}`, reason: "failed", detail: refus(run) } }, "nettoyage");
+    recoltes.set(run, new WorktreeDetourne(refus(run)));
+  }
+  demarrer();
+  abandons.set("18-aaa", new Error("lecture de ce que le worktree abandonné emporte : fatal: verrou tenu"));
+
+  await nettoyage.rattraper();
+  await nettoyage.rattraper();
+
+  assert.deepEqual(faits(17).at(-1), ["worktree.removed", { worktree: "worktrees/17-aaa", branch: "cook/17-aaa", harvest: null, abandoned: { detail: refus("17-aaa"), against: "cook/17-aaa", dropped: [], total: 0 } }]);
+  assert.match(String(avertissements[0]), /#17 abandonné .* parti avec lui, jamais commité : rien de plus que sa branche$/);
+  // Gardé une première fois avant #1951, il ne se redit pas.
+  assert.deepEqual(faits(18).map(([type]) => type), ["worktree.kept"]);
+  assert.deepEqual(worktreesGardes(journal.base).map(({ ticket }) => ticket), [18]);
+  assert.equal(avertissements.length, 1);
+  assert.equal(abandonnes.length, 3);
+
+  abandons.delete("18-aaa");
+  await nettoyage.rattraper();
   assert.deepEqual(worktreesGardes(journal.base), []);
 });
 
@@ -300,6 +356,7 @@ test("un runtime qui s'arrête ne commence plus rien", async (t) => {
         arrete = true;
         return null;
       },
+      abandonner: async () => ({ contre: "", abandonnes: [], total: 0 }),
       elaguer: async () => true,
     },
     avertir: () => {},
