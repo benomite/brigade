@@ -202,14 +202,14 @@ describe("un ticket qui t'attend", () => {
 
 describe("la forme se lit sans la couleur", () => {
   test("chaque forme de pastille a sa règle, et aucune n'en copie une autre", () => {
-    const formes = ["losange", "carre", "anneau", "triangle"].map((forme) => silhouette(regle(`.pastille[data-forme="${forme}"]`)));
+    const formes = ["losange", "carre", "anneau", "triangle", "pause"].map((forme) => silhouette(regle(`.pastille[data-forme="${forme}"]`)));
     // Le disque est la pastille nue : cercle plein.
     formes.push(silhouette(regle(".pastille")));
-    assert.equal(new Set(formes).size, 5, formes.join(" ; "));
+    assert.equal(new Set(formes).size, 6, formes.join(" ; "));
   });
 
   test("la vue ne pose une forme que d'un ton de la liste fermée, et ne la déduit de rien d'autre", () => {
     const source = readFileSync(join(VUE, "vue.js"), "utf8");
-    assert.match(source, /FORMES = \{ vert: "disque", jaune: "losange", rouge: "carre", bleu: "triangle", gris: "anneau" \}/);
+    assert.match(source, /FORMES = \{ vert: "disque", jaune: "losange", rouge: "carre", bleu: "triangle", gris: "anneau", orange: "pause" \}/);
   });
 });

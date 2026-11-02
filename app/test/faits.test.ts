@@ -240,15 +240,6 @@ describe("les faits que l'app dessine", () => {
         evenement: "merge.done · #216 · 13 s before the reading",
         rail: {
           colonnes: [
-            {
-              nom: "TODO",
-              ton: "rouge",
-              compte: "1",
-              // `attend`, dans la forme, le nomme : il est ici avant même que `status` ait été lu.
-              cartes: [{ ticket: 21, etat: "BLOQUÉ", mot: "BLOCKED", ton: "rouge", titre: "L'export du journal", ouvrable: true, attendu: true, attend: [], ligne: SANS_DECISION, dit: [], sans: `${SANS_STATUS} : who holds it · since when · its lease · what it burns · what blocks it`, ...fiche("L'export du journal", ATTENDU), gestes: ["attente-poser"] }],
-              vide: "no ticket in `attend`, according to `facts`",
-            },
-            { nom: "WAITING", ton: "gris", compte: "0", cartes: [], vide: "no ticket waits for a third party" },
             { nom: "On the rail", ton: "gris", compte: "0", cartes: [], vide: "no ticket" },
             {
               nom: "Taken",
@@ -277,6 +268,15 @@ describe("les faits que l'app dessine", () => {
               vide: "no ticket",
             },
             { nom: "Pass", ton: "jaune", compte: "0", cartes: [], vide: "no ticket" },
+            {
+              nom: "Todo",
+              ton: "rouge",
+              compte: "1",
+              // `attend`, dans la forme, le nomme : il est ici avant même que `status` ait été lu.
+              cartes: [{ ticket: 21, etat: "BLOQUÉ", mot: "BLOCKED", ton: "rouge", titre: "L'export du journal", ouvrable: true, attendu: true, attend: [], ligne: SANS_DECISION, dit: [], sans: `${SANS_STATUS} : who holds it · since when · its lease · what it burns · what blocks it`, ...fiche("L'export du journal", ATTENDU), gestes: ["attente-poser"] }],
+              vide: "no ticket in `attend`, according to `facts`",
+            },
+            { nom: "Waiting", ton: "orange", compte: "0", cartes: [], vide: "no ticket waits for a third party" },
             {
               nom: "Served",
               ton: "vert",
@@ -507,14 +507,14 @@ describe("le rail en six colonnes", () => {
     const dessine = rail({ ...SANS_ATTEND_NI_LIVRES, rail: RAIL });
 
     assert.deepEqual(rangs(dessine), [
-      ["TODO", "?", []],
-      ["WAITING", "0", []],
       ["On the rail", "3", [16, 21, 22]],
       ["Taken", "1", [14]],
       ["Pass", "2", [12, 15]],
+      ["Todo", "?", []],
+      ["Waiting", "0", []],
       ["Served", "1", [9]],
     ]);
-    assert.match(dessine.colonnes[0]?.vide ?? "", /^not read: .* This is not “nothing awaits you”/);
+    assert.match(dessine.colonnes[3]?.vide ?? "", /^not read: .* This is not “nothing awaits you”/);
     assert.ok(!("attendLu" in dessine));
     assert.ok(cartes(dessine).every(({ attendu }) => !attendu));
   });
@@ -523,17 +523,17 @@ describe("le rail en six colonnes", () => {
     const dessine = rail({ ...SANS_LIVRES, rail: RAIL, attend: [{ ticket: 21, titre: "Ticket 21", url: "https://github.com/benomite/brigade/issues/21" }, { ticket: 12, titre: "Ticket 12", url: "https://github.com/benomite/brigade/issues/12" }] });
 
     assert.deepEqual(rangs(dessine), [
-      ["TODO", "2", [21, 12]],
-      ["WAITING", "0", []],
       ["On the rail", "2", [16, 22]],
       ["Taken", "1", [14]],
       ["Pass", "1", [15]],
+      ["Todo", "2", [21, 12]],
+      ["Waiting", "0", []],
       ["Served", "1", [9]],
     ]);
     // Ce qu'on attend de lui, en mots, n'a pas été lu : la carte l'écrit, et n'offre aucun geste d'après des mots qu'elle n'a pas.
-    assert.deepEqual(dessine.colonnes[0]?.cartes[0], { ticket: 21, etat: "BLOQUÉ", mot: "BLOCKED", ton: "rouge", titre: "Ticket 21", ouvrable: true, attendu: true, attend: [], ...NUE, ligne: SANS_DECISION, ...fiche("Ticket 21", ATTENDU), gestes: ["attente-poser"] });
+    assert.deepEqual(dessine.colonnes[3]?.cartes[0], { ticket: 21, etat: "BLOQUÉ", mot: "BLOCKED", ton: "rouge", titre: "Ticket 21", ouvrable: true, attendu: true, attend: [], ...NUE, ligne: SANS_DECISION, ...fiche("Ticket 21", ATTENDU), gestes: ["attente-poser"] });
     // Aucun ticket n'attend : la colonne le dit de `faits`, et jamais « rien ne t'attend » — une connexion, la base n'y ont pas de carte.
-    assert.deepEqual(rail({ ...SANS_LIVRES, rail: RAIL, attend: [] }).colonnes[0], { nom: "TODO", ton: "rouge", compte: "0", cartes: [], vide: "no ticket in `attend`, according to `facts`" });
+    assert.deepEqual(rail({ ...SANS_LIVRES, rail: RAIL, attend: [] }).colonnes[3], { nom: "Todo", ton: "rouge", compte: "0", cartes: [], vide: "no ticket in `attend`, according to `facts`" });
   });
 
   test("le bloc `attend` y ajoute ce qu'on attend de lui : un ticket qu'il nomme est dans T'attend et nulle part ailleurs, dans l'ordre du bloc, avec ce que sa ligne dit", () => {
@@ -541,15 +541,15 @@ describe("le rail en six colonnes", () => {
       const dessine = rail(faits, BLOC);
 
       assert.deepEqual(rangs(dessine), [
-        ["TODO", "3", [21, 30, 12]],
-        ["WAITING", "0", []],
         ["On the rail", "2", [16, 22]],
         ["Taken", "1", [14]],
         ["Pass", "1", [15]],
+        ["Todo", "3", [21, 30, 12]],
+        ["Waiting", "0", []],
         ["Served", "1", [9]],
       ]);
       assert.equal(dessine.attendLu, BLOC.a);
-      assert.deepEqual(dessine.colonnes[0]?.cartes[2], {
+      assert.deepEqual(dessine.colonnes[3]?.cartes[2], {
         ticket: 12,
         etat: "en pass",
         mot: "in pass",
@@ -569,12 +569,12 @@ describe("le rail en six colonnes", () => {
   test("un ticket que `faits` dit attendre et que le bloc ne nomme pas — deux lectures, deux instants — reste dans T'attend, après ceux du bloc", () => {
     const dessine = rail({ ...SANS_LIVRES, rail: RAIL, attend: [{ ticket: 15, titre: "Ticket 15", url: "https://github.com/benomite/brigade/issues/15" }] }, BLOC);
 
-    assert.deepEqual(rangs(dessine)[0], ["TODO", "4", [21, 30, 12, 15]]);
-    assert.deepEqual(rangs(dessine)[4], ["Pass", "0", []]);
+    assert.deepEqual(rangs(dessine)[3], ["Todo", "4", [21, 30, 12, 15]]);
+    assert.deepEqual(rangs(dessine)[2], ["Pass", "0", []]);
   });
 
   test("un ticket que le bloc nomme sans qu'il soit sur le rail a sa carte : son numéro et sa ligne — ni titre, ni état, ni adresse, que `faits` ne donne pas", () => {
-    assert.deepEqual(rail({ ...SANS_LIVRES, rail: RAIL }, BLOC).colonnes[0]?.cartes[1], {
+    assert.deepEqual(rail({ ...SANS_LIVRES, rail: RAIL }, BLOC).colonnes[3]?.cartes[1], {
       ticket: 30,
       ouvrable: false,
       attendu: true,
@@ -591,7 +591,7 @@ describe("le rail en six colonnes", () => {
       { ticket: 30, titre: "", url: "https://github.com/benomite/brigade/issues/30" },
       { ticket: 12, titre: "Ticket 12", url: "https://github.com/benomite/brigade/issues/12" },
     ];
-    const cartesDe = (faits: Faits) => rail(faits, BLOC).colonnes[0]?.cartes;
+    const cartesDe = (faits: Faits) => rail(faits, BLOC).colonnes[3]?.cartes;
 
     assert.deepEqual(cartesDe({ ...SANS_LIVRES, rail: RAIL, attend })?.[1], {
       ticket: 30,
@@ -603,7 +603,7 @@ describe("le rail en six colonnes", () => {
       ...ATTENDUE,
       ...fiche(undefined, ATTENDU),
     });
-    const titre = rail({ ...SANS_LIVRES, rail: [], attend: [{ ticket: 30, titre: "Un titre", url: "https://github.com/benomite/brigade/issues/30" }] }, BLOC).colonnes[0]?.cartes.find(({ ticket }) => ticket === 30);
+    const titre = rail({ ...SANS_LIVRES, rail: [], attend: [{ ticket: 30, titre: "Un titre", url: "https://github.com/benomite/brigade/issues/30" }] }, BLOC).colonnes[3]?.cartes.find(({ ticket }) => ticket === 30);
     assert.deepEqual([titre?.titre, titre?.ouvrable], ["Un titre", true]);
     // Sans adresse, ou une adresse qui n'est pas en https : rien ne s'ouvre.
     for (const url of [null, "http://exemple.fr/30", "file:///etc/passwd"]) assert.equal(cartesDe({ ...SANS_LIVRES, rail: RAIL, attend: [{ ticket: 30, titre: "", url }] })?.[1]?.ouvrable, false);
@@ -613,14 +613,14 @@ describe("le rail en six colonnes", () => {
     const sansTicket = { ...BLOC, bloc: BLOC.bloc.split("\n").filter((ligne) => !ligne.startsWith("  #")).join("\n") };
     const dessine = rail({ ...SANS_ATTEND_NI_LIVRES, rail: RAIL }, sansTicket);
 
-    assert.deepEqual(dessine.colonnes[0], { nom: "TODO", ton: "rouge", compte: "0", cartes: [], vide: "no ticket at the head of a line of the `attend` block" });
-    assert.deepEqual(rangs(dessine), rangs(rail({ ...SANS_ATTEND_NI_LIVRES, rail: RAIL })).map((colonne) => (colonne[0] === "TODO" ? ["TODO", "0", []] : colonne)));
+    assert.deepEqual(dessine.colonnes[3], { nom: "Todo", ton: "rouge", compte: "0", cartes: [], vide: "no ticket at the head of a line of the `attend` block" });
+    assert.deepEqual(rangs(dessine), rangs(rail({ ...SANS_ATTEND_NI_LIVRES, rail: RAIL })).map((colonne) => (colonne[0] === "Todo" ? ["Todo", "0", []] : colonne)));
   });
 
   test("le bloc dit que rien n'attend le chef : TODO, en tête, le dit en une ligne au lieu de disparaître (#2076)", () => {
     for (const tete of ["awaiting   nothing awaits the chef", "attend     rien n'attend le chef"]) {
       const vide = { ...BLOC, bloc: [tete, "  v1.0.75 in service since 08:00", tete.startsWith("awaiting") ? "end awaiting" : "fin attend", ""].join("\n") };
-      assert.deepEqual(rail({ ...SANS_ATTEND_NI_LIVRES, rail: RAIL }, vide).colonnes[0], { nom: "TODO", ton: "rouge", compte: "0", cartes: [], vide: "nothing awaits you" });
+      assert.deepEqual(rail({ ...SANS_ATTEND_NI_LIVRES, rail: RAIL }, vide).colonnes[3], { nom: "Todo", ton: "rouge", compte: "0", cartes: [], vide: "nothing awaits you" });
     }
   });
 
@@ -631,7 +631,7 @@ describe("le rail en six colonnes", () => {
     ]);
     const remonte = rail({ ...SANS_ATTEND_NI_LIVRES, rail: RAIL }, { ...BLOC, bloc: "attend     1 décision attend le chef depuis 2 j\n  #40  depuis 2 j  remontée par la pass, rouge\nfin attend\n" });
 
-    assert.deepEqual(remonte.colonnes[0]?.cartes.map(({ ticket, etat }) => [ticket, etat]), [[40, "86"]]);
+    assert.deepEqual(remonte.colonnes[3]?.cartes.map(({ ticket, etat }) => [ticket, etat]), [[40, "86"]]);
     assert.deepEqual(remonte.hors.map(({ ticket }) => ticket), [41]);
     assert.deepEqual(rail({ ...SANS_LIVRES, rail: RAIL, attend: [{ ticket: 41, titre: "Ticket 41", url: null }] }).hors.map(({ ticket }) => ticket), [40]);
   });
@@ -655,21 +655,21 @@ describe("le rail en six colonnes", () => {
     const dessine = rail({ ...SANS_LIVRES, rail: [aside] });
 
     assert.deepEqual(dessine.hors, []);
-    assert.deepEqual(dessine.colonnes[2]?.cartes.map(({ ticket }) => ticket), [40]);
+    assert.deepEqual(dessine.colonnes[0]?.cartes.map(({ ticket }) => ticket), [40]);
   });
 
   test("un ticket nommé deux fois par le bloc n'a qu'une carte, qui porte ses deux lignes", () => {
     const double = rail({ ...SANS_ATTEND_NI_LIVRES, rail: RAIL }, { ...BLOC, bloc: "attend\n  #14  une ligne\n  #14  une autre\nfin attend\n" });
 
-    assert.deepEqual(double.colonnes[0]?.cartes.map(({ ticket, etat, attendu, attend }) => ({ ticket, etat, attendu, attend })), [{ ticket: 14, etat: "pris", attendu: true, attend: ["une ligne", "une autre"] }]);
-    assert.equal(double.colonnes[0]?.compte, "1");
+    assert.deepEqual(double.colonnes[3]?.cartes.map(({ ticket, etat, attendu, attend }) => ({ ticket, etat, attendu, attend })), [{ ticket: 14, etat: "pris", attendu: true, attend: ["une ligne", "une autre"] }]);
+    assert.equal(double.colonnes[3]?.compte, "1");
   });
 
   test("ce que le bloc dit d'un ticket est porté mot pour mot, ni tronqué ni remis en forme : une entrée longue, et les lignes qui la précisent dessous", () => {
     const longue = `depuis 2 j  ${"une phrase très longue, avec    des blancs, `du code` et un <b>faux balisage</b> — ".repeat(40)}jusqu'au bout  `;
     const suite = ["      │ une première ligne de suite,   blancs compris  ", "      │ \tune tabulation, puis « des accents » → ✓", `      │ ${"x".repeat(900)}`];
     const bloc = ["attend     2 décisions attendent le chef — la plus ancienne depuis 2 j", `  #12  ${longue}`, ...suite, "  #21  depuis 3 h 02  courte", "fin attend", ""].join("\n");
-    const [premiere, seconde] = rail({ ...SANS_LIVRES, rail: RAIL }, { bloc, a: BLOC.a }).colonnes[0]?.cartes ?? [];
+    const [premiere, seconde] = rail({ ...SANS_LIVRES, rail: RAIL }, { bloc, a: BLOC.a }).colonnes[3]?.cartes ?? [];
 
     assert.deepEqual(premiere?.attend, [[longue, ...suite].join("\n")]);
     assert.deepEqual(seconde?.attend, ["depuis 3 h 02  courte"]);
@@ -719,7 +719,7 @@ describe("Livré, d'après `livres`", () => {
     assert.equal(livreCol(dessine)?.defile, true);
     // #9 n'a qu'une carte : celle de Livré. #14, repris depuis son service, est aussi au travail.
     assert.deepEqual(cartes(dessine).filter(({ ticket }) => ticket === 9).length, 1);
-    assert.deepEqual(rangs(dessine)[3], ["Taken", "1", [14]]);
+    assert.deepEqual(rangs(dessine)[1], ["Taken", "1", [14]]);
     assert.deepEqual(livreCol(dessine)?.cartes[0], {
       ticket: 30,
       etat: "servi",
@@ -843,7 +843,7 @@ describe("Livré, d'après `livres`", () => {
 
 describe("le bloc `attend` tenu à côté des faits", () => {
   const status = (texte: string, a = BLOC.a): Lecture => ({ projet: "brigade", demande: 9, a, sorties: [{ commande: "status", texte }] });
-  const colonne = (recue: ReturnType<ReturnType<typeof tenirFaits>["attendre"]>) => (recue !== undefined && "tableau" in recue ? recue.tableau.rail.colonnes[0] : undefined);
+  const colonne = (recue: ReturnType<ReturnType<typeof tenirFaits>["attendre"]>) => (recue !== undefined && "tableau" in recue ? recue.tableau.rail.colonnes[3] : undefined);
 
   test("ce que le bloc dit d'un ticket se rend au process principal, ligne pour ligne — et rien pour un ticket qu'il ne nomme pas", () => {
     const tenus = tenirFaits();
@@ -877,7 +877,7 @@ describe("le bloc `attend` tenu à côté des faits", () => {
 
     assert.ok(recue !== undefined && "tableau" in recue);
     assert.equal(recue.tableau.rail.railLu, BLOC.a);
-    assert.deepEqual(recue.tableau.rail.colonnes[3]?.cartes[0]?.dit.map(({ libelle, valeur }) => [libelle, valeur]).slice(1, 4), [["taken by", "box/claude"], ["since", "12 min"], ["lease", "bail encore 18 min"]]);
+    assert.deepEqual(recue.tableau.rail.colonnes[1]?.cartes[0]?.dit.map(({ libelle, valeur }) => [libelle, valeur]).slice(1, 4), [["taken by", "box/claude"], ["since", "12 min"], ["lease", "bail encore 18 min"]]);
     // Des faits relus ensuite se dessinent avec lui ; raté, il n'en reste rien.
     assert.deepEqual(tenus.recevoir(lue(rendus({ ...SANS_LIVRES, rail: RAIL }))), recue);
     const apres = tenus.attendre(mettreAPart({ projet: "brigade", demande: 9, a: BLOC.a, erreur: "spawn node ENOENT", atteinte: false, cas: null }));
@@ -921,7 +921,7 @@ describe("le bloc `attend` tenu à côté des faits", () => {
     // Une heure après, #12 a été servi : il est dans Livré, pas dans T'attend d'après le bloc d'avant.
     const servi = tenus.recevoir(lue(rendus({ ...SANS_LIVRES, rail: RAIL.map((connu) => (connu.ticket === 12 ? { ...connu, etat: "servi" } : connu)) })));
     assert.ok("tableau" in servi);
-    assert.deepEqual([...rangs(servi.tableau.rail).slice(0, 2), ...rangs(servi.tableau.rail).slice(5)], [["TODO", "1", [21]], ["WAITING", "0", []], ["Served", "2", [9, 12]]]);
+    assert.deepEqual(rangs(servi.tableau.rail).slice(3), [["Todo", "1", [21]], ["Waiting", "0", []], ["Served", "2", [9, 12]]]);
     assert.deepEqual(tenus.recevoir(parade), { ...dessiner(parade), tableau: tableau({ ...SANS_LIVRES, rail: RAIL }, BLOC) });
 
     // Rien à lâcher : rien n'est redessiné. Et plus aucun projet lu lâche le dernier.

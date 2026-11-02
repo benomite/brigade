@@ -2322,6 +2322,9 @@ main > header,
 [data-ton="bleu"] {
   --ton: var(--bleu);
 }
+[data-ton="orange"] {
+  --ton: var(--orange);
+}
 [data-ton="gris"] {
   --ton: var(--gris);
 }
@@ -2341,6 +2344,14 @@ main > header,
 .pastille[data-forme="anneau"] {
   background: transparent;
   border-width: 2px;
+}
+.pastille[data-forme="pause"] {
+  border: 0;
+  border-radius: 0;
+  width: 3px;
+  margin-right: 13px;
+  background: var(--ton);
+  box-shadow: 5px 0 0 var(--ton);
 }
 .pastille[data-forme="triangle"] {
   border: 0;
@@ -3824,6 +3835,14 @@ main > header,
   background: transparent;
   border: 2px solid var(--ton);
 }
+/* La pause : deux barres, « tenu, en attente de quelqu'un ». */
+#rail .colonne[data-forme="pause"] h4 span:first-child::before {
+  border-radius: 0;
+  width: 3px;
+  margin-right: 13px;
+  background: var(--ton);
+  box-shadow: 5px 0 0 var(--ton);
+}
 #rail .colonne[data-forme="triangle"] h4 span:first-child::before {
   border-radius: 0;
   clip-path: polygon(50% 0, 100% 100%, 0 100%);
@@ -4316,6 +4335,14 @@ main > header,
 #rail .etat-ticket[data-forme="anneau"]::before {
   background: transparent;
   border: 2px solid var(--ton);
+}
+#rail .etat-ticket[data-forme="pause"]::before {
+  border: 0;
+  border-radius: 0;
+  width: 3px;
+  margin-right: 13px;
+  background: var(--ton);
+  box-shadow: 5px 0 0 var(--ton);
 }
 #rail .etat-ticket[data-forme="triangle"]::before {
   border-radius: 0;

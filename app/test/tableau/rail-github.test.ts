@@ -34,7 +34,7 @@ describe("l'état du rail est celui de GitHub", () => {
     const colonnes = await colonnesDe(["success", "skipped"]);
     assert.deepEqual(colonnes["Taken"], ["#2 taken bleu"]);
     assert.deepEqual(colonnes["Pass"], ["#3 in pass jaune"]);
-    assert.deepEqual(colonnes["WAITING"], ["#4 waiting gris"]);
+    assert.deepEqual(colonnes["Waiting"], ["#4 waiting gris"]);
     // #1 sans état ni la box ni GitHub n'en dit un : en attente. #5 en pass sans PR et #6 sans label : GitHub n'en dit aucun
     // des quatre, la box ne l'emporte pas. #7, servi : GitHub n'a pas d'état pour lui, le mot de la box reste.
     assert.deepEqual(colonnes["On the rail"], ["#1 queued gris", "#5 queued gris", "#6 queued gris"]);

@@ -124,20 +124,20 @@ describe("la file d'un projet sur le téléphone", () => {
     assert.deepEqual(
       colonnes(vue).map(({ nom, compte }) => [nom, compte]),
       [
-        ["TODO", "1"],
-        ["WAITING", "0"],
         ["On the rail", "2"],
         ["Taken", "2"],
         ["Pass", "0"],
+        ["Todo", "1"],
+        ["Waiting", "0"],
         ["Served", "1"],
       ],
     );
-    const [todo] = colonnes(vue).filter(({ nom }) => nom === "TODO");
+    const [todo] = colonnes(vue).filter(({ nom }) => nom === "Todo");
     assert.match(todo?.cartes.join() ?? "", /#12.*Validation SIRET/);
     // La peau la met en tête d'après cette marque, et elle ne marque qu'elle.
     assert.deepEqual(
       sections(vue).filter((colonne) => "attend" in colonne.dataset).map((colonne) => colonne.children[0]?.children[0]?.textContent),
-      ["TODO"],
+      ["Todo"],
     );
   });
 

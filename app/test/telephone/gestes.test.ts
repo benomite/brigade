@@ -141,7 +141,7 @@ const issueDuGeste = (vue: Jouee) => gestes(vue).children.filter((pose) => pose.
 describe("depuis le téléphone, merger une PR qui attend", () => {
   test("TODO : #12, son geste recommandé « merge the PR » ; confirmé, il part nommé — projet, geste, ticket —, la fiche dit ce que la station a fait, la box est relue, et #12 quitte la file", async () => {
     const vue = await ouvrir({ gesteDeFiche: () => ({ fait: "#12 merged into the integration branch", detail: "brigade : #12: merged (PR #40)" }) });
-    assert.deepEqual(file(vue).TODO, ["#12", "#31"]);
+    assert.deepEqual(file(vue).Todo, ["#12", "#31"]);
     await toucherLaCarte(vue, 12);
     assert.equal(geste(vue, "merger").className, "recommande");
     assert.equal(geste(vue, "merger").textContent, "merge the PR");
@@ -152,7 +152,7 @@ describe("depuis le téléphone, merger une PR qui attend", () => {
     assert.equal(vue.appels.filter(({ geste: nom }) => nom === "relireBox").length, relues + 1, "la box est relue tout de suite");
     lire(vue, MERGEE);
     await repos();
-    assert.deepEqual(file(vue).TODO, ["#31"]);
+    assert.deepEqual(file(vue).Todo, ["#31"]);
     assert.deepEqual(file(vue).Served, ["#12"]);
   });
 
@@ -191,7 +191,7 @@ describe("depuis le téléphone, trancher une carte", () => {
     assert.deepEqual(issueDuGeste(vue), [{ classe: "dit", dit: "#31 left the rail", survol: "" }]);
     lire(vue, RETIREE);
     await repos();
-    assert.deepEqual(file(vue).TODO, ["#12"]);
+    assert.deepEqual(file(vue).Todo, ["#12"]);
     assert.ok(!Object.values(file(vue)).flat().includes("#31"), "#31 n'est plus nulle part dans la file");
   });
 });
