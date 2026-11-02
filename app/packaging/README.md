@@ -69,8 +69,8 @@ sur `main` qui change l'app**, une release `app-v<version>`. Personne ne pose de
    release viennent de `paquets.ts notes` : un tableau, une ligne par paquet, avec sa plateforme et
    comment l'ouvrir quand il n'est pas signé (Gatekeeper, SmartScreen, clés inconnues d'Android).
    Pour voir ces notes sans rien publier : `node scripts/app-release/paquets.ts notes --produit app
-   --version 1.0.3` (ou `--produit station`). Rien n'est publié si une construction échoue. La release n'est pas marquée « latest » :
-   celle-là reste à la station, que `releases/latest/download/installer-station.sh` trouve.
+   --version 1.0.3` (ou `--produit station`). Rien n'est publié si une construction échoue. La release est marquée « latest » :
+   `releases/latest` mène à l'app. La station a sa propre adresse, `releases/download/station/`.
 5. Le job `alerter` joue quand une construction ou `publier` échoue ou est annulée : il ouvre une issue
    `publier-app: <tag> was not published…` (ou commente celle qui est déjà ouverte), avec le lien du run
    et les jobs en cause. Si les annotations du job parlent d'une image de runner retirée ou en

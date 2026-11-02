@@ -83,7 +83,7 @@ describe("sous Linux", { skip: sansSystemd }, () => {
     const rendu = jouer([], machine.env);
     assert.equal(rendu.code, 0, rendu.sortie);
     const appels = machine.appels();
-    assert.ok(appels.some((a) => /^curl -fsSL -o \S+\/brigade-station\.deb https:\/\/github\.com\/acme\/brigade\/releases\/latest\/download\/brigade-station_amd64\.deb$/.test(a)), appels.join("\n"));
+    assert.ok(appels.some((a) => /^curl -fsSL -o \S+\/brigade-station\.deb https:\/\/github\.com\/acme\/brigade\/releases\/download\/station\/brigade-station_amd64\.deb$/.test(a)), appels.join("\n"));
     assert.ok(appels.includes("apt-get update -q"), appels.join("\n"));
     assert.ok(appels.some((a) => /^apt-get install -y -q \/\S+\/brigade-station\.deb$/.test(a)), appels.join("\n"));
     assert.ok(appels.includes("systemctl --quiet is-active brigade-station.service"), appels.join("\n"));
@@ -252,7 +252,7 @@ describe("sous macOS", { skip: posixOnly("plays deploy/installer-station.sh thro
     const appels = mac.appels();
     assert.deepEqual(
       appels.filter((a) => a.startsWith("curl")).map((a) => a.split(" ").at(-1)),
-      ["https://nodejs.org/dist/latest-v26.x/SHASUMS256.txt", `https://nodejs.org/dist/latest-v26.x/node-${VERSION_NODE}-darwin-arm64.tar.gz`, "https://github.com/acme/brigade/releases/latest/download/brigade-station-mac.tar.gz"],
+      ["https://nodejs.org/dist/latest-v26.x/SHASUMS256.txt", `https://nodejs.org/dist/latest-v26.x/node-${VERSION_NODE}-darwin-arm64.tar.gz`, "https://github.com/acme/brigade/releases/download/station/brigade-station-mac.tar.gz"],
     );
     assert.ok(existsSync(join(mac.base, "runtime/src/station/main.ts")));
     assert.equal(spawnSync(join(mac.base, "node/bin/node"), ["-v"], { encoding: "utf8" }).stdout.trim(), VERSION_NODE);
@@ -325,7 +325,7 @@ describe("sous macOS", { skip: posixOnly("plays deploy/installer-station.sh thro
     const rendu = jouer([], { ...mac.env, BRIGADE_TERMINAL: terminal });
     assert.equal(rendu.code, 0, rendu.sortie);
     const appels = mac.appels().slice(deja);
-    assert.deepEqual(appels.filter((a) => a.startsWith("curl")).map((a) => a.split(" ").at(-1)), ["https://github.com/acme/brigade/releases/latest/download/brigade-station-mac.tar.gz"]);
+    assert.deepEqual(appels.filter((a) => a.startsWith("curl")).map((a) => a.split(" ").at(-1)), ["https://github.com/acme/brigade/releases/download/station/brigade-station-mac.tar.gz"]);
     assert.deepEqual(appels.filter((a) => a.startsWith("launchctl") && !a.startsWith("launchctl print")), []);
     assert.ok(!appels.some((a) => a.endsWith("auth login") || a.includes("auth login ")), appels.join("\n"));
     assert.equal(statSync(mac.plist).mtimeMs, avant);

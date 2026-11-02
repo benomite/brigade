@@ -197,7 +197,7 @@ describe("sous Windows", { skip: saut }, () => {
     const appels = pc.appels();
     assert.deepEqual(
       appels.filter((a) => a.startsWith("curl.exe")).map((a) => a.split(" ").at(-1)),
-      ["https://nodejs.org/dist/latest-v26.x/SHASUMS256.txt", `https://nodejs.org/dist/latest-v26.x/node-${VERSION_NODE}-win-x64.zip`, "https://github.com/acme/brigade/releases/latest/download/brigade-station-windows.zip"],
+      ["https://nodejs.org/dist/latest-v26.x/SHASUMS256.txt", `https://nodejs.org/dist/latest-v26.x/node-${VERSION_NODE}-win-x64.zip`, "https://github.com/acme/brigade/releases/download/station/brigade-station-windows.zip"],
     );
     assert.ok(existsSync(join(pc.base, "runtime/src/station/main.ts")));
     assert.ok(existsSync(join(pc.base, "node/node.exe")));
@@ -244,7 +244,7 @@ describe("sous Windows", { skip: saut }, () => {
     const rendu = jouer(pc, { BRIGADE_TERMINAL: terminal });
     assert.equal(rendu.code, 0, rendu.sortie);
     const appels = pc.appels().slice(deja);
-    assert.deepEqual(appels.filter((a) => a.startsWith("curl.exe")).map((a) => a.split(" ").at(-1)), ["https://github.com/acme/brigade/releases/latest/download/brigade-station-windows.zip"]);
+    assert.deepEqual(appels.filter((a) => a.startsWith("curl.exe")).map((a) => a.split(" ").at(-1)), ["https://github.com/acme/brigade/releases/download/station/brigade-station-windows.zip"]);
     assert.deepEqual(appels.filter((a) => a.startsWith("Start-Process")), []);
     assert.ok(!appels.some((a) => a.includes("auth login")), appels.join("\n"));
     assert.ok(appels.includes("gh auth setup-git"), appels.join("\n"));

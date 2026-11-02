@@ -6,6 +6,9 @@
 # `brigade-station-mac.tar.gz` — le runtime que le paquet porte, pour macOS — et
 # `brigade-station-windows.zip` — le même, pour Windows —, avec des notes qui disent la plateforme. La version est celle que
 # `construire.ts` se donne sans `--version` : `0.<AAAAMMJJ>.<HHMMSS>+g<commit>`.
+# Aucune release de la station n'est « latest » : c'est l'app, pour que le lien de téléchargement du
+# README et du site (`releases/latest`) mène à elle. La station a son adresse stable, la release
+# de tag `station`, dont les fichiers sont remplacés à chaque publication.
 # Un merge qui ne touche que l'app, la doc ou le plugin V1 ne publie rien.
 # `workflow_dispatch` publie le commit choisi, à la main.
 name: publier-station
@@ -81,6 +84,23 @@ jobs:
             --target "$GITHUB_SHA" \
             --title "Station $version" \
             --notes-file "$RUNNER_TEMP/notes.md" \
-            --latest
-          # Seules les 5 dernières releases de la station restent, tags compris.
+            --latest=false
+          # L'adresse stable : la release `station` reçoit les mêmes fichiers à chaque publication,
+          # `releases/download/station/installer-station.sh` (et .ps1) installe donc toujours la
+          # dernière station, quelle que soit la release « latest » (l'app). Son tag ne commence pas
+          # par `station-` : les stations installées ne la prennent pas pour une version.
+          git tag -f station "$GITHUB_SHA"
+          git push -f origin refs/tags/station
+          fichiers=("$RUNNER_TEMP/installer-station.sh" "$RUNNER_TEMP/installer-station.ps1" "$RUNNER_TEMP/brigade-station_amd64.deb" "$RUNNER_TEMP/brigade-station-linux-amd64.deb" "$RUNNER_TEMP/brigade-station-mac.tar.gz" "$RUNNER_TEMP/brigade-station-windows.zip")
+          if gh release view station >/dev/null 2>&1; then
+            gh release upload station "${fichiers[@]}" --clobber
+            gh release edit station --title "Station (latest: $version)" --notes-file "$RUNNER_TEMP/notes.md" --latest=false
+          else
+            gh release create station "${fichiers[@]}" \
+              --verify-tag \
+              --title "Station (latest: $version)" \
+              --notes-file "$RUNNER_TEMP/notes.md" \
+              --latest=false
+          fi
+          # Seules les 5 dernières releases de la station restent, tags compris (`station` n'a pas le préfixe `station-` : elle reste).
           GH_REPO="$GITHUB_REPOSITORY" scripts/app-release/garder-les-dernieres.sh station- 5

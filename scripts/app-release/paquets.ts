@@ -47,7 +47,7 @@ export function paquetsDeLApp(version: string, signe: boolean): Paquet[] {
 // and on Windows, installed by its PowerShell twin (runtime/deploy/windows/installer-station.ps1).
 // `installer-station.sh`, `installer-station.ps1`, `brigade-station_amd64.deb`,
 // `brigade-station-mac.tar.gz` and `brigade-station-windows.zip` keep their names: the install
-// commands (`releases/latest/download/installer-station.sh` and `.ps1`), the scripts themselves and
+// commands (`releases/download/station/installer-station.sh` and `.ps1`), the scripts themselves and
 // the running stations' own update (runtime/src/mise-a-jour/publications.ts) read them by name.
 export function paquetsDeLaStation(): Paquet[] {
   return [

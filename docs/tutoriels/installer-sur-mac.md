@@ -34,7 +34,7 @@ Run `gh auth login`, then `claude` (use your **Max** account), and leave it with
 
 ### 4. Download the app
 
-On the **[releases page](https://github.com/benomite/brigade/releases)**, take the latest release named **“Brigade `<version>`”** (tag `app-v<version>`) — not a “Station” release, even marked “Latest” — and download **`Brigade-<version>-mac-arm64.dmg`**.
+On the **[releases page](https://github.com/benomite/brigade/releases/latest)**, the release marked “Latest” is the app, named **“Brigade `<version>`”** (tag `app-v<version>`). Download **`Brigade-<version>-mac-arm64.dmg`**.
 
 **You see**: a file of about 190 MB in `Downloads`.
 

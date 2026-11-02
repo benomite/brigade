@@ -2,7 +2,7 @@
 # Installe une station brigade, en une commande — la même sous Linux et sous
 # macOS, celle du guide (docs/installation-station.md) :
 #
-#   curl -fsSL https://github.com/<owner>/<repo>/releases/latest/download/installer-station.sh | sh
+#   curl -fsSL https://github.com/<owner>/<repo>/releases/download/station/installer-station.sh | sh
 #
 # C'est la seule entrée de l'installation d'une station : rien ne s'écrit à la
 # main, ni avant ni après — ni drop-in, ni fichier d'environnement, ni unité.
@@ -79,7 +79,7 @@ source_de() {
       */*) ;;
       *) refuser "aucun dépôt n'est désigné pour télécharger la station — donner ce qu'il faut installer (un chemin ou une adresse) en argument, ou BRIGADE_DEPOT=<compte>/<dépôt> du dépôt GitHub qui publie brigade" ;;
     esac
-    printf '%s\n' "https://github.com/$DEPOT/releases/latest/download/$2"
+    printf '%s\n' "https://github.com/$DEPOT/releases/download/station/$2"
   else
     printf '%s\n' "$1"
   fi

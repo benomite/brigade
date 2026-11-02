@@ -128,8 +128,8 @@ export function ajoutsDuProjet(lues, { nom, depot }) {
 // La commande d'installation d'une station, selon le système de la machine qui cuit (docs/installation-station.md).
 /** @type {readonly { systeme: string, commande: string }[]} */
 export const INSTALLER = [
-  { systeme: "Linux or macOS", commande: "curl -fsSL https://github.com/benomite/brigade/releases/latest/download/installer-station.sh | sh" },
-  { systeme: "Windows, in PowerShell", commande: "irm https://github.com/benomite/brigade/releases/latest/download/installer-station.ps1 | iex" },
+  { systeme: "Linux or macOS", commande: "curl -fsSL https://github.com/benomite/brigade/releases/download/station/installer-station.sh | sh" },
+  { systeme: "Windows, in PowerShell", commande: "irm https://github.com/benomite/brigade/releases/download/station/installer-station.ps1 | iex" },
 ];
 
 // La plateforme telle que le contrat la publie, dite comme on la nomme.

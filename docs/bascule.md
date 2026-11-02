@@ -14,7 +14,7 @@ merge — never replayed by a cook on the box.
    "1. The command":
 
    ```sh
-   curl -fsSL https://github.com/benomite/brigade/releases/latest/download/installer-station.sh | sudo sh
+   curl -fsSL https://github.com/benomite/brigade/releases/download/station/installer-station.sh | sudo sh
    ```
 
    The package plays the switchover before starting the station (`runtime/paquet/debian/postinst`,

@@ -30,7 +30,7 @@ one command to type.
 On the server, paste:
 
 ```sh
-curl -fsSL https://github.com/benomite/brigade/releases/latest/download/installer-station.sh | sh
+curl -fsSL https://github.com/benomite/brigade/releases/download/station/installer-station.sh | sh
 ```
 
 That is all: it is the same command on a Mac. Under an ordinary account, it runs its root steps
@@ -210,7 +210,7 @@ cd /usr/lib/brigade-station/runtime && BRIGADE_STATION_DIR=/var/lib/brigade BRIG
 The same command, in a Terminal, under your account — **without `sudo`**:
 
 ```sh
-curl -fsSL https://github.com/benomite/brigade/releases/latest/download/installer-station.sh | sh
+curl -fsSL https://github.com/benomite/brigade/releases/download/station/installer-station.sh | sh
 ```
 
 It needs the Command Line Tools (`git`): if they are missing, macOS offers to install them, then you
@@ -235,7 +235,7 @@ One command, pasted into **PowerShell** (Windows 10 version 1803 or later, or Wi
 ARM64), under your account — **not** in an administrator window:
 
 ```powershell
-irm https://github.com/benomite/brigade/releases/latest/download/installer-station.ps1 | iex
+irm https://github.com/benomite/brigade/releases/download/station/installer-station.ps1 | iex
 ```
 
 It is the Windows side of the Mac command (`runtime/deploy/windows/installer-station.ps1`), and

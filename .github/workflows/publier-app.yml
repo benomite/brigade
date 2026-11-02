@@ -509,16 +509,15 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             # Un run rejoué : la release existe, ses fichiers et ses notes sont remplacés.
             gh release upload "$TAG" "${fichiers[@]}" --clobber
-            gh release edit "$TAG" --notes-file "$RUNNER_TEMP/notes.md"
+            gh release edit "$TAG" --notes-file "$RUNNER_TEMP/notes.md" --latest
           else
-            # `--latest=false` : la dernière release du dépôt reste celle de la station, que
-            # `releases/latest/download/installer-station.sh` trouve. L'app lit ses versions par
-            # leurs tags `app-v*`.
+            # `--latest` : `releases/latest` (le lien du README et du site) mène à l'app ; les
+            # releases de la station ne le prennent jamais (publier-station.yml).
             gh release create "$TAG" "${fichiers[@]}" \
               --target "$GITHUB_SHA" \
               --title "Brigade $version" \
               --notes-file "$RUNNER_TEMP/notes.md" \
-              --latest=false
+              --latest
           fi
           echo "$resume" >> "$GITHUB_STEP_SUMMARY"
           # Seules les 5 dernières releases de l'app restent, tags compris : le dernier tag `app-v*`,
