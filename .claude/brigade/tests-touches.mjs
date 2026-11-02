@@ -17,6 +17,11 @@
 // Tout jouer quand le doute est permis : aucun fichier modifié (la base
 // elle-même), un fichier qui règle toute une suite (package.json, tsconfig, le
 // setup), ou une erreur ici — les gates jouent alors la suite entière.
+// Sous `--proches`, un fichier qui règle toute une suite ne la rejoue pas
+// entière : sa fermeture est la suite, et c'est la CI qui la joue sur la PR,
+// que la pass attend avant de merger. Rejouée sur la station, elle tenait la
+// box deux minutes et demie et 880 s de processeur pour un script `test`
+// changé (#2102). Ce changement y joue ses tests proches, comme un autre.
 // Aucun fichier modifié au-delà de la souche, en revanche, n'est pas la base :
 // c'est un changement au diff vide — un commit vide, que la pass juge fusionné
 // avec la base, au même arbre qu'elle. Il ne touche rien, et n'y joue pas la
@@ -99,8 +104,9 @@ if (modifies.length === 0 && auDelaDeLaSouche()) {
   for (const zone of ZONES) console.log(`${zone} rien`);
   process.exit(0);
 }
+const PROCHES = process.argv.includes("--proches");
 const scriptsSeuls = new Set(modifies.filter(seulsSesScripts));
-if (modifies.length === 0 || modifies.some((f) => !scriptsSeuls.has(f) && GLOBAUX.some((g) => g.test(f)))) {
+if (modifies.length === 0 || (!PROCHES && modifies.some((f) => !scriptsSeuls.has(f) && GLOBAUX.some((g) => g.test(f))))) {
   for (const zone of ZONES) console.log(`${zone} tout`);
   process.exit(0);
 }
@@ -110,7 +116,7 @@ if (modifies.length === 0 || modifies.some((f) => !scriptsSeuls.has(f) && GLOBAU
 // jamais d'un fichier qui porte leur nom, ni touchés par ce qu'ils importent.
 const DE_LA_BASE = /^\/\/ gates: base$/m;
 const deLaBase = (t, texte = readFileSync(t, "utf8")) => DE_LA_BASE.test(texte.slice(0, 4000));
-if (process.argv.includes("--proches")) {
+if (PROCHES) {
   for (const zone of ZONES) {
     const noms = new Set(modifies.filter((m) => m.startsWith(`${zone}/`) && CODE.test(m)).map((m) => basename(m).replace(/(\.test)?\.[^.]+$/, "")));
     const proches = lister(join(zone, "test")).filter((t) => t.endsWith(".test.ts") && (modifies.includes(t) || (noms.has(basename(t, ".test.ts")) && !deLaBase(t))));
