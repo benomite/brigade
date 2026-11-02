@@ -1,7 +1,15 @@
 # Les gates entières, sur GitHub Actions (#1004) : la station qui cuisine ne joue que les tests
 # proches d'un changement (`tests-touches.mjs --proches`) ; ici, sur une PR, se jouent tous ceux
-# qu'il touche, et sur `main` après un merge, la suite entière (le diff y est vide). La pass attend ce
-# check avant de merger. Le dépôt est public : les runners de GitHub n'y coûtent rien.
+# qu'il touche, et sur `main` après un merge, la suite entière (le diff y est vide). La pass attend ces
+# checks avant de merger. Le dépôt est public : les runners de GitHub n'y coûtent rien.
+#
+# Chaque check rend son verdict en moins de 60 s après le démarrage de son job (#2086) : la suite est
+# coupée en parts qui courent en parallèle, une part rouge arrête les autres (`fail-fast`), les
+# dépendances viennent du cache de npm, et `timeout-minutes: 3` plafonne un job qui pend. Les checks :
+#   - `gates`                          : les gates du dépôt, sans leurs suites (jouées par les parts) ;
+#   - `tests <zone> (<i>/<n>)`         : la part i de n des tests de la zone, ceux que la PR touche ;
+#   - `types (<zone>)`                 : le contrôle de types de la zone.
+# Le nombre de parts se règle dans la matrice de `tests` : plus de parts, des parts plus courtes.
 name: tests
 
 on:
@@ -19,9 +27,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Les gates sans leurs suites : sans `package.json`, une zone n'a « aucun test à jouer » (ce n'est
+  # pas un échec) et ses types ne partent pas. Les suites se jouent dans `tests`, les types dans `types`.
   gates:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 3
     steps:
       # Tout l'historique : les gates lisent leur diff depuis `origin/<base>` (binding « Branche d'intégration » du CLAUDE.md).
       - uses: actions/checkout@v4
@@ -30,10 +40,96 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 26
+      - name: Gates (suites et types joués par les autres jobs)
+        run: |
+          rm runtime/package.json app/package.json
+          .claude/brigade/gates.sh "$PWD"
+
+  types:
+    name: types (${{ matrix.zone }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    strategy:
+      matrix:
+        zone: [runtime, app]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: npm
+          cache-dependency-path: ${{ matrix.zone }}/package-lock.json
+      # Comme le setup de worktree : celles de l'app sans leurs scripts (pas de binaire d'Electron).
       - name: Dépendances
-        run: eval "$(.claude/brigade/worktree-setup.sh 1 "$PWD")"
-      # La garde d'horloge des gates est réglée pour une box de 8 cœurs : un runner en a 4.
-      - name: Gates
+        run: npm ci --ignore-scripts --prefix ${{ matrix.zone }}
+      - name: Contrôle de types
+        run: npm --prefix ${{ matrix.zone }} run typecheck
+
+  tests:
+    name: tests ${{ matrix.zone }} (${{ matrix.part }}/${{ matrix.of }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    strategy:
+      # Une part rouge arrête les autres : le verdict ne se fait pas attendre.
+      fail-fast: true
+      matrix:
+        include:
+          - { zone: runtime, part: 1, of: 16 }
+          - { zone: runtime, part: 2, of: 16 }
+          - { zone: runtime, part: 3, of: 16 }
+          - { zone: runtime, part: 4, of: 16 }
+          - { zone: runtime, part: 5, of: 16 }
+          - { zone: runtime, part: 6, of: 16 }
+          - { zone: runtime, part: 7, of: 16 }
+          - { zone: runtime, part: 8, of: 16 }
+          - { zone: runtime, part: 9, of: 16 }
+          - { zone: runtime, part: 10, of: 16 }
+          - { zone: runtime, part: 11, of: 16 }
+          - { zone: runtime, part: 12, of: 16 }
+          - { zone: runtime, part: 13, of: 16 }
+          - { zone: runtime, part: 14, of: 16 }
+          - { zone: runtime, part: 15, of: 16 }
+          - { zone: runtime, part: 16, of: 16 }
+          - { zone: app, part: 1, of: 3 }
+          - { zone: app, part: 2, of: 3 }
+          - { zone: app, part: 3, of: 3 }
+    steps:
+      # Deux commits suffisent : sur une PR, le premier parent du commit de merge est la base.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: npm
+          cache-dependency-path: ${{ matrix.zone }}/package-lock.json
+      - name: Dépendances
+        run: npm ci --ignore-scripts --prefix ${{ matrix.zone }}
+      # Les fichiers de la part : ceux que la PR touche (`tests-touches.mjs`, comme les gates), ou tous
+      # sur `main`, où le diff est vide. Le script `test` de la zone y remplace son motif par la part.
+      - name: Tests
         env:
-          BRIGADE_GATES_DELAI_TESTS: "900"
-        run: .claude/brigade/gates.sh "$PWD"
+          ZONE: ${{ matrix.zone }}
+          PART: ${{ matrix.part }}
+          OF: ${{ matrix.of }}
+          EVENEMENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          regle="tout"
+          if [ "$EVENEMENT" = pull_request ]; then
+            if sel="$(git diff --name-only HEAD^1 HEAD | node .claude/brigade/tests-touches.mjs --souche HEAD^1)"; then
+              regle="$(printf '%s\n' "$sel" | sed -n "s/^$ZONE //p")"
+            fi
+          fi
+          case "$regle" in
+            rien) echo "aucun test de $ZONE ne touche ce changement"; exit 0 ;;
+            "fichiers "*) liste="$(printf '%s\n' ${regle#fichiers } | sort)" ;;
+            *) liste="$(cd "$ZONE" && git ls-files ':(glob)test/**/*.test.ts' | sort)" ;;
+          esac
+          fichiers="$(printf '%s\n' "$liste" | awk -v i="$PART" -v n="$OF" 'NR % n == i % n' | tr '\n' ' ')"
+          if [ -z "${fichiers// /}" ]; then echo "part $PART/$OF : aucun fichier"; exit 0; fi
+          motif='"test/**/*.test.ts"'
+          commande="$(node -e 'console.log(require(process.argv[1]).scripts.test)' "$PWD/$ZONE/package.json")"
+          case "$commande" in *"$motif"*) ;; *) echo "le script test de $ZONE n'a plus son motif $motif" >&2; exit 1 ;; esac
+          echo "part $PART/$OF : $(set -- $fichiers; echo $#) fichiers"
+          cd "$ZONE" && exec sh -c "${commande/"$motif"/$fichiers}"
