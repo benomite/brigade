@@ -528,7 +528,9 @@ export function fauxGh(t: TestContext): FauxGh {
 // Sous Windows le runner du CI est de deux à trois fois plus lent et sa charge varie d'un run à l'autre :
 // à 60 s, des tests différents de reparation, arbitrage, station ou reprise-du-renommage attendaient en
 // vain, chacun une fois, sur la base comme sur les PR (#2080), et le même commit repassait vert.
-const DELAI_PAR_DEFAUT_MS = process.platform === "win32" ? 180_000 : 60_000;
+// Sous Linux la CI joue les gates avec toute la suite à la fois (charge 8 sur 4 cœurs) : machine.test.ts
+// attendait 69 s pour 60 s permises. Le plafond par test est de 120 s : l'attente reste en dessous.
+const DELAI_PAR_DEFAUT_MS = process.platform === "win32" ? 180_000 : 100_000;
 export async function jusqua(condition: () => boolean, delaiMs = DELAI_PAR_DEFAUT_MS): Promise<void> {
   const limite = Date.now() + delaiMs;
   while (!condition()) {
