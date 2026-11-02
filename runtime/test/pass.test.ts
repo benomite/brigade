@@ -59,6 +59,25 @@ function service(t: TestContext, options: Options & { grant?: boolean; gates?: "
   return { ...lieu, histoire, compter, jusquAu, laisserTourner, pass: () => passDuTicket(journal.base, 17) };
 }
 
+// Un cook fini sans commit, puis la cuisine rouverte avec sa pass sur le
+// compte-rendu que `ecrit` donne à sa place : un journal d'une autre époque.
+async function rapportReecrit(t: TestContext, ecrit: { summary: string; deliverable?: string }) {
+  const premiere = cuisine(t, { scenario: "bavard", suite: ["rapporte-sans-commit"], issues: [issue(17)] });
+  await jusqua(() => premiere.gh.commentaires.length === 1);
+  const rapport = premiere.dernier("cook.reported", 17);
+  premiere.runtime.arreter("test");
+  const laisse = ouvrirJournal(premiere.repertoire);
+  laisse.ajouter({
+    project: "brigade",
+    ticket: 17,
+    author: `station:${STATION}`,
+    type: "cook.reported",
+    payload: { run: String(rapport?.run), ending: "done", reason: "no-diff", ...ecrit, branch: String(rapport?.branch), pr: null },
+  });
+  laisse.fermer();
+  return cuisine(t, { lieux: premiere.lieux, pass: true });
+}
+
 // Une livraison verte mergée sous grant, sans rien d'autre : deux tests la
 // lisent sans y toucher — elle n'est jouée qu'une fois pour eux deux.
 const mergeeSousGrant = partagee(2, (t) => service(t, { grant: true }));
@@ -1853,22 +1872,8 @@ describe("la pass", { concurrency: 8 }, () => {
   });
 
   test("une livraison sans diff rapportée sans livrable — un journal d'avant la délimitation — n'est pas relue : rouge, elle repart au cook, qui apprend ce qu'il doit délimiter", async (t) => {
-    const premiere = cuisine(t, { scenario: "bavard", suite: ["rapporte-sans-commit"], issues: [issue(17)] });
-    await jusqua(() => premiere.gh.commentaires.length === 1);
-    const rapport = premiere.dernier("cook.reported", 17);
-    premiere.runtime.arreter("test");
     // Ce qu'écrivait la station avant la délimitation : le message, et aucun livrable.
-    const laisse = ouvrirJournal(premiere.repertoire);
-    laisse.ajouter({
-      project: "brigade",
-      ticket: 17,
-      author: `station:${STATION}`,
-      type: "cook.reported",
-      payload: { run: String(rapport?.run), ending: "done", reason: "no-diff", summary: "Audit : quarante lignes, brouillon compris.", branch: String(rapport?.branch), pr: null },
-    });
-    laisse.fermer();
-
-    const { journal, dernier } = cuisine(t, { lieux: premiere.lieux, pass: true });
+    const { journal, dernier } = await rapportReecrit(t, { summary: "Audit : quarante lignes, brouillon compris." });
     await jusqua(() => journal.tout().some((e) => e.type === "pass.returned"));
 
     const verdict = dernier("pass.judged", 17);
@@ -1879,21 +1884,7 @@ describe("la pass", { concurrency: 8 }, () => {
   });
 
   test("un cook sans commit qui se déclare bloqué n'est pas servi : rien n'est relu, le ticket reste ouvert et la question va au chef", async (t) => {
-    const premiere = cuisine(t, { scenario: "bavard", suite: ["rapporte-sans-commit"], issues: [issue(17)] });
-    await jusqua(() => premiere.gh.commentaires.length === 1);
-    const rapport = premiere.dernier("cook.reported", 17);
-    premiere.runtime.arreter("test");
-    const laisse = ouvrirJournal(premiere.repertoire);
-    laisse.ajouter({
-      project: "brigade",
-      ticket: 17,
-      author: `station:${STATION}`,
-      type: "cook.reported",
-      payload: { run: String(rapport?.run), ending: "done", reason: "no-diff", summary: "Bloqué.", deliverable: "<bloque>\n#2057 n'est pas mergé : faut-il attendre ou livrer sans ?\n</bloque>", branch: String(rapport?.branch), pr: null },
-    });
-    laisse.fermer();
-
-    const { gh, journal, dernier } = cuisine(t, { lieux: premiere.lieux, pass: true });
+    const { gh, journal, dernier } = await rapportReecrit(t, { summary: "Bloqué.", deliverable: "<bloque>\n#2057 n'est pas mergé : faut-il attendre ou livrer sans ?\n</bloque>" });
     await jusqua(() => journal.tout().some((e) => e.type === "pass.escalated"));
 
     assert.equal(dernier("pass.escalated", 17)?.cause, "cook-blocked");
