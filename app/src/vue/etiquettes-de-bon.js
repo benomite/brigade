@@ -6,15 +6,6 @@
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 
-// Chaque classe est posée en clair, `className = "…"` : la peau ne vise que des classes que la vue pose.
-/** @param {Fabrique} doc @param {string} balise @param {string} classe @param {string} texte */
-const etiquette = (doc, balise, classe, texte) => {
-  const pose = doc.createElement(balise);
-  pose.className = classe;
-  pose.textContent = texte;
-  return pose;
-};
-
 /**
  * @param {Fabrique} doc
  * @param {{ station?: string, requiert?: readonly string[] }} carte
@@ -24,12 +15,16 @@ export function poserEtiquettes(doc, carte, avecStation) {
   const { station, requiert = [] } = carte;
   const etiquettes = [];
   if (avecStation && station !== undefined) {
-    const pose = etiquette(doc, "span", "etiquette etiquette-station mono", station.split("/")[0] ?? station);
+    const pose = doc.createElement("span");
+    pose.className = "etiquette etiquette-station mono";
+    pose.textContent = station.split("/")[0] ?? station;
     pose.title = station;
     etiquettes.push(pose);
   }
   for (const capacite of requiert) {
-    const pose = etiquette(doc, "span", "etiquette etiquette-capacite mono", capacite);
+    const pose = doc.createElement("span");
+    pose.className = "etiquette etiquette-capacite mono";
+    pose.textContent = capacite;
     pose.title = `this ticket requires ${capacite}`;
     etiquettes.push(pose);
   }
