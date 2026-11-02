@@ -46,6 +46,7 @@ import { CALIBRAGE_TEST_INSTABLE, PRIO_TEST_INSTABLE } from "./test-instable.ts"
 // tant qu'elle n'est pas nommée ici.
 export const CAUSES_DU_CHEF: Readonly<Record<string, string>> = {
   "secrets-unavailable": "chef-only gesture: the secret values live on the machine, in the file `BRIGADE_SECRETS_FILE` names — no cook may see or set them",
+  "cook-blocked": "product choice: the cook ended without a commit and declared itself blocked, with the question only the chef can answer",
   [`${DU_MANAGER} + card`]: "product choice: the manager escalated with a product or gesture card, the question the chef answers — the bare escalation is not listed while the card is in TODO",
 };
 

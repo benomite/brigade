@@ -1879,6 +1879,30 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.equal(journal.tout().filter((e) => e.type === "pass.reviewed").length, 0);
   });
 
+  test("un cook sans commit qui se déclare bloqué n'est pas servi : rien n'est relu, le ticket reste ouvert et la question va au chef", async (t) => {
+    const premiere = cuisine(t, { scenario: "bavard", suite: ["rapporte-sans-commit"], issues: [issue(17)] });
+    await jusqua(() => premiere.gh.commentaires.length === 1);
+    const rapport = premiere.dernier("cook.reported", 17);
+    premiere.runtime.arreter("test");
+    const laisse = ouvrirJournal(premiere.repertoire);
+    laisse.ajouter({
+      project: "brigade",
+      ticket: 17,
+      author: `station:${STATION}`,
+      type: "cook.reported",
+      payload: { run: String(rapport?.run), ending: "done", reason: "no-diff", summary: "Bloqué.", deliverable: "<bloque>\n#2057 n'est pas mergé : faut-il attendre ou livrer sans ?\n</bloque>", branch: String(rapport?.branch), pr: null },
+    });
+    laisse.fermer();
+
+    const { gh, journal, dernier } = cuisine(t, { lieux: premiere.lieux, pass: true });
+    await jusqua(() => journal.tout().some((e) => e.type === "pass.escalated"));
+
+    assert.equal(dernier("pass.escalated", 17)?.cause, "cook-blocked");
+    const types = journal.tout().map((e) => e.type);
+    assert.deepEqual([types.includes("pass.served"), types.includes("ticket.served"), types.includes("pass.reviewed"), gh.fermetures], [false, false, false, []]);
+    await jusqua(() => gh.commentaires.some(([, corps]) => /remontée au chef[\s\S]*> #2057 n'est pas mergé : faut-il attendre ou livrer sans \?/.test(corps)));
+  });
+
   test("un ticket sans diff jugé rouge repart au cook avec le constat, dans la limite des deux renvois ; son nouveau compte-rendu est relu", async (t) => {
     const { gh, journal, cooks, relectures, jusquAu } = service(t, {
       suite: ["rapporte-sans-commit", "rapporte-sans-commit"],
