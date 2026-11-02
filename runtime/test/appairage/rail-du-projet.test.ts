@@ -187,7 +187,7 @@ test("non connecté à GitHub : la réponse dit pourquoi en une phrase, avec le 
   assert.deepEqual(lu, {
     state: "sign-in-required",
     project: "brigade",
-    reason: "This computer is not signed in to GitHub, so brigade cannot read the rail of brigade, which its station publishes there.",
+    reason: "This computer is not signed in to GitHub, so brigade cannot read the rail of brigade.",
     action: { id: "github-sign-in", label: "Sign in to GitHub", command: [FAUX_GH, "auth", "login", "--hostname", "github.com", "--web", "--git-protocol", "https"] },
   });
   github.relever("deconnecte");
@@ -202,7 +202,7 @@ test("sans accès au projet — aucune station de ce compte ne le sert — la r�
   const lu = phrase(await lire(github, "brigade"));
   assert.ok(lu.state === "unavailable");
   assert.equal(lu.cause, "not-served");
-  assert.equal(lu.reason, "No station paired with this GitHub account serves brigade, so its rail cannot be read: sign in to GitHub with the account your stations publish to.");
+  assert.equal(lu.reason, "No rail of brigade is published for this GitHub account: sign in to GitHub with the account your stations publish to.");
   assert.equal(lu.action?.id, "github-sign-in");
 
   // Et sans aucune station appairée.
@@ -243,14 +243,14 @@ test("une station qui sert le projet sans publier de rail — d'avant #1432 —,
   const sansRail = phrase(await lire(github, "brigade"));
   assert.ok(sansRail.state === "unavailable");
   assert.equal(sansRail.cause, "not-published");
-  assert.match(sansRail.reason, /^The station shop-box serves brigade but publishes no rail on GitHub: update brigade on it/);
+  assert.match(sansRail.reason, /^The rail of brigade is not published yet: update brigade/);
 
   // Elle publie des rails, mais pas encore celui-là.
   github.ajouter(ancienne.gist, { [FICHIER_RAIL]: JSON.stringify({ brigade: "rail", format: 1, projets: {} }) });
   const pasEncore = phrase(await lire(github, "brigade"));
   assert.ok(pasEncore.state === "unavailable");
   assert.equal(pasEncore.cause, "not-published");
-  assert.match(pasEncore.reason, /has not published its rail yet/);
+  assert.match(pasEncore.reason, /has not been published yet/);
 
   github.ajouter(ancienne.gist, { [FICHIER_RAIL]: JSON.stringify({ brigade: "rail", format: 99, projets: { brigade: [] } }) });
   const illisible = phrase(await lire(github, "brigade"));
@@ -264,7 +264,7 @@ test("un rail vide se lit vide, et le dit en une phrase", async (t) => {
   const lu = await lire(github, "brigade");
   assert.ok(lu.state === "listed");
   assert.deepEqual(lu.tickets, []);
-  assert.equal(lu.reason, "The rail of brigade, as shop-box publishes it, holds no ticket.");
+  assert.equal(lu.reason, "The rail of brigade holds no ticket.");
 });
 
 test("le rail publié se relit tel quel ; un format inconnu, un ticket mal formé ou du texte ne se lisent pas", () => {

@@ -347,10 +347,12 @@ Open one of your projects on this PC: one click, no folder to choose.
 A project opened from that screen has neither a box nor a station on this computer. Its two tabs
 still show something, always:
 
-- **Rail** shows the rail its station publishes on GitHub (#1432), in five columns — On the rail,
+- **Rail** shows the rail of the project as published (#1432), in five columns — On the rail,
   Taken, Pass, WAITING, Served: Cooks has no kitchen to read here, so Taken and Pass stay on Rail.
-  The head says `The rail as parade-box publishes it on GitHub.` (or that the station is offline and
-  this is the last rail it published); when and for which repository is in the `?` hover. A
+  The head says nothing while the rail is up to date (no station, no GitHub): the columns show at once. When
+  nothing has been published for fifteen minutes, one line says since when the rail has not moved
+  (`This rail has not moved since 2026-10-22 09:12 UTC.`), still without naming a station; when and
+  for which repository is in its `?` hover. A
   ticket's number opens its issue. While the rail is read, one sentence says so. When it cannot be
   read, the head is the runtime's sentence, its detail in the hover: not signed in to GitHub, with
   `Sign in to GitHub` (the same action as the first-launch screen; signed in, the rail is read

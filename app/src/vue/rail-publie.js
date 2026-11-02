@@ -20,6 +20,7 @@ import { boutonDeLaPage, connexionDite, gestes, phraseEtDetail, RELIRE } from ".
  * @typedef {{
  *   lu?: RailDuProjetLu,
  *   connexion?: import("./premier-lancement.js").EtatDuPremier["connexion"],
+ *   maintenant?: number,
  * }} EtatDuRailPublie
  */
 /**
@@ -32,14 +33,14 @@ import { boutonDeLaPage, connexionDite, gestes, phraseEtDetail, RELIRE } from ".
  * }} GestesDuRailPublie
  */
 
-export const LECTURE_PUBLIEE = "Reading the rail its station publishes on GitHub…";
-/** @param {string} station */
-export const PUBLIE_PAR = (station) => `The rail as ${station} publishes it on GitHub.`;
-/** @param {string} station */
-export const PUBLIE_HORS_LIGNE = (station) => `${station} is offline: this is the last rail it published on GitHub.`;
+export const LECTURE_PUBLIEE = "Reading the rail…";
+// Passé ce délai sans nouvelle publication, le rail lu n'est plus frais : la tête dit depuis quand il n'a pas bougé.
+export const FRAICHEUR_MS = 15 * 60 * 1000;
+/** @param {string} depuis */
+export const PERIME_DEPUIS = (depuis) => `This rail has not moved since ${depuis}.`;
 export const AUCUN = "none";
 export const HORS_DES_COLONNES = "outside the columns — their state is none of the five";
-export const SANS_ADRESSE = "the address the station published for this ticket is not https: the app does not open it";
+export const SANS_ADRESSE = "the address published for this ticket is not https: the app does not open it";
 
 /** @param {Fabrique} doc @param {string} balise @param {string} [texte] */
 function cree(doc, balise, texte) {
@@ -103,10 +104,12 @@ export function poserRailPublie(doc, etat, geste) {
       ]),
     ];
   }
-  const { station, publishedAt, range } = lu;
-  // Quand la station l'a publié, et d'où il vient, au survol : cela ne change rien à ce que fait le chef.
-  const provenance = `published by ${station.name} at ${new Date(publishedAt).toISOString().slice(0, 16).replace("T", " ")} UTC${lu.repository === null ? "" : `, for ${lu.repository}`} — this computer does not serve this project: its rail is read on GitHub, and a ticket opens on its issue`;
-  if (lu.tickets.length === 0) return [enTete(lu.reason ?? `The rail of ${lu.project}, as ${station.name} publishes it, holds no ticket.`, provenance), relire()];
+  const { publishedAt, range } = lu;
+  // Quand il a été publié pour la dernière fois, au survol — sans dire quelle station : le rail est celui du projet.
+  const quand = new Date(publishedAt).toISOString().slice(0, 16).replace("T", " ");
+  const provenance = `last published at ${quand} UTC${lu.repository === null ? "" : `, for ${lu.repository}`} — a ticket opens on its issue`;
+  const perime = (etat.maintenant ?? Date.now()) - Date.parse(publishedAt) > FRAICHEUR_MS;
+  if (lu.tickets.length === 0) return [enTete(lu.reason ?? `The rail of ${lu.project} holds no ticket.`, provenance), relire()];
   const grille = cree(doc, "div");
   // Cinq colonnes, et non les quatre du Rail du Mac : Taken et Pass n'ont pas d'onglet Cooks où se lire ici.
   grille.className = "colonnes publiees";
@@ -125,6 +128,6 @@ export function poserRailPublie(doc, etat, geste) {
       return colonne;
     }),
   );
-  const tete = enTete(station.online ? PUBLIE_PAR(station.name) : PUBLIE_HORS_LIGNE(station.name), provenance);
-  return [tete, grille, ...(range.hors.length === 0 ? [] : [cree(doc, "h3", HORS_DES_COLONNES), bons(doc, range.hors, geste)])];
+  const fraicheur = perime ? [enTete(PERIME_DEPUIS(`${quand} UTC`), provenance)] : [];
+  return [...fraicheur, grille, ...(range.hors.length === 0 ? [] : [cree(doc, "h3", HORS_DES_COLONNES), bons(doc, range.hors, geste)])];
 }
