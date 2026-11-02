@@ -2,6 +2,7 @@
 // Tout vient de l'environnement — aucun chemin d'état, aucun projet par défaut.
 import { brancherAlerteUrgence } from "./alerte-urgence.ts";
 import { assurerLApp, cheminDeLApp, direLApp } from "./app-par-defaut.ts";
+import { brancherBrigadeGithub, stationDuDepot } from "./brigade-github.ts";
 import { avecRail, configRail } from "./alimenter.ts";
 import { configArbitrage, joindreArbitre } from "./arbitrage.ts";
 import { sessionClaude } from "./claude.ts";
@@ -84,6 +85,8 @@ let arbitre: number | null = null;
 let stations: StationDeclaree[] = [];
 // Le fichier d'état du renouvellement de la session Max, relu à chaque tick.
 let session: ConfigSession | null = null;
+// Non nul : le projet est servi sur l'état GitHub seul (`brigade-github.ts`).
+let projetGitHub: { arreter(): Promise<void> } | null = null;
 let socle;
 try {
   // Toute la configuration est lue avant de rien écrire : un refus de démarrer
@@ -179,9 +182,39 @@ try {
   // Les changements des réglages du projet que le chef demande, après la pass
   // à qui chacun remet sa PR : elle la retient pour lui (#1308).
   const reglee = brancherReglages(renommee, { depot, github: githubs.station, base: station.base, env });
+  // L'interrupteur de l'état GitHub seul (#2060), lu sur la branche
+  // d'intégration à l'ouverture. Éteint, la station est l'ancienne, telle
+  // quelle. Allumé, elle ne lance plus aucun cook — ni déclaré, ni relu des
+  // décisions — et c'est la station GitHub seul qui prend, cuisine, relit et
+  // merge, sous l'identité de la pass.
+  const ici = stations.find((declaree) => !declaree.distante);
+  const ouvert = brancherBrigadeGithub({
+    reglages: duDepot.reglages,
+    ancien: () => ({ stations, decisions }),
+    station: () =>
+      ici === undefined
+        ? { refus: "the project declares no station on this machine" }
+        : stationDuDepot({
+            nom: ici.nom,
+            places: ici.cooks,
+            base: station.base,
+            depotGitHub: rail.depot,
+            github: githubs.pass,
+            depot,
+            // La prise de #2056 : son module n'est pas encore dans ce runtime.
+            prise: null,
+            claude: station.bin,
+            env,
+            cloison,
+            plafonds: reglages.plafonds,
+            graceMs: reglages.graceMs,
+            reviewer: reviewer.calibrage,
+            flux: join(repertoireEtat, "github-seul"),
+          }),
+  });
+  if (ouvert.chemin === "github") projetGitHub = ouvert;
   const servie = brancherStation(reglee, {
-    stations,
-    decisions,
+    ...(ouvert.chemin === "ancien" ? ouvert.ancien : { stations: [], decisions: { ...decisions, stations: () => [] } }),
     repertoireEtat,
     depot,
     github: githubs.station,
@@ -257,6 +290,7 @@ const { arreter } = runtime;
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.on(signal, () => {
     identites?.fermer();
+    void projetGitHub?.arreter();
     arreter(signal);
     console.log(`brigade : runtime du projet « ${projet} » arrêté (${signal})`);
   });
