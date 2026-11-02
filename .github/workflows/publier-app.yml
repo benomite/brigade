@@ -438,7 +438,13 @@ jobs:
         # Le SDK Android est préinstallé sur le runner (ANDROID_HOME) ; setup-java pose JAVA_HOME.
         run: |
           set -euo pipefail
-          node app/packaging/android.ts --version "${TAG#app-v}" --sortie "$RUNNER_TEMP/dist"
+          # Un 403 de Maven Central (limite par adresse du runner, #2025) passe souvent au second essai.
+          for essai in 1 2 3 4; do
+            node app/packaging/android.ts --version "${TAG#app-v}" --sortie "$RUNNER_TEMP/dist" && break
+            [ "$essai" -lt 4 ] || exit 1
+            echo "::warning::The Android build failed (attempt $essai of 4), trying again."
+            sleep $((30 * 2 ** (essai - 1)))
+          done
           test -f "$RUNNER_TEMP/dist/Brigade-${TAG#app-v}.apk"
       - uses: actions/upload-artifact@v4
         with:
