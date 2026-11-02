@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { globSync } from "node:fs";
 import { delimiter, join } from "node:path";
 import { linuxOnly, macOnly, posixOnly, seulementSur, windowsOnly } from "./plateforme.ts";
-import { environnement, fichiersDeTest, part } from "./windows.ts";
+import { compterLesImages, enPlus, environnement, fichiersDeTest, part } from "./windows.ts";
 
 test("a Linux-only test is skipped on win32 and darwin, with its reason", () => {
   assert.equal(linuxOnly("requires POSIX permissions", "linux"), false);
@@ -57,4 +57,11 @@ test("the Windows job puts git's tools first in the PATH, under the case the var
   assert.equal(surWindows.Path, `C:\\Git\\libexec\\git-core${delimiter}C:\\Windows`);
   assert.equal("PATH" in surWindows, false);
   assert.equal(environnement({ PATH: "/usr/bin", NODE_COMPILE_CACHE: "cache" }, undefined).PATH, "/usr/bin");
+});
+
+test("the Windows job names the processes a part leaves behind, counted against the start", () => {
+  const avant = compterLesImages('"System","4","Services","0","144 K"\r\n"bash.exe","100","Console","1","5 000 K"\r\n"node.exe","200","Console","1","40 000 K"\r\n');
+  const apres = compterLesImages('"System","4","Services","0","144 K"\r\n"bash.exe","100","Console","1","5 000 K"\r\n"BASH.EXE","300","Console","1","5 000 K"\r\n"sleep.exe","301","Console","1","1 000 K"\r\n"bash.exe","302","Console","1","5 000 K"\r\n"node.exe","200","Console","1","40 000 K"\r\nINFO: rien\r\n');
+  assert.deepEqual(enPlus(avant, apres), ["bash.exe ×2", "sleep.exe ×1"]);
+  assert.deepEqual(enPlus(apres, avant), []);
 });

@@ -4,7 +4,7 @@
 // l'heure que le job lui donne : le job la joue en parts, une par runner, que `--part <i>/<n>` choisit.
 //
 // Usage : node test/support/windows.ts [--part <i>/<n>]   (depuis runtime/)
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { globSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
@@ -35,6 +35,27 @@ export function environnement(env: NodeJS.ProcessEnv, gitCore: string | undefine
   return pose;
 }
 
+// Les process du poste, comptés par image, d'après `tasklist /FO CSV /NH` : `"bash.exe","1234",…`.
+export function compterLesImages(csv: string): Map<string, number> {
+  const comptes = new Map<string, number>();
+  for (const ligne of csv.split(/\r?\n/)) {
+    const image = /^"([^"]+)"/.exec(ligne)?.[1]?.toLowerCase();
+    if (image) comptes.set(image, (comptes.get(image) ?? 0) + 1);
+  }
+  return comptes;
+}
+
+// Ce qui vit en plus de l'état de départ : les images dont le compte a grandi, la plus nombreuse d'abord.
+export function enPlus(avant: Map<string, number>, apres: Map<string, number>): string[] {
+  return [...apres]
+    .map(([image, n]) => [image, n - (avant.get(image) ?? 0)] as const)
+    .filter(([, n]) => n > 0)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([image, n]) => `${image} ×${n}`);
+}
+
+const images = () => compterLesImages(process.platform === "win32" ? (spawnSync("tasklist", ["/FO", "CSV", "/NH"], { encoding: "utf8", timeout: 60_000 }).stdout ?? "") : "");
+
 if (import.meta.main) {
   const tous = fichiersDeTest();
   const demande = process.argv.indexOf("--part");
@@ -57,11 +78,38 @@ if (import.meta.main) {
   const rapport = mkdtempSync(join(tmpdir(), "brigade-annotations-"));
   const annotations = join(rapport, "annotations.txt");
   const reporters = ["--test-reporter=spec", "--test-reporter-destination=stdout", `--test-reporter=${pathToFileURL(join(import.meta.dirname, "annotations.ts")).href}`, `--test-reporter-destination=${annotations}`];
-  const r = spawnSync(process.execPath, ["--test", "--test-concurrency=1", "--test-force-exit", "--test-timeout=120000", ...reporters, ...joues], {
+  // Le garde : une part dure d'ordinaire 6 à 12 minutes. Si un runner cale (un test qui bloque la boucle
+  // ou gonfle sans fin), le job meurt vers 45 min sans journal ni annotation (« lost communication »,
+  // #2080) : le runner ne répond déjà plus une dizaine de minutes avant. À 25 min, le garde nomme les
+  // tests en cours et les process laissés, tue l'arbre des process et sort en échec : le check dit alors
+  // où ça cale.
+  // Les process laissés : sous Windows, tuer un process ne tue pas ses enfants, et une doublure qui
+  // survit à son test charge le runner jusqu'à la fin de la part. Comptés contre l'état de départ, à la
+  // fin de la part comme au garde.
+  const auDepart = images();
+  const laisses = () => enPlus(auDepart, images()).join(", ") || "none";
+  const suivi = join(rapport, "en-cours.txt");
+  const garde = Number(process.env.BRIGADE_PART_MAX_MS ?? 25 * 60_000);
+  const enfant = spawn(process.execPath, ["--test", "--test-concurrency=1", "--test-force-exit", "--test-timeout=300000", ...reporters, `--test-reporter=${pathToFileURL(join(import.meta.dirname, "en-cours.ts")).href}`, `--test-reporter-destination=${join(rapport, "ignore.txt")}`, ...joues], {
     cwd: join(RACINE_TESTS, ".."),
     stdio: "inherit",
-    env: environnement(process.env, gitCore),
+    env: { ...environnement(process.env, gitCore), BRIGADE_SUIVI_DES_TESTS: suivi },
   });
+  let cale = false;
+  const minuteur = setTimeout(() => {
+    cale = true;
+    let coinces = "(none recorded)";
+    try {
+      coinces = readFileSync(suivi, "utf8") || coinces;
+    } catch {}
+    console.log(`::error title=${"part stalled".replaceAll(" ", "%20")}::${`the part ran over ${garde / 60_000} min; tests running now:\n${coinces}\nprocesses left: ${laisses()}`.replaceAll("%", "%25").replaceAll("\n", "%0A")}`);
+    if (process.platform === "win32" && enfant.pid !== undefined) spawnSync("taskkill", ["/pid", String(enfant.pid), "/T", "/F"]);
+    else enfant.kill("SIGKILL");
+  }, garde);
+  const statut = await new Promise<number | null>((fini) => enfant.on("exit", (code) => fini(code)));
+  clearTimeout(minuteur);
+  if (process.platform === "win32" && !cale) console.log(`::notice title=${"processes left".replaceAll(" ", "%20")}::${laisses()}`);
+  const r = { status: cale ? 1 : statut };
   try {
     process.stdout.write(readFileSync(annotations, "utf8"));
   } catch {

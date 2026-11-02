@@ -153,7 +153,7 @@ describe("superviser", { concurrency: true }, () => {
     const jeton = ["sk", "ant", "oat01", "0".repeat(90)].join("-");
     // Une progression qui ne revient jamais à la ligne, sur la sortie d'erreur,
     // et un cook qui ne finit pas avant qu'on ne le lui dise.
-    const script = `i=0; while [ $i -lt 40 ]; do printf 'étape %s : ${jeton}\\r' $i >&2; i=$((i+1)); done; while [ ! -e '${assez}' ]; do sleep 0.05; done`;
+    const script = `i=0; while [ $i -lt 40 ]; do printf 'étape %s : ${jeton}\\r' $i >&2; i=$((i+1)); done; until [ -e '${assez}' ]; do [ $SECONDS -lt 300 ] || exit 1; sleep 0.05; done`;
     const supervise = superviser({ commande: "bash", args: ["-c", script], env: ENV_ENFANT, plafonds: LARGES, graceMs: 2000, flux, attenteMax: 1024 });
     aArreter(t, () => supervise.abandonner());
 
