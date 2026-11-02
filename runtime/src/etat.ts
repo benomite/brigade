@@ -861,6 +861,11 @@ export type Faits = {
     captures?: CapturesVues;
     // Sur une carte en WAITING faute de capacité seulement : ce que sa ligne `requiert` demande (#1958).
     requiert?: string[];
+    // La station qui le tient (pris) ou l'a cuit (pass, servi), telle que `rail` la nomme ; absente d'un ticket qu'aucune
+    // station n'a. Lue à chaque fois sur l'état courant : une relance ailleurs la change.
+    station?: string;
+    // Les capacités que sa fiche demande (`requiert`) ; absente d'un ticket qui n'en demande aucune.
+    requires?: string[];
   }>;
   // Les cooks en cours, comme `station` les montre. Le titre est celui du rail :
   // vide si le ticket l'a quitté pendant la cuisson.
@@ -1099,6 +1104,8 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limit
         raison: raisonDeTete(etat, ticket),
         ...(ticket.state === "pass" || ticket.state === "served" ? captures(ticket.ticket) : {}),
         ...requisDuRail(ticket),
+        ...(ticket.station === null ? {} : { station: ticket.station }),
+        ...(requises(ticket.card).length === 0 ? {} : { requires: requises(ticket.card) }),
       };
     }),
     // Une station ne lance un cook que pour un ticket.

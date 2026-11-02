@@ -1,7 +1,7 @@
 // L'état de la cuisine, composé à partir du journal seul.
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
-import { decrireEtat, duree, lireEtat, suivre } from "../src/etat.ts";
+import { decrireEtat, duree, faits, lireEtat, suivre } from "../src/etat.ts";
 import type { Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { ouvrirRail } from "../src/rail.ts";
@@ -582,4 +582,42 @@ test("la part de tickets livrés du premier coup sous son seuil est une ligne de
   // Cinq sur dix : à égalité avec le seuil, rien.
   livrer(15, 1);
   assert.deepEqual(bloc(), []);
+});
+
+test("`facts` dit, par ticket du rail, la station qui le tient ou l'a cuit et les capacités qu'il demande ; la station suit la relance", (t) => {
+  const { journal, noter } = cuisine(t);
+  const rail = ouvrirRail(journal, { projet: "brigade", dureeBailMs: 600_000, maintenant: () => new Date(`${JOUR_HORLOGE}T10:00:30.000Z`) });
+  const arriver = (ticket: number, requires?: string[]) =>
+    noter(
+      { type: "ticket.arrived", payload: { title: `Ticket ${ticket}`, priority: 1, createdAt: `2026-10-01T00:00:${ticket}Z`, url: `https://exemple.test/${ticket}`, ...(requires === undefined ? {} : { card: { waitsFor: [], zone: [], problems: [], requires } }) } },
+      ticket,
+      "github",
+    );
+  arriver(14);
+  arriver(15, ["browser", "docker"]);
+  arriver(16);
+  const carte = (ticket: number) => faits(lireEtat(journal, new Date(`${JOUR_HORLOGE}T10:01:00.000Z`)), new Date(`${JOUR_HORLOGE}T10:01:00.000Z`)).rail.find((c) => c.ticket === ticket);
+
+  // Pris : la station qui le tient. Sans station ni demande : ni l'une ni l'autre.
+  assert.equal(carte(16)?.station, undefined);
+  assert.equal(carte(16)?.requires, undefined);
+  rail.prendre("box/claude");
+  assert.equal(carte(14)?.station, "box/claude");
+  assert.equal(carte(14)?.requires, undefined);
+
+  // En pass : la station qui l'a cuit.
+  rail.envoyerEnPass(14, "box/claude");
+  assert.equal(carte(14)?.station, "box/claude");
+
+  // La fiche demande `browser` et `docker`.
+  assert.deepEqual(carte(15)?.requires, ["browser", "docker"]);
+
+  // Relancé ailleurs : la lecture suivante montre la nouvelle station.
+  rail.prendre("macbook/claude");
+  assert.equal(carte(15)?.station, "macbook/claude");
+  rail.rendre(15, "relaunched", "macbook/claude");
+  assert.equal(carte(15)?.station, undefined);
+  rail.prendre("box/claude");
+  assert.equal(carte(15)?.station, "box/claude");
+  assert.deepEqual(carte(15)?.requires, ["browser", "docker"]);
 });
