@@ -8,7 +8,7 @@
 // passe la main dès le second rouge : c'est lui qui monte le calibrage du
 // second renvoi, puis qui choisit la suite. Sa boucle est du code ; elle
 // n'appelle un modèle que pour relire, une fois par livraison, et jamais avant
-// des gates vertes. Une relecture qui ne se lit pas n'est pas l'affaire du
+// des gates vertes et d'une CI verte : un rouge repart au cook sans relecture. Une relecture qui ne se lit pas n'est pas l'affaire du
 // cook : elle se redemande au reviewer, sur le même commit, deux fois au plus,
 // puis remonte, et la cuisine la reprend — jamais de merge sans relecture
 // lisible.
@@ -2211,12 +2211,9 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     if (arbre === null) {
       findings.push(findingDeConflit(options.base));
     } else if (gates.outcome === "green") {
-      // Relu avant de lire la CI : elle conclut pendant ce temps, et un cook
-      // renvoyé repart avec tout ce qui a été trouvé, pas la moitié.
-      const relue = await relire(connu, ref, ou, sha, false);
-      if (arrete || relue === null) return;
-      if (relue.outcome === "unreadable") return remonterIllisible(connu, relue);
-      review = { outcome: relue.outcome, run: relue.run, summary: relue.summary, findings: relue.findings };
+      // La CI se lit avant la relecture : un rouge repart au cook tel quel,
+      // sans qu'un reviewer ait été appelé (#2078). Tant qu'elle n'a pas conclu,
+      // la livraison n'est pas relue non plus.
       // Les jobs que la pass a relancés, tant que GitHub rend encore leur
       // rouge d'avant, sont en cours : leur relance n'a pas encore conclu.
       const relance = ciRelancee(ticket, sha);
@@ -2232,7 +2229,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       const enCours = attendue || checks.some((check) => check.outcome === "pending");
       // Un constat bloquant n'attend pas la CI : le verdict est déjà rouge,
       // et elle sera lue sur le commit qui le corrige.
-      if (enCours && review.outcome !== "red") {
+      if (enCours) {
         // Relancée, la CI s'attend de nouveau depuis sa relance.
         const depuis = Math.max(Date.parse(passDuTicket(base, ticket)?.startedAt ?? ""), relance === null ? -Infinity : Date.parse(relance.at));
         if (!(maintenant().getTime() - depuis > options.attenteCiMs) || !enPass(ticket)) return;
@@ -2258,13 +2255,13 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
           if (arrete || !enPass(ticket)) return;
           const jugees = rouges.filter((check) => !excuses.has(check.url));
           // Rouge seulement par sa CI, sur des tests qu'elle ne touche pas : relancée une fois.
-          if (jugees.length > 0 && review.outcome !== "red" && (await relancerLaCI(connu, ref, sha, jugees))) return;
+          if (jugees.length > 0 && (await relancerLaCI(connu, ref, sha, jugees))) return;
           // Rouge encore après sa relance, sur les mêmes : mise de côté, son test à la cuisine.
-          const deCote = jugees.length > 0 ? await mettreDeCote(connu, ref, pr.url, sha, jugees, review.outcome !== "red") : new Set<string | null>();
+          const deCote = jugees.length > 0 ? await mettreDeCote(connu, ref, pr.url, sha, jugees, true) : new Set<string | null>();
           if (deCote === null) return;
           const retenus = jugees.filter((check) => !deCote.has(check.url));
           // Un run qu'un verdict rouge a déjà jugé se relance avant d'être rejugé.
-          if (retenus.length > 0 && review.outcome !== "red" && (await relancerUnRunDejaJuge(connu, sha, retenus))) return;
+          if (retenus.length > 0 && (await relancerUnRunDejaJuge(connu, sha, retenus))) return;
           if (arrete || !enPass(ticket)) return;
           ci = { outcome: checks.length === 0 ? "none" : retenus.length > 0 ? "red" : "green", checks };
           // Le lien ne suffit pas : le cook lit ici les tests en échec et leurs erreurs.
@@ -2277,7 +2274,14 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
           if (arrete || !enPass(ticket)) return;
         }
       }
-      findings.push(...bloquants(review.findings).map(findingDuReviewer));
+      // Verte (ou sans CI), la livraison est relue ; rouge, elle ne l'est pas.
+      if (findings.length === 0) {
+        const relue = await relire(connu, ref, ou, sha, false);
+        if (arrete || relue === null) return;
+        if (relue.outcome === "unreadable") return remonterIllisible(connu, relue);
+        review = { outcome: relue.outcome, run: relue.run, summary: relue.summary, findings: relue.findings };
+        findings.push(...bloquants(review.findings).map(findingDuReviewer));
+      }
     } else {
       // Rouges une fois fusionnée : la base l'est-elle seule ? Ce rouge-là
       // n'est pas celui de la livraison, et ne renvoie aucun cook — sauf de la
