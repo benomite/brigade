@@ -4230,6 +4230,17 @@ function fraicheur(a) {
   dit.className = "fraicheur";
   return [dit];
 }
+// L'âge du rail montré, toujours dit en clair (ticket 2054) : l'heure où la box a lu l'état qu'elle a publié — pas celle
+// où l'app a lu GitHub, qui est toujours récente. Un rail que la box n'a pas republié depuis longtemps se voit ainsi.
+/** @param {string} publieLe @param {string} lu */
+function ageDuRail(publieLe, lu) {
+  const minutes = Math.floor(Math.max(0, Date.parse(lu) - Date.parse(publieLe)) / 60_000);
+  const age = minutes < 1 ? "less than a minute" : minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, "0")}`;
+  const dit = bloc("p", `rail as the box read it ${age} ago, at ${heureCourte(publieLe)}`);
+  dit.className = "age-du-rail";
+  dit.title = "The box publishes its rail on GitHub, and the app reads it every 30 seconds: this is the age of what the box published, not of the app's reading.";
+  return dit;
+}
 // Le signe de l'app hors ligne (ticket 1818), à la place de toute erreur.
 /** @param {string} depuis */
 function signeHorsLigne(depuis) {
@@ -4809,6 +4820,7 @@ function poserRail(projet) {
   if (horsLigne !== undefined) rail.dataset.horsLigne = "";
   poser(
     ...(horsLigne === undefined ? fraicheur(tenu.a) : [signeHorsLigne(horsLigne)]),
+    ...(cuisine || tenu.publieLe === undefined ? [] : [ageDuRail(tenu.publieLe, tenu.a)]),
     ...(cuisine
       ? []
       : [
