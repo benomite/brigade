@@ -3,76 +3,140 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>brigade — a team of AI agents that works your GitHub tickets</title>
-  <meta name="description" content="You write a ticket and put the label fire on it. A cook takes it, opens a pull request, and the pass judges it and merges it.">
+  <title>Brigade — agents that ship, not agents you babysit</title>
+  <meta name="description" content="Put fire on a GitHub issue. A Claude Code cook opens the pull request, the pass judges it, and it merges on its own. You only see what needs your decision.">
+  <meta property="og:title" content="Brigade — agents that ship, not agents you babysit">
+  <meta property="og:description" content="An open-source kitchen of Claude Code agents. Tickets in, judged and merged pull requests out.">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="logo.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;900&family=Public+Sans:ital,wght@0,400;0,600;0,700;1,400&family=Courier+Prime:wght@400;700&family=Permanent+Marker&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header>
-  <img src="logo.svg" alt="brigade">
-  <h1>A team of AI agents that works your GitHub tickets</h1>
-  <p class="lead">You write a ticket and put the label <code>fire</code> on it. A cook takes it, opens a pull request, and the pass judges it and merges it. You decide what matters; brigade does the cooking.</p>
+
+<header class="hero">
+  <div class="wrap">
+    <a class="brand" href="https://github.com/benomite/brigade"><img src="logo.svg" alt="" width="36" height="36"> brigade</a>
+    <h1>Agents that ship, not agents you babysit.</h1>
+    <p class="lead">Put the label <code>fire</code> on a GitHub issue. A Claude Code cook writes the pull request, the pass judges it against your tests and an independent review, and it merges on its own. You only hear about what needs your decision.</p>
+    <div class="actions">
+      <a class="btn primary" href="https://github.com/benomite/brigade/releases">Download the app</a>
+      <a class="btn" href="https://github.com/benomite/brigade">Read the code on GitHub</a>
+    </div>
+    <p class="fine">Open source (MIT). Mac (Apple silicon) and Windows. Runs on your Claude Max subscription.</p>
+  </div>
+
+  <div class="rail" aria-label="A ticket's journey: fire, cooking, at the pass, served">
+    <div class="bar"></div>
+    <ol class="slips">
+      <li class="slip s1"><span class="stage">fire</span><span class="no">#2041</span><span class="what">Export the rail as CSV</span><span class="state">queued</span></li>
+      <li class="slip s2"><span class="stage">cooking</span><span class="no">#2038</span><span class="what">Retry a dead cook from its last commit</span><span class="state">cook-3 · own worktree</span></li>
+      <li class="slip s3"><span class="stage">at the pass</span><span class="no">#2035</span><span class="what">Cap tokens per ticket</span><span class="state">tests ✓ CI ✓ review…</span></li>
+      <li class="slip s4"><span class="stage">served</span><span class="no">#2031</span><span class="what">Stop the whole kitchen in one gesture</span><span class="state">merged</span></li>
+    </ol>
+  </div>
 </header>
-<main>
-  <section id="problem">
-    <h2>The problem</h2>
-    <p>Your backlog is full of tickets that are clear enough to do, and you have no time to do them. Handing them to an AI assistant one at a time means sitting next to it, re-explaining the context, and reviewing whatever it produces on faith.</p>
-    <p>Brigade takes that work off your hands without taking the decision away from you: tickets are worked in parallel, each in its own git worktree, and nothing is merged before it has been judged.</p>
+
+<main class="wrap">
+
+  <section id="difference">
+    <h2>Other agent tools hand you pull requests to review. Brigade hands you pull requests already judged.</h2>
+    <p>Cloud coding agents and parallel agent apps make you the bottleneck: every diff waits for you to read it and click merge. Brigade moves you out of the merge loop and keeps you in the decision loop.</p>
+    <div class="table-scroll">
+      <table class="board">
+        <thead>
+          <tr><th scope="col"></th><th scope="col">Cloud coding agents</th><th scope="col">Parallel agent apps</th><th scope="col" class="us">Brigade</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">You start work by</th><td>Assigning or prompting one task</td><td>Launching and steering sessions</td><td class="us">Labelling an issue <code>fire</code></td></tr>
+          <tr><th scope="row">Who checks the code</th><td>You</td><td>You</td><td class="us">The pass: your gates, CI and an independent review</td></tr>
+          <tr><th scope="row">Who merges</th><td>You</td><td>You</td><td class="us">The pass, when everything is green</td></tr>
+          <tr><th scope="row">What reaches you</th><td>Every pull request</td><td>Every diff</td><td class="us">Only what awaits a decision</td></tr>
+          <tr><th scope="row">Where the state lives</th><td>The vendor's cloud</td><td>The app's sessions</td><td class="us">GitHub: issues, labels, branches, PRs</td></tr>
+        </tbody>
+      </table>
+    </div>
   </section>
 
   <section id="how">
-    <h2>How it works</h2>
-    <p>Three actors share the kitchen. Everything the system knows lives in issues, labels, branches and pull requests, never in a session's memory: if a cook dies, the committed work survives and the next one picks up from there.</p>
-    <div class="roles">
-      <div class="role">
-        <h3>The chef — you</h3>
-        <p>You write the tickets and put <code>fire</code> on the ones to cook. You keep the final say.</p>
+    <h2>How a ticket gets served</h2>
+    <ol class="steps taped">
+      <li><h3>You fire a ticket</h3><p>Write an issue with acceptance criteria anyone can check, and put <code>fire</code> on it. It joins the rail, the queue the kitchen serves in order. The second, a product assistant in the app's terminal, helps you write and prioritise tickets.</p></li>
+      <li><h3>A cook takes it</h3><p>A real <code>claude</code> session, one per ticket, in its own git worktree. It implements the ticket and opens a pull request. Several cooks work in parallel.</p></li>
+      <li><h3>The pass judges it</h3><p>Your repository's gates, type check and CI, then an independent review. A failed delivery goes back to the kitchen, not to you.</p></li>
+      <li><h3>It's served</h3><p>Green means merged and the issue closed. Anything only you can decide lands under <em>awaiting</em>.</p></li>
+    </ol>
+    <figure class="shot">
+      <img src="https://raw.githubusercontent.com/benomite/brigade/main/docs/captures/1598/accueil-stations-apres.png" alt="The Brigade desktop app showing projects and the cooks working on them" loading="lazy">
+      <figcaption>The desktop app: your projects, the rail, and the cooks in flight.</figcaption>
+    </figure>
+  </section>
+
+  <section id="auto" class="pass">
+    <h2>Full auto, with brakes</h2>
+    <p>Letting agents merge is the point, so the kitchen is built to be trusted with it.</p>
+    <ul class="brakes">
+      <li><strong>Caps</strong> on duration, tokens and simultaneous cooks.</li>
+      <li><strong>One stop</strong> halts the whole kitchen.</li>
+      <li><strong>A breaker</strong> trips after repeated failures.</li>
+      <li><strong>Nothing lives in a session's memory.</strong> If a cook dies mid-ticket, its committed work survives and the next cook resumes from it.</li>
+    </ul>
+  </section>
+
+  <section id="proof">
+    <h2>Built by its own kitchen</h2>
+    <div class="proof">
+      <div class="receipt" role="img" aria-label="Of Brigade's last 100 merged pull requests, 98 were cooked by agents and judged by the pass, 2 were written by hand.">
+        <p class="r-head">brigade · last 100 merged PRs</p>
+        <p class="r-line"><span>cooked by agents, merged by the pass</span><span>98</span></p>
+        <p class="r-line"><span>written by hand</span><span>2</span></p>
+        <p class="r-total"><span>chef reviews required</span><span>0</span></p>
       </div>
-      <div class="role">
-        <h3>The second — your product assistant</h3>
-        <p>A terminal in the desktop app where the second helps you write and prioritize tickets.</p>
-      </div>
-      <div class="role">
-        <h3>The kitchen — the cooks and the pass</h3>
-        <p>A cook (a <code>claude</code> session) takes a ticket in its own worktree, implements it and opens a pull request. The pass judges that pull request — gates, CI, an independent review — and merges it.</p>
-      </div>
+      <p>Brigade is developed with Brigade, every day. The tickets, pull requests and reviews are public: <a href="https://github.com/benomite/brigade/pulls?q=is%3Apr+is%3Amerged">read them on GitHub</a> and judge the cooking yourself.</p>
     </div>
-    <p style="margin-top:1rem">The desktop app shows all of it: your projects, the rail of tickets (queued, taken, in the pass, served) and the cooks in flight.</p>
   </section>
 
   <section id="demo">
     <h2>See it work</h2>
-    <div class="demo">
-      <strong>Demo video coming soon</strong>
-      <p>A short walk-through from a ticket to a merged pull request.</p>
-    </div>
+    <div class="demo"><p>A short walk-through, from a ticket to a merged pull request, is on its way.</p></div>
   </section>
 
   <section id="install">
-    <h2>Install it</h2>
-    <p>You need a GitHub account with a repository you can push to (a throwaway one is fine), and a Claude Max subscription: the cooks run on your Max session, and an API key does not fit.</p>
-    <ol>
-      <li><strong>Download the app</strong> (macOS on Apple silicon, or Windows x64) from the <a href="https://github.com/benomite/brigade/releases/latest">releases page</a> and open it.</li>
-      <li><strong>Sign in with GitHub</strong>: the app shows a code to type on the GitHub page it opens.</li>
-      <li><strong>Sign in with Claude</strong> with your Max account, if the app says the connection is missing.</li>
-      <li><strong>Pick your repository</strong>, typed as <code>owner/repo</code>, and click <em>open this project</em>.</li>
-      <li><strong>Cook a first ticket</strong>: open an issue in that repository and put the label <code>fire</code> on it.</li>
+    <h2>Cook your first ticket</h2>
+    <p>You need a GitHub repository you can push to (a throwaway one is fine) and a Claude Max subscription: the cooks run on your Max session, an API key does not fit.</p>
+    <ol class="install">
+      <li><strong>Download the app</strong> from the <a href="https://github.com/benomite/brigade/releases">releases page</a> and open it.</li>
+      <li><strong>Sign in with GitHub</strong>: the app shows a code to type on the page it opens.</li>
+      <li><strong>Sign in with Claude</strong> with your Max account, if the app asks.</li>
+      <li><strong>Open your repository</strong>: type it as <code>owner/repo</code> and click <em>open this project</em>.</li>
+      <li><strong>Fire a ticket</strong>: open an issue and put the label <code>fire</code> on it.</li>
     </ol>
-    <p>The app does not ask you to type a command or edit a file.</p>
+    <p>No command to type, no file to edit. <a href="https://github.com/benomite/brigade/blob/main/docs/installation.md">Every screen, step by step</a>.</p>
   </section>
 
-  <section id="read">
-    <h2>Read more</h2>
-    <ul class="links">
-      <li><a href="https://github.com/benomite/brigade/blob/main/docs/tutoriels/installer-sur-mac.md">Tutorial: install brigade on a Mac</a></li>
-      <li><a href="https://github.com/benomite/brigade/blob/main/docs/tutoriels/premier-projet.md">Tutorial: add a first project and cook its first ticket</a></li>
-      <li><a href="https://github.com/benomite/brigade/blob/main/docs/installation.md">Install brigade and cook your first ticket</a> (Mac and Windows, step by step)</li>
-      <li><a href="https://github.com/benomite/brigade/blob/main/docs/index.md">The documentation index</a></li>
-      <li><a href="https://github.com/benomite/brigade">The repository, benomite/brigade</a></li>
+  <section id="next">
+    <h2>What's cooking next, and where you come in</h2>
+    <p>Brigade is young and moving fast. These are the next stations to build, and they are open to contributors.</p>
+    <ul class="next taped">
+      <li><h3>Shared kitchens for small teams</h3><p>Today one chef runs one kitchen. Next: several people firing tickets into the same kitchen, each with their own account.</p></li>
+      <li><h3>More engines than Claude</h3><p>Cooks run on Claude Code today. Codex and other engines are the next step.</p></li>
+      <li><h3>Your use case</h3><p>Tried it on your repository and hit a wall? That's a ticket.</p></li>
     </ul>
+    <div class="actions">
+      <a class="btn primary" href="https://github.com/benomite/brigade/blob/main/CONTRIBUTING.md">Contribute</a>
+      <a class="btn" href="https://github.com/benomite/brigade/issues/new">Open an issue</a>
+    </div>
   </section>
+
 </main>
-<footer>brigade is open source (MIT) — <a href="https://github.com/benomite/brigade">benomite/brigade</a></footer>
+
+<footer class="wrap">
+  <p>Brigade is made by <a href="https://github.com/benomite">Benoît</a>, a CTO who builds agent pipelines for media and product teams. Want a kitchen like this in your company? <a href="https://github.com/benomite">Get in touch</a>.</p>
+  <p class="fine">Open source under the MIT licence · <a href="https://github.com/benomite/brigade">benomite/brigade</a> · <a href="https://github.com/benomite/brigade/blob/main/docs/index.md">Documentation</a></p>
+</footer>
+
 </body>
 </html>
