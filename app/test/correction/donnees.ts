@@ -43,7 +43,9 @@ export const CORRECTION: CorrectionLue = {
   proposee: "2026-10-13T09:58:40.000Z",
 };
 
-export const FAITS: Faits = {
+// Une cuisine ouverte, un ticket sur le rail : ce que `facts` porte autour d'une carte proposée — ce dossier
+// et celui des profils y posent chacun la leur.
+export const CUISINE_OUVERTE: Faits = {
   etat: "ouverte",
   lu: "2026-10-13T10:04:11.000Z",
   dernierTick: "2026-10-13T10:04:02.000Z",
@@ -52,5 +54,6 @@ export const FAITS: Faits = {
   rail: [{ ticket: 21, etat: "en attente", titre: "L'export du journal", url: "https://github.com/chef/parade/issues/21", activite: null }],
   cooks: [],
   attend: [],
-  corrections: [CORRECTION],
 };
+
+export const FAITS: Faits = { ...CUISINE_OUVERTE, corrections: [CORRECTION] };

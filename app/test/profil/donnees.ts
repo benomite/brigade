@@ -2,6 +2,7 @@
 // runtime écrit dans `facts` (runtime/src/profils/cartes.ts) — le domaine `app/src/vue`, cinq tickets
 // dont un sans adresse, deux leçons de départ.
 import type { Faits } from "../../src/faits.ts";
+import { CUISINE_OUVERTE } from "../correction/donnees.ts";
 import type { ProfilLu } from "../../src/profil.ts";
 
 export const PROFIL: ProfilLu = {
@@ -31,14 +32,4 @@ export const PROFIL: ProfilLu = {
   proposee: "2026-10-13T09:41:05.000Z",
 };
 
-export const FAITS: Faits = {
-  etat: "ouverte",
-  lu: "2026-10-13T10:04:11.000Z",
-  dernierTick: "2026-10-13T10:04:02.000Z",
-  compteurs: { rail: 1, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 },
-  dernierEvenement: null,
-  rail: [{ ticket: 21, etat: "en attente", titre: "L'export du journal", url: "https://github.com/chef/parade/issues/21", activite: null }],
-  cooks: [],
-  attend: [],
-  profils: [PROFIL],
-};
+export const FAITS: Faits = { ...CUISINE_OUVERTE, profils: [PROFIL] };
