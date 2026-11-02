@@ -2,6 +2,7 @@
 //   npm --prefix runtime run measures                 par tranches de 10 merges
 //   npm --prefix runtime run measures -- --by <n>     par tranches de <n> merges
 //   npm --prefix runtime run measures -- --last <n>   les renvois des <n> derniers tickets servis (20 par défaut)
+// Les tests verts seulement au rejeu de la CI se comptent sur les 10 derniers merges.
 // L'ancienne option `--par` répond encore, en disant la nouvelle (`commandes.ts`).
 // La commande n'écrit jamais, et répond pendant que le runtime tourne.
 import { enAnglais } from "./commandes.ts";
@@ -12,6 +13,7 @@ import { decrireCauses, mesurerCauses } from "./causes-des-ratages.ts";
 import { parcoursDesTickets } from "./parcours-des-tickets.ts";
 import { mergedDeliveries, seuilsEnVigueur } from "./projections/measures.ts";
 import { decrireRenvois, DERNIERS_PAR_DEFAUT, mesurerRenvois } from "./renvois.ts";
+import { decrireRejeux, lireRejeux, mesurerRejeux } from "./tests-rejoues.ts";
 
 const USAGE = "usage: BRIGADE_STATE_DIR=<state directory> npm --prefix runtime run measures -- [--by <number of merges>] [--last <number of tickets>]";
 
@@ -48,6 +50,8 @@ try {
   for (const ligne of decrireRenvois(mesurerRenvois(parcours, derniers))) console.log(ligne);
   console.log("");
   for (const ligne of decrireCauses(mesurerCauses(parcours.slice(-derniers)))) console.log(ligne);
+  console.log("");
+  for (const ligne of decrireRejeux(mesurerRejeux(lireRejeux(base)))) console.log(ligne);
 } catch (erreur) {
   // En lecture seule, rien ne crée les tables d'un journal écrit par un
   // runtime d'avant ce relevé.

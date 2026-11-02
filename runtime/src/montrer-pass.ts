@@ -164,14 +164,25 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
         ];
       }
       case "pass.ci-rerun": {
-        const { sha, runs, checks, tests, alreadyJudged } = evenement.payload;
+        const { sha, runs, checks, tests, failing, alreadyJudged } = evenement.payload;
         const reruns = `run${runs.length > 1 ? "s" : ""} ${runs.join(", ")}`;
         return [
           alreadyJudged
             ? `${tete}CI red on ${sha.slice(0, 7)} in a run a red verdict already judged: failed jobs rerun (${reruns}) before judging again — a return never judges the same CI run twice`
-            : `${tete}CI red on ${sha.slice(0, 7)} only on tests the delivery does not touch: failed jobs rerun once (${reruns}) — no return, no card`,
+            : tests.length > 0
+              ? `${tete}CI red on ${sha.slice(0, 7)} only on tests the delivery does not touch: failed jobs rerun once (${reruns}) — no return, no card`
+              : `${tete}CI red on ${sha.slice(0, 7)}: failed jobs rerun once (${reruns}) before judging — no return, no card`,
           ...checks.map((check) => `      CI “${check.name}”: ${check.conclusion}${check.url ? ` — ${check.url}` : ""}`),
           ...tests.map((test) => `      failing test: ${test}`),
+          ...(tests.length > 0 ? [] : (failing ?? []).map((test) => `      failing test: “${test}”`)),
+        ];
+      }
+      case "pass.ci-rerun-passed": {
+        const { sha, checks, tests } = evenement.payload;
+        return [
+          `${tete}CI green on ${sha.slice(0, 7)} on the rerun: the delivery goes on as green`,
+          ...checks.map((check) => `      CI “${check.name}”: ${check.conclusion}${check.url ? ` — ${check.url}` : ""}`),
+          ...tests.map((test) => `      green only on the rerun: “${test}”`),
         ];
       }
       case "pass.test-fix-opening":

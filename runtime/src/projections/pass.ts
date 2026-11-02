@@ -452,10 +452,11 @@ export const pass = definirProjection<Ecoutes>({
     // The second judge's verdict changes nothing in the pass's state: it is
     // read in the log, on the delivery it judged.
     "pass.second-judged": () => {},
-    // The rerun of a CI red on tests the delivery does not touch changes
-    // nothing in the pass's state: the delivery is still being judged, and the
-    // pass reads the rerun in the log.
+    // The rerun of a red CI changes nothing in the pass's state: the delivery
+    // is still being judged, and the pass reads the rerun in the log. Nor does
+    // its passing: the verdict that follows says it.
     "pass.ci-rerun": () => {},
+    "pass.ci-rerun-passed": () => {},
     // A CI red set aside, and the `fix` ticket of its unstable test, change
     // nothing in the pass's state either: the verdict that follows says it.
     "pass.test-fix-opening": () => {},

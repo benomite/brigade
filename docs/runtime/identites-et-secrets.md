@@ -12,9 +12,9 @@ merge. On a shared repository, give the runtime **three GitHub Apps**, each an i
 | **manager** | the manager and rail: poll issues, set labels, comment, create an epic's tickets — and what the station says on the issue | `issues: write` |
 
 The pass's token has **no `actions` permission**: it neither reads a CI job's log nor reruns failed
-jobs, so a CI red on tests the delivery does not touch stays a verdict instead of being rerun once,
-set aside and sent to the kitchen as a `fix` ticket, and a CI run a red verdict already judged is
-judged again, not rerun (`pass.md`). Under the single account, it is rerun.
+jobs, so a CI red stays a verdict instead of being rerun once before judging (and, on tests the
+delivery does not touch, set aside and sent to the kitchen as a `fix` ticket), and a CI run a red
+verdict already judged is judged again, not rerun (`pass.md`). Under the single account, it is rerun.
 
 The **reviewer has no GitHub gesture**: a `claude` launched without a token in a throwaway
 worktree; its review is a log fact, which the pass publishes.

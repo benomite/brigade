@@ -1856,28 +1856,45 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   const ciRelancee = (ticket: number, sha: string) =>
     journal.duTicket(ticket).findLast((evenement): evenement is Evenement<Extract<FaitPass, { type: "pass.ci-rerun" }>> => evenement.type === "pass.ci-rerun" && evenement.payload.sha === sha) ?? null;
 
-  // Les tests en échec de ces jobs rouges, en chemins du dépôt, si chacun est
-  // hors de ce que la livraison change — sinon null, et le rouge est le sien.
-  const testsEtrangers = async (connu: PassDeTicket, ref: string, jobs: Array<{ check: Check; job: ReturnType<typeof jobDuCheck> }>) => {
-    const { ticket } = connu;
-    if (jobs.some(({ job }) => job === null)) return null;
+  // Les journaux de ces jobs rouges, dans leur ordre ; null pour un journal
+  // que GitHub ne rend pas.
+  const lireLesJournaux = async (rouges: Check[]) => {
+    const lus: Array<string | null> = [];
+    for (const check of rouges) lus.push(await github.journalDuCheck(check).catch(() => null));
+    return lus;
+  };
+
+  // Les tests en échec que ces journaux nomment, en chemins du dépôt, si chacun
+  // est hors de ce que la livraison change — sinon null, et le rouge est le sien.
+  const attribuerLesJournaux = (ref: string, lus: Array<string | null>) => {
     const nommes: string[] = [];
-    for (const { check } of jobs) {
-      const lu = await github.journalDuCheck(check).catch(() => null);
+    for (const lu of lus) {
       const tests = lu === null ? null : testsEnEchec(lu);
       if (tests === null) return null;
       nommes.push(...tests);
     }
-    if (arrete || !enPass(ticket)) return null;
     const attribution = attribuer(nommes, { changes: depot.changes(ref), fichiers: depot.fichiers(), lire: (chemin) => depot.lire(ref, chemin) });
     return attribution.etranger ? attribution.tests : null;
   };
+
+  // Les tests en échec de ces jobs rouges, en chemins du dépôt, si chacun est
+  // hors de ce que la livraison change — sinon null, et le rouge est le sien.
+  const testsEtrangers = async (connu: PassDeTicket, ref: string, rouges: Check[]) => {
+    if (rouges.some((check) => jobDuCheck(check) === null)) return null;
+    const lus = await lireLesJournaux(rouges);
+    if (arrete || !enPass(connu.ticket)) return null;
+    return attribuerLesJournaux(ref, lus);
+  };
+
+  // Les tests en échec que ces journaux nomment, par leur nom, une fois chacun
+  // (#2091) : ce que la pass dit d'une relance verte, et ce que `measures` compte.
+  const nomsEnEchec = (lus: Array<string | null>) => [...new Set(lus.flatMap((lu) => (lu === null ? [] : echecsDuJournal(lu).map(({ test }) => test))))];
 
   // Relance les jobs en échec de ces checks rouges, run par run : une relance
   // refusée laisse ses jobs rouges, et ceux-là restent le verdict de la
   // livraison. Rend vrai si une relance est partie : la CI est alors attendue
   // de nouveau. Un check qui n'est pas un job de GitHub Actions ne se relance pas.
-  const relancer = async (connu: PassDeTicket, sha: string, rouges: Check[], tests: string[], dejaJuges: boolean): Promise<boolean> => {
+  const relancer = async (connu: PassDeTicket, sha: string, rouges: Check[], tests: string[], failing: string[], dejaJuges: boolean): Promise<boolean> => {
     const { ticket, run } = connu;
     const jobs = rouges.map((check) => ({ check, job: jobDuCheck(check) }));
     if (jobs.some(({ job }) => job === null)) return false;
@@ -1892,26 +1909,33 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     }
     if (relances.length === 0) return false;
     const checks = jobs.filter(({ job }) => relances.includes(job!.run)).map(({ check }) => check);
-    noter(ticket, { type: "pass.ci-rerun", payload: { run, sha, runs: relances, checks, tests, ...(dejaJuges ? { alreadyJudged: true as const } : {}) } });
+    noter(ticket, { type: "pass.ci-rerun", payload: { run, sha, runs: relances, checks, tests, failing, ...(dejaJuges ? { alreadyJudged: true as const } : {}) } });
     avertir(
       dejaJuges
         ? `brigade : CI relancée sur le ticket #${ticket} (${court(sha)}) — un verdict rouge a déjà jugé ce run, il ne le juge pas deux fois`
-        : `brigade : CI relancée sur le ticket #${ticket} (${court(sha)}) — rouge sur des tests que la livraison ne touche pas : ${tests.join(", ")}`,
+        : tests.length > 0
+          ? `brigade : CI relancée sur le ticket #${ticket} (${court(sha)}) — rouge sur des tests que la livraison ne touche pas : ${tests.join(", ")}`
+          : `brigade : CI relancée sur le ticket #${ticket} (${court(sha)}) — rouge, rejouée une fois avant de juger${failing.length > 0 ? ` : ${failing.map((test) => `« ${test} »`).join(", ")}` : ""}`,
     );
     return true;
   };
 
-  // Une CI rouge sur des tests que la livraison ne touche pas, et sur rien
-  // d'autre, ne fait pas un verdict : ses jobs en échec sont relancés, une fois
-  // par livraison — ni renvoi, ni carte (`relance-de-ci.ts`). Rend vrai si la
-  // relance est partie. Tout ce qui ne s'établit pas — un check qui n'est pas
-  // un job de GitHub Actions, un journal illisible ou qui ne nomme aucun test,
-  // un test que la livraison touche — laisse le rouge à la livraison.
+  // Une CI rouge ne fait pas un verdict du premier coup (#2091) : un test lent
+  // sur un runner chargé rougit sans que la livraison y soit pour rien. Ses
+  // jobs en échec sont relancés, une fois par livraison — ni renvoi, ni carte ;
+  // la CI est attendue de nouveau. Verte au rejeu, la livraison suit son
+  // chemin ; rouge encore, le rouge est un verdict, comme avant. `tests` porte
+  // les tests en échec si chacun est hors de ce que la livraison change
+  // (`relance-de-ci.ts`) : rouges de nouveau, ceux-là partent à la cuisine au
+  // lieu de renvoyer un cook. Rend vrai si la relance est partie. Un check qui
+  // n'est pas un job de GitHub Actions, ou une relance que GitHub refuse,
+  // laisse le rouge à la livraison.
   const relancerLaCI = async (connu: PassDeTicket, ref: string, sha: string, rouges: Check[]): Promise<boolean> => {
     if (ciRelancee(connu.ticket, sha) !== null) return false;
-    const etrangers = await testsEtrangers(connu, ref, rouges.map((check) => ({ check, job: jobDuCheck(check) })));
-    if (etrangers === null) return false;
-    return relancer(connu, sha, rouges, etrangers, false);
+    if (rouges.some((check) => jobDuCheck(check) === null)) return false;
+    const lus = await lireLesJournaux(rouges);
+    if (arrete || !enPass(connu.ticket)) return false;
+    return relancer(connu, sha, rouges, attribuerLesJournaux(ref, lus) ?? [], nomsEnEchec(lus), false);
   };
 
   // Un renvoi ne juge jamais deux fois le même run de CI (#1820) : un job
@@ -1929,7 +1953,41 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     );
     const dejaJuges = rouges.filter((check) => check.url !== null && juges.has(check.url));
     if (dejaJuges.length === 0) return false;
-    return relancer(connu, sha, dejaJuges, [], true);
+    if (dejaJuges.some((check) => jobDuCheck(check) === null)) return false;
+    const lus = await lireLesJournaux(dejaJuges);
+    if (arrete || !enPass(connu.ticket)) return false;
+    return relancer(connu, sha, dejaJuges, [], nomsEnEchec(lus), true);
+  };
+
+  // La CI de ce commit, rouge, a été relancée, et ses jobs relancés sont verts
+  // (#2091) : un test vert seulement au rejeu, la livraison n'y est pour rien.
+  // La première fois sur ce commit, c'est écrit au journal — `measures` compte
+  // ces tests — et dit sur l'issue, tests nommés. Des jobs relancés mis de
+  // côté ou excusés, rouges encore, n'en sont pas. Rend faux si le ticket a
+  // quitté la pass entre-temps.
+  const direLaRelanceVerte = async (connu: PassDeTicket, pr: string, sha: string, relance: Extract<FaitPass, { type: "pass.ci-rerun" }>["payload"], checks: Check[]): Promise<boolean> => {
+    const { ticket } = connu;
+    const verts = relance.checks.map((avant) => checks.find((check) => check.name === avant.name && check.outcome === "green"));
+    if (verts.some((vert) => vert === undefined)) return true;
+    if (journal.duTicket(ticket).some((evenement) => evenement.type === "pass.ci-rerun-passed" && evenement.payload.sha === sha)) return true;
+    const tests = relance.failing ?? [];
+    noter(ticket, { type: "pass.ci-rerun-passed", payload: { sha, before: relance.checks, checks: verts as Check[], tests } });
+    avertir(`brigade : CI verte au rejeu sur le ticket #${ticket} (${court(sha)})${tests.length > 0 ? ` — rejoué : ${tests.map((test) => `« ${test} »`).join(", ")}` : ""}`);
+    await commenter(
+      ticket,
+      [
+        `**Pass — CI rouge, verte au rejeu.** \`${court(sha)}\` · ${pr}`,
+        "",
+        `La CI de cette livraison était rouge ; ses jobs en échec ont été rejoués une fois, et ils sont verts : la livraison suit son chemin comme verte.`,
+        "",
+        ...relance.checks.map((check) => `- job « ${check.name} » : ${check.conclusion}${check.url ? ` — ${check.url}` : ""}`),
+        "",
+        tests.length > 0
+          ? `Test${tests.length > 1 ? "s" : ""} rejoué${tests.length > 1 ? "s" : ""}, vert${tests.length > 1 ? "s" : ""} seulement au rejeu : ${tests.map((test) => `« ${test} »`).join(", ")}. Il${tests.length > 1 ? "s sont comptés" : " est compté"} au relevé (\`${geste("measures")}\`, ligne \`flaky\`).`
+          : "Le journal du job ne nommait aucun test en échec : le job est compté au relevé à leur place (`measures`, ligne `flaky`).",
+      ].join("\n"),
+    );
+    return enPass(ticket);
   };
 
   // Le ticket `fix` de ce test instable, ouvert ou retrouvé : le dernier que la
@@ -1982,7 +2040,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     if (deja !== undefined) return new Set(deja.payload.checks.map((check) => check.url));
     const relance = ciRelancee(ticket, sha);
     if (relance === null || relance.payload.tests.length === 0) return new Set();
-    const tests = await testsEtrangers(connu, ref, rouges.map((check) => ({ check, job: jobDuCheck(check) })));
+    const tests = await testsEtrangers(connu, ref, rouges);
     if (tests === null || tests.some((test) => !relance.payload.tests.includes(test))) return new Set();
     if (arrete || !enPass(ticket)) return null;
     const fixes: Array<{ test: string; issue: number; reused: boolean }> = [];
@@ -2250,7 +2308,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
           const excuses = rouges.length > 0 ? await excuserLesJobsSansVert(connu, pr.url, sha, rouges) : new Set<string | null>();
           if (arrete || !enPass(ticket)) return;
           const jugees = rouges.filter((check) => !excuses.has(check.url));
-          // Rouge seulement par sa CI, sur des tests qu'elle ne touche pas : relancée une fois.
+          // Rouge par sa CI : relancée une fois avant d'être un verdict (#2091).
           if (jugees.length > 0 && (await relancerLaCI(connu, ref, sha, jugees))) return;
           // Rouge encore après sa relance, sur les mêmes : mise de côté, son test à la cuisine.
           const deCote = jugees.length > 0 ? await mettreDeCote(connu, ref, pr.url, sha, jugees) : new Set<string | null>();
@@ -2260,6 +2318,8 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
           if (retenus.length > 0 && (await relancerUnRunDejaJuge(connu, sha, retenus))) return;
           if (arrete || !enPass(ticket)) return;
           ci = { outcome: checks.length === 0 ? "none" : retenus.length > 0 ? "red" : "green", checks };
+          // Verte au rejeu : la livraison suit son chemin, et le ticket dit quel test a été rejoué.
+          if (ci.outcome === "green" && relance !== null && !(await direLaRelanceVerte(connu, pr.url, sha, relance.payload, checks))) return;
           // Le lien ne suffit pas : le cook lit ici les tests en échec et leurs erreurs.
           for (const check of retenus) {
             const lu = await github.journalDuCheck(check).catch(() => null);
