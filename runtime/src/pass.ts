@@ -99,6 +99,7 @@ import { idsDeLEtageCommun, noterUnTicketServi } from "./commun/installation.ts"
 import { noterLeRenvoi } from "./apprentissage/renvoi.ts";
 import { CONSIGNE_DE_FIN_DE_TOUR, CONSIGNE_DU_LIVRABLE, FERMETURE, OUVERTURE } from "./livrable.ts";
 import { LancementRefuse, type CookLance, type GardeFous, type Verdict as VerdictGarde } from "./garde-fous.ts";
+import { direMergesAvantRouge, mergesAvantRouge } from "./base-check/merges-avant-rouge.ts";
 import { REJOUER_LA_BASE } from "./dire-base.ts";
 import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.ts";
 import { envelopper, type Cloison } from "./cloison.ts";
@@ -2622,6 +2623,10 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     }
     const merges = tickets.map((ticket) => `#${ticket}`).join(", ");
     avertir(`brigade : ${options.base} est ROUGE (${court(tete)}${merges === "" ? "" : ` — merges à vérifier : ${merges}`}) — jugements et merges sont suspendus`);
+    // Ce qui a été mergé depuis la dernière base verte, et si les jugements se recouvraient.
+    const dernierVert = journal.duType("base.checked", 50).reverse().find(({ payload }) => payload.outcome === "green")?.seq ?? 0;
+    const avantRouge = direMergesAvantRouge(options.base, mergesAvantRouge(journal.depuis(dernierVert), (ticket) => journal.duTicket(ticket)));
+    if (avantRouge !== null) avertir(avantRouge);
     // Un rouge neuf se rejoue aussitôt, sans attendre le tick.
     if (rouge === null) aRefaire = true;
     for (const ticket of tickets) {
