@@ -8,7 +8,7 @@
 // aucune session reprise, et aucun outil qui écrive.
 import { capturesManquantes, type CapturesDEcran } from "./captures.ts";
 import { EFFORTS, MODELES, type Calibrage } from "./calibrage.ts";
-import { SOURCES_DE_REGLAGES } from "./claude.ts";
+import { lancementEnFlux, SOURCES_DE_REGLAGES } from "./claude.ts";
 import { FERMETURE, OUVERTURE } from "./livrable.ts";
 import type { Finding } from "./events/pass.ts";
 import { ConfigInvalide } from "./runtime.ts";
@@ -56,15 +56,7 @@ export function configReviewer(env: Record<string, string | undefined>): ConfigR
 // options qui le suivent, il avale tout ce qui n'en est pas une.
 export function argumentsReviewer(texte: string, calibrage: Calibrage): string[] {
   return [
-    "-p",
-    texte,
-    "--output-format",
-    "stream-json",
-    "--verbose",
-    "--model",
-    calibrage.model,
-    "--effort",
-    calibrage.effort,
+    ...lancementEnFlux(texte, calibrage),
     "--tools",
     OUTILS.join(","),
     "--setting-sources",

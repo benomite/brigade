@@ -36,6 +36,12 @@ export const VARIABLES_DE_JETON = [...VARIABLES_DE_CLE, "CLAUDE_CODE_OAUTH_TOKEN
 // c'est la consigne qui envoie le cook le lire.
 export const SOURCES_DE_REGLAGES: string[] = [];
 
+// Le début de tout lancement de `claude` : la consigne, le flux que lisent
+// la station, le manager et la pass, le modèle et l'effort.
+export function lancementEnFlux(texte: string, calibrage: Calibrage): string[] {
+  return ["-p", texte, "--output-format", "stream-json", "--verbose", "--model", calibrage.model, "--effort", calibrage.effort];
+}
+
 // Il n'y a pas de calibrage par défaut : qui lance fournit modèle et effort.
 // `--disallowedTools` vient en dernier, il avale tout ce qui le suit.
 // `session` : celle que ce lancement reprend — le cook d'un renvoi repart de
@@ -44,15 +50,7 @@ export const SOURCES_DE_REGLAGES: string[] = [];
 // du cook précédent reste telle qu'il l'a laissée.
 export function argumentsClaude(texte: string, calibrage: Calibrage, session?: string): string[] {
   return [
-    "-p",
-    texte,
-    "--output-format",
-    "stream-json",
-    "--verbose",
-    "--model",
-    calibrage.model,
-    "--effort",
-    calibrage.effort,
+    ...lancementEnFlux(texte, calibrage),
     // Personne n'est là pour répondre à une demande de permission.
     "--permission-mode",
     "bypassPermissions",
