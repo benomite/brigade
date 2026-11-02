@@ -146,14 +146,32 @@ describe("les tests que touche un changement du package.json", () => {
     assert.deepEqual(choisir(racine, ["runtime/package.json"], "--souche", "0000000000000000000000000000000000000000"), ["runtime tout", "app tout"]);
   });
 
-  test("à la station (`--proches`), ce qui règle toute une suite ne la rejoue pas entière : seuls les tests proches, la CI joue le reste (#2102)", (t) => {
+  // À la station (`--proches`), un script de suite changé, seul hors des scripts, ne rejoue pas les deux suites :
+  // sa zone joue ses tests proches à travers lui, et toute entière s'il n'en a pas (#2102).
+  test("à la station, le script qui joue la suite changé : sa zone joue ses tests proches, où qu'ils soient", (t) => {
     const { racine, souche } = depot(t);
-    changer(racine, (paquet) => (paquet.scripts.test = "node --import ./garde.ts --test"));
+    changer(racine, (paquet) => (paquet.scripts.test = 'node --import ./garde/charger.ts --test "test/**/*.test.ts" "garde/**/*.test.ts"'));
+    ecrire(racine, "runtime/garde/garde.test.ts", "// la garde\n");
     assert.deepEqual(choisir(racine, ["runtime/package.json", "runtime/test/lit.test.ts"], "--proches", "--souche", souche), ["runtime fichiers test/lit.test.ts", "app rien"]);
+    assert.deepEqual(choisir(racine, ["runtime/package.json", "runtime/garde/garde.test.ts", "runtime/garde/charger.ts"], "--proches", "--souche", souche), ["runtime fichiers garde/garde.test.ts", "app rien"]);
+    assert.deepEqual(choisir(racine, ["runtime/package.json", "runtime/src/importe.ts"], "--proches", "--souche", souche), ["runtime fichiers test/importe.test.ts", "app rien"]);
     assert.deepEqual(choisir(racine, ["runtime/package.json", "runtime/test/lit.test.ts"], "--souche", souche), ["runtime tout", "app tout"]);
-    const globaux = ["runtime/package.json", "runtime/package-lock.json", "app/tsconfig.json", ".claude/brigade/worktree-setup.sh", "package.json"];
-    assert.deepEqual(choisir(racine, globaux, "--proches", "--souche", souche), ["runtime rien", "app rien"]);
-    assert.deepEqual(choisir(racine, [...globaux, "runtime/src/importe.ts"], "--proches", "--souche", souche), ["runtime fichiers test/importe.test.ts", "app rien"]);
+  });
+
+  test("à la station, le script qui joue la suite changé sans test proche : sa zone se joue entière", (t) => {
+    const { racine, souche } = depot(t);
+    changer(racine, (paquet) => (paquet.scripts.test = "node --test --test-concurrency=1"));
+    assert.deepEqual(choisir(racine, ["runtime/package.json"], "--proches", "--souche", souche), ["runtime tout", "app rien"]);
+  });
+
+  test("à la station, une dépendance, un lockfile, un tsconfig ou le setup changés rejouent toujours tout", (t) => {
+    const { racine, souche } = depot(t);
+    changer(racine, (paquet) => (paquet.scripts.test = "node --test --test-concurrency=1"));
+    for (const global of ["runtime/package-lock.json", "app/tsconfig.json", ".claude/brigade/worktree-setup.sh", "package.json"]) {
+      assert.deepEqual(choisir(racine, ["runtime/package.json", "runtime/test/lit.test.ts", global], "--proches", "--souche", souche), ["runtime tout", "app tout"], global);
+    }
+    changer(racine, (paquet) => (paquet.devDependencies.typescript = "6.0.1"));
+    assert.deepEqual(choisir(racine, ["runtime/package.json", "runtime/test/lit.test.ts"], "--proches", "--souche", souche), ["runtime tout", "app tout"]);
   });
 
   test("avec le lockfile à côté, tout se joue", (t) => {
