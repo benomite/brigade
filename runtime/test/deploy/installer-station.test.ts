@@ -83,7 +83,7 @@ describe("sous Linux", { skip: sansSystemd }, () => {
     const rendu = jouer([], machine.env);
     assert.equal(rendu.code, 0, rendu.sortie);
     const appels = machine.appels();
-    assert.ok(appels.some((a) => /^curl -fsSL -o \S+\/brigade-station\.deb https:\/\/github\.com\/acme\/brigade\/releases\/latest\/download\/brigade-station_amd64\.deb$/.test(a)), appels.join("\n"));
+    assert.ok(appels.some((a) => /^curl -fsSL -o \S+\/brigade-station\.deb https:\/\/github\.com\/acme\/brigade\/releases\/download\/station\/brigade-station_amd64\.deb$/.test(a)), appels.join("\n"));
     assert.ok(appels.includes("apt-get update -q"), appels.join("\n"));
     assert.ok(appels.some((a) => /^apt-get install -y -q \/\S+\/brigade-station\.deb$/.test(a)), appels.join("\n"));
     assert.ok(appels.includes("systemctl --quiet is-active brigade-station.service"), appels.join("\n"));
