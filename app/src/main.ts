@@ -218,7 +218,7 @@ const lireLeTableau = async (projet: Projet) => {
   return lu.lu ? avecLesEnvois(lu, appelerGitHub) : lu;
 };
 const tableaux = tenirLecturesDuTableau<Projet>({ lire: lireLeTableau, fraicheurMs: 15_000 });
-const railLisible = (projet: Projet) => cuisines.cuisineDe(projet) !== undefined;
+const railLisible = lisible;
 
 // Seul ce qui est affiché est lu — un projet, ou chacun dans « Tous les projets » : toutes
 // les trente secondes, sur le tableau de la cuisine. Ce qui attend le chef en est mis à
