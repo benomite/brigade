@@ -356,6 +356,18 @@ describe("la pass relance une CI rouge sur des tests que la livraison ne touche 
     assert.deepEqual([compter("pass.ci-rerun"), gh.relances.length, compter("pass.ci-set-aside")], [1, 1, 0]);
   });
 
+  test("relancé pour un test qu'elle ne touche pas, puis le runner perdu : rien n'est mis de côté, le rouge est un verdict", async (t) => {
+    const { gh, compter, jusquAu } = servir(t, { scenario: "bavard", suite: ["livre"] });
+    gh.ci.checks = [job(2)];
+    gh.journauxDeCI.set("tests", JOURNAL_LINUX.replace("cuisson-de-bout-en-bout", "rail"));
+    await jusquAu("pass.ci-rerun");
+    gh.journauxDeCI.set("tests", RUNNER_PERDU);
+    gh.ci.checks = [job(3)];
+    await jusquAu("pass.returned");
+
+    assert.deepEqual([compter("pass.ci-rerun"), compter("pass.ci-set-aside"), gh.creations.length], [1, 0, 0]);
+  });
+
   test("un constat bloquant du reviewer fait déjà le verdict rouge : rien n'est relancé", async (t) => {
     const { gh, compter, jusquAu } = servir(t, { scenario: "bavard", suite: ["livre"], reviewer: { relecture: "relit-rouge" } });
     gh.ci.checks = [job(2)];

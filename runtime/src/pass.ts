@@ -1987,7 +1987,8 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     const relance = ciRelancee(ticket, sha);
     if (relance === null || relance.payload.tests.length === 0) return new Set();
     const tests = await testsEtrangers(connu, ref, rouges.map((check) => ({ check, job: jobDuCheck(check) })));
-    if (tests === null || tests.some((test) => !relance.payload.tests.includes(test))) return new Set();
+    // Un runner perdu sur la relance ne nomme aucun test : rien n'y est instable, le rouge reste un verdict.
+    if (tests === null || tests.length === 0 || tests.some((test) => !relance.payload.tests.includes(test))) return new Set();
     if (arrete || !enPass(ticket)) return null;
     const fixes: Array<{ test: string; issue: number; reused: boolean }> = [];
     try {

@@ -23,8 +23,8 @@ this order:
 | **no check at all** | the verdict rests on the gates and the reviewer (`ci: none`) — unless the judged branch carries a workflow triggered on PRs to the base (`pull_request` or `pull_request_target`, filters included), whose checks are then awaited (`pass.ci-awaited` names the file); workflows that run only on push, schedule, tag or by hand hold nothing back |
 
 **A job's log** is read from `actions/jobs/<job>/logs`, which GitHub serves by redirecting to its
-log storage, outside the API. Where that storage is closed (the box's network filter answers
-`Forbidden`), the pass reads **the check's annotations** instead (`check-runs/<job>/annotations`,
+log storage, outside the API. Where that storage is closed (a network filter answers `Forbidden`, as
+in a cook's partition) or the log is otherwise unreadable, the pass reads **the check's annotations** instead (`check-runs/<job>/annotations`,
 `journalDesAnnotations`): the runtime's Windows job writes each failing test there with its file,
 name and error (`runtime/test/support/annotations.ts`), and GitHub writes a lost runner there.
 
