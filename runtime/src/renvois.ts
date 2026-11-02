@@ -53,7 +53,7 @@ export function mesurerRenvois(parcours: readonly Parcours[], n = DERNIERS_PAR_D
   const delais = derniers.flatMap((un) =>
     un.attempts.flatMap((essai, i) => {
       const suivant = un.attempts[i + 1];
-      return essai.exitedAt === undefined || suivant === undefined ? [] : [Date.parse(suivant.at) - Date.parse(essai.exitedAt)];
+      return essai.outcome !== "ok" || essai.exitedAt === undefined || suivant === undefined ? [] : [Date.parse(suivant.at) - Date.parse(essai.exitedAt)];
     }),
   );
   return {

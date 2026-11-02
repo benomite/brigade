@@ -1780,42 +1780,41 @@ describe("la pass", { concurrency: 8 }, () => {
     assert.deepEqual([quota?.author, charge(quota ?? { payload: {} }).station, charge(quota ?? { payload: {} }).reason], ["pass", STATION, "quota"]);
   });
 
-  test("une livraison n'est relue qu'une fois : pendant que sa CI tourne, la relecture se relit au journal", async (t) => {
+  test("une livraison n'est relue qu'une fois sa CI verte : tant qu'elle tourne, aucun reviewer n'est appelé", async (t) => {
     const { gh, journal, compter, relectures, laisserTourner, jusquAu } = service(t);
     gh.ci.checks = [{ name: "tests", outcome: "pending", conclusion: "in_progress", url: null }];
-    await jusquAu("pass.reviewed");
+    await jusquAu("pass.started");
     await laisserTourner();
-    assert.deepEqual([relectures().length, compter("pass.judged")], [1, 0]);
+    assert.deepEqual([relectures().length, compter("pass.reviewed"), compter("pass.judged")], [0, 0, 0]);
 
     gh.ci.checks = [{ name: "tests", outcome: "green", conclusion: "success", url: null }];
     await jusquAu("pass.held");
     assert.deepEqual([relectures().length, compter("pass.reviewed")], [1, 1]);
 
-    // Un second ticket, gates jouées et relecture faite, attend sa CI — et quitte le rail pendant que
-    // la pass la relit : ce qu'elle tenait en cache ne lui vaut pas un verdict.
+    // Un second ticket, gates jouées, attend sa CI — et quitte le rail pendant que la pass la relit :
+    // il n'a pas de verdict à recevoir, ni de relecture.
     gh.ci.checks = [{ name: "tests", outcome: "pending", conclusion: "in_progress", url: null }];
-    gh.poser(issue(18));
-    await jusquAu("pass.reviewed", 2);
-    await laisserTourner();
     const lireCi = gh.github.ci;
-    gh.github.ci = async (sha) => {
+    gh.github.ci = async () => {
       gh.github.ci = lireCi;
       gh.poser(issue(18, CALIBRE, { state: "closed", updatedAt: "2026-10-08T11:00:00Z" }));
       journal.ajouter({ project: "brigade", ticket: 18, author: "github", type: "ticket.left", payload: { reason: "closed" } });
       return [];
     };
+    gh.poser(issue(18));
     await jusqua(() => journal.duTicket(18).some((e) => e.type === "pass.abandoned"));
     await laisserTourner();
-    assert.deepEqual(journal.duTicket(18).filter((e) => /^pass\.(judged|escalated|returned|held)$/.test(e.type)), []);
+    assert.deepEqual(journal.duTicket(18).filter((e) => /^pass\.(judged|escalated|returned|held|reviewed)$/.test(e.type)), []);
   });
 
-  test("un constat bloquant n'attend pas une CI qui tourne encore : le verdict est rouge tout de suite, CI non lue", async (t) => {
-    const { gh, dernier, jusquAu } = service(t, { suite: ["livre"], scenario: "bavard", reviewer: { relecture: "relit-rouge" } });
-    gh.ci.checks = [{ name: "tests", outcome: "pending", conclusion: "in_progress", url: null }];
+  test("une CI rouge renvoie la livraison au cook sans relecture : le reviewer n'est pas appelé, et le verdict dit le job", async (t) => {
+    const { gh, dernier, compter, relectures, jusquAu } = service(t, { suite: ["livre"], scenario: "bavard", reviewer: { relecture: "relit-rouge" } });
+    gh.ci.checks = [{ name: "tests", outcome: "red", conclusion: "failure", url: "https://ci/1" }];
     await jusquAu("pass.returned");
 
     const verdict = dernier("pass.judged", 17);
-    assert.deepEqual([verdict?.verdict, verdict?.ci, (verdict?.findings as string[]).length], ["red", { outcome: "skipped", checks: [] }, 1]);
+    assert.deepEqual([verdict?.verdict, (verdict?.review as { outcome: string }).outcome, verdict?.findings], ["red", "skipped", ["CI rouge — job « tests » : failure (https://ci/1)."]]);
+    assert.deepEqual([relectures().length, compter("pass.reviewed")], [0, 0]);
   });
 
   test("un ticket sans diff est jugé par le seul reviewer, sur le livrable que le cook a délimité : vert, il est servi sans merge ni grant, et son issue fermée", async (t) => {
