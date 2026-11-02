@@ -120,6 +120,7 @@ import { poserRailPublie } from "./rail-publie.js";
 import { poserOutilsDuSecond } from "./outils-du-second.js";
 import { poserChoixDuSecond, reponseTapee, tenirLesChoix } from "./second/choix.js";
 import { AUCUNE_STATION, aucuneStationNeSert } from "./cooks/sans-station.js";
+import { attenteEpuisee, RAIL_NON_LU } from "./attente-du-rail.js";
 import { poserGesteDuSecond } from "./second/geste.js";
 import { tenirLesSorties } from "./attente-capacite/sorties.js";
 import { tenirLeSignalement } from "./signalement/geste.js";
@@ -4305,8 +4306,10 @@ function poserMuet(projet) {
 }
 
 // Le rail vieillit sans qu'aucune lecture n'arrive : sa mention se repose d'elle-même.
+/** @type {Map<string, number>} */
+const attentesDuRail = new Map();
 setInterval(() => {
-  if (courant !== undefined && tenus.has(courant.nom) && !rail.hidden) poserRail(courant);
+  if (courant !== undefined && (tenus.has(courant.nom) || attentesDuRail.has(courant.nom)) && !rail.hidden) poserRail(courant);
 }, 15_000);
 // La cuisine du projet, dans le groupe du projet de Settings (ticket 1700) : en marche ou à l'arrêt, et le seul geste
 // qui la fait changer — « stop the kitchen » sous sa propre forme (un carré plein, rouge), ou « resume the kitchen ».
@@ -4732,7 +4735,12 @@ function poserRail(projet) {
   // Hors ligne sans rien de lu avant : le signe seul, sans erreur ni rail vide (ticket 1818).
   if (horsLigne !== undefined && (tenu === undefined || !("tableau" in tenu))) return poser(signeHorsLigne(horsLigne));
   // Ce que dit le rail qui n'est pas lu : la carte du projet le dit déjà, sur Cooks.
-  if (tenu === undefined && muet === undefined) return poser(...(cuisine ? [] : [bloc("h3", `the rail: first read of ${geste(projet, "facts")} in progress…`)]));
+  if (tenu === undefined && muet === undefined) {
+    // Une minute sans rien lu : la page le dit, elle n'attend pas toujours (ticket 2055).
+    const epuisee = attenteEpuisee(attentesDuRail, projet.nom, Date.now());
+    return poser(...(cuisine ? [] : [bloc("h3", epuisee ? RAIL_NON_LU : `the rail: first read of ${geste(projet, "facts")} in progress…`)]));
+  }
+  attentesDuRail.delete(projet.nom);
   // La box ne répond pas : rien de ce que dit le rail n'est lu à neuf. Il garde sa dernière lecture,
   // marquée, et les tickets `fire` que GitHub dit encore passent au-dessus (feu.ts).
   // Le téléphone ne lit pas GitHub : rien n'y passe au-dessus.

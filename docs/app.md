@@ -646,6 +646,9 @@ The file stays yours, and you can do anything in it:
 - **Legacy keys are ignored.** A file written by an older version may still carry keys naming an ssh host, a list of boxes or played stations: it is
   read without error, those keys are left alone and nothing is done with them — where a project cooks is read from the
   Kitchen board and from your paired stations.
+- **A project served only by another station is read like any other.** Its rail is read from GitHub whenever a station
+  serves it, here or elsewhere. A rail that has returned nothing after a minute stops saying `first read … in
+  progress` and says in one line that nothing came back.
 - **`commande` is no longer read.** A file that still carries it is refused, saying so:
   `project no. 1 (brigade): "commande" is no longer read — remove it: …`.
 - The bar follows the file's order. **Rearranging the icons in the bar** (see "The icon bar") changes
