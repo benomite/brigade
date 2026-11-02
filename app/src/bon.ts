@@ -117,7 +117,7 @@ const FORMES: { etats: readonly string[]; forme: RegExp; lire(trouve: RegExpExec
 // C'est aussi la seule table des mots que l'app affiche pour un état (`motDEtat`) : celui
 // d'une carte du rail, celui de la cuisine d'un projet, `86` (un ticket mis de côté) — la vue
 // et le rail publié n'en gardent aucune copie. Les valeurs de `faits` ne changent pas.
-export const MOTS_DE_CARTE: Readonly<Record<string, string>> = { pris: "taken", "en attente": "queued", "en pass": "in pass", servi: "served", BLOQUÉ: "BLOCKED", "86": "set aside", WAITING: "waiting" };
+export const MOTS_DE_CARTE: Readonly<Record<string, string>> = { pris: "taken", "en attente": "queued", "en pass": "in pass", servi: "served", BLOQUÉ: "BLOCKED", "86": "set aside", WAITING: "waiting", "base rouge": "base red" };
 export const MOTS_DE_CUISINE: Readonly<Record<string, string>> = { ouverte: "open", retenue: "held", arrêtée: "stopped", éteinte: "off" };
 const EN_ANGLAIS: Readonly<Record<string, string>> = { ...MOTS_DE_CARTE, ...MOTS_DE_CUISINE };
 // Le mot affiché pour un état : l'anglais de la table, ou l'état tel quel quand il n'y est pas

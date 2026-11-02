@@ -4,7 +4,7 @@
 // `rail-publie*` et `second-*` en sont tirés.
 import type { RailDuProjet } from "../../../runtime/src/appairage/rail-du-projet.ts";
 import { planDuSecond, type OptionsDuSecond } from "../../../runtime/src/second/lancement.ts";
-import { rangerLeRailPublie, type RailDuProjetLu } from "../../../app/src/faits.ts";
+import type { RailDuProjetLu } from "../../../app/src/faits.ts";
 import type { DitDuSecond, Terminal } from "../../../app/src/terminaux.ts";
 import { configuration, demarrage, type Ecran, MAINTENANT } from "./commun.ts";
 import { CONNEXION, SANS_GH as STATIONS_SANS_GH } from "./premier-lancement-commun.ts";
@@ -29,7 +29,7 @@ const LISTE: Extract<RailDuProjet, { state: "listed" }> = {
   publishedAt: "2026-10-13T10:02:40.000Z",
   tickets: TICKETS,
 };
-export const LISTE_LUE: RailDuProjetLu = { ...LISTE, range: rangerLeRailPublie(LISTE.tickets) };
+export const LISTE_LUE: RailDuProjetLu = LISTE;
 export const CONNEXION_REQUISE: RailDuProjetLu = {
   state: "sign-in-required",
   project: PROJET,
