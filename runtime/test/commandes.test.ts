@@ -33,10 +33,10 @@ const REFUS = 2;
 // temporaire, et pour `npm` le répertoire de ses réglages.
 const SOUS_WINDOWS = process.platform === "win32";
 const DE_WINDOWS = SOUS_WINDOWS ? Object.fromEntries(["SystemRoot", "windir", "SystemDrive", "ComSpec", "PATHEXT", "TEMP", "TMP", "APPDATA", "LOCALAPPDATA", "USERPROFILE"].flatMap((nom) => (process.env[nom] === undefined ? [] : [[nom, process.env[nom] as string]]))) : {};
-function jouer(commande: string[]): Promise<{ code: number | null; sortie: string; erreur: string }> {
+function jouer(commande: string[], env: Record<string, string> = {}): Promise<{ code: number | null; sortie: string; erreur: string }> {
   return new Promise((resoudre, rejeter) => {
     const programme = SOUS_WINDOWS && commande[0] === "npm" ? "npm.cmd" : (commande[0] ?? "");
-    const enfant = spawn(programme, commande.slice(1), { cwd: RUNTIME, shell: SOUS_WINDOWS && programme === "npm.cmd", env: { ...DE_WINDOWS, PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "/tmp", ...CACHE_DE_COMPILATION } });
+    const enfant = spawn(programme, commande.slice(1), { cwd: RUNTIME, shell: SOUS_WINDOWS && programme === "npm.cmd", env: { ...DE_WINDOWS, PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "/tmp", ...CACHE_DE_COMPILATION, ...env } });
     let [sortie, erreur] = ["", ""];
     enfant.stdout.on("data", (morceau) => (sortie += morceau));
     enfant.stderr.on("data", (morceau) => (erreur += morceau));
@@ -45,6 +45,15 @@ function jouer(commande: string[]): Promise<{ code: number | null; sortie: strin
   });
 }
 const npm = (nom: string, args: string[] = []) => jouer(["npm", "--silent", "run", nom, ...(args.length > 0 ? ["--", ...args] : [])]);
+// Le script d'une commande joué comme `npm run` le joue — son `node src/….ts`
+// depuis runtime/, le nom tapé dans `npm_lifecycle_event` —, sans le `npm` :
+// il coûte une demi-seconde de processeur à chaque lancement, et la table en
+// lançait une soixantaine (#2085). Que `npm run` lance bien ce script sous ce
+// nom, un nom anglais comme un ancien, est éprouvé plus bas, une fois chacun.
+const script = (nom: string, args: string[] = []) => {
+  const [, fichier = ""] = (scripts[nom] ?? "").split(" ");
+  return jouer([process.execPath, fichier, ...args], { npm_lifecycle_event: nom });
+};
 
 // Ce qui fait refuser chaque commande sans rien toucher : son environnement
 // manque, ou ses arguments ne se lisent pas. Et ce que son refus dit d'elle.
@@ -61,7 +70,7 @@ const refusDe = (nom: string) => SANS_EFFET[nom] ?? { dit: new RegExp(`run ${nom
 // (qui le compare au sien) lisent la même fin. Rien n'est écrit, la fin ne dépend que de la commande.
 const refusSousSonNom = new Map<string, ReturnType<typeof jouer>>();
 const sousSonNom = (nom: string) => {
-  const fin = refusSousSonNom.get(nom) ?? npm(nom, refusDe(nom).args);
+  const fin = refusSousSonNom.get(nom) ?? script(nom, refusDe(nom).args);
   refusSousSonNom.set(nom, fin);
   return fin;
 };
@@ -89,7 +98,7 @@ describe("les commandes du runtime", { concurrency: 8 }, () => {
   });
 
   test("un ancien nom de commande lance encore la commande : il dit d'abord le nouveau nom et le jour où il cessera de répondre, puis rend ce qu'elle rend, code compris", async () => {
-    const lancees = RENOMMEES.map(async ({ nom, ancien = "" }) => ({ nom, ancien, avant: await npm(ancien, refusDe(nom).args), apres: await sousSonNom(nom) }));
+    const lancees = RENOMMEES.map(async ({ nom, ancien = "" }) => ({ nom, ancien, avant: await script(ancien, refusDe(nom).args), apres: await sousSonNom(nom) }));
     for (const { nom, ancien, avant, apres } of await Promise.all(lancees)) {
       const [annonce, ...reste] = avant.erreur.split("\n");
       assert.equal(annonce, `brigade: “${ancien}” is now “${nom}” — the old name still works until ${FIN_DES_ANCIENS_NOMS}, then stops (CHANGELOG.md)`, ancien);
@@ -99,6 +108,13 @@ describe("les commandes du runtime", { concurrency: 8 }, () => {
       assert.equal(reste.join("\n"), apres.erreur, ancien);
       assert.equal(avant.sortie, apres.sortie, ancien);
     }
+  });
+
+  test("`npm run` lance le script d'un ancien nom sous ce nom : il rend ce que rend son script joué sans `npm`", async () => {
+    const { nom, ancien = "" } = RENOMMEES[0] ?? { nom: "" };
+    const [parNpm, sansNpm] = await Promise.all([npm(ancien, refusDe(nom).args), script(ancien, refusDe(nom).args)]);
+    assert.equal(parNpm.code, REFUS, `${ancien} : ${parNpm.erreur}`);
+    assert.deepEqual(parNpm, sansNpm, ancien);
   });
 
   test("un ancien nom lancé sans `npm` ne devine rien : il le dit, en 2", async () => {
