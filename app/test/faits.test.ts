@@ -303,6 +303,7 @@ describe("les faits que l'app dessine", () => {
             },
           ],
           hors: [],
+          plusieursStations: false,
         },
       },
     });
@@ -945,5 +946,46 @@ describe("la bannière d'arrêt", () => {
       "KITCHEN STOPPED — your “stop” holds",
       "All running cooks have been stopped, and none is launched any more — runtime restarts included, until “resume”.",
     ]);
+  });
+});
+
+// La station et les capacités demandées d'un ticket du rail : lues de la forme brute, par `comprendre`, puis posées par `rail()`.
+describe("station et capacités sur les cartes du rail", () => {
+  const brut = (rail: unknown[]) => JSON.stringify({ ...FAITS, cooks: undefined, attend: undefined, livres: undefined, rail });
+  const ticket = (numero: number, plus: Record<string, unknown> = {}) => ({ ticket: numero, etat: "pris", titre: `T${numero}`, url: `https://github.com/benomite/brigade/issues/${numero}`, ...plus });
+  const cartes = (texte: string) => {
+    const lu = comprendre(texte);
+    assert.ok(!("informe" in lu), "informe" in lu ? lu.informe : "");
+    const posee = rail(lu);
+    return { posee, cartes: [...posee.colonnes.flatMap((colonne) => colonne.cartes), ...posee.hors] };
+  };
+
+  test("`station` et `requires` d'un ticket du rail arrivent sur sa carte, comme `station` et `requiert`", () => {
+    const { cartes: toutes } = cartes(brut([ticket(14, { station: "box/claude", requires: ["macos", "gpu"] }), ticket(15)]));
+    const carte = toutes.find(({ ticket }) => ticket === 14);
+    assert.equal(carte?.station, "box/claude");
+    assert.deepEqual(carte?.requiert, ["macos", "gpu"]);
+    const sans = toutes.find(({ ticket }) => ticket === 15);
+    assert.equal(sans?.station, undefined);
+    assert.equal(sans?.requiert, undefined);
+  });
+
+  test("un `requires` qui n'est pas une liste de textes, ou une `station` qui n'est pas un texte, rend la carte illisible", () => {
+    const avec = (plus: Record<string, unknown>) => brut([ticket(14, plus)]);
+    assert.match(illisible(avec({ requires: "macos" })), /rail\[0\]\.requires/);
+    assert.match(illisible(avec({ requires: ["macos", 3] })), /rail\[0\]\.requires\[1\]/);
+    assert.match(illisible(avec({ station: 7 })), /rail\[0\]\.station/);
+  });
+
+  test("le rail dit si le projet a plusieurs stations, d'après celles de ses cartes", () => {
+    assert.equal(cartes(brut([ticket(14, { station: "box/claude" }), ticket(15, { station: "mac/claude" })])).posee.plusieursStations, true);
+    assert.equal(cartes(brut([ticket(14, { station: "box/claude" }), ticket(15, { station: "box/claude" }), ticket(16)])).posee.plusieursStations, false);
+    assert.equal(cartes(brut([ticket(14)])).posee.plusieursStations, false);
+  });
+
+  test("le même ticket relu avec une autre station porte la nouvelle", () => {
+    const station = (nom: string) => cartes(brut([ticket(14, { station: nom })])).cartes[0]?.station;
+    assert.equal(station("box/claude"), "box/claude");
+    assert.equal(station("mac/claude"), "mac/claude");
   });
 });

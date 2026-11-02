@@ -261,7 +261,7 @@ export function poserTache(doc, { ticket, tache, etat }, gestes) {
  * }} Branchement
  */
 /** @typedef {{ nom: string }} ProjetVu */
-/** @typedef {{ ticket: number, attendu?: boolean, requiert?: string[], tache?: TacheHumaine }} CarteVue */
+/** @typedef {{ ticket: number, attendu?: boolean, requiert?: string[], enWaiting?: true, tache?: TacheHumaine }} CarteVue */
 
 const SANS_PONT = "the app did not answer";
 const message = (/** @type {unknown} */ erreur) => (erreur instanceof Error ? erreur.message : String(erreur));
@@ -366,7 +366,9 @@ export function tenirLesSorties({ doc, pont, stations, reposer, relire }) {
     /** @param {ProjetVu} projet @param {CarteVue} carte */
     poser(projet, carte) {
       const cle = `${projet.nom}#${carte.ticket}`;
-      const { requiert, tache } = carte;
+      const { tache } = carte;
+      // Les sorties ne sont que d'une carte de WAITING : `requiert` y est celui de la capacité qui manque.
+      const requiert = carte.enWaiting === true ? carte.requiert : undefined;
       if (requiert === undefined) sorties.delete(cle);
       if (tache === undefined || carte.attendu !== true) reassignations.delete(cle);
       if (requiert !== undefined) return [sortiesDe(projet, { ...carte, requiert })];
