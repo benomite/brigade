@@ -17,7 +17,7 @@ import { GESTES_DES_GRANTS } from "../../src/grants.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import type { StationVue } from "../../src/stations/stations.ts";
-import { type Faux, jouerLaVue, repos } from "../aides/fausse-vue.ts";
+import { type Faux, jouerLaVue, type Reponses, repos } from "../aides/fausse-vue.ts";
 
 const A = "2026-10-16T12:00:00.000Z";
 const EN_LIGNE: StationVue = { id: "g1", nom: "box", machine: "Linux 6.1.0-47-amd64", etat: "en-ligne", ligne: "online · version 1.4.0 · 1 project: parade", pannes: [], dit: "online", version: "1.4.0", projets: ["parade"], max: "connectee" };
@@ -53,8 +53,8 @@ const enTete = (page: Faux) => {
 };
 
 // L'app ouverte sur l'accueil, puis la page de la station `nom` ouverte d'un clic sur sa ligne.
-async function laPage(nom: string) {
-  const jouee = await jouerLaVue({ demarrage, espace: () => [] });
+async function laPage(nom: string, reponses: Reponses = {}) {
+  const jouee = await jouerLaVue({ demarrage, espace: () => [], ...reponses });
   (jouee.element("projets").children.at(0) ?? assert.fail("pas d'entrée « Tous les projets »")).click();
   await repos();
   const ligne = jouee.element("accueil-stations").dessous("button").find(({ className, textContent }) => className === "ligne" && textContent.startsWith(nom)) ?? assert.fail(`pas de ligne « ${nom} »`);
@@ -112,6 +112,13 @@ test("relue, la page suit : une station qui passe hors ligne le dit dans sa phra
 const bouton = (page: Faux, libelle: string) => page.dessous("button").find(({ textContent }) => textContent === libelle);
 // Ceux de la confirmation du retrait, qui ne se confondent pas avec le « cancel » de l'ajout d'un projet.
 const dansLaConfirmation = (page: Faux, libelle: string) => page.dessous("section").find(({ className }) => className === "confirmation")?.dessous("button").find(({ textContent }) => textContent === libelle);
+// « remove the station », puis le « remove » de la confirmation.
+async function retirer(page: Faux) {
+  bouton(page, "remove the station")?.click();
+  await repos();
+  dansLaConfirmation(page, "remove")?.click();
+  await repos();
+}
 
 test("la ligne de mise à jour, sous l'en-tête : « up to date · on this version for 3 days » ; vide, elle ne se pose pas", async () => {
   const dite = { ...EN_LIGNE, versionDit: "up to date · on this version for 3 days" };
@@ -150,20 +157,8 @@ test("« remove the station » : un clic ouvre la confirmation ; « cancel » la
 
 test("confirmer retire la station et ramène à l'accueil", async () => {
   const retirees: string[] = [];
-  const jouee = await jouerLaVue({
-    demarrage,
-    espace: () => [],
-    retirerLaStation: (id) => (retirees.push(id), { retiree: "box" }),
-  });
-  (jouee.element("projets").children.at(0) ?? assert.fail("pas d'entrée « Tous les projets »")).click();
-  await repos();
-  jouee.element("accueil-stations").dessous("button").find(({ className, textContent }) => className === "ligne" && textContent.startsWith("box"))?.click();
-  await repos();
-  const page = jouee.element("station");
-  bouton(page, "remove the station")?.click();
-  await repos();
-  dansLaConfirmation(page, "remove")?.click();
-  await repos();
+  const { jouee, page } = await laPage("box", { retirerLaStation: (id) => (retirees.push(id), { retiree: "box" }) });
+  await retirer(page);
   assert.deepEqual(retirees, ["g1"]);
   assert.ok(jouee.element("tous").children.some(({ id }) => id === "accueil-stations"), "l'accueil est là");
   assert.ok(!jouee.element("tous").children.includes(page));
@@ -176,16 +171,8 @@ test("confirmer retire la station et ramène à l'accueil", async () => {
 });
 
 test("le retrait refusé : la station reste, la page le dit en une ligne et reste ouverte", async () => {
-  const jouee = await jouerLaVue({ demarrage, espace: () => [], retirerLaStation: () => ({ refus: "box was not removed: GitHub could not be written" }) });
-  (jouee.element("projets").children.at(0) ?? assert.fail("pas d'entrée « Tous les projets »")).click();
-  await repos();
-  jouee.element("accueil-stations").dessous("button").find(({ className, textContent }) => className === "ligne" && textContent.startsWith("box"))?.click();
-  await repos();
-  const page = jouee.element("station");
-  bouton(page, "remove the station")?.click();
-  await repos();
-  dansLaConfirmation(page, "remove")?.click();
-  await repos();
+  const { jouee, page } = await laPage("box", { retirerLaStation: () => ({ refus: "box was not removed: GitHub could not be written" }) });
+  await retirer(page);
   assert.match(page.textContent, /box was not removed: GitHub could not be written/);
   assert.equal(jouee.element("tous").children[0], page, "pas ramené à l'accueil");
 });
