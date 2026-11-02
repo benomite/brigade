@@ -62,7 +62,7 @@ const derniereLigne = (texte: string) => texte.trim().split("\n").at(-1)?.trim()
 // Pourquoi les stations n'ont pas pu être lues, dit du rail du projet.
 function sansLesStations(projet: string, gh: string, delaiMs: number, etat: Exclude<StationsDuChef, { state: "listed" }>): RailDuProjet {
   if (etat.state === "sign-in-required") {
-    return { state: "sign-in-required", project: projet, reason: `This computer is not signed in to GitHub, so brigade cannot read the rail of ${projet}, which its station publishes there.`, action: etat.action };
+    return { state: "sign-in-required", project: projet, reason: `This computer is not signed in to GitHub, so brigade cannot read the rail of ${projet}.`, action: etat.action };
   }
   const { cause, link, detail } = etat;
   const autour = { ...(link === undefined ? {} : { link }), ...(detail === undefined ? {} : { detail }) };
@@ -94,7 +94,7 @@ export async function lireLeRailDuProjet(options: OptionsDuRail): Promise<RailDu
       state: "unavailable",
       project: projet,
       cause: "not-served",
-      reason: `No station paired with this GitHub account serves ${projet}, so its rail cannot be read: sign in to GitHub with the account your stations publish to.`,
+      reason: `No rail of ${projet} is published for this GitHub account: sign in to GitHub with the account your stations publish to.`,
       action: connexionGitHub(gh),
     };
   }
@@ -114,11 +114,11 @@ export async function lireLeRailDuProjet(options: OptionsDuRail): Promise<RailDu
       station: { id: station.id, name: station.name, online: station.online },
       publishedAt: station.lastSeen,
       tickets,
-      ...(tickets.length === 0 ? { reason: `The rail of ${sien.name}, as ${station.name} publishes it, holds no ticket.` } : {}),
+      ...(tickets.length === 0 ? { reason: `The rail of ${sien.name} holds no ticket.` } : {}),
     };
   }
   if (illisible !== null) {
-    return { state: "unavailable", project: projet, cause: "unreadable", reason: `The station ${illisible.name} publishes a rail for ${projet} that this version of brigade cannot read: update brigade on this computer.` };
+    return { state: "unavailable", project: projet, cause: "unreadable", reason: `The rail of ${projet} is published in a form this version of brigade cannot read: update brigade on this computer.` };
   }
   const premiere = siennes[0] as StationAppairee;
   // Une station qui publie des rails, mais pas encore le sien : son journal ne
@@ -129,8 +129,8 @@ export async function lireLeRailDuProjet(options: OptionsDuRail): Promise<RailDu
     project: projet,
     cause: "not-published",
     reason: publieDesRails
-      ? `The station ${premiere.name} serves ${projet} but has not published its rail yet: it does at its next sign of life, within five minutes.`
-      : `The station ${premiere.name} serves ${projet} but publishes no rail on GitHub: update brigade on it, and its rail shows here within five minutes.`,
+      ? `The rail of ${projet} has not been published yet: it will be within five minutes.`
+      : `The rail of ${projet} is not published yet: update brigade on the stations that serve it, and it shows here within five minutes.`,
   };
 }
 

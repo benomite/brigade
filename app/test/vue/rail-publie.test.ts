@@ -20,7 +20,7 @@ import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import type { DitDuSecond, Terminal } from "../../src/terminaux.ts";
 import { poserOutilsDuSecond, PAGE_DE, REESSAYER_LE_SECOND } from "../../src/vue/outils-du-second.js";
 import { RELIRE } from "../../src/vue/premier-lancement.js";
-import { AUCUN, HORS_DES_COLONNES, LECTURE_PUBLIEE, poserRailPublie, PUBLIE_HORS_LIGNE, PUBLIE_PAR, type GestesDuRailPublie } from "../../src/vue/rail-publie.js";
+import { AUCUN, HORS_DES_COLONNES, LECTURE_PUBLIEE, poserRailPublie, PERIME_DEPUIS, type GestesDuRailPublie } from "../../src/vue/rail-publie.js";
 import { Faux, jouerLaVue, ouvrirOnglet, repos, type Reponses } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
@@ -43,10 +43,10 @@ const liste = (tickets = TICKETS, online = true): Extract<RailDuProjet, { state:
   station: { id: "gbox", name: "parade-box", online },
   publishedAt: PUBLIE,
   tickets,
-  ...(tickets.length === 0 ? { reason: "The rail of parade, as parade-box publishes it, holds no ticket." } : {}),
+  ...(tickets.length === 0 ? { reason: "The rail of parade holds no ticket." } : {}),
 });
 const lu = (rail: Extract<RailDuProjet, { state: "listed" }>): RailDuProjetLu => ({ ...rail, range: rangerLeRailPublie(rail.tickets) });
-const CONNEXION_REQUISE: RailDuProjetLu = { state: "sign-in-required", project: PARADE, reason: "This computer is not signed in to GitHub, so brigade cannot read the rail of parade, which its station publishes there.", action: connexionGitHub("gh") };
+const CONNEXION_REQUISE: RailDuProjetLu = { state: "sign-in-required", project: PARADE, reason: "This computer is not signed in to GitHub, so brigade cannot read the rail of parade.", action: connexionGitHub("gh") };
 const SANS_GH: RailDuProjetLu = {
   state: "unavailable",
   project: PARADE,
@@ -55,7 +55,7 @@ const SANS_GH: RailDuProjetLu = {
   link: "https://cli.github.com",
   detail: "spawn gh ENOENT",
 };
-const NON_PUBLIE: RailDuProjetLu = { state: "unavailable", project: PARADE, cause: "not-published", reason: "parade-box serves parade but publishes no rail yet: update brigade on parade-box." };
+const NON_PUBLIE: RailDuProjetLu = { state: "unavailable", project: PARADE, cause: "not-published", reason: "The rail of parade is not published yet: update brigade on the stations that serve it." };
 
 function gestesNotes() {
   const faits: string[] = [];
@@ -74,14 +74,12 @@ const boutons = (poses: Faux[]) => poses.flatMap((pose) => [pose, ...sous(pose)]
 const bouton = (poses: Faux[], texte: string) => boutons(poses).find((pose) => pose.textContent === texte) ?? assert.fail(`pas de bouton « ${texte} »`);
 
 describe("le rail que sa station publie, sur un ordinateur qui ne sert pas le projet", () => {
-  test("listé : la tête dit d'où il vient, d'où au survol ; ses tickets dans les colonnes du Mac, un mot inconnu hors d'elles", () => {
+  test("listé et à jour : aucune tête, les colonnes d'emblée ; ses tickets dans les colonnes du Mac, un mot inconnu hors d'elles", () => {
     const { faits, geste } = gestesNotes();
-    const poses = poserRailPublie(doc, { lu: lu(liste()) }, geste) as Faux[];
+    const poses = poserRailPublie(doc, { lu: lu(liste()), maintenant: Date.parse(PUBLIE) + 60_000 }, geste) as Faux[];
 
-    assert.equal(poses[0]?.className, "attendu");
-    assert.match(poses[0]?.textContent ?? "", new RegExp(`^${PUBLIE_PAR("parade-box").replace(".", "\\.")}`));
-    assert.match(sous(poses[0]).find((pose) => pose.className === "aide")?.ariaLabel ?? "", /^published by parade-box at 2026-10-22 09:12 UTC, for benomite\/parade/);
-    const colonnes = (poses[1] ?? assert.fail("pas de colonnes")).children;
+    assert.equal(poses[0]?.className, "colonnes publiees");
+    const colonnes = (poses[0] ?? assert.fail("pas de colonnes")).children;
     assert.deepEqual(
       colonnes.map((colonne) => colonne.children[0]?.children.map((pose) => pose.textContent)),
       [["On the rail", "1"], ["Taken", "1"], ["Pass", "1"], ["WAITING", "1"], ["Served", "1"]],
@@ -89,25 +87,30 @@ describe("le rail que sa station publie, sur un ordinateur qui ne sert pas le pr
     assert.equal(colonnes[1]?.textContent.includes("#15"), true);
     assert.equal(colonnes[1]?.textContent.includes("Search the menu"), true);
     // TODO n'y est pas : ce qui attend le chef ne se publie pas. « 86 » se dit en mots, hors des colonnes, sans lien.
-    assert.equal(poses[2]?.textContent, HORS_DES_COLONNES);
-    assert.match(poses[3]?.textContent ?? "", /^#19set aside/);
-    assert.equal(sous(poses[3]).some((pose) => pose.balise === "button"), false);
+    assert.equal(poses[1]?.textContent, HORS_DES_COLONNES);
+    assert.match(poses[2]?.textContent ?? "", /^#19set aside/);
+    assert.equal(sous(poses[2]).some((pose) => pose.balise === "button"), false);
+    // Aucune ligne ne nomme une station ni GitHub.
+    assert.doesNotMatch(texteDe(poses), /parade-box|station|GitHub/);
     // Le numéro d'une carte ouvre son issue.
     bouton(poses, "#15").click();
     assert.deepEqual(faits, ["issue 15"]);
   });
 
-  test("une colonne vide le dit ; une station hors ligne aussi, en tête — c'est le dernier rail qu'elle a publié", () => {
+  test("listé mais périmé : une ligne dit depuis quand il n'a pas bougé, sans station ; le survol non plus", () => {
     const { geste } = gestesNotes();
-    const poses = poserRailPublie(doc, { lu: lu(liste(TICKETS.slice(1, 2), false)) }, geste) as Faux[];
-    assert.match(poses[0]?.textContent ?? "", new RegExp(`^${PUBLIE_HORS_LIGNE("parade-box").replace(".", "\\.")}`));
+    const poses = poserRailPublie(doc, { lu: lu(liste(TICKETS.slice(1, 2), false)), maintenant: Date.parse(PUBLIE) + 3 * 3600_000 }, geste) as Faux[];
+    assert.equal(poses[0]?.textContent.startsWith(PERIME_DEPUIS("2026-10-22 09:12 UTC")), true);
+    const survol = sous(poses[0]).find((pose) => pose.className === "aide")?.ariaLabel ?? "";
+    assert.match(survol, /^last published at 2026-10-22 09:12 UTC, for benomite\/parade/);
+    assert.doesNotMatch(texteDe(poses) + survol, /parade-box|station|GitHub/);
     assert.equal(poses[1]?.children[0]?.children[1]?.textContent, AUCUN);
   });
 
   test("aucun ticket : la phrase du runtime, et « read again »", () => {
     const { faits, geste } = gestesNotes();
     const poses = poserRailPublie(doc, { lu: lu(liste([])) }, geste) as Faux[];
-    assert.match(texteDe(poses), /^The rail of parade, as parade-box publishes it, holds no ticket\./);
+    assert.match(texteDe(poses), /^The rail of parade holds no ticket\./);
     bouton(poses, RELIRE).click();
     assert.deepEqual(faits, ["relire"]);
   });
@@ -135,7 +138,7 @@ describe("le rail que sa station publie, sur un ordinateur qui ne sert pas le pr
 
     // Sans page qui la lève : « read again » est le geste recommandé.
     const nonPublie = poserRailPublie(doc, { lu: NON_PUBLIE }, geste) as Faux[];
-    assert.match(nonPublie[0]?.textContent ?? "", /^parade-box serves parade but publishes no rail yet/);
+    assert.match(nonPublie[0]?.textContent ?? "", /^The rail of parade is not published yet/);
     assert.deepEqual(boutons(nonPublie).map((pose) => [pose.textContent, pose.className]), [[RELIRE, "recommande"]]);
   });
 
@@ -219,7 +222,7 @@ describe("dans la vue : l'onglet Rail lit le rail publié, l'onglet Second dit c
     assert.deepEqual(vue.dernier("railDuProjet"), [PARADE]);
     const rail = vue.element("rail");
     assert.equal(rail.hidden, false);
-    assert.match(rail.textContent, /^The rail as parade-box publishes it on GitHub\./);
+    assert.match(rail.textContent, /^This rail has not moved since 2026-10-22 09:12 UTC\./);
     assert.equal(sous(rail).filter((pose) => pose.className === "colonne").length, 5);
     bouton([rail], "#16").click();
     await repos();
@@ -234,7 +237,7 @@ describe("dans la vue : l'onglet Rail lit le rail publié, l'onglet Second dit c
     bouton([rail], RELIRE).click();
     await repos();
     assert.equal(lectures, 2);
-    assert.match(rail.textContent, /^The rail as parade-box publishes it on GitHub\./);
+    assert.match(rail.textContent, /^This rail has not moved since 2026-10-22 09:12 UTC\./);
     await ouvrirOnglet(vue, "Cooks");
     assert.match(vue.element("rail").textContent, /^the rail is not read: no station is known to serve this project yet/);
   });
@@ -246,7 +249,7 @@ describe("dans la vue : l'onglet Rail lit le rail publié, l'onglet Second dit c
     await repos();
     assert.equal(vue.appels.filter(({ geste }) => geste === "seConnecterAGitHub").length, 1);
     assert.equal(lectures, 2);
-    assert.match(vue.element("rail").textContent, /^The rail as parade-box publishes it on GitHub\./);
+    assert.match(vue.element("rail").textContent, /^This rail has not moved since 2026-10-22 09:12 UTC\./);
   });
 
   test("Second empêché : sa note dit pourquoi, chaque outil qui manque est sous elle, le terminal n'est pas montré ; « try again » le relance", async () => {
