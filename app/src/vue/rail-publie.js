@@ -1,10 +1,11 @@
 // @ts-check
-// Le rail d'un projet que ni une box ni la station de cet ordinateur ne servent (ticket 1435, épique 1427) — un projet
-// ouvert depuis le premier lancement, sur un ordinateur neuf : celui que sa station publie sur GitHub, tel que le
-// runtime le lit (ticket 1432), rangé dans les colonnes du rail du Mac (faits.ts). L'onglet n'est jamais vide : en tête,
-// toujours une phrase — d'où vient ce rail, ou pourquoi il ne se lit pas. Une connexion à GitHub qui manque est un
-// bouton, le geste que le runtime nomme ; une lecture qui échoue dit sa raison en une phrase, son détail au survol, et le
-// bouton de la page qui la lève quand le runtime en nomme une. Une carte n'a qu'un geste : son numéro ouvre l'issue.
+// Pourquoi le rail d'un projet qu'aucune station connue ne sert ici ne se dessine pas encore (ticket 1435, épique 1427 ;
+// ticket 2076). Le rail d'un projet est un seul : celui de son tableau de cuisine sur GitHub, TODO en tête (vue.js,
+// `poserRail`), lu quelle que soit la station qui le sert. Tant qu'il ne l'est pas, le rail que sa station publie (ticket
+// 1432) dit pourquoi, sans colonnes à lui : toujours une phrase en tête. Une connexion à GitHub qui manque est un bouton,
+// le geste que le runtime nomme ; une lecture qui échoue dit sa raison en une phrase, son détail au survol, et le bouton
+// de la page qui la lève quand le runtime en nomme une. Un rail publié dont le tableau ne se lit pas dit la raison du
+// tableau, et quand ce rail a été publié, au survol.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (briques.js), et rend des éléments.
 
 import { boutonAction } from "./briques.js";
@@ -12,15 +13,14 @@ import { boutonDeLaPage, connexionDite, gestes, phraseEtDetail, RELIRE } from ".
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../faits.ts").RailDuProjetLu} RailDuProjetLu */
-/** @typedef {import("../faits.ts").CarteDuRailPublie} CarteDuRailPublie */
 
 // Ce que la vue tient de l'onglet. `lu` : absent, sa lecture est en route. `connexion` : la connexion à GitHub
-// lancée, comme au premier lancement.
+// lancée, comme au premier lancement. `nonLu` : pourquoi le tableau de la cuisine ne s'est pas lu, quand il a été lu.
 /**
  * @typedef {{
  *   lu?: RailDuProjetLu,
  *   connexion?: import("./premier-lancement.js").EtatDuPremier["connexion"],
- *   maintenant?: number,
+ *   nonLu?: string,
  * }} EtatDuRailPublie
  */
 /**
@@ -28,59 +28,18 @@ import { boutonDeLaPage, connexionDite, gestes, phraseEtDetail, RELIRE } from ".
  *   relire: () => void,
  *   seConnecter: () => void,
  *   ouvrirLaPage: (url: string) => void,
- *   ouvrirIssue: (ticket: number) => void,
- *   forme?: (ton: string | undefined) => string | undefined,
  * }} GestesDuRailPublie
  */
 
 export const LECTURE_PUBLIEE = "Reading the rail…";
-// Passé ce délai sans nouvelle publication, le rail lu n'est plus frais : la tête dit depuis quand il n'a pas bougé.
-export const FRAICHEUR_MS = 15 * 60 * 1000;
-/** @param {string} depuis */
-export const PERIME_DEPUIS = (depuis) => `This rail has not moved since ${depuis}.`;
-export const AUCUN = "none";
-export const HORS_DES_COLONNES = "outside the columns — their state is none of the five";
-export const SANS_ADRESSE = "the address published for this ticket is not https: the app does not open it";
+// Le rail publié se lit, son tableau pas encore : sa première lecture est en route.
+/** @param {string} projet */
+export const TABLEAU_EN_LECTURE = (projet) => `Reading the Kitchen board of ${projet}…`;
+// Le rail publié se lit, son tableau non : la raison du tableau, telle que sa lecture l'a dite.
+/** @param {string} raison */
+export const TABLEAU_NON_LU = (raison) => `The rail is not drawn: ${raison}`;
 
-/** @param {Fabrique} doc @param {string} balise @param {string} [texte] */
-function cree(doc, balise, texte) {
-  const pose = doc.createElement(balise);
-  if (texte !== undefined) pose.textContent = texte;
-  return pose;
-}
-
-// Une carte : son numéro — un bouton qui ouvre l'issue —, son mot d'état dans le ton de sa colonne, son titre.
-/** @param {Fabrique} doc @param {CarteDuRailPublie} carte @param {GestesDuRailPublie} geste */
-function bonPublie(doc, { ticket, etat, mot: motDEtat, ton, titre, ouvrable }, geste) {
-  const bon = cree(doc, "li");
-  bon.className = "bon";
-  const tete = cree(doc, "div");
-  const numero = cree(doc, ouvrable ? "button" : "span", `#${ticket}`);
-  numero.className = "ticket mono";
-  if (ouvrable) {
-    numero.type = "button";
-    numero.title = `open issue #${ticket} in the browser`;
-    numero.addEventListener("click", () => geste.ouvrirIssue(ticket));
-  } else numero.title = SANS_ADRESSE;
-  const mot = cree(doc, "span", motDEtat ?? etat);
-  mot.className = "etat-ticket";
-  if (ton !== undefined) mot.dataset.ton = ton;
-  const forme = geste.forme?.(ton);
-  if (forme !== undefined) mot.dataset.forme = forme;
-  tete.append(numero, mot);
-  bon.append(tete);
-  if (titre !== "") bon.append(cree(doc, "strong", titre));
-  return bon;
-}
-
-/** @param {Fabrique} doc @param {readonly CarteDuRailPublie[]} cartes @param {GestesDuRailPublie} geste */
-function bons(doc, cartes, geste) {
-  const liste = cree(doc, "ol");
-  liste.append(...cartes.map((carte) => bonPublie(doc, carte, geste)));
-  return liste;
-}
-
-// L'onglet entier, d'après ce que la vue tient : la phrase de tête, puis les colonnes, ou les gestes qui lèvent l'échec.
+// L'onglet entier, d'après ce que la vue tient : la phrase de tête, puis les gestes qui lèvent l'échec.
 /** @param {Fabrique} doc @param {EtatDuRailPublie} etat @param {GestesDuRailPublie} geste @returns {any[]} */
 export function poserRailPublie(doc, etat, geste) {
   const { lu } = etat;
@@ -104,30 +63,9 @@ export function poserRailPublie(doc, etat, geste) {
       ]),
     ];
   }
-  const { publishedAt, range } = lu;
   // Quand il a été publié pour la dernière fois, au survol — sans dire quelle station : le rail est celui du projet.
-  const quand = new Date(publishedAt).toISOString().slice(0, 16).replace("T", " ");
-  const provenance = `last published at ${quand} UTC${lu.repository === null ? "" : `, for ${lu.repository}`} — a ticket opens on its issue`;
-  const perime = (etat.maintenant ?? Date.now()) - Date.parse(publishedAt) > FRAICHEUR_MS;
-  if (lu.tickets.length === 0) return [enTete(lu.reason ?? `The rail of ${lu.project} holds no ticket.`, provenance), relire()];
-  const grille = cree(doc, "div");
-  // Cinq colonnes, et non les quatre du Rail du Mac : Taken et Pass n'ont pas d'onglet Cooks où se lire ici.
-  grille.className = "colonnes publiees";
-  grille.append(
-    ...range.colonnes.map(({ nom, ton, cartes }) => {
-      const colonne = cree(doc, "section");
-      colonne.className = "colonne";
-      colonne.dataset.ton = ton;
-      const forme = geste.forme?.(ton);
-      if (forme !== undefined) colonne.dataset.forme = forme;
-      const tete = cree(doc, "h4");
-      tete.append(cree(doc, "span", nom), cree(doc, "span", String(cartes.length)));
-      const vide = cree(doc, "p", AUCUN);
-      vide.className = "vide";
-      colonne.append(tete, cartes.length === 0 ? vide : bons(doc, cartes, geste));
-      return colonne;
-    }),
-  );
-  const fraicheur = perime ? [enTete(PERIME_DEPUIS(`${quand} UTC`), provenance)] : [];
-  return [...fraicheur, grille, ...(range.hors.length === 0 ? [] : [cree(doc, "h3", HORS_DES_COLONNES), bons(doc, range.hors, geste)])];
+  const quand = new Date(lu.publishedAt).toISOString().slice(0, 16).replace("T", " ");
+  const provenance = `last published at ${quand} UTC${lu.repository === null ? "" : `, for ${lu.repository}`}`;
+  if (etat.nonLu === undefined) return [enTete(TABLEAU_EN_LECTURE(lu.project), provenance)];
+  return [enTete(TABLEAU_NON_LU(etat.nonLu), provenance), relire()];
 }

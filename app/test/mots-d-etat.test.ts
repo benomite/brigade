@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 import { MOTS_DE_CARTE, MOTS_DE_CUISINE, motDEtat } from "../src/bon.ts";
-import { rangerLeRailPublie, TONS_DE_PROJET, TONS_DE_TICKET } from "../src/faits.ts";
+import { TONS_DE_PROJET, TONS_DE_TICKET } from "../src/faits.ts";
 
 const FRANCAIS = ["pris", "en attente", "en pass", "servi", "ouverte", "retenue", "arrêtée", "éteinte"];
 const VUE = join(import.meta.dirname, "../src/vue");
@@ -21,17 +21,6 @@ describe("les mots d'état, en anglais, d'une seule table", () => {
     assert.equal(motDEtat("pris"), "taken");
     assert.equal(motDEtat("ouverte"), "open");
     assert.equal(motDEtat("un mot inconnu"), "un mot inconnu");
-  });
-
-  test("le rail publié pose le mot anglais de chaque état connu", () => {
-    const etats = [...TONS_DE_TICKET.keys()];
-    const { colonnes, hors } = rangerLeRailPublie(etats.map((state, rang) => ({ ticket: rang + 1, state, title: "t", url: "https://github.com/o/r/issues/1" })));
-    const cartes = [...colonnes.flatMap(({ cartes }) => cartes), ...hors];
-    assert.equal(cartes.length, etats.length);
-    for (const { etat, mot } of cartes) {
-      assert.equal(mot, motDEtat(etat));
-      assert.ok(!FRANCAIS.includes(mot ?? etat), `« ${etat} » s'afficherait « ${mot} »`);
-    }
   });
 
   test("la vue et le rail publié ne gardent aucune copie de la table", () => {

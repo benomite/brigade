@@ -1,6 +1,7 @@
 // Les onglets Rail et Second d'un projet ouvert sur un ordinateur neuf ne restent jamais vides (#1435, épique 1427) :
-// Rail montre les tickets que sa station publie sur GitHub (#1432), rangés dans les colonnes du Mac, ou la phrase du
-// runtime qui dit pourquoi ils ne se lisent pas ; Second montre le second qui part, ou, s'il ne part pas, pourquoi et
+// Rail montre le rail du projet — celui de son tableau de cuisine, le même que pour un projet servi ici, TODO en tête
+// avec ses cartes et leurs gestes (#2076) —, ou, tant qu'il ne se lit pas, la phrase qui dit pourquoi, d'après le rail
+// que sa station publie (#1432) ; Second montre le second qui part, ou, s'il ne part pas, pourquoi et
 // chaque outil qui manque, et le bouton de la page qui dit comment l'obtenir (#1433). Les modules sont joués devant un faux document, puis la vue
 // entière devant un faux pont (aides/fausse-vue.ts).
 import assert from "node:assert/strict";
@@ -8,35 +9,34 @@ import { describe, test } from "node:test";
 import { connexionGitHub } from "../../../runtime/src/appairage/stations-du-chef.ts";
 import type { RailDuProjet } from "../../../runtime/src/appairage/rail-du-projet.ts";
 import { ALLUMAGE } from "../../src/allumage.ts";
+import { GESTES_D_ATTENTE } from "../../src/attente.ts";
+import { mettreAPart } from "../../src/attend.ts";
 import { pourLaBarre } from "../../src/barre.ts";
 import { EXEMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../../src/cuisine.ts";
-import { BANNIERE, rangerLeRailPublie, type RailDuProjetLu } from "../../src/faits.ts";
+import { BANNIERE, tenirFaits, type Dessinable, type Faits, type RailDuProjetLu } from "../../src/faits.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../../src/gestes.ts";
+import { gestesDeCarte } from "../../src/gestes-fiche.ts";
 import { GESTES_DES_GRANTS } from "../../src/grants.ts";
 import { ONGLETS, RUBRIQUES } from "../../src/onglets.ts";
 import { EFFORTS, MODELES } from "../../src/projets/projets.ts";
 import type { DitDuSecond, Terminal } from "../../src/terminaux.ts";
 import { poserOutilsDuSecond, PAGE_DE, REESSAYER_LE_SECOND } from "../../src/vue/outils-du-second.js";
 import { RELIRE } from "../../src/vue/premier-lancement.js";
-import { AUCUN, HORS_DES_COLONNES, LECTURE_PUBLIEE, poserRailPublie, PERIME_DEPUIS, type GestesDuRailPublie } from "../../src/vue/rail-publie.js";
-import { Faux, jouerLaVue, ouvrirOnglet, repos, type Reponses } from "../aides/fausse-vue.ts";
+import { LECTURE_PUBLIEE, poserRailPublie, TABLEAU_EN_LECTURE, TABLEAU_NON_LU, type GestesDuRailPublie } from "../../src/vue/rail-publie.js";
+import { carteDuTicket, Faux, jouerLaVue, ouvrirOnglet, repos, type Jouee, type Reponses } from "../aides/fausse-vue.ts";
 
 const doc = { createElement: (balise: string) => new Faux(balise) };
 const PARADE = "parade";
 const PUBLIE = "2026-10-22T09:12:00.000Z";
 
-// Le rail que parade-box publie pour parade, tel que le runtime le rend, puis rangé par le process principal (faits.ts).
+// Le rail que parade-box publie pour parade, tel que le runtime le rend.
 const TICKETS = [
   { ticket: 14, state: "en attente", title: "Login page", url: "https://github.com/benomite/parade/issues/14" },
   { ticket: 15, state: "pris", title: "Search the menu", url: "https://github.com/benomite/parade/issues/15" },
-  { ticket: 16, state: "en pass", title: "Cart total", url: "https://github.com/benomite/parade/issues/16" },
-  { ticket: 17, state: "WAITING", title: "Payment provider", url: "https://github.com/benomite/parade/issues/17" },
-  { ticket: 18, state: "servi", title: "Footer links", url: "https://github.com/benomite/parade/issues/18" },
-  { ticket: 19, state: "86", title: "Old prototype", url: "http://example.org/19" },
 ];
-const liste = (tickets = TICKETS, online = true): Extract<RailDuProjet, { state: "listed" }> => ({
+const liste = (tickets = TICKETS, online = true): RailDuProjetLu => ({
   state: "listed",
   project: PARADE,
   repository: "benomite/parade",
@@ -45,7 +45,6 @@ const liste = (tickets = TICKETS, online = true): Extract<RailDuProjet, { state:
   tickets,
   ...(tickets.length === 0 ? { reason: "The rail of parade holds no ticket." } : {}),
 });
-const lu = (rail: Extract<RailDuProjet, { state: "listed" }>): RailDuProjetLu => ({ ...rail, range: rangerLeRailPublie(rail.tickets) });
 const CONNEXION_REQUISE: RailDuProjetLu = { state: "sign-in-required", project: PARADE, reason: "This computer is not signed in to GitHub, so brigade cannot read the rail of parade.", action: connexionGitHub("gh") };
 const SANS_GH: RailDuProjetLu = {
   state: "unavailable",
@@ -56,6 +55,7 @@ const SANS_GH: RailDuProjetLu = {
   detail: "spawn gh ENOENT",
 };
 const NON_PUBLIE: RailDuProjetLu = { state: "unavailable", project: PARADE, cause: "not-published", reason: "The rail of parade is not published yet: update brigade on the stations that serve it." };
+const SANS_TABLEAU = "There is no open Kitchen board in benomite/parade: the box serving it has not published one yet, or it was closed.";
 
 function gestesNotes() {
   const faits: string[] = [];
@@ -63,7 +63,6 @@ function gestesNotes() {
     relire: () => void faits.push("relire"),
     seConnecter: () => void faits.push("seConnecter"),
     ouvrirLaPage: (url) => void faits.push(`page ${url}`),
-    ouvrirIssue: (ticket) => void faits.push(`issue ${ticket}`),
   };
   return { faits, geste };
 }
@@ -73,44 +72,21 @@ const sous = (pose: Faux | undefined): Faux[] => (pose === undefined ? [] : [...
 const boutons = (poses: Faux[]) => poses.flatMap((pose) => [pose, ...sous(pose)]).filter((pose) => pose.balise === "button" && pose.className !== "aide");
 const bouton = (poses: Faux[], texte: string) => boutons(poses).find((pose) => pose.textContent === texte) ?? assert.fail(`pas de bouton « ${texte} »`);
 
-describe("le rail que sa station publie, sur un ordinateur qui ne sert pas le projet", () => {
-  test("listé et à jour : aucune tête, les colonnes d'emblée ; ses tickets dans les colonnes du Mac, un mot inconnu hors d'elles", () => {
-    const { faits, geste } = gestesNotes();
-    const poses = poserRailPublie(doc, { lu: lu(liste()), maintenant: Date.parse(PUBLIE) + 60_000 }, geste) as Faux[];
-
-    assert.equal(poses[0]?.className, "colonnes publiees");
-    const colonnes = (poses[0] ?? assert.fail("pas de colonnes")).children;
-    assert.deepEqual(
-      colonnes.map((colonne) => colonne.children[0]?.children.map((pose) => pose.textContent)),
-      [["On the rail", "1"], ["Taken", "1"], ["Pass", "1"], ["WAITING", "1"], ["Served", "1"]],
-    );
-    assert.equal(colonnes[1]?.textContent.includes("#15"), true);
-    assert.equal(colonnes[1]?.textContent.includes("Search the menu"), true);
-    // TODO n'y est pas : ce qui attend le chef ne se publie pas. « 86 » se dit en mots, hors des colonnes, sans lien.
-    assert.equal(poses[1]?.textContent, HORS_DES_COLONNES);
-    assert.match(poses[2]?.textContent ?? "", /^#19set aside/);
-    assert.equal(sous(poses[2]).some((pose) => pose.balise === "button"), false);
-    // Aucune ligne ne nomme une station ni GitHub.
-    assert.doesNotMatch(texteDe(poses), /parade-box|station|GitHub/);
-    // Le numéro d'une carte ouvre son issue.
-    bouton(poses, "#15").click();
-    assert.deepEqual(faits, ["issue 15"]);
-  });
-
-  test("listé mais périmé : une ligne dit depuis quand il n'a pas bougé, sans station ; le survol non plus", () => {
-    const { geste } = gestesNotes();
-    const poses = poserRailPublie(doc, { lu: lu(liste(TICKETS.slice(1, 2), false)), maintenant: Date.parse(PUBLIE) + 3 * 3600_000 }, geste) as Faux[];
-    assert.equal(poses[0]?.textContent.startsWith(PERIME_DEPUIS("2026-10-22 09:12 UTC")), true);
+describe("le rail que sa station publie dit pourquoi le tableau ne se dessine pas encore — sans colonnes à lui (#2076)", () => {
+  test("publié, son tableau en lecture : une phrase le dit, la publication au survol, sans station ; aucune colonne", () => {
+    const poses = poserRailPublie(doc, { lu: liste() }, gestesNotes().geste) as Faux[];
+    // Une seule ligne, et son survol (« ? »).
+    assert.deepEqual(poses.map((pose) => pose.textContent), [`${TABLEAU_EN_LECTURE(PARADE)}?`]);
     const survol = sous(poses[0]).find((pose) => pose.className === "aide")?.ariaLabel ?? "";
     assert.match(survol, /^last published at 2026-10-22 09:12 UTC, for benomite\/parade/);
-    assert.doesNotMatch(texteDe(poses) + survol, /parade-box|station|GitHub/);
-    assert.equal(poses[1]?.children[0]?.children[1]?.textContent, AUCUN);
+    assert.doesNotMatch(texteDe(poses) + survol, /parade-box/);
+    assert.equal(poses.flatMap((pose) => [pose, ...sous(pose)]).some((pose) => pose.className === "colonne"), false);
   });
 
-  test("aucun ticket : la phrase du runtime, et « read again »", () => {
+  test("publié, son tableau illisible : la raison du tableau en une ligne, et « read again »", () => {
     const { faits, geste } = gestesNotes();
-    const poses = poserRailPublie(doc, { lu: lu(liste([])) }, geste) as Faux[];
-    assert.match(texteDe(poses), /^The rail of parade holds no ticket\./);
+    const poses = poserRailPublie(doc, { lu: liste([]), nonLu: SANS_TABLEAU }, geste) as Faux[];
+    assert.match(texteDe(poses), new RegExp(`^${TABLEAU_NON_LU("There is no open Kitchen board")}`));
     bouton(poses, RELIRE).click();
     assert.deepEqual(faits, ["relire"]);
   });
@@ -202,7 +178,7 @@ const demarrage = () => ({
   exemple: EXEMPLE,
   onglets: ONGLETS,
   rubriques: RUBRIQUES,
-  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES },
+  gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, grants: { gestes: GESTES_DES_GRANTS, nommes: GRANTS }, directs: DIRECTS, confirmes: CONFIRMES, attente: GESTES_D_ATTENTE },
   banniere: BANNIERE,
   calibrage: { modeles: MODELES, efforts: EFFORTS },
   code: undefined,
@@ -216,45 +192,105 @@ async function ouvrir(reponses: Reponses) {
   return vue;
 }
 
-describe("dans la vue : l'onglet Rail lit le rail publié, l'onglet Second dit ce qui manque", () => {
-  test("Rail : le rail publié est lu à l'ouverture, ses colonnes posées ; un numéro ouvre son issue", async () => {
-    const vue = await ouvrir({ railDuProjet: () => lu(liste()), ouvrirIssue: () => true });
+// Le tableau de la cuisine de parade, tel que le process principal le passe à la vue (faits.ts) : #14 attend le chef, #15
+// cuit. `rien` : rien n'attend le chef, et le bloc le dit.
+const A = "2026-11-02T09:00:00.000Z";
+const FAITS: Faits = {
+  etat: "ouverte",
+  lu: "2026-11-02T08:59:00.000Z",
+  dernierTick: "2026-11-02T08:58:00.000Z",
+  compteurs: { rail: 1, auTravail: 1, aLaPass: 0, attend: 1, livres24h: 0 },
+  dernierEvenement: null,
+  rail: [
+    { ticket: 14, etat: "en attente", titre: "Login page", url: "https://github.com/benomite/parade/issues/14", activite: null },
+    { ticket: 15, etat: "pris", titre: "Search the menu", url: "https://github.com/benomite/parade/issues/15", activite: null },
+  ],
+  cooks: [{ ticket: 15, titre: "Search the menu", station: "parade-box/claude" }],
+  attend: [{ ticket: 14, titre: "Login page", url: "https://github.com/benomite/parade/issues/14" }],
+};
+const STATUS = ["awaiting   1 decision awaits the chef — for 2 h", "  #14  for 2 h  question — answer it on the issue  Login page", "end awaiting", ""].join("\n");
+const RIEN = ["awaiting   nothing awaits the chef", "end awaiting", ""].join("\n");
+function duTableau(faits: Faits, status: string): Dessinable {
+  const tenus = tenirFaits(() => new Map());
+  tenus.recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(faits) }] });
+  return tenus.attendre(mettreAPart({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "status", texte: status }] })) ?? assert.fail("rien à redessiner");
+}
+const recevoir = (vue: Jouee, recue: Dessinable) => vue.dire("surFaits", { ...recue, demande: vue.dernier("faits")[0] as number });
+const NON_LU: Dessinable = { projet: PARADE, demande: 0, a: A, titre: "NOT READ FROM THE KITCHEN BOARD", erreur: SANS_TABLEAU, atteinte: true, cas: null, duTableau: true };
+const colonnesDe = (vue: Jouee) => vue.element("rail").dessous("section").filter((section) => section.className === "colonne");
+const nomsEtComptes = (vue: Jouee) => colonnesDe(vue).map((colonne) => colonne.children[0]?.children.map((pose) => pose.textContent));
+
+describe("dans la vue : un projet servi par une autre station a le même rail, TODO en tête (#2076)", () => {
+  test("le tableau lu : les six colonnes du rail, TODO en premier avec la carte qui attend le chef et son geste ; aucun rail publié", async () => {
+    const vue = await ouvrir({ railDuProjet: () => liste(), gestesDeFiche: (carte) => gestesDeCarte(carte) });
     assert.deepEqual(vue.dernier("railDuProjet"), [PARADE]);
-    const rail = vue.element("rail");
-    assert.equal(rail.hidden, false);
-    assert.match(rail.textContent, /^This rail has not moved since 2026-10-22 09:12 UTC\./);
-    assert.equal(sous(rail).filter((pose) => pose.className === "colonne").length, 5);
-    bouton([rail], "#16").click();
-    await repos();
-    assert.deepEqual(vue.dernier("ouvrirIssue"), [PARADE, 16]);
+    // Tant que le tableau n'est pas lu, la page le dit — sans les colonnes du rail publié.
+    assert.equal(vue.element("rail").textContent.startsWith(TABLEAU_EN_LECTURE(PARADE)), true);
+    assert.deepEqual(colonnesDe(vue), []);
+
+    recevoir(vue, duTableau(FAITS, STATUS));
+    assert.deepEqual(nomsEtComptes(vue), [["TODO", "1"], ["WAITING", "0"], ["On the rail", "0"], ["Taken", "1"], ["Pass", "0"], ["Served", "0"]]);
+    const todo = colonnesDe(vue)[0] ?? assert.fail("pas de TODO");
+    const carte = carteDuTicket(vue, 14) ?? assert.fail("pas de carte #14");
+    assert.equal(todo.contains(carte), true);
+    // Son geste, comme sur un projet servi ici : le chef dit ce qu'elle attend d'un tiers.
+    assert.ok(carte.dessous("button").some(({ textContent }) => textContent === "waiting for…"));
+    assert.doesNotMatch(vue.element("rail").textContent, /last published|Reading the/);
   });
 
-  test("Rail : indisponible, la phrase du runtime ; « read again » relit — et Cooks garde sa phrase", async () => {
+  test("rien n'attend le chef : TODO reste en tête, et le dit en une ligne", async () => {
+    const vue = await ouvrir({ railDuProjet: () => liste() });
+    recevoir(vue, duTableau({ ...FAITS, attend: [] }, RIEN));
+    const todo = colonnesDe(vue)[0] ?? assert.fail("pas de TODO");
+    assert.deepEqual(todo.children[0]?.children.map((pose) => pose.textContent), ["TODO", "0"]);
+    assert.deepEqual(todo.dessous("p").map((pose) => pose.textContent), ["nothing awaits you"]);
+  });
+
+  test("le tableau ne se lit pas : sa raison en une ligne ; « read again » relit le tableau et le rail publié", async () => {
     let lectures = 0;
-    const vue = await ouvrir({ railDuProjet: () => (++lectures === 1 ? SANS_GH : lu(liste())) });
+    const vue = await ouvrir({ railDuProjet: () => (++lectures, liste()) });
+    recevoir(vue, NON_LU);
+    const rail = vue.element("rail");
+    assert.equal(rail.textContent.startsWith(TABLEAU_NON_LU(SANS_TABLEAU)), true);
+    assert.deepEqual(colonnesDe(vue), []);
+    bouton([rail], RELIRE).click();
+    await repos();
+    assert.equal(lectures, 2);
+    assert.equal(vue.appels.filter(({ geste }) => geste === "relireBox").length, 1);
+    // Relu, le tableau pose le rail.
+    recevoir(vue, duTableau(FAITS, STATUS));
+    assert.equal(nomsEtComptes(vue)[0]?.[0], "TODO");
+  });
+
+  test("indisponible, la phrase du runtime ; « read again » relit — et Cooks garde sa phrase", async () => {
+    let lectures = 0;
+    const vue = await ouvrir({ railDuProjet: () => (++lectures === 1 ? SANS_GH : liste()) });
     const rail = vue.element("rail");
     assert.match(rail.textContent, /^The GitHub CLI gh is not installed on this computer/);
     bouton([rail], RELIRE).click();
     await repos();
     assert.equal(lectures, 2);
-    assert.match(rail.textContent, /^This rail has not moved since 2026-10-22 09:12 UTC\./);
+    assert.equal(rail.textContent.startsWith(TABLEAU_EN_LECTURE(PARADE)), true);
     await ouvrirOnglet(vue, "Cooks");
     assert.match(vue.element("rail").textContent, /^the rail is not read: no station is known to serve this project yet/);
   });
 
-  test("Rail : connexion requise, son bouton lance la connexion du runtime ; connecté, le rail est relu", async () => {
+  test("connexion requise, son bouton lance la connexion du runtime ; connecté, le rail et le tableau sont relus", async () => {
     let lectures = 0;
-    const vue = await ouvrir({ railDuProjet: () => (++lectures === 1 ? CONNEXION_REQUISE : lu(liste())), seConnecterAGitHub: () => ({ connecte: true }) as never });
+    const vue = await ouvrir({ railDuProjet: () => (++lectures === 1 ? CONNEXION_REQUISE : liste()), seConnecterAGitHub: () => ({ connecte: true }) as never });
     bouton([vue.element("rail")], connexionGitHub("gh").label).click();
     await repos();
     assert.equal(vue.appels.filter(({ geste }) => geste === "seConnecterAGitHub").length, 1);
     assert.equal(lectures, 2);
-    assert.match(vue.element("rail").textContent, /^This rail has not moved since 2026-10-22 09:12 UTC\./);
+    assert.equal(vue.appels.filter(({ geste }) => geste === "relireBox").length, 1);
+    assert.equal(vue.element("rail").textContent.startsWith(TABLEAU_EN_LECTURE(PARADE)), true);
   });
+});
 
+describe("dans la vue : l'onglet Second dit ce qui manque", () => {
   test("Second empêché : sa note dit pourquoi, chaque outil qui manque est sous elle, le terminal n'est pas montré ; « try again » le relance", async () => {
     const empeche: Terminal = { ...SECOND, arrete: true, note: EMPECHE.reason, empeche: EMPECHE };
-    const vue = await ouvrir({ railDuProjet: () => lu(liste()), espace: () => [empeche], ouvrirLaPage: () => true });
+    const vue = await ouvrir({ railDuProjet: () => liste(), espace: () => [empeche], ouvrirLaPage: () => true });
     // Sa phrase pose ses outils en code, sans accents graves.
     const note = vue.element("note-second");
     assert.equal(note.textContent, EMPECHE.reason.replaceAll("`", ""));
@@ -276,7 +312,7 @@ describe("dans la vue : l'onglet Rail lit le rail publié, l'onglet Second dit c
   });
 
   test("Second parti sans `gh` : le terminal est montré, et ce qui manque se dit au-dessus", async () => {
-    const vue = await ouvrir({ railDuProjet: () => lu(liste()), espace: () => [{ ...SECOND, manque: MANQUE }] });
+    const vue = await ouvrir({ railDuProjet: () => liste(), espace: () => [{ ...SECOND, manque: MANQUE }] });
     assert.equal(vue.element("fil").hidden, false);
     assert.equal(vue.element("outils-du-second").hidden, false);
     assert.match(vue.element("outils-du-second").textContent, /^The second starts, but gh is missing/);
