@@ -20,7 +20,7 @@
 // l'horloge de toute la suite.
 //
 // Usage, depuis `runtime/` :
-//   node test-config/suite.ts [<fichier ou motif>...]   (défaut : test/**/*.test.ts)
+//   node test-config/suite.ts [<fichier ou motif>...]   (défaut : les motifs du script `test`)
 // Options :
 //   --concurrence <n>   fichiers joués à la fois (défaut : BRIGADE_TESTS_CONCURRENCE,
 //                       sinon le nombre de cœurs logiques)
@@ -40,7 +40,10 @@ import { pathToFileURL } from "node:url";
 
 const RUNTIME = resolve(import.meta.dirname, "..");
 const DUREES = join(import.meta.dirname, "durees.tsv");
-const MOTIF = "test/**/*.test.ts";
+// Les motifs du script `test` de package.json, et le garde qu'il charge dans
+// chaque fichier (#2084 : un test suspendu échoue à 30 s, nommé).
+const MOTIFS = ["test/**/*.test.ts", "test-hang-guard/**/*.test.ts"];
+const GARDE_SUSPENDU = join(RUNTIME, "test-hang-guard", "charger.ts");
 // Le répertoire temporaire en mémoire ne se prend qu'avec cette place libre :
 // un `/dev/shm` de conteneur, souvent 64 Mo, se remplirait en cours de suite.
 const TEMPORAIRE_MIN_OCTETS = 2048 * 1024 * 1024;
@@ -70,7 +73,7 @@ if (!Number.isInteger(concurrence) || concurrence < 1) refuser(`concurrence illi
 // prend tel quel. Chacun une fois.
 const fichiers = [
   ...new Set(
-    (motifs.length > 0 ? motifs : [MOTIF]).flatMap((motif) =>
+    (motifs.length > 0 ? motifs : MOTIFS).flatMap((motif) =>
       /[*?[{]/.test(motif) ? globSync(motif, { cwd: RUNTIME }) : [relative(RUNTIME, resolve(motif))],
     ),
   ),
@@ -187,7 +190,7 @@ const flux = run({
   forceExit: true,
   // Sans elle, `forceExit` perd la fin du relevé d'un fichier quand ce
   // lanceur lit en retard (`sortie-bloquante.ts`).
-  execArgv: ["--import", pathToFileURL(join(import.meta.dirname, "sortie-bloquante.ts")).href],
+  execArgv: ["--import", pathToFileURL(GARDE_SUSPENDU).href, "--import", pathToFileURL(join(import.meta.dirname, "sortie-bloquante.ts")).href],
 });
 const horloges: Array<[number, string]> = [];
 let verte = false;

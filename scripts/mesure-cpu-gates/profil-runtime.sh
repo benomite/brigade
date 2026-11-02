@@ -17,9 +17,9 @@ GIT_CORE="$(git --exec-path 2>/dev/null)"
 export ICI PATH="${GIT_CORE:+$GIT_CORE:}$PATH"
 export NODE_COMPILE_CACHE="${NODE_COMPILE_CACHE:-${TMPDIR:-/tmp}/brigade-runtime-compile-cache}"
 cd "$WT/runtime" || exit 1
-find test -name '*.test.ts' | LC_ALL=C sort |
+find test test-hang-guard -name '*.test.ts' | LC_ALL=C sort |
   env -u BRIGADE_STATE_DIR -u BRIGADE_PORT xargs -P "$FOIS" -I{} sh -c \
-    'printf "%s\t%s\n" "$(python3 -I "$ICI/mesure.py" --silencieux -- node --test --test-concurrency=5 --test-force-exit --test-timeout=120000 "$1" 2>/dev/null | sed "s/[a-z_]*=//g" | tr " " "\t")" "$1"' _ {} |
+    'printf "%s\t%s\n" "$(python3 -I "$ICI/mesure.py" --silencieux -- node --import ./test-hang-guard/charger.ts --test --test-concurrency=5 --test-force-exit --test-timeout=120000 "$1" 2>/dev/null | sed "s/[a-z_]*=//g" | tr " " "\t")" "$1"' _ {} |
   LC_ALL=C sort -t"$(printf '\t')" -k1,1nr >"$SORTIE"
 awk -F'\t' '{ c += $1; n++ } END { printf "%d fichiers, %.1f s de processeur\n", n, c }' "$SORTIE"
 head -25 "$SORTIE"
