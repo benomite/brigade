@@ -151,3 +151,7 @@ export const depuis2037 = <F extends { rail: object[] }>(avant: F, courant: { ra
     return { ...carte, ...(station === undefined ? {} : { station }), ...(requires === undefined ? {} : { requires }) };
   }),
 });
+
+// Ce que #1971 ajoute à la forme : ce que la cuisine fait tourner hors des cooks de ticket (`agents`), en dernier — ceux
+// que l'état d'exemple fait tourner, qu'il dit lui-même.
+export const depuis1971 = <F extends object>(avant: F, agents: Array<{ role: string; station: string | null; ticket: number | null; fait: string; depuis: string }> = []): F & { agents: typeof agents } => ({ ...avant, agents });

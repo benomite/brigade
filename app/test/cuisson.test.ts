@@ -5,7 +5,8 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import type { Faits as FaitsDuRuntime } from "../../runtime/src/etat.ts";
-import { ABSENTE, cuireSurLaStation, cuissonDe } from "../src/cuisson.ts";
+import { PASS_A_L_OUVRAGE as PASS_DU_RUNTIME } from "../../runtime/src/activites.ts";
+import { ABSENTE, cuireSurLaStation, cuissonDe, PASS_A_L_OUVRAGE } from "../src/cuisson.ts";
 import { tenirFaits, type Faits } from "../src/faits.ts";
 import type { StationDesFaits } from "../src/ordinaires.ts";
 import type { DecisionDuChef, EtatDuGeste } from "../src/tableau-gestes/gestes.ts";
@@ -213,5 +214,66 @@ describe("le bouton d'une station poste `/brigade station stop|start <station>` 
   test("les stations que le bouton connaît sont celles des derniers `facts` du projet", () => {
     const { tenus } = lues(STATIONS);
     assert.deepEqual(tenus.stations("parade")?.map(({ station: nom }) => nom), ["box/claude", "mac/claude"]);
+  });
+});
+
+describe("ce que chaque station fait tourner hors de ses cooks (#1971)", () => {
+  type Agents = FaitsDuRuntime["agents"];
+  // Une lecture de `facts` qui porte ces stations, ces agents et ce rail.
+  function luesAvec(stations: DuRuntime[], agents: Agents | undefined, rail: Faits["rail"] = []) {
+    const tenus = tenirFaits();
+    const recue = tenus.recevoir({ projet: "parade", demande: 0, a: LU, sorties: [{ commande: "facts", texte: JSON.stringify({ ...FAITS, rail, stations, ...(agents === undefined ? {} : { agents }) }) }] });
+    assert.ok("tableau" in recue, "titre" in recue ? recue.titre : "");
+    return (recue.tableau.stations ?? assert.fail("pas de stations")).lignes;
+  }
+  const RAIL_15: Faits["rail"] = [{ ticket: 15, etat: "en pass", titre: "La carte des desserts", url: "https://exemple.test/15", activite: { fait: "gates en cours", faitEn: "running the gates", cible: null, depuis: "2026-10-20T10:01:11.000Z" }, attente: null }];
+
+  test("la pass, le manager et le closer vont sur la station qui les fait tourner, avec le titre du rail, ce qu'ils font et depuis combien de temps ; une station qui n'en fait tourner aucun n'en a pas", () => {
+    const lignes = luesAvec(
+      [station("box/claude"), station("mac/claude", { distante: true })],
+      [
+        { role: "pass", station: "box/claude", ticket: 15, fait: "running the gates", depuis: "2026-10-20T10:01:11.000Z" },
+        { role: "manager", station: "box/claude", ticket: 21, fait: "qualifying the issue", depuis: "2026-10-20T10:04:01.000Z" },
+        { role: "closer", station: "box/claude", ticket: null, fait: "closing: cleaning up the project", depuis: "2026-10-20T09:04:11.000Z" },
+      ],
+      RAIL_15,
+    );
+    assert.deepEqual(lignes.map(({ station: nom, agents }) => [nom, agents]), [
+      [
+        "box/claude",
+        [
+          { role: "pass", ticket: 15, titre: "La carte des desserts", fait: "running the gates", depuis: "2026-10-20T10:01:11.000Z", pour: "3 min" },
+          { role: "manager", ticket: 21, titre: "", fait: "qualifying the issue", depuis: "2026-10-20T10:04:01.000Z", pour: "10 s" },
+          { role: "closer", ticket: null, titre: "", fait: "closing: cleaning up the project", depuis: "2026-10-20T09:04:11.000Z", pour: "1 h 00" },
+        ],
+      ],
+      ["mac/claude", []],
+    ]);
+  });
+
+  test("sans station nommée, ou nommée d'une station que le projet ne déclare pas, l'agent va sur sa première station d'ici ; un agent mal formé n'est pas lu, et le reste l'est", () => {
+    const lignes = luesAvec(
+      [station("mac/claude", { distante: true }), station("box/claude")],
+      [
+        { role: "manager", station: null, ticket: 21, fait: "splitting the epic", depuis: "2026-10-20T10:04:01.000Z" },
+        { role: "closer", station: "ailleurs/claude", ticket: null, fait: "closing: cleaning up the project", depuis: "2026-10-20T10:04:01.000Z" },
+        // Ni rôle, ni heure lisible : écartés.
+        { station: "box/claude", ticket: 3, fait: "judging", depuis: "2026-10-20T10:04:01.000Z" } as unknown as Agents[number],
+        { role: "pass", station: "box/claude", ticket: 4, fait: "judging", depuis: "hier" },
+      ],
+    );
+    assert.deepEqual(lignes.map(({ station: nom, agents }) => [nom, agents.map(({ role }) => role)]), [["mac/claude", []], ["box/claude", ["manager", "closer"]]]);
+  });
+
+  test("d'un runtime d'avant `agents`, la pass se lit au rail : un ticket que la pass juge est sur la principale ; une livraison qui attend la pass ne la fait pas tourner", () => {
+    const attend = { ...RAIL_15[0]!, ticket: 16, activite: { fait: "attend la pass", faitEn: "waiting for the pass", cible: null, depuis: "2026-10-20T10:01:11.000Z" } };
+    const lignes = luesAvec([station("box/claude")], undefined, [...RAIL_15, attend]);
+    assert.deepEqual(lignes[0]?.agents.map(({ role, ticket, fait }) => [role, ticket, fait]), [["pass", 15, "running the gates"]]);
+    // Un runtime qui dit `agents`, même vide, en dit seul : le rail n'ajoute rien.
+    assert.deepEqual(luesAvec([station("box/claude")], [], RAIL_15)[0]?.agents, []);
+  });
+
+  test("les phases où la pass travaille sont celles du runtime, une pour une", () => {
+    assert.deepEqual([...PASS_A_L_OUVRAGE].sort(), [...PASS_DU_RUNTIME].sort());
   });
 });

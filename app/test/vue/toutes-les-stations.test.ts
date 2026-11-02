@@ -148,7 +148,7 @@ describe("« Its stations » liste toutes les stations du projet (#1786)", () =>
     assert.equal(vue.element("rail").textContent.includes(TITRE_DES_DECLAREES), false);
     // Ce qu'elle cuit : la box #14 ; les autres, rien.
     assert.match(ligne(vue, "box/claude").textContent, /#14/);
-    assert.match(ligne(vue, "pc").textContent, /no cook running/);
+    assert.match(ligne(vue, "pc").textContent, /nothing running/);
     // Ses cooks à la fois, et « set the cap ».
     assert.match(ligne(vue, "macbook/claude").textContent, /Cooks at once: 2/);
     boutonDe(ligne(vue, "macbook/claude"), POSER_LE_PLAFOND);
@@ -237,7 +237,7 @@ describe("« Its stations » dit chaque station telle que la principale la voit 
 });
 
 describe("les stations du bloc, rangées (#1786)", () => {
-  const ligneDe = (nom: string, distante: boolean) => ({ station: nom, distante, etat: "cooking", dit: "", survol: "", cooks: [], geste: "stop" as const });
+  const ligneDe = (nom: string, distante: boolean) => ({ station: nom, distante, etat: "cooking", dit: "", survol: "", cooks: [], agents: [], geste: "stop" as const });
   const declaree = (nom: string, distante: boolean) => ({ nom, moteur: "claude", fournit: ["code"], cooks: 1, distante });
   const app = (id: string, nom: string, principale: boolean, station?: string) => ({ id, nom, principale, dit: "", survol: "", pourquoi: "", geste: "", autoriser: [], ...(station === undefined ? {} : { station }) });
 

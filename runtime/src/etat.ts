@@ -4,6 +4,7 @@
 // ses projections — rien n'est calculé ni gardé ailleurs, et rien n'est écrit.
 import { direActiviteEn, type Activite } from "./activite.ts";
 import { activitesDuRail, type ActiviteDeTicket } from "./activites.ts";
+import { agentsEnCours, runsHorsTicket, type AgentEnCours, type RunHorsTicket } from "./agents-en-cours.ts";
 import { sejoursEnColonne, type Essai, type Sejour } from "./sejour-en-colonne.ts";
 import { DIRE_GATES_COUPEES, DIRE_GATES_COUPEES_EN } from "./events/pass.ts";
 import { attenteDeLaCarte, carteDeLAttente, type CarteDuTicket } from "./carte-todo/cartes.ts";
@@ -170,6 +171,9 @@ export type EtatCuisine = {
   // Les cooks en cours tels que `station` les montre : station par station, le
   // plus ancien d'abord.
   auxFourneaux: Array<{ station: string; ticket: number | null }>;
+  // Les lancements du manager et du closer sans fin dans le journal (agents-en-cours.ts, #1971). Absent d'un état
+  // construit sans eux.
+  horsTickets?: RunHorsTicket[];
   // Les stations où le chef a arrêté la cuisine du projet, et depuis quand.
   arretees: Map<string, string>;
   // Ce que l'ensemble des cooks a consommé : ceux qui tournent, puis, par
@@ -251,6 +255,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
     miseDeCote: miseDeCoteBloquee(base),
     cooks,
     auxFourneaux: annoncees.flatMap((station) => cooksEnCoursDeStation(base, station).map(({ ticket }) => ({ station, ticket }))),
+    horsTickets: runsHorsTicket(base),
     arretees,
     worktrees: worktreesGardes(base),
     transcripts: rangementDesTranscripts(base),
@@ -965,6 +970,12 @@ export type Faits = {
     presente?: boolean;
     vueLe?: string | null;
   }>;
+  // Ce que la cuisine fait tourner en ce moment hors des cooks de ticket (agents-en-cours.ts, #1971) : `role`, `pass`,
+  // `manager`, `triage` ou `closer` ; `station`, celle qui le fait tourner — la première station d'ici, celle qui tient
+  // le manager et la pass —, nulle quand le projet n'en déclare aucune ; `ticket`, celui qu'il juge, découpe ou trie,
+  // nul pour le closer ; `fait`, ce qu'il fait, en anglais ; `depuis`, l'heure où il s'y est mis. La pass d'abord, dans
+  // l'ordre du rail. Vide quand rien ne tourne, et quand le runtime est arrêté : rien ne tourne alors.
+  agents: Array<{ role: AgentEnCours["role"]; station: string | null; ticket: number | null; fait: string; depuis: string }>;
 };
 
 // Ce qu'une station fait du projet, pour qui pose un mot dessus. La liste est
@@ -1140,7 +1151,17 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limit
       presente: !station.remote || station.presentSince !== null,
       vueLe: station.remote ? station.seenAt : null,
     })),
+    agents: faitsDesAgents(etat),
   };
+}
+
+// Ce qui tourne hors des cooks de ticket, sur la station d'ici qui tient le manager et la pass : rien quand le
+// runtime ne tourne pas — ce que le journal laisse sans fin est mort avec lui, ou sera repris à son démarrage.
+function faitsDesAgents(etat: EtatCuisine): Faits["agents"] {
+  if (etat.session === null || etat.session.endedAt !== null) return [];
+  const station = etat.stations.find((declaree) => !declaree.remote)?.station ?? null;
+  const pass = etat.rail.flatMap((ticket) => (ticket.state === "pass" ? [{ ticket: ticket.ticket, activite: etat.activites.get(ticket.ticket) }] : []));
+  return agentsEnCours(pass, etat.horsTickets ?? []).map(({ role, ticket, fait, depuis }) => ({ role, station, ticket, fait, depuis }));
 }
 
 export type OptionsSuivi = {

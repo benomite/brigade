@@ -68,8 +68,16 @@ hover, its last request) and `cooking`. Then its state, a word of `facts` (`cook
 and what it means (`by you, for 3 min · 1 cook finishing`, `its machine has no room`, the reason for a refusal),
 and, at the bottom of the block, **the cards of the tickets in flight on that station, and only those** — the very cards of
 the Rail kanban: a click (or Enter) opens the same sheet as the same card in Taken, its number opens the issue; a ticket
-the rail read does not carry has a card with its number and its title (`no cook running` when there is none). Nothing in a
-block is command output. Each block has **a single button**: `stop cooking` when it cooks (saturated included), `start cooking`
+the rail read does not carry has a card with its number and its title. **Before them, a card for each agent the station
+runs besides its cooks** (#1971) — the pass judging a delivery, the manager qualifying or splitting an issue, the triage, the
+closer cleaning the project up, as `facts` gives them (`agents`; the main station runs them): its role (what it is, on
+hover), the station's tag (its short name, the full name on hover), its ticket and the rail's title, what it does
+(`running the gates`, `review in progress`, `qualifying the issue`, `closing: cleaning up the project`…) and for how long
+(the time on hover). Not paper like a cook's card: the kitchen's dark, a dashed outline and a left bar in the role's tint.
+A runtime from before `agents` gives the pass alone, read from the rail's tickets in pass. A station that runs nothing at
+all says `nothing running` in one line; one that runs only a pass or the manager shows its cards, and no such line. The
+cards follow the next read: a pass that ends leaves the block. On the narrow screen, one line per agent above the cooks'.
+Nothing in a block is command output. Each block has **a single button**: `stop cooking` when it cooks (saturated included), `start cooking`
 when you have stopped it. It posts `/brigade station stop|start <station>` on the project's Kitchen board (#1845,
 `docs/tableau-gestes.md`) with this computer's `gh`, which the project's runtime plays at its
 next tick, wherever it runs (another computer, or this one). The block says `stopping…` until the box has answered under the
