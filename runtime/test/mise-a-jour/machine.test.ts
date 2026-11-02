@@ -99,7 +99,10 @@ async function enService(machine: Machine, version: string): Promise<number> {
 
 // Chaque test a sa machine — racine, systemd, station, projet : ils se jouent
 // de front. Un à un, ils tenaient le fichier une minute et demie, le plus long
-// de la suite (#2085).
+// de la suite (#2085). Chacun installe un paquet et relance sa station
+// plusieurs fois : dans la suite chargée, il dépasse les 30 s du garde des
+// tests suspendus (#2084), et le dit.
+const SCENARIO = { timeout: 120_000 };
 describe("la mise à jour de la station, sur une installation de test", { skip: sansDpkgDeb, concurrency: 8 }, () => {
   let dossier = "";
   // Le paquet construit depuis ce dépôt, et ce qu'on en tire pour chaque version.
@@ -120,22 +123,22 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
   });
   after(() => rmSync(dossier, { recursive: true, force: true }));
 
-  test("trois versions publiées l'une après l'autre passent seules — dont une qui change l'unité de la station —, et la file dit chaque passage", async (t) => {
+  test("trois versions publiées l'une après l'autre passent seules — dont une qui change l'unité de la station —, et la file dit chaque passage", SCENARIO, async (t) => {
     const machine = machineAvecUnProjet(t);
-    machine.installer(premier);
+    await machine.installer(premier);
     assert.equal(machine.installee(), "1.0.0");
     const pid1 = await enService(machine, "1.0.0");
     await jusqua(() => lireEnService(machine.station)?.servis.includes("brigade") === true);
 
     // Rien de publié de plus récent : rien ne bouge.
     machine.publier("1.0.0", premier);
-    assert.equal(machine.declencher(), 0);
+    assert.equal(await machine.declencher(), 0);
     assert.equal(machine.service().pid, pid1);
     assert.deepEqual(machine.appels().filter((a) => a.startsWith("apt-get")), ["apt-get install brigade-station 1.0.0"]);
 
     // 1.1.0 : la même station, une autre version.
     machine.publier("1.1.0", porteA("1.1.0"));
-    assert.equal(machine.declencher(), 0);
+    assert.equal(await machine.declencher(), 0);
     assert.equal(machine.installee(), "1.1.0");
     const pid2 = await enService(machine, "1.1.0");
     assert.notEqual(pid2, pid1);
@@ -153,7 +156,7 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
         writeFileSync(unite, readFileSync(unite, "utf8").replace("[Service]\n", "[Service]\nEnvironment=BRIGADE_ESSAI_UNITE=1.2.0\n"));
       }),
     );
-    assert.equal(machine.declencher(), 0);
+    assert.equal(await machine.declencher(), 0);
     assert.equal(machine.installee(), "1.2.0");
     await enService(machine, "1.2.0");
     assert.equal(machine.envDeLaStation().BRIGADE_ESSAI_UNITE, "1.2.0");
@@ -167,7 +170,7 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
 
     // 1.3.0 : la troisième.
     machine.publier("1.3.0", porteA("1.3.0"));
-    assert.equal(machine.declencher(), 0);
+    assert.equal(await machine.declencher(), 0);
     assert.equal(machine.installee(), "1.3.0");
     await enService(machine, "1.3.0");
     await jusqua(() => faits(machine.etatDuProjet, "update.installed").length === 3);
@@ -186,9 +189,9 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
     assert.equal(lireEtatMiseAJour(machine.miseAJour)?.installee, "1.3.0");
   });
 
-  test("une version dont le démarrage échoue : la station revient seule à la précédente, la file le dit — version visée, version restaurée —, et elle n'est pas réessayée", async (t) => {
+  test("une version dont le démarrage échoue : la station revient seule à la précédente, la file le dit — version visée, version restaurée —, et elle n'est pas réessayée", SCENARIO, async (t) => {
     const machine = machineAvecUnProjet(t);
-    machine.installer(premier);
+    await machine.installer(premier);
     machine.publier("1.0.0", premier);
     await enService(machine, "1.0.0");
     await jusqua(() => lireEnService(machine.station)?.servis.includes("brigade") === true);
@@ -201,7 +204,7 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
     );
     // Rouge, ce que la mise à jour et la station ont dit nomme la cause.
     const dit = () => `la mise à jour :\n${machine.sortie("brigade-station-mise-a-jour.service")}\nla station :\n${machine.sortie("brigade-station.service").slice(-4000)}`;
-    assert.equal(machine.declencher(), 0, dit());
+    assert.equal(await machine.declencher(), 0, dit());
     assert.equal(machine.installee(), "1.0.0");
     const pid = await enService(machine, "1.0.0");
     assert.equal(vivant(pid), true);
@@ -220,13 +223,13 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
 
     // Elle n'est pas réessayée : rien n'est réinstallé.
     const installations = machine.appels().filter((a) => a.startsWith("apt-get")).length;
-    assert.equal(machine.declencher(), 0, dit());
+    assert.equal(await machine.declencher(), 0, dit());
     assert.equal(machine.appels().filter((a) => a.startsWith("apt-get")).length, installations);
     assert.equal(machine.service().pid, pid);
     // Que la suivante le soit : mettre-a-jour.test.ts.
   });
 
-  test("un cook en vol pendant la mise à jour n'est pas interrompu : la station de la nouvelle version le reprend sans le relancer, et sa livraison est servie", async (t) => {
+  test("un cook en vol pendant la mise à jour n'est pas interrompu : la station de la nouvelle version le reprend sans le relancer, et sa livraison est servie", SCENARIO, async (t) => {
     const compte = repertoireTemporaire(t);
     const essais = repertoireTemporaire(t);
     const suite = join(essais, "suite.txt");
@@ -274,7 +277,7 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
     git(machine.station, "clone", "-q", origine, join(machine.station, "clones/brigade"));
     writeFileSync(join(machine.station, "projets"), `brigade ${depot} ${BASE} BRIGADE_GH_BIN=${gh.bin} BRIGADE_SANDBOX_BIN=${FAUX_BWRAP}\n`);
 
-    machine.installer(premier);
+    await machine.installer(premier);
     machine.publier("1.0.0", premier);
     await enService(machine, "1.0.0");
     await jusqua(() => faits(etatDuProjet, "cook.launched").length === 1);
@@ -286,7 +289,7 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
 
     // La mise à jour passe pendant que le cook travaille.
     machine.publier("1.1.0", porteA("1.1.0"));
-    assert.equal(machine.declencher(), 0);
+    assert.equal(await machine.declencher(), 0);
     await enService(machine, "1.1.0");
     assert.equal(vivant(pid), true);
     await jusqua(() => faits(etatDuProjet, "cook.resumed").length === 1);
@@ -302,15 +305,15 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
     assert.equal(faits(etatDuProjet, "pass.judged")[0]?.sha, git(origine, "rev-parse", `cook/${run}`));
   });
 
-  test("la version gelée, une version publiée n'est pas installée ; le gel levé, elle l'est", async (t) => {
+  test("la version gelée, une version publiée n'est pas installée ; le gel levé, elle l'est", SCENARIO, async (t) => {
     const machine = uneMachine(t, { ...ENV_GIT, HOME: repertoireTemporaire(t) });
-    machine.installer(premier);
+    await machine.installer(premier);
     machine.publier("1.0.0", premier);
     const pid = await enService(machine, "1.0.0");
     writeFileSync(join(machine.station, "reglages"), "# la box ne bouge pas pendant la refonte\ngel=oui\n");
 
     machine.publier("1.1.0", porteA("1.1.0"));
-    assert.equal(machine.declencher(), 0);
+    assert.equal(await machine.declencher(), 0);
     assert.equal(machine.installee(), "1.0.0");
     assert.equal(machine.service().pid, pid);
     const etat = lireEtatMiseAJour(machine.miseAJour);
@@ -327,7 +330,7 @@ describe("la mise à jour de la station, sur une installation de test", { skip: 
     writeFileSync(join(machine.station, "reglages"), "gel=non\n");
     // Rouge, ce que la mise à jour et la station ont dit nomme la cause.
     const dit = () => `la mise à jour :\n${machine.sortie("brigade-station-mise-a-jour.service")}\nla station :\n${machine.sortie("brigade-station.service").slice(-4000)}`;
-    assert.equal(machine.declencher(), 0, dit());
+    assert.equal(await machine.declencher(), 0, dit());
     assert.equal(machine.installee(), "1.1.0", dit());
     await enService(machine, "1.1.0");
     assert.deepEqual([lireEtatMiseAJour(machine.miseAJour)?.gelee, lireEtatMiseAJour(machine.miseAJour)?.derniere?.quoi], [false, "passee"]);
