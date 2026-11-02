@@ -35,9 +35,9 @@ if [ "${SUITE_RUNTIME_AVANT:-}" = 1 ]; then
   GIT_CORE="$(git --exec-path 2>/dev/null)"
   R="$(env -u BRIGADE_STATE_DIR -u BRIGADE_PORT PATH="${GIT_CORE:+$GIT_CORE:}$PATH" \
        NODE_COMPILE_CACHE="${NODE_COMPILE_CACHE:-${TMPDIR:-/tmp}/brigade-runtime-compile-cache}" \
-       python3 -I "$ICI/mesure.py" --sortie "$SORTIE/sortie.txt" -- node --test --test-concurrency=5 --test-force-exit --test-timeout=120000 \
+       python3 -I "$ICI/mesure.py" --sortie "$SORTIE/sortie.txt" -- node --import ./test-hang-guard/charger.ts --test --test-concurrency=5 --test-force-exit --test-timeout=120000 \
        --test-reporter=spec --test-reporter-destination=stdout --test-reporter=tap --test-reporter-destination="$SORTIE/tests.tap" \
-       "test/**/*.test.ts" "$@")"
+       "test/**/*.test.ts" "test-hang-guard/**/*.test.ts" "$@")"
 else
   R="$(python3 -I "$ICI/mesure.py" --sortie "$SORTIE/sortie.txt" -- node test-config/suite.ts --tap "$SORTIE/tests.tap" --relever "$SORTIE/durees.tsv" "$@")"
 fi
