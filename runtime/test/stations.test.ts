@@ -258,7 +258,7 @@ describe("les stations que le projet déclare", { concurrency: 8 }, () => {
     // Trois places, quatre tickets : le premier cook lancé bute sur le quota et
     // rend sa place ; les deux autres tournent, et ne rendent pas la leur.
     const numeros = [14, 15, 16, 17];
-    const { journal, etat, types } = cuisine(t, { stations: DEUX, scenario: "commite-puis-attend", suite: ["quota"], issues: numeros.map((numero) => issue(numero)) });
+    const { journal, etat, types } = cuisine(t, { stations: DEUX, scenario: "commite-puis-attend", suite: ["quota-quand-lances"], issues: numeros.map((numero) => issue(numero)) });
     const etats = () => numeros.map(etat);
     await jusqua(() => etats().includes("86") && types().filter((type) => type === "cook.launched").length === 3);
     await jusqua(() => etatStation(journal.base, PLAYWRIGHT)?.heldReason === "quota");

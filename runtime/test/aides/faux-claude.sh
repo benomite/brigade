@@ -366,6 +366,16 @@ FIN
     fini-sans-commit) rejouer fini 0 ;;
     non-connecte) rejouer non-connecte 1 ;;
     quota) rejouer quota-epuise 1 ;;
+    # Bute sur le quota une fois trois cooks lancés (FAUX_CLAUDE_AU_RANG, 3 par défaut) : sur un
+    # runner lent, le premier butait avant que le suivant parte, et la station retenue ne lançait
+    # jamais le troisième.
+    quota-quand-lances)
+      until [ "$(wc -l <"$FAUX_CLAUDE_TEMOIN/ordre")" -ge "${FAUX_CLAUDE_AU_RANG:-3}" ]; do
+        [ "$SECONDS" -lt 300 ] || exit 1
+        sleep 0.02
+      done
+      rejouer quota-epuise 1
+      ;;
     refuse) rejouer refuse 1 ;;
     # Le quota épuisé, sans rien qui dise quand il revient.
     quota-sans-heure)
