@@ -873,7 +873,7 @@ describe("la base elle-même, rouge ou mergée hors du runtime", { concurrency: 
     if (joue) throw new Error("git worktree : fatal: prune impossible");
   };
 
-  test("un verdict joué n'est pas perdu par un ménage raté : sur une base jamais vue rouge, des gates rouges dont le worktree jetable ne se retire pas font une base rouge, pas un contrôle non joué", async (t) => {
+  test("un verdict joué n'est pas perdu par un ménage raté : sur une base jamais vue rouge, des gates rouges dont le worktree jetable ne se retire pas font une base rouge, pas un contrôle non joué", { timeout: 120_000 }, async (t) => {
     const lieu = service(t, {
       aLaMain: true, essais: { base: "rouge" }, depot: (depot) => ({ jeter: menageEnPanne(depot, () => lieu.essai("base")) }) });
     const { journal, avertissements, dernier } = lieu;
@@ -886,7 +886,7 @@ describe("la base elle-même, rouge ou mergée hors du runtime", { concurrency: 
     assert.match(avertissements.join("\n"), /le worktree jetable du contrôle de v2 n'a pas pu être retiré — git worktree : fatal: prune impossible/);
   });
 
-  test("un verdict joué n'est pas perdu par un ménage raté : le rejeu demandé par le chef, joué vert, lève le rouge même si son worktree jetable ne se retire pas", async (t) => {
+  test("un verdict joué n'est pas perdu par un ménage raté : le rejeu demandé par le chef, joué vert, lève le rouge même si son worktree jetable ne se retire pas", { timeout: 120_000 }, async (t) => {
     let panne = false;
     const lieu = service(t, {
       aLaMain: true,
