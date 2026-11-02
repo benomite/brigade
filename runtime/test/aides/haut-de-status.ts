@@ -139,3 +139,15 @@ export const depuis1894 = <F extends { rail: Array<{ activite?: { fait: string }
     carte.activite == null ? carte : { ...carte, activite: { ...carte.activite, faitEn: EN_ANGLAIS[carte.activite.fait] ?? carte.activite.fait } },
   ),
 });
+
+// Ce que #2037 ajoute à la forme : la station et les capacités demandées d'un ticket du rail. Elles dépendent de l'état
+// d'exemple, que la fixture d'avant ne connaît pas : elles se lisent sur les faits courants (et sont éprouvées par
+// leur test, `etat.test.ts`) ; le reste de la carte doit rester identique.
+type CarteDe2037 = { ticket: number; station?: string; requires?: string[] };
+export const depuis2037 = <F extends { rail: object[] }>(avant: F, courant: { rail: CarteDe2037[] }): F => ({
+  ...avant,
+  rail: avant.rail.map((carte) => {
+    const { station, requires } = courant.rail.find((autre) => autre.ticket === (carte as CarteDe2037).ticket) ?? {};
+    return { ...carte, ...(station === undefined ? {} : { station }), ...(requires === undefined ? {} : { requires }) };
+  }),
+});
