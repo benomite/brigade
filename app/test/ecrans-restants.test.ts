@@ -82,7 +82,8 @@ describe("l'onglet Cooks (#1184) : la lecture de `station`, des gestes en bouton
     const corps = vue.element("lecture-cuisine");
     assert.equal(corps.dessous("pre").length, 0);
     assert.doesNotMatch(aPlat(corps), TECHNIQUE);
-    assert.equal(corps.dessous("p").find(({ className }) => className === "indisponible")?.textContent, "the station did not answer?");
+    // Et « report to brigade » à la suite (ticket 1977, signalement/ouverture/).
+    assert.equal(corps.dessous("p").find(({ className }) => className === "indisponible")?.textContent, "the station did not answer?report to brigade");
     assert.ok(survols(corps).some((dit) => dit.startsWith(erreur)));
   });
 });

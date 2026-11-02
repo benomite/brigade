@@ -81,6 +81,7 @@ const pont = {
   leverLeRefus: (nom, refus, remede) => ipcRenderer.invoke("leverLeRefus", nom, refus, remede),
   choisirUneIssue: (nom, choix, issue) => ipcRenderer.invoke("choisirUneIssue", nom, choix, issue),
   confierAUnHumain: (nom, ticket, qui) => ipcRenderer.invoke("confierAUnHumain", nom, ticket, qui),
+  signaler: (demande) => ipcRenderer.invoke("signaler", demande),
   demenagerLaCuisine: (nom, vers) => ipcRenderer.invoke("demenagerLaCuisine", nom, vers),
   autoriserSurGitHub: (url) => ipcRenderer.invoke("autoriserSurGitHub", url),
   panne: (id, cle) => ipcRenderer.invoke("panne", id, cle),

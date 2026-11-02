@@ -27,6 +27,7 @@ import type { Vu as VuDuCode } from "../retard.ts";
 import type { Avis, Retrait } from "../retrait.ts";
 import type { Guide, StationChangee, StationVoulue } from "../service.ts";
 import type { RenduDuGeste as RenduDuGesteHumain } from "./attente-capacite/geste.ts";
+import type { Demande as DemandeDeSignalement, RenduDuSignalement } from "./signalement/ouverture.ts";
 import type { DepotDuChef } from "../projets/github.ts";
 import type { Ajout, Choisi, DefautsDeLaMachine, Demenagement, EFFORTS, MODELES, Retrait as RetraitDUneStation, VuDesProjets } from "../projets/projets.ts";
 import type { IssueDuRemede } from "../projets/remede.ts";
@@ -285,6 +286,10 @@ export type Pont = {
   // « It's a human's job », sur la carte d'un ticket en WAITING faute de capacité, et « reassign » sur sa tâche dans TODO
   // (ticket 1958) : `rail human <ticket> [qui]` part là où la cuisine du projet tourne (attente-capacite/geste.ts).
   confierAUnHumain(nom: string, ticket: number, qui?: string): Promise<RenduDuGesteHumain>;
+  // « report to brigade », sous chaque panne que l'app montre (ticket 1977) : ouvre dans le navigateur une nouvelle issue
+  // préremplie sur benomite/brigade — versions, système, la panne, les lignes du journal qui en parlent, masquées
+  // (signalement/ouverture.ts). Rien n'est envoyé : le chef l'envoie lui-même. Rend ouvert, ou pourquoi rien.
+  signaler(demande: DemandeDeSignalement): Promise<RenduDuSignalement>;
   // Ouvre dans le navigateur une page où autoriser brigade sur GitHub — une de celles qu'une station a publiées —,
   // ou une page que le parcours d'un projet neuf montre (ticket 1111) : son geste, son ticket de préparation, sa PR.
   autoriserSurGitHub(url: string): Promise<boolean>;

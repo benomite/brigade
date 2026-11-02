@@ -121,6 +121,7 @@ import { poserChoixDuSecond, reponseTapee, tenirLesChoix } from "./second/choix.
 import { AUCUNE_STATION, aucuneStationNeSert } from "./cooks/sans-station.js";
 import { poserGesteDuSecond } from "./second/geste.js";
 import { tenirLesSorties } from "./attente-capacite/sorties.js";
+import { tenirLeSignalement } from "./signalement/geste.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
 // et ne peut pas importer du TypeScript — la locale est la même, anglaise.
@@ -286,6 +287,9 @@ declareesDuProjet.id = "declarees-du-projet";
 /** @type {Map<string, import("../service.ts").StationsLues>} */
 const declarees = new Map();
 // Les deux sorties d'une carte en WAITING faute de capacité, et la tâche qu'elle devient dans TODO (ticket 1958).
+// « report to brigade », sous chaque panne que l'app montre (ticket 1977) : une issue préremplie, ouverte dans le navigateur.
+// Sur le téléphone, rien ne l'ouvrirait : le bouton n'y est pas.
+const signalement = tenirLeSignalement({ doc: document, pont: brigade, actif: () => telephoneVu === undefined });
 const sortiesDeCapacite = tenirLesSorties({ doc: document, pont: brigade, stations: (nom) => declarees.get(nom), reposer: (nom) => void (courant?.nom === nom && poserRail(courant)), relire: () => lireLesFaits() });
 // Les blocs repliés que le chef a ouverts, par projet (`<projet>#<bloc>`) : reposés à chaque lecture, ils restent
 // ouverts ; fermés à la première.
@@ -2118,7 +2122,11 @@ function obtenuEnUneLigne(projet, recue, plusPilotable) {
             : recue.atteinte
               ? ["the station answered, but not as the app expects", plusPilotable]
               : ["the station did not answer", undefined];
-  return [lectureIndisponible(document, ligne, suite === undefined ? recue.erreur : `${recue.erreur}\n\n${suite}`)];
+  const dite = lectureIndisponible(document, ligne, suite === undefined ? recue.erreur : `${recue.erreur}\n\n${suite}`);
+  // Ce que la station a dit, sans la commande lancée : la panne du signalement, en quelques mots.
+  const dit = recue.erreur.split("\n").filter((une) => une.trim() !== "" && !une.startsWith("$ ")).join(" ");
+  dite.append(...signalement.poser({ projet: projet.nom, reference: { ligne }, panne: dit === "" ? `${projet.nom}: ${ligne}` : `${projet.nom}: ${ligne} — ${dit}` }));
+  return [dite];
 }
 
 // Ce qu'une lecture donne à voir, dans le panneau de l'espace, à côté du terminal et dans
@@ -2992,8 +3000,19 @@ function poserBon(projet, carte, tonAttend) {
     bon.append(ouvre);
   }
   if (pr === false) bon.append(bloc("small", "merged PR: the address the station returned is not https, the app does not open it"));
-  bon.append(...poserGestesDAttente(projet, carte), ...sortiesDeCapacite.poser(projet, carte));
+  bon.append(...poserGestesDAttente(projet, carte), ...sortiesDeCapacite.poser(projet, carte), ...signalerLaCarte(projet, carte));
   return bon;
+}
+
+// Une carte en panne porte « report to brigade » (ticket 1977) : mise de côté (86), ou remontée parce que la pass n'a
+// pas pu la juger — une raison de brigade, pas du code livré. Une livraison rouge, elle, est l'affaire du projet.
+/** @param {Projet} projet @param {import("../faits.ts").Carte} carte */
+function signalerLaCarte(projet, carte) {
+  const { ticket, etat, decision } = carte;
+  const nonJugee = decision?.quoi === "remontee" && decision.motif === "unjudged";
+  if (etat !== "86" && !nonJugee) return [];
+  const dit = [nonJugee ? "the pass could not judge it" : "set aside", carte.ligne ?? "", carte.signal ?? ""].filter((morceau) => morceau !== "").join(" — ");
+  return signalement.poser({ projet: projet.nom, reference: { ticket }, panne: `${projet.nom}, ticket ${ticket}: ${dit}` });
 }
 
 // Le jour de la relance que le formulaire propose : dans sept jours, au calendrier du poste
@@ -4344,8 +4363,8 @@ function poserAmont(projet, { aucunTicket, cadence }) {
 // La tête du rail, la cuisine oisive avec des cartes dessus (ticket 1863) : une panne, en rouge, au-dessus de tout le
 // reste — depuis combien de temps, et combien de cartes, d'une ligne ; les tickets et ce qu'en faire au survol. Elle
 // part dès que `facts` ne la porte plus.
-/** @param {import("../faits.ts").Tableau} tableau @returns {HTMLElement[]} */
-function panneDuRail({ panne }) {
+/** @param {Projet} projet @param {import("../faits.ts").Tableau} tableau @returns {HTMLElement[]} */
+function panneDuRail(projet, { panne }) {
   if (panne === undefined) return [];
   const ligne = document.createElement("p");
   ligne.className = "panne-du-rail";
@@ -4353,7 +4372,7 @@ function panneDuRail({ panne }) {
   ligne.title = panne.survol;
   const marque = bloc("span", "FAULT");
   marque.className = "marque";
-  ligne.append(marque, bloc("strong", panne.dit));
+  ligne.append(marque, bloc("strong", panne.dit), ...signalement.poser({ projet: projet.nom, reference: { ligne: "cook." }, panne: `${projet.nom}: ${panne.dit}` }));
   return [ligne];
 }
 
@@ -4790,7 +4809,7 @@ function poserRail(projet) {
     ...(cuisine
       ? []
       : [
-          ...panneDuRail(tenu.tableau),
+          ...panneDuRail(projet, tenu.tableau),
           ...teteDuRail(projet),
           ...poserAmont(projet, tenu.tableau.rail),
           ...poserLesCorrections(projet, tenu.tableau.rail.corrections),
@@ -5498,7 +5517,7 @@ function poserPageDeStation() {
     enTeteDeStation.replaceChildren(titre, pastille(phrase, ligne?.ton), ...(dejaDit ? [] : [etatDit]), ...(details === "" ? [] : [survol(document, details)]), ...(ligne?.note === undefined ? [] : [bloc("p", ligne.note)]), poserLesAppels(document, ligne?.appels));
     poserPlafond(station.nom, ligne);
     versionDeStation.replaceChildren(...(station.versionDit ? [bloc("span", station.versionDit)] : []));
-    pannesDeStation.replaceChildren(...station.pannes.map((panne) => poserPanne(station.id, panne)));
+    pannesDeStation.replaceChildren(...station.pannes.map((panne) => poserPanne(station, panne)));
     poserRetireLaStation(station);
   }
   // Une machine seulement enregistrée n'a ni projet de l'app, ni parcours d'ajout : ses projets sont ses cases.
@@ -5999,8 +6018,8 @@ function nomDit(nom) {
 
 // Une station du projet, sur sa ligne : sa pastille et son nom — « this Mac » pour cet ordinateur —,
 // ce qu'elle en dit au survol ; un clic ouvre sa page. `renfort` : nommée après celle où il cuit.
-/** @param {ReturnType<typeof cuisineDe>["stations"][number]} station @param {boolean} ici @param {string} [rang] */
-function stationNommee(station, ici, rang = "") {
+/** @param {ReturnType<typeof cuisineDe>["stations"][number]} station @param {boolean} ici @param {string} [rang] @param {Projet} [projet] le projet dont c'est la ligne : une station rouge y porte « report to brigade » */
+function stationNommee(station, ici, rang = "", projet) {
   const nomme = document.createElement("button");
   nomme.type = "button";
   nomme.className = "station-du-projet";
@@ -6032,6 +6051,8 @@ function stationNommee(station, ici, rang = "") {
     void brigade.panne(station.id, "relire-la-station").finally(() => (relire.disabled = false));
   });
   pose.append(nomme, ...(station.pourquoi === "" ? [] : [pourquoi, relire]), ...autoriser);
+  // Rouge — refusée, injoignable — : « report to brigade » à la suite (ticket 1977).
+  if (station.ton === "rouge" && projet !== undefined) pose.append(...signalement.poser({ projet: projet.nom, reference: { station: station.nom }, panne: `station ${station.nom}, cooking ${projet.nom}: ${[station.dit, station.survol].filter((morceau) => morceau !== "").join(" — ")}` }));
   return pose;
 }
 
@@ -6276,7 +6297,7 @@ function poserStationsDuProjet() {
     // Où il cuit, d'abord — « this Mac » pour la station de cet ordinateur —, puis ses renforts.
     const sienne = stations.find(({ id }) => id === ou?.id);
     const autres = stations.filter((station) => station !== sienne && !(enCours !== null && enCours.etape !== "refusee" && station.nom === enCours.vers));
-    const tete = ou === undefined ? [] : [stationNommee(sienne ?? { id: ou.id ?? "", nom: ou.nom, principale: true, dit: "served", ton: "vert", survol: "", pourquoi: "", geste: "", autoriser: [], bloquee: false }, ou.ici)];
+    const tete = ou === undefined ? [] : [stationNommee(sienne ?? { id: ou.id ?? "", nom: ou.nom, principale: true, dit: "served", ton: "vert", survol: "", pourquoi: "", geste: "", autoriser: [], bloquee: false }, ou.ici, "", projet)];
     ligneDesStationsDuProjet.replaceChildren(
       bloc("span", ou === undefined ? "Cooked by " : "Cooks on "),
       ...tete,
@@ -6285,7 +6306,7 @@ function poserStationsDuProjet() {
       ...autres.flatMap((station, i) => {
         // Le rang ne se compte que parmi celles qui servent le projet : une station bloquée n'en est pas une.
         const rang = autres.slice(0, i).filter(({ bloquee }) => !bloquee).length;
-        return [...(i === 0 && tete.length === 0 ? [] : [bloc("span", " · ")]), stationNommee(station, false, ou === undefined || station.bloquee === true ? "" : `${["second", "third", "fourth", "fifth"][rang] ?? "another"} station`)];
+        return [...(i === 0 && tete.length === 0 ? [] : [bloc("span", " · ")]), stationNommee(station, false, ou === undefined || station.bloquee === true ? "" : `${["second", "third", "fourth", "fifth"][rang] ?? "another"} station`, projet)];
       }),
     );
   } else {
@@ -6791,8 +6812,8 @@ const pannesDites = new Map();
 
 // Une panne, sous la ligne de sa station : ce qui ne va pas, en une ligne, et son bouton — relire,
 // écarter, se connecter (pannes/pannes.ts). Jamais une commande à taper.
-/** @param {string} id @param {import("../pannes/pannes.ts").Panne} panne */
-function poserPanne(id, panne) {
+/** @param {import("../stations/stations.ts").StationVue} station @param {import("../pannes/pannes.ts").Panne} panne */
+function poserPanne({ id, nom, projets }, panne) {
   const pose = document.createElement("p");
   pose.className = "panne";
   pose.dataset.sujet = panne.sujet;
@@ -6803,6 +6824,8 @@ function poserPanne(id, panne) {
   // L'explication, et ce que le bouton a rendu, ne se lisent qu'au survol.
   const dit = pannesDites.get(`${id} ${panne.cle}`);
   pose.append(bloc("span", panne.ligne), bouton, survol(document, dit === undefined ? panne.survol : `${panne.survol}. ${dit}`));
+  // La station est en panne : « report to brigade » à la suite (ticket 1977), le journal lu dans un projet qu'elle sert.
+  pose.append(...signalement.poser({ ...(projets[0] === undefined ? {} : { projet: projets[0] }), reference: { station: nom }, panne: `station ${nom}: ${panne.ligne}` }));
   return pose;
 }
 /** @param {string} id @param {string} cle @param {HTMLButtonElement} bouton */

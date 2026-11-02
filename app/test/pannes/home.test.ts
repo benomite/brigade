@@ -60,7 +60,8 @@ test("chaque panne est une ligne sur la page de sa station, avec son bouton ; le
   assert.equal(tete?.dessous("button").find(({ className }) => className === "aide")?.ariaLabel, "Linux 6.1.0 · version 1.4.0");
   const [miseAJour, connexion] = lignes(section());
   assert.equal(miseAJour?.className, "panne");
-  assert.equal(miseAJour?.textContent, "update to version 1.5.0 faileddismiss?");
+  // Et, à la suite, « report to brigade » (ticket 1977, signalement/ouverture/).
+  assert.equal(miseAJour?.textContent, "update to version 1.5.0 faileddismiss?report to brigade");
   assert.equal(connexion?.dataset.sujet, "connexion-max");
   const bouton = connexion?.dessous("button")[0] ?? assert.fail("pas de bouton sur la panne");
   assert.equal(bouton.textContent, "log in");
@@ -105,7 +106,8 @@ async function pageDe(station: StationVue, phrase: string) {
 const sansTexteBrut = (page: Faux) => {
   for (const motif of [/`/, /\$ /, /\bsudo\b/, /\bclaude\b/, /\/login/, /exit code/i, /Error:/]) assert.doesNotMatch(page.textContent, motif);
 };
-const boutonsDePanne = (page: Faux) => lignes(page).flatMap((ligne) => ligne.dessous("button").filter(({ className }) => className !== "aide"));
+// Le bouton de la panne — pas « report to brigade », qui suit chaque panne (ticket 1977, signalement/ouverture/).
+const boutonsDePanne = (page: Faux) => lignes(page).flatMap((ligne) => ligne.dessous("button").filter(({ className }) => className !== "aide" && className !== "signaler-a-brigade"));
 
 test("hors ligne : une seule ligne « offline for … » avec « check again », et l'en-tête ne la redit pas", async () => {
   const page = await pageDe(HORS_LIGNE, "offline for 12 min");
