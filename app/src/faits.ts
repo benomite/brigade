@@ -13,7 +13,7 @@
 // Ce sont les deux seules choses lues hors de la forme.
 import type { GesteDAttente } from "./attente.ts";
 import { ditDe, ticketsDe, type Montree } from "./attend.ts";
-import { lieuDe, lignesDuRail, porter, priorite, type Porte } from "./bon.ts";
+import { lieuDe, lignesDuRail, motDEtat, porter, priorite, type Porte } from "./bon.ts";
 import { ligneAuTravail, ligneDeTete, ligneEnAttente, ligneEnWaiting, ligneIllisible, ligneLivree, ligneMiseDeCote, ligneQuiMAttend, ligneRepondue, type LigneDeCarte } from "./ligne-carte.ts";
 import type { StationDesFaits } from "./ordinaires.ts";
 import type { Echec, Lecture } from "./box.ts";
@@ -373,7 +373,7 @@ export type Faits = {
 // `essais` : un point par essai de la cuisine sur ce ticket (cadence.ts), dès qu'il y en a plus d'un (#1895).
 // Et ce qu'elle dit, elle, en deux lignes (ligne-carte.ts) : `ligne`, ce qui se passe ; `signal`, ce qui demande
 // l'attention ; `repere`, la file ne dit pas tout — le détail est dans la fiche, avec `dit` et `sans`.
-export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraison?: Livraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[]; question?: true; todo?: CarteDeTodo; repondue?: { par: string; a: string }; prio?: string; age?: Anciennete; essais?: Point[]; requiert?: string[]; station?: string; enWaiting?: true; tache?: TacheHumaine } & Porte;
+export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; mot?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraison?: Livraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[]; question?: true; todo?: CarteDeTodo; repondue?: { par: string; a: string }; prio?: string; age?: Anciennete; essais?: Point[]; requiert?: string[]; station?: string; enWaiting?: true; tache?: TacheHumaine } & Porte;
 // Ce qui a été livré, sur une carte de Livré : le résumé de la relecture, mot pour
 // mot, et ses constats sous leur nombre dit en clair (`remarques`) — ou, sans
 // relecture, pourquoi elle n'est pas là. Rien n'est mis à sa place.
@@ -405,6 +405,7 @@ export type Panne = { dit: string; survol: string };
 // `vide` : ce qui se lit à la place des cooks quand il n'y en a pas à poser.
 export type Tableau = {
   etat: string;
+  mot?: string;
   ton?: string;
   arretee: boolean;
   tick: string;
@@ -808,13 +809,13 @@ function lire(lecture: Lecture, attend?: BlocLu, status?: StatusLu, repondues?: 
 export const dessiner = (lecture: Lecture): Dessinable => lire(lecture).recue;
 
 // Les deux listes fermées de la forme, et la couleur de chaque mot.
-const TONS_DE_PROJET = new Map([
+export const TONS_DE_PROJET = new Map([
   ["ouverte", "vert"],
   ["retenue", "jaune"],
   ["arrêtée", "rouge"],
   ["éteinte", "rouge"],
 ]);
-const TONS_DE_TICKET = new Map([
+export const TONS_DE_TICKET = new Map([
   ["en attente", "gris"],
   ["BLOQUÉ", "rouge"],
   ["pris", "bleu"],
@@ -824,9 +825,12 @@ const TONS_DE_TICKET = new Map([
   ["WAITING", "gris"],
 ]);
 // Le mot et, s'il est de la liste, sa couleur : un mot inconnu n'en porte aucune.
-const colore = (tons: ReadonlyMap<string, string>, etat: string): { etat: string; ton?: string } => {
+// `mot` : ce qui s'affiche à sa place, en anglais (bon.ts) ; `etat` reste la valeur de la box.
+// Un mot que la table ignore n'en porte pas : la vue pose `etat` tel quel.
+const colore = (tons: ReadonlyMap<string, string>, etat: string): { etat: string; mot?: string; ton?: string } => {
   const ton = tons.get(etat);
-  return ton === undefined ? { etat } : { etat, ton };
+  const mot = motDEtat(etat);
+  return { etat, ...(mot === etat ? {} : { mot }), ...(ton === undefined ? {} : { ton }) };
 };
 
 // Une durée, dite comme `status` la dit.
@@ -918,7 +922,7 @@ const TIERS_PAS_DONNE = "not given — this station's runtime does not give in `
 // où le projet n'a ni box ni station (#1435) : ses tickets rangés par leur mot d'état dans les colonnes du rail que le
 // Mac lit — On the rail, Taken, Pass, WAITING, Served —, du même ton. TODO n'y est pas : ce qui attend le chef ne
 // se publie pas. Un mot d'aucune colonne (`86`, un mot inconnu) est hors colonnes, comme sur le Mac.
-export type CarteDuRailPublie = { ticket: number; etat: string; ton?: string; titre: string; url: string; ouvrable: boolean };
+export type CarteDuRailPublie = { ticket: number; etat: string; mot?: string; ton?: string; titre: string; url: string; ouvrable: boolean };
 export type RailPublieRange = { colonnes: { nom: string; ton: string; cartes: CarteDuRailPublie[] }[]; hors: CarteDuRailPublie[] };
 // Ce que la vue en reçoit : le rail lu et rangé, ou pourquoi il ne l'est pas (`railDuProjet`, main.ts).
 export type RailDuProjetLu = Exclude<RailDuProjet, { state: "listed" }> | (Extract<RailDuProjet, { state: "listed" }> & { range: RailPublieRange });

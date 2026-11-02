@@ -2765,11 +2765,11 @@ function marquerPastille(nom) {
   const dit = muette
     ? "unreachable"
     : horsLigne !== undefined
-      ? `offline since ${heureCourte(horsLigne)}${tenu !== undefined && "tableau" in tenu ? ` — ${tenu.tableau.etat} when last read` : ""}`
+      ? `offline since ${heureCourte(horsLigne)}${tenu !== undefined && "tableau" in tenu ? ` — ${tenu.tableau.mot ?? tenu.tableau.etat} when last read` : ""}`
       : tenu === undefined
         ? "first read in progress…"
         : "tableau" in tenu
-          ? tenu.tableau.etat
+          ? (tenu.tableau.mot ?? tenu.tableau.etat)
           : `no facts read — ${tenu.titre}`;
   posee.textContent = muette || (tenu !== undefined && !("tableau" in tenu)) ? "!" : "";
   const entree = /** @type {HTMLElement} */ (posee.parentElement);
@@ -2844,7 +2844,7 @@ function poserCarte(ou, projet) {
   const pilule = document.createElement("span");
   pilule.className = "pilule";
   if (tableau.ton !== undefined) pilule.dataset.ton = tableau.ton;
-  pilule.append(pastille(tableau.etat, tableau.ton), bloc("strong", tableau.etat));
+  pilule.append(pastille(tableau.mot ?? tableau.etat, tableau.ton), bloc("strong", tableau.mot ?? tableau.etat));
   tete.append(pilule, bloc("small", `read at ${heure} · ${tableau.tick}`));
   const compteurs = document.createElement("dl");
   for (const { libelle, nombre } of tableau.compteurs) {
@@ -2886,7 +2886,7 @@ function coinceDit({ dit }) {
 // numéro s'ouvre sur l'issue : l'adresse reste au process principal, la vue nomme le ticket.
 /** @param {Projet} projet @param {import("../faits.ts").Carte} carte @param {string | undefined} [tonAttend] le ton de T'attend, quand le bon y est posé @param {boolean} [avecStation] la station s'étiquette (Taken et Pass d'un projet à plusieurs stations ; jamais sur Cooks, où son bloc la nomme) */
 function poserBon(projet, carte, tonAttend, avecStation = false) {
-  const { ticket, etat, ton, titre, ouvrable, attendu, attend, pr } = carte;
+  const { ticket, etat, mot: motDEtat, ton, titre, ouvrable, attendu, attend, pr } = carte;
   const bon = document.createElement("li");
   bon.className = "bon";
   // Un clic sur la carte, quelle que soit sa colonne, ouvre sa fiche par-dessus le rail. Ce qui s'y
@@ -2913,8 +2913,8 @@ function poserBon(projet, carte, tonAttend, avecStation = false) {
   const tete = document.createElement("div");
   tete.append(numero);
   if (etat !== undefined) {
-    // Un mot du runtime que le chef ne lit pas se dit en mots simples : « 86 » est un ticket mis de côté.
-    const mot = bloc("span", etat === "86" ? "set aside" : etat);
+    // Le mot est celui de la table de bon.ts, posé par le process principal.
+    const mot = bloc("span", motDEtat ?? etat);
     mot.className = "etat-ticket";
     if (ton !== undefined) mot.dataset.ton = ton;
     const forme = formeDe(ton);
@@ -4551,7 +4551,7 @@ function ligneDeLaCuisine(projet, tableau, heure) {
   const pilule = document.createElement("span");
   pilule.className = "pilule";
   if (tableau.ton !== undefined) pilule.dataset.ton = tableau.ton;
-  pilule.append(pastille(tableau.etat, tableau.ton), bloc("strong", tableau.etat));
+  pilule.append(pastille(tableau.mot ?? tableau.etat, tableau.ton), bloc("strong", tableau.mot ?? tableau.etat));
   ligne.append(bloc("span", "kitchen"), pilule, bloc("small", `latest event — ${tableau.evenement}`));
   const rienNeCuit = tableau.rienNeCuit === undefined ? [] : [bloc("p", tableau.rienNeCuit)];
   for (const dite of rienNeCuit) dite.className = "rien-ne-cuit";
