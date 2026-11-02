@@ -342,6 +342,17 @@ Open one of your projects on this PC: one click, no folder to choose.
 *Code: `app/src/premier-lancement.ts` and `app/src/connexion-github.ts` (main process),
 `app/src/vue/premier-lancement.js` (the screen). Captures: `docs/captures/1434/`.*
 
+### The age of the rail is always on screen (#2054)
+
+The Rail tab reads the Kitchen board on GitHub every 30 seconds, with no gesture. Above the columns, one quiet line
+says how old the rail shown is — `rail as the box read it 50 min ago, at 7:35 AM` — counted from the time the box read
+the state it published, not from the app's own reading (which is always recent). A rail the box has stopped
+republishing therefore shows its age without hovering. When the board cannot be read again, the old columns are not
+kept: the tab says `the rail is not drawn` with the reason (offline is the one exception: the last rail stays dimmed,
+marked `offline since`).
+
+*Code: `ageDuRail` in `app/src/vue/vue.js`, `publieLe` in `app/src/tableau/rail.ts` and `app/src/faits.ts`.*
+
 ### The project opened there: its Rail and its Second never stay blank (#1435)
 
 A project opened from that screen has neither a box nor a station on this computer. Its two tabs

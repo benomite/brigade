@@ -445,6 +445,17 @@ describe("le haut du rail est allégé (#623)", () => {
     assert.match(vue.element("rail").children[0]?.textContent ?? "", /^up to date \d+ min ago — /);
     assert.equal(vue.element("rail").children[0]?.className, "fraicheur");
   });
+
+  test("l'âge du rail se dit toujours, d'après l'heure où la box a lu l'état — pas celle de la lecture de l'app (#2054)", async () => {
+    const vue = await ouvrir();
+    const recue = dessinable();
+    recevoir(vue, { ...recue, a: "2026-11-02T08:25:00.000Z", publieLe: "2026-11-02T07:35:00.000Z" });
+    const age = vue.element("rail").dessous("p").find(({ className }) => className === "age-du-rail");
+    assert.match(age?.textContent ?? "", /^rail as the box read it 50 min ago, at /);
+    // Une lecture qui ne vient pas du tableau ne porte pas d'âge : rien n'est inventé.
+    recevoir(vue, recue);
+    assert.equal(vue.element("rail").dessous("p").some(({ className }) => className === "age-du-rail"), false);
+  });
 });
 
 describe("T'attend est le seul endroit où un ticket attend une décision", () => {

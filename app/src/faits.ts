@@ -445,7 +445,8 @@ export type Tableau = {
 // Ce qu'une lecture de `faits` donne à la vue : le tableau ; ou, sous un `titre`
 // qui dit lequel, ce que la box a `rendu` à la place des faits, mot pour mot, et
 // en quoi ce n'est pas la forme (`informe`) ; ou l'échec de la veille, tel quel.
-export type Dessinable = { projet: string; demande: number; a: string } & ({ tableau: Tableau } | { titre: string; informe: string; rendu: string } | ({ titre: string } & Echec));
+// `publieLe` : l'heure où la box a lu l'état que ce rail montre (#2054) — absent d'une lecture qui ne vient pas du tableau.
+export type Dessinable = { projet: string; demande: number; a: string; publieLe?: string } & ({ tableau: Tableau } | { titre: string; informe: string; rendu: string } | ({ titre: string } & Echec));
 
 class Informe extends Error {}
 
@@ -803,7 +804,8 @@ function lire(lecture: Lecture, attend?: BlocLu, status?: StatusLu, repondues?: 
   const rendu = lecture.sorties.find(({ commande }) => commande === COMMANDE)?.texte ?? "";
   const faits = comprendre(rendu);
   if ("informe" in faits) return { recue: { projet, demande, a, titre: "THE STATION DID NOT RETURN THE SHAPE OF `facts`", informe: faits.informe, rendu } };
-  return { faits, recue: { projet, demande, a, tableau: tableau(faits, attend, status, repondues, ecrites, envoisDe(lecture)) } };
+  const publieLe = "publieLe" in lecture && typeof lecture.publieLe === "string" ? { publieLe: lecture.publieLe } : {};
+  return { faits, recue: { projet, demande, a, ...publieLe, tableau: tableau(faits, attend, status, repondues, ecrites, envoisDe(lecture)) } };
 }
 
 export const dessiner = (lecture: Lecture): Dessinable => lire(lecture).recue;

@@ -2527,6 +2527,12 @@ main > header,
   font-size: 12px;
   color: var(--jaune);
 }
+/* L'âge du rail montré (ticket 2054) : toujours là, à voix basse. */
+#rail .age-du-rail {
+  padding: 8px 16px 0;
+  font-size: 12px;
+  color: var(--gris);
+}
 /* Hors ligne (ticket 1818) : le rail lu en dernier reste, atténué, et un seul signe, à voix basse, dit depuis quand. */
 #rail[data-hors-ligne] > :not(.hors-ligne) {
   opacity: 0.55;

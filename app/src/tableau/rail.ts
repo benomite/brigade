@@ -38,7 +38,8 @@ export type SortieDuTableau = { commande: string; texte: string };
 export type EchecDuTableau = { erreur: string; atteinte: true; cas: null; duTableau: true; pasPublie?: true; horsLigne?: true };
 // `envois` : les réponses du chef aux cartes de TODO que le tableau montre (envois.ts) — absentes quand ses
 // commentaires n'ont pas été lus.
-export type LectureDuRail = { projet: string; demande: number; a: string } & ({ sorties: SortieDuTableau[]; envois?: EnvoiDeCarte[] } | EchecDuTableau);
+// `publieLe` : l'heure où la box a lu l'état qu'elle a publié — l'âge du rail, qui n'est pas celui de la lecture de l'app (#2054).
+export type LectureDuRail = { projet: string; demande: number; a: string } & ({ sorties: SortieDuTableau[]; envois?: EnvoiDeCarte[]; publieLe?: string } | EchecDuTableau);
 // Une commande demandée : son texte — ou ce qui le compose d'après les sorties d'avant (box.ts, `Commande`), que le
 // tableau ne lit pas.
 export type CommandeDemandee = string | ((...lues: never[]) => string);
@@ -158,7 +159,7 @@ export function lectureDuTableau(lu: LectureDuTableauDuDepot, projet: string, de
   }
   // Les réponses aux cartes de TODO, quand les commentaires du tableau ont été lus avec lui (envois.ts).
   const envois = "envois" in lu && Array.isArray(lu.envois) ? { envois: lu.envois as EnvoiDeCarte[] } : {};
-  return { projet, demande, a: lu.luLe, sorties, ...envois };
+  return { projet, demande, a: lu.luLe, sorties, ...envois, publieLe: lu.etatLuLe ?? lu.genereLe };
 }
 
 // Les tableaux des projets, lus de GitHub : une seule lecture à la fois par projet, reprise par qui la demande tant
