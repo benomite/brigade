@@ -273,7 +273,7 @@ export type Faits = {
   // `depuis` : l'heure de son entrée dans cet état — sa prise, son entrée en pass… (#1811) ; absent d'un runtime d'avant.
   // `essais` : d'un ticket pris, ses essais depuis sa première prise, le plus ancien d'abord (#1893) ; absent pour tout autre.
   // Le rail est dans l'ordre où il se sert : la priorité de l'issue, puis son âge.
-  rail: { ticket: number; etat: string; titre: string; url: string; depuis?: string; essais?: EssaiLu[]; activite?: Activite | null; attente?: Attente | null; tiers?: Tiers | null; revenu?: string | null; raison?: string | null; captures?: CapturesLues; requiert?: string[]; illisible?: string }[];
+  rail: { ticket: number; etat: string; titre: string; url: string; depuis?: string; essais?: EssaiLu[]; activite?: Activite | null; attente?: Attente | null; tiers?: Tiers | null; revenu?: string | null; raison?: string | null; captures?: CapturesLues; requiert?: string[]; station?: string; requires?: string[]; illisible?: string }[];
   cooks?: Cook[];
   attend?: Attendu[];
   livres?: Livre[];
@@ -349,7 +349,7 @@ export type Faits = {
 // `essais` : un point par essai de la cuisine sur ce ticket (cadence.ts), dès qu'il y en a plus d'un (#1895).
 // Et ce qu'elle dit, elle, en deux lignes (ligne-carte.ts) : `ligne`, ce qui se passe ; `signal`, ce qui demande
 // l'attention ; `repere`, la file ne dit pas tout — le détail est dans la fiche, avec `dit` et `sans`.
-export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraison?: Livraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[]; question?: true; todo?: CarteDeTodo; repondue?: { par: string; a: string }; prio?: string; age?: Anciennete; essais?: Point[]; requiert?: string[]; tache?: TacheHumaine } & Porte;
+export type Carte = Partial<LigneDeCarte> & { ticket: number; etat?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; decision?: Decision; pr?: boolean; livraison?: Livraison; captures?: CapturesDeCarte; fiche: Entete; gestes?: GesteDAttente[]; question?: true; todo?: CarteDeTodo; repondue?: { par: string; a: string }; prio?: string; age?: Anciennete; essais?: Point[]; requiert?: string[]; station?: string; enWaiting?: true; tache?: TacheHumaine } & Porte;
 // Ce qui a été livré, sur une carte de Livré : le résumé de la relecture, mot pour
 // mot, et ses constats sous leur nombre dit en clair (`remarques`) — ou, sans
 // relecture, pourquoi elle n'est pas là. Rien n'est mis à sa place.
@@ -370,7 +370,8 @@ export type Colonne = { nom: string; ton: string; compte: string; cartes: Carte[
 // `profils` : les profils de cook proposés, chacun une carte de la file que le chef tranche de même
 // (profil.ts), le plus ancien d'abord — absent quand il n'y en a aucun.
 // `cadence` : l'histogramme des 24 dernières heures, servis et ratés (cadence.ts) — absent d'un runtime d'avant ce champ.
-export type Rail = { colonnes: Colonne[]; hors: Carte[]; aucunTicket?: true; attendLu?: string; railLu?: string; corrections?: CarteDeCorrection[]; profils?: CarteDeProfil[]; cadence?: Histogramme };
+// `plusieursStations` : les cartes nomment plus d'une station — la vue n'étiquette la station que dans ce cas.
+export type Rail = { colonnes: Colonne[]; hors: Carte[]; plusieursStations?: boolean; aucunTicket?: true; attendLu?: string; railLu?: string; corrections?: CarteDeCorrection[]; profils?: CarteDeProfil[]; cadence?: Histogramme };
 // Le bloc `attend` d'un projet, tel que `status` l'a écrit, et l'heure de sa lecture.
 export type BlocLu = { bloc: string; a: string };
 // Ce que `status` a rendu pour un projet, son bloc `attend` mis à part, et l'heure de sa lecture.
@@ -447,6 +448,7 @@ const texte = (valeur: unknown, champ: string): string => (typeof valeur === "st
 const entier = (valeur: unknown, champ: string): number => (typeof valeur === "number" && Number.isSafeInteger(valeur) && valeur >= 0 ? valeur : refuser(champ, "a non-negative integer"));
 const heure = (valeur: unknown, champ: string): string => (typeof valeur === "string" && !Number.isNaN(Date.parse(valeur)) ? valeur : refuser(champ, "a time"));
 const ouRien = <T>(valeur: unknown, champ: string, lire: (valeur: unknown, champ: string) => T): T | null => (valeur === null ? null : lire(valeur, champ));
+const textesLus = (valeur: unknown, champ: string): string[] => (Array.isArray(valeur) ? valeur.map((un, rang) => texte(un, `${champ}[${rang}]`)) : refuser(champ, "a list"));
 const booleen = (valeur: unknown, champ: string): boolean => (typeof valeur === "boolean" ? valeur : refuser(champ, "true or false"));
 
 const nomme = (valeur: unknown, champ: string): { name: string; calls: number } => {
@@ -670,6 +672,8 @@ export function comprendre(sortie: string): Faits | { informe: string } {
           ...(lu.raison === undefined ? {} : { raison: ouRien(lu.raison, `${lequel}.raison`, texte) }),
           ...(lu.captures === undefined ? {} : { captures: comprendreCaptures(lu.captures, `${lequel}.captures`) }),
           ...requisLus(lu.requiert),
+          ...(lu.station == null ? {} : { station: texte(lu.station, `${lequel}.station`) }),
+          ...(lu.requires == null ? {} : { requires: textesLus(lu.requires, `${lequel}.requires`) }),
         }), ({ ticket, titre }, illisible) => ({ ticket, etat: ILLISIBLE_ETAT, titre, url: "", illisible }));
       }),
       ...(racine.cooks === undefined
@@ -1039,6 +1043,8 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
       ...(essais === undefined ? {} : { essais }),
       ...(connu === undefined ? {} : colore(TONS_DE_TICKET, connu.etat)),
       ...(titre === undefined ? {} : { titre }),
+      ...(connu?.station === undefined ? {} : { station: connu.station }),
+      ...(connu?.requires === undefined ? {} : { requiert: connu.requires }),
       ouvrable: url != null && ouvrable(url),
       attendu: dit !== undefined,
       attend: dit ?? [],
@@ -1119,7 +1125,8 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
       // Sans relance, personne n'a posé l'attente : rien à reprendre ni à renvoyer, le ticket repart seul.
       ...(tiers?.relance === null ? {} : { gestes: ["attente-reprendre" as const, "attente-arrivee" as const] }),
       // Faute de capacité, ce que sa carte demande : la vue en tire ses deux sorties (vue/attente-capacite/).
-      ...(connu.requiert === undefined ? {} : { requiert: connu.requiert }),
+      ...(connu.requiert === undefined ? {} : { requiert: connu.requiert, enWaiting: true as const }),
+      ...(connu.station === undefined ? {} : { station: connu.station }),
     };
   };
 
@@ -1180,6 +1187,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
   return {
     colonnes,
     hors,
+    plusieursStations: new Set([...colonnes.flatMap((colonne) => colonne.cartes), ...hors].flatMap(({ station }) => (station === undefined ? [] : [station]))).size > 1,
     ...(hors.length === 0 && colonnes.every(({ nom, cartes }) => nom === LIVRE || cartes.length === 0) ? { aucunTicket: true as const } : {}),
     ...(attend === undefined ? {} : { attendLu: attend.a }),
     ...(status === undefined || lignes === undefined ? {} : { railLu: status.a }),
