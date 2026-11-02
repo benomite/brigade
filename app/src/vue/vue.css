@@ -3004,7 +3004,7 @@ main > header,
   overflow-x: auto;
   overflow-y: auto;
 }
-/* Partagées entre les deux onglets (ticket 1184) : Rail a toutes les siennes — On the rail, Taken, Pass, TODO, WAITING, Served —, Cooks
+/* Partagées entre les deux onglets (ticket 1184) : Rail a toutes les siennes — TODO, WAITING, On the rail, Taken, Pass, Served —, Cooks
    aucune. Chacune a la largeur plancher ci-dessus, où un titre de ticket tient sur deux lignes au plus (ticket 1556). */
 /* Sur Cooks : la carte du projet, quand ses faits ne se dessinent pas, en tête. */
 #rail > .carte {

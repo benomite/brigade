@@ -177,7 +177,7 @@ describe("le rail occupe le centre de l'écran principal", () => {
     recevoir(vue);
     const cinq = () => colonnes(vue).map((colonne) => colonne.children[0]?.children.map((pose) => pose.textContent));
     // Sur l'onglet Rail, où l'espace s'ouvre : le kanban entier, Taken et Pass compris.
-    const ATTENDU = [["On the rail", "2"], ["Taken", "1"], ["Pass", "1"], ["TODO", "1"], ["WAITING", "0"], ["Served", "1"]];
+    const ATTENDU = [["TODO", "1"], ["WAITING", "0"], ["On the rail", "2"], ["Taken", "1"], ["Pass", "1"], ["Served", "1"]];
 
     // L'espace s'ouvre sans page : le rail est seul au centre, le second à droite.
     assert.equal(vue.element("contenu").hidden, true);
@@ -202,7 +202,7 @@ describe("le rail occupe le centre de l'écran principal", () => {
     assert.deepEqual(cinq(), ATTENDU);
     // Aucun onglet ne lui est plus nécessaire : une lecture de `faits` le redessine où que l'on soit.
     recevoir(vue, dessinable({ ...FAITS, rail: [], attend: [], cooks: [] }, PAS_LU));
-    assert.deepEqual(cinq(), [["On the rail", "0"], ["Taken", "0"], ["Pass", "0"], ["TODO", "0"], ["WAITING", "0"], ["Served", "0"]]);
+    assert.deepEqual(cinq(), [["TODO", "0"], ["WAITING", "0"], ["On the rail", "0"], ["Taken", "0"], ["Pass", "0"], ["Served", "0"]]);
   });
 
   test("avant la première lecture il le dit ; un projet qu'aucune station ne sert n'en a pas — rien n'est lu de lui", async () => {
@@ -230,7 +230,7 @@ describe("le rail occupe le centre de l'écran principal", () => {
     recevoir(ici);
     assert.deepEqual(
       colonnes(ici).map((colonne) => colonne.children[0]?.children[0]?.textContent),
-      ["On the rail", "Taken", "Pass", "TODO", "WAITING", "Served"],
+      ["TODO", "WAITING", "On the rail", "Taken", "Pass", "Served"],
     );
   });
 

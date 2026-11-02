@@ -171,6 +171,7 @@ const etroit = () => ecranEtroit?.matches === true;
 ecranEtroit?.addEventListener?.("change", () => montrer());
 // La colonne de ce qui attend le chef : sur un écran étroit, les colonnes de Rail s'empilent, et elle passe en tête (ticket 1163).
 const COLONNE_QUI_T_ATTEND = "TODO";
+const SUR_LE_RAIL = "On the rail";
 // Les colonnes où quelque chose attend le chef ou bouge : TODO, Taken, Pass. Les autres — On the rail, WAITING, Served — se
 // lisent en défilant, si elles sont hors de vue (ticket 1556).
 const COLONNES_ACTIVES = new Set([COLONNE_QUI_T_ATTEND, "Taken", "Pass"]);
@@ -4691,7 +4692,7 @@ function poserCuisineEtroite(projet, tenu) {
   rail.replaceChildren(bloc("h3", pourquoi));
 }
 
-// Le rail en six colonnes — Sur le rail, Au travail, Pass, TODO, WAITING, Livré —,
+// Le rail en six colonnes — TODO, WAITING, Sur le rail, Au travail, Pass, Livré (ticket 2076) —,
 // tel que le process principal l'a rangé (faits.ts) : la vue pose, colonne par
 // colonne, au centre de l'espace, partagé entre ses deux onglets (ticket 1184). Rail : ce qui t'attend
 // — la file, ce qui est en amont —, puis toutes les colonnes, Taken et Pass compris, sans rien
@@ -4712,11 +4713,17 @@ function poserRail(projet) {
   // Plus de rail, plus de fiche par-dessus.
   if (rail.hidden && ouverte !== undefined) fermerFiche();
   if (rail.hidden) return rail.replaceChildren();
-  // Ni box ni station sur cet ordinateur : rien n'en est lu, et la page ne reste pas vide — elle dit pourquoi (ticket 1405).
-  // Sur Rail, celui que sa station publie sur GitHub, s'il y en a une (ticket 1435) : ses tickets, ou pourquoi il ne se lit pas.
-  if (!seLit(projet) && projet.sansStation !== true && (!cuisine || aucuneStationNeSert(projet, cuisineDe(projet).stations))) {
+  // Aucune station connue ne sert le projet : la page ne reste pas vide — elle dit pourquoi (ticket 1405). Sur Rail, son
+  // tableau de cuisine se lit quand même, sur GitHub : lu, c'est le même rail que celui d'un projet servi ici, TODO en
+  // tête avec ses cartes et leurs gestes (ticket 2076). Tant qu'il ne l'est pas, le rail que sa station publie dit
+  // pourquoi (ticket 1435) — GitHub à connecter, aucune station du compte —, sans colonnes à lui. Hors ligne, le signe
+  // seul, comme pour tout rail (ticket 1818).
+  const duTableau = (tenu !== undefined && "tableau" in tenu) || horsLigne !== undefined;
+  if (!seLit(projet) && projet.sansStation !== true && (cuisine ? aucuneStationNeSert(projet, cuisineDe(projet).stations) : !duTableau)) {
     const publie = railsPublies.get(projet.nom);
-    if (!cuisine && publie !== undefined && !publie.sansReponse) return rail.replaceChildren(...poserRailPublie(document, { ...publie, connexion: premier.connexion }, gestesDuRailPublie(projet)));
+    // Pourquoi le tableau ne s'est pas lu, dans la phrase de sa lecture (tableau/lecture.ts).
+    const nonLu = tenu === undefined ? undefined : "erreur" in tenu ? tenu.erreur : "titre" in tenu ? tenu.titre : undefined;
+    if (!cuisine && publie !== undefined && !publie.sansReponse) return rail.replaceChildren(...poserRailPublie(document, { ...publie, connexion: premier.connexion, ...(nonLu === undefined ? {} : { nonLu }) }, gestesDuRailPublie(projet)));
     return rail.replaceChildren(bloc("h3", AUCUNE_STATION));
   }
   // Sur Cooks, dans l'ordre de sa revue (docs/revue-page-cooks.md, ticket 1456) : ses stations et leurs cooks en tête —
@@ -4808,8 +4815,13 @@ function poserRail(projet) {
   );
   // Rien d'autre n'est lu à neuf : ni ce qui est avant le rail, ni les corrections.
   if (muet !== undefined) return poser(...marque, ...(cuisine ? [] : [grille]));
-  // Dépliée par la barre, la colonne Backlog vient en premier, à gauche de « On the rail ».
-  if (!cuisine) grille.prepend(...colonneBacklog(projet, bons));
+  // Dépliée par la barre, la colonne Backlog vient à gauche de « On the rail » — après TODO et WAITING (ticket 2076).
+  if (!cuisine) {
+    const backlog = colonneBacklog(projet, bons);
+    const avantLeRail = grille.children[colonnes.findIndex(({ nom }) => nom === SUR_LE_RAIL) - 1];
+    if (avantLeRail === undefined) grille.prepend(...backlog);
+    else avantLeRail.after(...backlog);
+  }
   // La cuisine, en marche ou à l'arrêt, est une ligne de Settings (ticket 1700).
   poserArreter(projet, tenu.tableau.arretee);
   // La fiche ouverte suit la lecture : elle dit ce que la dernière dit de son ticket.
@@ -7399,7 +7411,8 @@ async function seConnecterAGitHub() {
 // Connecté : les stations sont relues, et une ouverture que la connexion retenait repart.
 function connecteAGitHub() {
   delete premier.connexion;
-  if (courant !== undefined && railsPublies.has(courant.nom)) void lireLeRailPublie(courant);
+  // Et son tableau de cuisine : connecté, il se lit peut-être (ticket 2076).
+  if (courant !== undefined && railsPublies.has(courant.nom)) relireLeRailPublie(courant);
   const retenue = premier.ouverture?.echec?.cause === "sign-in-required" ? premier.ouverture : undefined;
   void relireLePremier();
   if (!enregistreesAbsentes) void lireLesEnregistrees();
@@ -7598,9 +7611,10 @@ function vider() {
   choisi.textContent = "no folder chosen";
 }
 
-// Le rail d'un projet que ni une box ni la station de cet ordinateur ne servent (ticket 1435, rail-publie.js) : celui que
-// sa station publie sur GitHub, lu par le runtime à l'ouverture de l'espace, et relu d'un bouton — ou après une
-// connexion à GitHub. Ce qui en est tenu est en tête du fichier (`railsPublies`).
+// Le rail qu'une station publie sur GitHub pour un projet qu'aucune station connue ne sert ici (ticket 1435,
+// rail-publie.js), lu par le runtime à l'ouverture de l'espace, et relu d'un bouton — ou après une connexion à GitHub :
+// il dit pourquoi le tableau de la cuisine ne se lit pas encore (ticket 2076). Ce qui en est tenu est en tête du fichier
+// (`railsPublies`).
 
 /** @param {Projet} projet */
 async function lireLeRailPublie(projet) {
@@ -7622,14 +7636,19 @@ async function lireLeRailPublie(projet) {
   if (courant?.nom === projet.nom && !rail.hidden) poserRail(projet);
 }
 
+// « read again » : le tableau de la cuisine se relit avec lui, c'est lui qui pose le rail (ticket 2076).
+/** @param {Projet} projet */
+function relireLeRailPublie(projet) {
+  lireLesFaits();
+  void lireLeRailPublie(projet);
+}
+
 /** @param {Projet} projet @returns {import("./rail-publie.js").GestesDuRailPublie} */
 function gestesDuRailPublie(projet) {
   return {
-    relire: () => void lireLeRailPublie(projet),
+    relire: () => relireLeRailPublie(projet),
     seConnecter: () => void seConnecterAGitHub(),
     ouvrirLaPage: (url) => void brigade.ouvrirLaPage?.(url),
-    ouvrirIssue: (ticket) => void ouvrirIssue(projet, ticket),
-    forme: formeDe,
   };
 }
 

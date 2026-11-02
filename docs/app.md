@@ -5,7 +5,7 @@ second runs. You no longer open a terminal, you no longer move into a folder.
 
 **In the middle of the space, two tabs, Rail and Cooks** (#1184), next to the project name, only one shown at a
 time: **Rail** says where the project stands and what you have to decide — what awaits you and its action, the
-whole kanban in its order — On the rail, Taken, Pass, TODO, WAITING and what is served — with nothing about
+whole kanban in its order — TODO first, then WAITING, On the rail, Taken, Pass and what is served (#2076) — with nothing about
 execution; **Cooks** says what is running — the project's stations and their cooks in flight, its tickets and its
 gates, and, folded, its calibration ceiling, its roles, what
 its cooks learned and the raw reading of `station` (the machine and its saturation, the quota). One click switches from one to the other; **the app reopens each project on the
@@ -358,18 +358,22 @@ marked `offline since`).
 A project opened from that screen has neither a box nor a station on this computer. Its two tabs
 still show something, always:
 
-- **Rail** shows the rail of the project as published (#1432), in five columns — On the rail,
-  Taken, Pass, WAITING, Served: Cooks has no kitchen to read here, so Taken and Pass stay on Rail.
-  The head says nothing while the rail is up to date (no station, no GitHub): the columns show at once. When
-  nothing has been published for fifteen minutes, one line says since when the rail has not moved
-  (`This rail has not moved since 2026-10-22 09:12 UTC.`), still without naming a station; when and
-  for which repository is in its `?` hover. A
-  ticket's number opens its issue. While the rail is read, one sentence says so. When it cannot be
-  read, the head is the runtime's sentence, its detail in the hover: not signed in to GitHub, with
-  `Sign in to GitHub` (the same action as the first-launch screen; signed in, the rail is read
-  again); no `gh`, with `get the GitHub CLI`; anything else — no station serves the project, its
-  station publishes no rail, GitHub refuses or is out of reach — with `read again`. Cooks keeps its
-  one line: no station serves the project on this computer.
+- **Rail** shows the project's one rail view (#2076): the rail of its Kitchen board, read on GitHub
+  like the board of any project, whichever station serves it — TODO first with each card that awaits
+  you and its gestures, then WAITING, On the rail, Taken, Pass and Served. The app reads the board of
+  every project in the projects file, not only of those it knows a station serves: a project whose
+  kitchen runs on another station has the same view as one served by this computer. The rail its
+  station publishes in its gist (#1432) no longer draws columns of its own: until the board is read,
+  it only says why. While it is read, one sentence says so. When it cannot be read, the head is the
+  runtime's sentence, its detail in the hover: not signed in to GitHub, with `Sign in to GitHub` (the
+  same action as the first-launch screen; signed in, the rail and the board are read again); no `gh`,
+  with `get the GitHub CLI`; anything else — no station serves the project, its station publishes no
+  rail, GitHub refuses or is out of reach — with `read again`. When the rail is published but the
+  board is not read, the head says `Reading the Kitchen board of <project>…`, then, if the board
+  cannot be read, `The rail is not drawn: <why>` — no open Kitchen board, a repository GitHub does
+  not show —, with `read again`, which reads both again; when and for which repository the rail was
+  published is in its `?` hover. Cooks keeps its one line: no station serves the project on this
+  computer.
 - **Second** starts as the runtime plans it (#1433): the `claude` the PATH gives, and on Windows what
   launches it. When it cannot start, there is no terminal: its note says why in one sentence
   (`The second cannot start: claude and git are missing on this PC.`), and under it each missing
@@ -381,9 +385,9 @@ still show something, always:
   failure — the project's folder missing, a launch refused — is said in the note's one sentence,
   with `try again`.
 
-*Code: `app/src/vue/rail-publie.js` and `app/src/vue/outils-du-second.js` (the screens),
-`railDuProjet` in `app/src/main.ts`, `rangerLeRailPublie` in `app/src/faits.ts`, the plan of the
-second in `app/src/terminaux.ts`. Captures: `docs/captures/1435/`.*
+*Code: `app/src/vue/rail-publie.js` and `app/src/vue/outils-du-second.js` (the screens), `poserRail` in
+`app/src/vue/vue.js` (which view a project gets), `railDuProjet` and the board's watches in `app/src/main.ts`, the
+plan of the second in `app/src/terminaux.ts`. Captures: `docs/captures/1435/`.*
 
 ### The project view is the rail view (#1692)
 
@@ -396,8 +400,9 @@ bridge calls (`tableauDuProjet`, `ouvrirDuTableau`, `gesteAuTableau`) on the des
 The gestures of the rail view that the board's grammar knows (`docs/tableau-gestes.md`) are posted
 on the board from the card or the sheet: `merge the PR`, `remove from the rail`, a TODO card's
 choice or text, `back to the kitchen` after WAITING (#1740, below), and the "yes" or "no" on a proposed
-correction or cook profile (#1741, below). A project that no station serves on this computer keeps the published rail
-above (#1435). Captures: `docs/captures/1695/` — `espace-projet-avant.png` (the screen removed) and
+correction or cook profile (#1741, below). Since #2076, this is true of every project, whichever station serves it:
+the board of a project served by another station is read too, and its rail is this same view, TODO first — the rail a
+station publishes in its gist only says why the board is not read yet (#1435, above). Captures: `docs/captures/1695/` — `espace-projet-avant.png` (the screen removed) and
 `espace-projet-apres.png` (the rail view of the same project), and `espace-projet-gestes-apres.png` (the
 sheet of a TODO ticket whose decision is known, offering its gestures, `merge the PR` first).
 
@@ -1942,8 +1947,8 @@ unavailable` in one line, the detail on hover; one from before #1685, which does
 the first four rows only. The modules are `app/src/reglages-du-projet.ts` and `app/src/vue/projet/reglages.js`;
 the command, `runtime/src/reglage-cli.ts`.
 
-**The drawn rail is at the center of the space, shared between its two tabs** (see "The rail"): On the
-rail, Taken, Pass, TODO, WAITING and Served, all on Rail; Cooks shows no kanban column. **The space opens with no page**: the shown
+**The drawn rail is at the center of the space, shared between its two tabs** (see "The rail"): TODO,
+WAITING, On the rail, Taken, Pass and Served, all on Rail; Cooks shows no kanban column. **The space opens with no page**: the shown
 tab has the whole center, over its full height. **A page opens over the rail**: it covers it entirely, without undoing it —
 it stays laid underneath, and re-read, but nothing of it can be clicked through, and nothing of it — not even its sticky
 column heads — shows through. Clicking the tab again closes the page, and **the rail comes back as you left it**,
@@ -2346,6 +2351,12 @@ have to do (Awaiting you), what is done (Served). **The columns are shared betwe
 opens a served worktree page (#1846). The spec is
 `docs/superpowers/specs/2026-10-13-app-poste-de-travail-design.md`; the visual language remains that
 of `docs/maquettes/app/Brigade.dc.html`.
+
+**TODO comes first** (#2076): the row reads TODO, WAITING, On the rail, Taken, Pass, Served — what you decide, what
+waits for a third party, then the rail in the order of service. The Backlog column, unfolded, comes just left of On
+the rail. **TODO never disappears**: when the `awaiting` block says nothing awaits the chef, its one line says
+`nothing awaits you`; when the block has lines without a ticket (a station, the base), it says that no ticket heads
+them.
 
 ```
 ● On the rail  2       ● Taken  1             ● Pass  1            ● Awaiting you  1      ● Served  1

@@ -96,7 +96,7 @@ test("GitHub seul, aucune box jointe : la couche de données du rail rend les ti
   const colonne = (nom: string) => tableau.rail.colonnes.find((c) => c.nom === nom)?.cartes.map(({ ticket, etat }) => [ticket, etat]);
 
   // Les tickets et leur état, chacun dans sa colonne.
-  assert.deepEqual(tableau.rail.colonnes.map(({ nom }) => nom), ["On the rail", "Taken", "Pass", "TODO", "WAITING", "Served"]);
+  assert.deepEqual(tableau.rail.colonnes.map(({ nom }) => nom), ["TODO", "WAITING", "On the rail", "Taken", "Pass", "Served"]);
   assert.deepEqual(colonne("Taken"), [
     [23, "pris"],
     [31, "pris"],

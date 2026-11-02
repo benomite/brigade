@@ -327,8 +327,9 @@ describe("dans l'espace du projet, ce qui est avant le rail se lit à côté de 
 
     laBarre(vue).click();
     const colonne = backlog(vue) ?? assert.fail("la colonne Backlog n'est pas dépliée");
-    assert.equal(colonnes(vue).indexOf(colonne), 0);
-    assert.equal(colonnes(vue)[1]?.dessous("h4")[0]?.children[0]?.textContent, "On the rail");
+    // Après TODO et WAITING, en tête du rail (#2076).
+    assert.equal(colonnes(vue).indexOf(colonne), 2);
+    assert.equal(colonnes(vue)[3]?.dessous("h4")[0]?.children[0]?.textContent, "On the rail");
     assert.equal((laBarre(vue) as Faux & { ariaExpanded?: string }).ariaExpanded, "true");
     // Redessinée, la barre garde le clavier : sa bulle reste ouverte.
     assert.equal(laBarre(vue).focalise, 1);

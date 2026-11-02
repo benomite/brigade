@@ -156,10 +156,10 @@ describe("ce que chaque onglet montre", () => {
   test("Rail : ce qui t'attend et son geste, le kanban entier, Taken et Pass compris, dans son ordre — ni gates, ni worktrees, ni plafond, ni consommation", async () => {
     const vue = await ouvrir();
 
-    assert.deepEqual(colonnes(vue), ["On the rail", "Taken", "Pass", "TODO", "WAITING", "Served"]);
-    // Le rail dans son ordre ; #12, qui t'attend, avec son geste ; #31, servi, sans geste qui ouvre une page de son
-    // worktree (#1846) : l'app n'en ouvre aucune.
-    assert.deepEqual(cartes(vue), ["#21", "#22", "#14", "#30", "#12", "#31"]);
+    assert.deepEqual(colonnes(vue), ["TODO", "WAITING", "On the rail", "Taken", "Pass", "Served"]);
+    // Le rail dans son ordre, TODO en tête (#2076) : #12, qui t'attend, avec son geste ; #31, servi, sans geste qui ouvre
+    // une page de son worktree (#1846) : l'app n'en ouvre aucune.
+    assert.deepEqual(cartes(vue), ["#12", "#21", "#22", "#14", "#30", "#31"]);
     assert.ok(carteDe(vue, 12).dessous("button").length > 0, "ce qui t'attend n'a pas de geste");
     assert.ok(!carteDe(vue, 31).dessous("button").some((bouton) => /browser/.test(bouton.textContent)));
     // Rien d'exécution : ni la carte du projet, ni `station`.

@@ -905,10 +905,10 @@ function colonneDeFaits(connu: Faits["rail"][number] | undefined, etat: string |
   if (connu?.attente == null) return parMot(etat);
   return parMot(connu.attente.colonne) ?? parMot(etat) ?? COLONNE_PAR_DEFAUT;
 }
-// TODO : ce que le chef peut trancher maintenant — et cela seulement. WAITING, juste après :
-// ce qui attend un tiers, qu'il ne perd pas de vue sans l'avoir devant lui.
-const T_ATTEND = { nom: "TODO", ton: "rouge", rang: 3 } as const;
-const WAITING = { nom: "WAITING", ton: "gris", rang: 4 } as const;
+// TODO : ce que le chef peut trancher maintenant — et cela seulement —, en premier (#2076). WAITING, juste après :
+// ce qui attend un tiers, qu'il ne perd pas de vue sans l'avoir devant lui. Puis le rail, dans l'ordre du service.
+const T_ATTEND = { nom: "TODO", ton: "rouge", rang: 0 } as const;
+const WAITING = { nom: "WAITING", ton: "gris", rang: 1 } as const;
 const PERSONNE_N_ATTEND = "no ticket waits for a third party";
 // Les mots d'état d'un ticket que le runtime laisse attendre un tiers : en attente sur le
 // rail, ou mis de côté — pas celui que la cuisine tient, en cuisine ou en pass, ni un servi.
@@ -920,24 +920,11 @@ const REPONDUE_ENSUITE = "the manager reads the answer at its next tick: it spli
 // Ce qu'une carte de WAITING dit quand la box ne donne pas ce qu'il attend.
 const TIERS_PAS_DONNE = "not given — this station's runtime does not give in `facts` what it waits for: what, from whom, since when, its follow-up, what happens on arrival";
 
-// Le rail qu'une station publie sur GitHub (runtime/src/appairage/rail-du-projet.ts, #1432), lu sur un ordinateur
-// où le projet n'a ni box ni station (#1435) : ses tickets rangés par leur mot d'état dans les colonnes du rail que le
-// Mac lit — On the rail, Taken, Pass, WAITING, Served —, du même ton. TODO n'y est pas : ce qui attend le chef ne
-// se publie pas. Un mot d'aucune colonne (`86`, un mot inconnu) est hors colonnes, comme sur le Mac.
-export type CarteDuRailPublie = { ticket: number; etat: string; mot?: string; ton?: string; titre: string; url: string; ouvrable: boolean };
-export type RailPublieRange = { colonnes: { nom: string; ton: string; cartes: CarteDuRailPublie[] }[]; hors: CarteDuRailPublie[] };
-// Ce que la vue en reçoit : le rail lu et rangé, ou pourquoi il ne l'est pas (`railDuProjet`, main.ts).
-export type RailDuProjetLu = Exclude<RailDuProjet, { state: "listed" }> | (Extract<RailDuProjet, { state: "listed" }> & { range: RailPublieRange });
-export function rangerLeRailPublie(tickets: readonly { ticket: number; state: string; title: string; url: string }[]): RailPublieRange {
-  const cartes = tickets.map(({ ticket, state, title, url }): CarteDuRailPublie => ({ ticket, ...colore(TONS_DE_TICKET, state), titre: title, url, ouvrable: ouvrable(url) }));
-  const [surLeRail, pris, pass, servi] = COLONNES_DE_FAITS;
-  const ordre = [surLeRail, pris, pass, WAITING, servi];
-  const colonneDe = (etat: string) => (etat === "WAITING" ? WAITING.nom : colonneDeFaits(undefined, etat));
-  return {
-    colonnes: ordre.map(({ nom, ton }) => ({ nom, ton, cartes: cartes.filter(({ etat }) => colonneDe(etat) === nom) })),
-    hors: cartes.filter(({ etat }) => colonneDe(etat) === undefined),
-  };
-}
+// Le rail qu'une station publie dans son gist (runtime/src/appairage/rail-du-projet.ts, #1432), lu sur un ordinateur
+// où le projet n'est servi par aucune station connue (#1435) : il ne se dessine plus (#2076). Le rail d'un projet est
+// celui de son tableau de cuisine, lu pour tout projet, quelle que soit la station qui le sert ; tant que ce tableau ne
+// se lit pas, la vue dit pourquoi — d'après ce rail publié quand il le dit mieux (vue/rail-publie.js).
+export type RailDuProjetLu = RailDuProjet;
 
 // Un instant de la box, tel qu'elle l'a donné : son jour et son heure, en UTC.
 const instant = (iso: string) => `${new Date(iso).toISOString().slice(0, 16).replace("T", " ")} UTC`;
@@ -968,6 +955,10 @@ const livraison = (relecture: Relecture | null | undefined): Livraison =>
 // connexion, la base — attend aussi, et n'a pas de carte. C'est le bloc qui le dit.
 const AUCUN_NUMERO = "no ticket at the head of a line of the `attend` block";
 const AUCUN_ATTENDU = "no ticket in `attend`, according to `facts`";
+// Le bloc dit lui-même que rien n'attend le chef (runtime/src/attend.ts, `decrireAttentes`) : TODO le dit en une ligne,
+// au lieu de disparaître (#2076). Ce qui n'est pas une décision — le bilan des arrêts, la version passée — n'y change rien.
+const RIEN_N_ATTEND = "nothing awaits you";
+const blocVide = ({ bloc }: BlocLu) => /^(awaiting|attend)\s+(nothing awaits the chef|rien n'attend le chef)\s*$/.test(bloc.split("\n")[0] ?? "");
 const RIEN_DE_LU = "not read: this station's runtime does not give `attend` in `facts`, and the `attend` block of the station's “status” step was not taken for this project. This is not “nothing awaits you” — the tickets stay in their columns";
 
 // Le rail en six colonnes. Un ticket qui attend une décision du chef est dans
@@ -1204,7 +1195,7 @@ export function rail(faits: Faits, attend?: BlocLu, status?: StatusLu, repondues
     ton: T_ATTEND.ton,
     compte: rienDeLu ? "?" : String(dits.size),
     cartes: [...dits.keys()].map(carte),
-    vide: rienDeLu ? RIEN_DE_LU : attend === undefined ? AUCUN_ATTENDU : AUCUN_NUMERO,
+    vide: rienDeLu ? RIEN_DE_LU : attend === undefined ? AUCUN_ATTENDU : blocVide(attend) ? RIEN_N_ATTEND : AUCUN_NUMERO,
   });
   colonnes.splice(WAITING.rang, 0, {
     nom: WAITING.nom,

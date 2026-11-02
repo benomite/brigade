@@ -33,7 +33,7 @@ import { choix, entieres, PALETTE } from "./couleurs.ts";
 import { blocDesOrdinaires } from "./ordinaires.ts";
 import { ecrireAttente, GESTES_D_ATTENTE } from "./attente.ts";
 import { GESTES_DE_LA_CUISINE } from "./cuisine.ts";
-import { BANNIERE, COMMANDE, rangerLeRailPublie, tenirFaits, type RailDuProjetLu } from "./faits.ts";
+import { BANNIERE, COMMANDE, tenirFaits, type RailDuProjetLu } from "./faits.ts";
 import { clientGitHub, parFetch } from "./tableau/client.ts";
 import { avecLesEnvois } from "./tableau/envois.ts";
 import { jetonDeGh } from "./tableau/jeton-gh.ts";
@@ -207,8 +207,9 @@ const terminaux = ouvrirTerminaux({
 // tableau de la cuisine que sa box publie sur GitHub (#1694, tableau/rail.ts), avec le jeton du `gh` de ce poste : ni
 // tailnet, ni box jointe. Les veilles du rail, des faits, du manager et de l'amont lisent toutes ce même
 // tableau, une lecture à la fois par projet, reprise par chacune tant qu'elle a moins de quinze secondes. Le dépôt d'un
-// projet est son `depot`, ou celui de l'`origin` de son dossier. Un projet que ni sa box ni cet ordinateur ne servent
-// garde son écran (#1435) : son rail n'est pas lu ici.
+// projet est son `depot`, ou celui de l'`origin` de son dossier. Le tableau est sur GitHub : il se lit pour tout projet,
+// quelle que soit la station qui le sert — que l'app la connaisse ou non (#2076). Le rail d'un projet servi ailleurs est
+// la même vue, TODO et ses gestes compris ; un projet que rien ne sert dit pourquoi son tableau ne se lit pas.
 const appelerGitHub = clientGitHub({ jeton: jetonDeGh({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 10_000 }), envoyer: parFetch() });
 const depotDuProjet = async (projet: Projet) => projet.depot ?? (await depotDeLOrigine(process.env.BRIGADE_GIT_BIN || "git", projet.dossier)) ?? projet.nom;
 // Une carte de TODO à laquelle le chef a répondu se lit, avec lui, des commentaires du tableau (tableau/envois.ts, #1841) :
@@ -218,7 +219,6 @@ const lireLeTableau = async (projet: Projet) => {
   return lu.lu ? avecLesEnvois(lu, appelerGitHub) : lu;
 };
 const tableaux = tenirLecturesDuTableau<Projet>({ lire: lireLeTableau, fraicheurMs: 15_000 });
-const railLisible = lisible;
 
 // Seul ce qui est affiché est lu — un projet, ou chacun dans « Tous les projets » : toutes
 // les trente secondes, sur le tableau de la cuisine. Ce qui attend le chef en est mis à
@@ -229,7 +229,6 @@ const passage = new Map<string, Promise<unknown>>();
 const veille = ouvrirVeilleDuTableau({
   lire: tableaux.lire,
   intervalleMs: 30_000,
-  lisible: railLisible,
   surLecture: (lecture) => {
     const montree = mettreAPart(lecture);
     // Le rail se dessine aussi de ce `status` : son bloc dit en mots ce qui attend le chef, et sa
@@ -323,7 +322,6 @@ const urgences = tenirNotifications({
 const veilleDesFaits = ouvrirVeilleDuTableau({
   lire: tableaux.lire,
   intervalleMs: 30_000,
-  lisible: railLisible,
   surLecture: (lecture) => {
     dire("faits", faits.recevoir(lecture));
     // Ce que fait chaque cook du projet, publié sur le même tableau (#1846) — lu avec GitHub seul, sans joindre la box :
@@ -345,7 +343,6 @@ const veilleDesFaits = ouvrirVeilleDuTableau({
 const veilleDuManager = ouvrirVeilleDuTableau({
   lire: tableaux.lire,
   intervalleMs: 30_000,
-  lisible: railLisible,
   surLecture: (lecture) => {
     direLaBande(bandes.manager(lecture));
     // Ce qui est en amont du rail dit aussi si le manager le lit : sa phrase suit son état.
@@ -361,7 +358,6 @@ const amonts = tenirAmont();
 const veilleDeLAmont = ouvrirVeilleDuTableau({
   lire: tableaux.lire,
   intervalleMs: 60_000,
-  lisible: railLisible,
   surLecture: (lecture) => dire("amont", amonts.recevoir(lecture)),
 });
 
@@ -1104,21 +1100,17 @@ ipcMain.handle("ouvrirLaPage", (_, url: unknown) => {
     () => false,
   );
 });
-// Le rail d'un projet que ni une box ni la station de cet ordinateur ne servent (#1435) — un projet ouvert depuis le
-// premier lancement : celui que sa station publie sur GitHub, lu par l'opération du runtime (#1432) et rangé dans les
-// colonnes du rail (faits.ts) ; ou pourquoi il ne se lit pas, en une phrase. Ses tickets s'ouvrent sur leur issue
-// (`ouvrirIssue`), et la page qu'un échec nomme, depuis l'écran.
-const adressesPubliees = new Map<string, Map<number, string>>();
+// Le rail qu'une station publie dans son gist pour un projet qu'aucune station connue ne sert ici (#1435), lu par
+// l'opération du runtime (#1432) : la vue ne le dessine plus (#2076) — le rail est celui du tableau de la cuisine, lu
+// pour tout projet. Tant que ce tableau ne se lit pas, il dit pourquoi en une phrase : GitHub à connecter, aucune
+// station du compte qui serve le projet, ou la page qui lève l'échec, ouverte depuis l'écran.
 ipcMain.handle("railDuProjet", async (_, nom: unknown): Promise<RailDuProjetLu> => {
   const vise = declare(nom);
   if (vise === undefined) return { state: "unavailable", project: String(nom), cause: "unreadable", reason: `The rail of ${String(nom)} is not read: it is no longer in the projects file.` };
   const { lireLeRailDuProjet } = await duRuntime<typeof import("../../runtime/src/appairage/rail-du-projet.ts")>("appairage", "rail-du-projet.ts");
   const lu = await lireLeRailDuProjet({ gh: ghIci, env: process.env, project: vise.depot ?? vise.nom });
   if (lu.state === "unavailable") return retenirLaPage(lu);
-  if (lu.state !== "listed") return lu;
-  // Seule une adresse https s'ouvre, comme pour le rail d'une box (faits.ts).
-  adressesPubliees.set(vise.nom, new Map(lu.tickets.filter(({ url }) => URL.parse(url)?.protocol === "https:").map(({ ticket, url }) => [ticket, url])));
-  return { ...lu, range: rangerLeRailPublie(lu.tickets) };
+  return lu;
 });
 const clientDesGestes = clientDesGestesGitHub({ jeton: jetonDeGh({ gh: ghIci, delaiMs: 10_000 }), poster: posterParFetch(), appeler: appelerGitHub });
 // Les labels `prio:` d'une issue, lus et changés depuis une fiche (priorite.ts), avec le même jeton.
@@ -1388,11 +1380,7 @@ ipcMain.handle("lireFeu", async (_, nom: unknown) => {
 // projet et le ticket, l'adresse est celle que la box a rendue (faits.ts) — ou, pour une issue
 // qui n'est pas encore sur le rail, celle que `manager upstream` a donnée (amont.ts). Rend si elle a été ouverte.
 ipcMain.handle("ouvrirIssue", (_, nom: unknown, ticket: unknown) => {
-  // Un projet sans box ni station ici : l'adresse est celle du rail que sa station publie (#1435).
-  const adresse =
-    faits.adresse(nom, ticket) ??
-    amonts.adresse(nom, ticket) ??
-    (typeof ticket === "number" ? (adressesDeFeu.get(String(nom))?.get(ticket) ?? adressesPubliees.get(String(nom))?.get(ticket)) : undefined);
+  const adresse = faits.adresse(nom, ticket) ?? amonts.adresse(nom, ticket) ?? (typeof ticket === "number" ? adressesDeFeu.get(String(nom))?.get(ticket) : undefined);
   return adresse === undefined ? false : shell.openExternal(adresse).then(
     () => true,
     () => false,

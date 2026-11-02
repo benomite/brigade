@@ -281,7 +281,7 @@ describe("un ticket qui t'attend", () => {
     const { rail: lu } = dessine({ ...ETAT, attend: [{ ticket: 23, title: "Ticket 23", since: ilYA(182), quoi: "fermee", reason: "stopped", cause: null, pr: "https://github.com/benomite/brigade/pull/23" }] });
     const carte = carteDe(lu, 23);
 
-    assert.deepEqual(lu.colonnes[3]?.cartes.map(({ ticket }) => ticket), [23]);
+    assert.deepEqual(lu.colonnes[0]?.cartes.map(({ ticket }) => ticket), [23]);
     assert.equal(carte.attendu, true);
     assert.match(carte.attend[0] ?? "", /^for 3 h 02 {2}PR closed without merge: https:\/\/github\.com\/benomite\/brigade\/pull\/23 — to decide: /);
     assert.deepEqual(dits(carte), { since: "3 h 02", "blocked by": "awaiting #17 (off the rail, issue still open: label `fire` removed)" });
