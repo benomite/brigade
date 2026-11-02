@@ -521,6 +521,9 @@ jobs:
               --latest=false
           fi
           echo "$resume" >> "$GITHUB_STEP_SUMMARY"
+          # Seules les 5 dernières releases de l'app restent, tags compris : le dernier tag `app-v*`,
+          # base du merge suivant, est toujours gardé.
+          "$GITHUB_WORKSPACE/scripts/app-release/garder-les-dernieres.sh" app-v 5
 
   alerter:
     # Une construction ou la publication a échoué ou a été annulée : une issue le dit au chef, hors

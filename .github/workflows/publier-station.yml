@@ -82,3 +82,5 @@ jobs:
             --title "Station $version" \
             --notes-file "$RUNNER_TEMP/notes.md" \
             --latest
+          # Seules les 5 dernières releases de la station restent, tags compris.
+          GH_REPO="$GITHUB_REPOSITORY" scripts/app-release/garder-les-dernieres.sh station- 5

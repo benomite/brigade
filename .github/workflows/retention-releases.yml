@@ -1,0 +1,27 @@
+# La page des releases ne garde que les 5 dernières de l'app et les 5 dernières de la station, tags
+# compris (scripts/app-release/garder-les-dernieres.sh). publier-app et publier-station le jouent
+# après chaque publication ; ce workflow, lancé à la main, purge les anciennes d'un coup.
+name: retention-releases
+
+on:
+  workflow_dispatch:
+
+# Pas de purge pendant une publication : elle lit les tags que la précédente a posés.
+concurrency:
+  group: publier-app
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  purger:
+    if: github.ref_name == 'main'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: scripts/app-release/garder-les-dernieres.sh app-v 5
+      - run: scripts/app-release/garder-les-dernieres.sh station- 5

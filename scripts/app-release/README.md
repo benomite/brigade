@@ -31,3 +31,7 @@ node scripts/app-release/paquets.ts renommer --version 1.0.3 --dossier <dir>    
 ```
 
 The notes are a table: package, platform, what it is, and the steps to open it when unsigned (Gatekeeper on Mac, SmartScreen on Windows, the executable bit on Linux, unknown apps on Android). `publier-app` and `publier-station` run it and hand the output to `gh release create --notes-file`.
+
+## Retention
+
+The releases page keeps the 5 latest app releases and the 5 latest station releases, tags included. `garder-les-dernieres.sh <app-v|station-> <n> [--simuler]` deletes the older ones (`gh release delete --cleanup-tag`); `publier-app` and `publier-station` run it after each publication, and the `retention-releases` workflow (run by hand) purges the backlog. A box more than 5 versions behind cannot reach the next one: it must be reinstalled from the page.
