@@ -2358,7 +2358,7 @@ Waiting, not TODO and WAITING; the card badges keep their words), and each colum
 rail, a triangle for Taken, a diamond for Pass, a square for Todo, an orange **pause** (two bars: held, waiting for
 someone) for Waiting, a disc for Served. The Backlog column, unfolded, comes just left of On the rail. **Todo never
 disappears**: when the `awaiting` block says nothing awaits the chef, its one line says `nothing awaits you`; when
-the block has lines without a ticket (a station, the base), it says that no ticket heads them.
+the block has lines without a ticket (a station, the base), it says that no ticket heads them. Captures: `docs/captures/2093/` — `espace-projet-*` and `espace-projet-etats-github-*`, `-avant` and `-apres`.
 
 ```
 ● On the rail  2       ● Taken  1             ● Pass  1            ■ Todo  1              ‖ Waiting  0        ● Served  1
