@@ -1,7 +1,7 @@
 # Installs a brigade station on Windows, in one command -- the one in the guide
 # (docs/installation-station.md, "On Windows"), pasted into PowerShell, under your account:
 #
-#   irm https://github.com/<owner>/<repo>/releases/latest/download/installer-station.ps1 | iex
+#   irm https://github.com/<owner>/<repo>/releases/download/station/installer-station.ps1 | iex
 #
 # It is the Windows side of runtime/deploy/installer-station.sh, and it does what that script does
 # on a Mac: the same station, the same configuration, the same two sign-ins. Nothing is written by
@@ -261,7 +261,7 @@ for (;;) {
       $source = $demande
     } else {
       if ($Depot -notmatch '^[^/]+/[^/]+$') { Refuser "no repository is named to download the station from -- give what to install (a path or an address) as an argument, or BRIGADE_DEPOT=<owner>/<repo> of the GitHub repository that publishes brigade" }
-      $source = "https://github.com/$Depot/releases/latest/download/$Nom-windows.zip"
+      $source = "https://github.com/$Depot/releases/download/station/$Nom-windows.zip"
     }
     if (-not (Commande 'curl.exe')) { Refuser 'curl.exe is missing to download the station: it comes with Windows 10 (1803) and later' }
     if (-not $env:LOCALAPPDATA -or -not $env:USERPROFILE) { Refuser 'LOCALAPPDATA or USERPROFILE is not defined' }

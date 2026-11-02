@@ -7,8 +7,8 @@ a GitHub account and a Claude Max subscription (an API key does not fit).
 
 | System | Command |
 |---|---|
-| Linux (Debian, Ubuntu, systemd) and Mac | `curl -fsSL https://github.com/benomite/brigade/releases/latest/download/installer-station.sh \| sh` |
-| Windows (PowerShell) | `irm https://github.com/benomite/brigade/releases/latest/download/installer-station.ps1 \| iex` |
+| Linux (Debian, Ubuntu, systemd) and Mac | `curl -fsSL https://github.com/benomite/brigade/releases/download/station/installer-station.sh \| sh` |
+| Windows (PowerShell) | `irm https://github.com/benomite/brigade/releases/download/station/installer-station.ps1 \| iex` |
 
 It installs the station, starts it, and keeps it up to date. Rerunning it is safe.
 

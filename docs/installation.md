@@ -21,8 +21,8 @@ Not covered: Intel Macs, 32-bit or ARM Windows, Linux.
 
 ## Get the packages
 
-Everything is on the **[releases page](https://github.com/benomite/brigade/releases)**. Take the
-most recent release named **“Brigade `<version>`”** (tag `app-v<version>`), not just the one marked
+Everything is on the **[releases page](https://github.com/benomite/brigade/releases/latest)**. Take the
+most recent release named **“Brigade `<version>`”** (tag `app-v<version>`) — the one marked
 “Latest”: its files are `Brigade-<version>-mac-arm64.dmg` and
 `Brigade-<version>-windows-x64-setup.exe`. The builds are **unsigned**, so your system warns you the
 first time you open one; the steps are below.

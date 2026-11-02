@@ -136,8 +136,9 @@ gh release create station-<version> runtime/deploy/installer-station.sh runtime/
 Ce geste n'est pas à faire à la main : `.github/workflows/publier-station.yml` le fait à chaque
 merge sur `main` qui touche `runtime/src/`, `runtime/deploy/`, `runtime/package.json` ou `runtime/paquet/`. Il construit le
 paquet sans `--version` (donc `0.<AAAAMMJJ>.<HHMMSS>+g<commit>`), et publie la release
-`station-<version>` — ni brouillon ni pré-version, marquée la dernière du dépôt, pour que
-`releases/latest/download/installer-station.sh` la trouve. Un merge qui ne touche que l'app, la doc ou
+`station-<version>` — ni brouillon ni pré-version, jamais marquée « latest » (c'est l'app qui l'est, pour que
+`releases/latest` mène à elle). Elle copie aussi ses fichiers dans la release à l'adresse stable
+`station` : `releases/download/station/installer-station.sh` installe donc toujours la dernière. Un merge qui ne touche que l'app, la doc ou
 le plugin V1 ne publie rien. Le workflow se lance aussi à la main (`workflow_dispatch`) ; une version
 déjà publiée n'est pas republiée.
 

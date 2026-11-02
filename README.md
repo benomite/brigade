@@ -19,7 +19,7 @@ You need two accounts:
 - a **GitHub account**, with a repository you can push to (a throwaway one is fine for a first run);
 - a **Claude account**: the cooks run on a Claude Max session, and an API key does not fit.
 
-1. **Download the app** (macOS, Apple silicon, or Windows x64) from the **[releases page](https://github.com/benomite/brigade/releases)** and open it.
+1. **Download the app** (macOS, Apple silicon, or Windows x64) from the **[releases page](https://github.com/benomite/brigade/releases/latest)** and open it.
 2. **Sign in with GitHub**: on its first screen, the app offers a button that opens the GitHub page and shows you a code to type there.
 3. **Sign in with Claude**: if the app says the Claude connection is missing, click its **log in** button and sign in with your Max account in the browser.
 4. **Pick your repository**: type it as `owner/repo` and click **open this project**. The app clones it, prepares it with a ticket of its own, and tells you when it is ready.
