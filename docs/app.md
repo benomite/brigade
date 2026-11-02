@@ -427,6 +427,34 @@ through the box), `carte-waiting-arrivee-apres.png` (posted on the board, said o
 `carte-waiting-arrivee-echec-apres.png` (GitHub refused: the card stays and says why), and `fiche-cuisine-avant.png` /
 `fiche-cuisine-apres.png` (the sheet of a ticket back from WAITING, `back to the kitchen` confirmed).
 
+### A WAITING card awaiting a capability: give it to a station, or hand it to a human (#1958)
+
+A ticket whose `requiert` names a capability no station provides waits in WAITING: its card reads
+"waiting for a station that provides `<capability>`". Its card, and only that WAITING card (`facts` gives it `requiert`, every capability its card asks for), carries
+two ways out, each one gesture — at most one pick, then one confirmation:
+
+- **`Give it to a station`**, recommended: under the card, the project's stations (`installation stations --json`, as on
+  Cooks), each with what it provides, the first one picked; one click picks another. The confirmation says what that station
+  will provide from now on, its price in one line (a cook takes it on that station). Confirmed, the capabilities the card asks
+  for are added to what the station provides, by the same gesture as `Save` in its form on Cooks (`changerUneStation`,
+  `installation stations set`): its form, reopened, shows them ticked. The runtime sees the station provide it at its next pass,
+  puts the ticket back on the rail (`capabilities-reread`) and it leaves for that station — it does not come back to WAITING
+  for that capability.
+- **`It's a human's job`**: the confirmation says the ticket leaves the rail and waits in TODO as a task for the chef.
+  Confirmed, `rail human <ticket>` runs where the project's kitchen runs (`docs/runtime/journal-et-rail.md`, "Handing a ticket
+  to a human"): the issue loses `fire` and takes `hors-cuisine`, and the ticket enters TODO as a task.
+
+On the TODO card of such a task, under its question (`What became of this task?` — `It is done`, `It will not be done`, or your
+own words, written on the issue), the task itself: **`Assignee`**, a field set to `chef`, and `reassign`, active once another name
+is typed, which plays `rail human <ticket> <name>` (one word: a first name, a GitHub login); then the card's **title**, **what
+no station provides**, its **context** and its **acceptance criteria**, as the issue wrote them.
+
+What is done is said under the card in one line; a refusal, in red, the runtime's output on hover. The modules are
+`app/src/vue/attente-capacite/` (`sorties.js` the card, `geste.ts` the command, `lecture.ts` what `facts` gives). Captures:
+`docs/captures/1958/` — `rail-sans-station-avant.png` / `-apres.png` (the WAITING card, before and with its two ways out),
+`rail-sans-station-donner-apres.png` (`Give it to a station` opened), `rail-sans-station-humain-apres.png` (`It's a human's job`
+confirmation), `todo-tache-humaine-avant.png` / `-apres.png` (the task in TODO, before and with its assignee and its body).
+
 ### The second's choices, as buttons under its terminal (#1520)
 
 When the second asks you to choose ("A, B or C?"), it also publishes its choices through its own channel

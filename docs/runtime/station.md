@@ -440,6 +440,12 @@ corrected by hand like the rest. Most tickets ask for none.
 
 - **It returns to queued by itself** (`ticket.released`, reason `capabilities-reread`): at restart,
   if a declared station now provides what it asks; at the poll, if its card no longer asks for it.
+- **The chef has two ways out of it** (#1958), on its WAITING card in the app: give the capability
+  to one of the project's stations (`installation stations set`; `facts` gives the card's
+  `requiert`), and the ticket comes back as above and leaves for that station; or make it a
+  human's job (`rail human <ticket>`, [`journal-et-rail.md`](journal-et-rail.md), "Handing a ticket to
+  a human"): it leaves the rail, `hors-cuisine`, and its task enters TODO. The manager does not take
+  that task out of TODO.
   A card that now asks for something else that is missing sends it back 86, under the new reason.
 - **With no declared station at all**, a ticket that asks for a capability is 86 in the same way;
   one that asks for none waits, as before.

@@ -54,6 +54,7 @@ import { arreteeDepuis, cookDeRun, cooksEnCoursDeStation, direDeconnexionEn, dir
 import { avecHorsZoneEn, BLOQUE, BLOQUE_EN, direAttenteDUnWaiting, direAttentesLeveesEn, direRetenueEn, EN_WAITING, etatLu, etatLuEn, nomAbandonEn, nomEtat, nomEtatEn, RETOUR_DERRIERE_UN_WAITING_EN } from "./rail.ts";
 import { direAttenteDeTiersEn } from "./attente.ts";
 import { attenteDUneStation, direAttenteDUneStationEn, direMiseDeCote, miseDeCoteDu } from "./mise-de-cote.ts";
+import { requisDuRail, tacheDuTicket, tachesHumaines, type TacheHumaine } from "./sortie-attente-capacite/sortie.ts";
 import { direReprise, direRepriseEn, reprisesDuRail, type RepriseDuTicket } from "./remontee-a-la-cuisine.ts";
 import { aSortirAvec, direSortieAvecEn, type AbandonEnChaine } from "./abandon-en-chaine.ts";
 import { GESTE_DE_STATION_A_CHAUD_EN } from "./stations-declarees.ts";
@@ -154,6 +155,8 @@ export type EtatCuisine = {
   // Non nul : le projet ne déclare aucune station depuis cet instant, et aucun
   // cook ne part.
   sansStation: string | null;
+  // Les tâches confiées à un humain dont la carte est dans TODO (sortie-attente-capacite/), par ticket.
+  taches?: Map<number, TacheHumaine>;
   // Non nul : le setup du projet est bloqué sur un échec qui se répète, et
   // aucun setup n'est lancé d'ici tant que la branche d'intégration ne bouge pas.
   setup: SetupBloque | null;
@@ -243,6 +246,7 @@ export function lireEtat(journal: Journal, maintenant = new Date()): EtatCuisine
     interrupteur,
     stations,
     sansStation: sansStationDepuis(base),
+    taches: tachesHumaines(base),
     setup: setupBloque(base),
     miseDeCote: miseDeCoteBloquee(base),
     cooks,
@@ -855,6 +859,8 @@ export type Faits = {
     // pour celui qui part. Le rail est dans l'ordre où il se sert.
     raison: string | null;
     captures?: CapturesVues;
+    // Sur une carte en WAITING faute de capacité seulement : ce que sa ligne `requiert` demande (#1958).
+    requiert?: string[];
   }>;
   // Les cooks en cours, comme `station` les montre. Le titre est celui du rail :
   // vide si le ticket l'a quitté pendant la cuisson.
@@ -878,7 +884,9 @@ export type Faits = {
   // partir de 1 —, `reponseLibre`, `secondaire` (« ask the second »), et ses
   // `captures`, chaque écran avant et après, par leur adresse — par leur chemin
   // dans le dépôt quand la box ne le connaît pas —, nulles sans écran.
-  attend: Array<{ ticket: number; titre: string; url: string | null; decision: Decision; livraison?: Livraison; carte: CarteVue }>;
+  // `tache` : sur l'entrée d'un ticket confié à un humain (#1958), la tâche — à qui, ce qui manque, le titre, le contexte
+  // et les critères de sa carte.
+  attend: Array<{ ticket: number; titre: string; url: string | null; decision: Decision; livraison?: Livraison; carte: CarteVue; tache?: TacheHumaine }>;
   // Les tickets servis dans les 24 h avant `lu`, le plus récent d'abord — ceux
   // que `compteurs.livres24h` compte, un pour un, encore sur le rail ou non.
   // `livre` : l'heure de son service. `station` : celle qui l'a cuisiné, nulle
@@ -1090,6 +1098,7 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limit
               : { quoi: ticket.waitingFor.what, qui: ticket.waitingFor.who, depuis: ticket.waitingFor.since, relance: ticket.waitingFor.followUp, aLArrivee: ticket.waitingFor.onArrival },
         raison: raisonDeTete(etat, ticket),
         ...(ticket.state === "pass" || ticket.state === "served" ? captures(ticket.ticket) : {}),
+        ...requisDuRail(ticket),
       };
     }),
     // Une station ne lance un cook que pour un ticket.
@@ -1100,7 +1109,7 @@ export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limit
       if (attente.ticket === null || attendus.has(attente.ticket)) return [];
       const { ticket, title } = attente;
       attendus.add(ticket);
-      return [{ ticket, titre: title ?? "", url: adresse(ticket), decision: decisionDe(attente), ...("livraison" in attente && attente.livraison !== undefined ? { livraison: attente.livraison } : {}), carte: carteVue(carteDeLAttente(attenteDeLaCarte(etat.attend, ticket) ?? attente)) }];
+      return [{ ticket, titre: title ?? "", url: adresse(ticket), decision: decisionDe(attente), ...("livraison" in attente && attente.livraison !== undefined ? { livraison: attente.livraison } : {}), carte: carteVue(carteDeLAttente(attenteDeLaCarte(etat.attend, ticket) ?? attente)), ...tacheDuTicket(etat.taches, ticket) }];
     }),
     livres: etat.livres.map(({ ticket, title, url, servedAt, station, pr, review }) => ({ ticket, titre: title, url: url ?? adresse(ticket), livre: servedAt, station, pr, relecture: relectureLivree(review), ...captures(ticket) })),
     urgence: faitsDUrgence(etat.urgence, etat.alerteUrgence, adresse),
