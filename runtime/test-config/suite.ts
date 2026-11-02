@@ -30,6 +30,7 @@
 // Code de sortie : 0 si la suite est verte, 1 sinon, 2 sur un usage refusé.
 import { execFileSync } from "node:child_process";
 import { createWriteStream, existsSync, globSync, mkdtempSync, readFileSync, rmSync, statfsSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { availableParallelism } from "node:os";
 import { join, relative, resolve } from "node:path";
 import { finished } from "node:stream/promises";
@@ -113,9 +114,73 @@ try {
 delete process.env.BRIGADE_STATE_DIR;
 delete process.env.BRIGADE_PORT;
 
+// Les petits fichiers, joués à plusieurs par process. Un fichier de moins
+// de quelques secondes en paie une bonne part à démarrer : son Node, le lanceur
+// de tests, et les modules du runtime qu'il charge — les mêmes que son voisin.
+// Un lot les charge une fois, puis joue leurs tests l'un après l'autre, dans
+// l'ordre des fichiers (#2085). N'entre dans un lot qu'un fichier dont la durée
+// est connue et courte, et qui ne touche à rien de ce que ses voisins partagent
+// : l'environnement du process, son répertoire, ses signaux, le compteur
+// d'appels à GitHub du process (`installerLimite`), les doublures
+// globales (`t.mock` se défait à la fin de son test). Un fichier écarté se joue
+// seul, comme avant.
+//
+// `outils.ts` tient deux choses par process, que le lot partage :
+//   - `temporaireDuFichier` pose le TMPDIR du process et vérifie, à son dernier
+//     test, qu'il est vide, puis lâche tout ce que les fichiers gardaient
+//     (`repertoireDuFichier`). Un tel fichier ouvre son lot, seul de son
+//     espèce : ses tests passent avant ceux de ses voisins, et rien de ce qu'ils
+//     sèment ne précède sa vérification ;
+//   - un fichier qui garde des répertoires (`repertoireDuFichier`, `aides/box.ts`)
+//     n'entre donc jamais dans le lot d'un fichier à temporaire.
+const LOT_SECONDES_PAR_FICHIER = 4;
+const LOT_SECONDES = 8;
+const PARTAGE =
+  /process\.env(\.\w+|\[[^\]]+\])\s*(=[^=]|\?\?=|\|\|=)|delete process\.env|Object\.assign\(process\.env|process\.chdir|process\.(on|once|exitCode|umask)\b|(?<![.\w])mock\.(timers|module|method)|globalThis\.\w+\s*=[^=]|setGlobalDispatcher|installerLimite|limiteDuProcess|^(before|after|beforeEach|afterEach)\(/m;
+const GARDE = /repertoireDuFichier|aides\/box\.ts/;
+type Espece = "seul" | "temporaire" | "garde" | "libre";
+const espece = (fichier: string): Espece => {
+  if (!((durees.get(fichier) ?? Infinity) < LOT_SECONDES_PAR_FICHIER)) return "seul";
+  const source = readFileSync(join(RUNTIME, fichier), "utf8");
+  if (PARTAGE.test(source)) return "seul";
+  const temporaire = source.includes("temporaireDuFichier");
+  const garde = GARDE.test(source);
+  return temporaire && garde ? "seul" : temporaire ? "temporaire" : garde ? "garde" : "libre";
+};
+const especes = new Map(fichiers.map((fichier) => [fichier, espece(fichier)] as const));
+const deLEspece = (nom: Espece) => fichiers.filter((fichier) => especes.get(fichier) === nom);
+// Chaque fichier à temporaire ouvre un lot, que des fichiers libres remplissent ;
+// puis les fichiers qui gardent et les libres qui restent, ensemble.
+const lots: string[][] = [];
+const libres = deLEspece("libre");
+const remplir = (lot: string[], candidats: string[]) => {
+  let duree = lot.reduce((somme, fichier) => somme + (durees.get(fichier) ?? 0), 0);
+  while (candidats.length > 0 && duree + (durees.get(candidats[0] ?? "") ?? 0) <= LOT_SECONDES) {
+    const fichier = candidats.shift() ?? "";
+    lot.push(fichier);
+    duree += durees.get(fichier) ?? 0;
+  }
+  lots.push(lot);
+};
+for (const fichier of deLEspece("temporaire")) remplir([fichier], libres);
+const restants = [...deLEspece("garde"), ...libres].sort((a, b) => fichiers.indexOf(a) - fichiers.indexOf(b));
+while (restants.length > 0) remplir([restants.shift() ?? ""], restants);
+const seul = (fichier: string) => especes.get(fichier) === "seul";
+const dossierDesLots = mkdtempSync(join(process.env.TMPDIR || tmpdir(), "brigade-lots-"));
+const membres = new Map<string, string[]>();
+const joues = [
+  ...fichiers.filter(seul).map((fichier) => join(RUNTIME, fichier)),
+  ...lots.map((lot, rang) => {
+    const chemin = join(dossierDesLots, `lot-${rang + 1}.mjs`);
+    writeFileSync(chemin, lot.map((fichier) => `import ${JSON.stringify(pathToFileURL(join(RUNTIME, fichier)).href)};\n`).join(""));
+    membres.set(chemin, lot);
+    return chemin;
+  }),
+];
+
 const debut = performance.now();
 const flux = run({
-  files: fichiers.map((fichier) => join(RUNTIME, fichier)),
+  files: joues,
   cwd: RUNTIME,
   concurrency: concurrence,
   timeout: 120_000,
@@ -129,8 +194,11 @@ let verte = false;
 let tests = 0;
 flux.on("test:complete", (donnee) => {
   // Le test de niveau 0 qui porte le chemin du fichier : le fichier entier.
+  // Un lot : sa durée, partagée entre ses fichiers.
   if (donnee.nesting === 0 && donnee.file !== undefined && donnee.name === donnee.file) {
-    horloges.push([donnee.details.duration_ms / 1000, relative(RUNTIME, donnee.file)]);
+    const lot = membres.get(donnee.file);
+    if (lot) for (const fichier of lot) horloges.push([donnee.details.duration_ms / 1000 / lot.length, fichier]);
+    else horloges.push([donnee.details.duration_ms / 1000, relative(RUNTIME, donnee.file)]);
   }
 });
 flux.on("test:summary", (donnee) => {
@@ -149,9 +217,10 @@ void Promise.all(fins).then(() => {
     horloges.sort((a, b) => b[0] - a[0] || a[1].localeCompare(b[1]));
     writeFileSync(relever, horloges.map(([s, f]) => `${s.toFixed(1)}\t${f}\n`).join(""));
   }
+  rmSync(dossierDesLots, { recursive: true, force: true });
   if (temporaire) rmSync(temporaire, { recursive: true, force: true });
   // Après le relevé du lanceur, que `spec` écrit à la fin du flux.
-  process.stdout.write(`suite: ${tests} tests, ${fichiers.length} files, ${secondes.toFixed(1)} s wall-clock, concurrency ${concurrence}, ${verte ? "green" : "red"}\n`, () =>
+  process.stdout.write(`suite: ${tests} tests, ${fichiers.length} files (${lots.reduce((n, lot) => n + lot.length, 0)} in ${lots.length} batches), ${secondes.toFixed(1)} s wall-clock, concurrency ${concurrence}, ${verte ? "green" : "red"}\n`, () =>
     process.exit(verte ? 0 : 1),
   );
 });
