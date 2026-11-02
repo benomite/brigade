@@ -29,7 +29,14 @@ concurrency:
 jobs:
   # Les gates sans leurs suites : sans `package.json`, une zone n'a « aucun test à jouer » (ce n'est
   # pas un échec) et ses types ne partent pas. Les suites se jouent dans `tests`, les types dans `types`.
+  # Ce contournement est fragile : il suppose que `gates.sh` traite une zone sans `package.json` comme
+  # absente. Si `gates.sh` change, la suppression ci-dessous est à revoir.
+  # `gates` est le seul verdict : la pass le connaît comme vert sur `main` et n'excuse pas son rouge.
+  # Il attend `tests` et `types` (`always()` : même quand l'un échoue ou est annulé par `fail-fast`)
+  # et est rouge si l'un d'eux n'est pas `success`.
   gates:
+    needs: [tests, types]
+    if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
@@ -40,6 +47,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 26
+      - name: Verdict de tests et de types
+        run: |
+          test "${{ needs.tests.result }}" = success || { echo "tests : ${{ needs.tests.result }}" >&2; exit 1; }
+          test "${{ needs.types.result }}" = success || { echo "types : ${{ needs.types.result }}" >&2; exit 1; }
       - name: Gates (suites et types joués par les autres jobs)
         run: |
           rm runtime/package.json app/package.json
@@ -117,9 +128,10 @@ jobs:
           set -euo pipefail
           regle="tout"
           if [ "$EVENEMENT" = pull_request ]; then
-            if sel="$(git diff --name-only HEAD^1 HEAD | node .claude/brigade/tests-touches.mjs --souche HEAD^1)"; then
-              regle="$(printf '%s\n' "$sel" | sed -n "s/^$ZONE //p")"
-            fi
+            sel="$(git diff --name-only HEAD^1 HEAD | node .claude/brigade/tests-touches.mjs --souche HEAD^1)" \
+              || { echo "tests-touches.mjs a échoué : sélection des tests impossible" >&2; exit 1; }
+            regle="$(printf '%s\n' "$sel" | sed -n "s/^$ZONE //p")"
+            [ -n "$regle" ] || { echo "tests-touches.mjs ne dit rien de la zone $ZONE : sortie '$sel'" >&2; exit 1; }
           fi
           case "$regle" in
             rien) echo "aucun test de $ZONE ne touche ce changement"; exit 0 ;;
