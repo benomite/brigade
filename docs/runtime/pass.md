@@ -7,29 +7,35 @@ this order:
    delivered commit is merged with the base of the moment**. **The exit code is the verdict.** The
    project's `.claude/brigade/worktree-setup.sh` runs first; what it exports holds for them. Cap,
    setup included: 30 minutes (`BRIGADE_GATES_TIMEOUT_SECONDS`), then red.
-2. **The reviewer**, only if the gates are green: a `claude` that rereads the diff.
-3. **The CI** of the judged commit (*check runs* and statuses), read only if the gates are green.
+2. **The CI** of the judged commit (*check runs* and statuses), read only if the gates are green.
+3. **The reviewer**, only if the gates and the CI are green: a `claude` that rereads the diff. A red
+   goes back to its cook unreviewed (#2078).
 
 | What the CI says | What the pass does with it |
 |---|---|
-| a failing job, branch **up to date with the base** | **red**, naming the job, its address, and the failing tests with their error lines read from the job's log (`echecsDuJournal`) — unless the red is not the delivery's (below) |
+| a failing job, branch **up to date with the base**, **not yet rerun** on this commit | **the failed jobs are rerun, once per delivery** (`pass.ci-rerun`, the failing tests named in `failing`), whatever the red (#2091): a slow test on a loaded runner fails without the delivery being at fault. No verdict, review, send-back or card; the CI is awaited again |
+| the rerun jobs **green** | the delivery **goes on as green** (reviewed, then merged). The first time on the commit, `pass.ci-rerun-passed` names the jobs and the tests green only on the rerun, and a comment on the ticket (`Pass — CI rouge, verte au rejeu`) names them; `measures` counts them (`flaky`) |
+| a failing job **after that rerun** | **red**, naming the job, its address, and the failing tests with their error lines read from the job's log (`echecsDuJournal`) — unless the red is not the delivery's (below) |
 | a red job **never green on the base** (no green run among its last ten commits) | **reported, not judged** (`pass.ci-excused`): judged without it, no rerun, send-back or card; a comment names the job |
-| failing jobs, branch up to date, **only on tests the delivery does not touch**, nothing else red | **the failed jobs are rerun, once per delivery** (`pass.ci-rerun`): no verdict, send-back or card; the CI is awaited again. Red on another test is a verdict; red again on the same test, next row |
+| that rerun was on failing jobs **only on tests the delivery does not touch** (its `tests` name them), and red again on another test | a verdict, as above |
 | red **again after that rerun, on the same tests** the delivery does not touch, base green, nothing else red | the test is unstable. **Each test goes to the kitchen as a `fix` ticket** (`runtime/src/test-instable.ts`: `fire`, `fix`, `prio:1`, `model:sonnet`, `effort:medium`, marker `<!-- brigade:test-instable <test> -->`), one per test, reused while open (`reused`). Its opening is announced first (`pass.test-fix-opening`), so a lost answer is found by its marker. Then **those jobs are set aside** (`pass.ci-set-aside`) and the delivery is judged without them, their red checks kept in the verdict; a comment says so. No send-back, escalation or card |
 | a failing job **a red verdict of this ticket already judged** (same job, same run), nothing else red | **a send-back never judges the same CI run twice**: the failed jobs are rerun first (`pass.ci-rerun`, `alreadyJudged`); the next verdict reads the rerun. A job GitHub cannot rerun stays a verdict |
 | a failing job, branch **without the head of the base** | that CI did not judge what will be merged: **its red is not a verdict**. The cook is sent back with "bring yourself up to date with the base", jobs named; it uses up a send-back. The CI is logged "not read" (`skipped`) |
-| jobs still running | no verdict; read again at each tick. Thirty minutes with no conclusion: escalated (`unjudged`, cause `ci-silent`). A blocking reviewer finding: red right away |
+| jobs still running | no verdict; read again at each tick. Thirty minutes with no conclusion (from the rerun, after one): escalated (`unjudged`, cause `ci-silent`) |
 | everything green | green, whether or not the branch has the head of the base: the gates judge the merge |
 | **no check at all** | the verdict rests on the gates and the reviewer (`ci: none`) — unless the judged branch carries a workflow triggered on PRs to the base (`pull_request` or `pull_request_target`, filters included), whose checks are then awaited (`pass.ci-awaited` names the file); workflows that run only on push, schedule, tag or by hand hold nothing back |
 
-**A CI red that is not the delivery's** (`runtime/src/relance-de-ci.ts`) is established only when
+**A CI red that is not the delivery's** (`runtime/src/relance-de-ci.ts`) is what sends a test red twice
+to the kitchen instead of sending the cook back. It is established only when
 every failing job is a GitHub Actions job whose log names its failing tests (`test at
 <file>:<line>:<col>`), each test is found once in the repository, and none is touched: not modified,
 no changed file in what it imports or names (itself or its helpers under its test directory; product
 code is a leaf; type-only imports not counted), and the change touches nothing that rules whole
 suites (`package.json`, a lockfile, `tsconfig`, `.github/`, `.claude/brigade/`). Anything not
-established leaves the red to the delivery. Under role identities the pass's token has no `actions`
-permission (`identites-et-secrets.md`): GitHub refuses the rerun and the red stays a verdict.
+established leaves the red to the delivery: red again after its rerun, it sends the cook back. A
+check that is not a GitHub Actions job is not rerun, and its red is a verdict at once. Under role
+identities the pass's token has no `actions` permission (`identites-et-secrets.md`): GitHub refuses
+the rerun and the red stays a verdict.
 
 The verdict is in the log (`pass.judged`) with **what produced it** and **what it covers**: the
 branch head (`sha`), the merged base (`base`), the resulting tree (`merged`). **Green means "once

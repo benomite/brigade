@@ -224,17 +224,25 @@ export type FaitPass =
         truncated: boolean;
       };
     }
-  // La CI du commit `sha` de la livraison du `run` était rouge sur des tests
-  // qu'elle ne touche pas, et sur rien d'autre (`relance-de-ci.ts`) : la pass a
-  // relancé les jobs en échec des `runs` de GitHub Actions, au lieu d'en faire
-  // un verdict. `checks` : les jobs rouges relancés — tant qu'ils se lisent
-  // encore, ils sont en cours. `tests` : les tests en échec, en chemins du
-  // dépôt. Une fois par livraison : ni renvoi, ni carte, ni phase changée.
-  // `alreadyJudged` : relancés parce qu'un verdict rouge les avait déjà jugés,
-  // quoi qu'ils disent — un renvoi ne juge jamais deux fois le même run de CI
-  // (#1820). `tests` est alors vide : rien n'a établi le rouge hors de la
-  // livraison. Une fois par run jugé.
-  | { type: "pass.ci-rerun"; payload: { run: string; sha: string; runs: number[]; checks: Check[]; tests: string[]; alreadyJudged?: true } }
+  // La CI du commit `sha` de la livraison du `run` était rouge : la pass a
+  // relancé les jobs en échec des `runs` de GitHub Actions, une fois, au lieu
+  // d'en faire un verdict du premier coup (#2091). `checks` : les jobs rouges
+  // relancés — tant qu'ils se lisent encore, ils sont en cours. `tests` : les
+  // tests en échec, en chemins du dépôt, si chacun est hors de ce que la
+  // livraison change (`relance-de-ci.ts`) — vide sinon. `failing` : les tests
+  // en échec que les journaux nomment, par leur nom (absent d'un journal
+  // d'avant #2091). Une fois par livraison : ni renvoi, ni carte, ni phase
+  // changée. `alreadyJudged` : relancés parce qu'un verdict rouge les avait
+  // déjà jugés, quoi qu'ils disent — un renvoi ne juge jamais deux fois le
+  // même run de CI (#1820). `tests` est alors vide : rien n'a établi le rouge
+  // hors de la livraison. Une fois par run jugé.
+  | { type: "pass.ci-rerun"; payload: { run: string; sha: string; runs: number[]; checks: Check[]; tests: string[]; failing?: string[]; alreadyJudged?: true } }
+  // Les jobs relancés de la CI du commit `sha` sont verts (#2091) : rouges
+  // d'abord (`before`), verts au rejeu (`checks`). `tests` : ceux que leurs
+  // journaux nommaient en échec, verts seulement au rejeu — vide si aucun
+  // n'était nommé. La livraison suit son chemin comme verte ; `measures` les
+  // compte. Une fois par commit.
+  | { type: "pass.ci-rerun-passed"; payload: { sha: string; before: Check[]; checks: Check[]; tests: string[] } }
   // La pass va ouvrir le ticket `fix` du `test` instable, rouge deux fois sur le
   // commit `sha` de la livraison (`test-instable.ts`). Écrit avant l'appel à
   // GitHub : la réponse perdue, l'issue se retrouve par sa marque au lieu

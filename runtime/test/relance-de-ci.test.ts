@@ -1,4 +1,4 @@
-// Un rouge de CI que la livraison ne touche pas se relance, une fois (#1496) :
+// Un rouge de CI se relance, une fois, avant d'être un verdict (#1496, #2091) :
 // la lecture du journal d'un job, l'attribution de ses tests en échec, et la
 // pass qui relance les jobs au lieu de renvoyer un cook ou d'écrire au chef.
 import assert from "node:assert/strict";
@@ -146,7 +146,7 @@ describe("la pass relance une CI rouge sur des tests que la livraison ne touche 
     await jusquAu("pass.ci-rerun");
 
     assert.deepEqual(gh.relances, [RUN]);
-    assert.deepEqual(dernier("pass.ci-rerun", 17), { run: pass()?.run, sha: pass()?.sha, runs: [RUN], checks: [job(2)], tests: ["runtime/test/rail.test.ts"] });
+    assert.deepEqual(dernier("pass.ci-rerun", 17), { run: pass()?.run, sha: pass()?.sha, runs: [RUN], checks: [job(2)], tests: ["runtime/test/rail.test.ts"], failing: ["une heure de ticks"] });
     // GitHub rend encore le rouge d'avant la relance : il est en cours, pas un verdict.
     await attendreTicks(3);
     assert.deepEqual([compter("pass.judged"), compter("pass.returned"), pass()?.phase, pass()?.returns, auChef()], [0, 0, "judging", 0, []]);
@@ -235,21 +235,24 @@ describe("la pass relance une CI rouge sur des tests que la livraison ne touche 
 
   test("un run qu'un verdict rouge a déjà jugé est relancé avant d'être rejugé : un renvoi ne juge jamais deux fois le même run de CI", async (t) => {
     const { gh, compter, jusquAu, dernier } = servir(t, { scenario: "bavard", suite: ["livre", "livre"] });
-    // Un journal illisible : rien n'établit que le rouge n'est pas celui de la livraison.
+    // Rouge, relancée une fois, rouge encore : renvoyée.
     gh.ci.checks = [job(2)];
-    await jusquAu("pass.returned");
-    assert.deepEqual([compter("pass.ci-rerun"), gh.relances.length], [0, 0]);
-    // Le cook renvoyé n'a rien changé qui relance la CI : le même job rouge, déjà jugé.
     await jusquAu("pass.ci-rerun");
+    gh.ci.checks = [job(3)];
+    await jusquAu("pass.returned");
+    assert.deepEqual([compter("pass.ci-rerun"), gh.relances.length], [1, 1]);
+    // Le cook renvoyé n'a rien changé qui relance la CI : le même job rouge,
+    // déjà jugé, est relancé avant tout second verdict.
+    await jusquAu("pass.ci-rerun", 2);
 
-    assert.deepEqual(gh.relances, [RUN]);
-    assert.deepEqual(dernier("pass.ci-rerun", 17)?.checks, [job(2)]);
-    assert.equal(dernier("pass.ci-rerun", 17)?.alreadyJudged, true);
+    assert.deepEqual(gh.relances, [RUN, RUN]);
+    assert.deepEqual(dernier("pass.ci-rerun", 17)?.checks, [job(3)]);
+    assert.equal(compter("pass.judged"), 1);
     assert.equal(compter("pass.returned"), 1);
     // Sa relance verte, la livraison est mergée.
-    gh.ci.checks = [job(3, "green")];
+    gh.ci.checks = [job(4, "green")];
     await jusquAu("merge.done");
-    assert.deepEqual([compter("pass.returned"), compter("pass.escalated"), gh.relances.length], [1, 0, 1]);
+    assert.deepEqual([compter("pass.returned"), compter("pass.escalated"), gh.relances.length], [1, 0, 2]);
   });
 
   test("rouge après la relance sur un autre test, qui n'est pas touché non plus : la carte ne dit pas « deux fois », le rouge est un verdict comme avant", async (t) => {
@@ -265,34 +268,124 @@ describe("la pass relance une CI rouge sur des tests que la livraison ne touche 
     assert.deepEqual(dernier("pass.returned", 17)?.findings, [`CI rouge — job « tests » : failure (${job(3).url}). Tests en échec : « la station prépare le worktree ».`]);
   });
 
-  const commeAvant: Array<[string, Partial<Options> & { changes?: string[] }, (gh: ReturnType<typeof servir>["gh"]) => void]> = [
+  // Rouge sur un test qu'elle touche, ou sur ce qui ne s'attribue pas : relancée une fois quand même (#2091).
+  const relanceQuandMeme: Array<[string, Partial<Options> & { changes?: string[] }, (gh: ReturnType<typeof servir>["gh"]) => void]> = [
     ["un test que la livraison touche", { changes: ["runtime/src/rail.ts"] }, (gh) => gh.journauxDeCI.set("tests", JOURNAL_LINUX.replace("cuisson-de-bout-en-bout", "rail"))],
     ["un journal qui ne se lit pas", {}, () => {}],
     ["un journal qui ne nomme aucun test", {}, (gh) => gh.journauxDeCI.set("tests", "2026-10-23T00:00:00Z src/pass.ts(12,3): error TS2322")],
     ["un test qui n'est pas dans le dépôt", {}, (gh) => gh.journauxDeCI.set("tests", JOURNAL_LINUX)],
-    ["un check qui n'est pas un job de GitHub Actions", {}, (gh) => {
+  ];
+  for (const [quoi, options, regler] of relanceQuandMeme) {
+    test(`rouge sur ${quoi} : relancée une fois, puis renvoyée comme avant si elle reste rouge`, async (t) => {
+      const { gh, compter, jusquAu, dernier } = servir(t, { scenario: "bavard", suite: ["livre"], ...options });
+      gh.ci.checks = [job(2)];
+      regler(gh);
+      await jusquAu("pass.ci-rerun");
+      // Rien n'établit que le rouge n'est pas le sien : rouge encore, il ne part pas à la cuisine.
+      assert.deepEqual(dernier("pass.ci-rerun", 17)?.tests, []);
+      gh.ci.checks = [job(3)];
+      await jusquAu("pass.returned");
+
+      assert.deepEqual([compter("pass.ci-rerun"), gh.relances.length, compter("pass.ci-set-aside"), compter("pass.ci-rerun-passed"), dernier("pass.judged", 17)?.verdict], [1, 1, 0, 0, "red"]);
+      // Le lien d'abord ; les tests en échec que le journal nomme, s'il en nomme, s'y ajoutent (ticket 1867).
+      const findings = (dernier("pass.returned", 17)?.findings ?? []) as string[];
+      assert.equal(findings.length, 1);
+      assert.ok(String(findings[0]).startsWith(`CI rouge — job « tests » : failure (${job(3).url}).`));
+    });
+  }
+
+  const commeAvant: Array<[string, (gh: ReturnType<typeof servir>["gh"]) => void]> = [
+    ["un check qui n'est pas un job de GitHub Actions", (gh) => {
       gh.ci.checks = [{ ...job(2), url: "https://ci.exemple/2" }];
       gh.journauxDeCI.set("tests", JOURNAL_LINUX.replace("cuisson-de-bout-en-bout", "rail"));
     }],
-    ["une relance que GitHub refuse", {}, (gh) => {
+    ["une relance que GitHub refuse", (gh) => {
       gh.pannes.relance = true;
       gh.journauxDeCI.set("tests", JOURNAL_LINUX.replace("cuisson-de-bout-en-bout", "rail"));
     }],
   ];
-  for (const [quoi, options, regler] of commeAvant) {
+  for (const [quoi, regler] of commeAvant) {
     test(`rouge sur ${quoi} : aucune relance, la livraison est renvoyée comme avant`, async (t) => {
-      const { gh, compter, jusquAu, dernier } = servir(t, { scenario: "bavard", suite: ["livre"], ...options });
+      const { gh, compter, jusquAu, dernier } = servir(t, { scenario: "bavard", suite: ["livre"] });
       gh.ci.checks = [job(2)];
       regler(gh);
       await jusquAu("pass.returned");
 
       assert.deepEqual([compter("pass.ci-rerun"), gh.relances.length, dernier("pass.judged", 17)?.verdict], [0, 0, "red"]);
-      // Le lien d'abord ; les tests en échec que le journal nomme, s'il en nomme, s'y ajoutent (ticket 1867).
       const findings = (dernier("pass.returned", 17)?.findings ?? []) as string[];
       assert.equal(findings.length, 1);
       assert.ok(String(findings[0]).startsWith(`CI rouge — job « tests » : failure (${gh.ci.checks[0]?.url}).`));
     });
   }
+});
+
+describe("une CI rouge est rejouée une fois avant de renvoyer la livraison (#2091)", { concurrency: 4 }, () => {
+  // Un test lent sur un runner chargé, dans un fichier que la livraison touche.
+  const LENT = [
+    "2026-11-02T12:42:00.0000000Z ✖ la commande manager (94012.5ms)",
+    "2026-11-02T12:42:00.0000001Z   Error: condition jamais remplie en 90000 ms",
+    "2026-11-02T12:42:00.0000002Z     at test/rail.test.ts:40:5",
+    "2026-11-02T12:42:01.0000000Z ✖ failing tests:",
+    "2026-11-02T12:42:01.0000001Z test at test/rail.test.ts:38:3",
+    "2026-11-02T12:42:01.0000002Z ✖ la commande manager (94012.5ms)",
+  ].join("\n");
+
+  test("verte au rejeu : la livraison suit son chemin comme verte, et le ticket dit le test rejoué", async (t) => {
+    const lieu = servir(t, { changes: ["runtime/src/rail.ts"] });
+    const { gh, compter, jusquAu, dernier, auChef, pass } = lieu;
+    gh.ci.checks = [job(1, "green", "lint"), job(2)];
+    gh.journauxDeCI.set("tests", LENT);
+    await jusquAu("pass.ci-rerun");
+    const sha = pass()?.sha;
+
+    assert.deepEqual(dernier("pass.ci-rerun", 17), { run: pass()?.run, sha, runs: [RUN], checks: [job(2)], tests: [], failing: ["la commande manager"] });
+    // Pas de relecture tant que le rejeu n'a pas conclu.
+    assert.deepEqual([compter("pass.judged"), compter("pass.returned"), compter("pass.reviewed")], [0, 0, 0]);
+    gh.ci.checks = [job(1, "green", "lint"), job(3, "green")];
+    await jusquAu("merge.done");
+
+    assert.deepEqual([dernier("pass.judged", 17)?.verdict, compter("pass.returned"), gh.relances.length, gh.merges.length, auChef()], ["green", 0, 1, 1, []]);
+    assert.deepEqual(dernier("pass.ci-rerun-passed", 17), { sha, before: [job(2)], checks: [job(3, "green")], tests: ["la commande manager"] });
+    assert.equal(compter("pass.ci-rerun-passed"), 1);
+    const commentaire = gh.commentaires.map(([, corps]) => corps).find((corps) => corps.includes("verte au rejeu"));
+    assert.match(commentaire ?? "", /^\*\*Pass — CI rouge, verte au rejeu\.\*\*/);
+    assert.ok(commentaire?.includes(job(2).url!), "le commentaire nomme le job rejoué");
+    assert.match(commentaire ?? "", /Test rejoué, vert seulement au rejeu : « la commande manager »/);
+    // L'historique du ticket le raconte.
+    const historique = appeler(montrerPass, ["17"], { BRIGADE_STATE_DIR: lieu.repertoire });
+    assert.equal(await historique.fin, 0);
+    assert.match(historique.sortie(), /CI red on \S{7}: failed jobs rerun once \(run \d+\) before judging — no return, no card\n(?:\s+[^\n]*\n)*?\s+failing test: “la commande manager”\n/);
+    assert.match(historique.sortie(), /CI green on \S{7} on the rerun: the delivery goes on as green\n(?:\s+[^\n]*\n)*?\s+green only on the rerun: “la commande manager”\n/);
+  });
+
+  test("rouge encore au rejeu : renvoyée à son cook avec le nom du test et son erreur", async (t) => {
+    const { gh, compter, jusquAu, dernier, auChef } = servir(t, { scenario: "bavard", suite: ["livre"], changes: ["runtime/src/rail.ts"] });
+    gh.ci.checks = [job(2)];
+    gh.journauxDeCI.set("tests", LENT);
+    await jusquAu("pass.ci-rerun");
+    gh.ci.checks = [job(3)];
+    await jusquAu("pass.returned");
+
+    assert.deepEqual([compter("pass.ci-rerun"), gh.relances.length, compter("pass.ci-rerun-passed"), compter("pass.reviewed"), auChef().filter((quoi) => quoi !== "commentaire")], [1, 1, 0, 0, []]);
+    assert.deepEqual(dernier("pass.returned", 17)?.findings, [
+      `CI rouge — job « tests » : failure (${job(3).url}). Tests en échec : « la commande manager » — Error: condition jamais remplie en 90000 ms / at test/rail.test.ts:40:5.`,
+    ]);
+    assert.ok(!gh.commentaires.some(([, corps]) => corps.includes("verte au rejeu")));
+  });
+
+  test("verte au rejeu sur un job dont le journal ne nommait aucun test : le commentaire nomme le job", async (t) => {
+    const { gh, jusquAu, dernier } = servir(t);
+    gh.ci.checks = [job(2, "red", "runtime-windows")];
+    gh.ci.base = [job(900, "green", "runtime-windows")];
+    await jusquAu("pass.ci-rerun");
+    gh.ci.checks = [job(3, "green", "runtime-windows")];
+    await jusquAu("merge.done");
+
+    assert.deepEqual(dernier("pass.ci-rerun-passed", 17)?.tests, []);
+    const commentaire = gh.commentaires.map(([, corps]) => corps).find((corps) => corps.includes("verte au rejeu"));
+    assert.ok(commentaire?.includes("job « runtime-windows » : failure"));
+    assert.match(commentaire ?? "", /ne nommait aucun test en échec/);
+  });
 });
 
 describe("le journal d'un job rouge nomme ses tests en échec avec leurs erreurs (#1867)", () => {
@@ -333,24 +426,31 @@ describe("un job jamais vert sur la base est dit, pas jugé (#1860)", { concurre
     const { gh, compter, jusquAu, dernier } = servir(t, { scenario: "bavard", suite: ["livre"] });
     gh.ci.checks = [windows(2)];
     gh.ci.base = [verteSurLaBase("runtime-windows")];
+    // Rejoué une fois d'abord (#2091), rouge encore.
+    await jusquAu("pass.ci-rerun");
+    gh.ci.checks = [windows(3)];
     await jusquAu("pass.returned");
 
     assert.deepEqual([compter("pass.ci-excused"), dernier("pass.judged", 17)?.verdict], [0, "red"]);
     const findings = (dernier("pass.returned", 17)?.findings ?? []) as string[];
     assert.equal(findings.length, 1);
-    assert.ok(findings[0]!.startsWith(`CI rouge — job « runtime-windows » : failure (${windows(2).url}).`));
+    assert.ok(findings[0]!.startsWith(`CI rouge — job « runtime-windows » : failure (${windows(3).url}).`));
   });
 
   test("deux jobs rouges, la base verte sur l'un : seul le job jamais vert est excusé", async (t) => {
     const { gh, compter, jusquAu, dernier } = servir(t, { scenario: "bavard", suite: ["livre"] });
     gh.ci.checks = [windows(2), job(3)];
     gh.ci.base = [verteSurLaBase("tests")];
+    // Seul le job jugé est rejoué (#2091) ; rouge encore, il bloque.
+    await jusquAu("pass.ci-rerun");
+    assert.deepEqual(dernier("pass.ci-rerun", 17)?.checks, [job(3)]);
+    gh.ci.checks = [windows(2), job(4)];
     await jusquAu("pass.returned");
 
     assert.deepEqual((dernier("pass.ci-excused", 17) as { checks: Check[] } | undefined)?.checks, [windows(2)]);
     assert.equal(compter("pass.ci-excused"), 1);
     const findings = (dernier("pass.returned", 17)?.findings ?? []) as string[];
     assert.equal(findings.length, 1);
-    assert.ok(findings[0]!.startsWith(`CI rouge — job « tests » : failure (${job(3).url}).`));
+    assert.ok(findings[0]!.startsWith(`CI rouge — job « tests » : failure (${job(4).url}).`));
   });
 });
