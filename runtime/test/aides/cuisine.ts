@@ -448,6 +448,8 @@ export type Options = {
   issues?: Issue[];
   bailMs?: number;
   seuilDisjoncteur?: number;
+  // Le plafond des jugements simultanés de la pass. Par défaut, celui du runtime.
+  jugements?: number;
   plafonds?: Partial<Plafonds>;
   // Les lieux d'une vie précédente, pour redémarrer dessus.
   lieux?: Lieux;
@@ -625,7 +627,7 @@ export function cuisine(t: TestContext, options: Options = {}) {
       })()
     : undefined;
   const garde = brancherGardeFous(
-    { ...REGLAGES, plafonds: { ...PLAFONDS, ...options.plafonds }, seuilDisjoncteur: options.seuilDisjoncteur ?? 3 },
+    { ...REGLAGES, plafonds: { ...PLAFONDS, ...options.plafonds }, seuilDisjoncteur: options.seuilDisjoncteur ?? 3, ...(options.jugements === undefined ? {} : { jugements: options.jugements }) },
     avecRail(socle, { depot: DEPOT, dureeBailMs: bailMs, gh: "", github: gh.github, maintenant: heure.maintenant, communs: options.communs }),
   );
   const suiteDuReviewer = join(repertoire, "suite-reviewer.txt");

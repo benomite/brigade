@@ -10,7 +10,14 @@ export type Reglages = {
   seuilDisjoncteur: number;
   // Délai laissé à un cook entre SIGTERM et SIGKILL.
   graceMs: number;
+  // Nombre de livraisons que la pass juge à la fois — celles dont les zones
+  // ne se recouvrent pas (`file-de-la-pass.ts`). Un : une à la fois. Absent :
+  // celui par défaut.
+  jugements?: number;
 };
+
+// Le plafond des jugements simultanés, tant que l'environnement n'en dit rien.
+export const JUGEMENTS_PAR_DEFAUT = 3;
 
 const MINUTE = 60_000;
 // Au-delà, une minuterie de Node se déclenche tout de suite au lieu d'attendre.
@@ -43,5 +50,6 @@ export function lireReglages(env: NodeJS.ProcessEnv): Reglages {
     },
     seuilDisjoncteur: entier(env, "BRIGADE_BREAKER_FAILURES", 3),
     graceMs: 10_000,
+    jugements: entier(env, "BRIGADE_MAX_JUDGEMENTS", JUGEMENTS_PAR_DEFAUT),
   };
 }

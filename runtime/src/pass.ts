@@ -105,7 +105,7 @@ import { dansLeBacASableLocal, type BacASableLocal } from "./bac-a-sable/local.t
 import { envelopper, type Cloison } from "./cloison.ts";
 import { aDesGates, jouerGatesMesurees, SCRIPT_GATES, type DemandeScript } from "./gates.ts";
 import { noterCoutDesGates } from "./cout-des-gates.ts";
-import { fileDeLaPass, tenantDeLaPass } from "./file-de-la-pass.ts";
+import { fileDeLaPass, toursDeLaPass } from "./file-de-la-pass.ts";
 import { empreinteDeConfig, gatesReprises, passageVert, type EmpreinteDesGates } from "./empreinte-des-gates.ts";
 import { tenirLeBudget } from "./budget-des-gates.ts";
 import { constaterExtinction, direExtinction } from "./grant.ts";
@@ -584,13 +584,18 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
 
   // Hors du rail, une livraison est en pass tant que la pass la suit.
   const enPass = (ticket: number) => ticketDuRail(base, ticket)?.state === "pass" || passDuTicket(base, ticket)?.horsRail === true;
-  // Une livraison à la fois est dans sa pass : une autre ne commence pas, ni
-  // ne se rejuge, avant qu'elle en soit sortie (`file-de-la-pass.ts`). La
-  // passe parcourt la file dans l'ordre : la première prête prend le tour.
-  const aSonTour = (ticket: number) => {
-    const tenant = tenantDeLaPass(base);
-    return tenant === null || tenant === ticket;
-  };
+  // Les livraisons que cette pass juge en ce moment : chacune tient sa place
+  // dans la file dès qu'elle entre dans `juger`, avant même son `pass.started`.
+  const jugements = new Set<number>();
+  // Celles dont le jugement n'a pas pu commencer — GitHub qui bute, une PR qui
+  // ne s'ouvre pas : elles passent après les autres, pour ne pas leur tenir la
+  // file, jusqu'à ce que leur jugement commence.
+  const ecartees = new Set<number>();
+  // Des livraisons dont les zones ne se recouvrent pas sont dans leur pass à la
+  // fois, au plus autant que le plafond des jugements simultanés ; une autre ne
+  // commence pas, ni ne se rejuge, avant d'avoir sa place (`file-de-la-pass.ts`).
+  // La passe parcourt la file dans l'ordre : la première prête prend la place.
+  const aSonTour = (ticket: number) => jugements.has(ticket) || toursDeLaPass(base, { enVol: jugements, ecartees, aussi: ticket }).get(ticket) === null;
   // La réparation en cours d'une base rouge : son rouge, la pass le juge et le
   // merge. Les gates de sa fusion avec la base disent si elle la répare.
   const estLaReparation = (ticket: number) => reparationEnCours(base) === ticket;
@@ -1454,11 +1459,23 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       `\`${options.base}\` est rouge : ses gates, jouées sur elle-même, ont échoué sur \`${court(rouge)}\`. Une livraison se juge fusionnée avec \`${options.base}\` : tant qu'elle est rouge, la pass ne juge ni ne merge rien, et ne renvoie aucun cook — ce rouge-là n'est celui d'aucune livraison. Rien n'est à refaire sur celle-ci : elle sera jugée, et mergée sous grant, dès que \`${options.base}\` sera réparée — la pass rejoue ses gates seule une fois, puis dès qu'elle bouge, ou sans commit à la demande du chef (\`${REJOUER_LA_BASE}\`) ; si le rouge tient, elle ouvre un ticket de réparation, qui part avant tout autre. La merger à la main reste possible.`,
     );
 
+  // Un merge à la fois : la base d'un verdict se vérifie et la livraison se
+  // merge sans qu'un autre merge de la pass ne passe entre les deux — des
+  // livraisons jugées de front l'ont été sur la même base, et la seconde se
+  // rejuge sur celle où la première a été mergée.
+  let mergeEnCours: Promise<unknown> = Promise.resolve();
+  const unMergeALaFois = <T>(faire: () => Promise<T>): Promise<T> => {
+    const suite = mergeEnCours.then(faire);
+    mergeEnCours = suite.catch(() => {});
+    return suite;
+  };
+
   // Décide de ce que devient une livraison jugée. Le grant est lu dans la
   // transaction qui écrit l'intention de merger : une révocation ne peut pas
   // se glisser entre les deux. `tete` : la tête de la base, telle que la pass
-  // vient de la rapatrier — sans quoi une livraison à merger commence par là.
-  const decider = async (ticket: number, tete?: string): Promise<void> => {
+  // vient de la rapatrier sous le verrou des merges (`sousVerrou`) — sans quoi
+  // une livraison à merger commence par là.
+  const decider = async (ticket: number, tete?: string, sousVerrou = false): Promise<void> => {
     // L'extinction se constate avant ce qu'elle arrête : l'histoire se lit dans l'ordre.
     eteindre(() => {});
     const suite = base.transaction((): Suite => {
@@ -1640,8 +1657,8 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       }
       retenus.delete(ticket);
       // Le verdict porte sur la fusion avec une base : il n'autorise le merge
-      // que sur celle-là.
-      if (tete === undefined || tete !== connu.judgedBase) return { verifier: true };
+      // que sur celle-là, vue sous le verrou des merges.
+      if (tete === undefined || tete !== connu.judgedBase || !sousVerrou) return { verifier: true };
       noter(ticket, { type: "grant.used", payload: { action: "merge", pr, number, sha, base: options.base, verdict: connu.verdictSeq ?? 0 } });
       return { merge: { pr, number, sha, branche: connu.branch, jugee: tete, horsRail: connu.horsRail } };
     });
@@ -1652,17 +1669,24 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       return commenter(ticket, suite.service);
     }
     if ("verifier" in suite) {
+      // Sous le verrou, la base vient d'être vue : le réveil suivant y revient.
+      if (sousVerrou) return;
       const connu = passDuTicket(base, ticket);
       // La base a pu bouger : la vérifier peut la rejuger, ce qui attend son tour.
       if (!connu || !aSonTour(ticket)) return;
       const controle = etatDeLaBase(base);
       if (controle?.outcome === "red" && !estLaReparation(ticket)) return attendreLaBase(connu, controle.sha);
-      const vue = await depot.rapatrier();
-      if (arrete) return;
-      // La base a bougé depuis le verdict : il ne dit plus ce qui sera sur
-      // elle. La livraison se rejuge — la même règle qu'au premier jugement.
-      if (vue !== connu.judgedBase) return juger(connu);
-      return decider(ticket, vue);
+      const rejuger = await unMergeALaFois(async () => {
+        const vue = await depot.rapatrier();
+        if (arrete || vue !== connu.judgedBase) return !arrete;
+        await decider(ticket, vue, true);
+        return false;
+      });
+      // La base a bougé depuis le verdict — un voisin jugé de front a pu y être
+      // mergé : il ne dit plus ce qui sera sur elle. La livraison se rejuge — la
+      // même règle qu'au premier jugement —, hors du verrou.
+      if (rejuger && aSonTour(ticket)) return juger(connu);
+      return;
     }
 
     const { pr, number, sha, branche, jugee, horsRail } = suite.merge;
@@ -1777,6 +1801,10 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   // injoignable), rien n'est écrit : le réveil suivant y revient.
   const juger = async (connu: PassDeTicket) => {
     if (connu.branch === null) return;
+    // Elle tient sa place tant qu'elle se juge — rejugée de l'intérieur de son
+    // propre jugement, elle la tient déjà.
+    const tenait = jugements.has(connu.ticket);
+    jugements.add(connu.ticket);
     // Le worktree jetable du jugement, fait à la première demande seulement —
     // une livraison qui attend sa CI n'en fait pas à chaque réveil —, et
     // d'abord retiré s'il en restait un d'un jugement interrompu.
@@ -1790,6 +1818,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     try {
       await jugerLivraison(connu, connu.branch, poser);
     } finally {
+      if (!tenait) jugements.delete(connu.ticket);
       // Arrêté, le runtime ne retire rien : ce qu'il laisse part au démarrage
       // suivant, et celui-ci a peut-être déjà posé le sien.
       if (pose && !arrete) {
@@ -2424,11 +2453,34 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     noter(ticket, { type: "merge.done", payload: { pr: pr.url, sha: pr.sha, by: par, ...acteur(pr.mergeePar), reconciled: true, unverified: true } });
   };
 
+  // Lance le jugement d'une livraison sans l'attendre : la passe continue la
+  // file, et d'autres livraisons se jugent en même temps qu'elle. Fini, il fait
+  // repasser la pass s'il a changé la file — une place libérée, une livraison
+  // qui n'a pas pu commencer et passe désormais après les autres. Une CI encore
+  // en cours, elle, ne la fait pas repasser : le réveil suivant y revient.
+  const lancer = (connu: PassDeTicket) => {
+    const { ticket, phase } = connu;
+    void juger(connu)
+      .catch((erreur) => {
+        // GitHub injoignable, worktree disparu : la livraison reste où elle en
+        // est, et le réveil suivant y revient.
+        if (!arrete) avertir(`brigade : la pass a buté sur le ticket #${ticket} — ${message(erreur)}`);
+      })
+      .finally(() => {
+        if (arrete) return;
+        const apres = passDuTicket(base, ticket)?.phase;
+        const deja = ecartees.has(ticket);
+        if (apres === "delivered") ecartees.add(ticket);
+        else ecartees.delete(ticket);
+        if (apres !== phase || (apres === "delivered" && !deja)) passer(false);
+      });
+  };
+
   const traiter = async (connu: PassDeTicket, tick: boolean) => {
     switch (connu.phase) {
       case "delivered":
       case "judging":
-        if (enPass(connu.ticket) && aSonTour(connu.ticket)) await juger(connu);
+        if (enPass(connu.ticket) && aSonTour(connu.ticket)) lancer(connu);
         return;
       // Jugé, mais le runtime est mort avant de décider.
       case "green":
@@ -2440,7 +2492,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
       case "waiting":
         if (tick && (await surveiller(connu))) return;
         if (connu.reason === PROJET_ETEINT ? projetEteint(base) : connu.reason === EN_PAUSE ? mergeRetenu(base, connu.ticket) !== null : connu.reason === BASE_ROUGE ? etatDeLaBase(base)?.outcome === "red" && !estLaReparation(connu.ticket) : sature() !== null) return;
-        if (enPass(connu.ticket) && aSonTour(connu.ticket)) await juger(connu);
+        if (enPass(connu.ticket) && aSonTour(connu.ticket)) lancer(connu);
         return;
       case "merging":
         return reconcilier(connu);
@@ -2490,7 +2542,15 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   // La tête de la base dont les gates ont été coupées sur une machine saturée,
   // sans aucun test en échec : leur rejeu est parti sur une machine calme.
   let baseCoupee: string | null = null;
-  const controlerBase = async (tick: boolean, exige = false) => {
+  // Un contrôle à la fois : des jugements de front peuvent chacun demander la
+  // base, et son essai n'a qu'un worktree jetable.
+  let controleEnCours: Promise<void> = Promise.resolve();
+  const controlerBase = (tick: boolean, exige = false): Promise<void> => {
+    const suite = controleEnCours.then(() => controlerLaBase(tick, exige));
+    controleEnCours = suite.catch(() => {});
+    return suite;
+  };
+  const controlerLaBase = async (tick: boolean, exige: boolean) => {
     if (!arrete && rougeCompte(base)?.replayed === false) noter(null, { type: "base.recheck-requested", payload: {} });
     const avant = etatDeLaBase(base);
     const rouge = avant?.outcome === "red" ? avant : null;
@@ -2697,8 +2757,9 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   // Cache, pas état : les départs sur lesquels GitHub n'a pas répondu.
   const butees = new Set<number>();
 
-  // Une seule passe à la fois. Un réveil qui arrive pendant qu'elle juge n'est
-  // pas perdu : elle repasse aussitôt finie.
+  // Une seule passe à la fois. Un réveil qui arrive pendant qu'elle passe n'est
+  // pas perdu : elle repasse aussitôt finie. Les jugements qu'elle lance, eux,
+  // se poursuivent après elle (`lancer`).
   let enCours = false;
   let tickDemande = false;
   const passer = (tick: boolean) => {
@@ -2721,9 +2782,13 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
           // Avant toute décision : un grant échu, runtime arrêté ou non,
           // s'écrit éteint dès que la pass repasse.
           eteindre(() => {});
+          // Celles qui ne sont plus à juger ne sont plus écartées.
+          for (const ticket of ecartees) if (passDuTicket(base, ticket)?.phase !== "delivered") ecartees.delete(ticket);
           // Dans l'ordre de la file : celui où les livraisons sont arrivées.
-          for (const { ticket } of fileDeLaPass(base)) {
+          for (const { ticket } of fileDeLaPass(base, ecartees)) {
             if (arrete) return;
+            // Jugée en ce moment : son jugement la suit.
+            if (jugements.has(ticket)) continue;
             try {
               const connu = passDuTicket(base, ticket);
               if (connu) await traiter(connu, avecTick);
@@ -2737,7 +2802,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
           // relue qu'au tick.
           for (const orpheline of orphelines(base)) {
             if (arrete) return;
-            if (!avecTick && butees.has(orpheline.seq)) continue;
+            if (jugements.has(orpheline.ticket) || (!avecTick && butees.has(orpheline.seq))) continue;
             try {
               await lacher(orpheline);
               butees.delete(orpheline.seq);

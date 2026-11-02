@@ -8,6 +8,7 @@ test("sans rien régler, les plafonds sont ceux que le chef a fixés", () => {
     plafonds: { durationMs: 60 * 60_000, tokens: 2_000_000, idleMs: 10 * 60_000 },
     seuilDisjoncteur: 3,
     graceMs: 10_000,
+    jugements: 3,
   });
 });
 
@@ -17,10 +18,12 @@ test("chaque plafond se règle par sa variable d'environnement", () => {
     BRIGADE_MAX_TOKENS: "500000",
     BRIGADE_IDLE_MINUTES: "2.5",
     BRIGADE_BREAKER_FAILURES: "5",
+    BRIGADE_MAX_JUDGEMENTS: "1",
   });
 
   assert.deepEqual(reglages.plafonds, { durationMs: 20 * 60_000, tokens: 500_000, idleMs: 150_000 });
   assert.equal(reglages.seuilDisjoncteur, 5);
+  assert.equal(reglages.jugements, 1);
 });
 
 test("une variable vide vaut une variable absente", () => {
@@ -36,6 +39,8 @@ for (const [variable, valeur] of [
   ["BRIGADE_MAX_TOKENS", "2M"],
   ["BRIGADE_IDLE_MINUTES", "0"],
   ["BRIGADE_BREAKER_FAILURES", "0"],
+  ["BRIGADE_MAX_JUDGEMENTS", "0"],
+  ["BRIGADE_MAX_JUDGEMENTS", "1.5"],
 ] as const) {
   test(`${variable}=${valeur} est refusé, en nommant la variable : un garde-fou ne se désarme pas par une faute de frappe`, () => {
     assert.throws(
