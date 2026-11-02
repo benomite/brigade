@@ -5,7 +5,7 @@ second runs. You no longer open a terminal, you no longer move into a folder.
 
 **In the middle of the space, two tabs, Rail and Cooks** (#1184), next to the project name, only one shown at a
 time: **Rail** says where the project stands and what you have to decide — what awaits you and its action, the
-whole kanban in its order — TODO first, then WAITING, On the rail, Taken, Pass and what is served (#2076) — with nothing about
+whole kanban in its order — On the rail, Taken, Pass, Todo, Waiting and what is served (#2093) — with nothing about
 execution; **Cooks** says what is running — the project's stations and their cooks in flight, its tickets and its
 gates, and, folded, its calibration ceiling, its roles, what
 its cooks learned and the raw reading of `station` (the machine and its saturation, the quota). One click switches from one to the other; **the app reopens each project on the
@@ -359,8 +359,8 @@ A project opened from that screen has neither a box nor a station on this comput
 still show something, always:
 
 - **Rail** shows the project's one rail view (#2076): the rail of its Kitchen board, read on GitHub
-  like the board of any project, whichever station serves it — TODO first with each card that awaits
-  you and its gestures, then WAITING, On the rail, Taken, Pass and Served. The app reads the board of
+  like the board of any project, whichever station serves it — On the rail, Taken, Pass, then Todo with each card that awaits
+  you and its gestures, Waiting and Served. The app reads the board of
   every project in the projects file, not only of those it knows a station serves: a project whose
   kitchen runs on another station has the same view as one served by this computer. The rail its
   station publishes in its gist (#1432) no longer draws columns of its own: until the board is read,
@@ -401,7 +401,7 @@ The gestures of the rail view that the board's grammar knows (`docs/tableau-gest
 on the board from the card or the sheet: `merge the PR`, `remove from the rail`, a TODO card's
 choice or text, `back to the kitchen` after WAITING (#1740, below), and the "yes" or "no" on a proposed
 correction or cook profile (#1741, below). Since #2076, this is true of every project, whichever station serves it:
-the board of a project served by another station is read too, and its rail is this same view, TODO first — the rail a
+the board of a project served by another station is read too, and its rail is this same view, in the same order — the rail a
 station publishes in its gist only says why the board is not read yet (#1435, above). Captures: `docs/captures/1695/` — `espace-projet-avant.png` (the screen removed) and
 `espace-projet-apres.png` (the rail view of the same project), and `espace-projet-gestes-apres.png` (the
 sheet of a TODO ticket whose decision is known, offering its gestures, `merge the PR` first).
@@ -1947,8 +1947,8 @@ unavailable` in one line, the detail on hover; one from before #1685, which does
 the first four rows only. The modules are `app/src/reglages-du-projet.ts` and `app/src/vue/projet/reglages.js`;
 the command, `runtime/src/reglage-cli.ts`.
 
-**The drawn rail is at the center of the space, shared between its two tabs** (see "The rail"): TODO,
-WAITING, On the rail, Taken, Pass and Served, all on Rail; Cooks shows no kanban column. **The space opens with no page**: the shown
+**The drawn rail is at the center of the space, shared between its two tabs** (see "The rail"): On the rail,
+Taken, Pass, Todo, Waiting and Served, all on Rail; Cooks shows no kanban column. **The space opens with no page**: the shown
 tab has the whole center, over its full height. **A page opens over the rail**: it covers it entirely, without undoing it —
 it stays laid underneath, and re-read, but nothing of it can be clicked through, and nothing of it — not even its sticky
 column heads — shows through. Clicking the tab again closes the page, and **the rail comes back as you left it**,
@@ -2344,26 +2344,28 @@ from the rail.
 ### The rail
 
 **It is the main view of the space: in the middle of the screen, under the project name, whatever
-tab is shown below it** — the second, a shell, the output of a command. **Five columns**, one
+tab is shown below it** — the second, a shell, the output of a command. **Six columns**, one
 ticket per card: what is going to happen (On the rail), what is happening (Taken, Pass), what you
-have to do (Awaiting you), what is done (Served). **The columns are shared between the project's two tabs**
+have to do (Todo), what waits for a third party (Waiting), what is done (Served). **The columns are shared between the project's two tabs**
 (#1184, then #1269): the kanban stays whole on Rail, Taken and Pass included, and Cooks shows no column. No card
 opens a served worktree page (#1846). The spec is
 `docs/superpowers/specs/2026-10-13-app-poste-de-travail-design.md`; the visual language remains that
 of `docs/maquettes/app/Brigade.dc.html`.
 
-**TODO comes first** (#2076): the row reads TODO, WAITING, On the rail, Taken, Pass, Served — what you decide, what
-waits for a third party, then the rail in the order of service. The Backlog column, unfolded, comes just left of On
-the rail. **TODO never disappears**: when the `awaiting` block says nothing awaits the chef, its one line says
-`nothing awaits you`; when the block has lines without a ticket (a station, the base), it says that no ticket heads
-them.
+**The order** (#2093): the row reads On the rail, Taken, Pass, Todo, Waiting, Served — the rail in the order of
+service, then what waits for you, what waits for a third party, and what is done. Titles are cased alike (Todo and
+Waiting, not TODO and WAITING; the card badges keep their words), and each column has its own mark: a ring for On the
+rail, a triangle for Taken, a diamond for Pass, a square for Todo, an orange **pause** (two bars: held, waiting for
+someone) for Waiting, a disc for Served. The Backlog column, unfolded, comes just left of On the rail. **Todo never
+disappears**: when the `awaiting` block says nothing awaits the chef, its one line says `nothing awaits you`; when
+the block has lines without a ticket (a station, the base), it says that no ticket heads them. Captures: `docs/captures/2093/` — `espace-projet-*` and `espace-projet-etats-github-*`, `-avant` and `-apres`.
 
 ```
-● On the rail  2       ● Taken  1             ● Pass  1            ● Awaiting you  1      ● Served  1
-  #22 queued             #14 taken              #15 in pass          #21 BLOCKED            #9 served
-  Login by…              Form…                  PDF export…          The log export        SIRET validation
-  after #14              writes the tests       review in progress   Merge it yourself.    served at 14:02 ·
-                         · 12 min               · 1 min                                    The SIRET field…
+● On the rail  2       ● Taken  1             ● Pass  1            ■ Todo  1              ‖ Waiting  0        ● Served  1
+  #22 queued             #14 taken              #15 in pass          #21 BLOCKED            no ticket waits     #9 served
+  Login by…              Form…                  PDF export…          The log export         for a third party   SIRET validation
+  after #14              writes the tests       review in progress   Merge it yourself.                         served at 14:02 ·
+                         · 12 min               · 1 min                                                         The SIRET field…
 ```
 
 **A card fits in two lines** (#622): its number, its state and its title, then **a sentence in plain

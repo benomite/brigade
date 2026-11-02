@@ -137,7 +137,7 @@ describe("la carte de WAITING d'un ticket qui attend une capacité", () => {
     const vue = await ouvrir();
     recevoir(vue, runtime(t).json());
 
-    const waiting = colonne(vue, "WAITING");
+    const waiting = colonne(vue, "Waiting");
     const carte = bon(waiting, 22) ?? assert.fail("#22 n'est pas dans WAITING");
     assert.deepEqual(sorties(carte).map(({ textContent, className }) => [textContent, className]), [
       [DONNER, "recommande"],
@@ -150,7 +150,7 @@ describe("la carte de WAITING d'un ticket qui attend une capacité", () => {
   test("« Give it to a station » : les stations du projet, la première choisie ; un choix, une confirmation, et ce que la carte demande s'ajoute à la station choisie", async (t) => {
     const vue = await ouvrir();
     recevoir(vue, runtime(t).json());
-    const carte = () => bon(colonne(vue, "WAITING"), 22) ?? assert.fail("#22 a quitté WAITING");
+    const carte = () => bon(colonne(vue, "Waiting"), 22) ?? assert.fail("#22 a quitté WAITING");
 
     await cliquer(bouton(carte(), DONNER));
     const radios = () => carte().dessous("input").filter(({ type }) => type === "radio");
@@ -187,7 +187,7 @@ describe("la carte de WAITING d'un ticket qui attend une capacité", () => {
     const vue = await ouvrir();
     const { journal, json } = runtime(t);
     recevoir(vue, json());
-    const carte = () => bon(colonne(vue, "WAITING"), 22) ?? assert.fail("#22 a quitté WAITING");
+    const carte = () => bon(colonne(vue, "Waiting"), 22) ?? assert.fail("#22 a quitté WAITING");
 
     await cliquer(bouton(carte(), HUMAIN));
     assert.match(carte().dessous("p").find(({ className }) => className === "titre")?.textContent ?? "", /^Make #22 a human's job\? It leaves the rail and waits in TODO as a task for the chef/);
@@ -198,8 +198,8 @@ describe("la carte de WAITING d'un ticket qui attend une capacité", () => {
     assert.equal((await confierAuRuntime(journal as Journal, github(), PARADE, 22)).done, true);
     recevoir(vue, json());
 
-    assert.equal(bon(colonne(vue, "WAITING"), 22), undefined);
-    const enTodo = bon(colonne(vue, "TODO"), 22) ?? assert.fail("#22 n'est pas dans TODO");
+    assert.equal(bon(colonne(vue, "Waiting"), 22), undefined);
+    const enTodo = bon(colonne(vue, "Todo"), 22) ?? assert.fail("#22 n'est pas dans TODO");
     // Hors du rail, la carte garde son titre : la tâche le donne.
     assert.equal(enTodo.dessous("strong")[0]?.textContent, "La capture du formulaire");
     const tache = enTodo.dessous("section").find(({ className }) => className === "tache-humaine") ?? assert.fail("pas de tâche sur la carte");

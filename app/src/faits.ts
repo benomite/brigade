@@ -906,10 +906,11 @@ function colonneDeFaits(connu: Faits["rail"][number] | undefined, etat: string |
   if (connu?.attente == null) return parMot(etat);
   return parMot(connu.attente.colonne) ?? parMot(etat) ?? COLONNE_PAR_DEFAUT;
 }
-// TODO : ce que le chef peut trancher maintenant — et cela seulement —, en premier (#2076). WAITING, juste après :
-// ce qui attend un tiers, qu'il ne perd pas de vue sans l'avoir devant lui. Puis le rail, dans l'ordre du service.
-const T_ATTEND = { nom: "TODO", ton: "rouge", rang: 0 } as const;
-const WAITING = { nom: "WAITING", ton: "gris", rang: 1 } as const;
+// Todo : ce que le chef peut trancher maintenant — et cela seulement. Waiting, juste après : ce qui attend un tiers,
+// qu'il ne perd pas de vue sans l'avoir devant lui. Après le rail dans l'ordre du service (#2093) : On the rail,
+// Taken, Pass, Todo, Waiting, Served.
+const T_ATTEND = { nom: "Todo", ton: "rouge", rang: 3 } as const;
+const WAITING = { nom: "Waiting", ton: "orange", rang: 4 } as const;
 const PERSONNE_N_ATTEND = "no ticket waits for a third party";
 // Les mots d'état d'un ticket que le runtime laisse attendre un tiers : en attente sur le
 // rail, ou mis de côté — pas celui que la cuisine tient, en cuisine ou en pass, ni un servi.

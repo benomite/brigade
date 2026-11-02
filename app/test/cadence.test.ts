@@ -139,7 +139,7 @@ describe("de `facts` au rail", () => {
 
   test("une carte de TODO n'en porte pas, même d'un ticket pris ou en pass : elle n'est ni dans Taken ni dans Pass", () => {
     const lu = lus({ ...FAITS, attend: [{ ticket: 15, titre: "Ticket 15", url: "https://exemple.test/15" }] });
-    assert.equal(lu.colonnes.find(({ cartes }) => cartes.some(({ ticket }) => ticket === 15))?.nom, "TODO");
+    assert.equal(lu.colonnes.find(({ cartes }) => cartes.some(({ ticket }) => ticket === 15))?.nom, "Todo");
     assert.equal(carte(lu, 15)?.age, undefined);
     assert.notEqual(carte(lu, 14)?.age, undefined);
   });

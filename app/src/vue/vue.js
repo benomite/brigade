@@ -170,9 +170,9 @@ const etroit = () => ecranEtroit?.matches === true;
 // La fenêtre passe d'une largeur à l'autre — un téléphone qu'on tourne, une fenêtre qu'on rétrécit : la page se repose.
 ecranEtroit?.addEventListener?.("change", () => montrer());
 // La colonne de ce qui attend le chef : sur un écran étroit, les colonnes de Rail s'empilent, et elle passe en tête (ticket 1163).
-const COLONNE_QUI_T_ATTEND = "TODO";
+const COLONNE_QUI_T_ATTEND = "Todo";
 const SUR_LE_RAIL = "On the rail";
-// Les colonnes où quelque chose attend le chef ou bouge : TODO, Taken, Pass. Les autres — On the rail, WAITING, Served — se
+// Les colonnes où quelque chose attend le chef ou bouge : Todo, Taken, Pass. Les autres — On the rail, Waiting, Served — se
 // lisent en défilant, si elles sont hors de vue (ticket 1556).
 const COLONNES_ACTIVES = new Set([COLONNE_QUI_T_ATTEND, "Taken", "Pass"]);
 // Les projets dont la rangée des colonnes a déjà été placée à l'ouverture : ensuite, la lecture suivante garde le défilement du chef.
@@ -2717,7 +2717,7 @@ const sansDessin = (projet) => `The app draws nothing of this project: no color 
 // losange, un carré, un anneau creux, un triangle — distincts en niveaux de gris. C'est le ton
 // que l'app a déjà (faits.ts, grants.ts, manager.ts) qui choisit la forme : rien n'est déduit ici.
 /** @type {Record<string, string>} */
-const FORMES = { vert: "disque", jaune: "losange", rouge: "carre", bleu: "triangle", gris: "anneau" };
+const FORMES = { vert: "disque", jaune: "losange", rouge: "carre", bleu: "triangle", gris: "anneau", orange: "pause" };
 /** @param {string | undefined} ton */
 const formeDe = (ton) => (ton === undefined ? undefined : FORMES[ton]);
 
@@ -4692,7 +4692,7 @@ function poserCuisineEtroite(projet, tenu) {
   rail.replaceChildren(bloc("h3", pourquoi));
 }
 
-// Le rail en six colonnes — TODO, WAITING, Sur le rail, Au travail, Pass, Livré (ticket 2076) —,
+// Le rail en six colonnes — On the rail, Taken, Pass, Todo, Waiting, Served (ticket 2093) —,
 // tel que le process principal l'a rangé (faits.ts) : la vue pose, colonne par
 // colonne, au centre de l'espace, partagé entre ses deux onglets (ticket 1184). Rail : ce qui t'attend
 // — la file, ce qui est en amont —, puis toutes les colonnes, Taken et Pass compris, sans rien
@@ -4815,7 +4815,7 @@ function poserRail(projet) {
   );
   // Rien d'autre n'est lu à neuf : ni ce qui est avant le rail, ni les corrections.
   if (muet !== undefined) return poser(...marque, ...(cuisine ? [] : [grille]));
-  // Dépliée par la barre, la colonne Backlog vient à gauche de « On the rail » — après TODO et WAITING (ticket 2076).
+  // Dépliée par la barre, la colonne Backlog vient à gauche de « On the rail », en tête de la rangée (ticket 2093).
   if (!cuisine) {
     const backlog = colonneBacklog(projet, bons);
     const avantLeRail = grille.children[colonnes.findIndex(({ nom }) => nom === SUR_LE_RAIL) - 1];

@@ -185,7 +185,7 @@ const lectures = (station: ReturnType<typeof guichet>) => station.demandes.filte
 describe("la fiche d'une carte, sur le téléphone, propose les gestes que la station joue pour lui", () => {
   test("chaque décision de TODO a son geste recommandé, et seulement ceux que le guichet porte : ni l'issue, ni le second, ni la priorité", async () => {
     const vue = await telephone(guichet());
-    assert.deepEqual(file(vue).TODO, ["#12", "#31", "#44"]);
+    assert.deepEqual(file(vue).Todo, ["#12", "#31", "#44"]);
     for (const [ticket, attendus, recommande] of [
       [12, ["merger"], "merger"],
       [31, ["retirer"], "retirer"],
@@ -201,9 +201,9 @@ describe("la fiche d'une carte, sur le téléphone, propose les gestes que la st
 
 describe("depuis une carte, sur le téléphone, chaque geste part à la station et la file suit", () => {
   for (const [ticket, id, nom, dit, apres] of [
-    [12, "merger", "merge", "#12: merged (PR #40)", { TODO: ["#31", "#44"], Served: ["#12"] }],
-    [31, "retirer", "remove", "#31 left the rail", { TODO: ["#12", "#44"] }],
-    [44, "cuisine", "back-to-kitchen", "#44 is back in the kitchen", { TODO: ["#12", "#31"] }],
+    [12, "merger", "merge", "#12: merged (PR #40)", { Todo: ["#31", "#44"], Served: ["#12"] }],
+    [31, "retirer", "remove", "#31 left the rail", { Todo: ["#12", "#44"] }],
+    [44, "cuisine", "back-to-kitchen", "#44 is back in the kitchen", { Todo: ["#12", "#31"] }],
   ] as const) {
     test(`#${ticket}, « ${id} » confirmé : « ${nom} » part au guichet, la fiche dit ce que la station a fait, et la station relue, #${ticket} quitte TODO`, async () => {
       const station = guichet();

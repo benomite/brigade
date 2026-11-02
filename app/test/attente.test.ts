@@ -147,23 +147,23 @@ const rangs = (faits: Faits) => rail(faits).colonnes.map(({ nom, compte, cartes 
 describe("le rail en TODO et WAITING", () => {
   test("TODO ne prend que ce que le chef peut trancher ; WAITING, ce qui attend un tiers — juste après, et nulle part ailleurs", () => {
     assert.deepEqual(rangs(FAITS), [
-      ["TODO", "3", [30, 31, 12]],
-      ["WAITING", "1", [8]],
       ["On the rail", "1", [21]],
       ["Taken", "0", []],
       ["Pass", "0", []],
+      ["Todo", "3", [30, 31, 12]],
+      ["Waiting", "1", [8]],
       ["Served", "0", []],
     ]);
     // Même nommé par la file, un ticket qui attend un tiers n'est pas dans TODO.
     const nomme = { ...FAITS, attend: [...(FAITS.attend ?? []), { ticket: 8, titre: "Ticket 8", url: null }] };
-    assert.deepEqual(rangs(nomme)[0], ["TODO", "3", [30, 31, 12]]);
-    assert.deepEqual(rangs(nomme)[1], ["WAITING", "1", [8]]);
+    assert.deepEqual(rangs(nomme)[3], ["Todo", "3", [30, 31, 12]]);
+    assert.deepEqual(rangs(nomme)[4], ["Waiting", "1", [8]]);
     // Aucun : la colonne le dit.
-    assert.equal(rail({ ...FAITS, rail: [] }).colonnes[1]?.vide, "no ticket waits for a third party");
+    assert.equal(rail({ ...FAITS, rail: [] }).colonnes[4]?.vide, "no ticket waits for a third party");
   });
 
   test("une carte de WAITING dit, sans clic, ce qu'elle attend dans les mots du chef, de qui, depuis quand, sa relance, et ce qui se passera à l'arrivée — puis ses deux gestes", () => {
-    const carte = rail(FAITS).colonnes[1]?.cartes[0];
+    const carte = rail(FAITS).colonnes[4]?.cartes[0];
     assert.deepEqual(carte?.dit, [
       { libelle: "waiting for", valeur: "sa validation écrite du devis" },
       { libelle: "from", valeur: "le client" },
@@ -174,10 +174,10 @@ describe("le rail en TODO et WAITING", () => {
     assert.deepEqual([carte?.etat, carte?.ton, carte?.titre, carte?.ouvrable, carte?.attendu, carte?.sans], ["WAITING", "gris", "Ticket 8", true, false, undefined]);
     assert.deepEqual(carte?.gestes, ["attente-reprendre", "attente-arrivee"]);
     // Une relance passée le dit aussi.
-    const passee = rail({ ...FAITS, lu: "2026-10-23T00:00:00.000Z" }).colonnes[1]?.cartes[0]?.dit.find(({ libelle }) => libelle === "follow-up");
+    const passee = rail({ ...FAITS, lu: "2026-10-23T00:00:00.000Z" }).colonnes[4]?.cartes[0]?.dit.find(({ libelle }) => libelle === "follow-up");
     assert.equal(passee?.valeur, "2026-10-21 00:00 UTC — passed 2 d before the reading");
     // Une box qui dit WAITING sans dire ce qu'il attend : la carte l'écrit, et garde ses gestes.
-    const muette = rail({ ...FAITS, rail: [ticket(8, "WAITING")] }).colonnes[1]?.cartes[0];
+    const muette = rail({ ...FAITS, rail: [ticket(8, "WAITING")] }).colonnes[4]?.cartes[0];
     assert.deepEqual([muette?.dit, muette?.gestes], [[], ["attente-reprendre", "attente-arrivee"]]);
     assert.match(muette?.sans ?? "", /^not given — this station's runtime does not give in `facts` what it waits for/);
   });
@@ -186,7 +186,7 @@ describe("le rail en TODO et WAITING", () => {
   test("une carte de WAITING sans relance — un ticket sans station — dit ce qu'elle attend, sans relance ni geste : elle repart seule", () => {
     const SANS_STATION = { quoi: "a station that provides chrome-connecté — attach one to the project", qui: "a human, the chef", depuis: "2026-10-12T10:04:20.000Z", relance: null, aLArrivee: "the ticket goes back on the rail by itself once a station provides it" };
     const faits = { ...FAITS, rail: [ticket(22, "WAITING", { attente: { raison: "attend : un humain — aucune station ne fournit chrome-connecté", colonne: "WAITING", retour: null }, tiers: SANS_STATION })], attend: [] };
-    const [carte] = rail(faits).colonnes[1]?.cartes ?? [];
+    const [carte] = rail(faits).colonnes[4]?.cartes ?? [];
     assert.deepEqual(carte?.dit?.map(({ libelle }) => libelle), ["waiting for", "from", "since", "on arrival"]);
     assert.equal(carte?.ligne, "waiting for a station that provides chrome-connecté — attach one to the project · from a human, the chef");
     assert.equal(carte?.gestes, undefined);
@@ -199,7 +199,7 @@ describe("le rail en TODO et WAITING", () => {
   });
 
   test("« waiting for… » est sur une carte de TODO que le runtime laisse attendre — pas sur un ticket en pass, ni hors du rail, ni hors de TODO", () => {
-    const todo = rail({ ...FAITS, attend: [...(FAITS.attend ?? []), { ticket: 99, titre: "", url: null }] }).colonnes[0]?.cartes ?? [];
+    const todo = rail({ ...FAITS, attend: [...(FAITS.attend ?? []), { ticket: 99, titre: "", url: null }] }).colonnes[3]?.cartes ?? [];
     assert.deepEqual(
       todo.map(({ ticket: numero, gestes }) => [numero, gestes]),
       [
@@ -209,22 +209,22 @@ describe("le rail en TODO et WAITING", () => {
         [99, undefined],
       ],
     );
-    assert.equal(rail(FAITS).colonnes[2]?.cartes[0]?.gestes, undefined);
+    assert.equal(rail(FAITS).colonnes[0]?.cartes[0]?.gestes, undefined);
   });
 
   // Le motif du retour vient de `faits.rail[].revenu`, mot pour mot : l'app n'en déduit rien.
   test("une carte revenue de WAITING dit le motif que le runtime en donne — et rien de plus sans lui", () => {
     const MOTIF = "relance du 21/10 : pas de réponse";
     const avec = { ...FAITS, rail: FAITS.rail.map((lu) => (lu.ticket === 30 ? { ...lu, revenu: MOTIF } : lu)) };
-    const [relance] = rail(avec).colonnes[0]?.cartes ?? [];
+    const [relance] = rail(avec).colonnes[3]?.cartes ?? [];
     assert.deepEqual(relance?.dit, [
       { libelle: "set aside", valeur: "attend : le chef — revenu de WAITING" },
       { libelle: "came back", valeur: MOTIF },
     ]);
     // Sans motif (repris par le chef, ou runtime d'avant) : la carte n'en dit pas plus.
-    const [sans] = rail(FAITS).colonnes[0]?.cartes ?? [];
+    const [sans] = rail(FAITS).colonnes[3]?.cartes ?? [];
     assert.deepEqual(sans?.dit, [{ libelle: "set aside", valeur: "attend : le chef — revenu de WAITING" }]);
-    assert.deepEqual(rail({ ...FAITS, rail: FAITS.rail.map((lu) => (lu.ticket === 30 ? { ...lu, revenu: null } : lu)) }).colonnes[0]?.cartes[0]?.dit, sans?.dit);
+    assert.deepEqual(rail({ ...FAITS, rail: FAITS.rail.map((lu) => (lu.ticket === 30 ? { ...lu, revenu: null } : lu)) }).colonnes[3]?.cartes[0]?.dit, sans?.dit);
     // Le champ se lit dans la forme ; mal formé, il la refuse.
     const lu = comprendre(JSON.stringify({ ...FAITS, rail: [{ ...ticket(30, "86"), revenu: MOTIF }] }));
     assert.ok(!("informe" in lu) && lu.rail[0]?.revenu === MOTIF);
@@ -297,10 +297,10 @@ describe("sur l'écran, les cartes de WAITING et leurs gestes", () => {
       .dessous("section")
       .map((pose) => pose.children[0]?.children[0]?.textContent);
     // Le kanban est entier sur Rail, Taken et Pass compris.
-    assert.deepEqual(noms, ["TODO", "WAITING", "On the rail", "Taken", "Pass", "Served"]);
+    assert.deepEqual(noms, ["On the rail", "Taken", "Pass", "Todo", "Waiting", "Served"]);
     const bon = bonDe(vue, 8);
-    assert.ok(colonne(vue, "WAITING").contains(bon));
-    assert.ok(!colonne(vue, "TODO").contains(bon));
+    assert.ok(colonne(vue, "Waiting").contains(bon));
+    assert.ok(!colonne(vue, "Todo").contains(bon));
     // La carte dit l'essentiel en une ligne ; le détail est dans sa fiche.
     assert.equal(bon.dessous("p").find((pose) => pose.className === "ligne-carte")?.textContent, "waiting for sa validation écrite du devis · from le client");
     assert.equal(bon.dessous("li").length, 0);
@@ -392,7 +392,7 @@ describe("sur l'écran, les cartes de WAITING et leurs gestes", () => {
     boutonDe(bonDe(vue, 31), "waiting for…").click();
     await repos();
     recevoir(vue, dessinable({ ...FAITS, rail: FAITS.rail.map((pose) => (pose.ticket === 31 ? { ...pose, etat: "WAITING", tiers: TIERS } : pose)) }));
-    assert.ok(colonne(vue, "WAITING").contains(bonDe(vue, 31)));
+    assert.ok(colonne(vue, "Waiting").contains(bonDe(vue, 31)));
     assert.equal(bonDe(vue, 31).dessous("form").length, 0);
     recevoir(vue);
     assert.equal(bonDe(vue, 31).dessous("form").length, 0, "le formulaire refermé ne revient pas");

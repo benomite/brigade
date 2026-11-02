@@ -177,7 +177,7 @@ describe("le rail occupe le centre de l'écran principal", () => {
     recevoir(vue);
     const cinq = () => colonnes(vue).map((colonne) => colonne.children[0]?.children.map((pose) => pose.textContent));
     // Sur l'onglet Rail, où l'espace s'ouvre : le kanban entier, Taken et Pass compris.
-    const ATTENDU = [["TODO", "1"], ["WAITING", "0"], ["On the rail", "2"], ["Taken", "1"], ["Pass", "1"], ["Served", "1"]];
+    const ATTENDU = [["On the rail", "2"], ["Taken", "1"], ["Pass", "1"], ["Todo", "1"], ["Waiting", "0"], ["Served", "1"]];
 
     // L'espace s'ouvre sans page : le rail est seul au centre, le second à droite.
     assert.equal(vue.element("contenu").hidden, true);
@@ -202,7 +202,7 @@ describe("le rail occupe le centre de l'écran principal", () => {
     assert.deepEqual(cinq(), ATTENDU);
     // Aucun onglet ne lui est plus nécessaire : une lecture de `faits` le redessine où que l'on soit.
     recevoir(vue, dessinable({ ...FAITS, rail: [], attend: [], cooks: [] }, PAS_LU));
-    assert.deepEqual(cinq(), [["TODO", "0"], ["WAITING", "0"], ["On the rail", "0"], ["Taken", "0"], ["Pass", "0"], ["Served", "0"]]);
+    assert.deepEqual(cinq(), [["On the rail", "0"], ["Taken", "0"], ["Pass", "0"], ["Todo", "0"], ["Waiting", "0"], ["Served", "0"]]);
   });
 
   test("avant la première lecture il le dit ; un projet qu'aucune station ne sert n'en a pas — rien n'est lu de lui", async () => {
@@ -230,7 +230,7 @@ describe("le rail occupe le centre de l'écran principal", () => {
     recevoir(ici);
     assert.deepEqual(
       colonnes(ici).map((colonne) => colonne.children[0]?.children[0]?.textContent),
-      ["TODO", "WAITING", "On the rail", "Taken", "Pass", "Served"],
+      ["On the rail", "Taken", "Pass", "Todo", "Waiting", "Served"],
     );
   });
 
@@ -465,7 +465,7 @@ describe("T'attend est le seul endroit où un ticket attend une décision", () =
       recevoir(vue, dessinable(FAITS, status));
       const ou = colonnes(vue).filter((colonne) => bons(colonne).some((bon) => bon.children[0]?.children[0]?.textContent === "#12")).map((colonne) => colonne.children[0]?.children[0]?.textContent);
 
-      assert.deepEqual(ou, ["TODO"]);
+      assert.deepEqual(ou, ["Todo"]);
       assert.equal(bons(vue.element("rail")).filter((bon) => bon.children[0]?.children[0]?.textContent === "#12").length, 1);
       // Sa pilule le dit en mots ; aucune autre carte ne la porte.
       const attendus = bons(vue.element("rail")).filter((bon) => bon.dessous("span").some((pose) => pose.className.split(" ").includes("attendu")));
@@ -735,7 +735,7 @@ describe("une question du manager se lit sur sa carte, et la carte quitte TODO d
     await repos();
 
     assert.deepEqual(vue.dernier("lireQuestion"), [PARADE, 60]);
-    assert.equal(colonneDe(vue, 60), "TODO");
+    assert.equal(colonneDe(vue, 60), "Todo");
     const bon = bonDe(vue, 60);
     assert.equal(bon.dessous("p").find((pose) => pose.className === "question-courte")?.textContent, "Le popup remplace-t-il la fiche ?");
     assert.ok(bon.textContent.includes("asked by brigade-manager"), bon.textContent);
@@ -755,7 +755,7 @@ describe("une question du manager se lit sur sa carte, et la carte quitte TODO d
 
     recevoir(vue, dessinable(FAITS_60, STATUS_60, new Map([[60, { question: `${ISSUE}#issuecomment-2`, par: "you", a: "2026-10-15T10:05:00.000Z" }]])));
     await repos();
-    assert.equal(colonneDe(vue, 60), "WAITING");
+    assert.equal(colonneDe(vue, 60), "Waiting");
     assert.match(bonDe(vue, 60).textContent, /answered by you · the manager's turn/);
     assert.doesNotMatch(bonDe(vue, 60).textContent, /awaiting you/);
     assert.match(section(vue)?.dessous("p").find((pose) => pose.className === "postee")?.textContent ?? "", /^answer posted on #60, in your name: “b\) non” — the manager reads it at its next tick; until then the card waits for it in WAITING\.$/);

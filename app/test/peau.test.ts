@@ -84,7 +84,7 @@ describe("la palette : un seul jeu de variables, écrit à un seul endroit", () 
     // `--ton` : la couleur d'un mot d'état, posée par vue.css d'après le nom que faits.ts lui donne.
     const locales = new Map([...css.matchAll(/(--[a-z-]+)\s*:\s*([^;]+);/g)].map(([, nom = "", valeur = ""]) => [nom, valeur.trim()]));
     assert.deepEqual([...new Set(locales.keys())], ["--ton"]);
-    for (const [, valeur] of css.matchAll(/--ton\s*:\s*([^;]+);/g)) assert.match(valeur ?? "", /^var\(--(vert|jaune|rouge|bleu|gris)\)$/);
+    for (const [, valeur] of css.matchAll(/--ton\s*:\s*([^;]+);/g)) assert.match(valeur ?? "", /^var\(--(vert|jaune|rouge|bleu|gris|orange)\)$/);
 
     const nommees = [...css.matchAll(/var\((--[a-z-]+)\)/g), ...lire("vue.js").matchAll(/jeton\("(--[a-z-]+)"\)/g)].map(([, nom = ""]) => nom);
     assert.ok(nommees.length > 100, "vue.css ne nomme presque aucune variable");

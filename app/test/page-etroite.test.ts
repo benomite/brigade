@@ -208,7 +208,7 @@ describe("la page d'un projet sur un écran étroit : trois onglets", () => {
 
   test("Rail y est celui d'un écran large : ses colonnes, et la ligne qui ouvre Cooks", async () => {
     const { vue } = await ouvrir();
-    assert.deepEqual(colonnes(vue), ["TODO", "WAITING", "On the rail", "Taken", "Pass", "Served"]);
+    assert.deepEqual(colonnes(vue), ["On the rail", "Taken", "Pass", "Todo", "Waiting", "Served"]);
     const alerte = vue.element("rail").dessous("p").find((p) => p.className === "alerte-de-cuisine") ?? assert.fail("pas de ligne d'alerte");
     assert.match(alerte.textContent, /atelier\/claude is saturated/);
     (alerte.dessous("button")[0] ?? assert.fail("pas de lien")).click();

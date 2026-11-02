@@ -229,8 +229,8 @@ describe("dans la vue : un projet servi par une autre station a le même rail, T
     assert.deepEqual(colonnesDe(vue), []);
 
     recevoir(vue, duTableau(FAITS, STATUS));
-    assert.deepEqual(nomsEtComptes(vue), [["TODO", "1"], ["WAITING", "0"], ["On the rail", "0"], ["Taken", "1"], ["Pass", "0"], ["Served", "0"]]);
-    const todo = colonnesDe(vue)[0] ?? assert.fail("pas de TODO");
+    assert.deepEqual(nomsEtComptes(vue), [["On the rail", "0"], ["Taken", "1"], ["Pass", "0"], ["Todo", "1"], ["Waiting", "0"], ["Served", "0"]]);
+    const todo = colonnesDe(vue)[3] ?? assert.fail("pas de Todo");
     const carte = carteDuTicket(vue, 14) ?? assert.fail("pas de carte #14");
     assert.equal(todo.contains(carte), true);
     // Son geste, comme sur un projet servi ici : le chef dit ce qu'elle attend d'un tiers.
@@ -241,8 +241,8 @@ describe("dans la vue : un projet servi par une autre station a le même rail, T
   test("rien n'attend le chef : TODO reste en tête, et le dit en une ligne", async () => {
     const vue = await ouvrir({ railDuProjet: () => liste() });
     recevoir(vue, duTableau({ ...FAITS, attend: [] }, RIEN));
-    const todo = colonnesDe(vue)[0] ?? assert.fail("pas de TODO");
-    assert.deepEqual(todo.children[0]?.children.map((pose) => pose.textContent), ["TODO", "0"]);
+    const todo = colonnesDe(vue)[3] ?? assert.fail("pas de Todo");
+    assert.deepEqual(todo.children[0]?.children.map((pose) => pose.textContent), ["Todo", "0"]);
     assert.deepEqual(todo.dessous("p").map((pose) => pose.textContent), ["nothing awaits you"]);
   });
 
@@ -259,7 +259,7 @@ describe("dans la vue : un projet servi par une autre station a le même rail, T
     assert.equal(vue.appels.filter(({ geste }) => geste === "relireBox").length, 1);
     // Relu, le tableau pose le rail.
     recevoir(vue, duTableau(FAITS, STATUS));
-    assert.equal(nomsEtComptes(vue)[0]?.[0], "TODO");
+    assert.equal(nomsEtComptes(vue)[3]?.[0], "Todo");
   });
 
   test("indisponible, la phrase du runtime ; « read again » relit — et Cooks garde sa phrase", async () => {

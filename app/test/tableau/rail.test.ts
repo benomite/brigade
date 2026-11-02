@@ -96,7 +96,7 @@ test("GitHub seul, aucune box jointe : la couche de données du rail rend les ti
   const colonne = (nom: string) => tableau.rail.colonnes.find((c) => c.nom === nom)?.cartes.map(({ ticket, etat }) => [ticket, etat]);
 
   // Les tickets et leur état, chacun dans sa colonne.
-  assert.deepEqual(tableau.rail.colonnes.map(({ nom }) => nom), ["TODO", "WAITING", "On the rail", "Taken", "Pass", "Served"]);
+  assert.deepEqual(tableau.rail.colonnes.map(({ nom }) => nom), ["On the rail", "Taken", "Pass", "Todo", "Waiting", "Served"]);
   assert.deepEqual(colonne("Taken"), [
     [23, "pris"],
     [31, "pris"],
@@ -111,7 +111,7 @@ test("GitHub seul, aucune box jointe : la couche de données du rail rend les ti
     [30, "en attente"],
     [19, "en attente"],
   ]);
-  assert.deepEqual(colonne("WAITING"), [[35, "WAITING"]]);
+  assert.deepEqual(colonne("Waiting"), [[35, "WAITING"]]);
   assert.deepEqual(colonne("Served")?.map(([ticket]) => ticket), [40, 41]);
   // Ce qu'une carte tire de la ligne `status` de son ticket : la priorité, et qui la tient.
   const carte30 = tableau.rail.colonnes.flatMap(({ cartes }) => cartes).find(({ ticket }) => ticket === 30);
@@ -127,7 +127,7 @@ test("GitHub seul, aucune box jointe : la couche de données du rail rend les ti
   // Ce qui attend le chef : TODO, dans l'ordre du bloc `awaiting`, la carte de #24 avec sa question et ses choix. La
   // remontée technique de #18 n'y est pas : elle est à la cuisine (#1826) ; ni #19, qui attendait un ticket fermé sans
   // avoir été servi (#1834).
-  const todo = tableau.rail.colonnes.find((c) => c.nom === "TODO")?.cartes ?? [];
+  const todo = tableau.rail.colonnes.find((c) => c.nom === "Todo")?.cartes ?? [];
   assert.deepEqual(todo.map(({ ticket }) => ticket), [24]);
   assert.ok(todo.every(({ attendu }) => attendu));
   assert.ok(tableau.rail.attendLu !== undefined, "le bloc `awaiting` a été pris");
