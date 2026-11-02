@@ -289,6 +289,8 @@ time**, what the log knows of the project's heaviness: the slope reveals a drift
 
 `npm --prefix runtime run measures` shows them in slices of 10 merges; `-- --by 25`, of 25.
 
+At the end, `measures` adds the CI duration of the last 10 merged PRs (`runtime/src/measures/ci-duration.ts`, from `BRIGADE_GITHUB_REPO`): per merge, the start of the first check of the merge commit to the end of the last, then the median beside the 60 s target, and the worst. A merge over target is marked `OVER TARGET`. With fewer than 10 merges, or a failed GitHub call, the section is one line saying so; nothing else changes.
+
 When a ticket among the last ten merges exceeds the drift's cost threshold (`BRIGADE_DRIFT_TICKET_TOKENS`),
 `measures` adds under the `CROSSED` line a `reason for the drift —` line per ticket:
 the number of passes, the share of tokens lost to the send-back, and the send-backs restarted from zero
@@ -323,7 +325,7 @@ the number of passes, the share of tokens lost to the send-back, and the send-ba
   nothing of the project's state.
 - The `cap` line counts the whole log: the merged deliveries whose last gates
   crossed their duration ceiling. The pass does not judge it.
-- The `flaky` block, last, lists **the tests green only on the CI rerun** over the last 10 merges
+- The `flaky` block, before the CI duration, lists **the tests green only on the CI rerun** over the last 10 merges
   (`runtime/src/tests-rejoues.ts`): each test by its name, how many times a rerun passed with it
   failing before, and its tickets — the most frequent first. A rerun counts for a merge when it is on
   that ticket, before its merge and after its previous one. A job whose log named no test counts
