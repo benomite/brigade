@@ -116,19 +116,19 @@ describe("les trois états de pilotage ont chacun leur forme et leur couleur", (
 describe("la cuisine, le grant : une pastille à forme, et son libellé", () => {
   // La carte du projet est sur l'onglet Cooks (#1184), fondue dans la ligne de sa cuisine, en tête de ses stations (#1456).
   const cuisine = (vue: Awaited<ReturnType<typeof ouvrir>>) => vue.element("rail").dessous("p").find(({ className }) => className === "etat-de-la-cuisine") ?? assert.fail("pas de ligne de la cuisine");
-  test("cuisine ouverte : disque vert ; arrêtée : carré rouge — le mot est dans la pilule", async () => {
+  test("cuisine ouverte : disque vert ; arrêtée : carré rouge — le mot, en anglais (#1967), est dans la pilule", async () => {
     const vue = await ouvrir();
     await ouvrirOnglet(vue, "Cooks");
     const numero = () => vue.dernier("faits")[0] as number;
     vue.dire("surFaits", { ...faits("ouverte", "vert"), demande: numero() });
     const pilule = (cuisine(vue).dessous("span").find((s) => s.className === "pilule") ?? assert.fail("pas de pilule")) as Faux;
     const [point] = pilule.dessous("span");
-    assert.equal(pilule.textContent, "ouverte");
+    assert.equal(pilule.textContent, "open");
     assert.deepEqual([point?.dataset.ton, point?.dataset.forme], ["vert", "disque"]);
 
     vue.dire("surFaits", { ...faits("arrêtée", "rouge", true), demande: numero() });
     const arretee = (cuisine(vue).dessous("span").find((s) => s.className === "pilule") ?? assert.fail("pas de pilule")) as Faux;
-    assert.equal(arretee.textContent, "arrêtée");
+    assert.equal(arretee.textContent, "stopped");
     assert.deepEqual([arretee.dessous("span")[0]?.dataset.ton, arretee.dessous("span")[0]?.dataset.forme], ["rouge", "carre"]);
     // La pastille de la barre prend la même forme.
     const barre = vue.element("projets").dessous("span").find((s) => s.className === "pastille") ?? assert.fail("pas de pastille dans la barre");
@@ -152,7 +152,7 @@ describe("la cuisine, le grant : une pastille à forme, et son libellé", () => 
     const carte = vue.element("carte");
     const poses = vue.element("rail").children;
     assert.ok(poses.includes(carte) && poses.indexOf(carte) < poses.indexOf(vue.element("cuisson-du-projet")), "la carte n'est pas au-dessus des stations");
-    assert.equal(carte.dessous("span").find((s) => s.className === "pilule")?.textContent, "ouverte");
+    assert.equal(carte.dessous("span").find((s) => s.className === "pilule")?.textContent, "open");
   });
 
   test("grant actif ; grant éteint : deux formes, deux libellés", async () => {
@@ -193,7 +193,7 @@ describe("un ticket qui t'attend", () => {
     const pilules = vue.element("rail").dessous("span").filter((s) => s.className.split(" ").includes("etat-ticket"));
     assert.deepEqual(
       pilules.map((s) => [s.textContent, s.dataset.ton, s.dataset.forme, s.className.split(" ").includes("attendu")]),
-      [["servi", "vert", "disque", false], ["awaiting you", "rouge", "carre", true]],
+      [["served", "vert", "disque", false], ["awaiting you", "rouge", "carre", true]],
     );
     const [colonne] = vue.element("rail").dessous("section");
     assert.deepEqual([colonne?.dataset.ton, colonne?.dataset.forme], ["rouge", "carre"]);

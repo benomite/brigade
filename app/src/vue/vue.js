@@ -96,6 +96,7 @@ import { apresRendu, lireLancement, poserLancement, REPOS } from "./closer/lance
 import { lireDerive, poserDerive } from "./closer/derive/derive.js";
 import { apresRendu as apresLaCorrection, poserCorrections, REPOS as CORRECTION_AU_REPOS } from "./correction/carte.js";
 import { poserProfils } from "./profil/carte.js";
+import { motDeCuisine, motDeTicket } from "./mots-d-etat.js";
 import { apresRendu as apresLaCarte, poserCarteDeTodo, REPOS as CARTE_AU_REPOS, vuDeLaCarte } from "./carte-todo.js";
 import { poserDepotRetenu } from "./onboarding/depot-retenu.js";
 import { poserBlocages } from "./projet/blocages.js";
@@ -2753,11 +2754,11 @@ function marquerPastille(nom) {
   const dit = muette
     ? "unreachable"
     : horsLigne !== undefined
-      ? `offline since ${heureCourte(horsLigne)}${tenu !== undefined && "tableau" in tenu ? ` — ${tenu.tableau.etat} when last read` : ""}`
+      ? `offline since ${heureCourte(horsLigne)}${tenu !== undefined && "tableau" in tenu ? ` — ${motDeCuisine(tenu.tableau.etat)} when last read` : ""}`
       : tenu === undefined
         ? "first read in progress…"
         : "tableau" in tenu
-          ? tenu.tableau.etat
+          ? motDeCuisine(tenu.tableau.etat)
           : `no facts read — ${tenu.titre}`;
   posee.textContent = muette || (tenu !== undefined && !("tableau" in tenu)) ? "!" : "";
   const entree = /** @type {HTMLElement} */ (posee.parentElement);
@@ -2832,7 +2833,7 @@ function poserCarte(ou, projet) {
   const pilule = document.createElement("span");
   pilule.className = "pilule";
   if (tableau.ton !== undefined) pilule.dataset.ton = tableau.ton;
-  pilule.append(pastille(tableau.etat, tableau.ton), bloc("strong", tableau.etat));
+  pilule.append(pastille(motDeCuisine(tableau.etat), tableau.ton), bloc("strong", motDeCuisine(tableau.etat)));
   tete.append(pilule, bloc("small", `read at ${heure} · ${tableau.tick}`));
   const compteurs = document.createElement("dl");
   for (const { libelle, nombre } of tableau.compteurs) {
@@ -2901,8 +2902,8 @@ function poserBon(projet, carte, tonAttend) {
   const tete = document.createElement("div");
   tete.append(numero);
   if (etat !== undefined) {
-    // Un mot du runtime que le chef ne lit pas se dit en mots simples : « 86 » est un ticket mis de côté.
-    const mot = bloc("span", etat === "86" ? "set aside" : etat === "pris" ? "taken" : etat);
+    // Le mot du runtime se dit en anglais, comme le reste de la carte (mots-d-etat.js) : « 86 » est un ticket mis de côté.
+    const mot = bloc("span", motDeTicket(etat));
     mot.className = "etat-ticket";
     if (ton !== undefined) mot.dataset.ton = ton;
     const forme = formeDe(ton);
@@ -4541,7 +4542,7 @@ function ligneDeLaCuisine(projet, tableau, heure) {
   const pilule = document.createElement("span");
   pilule.className = "pilule";
   if (tableau.ton !== undefined) pilule.dataset.ton = tableau.ton;
-  pilule.append(pastille(tableau.etat, tableau.ton), bloc("strong", tableau.etat));
+  pilule.append(pastille(motDeCuisine(tableau.etat), tableau.ton), bloc("strong", motDeCuisine(tableau.etat)));
   ligne.append(bloc("span", "kitchen"), pilule, bloc("small", `latest event — ${tableau.evenement}`));
   const rienNeCuit = tableau.rienNeCuit === undefined ? [] : [bloc("p", tableau.rienNeCuit)];
   for (const dite of rienNeCuit) dite.className = "rien-ne-cuit";

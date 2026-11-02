@@ -127,7 +127,8 @@ describe("l'onglet Cooks : une ligne par station du projet", () => {
     // cooks sont ceux des stations, et la carte n'est plus posée.
     assert.throws(() => vue.element("carte"), /aucun élément « carte »/);
     const cuisine = vue.element("rail").dessous("p").find(({ className }) => className === "etat-de-la-cuisine") ?? assert.fail("pas de ligne de la cuisine");
-    assert.match(cuisine.textContent, /^kitchenouverte/);
+    // Le mot de la cuisine se dit en anglais (#1967) : `ouverte` de `facts` se lit `open`.
+    assert.match(cuisine.textContent, /^kitchenopen/);
     // Les stations, dans l'ordre de `facts`, celles de la principale d'abord (#1786).
     assert.deepEqual(lignes(vue).map((li) => li.dataset.station), ["box/claude", "atelier/claude", "mac/claude"]);
     assert.deepEqual(lignes(vue).map(etatDe), ["cooking", "cooking", "stopped"]);

@@ -9,6 +9,7 @@
 
 import { boutonAction } from "./briques.js";
 import { boutonDeLaPage, connexionDite, gestes, phraseEtDetail, RELIRE } from "./premier-lancement.js";
+import { motDeTicket } from "./mots-d-etat.js";
 
 /** @typedef {import("./briques.js").Fabrique} Fabrique */
 /** @typedef {import("../faits.ts").RailDuProjetLu} RailDuProjetLu */
@@ -61,7 +62,7 @@ function bonPublie(doc, { ticket, etat, ton, titre, ouvrable }, geste) {
     numero.title = `open issue #${ticket} in the browser`;
     numero.addEventListener("click", () => geste.ouvrirIssue(ticket));
   } else numero.title = SANS_ADRESSE;
-  const mot = cree(doc, "span", etat === "86" ? "set aside" : etat);
+  const mot = cree(doc, "span", motDeTicket(etat));
   mot.className = "etat-ticket";
   if (ton !== undefined) mot.dataset.ton = ton;
   const forme = geste.forme?.(ton);

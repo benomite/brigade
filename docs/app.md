@@ -2303,6 +2303,12 @@ of `docs/maquettes/app/Brigade.dc.html`.
                          · 12 min               · 1 min                                    The SIRET field…
 ```
 
+**The state word is English** (#1967), the glossary's: `facts` writes it in French (`en attente`, `pris`, `en pass`,
+`servi`, `BLOQUÉ`, `86`; `ouverte`, `retenue`, `arrêtée`, `éteinte` for the kitchen), and the view shows `queued`,
+`taken`, `in pass`, `served`, `BLOCKED`, `set aside`; `open`, `held`, `stopped`, `off` — on every card, published rail
+included, and on the kitchen's pill and dot. One table says it (`app/src/vue/mots-d-etat.js`); a word it does not
+know is shown as is.
+
 **A card fits in two lines** (#622): its number, its state and its title, then **a sentence in plain
 words** that says what is happening, and at most **one signal line** when something asks for your
 attention. Each sentence is written from the facts the queue already gives about the card

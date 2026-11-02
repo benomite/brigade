@@ -490,11 +490,13 @@ describe("le monospace est une information, pas un style", () => {
   test("ce qui se lit ne l'est pas : un titre, un mot d'état, un libellé, ce que l'app dit elle-même", async () => {
     const poses = [...(await toutPose("Settings", GRANTS_VUS)), ...(await toutPose("Rail"))];
 
-    for (const lu of ["Formulaire devis multi-étapes", "Validation SIRET", "taken", "en attente", "un mot inconnu", "ouverte", "ACTIF", "grant merge", "Sur le rail", "T'attend", "au travail", "Rail", "Settings", "second · claude"]) {
+    for (const lu of ["Formulaire devis multi-étapes", "Validation SIRET", "taken", "queued", "served", "un mot inconnu", "open", "ACTIF", "grant merge", "Sur le rail", "T'attend", "au travail", "Rail", "Settings", "second · claude"]) {
       const trouves = portant(poses, lu);
       assert.ok(trouves.length > 0, `« ${lu} » n'est posé nulle part`);
       for (const pose of trouves) assert.ok(!mono(pose) && pose.balise !== "pre" && pose.balise !== "code", `« ${lu} » est en monospace`);
     }
+    // Le mot d'état d'une carte et celui de la cuisine se disent en anglais (ticket 1967) : leur mot français n'est posé nulle part.
+    for (const francais of ["pris", "en attente", "servi", "ouverte"]) assert.deepEqual(portant(poses, francais), [], `« ${francais} » est posé tel quel`);
     // Sur plusieurs lignes, les mots de l'app sont à part de ceux de la box : jamais dans un `pre` nu.
     const vue = await jouerLaVue({ ...REPONSES, demarrage: () => ({ ...demarrage(), configuration: pourLaBarre({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }) }) });
     // Sur l'accueil, un projet sans box se dit en une ligne ; ce qu'elle suppose du fichier est au survol.
