@@ -60,10 +60,14 @@ function cuisine(t: TestContext, options: Options = {}) {
   };
   if (options.plafond !== undefined) geste("cap", String(options.plafond));
   if (options.allume ?? true) geste("on");
-  const lancements = () => (existsSync(join(dossier, "lancements")) ? readFileSync(join(dossier, "lancements"), "utf8").split("\n").filter(Boolean).length : 0);
+  const lignes = (fichier: string) => (existsSync(join(dossier, fichier)) ? readFileSync(join(dossier, fichier), "utf8").split("\n").filter(Boolean).length : 0);
+  const lancements = () => lignes("lancements");
   const ticks = () => base.lire<{ n: number }>("SELECT count(*) AS n FROM events WHERE type = 'runtime.ticked'")[0]?.n ?? 0;
   // Laisse passer `combien` ticks de plus, et le temps que chacun finisse ce qu'il a commencé.
+  // Les ticks battent pendant qu'un passage attend son rôle : on attend d'abord que tout rôle
+  // lancé ait fini, puis on compte — un rôle lent (bash sous Windows) dure plus de dix ticks.
   const laisserPasser = async (combien = 10) => {
+    await jusqua(() => lignes("fins") === lancements());
     const depart = ticks();
     await jusqua(() => ticks() >= depart + combien);
   };
