@@ -2912,6 +2912,31 @@ when the system says the network is back — redraws it, and the sign goes away.
 fault: a board that cannot be read, or GitHub refusing, is said as before, after the same two readings. A failed local command
 says nothing about the network: it neither sets nor lifts the offline state.
 
+### Reporting a failure to brigade (#1977, epic #1973)
+
+Wherever the app shows a failure, a discreet **report to brigade** button follows it — never in front of the action that
+repairs it. Its hover says what it does. It is on:
+
+- **a station in fault**, on its page: after each fault line (offline, update failed, Max connection lost);
+- **a red station** on the project's station line (Cooks): refused, or unreachable;
+- **a card set aside** (`86`), and **a delivery the pass could not judge** (`remontee`, `unjudged`) — a reason that is
+  brigade's. A delivery still red after its returns is the project's business, and carries none;
+- **an error line**: a reading of the station that failed (`the station did not answer`…);
+- **the fault at the top of the rail** (an idle kitchen, #1863).
+
+Nothing failed, no button. The Android app shows none: its bridge opens nothing.
+
+A click opens, **in the default browser**, a new issue on `benomite/brigade`, prefilled
+(`app/src/vue/signalement/ouverture.ts`): the body starts with `Field report from the brigade app` and the issue carries
+the `field-report` label; it gives the app version, the runtime version (the station serving the project, or the
+runtime next to the app), the system, the failure in a few words, and the log lines about it — the end of the
+project's log (`log --last 200`), read where its kitchen runs on this computer, filtered on the ticket, the station or
+the line (`signalement/contexte/`). Everything goes through `redact` (`signalement/redaction/`) first: no token, no
+home folder (`~` in its place), no repository content. **The app sends nothing**: it calls no HTTP client and not
+GitHub; the chef reads, edits and submits the issue under their own account. Closing the page sends nothing. While
+the browser opens, the button says `opening…`; then `opened in your browser: nothing is sent until you submit it there`,
+or, if the browser did not open, one line saying so, its detail in the hover.
+
 ### What is not drawn, and will not be here
 
 - **The log and the output of `station`** stay text: they are streams, not state tables. The state of the

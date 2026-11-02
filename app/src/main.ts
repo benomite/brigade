@@ -27,6 +27,7 @@ import { confirmationDe } from "./confirmation.ts";
 import { cuireSurLaStation } from "./cuisson.ts";
 import { reglerLePlafond as reglerLePlafondDeCalibrage } from "./plafond-de-calibrage.ts";
 import { confierAUnHumain } from "./vue/attente-capacite/geste.ts";
+import { COMMANDE_DU_JOURNAL, ouvrirLeSignalement, versionVisee } from "./vue/signalement/ouverture.ts";
 import { lireLesReglages, proposerLeReglage } from "./reglages-du-projet.ts";
 import { choix, entieres, PALETTE } from "./couleurs.ts";
 import { blocDesOrdinaires } from "./ordinaires.ts";
@@ -1160,6 +1161,29 @@ ipcMain.handle("confierAUnHumain", (_, nom: unknown, ticket: unknown, qui: unkno
   const { vise, lu } = cuisineDuProjet(nom);
   return vise === undefined ? parti(nom) : confierAUnHumain(vise.nom, lu, ticket, qui, lancerSurLaCuisine);
 });
+// « report to brigade », sous chaque panne que l'app montre (ticket 1977, vue/signalement/) : le journal du projet est lu
+// là où sa cuisine tourne — hors de son passage, qu'une lecture longue ne le retienne pas —, et l'issue préremplie
+// s'ouvre dans le navigateur du poste. Rien n'est envoyé à GitHub d'ici : le chef l'envoie lui-même.
+ipcMain.handle("signaler", (_, demande: unknown) =>
+  ouvrirLeSignalement(demande, {
+    appVersion: app.getVersion(),
+    runtimeVersion: async (lue) => {
+      const locale = await duRuntime<typeof import("../../runtime/src/mise-a-jour/en-service.ts")>("mise-a-jour", "en-service.ts").then(
+        ({ versionDuRuntime }) => versionDuRuntime(),
+        () => "unknown",
+      );
+      return versionVisee(lue, stations.vu()?.stations ?? [], locale === "inconnue" ? "unknown" : locale);
+    },
+    journal: async (nom) => {
+      const { lu } = cuisineDuProjet(nom);
+      if (lu === undefined) throw new Error("no kitchen runs this project on this computer");
+      const rendu = await lancerLa({ delaiMs: 15_000 }, lu, COMMANDE_DU_JOURNAL);
+      if (rendu.erreur !== null) throw rendu.erreur;
+      return rendu.sortie;
+    },
+    ouvrir: (url) => shell.openExternal(url),
+  }),
+);
 ipcMain.handle("reglerLePlafondDeCalibrage", (_, nom: unknown, choix: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return parti(nom);

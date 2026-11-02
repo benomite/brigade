@@ -161,6 +161,8 @@ describe("la panne en tête du rail", () => {
     assert.deepEqual(panne.children.map(({ balise, className, textContent }) => ({ balise, className, textContent })), [
       { balise: "span", className: "marque", textContent: "FAULT" },
       { balise: "strong", className: "", textContent: "Kitchen idle for 40 min with 2 cards on the rail" },
+      // « report to brigade », au bout de la ligne (ticket 1977, signalement/ouverture/).
+      { balise: "span", className: "signaler", textContent: "report to brigade" },
     ]);
     assert.ok(!panne.textContent.includes("\n"));
     assert.match(panne.title, /#7, #8 wait to be cooked/);

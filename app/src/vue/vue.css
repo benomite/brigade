@@ -7296,3 +7296,50 @@ button.recommande {
   padding-top: 10px;
   border-top: 1px solid var(--trait-doux);
 }
+/* « report to brigade », à la suite de chaque panne (ticket 1977) : un bouton discret, cerclé d'un trait — il ne passe
+   jamais devant le geste qui répare la panne. Ce qu'il fait est dans son survol ; ce qu'un clic a rendu, à côté. */
+.signaler {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+}
+.signaler .signaler-a-brigade {
+  padding: 1px 8px;
+  font-size: 11px;
+  color: var(--discret);
+  white-space: nowrap;
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon-bouton);
+}
+.signaler .signaler-a-brigade:not(:disabled):hover {
+  color: var(--texte);
+}
+.signaler .signaler-a-brigade:disabled {
+  cursor: default;
+}
+.signaler .signale,
+.signaler .indisponible {
+  margin: 0;
+  font-size: 11px;
+  color: var(--discret);
+}
+/* Sur la carte, sur son papier clair, sous ce qu'elle dit. */
+#rail .bon .signaler {
+  display: flex;
+  margin-top: 6px;
+}
+#rail .bon .signaler .signaler-a-brigade {
+  color: var(--bon-discret);
+  border-color: var(--bon-trait);
+}
+#rail .bon .signaler .signaler-a-brigade:not(:disabled):hover {
+  color: var(--bon-encre);
+}
+#rail .bon .signaler :is(.signale, .indisponible) {
+  color: var(--bon-discret);
+}
+/* En tête du rail, au bout de la ligne de la panne. */
+#rail .panne-du-rail .signaler {
+  margin-left: auto;
+}
