@@ -650,7 +650,9 @@ describe("la base elle-même, rouge ou mergée hors du runtime", { concurrency: 
     await jusquAu("pass.waiting", 2);
     await laisserTourner();
     assert.deepEqual(histoire(18), ["pass.waiting"]);
-    // La pass a rejoué la base seule, une fois, sans commit : rouge encore.
+    // La pass a rejoué la base seule, une fois, sans commit : rouge encore. Ce
+    // rejeu se joue à côté des ticks : on attend son contrôle, pas trois ticks.
+    await jusquAu("base.checked", 2);
     assert.deepEqual([pass(18)?.phase, pass(18)?.reason, gh.merges.length, compter("pass.waiting"), compter("base.checked")], ["waiting", "base-red", 0, 2, 2]);
     assert.deepEqual(gates.appels().slice(1), [essai("base"), essai("base")]);
     assert.match(commentaires(18), /en attente \(`base-red`\)[\s\S]*`v2` est rouge[\s\S]*sera jugée, et mergée sous grant, dès que `v2` sera réparée/);

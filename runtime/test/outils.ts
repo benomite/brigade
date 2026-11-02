@@ -3,13 +3,14 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import { createServer, type AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
 import { pathToFileURL } from "node:url";
 import { Sortie, type Commande } from "../src/appel.ts";
-import { signalerLArbreSync } from "../src/arbre.ts";
+import { signalerLArbre } from "../src/arbre.ts";
 import type { Fait } from "../src/evenements.ts";
 import { DECISIONS } from "../src/decisions.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "../src/journal.ts";
@@ -104,12 +105,14 @@ function finDe(t: TestContext) {
       // `repertoireTemporaire` : sous Windows, un fichier encore ouvert ne
       // s'efface pas (EPERM). Un crochet posé pendant les crochets de fin
       // passe après eux.
-      t.after(() => {
+      t.after(async () => {
         // Un cook qu'on vient de tuer peut encore finir d'écrire son flux : la
         // suppression se reprend (jusqu'à cinq secondes : sous Windows, un process tué
         // tient ses fichiers un moment, EPERM) au lieu d'échouer sur un répertoire redevenu plein —
-        // un crochet de fin qui échoue ferait sauter les suivants.
-        for (const repertoire of courante.repertoires) rmSync(repertoire, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
+        // un crochet de fin qui échoue ferait sauter les suivants. Elle se reprend sans
+        // bloquer : `rmSync` attend ses reprises en tenant le process, et les tests du
+        // fichier qui tournent à côté voient leur horloge filer sans pouvoir rien observer.
+        for (const repertoire of courante.repertoires) await rm(repertoire, { recursive: true, force: true, maxRetries: 50, retryDelay: 100 });
       });
     });
   }
@@ -123,7 +126,11 @@ export function aArreter(t: TestContext, arreter: () => unknown): void {
 
 // Les cooks relayés d'un répertoire d'état survivent au runtime qui les a
 // lancés : la fin du test les tue, relais et groupe du cook, par leurs pids.
-export function tuerLesRelais(repertoire: string): void {
+// Sous Windows, l'arbre d'un cook se lit par PowerShell, deux fois au moins
+// par cook : lu sans attendre, il tiendrait le process du fichier plusieurs
+// secondes par cook, et les tests qui tournent à côté verraient leurs
+// `jusqua` expirer sans avoir rien pu observer.
+export async function tuerLesRelais(repertoire: string): Promise<void> {
   const runs = join(repertoire, "runs");
   if (!existsSync(runs)) return;
   const tuer = (pid: number) => {
@@ -149,7 +156,7 @@ export function tuerLesRelais(repertoire: string): void {
       // Sa fin écrite juste avant sa mort, le groupe du cook est déjà tué.
       if (existsSync(`${racine}.fin.json`)) continue;
       // Tout l'arbre du cook : son groupe, ou sous Windows ce que la table des process en dit.
-      if (existsSync(`${racine}.cook.pid`)) signalerLArbreSync(Number(readFileSync(`${racine}.cook.pid`, "utf8")), "SIGKILL");
+      if (existsSync(`${racine}.cook.pid`)) await signalerLArbre(Number(readFileSync(`${racine}.cook.pid`, "utf8")), "SIGKILL");
     } catch {
       // Un fichier illisible : rien à tuer.
     }
