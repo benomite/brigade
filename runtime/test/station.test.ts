@@ -31,7 +31,11 @@ const baseMobile = () => {
 };
 
 // Chaque test a ses lieux — répertoire d'état, dépôt, GitHub : ils se jouent de front.
-describe("la station", { concurrency: 8 }, () => {
+// Sous Windows, huit tests de la station à la fois sur le runner l'affament : les mêmes tests y
+// attendaient en vain, jamais les mêmes d'un run à l'autre (#2071). Un seul à la fois, comme les fichiers.
+const CONCURRENCE = process.platform === "win32" ? 1 : 8;
+
+describe("la station", { concurrency: CONCURRENCE }, () => {
   test("au branchement, la station annonce son nom, son moteur, ce qu'elle fournit, son plafond de cooks et les cœurs de sa machine", (t) => {
     const { journal } = cuisine(t);
 
@@ -518,6 +522,7 @@ describe("la station", { concurrency: 8 }, () => {
     machine = { ...MACHINE_CALME, disqueLibre: 1024 ** 3 };
     gh.poser(issue(16));
     await jusqua(() => dernier("station.saturated")?.resource === "disk");
+    await jusqua(() => etat(15) === "taken");
     await new Promise((resoudre) => setTimeout(resoudre, 80));
     assert.deepEqual([etat(15), etat(16), lancements().length], ["taken", "waiting", 1]);
     assert.equal(types(15).some((type) => type === "guard.tripped" || type === "cook.exited"), false);
@@ -2108,7 +2113,7 @@ describe("la station", { concurrency: 8 }, () => {
 });
 
 // Quand chaque rôle a son identité GitHub, le cook n'en a aucune.
-describe("la station, cooks sans identité", { concurrency: 8 }, () => {
+describe("la station, cooks sans identité", { concurrency: CONCURRENCE }, () => {
   const remisA = (repertoire: string, run: unknown) => join(repertoire, "runs", `${String(run)}.ticket.md`);
 
   test("le ticket est remis au cook en fichier, hors de son worktree — corps et commentaires —, et sa consigne l'y envoie au lieu de gh", async (t) => {
