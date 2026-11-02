@@ -1,11 +1,11 @@
 ### The `merge` grant
 
-Automatic merge exists only **under a grant**. A grant is a runtime object — facts in the
-log — : you enable it, extend it and revoke it **without a restart**, and the pass rereads it **at
-every merge decision**.
+Automatic merge exists only **under a grant**. A grant is a runtime object (facts in the log): you
+enable it, extend it and revoke it **without a restart**, and the pass rereads it **at every merge
+decision**.
 
 ```bash
-npm --prefix runtime run grant                               # its state, what is left of it, its `latest actions` and `latest uses`, the "without a grant, …" tally
+npm --prefix runtime run grant                               # its state, what is left, `latest actions`, `latest uses`, the "without a grant, …" tally
 npm --prefix runtime run grant -- enable merge            # no deadline
 npm --prefix runtime run grant -- enable merge --for 4h   # it lapses on its own in four hours
 npm --prefix runtime run grant -- enable merge --until 18h30 --uses 10
@@ -14,75 +14,63 @@ npm --prefix runtime run grant -- revoke merge
 ```
 
 - **Absent by default**, and **not retroactive**: enabling it holds for the deliveries that
-  follow; the ones the pass has already stopped, you merge by hand.
-- **Every use is logged** (`grant.used`: ticket, PR, commit, verdict): that is the answer to
-  "why is this code on `main`?" — `grant` lists the uses, `pass -- <ticket>` the verdict.
+  follow; the ones already stopped, you merge by hand.
+- **Every use is logged** (`grant.used`: ticket, PR, commit, verdict): the answer to "why is this
+  code on `main`?" — `grant` lists the uses, `pass -- <ticket>` the verdict.
 - **The merge is written in two steps**: the intent (`grant.used`) before the call to GitHub, the
   result after (`merge.done`, `merge.failed`). A runtime that died in between rereads the PR on
-  restart. GitHub accepts the merge only if the branch is still on the commit that was judged; a
-  merge it **refuses** is not retried (`merge-refused`).
-
-- **Everything `grant`, `base` and `pass` write is in English** (words from `docs/glossary.md`):
-  `grant merge  ACTIVE since … (by chef)`, `latest uses`, `base never checked: …`, `nothing to
-  replay: the base is not red`. The old words (`activer`, `prolonger`, `revoquer`, `--pour`,
-  `--jusqu-a`, `--usages`, `--sans-echeance`) still answer until 2027-01-14, saying the new one;
-  a grant, a refusal or a log written before are shown and apply as they are.
-
-- **What no grant authorizes** is read in `run grant`, on the `never granted` line: `identifiants-max`
-  (read the Max account credentials) and `acces-prod` (any action on a project's production).
-  Asking for it — `enable acces-prod` — is **refused, you included**: the command names the line, exits
-  with 1 and writes your request to the log (`grant.refused`, reread in `latest actions`). The list
-  is in `runtime/src/grant.ts` and changes only by a delivery, which is read in a diff. (The action
-  names `identifiants-max` and `acces-prod` stay French: they are what the runtime matches and writes,
-  until it is translated.)
+  restart. GitHub accepts the merge only if the branch is still on the judged commit; a merge it
+  **refuses** is not retried (`merge-refused`).
+- **Everything `grant`, `base` and `pass` write is in English.** The old words (`activer`,
+  `prolonger`, `revoquer`, `--pour`, `--jusqu-a`, `--usages`, `--sans-echeance`) still answer until
+  2027-01-14, saying the new one.
+- **What no grant authorizes** is read in `run grant`, on the `never granted` line:
+  `identifiants-max` (read the Max account credentials) and `acces-prod` (any action on a project's
+  production). Asking for it is **refused, you included**: exit 1, logged (`grant.refused`). The list
+  is in `runtime/src/grant.ts`. (The two names stay French.)
 
 ⚠️ **With a grant active, code written by a cook lands on the integration branch without any
-human having read it**: its judges are the gates and the project's CI, and a reviewer that is a model.
+human having read it**: its judges are the gates, the project's CI, and a reviewer that is a model.
 
 #### A deadline, and it lapses on its own
 
 | You type | What it means |
 |---|---|
 | *(nothing)* | **No deadline**: it holds until you revoke it |
-| `--for 30min` · `4h` · `1h30` · `2d` | A duration, counted from now (`2j` is still read). **The recommended form**: a duration has no time zone, it cannot be misread |
-| `--until 18h` · `18h30` | Today at that time, **in the box's time, in UTC — not yours**. The command answers `understood: until 12 Oct 19:20 UTC — in 4 h 00` **before** writing: if the duration is not what you meant, `revoke` or `extend` in one word. A time that has already passed is **refused**, not moved to tomorrow |
-| `--until 2026-10-12T18:00` · `2026-10-12` | That day at that time; with no time, until the **end** of the day (23:59:59) |
+| `--for 30min` · `4h` · `1h30` · `2d` | A duration from now (`2j` still read). **The recommended form**: no time zone, cannot be misread |
+| `--until 18h` · `18h30` | Today at that time, **in the box's time, UTC — not yours**. The command answers `understood: until 12 Oct 19:20 UTC — in 4 h 00` **before** writing; a time already passed is **refused**, not moved to tomorrow |
+| `--until 2026-10-12T18:00` · `2026-10-12` | That day at that time; with no time, the **end** of the day (23:59:59) |
 | `--uses 10` | For ten merges |
 
-`--for` or `--until`, one or the other. **Wherever a deadline is shown** (`grant`, `status`,
-the state column of the app), the remaining time comes first and the instant follows, **time zone in
-letters**: `58 min left (until 12 Oct 19:20 UTC)`. The box does not know your time zone and
-has no need to; the log stays in UTC. `--uses` is given alone or with a date — **the first one
-reached turns the grant off**. A deadline that cannot be read is refused; nothing is written.
+`--for` or `--until`, one or the other. **Wherever a deadline is shown**, the remaining time comes
+first, then the instant with its zone: `58 min left (until 12 Oct 19:20 UTC)`. `--uses` alone or with
+a date: **the first one reached turns the grant off**. An unreadable deadline is refused.
 
-- **It lapses on its own**: a grant whose time has passed no longer holds for whoever reads it, noted
-  or not. The lapse is a fact of its own (`grant.expired`), dated at the **deadline**: `grant` reads
-  `LAPSED since …`, where your own gesture reads `REVOKED`. Lapsed while the runtime was down, it is turned off
-  at restart, before any decision.
+- **It lapses on its own**: the lapse is a fact (`grant.expired`) dated at the **deadline**: `grant`
+  reads `LAPSED since …`, where your own gesture reads `REVOKED`. Lapsed while the runtime was down, it
+  is turned off at restart, before any decision.
 - **With N uses, it counts down on the merge made, not on the attempt.** A refused merge, or a
-  stopped delivery that you merge by hand, consumes nothing. An intent without a result
-  **holds** a use until GitHub says what became of it: merged, it is **consumed**; otherwise it is
-  **given back**.
-- **A green delivery that arrives after the lapse is stopped** (`no-grant`), and its issue comment and
-  its line in the queue say that the `merge` grant lapsed on its own on …. (The issue comment is still
-  written in French — « Le grant `merge` s'est éteint seul le … » — until the runtime is translated;
-  the queue line is in English: ``the `merge` grant lapsed on its own on …``.)
+  stopped delivery you merge by hand, consumes nothing. An intent without a result **holds** a use
+  until GitHub says what became of it: merged, **consumed**; otherwise **given back**.
+- **A green delivery arriving after the lapse is stopped** (`no-grant`); its issue comment (still
+  French, « Le grant `merge` s'est éteint seul le … ») and its queue line (``the `merge` grant lapsed
+  on its own on …``) say so.
 
 #### Extending it, without revoking it
 
 `extend merge` takes `--for`, `--until`, `--uses <n>` (n **more** than what is left) or
-`--no-expiry` (lifts the deadline): **one more fact** (`grant.extended`). **Extending does not
-shorten**: a nearer date, or a limit set on a grant that had none, is
-refused — revoke, then enable again. A lapsed or revoked grant is not extended, it is
-**enabled again** with `enable`; `enable` on an active grant writes nothing and points to `extend`.
+`--no-expiry`: **one more fact** (`grant.extended`). **Extending does not shorten**: a nearer date,
+or a limit set on a grant that had none, is refused — revoke, then enable again. A lapsed or revoked
+grant is **enabled again** with `enable`; `enable` on an active grant writes nothing and points to
+`extend`.
 
 ### Seeing the pass
 
 ```bash
-npm --prefix runtime run pass              # the deliveries: phase, reason, returns used, PR — the base state first when it matters, the tally of stops without a grant at the end
+npm --prefix runtime run pass              # the deliveries: phase, reason, returns used, PR — base state first when it matters, tally of stops without a grant last
 npm --prefix runtime run pass -- 17        # the history of ticket 17: each verdict and what produced it
-npm --prefix runtime run pass -- 17 --json  # the same history for the app, with the ticket's cost and its retro: a JSON object {ticket, steps, cost, retro}
-npm --prefix runtime run pass -- 17 --relaunch  # relaunch the judgement of 17, stuck in pass — see "Relaunching a stuck delivery", below
+npm --prefix runtime run pass -- 17 --json  # same for the app, with cost and retro: {ticket, steps, cost, retro}
+npm --prefix runtime run pass -- 17 --relaunch  # relaunch the judgement of 17, stuck in pass (below)
 ```
 
 ```
@@ -91,203 +79,152 @@ BASE RED since 2026-10-09T09:20:52.000Z (5d2e7b1) — after the merge of #17: no
 #20  ESCALATED (unjudged : ci-silent)  returns 0/2  since 2026-10-08T14:40:11.000Z  https://github.com/benomite/brigade/pull/55
 ```
 
-`run pass -- <ticket>` unrolls each fact: review, verdict (`verdict no. 412: GREEN — gates
-green (code 0) · CI no check · reviewer nothing blocking`, then `judged: 77c01de merged with
-the base 4be1f07`), return, grant use, merge and the GitHub identity that made it. Both
-commands never write, and answer while the runtime is running.
+`run pass -- <ticket>` unrolls each fact: review, verdict, return, grant use, merge and the GitHub
+identity that made it. Both commands never write and answer while the runtime runs.
 
 ### Deliveries judged in parallel
 
-The pass takes deliveries in the order they were delivered, and judges **several at once when their
-zones do not overlap** — the zones the manager gives each ticket, the `zone` line of its card
-(`runtime/src/file-de-la-pass.ts`). A path overlaps another if they are equal or if one is a folder
-containing the other; the project's common paths count for no one, as on the rail. How many are
-judged at once is capped by a guardrail, `BRIGADE_MAX_JUDGEMENTS` (3 by default; see
-[`garde-fous.md`](garde-fous.md)). A delivery holds its place from the moment the pass takes it to
-the end of its merge — gates, review, CI wait, merge in flight.
+The pass takes deliveries in delivery order and judges **several at once when their zones do not
+overlap** — the `zone` line of each card (`runtime/src/file-de-la-pass.ts`). A path overlaps another
+if equal or if one is a folder containing the other; the project's common paths count for no one. The
+cap is `BRIGADE_MAX_JUDGEMENTS` (3 by default; [`garde-fous.md`](garde-fous.md)). A delivery holds its
+place from the moment the pass takes it to the end of its merge.
 
 | The delivery | What it waits for |
 |---|---|
-| its zone overlaps that of a delivery in its pass, or of one ahead of it in line | that one: `waiting for #17: their zones overlap on runtime/src/rail` |
-| **no zone** — no card, an unreadable card, off the rail — or **it wrote outside its zone** (`cook.out-of-zone`) | it is **judged alone**: it starts only once no other is in its pass, and nothing starts while it is; nothing overtakes it while it waits |
+| its zone overlaps that of a delivery in its pass, or ahead of it in line | that one: `waiting for #17: their zones overlap on runtime/src/rail` |
+| **no zone** (no or unreadable card, off the rail) or **it wrote outside its zone** (`cook.out-of-zone`) | it is **judged alone**: it starts once no other is in its pass, nothing starts while it is; nothing overtakes it while it waits |
 | the cap is reached | a free slot: `waiting for a free slot: 3 judgements at once at most` |
 
-A delivery that waits keeps its place: nothing on its zone overtakes it, and nothing at all if it is
-judged alone. A delivery whose judgement cannot start — GitHub failing, a PR that does not open —
-does not hold the queue: it goes behind the others until its judgement starts. With
-`BRIGADE_MAX_JUDGEMENTS=1`, the pass judges one delivery at a time, in delivery order, as before.
-
-`pass` names, for a delivery that waits, those in their pass, its place in line, and what holds it:
-
-```
-#18  delivered, waiting for its turn — #17, #19 are in their pass, next in line — waiting for #17: their zones overlap on runtime/src/rail  returns 0/2  since …
-#20  delivered, waiting for its turn — #17, #19 are in their pass, 1 ahead of it — judged alone: it declares no zone  returns 0/2  since …
-```
+A waiting delivery keeps its place. One whose judgement cannot start (GitHub failing, a PR that does
+not open) goes behind the others. With `BRIGADE_MAX_JUDGEMENTS=1`, one at a time, in delivery order.
+`pass` names, for a waiting delivery, those in their pass, its place, and what holds it.
 
 #### The safety net behind parallel merges
 
-A green delivery is merged on its own verdict, whatever runs beside it. Merges still go one at a
-time, and a delivery judged on a base that moved since — another one, judged at the same time, was
-merged first — is **judged again** on the new base before it is merged (see "Green means green once
-merged" in [`pass.md`](pass.md)). After every merge, CI replays the base: its gates are played on
-the base alone, as on any delivery. **A red base stops the kitchen**: nothing is taken, judged or
-merged until the base is green again or the chef has had it replayed and repaired. The log of the
-red names the parallel merges that preceded it, so the chef can see which of them to look at first.
+Merges go one at a time, and a delivery judged on a base that moved since is **judged again** on the
+new base before merging ("Green means green once merged", [`pass.md`](pass.md)). After every merge, CI
+replays the base. **A red base stops the kitchen** until it is green again or the chef has had it
+replayed and repaired; the log of the red names the parallel merges that preceded it.
 
 #### Relaunching a stuck delivery
 
-A delivery is **stuck** when it is in pass, delivered and never judged since, and **nothing in its
-pass holds it back** — no pass is active, or none it waits for. The running pass takes such a delivery
-within the second; one that stays there has been forgotten. `status` flags it after **15 minutes**
-from its delivery (`COINCEE_APRES_MS`, in `file-de-la-pass.ts`): see the `stuck` block in
-[`etat-et-mesures.md`](etat-et-mesures.md).
+A delivery is **stuck** when it is in pass, delivered, never judged since, and **nothing in its pass
+holds it back**. The running pass takes such a delivery within the second; one that stays has been
+forgotten. `status` flags it after **15 minutes** (`COINCEE_APRES_MS`, `file-de-la-pass.ts`): see the
+`stuck` block in [`etat-et-mesures.md`](etat-et-mesures.md).
 
-`brigade <project> pass <n> --relaunch` (`run pass -- <n> --relaunch` on the dev workstation) is the
-way out. It writes `pass.relaunched` to the log (author `chef`, `run`: the delivery), which wakes the
-running pass at once: it takes the delivery **through its queue**, like any other, and its history
-then shows `judging … (run …)` (`pass.started`). The command prints
-`brigade : #644: a judgement is queued — the pass takes it at its turn, and its log shows \`pass.started\``,
-followed by `— no runtime is running: it is judged at its next start` when no runtime is running.
-The gesture changes no phase: the delivery stays `delivered, to be judged` until the pass takes it.
-
-It refuses, exits with 1, says why, and writes nothing, for a delivery that is not stuck:
+`brigade <project> pass <n> --relaunch` writes `pass.relaunched` (author `chef`, `run`), which wakes
+the running pass at once: it takes the delivery **through its queue**, and its history shows
+`judging … (run …)` (`pass.started`). It says a judgement is queued, plus `— no runtime is running: it
+is judged at its next start` when none runs. No phase changes. It refuses, exits 1, says why and
+writes nothing for a delivery that is not stuck:
 
 | The card | The refusal |
 |---|---|
-| being judged, or its merge in flight | `#17 already has an active pass: it is being judged since … — nothing to relaunch` |
-| waiting for its turn behind others | `#18 is waiting for its turn — #17 is in its pass, next in line: it is not stuck, the pass judges it after` (`#17, #19 are in their pass` when several are) |
+| being judged, or merge in flight | `#17 already has an active pass: it is being judged since … — nothing to relaunch` |
+| waiting behind others | `#18 is waiting for its turn — #17 is in its pass, next in line: it is not stuck, the pass judges it after` |
 | queued for a reason (`base-red`, `machine-saturated`, …) | `#18 is queued (base-red): it is not stuck, the pass takes it up on its own once that is lifted` |
-| judged, merged or served | `#17 is already judged green: there is no judgement to relaunch` — or `already merged`, `already served`, `already judged red, and returned to a cook`, … |
-| being cooked, never delivered, off the rail | `#17 is being cooked: there is no delivery to judge yet`, `#17 has never been through the pass: …`, `#17 left the rail: …` |
+| judged, merged or served | `#17 is already judged green: there is no judgement to relaunch` — or `already merged`, `already served`, `already judged red, and returned to a cook` |
+| being cooked, never delivered, off the rail | `#17 is being cooked: there is no delivery to judge yet`, `…never been through the pass…`, `…left the rail…` |
 
-`rail send-back` keeps its contract: it only sends back a delivery that awaits the chef — green and
-not merged, or escalated —, and refuses a stuck one with the same message as before
-(`#644 has no delivery waiting for you: only a delivery the pass holds for you — green and not
-merged, or escalated — is sent back`). Relaunching does not return the delivery to a cook: it has it
-judged.
+`rail send-back` only sends back a delivery that awaits the chef (green and not merged, or
+escalated) and refuses a stuck one (`#644 has no delivery waiting for you: …`). Relaunching has it
+judged; it does not return it to a cook.
 
-`retro`, in `--json`, is the ticket's latest retro (#1038): `{at, text, lessons}`, `text` what
-its cook wrote between `<retro>` and `</retro>` (null if it wrote nothing), `lessons` what it
-retained, at most three, each `{kind: "propose" | "reconfirm", id, text}` — `id` and `text` null if
-the project's notebook cannot find it. `retro` is null as long as the ticket has no retro.
+`retro`, in `--json`, is the ticket's latest retro (#1038): `{at, text, lessons}`, `text` what the
+cook wrote between `<retro>` and `</retro>` (null if nothing), `lessons` at most three
+`{kind: "propose" | "reconfirm", id, text}`. `retro` is null until the ticket has one.
+
+The events not documented in [`pass.md`](pass.md) (which owns `pass.started`, `pass.reviewed`,
+`pass.ci-*`, `pass.test-fix-opening`, `pass.held`, `pass.escalated`, `pass.second-judged`,
+`pass.pr-closed`, `pass.abandoned`):
 
 | Event | Meaning |
 |---|---|
-| `grant.activated`, `grant.revoked` | The chef's commands (no ticket). `until`, `uses`: the deadline, if there is one |
-| `grant.refused` | The chef asked for what no grant authorizes: `action`, and `line`, the line that forbids it. Nothing is granted |
-| `grant.extended`, `grant.expired` | The chef extends (`until`, `uses` that are **added**; null, the limit is lifted); the grant lapsed on its own (`cause`: `until` or `uses`; `since`: the deadline) |
-| `pass.entered` | A delivery **off the rail** enters the pass — the PR of a closing pass (`run`, `branch`, `pr`, `number`). Its `ticket`, and that of every fact of its pass, is the number of that PR |
-| `pass.relaunched` | The chef relaunched the judgement of a stuck delivery (`run pass -- <n> --relaunch`, author `chef`): `run`, the delivery. It changes no phase; the running pass wakes on it and takes the delivery through its queue |
-| `pass.started`, `pass.pr-opened` | The pass takes a delivery (run, PR, judged commit); it opened the PR the station could not open (`reconciled`: found again afterwards) |
-| `pass.reviewed` | The reviewer reread the delivery of the `run`, on this `sha`: `review`, `outcome` (`green`, `red`, `unreadable` + `reason`), `summary`, `findings`, `truncated`. Unreadable, it is followed by another on the same `sha`, twice at most |
-| `pass.ci-rerun` | The CI of the delivery of the `run`, on this `sha`, was red only on tests it does not touch: the failed jobs of the GitHub Actions `runs` were rerun — `checks`, the red jobs rerun; `tests`, the failing tests, as repository paths. Once per delivery. With `alreadyJudged`, they were rerun because a red verdict of the ticket had already judged them, whatever they said — a send-back never judges the same CI run twice; `tests` is then empty. Once per judged run. No phase changes: no send-back, no card |
-| `pass.test-fix-opening` | The pass is about to open the `fix` ticket of the unstable `test`, red twice on the commit `sha` of the delivery: written before the call to GitHub, so that an issue whose answer was lost is found again by its marker instead of being opened twice |
-| `pass.ci-excused` | The CI of the commit `sha` was red on jobs, `checks`, that have no green run on `base` (read on its last ten commits): they are reported, not judged, and the delivery is judged without them. Written once per commit and set of jobs, with a comment on the issue. No phase changes: no send-back, no card |
-| `pass.ci-set-aside` | The CI of the commit `sha` stayed red, after the rerun of its failed jobs, on the same tests the delivery does not touch, the base green: its red jobs, `checks`, are set aside and the delivery is judged without them. `fixes`: for each test, its `fix` ticket — opened for it (found again by its marker if GitHub's answer was lost), or already open (`reused`). No phase changes: no send-back, no card |
-| `pass.judged` | The verdict, with `sha`, `base`, `merged` (null: the merge does not go through), `gates`, `ci`, `review`, `findings`, `judgeModified`, `declarations`, `noDiff` |
-| `pass.served`, `grant.used` | Green and with no diff, served without a merge; the intent to merge, use of the grant — each with the number of the verdict that authorizes it |
-| `merge.done` | Merged. `by`: `pass` or `outside`; `actor`: the GitHub account; `reconciled`: noted after a restart; `unverified`: done outside the runtime, the base is to be checked |
-| `merge.failed` | The merge did not go through: `interrupted`, or GitHub's refusal |
-| `pass.held` | Green, not merged: `reason` (`no-grant`, `review-required`, `merge-refused`), `cause`, `expired` |
-| `pass.second-judged` | Stopped because it touches its judges, the delivery of the `run`, on this `sha`, was judged by the second judge — once: `verdict` (`not-weakened`, `weakened`, `cannot-establish`), `reason`; `judge`, `model`, `effort` — its run and its calibration, null if it was not launched; `reviewer` and `review` — the reviewer's calibration and the run of its review; `change` — what the delivery changes in its judges, in a few plain words for the chef's card, absent if it did not say it. `not-weakened`: it goes back toward the merge, like an ordinary green delivery; otherwise, a `gesture` card (`todo.entered`, author `pass`) is written with the verdict |
-| `pass.waiting` | Neither judged nor merged for now: `base-red`, `machine-saturated`, `gates-cut-saturated` (with the `sha` whose gates were cut). It goes on by itself |
-| `pass.returned`, `pass.deferred`, `pass.outdated` | Red: return `n` of 2, with the findings; the hand passes to the manager; GitHub required an up-to-date branch and refused the merge, `findings` goes back to the cook |
-| `pass.escalated` | Escalated: `reason` (`still-red`, `unjudged`, `manager-split`), `cause` — the kitchen takes up a technical one (`pass.kitchen-took-over`), see `pass.md` |
-| `pass.pr-closed` | The PR was closed without a merge: the pass no longer judges, returns or merges this delivery. Written once |
-| `pass.abandoned` | The ticket left the rail without its delivery being merged: `branch`, `pr` (still open, or null), `merged`, `closed`. A merge intent in flight finds its end there |
-| `base.checked` | No ticket. The gates played on the base alone: `sha`, `outcome` (`green`, `red`, `skipped`), `gates`, `tickets`; on a `skipped`, `red` (the red that remains) and `reason` (the attempt did not run) |
-| `base.recheck-requested`, `base.recheck-held` | A replay is requested — by the chef (`run base -- replay`), or by the pass, once per red (author `pass`); the saturated machine holds it back (`resource`, `observed`, `limit`) |
-| `base.repair-opening`, `base.repair-opened` | The red held after its replay: the creation of the repair ticket is announced (`sha`), then the ticket is born, under its number (`sha`, `failures`, `reconciled`: found on GitHub rather than created) |
-| `base.check-held`, `base.check-resumed` | The base cannot be fetched (`reason`, once per cause); it can be fetched again |
-
-`pass.rehearsed`, `pass.base-moved` and `pass.replayed` are no longer written: a log that
-carries them is still read.
+| `grant.activated`, `grant.revoked` | The chef's commands (no ticket). `until`, `uses`: the deadline, if any |
+| `grant.refused` | The chef asked for what no grant authorizes: `action`, `line` |
+| `grant.extended`, `grant.expired` | Extended (`until`, `uses` **added**; null, limit lifted); lapsed on its own (`cause`: `until` or `uses`; `since`: the deadline) |
+| `pass.entered` | A delivery **off the rail** enters the pass (`run`, `branch`, `pr`, `number`); its `ticket`, and that of every fact of its pass, is the PR number |
+| `pass.relaunched` | The chef relaunched a stuck delivery: `run`. Changes no phase |
+| `pass.pr-opened` | The pass opened the PR the station could not (`reconciled`: found again afterwards) |
+| `pass.judged` | The verdict: `sha`, `base`, `merged` (null: the merge does not go through), `gates`, `ci`, `review`, `findings`, `judgeModified`, `declarations`, `noDiff` |
+| `pass.served`, `grant.used` | Green with no diff, served without a merge; the intent to merge — each with the number of the authorizing verdict |
+| `merge.done` | Merged. `by`: `pass` or `outside`; `actor`: GitHub account; `reconciled`: noted after a restart; `unverified`: done outside, base to be checked |
+| `merge.failed` | Did not go through: `interrupted`, or GitHub's refusal |
+| `pass.waiting` | Neither judged nor merged for now: `base-red`, `machine-saturated`, `gates-cut-saturated` (with `sha`). Goes on by itself |
+| `pass.returned`, `pass.deferred`, `pass.outdated` | Red: return `n` of 2, with findings; the hand passes to the manager; GitHub required an up-to-date branch and refused the merge, `findings` goes back to the cook |
+| `base.checked` | No ticket. Gates on the base alone: `sha`, `outcome` (`green`, `red`, `skipped`), `gates`, `tickets`; on `skipped`, `red` and `reason` |
+| `base.recheck-requested`, `base.recheck-held` | A replay requested by the chef (`run base -- replay`) or the pass (once per red, author `pass`); a saturated machine holds it (`resource`, `observed`, `limit`) |
+| `base.repair-opening`, `base.repair-opened` | The red held after replay: the repair ticket is announced (`sha`), then born (`sha`, `failures`, `reconciled`) |
+| `base.check-held`, `base.check-resumed` | The base cannot be fetched (`reason`, once per cause); it can again |
 
 ### What is left after a cook
 
-Each cook has its worktree (`worktrees/<run>`, under the project's state — or, on the chef's computer,
+Each cook has its worktree (`worktrees/<run>` under the project's state, or on the chef's computer
 `~/.local/share/brigade/station/worktrees/<project>/<run>`) and its local branch (`cook/<run>`) in the
-station's clone. The log names it `worktrees/<run>` in both cases. You have nothing to do.
+station's clone.
 
 | What is left | When it goes |
 |---|---|
-| **the worktree** of the cook, with what the project ignores | at the end of the cook, however it ends; or at the next start, if the runtime was killed |
-| **the local branch** `cook/<run>` | once the ticket is **served** or **off the rail**, if all its commits are on the origin. Otherwise it stays, quietly |
-| **the remote branch** | never by the runtime (GitHub setting *Automatically delete head branches*) |
+| **the worktree**, with what the project ignores | at the end of the cook, however it ends; or at next start if the runtime was killed |
+| **the local branch** `cook/<run>` | once the ticket is **served** or **off the rail**, if all its commits are on the origin; otherwise it stays, quietly |
+| **the remote branch** | never by the runtime (GitHub *Automatically delete head branches*) |
 
-**What lies around is committed first**, in the name of `brigade`: modified tracked files,
-new files the project does not ignore. For a delivery, that commit goes with it (see "The cook does
-not deliver, the station harvests"); otherwise it stays on the local branch, **never pushed**.
-To find the work of a failed cook — the branch name is in the issue comment:
+**What lies around is committed first**, in the name of `brigade` (modified tracked files, new files
+the project does not ignore). For a delivery that commit goes with it ("The cook does not deliver, the
+station harvests"); otherwise it stays on the local branch, **never pushed**. A failed cook's work:
 `git -C <clone> log --stat <base>..cook/<run>`.
 
-**A worktree whose cook rewrote its `.git` file** (or the `commondir` it names) no longer points
-to its repository in the clone: the runtime runs no `git` in it — it would read as a configuration
-what the cook put there. It is **abandoned** instead: nothing in it is committed, the directory is
-removed, and the local branch stays as the clone has it — what the cook committed there, and what
-the station pushed, is untouched. **What leaves with it is said**: every path that differs from the
-branch, at the end of its cook (`journalctl`) and in the log (`worktree.removed`, `abandoned`).
-Those that an earlier runtime kept for this reason (`cleanup failed`, "no longer points to its
-repository" in `status`) go at the next tick.
+**A worktree whose cook rewrote its `.git` file** (or the `commondir` it names) no longer points to
+its repository: the runtime runs no `git` in it. It is **abandoned**: nothing committed, directory
+removed, the local branch untouched. **What leaves with it is said**: every path that differs from
+the branch, in `journalctl` and the log (`worktree.removed`, `abandoned`).
 
 **What cannot be tidied is said, and nothing in it is touched** (`worktree.kept`; `journalctl`,
-`status`): a worktree that is no longer on its branch, that is no longer a worktree, a `git` that
-fails. The runtime retries at every tick. To lift it, read `detail`: `git switch cook/<run>`
-or `git rebase --abort` in the worktree; otherwise `git -C <clone> worktree remove --force
-<worktree>`. While it lasts, a return onto its branch waits ten minutes (`worktree-failed`).
+`status`): a worktree no longer on its branch or no longer a worktree, a failing `git`. Retried at
+every tick. To lift it, read `detail`: `git switch cook/<run>` or `git rebase --abort` in the
+worktree; otherwise `git -C <clone> worktree remove --force <worktree>`. Meanwhile a return onto its
+branch waits ten minutes (`worktree-failed`).
 
-In the log: `worktree.removed` (`worktree`, `branch`, `harvest` — the commit of what lay around,
-or `null`; for an abandoned worktree, `abandoned`: `detail` — which file was rewritten —,
-`against` — the branch, or the base if the clone no longer has it —, `dropped` — the first hundred
-paths, prefixed `M` modified, `D` deleted, `T` type changed, `?` new, a whole new directory ending
-in `/` — and `total`), `worktree.kept` (`reason`, `detail`; written once), `branch.removed`.
+In the log: `worktree.removed` (`worktree`, `branch`, `harvest` — the commit or `null`; if abandoned,
+`abandoned`: `detail`, `against`, `dropped` — first hundred paths prefixed `M`, `D`, `T`, `?`, a new
+directory ending in `/` — and `total`), `worktree.kept` (`reason`, `detail`; once), `branch.removed`.
 
-**Prune nothing in the station's clone** (`git fetch --prune`): "absent from the origin" is
-read there without network, and a branch merged by *squash* would be kept wrongly. Only the worktrees
-the log tells about are touched.
+**Prune nothing in the station's clone** (`git fetch --prune`): "absent from the origin" is read there
+without network, and a branch merged by *squash* would be kept wrongly.
 
 ### What the pass does not guarantee
 
-- **"Only the pass merges" is closed by one GitHub identity per role, and only where you have
-  set it up** (the three Apps and the branch rule of "One GitHub identity per role"). What
-  remains unguaranteed:
-  - **The cook runs under the runtime's Unix account.** Without the partition, it reads what that account reads:
-    the Apps' keys, a `gh auth login` or an SSH key left on the machine. **The partition
-    closes it** for what it hides (`/etc/brigade`); `~/.config/gh`, `~/.ssh` are closed only if you
-    add them to `BRIGADE_SANDBOX_HIDDEN` (see "The partition"). Without it, the project's secrets
-    are partitioned only by file permissions (see "The project's secrets").
-  - **The runtime holds the three keys**: a flaw in the runtime is worth all three roles.
-  - **The branch rule is a repository setting**, which the runtime does not check. Without it,
-    the cook identity (`contents: write`) can push to the integration branch.
-  - **The repository's humans keep their rights**: a merge by hand reads `outside`, and the
-    base is checked afterwards.
-  - **A ticket that touches `.github/workflows/` cannot be delivered** under the cook identity, which does
-    not have the `workflows` right: the cook fails (`push-failed`), the work stays on its
-    local branch, to be pushed by hand.
-  - **Under the single identity** — without `BRIGADE_GITHUB_APPS_DIR` — none of this is closed:
-    cook and pass go through the same `gh`, and what holds a cook back is the list of tools
-    forbidden at launch, **in good faith**. The runtime says so at every start. A branch
-    protection can still forbid any direct push there (`installer.md`, "Protect the integration
-    branch").
-- **The gates played are those of the merge — so the cook's, if it touched them —**, with the
-  runtime's rights. Hence the `review-required` rule.
-- **What is judged is the merge with the base of the moment**, but: a merge made **by hand**
-  can slip in between the last look at the base and the call to GitHub (it triggers a
-  check of the base); **a broken base is seen red only when something makes it judged**
-  — a direct push is not enough — and stays so until you have repaired it or had it replayed;
-  a stopped delivery is not rejudged when the base moves; **the CI and the reviewer judge the
-  branch's commit, not the merge**. For the CI, the pass draws a single consequence: a
-  red on a branch that does not have the base's head is not a verdict (see "The CI says").
-  "Without the base's head" is read in the clone — does the fetched base have commits that the
-  delivered commit does not? —, not at GitHub: a `pull_request` workflow, which judges a *merge ref*
-  that the clone does not have, is held stale by the same test, even if it ran after the last
-  move of the base. **Two non-actions, on purpose**: the pass never asks GitHub to
-  replay a CI, and **the reviewer is not reread when only the base moved** — its object is the
-  cook's work, which has not changed.
-- **The reviewer is a model, of the same engine as the cook**: it may share its blind spot, and
-  be persuaded by what it rereads. **"Without write access" rests on its tool list**,
-  not on a fence in the system. It has no GitHub identity: the pass publishes its
-  review.
+- **"Only the pass merges" is closed by one GitHub identity per role, only where you set it up** (the
+  three Apps and the branch rule of "One GitHub identity per role"). Unguaranteed:
+  - **The cook runs under the runtime's Unix account**: without the partition it reads what that
+    account reads (the Apps' keys, `gh auth login`, an SSH key). **The partition closes** what it
+    hides (`/etc/brigade`); `~/.config/gh`, `~/.ssh` only if added to `BRIGADE_SANDBOX_HIDDEN`. Without
+    it, secrets rest on file permissions only.
+  - **The runtime holds the three keys**: a flaw in it is worth all three roles.
+  - **The branch rule is a repository setting** the runtime does not check; without it the cook
+    identity (`contents: write`) can push to the integration branch.
+  - **The repository's humans keep their rights**: a merge by hand reads `outside`, base checked after.
+  - **A ticket touching `.github/workflows/` cannot be delivered** under the cook identity (no
+    `workflows` right): `push-failed`, work stays on its local branch, to push by hand.
+  - **Under the single identity** (no `BRIGADE_GITHUB_APPS_DIR`) none of this is closed: cook and pass
+    share one `gh`, and the cook is held only by the tool list forbidden at launch, **in good faith**.
+    The runtime says so at every start.
+- **The gates played are those of the merge, so the cook's if it touched them**, with the runtime's
+  rights. Hence `review-required`.
+- **What is judged is the merge with the base of the moment**, but: a merge **by hand** can slip in
+  between the last look at the base and the call to GitHub (it triggers a base check); **a broken base
+  is seen red only when something makes it judged** — a direct push is not enough — until repaired or
+  replayed; a stopped delivery is not rejudged when the base moves; **the CI and the reviewer judge
+  the branch's commit, not the merge**. A red on a branch without the base's head is not a verdict
+  (see "The CI says"), read in the clone (does the fetched base have commits the delivered commit
+  lacks?), not at GitHub: a `pull_request` workflow judging a *merge ref* the clone lacks is held
+  stale by the same test. **Two non-actions, on purpose**: the pass never asks GitHub to replay a CI,
+  and **the reviewer is not reread when only the base moved**.
+- **The reviewer is a model, of the same engine as the cook**: it may share its blind spot.
+  **"Without write access" rests on its tool list**, not a fence in the system. It has no GitHub
+  identity: the pass publishes its review.
 - **A ticket off the rail closes nothing behind it**, and its departure is seen only at the poll.
-- **A new file that the project does not ignore goes into the PR**, if the cook left it in a
-  delivery. The reviewer is warned; the only guard is the project's `.gitignore`.
+- **A new file the project does not ignore goes into the PR** if the cook left it; the only guard is
+  `.gitignore`.

@@ -1,29 +1,26 @@
 ### A remote station pulls its work
 
 **The chef's workstation connects to the box, never the other way round.** The box cannot launch a
-cook on the chef's machine and has no path to their workstation. A station that runs somewhere other
-than on the runtime's machine — `mac/claude`, with the chef's connected Chrome — therefore declares
-itself `distante` (the setting word stays French until the runtime is translated), and **it is the
-one that comes**: it announces itself, claims a ticket, renews its lease, hands back its delivery.
-A second station of the project does so **through GitHub alone** — no ssh, no host, no key — as
-described under "A second station of the project" below. This chapter describes the box side. The desktop app no longer plays a remote station for a project's box: the program that plays
-such a station is a station running on that computer.
+cook on the chef's machine and has no path to it. A station that runs elsewhere than on the runtime's
+machine — `mac/claude`, with the chef's connected Chrome — declares itself `distante` (the word stays
+French until the runtime is translated), and **it is the one that comes**: it announces itself, claims
+a ticket, renews its lease, hands back its delivery. A second station of the project does so **through
+GitHub alone** (below). This chapter describes the box side; the program that plays a remote station
+is a station running on that computer, not the desktop app.
 
 ```bash
 brigade <project> station stations box/claude:30:code,mac/claude:1:chrome-connecté:distante
 ```
 
-**The box's gesture, for a remote station that is not a second station**, launched by the station from
-its workstation — `brigade <name> pull <station> <request>`, reached by the chef's own means (the desktop app does not do it). A second station of the project
-never uses it: it asks through its gist (see below). The gesture opens no connection: it writes the
-request to the project's log (`remote.asked`), the running runtime reads it when it wakes (within a
-second) and answers the same way (`remote.answered`). It returns the answer as **JSON, on one line**,
-and its exit code says the rest:
+**The box's gesture, for a remote station that is not a second station**, is `brigade <name> pull
+<station> <request>`, launched from its workstation. It opens no connection: it writes the request to
+the project's log (`remote.asked`), the runtime reads it within a second and answers the same way
+(`remote.answered`). The answer is **JSON, on one line**:
 
 | Request | What it does | Answer |
 |---|---|---|
 | `pull <station> announce [--sandbox <json>]` | the station says it is there — and, with `--sandbox`, what it knows of its workstation's sandbox | what it provides, its cap on cooks, the presence delay, the lease duration, the guardrail caps |
-| `pull <station> claim [--sandbox <json>]` | takes a ticket, if there is one for it — `--sandbox`, as for `announce` | `mission` — the ticket, the run, the branch to create (`cook/<run>`, from `base`) or to resume (`resumes`, a send-back from the pass), the calibration, the cook's brief and the arguments of `claude`, the caps, the lease deadline — or `mission: null`, and `held`: what holds it back |
+| `pull <station> claim [--sandbox <json>]` | takes a ticket, if there is one for it | `mission` — the ticket, the run, the branch to create (`cook/<run>`, from `base`) or to resume (`resumes`, a send-back from the pass), the calibration, the cook's brief and the arguments of `claude`, the caps, the lease deadline — or `mission: null`, and `held`: what holds it back |
 | `pull <station> renew <run> --proof <fingerprint> --turns <n> --tokens <n>` | shows that the cook has worked, and what it has consumed | the new lease deadline |
 | `pull <station> return <run> --end livre\|echec [--reason <reason>] --turns <n> --tokens <n>` | hands the ticket back; the cook's last message on standard input | what the box kept: `done`, or `failed` and why |
 
@@ -32,362 +29,249 @@ The values `livre` and `echec` of `--end` stay French until the runtime is trans
 | Code | Meaning |
 |---|---|
 | `0` | the request is served |
-| `1` | it is refused: `refusal` says why, `said` says it in plain words — and **`stop`**, when the cook is to be stopped (see below) |
+| `1` | refused: `refusal` says why, `said` says it in plain words — and **`stop`**, when the cook is to be stopped |
 | `2` | the gesture is badly written: nothing is asked of the box |
-| `3` | the box did not answer — no runtime is running, or it did not answer within thirty seconds: nothing can be assumed about what it did with the request |
+| `3` | the box did not answer (no runtime running, or none within thirty seconds): nothing can be assumed |
 
-**The rules are those of a box cook, not rules of their own.** A cook on the chef's workstation is
-not a privileged cook:
+**The rules are those of a box cook, not rules of their own.**
 
 - **It only receives the ticket it can cook**: the first one, in service order, whose card asks only
-  for things it provides (see "The capabilities a ticket asks for" in [`station.md`](station.md)) —
-  never another, even if it waits in front. And, with no partition on its workstation, **a ticket
-  that asks for one of its capabilities**: an ordinary ticket only comes to it if it is declared
-  `distante+ordinaires`, its workstation having the sandbox (see below). Only a station **declared
-  `distante`** pulls: an unknown name (`unknown-station`) or the name of a box station (`not-remote`)
-  is refused, and does not count as presence.
+  for things it provides (see "The capabilities a ticket asks for" in [`station.md`](station.md)). An
+  ordinary ticket only comes to it if it is declared `distante+ordinaires` and its workstation has the
+  sandbox (see below). Only a station **declared `distante`** pulls: an unknown name
+  (`unknown-station`) or a box station (`not-remote`) is refused, and is not presence.
 - **The bounds of a taking are the same**: the chef's "stop", the breaker, the red base (only its
-  repair ticket leaves, and from a station of the box), its quota, its cap on cooks (`run station --
-  cooks <N>` sets it too), the zones held by the cooks in flight, from here or from elsewhere. A
-  ticket that is not calibrated or whose card is unreadable is refused the same way, on its issue.
-  The intake (`BRIGADE_MAX_SETUPS`), the machine guard and the arbiter between projects do not hold
-  it back: they guard **this** machine, and its cook weighs on its own.
-- **Its cook is launched by the guardrails**, like any other (`cook.launched`, with `remote: true`
-  and the same `limits`) — with no process here: the box can neither signal it nor read its stream.
-  It therefore holds the four caps on what it has: **turns and tokens** on the measure the station
-  reports at each renewal (the same judgement as for a box cook, in the same code), **duration** on
-  its own clock since the launch, **idleness** when that measure no longer moves — or none arrives
-  any more. The tick's reading (`cook.progressed`), the chef's "stop", the end (`cook.exited`) and the
-  breaker's count are those of any cook.
-- **The lease is only renewed on a proof of work**: `--proof` carries the fingerprint of the cook's
-  worktree — the head of its branch and the state of its files, which the box station reads itself in
-  its own. With no proof, or on the **same** fingerprint as the time before, the renewal is refused
-  (`no-progress`): neither the station's presence nor what its cook consumes holds a ticket. The
-  lease then falls at its deadline, and the cook is stopped (`guard.tripped`, `reason: lease`) — at
-  mid-lease, `cook.stalled` had signalled it.
+  repair ticket leaves, from a box station), its quota, its cap on cooks (`run station -- cooks <N>`
+  sets it too), the zones held by cooks in flight; a ticket not calibrated or with an unreadable card
+  is refused. The intake (`BRIGADE_MAX_SETUPS`), the machine guard and the arbiter between projects
+  do not hold it back: they guard **this** machine.
+- **Its cook is launched by the guardrails** (`cook.launched`, with `remote: true` and the same
+  `limits`), with no process here: the box can neither signal it nor read its stream. It holds the four
+  caps on what it has: **turns and tokens** on the measure reported at each renewal, **duration** on
+  its own clock since the launch, **idleness** when that measure stops moving or arriving. The
+  reading, "stop", end and breaker's count are those of any cook.
+- **The lease is only renewed on a proof of work**: `--proof` is the fingerprint of the cook's
+  worktree (the head of its branch and the state of its files, which the station reads itself). With
+  no proof, or the **same** fingerprint as before, the renewal is refused (`no-progress`); the lease
+  falls at its deadline and the cook is stopped (`guard.tripped`, `reason: lease`; `cook.stalled` had
+  signalled it at mid-lease).
 - **"Stopping" a remote cook means accepting nothing more from it.** The box has nobody to signal: the
-  end is written to the log at once, the ticket goes back to the rail, and the station learns it at
-  its next request — refusal `stopped`, with `stop`: `turns`, `tokens`, `duration`, `idle`, `lease`,
-  `stop` (the chef, or the ticket left its hands) or `interrupted` (the runtime restarted: like those
-  of the box, its cooks do not survive it). It is up to the station to stop its own; what the cook
+  end is written at once, the ticket goes back to the rail, and the station learns it at its next
+  request — refusal `stopped`, with `stop`: `turns`, `tokens`, `duration`, `idle`, `lease`, `stop`
+  (the chef, or the ticket left its hands) or `interrupted` (the runtime restarted). What the cook
   would deliver afterwards is not received.
-- **It receives nothing more than a box cook**: no project secret, no GitHub token, no grant. The
-  brief and the arguments of `claude` are those a box cook would have received for this ticket — the
-  same forbidden tools. What its workstation can do otherwise (its `gh`, its browser) is its own: the
-  box neither gives nor guarantees any of it.
-- **Its delivery goes through the pass, the same one.** The cook does not push: it is the station that
-  pushes `cook/<run>` **to the origin** (GitHub), then hands back (`--end livre`). The box fetches the
-  branch from the origin — never from the workstation —, looks in it for the shape of Claude's
-  credentials, opens the PR, writes the report (`cook.reported`) and sends the ticket to the pass:
-  same gates, same reviewer, same `merge` grant, same send-backs. With no commit on the origin, what
-  the cook delimited in its last message is its deliverable (`no-diff`); with nothing delimited, it
-  delivered nothing (`no-deliverable`). A send-back goes to the first station that can cook the
-  ticket, from here or from elsewhere: its branch is on the origin.
-- **If its workstation is closed or asleep in the middle of a cook, nothing it pushed is lost.** Its
-  station goes quiet, its lease falls (or its idleness cap), and the ticket goes back to **queued**.
-  Before handing it back to service, the box rereads the cook's branch on the origin: if it carries
-  commits beyond the base, that is the **kept work** — the report says so (`cook.reported`, `kept`:
-  its commits) and so does the issue. The next cook **restarts from it**, instead of starting over
-  from zero: on the box, in a worktree attached to that branch as the origin carries it; on a remote
-  station, with the branch in its mission (`resumes`, `returns: 0` — it is not a send-back). Its
-  brief tells it to finish what is started, and its launch names the cook it resumes
-  (`cook.launched`, `continues`). Nothing on the origin: it starts from the base, like a first cook —
-  a box station rereads the origin just before leaving, in case the station had pushed in the
-  meantime. A branch that carries the shape of Claude's credentials is never resumed. A send-back from
-  the pass comes first: its branch is that of the delivery. When it wakes, the station learns at its
-  next request that its cook is stopped (`stopped`, `lease`); what it would deliver is no longer
-  received, and the ticket, which the box may have taken up again, never has more than one cook at a
-  time. A remote station only pushes at delivery: a cook lost before it delivered has, today, left nothing
-  on the origin.
+- **It receives nothing more than a box cook**: no project secret, GitHub token or grant; the same
+  brief, arguments of `claude` and forbidden tools. What its workstation does otherwise (its `gh`, its
+  browser) is its own: the box neither gives nor guarantees it.
+- **Its delivery goes through the same pass.** The station pushes `cook/<run>` **to the origin**, then
+  hands back (`--end livre`). The box fetches the branch from the origin — never from the
+  workstation —, looks in it for the shape of Claude's credentials, opens the PR, writes the report
+  (`cook.reported`) and sends the ticket to the pass: same gates, reviewer, `merge` grant and
+  send-backs (to the first station that can cook the ticket). With no commit on the origin, what the
+  cook delimited in its last message is its deliverable (`no-diff`); nothing delimited, nothing
+  delivered (`no-deliverable`).
+- **If its workstation is closed or asleep mid-cook, nothing it pushed is lost.** The lease (or
+  idleness cap) falls and the ticket goes back to **queued**. Before handing it back to service, the
+  box rereads the cook's branch on the origin: commits beyond the base are the **kept work**
+  (`cook.reported`, `kept`, and the issue). The next cook **restarts from it**: on the box, in a
+  worktree attached to that branch; on a remote station, with the branch in its mission (`resumes`,
+  `returns: 0` — not a send-back); `cook.launched` names the cook it resumes (`continues`). Nothing
+  on the origin: it starts from the base. A branch that carries the shape of Claude's credentials is
+  never resumed; a send-back from the pass comes first. A woken station learns that its cook is
+  stopped (`stopped`, `lease`). A remote station only pushes at delivery: a cook lost before
+  delivering has left nothing.
+- **What is not guaranteed.** The proof of work and the measure of turns and tokens are what the
+  station says. A remote cook stopped by a guardrail delivers nothing, even if it had committed. The
+  shape of Claude's credentials found in a remote delivery holds it back from the pass, but its branch
+  **is already on the origin**: the issue says to delete it.
 
 **Presence: a remote station that has not shown up recently is absent.** Any request shows it. Past
-the presence delay (`BRIGADE_PRESENCE_MINUTES`, two minutes by default) without receiving one, the
-runtime writes it (`station.absent`); at the next one, `station.present`. **It is not a failure** —
-its workstation is off, or elsewhere:
-
-- the tickets **that only it can cook** — all the stations that provide what they ask for are remote
-  and absent — are **86**, reason `station-absent: mac/claude`, with no return time, no cook, no
-  failure counted. They hold neither a place nor a zone;
-- **the others leave**: a box station that can cook a ticket takes it as before;
-- as soon as it shows up, they go back to queued on their own (`ticket.released`, reason
-  `station-present`), and it can claim them;
-- the issue learns it **only once**: a station that comes and goes does not write there at every
-  absence. `status` says it in the `awaiting` block, and `station` on its `presence` line:
-
-  ```
-  #16  for 3 min  station absent — `mac/claude` has not shown up lately — this is not a failure, and there is nothing to do on the box: the ticket starts again on its own as soon as the station shows up (its workstation on, its runner started)
-  ```
+the presence delay (`BRIGADE_PRESENCE_MINUTES`, two minutes by default) without one, the runtime
+writes `station.absent`; at the next one, `station.present`. **It is not a failure**: the tickets
+**that only it can cook** are **86**, reason `station-absent: mac/claude`, with no return time, cook
+or failure counted, holding neither a place nor a zone, and go back to queued on their own as soon as
+it shows up (`ticket.released`, reason `station-present`); the others leave on a box station. The
+issue learns it **only once**; `status` says it in the `awaiting` block, and `station` on its
+`presence` line.
 
 #### Ordinary tickets on the chef's workstation
 
-A remote station runs **with no partition**, on the chef's workstation: a cook there would read what
-their account reads — the `ssh` key to the box, their production access. By default, it therefore
-takes **only the tickets that ask for one of its capabilities**, as before. The chef can make it
-take the **ordinary tickets** too — those whose card asks for nothing — by declaring it
-`distante+ordinaires` (the setting word stays French until the runtime is translated); its **cap on
-cooks** is then the Mac's limit, ordinary tickets included — the one it declares: the box does not
-see the Mac's cores (`run station -- cooks <N>` sets it too):
+A remote station runs **with no partition**: a cook there would read what the chef's account reads
+(the `ssh` key to the box, production access). By default it takes **only the tickets that ask for
+one of its capabilities**. Declared `distante+ordinaires` (the word stays French), it takes the
+**ordinary tickets** too (those whose card asks for nothing); its **cap on cooks** is then the one it
+declares, since the box does not see the Mac's cores (`run station -- cooks <N>` sets it too):
 
 ```bash
 brigade <project> station stations box/claude:30:code,mac/claude:2:chrome-connecté:distante+ordinaires
 ```
 
 **An ordinary ticket only leaves there inside Claude Code's sandbox** (`runtime/src/bac-a-sable/`).
-The station says so at each `announce` and `claim`, by `--sandbox <json>`: the object that the
-probe returns, played on its workstation by the station —
-`node runtime/src/bac-a-sable/sonder.ts <worktrees> [<cache>…]`, where `<worktrees>` is the
-directory where the workstation puts the worktrees of the project's cooks. When available, it carries
-the version of its `claude`, the account's directory, that directory and the project's caches; when
-unavailable — not macOS, no Seatbelt (`/usr/bin/sandbox-exec`), a `claude` too old or silent —, the
-reason.
+At each `announce` and `claim`, `--sandbox <json>` carries the object returned by the probe the
+station plays on its workstation, `node runtime/src/bac-a-sable/sonder.ts <worktrees> [<cache>…]`
+(`<worktrees>` is where it puts the project's cook worktrees): available, the version of its
+`claude`, the account's directory and the project's caches; unavailable (not macOS, no Seatbelt
+`/usr/bin/sandbox-exec`, a `claude` too old or silent), the reason.
 
-- **Setting and sandbox**: the box lends it an ordinary ticket, and writes the configuration for that
+- **Setting and sandbox**: the box lends it an ordinary ticket and writes the configuration for that
   cook — it only writes in `<worktrees>/<run>` and the project's caches, reads neither `~/.ssh` nor
-  the chef's credentials, and only reaches the hosts of the project's network list (the one its
-  integration branch declares). The mission carries `sandbox: true`, and its arguments of `claude`
-  are those of a box cook whose `--permission-mode bypassPermissions` gives way to
-  `--permission-mode dontAsk --settings <the configuration>`: the station launches them as they are.
-  `cook.launched` also carries `sandbox: true`. The configuration also sets
-  `npm_config_manage_package_manager_versions=false` (its `env`) — #1320. Cause, reproduced with pnpm
-  10.34 against a recording proxy: a project whose `packageManager` differs from the installed pnpm
-  makes pnpm 10 download that version and verify its npm signature at startup; when that request does
-  not get through, every `pnpm <script>` dies of `ERR_PNPM_PNPM_ENGINE_IDENTITY_UNVERIFIABLE` (the
-  exact name: pnpm prefixes `ERR_PNPM_` to its own `PNPM_ENGINE_IDENTITY_UNVERIFIABLE`). The proxy
-  hypothesis (Node's `fetch`) is refuted: pnpm has its own HTTP client, which ignores
-  `NODE_USE_ENV_PROXY` and `HTTPS_PROXY` but reads the lowercase `https_proxy` / `http_proxy`, and
-  `claude`'s sandbox exports both spellings (`HTTP(S)_PROXY` and `http(s)_proxy`, read in claude 2.1.300).
-  So why the request failed on the Mac is **not reproduced** — the setting does not depend on it: with
-  it, pnpm runs the installed version, with no download and no check, network or not. It applies to
-  every sandboxed cook, so a project's pinned pnpm version is not honoured there. `pnpm install` and a
-  script then go through the proxy like any request; `runtime/test/bac-a-sable/configuration.test.ts`
-  plays `pnpm --version`, `pnpm install` and `pnpm run <script>` with a real pnpm 10 (the workstation's,
-  else one installed with npm — skipped, saying so, without network) under the sandbox's proxy variables
-  against a recording proxy and a fake registry, and the same project without the setting dying of
-  the error above. The "worktree prêt" setup of a project on a real Mac sandbox has not been played.
-- **Setting without a sandbox** — or a station that says nothing about it, or a workstation whose
-  configuration does not hold (worktrees where a cook must read nothing): **it takes no ordinary
-  ticket**. The box writes it (`station.sandbox`, with the reason), says it in the runtime's output
-  when it changes, and `station` shows it on its `ordinary tickets` line (`NONE TAKEN — sandbox
-  unavailable since …: <reason>`). Ordinary tickets leave on the box's stations.
-- **In every case**, the tickets that ask for its capabilities stay taken as before, bare.
+  the chef's credentials, and only reaches the hosts of the project's network list. The mission
+  carries `sandbox: true` (so does `cook.launched`), and the arguments of `claude` are a box cook's
+  with `--permission-mode bypassPermissions` replaced by `--permission-mode dontAsk --settings <the
+  configuration>`. The configuration also sets `npm_config_manage_package_manager_versions=false`
+  (its `env`), so that pnpm 10 runs the installed version with no download or signature check
+  (#1320): a project's pinned pnpm version is not honoured in a sandboxed cook
+  (`runtime/test/bac-a-sable/configuration.test.ts`). The "worktree prêt" setup on a real Mac sandbox
+  has not been played.
+- **Setting without a sandbox** — or a station that says nothing, or a workstation whose configuration
+  does not hold: **it takes no ordinary ticket**. The box writes it (`station.sandbox`, with the
+  reason), says it in the runtime's output when it changes, and `station` shows it on its `ordinary
+  tickets` line (`NONE TAKEN — sandbox unavailable since …: <reason>`).
+- **In every case**, the tickets that ask for its capabilities stay taken, bare.
 
 **An ordinary ticket only leaves for the Mac when the box is saturated** (#853): all the box's
-stations are at their cap on cooks, or its machine can take no more (`station.saturated`) — read at
-the moment the Mac claims. As long as the box has room, it keeps its ordinary tickets, even when it
-ramps up in steps after a start (`ramp`) or is preparing worktrees. Held back for another reason —
-the "stop", the breaker, a red base, its Max connection, its quota, a blocked setup —, it is not
-saturated, and its ordinary tickets wait for it. With no station on the box, the Mac takes them as
-soon as it has the setting and the sandbox. The `ordinary tickets` line of `station` says it: `taken
-when the box is saturated, each cook inside the Claude Code sandbox…`.
-
-The state can also be read in `facts`, field `stations` (see "Facts, for a program" in
-[`etat-et-mesures.md`](etat-et-mesures.md)): it is what the app displays.
+stations are at their cap, stopped, or its machine can take no more (`station.saturated`) — read when
+the Mac claims. While the box has room it keeps them, even when ramping up (`ramp`) or preparing
+worktrees; held back for another reason (stop, breaker, red base, connection, quota, blocked setup),
+it is not saturated. With no station on the box, the Mac takes them as soon as it has the setting and
+the sandbox. The `ordinary tickets` line of `station` says it, and `facts`, field `stations` (see
+"Facts, for a program" in [`etat-et-mesures.md`](etat-et-mesures.md)), carries the state.
 
 #### A second station of the project, which cooks alongside the first
 
-*Ticket #1287.* A station declared `distante+ordinaires` is a **backup**: it takes ordinary tickets
-only once the box can take no more. A station added to the project as **one more station** is not a
-backup: it cooks **at the same time** as the first. The chef declares it `distante+ensemble` (the
-setting word stays French until the runtime is translated):
+*Ticket #1287.* `distante+ordinaires` is a **backup**. A station added as **one more station** of the
+project cooks **at the same time** as the first; the chef declares it `distante+ensemble` (the word
+stays French):
 
 ```bash
 brigade <project> station stations box/claude:3:code+raisonnement,mac/claude:2:code+raisonnement:distante+ensemble
 ```
 
-- **It takes the project's tickets as soon as it has room**, each station up to its own cap on
-  cooks: the box takes the tickets it can when it wakes, the second station receives at its `claim`
-  the first one, in service order, that it can cook — ordinary tickets included, **whether the box is
-  saturated or not**. A box that ramps up in steps, prepares worktrees or is held by its own
-  connection or quota does not hold it back.
-- **A ticket is never taken twice.** Every taking is written to the project's log by the runtime that
-  serves it, one request at a time: a ticket the second station holds is not taken by the box, and two
-  stations that claim at the same moment receive two different tickets — or nothing, at their cap.
-- **Stopping or losing one does not stop the other.** The chef stops the cooking on one station
-  (`station -- stop <station>`): the other keeps taking. The box's Max connection drops, or its quota
-  runs out: the second station, which has its own, keeps taking — a backup would wait. The second
-  station goes quiet: its lease falls, its ticket goes back to the rail, the box takes it up, and keeps
-  taking the new ones. The runtime itself is not shared: if the first station's machine stops, its
-  kitchen — rail, manager, pass — stops with it, and no station takes anything until it is back.
-- **One kitchen per project, run by the main station.** The rail, the manager and the pass run only
-  where the project's kitchen runs, on the first station; every station cooks, none other runs them.
-  The second station receives only cooks — `announce`, `claim`, `renew`, `deliver` —, and its
-  deliveries go through the first station's pass, judged by its reviewer, like any other.
-- **How a second station cooks, through GitHub only, in this order.** Its requests are written in its
-  own paired gist, one file per slot, written by the station alone (`brigade-pull.<owner>.<repo>.<slot>.json`,
-  `runtime/src/tirer-par-github/demande.ts`). The main station reads them at each reading (every
-  thirty seconds), relays each fresh one to the project's log once, and publishes its answer on the
-  Kitchen board (`distantes`, [`tableau-de-cuisine.md`](tableau-de-cuisine.md)):
-  1. **Take** — `claim`: the station takes the first ticket it can cook, as above. The ticket is
-     written to the log at once, and a ticket is lent once even when two stations claim it together.
-  2. **Renew** — `renew.<run>`, with the proof of its worktree, for each cook still at work. The lease
-     moves forward only on a proof of work, as for any remote cook.
-  3. **Hand back** — `deliver.<run>`, once the station has pushed its cook's branch to the origin. The
-     main station fetches that branch from there, opens the PR, and the pass judges it as any cook's.
-  4. **Lease expiry** — a station that goes silent stops renewing: at the deadline, the main station
-     stops its cook, the ticket goes back to the rail with nothing asked of the station, and any
-     station that can cook it may take it up. What the station's cook would deliver afterwards is not
-     received; it learns so from its next answer (`stopped`, `lease`).
-- **The same guards as `ordinaires`.** An ordinary ticket only leaves for another machine inside the
-  Claude Code sandbox of its workstation: with no sandbox said, or an unavailable one, it takes no
-  ordinary ticket, only those that ask for one of its capabilities.
+- **It takes the project's tickets as soon as it has room**, up to its own cap: at its `claim` it
+  receives the first ticket, in service order, that it can cook — ordinary ones included, **whether
+  the box is saturated or not** (a box that ramps up or is held by its own connection or quota does
+  not hold it back). **A ticket is never taken twice**: the runtime that serves the project writes
+  every taking to its log, one request at a time, so two simultaneous claims receive two different
+  tickets — or nothing.
+- **Stopping or losing one does not stop the other** (`station -- stop <station>`, the box's Max
+  connection or quota, a silent second station whose ticket goes back to the rail). The runtime is not
+  shared: if the first station's machine stops, the kitchen stops with it.
+- **One kitchen per project, run by the main station.** The rail, the manager and the pass run only on
+  the first station; the second only cooks, and its deliveries go through the first station's pass and
+  reviewer.
+- **How a second station cooks, through GitHub only.** The station alone writes its requests in its
+  own paired gist, one file per slot (`brigade-pull.<owner>.<repo>.<slot>.json`,
+  `runtime/src/tirer-par-github/demande.ts`). The main station reads them every thirty seconds, relays
+  each fresh one to the project's log once, and publishes its answer on the Kitchen board (`distantes`,
+  [`tableau-de-cuisine.md`](tableau-de-cuisine.md)): `claim`, `renew.<run>` (with the proof of its
+  worktree), `deliver.<run>` (once the branch is pushed to the origin; the main station fetches it,
+  opens the PR, and the pass judges it as any cook's). A silent station stops renewing: at the
+  deadline its cook is stopped, the ticket goes back to the rail, and the station learns it from its
+  next answer (`stopped`, `lease`).
+- **The same sandbox guard as `ordinaires`**: with no sandbox said, or an unavailable one, it takes
+  only the tickets that ask for one of its capabilities.
 
-`station` says it on the `ordinary tickets` line (`taken alongside the box's stations, as one more
-station of the project — not only when the box is saturated — …`), and `facts` in the `ensemble`
-field of `stations`.
+`station` (its `ordinary tickets` line: `taken alongside the box's stations, as one more station of the
+project …`) and `facts` (the `ensemble` field of `stations`) say it.
 
 **A station paired through the app is declared with no command.** A station the app pairs through its
 gist and adds to a project as not its main one (`secondaire`, in [`station-machine.md`](station-machine.md))
-is read by the project's main station, which declares it in the project's log as `distante+ensemble` —
-the declaration above, written by the runtime and not by a `station stations` line from the chef. The
-main station reads the paired gists at most every five minutes, the cadence where a station rewrites its
-sign of life (`CADENCE_DES_APPAIREES_MS`, `runtime/src/projets/secondaires.ts`). Then:
+is declared in the log by the main station as `distante+ensemble`, written by the runtime; the main
+station reads the paired gists at most every five minutes (`CADENCE_DES_APPAIREES_MS`,
+`runtime/src/projets/secondaires.ts`). Its name is `<machine>/claude` (`machineDe`); its cap on cooks
+and capabilities are those set in the app, and changing them there changes the declaration at the next
+reading. It provides what the pairing says of its computer and what the chef ticked, plus `code` and
+`raisonnement`, `macos` on a Mac, and what the installation **detects** there without launching
+anything (Chrome, the Android SDK, a Postgres server, …; `capacitesDeLaMachine`,
+`runtime/src/projets/ajout-de-station.ts`). It works through GitHub like any second station.
 
-- **Its name** is that of its machine, with the station's engine: `<machine>/claude`, as the main
-  station's is (`machineDe`).
-- **Its cap on cooks** is the one set when the project was added in the app. Changing it or its
-  capabilities in the app changes the declaration on the next reading.
-- **What it provides** is what the app's pairing says of its computer, and what the chef ticked for it
-  when adding the project. Beside that, it provides `code` and `raisonnement`; a Mac also provides
-  `macos`, the system itself. The rest is what the installation **detects** on that machine — Chrome,
-  the Android SDK, a Postgres server, … — looked at without launching anything
-  (`capacitesDeLaMachine`, `runtime/src/projets/ajout-de-station.ts`). A machine that is not a Mac
-  provides only what is detected there.
-- **It works through GitHub** like any second station (see above): it takes, renews and hands back
-  through its gist, with the same rules. The main station keeps the manager and the pass.
 - **Adding it is the only gesture** (#1830). Whether the chef ticks the project on the station's own
-  page or adds the computer from the project's Cooks page ("+ station", a request line that does not
-  call it the main station), the station does the same thing: it joins the kitchen that runs
-  (`runtime/src/projets/rejoindre.ts`), publishes it in `brigade-cuisines-rejointes.json` of its paired
-  gist, and opens its claim loop (`runtime/src/tirer-par-github/cuisiner.ts`) — a ticket only it can
-  cook leaves for it at its first claim. A station that has a selection still reads, in its pairing
-  gist's request, the projects added from a project's page (`runtime/src/projets-station/source.ts`).
-  While no station serves the project yet, it opens no kitchen: it waits for its main station, and
-  joins it at the next reading.
-- **One path for every project the main station serves** (#1923). It reads the joined stations of
-  each project it serves — those the app asked for, and those a line of its configuration written by
-  hand serves (`brigade` on the box) — through the same code (`runtime/src/projets/secondaires.ts`),
-  at most every five minutes, even when the app asks it nothing. A joined station the project cannot
-  declare is raised as a blocker of the project's journal (`joined-station:<station>`); the blocker is lifted once the station is declared.
+  page or adds the computer from the project's Cooks page ("+ station"), the station joins the
+  kitchen that runs (`runtime/src/projets/rejoindre.ts`), publishes it in
+  `brigade-cuisines-rejointes.json` of its paired gist, and opens its claim loop
+  (`runtime/src/tirer-par-github/cuisiner.ts`). A station with a selection still reads the projects
+  added from a project's page in its pairing gist's request (`runtime/src/projets-station/source.ts`).
+  While no station serves the project, it opens no kitchen and joins at the next reading.
+- **One path for every project the main station serves** (#1923), whether the app asked for it or a
+  hand-written configuration line serves it. A joined station the project cannot declare is a blocker
+  of the project's journal (`joined-station:<station>`), lifted once it is declared.
 
-**What it says when it cannot cook yet.** A station installed from the app and cooking nothing yet says
-why in one short sentence, with the gesture to make, on its line of the home screen. The reasons are:
-
-| Reason shown in the app | Sentence on the station's line | Gesture |
-|---|---|---|
-| The station does not sign on GitHub: stopped, or silent | `not reached` | `start Brigade on <name>'s computer`, then the line turns green when it signs again — button **check again** |
-| Its page on GitHub cannot be read | `cannot be read` | remove it from its page, then pair it again with a new code — button **open its page** |
-| It is not added to any project | `not added to any project` | add a project to it — button **add a project** |
-
-A station added to a project as a second one, and not reached by the main station, shows `not reached` on
-its line in the project's list, with the reason in the runtime's status (`station`, `dit`). The gesture
-for that line is in the hover text, and it is one of these three (`GESTES_DE_LA_RAISON`,
-`runtime/src/projets/secondaires.ts`):
-
-- `arretee`: `not reached: it stopped at <time>` — start Brigade on that computer again.
-- `muette`: `not reached: no sign of life on GitHub since <time>` — open Brigade on that computer; its
-  station signs again within a minute.
-- `gist-illisible`: `not reached: its gist could not be read on GitHub — <reason>` — check your GitHub
-  connection in the app; the next reading tries again.
+**What it says when it cannot cook yet.** A station installed from the app and cooking nothing says
+why on its line of the home screen, with the gesture: `not reached` (stopped or silent on GitHub:
+start Brigade on its computer, button **check again**), `cannot be read` (its page on GitHub: remove
+it, pair it again with a new code, button **open its page**), `not added to any project` (button
+**add a project**). For a second station the main station cannot reach, the project's list shows `not
+reached`, the runtime's status (`station`, `dit`) the reason, and the hover text the gesture
+(`GESTES_DE_LA_RAISON`, `runtime/src/projets/secondaires.ts`): `arretee` (start Brigade there again),
+`muette` (no sign of life on GitHub: open Brigade there), `gist-illisible` (check the GitHub
+connection in the app).
 
 #### A local kitchen: all its cooks in the sandbox
 
-The tickets lent by the box are not the only ones that go through macOS's sandbox. **A project whose
-kitchen runs on the chef's Mac** — in the station its app launches
-(`runtime/src/station/cuisine.ts`) — **launches all its cooks there, without exception**: every
-`claude` its kitchen launches goes into Claude Code's sandbox — a ticket's **cook**, the closing
-pass's **closer**, the **pass's reviewer**, the **manager's judgement**
-(`runtime/src/bac-a-sable/local.ts`). A kitchen is local when its station runs under macOS: the box
-is never one, and its partition (`bwrap`) guards it.
+**A project whose kitchen runs on the chef's Mac** — in the station its app launches
+(`runtime/src/station/cuisine.ts`) — **launches every `claude` of its kitchen in Claude Code's
+sandbox, without exception**: a ticket's **cook**, the closing pass's **closer**, the **pass's
+reviewer**, the **manager's judgement** (`runtime/src/bac-a-sable/local.ts`). A kitchen is local when
+its station runs under macOS: the box is never one, and its partition (`bwrap`) guards it.
 
-- **The same policy as for a lent ticket**, not another: the configuration of
-  `runtime/src/bac-a-sable/configuration.ts`, written for the directory where the launch works —
-  its worktree for a cook, a closer or a reviewer, the temporary directory for a judgement. It only
-  writes there and in the project's caches, reads neither `~/.ssh` nor the chef's credentials, and
-  only reaches the hosts of the project's network list (`.claude/brigade/reseau` of its integration
-  branch, reread at each launch; unreadable, the base alone: Anthropic and GitHub). A cook's
-  `--permission-mode bypassPermissions` gives way to `--permission-mode dontAsk --settings <the
-  configuration>`; the reviewer and the judgement, which had no mode, receive them in front of
-  `--setting-sources`.
-- **The project's caches** are named in `BRIGADE_SANDBOX_CACHES` (absolute paths separated by `:`, on
-  the project's line or in the station's environment); none by default.
+- **The same configuration as for a lent ticket** (`runtime/src/bac-a-sable/configuration.ts`),
+  written for the directory where the launch works. The network list is `.claude/brigade/reseau` of the
+  integration branch, reread at each launch; unreadable, the base alone (Anthropic and GitHub). A
+  cook's `--permission-mode bypassPermissions` gives way to `--permission-mode dontAsk --settings
+  <the configuration>`; the reviewer and the judgement receive them in front of `--setting-sources`.
+- **The project's caches** are named in `BRIGADE_SANDBOX_CACHES` (absolute paths separated by `:`);
+  none by default.
 - **Where its cooks work: the station's workshop** (*ticket #1176*). The app puts the station under
-  `~/.config/brigade/station`, which no cook reads or writes: its log, its decisions, its lock stay
-  there, out of reach. The project's git — **its clone and its cooks' worktrees** — therefore lives
-  elsewhere, in the workshop: `~/.local/share/brigade/station/clones/<project>` and
-  `~/.local/share/brigade/station/worktrees/<project>/<run>` (`runtime/src/station/configuration.ts`,
-  `atelierDeLaStation`). A cook only writes in **its** worktree; it neither reads nor writes `~/.ssh`,
-  `~/.config/brigade` or the chef's credentials. **No setting**: the workshop is deduced from where
-  the station sits — placed outside everything a cook must not read, or on a server, the station
-  keeps everything under its directory, as before (`clones/<project>`, `etat/<project>/worktrees`).
-  The station gives it to each project (`BRIGADE_REPO_DIR`, `BRIGADE_WORKTREES_DIR`); a line does not
-  set `BRIGADE_WORKTREES_DIR`, and the clone a line names (`BRIGADE_REPO_DIR=…`) stays its own.
-- **A project served before the workshop moves there on its own**, before its kitchen opens
-  (`runtime/src/station/atelier.ts`): its clone and its worktrees are **renamed as they are** —
-  branches, commits and uncommitted files included —, then `git worktree repair` hangs each worktree
-  back on its clone. Nothing is copied, nothing is removed, under the project's lock. The service
-  log says it, one line per thing moved:
-  `déménagé dans l'atelier de la station — clone : <old place> → <workshop>`. The worktree of a cook
-  from a previous life is then tidied as always: what lay in it is committed to its branch, then it
-  is removed. What cannot be moved — another clone already in the workshop, another volume, a
-  worktree whose `.git` file does not point to the clone — **stays where it is**, and says so
-  (`pas déménagé dans l'atelier de la station — …`); the kitchen opens all the same. These lines
-  stay French until the runtime is translated (`runtime/src/station/station.ts`,
-  `runtime/src/station/atelier.ts`).
-- **Without a sandbox, the kitchen does not open**: no cook leaves there bare. The station refuses
-  the project, and the reason names what is missing, in one sentence:
-  `sur ce Mac, chaque cook part dans le bac à sable, et il n'est pas utilisable — <reason>`. Once
-  fixed (a `claude update`, for example), the project reopens at the station's restart, or when its
-  line changes. Once open, the kitchen says so in the service log:
-  `bac à sable — chaque \`claude\` de la cuisine (cook, closer, reviewer, manager) part dans celui de Claude Code (claude 2.1.300) : …`.
-  Both sentences stay French until the runtime is translated (`runtime/src/bac-a-sable/local.ts`).
-- **What it does not keep**: what the runtime itself launches outside `claude` — the worktree's
-  setup, the gates. Those are the repository's scripts, not the model.
+  `~/.config/brigade/station`, which no cook reads, so the **clone and worktrees** live in the
+  workshop, `~/.local/share/brigade/station/clones/<project>` and `…/worktrees/<project>/<run>`
+  (`atelierDeLaStation`). A station outside everything a cook must not read, or on a server, keeps
+  everything under its directory. The station gives the paths (`BRIGADE_REPO_DIR`,
+  `BRIGADE_WORKTREES_DIR`); a line does not set `BRIGADE_WORKTREES_DIR`.
+- **A project served before moves into the workshop on its own** (`runtime/src/station/atelier.ts`):
+  clone and worktrees are renamed as they are, then `git worktree repair`; nothing is copied or
+  removed. What cannot be moved stays where it is, and the kitchen opens all the same. The service log
+  says both (`déménagé dans l'atelier de la station — …`, `pas déménagé dans l'atelier de la station
+  — …`; still French).
+- **Without a sandbox, the kitchen does not open**: the station refuses the project, naming what is
+  missing (`sur ce Mac, chaque cook part dans le bac à sable, et il n'est pas utilisable — <reason>`;
+  still French). Fixed, it reopens at the station's restart or when its line changes.
+- **What it does not keep**: what the runtime itself launches outside `claude` — the worktree's setup,
+  the gates.
 
-**Is the sandbox usable on this Mac?** The check says so, before cooking a project there:
+**Is the sandbox usable on this Mac?**
 
 ```bash
 BRIGADE_STATION_DIR=<the station's directory> node runtime/src/bac-a-sable/verifier.ts
 ```
 
-It writes `ok` (code 0), or what is missing in one sentence (code 1) — not macOS, no Seatbelt
-(`/usr/bin/sandbox-exec`), a `claude` too old or silent, `HOME` missing, a relative cache, or
-worktrees where a cook must read nothing; 2, it is badly called. The `claude` tried is the one the
-station launches (`BRIGADE_CLAUDE_BIN`, otherwise `claude`). It tries the station's places — a trial
-cook in its workshop: **a station placed under `~/.config/brigade`** — the app's default directory —
-**holds**, its worktrees living under `~/.local/share/brigade/station`. Before the workshop (#1176),
-it did not hold, and every project was refused. The sentences of the check stay French until the
-runtime is translated (`runtime/src/bac-a-sable/local.ts`, `detection.ts`, `configuration.ts`):
+It writes `ok` (code 0), or what is missing in one sentence (code 1): not macOS, no Seatbelt, a
+`claude` too old or silent (the one the station launches: `BRIGADE_CLAUDE_BIN`, otherwise `claude`),
+`HOME` missing, a relative cache, or worktrees where a cook must read nothing; 2, badly called. It
+tries the station's places with a trial cook in its workshop, so a station under `~/.config/brigade`
+— the app's default — **holds**. The sentences stay French until the runtime is translated
+(`runtime/src/bac-a-sable/local.ts`, `detection.ts`, `configuration.ts`).
 
-```
-la configuration du bac à sable ne tient pas sur ce Mac — /Users/chef/.config/brigade/station/etat/essai : un cook n'y écrirait pas sans toucher à /Users/chef/.config/brigade, qu'il ne doit pas même lire
-```
-
-**Checking by hand**, on the Mac, what the tests cannot do (neither macOS, nor a real `claude`, nor
-network): `--settings` returns the configuration of a `claude` launched in a directory, the network
-list being the given hosts; launched with it, `claude` must refuse what a cook does not do. The trial
-directory is under the account, like a station worktree: `/tmp` is, under macOS, only a link to
-`/private/tmp`, and the configuration names paths as they are.
+**Checking by hand**, on the Mac: `--settings` returns the configuration for a directory and a list of
+hosts; `claude` launched with it must refuse what a cook does not do. The trial directory is under the
+account (`/tmp` links to `/private/tmp` under macOS).
 
 ```bash
 mkdir -p "$HOME/brigade-essai-wt" && cd "$HOME/brigade-essai-wt"
-claude -p 'Run these commands one by one with Bash and return their raw output: touch ~/brigade-essai ; touch ~/brigade-essai-wt/ok ; ls ~/.ssh ; cat ~/.claude/.credentials.json ; curl -sS -o /dev/null -w "%{http_code}" https://example.com ; curl -sS -o /dev/null -w "%{http_code}" https://registry.npmjs.org' \
+claude -p 'With Bash, return the raw output of: touch ~/brigade-essai ; touch ~/brigade-essai-wt/ok ; ls ~/.ssh ; cat ~/.claude/.credentials.json ; curl -sS -o /dev/null -w "%{http_code}" https://example.com https://registry.npmjs.org' \
   --permission-mode dontAsk --setting-sources '' \
   --settings "$(node <repo>/runtime/src/bac-a-sable/verifier.ts --settings "$HOME/brigade-essai-wt" registry.npmjs.org)"
 ```
 
-Expected: `touch ~/brigade-essai` fails (`Operation not permitted`) and the file does not exist;
-`~/brigade-essai-wt/ok` is created; `ls ~/.ssh` and `cat ~/.claude/.credentials.json` fail
-(`Operation not permitted`); `example.com`, off the list, is refused (connection refused by the
-sandbox's proxy, no `200` code); `registry.npmjs.org`, on the list, answers `200`.
+Expected: `~/brigade-essai`, `~/.ssh` and the credentials fail (`Operation not permitted`);
+`~/brigade-essai-wt/ok` is created; `example.com` is refused; `registry.npmjs.org` answers `200`.
 
 #### Moving a project's kitchen, whenever you want
 
-A project's main station — the one that runs its kitchen, its manager and its pass — is chosen when
-the project is added ("Adding a project to a station from the app, without a terminal", in
+The main station — the one that runs a project's kitchen, manager and pass — is chosen when the
+project is added ("Adding a project to a station from the app, without a terminal", in
 [`station-machine.md`](station-machine.md)); **that choice commits to nothing**: the kitchen can be
-moved afterwards to this computer, to its box or to another station, without removing or re-adding
-the project, and a project added tomorrow moves the same way. The app launches the operation on the
-chef's computer (`runtime/src/demenagement/demenager.ts`):
+moved afterwards to this computer, to its box or to another station, without removing or re-adding the
+project. The app launches the operation (`runtime/src/demenagement/demenager.ts`):
 
 ```bash
 BRIGADE_STATION_DIR=<the directory of this Mac's station> \
@@ -396,94 +280,63 @@ BRIGADE_STATION_DIR=<the directory of this Mac's station> \
 
 The gists are those of the chef's stations. It returns a JSON line —
 `{"moved":true,"project":"parade","from":"box","to":"mac","askedAt":"…"}` (code 0), or
-`{"moved":false,"said":"<a sentence>"}` (code 1), and nothing has changed; 2, it is badly called; 3,
-GitHub could be neither read nor written. It writes only two requests (`brigade-projets.json`):
-`remise` on the station the kitchen is leaving, `reprise` on the one that takes it over (these two
-field names stay French until the runtime is translated) — the app must keep them as they are when it
-rewrites these requests, otherwise the move in progress becomes an ordinary change of main station.
-The rest happens between the two, **through their gists** — neither reaches the other —, in three
-steps (`runtime/src/projets/tenir.ts`):
+`{"moved":false,"said":"<a sentence>"}` (code 1, nothing changed); 2, badly called; 3, GitHub could be
+neither read nor written. It writes only two requests (`brigade-projets.json`): `remise` on the
+station the kitchen is leaving, `reprise` on the one that takes it over (field names stay French); the
+app must keep them as they are when it rewrites these requests, or the move becomes an ordinary change
+of main station. The rest happens **through the stations' gists**, in three steps
+(`runtime/src/projets/tenir.ts`):
 
-1. **The target station says it is ready**, or says why it cannot be. Ready: its Apps authorized on
-   the repository, the repository cloned — and, on this computer, the sandbox usable. Its tracking
-   file says so (`bascule.etape`: `acceptee`, or `refusee` and the reason); nothing else opens on its
-   side.
-2. **The station it is leaving, only then, stops**: it removes the project's line — its kitchen
-   closes, **no cook leaves from it any more** —, proves by its lock that no kitchen holds it any
-   more, stops every cook still in flight and waits for its death, then publishes its state in its
-   gist (`brigade-remise-<project>.json` and its parts): `remise`. As long as the other is not ready,
-   it serves it as before — `served by box; moving to mac is asked: it cooks here until mac is ready
-   to take it over`.
-3. **The target station lays down that state, then opens it**: its kitchen starts on the log
-   received (`recue`). A state it kept from a previous time is set aside
-   (`etat/.<project>.avant-<time>`), never overwritten; the ticket that had prepared the repository
-   follows it, and none reopens.
+1. **The target station says it is ready**, or why it cannot be: its Apps authorized on the
+   repository, the repository cloned, and, on this computer, the sandbox usable. Its tracking file
+   says so (`bascule.etape`: `acceptee`, or `refusee` and the reason).
+2. **The station it is leaving, only then, stops**: it removes the project's line (its kitchen closes,
+   no cook leaves any more), proves by its lock that no kitchen holds it, stops every cook in flight
+   and waits for its death, then publishes its state in its gist (`brigade-remise-<project>.json` and
+   its parts): `remise`. Until the other is ready, it serves as before (`served by box; moving to mac
+   is asked …`).
+3. **The target station lays down that state, then opens it**: its kitchen starts on the log received
+   (`recue`). A state it kept from before is set aside (`etat/.<project>.avant-<time>`), never
+   overwritten; the ticket that had prepared the repository follows it, and none reopens.
 
-The values `acceptee`, `refusee`, `remise` and `recue` of `bascule.etape` stay French until the runtime
-is translated (`runtime/src/projets/tenir.ts`).
+The values `acceptee`, `refusee`, `remise` and `recue` of `bascule.etape` stay French.
 
-**What follows the project: its whole log** — its tickets and their rail, its grants, the chef's
-decisions (declared stations, calibration, caps), its history. The same ones, identically: the move
-adds only one fact, `kitchen.moved`. **A ticket in progress is not lost**: its cook is stopped by the
-move (`cook.exited`, `outcome: stop`, `cause: move`) — neither a failure nor a breakdown, nothing for
-the breaker —, the ticket goes back to the rail, and the station that takes over the project takes
-it up like any other.
+**What follows the project: its whole log** (tickets and rail, grants, the chef's decisions, history);
+the move adds only `kitchen.moved`. **A ticket in progress is not lost**: its cook is stopped
+(`cook.exited`, `outcome: stop`, `cause: move` — no failure, nothing for the breaker), the ticket goes
+back to the rail, and the station that takes over takes it up.
 
-**Never two kitchens at once.** The handing over waits for the kitchen to be closed (its lock free)
-and its cooks dead; the target station only opens its own once the handing over is published. A
-station that has handed over a project does not reopen it on its own, even if its request makes it
-the main one again: it refuses it (`it was handed over to mac … move it back to bring it here`) — it
-only comes back through a move in the opposite direction.
+**Never two kitchens at once.** The handing over waits for the kitchen to be closed (lock free) and its
+cooks dead; the target only opens its own once the handing over is published. A station that has
+handed over a project does not reopen it on its own (`it was handed over to mac … move it back to
+bring it here`): it only comes back through a move in the opposite direction.
 
-**To this computer, not without a sandbox** ("A local kitchen: all its cooks in the sandbox", above). The command first plays the
-check of `bac-a-sable/verifier.ts`: unavailable, it refuses with its reason, in one sentence, and
-writes nothing. The computer's station replays it before saying it is ready: a request that reached
-it otherwise is refused the same way (`refusee`), and the station it was to leave still serves it.
-Refused, or not yet accepted, a move can be taken back: moving the project to the station that still
-serves it erases the request. Once accepted, it goes to its end: the command refuses another move of
-the same project as long as the target station does not serve it.
+**To this computer, not without a sandbox** ("A local kitchen", above). The command first plays the
+check of `bac-a-sable/verifier.ts`: unavailable, it refuses with its reason and writes nothing; the
+computer's station replays it before saying it is ready (`refusee`), and the other station still
+serves the project. A refused or not yet accepted move can be taken back by moving the project to the
+station that still serves it; once accepted, the command refuses another move of the project until the
+target serves it.
 
-**Where each project cooks** is read in each station's tracking file (`brigade-projets-suivi.json`,
-the one the app already reads): `station` (`nom`, `locale`: the station of the chef's computer), and
-per project `cuitSur` — the station where it cooks, as it knows it — and `ici` — it cooks on this
-one, and this is that computer. These field names stay French until the runtime is translated.
+**Where each project cooks** is read in each station's tracking file (`brigade-projets-suivi.json`):
+`station` (`nom`, `locale`: the station of the chef's computer) and per project `cuitSur` (the station
+where it cooks, as it knows it) and `ici` (it cooks on this computer). These names stay French.
 
-**What is not guaranteed.** What does not travel: the cooks' raw streams (`runs/`), the worktrees,
-the clone (the target station clones the repository). A cook stopped in flight therefore restarts
-from the base — or from its branch on the origin if a remote station had pushed it there
-(`travail-conserve.ts`): what a box cook had committed without pushing stays in the box's clone,
-branch `cook/<run>`. The log travels compressed, in parts, through the gist: beyond 10 MB
-compressed, the handing over is refused and the kitchen stays closed on the station it was leaving —
-the handing over is retried at each read. A remote station's cook in flight is not reached: it is
-stopped in the log, and its station learns it at its next request, if a kitchen answers there. After
-the move, the state kept on the old station is frozen: a command typed there (`brigade <project> …`
-on the box) no longer reaches the kitchen. The declared stations travel as they are, like the other
-decisions: the station put there at the add keeps the name of the machine at the time (`box/claude`)
-and its cooks leave from the station that serves the project, under that name; a station marked
-`distante` that becomes the main one stays marked so — the chef redeclares them (`brigade <project>
-station stations …`, "Declaring the stations", [`station.md`](station.md)).
+**What is not guaranteed by a move.** Does not travel: the raw streams (`runs/`), the worktrees, the
+clone. A cook stopped in flight restarts from the base, or from its branch on the origin if pushed
+(`travail-conserve.ts`); what a box cook committed without pushing stays in the box's clone. The log
+travels compressed through the gist: beyond 10 MB the handing over is refused and the old kitchen
+stays closed, retried at each read. The state kept on the old station is frozen: a command typed there
+no longer reaches the kitchen. Declared stations travel as they are: the chef redeclares them
+(`brigade <project> station stations …`, [`station.md`](station.md)).
 
 **The only direction is station → box, and it is guarded.** A declaration carries no address; in
-`runtime/src`, only seven modules touch the network, none toward a station (the arbiter on
-`127.0.0.1`, the door and its probe, GitHub's API); no program that reaches
-another machine is launched there by its name; and a complete turn of a remote station opens no
-connection from the box. All four are checked in `runtime/test/architecture.test.ts`: adding a module
-there that opens a connection is an architecture decision, not an import.
+`runtime/src`, only seven modules touch the network, none toward a station; no program that reaches
+another machine is launched by its name; and a complete turn of a remote station opens no connection
+from the box. `runtime/test/architecture.test.ts` checks it: a module that opens a connection is an
+architecture decision, not an import.
 
-**What is not guaranteed.** The proof of work is what the station says of its worktree: the box does
-not see it, it can only note that a fingerprint has changed — like the measure of turns and tokens,
-it is worth the trust placed in the workstation's station, no more. A remote cook stopped by a
-guardrail delivers nothing, even if it had committed: nothing is harvested from a workstation the
-box does not reach. And the shape of Claude's credentials recognised in a remote delivery holds it
-back from the pass, but its branch **is already on the origin** — the station pushed it there: the
-issue says to delete it.
-
-| Event | Meaning |
-|---|---|
-| `remote.asked` | A remote station's request, written by its gesture: `station`, `verb` (`announce`, `claim`, `renew`, `deliver`), and what it carries |
-| `remote.answered` | The runtime's answer, on the ticket when it concerns one: `ok`, or `refusal` (`unknown-station`, `not-remote`, `late`, `unknown-run`, `stopped`, `no-progress`, `invalid`), `said`, `stop` |
-| `station.present`, `station.absent` | A remote station showed up after an absence; it has not shown up since `presenceMs` (`lastSeen`). Off ticket |
-| `station.sandbox` | What a remote station says of its workstation's sandbox, when it changes: `available`, `reason` (why it is not, `null` if it is), `version` (its `claude`, `null` if it is not). Off ticket |
-| `ticket.86` | Reason `station-absent: <station>`: only an absent remote station can cook this ticket. With no return time; `ticket.released`, reason `station-present`, when it returns |
-| `kitchen.moved` | The project's kitchen moves: `from`, `to` (the stations), `askedAt` (the instant of the request, which makes it recognisable), `cooks` (the runs stopped in flight). Written by the station it is leaving, last fact of the state handed over. Off ticket |
-| `cook.exited` | With `cause: move`: the cook was stopped by a move, `outcome: stop` — its ticket goes back to the rail, with no failure |
+Events: `remote.asked` (`station`, `verb`, payload) and `remote.answered` (`ok`, or `refusal` among the
+above plus `late`, `unknown-run`, `invalid`; `said`, `stop`); `station.present` / `station.absent`
+(`presenceMs`, `lastSeen`); `station.sandbox` (`available`, `reason`, `version`); `kitchen.moved`
+(`from`, `to`, `askedAt`, `cooks`), the last fact of the state handed over.
