@@ -11,9 +11,11 @@ const VERSION_DE_L_API = "2022-11-28";
 export const DELAI_MS = 30_000;
 
 // Ce que GitHub a rendu : son code, et son corps — lu en JSON quand il en est, sinon le texte tel quel.
-export type ReponseGitHub = { status: number; data: unknown };
+// `etag` : celui que GitHub donne, pour relire sans coût tant que rien n'a changé (`If-None-Match`, réponse 304).
+export type ReponseGitHub = { status: number; data: unknown; etag?: string };
 // Un `GET` à l'API de GitHub, sur ce chemin (`/repos/…`). Lève quand rien n'a répondu.
-export type AppelGitHub = (chemin: string) => Promise<ReponseGitHub>;
+// `entetes` : ceux que la demande ajoute (`If-None-Match`).
+export type AppelGitHub = (chemin: string, entetes?: Record<string, string>) => Promise<ReponseGitHub>;
 // Ce que la plateforme fait de la demande composée : l'envoyer, et rendre la réponse. Lève quand rien n'a répondu.
 export type Envoi = (adresse: string, entetes: Record<string, string>) => Promise<ReponseGitHub>;
 
@@ -24,10 +26,10 @@ export type OptionsClient = {
 };
 
 export function clientGitHub({ jeton, envoyer }: OptionsClient): AppelGitHub {
-  return async (chemin) => {
+  return async (chemin, ajoutes) => {
     // Un jeton qui ne se lit pas n'empêche pas la lecture : elle part sans, et GitHub dit ce qu'il en refuse.
     const lu = await jeton().catch(() => null);
-    const entetes: Record<string, string> = { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": VERSION_DE_L_API };
+    const entetes: Record<string, string> = { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": VERSION_DE_L_API, ...ajoutes };
     if (lu !== null && lu !== "") entetes.Authorization = `Bearer ${lu}`;
     return envoyer(`${API_GITHUB}${chemin}`, entetes);
   };
@@ -50,7 +52,8 @@ export function parFetch(options: { fetch?: typeof fetch; delaiMs?: number } = {
     const garde = setTimeout(() => abandon.abort(new Error(`GitHub gave no answer within ${Math.round((options.delaiMs ?? DELAI_MS) / 1000)} s`)), options.delaiMs ?? DELAI_MS);
     try {
       const reponse = await appeler(adresse, { headers: entetes, signal: abandon.signal });
-      return { status: reponse.status, data: corpsLu(await reponse.text()) };
+      const etag = reponse.headers?.get("etag");
+      return { status: reponse.status, data: corpsLu(await reponse.text()), ...(etag == null ? {} : { etag }) };
     } catch (erreur) {
       throw abandon.signal.aborted && abandon.signal.reason instanceof Error ? abandon.signal.reason : erreur;
     } finally {

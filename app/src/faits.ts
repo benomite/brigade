@@ -825,6 +825,7 @@ export const TONS_DE_TICKET = new Map([
   ["servi", "vert"],
   ["86", "rouge"],
   ["WAITING", "gris"],
+  ["base rouge", "rouge"],
 ]);
 // Le mot et, s'il est de la liste, sa couleur : un mot inconnu n'en porte aucune.
 // `mot` : ce qui s'affiche à sa place, en anglais (bon.ts) ; `etat` reste la valeur de la box.
@@ -887,7 +888,7 @@ const ouvrable = (url: string) => URL.parse(url)?.protocol === "https:";
 const COLONNES_DE_FAITS = [
   { nom: "On the rail", ton: "gris", etats: ["en attente", "BLOQUÉ"] },
   { nom: "Taken", ton: "bleu", etats: ["pris"] },
-  { nom: "Pass", ton: "jaune", etats: ["en pass"] },
+  { nom: "Pass", ton: "jaune", etats: ["en pass", "base rouge"] },
   { nom: "Served", ton: "vert", etats: ["servi"] },
 ] as const;
 const COLONNE_PAR_DEFAUT = "On the rail";

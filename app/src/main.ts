@@ -35,6 +35,7 @@ import { ecrireAttente, GESTES_D_ATTENTE } from "./attente.ts";
 import { GESTES_DE_LA_CUISINE } from "./cuisine.ts";
 import { BANNIERE, COMMANDE, tenirFaits, type RailDuProjetLu } from "./faits.ts";
 import { clientGitHub, parFetch } from "./tableau/client.ts";
+import { avecLesEtatsGithub, type MemoireDesLectures } from "./tableau/rail-github.ts";
 import { avecLesEnvois } from "./tableau/envois.ts";
 import { jetonDeGh } from "./tableau/jeton-gh.ts";
 import { activitesPubliees, lireLeTableauDuDepot } from "./tableau/lecture.ts";
@@ -214,9 +215,14 @@ const appelerGitHub = clientGitHub({ jeton: jetonDeGh({ gh: process.env.BRIGADE_
 const depotDuProjet = async (projet: Projet) => projet.depot ?? (await depotDeLOrigine(process.env.BRIGADE_GIT_BIN || "git", projet.dossier)) ?? projet.nom;
 // Une carte de TODO à laquelle le chef a répondu se lit, avec lui, des commentaires du tableau (tableau/envois.ts, #1841) :
 // envoyée et en attente de la cuisine, jouée ou refusée — redémarrée, l'app relit les mêmes, et la carte le dit encore.
+// L'état de chaque ticket du rail est celui que GitHub en dit — ses labels, sa PR, la base (tableau/rail-github.ts, #2059) :
+// relu à chaque lecture du tableau (trente secondes, ou aussitôt après un geste, qui oublie la lecture), par des lectures
+// conditionnelles dont un 304 ne coûte rien.
+const memoiresDuRail = new Map<string, MemoireDesLectures>();
+const memoireDuRail = (depot: string): MemoireDesLectures => memoiresDuRail.get(depot) ?? memoiresDuRail.set(depot, new Map()).get(depot)!;
 const lireLeTableau = async (projet: Projet) => {
   const lu = await lireLeTableauDuDepot({ depot: await depotDuProjet(projet), appeler: appelerGitHub });
-  return lu.lu ? avecLesEnvois(lu, appelerGitHub) : lu;
+  return lu.lu ? avecLesEnvois(await avecLesEtatsGithub(lu, appelerGitHub, memoireDuRail(lu.depot)), appelerGitHub) : lu;
 };
 const tableaux = tenirLecturesDuTableau<Projet>({ lire: lireLeTableau, fraicheurMs: 15_000 });
 
