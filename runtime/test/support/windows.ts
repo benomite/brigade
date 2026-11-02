@@ -63,7 +63,7 @@ if (import.meta.main) {
   // check dit alors où ça cale.
   const suivi = join(rapport, "en-cours.txt");
   const garde = Number(process.env.BRIGADE_PART_MAX_MS ?? 35 * 60_000);
-  const enfant = spawn(process.execPath, ["--test", "--test-concurrency=1", "--test-force-exit", "--test-timeout=120000", ...reporters, `--test-reporter=${pathToFileURL(join(import.meta.dirname, "en-cours.ts")).href}`, `--test-reporter-destination=${join(rapport, "ignore.txt")}`, ...joues], {
+  const enfant = spawn(process.execPath, ["--test", "--test-concurrency=1", "--test-force-exit", "--test-timeout=300000", ...reporters, `--test-reporter=${pathToFileURL(join(import.meta.dirname, "en-cours.ts")).href}`, `--test-reporter-destination=${join(rapport, "ignore.txt")}`, ...joues], {
     cwd: join(RACINE_TESTS, ".."),
     stdio: "inherit",
     env: { ...environnement(process.env, gitCore), BRIGADE_SUIVI_DES_TESTS: suivi },

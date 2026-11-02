@@ -525,7 +525,11 @@ export function fauxGh(t: TestContext): FauxGh {
 // au même moment, ce qui prend une demi-seconde en prend facilement dix.
 // Sondée toutes les 20 ms : bien des conditions rouvrent et relisent tout un
 // journal, et toutes les 5 ms c'était le gros du processeur de leur fichier.
-export async function jusqua(condition: () => boolean, delaiMs = 60_000): Promise<void> {
+// Sous Windows le runner du CI est de deux à trois fois plus lent et sa charge varie d'un run à l'autre :
+// à 60 s, des tests différents de reparation, arbitrage, station ou reprise-du-renommage attendaient en
+// vain, chacun une fois, sur la base comme sur les PR (#2080), et le même commit repassait vert.
+const DELAI_PAR_DEFAUT_MS = process.platform === "win32" ? 180_000 : 60_000;
+export async function jusqua(condition: () => boolean, delaiMs = DELAI_PAR_DEFAUT_MS): Promise<void> {
   const limite = Date.now() + delaiMs;
   while (!condition()) {
     if (Date.now() > limite) throw new Error("condition jamais remplie");
