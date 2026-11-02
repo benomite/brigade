@@ -9,10 +9,17 @@ kitchen's.
 It applies to **any project brigade serves**: the second reads that project's log, its repository and
 its issues, and files into that project's repository. Nothing is specific to brigade's own repository.
 
-> **Status: this is the target, not yet what the box runs.** The directions the second reads are on
-> `main` (#1956). The usage digest (#1953), and the wake when the rail empties with its daily cap, its
-> switch and its `status` line (#1955), are still in progress. Until #1953 and #1955 are served, the
-> cap, the switch and the status line below are not verified against the code.
+## When it wakes
+
+The runtime runs the second at its tick, with no UI open, in two cases:
+
+- **the rail is empty**: no ticket is left to cook (served ones are done, and those that wait for a
+  third party or a capacity do not count);
+- **an issue opened by someone other than the chef has waited more than a day** for an answer, so
+  the second answers it first.
+
+It runs at most once in a while, and never two at once. It stays off until the chef turns it on (see
+[Turning it on and off](#turning-it-on-and-off)).
 
 ## What it reads
 
@@ -21,7 +28,7 @@ are there.
 
 | Source | What it holds |
 |---|---|
-| The **usage digest** | What the kitchen measures: the **drift** (tickets served on the first try or not), the pass's refusals, the cooks stopped by a **guardrail**, the tickets set aside (`86`) and why, and the failures that repeat from one ticket to the next (the same failure on several tickets, a cleanup that keeps failing). |
+| The **usage digest** | What the kitchen measures: the **drift** (tickets served on the first try or not), the pass's refusals, the cooks stopped by a **guardrail**, the tickets set aside (`86`) and why, and the failures that repeat from one ticket to the next (the same failure on several tickets, a cleanup that keeps failing). On brigade's own project, the digest also names the other projects the same box serves, each finding tagged with its project. |
 | **Issues opened by people other than the chef** | The feedback of those who use the project, on its repository. |
 | **The chef's directions** | Open issues labelled `direction`, and the chef's comments on them. See [Giving a direction](#giving-a-direction). |
 
@@ -73,28 +80,36 @@ plain words (for example: *focus on onboarding this month*).
 - Only an issue **opened by the chef** counts as a direction; the chef is the account the project's
   settings name. Its body is the direction; the chef's comments on it extend it.
 - **`until: YYYY-MM-DD`** (optional, a line in the body): the direction holds up to that date,
-  included, and ends the day after. Without it, the direction holds until the chef closes the issue.
+  included, and ends the day after. A later `until:` in a comment from the chef wins over the one in the
+  body, so the chef can move the end without editing the issue. Without it, the direction holds until
+  the chef closes the issue.
 - A direction changes what the second files next: at equal usage, what serves it comes first, and what
   contradicts it is not filed.
-- A comment from the chef on a direction issue is read with it.
 
-## Turning it off and on
+## Turning it on and off
 
-The second's wake runs inside the project's kitchen, so it stops with the project's switch:
+The second has its own switch, and it starts **off**: nothing runs until the chef turns it on. The
+chef runs its gestures from the project's state directory:
 
 ```bash
-npm --prefix runtime run switch -- off   # nothing new is filed by the second
-npm --prefix runtime run switch -- on    # the second may run again when the rail empties
+BRIGADE_STATE_DIR=<state directory> node runtime/src/produit/cadence/commande.ts          # its status line, as `status` says it
+BRIGADE_STATE_DIR=<state directory> node runtime/src/produit/cadence/commande.ts on       # it runs when the rail empties (off until then)
+BRIGADE_STATE_DIR=<state directory> node runtime/src/produit/cadence/commande.ts off      # the off switch: it no longer runs
+BRIGADE_STATE_DIR=<state directory> node runtime/src/produit/cadence/commande.ts cap 5    # the daily cap (see below)
 ```
 
-See [The project switch](exploitation.md) for what `off` stops and what it leaves running.
+Each project has its own switch and its own cap. A run already in flight files nothing once the role is
+off. The project's [switch](exploitation.md#the-project-switch) also holds the second: with
+`npm --prefix runtime run switch -- off`, nothing the second does runs, and the project's own switch
+stays off for every other role too. Turning the project switch back on does not turn the second on.
 
 ## The daily cap and the status line
 
-- **The cap**: the second files at most **3 issues a day** by default. This is a [cap](../glossary.md)
-  (`plafond`) that stops the second from flooding the backlog. It is shown with the project's
-  [guardrails](garde-fous.md).
-- **The status line**: `status` shows how many issues the second filed, and when it last ran. Read it
-  there to see, at a glance, what the second filed while the chef was away.
+- **The cap**: the second files at most **3 issues a day** by default. It counts the issues carrying
+  `filed-by:product` created that day, and once the cap is reached nothing more runs that day, and the
+  runtime says so once. `cap 0` files nothing. The cap stops the second from flooding the backlog.
+- **The status line**: `status` shows one line for the second: whether it is `ON` or `OFF`, the issues
+  it filed today against the cap (with `(cap reached)` when it is full), and the time of its last run.
+  Read it there to see, at a glance, what the second filed while the chef was away.
 - **Recognizing its issues**: the chef finds them by the `filed-by:product` label, and by the first
   line of their body, which names the usage behind each one.
