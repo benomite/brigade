@@ -1,14 +1,19 @@
 # Joue les tests de l'app et son contrôle de types sous Windows (#1154) : l'app tourne sur un PC avec
-# les mêmes écrans et les mêmes gestes que sur le Mac. Sur une PR qui touche app/ (ou ce fichier), et
-# à la demande. Les dépendances sont posées sans leurs scripts, comme par le setup de worktree : pas
+# les mêmes écrans et les mêmes gestes que sur le Mac. À chaque push sur `main` qui touche app/ (ou ce
+# fichier), et à la demande. Les dépendances sont posées sans leurs scripts, comme par le setup de worktree : pas
 # de binaire d'Electron, qu'aucun test ne lance. Les tests dont les doublures sont des scripts POSIX
 # (`#!/bin/sh`, un `.ts` à shebang) sont sautés là, en le disant (app/test/aides/posix.ts).
 # Le job `installeur` construit l'installeur Windows et l'éprouve (plus bas) ; rien n'y est signé ni publié :
 # ce sont d'autres tickets (#1156, #1157).
+# Pas sur `pull_request` (#2086) : un check qu'une PR attend rend son verdict dans les 60 s du départ
+# de son job, et `tests` (104 à 135 s) comme `installeur` (287 à 363 s) les dépassent ; la suite de
+# l'app sous Linux reste jouée sur chaque PR par le workflow `tests`.
 name: app-windows
 
 on:
-  pull_request:
+  push:
+    branches:
+      - main
     paths:
       - "app/**"
       - ".github/workflows/app-windows.yml"
@@ -17,20 +22,23 @@ on:
 permissions:
   contents: read
 
+# Un push sur la base a son groupe par commit et n'est jamais annulé : chaque commit de `main` garde
+# son statut.
 concurrency:
-  group: app-windows-${{ github.ref }}
-  cancel-in-progress: true
+  group: app-windows-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'push' }}
 
 jobs:
-  # Un plafond de durée (#1645) : la suite passe en cinq minutes ; un test qui pend sous Windows
-  # (le plafond de 120 s par test ne tient pas un process fils resté vivant) rendait le check
+  # Un plafond de durée (#1645), de 3 min depuis #2086 : le job passe en deux minutes, ses tests en
+  # moins d'une et demie ; un test qui pend sous Windows (le plafond de 120 s par test ne tient pas un
+  # process fils resté vivant) rendait le check
   # silencieux jusqu'aux six heures de GitHub, et la pass le remontait au chef comme `ci-silent`.
   # Passé le plafond du pas, le job est rouge, et son journal dit lequel : `test:en-cours` joue la
   # même suite avec un reporter qui écrit chaque DEBUT de test (app/test/aides/reporter-en-cours.ts) ;
   # le dernier DEBUT sans FIN du journal est le test qui bloque.
   tests:
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 3
     steps:
       # Git for Windows extrait en `\r\n` par défaut : les tests qui relisent une source ou une doc
       # du dépôt y attendent les `\n` du dépôt.
@@ -43,7 +51,7 @@ jobs:
       - name: Installer les dépendances de l'app
         run: npm ci --ignore-scripts --prefix app
       - name: Tests de l'app
-        timeout-minutes: 15
+        timeout-minutes: 2
         run: npm --prefix app run test:en-cours
       - name: Contrôle de types de l'app
         run: npm --prefix app run typecheck
