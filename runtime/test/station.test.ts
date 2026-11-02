@@ -645,8 +645,8 @@ describe("la station", { concurrency: 8 }, () => {
     assert.equal(lancements().length, 4);
     heure.avancer(1);
     await jusqua(() => lancements().length === 8);
-    await new Promise((resoudre) => setTimeout(resoudre, 80));
-    assert.equal(numeros.filter((numero) => etat(numero) === "taken").length, 8);
+    // Le lancement précède la prise du ticket : on attend le fait, pas l'horloge.
+    await jusqua(() => numeros.filter((numero) => etat(numero) === "taken").length === 8);
   });
 
   test("la machine se lit même quand une autre borne retient la station : au plafond, une saturation se dit et se lève", async (t) => {
