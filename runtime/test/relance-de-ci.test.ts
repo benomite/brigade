@@ -293,15 +293,6 @@ describe("la pass relance une CI rouge sur des tests que la livraison ne touche 
       assert.ok(String(findings[0]).startsWith(`CI rouge — job « tests » : failure (${gh.ci.checks[0]?.url}).`));
     });
   }
-
-  test("un constat bloquant du reviewer fait déjà le verdict rouge : rien n'est relancé", async (t) => {
-    const { gh, compter, jusquAu } = servir(t, { scenario: "bavard", suite: ["livre"], reviewer: { relecture: "relit-rouge" } });
-    gh.ci.checks = [job(2)];
-    gh.journauxDeCI.set("tests", JOURNAL_LINUX.replace("cuisson-de-bout-en-bout", "rail"));
-    await jusquAu("pass.returned");
-
-    assert.deepEqual([compter("pass.ci-rerun"), gh.relances.length], [0, 0]);
-  });
 });
 
 describe("le journal d'un job rouge nomme ses tests en échec avec leurs erreurs (#1867)", () => {

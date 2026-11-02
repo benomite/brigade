@@ -63,7 +63,10 @@ export function parcoursDesTickets(base: Base): Parcours[] {
       }
       case "cook.exited": {
         const essai = typeof p.run === "string" ? essais.get(p.run) : undefined;
-        if (essai !== undefined) essai.outcome = typeof p.outcome === "string" ? p.outcome : null;
+        if (essai !== undefined) {
+          essai.outcome = typeof p.outcome === "string" ? p.outcome : null;
+          essai.exitedAt = at;
+        }
         break;
       }
       case "pass.judged": {

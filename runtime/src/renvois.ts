@@ -12,8 +12,9 @@ export const DERNIERS_PAR_DEFAUT = 20;
 // que son `cook.exited` dit (`ok` quand il a livré), nulle tant qu'il tourne
 // ou s'il est mort avec le runtime. `verdict` : celui de la pass sur ce qu'il a
 // livré — le dernier, s'il a été rejugé —, nul si elle ne l'a pas jugé.
+// `exitedAt` : l'instant de ce `cook.exited`, s'il y en a un.
 // `signaux` : de quoi ranger l'essai dans une cause s'il rate (`causes-des-ratages.ts`).
-export type Essai = { run: string; at: string; outcome: string | null; verdict: "green" | "red" | null; signaux?: Signaux };
+export type Essai = { run: string; at: string; exitedAt?: string; outcome: string | null; verdict: "green" | "red" | null; signaux?: Signaux };
 
 // Le parcours d'un ticket servi : de sa première prise par une station
 // (`takenAt`) à sa fin. `end` : `merged`, sa livraison est dans la base
@@ -28,6 +29,8 @@ export type Parcours = { ticket: number; takenAt: string; end: { kind: "merged" 
 // sur les retenus, et sont nulles s'il n'y en a aucun. `premierCoup` : la part
 // des retenus mergés sur un seul essai, entre 0 et 1. `essaisMoyens` : leur
 // nombre moyen d'essais. `tempsMoyenMs` : le temps moyen de la prise au merge.
+// `relanceMoyenneMs` : sur les `relances` renvois des parcours retenus, le temps moyen de la fin d'un cook à
+// l'instant où le suivant repart — la livraison, sa pass rouge, puis le renvoi.
 export type Renvois = {
   n: number;
   servis: number;
@@ -36,6 +39,8 @@ export type Renvois = {
   premierCoup: number | null;
   essaisMoyens: number | null;
   tempsMoyenMs: number | null;
+  relanceMoyenneMs: number | null;
+  relances: number;
 };
 
 const moyenne = (valeurs: number[]) => (valeurs.length === 0 ? null : valeurs.reduce((somme, valeur) => somme + valeur, 0) / valeurs.length);
@@ -45,6 +50,12 @@ const moyenne = (valeurs: number[]) => (valeurs.length === 0 ? null : valeurs.re
 export function mesurerRenvois(parcours: readonly Parcours[], n = DERNIERS_PAR_DEFAUT): Renvois {
   const derniers = parcours.slice(-n);
   const merges = derniers.flatMap((un) => (un.end?.kind === "merged" ? [{ essais: un.attempts.length, ms: Date.parse(un.end.at) - Date.parse(un.takenAt) }] : []));
+  const delais = derniers.flatMap((un) =>
+    un.attempts.flatMap((essai, i) => {
+      const suivant = un.attempts[i + 1];
+      return essai.outcome !== "ok" || essai.exitedAt === undefined || suivant === undefined ? [] : [Date.parse(suivant.at) - Date.parse(essai.exitedAt)];
+    }),
+  );
   return {
     n,
     servis: derniers.length,
@@ -53,6 +64,8 @@ export function mesurerRenvois(parcours: readonly Parcours[], n = DERNIERS_PAR_D
     premierCoup: moyenne(merges.map(({ essais }) => (essais === 1 ? 1 : 0))),
     essaisMoyens: moyenne(merges.map(({ essais }) => essais)),
     tempsMoyenMs: moyenne(merges.map(({ ms }) => ms)),
+    relanceMoyenneMs: moyenne(delais),
+    relances: delais.length,
   };
 }
 
@@ -85,7 +98,7 @@ const ligne = (titre: string, valeur: string) => `${titre.padEnd(11)}${valeur}`.
 const ECARTES = "not merged (running, dropped, or served without a diff): left out of the count";
 
 // La mesure des renvois, ligne par ligne.
-export function decrireRenvois({ n, servis, retenus, ecartes, premierCoup, essaisMoyens, tempsMoyenMs }: Renvois): string[] {
+export function decrireRenvois({ n, servis, retenus, ecartes, premierCoup, essaisMoyens, tempsMoyenMs, relanceMoyenneMs, relances }: Renvois): string[] {
   if (servis === 0) return [ligne("retries", `no served ticket in the log: nothing to measure (N = ${n})`)];
   const tete = ligne(
     "retries",
@@ -97,5 +110,6 @@ export function decrireRenvois({ n, servis, retenus, ecartes, premierCoup, essai
     ligne("", `delivered on the first try: ${dire(premierCoup * 100, 0)}% (${Math.round(premierCoup * retenus)} of ${retenus})`),
     ligne("", `attempts per ticket: ${dire(essaisMoyens)} on average`),
     ligne("", `from taking to merge: ${dureeEn(tempsMoyenMs)} on average`),
+    ligne("", relanceMoyenneMs === null ? "from delivery to the cook's restart: no send-back to measure" : `from delivery to the cook's restart: ${dureeEn(relanceMoyenneMs)} on average (${relances} send-back${relances > 1 ? "s" : ""})`),
   ];
 }

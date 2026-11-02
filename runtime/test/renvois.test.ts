@@ -65,12 +65,13 @@ function cuisine(t: TestContext) {
 test("sur un ticket livré du premier coup, un à deux essais et un à quatre, les trois chiffres sont exactement ceux attendus", () => {
   const renvois = mesurerRenvois([merge(1, 1, "10:00", "11:00"), merge(2, 2, "10:00", "12:00"), merge(3, 4, "10:00", "16:00")], 13);
 
-  assert.deepEqual(renvois, { n: 13, servis: 3, retenus: 3, ecartes: 0, premierCoup: 1 / 3, essaisMoyens: 7 / 3, tempsMoyenMs: 3 * 3_600_000 });
+  assert.deepEqual(renvois, { n: 13, servis: 3, retenus: 3, ecartes: 0, premierCoup: 1 / 3, essaisMoyens: 7 / 3, tempsMoyenMs: 3 * 3_600_000, relanceMoyenneMs: null, relances: 0 });
   assert.deepEqual(decrireRenvois(renvois), [
     "retries    the last 13 served tickets (N = 13): 3 in the log, 3 kept, 0 set aside — not merged (running, dropped, or served without a diff): left out of the count",
     "           delivered on the first try: 33% (1 of 3)",
     "           attempts per ticket: 2.3 on average",
     "           from taking to merge: 3 h 00 on average",
+    "           from delivery to the cook's restart: no send-back to measure",
   ]);
 });
 
@@ -81,13 +82,13 @@ test("les tickets non mergés sont écartés du calcul et comptés ; seuls les N
 
   const renvois = mesurerRenvois([ancien, merge(1, 1, "10:00", "11:00"), enCours, merge(2, 2, "10:00", "12:00"), sansDiff], 4);
 
-  assert.deepEqual(renvois, { n: 4, servis: 4, retenus: 2, ecartes: 2, premierCoup: 0.5, essaisMoyens: 1.5, tempsMoyenMs: 1.5 * 3_600_000 });
+  assert.deepEqual(renvois, { n: 4, servis: 4, retenus: 2, ecartes: 2, premierCoup: 0.5, essaisMoyens: 1.5, tempsMoyenMs: 1.5 * 3_600_000, relanceMoyenneMs: null, relances: 0 });
   assert.match(decrireRenvois(renvois)[0] ?? "", /^retries {4}the last 4 served tickets \(N = 4\): 4 in the log, 2 kept, 2 set aside — not merged/);
   assert.equal(mesurerRenvois([]).n, DERNIERS_PAR_DEFAUT);
 });
 
 test("sans ticket servi, ou sans aucun mergé, la mesure le dit au lieu de montrer des zéros", () => {
-  assert.deepEqual(mesurerRenvois([], 20), { n: 20, servis: 0, retenus: 0, ecartes: 0, premierCoup: null, essaisMoyens: null, tempsMoyenMs: null });
+  assert.deepEqual(mesurerRenvois([], 20), { n: 20, servis: 0, retenus: 0, ecartes: 0, premierCoup: null, essaisMoyens: null, tempsMoyenMs: null, relanceMoyenneMs: null, relances: 0 });
   assert.deepEqual(decrireRenvois(mesurerRenvois([], 20)), ["retries    no served ticket in the log: nothing to measure (N = 20)"]);
   assert.deepEqual(decrireRenvois(mesurerRenvois([{ ticket: 4, takenAt: a("10:00"), end: null, attempts: [] }], 20)), [
     "retries    the last 20 served tickets (N = 20): 1 in the log, 0 kept, 1 set aside — not merged (running, dropped, or served without a diff): left out of the count",
@@ -122,9 +123,9 @@ test("le parcours d'un ticket va de sa première prise à son merge, rendu et re
     takenAt: a("10:00"),
     end: { kind: "merged", at: `${JOUR_HORLOGE}T10:00:13.000Z` },
     attempts: [
-      { run: premier, at: `${JOUR_HORLOGE}T10:00:01.000Z`, outcome: "failed", verdict: null },
-      { run: second, at: `${JOUR_HORLOGE}T10:00:05.000Z`, outcome: "ok", verdict: "red" },
-      { run: troisieme, at: `${JOUR_HORLOGE}T10:00:10.000Z`, outcome: "ok", verdict: "green" },
+      { run: premier, at: `${JOUR_HORLOGE}T10:00:01.000Z`, exitedAt: `${JOUR_HORLOGE}T10:00:02.000Z`, outcome: "failed", verdict: null },
+      { run: second, at: `${JOUR_HORLOGE}T10:00:05.000Z`, exitedAt: `${JOUR_HORLOGE}T10:00:06.000Z`, outcome: "ok", verdict: "red" },
+      { run: troisieme, at: `${JOUR_HORLOGE}T10:00:10.000Z`, exitedAt: `${JOUR_HORLOGE}T10:00:11.000Z`, outcome: "ok", verdict: "green" },
     ],
   });
   assert.equal(rouvert?.end, null);
@@ -148,7 +149,7 @@ test("`measures --last` mesure les renvois des N derniers tickets servis, dit N 
   assert.match(commande.sortie(), /^report {5}brigade — 4 merges in the log, in slices of 2\n/);
   assert.match(
     commande.sortie(),
-    /\n\nretries {4}the last 4 served tickets \(N = 4\): 4 in the log, 3 kept, 1 set aside — not merged[^\n]*\n {11}delivered on the first try: 33% \(1 of 3\)\n {11}attempts per ticket: 2\.3 on average\n {11}from taking to merge: \d+ s on average\n\nfailures/,
+    /\n\nretries {4}the last 4 served tickets \(N = 4\): 4 in the log, 3 kept, 1 set aside — not merged[^\n]*\n {11}delivered on the first try: 33% \(1 of 3\)\n {11}attempts per ticket: 2\.3 on average\n {11}from taking to merge: \d+ s on average\n {11}from delivery to the cook's restart: [^\n]*\n\nfailures/,
   );
   assert.equal(await nul.fin, 2);
   assert.match(nul.sortie(), /usage: .*--last <number of tickets>/);
@@ -188,4 +189,13 @@ test("le seuil et la fenêtre se règlent : un autre seuil change le verdict, un
   // Fenêtre de 4 : les quatre derniers ont tous demandé deux essais.
   assert.deepEqual(derivePremierCoup(servis(10, 6), { firstTryWindow: 4 }), { premiers: 0, retenus: 4, fenetre: 4, seuil: 50 });
   assert.equal(derivePremierCoup(servis(4, 4), { firstTryWindow: 4 }), null);
+});
+
+test("le délai de relance va de la fin d'un cook au lancement du suivant, et la mesure le dit", () => {
+  const essai = (run: string, at: string, exitedAt: string, verdict: "green" | "red") => ({ run, at: a(at), exitedAt: a(exitedAt), outcome: "ok", verdict });
+  const parcours: Parcours = { ticket: 1, takenAt: a("10:00"), end: { kind: "merged", at: a("12:00") }, attempts: [essai("r1", "10:00", "10:10", "red"), essai("r2", "10:20", "10:25", "red"), essai("r3", "10:35", "10:40", "green")] };
+  const renvois = mesurerRenvois([parcours]);
+  assert.equal(renvois.relances, 2);
+  assert.equal(renvois.relanceMoyenneMs, 10 * 60_000);
+  assert.ok(decrireRenvois(renvois).some((ligne) => ligne.includes("from delivery to the cook's restart: 10 min on average (2 send-backs)")));
 });
