@@ -4,7 +4,7 @@
 // machine ferait, et un répertoire où publier des versions. Le vrai `dpkg-deb`
 // construit et ouvre les paquets ; le code installé, le postinst et les unités
 // sont ceux du paquet.
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { appendFileSync, chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
@@ -64,12 +64,13 @@ export type Machine = {
   // Ce qu'il faut à un process pour jouer sur cette machine.
   env: Record<string, string>;
   // L'installation du guide : le paquet remis à apt, une seule fois.
-  installer(paquet: string): void;
+  installer(paquet: string): Promise<void>;
   // Publier une version : poser son paquet là où la station les cherche.
   publier(version: string, paquet: string): void;
   // Le minuteur de la mise à jour qui se déclenche : un passage, sous systemd.
-  // Rend le code de sortie du passage.
-  declencher(): number;
+  // Rend le code de sortie du passage. Asynchrones, l'installation et le
+  // passage laissent tourner les autres tests du fichier, chacun sur sa machine.
+  declencher(): Promise<number>;
   // La version installée, selon dpkg.
   installee(): string | null;
   // Le process de la station, selon systemd : son pid, 0 sans process, et son
@@ -105,6 +106,15 @@ export function uneMachine(t: TestContext, env: Record<string, string> = {}): Ma
     FAUX_SYSTEMD_ENV: JSON.stringify({ BRIGADE_MISE_A_JOUR_SOURCE: publiees, ...JSON.parse(env.FAUX_SYSTEMD_ENV ?? "{}") }),
   };
   const systemctl = (...args: string[]) => spawnSync(join(bin, "systemctl"), args, { env: complet, encoding: "utf8" });
+  const jouer = (commande: string, args: string[]) =>
+    new Promise<{ status: number | null; sortie: string }>((resoudre) => {
+      const enfant = spawn(commande, args, { env: complet, stdio: ["ignore", "pipe", "pipe"] });
+      let sortie = "";
+      enfant.stdout.on("data", (morceau: Buffer) => (sortie += morceau.toString()));
+      enfant.stderr.on("data", (morceau: Buffer) => (sortie += morceau.toString()));
+      enfant.on("error", (erreur) => resoudre({ status: null, sortie: sortie + String(erreur) }));
+      enfant.on("close", (status) => resoudre({ status, sortie }));
+    });
   const pidDe = (unite: string) => Number(lire(join(etat, `${unite}.pid`)) || 0);
   // La fin du test arrête la station et ses portes, quelle que soit leur version.
   aArreter(t, () => {
@@ -125,17 +135,17 @@ export function uneMachine(t: TestContext, env: Record<string, string> = {}): Ma
     station: join(racine, "var/lib/brigade"),
     miseAJour: join(racine, "var/lib/brigade-station"),
     env: complet,
-    installer(paquet) {
-      const rendu = spawnSync(join(bin, "apt-get"), ["install", "-y", "-q", paquet], { env: complet, encoding: "utf8" });
-      if (rendu.status !== 0) throw new Error(`installation de ${paquet} : ${rendu.stdout}${rendu.stderr}`);
+    async installer(paquet) {
+      const rendu = await jouer(join(bin, "apt-get"), ["install", "-y", "-q", paquet]);
+      if (rendu.status !== 0) throw new Error(`installation de ${paquet} : ${rendu.sortie}`);
     },
     publier(version, paquet) {
       mkdirSync(join(publiees, version));
       writeFileSync(join(publiees, version, `brigade-station_${process.arch === "arm64" ? "arm64" : "amd64"}.deb`), readFileSync(paquet));
     },
-    declencher() {
+    async declencher() {
       appendFileSync(join(etat, "appels"), "-- minuteur\n");
-      return systemctl("start", "brigade-station-mise-a-jour.service").status ?? -1;
+      return (await jouer(join(bin, "systemctl"), ["start", "brigade-station-mise-a-jour.service"])).status ?? -1;
     },
     installee() {
       const lu = lire(join(racine, "var/lib/dpkg-faux/brigade-station")).trim();
