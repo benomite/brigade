@@ -50,7 +50,7 @@ function cree(doc, balise, texte) {
 
 // Une carte : son numéro — un bouton qui ouvre l'issue —, son mot d'état dans le ton de sa colonne, son titre.
 /** @param {Fabrique} doc @param {CarteDuRailPublie} carte @param {GestesDuRailPublie} geste */
-function bonPublie(doc, { ticket, etat, ton, titre, ouvrable }, geste) {
+function bonPublie(doc, { ticket, etat, mot: motDEtat, ton, titre, ouvrable }, geste) {
   const bon = cree(doc, "li");
   bon.className = "bon";
   const tete = cree(doc, "div");
@@ -61,7 +61,7 @@ function bonPublie(doc, { ticket, etat, ton, titre, ouvrable }, geste) {
     numero.title = `open issue #${ticket} in the browser`;
     numero.addEventListener("click", () => geste.ouvrirIssue(ticket));
   } else numero.title = SANS_ADRESSE;
-  const mot = cree(doc, "span", etat === "86" ? "set aside" : etat);
+  const mot = cree(doc, "span", motDEtat ?? etat);
   mot.className = "etat-ticket";
   if (ton !== undefined) mot.dataset.ton = ton;
   const forme = geste.forme?.(ton);

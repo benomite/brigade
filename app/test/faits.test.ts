@@ -223,6 +223,7 @@ describe("les faits que l'app dessine", () => {
       a: "2026-10-12T10:04:12.000Z",
       tableau: {
         etat: "ouverte",
+        mot: "open",
         ton: "vert",
         arretee: false,
         // Ni leçon ni profil : `facts` ne porte pas `apprentissage`, la page le dira en une phrase.
@@ -248,6 +249,7 @@ describe("les faits que l'app dessine", () => {
                 {
                   ticket: 14,
                   etat: "pris",
+                  mot: "taken",
                   ton: "bleu",
                   titre: "Le journal en ajout seul",
                   ouvrable: true,
@@ -271,7 +273,7 @@ describe("les faits que l'app dessine", () => {
               ton: "rouge",
               compte: "1",
               // `attend`, dans la forme, le nomme : il est ici avant même que `status` ait été lu.
-              cartes: [{ ticket: 21, etat: "BLOQUÉ", ton: "rouge", titre: "L'export du journal", ouvrable: true, attendu: true, attend: [], ligne: SANS_DECISION, dit: [], sans: `${SANS_STATUS} : who holds it · since when · its lease · what it burns · what blocks it`, ...fiche("L'export du journal", ATTENDU), gestes: ["attente-poser"] }],
+              cartes: [{ ticket: 21, etat: "BLOQUÉ", mot: "BLOCKED", ton: "rouge", titre: "L'export du journal", ouvrable: true, attendu: true, attend: [], ligne: SANS_DECISION, dit: [], sans: `${SANS_STATUS} : who holds it · since when · its lease · what it burns · what blocks it`, ...fiche("L'export du journal", ATTENDU), gestes: ["attente-poser"] }],
               vide: "no ticket in `attend`, according to `facts`",
             },
             { nom: "WAITING", ton: "gris", compte: "0", cartes: [], vide: "no ticket waits for a third party" },
@@ -281,11 +283,12 @@ describe("les faits que l'app dessine", () => {
               // Autant de cartes que `livrés 24 h` : celles de `livres`, le plus récent en haut, partis du rail ou non.
               compte: "3",
               cartes: [
-                { ticket: 216, etat: "servi", ton: "vert", titre: "Le relevé des mesures", ouvrable: true, attendu: false, attend: [], ligne: `served at ${heureHM("2026-10-12T10:03:58.000Z")} · ${RELU_216.resume.split(". ")[0]}.`, pr: true, livraison: { resume: RELU_216.resume, remarques: "2 remarks", constats: RELU_216.constats }, dit: [{ libelle: "served", valeur: "13 s before the reading" }, { libelle: "cooked by", valeur: "box/claude", exact: true }], ...fiche("Le relevé des mesures", { pr: true }) },
-                { ticket: 201, etat: "servi", ton: "vert", titre: "Les grants sous plafond", ouvrable: true, attendu: false, attend: [], ligne: `served at ${heureHM("2026-10-12T07:12:40.000Z")} · ${RELU_201.resume}`, pr: true, livraison: { resume: RELU_201.resume, remarques: "no remarks", constats: [] }, dit: [{ libelle: "served", valeur: "2 h 51 before the reading" }, { libelle: "cooked by", valeur: "box/claude", exact: true }], ...fiche("Les grants sous plafond", { pr: true }) },
+                { ticket: 216, etat: "servi", mot: "served", ton: "vert", titre: "Le relevé des mesures", ouvrable: true, attendu: false, attend: [], ligne: `served at ${heureHM("2026-10-12T10:03:58.000Z")} · ${RELU_216.resume.split(". ")[0]}.`, pr: true, livraison: { resume: RELU_216.resume, remarques: "2 remarks", constats: RELU_216.constats }, dit: [{ libelle: "served", valeur: "13 s before the reading" }, { libelle: "cooked by", valeur: "box/claude", exact: true }], ...fiche("Le relevé des mesures", { pr: true }) },
+                { ticket: 201, etat: "servi", mot: "served", ton: "vert", titre: "Les grants sous plafond", ouvrable: true, attendu: false, attend: [], ligne: `served at ${heureHM("2026-10-12T07:12:40.000Z")} · ${RELU_201.resume}`, pr: true, livraison: { resume: RELU_201.resume, remarques: "no remarks", constats: [] }, dit: [{ libelle: "served", valeur: "2 h 51 before the reading" }, { libelle: "cooked by", valeur: "box/claude", exact: true }], ...fiche("Les grants sous plafond", { pr: true }) },
                 {
                   ticket: 188,
                   etat: "servi",
+                  mot: "served",
                   ton: "vert",
                   titre: "Une fiche sans zone",
                   ouvrable: true,
@@ -528,7 +531,7 @@ describe("le rail en six colonnes", () => {
       ["Served", "1", [9]],
     ]);
     // Ce qu'on attend de lui, en mots, n'a pas été lu : la carte l'écrit, et n'offre aucun geste d'après des mots qu'elle n'a pas.
-    assert.deepEqual(dessine.colonnes[3]?.cartes[0], { ticket: 21, etat: "BLOQUÉ", ton: "rouge", titre: "Ticket 21", ouvrable: true, attendu: true, attend: [], ...NUE, ligne: SANS_DECISION, ...fiche("Ticket 21", ATTENDU), gestes: ["attente-poser"] });
+    assert.deepEqual(dessine.colonnes[3]?.cartes[0], { ticket: 21, etat: "BLOQUÉ", mot: "BLOCKED", ton: "rouge", titre: "Ticket 21", ouvrable: true, attendu: true, attend: [], ...NUE, ligne: SANS_DECISION, ...fiche("Ticket 21", ATTENDU), gestes: ["attente-poser"] });
     // Aucun ticket n'attend : la colonne le dit de `faits`, et jamais « rien ne t'attend » — une connexion, la base n'y ont pas de carte.
     assert.deepEqual(rail({ ...SANS_LIVRES, rail: RAIL, attend: [] }).colonnes[3], { nom: "TODO", ton: "rouge", compte: "0", cartes: [], vide: "no ticket in `attend`, according to `facts`" });
   });
@@ -549,6 +552,7 @@ describe("le rail en six colonnes", () => {
       assert.deepEqual(dessine.colonnes[3]?.cartes[2], {
         ticket: 12,
         etat: "en pass",
+        mot: "in pass",
         ton: "jaune",
         titre: "Ticket 12",
         ouvrable: true,
@@ -615,7 +619,7 @@ describe("le rail en six colonnes", () => {
 
   test("un ticket `86` ou d'un mot inconnu n'est d'aucune colonne : il est rendu à part, avec son mot — et dans T'attend si la file dit qu'il attend", () => {
     assert.deepEqual(rail({ ...SANS_LIVRES, rail: RAIL }, BLOC).hors, [
-      { ticket: 40, etat: "86", ton: "rouge", titre: "Ticket 40", ouvrable: true, attendu: false, attend: [], ...NUE, ...fiche("Ticket 40") },
+      { ticket: 40, etat: "86", mot: "set aside", ton: "rouge", titre: "Ticket 40", ouvrable: true, attendu: false, attend: [], ...NUE, ...fiche("Ticket 40") },
       { ticket: 41, etat: "au four", titre: "Ticket 41", ouvrable: true, attendu: false, attend: [], ...NUE, ...fiche("Ticket 41") },
     ]);
     const remonte = rail({ ...SANS_ATTEND_NI_LIVRES, rail: RAIL }, { ...BLOC, bloc: "attend     1 décision attend le chef depuis 2 j\n  #40  depuis 2 j  remontée par la pass, rouge\nfin attend\n" });
@@ -712,6 +716,7 @@ describe("Livré, d'après `livres`", () => {
     assert.deepEqual(livreCol(dessine)?.cartes[0], {
       ticket: 30,
       etat: "servi",
+      mot: "served",
       ton: "vert",
       titre: "Ticket 30",
       ouvrable: true,
@@ -748,6 +753,7 @@ describe("Livré, d'après `livres`", () => {
     assert.deepEqual(carte, {
       ticket: 378,
       etat: "servi",
+      mot: "served",
       ton: "vert",
       ouvrable: false,
       attendu: false,

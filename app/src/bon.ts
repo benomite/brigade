@@ -114,7 +114,15 @@ const FORMES: { etats: readonly string[]; forme: RegExp; lire(trouve: RegExpExec
 
 // L'état que `faits` donne est en français ; `status` l'écrit en anglais depuis #940
 // (docs/glossary.md, §4), en français avant : la ligne commence par l'un ou l'autre.
-const EN_ANGLAIS: Record<string, string> = { pris: "taken", "en attente": "queued", "en pass": "in pass", servi: "served", BLOQUÉ: "BLOCKED" };
+// C'est aussi la seule table des mots que l'app affiche pour un état (`motDEtat`) : celui
+// d'une carte du rail, celui de la cuisine d'un projet, `86` (un ticket mis de côté) — la vue
+// et le rail publié n'en gardent aucune copie. Les valeurs de `faits` ne changent pas.
+export const MOTS_DE_CARTE: Readonly<Record<string, string>> = { pris: "taken", "en attente": "queued", "en pass": "in pass", servi: "served", BLOQUÉ: "BLOCKED", "86": "set aside", WAITING: "waiting" };
+export const MOTS_DE_CUISINE: Readonly<Record<string, string>> = { ouverte: "open", retenue: "held", arrêtée: "stopped", éteinte: "off" };
+const EN_ANGLAIS: Readonly<Record<string, string>> = { ...MOTS_DE_CARTE, ...MOTS_DE_CUISINE };
+// Le mot affiché pour un état : l'anglais de la table, ou l'état tel quel quand il n'y est pas
+// (un mot inconnu de la box, déjà en anglais) — rien n'est inventé.
+export const motDEtat = (etat: string): string => EN_ANGLAIS[etat] ?? etat;
 
 // Ce qui est entre l'état et le titre d'une ligne — l'un et l'autre viennent de
 // `faits`, et la bornent : la priorité, puis le détail. Rien, si elle n'est pas

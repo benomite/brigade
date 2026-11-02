@@ -127,7 +127,7 @@ describe("l'onglet Cooks : une ligne par station du projet", () => {
     // cooks sont ceux des stations, et la carte n'est plus posée.
     assert.throws(() => vue.element("carte"), /aucun élément « carte »/);
     const cuisine = vue.element("rail").dessous("p").find(({ className }) => className === "etat-de-la-cuisine") ?? assert.fail("pas de ligne de la cuisine");
-    assert.match(cuisine.textContent, /^kitchenouverte/);
+    assert.match(cuisine.textContent, /^kitchenopen/);
     // Les stations, dans l'ordre de `facts`, celles de la principale d'abord (#1786).
     assert.deepEqual(lignes(vue).map((li) => li.dataset.station), ["box/claude", "atelier/claude", "mac/claude"]);
     assert.deepEqual(lignes(vue).map(etatDe), ["cooking", "cooking", "stopped"]);
@@ -291,7 +291,7 @@ describe("l'onglet Cooks : un bloc par station, et les cartes de ses tickets en 
     // son numéro et son titre, et son numéro n'ouvre pas d'issue.
     const quatorze = carteDe(ligne(vue, "box/claude"), 14);
     assert.equal((quatorze as Faux & { tabIndex?: number }).tabIndex, 0);
-    assert.equal(quatorze.children[0]?.children[1]?.textContent, "pris");
+    assert.equal(quatorze.children[0]?.children[1]?.textContent, "taken");
     assert.equal(quatorze.children[0]?.children[0]?.balise, "button");
     assert.equal(carteDe(ligne(vue, "atelier/claude"), 16).children[0]?.children[0]?.balise, "span");
     // Aucune sortie brute de commande dans un bloc : ni `pre`, ni ligne lancée, ni code de sortie.
