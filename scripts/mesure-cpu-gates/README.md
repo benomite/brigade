@@ -35,10 +35,11 @@ To compare the tests run by two passes: `diff <A>/tests.txt <B>/tests.txt` (one 
 - **Longest files first** (`runtime/test-config/durees.tsv`, refreshed from the `durees.tsv` a pass writes). `node --test` takes its files in name order, five at a time: a 40 s file drawn last held the suite alone while the other cores waited.
 - **As many files at once as logical cores** (`BRIGADE_TESTS_CONCURRENCE` or `--concurrence` to override). Past that, the wall clock no longer drops: the suite is bound by the CPU.
 - **Blocking stdout in each test file** (`runtime/test-config/sortie-bloquante.ts`). Under `--test-force-exit`, a loaded launcher lost the end of a file's report, and tests were missing from the count (23 and 35 on two passes of a loaded box).
+- **Short files several per process** (`suite.ts`, "Les petits fichiers"). A file under a second paid about half of it to start: its Node, the test runner, and the runtime modules it loads — the same as its neighbour's. Files known to last under 4 s are played in batches of up to 8 s, one process per batch, their tests one after the other. A file stays alone when it touches anything its neighbours would share: the process environment, its directory, its signals, the process's GitHub counter (`installerLimite`), global mocks (`t.mock` is undone per test, so it is fine). A file calling `temporaireDuFichier` opens its own batch and never shares it with a file that keeps directories (`repertoireDuFichier`, `aides/box.ts`). An unknown file runs alone until `durees.tsv` knows it.
 - Temp dir in `/dev/shm` when it has room, Node's compile cache, `git --exec-path` first in `PATH` — as the gates and `npm test` already do.
 
 ### Reading the number
 
 The wall clock is bounded below by **CPU ÷ cores** and by **the longest file**. Read both before blaming a test:
 `suite-runtime.sh` prints the CPU, `profil-runtime.sh` says which files spend it. On the 8-thread box (4 physical cores),
-the runtime suite costs about 730 s of CPU, so its wall clock cannot go below about 90 s there, even when the box is idle.
+the runtime suite cost about 690 s of CPU through `npm test`, and about 620 s through the launcher, so its wall clock cannot go below about 78 s there, even when the box is idle — and the longest file, `test/mise-a-jour/machine.test.ts`, holds about 40 s on its own.
