@@ -15,6 +15,7 @@ import { etatDeLaBase, pass, reparationDeLaBase, reparationEnCours } from "../sr
 import { lireRail, rail } from "../src/projections/rail.ts";
 import { chef, controlerBase, cuisine, issue } from "./aides/cuisine.ts";
 import { BASE, horloge, jusqua, repertoireTemporaire } from "./outils.ts";
+import { CONCURRENCE } from "./support/plateforme.ts";
 
 type Scenario = "vert" | "rouge";
 
@@ -62,7 +63,7 @@ function service(t: TestContext, options: { issues?: Issue[]; scenario?: string;
   return { ...lieu, base, essais, compter, jusquAu, laisserTourner, lance, rougir };
 }
 
-describe("une base rouge : rejeu automatique, puis ticket de réparation", { concurrency: 8 }, () => {
+describe("une base rouge : rejeu automatique, puis ticket de réparation", { concurrency: CONCURRENCE }, () => {
   test("rouge puis verte au rejeu : la pass rejoue seule, aucun ticket de réparation n'est ouvert, et la cuisine reprend le travail", async (t) => {
     // Le rejeu attend que le test ait vu la station retenue par la base.
     let rejouer = () => {};

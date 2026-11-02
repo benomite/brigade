@@ -28,3 +28,8 @@ export function windowsOnly(raison: string, courante: Plateforme = process.platf
 export function posixOnly(raison: string, courante: Plateforme = process.platform): string | false {
   return seulementSur(["linux", "darwin"], raison, courante);
 }
+
+// Combien de tests d'un même `describe` jouent à la fois. Sous Windows, huit cuisines à la fois
+// affament le runner : les mêmes tests y attendaient en vain, jamais les mêmes d'un run à l'autre
+// (station.test.ts, reparation.test.ts ; #2071). Un seul à la fois, comme les fichiers (windows.ts).
+export const CONCURRENCE = process.platform === "win32" ? 1 : 8;

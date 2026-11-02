@@ -21,7 +21,7 @@ import { configStation, REPLI_REFUS_MS } from "../src/station.ts";
 import { BAIL_MS, CALIBRE, chef, controlerBase, cuisine, fauxGitHub, issue, MACHINE_CALME, MACHINE_VASTE, montre, PLAFONDS, plafonner, STATION } from "./aides/cuisine.ts";
 import { depotQuiRefuse } from "./aides/depot-qui-refuse.ts";
 import { BASE, commiter, DEPOT, depotGit, git, jusqua, mort, repertoireTemporaire, tuerLesRelais } from "./outils.ts";
-import { posixOnly } from "./support/plateforme.ts";
+import { CONCURRENCE, posixOnly } from "./support/plateforme.ts";
 
 // Une base que le test fait bouger — un correctif mergé —, et le compte des
 // fois où la station l'a rapatriée.
@@ -31,10 +31,6 @@ const baseMobile = () => {
 };
 
 // Chaque test a ses lieux — répertoire d'état, dépôt, GitHub : ils se jouent de front.
-// Sous Windows, huit tests de la station à la fois sur le runner l'affament : les mêmes tests y
-// attendaient en vain, jamais les mêmes d'un run à l'autre (#2071). Un seul à la fois, comme les fichiers.
-const CONCURRENCE = process.platform === "win32" ? 1 : 8;
-
 describe("la station", { concurrency: CONCURRENCE }, () => {
   test("au branchement, la station annonce son nom, son moteur, ce qu'elle fournit, son plafond de cooks et les cœurs de sa machine", (t) => {
     const { journal } = cuisine(t);
