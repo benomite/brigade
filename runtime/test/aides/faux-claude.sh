@@ -164,6 +164,16 @@ session() {
 # cook derrière elle.
 rester() { exec sleep 30; }
 
+# Attendre que le test pose le fichier $1. Cinq minutes au plus, la garde d'un test sous Windows :
+# là, tuer le cook ne tue pas ses enfants, et une boucle sans borne d'un test raté y lançait un
+# `sleep` toutes les 20 ms jusqu'à la fin de la part (#2080).
+attendre_le_feu() {
+  until [ -e "$1" ]; do
+    [ "$SECONDS" -lt 300 ] || exit 1
+    sleep 0.02
+  done
+}
+
 # Cède la place à un scénario qui vit : même process, même sortie.
 vivre() { FAUX_CLAUDE="$1" exec node "$ICI/faux-claude.ts"; }
 
@@ -376,7 +386,7 @@ FIN
     # tue de SIGTERM — sans que le superviseur l'ait demandé.
     meurt-sigterm)
       assistant
-      while [ ! -e "$FAUX_CLAUDE_FEU" ]; do sleep 0.02; done
+      attendre_le_feu "$FAUX_CLAUDE_FEU"
       kill -TERM $$
       ;;
     # Un même message livré en trois lignes (une par bloc de contenu), dont
@@ -463,7 +473,7 @@ FIN
     # pendant que l'agent décide.
     triage-au-feu)
       assistant
-      while [ ! -e "$FAUX_CLAUDE_FEU" ]; do sleep 0.02; done
+      attendre_le_feu "$FAUX_CLAUDE_FEU"
       resultat <<'FIN'
 {"action":"todo","carte":{"type":"produit","resume":"The ticket adds an export. Its format decides what the user downloads.","question":"Export CSV ou export JSON ?","choix":["L'export CSV.","L'export JSON."]},"motif":"Un choix de produit."}
 FIN

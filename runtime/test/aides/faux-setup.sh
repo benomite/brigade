@@ -10,6 +10,15 @@ if [ -f "$FAUX_SETUP" ]; then
   IFS= read -r -d '' scenario <"$FAUX_SETUP" || true
   scenario="${scenario%$'\n'}"
 fi
+# Attendre que le test pose $FAUX_SETUP.go. Cinq minutes au plus, la garde d'un test sous Windows :
+# là, tuer la station ne tue pas ses enfants, et une boucle sans borne d'un test raté y lançait un
+# `sleep` toutes les 20 ms jusqu'à la fin de la part (#2080).
+attendre_le_go() {
+  until [ -e "$FAUX_SETUP.go" ]; do
+    [ "$SECONDS" -lt 300 ] || exit 1
+    sleep 0.02
+  done
+}
 case "$scenario" in
   exporte)
     echo "worktree prêt pour le ticket $1" >&2
@@ -26,7 +35,7 @@ case "$scenario" in
     ;;
   # Ne rend la main qu'une fois le fichier $FAUX_SETUP.go posé par le test.
   attend)
-    while [ ! -e "$FAUX_SETUP.go" ]; do sleep 0.02; done
+    attendre_le_go
     printf 'export BASE_DE_TEST=%q\n' "base du ticket $1"
     ;;
   # Prépare la base du ticket à partir d'un secret du projet, et le dit.
@@ -61,7 +70,7 @@ case "$scenario" in
   # Bute sur un hôte que la porte refuse : n'échoue qu'une fois le fichier
   # $FAUX_SETUP.go posé par le test, qui a eu le temps de journaliser le refus.
   refuse)
-    while [ ! -e "$FAUX_SETUP.go" ]; do sleep 0.02; done
+    attendre_le_go
     echo "npm error network request to https://registry.npmjs.org/ failed" >&2
     exit 1
     ;;
