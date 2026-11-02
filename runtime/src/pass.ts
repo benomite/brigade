@@ -1975,13 +1975,11 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
   // adresses des checks mis de côté ; null si les tickets n'ont pas pu être
   // ouverts — la pass y revient au tick, sans verdict. Un autre test rouge, ou
   // un rouge qui ne s'établit pas, n'est pas mis de côté. Mis de côté sur ce
-  // commit, il le reste ; sinon, `ouvrir` faux — un constat bloquant fait déjà
-  // le verdict —, rien n'est ouvert.
-  const mettreDeCote = async (connu: PassDeTicket, ref: string, pr: string, sha: string, rouges: Check[], ouvrir: boolean): Promise<Set<string | null> | null> => {
+  // commit, il le reste.
+  const mettreDeCote = async (connu: PassDeTicket, ref: string, pr: string, sha: string, rouges: Check[]): Promise<Set<string | null> | null> => {
     const { ticket } = connu;
     const deja = journal.duTicket(ticket).findLast((evenement): evenement is Evenement<Extract<FaitPass, { type: "pass.ci-set-aside" }>> => evenement.type === "pass.ci-set-aside" && evenement.payload.sha === sha);
     if (deja !== undefined) return new Set(deja.payload.checks.map((check) => check.url));
-    if (!ouvrir) return new Set();
     const relance = ciRelancee(ticket, sha);
     if (relance === null || relance.payload.tests.length === 0) return new Set();
     const tests = await testsEtrangers(connu, ref, rouges.map((check) => ({ check, job: jobDuCheck(check) })));
@@ -2227,8 +2225,6 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
         noter(ticket, { type: "pass.ci-awaited", payload: { sha, workflows } });
       }
       const enCours = attendue || checks.some((check) => check.outcome === "pending");
-      // Un constat bloquant n'attend pas la CI : le verdict est déjà rouge,
-      // et elle sera lue sur le commit qui le corrige.
       if (enCours) {
         // Relancée, la CI s'attend de nouveau depuis sa relance.
         const depuis = Math.max(Date.parse(passDuTicket(base, ticket)?.startedAt ?? ""), relance === null ? -Infinity : Date.parse(relance.at));
@@ -2257,7 +2253,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
           // Rouge seulement par sa CI, sur des tests qu'elle ne touche pas : relancée une fois.
           if (jugees.length > 0 && (await relancerLaCI(connu, ref, sha, jugees))) return;
           // Rouge encore après sa relance, sur les mêmes : mise de côté, son test à la cuisine.
-          const deCote = jugees.length > 0 ? await mettreDeCote(connu, ref, pr.url, sha, jugees, true) : new Set<string | null>();
+          const deCote = jugees.length > 0 ? await mettreDeCote(connu, ref, pr.url, sha, jugees) : new Set<string | null>();
           if (deCote === null) return;
           const retenus = jugees.filter((check) => !deCote.has(check.url));
           // Un run qu'un verdict rouge a déjà jugé se relance avant d'être rejugé.
