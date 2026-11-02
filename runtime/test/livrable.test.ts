@@ -2,7 +2,7 @@
 // rien d'autre. Sans E/S.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { lireLivrable } from "../src/livrable.ts";
+import { lireBlocage, lireLivrable } from "../src/livrable.ts";
 
 test("le livrable est ce que le cook a délimité, et ce qui l'entoure reste à part", () => {
   const lu = lireLivrable("J'ai relu le workflow.\n\n<livrable>\nLa CI passe douze minutes à installer.\nIl manque un cache.\n</livrable>\n\nVérifié sur trois runs.");
@@ -97,4 +97,14 @@ test("le code que porte le livrable lui-même — backticks, bloc — reste dans
   const lu = lireLivrable("<livrable>\nLance `npm test`.\n\n```sh\nnpm test\n```\n</livrable>");
 
   assert.equal(lu.texte, "Lance `npm test`.\n\n```sh\nnpm test\n```");
+});
+
+test("lireBlocage : la dernière délimitation fermée du livrable est la question ; vide, ouverte ou citée, elle ne déclare rien", () => {
+  assert.equal(lireBlocage("<bloque>\nQuelle base ?\n</bloque>"), "Quelle base ?");
+  assert.equal(lireBlocage("<bloque>brouillon</bloque> puis <bloque>vraie</bloque>"), "vraie");
+  assert.equal(lireBlocage("<bloque></bloque>"), null);
+  assert.equal(lireBlocage("<bloque>jamais fermée"), null);
+  assert.equal(lireBlocage("balise citée : `<bloque>x</bloque>`"), null);
+  assert.equal(lireBlocage("Audit sans blocage."), null);
+  assert.equal(lireBlocage(null), null);
 });

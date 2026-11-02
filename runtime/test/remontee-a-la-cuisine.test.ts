@@ -60,7 +60,7 @@ test("chaque sorte d'entrée dans la file du chef est un choix de produit ou un 
   );
   for (const [quoi, { pourquoi }] of Object.entries(QUI_ATTEND)) assert.ok(pourquoi.length > 20, `${quoi} : dire pourquoi c'est au chef`);
   // Une remontée n'y entre que pour ces causes-là.
-  assert.deepEqual(Object.keys(CAUSES_DU_CHEF), ["secrets-unavailable", `${DU_MANAGER} + card`]);
+  assert.deepEqual(Object.keys(CAUSES_DU_CHEF), ["secrets-unavailable", "cook-blocked", `${DU_MANAGER} + card`]);
   for (const pourquoi of Object.values(CAUSES_DU_CHEF)) assert.match(pourquoi, /^(chef-only gesture|product choice): /);
 });
 

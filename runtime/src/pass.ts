@@ -97,7 +97,7 @@ import { CONSIGNE_DE_RETRO } from "./apprentissage/retro.ts";
 import { enregistrerRetro } from "./apprentissage/provisoires.ts";
 import { idsDeLEtageCommun, noterUnTicketServi } from "./commun/installation.ts";
 import { noterLeRenvoi } from "./apprentissage/renvoi.ts";
-import { CONSIGNE_DE_FIN_DE_TOUR, CONSIGNE_DU_LIVRABLE, FERMETURE, OUVERTURE } from "./livrable.ts";
+import { CONSIGNE_DE_FIN_DE_TOUR, CONSIGNE_DU_LIVRABLE, FERMETURE, lireBlocage, OUVERTURE } from "./livrable.ts";
 import { LancementRefuse, type CookLance, type GardeFous, type Verdict as VerdictGarde } from "./garde-fous.ts";
 import { direMergesAvantRouge, mergesAvantRouge } from "./base-check/merges-avant-rouge.ts";
 import { REJOUER_LA_BASE } from "./dire-base.ts";
@@ -2339,6 +2339,13 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     const { ticket, run } = connu;
     const sha = depot.tete(branch);
     if (connu.phase !== "judging" || connu.sha !== sha) noter(ticket, { type: "pass.started", payload: { run, pr: null, number: null, sha } });
+
+    // Bloqué n'est pas livré : sans commit, un cook qui se déclare bloqué n'a
+    // rien à faire relire. Le ticket reste ouvert et la question va au chef.
+    const question = lireBlocage(rapportDuCook(ticket, run).livrable);
+    if (question !== null) {
+      return remonter(connu, "cook-blocked", `Le cook s'est arrêté sans commit, bloqué. Sa question :\n\n${question.split("\n").map((ligne) => `> ${ligne}`).join("\n")}\n\nRien n'est servi : ce n'est pas une livraison sans diff.`);
+    }
 
     const findings: string[] = [];
     let review = NON_RELU;
