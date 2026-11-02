@@ -32,6 +32,7 @@ The file is versioned with the code. Its fields:
 | `commonPaths` | the paths the rail treats as common to all tickets (#1673); it replaces the box's `BRIGADE_COMMON_PATHS` | a list of paths relative to the repository's root, no pattern, no comma (optional) |
 | `rail`, `lessons` | the project's rail rule and notebook policy (#1673): the lease on a taken ticket, the roadmap issue the manager reads, and how many lessons a cook receives, when one is promoted or expires; each one it sets replaces the box's | objects of the keys below, each optional (optional) |
 | `chef` | the chef's GitHub login (#1954): what tells the chef's issues from the ones other people open, which the product role answers within a day | a GitHub login (optional; without it, the product role answers no outside issue) |
+| `githubOnlyState` | the switch of the GitHub-only state (#2060, [spec](superpowers/specs/2026-11-02-github-only-state.md)): on, the project's stations take, cook and merge its tickets reading and writing only GitHub (`runtime/src/brigade-github.ts`); off or absent, they keep the old path. Reread at each turn of the station. On for brigade. The station's main loop does not call that module yet: until it does, the switch changes nothing on a running station | `true` or `false` (optional; absent is off) |
 
 The `closer` keys, each one in place of a setting the box held (`brigade <projet> station <gesture>`):
 
