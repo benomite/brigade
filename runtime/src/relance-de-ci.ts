@@ -84,6 +84,47 @@ export function echecsDuJournal(journal: string): Array<{ test: string; lignes: 
   return [...echecs].slice(0, MAX_TESTS).map(([test, lignes]) => ({ test, lignes }));
 }
 
+// Une annotation d'un check, telle que GitHub la rend
+// (`repos/<dépôt>/check-runs/<job>/annotations`).
+export type Annotation = { path?: string; start_line?: number; annotation_level?: string; title?: string | null; message?: string };
+
+// Le titre de l'annotation qui nomme les échecs de trop (`test/support/annotations.ts`).
+const DE_TROP = /^\d+ more failing tests$/;
+// Une ligne de cette annotation : `<fichier>:<ligne> — <nom du test>`.
+const LIGNE_DE_TROP = /^(.+?):(\d+) — (.+)$/;
+
+// Le journal d'un job relu dans les annotations de son check, quand le journal
+// lui-même ne se lit pas : son stockage, hors de l'API de GitHub, peut être
+// fermé là où la pass tourne (#2071). Le job Windows du runtime y écrit chaque
+// échec avec son fichier, son nom et son erreur (`test/support/annotations.ts`),
+// et GitHub y dit un runner perdu. Le texte rendu suit le résumé du reporter
+// `spec` : `testsEnEchec` et `echecsDuJournal` le lisent comme un journal.
+// null : aucune erreur n'y est annotée.
+export function journalDesAnnotations(annotations: Annotation[]): string | null {
+  const lignes: string[] = [];
+  const echec = (fichier: string, ligne: number, nom: string, erreur: string[]) => lignes.push(`test at ${fichier}:${ligne}:1`, `✖ ${nom}`, ...erreur.map((texte) => `  ${texte}`));
+  const erreurs = annotations.filter((annotation) => annotation.annotation_level === "failure");
+  for (const { path, start_line, title, message = "" } of erreurs) {
+    if (title && DE_TROP.test(title)) {
+      for (const ligne of message.split(/\r?\n/)) {
+        const [, fichier, numero, nom] = LIGNE_DE_TROP.exec(ligne) ?? [];
+        if (fichier !== undefined) echec(fichier, Number(numero), nom!, []);
+      }
+    } else if (path && path !== ".github" && title) {
+      echec(path, start_line ?? 1, title, message.split(/\r?\n/).filter((ligne) => ligne.trim() !== ""));
+    } else {
+      lignes.push(...message.split(/\r?\n/));
+    }
+  }
+  return erreurs.length === 0 ? null : lignes.join("\n");
+}
+
+// Le job s'est arrêté sans rien juger : GitHub a perdu son runner en route. Ce
+// rouge ne nomme aucun test, et n'est celui d'aucune livraison.
+export function runnerPerdu(journal: string): boolean {
+  return /The hosted runner lost communication with the server/.test(journal);
+}
+
 // Ce que la pass lit de la livraison pour attribuer un rouge.
 export type Lecture = {
   // Les fichiers qu'elle change par rapport à la base.

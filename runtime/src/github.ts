@@ -7,6 +7,7 @@
 import { execFile } from "./sans-invite.ts";
 import type { Check } from "./events/pass.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
+import { journalDesAnnotations, type Annotation } from "./relance-de-ci.ts";
 import { COMPTE_DE_LA_MACHINE, constaterLimite, limiteDuProcess, noterLesEntetes, lectureDe, prendreUnAppel, refusPourLimite, type Limite, type Usage } from "./limite-github.ts";
 
 // Le label par lequel une issue entre sur le rail.
@@ -103,8 +104,9 @@ export type GitHub = {
   ciDeLaBase(branche: string): Promise<Check[]>;
   // Le diff d'une PR, tel que GitHub le rend.
   diff(numero: number): Promise<string>;
-  // Le journal du job d'un check de GitHub Actions, ou null si le check n'en
-  // est pas un, ou que GitHub ne le rend plus.
+  // Le journal du job d'un check de GitHub Actions — à défaut, ses annotations
+  // rendues comme un journal (`journalDesAnnotations`) —, ou null si le check
+  // n'en est pas un, ou que GitHub ne rend ni l'un ni les autres.
   journalDuCheck(check: Check): Promise<string | null>;
   // Relance les jobs en échec d'un run de GitHub Actions, et eux seuls.
   relancerLesEchecs(run: number): Promise<void>;
@@ -516,8 +518,12 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
     async journalDuCheck(check) {
       const job = jobDuCheck(check)?.job;
       if (job === undefined) return null;
-      const reponse = await appeler([`repos/${depot}/actions/jobs/${job}/logs`]);
-      return reponse.statut === 200 ? reponse.corps : null;
+      // GitHub rend le journal en renvoyant vers son stockage, hors de l'API : là
+      // où ce stockage est fermé, le journal se relit dans les annotations du check.
+      const reponse = await appeler([`repos/${depot}/actions/jobs/${job}/logs`]).catch(() => null);
+      if (reponse?.statut === 200) return reponse.corps;
+      const annotations = await appeler([`repos/${depot}/check-runs/${job}/annotations?per_page=100`]);
+      return annotations.statut === 200 ? journalDesAnnotations(JSON.parse(annotations.corps) as Annotation[]) : null;
     },
     async relancerLesEchecs(run) {
       const chemin = `repos/${depot}/actions/runs/${run}/rerun-failed-jobs`;

@@ -29,7 +29,7 @@ export function posixOnly(raison: string, courante: Plateforme = process.platfor
   return seulementSur(["linux", "darwin"], raison, courante);
 }
 
-// Combien de tests d'un même `describe` jouent à la fois. Sous Windows, huit cuisines à la fois
-// affament le runner : les mêmes tests y attendaient en vain, jamais les mêmes d'un run à l'autre
-// (station.test.ts, reparation.test.ts ; #2071). Un seul à la fois, comme les fichiers (windows.ts).
+// Combien de tests d'un même `describe` jouent à la fois. Sous Windows, un seul, comme les fichiers
+// (windows.ts) : les tests de station.test.ts et de reparation.test.ts y attendaient en vain, d'autres
+// à chaque run. La charge du runner en est la cause supposée, comme pour les fichiers — pas établie.
 export const CONCURRENCE = process.platform === "win32" ? 1 : 8;

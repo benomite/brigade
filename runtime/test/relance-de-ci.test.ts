@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { describe, test, type TestContext } from "node:test";
 import type { Check } from "../src/events/pass.ts";
-import { attribuer, echecsDuJournal, testsEnEchec, type Lecture } from "../src/relance-de-ci.ts";
+import { attribuer, echecsDuJournal, journalDesAnnotations, runnerPerdu, testsEnEchec, type Lecture } from "../src/relance-de-ci.ts";
 import { principal as montrerPass } from "../src/montrer-pass.ts";
 import { passDuTicket } from "../src/projections/pass.ts";
 import { chef, cuisine, issue, type Options } from "./aides/cuisine.ts";
@@ -26,6 +26,8 @@ const JOURNAL_WINDOWS = [
   "2026-10-23T03:46:54.2138999Z   'test timed out after 120000ms'",
   "2026-10-23T03:46:54.2139000Z test at test\\lectures-sous-condition.test.ts:160:1",
 ].join("\r\n");
+// Ce que GitHub annote d'un job dont il a perdu le runner, relu comme un journal.
+const RUNNER_PERDU = "The hosted runner lost communication with the server. Anything in your workflow that terminates the runner process, starves it for CPU/Memory, or blocks its network access can cause this error.";
 
 describe("le journal d'un job dit ses tests en échec", () => {
   test("le résumé de node --test nomme chaque fichier une fois, chemins Windows et couleurs compris", () => {
@@ -37,6 +39,44 @@ describe("le journal d'un job dit ses tests en échec", () => {
   test("un journal qui ne nomme aucun test n'en dit rien : un contrôle de types, un lint, un job coupé", () => {
     assert.equal(testsEnEchec("2026-10-23T00:00:00Z src/pass.ts(12,3): error TS2322\n##[error]Process completed with exit code 2."), null);
     assert.equal(testsEnEchec(""), null);
+  });
+});
+
+// Les annotations du job Windows du runtime, telles que `test/support/annotations.ts` les écrit et
+// que GitHub les rend (run 41423776888, part 3/4) : de quoi lire un rouge sans le journal du job.
+describe("les annotations d'un check se lisent comme son journal (#2071)", () => {
+  const erreur = (path: string, start_line: number, title: string, message: string) => ({ path, start_line, annotation_level: "failure", title, message });
+  const ANNOTATIONS = [
+    erreur(".github", 1372, "", "Process completed with exit code 1."),
+    erreur("runtime/test/station.test.ts", 626, "un rail de trente tickets ne part pas d'un bloc", "Error: condition jamais remplie\n    at jusqua (file:///D:/a/brigade/brigade/runtime/test/outils.ts:531:36)"),
+    erreur("runtime/test/station.test.ts", 498, "une machine qui n'en peut plus", "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:"),
+    erreur(".github", 1, "2 more failing tests", "runtime/test/reparation.test.ts:128 — le ticket de réparation passe devant\nruntime/test/arbitrage.test.ts:154 — le second finit par partir"),
+    { path: ".github", start_line: 1, annotation_level: "notice", title: "counts", message: "tests 412, pass 408, fail 4" },
+  ];
+
+  test("chaque test en échec y est nommé par son fichier, avec ses lignes d'erreur, ceux de trop compris", () => {
+    const journal = journalDesAnnotations(ANNOTATIONS)!;
+    assert.deepEqual(testsEnEchec(journal), ["runtime/test/station.test.ts", "runtime/test/reparation.test.ts", "runtime/test/arbitrage.test.ts"]);
+    assert.deepEqual(echecsDuJournal(journal), [
+      { test: "un rail de trente tickets ne part pas d'un bloc", lignes: ["Error: condition jamais remplie", "at jusqua (file:///D:/a/brigade/brigade/runtime/test/outils.ts:531:36)"] },
+      { test: "une machine qui n'en peut plus", lignes: ["AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:"] },
+      { test: "le ticket de réparation passe devant", lignes: [] },
+      { test: "le second finit par partir", lignes: [] },
+    ]);
+    assert.equal(runnerPerdu(journal), false);
+    // Les fichiers se retrouvent dans le dépôt tels qu'annotés, depuis sa racine.
+    assert.deepEqual(attribuer(testsEnEchec(journal)!, lecture(["runtime/src/station.ts"], { ...DEPOT_DE_TEST, "runtime/test/station.test.ts": "", "runtime/test/reparation.test.ts": "", "runtime/test/arbitrage.test.ts": "" })), {
+      etranger: true,
+      tests: ["runtime/test/station.test.ts", "runtime/test/reparation.test.ts", "runtime/test/arbitrage.test.ts"],
+    });
+  });
+
+  test("un runner perdu n'y nomme aucun test, et se dit ; sans erreur annotée, rien ne se lit", () => {
+    const journal = journalDesAnnotations([erreur(".github", 1, "", RUNNER_PERDU)])!;
+    assert.equal(testsEnEchec(journal), null);
+    assert.equal(runnerPerdu(journal), true);
+    assert.equal(journalDesAnnotations([ANNOTATIONS.at(-1)!]), null);
+    assert.equal(journalDesAnnotations([]), null);
   });
 });
 
@@ -293,6 +333,28 @@ describe("la pass relance une CI rouge sur des tests que la livraison ne touche 
       assert.ok(String(findings[0]).startsWith(`CI rouge — job « tests » : failure (${gh.ci.checks[0]?.url}).`));
     });
   }
+
+  test("un job dont le runner s'est perdu n'a rien jugé : ses jobs en échec sont relancés une fois, sans renvoi ni carte (#2071)", async (t) => {
+    const { gh, compter, jusquAu, dernier, auChef } = servir(t);
+    gh.ci.checks = [job(1, "green", "lint"), job(2)];
+    gh.journauxDeCI.set("tests", RUNNER_PERDU);
+    await jusquAu("pass.ci-rerun");
+
+    assert.deepEqual(gh.relances, [RUN]);
+    assert.deepEqual(dernier("pass.ci-rerun", 17)?.tests, []);
+    assert.deepEqual([compter("pass.judged"), compter("pass.returned"), auChef()], [0, 0, []]);
+  });
+
+  test("le runner perdu de nouveau après la relance : pas de seconde relance, le rouge est un verdict comme avant", async (t) => {
+    const { gh, compter, jusquAu } = servir(t, { scenario: "bavard", suite: ["livre"] });
+    gh.ci.checks = [job(2)];
+    gh.journauxDeCI.set("tests", RUNNER_PERDU);
+    await jusquAu("pass.ci-rerun");
+    gh.ci.checks = [job(3)];
+    await jusquAu("pass.returned");
+
+    assert.deepEqual([compter("pass.ci-rerun"), gh.relances.length, compter("pass.ci-set-aside")], [1, 1, 0]);
+  });
 
   test("un constat bloquant du reviewer fait déjà le verdict rouge : rien n'est relancé", async (t) => {
     const { gh, compter, jusquAu } = servir(t, { scenario: "bavard", suite: ["livre"], reviewer: { relecture: "relit-rouge" } });

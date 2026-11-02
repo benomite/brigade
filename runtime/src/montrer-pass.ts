@@ -169,7 +169,7 @@ export function principal({ args, env, dire, redire }: Appel): void | Promise<vo
         return [
           alreadyJudged
             ? `${tete}CI red on ${sha.slice(0, 7)} in a run a red verdict already judged: failed jobs rerun (${reruns}) before judging again — a return never judges the same CI run twice`
-            : `${tete}CI red on ${sha.slice(0, 7)} only on tests the delivery does not touch: failed jobs rerun once (${reruns}) — no return, no card`,
+            : `${tete}CI red on ${sha.slice(0, 7)} ${tests.length === 0 ? "with no test judged, its runner lost" : "only on tests the delivery does not touch"}: failed jobs rerun once (${reruns}) — no return, no card`,
           ...checks.map((check) => `      CI “${check.name}”: ${check.conclusion}${check.url ? ` — ${check.url}` : ""}`),
           ...tests.map((test) => `      failing test: ${test}`),
         ];

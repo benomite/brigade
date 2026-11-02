@@ -515,6 +515,27 @@ test("le journal d'un check se lit par son job, quand c'en est un de GitHub Acti
   assert.equal(await github.journalDuCheck({ ...check, url: `https://github.com/${DEPOT}/actions/runs/123/job/789` }), null);
 });
 
+test("un journal que GitHub ne rend pas se relit dans les annotations du check : ses tests en échec y sont nommés (#2071)", async (t) => {
+  const { gh, github } = sonde(t);
+  const journal = `repos/${DEPOT}/actions/jobs/456/logs`;
+  const annotations = `repos/${DEPOT}/check-runs/456/annotations?per_page=100`;
+  gh.repondre(journal, { statut: 403, corps: { message: "Forbidden" } });
+  gh.repondre(annotations, {
+    corps: [
+      { path: ".github", start_line: 1372, annotation_level: "failure", title: "", message: "Process completed with exit code 1." },
+      { path: "runtime/test/station.test.ts", start_line: 626, annotation_level: "failure", title: "un rail de trente tickets ne part pas d'un bloc", message: "Error: condition jamais remplie\n    at jusqua (file:///D:/a/brigade/brigade/runtime/test/outils.ts:531:36)" },
+      { path: ".github", start_line: 1, annotation_level: "notice", title: "counts", message: "tests 412, pass 411, fail 1" },
+    ],
+  });
+  const check = { name: "tests (3/4)", outcome: "red" as const, conclusion: "failure", url: `https://github.com/${DEPOT}/actions/runs/123/job/456` };
+
+  assert.equal(
+    await github.journalDuCheck(check),
+    ["Process completed with exit code 1.", "test at runtime/test/station.test.ts:626:1", "✖ un rail de trente tickets ne part pas d'un bloc", "  Error: condition jamais remplie", "      at jusqua (file:///D:/a/brigade/brigade/runtime/test/outils.ts:531:36)"].join("\n"),
+  );
+  assert.deepEqual(gh.appels(), [["api", "-i", journal], ["api", "-i", annotations]]);
+});
+
 test("les jobs en échec d'un run de GitHub Actions se relancent, eux seuls ; un refus de GitHub lève", async (t) => {
   const { gh, github } = sonde(t);
   const chemin = `repos/${DEPOT}/actions/runs/123/rerun-failed-jobs`;

@@ -161,7 +161,7 @@ import { GesteRefuse, nomAbandon } from "./rail.ts";
 import { corpsDeReparation, echecsDesGates, LABELS_REPARATION, shaDeReparation, titreDeReparation } from "./reparation.ts";
 import { PLAFOND_PAR_DEFAUT } from "./reagir.ts";
 import { FICHIER as REGLAGES_DU_PROJET } from "./reglages-projet/reglages.ts";
-import { attribuer, echecsDuJournal, testsEnEchec } from "./relance-de-ci.ts";
+import { attribuer, echecsDuJournal, runnerPerdu, testsEnEchec } from "./relance-de-ci.ts";
 import { CALIBRAGE_TEST_INSTABLE, corpsDeTestInstable, LABELS_TEST_INSTABLE, PRIO_TEST_INSTABLE, testDuTicket, titreDeTestInstable, type TestInstable } from "./test-instable.ts";
 import { DECLARATION_RESEAU } from "./reseau.ts";
 import { argumentsReviewer, CONSIGNE_MAX, consigneDeRelecture, DE_LA_BRIGADE, debutDeRelecture, diffCoupe, lireRelecture, REVIEWER, type ConfigReviewer } from "./reviewer.ts";
@@ -1865,6 +1865,8 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     for (const { check } of jobs) {
       const lu = await github.journalDuCheck(check).catch(() => null);
       const tests = lu === null ? null : testsEnEchec(lu);
+      // Un runner perdu n'a rien jugé : son job ne nomme aucun test, et se relance.
+      if (tests === null && lu !== null && runnerPerdu(lu)) continue;
       if (tests === null) return null;
       nommes.push(...tests);
     }
@@ -1896,7 +1898,7 @@ export function brancherPass<R extends RuntimeAvecRail & GardeFous>(runtime: R, 
     avertir(
       dejaJuges
         ? `brigade : CI relancée sur le ticket #${ticket} (${court(sha)}) — un verdict rouge a déjà jugé ce run, il ne le juge pas deux fois`
-        : `brigade : CI relancée sur le ticket #${ticket} (${court(sha)}) — rouge sur des tests que la livraison ne touche pas : ${tests.join(", ")}`,
+        : `brigade : CI relancée sur le ticket #${ticket} (${court(sha)}) — ${tests.length === 0 ? "un runner perdu n'a rien jugé" : `rouge sur des tests que la livraison ne touche pas : ${tests.join(", ")}`}`,
     );
     return true;
   };

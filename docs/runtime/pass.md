@@ -12,7 +12,7 @@ this order:
 
 | What the CI says | What the pass does with it |
 |---|---|
-| a failing job, branch **up to date with the base** | **red**, naming the job, its address, and the failing tests with their error lines read from the job's log (`echecsDuJournal`) — unless the red is not the delivery's (below) |
+| a failing job, branch **up to date with the base** | **red**, naming the job, its address, and the failing tests with their error lines read from the job's log, or its annotations (`echecsDuJournal`) — unless the red is not the delivery's (below) |
 | a red job **never green on the base** (no green run among its last ten commits) | **reported, not judged** (`pass.ci-excused`): judged without it, no rerun, send-back or card; a comment names the job |
 | failing jobs, branch up to date, **only on tests the delivery does not touch**, nothing else red | **the failed jobs are rerun, once per delivery** (`pass.ci-rerun`): no verdict, send-back or card; the CI is awaited again. Red on another test is a verdict; red again on the same test, next row |
 | red **again after that rerun, on the same tests** the delivery does not touch, base green, nothing else red | the test is unstable. **Each test goes to the kitchen as a `fix` ticket** (`runtime/src/test-instable.ts`: `fire`, `fix`, `prio:1`, `model:sonnet`, `effort:medium`, marker `<!-- brigade:test-instable <test> -->`), one per test, reused while open (`reused`). Its opening is announced first (`pass.test-fix-opening`), so a lost answer is found by its marker. Then **those jobs are set aside** (`pass.ci-set-aside`) and the delivery is judged without them, their red checks kept in the verdict; a comment says so. No send-back, escalation or card |
@@ -22,9 +22,17 @@ this order:
 | everything green | green, whether or not the branch has the head of the base: the gates judge the merge |
 | **no check at all** | the verdict rests on the gates and the reviewer (`ci: none`) — unless the judged branch carries a workflow triggered on PRs to the base (`pull_request` or `pull_request_target`, filters included), whose checks are then awaited (`pass.ci-awaited` names the file); workflows that run only on push, schedule, tag or by hand hold nothing back |
 
+**A job's log** is read from `actions/jobs/<job>/logs`, which GitHub serves by redirecting to its
+log storage, outside the API. Where that storage is closed (the box's network filter answers
+`Forbidden`), the pass reads **the check's annotations** instead (`check-runs/<job>/annotations`,
+`journalDesAnnotations`): the runtime's Windows job writes each failing test there with its file,
+name and error (`runtime/test/support/annotations.ts`), and GitHub writes a lost runner there.
+
 **A CI red that is not the delivery's** (`runtime/src/relance-de-ci.ts`) is established only when
 every failing job is a GitHub Actions job whose log names its failing tests (`test at
-<file>:<line>:<col>`), each test is found once in the repository, and none is touched: not modified,
+<file>:<line>:<col>`) — or whose runner GitHub lost ("The hosted runner lost communication with the
+server": the job judged nothing; rerun once, with no test named, and lost again it is a verdict) —,
+each test is found once in the repository, and none is touched: not modified,
 no changed file in what it imports or names (itself or its helpers under its test directory; product
 code is a leaf; type-only imports not counted), and the change touches nothing that rules whole
 suites (`package.json`, a lockfile, `tsconfig`, `.github/`, `.claude/brigade/`). Anything not
