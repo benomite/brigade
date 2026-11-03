@@ -133,6 +133,7 @@ async function reprise(t: TestContext, autres: Parameters<typeof lectureDesAppai
     station: "ordi",
     env: { BRIGADE_GH_BIN: gh.bin, HOME: repertoireTemporaire(t) },
     servis: { projets: () => [], refus: () => null },
+    apresEcriture: () => {},
     dire: () => {},
     cadenceMs: 3_600_000,
     maintenant: () => MAINTENANT,
