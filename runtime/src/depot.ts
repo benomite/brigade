@@ -612,7 +612,13 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
         const worktree = join(worktrees, run);
         const branche = `cook/${run}`;
         await rapatrier();
-        await gitAsync("worktree", "add", "--quiet", "-b", branche, worktree, `origin/${base}`);
+        // Un essai d'avant, coupé sans être défait (GitHub qui limite ses
+        // appels, un runtime arrêté), a pu laisser le worktree et la branche
+        // d'un run au nom fixe (`<n>-github`) : le cook repart de la base, à
+        // neuf, au lieu d'échouer en boucle sur « a branch named … already exists ».
+        if (existsSync(worktree)) await gitAsync("worktree", "remove", "--force", worktree).catch(() => undefined);
+        await gitAsync("worktree", "prune").catch(() => undefined);
+        await gitAsync("worktree", "add", "--quiet", "-B", branche, worktree, `origin/${base}`);
         return { worktree, branche };
       }),
     reprendre: (run, branche) =>
