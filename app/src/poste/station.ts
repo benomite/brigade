@@ -49,6 +49,9 @@ export type OptionsStationLocale = {
   reessaiMs?: number;
   // Le temps laissé à la station pour s'arrêter, avant qu'elle soit tuée.
   gardeMs?: number;
+  // Joué avant chaque lancement du process de la station : ce qu'elle doit sentir de sa configuration
+  // (station-embarquee-cuisine-unique.ts). Il ne lève pas ; la station part quand il a fini.
+  avantLancement?: () => Promise<void>;
   // La station vient de se lancer, ou de s'arrêter : `tourne()` a changé.
   surChangement?: () => void;
 };
@@ -180,6 +183,14 @@ export function tenirStationLocale(options: OptionsStationLocale): StationLocale
       return plusTard(lancer, reessaiMs);
     }
     tenant = undefined;
+    if (options.avantLancement === undefined) return demarrer();
+    // La marque de l'app est posée : une seconde app n'ouvre pas la station pendant ce temps.
+    void options.avantLancement().catch(() => {}).then(() => {
+      if (!arretee) demarrer();
+    });
+  };
+
+  const demarrer = () => {
     const lance = spawn(options.node, [ENVELOPPE, options.principal], {
       // Sous Windows, une app sans console qui lance `node` lui en ouvrirait une : elle reste cachée.
       windowsHide: true,

@@ -1425,6 +1425,12 @@ GitHub. Only the installation differs: a package on a server, the app here (`app
 - **Only one per machine and per account.** A second open app does not start a second
   station (`station/app.pid` names the app that holds it): it says so, and takes over when the
   first one closes.
+- **One kitchen per project (#2110).** Before each launch, the app reads the account's stations: a
+  project of this computer's configuration that another station already serves (and that cooks) is not
+  read by the station — its line stays in `projets` as a `# held-back (served by <station>): …`
+  comment, no kitchen opens and no board is published here — and the app logs which station serves
+  it. The line comes back as soon as no other station serves the repository. A reading that fails
+  changes nothing (`app/src/station-embarquee-cuisine-unique.ts`).
 - What the station says is written as is in the terminal that started the app, like its service log
   on a server. It is run by the `node` of `npm start` (`BRIGADE_NODE_BIN` to give
   another): Electron is not one. **The installed app** (the `.dmg`) runs the runtime and the
