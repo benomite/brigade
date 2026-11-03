@@ -38,6 +38,7 @@ import { COMMANDE as FAITS, comprendre, duree, estHorsLigne, tick, titreDEchec, 
 import { GRANTS } from "./gestes.ts";
 import { COMMANDE as MANAGER, managerDe, type Interrupteur } from "./manager.ts";
 import { heureHM } from "./format.ts";
+import { ligneDeLaLimite } from "./vue/bandeau-limite-github.ts";
 import type { Controle, Montree as Verification } from "./service.ts";
 
 // `station` et `box` : ce qu'un projet installé a perdu — une station, un geste de box. `urgence` :
@@ -116,6 +117,8 @@ const nonVerifie = (sujet: Sujet, dit: string, { pourquoi, releve, geste, prix, 
 // par GitHub. Une seule ligne, l'heure de reprise à l'heure locale du chef, jamais le texte de `gh`.
 // Elle n'attend rien du chef : elle tombe d'elle-même quand les appels reprennent.
 function deLaLimite(faits: Faits | Sans, limite: LimiteDeLApp | undefined): Alerte[] {
+  // La box dit laquelle, depuis quand et retour vers quand (`github`, ticket 2147) : sa ligne prend la place de celle qui ne dit que la reprise.
+  if (!("sans" in faits) && faits.github !== undefined) return [{ sujet: "github", verifie: true, ton: "jaune", ...ligneDeLaLimite(faits.github), geste: "nothing to do: the calls resume by themselves when GitHub lifts the limit", prix: AUCUN }];
   const reprise = limite !== undefined ? limite.reprise : "sans" in faits ? null : (faits.limiteGithub ?? null);
   if (limite === undefined && ("sans" in faits || faits.limiteGithub === undefined)) return [];
   return [

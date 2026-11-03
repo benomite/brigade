@@ -31,6 +31,7 @@ import { plafondVu, type PlafondLu, type PlafondVu } from "./plafond-de-calibrag
 import { LABEL_RETENUE } from "./question.ts";
 import { carteDeTodo, carteLue, type CarteDeTodo, type CarteLue } from "./carte-todo.ts";
 import { requisLus, tacheLue, type TacheHumaine } from "./vue/attente-capacite/lecture.ts";
+import { limiteLue, type LimiteDuCompte } from "./vue/bandeau-limite-github.ts";
 import type { Repondue } from "./repondues.ts";
 import type { EnvoiDeCarte } from "./tableau/envois.ts";
 import type { PrioriteMontree } from "./priorite.ts";
@@ -274,6 +275,8 @@ export type Faits = {
   dernierTick: string | null;
   // Quand GitHub limite les appels du compte : l'instant où il les rend (runtime, `limiteGithub`) ; absent sinon, et d'un runtime d'avant ce champ.
   limiteGithub?: string;
+  // La limite que GitHub pose aux appels du compte — laquelle, depuis quand, retour vers quand (runtime, `github`) ; absente quand les appels passent (vue/bandeau-limite-github.ts).
+  github?: LimiteDuCompte;
   // Les appels de la box à GitHub sur l'heure glissante (runtime, `appelsGithub`) : leur total, le projet et la lecture qui en ont fait le plus ; absent d'un runtime d'avant ce champ.
   appelsGithub?: AppelsGithub;
   compteurs: { rail: number; auTravail: number; aLaPass: number; attend: number; livres24h: number };
@@ -645,7 +648,7 @@ function comprendreTiers(brut: unknown, lequel: string): Tiers {
 // `cooks`, `attend`, `livres`, `urgence`, `cuisineOisive` et l'`activite`,
 // l'`attente` et les `tiers` d'un ticket, qu'un runtime d'avant eux ne rend pas,
 // et qui manquent alors ici aussi — et `corrections`, `reculs` et `profils`, absents quand il n'y en a aucun,
-// comme `apprentissage` quand le projet n'a ni leçon ni profil.
+// comme `apprentissage` quand le projet n'a ni leçon ni profil, et `github` quand GitHub ne limite pas le compte.
 // Un champ de plus est laissé de côté, un mot d'état inconnu est gardé.
 export function comprendre(sortie: string): Faits | { informe: string } {
   if (sortie.trim() === "") return { informe: "the command returned nothing" };
@@ -664,6 +667,7 @@ export function comprendre(sortie: string): Faits | { informe: string } {
       lu: heure(racine.lu, "lu"),
       dernierTick: ouRien(racine.dernierTick, "dernierTick", heure),
       ...(racine.limiteGithub === undefined ? {} : { limiteGithub: heure(racine.limiteGithub, "limiteGithub") }),
+      ...limiteLue(racine.github),
       ...(racine.appelsGithub === undefined ? {} : { appelsGithub: appelsLus(racine.appelsGithub) }),
       compteurs: {
         rail: entier(compteurs.rail, "compteurs.rail"),
