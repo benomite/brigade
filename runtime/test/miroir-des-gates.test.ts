@@ -15,9 +15,9 @@ import { ENV_ENFANT, git, repertoireTemporaire } from "./outils.ts";
 import { posixOnly } from "./support/plateforme.ts";
 
 const GATES = join(import.meta.dirname, "../../.claude/brigade/gates.sh");
-const ROLES = ["po", "manager", "dev", "designer"];
+const ROLES = ["po", "manager", "dev", "designer", "ask"];
 
-// Un projet aux gates vertes, commité, sans runtime : les manifests, les quatre
+// Un projet aux gates vertes, commité, sans runtime : les manifests, les cinq
 // rôles et leur miroir.
 function projet(t: TestContext): string {
   const racine = join(repertoireTemporaire(t), "projet");
