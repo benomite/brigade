@@ -35,8 +35,6 @@ test("la cuisine ouverte donne le rail de son journal — celui de `facts` — e
   arriver(15, 2);
   arriver(18, null, { waitsFor: [12], zone: [], problems: [] });
   journal.ajouter({ project: "brigade", ticket: 12, author: "github", type: "ticket.left", payload: { reason: "unfired" } });
-  // Un cook de l'ancien chemin a pris le 15 : la mise à jour de la station l'attend (#2189).
-  journal.ajouter({ project: "brigade", ticket: 15, author: "station:box/claude", type: "ticket.taken", payload: { station: "box/claude", leaseUntil: "2099-01-01T00:00:00Z" } });
   journal.fermer();
 
   const cuisine = ouvrirCuisine(
@@ -58,6 +56,8 @@ test("la cuisine ouverte donne le rail de son journal — celui de `facts` — e
   let enCuisine;
   try {
     rail = cuisine.rail?.();
+    // Sur l'ancien chemin, ses cooks en vol sont les tickets pris de son
+    // journal (#2189) : aucun ici — un cook d'avant l'ouverture est rendu.
     enCuisine = cuisine.enCuisine?.();
   } finally {
     cuisine.arreter("fin du test");
@@ -68,9 +68,8 @@ test("la cuisine ouverte donne le rail de son journal — celui de `facts` — e
   assert.equal(await commande.fin, 0, commande.sortie());
   const lu = (JSON.parse(commande.sortie()) as { rail: Array<{ ticket: number; etat: string; titre: string; url: string }> }).rail;
   assert.deepEqual(rail, lu.map(({ ticket, etat: mot, titre, url }) => ({ ticket, etat: mot, titre, url })));
-  assert.deepEqual(rail?.map(({ ticket, etat: mot }) => [ticket, mot]), [[14, "en attente"], [15, "pris"], [18, "en attente"]]);
-  // Sur l'ancien chemin, les cooks en vol sont les tickets pris du journal.
-  assert.deepEqual(enCuisine, [15]);
+  assert.deepEqual(rail?.map(({ ticket, etat: mot }) => [ticket, mot]), [[14, "en attente"], [15, "en attente"], [18, "en attente"]]);
+  assert.deepEqual(enCuisine, []);
 });
 
 test("cuisine-rail.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);
