@@ -91,7 +91,40 @@ export class CuisineRalentie extends LimiteGitHubAtteinte {
 
 // Ce qu'un appel dit de lui : le projet qui l'émet, et la sorte de lecture qu'il
 // fait (`LECTURES`). Sans lui, l'appel est compté sous le projet « station ».
-export type Etiquette = { projet: string; lecture: Lecture };
+// `ecriture` : l'appel écrit sur GitHub (un commentaire, un label, une PR) —
+// c'est ce que les limites secondaires de GitHub plafonnent (#2145).
+export type Etiquette = { projet: string; lecture: Lecture; ecriture?: boolean };
+
+// Le rythme des écritures de la cuisine, par compte et pour tous les projets de
+// la station ensemble (#2145). GitHub dit, pour ses limites secondaires, au plus
+// 80 écritures par minute et 500 par heure ; le compte de la machine est
+// partagé avec le Mac du chef, d'où la marge. Un geste du chef n'est jamais espacé.
+export const ECRITURES_PAR_MINUTE = 60;
+export const ECRITURES_PAR_HEURE = 450;
+const MINUTE_MS = 60_000;
+
+// Une écriture de la cuisine que le rythme retient : elle ne part pas, n'est pas
+// comptée, et peut repartir à `jusqua`. Ce n'est pas un refus de GitHub :
+// `prendreUnAppel` attend, puis la reprend.
+export class EcritureEspacee extends Error {
+  readonly jusqua: number;
+  constructor(jusqua: number, dansMs: number) {
+    super(`écritures GitHub espacées : ${ECRITURES_PAR_MINUTE} par minute et ${ECRITURES_PAR_HEURE} par heure au plus — la suivante part dans ${Math.ceil(dansMs / 1000)} s`);
+    this.name = "EcritureEspacee";
+    this.jusqua = jusqua;
+  }
+}
+
+// Vrai si l'appel `gh api` écrit : une méthode autre que GET, ou des champs sans
+// méthode dite — `gh api` envoie alors un POST.
+export function estUneEcriture(args: readonly string[]): boolean {
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i] ?? "";
+    const methode = arg === "-X" || arg === "--method" ? args[i + 1] : /^--method=(.+)$/.exec(arg)?.[1] ?? (/^-X(.+)$/.exec(arg)?.[1]);
+    if (methode !== undefined) return methode.toUpperCase() !== "GET";
+  }
+  return args.some((arg) => /^(-f|-F|--field|--raw-field|--input)(=|$)/.test(arg));
+}
 
 // Les sortes de lecture, dans le nom stable que `status` et les faits donnent.
 export const LECTURES = ["issue-comments", "pull-requests", "issues", "gist", "gesture", "board", "other"] as const;
@@ -167,12 +200,13 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
   // aucune écriture n'attend le disque.
   if (options.fichier !== undefined) base.script("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;");
   base.script(
-    "CREATE TABLE IF NOT EXISTS appels (instant INTEGER NOT NULL, projet TEXT, lecture TEXT); CREATE INDEX IF NOT EXISTS appels_par_instant ON appels (instant); CREATE TABLE IF NOT EXISTS pause (jusqua INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS quota (compte TEXT PRIMARY KEY, restant INTEGER NOT NULL, plafond INTEGER NOT NULL, reset INTEGER NOT NULL, vu INTEGER NOT NULL);",
+    "CREATE TABLE IF NOT EXISTS appels (instant INTEGER NOT NULL, projet TEXT, lecture TEXT, compte TEXT, ecriture INTEGER NOT NULL DEFAULT 0); CREATE INDEX IF NOT EXISTS appels_par_instant ON appels (instant); CREATE TABLE IF NOT EXISTS pause (jusqua INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS quota (compte TEXT PRIMARY KEY, restant INTEGER NOT NULL, plafond INTEGER NOT NULL, reset INTEGER NOT NULL, vu INTEGER NOT NULL);",
   );
 
   // Un compteur écrit avant la répartition n'a pas ces deux colonnes.
   const colonnes = base.lire<{ name: string }>("PRAGMA table_info(appels)").map((c) => c.name);
-  for (const colonne of ["projet", "lecture"]) if (!colonnes.includes(colonne)) base.script(`ALTER TABLE appels ADD COLUMN ${colonne} TEXT;`);
+  for (const colonne of ["projet", "lecture", "compte"]) if (!colonnes.includes(colonne)) base.script(`ALTER TABLE appels ADD COLUMN ${colonne} TEXT;`);
+  if (!colonnes.includes("ecriture")) base.script("ALTER TABLE appels ADD COLUMN ecriture INTEGER NOT NULL DEFAULT 0;");
 
   const quotaDe = (compte: string, instant: number): Quota | null => {
     const [lu] = base.lire<QuotaLu>("SELECT restant, plafond, reset, vu FROM quota WHERE compte = ?", compte);
@@ -185,7 +219,7 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
 
   return {
     prendre(usage = "cuisine", compte = COMPTE_DE_LA_MACHINE, etiquette) {
-      const refus = base.transaction((): { jusqua: number } | { quota: Quota; jusqua: number } | number => {
+      const refus = base.transaction((): { jusqua: number } | { quota: Quota; jusqua: number } | { espacer: number } | number => {
         const instant = maintenant();
         // Ce qui est sorti de la fenêtre ne compte plus : rien ne le relira.
         base.executer("DELETE FROM appels WHERE instant <= ?", instant - FENETRE_MS);
@@ -196,10 +230,30 @@ export function ouvrirLimite(options: OptionsLimite = {}): Limite {
           const quota = quotaDe(compte, instant);
           const jusqua = quota === null ? null : retenue(quota);
           if (quota !== null && jusqua !== null) return { quota, jusqua };
+          // Le rythme des écritures du compte, tous projets ensemble : la
+          // suivante part quand la plus ancienne de la fenêtre pleine en sort.
+          if (etiquette?.ecriture === true) {
+            for (const [fenetre, plafond] of [
+              [MINUTE_MS, ECRITURES_PAR_MINUTE],
+              [FENETRE_MS, ECRITURES_PAR_HEURE],
+            ] as const) {
+              const ecrites = base.lire<{ instant: number }>("SELECT instant FROM appels WHERE ecriture = 1 AND compte = ? AND instant > ? ORDER BY instant DESC LIMIT ?", compte, instant - fenetre, plafond);
+              const plusAncienne = ecrites[plafond - 1];
+              if (plusAncienne !== undefined) return { espacer: plusAncienne.instant + fenetre };
+            }
+          }
         }
-        return base.executer("INSERT INTO appels (instant, projet, lecture) VALUES (?, ?, ?)", instant, etiquette?.projet ?? PROJET_DE_LA_STATION, etiquette?.lecture ?? (usage === "geste" ? "gesture" : "other")).dernierId;
+        return base.executer(
+          "INSERT INTO appels (instant, projet, lecture, compte, ecriture) VALUES (?, ?, ?, ?, ?)",
+          instant,
+          etiquette?.projet ?? PROJET_DE_LA_STATION,
+          etiquette?.lecture ?? (usage === "geste" ? "gesture" : "other"),
+          compte,
+          etiquette?.ecriture === true ? 1 : 0,
+        ).dernierId;
       });
       if (typeof refus === "number") return refus;
+      if ("espacer" in refus) throw new EcritureEspacee(refus.espacer, Math.max(0, refus.espacer - maintenant()));
       const libre = Math.max(0, refus.jusqua - maintenant());
       if ("quota" in refus) throw new CuisineRalentie(refus.quota, refus.jusqua, libre);
       throw new LimiteGitHubAtteinte(refus.jusqua, libre);
@@ -413,7 +467,7 @@ const confirmations = new WeakMap<Limite, Map<string, number>>();
 // seulement s'il faut le confirmer.
 export async function prendreUnAppel(
   limite: Limite,
-  options: { usage?: Usage; compte?: string; etiquette?: Etiquette; gh: string; env?: () => Promise<NodeJS.ProcessEnv | undefined>; maintenant?: () => number },
+  options: { usage?: Usage; compte?: string; etiquette?: Etiquette; gh: string; env?: () => Promise<NodeJS.ProcessEnv | undefined>; maintenant?: () => number; attendre?: (ms: number) => Promise<void> },
 ): Promise<number> {
   const compte = options.compte ?? COMPTE_DE_LA_MACHINE;
   const usage = options.usage ?? "cuisine";
@@ -427,7 +481,17 @@ export async function prendreUnAppel(
       await rafraichirLeQuota(limite, { gh: options.gh, env: await options.env?.(), compte });
     }
   }
-  return limite.prendre(usage, compte, options.etiquette);
+  // Une écriture que le rythme retient attend son tour, puis repart : elle ne
+  // rate pas, elle part plus tard (#2145).
+  const attendre = options.attendre ?? ((ms: number) => new Promise<void>((suite) => setTimeout(suite, ms)));
+  for (;;) {
+    try {
+      return limite.prendre(usage, compte, options.etiquette);
+    } catch (erreur) {
+      if (!(erreur instanceof EcritureEspacee)) throw erreur;
+      await attendre(Math.max(50, erreur.jusqua - (options.maintenant ?? Date.now)()));
+    }
+  }
 }
 
 // GitHub a refusé pour sa limite : pose la pause sur le compteur, jusqu'à la

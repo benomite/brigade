@@ -6,6 +6,8 @@
 // La mise en service de la box et la comparaison de version n'y sont pas
 // branchées : elles sont celles d'une installation par projet, qui disparaît.
 // La station se met à jour une fois pour tous ses projets.
+import { availableParallelism } from "node:os";
+import { plafondDesCoeurs } from "../projections/stations.ts";
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { brancherAlerteUrgence } from "../alerte-urgence.ts";
@@ -196,7 +198,9 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
           ? { refus: "the project declares no station on this machine" }
           : stationDuDepot({
               nom: ici.nom,
-              places: ici.cooks,
+              // Pas plus de cooks que la machine n'en porte, comme l'ancien chemin
+              // (`plafondDesCoeurs`) : une station déclarée à 30 en tiendrait 30.
+              places: Math.min(ici.cooks, plafondDesCoeurs(availableParallelism())),
               base: station.base,
               depotGitHub: rail.depot,
               github: githubs.pass,

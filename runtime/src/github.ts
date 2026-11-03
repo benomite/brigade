@@ -8,7 +8,7 @@ import { execFile } from "./sans-invite.ts";
 import type { Check } from "./events/pass.ts";
 import { masquerIdentifiants } from "./identifiants.ts";
 import { limitesDuProcess, lireLaLimite, type LimitesDuCompte } from "./github-limite.ts";
-import { COMPTE_DE_LA_MACHINE, constaterLimite, limiteDuProcess, noterLesEntetes, lectureDe, prendreUnAppel, refusPourLimite, type Limite, type Usage } from "./limite-github.ts";
+import { COMPTE_DE_LA_MACHINE, constaterLimite, estUneEcriture, limiteDuProcess, noterLesEntetes, lectureDe, prendreUnAppel, refusPourLimite, type Limite, type Usage } from "./limite-github.ts";
 
 // Le label par lequel une issue entre sur le rail.
 export const LABEL = "fire";
@@ -100,6 +100,10 @@ export type GitHub = {
   ouvrirPR(pr: { branche: string; base: string; titre: string; corps: string }): Promise<string>;
   // La PR la plus récente dont `branche` est la tête, ou null.
   prDeBranche(branche: string): Promise<PR | null>;
+  // Les PR ouvertes, avec la branche dont chacune est la tête et les fichiers
+  // qu'elle change. Facultatif : seul le client réel le porte
+  // (`brigade-github.ts`, la zone tenue d'un ticket).
+  prsOuvertes?(): Promise<{ number: number; branche: string; fichiers: string[] }[]>;
   // Les checks du commit : ses *check runs* et ses statuts.
   ci(sha: string): Promise<Check[]>;
   // Les checks des derniers commits de la branche d'intégration, mis bout à
@@ -264,14 +268,6 @@ function lire(brute: IssueBrute): Issue {
   };
 }
 
-// Vrai si `gh api` écrit : une méthode autre que GET, ou des champs sans
-// méthode dite — `gh` envoie alors un POST.
-function estUneEcriture(args: readonly string[]): boolean {
-  const methode = args.findIndex((arg) => arg === "-X" || arg === "--method");
-  if (methode !== -1) return (args[methode + 1] ?? "GET").toUpperCase() !== "GET";
-  return args.some((arg) => ["-f", "-F", "--field", "--raw-field", "--input"].includes(arg));
-}
-
 // `gh api -i` imprime la ligne de statut, les en-têtes, une ligne vide, puis
 // le corps. Rend null si la sortie ne commence pas par une réponse HTTP.
 export function decouper(sortie: string): Reponse | null {
@@ -314,7 +310,7 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
     // la liste des process.
     let env: NodeJS.ProcessEnv | undefined;
     const environnement = async () => (env ??= options.jeton ? { ...process.env, GH_TOKEN: await options.jeton() } : undefined);
-    const appel = await prendreUnAppel(limite, { usage: options.usage, compte, etiquette: { projet: options.projet ?? (process.env.BRIGADE_PROJECT || depot), lecture: lectureDe(args, options.usage) }, gh: bin, env: environnement, maintenant: options.maintenant });
+    const appel = await prendreUnAppel(limite, { usage: options.usage, compte, etiquette: { projet: options.projet ?? (process.env.BRIGADE_PROJECT || depot), lecture: lectureDe(args, options.usage), ecriture: estUneEcriture(args) }, gh: bin, env: environnement, maintenant: options.maintenant });
     await environnement();
     return new Promise((resoudre, rejeter) => {
       execFile(
@@ -521,6 +517,17 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
         enRetard: brute.mergeable_state === "behind",
         mergeePar: brute.merged_by?.login || null,
       };
+    },
+    async prsOuvertes() {
+      const liste = await lireLaListe(`repos/${depot}/pulls?state=open&per_page=100`);
+      const ouvertes = liste.flatMap((page) => JSON.parse(page.corps) as Array<{ number: number; head: { ref: string } }>);
+      return Promise.all(
+        ouvertes.map(async ({ number, head }) => {
+          const pages = await lireLaListe(`repos/${depot}/pulls/${number}/files?per_page=100`);
+          const fichiers = pages.flatMap((page) => JSON.parse(page.corps) as Array<{ filename: string; previous_filename?: string }>).flatMap((brut) => (brut.previous_filename === undefined ? [brut.filename] : [brut.filename, brut.previous_filename]));
+          return { number, branche: head.ref, fichiers };
+        }),
+      );
     },
     async ci(sha) {
       const jobs = `repos/${depot}/commits/${sha}/check-runs?per_page=100`;

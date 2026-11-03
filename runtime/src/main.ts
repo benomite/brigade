@@ -1,5 +1,7 @@
 // Point d'entrée du runtime : `npm --prefix runtime start`, ou l'unité systemd.
 // Tout vient de l'environnement — aucun chemin d'état, aucun projet par défaut.
+import { availableParallelism } from "node:os";
+import { plafondDesCoeurs } from "./projections/stations.ts";
 import { brancherAlerteUrgence } from "./alerte-urgence.ts";
 import { assurerLApp, cheminDeLApp, direLApp } from "./app-par-defaut.ts";
 import { brancherIssueDuDisjoncteur, clientGitHubDuDisjoncteur } from "./breaker-issue.ts";
@@ -198,7 +200,9 @@ try {
         ? { refus: "the project declares no station on this machine" }
         : stationDuDepot({
             nom: ici.nom,
-            places: ici.cooks,
+            // Pas plus de cooks que la machine n'en porte, comme l'ancien chemin
+              // (`plafondDesCoeurs`) : une station déclarée à 30 en tiendrait 30.
+              places: Math.min(ici.cooks, plafondDesCoeurs(availableParallelism())),
             base: station.base,
             depotGitHub: rail.depot,
             github: githubs.pass,

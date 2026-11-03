@@ -14,6 +14,10 @@ import { canalGitHub } from "../src/appairage/canal.ts";
 import { ouvrirGitHub } from "../src/github.ts";
 import {
   CuisineRalentie,
+  ECRITURES_PAR_HEURE,
+  ECRITURES_PAR_MINUTE,
+  EcritureEspacee,
+  estUneEcriture,
   FENETRE_MS,
   journaliserLesAppels,
   LimiteGitHubAtteinte,
@@ -414,3 +418,75 @@ test("la station réelle compte chacun de ses appels au gist dans le compteur de
 });
 
 test("limite-github.test.ts ne laisse rien dans le répertoire temporaire", rienNeReste);
+
+// Le rythme des écritures (#2145) : GitHub plafonne les écritures par minute et
+// par heure ; la cuisine reste dessous, tous projets du compte ensemble.
+test("writes are paced account-wide: two projects firing at once never send more than the per-minute budget, and both get through", async () => {
+  let horloge = 1_000_000;
+  const limite = ouvrirLimite({ maintenant: () => horloge });
+  const parties: string[] = [];
+  const attentes: number[] = [];
+  const attendre = async (ms: number) => {
+    attentes.push(ms);
+    horloge += ms;
+  };
+  // Deux projets, chacun 40 écritures d'un coup, alternées.
+  for (let i = 0; i < 40; i += 1) {
+    for (const projet of ["a", "b"]) {
+      await prendreUnAppel(limite, { etiquette: { projet, lecture: "issues", ecriture: true }, gh: "gh", maintenant: () => horloge, attendre });
+      parties.push(`${projet}@${horloge}`);
+    }
+  }
+  const instants = parties.map((p) => Number(p.split("@")[1]));
+  // Sur toute minute glissante, pas plus que le budget.
+  for (const debut of instants) assert.ok(instants.filter((t) => t >= debut && t < debut + 60_000).length <= ECRITURES_PAR_MINUTE, `more than ${ECRITURES_PAR_MINUTE} writes in the minute from ${debut}`);
+  // Les deux projets passent tous, aucun n'est affamé.
+  assert.equal(parties.filter((p) => p.startsWith("a@")).length, 40);
+  assert.equal(parties.filter((p) => p.startsWith("b@")).length, 40);
+  assert.ok(attentes.length > 0, "the pacer made writes wait");
+  limite.fermer();
+});
+
+test("reads and the chef's gestures are never paced, and a paced write is not counted until it leaves", () => {
+  let horloge = 2_000_000;
+  const limite = ouvrirLimite({ maintenant: () => horloge });
+  for (let i = 0; i < ECRITURES_PAR_MINUTE; i += 1) limite.prendre("cuisine", "gh", { projet: "a", lecture: "issues", ecriture: true });
+  assert.throws(() => limite.prendre("cuisine", "gh", { projet: "a", lecture: "issues", ecriture: true }), EcritureEspacee);
+  assert.equal(limite.appels(), ECRITURES_PAR_MINUTE);
+  // Une lecture part, un geste aussi, une écriture d'un autre compte aussi.
+  limite.prendre("cuisine", "gh", { projet: "a", lecture: "issues" });
+  limite.prendre("geste", "gh", { projet: "a", lecture: "gesture", ecriture: true });
+  limite.prendre("cuisine", "app-pass", { projet: "a", lecture: "issues", ecriture: true });
+  // La minute passée, l'écriture repart.
+  horloge += 60_001;
+  limite.prendre("cuisine", "gh", { projet: "a", lecture: "issues", ecriture: true });
+  limite.fermer();
+});
+
+test("the hourly write budget holds too, past the minute", () => {
+  let horloge = 3_000_000;
+  const limite = ouvrirLimite({ maintenant: () => horloge });
+  for (let i = 0; i < ECRITURES_PAR_HEURE; i += 1) {
+    limite.prendre("cuisine", "gh", { projet: "a", lecture: "issues", ecriture: true });
+    horloge += 2_100;
+  }
+  const erreur = (() => {
+    try {
+      limite.prendre("cuisine", "gh", { projet: "a", lecture: "issues", ecriture: true });
+    } catch (e) {
+      return e;
+    }
+    return null;
+  })();
+  assert.ok(erreur instanceof EcritureEspacee);
+  assert.ok(erreur.jusqua > horloge);
+  limite.fermer();
+});
+
+test("what counts as a write in a `gh api` call", () => {
+  assert.equal(estUneEcriture(["repos/o/r/issues/1/comments", "-f", "body=x"]), true);
+  assert.equal(estUneEcriture(["-X", "PATCH", "repos/o/r/issues/1", "--input", "-"]), true);
+  assert.equal(estUneEcriture(["--method=DELETE", "repos/o/r/issues/1/labels/taken"]), true);
+  assert.equal(estUneEcriture(["-X", "GET", "repos/o/r/issues", "-f", "state=open"]), false);
+  assert.equal(estUneEcriture(["-i", "repos/o/r/issues/1/comments"]), false);
+});
