@@ -24,7 +24,9 @@ permissions:
 
 jobs:
   tests:
-    name: tests (${{ matrix.part }}/4)
+    # « windows » en tête : la station GitHub seul ne lit pas ces checks pour
+    # l'état de la base (#2087 : informatifs, jamais bloquants).
+    name: windows tests (${{ matrix.part }}/4)
     runs-on: windows-latest
     timeout-minutes: 15
     strategy:

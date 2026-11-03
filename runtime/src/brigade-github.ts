@@ -358,6 +358,10 @@ export function brancherBrigadeGithub<A>(options: OptionsDuProjet<A>): ProjetOuv
 }
 
 // Le client du tour, sur le client GitHub du runtime (`github.ts`).
+// Les checks de la base qui disent son état : tous, sauf les tests Windows,
+// qui ne tournent que sur elle et n'y bloquent rien (#2087).
+export const checksQuiJugentLaBase = <C extends { name: string }>(checks: C[]): C[] => checks.filter((check) => !check.name.startsWith("windows "));
+
 export function clientDuTour(github: GitHub, base: string): GitHubDuTour {
   const { mettreAJour } = github;
   const { retraitsDeLabels } = github;
@@ -376,7 +380,9 @@ export function clientDuTour(github: GitHub, base: string): GitHubDuTour {
       return derniers;
     },
     prDuTicket: (issue) => github.prDeBranche(brancheDuTicket(issue)),
-    checksDeLaBase: () => github.ci(base),
+    // Les tests Windows ne tournent que sur la base, et n'y bloquent rien
+    // (#2087) : rouges, ils ne gèlent pas la cuisine.
+    checksDeLaBase: async () => checksQuiJugentLaBase(await github.ci(base)),
     ci: (sha) => github.ci(sha),
     corpsDuTicket: async (issue) => (await github.issue(issue))?.body ?? "",
     prsOuvertes: async () => (await prsOuvertes.call(github)).map(({ branche, fichiers }) => ({ branche, fichiers })),
