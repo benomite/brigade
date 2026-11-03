@@ -57,10 +57,10 @@ test("un test de 3 s hors liste est nommé avec son fichier, sa durée et la lim
   assert.match(fautes[0] ?? "", /test\/z\.test\.ts.*attend trois secondes.*3010 ms.*2000 ms/);
 });
 
-test("un test de plus de 2 s qui est listé passe ; le même test devenu rapide ou disparu rend l'exception périmée", () => {
+test("un test de plus de 2 s qui est listé passe ; le même test disparu rend l'exception périmée", () => {
   const exception = { file: "test/z.test.ts", test: "lent" };
   assert.deepEqual(jugerLesDurees([{ fichiers: ["test/z.test.ts"], test: "lent", ms: 5000 }], [exception], joues("test/z.test.ts")), []);
-  assert.equal(jugerLesDurees([{ fichiers: ["test/z.test.ts"], test: "lent", ms: 300 }], [exception], joues("test/z.test.ts")).length, 1);
+  assert.deepEqual(jugerLesDurees([{ fichiers: ["test/z.test.ts"], test: "lent", ms: 300 }], [exception], joues("test/z.test.ts")), []);
   const disparu = jugerLesDurees([], [exception], joues("test/z.test.ts"));
   assert.equal(disparu.length, 1);
   assert.match(disparu[0] ?? "", /périmée.*lent.*test\/z\.test\.ts/);

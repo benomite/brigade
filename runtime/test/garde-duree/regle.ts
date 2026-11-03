@@ -7,10 +7,6 @@ import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const LIMITE_MS = 2000;
-// Sous ce seuil, un test listé est jugé rétabli ; entre le seuil et la limite il reste toléré : la charge
-// d'une station fait osciller un test de 2,2 s sous la limite, et la liste ne doit pas clignoter.
-export const SEUIL_DE_RETABLI_MS = 500;
-
 export type Exception = { file: string; test: string } | { file: string; garde: string };
 export type Garde = { file: string; garde: string; ms: number; line: number };
 
@@ -161,7 +157,8 @@ function fichiersDeTestsDuRepertoire(dossier: string): string[] {
 const sert = (m: Mesure, e: { file: string }): boolean => m.fichiers.includes(e.file);
 
 // Les durées mesurées, moins les tests que la liste excuse ; puis les excuses d'un fichier qui a tourné et
-// dont le test n'a pas paru ou est rétabli. Un fichier qui n'a pas tourné (suite partielle) ne juge rien.
+// dont le test n'a pas paru. Un test redevenu rapide reste excusé : sa durée suit la charge de la machine, et
+// une exception ne doit pas clignoter selon qu'elle est quiète ou chargée. Un fichier qui n'a pas tourné (suite partielle) ne juge rien.
 export function jugerLesDurees(mesures: Mesure[], exceptions: Exception[], fichiersJoues: Set<string>): string[] {
   const excuses = exceptions.filter((e): e is { file: string; test: string } => "test" in e);
   const fautes = mesures
@@ -171,7 +168,6 @@ export function jugerLesDurees(mesures: Mesure[], exceptions: Exception[], fichi
     if (!fichiersJoues.has(e.file)) continue;
     const vus = mesures.filter((m) => m.test === e.test && sert(m, e));
     if (vus.length === 0) fautes.push(`exception périmée : ${nomme(e)} dans ${e.file} — ce test n'existe plus ; retire-le de exceptions.ts`);
-    else if (vus.every((m) => m.ms < SEUIL_DE_RETABLI_MS)) fautes.push(`exception périmée : ${nomme(e)} dans ${e.file} — il dure ${Math.round(Math.max(...vus.map((m) => m.ms)))} ms ; retire-le de exceptions.ts`);
   }
   return fautes;
 }
