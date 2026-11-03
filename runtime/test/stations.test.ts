@@ -17,9 +17,10 @@ const DEUX = lireStations({ BRIGADE_STATIONS: "box/claude:1:code+raisonnement,bo
 const [CLAUDE, PLAYWRIGHT] = ["box/claude", "box/playwright"];
 
 // Le temps qu'une prise qui ne doit pas avoir lieu aurait largement eu pour se faire.
-// Les cooks qui doivent tenir tout le test, quelle que soit la charge du runner : aux 60 s des
-// plafonds par défaut, un cook d'attente est arrêté pour durée, rend sa place, et un ticket de trop part.
-const PLAFONDS_DU_TEST = { durationMs: 120_000, idleMs: 120_000 };
+// Les cooks d'attente ne s'arrêtent jamais d'eux-mêmes pendant un test : leurs plafonds de durée et
+// d'inactivité (six heures) sont hors de portée, et seule la fin du test les arrête. Aux 60 s par défaut,
+// ou à une marge de plus, la réussite dépendrait encore de la vitesse du runner.
+const PLAFONDS_DU_TEST = { durationMs: 6 * 3_600_000, idleMs: 6 * 3_600_000 };
 
 const laisserServir = () => new Promise((resoudre) => setTimeout(resoudre, 80));
 
@@ -269,6 +270,7 @@ describe("les stations que le projet déclare", { concurrency: 8 }, () => {
     await jusqua(() => etats().includes("86") && types().filter((type) => type === "cook.launched").length === 3);
     await jusqua(() => etatStation(journal.base, PLAYWRIGHT)?.heldReason === "quota");
     await laisserServir();
+    // Aucun cook d'attente n'a rendu sa place : le quatrième ticket n'a pas pu partir.
 
     assert.deepEqual(
       journal.tout().filter((e) => e.type === "station.86").map((e) => [e.author, e.payload.station, e.payload.until]),
@@ -280,7 +282,7 @@ describe("les stations que le projet déclare", { concurrency: 8 }, () => {
     // Une place est libre, et le quatrième ticket ne part pas : ni l'une ni
     // l'autre station ne prend tant que le quota n'est pas revenu.
     assert.deepEqual(etats().sort(), ["86", "taken", "taken", "waiting"]);
-    assert.equal(types().filter((type) => type === "cook.launched").length, 3);
+    assert.equal(types().filter((type) => type === "cook.launched").length, 3, "cook.launched ne dépasse pas 3");
     assert.deepEqual([etatStation(journal.base, CLAUDE)?.heldReason, etatStation(journal.base, PLAYWRIGHT)?.heldReason], ["quota", "quota"]);
   });
 
