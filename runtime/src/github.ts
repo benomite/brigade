@@ -79,6 +79,9 @@ export type GitHub = {
   // Les instants où le label `fire` a été retiré de l'issue, du plus ancien au
   // plus récent : l'historique des labels, que l'état courant ne garde pas.
   retraitsDeFire(numero: number): Promise<string[]>;
+  // Les retraits de label de l'issue, tous labels confondus, du plus ancien au
+  // plus récent : ce que la prise lit pour savoir si le chef a lâché le ticket.
+  retraitsDeLabels?(numero: number): Promise<{ label: string; createdAt: string }[]>;
   // Poste un commentaire sur une issue.
   commenter(numero: number, corps: string): Promise<void>;
   // Ajoute des labels à une issue, sans toucher à ceux qu'elle porte.
@@ -438,6 +441,13 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
         .flatMap((page) => JSON.parse(page.corps) as EvenementBrut[])
         .filter((brut) => brut.event === "unlabeled" && brut.label?.name === LABEL && typeof brut.created_at === "string")
         .map((brut) => brut.created_at as string);
+    },
+    async retraitsDeLabels(numero) {
+      const pages = await lireLaListe(`repos/${depot}/issues/${numero}/events?per_page=100`);
+      return pages
+        .flatMap((page) => JSON.parse(page.corps) as EvenementBrut[])
+        .filter((brut) => brut.event === "unlabeled" && typeof brut.label?.name === "string" && typeof brut.created_at === "string")
+        .map((brut) => ({ label: brut.label?.name as string, createdAt: brut.created_at as string }));
     },
     async prQuiFerme(numero) {
       // La fermeture par un merge porte le commit du merge ; la dernière

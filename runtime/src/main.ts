@@ -2,7 +2,7 @@
 // Tout vient de l'environnement — aucun chemin d'état, aucun projet par défaut.
 import { brancherAlerteUrgence } from "./alerte-urgence.ts";
 import { assurerLApp, cheminDeLApp, direLApp } from "./app-par-defaut.ts";
-import { brancherBrigadeGithub, stationDuDepot } from "./brigade-github.ts";
+import { brancherBrigadeGithub, priseDeLaStation, stationDuDepot } from "./brigade-github.ts";
 import { avecRail, configRail } from "./alimenter.ts";
 import { configArbitrage, joindreArbitre } from "./arbitrage.ts";
 import { sessionClaude } from "./claude.ts";
@@ -202,8 +202,8 @@ try {
             depotGitHub: rail.depot,
             github: githubs.pass,
             depot,
-            // La prise de #2056 : son module n'est pas encore dans ce runtime.
-            prise: null,
+            // La prise de #2056, liée à la station et au client du tour.
+            prise: priseDeLaStation,
             claude: station.bin,
             env,
             cloison,
