@@ -427,6 +427,21 @@ test("a delivery that changes what judges it is never merged on the review alone
   assert.equal(dits.length, 1);
 });
 
+test("tickets are taken in prio order, then oldest first (#2209)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(40, CALIBRE);
+  faux.feu(41, [...CALIBRE, "prio:2"]);
+  faux.feu(42, [...CALIBRE, "prio:0"]);
+  faux.feu(43, [...CALIBRE, "prio:1"]);
+  faux.feu(44, [...CALIBRE, "prio:0"]);
+  const a = faux.station("A", { places: 1 });
+  for (let i = 0; i < 5; i += 1) {
+    await a.tour();
+    await a.calme();
+  }
+  assert.deepEqual(faux.cuissons.map((c) => c.issue), [42, 44, 43, 41, 40]);
+});
+
 test("WAITING, off-kitchen and uncalibrated tickets are not taken; with the base red, nothing in pass is reviewed or merged", async () => {
   const faux = new FauxGitHub();
   faux.feu(7, [...CALIBRE, "waiting"]);

@@ -141,6 +141,10 @@ const JUGES = [".claude/brigade/", ".github/workflows/"];
 // Le label d'un ticket qui attend un geste du chef.
 export const A_LA_MAIN = "blocked-on-human";
 
+// Le rang d'un ticket dans l'ordre de service : le plus petit `prio:N` qu'il porte.
+const rangDePriorite = (ticket: Pick<TicketLu, "labels">): number =>
+  Math.min(Number.POSITIVE_INFINITY, ...ticket.labels.map((label) => /^prio:(\d+)$/.exec(label)?.[1]).filter((n) => n !== undefined).map(Number));
+
 // Combien de fois une livraison repart au cook avant de sortir de la cuisine.
 export const RENVOIS_MAX = 2;
 const MARQUE_DE_RENVOI = "<!-- brigade:renvoi";
@@ -265,6 +269,9 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       const propre = brancheDuTicket(ticket.number);
       return ouvertes.some((pr) => pr.branche !== propre && pr.fichiers.some((fichier) => zone.some((entree) => secoupent(entree, fichier))));
     };
+    // Les plus prioritaires d'abord (`prio:0` avant `prio:1`…, sans `prio:` en
+    // dernier), puis les plus anciens : l'ordre de l'ancien rail (#2209).
+    libres.sort((x, y) => rangDePriorite(x) - rangDePriorite(y) || x.number - y.number);
     for (const ticket of libres) {
       if (enVol.size + aRendre.size >= places) break;
       if (enVol.has(ticket.number)) continue;
