@@ -17,7 +17,9 @@
 //     --exec-path` en tête du PATH (comme le script `test`).
 // La sortie est celle du lanceur (`spec`) : les gates y lisent `ℹ tests` et
 // `ℹ duration_ms`. Une ligne de plus, à la fin, dit le nombre de tests et
-// l'horloge de toute la suite.
+// l'horloge de toute la suite. Le reporter de la règle des 2 s
+// (`test/garde-duree/reporteur.ts`, #2129) juge le passage comme sous
+// `npm test` : ce qu'il nomme va sur la sortie d'erreur, et rend la suite rouge.
 //
 // Usage, depuis `runtime/` :
 //   node test-config/suite.ts [<fichier ou motif>...]   (défaut : les motifs du script `test`)
@@ -30,13 +32,13 @@
 // Code de sortie : 0 si la suite est verte, 1 sinon, 2 sur un usage refusé.
 import { execFileSync } from "node:child_process";
 import { createWriteStream, existsSync, globSync, mkdtempSync, readFileSync, rmSync, statfsSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { availableParallelism } from "node:os";
+import { availableParallelism, tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
 import { finished } from "node:stream/promises";
 import { run } from "node:test";
 import { spec, tap } from "node:test/reporters";
 import { pathToFileURL } from "node:url";
+import gardeDeDuree from "../test/garde-duree/reporteur.ts";
 
 const RUNTIME = resolve(import.meta.dirname, "..");
 const DUREES = join(import.meta.dirname, "durees.tsv");
@@ -212,6 +214,15 @@ flux.on("test:summary", (donnee) => {
 });
 const fins: Array<Promise<unknown>> = [];
 if (sortieTap) fins.push(finished(flux.compose(tap).pipe(createWriteStream(sortieTap))));
+let fautesDeDuree = "";
+fins.push(
+  (async () => {
+    for await (const texte of flux.compose(gardeDeDuree)) {
+      fautesDeDuree += texte;
+      process.stderr.write(texte);
+    }
+  })(),
+);
 const lu = flux.compose(spec);
 lu.pipe(process.stdout, { end: false });
 fins.push(finished(lu));
@@ -224,6 +235,7 @@ void Promise.all(fins).then(() => {
   rmSync(dossierDesLots, { recursive: true, force: true });
   if (temporaire) rmSync(temporaire, { recursive: true, force: true });
   // Après le relevé du lanceur, que `spec` écrit à la fin du flux.
+  if (fautesDeDuree) verte = false;
   process.stdout.write(`suite: ${tests} tests, ${fichiers.length} files (${lots.reduce((n, lot) => n + lot.length, 0)} in ${lots.length} batches), ${secondes.toFixed(1)} s wall-clock, concurrency ${concurrence}, ${verte ? "green" : "red"}\n`, () =>
     process.exit(verte ? 0 : 1),
   );

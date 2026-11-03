@@ -528,8 +528,8 @@ describe("le runtime, son process et ses unités", { concurrency: 8 }, () => {
       });
 
       await jusqua(() => lancementsDuFauxClaude(temoin).length === 1);
-
-      assert.ok(runtime.sortie().includes(`connection of \`claude\` — long-lived token read from ${fichier}, read again at each launch`), runtime.sortie());
+      // Le cook lancé, la ligne du démarrage peut être encore dans le tube.
+      await jusqua(() => runtime.sortie().includes(`connection of \`claude\` — long-lived token read from ${fichier}, read again at each launch`));
       assert.equal(runtime.sortie().includes("sk-ant-oat01-jeton-de-la-machine"), false);
       const [cook] = lancementsDuFauxClaude(temoin);
       assert.equal(cook?.env.CLAUDE_CODE_OAUTH_TOKEN, "sk-ant-oat01-jeton-de-la-machine");
