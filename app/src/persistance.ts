@@ -51,20 +51,31 @@ function verifier(nom: string): void {
 // `screen` prend un nom qui n'est que le début d'un autre : l'existence se vérifie à la lettre.
 const ecranExiste = (nom: string) => `screen -ls 2>/dev/null | grep -q "[.]${nom}[[:space:]]"`;
 
+// Une app lancée depuis le Dock n'a pas de locale : sans UTF-8, tmux affiche chaque caractère non ASCII
+// en `_`. `-u` / `-U` forcent l'UTF-8 côté client, même sur un serveur déjà lancé ; la locale posée ici
+// sert au shell de la session.
+const LOCALE_UTF8 = [
+  'case "${LC_ALL:-${LC_CTYPE:-$LANG}}" in',
+  "  *[Uu][Tt][Ff]-8*|*[Uu][Tt][Ff]8*) ;;",
+  '  *) unset LC_ALL LC_CTYPE; if [ "$(uname)" = Darwin ]; then LANG=en_US.UTF-8; else LANG=C.UTF-8; fi; export LANG ;;',
+  "esac",
+];
+
 // Le script qui crée la session ou s'y rattache. Il est lu par `sh`.
 // `TMUX`, `STY` : une app lancée depuis un multiplexeur ne s'y emboîte pas.
 export function scriptDeRattachement(nom: string): string {
   verifier(nom);
   return [
     "unset TMUX STY",
+    ...LOCALE_UTF8,
     "if command -v tmux >/dev/null 2>&1; then",
-    `  tmux has-session -t =${nom} 2>/dev/null || tmux new-session -d -s ${nom} -c "$PWD" || exit`,
-    ...REGLAGES_TMUX.map((reglage) => `  tmux set-option -t =${nom} ${reglage}`),
-    `  exec tmux attach-session -t =${nom}`,
+    `  tmux -u has-session -t =${nom} 2>/dev/null || tmux -u new-session -d -s ${nom} -c "$PWD" || exit`,
+    ...REGLAGES_TMUX.map((reglage) => `  tmux -u set-option -t =${nom} ${reglage}`),
+    `  exec tmux -u attach-session -t =${nom}`,
     "elif command -v screen >/dev/null 2>&1; then",
-    `  ${ecranExiste(nom)} || screen -dmS ${nom} || exit`,
+    `  ${ecranExiste(nom)} || screen -U -dmS ${nom} || exit`,
     ...REGLAGES_SCREEN.map((reglage) => `  screen -S ${nom} -X ${reglage}`),
-    `  exec screen -x ${nom}`,
+    `  exec screen -U -x ${nom}`,
     "fi",
     `echo "${SANS_MULTIPLEXEUR}"`,
     'exec "${SHELL:-/bin/sh}" -l',
