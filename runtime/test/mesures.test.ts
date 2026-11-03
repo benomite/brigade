@@ -8,13 +8,13 @@ import { test, type TestContext } from "node:test";
 import type { Fait } from "../src/evenements.ts";
 import type { Seuils } from "../src/events/drift.ts";
 import { ouvrirJournal } from "../src/journal.ts";
+import { principal as mesures } from "../src/montrer-mesures.ts";
 import { principal as status } from "../src/status.ts";
 import { decrireReleve, direJauge, franchis, jauger, SANS_SEUIL, trancher } from "../src/mesures.ts";
 import { mergedDeliveries, seuilsEnVigueur, signalements, type Delivery } from "../src/projections/measures.ts";
-import { appeler, horloge, JOUR_HORLOGE, lancer, repertoireTemporaire } from "./outils.ts";
+import { appeler, horloge, JOUR_HORLOGE, repertoireTemporaire } from "./outils.ts";
 
 const LIMITES = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
-const MESURES = join(import.meta.dirname, "../src/montrer-mesures.ts");
 
 type Cuisson = { tours: number; ms: number; modele?: string; effort?: string; station?: string; outcome?: "ok" | "failed" };
 
@@ -290,9 +290,9 @@ test("`run mesures` au-dessus d'un seuil le dit sans lancer de passe, sans rien 
   writeFileSync(faux, `#!/bin/sh\ntouch "${trace}"\n`, { mode: 0o755 });
   const env = { BRIGADE_STATE_DIR: repertoire, BRIGADE_CLAUDE_BIN: faux };
 
-  const premiere = lancer(t, MESURES, [], env);
+  const premiere = appeler(mesures, [], env);
   assert.equal(await premiere.fin, 0);
-  const seconde = lancer(t, MESURES, [], env);
+  const seconde = appeler(mesures, [], env);
   assert.equal(await seconde.fin, 0);
 
   assert.match(premiere.sortie(), /\nclosing {4}proposed — tests 622 for a threshold of 500/);
@@ -334,8 +334,8 @@ test("la commande montre le relevé sans rien écrire, et refuse un argument qu'
   livrer(2, { tests: 287 });
   const avant = journal.dernierSeq();
 
-  const commande = lancer(t, MESURES, ["--by", "1"], { BRIGADE_STATE_DIR: repertoire });
-  const refus = lancer(t, MESURES, ["--by", "zéro"], { BRIGADE_STATE_DIR: repertoire });
+  const commande = appeler(mesures, ["--by", "1"], { BRIGADE_STATE_DIR: repertoire });
+  const refus = appeler(mesures, ["--by", "zéro"], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await commande.fin, 0);
   assert.match(commande.sortie(), /^report {5}brigade — 2 merges in the log, in slices of 1\n/);

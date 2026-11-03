@@ -24,6 +24,7 @@ import { principal as declarerStations } from "../src/declarer-stations.ts";
 import { principal as montrerStation } from "../src/montrer-station.ts";
 import { principal as poserDecisions } from "../src/poser-decisions.ts";
 import { principal as etapes } from "../src/etapes-cli.ts";
+import { principal as installation } from "../src/installation-cli.ts";
 import { ETAPES, installationDe } from "../src/etapes.ts";
 import { prendreVerrou } from "../src/verrou.ts";
 import { appeler, BASE, DEPOT, ENV_GIT, FAUX_CLAUDE, fauxGh, git, issueGitHub, jusqua, lancer, repertoireDuFichier, repertoireTemporaire, rienEcritParLeRuntime, type FauxGh } from "./outils.ts";
@@ -858,7 +859,7 @@ describe("« Vérifier » vert, « installation terminée »", { concurrency: 8 
     sansReglageSousWindows(racine);
     sansDecision(etat, "BRIGADE_STATIONS");
 
-    const commande = lancer(t, CLI, [], env);
+    const commande = appeler(installation, [], env);
 
     assert.equal(await commande.fin, 1, commande.sortie());
     assert.match(commande.sortie(), /→ step to resume: 4\. Déclarer les stations \(stations\)/);
@@ -1395,7 +1396,14 @@ describe("la désinstallation", { concurrency: 8 }, () => {
 
 // Chaque test a ses lieux — répertoires, dépôt, GitHub : ils se jouent de front.
 describe("la commande du chef", { concurrency: 8 }, () => {
-  const commande = async (t: TestContext, env: Record<string, string>, ...args: string[]) => {
+  // Jouée dans le process du test : ce qu'elle dit et son code sont ceux
+  // qu'elle rend à son process (`enProcess`). Un test la lance par son
+  // fichier, pour le code que ce process rend.
+  const commande = async (_t: TestContext, env: Record<string, string>, ...args: string[]) => {
+    const appel = appeler(installation, args, env);
+    return { code: await appel.fin, sortie: appel.sortie() };
+  };
+  const parSonFichier = async (t: TestContext, env: Record<string, string>, ...args: string[]) => {
     const enfant = lancer(t, CLI, args, env);
     return { code: await enfant.fin, sortie: enfant.sortie() };
   };
@@ -1429,7 +1437,7 @@ describe("la commande du chef", { concurrency: 8 }, () => {
     gh.repondre(LABELS_DU_DEPOT, { corps: [] });
     sansDecision(etat, "BRIGADE_REVIEWER_MODEL");
 
-    const { code, sortie } = await commande(t, env);
+    const { code, sortie } = await parSonFichier(t, env);
 
     assert.match(sortie, /MISSING +BRIGADE_REVIEWER_MODEL n'est pas défini/);
     assert.match(sortie, /MISSING +`\.claude\/brigade\/gates\.sh`/);

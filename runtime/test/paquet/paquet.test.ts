@@ -51,6 +51,7 @@ function doublures(t: TestContext, corps: Record<string, string>) {
     chmodSync(join(bin, nom), 0o755);
   }
   return {
+    bin,
     env: { ...process.env, PATH: `${bin}:/usr/bin:/bin`, BRIGADE_DEPOT: "acme/brigade" },
     appels: () => readFileSync(appels, "utf8").trim().split("\n").filter(Boolean),
   };
@@ -221,13 +222,24 @@ describe("les refus de la construction", { skip: sansDpkgDeb }, () => {
 });
 
 describe("ce que dpkg joue à l'installation et à la mise à jour", { skip: sansSystemd }, () => {
-  const POSTINST = join(PAQUET, "debian/postinst");
+  // Le postinst, sur une machine où le paquet n'a pas encore posé son node :
+  // sans lui, pas de bascule, comme sur un CI. Tel quel, sur une station où le
+  // paquet est installé, il lançait la vraie bascule de la machine
+  // (`--racine /`) — et le node du paquet, deux fois par test.
+  const postinst = (systeme: ReturnType<typeof doublures>) => {
+    const ecrit = join(systeme.bin, "postinst");
+    const lu = readFileSync(join(PAQUET, "debian/postinst"), "utf8");
+    const sansNode = lu.replace(/^NODE=\/usr\/lib\/brigade-station\/node\/bin\/node$/m, `NODE=${join(systeme.bin, "node-absent")}`);
+    assert.notEqual(sansNode, lu, "le postinst ne dit plus son node");
+    writeFileSync(ecrit, sansNode);
+    return ecrit;
+  };
   // Un système vierge : ni compte ni groupe brigade.
   const vierge = { getent: "exit 2", adduser: "", systemctl: 'case "$1" in is-enabled|--quiet) exit 1 ;; esac' };
 
   test("la première installation crée le compte, puis active et démarre la station et son renouvellement", (t) => {
     const systeme = doublures(t, vierge);
-    const rendu = jouer(POSTINST, ["configure", ""], systeme.env);
+    const rendu = jouer(postinst(systeme), ["configure", ""], systeme.env);
     assert.equal(rendu.code, 0, rendu.sortie);
     assert.deepEqual(
       systeme.appels().filter((a) => !a.startsWith("getent")),
@@ -241,20 +253,20 @@ describe("ce que dpkg joue à l'installation et à la mise à jour", { skip: san
 
   test("un compte brigade déjà là est gardé tel quel", (t) => {
     const systeme = doublures(t, { ...vierge, getent: "exit 0" });
-    assert.equal(jouer(POSTINST, ["configure", ""], systeme.env).code, 0);
+    assert.equal(jouer(postinst(systeme), ["configure", ""], systeme.env).code, 0);
     assert.deepEqual(systeme.appels().filter((a) => a.startsWith("adduser")), []);
   });
 
   test("un groupe brigade sans compte : le compte le rejoint", (t) => {
     const systeme = doublures(t, { ...vierge, getent: '[ "$1" = group ] && exit 0; exit 2' });
-    assert.equal(jouer(POSTINST, ["configure", ""], systeme.env).code, 0);
+    assert.equal(jouer(postinst(systeme), ["configure", ""], systeme.env).code, 0);
     assert.deepEqual(systeme.appels().filter((a) => a.startsWith("adduser")), ["adduser --quiet --system --ingroup brigade --home /home/brigade --shell /bin/bash brigade"]);
   });
 
   test("une mise à jour relance ce qui est activé sur le nouveau code, sans rien réactiver — les portes d'abord, quand elles tournent", (t) => {
     // Le renouvellement a été désactivé par l'administrateur ; la station, non. Ses portes tournent.
     const systeme = doublures(t, { getent: "exit 0", systemctl: '[ "$2" = is-enabled ] && { [ "$3" = brigade-station.service ] && exit 0; exit 1; }; exit 0' });
-    const rendu = jouer(POSTINST, ["configure", "1.2.2"], systeme.env);
+    const rendu = jouer(postinst(systeme), ["configure", "1.2.2"], systeme.env);
     assert.equal(rendu.code, 0, rendu.sortie);
     assert.deepEqual(
       systeme.appels().filter((a) => a.startsWith("systemctl") && !a.includes("is-enabled") && !a.includes("is-active")),
@@ -264,7 +276,7 @@ describe("ce que dpkg joue à l'installation et à la mise à jour", { skip: san
 
   test("une mise à jour depuis une version sans portes ne les démarre pas elle-même : la station les réclame en repartant", (t) => {
     const systeme = doublures(t, { getent: "exit 0", systemctl: '[ "$2" = is-enabled ] && { [ "$3" = brigade-station.service ] && exit 0; exit 1; }; [ "$2" = is-active ] && exit 3; exit 0' });
-    assert.equal(jouer(POSTINST, ["configure", "1.2.2"], systeme.env).code, 0);
+    assert.equal(jouer(postinst(systeme), ["configure", "1.2.2"], systeme.env).code, 0);
     assert.deepEqual(
       systeme.appels().filter((a) => a.startsWith("systemctl") && !a.includes("is-enabled") && !a.includes("is-active")),
       ["systemctl daemon-reload", "systemctl restart brigade-station.service"],

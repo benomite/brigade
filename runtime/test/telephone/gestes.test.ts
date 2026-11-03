@@ -10,22 +10,38 @@
 // `aArreter`, avant que ses répertoires disparaissent : sous Windows, un
 // fichier ouvert ne se supprime pas.
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
+import { Sortie, type Commande } from "../../src/appel.ts";
 import { mettreEnAttente, PRIX_DE_L_ARRIVEE, renvoyerEnCuisine } from "../../src/attente.ts";
 import type { Fait } from "../../src/evenements.ts";
+import { principal as faits } from "../../src/faits.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
+import { principal as montrerRail } from "../../src/montrer-rail.ts";
 import { ticketDuRail } from "../../src/projections/rail.ts";
 import { CONFIGURATION, ETATS } from "../../src/station/configuration.ts";
+import { principal as gesteDeLaStation } from "../../src/station/geste.ts";
 import { ouvrirTelephones } from "../../src/telephone/appairage.ts";
 import { gestesDeLaStation } from "../../src/telephone/gestes.ts";
 import { ouvrirGuichet } from "../../src/telephone/guichet.ts";
 import { projetsDeLaStation } from "../../src/telephone/projets.ts";
 import { aArreter, DEPOT, ENV_ENFANT, fauxGh, horloge, repertoireTemporaire } from "../outils.ts";
 
-const RUNTIME = join(import.meta.dirname, "..", "..");
+// Les commandes que l'ordinateur lance ici, par le fichier que le geste de la station fait partir — tel que son script
+// du `package.json` le nomme.
+const COMMANDES: Record<string, Commande> = { "src/faits.ts": faits, "src/montrer-rail.ts": montrerRail };
+
+// Joue une commande dans le process du test, ses deux sorties tenues à part : rend son code.
+async function jouer(commande: Commande, args: string[], env: Record<string, string | undefined>, sortie: string[], erreurs: string[]): Promise<number> {
+  try {
+    await commande({ args, env, dire: (ligne) => void sortie.push(`${ligne}\n`), redire: (ligne) => void erreurs.push(`${ligne}\n`) });
+    return 0;
+  } catch (erreur) {
+    if (erreur instanceof Sortie) return erreur.code;
+    throw erreur;
+  }
+}
 const ISSUE = (numero: number) => `repos/${DEPOT}/issues/${numero}`;
 const PULLS = `repos/${DEPOT}/pulls`;
 const LIMITES = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
@@ -90,12 +106,19 @@ async function station(t: TestContext, ligne = "") {
   // Ce que l'app de l'ordinateur lance sur la station de cet ordinateur pour un projet — le
   // geste de la station, depuis le dossier du runtime, avec le répertoire de la station
   // (app/src/box.ts, `lancerIci`) ; sur une box, `brigade <projet> …` lance le même.
-  const commeLOrdinateur = (...args: string[]) =>
-    new Promise<{ code: number; sortie: string; erreurs: string }>((resoudre) => {
-      execFile(process.execPath, [join("src", "station", "geste.ts"), "brigade", ...args], { cwd: RUNTIME, env }, (erreur, sortie, erreurs) =>
-        resoudre({ code: erreur === null ? 0 : typeof erreur.code === "number" ? erreur.code : -1, sortie, erreurs }),
-      );
-    });
+  // Joué dans le process du test, la commande qu'il fait partir aussi : le geste du
+  // téléphone, lui, part dans ses process, comme sur la station.
+  const commeLOrdinateur = async (...args: string[]) => {
+    const [sortie, erreurs]: [string[], string[]] = [[], []];
+    const code = await jouer(
+      (appel) => gesteDeLaStation(appel, (fichier, suite, sien) => jouer(COMMANDES[fichier] ?? assert.fail(`pas de commande pour ${fichier}`), suite, sien, sortie, erreurs)),
+      ["brigade", ...args],
+      env,
+      sortie,
+      erreurs,
+    );
+    return { code, sortie: sortie.join(""), erreurs: erreurs.join("") };
+  };
   return { journal, gh, jeton, demander, geste, commeLOrdinateur, ecrits: () => ecrits().slice(avant), revoquer: () => telephones.revoquer("pixel-8") };
 }
 

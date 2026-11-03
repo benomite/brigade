@@ -43,8 +43,11 @@ function cuisineDeBoutEnBout(t: TestContext, scenario: "livre" | "attend") {
   const pids = join(repertoireTemporaire(t), "pids");
   mkdirSync(temoin);
   mkdirSync(pids);
+  // Le cook part par un relais, comme en service : sa fin, son arrêt et le
+  // ménage de son arbre sont ceux du relais, sur cette plateforme.
   const lieu = cuisine(t, {
     git: true,
+    relais: true,
     lieux,
     bin,
     sansGates: true,

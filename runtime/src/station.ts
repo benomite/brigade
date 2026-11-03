@@ -322,6 +322,11 @@ export type OptionsStation = {
   // Ce que la machine fournit au projet, pour lire un setup en échec
   // (`installation/besoins/`). Par défaut, la machine, sous le compte de la station.
   sonde?: Sonde;
+  // Les cooks sont tenus par le runtime, sans relais : ils meurent avec lui,
+  // et aucun ne se reprend au démarrage suivant. Pour les tests seulement —
+  // un relais, c'est un process Node de plus par cook ; seuls ceux dont la
+  // survie du cook est le sujet le gardent. En service, chaque cook a le sien.
+  sansRelais?: boolean;
 };
 
 // Ouvre le dépôt de la station là où le runtime le range : les worktrees des
@@ -1936,7 +1941,7 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
           juger,
           // Le cook survit au runtime : un relais le porte, et le runtime qui
           // démarre après celui-ci le reprend.
-          survivant: { secrets: secrets.env },
+          ...(options.sansRelais ? {} : { survivant: { secrets: secrets.env } }),
         });
       } catch (erreur) {
         if (!(erreur instanceof LancementRefuse)) throw erreur;

@@ -5,8 +5,9 @@
 // Les tests verts seulement au rejeu de la CI se comptent sur les 10 derniers merges.
 // L'ancienne option `--par` répond encore, en disant la nouvelle (`commandes.ts`).
 // La commande n'écrit jamais, et répond pendant que le runtime tourne.
+import { enProcess, Sortie, type Appel } from "./appel.ts";
 import { enAnglais } from "./commandes.ts";
-import { ouvrirJournal } from "./journal.ts";
+import { ouvrirJournal, type Journal } from "./journal.ts";
 import { journalPasRejoue } from "./journal-pas-rejoue.ts";
 import { decrireReleve, PAR_DEFAUT } from "./mesures.ts";
 import { decrireCauses, mesurerCauses } from "./causes-des-ratages.ts";
@@ -20,58 +21,62 @@ import { decrireRejeux, lireRejeux, mesurerRejeux } from "./tests-rejoues.ts";
 
 const USAGE = "usage: BRIGADE_STATE_DIR=<state directory> npm --prefix runtime run measures -- [--by <number of merges>] [--last <number of tickets>]";
 
-function echouer(code: number, message: string): never {
-  console.error(`brigade : ${message}`);
-  process.exit(code);
+export async function principal({ args: tapes, env, dire, redire }: Appel): Promise<void> {
+  function echouer(code: number, message: string): never {
+    redire(`brigade : ${message}`);
+    throw new Sortie(code);
+  }
+
+  const args = enAnglais("measures", tapes, redire);
+  const repertoireEtat = env.BRIGADE_STATE_DIR;
+  if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR is not set\n${USAGE}`);
+  // Chaque option une fois au plus, suivie d'un entier positif.
+  const options = new Map<string, number>();
+  for (let i = 0; i < args.length; i += 2) {
+    const [option, valeur] = [args[i] ?? "", args[i + 1]];
+    if (!["--by", "--last"].includes(option) || options.has(option) || valeur === undefined || !/^[1-9][0-9]*$/.test(valeur)) echouer(2, USAGE);
+    options.set(option, Number(valeur));
+  }
+  const par = options.get("--by") ?? PAR_DEFAUT;
+  const derniers = options.get("--last") ?? DERNIERS_PAR_DEFAUT;
+
+  let journal: Journal;
+  try {
+    journal = ouvrirJournal(repertoireEtat, { lectureSeule: true });
+  } catch (erreur) {
+    echouer(1, erreur instanceof Error ? erreur.message : String(erreur));
+  }
+  try {
+    const { base } = journal;
+    const projet = base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project ?? null;
+    for (const ligne of decrireReleve({ projet, livraisons: mergedDeliveries(base), seuils: seuilsEnVigueur(base) }, par)) dire(ligne);
+    dire("");
+    const parcours = parcoursDesTickets(base);
+    for (const ligne of decrireRenvois(mesurerRenvois(parcours, derniers))) dire(ligne);
+    dire("");
+    for (const ligne of decrireCauses(mesurerCauses(parcours.slice(-derniers)))) dire(ligne);
+    dire("");
+    for (const ligne of decrireRejeux(mesurerRejeux(lireRejeux(base)))) dire(ligne);
+    // The ledger snapshot (`perTicket`) comes from `github/budget-appels.ts`, which is not on main yet:
+    // until it lands every merged ticket reads as unknown.
+    const perTicket: PerTicket = {};
+    dire("");
+    for (const ligne of describeCallsPerTicket(measureCallsPerTicket(mergedDeliveries(base), perTicket))) dire(ligne);
+    // Rien de relevé, c'est aucune minute limitée et aucune écriture.
+    const github = releveGitHubDeLaStation(env.BRIGADE_STATION_DIR, Date.now()) ?? { minutesLimitees: 0, pointEcritures: 0 };
+    dire("");
+    for (const ligne of direLeReleveGitHub(github)) dire(ligne);
+    const ci = await ciDurationSection(env.BRIGADE_GITHUB_REPO);
+    if (ci.length > 0) dire("");
+    for (const ligne of ci) dire(ligne);
+  } catch (erreur) {
+    // En lecture seule, rien ne crée les tables d'un journal écrit par un
+    // runtime d'avant ce relevé.
+    if (journalPasRejoue(erreur)) echouer(1, "this log does not have the measures report yet: restart the runtime, which recomputes it");
+    throw erreur;
+  } finally {
+    journal.fermer();
+  }
 }
 
-const args = enAnglais("measures", process.argv.slice(2), (ligne) => console.error(ligne));
-const repertoireEtat = process.env.BRIGADE_STATE_DIR;
-if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR is not set\n${USAGE}`);
-// Chaque option une fois au plus, suivie d'un entier positif.
-const options = new Map<string, number>();
-for (let i = 0; i < args.length; i += 2) {
-  const [option, valeur] = [args[i] ?? "", args[i + 1]];
-  if (!["--by", "--last"].includes(option) || options.has(option) || valeur === undefined || !/^[1-9][0-9]*$/.test(valeur)) echouer(2, USAGE);
-  options.set(option, Number(valeur));
-}
-const par = options.get("--by") ?? PAR_DEFAUT;
-const derniers = options.get("--last") ?? DERNIERS_PAR_DEFAUT;
-
-let journal;
-try {
-  journal = ouvrirJournal(repertoireEtat, { lectureSeule: true });
-} catch (erreur) {
-  echouer(1, erreur instanceof Error ? erreur.message : String(erreur));
-}
-try {
-  const { base } = journal;
-  const projet = base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project ?? null;
-  for (const ligne of decrireReleve({ projet, livraisons: mergedDeliveries(base), seuils: seuilsEnVigueur(base) }, par)) console.log(ligne);
-  console.log("");
-  const parcours = parcoursDesTickets(base);
-  for (const ligne of decrireRenvois(mesurerRenvois(parcours, derniers))) console.log(ligne);
-  console.log("");
-  for (const ligne of decrireCauses(mesurerCauses(parcours.slice(-derniers)))) console.log(ligne);
-  console.log("");
-  for (const ligne of decrireRejeux(mesurerRejeux(lireRejeux(base)))) console.log(ligne);
-  // The ledger snapshot (`perTicket`) comes from `github/budget-appels.ts`, which is not on main yet:
-  // until it lands every merged ticket reads as unknown.
-  const perTicket: PerTicket = {};
-  console.log("");
-  for (const ligne of describeCallsPerTicket(measureCallsPerTicket(mergedDeliveries(base), perTicket))) console.log(ligne);
-  // Rien de relevé, c'est aucune minute limitée et aucune écriture.
-  const github = releveGitHubDeLaStation(process.env.BRIGADE_STATION_DIR, Date.now()) ?? { minutesLimitees: 0, pointEcritures: 0 };
-  console.log("");
-  for (const ligne of direLeReleveGitHub(github)) console.log(ligne);
-  const ci = await ciDurationSection(process.env.BRIGADE_GITHUB_REPO);
-  if (ci.length > 0) console.log("");
-  for (const ligne of ci) console.log(ligne);
-} catch (erreur) {
-  // En lecture seule, rien ne crée les tables d'un journal écrit par un
-  // runtime d'avant ce relevé.
-  if (journalPasRejoue(erreur)) echouer(1, "this log does not have the measures report yet: restart the runtime, which recomputes it");
-  throw erreur;
-} finally {
-  journal.fermer();
-}
+if (import.meta.main) await enProcess(principal);

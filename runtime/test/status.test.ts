@@ -40,7 +40,9 @@ test("pendant qu'un cook tourne, la commande répond et montre le runtime, le ra
     await new Promise((resoudre) => setTimeout(resoudre, 5));
   }
 
-  const commande = lancer(t, STATUS, [], { BRIGADE_STATE_DIR: repertoire });
+  // Jouée dans le process du test, qui tient le runtime : elle lit le journal
+  // comme le ferait la sienne, par sa propre connexion en lecture seule.
+  const commande = appeler(status, [], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await commande.fin, 0);
   const sortie = commande.sortie();
@@ -116,7 +118,7 @@ test("avec `--suivre`, deux signaux rapprochés arrêtent proprement la commande
 });
 
 test("sans répertoire d'état, sans journal, ou avec un argument inconnu, la commande échoue en disant pourquoi", async (t) => {
-  const sansVariable = lancer(t, STATUS, []);
+  const sansVariable = appeler(status, [], {});
   const sansJournal = appeler(status, [], { BRIGADE_STATE_DIR: repertoireTemporaire(t) });
   const arguments_ = [["7"], ["--follow", "sept"], ["--follow", "7", "8"], ["--regarder"]].map((args) =>
     appeler(status, args, { BRIGADE_STATE_DIR: repertoireTemporaire(t) }),

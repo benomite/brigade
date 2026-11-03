@@ -2,15 +2,14 @@
 // sur les derniers merges, et montrés par `measures`. Le journal est écrit à la
 // main : aucune cuisine ne tourne ici.
 import assert from "node:assert/strict";
-import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import type { Check } from "../src/events/pass.ts";
 import type { Fait } from "../src/evenements.ts";
 import { ouvrirJournal } from "../src/journal.ts";
+import { principal as mesures } from "../src/montrer-mesures.ts";
 import { decrireRejeux, lireRejeux, MERGES_PAR_DEFAUT, mesurerRejeux } from "../src/tests-rejoues.ts";
-import { horloge, lancer, repertoireTemporaire } from "./outils.ts";
+import { appeler, horloge, repertoireTemporaire } from "./outils.ts";
 
-const MESURES = join(import.meta.dirname, "../src/montrer-mesures.ts");
 const job = (nom: string, outcome: Check["outcome"]): Check => ({ name: nom, outcome, conclusion: outcome === "red" ? "failure" : "success", url: `https://github.com/acme/brigade/actions/runs/1/job/${nom.length}` });
 
 function cuisine(t: TestContext) {
@@ -73,7 +72,7 @@ test("`measures` montre les tests verts seulement au rejeu, après les ratages",
   const { repertoire, rejouer, merger } = cuisine(t);
   rejouer(7, ["la commande manager"]);
   merger(7);
-  const commande = lancer(t, MESURES, [], { BRIGADE_STATE_DIR: repertoire });
+  const commande = appeler(mesures, [], { BRIGADE_STATE_DIR: repertoire });
 
   assert.equal(await commande.fin, 0);
   assert.match(commande.sortie(), /\n\nfailures [^\n]*\n(?: {11}[^\n]*\n)*\nflaky {6}tests green only on the CI rerun over the last 1 merge: 1 rerun passed[^\n]*\n {11}“la commande manager”: 1 time — #7\n/);

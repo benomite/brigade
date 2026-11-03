@@ -219,11 +219,12 @@ describe("le chef pose ses décisions par la station", { concurrency: 8 }, () =>
     const { repertoire, journal, types, etat, cooks, conclure } = cuisine(t, { decisions: true, scenario: "commite-puis-attend", issues: [issue(16)] });
     await jusqua(() => cooks().length === 1 && types(16).includes("cook.launched"));
 
-    // Comme `npm run station` la lance : un autre process, une autre connexion au journal.
+    // La première comme `npm run station` la lance : un autre process, une autre connexion au journal ; les suivantes
+    // dans le process du test, chacune par sa connexion — c'est ce que le runtime en lit qui est éprouvé, pas le process.
     // Sa station reste, à deux cooks au plus.
     const valeurs = { ...Object.fromEntries(GESTES.map(([geste, , , seconde]) => [geste, seconde])), stations: `${STATION}:2:code` };
-    for (const [geste, valeur] of Object.entries(valeurs)) {
-      const pose = lancer(t, MONTRER, [geste, valeur], { BRIGADE_STATE_DIR: repertoire });
+    for (const [i, [geste, valeur]] of Object.entries(valeurs).entries()) {
+      const pose = i === 0 ? lancer(t, MONTRER, [geste, valeur], { BRIGADE_STATE_DIR: repertoire }) : appeler(montrerStation, [geste, valeur], { BRIGADE_STATE_DIR: repertoire });
       assert.equal(await pose.fin, 0, pose.sortie());
       assert.match(pose.sortie(), /no running cook is stopped\n(source: box\n)?$/);
     }
