@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { decrireAttentes, REFUSER_LA_PAUSE, type Attente } from "../src/attend.ts";
+import { decrireAttentes, direAttenteEn, type Attente } from "../src/attend.ts";
 import { decrireEtat, lireEtat } from "../src/etat.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { motsFrancais, motsFrancaisDans, sansMotFrancais } from "./aides/glossaire.ts";
@@ -226,12 +226,30 @@ test("sur un état qui porte chaque sorte d'attente, le bloc `awaiting` n'a aucu
   assert.deepEqual([...new Set(noms.filter((nom) => !nom.startsWith("#")))], ["box/claude", "mac/claude", "session", "token", "closing", "base", "setup", "aside", "breaker", "pause", "rename"]);
 });
 
+// Ce qu'une ligne du bloc ne doit jamais porter : une commande de la box
+// (`brigade <projet> <commande>`, qu'un projet nommé la remplace ou non), un
+// `ssh`, un bout de shell — le geste est le bouton de l'app (ticket 2141).
+const COMMANDES_DE_BOX = [/\bbrigade\s+(?:<[^>]+>|[\w-]+)\s+[a-z][\w-]*/, /\bssh\b/, /\bsudo\b/, /\bnpm\b/, /\bclaude\s+(?:\/login|setup-token|auth)\b/, /\bguardrails\b/, /\bgrant enable\b/];
+
+test("aucune ligne du bloc `awaiting`, de quelque sorte qu'elle soit, ne nomme une commande de la box : le bouton de l'app, ou qu'il n'y en a pas encore", () => {
+  const pause = { since: DEPUIS, minutes: 45, renommage: 9, finissent: [12], retenus: [14, 15] };
+  const lignes = decrireAttentes(TOUTES, () => "3 d", SANS_GRANT, PASSAGES[0], pause);
+  assert.ok(lignes.length >= TOUTES.length + 4);
+  for (const ligne of lignes) for (const commande of COMMANDES_DE_BOX) assert.doesNotMatch(ligne, commande, ligne);
+  // Chaque sorte porte sa ligne : le contrôle ne passe pas à vide.
+  for (const attente of TOUTES) for (const commande of COMMANDES_DE_BOX) assert.doesNotMatch(direAttenteEn(attente), commande, attente.quoi);
+  // Le disjoncteur nomme le bouton de TODO ; les gestes sans bouton le disent.
+  const dite = (quoi: Attente["quoi"]) => TOUTES.filter((attente) => attente.quoi === quoi).map(direAttenteEn);
+  for (const ligne of dite("disjoncteur")) assert.match(ligne, /press the `Resume` button on the breaker line of TODO$/);
+  for (const ligne of [...dite("pause"), ...dite("renommage"), ...dite("base")]) assert.match(ligne, /no app button for it yet/);
+});
+
 test("la pause du renommage acceptée se dit en anglais, sur une seule ligne sous la tête, qui ne compte pas pour une décision", () => {
   const pause = { since: DEPUIS, minutes: 45, renommage: 9, finissent: [12], retenus: [14, 15] };
   const seule = decrireAttentes([], () => "3 min", null, null, pause);
   assert.deepEqual(seule, [
     "awaiting   nothing awaits the chef",
-    `  paused for the code rename — for 3 min, expected about 45 min — finishing their work: #12 · held: #14, #15 — to end it now: \`${REFUSER_LA_PAUSE}\``,
+    `  paused for the code rename — for 3 min, expected about 45 min — finishing their work: #12 · held: #14, #15 — to end it now: no app button for it yet`,
     "end awaiting",
     "",
   ]);
