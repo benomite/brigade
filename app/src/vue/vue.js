@@ -125,6 +125,7 @@ import { attenteEpuisee, RAIL_NON_LU } from "./attente-du-rail.js";
 import { poserGesteDuSecond } from "./second/geste.js";
 import { tenirLesSorties } from "./attente-capacite/sorties.js";
 import { tenirLeSignalement } from "./signalement/geste.js";
+import { casesDesVersions, poserVersionsDesStations } from "./station-version/station-version.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
 // et ne peut pas importer du TypeScript — la locale est la même, anglaise.
@@ -390,7 +391,11 @@ const blocDesEnregistrees = document.createElement("section");
 blocDesEnregistrees.className = "stations-du-compte";
 blocDesEnregistrees.ariaLive = "polite";
 blocDesEnregistrees.hidden = true;
-stationsDeLAccueil.append(listeDesStations, blocDesEnregistrees, ouvrirLAppairage, formulaireDAppairage);
+// La version de la station de cet ordinateur à côté de celle de la box (ticket 2191, station-version/) : sous la liste,
+// côte à côte, et ce poste dit en retard quand une station plus haute est publiée. Rien sur le téléphone, qui n'en a pas.
+const versionsDesStations = document.createElement("div");
+versionsDesStations.ariaLive = "polite";
+stationsDeLAccueil.append(listeDesStations, versionsDesStations, blocDesEnregistrees, ouvrirLAppairage, formulaireDAppairage);
 /** @type {import("./stations-du-compte.js").EtatDuCompte} */
 const etatDesEnregistrees = {};
 let enregistreesAbsentes = true;
@@ -7438,10 +7443,21 @@ function poserStationsDeLAccueil() {
           ? []
           : [bloc("p", "no station yet: install one, then pair it here with “+ station”")]),
   );
+  poserLesVersions();
   const dessous = enregistreesAbsentes ? [] : lectureDuCompte(document, etatDesEnregistrees, gestesDesEnregistrees, stations !== undefined && lignes.length === 0);
   blocDesEnregistrees.hidden = dessous.length === 0;
   blocDesEnregistrees.replaceChildren(...dessous);
   if (stationOuverte !== undefined) poserLesProjetsChoisis();
+}
+
+// Le statut de la station de cet ordinateur (`statutDeLaStation`, le contrat du ticket 2189) : la version qui tourne ici, la
+// dernière publiée, et si elle est en retard. Tant que le pont ne le lit pas, la case de ce poste dit sa version inconnue.
+/** @type {unknown} */
+let statutDeLaStationVu;
+function poserLesVersions() {
+  if (telephoneVu !== undefined) return versionsDesStations.replaceChildren();
+  const cases = casesDesVersions({ stations: stationsVues?.stations, locale: projetsVus?.locale ?? null, poste: POSTE.nom, statut: statutDeLaStationVu });
+  versionsDesStations.replaceChildren(poserVersionsDesStations(document, cases));
 }
 
 // Les stations du compte, lues par le process principal (stations-du-compte.ts du runtime). Une relecture garde ce qui
@@ -8107,9 +8123,23 @@ brigade.surOffreApk((offre) => inviteDeMiseAJour.offrir(offre));
 const bandeauDeVersion = tenirBandeau(element("nouvelle-version"), document, { telecharger: (url) => brigade.telechargerVersion(url), refuser: (version) => brigade.refuserVersion(version) });
 brigade.surAvisDeVersion((avis) => bandeauDeVersion.recevoir(avis));
 void Promise.resolve(brigade.avisDeVersion()).then((avis) => bandeauDeVersion.recevoir(avis), () => undefined);
+// Le statut de la station de cet ordinateur : lu au lancement, puis à chaque fois que le pont le relit. Une lecture qui
+// échoue le laisse inconnu — la case le dit, sans erreur.
+brigade.surStatutDeLaStation?.((statut) => {
+  statutDeLaStationVu = statut;
+  poserLesVersions();
+});
+void Promise.resolve(brigade.statutDeLaStation?.()).then(
+  (statut) => {
+    statutDeLaStationVu = statut;
+    poserLesVersions();
+  },
+  () => undefined,
+);
 // Les stations relues : ce que la page d'une station en montre suit — leurs lignes de l'accueil viennent par `surAccueil`.
 brigade.surStations((vu) => {
   stationsVues = vu;
+  poserLesVersions();
   if (stationOuverte !== undefined) poserPageDeStation();
   poserChoixDesStations();
   poserStationsDuProjet();
