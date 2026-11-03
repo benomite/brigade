@@ -100,6 +100,10 @@ export type GitHub = {
   ouvrirPR(pr: { branche: string; base: string; titre: string; corps: string }): Promise<string>;
   // La PR la plus récente dont `branche` est la tête, ou null.
   prDeBranche(branche: string): Promise<PR | null>;
+  // Les PR ouvertes, avec la branche dont chacune est la tête et les fichiers
+  // qu'elle change. Facultatif : seul le client réel le porte
+  // (`brigade-github.ts`, la zone tenue d'un ticket).
+  prsOuvertes?(): Promise<{ number: number; branche: string; fichiers: string[] }[]>;
   // Les checks du commit : ses *check runs* et ses statuts.
   ci(sha: string): Promise<Check[]>;
   // Les checks des derniers commits de la branche d'intégration, mis bout à
@@ -513,6 +517,17 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
         enRetard: brute.mergeable_state === "behind",
         mergeePar: brute.merged_by?.login || null,
       };
+    },
+    async prsOuvertes() {
+      const liste = await lireLaListe(`repos/${depot}/pulls?state=open&per_page=100`);
+      const ouvertes = liste.flatMap((page) => JSON.parse(page.corps) as Array<{ number: number; head: { ref: string } }>);
+      return Promise.all(
+        ouvertes.map(async ({ number, head }) => {
+          const pages = await lireLaListe(`repos/${depot}/pulls/${number}/files?per_page=100`);
+          const fichiers = pages.flatMap((page) => JSON.parse(page.corps) as Array<{ filename: string; previous_filename?: string }>).flatMap((brut) => (brut.previous_filename === undefined ? [brut.filename] : [brut.filename, brut.previous_filename]));
+          return { number, branche: head.ref, fichiers };
+        }),
+      );
     },
     async ci(sha) {
       const jobs = `repos/${depot}/commits/${sha}/check-runs?per_page=100`;

@@ -69,7 +69,34 @@ export type GitHubDuTour = GitHubDeLaFusion &
     prDuTicket(issue: number): Promise<PRAFusionner | null>;
     // Les checks du dernier commit de la branche d'intégration.
     checksDeLaBase(): Promise<Pick<Check, "outcome">[]>;
+    // Le corps de l'issue, où le ticket dit sa zone.
+    corpsDuTicket(issue: number): Promise<string>;
+    // Les PR ouvertes : la branche dont chacune est la tête, et les fichiers qu'elle change.
+    prsOuvertes(): Promise<{ branche: string; fichiers: string[] }[]>;
   };
+
+const normalise = (texte: string) => texte.replace(/^\.\//, "").replace(/\/+$/, "");
+
+// La zone d'un ticket : les chemins de sa section `Zone` (un titre markdown),
+// séparés par des virgules ou des lignes, avec ou sans puce et accents graves.
+// Sans section, ou vide, le ticket n'a pas de zone.
+export function zoneDuCorps(corps: string): string[] {
+  const lignes = corps.split(/\r?\n/);
+  const debut = lignes.findIndex((ligne) => /^#{1,6}\s*zone\s*:?\s*$/i.test(ligne.trim()));
+  if (debut === -1) return [];
+  const fin = lignes.findIndex((ligne, rang) => rang > debut && /^#{1,6}\s/.test(ligne.trim()));
+  return lignes
+    .slice(debut + 1, fin === -1 ? undefined : fin)
+    .flatMap((ligne) => ligne.replace(/^\s*[-*+]\s+/, "").split(","))
+    .map((morceau) => normalise(morceau.trim().replace(/^`+|`+$/g, "").trim()))
+    .filter((morceau) => morceau !== "" && !/\s/.test(morceau));
+}
+
+// Deux chemins se recoupent s'ils sont égaux, ou si l'un contient l'autre.
+export const secoupent = (a: string, b: string): boolean => {
+  const [x, y] = [normalise(a), normalise(b)];
+  return x === y || y.startsWith(`${x}/`) || x.startsWith(`${y}/`);
+};
 
 // Le cook d'un ticket pris : la branche qu'il a poussée, ou pourquoi il n'a
 // rien livré.
@@ -180,12 +207,25 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         break;
       }
     }
+    // Les PR ouvertes, lues au premier ticket qui a une zone, une fois par tour.
+    let ouvertes: Awaited<ReturnType<GitHubDuTour["prsOuvertes"]>> | null = null;
+    // Une zone tenue : un de ses chemins en recoupe un que change une PR
+    // ouverte qui n'est pas celle du ticket.
+    const tenue = async (ticket: TicketLu): Promise<boolean> => {
+      const zone = zoneDuCorps(await github.corpsDuTicket(ticket.number));
+      if (zone.length === 0) return false;
+      ouvertes ??= await github.prsOuvertes();
+      const propre = brancheDuTicket(ticket.number);
+      return ouvertes.some((pr) => pr.branche !== propre && pr.fichiers.some((fichier) => zone.some((entree) => secoupent(entree, fichier))));
+    };
     for (const ticket of libres) {
       if (enVol.size + aRendre.size >= places) break;
       if (enVol.has(ticket.number)) continue;
       // Un ticket sans calibrage complet ne part pas, comme sur l'ancien chemin.
       const calibrage = calibrageDesLabels(ticket.labels);
       if (!complet(calibrage)) continue;
+      // Sa zone est tenue par une PR ouverte : il attend qu'elle soit mergée ou fermée.
+      if (await tenue(ticket)) continue;
       let pris: { prise: boolean };
       try {
         pris = await prise.prendre(ticket);
@@ -267,7 +307,9 @@ export function brancherBrigadeGithub<A>(options: OptionsDuProjet<A>): ProjetOuv
 export function clientDuTour(github: GitHub, base: string): GitHubDuTour {
   const { mettreAJour } = github;
   const { retraitsDeLabels } = github;
+  const { prsOuvertes } = github;
   if (mettreAJour === undefined) throw new Error("this GitHub client cannot update a branch");
+  if (prsOuvertes === undefined) throw new Error("this GitHub client cannot list the files of the open PRs");
   if (retraitsDeLabels === undefined) throw new Error("this GitHub client cannot read the label removals of an issue");
   // Le dernier sondage lu : rendu tel quel quand GitHub dit que rien n'a changé.
   let derniers: TicketLu[] = [];
@@ -281,6 +323,8 @@ export function clientDuTour(github: GitHub, base: string): GitHubDuTour {
     },
     prDuTicket: (issue) => github.prDeBranche(brancheDuTicket(issue)),
     checksDeLaBase: () => github.ci(base),
+    corpsDuTicket: async (issue) => (await github.issue(issue))?.body ?? "",
+    prsOuvertes: async () => (await prsOuvertes.call(github)).map(({ branche, fichiers }) => ({ branche, fichiers })),
     // GitHub rend les commentaires dans l'ordre où il les a reçus : leur rang
     // départage, comme leur id, deux commentaires de la même seconde.
     commentaires: async (numero) => (await github.commentaires(numero)).map((lu, rang) => ({ id: rang + 1, body: lu.body, association: lu.association, createdAt: lu.createdAt })),
@@ -331,6 +375,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
   if (!/^[A-Za-z0-9._/-]+$/.test(options.nom)) return { refus: `the station name ${JSON.stringify(options.nom)} cannot sign a claim or a verdict` };
   if (options.github.retraitsDeLabels === undefined) return { refus: "the GitHub client cannot read the label removals of an issue" };
   if (options.github.mettreAJour === undefined) return { refus: "the GitHub client cannot update a branch" };
+  if (options.github.prsOuvertes === undefined) return { refus: "the GitHub client cannot list the files of the open PRs" };
   const { nom, base, depot, depotGitHub, cloison } = options;
   mkdirSync(options.flux, { recursive: true });
   const lancer: Lancer = options.lancer ?? (({ commande, args, cwd, env, flux }) => superviser({ commande, args, cwd, env, plafonds: options.plafonds, graceMs: options.graceMs, flux }));

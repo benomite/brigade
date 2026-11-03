@@ -10,7 +10,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { brancherBrigadeGithub, brancheDuTicket, priseDeLaStation, stationDuDepot, stationGitHub, surGitHubSeul, type GitHubDuTour, type Juger, type Lancer, type Prise, type StationGitHub } from "../src/brigade-github.ts";
+import { brancherBrigadeGithub, brancheDuTicket, priseDeLaStation, stationDuDepot, stationGitHub, surGitHubSeul, secoupent, zoneDuCorps, type GitHubDuTour, type Juger, type Lancer, type Prise, type StationGitHub } from "../src/brigade-github.ts";
 import type { CommentaireDeVerdict } from "../src/github-etat/fusion.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN } from "../src/github-etat/etats.ts";
 import type { GitHub } from "../src/github.ts";
@@ -19,8 +19,8 @@ import { jusqua } from "./outils.ts";
 
 const CALIBRE = ["fire", "model:sonnet", "effort:medium"];
 
-type Ticket = { number: number; title: string; labels: Set<string>; state: "open" | "closed" };
-type PR = { number: number; issue: number; branche: string; sha: string; state: "open" | "closed"; merged: boolean; enRetard: boolean; mergeePar: string | null };
+type Ticket = { number: number; title: string; labels: Set<string>; state: "open" | "closed"; corps: string };
+type PR = { number: number; issue: number; branche: string; sha: string; state: "open" | "closed"; merged: boolean; enRetard: boolean; mergeePar: string | null; fichiers: string[] };
 
 // Le faux GitHub, partagé par les stations : chaque appel est noté sous le nom
 // de la station qui le fait, et rend la main avant de répondre, pour que deux
@@ -35,8 +35,15 @@ class FauxGitHub {
   base: "green" | "red" = "green";
   private horloge = 0;
 
-  feu(number: number, labels: string[] = CALIBRE): void {
-    this.tickets.set(number, { number, title: `ticket ${number}`, labels: new Set(labels), state: "open" });
+  feu(number: number, labels: string[] = CALIBRE, corps = ""): void {
+    this.tickets.set(number, { number, title: `ticket ${number}`, labels: new Set(labels), state: "open", corps });
+  }
+
+  // Une PR ouverte qui n'est celle d'aucun ticket du faux, et les fichiers qu'elle change.
+  prOuverte(fichiers: string[], branche = "cook/autre"): PR {
+    const pr: PR = { number: 2000 + this.prs.length, issue: 0, branche, sha: this.sha(), state: "open", merged: false, enRetard: false, mergeePar: null, fichiers };
+    this.prs.push(pr);
+    return pr;
   }
 
   ticket(number: number): Ticket {
@@ -86,6 +93,14 @@ class FauxGitHub {
         const pr = this.prs.findLast((p) => p.issue === issue);
         return pr === undefined ? null : { ...pr };
       },
+      corpsDuTicket: async (issue) => {
+        await noter("corpsDuTicket");
+        return this.ticket(issue).corps;
+      },
+      prsOuvertes: async () => {
+        await noter("prsOuvertes");
+        return this.prs.filter((p) => p.state === "open").map((p) => ({ branche: p.branche, fichiers: [...p.fichiers] }));
+      },
       checksDeLaBase: async () => {
         await noter("checksDeLaBase");
         return [{ outcome: this.base }];
@@ -112,7 +127,7 @@ class FauxGitHub {
         const [, ferme] = /Closes #(\d+)/.exec(corps) ?? [];
         const number = 1000 + this.prs.length;
         // En retard sur sa base dès l'ouverture : la mise à jour se joue.
-        this.prs.push({ number, issue: Number(ferme), branche, sha: this.sha(), state: "open", merged: false, enRetard: true, mergeePar: null });
+        this.prs.push({ number, issue: Number(ferme), branche, sha: this.sha(), state: "open", merged: false, enRetard: true, mergeePar: null, fichiers: [] });
         return `https://github.com/faux/depot/pull/${number}`;
       },
       mettreAJour: async (numero, sha) => {
@@ -173,6 +188,8 @@ class FauxGitHub {
     return [...this.commentaires.values()].flat().filter((c) => c.station === station && c.body.startsWith("<!-- brigade:prise")).length;
   }
 }
+
+const zoneDe = (...chemins: string[]) => `## Context\n\nwhatever\n\n## Zone\n\n${chemins.map((c) => `- \`${c}\``).join("\n")}\n\n## Acceptance\n\n- done\n`;
 
 const verdictDe = (faux: FauxGitHub, pr: number) => (faux.commentaires.get(pr) ?? []).filter((c) => c.body.startsWith("<!-- brigade:verdict"));
 
@@ -428,6 +445,7 @@ function fauxClient(faux: FauxGitHub, station = "box"): GitHub {
     delabelliser: bas.delabelliser,
     ouvrirPR: bas.ouvrirPR,
     retraitsDeLabels: async () => [],
+    prsOuvertes: async () => (await bas.prsOuvertes()).map((pr, rang) => ({ number: rang, ...pr })),
     issue: async (numero) => ({ ...faux.ticket(numero), labels: [...faux.ticket(numero).labels], createdAt: "", updatedAt: "", url: "", body: "the ticket's body" }),
   };
   return client as GitHub;
@@ -621,4 +639,54 @@ test("the switch is on for brigade, in its project settings file, and off for a 
     () => reglagesDuTexte(JSON.stringify({ version: 1, integrationBranch: "main", githubOnlyState: "yes" })),
     (erreur: unknown) => erreur instanceof ReglageRefuse && erreur.cle === "githubOnlyState",
   );
+});
+
+test("a ticket whose zone is held by another open PR is held back, and claimed once that PR is closed (#2188)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(1, CALIBRE, zoneDe("runtime/src/a.ts", "docs/"));
+  const autre = faux.prOuverte(["runtime/src/b.ts", "docs/runtime/README.md"]);
+  const a = faux.station("A");
+  await a.tour();
+  await a.calme();
+  assert.deepEqual(faux.cuissons, []);
+  assert.equal(faux.prisesDe("A"), 0);
+  // La PR qui tenait la zone est fermée : le ticket est pris au tour suivant.
+  autre.state = "closed";
+  await a.tour();
+  await a.calme();
+  assert.deepEqual(faux.cuissons, [{ station: "A", issue: 1 }]);
+});
+
+test("a free zone is claimed, a zone inside or around a changed folder is held, an own PR holds nothing (#2188)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(1, CALIBRE, zoneDe("app/src/x.ts"));
+  faux.feu(2, CALIBRE, zoneDe("runtime/src/deep/file.ts"));
+  faux.feu(3, CALIBRE, zoneDe("runtime"));
+  faux.feu(4, CALIBRE, zoneDe("scripts/x.sh"));
+  faux.feu(5, CALIBRE);
+  faux.prOuverte(["runtime/src"]);
+  // La PR du ticket 4 : elle change sa propre zone.
+  faux.prOuverte(["scripts/x.sh"], brancheDuTicket(4));
+  const a = faux.station("A", { places: 5 });
+  await a.tour();
+  await a.calme();
+  assert.deepEqual(faux.cuissons.map((c) => c.issue).sort(), [1, 4, 5]);
+});
+
+test("the open PRs are read only when a ticket has a zone (#2188)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(1);
+  const a = faux.station("A");
+  await a.tour();
+  await a.calme();
+  assert.ok(!faux.appels.some((appel) => appel.quoi === "prsOuvertes"));
+  assert.deepEqual(faux.cuissons, [{ station: "A", issue: 1 }]);
+});
+
+test("the zone of a ticket is read from its Zone section", () => {
+  assert.deepEqual(zoneDuCorps(zoneDe("a/b.ts", "c/")), ["a/b.ts", "c"]);
+  assert.deepEqual(zoneDuCorps("## Zone\n\n`a.ts`, ./b/\n"), ["a.ts", "b"]);
+  assert.deepEqual(zoneDuCorps("## Context\n\nno zone here"), []);
+  assert.ok(secoupent("runtime", "runtime/src/a.ts"));
+  assert.ok(!secoupent("runtime", "runtime2/a.ts"));
 });
