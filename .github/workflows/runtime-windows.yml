@@ -12,6 +12,7 @@
 # rouge pour une cause de charge ou de test (station enregistrée en 60 s, `jusqua` de stations.test.ts)
 # bloquait la fusion de PR qui ne touchaient pas ce code, et la suite prend 9 à 15 min par part, sans
 # marge sous un plafond de 15 min. Un contributeur le lance à la main (`workflow_dispatch`) sur sa branche.
+# Les causes restantes et la condition pour le rendre à nouveau bloquant : #2112.
 name: runtime-windows
 
 on:
