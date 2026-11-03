@@ -250,6 +250,28 @@ test("aucune ligne du bloc `awaiting`, de quelque sorte qu'elle soit, ne nomme u
   }
 });
 
+// Ce que les lignes nomment de l'app — un bouton, un interrupteur, une ligne de
+// Settings —, et où l'app le pose, mot pour mot : un nom absent d'ici est un
+// bouton inventé.
+const DE_L_APP: Record<string, [fichier: string, ecrit: string]> = {
+  Resume: ["vue/todo-breaker-line.js", 'REPRENDRE = "Resume"'],
+  "log in": ["pannes/pannes.ts", 'libelle: "log in"'],
+  "resume the kitchen": ["cuisine.ts", 'libelle: "resume the kitchen"'],
+  kitchen: ["vue/vue.js", 'rangeeDeReglage("kitchen"'],
+  propose: ["vue/projet/reglages.js", 'libelle: "propose"'],
+  "closer's calibration": ["reglages-du-projet.ts", `closer: "closer's calibration"`],
+  "closer's start threshold (cooks in flight)": ["reglages-du-projet.ts", `"closer-cooks": "closer's start threshold (cooks in flight)"`],
+  merge: ["gestes.ts", 'GRANTS: readonly string[] = ["merge"]'],
+  "project off": ["vue/vue.js", '"project off"'],
+};
+const NOMMES_DE_L_APP = [/the `([^`]+)` (?:button|switch)\b/g, /on the `([^`]+)` line of the project's Settings/g, /the switch on the `([^`]+)` grant's line/g];
+
+test("chaque bouton, interrupteur ou ligne de Settings qu'une ligne du bloc `awaiting` nomme existe dans l'app, mot pour mot", () => {
+  const nommes = new Set(TOUTES.map(direAttenteEn).flatMap((ligne) => NOMMES_DE_L_APP.flatMap((motif) => [...ligne.matchAll(motif)].map(([, nom]) => nom as string))));
+  assert.deepEqual([...nommes].sort(), Object.keys(DE_L_APP).sort());
+  for (const [nom, [fichier, ecrit]] of Object.entries(DE_L_APP)) assert.ok(readFileSync(join(import.meta.dirname, "../../app/src", fichier), "utf8").includes(ecrit), `${nom} : ${fichier}`);
+});
+
 test("la pause du renommage acceptée se dit en anglais, sur une seule ligne sous la tête, qui ne compte pas pour une décision", () => {
   const pause = { since: DEPUIS, minutes: 45, renommage: 9, finissent: [12], retenus: [14, 15] };
   const seule = decrireAttentes([], () => "3 min", null, null, pause);

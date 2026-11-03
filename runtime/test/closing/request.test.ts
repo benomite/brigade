@@ -132,7 +132,7 @@ test("une demande qui attend depuis deux heures est dite sans issue — une fois
   const dit = /PASSE DE FERMETURE SANS ISSUE : demandée le 2026-10-08T10:00:00\.000Z, elle attend depuis plus de 2 h — condition d'exécution non remplie : 1 cook en vol pour un seuil de 1 .* ; le rail ne se vide pas seul — à trancher : relever le seuil \(`brigade <projet> station closer-cooks <N>`\), éteindre l'interrupteur du projet le temps que le rail se vide \(`brigade <projet> switch off`\), ou y renoncer : `brigade <projet> closing cancel`/;
   assert.match(avertissements.join("\n"), dit);
   // La file, elle, le dit en anglais.
-  assert.match(attend(cuisine), /CLOSING PASS WITH NO WAY OUT: requested on 2026-10-08T10:00:00\.000Z, it has waited for more than 2 h — start condition not met: 1 cook in flight for a threshold of 1 .*; the rail does not empty on its own — to decide: raise the closer's threshold \(no app button for it yet\), switch the project off while the rail empties \(the `project off` switch at the head of the space\), or withdraw it: no app button for it yet/);
+  assert.match(attend(cuisine), /CLOSING PASS WITH NO WAY OUT: requested on 2026-10-08T10:00:00\.000Z, it has waited for more than 2 h — start condition not met: 1 cook in flight for a threshold of 1 .*; the rail does not empty on its own — to decide: raise the closer's start threshold with the `propose` button on the `closer's start threshold \(cooks in flight\)` line of the project's Settings, switch the project off while the rail empties \(the `project off` switch at the head of the space\), or withdraw it: no app button for it yet/);
 
   // Dit une fois, et elle attend toujours : rien n'est refusé, rien n'est parti.
   heure.avancer(SANS_ISSUE_MS);

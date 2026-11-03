@@ -256,8 +256,10 @@ export const ACCORDER_LE_GRANT = geste("grant enable merge");
 // fichier restent ceux des messages écrits pour la box (journald, issues,
 // réponses de commandes).
 const BOUTON_RESUME = "the `Resume` button on the breaker line of TODO";
-const INTERRUPTEUR_MERGE = "the `merge` switch in the project's Settings";
-const BOUTON_LOG_IN = "the `log in` button on the station's line of the app's home screen";
+const INTERRUPTEUR_MERGE = "the switch on the `merge` grant's line of the project's Settings";
+const BOUTON_LOG_IN = "the `log in` button on the station's page in the app, opened by a click on its line of the home screen";
+const BOUTON_REPRENDRE_LA_CUISINE = "the `resume the kitchen` button on the `kitchen` line of the project's Settings";
+const BOUTON_PROPOSE = (reglage: string) => `the \`propose\` button on the \`${reglage}\` line of the project's Settings`;
 const SANS_BOUTON = "no app button for it yet";
 
 // Les écarts qui attendent le chef, et ce qu'il a à faire de chacun. Les autres
@@ -530,13 +532,13 @@ function direSetupBloqueEn({ setup }: Extract<Attente, { quoi: "setup" }>): stri
 // La demande de fermeture, dite sans commande : `direDemandeEn` (closing/say.ts)
 // cite celles de la box, que ses autres lecteurs gardent. Le refus de la
 // ligne en dit de même : le disjoncteur et la cuisine arrêtée par le bouton qui
-// les lève, le closer non réglé sans sa commande.
+// les lève, le closer non réglé par le réglage du projet qui le règle.
 function direRefusDeLaFermetureEn(retenue: Refus): string {
   switch (retenue.reason) {
     case "unconfigured":
-      return `the closer is not set on this project — its model and effort are set on the station: ${SANS_BOUTON}`;
+      return `the closer is not set on this project — set its calibration with ${BOUTON_PROPOSE("closer's calibration")}, it applies once its pull request is merged`;
     case "stopped":
-      return `the kitchen has been stopped by the chef since ${retenue.detail} — resume it first`;
+      return `the kitchen has been stopped by the chef since ${retenue.detail} — ${BOUTON_REPRENDRE_LA_CUISINE} first`;
     case "breaker":
       return `the breaker has been open since ${retenue.detail} — ${BOUTON_RESUME} first`;
     default:
@@ -550,7 +552,7 @@ function direFermetureEn({ since, sansIssue }: DemandeDeFermeture, retenue: Refu
   if (!faitAttendre(retenue)) return `${demandee}: ${refus} — the runtime refuses it at its next wake-up, nothing leaves`;
   const renoncer = `withdraw it: ${SANS_BOUTON}`;
   if (sansIssue === null) return `${demandee}, it waits — ${refus}; it leaves on its own, once, as soon as nothing holds it back, without anyone restarting it — to ${renoncer}`;
-  return `CLOSING PASS WITH NO WAY OUT: requested on ${since}, it has waited for more than ${SANS_ISSUE_MS / 3_600_000} h — ${refus}; the rail does not empty on its own — to decide: raise the closer's threshold (${SANS_BOUTON}), switch the project off while the rail empties (the \`project off\` switch at the head of the space), or ${renoncer}`;
+  return `CLOSING PASS WITH NO WAY OUT: requested on ${since}, it has waited for more than ${SANS_ISSUE_MS / 3_600_000} h — ${refus}; the rail does not empty on its own — to decide: raise the closer's start threshold with ${BOUTON_PROPOSE("closer's start threshold (cooks in flight)")}, switch the project off while the rail empties (the \`project off\` switch at the head of the space), or ${renoncer}`;
 }
 
 // Une phrase reprise au milieu d'une ligne.
@@ -856,17 +858,17 @@ export function direAttente(attente: Attente): string {
       const sortir = attente.pr === null ? "retirer `fire`, ou fermer l'issue" : `merger ${attente.pr} à la main, ou retirer \`fire\``;
       const dit = attente.nonVu === undefined ? "" : ` — le retrait de \`fire\` du ${attente.nonVu} précède la retenue et n'a pas été vu : le retirer et le reposer maintenant`;
       const precise = attente.cause === null ? "" : ` : ${attente.cause}`;
-      if (attente.why !== undefined) return `retenu par le renommage du code, et non repris sur l'arbre renommé : ${attente.why} — à trancher : la porter à la main sur la base et pousser sa branche, puis retirer et reposer \`fire\` ; ou ${sortir}${dit}`;
+      if (attente.why !== undefined) return `retenu par le renommage du code, et non repris sur l'arbre renommé : ${attente.why} — à trancher : la porter à la main sur la base et pousser sa branche, puis retirer et reposer \`fire\` ; ou ${sortir} — ${voir}${dit}`;
       switch (attente.reason) {
         case ENCORE_ROUGE:
-          return `${attente.cause === DU_MANAGER ? "remontée par le manager, rouge" : `remontée par la pass, rouge (${ENCORE_ROUGE}${precise})`} — à trancher : ${sortir}${dit}`;
+          return `${attente.cause === DU_MANAGER ? "remontée par le manager, rouge" : `remontée par la pass, rouge (${ENCORE_ROUGE}${precise})`} — à trancher : ${sortir} — ${voir}${dit}`;
         case NON_JUGEE: {
           const instables = testsInstablesDeLaCause(attente.cause);
-          if (instables !== null) return `base instable : livraison rouge sur un test que ce changement ne touche pas, deux fois (${instables}) — à lever : rejouer ce test sur la base, puis retirer et reposer \`fire\` ; ou ${sortir}${dit}`;
-          return `remontée par la pass, qui n'a pas pu la juger (${NON_JUGEE}${precise}) — à lever : ce que dit son issue, puis retirer et reposer \`fire\` ; ou ${sortir}${dit}`;
+          if (instables !== null) return `base instable : livraison rouge sur un test que ce changement ne touche pas, deux fois (${instables}) — à lever : rejouer ce test sur la base, puis retirer et reposer \`fire\` ; ou ${sortir} — ${voir}${dit}`;
+          return `remontée par la pass, qui n'a pas pu la juger (${NON_JUGEE}${precise}) — à lever : ce que dit son issue, puis retirer et reposer \`fire\` ; ou ${sortir} — ${voir}${dit}`;
         }
         default:
-          return `remontée (${attente.reason}) — aucun geste connu pour ce motif${dit}`;
+          return `remontée (${attente.reason}) — aucun geste connu pour ce motif — ${voir}${dit}`;
       }
     }
     case "fermee":

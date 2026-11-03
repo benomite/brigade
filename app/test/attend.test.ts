@@ -119,7 +119,7 @@ describe("les tickets que le bloc nomme, pour le rail", () => {
 
     assert.deepEqual(lus.map(({ ticket }) => ticket), DE_TICKET.map(({ ticket }) => ticket));
     for (const { ticket, ligne } of lus) assert.ok(bloc.split("\n").includes(`  #${ticket}  ${ligne}`), `#${ticket}`);
-    assert.equal(lus[0]?.ligne, `for 2 j  green delivery, not merged for lack of a \`merge\` grant — merge by hand: ${PR} — or enable the grant, for the next ones: the \`merge\` switch in the project's Settings  Le journal en ajout seul`);
+    assert.equal(lus[0]?.ligne, `for 2 j  green delivery, not merged for lack of a \`merge\` grant — merge by hand: ${PR} — or enable the grant, for the next ones: the switch on the \`merge\` grant's line of the project's Settings  Le journal en ajout seul`);
   });
 
   test("une ligne sans numéro en tête n'est à aucun ticket : la station sans connexion Max, le bilan faute de grant, la tête du bloc", () => {
