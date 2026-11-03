@@ -323,6 +323,7 @@ export function clientDuTour(github: GitHub, base: string): GitHubDuTour {
     },
     prDuTicket: (issue) => github.prDeBranche(brancheDuTicket(issue)),
     checksDeLaBase: () => github.ci(base),
+    ci: (sha) => github.ci(sha),
     corpsDuTicket: async (issue) => (await github.issue(issue))?.body ?? "",
     prsOuvertes: async () => (await prsOuvertes.call(github)).map(({ branche, fichiers }) => ({ branche, fichiers })),
     // GitHub rend les commentaires dans l'ordre où il les a reçus : leur rang

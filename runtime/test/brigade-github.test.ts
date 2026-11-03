@@ -33,6 +33,8 @@ class FauxGitHub {
   cuissons: Array<{ station: string; issue: number }> = [];
   relectures: Array<{ station: string; pr: number }> = [];
   base: "green" | "red" = "green";
+  // Les PR dont la CI est rouge.
+  ciRouge = new Set<number>();
   private horloge = 0;
 
   feu(number: number, labels: string[] = CALIBRE, corps = ""): void {
@@ -129,6 +131,11 @@ class FauxGitHub {
         // En retard sur sa base dès l'ouverture : la mise à jour se joue.
         this.prs.push({ number, issue: Number(ferme), branche, sha: this.sha(), state: "open", merged: false, enRetard: true, mergeePar: null, fichiers: [] });
         return `https://github.com/faux/depot/pull/${number}`;
+      },
+      ci: async (sha) => {
+        await noter("ci");
+        const pr = this.prs.find((p) => p.sha === sha);
+        return [{ outcome: pr !== undefined && this.ciRouge.has(pr.number) ? "red" : "green" }];
       },
       mettreAJour: async (numero, sha) => {
         await noter("mettreAJour");
@@ -356,6 +363,22 @@ test("a restarted station gives back, at its first turn, the tickets it held wit
   assert.deepEqual(faux.pris(), [6]);
   await apres.tour();
   assert.deepEqual(faux.pris(), [1, 2, 6]);
+});
+
+test("a delivery whose CI is red is never merged, even approved", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(31);
+  const a = faux.station("A");
+  await a.tour();
+  await a.calme();
+  const pr = faux.prs.find((p) => p.issue === 31);
+  assert.ok(pr);
+  faux.ciRouge.add(pr.number);
+  for (let i = 0; i < 4; i += 1) await a.tour();
+  assert.equal(faux.mergee(31), undefined);
+  faux.ciRouge.delete(pr.number);
+  for (let i = 0; i < 3; i += 1) await a.tour();
+  assert.equal(faux.mergee(31)?.mergeePar, "A");
 });
 
 test("WAITING, off-kitchen and uncalibrated tickets are not taken; with the base red, nothing in pass is reviewed or merged", async () => {

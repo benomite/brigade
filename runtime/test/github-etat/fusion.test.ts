@@ -17,6 +17,8 @@ function prSurGitHub() {
   let tetes = 0;
   const pr: { sha: string; state: "open" | "closed"; merged: boolean; enRetard: boolean } = { sha: "a1", state: "open", merged: false, enRetard: false };
   const commentaires: CommentaireDeVerdict[] = [];
+  // La CI de la tête : verte par défaut.
+  const ci: { etat: "green" | "red" | "pending" } = { etat: "green" };
   const appels: string[] = [];
   const poster = (corps: string, association = "OWNER") => {
     commentaires.push({ id: ++id, body: corps, association, createdAt: new Date(horloge).toISOString() });
@@ -38,6 +40,9 @@ function prSurGitHub() {
       pr.sha = `b${++tetes}`;
       pr.enRetard = false;
     },
+    async ci() {
+      return [{ outcome: ci.etat }];
+    },
     async merger(_numero, sha): Promise<Merge> {
       appels.push(`merge ${sha}`);
       if (pr.enRetard) return { fait: false, motif: "HTTP 405 — Head branch is out of date" };
@@ -58,6 +63,7 @@ function prSurGitHub() {
     // Le cook pousse une livraison nouvelle sur la branche.
     pousser: (sha: string) => (pr.sha = sha),
     poster,
+    ci,
   };
 }
 
@@ -223,4 +229,16 @@ test("une station nommée <machine>/<moteur> signe son verdict et le relit", asy
   assert.equal(rendu?.station, "box/claude");
   assert.match(pr.commentaires[0]?.body ?? "", /^<!-- brigade:verdict station=box\/claude verdict=approve sha=a1 -->/);
   assert.equal(approuvee(pr.commentaires), true);
+});
+
+test("une PR approuvée ne se merge pas tant que la CI de sa tête n'est pas verte : rouge, elle n'est jamais mergée", async () => {
+  const pr = prSurGitHub();
+  await relire(pr.lue(), { github: pr.github, station: "box", ...juge("approve") });
+  pr.ci.etat = "pending";
+  assert.deepEqual(await fusionner(pr.lue(), pr.github), { issue: "ci-attendue" });
+  pr.ci.etat = "red";
+  assert.deepEqual(await fusionner(pr.lue(), pr.github), { issue: "ci-rouge" });
+  assert.equal(pr.appels.some((a) => a.startsWith("merge")), false);
+  pr.ci.etat = "green";
+  assert.deepEqual(await fusionner(pr.lue(), pr.github), { issue: "mergee" });
 });
