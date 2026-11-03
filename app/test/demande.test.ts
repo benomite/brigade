@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import type { Alerte } from "../src/alertes.ts";
-import { demandeDe, demandeDeLAlerte, noteDeLaDemande, REFUS_CONTROLE, REFUS_CONTROLE_ALERTE } from "../src/demande.ts";
+import { demandeDe, demandeDeLAlerte, noteDeLaCommande, noteDeLaDemande, REFUS_CONTROLE, REFUS_CONTROLE_ALERTE } from "../src/demande.ts";
 import { ouvrirTerminaux } from "../src/terminaux.ts";
 
 const QUESTION = "depuis 2 h  question du manager avant de découper l'épique — à répondre : sur l'issue, il la relit et la découpe ; ou fermer l'issue";
@@ -72,6 +72,16 @@ describe("la demande d'une carte de T'attend", () => {
     assert.ok(!/[\r\n]$/.test(ecrits[0] ?? ""));
     assert.equal(dit.note, "demande écrite dans le second — appuie sur Entrée pour l'envoyer");
     assert.ok(!dit.note.includes(ecrit.demande));
+  });
+
+  test("`/brigade:ask <ticket> ` : écrite telle quelle, l'espace final laissant le curseur à la question, sans Entrée", () => {
+    const { terminaux, ecrits } = registre();
+    const projet = { nom: "brigade", dossier: "/projets/brigade" };
+    terminaux.espace(projet);
+    const dit = terminaux.inscrire(projet, "/brigade:ask 2087 ", noteDeLaCommande);
+    assert.deepEqual(ecrits, ["/brigade:ask 2087 "]);
+    assert.equal(dit.demandeEcrite, true);
+    assert.ok(!dit.note.includes("\n"));
   });
 
   test("la note disparaît quand le chef envoie la demande, et l'avertissement tient en une ligne", () => {

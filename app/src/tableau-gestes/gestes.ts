@@ -9,7 +9,7 @@ import { lireLeTableau, type GesteDuTableau } from "../../../runtime/src/tableau
 // (`arrived`), qui renvoie en cuisine un ticket de WAITING, ou revenu de WAITING ; et le « yes » ou le « no » à une
 // correction ou à un profil proposés de la file (`correction`, `profile`), qui portent le numéro de leur proposition, pas
 // un ticket. Et ce qui partait sur la box (#1845) : le commentaire du chef sur l'issue d'une carte (`comment`),
-// la demande au second (`ask`, son contexte facultatif), le plafond de cooks (`cooks`, un nombre ou `auto`) et la cuisine
+// le plafond de cooks (`cooks`, un nombre ou `auto`) et la cuisine
 // d'une station, arrêtée ou relancée (`station`) — ces deux-là sans ticket.
 export type DecisionDuChef =
   | { geste: "merge" | "set-aside" | "arrived"; ticket: number }
@@ -17,7 +17,6 @@ export type DecisionDuChef =
   | { geste: "answer"; ticket: number; reponse: string }
   | { geste: "choose"; ticket: number; choix: number }
   | { geste: "comment"; ticket: number; commentaire: string }
-  | { geste: "ask"; ticket: number; contexte?: string }
   | { geste: "correction" | "profile"; proposition: number; reponse: "yes" | "no" }
   | { geste: "cooks"; plafond: string }
   | { geste: "station"; action: "stop" | "start"; station: string };
@@ -84,10 +83,6 @@ export function corpsDuGeste(d: DecisionDuChef): string {
       const commentaire = d.commentaire.trim();
       if (commentaire === "") throw new Error("A comment needs words.");
       return `/brigade comment #${d.ticket} ${commentaire}`;
-    }
-    case "ask": {
-      const contexte = (d.contexte ?? "").trim();
-      return contexte === "" ? `/brigade ask #${d.ticket}` : `/brigade ask #${d.ticket} ${contexte}`;
     }
   }
 }

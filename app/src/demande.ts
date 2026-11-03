@@ -26,6 +26,13 @@ export function noteDeLaDemande(devantUnDialogue = false): string {
     : "demande écrite dans le second — appuie sur Entrée pour l'envoyer";
 }
 
+// Ce que la note dit quand `/brigade:ask <ticket> ` est écrite : la question vient à la suite, puis Entrée.
+export function noteDeLaCommande(devantUnDialogue = false): string {
+  return devantUnDialogue
+    ? "commande écrite dans le second, qui attend une réponse à un dialogue : ces caractères y sont des touches — regarde le second avant d'appuyer sur Entrée"
+    : "commande écrite dans le second — ajoute ta question si tu en as une, puis Entrée";
+}
+
 // La demande pour un ticket de ce projet d'après ce que la file en dit — ou pourquoi
 // rien n'est écrit. `lignes` : celles du bloc pour ce ticket, mot pour mot ; `titre` :
 // celui que `faits` donne, s'il y en a un.

@@ -53,8 +53,8 @@ done < <(find . \( -path ./.git -o -name node_modules -o -path ./.brigade-state 
 python3 - <<'PY'
 import json, pathlib, sys
 
-# init et sync sont des commandes, pas des rôles : elles n'ont pas de miroir.
-ROLES = ["po", "manager", "dev", "designer"]
+# init et sync sont des commandes, pas des rôles : elles n'ont pas de miroir. ask en a un : le bouton « ask the second » de l'app l'écrit dans une session Claude ou Codex.
+ROLES = ["po", "manager", "dev", "designer", "ask"]
 bad = []
 root = pathlib.Path(".")
 
@@ -119,7 +119,7 @@ else
 $CHANGES
 "
   perime=0
-  for r in po manager dev designer; do
+  for r in po manager dev designer ask; do
     case "$LIGNES" in *"
 commands/$r.md
 "*) ;; *) continue ;; esac

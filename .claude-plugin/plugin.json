@@ -1,6 +1,6 @@
 {
   "name": "brigade",
-  "version": "0.17.0",
+  "version": "0.18.0",
   "description": "Protocole de travail multi-agents : PO, Manager, Dev, Designer sur un backlog GitHub",
   "author": {
     "name": "benomite",
@@ -14,7 +14,8 @@
     "./commands/manager.md",
     "./commands/dev.md",
     "./commands/designer.md",
-    "./commands/sync.md"
+    "./commands/sync.md",
+    "./commands/ask.md"
   ],
   "agents": [
     "./agents/dev-teammate.md",

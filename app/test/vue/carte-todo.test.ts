@@ -393,14 +393,14 @@ describe("la carte de TODO, sur le rail du projet", () => {
     assert.equal(vue.appels.filter(({ geste }) => geste === "demanderAuSecond").length, 0, "sans passer par le second");
   });
 
-  test("« ask the second » écrit une demande dans le second avec ce que le chef a tapé sur la carte ; la carte le dit, et garde ses choix", async () => {
+  test("« ask the second » demande l'écriture de `/brigade:ask <ticket> ` dans le second, sans ce que le chef a tapé sur la carte ; la carte le dit, et garde ses choix", async () => {
     const vue = await ouvrir({ demanderAuSecond: () => ({ refus: "nothing was written: the station is not reached" }) });
     recevoir(vue, FORME);
     champ(carte(vue, 21)).value = "what is a journal export?";
     champ(carte(vue, 21)).declencher("input");
     bouton(carte(vue, 21), DEMANDER).click();
     await repos();
-    assert.deepEqual(vue.dernier("demanderAuSecond"), [PARADE, 21, "what is a journal export?"]);
+    assert.deepEqual(vue.dernier("demanderAuSecond"), [PARADE, 21]);
     const posee = carte(vue, 21);
     assert.equal(posee.dessous("span").find((pose) => pose.className === "refus")?.textContent, "nothing was written: the station is not reached");
     assert.ok(choix(posee).every((pose) => !pose.disabled), "la carte se tranche toujours par ses choix");

@@ -20,7 +20,7 @@ import { lancerLa, ouvrirVeille, type Lu } from "./box.ts";
 import { agirSurLeCloser } from "./closer-lancement.ts";
 import { reponseLue } from "./carte-todo.ts";
 import { situationDe } from "./histoire.ts";
-import { commenter, demanderAuSecond } from "./discussion.ts";
+import { commenter } from "./discussion.ts";
 import { discussionDeGitHub, histoireDeGitHub } from "./fiche-github.ts";
 import { cheminConfiguration, EXEMPLE, type Projet } from "./config.ts";
 import { confirmationDe } from "./confirmation.ts";
@@ -44,7 +44,7 @@ import { arriveeDeCarte, gesteDeFiche as gesteDeFicheAuTableau, jouerAuTableau, 
 import type { DecisionDuChef } from "./tableau-gestes/gestes.ts";
 import { clientDesGestesGitHub, posterParFetch } from "./tableau-gestes/github.ts";
 import { clientDuDisjoncteurGitHub, reprendreLeDisjoncteur } from "./github/breaker-resume.ts";
-import { demandeDe, demandeDeLAlerte, demandeSurLeTicket, noteDeLaDemande } from "./demande.ts";
+import { demandeDe, demandeDeLAlerte, demandeSurLeTicket, noteDeLaCommande, noteDeLaDemande } from "./demande.ts";
 import { CONFIRMES, DIRECTS, ecrireGeste, GRANTS } from "./gestes.ts";
 import { gestesDeCarte, jouerGesteDeFiche } from "./gestes-fiche.ts";
 import { changerLaPriorite, clientDeLaPriorite, envoyerParFetch, tenirPrioritesEcrites } from "./priorite.ts";
@@ -875,16 +875,14 @@ ipcMain.handle("commenter", (_, nom: unknown, ticket: unknown, texte: unknown) =
   const vise = connu(nom);
   return vise === undefined ? { poste: false, refus: `nothing was posted: “${String(nom)}” is no longer in the projects file` } : commenter(auTableau(vise.nom), vise, ticket, texte);
 });
-// « ask the second », au clic : `/brigade ask #<ticket> [contexte]` part sur le tableau, la box compose la demande —
-// l'issue et le contexte du champ — et la rend dans son bloc machine ; l'app l'écrit dans le second sans Entrée (comme
-// `demander`). Quand la box tient le second du projet, c'est elle qui la lui envoie : rien n'est écrit ici, et la fiche
-// dit où vient sa réponse. Pas jouée, rien n'est écrit.
-ipcMain.handle("demanderAuSecond", async (_, nom: unknown, ticket: unknown, contexte: unknown) => {
+// « ask the second », au clic : `/brigade:ask <ticket> ` est écrit dans le second, sans Entrée — le chef y ajoute sa
+// question. La commande du plugin lit l'issue elle-même : rien n'est demandé au tableau ni à la box, quelle que soit
+// la station qui sert le projet.
+ipcMain.handle("demanderAuSecond", (_, nom: unknown, ticket: unknown) => {
   const vise = connu(nom);
   if (vise === undefined) return { refus: parti(nom).refus };
-  const composee = await demanderAuSecond(auTableau(vise.nom), vise, ticket, contexte);
-  if ("refus" in composee) return composee;
-  return "auSecond" in composee ? { refus: composee.auSecond } : terminaux.inscrire(vise, composee.demande, noteDeLaDemande);
+  if (typeof ticket !== "number" || !Number.isSafeInteger(ticket) || ticket < 1) return { refus: "nothing was written: the sheet names no ticket" };
+  return terminaux.inscrire(vise, `/brigade:ask ${ticket} `, noteDeLaCommande);
 });
 ipcMain.handle("ouvrirLien", (_, nom: unknown, ticket: unknown, url: unknown) => {
   if (typeof url !== "string" || !(liensLus.get(`${String(nom)}#${String(ticket)}`) ?? []).includes(url) || !/^https?:$/.test(URL.parse(url)?.protocol ?? "")) return false;

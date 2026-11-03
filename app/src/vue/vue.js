@@ -3840,13 +3840,13 @@ function poserCommentaire(projet, ticket) {
     commentaires.set(cle, saisie.value);
     poster.disabled = saisie.value.trim() === "";
   });
-  // Le même champ, sans le poster : la demande part au second avec ce qu'il y a dedans — vide, elle
-  // nomme l'issue seule. Au clic seulement ; rien n'est envoyé, le second l'attend sans Entrée.
+  // Au clic seulement : `/brigade:ask <ticket> ` est écrit dans le second ; rien n'est envoyé, il attend la
+  // question et l'Entrée du chef.
   const demandee = demandesAuSecond.get(cle);
   const enRoute = demandee !== undefined && "envoi" in demandee;
   const demander = bouton("ask the second", () => void demanderAuSecond(projet, ticket));
   demander.dataset.geste = "demande-second";
-  demander.title = `write into the second a request naming issue #${ticket} and what is in the field — nothing is sent: you press Enter`;
+  demander.title = `write /brigade:ask ${ticket} into the second — nothing is sent: add your question, then press Enter`;
   demander.disabled = enRoute;
   const champ = document.createElement("div");
   champ.className = "commentaire";
@@ -3901,12 +3901,11 @@ async function envoyerCommentaire(projet, ticket) {
   if (rendu.poste || rendu.peutEtre === true) await lireDiscussion(projet, ticket);
 }
 
-// « ask the second », au clic : la box compose la demande avec le contexte du champ, et le process
-// principal l'écrit dans le second, sans Entrée. Le champ n'est pas vidé. Injoignable, rien n'est
-// écrit, et la fiche dit pourquoi — la carte de TODO aussi. `contexte` : le champ d'où part la
-// demande — celui de la fiche par défaut, celui de la carte de TODO quand elle part de la carte.
-/** @param {Projet} projet @param {number} ticket @param {string} [contexte] */
-async function demanderAuSecond(projet, ticket, contexte = commentaires.get(`${projet.nom}#${ticket}`) ?? "") {
+// « ask the second », au clic : le process principal écrit `/brigade:ask <ticket> ` dans le second, sans Entrée ;
+// le chef y ajoute sa question. Rien n'est lu au tableau ni à la box. Pas écrit, la fiche dit pourquoi — la carte
+// de TODO aussi.
+/** @param {Projet} projet @param {number} ticket */
+async function demanderAuSecond(projet, ticket) {
   const cle = `${projet.nom}#${ticket}`;
   const avant = demandesAuSecond.get(cle);
   if (avant !== undefined && "envoi" in avant) return;
@@ -3919,12 +3918,12 @@ async function demanderAuSecond(projet, ticket, contexte = commentaires.get(`${p
   /** @type {{ envoi: true } | { parti: string } | { refus: string }} */
   let dit;
   try {
-    const rendu = await brigade.demanderAuSecond(projet.nom, ticket, contexte);
+    const rendu = await brigade.demanderAuSecond(projet.nom, ticket);
     if ("refus" in rendu) dit = { refus: rendu.refus };
     else {
       garder(projet.nom, rendu);
       // Le second dit lui-même si la demande y est : non lancé, ou commande refusée, rien n'est écrit.
-      dit = rendu.demandeEcrite === true ? { parti: `request about #${ticket} written in the second, without Enter — it is waiting for your Enter` } : { refus: `nothing was written: ${rendu.note}` };
+      dit = rendu.demandeEcrite === true ? { parti: `/brigade:ask ${ticket} written in the second, without Enter — add your question, then Enter` } : { refus: `nothing was written: ${rendu.note}` };
     }
   } catch (erreur) {
     dit = { refus: `nothing was written: ${erreur instanceof Error ? erreur.message : String(erreur)}` };
@@ -4959,7 +4958,7 @@ function poserLaCarteDeTodo(projet, ticket, todo) {
     {
       repondre: (reponse) => void repondreALaCarte(projet, ticket, reponse),
       ecrire: (texte) => void brouillonsDeCartes.set(cle, texte),
-      demander: () => void demanderAuSecond(projet, ticket, brouillonsDeCartes.get(cle) ?? ""),
+      demander: () => void demanderAuSecond(projet, ticket),
     },
   );
 }

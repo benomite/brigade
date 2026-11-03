@@ -1,4 +1,4 @@
-// Le critère du ticket 1845 : régler le plafond, arrêter et relancer une station, commenter depuis une carte et demander au second aboutissent, et l'app dit ce qu'il en est ; le
+// Le critère du ticket 1845 : régler le plafond, arrêter et relancer une station, commenter depuis une carte aboutit, et l'app dit ce qu'il en est ; le
 // second lit la file du projet à son ouverture. Chaque geste est joué par le module que le process principal appelle
 // pour lui (main.ts) ; il part sur le tableau de la cuisine, et c'est une vraie box qui le joue : le runtime, son tick
 // et ses gestes du tableau branchés comme runtime/src/main.ts les branche.
@@ -6,18 +6,16 @@
 import assert from "node:assert/strict";
 import { describe, test, type TestContext } from "node:test";
 import type { Fait } from "../../../runtime/src/evenements.ts";
-import { demanderAuSecond as composerLaDemande } from "../../../runtime/src/issue-ticket.ts";
 import { demarrer } from "../../../runtime/src/runtime.ts";
 import type { ClientDesGestes as GestesDeLaBox, CommentaireDuTableau } from "../../../runtime/src/tableau/gestes/client.ts";
 import { gestesDuTableau as gestesDeLaBox } from "../../../runtime/src/tableau/gestes/gestes.ts";
-import type { SecondDuTableau } from "../../../runtime/src/tableau/gestes/second.ts";
 import type { ClientDuTableau, IssueDuTableau } from "../../../runtime/src/tableau/publication/client.ts";
 import { brancherLeTableau } from "../../../runtime/src/tableau/publication/publier.ts";
 import { lireLeTableau, type Tableau } from "../../../runtime/src/tableau/rendu/bloc.ts";
 import { fauxGitHub, issue } from "../../../runtime/test/aides/cuisine.ts";
 import { aArreter, DEPOT, jusqua, repertoireTemporaire } from "../../../runtime/test/outils.ts";
 import { cuireSurLaStation } from "../../src/cuisson.ts";
-import { commenter, demanderAuSecond } from "../../src/discussion.ts";
+import { commenter } from "../../src/discussion.ts";
 import type { StationDesFaits } from "../../src/ordinaires.ts";
 import { reglerLePlafond } from "../../src/plafond.ts";
 import { contexteDeLaFile, lireLaFile } from "../../src/second/file.ts";
@@ -34,9 +32,8 @@ const MINUTE = 60_000;
 // Le projet tel que le fichier des projets le déclare.
 const DECLARE = { nom: PROJET, dossier: "/projets/brigade" };
 
-// La box du projet, son tableau sur GitHub, et l'app qui y poste ses gestes et les suit. `second` : le second du projet,
-// quand la box le tient.
-async function cuisine(t: TestContext, { second = null }: { second?: SecondDuTableau | null } = {}) {
+// La box du projet, son tableau sur GitHub, et l'app qui y poste ses gestes et les suit.
+async function cuisine(t: TestContext) {
   t.mock.timers.enable({ apis: ["setInterval"] });
   let instant = Date.parse("2026-10-29T10:00:00.000Z");
   const maintenant = () => new Date(instant);
@@ -77,7 +74,7 @@ async function cuisine(t: TestContext, { second = null }: { second?: SecondDuTab
   };
   const gh = fauxGitHub(issue(30));
   const compte = fauxGitHub(issue(30));
-  const gestes = gestesDeLaBox({ client: sousLeTableau, journal: runtime.journal, projet: PROJET, github: gh.github, githubDuChef: compte.github, repertoireEtat: repertoire, second, avertir: () => {} });
+  const gestes = gestesDeLaBox({ client: sousLeTableau, journal: runtime.journal, projet: PROJET, github: gh.github, githubDuChef: compte.github, repertoireEtat: repertoire, avertir: () => {} });
   brancherLeTableau(runtime, { client: publication, depot: DEPOT, maintenant, dire: () => {}, avertir: () => {}, gestes });
   await jusqua(() => corps !== "");
 
@@ -154,23 +151,6 @@ describe("les gestes de la box partent par le tableau de la cuisine, et l'app di
     assert.deepEqual(c.gh.commentaires, []);
     const refuse = await commenter(c.auTableau, DECLARE, 99, "Hello");
     assert.deepEqual(refuse, { poste: false, refus: "nothing was posted: #99 has no GitHub issue: it does not exist, or is gone" });
-  });
-
-  test("demander au second : la box compose la demande et la publie — l'app la reçoit, telle qu'elle l'écrira dans le second", async (t) => {
-    const c = await cuisine(t);
-    const attendue = await composerLaDemande(fauxGitHub(issue(30)).github, 30, "the export is slow\non big files");
-    assert.ok(attendue.done);
-    const rendu = await demanderAuSecond(c.auTableau, DECLARE, 30, "the export is slow\r\non big files");
-    assert.deepEqual(rendu, { demande: attendue.request });
-    assert.deepEqual([c.gh.commentaires, c.compte.commentaires], [[], []], "rien n'est posté sur l'issue");
-    const absente = await demanderAuSecond(c.auTableau, DECLARE, 99, "");
-    assert.ok("refus" in absente && absente.refus.startsWith("nothing was written: #99 has no GitHub issue"), JSON.stringify(absente));
-  });
-
-  test("demander au second, quand la box le tient : elle le lui envoie, et l'app dit où vient sa réponse", async (t) => {
-    const c = await cuisine(t, { second: { demander: async () => ({ repondu: true, texte: "It is the CSV writer." }) } });
-    const rendu = await demanderAuSecond(c.auTableau, DECLARE, 30, "");
-    assert.ok("auSecond" in rendu, JSON.stringify(rendu));
   });
 
   test("à son ouverture, le second lit la file du projet sur le tableau : le bloc `awaiting` que la box publie, mot pour mot", async (t) => {

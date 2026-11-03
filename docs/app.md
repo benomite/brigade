@@ -187,9 +187,8 @@ reading, only while a TODO card waits. Captures: `docs/captures/1841/`.
 carries `resume` — what happens, in two plain sentences at most —, it heads the card in place of the expected line, then
 the question, the captures, one button per choice and the free-text field. A card with a single gesture (merge a green
 delivery by hand) has a null question: it shows that one button, filled, and no question. Every card closes on `ask the
-second`, a small underlined word set back under the field, never one of its choices: it writes into the second a
-request about the ticket with what is typed in the card's field, as the sheet's does, and the card is answered from its
-choices without it.
+second`, a small underlined word set back under the field, never one of its choices: it writes into the second
+`/brigade:ask <ticket> ` — the sheet's button writes the same — and the card is answered from its choices without it.
 **A ticket the kitchen took off the rail without serving it waits in Todo** (#2118): its card (`type` `abandon`) says
 which ticket and why, and offers `Put it back on the rail`, `I take it in a dev session` and `Close it`; it stays until
 you answer (`docs/runtime/manager.md`, "A ticket the kitchen takes off the rail without serving it"). Each choice's
@@ -2458,14 +2457,16 @@ section laid, `right now` is not repeated under it.
   `delivered` and `merged` for each PR, or `closed without a merge`. What only the box's journal carries — the cook's
   tokens and time, the attempts, the retro — says `not communicated`, never a made-up value (so the retro section
   above reads `retro not communicated` there). An issue absent from GitHub is one sentence: `<repo>#<n> is not on
-  GitHub: there is nothing to read`. Posting a comment and "ask the second" go through the Kitchen board (#1845,
+  GitHub: there is nothing to read`. Posting a comment goes through the Kitchen board (#1845,
   `docs/tableau-gestes.md`), with this computer's `gh`: `/brigade comment #<n> <text>`, which
-  the box posts on the issue under its own `gh` account and answers with its cost (`comment posted on #<n> — …`);
-  `/brigade ask #<n> [context]`, whose request the box composes and publishes in the board's machine block, and the
-  app writes it into the second, without Enter. When the box holds the project's second, it sends it the request
-  itself: nothing is written here, and the sheet says its answer comes under the gesture on the board. The app reads
-  the board again every five seconds until the box has answered, two and a half minutes at most; a gesture the box
-  has not read by then is said posted, not done — the discussion is read again before you post the same comment.
+  the box posts on the issue under its own `gh` account and answers with its cost (`comment posted on #<n> — …`).
+  The app reads the board again every five seconds until the box has answered, two and a half minutes at most; a gesture
+  the box has not read by then is said posted, not done — the discussion is read again before you post the same comment.
+  **"Ask the second"** (#2127) needs neither the board nor the box: the click writes `/brigade:ask <n> ` into the
+  project's Second tab, cursor at the end and without Enter, so you add a question and press Enter. The plugin command
+  `/brigade:ask <n> [question]` (`commands/ask.md`, Codex mirror `codex/skills/ask/`) reads the issue — body, labels,
+  last comments, linked PR — and answers in French; without a question, it says where the ticket stands and what it
+  waits for. It works from any session of the project, whichever station serves it.
 - **A served interface ticket shows its screenshots, without a click** (#842): for each screen
   changed, the before screenshot and the after screenshot side by side, each under its caption (`fiche — before`,
   `fiche — after`), on its card in Pass as in Served. They come from `captures`, in `facts`,
@@ -2690,7 +2691,7 @@ section laid, `right now` is not repeated under it.
     answer within thirty seconds — says so on the sheet, with what `gh` returned; it is not
     "no question".
   - **"ask the second" stays on the sheet**, under the question, for those that deserve an
-    explanation: it writes the same request as before.
+    explanation: it writes `/brigade:ask <ticket> ` into the second, like the card's.
 - **An idle kitchen with cards on the rail is a fault** (#1863, `panneDe` in `app/src/faits.ts`). When `facts` carries
   `cuisineOisive` (#1862, `docs/runtime/etat-et-mesures.md`) — cards on the rail, no cook for 30 min, the project on,
   not every card waiting for a capability or a third party —, the head of the rail opens with a **red fault bar**,

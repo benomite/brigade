@@ -12,7 +12,7 @@ import type { Rendu } from "../src/box.ts";
 import { EXEMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/couleurs.ts";
 import { GESTES_DE_LA_CUISINE } from "../src/cuisine.ts";
-import { commenter, demanderAuSecond, discussionDe, type AuTableau, type Commente, type Discussion } from "../src/discussion.ts";
+import { commenter, discussionDe, type AuTableau, type Commente, type Discussion } from "../src/discussion.ts";
 import { mettreAPart } from "../src/attend.ts";
 import { BANNIERE, tenirFaits, type Faits } from "../src/faits.ts";
 import { CONFIRMES, DIRECTS, GRANTS } from "../src/gestes.ts";
@@ -102,7 +102,7 @@ describe("la discussion de l'issue, telle que `pass <ticket> issue` la rend", ()
 // Le tableau de la cuisine du projet, doublé : ce que l'app y poste est noté, et la box le lit avec sa grammaire
 // (runtime/src/tableau/gestes/grammaire.ts) ; `repondre` dit ce qu'elle en fait — le geste tel que son bloc machine
 // le porte, ou rien tant qu'elle ne l'a pas lu. Le geste est suivi le temps d'une relecture.
-type Joue = Pick<GesteDuTableau, "etat" | "reponse"> & Partial<Pick<GesteDuTableau, "demande" | "second">>;
+type Joue = Pick<GesteDuTableau, "etat" | "reponse">;
 function tableau(repondre: (lu: ReturnType<typeof lireLeGeste>) => Joue | null) {
   const postes: string[] = [];
   const lus = new Map<number, GesteDuTableau>();
@@ -345,58 +345,10 @@ describe("la fiche de toute carte montre l'issue et sa discussion (#684)", () =>
   });
 });
 
-// « ask the second » (#686) : la box compose la demande (`/brigade ask #<ticket> [<texte>]` sur le tableau, #1845),
-// l'app l'écrit dans le second sans Entrée — au clic, et seulement au clic.
-const DEMANDE = "Je te demande à propos de l'issue #21 (« L'export du journal »). Voici le contexte que je viens d'écrire : « le CSV d'abord ».";
-const DEMANDEE: Joue = { etat: "pris", reponse: `**Done** — [ask #21](…): the request for the second is “${DEMANDE}” — cost: none`, demande: DEMANDE };
-
-describe("demander au second depuis la fiche, par le tableau (#686, #1845)", () => {
-  test("`/brigade ask #<ticket> <contexte>` : le contexte part tel qu'il est écrit, la box le lit mot pour mot ; la demande qu'elle a composée est rendue", async () => {
-    const lus: unknown[] = [];
-    const { auTableau } = tableau((geste) => (lus.push(geste), DEMANDEE));
-    const rendu = await demanderAuSecond(auTableau, PROJET, 21, "  le CSV d'abord\n$(touch /tmp/pas-ca)  ");
-    assert.deepEqual(rendu, { demande: DEMANDE });
-    assert.deepEqual(lus, [{ verbe: "ask", ticket: 21, contexte: "le CSV d'abord\n$(touch /tmp/pas-ca)" }]);
-  });
-
-  test("un contexte vide est permis : `/brigade ask #<ticket>`, sans rien après", async () => {
-    const { postes, auTableau } = tableau(() => DEMANDEE);
-    assert.deepEqual(await demanderAuSecond(auTableau, PROJET, 21, "  "), { demande: DEMANDE });
-    assert.deepEqual(postes, ["/brigade ask #21"]);
-  });
-
-  test("la box tient le second du projet : elle lui a envoyé la demande, rien n'est à écrire ici", async () => {
-    const { auTableau } = tableau(() => ({ ...DEMANDEE, second: { etat: "attendu" } }));
-    const rendu = await demanderAuSecond(auTableau, PROJET, 21, "x");
-    assert.ok("auSecond" in rendu && /its answer comes under your gesture, on the Kitchen board/.test(rendu.auSecond));
-  });
-
-  test("une box qui refuse, ou qui ne l'a pas encore lue : rien n'est écrit, et pourquoi est dit", async () => {
-    const refus = tableau(() => ({ etat: "refuse", reponse: "**Not done** — [ask #21](…): #21 has no GitHub issue" }));
-    assert.deepEqual(await demanderAuSecond(refus.auTableau, PROJET, 21, "x"), { refus: "nothing was written: #21 has no GitHub issue" });
-    const muette = tableau(() => null);
-    const rendu = await demanderAuSecond(muette.auTableau, PROJET, 21, "x");
-    assert.ok("refus" in rendu && rendu.refus.startsWith("nothing was written: the request is posted on the Kitchen board"));
-  });
-
-  test("ni ticket, ni projet qui s'ouvre : rien n'est posté", async () => {
-    const { postes, auTableau } = tableau(() => assert.fail("rien ne devait partir"));
-    for (const [projet, ticket] of [
-      [PROJET, "21"],
-      [PROJET, 0],
-      [{ ...PROJET, refus: "illisible" }, 21],
-    ] as const) {
-      const rendu = await demanderAuSecond(auTableau, projet, ticket, "x");
-      assert.ok("refus" in rendu && rendu.refus.startsWith("nothing was written: "));
-    }
-    assert.deepEqual(postes, []);
-  });
-});
-
 const demandeAuSecond = (vue: Jouee) => discussion(vue).dessous("button").find((pose) => pose.dataset.geste === "demande-second") ?? assert.fail("pas de bouton « ask the second »");
 
 describe("la fiche : le bouton « ask the second » et la question d'une carte Await (#686)", () => {
-  test("rien ne part avant le clic ; le clic envoie l'issue et le texte du champ, sans rien recopier, et la fiche confirme", async () => {
+  test("rien ne part avant le clic ; le clic demande au process principal d'écrire `/brigade:ask <ticket> ` — sans le champ —, et la fiche confirme", async () => {
     const vue = await ouvrir({ lireDiscussion: () => lue(), demanderAuSecond: () => SECOND_ECRIT });
     await ouvrirFiche(vue, 21);
     ecrire(vue, "le CSV d'abord");
@@ -404,29 +356,29 @@ describe("la fiche : le bouton « ask the second » et la question d'une carte A
     assert.equal(vue.appels.filter(({ geste }) => geste === "demanderAuSecond").length, 0);
     demandeAuSecond(vue).click();
     await repos();
-    assert.deepEqual(vue.dernier("demanderAuSecond"), [PARADE, 21, "le CSV d'abord"]);
-    assert.ok(discussion(vue).dessous("p").some((p) => p.className === "postee" && p.textContent.startsWith("request about #21 written in the second")));
+    assert.deepEqual(vue.dernier("demanderAuSecond"), [PARADE, 21]);
+    assert.ok(discussion(vue).dessous("p").some((p) => p.className === "postee" && p.textContent.startsWith("/brigade:ask 21 written in the second")));
     // Le champ garde son texte : ce n'est pas un commentaire.
     assert.equal(champ(vue).value, "le CSV d'abord");
     assert.equal(vue.appels.filter(({ geste }) => geste === "commenter").length, 0);
   });
 
-  test("le champ vide : le bouton sert quand même, avec un contexte vide", async () => {
+  test("le champ vide : le bouton sert quand même", async () => {
     const vue = await ouvrir({ lireDiscussion: () => lue(), demanderAuSecond: () => SECOND_ECRIT });
     await ouvrirFiche(vue, 14);
     assert.equal(demandeAuSecond(vue).disabled, false);
     demandeAuSecond(vue).click();
     await repos();
-    assert.deepEqual(vue.dernier("demanderAuSecond"), [PARADE, 14, ""]);
+    assert.deepEqual(vue.dernier("demanderAuSecond"), [PARADE, 14]);
   });
 
   test("le second injoignable : l'erreur s'affiche, le texte reste, rien n'est dit parti", async () => {
-    const vue = await ouvrir({ lireDiscussion: () => lue(), demanderAuSecond: () => ({ refus: "nothing was written: the second's request was not composed — the board did not answer" }) });
+    const vue = await ouvrir({ lireDiscussion: () => lue(), demanderAuSecond: () => ({ refus: "nothing was written: the second is not reached" }) });
     await ouvrirFiche(vue, 21);
     ecrire(vue, "du contexte");
     demandeAuSecond(vue).click();
     await repos();
-    assert.equal(discussion(vue).dessous("p").find((p) => p.className === "refus")?.textContent, "nothing was written: the second's request was not composed — the board did not answer");
+    assert.equal(discussion(vue).dessous("p").find((p) => p.className === "refus")?.textContent, "nothing was written: the second is not reached");
     assert.ok(!discussion(vue).dessous("p").some((p) => p.className === "postee"));
     assert.equal(champ(vue).value, "du contexte");
   });

@@ -35,8 +35,6 @@ const CAS: Array<[DecisionDuChef, string]> = [
   [{ geste: "choose", ticket: 123, choix: 2 }, "/brigade choose #123 2"],
   [{ geste: "arrived", ticket: 123 }, "/brigade arrived #123"],
   [{ geste: "comment", ticket: 123, commentaire: "  The export misses the header row.\nSee the attached file. " }, "/brigade comment #123 The export misses the header row.\nSee the attached file."],
-  [{ geste: "ask", ticket: 123, contexte: "the export is slow on big files" }, "/brigade ask #123 the export is slow on big files"],
-  [{ geste: "ask", ticket: 123 }, "/brigade ask #123"],
 ];
 
 for (const [decision, attendu] of CAS) {
