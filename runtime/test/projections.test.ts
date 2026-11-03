@@ -232,6 +232,13 @@ function raconterLaStation(journal: Journal): void {
   lancer("f", 3);
   noter({ type: "cook.interrupted", payload: { run: "f" } }, 3, "runtime");
   noter({ type: "station.disconnected", payload: { station, reason: "authentication_failed", run: "f" } }, 3);
+  // Un cook qui n'a pas pu démarrer : sa station ne prend plus rien, et ce qui
+  // la retient tient au rejeu. Une autre station que celle de la pass, dont les
+  // cooks qui tournent ensuite le lèveraient.
+  const autre = "box/autre";
+  noter({ type: "cook.launched", payload: { run: "sans-demarrer", limits, stream: "runs/sans-demarrer.jsonl", station: autre, model: "sonnet", effort: "low" } }, 6, "runtime");
+  noter({ type: "cook.exited", payload: { run: "sans-demarrer", outcome: "guard", code: null, signal: "SIGTERM", turns: 0, tokens: 0, durationMs: 600_000 } }, 6, "runtime");
+  noter({ type: "station.unstartable", payload: { station: autre, run: "sans-demarrer", reason: "guard:idle" } }, 6, `station:${autre}`);
   // Le rejeu se prouve table par table : celle-ci aussi doit porter une ligne.
   noter({ type: "stations.undeclared", payload: {} }, null, "runtime");
   // Le chef arrête la cuisine du projet sur une station, la relance, puis

@@ -220,6 +220,9 @@ export function cuisinerPourLaPrincipale(options: OptionsDeLaCuisineRejointe): C
   const demander: Demander = (demande) =>
     demanderParGitHub({ station, depot, gist: options.gist, canal: options.canal, lireLeTableau: options.lireLeTableau, ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.attenteMs === undefined ? {} : { attenteMs: options.attenteMs }), ...(options.pasMs === undefined ? {} : { pasMs: options.pasMs }) }, demande);
   const arret = new AbortController();
+  // L'instant où elle démarre, dit à chaque réclamation : une station qui ne
+  // prenait plus rien faute d'avoir pu lancer un cook reprend à son redémarrage.
+  const depuis = new Date((options.maintenant ?? Date.now)()).toISOString();
   const enCours = new Set<Promise<void>>();
   const issues: IssueDuCook[] = [];
   let reveiller = () => {};
@@ -247,7 +250,7 @@ export function cuisinerPourLaPrincipale(options: OptionsDeLaCuisineRejointe): C
       }
       let reponse: Reponse;
       try {
-        reponse = await demander({ verb: "claim", sandbox: options.bacASable() });
+        reponse = await demander({ verb: "claim", sandbox: options.bacASable(), since: depuis });
       } catch (erreur) {
         direAuChangement(`brigade : station — ${depot} : la principale ne répond pas à sa réclamation, elle réessaie : ${message(erreur)}`);
         await dormir(entre);
