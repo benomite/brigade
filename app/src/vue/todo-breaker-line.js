@@ -1,5 +1,5 @@
 // @ts-check
-// La ligne du disjoncteur, en tête de TODO (#2140, épique #2134) : la cuisine retenue par son disjoncteur — ce qui ne va
+// La ligne du disjoncteur, en tête de TODO (ticket 2140, épique 2134) : la cuisine retenue par son disjoncteur — ce qui ne va
 // pas, en une ligne, ce que la station en écrit au survol — et un seul bouton, « Resume ». Un clic reprend : le process
 // principal poste `/resume` sur l'issue `brigade:breaker-open` de la cuisine, sur GitHub (github/breaker-resume.ts), et
 // la station referme le disjoncteur à sa veille suivante. Ni commande à recopier, ni bouton pour la copier : le geste

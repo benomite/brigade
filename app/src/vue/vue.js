@@ -1025,7 +1025,7 @@ const etatsDesReglages = new Map();
 // La dernière bande d'alertes de chaque projet, telle que le process principal l'a dite (alertes.ts).
 /** @type {Map<string, Alerte[]>} */
 const bandes = new Map();
-// La ligne du disjoncteur ouvert d'un projet, dans sa dernière bande : celle dont le bouton est « Resume » (#2140).
+// La ligne du disjoncteur ouvert d'un projet, dans sa dernière bande : celle dont le bouton est « Resume » (ticket 2140).
 /** @param {string} nom */
 const alerteDuDisjoncteur = (nom) => (bandes.get(nom) ?? []).find(({ appel }) => appel !== undefined && "reprise" in appel);
 // « Resume » en route d'ici, par projet (todo-breaker-line.js) : en cours, demandé, ou refusé. Il tient tant que la bande
@@ -4813,7 +4813,7 @@ function poserLeRail(projet) {
     );
     return liste;
   };
-  // Le disjoncteur ouvert : sa ligne en tête de TODO, et son seul bouton « Resume » (#2140) — pas quand la box ne
+  // Le disjoncteur ouvert : sa ligne en tête de TODO, et son seul bouton « Resume » (ticket 2140) — pas quand la box ne
   // répond pas : ce que TODO contenait n'est plus lu.
   const disjoncteur = muet === undefined ? alerteDuDisjoncteur(projet.nom) : undefined;
   const grille = document.createElement("div");
@@ -4990,7 +4990,7 @@ async function repondreALaCarte(projet, ticket, reponse) {
   if (suite.etape === "postee") lireLesFaits();
 }
 
-// « Resume », sur la ligne du disjoncteur (#2140) : le process principal poste `/resume` sur l'issue du disjoncteur, sur
+// « Resume », sur la ligne du disjoncteur (ticket 2140) : le process principal poste `/resume` sur l'issue du disjoncteur, sur
 // GitHub — une seule demande à la fois. La ligne dit ce qui part, puis ce qui a été demandé, ou pourquoi rien.
 /** @param {Projet} projet */
 async function reprendreLeDisjoncteur(projet) {

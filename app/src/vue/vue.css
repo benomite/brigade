@@ -2725,7 +2725,7 @@ main > header,
   background: var(--rouge);
   border-radius: 3px;
 }
-/* La ligne du disjoncteur, en tête de TODO (#2140) : la cuisine retenue — rouge, comme la panne du rail, sur le fond chaud
+/* La ligne du disjoncteur, en tête de TODO (ticket 2140) : la cuisine retenue — rouge, comme la panne du rail, sur le fond chaud
    de ce qui attend le chef —, ce qui ne va pas en une phrase, ce que la station en écrit au survol, puis son seul
    bouton, « Resume », le recommandé. Ce qui part, ce qui a été demandé ou pourquoi rien, à voix basse à côté. */
 #rail .ligne-disjoncteur {
