@@ -27,13 +27,14 @@ export function direLaTailleDuCorps(corps: string): string | null {
 // La taille du dernier corps rendu, gardée dans le répertoire de la station, un
 // fichier par projet : `status` la lit sans rien publier. Un échec d'écriture
 // ne gêne jamais la publication.
-const fichierDeLaTaille = (station: string, projet: string) => join(station, "board-size", `${projet.replace(/[^\w.-]/g, "_")}.txt`);
+export const REPERTOIRE_DES_TAILLES = "board-size";
+const fichierDeLaTaille = (station: string, projet: string) => join(station, REPERTOIRE_DES_TAILLES, `${projet.replace(/[^\w.-]/g, "_")}.txt`);
 
 export function noterLaTaille(station: string, projet: string, corps: string): void {
   const ligne = direLaTailleDuCorps(corps);
   if (ligne === null) return;
   try {
-    mkdirSync(join(station, "board-size"), { recursive: true });
+    mkdirSync(join(station, REPERTOIRE_DES_TAILLES), { recursive: true });
     writeFileSync(fichierDeLaTaille(station, projet), `${ligne}\n`);
   } catch {
     // La mesure manque à `status`, rien de plus.

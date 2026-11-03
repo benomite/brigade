@@ -9,6 +9,7 @@ import { describe, test, type TestContext } from "node:test";
 import { ROLES } from "../../src/identites.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { REPERTOIRE_COMPTEUR } from "../../src/limite-github.ts";
+import { REPERTOIRE_DES_TAILLES } from "../../src/tableau/rendu/taille.ts";
 import { accepterSansBacASable } from "../../src/onboarding/attente.ts";
 import { lirePortes } from "../../src/station/portes.ts";
 import { principal as status } from "../../src/status.ts";
@@ -192,8 +193,9 @@ describe("la station, son process", { concurrency: 8 }, () => {
     // Tout ce que la machine porte, sauf l'état des projets, la configuration
     // elle-même, ce que la station dit de ce qu'elle sert (`en-service`, que
     // sa mise à jour attend) et le compteur de ses appels à GitHub, que chaque
-    // sondage écrit.
-    const sauf = [join(racine, "etat"), join(racine, "projets"), join(racine, "en-service"), join(racine, REPERTOIRE_COMPTEUR)];
+    // sondage écrit, et la taille du board de chaque projet, que chaque
+    // rafraîchissement écrit.
+    const sauf = [join(racine, "etat"), join(racine, "projets"), join(racine, "en-service"), join(racine, REPERTOIRE_COMPTEUR), join(racine, REPERTOIRE_DES_TAILLES)];
     const avant = photographier(machine, sauf);
 
     // Ajouter : une ligne de plus, rien d'autre.
