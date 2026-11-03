@@ -6,6 +6,8 @@
   brigade — a team of AI agents that works your GitHub tickets
 </h1>
 
+Presentation and downloads: **[benomite.github.io/brigade](https://benomite.github.io/brigade/)**.
+
 You write a ticket and put the label `fire` on it. A **cook** (a `claude` session) takes it in its own git worktree, implements it and opens a pull request. The **pass** judges that pull request — gates, CI, an independent review — and merges it. You decide what matters; brigade does the cooking.
 
 ![The brigade app: your stations, and the cooks working on them](docs/captures/1598/accueil-stations-apres.png)
@@ -29,6 +31,10 @@ No command to type, no file to edit. Every screen is described in **[docs/instal
 
 ## Where to read next
 
+- [`docs/index.md`](docs/index.md) — the documentation index, organized by what you want to do.
+- [`docs/tutoriels/installer-sur-mac.md`](docs/tutoriels/installer-sur-mac.md) — tutorial: install brigade on a Mac.
+- [`docs/tutoriels/premier-projet.md`](docs/tutoriels/premier-projet.md) — tutorial: add a first project and cook its first ticket.
+- [`docs/installation.md`](docs/installation.md) — install brigade and cook your first ticket, step by step.
 - [`docs/app.md`](docs/app.md) — the app, screen by screen.
 - [`docs/runtime/README.md`](docs/runtime/README.md) — the runtime (station, rail, pass): index of its pages.
 - [`docs/glossary.md`](docs/glossary.md) — the word for each object (*cook*, *rail*, *station*, *pass*…).
