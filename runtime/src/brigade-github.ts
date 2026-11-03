@@ -201,13 +201,17 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   // l'issue, que le cook lit, et `in-pass` tombe — le ticket redevient libre, et
   // la station qui le prend reprend sa branche, sous sa PR. Au-delà de
   // `RENVOIS_MAX`, il sort de la cuisine (`hors-cuisine`) : un humain décide.
-  const renvoyer = async (ticket: TicketLu, raison: string) => {
-    const deja = (await github.commentaires(ticket.number)).filter((c) => c.body.startsWith(MARQUE_DE_RENVOI)).length;
+  const renvoyer = async (ticket: TicketLu, sha: string, raison: string) => {
+    const renvois = (await github.commentaires(ticket.number)).filter((c) => c.body.startsWith(MARQUE_DE_RENVOI));
+    // Une tête déjà renvoyée ne l'est pas deux fois : la liste des tickets lue
+    // sous ETag peut porter encore `in-pass` un tour de plus (#2189, 23:07).
+    if (renvois.some((c) => c.body.includes(` sha=${sha} `))) return;
+    const deja = renvois.length;
     if (deja >= RENVOIS_MAX) {
-      await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${deja + 1} -->\nStation \`${nom}\`: still not mergeable after ${deja} sends back — ${raison}\n\nTaken off the kitchen (\`${HORS_CUISINE}\`): a human decides.`);
+      await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${deja + 1} sha=${sha} -->\nStation \`${nom}\`: still not mergeable after ${deja} sends back — ${raison}\n\nTaken off the kitchen (\`${HORS_CUISINE}\`): a human decides.`);
       await github.labelliser(ticket.number, [HORS_CUISINE]);
     } else {
-      await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${deja + 1} -->\nStation \`${nom}\`: sent back to a cook (${deja + 1}/${RENVOIS_MAX}) — ${raison}`);
+      await github.commenter(ticket.number, `${MARQUE_DE_RENVOI} n=${deja + 1} sha=${sha} -->\nStation \`${nom}\`: sent back to a cook (${deja + 1}/${RENVOIS_MAX}) — ${raison}`);
     }
     await github.delabelliser(ticket.number, LABEL_IN_PASS);
   };
@@ -248,10 +252,10 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
             else tentees.delete(pr.number);
             if (fusion.issue === "refusee") avertir(`brigade : merge of #${ticket.number} on ${nom} refused by GitHub — ${fusion.motif}; retried once its PR or the base changes`);
             // Rouge : la livraison repart à un cook, avec pourquoi (#2209).
-            if (fusion.issue === "ci-rouge") await renvoyer(ticket, `the CI is red on \`${pr.sha.slice(0, 7)}\`: ${(await github.ci(pr.sha)).filter((c) => c.outcome === "red").map((c) => c.name).join(", ")}`);
+            if (fusion.issue === "ci-rouge") await renvoyer(ticket, pr.sha, `the CI is red on \`${pr.sha.slice(0, 7)}\`: ${(await github.ci(pr.sha)).filter((c) => c.outcome === "red").map((c) => c.name).join(", ")}`);
           }
           // Refusée par la relecture sur sa tête : elle repart aussi (#2209).
-          if (rendu !== null && rendu.verdict !== "approve" && rendu.sha === pr.sha) await renvoyer(ticket, `the review requested changes: ${motifDuVerdict(await github.commentaires(pr.number), rendu.commentaire)}`);
+          if (rendu !== null && rendu.verdict !== "approve" && rendu.sha === pr.sha) await renvoyer(ticket, pr.sha, `the review requested changes: ${motifDuVerdict(await github.commentaires(pr.number), rendu.commentaire)}`);
         } catch (erreur) {
           avertir(`brigade : pass de #${ticket.number} sur ${nom} — ${message(erreur)}`);
         }

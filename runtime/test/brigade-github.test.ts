@@ -427,6 +427,22 @@ test("a delivery that changes what judges it is never merged on the review alone
   assert.equal(dits.length, 1);
 });
 
+test("a head already sent back is not sent back again, even if a stale list still shows it in pass (#2189)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(34);
+  const a = faux.station("A", { juger: async () => ({ verdict: "request-changes", motif: "not wired" }) });
+  await a.tour();
+  await a.calme();
+  await a.tour();
+  // La liste lue sous ETag porte encore `in-pass` : le tour revoit la même tête refusée.
+  faux.ticket(34).labels.add(LABEL_IN_PASS);
+  faux.ticket(34).labels.delete(LABEL_TAKEN);
+  await a.tour();
+  await a.tour();
+  const renvois = (faux.commentaires.get(34) ?? []).filter((c) => c.body.startsWith("<!-- brigade:renvoi"));
+  assert.equal(renvois.length, 1);
+});
+
 test("tickets are taken in prio order, then oldest first (#2209)", async () => {
   const faux = new FauxGitHub();
   faux.feu(40, CALIBRE);
