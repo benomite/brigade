@@ -26,9 +26,9 @@ export const PRIS = "taken";
 const LABELS_QUI_LACHENT = [PRIS, LABEL];
 
 // Le nom d'une station, tel qu'il s'écrit dans le marqueur.
-const NOM_DE_STATION = /^[A-Za-z0-9._-]+$/;
-const MARQUE_DE_PRISE = /^<!-- brigade:prise station=([A-Za-z0-9._-]+) -->/;
-const MARQUE_DE_LACHER = /^<!-- brigade:lache station=([A-Za-z0-9._-]+) -->/;
+const NOM_DE_STATION = /^[A-Za-z0-9._/-]+$/;
+const MARQUE_DE_PRISE = /^<!-- brigade:prise station=([A-Za-z0-9._/-]+) -->/;
+const MARQUE_DE_LACHER = /^<!-- brigade:lache station=([A-Za-z0-9._/-]+) -->/;
 
 // Un commentaire d'issue tel que la prise le lit : `id` est celui que GitHub
 // lui donne, croissant avec l'ordre où il les reçoit.
