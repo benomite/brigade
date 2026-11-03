@@ -1,5 +1,6 @@
 // L'app : une fenêtre, et le process qui tient les terminaux, la veille des
 // box et le suivi du fichier des projets.
+import { appendFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { setTimeout as attendre } from "node:timers/promises";
@@ -33,7 +34,8 @@ import { choix, entieres, PALETTE } from "./couleurs.ts";
 import { blocDesOrdinaires } from "./ordinaires.ts";
 import { ecrireAttente, GESTES_D_ATTENTE } from "./attente.ts";
 import { GESTES_DE_LA_CUISINE } from "./cuisine.ts";
-import { BANNIERE, COMMANDE, tenirFaits, type RailDuProjetLu } from "./faits.ts";
+import { BANNIERE, COMMANDE, tenirFaits, type Dessinable, type RailDuProjetLu } from "./faits.ts";
+import { tenirLesColonnes } from "./colonnes-videes.ts";
 import { clientGitHub, parFetch } from "./tableau/client.ts";
 import { avecLesEtatsGithub, type MemoireDesLectures } from "./tableau/rail-github.ts";
 import { avecLesEnvois } from "./tableau/envois.ts";
@@ -242,7 +244,7 @@ const veille = ouvrirVeilleDuTableau({
     // Le rail se dessine aussi de ce `status` : son bloc dit en mots ce qui attend le chef, et sa
     // ligne `rail` ce que chaque carte porte du ticket.
     const redessine = faits.attendre(montree);
-    if (redessine !== undefined) dire("faits", redessine);
+    if (redessine !== undefined) direLesFaits(redessine);
     // Une question répondue qui attend le manager : son issue est relue de loin en loin.
     relireRepondues(montree.projet);
     // Et la bande d'alertes : la cause d'une cuisine retenue, et le grant, se lisent dans ses lignes de tête.
@@ -286,6 +288,17 @@ const faits = tenirFaits(
   (projet) => repondues.de(projet),
   (projet) => prioritesEcrites.de(projet),
 );
+// Chaque colonne du rail qui passe de cartes à aucune est dite (colonnes-videes.ts, #2151) : sur la sortie d'erreur de
+// l'app, et dans `rail-columns.log`, à côté du fichier des projets — la lecture qui l'a fait s'y relit après coup.
+const journalDesColonnes = join(dirname(cheminConfiguration()), "rail-columns.log");
+const colonnesDuRail = tenirLesColonnes((ligne) => {
+  console.error(ligne);
+  appendFile(journalDesColonnes, `${new Date().toISOString()} ${ligne}\n`).catch(() => {});
+});
+function direLesFaits(recue: Dessinable): void {
+  colonnesDuRail.voir(recue);
+  dire("faits", recue);
+}
 // L'accueil (accueil.ts) : une ligne par projet, une par station, et la ligne de santé — redessiné à
 // chaque lecture qui le change, de `faits`, de `status` ou des stations sur GitHub.
 const accueil = tenirAccueil({ locale: () => (stationLocale === undefined ? null : gistLocal(racineDeLaStation)), projets: () => projets().map((projet) => ({ nom: projet.nom, servi: lisible(projet) })) });
@@ -331,7 +344,7 @@ const veilleDesFaits = ouvrirVeilleDuTableau({
   lire: tableaux.lire,
   intervalleMs: 30_000,
   surLecture: (lecture) => {
-    dire("faits", faits.recevoir(lecture));
+    direLesFaits(faits.recevoir(lecture));
     // Ce que fait chaque cook du projet, publié sur le même tableau (#1846) — lu avec GitHub seul, sans joindre la box :
     // à la place de son terminal, que l'app ne suit pas, la fiche d'un ticket suit son cook (vue/activite-du-cook.js).
     const tableau = tableaux.dernier(lecture.projet);
@@ -377,7 +390,7 @@ function regarder(vus: Parameters<typeof veille.regarder>[0], commandes: readonl
   const amont = espace ? vus : [];
   veilleDeLAmont.regarder(amont, [COMMANDE_AMONT], demande);
   amonts.veiller(amont.map(({ nom }) => nom));
-  for (const redessine of faits.veiller(vus.map(({ nom }) => nom))) dire("faits", redessine);
+  for (const redessine of faits.veiller(vus.map(({ nom }) => nom))) direLesFaits(redessine);
   for (const bande of bandes.veiller(vus.filter(lisible).map(({ nom }) => nom))) { dernieresBandes.set(bande.projet, bande); dire("alertes", bande); }
   direLAccueil(accueil.veiller(vus.map(({ nom }) => nom)));
 }
@@ -825,7 +838,7 @@ function retenirLue(projet: string, ticket: unknown, lue: QuestionLue): Question
 }
 function redessinerRail(projet: string): void {
   const redessine = faits.redessiner(projet);
-  if (redessine !== undefined) dire("faits", redessine);
+  if (redessine !== undefined) direLesFaits(redessine);
 }
 // Une carte répondue attend le manager tant que la file la nomme : son issue est relue au plus toutes
 // les deux minutes — c'est là que se voit une autre question. Ce que la file ne nomme plus est lâché.

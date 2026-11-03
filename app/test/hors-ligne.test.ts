@@ -88,9 +88,12 @@ describe("les faits, hors ligne (#1818)", () => {
     assert.ok(gardee !== undefined && "tableau" in gardee);
     assert.equal(gardee.a, a(0));
     assert.equal(faits.adresse(PARADE, 14), "https://github.com/benomite/brigade/issues/14");
-    // Une vraie panne, elle, retire ce qui était lu, comme avant.
+    // Une vraie panne du tableau ne retire rien non plus (#2151) : GitHub tient encore ce qui était lu.
     faits.recevoir(illisible(2));
-    assert.equal(faits.redessiner(PARADE), undefined);
+    assert.equal(faits.attendre(mettreAPart(illisible(2))), undefined);
+    const toujours = faits.redessiner(PARADE);
+    assert.ok(toujours !== undefined && "tableau" in toujours);
+    assert.equal(faits.adresse(PARADE, 14), "https://github.com/benomite/brigade/issues/14");
   });
 
   test("ce qui est à venir ne dit pas « not read » hors ligne", () => {
