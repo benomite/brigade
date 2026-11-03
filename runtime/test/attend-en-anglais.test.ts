@@ -8,6 +8,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { decrireAttentes, direAttenteEn, type Attente } from "../src/attend.ts";
+import { carteDeLAttente } from "../src/carte-todo/cartes.ts";
 import { decrireEtat, lireEtat } from "../src/etat.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { motsFrancais, motsFrancaisDans, sansMotFrancais } from "./aides/glossaire.ts";
@@ -242,6 +243,11 @@ test("aucune ligne du bloc `awaiting`, de quelque sorte qu'elle soit, ne nomme u
   const dite = (quoi: Attente["quoi"]) => TOUTES.filter((attente) => attente.quoi === quoi).map(direAttenteEn);
   for (const ligne of dite("disjoncteur")) assert.match(ligne, /press the `Resume` button on the breaker line of TODO$/);
   for (const ligne of [...dite("pause"), ...dite("renommage"), ...dite("base")]) assert.match(ligne, /no app button for it yet/);
+  // L'abandon nomme les boutons de sa carte dans TODO, mot pour mot, racine comprise.
+  for (const attente of TOUTES) {
+    if (attente.quoi !== "abandon") continue;
+    for (const { texte } of carteDeLAttente(attente).choix) assert.ok(direAttenteEn(attente).includes(`\`${texte}\``), `#${attente.ticket} : ${texte}`);
+  }
 });
 
 test("la pause du renommage acceptée se dit en anglais, sur une seule ligne sous la tête, qui ne compte pas pour une décision", () => {

@@ -606,7 +606,7 @@ export function direAttenteEn(attente: Attente): string {
     case "carte":
       return direCarteEn(attente.carte);
     case "abandon":
-      return `taken off the rail by the kitchen without being served — ${enMinuscule(pourquoiDeLAbandonEn(attente).replace(/\.$/, ""))} — to decide: ${attente.root === null ? "set `fire` again" : `set \`fire\` again on #${attente.root}, it comes back with it`}; or take it in a dev session; or close the issue — answer with the buttons of its card in TODO: \`Put it back on the rail\`, \`I take it in a dev session\`, \`Close it\``;
+      return `taken off the rail by the kitchen without being served — ${enMinuscule(pourquoiDeLAbandonEn(attente).replace(/\.$/, ""))} — to decide: ${attente.root === null ? "set `fire` again" : `set \`fire\` again on #${attente.root}, it comes back with it`}; or take it in a dev session; or close the issue — answer with the buttons of its card in TODO: ${attente.root === null ? "`Put it back on the rail`" : `\`Put #${attente.root} back on the rail, and this ticket with it\``}, \`I take it in a dev session\`, \`Close it\``;
     case "fermeture":
       return direFermetureEn(attente.demande, attente.retenue);
     case "connexion":
