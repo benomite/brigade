@@ -50,6 +50,7 @@ function gesteDuTableau(ligne: LigneDeLaFile): string | null {
     case "ecartee":
       return `/brigade send-back #${ligne.ticket} [reason] · /brigade set-aside #${ligne.ticket}`;
     case "carte":
+    case "abandon":
       return `/brigade choose #${ligne.ticket} <choice number> · /brigade answer #${ligne.ticket} <answer>`;
     default:
       return null;

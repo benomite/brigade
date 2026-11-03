@@ -47,6 +47,11 @@
 // leur travail et ceux qui sont retenus, jusqu'à sa fin. Un renommage qui
 // échoue dans sa pause (pause/renommage.ts) y laisse une carte qui dit
 // pourquoi, jusqu'à ce que le chef l'ôte.
+// Un ticket que la cuisine a sorti du rail sans le servir y est (#2118) — la
+// pass l'a abandonné, il est sorti avec un ticket qu'elle abandonne, ou le
+// triage l'a retiré : sa carte dit pourquoi et les trois gestes, et elle n'en
+// sort qu'à la réponse du chef (abandon-au-chef.ts).
+import { abandonsAuChef, pourquoi as pourquoiDeLAbandon, pourquoiEn as pourquoiDeLAbandonEn, type Voie } from "./abandon-au-chef.ts";
 import type { Base } from "./base.ts";
 import { geste } from "./geste.ts";
 import { A_RELIRE, declarationsDeLaCause, DU_MANAGER, ENCORE_ROUGE, MERGE_REFUSE, NON_JUGEE, REDECOUPE, SANS_GRANT, testsInstablesDeLaCause, type VerdictDuSecondJuge } from "./events/pass.ts";
@@ -156,6 +161,10 @@ export type AttenteDeTicket = { ticket: number; title: string | null; since: str
   // Une carte typée entrée par la porte de TODO : sa sorte, sa question, ses
   // choix, ses captures (carte-todo.ts).
   | { quoi: "carte"; carte: CarteDeTodo }
+  // Un ticket que la cuisine a sorti du rail sans le servir : par quelle voie,
+  // la cause de ce qu'elle a abandonné, et la racine qu'il attend quand il
+  // est sorti avec elle (abandon-au-chef.ts).
+  | { quoi: "abandon"; voie: Voie; cause: string | null; root: number | null }
 );
 
 // La dernière version passée en service par la mise à jour de la station, et
@@ -224,6 +233,7 @@ export const QUI_ATTEND: Record<Attente["quoi"], { sorte: SorteDAttente; pourquo
   illisible: { sorte: "chef-gesture", pourquoi: "the manager cannot judge the issue as written: rewording it is the chef's, the manager judges it again when it changes" },
   question: { sorte: "product", pourquoi: "the manager's question on an epic, before cutting it up" },
   carte: { sorte: "product", pourquoi: "a typed card that passed the TODO gate: a product choice or a design validation" },
+  abandon: { sorte: "product", pourquoi: "the kitchen took the ticket off the rail without serving it: whether it is cooked again, by hand or not at all is the chef's choice" },
   connexion: { sorte: "chef-gesture", pourquoi: "a station's Max connection is missing: only the chef logs in" },
   session: { sorte: "chef-gesture", pourquoi: "the Max session is about to fall: only the chef logs in" },
   jeton: { sorte: "chef-gesture", pourquoi: "the long-lived Max token is due: only the chef remakes it" },
@@ -350,6 +360,11 @@ export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new 
 
   const cartes = cartesEnTodo(base).map(({ ticket, since, ...carte }): AttenteDeTicket => ({ ticket, title: tickets.get(ticket)?.title ?? null, since, quoi: "carte", carte }));
 
+  // Sorti du rail : tant qu'il y est encore, sa carte du rail parle pour lui.
+  const abandons = abandonsAuChef(base).flatMap(({ ticket, since, voie, cause, root, title }): AttenteDeTicket[] =>
+    tickets.has(ticket) ? [] : [{ ticket, title, since, quoi: "abandon", voie, cause, root }],
+  );
+
   // La pause du renommage attend le « oui » du chef ; acceptée, elle n'attend
   // plus personne (`pauseDeLaCuisine`).
   const enCours = pauseEnCours(base);
@@ -363,7 +378,7 @@ export function attentesDuChef(base: Base, rail: TicketRail[], maintenant = new 
 
   // Ce qui attend un tiers n'attend pas le chef, quoi qu'il attendait avant.
   const enWaiting = (attente: Attente) => attente.ticket !== null && tickets.get(attente.ticket)?.waitingFor != null;
-  return [...disjoncteur, ...pause, ...renommage, ...baseRouge, ...setup, ...aside, ...connexions, ...session, ...jeton, ...fermeture, ...livraisons, ...attentesDuManager(base, tickets), ...cartes]
+  return [...disjoncteur, ...pause, ...renommage, ...baseRouge, ...setup, ...aside, ...connexions, ...session, ...jeton, ...fermeture, ...livraisons, ...attentesDuManager(base, tickets), ...cartes, ...abandons]
     .filter((attente) => !enWaiting(attente))
     .sort((a, b) => a.since.localeCompare(b.since) || (a.ticket ?? 0) - (b.ticket ?? 0));
 }
@@ -501,6 +516,9 @@ function direSetupBloqueEn({ setup }: Extract<Attente, { quoi: "setup" }>): stri
   return `setup impossible: \`${SCRIPT_SETUP}\` fails twice identically (${setup.why}${finDuSetup(setup.output)})${vu} — to fix: the project's setup, then merge into the integration branch; ${reprise}`;
 }
 
+// Une phrase reprise au milieu d'une ligne.
+const enMinuscule = (phrase: string) => `${phrase.charAt(0).toLowerCase()}${phrase.slice(1)}`;
+
 // Ce qui attend, puis le geste du chef qui le débloque — ou qu'il n'y en a pas
 // de connu. En anglais : c'est la ligne du bloc `awaiting`.
 export function direAttenteEn(attente: Attente): string {
@@ -551,6 +569,8 @@ export function direAttenteEn(attente: Attente): string {
       return "manager's question before splitting the epic — to answer: on the issue, the manager reads it again and splits it; or close the issue";
     case "carte":
       return direCarteEn(attente.carte);
+    case "abandon":
+      return `taken off the rail by the kitchen without being served — ${enMinuscule(pourquoiDeLAbandonEn(attente).replace(/\.$/, ""))} — to decide: ${attente.root === null ? "set `fire` again" : `set \`fire\` again on #${attente.root}, it comes back with it`}; or take it in a dev session; or close the issue — \`${geste(`rail choose ${attente.ticket} <n>`)}\``;
     case "fermeture":
       return direDemandeDeFermetureEn(attente.demande, attente.retenue);
     case "connexion":
@@ -596,6 +616,8 @@ export function decisionDe(attente: AttenteDeTicket): Decision {
       return { quoi, motif: attente.epique ? "epic" : "issue", cause: null, pr: null };
     case "carte":
       return { quoi, motif: attente.carte.type, cause: attente.carte.question, pr: null };
+    case "abandon":
+      return { quoi, motif: attente.voie, cause: attente.cause, pr: null };
     default:
       return { quoi, motif: null, cause: null, pr: null };
   }
@@ -823,6 +845,8 @@ export function direAttente(attente: Attente): string {
       return "question du manager avant de découper l'épique — à répondre : sur l'issue, il la relit et la découpe ; ou fermer l'issue";
     case "carte":
       return direCarte(attente.carte);
+    case "abandon":
+      return `sorti du rail par la cuisine sans être servi — ${pourquoiDeLAbandon(attente)} — à trancher : ${attente.root === null ? "reposer `fire`" : `reposer \`fire\` sur #${attente.root}, il revient avec lui`} ; ou le prendre en session de dev ; ou fermer l'issue — \`${geste(`rail choose ${attente.ticket} <n>`)}\``;
     case "fermeture":
       return direDemandeDeFermeture(attente.demande, attente.retenue);
     case "connexion":

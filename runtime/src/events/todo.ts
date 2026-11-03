@@ -20,11 +20,12 @@ export type FaitTodo =
   // entered before cards carried one. `statement`: its one question.
   // `choices`: at least two, each one line, and what follows it — `resume`
   // (the kitchen takes the ticket up again with the answer), `merge` (the
-  // green delivery waiting is merged) or `drop` (the ticket leaves the rail).
+  // green delivery waiting is merged), `drop` (the ticket leaves the rail, or
+  // stays off it) or `close` (its issue is closed).
   // `captures`: the screens its ticket delivered, before and after — never
   // null on a `design` card, null on a `product` card whose ticket delivered
   // none.
-  | { type: "todo.entered"; payload: { kind: "product" | "design"; summary?: string; statement: string; choices: Array<{ text: string; then: "resume" | "merge" | "drop" }>; captures: Captures | null } }
+  | { type: "todo.entered"; payload: { kind: "product" | "design"; summary?: string; statement: string; choices: Array<{ text: string; then: "resume" | "merge" | "drop" | "close" }>; captures: Captures | null } }
   // The card was refused at the gate: it is not in TODO, and goes back to
   // the triage (it is held). `reason`: why, in plain words.
   | { type: "todo.refused"; payload: Proposed & { reason: string } }
@@ -48,4 +49,4 @@ export type FaitTodo =
   // The chef answered the card in TODO (`reponse-carte.ts`): by one of its
   // choices (`choice`, its rank from 1) or in free text (`choice` null).
   // `answer`: what was written on the issue. `then`: what followed.
-  | { type: "todo.answered"; payload: { choice: number | null; answer: string; then: "resume" | "merge" | "drop" } };
+  | { type: "todo.answered"; payload: { choice: number | null; answer: string; then: "resume" | "merge" | "drop" | "close" } };

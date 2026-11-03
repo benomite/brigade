@@ -272,7 +272,9 @@ once per ticket:
    kitchen posts the reason on the issue (« Cuisine — ticket abandonné »), then removes `fire`
    (`drop`, `reason`). The issue stays open; putting `fire` back brings the ticket back. Tickets that
    await it leave the rail with it and follow it back ("A ticket can wait for another" in
-   [`journal-et-rail.md`](journal-et-rail.md)).
+   [`journal-et-rail.md`](journal-et-rail.md)). Off the rail, the ticket — and each one that left with
+   it — waits in the chef's TODO with its card until the chef answers (#2118, "A ticket the kitchen
+   takes off the rail without serving it" in [`manager.md`](manager.md)).
 
 Steps 1-5 use up none of the pass's send-backs. A ticket in WAITING, or set aside for a capability no
 station provides, keeps its wait. The ticket's line on the rail says what the kitchen does with it,

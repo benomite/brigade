@@ -8,6 +8,7 @@
 // `facts` rend (etat.ts, `faits`), et la ligne de chaque ticket sous la ligne
 // `rail` de `status`, avec sa priorité.
 import { direPauseEn, direSansGrantEn, decisionDe, nommerEn, direAttenteEn, TETE_AWAITING, FIN_AWAITING, type Attente } from "../../attend.ts";
+import { carteDeLAttente } from "../../carte-todo/cartes.ts";
 import type { CarteDeCorrection } from "../../correctif/cartes.ts";
 import { AGE_MAX_SAUVEGARDE_MS, coince, decrireEtat, dureeEn, faits, type EtatCuisine, type Faits } from "../../etat.ts";
 import type { Repartition } from "../../limite-github.ts";
@@ -47,9 +48,19 @@ const DECOMPTE_SEUL = new Set(["rail"]);
 const TITRE = 11;
 const DERNIERS_EVENEMENTS = "latest events";
 
+// La carte que le tableau numérote sous la ligne : celle de la porte, ou celle
+// d'un ticket que la cuisine a sortie du rail (#2118) — le chef y répond par
+// `/brigade choose`.
+function carteDuTableau(attente: Attente): LigneDeLaFile["carte"] {
+  if (attente.quoi === "carte") return { type: attente.carte.type, question: attente.carte.question, choix: attente.carte.choix.map(({ texte, suite }) => ({ texte, suite })) };
+  if (attente.quoi !== "abandon") return null;
+  const { type, question, choix } = carteDeLAttente(attente);
+  return question === null ? null : { type, question, choix: choix.map(({ texte, suite }) => ({ texte, suite })) };
+}
+
 // La ligne de la file d'une attente.
 function ligneDeLaFile(attente: Attente): LigneDeLaFile {
-  const carte = attente.quoi === "carte" ? { type: attente.carte.type, question: attente.carte.question, choix: attente.carte.choix.map(({ texte, suite }) => ({ texte, suite })) } : null;
+  const carte = carteDuTableau(attente);
   return {
     nom: nommerEn(attente),
     ticket: attente.ticket,

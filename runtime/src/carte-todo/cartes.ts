@@ -19,12 +19,17 @@
 // - `question`, la question du manager avant de découper une épique : la
 //   découper comme il l'entend, ou en faire un seul ticket ;
 // - `carte`, entrée par la porte de TODO (carte-todo.ts) : la sienne, telle
-//   qu'elle a été admise.
+//   qu'elle a été admise ;
+// - `abandon`, un ticket que la cuisine a sorti du rail sans le servir
+//   (abandon-au-chef.ts, #2118) : le remettre sur le rail — sorti avec un
+//   ticket abandonné, c'est celui-là qui y revient, et lui avec —, le prendre
+//   en session de dev, ou fermer son issue.
 //
 // Aucune carte ne demande au chef de remettre un ticket sur le rail ou de l'en
 // sortir quand c'est la cuisine qui l'a mis de côté (#1834) : un tel ticket
 // n'attend pas le chef, il reste sur le rail avec sa raison et repart seul
-// quand elle tombe (mise-de-cote.ts, `MISES_DE_COTE`).
+// quand elle tombe (mise-de-cote.ts, `MISES_DE_COTE`). Seul celui qu'elle a
+// sorti du rail attend le chef.
 //
 // Rien n'y est complété : chaque carte passe la règle (`carteValide`), et une
 // carte qui ne la tient pas lève au lieu d'être montrée. Les textes n'y portent
@@ -33,6 +38,7 @@
 // seule exception : ce que le second juge écrit pour la carte d'une livraison à
 // relire (`change`), qui n'y entre que s'il en tient la règle — sinon, des mots
 // fixes le remplacent.
+import { pourquoiEn as pourquoiDeLAbandon } from "../abandon-au-chef.ts";
 import { attentesDuChef, type Attente, type AttenteDeTicket } from "../attend.ts";
 import type { Base } from "../base.ts";
 import { A_RELIRE, declarationsDeLaCause, DU_MANAGER, ENCORE_ROUGE, MERGE_REFUSE, NON_JUGEE, SANS_GRANT, testsInstablesDeLaCause } from "../events/pass.ts";
@@ -174,6 +180,16 @@ function proposition(attente: AttenteDeTicket) {
         resume: `The manager asked a question on the epic #${ticket} before splitting it. It splits the epic once your answer is on the issue.`,
         question: `How does the manager split #${ticket}?`,
         choix: [choix("Split it as you think best", "resume"), choix("Do not split it: make it a single ticket", "resume")],
+      };
+    case "abandon":
+      return {
+        resume: `The kitchen took #${ticket} off the rail without serving it. ${pourquoiDeLAbandon(attente)}`,
+        question: `What becomes of #${ticket}?`,
+        choix: [
+          attente.root === null ? choix("Put it back on the rail", "resume") : choix(`Put #${attente.root} back on the rail, and this ticket with it`, "resume"),
+          choix("I take it in a dev session", "drop"),
+          choix("Close it", "close"),
+        ],
       };
     case "carte": {
       const { resume, question, choix: choisis, captures } = attente.carte;

@@ -11,7 +11,10 @@
 //   remontée avec sa PR — l'est, comme par son geste `rail merge`
 //   (geste-ticket.ts) — la pass le constate et sert le ticket ;
 // - `drop` : le ticket sort du rail, comme par son geste `rail drop`
-//   (geste-ticket.ts) — son label `fire` est retiré ;
+//   (geste-ticket.ts) — son label `fire` est retiré ; un ticket que la
+//   cuisine en a déjà sorti en reste dehors, et le chef le prend à la main ;
+// - `close` : son issue est fermée, il n'est pas cuisiné — sauf pendant qu'un
+//   cook y travaille ou que la pass le juge ;
 // - `resume` (et toute réponse libre) : la cuisine reprend le ticket avec la
 //   réponse. Une livraison qui attend le chef — verte, ou remontée — repart
 //   chez un cook, qui lit la réponse à la place des findings ; un ticket 86
@@ -19,17 +22,21 @@
 //   rail ; une issue retenue par `blocked-on-human`, ou écartée par le manager
 //   sous `question` ou `decision`, perd ce label, et le manager la rejuge, la
 //   réponse sur l'issue ; un ticket en attente sur le rail y reste, et son
-//   cook lira l'issue.
+//   cook lira l'issue ; un ticket que la cuisine a sorti du rail sans le
+//   servir (abandon-au-chef.ts) y revient, `fire` reposé — sorti avec un
+//   ticket abandonné, c'est sur celui-là que `fire` revient, et il le suit.
 //
 // L'ordre : tout ce qui peut refuser est vu avant d'écrire ; puis la réponse
 // part sur l'issue — si GitHub la refuse, rien n'a changé — ; puis le journal
 // (`todo.answered`, `todo.left` pour une carte de la porte, et ce qui fait
 // avancer le ticket), en une transaction ; puis ce qui reste à faire sur
 // GitHub.
+import { abandonsEnCours } from "./abandon-en-chaine.ts";
+import type { AttenteDeTicket } from "./attend.ts";
 import { cartesEnTodo, type Suite } from "./carte-todo.ts";
 import { carteDuTicket, type CarteDuTicket } from "./carte-todo/cartes.ts";
 import { mergerLaLivraison, retirerDuRail, type Resultat } from "./geste-ticket.ts";
-import type { GitHub } from "./github.ts";
+import { LABEL, type GitHub } from "./github.ts";
 import type { Journal } from "./journal.ts";
 import { EN_PAUSE_POUR_LE_RENOMMAGE, mergeRetenu } from "./pause/pause.ts";
 import { passDuTicket } from "./projections/pass.ts";
@@ -68,7 +75,21 @@ type Avancee =
   | { comment: "rail" }
   | { comment: "label" }
   | { comment: "rien" }
+  | { comment: "feu"; sur: number }
+  | { comment: "dehors" }
+  | { comment: "fermeture" }
   | { refus: string };
+
+// Un ticket que la cuisine a sorti du rail : remis, il y revient — sorti avec
+// une racine qu'elle abandonne encore, c'est elle qui y revient, et il la suit
+// (abandon-en-chaine.ts) ; laissé, il reste dehors, au chef.
+function avanceeDeLAbandon(base: Journal["base"], ticket: number, attente: Extract<AttenteDeTicket, { quoi: "abandon" }>, suite: Suite): Avancee {
+  if (suite === "merge") return { refus: `this choice merges the delivery of #${ticket}, but no green delivery of it waits to be merged` };
+  if (suite === "drop") return { comment: "dehors" };
+  if (suite === "close") return { comment: "fermeture" };
+  const { root } = attente;
+  return { comment: "feu", sur: root !== null && abandonsEnCours(base).get(root)?.root === root ? root : ticket };
+}
 
 export async function repondreALaCarte(journal: Journal, github: GitHub, projet: string, ticket: number, reponse: Reponse): Promise<Resultat> {
   const { base } = journal;
@@ -92,6 +113,7 @@ export async function repondreALaCarte(journal: Journal, github: GitHub, projet:
 
   const sur = ticketDuRail(base, ticket);
   const avancee = ((): Avancee => {
+    if (attente.quoi === "abandon" && !sur) return avanceeDeLAbandon(base, ticket, attente, suite);
     const livraison = passDuTicket(base, ticket);
     if (suite === "merge") {
       const pause = mergeRetenu(base, ticket);
@@ -104,6 +126,11 @@ export async function repondreALaCarte(journal: Journal, github: GitHub, projet:
     if (suite === "drop") {
       if (!sur) return { refus: `this choice takes #${ticket} off the rail, but it is not on the rail` };
       return { comment: "retrait" };
+    }
+    if (suite === "close") {
+      if (sur?.state === "taken") return { refus: `a cook is working on #${ticket}: answer once it has delivered` };
+      if (sur?.state === "pass" && livraison?.phase !== "held") return { refus: `the pass is judging the delivery of #${ticket}: answer once it is done` };
+      return { comment: "fermeture" };
     }
     // Une livraison qui attend le chef : verte et retenue par la pass, ou
     // remontée et mise de côté.
@@ -132,6 +159,11 @@ export async function repondreALaCarte(journal: Journal, github: GitHub, projet:
   const aLever = avancee.comment !== "label" ? null : attente.quoi === "ecartee" && attente.reason !== "blocked-on-human" ? attente.reason : RETENUE;
   const leve = aLever === null ? null : ((await github.issue(ticket))?.labels.includes(aLever) ?? false) ? aLever : null;
 
+  // Une racine fermée ne revient pas sur le rail : rien n'y ramènerait ce ticket.
+  if (avancee.comment === "feu" && avancee.sur !== ticket && (await github.issue(avancee.sur))?.state !== "open") {
+    return refuse(`#${ticket} left the rail with #${avancee.sur}, which it waits for, and #${avancee.sur} is closed: take #${ticket} in a dev session, or close it`);
+  }
+
   await github.commenter(ticket, direLaReponse(carte, texte, rang));
 
   if (avancee.comment === "merge") {
@@ -141,6 +173,15 @@ export async function repondreALaCarte(journal: Journal, github: GitHub, projet:
   if (avancee.comment === "retrait") {
     const retrait = await retirerDuRail(journal, github, projet, ticket);
     if (!retrait.done) return { done: false, reason: `your answer is on the issue, but the ticket did not leave the rail: ${retrait.reason}`, price: "your answer is written on the issue; the card stays in TODO" };
+  }
+  if (avancee.comment === "feu" || avancee.comment === "fermeture") {
+    try {
+      if (avancee.comment === "feu") await github.labelliser(avancee.sur, [LABEL]);
+      else await github.fermerIssue(ticket);
+    } catch (erreur) {
+      const quoi = avancee.comment === "feu" ? `\`${LABEL}\` was not set again on #${avancee.sur}` : `the issue of #${ticket} was not closed`;
+      return { done: false, reason: `your answer is on the issue, but ${quoi}: ${erreur instanceof Error ? erreur.message : String(erreur)}`, price: "your answer is written on the issue; the card stays in TODO" };
+    }
   }
 
   const deLaPorte = cartesEnTodo(base).some((autre) => autre.ticket === ticket);
@@ -173,5 +214,13 @@ export async function repondreALaCarte(journal: Journal, github: GitHub, projet:
         : { done: true, price: `${ecrite}; the issue is not on the rail, and nothing else moves` };
     case "rien":
       return { done: true, price: `${ecrite}; the ticket is queued on the rail, and its cook reads your answer on the issue` };
+    case "feu":
+      return avancee.sur === ticket
+        ? { done: true, price: `${ecrite}, and \`${LABEL}\` is set on it again: the ticket comes back on the rail at the next poll, and a cook takes it on the project's quota` }
+        : { done: true, price: `${ecrite}, and \`${LABEL}\` is set again on #${avancee.sur}, which it waits for: #${avancee.sur} comes back on the rail at the next poll, this ticket with it, and cooks take them on the project's quota` };
+    case "dehors":
+      return { done: true, price: `${ecrite}; the ticket stays off the rail, its issue open: no cook takes it, it is yours to work on by hand` };
+    case "fermeture":
+      return { done: true, price: `${ecrite}, and its issue is closed: the ticket is not cooked. Reopen the issue and set \`${LABEL}\` to bring it back` };
   }
 }

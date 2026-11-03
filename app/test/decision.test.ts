@@ -48,10 +48,13 @@ describe("l'attendu d'une décision", () => {
     // Une carte de TODO : sa question et ses choix sont sur la carte même, aucun geste n'est ajouté.
     assert.deepEqual(attenduDe(decision("carte", { motif: "design" })), { phrase: "Validate its screen: answer its question.", gestes: [] });
     assert.deepEqual(attenduDe(decision("carte", { motif: "product" })), { phrase: "A product choice is yours: answer its question.", gestes: [] });
+    // Sorti du rail par la cuisine : ses trois gestes sont les choix de sa carte (#2118).
+    assert.deepEqual(attenduDe(decision("abandon", { motif: "pass", cause: "manager-escalated" })).gestes, []);
+    assert.match(attenduDe(decision("abandon", { motif: "chain" })).phrase, /^The kitchen took it off the rail without serving it: /);
   });
 
   test("aucune phrase ne cite une commande, un label entre backticks ni la ligne de la file : une phrase, en clair", () => {
-    const sortes = ["merge", "remontee", "fermee", "86", "capacite", "absente", "bloque", "ecartee", "illisible", "question", "repris", "carte"];
+    const sortes = ["merge", "remontee", "fermee", "86", "capacite", "absente", "bloque", "ecartee", "illisible", "question", "repris", "carte", "abandon"];
     const motifs = [null, "no-grant", "review-required", "merge-refused", "still-red", "unjudged", "manager-escalated", "no-calibration", "unreadable-card", "refused", "question", "decision", "blocked-on-human", "epic", "issue", "product", "design"];
     for (const quoi of sortes) {
       for (const motif of motifs) {

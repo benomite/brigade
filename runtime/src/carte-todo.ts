@@ -50,7 +50,8 @@ export type TypePropose = (typeof TYPES_PROPOSES)[number];
 // Ce qui suit la réponse du chef (reponse-carte.ts) : les gestes de la forme
 // unique. `resume` : la cuisine reprend le ticket avec sa réponse. `merge` : la
 // livraison verte qui attend est mergée — valider un écran, garder une voie
-// déjà livrée. `drop` : le ticket sort du rail.
+// déjà livrée. `drop` : le ticket sort du rail. `close` : son issue est
+// fermée.
 export const SUITES = GESTES;
 export type Suite = (typeof SUITES)[number];
 

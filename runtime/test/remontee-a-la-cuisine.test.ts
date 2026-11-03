@@ -35,7 +35,8 @@ const SRC = join(import.meta.dirname, "..", "src");
 test("chaque sorte d'entrée dans la file du chef est un choix de produit ou un geste que lui seul peut faire, et dit pourquoi", () => {
   // La liste entière : une sorte ajoutée doit être lue ici, et classée. Un
   // ticket que la cuisine a mis de côté, ou qui en attend un autre, n'y a pas
-  // de sorte : il attend sur le rail, pas le chef (#1834).
+  // de sorte : il attend sur le rail, pas le chef (#1834). Celui qu'elle a
+  // sorti du rail sans le servir en a une (#2118) : son sort est au chef.
   assert.deepEqual(
     Object.fromEntries(Object.entries(QUI_ATTEND).map(([quoi, { sorte }]) => [quoi, sorte])),
     {
@@ -46,6 +47,7 @@ test("chaque sorte d'entrée dans la file du chef est un choix de produit ou un 
       illisible: "chef-gesture",
       question: "product",
       carte: "product",
+      abandon: "product",
       connexion: "chef-gesture",
       session: "chef-gesture",
       jeton: "chef-gesture",

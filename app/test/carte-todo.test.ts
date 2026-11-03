@@ -104,6 +104,25 @@ describe("la carte de TODO, lue dans `facts`", () => {
     assert.ok(!("captures" in carteDeTodo(PRODUIT)));
   });
 
+  test("un ticket que la cuisine a sorti du rail (#2118) : « dev session » le laisse dehors, « Close it » ferme son issue — aucun prix ne dit qu'un cook repart", () => {
+    const sortie = carteDeTodo({
+      type: "abandon",
+      resume: "The kitchen took #2056 off the rail without serving it. Its delivery stayed blocked (manager-escalated) after everything the kitchen could try, up to the highest calibration it sets.",
+      question: "What becomes of #2056?",
+      choix: [
+        { texte: "Put it back on the rail", suite: "resume" },
+        { texte: "I take it in a dev session", suite: "drop" },
+        { texte: "Close it", suite: "close" },
+      ],
+      captures: null,
+    });
+    const [remettre, garder, fermer] = sortie.choix.map(({ prix }) => prix);
+    assert.equal(remettre, PRIX_DU_TEXTE);
+    assert.match(garder ?? "", /the ticket is off the rail: no cook takes it, its issue stays open$/);
+    assert.match(fermer ?? "", /its issue is closed: the ticket is not cooked$/);
+    for (const prix of [garder, fermer]) assert.doesNotMatch(prix ?? "", /takes the ticket up again|cook may be launched/);
+  });
+
   test("le rail porte la carte sur le bon de TODO, et le process principal en garde la carte et les captures", () => {
     const faits = tenirFaits();
     const recue = faits.recevoir({ projet: "parade", demande: 0, a: FAITS.lu, sorties: [{ commande: "facts", texte: JSON.stringify(FAITS) }] });
