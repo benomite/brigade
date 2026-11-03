@@ -1471,11 +1471,16 @@ export function brancherStation<R extends RuntimeAvecRail & GardeFous>(runtime: 
           reprise === null
             ? "Le cook suivant repart de la base."
             : `C'était un renvoi : la branche \`${branche}\` est ramenée à la livraison que la pass avait refusée — ce que ce cook y avait ajouté est perdu —, et le cook suivant en repart.`;
+        // Le motif d'un push refusé est ce que git a dit, entier : sur une ligne il
+        // se lit dans l'en-tête, sinon il va dans un bloc de code sous elle.
+        const sortieDuPush = raison.startsWith("push: ") && (raison.includes("\n") || raison.length > 200) ? raison.slice("push: ".length) : null;
+        const enTete = sortieDuPush === null ? raison : "push";
         rapporter("failed", raison, null);
         await commenter(
           numero,
           [
-            entete(station, `échoué (${raison})`, calibrage, fin),
+            entete(station, `échoué (${enTete})`, calibrage, fin),
+            ...(sortieDuPush === null ? [] : [`Ce que git a dit :\n\n${CLOTURE_DE_SORTIE}\n${sortieDuPush.replaceAll(CLOTURE_DE_SORTIE, "'''")}\n${CLOTURE_DE_SORTIE}`]),
             ...(bailTombe === null ? [] : [bailTombe]),
             ...(sansLivrable
               ? [`Aucun commit, et ${direDefaut(rendu.defaut)} dans le dernier message du cook : il n'a pas de livrable. Un message n'en est pas un, quelle que soit sa longueur — seul ce qui est délimité est publié et relu.`]
