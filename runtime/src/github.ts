@@ -405,6 +405,9 @@ export function ouvrirGitHub(options: OptionsGitHub): GitHub {
   // « inchangé ». Non confirmée — le consommateur a encore à faire sur elle —,
   // la liste gardée est rendue : le travail reste à refaire, sans relecture
   // pleine. Une page sans ETag laisse l'empreinte inconnue : jamais « inchangé ».
+  // Sa dernière page pleine se relit sans condition, comme celle de toute
+  // liste : une issue ancienne rouverte, ou qui prend le label, s'y range à sa
+  // date de création, et peut tomber sur une page que son ETag ne dit pas.
   const sonder = async <I extends Issue>(chemin: string, lireIssue: (brute: IssueBrute) => I): Promise<Sondage<I>> => {
     const pages = await lireLaListe(chemin);
     const etagsDesPages = pages.map((page) => page.entetes.get("etag") ?? "");
