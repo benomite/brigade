@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ask"
+  short_description: "Faire le point sur un ticket"
+  default_prompt: "Utilise $ask avec un numéro de ticket et, si besoin, une question."
