@@ -20,6 +20,17 @@ a single counter, **in launch order**: failures among those launched **after the
 since your last "resume". A manager relaunch counts as a success only once judged green. The caps
 stay **per cook**.
 
+### The breaker on GitHub
+
+An open breaker is also **an issue of the project's repository**, labeled `brigade:breaker-open`
+(`runtime/src/breaker-issue.ts`): its body names the failing ticket, its exit code and the time the
+breaker opened. An issue already open for this kitchen is reused, never doubled — its body carries
+`<!-- brigade:breaker-open project=<project> -->`. On "resume", the issue receives a comment saying
+the kitchen is resumed, and is closed. The label is created if the repository lacks it. Nothing is
+added to the log: the runtime reads the breaker at every wake-up and publishes only what changed —
+at startup it reads GitHub once, so a breaker closed while it was down still closes its issue. A
+failed publication is said once and retried at the next tick.
+
 ### See and command
 
 ```bash

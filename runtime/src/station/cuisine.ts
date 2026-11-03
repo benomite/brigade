@@ -9,6 +9,7 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { brancherAlerteUrgence } from "../alerte-urgence.ts";
+import { brancherIssueDuDisjoncteur, clientGitHubDuDisjoncteur } from "../breaker-issue.ts";
 import { avecRail, configRail } from "../alimenter.ts";
 import { configArbitrage, joindreArbitre } from "../arbitrage.ts";
 import { leconsDeLEtageCommun } from "../commun/installation.ts";
@@ -215,6 +216,8 @@ export function ouvrirCuisine(envDuProjet: Record<string, string | undefined>, o
     // station ne porte aucun projet : chaque appel est compté au sien.
     const roles = identites;
     const sousLeManager = roles ? { jeton: roles.jeton("manager").frais, compte: "manager" } : {};
+    // Le disjoncteur ouvert se dit aussi sur GitHub, par une issue labellisée (breaker-issue.ts).
+    brancherIssueDuDisjoncteur(connectee, { client: clientGitHubDuDisjoncteur({ depot: rail.depot, bin: rail.gh, projet, ...sousLeManager }), avertir: dire });
     // Seule la cuisine de la station qui sert le projet écrit son tableau (board-single-writer.ts).
     const tableau = unSeulEcrivainSurGitHub(clientGitHubDuTableau({ depot: rail.depot, bin: rail.gh, projet, ...sousLeManager }), { depot: rail.depot, gh: rail.gh, env: envProjet });
     const clientDesGestes = clientGitHubDesGestes({ depot: rail.depot, bin: rail.gh, projet, ...sousLeManager });

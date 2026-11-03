@@ -2,6 +2,7 @@
 // Tout vient de l'environnement — aucun chemin d'état, aucun projet par défaut.
 import { brancherAlerteUrgence } from "./alerte-urgence.ts";
 import { assurerLApp, cheminDeLApp, direLApp } from "./app-par-defaut.ts";
+import { brancherIssueDuDisjoncteur, clientGitHubDuDisjoncteur } from "./breaker-issue.ts";
 import { brancherBrigadeGithub, priseDeLaStation, stationDuDepot } from "./brigade-github.ts";
 import { avecRail, configRail } from "./alimenter.ts";
 import { configArbitrage, joindreArbitre } from "./arbitrage.ts";
@@ -258,6 +259,8 @@ try {
   // L'alerte d'urgence ne lance rien : elle écrit ce que le runtime a dit au
   // chef, une fois, puis un rappel espacé.
   const alertee = brancherAlerteUrgence(datee);
+  // Le disjoncteur ouvert se dit aussi sur GitHub, par une issue labellisée (breaker-issue.ts).
+  brancherIssueDuDisjoncteur(alertee, { client: clientGitHubDuDisjoncteur({ depot: rail.depot, bin: rail.gh, ...(identites ? { jeton: identites.jeton("manager").frais, compte: "manager" } : {}) }) });
   // Le tableau de la cuisine ne lance rien non plus : il publie, dans le dépôt
   // du projet, ce que `status` dit — sous l'identité du manager, s'il en a une.
   // Il n'écrit que le tableau d'un projet que cette station sert (board-single-writer.ts).
