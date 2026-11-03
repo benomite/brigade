@@ -58,6 +58,7 @@
 2.7	test/grant-cli.test.ts
 2.7	test/superviseur.test.ts
 2.7	test/appairage/stations-du-chef.test.ts
+2.7	test/station/cuisine-github-seul.test.ts
 2.3	test/bascule/bascule.test.ts
 2.3	test/cuisson-de-bout-en-bout.test.ts
 2.3	test/enregistrement-station/stations-du-compte.test.ts
@@ -102,8 +103,11 @@
 1.6	test/renouvellement.test.ts
 1.6	test/station-distante.test.ts
 1.6	test/station-ensemble.test.ts
+1.6	test/abandon-au-chef.test.ts
 1.5	test/projets-station/station.test.ts
 1.5	test/station/atelier.test.ts
+1.5	test/board-single-writer.test.ts
+1.5	test/breaker-resume-github.test.ts
 1.4	test/appairage/canal.test.ts
 1.4	test/tableau/publication/publier.test.ts
 1.4	test/budget-des-gates.test.ts
@@ -128,6 +132,7 @@
 1.2	test/station/station.test.ts
 1.2	test/stations.test.ts
 1.2	test/tableau/gestes/sans-ssh.test.ts
+1.2	test/breaker-issue.test.ts
 1.1	test/capacites-en-cuisine.test.ts
 1.1	test/correctif/proposer.test.ts
 1.1	test/cout-des-gates.test.ts
@@ -143,6 +148,8 @@
 1.0	test/reglages-projet/reglages.test.ts
 1.0	test/reprise.test.ts
 1.0	test/tirer-par-github/station-par-github.test.ts
+1.0	test/brigade-github.test.ts
+1.0	test/github-etat/prise.test.ts
 0.9	test/capacite-libre/capacite-libre.test.ts
 0.9	test/enregistrement-station/enregistrer.test.ts
 0.9	test/identites.test.ts
@@ -164,6 +171,7 @@
 0.8	test/valeurs-a-donner.test.ts
 0.8	test/zone-du-86.test.ts
 0.8	test/installation/clone/clone.test.ts
+0.8	test/garde-duree/garde-duree.test.ts
 0.6	test/projets-station/selection.test.ts
 0.6	test/second/lancement.test.ts
 0.6	test/gestes-sans-retenue.test.ts
@@ -184,6 +192,7 @@
 0.5	test/station/portes.test.ts
 0.5	test/test-bloque.test.ts
 0.5	test/urgence.test.ts
+0.5	test/ci-duration.test.ts
 0.4	test/abandon-en-chaine.test.ts
 0.4	test/activite-cuisine/cadence.test.ts
 0.4	test/alerte-urgence.test.ts
