@@ -411,6 +411,22 @@ test("a delivery the review refuses goes back to a cook with the review's reason
   assert.equal(faux.mergee(32)?.mergeePar, "A");
 });
 
+test("a delivery that changes what judges it is never merged on the review alone: it waits for the chef, said once (#2209)", async () => {
+  const faux = new FauxGitHub();
+  faux.feu(33);
+  const a = faux.station("A");
+  await a.tour();
+  await a.calme();
+  const pr = faux.prs.find((p) => p.issue === 33);
+  assert.ok(pr);
+  pr.fichiers = [".github/workflows/tests.yml", "runtime/src/x.ts"];
+  for (let i = 0; i < 5; i += 1) await a.tour();
+  assert.equal(faux.mergee(33), undefined);
+  assert.ok(faux.ticket(33).labels.has("blocked-on-human"));
+  const dits = (faux.commentaires.get(33) ?? []).filter((c) => /changes what judges it \(`\.github\/workflows\/tests\.yml`\)/.test(c.body));
+  assert.equal(dits.length, 1);
+});
+
 test("WAITING, off-kitchen and uncalibrated tickets are not taken; with the base red, nothing in pass is reviewed or merged", async () => {
   const faux = new FauxGitHub();
   faux.feu(7, [...CALIBRE, "waiting"]);

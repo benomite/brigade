@@ -136,6 +136,11 @@ export type StationGitHub = {
 
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
+// Ce qui juge une livraison : une PR qui y touche attend le chef (`pass.ts`).
+const JUGES = [".claude/brigade/", ".github/workflows/"];
+// Le label d'un ticket qui attend un geste du chef.
+export const A_LA_MAIN = "blocked-on-human";
+
 // Combien de fois une livraison repart au cook avant de sortir de la cuisine.
 export const RENVOIS_MAX = 2;
 const MARQUE_DE_RENVOI = "<!-- brigade:renvoi";
@@ -200,6 +205,8 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     const etatBase = etatDeLaBase(await github.checksDeLaBase());
     const tickets = (await github.fires()).filter((ticket) => !ticket.labels.includes(HORS_CUISINE));
     const libres: TicketLu[] = [];
+    // Les PR ouvertes, lues au premier besoin, une fois par tour.
+    let ouvertes: Awaited<ReturnType<GitHubDuTour["prsOuvertes"]>> | null = null;
     for (const ticket of tickets) {
       const enPass = ticket.labels.includes(LABEL_IN_PASS);
       const pr = enPass ? await github.prDuTicket(ticket.number) : null;
@@ -207,6 +214,19 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
       // N'importe quelle station relit et merge : GitHub refuse un merge sur
       // une base qui a bougé, et le second de deux merges.
       if (etat === "pass" && pr !== null) {
+        // Une livraison qui touche à ce qui la juge (gates, CI, réglages) ne se
+        // merge pas sur le seul verdict du reviewer : un cook pourrait s'y rendre
+        // vert seul. Comme sur l'ancien chemin, elle attend le chef (#2209).
+        ouvertes ??= await github.prsOuvertes();
+        const sienne = ouvertes.find((ouverte) => ouverte.branche === brancheDuTicket(ticket.number));
+        const juges = sienne?.fichiers.filter((fichier) => JUGES.some((juge) => fichier.startsWith(juge))) ?? [];
+        if (juges.length > 0) {
+          if (!ticket.labels.includes(A_LA_MAIN)) {
+            await github.commenter(ticket.number, `Station \`${nom}\`: this delivery changes what judges it (${juges.map((f) => `\`${f}\``).join(", ")}), so it is not merged on the review alone. Review it and merge it by hand: PR #${pr.number}.`);
+            await github.labelliser(ticket.number, [A_LA_MAIN]);
+          }
+          continue;
+        }
         try {
           const rendu = await relire(pr, { github, station: nom, juger: (lue) => juger(ticket, lue) });
           const fusion = await fusionner(pr, github);
@@ -236,8 +256,6 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
         break;
       }
     }
-    // Les PR ouvertes, lues au premier ticket qui a une zone, une fois par tour.
-    let ouvertes: Awaited<ReturnType<GitHubDuTour["prsOuvertes"]>> | null = null;
     // Une zone tenue : un de ses chemins en recoupe un que change une PR
     // ouverte qui n'est pas celle du ticket.
     const tenue = async (ticket: TicketLu): Promise<boolean> => {
