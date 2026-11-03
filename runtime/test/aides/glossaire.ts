@@ -30,8 +30,16 @@ const cellules = (ligne: string) =>
     .map((cellule) => cellule.trim());
 const FLECHE = /`([^`]+)`\s*→\s*`([^`]+)`/g;
 
-// Les mots français du glossaire, sans doublon, du plus long au plus court.
+// Les mots français du glossaire, sans doublon, du plus long au plus court. Le glossaire est relu à chaque
+// appel ; il n'est relu en mots que s'il a changé.
+const dejaLus = new Map<string, string[]>();
 export function motsFrancais(texte = readFileSync(GLOSSAIRE, "utf8")): string[] {
+  const lus = dejaLus.get(texte) ?? lireLesMots(texte);
+  dejaLus.set(texte, lus);
+  return lus;
+}
+
+function lireLesMots(texte: string): string[] {
   const francais = new Set<string>();
   const anglais = new Set<string>();
   // La liste des mots déjà anglais, sur plusieurs lignes : de son titre à « are kept ».
@@ -64,11 +72,21 @@ const echapper = (terme: string) => terme.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 const motifDe = (terme: string) => new RegExp(`(?<![\\p{L}\\p{N}_])${echapper(terme)}(?![\\p{L}\\p{N}_])`, "iu");
 
 // Ce que les lignes portent de français : le mot, et la ligne où il est.
+const motifsCompiles = new WeakMap<readonly string[], Array<{ mot: string; minuscule: string; motif: RegExp }>>();
+const motifsDe = (mots: readonly string[]) => {
+  const motifs = motifsCompiles.get(mots) ?? mots.map((mot) => ({ mot, minuscule: mot.toLowerCase(), motif: motifDe(mot) }));
+  motifsCompiles.set(mots, motifs);
+  return motifs;
+};
+
+// Le motif d'un mot ne se joue que sur une ligne qui le contient, casse mise à part : la recherche d'un
+// mot entier en Unicode coûte cent fois plus que celle d'une sous-chaîne, et la plupart des lignes n'en ont aucun.
 export function motsFrancaisDans(lignes: readonly string[], mots = motsFrancais()): Array<{ mot: string; ligne: string }> {
-  const motifs = mots.map((mot) => ({ mot, motif: motifDe(mot) }));
+  const motifs = motifsDe(mots);
   return lignes.flatMap((ligne) => {
     const lue = ligne.replace(/`[^`]*`/g, " ");
-    return motifs.filter(({ motif }) => motif.test(lue)).map(({ mot }) => ({ mot, ligne }));
+    const enMinuscules = lue.toLowerCase();
+    return motifs.filter(({ minuscule, motif }) => enMinuscules.includes(minuscule) && motif.test(lue)).map(({ mot }) => ({ mot, ligne }));
   });
 }
 

@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 import { appendFileSync, chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, test, type TestContext } from "node:test";
+import { lireLesStationsDuCompte } from "../../src/enregistrement-station/stations-du-compte.ts";
 import { ROLES } from "../../src/identites.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { REPERTOIRE_COMPTEUR } from "../../src/limite-github.ts";
@@ -88,7 +89,7 @@ function uneStation(t: TestContext) {
     return lecteur.lire(etat(projet), "tout", (journal) => journal.tout()).filter((e) => e.type !== "decision.set");
   };
   const faits = (projet: string, type: string) => relire(projet).flatMap((e) => (e.type === type ? [{ ticket: e.ticket, payload: e.payload as Record<string, unknown> }] : []));
-  return { machine, racine, compte, env, etat, preparer, configurer, relire, faits };
+  return { machine, racine, compte, gists, env, etat, preparer, configurer, relire, faits };
 }
 
 // Les réponses du faux `gh` pour un autre dépôt que celui des outils : ses
@@ -172,7 +173,7 @@ describe("la station, son process", { concurrency: 8 }, () => {
   });
 
   test("un projet ajouté à la configuration est servi, sans redémarrer ; retiré, il ne l'est plus ; et rien d'autre que la configuration n'a été écrit pour cela", { skip: posixOnly("adds then withdraws a project by editing the station's configuration and checks nothing else on the machine was written, then stops the station with SIGTERM expecting exit 0; on Windows SIGTERM kills the station before its handler runs, so the exit code is null") }, async (t) => {
-    const { machine, racine, env, preparer, configurer, relire, faits } = uneStation(t);
+    const { machine, racine, gists, env, preparer, configurer, relire, faits } = uneStation(t);
     const brigade = fauxGh(t);
     brigade.issues([]);
     const espace = fauxGh(t);
@@ -230,6 +231,15 @@ describe("la station, son process", { concurrency: 8 }, () => {
 
     station.process.kill("SIGTERM");
     assert.equal(await station.fin, 0);
+    // Arrêtée proprement, elle l'a écrit sur son enregistrement : l'app connectée au même compte la lit
+    // indisponible (enregistrement-station/, dont `enregistrer.test.ts` éprouve chaque écriture).
+    const lu = await lireLesStationsDuCompte({ gh: FAUX_GH_GISTS, env: { ...process.env, FAUX_GISTS: gists } });
+    assert.equal(lu.state, "listed", JSON.stringify(lu));
+    const [arretee, ...autres] = lu.state === "listed" ? lu.stations : [];
+    assert.deepEqual(autres, []);
+    assert.equal(arretee?.name, "box");
+    assert.equal(arretee?.available, false);
+    assert.ok(arretee?.stoppedAt);
   });
 
   test("une ligne refusée n'arrête pas la station : elle le dit au nom du projet, et sert les autres", { skip: posixOnly("gives the station a configuration with two refused lines and expects it to name them and serve the valid project, then stops it with SIGTERM expecting exit 0; on Windows SIGTERM kills the station before its handler runs, so the exit code is null") }, async (t) => {
