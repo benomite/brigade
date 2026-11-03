@@ -1,13 +1,18 @@
-# Construit l'APK Android et le passe à l'essai sur un émulateur. Sur une PR qui touche app/ (ou ce
-# fichier), et à la demande : le job `apk` lance la commande que documente app/packaging/README.md
+# Construit l'APK Android et le passe à l'essai sur un émulateur. À chaque push sur `main` qui touche
+# app/ (ou ce fichier), et à la demande : le job `apk` lance la commande que documente app/packaging/README.md
 # (« L'APK Android ») et dépose l'APK en artefact ; le job `fumee` l'installe sur un émulateur, le
 # lance, et vérifie que, quelques secondes après, le process vit, que MainActivity est au premier
 # plan, et que logcat ne porte aucune exception fatale pour l'app.
 # Rien du build desktop n'y est joué.
+# Pas sur `pull_request` (#2086) : un check qu'une PR attend rend son verdict dans les 60 s du départ
+# de son job, et `apk` (98 à 130 s) comme `fumee` (110 à 147 s) les dépassent. Chaque job a un
+# plafond de 3 min, qu'il tient.
 name: android
 
 on:
-  pull_request:
+  push:
+    branches:
+      - main
     paths:
       - "app/**"
       - ".github/workflows/android.yml"
@@ -16,9 +21,11 @@ on:
 permissions:
   contents: read
 
+# Un push sur la base a son groupe par commit et n'est jamais annulé : chaque commit de `main` garde
+# son statut.
 concurrency:
-  group: android-${{ github.ref }}
-  cancel-in-progress: true
+  group: android-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'push' }}
 
 env:
   APP_ID: com.github.benomite.brigade
@@ -26,6 +33,7 @@ env:
 jobs:
   apk:
     runs-on: ubuntu-24.04
+    timeout-minutes: 3
     steps:
       - uses: actions/checkout@v4
         with:
@@ -56,7 +64,7 @@ jobs:
   fumee:
     needs: apk
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 3
     steps:
       - uses: actions/download-artifact@v4
         with:

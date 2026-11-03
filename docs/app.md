@@ -3300,7 +3300,7 @@ access.
 |---|---|
 | Tests | `npm --prefix app test` |
 | Type check | `npm --prefix app run typecheck` |
-| Tests and type check on Windows | the `app-windows` workflow (`.github/workflows/app-windows.yml`), on every PR that touches `app/`: a test that cannot run there is skipped with its reason, taken from `app/test/aides/posix.ts` — POSIX stand-ins, the box's code, the Mac and Android packages, a link to a missing file |
+| Tests and type check on Windows | the `app-windows` workflow (`.github/workflows/app-windows.yml`), on every push to `main` that touches `app/`, and on demand: a test that cannot run there is skipped with its reason, taken from `app/test/aides/posix.ts` — POSIX stand-ins, the box's code, the Mac and Android packages, a link to a missing file |
 | Build the `.dmg` (on a Mac) | `npm --prefix app run dist` → `app/packaging/construit/` ([`app/packaging/README.md`](../app/packaging/README.md)) |
 | Launch without consuming quota | `BRIGADE_CLAUDE_BIN="$PWD/app/test/aides/faux-claude.sh" BRIGADE_APP_CONFIG=<trial file> npm --prefix app start` |
 | … and without your machine becoming a station | add `BRIGADE_APP_STATION=0` |

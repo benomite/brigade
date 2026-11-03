@@ -22,6 +22,8 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Un check qu'un merge attend sur une PR qui touche `site/` : plafonné à 3 min (#2086), il rend son verdict en 10 à 25 s.
+    timeout-minutes: 3
     steps:
       - uses: actions/checkout@v4
       - name: Assemble the artifact
