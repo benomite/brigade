@@ -87,9 +87,10 @@ function executer(commande: string, args: string[], options: SpawnOptions): Prom
 
 // Une machine : la station installée (compte `brigade`), son unité et
 // l'environnement qu'elle déclare — tel que `systemctl show -p Environment
-// --value` le rend —, et le projet `calculus` dans sa configuration.
-function machine(t: TestContext, options: { environnement?: (station: string, chemin: string, temoin: string) => string; ligne?: string } = {}): Machine {
-  const racine = repertoireTemporaire(t);
+// --value` le rend —, et le projet `calculus` dans sa configuration. Celle d'un
+// test, ou posée dans `racine`, un répertoire du fichier.
+function machine(t: TestContext | { racine: string }, options: { environnement?: (station: string, chemin: string, temoin: string) => string; ligne?: string } = {}): Machine {
+  const racine = "racine" in t ? t.racine : repertoireTemporaire(t);
   const sous = (nom: string) => join(racine, nom);
   const [bin, binUnite, unites, temoin, paquet, station] = [sous("bin"), sous("bin-unite"), sous("unites"), sous("temoin"), sous("usr/lib/brigade-station"), sous("var/lib/brigade")];
   for (const repertoire of [bin, binUnite, unites, temoin, join(paquet, "node/bin"), join(paquet, "runtime/src"), station]) mkdirSync(repertoire, { recursive: true });
@@ -178,12 +179,22 @@ function machine(t: TestContext, options: { environnement?: (station: string, ch
   };
 }
 
-// Chaque test a sa machine — sa station, ses doublures, son témoin —, et ses process ne bloquent pas : ils se jouent de front.
-describe("le geste brigade", { concurrency: 8 }, () => {
-  test("le nom du projet et la commande suffisent : le compte et l'environnement viennent de l'unité de la station, le projet de sa configuration", { skip: posixOnly("Runs the gesture as `brigade calculus status --suivre 12` through the fake sudo and checks the account, unit environment and project variables the command receives; Windows cannot spawn the extensionless bash gesture script (ENOENT).") }, async (t) => {
-    const m = machine(t);
+// Le geste tel que le chef le lance — sans terminal, sur la machine d'exemple — : `brigade calculus status --suivre 12`.
+// Lancé une fois pour le fichier, à la demande du premier test qui le lit : trois tests en éprouvent chacun une
+// part — ce que la commande reçoit, ce qui ne lui arrive pas, le droit éprouvé à vide —, que chacun lisait d'un
+// lancement à lui, le même (#2085).
+let duChef: Promise<{ m: Machine; fin: Awaited<ReturnType<Machine["lancer"]>> }> | undefined;
+const leGesteDuChef = () =>
+  (duChef ??= (async () => {
+    const m = machine({ racine: repertoireDuFichier("brigade-test-geste-") });
+    return { m, fin: await m.lancer(["calculus", "status", "--suivre", "12"]) };
+  })());
 
-    const fin = await m.lancer(["calculus", "status", "--suivre", "12"]);
+// Chaque test a sa machine — sa station, ses doublures, son témoin —, sauf les trois qui lisent le geste du chef, et ses
+// process ne bloquent pas : ils se jouent de front.
+describe("le geste brigade", { concurrency: 8 }, () => {
+  test("le nom du projet et la commande suffisent : le compte et l'environnement viennent de l'unité de la station, le projet de sa configuration", { skip: posixOnly("Runs the gesture as `brigade calculus status --suivre 12` through the fake sudo and checks the account, unit environment and project variables the command receives; Windows cannot spawn the extensionless bash gesture script (ENOENT).") }, async () => {
+    const { m, fin } = await leGesteDuChef();
 
     assert.equal(fin.erreur, "");
     assert.equal(fin.code, 0);
@@ -218,10 +229,10 @@ describe("le geste brigade", { concurrency: 8 }, () => {
     assert.equal(m.commande()?.env.BRIGADE_REPO_DIR, "/var/lib/brigade/calculus/depot");
   });
 
-  test("rien de l'environnement de celui qui lance n'arrive à la commande", { skip: posixOnly("Runs the gesture as `brigade calculus status` from a caller environment holding SECRET_DU_CHEF and checks none of it reaches the command; Windows cannot spawn the extensionless bash gesture script (ENOENT).") }, async (t) => {
-    const m = machine(t);
+  test("rien de l'environnement de celui qui lance n'arrive à la commande", { skip: posixOnly("Runs the gesture as `brigade calculus status --suivre 12` from a caller environment holding SECRET_DU_CHEF and checks none of it reaches the command; Windows cannot spawn the extensionless bash gesture script (ENOENT).") }, async () => {
+    const { m, fin } = await leGesteDuChef();
 
-    assert.equal((await m.lancer(["calculus", "status"])).code, 0);
+    assert.equal(fin.code, 0);
 
     const env = m.commande()?.env ?? {};
     assert.equal(env.SECRET_DU_CHEF, undefined);
@@ -419,10 +430,8 @@ describe("le geste brigade", { concurrency: 8 }, () => {
     assert.equal(m.commande(), null);
   });
 
-  test("sans terminal, le droit s'éprouve en lançant ce fichier-ci à vide sous le compte du service, et rien de cet essai n'arrive dans la sortie", { skip: posixOnly("Runs the gesture without a terminal and checks it probes the right with `sudo -n -u brigade -- <gesture>` while the probe leaves stdout and stderr clean; Windows cannot spawn the extensionless bash gesture script (ENOENT).") }, async (t) => {
-    const m = machine(t);
-
-    const fin = await m.lancer(["calculus", "status"]);
+  test("sans terminal, le droit s'éprouve en lançant ce fichier-ci à vide sous le compte du service, et rien de cet essai n'arrive dans la sortie", { skip: posixOnly("Runs the gesture without a terminal and checks it probes the right with `sudo -n -u brigade -- <gesture>` while the probe leaves stdout and stderr clean; Windows cannot spawn the extensionless bash gesture script (ENOENT).") }, async () => {
+    const { m, fin } = await leGesteDuChef();
 
     assert.equal(fin.code, 0);
     assert.equal(fin.sortie, "sortie de la commande\n");

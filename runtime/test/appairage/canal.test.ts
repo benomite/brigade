@@ -1,19 +1,20 @@
 // Le canal de la station vers l'app, par `gh api` — ici une doublure qui tient
 // les gists dans un répertoire — et la station réelle qui s'en sert : elle
-// affiche son code, publie son état, et écrit l'heure de son arrêt.
+// affiche son code, publie son état, et écrit l'heure de son arrêt. Elle est
+// jouée dans le process du test (`jouerLaStation`) : son démarrage par son
+// fichier et un vrai SIGTERM se prouvent dans `station/main.test.ts`.
 import assert from "node:assert/strict";
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { canalGitHub } from "../../src/appairage/canal.ts";
 import { empreinte, FICHIER_APPAIRAGE, FICHIER_STATION, type DocumentStation } from "../../src/appairage/document.ts";
-import { lancer, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
+import { jouerLaStation, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
 import { FAUX_GH_GISTS as FAUX_GH } from "./doublure-des-gists.ts";
 import { posixOnly } from "../support/plateforme.ts";
 
 const rienNeReste = temporaireDuFichier();
 
-const STATION = join(import.meta.dirname, "../../src/station/main.ts");
 const SOURCES = join(import.meta.dirname, "../../src/appairage");
 
 // GitHub : un répertoire, où la doublure range les gists du compte.
@@ -54,11 +55,11 @@ test("un gist supprimé se dit absent ; une panne de GitHub lève, et nomme ce q
   await assert.rejects(canal.creer("x", {}), /error connecting to api\.github\.com/);
 });
 
-test("la station réelle affiche son code, publie « aucun projet » sur GitHub, et y écrit l'heure de son arrêt", { skip: posixOnly("starts the real station on the fake gh gists and expects its pairing code printed, « no project » published and its stop time written on SIGTERM; on Windows the station did not print its pairing code, a cause not traced yet, and kill('SIGTERM') would end it without running the handler that writes its stop time") }, async (t) => {
+test("la station réelle affiche son code, publie « aucun projet » sur GitHub, et y écrit l'heure de son arrêt", { skip: posixOnly("plays the real station on the fake gh gists and expects its pairing code printed, « no project » published and its stop time written on SIGTERM; the fake gh of the gists is a shell script, which the station reaches through a sh wrapper, and on Windows the station did not print its pairing code, a cause not traced yet") }, async (t) => {
   const github = unGitHub(t);
   const racine = join(repertoireTemporaire(t), "station");
   mkdirSync(racine);
-  const station = lancer(t, STATION, [], { BRIGADE_STATION_DIR: racine, BRIGADE_GH_BIN: FAUX_GH, FAUX_GISTS: github.repertoire, BRIGADE_STATION_NOM: "box", BRIGADE_STATION_VERSION: "1.4.0" });
+  const station = jouerLaStation(t, { BRIGADE_STATION_DIR: racine, BRIGADE_GH_BIN: FAUX_GH, FAUX_GISTS: github.repertoire, BRIGADE_STATION_NOM: "box", BRIGADE_STATION_VERSION: "1.4.0" });
   await station.attendre("station à appairer");
   const code = /tape ce code dans l'app : ([0-9A-Z]{4}-[0-9A-Z]{4})/.exec(station.sortie())?.[1];
   assert.ok(code, station.sortie());
@@ -72,7 +73,7 @@ test("la station réelle affiche son code, publie « aucun projet » sur GitHub,
   assert.equal(document().arreteeLe, null);
   assert.equal(document().appairage?.empreinte, empreinte(code));
 
-  station.process.kill("SIGTERM");
+  station.signaler("SIGTERM");
   assert.equal(await station.fin, 0);
   assert.ok(document().arreteeLe);
   // Tout est passé par `gh api`, sur les gists du compte, et rien d'autre.

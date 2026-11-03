@@ -27,10 +27,10 @@ import { principal as etapes } from "../src/etapes-cli.ts";
 import { principal as installation } from "../src/installation-cli.ts";
 import { ETAPES, installationDe } from "../src/etapes.ts";
 import { prendreVerrou } from "../src/verrou.ts";
-import { appeler, BASE, DEPOT, ENV_GIT, FAUX_CLAUDE, fauxGh, git, issueGitHub, jusqua, lancer, repertoireDuFichier, repertoireTemporaire, rienEcritParLeRuntime, type FauxGh } from "./outils.ts";
+import { demarrerLeRuntime } from "../src/main.ts";
+import { appeler, BASE, demarrerIci, DEPOT, ENV_GIT, FAUX_CLAUDE, fauxGh, git, issueGitHub, jusqua, lancer, repertoireDuFichier, repertoireTemporaire, rienEcritParLeRuntime, type FauxGh } from "./outils.ts";
 
 const CLI = join(import.meta.dirname, "../src/installation-cli.ts");
-const MAIN = join(import.meta.dirname, "../src/main.ts");
 const FAUX_SYSTEMCTL = join(import.meta.dirname, "aides/faux-systemctl.sh");
 const FAUX_SETUP = join(import.meta.dirname, "aides/faux-setup.sh");
 const DEPLOIEMENT = join(import.meta.dirname, "../deploy");
@@ -820,8 +820,9 @@ describe("« Vérifier » vert, « installation terminée »", { concurrency: 8 
 
   for (const { quoi, etape, casser } of BLOCAGES) {
     test(`${quoi} : la vérification est rouge, d'un seul manque, qui nomme l'étape « ${etape} »`, async (t) => {
+      // Prêt avant d'être cassé : « un projet installé est prêt » le prouve
+      // une fois pour toutes, sans une vérification de plus ici (#2085).
       const lu = projet(t);
-      assert.deepEqual(manques(await verifierHorsModes(lu.env)), []);
       casser(lu);
 
       const constats = await verifierHorsModes(lu.env);
@@ -923,8 +924,10 @@ describe("« Vérifier » vert, « installation terminée »", { concurrency: 8 
     assert.deepEqual(installation.etapes.filter((etape) => etape.etat !== "faite"), []);
     assert.deepEqual(manques(await verifier(service)), []);
 
-    // Le runtime démarré dans l'environnement vérifié, et rien d'autre.
-    const runtime = lancer(t, MAIN, [], service);
+    // Le runtime démarré dans l'environnement vérifié, et rien d'autre — dans
+    // le process du test : son démarrage par son fichier et son arrêt par un
+    // vrai signal sont à main.test.ts (#2085).
+    const runtime = demarrerIci(t, demarrerLeRuntime, service);
     const lancements = () => {
       const journal = ouvrirJournal(etat, { lectureSeule: true });
       try {
@@ -935,7 +938,7 @@ describe("« Vérifier » vert, « installation terminée »", { concurrency: 8 
     };
     await jusqua(() => lancements().length > 0);
     assert.deepEqual(lancements(), [15]);
-    runtime.process.kill("SIGTERM");
+    runtime.arreter("SIGTERM");
     assert.equal(await runtime.fin, 0, runtime.sortie());
   });
 });

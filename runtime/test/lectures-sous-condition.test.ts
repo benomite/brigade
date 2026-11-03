@@ -112,7 +112,9 @@ function uneStation(t: TestContext, etags: boolean) {
     instant += TICK_MS;
     return compte;
   };
-  return { gh, racine, limite, githubs, maintenant, compterUnTick };
+  // L'horloge avancée de ticks qui ne sont pas joués.
+  const passer = (ticks: number) => void (instant += ticks * TICK_MS);
+  return { gh, racine, limite, githubs, maintenant, compterUnTick, passer };
 }
 
 // Un tick lit, sur l'ensemble des projets, 2 sondages par projet et 4 appels
@@ -122,32 +124,38 @@ const LECTURES_PAR_TICK = 2 * Object.keys(PROJETS).length + 4 * TICKETS + LECTUR
 
 test("avant : sans réponse 304, chaque tick de quatre projets compte toutes ses lectures, et l'heure dépasse le budget", async (t) => {
   const { gh, compterUnTick } = uneStation(t, false);
-  const parTick = [await compterUnTick(), await compterUnTick(), await compterUnTick()];
-  assert.deepEqual(parTick, [LECTURES_PAR_TICK, LECTURES_PAR_TICK, LECTURES_PAR_TICK]);
-  assert.equal(gh.appels().length, 3 * LECTURES_PAR_TICK);
+  const parTick = [await compterUnTick(), await compterUnTick()];
+  assert.deepEqual(parTick, [LECTURES_PAR_TICK, LECTURES_PAR_TICK]);
+  assert.equal(gh.appels().length, 2 * LECTURES_PAR_TICK);
   // 46 appels par tick, soixante ticks par heure : 2 760.
   assert.ok(LECTURES_PAR_TICK * 60 > 2500, `${LECTURES_PAR_TICK * 60}`);
 });
 
-// Soixante ticks, chacun de ses lectures par la doublure de `gh` : quelques
-// secondes sous Linux, mais de 70 à 120 s sur un runner Windows, où chaque
-// process coûte cher — au bord des deux minutes laissées à un test. Sa garde
-// est plus large : elle ne sert qu'à ce qu'un test bloqué finisse par le dire.
-test("une heure de ticks sur quatre projets sans rien de changé sur GitHub : les lectures partent toujours, mais seules celles du premier tick comptent, et `status` dit l'heure réduite et qui en a fait le plus", { timeout: 600_000 }, async (t) => {
-  const { gh, racine, maintenant, compterUnTick } = uneStation(t, true);
-  const parTick: number[] = [];
-  for (let i = 0; i < 60; i++) parTick.push(await compterUnTick());
+// Le premier tick, le deuxième et le soixantième sont joués, chacun de ses
+// lectures par la doublure de `gh` ; l'horloge passe les cinquante-sept
+// autres. Rien ne change sur GitHub ni dans ce que les GitHub des projets
+// gardent d'un tick à l'autre : dès le deuxième, le régime est établi, et un
+// tick du milieu de l'heure lirait et compterait ce que le deuxième lit et
+// compte. Les soixante, joués un à un, coûtaient 2 760 process de la doublure,
+// le quart du processeur de la suite sur la box (#2085). Le soixantième dit que
+// rien ne s'use en une heure — ni l'ETag gardé, ni le compte du premier tick.
+test("une heure de ticks sur quatre projets sans rien de changé sur GitHub — le premier, le deuxième et le soixantième joués — : les lectures partent toujours, mais seules celles du premier tick comptent, et `status` dit l'heure réduite et qui en a fait le plus", async (t) => {
+  const { gh, racine, maintenant, compterUnTick, passer } = uneStation(t, true);
+  const parTick: number[] = [await compterUnTick(), await compterUnTick()];
+  passer(57);
+  parTick.push(await compterUnTick());
 
-  // Chaque tick a bien relu GitHub : rien n'est servi sans lui demander.
-  assert.equal(gh.appels().length, 60 * LECTURES_PAR_TICK);
+  // Chaque tick joué a bien relu GitHub : rien n'est servi sans lui demander.
+  assert.equal(gh.appels().length, 3 * LECTURES_PAR_TICK);
   // Le premier tick lit tout ; le second gist du premier tick est déjà un 304.
   assert.equal(parTick[0], LECTURES_PAR_TICK - 1);
-  assert.deepEqual(new Set(parTick.slice(1)), new Set([0]));
+  assert.deepEqual(parTick.slice(1), [0, 0]);
   const heure = parTick.reduce((somme, n) => somme + n, 0);
   assert.ok(heure < 2500, `${heure}`);
 
   // `status`, lu à l'instant du soixantième tick : l'heure qu'il couvre les tient tous.
   const instant = maintenant() - TICK_MS;
+  assert.equal(instant - Date.parse("2026-10-22T08:00:00Z"), 59 * TICK_MS);
   const appels = appelsDeLaStation(racine, instant);
   assert.ok(appels);
   assert.equal(appels.total, heure);

@@ -124,7 +124,8 @@ delete process.env.BRIGADE_PORT;
 // l'ordre des fichiers (#2085). N'entre dans un lot qu'un fichier dont la durée
 // est connue et courte, et qui ne touche à rien de ce que ses voisins partagent
 // : l'environnement du process, son répertoire, ses signaux, le compteur
-// d'appels à GitHub du process (`installerLimite`), les doublures
+// d'appels à GitHub du process (`installerLimite`, que pose aussi une station
+// jouée dans le process, `jouerLaStation`), les doublures
 // globales (`t.mock` se défait à la fin de son test). Un fichier écarté se joue
 // seul, comme avant.
 //
@@ -139,7 +140,7 @@ delete process.env.BRIGADE_PORT;
 const LOT_SECONDES_PAR_FICHIER = 4;
 const LOT_SECONDES = 8;
 const PARTAGE =
-  /process\.env(\.\w+|\[[^\]]+\])\s*(=[^=]|\?\?=|\|\|=)|delete process\.env|Object\.assign\(process\.env|process\.chdir|process\.(on|once|exitCode|umask)\b|(?<![.\w])mock\.(timers|module|method)|globalThis\.\w+\s*=[^=]|setGlobalDispatcher|installerLimite|limiteDuProcess|^(before|after|beforeEach|afterEach)\(/m;
+  /process\.env(\.\w+|\[[^\]]+\])\s*(=[^=]|\?\?=|\|\|=)|delete process\.env|Object\.assign\(process\.env|process\.chdir|process\.(on|once|exitCode|umask)\b|(?<![.\w])mock\.(timers|module|method)|globalThis\.\w+\s*=[^=]|setGlobalDispatcher|installerLimite|limiteDuProcess|jouerLaStation|^(before|after|beforeEach|afterEach)\(/m;
 const GARDE = /repertoireDuFichier|aides\/box\.ts/;
 type Espece = "seul" | "temporaire" | "garde" | "libre";
 const espece = (fichier: string): Espece => {

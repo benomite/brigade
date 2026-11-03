@@ -2,13 +2,16 @@
 // sa machine dès son démarrage, sans aucune commande (#1705) ; arrêtée, l'app
 // la lit indisponible ; redémarrée, de nouveau disponible, sous le même gist.
 // GitHub est la doublure des gists du compte, lue comme l'app la lit.
+// La station tuée net est un vrai process (`lancer`) ; les autres sont jouées
+// dans le process du test (`jouerLaStation`) : leur démarrage par leur fichier,
+// un vrai SIGTERM et le code de leur sortie se prouvent dans `station/main.test.ts`.
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { FICHIER_LOCAL } from "../../src/enregistrement-station/enregistrer.ts";
 import { lireLesStationsDuCompte, type StationEnregistree } from "../../src/enregistrement-station/stations-du-compte.ts";
-import { ENV_GIT, FAUX_CLAUDE, lancer, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
+import { ENV_GIT, FAUX_CLAUDE, jouerLaStation, lancer, repertoireTemporaire, temporaireDuFichier, type StationIci } from "../outils.ts";
 import { FAUX_GH_GISTS } from "../appairage/doublure-des-gists.ts";
 import { posixOnly } from "../support/plateforme.ts";
 
@@ -68,12 +71,14 @@ async function avecGarde<T>(t: TestContext, attente: Promise<T>, quoi: string, s
   }
 }
 
-async function attendreStation(stations: () => Promise<StationEnregistree[]>, condition: (station: StationEnregistree) => boolean, station: { process: { exitCode: number | null }; sortie: () => string }) {
+async function attendreStation(stations: () => Promise<StationEnregistree[]>, condition: (station: StationEnregistree) => boolean, station: StationIci) {
   const limite = Date.now() + GARDE_MS;
+  let finie = false;
+  void station.fin.then(() => (finie = true));
   for (;;) {
     const [lue] = await stations();
     if (lue !== undefined && condition(lue)) return lue;
-    assert.equal(station.process.exitCode, null, station.sortie());
+    assert.equal(finie, false, station.sortie());
     assert.ok(Date.now() < limite, `la station n'a pas écrit ce que le test attend : ${JSON.stringify(lue)}\n${station.sortie()}`);
     await new Promise((resoudre) => setTimeout(resoudre, 50));
   }
@@ -99,7 +104,7 @@ test("démarrée, la station est enregistrée sous le compte sans aucune command
   premiere.process.kill("SIGKILL");
   await avecGarde(t, premiere.fin, "la première station tuée ne ferme pas ses tuyaux", premiere);
 
-  const seconde = lancer(t, STATION, [], env);
+  const seconde = jouerLaStation(t, env);
   await avecGarde(t, seconde.attendre("station démarrée"), "la seconde station ne dit pas qu'elle a démarré", seconde);
   // Elle ne s'annonce pas de nouveau : elle reprend son gist, et le rafraîchit.
   const reprise = await attendreStation(stations, (station) => station.lastSeen !== enregistree.lastSeen, seconde);
@@ -111,30 +116,30 @@ test("démarrée, la station est enregistrée sous le compte sans aucune command
   assert.doesNotMatch(seconde.sortie(), /station enregistrée sous le compte/);
 });
 
-// Sous Windows, `kill("SIGTERM")` termine le process sans que son gestionnaire tourne : l'arrêt
-// propre de la station n'y est pas un signal.
-test("arrêtée proprement, la station est indisponible à la lecture suivante ; redémarrée, de nouveau disponible sous le même gist", { skip: posixOnly("stops the registered station with SIGTERM and expects it to write itself unavailable with its stop time, then restarts it under the same gist; on Windows kill('SIGTERM') ends the station without running its handler, so it writes nothing of its stop") }, async (t) => {
+// Le faux `gh` des gists est un script shell, que la station reçoit par une
+// enveloppe `sh` (`jouerLaStation`).
+test("arrêtée proprement, la station est indisponible à la lecture suivante ; redémarrée, de nouveau disponible sous le même gist", { skip: posixOnly("stops the registered station as on SIGTERM and expects it to write itself unavailable with its stop time, then restarts it under the same gist; the station is played in the test's process, and its gh reaches the shell fake of the gists through a sh wrapper") }, async (t) => {
   const { env, stations } = uneMachine(t);
 
-  const premiere = lancer(t, STATION, [], env);
+  const premiere = jouerLaStation(t, env);
   await premiere.attendre("station enregistrée sous le compte GitHub de sa machine");
   const [enregistree] = await stations();
   assert.ok(enregistree);
 
-  premiere.process.kill("SIGTERM");
+  premiere.signaler("SIGTERM");
   assert.equal(await premiere.fin, 0);
   const [arretee] = await stations();
   assert.equal(arretee?.id, enregistree.id);
   assert.equal(arretee?.available, false);
   assert.ok(arretee?.stoppedAt);
 
-  const seconde = lancer(t, STATION, [], env);
+  const seconde = jouerLaStation(t, env);
   await seconde.attendre("station démarrée");
   const reprise = await attendreStation(stations, (station) => station.available, seconde);
   assert.equal(reprise.id, enregistree.id);
   assert.equal(reprise.stoppedAt, null);
   assert.equal((await stations()).length, 1);
-  seconde.process.kill("SIGTERM");
+  seconde.signaler("SIGTERM");
   assert.equal(await seconde.fin, 0);
 });
 

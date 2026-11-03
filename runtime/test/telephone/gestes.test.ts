@@ -150,6 +150,13 @@ for (const { gesture, args, ticket, fait } of [
     assert.deepEqual(telephone.gh.appels(), ordinateur.gh.appels());
     // Le geste a bien changé quelque chose.
     assert.notDeepEqual([telephone.ecrits(), telephone.gh.appels()], [[], []]);
+    // Le merge de #14 a lieu sur GitHub, à la tête de sa PR : la pass le constate à son tour suivant, comme celui de l'ordinateur.
+    if (gesture === "merge") {
+      assert.deepEqual(
+        telephone.gh.appels().filter((appel) => appel.includes("PUT")),
+        [["api", "-i", "-X", "PUT", "-f", "sha=sha-14", "-f", "merge_method=merge", `${PULLS}/114/merge`]],
+      );
+    }
   });
 }
 
@@ -184,20 +191,16 @@ test("après un geste du téléphone, la file que l'ordinateur lit a changé : #
   assert.equal(apres.find(({ ticket }) => ticket === 15), undefined);
   assert.equal(ticketDuRail(cuisine.journal.base, 16)?.waitingFor, null);
   assert.notDeepEqual(apres.find(({ ticket }) => ticket === 16), avant.find(({ ticket }) => ticket === 16));
-  // Le merge de #14 a eu lieu sur GitHub, à la tête de sa PR : la pass le constate à son tour suivant, comme celui de l'ordinateur.
-  assert.equal((await cuisine.geste("merge", 14)).statut, 200);
-  assert.deepEqual(
-    cuisine.gh.appels().filter((appel) => appel.includes("PUT")),
-    [["api", "-i", "-X", "PUT", "-f", "sha=sha-14", "-f", "merge_method=merge", `${PULLS}/114/merge`]],
-  );
+  // Ce qu'un merge du téléphone fait sur GitHub, le test de « merge » plus haut le lit.
 });
 
+// Un refus de `rail` (merge, remove) prend un seul chemin, du geste de la station au 409 : le merge refusé le parcourt ;
+// le renvoi en cuisine refusé, joué dans la station, a le sien.
 test("un geste que la commande refuse rend 409 et sa phrase — celle que l'ordinateur lirait —, et rien ne change", async (t) => {
   const cuisine = await station(t);
 
   for (const [gesture, ticket, phrase] of [
     ["merge", 15, "#15 is not touched: #15 has no delivery waiting for you to merge it — cost: none: nothing was changed"],
-    ["remove", 99, "#99 is not touched: #99 is not on the rail — cost: none: nothing was changed"],
     ["back-to-kitchen", 15, "ticket 15 is not waiting for a third party — it is queued"],
   ] as const) {
     const reponse = await cuisine.geste(gesture, ticket);

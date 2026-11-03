@@ -1,6 +1,12 @@
 // Les commandes de la box sous leur nom anglais (`commandes.ts`, docs/glossary.md),
 // et les noms d'avant qui répondent encore jusqu'à la date que CHANGELOG.md annonce.
 //
+// Une commande dont le fichier exporte sa `Commande` (src/appel.ts) est jouée
+// dans le process du test, telle que son fichier la joue dans le sien ; les
+// autres — qui n'en exportent pas — sont lancées par leur fichier. Que le
+// fichier d'un script la joue dans son process, des commandes lancées ici le
+// prouvent, chacune de son propre refus.
+//
 // Codes de sortie éprouvés ici :
 //   - un nom anglais lance sa commande : le code est le sien. Lancée sans son
 //     environnement (ni BRIGADE_STATE_DIR ni rien), chaque commande le refuse en
@@ -17,7 +23,29 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 import { principal as aide } from "../src/aide.ts";
-import { COMMANDES, direAncien, enAnglais, FIN_DES_ANCIENS_NOMS, SCRIPT_D_ANCIEN_NOM } from "../src/commandes.ts";
+import { Sortie, type Commande } from "../src/appel.ts";
+import { principal as arbitre } from "../src/arbitre-cli.ts";
+import { principal as attente } from "../src/attente-cli.ts";
+import { principal as base } from "../src/base-cli.ts";
+import { principal as fermeture } from "../src/closing/command.ts";
+import { COMMANDES, direAncien, enAnglais, FIN_DES_ANCIENS_NOMS, parAncienNom, SCRIPT_D_ANCIEN_NOM } from "../src/commandes.ts";
+import { principal as faits } from "../src/faits.ts";
+import { principal as gardeFous } from "../src/garde-fous-cli.ts";
+import { principal as grant } from "../src/grant-cli.ts";
+import { principal as installation } from "../src/installation-cli.ts";
+import { principal as interrupteur } from "../src/interrupteur-cli.ts";
+import { principal as manager } from "../src/manager-cli.ts";
+import { principal as cloison } from "../src/montrer-cloison.ts";
+import { principal as mesures } from "../src/montrer-mesures.ts";
+import { principal as pass } from "../src/montrer-pass.ts";
+import { principal as rail } from "../src/montrer-rail.ts";
+import { principal as station } from "../src/montrer-station.ts";
+import { principal as rapport } from "../src/rapport-cli.ts";
+import { principal as reglage } from "../src/reglage-cli.ts";
+import { principal as relire } from "../src/relire.ts";
+import { principal as status } from "../src/status.ts";
+import { principal as appairage } from "../src/telephone/appairage-cli.ts";
+import { LANCE as LANCE_DES_TELEPHONES } from "../src/telephones.ts";
 import { appeler, CACHE_DE_COMPILATION } from "./outils.ts";
 
 const RUNTIME = join(import.meta.dirname, "..");
@@ -55,6 +83,49 @@ const script = (nom: string, args: string[] = []) => {
   return jouer([process.execPath, fichier, ...args], { npm_lifecycle_event: nom });
 };
 
+// La `Commande` que joue chaque fichier qui en exporte une, telle qu'il la joue dans son process. Les fichiers absents
+// — sauvegarde, restauration et les deux services — n'en exportent pas : ils sont lancés.
+const DANS_LE_TEST: Partial<Record<string, Commande>> = {
+  "src/status.ts": status,
+  "src/faits.ts": faits,
+  "src/montrer-rail.ts": rail,
+  "src/relire.ts": relire,
+  "src/montrer-pass.ts": pass,
+  "src/montrer-station.ts": station,
+  "src/reglage-cli.ts": (appel) => reglage(appel),
+  "src/interrupteur-cli.ts": interrupteur,
+  "src/manager-cli.ts": manager,
+  "src/grant-cli.ts": grant,
+  "src/attente-cli.ts": (appel) => attente(appel),
+  "src/rapport-cli.ts": (appel) => rapport(appel),
+  "src/garde-fous-cli.ts": gardeFous,
+  "src/base-cli.ts": base,
+  "src/installation-cli.ts": installation,
+  "src/montrer-mesures.ts": mesures,
+  "src/fermeture.ts": fermeture,
+  "src/montrer-cloison.ts": cloison,
+  "src/arbitre-cli.ts": (appel) => arbitre(appel),
+  "src/telephones.ts": (appel) => appairage(appel, { lance: LANCE_DES_TELEPHONES }),
+  "src/aide.ts": aide,
+};
+const fichierDe = (nom: string) => /^node (src\/[\w-]+\.ts)$/.exec(scripts[nom] ?? "")?.[1] ?? "";
+
+// Joue la commande d'un fichier dans le process du test — sur l'environnement que `jouer` donne à un process, ses deux
+// sorties tenues à part —, ou le lance s'il n'exporte pas la sienne.
+async function parSonFichier(fichier: string, args: string[] = []): Promise<{ code: number | null; sortie: string; erreur: string }> {
+  const commande = DANS_LE_TEST[fichier];
+  if (commande === undefined) return jouer([process.execPath, fichier, ...args]);
+  let [sortie, erreur] = ["", ""];
+  const env = { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "/tmp", ...CACHE_DE_COMPILATION };
+  try {
+    await commande({ args, env, dire: (ligne) => void (sortie += `${ligne}\n`), redire: (ligne) => void (erreur += `${ligne}\n`) });
+    return { code: 0, sortie, erreur };
+  } catch (e) {
+    if (e instanceof Sortie) return { code: e.code, sortie, erreur };
+    throw e;
+  }
+}
+
 // Ce qui fait refuser chaque commande sans rien toucher : son environnement
 // manque, ou ses arguments ne se lisent pas. Et ce que son refus dit d'elle.
 const SANS_EFFET: Record<string, { args?: string[]; dit: RegExp }> = {
@@ -66,14 +137,19 @@ const SANS_EFFET: Record<string, { args?: string[]; dit: RegExp }> = {
 };
 const refusDe = (nom: string) => SANS_EFFET[nom] ?? { dit: new RegExp(`run ${nom}\\b`) };
 
-// Le refus de chaque commande sous son nom anglais, lancé une fois : le test du nom anglais et celui de l'ancien nom
+// Le refus de chaque commande sous son nom anglais, joué une fois : le test du nom anglais et celui de l'ancien nom
 // (qui le compare au sien) lisent la même fin. Rien n'est écrit, la fin ne dépend que de la commande.
 const refusSousSonNom = new Map<string, ReturnType<typeof jouer>>();
 const sousSonNom = (nom: string) => {
-  const fin = refusSousSonNom.get(nom) ?? script(nom, refusDe(nom).args);
+  const fin = refusSousSonNom.get(nom) ?? parSonFichier(fichierDe(nom), refusDe(nom).args);
   refusSousSonNom.set(nom, fin);
   return fin;
 };
+
+// Les anciens noms lancés de bout en bout — `ancien-nom.ts` puis le fichier de la commande, chacun dans son process — :
+// tous passent par le même fichier, qui ne lit de chacun que sa ligne de la table. Leurs commandes sont de celles que
+// le test lance : leur refus sous le nouveau nom est celui d'un process aussi.
+const LANCES_DE_BOUT_EN_BOUT = ["sauvegarder", "porte"];
 
 // Chaque test lance ses commandes sans état ni dépôt, et n'écrit rien : ils se jouent de front.
 describe("les commandes du runtime", { concurrency: 8 }, () => {
@@ -88,17 +164,28 @@ describe("les commandes du runtime", { concurrency: 8 }, () => {
     assert.equal(new Set([...anglais, ...anciens]).size, anglais.length + anciens.length);
   });
 
-  test("taper le nom anglais lance la commande : son propre refus, son usage, et aucun ancien nom annoncé", async () => {
-    const lancees = COMMANDES.filter(({ nom }) => nom !== "help").map(async ({ nom }) => ({ nom, fin: await sousSonNom(nom) }));
-    for (const { nom, fin } of await Promise.all(lancees)) {
+  test("taper le nom anglais lance la commande — celle que son fichier joue, dans le test quand il l'exporte — : son propre refus, son usage, et aucun ancien nom annoncé", async () => {
+    // Des commandes sont bien lancées par leur fichier, et d'autres jouées ici.
+    const lancees = COMMANDES.filter(({ nom }) => DANS_LE_TEST[fichierDe(nom)] === undefined).map(({ nom }) => nom);
+    assert.deepEqual(lancees, ["backup", "restore", "door", "hold-arbiter"]);
+
+    const jouees = COMMANDES.filter(({ nom }) => nom !== "help").map(async ({ nom }) => ({ nom, fin: await sousSonNom(nom) }));
+    for (const { nom, fin } of await Promise.all(jouees)) {
       assert.equal(fin.code, REFUS, `${nom} : ${fin.erreur}`);
       assert.match(fin.sortie + fin.erreur, refusDe(nom).dit, nom);
       assert.doesNotMatch(fin.erreur, /is now/, nom);
     }
   });
 
-  test("un ancien nom de commande lance encore la commande : il dit d'abord le nouveau nom et le jour où il cessera de répondre, puis rend ce qu'elle rend, code compris", async () => {
-    const lancees = RENOMMEES.map(async ({ nom, ancien = "" }) => ({ nom, ancien, avant: await script(ancien, refusDe(nom).args), apres: await sousSonNom(nom) }));
+  test("un ancien nom de commande lance encore la commande : il dit d'abord le nouveau nom et le jour où il cessera de répondre, puis rend ce qu'elle rend, code compris — chaque ancien nom mène à la sienne, deux sont lancés de bout en bout", async () => {
+    // Ce que `ancien-nom.ts` lit de chaque ancien nom : sa commande, et l'annonce qu'il en fait.
+    for (const { nom, ancien = "" } of RENOMMEES) {
+      assert.equal(parAncienNom(ancien)?.nom, nom, ancien);
+      assert.equal(direAncien(ancien, nom), `brigade: “${ancien}” is now “${nom}” — the old name still works until ${FIN_DES_ANCIENS_NOMS}, then stops (CHANGELOG.md)`, ancien);
+    }
+    const deBoutEnBout = RENOMMEES.filter(({ ancien = "" }) => LANCES_DE_BOUT_EN_BOUT.includes(ancien));
+    assert.equal(deBoutEnBout.length, LANCES_DE_BOUT_EN_BOUT.length);
+    const lancees = deBoutEnBout.map(async ({ nom, ancien = "" }) => ({ nom, ancien, avant: await script(ancien, refusDe(nom).args), apres: await sousSonNom(nom) }));
     for (const { nom, ancien, avant, apres } of await Promise.all(lancees)) {
       const [annonce, ...reste] = avant.erreur.split("\n");
       assert.equal(annonce, `brigade: “${ancien}” is now “${nom}” — the old name still works until ${FIN_DES_ANCIENS_NOMS}, then stops (CHANGELOG.md)`, ancien);
@@ -126,11 +213,12 @@ describe("les commandes du runtime", { concurrency: 8 }, () => {
   // Pour chaque ancien mot : de quoi le placer là où sa commande le lit.
   const placer = (rang: number, mot: string) => (mot.startsWith("--") ? ["inconnue", mot] : rang === 1 ? ["une-station", mot] : [mot]);
 
+  // Chaque commande est jouée par son fichier, dans le test quand il exporte la sienne ; le premier essai est lancé dans
+  // son process, quel que soit son fichier : l'ancien mot y est dit sur sa sortie d'erreur.
   test("chaque commande remplace ses anciens mots par les siens, et le dit : sa sous-commande au rang qu'elle lit, ses options où qu'elles soient", async () => {
-    const fichierDe = (nom: string) => /^node (src\/[\w-]+\.ts)$/.exec(scripts[nom] ?? "")?.[1] ?? "";
     const essais = COMMANDES.flatMap(({ nom, mots = {}, rang = 0 }) => Object.entries(mots).map(([ancien, nouveau]) => ({ nom, ancien, nouveau, args: placer(rang, ancien) })));
     assert.ok(essais.length >= 20);
-    const lances = essais.map(async (essai) => ({ ...essai, fin: await jouer([process.execPath, fichierDe(essai.nom), ...essai.args]) }));
+    const lances = essais.map(async (essai, rang) => ({ ...essai, fin: await (rang === 0 ? jouer([process.execPath, fichierDe(essai.nom), ...essai.args]) : parSonFichier(fichierDe(essai.nom), essai.args)) }));
     for (const { nom, ancien, nouveau, fin } of await Promise.all(lances)) {
       assert.equal(fin.erreur.split("\n")[0], direAncien(ancien, nouveau), `${nom} ${ancien}`);
       assert.equal(fin.code, REFUS, `${nom} ${ancien} : ${fin.erreur}`);
