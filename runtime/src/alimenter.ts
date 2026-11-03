@@ -4,6 +4,7 @@
 import { createHash } from "node:crypto";
 import { abandonnerEnChaine } from "./abandon-en-chaine.ts";
 import { marquerAttentes } from "./attente.ts";
+import { reprendreParGitHub } from "./breaker-resume-github.ts";
 import { calibrage } from "./calibrage.ts";
 import { cycles, direCycle, signalerAttentesLevees } from "./dependances.ts";
 import { fiche, porteFiche, type Fiche } from "./fiche.ts";
@@ -360,6 +361,8 @@ export function avecRail(runtime: Runtime, options: OptionsRail): RuntimeAvecRai
       if (!arrete) await signalerAttentesLevees(journal, github, projet);
       // De même, la racine d'une attente abandonnée part, puis revient, par un sondage.
       if (!arrete) await abandonnerEnChaine(journal, github, projet);
+      // Le `/resume` du chef sur l'issue du disjoncteur se lit, lui aussi, par un sondage.
+      if (!arrete) await reprendreParGitHub(journal, github);
       limiteDite = false;
     } catch (erreur) {
       // `gh` en panne (réseau, connexion expirée) : le rail reste tel quel, et

@@ -44,6 +44,13 @@ state shows `caps per ticket`, `pass judgements` (`3 at once at most — … (BR
 `kitchen`, `breaker`, `cooks running` and `latest guardrail stops`. Its output is **in English**
 (`kitchen already stopped since …`); `reprendre` still answers until 2027-01-14.
 
+**Resume from GitHub, without `ssh`** (`runtime/src/breaker-resume-github.ts`): while the breaker is
+open, each GitHub poll reads the comments of the open issue labeled `brigade:breaker-open`. A comment
+whose body is exactly `/resume`, posted after the breaker opened by the owner, a member or a
+collaborator of the repo, plays `guardrails resume` in the runtime's process: same events, same
+answer, logged to `journalctl`. Any other comment is ignored; no labeled issue, nothing to do. With
+the breaker closed, nothing is read.
+
 ### The pause for the code rename
 
 Before it starts, a code rename asks your agreement through **a slip in your queue**
