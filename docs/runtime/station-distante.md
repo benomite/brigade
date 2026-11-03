@@ -168,6 +168,10 @@ brigade <project> station stations box/claude:3:code+raisonnement,mac/claude:2:c
   opens the PR, and the pass judges it as any cook's). A silent station stops renewing: at the
   deadline its cook is stopped, the ticket goes back to the rail, and the station learns it from its
   next answer (`stopped`, `lease`).
+  Each `claim` carries `since`, the instant the station started at its clock: a station whose cook
+  ended with 0 turns and 0 tokens takes no more tickets (`held: unstartable`) until a claim says it
+  started after that failure — restarting it is the gesture (see "A cook that cannot start" in
+  [`station-cook.md`](station-cook.md)).
 - **The same sandbox guard as `ordinaires`**: with no sandbox said, or an unavailable one, it takes
   only the tickets that ask for one of its capabilities.
 

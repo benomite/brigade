@@ -74,7 +74,7 @@ block.
 | `base` | The last check of the integration base: `resultat`, `sha`, `le`, `rougeDepuis`, `reparation` (the ticket repairing it); `null` without a check |
 | `urgence` | Nothing cooks and everything awaits the chef: `depuis`, `retenus`, `decisions` (the `nom` of the lines holding them); `null` otherwise |
 | `cooks[]` | The cooks in progress: `ticket` (`null` for a manager or a judge), `run`, `station`, `modele`, `effort`, `lanceLe`, `coince`, `tours`, `tokens` |
-| `stations[]` | `station`, `distante`, `plafond`, `satureeDepuis`, `saturation`, `retenueDepuis`, `deconnecteeDepuis`, `quotaJusqua` |
+| `stations[]` | `station`, `distante`, `plafond`, `satureeDepuis`, `saturation`, `retenueDepuis`, `deconnecteeDepuis`, `quotaJusqua`, `sansDemarrage` (a cook of the station could not start, it takes no ticket: `depuis`, `run`, `raison`; `null` otherwise, absent from a board written before it) |
 | `plafonds` | A cook's caps: `tokens`, `dureeMs`, `inactiviteMs`; `null` until a runtime set them |
 | `consommation` | `enCours`, and `fenetres` by sliding window (`heures`): `runs`, `reviews`, `judgments`, `turns`, `tokens` |
 | `rubriques[]` | The state as `status` writes it, by section (`titre`, `lignes`), without what only the box can read (worktrees, transcripts, latest events); `rail` gives only its count. The `switch` section is always there: `ON …` or `OFF …`; `ON — not set in the log yet` while no runtime has set it |

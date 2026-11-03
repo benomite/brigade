@@ -9,6 +9,7 @@ import { geste } from "../geste.ts";
 import type { FaitDistante } from "../events/remote.ts";
 import type { FaitGardeFous } from "../events/guardrails.ts";
 import type { FaitRenouvellement } from "../events/renewal.ts";
+import type { FaitRuntime } from "../events/runtime.ts";
 import type { FaitStation, Manque, Ressource, Retenue } from "../events/station.ts";
 import { definirProjection } from "../projection.ts";
 
@@ -65,7 +66,16 @@ export type EtatStation = {
   // What it said about this sandbox, the last time it changed, and when.
   // Null: it never said anything about it.
   sandbox: { available: boolean; reason: string | null; version: string | null; at: string } | null;
+  // Non-null: a cook of its tickets ended with no turn and no token since that
+  // instant — it could not start —, and the station takes no ticket until it
+  // restarts or a cook launched since produces a turn (see
+  // `station.unstartable`). `run`: that cook; `reason`: how it ended. Optional
+  // in the type only: `etatStation` always sets it, and a reader built before
+  // it (the app's tests) omits it.
+  unstartable?: SansDemarrage | null;
 };
+
+export type SansDemarrage = { since: string; run: string; reason: string };
 
 export type CookDeStation = {
   run: string;
@@ -88,8 +98,9 @@ export type CookDeStation = {
 
 type Ecoutes =
   | FaitStation
-  | Extract<FaitGardeFous, { type: "cook.launched" | "cook.exited" | "cook.interrupted" | "kitchen.resumed" }>
+  | Extract<FaitGardeFous, { type: "cook.launched" | "cook.progressed" | "cook.exited" | "cook.interrupted" | "kitchen.resumed" }>
   | Extract<FaitDistante, { type: "remote.asked" }>
+  | Extract<FaitRuntime, { type: "runtime.started" }>
   | Extract<FaitRenouvellement, { type: "session.restored" }>;
 
 const texte = (valeur: unknown): valeur is string => typeof valeur === "string" && valeur !== "";
@@ -118,6 +129,7 @@ const RETENUES: Record<Retenue, string> = {
   base: "base d'intégration rouge",
   disconnected: "connexion Max expirée",
   quota: "quota épuisé (86)",
+  unstartable: "le dernier cook de la station n'a pas pu démarrer (0 tour, 0 token) : elle reprend à son redémarrage, ou dès qu'un cook lancé depuis produit un tour",
   cap: "plafond de cooks atteint",
   setups: "plafond de setups atteint",
   aside: "une même cause met de côté les tickets du projet : un seul est repris à la fois, pour voir si elle a changé",
@@ -141,6 +153,7 @@ const RETENUES_EN: Record<Retenue, string> = {
   base: "integration base red",
   disconnected: "Max connection expired",
   quota: "quota exhausted (86)",
+  unstartable: "the station's last cook could not start (0 turns, 0 tokens): it takes tickets again when it restarts, or as soon as a cook launched since produces a turn",
   cap: "cooks cap reached",
   setups: "setups cap reached",
   aside: "one same cause sets the project's tickets aside: only one is taken again at a time, to see whether it has changed",
@@ -187,7 +200,7 @@ const modifier = (base: Base, station: unknown, at: string, affectation: string,
 
 export const stations = definirProjection<Ecoutes>({
   nom: "stations",
-  tables: ["stations", "station_cooks", "stations_undeclared", "setup_du_projet", "mise_de_cote_du_projet", "stations_arretees"],
+  tables: ["stations", "station_cooks", "stations_undeclared", "setup_du_projet", "mise_de_cote_du_projet", "stations_arretees", "stations_sans_demarrage"],
   schema: `
     CREATE TABLE IF NOT EXISTS stations (
       station             TEXT PRIMARY KEY,
@@ -249,6 +262,13 @@ export const stations = definirProjection<Ecoutes>({
       station TEXT PRIMARY KEY,
       since   TEXT NOT NULL
     ) STRICT;
+    CREATE TABLE IF NOT EXISTS stations_sans_demarrage (
+      station TEXT PRIMARY KEY,
+      since   TEXT NOT NULL,
+      seq     INTEGER NOT NULL,
+      run     TEXT NOT NULL,
+      reason  TEXT NOT NULL
+    ) STRICT;
     CREATE TABLE IF NOT EXISTS station_cooks (
       run          TEXT PRIMARY KEY,
       station      TEXT NOT NULL,
@@ -287,12 +307,41 @@ export const stations = definirProjection<Ecoutes>({
     },
     // What held it leaves with it; its cooks stay in the record.
     "station.withdrawn": (base, { payload }) => {
-      if (texte(payload.station)) base.executer("DELETE FROM stations WHERE station = ?", payload.station);
+      if (!texte(payload.station)) return;
+      base.executer("DELETE FROM stations WHERE station = ?", payload.station);
+      base.executer("DELETE FROM stations_sans_demarrage WHERE station = ?", payload.station);
     },
     // Only a station the project declares has a presence: a request made
     // under another name creates nobody.
     "remote.asked": (base, { at, payload }) => {
-      if (texte(payload.station)) base.executer("UPDATE stations SET seen_at = ? WHERE station = ? AND remote = 1", at, payload.station);
+      if (!texte(payload.station)) return;
+      base.executer("UPDATE stations SET seen_at = ? WHERE station = ? AND remote = 1", at, payload.station);
+      // It says it started after its cook could not: restarted, it takes
+      // tickets again. Its clock is compared with the box's — a restart comes
+      // minutes after the cook that could not start, not seconds.
+      const depuis = payload.verb === "claim" && texte(payload.since) ? Date.parse(payload.since) : Number.NaN;
+      if (Number.isNaN(depuis)) return;
+      const tenue = base.lire<{ since: string }>(
+        "SELECT since FROM stations_sans_demarrage WHERE station = ? AND station IN (SELECT station FROM stations WHERE remote = 1)",
+        payload.station,
+      )[0];
+      if (tenue !== undefined && depuis > Date.parse(tenue.since)) base.executer("DELETE FROM stations_sans_demarrage WHERE station = ?", payload.station);
+    },
+    // The runtime restarts: the stations of this machine restart with it. A
+    // remote one runs on its workstation, it says so itself (`remote.asked`).
+    "runtime.started": (base) => {
+      base.executer("DELETE FROM stations_sans_demarrage WHERE station NOT IN (SELECT station FROM stations WHERE remote = 1)");
+    },
+    "station.unstartable": (base, { at, seq, payload }) => {
+      if (!texte(payload.station) || !texte(payload.run)) return;
+      base.executer(
+        "INSERT OR REPLACE INTO stations_sans_demarrage (station, since, seq, run, reason) VALUES (?, ?, ?, ?, ?)",
+        payload.station,
+        at,
+        seq,
+        payload.run,
+        texteOuRien(payload.reason) ?? "",
+      );
     },
     "station.present": (base, { at, payload }) => {
       if (texte(payload.station)) base.executer("UPDATE stations SET present_since = ?, seen_at = coalesce(seen_at, ?) WHERE station = ?", at, at, payload.station);
@@ -401,7 +450,11 @@ export const stations = definirProjection<Ecoutes>({
         evenement.at,
       );
     },
+    "cook.progressed": (base, { payload }) => {
+      demarre(base, payload.run, payload.turns);
+    },
     "cook.exited": (base, { at, payload }) => {
+      demarre(base, payload.run, payload.turns);
       const entier = (valeur: unknown) => (Number.isSafeInteger(valeur) ? (valeur as number) : null);
       base.executer(
         "UPDATE station_cooks SET ended_at = ?, ending = ?, turns = ?, tokens = ?, duration_ms = ? WHERE run = ?",
@@ -488,6 +541,25 @@ export const stations = definirProjection<Ecoutes>({
 
 const hotes = (valeur: unknown): string[] => (Array.isArray(valeur) ? valeur.filter(texte) : []);
 
+// A cook of the station launched after the one that could not start produces a
+// turn: the station can start a cook again, it takes tickets again. A cook
+// launched before proves nothing: its turns may predate the failure.
+function demarre(base: Base, run: unknown, tours: unknown) {
+  if (!texte(run) || !Number.isSafeInteger(tours) || (tours as number) <= 0) return;
+  base.executer(
+    `DELETE FROM stations_sans_demarrage
+     WHERE station = (SELECT station FROM station_cooks WHERE run = ?)
+       AND seq < (SELECT launched_seq FROM station_cooks WHERE run = ?)`,
+    run,
+    run,
+  );
+}
+
+// The station that cannot start a cook, since when, and why — null: it can.
+export function sansDemarrage(base: Base, station: string): SansDemarrage | null {
+  return base.lire<SansDemarrage>("SELECT since, run, reason FROM stations_sans_demarrage WHERE station = ?", station)[0] ?? null;
+}
+
 // The cause of a setup failure: its reason, and what the door refused.
 export type CauseDeSetup = { why: string; hosts: string[] };
 
@@ -552,6 +624,7 @@ export function etatStation(base: Base, station: string): EtatStation | null {
     ordinary: ligne.ordinary === 1,
     alongside: ligne.alongside === 1,
     sandbox: sandboxAvailable === null || sandboxAt === null ? null : { available: sandboxAvailable === 1, reason: sandboxReason, version: sandboxVersion, at: sandboxAt },
+    unstartable: sansDemarrage(base, station),
   };
 }
 

@@ -375,6 +375,22 @@ function decrireConnexion({ stations }: EtatCuisine, depuis: Depuis): string[] {
   );
 }
 
+// La station dont un cook n'a pas pu démarrer ne prend plus de ticket, qu'un
+// ticket l'attende ou non : la ligne le dit, avec ce cook et ce qui la fait
+// reprendre. Rien à dire sinon.
+function decrireSansDemarrage({ stations }: EtatCuisine, depuis: Depuis): string[] {
+  return stations.flatMap(({ station, unstartable }) =>
+    unstartable == null
+      ? []
+      : [
+          ligne(
+            "stations",
+            `${station} NOT TAKING TICKETS for ${depuis(unstartable.since)} — its cook could not start: ${unstartable.run} ended with 0 turns and 0 tokens (${unstartable.reason}); its ticket went back to the rail for another station. It takes tickets again when it restarts, or as soon as a cook launched since produces a turn`,
+          ),
+        ],
+  );
+}
+
 // Sans station, aucun cook ne part non plus : le projet n'en déclare aucune,
 // et c'est au chef d'en déclarer une. Rien à dire sinon.
 function decrireSansStation({ sansStation }: EtatCuisine, depuis: Depuis): string[] {
@@ -779,6 +795,7 @@ function decrireEtatEn(etat: EtatCuisine, maintenant: Date, ageMaxSauvegardeMs: 
     ...(etat.interrupteur == null ? [] : [ligne("switch", direInterrupteur(etat.interrupteur))]),
     decrireCuisine(etat, depuisEn),
     ...decrireConnexion(etat, depuisEn),
+    ...decrireSansDemarrage(etat, depuisEn),
     ...decrireSansStation(etat, depuisEn),
     ...decrireBase(etat, depuisEn),
     ...decrireSetup(etat, depuisEn),

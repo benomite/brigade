@@ -74,7 +74,10 @@ export type CuisineDuTableau = {
   cooks: Array<{ ticket: number | null; run: string; station: string | null; modele: string | null; effort: string | null; lanceLe: string; coince: boolean; tours: number | null; tokens: number | null }>;
   // Les stations du projet : leur plafond de cooks (nul : sans limite), la
   // machine qui sature et sur quoi, la station qui se retient, la connexion
-  // Max tombée, le quota épuisé jusqu'à quand.
+  // Max tombée, le quota épuisé jusqu'à quand. `sansDemarrage` : un cook de
+  // ses tickets a fini sans un tour ni un token, elle ne prend plus de ticket
+  // — depuis quand, ce cook, sa fin ; nul sinon. Facultatif pour qui lit un
+  // tableau d'avant ce champ.
   stations: Array<{
     station: string;
     distante: boolean;
@@ -84,6 +87,7 @@ export type CuisineDuTableau = {
     retenueDepuis: string | null;
     deconnecteeDepuis: string | null;
     quotaJusqua: string | null;
+    sansDemarrage?: { depuis: string; run: string; raison: string } | null;
   }>;
   // Les plafonds d'un cook (garde-fous), nuls tant qu'aucun runtime ne les a posés.
   plafonds: { tokens: number; dureeMs: number; inactiviteMs: number } | null;

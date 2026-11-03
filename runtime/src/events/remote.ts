@@ -21,7 +21,10 @@ export type BacASableDeLaStation =
 
 export type Demande =
   | { verb: "announce"; sandbox?: BacASableDeLaStation }
-  | { verb: "claim"; sandbox?: BacASableDeLaStation }
+  // `since` : l'instant où la station a démarré, à son horloge. Une station
+  // qui ne prenait plus rien faute d'avoir pu lancer un cook reprend si elle a
+  // démarré depuis (`station.unstartable`). Absent : elle ne le dit pas.
+  | { verb: "claim"; sandbox?: BacASableDeLaStation; since?: string }
   // `proof` : l'empreinte du worktree du cook, telle que la station la lit à
   // cet instant — c'est d'elle que dépend le bail. `turns`, `tokens` : ce que
   // le cook a consommé jusqu'ici — c'est d'eux que dépendent les plafonds.
