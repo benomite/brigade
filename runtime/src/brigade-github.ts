@@ -27,6 +27,7 @@ import type { Depot } from "./depot.ts";
 import type { Check } from "./events/pass.ts";
 import type { Plafonds } from "./events/guardrails.ts";
 import { etatDeLaBase, etatDuTicket, LABEL_IN_PASS, LABEL_TAKEN } from "./github-etat/etats.ts";
+import { lacher, prendre } from "./github-etat/prise.ts";
 import { fusionner, relire, type GitHubDeLaFusion, type Jugement, type PRAFusionner } from "./github-etat/fusion.ts";
 import { HORS_CUISINE, type GitHub, type Issue } from "./github.ts";
 import { environnementClaude } from "./jeton-claude.ts";
@@ -46,11 +47,19 @@ export type Prise = {
   lacher(issue: Pick<Issue, "number" | "labels">): Promise<boolean>;
 };
 
+// La prise de #2056, liée à la station et au client du tour.
+export const priseDeLaStation = (github: GitHubDuTour, station: string): Prise => ({
+  prendre: (issue) => prendre(issue, { github, station }),
+  lacher: (issue) => lacher(issue, { github, station }),
+});
+
 // Ce que le tour lit et écrit de GitHub : ce que demandent la relecture et le
 // merge, plus les tickets, la PR d'un ticket, les checks de la base, les
 // labels et l'ouverture d'une PR.
 export type GitHubDuTour = GitHubDeLaFusion &
   Pick<GitHub, "labelliser" | "delabelliser" | "ouvrirPR"> & {
+    // Les retraits de labels de l'issue, que la prise lit pour le lâcher du chef.
+    retraitsDeLabels(numero: number): Promise<{ label: string; createdAt: string }[]>;
     // Les issues ouvertes qui portent `fire`, dans l'ordre où les servir.
     fires(): Promise<TicketLu[]>;
     // La PR qui livre le ticket, ou null.
@@ -225,7 +234,9 @@ export function brancherBrigadeGithub<A>(options: OptionsDuProjet<A>): ProjetOuv
 // Le client du tour, sur le client GitHub du runtime (`github.ts`).
 export function clientDuTour(github: GitHub, base: string): GitHubDuTour {
   const { mettreAJour } = github;
+  const { retraitsDeLabels } = github;
   if (mettreAJour === undefined) throw new Error("this GitHub client cannot update a branch");
+  if (retraitsDeLabels === undefined) throw new Error("this GitHub client cannot read the label removals of an issue");
   // Le dernier sondage lu : rendu tel quel quand GitHub dit que rien n'a changé.
   let derniers: TicketLu[] = [];
   return {
@@ -242,6 +253,7 @@ export function clientDuTour(github: GitHub, base: string): GitHubDuTour {
     // départage, comme leur id, deux commentaires de la même seconde.
     commentaires: async (numero) => (await github.commentaires(numero)).map((lu, rang) => ({ id: rang + 1, body: lu.body, association: lu.association, createdAt: lu.createdAt })),
     commenter: (numero, corps) => github.commenter(numero, corps),
+    retraitsDeLabels: (numero) => retraitsDeLabels.call(github, numero),
     mettreAJour: (numero, sha) => mettreAJour.call(github, numero, sha),
     merger: (numero, sha) => github.merger(numero, sha),
     labelliser: (numero, labels) => github.labelliser(numero, labels),
@@ -283,6 +295,7 @@ const lireLeFlux = (fichier: string) => lireFlux(existsSync(fichier) ? readFileS
 export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus: string } {
   if (options.prise === null) return { refus: "the claim module (`github-etat/prise.ts`, #2056) is not in this runtime" };
   if (!/^[A-Za-z0-9._-]+$/.test(options.nom)) return { refus: `the station name ${JSON.stringify(options.nom)} cannot sign a claim or a verdict` };
+  if (options.github.retraitsDeLabels === undefined) return { refus: "the GitHub client cannot read the label removals of an issue" };
   if (options.github.mettreAJour === undefined) return { refus: "the GitHub client cannot update a branch" };
   const { nom, base, depot, depotGitHub, cloison } = options;
   mkdirSync(options.flux, { recursive: true });

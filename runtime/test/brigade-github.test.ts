@@ -3,16 +3,14 @@
 // chemin d'avant garde quand il est éteint.
 //
 // L'état des tickets, la relecture et le merge sont les vrais modules de
-// l'épique (`github-etat/etats.ts`, `github-etat/fusion.ts`) : seul le client
-// GitHub est faux, plus bas qu'eux. La prise (#2056) n'est pas encore dans le
-// runtime : la doublure d'ici suit son protocole — un commentaire de prise
-// sur l'issue, le plus ancien l'emporte, un commentaire de lâcher l'annule.
+// l'épique (`github-etat/etats.ts`, `github-etat/fusion.ts`,
+// `github-etat/prise.ts`) : seul le client GitHub est faux, plus bas qu'eux.
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { brancherBrigadeGithub, brancheDuTicket, stationDuDepot, stationGitHub, surGitHubSeul, type GitHubDuTour, type Juger, type Lancer, type Prise, type StationGitHub } from "../src/brigade-github.ts";
+import { brancherBrigadeGithub, brancheDuTicket, priseDeLaStation, stationDuDepot, stationGitHub, surGitHubSeul, type GitHubDuTour, type Juger, type Lancer, type Prise, type StationGitHub } from "../src/brigade-github.ts";
 import type { CommentaireDeVerdict } from "../src/github-etat/fusion.ts";
 import { LABEL_IN_PASS, LABEL_TAKEN } from "../src/github-etat/etats.ts";
 import type { GitHub } from "../src/github.ts";
@@ -108,6 +106,7 @@ class FauxGitHub {
         await noter("delabelliser");
         this.ticket(issue).labels.delete(label);
       },
+      retraitsDeLabels: async () => [],
       ouvrirPR: async ({ branche, corps }) => {
         await noter("ouvrirPR");
         const [, ferme] = /Closes #(\d+)/.exec(corps) ?? [];
@@ -136,35 +135,9 @@ class FauxGitHub {
     };
   }
 
-  // La prise selon le protocole de #2056.
+  // La prise de #2056, celle du runtime.
   prise(github: GitHubDuTour, station: string): Prise {
-    const tenant = async (issue: number) => {
-      let tient: string | null = null;
-      for (const { body } of [...(await github.commentaires(issue))].sort((a, b) => a.id - b.id)) {
-        const prise = /^<!-- brigade:prise station=([\w.-]+) -->/.exec(body);
-        if (prise && tient === null) tient = prise[1] ?? null;
-        if (/^<!-- brigade:lache station=/.test(body)) tient = null;
-      }
-      return tient;
-    };
-    return {
-      prendre: async (issue) => {
-        let tient = await tenant(issue.number);
-        if (tient === null) {
-          await github.commenter(issue.number, `<!-- brigade:prise station=${station} -->`);
-          tient = await tenant(issue.number);
-        }
-        const prise = tient === station;
-        if (prise && !issue.labels.includes(LABEL_TAKEN)) await github.labelliser(issue.number, [LABEL_TAKEN]);
-        return { prise };
-      },
-      lacher: async (issue) => {
-        if ((await tenant(issue.number)) !== station) return false;
-        await github.commenter(issue.number, `<!-- brigade:lache station=${station} -->`);
-        if (issue.labels.includes(LABEL_TAKEN)) await github.delabelliser(issue.number, LABEL_TAKEN);
-        return true;
-      },
-    };
+    return priseDeLaStation(github, station);
   }
 
   station(nom: string, options: { places?: number; cuisiner?: (issue: number) => Promise<{ branche: string } | { echec: string }>; juger?: Juger } = {}): StationGitHub {
@@ -395,6 +368,7 @@ function fauxClient(faux: FauxGitHub): GitHub {
     labelliser: bas.labelliser,
     delabelliser: bas.delabelliser,
     ouvrirPR: bas.ouvrirPR,
+    retraitsDeLabels: async () => [],
     issue: async (numero) => ({ ...faux.ticket(numero), labels: [...faux.ticket(numero).labels], createdAt: "", updatedAt: "", url: "", body: "the ticket's body" }),
   };
   return client as GitHub;
@@ -441,7 +415,7 @@ test("the station of this runtime: a ticket is cooked in the station's repositor
       changes: () => ["a.ts"],
       diff: () => "diff --git a/a.ts b/a.ts\n+x\n",
     },
-    prise: (github, nom) => faux.prise(github, nom),
+    prise: priseDeLaStation,
     claude: "claude",
     env: {},
     cloison: null,
